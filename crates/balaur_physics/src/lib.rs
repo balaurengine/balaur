@@ -820,6 +820,6 @@ pub const CONSTANTS_2D: &[&[(&str, &str)]] = &[
 
 pub(crate) fn install_constants(m: &mut dyn Bindings<Engine>, tables: &[&[(&str, &str)]]) {
     for (name, value) in tables.iter().flat_map(|table| table.iter()) {
-        m.constant(name, balaur_script::Value::Str((*value).to_string().into()));
+        m.constant(name, balaur_script::Value::Str((*value).to_string()));
     }
 }

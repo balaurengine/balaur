@@ -596,11 +596,11 @@ fn install_rebinding(m: &mut dyn Bindings<Engine>) {
 
     m.function("bind", |eng: &Engine, (name, bindings): (String, Value)| {
         let bindings = match bindings {
-            Value::Str(one) => vec![one.to_string()],
+            Value::Str(one) => vec![one.clone()],
             Value::List(many) => many
                 .into_iter()
                 .map(|v| match v {
-                    Value::Str(s) => Ok(s.to_string()),
+                    Value::Str(s) => Ok(s.clone()),
                     other => Err(anyhow::anyhow!(
                         "a binding is a string, got {}",
                         other.type_name()

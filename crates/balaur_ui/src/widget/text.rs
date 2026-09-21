@@ -418,7 +418,7 @@ fn edit(
     };
     let look = at.look(index);
     crate::widget::theme::dress(ui, &look.style, color);
-    let want = box_of(widget, at.assigned);
+    let want = box_of(widget, &at.style_of(widget), at.assigned);
     let mut edit = if multiline {
         egui::TextEdit::multiline(&mut buffer)
     } else {

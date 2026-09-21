@@ -416,8 +416,8 @@ fn pump_platform_system(eng: &Engine, _: f32) {
 
 fn player_value(player: &Player) -> Value {
     Value::Map(vec![
-        ("id".into(), Value::Str(player.id.clone().into())),
-        ("alias".into(), Value::Str(player.alias.clone().into())),
+        ("id".into(), Value::Str(player.id.clone())),
+        ("alias".into(), Value::Str(player.alias.clone())),
     ])
 }
 
@@ -427,19 +427,19 @@ fn event_value(event: PlatformEvent) -> Value {
         PlatformEvent::SignedIn { player, .. } => {
             pairs.push(("kind".into(), Value::Str("signed_in".into())));
             pairs.push(("player".into(), player_value(&player)));
-            pairs.push(("id".into(), Value::Str(player.id.into())));
-            pairs.push(("alias".into(), Value::Str(player.alias.into())));
+            pairs.push(("id".into(), Value::Str(player.id)));
+            pairs.push(("alias".into(), Value::Str(player.alias)));
         }
         PlatformEvent::SignedOut { .. } => {
             pairs.push(("kind".into(), Value::Str("signed_out".into())));
         }
         PlatformEvent::Done { call, .. } => {
             pairs.push(("kind".into(), Value::Str("done".into())));
-            pairs.push(("call".into(), Value::Str(call.into())));
+            pairs.push(("call".into(), Value::Str(call)));
         }
         PlatformEvent::Scores { board, entries, .. } => {
             pairs.push(("kind".into(), Value::Str("scores".into())));
-            pairs.push(("board".into(), Value::Str(board.into())));
+            pairs.push(("board".into(), Value::Str(board)));
             pairs.push((
                 "entries".into(),
                 Value::List(
@@ -447,8 +447,8 @@ fn event_value(event: PlatformEvent) -> Value {
                         .into_iter()
                         .map(|entry| {
                             Value::Map(vec![
-                                ("player".into(), Value::Str(entry.player.into())),
-                                ("alias".into(), Value::Str(entry.alias.into())),
+                                ("player".into(), Value::Str(entry.player)),
+                                ("alias".into(), Value::Str(entry.alias)),
                                 ("rank".into(), Value::Int(entry.rank)),
                                 ("score".into(), Value::Int(entry.score)),
                             ])
@@ -459,16 +459,16 @@ fn event_value(event: PlatformEvent) -> Value {
         }
         PlatformEvent::Read { key, value, .. } => {
             pairs.push(("kind".into(), Value::Str("read".into())));
-            pairs.push(("key".into(), Value::Str(key.into())));
+            pairs.push(("key".into(), Value::Str(key)));
             pairs.push(("value".into(), value.map_or(Value::Nil, Value::text)));
         }
         PlatformEvent::Failed { message, .. } => {
             pairs.push(("kind".into(), Value::Str("failed".into())));
-            pairs.push(("error".into(), Value::Str(message.into())));
+            pairs.push(("error".into(), Value::Str(message)));
         }
         PlatformEvent::Unsupported { call, .. } => {
             pairs.push(("kind".into(), Value::Str("unsupported".into())));
-            pairs.push(("call".into(), Value::Str(call.into())));
+            pairs.push(("call".into(), Value::Str(call)));
         }
     }
     Value::Map(pairs)
@@ -555,7 +555,7 @@ fn split2(
 
 fn text(value: Option<&Value>, what: &str) -> Result<String> {
     match value {
-        Some(Value::Str(text)) => Ok(text.to_string()),
+        Some(Value::Str(text)) => Ok(text.clone()),
         other => Err(anyhow!("{what} should be a string, got {other:?}")),
     }
 }

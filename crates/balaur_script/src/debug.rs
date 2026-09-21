@@ -1,7 +1,6 @@
 //! What a debugger sees of a paused script, without naming a language.
 
 use crate::value::{NodeId, Value};
-use smol_str::SmolStr;
 
 /// How a paused script leaves its pause.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -68,7 +67,7 @@ pub struct Frame {
     pub line: usize,
     /// Named locals as plain values; functions and foreign userdata are
     /// skipped, since neither can be shown.
-    pub locals: Vec<(SmolStr, Value)>,
+    pub locals: Vec<(String, Value)>,
 }
 
 /// Where a script is stopped. `frames` is innermost first, so `frames[0]`
@@ -93,8 +92,8 @@ impl Pause {
             .iter()
             .map(|f| {
                 Value::Map(vec![
-                    ("function".into(), Value::Str(SmolStr::new(&f.function))),
-                    ("path".into(), Value::Str(SmolStr::new(&f.path))),
+                    ("function".into(), Value::Str(f.function.clone())),
+                    ("path".into(), Value::Str(f.path.clone())),
                     (
                         "line".into(),
                         Value::Int(i64::try_from(f.line).unwrap_or(i64::MAX)),
@@ -105,13 +104,13 @@ impl Pause {
             .collect();
         Value::Map(vec![
             ("node".into(), Value::Node(self.node.0)),
-            ("path".into(), Value::Str(SmolStr::new(&self.path))),
+            ("path".into(), Value::Str(self.path.clone())),
             (
                 "line".into(),
                 Value::Int(i64::try_from(self.line).unwrap_or(i64::MAX)),
             ),
             ("reason".into(), Value::Str(self.reason.name().into())),
-            ("message".into(), Value::Str(SmolStr::new(&self.message))),
+            ("message".into(), Value::Str(self.message.clone())),
             ("frames".into(), Value::List(frames)),
         ])
     }

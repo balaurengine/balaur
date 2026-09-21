@@ -12,8 +12,8 @@
     allow(dead_code, reason = "the run cutting is the backend's, and the tests'")
 )]
 
-use balaur_core::hecs::Entity;
 use balaur_core::GlobalTransform;
+use balaur_core::hecs::Entity;
 use glamx::{Mat2, Vec2};
 
 use crate::{Renderable2d, Shape2d};
@@ -22,35 +22,43 @@ use crate::{Renderable2d, Shape2d};
 /// costs a buffer upload to save a draw, and the pair is not worth it.
 pub(crate) const MIN_RUN: usize = 4;
 
+/// The geometry a node draws, as far as a run cares.
+///
+/// Every sprite is the same unit quad whatever its extents: the size is in
+/// the instance, and the frame is in the instance's UV rectangle.
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) enum Mesh {
+    Quad,
+    Flat(balaur_core::primitive::Flat),
+}
+
 /// What two nodes must share to draw in one call: the mesh their shape
 /// builds, the image on it, and the material it draws through.
 #[derive(Clone, PartialEq)]
 pub(crate) struct BatchKey {
-    pub(crate) shape: Shape2d,
+    pub(crate) mesh: Mesh,
     /// The image a sprite draws; empty for a shape that carries none.
     pub(crate) texture: String,
     /// The material asset, the node's own or the one it inherited.
     pub(crate) material: String,
 }
 
-/// Whether a node can hand its pose to an instance instead of a node.
+/// The mesh a node would draw through, or `None` where it cannot join a run.
 ///
-/// A polygon and a polyline carry their own geometry, and a sprite whose UVs
-/// were rewritten for a frame, a region or a flip no longer matches the mesh
-/// its run shares.
-pub(crate) fn batchable(renderable: &Renderable2d) -> bool {
+/// A polygon and a polyline carry geometry of their own, so each is a draw
+/// whatever else is beside it.
+pub(crate) fn batchable(renderable: &Renderable2d) -> Option<Mesh> {
     match renderable.shape {
-        Shape2d::Flat(_) => true,
-        Shape2d::Sprite { .. } => renderable.sprite.as_ref().is_some_and(|sprite| {
-            sprite.sheet.is_none() && sprite.region.is_none() && !sprite.flip_x && !sprite.flip_y
-        }),
-        Shape2d::Polyline(_) | Shape2d::Polygon => false,
+        Shape2d::Flat(flat) => Some(Mesh::Flat(flat)),
+        Shape2d::Sprite { .. } => renderable.sprite.as_ref().map(|_| Mesh::Quad),
+        Shape2d::Polyline(_) | Shape2d::Polygon => None,
     }
 }
 
 /// The key a batchable node joins a run by.
 pub(crate) fn key_of(
     renderable: &Renderable2d,
+    mesh: Mesh,
     inherited: balaur_core::scene::MaterialId,
 ) -> BatchKey {
     let material = if renderable.material.is_empty() {
@@ -59,7 +67,7 @@ pub(crate) fn key_of(
         renderable.material.clone()
     };
     BatchKey {
-        shape: renderable.shape,
+        mesh,
         texture: renderable
             .sprite
             .as_ref()
@@ -163,7 +171,7 @@ mod tests {
 
     fn key(name: &str) -> BatchKey {
         BatchKey {
-            shape: Shape2d::Flat(balaur_core::primitive::Flat::Circle {
+            mesh: Mesh::Flat(balaur_core::primitive::Flat::Circle {
                 radius: 1.0,
                 segments: 16,
             }),
@@ -189,14 +197,20 @@ mod tests {
             skew: 0.0,
         };
         let (at, matrix) = pose(&renderable, &global);
-        assert!((at - Vec2::new(2.0, 3.0)).length() < 1e-5, "where the node is");
+        assert!(
+            (at - Vec2::new(2.0, 3.0)).length() < 1e-5,
+            "where the node is"
+        );
         let corner = matrix * Vec2::new(1.0, 0.0);
         assert!(
             (corner - Vec2::new(0.0, 2.0)).length() < 1e-5,
             "x scaled by two, then turned a quarter: {corner:?}"
         );
         let up = matrix * Vec2::new(0.0, 1.0);
-        assert!((up - Vec2::new(-1.0, 0.0)).length() < 1e-5, "y turned: {up:?}");
+        assert!(
+            (up - Vec2::new(-1.0, 0.0)).length() < 1e-5,
+            "y turned: {up:?}"
+        );
     }
 
     #[test]

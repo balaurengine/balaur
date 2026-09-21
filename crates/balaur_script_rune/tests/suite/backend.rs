@@ -513,7 +513,7 @@ fn a_constant_is_readable_from_a_script() {
         m.constant("MOUSE_LEFT", balaur_script::Value::Int(0));
         m.constant(
             "BODY_DYNAMIC",
-            balaur_script::Value::Str("dynamic".to_string().into()),
+            balaur_script::Value::Str("dynamic".to_string()),
         );
     }
     let node = spawn(&app, "K");
@@ -786,7 +786,7 @@ fn two_nodes_on_one_script_reach_another_unit_from_update() {
         host.attach_with_props(
             balaur_core::node_id_of(node),
             "caller.rn",
-            &[("seed".to_string().into(), balaur_script::Value::Num(seed))],
+            &[("seed".to_string(), balaur_script::Value::Num(seed))],
         )
         .unwrap();
     }

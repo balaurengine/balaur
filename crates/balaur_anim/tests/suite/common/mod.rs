@@ -14,14 +14,13 @@
 
 use balaur_core::hecs::Entity;
 use balaur_script::{NodeId, ScriptHost, Value};
-use smol_str::SmolStr;
 
 /// Every `(node, method, args)` the engine has called, in order, and what a
 /// method answers when a test has said.
 #[derive(Default)]
 pub(crate) struct Calls(
     std::cell::RefCell<Vec<(u64, String, Vec<Value>)>>,
-    std::cell::RefCell<Vec<(SmolStr, Value)>>,
+    std::cell::RefCell<Vec<(String, Value)>>,
 );
 
 impl Calls {
@@ -29,7 +28,7 @@ impl Calls {
     pub(crate) fn answer(&self, method: &str, value: Value) {
         let mut answers = self.1.borrow_mut();
         answers.retain(|(m, _)| m != method);
-        answers.push((SmolStr::new(method), value));
+        answers.push((method.to_string(), value));
     }
 
     /// How many times `method` was called on `node`.
@@ -72,7 +71,7 @@ impl ScriptHost<balaur_core::Engine> for Calls {
     ) -> anyhow::Result<Box<dyn balaur_script::Bindings<balaur_core::Engine>>> {
         Ok(Box::new(balaur_script::NoBindings))
     }
-    fn attach_with_props(&self, _: NodeId, _: &str, _: &[(SmolStr, Value)]) -> anyhow::Result<()> {
+    fn attach_with_props(&self, _: NodeId, _: &str, _: &[(String, Value)]) -> anyhow::Result<()> {
         Ok(())
     }
     fn detach(&self, _: NodeId) {}

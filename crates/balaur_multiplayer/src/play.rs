@@ -2,7 +2,6 @@
 //! between ticks — who left, whether the host went, whether two machines
 //! disagree.
 
-use smol_str::SmolStr;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -257,10 +256,7 @@ fn mark_absent(state: &mut MultiplayerState, net: &mut NetSession, slot: PlayerI
     let name = state.name_of(slot);
     state.tell(
         EventKind::Left,
-        vec![
-            ("slot", slot_value(slot)),
-            ("name", Value::Str(name.into())),
-        ],
+        vec![("slot", slot_value(slot)), ("name", Value::Str(name))],
     );
 }
 
@@ -270,6 +266,6 @@ fn end(state: &mut MultiplayerState, net: &mut NetSession, reason: &str) {
     state.reset();
     state.tell(
         EventKind::Closed,
-        vec![("reason", Value::Str(SmolStr::new(reason)))],
+        vec![("reason", Value::Str(reason.to_string()))],
     );
 }

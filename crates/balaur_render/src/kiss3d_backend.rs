@@ -44,7 +44,7 @@ struct Slot {
 
 /// What a skinned 3D mesh keeps between frames: the vertices as authored,
 /// which bones move them, and where the rig is.
-struct MeshSkinSlot {
+pub(crate) struct MeshSkinSlot {
     positions: Vec<Vec3>,
     normals: Option<Vec<Vec3>>,
     joints: Vec<[u32; 4]>,
@@ -89,6 +89,7 @@ struct Frontend {
     slots: HashMap<Entity, Slot>,
     slots_2d: HashMap<Entity, Slot2d>,
     batches_2d: crate::sync_2d::Batches,
+    batches_3d: crate::batch_3d::Batches3d,
     tilemap_slots: HashMap<Entity, crate::tilemap::TilemapSlot>,
     emitter_slots: HashMap<Entity, crate::particles::EmitterSlot>,
     materials: crate::shader_material::MaterialCache,
@@ -147,6 +148,7 @@ impl Frontend {
             slots: HashMap::new(),
             slots_2d: HashMap::new(),
             batches_2d: crate::sync_2d::Batches::default(),
+            batches_3d: crate::batch_3d::Batches3d::default(),
             tilemap_slots: HashMap::new(),
             emitter_slots: HashMap::new(),
             materials: crate::shader_material::MaterialCache::default(),
@@ -256,6 +258,7 @@ impl Frontend {
             app,
             &mut self.scene,
             &mut self.slots,
+            &mut self.batches_3d,
             &mut self.materials_3d,
             reloaded,
         );
@@ -673,6 +676,7 @@ fn sync(
     app: &App,
     scene: &mut SceneNode3d,
     slots: &mut HashMap<Entity, Slot>,
+    batches: &mut crate::batch_3d::Batches3d,
     materials: &mut crate::shader_material_3d::MaterialCache3d,
     reloaded: bool,
 ) {
@@ -685,10 +689,20 @@ fn sync(
     materials.answer_probe(app);
 
     let eye = crate::lods::eye(&app.engine);
+    let member_of = crate::batch_3d::cut_groups(app, scene, materials, &channel, batches);
     let mut seen: HashSet<Entity> = HashSet::new();
     for (entity, renderable, global) in
         &mut world.query::<(Entity, &Renderable3d, &GlobalTransform)>()
     {
+        if let Some(group) = member_of.get(&entity) {
+            // The group draws it. A slot from before it joined one would
+            // draw it twice.
+            if let Some(mut old) = slots.remove(&entity) {
+                old.node.remove();
+            }
+            crate::batch_3d::write_instance(&world, entity, *group, batches);
+            continue;
+        }
         seen.insert(entity);
         // Read once: the ancestors' tint, visibility and material come off
         // the same propagated component.
@@ -780,6 +794,7 @@ fn sync(
         let clones = world.get::<&crate::Clones>(entity).ok();
         crate::instancing::set_instances_3d(&mut slot.node, clones.as_deref(), global);
     }
+    crate::batch_3d::flush(batches);
     slots.retain(|entity, slot| {
         if seen.contains(entity) {
             true
@@ -796,7 +811,7 @@ fn sync(
 /// These are the node's business rather than the shader's because they decide
 /// which pass it joins, and the scene walk that collects the refracting
 /// surfaces runs before any material is asked anything.
-fn apply_surface(node: &mut SceneNode3d, surface: &crate::material::Surface) {
+pub(crate) fn apply_surface(node: &mut SceneNode3d, surface: &crate::material::Surface) {
     use crate::material::AlphaMode;
     node.set_alpha_mode(match surface.alpha {
         AlphaMode::Opaque => kiss3d::scene::AlphaMode::Opaque,
@@ -846,7 +861,7 @@ fn upload_geometry(scene: &mut SceneNode3d, data: &balaur_core::mesh::MeshData) 
 
 /// A 3D node as built: the node, a skinned mesh's rest and bindings, the
 /// geometry its skinning material draws, and a model's levels of detail.
-type Built3d = (
+pub(crate) type Built3d = (
     SceneNode3d,
     Option<MeshSkinSlot>,
     Option<crate::skinned_3d::SkinnedMesh3d>,
@@ -855,7 +870,11 @@ type Built3d = (
 
 /// Build the node a renderable's shape asks for, or `None` with nothing to
 /// draw yet.
-fn build_node(app: &App, scene: &mut SceneNode3d, renderable: &Renderable3d) -> Option<Built3d> {
+pub(crate) fn build_node(
+    app: &App,
+    scene: &mut SceneNode3d,
+    renderable: &Renderable3d,
+) -> Option<Built3d> {
     match renderable.shape {
         // Built by the mesher rather than by kiss3d: the triangles a collider
         // is fitted to and a ray is picked against are the ones uploaded here.

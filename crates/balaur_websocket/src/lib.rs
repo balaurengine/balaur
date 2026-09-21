@@ -269,7 +269,7 @@ fn event_value(event: SocketEvent) -> Value {
         SocketEvent::Message { socket, text } => vec![
             ("socket".into(), id_value(socket)),
             ("kind".into(), Value::Str("message".into())),
-            ("text".into(), Value::Str(text.into())),
+            ("text".into(), Value::Str(text)),
         ],
         SocketEvent::Binary { socket, bytes } => vec![
             ("socket".into(), id_value(socket)),
@@ -279,12 +279,12 @@ fn event_value(event: SocketEvent) -> Value {
         SocketEvent::Closed { socket, reason } => vec![
             ("socket".into(), id_value(socket)),
             ("kind".into(), Value::Str("closed".into())),
-            ("reason".into(), Value::Str(reason.into())),
+            ("reason".into(), Value::Str(reason)),
         ],
         SocketEvent::Failed { socket, reason } => vec![
             ("socket".into(), id_value(socket)),
             ("kind".into(), Value::Str("error".into())),
-            ("reason".into(), Value::Str(reason.into())),
+            ("reason".into(), Value::Str(reason)),
         ],
     };
     Value::Map(pairs)

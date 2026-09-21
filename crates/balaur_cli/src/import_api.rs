@@ -14,7 +14,6 @@
 //! what crossed into a tick rides in a recording and a replay hands a script
 //! the same steps without importing anything twice.
 
-use smol_str::SmolStr;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -118,7 +117,7 @@ impl Reported for ImportEvent {
             Self::Wrote {
                 path, done, files, ..
             } => {
-                pairs.push(("path".into(), Value::Str(SmolStr::new(path))));
+                pairs.push(("path".into(), Value::Str(path.to_string())));
                 pairs.push(("done".into(), count(*done)));
                 pairs.push(("files".into(), count(*files)));
             }
@@ -127,10 +126,10 @@ impl Reported for ImportEvent {
                     "scene".into(),
                     scene.clone().map_or(Value::Nil, Value::text),
                 ));
-                pairs.push(("note".into(), Value::Str(SmolStr::new(note))));
+                pairs.push(("note".into(), Value::Str(note.to_string())));
             }
             Self::Failed { message, .. } => {
-                pairs.push(("message".into(), Value::Str(SmolStr::new(message))));
+                pairs.push(("message".into(), Value::Str(message.to_string())));
             }
             Self::Cancelled { done, .. } => {
                 pairs.push(("done".into(), count(*done)));

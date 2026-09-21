@@ -79,13 +79,13 @@ pub struct ScriptAttachment {
 ///
 /// Kept because `init` reads them: a node put back by a snapshot has to
 /// re-attach with the tuned values, not with the exports.
-pub struct ScriptProps(pub Vec<(SmolStr, balaur_script::Value)>);
+pub struct ScriptProps(pub Vec<(String, balaur_script::Value)>);
 
 /// Record what a node was attached with, replacing whatever it carried.
 pub fn remember_script_props(
     eng: &Engine,
     entity: Entity,
-    props: &[(SmolStr, balaur_script::Value)],
+    props: &[(String, balaur_script::Value)],
 ) {
     let mut world = eng.world_mut();
     if props.is_empty() {
@@ -97,7 +97,7 @@ pub fn remember_script_props(
 
 /// What [`remember_script_props`] recorded, empty for a node that set none.
 #[must_use]
-pub fn script_props(world: &World, entity: Entity) -> Vec<(SmolStr, balaur_script::Value)> {
+pub fn script_props(world: &World, entity: Entity) -> Vec<(String, balaur_script::Value)> {
     world
         .get::<&ScriptProps>(entity)
         .map(|p| p.0.clone())

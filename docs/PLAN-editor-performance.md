@@ -293,42 +293,44 @@ What is left, in the order the numbers rank it:
   trusted on its own yet. The same gap is why a presence test costs 370 ns on
   `transform` and 30 ns on a component the registry attached.
 
-## 6e. What a string costs to cross the seam
+## 6e. A name is a number, not a small string
 
-**Built 2026-09-20.** §6d left a script read of `node.transform.position`
+**Built 2026-09-21.** §6d left a script read of `node.transform.position`
 spending 283 ns building the table and about 750 ns crossing the seam. This is
-the seam half.
+the seam half, and it went down a wrong path first.
 
-The cost was measured before it was paid for. A binding call taking nothing
-costs 142 ns; the same call taking one integer costs 171 ns; taking the string
-`"transform"` costs 252 ns. So a string argument cost **81 ns more than an
-integer**, and a 54-byte string cost only 24 ns more than a 9-byte one, which
-says the cost is the allocation rather than the copy.
+The measurement was right and the reading of it was wrong. A binding call
+taking nothing costs 190 ns, one taking an integer 216 ns, and one taking the
+string `"transform"` 298 ns, so a string argument costs about 82 ns more than
+an integer. A 54-byte string costs barely more than a 9-byte one, which says
+the cost is an allocation rather than a copy.
 
-`balaur_script::Value::Str` and a `Value::Map` key now hold a `SmolStr`, which
-keeps up to 22 bytes in the value itself. A component name, a property key and
-a node path all fit. The Rune component handle holds the `&'static str` it was
-interned from rather than a `String` it cloned on every property read.
+The first answer was to stop allocating: `Value::Str` held a `SmolStr`, which
+keeps up to 22 bytes inline. It bought nothing. The same three cases read 190,
+216 and 298 ns afterwards, because the allocation is Rune building the string
+value for the literal, on its own side of the call, where nothing the seam
+does can reach it. It also made a string past 22 bytes worse, and it put two
+string types in a codebase that wants one. It is gone.
 
-**It did not pay off, and the measurement says so.** On a quiet machine the
-same three cases read 190 ns, 216 ns and 298 ns. A short string argument still
-costs 82 ns more than an integer one, against 81 ns before. The allocation the
-number was blamed on is Rune's, not the seam's: the script builds a string
-value for the literal on every call, and what the seam then does with it is
-beneath the noise.
+**The answer every engine of this kind uses is an id.** Godot interns a
+`StringName` and compares the pointer; Unreal's `FName` is an index into a
+global table; Unity hands out an `int` from `StringToHash` and takes that
+forever; Bevy addresses a component by a numeric `ComponentId`. A name is text
+at the edges and a number at run time. Balaur already did this twice, for
+`MaterialId::intern` and for the component registry's own index.
 
-What the change did remove is real but narrower. The component handle no
-longer clones a `String` for the component name on every property access, and
-a binding that answers with a name no longer allocates one. Neither shows up
-in `seam_arg`, which measures the way in.
+So the handle carries the number. `Component` holds the registry index beside
+the interned name, resolved when the field was installed. `components` grew
+`index_of`, `property_at`, `patch_at` and `node_api::set_property_at`, all
+addressed by that index. A property's set of owning components is a `u128`
+mask rather than a `HashSet<String>`, and the defaults a read falls back on
+are a table indexed the same way. `PropertyReaders` is a `Vec` indexed by
+component rather than a map keyed by name.
 
-It also made a long string worse. A 54-byte argument now costs 52 ns more than
-a 22-byte one, where the gap used to be 24 ns: past 22 bytes a `SmolStr`
-allocates and carries a length check besides. A name, a key and a path all
-inline; a widget's text and a log line do not.
-
-So the seam is not where the script path's time goes. Keep the change or drop
-it on its own merits, and read §6f for where the time actually went.
+What that removes from one `node.transform.position`: two `String`
+allocations, three hashes of the component name, and the trip through the
+neutral value seam, which the backend no longer needs for a call whose two
+names it resolved at startup.
 
 ## 6f. What all of it was worth
 

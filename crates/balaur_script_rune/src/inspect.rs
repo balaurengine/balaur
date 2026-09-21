@@ -5,7 +5,6 @@
 //! Nothing here runs during a frame — the editor's inspector, the script
 //! checker and `script::functions` are the callers.
 
-use smol_str::SmolStr;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -278,7 +277,7 @@ pub(crate) fn finding_rows(found: &[Finding]) -> Result<rune::Value> {
 /// `script::exports`' answer: one row per declared property, its name beside
 /// everything the spec declares — `type`, `default`, and whatever else of
 /// `min`, `max`, `step`, `options`, `asset`, `help` and `order` was written.
-pub(crate) fn export_rows(declared: &[(SmolStr, balaur_script::Value)]) -> Result<rune::Value> {
+pub(crate) fn export_rows(declared: &[(String, balaur_script::Value)]) -> Result<rune::Value> {
     let mut rows = Vec::with_capacity(declared.len());
     for (name, spec) in declared {
         let mut row = rune::runtime::Object::new();
@@ -431,6 +430,8 @@ impl RuneHost {
             (Some(node), Some(component)) => rune::to_value(value::component::Component {
                 node: balaur_core::node_id_of(node).0,
                 name: crate::value::component::intern(component),
+                index: balaur_core::components::index_of(&self.engine, component)
+                    .unwrap_or(usize::MAX) as u32,
             })?,
             (Some(node), None) => rune::to_value(Node {
                 id: node.to_bits().get(),
@@ -584,7 +585,7 @@ impl RuneHost {
     /// Declaration order is not recoverable — Rune objects do not keep it —
     /// so the list is sorted by the spec's `order` and then by name, which is
     /// the order the inspector shows and a scene's `props` are written in.
-    pub fn exports(&self, key: &str) -> Result<Vec<(SmolStr, balaur_script::Value)>> {
+    pub fn exports(&self, key: &str) -> Result<Vec<(String, balaur_script::Value)>> {
         if let Some(hit) = self
             .state
             .borrow()
@@ -608,7 +609,7 @@ impl RuneHost {
     }
 
     /// Evaluate `exports()` and normalise every entry into a spec.
-    fn read_exports(&self, key: &str) -> Result<Vec<(SmolStr, balaur_script::Value)>> {
+    fn read_exports(&self, key: &str) -> Result<Vec<(String, balaur_script::Value)>> {
         let written = match self.method(key, "exports") {
             None => Vec::new(),
             Some(f) => match f.call::<rune::Value>(()) {
@@ -645,7 +646,7 @@ impl RuneHost {
     /// build error rather than a property that silently never appears. Only
     /// the kind a default cannot carry is named: `node` and `asset` both look
     /// like a string until something says otherwise.
-    fn attributed_exports(&self, key: &str) -> Result<Vec<(SmolStr, balaur_script::Value)>> {
+    fn attributed_exports(&self, key: &str) -> Result<Vec<(String, balaur_script::Value)>> {
         let unit = {
             let state = self.state.borrow();
             let Some(script) = state.scripts.get(key) else {
@@ -683,14 +684,14 @@ impl RuneHost {
                     name,
                     &balaur_script::Value::Map(vec![
                         (
-                            "type".to_string().into(),
-                            balaur_script::Value::Str(SmolStr::new(kind)),
+                            "type".to_string(),
+                            balaur_script::Value::Str(kind.to_string()),
                         ),
-                        ("default".to_string().into(), default),
+                        ("default".to_string(), default),
                     ]),
                 )?
             };
-            out.push((SmolStr::new(name), spec));
+            out.push((name.to_string(), spec));
         }
         Ok(out)
     }

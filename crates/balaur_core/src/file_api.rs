@@ -186,7 +186,7 @@ pub(crate) fn fs_list(eng: &Engine, args: &[Value]) -> Result<Value> {
             .into_iter()
             .map(|(name, is_dir)| {
                 Value::Map(vec![
-                    ("name".into(), Value::Str(name.into())),
+                    ("name".into(), Value::Str(name)),
                     ("is_dir".into(), Value::Bool(is_dir)),
                 ])
             })
@@ -201,9 +201,9 @@ pub(crate) fn toml_parse(_: &Engine, args: &[Value]) -> Result<Value> {
 
 pub(crate) fn toml_encode(_: &Engine, args: &[Value]) -> Result<Value> {
     let value = args.first().ok_or_else(|| anyhow!("nothing to encode"))?;
-    Ok(Value::Str(
-        toml::to_string(&crate::node_api::to_toml(value)?)?.into(),
-    ))
+    Ok(Value::Str(toml::to_string(&crate::node_api::to_toml(
+        value,
+    )?)?))
 }
 
 /// Write a table into an existing document, keeping everything the table
@@ -224,7 +224,7 @@ pub(crate) fn toml_patch(_: &Engine, args: &[Value]) -> Result<Value> {
     for (key, value) in table {
         doc[&key] = as_item(&value);
     }
-    Ok(Value::Str(doc.to_string().into()))
+    Ok(Value::Str(doc.to_string()))
 }
 
 /// A parsed value as a document item. An array of tables is written as one,
@@ -263,7 +263,7 @@ pub(crate) fn json_parse(_: &Engine, args: &[Value]) -> Result<Value> {
 
 pub(crate) fn json_encode(_: &Engine, args: &[Value]) -> Result<Value> {
     let value = args.first().ok_or_else(|| anyhow!("nothing to encode"))?;
-    Ok(Value::Str(serde_json::to_string(&to_json(value)?)?.into()))
+    Ok(Value::Str(serde_json::to_string(&to_json(value)?)?))
 }
 
 /// Unlike TOML, JSON has null, so nil survives a round trip.
@@ -278,7 +278,7 @@ pub fn from_json(v: &serde_json::Value) -> Result<Value> {
                     .ok_or_else(|| anyhow!("{n} does not fit a script number"))?,
             ),
         },
-        serde_json::Value::String(s) => Value::Str(s.clone().into()),
+        serde_json::Value::String(s) => Value::Str(s.clone()),
         serde_json::Value::Array(items) => {
             Value::List(items.iter().map(from_json).collect::<Result<_>>()?)
         }
@@ -299,7 +299,7 @@ pub fn to_json(v: &Value) -> Result<serde_json::Value> {
         Value::Num(n) => serde_json::Number::from_f64(*n)
             .map(serde_json::Value::Number)
             .ok_or_else(|| anyhow!("{n} has no JSON representation"))?,
-        Value::Str(s) => serde_json::Value::String(s.to_string()),
+        Value::Str(s) => serde_json::Value::String(s.clone()),
         Value::Node(_) | Value::Callback(_) => {
             return Err(anyhow!("a node or callback is not JSON data"));
         }
@@ -316,7 +316,7 @@ pub fn to_json(v: &Value) -> Result<serde_json::Value> {
         Value::Map(pairs) => serde_json::Value::Object(
             pairs
                 .iter()
-                .map(|(k, val)| Ok((k.to_string(), to_json(val)?)))
+                .map(|(k, val)| Ok((k.clone(), to_json(val)?)))
                 .collect::<Result<_>>()?,
         ),
     })

@@ -269,8 +269,8 @@ fn mesh_value(mesh: &MeshData) -> balaur_script::Value {
             .collect(),
     );
     Value::Map(vec![
-        ("positions".to_string().into(), positions),
-        ("indices".to_string().into(), indices),
+        ("positions".to_string(), positions),
+        ("indices".to_string(), indices),
     ])
 }
 

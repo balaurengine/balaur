@@ -295,7 +295,7 @@ keys = [ { t = 0.0, value = [0.0, 0.0, 0.0] }, { t = 0.5, value = [0.0, 1.0, 0.0
     );
     assert_eq!(
         calls.args(entity, "on_animation_finished"),
-        Some(vec![balaur_script::Value::Str(String::new().into())]),
+        Some(vec![balaur_script::Value::Str(String::new())]),
         "the handler is told which clip ended; this one was addressed by the \
          library reference itself, so its name is empty"
     );

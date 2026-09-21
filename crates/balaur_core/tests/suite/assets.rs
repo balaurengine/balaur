@@ -5,7 +5,6 @@
 //! three reference forms resolve, what gets shared, and what a bad reference
 //! says when it fails.
 
-use smol_str::SmolStr;
 use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -392,7 +391,7 @@ impl balaur_script::ScriptHost<Engine> for PackedHost {
         &self,
         _: balaur_script::NodeId,
         _: &str,
-        _: &[(SmolStr, balaur_script::Value)],
+        _: &[(String, balaur_script::Value)],
     ) -> anyhow::Result<()> {
         Ok(())
     }

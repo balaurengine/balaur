@@ -229,18 +229,15 @@ pub(crate) fn install_cloner_api(m: &mut dyn Bindings<Engine>) {
                     let (axis, angle) = clone.rotation.to_axis_angle();
                     Value::Map(vec![
                         (
-                            "position".to_string().into(),
+                            "position".to_string(),
                             Value::Vec3(clone.position.to_array()),
                         ),
-                        ("axis".to_string().into(), Value::Vec3(axis.to_array())),
+                        ("axis".to_string(), Value::Vec3(axis.to_array())),
                         (
-                            "angle".to_string().into(),
+                            "angle".to_string(),
                             Value::Num(f64::from(angle.to_degrees())),
                         ),
-                        (
-                            "scale".to_string().into(),
-                            Value::Vec3(clone.scale.to_array()),
-                        ),
+                        ("scale".to_string(), Value::Vec3(clone.scale.to_array())),
                     ])
                 })
                 .collect(),

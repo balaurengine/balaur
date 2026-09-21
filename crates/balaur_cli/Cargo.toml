@@ -46,7 +46,6 @@ web = ["balaur/web"]
 apple = ["balaur/apple"]
 
 [dependencies]
-smol_str.workspace = true
 balaur = { workspace = true, default-features = false }
 balaur_core.workspace = true
 balaur_export.workspace = true

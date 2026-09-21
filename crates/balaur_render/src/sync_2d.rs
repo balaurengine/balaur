@@ -232,13 +232,11 @@ fn cut_runs(
 ) -> HashMap<Entity, usize> {
     let cut = crate::batch_2d::runs(order, |entity| {
         let renderable = world.get::<&Renderable2d>(entity).ok()?;
-        if !crate::batch_2d::batchable(&renderable) {
-            return None;
-        }
+        let mesh = crate::batch_2d::batchable(&renderable)?;
         let material = world
             .get::<&GlobalAppearance>(entity)
             .map_or_else(|_| GlobalAppearance::identity().material, |a| a.material);
-        Some(crate::batch_2d::key_of(&renderable, material))
+        Some(crate::batch_2d::key_of(&renderable, mesh, material))
     });
     let same = cut.len() == batches.runs.len()
         && cut
@@ -291,8 +289,9 @@ fn cut_runs(
     member_of
 }
 
-/// One member's pose and tint, as the instance its run draws it through.
+/// One member's pose, tint and frame, as the instance its run draws it through.
 fn write_instance(
+    app: &App,
     world: &balaur_core::hecs::World,
     entity: Entity,
     run: usize,
@@ -312,14 +311,29 @@ fn write_instance(
     }
     let (at, deformation) = crate::batch_2d::pose(&renderable, &global);
     let color = modulate(renderable.color, appearance.tint.to_array());
-    if let Some(run) = batches.runs.get_mut(run) {
-        run.pending.push(kiss3d::scene::InstanceData2d {
-            position: at,
-            deformation,
-            color,
-            ..Default::default()
-        });
-    }
+    let Some(run) = batches.runs.get_mut(run) else {
+        return;
+    };
+    // A frame, a region or a flip is this instance's corner of the image the
+    // whole run shares, so one sheet is still one call.
+    let uv = match &renderable.sprite {
+        Some(sprite) => {
+            let drawn = sprite
+                .region
+                .and_then(|_| crate::texture::size_of(&app.engine, &sprite.path).ok());
+            let texture = run.node.data().object().map(|o| o.data().texture().size);
+            let (min, max) = sprite_uv_rect(sprite, drawn, texture);
+            [min.x, min.y, max.x, max.y]
+        }
+        None => kiss3d::scene::UV_WHOLE_2D,
+    };
+    run.pending.push(kiss3d::scene::InstanceData2d {
+        position: at,
+        deformation,
+        color,
+        uv,
+        ..Default::default()
+    });
 }
 
 pub(crate) fn sync_2d(
@@ -350,7 +364,7 @@ pub(crate) fn sync_2d(
             if let Some(mut old) = slots.remove(&entity) {
                 old.node.detach();
             }
-            write_instance(&world, entity, *run, batches);
+            write_instance(app, &world, entity, *run, batches);
             continue;
         }
         let Ok(renderable) = world.get::<&Renderable2d>(entity) else {
@@ -524,13 +538,27 @@ pub(crate) fn sync_sprite_uvs(
     sprite: &SpriteTexture,
     drawn: Option<(u32, u32)>,
 ) {
+    let texture = node.data().object().map(|o| o.data().texture().size);
+    let (min, max) = sprite_uv_rect(sprite, drawn, texture);
+    node.set_uv_rect(min, max);
+}
+
+/// The corner of the image a sprite draws, in the mesh's own UVs.
+///
+/// `drawn` is the size a region is measured against and `texture` the size of
+/// the image as it was uploaded, which is what the sheet's sliver is in.
+pub(crate) fn sprite_uv_rect(
+    sprite: &SpriteTexture,
+    drawn: Option<(u32, u32)>,
+    texture: Option<(u32, u32)>,
+) -> (Vec2, Vec2) {
     let sheet = sprite
         .sheet
         .map(|s| kiss3d::scene::SpriteSheet::new(s.columns, s.rows));
     let (mut min, mut max) = sheet.map_or((Vec2::ZERO, Vec2::ONE), |s| s.frame_uv(sprite.frame));
     // A region is a rectangle of the image in pixels; it wins over a sheet.
     if let Some([x, y, w, h]) = sprite.region {
-        let size = drawn.or_else(|| node.data().object().map(|o| o.data().texture().size));
+        let size = drawn.or(texture);
         if let Some((tw, th)) = size.filter(|(tw, th)| *tw > 0 && *th > 0) {
             let (tw, th) = (tw as f32, th as f32);
             min = Vec2::new(x as f32 / tw, y as f32 / th);
@@ -540,8 +568,7 @@ pub(crate) fn sync_sprite_uvs(
     if sheet.is_some() && sprite.region.is_none() {
         // The sliver keeps a nearest-sampled edge fragment from rounding into
         // the neighbouring frame, matching kiss3d's own `set_sprite_frame`.
-        let size = node.data().object().map(|o| o.data().texture().size);
-        if let Some((w, h)) = size
+        if let Some((w, h)) = texture
             && w > 1
             && h > 1
         {
@@ -556,7 +583,7 @@ pub(crate) fn sync_sprite_uvs(
     if sprite.flip_y {
         std::mem::swap(&mut min.y, &mut max.y);
     }
-    node.set_uv_rect(min, max);
+    (min, max)
 }
 
 #[cfg(test)]

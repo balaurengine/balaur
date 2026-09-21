@@ -7,7 +7,6 @@
 use balaur_core::node_api::NODE_OPS;
 use balaur_core::{App, AppConfig, Engine};
 use balaur_script::Value;
-use smol_str::SmolStr;
 
 fn app() -> App {
     App::new(AppConfig::bare(".")).unwrap()
@@ -36,7 +35,7 @@ fn set_transform(eng: &Engine, node: &Value, prop: &str, v: [f32; 3]) {
         &[
             node.clone(),
             Value::Str("transform".into()),
-            Value::Map(vec![(SmolStr::new(prop), Value::Vec3(v))]),
+            Value::Map(vec![(prop.to_string(), Value::Vec3(v))]),
         ],
     )
     .unwrap();
@@ -105,10 +104,7 @@ fn a_vector_argument_and_three_numbers_agree() {
         &[
             b.clone(),
             Value::Str("transform".into()),
-            Value::Map(vec![(
-                "position".to_string().into(),
-                Value::Vec3([4.0, 5.0, 6.0]),
-            )]),
+            Value::Map(vec![("position".to_string(), Value::Vec3([4.0, 5.0, 6.0]))]),
         ],
     )
     .unwrap();

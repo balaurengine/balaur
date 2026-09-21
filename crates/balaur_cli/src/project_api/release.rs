@@ -6,7 +6,6 @@
 //! run on a thread and report through [`crate::jobs`], and the frame never
 //! waits on GitHub.
 
-use smol_str::SmolStr;
 use std::cmp::Ordering;
 
 use anyhow::Result;
@@ -82,13 +81,13 @@ impl Row {
     fn value(&self) -> Value {
         let r = &self.release;
         Value::Map(vec![
-            ("tag".into(), Value::Str(SmolStr::new(&r.tag))),
-            ("id".into(), Value::Str(SmolStr::new(&r.id))),
-            ("channel".into(), Value::Str(SmolStr::new(&r.channel))),
+            ("tag".into(), Value::Str(r.tag.clone())),
+            ("id".into(), Value::Str(r.id.clone())),
+            ("channel".into(), Value::Str(r.channel.clone())),
             ("when".into(), Value::Str(ago(&r.published).into())),
             ("current".into(), Value::Bool(self.order == "same")),
-            ("order".into(), Value::Str(SmolStr::new(&self.order))),
-            ("download".into(), Value::Str(SmolStr::new(&self.download))),
+            ("order".into(), Value::Str(self.order.clone())),
+            ("download".into(), Value::Str(self.download.clone())),
         ])
     }
 }
@@ -101,7 +100,7 @@ fn bytes(n: u64) -> Value {
 
 impl Reported for ReleaseEvent {
     fn value(&self) -> Value {
-        let (kind, mut pairs): (&str, Vec<(SmolStr, Value)>) = match self {
+        let (kind, mut pairs): (&str, Vec<(String, Value)>) = match self {
             Self::Listed { rows } => (
                 "listed",
                 vec![(
@@ -112,27 +111,27 @@ impl Reported for ReleaseEvent {
             Self::Downloading { tag, done, total } => (
                 "downloading",
                 vec![
-                    ("tag".into(), Value::Str(SmolStr::new(tag))),
+                    ("tag".into(), Value::Str(tag.to_string())),
                     ("done".into(), bytes(*done)),
                     ("total".into(), bytes(*total)),
                 ],
             ),
             Self::Unpacking { tag } => (
                 "unpacking",
-                vec![("tag".into(), Value::Str(SmolStr::new(tag)))],
+                vec![("tag".into(), Value::Str(tag.to_string()))],
             ),
             Self::Installed { tag, note } => (
                 "installed",
                 vec![
-                    ("tag".into(), Value::Str(SmolStr::new(tag))),
-                    ("note".into(), Value::Str(SmolStr::new(note))),
+                    ("tag".into(), Value::Str(tag.to_string())),
+                    ("note".into(), Value::Str(note.to_string())),
                 ],
             ),
             Self::Failed { job, message } => (
                 "failed",
                 vec![
-                    ("job".into(), Value::Str(SmolStr::new(job))),
-                    ("message".into(), Value::Str(SmolStr::new(message))),
+                    ("job".into(), Value::Str(job.to_string())),
+                    ("message".into(), Value::Str(message.to_string())),
                 ],
             ),
         };

@@ -451,9 +451,9 @@ pub(crate) fn install_touchpad_api(m: &mut dyn Bindings<Engine>) {
                 .iter()
                 .map(|touch| {
                     Value::Map(vec![
-                        ("id".to_string().into(), Value::Int(touch.id)),
-                        ("x".to_string().into(), Value::Num(f64::from(touch.x))),
-                        ("y".to_string().into(), Value::Num(f64::from(touch.y))),
+                        ("id".to_string(), Value::Int(touch.id)),
+                        ("x".to_string(), Value::Num(f64::from(touch.x))),
+                        ("y".to_string(), Value::Num(f64::from(touch.y))),
                     ])
                 })
                 .collect()

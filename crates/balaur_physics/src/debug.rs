@@ -13,7 +13,6 @@ use balaur_core::debug_lines::{DebugLineBuffer2d, DebugLineBuffer3d};
 use balaur_core::{Engine, Stage};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, Value};
-use smol_str::SmolStr;
 
 use crate::vocabulary::Opts;
 use crate::{PhysicsState2d, PhysicsState3d};
@@ -190,12 +189,9 @@ pub(crate) fn install_debug_api(m: &mut dyn Bindings<Engine>) {
     m.function("debug_draw", |eng: &Engine, ()| {
         let config = eng.resource::<PhysicsDebugConfig>();
         let config = config.borrow();
-        let mut out = vec![(SmolStr::new_static("enabled"), Value::Bool(config.enabled))];
+        let mut out = vec![("enabled".to_string(), Value::Bool(config.enabled))];
         for (name, flag) in DEBUG_MODES {
-            out.push((
-                SmolStr::new_static(name),
-                Value::Bool(config.mode.contains(*flag)),
-            ));
+            out.push((name.to_string(), Value::Bool(config.mode.contains(*flag))));
         }
         Ok(Value::Map(out))
     });

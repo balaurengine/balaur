@@ -685,7 +685,7 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
     for key in KEY_NAMES {
         m.constant(
             &const_name(key),
-            balaur_script::Value::Str((*key).to_string().into()),
+            balaur_script::Value::Str((*key).to_string()),
         );
     }
     m.function("is_down", |eng: &Engine, key: String| {
@@ -760,25 +760,16 @@ fn install_gesture_api(m: &mut dyn Bindings<Engine>) {
             return Ok(Value::Map(Vec::new()));
         };
         Ok(Value::Map(vec![
-            (
-                "scale".to_string().into(),
-                Value::Num(f64::from(pinch.scale)),
-            ),
-            (
-                "x".to_string().into(),
-                Value::Num(f64::from(pinch.center.0)),
-            ),
-            (
-                "y".to_string().into(),
-                Value::Num(f64::from(pinch.center.1)),
-            ),
+            ("scale".to_string(), Value::Num(f64::from(pinch.scale))),
+            ("x".to_string(), Value::Num(f64::from(pinch.center.0))),
+            ("y".to_string(), Value::Num(f64::from(pinch.center.1))),
         ]))
     });
     m.function("pan", |eng: &Engine, ()| {
         let (x, y) = eng.resource::<Gestures>().borrow().pan();
         Ok(Value::Map(vec![
-            ("x".to_string().into(), Value::Num(f64::from(x))),
-            ("y".to_string().into(), Value::Num(f64::from(y))),
+            ("x".to_string(), Value::Num(f64::from(x))),
+            ("y".to_string(), Value::Num(f64::from(y))),
         ]))
     });
     m.function("swipe", |eng: &Engine, ()| {
@@ -786,18 +777,9 @@ fn install_gesture_api(m: &mut dyn Bindings<Engine>) {
             return Ok(Value::Map(Vec::new()));
         };
         Ok(Value::Map(vec![
-            (
-                "x".to_string().into(),
-                Value::Num(f64::from(swipe.direction.0)),
-            ),
-            (
-                "y".to_string().into(),
-                Value::Num(f64::from(swipe.direction.1)),
-            ),
-            (
-                "speed".to_string().into(),
-                Value::Num(f64::from(swipe.speed)),
-            ),
+            ("x".to_string(), Value::Num(f64::from(swipe.direction.0))),
+            ("y".to_string(), Value::Num(f64::from(swipe.direction.1))),
+            ("speed".to_string(), Value::Num(f64::from(swipe.speed))),
         ]))
     });
     m.function("long_press", |eng: &Engine, ()| {
@@ -805,8 +787,8 @@ fn install_gesture_api(m: &mut dyn Bindings<Engine>) {
             return Ok(Value::Map(Vec::new()));
         };
         Ok(Value::Map(vec![
-            ("x".to_string().into(), Value::Num(f64::from(x))),
-            ("y".to_string().into(), Value::Num(f64::from(y))),
+            ("x".to_string(), Value::Num(f64::from(x))),
+            ("y".to_string(), Value::Num(f64::from(y))),
         ]))
     });
 }
@@ -881,7 +863,7 @@ fn install_touch_api(m: &mut dyn Bindings<Engine>) {
     m.function("composing", |eng: &Engine, ()| {
         let state = eng.resource::<InputSnapshot>();
         let composing = state.borrow().composing().to_string();
-        Ok(Value::Str(composing.into()))
+        Ok(Value::Str(composing))
     });
     // Active touches as `{ id, x, y }` maps, oldest finger first. Pixel
     // coordinates, same space as `mouse_position`.
@@ -893,9 +875,9 @@ fn install_touch_api(m: &mut dyn Bindings<Engine>) {
             .iter()
             .map(|(id, x, y)| {
                 Value::Map(vec![
-                    ("id".to_string().into(), Value::Int(id.cast_signed())),
-                    ("x".to_string().into(), Value::Num(f64::from(*x))),
-                    ("y".to_string().into(), Value::Num(f64::from(*y))),
+                    ("id".to_string(), Value::Int(id.cast_signed())),
+                    ("x".to_string(), Value::Num(f64::from(*x))),
+                    ("y".to_string(), Value::Num(f64::from(*y))),
                 ])
             })
             .collect();
@@ -926,7 +908,7 @@ fn install_touch_api(m: &mut dyn Bindings<Engine>) {
     m.function("typed", |eng: &Engine, ()| {
         let state = eng.resource::<InputSnapshot>();
         let typed = state.borrow().typed().to_string();
-        Ok(Value::Str(typed.into()))
+        Ok(Value::Str(typed))
     });
     // A display fact rather than a frame of input, so it comes off the
     // device facts; the verb keeps its place here because a form asking for
@@ -943,7 +925,7 @@ fn install_touch_api(m: &mut dyn Bindings<Engine>) {
             .borrow()
             .dropped_files()
             .iter()
-            .map(|path| Value::Str(path.clone().into()))
+            .map(|path| Value::Str(path.clone()))
             .collect();
         Ok(Value::List(files))
     });
@@ -964,13 +946,13 @@ fn install_gamepad_api(m: &mut dyn Bindings<Engine>) {
     for name in PAD_BUTTON_NAMES {
         m.constant(
             &pad_const_name("PAD_", name),
-            Value::Str((*name).to_string().into()),
+            Value::Str((*name).to_string()),
         );
     }
     for name in PAD_AXIS_NAMES {
         m.constant(
             &pad_const_name("AXIS_", name),
-            Value::Str((*name).to_string().into()),
+            Value::Str((*name).to_string()),
         );
     }
     m.function("gamepads", |eng: &Engine, ()| {

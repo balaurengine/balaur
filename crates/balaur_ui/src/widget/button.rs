@@ -221,7 +221,7 @@ pub(crate) fn button(
     let floor = vec2(base.width.unwrap_or(0.0), base.height.unwrap_or(0.0));
     // The box the layout handed it too: a button in a column fills its width
     // rather than hugging its caption, as it does in Godot and in CSS.
-    let given = crate::widget::arrange::box_of(&widget, at.assigned);
+    let given = crate::widget::arrange::box_of(&widget, &at.style_of(&widget), at.assigned);
     let min = (face.size + vec2(pad_x, ui.spacing().button_padding.y) * 2.0)
         .max(vec2(widget.width, widget.height))
         .max(floor)

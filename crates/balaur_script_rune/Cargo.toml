@@ -7,7 +7,6 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
-smol_str.workspace = true
 balaur_core.workspace = true
 balaur_script.workspace = true
 # `fmt` is the formatter behind `balaur fmt`; it costs no dependency

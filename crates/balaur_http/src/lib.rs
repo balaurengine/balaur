@@ -282,14 +282,14 @@ fn event_value(event: HttpEvent) -> Value {
                     Value::Map(
                         headers
                             .into_iter()
-                            .map(|(k, v)| (k.into(), Value::Str(v.into())))
+                            .map(|(k, v)| (k, Value::Str(v)))
                             .collect(),
                     ),
                 ),
-                ("body".into(), Value::Str(body.into())),
+                ("body".into(), Value::Str(body)),
             ];
             if let Some(path) = saved {
-                pairs.push(("path".into(), Value::Str(path.into())));
+                pairs.push(("path".into(), Value::Str(path)));
             }
             pairs
         }
@@ -312,7 +312,7 @@ fn event_value(event: HttpEvent) -> Value {
         ],
         HttpEvent::Error { request, message } => vec![
             ("request".into(), id_value(request)),
-            ("error".into(), Value::Str(message.into())),
+            ("error".into(), Value::Str(message)),
         ],
     };
     Value::Map(pairs)
@@ -375,7 +375,7 @@ fn call_of(url: &str, opts: Option<&Value>) -> Result<HttpCall> {
         None => "GET".into(),
     };
     let body = match opt(opts, "body") {
-        Some(Value::Str(b)) => Some(b.to_string()),
+        Some(Value::Str(b)) => Some(b.clone()),
         Some(other) => return Err(anyhow!("body should be a string, got {other:?}")),
         None => None,
     };

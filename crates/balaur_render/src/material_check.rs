@@ -110,15 +110,12 @@ fn material_params(eng: &balaur_core::Engine, path: &str) -> Result<Vec<balaur_s
                 .find(|(name, _)| name == &field.name)
                 .map(|(_, param)| param.clone());
             Value::Map(vec![
+                ("name".to_string(), Value::Str(field.name.clone())),
                 (
-                    "name".to_string().into(),
-                    Value::Str(field.name.clone().into()),
+                    "type".to_string(),
+                    Value::Str(row_type(field.ty).to_string()),
                 ),
-                (
-                    "type".to_string().into(),
-                    Value::Str(row_type(field.ty).to_string().into()),
-                ),
-                ("value".to_string().into(), row_value(field.ty, set)),
+                ("value".to_string(), row_value(field.ty, set)),
             ])
         })
         .collect();
@@ -126,17 +123,11 @@ fn material_params(eng: &balaur_core::Engine, path: &str) -> Result<Vec<balaur_s
     // and so are not in what the shader compiled to.
     for (slot, bound) in TEXTURE_SLOTS.iter().zip(material.textures()) {
         rows.push(Value::Map(vec![
+            ("name".to_string(), Value::Str((*slot).to_string())),
+            ("type".to_string(), Value::Str("texture".to_string())),
             (
-                "name".to_string().into(),
-                Value::Str((*slot).to_string().into()),
-            ),
-            (
-                "type".to_string().into(),
-                Value::Str("texture".to_string().into()),
-            ),
-            (
-                "value".to_string().into(),
-                Value::Str(bound.unwrap_or_default().to_string().into()),
+                "value".to_string(),
+                Value::Str(bound.unwrap_or_default().to_string()),
             ),
         ]));
     }
@@ -173,17 +164,11 @@ fn finding(path: &str, message: &str) -> balaur_script::Value {
     use balaur_script::Value;
     let (file, line, column) = span_of(message).unwrap_or_else(|| (path.to_string(), 0, 0));
     Value::Map(vec![
-        ("file".to_string().into(), Value::Str(file.into())),
-        ("line".to_string().into(), Value::Int(line)),
-        ("column".to_string().into(), Value::Int(column)),
-        (
-            "severity".to_string().into(),
-            Value::Str("error".to_string().into()),
-        ),
-        (
-            "message".to_string().into(),
-            Value::Str(message.to_string().into()),
-        ),
+        ("file".to_string(), Value::Str(file)),
+        ("line".to_string(), Value::Int(line)),
+        ("column".to_string(), Value::Int(column)),
+        ("severity".to_string(), Value::Str("error".to_string())),
+        ("message".to_string(), Value::Str(message.to_string())),
     ])
 }
 

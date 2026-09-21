@@ -231,7 +231,7 @@ pub fn table(eng: &Engine) -> balaur_script::Value {
     let stages = STAGE_NAMES
         .iter()
         .zip(timings.stages)
-        .map(|(name, d)| (SmolStr::new_static(name), seconds(d)))
+        .map(|(name, d)| ((*name).to_string(), seconds(d)))
         .collect();
     // Spans repeat when a system ran more than once, so they are summed by
     // name: a caller wants "physics cost 4 ms", not four rows of one.
@@ -243,19 +243,19 @@ pub fn table(eng: &Engine) -> balaur_script::Value {
         }
     }
     Value::Map(vec![
-        ("frame".to_string().into(), seconds(timings.frame)),
-        ("wall".to_string().into(), seconds(timings.wall)),
+        ("frame".to_string(), seconds(timings.frame)),
+        ("wall".to_string(), seconds(timings.wall)),
         (
-            "fixed_steps".to_string().into(),
+            "fixed_steps".to_string(),
             Value::Int(i64::from(timings.fixed_steps)),
         ),
-        ("stages".to_string().into(), Value::Map(stages)),
+        ("stages".to_string(), Value::Map(stages)),
         (
-            "spans".to_string().into(),
+            "spans".to_string(),
             Value::Map(
                 spans
                     .into_iter()
-                    .map(|(name, d)| (name, seconds(d)))
+                    .map(|(name, d)| (name.to_string(), seconds(d)))
                     .collect(),
             ),
         ),

@@ -1,15 +1,12 @@
 # Plan: the editor as a scene
 
-> **Status:** done, 2026-09-08. Every view is a node, the shell's chrome is
-> node strips, the Inspector and Import are a row pool, and the layout is
-> `taffy` rather than the arithmetic this file used to describe.
->
-> What is left is listed in §6: the popup pass the modal screens want, the
-> Events view's own row pool, and the strip a panel draws its own chrome in
-> over the node it fills.
+> **Status:** the views are nodes, done 2026-09-08. Reopened 2026-09-21 for
+> the half that was never in scope: the controls *inside* a view, and where
+> a number lives. 589 `ui::*` calls remain, §6 counts them, and §7 says why
+> the scene still states 78 sizes the theme should hold.
 >
 > Written 2026-09-04 to answer "is the editor's UI a scene of nodes, or code?"
-> — it was code — and to say what moving it to nodes would take.
+> It was code, and §0 is what moving the views took.
 
 ## 0. Where it got to
 
@@ -144,17 +141,45 @@ Making a *game's* UI authorable this way — that already works, and
 
 ## 6. What is left
 
-1. **A popup pass.** The palette, the logo menu, the completion popup and the
-   drop-in sheet are `ui::overlay` and `ui::modal` today. They want a `popup`
-   kind and a pass that draws above the tree and takes the pointer first;
-   `docs/PLAN-widgets.md` scopes it.
-2. **The Events view's row pool.** Its rows are several controls each, which
+Counted 2026-09-21. **589 `ui::*` calls** across `editor/scripts`, and they
+are not spread evenly:
+
+| Where | Calls | What they are |
+| --- | --: | --- |
+| `manager.rn` | 146 | the start screen, in two `ui::overlay` |
+| `inspector.rn` | 127 | the controls inside a pooled row |
+| `dock.rn` | 126 | a panel's own chrome over the node it fills |
+| `statemachine.rn`, `settings.rn`, `center.rn` | 150 | sheets and overlays |
+| `kit.rn` | 49 | the shared kit a plugin dock draws with |
+
+Only **three** immediate containers are left: two `ui::overlay` in
+`manager.rn`, one `ui::modal` in `palette.rn`, one `ui::overlay` in
+`complete.rn`. Everything else is content drawn inside a node that already
+exists. So the remaining work is not "move the screens", it is "stop drawing
+the controls".
+
+1. **The three containers.** This file used to say they want a `popup` kind
+   and a pass of their own. That is stale: `docs/PLAN-widgets.md` landed
+   `dialog` on `egui::Modal`, `menu` on `egui::Popup::menu`, `toast` and
+   `window`, and every root is an `egui::Area` already ordered above the
+   tree. The palette is a `dialog`, the completion popup a `menu`, the start
+   screen a root anchored `fill`. No new kind is needed; reconcile the two
+   plans before starting.
+2. **The controls inside a row.** `inspector.rn` draws 28 `pill`, 23 `label`,
+   14 `horizontal` and 5 `drag_value` a frame into pooled rows. The row is a
+   node; its contents are not. This is the largest single piece and the one
+   that pays most: a node control answers `widget_rect`, which is what
+   `ui::pill_rect` had to be added for on 2026-09-20.
+3. **A panel's own chrome.** `dock.rn`'s 126 calls are the path, verbs and
+   search a panel draws over the `list` or `table` it fills. Blocked on the
+   measuring defect below.
+4. **The Events view's row pool.** Its rows are several controls each, which
    is the pool's shape, over the document area rather than the right sheet.
-3. **`plugins::editor` returns a closure**, and a `draw` widget names a
+5. **`plugins::editor` returns a closure**, and a `draw` widget names a
    method by string, so a plugin's property editor cannot be a node. Until
    that API takes a name, the panel falls back to drawing.
-4. **`graph`** is `docs/PLAN-authoring-without-code.md`.
-5. **A panel's chrome over the node it fills.** `DockBody` is the strip a
+6. **`graph`** is `docs/PLAN-authoring-without-code.md`.
+7. **A panel's chrome over the node it fills.** `DockBody` is the strip a
    panel draws itself into, and it is a `draw` node beside the `list` or
    `table` the panel fills. A `draw` node measures nothing, so a sibling that
    grows leaves it one pixel: measured 2026-09-15 at 944 x 1, which clips the
@@ -162,3 +187,42 @@ Making a *game's* UI authorable this way — that already works, and
    row's tools had the same shape and were fixed by giving the hatch a box
    rather than a share; this one needs the height the panel's own chrome
    wants, which differs per panel. `layoutdemo` asserts the tab row's box.
+
+## 7. Where a number lives
+
+The scene states **78 sizes** by hand: 33 `height`, 28 `grow`, 25 `gap`, 13
+`width`, and padding beside them. The themes carry **68 roles** that already
+hold `padding_x`, `radius`, `size` and every colour. A constant belongs in
+the role, not on the node, or the two drift and a reader has to check both.
+
+- **Constant per role, so it moves.** Done 2026-09-21: the Shell's gutter and
+  seam are `[roles.shell]`, the nine dock head rows share `[roles.dock_strip]`,
+  and the nine outliner verbs share `[roles.tree_verb]`. 73 stated sizes down
+  to 46, and `layout.rn` reads the shell's two back through `role_num` so the
+  arithmetic and the node cannot drift.
+- **A role's `width` and `height` bind on the button path only.** They are a
+  floor, read in `measure.rs` and `button.rs`; a container's box comes from
+  `arrange::box_of`, which reads the node and never the style. That is why
+  the dock heads keep their `height = 24` and their `[touch] height = 33`
+  while their `gap` moved. Roughly 30 of the 46 that remain are container
+  sizes waiting on this. Teaching `box_of` to fall back to `style.width` and
+  `style.height` is the one engine change that would let the rest move, and
+  it wants a pass of its own: every kind measures through it.
+- **Derived, so it stays.** The shell's width follows the window, a dock's
+  width follows the drag that set it, the stage is what is left. No resource
+  can hold those; `layout.rn` patches them, 15 `size` calls a frame.
+- **The Shell should not be one of them.** It states `x = 0, y = 0` and
+  `layout.rn` then patches its `width` and `height` from `S.screen_w/h`
+  every frame. Anchored `fill` the engine owns its box, `safe_area` insets
+  it without help, and `editor.rn`'s own inset arithmetic goes away with
+  four of the fifteen patches. The floors then read the shell back with
+  `ui::widget_rect` rather than recomputing what the engine just solved.
+
+## 8. A kit of scenes, not of calls
+
+`kit.rn` is the shared kit today and it draws: 49 `ui::*` calls. A kit of
+nodes is a scene fragment per shape, instantiated under a parent with
+`scene::instantiate`, which takes TOML text rather than a path. A plugin dock
+then gets the same rows the editor's own docks are built from, and a theme
+role dresses both. Sequence it after §6.2: the row is the first shape worth
+sharing, and writing the kit before there is one to share guesses at it.

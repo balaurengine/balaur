@@ -6,7 +6,6 @@
 //! when present; three named families — `heading`, `ui`, `mono` — always
 //! exist so scripts can reference them regardless.
 
-use smol_str::SmolStr;
 use std::collections::HashMap;
 
 use crate::vocabulary::words as w;
@@ -21,7 +20,7 @@ pub struct ThemeTokens {
     /// would otherwise have been given at the call site. Colour entries are
     /// already resolved from token name to `#rrggbb`. Shared rather than
     /// owned: every widget naming a role would otherwise copy the table.
-    pub roles: HashMap<String, std::rc::Rc<Vec<(SmolStr, balaur_script::Value)>>>,
+    pub roles: HashMap<String, std::rc::Rc<Vec<(String, balaur_script::Value)>>>,
 }
 
 impl Default for ThemeTokens {
@@ -40,7 +39,7 @@ impl ThemeTokens {
     }
 
     /// The option map a role stands for, empty when nothing declares it.
-    pub fn role(&self, name: &str) -> &[(SmolStr, balaur_script::Value)] {
+    pub fn role(&self, name: &str) -> &[(String, balaur_script::Value)] {
         self.roles.get(name).map_or(&[], |role| role.as_slice())
     }
 }

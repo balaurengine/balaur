@@ -173,7 +173,7 @@ fn fs_list_is_sorted_and_hides_dotfiles() {
                 .iter()
                 .find(|(k, _)| k == "name")
                 .map(|(_, v)| match v {
-                    Value::Str(s) => s.to_string(),
+                    Value::Str(s) => s.clone(),
                     _ => String::new(),
                 }),
             _ => None,
@@ -479,7 +479,7 @@ fn fs_refuses_an_absolute_path_outside_every_root() {
             "fs",
             "write",
             &[
-                Value::Str(outside.to_string_lossy().into_owned().into()),
+                Value::Str(outside.to_string_lossy().into_owned()),
                 Value::Str("hi".into()),
             ],
         )
@@ -534,7 +534,7 @@ fn fs_reaches_a_second_root_the_host_declared() {
             "fs",
             "write",
             &[
-                Value::Str(target.to_string_lossy().into_owned().into()),
+                Value::Str(target.to_string_lossy().into_owned()),
                 Value::Str("hi".into()),
             ],
         )

@@ -176,7 +176,7 @@ fn rows(
     let placed = &at.arena[index];
     let widget = &placed.widget;
     let entity = placed.entity;
-    let want = box_of(widget, at.assigned);
+    let want = box_of(widget, &at.style_of(widget), at.assigned);
     let row_h = pitch(ui, widget, font);
     let ink = Ink::of(ui, &at.theme);
     backdrop(ui, at, &at.style_of(widget), ui.max_rect());
@@ -893,7 +893,7 @@ fn cards(
 ) {
     let placed = &at.arena[index];
     let (entity, widget) = (placed.entity, placed.widget.clone());
-    let want = box_of(&widget, at.assigned);
+    let want = box_of(&widget, &at.style_of(&widget), at.assigned);
     let columns = widget.columns.max(1) as usize;
     let items: Vec<String> = widget
         .options

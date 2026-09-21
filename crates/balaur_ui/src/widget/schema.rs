@@ -30,7 +30,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "The HUD element the widget layer draws" }}"#, w::LABEL, v::options(w::WIDGET_KINDS))),
                     (k::TEXT, r#"{ type = "string", default = "label", description = "Label or button caption" }"#),
                     (k::VISIBLE, r#"{ type = "bool", default = true, description = "Draw the widget; hidden widgets keep their state" }"#),
-                    (k::SAFE_AREA, r#"{ type = "bool", default = false, description = "Keep this root clear of what a notch, a status bar or a home bar covers. Off by default: a backdrop is meant to reach the edge and a control is not", group = "placement" }"#),
+                    (k::SAFE_AREA, &format!(r#"{{ type = "flags", default = [], options = [{}], description = "The edges this root keeps clear of what a notch, a status bar or a home bar covers. Empty by default: a backdrop is meant to reach the edge and a control is not, and a screen often wants content above the notch and its background under the gesture bar", group = "placement" }}"#, v::options(w::EDGES))),
                     (k::ANCHOR, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Corner, edge or middle the offset is measured from: of the surface for a root, of the parent's box inside a `stack`; `fill` takes the whole of it less `inset`" }}"#, w::TOP_LEFT, v::options(w::ANCHORS))),
                     (k::X, r#"{ type = "float", default = 16.0, description = "Horizontal offset from the anchor, in design pixels", group = "placement" }"#),
                     (k::Y, r#"{ type = "float", default = 16.0, description = "Vertical offset from the anchor, in design pixels", group = "placement" }"#),
@@ -564,7 +564,17 @@ fn controls_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Valu
         k::AVOID_KEYBOARD.into(),
         toml::Value::Boolean(widget.avoid_keyboard),
     );
-    map.insert(k::SAFE_AREA.into(), toml::Value::Boolean(widget.safe_area));
+    map.insert(
+        k::SAFE_AREA.into(),
+        toml::Value::Array(
+            w::EDGES
+                .iter()
+                .zip(widget.safe_area)
+                .filter(|(_, on)| *on)
+                .map(|(name, _)| toml::Value::String((*name).to_string()))
+                .collect(),
+        ),
+    );
     map.insert(k::SLICE.into(), four(widget.slice));
     map.insert(
         k::DEADZONE.into(),
@@ -802,7 +812,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         avoid_keyboard: false,
         slice: [0.0; 4],
         deadzone: 0.0,
-        safe_area: false,
+        safe_area: [false; 4],
         hide_narrower: 0.0,
         hide_wider: 0.0,
         hide_shorter: 0.0,
@@ -887,7 +897,7 @@ fn read_controls(widget: &mut Widget, params: &toml::Value) {
     widget.open = b(k::OPEN);
     widget.inset = crate::widget::theme::four_of(params.get(k::INSET));
     widget.avoid_keyboard = b(k::AVOID_KEYBOARD);
-    widget.safe_area = b(k::SAFE_AREA);
+    widget.safe_area = edges_of(params.get(k::SAFE_AREA));
     widget.hide_narrower = f(k::HIDE_NARROWER);
     widget.hide_wider = f(k::HIDE_WIDER);
     widget.hide_shorter = f(k::HIDE_SHORTER);
@@ -1021,4 +1031,13 @@ mod tests {
         let request = crate::widget::text::text_request(&widget, "x", None, &font, &style);
         assert_eq!(request.family, "heading");
     }
+}
+
+/// Which of the four edges a `flags` property names, in `EDGES` order.
+fn edges_of(value: Option<&toml::Value>) -> [bool; 4] {
+    let mut out = [false; 4];
+    for (slot, name) in out.iter_mut().zip(w::EDGES) {
+        *slot = balaur_core::components::has_flag(value, name);
+    }
+    out
 }

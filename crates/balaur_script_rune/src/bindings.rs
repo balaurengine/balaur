@@ -266,7 +266,7 @@ impl balaur_script::Bindings<Engine> for RuneModule {
             Value::Bool(b) => b.to_string(),
             Value::Int(i) => i.to_string(),
             Value::Num(n) => n.to_string(),
-            Value::Str(s) => s.to_string(),
+            Value::Str(s) => s.clone(),
             other => format!("{other:?}"),
         };
         record(&self.name, name, Some(shown));
@@ -309,6 +309,14 @@ pub(crate) fn hold_node_fn(
 /// The engine a bound handle was registered with.
 pub(crate) fn engine_of(handle: usize) -> Option<Engine> {
     BOUND.with_borrow(|b| b.get(handle).map(|(engine, _)| engine.clone()))
+}
+
+/// Run `f` against that engine without cloning the handle out.
+///
+/// For a path that runs per property per frame: `engine_of` bumps a refcount
+/// this never needs, since the borrow cannot outlive the call.
+pub(crate) fn with_engine<T>(handle: usize, f: impl FnOnce(&Engine) -> T) -> Option<T> {
+    BOUND.with_borrow(|b| b.get(handle).map(|(engine, _)| f(engine)))
 }
 
 /// The handler body shared by every binding and every node method: the

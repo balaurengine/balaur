@@ -315,7 +315,7 @@ fn echo_once(options: SocketOptions) -> (String, bool) {
     let compressed = saw
         .recv_timeout(std::time::Duration::from_secs(5))
         .expect("the server saw the first frame");
-    (echoed.to_string(), compressed)
+    (echoed.clone(), compressed)
 }
 
 #[test]

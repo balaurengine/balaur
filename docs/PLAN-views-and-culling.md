@@ -96,9 +96,15 @@ mesh.
 
 ## 3a. What 2D batching has to do
 
-**Half built 2026-09-21:** runs of `Flat` shapes and of plain sprites draw
-as one call. A sheet, a region or a flip still draws node by node, because
-the fork has nowhere to put a per-instance UV rect yet.
+**Built 2026-09-21.** Runs of `Flat` shapes and of sprites draw as one call,
+a sheet frame included: the fork's `InstanceData2d` carries a `uv` rectangle,
+the surface pipeline binds it at location 6, and the vertex stage mixes the
+mesh's own coordinates through it. The default rectangle is the whole image,
+so a draw that asks for nothing is unchanged.
+
+That rectangle also ends a second cost. `set_uv_rect` opens with
+`make_mesh_unique`, so every sprite on a sheet frame owned a copy of the
+built-in quad; a batched one now shares it.
 
 **Measured 2026-09-20**, `scripts/bench_load.py --only kind/shape2d`: five
 thousand sprites offscreen at 1600x1000 cost 29.3 ms of wall, of which
@@ -137,6 +143,26 @@ What the run cutting cost, on the same case: render CPU went from 21.4 ms to
 pixel against the same scene drawn node by node, over a grid of two dozen
 rectangles turned, scaled and tinted apart, and over the `angrynerds`
 example; neither moved a channel.
+
+## 3b. What 3D instancing has to do
+
+**Built 2026-09-21.** Two thousand balls cost 31.9 ms of render CPU, 16 µs a
+node, which was the worst number in the benchmark suite once 2D batched.
+
+Three dimensions are easier in one way. Geometry is depth-tested and the sync
+walks a query rather than a sorted order, so a group needs no place in an
+order and any nodes that draw alike may join one wherever they sit.
+
+They are stricter in another. An instance carries a position, a 3x3 and a
+colour, and the shader multiplies normals by that same 3x3 — correct only
+where the scale is even, since an uneven one needs the inverse transpose.
+So a node scaled unevenly keeps its own object. So does a skinned one, which
+is posed on its node, and a model with levels of detail, which swaps geometry
+as the eye moves.
+
+Everything else a node holds is the object's and so is the key's: the shape
+or the `mesh` asset, the texture, the material, the shadow flag and the light
+layers.
 
 ## 4. What CI can prove, and what it cannot
 

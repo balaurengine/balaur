@@ -205,7 +205,7 @@ fn themed_frame(style: &crate::widget::theme::Style, fill: Option<Color32>) -> e
 pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let placed = &at.arena[index];
     let (entity, widget) = (placed.entity, placed.widget.clone());
-    let box_size = box_of(&widget, at.assigned);
+    let box_size = box_of(&widget, &at.style_of(&widget), at.assigned);
     let room = ui.max_rect();
     let size = vec2(
         if box_size.x > 0.0 {
@@ -403,9 +403,20 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
 /// Godot's container contract — a child fills the rect it was assigned unless
 /// it names a size of its own. 0 on an axis means "hug", which is what a root
 /// and every scene written before `grow` gets.
-pub(crate) fn box_of(widget: &Widget, assigned: egui::Vec2) -> egui::Vec2 {
+pub(crate) fn box_of(
+    widget: &Widget,
+    style: &crate::widget::theme::Style,
+    assigned: egui::Vec2,
+) -> egui::Vec2 {
     let stated = vec2(widget.width, widget.height);
-    let floor = vec2(widget.min_width, widget.min_height);
+    // A role's size floors the box, so a container takes its height from the
+    // theme the way a button already does. A floor rather than the box: one
+    // measured by its content lands on it anyway, and one that grows keeps
+    // the share the layout gave it.
+    let floor = vec2(
+        widget.min_width.max(style.width.unwrap_or(0.0)),
+        widget.min_height.max(style.height.unwrap_or(0.0)),
+    );
     vec2(
         if stated.x > 0.0 { stated.x } else { assigned.x }.max(floor.x),
         if stated.y > 0.0 { stated.y } else { assigned.y }.max(floor.y),

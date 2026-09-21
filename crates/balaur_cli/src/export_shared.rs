@@ -8,7 +8,6 @@
 
 use balaur_script::Value;
 use serde::{Deserialize, Serialize};
-use smol_str::SmolStr;
 
 /// One step of an export, crossing from wherever the work happens back to a
 /// tick.
@@ -47,9 +46,9 @@ impl crate::jobs::Reported for ExportEvent {
         ];
         match self {
             Self::Started { .. } => {}
-            Self::Done { path, .. } => pairs.push(("path".into(), Value::Str(SmolStr::new(path)))),
+            Self::Done { path, .. } => pairs.push(("path".into(), Value::Str(path.to_string()))),
             Self::Failed { message, .. } => {
-                pairs.push(("message".into(), Value::Str(SmolStr::new(message))));
+                pairs.push(("message".into(), Value::Str(message.to_string())));
             }
         }
         Value::Map(pairs)

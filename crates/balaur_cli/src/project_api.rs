@@ -6,7 +6,6 @@
 //! whose folder is gone stays until somebody forgets it, because a missing
 //! project is usually an unplugged disk rather than a deleted game.
 
-use smol_str::SmolStr;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
@@ -278,16 +277,16 @@ fn examples() -> Vec<Value> {
     let Ok(entries) = std::fs::read_dir(&dir) else {
         return Vec::new();
     };
-    let mut rows: Vec<(SmolStr, Value)> = entries
+    let mut rows: Vec<(String, Value)> = entries
         .filter_map(|entry| {
             let entry = entry.ok()?;
             let path = entry.path();
             if !path.join("project.toml").is_file() {
                 return None;
             }
-            let id: smol_str::SmolStr = entry.file_name().to_string_lossy().as_ref().into();
+            let id = entry.file_name().to_string_lossy().into_owned();
             let note = notes
-                .get(id.as_str())
+                .get(&id)
                 .and_then(|table| table.get("note"))
                 .and_then(toml::Value::as_str)
                 .unwrap_or_default()

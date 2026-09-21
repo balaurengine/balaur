@@ -90,6 +90,11 @@ pub(crate) mod words {
     pub(crate) const START: &str = "start";
     pub(crate) const END: &str = "end";
     pub(crate) const LEFT: &str = "left";
+    pub(crate) const TOP: &str = "top";
+    pub(crate) const RIGHT: &str = "right";
+    pub(crate) const BOTTOM: &str = "bottom";
+    /// The four edges a `safe_area` names, in the order an inset is spelled.
+    pub(crate) const EDGES: &[&str] = &[LEFT, TOP, RIGHT, BOTTOM];
     /// Where a container puts its children, and where text sits.
     pub(crate) const ALIGNS: &[&str] = &[START, CENTER, END];
 

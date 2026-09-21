@@ -12,7 +12,6 @@ websocket = ["dep:balaur_websocket"]
 webtransport = ["dep:balaur_webtransport"]
 
 [dependencies]
-smol_str.workspace = true
 balaur_core.workspace = true
 balaur_plugin.workspace = true
 balaur_script.workspace = true

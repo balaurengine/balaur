@@ -5,7 +5,6 @@
 
 use balaur_core::components::ComponentDef;
 use balaur_core::{App, AppConfig, components, presets, scene};
-use smol_str::SmolStr;
 
 fn app() -> App {
     App::new(AppConfig::bare(".")).unwrap()
@@ -155,7 +154,7 @@ impl balaur_script::ScriptHost<balaur_core::Engine> for PackedHost {
         &self,
         _: balaur_script::NodeId,
         _: &str,
-        _: &[(SmolStr, balaur_script::Value)],
+        _: &[(String, balaur_script::Value)],
     ) -> anyhow::Result<()> {
         Ok(())
     }

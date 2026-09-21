@@ -26,7 +26,7 @@ pub(crate) fn window(
     }
     let style = at.style_of(&widget);
     let pad = padding_of(&widget, &style);
-    let box_size = box_of(&widget, at.assigned);
+    let box_size = box_of(&widget, &at.style_of(&widget), at.assigned);
     let plate = ui.painter().add(egui::Shape::Noop);
     let min = (box_size - pad.taken()).max(egui::Vec2::ZERO);
     let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(pad.inside(ui.max_rect())));

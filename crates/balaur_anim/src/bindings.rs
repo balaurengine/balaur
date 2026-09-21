@@ -9,7 +9,6 @@
 use anyhow::{Result, anyhow};
 use balaur_core::{Engine, entity_of, node_api};
 use balaur_script::{Bindings, BindingsExt as _, NodeId, Value};
-use smol_str::SmolStr;
 
 use crate::ease::Easing;
 use crate::keys as k;
@@ -35,17 +34,17 @@ pub fn install_animation_api(m: &mut dyn Bindings<Engine>) {
         Ok(Value::List(
             crate::ease::names()
                 .into_iter()
-                .map(|name| Value::Str(SmolStr::new(name)))
+                .map(|name| Value::Str(name.to_string()))
                 .collect(),
         ))
     });
     // The words a clip, a machine and a modifier spell, so a script names
     // `animation::EASE_IN_OUT_SINE` rather than a string it can misspell.
     for (name, value) in crate::CONSTANTS.iter().flat_map(|table| table.iter()) {
-        m.constant(name, Value::Str((*value).to_string().into()));
+        m.constant(name, Value::Str((*value).to_string()));
     }
     for (name, value) in crate::ease_constants() {
-        m.constant(&name, Value::Str(SmolStr::new(value)));
+        m.constant(&name, Value::Str(value.to_string()));
     }
 }
 

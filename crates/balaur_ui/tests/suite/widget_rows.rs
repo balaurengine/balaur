@@ -844,7 +844,7 @@ fn a_list_that_does_not_reorder_reports_no_drop() {
     consume_input(&mut app);
     assert_eq!(
         host.call_on(balaur::node_id_of(owner), "said", &[]),
-        Some(balaur_script::Value::Str(smol_str::SmolStr::default())),
+        Some(balaur_script::Value::Str(String::new())),
         "a view that does not reorder hears nothing from a drag over it"
     );
 }

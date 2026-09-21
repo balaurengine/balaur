@@ -13,7 +13,6 @@
 //! `on_multiplayer_event` as a map with a `kind`; they report, and a change
 //! to the world made from one is not something the other machines make.
 
-use smol_str::SmolStr;
 use std::collections::BTreeMap;
 
 use anyhow::Result;
@@ -131,11 +130,11 @@ impl MultiplayerState {
 
     /// Queue an event for every script's `on_multiplayer_event`.
     pub(crate) fn tell(&mut self, kind: EventKind, fields: Vec<(&str, Value)>) {
-        let mut map = vec![(SmolStr::new_static("kind"), Value::Str(kind.name().into()))];
+        let mut map = vec![("kind".to_string(), Value::Str(kind.name().into()))];
         map.extend(
             fields
                 .into_iter()
-                .map(|(key, value)| (SmolStr::new(key), value)),
+                .map(|(key, value)| (key.to_string(), value)),
         );
         self.events.push(Value::Map(map));
     }

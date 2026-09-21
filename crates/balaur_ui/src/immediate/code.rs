@@ -408,10 +408,7 @@ pub(crate) fn code_opts(
     };
     let mut given = vec![
         (k::SIZE.into(), Value::Num(f64::from(size))),
-        (
-            k::LANGUAGE.into(),
-            Value::Str(widget.source.to_string().into()),
-        ),
+        (k::LANGUAGE.into(), Value::Str(widget.source.to_string())),
         (
             k::CURRENT_LINE.into(),
             Value::Int(i64::from(widget.current_line)),
@@ -436,7 +433,7 @@ pub(crate) fn code_opts(
     }
     for name in THEME_COLORS {
         if let Some(color) = theme.token(name) {
-            given.push((name.into(), Value::Str(hex(color).into())));
+            given.push((name.into(), Value::Str(hex(color))));
         }
     }
     Opts::plain(Some(Value::Map(given)))

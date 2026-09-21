@@ -79,8 +79,7 @@ fn button_name(button: u8) -> Value {
             2 => "middle",
             _ => "left",
         }
-        .to_string()
-        .into(),
+        .to_string(),
     )
 }
 
@@ -278,7 +277,7 @@ fn fill_action_runners(app: &balaur_core::App) {
 
 fn text_of(value: &Value) -> String {
     match value {
-        Value::Str(s) => s.to_string(),
+        Value::Str(s) => s.clone(),
         Value::Num(n) => format!("{n}"),
         Value::Bool(b) => b.to_string(),
         _ => String::new(),

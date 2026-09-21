@@ -40,7 +40,7 @@ pub(crate) fn table(
 ) {
     let placed = &at.arena[index];
     let (entity, widget) = (placed.entity, placed.widget.clone());
-    let want = box_of(&widget, at.assigned);
+    let want = box_of(&widget, &at.style_of(&widget), at.assigned);
     let items = strings_of(&widget);
     let (heads, first) = header(&widget, &items);
     // The order the rows are drawn in, which is the order given unless a

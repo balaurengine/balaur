@@ -2,7 +2,6 @@
 //! one node, and what `init` finds already written on `this`.
 
 use balaur_core::{App, AppConfig};
-use smol_str::SmolStr;
 
 fn project(files: &[(&str, &str)]) -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
@@ -159,26 +158,23 @@ fn exports_reports_the_declared_defaults_at_their_own_types() {
     let declared = host.exports("scripts/enemy.rn").unwrap();
     let spec = |kind: &str, default: balaur_script::Value| {
         balaur_script::Value::Map(vec![
-            (
-                SmolStr::new_static("type"),
-                balaur_script::Value::Str(kind.into()),
-            ),
-            (SmolStr::new_static("default"), default),
+            (String::from("type"), balaur_script::Value::Str(kind.into())),
+            (String::from("default"), default),
         ])
     };
     assert_eq!(
         declared,
         vec![
             (
-                SmolStr::new_static("jumps"),
+                String::from("jumps"),
                 spec("int", balaur_script::Value::Int(2))
             ),
             (
-                SmolStr::new_static("name"),
+                String::from("name"),
                 spec("string", balaur_script::Value::Str("grunt".into()))
             ),
             (
-                SmolStr::new_static("speed"),
+                String::from("speed"),
                 spec("float", balaur_script::Value::Num(2.0))
             ),
         ],

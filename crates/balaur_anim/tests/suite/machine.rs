@@ -5,7 +5,6 @@
 use balaur_anim::{AnimationPlugin, machine};
 use balaur_core::hecs::Entity;
 use balaur_core::{App, AppConfig, assets, components, scene};
-use smol_str::SmolStr;
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(std::path::PathBuf::from("tests/fixtures"))).unwrap();
@@ -307,7 +306,7 @@ fn the_machine_says_which_state_it_left_and_which_it_entered() {
         calls.order(hero),
         ["on_state_started", "on_state_finished", "on_state_started"]
     );
-    let text = |s: &str| Some(vec![balaur_script::Value::Str(SmolStr::new(s))]);
+    let text = |s: &str| Some(vec![balaur_script::Value::Str(s.to_string())]);
     assert_eq!(calls.args(hero, "on_state_finished"), text("idle"));
 }
 

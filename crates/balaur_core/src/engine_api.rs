@@ -10,7 +10,6 @@
 
 use anyhow::{Result, anyhow};
 use balaur_script::{Bindings as _, Value};
-use smol_str::SmolStr;
 
 use crate::batteries_api::{
     assets_assign_id, assets_directory, assets_duplicate, assets_exists, assets_id,
@@ -650,7 +649,7 @@ fn plugin_version(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(crate::plugins::loaded(eng)
         .into_iter()
         .find(|p| p.name == name)
-        .map_or(Value::Nil, |p| Value::Str(p.version.into())))
+        .map_or(Value::Nil, |p| Value::Str(p.version)))
 }
 
 fn has_plugin(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -733,7 +732,7 @@ fn args(eng: &Engine, _: &[Value]) -> Result<Value> {
 fn user_data_dir(eng: &Engine, _: &[Value]) -> Result<Value> {
     let dir = user_data_dir_of(eng);
     crate::files::backend(eng).mkdir(&dir)?;
-    Ok(Value::Str(dir.to_string_lossy().into_owned().into()))
+    Ok(Value::Str(dir.to_string_lossy().into_owned()))
 }
 
 /// The same directory, for a plugin that keeps a file there: input
@@ -874,7 +873,7 @@ fn component_tags(eng: &Engine, args: &[Value]) -> Result<Value> {
         Value::List(
             def.tags
                 .iter()
-                .map(|t| Value::Str((*t).to_string().into()))
+                .map(|t| Value::Str((*t).to_string()))
                 .collect(),
         )
     }))
@@ -890,7 +889,7 @@ fn component_expects(eng: &Engine, args: &[Value]) -> Result<Value> {
         Value::List(
             def.expects
                 .iter()
-                .map(|t| Value::Str((*t).to_string().into()))
+                .map(|t| Value::Str((*t).to_string()))
                 .collect(),
         )
     }))
@@ -913,19 +912,19 @@ fn preset_info(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(registry.0.get(name).map_or(Value::Nil, |def| {
         Value::Map(vec![
             (
-                "description".to_string().into(),
-                Value::Str(SmolStr::new(&def.description)),
+                "description".to_string(),
+                Value::Str(def.description.clone()),
             ),
             (
-                "tags".to_string().into(),
+                "tags".to_string(),
                 Value::List(def.tags.iter().cloned().map(Value::text).collect()),
             ),
             (
-                "components".to_string().into(),
+                "components".to_string(),
                 Value::List(
                     def.parts
                         .iter()
-                        .map(|p| Value::Str(SmolStr::new(&p.component)))
+                        .map(|p| Value::Str(p.component.clone()))
                         .collect(),
                 ),
             ),
@@ -949,9 +948,9 @@ fn unmet_expectations(eng: &Engine, args: &[Value]) -> Result<Value> {
             .into_iter()
             .map(|(component, expects)| {
                 Value::Map(vec![
-                    ("component".to_string().into(), Value::Str(component.into())),
+                    ("component".to_string(), Value::Str(component)),
                     (
-                        "expects".to_string().into(),
+                        "expects".to_string(),
                         Value::List(expects.into_iter().map(Value::text).collect()),
                     ),
                 ])
@@ -973,13 +972,15 @@ fn strings_tr(eng: &Engine, args: &[Value]) -> Result<Value> {
         Some(Value::Map(fields)) => fields.clone(),
         _ => Vec::new(),
     };
-    Ok(Value::Str(
-        crate::strings::tr(eng, text(args, 0)?, &args_table).into(),
-    ))
+    Ok(Value::Str(crate::strings::tr(
+        eng,
+        text(args, 0)?,
+        &args_table,
+    )))
 }
 
 fn strings_locale(eng: &Engine, _: &[Value]) -> Result<Value> {
-    Ok(Value::Str(crate::strings::locale(eng).into()))
+    Ok(Value::Str(crate::strings::locale(eng)))
 }
 
 fn strings_set_locale(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -1026,16 +1027,13 @@ fn save_remove(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn save_folder(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(Value::Str(
-        crate::save::folder(eng)
-            .to_string_lossy()
-            .into_owned()
-            .into(),
+        crate::save::folder(eng).to_string_lossy().into_owned(),
     ))
 }
 
 fn user_data_dir_of_project(eng: &Engine, args: &[Value]) -> Result<Value> {
     let dir = user_data_dir_named(eng, text(args, 0)?);
-    Ok(Value::Str(dir.to_string_lossy().into_owned().into()))
+    Ok(Value::Str(dir.to_string_lossy().into_owned()))
 }
 
 fn save_version(eng: &Engine, _: &[Value]) -> Result<Value> {
@@ -1076,10 +1074,10 @@ fn script_costs(eng: &Engine, _: &[Value]) -> Result<Value> {
         rows.into_iter()
             .map(|(path, calls, instructions)| {
                 Value::Map(vec![
-                    ("path".to_string().into(), Value::Str(path.into())),
-                    ("calls".to_string().into(), Value::Int(calls.cast_signed())),
+                    ("path".to_string(), Value::Str(path)),
+                    ("calls".to_string(), Value::Int(calls.cast_signed())),
                     (
-                        "instructions".to_string().into(),
+                        "instructions".to_string(),
                         Value::Int(instructions.cast_signed()),
                     ),
                 ])

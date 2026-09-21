@@ -44,7 +44,6 @@
 //! into C is undefined behaviour. The reverse is the extension's
 //! responsibility: a C function that unwinds into Rust is equally undefined.
 
-use smol_str::SmolStr;
 use std::ffi::c_void;
 #[cfg(feature = "dylib")]
 use std::ffi::{CStr, c_char};
@@ -349,7 +348,7 @@ fn invoke(function: BalaurFn, user: UserData, args: &[Value]) -> Result<Value> {
     if status != 0 {
         let detail = match &returned {
             Ok(Value::Str(message)) if !message.is_empty() => message.clone(),
-            _ => format!("returned status {status}").into(),
+            _ => format!("returned status {status}"),
         };
         bail!("extension function failed: {detail}");
     }
@@ -455,7 +454,7 @@ unsafe fn from_c(value: &BalaurValue) -> Result<Value> {
         BALAUR_STR => {
             let text = unsafe { payload.string.as_str() }
                 .ok_or_else(|| anyhow::anyhow!("extension returned a string that is not UTF-8"))?;
-            Value::Str(SmolStr::new(text))
+            Value::Str(text.to_string())
         }
         BALAUR_BYTES => Value::Bytes(unsafe { payload.string.as_bytes() }.to_vec()),
         BALAUR_VEC2 => {

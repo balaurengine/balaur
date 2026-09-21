@@ -87,7 +87,7 @@ impl Options {
 fn text(opts: Option<&Value>, key: &str) -> Result<Option<String>> {
     match opt(opts, key) {
         None | Some(Value::Nil) => Ok(None),
-        Some(Value::Str(s)) => Ok(Some(s.to_string())),
+        Some(Value::Str(s)) => Ok(Some(s.clone())),
         Some(other) => Err(anyhow!(
             "`{key}` should be a string, got {}",
             other.type_name()

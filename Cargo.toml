@@ -86,7 +86,7 @@ anyhow = "1"
 # serialize in their insertion order, which is the order that matters.
 indexmap = { version = "2", features = ["serde"] }
 smallvec = "1"
-smol_str = { version = "0.3", features = ["serde"] }
+smol_str = "0.3"
 egui = "0.36"
 # The widget tree's layout: retained flexbox, so rects are decided before
 # anything draws. Grid and block are off; nothing in the tree asks for them.

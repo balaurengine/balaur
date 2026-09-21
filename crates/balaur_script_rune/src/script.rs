@@ -4,7 +4,6 @@
 //! host keeps per script: the unit, the methods resolved out of it, and the
 //! VMs it lends a tick.
 
-use smol_str::SmolStr;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -57,7 +56,7 @@ pub(crate) struct Script {
     /// re-ran per attach would fail once per node. A reload replaces the whole
     /// `Script`, so a changed default reaches the next attach without an
     /// invalidation step.
-    pub(crate) exports: Option<Result<Vec<(SmolStr, balaur_script::Value)>, String>>,
+    pub(crate) exports: Option<Result<Vec<(String, balaur_script::Value)>, String>>,
 }
 
 impl Script {

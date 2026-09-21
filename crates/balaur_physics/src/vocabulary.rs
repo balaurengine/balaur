@@ -8,7 +8,6 @@
 
 use balaur_core::components::as_f64;
 use balaur_script::Value;
-use smol_str::SmolStr;
 
 /// The closed sets of words a scene file, a script table and the inspector all
 /// spell. Written once here so a matcher, a schema's `options` list and the
@@ -508,12 +507,7 @@ impl<'a> Opts<'a> {
 /// A `Value::Map` from pairs, which is what every query and character call
 /// returns.
 pub(crate) fn map<const N: usize>(pairs: [(&str, Value); N]) -> Value {
-    Value::Map(
-        pairs
-            .into_iter()
-            .map(|(k, v)| (SmolStr::new(k), v))
-            .collect(),
-    )
+    Value::Map(pairs.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
 }
 
 /// The flag tables both dimensions read and write.

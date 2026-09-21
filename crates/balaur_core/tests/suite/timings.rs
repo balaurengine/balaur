@@ -1,7 +1,6 @@
 //! What a frame cost: per stage, per named span, and the summary a budget is
 //! set against.
 
-use smol_str::SmolStr;
 use std::time::Duration;
 
 use balaur_core::timings::{TimingLog, Timings};
@@ -16,7 +15,7 @@ fn last(app: &App) -> Timings {
 }
 
 /// The table a script reads, flattened to `(name, seconds)` for assertions.
-fn spans(app: &App) -> Vec<(SmolStr, f64)> {
+fn spans(app: &App) -> Vec<(String, f64)> {
     let balaur_script::Value::Map(fields) = balaur_core::timings::table(&app.engine) else {
         panic!("timings should be a table");
     };

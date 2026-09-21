@@ -198,12 +198,12 @@ pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<Tex
             "max_width" => style.max_width = number(value),
             "font" => {
                 if let Value::Str(path) = value {
-                    style.font = path.to_string();
+                    style.font.clone_from(path);
                 }
             }
             "family" => {
                 if let Value::Str(chain) = value {
-                    style.family = chain.to_string();
+                    style.family.clone_from(chain);
                 }
             }
             "line_height" => style.line_height = number(value).unwrap_or(0.0).max(0.0),

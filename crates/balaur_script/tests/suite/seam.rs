@@ -3,7 +3,6 @@
 //! `&mut dyn Bindings<C>`. A generic method on the trait would give the first
 //! and lose the second.
 
-use smol_str::SmolStr;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -18,7 +17,7 @@ struct Host {
 #[derive(Default)]
 struct FakeModule {
     functions: Vec<(String, BoundFn<Host>)>,
-    constants: Vec<(SmolStr, Value)>,
+    constants: Vec<(String, Value)>,
 }
 
 impl Bindings<Host> for FakeModule {
@@ -26,7 +25,7 @@ impl Bindings<Host> for FakeModule {
         self.functions.push((name.to_string(), f));
     }
     fn constant(&mut self, name: &str, value: Value) {
-        self.constants.push((SmolStr::new(name), value));
+        self.constants.push((name.to_string(), value));
     }
 }
 
@@ -69,10 +68,7 @@ fn typed_registration_survives_erasure() {
         m.get("gravity_scale")(&host, &[Value::Num(1.5)]).unwrap(),
         Value::Num(3.0)
     );
-    assert_eq!(
-        m.constants,
-        [(SmolStr::new_static("DYNAMIC"), Value::Int(0))]
-    );
+    assert_eq!(m.constants, [(String::from("DYNAMIC"), Value::Int(0))]);
 }
 
 #[test]

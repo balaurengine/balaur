@@ -217,8 +217,7 @@ pub(crate) fn load(host: &RuneHost, key: &str, source: &str) -> Option<Hit> {
 /// Write `unit` back for the next run. A failure is not worth a line in the
 /// log: the next run compiles, which is what it would have done anyway.
 pub(crate) fn store(host: &RuneHost, key: &str, source: &str, unit: &Unit, sources: &Sources) {
-    let (path, Some(origins)) = (file_of(host, key), origins_of(host, source, sources))
-    else {
+    let (path, Some(origins)) = (file_of(host, key), origins_of(host, source, sources)) else {
         return;
     };
 

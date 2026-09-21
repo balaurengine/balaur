@@ -294,7 +294,7 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("detach_script", &[], "()", "Drop the script instance on this node, so no further lifecycle call reaches it; the node and its components stay."),
         ("queue_free", &[], "()", "Destroy the node and its subtree at the end of the frame."),
         ("visible", &[], "(node)", "Whether the node itself is set to draw; an ancestor may still hide it."),
-        ("set_visible", &[], "(node, on: bool)", "Show or hide the node and everything under it. Physics is untouched: a hidden collider still collides."),
+        ("set_visible", &[], "(node, on: bool)", "Show or hide the node and everything under it, emitting `visibility_changed` with the new value when the flag moves. Physics is untouched: a hidden collider still collides."),
         ("global_visible", &[], "(node)", "What the renderer sees: false when the node or any ancestor is hidden."),
         ("tint", &[], "(node)", "The node's own tint as r, g, b, a channel floats; an ancestor's multiplies into it on the way to the screen."),
         ("set_tint", &[], "(node, r: float, g: float, b: float, a: float?)", "Multiply a colour into everything the node and its subtree draw, alpha included, one meaning untinted. A renderable's own `color` is the node's alone; this is the one that inherits."),
@@ -393,9 +393,17 @@ fn visible(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn set_visible(eng: &Engine, args: &[Value]) -> Result<Value> {
     let on = flag(args, 1)?;
-    with_appearance(eng, node(args)?, |a| a.visible = on)?;
+    let e = node(args)?;
+    let was = with_appearance(eng, e, |a| std::mem::replace(&mut a.visible, on))?;
+    if was != on {
+        crate::events::emit_from(eng, e, VISIBILITY_EVENT, Value::Bool(on));
+    }
     Ok(Value::Nil)
 }
+
+/// What a node emits when its own `visible` flips, carrying the new value.
+/// An ancestor hiding it does not: the flag this reports is the node's own.
+pub const VISIBILITY_EVENT: &str = "visibility_changed";
 
 /// What the renderer sees: false when any ancestor is hidden.
 fn global_visible(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -407,7 +415,7 @@ fn global_visible(eng: &Engine, args: &[Value]) -> Result<Value> {
 fn process(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     let mode = crate::process::own(&eng.world(), e);
-    Ok(Value::Str(mode.name().to_string().into()))
+    Ok(Value::Str(mode.name().to_string()))
 }
 
 fn set_process(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -471,7 +479,7 @@ fn global_tint(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn material(eng: &Engine, args: &[Value]) -> Result<Value> {
     with_appearance(eng, node(args)?, |a| {
-        Value::Str(a.material.reference().to_string().into())
+        Value::Str(a.material.reference().to_string())
     })
 }
 
@@ -489,8 +497,7 @@ fn global_material(eng: &Engine, args: &[Value]) -> Result<Value> {
         scene::composed_appearance(&world, e)
             .material
             .reference()
-            .to_string()
-            .into(),
+            .to_string(),
     ))
 }
 
@@ -606,8 +613,7 @@ fn name(eng: &Engine, args: &[Value]) -> Result<Value> {
         world
             .get::<&Name>(e)
             .map(|n| n.0.clone())
-            .unwrap_or_default()
-            .into(),
+            .unwrap_or_default(),
     ))
 }
 
@@ -619,7 +625,7 @@ fn set_name(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn path(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
-    Ok(Value::Str(scene::node_path(&eng.world(), e).into()))
+    Ok(Value::Str(scene::node_path(&eng.world(), e)))
 }
 
 fn translate(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -769,6 +775,29 @@ fn set_component(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// The difference from `set_component` is the whole reason both exist:
 /// describing a component whole is what a scene file means, and changing one
 /// property is what a script driving it over time means.
+/// Write one property of the component at `index`, for a backend that has
+/// already resolved both the component and the key.
+///
+/// The conversion to TOML is core's, so a backend needs no opinion about the
+/// scene format to drive one property over time.
+///
+/// # Errors
+/// When the node is gone, the value is not one a component can hold, or the
+/// component's `apply` refuses it.
+pub fn set_property_at(
+    eng: &Engine,
+    entity: Entity,
+    index: usize,
+    key: &str,
+    value: &Value,
+) -> Result<()> {
+    let params = toml::Value::Table(toml::map::Map::from_iter([(
+        key.to_string(),
+        to_toml(value)?,
+    )]));
+    crate::components::patch_at(eng, entity, index, &params)
+}
+
 fn patch_component(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     let params = to_toml(
@@ -803,8 +832,7 @@ fn current_state(eng: &Engine, args: &[Value]) -> Result<Value> {
         world
             .get::<&crate::states::States>(entity)
             .map(|states| states.current.clone())
-            .unwrap_or_default()
-            .into(),
+            .unwrap_or_default(),
     ))
 }
 
@@ -848,7 +876,7 @@ fn component_names(eng: &Engine, args: &[Value]) -> Result<Value> {
 fn stable_id(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     Ok(Value::Str(
-        crate::ids::of(&eng.world(), e).unwrap_or_default().into(),
+        crate::ids::of(&eng.world(), e).unwrap_or_default(),
     ))
 }
 
@@ -882,7 +910,7 @@ fn script_path(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(world
         .get::<&ScriptAttachment>(e)
         .ok()
-        .map_or(Value::Nil, |a| Value::Str(a.path.clone().into())))
+        .map_or(Value::Nil, |a| Value::Str(a.path.clone())))
 }
 
 /// Whether the node's script declares a method, which `call` cannot say: it
@@ -1006,7 +1034,7 @@ pub fn to_toml(v: &Value) -> Result<toml::Value> {
         Value::Bool(b) => toml::Value::Boolean(*b),
         Value::Int(i) => toml::Value::Integer(*i),
         Value::Num(n) => toml::Value::Float(*n),
-        Value::Str(s) => toml::Value::String(s.to_string()),
+        Value::Str(s) => toml::Value::String(s.clone()),
         Value::Node(_) | Value::Callback(_) => {
             return Err(anyhow!("a node or callback is not component data"));
         }
@@ -1021,7 +1049,7 @@ pub fn to_toml(v: &Value) -> Result<toml::Value> {
         Value::Map(pairs) => toml::Value::Table(
             pairs
                 .iter()
-                .map(|(k, val)| Ok((k.to_string(), to_toml(val)?)))
+                .map(|(k, val)| Ok((k.clone(), to_toml(val)?)))
                 .collect::<Result<_>>()?,
         ),
     })
@@ -1037,11 +1065,11 @@ fn number_list(a: &[f32]) -> toml::Value {
 
 pub fn from_toml(v: &toml::Value) -> Result<Value> {
     Ok(match v {
-        toml::Value::String(s) => Value::Str(s.clone().into()),
+        toml::Value::String(s) => Value::Str(s.clone()),
         toml::Value::Integer(i) => Value::Int(*i),
         toml::Value::Float(f) => Value::Num(*f),
         toml::Value::Boolean(b) => Value::Bool(*b),
-        toml::Value::Datetime(d) => Value::Str(d.to_string().into()),
+        toml::Value::Datetime(d) => Value::Str(d.to_string()),
         toml::Value::Array(items) => {
             Value::List(items.iter().map(from_toml).collect::<Result<_>>()?)
         }

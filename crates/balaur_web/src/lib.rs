@@ -189,14 +189,14 @@ fn install_web_api(m: &mut dyn Bindings<Engine>) {
                 Some(other) => {
                     return Err(anyhow!("`on_event` should be a method name, got {other:?}"));
                 }
-                None => "on_web_message".to_string().into(),
+                None => "on_web_message".to_string(),
             };
             eng.resource::<WebState>()
                 .borrow_mut()
                 .listeners
                 .push(Handler {
                     node,
-                    method: method.to_string(),
+                    method: method.clone(),
                 });
             Ok(())
         },

@@ -8,7 +8,7 @@ use balaur_script::{Bindings, BindingsExt, Value};
 use crate::vocabulary::keys as k;
 
 /// A drawn box as the script sees it, or nil for one that has not drawn.
-fn box_of(rect: Option<egui::Rect>) -> Value {
+fn rect_value(rect: Option<egui::Rect>) -> Value {
     rect.map_or(Value::Nil, |r| {
         Value::Map(vec![
             (k::X.into(), Value::Num(f64::from(r.min.x))),
@@ -43,17 +43,17 @@ pub(crate) fn install_rects(m: &mut dyn Bindings<Engine>) {
     m.function(
         "widget_rect",
         |_eng: &Engine, node: balaur_script::NodeId| {
-            Ok(box_of(crate::widget::arrange::drawn_at(
+            Ok(rect_value(crate::widget::arrange::drawn_at(
                 balaur_core::entity_of(node)?,
             )))
         },
     );
     m.function("tab_rect", |_eng: &Engine, node: balaur_script::NodeId| {
-        Ok(box_of(crate::widget::arrange::tab_head_at(
+        Ok(rect_value(crate::widget::arrange::tab_head_at(
             balaur_core::entity_of(node)?,
         )))
     });
     m.function("pill_rect", |_eng: &Engine, (): ()| {
-        Ok(box_of(crate::immediate::last_pill()))
+        Ok(rect_value(crate::immediate::last_pill()))
     });
 }

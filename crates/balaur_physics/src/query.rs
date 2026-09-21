@@ -20,7 +20,6 @@ use anyhow::{Result, anyhow};
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, entity_of, node_id_of};
 use balaur_script::{Bindings, BindingsExt, CallbackHost, NodeId, Value};
-use smol_str::SmolStr;
 
 use crate::PhysicsState3d;
 use crate::vocabulary::{Opts, component as c, keys as k, map};
@@ -462,7 +461,7 @@ fn contact_list(eng: &Engine, node: NodeId) -> Result<Value> {
     let Some(handles) = state.colliders.get(&entity) else {
         return Ok(Value::List(Vec::new()));
     };
-    let mut out: Vec<(SmolStr, Value)> = Vec::new();
+    let mut out: Vec<(String, Value)> = Vec::new();
     for &handle in handles {
         for pair in state.world.contact_pairs_with(handle) {
             let other_handle = if pair.collider1 == handle {
@@ -487,7 +486,7 @@ fn contact_list(eng: &Engine, node: NodeId) -> Result<Value> {
                     // first may be the other node: every query reports world.
                     let p = first.position() * point.local_p1;
                     out.push((
-                        balaur_core::ids::order_key(&world, other)?.into(),
+                        balaur_core::ids::order_key(&world, other)?,
                         map([
                             (k::NODE, Value::Node(other.to_bits().get())),
                             (k::POINT, Value::Vec3(scalar::a3(p))),

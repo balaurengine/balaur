@@ -484,7 +484,6 @@ dependencies = [
  "libm",
  "serde",
  "serde_json",
- "smol_str 0.3.6",
  "tempfile",
  "toml",
  "tracing",
@@ -570,7 +569,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "smol_str 0.3.6",
  "tar",
  "tempfile",
  "toml",
@@ -683,7 +681,6 @@ dependencies = [
  "js-sys",
  "serde",
  "serde_json",
- "smol_str 0.3.6",
  "tempfile",
  "ureq",
  "wasm-bindgen",
@@ -742,7 +739,6 @@ dependencies = [
  "balaur_webtransport",
  "serde",
  "serde_json",
- "smol_str 0.3.6",
  "tempfile",
  "toml",
  "tracing",
@@ -766,7 +762,6 @@ dependencies = [
  "rayon",
  "serde",
  "serde_json",
- "smol_str 0.3.6",
  "tempfile",
  "toml",
  "tracing",
@@ -798,7 +793,6 @@ dependencies = [
  "libloading 0.9.0",
  "serde",
  "serde_json",
- "smol_str 0.3.6",
  "tempfile",
  "toml",
  "tracing",
@@ -845,7 +839,6 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "serde",
- "smol_str 0.3.6",
 ]
 
 [[package]]
@@ -866,7 +859,6 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
- "smol_str 0.3.6",
  "tempfile",
  "toml",
  "tracing",
@@ -3144,7 +3136,7 @@ dependencies = [
 [[package]]
 name = "kiss3d"
 version = "0.46.0"
-source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-hooks#c2446d53b45bdfa81eb4d9033ff4da85437f88b0"
+source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-hooks#d5a1104a9351789b8b7e39000f42b0c044baf358"
 dependencies = [
  "android-activity",
  "bitflags 2.13.2",
@@ -3180,7 +3172,7 @@ dependencies = [
 [[package]]
 name = "kiss3d-macro"
 version = "0.36.0"
-source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-hooks#c2446d53b45bdfa81eb4d9033ff4da85437f88b0"
+source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-hooks#d5a1104a9351789b8b7e39000f42b0c044baf358"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6312,7 +6304,7 @@ version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c2499c2d826531388872b2268718aed907a39bd785ab0dcfe57fab26283f92e"
 dependencies = [
- "skrifa 0.44.0",
+ "skrifa 0.40.0",
  "yazi",
  "zeno",
 ]

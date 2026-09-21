@@ -52,7 +52,7 @@ pub(crate) fn dropdown(
     let placed = &at.arena[index];
     let widget = &placed.widget;
     let entity = placed.entity;
-    let want = box_of(widget, at.assigned);
+    let want = box_of(widget, &at.style_of(widget), at.assigned);
     let mut chosen = widget.text.clone();
     let mut combo = egui::ComboBox::from_id_salt(("balaur-dropdown", entity)).selected_text(
         egui::RichText::new(chosen.as_str())
@@ -83,7 +83,7 @@ pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let widget = &placed.widget;
     let (low, high) = (widget.min, widget.max.max(widget.min));
     let mut value = widget.value.clamp(low, high);
-    let want = box_of(widget, at.assigned);
+    let want = box_of(widget, &at.style_of(widget), at.assigned);
     let width = if want.x > 0.0 {
         want.x
     } else {
@@ -108,7 +108,7 @@ pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
 pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let placed = &at.arena[index];
     let (entity, widget) = (placed.entity, placed.widget.clone());
-    let want = box_of(&widget, at.assigned);
+    let want = box_of(&widget, &at.style_of(&widget), at.assigned);
     let id = format!("balaur-code-{}", entity.to_bits());
     let opts = crate::immediate::code::code_opts(&widget, &at.theme);
     let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(egui::Rect::from_min_size(
@@ -299,7 +299,7 @@ pub(crate) fn color(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let entity = placed.entity;
     let [r, g, b, a] = widget.color;
     let mut rgba = egui::Rgba::from_rgba_unmultiplied(r, g, b, a);
-    let want = box_of(widget, at.assigned);
+    let want = box_of(widget, &at.style_of(widget), at.assigned);
     if want.x > 0.0 {
         ui.spacing_mut().interact_size.x = want.x;
     }
@@ -347,7 +347,7 @@ pub(crate) fn drag_value(
     if widget.step > 0.0 {
         drag = drag.speed(widget.step);
     }
-    let want = box_of(widget, at.assigned);
+    let want = box_of(widget, &at.style_of(widget), at.assigned);
     if want.x > 0.0 {
         // With arrows, the number is told what is left of the stated box, so
         // the pair sits inside it rather than in the next widget's.
@@ -420,7 +420,7 @@ pub(crate) fn progress(
     let widget = &at.arena[index].widget;
     let span = (widget.max - widget.min).abs().max(f32::EPSILON);
     let fraction = ((widget.value - widget.min) / span).clamp(0.0, 1.0);
-    let want = box_of(widget, at.assigned);
+    let want = box_of(widget, &at.style_of(widget), at.assigned);
     let mut bar = egui::ProgressBar::new(fraction).desired_width(if want.x > 0.0 {
         want.x
     } else {
@@ -527,7 +527,7 @@ pub(crate) fn grid(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let gap = widget.gap;
     let style = at.style_of(&widget);
     let pad = padding_of(&widget, &style);
-    let box_size = box_of(&widget, at.assigned);
+    let box_size = box_of(&widget, &at.style_of(&widget), at.assigned);
     let mut cell = egui::Vec2::ZERO;
     {
         let mut measure = Measure::new(at.eng, at.arena, ui);
@@ -564,7 +564,7 @@ pub(crate) fn stack(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let widget = placed.widget.clone();
     let style = at.style_of(&widget);
     let pad = padding_of(&widget, &style);
-    let box_size = box_of(&widget, at.assigned);
+    let box_size = box_of(&widget, &at.style_of(&widget), at.assigned);
     // The box this widget was handed, not what is left after the cursor: a
     // root reserves its box up front, and a stack fills what it was given.
     let room = ui.max_rect();
@@ -601,7 +601,8 @@ pub(crate) fn stack(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             let mut measure = Measure::new(at.eng, at.arena, ui);
             measure.of(*child, &at.theme)
         };
-        let rect = anchored_in(area, &at.arena[*child].widget, want);
+        let kid = at.arena[*child].widget.clone();
+        let rect = anchored_in(area, &kid, &at.style_of(&kid), want);
         // This kind placed the child, so taffy has not solved what is under
         // it: its subtree is solved against the box it was just given.
         let space = crate::widget::taffy::Room::fixed(rect);
@@ -624,9 +625,14 @@ pub(crate) fn stack(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
 /// Where one child of a stack sits: its `anchor` decides whether each axis
 /// stretches or holds the child's own size at an edge or the middle, and `x`
 /// and `y` push it in from the edges the anchor names.
-fn anchored_in(area: Rect, widget: &Widget, want: egui::Vec2) -> Rect {
+fn anchored_in(
+    area: Rect,
+    widget: &Widget,
+    style: &crate::widget::theme::Style,
+    want: egui::Vec2,
+) -> Rect {
     let (across, down) = crate::widget::anchor::in_box(&widget.anchor);
-    let stated = box_of(widget, egui::Vec2::ZERO);
+    let stated = box_of(widget, style, egui::Vec2::ZERO);
     let size = vec2(
         if stated.x > 0.0 { stated.x } else { want.x },
         if stated.y > 0.0 { stated.y } else { want.y },
@@ -669,7 +675,7 @@ pub(crate) fn flow(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let gap = widget.gap;
     let style = at.style_of(&widget);
     let pad = padding_of(&widget, &style);
-    let box_size = box_of(&widget, at.assigned);
+    let box_size = box_of(&widget, &at.style_of(&widget), at.assigned);
     let room = ui.available_rect_before_wrap();
     let width = if box_size.x > 0.0 {
         box_size.x

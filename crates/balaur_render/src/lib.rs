@@ -16,6 +16,7 @@ use balaur_script::Bindings;
 #[cfg(feature = "aseprite")]
 pub mod aseprite;
 mod batch_2d;
+mod batch_3d;
 mod boolean;
 mod camera;
 mod cloner;
@@ -841,7 +842,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
             "What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the backdrop, debug lines and screenshots. `window` holds the window itself.",
         );
         for (name, value) in vocabulary::CONSTANTS {
-            m.constant(name, balaur_script::Value::Str((*value).to_string().into()));
+            m.constant(name, balaur_script::Value::Str((*value).to_string()));
         }
         script_api::install_camera_api(&mut *m);
         script_api::install_camera_2d_api(&mut *m);

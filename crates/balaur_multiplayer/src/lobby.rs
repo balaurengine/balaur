@@ -8,7 +8,6 @@ use balaur_core::snapshot::Snapshot;
 use balaur_core::time::Instant;
 use balaur_core::transport::{LinkState, Transport};
 use balaur_script::Value;
-use smol_str::SmolStr;
 
 use crate::links::{self, Listener};
 use crate::options::Options;
@@ -63,16 +62,13 @@ pub(crate) fn host(state: &mut MultiplayerState, eng: &Engine, options: Options)
     }
     let listener = links::bind(eng, options.transport, &options.address)?;
     let answer = Value::Map(vec![
+        (String::from("url"), Value::Str(listener.url.clone())),
         (
-            String::from("url").into(),
-            Value::Str(SmolStr::new(&listener.url)),
-        ),
-        (
-            String::from("cert_hash").into(),
+            String::from("cert_hash"),
             listener.cert_hash.clone().map_or(Value::Nil, Value::text),
         ),
         (
-            String::from("transport").into(),
+            String::from("transport"),
             Value::Str(options.transport.name().into()),
         ),
     ]);
@@ -231,10 +227,7 @@ pub(crate) fn poll_host(state: &mut MultiplayerState) {
         }
         state.tell(
             EventKind::Left,
-            vec![
-                ("slot", slot_value(slot)),
-                ("name", Value::Str(name.into())),
-            ],
+            vec![("slot", slot_value(slot)), ("name", Value::Str(name))],
         );
     }
     let cap = state.options.as_ref().map_or(0, |o| o.players);
@@ -306,10 +299,7 @@ fn admit(state: &mut MultiplayerState, mut link: Box<dyn Transport>, hello: Cont
     lobby.links.push((slot, link));
     state.tell(
         EventKind::Joined,
-        vec![
-            ("slot", slot_value(slot)),
-            ("name", Value::Str(name.into())),
-        ],
+        vec![("slot", slot_value(slot)), ("name", Value::Str(name))],
     );
 }
 
@@ -356,7 +346,7 @@ pub(crate) fn poll_join(state: &mut MultiplayerState) {
         };
         joiner.link.close();
         state.reset();
-        state.tell(kind, vec![("reason", Value::Str(reason.into()))]);
+        state.tell(kind, vec![("reason", Value::Str(reason))]);
     }
 }
 
@@ -374,10 +364,7 @@ fn heard(state: &mut MultiplayerState, control: Control) -> bool {
         Control::Refuse { reason } => {
             leave(state);
             state.reset();
-            state.tell(
-                EventKind::Failed,
-                vec![("reason", Value::Str(reason.into()))],
-            );
+            state.tell(EventKind::Failed, vec![("reason", Value::Str(reason))]);
             return false;
         }
         Control::Roster { roster } => changed_roster(state, roster),
@@ -410,7 +397,7 @@ fn heard(state: &mut MultiplayerState, control: Control) -> bool {
                 EventKind::Closed,
                 vec![(
                     "reason",
-                    Value::Str(String::from("the host closed the lobby").into()),
+                    Value::Str(String::from("the host closed the lobby")),
                 )],
             );
             return false;
@@ -429,7 +416,7 @@ fn changed_roster(state: &mut MultiplayerState, roster: Vec<crate::wire::Member>
                 EventKind::Joined,
                 vec![
                     ("slot", slot_value(member.slot)),
-                    ("name", Value::Str(SmolStr::new(&member.name))),
+                    ("name", Value::Str(member.name.clone())),
                 ],
             );
         }
@@ -440,7 +427,7 @@ fn changed_roster(state: &mut MultiplayerState, roster: Vec<crate::wire::Member>
                 EventKind::Left,
                 vec![
                     ("slot", slot_value(member.slot)),
-                    ("name", Value::Str(SmolStr::new(&member.name))),
+                    ("name", Value::Str(member.name.clone())),
                 ],
             );
         }

@@ -74,8 +74,12 @@ use smol_str::SmolStr;
 
 use crate::engine::Engine;
 
+mod attached;
 mod schema;
 
+use attached::mark;
+pub(crate) use attached::mark_present;
+pub use attached::{Attached, MAX_COMPONENTS, TRANSFORM_BIT, attached_of};
 use schema::hex_rgba;
 pub use schema::{PROPERTY_TYPES, UNITS, validate_property};
 
@@ -434,52 +438,6 @@ impl<'a> IntoIterator for &'a ComponentRegistry {
     }
 }
 
-/// The most components one build may register: a bit each in [`Attached`].
-pub const MAX_COMPONENTS: usize = 128;
-
-/// Which registered components a node carries, one bit per definition in
-/// registration order.
-///
-/// Two masks, because the two questions have different answers. `present` is
-/// what the node has, which is what a presence test and `component_names`
-/// read. `hooked` is what the registry attached, which is the set of `remove`
-/// hooks a free still owes. They differ for exactly one component: the node
-/// bundle carries a `Transform`, so `transform` is present on almost every
-/// node and hooked on none of them, and freeing fifty thousand nodes still
-/// asks no plugin anything.
-///
-/// A component on the entity rather than a map on the engine: the node is
-/// what the bits belong to, hecs drops them with it, and a read is an
-/// archetype lookup instead of a resource borrow and a hash.
-#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Attached {
-    pub present: u128,
-    pub hooked: u128,
-}
-
-/// `transform` is the first component core registers, so it owns bit 0, and
-/// the node bundle can say a node has one without reaching the registry.
-/// [`ComponentRegistry::insert`] asserts the index, so registering anything
-/// ahead of it fails at boot rather than mislabelling every node.
-pub const TRANSFORM_BIT: u128 = 1;
-
-impl Attached {
-    /// What the node bundle gives a node it spawns with a `Transform`.
-    #[must_use]
-    pub const fn with_transform() -> Self {
-        Self {
-            present: TRANSFORM_BIT,
-            hooked: 0,
-        }
-    }
-
-    /// Whether the definition at `index` is on the node.
-    #[must_use]
-    pub const fn has(&self, index: usize) -> bool {
-        self.present & (1u128 << index) != 0
-    }
-}
-
 /// What a scene or a script asked of each component, by node and definition.
 ///
 /// A component's live state is its own Rust struct, and `get` is the only way
@@ -529,65 +487,18 @@ fn forget(eng: &Engine, entity: Entity, name: &str) {
 }
 
 /// A registered component's position in the registry, which is its key above.
-fn index_of(eng: &Engine, name: &str) -> Option<usize> {
+/// Where `name` sits in registration order, which is the number every other
+/// `_at` entry point takes.
+///
+/// A backend that dispatches on a component name resolves it once, when it
+/// builds its handles, and passes the number afterwards: that is what keeps a
+/// property read off the hash table and out of the allocator.
+#[must_use]
+pub fn index_of(eng: &Engine, name: &str) -> Option<usize> {
     let registry = eng.try_resource::<ComponentRegistry>()?;
     let at = registry.borrow().index_of(name);
     drop(registry);
     at
-}
-
-/// Set or clear one node's bit for the definition at `index`.
-fn mark(eng: &Engine, entity: Entity, index: usize, on: bool) {
-    let bit = 1u128 << index;
-    let mut world = eng.world_mut();
-    if let Ok(mut bits) = world.get::<&mut Attached>(entity) {
-        if on {
-            bits.present |= bit;
-            bits.hooked |= bit;
-        } else {
-            bits.present &= !bit;
-            bits.hooked &= !bit;
-        }
-        return;
-    }
-    if !on {
-        return;
-    }
-    let _ = world.insert_one(
-        entity,
-        Attached {
-            present: bit,
-            hooked: bit,
-        },
-    );
-}
-
-/// Say the node has the definition at `index` without owing its `remove` hook.
-///
-/// For state a node acquires outside [`add`]: the bundle's `Transform`, and
-/// [`crate::transform::ensure`] giving one to a node a body was put on. The
-/// hook belongs to whoever attached it, which here is core.
-pub(crate) fn mark_present(world: &mut hecs::World, entity: Entity, bit: u128) {
-    if let Ok(mut bits) = world.get::<&mut Attached>(entity) {
-        bits.present |= bit;
-        return;
-    }
-    let _ = world.insert_one(
-        entity,
-        Attached {
-            present: bit,
-            hooked: 0,
-        },
-    );
-}
-
-/// The bits a node carries, or none when it carries nothing.
-#[must_use]
-pub fn attached_of(eng: &Engine, entity: Entity) -> Attached {
-    eng.world()
-        .get::<&Attached>(entity)
-        .map(|bits| *bits)
-        .unwrap_or_default()
 }
 
 /// A colour written either way: `[r, g, b, a]` floats, or `#rrggbb` /
@@ -1043,15 +954,26 @@ fn untracked(eng: &Engine, entity: Entity, bits: u128) -> u128 {
 /// its whole table today, and this is the fast path for the one or two that a
 /// UI pass reads a single property of, hundreds of times a frame.
 #[derive(Default)]
-pub struct PropertyReaders(std::collections::HashMap<String, PropertyFn>);
+pub struct PropertyReaders(Vec<Option<PropertyFn>>);
 
 /// Say that `name` can answer a single property, and how.
+///
+/// The name is resolved to its registration index here, once, so a read costs
+/// an index rather than a hash. Called after the component registers.
 pub fn answers_property(eng: &Engine, name: &str, read: PropertyFn) {
+    let Some(index) = index_of(eng, name) else {
+        tracing::warn!(component = name, "no such component to answer a property");
+        return;
+    };
     if eng.try_resource::<PropertyReaders>().is_none() {
         eng.insert_resource(PropertyReaders::default());
     }
     if let Some(readers) = eng.try_resource::<PropertyReaders>() {
-        readers.borrow_mut().0.insert(name.to_string(), read);
+        let mut readers = readers.borrow_mut();
+        if readers.0.len() <= index {
+            readers.0.resize_with(index + 1, || None);
+        }
+        readers.0[index] = Some(read);
     }
 }
 
@@ -1108,20 +1030,7 @@ pub fn set_property(
 /// One property of a component, without building the rest where the component
 /// knows how to answer: `get` and index is what happens otherwise.
 pub fn property(eng: &Engine, entity: Entity, name: &str, key: &str) -> Option<toml::Value> {
-    if let Some(readers) = eng.try_resource::<PropertyReaders>() {
-        let readers = readers.borrow();
-        if let Some(read) = readers.0.get(name)
-            && let Some(found) = read(eng, entity, key)
-        {
-            return Some(found);
-        }
-    }
-    // Taken out of the table rather than cloned: the table was built for this
-    // call and nothing else will read it.
-    match get(eng, entity, name)? {
-        toml::Value::Table(mut table) => table.remove(key),
-        other => other.get(key).cloned(),
-    }
+    property_at(eng, entity, index_of(eng, name)?, key)
 }
 
 /// Whether `entity` carries `name`, without building the component's table.
@@ -1136,6 +1045,35 @@ pub fn has(eng: &Engine, entity: Entity, name: &str) -> bool {
         return false;
     };
     attached_of(eng, entity).has(index)
+}
+
+/// [`property`] with the definition already resolved.
+#[must_use]
+pub fn property_at(eng: &Engine, entity: Entity, index: usize, key: &str) -> Option<toml::Value> {
+    if let Some(readers) = eng.try_resource::<PropertyReaders>() {
+        let readers = readers.borrow();
+        if let Some(Some(read)) = readers.0.get(index)
+            && let Some(found) = read(eng, entity, key)
+        {
+            return Some(found);
+        }
+    }
+    match get_at(eng, entity, index)? {
+        toml::Value::Table(mut table) => table.remove(key),
+        other => other.get(key).cloned(),
+    }
+}
+
+/// [`patch`] with the definition already resolved.
+///
+/// # Errors
+/// What [`patch`] errors on.
+pub fn patch_at(eng: &Engine, entity: Entity, index: usize, params: &toml::Value) -> Result<()> {
+    let name = eng
+        .try_resource::<ComponentRegistry>()
+        .and_then(|r| r.borrow().at(index).map(|(n, _)| n.clone()))
+        .ok_or_else(|| anyhow!("no component at {index}"))?;
+    patch(eng, entity, &name, params)
 }
 
 pub fn get(eng: &Engine, entity: Entity, name: &str) -> Option<toml::Value> {

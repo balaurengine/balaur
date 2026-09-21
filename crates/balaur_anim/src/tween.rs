@@ -51,7 +51,6 @@
 //! which is exactly what declaring against `Bindings<Engine>` exists to
 //! avoid. The data form needs no backend sugar at all.
 
-use smol_str::SmolStr;
 use std::cell::RefCell;
 use std::collections::BTreeSet;
 use std::rc::Rc;
@@ -363,7 +362,7 @@ pub fn start_script(eng: &Engine, node: Entity, spec: &Value) -> Result<TweenId>
     start(eng, node, &balaur_core::node_api::to_toml(&spec)?)
 }
 
-fn keep_calls(eng: &Engine, step: &mut [(SmolStr, Value)]) -> Result<()> {
+fn keep_calls(eng: &Engine, step: &mut [(String, Value)]) -> Result<()> {
     for (name, call) in step.iter_mut() {
         let Value::Callback(id) = call else {
             continue;

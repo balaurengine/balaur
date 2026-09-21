@@ -4,7 +4,6 @@
 use balaur_core::strings;
 use balaur_core::{App, AppConfig};
 use balaur_script::Value;
-use smol_str::SmolStr;
 
 const EN: &str = r#"
 "menu.play" = "Play"
@@ -39,8 +38,8 @@ fn app_in(dir: &std::path::Path) -> App {
     app
 }
 
-fn n(count: i64) -> Vec<(SmolStr, Value)> {
-    vec![("n".to_string().into(), Value::Int(count))]
+fn n(count: i64) -> Vec<(String, Value)> {
+    vec![("n".to_string(), Value::Int(count))]
 }
 
 #[test]

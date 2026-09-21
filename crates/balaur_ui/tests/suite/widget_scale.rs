@@ -429,13 +429,17 @@ mod classes {
     /// root that asks is moved clear of it.
     #[test]
     fn a_root_that_asks_is_kept_clear_of_the_notch() {
-        let top_of = |ask: bool| {
+        let top_of = |ask: &[&str]| {
             let (_dir, app) = app();
+            let asked: Vec<toml::Value> = ask
+                .iter()
+                .map(|e| toml::Value::String((*e).into()))
+                .collect();
             let widget = add_widget(
                 &app,
                 &toml::toml! {
                     kind = "panel" anchor = "top_left" x = 0.0 y = 0.0
-                    width = 100.0 height = 40.0 safe_area = ask
+                    width = 100.0 height = 40.0 safe_area = asked
                 }
                 .into(),
             );
@@ -449,13 +453,20 @@ mod classes {
             balaur_ui::widget_rect(widget).expect("it drew").min.y
         };
         assert!(
-            top_of(false) < 10.0,
+            top_of(&[]) < 10.0,
             "the control drew under the notch as asked"
         );
         assert!(
-            top_of(true) >= 47.0,
+            top_of(&["left", "top", "right", "bottom"]) >= 47.0,
             "the root was not moved clear of the notch: {}",
-            top_of(true)
+            top_of(&["left", "top", "right", "bottom"])
+        );
+        // The edge it did not name is not kept clear: content above the notch
+        // with its background running under the gesture bar is one root.
+        assert!(
+            top_of(&["bottom"]) < 10.0,
+            "an edge nobody asked for was kept clear: {}",
+            top_of(&["bottom"])
         );
     }
 

@@ -8,7 +8,6 @@
 
 use balaur_core::Engine;
 use balaur_script::{CallbackHost, CallbackId, NodeId, Value};
-use smol_str::SmolStr;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -23,7 +22,7 @@ struct Pass {
     /// Kept alive for the duration of the pass; `stack[0]` points into it.
     root: Option<Box<egui::Ui>>,
     stack: Vec<*mut egui::Ui>,
-    roles: HashMap<String, Rc<Vec<(SmolStr, Value)>>>,
+    roles: HashMap<String, Rc<Vec<(String, Value)>>>,
 }
 
 thread_local! {
@@ -32,11 +31,11 @@ thread_local! {
 
 /// A role's option map, as `Opts` reads it under the caller's. Shared: a
 /// pass draws hundreds of widgets naming a handful of roles.
-pub(crate) fn role(name: &str) -> Option<Rc<Vec<(SmolStr, Value)>>> {
+pub(crate) fn role(name: &str) -> Option<Rc<Vec<(String, Value)>>> {
     PASS.with(|p| p.borrow().roles.get(name).cloned())
 }
 
-pub(crate) fn enter_pass(ctx: &egui::Context, roles: HashMap<String, Rc<Vec<(SmolStr, Value)>>>) {
+pub(crate) fn enter_pass(ctx: &egui::Context, roles: HashMap<String, Rc<Vec<(String, Value)>>>) {
     // The root Ui spanning the viewport; panels carve regions out of it
     // (this mirrors what `Context::run_ui` builds internally).
     let mut root = Box::new(egui::Ui::new(

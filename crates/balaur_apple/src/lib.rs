@@ -396,10 +396,10 @@ fn event_value(event: AppleEvent) -> Value {
             ..
         } => {
             pairs.push(("kind".into(), Value::Str("identity".into())));
-            pairs.push(("player".into(), Value::Str(player.into())));
-            pairs.push(("url".into(), Value::Str(url.into())));
-            pairs.push(("signature".into(), Value::Str(signature.into())));
-            pairs.push(("salt".into(), Value::Str(salt.into())));
+            pairs.push(("player".into(), Value::Str(player)));
+            pairs.push(("url".into(), Value::Str(url)));
+            pairs.push(("signature".into(), Value::Str(signature)));
+            pairs.push(("salt".into(), Value::Str(salt)));
             pairs.push((
                 "timestamp".into(),
                 Value::Int(i64::try_from(timestamp).unwrap_or(i64::MAX)),
@@ -414,15 +414,15 @@ fn event_value(event: AppleEvent) -> Value {
             ..
         } => {
             pairs.push(("kind".into(), Value::Str("signed_in".into())));
-            pairs.push(("user".into(), Value::Str(user.into())));
-            pairs.push(("name".into(), Value::Str(name.into())));
-            pairs.push(("token".into(), Value::Str(token.into())));
-            pairs.push(("code".into(), Value::Str(code.into())));
-            pairs.push(("email".into(), Value::Str(email.into())));
+            pairs.push(("user".into(), Value::Str(user)));
+            pairs.push(("name".into(), Value::Str(name)));
+            pairs.push(("token".into(), Value::Str(token)));
+            pairs.push(("code".into(), Value::Str(code)));
+            pairs.push(("email".into(), Value::Str(email)));
         }
         AppleEvent::CredentialState { state, .. } => {
             pairs.push(("kind".into(), Value::Str("credential_state".into())));
-            pairs.push(("state".into(), Value::Str(state.into())));
+            pairs.push(("state".into(), Value::Str(state)));
         }
         AppleEvent::DashboardClosed { .. } => {
             pairs.push(("kind".into(), Value::Str("dashboard_closed".into())));
@@ -433,23 +433,23 @@ fn event_value(event: AppleEvent) -> Value {
         }
         AppleEvent::Scheduled { id, .. } => {
             pairs.push(("kind".into(), Value::Str("scheduled".into())));
-            pairs.push(("id".into(), Value::Str(id.into())));
+            pairs.push(("id".into(), Value::Str(id)));
         }
         AppleEvent::NotificationOpened { id } => {
             pairs.push(("kind".into(), Value::Str("notification_opened".into())));
-            pairs.push(("id".into(), Value::Str(id.into())));
+            pairs.push(("id".into(), Value::Str(id)));
         }
         AppleEvent::PushToken { token } => {
             pairs.push(("kind".into(), Value::Str("push_token".into())));
-            pairs.push(("token".into(), Value::Str(token.into())));
+            pairs.push(("token".into(), Value::Str(token)));
         }
         AppleEvent::PushFailed { message } => {
             pairs.push(("kind".into(), Value::Str("push_failed".into())));
-            pairs.push(("error".into(), Value::Str(message.into())));
+            pairs.push(("error".into(), Value::Str(message)));
         }
         AppleEvent::Url { url } => {
             pairs.push(("kind".into(), Value::Str("url".into())));
-            pairs.push(("url".into(), Value::Str(url.into())));
+            pairs.push(("url".into(), Value::Str(url)));
         }
         // StoreKit's own shape, unflattened: the `kind` is already in there.
         AppleEvent::Store { payload, .. } => {
@@ -459,11 +459,11 @@ fn event_value(event: AppleEvent) -> Value {
         }
         AppleEvent::Failed { message, .. } => {
             pairs.push(("kind".into(), Value::Str("failed".into())));
-            pairs.push(("error".into(), Value::Str(message.into())));
+            pairs.push(("error".into(), Value::Str(message)));
         }
         AppleEvent::Unsupported { call, .. } => {
             pairs.push(("kind".into(), Value::Str("unsupported".into())));
-            pairs.push(("call".into(), Value::Str(call.into())));
+            pairs.push(("call".into(), Value::Str(call)));
         }
     }
     Value::Map(pairs)
@@ -591,9 +591,7 @@ fn install_apple_api(m: &mut dyn Bindings<Engine>) {
                 eng,
                 node,
                 opts.as_ref(),
-                AppleCall::CredentialState {
-                    user: user.to_string(),
-                },
+                AppleCall::CredentialState { user: user.clone() },
             )
         },
     );
@@ -719,7 +717,7 @@ fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
             let title = match opt(opts_ref, "title") {
                 Some(Value::Str(title)) => title.clone(),
                 Some(other) => return Err(anyhow!("`title` should be a string, got {other:?}")),
-                None => String::new().into(),
+                None => String::new(),
             };
             let after = match opt(opts_ref, "after") {
                 Some(Value::Num(seconds)) => *seconds,
@@ -733,16 +731,16 @@ fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
             let id = match opt(opts_ref, "id") {
                 Some(Value::Str(id)) => id.clone(),
                 Some(other) => return Err(anyhow!("`id` should be a string, got {other:?}")),
-                None => String::new().into(),
+                None => String::new(),
             };
             start_call(
                 eng,
                 node,
                 opts.as_ref(),
                 AppleCall::Notify {
-                    id: id.to_string(),
-                    title: title.to_string(),
-                    body: body.to_string(),
+                    id: id.clone(),
+                    title: title.clone(),
+                    body: body.clone(),
                     after,
                 },
             )
@@ -813,7 +811,7 @@ fn install_store_api(m: &mut dyn Bindings<Engine>) {
             let ids = ids
                 .into_iter()
                 .map(|id| match id {
-                    Value::Str(id) => Ok(id.to_string()),
+                    Value::Str(id) => Ok(id.clone()),
                     other => Err(anyhow!("a product id should be a string, got {other:?}")),
                 })
                 .collect::<Result<Vec<String>>>()?;
@@ -839,7 +837,7 @@ fn install_store_api(m: &mut dyn Bindings<Engine>) {
                 node,
                 opts.as_ref(),
                 AppleCall::Store(StoreCall::Purchase {
-                    product: product.to_string(),
+                    product: product.clone(),
                 }),
             )
         },
@@ -888,7 +886,7 @@ fn install_store_ledger_api(m: &mut dyn Bindings<Engine>) {
                 node,
                 opts.as_ref(),
                 AppleCall::Store(StoreCall::Finish {
-                    transaction: transaction.to_string(),
+                    transaction: transaction.clone(),
                 }),
             )
         },

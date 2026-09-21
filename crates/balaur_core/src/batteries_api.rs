@@ -9,7 +9,6 @@
 
 use anyhow::{Result, anyhow};
 use balaur_script::Value;
-use smol_str::SmolStr;
 
 use crate::engine::Engine;
 use crate::engine_api::{integer, number, text};
@@ -70,17 +69,16 @@ pub(crate) fn assets_id(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 /// The id a file has, giving it one and writing the index if it has none.
 pub(crate) fn assets_assign_id(eng: &Engine, args: &[Value]) -> Result<Value> {
-    Ok(Value::Str(
-        crate::asset_index::assign_id(eng, text(args, 0)?)?.into(),
-    ))
+    Ok(Value::Str(crate::asset_index::assign_id(
+        eng,
+        text(args, 0)?,
+    )?))
 }
 
 /// The path an `id://` reference resolves to in the running project; a
 /// path comes back as itself.
 pub(crate) fn assets_path(eng: &Engine, args: &[Value]) -> Result<Value> {
-    Ok(Value::Str(
-        crate::project::path_of(eng, text(args, 0)?)?.into(),
-    ))
+    Ok(Value::Str(crate::project::path_of(eng, text(args, 0)?)?))
 }
 
 /// Where files of an asset type belong, as its plugin declared it.
@@ -89,9 +87,7 @@ pub(crate) fn assets_path(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// somewhere; only the type knows where. Empty when the type is unknown or
 /// declared no directory, which a caller reads as "cannot promote".
 pub(crate) fn assets_directory(eng: &Engine, args: &[Value]) -> Result<Value> {
-    Ok(Value::Str(
-        crate::assets::directory(eng, text(args, 0)?).into(),
-    ))
+    Ok(Value::Str(crate::assets::directory(eng, text(args, 0)?)))
 }
 
 /// The three writers a script has. They emit through `tracing`, so a scripted
@@ -142,7 +138,7 @@ pub(crate) fn log_since(_: &Engine, args: &[Value]) -> Result<Value> {
 
 pub(crate) fn log_file(_: &Engine, _: &[Value]) -> Result<Value> {
     Ok(crate::logbuf::file_path().map_or(Value::Nil, |path| {
-        Value::Str(path.to_string_lossy().into_owned().into())
+        Value::Str(path.to_string_lossy().into_owned())
     }))
 }
 
@@ -154,8 +150,8 @@ fn log_entry(e: &crate::logbuf::LogEntry) -> Value {
         .iter()
         .map(|(name, value)| {
             Value::Map(vec![
-                ("name".into(), Value::Str(SmolStr::new(name))),
-                ("value".into(), Value::Str(SmolStr::new(value))),
+                ("name".into(), Value::Str(name.clone())),
+                ("value".into(), Value::Str(value.clone())),
             ])
         })
         .collect();
@@ -165,9 +161,9 @@ fn log_entry(e: &crate::logbuf::LogEntry) -> Value {
             Value::Int(i64::try_from(e.seq).unwrap_or(i64::MAX)),
         ),
         ("time".into(), Value::Num(e.time)),
-        ("level".into(), Value::Str(SmolStr::new(&e.level))),
-        ("tag".into(), Value::Str(SmolStr::new(&e.tag))),
-        ("message".into(), Value::Str(SmolStr::new(&e.message))),
+        ("level".into(), Value::Str(e.level.clone())),
+        ("tag".into(), Value::Str(e.tag.clone())),
+        ("message".into(), Value::Str(e.message.clone())),
         ("fields".into(), Value::List(fields)),
     ])
 }
@@ -207,7 +203,7 @@ pub(crate) fn rng_int(eng: &Engine, args: &[Value]) -> Result<Value> {
 pub(crate) fn platform(eng: &Engine, _: &[Value]) -> Result<Value> {
     let facts = crate::facts::platform(eng);
     Ok(Value::Map(vec![
-        ("os".into(), Value::Str(facts.os.into())),
+        ("os".into(), Value::Str(facts.os)),
         ("web".into(), Value::Bool(facts.web)),
         ("mobile".into(), Value::Bool(facts.mobile)),
         ("touchscreen".into(), Value::Bool(facts.touchscreen)),
@@ -217,7 +213,7 @@ pub(crate) fn platform(eng: &Engine, _: &[Value]) -> Result<Value> {
 }
 
 pub(crate) fn device_id(eng: &Engine, _: &[Value]) -> Result<Value> {
-    Ok(Value::Str(crate::facts::platform(eng).device_id.into()))
+    Ok(Value::Str(crate::facts::platform(eng).device_id))
 }
 
 pub(crate) fn focused(eng: &Engine, _: &[Value]) -> Result<Value> {
@@ -288,11 +284,11 @@ pub(crate) fn hex_digest(bytes: &[u8]) -> String {
 pub(crate) fn hash_sha256(eng: &Engine, args: &[Value]) -> Result<Value> {
     let path = crate::file_api::resolve(eng, text(args, 0)?)?;
     let bytes = crate::files::backend(eng).read(&path)?;
-    Ok(Value::Str(hex_digest(&bytes).into()))
+    Ok(Value::Str(hex_digest(&bytes)))
 }
 
 pub(crate) fn hash_sha256_text(_: &Engine, args: &[Value]) -> Result<Value> {
-    Ok(Value::Str(hex_digest(text(args, 0)?.as_bytes()).into()))
+    Ok(Value::Str(hex_digest(text(args, 0)?.as_bytes())))
 }
 
 pub(crate) fn encoding_base64(_: &Engine, args: &[Value]) -> Result<Value> {
@@ -302,7 +298,7 @@ pub(crate) fn encoding_base64(_: &Engine, args: &[Value]) -> Result<Value> {
         Some(Value::Str(text)) => base64::engine::general_purpose::STANDARD.encode(text.as_bytes()),
         other => return Err(anyhow!("base64 takes bytes or a string, got {other:?}")),
     };
-    Ok(Value::Str(encoded.into()))
+    Ok(Value::Str(encoded))
 }
 
 pub(crate) fn encoding_from_base64(_: &Engine, args: &[Value]) -> Result<Value> {

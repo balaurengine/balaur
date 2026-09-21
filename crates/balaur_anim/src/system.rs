@@ -18,7 +18,6 @@ use balaur_core::hecs::{Entity, World};
 use balaur_core::scene::{self, Transform};
 use balaur_core::skeleton::Bone;
 use glamx::{EulerRot, Vec3, Vec4};
-use smol_str::SmolStr;
 
 use crate::clip::{Clip, Property, Track, Wrap};
 use crate::player::{AnimationState, Fade, Playback, fixed_dt, max_substeps};
@@ -646,13 +645,13 @@ fn settle_ended(eng: &Engine, ended: &[Entity]) {
             eng,
             entity,
             FINISHED_EVENT,
-            balaur_script::Value::Str(SmolStr::new(&finished)),
+            balaur_script::Value::Str(finished.clone()),
         );
         if let Some(host) = eng.script_host() {
             host.call_on(
                 balaur_core::node_id_of(entity),
                 FINISHED_METHOD,
-                &[balaur_script::Value::Str(finished.into())],
+                &[balaur_script::Value::Str(finished)],
             );
         }
     }
