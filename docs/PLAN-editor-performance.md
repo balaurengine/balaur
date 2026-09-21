@@ -361,9 +361,17 @@ comparison in 9.3 ns, because `transform` registers first. The scan was linear
 and the hash is flat, so the last of the forty-eight went the other way, and a
 write resolves one name where it used to resolve four.
 
-Script-side figures move with the same work and are not repeated here: the
-path from Rune now reaches the registry by index, so what it costs is the row
-above it plus the call.
+What a script pays, measured the same way:
+
+| | before | after |
+| --- | ---: | ---: |
+| `node.transform.position = [..]` | 2.42 µs | 926 ns |
+| `node.transform.position` read | 1.06 µs | 495 ns |
+| `node.get_component(name, key)` | 1.08 µs | 765 ns |
+| `node.has_component(name)` | 612 ns | 403 ns |
+
+A write is the one that moved most, and it is the one animation pays: a track
+drives one property through this every tick.
 
 ## 6c. The shell writes what changed
 
