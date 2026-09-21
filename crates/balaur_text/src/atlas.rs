@@ -145,6 +145,14 @@ impl GlyphAtlas {
         }
         self.pixels.rgba = wider;
         self.side = side;
+        // A slot's `uv` is a fraction of the side, and the side just doubled;
+        // the pixels did not move, so halving each one keeps it on its glyph.
+        for held in self.slots.values_mut().flatten() {
+            held.uv = Rect::from_min_max(
+                (held.uv.min.to_vec2() * 0.5).to_pos2(),
+                (held.uv.max.to_vec2() * 0.5).to_pos2(),
+            );
+        }
         self.generation += 1;
         self.revision += 1;
         self.dirty = Some([0, 0, side, side]);
@@ -351,5 +359,46 @@ mod hard_edge_tests {
         assert_eq!(hard_edge(127), 0);
         assert_eq!(hard_edge(128), 255);
         assert_eq!(hard_edge(255), 255);
+    }
+}
+
+#[cfg(test)]
+mod grow_tests {
+    use super::{GlyphAtlas, SIDE_START, Slot};
+    use cosmic_text::CacheKey;
+    use egui::{Rect, Vec2, pos2};
+
+    /// A glyph keeps its pixels where they are, so its UV has to shrink by
+    /// as much as the side grew or it reads another glyph's cell.
+    #[test]
+    fn growing_the_atlas_keeps_every_slot_on_its_own_glyph() {
+        let mut atlas = GlyphAtlas::default();
+        let side = SIDE_START as f32;
+        let key = CacheKey::new(
+            cosmic_text::fontdb::ID::dummy(),
+            1,
+            16.0,
+            (0.0, 0.0),
+            cosmic_text::Weight::NORMAL,
+            cosmic_text::CacheKeyFlags::empty(),
+        )
+        .0;
+        atlas.slots.insert(
+            key,
+            Some(Slot {
+                uv: Rect::from_min_max(
+                    pos2(64.0 / side, 32.0 / side),
+                    pos2(80.0 / side, 48.0 / side),
+                ),
+                size: Vec2::new(16.0, 16.0),
+                offset: Vec2::ZERO,
+                colored: false,
+            }),
+        );
+        assert!(atlas.grow(), "the atlas doubles from its starting side");
+        let grown = atlas.side as f32;
+        let held = atlas.slots[&key].expect("the slot is still there");
+        assert!((held.uv.min.x - 64.0 / grown).abs() < 1e-6, "{:?}", held.uv);
+        assert!((held.uv.max.y - 48.0 / grown).abs() < 1e-6, "{:?}", held.uv);
     }
 }

@@ -47,12 +47,3 @@ pub fn with(w, i, pitch, component, params) {
     node
 }
 
-/// A node carrying the script under `scripts/shapes/`, for the shapes that
-/// measure the interpreter rather than a component.
-pub fn scripted(w, i, pitch, script) {
-    let node = world::plain(w, i);
-    let at = world::grid(i, 20000, pitch);
-    node.transform.position = [at[0], at[1], 0.0];
-    node.attach_script(script);
-    node
-}
