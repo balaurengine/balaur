@@ -254,13 +254,16 @@ by where the file lives, not by who does it.
   Ends with: `gamend_controller` is removed from `ported.txt` and
   `login_offline` and `main_menu_ready` still pass; then
   `online_game_start` passes against a local `mix dev.start`.
-  The facades are written — `GamendApi`, `GamendClient`, `GamendAuth` and
-  `GamendProto`, whose schema registrations are kept and unused while the
-  socket speaks JSON. With the controller and the login screens translated,
-  `login_offline` and `login_guest` pass, the second being one Godot's own
-  run fails. `main_menu_ready` does not: the startup steal waits on
-  `initial_animation`'s `finished` and the bottom menu never returns, so the
-  controller is hand-ported again until that is found.
+  **Built.** The facades are written — `GamendApi`, `GamendClient`,
+  `GamendAuth` and `GamendProto`, whose schema registrations are kept and
+  unused while the socket speaks JSON. `gamend_controller`, `login_tab` and
+  `login_panel` are off `ported.txt` and translated, and the port answers 32
+  of its 54 scenarios where Godot answers 30: `login_guest` and
+  `restore_existing_auth` pass here and fail there. What the translation
+  needed from the engine was a node saying when it is hidden, and a call to
+  an async method nobody awaits becoming the engine's task rather than a
+  dropped future. What is left is `online_game_start` against a local
+  `mix dev.start`.
 - **5. The release path (Gamend).** CI runs the generator, stamps
   `GAMEND_VERSION`, publishes `balaur_addons/addons/gamend` as an artifact
   beside the Godot one. Ends with: a version bump in Gamend reaches a game
