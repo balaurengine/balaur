@@ -76,6 +76,15 @@ fn rust_side(c: &mut Criterion) {
     group.bench_function("patch_one_property", |b| {
         b.iter(|| components::patch(eng, entity, "transform", &one).unwrap());
     });
+    // What animation drives per track per tick. `patch` above is what it used
+    // to reach for, and reads the component's whole table back to write one
+    // number; this takes the component's own single-property path.
+    let position = vec3(1.0, 2.0, 3.0);
+    group.bench_function("set_one_property", |b| {
+        b.iter(|| {
+            components::set_property(eng, entity, "transform", "position", &position).unwrap();
+        });
+    });
     group.finish();
 }
 

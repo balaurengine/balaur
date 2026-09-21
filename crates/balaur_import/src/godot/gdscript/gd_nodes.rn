@@ -234,14 +234,13 @@ pub fn field(owner, name) {
             }
         }
         if owner.contains_key(CLASS_KEY) && !owner.contains_key(name) {
-            // A method named without a call is Godot's `Callable`: bound
-            // here, to the form that takes no arguments of its own, since
-            // that is how a bound one is called.
+            // A method named without a call is Godot's `Callable`. It is a
+            // table rather than a closure because the caller decides how many
+            // arguments it brings, and a closure's count is fixed.
             let module = script::require(owner[CLASS_KEY]);
-            let method = get(module, `${name}__0`, get(module, name, ()));
-            if !is_nil(method) {
-                let bound = || method(owner);
-                return bound;
+            let known = !is_nil(get(module, `${name}__0`, get(module, name, ())));
+            if known {
+                return #{ "__bound": owner, "__method": name };
             }
         }
         return get(owner, name, ());
@@ -897,6 +896,10 @@ fn widget_handler_key(name) {
 /// Where a class table keeps what `connect` gave it, by signal.
 const LISTENERS = "__listeners";
 
+/// A Godot `Callable` over a class table: the object and the method name.
+const BOUND_OWNER = "__bound";
+const BOUND_METHOD = "__method";
+
 /// A class table's signal: each listener called with what was emitted.
 pub fn emit_obj(owner, name, args) {
     if !(owner is Object) || !owner.contains_key(LISTENERS) {
@@ -1431,6 +1434,18 @@ fn array_method(list, name, args) {
         }
         return ();
     }
+    // Godot's `resize`: a longer array is filled with nulls, a shorter one
+    // keeps its first `n`.
+    if name == "resize" {
+        let want = int(a0);
+        while list.len() as i64 > want {
+            list.pop();
+        }
+        while (list.len() as i64) < want {
+            list.push(());
+        }
+        return 0;
+    }
     if name == "push_front" {
         list.insert(0, a0);
         return ();
@@ -1794,6 +1809,9 @@ pub fn instance_from_id(id) {
 pub fn call_value(target, args) {
     if target is std::ops::Function {
         return spread(target, args);
+    }
+    if target is Object && target.contains_key(BOUND_OWNER) {
+        return invoke_many(target[BOUND_OWNER], target[BOUND_METHOD], args);
     }
     if is_nil(target) || args.len() == 0 {
         return ();

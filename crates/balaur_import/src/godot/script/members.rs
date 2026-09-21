@@ -8,15 +8,19 @@ use super::{
     top_level,
 };
 
-/// The members a Godot class declared with a value, set on `this` at `init`.
+/// The members a Godot class declared with a value: the plain ones the
+/// engine sets when the instance is made, and the ones that wait for the
+/// scene — an exported vector's shape, and every `@onready`.
 pub(super) fn write_members(
     out: &mut String,
     levels: &[String],
     context: &Context,
     exports: &[crate::godot::exports::Export],
     notes: &mut Vec<String>,
-) -> bool {
+) -> Members {
     let mut assignments: Vec<String> = Vec::new();
+    // What the scene has to land first: an export's shape, and `@onready`.
+    let mut scened: Vec<String> = Vec::new();
     // First, so a default that fails still leaves the hooks running.
     for flag in [PROCESS_FLAG, PHYSICS_PROCESS_FLAG] {
         if context.members.contains(flag) {
@@ -42,7 +46,7 @@ pub(super) fn write_members(
                 continue;
             }
         };
-        assignments.push(format!("    this.{field} = (gd.{shape})(this.{field});"));
+        scened.push(format!("    this.{field} = (gd.{shape})(this.{field});"));
     }
     // Godot sets an `@onready` member once the scene is in: after the rest,
     // from the `init` hook, where this node's children are already built.
@@ -86,21 +90,46 @@ pub(super) fn write_members(
             assignments.push(line);
         }
     }
-    assignments.extend(ready);
-    if assignments.is_empty() {
-        return false;
+    scened.extend(ready);
+    let held = Members {
+        defaults: !assignments.is_empty(),
+        scened: !scened.is_empty(),
+    };
+    write_block(
+        out,
+        &assignments,
+        "pub fn defaults",
+        "The defaults the class declared with its members, which the engine\n/// applies when the instance is made.",
+    );
+    write_block(
+        out,
+        &scened,
+        "fn scene_defaults",
+        "The members that wait for the scene: an exported vector arrives as a\n/// list, and `@onready` is Godot's \"once the tree is in\".",
+    );
+    held
+}
+
+/// Which halves of a class's members were written.
+pub(super) struct Members {
+    pub defaults: bool,
+    pub scened: bool,
+}
+
+fn write_block(out: &mut String, lines: &[String], signature: &str, doc: &str) {
+    if lines.is_empty() {
+        return;
     }
-    let binding = if assignments.iter().any(|line| line.contains("(gd.")) {
+    let binding = if lines.iter().any(|line| line.contains("(gd.")) {
         shim_binding(1)
     } else {
         String::new()
     };
     let _ = write!(
         out,
-        "\n/// The defaults the class declared with its members.\nfn defaults(this) {{\n{binding}{}\n}}\n",
-        assignments.join("\n")
+        "\n/// {doc}\n{signature}(this) {{\n{binding}{}\n}}\n",
+        lines.join("\n")
     );
-    true
 }
 
 /// A member's declared value as Rune, read inside `defaults(this)`.

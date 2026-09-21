@@ -40,6 +40,15 @@ impl Emitter<'_> {
     }
 
     pub(super) fn binary(&mut self, op: &str, left: &Expr, right: &Expr) -> String {
+        // Godot answers false when two values are of different types; Rune
+        // throws, and a game compares a missing id with a string all day.
+        if matches!(op, "==" | "!=") && !(literal(left) && literal(right)) {
+            let l = self.expression(left);
+            let r = self.expression(right);
+            self.uses_shim = true;
+            let same = format!("(gd.same)({l}, {r})");
+            return if op == "==" { same } else { format!("!{same}") };
+        }
         if matches!(op, "&&" | "||") {
             let wrap = |e: &Expr, t: String| {
                 if matches!(e, Expr::Binary("&&" | "||", ..)) && e_op(e) != op {
@@ -52,8 +61,8 @@ impl Emitter<'_> {
             let r = self.condition(right);
             return format!("{} {op} {}", wrap(left, l), wrap(right, r));
         }
-        // `"%s" % [a]` is formatting, not modulo. Godot decides at run time;
-        // a string on the left or a list on the right decides it here.
+        // `"%s" % [a]` is formatting, not modulo. A literal says which it is;
+        // anything else asks the shim, as Godot asks the value.
         if op == "%" && (matches!(left, Expr::Str(_)) || matches!(right, Expr::Array(_))) {
             let text = self.expression(left);
             let args = match right {
@@ -65,6 +74,12 @@ impl Emitter<'_> {
             };
             self.uses_shim = true;
             return format!("(gd.format)({text}, {args})");
+        }
+        if op == "%" && !matches!(left, Expr::Int(_) | Expr::Float(_)) {
+            let l = self.expression(left);
+            let r = self.expression(right);
+            self.uses_shim = true;
+            return format!("(gd.modulo)({l}, {r})");
         }
         // `a + [b]`: Godot joins two arrays; Rune adds no lists.
         if op == "+" && (matches!(left, Expr::Array(_)) || matches!(right, Expr::Array(_))) {
@@ -173,6 +188,14 @@ impl Emitter<'_> {
         }
         out
     }
+}
+
+/// Whether an expression is a literal, whose type is known where it stands.
+fn literal(value: &Expr) -> bool {
+    matches!(
+        value,
+        Expr::Int(_) | Expr::Float(_) | Expr::Str(_) | Expr::Bool(_)
+    )
 }
 
 /// The operator of a binary expression, for grouping a mixed `and`/`or`.

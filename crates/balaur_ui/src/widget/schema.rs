@@ -209,6 +209,11 @@ fn read_property(
         k::VALUE => Some(toml::Value::Float(f64::from(widget.value))),
         k::CHECKED => Some(toml::Value::Boolean(widget.checked)),
         k::CLICKED => Some(toml::Value::Boolean(widget.clicked)),
+        // A pooled control asks every frame whether its field was submitted,
+        // and a missing answer here built the whole forty-key table to say
+        // false: four in five of the editor's table builds were this key.
+        k::SUBMITTED => Some(toml::Value::Boolean(widget.submitted)),
+        k::ROLE => Some(toml::Value::String(widget.role.to_string())),
         k::VISIBLE => Some(toml::Value::Boolean(widget.visible)),
         k::COLOR => Some(toml::Value::Array(
             widget

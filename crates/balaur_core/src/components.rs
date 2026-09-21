@@ -16,10 +16,18 @@
 //!
 //! Property specs (`schema` is a TOML table of `name = { ... }`):
 //!   type = "float" | "int" | "bool" | "string" | "enum" | "vec2" | "vec3" | "vec4"
-//!          | "color" | "asset" | "flags" | "node" | "strings"
+//!          | "color" | "asset" | "flags" | "node" | "list" | "map" | "record"
 //!   default = ...          (required, and of the declared type)
 //!   options = [...]        (enum and flags only, and required there)
 //!   asset = "clip_type"    (asset only, and required there)
+//!   of = { ... }           (list and map only, and required there: the spec
+//!                           of what it holds)
+//!   fields = { name = { ... } }
+//!                          (record only, and required there: one spec a
+//!                           field)
+//!   key = "string" | "int" (map only, optional; "string" by default)
+//!   class = "Wave"         (record only, optional: the script struct whose
+//!                           shape it is, handed to a script as that class)
 //!   min/max/step/decimals  (float and int, optional)
 //!   readonly               (bool, optional)
 //!   description = "..."    (optional, one line, for the reference and the
@@ -61,6 +69,16 @@
 //! means "no node", so a component carrying one is still addable before its
 //! partner exists.
 //!
+//! A `list`, a `map` and a `record` hold other properties: `of` is the spec a
+//! `list`'s entries and a `map`'s values take, `fields` is one spec per
+//! `record` field, and a `map`'s `key` says whether its keys are text or
+//! whole numbers. A nested spec may leave its `default` out, and
+//! [`complete_property`] writes the type's zero in at registration, so every
+//! reader finds one at every depth. A `color` or an `asset` inside one is
+//! expanded and resolved like any other. A `record` may name the script
+//! `class` whose shape it is; the file still holds a table, and the script
+//! host is what hands a script its own type back.
+//!
 //! Two ways in: [`add`] describes a component whole, starting from the schema
 //! defaults, which is what a scene file means; [`patch`] writes over what the
 //! component currently reports, which is what anything driving one property
@@ -75,13 +93,22 @@ use smol_str::SmolStr;
 use crate::engine::Engine;
 
 mod attached;
+mod property;
 mod schema;
 
 use attached::mark;
 pub(crate) use attached::mark_present;
 pub use attached::{Attached, MAX_COMPONENTS, TRANSFORM_BIT, attached_of};
+pub(crate) use property::resolve_property_hooks;
+pub use property::{
+    PropertyReaders, PropertyWriteFn, PropertyWriters, answers_alone, answers_property, property,
+    property_at, set_property, set_property_at, writes_property,
+};
 use schema::hex_rgba;
-pub use schema::{PROPERTY_TYPES, UNITS, validate_property};
+pub use schema::{
+    PROPERTY_TYPES, UNITS, complete_property, inner_specs, validate_property, validate_value,
+    zero_of,
+};
 
 /// Read a numeric TOML value as f64, integers included: schemas say
 /// "float" but scene authors naturally write `14`, which TOML parses as an
@@ -301,15 +328,16 @@ impl ComponentDef {
     /// bug in the plugin rather than bad user input, and failing at
     /// registration beats an inspector row that silently never appears.
     pub fn parse_schema(component: &str, text: &str) -> Rc<toml::Value> {
-        let schema: toml::Value = toml::from_str(text)
+        let mut schema: toml::Value = toml::from_str(text)
             .unwrap_or_else(|e| panic!("component '{component}': schema is not valid TOML: {e}"));
-        let table = schema.as_table().unwrap_or_else(|| {
+        let table = schema.as_table_mut().unwrap_or_else(|| {
             panic!("component '{component}': schema is not a table of property specs")
         });
         for (prop, spec) in table {
             if let Err(why) = validate_property(spec) {
                 panic!("component '{component}', property '{prop}': {why}");
             }
+            complete_property(spec);
         }
         Rc::new(schema)
     }
@@ -331,26 +359,83 @@ pub struct Facts {
     /// Whether any property is `type = "asset"`, so an inline definition has
     /// to be cached and rewritten to the reference naming it.
     pub has_asset: bool,
+    /// Whether any property is `type = "record"`, so a value naming only some
+    /// of its fields has the rest filled in before `apply` sees it.
+    pub has_record: bool,
 }
 
 impl Facts {
     fn of(schema: &toml::Value) -> Self {
-        let mut has_color = false;
-        let mut has_asset = false;
+        let mut found = [false; 3];
         if let Some(table) = schema.as_table() {
             for spec in table.values() {
-                match spec.get("type").and_then(toml::Value::as_str) {
-                    Some("color") => has_color = true,
-                    Some("asset") => has_asset = true,
-                    _ => {}
-                }
+                scan_for_passes(spec, &mut found);
             }
         }
+        let [has_color, has_asset, has_record] = found;
         Self {
             defaults: Rc::new(defaults_of(schema)),
             has_color,
             has_asset,
+            has_record,
         }
+    }
+}
+
+/// Whether a colour, an asset or a record sits anywhere in one property's
+/// spec, a composite's contents included: `[color, asset, record]`.
+fn scan_for_passes(spec: &toml::Value, found: &mut [bool; 3]) {
+    match spec.get("type").and_then(toml::Value::as_str) {
+        Some("color") => found[0] = true,
+        Some("asset") => found[1] = true,
+        Some("record") => found[2] = true,
+        _ => {}
+    }
+    for inner in inner_specs(spec) {
+        scan_for_passes(inner, found);
+    }
+}
+
+/// Every declared field of a `record` value, so a scene naming one of two
+/// fields still hands `apply` both. A key no field answers to is dropped:
+/// the record's shape is the schema's.
+fn fill_records(schema: &toml::Value, out: &mut toml::map::Map<String, toml::Value>) {
+    let Some(table) = schema.as_table() else {
+        return;
+    };
+    for (prop, spec) in table {
+        if let Some(value) = out.get_mut(prop) {
+            fill_record_value(spec, value);
+        }
+    }
+}
+
+fn fill_record_value(spec: &toml::Value, value: &mut toml::Value) {
+    match spec.get("type").and_then(toml::Value::as_str) {
+        Some("record") => {
+            let Some(fields) = spec.get("fields").and_then(toml::Value::as_table) else {
+                return;
+            };
+            let held = value.as_table().cloned().unwrap_or_default();
+            let mut whole = toml::map::Map::new();
+            for (name, field) in fields {
+                let mut inner = held
+                    .get(name)
+                    .cloned()
+                    .unwrap_or_else(|| schema::zero_of(field));
+                fill_record_value(field, &mut inner);
+                whole.insert(name.clone(), inner);
+            }
+            *value = toml::Value::Table(whole);
+        }
+        Some("list" | "map") => {
+            if let Some(of) = spec.get("of") {
+                for inner in held_mut(value) {
+                    fill_record_value(of, inner);
+                }
+            }
+        }
+        _ => {}
     }
 }
 
@@ -534,29 +619,78 @@ fn expand_colors(schema: &toml::Value, out: &mut toml::map::Map<String, toml::Va
         return;
     };
     for (prop, spec) in table {
-        // `type` is the spec's datatype key (see the module docs).
-        if spec.get("type").and_then(toml::Value::as_str) != Some("color") {
-            continue;
-        }
-        let Some(text) = out.get(prop).and_then(toml::Value::as_str) else {
-            continue;
-        };
-        if let Some(rgba) = hex_rgba(text) {
-            let array = rgba.iter().copied().map(toml::Value::Float).collect();
-            out.insert(prop.clone(), toml::Value::Array(array));
-        } else {
-            tracing::warn!(
-                property = prop.as_str(),
-                value = text,
-                "not a colour; expected #rrggbb, #rrggbbaa or [r, g, b, a]"
-            );
+        if let Some(value) = out.get_mut(prop) {
+            expand_color_value(prop, spec, value);
         }
     }
+}
+
+/// One value's colours, wherever the spec puts them: a colour held in a list
+/// or a record is written the same way as one held by the property itself.
+fn expand_color_value(prop: &str, spec: &toml::Value, value: &mut toml::Value) {
+    // `type` is the spec's datatype key (see the module docs).
+    match spec.get("type").and_then(toml::Value::as_str) {
+        Some("color") => {
+            let Some(text) = value.as_str() else {
+                return;
+            };
+            if let Some(rgba) = hex_rgba(text) {
+                *value = toml::Value::Array(rgba.iter().copied().map(toml::Value::Float).collect());
+            } else {
+                tracing::warn!(
+                    property = prop,
+                    value = text,
+                    "not a colour; expected #rrggbb, #rrggbbaa or [r, g, b, a]"
+                );
+            }
+        }
+        Some("list" | "map") => {
+            if let Some(of) = spec.get("of") {
+                for inner in held_mut(value) {
+                    expand_color_value(prop, of, inner);
+                }
+            }
+        }
+        Some("record") => {
+            for (field, inner) in fields_mut(spec, value) {
+                expand_color_value(prop, field, inner);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// What a `list` or a `map` value holds, for a pass that rewrites entries.
+fn held_mut(value: &mut toml::Value) -> Vec<&mut toml::Value> {
+    match value {
+        toml::Value::Array(items) => items.iter_mut().collect(),
+        toml::Value::Table(table) => table.iter_mut().map(|(_, inner)| inner).collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// A `record` value's entries beside the spec each field declares. A key no
+/// field answers to is skipped; `validate_property` already refused it.
+fn fields_mut<'a>(
+    spec: &'a toml::Value,
+    value: &'a mut toml::Value,
+) -> Vec<(&'a toml::Value, &'a mut toml::Value)> {
+    let (Some(fields), Some(table)) = (
+        spec.get("fields").and_then(toml::Value::as_table),
+        value.as_table_mut(),
+    ) else {
+        return Vec::new();
+    };
+    table
+        .iter_mut()
+        .filter_map(|(name, inner)| Some((fields.get(name)?, inner)))
+        .collect()
 }
 
 pub fn merge_defaults(schema: &toml::Value, params: Option<&toml::Value>) -> Result<toml::Value> {
     let mut out = defaults_of(schema);
     overlay(schema, &mut out, params)?;
+    fill_records(schema, &mut out);
     expand_colors(schema, &mut out);
     Ok(toml::Value::Table(out))
 }
@@ -650,19 +784,43 @@ fn resolve_assets(
         return Ok(());
     };
     for (prop, spec) in table {
-        if spec.get("type").and_then(toml::Value::as_str) != Some("asset") {
-            continue;
+        if let Some(value) = out.get_mut(prop) {
+            resolve_asset_value(eng, prop, spec, value)?;
         }
-        let Some(value) = out.get(prop).cloned() else {
-            continue;
-        };
-        let type_name = spec
-            .get("asset")
-            .and_then(toml::Value::as_str)
-            .unwrap_or("");
-        if let Some(reference) = asset_reference(eng, prop, type_name, &value)? {
-            out.insert(prop.clone(), toml::Value::String(reference));
+    }
+    Ok(())
+}
+
+/// One value's assets, wherever the spec puts them.
+fn resolve_asset_value(
+    eng: &Engine,
+    prop: &str,
+    spec: &toml::Value,
+    value: &mut toml::Value,
+) -> Result<()> {
+    match spec.get("type").and_then(toml::Value::as_str) {
+        Some("asset") => {
+            let type_name = spec
+                .get("asset")
+                .and_then(toml::Value::as_str)
+                .unwrap_or("");
+            if let Some(reference) = asset_reference(eng, prop, type_name, value)? {
+                *value = toml::Value::String(reference);
+            }
         }
+        Some("list" | "map") => {
+            if let Some(of) = spec.get("of") {
+                for inner in held_mut(value) {
+                    resolve_asset_value(eng, prop, of, inner)?;
+                }
+            }
+        }
+        Some("record") => {
+            for (field, inner) in fields_mut(spec, value) {
+                resolve_asset_value(eng, prop, field, inner)?;
+            }
+        }
+        _ => {}
     }
     Ok(())
 }
@@ -746,6 +904,7 @@ pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> 
         defaults,
         has_color,
         has_asset,
+        has_record,
     } = resolve(eng, name)?;
     let current = get_at(eng, entity, index);
     // The component's own table is the base, taken rather than copied: what
@@ -774,6 +933,9 @@ pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> 
         }
     }
     overlay(&schema, &mut out, Some(params))?;
+    if has_record {
+        fill_records(&schema, &mut out);
+    }
     if has_color {
         expand_colors(&schema, &mut out);
     }
@@ -805,6 +967,7 @@ struct Resolved {
     defaults: Rc<toml::map::Map<String, toml::Value>>,
     has_color: bool,
     has_asset: bool,
+    has_record: bool,
 }
 
 /// Resolve `name` once.
@@ -833,6 +996,7 @@ fn resolve(eng: &Engine, name: &str) -> Result<Resolved> {
         defaults: facts.defaults.clone(),
         has_color: facts.has_color,
         has_asset: facts.has_asset,
+        has_record: facts.has_record,
     })
 }
 
@@ -948,168 +1112,6 @@ fn untracked(eng: &Engine, entity: Entity, bits: u128) -> u128 {
     extra
 }
 
-/// The components that can answer one property on their own, by name.
-///
-/// A resource rather than a field on [`ComponentDef`]: every component builds
-/// its whole table today, and this is the fast path for the one or two that a
-/// UI pass reads a single property of, hundreds of times a frame.
-#[derive(Default)]
-pub struct PropertyReaders {
-    by_index: Vec<Option<PropertyFn>>,
-    /// Declared before the component registered, waiting for its number.
-    pending: Vec<(String, PropertyFn)>,
-}
-
-/// Say that `name` can answer a single property, and how.
-///
-/// The name is resolved to its registration index here, once, so a read costs
-/// an index rather than a hash. Called after the component registers.
-pub fn answers_property(eng: &Engine, name: &str, read: PropertyFn) {
-    if eng.try_resource::<PropertyReaders>().is_none() {
-        eng.insert_resource(PropertyReaders::default());
-    }
-    let Some(readers) = eng.try_resource::<PropertyReaders>() else {
-        return;
-    };
-    let mut readers = readers.borrow_mut();
-    match index_of(eng, name) {
-        Some(index) => slot(&mut readers.by_index, index, read),
-        // Declared before the component itself, which is how the built-ins
-        // read: `register_component` comes back for these.
-        None => readers.pending.push((name.to_string(), read)),
-    }
-}
-
-impl PropertyReaders {
-    /// Whether the component at `index` can answer one property on its own.
-    #[must_use]
-    pub fn reads(&self, index: usize) -> bool {
-        matches!(self.by_index.get(index), Some(Some(_)))
-    }
-}
-
-/// Put `hook` at `index`, growing the table to reach it.
-fn slot<T>(table: &mut Vec<Option<T>>, index: usize, hook: T) {
-    if table.len() <= index {
-        table.resize_with(index + 1, || None);
-    }
-    table[index] = Some(hook);
-}
-
-/// Give the component that just registered any hook that named it first.
-///
-/// Declaring a fast path before the component is the order every built-in
-/// writes, and an index cannot be handed out before there is one. So the
-/// hooks wait here rather than the caller having to know.
-pub(crate) fn resolve_property_hooks(eng: &Engine, name: &str, index: usize) {
-    if let Some(readers) = eng.try_resource::<PropertyReaders>() {
-        let mut readers = readers.borrow_mut();
-        while let Some(at) = readers.pending.iter().position(|(n, _)| n == name) {
-            let (_, read) = readers.pending.swap_remove(at);
-            slot(&mut readers.by_index, index, read);
-        }
-    }
-    if let Some(writers) = eng.try_resource::<PropertyWriters>() {
-        let mut writers = writers.borrow_mut();
-        while let Some(at) = writers.pending.iter().position(|(n, _)| n == name) {
-            let (_, write) = writers.pending.swap_remove(at);
-            slot(&mut writers.by_index, index, write);
-        }
-    }
-}
-
-/// A component writing one property into its own live state. `false` is a
-/// property, or a node, it cannot answer for, which [`patch`] then does.
-pub type PropertyWriteFn = Box<dyn Fn(&Engine, Entity, &str, &toml::Value) -> bool>;
-
-/// The components that can write one property on their own, by name. The
-/// twin of [`PropertyReaders`], for a script driving one value over time.
-#[derive(Default)]
-pub struct PropertyWriters {
-    by_index: Vec<Option<PropertyWriteFn>>,
-    /// Declared before the component registered, waiting for its number.
-    pending: Vec<(String, PropertyWriteFn)>,
-}
-
-/// Say that `name` can write a single property, and how.
-pub fn writes_property(eng: &Engine, name: &str, write: PropertyWriteFn) {
-    if eng.try_resource::<PropertyWriters>().is_none() {
-        eng.insert_resource(PropertyWriters::default());
-    }
-    let Some(writers) = eng.try_resource::<PropertyWriters>() else {
-        return;
-    };
-    let mut writers = writers.borrow_mut();
-    match index_of(eng, name) {
-        Some(index) => slot(&mut writers.by_index, index, write),
-        None => writers.pending.push((name.to_string(), write)),
-    }
-}
-
-/// Write one property of a component.
-///
-/// The component's own fast path where it registered one, and a whole-table
-/// [`patch`] where it did not. One entry point rather than two, so no caller
-/// has to know which components can take a property on its own: animation
-/// drives one property per track per tick and a script writing
-/// `node.transform.position` does the same thing once.
-///
-/// # Errors
-/// What [`patch`] errors on.
-pub fn set_property(
-    eng: &Engine,
-    entity: Entity,
-    name: &str,
-    key: &str,
-    value: &toml::Value,
-) -> Result<()> {
-    let index = index_of(eng, name).ok_or_else(|| anyhow!("unknown component '{name}'"))?;
-    set_property_at(eng, entity, index, key, value)
-}
-
-/// [`set_property`] with the definition already resolved.
-///
-/// # Errors
-/// What [`patch`] errors on.
-pub fn set_property_at(
-    eng: &Engine,
-    entity: Entity,
-    index: usize,
-    key: &str,
-    value: &toml::Value,
-) -> Result<()> {
-    let took = {
-        match eng.try_resource::<PropertyWriters>() {
-            Some(writers) => {
-                let writers = writers.borrow();
-                match writers.by_index.get(index) {
-                    Some(Some(write)) => write(eng, entity, key, value),
-                    _ => false,
-                }
-            }
-            None => false,
-        }
-    };
-    if !took {
-        let params = toml::Value::Table(toml::map::Map::from_iter([(
-            key.to_string(),
-            value.clone(),
-        )]));
-        return patch_at(eng, entity, index, &params);
-    }
-    // The fast path wrote the component but not the record a save reads.
-    let mut one = toml::map::Map::new();
-    one.insert(key.to_string(), value.clone());
-    record_at(eng, entity, index, Some(&toml::Value::Table(one)), false);
-    Ok(())
-}
-
-/// One property of a component, without building the rest where the component
-/// knows how to answer: `get` and index is what happens otherwise.
-pub fn property(eng: &Engine, entity: Entity, name: &str, key: &str) -> Option<toml::Value> {
-    property_at(eng, entity, index_of(eng, name)?, key)
-}
-
 /// Whether `entity` carries `name`, without building the component's table.
 ///
 /// [`Attached`] is the whole answer: every path that gives a node a component
@@ -1122,23 +1124,6 @@ pub fn has(eng: &Engine, entity: Entity, name: &str) -> bool {
         return false;
     };
     attached_of(eng, entity).has(index)
-}
-
-/// [`property`] with the definition already resolved.
-#[must_use]
-pub fn property_at(eng: &Engine, entity: Entity, index: usize, key: &str) -> Option<toml::Value> {
-    if let Some(readers) = eng.try_resource::<PropertyReaders>() {
-        let readers = readers.borrow();
-        if let Some(Some(read)) = readers.by_index.get(index)
-            && let Some(found) = read(eng, entity, key)
-        {
-            return Some(found);
-        }
-    }
-    match get_at(eng, entity, index)? {
-        toml::Value::Table(mut table) => table.remove(key),
-        other => other.get(key).cloned(),
-    }
 }
 
 /// [`patch`] with the definition already resolved.

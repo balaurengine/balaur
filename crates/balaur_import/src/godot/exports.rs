@@ -72,6 +72,13 @@ impl Export {
         let kind = self.kind?;
         // Quoted keys: `default` is a Rune keyword and cannot stand bare.
         let typed = |ty: &str| format!("#{{ \"type\": \"{ty}\", \"default\": {} }}", self.default);
+        // A list says what it holds, the way every composite spec does.
+        let listed = |ty: &str| {
+            format!(
+                "#{{ \"type\": \"list\", \"of\": #{{ \"type\": \"{ty}\" }}, \"default\": {} }}",
+                self.default
+            )
+        };
         Some(match kind {
             // A bare default already says what these are.
             Kind::Int | Kind::Float | Kind::Bool | Kind::Str => self.default.clone(),
@@ -80,8 +87,8 @@ impl Export {
             Kind::Vec2 => typed("vec2"),
             Kind::Vec3 => typed("vec3"),
             Kind::Color => typed("color"),
-            Kind::Strings => typed("strings"),
-            Kind::Nodes => typed("nodes"),
+            Kind::Strings => listed("string"),
+            Kind::Nodes => listed("node"),
         })
     }
 }
@@ -604,11 +611,11 @@ mod tests {
             one("@export var hearts: Array[CanvasItem]", &none)
                 .1
                 .as_deref(),
-            Some("#{ \"type\": \"nodes\", \"default\": [] }")
+            Some("#{ \"type\": \"list\", \"of\": #{ \"type\": \"node\" }, \"default\": [] }")
         );
         assert_eq!(
             one("@export var names: Array[String]", &none).1.as_deref(),
-            Some("#{ \"type\": \"strings\", \"default\": [] }")
+            Some("#{ \"type\": \"list\", \"of\": #{ \"type\": \"string\" }, \"default\": [] }")
         );
         assert_eq!(
             one("@export var at: Vector2 = Vector2(1, 2)", &none)

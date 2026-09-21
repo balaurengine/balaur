@@ -42,5 +42,9 @@ harness = false
 name = "components"
 harness = false
 
+[[bench]]
+name = "props"
+harness = false
+
 [lints]
 workspace = true

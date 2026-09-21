@@ -156,10 +156,12 @@ fn exports_reports_the_declared_defaults_at_their_own_types() {
     let app = app_in(dir.path());
     let host = app.engine.script_host().unwrap();
     let declared = host.exports("scripts/enemy.rn").unwrap();
+    // Sorted by key: a spec round-trips through TOML, whose tables are
+    // ordered, so every reader sees the same one twice running.
     let spec = |kind: &str, default: balaur_script::Value| {
         balaur_script::Value::Map(vec![
-            (String::from("type"), balaur_script::Value::Str(kind.into())),
             (String::from("default"), default),
+            (String::from("type"), balaur_script::Value::Str(kind.into())),
         ])
     };
     assert_eq!(
@@ -542,12 +544,12 @@ fn a_node_export_arrives_as_the_node_it_names() {
     assert_eq!(text(&app, hunter, "seen_lost"), Some(String::from("nil")));
 }
 
-/// A `nodes` export is a list of them: Godot's `Array[Node]`, each path
-/// resolved the way one is.
+/// A list of nodes is Godot's `Array[Node]`, each path resolved the way one
+/// is.
 #[test]
-fn a_nodes_export_arrives_as_the_list_of_nodes_it_names() {
+fn a_list_of_nodes_arrives_as_the_nodes_it_names() {
     let script = "pub fn exports() {\n\
-         #{ crew: #{ \"type\": \"nodes\", \"default\": [] } }\n\
+         #{ crew: #{ \"type\": \"list\", \"of\": #{ \"type\": \"node\" }, \"default\": [] } }\n\
      }\n\
      pub fn init(this) {\n\
          this.seen = this.crew.len() as f64;\n\
@@ -635,4 +637,268 @@ fn a_child_inits_before_its_parent() {
         _ => None,
     };
     assert_eq!(order, Some(String::from("CP")));
+}
+
+/// A bare list is exported as a list of whatever its entries are, and a scene
+/// writing its own list reaches the script as that list.
+#[test]
+fn a_bare_list_export_takes_the_type_of_its_entries() {
+    let script = "pub fn exports() {\n\
+         #{ waves: [2, 4, 8] }\n\
+     }\n\
+     pub fn init(this) {\n\
+         this.seen = this.waves[1] as f64;\n\
+         this.count = this.waves.len() as f64;\n\
+     }\n";
+    let (dir, app) = build(
+        "[[nodes]]\n\
+         name = \"Ship\"\n\
+         script = { source = \"scripts/enemy.rn\", props = { waves = [1, 2] } }\n",
+        script,
+    );
+    let ship = node_named(&app, "Ship");
+    assert_eq!(number(&app, ship, "seen"), Some(2.0));
+    assert_eq!(number(&app, ship, "count"), Some(2.0));
+
+    let host = app.engine.script_host().unwrap();
+    let declared = host.exports("scripts/enemy.rn").unwrap();
+    let (name, spec) = &declared[0];
+    assert_eq!(name, "waves");
+    let balaur_script::Value::Map(fields) = spec else {
+        panic!("a spec is a map: {spec:?}");
+    };
+    let key = |wanted: &str| {
+        fields
+            .iter()
+            .find(|(k, _)| k == wanted)
+            .map(|(_, v)| v.clone())
+    };
+    assert_eq!(
+        key("type"),
+        Some(balaur_script::Value::Str("list".to_string()))
+    );
+    let Some(balaur_script::Value::Map(of)) = key("of") else {
+        panic!("a list declares what it holds: {spec:?}");
+    };
+    assert!(
+        of.iter()
+            .any(|(k, v)| k == "type" && *v == balaur_script::Value::Str("int".to_string())),
+        "{of:?}"
+    );
+    drop(dir);
+}
+
+/// A row has to know which editor to draw in it, so a list holds one type and
+/// the error names the entry that broke it.
+#[test]
+fn a_bare_list_of_two_types_is_an_error() {
+    let dir = project(&[(
+        "scripts/mixed.rn",
+        "pub fn exports() { #{ waves: [2, \"four\"] } }\n",
+    )]);
+    let app = app_in(dir.path());
+    let host = app.engine.script_host().unwrap();
+    let err = host.exports("scripts/mixed.rn").unwrap_err().to_string();
+    assert!(err.contains("entry 1"), "{err}");
+    assert!(err.contains("holds one type"), "{err}");
+}
+
+/// A bare object is a record whose fields keep their own types, which is how
+/// a script exports the data a class of its own would hold.
+#[test]
+fn a_bare_object_export_is_a_record_of_its_fields() {
+    let script = "pub fn exports() {\n\
+         #{ wave: #{ hp: 3, name: \"boss\" } }\n\
+     }\n\
+     pub fn init(this) {\n\
+         this.seen_hp = this.wave.hp as f64;\n\
+         this.seen_name = this.wave.name;\n\
+     }\n";
+    let (_dir, app) = build(
+        "[[nodes]]\n\
+         name = \"Ship\"\n\
+         script = { source = \"scripts/enemy.rn\", props = { wave = { hp = 9, name = \"brute\" } } }\n",
+        script,
+    );
+    let ship = node_named(&app, "Ship");
+    assert_eq!(number(&app, ship, "seen_hp"), Some(9.0));
+    assert_eq!(text(&app, ship, "seen_name"), Some(String::from("brute")));
+}
+
+/// A node path is resolved wherever the spec puts one, a record's field
+/// included.
+#[test]
+fn a_node_inside_a_record_arrives_as_the_node_it_names() {
+    let script = "pub fn exports() {\n\
+         #{ crew: #{ \"type\": \"record\", \"fields\": #{ \"cook\": #{ \"type\": \"node\" } }, \"default\": #{ } } }\n\
+     }\n\
+     pub fn init(this) {\n\
+         this.seen = this.crew.cook.name();\n\
+     }\n";
+    let (_dir, app) = build(
+        "[[nodes]]\n\
+         name = \"Ship\"\n\
+         script = { source = \"scripts/enemy.rn\", props = { crew = { cook = \"Cook\" } } }\n\
+         \n\
+         [[nodes]]\n\
+         name = \"Cook\"\n\
+         parent = \"Ship\"\n",
+        script,
+    );
+    let ship = node_named(&app, "Ship");
+    assert_eq!(text(&app, ship, "seen"), Some(String::from("Cook")));
+}
+
+/// A map keyed by whole numbers reaches the script keyed by numbers: TOML
+/// spells `7` as `"7"`, and the spec is what says to read it back.
+#[test]
+fn a_map_keyed_by_numbers_arrives_keyed_by_numbers() {
+    let script = "pub fn exports() {\n\
+         #{ spawns: #{ \"type\": \"map\", \"key\": \"int\", \"of\": #{ \"type\": \"float\" }, \"default\": #{ } } }\n\
+     }\n\
+     pub fn init(this) {\n\
+         this.seen = this.spawns[7];\n\
+         this.count = this.spawns.len() as f64;\n\
+     }\n";
+    let (_dir, app) = build(
+        "[[nodes]]\n\
+         name = \"Ship\"\n\
+         script = { source = \"scripts/enemy.rn\", props = { spawns = { 7 = 2.5 } } }\n",
+        script,
+    );
+    let ship = node_named(&app, "Ship");
+    assert_eq!(number(&app, ship, "seen"), Some(2.5));
+    assert_eq!(number(&app, ship, "count"), Some(1.0));
+}
+
+/// A map keyed by whole numbers refuses a key that is not one, where the
+/// scene wrote it.
+#[test]
+fn a_map_keyed_by_numbers_refuses_a_word() {
+    let dir = project(&[(
+        "scripts/bad.rn",
+        "pub fn exports() {\n\
+             #{ spawns: #{ \"type\": \"map\", \"key\": \"int\", \"of\": #{ \"type\": \"float\" }, \"default\": #{ \"x\": 1.0 } } }\n\
+         }\n",
+    )]);
+    let app = app_in(dir.path());
+    let host = app.engine.script_host().unwrap();
+    let err = host.exports("scripts/bad.rn").unwrap_err().to_string();
+    assert!(err.contains("not a whole number"), "{err}");
+}
+
+/// A scene naming one of a record's fields still hands the script both: the
+/// record's shape is what the spec declares, not what the node wrote.
+#[test]
+fn a_record_field_the_scene_left_out_takes_its_default() {
+    let script = "pub fn exports() {\n\
+         #{ wave: #{ hp: 3, name: \"grunt\" } }\n\
+     }\n\
+     pub fn init(this) {\n\
+         this.seen_hp = this.wave.hp as f64;\n\
+         this.seen_name = this.wave.name;\n\
+     }\n";
+    let (_dir, app) = build(
+        "[[nodes]]\n\
+         name = \"Ship\"\n\
+         script = { source = \"scripts/enemy.rn\", props = { wave = { hp = 9 } } }\n",
+        script,
+    );
+    let ship = node_named(&app, "Ship");
+    assert_eq!(number(&app, ship, "seen_hp"), Some(9.0));
+    assert_eq!(text(&app, ship, "seen_name"), Some(String::from("grunt")));
+}
+
+/// A `struct` the script declares is exported as itself: the scene writes its
+/// fields, and `init` gets the class back, methods and all.
+#[test]
+fn a_class_export_arrives_as_the_class_it_was_declared_as() {
+    let script = "struct Wave { hp, name }\n\
+     impl Wave {\n\
+         fn power(self) { self.hp * 2 }\n\
+     }\n\
+     pub fn exports() {\n\
+         #{ wave: Wave { hp: 3, name: \"grunt\" } }\n\
+     }\n\
+     pub fn init(this) {\n\
+         this.seen = this.wave.power() as f64;\n\
+         this.seen_name = this.wave.name;\n\
+     }\n";
+    let (_dir, app) = build(
+        "[[nodes]]\n\
+         name = \"Ship\"\n\
+         script = { source = \"scripts/enemy.rn\", props = { wave = { hp = 21 } } }\n",
+        script,
+    );
+    let ship = node_named(&app, "Ship");
+    assert_eq!(number(&app, ship, "seen"), Some(42.0));
+    assert_eq!(text(&app, ship, "seen_name"), Some(String::from("grunt")));
+}
+
+/// The class reaches the inspector as a `record` naming it, so the rows are
+/// the fields and the file holds a table.
+#[test]
+fn a_class_export_is_a_record_naming_its_class() {
+    let dir = project(&[(
+        "scripts/enemy.rn",
+        "struct Wave { hp }\n\
+         pub fn exports() { #{ wave: Wave { hp: 3 } } }\n",
+    )]);
+    let app = app_in(dir.path());
+    let host = app.engine.script_host().unwrap();
+    let declared = host.exports("scripts/enemy.rn").unwrap();
+    let balaur_script::Value::Map(spec) = &declared[0].1 else {
+        panic!("a spec is a map: {declared:?}");
+    };
+    let key = |wanted: &str| {
+        spec.iter()
+            .find(|(k, _)| k == wanted)
+            .map(|(_, v)| v.clone())
+    };
+    assert_eq!(
+        key("type"),
+        Some(balaur_script::Value::Str("record".to_string()))
+    );
+    assert_eq!(
+        key("class"),
+        Some(balaur_script::Value::Str("Wave".to_string()))
+    );
+}
+
+/// Godot set a member where it was declared, before any `_ready` ran, so a
+/// script whose method another script's `init` calls still has them.
+#[test]
+fn a_scripts_declared_members_are_set_before_anything_calls_it() {
+    let dir = project(&[
+        (
+            "slots.rn",
+            "pub fn defaults(this) { this.slots = [\"\", \"\", \"\"]; }\n\
+             pub fn take(this, name) { this.slots[0] = name; this.slots.len() as f64 }\n",
+        ),
+        (
+            "caller.rn",
+            "pub fn init(this) { this.out = scene::get_node(\"Slots\").call(\"take\", \"ann\"); }\n",
+        ),
+    ]);
+    let app = app_in(dir.path());
+    let spawn = |name: &str| {
+        let root = app.engine.root();
+        balaur_core::scene::spawn_node(&mut app.engine.world_mut(), name, root)
+    };
+    let slots = spawn("Slots");
+    let caller = spawn("Caller");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(slots), "slots.rn")
+        .unwrap();
+    host.attach(balaur_core::node_id_of(caller), "caller.rn")
+        .unwrap();
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(
+        rune.number_field(caller, "out"),
+        Some(3.0),
+        "the members were set when the instance was made"
+    );
 }

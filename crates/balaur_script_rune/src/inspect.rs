@@ -8,7 +8,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use rune::ast::Spanned as _;
 use rune::runtime::VmResult;
 use rune::{Diagnostics, Source, Sources};
@@ -298,39 +298,153 @@ pub(crate) fn export_rows(declared: &[(String, balaur_script::Value)]) -> Result
     Ok(rune::to_value(rows)?)
 }
 
-/// A default's type, in the same vocabulary a component schema uses, so the
-/// inspector draws an export with the editor it already has for that type.
+/// A bare default as a whole spec, in the vocabulary a component schema uses,
+/// so the inspector draws an export with the editor it already has.
 ///
-/// `int` is not one of `PROPERTY_TYPES` — no schema declares it — but the
+/// Read from the Rune value rather than its plain form: a `struct` a script
+/// declared is a `record` naming its class, and nothing plain says which.
+/// `int` is not what a float default would be read back as, and the
 /// distinction has to survive to the editor, which rounds an edit back to a
 /// whole number rather than turning a count into 2.0.
-fn export_type(default: &balaur_script::Value) -> &'static str {
+fn inferred_spec(default: &rune::Value) -> Result<Vec<(String, balaur_script::Value)>> {
     use balaur_script::Value;
-    match default {
-        Value::Bool(_) => "bool",
-        Value::Int(_) => "int",
-        Value::Num(_) => "float",
-        Value::Vec2(_) => "vec2",
-        Value::Vec3(_) => "vec3",
-        Value::Color(_) => "color",
-        // A node reference and anything structured are typed by hand until
-        // the spec form below says otherwise.
+    if let Some((class, fields)) = default.struct_parts() {
+        return Ok(vec![
+            ("type".to_string(), Value::Str("record".into())),
+            ("class".to_string(), Value::Str(class)),
+            ("fields".to_string(), record_fields(&fields)?),
+            ("default".to_string(), plain_of(default)?),
+        ]);
+    }
+    let mut spec = vec![
+        (
+            "type".to_string(),
+            Value::Str(inferred_type(default).into()),
+        ),
+        ("default".to_string(), plain_of(default)?),
+    ];
+    if let Ok(items) = default.borrow_ref::<rune::runtime::Vec>() {
+        spec.push(("of".to_string(), Value::Map(list_of(&items)?)));
+    } else if let Ok(object) = default.borrow_ref::<rune::runtime::Object>() {
+        spec.push(("fields".to_string(), record_fields(&entries_of(&object))?));
+    }
+    Ok(spec)
+}
+
+/// A Rune object's entries, in name order, so one reader sees the same
+/// record twice running.
+fn entries_of(object: &rune::runtime::Object) -> Vec<(String, rune::Value)> {
+    let mut out = Vec::with_capacity(object.len());
+    for (name, value) in object {
+        out.push((name.to_string(), value.clone()));
+    }
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    out
+}
+
+/// A default as the plain value a schema holds. A class is its fields, which
+/// is what a scene file can write and read back.
+fn plain_of(default: &rune::Value) -> Result<balaur_script::Value> {
+    if let Some((_, fields)) = default.struct_parts() {
+        let mut out = Vec::with_capacity(fields.len());
+        for (name, value) in &fields {
+            out.push((name.clone(), plain_of(value)?));
+        }
+        out.sort_by(|a, b| a.0.cmp(&b.0));
+        return Ok(balaur_script::Value::Map(out));
+    }
+    value::to_plain(default)
+        .ok_or_else(|| anyhow!("a default has to be a value a scene file can hold"))
+}
+
+fn inferred_type(default: &rune::Value) -> &'static str {
+    if default.borrow_ref::<rune::runtime::Vec>().is_ok() {
+        return "list";
+    }
+    if default.borrow_ref::<rune::runtime::Object>().is_ok() {
+        return "record";
+    }
+    match value::to_plain(default) {
+        Some(balaur_script::Value::Bool(_)) => "bool",
+        Some(balaur_script::Value::Int(_)) => "int",
+        Some(balaur_script::Value::Num(_)) => "float",
+        Some(balaur_script::Value::Vec2(_)) => "vec2",
+        Some(balaur_script::Value::Vec3(_)) => "vec3",
+        Some(balaur_script::Value::Color(_)) => "color",
+        // A node reference is a string until the spec form says otherwise.
         _ => "string",
     }
 }
 
-/// The `default` an export declares, which is what the host writes onto an
-/// instance before `init`.
-#[must_use]
-/// Whether an export is declared `type = "node"` or `type = "nodes"`: paths
-/// the scene writes and the script receives as the nodes they name.
-pub(crate) fn is_node_export(spec: &balaur_script::Value) -> bool {
-    declared_type(spec).is_some_and(|kind| matches!(kind, "node" | "nodes"))
+/// What a bare list holds, taken from its first entry and required of the
+/// rest: a row has to know which editor to draw in it.
+fn list_of(items: &rune::runtime::Vec) -> Result<Vec<(String, balaur_script::Value)>> {
+    let Some(first) = items.first() else {
+        bail!(
+            "an empty list cannot say what it holds; declare it as `#{{ type: \"list\", of: #{{ \
+             type: \"string\" }}, default: [] }}`"
+        );
+    };
+    let of = inferred_spec(first)?;
+    let spec = balaur_script::Value::Map(of.clone());
+    for (at, item) in items.iter().enumerate().skip(1) {
+        let plain = plain_of(item)?;
+        if let Err(why) = balaur_core::node_api::check_property_value(&spec, &plain) {
+            bail!("entry {at}: {why}. A list holds one type");
+        }
+    }
+    Ok(of)
 }
 
-/// Whether the export takes a list of them rather than one.
-pub(crate) fn is_node_list(spec: &balaur_script::Value) -> bool {
-    declared_type(spec) == Some("nodes")
+/// A bare object's fields, or a class's, each inferred on its own: this is
+/// how a script exports the data a type of its own holds.
+fn record_fields(entries: &[(String, rune::Value)]) -> Result<balaur_script::Value> {
+    if entries.is_empty() {
+        bail!(
+            "an empty object cannot say what it holds; declare it as `#{{ type: \"record\", \
+             fields: #{{ .. }}, default: #{{ }} }}`"
+        );
+    }
+    let mut fields = Vec::with_capacity(entries.len());
+    for (name, value) in entries {
+        fields.push((
+            name.clone(),
+            balaur_script::Value::Map(inferred_spec(value)?),
+        ));
+    }
+    fields.sort_by(|a, b| a.0.cmp(&b.0));
+    Ok(balaur_script::Value::Map(fields))
+}
+
+/// A `record`'s declared fields, each beside the spec it takes.
+pub(crate) fn record_fields_of(spec: &balaur_script::Value) -> Vec<(&str, &balaur_script::Value)> {
+    let Some(balaur_script::Value::Map(fields)) = spec_key(spec, "fields") else {
+        return Vec::new();
+    };
+    fields
+        .iter()
+        .map(|(name, field)| (name.as_str(), field))
+        .collect()
+}
+
+/// What a `list` or a `map` export holds.
+pub(crate) fn held_spec(spec: &balaur_script::Value) -> Option<&balaur_script::Value> {
+    spec_key(spec, "of")
+}
+
+/// A name a spec carries beside its type: `class`, and `asset` before it.
+fn spec_str<'a>(spec: &'a balaur_script::Value, key: &str) -> Option<&'a str> {
+    match spec_key(spec, key) {
+        Some(balaur_script::Value::Str(name)) => Some(name.as_str()),
+        _ => None,
+    }
+}
+
+fn spec_key<'a>(spec: &'a balaur_script::Value, key: &str) -> Option<&'a balaur_script::Value> {
+    let balaur_script::Value::Map(fields) = spec else {
+        return None;
+    };
+    fields.iter().find(|(k, _)| k == key).map(|(_, v)| v)
 }
 
 /// What an export's spec declares as its `type`, where it declares one.
@@ -371,20 +485,32 @@ pub(crate) fn export_default(spec: &balaur_script::Value) -> balaur_script::Valu
 /// **A table carrying `type` is a spec; anything else is a bare default**,
 /// lifted into one so every reader sees the same shape. That is the whole
 /// rule, and it is why a plain `speed: 2.0` keeps working.
-fn spec_of(key: &str, name: &str, value: &balaur_script::Value) -> Result<balaur_script::Value> {
+fn spec_of(key: &str, name: &str, value: &rune::Value) -> Result<balaur_script::Value> {
     use balaur_script::Value;
-    let declared = match value {
-        Value::Map(fields) if fields.iter().any(|(k, _)| k == "type") => fields.clone(),
-        bare => vec![
-            ("type".into(), Value::Str(export_type(bare).into())),
-            ("default".into(), bare.clone()),
-        ],
+    // A table carrying `type` is written out as it stands; anything else is a
+    // bare default, and its own shape says what it is.
+    let written = value
+        .borrow_ref::<rune::runtime::Object>()
+        .ok()
+        .filter(|fields| fields.contains_key("type"))
+        .and_then(|_| value::to_plain(value));
+    let declared = match written {
+        Some(Value::Map(fields)) => fields,
+        _ => inferred_spec(value)
+            .map_err(|why| anyhow!("[{key}] exports: property '{name}': {why:#}"))?,
     };
-    let spec = Value::Map(declared);
-    if let Err(why) = balaur_core::node_api::validate_property_spec(&spec) {
-        return Err(anyhow!("[{key}] exports: property '{name}': {why}"));
-    }
-    Ok(spec)
+    checked_spec(key, name, declared)
+}
+
+/// One spec against the schema vocabulary, and back with every nested
+/// `default` filled in.
+fn checked_spec(
+    key: &str,
+    name: &str,
+    declared: Vec<(String, balaur_script::Value)>,
+) -> Result<balaur_script::Value> {
+    balaur_core::node_api::checked_property_spec(&balaur_script::Value::Map(declared))
+        .map_err(|why| anyhow!("[{key}] exports: property '{name}': {why}"))
 }
 
 /// Where a spec asks to sit on the page; everything unordered sorts after,
@@ -438,6 +564,114 @@ impl RuneHost {
             })?,
             (None, _) => rune::to_value(())?,
         })
+    }
+
+    /// One export's value as its spec says to build it: a node path becomes
+    /// the node it names, a map keyed by numbers gets numbers for keys, and a
+    /// composite is walked beside the specs it holds.
+    pub(crate) fn export_value(
+        &self,
+        entity: Entity,
+        key: &str,
+        name: &str,
+        spec: &balaur_script::Value,
+        value: &balaur_script::Value,
+    ) -> Result<rune::Value> {
+        use balaur_script::Value;
+        match (declared_type(spec), value) {
+            (Some("node"), Value::Str(path)) => self.node_prop(entity, key, name, path, spec),
+            (Some("list"), Value::List(items)) => {
+                let Some(of) = held_spec(spec) else {
+                    return value::from_neutral(value);
+                };
+                let mut out = rune::runtime::Vec::new();
+                for item in items {
+                    out.push(self.export_value(entity, key, name, of, item)?)?;
+                }
+                Ok(rune::to_value(out)?)
+            }
+            (Some("map"), Value::Map(entries)) => {
+                let Some(of) = held_spec(spec) else {
+                    return value::from_neutral(value);
+                };
+                let mut built = Vec::with_capacity(entries.len());
+                for (at, inner) in entries {
+                    built.push((at, self.export_value(entity, key, name, of, inner)?));
+                }
+                // TOML keys are text, so a map of whole numbers is written
+                // `"7"` in the file and handed back keyed by the number.
+                if spec_str(spec, "key") == Some("int") {
+                    let mut out = rune::modules::collections::HashMap::new();
+                    for (at, value) in built {
+                        let Ok(number) = at.parse::<i64>() else {
+                            bail!(
+                                "[{key}] property '{name}' holds the key \"{at}\", which is not a whole number"
+                            );
+                        };
+                        out.insert(rune::to_value(number)?, value).into_result()?;
+                    }
+                    return Ok(rune::to_value(out)?);
+                }
+                let mut out = rune::runtime::Object::new();
+                for (at, value) in built {
+                    out.insert(rune::alloc::String::try_from(at.as_str())?, value)?;
+                }
+                Ok(rune::to_value(out)?)
+            }
+            // Every declared field, so a scene naming one of two still hands
+            // the script both. The record's shape is the spec's.
+            (Some("record"), Value::Map(entries)) => {
+                let mut built = Vec::new();
+                for (field, governs) in record_fields_of(spec) {
+                    let held = entries.iter().find(|(written, _)| written == field);
+                    let held = held.map_or_else(|| export_default(governs), |(_, v)| v.clone());
+                    built.push((field, self.export_value(entity, key, name, governs, &held)?));
+                }
+                // A record naming a class is that class: the script gets its
+                // own type back, methods and all, not a look-alike object.
+                if let Some(class) = spec_str(spec, "class") {
+                    return self.new_class(key, name, class, &built);
+                }
+                let mut out = rune::runtime::Object::new();
+                for (field, value) in built {
+                    out.insert(rune::alloc::String::try_from(field)?, value)?;
+                }
+                Ok(rune::to_value(out)?)
+            }
+            _ => value::from_neutral(value),
+        }
+    }
+
+    /// One `class` record as an instance of the script's own struct.
+    ///
+    /// The unit is the script's, so a class is looked up where it was
+    /// declared. A name no `struct` answers to is a warning and an object,
+    /// which is what the fields already are.
+    fn new_class(
+        &self,
+        key: &str,
+        name: &str,
+        class: &str,
+        fields: &[(&str, rune::Value)],
+    ) -> Result<rune::Value> {
+        let unit = {
+            let state = self.state.borrow();
+            match state.scripts.get(key) {
+                Some(script) => script.unit.clone(),
+                None => return Err(anyhow!("[{key}] is not loaded")),
+            }
+        };
+        if let Some(built) = unit.new_struct(class, fields) {
+            return Ok(built);
+        }
+        tracing::warn!(
+            "[{key}] property '{name}' names class '{class}', which it does not declare"
+        );
+        let mut out = rune::runtime::Object::new();
+        for (field, value) in fields {
+            out.insert(rune::alloc::String::try_from(*field)?, value.clone())?;
+        }
+        Ok(rune::to_value(out)?)
     }
 
     /// Log a runtime error at the line that threw, with the script backtrace
@@ -610,12 +844,20 @@ impl RuneHost {
 
     /// Evaluate `exports()` and normalise every entry into a spec.
     fn read_exports(&self, key: &str) -> Result<Vec<(String, balaur_script::Value)>> {
+        // The values are read as Rune's own, not as plain data: a script's
+        // `struct` says which class it is, and that has to reach the spec.
         let written = match self.method(key, "exports") {
             None => Vec::new(),
             Some(f) => match f.call::<rune::Value>(()) {
-                VmResult::Ok(v) => match value::to_plain(&v) {
-                    Some(balaur_script::Value::Map(fields)) => fields,
-                    _ => return Err(anyhow!("[{key}] exports must return an object of defaults")),
+                VmResult::Ok(v) => match v.borrow_ref::<rune::runtime::Object>() {
+                    Ok(object) => {
+                        // Rune objects keep no order of their own, so the
+                        // rows are sorted and `order` moves one that asks.
+                        entries_of(&object)
+                    }
+                    Err(_) => {
+                        return Err(anyhow!("[{key}] exports must return an object of defaults"));
+                    }
                 },
                 VmResult::Err(err) => return Err(anyhow!("[{key}] exports: {err}")),
             },
@@ -634,8 +876,8 @@ impl RuneHost {
             }
             declared.push((name, spec));
         }
-        // `to_plain` sorted by name, which is the tie-break; `order` is what a
-        // script says when the rows belong in an order of its own.
+        // Name order is the tie-break; `order` is what a script says when the
+        // rows belong in an order of its own.
         declared.sort_by(|a, b| order_of(&a.1).total_cmp(&order_of(&b.1)));
         Ok(declared)
     }
@@ -659,11 +901,6 @@ impl RuneHost {
             .exported_constants()
             .map_err(|err| anyhow!("[{key}] reading `#[export]` constants: {err}"))?
         {
-            let Some(default) = value::to_plain(&value) else {
-                return Err(anyhow!(
-                    "[{key}] `#[export]` on '{name}': a property's default has to be a plain value"
-                ));
-            };
             // An asset property has to say which asset type it takes, and the
             // attribute has nowhere to put that, so it stays with the form
             // that does rather than building a spec the schema will refuse.
@@ -677,18 +914,24 @@ impl RuneHost {
             // `value` leaves the default's own type to speak, which is what
             // `spec_of` does for a bare entry anyway.
             let spec = if kind == "value" {
-                spec_of(key, name, &default)?
+                spec_of(key, name, &value)?
             } else {
-                spec_of(
+                let Some(default) = value::to_plain(&value) else {
+                    return Err(anyhow!(
+                        "[{key}] `#[export]` on '{name}': a property's default has to be a plain \
+                         value"
+                    ));
+                };
+                checked_spec(
                     key,
                     name,
-                    &balaur_script::Value::Map(vec![
+                    vec![
                         (
                             "type".to_string(),
                             balaur_script::Value::Str(kind.to_string()),
                         ),
                         ("default".to_string(), default),
-                    ]),
+                    ],
                 )?
             };
             out.push((name.to_string(), spec));

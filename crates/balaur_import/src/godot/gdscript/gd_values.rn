@@ -176,7 +176,7 @@ pub fn has(container, value) {
     }
     if container is Vec {
         for item in container {
-            if item == value {
+            if same(item, value) {
                 return true;
             }
         }
@@ -229,17 +229,34 @@ pub fn append_array(container, other) {
     return container;
 }
 
+/// Godot compares two values of different types as unequal; Rune throws, so
+/// a comparison the game makes casually goes through here.
+pub fn same(a, b) {
+    if is_nil(a) || is_nil(b) {
+        return is_nil(a) && is_nil(b);
+    }
+    if a is String {
+        return b is String && a == b;
+    }
+    if b is String {
+        return false;
+    }
+    a == b
+}
+
 pub fn erase(container, value) {
     if scripted(container) {
         return invoke1(container, "erase", value);
     }
     if container is Object || is_map(container) {
-        container.remove(value);
+        if !is_nil(value) {
+            container.remove(value);
+        }
         return container;
     }
     let out = [];
     for item in container {
-        if item != value {
+        if !same(item, value) {
             out.push(item);
         }
     }
@@ -711,7 +728,23 @@ pub fn substr(value, from, count) {
 
 /// Godot's `"%s of %d" % [a, b]`. The verbs it uses in this game are `%s`,
 /// `%d`, `%f`, `%.Nf` and `%%`.
+/// Godot's `%`: a string on the left formats, anything else is a remainder.
+pub fn modulo(left, right) {
+    if left is String {
+        let args = if right is Vec { right } else { [right] };
+        return formatted(left, args);
+    }
+    let out = left % right;
+    out
+}
+
 pub fn format(template, args) {
+    formatted(template, args)
+}
+
+/// The body, so a caller inside the shim reaches it: a unit holding an item
+/// named `format` cannot use Rune's macro of that name.
+fn formatted(template, args) {
     let out = "";
     let index = 0;
     let chars = template.chars().collect::<Vec>();
@@ -792,7 +825,7 @@ fn decimals(value, count) {
     if count == 0 {
         return str(int(rounded));
     }
-    let text = format!("{}", rounded);
+    let text = `${rounded}`;
     let parts = text.split(".").collect::<Vec>();
     let whole = parts[0];
     let fraction = if parts.len() > 1 { parts[1] } else { "" };

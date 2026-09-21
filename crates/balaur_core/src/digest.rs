@@ -288,7 +288,14 @@ fn push_components(eng: &Engine, entity: Entity, label: &str, out: &mut Vec<Entr
         return;
     };
     let registry = registry.borrow();
-    for (name, def) in &*registry {
+    // Only what the node carries. Asking all forty-eight definitions meant
+    // building a whole property table for each one that answered, per node,
+    // per tick, to hash what a node with three components actually has.
+    let bits = crate::components::attached_of(eng, entity);
+    for (index, (name, def)) in registry.iter().enumerate() {
+        if !bits.has(index) {
+            continue;
+        }
         let Some(value) = (def.get)(eng, entity) else {
             continue;
         };

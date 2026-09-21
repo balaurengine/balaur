@@ -151,11 +151,11 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
         &functions,
         &context,
         &mut notes,
-        defaults,
+        defaults.scened,
         static_init,
     );
     write_accessors(&mut out, &context, &functions);
-    write_constructor(&mut out, source, path, classes, &functions, defaults);
+    write_constructor(&mut out, source, path, classes, &functions, defaults.scened);
     if source.contains("_input(") || source.contains("_unhandled_input(") {
         notes
             .push("an `_input` handler: read the `input` module from `update` instead".to_string());
@@ -781,7 +781,7 @@ fn write_functions(
     functions: &[Function],
     context: &Context,
     notes: &mut Vec<String>,
-    defaults: bool,
+    scened: bool,
     static_init: bool,
 ) {
     let mut seen: Vec<String> = Vec::new();
@@ -790,7 +790,7 @@ fn write_functions(
     if static_init {
         out.push_str(&static_init_guard(&context.static_prefix));
     }
-    if write_default_init(out, functions, defaults) {
+    if write_default_init(out, functions, scened) {
         seen.push("init".to_string());
     }
     for function in functions {
@@ -866,7 +866,7 @@ fn write_functions(
             &name,
             context,
             functions,
-            defaults,
+            scened,
             static_init,
         );
         out.push_str(&body.rune);
@@ -879,14 +879,14 @@ fn write_functions(
 }
 
 /// What a function does before its own body: an int parameter truncated,
-/// the class's static setup, and `init`'s defaults, `_init` and hook guard.
+/// the class's static setup, and `init`'s `_init` call and hook guard.
 fn write_prologue(
     out: &mut String,
     function: &Function,
     name: &str,
     context: &Context,
     functions: &[Function],
-    defaults: bool,
+    scened: bool,
     static_init: bool,
 ) {
     for int in &function.ints {
@@ -899,8 +899,8 @@ fn write_prologue(
     if static_init && function.name != "_static_init" {
         let _ = writeln!(out, "    {STATIC_INIT}();");
     }
-    if defaults && name == "init" {
-        out.push_str("    defaults(this);\n");
+    if scened && name == "init" {
+        out.push_str("    scene_defaults(this);\n");
     }
     if name == "init" && constructs(functions) {
         out.push_str(init_call(functions));

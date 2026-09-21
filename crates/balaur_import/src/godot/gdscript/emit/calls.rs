@@ -150,13 +150,26 @@ impl Emitter<'_> {
             let _ = write!(lets, "let {local} = {text}; ");
             names.push(local);
         }
-        // The caller passes what the method takes past what `bind` fixed.
+        // The caller passes what the method requires past what `bind` fixed:
+        // a defaulted parameter is one the signal need not carry, and the
+        // shorter call is the `__N` forwarder.
         let method = self.method_name(&name);
         let takes = self.context.arity.get(&method).copied().unwrap_or(0);
-        let open: Vec<String> = (0..takes.saturating_sub(bound.len()))
+        let required = self
+            .context
+            .param_defaults
+            .get(&name)
+            .and_then(|defaults| defaults.iter().position(Option::is_some))
+            .unwrap_or(takes);
+        let open: Vec<String> = (0..required.saturating_sub(bound.len()))
             .map(|i| format!("arg{i}"))
             .collect();
         names.extend(open.iter().cloned());
+        let method = if required < takes {
+            format!("{method}__{required}")
+        } else {
+            method
+        };
         // A coroutine called and not awaited still runs in Godot; here the
         // node's host runs it as a task of its own.
         if self.context.asyncs.contains(&name) && !self.context.object_class {

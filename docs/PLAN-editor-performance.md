@@ -371,7 +371,53 @@ What a script pays, measured the same way:
 | `node.has_component(name)` | 612 ns | 403 ns |
 
 A write is the one that moved most, and it is the one animation pays: a track
-drives one property through this every tick.
+drives one property through this every tick, and it used to call `patch`
+directly rather than the component's own single-property path.
+
+`set_one_property` against `patch_one_property` is what that swap is worth.
+The only run of the pair so far was taken while the machine was building three
+other checkouts, so read the ratio and not the figures: 1.90 against 5.34
+microseconds, a third of the cost. Both are several times their quiet value.
+Re-run the pair on an idle machine and put the two numbers here.
+
+## 6g. Where the whole tables actually were
+
+**Measured 2026-09-21.** §6d left the whole-table build as the largest cost a
+component still pays, and the fix looked like changing what fifty `get` hooks
+hand back. Counting first said otherwise.
+
+A scratch tally on `get`, on `patch` and on the single-property fallback, over
+sixty frames of six real projects:
+
+| | entities | whole tables a frame |
+| --- | ---: | ---: |
+| `examples/hello` | 22 | 0 |
+| `examples/angrynerds` | 38 | 0 |
+| `examples/rig` | 30 | 0 |
+| `examples/tiles` | 4 | 0 |
+| `examples/objects` | 47 | 1 |
+| `examples/interface` | 61 | 3 |
+
+A running game barely builds one. The editor did: 41 a frame over 120 frames
+of `balaur edit examples/hello`, and **four in five of them were one key**.
+`widget.submitted` is a `bool` on the widget struct, a pooled control asks for
+it every frame, and the reader did not claim it, so each read built a table of
+forty keys to answer false. `widget.role` was another ninety-seven.
+
+Two match arms in `balaur_ui`'s `read_property` took the editor from 4954
+whole tables over 120 frames to 836, and the fallback to none.
+
+**So the table's shape is not worth changing.** `benches/props.rs` prices it:
+borrowing the keys is 3x on a component of four properties and 17x on one of
+thirteen, and unboxing the values on top is another 2.5x. But at one to three
+builds a frame in a game, and seven in the editor, the whole refactor is worth
+about a microsecond a frame. It also no longer fits: `record` nests, so a flat
+value enum cannot hold one. The bench stays as the record of what was priced.
+
+What the counting did prove is that **a missing reader key is invisible**. The
+fallback answers correctly and costs forty keys, so nothing fails and nothing
+warns. `components::answers_alone` exists so a test can tell the two apart,
+and `balaur_ui`'s `widget_reader` suite holds the keys a frame reads.
 
 ## 6c. The shell writes what changed
 

@@ -9,14 +9,13 @@ use super::{Classes, Function, gdscript, safe, shim_binding};
 /// defaults to set or a `_init` to run: nothing else would call them, and a
 /// member read before its default is set is an error at run time.
 pub(super) fn write_default_init(out: &mut String, functions: &[Function], defaults: bool) -> bool {
-    if !(defaults || constructs(functions)) || functions.iter().any(|f| f.name == "_ready") {
+    let _ = defaults;
+    // The members are the engine's to set; what is left for `init` is a
+    // Godot `_init`, which ran when the node was made.
+    if !constructs(functions) || functions.iter().any(|f| f.name == "_ready") {
         return false;
     }
-    let set = if defaults {
-        "    defaults(this);\n"
-    } else {
-        ""
-    };
+    let set = "";
     let init = if constructs(functions) {
         init_call(functions)
     } else {

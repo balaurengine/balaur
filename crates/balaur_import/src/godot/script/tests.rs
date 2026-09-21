@@ -215,6 +215,13 @@ fn a_node_class_new_builds_its_node_and_init_runs_its_init() {
 }
 
 #[test]
+fn comparing_a_missing_value_with_a_string_answers_false() {
+    let source = "extends Node\n\nfunc check(id):\n\treturn id == \"ann\"\n";
+    let out = convert(source, "scripts/a.gd", &Classes::default());
+    assert!(out.rune.contains("(gd.same)(id, \"ann\")"), "{}", out.rune);
+}
+
+#[test]
 fn godots_hidden_signal_is_the_engines_visibility_event() {
     let source = "extends Control\n\nfunc _ready():\n\thidden.connect(_on_hidden)\n\nfunc _on_hidden():\n\tprint(\"gone\")\n";
     let out = convert(source, "scripts/panel.gd", &Classes::default());
