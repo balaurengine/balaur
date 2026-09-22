@@ -2586,6 +2586,12 @@ pub fn import_step(S) {
     check(job.over != "imported" || landed, "an import that says it finished wrote its model");
     check(job.over != "stopped" || job.done < 3,
         format!("a stop says how few files it wrote ({})", job.done));
+    // The same argument as the first teardown, for the end the cancel loses:
+    // an import that finished anyway instanced its scene, and the node names
+    // the model the next line deletes.
+    if job.over == "imported" {
+        shell::undo(S);
+    }
     clear_import(S);
     S.import_demo = -1;
     log::info("selftest jobdemo: done");

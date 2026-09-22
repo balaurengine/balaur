@@ -358,3 +358,61 @@ fn a_pack_leaves_out_what_the_project_ignores() {
         "nor a file the pattern names: {held:?}"
     );
 }
+
+/// A nested project's scripts are its own: `editor/library` is a project, and
+/// its `addons/<name>/<file>.rn` resolve only when mounted at *its* root.
+#[test]
+fn a_nested_projects_scripts_ship_as_source() {
+    let dir = project();
+    std::fs::create_dir_all(dir.path().join("library")).unwrap();
+    std::fs::write(
+        dir.path().join("library/project.toml"),
+        "[application]\nname = \"lib\"\nmain_scene = \"m.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("library/s.txt"), "abc").unwrap();
+
+    let pack = Pack::build(dir.path(), &Reversing).unwrap();
+
+    assert_eq!(
+        pack.scripts.get("s.txt").map(Vec::as_slice),
+        Some(&b"cba"[..]),
+        "this project's own script is still compiled"
+    );
+    assert_eq!(
+        pack.scripts.get("library/s.txt").map(Vec::as_slice),
+        Some(&b"abc"[..]),
+        "the nested one travels verbatim, for copying into a new project"
+    );
+}
+
+/// And it is never handed to the compiler at all, so an import that only
+/// resolves at the nested root cannot fail this project's export.
+#[test]
+fn a_nested_projects_scripts_are_not_compiled() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"p\"\nmain_scene = \"m.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("m.toml"),
+        "[[nodes]]\nid = \"n\"\nname = \"Root\"\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.path().join("library")).unwrap();
+    std::fs::write(
+        dir.path().join("library/project.toml"),
+        "[application]\nname = \"lib\"\nmain_scene = \"m.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("library/s.txt"), "abc").unwrap();
+
+    let pack = Pack::build(dir.path(), &Failing).expect("the nested script is not compiled");
+
+    assert_eq!(
+        pack.scripts.get("library/s.txt").map(Vec::as_slice),
+        Some(&b"abc"[..])
+    );
+}

@@ -53,7 +53,27 @@ docker run --rm --network=none \
 `balaur-runtime-<target>` file (or the extracted `balaur-template-*` directory)
 from the matching release.
 
-See `export.sh` for the whole contract — it is short on purpose.
+### The contract
+
+| Mount | |
+|---|---|
+| `/src` | the project, read-only |
+| `/out` | where the artifact is written |
+| `/cache` | runtime templates, optional, read-only |
+| `/work` | scratch; a tmpfs if you are being careful |
+
+| Variable | |
+|---|---|
+| `BALAUR_TARGET` | required; one of the eight targets below |
+| `BALAUR_VERSION` | which templates under `/cache` to use |
+| `BALAUR_OUTPUT` | artifact name in `/out`; defaults per target |
+
+With `/cache` mounted the export is offline and the template must already be
+there. Without it, balaur downloads the one it needs — what an ordinary CI job
+wants, and what a network-less sandbox cannot do.
+
+Exit status is the verdict: non-zero means a failed export, whatever was
+printed on the way.
 
 ## What comes out
 
@@ -115,8 +135,28 @@ docker run --rm \
   ghcr.io/balaurengine/balaur-signer:nightly
 ```
 
-`/creds` holds one file per credential, named for what it is. See `sign.sh` for
-the full list; it is short on purpose.
+| Mount | |
+|---|---|
+| `/in` | the unsigned artifact, read-only |
+| `/out` | where the signed artifact is written |
+| `/creds` | one file per credential, read-only, named for the field |
+| `/work` | scratch |
+
+`SIGN_TARGET` and `SIGN_ARTIFACT` are required; `SIGN_NOTARIZE=1` is below.
+
+The credential files, by target:
+
+| Target | Files under `/creds` |
+|---|---|
+| `android` | `android_keystore`, `android_store_password`, `android_key_alias`, `android_key_password` |
+| `windows-*` | `windows_certificate`, `windows_password`, optionally `windows_timestamp_url` |
+| `macos-universal` | `macos_certificate`, `macos_password` |
+| `ios` | `ios_certificate`, `ios_password`, `ios_provisioning_profile` |
+| notarisation | `apple_issuer_id`, `apple_key_id`, `apple_private_key` |
+
+Write passwords with no trailing newline: `apksigner`'s `file:` source and
+rcodesign's `--p12-password-file` disagree about whether one is part of the
+password.
 
 | `SIGN_TARGET` | Needs | Network |
 |---|---|---|

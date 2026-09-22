@@ -100,11 +100,18 @@ impl Pack {
         let mut files = Vec::new();
         let ignored = crate::ignore::from_manifest(&pack.manifest);
         collect_files(&*fs, project_root, project_root, &ignored, &mut files);
+        let nested = nested_roots(&files);
         for rel in files {
             let path = project_root.join(&rel);
             match Path::new(&rel).extension().and_then(|e| e.to_str()) {
                 Some(ext) if compiler.extensions().contains(&ext) => {
                     let source = text(&*fs, &path)?;
+                    // A nested project's scripts are its own: they resolve
+                    // at *its* root, not here. Shipped as source, to copy.
+                    if in_nested(&nested, &rel) {
+                        pack.scripts.insert(rel, source.into_bytes());
+                        continue;
+                    }
                     let bytes = compiler.compile(&rel, &source)?;
                     pack.scripts.insert(
                         rel,
@@ -655,6 +662,21 @@ fn text(fs: &dyn crate::files::FileBackend, path: &Path) -> Result<String> {
 /// Every file under `dir`, project-relative. A directory the backend cannot
 /// read contributes nothing: the manifest was read first, so a root that is
 /// not there has already failed.
+/// The directory prefixes of every project nested inside this one, each with
+/// its trailing slash. A `project.toml` below the root is what marks one.
+fn nested_roots(files: &[String]) -> Vec<String> {
+    files
+        .iter()
+        .filter_map(|rel| rel.strip_suffix("/project.toml"))
+        .map(|dir| format!("{dir}/"))
+        .collect()
+}
+
+/// Whether `rel` lives inside one of them.
+fn in_nested(nested: &[String], rel: &str) -> bool {
+    nested.iter().any(|prefix| rel.starts_with(prefix.as_str()))
+}
+
 fn collect_files(
     fs: &dyn crate::files::FileBackend,
     root: &Path,

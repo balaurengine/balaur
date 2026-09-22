@@ -1,26 +1,11 @@
 #!/bin/sh
-# Sign the artifact at /in for one platform, into /out.
+# Sign the artifact at /in for one platform, into /out. The counterpart to
+# export.sh, and a separate container on purpose: that one runs somebody's
+# project, this one holds their signing key.
 #
-# The counterpart to export.sh, and a separate container on purpose: that one
-# runs somebody's project, this one holds their signing key, and nothing should
-# ever be both.
-#
-#   /in             the unsigned artifact, mounted read-only
-#   /out            where the signed artifact is written
-#   /creds          one file per credential, read-only, named for the field
-#   /work           scratch; a tmpfs if the caller is being careful
-#
-#   SIGN_TARGET     macos-universal · windows-x64 · windows-arm64 · ios · android
-#   SIGN_ARTIFACT   file name, read from /in and written to /out
-#   SIGN_NOTARIZE   1 to submit to Apple's notary afterwards
-#
-# Passwords are passed as file paths, never as arguments: `ps` is readable by
-# every process in the container, and an argv is the easiest place in the world
-# to leak a certificate password. Nothing here prints a credential either --
-# not on failure, not in a verify dump.
-#
-# Exit status is the verdict. Anything non-zero means /out holds nothing worth
-# shipping.
+# Mounts, credential file names and which targets need network: docker/README.md.
+# Passwords are file paths, never arguments — an argv is readable in `ps`.
+# Exit status is the verdict.
 set -eu
 
 log() { printf '%s\n' "$*"; }
@@ -49,10 +34,8 @@ mkdir -p /out || fail "cannot write to /out; mount it read-write"
 [ -w /work ] || fail "/work is not writable by uid $(id -u); mount it as --tmpfs /work:rw,exec,mode=1777"
 
 notarize_apple() {
-  # Apple's notary takes an archive, not a loose executable. A bare Mach-O also
-  # cannot be *stapled* — a ticket attaches to a bundle, a .dmg or a .pkg — so
-  # this submits and waits, which records the approval on Apple's side and lets
-  # Gatekeeper find it online. Ship a .app bundle if you want it stapled.
+  # The notary takes an archive, not a loose executable, and a bare Mach-O has
+  # nowhere to keep a ticket — so this submits and waits, and never staples.
   asset="$1"
 
   need apple_issuer_id apple_key_id apple_private_key
@@ -80,10 +63,8 @@ case "$SIGN_TARGET" in
       -readpass /creds/windows_password \
       -h sha256
 
-    # Without a timestamp the signature stops verifying the day the
-    # certificate expires, rather than staying valid for everything signed
-    # while it was live. Optional because it is the one part of Windows
-    # signing that needs the network.
+    # Without a timestamp the signature dies with the certificate. Optional
+    # because it is the one part of Windows signing that needs the network.
     if [ -s /creds/windows_timestamp_url ]; then
       set -- "$@" -ts "$(read_cred windows_timestamp_url)"
       log "==> timestamping via the configured authority"
@@ -103,11 +84,8 @@ case "$SIGN_TARGET" in
       --p12-password-file /creds/macos_password \
       --code-signature-flags runtime
 
-    # The hardened runtime is not optional for anything Apple will notarize,
-    # and --for-notarization makes rcodesign refuse up front instead of
-    # letting Apple do it twenty minutes later.
-    # An `&&` here would end the script: the test is the last command on the
-    # line, and `set -e` treats a false one as a failure.
+    # --for-notarization makes rcodesign refuse up front rather than letting
+    # Apple do it twenty minutes later. An `&&` here would end the script.
     if [ "${SIGN_NOTARIZE:-0}" = "1" ]; then
       set -- "$@" --for-notarization
     fi

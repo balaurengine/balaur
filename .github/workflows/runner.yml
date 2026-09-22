@@ -38,9 +38,16 @@ jobs:
     secrets: inherit
     uses: ./.github/workflows/build.yml
 
-  # The same engine as a container image. Needs `build`, because it packages
-  # that run's own editor binaries rather than downloading a release — so an
-  # image and a download of the same name always hold the same engine.
+  # No `needs`: the signing image holds no engine, so a pull request hears
+  # about it in minutes rather than after the build matrix.
+  container-signer:
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/container-signer.yml
+
+  # The same engine as a container image. Needs `build`: it packages that
+  # run's own editor binaries rather than downloading a release.
   container:
     needs: build
     permissions:
