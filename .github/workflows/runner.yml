@@ -46,10 +46,12 @@ jobs:
       packages: write
     uses: ./.github/workflows/container-signer.yml
 
-  # The same engine as a container image. Needs `build`: it packages that
-  # run's own editor binaries rather than downloading a release.
+  # The same engine as a container image, from that run's own editor binaries.
+  # `!cancelled()` because a failure elsewhere in the matrix — a mobile export,
+  # the web bundle — used to skip this without a word.
   container:
     needs: build
+    if: ${{ !cancelled() }}
     permissions:
       contents: read
       packages: write

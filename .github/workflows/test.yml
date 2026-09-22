@@ -61,14 +61,21 @@ jobs:
       # loader and no driver, and the GL fallback answers 1.1, not 3.3.
       - name: Windows software GPU
         if: runner.os == 'Windows'
-        shell: bash
+        # pwsh, alone in a file of bash: registering the driver means a
+        # native path and a `/v` flag, and Git Bash rewrites both.
+        shell: pwsh
         run: |
-          set -euo pipefail
-          curl -sSL --retry 3 -o mesa.7z \
-            "https://github.com/pal1000/mesa-dist-win/releases/download/${MESA_VERSION}/mesa3d-${MESA_VERSION}-release-msvc.7z"
+          curl.exe -sSL --retry 3 -o mesa.7z `
+            "https://github.com/pal1000/mesa-dist-win/releases/download/${env:MESA_VERSION}/mesa3d-${env:MESA_VERSION}-release-msvc.7z"
           # The manifest names its library relatively, so the two stay together.
           7z x mesa.7z -omesa x64/vulkan_lvp.dll x64/lvp_icd.x86_64.json
-          echo "VK_DRIVER_FILES=$(cygpath -w "$PWD/mesa/x64/lvp_icd.x86_64.json")" >>"$GITHUB_ENV"
+          $icd = (Resolve-Path mesa/x64/lvp_icd.x86_64.json).Path
+          # The registry, not VK_DRIVER_FILES: the loader ignored the variable
+          # and looked here, which is what `Found no drivers!` was reporting.
+          $key = 'HKLM:\SOFTWARE\Khronos\Vulkan\Drivers'
+          New-Item -Path $key -Force | Out-Null
+          New-ItemProperty -Path $key -Name $icd -PropertyType DWord -Value 0 -Force | Out-Null
+          Get-ItemProperty -Path $key
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}

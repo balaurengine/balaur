@@ -7,7 +7,7 @@ on:
 
 jobs:
   signer:
-    name: publish signing container
+    name: signing container
     runs-on: ubuntu-latest
     permissions:
       contents: read

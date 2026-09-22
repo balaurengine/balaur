@@ -8,7 +8,7 @@ on:
 
 jobs:
   container:
-    name: publish container
+    name: engine container
     # A pull request builds the image to prove the Dockerfile still works, but
     # only a push publishes one. Same rule build.yml applies to releases.
     runs-on: ubuntu-latest
