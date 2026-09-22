@@ -65,19 +65,46 @@ CMD ["/usr/local/bin/balaur-export"]
 # engine, and a job exporting linux-x64 should not pull a gigabyte of Android
 # tooling to do it. A build service that must serve every target uses this one;
 # a project's own CI usually wants `:<version>` instead.
+#
+# ## It builds for arm64 too, which took some doing
+#
+# Google publishes `aapt2` and `zipalign` as x86-64 Linux binaries and nothing
+# else, so the obvious conclusion is that this image is amd64-only — and that
+# would mean an arm64 fleet cannot build Android at all, which is a real
+# constraint for anyone on Ampere or Graviton.
+#
+# It is avoidable. `apksigner` is a JAR and already runs anywhere. The other
+# two run under `qemu-user-static` once an x86-64 loader and its libraries are
+# present, which Debian's multiarch supplies. Both are short steps next to the
+# export itself, so the emulation costs little.
 # ---------------------------------------------------------------------------
 FROM engine AS android
+
+ARG TARGETARCH
 
 USER root
 
 # `apksigner` is a JAR with a shell wrapper, so the SDK needs a JDK next to it.
 # Headless: nothing here draws.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
+#
+# On arm64, additionally: qemu to run the two x86-64 tools, and the amd64 libc
+# and libstdc++ they are linked against. `dpkg --add-architecture` is what
+# makes those installable beside the native ones.
+RUN set -eux; \
+    if [ "${TARGETARCH}" = "arm64" ]; then dpkg --add-architecture amd64; fi; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
         curl \
         default-jdk-headless \
-        unzip \
-    && rm -rf /var/lib/apt/lists/*
+        unzip; \
+    if [ "${TARGETARCH}" = "arm64" ]; then \
+      apt-get install -y --no-install-recommends \
+        qemu-user-static \
+        libc6:amd64 \
+        libstdc++6:amd64 \
+        zlib1g:amd64; \
+    fi; \
+    rm -rf /var/lib/apt/lists/*
 
 ENV ANDROID_HOME=/opt/android-sdk
 # Pinned rather than "latest": a build-tools release that changes under a
@@ -99,7 +126,16 @@ RUN set -eux; \
       "platforms;${ANDROID_PLATFORM}" \
       "build-tools;${ANDROID_BUILD_TOOLS}" >/dev/null; \
     chmod -R a+rX "${ANDROID_HOME}"; \
-    "${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS}/aapt2" version
+    if [ "${TARGETARCH}" = "arm64" ]; then \
+      for tool in aapt2 zipalign; do \
+        real="${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS}/${tool}"; \
+        mv "$real" "${real}.x86_64"; \
+        printf '#!/bin/sh\nexec qemu-x86_64-static "%s.x86_64" "$@"\n' "$real" >"$real"; \
+        chmod +x "$real"; \
+      done; \
+    fi; \
+    "${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS}/aapt2" version; \
+    "${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS}/apksigner" version
 
 # The debug keystore, generated here rather than on first use.
 #

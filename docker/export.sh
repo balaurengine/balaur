@@ -76,9 +76,8 @@ fi
 # The last packaging step, where the platform has one.
 #
 #   ios      `--ipa` is a zip with a Payload/ directory, so it works here. The
-#            result is unsigned: `codesign` is macOS-only and the engine says
-#            so rather than pretending, which is why an App Store build needs a
-#            Mac and not a bigger container.
+#            result is unsigned; sign.sh signs it afterwards, on Linux, which
+#            is why this container does not need a Mac behind it.
 #   android  `--apk` needs the SDK's aapt2, zipalign and apksigner. The image
 #            with them is a separate tag, so ask only when they are present;
 #            without them the export is the Android layout, which is correct
@@ -86,7 +85,7 @@ fi
 case "$BALAUR_TARGET" in
   ios)
     set -- "$@" --ipa
-    log "==> will wrap as .ipa (unsigned — signing needs macOS)"
+    log "==> will wrap as .ipa (unsigned; balaur-sign signs it)"
     ;;
   android)
     if [ -n "${ANDROID_HOME:-}" ] && [ -d "${ANDROID_HOME}" ]; then

@@ -62,9 +62,11 @@ jobs:
             version="${GITHUB_REF#refs/tags/}"
             echo "engine=${image}:${version},${image}:latest" >>"$GITHUB_OUTPUT"
             echo "android=${image}:${version}-android,${image}:latest-android" >>"$GITHUB_OUTPUT"
+            echo "signer=${image}-signer:${version},${image}-signer:latest" >>"$GITHUB_OUTPUT"
           else
             echo "engine=${image}:nightly" >>"$GITHUB_OUTPUT"
             echo "android=${image}:nightly-android" >>"$GITHUB_OUTPUT"
+            echo "signer=${image}-signer:nightly" >>"$GITHUB_OUTPUT"
           fi
 
       - if: github.event_name == 'push'
@@ -89,22 +91,42 @@ jobs:
             org.opencontainers.image.description=The Balaur engine, for exporting a project in CI
             org.opencontainers.image.licenses=MIT
 
-      # amd64 only, and not by choice: Android's build-tools — aapt2, zipalign,
-      # apksigner — are published as x86-64 Linux binaries and nothing else, so
-      # an arm64 image would carry tools that cannot run. The `aapt2 version`
-      # check at the end of the stage is what turns that into a failed build
-      # here rather than a failed export later.
+      # Both architectures. Google ships `aapt2` and `zipalign` for x86-64
+      # Linux only, so the arm64 image runs those two under qemu against
+      # Debian's amd64 multiarch libraries — see the Dockerfile. `apksigner` is
+      # a JAR and needs none of that. The `aapt2 version` and `apksigner
+      # version` checks at the end of the stage are what would catch this
+      # breaking, here rather than in somebody's export.
       - name: The engine plus the Android SDK
         uses: docker/build-push-action@v7
         with:
           context: docker
           file: docker/Dockerfile
           target: android
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.tags.outputs.android }}
           provenance: false
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.description=The Balaur engine with the Android SDK, for exporting a project in CI
+            org.opencontainers.image.licenses=MIT
+
+      # Its own image, not another tag on the engine's, and that is the whole
+      # point: this is the container that gets handed somebody's signing key,
+      # and it holds nothing that could run their project. It carries no engine
+      # and no binaries from this run, so it is the one image here that does
+      # not depend on the build that produced it.
+      - name: The signing toolchain
+        uses: docker/build-push-action@v7
+        with:
+          context: docker
+          file: docker/Dockerfile.signer
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.tags.outputs.signer }}
+          provenance: false
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.description=Signing tools for Balaur exports: rcodesign, apksigner, osslsigncode
             org.opencontainers.image.licenses=MIT

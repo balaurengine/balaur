@@ -1,0 +1,124 @@
+# The signing toolchain, with no engine in it.
+#
+# Deliberately a separate image rather than another stage on the engine's.
+# This is the container that gets handed somebody's signing key, and the one
+# thing it must never contain is the code that ran their project. Keeping the
+# engine out is what makes that true by construction rather than by reviewing
+# an argv: there is nothing here to execute a game with.
+#
+# It is also two orders of magnitude smaller than the Android image, which
+# matters when every signed target pulls it.
+#
+# Everything is offline except the two operations that cannot be: an RFC 3161
+# timestamp and Apple's notary service. Whoever runs this decides which of
+# those the container is allowed to reach.
+
+FROM debian:bookworm-slim AS signer
+
+ARG TARGETARCH
+ARG RCODESIGN_VERSION=0.29.0
+ARG ANDROID_BUILD_TOOLS=35.0.0
+ARG ANDROID_CMDLINE_TOOLS=11076708
+
+# * osslsigncode  — Authenticode, the Windows story
+# * python3       — reads the entitlements out of a .mobileprovision, which is
+#                   a CMS-wrapped plist; slicing that with sed is the kind of
+#                   thing that works until a profile has a nested dict. The
+#                   full interpreter, not python3-minimal: `plistlib` is in the
+#                   standard library that the minimal package leaves out
+# * openssl       — unwraps that CMS
+# * default-jre   — apksigner is a JAR
+# * zip/unzip     — an .ipa is a zip, and signing one means opening it
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        default-jre-headless \
+        openssl \
+        osslsigncode \
+        python3 \
+        unzip \
+        zip \
+    && rm -rf /var/lib/apt/lists/*
+
+# rcodesign: Apple code signatures without a Mac.
+#
+# This is the load-bearing dependency of the whole design. If signing macOS and
+# iOS needed macOS, Forge would need a Mac in the fleet for every signed build,
+# and the "one Linux runner does every target" claim would be false. It does
+# not: rcodesign produces CMS signatures that `codesign --verify` accepts and
+# that chain to the Apple Root CA.
+#
+# Static musl builds, so nothing here links against the distro.
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+      arm64) rc_arch=aarch64 ;; \
+      amd64) rc_arch=x86_64 ;; \
+      *) echo "unsupported architecture ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/rcodesign.tar.gz \
+      "https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F${RCODESIGN_VERSION}/apple-codesign-${RCODESIGN_VERSION}-${rc_arch}-unknown-linux-musl.tar.gz"; \
+    tar xzf /tmp/rcodesign.tar.gz -C /tmp; \
+    mv /tmp/apple-codesign-*/rcodesign /usr/local/bin/rcodesign; \
+    chmod +x /usr/local/bin/rcodesign; \
+    rm -rf /tmp/rcodesign.tar.gz /tmp/apple-codesign-*
+
+# Android's signers. Only `build-tools` — signing an APK needs no platform and
+# no platform-tools, and this image has no reason to be able to build one.
+#
+# `zipalign` is an x86-64 binary and Google publishes nothing else, so on arm64
+# it runs under qemu against Debian's amd64 multiarch libraries. `apksigner` is
+# a JAR and needs none of that. Same treatment as the engine's Android image,
+# for the same reason: an arm64 fleet should not be locked out of Android.
+ENV ANDROID_HOME=/opt/android-sdk
+ENV PATH="/opt/android-sdk/build-tools/${ANDROID_BUILD_TOOLS}:${PATH}"
+
+RUN set -eux; \
+    if [ "${TARGETARCH}" = "arm64" ]; then \
+      dpkg --add-architecture amd64; \
+      apt-get update; \
+      apt-get install -y --no-install-recommends \
+        qemu-user-static \
+        libc6:amd64 \
+        libstdc++6:amd64 \
+        zlib1g:amd64; \
+    fi; \
+    mkdir -p "${ANDROID_HOME}/cmdline-tools"; \
+    curl -fsSL -o /tmp/tools.zip \
+      "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_CMDLINE_TOOLS}_latest.zip"; \
+    unzip -q /tmp/tools.zip -d "${ANDROID_HOME}/cmdline-tools"; \
+    mv "${ANDROID_HOME}/cmdline-tools/cmdline-tools" "${ANDROID_HOME}/cmdline-tools/latest"; \
+    rm /tmp/tools.zip; \
+    yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null; \
+    "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" \
+      "build-tools;${ANDROID_BUILD_TOOLS}" >/dev/null; \
+    rm -rf "${ANDROID_HOME}/cmdline-tools"; \
+    chmod -R a+rX "${ANDROID_HOME}"; \
+    if [ "${TARGETARCH}" = "arm64" ]; then \
+      real="${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS}/zipalign"; \
+      mv "$real" "${real}.x86_64"; \
+      printf '#!/bin/sh\nexec qemu-x86_64-static "%s.x86_64" "$@"\n' "$real" >"$real"; \
+      chmod +x "$real"; \
+    fi; \
+    rm -rf /var/lib/apt/lists/*
+
+COPY sign.sh /usr/local/bin/balaur-sign
+
+# Every tool actually runs, in the image that publishes it. `apt-get install`
+# succeeding says a package exists; it does not say a JAR has a JVM or that an
+# x86-64 binary has a loader. Both of those have been wrong here before.
+RUN chmod +x /usr/local/bin/balaur-sign \
+    && rcodesign --version \
+    && osslsigncode --version \
+    && apksigner version \
+    && zipalign 2>&1 | head -1 \
+    && python3 -c 'import plistlib'
+
+# Never root, and never with a home worth writing to. Nothing in a signing run
+# should outlive it.
+RUN useradd --create-home --uid 10001 signer
+USER signer
+
+WORKDIR /work
+
+CMD ["/usr/local/bin/balaur-sign"]

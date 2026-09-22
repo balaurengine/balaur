@@ -14,12 +14,18 @@ as useful in a GitHub Actions job as it is in a hosted builder.
 | `:nightly` | follows `main` | amd64, arm64 |
 | `:<version>` | a released engine, e.g. `:v0.2.0` | amd64, arm64 |
 | `:latest` | the newest release | amd64, arm64 |
-| `:nightly-android`, `:<version>-android` | the same, plus the Android SDK | amd64 only |
+| `:nightly-android`, `:<version>-android` | the same, plus the Android SDK | amd64, arm64 |
 
-The Android variant is amd64 only because Android's `aapt2`, `zipalign` and
-`apksigner` are published as x86-64 Linux binaries and nothing else. The stage
-runs `aapt2 version` as its last step, so this fails when the image is built
-rather than when somebody's export reaches the packaging step.
+Android's `aapt2` and `zipalign` are published as x86-64 Linux binaries and
+nothing else, which looks like it makes this variant amd64-only. It does not:
+`apksigner` is a JAR and runs anywhere, and the other two run under
+`qemu-user-static` against Debian's amd64 multiarch libraries. Both are short
+steps beside the export itself, so the emulation costs little — and an arm64
+fleet can build Android, which is the point.
+
+The stage runs `aapt2 version` and `apksigner version` as its last steps, so a
+broken toolchain fails when the image is built rather than when somebody's
+export reaches the packaging step.
 
 Pin a version for anything that matters. `:nightly` moves under you, and an
 export has to agree with the runtime template it is fused onto.
@@ -56,7 +62,7 @@ See `export.sh` for the whole contract — it is short on purpose.
 | `linux-x64`, `linux-arm64`, `macos-universal` | `game` |
 | `windows-x64`, `windows-arm64` | `game.exe` |
 | `web` | `game.zip` |
-| `ios` | `game.ipa`, **unsigned** |
+| `ios` | `game.ipa`, unsigned — see the signer image below |
 | `android` | `game.apk`, debug-signed, with the `-android` tag; otherwise `game.zip` of the layout |
 
 One file per run, whatever shape the platform exports in.
@@ -81,18 +87,54 @@ out world-writable — the same flag arrived as `1777` on one host here and
 `export.sh` checks this first and says so, rather than failing three steps
 later inside a copy.
 
-## What this cannot do
+## Signing: `ghcr.io/balaurengine/balaur-signer`
 
-**Sign for Apple.** Balaur signs by running `codesign`, and that is macOS-only;
-the engine bails rather than pretending otherwise. So with the engine as it
-stands, an iOS or Mac App Store build is *built* here and *signed* on a Mac.
-The `.ipa` and the `.app` produced here are correct, unsigned payloads — enough
-to inspect, not enough to install on a device or submit.
+A second image, built from `Dockerfile.signer`, holding `rcodesign`,
+`apksigner`/`zipalign` and `osslsigncode` — and **no engine**. That separation
+is the point: this is the container that gets handed a signing key, and there
+is nothing in it that can run somebody's project.
 
-Worth knowing that this is Apple's tooling, not arithmetic: third-party
-reimplementations such as `rcodesign` sign Mach-O and talk to the notary API
-from Linux. Nothing here uses one, and betting a release pipeline on a
-reimplementation of a format Apple changes is a decision to take deliberately.
+| Tag | Architectures |
+|---|---|
+| `:nightly`, `:<version>`, `:latest` | amd64, arm64 |
 
-Everything else runs here, including a debug-signed Android APK and a macOS
-universal binary.
+Balaur itself signs for Apple by shelling out to `codesign`, which is
+macOS-only, so the engine refuses rather than pretending. `rcodesign` is a
+clean-room implementation of the same formats and has no such limit, which is
+what makes one Linux runner able to ship every target. That is a real bet on a
+reimplementation of a format Apple controls, taken deliberately — and checked,
+not assumed: a Mach-O signed by this image with a Developer ID certificate is
+accepted by macOS `codesign --verify` as *valid on disk*, *satisfies its
+Designated Requirement*, chaining to the Apple Root CA.
+
+```sh
+docker run --rm \
+  -v "$PWD/out:/in:ro" -v "$PWD/signed:/out" -v "$PWD/creds:/creds:ro" \
+  --tmpfs /work:rw,exec,mode=1777 \
+  -e SIGN_TARGET=android -e SIGN_ARTIFACT=game.apk \
+  ghcr.io/balaurengine/balaur-signer:nightly
+```
+
+`/creds` holds one file per credential, named for what it is. See `sign.sh` for
+the full list; it is short on purpose.
+
+| `SIGN_TARGET` | Needs | Network |
+|---|---|---|
+| `android` | keystore, its two passwords, key alias | no |
+| `windows-x64`, `windows-arm64` | `.pfx`/`.p12`, its password, optionally a timestamp URL | only with a timestamp URL |
+| `macos-universal` | Developer ID `.p12` and its password | yes — rcodesign timestamps through Apple |
+| `ios` | Apple Distribution `.p12`, its password, a `.mobileprovision` | yes, same |
+
+Egress buys an RFC 3161 timestamp and nothing else. Without one a signature
+stops verifying the day the certificate expires, rather than staying valid for
+everything signed while it was live — so it is worth the network for the
+platforms that offer it, and off for Android, which does not.
+
+Passwords are passed as **file paths**, never as arguments. `ps` is readable by
+every process in a container, and an argv is the easiest place in the world to
+leak a certificate password.
+
+`SIGN_NOTARIZE=1` additionally submits a macOS build to Apple's notary and
+waits. A bare executable cannot be *stapled* — a ticket attaches to a bundle, a
+`.dmg` or a `.pkg` — so the approval is recorded on Apple's side and Gatekeeper
+finds it online. Ship a `.app` bundle if you want it stapled.
