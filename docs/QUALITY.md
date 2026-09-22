@@ -33,8 +33,9 @@ with `rustfmt` and `clippy`, so every machine runs one linter version.
 
 ## House rules no compiler enforces
 
-`scripts/house_lints.py` walks every `.rs` and `.rn`. **ERROR** fails CI and is
-mechanical; **REPORT** prints only.
+`scripts/house_lints.py` walks every `.rs` and `.rn`, and reads
+`scripts/showcase.sh`. **ERROR** fails CI and is mechanical; **REPORT** prints
+only.
 
 | Rule | Fails on |
 | --- | --- |
@@ -47,6 +48,7 @@ mechanical; **REPORT** prints only.
 | `todo-without-issue` | a TODO or FIXME with no issue |
 | `fn-too-long`, `file-too-long` | 120 lines, 1200 lines |
 | `comment-too-long`, `comment-restates-name` | comment blocks, and comments that restate the line below |
+| `showcase-milestone` | a picture `scripts/showcase.sh` takes and files under no milestone, or a milestone naming a take that is gone |
 | `det-prefix-misuse`, `dimension-casing`, `dimension-snake`, `install-verb`, `system-verb`, `engine-param-name`, `resource-suffix`, `new-resource-type`, `fn-suffix-on-struct`, `pub-inner`, `component-registration-doc` | the mechanical half of `docs/NAMING.md` |
 | `rune-short-circuit`, `rune-rebound-let` | two Rune shapes that compile and then misbehave (`AGENTS.md`) |
 | `std-fs`, `is-absolute` | `std::fs` and `Path::is_absolute` in engine crates, which the web build has no disk for; `files::backend` and `files::rooted` are the substitutes |

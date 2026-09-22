@@ -37,3 +37,13 @@ jobs:
     # and without them the Mac build has an identity name but no certificate.
     secrets: inherit
     uses: ./.github/workflows/build.yml
+
+  # The same engine as a container image. Needs `build`, because it packages
+  # that run's own editor binaries rather than downloading a release — so an
+  # image and a download of the same name always hold the same engine.
+  container:
+    needs: build
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/container.yml

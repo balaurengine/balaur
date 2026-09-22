@@ -36,6 +36,18 @@ cannot be retagged as a version, only built from its own tag.
 
 ## The website
 
+The pictures come first. `scripts/showcase.sh --milestone <version>` retakes
+what the milestone being cut changed and nothing else, so 0.1's screenshots
+are not rendered again for 0.2:
+
+```sh
+scripts/showcase.sh --milestone 0.2 ../balaur-website
+```
+
+Every take is filed under a milestone in that script, which
+`scripts/house_lints.py` holds it to, and the website's
+`scripts/lint-media.mjs` fails on a picture no page shows.
+
 The Download and Releases pages are built from GitHub, once, at deploy time:
 `scripts/gen-releases.mjs` in `balaur-website` writes `src/data/releases.json`
 and the answer ships inside the page. Nothing is fetched by the reader's

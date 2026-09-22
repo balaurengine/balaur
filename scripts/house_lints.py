@@ -707,6 +707,40 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
     return findings
 
 
+SHOWCASE = ROOT / "scripts" / "showcase.sh"
+TAKE = re.compile(
+    r"^(?:shot|clip|screen|screen_clip|scene_shot|import_shot|import_clip|godot_clip)"
+    r"\s+(\S+)", re.M)
+FILED = re.compile(r"^(\d+\.\d+) (\S+)$", re.M)
+# Two takes the file runs as functions rather than as a line of its own.
+BESPOKE_TAKES = {"covers", "objects"}
+
+
+def check_showcase() -> list[Finding]:
+    """Every picture the showcase takes names the milestone its subject
+    shipped in, and every milestone names a take. Without both halves a
+    `--milestone` run silently skips a take, or keeps rendering one nothing
+    asks for."""
+    if not SHOWCASE.exists():
+        return []
+    text = SHOWCASE.read_text()
+    lines = text.splitlines()
+    # The list is the file's own head; the takes are what follows it.
+    body = text[text.find("backup_examples"):]
+    taken = set(TAKE.findall(body)) | BESPOKE_TAKES
+    filed = {name for _, name in FILED.findall(text)}
+    out = []
+    for name in sorted(taken - filed):
+        line = next((i + 1 for i, l in enumerate(lines) if f" {name} " in l or l.endswith(f" {name}")), 1)
+        out.append(Finding(SHOWCASE, line, "showcase-milestone",
+                           f"{name} is filed under no milestone", "ERROR"))
+    for name in sorted(filed - taken):
+        line = next((i + 1 for i, l in enumerate(lines) if l.endswith(f" {name}")), 1)
+        out.append(Finding(SHOWCASE, line, "showcase-milestone",
+                           f"{name} is filed under a milestone and taken by nothing", "ERROR"))
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--fail-on-error", action="store_true")
@@ -723,6 +757,7 @@ def main() -> int:
         findings.extend(check_file(path, ctx))
     for path in rune_files():
         findings.extend(check_rune(path))
+    findings.extend(check_showcase())
 
     errors = [f for f in findings if f.severity == "ERROR"]
     reports = [f for f in findings if f.severity == "REPORT"]

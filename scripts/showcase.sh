@@ -4,10 +4,87 @@
 # scripted sequence and `frames=` captures it every other frame; ffmpeg turns
 # a frame directory into a .webm and an .mp4 with the first frame as poster.
 # Needs a GPU and ffmpeg.
-#   scripts/showcase.sh [website-dir] [name...]
+#   scripts/showcase.sh [--milestone 0.2] [website-dir] [name...]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Which milestone each take's subject shipped in, off docs/ROADMAP.md, so
+# `--milestone 0.2` retakes that column alone. house_lints.py holds both ways.
+milestones="
+0.1 editor_overview
+0.1 scenes_tree
+0.1 scripting_editor
+0.1 hello_open
+0.1 persona_scene
+0.1 persona_script
+0.1 persona_animate
+0.1 persona_physics
+0.1 persona_interface
+0.1 editor_selection
+0.1 editor_events
+0.1 editor_cost
+0.1 editor_profiler
+0.1 editor_lights
+0.1 editor_assets
+0.1 physics_overlays
+0.1 physics_collapse
+0.1 networking_faults
+0.1 save_settings
+0.1 locale_settings
+0.1 sprite_inspector
+0.1 export_sheet
+0.1 extensions_greeter
+0.1 example_rig3d
+0.1 example_c_counter
+0.1 scenes_inspect
+0.1 scripting_live
+0.1 animation_key
+0.1 input_overlay
+0.1 determinism_replay
+0.1 shader_preview
+0.1 objects
+0.1 tiles_overview
+0.1 touch_controls
+0.1 script_completion
+0.1 ui_widgets
+0.1 rigging_weights
+0.1 rigging_bonemap
+0.1 rigging_modifiers
+0.2 project_manager
+0.2 project_examples
+0.2 project_start
+0.2 engine_versions
+0.2 about_balaur
+0.2 covers
+0.2 editor_focus
+0.2 script_focus
+0.2 editor_import
+0.2 import_async
+0.2 addon_completion
+0.2 godot_import
+0.2 concave_pieces
+0.2 concave_beam
+0.2 pause_states
+0.2 ui_kinds
+0.2 ui_rows
+0.2 ui_menus
+0.2 ui_text
+0.2 ui_tour
+0.2 log_settings
+"
+
+milestone_of() { # milestone_of <name>: the milestone it is filed under, or ""
+  printf '%s\n' "$milestones" | awk -v n="$1" '$2 == n { print $1; exit }'
+}
+
+only_at=""
+while [ $# -gt 0 ]; do
+  case $1 in
+    --milestone) only_at=${2:-}; shift 2 ;;
+    --milestone=*) only_at=${1#*=}; shift ;;
+    *) break ;;
+  esac
+done
 site=${1:-../balaur-website}
 shift || true
 only=("$@")
@@ -31,9 +108,12 @@ fi
 balaur() { "$BALAUR_BIN" "$@"; }
 failed=()
 
-wanted() { # wanted <name>: true when no names were given or this one was
+wanted() { # wanted <name>: true when the name and milestone filters allow it
+  local at n
+  at=$(milestone_of "$1")
+  [ -n "$at" ] || { echo "showcase: $1 is filed under no milestone" >&2; exit 2; }
+  [ -n "$only_at" ] && [ "$at" != "$only_at" ] && return 1
   [ ${#only[@]} -eq 0 ] && return 0
-  local n
   for n in "${only[@]}"; do [ "$n" = "$1" ] && return 0; done
   return 1
 }
@@ -284,16 +364,13 @@ screen_clip concave_beam examples/concave  130
 shot tiles_overview    examples/tiles      "scene,select:Ground,tool:tiles,dock:tiles,zoom:60"
 shot scenes_tree       examples/hello      "scene,select:Platform"
 shot scripting_editor  examples/hello      "script,select:Spinner"
-# The completion popup, and the Docs dock the reference is rendered into.
+# The completion popup, along the project's own scripts.
 shot script_completion examples/hello      "script,select:Spinner,show:completion"
 # The same popup along a mounted addon's path: hello with the Gamend SDK in.
 addon_hello=$work/addon_hello
 rm -rf "$addon_hello" && cp -R examples/hello "$addon_hello"
 cp -R editor/library/addons "$addon_hello/addons"
 shot addon_completion "$addon_hello"   "script,select:Spinner,show:addon_completion"
-shot script_docs       examples/hello      "script,select:Spinner,dock:docs"
-# A plugin's dock, which the editor makes a node subtree and hands over.
-shot plugin_dock       examples/hello      "scene,select:World,dock:userdata"
 # Focus: the code pane with the window to itself, beside its hooks list.
 shot editor_focus      examples/hello      "script,select:Spinner,focus"
 shot ui_widgets        examples/angrynerds "ui,select:Restart,play"
@@ -350,7 +427,6 @@ shot export_sheet      examples/angrynerds "scene,export"
 shot extensions_greeter examples/extension_greeter "scene"
 # Stills for the website's examples page.
 shot example_rig3d      examples/rig3d      "scene"
-shot example_rig        examples/rig        "scene,select:Hero"
 shot example_c_counter  examples/extension_c_counter "scene"
 
 clip scenes_inspect    examples/hello      800  "show:scenes"

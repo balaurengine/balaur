@@ -1,0 +1,110 @@
+# The engine as a container image, published to GHCR.
+#
+# `main` refreshes `:nightly`, a `v*` tag publishes `:<version>` and moves
+# `:latest` — the same shape as the downloads in build.yml, so an image and a
+# release with the same name hold the same engine.
+#
+# The binary comes from this run's own editor artifacts rather than from a
+# published release: the image cannot then disagree with the build that made
+# it, and `main` has an image before it has a release to download.
+name: container
+
+on:
+  workflow_call:
+
+jobs:
+  container:
+    name: publish container
+    # A pull request builds the image to prove the Dockerfile still works, but
+    # only a push publishes one. Same rule build.yml applies to releases.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: balaur-editor-linux-*
+          path: artifacts
+          merge-multiple: true
+
+      # Docker says amd64/arm64; the tarballs say x64/arm64. Laying them out
+      # under docker's spelling keeps the Dockerfile free of the mapping.
+      - name: Lay the binaries out by docker's architecture names
+        run: |
+          set -euo pipefail
+          for pair in "amd64:x64" "arm64:arm64"; do
+            docker_arch="${pair%%:*}"
+            balaur_arch="${pair##*:}"
+            tarball="artifacts/balaur-editor-linux-${balaur_arch}.tar.gz"
+
+            test -f "$tarball" || { echo "missing $tarball" >&2; exit 1; }
+
+            mkdir -p "docker/dist/linux-${docker_arch}"
+            tar -xzf "$tarball" -C "docker/dist/linux-${docker_arch}" \
+              --strip-components=1 "balaur-editor-linux-${balaur_arch}/balaur"
+          done
+
+      # The image runs `balaur --version` as its last build step, so building
+      # the arm64 layer on an amd64 runner needs emulation.
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Work out the tags
+        id: tags
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/balaur"
+
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            version="${GITHUB_REF#refs/tags/}"
+            echo "engine=${image}:${version},${image}:latest" >>"$GITHUB_OUTPUT"
+            echo "android=${image}:${version}-android,${image}:latest-android" >>"$GITHUB_OUTPUT"
+          else
+            echo "engine=${image}:nightly" >>"$GITHUB_OUTPUT"
+            echo "android=${image}:nightly-android" >>"$GITHUB_OUTPUT"
+          fi
+
+      - if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: The engine
+        uses: docker/build-push-action@v7
+        with:
+          context: docker
+          file: docker/Dockerfile
+          target: engine
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.tags.outputs.engine }}
+          provenance: false
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.description=The Balaur engine, for exporting a project in CI
+            org.opencontainers.image.licenses=MIT
+
+      # amd64 only, and not by choice: Android's build-tools — aapt2, zipalign,
+      # apksigner — are published as x86-64 Linux binaries and nothing else, so
+      # an arm64 image would carry tools that cannot run. The `aapt2 version`
+      # check at the end of the stage is what turns that into a failed build
+      # here rather than a failed export later.
+      - name: The engine plus the Android SDK
+        uses: docker/build-push-action@v7
+        with:
+          context: docker
+          file: docker/Dockerfile
+          target: android
+          platforms: linux/amd64
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.tags.outputs.android }}
+          provenance: false
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.description=The Balaur engine with the Android SDK, for exporting a project in CI
+            org.opencontainers.image.licenses=MIT

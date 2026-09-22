@@ -3,6 +3,11 @@
 .DS_Store
 .idea/
 /dist
+
+# The container build context. CI stages this run's editor binaries here, one
+# directory per docker architecture, and a local `podman build` does the same.
+# Build output, not source.
+/docker/dist
 __pycache__/
 *.pyc
 .claude/
