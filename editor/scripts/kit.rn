@@ -1,8 +1,10 @@
-// What a plugin draws with, handed to it as `S.kit`: a plugin's script is its
-// own unit and cannot `use` the editor's modules, so each verb is wrapped once
-// here and called as `let tree = S.kit.tree; tree(S, k, id, value, #{})`.
+//! What a plugin fills its dock with, handed to it as `S.kit`. A plugin's
+//! script is its own unit and cannot `use` the editor's modules, so each verb
+//! is wrapped once here and bound to a local to call.
+//!
+//! A verb answers a row rather than drawing one: the editor makes every
+//! registered dock a subtree and the pool writes the rows onto it.
 
-use crate::style;
 use crate::util;
 
 /// The deepest a file browser walks below its root.
@@ -11,23 +13,25 @@ const FOLDER_DEPTH = 3;
 /// The most of a text file shown inline.
 const TEXT_SHOWN = 4000;
 
-/// A `pages` sidebar's width, and the least room that keeps one: narrower,
-/// the pages are a dropdown over the body.
-const SIDEBAR_W = 150.0;
-const SIDEBAR_MIN = 460.0;
+/// How far one level of a tree is indented, in spaces: a row's label is a
+/// node, and the pool gives every row the same label column.
+const INDENT = "  ";
 
 /// The kit, each verb wrapped for another unit to call. Made once: every
 /// `script::shared` keeps its function for the life of the run.
 pub fn make() {
     #{
+        strip: script::shared(host_strip),
+        rows: script::shared(host_rows),
+        node: script::shared(host_node),
         tabs: script::shared(tabs),
         pages: script::shared(pages),
         tree: script::shared(tree),
         field: script::shared(field),
         section: script::shared(section),
         empty: script::shared(empty),
-        save_prefs: script::shared(save_prefs),
         files: script::shared(files),
+        save_prefs: script::shared(save_prefs),
         short_path: script::shared(short_path),
         game_data: script::shared(game_data),
     }
@@ -77,9 +81,45 @@ fn option(opts, key, fallback) {
     fallback
 }
 
-/// Rows of tabs, wrapped to the width there is; answers the one that is
-/// open, remembered per `id`.
-fn tabs(S, k, id, names) {
+// Where each name a plugin uses sits under its host. A name the table does
+// not know is the body, which is where rows belong.
+fn host_path(host, name) {
+    if name == "head" {
+        return host + "/Head";
+    }
+    if name == "foot" {
+        return host + "/Foot";
+    }
+    if name == "side" {
+        return host + "/Split/Side/SideRows";
+    }
+    host + "/Split/Body/Rows"
+}
+
+/// A row of controls on a named part of the host: `head`, `foot`, or the
+/// `body` that everything else means.
+fn host_strip(S, host, name, controls) {
+    crate::pool::strip(S, host_path(host, name), controls);
+}
+
+/// Rows on a named part of the host. A spec is what `pool::sync` takes:
+/// `#{ label, controls }`, or `full` for a row across both columns.
+fn host_rows(S, host, name, specs) {
+    crate::pool::sync(S, host_path(host, name), specs, LABEL_W, false);
+}
+
+/// The node itself, for a plugin that wants to `add_child` a shape the kit
+/// has no verb for, or to read a rect back.
+fn host_node(host, name) {
+    scene::get_node(host_path(host, name))
+}
+
+/// The label column every kit row keeps.
+const LABEL_W = 140.0;
+
+/// Rows of tabs across the host's head, wrapped to the width there is;
+/// answers the one that is open, remembered per `id`.
+fn tabs(S, host, id, names) {
     if names.len() == 0 {
         return "";
     }
@@ -87,28 +127,26 @@ fn tabs(S, k, id, names) {
     let held = m.get("tab:" + id).unwrap_or(());
     let current = if held is String && util::contains(names, held) { held } else { names[0] };
     let picked = #{ name: current };
-    for row in wrapped(names, ui::available_width()) {
-        ui::horizontal(#{ height: 26 }, || {
-            ui::spacing(4, 0);
-            for name in row {
-                let role = if name == picked.name { "chip_on" } else { "chip" };
-                if ui::pill(name, #{ role: role }) {
-                    picked.name = name;
-                }
-            }
+    let controls = [];
+    for entry in names {
+        // Bound afresh: a closure made in a loop captures the binding.
+        let name = entry;
+        controls.push(#{
+            kind: "button", text: name,
+            role: if name == picked.name { "chip_on" } else { "chip" },
+            on: |_| { picked.name = name; },
         });
     }
+    host_strip(S, host, "head", controls);
     m["tab:" + id] = picked.name;
     picked.name
 }
 
-/// A list of pages beside the open one, the way the settings page is laid
-/// out: what a panel with many views and little height wants. `groups` is
-/// `[#{ title, names }]`. `draw(S, k, name)` draws the open page, and must be
-/// wrapped once with `script::shared(f)`: a plugin's closure called from
-/// this unit runs another unit's code. Both halves scroll, so a dock using
-/// this registers with `scrolls: true`.
-fn pages(S, k, id, groups, draw) {
+/// A list of pages down the host's sidebar, the way the settings screen is
+/// laid out: what a panel with many views and little height wants. `groups`
+/// is `[#{ title, names }]`, and the answer is the page that is open, which
+/// the plugin then fills the body with.
+fn pages(S, host, id, groups) {
     let names = [];
     for group in groups {
         for name in group.names {
@@ -116,95 +154,46 @@ fn pages(S, k, id, groups, draw) {
         }
     }
     if names.len() == 0 {
+        util::hide(host_path(host, "side"));
         return "";
     }
     let m = memory(S);
     let held = m.get("tab:" + id).unwrap_or(());
     let current = if held is String && util::contains(names, held) { held } else { names[0] };
     let picked = #{ name: current };
-    if ui::available_width() < SIDEBAR_MIN {
-        let (name, changed) = ui::dropdown("pages:" + id, current, names, #{
-            width: ui::available_width(), size: style::MD, height: style::row_h(S), color: k.text,
-        });
-        if changed {
-            picked.name = name;
+    let controls = [];
+    for group in groups {
+        if group.title != "" {
+            controls.push(#{ kind: "label", role: "meta", text: group.title });
         }
-        ui::scroll("pages-body:" + id, #{ axis: "vertical" }, || {
-            draw(S, k, picked.name);
-        });
-    } else {
-        // Inside another scroll the height is unbounded; a page that tall
-        // would never scroll on its own.
-        let room = ui::available_height();
-        let tall = if room > 0.0 && room < 4000.0 { room } else { 600.0 };
-        ui::horizontal(#{ height: tall }, || {
-            ui::scroll("pages-side:" + id, #{ axis: "vertical", max_width: SIDEBAR_W, max_height: tall }, || {
-                side(k, groups, picked);
+        for entry in group.names {
+            // Bound afresh: a closure made in a loop captures the binding.
+            let name = entry;
+            controls.push(#{
+                kind: "button", text: name,
+                role: if name == picked.name { "side_row_on" } else { "side_row" },
+                on: |_| { picked.name = name; },
             });
-            ui::add_space(12);
-            ui::scroll("pages-body:" + id, #{ axis: "vertical", max_height: tall }, || {
-                ui::vertical(|| {
-                    draw(S, k, picked.name);
-                });
-            });
-        });
+        }
     }
+    host_strip(S, host, "side", controls);
+    util::fill(host + "/Split/Side", #{ visible: true });
     m["tab:" + id] = picked.name;
     picked.name
 }
 
-fn side(k, groups, picked) {
-    ui::vertical(|| {
-        for group in groups {
-            if group.title != "" {
-                ui::add_space(6);
-                ui::label(group.title, style::mono_sm(k.faint));
-                ui::add_space(2);
-            }
-            for name in group.names {
-                let on = name == picked.name;
-                if ui::pill(name, #{
-                    height: 22, size: style::MD, radius: 6, min_width: SIDEBAR_W - 10.0, align: "left",
-                    fill: if on { k.sunken } else { k.panel },
-                    color: if on { k.text } else { k.dim },
-                }) {
-                    picked.name = name;
-                }
-            }
-        }
-    });
-}
-
-/// Names in rows that fit `width`, measured the way a chip draws them:
-/// seven design pixels a character and its padding.
-fn wrapped(names, width) {
-    let rows = [];
-    let row = [];
-    let used = 0.0;
-    for name in names {
-        let wide = (name.len() as f64) * 7.0 + 28.0;
-        if row.len() > 0 && used + wide > width {
-            rows.push(row);
-            row = [];
-            used = 0.0;
-        }
-        row.push(name);
-        used += wide;
-    }
-    if row.len() > 0 {
-        rows.push(row);
-    }
-    rows
-}
-
 /// A heading between groups of rows.
-fn section(k, title) {
-    style::section_label(k, title);
+fn section(title) {
+    #{ full: true, height: 24, controls: [#{
+        kind: "label", role: "section_head", text: title,
+    }] }
 }
 
 /// What a panel says when it has nothing.
-fn empty(k, text) {
-    style::empty(k, text);
+fn empty(text) {
+    #{ full: true, height: 0, controls: [#{
+        kind: "label", role: "meta", grow: 1, wrap: true, text: text,
+    }] }
 }
 
 /// Write the editor's own settings file, after a plugin set an editor-scope
@@ -214,35 +203,34 @@ fn save_prefs(S) {
 }
 
 /// A labelled value. `mask` hides all but its ends until `show` is pressed,
-/// `copy` adds a copy mark (copying `copy_text` when given), `color` tints
-/// the value.
-fn field(S, k, label, value, opts) {
+/// `copy` adds a copy mark (copying `copy_text` when given), and `role`
+/// dresses the value where the theme has a role for what it says.
+fn field(S, label, value, opts) {
     let text = shown(value);
     let masked = option(opts, "mask", false);
     let m = memory(S);
     let key = "shown:" + label;
     let revealed = m.get(key).unwrap_or(false);
-    let color = option(opts, "color", k.text);
-    ui::horizontal(#{ height: 22 }, || {
-        ui::spacing(6, 0);
-        ui::horizontal(#{ width: 130, height: 22 }, || {
-            ui::label(label, style::mono_sm(k.dim));
+    let controls = [#{
+        kind: "label", grow: 1, truncate: true,
+        role: option(opts, "role", "meta"),
+        text: if masked && !revealed { mask(text) } else { text },
+    }];
+    if masked {
+        controls.push(#{
+            kind: "button", role: "chip",
+            text: if revealed { "hide" } else { "show" },
+            on: |_| { m[key] = !revealed; },
         });
-        let visible = if masked && !revealed { mask(text) } else { text };
-        ui::label(visible, #{ role: "meta", color: color, truncate: true });
-        if masked {
-            let word = if revealed { "hide" } else { "show" };
-            if ui::pill(word, #{ role: "chip" }) {
-                m[key] = !revealed;
-            }
-        }
-        if option(opts, "copy", false) {
-            if ui::pill("copy", #{ role: "chip" }) {
-                let whole = option(opts, "copy_text", text);
-                ui::set_clipboard(whole);
-            }
-        }
-    });
+    }
+    if option(opts, "copy", false) {
+        let whole = option(opts, "copy_text", text);
+        controls.push(#{
+            kind: "button", role: "chip", text: "copy",
+            on: |_| { ui::set_clipboard(whole); },
+        });
+    }
+    #{ label: label, height: 22, slot_role: "verb_row", controls: controls }
 }
 
 fn mask(text) {
@@ -272,7 +260,8 @@ fn head_of(text, most) {
         out.push(c);
         n += 1;
     }
-    return (out, false);
+    let whole = (out, false);
+    whole
 }
 
 /// A value as text, the way a row shows it.
@@ -290,39 +279,39 @@ fn shown(value) {
     format!("{}", value)
 }
 
-/// A value as a tree: a map or a list opens and closes, a leaf shows in mono.
-/// With `edit`, a leaf is a field, Enter keeps what was typed, and the answer
-/// is `(value, changed)`; without, the value as it came and false.
-fn tree(S, k, id, value, opts) {
-    let out = #{ value: value, changed: false };
+/// A value as rows: a map or a list opens and closes, a leaf shows in mono.
+/// With `edit`, a leaf is a field and Enter keeps what was typed. Answers
+/// `(specs, value, changed)`; the caller puts the specs on its host.
+fn tree(S, id, value, opts) {
+    let out = #{ value: value, changed: false, specs: [] };
     let edit = option(opts, "edit", false);
     let label = option(opts, "label", "");
-    out.value = branch(S, k, out, id, label, value, edit, 0);
-    (out.value, out.changed)
+    out.value = branch(S, out, id, label, value, edit, 0);
+    let answer = (out.specs, out.value, out.changed);
+    answer
 }
 
-fn branch(S, k, out, path, label, value, edit, depth) {
+fn branch(S, out, path, label, value, edit, depth) {
     if value is Object || value is Vec {
-        return container(S, k, out, path, label, value, edit, depth);
+        return container(S, out, path, label, value, edit, depth);
     }
-    leaf(S, k, out, path, label, value, edit, depth)
+    leaf(S, out, path, label, value, edit, depth)
 }
 
-fn container(S, k, out, path, label, value, edit, depth) {
+fn container(S, out, path, label, value, edit, depth) {
     let m = memory(S);
     let key = "open:" + path;
     let open = m.get(key).unwrap_or(depth == 0);
     let count = if value is Object { format!("{} keys", value.len()) } else { format!("{} items", value.len()) };
     if label != "" || depth > 0 {
-        ui::horizontal(#{ height: 22 }, || {
-            ui::add_space(14.0 * (depth as f64));
-            let mark = if open { "▾ " } else { "▸ " };
-            if ui::pill(mark + label, #{ role: "chip" }) {
-                m[key] = !open;
-            }
-            ui::add_space(6);
-            ui::label(count, style::mono_sm(k.faint));
-        });
+        out.specs.push(#{ full: true, height: 22, slot_role: "verb_row", controls: [
+            #{
+                kind: "button", role: "chip",
+                text: indent(depth) + (if open { "▾ " } else { "▸ " }) + label,
+                on: |_| { m[key] = !open; },
+            },
+            #{ kind: "label", role: "meta", text: count },
+        ] });
     }
     if !open {
         return value;
@@ -332,37 +321,49 @@ fn container(S, k, out, path, label, value, edit, depth) {
         let names = util::keys_sorted(value);
         for name in names {
             let child = value[name];
-            value[name] = branch(S, k, out, path + "/" + name, name, child, edit, inner);
+            value[name] = branch(S, out, path + "/" + name, name, child, edit, inner);
         }
     } else {
         let n = 0;
         while n < value.len() {
             let child = value[n];
-            value[n] = branch(S, k, out, path + "/" + format!("{}", n), format!("{}", n), child, edit, inner);
+            value[n] = branch(S, out, path + "/" + format!("{}", n), format!("{}", n), child, edit, inner);
             n += 1;
         }
     }
     value
 }
 
-fn leaf(S, k, out, path, label, value, edit, depth) {
+// A row's own depth, as the spaces before its label: a pooled row's label is
+// a node in a column of them, so the text is what steps right.
+fn indent(depth) {
+    let out = "";
+    let n = 0;
+    while n < depth {
+        out += INDENT;
+        n += 1;
+    }
+    out
+}
+
+fn leaf(S, out, path, label, value, edit, depth) {
     let held = #{ value: value };
     let text = shown(value);
-    ui::horizontal(#{ height: 22 }, || {
-        ui::add_space(14.0 * (depth as f64));
-        ui::horizontal(#{ width: 140, height: 22 }, || {
-            ui::label(label, style::mono_sm(k.dim));
-        });
-        if edit {
-            let (typed, _, entered) = ui::text_field("kit:" + path, "",
-                util::merge(style::field(k, 220.0), #{ value: text, font: ui::FONT_MONO }));
-            if entered && typed != text {
-                held.value = parsed(value, typed);
-                out.changed = true;
-            }
-        } else {
-            ui::label(text, #{ role: "meta", color: k.text, truncate: true });
+    let control = if edit {
+        #{
+            kind: "field", role: "form_field", grow: 1, text: text,
+            on_submit: |typed| {
+                if typed != text {
+                    held.value = parsed(value, typed);
+                    out.changed = true;
+                }
+            },
         }
+    } else {
+        #{ kind: "label", role: "meta", grow: 1, truncate: true, text: text }
+    };
+    out.specs.push(#{
+        label: indent(depth) + label, height: 22, controls: [control],
     });
     held.value
 }
@@ -380,83 +381,78 @@ fn parsed(was, typed) {
     typed
 }
 
-/// Every file under a user data directory, opened as a structure where it is
-/// TOML or JSON, edited in place and written back. `opts`: `root` (default
-/// this game's user data directory), `only` (file names to show), `edit`.
-fn files(S, k, id, opts) {
+/// Every file under a user data directory as rows, opened as a structure
+/// where it is TOML or JSON, edited in place and written back. `opts`:
+/// `root` (default this game's user data directory), `only` (file names to
+/// show), `edit`.
+fn files(S, id, opts) {
     let root = option(opts, "root", game_data(S));
     let only = option(opts, "only", []);
-    ui::horizontal(#{ height: 24 }, || {
-        ui::spacing(6, 0);
-        ui::label(short_path(root), #{ role: "meta", color: k.faint, truncate: true });
-        if ui::pill("reveal", #{ role: "chip" }) {
-            reveal(root);
-        }
-    });
-    let drawn = folder(S, k, id, root, "", only, option(opts, "edit", true), 0);
+    let out = [#{ full: true, height: 24, slot_role: "verb_row", controls: [
+        #{ kind: "label", role: "meta", grow: 1, truncate: true, text: short_path(root) },
+        #{ kind: "button", role: "chip", text: "reveal", on: |_| { reveal(root); } },
+    ] }];
+    let drawn = folder(S, id, root, "", only, option(opts, "edit", true), 0, out);
     if drawn == 0 {
-        empty(k, "nothing kept yet");
+        out.push(empty("nothing kept yet"));
     }
+    out
 }
 
-/// One directory's entries; answers how many files it drew.
-fn folder(S, k, id, dir, rel, only, edit, depth) {
+/// One directory's entries; answers how many files it put rows on.
+fn folder(S, id, dir, rel, only, edit, depth, out) {
     let drawn = 0;
     for entry in util::vec(fs::list(dir)) {
         let path = dir + "/" + entry.name;
         let here = if rel == "" { entry.name } else { rel + "/" + entry.name };
         if entry.is_dir {
             if depth < FOLDER_DEPTH {
-                drawn += folder(S, k, id, path, here, only, edit, depth + 1);
+                drawn += folder(S, id, path, here, only, edit, depth + 1, out);
             }
             continue;
         }
         if only.len() > 0 && !util::contains(only, entry.name) {
             continue;
         }
-        file_row(S, k, id + ":" + here, path, here, edit);
+        file_rows(S, id + ":" + here, path, here, edit, out);
         drawn += 1;
     }
     drawn
 }
 
-fn file_row(S, k, id, path, rel, edit) {
+fn file_rows(S, id, path, rel, edit, out) {
     let m = memory(S);
     let key = "file:" + id;
     let open = m.get(key).unwrap_or(false);
-    ui::horizontal(#{ height: 24 }, || {
-        ui::spacing(6, 0);
-        let mark = if open { "▾ " } else { "▸ " };
-        if ui::pill(mark + rel, #{ role: "chip" }) {
-            m[key] = !open;
-        }
-        let when = fs::mtime(path);
-        if when is f64 || when is i64 {
-            let age = (engine::unix_time() as f64) - (when as f64);
-            ui::label(ago(age), style::mono_sm(k.faint));
-        }
-        if ui::pill("reveal", #{ role: "chip" }) {
-            reveal(path);
-        }
-    });
+    let controls = [#{
+        kind: "button", role: "chip",
+        text: (if open { "▾ " } else { "▸ " }) + rel,
+        on: |_| { m[key] = !open; },
+    }];
+    let when = fs::mtime(path);
+    if when is f64 || when is i64 {
+        let age = (engine::unix_time() as f64) - (when as f64);
+        controls.push(#{ kind: "label", role: "meta", text: ago(age) });
+    }
+    controls.push(#{ kind: "button", role: "chip", text: "reveal", on: |_| { reveal(path); } });
+    out.push(#{ full: true, height: 24, slot_role: "verb_row", controls: controls });
     if open {
-        document(S, k, id, path, edit);
+        document(S, id, path, edit, out);
     }
 }
 
-/// A file opened: a structure for TOML and JSON, its text otherwise.
-fn document(S, k, id, path, edit) {
+/// A file opened: rows for TOML and JSON, its text otherwise.
+fn document(S, id, path, edit, out) {
     let text = fs::read(path);
     if !(text is String) {
-        empty(k, "cannot read this file");
+        out.push(empty("cannot read this file"));
         return;
     }
     let as_toml = path.ends_with(".toml");
     let as_json = path.ends_with(".json");
     if !as_toml && !as_json {
         let (head, more) = head_of(text, TEXT_SHOWN);
-        let cut = if more { "…" } else { "" };
-        ui::label(head + cut, #{ role: "meta", color: k.dim, wrap: true });
+        out.push(empty(head + (if more { "…" } else { "" })));
         return;
     }
     let (ok, value) = if as_toml {
@@ -465,10 +461,16 @@ fn document(S, k, id, path, edit) {
         script::attempt(|| json::parse(text))
     };
     if !ok {
-        ui::label(format!("does not parse: {}", value), style::mono_sm(k.accent));
+        out.push(#{ full: true, height: 22, controls: [#{
+            kind: "label", role: "warn_note", grow: 1, wrap: true,
+            text: format!("does not parse: {}", value),
+        }] });
         return;
     }
-    let (after, changed) = tree(S, k, id, value, #{ edit: edit });
+    let (specs, after, changed) = tree(S, id, value, #{ edit: edit });
+    for spec in specs {
+        out.push(spec);
+    }
     if changed {
         let body = if as_toml { toml::encode(after) } else { json::encode(after) };
         fs::write(path, body);

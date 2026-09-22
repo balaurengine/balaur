@@ -55,30 +55,41 @@ pub fn report(S, e) {
 
 pub fn draw(S) {
     let k = S.theme;
-    crate::window::sheet(S, "export", "Export", || { folder_button(S, k); }, || {
-        if S.exporter.rows.is_empty() {
-            style::empty(k, "no targets — this build has no exporter");
-            return;
-        }
-        ui::vertical(|| {
-            ui::label(
-                "Builds the project this editor is editing.",
-                style::mono_sm(k.faint),
-            );
-            ui::add_space(6);
-            // The sheet builds; what it builds from is a settings page, so the
-            // sentence that used to name the table is the link to it.
-            if ui::pill("export settings", #{
-                height: 22, size: style::SM, radius: 8, fill: k.panel, color: k.dim,
-            }) {
-                crate::settings::open_at(S, "export");
-            }
-            ui::add_space(12);
-            for row in S.exporter.rows {
-                target_row(S, k, util::obj(row));
-            }
-        });
-    });
+    let hosts = crate::window::sheet_form(S, "export", "Export", || { folder_button(S, k); });
+    if util::is_nil(hosts) {
+        return;
+    }
+    // No sidebar: the sheet is one list of targets, and `sheet_form` left it
+    // shut for us.
+    crate::pool::sync(S, hosts.form, specs(S), 0.0, false);
+}
+
+/// Every row the sheet shows: what it builds, the link to the settings it
+/// builds from, and a target with its verb.
+fn specs(S) {
+    if S.exporter.rows.is_empty() {
+        let none = [note("no targets — this build has no exporter", "meta")];
+        return none;
+    }
+    let out = [
+        note("Builds the project this editor is editing.", "meta"),
+        // The sheet builds; what it builds from is a settings page, so the
+        // sentence that used to name the table is the link to it.
+        #{ full: true, height: 24, slot_role: "verb_row", controls: [#{
+            kind: "button", role: "chip", text: "export settings",
+            on: |_| { crate::settings::open_at(S, "export"); },
+        }] },
+    ];
+    for row in S.exporter.rows {
+        target_specs(S, util::obj(row), out);
+    }
+    out
+}
+
+fn note(text, role) {
+    #{ full: true, height: 0, controls: [#{
+        kind: "label", role: role, grow: 1, wrap: true, text: text,
+    }] }
 }
 
 fn folder_button(S, k) {
@@ -104,62 +115,55 @@ fn readiness(installed, fetchable) {
     }
 }
 
-fn target_row(S, k, row) {
+fn target_specs(S, row, out) {
     let name = row.get("name").unwrap_or("");
     let installed = row.get("installed").unwrap_or(false);
     let fetchable = row.get("fetchable").unwrap_or(false);
-    let note = row.get("note").unwrap_or("");
+    let note_text = row.get("note").unwrap_or("");
     let status = S.exporter.status.get(name).unwrap_or("");
     let said = S.exporter.said.get(name).unwrap_or("");
-    ui::horizontal(#{ height: 24 }, || {
-        ui::add_space(8);
-        ui::label(name, style::mono_sm(k.text));
-        ui::add_space(10);
-        ui::label(readiness(installed, fetchable), style::mono_sm(k.faint));
-        if note != "" {
-            ui::add_space(10);
-            ui::label(note, style::mono_sm(k.accent));
-        }
-        ui::right(|| {
-            ui::add_space(8);
-            export_button(S, k, name, installed, fetchable, status);
-            if status == "started" {
-                ui::label("building…", style::mono_sm(k.accent));
-            } else if status == "failed" {
-                ui::label("failed", style::mono_sm(k.accent));
-            } else if status == "done" {
-                ui::label("done", style::mono_sm(k.dim));
-            }
-        });
-    });
+    let controls = [
+        #{ kind: "label", role: "mono", text: name },
+        #{ kind: "label", role: "meta", text: readiness(installed, fetchable) },
+    ];
+    if note_text != "" {
+        controls.push(#{ kind: "label", role: "error_note", text: note_text });
+    }
+    controls.push(#{ kind: "row", grow: 1 });
+    let verb = export_button(S, name, installed, fetchable, status);
+    if verb is Object {
+        controls.push(verb);
+    }
+    if status == "started" {
+        controls.push(#{ kind: "label", role: "error_note", text: "building…" });
+    } else if status == "failed" {
+        controls.push(#{ kind: "label", role: "error_note", text: "failed" });
+    } else if status == "done" {
+        controls.push(#{ kind: "label", role: "meta", text: "done" });
+    }
+    out.push(#{ full: true, height: 24, slot_role: "verb_row", controls: controls });
     // The path it wrote, or the reason it did not, under the row that says so.
     if said != "" {
-        ui::horizontal(#{ height: 20 }, || {
-            ui::add_space(20);
-            ui::label(said, style::mono_sm(if status == "failed" { k.accent } else { k.faint }));
-        });
+        out.push(note(said, if status == "failed" { "error_note" } else { "meta" }));
     }
 }
 
-fn export_button(S, k, name, installed, fetchable, status) {
-    if status == "started" {
-        return;
+// Nothing to build with, and nowhere to get one: nothing, instead of a
+// button that can only fail. The same while one is building.
+fn export_button(S, name, installed, fetchable, status) {
+    if status == "started" || !(installed || fetchable) {
+        return ();
     }
-    // Nothing to build with, and nowhere to get one: say so instead of
-    // offering a button that can only fail.
-    if !installed && !fetchable {
-        return;
-    }
-    let label = if installed { "export" } else { "download & export" };
-    if ui::pill(label, #{
-        height: 20, size: style::SM, strong: true,
+    #{
+        kind: "button", role: "row_action",
+        text: if installed { "export" } else { "download & export" },
         tooltip: "Export the project for this target",
-        fill: k.sunken, color: k.dim,
-    }) {
-        let status_map = S.exporter.status;
-        status_map[name] = "started";
-        // `download` is the consent this click just gave: the engine never
-        // fetches a template without being told it may.
-        export::start(name, #{ download: true });
+        on: |_| {
+            let status_map = S.exporter.status;
+            status_map[name] = "started";
+            // `download` is the consent this click just gave: the engine
+            // never fetches a template without being told it may.
+            export::start(name, #{ download: true });
+        },
     }
 }

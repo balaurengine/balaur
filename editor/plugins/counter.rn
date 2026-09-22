@@ -10,8 +10,8 @@ pub fn state() {
 /// What this plugin adds. Every list is optional.
 pub fn register() {
     #{
-        docks: [#{ id: "counter", name: "Counter", draw: draw }],
-        windows: [#{ id: "counter-window", title: "Counter", draw: draw }],
+        docks: [#{ id: "counter", name: "Counter", draw: dock }],
+        windows: [#{ id: "counter-window", title: "Counter", draw: window }],
         commands: [#{ label: "Count scripted nodes", icon: "Σ", key: "", run: count }],
         sections: [section],
         states: #{ "counterdemo": selftest },
@@ -33,20 +33,35 @@ pub fn count(S) {
     log::info(format!("{} scripted nodes", S.plugins.counter.shown));
 }
 
-/// The dock tab and the window draw the same thing; `k` is the active theme.
-/// `S.kit` is what the editor lends a plugin to draw with: its verbs are
-/// stored functions, so each is bound to a local and called.
-pub fn draw(S, k) {
+/// The dock, which the editor hands the node it made for this plugin.
+/// `S.kit` is what the editor lends a plugin to fill it with: its verbs are
+/// stored functions, so each is bound to a local and called. A verb answers a
+/// row; `rows` is what puts the rows on the node.
+pub fn dock(S, k, host) {
     let section = S.kit.section;
-    section(k, "Scripted nodes");
+    let rows = S.kit.rows;
+    let specs = [section("Scripted nodes")];
     let shown = S.plugins.counter.shown;
     if shown < 0 {
         let empty = S.kit.empty;
-        empty(k, "run “Count scripted nodes” from the palette");
-        return;
+        specs.push(empty("run “Count scripted nodes” from the palette"));
+    } else {
+        let field = S.kit.field;
+        specs.push(field(S, "nodes", format!("{}", shown), #{ copy: true }));
     }
-    let field = S.kit.field;
-    field(S, k, "nodes", format!("{}", shown), #{ copy: true });
+    rows(S, host, "body", specs);
+}
+
+/// The floating window, which is drawn: a plugin window has no node of its
+/// own yet, so this is the seam still on `ui::*`.
+pub fn window(S, k) {
+    let shown = S.plugins.counter.shown;
+    let said = if shown < 0 {
+        "run “Count scripted nodes” from the palette"
+    } else {
+        format!("{} scripted nodes", shown)
+    };
+    ui::label(said, #{ role: "meta", color: k.dim, wrap: true });
 }
 
 /// An inspector section, drawn after the built-in ones.

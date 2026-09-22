@@ -393,48 +393,56 @@ pub fn hide_outline() {
 pub fn rename_open(S) {
     S.renaming = true;
     S.rename_text = S.doc[S.sel].name;
-    ui::set_text("rename-field", S.rename_text);
 }
 
 pub fn rename_close(S) {
     S.renaming = false;
+    crate::window::picker_shut(S);
 }
 
-/// One field and one button: the tree is a widget-layer list, which has no
-/// cell to edit in place, so the rename happens over it.
+/// One field and one verb, on the picker every search box in the shell uses:
+/// the tree is a widget-layer list, which has no cell to edit in place, so
+/// the rename happens over it.
 pub fn rename_draw(S) {
     if !S.renaming {
         return;
     }
-    let k = S.theme;
-    let screen = ui::screen_size();
-    let width = util::min(420.0, util::max(screen[0] - 32.0, 240.0));
-    let row_h = crate::style::row_h(S);
-    let scrim_clicked = ui::modal("rename", #{
-        width: width, top: 0.2, fill: k.panel, stroke: k.line,
-        scrim: "#0b0e126b",
-    }, || {
-        ui::frame(#{ padding_x: 16, padding_y: 12 }, || {
-            ui::label("Rename node", crate::style::mono_sm(k.faint));
-            ui::add_space(6);
-            ui::horizontal(#{ height: row_h }, || {
-                let (text, _, submitted) = ui::text_field("rename-field", "Name", #{
-                    size: crate::style::XL, width: width - 110.0, autofocus: true, color: k.text,
-                });
-                S.rename_text = text;
-                ui::add_space(6);
-                let apply = ui::pill("Rename", #{
-                    height: util::max(row_h, 28.0), size: crate::style::MD,
-                    fill: k.accent_soft, color: k.accent,
-                });
-                if apply || submitted {
-                    model::rename_selected(S, S.rename_text);
-                    rename_close(S);
-                }
-            });
-        });
+    let row_h = util::max(crate::style::row_h(S), 28.0);
+    let host = crate::window::picker(S, #{
+        width: 420.0,
+        // The node's own mark, which is what the tree row it renames wears.
+        mark: node_mark(S),
+        placeholder: "Name",
+        query: S.rename_text,
+        rows_h: row_h + 6.0,
+        on: |text| { S.rename_text = text; },
+        on_submit: |text| {
+            S.rename_text = text;
+            apply_rename(S);
+        },
     });
-    if scrim_clicked || ui::shortcut("escape") {
+    if util::is_nil(host) {
         rename_close(S);
+        return;
     }
+    crate::pool::sync(S, host, [#{ full: true, height: row_h, controls: [#{
+        kind: "button", role: "row_action_warn", grow: 1, text: "Rename",
+        on: |_| { apply_rename(S); },
+    }] }], 0.0, false);
+}
+
+fn node_mark(S) {
+    let found = S.doc.get(S.sel);
+    match found {
+        Some(node) => {
+            let (mark, _) = model::node_icon(node);
+            mark
+        }
+        None => icons::ui("search"),
+    }
+}
+
+fn apply_rename(S) {
+    model::rename_selected(S, S.rename_text);
+    rename_close(S);
 }

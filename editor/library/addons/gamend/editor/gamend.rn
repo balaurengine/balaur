@@ -20,13 +20,11 @@ pub fn state() {
     #{
         requests: #{}, replies: #{}, ids: #{}, filter: "all", open: #{}, kv_key: "",
         seen: #{}, rows: #{}, rows_in: 0,
-        // Wrapped once: the kit calls it from the editor's own unit.
-        page: script::shared(page, 3),
     }
 }
 
 pub fn register() {
-    #{ docks: [#{ id: "gamend", name: "Gamend", tall: true, scrolls: true, draw: draw }] }
+    #{ docks: [#{ id: "gamend", name: "Gamend", tall: true, draw: draw }] }
 }
 
 fn core_tabs() {
@@ -96,84 +94,89 @@ fn features() {
     ]
 }
 
-pub fn draw(S, k) {
+pub fn draw(S, k, host) {
     // Live numbers: the dock asks for the next pass while it is open.
     ui::request_repaint();
     let me = S.plugins["gamend"];
     if gamend::connection()["url"] == "" {
         gamend::configure(());
     }
-    header(S, k, me);
+    let strip = S.kit.strip;
+    let pages = S.kit.pages;
+    let rows = S.kit.rows;
+    strip(S, host, "head", header(S, me));
     let names = [];
     for feature in features() {
         names.push(feature.name);
     }
     let groups = [#{ title: "", names: core_tabs() }, #{ title: "FEATURES", names: names }];
-    let pages = S.kit.pages;
-    pages(S, k, "gamend", groups, me.page);
+    let tab = pages(S, host, "gamend", groups);
+    rows(S, host, "body", page(S, me, tab));
 }
 
-fn page(S, k, tab) {
-    let me = S.plugins["gamend"];
+/// Every row the open tab shows.
+fn page(S, me, tab) {
+    let out = [];
     if tab == "Overview" {
-        overview(S, k, me);
+        overview(S, me, out);
     } else if tab == "User" {
-        user(S, k, me);
+        user(S, me, out);
     } else if tab == "Lobby" {
-        lobby(S, k, me);
+        lobby(S, me, out);
     } else if tab == "Data" {
-        data(S, k, me);
+        data(S, me, out);
     } else if tab == "Activity" {
-        activity(S, k, me);
+        activity(S, me, out);
     } else if tab == "Logs" {
-        logs(S, k);
+        logs(S, out);
     } else {
-        feature_tab(S, k, me, tab);
+        feature_tab(S, me, tab, out);
+    }
+    out
+}
+
+/// A row of chips and verbs, which the head and several pages are made of.
+fn verbs(controls) {
+    #{ full: true, height: 26, slot_role: "verb_row", controls: controls }
+}
+
+/// A line of prose, in the role its news deserves.
+fn note(text, role) {
+    #{ full: true, height: 0, controls: [#{
+        kind: "label", role: role, grow: 1, wrap: true, text: text,
+    }] }
+}
+
+fn chip(text, on, tip, act) {
+    #{
+        kind: "button", text: text, tooltip: tip,
+        role: if on { "chip_on" } else { "chip" },
+        on: |_| { act(); },
     }
 }
 
-/// The two servers, the links, and who is signed in over what: one row
-/// where there is room, two in a side dock.
-fn header(S, k, me) {
+/// The two servers, the links, and who is signed in over what. The head is a
+/// `flow`, so these wrap rather than measuring the width themselves.
+fn header(S, me) {
     let target = gamend::target();
     let link = gamend::connection();
     let url = link["url"];
-    let narrow = ui::available_width() < 560.0;
-    ui::horizontal(#{ height: 26 }, || {
-        ui::spacing(4, 0);
-        for name in ["production", "local"] {
-            let at = target[name];
-            let on = target["name"] == name && url == at;
-            let role = if on { "chip_on" } else { "chip" };
-            let label = if narrow { name } else { format!("{} · {}", name, host_of(at)) };
-            if ui::pill(label, #{ role: role, tooltip: at }) && !on {
+    let out = [];
+    for entry in ["production", "local"] {
+        // Bound afresh: a closure made in a loop captures the binding.
+        let name = entry;
+        let at = target[name];
+        let on = target["name"] == name && url == at;
+        out.push(chip(format!("{} · {}", name, host_of(at)), on, at, || {
+            if !on {
                 pick(S, me, name);
             }
-        }
-        if !narrow {
-            ui::add_space(8);
-            links_and_status(k, link);
-        }
-    });
-    if narrow {
-        ui::horizontal(#{ height: 26 }, || {
-            ui::spacing(4, 0);
-            links_and_status(k, link);
-        });
+        }));
     }
-    ui::add_space(4);
-}
-
-fn links_and_status(k, link) {
-    let url = link["url"];
-    if ui::pill("Open", #{ role: "chip", tooltip: url }) {
-        engine::open_url(url);
-    }
-    if ui::pill("Admin", #{ role: "chip", tooltip: url + "/admin" }) {
-        engine::open_url(url + "/admin");
-    }
-    ui::add_space(8);
-    status(k, link);
+    out.push(chip("Open", false, url, || { engine::open_url(url); }));
+    out.push(chip("Admin", false, url + "/admin", || { engine::open_url(url + "/admin"); }));
+    out.push(status(link));
+    out
 }
 
 /// Talk to the other of the project's servers from now on, remembered for
@@ -186,7 +189,7 @@ fn pick(S, me, name) {
     forget(me, "");
 }
 
-fn status(k, link) {
+fn status(link) {
     let user = link["username"];
     let who = if user is String { format!("signed in as {}", user) } else { "not signed in" };
     let open = 0;
@@ -198,111 +201,109 @@ fn status(k, link) {
         topics += socket["topics"].len();
     }
     let sockets = if open > 0 { format!("socket open, {} topics", topics) } else { "no socket open" };
-    let color = if user is String { k.sage } else { k.dim };
-    ui::label(format!("{}  ·  {}", who, sockets), #{ size: 11.5, font: ui::FONT_MONO, color: color, truncate: true });
+    // No `truncate`: the head is a `flow`, and a line that reports no width
+    // of its own is one the row cannot wrap around.
+    #{
+        kind: "label",
+        role: if user is String { "answer_yes" } else { "answer_no" },
+        text: format!("{}  ·  {}", who, sockets),
+    }
 }
 
-fn overview(S, k, me) {
+fn overview(S, me, out) {
     let section = S.kit.section;
     let field = S.kit.field;
     let target = gamend::target();
     let link = gamend::connection();
-    section(k, "Server");
-    field(S, k, "url", link["url"], #{ copy: true });
-    field(S, k, "target", target["name"], #{});
+    out.push(section("Server"));
+    out.push(field(S, "url", link["url"], #{ copy: true }));
+    out.push(field(S, "target", target["name"], #{}));
     let plugin = if target["plugin"] == "" { "none: set [gamend] plugin" } else { target["plugin"] };
-    field(S, k, "hook plugin", plugin, #{});
-    field(S, k, "health", brief(fetch(me, "health", "/api/v1/health")), #{});
-    field(S, k, "addon", addon_version(S), #{});
-    section(k, "Player");
+    out.push(field(S, "hook plugin", plugin, #{}));
+    out.push(field(S, "health", brief(fetch(me, "health", "/api/v1/health")), #{}));
+    out.push(field(S, "addon", addon_version(S), #{}));
+    out.push(section("Player"));
     let user = link["username"];
     let who = if user is String { user } else { "not signed in" };
-    field(S, k, "user", who, #{});
+    out.push(field(S, "user", who, #{}));
     for socket in link["sockets"] {
         let state = if socket["open"] { "open" } else { "closed" };
-        field(S, k, format!("socket {}", socket["socket"]), format!("{}: {}", state, listed(socket["topics"])), #{});
+        out.push(field(S, format!("socket {}", socket["socket"]),
+            format!("{}: {}", state, listed(socket["topics"])), #{}));
     }
     let saved = if saved_session() is Object { "yes, readable signed out" } else { "none" };
-    field(S, k, "saved session", saved, #{});
-    refresh_button(me, "");
+    out.push(field(S, "saved session", saved, #{}));
+    out.push(verbs([refresh_button(me, "")]));
 }
 
-fn user(S, k, me) {
+fn user(S, me, out) {
     let session = gamend::session();
     if !(session is Object) {
-        signed_out(S, k, me);
+        signed_out(S, me, out);
         return;
     }
     let section = S.kit.section;
     let field = S.kit.field;
-    section(k, "Session");
-    field(S, k, "user id", session["user_id"], #{ copy: true });
-    field(S, k, "username", session["username"], #{});
-    field(S, k, "display name", session["display_name"], #{});
-    field(S, k, "access token", session["access_token"], #{ mask: true, copy: true });
-    field(S, k, "expires", expires(session["expires_at"]), #{});
-    field(S, k, "refresh token", session["refresh_token"], #{ mask: true, copy: true });
-    ui::horizontal(#{ height: 26 }, || {
-        ui::spacing(4, 0);
-        if ui::pill("Keep for the next run", #{ role: "chip" }) {
-            keep_session(session);
-        }
-        if ui::pill("Sign out here", #{ role: "chip" }) {
+    out.push(section("Session"));
+    out.push(field(S, "user id", session["user_id"], #{ copy: true }));
+    out.push(field(S, "username", session["username"], #{}));
+    out.push(field(S, "display name", session["display_name"], #{}));
+    out.push(field(S, "access token", session["access_token"], #{ mask: true, copy: true }));
+    out.push(field(S, "expires", expires(session["expires_at"]), #{}));
+    out.push(field(S, "refresh token", session["refresh_token"], #{ mask: true, copy: true }));
+    out.push(verbs([
+        chip("Keep for the next run", false, "", || { keep_session(session); }),
+        chip("Sign out here", false, "", || {
             gamend::restore(());
             forget(me, "");
-        }
-    });
-    section(k, "Profile");
-    show(S, k, "me", fetch(me, "me", "/api/v1/me"));
+        }),
+    ]));
+    out.push(section("Profile"));
+    show(S, "me", fetch(me, "me", "/api/v1/me"), out);
 }
 
-fn signed_out(S, k, me) {
+fn signed_out(S, me, out) {
     let empty = S.kit.empty;
-    empty(k, "not signed in");
-    ui::horizontal(#{ height: 26 }, || {
-        ui::spacing(4, 0);
-        if ui::pill("Sign in with this device", #{ role: "chip" }) {
-            forget(me, "login");
-            let (ok, id) = script::attempt(|| gamend::login((), #{ device_id: engine::device_id() }));
-            if ok {
-                me.requests["login"] = id;
-            } else {
-                let refused = #{ kind: "error", error: format!("{}", id) };
-                me.replies["login"] = refused;
-            }
+    out.push(empty("not signed in"));
+    out.push(verbs([chip("Sign in with this device", false, "", || {
+        forget(me, "login");
+        let (ok, id) = script::attempt(|| gamend::login((), #{ device_id: engine::device_id() }));
+        if ok {
+            me.requests["login"] = id;
+        } else {
+            let refused = #{ kind: "error", error: format!("{}", id) };
+            me.replies["login"] = refused;
         }
-    });
+    })]));
     let login = me.replies.get("login").unwrap_or(());
     let asked = me.requests.get("login").unwrap_or(());
     let reply = if login is Tuple && asked is i64 { gamend::reply(asked) } else { login };
     if !(reply is Tuple) {
-        line(brief(reply), k.dim);
+        out.push(note(brief(reply), "meta"));
     }
     let saved = saved_session();
-    if saved is Object {
-        let section = S.kit.section;
-        let field = S.kit.field;
-        section(k, "Saved session, from an earlier run");
-        for key in saved.keys() {
-            // A token is masked here as on a live session: a screenshot of
-            // the dock should never carry one.
-            let secret = key.ends_with("token");
-            field(S, k, key, saved[key], #{ mask: secret, copy: secret });
-        }
-        ui::horizontal(#{ height: 26 }, || {
-            ui::spacing(4, 0);
-            if ui::pill("Restore it", #{ role: "chip" }) {
-                gamend::restore(saved);
-                forget(me, "");
-            }
-            if ui::pill("Forget it", #{ role: "chip" }) {
-                save::remove(SESSION_SLOT);
-            }
-        });
+    if !(saved is Object) {
+        return;
     }
+    let section = S.kit.section;
+    let field = S.kit.field;
+    out.push(section("Saved session, from an earlier run"));
+    for key in saved.keys() {
+        // A token is masked here as on a live session: a screenshot of the
+        // dock should never carry one.
+        let secret = key.ends_with("token");
+        out.push(field(S, key, saved[key], #{ mask: secret, copy: secret }));
+    }
+    out.push(verbs([
+        chip("Restore it", false, "", || {
+            gamend::restore(saved);
+            forget(me, "");
+        }),
+        chip("Forget it", false, "", || { save::remove(SESSION_SLOT); }),
+    ]));
 }
 
-fn lobby(S, k, me) {
+fn lobby(S, me, out) {
     let section = S.kit.section;
     let empty = S.kit.empty;
     let ids = [];
@@ -315,46 +316,51 @@ fn lobby(S, k, me) {
     }
     follow(me, ids);
     if ids.len() == 0 {
-        empty(k, "not in a lobby: its topic shows here once the game joins one");
+        out.push(empty("not in a lobby: its topic shows here once the game joins one"));
     }
     for id in ids {
-        section(k, format!("Lobby {}", id));
-        show(S, k, "lobby:" + id, fetch(me, "lobby:" + id, "/api/v1/lobbies/" + id));
+        out.push(section(format!("Lobby {}", id)));
+        show(S, "lobby:" + id, fetch(me, "lobby:" + id, "/api/v1/lobbies/" + id), out);
     }
-    section(k, "Party");
-    show(S, k, "party", fetch(me, "party", "/api/v1/parties/me"));
-    refresh_button(me, "");
+    out.push(section("Party"));
+    show(S, "party", fetch(me, "party", "/api/v1/parties/me"), out);
+    out.push(verbs([refresh_button(me, "")]));
 }
 
-fn data(S, k, me) {
+fn data(S, me, out) {
     let section = S.kit.section;
     let files = S.kit.files;
-    section(k, "On this device");
-    files(S, k, "gamend-data", #{ only: [SESSION_SLOT + ".toml", PREFS_SLOT + ".toml"] });
-    section(k, "On the server, key-value");
-    let asked = #{ get: false };
-    ui::horizontal(#{ height: 26 }, || {
-        ui::spacing(4, 0);
-        let (typed, _, entered) = ui::text_field("gamend:kv", "a key", #{ role: "field", value: me.kv_key, width: 220.0, font: ui::FONT_MONO });
-        me.kv_key = typed;
-        if ui::pill("Get", #{ role: "chip" }) || entered {
-            asked.get = true;
-        }
-    });
+    out.push(section("On this device"));
+    for spec in files(S, "gamend-data", #{ only: [SESSION_SLOT + ".toml", PREFS_SLOT + ".toml"] }) {
+        out.push(spec);
+    }
+    out.push(section("On the server, key-value"));
+    out.push(verbs([
+        #{
+            kind: "field", role: "form_field", width: 220, placeholder: "a key",
+            text: me.kv_key,
+            on: |typed| { me.kv_key = typed; },
+            on_submit: |typed| {
+                me.kv_key = typed;
+                drop_key(me, "kv:" + typed);
+            },
+        },
+        chip("Get", false, "", || { drop_key(me, "kv:" + me.kv_key); }),
+    ]));
     let key = "kv:" + me.kv_key;
-    if asked.get {
-        drop_key(me, key);
+    if me.kv_key != "" && me.requests.contains_key(key) {
+        show(S, key, fetch(me, key, "/api/v1/kv/" + me.kv_key), out);
     }
-    if me.kv_key != "" && (asked.get || me.requests.contains_key(key)) {
-        show(S, k, key, fetch(me, key, "/api/v1/kv/" + me.kv_key));
-    }
-    section(k, "Rows the game keeps");
+    out.push(section("Rows the game keeps"));
     let rows = game_rows(me);
     if rows.len() == 0 {
-        line("none: the rows a playing game subscribed to with `register_kv` show here", k.faint);
-    } else {
-        let tree = S.kit.tree;
-        tree(S, k, "gamend:rows", rows, #{});
+        out.push(note("none: the rows a playing game subscribed to with `register_kv` show here", "meta"));
+        return;
+    }
+    let tree = S.kit.tree;
+    let (specs, _, _) = tree(S, "gamend:rows", rows, #{});
+    for spec in specs {
+        out.push(spec);
     }
 }
 
@@ -426,29 +432,24 @@ fn refresh_on(me, newest, topic, key) {
     }
 }
 
-fn activity(S, k, me) {
-    ui::horizontal(#{ height: 26 }, || {
-        ui::spacing(4, 0);
-        for name in ["all", "calls", "messages", "errors"] {
-            let role = if me.filter == name { "chip_on" } else { "chip" };
-            if ui::pill(name, #{ role: role }) {
-                me.filter = name;
-            }
-        }
-        ui::add_space(12);
-        if ui::pill("Clear", #{ role: "chip" }) {
-            gamend::clear_activity();
-        }
-    });
+fn activity(S, me, out) {
+    let chips = [];
+    for entry in ["all", "calls", "messages", "errors"] {
+        // Bound afresh: a closure made in a loop captures the binding.
+        let name = entry;
+        chips.push(chip(name, me.filter == name, "", || { me.filter = name; }));
+    }
+    chips.push(chip("Clear", false, "", || { gamend::clear_activity(); }));
+    out.push(verbs(chips));
     let rows = gamend::activity();
     if rows.len() == 0 {
         let empty = S.kit.empty;
-        empty(k, "no calls yet");
+        out.push(empty("no calls yet"));
     }
     let n = 0;
     for row in rows {
         if kept(me.filter, row) {
-            activity_row(S, k, me, row, n);
+            activity_row(S, me, row, n, out);
         }
         n += 1;
     }
@@ -477,50 +478,60 @@ fn failed(row) {
     !(status.starts_with("1") || status.starts_with("2") || status.starts_with("3"))
 }
 
-fn activity_row(S, k, me, row, n) {
+fn activity_row(S, me, row, n, out) {
     let key = format!("{}:{}:{}", row["kind"], row["request"], n);
     let open = me.open.get(key).unwrap_or(false);
     let ms = row["ms"];
     let took = if ms is f64 { format!("{} ms", ms as i64) } else { "" };
     let mark = if open { "▾" } else { "▸" };
-    let color = if failed(row) { k.accent } else if row["kind"] == "message" { k.faint } else { k.dim };
-    ui::horizontal(#{ height: 24 }, || {
-        ui::spacing(4, 0);
-        if ui::pill(format!("{} {}", mark, row["kind"]), #{ role: "chip" }) {
-            me.open[key] = !open;
-        }
-        ui::label(format!("{}  {}  {}", row["what"], row["status"], took), #{ size: 11.5, font: ui::FONT_MONO, color: color, truncate: true });
-    });
-    if open {
-        let tree = S.kit.tree;
-        tree(S, k, "gamend:" + key, #{ args: row["args"], reply: row["reply"] }, #{});
+    let role = if failed(row) {
+        "error_note"
+    } else if row["kind"] == "message" {
+        "answer_no"
+    } else {
+        "meta"
+    };
+    out.push(verbs([
+        chip(format!("{} {}", mark, row["kind"]), false, "", || { me.open[key] = !open; }),
+        #{
+            kind: "label", role: role, grow: 1, truncate: true,
+            text: format!("{}  {}  {}", row["what"], row["status"], took),
+        },
+    ]));
+    if !open {
+        return;
+    }
+    let tree = S.kit.tree;
+    let (specs, _, _) = tree(S, "gamend:" + key, #{ args: row["args"], reply: row["reply"] }, #{});
+    for spec in specs {
+        out.push(spec);
     }
 }
 
-fn logs(S, k) {
+fn logs(S, out) {
     let section = S.kit.section;
     let field = S.kit.field;
-    section(k, "This run");
+    out.push(section("This run"));
     let path = log::file();
     if path is String {
         let short = S.kit.short_path;
-        field(S, k, "log file", short(path), #{ copy: true, copy_text: path });
+        out.push(field(S, "log file", short(path), #{ copy: true, copy_text: path }));
     } else {
-        field(S, k, "log file", "none: [log] file is off", #{});
+        out.push(field(S, "log file", "none: [log] file is off", #{}));
     }
-    section(k, "Shipping to Gamend");
+    out.push(section("Shipping to Gamend"));
     let report = sink_report();
-    if report is Object {
-        for name in ["shipping", "floor", "run", "pending", "last flush", "accepted", "dropped"] {
-            field(S, k, name, report.get(name).unwrap_or(""), #{});
-        }
-        if ui::pill("Flush now", #{ role: "chip" }) {
-            let root = scene::root();
-            root.meta[FLUSH_KEY] = "yes";
-        }
-    } else {
-        line("not shipping: put addons/gamend/log_sink.rn on a node that lives as long as the game", k.faint);
+    if !(report is Object) {
+        out.push(note("not shipping: put addons/gamend/log_sink.rn on a node that lives as long as the game", "meta"));
+        return;
     }
+    for name in ["shipping", "floor", "run", "pending", "last flush", "accepted", "dropped"] {
+        out.push(field(S, name, report.get(name).unwrap_or(""), #{}));
+    }
+    out.push(verbs([chip("Flush now", false, "", || {
+        let root = scene::root();
+        root.meta[FLUSH_KEY] = "yes";
+    })]));
 }
 
 /// What the played game's `log_sink.rn` last reported, or nil.
@@ -534,7 +545,7 @@ fn sink_report() {
     if ok && report is Object { report } else { () }
 }
 
-fn feature_tab(S, k, me, name) {
+fn feature_tab(S, me, name, out) {
     let section = S.kit.section;
     let feature = #{ name: name, id: "", views: [] };
     for found in features() {
@@ -543,35 +554,34 @@ fn feature_tab(S, k, me, name) {
         }
     }
     if !(gamend::session() is Object) {
-        line("not signed in: most of these are the player's own, so sign in on the User tab", k.faint);
+        out.push(note("not signed in: most of these are the player's own, so sign in on the User tab", "meta"));
     }
-    ui::horizontal(#{ height: 26 }, || {
-        ui::spacing(4, 0);
-        if feature.id != "" {
-            let held = me.ids.get(name).unwrap_or("");
-            let (typed, _, _) = ui::text_field("gamend:id:" + name, feature.id, #{ role: "field", value: held, width: 220.0, font: ui::FONT_MONO });
-            me.ids[name] = typed;
-        }
-        refresh_button(me, name + "/");
-    });
+    let row = [];
+    if feature.id != "" {
+        row.push(#{
+            kind: "field", role: "form_field", width: 220, placeholder: feature.id,
+            text: me.ids.get(name).unwrap_or(""),
+            on: |typed| { me.ids[name] = typed; },
+        });
+    }
+    row.push(refresh_button(me, name + "/"));
+    out.push(verbs(row));
     let id = me.ids.get(name).unwrap_or("");
     for view in feature.views {
         let label = view[0];
         let path = view[1];
-        section(k, format!("{} · GET {}", label, path));
+        out.push(section(format!("{} · GET {}", label, path)));
         if path.contains("{id}") && id == "" {
-            line(format!("needs a {}", feature.id), k.faint);
+            out.push(note(format!("needs a {}", feature.id), "meta"));
             continue;
         }
         let key = format!("{}/{}/{}", name, label, id);
-        show(S, k, key, fetch(me, key, path.replace("{id}", id)));
+        show(S, key, fetch(me, key, path.replace("{id}", id)), out);
     }
 }
 
 fn refresh_button(me, prefix) {
-    if ui::pill("Refresh", #{ role: "chip" }) {
-        forget(me, prefix);
-    }
+    chip("Refresh", false, "", || { forget(me, prefix); })
 }
 
 /// A GET the dock made, by key: sent once, answered on a later frame, and
@@ -619,28 +629,31 @@ fn forget(me, prefix) {
 }
 
 /// A reply drawn: a structure when it came back, a line when it did not.
-fn show(S, k, key, reply) {
+fn show(S, key, reply, out) {
     if reply is Tuple {
-        line("loading…", k.faint);
+        out.push(note("loading…", "meta"));
         return;
     }
     if reply["kind"] == "error" {
-        line(reply["error"], k.accent);
+        out.push(note(reply["error"], "error_note"));
         return;
     }
     let status = reply.get("status").unwrap_or(0);
     let body = reply.get("body").unwrap_or(());
     if status >= 400 {
-        line(format!("{}: {}", status, short(body)), k.accent);
+        out.push(note(format!("{}: {}", status, short(body)), "error_note"));
         return;
     }
     let shown = if body is Object && body.contains_key("data") { body["data"] } else { body };
     if shown is Tuple {
-        line(format!("{}: empty", status), k.faint);
+        out.push(note(format!("{}: empty", status), "meta"));
         return;
     }
     let tree = S.kit.tree;
-    tree(S, k, "gamend:" + key, shown, #{});
+    let (specs, _, _) = tree(S, "gamend:" + key, shown, #{});
+    for spec in specs {
+        out.push(spec);
+    }
 }
 
 /// A reply in a few words, for a single row.
@@ -731,8 +744,4 @@ fn listed(items) {
         out += item;
     }
     if out == "" { "no topics" } else { out }
-}
-
-fn line(text, color) {
-    ui::label(text, #{ size: 11.5, font: ui::FONT_MONO, color: color, wrap: true });
 }

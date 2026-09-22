@@ -326,7 +326,13 @@ pub fn parse_binding(row: &toml::Value) -> Result<Binding> {
         when_source,
         action,
         target: text("target"),
-        value: row.get("value").map_or(Value::Nil, value_of),
+        // The record fills a row that names no value with an empty string,
+        // and a row that names none acts on nothing.
+        value: match row.get("value") {
+            Some(toml::Value::String(s)) if s.is_empty() => Value::Nil,
+            Some(held) => value_of(held),
+            None => Value::Nil,
+        },
     })
 }
 
@@ -340,7 +346,7 @@ pub(crate) fn register_bindings_component(app: &mut App) {
             // property, like every other component.
             schema: ComponentDef::parse_schema(
                 "bindings",
-                r#"rows = { type = "list", of = { type = "string" }, default = [], description = "The binding rows, each `{ event, when, action, target, value }`" }"#,
+                r#"rows = { type = "list", of = { type = "record", fields = { event = { type = "string", default = "" }, when = { type = "string", default = "" }, action = { type = "string", default = "call" }, target = { type = "string", default = "" }, value = { type = "string", default = "" } } }, default = [], description = "The binding rows, each `{ event, when, action, target, value }`" }"#,
             ),
             tags: &["interaction"],
             expects: &[],

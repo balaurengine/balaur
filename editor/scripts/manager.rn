@@ -57,7 +57,7 @@ const SEAM = 14.0;
 const NEW_SHEET = "manager-new";
 // The editor's own mark, which the top bar draws too. A project of its own
 // is not open yet, so every row wears this one.
-const LOGO = "assets/balaur-logo.png";
+pub const LOGO = "assets/balaur-logo.png";
 // The mark is dark ink on nothing, drawn for a light ground: the top bar sets
 // it on a light badge, and so does every other place that shows it.
 const PLATE = "#e9edf2";
@@ -187,34 +187,22 @@ fn refresh(S) {
     }
 }
 
+const GROUND = "Editor/Manager";
+const HEAD_NODE = GROUND + "/ManagerHead";
+const TABS_NODE = GROUND + "/ManagerTabs";
+
 pub fn draw(S, k) {
     if !S.manager.on {
+        util::hide(GROUND);
         return;
     }
     refresh(S);
-    let (sw, sh) = ui::screen_size();
-    let gutter = crate::layout::gutter(S);
-    let col = util::min(COLUMN, util::max(sw - 2.0 * gutter, 240.0));
     // The screen is the window: a project's own widgets are not behind this.
     ui::set_widget_layer(false, 0.0, 0.0, 0.0, 0.0);
-    ui::overlay("manager-ground", #{ x: 0.0, y: 0.0, w: sw, h: sh, fill: k.bg }, || {});
-    let left = (sw - col) / 2.0;
-    ui::overlay("manager", #{ x: left, y: gutter, w: col, h: sh - 2.0 * gutter }, || {
-        head(S, k, col);
-        ui::add_space(10);
-        tab_row(S, k, col);
-        ui::add_space(10);
-        ui::separator(k.line);
-        ui::add_space(SEAM);
-        let tall = sh - 2.0 * gutter - 120.0;
-        if S.manager.tab == "engine" {
-            engine_page(S, k, col, tall);
-        } else if S.manager.tab == "examples" {
-            examples_page(S, k, col, tall);
-        } else {
-            projects_page(S, k, col, tall);
-        }
-    });
+    util::fill(GROUND, #{ visible: true });
+    crate::pool::strip(S, HEAD_NODE, head_controls(S, k));
+    crate::pool::strip(S, TABS_NODE, tab_controls(S));
+    tab_spots(S);
     // Escape closes the New project sheet first, and only then the screen.
     let sheet_up = crate::window::showing(S, NEW_SHEET);
     new_sheet(S, k);
@@ -223,29 +211,49 @@ pub fn draw(S, k) {
     }
 }
 
-fn head(S, k, w) {
-    ui::horizontal(#{ height: 34, width: w }, || {
-        mark(26.0);
-        ui::add_space(10);
-        ui::label("Balaur", #{ size: style::XL, font: ui::FONT_HEADING, strong: true, color: k.text });
-        ui::add_space(10);
-        ui::label(project::version(), style::mono_sm(k.faint));
-        if S.manager.back {
-            ui::right(|| {
-                if ui::pill("Back to " + S.game_name, #{
-                    height: 28, size: style::SM, radius: 8, padding_x: 12,
-                    fill: k.panel, color: k.dim, tooltip: "Esc",
-                }) {
-                    close(S);
-                }
-            });
-        }
-    });
+/// The page under the tabs, in the hatch the scene keeps for it.
+pub fn draw_body(S, k) {
+    if !S.manager.on {
+        return;
+    }
+    let box = ui::widget_rect(scene::get_node(GROUND + "/ManagerBody"));
+    let col = if util::is_nil(box) { COLUMN } else { util::f(box.w) };
+    let tall = if util::is_nil(box) { 400.0 } else { util::f(box.h) };
+    head_note(S, k, col);
+    if S.manager.tab == "engine" {
+        engine_page(S, k, col, tall);
+    } else if S.manager.tab == "examples" {
+        examples_page(S, k, col, tall);
+    } else {
+        projects_page(S, k, col, tall);
+    }
+}
+
+/// The head strip: the mark, the name, the version, and the way back.
+fn head_controls(S, k) {
+    let out = [
+        #{ kind: "image", role: "manager_mark", source: LOGO },
+        #{ kind: "label", role: "title", text: "Balaur" },
+        #{ kind: "label", role: "meta", text: project::version() },
+        #{ kind: "row", grow: 1 },
+    ];
+    if S.manager.back {
+        out.push(#{
+            kind: "button", role: "manager_back", tooltip: "Esc",
+            text: "Back to " + S.game_name,
+            on: |_| { close(S); },
+        });
+    }
+    out
+}
+
+/// What the head says under itself: a note, a failure, or a job's bar.
+fn head_note(S, k, w) {
     let said = if S.manager.failed != "" { S.manager.failed } else { S.manager.note };
     if said != "" {
-        ui::add_space(4);
         let tone = if S.manager.failed != "" { k.get("warn").unwrap_or(k.accent) } else { k.faint };
         ui::label(said, util::merge(style::mono_sm(tone), #{ wrap: true, width: w }));
+        ui::add_space(4);
     }
     if converting(S) {
         progress(S, k, w);
@@ -281,24 +289,33 @@ fn progress(S, k, w) {
 }
 
 // The shell's own tab shape: a pill per page, the open one filled.
-fn tab_row(S, k, w) {
-    let h = util::max(style::row_h(S), 30.0);
-    ui::horizontal(#{ height: h, width: w }, || {
-        for row in tabs() {
-            let id = row[0];
-            let on = S.manager.tab == id;
-            if ui::pill(row[1], #{
-                height: h, size: style::MD, radius: 8, padding_x: 16,
-                fill: if on { k.accent_soft } else { "#00000000" },
-                color: if on { k.accent } else { k.dim },
-                hover_fill: k.panel,
-            }) {
-                S.manager.tab = id;
-            }
-            S.manager.spots[id] = ui::pill_rect();
-            ui::add_space(6);
+fn tab_controls(S) {
+    let out = [];
+    for row in tabs() {
+        // Bound afresh: a closure made in a loop captures the binding.
+        let id = row[0];
+        out.push(#{
+            kind: "button", text: row[1],
+            role: if S.manager.tab == id { "manager_tab_on" } else { "manager_tab" },
+            on: |_| { S.manager.tab = id; },
+        });
+    }
+    out
+}
+
+/// Where each tab sits, for the showcase's pointer. Read off the nodes the
+/// strip made, a pass late like every other rect here.
+fn tab_spots(S) {
+    let host = scene::get_node(TABS_NODE);
+    if util::is_nil(host) {
+        return;
+    }
+    for (i, row) in tabs().iter().enumerate() {
+        let found = host.children().get(i);
+        if let Some(kid) = found {
+            S.manager.spots[row[0]] = ui::widget_rect(kid);
         }
-    });
+    }
 }
 
 // The filter, then the three verbs. Under a phone's width the verbs drop to

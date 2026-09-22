@@ -87,6 +87,9 @@ pub fn init(this) {
         palette: false,
         palette_query: "",
         palette_submit: false,
+        // Whether the picker's field has been handed the caret since it
+        // opened; it takes it once, not every frame.
+        picker_focused: false,
         newnode: false,
         newnode_query: "",
         renaming: false,
@@ -144,6 +147,9 @@ pub fn init(this) {
         layout_demo: -1,
         // The same for the row views' test, and the row it asks for.
         rows_demo: -1,
+        plugin_demo: -1,
+        events_demo: -1,
+        palette_demo: -1,
         import_demo: -1,
         import_waited: 0,
         // The start screen's conversion under test: frames waited, and where
@@ -393,6 +399,18 @@ pub fn update(this, dt) {
     if S.settings.demo >= 0 {
         selftest::settings_step(S);
     }
+    if S.machine.demo >= 0 {
+        statemachine::demo_step(S);
+    }
+    if S.plugin_demo >= 0 {
+        selftest::plugin_step(S);
+    }
+    if S.events_demo >= 0 {
+        selftest::events_step(S);
+    }
+    if S.palette_demo >= 0 {
+        selftest::palette_step(S);
+    }
     showcase::step(S);
     // A replay or a showcase feeds the pointer into the snapshot the viewport
     // tools read, so a drag would follow the feed rather than the mouse.
@@ -458,7 +476,8 @@ pub fn update(this, dt) {
     let telling = !S.jobs.is_empty();
     if S.playing || S.showcase is Object || session::scrubbing(S) || S.capture is Object
         || S.session.demo is Object || S.layout_demo >= 0 || S.settings.demo >= 0
-        || S.rows_demo >= 0
+        || S.rows_demo >= 0 || S.machine.demo >= 0 || S.plugin_demo >= 0
+        || S.events_demo >= 0 || S.palette_demo >= 0
         || S.gesture_demo >= 0 || telling
         || layout::animating(S) || S.gizmo.drag is Object
     {
@@ -731,10 +750,6 @@ pub fn draw_view_bonemap(this) {
     bonemap::body(this.S, this.S.theme);
 }
 
-pub fn draw_view_statemachine(this) {
-    statemachine::body(this.S, this.S.theme);
-}
-
 pub fn draw_dock_tools_left(this) {
     docks::draw_tools(this.S, this.S.theme, "left");
 }
@@ -749,12 +764,28 @@ pub fn draw_dock_tools_bottom(this) {
 
 // One hatch for every row the inspector's pool draws itself; the cursor in
 // `inspector` keeps the calls in step with the rows that pushed them.
+pub fn draw_about_update(this) {
+    about::draw_update(this.S);
+}
+
 pub fn draw_form_row(this) {
     inspector::draw_row(this.S);
 }
 
 pub fn draw_dock_bottom(this) {
     docks::draw_bottom_body(this.S, this.S.theme);
+}
+
+pub fn draw_manager_body(this) {
+    manager::draw_body(this.S, this.S.theme);
+}
+
+pub fn draw_sheet_actions(this) {
+    crate::window::draw_actions(this.S);
+}
+
+pub fn draw_sheet_body(this) {
+    crate::window::draw_body(this.S);
 }
 
 // The outliner's context menu, one method a row. The right click that opened

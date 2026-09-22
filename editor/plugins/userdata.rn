@@ -6,8 +6,10 @@ pub fn register() {
     #{ docks: [#{ id: "userdata", name: "User data", tall: true, draw: draw }] }
 }
 
-pub fn draw(S, k) {
+pub fn draw(S, k, host) {
+    // A save written while the editor watches should show without a click.
     ui::request_repaint();
     let files = S.kit.files;
-    files(S, k, "userdata", #{});
+    let rows = S.kit.rows;
+    rows(S, host, "body", files(S, "userdata", #{}));
 }

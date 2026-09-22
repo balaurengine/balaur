@@ -72,6 +72,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::ACTIVE, r#"{ type = "string", default = "", description = "Which child a `tab` shows, by node name; empty shows the first", group = "events" }"#),
                     (k::LAYER, r#"{ type = "string", default = "", description = "The drawing surface this root belongs to; empty is the default one, and a name nothing has configured takes the default surface", group = "placement" }"#),
                     (k::WRAP, r#"{ type = "bool", default = false, description = "Break text to the width the widget was given instead of running past it on one line", group = "type" }"#),
+                    (k::TRUNCATE, r#"{ type = "bool", default = false, description = "Cut a caption too long for the width the widget was given and end it with an ellipsis, rather than clip it mid-glyph", group = "type" }"#),
                     (k::TRAILING, r#"{ type = "string", default = "", description = "Text a button draws against its far edge, dimmer than its caption: a shortcut, or a menu's caret", group = "type" }"#),
                     (k::SHORTCUT, r#"{ type = "string", default = "", description = "A chord that clicks this widget wherever it is, as `cmd+shift+s` or `f5`; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`", group = "events" }"#),
                     (k::SHOWING, r#"{ type = "bool", default = false, description = "Holds a menu's rows up from the scene, as a click would; for an offscreen run or a tutorial, since nothing can click there", group = "events" }"#),
@@ -342,6 +343,7 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
         toml::Value::String(widget.layer.to_string()),
     );
     map.insert(k::WRAP.into(), toml::Value::Boolean(widget.wrap));
+    map.insert(k::TRUNCATE.into(), toml::Value::Boolean(widget.truncate));
     map.insert(k::KEEP_OPEN.into(), toml::Value::Boolean(widget.keep_open));
     map.insert(
         k::TRAILING.into(),
@@ -774,6 +776,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         active: s(k::ACTIVE),
         layer: s(k::LAYER),
         wrap: r.flag(k::WRAP),
+        truncate: r.flag(k::TRUNCATE),
         keep_open: r.flag(k::KEEP_OPEN),
         trailing: s(k::TRAILING),
         shortcut: s(k::SHORTCUT),

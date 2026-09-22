@@ -25,8 +25,12 @@ use crate::widget::theme::{Style, WidgetTheme, face, styled, theme_of};
 fn takes_focus(widget: &Widget) -> bool {
     widget.visible
         && widget.focusable
-        && (matches!(widget.kind.as_str(), w::BUTTON | w::CHECK | w::FOLD)
-            || !widget.on_click.is_empty())
+        && (matches!(
+            widget.kind.as_str(),
+            // A line being typed into is where focus lands as much as a
+            // button is: Tab reaches it, and a script may put the caret there.
+            w::BUTTON | w::CHECK | w::FOLD | w::FIELD | w::TEXT_AREA
+        ) || !widget.on_click.is_empty())
 }
 
 /// What the keyboard asked this frame, if the game has not asked already.
@@ -238,11 +242,18 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     let focused = eng
         .try_resource::<UiFocus>()
         .and_then(|f| f.borrow().focused);
+    // Consumed here, so a field takes the caret on the pass after the script
+    // asked and never steals it back from whatever the reader clicked next.
+    let taking = eng.try_resource::<UiFocus>().is_some_and(|f| {
+        let mut focus = f.borrow_mut();
+        std::mem::take(&mut focus.taking)
+    });
     let mut toasts = crate::widget::toast::Stack::default();
     let mut painting = Painting {
         eng,
         arena: &placed,
         focused,
+        taking,
         theme: theme_root(eng),
         assigned: egui::Vec2::ZERO,
         bounds: egui::Vec2::ZERO,
@@ -291,7 +302,9 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     crate::widget::toast::clear(eng, &toasts.expired());
     // Only on the change: a handler firing every frame focus merely *stayed*
     // would be a different event, and not a useful one.
-    let arrived = (focused != was_focused).then_some(focused).flatten();
+    let arrived = (taking || focused != was_focused)
+        .then_some(focused)
+        .flatten();
     crate::widget::input::record(eng, &clicked, edits, arrived);
 }
 
@@ -509,6 +522,8 @@ pub(crate) struct Painting<'a> {
     pub(crate) eng: &'a Engine,
     pub(crate) arena: &'a [Placed],
     pub(crate) focused: Option<Entity>,
+    /// Whether focus was put on `focused` this pass rather than resting there.
+    pub(crate) taking: bool,
     /// The theme in force here, inherited unless a widget names its own.
     pub(crate) theme: Rc<WidgetTheme>,
     /// The box the parent container handed this widget, per axis; 0 on an

@@ -254,6 +254,7 @@ mod tests {
             size: 24.0,
             weight: 400,
             italic: false,
+            truncate: false,
             width: None,
             align: crate::Align::Start,
             markup: false,

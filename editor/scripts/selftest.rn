@@ -1568,6 +1568,11 @@ pub fn layout_step(S) {
         check(r.w > 0.0 && r.h > 0.0,
             format!("the {} is placed ({} × {})", name, r.w as i64, r.h as i64));
     }
+    // A root keeps the box it was handed on a pass that is not a fresh one:
+    // restyled with none, it sized itself from its content instead.
+    let body = ui::widget_rect(scene::get_node("Editor/Shell/Body"));
+    check(!util::is_nil(body) && body.h > S.screen_h * 0.5,
+        format!("the shell's body grew into the room left over ({})", body.h));
     // A window too small for three columns folds its docks and shows one
     // sheet at a time, so the desktop's invariants are asked of a desktop.
     if crate::docks::one_at_a_time(S) {
@@ -1952,7 +1957,102 @@ pub fn plugin_docks(S) {
         crate::docks::show(S, entry.id);
         check(crate::docks::showing(S, entry.id), format!("showing {} brings it up", entry.id));
     }
+    // The User data dock with every file at its root opened: what a plugin
+    // fills its host with is rows, and a file's contents are rows under the
+    // row that opens it.
+    crate::docks::show(S, "userdata");
+    open_user_files(S);
+    S.plugin_demo = 0;
     log::info("selftest plugin docks: done");
+}
+
+// The file the dock is asked to open, written into the game's own user data
+// directory because a fresh project keeps nothing the dock could read.
+const PROBE_FILE = "kitprobe.toml";
+
+// The kit remembers an open file under `file:<dock>:<path>`; this is the one
+// place outside it that writes those keys, so the test sees a file's rows.
+fn open_user_files(S) {
+    if !S.contains_key("kit_state") {
+        S.kit_state = #{};
+    }
+    fs::write(crate::kit::game_data(S) + "/" + PROBE_FILE, "alpha = 1\nbeta = \"two\"\n");
+    S.kit_state["file:userdata:" + PROBE_FILE] = true;
+}
+
+// Two frames: the host is made and filled on the first draw after this, and a
+// node reports the box it was given the pass after it was laid out.
+const PLUGIN_SETTLED = 3;
+
+/// What a plugin left on the scene once its dock has drawn: the subtree the
+/// editor made for it, and a row per file under it.
+pub fn plugin_step(S) {
+    S.plugin_demo = S.plugin_demo + 1;
+    if S.plugin_demo < PLUGIN_SETTLED {
+        return;
+    }
+    S.plugin_demo = -1;
+    let host = crate::docks::plugin_host(S, "bottom", "userdata");
+    let rows = scene::get_node(host + "/Split/Body/Rows");
+    if !check(!util::is_nil(rows), format!("the plugin's host is a subtree ({})", host)) {
+        return;
+    }
+    let shown = 0;
+    for row in rows.children() {
+        if row.get_component("widget", "visible") == true {
+            shown += 1;
+        }
+    }
+    check(shown > 1, format!("the dock's files are rows on it ({})", shown));
+    let labels = [];
+    for row in rows.children() {
+        let label = row.get_node("L");
+        if !util::is_nil(label) && label.get_component("widget", "visible") == true {
+            labels.push(label.get_component("widget", "text"));
+        }
+    }
+    check(util::contains(labels, "alpha") && util::contains(labels, "beta"),
+        format!("an opened file's keys are rows under it ({:?})", labels));
+    fs::remove(crate::kit::game_data(S) + "/" + PROBE_FILE);
+}
+
+/// `--state palettedemo`: the palette opens on a query, its matches are rows
+/// on the scene, and the query survives the frames after it is set.
+pub fn palette_screen(S) {
+    crate::shell::open_palette(S, "physics");
+    S.palette_demo = 0;
+}
+
+// Three frames: the field has to have drawn and written back before the query
+// being intact means anything.
+const PALETTE_SETTLED = 3;
+
+pub fn palette_step(S) {
+    S.palette_demo = S.palette_demo + 1;
+    if S.palette_demo < PALETTE_SETTLED {
+        return;
+    }
+    S.palette_demo = -1;
+    check(S.palette_query == "physics",
+        format!("a palette query survives the frames after it is set ('{}')", S.palette_query));
+    let host = scene::get_node("Editor/Picker/PickerScroll/PickerRows");
+    if !check(!util::is_nil(host), "the palette's matches are nodes") {
+        return;
+    }
+    let shown = [];
+    for row in host.children() {
+        if row.get_component("widget", "visible") == true {
+            let slot = row.get_node("H").get_node("C").get_node("C0");
+            shown.push(slot.get_component("widget", "role"));
+        }
+    }
+    check(shown.len() > 1, format!("the query narrowed the list to its matches ({})", shown.len()));
+    check(shown.len() > 0 && shown[0] == "picker_row_on",
+        format!("the first match wears the held look, which is what Enter runs ({:?})", shown));
+    let box = ui::widget_rect(scene::get_node("Editor/Picker"));
+    check(!util::is_nil(box) && box.h > 100.0,
+        format!("the picker is as tall as the matches it holds ({:?})", box));
+    crate::shell::close_palette(S);
 }
 
 /// `--state paneldemo`: every row of the mark's menu opens the panel it names
@@ -2048,6 +2148,11 @@ pub fn settings_step(S) {
         format!("a settings query survives the frames after it is set ('{}')", S.settings.query));
     check(crate::search::query(S, "settings") == "theme",
         "and the field's own buffer holds the same text");
+    // The sheet is a `dialog` node stating its own size: hugging, its bar
+    // measures and its body is left with nothing.
+    let body = ui::widget_rect(scene::get_node("Editor/Sheet/SheetBody"));
+    check(!util::is_nil(body) && body.h > 100.0,
+        format!("the sheet's body has the room its frame states ({:?})", body));
     settings_round_trip(S);
 }
 
@@ -2300,7 +2405,40 @@ pub fn eventviews(S) {
     check(util::contains(verbs, "state") && util::contains(verbs, "set_variable"),
         "and the actions");
     check(mirror_resolves(S), "the mirror still resolves");
+    // Left on the tab, so the shot this state takes is of the rows and the
+    // step below sees what the pool put on the scene.
+    S.doctab = "events";
+    S.events_demo = 0;
     log::info("selftest eventviews: done");
+}
+
+// Two frames: the pool writes the rows on the first draw after this, and a
+// node reports the box it was given the pass after it was laid out.
+const EVENTS_SETTLED = 3;
+
+/// The bindings as the pool left them: a row per binding, each carrying the
+/// controls that edit it.
+pub fn events_step(S) {
+    S.events_demo = S.events_demo + 1;
+    if S.events_demo < EVENTS_SETTLED {
+        return;
+    }
+    S.events_demo = -1;
+    let host = scene::get_node(events::rows_host());
+    if !check(!util::is_nil(host), "the bindings view is a node") {
+        return;
+    }
+    let shown = 0;
+    for row in host.children() {
+        if row.get_component("widget", "visible") == true {
+            shown += 1;
+        }
+    }
+    check(shown > events::rows(S).len(),
+        format!("every binding is a row, and the headings under them ({})", shown));
+    let box = ui::widget_rect(host);
+    check(!util::is_nil(box) && box.w > 200.0,
+        format!("the rows have the width the document area gives them ({:?})", box));
 }
 
 

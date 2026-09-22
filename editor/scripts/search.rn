@@ -50,5 +50,10 @@ pub fn matches(query, text) {
 /// A line the dock shows when a filter left nothing, so an empty list reads
 /// as "nothing matched" rather than "nothing exists".
 pub fn nothing(k, query) {
-    ui::label(format!("nothing matches \"{}\"", query), style::mono_sm(k.faint));
+    ui::label(nothing_says(query), style::mono_sm(k.faint));
+}
+
+/// The same line as text, for a caller putting it on a node.
+pub fn nothing_says(query) {
+    format!("nothing matches \"{}\"", query)
 }

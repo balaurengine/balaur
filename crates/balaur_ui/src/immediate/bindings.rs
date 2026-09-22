@@ -617,7 +617,12 @@ fn install_focus(m: &mut dyn Bindings<Engine>) {
     });
     m.function("set_focus", |eng: &Engine, node: balaur_script::NodeId| {
         let entity = balaur_core::entity_of(node)?;
-        eng.resource::<crate::UiFocus>().borrow_mut().focused = Some(entity);
+        let focus = eng.resource::<crate::UiFocus>();
+        let mut focus = focus.borrow_mut();
+        focus.focused = Some(entity);
+        // Taken, not merely resting there: the next draw puts the caret in a
+        // field and tells the node focus arrived.
+        focus.taking = true;
         Ok(())
     });
     m.function(

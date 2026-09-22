@@ -356,6 +356,8 @@ mod backend {
             weight: style.weight,
             italic: style.italic,
             width: style.max_width,
+            // World text wraps to its block; nothing cuts it to one line.
+            truncate: false,
             align: match style.align {
                 super::Align::Start => ShaperAlign::Start,
                 super::Align::Center => ShaperAlign::Center,

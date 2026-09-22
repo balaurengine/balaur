@@ -116,6 +116,73 @@ size = 12
 align = "left"
 fill = "sunken"
 color = "text"
+# The same row picked out: what a transition opened for editing wears.
+[roles.list_item_on]
+height = 25
+radius = 5
+size = 12
+align = "left"
+fill = "accent_soft"
+color = "accent"
+
+# The column of pooled rows a dock panel fills instead of drawing.
+[roles.dock_rows]
+gap = 2
+padding_x = 8
+padding_y = 4
+
+# A plugin dock's own subtree: the column, the row of verbs over it, the
+# sidebar a panel with pages keeps, and the rows themselves.
+[roles.plugin_host]
+gap = 4
+padding_x = 10
+padding_y = 6
+
+[roles.plugin_head]
+gap = 6
+
+[roles.plugin_split]
+gap = 12
+
+[roles.plugin_side]
+gap = 2
+
+[roles.plugin_rows]
+gap = 2
+
+# A document tab whose rows are nodes: the event bindings fill it.
+[roles.doc_panel]
+fill = "bg"
+stroke = "line"
+radius = 11
+padding_x = 20
+padding_y = 14
+gap = 6
+
+[roles.doc_head]
+gap = 6
+
+[roles.doc_rows]
+gap = 3
+
+# One hook a node's script declares, and the mark that says which kind it is.
+[roles.hook_pill]
+fill = "sunken"
+radius = 15
+padding_x = 11
+height = 28
+gap = 6
+
+[roles.hook_dot]
+font = "mono"
+size = 14
+color = "sage"
+
+[roles.hook_dot_life]
+font = "mono"
+size = 14
+color = "accent"
+
 [roles.list_item.hover]
 fill = "raised"
 
@@ -647,6 +714,12 @@ size = 11
 color = "faint"
 
 # The note saying an edit reaches more than the active node.
+# A line reporting a call that came back refused.
+[roles.error_note]
+font = "mono"
+size = 11
+color = "accent"
+
 [roles.multi_note]
 font = "ui"
 size = 11
@@ -693,10 +766,16 @@ height = 24
 
 # A panel's own strip over the node it fills.
 [roles.dock_chrome]
+gap = 2
+padding_x = 12
+padding_y = 2
+
+# One row of it: a panel with several keeps them the same height.
+[roles.dock_chrome_row]
 height = 26
 gap = 6
-padding_x = 12
-[roles.dock_chrome.touch]
+
+[roles.dock_chrome_row.touch]
 height = 33
 
 # A verb in a panel's own strip, and the two states one takes.
@@ -788,3 +867,205 @@ radius = 8
 
 [column]
 radius = 8
+
+# The start screen: the wash over the editor, the column down its middle, and
+# the strips in it.
+[roles.manager_ground]
+fill = "bg"
+padding = 14
+gap = 10
+[roles.manager_head]
+width = 620
+height = 34
+gap = 10
+[roles.manager_tabs]
+width = 620
+height = 30
+gap = 6
+[roles.manager_tabs.touch]
+height = 33
+[roles.manager_body]
+width = 620
+
+# The start screen's own controls: the mark, the way back, and a tab.
+[roles.manager_mark]
+width = 26
+height = 26
+[roles.manager_back]
+height = 28
+radius = 8
+size = 11
+padding_x = 12
+fill = "panel"
+color = "dim"
+[roles.manager_back.hover]
+fill = "raised"
+color = "text"
+[roles.manager_tab]
+height = 30
+radius = 8
+size = 12
+padding_x = 16
+color = "dim"
+[roles.manager_tab.hover]
+fill = "panel"
+color = "text"
+[roles.manager_tab.touch]
+height = 33
+[roles.manager_tab_on]
+height = 30
+radius = 8
+size = 12
+padding_x = 16
+fill = "accent_soft"
+color = "accent"
+[roles.manager_tab_on.touch]
+height = 33
+
+# The sheet over the shell, and the bar across its top.
+[roles.sheet_window]
+fill = "panel"
+stroke = "line"
+radius = 8
+padding = 18
+gap = 10
+# A query and its matches over everything: the command palette and the node
+# picker take turns on the one box.
+[roles.picker_window]
+fill = "panel"
+stroke = "line"
+radius = 10
+padding = 12
+gap = 8
+
+[roles.picker_head]
+height = 30
+gap = 6
+
+# The glyph before the query. No `font`: an icon resolves through the
+# fallback chain, as every other icon in the shell does.
+[roles.picker_mark]
+size = 18
+color = "accent"
+
+[roles.picker_field]
+font = "ui"
+size = 15
+height = 30
+radius = 6
+fill = "sunken"
+color = "text"
+
+[roles.picker_rows]
+gap = 2
+
+[roles.picker_row]
+height = 30
+radius = 6
+size = 14
+align = "left"
+icon_color = "accent"
+color = "text"
+
+[roles.picker_row.hover]
+fill = "sunken"
+
+# The first match, which Enter runs.
+[roles.picker_row_on]
+height = 30
+radius = 6
+size = 14
+align = "left"
+icon_color = "accent"
+fill = "sunken"
+color = "text"
+
+# The mark on the About sheet: dark ink on a light plate, as the top bar sets
+# it, and the name and build line beside it.
+[roles.logo_plate]
+fill = "#e9edf2"
+radius = 30
+padding = 5
+
+[roles.about_name]
+gap = 2
+
+[roles.sheet_bar]
+height = 30
+gap = 8
+[roles.sheet_title]
+font = "mono"
+size = 14
+color = "text"
+[roles.sheet_close]
+height = 24
+radius = 8
+size = 12
+fill = "sunken"
+color = "dim"
+[roles.sheet_close.hover]
+fill = "raised"
+color = "text"
+[roles.sheet_close.touch]
+height = 33
+
+# A sheet whose rows are nodes: its own column down the left, and the rows
+# beside it.
+[roles.sheet_split]
+gap = 20
+[roles.sheet_side]
+width = 190
+[roles.sheet_side_rows]
+gap = 2
+
+# A category in the settings sidebar, and the one that is open.
+[roles.side_row]
+height = 24
+radius = 8
+size = 12
+align = "left"
+fill = "panel"
+color = "dim"
+[roles.side_row.hover]
+fill = "raised"
+color = "text"
+[roles.side_row.touch]
+height = 33
+[roles.side_row_on]
+height = 24
+radius = 8
+size = 12
+align = "left"
+fill = "sunken"
+color = "text"
+[roles.side_row_on.touch]
+height = 33
+
+# A setting's own control: the picker, the number and the text field.
+[roles.form_pick]
+height = 24
+radius = 4
+size = 12
+fill = "sunken"
+color = "text"
+[roles.form_pick.touch]
+height = 33
+[roles.form_value]
+height = 24
+radius = 4
+size = 12
+fill = "sunken"
+stroke = "line"
+color = "text"
+[roles.form_value.touch]
+height = 33
+[roles.form_field]
+font = "mono"
+size = 12
+height = 24
+radius = 4
+fill = "sunken"
+stroke = "line"
+color = "text"
+[roles.form_field.touch]
+height = 33

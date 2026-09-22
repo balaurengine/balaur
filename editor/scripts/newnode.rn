@@ -61,11 +61,11 @@ pub fn open(S) {
     S.newnode = true;
     S.newnode_query = "";
     S.newnode_cache = ();
-    ui::set_text("newnode-query", "");
 }
 
 pub fn close(S) {
     S.newnode = false;
+    crate::window::picker_shut(S);
 }
 
 pub fn place(S, row) {
@@ -84,100 +84,82 @@ pub fn draw(S) {
     if !S.newnode {
         return;
     }
-    let k = S.theme;
-    let screen = ui::screen_size();
-    let width = util::min(520.0, util::max(screen[0] - 32.0, 240.0));
-    let inner = width - 32.0;
-    let row_h = style::row_h(S);
-    let scrim_clicked = ui::modal("newnode", #{
-        width: width, top: 0.11, fill: k.panel, stroke: k.line,
-        scrim: "#0b0e126b",
-    }, || {
-        ui::frame(#{ padding_x: 16, padding_y: 12 }, || {
-            ui::horizontal(#{ height: row_h }, || {
-                ui::label(icons::ui("add"), #{ size: style::XL, color: k.accent });
-                ui::add_space(4);
-                let (text, _, _) = ui::text_field("newnode-query", "Nodes, components, 2d, physics…", #{
-                    size: style::XL, width: inner - 90.0, autofocus: true, color: k.text,
-                });
-                S.newnode_query = text;
-                ui::right(|| {
-                    ui::pill("esc", #{ height: 20, size: style::SM, strong: true, fill: k.sunken, color: k.faint });
-                });
-            });
-        });
-        ui::separator(k.line);
-        ui::scroll("newnode-results", #{ max_height: util::max(screen[1] * 0.5, 160.0) }, || {
-            ui::spacing(4, 4);
-            ui::add_space(8);
-            let query = S.newnode_query.to_lowercase();
-            let rows = catalogue(S);
-            let matched = 0;
-            // Ahead of the groups and in none of them: a node with no
-            // components has no dimension to be filed under.
-            if query == "" || "empty node".contains(query) {
-                matched += 1;
-                ui::horizontal(#{ height: util::max(row_h, 30.0) }, || {
-                    ui::add_space(8);
-                    if ui::pill("Empty node  ·  a transform and nothing else", #{
-                        height: util::max(row_h, 30.0), size: style::MD, align: ui::ALIGN_LEFT,
-                        min_width: inner - 24.0,
-                        icon: icons::node("world"), icon_size: style::LG, icon_color: k.faint,
-                        fill: "#00000000", hover_fill: k.sunken, color: k.text,
-                    }) {
-                        model::add_child(S, None);
-                        close(S);
-                    }
-                });
-            }
-            for group in groups() {
-                let title = group[1];
-                let shown = [];
-                for row in rows {
-                    // The tags join the haystack, so "physics" or "2d"
-                    // narrows the list even where the name does not say it.
-                    let haystack = (row.name + " " + row.note + " " + row.tags).to_lowercase();
-                    if row.group == title && (query == "" || haystack.contains(query)) {
-                        shown.push(row);
-                    }
-                }
-                if shown.len() == 0 {
-                    continue;
-                }
-                matched += shown.len();
-                ui::add_space(4);
-                ui::horizontal(#{ height: 18 }, || {
-                    ui::add_space(12);
-                    ui::label(title, style::mono_sm(k.faint));
-                });
-                for row in shown {
-                    ui::horizontal(#{ height: util::max(row_h, 30.0) }, || {
-                        ui::add_space(8);
-                        let caption = if row.note == "" { row.name } else { row.name + "  ·  " + row.note };
-                        // The type's own mark and colour, the same pair the
-                        // inspector and the tree draw a component with.
-                        let (mark, tint) = icons::component(row.name);
-                        if ui::pill(caption, #{
-                            height: util::max(row_h, 30.0), size: style::MD, align: ui::ALIGN_LEFT,
-                            min_width: inner - 24.0,
-                            icon: mark, icon_size: style::LG,
-                            icon_color: k.get(tint).unwrap_or(k.accent),
-                            fill: "#00000000", hover_fill: k.sunken, color: k.text,
-                        }) {
-                            place(S, row);
-                        }
-                    });
-                }
-            }
-            if matched == 0 {
-                ui::add_space(8);
-                crate::search::nothing(k, S.newnode_query);
-            }
-        });
-        ui::add_space(8);
+    let row_h = util::max(style::row_h(S), 30.0);
+    let specs = row_specs(S, S.theme, row_h);
+    let host = crate::window::picker(S, #{
+        width: 520.0,
+        mark: icons::ui("add"),
+        placeholder: "Nodes, components, 2d, physics…",
+        query: S.newnode_query,
+        rows_h: (specs.len() as f64) * (row_h + 2.0) + 4.0,
+        on: |text| { S.newnode_query = text; },
+        on_submit: |text| { S.newnode_query = text; },
     });
-    // Esc as well as the scrim, the way the palette closes.
-    if scrim_clicked || ui::shortcut("escape") {
+    if util::is_nil(host) {
         close(S);
+        return;
     }
+    crate::pool::sync(S, host, specs, 0.0, false);
+}
+
+/// Every row the picker shows: the empty node ahead of the groups, then a
+/// heading and its matches per group.
+fn row_specs(S, k, row_h) {
+    let query = S.newnode_query.to_lowercase();
+    let rows = catalogue(S);
+    let out = [];
+    // Ahead of the groups and in none of them: a node with no components has
+    // no dimension to be filed under.
+    if query == "" || "empty node".contains(query) {
+        out.push(row_spec(row_h, "Empty node  ·  a transform and nothing else",
+            icons::node("world"), k.faint, || {
+                model::add_child(S, None);
+                close(S);
+            }));
+    }
+    for group in groups() {
+        let title = group[1];
+        let shown = [];
+        for row in rows {
+            // The tags join the haystack, so "physics" or "2d" narrows the
+            // list even where the name does not say it.
+            let haystack = (row.name + " " + row.note + " " + row.tags).to_lowercase();
+            if row.group == title && (query == "" || haystack.contains(query)) {
+                shown.push(row);
+            }
+        }
+        if shown.len() == 0 {
+            continue;
+        }
+        out.push(#{ full: true, height: 20, controls: [#{
+            kind: "label", role: "meta", grow: 1, text: title,
+        }] });
+        for entry in shown {
+            // Bound afresh: a closure made in a loop captures the binding.
+            let row = entry;
+            // The type's own mark and colour, the same pair the inspector and
+            // the tree draw a component with.
+            let (mark, tint) = icons::component(row.name);
+            let caption = if row.note == "" { row.name } else { row.name + "  ·  " + row.note };
+            out.push(row_spec(row_h, caption, mark,
+                k.get(tint).unwrap_or(k.accent), || { place(S, row); }));
+        }
+    }
+    if out.is_empty() {
+        out.push(#{ full: true, height: 0, controls: [#{
+            kind: "label", role: "meta", grow: 1, wrap: true,
+            text: crate::search::nothing_says(S.newnode_query),
+        }] });
+    }
+    out
+}
+
+// `icon_color` is the component's own mark colour, which is data rather than
+// styling: the tree and the inspector draw the same pair.
+fn row_spec(row_h, caption, mark, color, act) {
+    #{ full: true, height: row_h, controls: [#{
+        kind: "button", role: "picker_row", grow: 1,
+        text: caption, icon: mark, icon_color: color,
+        on: |_| { act(); },
+    }] }
 }

@@ -292,6 +292,8 @@ rm -rf "$addon_hello" && cp -R examples/hello "$addon_hello"
 cp -R editor/library/addons "$addon_hello/addons"
 shot addon_completion "$addon_hello"   "script,select:Spinner,show:addon_completion"
 shot script_docs       examples/hello      "script,select:Spinner,dock:docs"
+# A plugin's dock, which the editor makes a node subtree and hands over.
+shot plugin_dock       examples/hello      "scene,select:World,dock:userdata"
 # Focus: the code pane with the window to itself, beside its hooks list.
 shot editor_focus      examples/hello      "script,select:Spinner,focus"
 shot ui_widgets        examples/angrynerds "ui,select:Restart,play"

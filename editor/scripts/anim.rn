@@ -24,16 +24,6 @@ const SAME_TIME = 0.021;
 // A hand-edited file can name a parent that names it back.
 const MAX_DEPTH = 256;
 
-// The editor's engine resolves relative paths against the *editor's* root, so
-// references handed to it are made absolute; the document keeps the relative
-// form.
-pub fn engine_path(S, rel) {
-    if rel.starts_with("/") {
-        return rel;
-    }
-    S.game_root + "/" + rel
-}
-
 // The `animation` component as authored in the document, or `None`.
 pub fn component(node) {
     match node.get("animation") {
@@ -182,7 +172,7 @@ pub fn document(S) {
     }
     if library is String && library != "" {
         let path = library;
-        let (ok, loaded) = script::attempt(|| assets::load(engine_path(S, path)));
+        let (ok, loaded) = script::attempt(|| assets::load(util::engine_path(S, path)));
         if !ok || !(loaded is Object) {
             log::warn(format!("clip {}: {:?}", path, loaded));
             // Cached as a failure so the warning is printed once rather than
@@ -287,7 +277,7 @@ pub fn arm(S) {
     };
     let library = library_of(comp);
     if library is String && library != "" {
-        library = engine_path(S, library);
+        library = util::engine_path(S, library);
     }
     let (ok, why) = script::attempt(|| found.set_component("animation", component_params(S, comp, library)));
     if !ok {
@@ -508,8 +498,8 @@ pub fn promote(S) {
     }
     let rel = "animations/" + node.name.to_lowercase() + ".toml";
     doc["type"] = CLIP_TYPE;
-    fs::write(engine_path(S, rel), toml::encode(doc));
-    script::attempt(|| assets::reload(engine_path(S, rel)));
+    fs::write(util::engine_path(S, rel), toml::encode(doc));
+    script::attempt(|| assets::reload(util::engine_path(S, rel)));
     comp.library = rel;
     S.clip = None;
     arm(S);
@@ -528,7 +518,7 @@ pub fn make_inline(S) {
     let comp = comp.unwrap();
     let rel = rel.unwrap();
     history::record(S, "make clip inline", None);
-    let (ok, copy) = script::attempt(|| assets::duplicate(engine_path(S, rel)));
+    let (ok, copy) = script::attempt(|| assets::duplicate(util::engine_path(S, rel)));
     if !ok || !(copy is Object) {
         log::warn(format!("cannot inline {}: {:?}", rel, copy));
         return;
@@ -562,8 +552,8 @@ pub fn save(S) {
         return;
     }
     let path = clip.path.unwrap();
-    fs::write(engine_path(S, path), toml::encode(clip.doc.unwrap()));
-    script::attempt(|| assets::reload(engine_path(S, path)));
+    fs::write(util::engine_path(S, path), toml::encode(clip.doc.unwrap()));
+    script::attempt(|| assets::reload(util::engine_path(S, path)));
     clip.dirty = false;
     log::info("saved " + path);
 }
@@ -579,7 +569,7 @@ pub fn rebind(S) {
             let found = found.unwrap();
             let comp = comp.unwrap();
             let (ok, why) = script::attempt(|| {
-                found.set_component("animation", component_params(S, comp, engine_path(S, rel.unwrap())))
+                found.set_component("animation", component_params(S, comp, util::engine_path(S, rel.unwrap())))
             });
             if !ok {
                 log::warn(format!("animation on {}: {:?}", node.name, why));

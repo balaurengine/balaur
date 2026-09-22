@@ -60,6 +60,10 @@ pub struct Request {
     pub italic: bool,
     /// The width lines break at; `None` runs the text on one line.
     pub width: Option<f32>,
+    /// Cut a line too long for `width` and end it with an ellipsis, rather
+    /// than leave the caller to clip it mid-glyph. Needs a `width`, and says
+    /// nothing about a block that wraps.
+    pub truncate: bool,
     pub align: Align,
     pub markup: bool,
     /// A `font` asset naming a bitmap face; empty shapes with the project's
@@ -85,6 +89,10 @@ pub struct RequestRef<'a> {
     pub weight: u16,
     pub italic: bool,
     pub width: Option<f32>,
+    /// Cut a line too long for `width` and end it with an ellipsis, rather
+    /// than leave the caller to clip it mid-glyph. Needs a `width`, and says
+    /// nothing about a block that wraps.
+    pub truncate: bool,
     pub align: Align,
     pub markup: bool,
     pub font: &'a str,
@@ -103,6 +111,7 @@ impl RequestRef<'_> {
             weight: self.weight,
             italic: self.italic,
             width: self.width,
+            truncate: self.truncate,
             align: self.align,
             markup: self.markup,
             font: self.font.to_string(),
@@ -123,6 +132,7 @@ impl Request {
             weight: self.weight,
             italic: self.italic,
             width: self.width,
+            truncate: self.truncate,
             align: self.align,
             markup: self.markup,
             font: &self.font,
@@ -149,6 +159,7 @@ fn key_of(request: &RequestRef<'_>, generation: u64, scale: f32) -> Key {
     request.weight.hash(&mut hasher);
     request.italic.hash(&mut hasher);
     request.width.map(f32::to_bits).hash(&mut hasher);
+    request.truncate.hash(&mut hasher);
     (request.align as u8).hash(&mut hasher);
     request.markup.hash(&mut hasher);
     request.font.hash(&mut hasher);
@@ -448,7 +459,76 @@ impl TextState {
         let parsed = spans_of(request);
         let family = self.family_for(request);
         let buffer = shape_into(&mut self.fonts, family.as_deref(), request);
+        let shaped = self.place(&buffer, &parsed, request.width, scale);
+        let Some(room) = request.width.filter(|_| request.truncate) else {
+            return shaped;
+        };
+        // Measured with no box, because a run given one reports the box's
+        // width rather than its own: the clamped number always fits.
+        if self.natural(request, family.as_deref(), request.text, scale) <= room {
+            return shaped;
+        }
+        self.cut_to(request, family.as_deref(), room, scale)
+    }
+
+    /// The longest head of the text that fits `room` with an ellipsis after
+    /// it, shaped.
+    ///
+    /// A binary search over the character boundaries rather than one shape a
+    /// character: sixty characters cost six shapes, and only on a cache miss.
+    fn cut_to(
+        &mut self,
+        request: &RequestRef<'_>,
+        family: Option<&str>,
+        room: f32,
+        scale: f32,
+    ) -> Shaped {
+        let ends: Vec<usize> = request
+            .text
+            .char_indices()
+            .map(|(at, _)| at)
+            .chain(std::iter::once(request.text.len()))
+            .collect();
+        let mut fits = 0;
+        let (mut low, mut high) = (0, ends.len());
+        while low < high {
+            let mid = usize::midpoint(low, high);
+            let text = format!("{}…", &request.text[..ends[mid]]);
+            if self.natural(request, family, &text, scale) <= room {
+                fits = mid;
+                low = mid + 1;
+            } else {
+                high = mid;
+            }
+        }
+        let text = format!("{}…", &request.text[..ends[fits]]);
+        let cut = RequestRef {
+            text: &text,
+            truncate: false,
+            ..*request
+        };
+        let parsed = spans_of(&cut);
+        let buffer = shape_into(&mut self.fonts, family, &cut);
         self.place(&buffer, &parsed, request.width, scale)
+    }
+
+    /// What `text` measures with no box around it, in this request's face.
+    fn natural(
+        &mut self,
+        request: &RequestRef<'_>,
+        family: Option<&str>,
+        text: &str,
+        scale: f32,
+    ) -> f32 {
+        let plain = RequestRef {
+            text,
+            width: None,
+            truncate: false,
+            ..*request
+        };
+        let parsed = spans_of(&plain);
+        let buffer = shape_into(&mut self.fonts, family, &plain);
+        self.place(&buffer, &parsed, None, scale).size.x
     }
 
     /// Lay a run out in a bitmap font, placing its page in the atlas the
@@ -590,7 +670,9 @@ fn shape_into(fonts: &mut FontSystem, family: Option<&str>, request: &RequestRef
     let mut buffer = Buffer::new(fonts, Metrics::new(size, size * line_height));
     {
         let mut borrowed = buffer.borrow_with(fonts);
-        borrowed.set_wrap(if request.width.is_some() {
+        // A truncating run states its width so the cut knows the room, and
+        // stays on one line: the ellipsis is what says there is more.
+        borrowed.set_wrap(if request.width.is_some() && !request.truncate {
             Wrap::WordOrGlyph
         } else {
             Wrap::None
@@ -736,6 +818,7 @@ mod tests {
                 weight: 400,
                 italic: false,
                 width,
+                truncate: false,
                 align: Align::Start,
                 markup: true,
                 font: "",
@@ -757,6 +840,7 @@ mod tests {
             size: 24.0,
             weight: 400,
             italic: false,
+            truncate: false,
             width: None,
             align: Align::Start,
             markup: false,
@@ -823,6 +907,7 @@ mod tests {
                 size: 64.0,
                 weight: 400,
                 italic: false,
+                truncate: false,
                 width: None,
                 align: Align::Start,
                 markup: false,
@@ -870,6 +955,7 @@ mod tests {
             size: 20.0,
             weight: 400,
             italic: false,
+            truncate: false,
             width: None,
             align: Align::Start,
             markup: false,

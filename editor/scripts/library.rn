@@ -213,7 +213,7 @@ pub fn panel(S, k) {
             on: |_| { S.library.kind = id; },
         });
     }
-    crate::docks::chrome_strip(S, chips);
+    crate::docks::chrome_rows(S, [chips]);
     if S.library.kind == "template" {
         dock::hide_cards();
         templates(S, k, known);

@@ -191,7 +191,12 @@ fn apply_control(S, host, key, node, want) {
 /// patched rather than set, so a key this frame's control leaves out would
 /// otherwise keep last frame's: a spacer that becomes a label draws it six
 /// pixels wide, which is one letter and an ellipsis.
-const SHAPELESS = #{ width: 0, height: 0, grow: 0, radius: -1, fill: "", tooltip: "" };
+const SHAPELESS = #{
+    width: 0, height: 0, grow: 0, radius: -1, fill: "", tooltip: "",
+    // `text` too: a pooled node is made as a label, whose text is "label" by
+    // default, and a spacer or a hatch that names none would wear it.
+    text: "",
+};
 
 /// Fill a row of controls, one node each, making and hiding as needed.
 ///
@@ -303,12 +308,21 @@ pub fn sync(S, host_path, specs, label_w, stacked) {
         // Stacked, a labelled row is a column of its label and its control
         // column, a label's line taller; a full or unlabelled row spans both.
         let stack = stacked && !full && text != "";
+        // A spec naming no height hugs what is in it, which is what a line
+        // of help needs: how tall it is follows from the width it got.
         let h = util::f(spec.get("height").unwrap_or(24.0));
+        let tall = if h <= 0.0 {
+            0.0
+        } else if stack {
+            h + LABEL_H + 2.0
+        } else {
+            h
+        };
         patched(S, host_path, format!("r{}", i), row, #{
             visible: true,
             kind: if stack { "column" } else { "row" },
             gap: if stack { 2 } else { 6 },
-            height: if stack { h + LABEL_H + 2.0 } else { h },
+            height: tall,
         });
         let label = row.get_node("L");
         if !util::is_nil(label) {
@@ -354,7 +368,7 @@ pub fn sync(S, host_path, specs, label_w, stacked) {
         let n = 0;
         while n < controls.len() {
             let node = control_at(slot, n);
-            let want = controls[n];
+            let want = util::merge(SHAPELESS, controls[n]);
             let key = format!("{}:{}", i, n);
             // A control carrying controls is a box with others inside it: the
             // sage frame an instance's prefab path and its verb share.

@@ -318,8 +318,36 @@
         "default": [],
         "description": "The binding rows, each `{ event, when, action, target, value }`",
         "of": {
-          "default": "",
-          "type": "string"
+          "default": {
+            "action": "call",
+            "event": "",
+            "target": "",
+            "value": "",
+            "when": ""
+          },
+          "fields": {
+            "action": {
+              "default": "call",
+              "type": "string"
+            },
+            "event": {
+              "default": "",
+              "type": "string"
+            },
+            "target": {
+              "default": "",
+              "type": "string"
+            },
+            "value": {
+              "default": "",
+              "type": "string"
+            },
+            "when": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          "type": "record"
         },
         "type": "list"
       }
@@ -5085,6 +5113,12 @@
         "description": "Text a button draws against its far edge, dimmer than its caption: a shortcut, or a menu's caret",
         "group": "type",
         "type": "string"
+      },
+      "truncate": {
+        "default": false,
+        "description": "Cut a caption too long for the width the widget was given and end it with an ellipsis, rather than clip it mid-glyph",
+        "group": "type",
+        "type": "bool"
       },
       "value": {
         "default": 0.0,

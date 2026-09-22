@@ -385,3 +385,37 @@ fn a_layer_nothing_configured_takes_the_default_surface() {
         "an unconfigured layer ignored the default's off switch"
     );
 }
+
+/// Focus put on a field by a script takes the caret with it, so what is typed
+/// next lands there: a command palette opens ready to be typed into.
+#[test]
+fn focus_put_on_a_field_takes_the_caret() {
+    let (_dir, mut app) = app();
+    let column = add_widget(
+        &app,
+        &toml::toml! { kind = "column" x = 0.0 y = 0.0 width = 200.0 }.into(),
+    );
+    let field = add_child_widget(
+        &app,
+        column,
+        "Query",
+        &toml::toml! { kind = "field" text = "" }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    {
+        let focus = app.engine.resource::<balaur_ui::UiFocus>();
+        let mut focus = focus.borrow_mut();
+        focus.focused = Some(field);
+        focus.taking = true;
+    }
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, vec![egui::Event::Text("go".to_owned())]);
+    consume_input(&mut app);
+    let held = balaur::components::get(&app.engine, field, "widget").unwrap();
+    let text = held
+        .get("text")
+        .and_then(toml::Value::as_str)
+        .unwrap_or_default();
+    assert_eq!(text, "go", "what was typed did not reach the focused field");
+}

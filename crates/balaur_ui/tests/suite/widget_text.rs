@@ -199,3 +199,34 @@ fn a_drag_value_steps_from_its_arrows_and_wears_its_suffix() {
         "the step ran past `max`"
     );
 }
+
+/// A wrapping label is as tall as its box is narrow, and the row hugging it
+/// takes that height rather than one line's: the settings screen's help text
+/// ran under the row below it.
+#[test]
+fn a_row_hugging_a_wrapped_label_is_as_tall_as_the_wrap() {
+    let (_dir, app) = app();
+    let column = toml::toml! { kind = "column" x = 0.0 y = 0.0 width = 300.0 height = 400.0 };
+    let host = add_widget(&app, &column.into());
+    let row = toml::toml! { kind = "row" };
+    let row = add_child_widget(&app, host, "Row", &row.into());
+    let cells = toml::toml! { kind = "row" grow = 1.0 };
+    let cells = add_child_widget(&app, row, "Cells", &cells.into());
+    let label = toml::toml! {
+        kind = "label" grow = 1.0 wrap = true
+        text = "A project-relative picture shown over the first frames, on every target."
+    };
+    let label = add_child_widget(&app, cells, "Note", &label.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let said = balaur_ui::widget_rect(label).expect("the label drew");
+    let box_ = balaur_ui::widget_rect(row).expect("the row drew");
+    assert!(
+        said.height() > 20.0,
+        "the label wrapped to more than one line: {said:?}"
+    );
+    assert!(
+        box_.height() >= said.height(),
+        "the row is as tall as what it holds: row {box_:?} label {said:?}"
+    );
+}

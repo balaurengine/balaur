@@ -416,3 +416,14 @@ pub fn to_local(f, wx, wy) {
     let sy = if abs(f.sy) > 1e-6 { f.sy } else { 1.0 };
     (px / sx, py / sy)
 }
+
+/// A project path where the engine wants one. The editor's engine resolves a
+/// relative path against the *editor's* root, so a reference handed to it is
+/// made absolute; one that already is comes back as it is, never prefixed a
+/// second time.
+pub fn engine_path(S, rel) {
+    if rel.starts_with("/") {
+        return rel;
+    }
+    S.game_root + "/" + rel
+}

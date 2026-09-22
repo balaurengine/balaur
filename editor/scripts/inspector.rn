@@ -231,7 +231,7 @@ fn instance_source_row(S, k, node) {
     }
     push(S, #{ label: "Instance", height: row_h(S), controls: [#{
         role: "prefab_box", grow: 1, controls: [
-            #{ kind: "label", role: "prefab_name", grow: 1, text: node.instance },
+            #{ kind: "label", role: "prefab_name", grow: 1, truncate: true, text: node.instance },
             #{
                 kind: "button", role: "prefab_open", text: "open",
                 tooltip: "Edit the prefab itself, for every instance of it",
@@ -334,7 +334,7 @@ fn clip_source_row(S, k, node) {
     let inline = path.is_none();
     // The clip's file: a library path is longer than the row, so it is cut.
     push(S, #{ label: "Source", height: row_h(S), slot_role: "verb_row", controls: [
-        #{ kind: "label", role: "readonly_value", grow: 1, text: path.unwrap_or("— inline —") },
+        #{ kind: "label", role: "readonly_value", grow: 1, truncate: true, text: path.unwrap_or("— inline —") },
         #{
             kind: "button", role: "clip_verb",
             text: if inline { "save as file" } else { "make inline" },
@@ -370,7 +370,7 @@ fn skeleton_section(S, k) {
     let what = if rig::is_bone(node) { "this bone and below" } else { format!("under {}", node.name) };
     // The node's own name is in the line, so the column cuts it.
     verb_row(S, "Bones", [
-        #{ kind: "label", role: "value", grow: 1, text: format!("{} · {}", count, what) },
+        #{ kind: "label", role: "value", grow: 1, truncate: true, text: format!("{} · {}", count, what) },
         #{
             kind: "button", role: "row_action_on", text: icons::ui("add") + " bone",
             tooltip: "Grow a bone under this node (in 2D, the Rig bone tool places one by clicking)",
@@ -1513,7 +1513,10 @@ fn readonly_row(S, prop, spec, data) {
     push(S, #{
         label: util::prop_label(prop), tooltip: prop_tip(prop, spec),
         controls: [
-            #{ kind: "label", role: "readonly_value", grow: 1, text: readonly_text(spec, value) },
+            #{
+                kind: "label", role: "readonly_value", grow: 1, truncate: true,
+                text: readonly_text(spec, value),
+            },
             #{ kind: "label", role: "readonly_tag", text: "read-only" },
         ],
     });
@@ -1637,7 +1640,7 @@ fn component_sections(S, k, filter) {
             continue;
         }
         if let Some(needs) = unmet.get(comp) {
-            push(S, #{ full: true, height: 34, controls: [#{
+            push(S, #{ full: true, height: 0, controls: [#{
                 kind: "label", role: "warn_note", grow: 1, wrap: true,
                 text: format!("⚠ needs one of: {}", needs),
             }] });

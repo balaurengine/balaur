@@ -126,18 +126,18 @@ pub fn panels(S) {
         "import": #{ name: "Import", icon: icons::panel("import"), tall: false },
         "output": #{ name: "Output", icon: icons::panel("output"), tall: false },
         "problems": #{ name: "Problems", icon: icons::panel("problems"), tall: false },
-        "assets": #{ name: "Assets", icon: icons::panel("assets"), tall: false , chrome: 28.0 },
+        "assets": #{ name: "Assets", icon: icons::panel("assets"), tall: false, chrome: true },
         "docs": #{ name: "Docs", icon: icons::panel("docs"), tall: true },
         "timeline": #{ name: "Timeline", icon: icons::panel("timeline"), tall: true },
         "debugger": #{ name: "Debugger", icon: icons::panel("debugger"), tall: true },
-        "session": #{ name: "Session", icon: icons::panel("session"), tall: true },
+        "session": #{ name: "Session", icon: icons::panel("session"), tall: true, chrome: true },
         "profiler": #{ name: "Profiler", icon: icons::panel("profiler"), tall: true },
         "cost": #{ name: "Cost", icon: icons::panel("cost"), tall: true },
-        "library": #{ name: "Library", icon: icons::panel("library"), tall: false , chrome: 28.0 },
-        "tiles": #{ name: "Tiles", icon: icons::panel("tiles"), tall: true },
+        "library": #{ name: "Library", icon: icons::panel("library"), tall: false, chrome: true },
+        "tiles": #{ name: "Tiles", icon: icons::panel("tiles"), tall: true, chrome: true },
         "weights": #{ name: "Weights", icon: icons::panel("weights"), tall: true },
         "bonemap": #{ name: "Bone map", icon: icons::panel("bonemap"), tall: true },
-        "statemachine": #{ name: "State machine", icon: icons::panel("statemachine"), tall: true },
+        "statemachine": #{ name: "State machine", icon: icons::panel("statemachine"), tall: true, chrome: true },
     };
     for entry in S.registry.docks {
         table[entry.id] = #{ name: entry.name, icon: icons::panel(entry.id), tall: entry.tall };
@@ -287,12 +287,16 @@ fn body(S, k, id) {
         "cost" => dock::cost(S, k),
         "library" => crate::library::panel(S, k),
         "tiles" => crate::tiles::palette(S, k),
+        "statemachine" => crate::statemachine::body(S, k),
+        "session" => dock::session_list(S, k),
 
 
         _ => match crate::plugins::dock(S, id) {
             Some(entry) => {
                 let draw = entry.draw;
-                draw(S, k);
+                // The node the editor made for this dock, not a `ui` handle:
+                // a plugin fills its own subtree and cannot reach past it.
+                draw(S, k, plugin_host(S, side_of(S, id).unwrap_or("bottom"), id));
             }
             None => (),
         },
@@ -310,16 +314,29 @@ fn canvas_views() {
         session: "BottomSession",
         weights: "BottomWeights",
         bonemap: "BottomBonemap",
-        statemachine: "BottomStatemachine",
     }
 }
 
 const BOTTOM = "Editor/Shell/Body/Centre/Bottom/";
 
+// A canvas view is off while its panel is showing something else: the
+// Session panel is a list of recordings until one is open.
+fn canvas_on(S, d, id) {
+    if d.shut || d.active != id {
+        return false;
+    }
+    if id == "session" {
+        // Bound first: `return crate::…` does not parse.
+        let loaded = crate::session::loaded(S);
+        return loaded;
+    }
+    true
+}
+
 fn sync_canvas(S, d) {
     let painting = false;
     for (id, name) in canvas_views() {
-        let on = !d.shut && d.active == id;
+        let on = canvas_on(S, d, id);
         if on {
             painting = true;
         }
@@ -334,24 +351,28 @@ fn sync_canvas(S, d) {
     });
     // The strip is a row of nodes now, not a share of the hatch: hidden for
     // every panel that keeps none, and the panel itself fills it.
-    if chrome_h(S, d.active) <= 1.0 {
+    if !keeps_chrome(S, d.active) {
         util::hide(BOTTOM + "BottomChrome");
     }
 }
 
-/// Fill the strip a panel keeps over the node it fills, and show it. A panel
-/// that names no chrome leaves it hidden.
-pub fn chrome_strip(S, controls) {
-    crate::pool::strip(S, BOTTOM + "BottomChrome", controls);
+/// Fill the chrome a panel keeps over the node it fills, and show it. `rows`
+/// is a list of controls a row; a panel that names no chrome leaves it hidden.
+pub fn chrome_rows(S, rows) {
+    let groups = [];
+    for row in rows {
+        groups.push(#{ kind: "row", role: "dock_chrome_row", gap: 6, align: "center", controls: row });
+    }
+    crate::pool::strip(S, BOTTOM + "BottomChrome", groups);
 }
 
-/// The strip a panel draws its own chrome into, over the node it fills. One
-/// pixel is none: the hatch is still there, and nothing is drawn in it.
-fn chrome_h(S, id) {
+/// Whether a panel keeps chrome over the node it fills, which the strip is
+/// hidden for when it does not.
+fn keeps_chrome(S, id) {
     let found = panels(S).get(id);
     match found {
-        Some(entry) => util::f(entry.get("chrome").unwrap_or(1.0)),
-        None => 1.0,
+        Some(entry) => entry.get("chrome").unwrap_or(false) == true,
+        None => false,
     }
 }
 
@@ -360,6 +381,11 @@ fn chrome_h(S, id) {
 fn owns_a_node(S, side, d) {
     if d.shut || d.active == "" {
         return false;
+    }
+    // Every plugin dock has one: the editor makes it a subtree rather than
+    // lending it the hatch.
+    if crate::plugins::dock(S, d.active).is_some() {
+        return true;
     }
     for entry in node_owners()[side] {
         for id in entry.panels {
@@ -378,6 +404,7 @@ fn node_owners() {
             #{ hide: "table", panels: ["cost", "profiler", "library"] },
             #{ hide: "cards", panels: ["assets", "library", "tiles"] },
             #{ hide: "stack", panels: ["debugger"] },
+            #{ hide: "rows", panels: ["statemachine", "session"] },
         ],
         left: [
             #{ hide: "tree", panels: ["scene"] },
@@ -398,6 +425,8 @@ fn hide_node(which) {
         dock::hide_cards();
     } else if which == "stack" {
         dock::hide_tree();
+    } else if which == "rows" {
+        dock::hide_rows();
     } else if which == "tree" {
         left::hide_tree();
     } else if which == "outline" {
@@ -411,6 +440,7 @@ fn hide_unused(S, side, d) {
     if side == "bottom" {
         sync_canvas(S, d);
     }
+    hide_plugin_hosts(S, side, if d.shut { "" } else { d.active });
     for entry in node_owners()[side] {
         let wanted = false;
         for id in entry.panels {
@@ -443,6 +473,133 @@ fn tab_h(S) {
 }
 
 // Where each dock's tab strip and its tools hatch live.
+/// Where a side keeps its plugin docks' own subtrees, which the scene states
+/// so one made at run time sits where the side wants it rather than last.
+fn plugins_of(side) {
+    if side == "bottom" {
+        "Editor/Shell/Body/Centre/Bottom/BottomPlugins"
+    } else if side == "left" {
+        "Editor/Shell/Body/Left/LeftSheet/LeftPlugins"
+    } else {
+        "Editor/Shell/Body/Right/RightSheet/RightPlugins"
+    }
+}
+
+// A plugin dock's own subtree: a head, a sidebar, a body and a foot. One per
+// dock and side, so a dock moved between sides leaves nothing behind it.
+fn host_fragment(name) {
+    let text = "[[nodes]]
+id = \"HOST\"
+name = \"HOST\"
+[nodes.widget]
+kind = \"column\"
+role = \"plugin_host\"
+grow = 1
+
+[[nodes]]
+id = \"HOST_head\"
+name = \"Head\"
+parent = \"HOST\"
+[nodes.widget]
+kind = \"flow\"
+role = \"plugin_head\"
+align = \"center\"
+
+[[nodes]]
+id = \"HOST_split\"
+name = \"Split\"
+parent = \"HOST\"
+[nodes.widget]
+kind = \"row\"
+role = \"plugin_split\"
+grow = 1
+
+[[nodes]]
+id = \"HOST_side\"
+name = \"Side\"
+parent = \"HOST_split\"
+[nodes.widget]
+kind = \"scroll\"
+axis = \"vertical\"
+visible = false
+width = 150
+
+[[nodes]]
+id = \"HOST_side_rows\"
+name = \"SideRows\"
+parent = \"HOST_side\"
+[nodes.widget]
+kind = \"column\"
+role = \"plugin_side\"
+grow = 1
+
+[[nodes]]
+id = \"HOST_body\"
+name = \"Body\"
+parent = \"HOST_split\"
+[nodes.widget]
+kind = \"scroll\"
+axis = \"vertical\"
+grow = 1
+
+[[nodes]]
+id = \"HOST_rows\"
+name = \"Rows\"
+parent = \"HOST_body\"
+[nodes.widget]
+kind = \"column\"
+role = \"plugin_rows\"
+grow = 1
+
+[[nodes]]
+id = \"HOST_foot\"
+name = \"Foot\"
+parent = \"HOST\"
+[nodes.widget]
+kind = \"row\"
+role = \"plugin_head\"
+align = \"center\"
+";
+    text.replace("HOST", name)
+}
+
+fn host_name(id) {
+    "Plugin_" + id
+}
+
+/// The node a plugin dock fills, made the first time it is drawn on that side
+/// and shown. Its `head`, `body` and `foot` are what `S.kit` writes to.
+pub fn plugin_host(S, side, id) {
+    let parent = plugins_of(side);
+    let path = parent + "/" + host_name(id);
+    if util::is_nil(scene::get_node(path)) {
+        let under = scene::get_node(parent);
+        if util::is_nil(under) {
+            return "";
+        }
+        scene::instantiate(host_fragment(host_name(id)), under, #{ scripts: false });
+    }
+    util::fill(parent, #{ visible: true });
+    util::fill(path, #{ visible: true });
+    path
+}
+
+/// Hide every plugin dock's subtree but the one showing, on every side: a
+/// node keeps drawing until it is told not to.
+fn hide_plugin_hosts(S, side, active) {
+    let any = false;
+    for entry in S.registry.docks {
+        if entry.id == active {
+            any = true;
+            continue;
+        }
+        util::hide(plugins_of(side) + "/" + host_name(entry.id));
+    }
+    if !any {
+        util::hide(plugins_of(side));
+    }
+}
+
 fn head_stem(side) {
     let sheet = if side == "bottom" {
         "Editor/Shell/Body/Centre/Bottom"
@@ -687,15 +844,12 @@ fn body_scrolled(S, k, id) {
 
 /// The panels that open a scroll of their own, because they want something
 /// the plain one does not do: a log follows what is arriving. A plugin's dock
-/// says so with `scrolls: true`.
+/// always does: its own subtree carries the scroll.
 fn scrolls_itself(S, id) {
     if id == "output" || id == "docs" || id == "bonemap" || id == "statemachine" {
         return true;
     }
-    match crate::plugins::dock(S, id) {
-        Some(entry) => entry.scrolls,
-        None => false,
-    }
+    crate::plugins::dock(S, id).is_some()
 }
 
 /// The strip along the foot of the bottom dock: what is playing, and the
@@ -712,24 +866,13 @@ pub fn draw_body(S, k, side) {
         return;
     }
     tab_row(S, k, side, d);
+    // A side dock's panel sizes its own box, a plugin's through the scroll in
+    // the subtree the editor made for it; only the bottom one lends a scroll.
     if side != "bottom" {
-        side_body(S, k, side, d.active);
+        body(S, k, d.active);
         return;
     }
     body_scrolled(S, k, d.active);
-}
-
-/// A side dock's panel. A plugin's gets the scroll the bottom dock would give
-/// it; the built-in ones size their own boxes.
-fn side_body(S, k, side, id) {
-    let plugin = crate::plugins::dock(S, id).is_some();
-    if !plugin || scrolls_itself(S, id) {
-        body(S, k, id);
-        return;
-    }
-    ui::scroll("dock-body-" + side, #{ max_height: ui::available_height() }, || {
-        body(S, k, id);
-    });
 }
 
 /// Whether a side dock is open: the one sheet that takes the whole body where

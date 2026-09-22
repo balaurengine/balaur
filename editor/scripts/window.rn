@@ -1,7 +1,6 @@
 // A sheet over the shell: a title, a close, and a body. What the settings
 // screen is, and what anything else needing a window should be.
 
-use crate::style;
 use crate::util;
 
 // Sized as a fraction of the screen rather than in pixels, so the same sheet
@@ -47,6 +46,7 @@ pub fn show(S, id) {
 
 pub fn hide(S) {
     S.window.open = "";
+    util::fill(SHEET, #{ open: false });
 }
 
 pub fn showing(S, id) {
@@ -58,37 +58,136 @@ pub fn showing(S, id) {
 ///
 /// `actions` draws beside the close button, for a window with something to
 /// commit. A window with nothing passes a callback that draws nothing.
+const SHEET = "Editor/Sheet";
+
 pub fn sheet(S, id, title, actions, body) {
+    // Every screen calls this every frame, and they share the one node: a
+    // screen that is not up leaves it alone rather than shutting it.
     if !showing(S, id) {
         return;
     }
-    let k = S.theme;
+    // The body and the bar's own verbs are drawn, so the hatch under this
+    // node runs them: what the sheet gives them is the frame, not the rows.
+    S.sheet_drawn = #{ actions: actions, body: body };
     let box = size(S);
-    let scrim_clicked = ui::modal(id, #{
-        width: box.w, height: box.h, top: 0.09,
-        fill: k.panel, stroke: k.line, scrim: "#0b0e126b",
-    }, || {
-        ui::frame(#{ padding_x: PAD_X, padding_y: 14 }, || {
-            bar(S, k, title, actions);
-            ui::add_space(10);
-            body();
-        });
-    });
-    // Both ways out mean the same thing, so neither is the special one.
-    if scrim_clicked || ui::shortcut("escape") {
+    util::fill(SHEET, #{ open: true, width: box.w, height: box.h });
+    crate::pool::strip(S, SHEET + "/SheetBar", bar_controls(S, title));
+    util::fill(SHEET + "/SheetBody/SheetPage", #{ visible: true });
+    util::hide(SHEET + "/SheetBody/SheetSplit");
+    // A `dialog` shuts itself on Escape or a click on the dim, and says so by
+    // putting `open` back; this reads that answer rather than the keys.
+    if util::prop(SHEET, "open") == false {
         hide(S);
     }
 }
 
-fn bar(S, k, title, actions) {
-    ui::horizontal(#{ height: 30 }, || {
-        ui::label(title, style::mono_lg(k.text));
-        ui::right(|| {
-            if ui::pill("Close", #{ height: 24, size: style::MD, radius: 8, fill: k.sunken, color: k.dim }) {
-                hide(S);
-            }
-            ui::add_space(8);
-            actions();
-        });
+/// The bar across a sheet: its name, the verbs it carries, and the close.
+fn bar_controls(S, title) {
+    [
+        #{ kind: "label", role: "sheet_title", text: title },
+        #{ kind: "row", grow: 1 },
+        #{ kind: "draw", draw: "draw_sheet_actions", width: 120 },
+        #{
+            kind: "button", role: "sheet_close", text: "Close",
+            on: |_| { hide(S); },
+        },
+    ]
+}
+
+// A body for a sheet that has none: `|| {}` reads as a short-circuit there.
+fn nothing() {}
+
+/// The hosts a sheet whose rows are nodes fills: its own column down the
+/// left, and the rows beside it. Opens the sheet as `sheet` does and hides
+/// the drawn page, so one screen cannot show both.
+pub fn sheet_form(S, id, title, actions) {
+    if !showing(S, id) {
+        return ();
+    }
+    S.sheet_drawn = #{ actions: actions, body: nothing };
+    let box = size(S);
+    util::fill(SHEET, #{ open: true, width: box.w, height: box.h });
+    crate::pool::strip(S, SHEET + "/SheetBar", bar_controls(S, title));
+    util::hide(SHEET + "/SheetBody/SheetPage");
+    util::fill(SHEET + "/SheetBody/SheetSplit", #{ visible: true });
+    if util::prop(SHEET, "open") == false {
+        hide(S);
+        return ();
+    }
+    // Shut by the asking: a screen with no sidebar leaves it alone, and one
+    // that fills it shows it. Hidden, the rows beside it take the whole sheet.
+    util::hide(SHEET + "/SheetBody/SheetSplit/SheetSide");
+    #{
+        side: SHEET + "/SheetBody/SheetSplit/SheetSide",
+        form: SHEET + "/SheetBody/SheetSplit/SheetScroll/SheetForm",
+    }
+}
+
+// A query and what it matches, over everything: the command palette and the
+// node picker take turns on it, since only one of them is ever up.
+const PICKER = "Editor/Picker";
+
+/// Shut the picker, for the screen that was using it.
+pub fn picker_shut(S) {
+    util::fill(PICKER, #{ open: false });
+    S.picker_focused = false;
+}
+
+/// Open the picker and answer where its rows go, or `()` when it was shut
+/// from the outside — Escape, or a click on the dim.
+///
+/// `opts` names the glyph before the query, the `placeholder` behind it, the
+/// `query` itself and what to do with an edit (`on`) and an Enter
+/// (`on_submit`), the `width` it would like, and how tall its rows are.
+pub fn picker(S, opts) {
+    let screen = ui::screen_size();
+    // One width, taken from the screen: a phone is narrower than what a
+    // laptop gets, and every column inside is measured off what is left.
+    let width = util::min(util::f(opts.width), util::max(screen[0] - 32.0, 240.0));
+    util::fill(PICKER, #{ open: true, width: width });
+    crate::pool::strip(S, PICKER + "/PickerHead", [
+        #{ kind: "label", role: "picker_mark", text: opts.mark },
+        #{
+            kind: "field", role: "picker_field", grow: 1,
+            text: opts.query, placeholder: opts.placeholder,
+            on: opts.on, on_submit: opts.on_submit,
+        },
+        #{ kind: "label", role: "chip", text: "esc" },
+    ]);
+    util::fill(PICKER + "/PickerScroll", #{
+        visible: true,
+        height: util::min(util::max(screen[1] * 0.5, 160.0), util::f(opts.rows_h)),
     });
+    // The field takes the caret the frame the picker opens, and keeps it: a
+    // search box you have to click into is one you may as well not have.
+    if S.picker_focused != true {
+        let field = scene::get_node(PICKER + "/PickerHead/C1");
+        if !util::is_nil(field) {
+            ui::set_focus(field);
+            S.picker_focused = true;
+        }
+    }
+    // A `dialog` shuts itself on Escape or a click on the dim, and says so by
+    // putting `open` back; this reads that answer rather than the keys.
+    if util::prop(PICKER, "open") == false {
+        return ();
+    }
+    PICKER + "/PickerScroll/PickerRows"
+}
+
+/// The two hatches a sheet keeps: the verbs beside its close, and its body.
+pub fn draw_actions(S) {
+    let held = S.sheet_drawn;
+    if held is Object {
+        let act = held.actions;
+        act();
+    }
+}
+
+pub fn draw_body(S) {
+    let held = S.sheet_drawn;
+    if held is Object {
+        let body = held.body;
+        body();
+    }
 }

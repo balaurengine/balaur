@@ -292,7 +292,10 @@ jobs:
           set -euo pipefail
           tar -xzf dist/editor-module/balaur-template-web-editor.tar.gz \
             -C dist/editor-module
-          mv dist/editor-module/balaur-template-web-editor/* dist/editor-module/
+          # A copy, not a move: the artifact carries the staged `snippets/`
+          # too, and `mv` refuses a directory that is already there.
+          cp -R dist/editor-module/balaur-template-web-editor/. dist/editor-module/
+          rm -rf dist/editor-module/balaur-template-web-editor
           ls dist/editor-module/balaur.js dist/editor-module/balaur_bg.wasm
       - name: Pack the web bundle
         env:

@@ -143,67 +143,144 @@ Making a *game's* UI authorable this way — that already works, and
 
 Counted as `ui::<name>(` across `editor/scripts`. The day started at **1038
 calls**, not the 589 an earlier count here claimed: that number was the sum of
-the files below rather than the whole. It ends at **903**.
+the files below rather than the whole. It is at **549**.
 
 | Where | Was | Now | What they are |
 | --- | --: | --: | --- |
-| `manager.rn` | 146 | 146 | the start screen; blocked, see item 1 |
-| `dock.rn` | 126 | 108 | a panel's chrome, and the four `draw` views |
+| `manager.rn` | 146 | 130 | the start screen, now a root; item 1 |
+| `dock.rn` | 126 | 88 | a panel's chrome, and the four `draw` views |
 | `inspector.rn` | 127 | 14 | the rows no schema describes |
-| `statemachine.rn`, `settings.rn`, `center.rn` | 150 | 150 | sheets and overlays |
+| `settings.rn` | 52 | 3 | the sheet's rows, item 1 |
+| `statemachine.rn` | 53 | 0 | the dock's rows, item 3 |
+| `center.rn` | 45 | 45 | the document area's overlays |
 | `editor.rn` | 52 | 52 | the frame's own calls, not a surface |
-| `kit.rn` | 49 | 49 | what a plugin dock draws with; §8 |
-| `tiles.rn` | 35 | 35 | the tile palette |
+| `kit.rn` | 49 | 1 | what a plugin dock fills with; §8 |
+| `palette.rn`, `newnode.rn` | 49 | 3 | what the picker holds, item 1 |
+| `left.rn` | 21 | 10 | the tree's own chrome |
+| `about.rn` | 22 | 7 | the line this build follows |
+| `tiles.rn` | 35 | 0 | the tile palette, item 3 |
 
 Most of what is left is content drawn inside a node that already exists. So
 the work is not "move the screens", it is "stop drawing the controls".
+
+What is left is drawn on purpose, and each has its reason here:
+
+- **A canvas.** The Timeline's lanes, the Weights map, the Bone map and the
+  Session lanes place marks by number over a rect, which no row shape says.
+  `inputview.rn`'s ripples and `complete.rn`'s popup at the caret are the
+  same: a drawing, not a list.
+- **A list of thousands.** The start screen's project history and the Assets
+  grid are a `ui::list` and a `cards` node, which build only the rows on
+  screen; a column of pooled nodes would build every one.
+- **The frame itself.** `editor.rn`'s calls are the pass, not a surface: the
+  hatches, the repaint, the screen size.
+- **A plugin's floating window**, until a window is a node the way a dock is.
+- **A plugin's property editor**, which is item 5.
 
 1. **The three containers.** Every kind they want is built: `dialog` on
    `egui::Modal`, `menu` on `egui::Popup::menu`, and every root is an
    `egui::Area` ordered above the tree. The earlier note asking for a `popup`
    kind is void.
 
-   **The start screen is blocked on a layout defect, and this is what is
-   known.** Tried 2026-09-21 and reverted the same day. As a root anchored
-   `fill` on the shell surface, with a head strip, a tab strip and a body, the
-   two strips take their role heights and **the body takes nothing**:
+   **A container only pays where it states a size.** `window::sheet` is a
+   `dialog` node now, and About, Export, New project and Settings all fill
+   it: it states its box, so the body under it has room to be given. The
+   palette, the node picker and the rename were converted the same way on
+   2026-09-22 and put back the same hour. Those three hug their content, and
+   a hugging dialog has to measure what is in it; what is in it is a `draw`,
+   which measures what it last painted, which is nothing until it is given a
+   box. The hatch never ran at all.
 
-       Editor/Shell/Body   kind=row    grow=1  rect h=784
-       Editor/Manager      kind=column         rect h=864
-       .../ManagerHead     kind=row            rect h=34
-       .../ManagerTabs     kind=row            rect h=30
-       .../ManagerBody     kind=column grow=1  rect h=0
+   So they go the other way round: their rows become nodes first, and the
+   container follows. Which is what this item already said -- a `dialog`
+   around rows a script still draws buys nothing -- and is worth reading
+   before converting the next one.
 
-   A `draw`, a `scroll` and a `column` were each tried for the body; all
-   three answer 0. A `min_height` is honoured, so the item is laid out and it
-   is the *grow* that contributes nothing, as though the container had no
-   free space to give. The shell's own `grow` child, one root along on the
-   same surface, gets its 784.
+   **The palette went that way round and landed.** Done 2026-09-22, 22 calls
+   to 3. `Palette` is a `dialog` anchored `center_top`, stating the width the
+   screen leaves it; its head is a pooled strip and its matches are pooled
+   rows inside a `scroll` the script states the height of, so the box grows
+   with the list and stops at half the screen. `palettedemo` asserts the
+   query survives the pool's round trip, the matches are nodes, and the first
+   wears the held look. The node picker and the rename are on the same node:
+   `window::picker` is the one box, since only one of the three is ever up,
+   and it answers where its rows go. 70 calls across the three became 13.
 
-   `a_grow_child_of_a_fill_root_takes_what_is_left` builds the same shape and
-   **passes**, and it was grown to match the editor one property at a time.
-   None of these reproduces it:
+   One engine gap had to close first. **A script could not put the caret in a
+   field.** `ui::set_focus` wrote the widget layer's focus, which paints a
+   ring; egui's own focus is what a `field` types from, and a `field` was not
+   a focus stop at all, so `advance` cleared it before the draw. A `field`
+   and a `text_area` are stops now, and focus taken rather than merely
+   resting is consumed by the next draw, which asks egui for it. Only on that
+   pass: asking every frame takes the caret back from whatever was clicked
+   next.
 
-   - two `fill` roots rather than one
-   - both on a named surface, with the default one off and pointed at nothing
-   - a `role` on the root carrying `padding` and `gap`
-   - `safe_area` on all four edges
-   - the strips sized by their roles rather than by the node
-   - a definite `width` on the growing child
-   - a `draw` page inside it, sized by what a script painted
-   - the root patched every pass, which is how the screen shows itself
+   **The start screen is a root now.** Done 2026-09-22: `Manager` is a
+   `fill` root on the shell surface, its head and tabs are pooled strips, and
+   the pages draw into a hatch under them. 146 calls to 130. The pages stay
+   drawn on purpose: `projects_page` is a `ui::list`, which builds only the
+   rows on screen, and a column of pooled nodes would build the whole
+   history.
 
-   So it is not the shape. The next pass should print from inside
-   `place_root` and `styled` what `fills` and the available space actually
-   are for that second root, rather than editing the scene again: every scene
-   edit costs a half-hour rebuild, and the eight lines above cost a second
-   each.
+   It took two goes. The first collapsed: the body took nothing whatever kind
+   it was, while the shell's own `grow` child, one root along on the same
+   surface, kept its 784. The cause was in `taffy::solve`, and it is fixed:
 
-   Running it found a real defect on the way, now fixed: `inside_safe_area`
-   intersected a root's area with `facts.design_size()`, and a device that has
-   not reported a size answers zero, which collapsed the root and took every
-   `grow` child to 0 with it. That was not the editor's problem, because the
-   editor's facts are populated.
+       fresh=true  touched=0    root=1536x864  kids=[24, 804]
+       fresh=false touched=218  root=648x60    kids=[24, 0]
+
+   The root is synced with the box `place_root` hands it, and then the
+   touched loop re-syncs every written node with no box and `is_root` false.
+   A write anywhere under a root puts the root in that list, so it was
+   restyled as somebody's child, sized itself from its content, and left
+   every `grow` child nothing. The solve's own root is skipped in that loop
+   now.
+
+   The shell never showed it because `layout.rn` patches explicit sizes onto
+   its children every frame, so they never needed free space. Those fifteen
+   `size` calls a frame were holding up a broken solve.
+
+   `layoutdemo` asserts it, not a unit test: the harness rebuilds its arena
+   fresh every pass, so a test there passes with the bug in place. Two tests
+   written for this passed without the fix before that was noticed.
+
+   A second defect turned up on the way and is also fixed: `inside_safe_area`
+   intersected a root's area with `facts.design_size()`, and a device that
+   has not reported a size answers zero, collapsing the root.
+   **The settings sheet is rows.** Done 2026-09-22, 52 calls to 3. The sheet
+   grew a second body: `SheetSplit` is a row of `SheetSide`, the categories,
+   and `SheetScroll`, the rows, and `window::sheet_form` hands a screen both
+   hosts and hides the drawn page. A row is a spec the pool takes, and
+   `editor_control` picks the control from the schema's `type`: a `switch`
+   for a bool, a `dropdown` for an enum, a `drag_value` for a number and a
+   `field` for everything else. The theme's `setting_*` roles are `form_*`
+   now, because the state machine's rows wear them too.
+
+   Two defects came out of it, both in the engine:
+
+   - **A `scroll` naming no axis scrolls both ways**, and a box free on both
+     axes hugs its contents. `SheetScroll` was such a box, so the form was as
+     wide as its widest row -- 266 px of the 706 it had -- and every line of
+     help ran off the right of it. A vertical scroll states `axis`.
+   - **A wrapping label was measured on one line.** `Measure` shapes with no
+     box, so the height a block needs at the width it was given was never
+     asked for; a row hugging one was a line tall and the row below it drew
+     over the wrap. `Measure::wrapped` shapes at the width taffy settled on,
+     and the leaf callback uses it whenever the width is known and the widget
+     wraps.
+
+   A row that states no height hugs what is in it, which is how the help
+   under a setting takes the two lines it needs.
+
+   **About is rows too.** Done 2026-09-22, 22 calls to 7. Its mark, name,
+   facts and links are rows; the line it follows keeps a `draw` row, because
+   the check and the install are the start screen's, and a spec naming a
+   `draw` is how a pooled row keeps a bespoke one.
+
+   **The Export sheet is rows too.** Done 2026-09-22, 22 calls to 1.
+   `sheet_form` shuts the sidebar unless a screen shows it, so a sheet with
+   one list fills its whole width. What is left is the verb beside the close,
+   which every sheet still draws through one hatch.
 2. **The controls inside a row.** Done 2026-09-21, 127 calls to 14. The
    property table was already declarative: `edit_float`, `edit_int`,
    `edit_bool`, `edit_enum`, `edit_color` and `edit_vector` push a `controls`
@@ -284,14 +361,49 @@ the work is not "move the screens", it is "stop drawing the controls".
    one. `measure` walks the whole chain with `theme_at` now. `polygon_section` and
    `skeleton_section` are lists inside a form, and they want §8's kit.
 3. **A panel's own chrome.** Started 2026-09-21, once item 7 unblocked it.
-   `BottomChrome` is a `row` beside the hatch, hidden for every panel that
-   keeps none and filled by `pool::strip` for the ones that do: the Assets
-   path, item count, verbs and search, and the Library's chips. `dock.rn` is
-   at 108 of its 126, `library.rn` at 5 of 11, and `search::control` is the
-   pooled spelling of a search box, over the same `S.search[id]` the drawn one
-   uses. What is left there is the four `draw` views, which stay.
-4. **The Events view's row pool.** Its rows are several controls each, which
-   is the pool's shape, over the document area rather than the right sheet.
+   `BottomChrome` is a column of pooled rows beside the hatch, hidden for
+   every panel that keeps none and filled by `docks::chrome_rows` for the ones
+   that do: the Assets path, item count, verbs and search, the Library's
+   chips, the State machine's header and the Tiles tools. `dock.rn` is at 108
+   of its 126, `library.rn` at 5 of 11, and `search::control` is the pooled
+   spelling of a search box, over the same `S.search[id]` the drawn one uses.
+   What is left there is the four `draw` views, which stay.
+
+   **The Session panel is a list until a recording is open.** Done
+   2026-09-22. `session_list` is rows on the dock's host and a chrome row
+   over them; the lanes keep the `draw` node, and `canvas_on` is what says
+   which of the two the panel is showing.
+
+   **The Tiles palette is rows.** Done 2026-09-22, 35 calls to 0. Its tools,
+   stamp sizes, terrains, layers and the tile's own flags are chrome rows over
+   the card grid it already filled, and the theme's `chip` and `chip_on` dress
+   every one of them. `tiles:<mode>` opens the dock on a tool, and `tiles:set`
+   on the rows that edit the tile.
+
+   Two defects came out with it. Every message the panel had for an empty
+   state was drawn into the hatch, which `sync_canvas` squashes to one pixel
+   whenever the panel owns a node -- and Tiles owns the cards, so "Select a
+   node with a tilemap to paint it." was never seen. And the tile set's
+   texture was prefixed with the project root although `assets::load` had
+   already made it absolute, so the atlas would not measure and the palette
+   was empty: `util::engine_path` is the one place that decides, and
+   `anim::engine_path` moved there.
+   **The State machine dock is rows.** Done 2026-09-22, 53 calls to 0. A
+   panel whose rows are nodes fills `BottomRows`, a scroll and a column the
+   dock hands over with `dock::rows_host`; `node_owners` hides it for every
+   other panel, the way the `list` and the `table` are hidden. The header is
+   the dock's own chrome strip, the states and transitions are pooled rows,
+   and an open transition's fields are rows under it. `machinedemo` asserts
+   what the pool left on the scene, since the rows are only there after a
+   draw.
+4. **The Events view's row pool.** Done 2026-09-22, 26 calls to 0. `DocPanel`
+   is the node a document tab whose rows are nodes fills, under `Stage` and
+   over the whole of it, since the bindings tab never splits with the scene.
+   Its head carries the title and the two verbs, and a binding is a row of
+   eight controls; the scene's variables and the node's script hooks are rows
+   under them. `eventsdemo` asserts what the pool left and the width the
+   document area gave it. Every other document tab draws, so `center.rn`
+   hides the node for them.
 5. **`plugins::editor` returns a closure**, and a `draw` widget names a
    method by string, so a plugin's property editor cannot be a node. Until
    that API takes a name, the panel falls back to drawing.
@@ -305,9 +417,9 @@ the work is not "move the screens", it is "stop drawing the controls".
    Dropping the stated height does not work: a `draw` records what the script
    painted, the script paints into the box it was given, and the pair settles
    wherever it starts. Measured at 67 px against a 28 px chrome. So the
-   height is stated, and `panels()` carries it: `chrome = 28.0` on the three
-   card panels, one pixel for every other, which is the hatch still being
-   there with nothing drawn in it. `layoutdemo` asserts the tab row's box.
+   hatch gives its room up, and `panels()` says which panels keep chrome with
+   `chrome = true`; the strip is a column of pooled rows, since Tiles keeps
+   four of them. `layoutdemo` asserts the tab row's box.
 
 ## 7. Where a number lives
 
@@ -342,43 +454,45 @@ carries 101 roles.
 
 ## 8. A dock is a node a plugin is handed
 
-Designed 2026-09-21. `kit.rn` is 49 `ui::*` calls today, and each is a verb a
-plugin borrows: `tabs`, `pages`, `tree`, `field`, `section`, `files`. They are
-calls because a plugin dock has no node of its own. It draws into the shared
-hatch, so there is nothing for it to put children under.
+Designed 2026-09-21, built 2026-09-22. `kit.rn` was 49 `ui::*` calls and is 1:
+every verb answers a row now, and the editor writes the rows onto the node it
+made for that dock.
 
-The seam is the node, not the verb. A dock registers, the editor makes it a
-subtree, and the plugin is handed the host:
+A dock registers, the editor makes it a subtree, and the plugin is handed the
+host. Rune reads `host.strip(..)` as a method call rather than a call of a
+stored closure, which is why `register()` returns a description in the first
+place, so the verbs stay on `S.kit` and take the host:
 
     // In a plugin's own script.
-    pub fn register(editor) {
-        editor.dock(#{
-            id: "sprites",
-            name: "Sprites",
-            side: "bottom",
-            fill: script::shared(fill),
-        })
+    pub fn register() {
+        #{ docks: [#{ id: "sprites", name: "Sprites", draw: dock }] }
     }
 
     // Called each frame with the node the editor made for this dock.
-    fn fill(S, host) {
-        host.strip("head", [
-            #{ kind: "button", role: "chrome_verb", text: "Reload", on: |_| { … } },
-            crate::search::control(S, "sprites", "Search", 140.0),
+    pub fn dock(S, k, host) {
+        let strip = S.kit.strip;
+        let rows = S.kit.rows;
+        strip(S, host, "head", [
+            #{ kind: "button", role: "chip", text: "Reload", on: |_| { … } },
         ]);
-        host.rows("body", sprites(S).len(), 28.0, |i| row_for(S, i));
+        rows(S, host, "body", specs(S));
     }
 
 What the editor gives the plugin:
 
-- **`host`**, the dock's own node. The editor makes one subtree per registered
-  dock under the side it asked for, and hides it while another panel is up.
-- **`host.strip(name, controls)`**, which is `pool::strip` against a named
-  child. A control is the table the pool already takes, `on` and all.
-- **`host.rows(name, count, row)`**, a pooled list: `row(i)` answers the
-  control table for one, and the pool makes and reuses the nodes.
-- **`host.node(name)`**, for a plugin that wants the node itself, to
+- **`host`**, the dock's own node: a `Head`, a `Side`, a `Body` of rows and a
+  `Foot`, from one `scene::instantiate` of a fragment under the side's
+  `<Side>Plugins` node. One per dock and side, made the first time that dock
+  is drawn there and hidden while another panel is up.
+- **`strip(S, host, name, controls)`**, which is `pool::strip` against
+  `head`, `foot` or `side`.
+- **`rows(S, host, name, specs)`**, which is `pool::sync`: the same spec the
+  inspector and the settings screen are built from, `on` and all.
+- **`node(host, name)`**, for a plugin that wants the node itself, to
   `add_child` or to read a rect back.
+- **The row verbs**: `section`, `empty`, `field`, `tree`, `files`, `tabs` and
+  `pages`. Each answers a spec or a list of them; `tabs` and `pages` write the
+  head or the sidebar themselves and answer which page is open.
 
 Three things this settles that the call kit could not:
 
@@ -393,14 +507,18 @@ Three things this settles that the call kit could not:
   A dock that proves it needs a window over hundreds of such rows is what
   brings `pool::window` back; nothing does yet.
 
-The scene fragments §8 used to ask for are how the editor makes the subtree:
-one `scene::instantiate` of a `dock.toml` fragment per registered dock, with
-`head`, `body` and `foot` named in it. A plugin that wants a shape the
-fragment has not got calls `host.node(name).add_child(…)` and states a
-`widget` component itself, which is the same thing the editor's own docks do.
+`counterdemo` asserts the seam: the host is a subtree, the User data dock's
+files are rows on it, and a file opened puts its keys under the row that
+opened it.
 
-`kit.rn` then keeps only what is genuinely a *drawing*: `leaf` and
-`document`, the two that paint a file's contents.
+Two things this does not cover:
+
+- **A plugin's floating window is still drawn.** `draw_windows` places each
+  one with `layout::window_rect` inside an immediate sheet, so a window has no
+  node to hand over. `counter.rn` keeps one drawn function for its window,
+  which is the one `ui::*` call left in the plugin seam.
+- **`scrolls: true` is gone.** A plugin dock always carries its own scroll
+  now, so the option said nothing.
 
 ## 8.1 The old plan: a kit of scenes, not of calls
 

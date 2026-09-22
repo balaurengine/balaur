@@ -4,7 +4,6 @@
 use crate::history;
 use crate::icons;
 use crate::model;
-use crate::style;
 use crate::util;
 
 pub fn state() {
@@ -99,26 +98,10 @@ fn variable_names(S) {
 
 const ROW_H = 26.0;
 
-fn field(S, k, at, key, current, choices, width) {
-    let (picked, changed) = ui::dropdown(
-        format!("bind:{}:{}:{}", S.sel, at, key),
-        current,
-        choices,
-        #{ width: width, size: style::SM, height: 24, color: k.text },
-    );
-    if changed {
-        set_field(S, at, key, picked);
-    }
-}
-
-fn text_field(S, k, at, key, current, placeholder, width) {
-    let (text, _, submitted) = ui::text_field(
-        format!("bindtext:{}:{}:{}", S.sel, at, key),
-        placeholder,
-        util::merge(style::field(k, width), #{ value: current, size: style::SM, height: 24 }),
-    );
-    if submitted && text != current {
-        set_field(S, at, key, text);
+fn as_text(value) {
+    match value {
+        Some(value) => if value is String { value } else { format!("{}", value) },
+        None => "",
     }
 }
 
@@ -127,43 +110,60 @@ fn targets_a_variable(action) {
     action == "set_variable" || action == "add_variable"
 }
 
-fn draw_row(S, k, at, row) {
+// A dropdown over one of a row's fields.
+fn pick(S, at, key, current, choices, width) {
+    #{
+        kind: "dropdown", role: "form_pick", width: width,
+        text: current, options: choices,
+        on: |picked| { set_field(S, at, key, picked); },
+    }
+}
+
+// A field over one of a row's fields, written on Enter rather than per key.
+fn typed(S, at, key, current, placeholder, width) {
+    #{
+        kind: "field", role: "form_field", width: width,
+        text: current, placeholder: placeholder,
+        on_submit: |text| {
+            if text != current {
+                set_field(S, at, key, text);
+            }
+        },
+    }
+}
+
+/// One binding: what happens, when, and what it does.
+fn row_spec(S, at, row) {
     let event = row.get("event").unwrap_or("pointer_click");
     let action = row.get("action").unwrap_or("state");
     let target = row.get("target").unwrap_or("");
-    ui::horizontal(#{ height: ROW_H }, || {
-        ui::spacing(6, 0);
-        ui::label(format!("{}", at + 1), style::mono_sm(k.faint));
-        field(S, k, at, "event", event, util::vec(scene::bindable_events()), 150.0);
-        text_field(S, k, at, "when", row.get("when").unwrap_or(""), "always", 130.0);
-        ui::label("→", style::mono_sm(k.accent));
-        field(S, k, at, "action", action, util::vec(scene::binding_actions()), 130.0);
-        if targets_a_variable(action) {
-            field(S, k, at, "target", if target == "" { "—" } else { target },
-                variable_names(S), 120.0);
-        } else {
-            let shown = if target == "" { "(this node)" } else { target };
-            let (picked, changed) = ui::dropdown(
-                format!("bind:{}:{}:target", S.sel, at),
-                shown, target_paths(S),
-                #{ width: 140, size: style::SM, height: 24, color: k.text },
-            );
-            if changed {
+    let controls = [
+        #{ kind: "label", role: "meta", width: 18, text: format!("{}", at + 1) },
+        pick(S, at, "event", event, util::vec(scene::bindable_events()), 150.0),
+        typed(S, at, "when", row.get("when").unwrap_or(""), "always", 130.0),
+        #{ kind: "label", role: "error_note", text: "→" },
+        pick(S, at, "action", action, util::vec(scene::binding_actions()), 130.0),
+    ];
+    if targets_a_variable(action) {
+        controls.push(pick(S, at, "target", if target == "" { "—" } else { target },
+            variable_names(S), 120.0));
+    } else {
+        controls.push(#{
+            kind: "dropdown", role: "form_pick", width: 140,
+            text: if target == "" { "(this node)" } else { target },
+            options: target_paths(S),
+            on: |picked| {
                 set_field(S, at, "target", if picked == "(this node)" { "" } else { picked });
-            }
-        }
-        text_field(S, k, at, "value", as_text(row.get("value")), "value", 110.0);
-        if ui::pill(icons::ui("close"), #{ height: 20, size: style::SM, min_width: 22, color: k.accent }) {
-            remove_row(S, at);
-        }
-    });
-}
-
-fn as_text(value) {
-    match value {
-        Some(value) => if value is String { value } else { format!("{}", value) },
-        None => "",
+            },
+        });
     }
+    controls.push(typed(S, at, "value", as_text(row.get("value")), "value", 110.0));
+    controls.push(#{
+        kind: "button", role: "chip_quiet", text: icons::ui("close"),
+        tooltip: "Remove this binding",
+        on: |_| { remove_row(S, at); },
+    });
+    #{ full: true, height: ROW_H, slot_role: "verb_row", controls: controls }
 }
 
 /// The Rune a row is equivalent to, which is what "Convert to script" writes.
@@ -307,87 +307,101 @@ pub fn convert_to_script(S) {
     log::info("wrote " + rel);
 }
 
+/// The node the document area hands a tab whose rows are nodes.
+const PANEL = "Editor/Shell/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Stage/DocPanel";
+
+/// Stop showing the view, for the frame a document tab that draws is up.
+pub fn hide() {
+    util::hide(PANEL);
+}
+
+/// Where the rows go, which the self-test reads back.
+pub fn rows_host() {
+    PANEL + "/DocScroll/DocRows"
+}
+
 /// The document tab: the selected node's rows, and the variables they read.
 pub fn view(S, k) {
-    let r = S.layout.doc;
-    if !style::placed(r) {
-        return;
+    util::fill(PANEL, #{ visible: true });
+    let node = S.doc[S.sel];
+    crate::pool::strip(S, PANEL + "/DocHead", [
+        #{ kind: "label", role: "heading", grow: 1,
+            text: format!("EVENT BINDINGS · {}", node.name) },
+        #{
+            kind: "button", role: "row_action_sage", text: "‹›  Convert to script",
+            on: |_| { convert_to_script(S); },
+        },
+        #{
+            kind: "button", role: "row_action_warn", text: icons::ui("add") + "  Add row",
+            on: |_| { add_row(S); },
+        },
+    ]);
+    let specs = [];
+    let held = rows(S);
+    if held.len() == 0 {
+        specs.push(note("no bindings on this node yet"));
     }
-    ui::overlay("events", #{
-        x: r.x, y: r.y, w: r.w, h: r.h,
-        fill: k.bg, stroke: k.line, radius: 11,
-        padding_x: 20, padding_y: 14,
-    }, || {
-        let node = S.doc[S.sel];
-        ui::horizontal(#{ height: 24 }, || {
-            style::section_label(k, format!("event bindings · {}", node.name));
-            ui::right(|| {
-                if ui::pill("‹›  Convert to script", #{
-                    height: 24, size: style::SM, fill: k.sage_soft, color: k.sage,
-                }) {
-                    convert_to_script(S);
-                }
-                ui::add_space(6);
-                if ui::pill(icons::ui("add") + "  Add row", #{
-                    height: 24, size: style::SM, fill: k.accent_soft, color: k.accent,
-                }) {
-                    add_row(S);
-                }
-            });
-        });
-        ui::add_space(6);
-        let held = rows(S);
-        ui::scroll("events-rows", #{ max_height: r.h - 150.0 }, || {
-            ui::spacing(4, 3);
-            if held.len() == 0 {
-                style::empty(k, "no bindings on this node yet");
-            }
-            for (at, row) in held.iter().enumerate() {
-                draw_row(S, k, at, util::obj(row));
-            }
-        });
-        ui::add_space(10);
-        variables_section(S, k);
-        ui::add_space(10);
-        hooks_section(S, k);
-    });
+    for (at, row) in held.iter().enumerate() {
+        specs.push(row_spec(S, at, util::obj(row)));
+    }
+    variable_specs(S, specs);
+    hook_specs(S, specs);
+    crate::pool::sync(S, rows_host(), specs, 0.0, false);
+}
+
+fn note(text) {
+    #{ full: true, height: 0, controls: [#{
+        kind: "label", role: "meta", grow: 1, wrap: true, text: text,
+    }] }
+}
+
+fn head(text) {
+    #{ full: true, height: 26, controls: [#{
+        kind: "label", role: "heading", grow: 1, text: text.to_uppercase(),
+    }] }
 }
 
 /// What the scene declares, so a `when` has something to name. Read-only: a
 /// variable is declared in the scene file's `[variables]`.
-fn variables_section(S, k) {
-    style::section_label(k, "scene variables");
+fn variable_specs(S, out) {
+    out.push(head("scene variables"));
     let declared = util::vec(scene::variables());
     if declared.len() == 0 {
-        style::empty(k, "none; declare them under [variables] in the scene file");
+        out.push(note("none; declare them under [variables] in the scene file"));
         return;
     }
     for entry in declared {
-        ui::horizontal(#{ height: 24 }, || {
-            ui::add_space(6);
-            ui::label(entry.name, style::mono_sm(k.text));
-            ui::add_space(8);
-            ui::label(entry["type"], style::mono_sm(k.faint));
-            ui::right(|| {
-                ui::label(format!("{}", entry.value), style::mono_sm(k.sage));
-            });
-        });
+        out.push(#{ full: true, height: 24, slot_role: "verb_row", controls: [
+            #{ kind: "label", role: "mono", text: entry.name },
+            #{ kind: "label", role: "meta", text: entry["type"] },
+            #{ kind: "row", grow: 1 },
+            #{ kind: "label", role: "answer_yes", text: format!("{}", entry.value) },
+        ] });
     }
 }
 
 /// The hooks the node's own script declares, which is what this view used to
 /// be and is still worth showing beside the rows.
-fn hooks_section(S, k) {
+fn hook_specs(S, out) {
     let node = S.doc[S.sel];
     let script_some = model::script_rel(node);
     let script = match script_some {
         Some(script) => script,
         None => return,
     };
-    style::section_label(k, "script hooks");
+    out.push(head("script hooks"));
     for hook in model::hooks(S, script) {
-        style::hook_pill(k, hook.name,
-            format!("{}.{}()", node.name, hook.name),
-            format!("{}:{}", script, hook.line));
+        let lifecycle = hook.name == "init" || hook.name == "update";
+        out.push(#{ full: true, height: 28, controls: [#{
+            kind: "row", role: "hook_pill", controls: [
+                #{
+                    kind: "label", text: "•",
+                    role: if lifecycle { "hook_dot_life" } else { "hook_dot" },
+                },
+                #{ kind: "label", role: "mono", text: format!("{}.{}()", node.name, hook.name) },
+                #{ kind: "row", grow: 1 },
+                #{ kind: "label", role: "meta", text: format!("{}:{}", script, hook.line) },
+            ],
+        }] });
     }
 }

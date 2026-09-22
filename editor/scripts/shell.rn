@@ -205,7 +205,6 @@ pub fn open_palette(S, query) {
     // Dropped on every opening, so a component a reloaded plugin registered is
     // in the list the next time it is asked for.
     S.palette_cache = ();
-    ui::set_text("palette-query", query);
 }
 
 /// The reader asking for a scale, which outranks what the screen wanted.
@@ -241,6 +240,7 @@ pub fn scale_for_screen(S) {
 
 pub fn close_palette(S) {
     S.palette = false;
+    crate::window::picker_shut(S);
 }
 
 pub fn toggle_play(S) {
@@ -739,6 +739,7 @@ fn states() {
         "themedemo": crate::selftest::theme_switch,
         "settingsdemo": crate::selftest::settings_screen,
         "paneldemo": crate::selftest::menu_panels,
+        "palettedemo": crate::selftest::palette_screen,
         "focusdemo": crate::selftest::focusing,
         "focus": state_focus,
         "seldemo": crate::selftest::selecting,
@@ -767,6 +768,9 @@ fn prefixed_states() {
         ("frames=", state_frames),
         ("show:", state_show),
         ("tool:", state_tool),
+        ("tiles:", state_tiles),
+        ("page:", state_page),
+        ("palette:", state_palette_query),
         ("dock:", state_dock),
         ("view:", state_view),
         ("asset:", state_asset),
@@ -898,6 +902,19 @@ fn state_tab(S, tab) {
     }
 }
 
+// `page:<dock>/<name>`: the page a plugin dock's sidebar is on, which the kit
+// remembers per dock. The one way in from outside it.
+fn state_page(S, arg) {
+    let parts = arg.split('/').collect::<Vec>();
+    if parts.len() < 2 {
+        return;
+    }
+    if !S.contains_key("kit_state") {
+        S.kit_state = #{};
+    }
+    S.kit_state["tab:" + parts[0]] = parts[1];
+}
+
 fn state_fontdemo(S) {
     S.fontdemo = true;
 }
@@ -990,6 +1007,17 @@ fn state_mode(S, mode) {
     crate::polygon::set_mode(S, mode);
 }
 
+// `tiles:<mode>`: the Tiles dock on one of its tools, and `tiles:set` on the
+// rows that edit the tile itself.
+fn state_tiles(S, mode) {
+    crate::docks::show(S, "tiles");
+    if mode == "set" {
+        S.tiles.editing = true;
+        return;
+    }
+    crate::tiles::set_mode(S, mode);
+}
+
 // Self-test state: select a node by name (e.g. select:Pig1).
 fn state_select(S, name) {
     select_named(S, name);
@@ -1001,6 +1029,11 @@ fn state_zoom(S, pct) {
 
 fn state_palette(S) {
     open_palette(S, "");
+}
+
+// `palette:<query>`: the palette open on what it matches, for a screenshot.
+fn state_palette_query(S, query) {
+    open_palette(S, query);
 }
 
 fn state_light(S) {

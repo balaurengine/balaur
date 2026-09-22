@@ -33,6 +33,9 @@ pub(crate) struct Measure<'a> {
     /// and no floor applied. Asked twice a leaf a pass — once to see whether
     /// the content moved, once by taffy solving the node.
     leaves: FxHashMap<usize, egui::Vec2>,
+    /// What a wrapping leaf answered at one width, keyed by both: taffy asks
+    /// the same block at several widths while it settles a row.
+    wraps: FxHashMap<(usize, u32), egui::Vec2>,
 }
 
 impl<'a> Measure<'a> {
@@ -44,6 +47,7 @@ impl<'a> Measure<'a> {
             padding: ui.spacing().button_padding * 2.0,
             seen: FxHashMap::default(),
             leaves: FxHashMap::default(),
+            wraps: FxHashMap::default(),
         }
     }
 
@@ -418,17 +422,66 @@ impl<'a> Measure<'a> {
         widget: &Widget,
         theme: &Rc<WidgetTheme>,
     ) -> egui::Vec2 {
+        self.galley_in(index, text, widget, theme, None)
+    }
+
+    /// The same line inside a box: `None` is no box, which is what everything
+    /// but a wrapping block asks for.
+    fn galley_in(
+        &self,
+        index: usize,
+        text: &str,
+        widget: &Widget,
+        theme: &Rc<WidgetTheme>,
+        width: Option<f32>,
+    ) -> egui::Vec2 {
         let look = crate::widget::arena::look_of(self.arena, index, theme);
         let (style, font) = (&look.style, look.font.clone());
         if let Some(state) = balaur_text::state(self.eng) {
-            let request = crate::widget::text::text_request(widget, text, None, &font, style);
+            let request = crate::widget::text::text_request(widget, text, width, &font, style);
             return state
                 .borrow_mut()
                 .shape_for_egui(&self.painter.ctx().clone(), &request)
                 .size;
         }
-        self.painter
-            .layout_no_wrap(text.to_owned(), font, egui::Color32::WHITE)
-            .size()
+        match width {
+            Some(width) => self
+                .painter
+                .layout(text.to_owned(), font, egui::Color32::WHITE, width)
+                .size(),
+            None => self
+                .painter
+                .layout_no_wrap(text.to_owned(), font, egui::Color32::WHITE)
+                .size(),
+        }
+    }
+
+    /// How tall a wrapping block is in a box of `width`, which the unwrapped
+    /// measure cannot say: `None` for anything that does not wrap.
+    pub(crate) fn wrapped(
+        &mut self,
+        index: usize,
+        width: f32,
+        theme: &Rc<WidgetTheme>,
+    ) -> Option<egui::Vec2> {
+        // Lifted off `self` so the cache below may be written: the arena
+        // outlives the measure that borrows it.
+        let arena = self.arena;
+        let widget = &arena[index].widget;
+        if !widget.visible || !widget.wrap || widget.kind != w::LABEL || width <= 0.0 {
+            return None;
+        }
+        let key = (index, width.to_bits());
+        if let Some(size) = self.wraps.get(&key) {
+            return Some(*size);
+        }
+        let caption = caption(self.eng, widget);
+        if caption.is_empty() {
+            return None;
+        }
+        let theme = crate::widget::arena::theme_at(self.eng, arena, index, theme);
+        let size = self.galley_in(index, &caption, widget, &theme, Some(width));
+        self.wraps.insert(key, size);
+        Some(size)
     }
 }

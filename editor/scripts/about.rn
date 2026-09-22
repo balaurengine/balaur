@@ -20,54 +20,63 @@ pub fn open(S) {
 }
 
 pub fn draw(S) {
-    let k = S.theme;
-    crate::window::sheet(S, SHEET, "About Balaur", || {}, || {
-        body(S, k);
-    });
+    let hosts = crate::window::sheet_form(S, SHEET, "About Balaur", || {});
+    if util::is_nil(hosts) {
+        return;
+    }
+    crate::pool::sync(S, hosts.form, specs(S), LABEL_W, false);
 }
 
-fn body(S, k) {
-    let w = crate::window::inner_w(S);
-    let h = util::max(style::row_h(S), 30.0);
+/// Every row the sheet shows: which build this is, the line it follows, and
+/// where to read more.
+fn specs(S) {
     let mine = util::obj(release::installed());
-    ui::horizontal(#{ height: 52, width: w }, || {
-        crate::manager::mark(44.0);
-        ui::add_space(14);
-        ui::vertical(|| {
-            ui::label("Balaur " + mine.version, #{
-                size: style::LG, font: ui::FONT_HEADING, strong: true, color: k.text,
-            });
-            ui::label(crate::manager::build_line(mine), style::mono_sm(k.faint));
-        });
-    });
-    ui::add_space(12);
-    fact(k, w, "Version", mine.version);
-    fact(k, w, "Build", if mine.source == true { "from a checkout" } else { mine.id });
-    fact(k, w, "Channel", if mine.channel == "" { "none" } else { mine.channel });
-    fact(k, w, "Platform", engine::platform().os);
-    fact(k, w, "Licence", "MIT");
+    let out = [#{ full: true, height: 56, slot_role: "verb_row", controls: [
+        #{ kind: "panel", role: "logo_plate", controls: [
+            #{ kind: "image", source: crate::manager::LOGO, width: 44 },
+        ] },
+        #{ kind: "column", role: "about_name", controls: [
+            #{ kind: "label", role: "title", text: "Balaur " + mine.version },
+            #{ kind: "label", role: "meta", text: crate::manager::build_line(mine) },
+        ] },
+    ] }];
+    fact(out, "Version", mine.version);
+    fact(out, "Build", if mine.source == true { "from a checkout" } else { mine.id });
+    fact(out, "Channel", if mine.channel == "" { "none" } else { mine.channel });
+    fact(out, "Platform", engine::platform().os);
+    fact(out, "Licence", "MIT");
     // A tab runs the build the page served it, so it has no line to follow.
+    // Drawn, because the check and the install are the start screen's own.
     if !crate::manager::in_tab() {
-        ui::add_space(12);
-        update(S, k, w, h, mine);
+        out.push(#{ full: true, height: 72, draw: "draw_about_update" });
     }
-    ui::add_space(12);
-    ui::horizontal(#{ height: h, width: w }, || {
-        link(k, h, "balaurengine.org", SITE);
-        ui::add_space(8);
-        link(k, h, "Source", SOURCE);
-    });
+    out.push(#{ full: true, height: 30, slot_role: "verb_row", controls: [
+        link("balaurengine.org", SITE),
+        link("Source", SOURCE),
+    ] });
+    out
 }
 
 // One label and its value, the value in the monospace a build id reads in.
-// A label takes no width, so the column is a row of its own that does.
-fn fact(k, w, name, value) {
-    ui::horizontal(#{ height: 22, width: w }, || {
-        ui::horizontal(#{ height: 22, width: LABEL_W }, || {
-            ui::label(name, #{ size: style::MD, color: k.dim });
-        });
-        ui::label(value, style::mono_sm(k.text));
-    });
+fn fact(out, name, value) {
+    out.push(#{ label: name, height: 22, controls: [#{
+        kind: "label", role: "mono", grow: 1, text: value,
+    }] });
+}
+
+fn link(text, url) {
+    #{
+        kind: "button", role: "chip", text: text, tooltip: url,
+        on: |_| { engine::open_url(url); },
+    }
+}
+
+/// The hatch the update row draws into: the line's standing, the release to
+/// move to, and the press that asks again.
+pub fn draw_update(S) {
+    let k = S.theme;
+    let mine = util::obj(release::installed());
+    update(S, k, crate::window::inner_w(S), util::max(style::row_h(S), 30.0), mine);
 }
 
 // Where this build's line stands, the press that asks again, and the newest
@@ -108,11 +117,4 @@ fn update(S, k, w, h, mine) {
     }
 }
 
-fn link(k, h, text, url) {
-    if ui::pill(text, #{
-        height: h, size: style::SM, radius: 8, padding_x: 12,
-        fill: k.sunken, color: k.dim, tooltip: url,
-    }) {
-        engine::open_url(url);
-    }
-}
+

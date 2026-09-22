@@ -1351,7 +1351,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 101 properties
+`ui` · 102 properties
 
 A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button sets `clicked` and calls `on_click`.
 
@@ -1451,6 +1451,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>toggle</code></td><td>bool</td><td><code>false</code></td><td>A `button` a click holds down and the next releases, flipping `checked` as a `check` does, before `on_click` runs: Godot&#x27;s toggle mode</td></tr>
 <tr><td><code>tooltip</code></td><td>string</td><td>—</td><td>Text shown after the pointer rests on the widget; still shown when it is `disabled`, which is where it says why</td></tr>
 <tr><td><code>trailing</code></td><td>string</td><td>—</td><td>Text a button draws against its far edge, dimmer than its caption: a shortcut, or a menu&#x27;s caret</td></tr>
+<tr><td><code>truncate</code></td><td>bool</td><td><code>false</code></td><td>Cut a caption too long for the width the widget was given and end it with an ellipsis, rather than clip it mid-glyph</td></tr>
 <tr><td><code>value</code></td><td>float</td><td><code>0.0</code></td><td>Where a `slider`, `drag_value` or `progress` stands, between `min` and `max`; a slider and a drag value write it and call `on_change` with it</td></tr>
 <tr><td><code>visible</code></td><td>bool</td><td><code>true</code></td><td>Draw the widget; hidden widgets keep their state</td></tr>
 <tr><td><code>warnings</code></td><td>list of string</td><td><code>[]</code></td><td>The lines a `code` widget underlines as warnings, counting from 1; an error on the same line outranks it</td></tr>
@@ -1473,7 +1474,7 @@ Reactions the node runs from a table: each row is an `event`, a `when` over the 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>rows</code></td><td>list of string</td><td><code>[]</code></td><td>The binding rows, each `{ event, when, action, target, value }`</td></tr>
+<tr><td><code>rows</code></td><td>list of record · <code>action, event, target, value, when</code></td><td><code>[]</code></td><td>The binding rows, each `{ event, when, action, target, value }`</td></tr>
 </tbody>
 </table>
 

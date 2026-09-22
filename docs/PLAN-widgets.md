@@ -222,6 +222,10 @@ The work, in order:
 | `[hint]` in `markup` | a span with a tooltip | `RichTextLabel` `[hint]` | built |
 | `selectable` | a drag over a label selects, copy takes the text | `selection_enabled` | built |
 | `arrows` | up and down steps on a `drag_value` | `SpinBox` arrows | built |
+| `switch` | a track and a knob a click flips, holding `checked`; its held look is its role's `active` table | `CheckBox` in a switch theme | built |
+| `truncate` | a caption too long for its box cut and ended with an ellipsis, through the shaper rather than egui's own text | `text_overrun_behavior` | built |
+| `submitted` | true for the frame after Enter or a lost focus, as `clicked` reports a press, so a row may write on Enter rather than per key | `text_submitted` | built |
+| `ui::set_focus` on a `field` | the caret goes where focus was put, and a `field` and a `text_area` are focus stops | `grab_focus` | built |
 
 `radio` and `text` from the first draft are struck: the first is `check` with
 a `group`, the second is `text_area`.

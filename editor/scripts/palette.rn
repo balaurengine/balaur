@@ -6,7 +6,6 @@ use crate::history;
 use crate::icons;
 use crate::model;
 use crate::shell;
-use crate::style;
 use crate::theme;
 use crate::util;
 
@@ -185,81 +184,75 @@ pub fn draw(S) {
     if !S.palette {
         return;
     }
-    let k = S.theme;
-    let screen = ui::screen_size();
-    // One width, taken from the screen: a phone is narrower than the 560 a
-    // laptop gets, and every column inside is measured off what is left.
-    let width = util::min(560.0, util::max(screen[0] - 32.0, 240.0));
-    let inner = width - 32.0;
-    let row_h = crate::style::row_h(S);
-    let scrim_clicked = ui::modal("palette", #{
-        width: width, top: 0.11, fill: k.panel, stroke: k.line,
-        scrim: "#0b0e126b",
-    }, || {
-        ui::frame(#{ padding_x: 16, padding_y: 12 }, || {
-            ui::horizontal(#{ height: row_h }, || {
-                ui::label(icons::ui("search"), #{ size: style::XL, color: k.accent });
-                ui::add_space(4);
-                let (text, _, submitted) = ui::text_field("palette-query", "Nodes, commands, personas…", #{
-                    size: style::XL, width: inner - 90.0, autofocus: true, color: k.text,
-                });
-                S.palette_query = text;
-                ui::right(|| {
-                    ui::pill("esc", #{ height: 20, size: style::SM, strong: true, fill: k.sunken, color: k.faint });
-                });
-                if submitted {
-                    S.palette_submit = true;
-                }
-            });
-        });
-        ui::separator(k.line);
-        ui::scroll("palette-results", #{ max_height: util::max(screen[1] * 0.5, 160.0) }, || {
-            ui::spacing(4, 4);
-            ui::add_space(8);
-            let query = S.palette_query.to_lowercase();
-            let first = true;
-            let matched = 0;
-            for cmd in commands(S) {
-                // Match the facets too, so "physics" or "2d" narrows the
-                // list even though neither word is in the label.
-                let haystack = (cmd.label + " " + cmd.tags).to_lowercase();
-                if query == "" || haystack.contains(query) {
-                    matched += 1;
-                    let hit = #{ run: false };
-                    let highlighted = first;
-                    ui::horizontal(#{ height: util::max(row_h, 30.0) }, || {
-                        ui::add_space(8);
-                        if ui::pill(cmd.label, #{
-                            height: util::max(row_h, 30.0), size: style::MD, align: ui::ALIGN_LEFT,
-                            min_width: inner - 100.0,
-                            icon: cmd.icon, icon_size: style::LG, icon_color: k.accent,
-                            fill: if highlighted { k.sunken } else { "#00000000" },
-                            hover_fill: k.sunken,
-                            color: k.text,
-                            tooltip: cmd.key,
-                        }) {
-                            hit.run = true;
-                        }
-                        ui::right(|| {
-                            ui::add_space(10);
-                            ui::label(cmd.key, style::mono_sm(k.faint));
-                        });
-                    });
-                    if hit.run || (S.palette_submit && first) {
-                        (cmd.run)();
-                        shell::close_palette(S);
-                    }
-                    first = false;
-                }
-            }
-            if matched == 0 {
-                style::empty(k, "no matches");
-            }
-            ui::add_space(8);
-        });
+    let matched = matches(S);
+    let row_h = util::max(crate::style::row_h(S), 30.0);
+    let host = crate::window::picker(S, #{
+        width: 560.0,
+        mark: icons::ui("search"),
+        placeholder: "Nodes, commands, personas…",
+        query: S.palette_query,
+        rows_h: (matched.len() as f64) * (row_h + 2.0) + 4.0,
+        on: |text| { S.palette_query = text; },
+        on_submit: |text| {
+            S.palette_query = text;
+            S.palette_submit = true;
+        },
     });
-    S.palette_submit = false;
-    if scrim_clicked || ui::shortcut("escape") {
+    if util::is_nil(host) {
         shell::close_palette(S);
+        return;
     }
+    crate::pool::sync(S, host, row_specs(S, matched, row_h), 0.0, false);
+}
+
+// What the query names, in the order the catalogue offers them. The facets
+// are matched too, so "physics" or "2d" narrows the list even though neither
+// word is in the label.
+fn matches(S) {
+    let query = S.palette_query.to_lowercase();
+    let out = [];
+    for cmd in commands(S) {
+        let haystack = (cmd.label + " " + cmd.tags).to_lowercase();
+        if query == "" || haystack.contains(query) {
+            out.push(cmd);
+        }
+    }
+    out
+}
+
+fn row_specs(S, matched, row_h) {
+    let out = [];
+    if matched.is_empty() {
+        out.push(#{ full: true, height: 0, controls: [#{
+            kind: "label", role: "meta", grow: 1, wrap: true, text: "no matches",
+        }] });
+        S.palette_submit = false;
+        return out;
+    }
+    // Enter runs the first match, which is why it wears the held look.
+    if S.palette_submit {
+        let run = matched[0].run;
+        run();
+        shell::close_palette(S);
+        S.palette_submit = false;
+        return out;
+    }
+    for (at, entry) in matched.iter().enumerate() {
+        // Bound afresh: a closure made in a loop captures the binding.
+        let cmd = entry;
+        out.push(#{ full: true, height: row_h, slot_role: "verb_row", controls: [
+            #{
+                kind: "button", grow: 1, text: cmd.label, icon: cmd.icon,
+                role: if at == 0 { "picker_row_on" } else { "picker_row" },
+                tooltip: cmd.key,
+                on: |_| {
+                    let run = cmd.run;
+                    run();
+                    shell::close_palette(S);
+                },
+            },
+            #{ kind: "label", role: "meta", text: cmd.key },
+        ] });
+    }
+    out
 }

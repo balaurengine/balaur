@@ -244,20 +244,21 @@ shows its value in mono with a copy mark. One drawing function serves the
 profile, the lobby, a hook's reply and a key-value value.
 
 **What any plugin can reuse.** A plugin's script is its own Rune unit, so it
-cannot import the editor's modules; it gets `S`, the theme `k` and the `ui`
-verbs. The parts this dock needs are the parts anyone's dock needs, so they
-are written once in the editor and handed to every plugin as closures at
-`S.kit`: `tabs(S, k, id, names)` answering the active one and wrapping to the
-width, `pages(S, k, id, groups, draw)` (a sidebar of pages beside the open
-one, a dropdown when narrow), `tree(S, k, id, value, opts)` (editable with `edit`),
-`field(S, k, label, value, opts)` with copy and mask, `section(k, title)`,
-`empty(k, text)`, `files(S, k, id, opts)` (a folder's TOML and JSON files as
-editable structures, with reveal), `game_data(S)` and `save_prefs(S)`. The
-editor's own User data dock (`editor/plugins/userdata.rn`) is `files` over
-the game's user data directory, which is the generic half of the Data
-tab. A plugin adds a dock tab, a floating
-window (`windows`), a palette command or an inspector section the same way
-the Gamend one does; the manual's "Extending the editor" is the reference.
+cannot import the editor's modules; it gets `S`, the theme `k` and the node
+the editor made for its dock. The parts this dock needs are the parts
+anyone's dock needs, so they are written once in the editor and handed to
+every plugin as closures at `S.kit`. Each answers a row rather than drawing
+one: `strip(S, host, name, controls)` and `rows(S, host, name, specs)` put
+them on the host's `head`, `side`, `body` or `foot`, `node(host, name)` is
+the node itself, and `tabs(S, host, id, names)`, `pages(S, host, id, groups)`,
+`tree(S, id, value, opts)`, `field(S, label, value, opts)`,
+`section(title)`, `empty(text)`, `files(S, id, opts)`, `game_data(S)` and
+`save_prefs(S)` are what a row is made of. The editor's own User data dock
+(`editor/plugins/userdata.rn`) is `files` over the game's user data
+directory, which is the generic half of the Data tab. A plugin adds a dock
+tab, a floating window (`windows`), a palette command or an inspector section
+the same way the Gamend one does; the manual's "Extending the editor" is the
+reference. `docs/PLAN-editor-as-scene.md` §8 is the host's own design.
 
 **What the engine adds for it.** The dock reads state; it keeps none.
 
@@ -355,7 +356,8 @@ no server dependency and can start now.
     Overview and Activity on them, with `args` and `reply` kept per row and
     `clear_activity`. `editor/plugins/counter.rn` is on the kit as the
     worked example, and `editor/plugins/userdata.rn` is the generic User
-    data dock.
+    data dock. Every verb answers a row on the dock's own node since
+    2026-09-22; the dock draws nothing.
   - **E3c, built.** The `[gamend]` settings, `configure()` reading them,
     the two chips and the two links.
   - **E3d, built.** `gamend::session()` and `restore()`, `prefs.rn`, the

@@ -378,6 +378,11 @@ pub(crate) fn solve(
         // The slots a write touched, pushed straight at their own nodes: the
         // walk that would have found them is what this pass is skipping.
         for &index in touched {
+            // Never this solve's own root: synced above with the box it was
+            // handed, it would be restyled here as a child with none.
+            if index == root {
+                continue;
+            }
             let at = crate::widget::arena::theme_at(eng, arena, index, theme);
             sync(
                 &mut held,
@@ -455,6 +460,16 @@ fn leaf(
     let Some(index) = index else {
         return Size::ZERO;
     };
+    // A block that wraps is as tall as its box is narrow, so the height has
+    // to be measured again once taffy knows the width it settled on.
+    if let Some(width) = known.width
+        && let Some(size) = measure.wrapped(index, width, theme)
+    {
+        return Size {
+            width,
+            height: known.height.unwrap_or(size.y),
+        };
+    }
     let want = measure.leaf(index, theme);
     Size {
         width: known.width.unwrap_or(want.x),

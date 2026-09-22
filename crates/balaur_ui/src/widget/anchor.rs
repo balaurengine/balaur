@@ -61,12 +61,16 @@ pub(crate) fn root_frame(
         return (pos, align, size, egui::Order::Middle);
     }
     if widget.kind == w::DIALOG {
-        return (
-            area.center(),
-            Align2::CENTER_CENTER,
-            egui::Vec2::ZERO,
-            egui::Order::Foreground,
-        );
+        // A dialog that states a size is placed at it; one that states none
+        // hugs what is in it, which is what a message box wants. It is
+        // centred unless it anchors itself, as a command palette does.
+        let stated = vec2(widget.width.max(0.0), widget.height.max(0.0));
+        let (pos, align) = if widget.anchor == w::TOP_LEFT {
+            (area.center(), Align2::CENTER_CENTER)
+        } else {
+            root_placement(widget, area)
+        };
+        return (pos, align, stated, egui::Order::Foreground);
     }
     let (pos, align) = root_placement(widget, area);
     // A toast is read over whatever is on screen, so it draws above it.

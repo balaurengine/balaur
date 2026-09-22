@@ -127,6 +127,9 @@ pub struct Widget {
     /// Whether text breaks to the width it was given rather than running past
     /// it on one line.
     pub wrap: bool,
+    /// Cut a caption too long for its box and end it with an ellipsis. A
+    /// box it has: `width`, or the one a `grow` child was given.
+    pub truncate: bool,
     /// A menu row that leaves the menu open when clicked, as a toggle does.
     pub keep_open: bool,
     /// Text against a button's far edge: a shortcut, or a menu's caret.
@@ -347,6 +350,10 @@ pub struct UiFocus {
     /// Set by `focus_next` and friends and consumed by the next draw, so a
     /// script can move focus outside the pass that will act on it.
     pub pending: Option<Move>,
+    /// Whether focus was just put somewhere rather than merely resting there.
+    /// The draw consumes it to put the caret in a field, which is what a
+    /// command palette opening needs and what no property can say.
+    pub taking: bool,
 }
 
 /// What a script or the keyboard asked focus to do.

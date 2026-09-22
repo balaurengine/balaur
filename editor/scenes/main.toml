@@ -296,6 +296,16 @@ grow = 1
 # column of the whole height so the dock below starts clear of it too.
 [nodes.widget.touch]
 row_height = 33
+# Where a plugin dock's own subtree goes on this side.
+[[nodes]]
+id = "left_plugins"
+name = "LeftPlugins"
+parent = "left_sheet"
+[nodes.widget]
+kind = "column"
+visible = false
+grow = 1
+
 [[nodes]]
 id = "centre"
 name = "Centre"
@@ -409,6 +419,16 @@ height = 36
 
 # The Inspector's and Import's rows: a form whose fields change with the
 # selection, so `pool.rn` makes them and hides the spares.
+# Where a plugin dock's own subtree goes on this side.
+[[nodes]]
+id = "right_plugins"
+name = "RightPlugins"
+parent = "right_sheet"
+[nodes.widget]
+kind = "column"
+visible = false
+grow = 1
+
 [[nodes]]
 id = "right_form"
 name = "RightForm"
@@ -521,17 +541,17 @@ kind = "row"
 role = "dock_strip"
 align = "center"
 
-# A panel's own strip over the node it fills: the Assets path and verbs, the
-# Library's chips. One row, filled by whichever panel is up.
+# A panel's own chrome over the node it fills: the Assets path and verbs, the
+# Library's chips, the Tiles modes. A column, because a panel may keep more
+# than one row of them; whichever panel is up fills it.
 [[nodes]]
 id = "bottom_chrome"
 name = "BottomChrome"
 parent = "bottom"
 [nodes.widget]
-kind = "row"
+kind = "column"
 role = "dock_chrome"
 visible = false
-align = "center"
 
 [[nodes]]
 id = "dockbody"
@@ -540,6 +560,27 @@ parent = "bottom"
 [nodes.widget]
 kind = "draw"
 draw = "draw_dock_bottom"
+grow = 1
+
+# A panel whose rows are nodes fills this instead of a `draw` view: the pool
+# makes them under the column, and the scroll is what a long list needs.
+[[nodes]]
+id = "bottom_rows"
+name = "BottomRows"
+parent = "bottom"
+[nodes.widget]
+kind = "scroll"
+axis = "vertical"
+visible = false
+grow = 1
+
+[[nodes]]
+id = "bottom_rows_column"
+name = "BottomRowsColumn"
+parent = "bottom_rows"
+[nodes.widget]
+kind = "column"
+role = "dock_rows"
 grow = 1
 
 # The log-shaped panels, as one node. `dock.rn` fills whichever is up and hides
@@ -643,13 +684,14 @@ draw = "draw_view_bonemap"
 visible = false
 grow = 1
 
+# Where a plugin dock's own subtree goes, above the status strip rather than
+# after it: `docks.rn` makes one child here per registered dock.
 [[nodes]]
-id = "bottom_statemachine"
-name = "BottomStatemachine"
+id = "bottom_plugins"
+name = "BottomPlugins"
 parent = "bottom"
 [nodes.widget]
-kind = "draw"
-draw = "draw_view_statemachine"
+kind = "column"
 visible = false
 grow = 1
 
@@ -693,6 +735,47 @@ parent = "canvas"
 kind = "row"
 grow = 1
 
+# A document tab whose rows are nodes fills this, over the whole stage: the
+# event bindings do. Hidden for the scene and for the code.
+[[nodes]]
+id = "doc_panel"
+name = "DocPanel"
+parent = "stage"
+[nodes.widget]
+kind = "panel"
+role = "doc_panel"
+# A `panel` draws its caption, and the default one is the word "label".
+text = ""
+visible = false
+grow = 1
+
+[[nodes]]
+id = "doc_head"
+name = "DocHead"
+parent = "doc_panel"
+[nodes.widget]
+kind = "row"
+role = "doc_head"
+align = "center"
+
+[[nodes]]
+id = "doc_scroll"
+name = "DocScroll"
+parent = "doc_panel"
+[nodes.widget]
+kind = "scroll"
+axis = "vertical"
+grow = 1
+
+[[nodes]]
+id = "doc_rows"
+name = "DocRows"
+parent = "doc_scroll"
+[nodes.widget]
+kind = "column"
+role = "doc_rows"
+grow = 1
+
 # The file's engine-facing surface, beside the code. `layout.rn` writes 0 here
 # when it is closed; this is what it opens back to.
 [[nodes]]
@@ -702,3 +785,189 @@ parent = "canvas"
 [nodes.widget]
 kind = "row"
 width = 172
+
+# The start screen, over the shell rather than inside it: its own root on the
+# same surface, drawn after, so it covers the editor and takes every click.
+[[nodes]]
+id = "manager"
+name = "Manager"
+parent = "n_editor"
+[nodes.widget]
+theme = "themes/dark.toml"
+kind = "column"
+layer = "shell"
+anchor = "fill"
+safe_area = ["left", "top", "right", "bottom"]
+role = "manager_ground"
+align = "center"
+visible = false
+
+[[nodes]]
+id = "manager_head"
+name = "ManagerHead"
+parent = "manager"
+[nodes.widget]
+kind = "row"
+role = "manager_head"
+
+[[nodes]]
+id = "manager_tabs"
+name = "ManagerTabs"
+parent = "manager"
+[nodes.widget]
+kind = "row"
+role = "manager_tabs"
+
+# The page under the tabs. Still drawn: the project history is a `list`, which
+# builds only the rows on screen, and a column of nodes would build them all.
+[[nodes]]
+id = "manager_body"
+name = "ManagerBody"
+parent = "manager"
+[nodes.widget]
+kind = "column"
+role = "manager_body"
+grow = 1
+
+[[nodes]]
+id = "manager_page"
+name = "ManagerPage"
+parent = "manager_body"
+[nodes.widget]
+kind = "draw"
+draw = "draw_manager_body"
+grow = 1
+
+# A query and what it matches, over everything: the command palette and the
+# node picker take turns on it. A `dialog`, so Escape and a click on the dim
+# close it.
+[[nodes]]
+id = "picker"
+name = "Picker"
+parent = "n_editor"
+[nodes.widget]
+theme = "themes/dark.toml"
+kind = "dialog"
+layer = "shell"
+role = "picker_window"
+# A `dialog` draws its caption, and the default one is the word "label".
+text = ""
+anchor = "center_top"
+y = 96
+open = false
+
+[[nodes]]
+id = "picker_head"
+name = "PickerHead"
+parent = "picker"
+[nodes.widget]
+kind = "row"
+role = "picker_head"
+align = "center"
+
+[[nodes]]
+id = "picker_scroll"
+name = "PickerScroll"
+parent = "picker"
+[nodes.widget]
+kind = "scroll"
+axis = "vertical"
+
+[[nodes]]
+id = "picker_rows"
+name = "PickerRows"
+parent = "picker_scroll"
+[nodes.widget]
+kind = "column"
+role = "picker_rows"
+grow = 1
+
+# The one sheet over the shell: About, Export, New project and Settings all
+# fill it. A `dialog`, so egui dims the screen and says when Escape or a click
+# on the dim asked to close.
+[[nodes]]
+id = "sheet"
+name = "Sheet"
+parent = "n_editor"
+[nodes.widget]
+theme = "themes/dark.toml"
+kind = "dialog"
+layer = "shell"
+role = "sheet_window"
+# A `dialog` draws its caption, and the default one is the word "label".
+text = ""
+open = false
+
+[[nodes]]
+id = "sheet_bar"
+name = "SheetBar"
+parent = "sheet"
+[nodes.widget]
+kind = "row"
+role = "sheet_bar"
+
+# The body a screen fills. Drawn for now: every one of the four is immediate,
+# and the frame round them is what this node gives them.
+[[nodes]]
+id = "sheet_body"
+name = "SheetBody"
+parent = "sheet"
+[nodes.widget]
+kind = "column"
+grow = 1
+
+[[nodes]]
+id = "sheet_page"
+name = "SheetPage"
+parent = "sheet_body"
+[nodes.widget]
+kind = "draw"
+draw = "draw_sheet_body"
+grow = 1
+
+# A screen whose rows are nodes fills these instead: a column of its own down
+# the left, and the rows beside it. Hidden for a screen that draws.
+[[nodes]]
+id = "sheet_split"
+name = "SheetSplit"
+parent = "sheet_body"
+[nodes.widget]
+kind = "row"
+role = "sheet_split"
+visible = false
+grow = 1
+
+[[nodes]]
+id = "sheet_side"
+name = "SheetSide"
+parent = "sheet_split"
+[nodes.widget]
+kind = "scroll"
+role = "sheet_side"
+axis = "vertical"
+
+[[nodes]]
+id = "sheet_side_rows"
+name = "SheetSideRows"
+parent = "sheet_side"
+[nodes.widget]
+kind = "column"
+role = "sheet_side_rows"
+grow = 1
+
+[[nodes]]
+id = "sheet_scroll"
+name = "SheetScroll"
+parent = "sheet_split"
+[nodes.widget]
+kind = "scroll"
+axis = "vertical"
+grow = 1
+
+[[nodes]]
+id = "sheet_form"
+name = "SheetForm"
+parent = "sheet_scroll"
+[nodes.widget]
+kind = "column"
+grow = 1

@@ -537,6 +537,11 @@ pub fn draw(S) {
     if style::placed(vp) {
         crate::docks::fold_strip(S, k, vp);
     }
+    // The event bindings fill a node; every other document tab draws, so the
+    // node goes away for them.
+    if !S.doc_open || S.doctab != "events" {
+        crate::events::hide();
+    }
     if S.doc_open {
         if S.doctab == "events" {
             crate::events::view(S, k);
