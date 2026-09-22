@@ -66,6 +66,14 @@ for project in editor examples/*/; do
 done
 [ ${#packs[@]} -gt 1 ] || fail "only ${#packs[@]} project(s) packed; the examples were not found"
 cp "$module/balaur.js" "$module/balaur_bg.wasm" "$out/"
+# wasm-bindgen emits `inline_js` beside the glue and balaur.js imports it by
+# relative path, so it travels with them -- as package_template.sh already
+# does. Without it the module 404s and every pack draws a flat canvas.
+extra=()
+if [ -d "$module/snippets" ]; then
+  cp -R "$module/snippets" "$out/"
+  extra+=(snippets)
+fi
 
 # Before it ships: WGSL a browser refuses links fine natively, and only a
 # browser's log says so.
@@ -74,5 +82,5 @@ node scripts/web_smoke.mjs "$out"
 
 step "bundle"
 (cd "$out" && tar -czf "$dist/balaur-play.tar.gz" \
-  balaur.js balaur_bg.wasm "${packs[@]}")
+  balaur.js balaur_bg.wasm ${extra[@]+"${extra[@]}"} "${packs[@]}")
 ls -l "$out" "$dist/balaur-play.tar.gz"

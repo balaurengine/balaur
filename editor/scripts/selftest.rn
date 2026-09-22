@@ -949,6 +949,12 @@ fn writable_list(S) {
                 if of.get("type").unwrap_or("") != "string" {
                     continue;
                 }
+                // Not the camera's frame passes: the schema says `string`,
+                // but a name the engine does not own is a material asset, so
+                // `one`/`two` make the renderer log every frame after.
+                if prop == "post" {
+                    continue;
+                }
                 shell::choose(S, i);
                 model::set_component_prop(S, comp, prop, ["one", "two"]);
                 if list_now(S, i, comp, prop).len() == 2 {

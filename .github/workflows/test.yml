@@ -68,7 +68,8 @@ jobs:
           curl.exe -sSL --retry 3 -o mesa.7z `
             "https://github.com/pal1000/mesa-dist-win/releases/download/${env:MESA_VERSION}/mesa3d-${env:MESA_VERSION}-release-msvc.7z"
           # The manifest names its library relatively, so the two stay together.
-          7z x mesa.7z -omesa x64/vulkan_lvp.dll x64/lvp_icd.x86_64.json
+          7z x mesa.7z -omesa x64/vulkan_lvp.dll x64/lvp_icd.x86_64.json `
+            x64/opengl32.dll x64/libgallium_wgl.dll
           $icd = (Resolve-Path mesa/x64/lvp_icd.x86_64.json).Path
           # The registry, not VK_DRIVER_FILES: the loader ignored the variable
           # and looked here, which is what `Found no drivers!` was reporting.
@@ -76,6 +77,12 @@ jobs:
           New-Item -Path $key -Force | Out-Null
           New-ItemProperty -Path $key -Name $icd -PropertyType DWord -Value 0 -Force | Out-Null
           Get-ItemProperty -Path $key
+          # And GL, because wgpu enumerates every backend: this runner's is
+          # the 1.1 GDI one, and the render died right after saying so. An
+          # app-local opengl32.dll answers 4.6, beside the binary e2e.sh runs.
+          New-Item -ItemType Directory -Force -Path target/e2e/bin | Out-Null
+          Copy-Item mesa/x64/opengl32.dll, mesa/x64/libgallium_wgl.dll target/e2e/bin/
+          "GALLIUM_DRIVER=llvmpipe" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}

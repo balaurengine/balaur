@@ -18,9 +18,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # `balaur-<target>` is the artifact; `balaur-editor-<target>.tar.gz` is
+      # the file inside it. Matching the file's name found nothing, silently.
       - uses: actions/download-artifact@v8
         with:
-          pattern: balaur-editor-linux-*
+          pattern: balaur-linux-*
           path: artifacts
           merge-multiple: true
 
