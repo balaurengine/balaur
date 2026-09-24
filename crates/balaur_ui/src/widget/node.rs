@@ -242,6 +242,12 @@ pub struct Widget {
     pub role: SmolStr,
     /// Text shown after the pointer rests on the widget.
     pub tooltip: SmolStr,
+    /// The pointer's shape while it is over the widget; `arrow` is the
+    /// platform's own.
+    pub cursor: SmolStr,
+    /// Whether the pointer passes through this widget to the scene: it is
+    /// drawn, and `ui.wants_pointer()` stays false over it.
+    pub pointer_through: bool,
     /// A glyph from the theme's icon family, drawn before `text`.
     pub icon: SmolStr,
     /// The ink that glyph is tinted with, as `#rrggbb` or a name from the
@@ -335,6 +341,24 @@ impl Default for WidgetLayerConfig {
             rect: None,
             layers: HashMap::new(),
         }
+    }
+}
+
+/// What the widget layer found under the pointer this frame, for
+/// `ui.wants_pointer()`: whether it is over any widget, and whether one of
+/// those takes the pointer rather than letting it through.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct UiPointer {
+    pub over: bool,
+    pub claimed: bool,
+}
+
+impl UiPointer {
+    /// Whether the UI wants the pointer: egui's own answer, unless every
+    /// widget under the pointer lets it through to the scene.
+    #[must_use]
+    pub fn wants(self, egui_wants: bool) -> bool {
+        egui_wants && !(self.over && !self.claimed)
     }
 }
 

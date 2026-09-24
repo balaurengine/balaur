@@ -95,6 +95,34 @@ fn hits(app: &balaur::App) -> i64 {
         .map_or(-1.0, balaur_core::variables::as_num) as i64
 }
 
+/// A that feeds a press from its own update, once, and hears like A.
+const A_FEEDS: &str = "pub fn update(this, dt) {\n\
+    if scene::variable(\"hits\") == 0 {\n\
+        input::feed_mouse_button(0, true);\n\
+    }\n\
+}\n\
+pub fn on_pointer_down(this, button) {\n\
+    scene::set_variable(\"hits\", scene::variable(\"hits\") + 10);\n\
+}\n";
+
+#[test]
+fn a_press_a_script_feeds_reaches_the_hooks_on_the_next_frame() {
+    let (_dir, mut app) = app_with_scripts(
+        HEARERS,
+        &[("scripts/a.rn", A_FEEDS), ("scripts/b.rn", B_HEARS)],
+    );
+    app.tick(1.0 / 60.0);
+    assert_eq!(hits(&app), 0, "fed during the tick, so not this frame's");
+    app.tick(1.0 / 60.0);
+    assert_eq!(
+        hits(&app),
+        20,
+        "the frame began with the press, both heard it"
+    );
+    app.tick(1.0 / 60.0);
+    assert_eq!(hits(&app), 20, "an edge is one frame's");
+}
+
 #[test]
 fn a_hook_that_answers_true_ends_the_broadcast() {
     let (_dir, mut app) = app_with_scripts(

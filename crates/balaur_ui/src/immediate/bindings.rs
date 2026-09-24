@@ -984,8 +984,12 @@ fn install_clipboard_and_color(m: &mut dyn Bindings<Engine>) {
     m.function("wants_keyboard", |_eng: &Engine, ()| {
         with_ctx(|ctx| Ok(ctx.egui_wants_keyboard_input()))
     });
-    m.function("wants_pointer", |_eng: &Engine, ()| {
-        with_ctx(|ctx| Ok(ctx.egui_wants_pointer_input()))
+    m.function("wants_pointer", |eng: &Engine, ()| {
+        let found = eng
+            .try_resource::<crate::widget::node::UiPointer>()
+            .map(|p| *p.borrow())
+            .unwrap_or_default();
+        with_ctx(|ctx| Ok(found.wants(ctx.egui_wants_pointer_input())))
     });
 }
 

@@ -794,6 +794,14 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
     }
     Some(match field {
         "visible" => format!("{receiver}.set_visible({value})"),
+        // Godot numbers its cursor shapes; the widget names its `cursor`.
+        "mouse_default_cursor_shape" => format!(
+            "{receiver}.patch_component(\"widget\", #{{ \"cursor\": (gd.cursor_word)({value}) }})"
+        ),
+        // `MOUSE_FILTER_IGNORE` is 2; the other two keep the pointer.
+        "mouse_filter" => format!(
+            "{receiver}.patch_component(\"widget\", #{{ \"pointer_through\": {value} == 2 }})"
+        ),
         "position" => format!("(gd.set_position)({receiver}, {value})"),
         "global_position" => format!("(gd.set_global_position)({receiver}, {value})"),
         "scale" => format!("(gd.set_scale)({receiver}, {value})"),

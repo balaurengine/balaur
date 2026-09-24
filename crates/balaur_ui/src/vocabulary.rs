@@ -138,6 +138,42 @@ pub(crate) mod words {
     pub(crate) const CTRL: &str = "ctrl";
     pub(crate) const ALT: &str = "alt";
     pub(crate) const SHIFT: &str = "shift";
+    // The pointer's shapes, as a widget's `cursor` names them.
+    pub(crate) const ARROW: &str = "arrow";
+    pub(crate) const HAND: &str = "hand";
+    pub(crate) const TEXT: &str = "text";
+    pub(crate) const CROSS: &str = "cross";
+    pub(crate) const WAIT: &str = "wait";
+    pub(crate) const MOVE: &str = "move";
+    pub(crate) const GRAB: &str = "grab";
+    pub(crate) const GRABBING: &str = "grabbing";
+    pub(crate) const FORBIDDEN: &str = "forbidden";
+    pub(crate) const HELP: &str = "help";
+    pub(crate) const RESIZE_X: &str = "resize_x";
+    pub(crate) const RESIZE_Y: &str = "resize_y";
+    pub(crate) const RESIZE_NESW: &str = "resize_nesw";
+    pub(crate) const RESIZE_NWSE: &str = "resize_nwse";
+    pub(crate) const ZOOM_IN: &str = "zoom_in";
+    pub(crate) const ZOOM_OUT: &str = "zoom_out";
+    pub(crate) const CURSORS: &[&str] = &[
+        ARROW,
+        HAND,
+        TEXT,
+        CROSS,
+        WAIT,
+        PROGRESS,
+        MOVE,
+        GRAB,
+        GRABBING,
+        FORBIDDEN,
+        HELP,
+        RESIZE_X,
+        RESIZE_Y,
+        RESIZE_NESW,
+        RESIZE_NWSE,
+        ZOOM_IN,
+        ZOOM_OUT,
+    ];
 }
 
 /// Every property key of the `widget` component and every option a `ui.*` call reads.
@@ -227,6 +263,7 @@ pub(crate) mod keys {
     pub(crate) const ON_CHANGE: &str = "on_change";
     pub(crate) const ON_CLICK: &str = "on_click";
     pub(crate) const PASS_NODE: &str = "pass_node";
+    pub(crate) const POINTER_THROUGH: &str = "pointer_through";
     pub(crate) const ON_FILL: &str = "on_fill";
     pub(crate) const ON_LINK: &str = "on_link";
     pub(crate) const ON_FOCUS: &str = "on_focus";
@@ -299,6 +336,7 @@ pub(crate) mod keys {
     pub(crate) const TIGHT: &str = "tight";
     pub(crate) const TITLE: &str = "title";
     pub(crate) const TOOLTIP: &str = "tooltip";
+    pub(crate) const CURSOR: &str = "cursor";
     pub(crate) const TOP: &str = "top";
     pub(crate) const TRAILING: &str = "trailing";
     pub(crate) const PLATE: &str = "plate";

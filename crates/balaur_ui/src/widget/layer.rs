@@ -14,7 +14,7 @@ use crate::widget::arrange::{
     Axis, contain, hold_to, lay_out, padding_of, record_measure, record_rect, roll_measurements,
     scroller, settle_rects, solved_of, tabs,
 };
-use crate::widget::node::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
+use crate::widget::node::{Move, Surface, UiFocus, UiPointer, Widget, WidgetLayerConfig};
 use crate::widget::theme::{Pointer, Style, WidgetState, WidgetTheme, face, styled, theme_of};
 
 /// Whether focus can land on this widget.
@@ -266,6 +266,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         clicked: accepted.into_iter().chain(fired).collect(),
         state: WidgetState::default(),
         context_opened: false,
+        pointer: UiPointer::default(),
     };
     for root in &roots {
         let root = *root;
@@ -295,6 +296,9 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     crate::widget::taffy::sweep(eng);
     let edits = std::mem::take(&mut painting.edits);
     let clicked = std::mem::take(&mut painting.clicked);
+    if let Some(pointer) = eng.try_resource::<UiPointer>() {
+        *pointer.borrow_mut() = painting.pointer;
+    }
     // Dropped before the arena moves: `Painting` borrows it for the draw.
     drop(painting);
     keep(placed, roots, index_of, stamp);
@@ -534,6 +538,8 @@ pub(crate) struct Painting<'a> {
     pub(crate) bounds: egui::Vec2,
     pub(crate) clicked: Vec<Entity>,
     pub(crate) edits: Vec<(Entity, Edit)>,
+    /// What this pass found under the pointer, published for `wants_pointer`.
+    pub(crate) pointer: UiPointer,
     /// Where the layout pass put every widget in the subtree being drawn.
     pub(crate) rects: crate::widget::taffy::Rects,
     /// Whether the arena was rebuilt this pass. False means the tree taffy
@@ -735,7 +741,8 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let caption = caption(at.eng, widget);
     let look = at.look(index);
     let (color, font) = (look.ink, look.font.clone());
-    let (tooltip, entity) = (widget.tooltip.clone(), placed.entity);
+    let (tooltip, cursor, entity) = (widget.tooltip.clone(), widget.cursor.clone(), placed.entity);
+    let through = widget.pointer_through;
     if widget.disabled {
         ui.disable();
     }
@@ -846,6 +853,47 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         }
     }
     tip(ui, entity, &tooltip);
+    shape_pointer(ui, &cursor);
+    if ui.rect_contains_pointer(ui.min_rect()) {
+        at.pointer.over = true;
+        at.pointer.claimed |= !through;
+    }
+}
+
+/// The pointer takes the widget's `cursor` shape while it is over the widget
+/// just drawn.
+fn shape_pointer(ui: &egui::Ui, cursor: &str) {
+    let Some(icon) = pointer_icon(cursor) else {
+        return;
+    };
+    if ui.rect_contains_pointer(ui.min_rect()) {
+        ui.ctx().set_cursor_icon(icon);
+    }
+}
+
+/// The platform pointer a `cursor` word names; the arrow is what the pointer
+/// already is, and an unknown word is nothing.
+pub(crate) fn pointer_icon(cursor: &str) -> Option<egui::CursorIcon> {
+    use egui::CursorIcon as C;
+    Some(match cursor {
+        w::HAND => C::PointingHand,
+        w::TEXT => C::Text,
+        w::CROSS => C::Crosshair,
+        w::WAIT => C::Wait,
+        w::PROGRESS => C::Progress,
+        w::MOVE => C::Move,
+        w::GRAB => C::Grab,
+        w::GRABBING => C::Grabbing,
+        w::FORBIDDEN => C::NotAllowed,
+        w::HELP => C::Help,
+        w::RESIZE_X => C::ResizeHorizontal,
+        w::RESIZE_Y => C::ResizeVertical,
+        w::RESIZE_NESW => C::ResizeNeSw,
+        w::RESIZE_NWSE => C::ResizeNwSe,
+        w::ZOOM_IN => C::ZoomIn,
+        w::ZOOM_OUT => C::ZoomOut,
+        _ => return None,
+    })
 }
 
 /// Hover text over whatever the kind just drew, from the rect it took.
@@ -1029,5 +1077,30 @@ fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
 fn warn_once(source: &str, err: &anyhow::Error) {
     if balaur_core::logbuf::first_time("widget image", source) {
         tracing::warn!("widget image '{source}': {err:#}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_ui_wants_the_pointer_unless_every_widget_under_it_lets_it_through() {
+        let nothing = UiPointer::default();
+        assert!(nothing.wants(true), "an egui panel with no widget under it");
+        assert!(!nothing.wants(false));
+        let through = UiPointer { over: true, claimed: false };
+        assert!(!through.wants(true), "only pass-through widgets under it");
+        let taken = UiPointer { over: true, claimed: true };
+        assert!(taken.wants(true), "a button inside a pass-through root");
+    }
+
+    #[test]
+    fn every_cursor_word_names_a_pointer_and_no_word_names_none() {
+        for word in w::CURSORS {
+            assert_eq!(pointer_icon(word).is_some(), *word != w::ARROW, "{word}");
+        }
+        assert_eq!(pointer_icon(""), None);
+        assert_eq!(pointer_icon("banana"), None);
     }
 }

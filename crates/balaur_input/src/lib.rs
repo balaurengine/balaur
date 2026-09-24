@@ -121,11 +121,28 @@ pub struct InputSnapshot {
     /// fields it produced are what got recorded.
     #[serde(skip)]
     emulate: Emulation,
+    /// What `input.feed_*` handed in this frame, delivered as the next
+    /// frame's events: a script feeds during the tick, and the systems that
+    /// dispatch a press run at the top of one.
+    #[serde(skip)]
+    fed: Vec<Fed>,
+    /// Whether a backend began this frame, so the tick does not begin it
+    /// again and clear the events the backend fed.
+    #[serde(skip)]
+    begun: bool,
+}
+
+/// One event a script fed, held until the next frame begins.
+enum Fed {
+    Key(String, bool),
+    Mouse(f32, f32),
+    Button(usize, bool),
+    Touch(u64, f32, f32, TouchPhase),
 }
 
 impl InputSnapshot {
-    /// Reset per-frame edges. Backends call this before feeding the frame's
-    /// events.
+    /// Reset per-frame edges, then deliver what scripts fed last frame.
+    /// Backends call this before feeding the frame's events.
     pub fn begin_frame(&mut self) {
         self.just_pressed.clear();
         self.just_released.clear();
@@ -137,6 +154,29 @@ impl InputSnapshot {
         self.touches_ended.clear();
         self.dropped_files.clear();
         self.typed.clear();
+        self.begun = true;
+        for fed in std::mem::take(&mut self.fed) {
+            match fed {
+                Fed::Key(key, down) => self.key_event(&key, down),
+                Fed::Mouse(x, y) => self.set_mouse_pos(x, y),
+                Fed::Button(button, down) => self.mouse_button_event(button, down),
+                Fed::Touch(id, x, y, phase) => self.touch_event(id, x, y, phase),
+            }
+        }
+    }
+
+    /// Begin the frame unless a backend already did: a headless run has no
+    /// window to pump, and its fed events still want a frame to land in.
+    pub fn begin_frame_unless_begun(&mut self) {
+        if !std::mem::take(&mut self.begun) {
+            self.begin_frame();
+            self.begun = false;
+        }
+    }
+
+    /// Hold a script-fed event for the next frame.
+    fn feed(&mut self, fed: Fed) {
+        self.fed.push(fed);
     }
 
     /// One finger's report from the backend. `Start` and `Move` update the
@@ -398,6 +438,13 @@ impl balaur_plugin::Plugin for InputPlugin {
         // player who rebinds a key does not change what a replay reproduces.
         actions::add_replay_setup(reg);
 
+        // A windowed backend begins the frame when it pumps the window; a
+        // headless run begins it here, so fed events land and edges clear.
+        reg.add_system(Stage::First, |eng, _| {
+            eng.resource::<InputSnapshot>()
+                .borrow_mut()
+                .begin_frame_unless_begun();
+        });
         // Controllers are not window events, so they are polled inside the
         // tick rather than by the windowed backend: a headless run with a pad
         // plugged in sees it too. First, so scripts read this frame's state.
@@ -794,26 +841,27 @@ fn install_gesture_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// `input.feed_*`: the window backend's feeders, for a script that stands in
-/// for a person: a showcase, a test, an automation client. Fed edges last
-/// until the next frame's `begin_frame`, exactly like an OS event's.
+/// for a person: a showcase, a test, an automation client. A fed event is
+/// the next frame's, delivered when it begins, so the systems that dispatch
+/// a press at the top of a tick see it exactly like an OS event.
 fn install_feed_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("feed_key", &[], "(key: string, down: bool)", "Press or release a `KEY_*` key as if the window had reported it; the edge lasts this frame, the state until the opposite feed."),
-        ("feed_mouse", &[], "(x: float, y: float)", "Move the cursor to a window-pixel position as if the window had reported it; the delta accumulates for this frame."),
-        ("feed_mouse_button", &[], "(button: int, down: bool)", "Press or release a `MOUSE_*` button as if the window had reported it."),
+        ("feed_key", &[], "(key: string, down: bool)", "Press or release a `KEY_*` key as if the window had reported it: next frame's edge, and the state until the opposite feed."),
+        ("feed_mouse", &[], "(x: float, y: float)", "Move the cursor to a window-pixel position as if the window had reported it, from next frame; the delta accumulates for that frame."),
+        ("feed_mouse_button", &[], "(button: int, down: bool)", "Press or release a `MOUSE_*` button as if the window had reported it, from next frame."),
         ("feed_touch", &[], "(id: int, x: float, y: float, phase: string)", "Put a finger on the screen as if the window had reported it: `phase` is `start`, `move`, `end` or `cancel`, and the position is in the same pixels as `mouse_position`."),
     ]);
     m.function("feed_key", |eng: &Engine, (key, down): (String, bool)| {
         check_key(&key);
         eng.resource::<InputSnapshot>()
             .borrow_mut()
-            .key_event(&key, down);
+            .feed(Fed::Key(key, down));
         Ok(())
     });
     m.function("feed_mouse", |eng: &Engine, (x, y): (f32, f32)| {
         eng.resource::<InputSnapshot>()
             .borrow_mut()
-            .set_mouse_pos(x, y);
+            .feed(Fed::Mouse(x, y));
         Ok(())
     });
     m.function(
@@ -821,7 +869,7 @@ fn install_feed_api(m: &mut dyn Bindings<Engine>) {
         |eng: &Engine, (button, down): (usize, bool)| {
             eng.resource::<InputSnapshot>()
                 .borrow_mut()
-                .mouse_button_event(button, down);
+                .feed(Fed::Button(button, down));
             Ok(())
         },
     );
@@ -837,12 +885,9 @@ fn install_feed_api(m: &mut dyn Bindings<Engine>) {
                     anyhow::bail!("'{other}' is not a touch phase: start, move, end or cancel")
                 }
             };
-            eng.resource::<InputSnapshot>().borrow_mut().touch_event(
-                id.cast_unsigned(),
-                x,
-                y,
-                phase,
-            );
+            eng.resource::<InputSnapshot>()
+                .borrow_mut()
+                .feed(Fed::Touch(id.cast_unsigned(), x, y, phase));
             Ok(())
         },
     );
@@ -1056,7 +1101,33 @@ fn warn_unknown_once(what: &'static str, name: &str, known: &[&str]) {
 
 #[cfg(test)]
 mod tests {
-    use super::{InputSnapshot, KEY_NAMES, MOUSE_BUTTON_CONSTANTS, const_name, is_known_key};
+    use super::{Fed, InputSnapshot, KEY_NAMES, MOUSE_BUTTON_CONSTANTS, const_name, is_known_key};
+
+    #[test]
+    fn a_fed_press_is_next_frame_s_edge_and_stays_down_after_it() {
+        let mut input = InputSnapshot::default();
+        input.feed(Fed::Button(0, true));
+        assert!(!input.mouse_just_pressed(0), "not this frame's");
+        input.begin_frame();
+        assert!(input.mouse_just_pressed(0));
+        input.begin_frame();
+        assert!(!input.mouse_just_pressed(0), "an edge is one frame's");
+        assert!(input.is_mouse_down(0), "the state holds until the release");
+    }
+
+    #[test]
+    fn a_frame_a_backend_began_is_not_begun_again_by_the_tick() {
+        let mut input = InputSnapshot::default();
+        input.begin_frame();
+        input.mouse_button_event(0, true);
+        input.begin_frame_unless_begun();
+        assert!(input.mouse_just_pressed(0), "the window's press survives");
+        input.begin_frame_unless_begun();
+        assert!(
+            !input.mouse_just_pressed(0),
+            "a headless tick begins its own"
+        );
+    }
 
     #[test]
     fn composed_text_outlives_the_frame_and_commits_into_typed() {

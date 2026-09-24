@@ -172,6 +172,28 @@ pub(crate) fn widget(
 }
 
 /// A Control's caption and how it is set: its text or translation key, its
+/// The `cursor` word for one of Godot's `CursorShape` numbers; the arrow, 0,
+/// is the platform's own and names nothing.
+fn cursor_word(shape: i64) -> Option<&'static str> {
+    Some(match shape {
+        1 => "text",
+        2 => "hand",
+        3 => "cross",
+        4 => "wait",
+        5 => "progress",
+        6 => "grab",
+        7 => "grabbing",
+        8 => "forbidden",
+        9 | 14 => "resize_y",
+        10 | 15 => "resize_x",
+        11 => "resize_nesw",
+        12 => "resize_nwse",
+        13 => "move",
+        16 => "help",
+        _ => return None,
+    })
+}
+
 /// role, tooltip and alignment.
 fn caption(class: &str, section: &Section, res: &Resources<'_>, out: &mut Mapped) {
     let text = |key: &str| {
@@ -198,6 +220,18 @@ fn caption(class: &str, section: &Section, res: &Resources<'_>, out: &mut Mapped
     }
     if let Some(tooltip) = text("tooltip_text") {
         out.set("widget", "tooltip", Toml::String(tooltip));
+    }
+    if let Some(word) = section
+        .field("mouse_default_cursor_shape")
+        .and_then(Value::as_i64)
+        .and_then(cursor_word)
+    {
+        out.set("widget", "cursor", Toml::String(word.into()));
+    }
+    // Godot's `MOUSE_FILTER_IGNORE`; `PASS` still keeps the pointer from
+    // the world, as `STOP` does.
+    if section.field("mouse_filter").and_then(Value::as_i64) == Some(2) {
+        out.set("widget", "pointer_through", Toml::Boolean(true));
     }
     if let Some(Value::Bool(on)) = section.field("disabled") {
         out.set("widget", "disabled", Toml::Boolean(*on));

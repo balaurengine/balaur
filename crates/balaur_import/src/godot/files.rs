@@ -421,10 +421,12 @@ metadata/_edit_lock_ = true
 text = "Sail"
 size_flags_vertical = 3
 toggle_mode = true
+mouse_default_cursor_shape = 2
 button_group = SubResource("ButtonGroup_tabs")
 
 [node name="Bars" type="MarginContainer" parent="."]
 theme_override_constants/margin_left = 12
+mouse_filter = 2
 
 [node name="Bottom" type="Button" parent="Bars"]
 text = "Menu"
@@ -817,6 +819,13 @@ func _process(_delta):
         assert_eq!(go["widget"]["kind"].as_str(), Some("button"));
         assert_eq!(go["widget"]["on_click"].as_str(), Some("on_go"));
         assert_eq!(go["widget"]["toggle"].as_bool(), Some(true));
+        assert_eq!(go["widget"]["cursor"].as_str(), Some("hand"));
+        assert_eq!(go["widget"].get("pointer_through"), None, "STOP keeps the pointer");
+        assert_eq!(
+            node(&scene, "Bars")["widget"]["pointer_through"].as_bool(),
+            Some(true),
+            "IGNORE lets it through"
+        );
         // A MarginContainer lays its children over one another, and each is
         // placed in the box by its size flags.
         assert_eq!(

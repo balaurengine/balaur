@@ -901,3 +901,32 @@ func save(state):\n\
     assert!(out.rune.contains("state[\"packet\"] = 1;"), "{}", out.rune);
     assert!(out.rune.contains("state[2] = 3;"), "{}", out.rune);
 }
+
+#[test]
+fn a_cursor_shape_set_on_a_control_names_the_widget_s_cursor() {
+    let source = "extends Control\n\
+@onready var name_label = $Name\n\
+func _ready():\n\
+\tname_label.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND\n";
+    let out = convert(source, "scripts/entry.gd", &Classes::default());
+    assert!(
+        out.rune
+            .contains("patch_component(\"widget\", #{ \"cursor\": (gd.cursor_word)(2) })"),
+        "{}",
+        out.rune
+    );
+}
+
+#[test]
+fn a_mouse_filter_set_from_a_script_says_whether_the_pointer_passes() {
+    let source = "extends Control\n\
+func _ready():\n\
+\tmouse_filter = Control.MOUSE_FILTER_IGNORE\n";
+    let out = convert(source, "scripts/veil.gd", &Classes::default());
+    assert!(
+        out.rune
+            .contains("patch_component(\"widget\", #{ \"pointer_through\": 2 == 2 })"),
+        "{}",
+        out.rune
+    );
+}

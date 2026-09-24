@@ -280,6 +280,13 @@ Three rules belong to the importer rather than the translator:
    `MarginContainer`'s four margins are one padding. The 51 icons, and the
    shadow, caret, selection and placeholder colours, are still reported.
 8. **The small keys** of §1.1, each with its test; the `regex` module last.
+   Built 2026-09-24 so far: `cursor` on a widget (`mouse_default_cursor_shape`
+   from a scene or a script), and `pointer_through` (`mouse_filter` of
+   `IGNORE`), which the widget layer reports so `ui.wants_pointer()` stays
+   false over it while a button inside still takes the click. Found on the
+   way: a press `input.feed_*` handed in was the frame's own and the pointer
+   hooks run at the top of the next, so no fed press ever reached one; a fed
+   event is now the next frame's, in a windowed and a headless run alike.
 9. **Retire the hand-written files** and reimport; the 54 again.
 10. **Web export**, `web_smoke`, the size report, the `web` mappings.
 11. **Pictures against Godot's**, and what they show fixed.

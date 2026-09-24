@@ -49,6 +49,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::ON_CLICK, r#"{ type = "string", default = "", description = "Script method called when the widget is clicked, on this node or the nearest ancestor whose script declares it. An `image` that names one senses clicks too, which is how a picture becomes a button", group = "events" }"#),
                     (k::CLICKED, r#"{ type = "bool", default = false, readonly = true, description = "True on the frame the button was clicked", group = "events" }"#),
                     (k::PASS_NODE, r#"{ type = "bool", default = false, description = "Hand every handler this widget calls its own node as the last argument, so one method can serve many widgets", group = "events" }"#),
+                    (k::POINTER_THROUGH, r#"{ type = "bool", default = false, description = "Let the pointer pass through to the scene: the widget is drawn, never hovered or clicked, and `ui.wants_pointer()` stays false over it. A full-screen container over the world wants this", group = "events" }"#),
                     (k::ON_LINK, r#"{ type = "string", default = "", description = "Script method called with the target of a `[url=target]` span in `markup` text that was clicked, on this node or the nearest ancestor whose script declares it", group = "events" }"#),
                     (k::SUFFIX, r#"{ type = "string", default = "", description = "Units drawn after a `drag_value`'s number, the way `placeholder` is drawn before it", group = "type" }"#),
                     (k::ARROWS, r#"{ type = "bool", default = false, description = "Draw a step up and a step down beside a `drag_value`, each moving it by `step` within `min` and `max`", group = "type" }"#),
@@ -121,6 +122,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::DEADZONE, r#"{ type = "float", default = 0.0, min = 0.0, description = "How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once", group = "value" }"#),
                     (k::ROLE, r#"{ type = "string", default = "", description = "A `[roles.<name>]` entry of the widget's theme, taken over its kind's own style; the one place a look is named rather than spelled", group = "paint" }"#),
                     (k::TOOLTIP, r#"{ type = "string", default = "", description = "Text shown after the pointer rests on the widget; still shown when it is `disabled`, which is where it says why", group = "type" }"#),
+                    (k::CURSOR, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "The pointer's shape while it is over the widget: `hand` over anything that opens on a click; `arrow` is the platform's own", group = "type" }}"#, w::ARROW, v::options(w::CURSORS))),
                     (k::ICON, r#"{ type = "string", default = "", description = "A glyph from the theme's icon family, drawn before `text`", group = "paint" }"#),
                     (k::ICON_COLOR, r#"{ type = "string", default = "", description = "What that glyph is tinted with, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the role's own", group = "paint" }"#),
                     (k::DISABLED, r#"{ type = "bool", default = false, description = "Grey the widget out and swallow its clicks" }"#),
@@ -306,6 +308,10 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
         toml::Value::String(widget.on_click.to_string()),
     );
     map.insert(k::PASS_NODE.into(), toml::Value::Boolean(widget.pass_node));
+    map.insert(
+        k::POINTER_THROUGH.into(),
+        toml::Value::Boolean(widget.pointer_through),
+    );
     reach_to_toml(widget, &mut map);
     map.insert(k::PADDING.into(), four(widget.padding));
     map.insert(k::GAP.into(), toml::Value::Float(f64::from(widget.gap)));
@@ -470,6 +476,10 @@ fn look_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) 
     map.insert(
         k::TOOLTIP.into(),
         toml::Value::String(widget.tooltip.to_string()),
+    );
+    map.insert(
+        k::CURSOR.into(),
+        toml::Value::String(widget.cursor.to_string()),
     );
     map.insert(k::ICON.into(), toml::Value::String(widget.icon.to_string()));
     map.insert(
@@ -748,6 +758,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         font: s(k::FONT),
         on_click: s(k::ON_CLICK),
         pass_node: r.flag(k::PASS_NODE),
+        pointer_through: r.flag(k::POINTER_THROUGH),
         context: s(k::CONTEXT),
         on_link: s(k::ON_LINK),
         selectable: r.flag(k::SELECTABLE),
@@ -798,6 +809,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         submitted: r.flag(k::SUBMITTED),
         role: s(k::ROLE),
         tooltip: s(k::TOOLTIP),
+        cursor: s(k::CURSOR),
         icon: s(k::ICON),
         icon_color: s(k::ICON_COLOR),
         disabled: r.flag(k::DISABLED),
@@ -1029,6 +1041,21 @@ mod tests {
             (stated.font_size - 13.0).abs() < f32::EPSILON,
             "a stated size must still win"
         );
+    }
+
+    #[test]
+    fn a_widget_lets_the_pointer_through_only_when_it_says_so() {
+        let through = widget(&toml::toml! { kind = "panel" pointer_through = true }.into());
+        assert!(through.pointer_through);
+        assert!(!widget(&toml::toml! { kind = "panel" }.into()).pointer_through);
+    }
+
+    #[test]
+    fn a_cursor_word_reads_onto_the_widget() {
+        let hand = widget(&toml::toml! { kind = "label" cursor = "hand" }.into());
+        assert_eq!(hand.cursor, "hand");
+        let bare = widget(&toml::toml! { kind = "label" }.into());
+        assert_eq!(bare.cursor, "arrow", "the platform's own pointer");
     }
 
     /// The shaper is told which family to use. It shaped everything in `ui`

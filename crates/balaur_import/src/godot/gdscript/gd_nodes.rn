@@ -2014,6 +2014,30 @@ pub fn invoke3(owner, name, a0, a1, a2) {
     native(owner, name, [a0, a1, a2])
 }
 
+/// The widget `cursor` word for one of Godot's `CursorShape` numbers; the
+/// arrow is the platform's own and is the empty word.
+pub fn cursor_word(shape) {
+    match shape {
+        1 => "text",
+        2 => "hand",
+        3 => "cross",
+        4 => "wait",
+        5 => "progress",
+        6 => "grab",
+        7 => "grabbing",
+        8 => "forbidden",
+        9 => "resize_y",
+        14 => "resize_y",
+        10 => "resize_x",
+        15 => "resize_x",
+        11 => "resize_nesw",
+        12 => "resize_nwse",
+        13 => "move",
+        16 => "help",
+        _ => "",
+    }
+}
+
 /// Writing a property on another script, through the setter every converted
 /// script carries.
 pub fn set_field(owner, name, value) {

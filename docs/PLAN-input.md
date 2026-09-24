@@ -82,6 +82,7 @@ planned" is a decision, not an oversight.
 | Thing | Verdict |
 | --- | --- |
 | Feeding a pad: buttons, axes, motion, touch | Step 1. A showcase or a test can drive a keyboard but not a controller, which is the gap that makes every row above hard to demonstrate |
+| A fed key, click or finger is the next frame's | Have. `input.feed_*` queues the event and the frame delivers it when it begins, headless or windowed, so a hook dispatched at the top of a tick sees it as it would an OS event |
 | Sensor decode asserted against captured reports | Step 1. Synthetic fixtures today; the ones worth having come off real hardware — see §4 |
 
 ## 3. Steps
