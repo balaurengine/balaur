@@ -54,3 +54,31 @@ pub(super) fn own_control(name: &str, all: &str) -> Option<String> {
         _ => return None,
     })
 }
+
+/// A progress bar's fill direction and a node's translation mode: Godot's
+/// enums, numbered by position.
+pub(super) fn control_constant(class: &str, name: &str) -> Option<i64> {
+    let names: &[&str] = match class {
+        "TextureProgressBar" => &[
+            "FILL_LEFT_TO_RIGHT",
+            "FILL_RIGHT_TO_LEFT",
+            "FILL_TOP_TO_BOTTOM",
+            "FILL_BOTTOM_TO_TOP",
+            "FILL_CLOCKWISE",
+            "FILL_COUNTER_CLOCKWISE",
+            "FILL_BILINEAR_LEFT_AND_RIGHT",
+            "FILL_BILINEAR_TOP_AND_BOTTOM",
+            "FILL_CLOCKWISE_AND_COUNTER_CLOCKWISE",
+        ],
+        "Node" => &[
+            "AUTO_TRANSLATE_MODE_INHERIT",
+            "AUTO_TRANSLATE_MODE_ALWAYS",
+            "AUTO_TRANSLATE_MODE_DISABLED",
+        ],
+        _ => return None,
+    };
+    names
+        .iter()
+        .position(|n| *n == name)
+        .and_then(|i| i64::try_from(i).ok())
+}

@@ -423,28 +423,9 @@ pub(crate) fn static_value(class: &str, name: &str) -> Option<String> {
 
 /// An enum value on one of Godot's classes, as the integer Godot gives it.
 // Rows share values without sharing meaning, as `global_constant`'s do.
-/// A progress bar's fill direction and a node's translation mode, by number.
-fn control_constant(class: &str, name: &str) -> Option<i64> {
-    Some(match (class, name) {
-        ("TextureProgressBar", "FILL_LEFT_TO_RIGHT") => 0,
-        ("TextureProgressBar", "FILL_RIGHT_TO_LEFT") => 1,
-        ("TextureProgressBar", "FILL_TOP_TO_BOTTOM") => 2,
-        ("TextureProgressBar", "FILL_BOTTOM_TO_TOP") => 3,
-        ("TextureProgressBar", "FILL_CLOCKWISE") => 4,
-        ("TextureProgressBar", "FILL_COUNTER_CLOCKWISE") => 5,
-        ("TextureProgressBar", "FILL_BILINEAR_LEFT_AND_RIGHT") => 6,
-        ("TextureProgressBar", "FILL_BILINEAR_TOP_AND_BOTTOM") => 7,
-        ("TextureProgressBar", "FILL_CLOCKWISE_AND_COUNTER_CLOCKWISE") => 8,
-        ("Node", "AUTO_TRANSLATE_MODE_INHERIT") => 0,
-        ("Node", "AUTO_TRANSLATE_MODE_ALWAYS") => 1,
-        ("Node", "AUTO_TRANSLATE_MODE_DISABLED") => 2,
-        _ => return None,
-    })
-}
-
 #[allow(clippy::match_same_arms)]
 fn class_constant(class: &str, name: &str) -> Option<i64> {
-    if let Some(value) = control_constant(class, name) {
+    if let Some(value) = controls::control_constant(class, name) {
         return Some(value);
     }
     Some(match (class, name) {
