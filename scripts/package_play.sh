@@ -74,6 +74,7 @@ if [ -d "$module/snippets" ]; then
   cp -R "$module/snippets" "$out/"
   extra+=(snippets)
 fi
+./scripts/check_web_module.sh "$out"
 
 # Before it ships: WGSL a browser refuses links fine natively, and only a
 # browser's log says so.

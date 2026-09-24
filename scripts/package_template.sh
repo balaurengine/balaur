@@ -246,11 +246,12 @@ web)
   rm -rf "$skeleton"
   mkdir -p "$skeleton"
   cp "$dist/balaur.js" "$dist/balaur_bg.wasm" "$skeleton/"
-  # The shared-memory build's worker helper: wasm-bindgen emits it beside the
-  # glue, which imports it by relative path, so it travels with them.
+  # wasm-bindgen emits `inline_js` and the shared-memory worker helper beside
+  # the glue, which names them by relative path, so they travel with it.
   if [ -d "$dist/snippets" ]; then
     cp -R "$dist/snippets" "$skeleton/"
   fi
+  ./scripts/check_web_module.sh "$skeleton"
   (cd "$dist" && tar -czf "$name.tar.gz" "$name")
   # Staged, not shipped: dist is uploaded whole, and a directory is not an
   # asset a release can carry.

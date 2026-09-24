@@ -230,6 +230,9 @@ one entry in `cases_kinds.rn` or `cases_scripts.rn`.
   (`scripts/package.sh`), runs `scripts/signing_check.sh`
   (`BALAUR_SIGNING_CHECK`) and `scripts/export_check.sh` per platform, and
   `scripts/web_smoke.mjs` over every web pack through `scripts/package_play.sh`.
+- `scripts/check_web_module.sh` holds both web stagings to what `balaur.js`
+  names beside it, wasm-bindgen's `snippets/` included: a static import that
+  404s stops the module evaluating, and the build that shipped it is green.
 
 ## What review is left
 
