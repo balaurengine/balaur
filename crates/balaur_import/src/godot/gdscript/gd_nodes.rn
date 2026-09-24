@@ -899,6 +899,8 @@ const LISTENERS = "__listeners";
 /// A Godot `Callable` over a class table: the object and the method name.
 const BOUND_OWNER = "__bound";
 const BOUND_METHOD = "__method";
+const CALL_KEY = "__call";
+const CALL_TAKES = "__takes";
 
 /// A class table's signal: each listener called with what was emitted.
 pub fn emit_obj(owner, name, args) {
@@ -1179,11 +1181,12 @@ pub async fn wait_signal(owner, name) {
     value
 }
 
-/// A timer's `timeout.connect(f)`: `f` once the time has passed.
+/// A timer's `timeout.connect(f)`: `f` once the time has passed. The engine
+/// runs a tween's step itself, so a handler record is called from a closure.
 fn after(wait, f) {
     let t = create_tween(scene::root());
     tween_interval(t, wait["__after"]);
-    tween_callback(t, f);
+    tween_callback(t, || call_value(f, []));
     ()
 }
 
@@ -1842,6 +1845,20 @@ pub fn call_value(target, args) {
     if target is std::ops::Function {
         return spread(target, args);
     }
+    // A connected handler says how many it takes: a signal carrying more is
+    // trimmed and one carrying fewer is padded, as Godot's defaults filled.
+    if target is Object && target.contains_key(CALL_KEY) {
+        let takes = target[CALL_TAKES];
+        let fitted = [];
+        for at in 0..takes {
+            if at < args.len() {
+                fitted.push(args[at]);
+            } else {
+                fitted.push(());
+            }
+        }
+        return spread(target[CALL_KEY], fitted);
+    }
     if target is Object && target.contains_key(BOUND_OWNER) {
         return invoke_many(target[BOUND_OWNER], target[BOUND_METHOD], args);
     }
@@ -2090,4 +2107,84 @@ pub fn type_of(value) {
         return "Dictionary";
     }
     return "Object";
+}
+
+/// `Performance.get_monitor`, by the ids `map.rs` gives the names: frame
+/// time and node counts from the engine, memory and draw calls as zero.
+pub fn monitor(id) {
+    let id = int(id);
+    if id == 0 {
+        let frame = engine::timings().frame;
+        if frame > 0.0 {
+            return 1.0 / frame;
+        }
+        return 0.0;
+    }
+    if id == 1 || id == 2 {
+        return engine::timings().frame;
+    }
+    if id == 7 || id == 9 {
+        return scene::root().descendants().len() + 1;
+    }
+    return 0;
+}
+
+/// `DirAccess.open`: the directory's entries behind Godot's verbs, read
+/// once when opened.
+pub fn dir_open(path) {
+    let entries = fs::list(project_path(path));
+    let dir = #{ "__at": 0, "__last": () };
+    dir["get_files"] = || {
+        let out = [];
+        for entry in entries {
+            if !entry.is_dir {
+                out.push(entry.name);
+            }
+        }
+        return out;
+    };
+    dir["get_directories"] = || {
+        let out = [];
+        for entry in entries {
+            if entry.is_dir {
+                out.push(entry.name);
+            }
+        }
+        return out;
+    };
+    dir["list_dir_begin"] = || {
+        dir["__at"] = 0;
+        return 0;
+    };
+    dir["list_dir_end"] = || ();
+    dir["get_next"] = || {
+        let at = dir["__at"];
+        if at >= entries.len() {
+            dir["__last"] = ();
+            return "";
+        }
+        dir["__at"] = at + 1;
+        dir["__last"] = entries[at];
+        return entries[at].name;
+    };
+    dir["current_is_dir"] = || {
+        let last = dir["__last"];
+        if is_nil(last) {
+            return false;
+        }
+        return last.is_dir;
+    };
+    dir
+}
+
+/// Godot's `get_node_or_null(path)`: nothing for no path, the node for a
+/// node, and the node at the path otherwise.
+pub fn node_at(owner, path) {
+    if path is balaur::Node {
+        return path;
+    }
+    if !(path is String) || path == "" || !(owner is balaur::Node) {
+        return ();
+    }
+    return owner.get_node(path);
 }

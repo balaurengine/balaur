@@ -885,6 +885,15 @@ pub fn fmod(value, by) {
     return value - by * math::floor(value / by);
 }
 
+/// Godot's `posmod`: an integer remainder that never goes negative.
+pub fn posmod(value, by) {
+    let rest = value % by;
+    if rest < 0 {
+        return rest + by;
+    }
+    return rest;
+}
+
 pub fn move_toward(from, to, delta) {
     if math::abs(to - from) <= delta {
         return to;
@@ -1191,4 +1200,66 @@ pub fn concat(a, b) {
         out.push(item);
     }
     out
+}
+
+/// Godot's `char(code)`: the code point as a one-character string.
+pub fn chr(code) {
+    match char::from_i64(int(code)) {
+        Some(c) => {
+            let out = String::new();
+            out.push(c);
+            return out;
+        }
+        None => return "",
+    }
+}
+
+pub fn vec_from_angle(angle) {
+    return vec2(math::cos(angle), math::sin(angle));
+}
+
+/// `Geometry2D.merge_polygons`: every outline and hole of the union, flat.
+pub fn merge_polygons(a, b) {
+    let out = [];
+    for shape in geometry2d::union(a, b) {
+        for path in shape {
+            out.push(path);
+        }
+    }
+    out
+}
+
+/// `Geometry2D.triangulate_polygon`: the triangles' indices, flat.
+pub fn triangulate(polygon) {
+    let out = [];
+    for triangle in geometry2d::triangulate(polygon) {
+        out.push(triangle[0]);
+        out.push(triangle[1]);
+        out.push(triangle[2]);
+    }
+    out
+}
+
+/// `text[i]` on a string, which Rune cannot index; anything else indexes
+/// as itself.
+pub fn at(value, index) {
+    if value is String {
+        return substr(value, index, 1);
+    }
+    return value[index];
+}
+
+/// Godot's `JSON.new()`: `parse` keeps what it read under `data`, and the
+/// error verbs answer what a parse that raised nothing leaves.
+pub fn json_object() {
+    let json = #{ "data": (), "error": "" };
+    json["parse"] = |text| {
+        json["data"] = json::parse(text);
+        return 0;
+    };
+    json["get_data"] = || json["data"];
+    json["get_error_message"] = || json["error"];
+    json["get_error_line"] = || 0;
+    json["stringify"] = |value| json::encode(value);
+    json
 }

@@ -81,10 +81,9 @@ that way on purpose, and each waits on something outside this plan:
 
 - **`_input` handlers** (47 files). The engine polls input from `update`
   rather than delivering events, so the handler's *shape* is wrong, not its
-  body: there is nothing to translate it into. Giving the engine event
-  delivery belongs in `docs/PLAN-input.md`, which does not plan it today;
-  until then these stay comments and the port moves each body into `update`
-  by hand.
+  body: there is nothing to translate it into. Event delivery is step 4 of
+  `docs/PLAN-polyglot-port.md`; until it lands these stay comments and the
+  port moves each body into `update` by hand.
 - **`_input`'s siblings, `set_process_input` and
   `set_process_unhandled_input`** (16 sites). They switch a handler this
   plan does not translate, so there is nothing for them to switch.

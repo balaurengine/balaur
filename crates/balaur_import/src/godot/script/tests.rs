@@ -629,3 +629,177 @@ func make():\n\
     let out = convert(source, "scripts/r.gd", &Classes::default());
     assert!(out.rune.contains("scripts/r__Tracker.rn"), "{}", out.rune);
 }
+
+#[test]
+fn an_inner_class_sees_the_outers_constants_and_its_siblings() {
+    let source = "extends RefCounted\n\
+enum PB_ERR { NO_ERRORS = 0, TRUNCATED = 1 }\n\
+const LIMIT = 9\n\
+class Field:\n\
+\tvar state := 0\n\
+class Packer:\n\
+\tconst LIMIT = 3\n\
+\tstatic func check(value):\n\
+\t\tvar field = Field.new()\n\
+\t\treturn value == PB_ERR.NO_ERRORS and field.state < LIMIT\n";
+    let inners = super::inner_scripts(source, "proto/pb.gd");
+    assert_eq!(inners.len(), 2);
+    let packer = &inners[1].1;
+    assert!(
+        packer.contains("const Field = preload(\"res://proto/pb__Field.gd\")"),
+        "{packer}"
+    );
+    assert!(
+        packer.contains("enum PB_ERR { NO_ERRORS = 0, TRUNCATED = 1 }"),
+        "{packer}"
+    );
+    assert_eq!(packer.matches("const LIMIT").count(), 1, "{packer}");
+    let out = convert(packer, "proto/pb__Packer.gd", &Classes::default());
+    assert!(
+        out.rune
+            .contains(r#"pub const PB_ERR = #{ "NO_ERRORS": 0, "TRUNCATED": 1 };"#),
+        "{}",
+        out.rune
+    );
+    assert!(out.rune.contains("pub const LIMIT = 3;"), "{}", out.rune);
+    assert!(out.rune.contains("proto/pb__Field.rn"), "{}", out.rune);
+    assert!(!out.rune.contains("gd.todo"), "{}", out.rune);
+}
+
+#[test]
+fn an_inner_class_is_reached_through_a_preload_of_its_file() {
+    let mut classes = Classes::default();
+    classes.inner.insert(
+        "proto/pb.rn.Field".to_string(),
+        "proto/pb__Field.gd".to_string(),
+    );
+    let source = "extends Node\n\
+const PB = preload(\"res://proto/pb.gd\")\n\
+func make():\n\
+\treturn PB.Field.new()\n";
+    let out = convert(source, "scripts/u.gd", &classes);
+    assert!(
+        out.rune
+            .contains(r#"script::require("proto/pb__Field.rn").new"#),
+        "{}",
+        out.rune
+    );
+    assert!(!out.rune.contains("gd.invoke"), "{}", out.rune);
+}
+
+#[test]
+fn a_class_inside_an_inner_class_is_reached_from_inside_and_outside() {
+    let source = "extends RefCounted\n\
+class Msg:\n\
+\tclass Part:\n\
+\t\tvar n := 0\n\
+\tfunc make():\n\
+\t\treturn Msg.Part.new()\n";
+    let inners = super::inner_scripts(source, "proto/pb.gd");
+    let msg = &inners[0].1;
+    assert!(
+        msg.starts_with("extends RefCounted\nclass_name Msg\n"),
+        "{msg}"
+    );
+    let nested = super::inner_scripts(msg, "proto/pb__Msg.gd");
+    assert_eq!(nested[0].0, "Part");
+    let mut classes = Classes::default();
+    classes
+        .inner
+        .insert("proto/pb.rn.Msg".into(), "proto/pb__Msg.gd".into());
+    classes.inner.insert(
+        "proto/pb__Msg.rn.Part".into(),
+        "proto/pb__Msg__Part.gd".into(),
+    );
+    let part = r#"script::require("proto/pb__Msg__Part.rn").new"#;
+    let out = convert(msg, "proto/pb__Msg.gd", &classes);
+    assert!(out.rune.contains(part), "{}", out.rune);
+    let user = "extends Node\n\
+const PB = preload(\"res://proto/pb.gd\")\n\
+func make():\n\
+\treturn PB.Msg.Part.new()\n";
+    let out = convert(user, "scripts/u.gd", &classes);
+    assert!(out.rune.contains(part), "{}", out.rune);
+}
+
+#[test]
+fn a_hex_colour_at_the_top_level_hides_none_of_the_declarations_below_it() {
+    let source = "extends Node\n\
+var tint: Color = Color(\"#ff8a7a\")\n\
+var found := false\n\
+func mark():\n\
+\tfound = true\n";
+    let out = convert(source, "scripts/cell.gd", &Classes::default());
+    assert!(out.rune.contains("this.found = true;"), "{}", out.rune);
+    assert!(!out.rune.contains("gd.todo"), "{}", out.rune);
+}
+
+#[test]
+fn another_nodes_method_handed_to_connect_is_bound_rather_than_called() {
+    let source = "extends Node\n\
+signal changed\n\
+var bar\n\
+var server\n\
+func _ready():\n\
+\tchanged.connect(bar.refresh)\n\
+\tserver.done.connect(bar.refresh)\n";
+    let out = convert(source, "scripts/lobby.gd", &Classes::default());
+    let bound = r#"#{ "__bound": this.bar, "__method": "refresh" }"#;
+    assert_eq!(out.rune.matches(bound).count(), 2, "{}", out.rune);
+    assert!(
+        !out.rune.contains(r#"(gd.field)(this.bar, "refresh")"#),
+        "{}",
+        out.rune
+    );
+}
+
+#[test]
+fn an_own_handler_of_a_foreign_signal_takes_its_own_arguments() {
+    let source = "extends Node\n\
+var machine\n\
+func _ready():\n\
+\tmachine.state_changed.connect(_on_state)\n\
+func _on_state(old, new):\n\
+\tpass\n";
+    let out = convert(source, "scripts/flow.gd", &Classes::default());
+    let record = r#"#{ "__call": { |arg0, arg1| { _on_state(this, arg0, arg1) } }, "__takes": 2 }"#;
+    assert!(out.rune.contains(record), "{}", out.rune);
+}
+
+#[test]
+fn a_callable_held_in_a_variable_connects_as_a_value() {
+    let source = "extends Node\n\
+var popup\n\
+var on_closed: Callable\n\
+func _ready():\n\
+\tpopup.closed.connect(on_closed)\n";
+    let out = convert(source, "scripts/intro.gd", &Classes::default());
+    assert!(
+        out.rune
+            .contains(r#"(gd.connect)(this.popup, "closed", this.on_closed)"#),
+        "{}",
+        out.rune
+    );
+}
+
+#[test]
+fn a_string_parameter_indexes_by_character() {
+    let source = "extends Node\n\
+var title: String = \"\"\n\
+static func shown(alphabet: String, letters: Array) -> String:\n\
+\treturn alphabet[0] + letters[0]\n\
+func first():\n\
+\treturn title[0]\n\
+func label(state: String):\n\
+\treturn state[1]\n\
+func save(state):\n\
+\tstate[\"packet\"] = 1\n\
+\tstate[2] = 3\n";
+    let out = convert(source, "scripts/words.gd", &Classes::default());
+    assert!(out.rune.contains("(gd.at)(alphabet, 0)"), "{}", out.rune);
+    assert!(out.rune.contains("letters[0]"), "{}", out.rune);
+    assert!(out.rune.contains("(gd.at)(this.title, 0)"), "{}", out.rune);
+    assert!(out.rune.contains("(gd.at)(state, 1)"), "{}", out.rune);
+    assert!(out.rune.contains("state[\"packet\"] = 1;"), "{}", out.rune);
+    assert!(out.rune.contains("state[2] = 3;"), "{}", out.rune);
+}

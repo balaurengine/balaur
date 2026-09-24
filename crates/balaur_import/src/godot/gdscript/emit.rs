@@ -71,6 +71,10 @@ pub(crate) struct Context {
     /// Members typed or valued `bool`, and methods declared `-> bool`: a
     /// test of one needs no truthiness check.
     pub bools: BTreeSet<String>,
+    /// Members typed `String`: an index on one is a character.
+    pub strings: BTreeSet<String>,
+    /// Each function's parameters typed `String`, under its Rune name.
+    pub string_params: BTreeMap<String, Vec<String>>,
     /// `Outer.Inner` to the module an inner class was written to.
     pub inner: BTreeMap<String, String>,
     /// Another module's functions with defaulted parameters, and how many
@@ -98,6 +102,12 @@ fn tree_parameter<'e>(object: &'e Expr, index: &'e Expr) -> Option<(&'e Expr, &'
         Expr::Str(key) if key.starts_with(TREE_PARAMETERS) => Some((object, key)),
         _ => None,
     }
+}
+
+/// The module a `script::require("…")` text loads, whatever wraps it.
+fn required_path(text: &str) -> Option<&str> {
+    let rest = text.strip_prefix('(').unwrap_or(text);
+    rest.strip_prefix("script::require(\"")?.split('"').next()
 }
 
 /// Rune's reserved words: a GDScript name that is one gains a trailing `_`.
@@ -131,6 +141,8 @@ pub(crate) struct Emitter<'a> {
     scopes: Vec<BTreeSet<String>>,
     /// Locals that hold a bool, by their declaration: a test of one is plain.
     bool_locals: BTreeSet<String>,
+    /// Locals and parameters typed `String`: an index on one is a character.
+    pub string_locals: BTreeSet<String>,
     /// Names of temporaries already handed out, so nested ones do not collide.
     temps: usize,
     /// Set while emitting a function that awaits.
@@ -176,6 +188,7 @@ impl<'a> Emitter<'a> {
             allow_await: true,
             in_static: false,
             bool_locals: BTreeSet::new(),
+            string_locals: BTreeSet::new(),
             enclosing: String::new(),
             awaited_here: false,
             before: Vec::new(),
@@ -291,13 +304,7 @@ impl<'a> Emitter<'a> {
                 let bound = safe(name);
                 let _ = writeln!(out, "{pad}let {bound} = {text};");
                 self.declare(name);
-                let boolean = hint.as_deref() == Some("bool")
-                    || value.as_ref().is_some_and(|v| self.is_boolish(v));
-                if boolean {
-                    self.bool_locals.insert(name.clone());
-                } else {
-                    self.bool_locals.remove(name);
-                }
+                self.note_local_type(name, hint.as_deref(), value.as_ref());
             }
             Stmt::Assign { target, op, value } => {
                 out.push_str(&self.assignment(target, op, value, &pad));
@@ -418,6 +425,19 @@ impl<'a> Emitter<'a> {
                     let object = self.expression(object);
                     self.uses_shim = true;
                     return format!("(gd.get)({object}, {}, ())", quoted(key));
+                }
+                // `text[i]` on a string: Rune indexes no string, the shim does.
+                // A string key is a dictionary's, whatever the name is called.
+                let stringy = match &**object {
+                    Expr::Name(name) if self.is_local(name) => self.string_locals.contains(name),
+                    Expr::Name(name) => self.context.strings.contains(name),
+                    _ => false,
+                };
+                if stringy && !matches!(**index, Expr::Str(_)) {
+                    let object = self.expression(object);
+                    let index = self.expression(index);
+                    self.uses_shim = true;
+                    return format!("(gd.at)({object}, {index})");
                 }
                 let compound = matches!(**object, Expr::Binary(..) | Expr::Unary(..));
                 let object = self.expression(object);
@@ -602,6 +622,52 @@ impl<'a> Emitter<'a> {
         }
     }
 
+    /// What a local's declaration says it holds: a bool by its type or its
+    /// value, a string by its type, a literal, or an own method declared
+    /// `-> String`, which the context lists under the same name.
+    fn note_local_type(&mut self, name: &str, hint: Option<&str>, value: Option<&Expr>) {
+        let boolean = hint == Some("bool") || value.is_some_and(|v| self.is_boolish(v));
+        if boolean {
+            self.bool_locals.insert(name.to_string());
+        } else {
+            self.bool_locals.remove(name);
+        }
+        let stringy = hint == Some("String")
+            || value.is_some_and(|v| match v {
+                Expr::Str(_) => true,
+                Expr::Call(callee, _) => {
+                    matches!(&**callee, Expr::Name(f) if self.context.strings.contains(f))
+                }
+                _ => false,
+            });
+        if stringy {
+            self.string_locals.insert(name.to_string());
+        } else {
+            self.string_locals.remove(name);
+        }
+    }
+
+    /// A call's argument. Another node's method handed to `connect` is bound
+    /// to that node rather than read, which would call it: the signal's
+    /// payload decides how many arguments it brings.
+    fn argument(&mut self, verb: &str, arg: &Expr) -> String {
+        if verb != "connect" {
+            return self.expression(arg);
+        }
+        if let Expr::Field(object, name) = arg
+            && !matches!(**object, Expr::SelfRef)
+            && !self.context.signals.contains(name)
+        {
+            let owner = self.expression(object);
+            return format!(
+                "#{{ \"__bound\": {owner}, \"__method\": {} }}",
+                quoted(name)
+            );
+        }
+        self.connect_handler(arg)
+            .unwrap_or_else(|| self.expression(arg))
+    }
+
     /// A member read: its getter, outside the property's own accessors.
     fn member_read(&self, name: &str) -> String {
         if self.context.getters.contains(name) && !self.in_accessor_of(name) {
@@ -651,6 +717,12 @@ impl<'a> Emitter<'a> {
             if let Some(module) = self.context.inner.get(&format!("{class}.{field}")) {
                 return format!("script::require({})", quoted(module));
             }
+            // The same inner class off a name that preloaded its file.
+            if let Some(path) = self.context.classes.get(class)
+                && let Some(module) = self.context.inner.get(&format!("{path}.{field}"))
+            {
+                return format!("script::require({})", quoted(module));
+            }
             if self.context.classes.contains_key(class) {
                 let module = self.class_module(class);
                 // Another class's function handed over as a callable.
@@ -670,6 +742,12 @@ impl<'a> Emitter<'a> {
         let text = self.expression(object);
         if let Some(mapped) = map::property(&text, field) {
             return self.shimmed(mapped);
+        }
+        // A class inside the module the text names: `PB.Msg.Part`.
+        if let Some(path) = required_path(&text)
+            && let Some(module) = self.context.inner.get(&format!("{path}.{field}"))
+        {
+            return format!("script::require({})", quoted(module));
         }
         // A module's own item is a field; anything else may be a node whose
         // script holds the value, so the read goes through the shim.
@@ -749,7 +827,7 @@ impl<'a> Emitter<'a> {
         if let Expr::Field(object, verb) = callee
             && let Some(signal) = self.signal_of(object)
         {
-            let parts: Vec<String> = args.iter().map(|arg| self.expression(arg)).collect();
+            let parts: Vec<String> = args.iter().map(|arg| self.argument(verb, arg)).collect();
             // A class table has no node to emit from: it calls its listeners.
             if self.context.object_class && verb == "emit" {
                 self.uses_shim = true;
@@ -766,7 +844,11 @@ impl<'a> Emitter<'a> {
         if let Some(text) = self.engine_emit(callee, args) {
             return text;
         }
-        let parts: Vec<String> = args.iter().map(|arg| self.expression(arg)).collect();
+        let verb = match callee {
+            Expr::Field(_, verb) => verb.as_str(),
+            _ => "",
+        };
+        let parts: Vec<String> = args.iter().map(|arg| self.argument(verb, arg)).collect();
         if let Some(text) = self.super_call(callee, &parts) {
             return text;
         }

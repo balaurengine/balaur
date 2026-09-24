@@ -79,7 +79,24 @@ impl Emitter<'_> {
                 Some(name.clone())
             }
             None => None,
-            _ => return None,
+            // A handler that is not a method here: a `Callable` held in a
+            // variable, a lambda, another node's method. A script signal
+            // takes it as a value; a widget's or the engine's needs a name.
+            Some(other) => {
+                if verb != "connect"
+                    || map::widget_signal(&signal).is_some()
+                    || map::ENGINE_SIGNALS.contains(&signal.as_str())
+                {
+                    return None;
+                }
+                let receiver = self.expression(&object);
+                let handler = self.argument("connect", other);
+                self.uses_shim = true;
+                return Some(format!(
+                    "(gd.connect)({receiver}, {}, {handler})",
+                    quoted(&signal)
+                ));
+            }
         };
         let handler = if verb == "disconnect" {
             None
@@ -101,10 +118,15 @@ impl Emitter<'_> {
             return Some(map::signal_unsubscribe(&receiver, &signal));
         }
         let handler = handler?;
-        // A handler is called with what the signal carries, whatever its own
-        // defaulted tail says it could take.
-        self.wanted_args = self.context.signal_arity.get(&signal).copied();
-        let closure = self.callable(args.first()?);
+        // Only this class's own signal says how many values it carries;
+        // another class may declare the name with a different count.
+        self.wanted_args = self
+            .context
+            .signal_arity
+            .get(&signal)
+            .copied()
+            .filter(|_| self.context.signals.contains(&signal));
+        let closure = self.connect_handler(args.first()?);
         self.wanted_args = None;
         let closure = closure?;
         // Godot's `hidden` is the engine's visibility event, heard only when
@@ -123,8 +145,24 @@ impl Emitter<'_> {
     /// this class as a call on `this`, and `.bind(..)` with its arguments
     /// taken now, as Godot takes them.
     pub(super) fn callable(&mut self, handler: &Expr) -> Option<String> {
+        self.callable_parts(handler).map(|(text, _)| text)
+    }
+
+    /// A handler for `connect`: the closure with how many arguments it takes,
+    /// so the shim fits a signal's payload to it, as Godot fitted defaults.
+    pub(super) fn connect_handler(&mut self, handler: &Expr) -> Option<String> {
+        let (text, takes) = self.callable_parts(handler)?;
+        Some(match takes {
+            Some(takes) => format!("#{{ \"__call\": {text}, \"__takes\": {takes} }}"),
+            None => text,
+        })
+    }
+
+    /// A callable's closure, and the arguments it takes where that is known:
+    /// a lambda's count is its own.
+    fn callable_parts(&mut self, handler: &Expr) -> Option<(String, Option<usize>)> {
         if matches!(handler, Expr::Lambda { .. }) {
-            return Some(self.expression(handler));
+            return Some((self.expression(handler), None));
         }
         let (target, bound) = match handler {
             Expr::Call(callee, bound) => match &**callee {
@@ -144,7 +182,7 @@ impl Emitter<'_> {
             && let Some(text) = map::implicit_self(verb, &[])
         {
             let text = self.shimmed(text);
-            return Some(format!("|| {{ {text}; }}"));
+            return Some((format!("|| {{ {text}; }}"), Some(0)));
         }
         let name = self.own_method(target)?;
         let mut names = vec!["this".to_string()];
@@ -196,10 +234,12 @@ impl Emitter<'_> {
             let mut args = vec![quoted(&method)];
             args.extend(names.iter().skip(1).cloned());
             let call = format!("this.node.call_async({})", args.join(", "));
-            return Some(format!("{{ {lets}|{}| {{ {call} }} }}", open.join(", ")));
+            let text = format!("{{ {lets}|{}| {{ {call} }} }}", open.join(", "));
+            return Some((text, Some(open.len())));
         }
         let call = format!("{method}({})", names.join(", "));
-        Some(format!("{{ {lets}|{}| {{ {call} }} }}", open.join(", ")))
+        let text = format!("{{ {lets}|{}| {{ {call} }} }}", open.join(", "));
+        Some((text, Some(open.len())))
     }
 
     /// `await sig`, `await node.sig` and `await get_tree().create_timer(t).timeout`:
@@ -207,6 +247,13 @@ impl Emitter<'_> {
     pub(super) fn awaited_signal(&mut self, inner: &Expr) -> Option<String> {
         if !self.allow_await {
             return None;
+        }
+        // A `SceneTree` script awaits its own frame signals bare.
+        if let Expr::Name(name) = inner
+            && matches!(name.as_str(), "process_frame" | "physics_frame")
+            && !self.is_local(name)
+        {
+            return Some("task::frames(1).await".into());
         }
         if let Some(signal) = self.signal_of(inner) {
             return Some(format!(

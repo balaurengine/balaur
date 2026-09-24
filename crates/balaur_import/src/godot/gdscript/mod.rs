@@ -69,6 +69,9 @@ pub(crate) fn body(
     for param in params {
         emitter.declare(param);
     }
+    if let Some(strings) = context.string_params.get(enclosing) {
+        emitter.string_locals.extend(strings.iter().cloned());
+    }
     let rune = emitter.block(&statements, depth);
     Body {
         rune,
@@ -194,6 +197,33 @@ mod tests {
         let out = translate("sink(2)\nself.repair()\n", &ship());
         assert!(out.contains("sink(this, 2);"), "{out}");
         assert!(out.contains("repair(this);"), "{out}");
+    }
+
+    #[test]
+    fn a_singleton_call_reaches_the_engine_module_behind_it() {
+        let source = [
+            "var fps = Performance.get_monitor(Performance.TIME_FPS)",
+            "var inside = Geometry2D.is_point_in_polygon(speed, hull)",
+            "var text = String(speed)",
+            "var letter = char(65)",
+            "var table = typeof(hull) == TYPE_DICTIONARY",
+            "var kids = get_child_count()",
+            "DisplayServer.screen_set_keep_on(true)",
+            "",
+        ]
+        .join("\n");
+        let out = translate(&source, &ship());
+        for line in [
+            "let fps = (gd.monitor)(0);",
+            "let inside = geometry2d::contains(this.hull, this.speed);",
+            "let text = (gd.str)(this.speed);",
+            "let letter = (gd.chr)(65);",
+            "\"Dictionary\"",
+            "let kids = this.node.children().len();",
+            "window::set_keep_awake(true);",
+        ] {
+            assert!(out.contains(line), "{line}\n{out}");
+        }
     }
 
     #[test]

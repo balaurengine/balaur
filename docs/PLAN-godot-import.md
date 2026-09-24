@@ -461,3 +461,6 @@ the second run that day, largest first:
 | `z_index`, `scale` on a Control, `update_position` as tracks | 16 tracks | planned |
 | Built-in signals nothing here emits: `gui_input`, `visibility_changed`, `tab_changed` | 7 | their rows wait on a script's `emit` |
 | `MultiMeshInstance2D`, `VSplitContainer`, `AnimatedSprite2D` | 5 | the `cloner`, a split kind, a `sprite_sheet` |
+
+What is left between this table and a game that plays, in order, is
+`docs/PLAN-polyglot-port.md`.

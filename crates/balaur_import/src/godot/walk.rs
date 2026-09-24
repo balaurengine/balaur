@@ -106,13 +106,7 @@ impl Walk {
             let converted = super::script::convert(&source, &relative, &self.lookups.classes);
             let target = format!("{}.rn", relative.trim_end_matches(".gd"));
             self.sink.put(&target, converted.rune.as_bytes())?;
-            for (name, inner) in super::script::inner_classes(&source) {
-                let file = super::script::inner_file(&relative, &name);
-                let module = super::script::convert(&inner, &file, &self.lookups.classes);
-                self.sink
-                    .put(&file.replace(".gd", ".rn"), module.rune.as_bytes())?;
-                self.report.section(&file, module.notes);
-            }
+            self.write_inner_scripts(&source, &relative)?;
             self.scripts += 1;
             self.report.section(&relative, converted.notes);
         } else if extension == "tres" {
@@ -127,6 +121,20 @@ impl Walk {
             // gathers in memory on its way across.
             let bytes = super::io::bytes(&self.root.join(&relative))?;
             self.sink.put(&relative, &bytes)?;
+        }
+        Ok(())
+    }
+
+    /// Each inner class as a script of its own, and the classes inside it
+    /// under it in turn.
+    fn write_inner_scripts(&mut self, source: &str, file: &str) -> Result<()> {
+        for (name, inner) in super::script::inner_scripts(source, file) {
+            let path = super::script::inner_file(file, &name);
+            let module = super::script::convert(&inner, &path, &self.lookups.classes);
+            self.sink
+                .put(&path.replace(".gd", ".rn"), module.rune.as_bytes())?;
+            self.report.section(&path, module.notes);
+            self.write_inner_scripts(&inner, &path)?;
         }
         Ok(())
     }

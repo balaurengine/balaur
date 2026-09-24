@@ -465,6 +465,8 @@ pub(crate) fn class_index(root: &Path, files: &[String]) -> Classes {
                 (!name.is_empty()).then_some(name)
             })
         };
+        let inners = crate::godot::script::inner_classes(&source);
+        index_inner_classes(&mut classes, file, &inners);
         if let Some(name) = word("class_name ") {
             if let Some(base) = word("extends ") {
                 classes.bases.insert(name.clone(), base);
@@ -480,10 +482,10 @@ pub(crate) fn class_index(root: &Path, files: &[String]) -> Classes {
             if !statics.is_empty() {
                 classes.statics.insert(name.clone(), statics);
             }
-            for (inner, _) in crate::godot::script::inner_classes(&source) {
+            for (inner, _) in &inners {
                 classes.inner.insert(
                     format!("{name}.{inner}"),
-                    crate::godot::script::inner_file(file, &inner),
+                    crate::godot::script::inner_file(file, inner),
                 );
             }
             let defaulted = crate::godot::script::defaulted(&source);
@@ -496,6 +498,20 @@ pub(crate) fn class_index(root: &Path, files: &[String]) -> Classes {
         }
     }
     classes
+}
+
+/// Every inner class under `file`, and those under each of them, reachable
+/// through the file that holds it, `class_name` or not: `PB.Message.new()`
+/// off a preload, and `Message.Part.new()` inside `Message`.
+fn index_inner_classes(classes: &mut Classes, file: &str, inners: &[(String, String)]) {
+    for (inner, text) in inners {
+        let path = crate::godot::script::inner_file(file, inner);
+        classes.inner.insert(
+            format!("{}.{inner}", file.replace(".gd", ".rn")),
+            path.clone(),
+        );
+        index_inner_classes(classes, &path, &crate::godot::script::inner_classes(text));
+    }
 }
 
 /// A GDScript literal as Rune, or `None` for an expression this cannot read.
