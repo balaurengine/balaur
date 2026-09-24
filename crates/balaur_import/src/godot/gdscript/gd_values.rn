@@ -982,6 +982,7 @@ pub fn set_rotation(node, radians) {
 }
 
 pub fn set_tint(node, tint) {
+    let tint = color_of(tint);
     node.set_tint(float(tint.r), float(tint.g), float(tint.b), float(tint.a));
 }
 

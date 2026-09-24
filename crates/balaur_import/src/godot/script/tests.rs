@@ -1002,3 +1002,26 @@ func valid(name: String) -> bool:\n\
         assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
     }
 }
+
+#[test]
+fn a_method_called_deferred_by_name_is_that_call_with_its_arguments() {
+    let source = [
+        "extends Node",
+        "@onready var btn = $Btn",
+        "func _ready():",
+        "\tadd_child.call_deferred(btn)",
+        "\t_refresh.call_deferred(false)",
+        "func _refresh(skip: bool = false):",
+        "\tpass",
+        "",
+    ]
+    .join("\n");
+    let out = convert(&source, "scripts/deferred.gd", &Classes::default());
+    for want in [
+        "(gd.add_child)(this.node, this.btn)",
+        "_refresh(this, false)",
+    ] {
+        assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+    }
+    assert!(!out.rune.contains("call_value"), "{}", out.rune);
+}

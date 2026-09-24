@@ -788,13 +788,28 @@ impl<'a> Emitter<'a> {
         map::todo(what)
     }
 
-    fn call(&mut self, callee: &Expr, args: &[Expr]) -> String {
-        if let Expr::Field(_, verb) = callee
-            && verb == "bind"
-            && let Some(closure) =
-                self.callable(&Expr::Call(Box::new(callee.clone()), args.to_vec()))
+    /// `f.bind(..)` is a closure; `method.call_deferred(a)` is that method
+    /// called with `a`, defaults and all, since a bare name that is no local
+    /// is a method of the class or its node, never a callable value.
+    fn callable_shorthand(&mut self, callee: &Expr, args: &[Expr]) -> Option<String> {
+        let Expr::Field(object, verb) = callee else {
+            return None;
+        };
+        if verb == "bind" {
+            return self.callable(&Expr::Call(Box::new(callee.clone()), args.to_vec()));
+        }
+        if (verb == "call" || verb == "call_deferred")
+            && let Expr::Name(name) = &**object
+            && !self.is_local(name)
         {
-            return closure;
+            return Some(self.call(&Expr::Name(name.clone()), args));
+        }
+        None
+    }
+
+    fn call(&mut self, callee: &Expr, args: &[Expr]) -> String {
+        if let Some(text) = self.callable_shorthand(callee, args) {
+            return text;
         }
         // `self.method(..)` and a bare `method(..)` are the same call here.
         let own = match callee {
