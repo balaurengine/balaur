@@ -1,9 +1,8 @@
 //! `project.godot` as a `project.toml`.
 //!
 //! What carries across is what both engines have: the name, the main scene,
-//! the window, the locales and the input map. An autoload has no equivalent
-//! here and is reported rather than invented; so is every key neither engine
-//! shares.
+//! the window, the locales and the input map. A script autoload becomes a
+//! node of the main scene; every key neither engine shares is reported.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -75,10 +74,14 @@ pub(crate) fn convert(document: &Document, uids: &BTreeMap<String, String>) -> R
     actions(document, &mut out, &mut notes)?;
 
     for section in document.each("autoload") {
-        for (key, _) in &section.fields {
-            notes.push(format!(
-                "autoload `{key}`: balaur has no autoload; give the script to a node in a scene loaded first"
-            ));
+        for (key, value) in &section.fields {
+            // A script autoload becomes a node under the main scene's root;
+            // a scene autoload has no node of its own to become.
+            if !value.as_str().is_some_and(crate::godot::exports::is_script) {
+                notes.push(format!(
+                    "autoload `{key}`: a scene autoload has no node here; give it to the main scene"
+                ));
+            }
         }
     }
     Ok(Converted {
@@ -584,9 +587,12 @@ locale/translations=PackedStringArray("res://lang/en.en.translation", "res://lan
     }
 
     #[test]
-    fn an_autoload_is_reported_rather_than_invented() {
+    fn a_script_autoload_is_a_node_of_the_main_scene_and_needs_no_note() {
         let notes = converted().notes;
-        assert!(notes.iter().any(|n| n.contains("ThemeEvents")), "{notes:?}");
+        assert!(
+            !notes.iter().any(|n| n.contains("ThemeEvents")),
+            "{notes:?}"
+        );
     }
 
     #[test]

@@ -226,9 +226,32 @@ fn style_of(
     {
         style.insert("size".into(), Toml::Float(size));
     }
-    for (state, stylebox_name, font) in [
-        ("hover", hover, "font_hover_color"),
-        ("active", held, "font_pressed_color"),
+    // A MarginContainer's four margins are one padding here, their mean when
+    // they differ.
+    let margins: Vec<f64> = ["margin_left", "margin_top", "margin_right", "margin_bottom"]
+        .iter()
+        .filter_map(|name| item("constants", name).and_then(Value::as_f64))
+        .collect();
+    if !margins.is_empty() {
+        let mean = margins.iter().sum::<f64>() / margins.len() as f64;
+        style.insert("padding".into(), Toml::Float(mean.max(0.0)));
+    }
+    // A tab's states are named as tabs; every other kind's are plain.
+    let (disabled, focus) = if rest.starts_with("tab_") {
+        ("tab_disabled", "tab_focus")
+    } else {
+        ("disabled", "focus")
+    };
+    for (state, stylebox_name, font, icon) in [
+        ("hover", hover, "font_hover_color", "icon_hover_color"),
+        ("active", held, "font_pressed_color", "icon_pressed_color"),
+        (
+            "disabled",
+            Some(disabled),
+            "font_disabled_color",
+            "icon_disabled_color",
+        ),
+        ("focus", Some(focus), "font_focus_color", "icon_focus_color"),
     ] {
         let mut over = stylebox_name
             .and_then(|name| item("styles", name))
@@ -237,12 +260,27 @@ fn style_of(
         if let Some(color) = ink(font) {
             over.insert("color".into(), color);
         }
+        if let Some(color) = ink(icon) {
+            over.insert("icon_color".into(), color);
+        }
         if !over.is_empty() {
             style.insert(state.into(), Toml::Table(over));
         }
     }
-    let used = |group: &str, name: &str| match group {
-        "styles" => [Some(rest), hover, held].contains(&Some(name)),
+    let styles = [Some(rest), hover, held, Some(disabled), Some(focus)];
+    for (group, name, _) in items {
+        if !used(group, name, styles) {
+            *dropped.entry((*group).to_string()).or_default() += 1;
+        }
+    }
+    style
+}
+
+/// Whether a theme item is one a style table reads; `styles` names the
+/// stylebox items of the type.
+fn used(group: &str, name: &str, styles: [Option<&str>; 5]) -> bool {
+    match group {
+        "styles" => styles.contains(&Some(name)),
         "colors" => matches!(
             name,
             "font_color"
@@ -250,19 +288,28 @@ fn style_of(
                 | "title_color"
                 | "font_hover_color"
                 | "font_pressed_color"
+                | "font_disabled_color"
+                | "font_focus_color"
                 | "icon_normal_color"
+                | "icon_hover_color"
+                | "icon_pressed_color"
+                | "icon_disabled_color"
+                | "icon_focus_color"
         ),
         "font_sizes" => matches!(name, "font_size" | "normal_font_size"),
-        "constants" => matches!(name, "separation" | "h_separation" | "v_separation"),
+        "constants" => matches!(
+            name,
+            "separation"
+                | "h_separation"
+                | "v_separation"
+                | "margin_left"
+                | "margin_top"
+                | "margin_right"
+                | "margin_bottom"
+        ),
         "fonts" => name == "font",
         _ => false,
-    };
-    for (group, name, _) in items {
-        if !used(group, name) {
-            *dropped.entry((*group).to_string()).or_default() += 1;
-        }
     }
-    style
 }
 
 /// A `StyleBoxFlat`, `StyleBoxTexture`, `StyleBoxEmpty` or `StyleBoxLine`

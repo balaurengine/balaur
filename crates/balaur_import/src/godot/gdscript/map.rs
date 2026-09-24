@@ -66,6 +66,20 @@ pub(crate) fn implicit_self(name: &str, args: &[String]) -> Option<String> {
         "get_child_count",
         "create_timer",
         "add_title_bar_control",
+        "queue_redraw",
+        "draw_circle",
+        "draw_line",
+        "draw_rect",
+        "draw_arc",
+        "draw_polyline",
+        "draw_multiline",
+        "draw_polygon",
+        "draw_colored_polygon",
+        "draw_texture_rect",
+        "draw_texture_rect_region",
+        "draw_set_transform",
+        "draw_set_transform_matrix",
+        "draw_string",
         "clear",
         "add_item",
         "add_icon_item",
@@ -111,6 +125,32 @@ fn numeric(name: &str, args: &[String]) -> Option<String> {
     })
 }
 
+/// Godot's `@GlobalScope` maths and random numbers.
+fn arithmetic(name: &str, all: &str, one: &str) -> Option<String> {
+    Some(match name {
+        "sqrt" => format!("math::sqrt({one})"),
+        "pow" => format!("math::pow({all})"),
+        "sin" | "cos" | "tan" | "asin" | "acos" | "atan" | "exp" | "log" => {
+            format!("math::{name}({one})")
+        }
+        "atan2" => format!("math::atan2({all})"),
+        "deg_to_rad" => format!("math::rad({one})"),
+        "rad_to_deg" => format!("math::deg({one})"),
+        "lerp" | "lerpf" => format!("(gd.lerp)({all})"),
+        "sign" | "signf" | "signi" => format!("(gd.sign)({one})"),
+        "snapped" | "snappedf" | "snappedi" => format!("(gd.snapped)({all})"),
+        "fmod" | "fposmod" => format!("(gd.fmod)({all})"),
+        "posmod" => format!("(gd.posmod)({all})"),
+        "move_toward" => format!("(gd.move_toward)({all})"),
+        "randf" => "rng::random()".into(),
+        "randi" => "rng::int(0, 2147483647)".into(),
+        "randi_range" => format!("rng::int({all})"),
+        "randf_range" => format!("rng::range({all})"),
+        "randomize" => "()".into(),
+        _ => return None,
+    })
+}
+
 /// A global function: `str(x)`, `range(n)`, `push_error(m)`.
 pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
     if let Some(text) = numeric(name, args) {
@@ -118,6 +158,9 @@ pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
     }
     let all = args.join(", ");
     let one = args.first().cloned().unwrap_or_default();
+    if let Some(text) = arithmetic(name, &all, &one) {
+        return Some(text);
+    }
     Some(match name {
         // Variant conversions and queries live in the shim, which dispatches
         // on the value the way Godot's Variant did.
@@ -151,25 +194,6 @@ pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
         "print" | "prints" | "printt" | "print_rich" => format!("log::info((gd.str_all)([{all}]))"),
         "push_error" | "printerr" => format!("log::error((gd.str_all)([{all}]))"),
         "push_warning" => format!("log::warn((gd.str_all)([{all}]))"),
-        "sqrt" => format!("math::sqrt({one})"),
-        "pow" => format!("math::pow({all})"),
-        "sin" | "cos" | "tan" | "asin" | "acos" | "atan" | "exp" | "log" => {
-            format!("math::{name}({one})")
-        }
-        "atan2" => format!("math::atan2({all})"),
-        "deg_to_rad" => format!("math::rad({one})"),
-        "rad_to_deg" => format!("math::deg({one})"),
-        "lerp" | "lerpf" => format!("(gd.lerp)({all})"),
-        "sign" | "signf" | "signi" => format!("(gd.sign)({one})"),
-        "snapped" | "snappedf" | "snappedi" => format!("(gd.snapped)({all})"),
-        "fmod" | "fposmod" => format!("(gd.fmod)({all})"),
-        "posmod" => format!("(gd.posmod)({all})"),
-        "move_toward" => format!("(gd.move_toward)({all})"),
-        "randf" => "rng::random()".into(),
-        "randi" => "rng::int(0, 2147483647)".into(),
-        "randi_range" => format!("rng::int({all})"),
-        "randf_range" => format!("rng::range({all})"),
-        "randomize" => "()".into(),
         "tr" => format!("strings::tr({all})"),
         "Vector2" | "Vector2i" if args.is_empty() => "(gd.vec2)(0.0, 0.0)".into(),
         "Vector2" | "Vector2i" if args.len() == 1 => format!("(gd.vec_of)({one})"),
@@ -828,9 +852,40 @@ fn config_verb(name: &str) -> Option<&'static str> {
     })
 }
 
+/// Godot's `_draw` verbs on a node, through the shim, which takes the
+/// node's transform into account and draws for this frame. `queue_redraw`
+/// asks for nothing: every frame draws.
+fn draw_verb(receiver: &str, name: &str, args: &[String]) -> Option<String> {
+    // Each verb with how many arguments Godot's takes, defaults included:
+    // a Rune function takes every one, so a shorter call is padded with nil.
+    const VERBS: &[(&str, usize)] = &[
+        ("draw_circle", 6),
+        ("draw_line", 5),
+        ("draw_rect", 5),
+        ("draw_arc", 8),
+        ("draw_polyline", 4),
+        ("draw_multiline", 4),
+        ("draw_polygon", 4),
+        ("draw_colored_polygon", 4),
+        ("draw_texture_rect", 5),
+        ("draw_texture_rect_region", 6),
+        ("draw_set_transform", 3),
+        ("draw_set_transform_matrix", 1),
+        ("draw_string", 7),
+    ];
+    if name == "queue_redraw" {
+        return Some(format!("(gd.queue_redraw)({receiver})"));
+    }
+    let (_, takes) = VERBS.iter().find(|(verb, _)| *verb == name)?;
+    let mut parts: Vec<String> = args.iter().take(*takes).cloned().collect();
+    parts.resize(*takes, "()".to_string());
+    Some(format!("(gd.{name})({receiver}, {})", parts.join(", ")))
+}
+
 /// What a node answers about itself: its hash, its children, its focus and
 /// where the canvas put it.
 fn node_query(receiver: &str, name: &str, args: &[String]) -> Option<String> {
+    let one = args.first().cloned().unwrap_or_default();
     Some(match name {
         // `name.hash()`: the global `hash` on any value, as Godot answers it.
         "hash" if args.is_empty() => format!("(gd.hash)({receiver})"),
@@ -839,11 +894,38 @@ fn node_query(receiver: &str, name: &str, args: &[String]) -> Option<String> {
         }
         "get_child_count" => format!("{receiver}.children().len()"),
         "has_focus" => format!("(gd.same)(ui::focused(), {receiver})"),
-        // Focus is the widget layer's to give; `accept_event` waits on the
-        // handled rule of `docs/PLAN-polyglot-port.md` step 4.
-        "release_focus" | "accept_event" => "()".into(),
-        // A foldable's title bar is its `fold` widget's header here.
-        "add_title_bar_control" => "()".into(),
+        // Focus is the widget layer's to give, and a foldable's title bar is
+        // its `fold` widget's header.
+        "release_focus" | "add_title_bar_control" => "()".into(),
+        // The hook that handed the event over answers `true` for it.
+        "accept_event" | "set_input_as_handled" => "(gd.set_input_handled)()".into(),
+        // A per-node switch the hooks the translator writes read first.
+        "set_process_input" | "set_process_unhandled_input" | "set_process_unhandled_key_input" => {
+            if receiver == "this.node" {
+                format!("this.input_enabled = {one}")
+            } else {
+                format!("(gd.set_field)({receiver}, \"input_enabled\", {one})")
+            }
+        }
+        _ => return None,
+    })
+}
+
+/// The scene tree's own verbs, which Godot reached through `get_tree()`. The
+/// receiver is the tree and carries nothing here.
+fn tree_verb(receiver: &str, name: &str, args: &[String]) -> Option<String> {
+    let one = args.first().cloned().unwrap_or_default();
+    Some(match name {
+        "get_nodes_in_group" => format!("scene::tagged({one})"),
+        "create_timer" => format!("(gd.timer)({one})"),
+        "change_scene_to_file" | "change_scene_to_packed" => format!("scene::switch({one})"),
+        "reload_current_scene" => "scene::switch(scene::source())".into(),
+        "quit" if receiver == TREE => format!(
+            "engine::quit({})",
+            args.first().cloned().unwrap_or("0".into())
+        ),
+        "get_root" => "scene::root()".into(),
+        "get_first_node_in_group" => format!("(gd.front)(scene::tagged({one}))"),
         _ => return None,
     })
 }
@@ -858,6 +940,12 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         return Some(text);
     }
     if let Some(text) = node_query(receiver, name, args) {
+        return Some(text);
+    }
+    if let Some(text) = draw_verb(receiver, name, args) {
+        return Some(text);
+    }
+    if let Some(text) = tree_verb(receiver, name, args) {
         return Some(text);
     }
     // A shim verb takes the value Godot called it on as its first argument.
@@ -930,18 +1018,6 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         _ if config_verb(name).is_some() => with_receiver(config_verb(name)?),
         // `call` on a node is the engine's own verb already.
         "call" | "call_deferred" => format!("(gd.call_value)({receiver}, [{all}])"),
-        // The scene tree's own verbs, which Godot reached through
-        // `get_tree()`. The receiver is the tree and carries nothing here.
-        "get_nodes_in_group" => format!("scene::tagged({one})"),
-        "create_timer" => format!("(gd.timer)({one})"),
-        "change_scene_to_file" | "change_scene_to_packed" => format!("scene::switch({one})"),
-        "reload_current_scene" => "scene::switch(scene::source())".into(),
-        "quit" if receiver == TREE => format!(
-            "engine::quit({})",
-            args.first().cloned().unwrap_or("0".into())
-        ),
-        "get_root" => "scene::root()".into(),
-        "get_first_node_in_group" => format!("(gd.front)(scene::tagged({one}))"),
         // Frame ordering and drawing, which the engine states differently.
         "is_node_ready" | "is_inside_tree" => format!("{receiver}.is_valid()"),
         // The viewport, which Godot reached through the node and the engine
@@ -952,11 +1028,7 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         }
         "get_size" if receiver != TREE => format!("(gd.size_of)({receiver})"),
         "get_size" | "get_screen_size" => "(gd.screen_size)()".into(),
-        "set_notify_transform"
-        | "set_notify_local_transform"
-        | "set_process_input"
-        | "set_process_unhandled_input"
-        | "set_process_unhandled_key_input" => "()".into(),
+        "set_notify_transform" | "set_notify_local_transform" => "()".into(),
         "move_to_front" => format!("{receiver}.set_sibling_index(-1)"),
         "get_index" => format!("{receiver}.sibling_index()"),
         "remove_child" => format!("(gd.remove_child)({one})"),

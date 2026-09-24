@@ -19,9 +19,11 @@ use class::{
     OBJECT_ROOTS, builtin_root, constructs, init_call, write_constructor, write_default_init,
 };
 use constants::{enum_members, self_contained, write_constants, write_enums};
+use draw::{DRAW_CALL, write_draw_hook};
 pub(crate) use inner::{
     defaulted, function_names, inner_classes, inner_file, inner_scripts, signal_arities,
 };
+use input::{write_input_hooks, write_widget_forwarders};
 use members::write_members;
 
 /// A skeleton, and what the port will have to deal with.
@@ -161,10 +163,6 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
     );
     write_accessors(&mut out, &context, &functions);
     write_constructor(&mut out, source, path, classes, &functions, &defaults);
-    if source.contains("_input(") || source.contains("_unhandled_input(") {
-        notes
-            .push("an `_input` handler: read the `input` module from `update` instead".to_string());
-    }
     Converted { rune: out, notes }
 }
 
@@ -264,7 +262,6 @@ fn depth_of(line: &str) -> i32 {
             (Some(_), '\\') => {
                 chars.next();
             }
-            (Some(_), _) => {}
             (None, '"' | '\'') => quote = Some(c),
             (None, '(' | '[' | '{') => depth += 1,
             (None, ')' | ']' | '}') => depth -= 1,
@@ -317,6 +314,32 @@ fn split_functions(source: &str) -> Vec<Function> {
 
 /// Everything a bare name in a body needs to resolve against, this file's and
 /// its bases'.
+/// What one file of the class chain declares, folded into the context.
+fn absorb(context: &mut Context, text: &str) {
+    bool_members(context, text);
+    string_members(context, text);
+    let level = declarations(text);
+    context.members.extend(level.members);
+    context.consts.extend(level.consts);
+    context.lazy.extend(level.lazy);
+    for (name, default) in level.static_vars {
+        context.static_vars.entry(name).or_insert(default);
+    }
+    context.signals.extend(level.signals);
+    context.signal_arity.extend(level.signal_arity);
+    context.methods.extend(level.methods);
+    context.statics.extend(level.statics);
+    // `const Flows = preload("res://flows.gd")` names a class as surely
+    // as its `class_name` does: `Flows.new()` reaches that module.
+    for line in top_level(text) {
+        if let Some((name, module)) = preloaded_script(&line) {
+            context.lazy.remove(&name);
+            context.consts.remove(&name);
+            context.classes.entry(name).or_insert(module);
+        }
+    }
+}
+
 fn context(
     source: &str,
     path: &str,
@@ -401,28 +424,7 @@ fn context(
     collect_bools(&mut context, functions);
     collect_strings(&mut context, functions);
     for text in chain(source, classes) {
-        bool_members(&mut context, &text);
-        string_members(&mut context, &text);
-        let level = declarations(&text);
-        context.members.extend(level.members);
-        context.consts.extend(level.consts);
-        context.lazy.extend(level.lazy);
-        for (name, default) in level.static_vars {
-            context.static_vars.entry(name).or_insert(default);
-        }
-        context.signals.extend(level.signals);
-        context.signal_arity.extend(level.signal_arity);
-        context.methods.extend(level.methods);
-        context.statics.extend(level.statics);
-        // `const Flows = preload("res://flows.gd")` names a class as surely
-        // as its `class_name` does: `Flows.new()` reaches that module.
-        for line in top_level(&text) {
-            if let Some((name, module)) = preloaded_script(&line) {
-                context.lazy.remove(&name);
-                context.consts.remove(&name);
-                context.classes.entry(name).or_insert(module);
-            }
-        }
+        absorb(&mut context, &text);
     }
     name_functions(&mut context, functions);
     // A static's default is Rune too, and is inlined wherever it is read.
@@ -810,6 +812,7 @@ fn write_functions(
     static_init: bool,
 ) {
     let mut seen: Vec<String> = Vec::new();
+    let mut widget_keys: BTreeSet<String> = BTreeSet::new();
     let mut forwarders: std::collections::BTreeMap<String, (String, bool)> =
         std::collections::BTreeMap::new();
     if static_init {
@@ -899,8 +902,12 @@ fn write_functions(
         for (signal, handler) in body.forwarders {
             forwarders.entry(signal).or_insert(handler);
         }
+        widget_keys.extend(body.widget_forwarders);
     }
     write_forwarders(out, functions, context, &forwarders);
+    write_widget_forwarders(out, &widget_keys);
+    write_input_hooks(out, functions);
+    write_draw_hook(out, functions);
 }
 
 /// What a function does before its own body: an int parameter truncated,
@@ -932,6 +939,9 @@ fn write_prologue(
     }
     // Godot's `set_process` switched the hook off; here it sets a flag,
     // and the hook reads it.
+    if name == "update" && functions.iter().any(|f| f.name == "_draw") {
+        out.push_str(DRAW_CALL);
+    }
     for (hook, flag) in [
         ("update", PROCESS_FLAG),
         ("fixed_update", PHYSICS_PROCESS_FLAG),
@@ -1118,7 +1128,9 @@ fn push_comment(out: &mut String, line: &str, indent: &str) {
 
 mod class;
 mod constants;
+mod draw;
 mod inner;
+mod input;
 mod members;
 #[cfg(test)]
 mod tests;

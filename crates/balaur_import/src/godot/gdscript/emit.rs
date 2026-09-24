@@ -153,6 +153,9 @@ pub(crate) struct Emitter<'a> {
     /// Signal to the handler it forwards to, and whether the handler runs
     /// only when the node hid, which is what Godot's `hidden` means.
     pub forwarders: BTreeMap<String, (String, bool)>,
+    /// Widget keys whose handlers are bound to a node: `on_click` for a
+    /// `.bind` on `pressed`, which the class's forwarder finds by the node.
+    pub widget_forwarders: BTreeSet<String>,
     /// How many values the signal a handler is being connected to carries,
     /// while that connect is being written.
     pub wanted_args: Option<usize>,
@@ -184,6 +187,7 @@ impl<'a> Emitter<'a> {
             awaits: false,
             uses_shim: false,
             forwarders: BTreeMap::new(),
+            widget_forwarders: BTreeSet::new(),
             wanted_args: None,
             allow_await: true,
             in_static: false,
@@ -397,6 +401,37 @@ impl<'a> Emitter<'a> {
         out
     }
 
+    /// `a[i]`: a tree parameter, a string's character, or Rune's own index.
+    fn index(&mut self, object: &Expr, index: &Expr) -> String {
+        if let Some((object, key)) = tree_parameter(object, index) {
+            let object = self.expression(object);
+            self.uses_shim = true;
+            return format!("(gd.get)({object}, {}, ())", quoted(key));
+        }
+        // `text[i]` on a string: Rune indexes no string, the shim does.
+        // A string key is a dictionary's, whatever the name is called.
+        let stringy = match object {
+            Expr::Name(name) if self.is_local(name) => self.string_locals.contains(name),
+            Expr::Name(name) => self.context.strings.contains(name),
+            _ => false,
+        };
+        if stringy && !matches!(index, Expr::Str(_)) {
+            let object = self.expression(object);
+            let index = self.expression(index);
+            self.uses_shim = true;
+            return format!("(gd.at)({object}, {index})");
+        }
+        let compound = matches!(object, Expr::Binary(..) | Expr::Unary(..));
+        let object = self.expression(object);
+        let object = if compound {
+            format!("({object})")
+        } else {
+            object
+        };
+        let index = self.expression(index);
+        format!("{object}[{index}]")
+    }
+
     pub(crate) fn expression(&mut self, value: &Expr) -> String {
         match value {
             Expr::Int(text) => text.clone(),
@@ -420,35 +455,7 @@ impl<'a> Emitter<'a> {
             Expr::SelfRef => "this.node".into(),
             Expr::Name(name) => self.name(name),
             Expr::Field(object, field) => self.field(object, field),
-            Expr::Index(object, index) => {
-                if let Some((object, key)) = tree_parameter(object, index) {
-                    let object = self.expression(object);
-                    self.uses_shim = true;
-                    return format!("(gd.get)({object}, {}, ())", quoted(key));
-                }
-                // `text[i]` on a string: Rune indexes no string, the shim does.
-                // A string key is a dictionary's, whatever the name is called.
-                let stringy = match &**object {
-                    Expr::Name(name) if self.is_local(name) => self.string_locals.contains(name),
-                    Expr::Name(name) => self.context.strings.contains(name),
-                    _ => false,
-                };
-                if stringy && !matches!(**index, Expr::Str(_)) {
-                    let object = self.expression(object);
-                    let index = self.expression(index);
-                    self.uses_shim = true;
-                    return format!("(gd.at)({object}, {index})");
-                }
-                let compound = matches!(**object, Expr::Binary(..) | Expr::Unary(..));
-                let object = self.expression(object);
-                let object = if compound {
-                    format!("({object})")
-                } else {
-                    object
-                };
-                let index = self.expression(index);
-                format!("{object}[{index}]")
-            }
+            Expr::Index(object, index) => self.index(object, index),
             Expr::Call(callee, args) => self.call(callee, args),
             Expr::Unary(op, inner) => {
                 if *op == "!" {

@@ -45,7 +45,10 @@ Measured on 2026-09-21 unless a date says otherwise.
   After steps 2 and 3 on 2026-09-24: 709 everywhere, 198 in game-owned code
   over 113 names, 2 in `addons/polyglot/proto`; the reimport writes 866
   scripts, the 97 new ones being nested inner classes, and `balaur check`
-  reports no problems.
+  reports no problems. After steps 4 to 7 the same day: 649 everywhere, 154
+  in game-owned code over 100 names, the theme's unmapped items 280 to 180,
+  and `login_offline` logs 41 error lines, 33 of them the cutout shadow's
+  `_draw` meeting a member the bake never set.
 - The report lists 6 969 notes; 2 261 are in game-owned code, of which 1 280
   are a missing value, 652 a missing call and 329 everything else.
 - The port has never been exported. The game ships Web, iOS, Android, macOS,
@@ -249,11 +252,33 @@ Three rules belong to the importer rather than the translator:
    each with a test in `crates/balaur/tests`; then the translator's `_input`
    rules and the `event is InputEvent…` tests. Every one of the 43 files
    reimports without a `PORT(gdscript)` comment, and `panel_show_button.rn`
-   leaves `ported.txt`.
+   leaves `ported.txt`. Built 2026-09-24: a hook answering `true` ends the
+   broadcast, a press reaches the node under the pointer and then every
+   other node, and a class with an `_input` gains the six hooks that build
+   the event table and hand it over. Mouse motion with no button held, and
+   an action bound to a pad alone, reach no handler yet.
 5. **`z` and `region` on `render.draw_*_2d`** and the `_draw` rules; the
-   eight scripts reimport and draw.
+   eight scripts reimport and draw. The rules landed 2026-09-24: a class
+   with a `_draw` draws it every frame from `update`, and thirteen verbs go
+   through the shim, which runs each point through the node's transform and
+   the one `draw_set_transform` set, cuts a concave polygon into triangles,
+   and flips Godot's arc angles. The two options on the engine's verbs are
+   not built: a script's drawing sits over the scene, and a texture region
+   draws as the whole picture.
 6. **Importer rules**: the `FoamTrail` sprites, export types, autoloads.
-7. **Theme states and icons**, after a count by key name.
+   Done 2026-09-24: a `ColorRect` with a material under a `Node2D` is a
+   `shape2d` rectangle carrying it, 34 notes to 1; an export typed by a class
+   that extends a script by its path is a node, a Control enum an int, and
+   an unknown hint with a preloaded default a path, 36 notes to 3; and the
+   autoloads are the first nodes under the main scene's root, the scene
+   found through its uid.
+7. **Theme states and icons**, after a count by key name. The count, taken
+   2026-09-24 over the 474 items: 164 colours, 98 constants, 129 styles, 51
+   icons, 18 fonts and 14 sizes. Built the same day: a `widget_theme` kind
+   takes `disabled` and `focus` tables, the importer fills all four states
+   with Godot's styleboxes and its font and icon colours, and a
+   `MarginContainer`'s four margins are one padding. The 51 icons, and the
+   shadow, caret, selection and placeholder colours, are still reported.
 8. **The small keys** of §1.1, each with its test; the `regex` module last.
 9. **Retire the hand-written files** and reimport; the 54 again.
 10. **Web export**, `web_smoke`, the size report, the `web` mappings.

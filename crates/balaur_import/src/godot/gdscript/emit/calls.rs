@@ -83,15 +83,24 @@ impl Emitter<'_> {
             // variable, a lambda, another node's method. A script signal
             // takes it as a value; a widget's or the engine's needs a name.
             Some(other) => {
+                let widget = map::widget_signal(&signal);
                 if verb != "connect"
-                    || map::widget_signal(&signal).is_some()
-                    || map::ENGINE_SIGNALS.contains(&signal.as_str())
+                    || (widget.is_none() && map::ENGINE_SIGNALS.contains(&signal.as_str()))
                 {
                     return None;
                 }
                 let receiver = self.expression(&object);
                 let handler = self.argument("connect", other);
                 self.uses_shim = true;
+                // A widget's signal calls a method by name: the class gains a
+                // forwarder that finds the handler by the widget's node.
+                if let Some(key) = widget {
+                    self.widget_forwarders.insert(key.to_string());
+                    return Some(format!(
+                        "(gd.widget_bind)({receiver}, {}, {handler})",
+                        quoted(key)
+                    ));
+                }
                 return Some(format!(
                     "(gd.connect)({receiver}, {}, {handler})",
                     quoted(&signal)

@@ -25,25 +25,29 @@ pub(crate) struct Pointer {
     size: (u32, u32),
 }
 
-/// Send one hook to a node: its bindings, then its script.
+/// Send one hook to a node: its bindings, then its script. True when the
+/// script answered `true`: the node has handled the event.
 ///
 /// Bindings first, so a node carrying both sees the world the table left, and
 /// a script that wants to run first simply does not use a binding.
-fn dispatch(eng: &Engine, entity: Entity, event: &str, args: &[Value]) {
+fn dispatch(eng: &Engine, entity: Entity, event: &str, args: &[Value]) -> bool {
     bindings::fire(eng, entity, event, args);
     let Some(host) = eng.script_host() else {
-        return;
+        return false;
     };
     let node = node_id_of(entity);
     let hook = hooks::hook_of(event);
-    if host.has_method(node, &hook) {
-        host.call_on(node, &hook, args);
-    }
+    host.has_method(node, &hook) && handled(host.call_on(node, &hook, args))
 }
 
-/// Send a hook to every node in the scene, for the events that belong to the
-/// whole window rather than to one node.
-fn broadcast(eng: &Engine, event: &str, args: &[Value]) {
+fn handled(answer: Option<Value>) -> bool {
+    answer.is_some_and(|value| matches!(value, Value::Bool(true)))
+}
+
+/// Send a hook to every node in the scene but `skip`, in tree order, until
+/// one answers `true`: for the events that belong to the whole window rather
+/// than to one node, and for a press the node under the pointer let through.
+fn broadcast(eng: &Engine, event: &str, args: &[Value], skip: Option<Entity>) {
     let everyone = {
         let world = eng.world();
         balaur_core::scene::collect_subtree(&world, eng.root())
@@ -52,13 +56,16 @@ fn broadcast(eng: &Engine, event: &str, args: &[Value]) {
     let hook = hooks::hook_of(event);
     let host = eng.script_host();
     for entity in everyone {
+        if Some(entity) == skip {
+            continue;
+        }
         bindings::fire(eng, entity, event, args);
         let Some(host) = host.as_ref() else {
             continue;
         };
         let node = node_id_of(entity);
-        if host.has_method(node, &hook) {
-            host.call_on(node, &hook, args);
+        if host.has_method(node, &hook) && handled(host.call_on(node, &hook, args)) {
+            return;
         }
     }
 }
@@ -107,11 +114,15 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
         }
         state.over = over;
     }
+    // The node under the pointer answers first, and every other node hears
+    // the press unless it was handled: a panel closes on a click outside it.
     if pressed {
         state.pressed = over;
         state.dragging = false;
-        if let Some(node) = over {
-            dispatch(eng, node, "pointer_down", &[button_name(0)]);
+        let args = [button_name(0)];
+        let taken = over.is_some_and(|node| dispatch(eng, node, "pointer_down", &args));
+        if !taken {
+            broadcast(eng, "pointer_down", &args, over);
         }
     }
     if state.pressed.is_some() && (delta.0 != 0.0 || delta.1 != 0.0) {
@@ -129,8 +140,14 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
         }
     }
     if released {
+        let args = [button_name(0)];
+        let taken = state
+            .pressed
+            .is_some_and(|node| dispatch(eng, node, "pointer_up", &args));
+        if !taken {
+            broadcast(eng, "pointer_up", &args, state.pressed);
+        }
         if let Some(node) = state.pressed {
-            dispatch(eng, node, "pointer_up", &[button_name(0)]);
             // A press and a release on one node is a click; a release over
             // another node is a drop on that one, which is what a drag ends as.
             if over == Some(node) && !state.dragging {
@@ -153,8 +170,10 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
             Value::Num(f64::from(scroll.1)),
         ];
         match over {
-            Some(node) => dispatch(eng, node, "scroll", &args),
-            None => broadcast(eng, "scroll", &args),
+            Some(node) => {
+                dispatch(eng, node, "scroll", &args);
+            }
+            None => broadcast(eng, "scroll", &args, None),
         }
     }
 }
@@ -182,10 +201,10 @@ fn input_system(eng: &Engine, state: &mut Pointer) {
         )
     };
     for key in down {
-        broadcast(eng, "key_down", &[Value::text(key)]);
+        broadcast(eng, "key_down", &[Value::text(key)], None);
     }
     for key in up {
-        broadcast(eng, "key_up", &[Value::text(key)]);
+        broadcast(eng, "key_up", &[Value::text(key)], None);
     }
     if let Some(actions) = eng.try_resource::<balaur_input::InputActions>() {
         let fired: Vec<String> = {
@@ -197,7 +216,7 @@ fn input_system(eng: &Engine, state: &mut Pointer) {
                 .collect()
         };
         for name in fired {
-            broadcast(eng, "action", &[Value::text(name)]);
+            broadcast(eng, "action", &[Value::text(name)], None);
         }
     }
     let size = balaur_render::viewport_size(eng);
@@ -206,6 +225,7 @@ fn input_system(eng: &Engine, state: &mut Pointer) {
             eng,
             "resize",
             &[Value::Num(f64::from(size.0)), Value::Num(f64::from(size.1))],
+            None,
         );
     }
     state.size = size;

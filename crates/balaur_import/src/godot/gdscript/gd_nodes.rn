@@ -2188,3 +2188,183 @@ pub fn node_at(owner, path) {
     }
     return owner.get_node(path);
 }
+
+const EVENT_KEY = "__event";
+const INPUT_HANDLED = "input:handled";
+
+/// Which of Godot's event classes a hook's event stands for. A finger is a
+/// click here, so a pointer event is Godot's touch as well as its mouse.
+fn event_classes(kind) {
+    if kind == "InputEventKey" {
+        return ["InputEvent", "InputEventWithModifiers", "InputEventKey"];
+    }
+    if kind == "InputEventMouseButton" {
+        return ["InputEvent", "InputEventWithModifiers", "InputEventMouse", "InputEventMouseButton", "InputEventScreenTouch"];
+    }
+    if kind == "InputEventMouseMotion" {
+        return ["InputEvent", "InputEventWithModifiers", "InputEventMouse", "InputEventMouseMotion", "InputEventScreenDrag"];
+    }
+    return ["InputEvent"];
+}
+
+pub fn event_is(event, name) {
+    return event_classes(event[EVENT_KEY]).iter().any(|class| class == name);
+}
+
+/// Godot's verbs on an event, as closures over the table.
+fn event_verbs(event) {
+    event["is_action_pressed"] = |name| event["pressed"] && input::action_just_pressed(name);
+    event["is_action_released"] = |name| !event["pressed"] && input::action_just_released(name);
+    event["is_action"] = |name| input::action_just_pressed(name) || input::action_just_released(name);
+    event["is_pressed"] = || event["pressed"];
+    event["is_released"] = || !event["pressed"];
+    event["is_echo"] = || false;
+    event["is_canceled"] = || false;
+    event["get_position"] = || event["position"];
+    event["get_global_position"] = || event["global_position"];
+    event["as_text"] = || str(event[EVENT_KEY]);
+}
+
+/// The code point the keyboard typed this frame, for Godot's `unicode`.
+fn typed_code() {
+    let typed = input::typed();
+    if !(typed is String) || typed.len() == 0 {
+        return 0;
+    }
+    match typed.chars().next() {
+        Some(c) => return char::to_i64(c),
+        None => return 0,
+    }
+}
+
+/// A key hook's event: Godot's `InputEventKey`. A key is named as the
+/// engine names it, which `KEY_*` spells the same way.
+pub fn key_event(key, pressed) {
+    let event = #{
+        "__event": "InputEventKey",
+        "keycode": key,
+        "physical_keycode": key,
+        "key_label": key,
+        "pressed": pressed,
+        "echo": false,
+        "unicode": typed_code(),
+        "shift_pressed": false,
+        "ctrl_pressed": false,
+        "alt_pressed": false,
+        "meta_pressed": false,
+    };
+    event_verbs(event);
+    return event;
+}
+
+/// Godot numbers the buttons from one; the engine names them.
+fn button_index(button) {
+    if button == "right" {
+        return 2;
+    }
+    if button == "middle" {
+        return 3;
+    }
+    return 1;
+}
+
+/// A pointer hook's event: Godot's `InputEventMouseButton`, and its touch.
+pub fn pointer_event(button, pressed) {
+    let at = vec_of(input::mouse_position());
+    let event = #{
+        "__event": "InputEventMouseButton",
+        "button_index": button_index(button),
+        "pressed": pressed,
+        "position": at,
+        "global_position": at,
+        "double_click": false,
+        "factor": 1.0,
+        "index": 0,
+        "button_mask": if pressed { 1 } else { 0 },
+    };
+    event_verbs(event);
+    return event;
+}
+
+/// A drag hook's event: Godot's `InputEventMouseMotion` with a button held.
+pub fn motion_event(dx, dy) {
+    let at = vec_of(input::mouse_position());
+    let event = #{
+        "__event": "InputEventMouseMotion",
+        "relative": vec2(dx, dy),
+        "velocity": vec2(dx, dy),
+        "position": at,
+        "global_position": at,
+        "pressed": true,
+        "index": 0,
+        "button_mask": 1,
+    };
+    event_verbs(event);
+    return event;
+}
+
+/// A scroll hook's event: Godot's wheel buttons, 4 up and 5 down.
+pub fn scroll_event(dx, dy) {
+    let at = vec_of(input::mouse_position());
+    let event = #{
+        "__event": "InputEventMouseButton",
+        "button_index": if dy > 0.0 { 4 } else { 5 },
+        "pressed": true,
+        "position": at,
+        "global_position": at,
+        "double_click": false,
+        "factor": math::abs(dy),
+        "index": 0,
+        "button_mask": 0,
+    };
+    event_verbs(event);
+    return event;
+}
+
+/// Godot's `set_input_as_handled` and `accept_event`: the hook that called
+/// the handler answers it, and the engine stops the broadcast there.
+pub fn set_input_handled() {
+    script::store(INPUT_HANDLED, true);
+}
+
+pub fn input_handled() {
+    let held = script::stored(INPUT_HANDLED);
+    return held is bool && held;
+}
+
+pub fn take_input_handled() {
+    let held = input_handled();
+    script::store(INPUT_HANDLED, false);
+    return held;
+}
+
+const WIDGET_BOUND = "widget:bound:";
+
+/// A widget signal's handler that is no method here, a `.bind` or a lambda:
+/// the widget calls the class's forwarder with its node, which finds it.
+pub fn widget_bind(node, key, handler) {
+    if !(node is balaur::Node) {
+        return ();
+    }
+    let patch = #{ "pass_node": true };
+    patch[key] = `__widget_${key}`;
+    node.patch_component("widget", patch);
+    let store_key = `${WIDGET_BOUND}${node.stable_id()}:${key}`;
+    let list = script::stored(store_key);
+    if !(list is Vec) {
+        list = [];
+    }
+    list.push(handler);
+    script::store(store_key, list);
+    return ();
+}
+
+pub fn widget_fire(node, key, args) {
+    let list = script::stored(`${WIDGET_BOUND}${node.stable_id()}:${key}`);
+    if list is Vec {
+        for f in list {
+            call_value(f, args);
+        }
+    }
+    return ();
+}

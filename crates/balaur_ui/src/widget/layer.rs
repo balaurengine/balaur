@@ -15,7 +15,7 @@ use crate::widget::arrange::{
     scroller, settle_rects, solved_of, tabs,
 };
 use crate::widget::node::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
-use crate::widget::theme::{Style, WidgetTheme, face, styled, theme_of};
+use crate::widget::theme::{Pointer, Style, WidgetState, WidgetTheme, face, styled, theme_of};
 
 /// Whether focus can land on this widget.
 ///
@@ -264,7 +264,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         // An `accept` is a click by another name: same `clicked`, same
         // `on_click`, so it starts the frame's list rather than a second one.
         clicked: accepted.into_iter().chain(fired).collect(),
-        state: (false, false),
+        state: WidgetState::default(),
         context_opened: false,
     };
     for root in &roots {
@@ -545,7 +545,8 @@ pub(crate) struct Painting<'a> {
     /// Whether the pointer is over the widget being drawn, and whether it is
     /// held there. Set by the draw and never by the measure: a size that
     /// followed the pointer would move whatever sits beside it.
-    pub(crate) state: (bool, bool),
+    /// What the widget being drawn is being, for the theme's state tables.
+    pub(crate) state: WidgetState,
     /// Whether a widget already opened its `context` menu for this pass's
     /// press. Children draw before the parent asks, so the innermost one
     /// under the pointer takes it.
@@ -600,11 +601,14 @@ impl Painting<'_> {
     /// A style with its `hover` or `active` table over it, where the pointer
     /// put the widget in one. A style with neither answers with itself.
     fn in_state(&self, style: Rc<Style>) -> Rc<Style> {
-        let (hovered, held) = self.state;
-        if !(hovered || held) || (style.hover.is_none() && style.active.is_none()) {
+        let plain = style.hover.is_none()
+            && style.active.is_none()
+            && style.disabled.is_none()
+            && style.focus.is_none();
+        if !self.state.any() || plain {
             return style;
         }
-        Rc::new(style.in_state(hovered, held))
+        Rc::new(style.in_states(self.state))
     }
 }
 
@@ -691,7 +695,24 @@ pub(crate) fn caption(eng: &Engine, widget: &Widget) -> SmolStr {
 /// Everything a widget kind draws, with the theme already resolved.
 fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let disabled = at.arena[index].widget.disabled;
-    let outer = std::mem::replace(&mut at.state, pointer_state(ui, disabled));
+    let focused = at
+        .eng
+        .try_resource::<crate::UiFocus>()
+        .is_some_and(|focus| focus.borrow().focused == Some(at.arena[index].entity));
+    let (hovered, held) = pointer_state(ui, disabled);
+    let pointer = if held {
+        Pointer::Held
+    } else if hovered {
+        Pointer::Over
+    } else {
+        Pointer::Away
+    };
+    let state = WidgetState {
+        pointer,
+        disabled,
+        focused,
+    };
+    let outer = std::mem::replace(&mut at.state, state);
     crate::widget::kinds::context_sensor(ui, at, index);
     draw_kind(ui, at, index);
     crate::widget::kinds::context_menu(ui, at, index);

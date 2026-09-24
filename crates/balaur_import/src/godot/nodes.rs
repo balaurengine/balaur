@@ -50,6 +50,11 @@ pub(crate) struct Project {
     /// A state machine's `advance_expression`s, by the script of the node
     /// they are evaluated against: each a `check` method to add to it.
     pub checks: BTreeMap<String, Vec<(String, String)>>,
+    /// Godot's autoloads, each a name and the script it runs, which become
+    /// the first nodes under the main scene's root.
+    pub autoloads: Vec<(String, String)>,
+    /// The main scene's project path, where the autoloads go.
+    pub main_scene: String,
 }
 
 impl Resources<'_> {
@@ -265,6 +270,15 @@ pub(crate) fn bare_document(class: &str, name: &str) -> Option<String> {
 pub(crate) fn map(class: &str, section: &Section, parent: &str, res: &Resources<'_>) -> Mapped {
     let mut out = Mapped::default();
     node_keys(section, &mut out);
+    // A `ColorRect` with a material under a `Node2D` is a shader over a quad
+    // in the world, which the widget layer would draw without its shader.
+    if class == "ColorRect"
+        && family(parent) != Family::Control
+        && section.field("material").is_some()
+    {
+        world_rect(section, res, &mut out);
+        return out;
+    }
     match family(class) {
         Family::Node2d => transform(section, &mut out),
         Family::Control => {
@@ -387,6 +401,35 @@ fn scalar(value: &Value) -> Option<Toml> {
         Value::Float(f) => Some(Toml::Float(*f)),
         Value::Str(s) => Some(Toml::String(s.clone())),
         _ => None,
+    }
+}
+
+/// A Control's rect as a `shape2d` rectangle in world units, centred where
+/// Godot's offsets put it, with its colour and its material.
+fn world_rect(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
+    let number = |key: &str| section.field(key).and_then(Value::as_f64).unwrap_or(0.0);
+    let (left, top) = (number("offset_left"), number("offset_top"));
+    let (width, height) = (number("offset_right") - left, number("offset_bottom") - top);
+    let (x, y) = (left + width / 2.0, top + height / 2.0);
+    out.set(
+        "transform",
+        "position",
+        floats(&[x / PIXELS_PER_UNIT, -y / PIXELS_PER_UNIT, 0.0]),
+    );
+    out.set("shape2d", "kind", Toml::String("rect".into()));
+    out.set(
+        "shape2d",
+        "half_extents",
+        floats(&[
+            width.abs() / 2.0 / PIXELS_PER_UNIT,
+            height.abs() / 2.0 / PIXELS_PER_UNIT,
+        ]),
+    );
+    if let Some(color) = section.field("color").and_then(colour) {
+        out.set("shape2d", "color", color);
+    }
+    if let Some(material) = section.field("material") {
+        crate::godot::material::attach(material, res, out);
     }
 }
 

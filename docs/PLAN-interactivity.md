@@ -68,7 +68,16 @@ is the same on replay: the hooks are deterministic by construction.
 
 `on_key_down(this, key)`, `on_key_up`, `on_action(this, name, phase)` for
 declared input actions, `on_scroll(this, dx, dy)` and `on_resize(this, w, h)`
-follow, dispatched to every node that declares them.
+follow, dispatched to every node that declares them, the last child first,
+so the node added most recently, a popup over everything, hears first.
+
+**A hook that answers `true` has handled the event**, and the broadcast
+stops at that node; what it answers otherwise is ignored. `on_pointer_down`
+and `on_pointer_up` go to the node under the pointer first and then, unless
+it answered `true`, to every other node: a panel closes on a click outside
+itself, and a press over nothing reaches whoever listens. Built 2026-09-24
+for `docs/PLAN-polyglot-port.md`, whose translated `_input` handlers hang
+off these hooks.
 
 **A state is a named set of property values; a transition is a tween across
 all of them.** A `states` asset, inline or under `states/`, holds entries of

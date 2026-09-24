@@ -46,6 +46,31 @@ use crate::vocabulary::words as w;
 use crate::widget::node::{Widget, rgba_color};
 use egui::Color32;
 
+/// Where the pointer is, as far as one widget is concerned.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub enum Pointer {
+    #[default]
+    Away,
+    Over,
+    Held,
+}
+
+/// What a widget is being, which the theme's state tables answer to.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub struct WidgetState {
+    pub pointer: Pointer,
+    pub disabled: bool,
+    pub focused: bool,
+}
+
+impl WidgetState {
+    /// Whether any state table could apply.
+    #[must_use]
+    pub fn any(self) -> bool {
+        self.pointer != Pointer::Away || self.disabled || self.focused
+    }
+}
+
 /// How one widget kind is drawn.
 ///
 /// Every field is optional so a style can sit over another and say only what
@@ -101,6 +126,10 @@ pub struct Style {
     /// touch height beside the height it states for a cursor.
     pub classes: Option<Rc<Vec<(SmolStr, Style)>>>,
     pub active: Option<Rc<Style>>,
+    /// What replaces this style while the widget is disabled, and while
+    /// keyboard focus is on it and the pointer is not.
+    pub disabled: Option<Rc<Style>>,
+    pub focus: Option<Rc<Style>>,
 }
 
 impl Style {
@@ -159,6 +188,8 @@ impl Style {
             hover: self.hover.clone().or_else(|| base.hover.clone()),
             classes: self.classes.clone().or_else(|| base.classes.clone()),
             active: self.active.clone().or_else(|| base.active.clone()),
+            disabled: self.disabled.clone().or_else(|| base.disabled.clone()),
+            focus: self.focus.clone().or_else(|| base.focus.clone()),
         }
     }
 
@@ -166,10 +197,31 @@ impl Style {
     /// named neither state gets the base back, which is what it drew before.
     #[must_use]
     pub fn in_state(&self, hovered: bool, held: bool) -> Self {
-        let patch = if held {
-            self.active.as_ref().or(self.hover.as_ref())
+        let pointer = if held {
+            Pointer::Held
         } else if hovered {
+            Pointer::Over
+        } else {
+            Pointer::Away
+        };
+        self.in_states(WidgetState {
+            pointer,
+            ..WidgetState::default()
+        })
+    }
+
+    /// The style with the table for the widget's state over it: disabled
+    /// first, then held, hovered, and focused with the pointer elsewhere.
+    #[must_use]
+    pub fn in_states(&self, state: WidgetState) -> Self {
+        let patch = if state.disabled {
+            self.disabled.as_ref()
+        } else if state.pointer == Pointer::Held {
+            self.active.as_ref().or(self.hover.as_ref())
+        } else if state.pointer == Pointer::Over {
             self.hover.as_ref()
+        } else if state.focused {
+            self.focus.as_ref()
         } else {
             None
         };
@@ -445,6 +497,8 @@ fn style_of(body: &toml::Table, colors: &BTreeMap<String, Color32>, what: &str) 
             }))
         }),
         active: nested("active"),
+        disabled: nested("disabled"),
+        focus: nested("focus"),
         classes: class_styles(body, colors, what),
     }
 }
@@ -550,7 +604,8 @@ icon_color = "ink"
 font = "ui"
 strong = true
 
-[button.hover]                   # the look under the pointer; [button.active] while pressed
+[button.hover]                   # the look under the pointer; [button.active] while pressed,
+                                 # [button.disabled] while off, [button.focus] with keyboard focus
 fill = "#5cb4ff"
 
 [panel]
@@ -743,5 +798,49 @@ pub(crate) fn theme_of(
             }
             inherited.clone()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Pointer, WidgetState, parse, parse_color};
+
+    #[test]
+    fn a_disabled_or_focused_widget_takes_the_state_table_over_its_kind() {
+        let text = "type = \"widget_theme\"\n\n[button]\nfill = \"#ffffff\"\n\n[button.disabled]\nfill = \"#101010\"\n\n[button.focus]\nfill = \"#2020ff\"\n";
+        let theme = parse(&toml::from_str::<toml::Value>(text).unwrap());
+        let button = theme.resolved("button", "");
+        assert_eq!(button.fill, parse_color("#ffffff"));
+        assert_eq!(
+            button
+                .in_states(WidgetState {
+                    disabled: true,
+                    ..WidgetState::default()
+                })
+                .fill,
+            parse_color("#101010"),
+            "disabled wins"
+        );
+        assert_eq!(
+            button
+                .in_states(WidgetState {
+                    focused: true,
+                    ..WidgetState::default()
+                })
+                .fill,
+            parse_color("#2020ff"),
+            "focus with the pointer elsewhere"
+        );
+        assert_eq!(
+            button
+                .in_states(WidgetState {
+                    pointer: Pointer::Over,
+                    focused: true,
+                    ..WidgetState::default()
+                })
+                .fill,
+            parse_color("#ffffff"),
+            "the pointer over it and no hover table: the kind's own look"
+        );
     }
 }

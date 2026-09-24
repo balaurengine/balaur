@@ -195,7 +195,9 @@ fn parse(line: &str, classes: &Classes) -> Option<Export> {
             .and_then(kind_of_constructor)
             .or_else(|| written.as_deref().and_then(kind_of_literal))
     } else {
-        kind_of_hint(&hint, classes)
+        // A hint the index does not know, `const Profile := preload(..)`
+        // standing for a class, still says what it holds by its default.
+        kind_of_hint(&hint, classes).or_else(|| value.and_then(kind_of_constructor))
     };
     let default = match (kind, written) {
         (Some(Kind::Float), Some(n)) if !n.contains(['.', 'e', 'E']) => format!("{n}.0"),
@@ -214,10 +216,16 @@ fn parse(line: &str, classes: &Classes) -> Option<Export> {
     })
 }
 
+/// Whether a resource path names a GDScript file.
+pub(crate) fn is_script(path: &str) -> bool {
+    Path::new(path)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("gd"))
+}
+
 /// What a GDScript type is here.
 fn kind_of_hint(hint: &str, classes: &Classes) -> Option<Kind> {
     Some(match hint {
-        "int" => Kind::Int,
         "float" => Kind::Float,
         "bool" => Kind::Bool,
         "String" | "StringName" => Kind::Str,
@@ -226,6 +234,10 @@ fn kind_of_hint(hint: &str, classes: &Classes) -> Option<Kind> {
         "Vector3" | "Vector3i" => Kind::Vec3,
         "Color" => Kind::Color,
         "PackedStringArray" => Kind::Strings,
+        // A Control enum is the integer Godot stores for it.
+        "int" | "MouseFilter" | "FocusMode" | "CursorShape" | "SizeFlags" | "LayoutMode" => {
+            Kind::Int
+        }
         h => {
             if let Some(element) = h.strip_prefix("Array[").and_then(|e| e.strip_suffix(']')) {
                 return match class_kind(element, classes) {
@@ -248,23 +260,44 @@ fn class_kind(class: &str, classes: &Classes) -> Option<Kind> {
         }
         _ => {}
     }
-    let mut current = class;
+    let mut current = class.to_string();
     // A project class extends another, eventually a Godot one. Its own name
     // says nothing: `PirateShipAnimation` is a node, not an `Animation`.
     for _ in 0..16 {
-        if let Some(base) = classes.bases.get(current) {
-            current = base;
+        if let Some(base) = classes.bases.get(&current) {
+            current = base.clone();
             continue;
         }
-        if is_resource(current) {
+        // `extends "res://base.gd"`: the base is a file, whose own `extends`
+        // says what it is.
+        if is_script(&current) {
+            let text = crate::godot::io::text(&classes.root.join(&current)).ok()?;
+            current = extends_target(&text)?;
+            continue;
+        }
+        if is_resource(&current) {
             return Some(Kind::Path);
         }
-        if is_node(current) {
+        if is_node(&current) {
             return Some(Kind::Node);
         }
         return None;
     }
     None
+}
+
+/// What a file's `extends` names: a class, or the project path of a script.
+fn extends_target(source: &str) -> Option<String> {
+    let line = source.lines().find(|l| l.starts_with("extends "))?;
+    let target = line["extends ".len()..].trim();
+    if let Some(path) = target.strip_prefix('"').and_then(|t| t.split('"').next()) {
+        return Some(path.strip_prefix("res://").unwrap_or(path).to_string());
+    }
+    let name: String = target
+        .chars()
+        .take_while(|c| c.is_alphanumeric() || *c == '_')
+        .collect();
+    (!name.is_empty()).then_some(name)
 }
 
 fn is_resource(class: &str) -> bool {
@@ -337,6 +370,8 @@ fn kind_of_constructor(value: &str) -> Option<Kind> {
         "Color" => Kind::Color,
         "Vector2" | "Vector2i" => Kind::Vec2,
         "Vector3" | "Vector3i" => Kind::Vec3,
+        // A preloaded resource is its project path here.
+        "preload" | "load" => Kind::Path,
         _ => return None,
     })
 }
@@ -468,7 +503,7 @@ pub(crate) fn class_index(root: &Path, files: &[String]) -> Classes {
         let inners = crate::godot::script::inner_classes(&source);
         index_inner_classes(&mut classes, file, &inners);
         if let Some(name) = word("class_name ") {
-            if let Some(base) = word("extends ") {
+            if let Some(base) = extends_target(&source) {
                 classes.bases.insert(name.clone(), base);
             }
             for (signal, takes) in crate::godot::script::signal_arities(&source) {
@@ -608,6 +643,36 @@ mod tests {
     fn one(line: &str, classes: &Classes) -> (Option<Kind>, Option<String>) {
         let export = exports(line, classes).pop().expect("an export");
         (export.kind, export.entry())
+    }
+
+    #[test]
+    fn a_class_extending_a_script_by_path_is_what_that_script_is() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("base.gd"), "extends Node2D\n").unwrap();
+        std::fs::write(
+            dir.path().join("hat.gd"),
+            "class_name Hat\nextends \"res://base.gd\"\n",
+        )
+        .unwrap();
+        let classes = super::class_index(dir.path(), &["base.gd".into(), "hat.gd".into()]);
+        assert_eq!(
+            one("@export var hat: Hat", &classes).0,
+            Some(Kind::Node),
+            "a node through a base named by its path"
+        );
+        assert_eq!(
+            one("@export var filter: MouseFilter = 2", &Classes::default()).0,
+            Some(Kind::Int)
+        );
+        assert_eq!(
+            one(
+                "@export var profile: Profile = preload(\"res://sea.tres\")",
+                &Classes::default()
+            )
+            .0,
+            Some(Kind::Path),
+            "an unknown hint with a preloaded default"
+        );
     }
 
     #[test]

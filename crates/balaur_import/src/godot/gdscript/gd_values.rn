@@ -1154,6 +1154,9 @@ pub fn is_a(value, name) {
     if is_nil(value) {
         return false;
     }
+    if value is Object && value.contains_key(EVENT_KEY) {
+        return event_is(value, name);
+    }
     if value is balaur::Node {
         if name == "Node" || name == "CanvasItem" || name == "Node2D" || name == "Control" {
             return true;
@@ -1262,4 +1265,273 @@ pub fn json_object() {
     json["get_error_line"] = || 0;
     json["stringify"] = |value| json::encode(value);
     json
+}
+
+// Godot's `_draw` verbs: the engine draws for one frame, so `_draw` runs
+// on `queue_redraw` and its verbs are kept and drawn again every frame.
+const DRAW_TRANSFORM = "draw:transform:";
+const DRAW_LIST = "draw:list:";
+const DRAW_WANTED = "draw:wanted:";
+
+fn draw_key(prefix, node) {
+    `${prefix}${node.stable_id()}`
+}
+
+/// Godot's `queue_redraw`: `_draw` runs again on the next frame.
+pub fn queue_redraw(node) {
+    script::store(draw_key(DRAW_WANTED, node), true);
+    return ();
+}
+
+/// A frame of a node that draws: `_draw` when it is wanted, then every verb
+/// it recorded, drawn where the node is now.
+pub fn draw_frame(node) {
+    let wanted = script::stored(draw_key(DRAW_WANTED, node));
+    let list = script::stored(draw_key(DRAW_LIST, node));
+    if !(list is Vec) || (wanted is bool && wanted) {
+        script::store(draw_key(DRAW_WANTED, node), false);
+        script::store(draw_key(DRAW_LIST, node), []);
+        invoke(node, "_draw");
+        list = script::stored(draw_key(DRAW_LIST, node));
+    }
+    if !(list is Vec) {
+        return ();
+    }
+    for entry in list {
+        draw_entry(node, entry[0], entry[1]);
+    }
+    return ();
+}
+
+fn record(node, verb, args) {
+    let key = draw_key(DRAW_LIST, node);
+    let list = script::stored(key);
+    if !(list is Vec) {
+        list = [];
+    }
+    list.push([verb, args]);
+    script::store(key, list);
+    return ();
+}
+
+/// Godot's `draw_set_transform`: kept per node until the script sets another.
+pub fn draw_set_transform(node, position, rotation, scale) {
+    let turn = if is_nil(rotation) { 0.0 } else { float(rotation) };
+    let by = if is_nil(scale) { vec2(1.0, 1.0) } else { vec_of(scale) };
+    let at = if is_nil(position) { vec2(0.0, 0.0) } else { vec_of(position) };
+    script::store(draw_key(DRAW_TRANSFORM, node), balaur::Transform2d::from_scale_angle_translation(by, turn, at));
+    return ();
+}
+
+pub fn draw_set_transform_matrix(node, xform) {
+    script::store(draw_key(DRAW_TRANSFORM, node), xform);
+    return ();
+}
+
+/// A local point of the script's, as the world units the engine draws at.
+fn draw_point(node, point) {
+    let local = vec_of(point);
+    let set = script::stored(draw_key(DRAW_TRANSFORM, node));
+    if set is balaur::Transform2d {
+        local = set.transform_point2(local);
+    }
+    let world = global_transform(node).transform_point2(local);
+    return units_of(world);
+}
+
+/// How many world units a pixel of the script's is at this node.
+fn draw_scale(node) {
+    let scale = vec_of(node.transform.global_scale());
+    return math::abs(float(scale.x)) / PIXELS;
+}
+
+/// A colour as the channel list the engine's draw verbs take; nil is white.
+fn draw_color(value) {
+    if is_nil(value) {
+        return [1.0, 1.0, 1.0, 1.0];
+    }
+    if value is Vec {
+        return value;
+    }
+    return [float(value.r), float(value.g), float(value.b), float(value.a)];
+}
+
+/// Godot's line width: `-1` is one pixel.
+fn draw_width(width) {
+    if is_nil(width) || float(width) < 0.0 {
+        return 1.0;
+    }
+    return float(width);
+}
+
+pub fn draw_circle(node, position, radius, color, filled, width, antialiased) {
+    return record(node, "circle", [position, radius, color, filled, width]);
+}
+
+pub fn draw_line(node, from, to, color, width, antialiased) {
+    return record(node, "line", [from, to, color, width]);
+}
+
+pub fn draw_rect(node, rect, color, filled, width, antialiased) {
+    return record(node, "rect", [rect, color, filled, width]);
+}
+
+pub fn draw_arc(node, center, radius, start_angle, end_angle, point_count, color, width, antialiased) {
+    return record(node, "arc", [center, radius, start_angle, end_angle, color, width]);
+}
+
+pub fn draw_polyline(node, points, color, width, antialiased) {
+    return record(node, "polyline", [points, color, width]);
+}
+
+pub fn draw_multiline(node, points, color, width, antialiased) {
+    return record(node, "multiline", [points, color, width]);
+}
+
+pub fn draw_polygon(node, points, colors, uvs, texture) {
+    let c = if colors is Vec && colors.len() > 0 && !(colors[0] is f64) { colors[0] } else { colors };
+    return record(node, "polygon", [points, c]);
+}
+
+pub fn draw_colored_polygon(node, points, color, uvs, texture) {
+    return record(node, "polygon", [points, color]);
+}
+
+pub fn draw_texture_rect(node, texture, rect, tile, modulate, transpose) {
+    return record(node, "texture", [texture, rect, modulate]);
+}
+
+/// The engine draws a whole image; the region is drawn as the whole.
+pub fn draw_texture_rect_region(node, texture, rect, src_rect, modulate, transpose, clip_uv) {
+    return record(node, "texture", [texture, rect, modulate]);
+}
+
+pub fn draw_string(node, font, position, text, alignment, width, font_size, modulate) {
+    return record(node, "text", [position, text, font_size, modulate]);
+}
+
+/// One recorded verb, drawn for this frame.
+fn draw_entry(node, verb, a) {
+    if verb == "circle" {
+        let at = draw_point(node, a[0]);
+        let r = float(a[1]) * draw_scale(node);
+        let c = draw_color(a[2]);
+        if a[3] is bool && !a[3] {
+            render::draw_arc_2d(at[0], at[1], r, 0.0, 360.0, draw_width(a[4]), c);
+        } else {
+            render::draw_circle_2d(at[0], at[1], r, c);
+        }
+        return ();
+    }
+    if verb == "line" {
+        let from = draw_point(node, a[0]);
+        let to = draw_point(node, a[1]);
+        let c = draw_color(a[2]);
+        render::draw_line_2d(from[0], from[1], to[0], to[1], c[0], c[1], c[2], draw_width(a[3]));
+        return ();
+    }
+    if verb == "rect" {
+        let corners = draw_corners(node, a[0]);
+        let c = draw_color(a[1]);
+        if a[2] is bool && !a[2] {
+            render::draw_polyline_2d(corners, draw_width(a[3]), c);
+        } else {
+            corners.pop();
+            render::draw_polygon_2d(corners, c);
+        }
+        return ();
+    }
+    if verb == "arc" {
+        let at = draw_point(node, a[0]);
+        let r = float(a[1]) * draw_scale(node);
+        // Godot's angles run clockwise in radians with y down; the engine's
+        // counter-clockwise in degrees with y up, so the sign flips.
+        render::draw_arc_2d(at[0], at[1], r, -math::deg(float(a[2])), -math::deg(float(a[3])), draw_width(a[5]), draw_color(a[4]));
+        return ();
+    }
+    if verb == "polyline" {
+        render::draw_polyline_2d(draw_points(node, a[0]), draw_width(a[2]), draw_color(a[1]));
+        return ();
+    }
+    if verb == "multiline" {
+        draw_pairs(node, a[0], draw_color(a[1]), draw_width(a[2]));
+        return ();
+    }
+    if verb == "polygon" {
+        draw_filled(node, a[0], draw_color(a[1]));
+        return ();
+    }
+    if verb == "texture" {
+        draw_picture(node, a[0], a[1], a[2]);
+        return ();
+    }
+    if verb == "text" {
+        let at = draw_point(node, a[0]);
+        let opts = #{ "color": draw_color(a[3]) };
+        if !is_nil(a[2]) {
+            opts["size"] = a[2];
+        }
+        render::draw_text_2d(at[0], at[1], str(a[1]), opts);
+    }
+    return ();
+}
+
+/// The four corners of a rect, in world units, closed.
+fn draw_corners(node, rect) {
+    let pos = vec_of(field(rect, "position"));
+    let size = vec_of(field(rect, "size"));
+    let corners = [];
+    for (dx, dy) in [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (0.0, 0.0)] {
+        let p = draw_point(node, vec2(pos.x + size.x * dx, pos.y + size.y * dy));
+        corners.push([p[0], p[1]]);
+    }
+    return corners;
+}
+
+fn draw_points(node, points) {
+    let out = [];
+    for p in points {
+        let at = draw_point(node, p);
+        out.push([at[0], at[1]]);
+    }
+    return out;
+}
+
+/// Godot's `draw_multiline`: every pair of points a segment of its own.
+fn draw_pairs(node, points, c, w) {
+    let at = 0;
+    while at + 1 < points.len() {
+        let a = draw_point(node, points[at]);
+        let b = draw_point(node, points[at + 1]);
+        render::draw_line_2d(a[0], a[1], b[0], b[1], c[0], c[1], c[2], w);
+        at += 2;
+    }
+    return ();
+}
+
+/// A filled outline, concave or not: the engine fills convex ones, so a
+/// polygon is cut into triangles first.
+fn draw_filled(node, points, color) {
+    let world = draw_points(node, points);
+    if world.len() < 3 {
+        return ();
+    }
+    for t in geometry2d::triangulate(world) {
+        render::draw_polygon_2d([world[t[0]], world[t[1]], world[t[2]]], color);
+    }
+    return ();
+}
+
+/// A picture over a rect. The engine draws a project image by its path,
+/// which is what a preloaded texture is here.
+fn draw_picture(node, texture, rect, modulate) {
+    if !(texture is String) {
+        return ();
+    }
+    let pos = vec_of(field(rect, "position"));
+    let size = vec_of(field(rect, "size"));
+    let centre = draw_point(node, vec2(pos.x + size.x / 2.0, pos.y + size.y / 2.0));
+    let by = draw_scale(node);
+    render::draw_texture_2d(texture, centre[0], centre[1], math::abs(float(size.x)) * by, math::abs(float(size.y)) * by, draw_color(modulate));
+    return ();
 }

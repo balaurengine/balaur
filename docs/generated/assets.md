@@ -363,7 +363,8 @@ icon_color = "ink"
 font = "ui"
 strong = true
 
-[button.hover]                   # the look under the pointer; [button.active] while pressed
+[button.hover]                   # the look under the pointer; [button.active] while pressed,
+                                 # [button.disabled] while off, [button.focus] with keyboard focus
 fill = "#5cb4ff"
 
 [panel]

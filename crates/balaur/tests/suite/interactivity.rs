@@ -26,6 +26,113 @@ fn app_from(scene: &str) -> (tempfile::TempDir, balaur::App) {
     (dir, app)
 }
 
+/// A project with scripts beside its scene.
+fn app_with_scripts(scene: &str, scripts: &[(&str, &str)]) -> (tempfile::TempDir, balaur::App) {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("scenes")).unwrap();
+    std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("scenes/main.toml"), scene).unwrap();
+    for (path, text) in scripts {
+        std::fs::write(dir.path().join(path), text).unwrap();
+    }
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = standard_app(config).unwrap();
+    app.load_project().unwrap();
+    (dir, app)
+}
+
+/// Two scripted nodes counting the hooks they hear. A broadcast walks the
+/// last child first, so B hears before A.
+const HEARERS: &str = r#"
+[variables]
+hits = { type = "int", value = 0 }
+
+[[nodes]]
+id = "n_scene"
+name = "Scene"
+
+[[nodes]]
+id = "n_a"
+name = "A"
+parent = "n_scene"
+script = { source = "scripts/a.rn" }
+
+[[nodes]]
+id = "n_b"
+name = "B"
+parent = "n_scene"
+script = { source = "scripts/b.rn" }
+"#;
+
+/// A hears what reaches it and takes nothing.
+const A_HEARS: &str = "pub fn on_key_down(this, key) {\n\
+    scene::set_variable(\"hits\", scene::variable(\"hits\") + 1);\n\
+}\n\
+pub fn on_pointer_down(this, button) {\n\
+    scene::set_variable(\"hits\", scene::variable(\"hits\") + 10);\n\
+}\n";
+
+/// B hears first, takes the key, and lets every press through.
+const B_HEARS: &str = "pub fn on_key_down(this, key) {\n\
+    scene::set_variable(\"hits\", scene::variable(\"hits\") + 1);\n\
+    true\n\
+}\n\
+pub fn on_pointer_down(this, button) {\n\
+    scene::set_variable(\"hits\", scene::variable(\"hits\") + 10);\n\
+    false\n\
+}\n";
+
+fn hits(app: &balaur::App) -> i64 {
+    let variables = app.engine.resource::<Variables>();
+    let held = variables.borrow();
+    held.get("hits")
+        .map_or(-1.0, balaur_core::variables::as_num) as i64
+}
+
+#[test]
+fn a_hook_that_answers_true_ends_the_broadcast() {
+    let (_dir, mut app) = app_with_scripts(
+        HEARERS,
+        &[("scripts/a.rn", A_HEARS), ("scripts/b.rn", B_HEARS)],
+    );
+    app.tick(1.0 / 60.0);
+    {
+        let input = app.engine.resource::<balaur::input::InputSnapshot>();
+        let mut input = input.borrow_mut();
+        input.begin_frame();
+        input.key_event("Space", true);
+    }
+    app.tick(1.0 / 60.0);
+    assert_eq!(hits(&app), 1, "B took the key, so A never heard it");
+}
+
+#[test]
+fn a_press_over_nothing_reaches_every_node() {
+    let (_dir, mut app) = app_with_scripts(
+        HEARERS,
+        &[("scripts/a.rn", A_HEARS), ("scripts/b.rn", B_HEARS)],
+    );
+    app.tick(1.0 / 60.0);
+    {
+        let input = app.engine.resource::<balaur::input::InputSnapshot>();
+        let mut input = input.borrow_mut();
+        input.begin_frame();
+        input.mouse_button_event(0, true);
+    }
+    app.tick(1.0 / 60.0);
+    assert_eq!(
+        hits(&app),
+        20,
+        "nothing under the pointer, so both heard the press"
+    );
+}
+
 /// The door scene, spelled as `examples/hello` spells it.
 const DOOR: &str = r#"
 [variables]

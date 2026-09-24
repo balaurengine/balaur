@@ -122,6 +122,9 @@ pub(crate) fn convert(
     for section in &nodes {
         walk.node(section);
     }
+    if path == project.main_scene {
+        walk.autoloads(&project.autoloads);
+    }
     for connection in document.each("connection") {
         walk.connection(connection);
     }
@@ -155,6 +158,30 @@ pub(crate) fn convert(
 }
 
 impl Walk<'_> {
+    /// Godot's autoloads, as the first children of the root: a node each,
+    /// named as the autoload was, running its script.
+    fn autoloads(&mut self, autoloads: &[(String, String)]) {
+        let Some(root) = self
+            .nodes
+            .first()
+            .and_then(|table| table.get("id"))
+            .and_then(Toml::as_str)
+            .map(str::to_string)
+        else {
+            return;
+        };
+        for (at, (name, script)) in autoloads.iter().enumerate() {
+            let mut table = toml::Table::new();
+            table.insert("id".into(), Toml::String(format!("autoload_{name}")));
+            table.insert("name".into(), Toml::String(name.clone()));
+            table.insert("parent".into(), Toml::String(root.clone()));
+            let mut source = toml::Table::new();
+            source.insert("source".into(), Toml::String(script.clone()));
+            table.insert("script".into(), Toml::Table(source));
+            self.nodes.insert(1 + at, table);
+        }
+    }
+
     fn node(&mut self, section: &Section) {
         let name = section.attr_str("name").unwrap_or("Node").to_string();
         let parent = section

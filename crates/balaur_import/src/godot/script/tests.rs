@@ -767,6 +767,104 @@ func _on_state(old, new):\n\
 }
 
 #[test]
+fn an_input_handler_hangs_off_the_engines_hooks_and_answers_handled() {
+    let source = "extends Control\n\
+func _input(event: InputEvent) -> void:\n\
+\tif event.is_action_pressed(\"ui_cancel\"):\n\
+\t\tget_viewport().set_input_as_handled()\n\
+func _unhandled_input(event):\n\
+\tset_process_input(false)\n";
+    let out = convert(source, "scripts/popup.gd", &Classes::default());
+    for want in [
+        "pub fn on_key_down(this, key) {",
+        "let event = (gd.key_event)(key, true);",
+        r#"let _ = (gd.invoke1)(this.node, "_input", event);"#,
+        "if !(gd.input_handled)() && !ui::wants_keyboard() {",
+        "pub fn on_pointer_down(this, button) {",
+        "!ui::wants_pointer()",
+        "return (gd.take_input_handled)();",
+        "(gd.set_input_handled)()",
+        "this.input_enabled = false;",
+    ] {
+        assert!(out.rune.contains(want), "no `{want}` in:\n{}", out.rune);
+    }
+    assert_eq!(out.rune.matches("pub fn on_").count(), 6, "{}", out.rune);
+}
+
+#[test]
+fn a_class_that_draws_draws_every_frame_through_the_shim() {
+    let pips = [
+        "extends Node2D",
+        "var count := 3",
+        "func _draw() -> void:",
+        "\tfor i in count:",
+        "\t\tdraw_circle(Vector2(i * 12, 0), 4.0, Color.RED)",
+        "func set_count(n):",
+        "\tcount = n",
+        "\tqueue_redraw()",
+        "",
+    ]
+    .join("\n");
+    let out = convert(&pips, "scripts/pips.gd", &Classes::default());
+    for want in [
+        "pub fn update(this, dt) {\n    let _ = (script::require(\"gd.rn\").draw_frame)(this.node);\n}",
+        "(gd.draw_circle)(this.node, (gd.vec2)(i * 12, 0), 4.0, (gd.color)(1.0, 0.0, 0.0, 1.0), (), (), ())",
+    ] {
+        assert!(out.rune.contains(want), "no `{want}` in:\n{}", out.rune);
+    }
+    assert!(
+        out.rune.contains("(gd.queue_redraw)(this.node)"),
+        "{}",
+        out.rune
+    );
+    assert!(!out.rune.contains("gd.todo"), "{}", out.rune);
+    let lines = [
+        "extends Node2D",
+        "func _process(delta):",
+        "\tpass",
+        "func _draw():",
+        "\tdraw_line(Vector2.ZERO, Vector2(1, 1), Color.WHITE, 2.0)",
+        "",
+    ]
+    .join("\n");
+    let out = convert(&lines, "scripts/lines.gd", &Classes::default());
+    assert!(
+        out.rune.contains(
+            "pub fn update(this, delta) {\n    let _ = (script::require(\"gd.rn\").draw_frame)(this.node);"
+        ),
+        "{}",
+        out.rune
+    );
+    assert_eq!(
+        out.rune.matches("pub fn update(").count(),
+        1,
+        "{}",
+        out.rune
+    );
+}
+
+#[test]
+fn a_widget_signal_with_a_bound_handler_goes_through_a_forwarder() {
+    let source = "extends Control\n\
+var btn\n\
+func _ready():\n\
+\tbtn.pressed.connect(_on_letter.bind(\"a\"))\n\
+func _on_letter(letter):\n\
+\tpass\n";
+    let out = convert(source, "scripts/pad.gd", &Classes::default());
+    assert!(
+        out.rune.contains(r#"(gd.widget_bind)(this.btn, "on_click", #{ "__call": { let tmp1 = "a"; || { _on_letter(this, tmp1) } }, "__takes": 0 })"#),
+        "{}",
+        out.rune
+    );
+    assert!(
+        out.rune.contains("pub fn __widget_on_click(this, node) {\n    let _ = (script::require(\"gd.rn\").widget_fire)(node, \"on_click\", []);\n}"),
+        "{}",
+        out.rune
+    );
+}
+
+#[test]
 fn a_callable_held_in_a_variable_connects_as_a_value() {
     let source = "extends Node\n\
 var popup\n\

@@ -50,7 +50,31 @@ impl Walk {
             super::files::copy_font(&root, &mut sink, &font)?;
         }
         let files = walk(&root);
-        let lookups = super::files::lookups(&root, &files, uids, &mut sink, &mut report)?;
+        let mut lookups = super::files::lookups(&root, &files, uids, &mut sink, &mut report)?;
+        // An autoload is a node under the main scene's root here, first in
+        // order, so it is there before anything else runs.
+        lookups.main_scene = document
+            .first("application")
+            .and_then(|s| s.field("run/main_scene"))
+            .and_then(super::Value::as_str)
+            .map(|p| match lookups.uids.get(p) {
+                // Godot 4.4 names the scene by its uid.
+                Some(path) => path.clone(),
+                None => p.strip_prefix("res://").unwrap_or(p).to_string(),
+            })
+            .unwrap_or_default();
+        for section in document.each("autoload") {
+            for (name, value) in &section.fields {
+                let Some(path) = value.as_str() else {
+                    continue;
+                };
+                let path = path.trim_start_matches('*');
+                let path = path.strip_prefix("res://").unwrap_or(path);
+                if let Some(stem) = path.strip_suffix(".gd") {
+                    lookups.autoloads.push((name.clone(), format!("{stem}.rn")));
+                }
+            }
+        }
         Ok(Self {
             root,
             files,

@@ -163,6 +163,8 @@ pub(super) fn lookups(
         classes: crate::godot::exports::class_index(root, files),
         shaders,
         checks: std::collections::BTreeMap::new(),
+        autoloads: Vec::new(),
+        main_scene: String::new(),
     };
     project.checks = crate::godot::machine::expression_scripts(root, files, &project);
     Ok(project)
@@ -570,7 +572,10 @@ bg_color = Color(0.2, 0.6, 0.2, 1)
 [resource]
 default_font_size = 40
 Button/colors/font_color = Color(0.4, 0.3, 0.2, 1)
+Button/colors/font_disabled_color = Color(0.5, 0.5, 0.5, 1)
 Button/styles/normal = SubResource("Plain")
+Button/styles/disabled = SubResource("Green")
+Button/styles/focus = SubResource("Green")
 ButtonGreen/base_type = &"Button"
 ButtonGreen/styles/normal = SubResource("Green")
 PanelContainer/styles/panel = SubResource("Plain")
@@ -619,6 +624,35 @@ func _process(_delta):
         std::fs::create_dir_all(dir.path().join("art")).unwrap();
         std::fs::copy(HULL, dir.path().join("art/hull.png")).unwrap();
         dir
+    }
+
+    #[test]
+    fn an_autoload_is_the_first_node_under_the_main_scenes_root() {
+        let godot = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| {
+            let file = godot.path().join(path);
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(file, text).unwrap();
+        };
+        put(
+            "project.godot",
+            "config_version=5\n\n[application]\n\nconfig/name=\"Deck\"\nrun/main_scene=\"res://scenes/main.tscn\"\n\n[autoload]\n\nBoard=\"*res://scripts/board.gd\"\n",
+        );
+        put(
+            "scenes/main.tscn",
+            "[gd_scene format=3]\n\n[node name=\"Main\" type=\"Node2D\"]\n\n[node name=\"Mast\" type=\"Node2D\" parent=\".\"]\n",
+        );
+        put("scripts/board.gd", "extends Node\n\nvar seen := 0\n");
+        let out = tempfile::tempdir().unwrap();
+        import_project(&godot.path().join("project.godot"), out.path()).unwrap();
+        let main = std::fs::read_to_string(out.path().join("scenes/main.toml")).unwrap();
+        let board = main.find("name = \"Board\"").expect("the autoload's node");
+        let mast = main.find("name = \"Mast\"").expect("the scene's own child");
+        assert!(board < mast, "the autoload comes first: {main}");
+        assert!(
+            main.contains("source = \"scripts/board.rn\""),
+            "the autoload's script: {main}"
+        );
     }
 
     /// Stepped and in one call write the same project. The editor takes a few
@@ -962,6 +996,13 @@ func _process(_delta):
         let theme = read(out.path(), "themes/game.toml");
         assert_eq!(theme["button"]["radius"].as_float(), Some(16.0));
         assert_eq!(theme["button"]["size"].as_float(), Some(40.0));
+        assert_eq!(
+            theme["button"]["disabled"]["color"].as_str(),
+            Some("#808080ff"),
+            "a disabled state carries its font colour"
+        );
+        assert!(theme["button"]["disabled"]["fill"].as_str().is_some());
+        assert!(theme["button"]["focus"]["fill"].as_str().is_some());
         assert!(theme["roles"]["ButtonGreen"]["fill"].as_str().is_some());
     }
 

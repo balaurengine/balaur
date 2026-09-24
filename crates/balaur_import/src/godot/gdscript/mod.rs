@@ -35,6 +35,8 @@ pub(crate) struct Body {
     /// made: the engine calls `on_<name>`, so the module needs one that
     /// forwards to the handler Godot named.
     pub forwarders: std::collections::BTreeMap<String, (String, bool)>,
+    /// Widget keys whose handlers the class forwards by node.
+    pub widget_forwarders: std::collections::BTreeSet<String>,
 }
 
 /// Translate the lines of one function body, already stripped of its
@@ -58,6 +60,7 @@ pub(crate) fn body(
                 notes: vec![format!("{reason}; the body is kept as a comment")],
                 uses_shim: false,
                 forwarders: std::collections::BTreeMap::new(),
+                widget_forwarders: std::collections::BTreeSet::new(),
             };
         }
     };
@@ -78,6 +81,7 @@ pub(crate) fn body(
         notes: emitter.notes,
         uses_shim: emitter.uses_shim,
         forwarders: emitter.forwarders,
+        widget_forwarders: emitter.widget_forwarders,
     }
 }
 
