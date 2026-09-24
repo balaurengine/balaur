@@ -111,6 +111,19 @@ pub(crate) fn called(lines: &[String], names: &BTreeSet<String>) -> BTreeSet<Str
             out.insert(name.clone());
         }
     }
+    // `name.call_deferred(..)` and `name.call(..)` call `name` as surely.
+    for four in tokens.windows(4) {
+        let (lex::Tok::Name(name), lex::Tok::Name(verb)) = (&four[0].kind, &four[2].kind) else {
+            continue;
+        };
+        if four[1].kind == lex::Tok::Op(".")
+            && four[3].kind == lex::Tok::Op("(")
+            && (verb == "call" || verb == "call_deferred")
+            && names.contains(name)
+        {
+            out.insert(name.clone());
+        }
+    }
     out
 }
 

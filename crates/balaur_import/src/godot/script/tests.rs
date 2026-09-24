@@ -1025,3 +1025,30 @@ fn a_method_called_deferred_by_name_is_that_call_with_its_arguments() {
     }
     assert!(!out.rune.contains("call_value"), "{}", out.rune);
 }
+
+#[test]
+fn a_callable_member_is_called_as_a_value_and_a_deferred_coroutine_makes_its_caller_async() {
+    let source = [
+        "extends Node",
+        "var _is_idle: Callable",
+        "func _ready():",
+        "\t_is_idle.call()",
+        "\t_focus_later.call_deferred()",
+        "func _focus_later():",
+        "\tawait get_tree().process_frame",
+        "",
+    ]
+    .join("\n");
+    let out = convert(&source, "scripts/later.gd", &Classes::default());
+    assert!(
+        out.rune.contains("(gd.call_value)(this._is_idle, [])"),
+        "{}",
+        out.rune
+    );
+    assert!(out.rune.contains("pub async fn init(this)"), "{}", out.rune);
+    assert!(
+        out.rune.contains("_focus_later(this).await"),
+        "{}",
+        out.rune
+    );
+}

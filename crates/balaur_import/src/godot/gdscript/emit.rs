@@ -789,8 +789,8 @@ impl<'a> Emitter<'a> {
     }
 
     /// `f.bind(..)` is a closure; `method.call_deferred(a)` is that method
-    /// called with `a`, defaults and all, since a bare name that is no local
-    /// is a method of the class or its node, never a callable value.
+    /// called with `a`, defaults and all, since a bare name that is neither a
+    /// local nor a member is a method of the class or its node.
     fn callable_shorthand(&mut self, callee: &Expr, args: &[Expr]) -> Option<String> {
         let Expr::Field(object, verb) = callee else {
             return None;
@@ -801,6 +801,7 @@ impl<'a> Emitter<'a> {
         if (verb == "call" || verb == "call_deferred")
             && let Expr::Name(name) = &**object
             && !self.is_local(name)
+            && !self.context.members.contains(name)
         {
             return Some(self.call(&Expr::Name(name.clone()), args));
         }
