@@ -109,13 +109,37 @@ jobs:
           cargo build -p balaur_cli --no-default-features
           cargo test -p balaur_core -p balaur_physics --no-default-features
       # examples/ are Balaur projects, not cargo examples; scripts/e2e.sh says
-      # why all five modes are needed. Windows keeps check/run/export/play:
-      # render and the editor both exit 122 there, logging nothing.
+      # why all five modes are needed. Windows is on trial: render and the
+      # editor exited 122 there, and the step after this reads the real code.
       - name: E2E — run, export, play, edit and render every example project
         shell: bash
-        env:
-          BALAUR_E2E_GPU: ${{ runner.os == 'Windows' && '0' || '1' }}
         run: ./scripts/e2e.sh
+      # If the E2E died on Windows it did so with exit 122 and nothing on
+      # stderr. bash keeps 8 bits of a Windows exit code; this keeps all 32.
+      - name: Windows — the real exit code, and the engine's own log
+        if: runner.os == 'Windows' && !cancelled()
+        continue-on-error: true
+        shell: pwsh
+        env:
+          RUST_BACKTRACE: "1"
+        run: |
+          $bin = 'target/e2e/bin/balaur.exe'
+          foreach ($case in @(
+            @('run',  'examples/angrynerds', '--offscreen', '--frames', '10'),
+            @('edit', 'examples/angrynerds', '--frames', '10')
+          )) {
+            & $bin @case 2>&1 | Select-Object -Last 15
+            $code = $LASTEXITCODE
+            '{0,-5} exit {1} = 0x{1:X8}' -f $case[0], $code
+          }
+          Get-ChildItem "$env:APPDATA/balaur/*/logs/run.log" -ErrorAction SilentlyContinue |
+            ForEach-Object { "==== $_"; Get-Content $_ -Tail 40 }
+      - if: runner.os == 'Windows' && !cancelled()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-balaur-logs
+          path: ~/AppData/Roaming/balaur/*/logs/run.log
+          if-no-files-found: ignore
       - name: Upload pack digests
         uses: actions/upload-artifact@v7
         with:

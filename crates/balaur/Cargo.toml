@@ -66,6 +66,7 @@ tracing.workspace = true
 toml.workspace = true
 
 [dev-dependencies]
+libm.workspace = true
 serde_json.workspace = true
 tempfile = "3"
 

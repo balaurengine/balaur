@@ -426,7 +426,7 @@ pub fn rename_draw(S) {
         return;
     }
     crate::pool::sync(S, host, [#{ full: true, height: row_h, controls: [#{
-        kind: "button", role: "row_action_warn", grow: 1, text: "Rename",
+        kind: "button", role: "row_action_accent", grow: 1, text: "Rename",
         on: |_| { apply_rename(S); },
     }] }], 0.0, false);
 }

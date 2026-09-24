@@ -492,7 +492,7 @@ fn code_pane(S, k) {
             },
             problems: lint::lines(S, rel, "error"),
             warnings: lint::lines(S, rel, "warning"),
-            problem_color: k.accent, warning_color: k.sage,
+            problem_color: k.danger, warning_color: k.warn,
             current_line: if stopped_here { S.debug.paused.line } else { () },
             breakpoint_color: k.accent, current_fill: k.accent_soft,
         });

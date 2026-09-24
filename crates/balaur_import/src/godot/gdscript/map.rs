@@ -159,6 +159,8 @@ pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
         "hash" => format!("(gd.hash)({one})"),
         "is_equal_approx" => format!("(gd.is_equal_approx)({all})"),
         "weakref" => one,
+        // A debugging aid with no stack to show: an empty list of frames.
+        "get_stack" => "[]".into(),
         // A literal bound is an int already; anything else may be a float,
         // which Godot truncates and a Rune range refuses.
         "range" => {
@@ -421,8 +423,30 @@ pub(crate) fn static_value(class: &str, name: &str) -> Option<String> {
 
 /// An enum value on one of Godot's classes, as the integer Godot gives it.
 // Rows share values without sharing meaning, as `global_constant`'s do.
+/// A progress bar's fill direction and a node's translation mode, by number.
+fn control_constant(class: &str, name: &str) -> Option<i64> {
+    Some(match (class, name) {
+        ("TextureProgressBar", "FILL_LEFT_TO_RIGHT") => 0,
+        ("TextureProgressBar", "FILL_RIGHT_TO_LEFT") => 1,
+        ("TextureProgressBar", "FILL_TOP_TO_BOTTOM") => 2,
+        ("TextureProgressBar", "FILL_BOTTOM_TO_TOP") => 3,
+        ("TextureProgressBar", "FILL_CLOCKWISE") => 4,
+        ("TextureProgressBar", "FILL_COUNTER_CLOCKWISE") => 5,
+        ("TextureProgressBar", "FILL_BILINEAR_LEFT_AND_RIGHT") => 6,
+        ("TextureProgressBar", "FILL_BILINEAR_TOP_AND_BOTTOM") => 7,
+        ("TextureProgressBar", "FILL_CLOCKWISE_AND_COUNTER_CLOCKWISE") => 8,
+        ("Node", "AUTO_TRANSLATE_MODE_INHERIT") => 0,
+        ("Node", "AUTO_TRANSLATE_MODE_ALWAYS") => 1,
+        ("Node", "AUTO_TRANSLATE_MODE_DISABLED") => 2,
+        _ => return None,
+    })
+}
+
 #[allow(clippy::match_same_arms)]
 fn class_constant(class: &str, name: &str) -> Option<i64> {
+    if let Some(value) = control_constant(class, name) {
+        return Some(value);
+    }
     Some(match (class, name) {
         // Godot 4 also spells a Control enum by its own name: `MouseFilter.X`.
         ("Control" | "MouseFilter", "MOUSE_FILTER_STOP") => 0,
@@ -603,6 +627,7 @@ pub(crate) const BUILTIN_SIGNALS: &[&str] = &[
 /// The node properties `field` in the shim reads off a node at run time.
 const NODE_PROPERTIES: &[&str] = &[
     "zoom",
+    "foldable_group",
     "position",
     "global_position",
     "scale",
@@ -629,6 +654,8 @@ pub(crate) fn property(receiver: &str, field: &str) -> Option<String> {
     }
     Some(match field {
         "visible" => format!("{receiver}.visible()"),
+        // Kept beside the node by the shim: the engine has no fold groups.
+        "foldable_group" => format!("(gd.field)({receiver}, \"foldable_group\")"),
         "global_position" => format!("(gd.global_position_of)({receiver})"),
         "position" => format!("(gd.position_of)({receiver})"),
         "scale" => format!("(gd.vec_of)({receiver}.transform.scale)"),

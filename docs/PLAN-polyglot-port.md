@@ -303,7 +303,9 @@ Three rules belong to the importer rather than the translator:
    `material` are kept as meta, `add_theme_*_override` lands on the widget
    key it has (`text_color`, `gap`, `padding`, `font_size`) or nowhere,
    `get_popup()` is the button itself, a node's `duplicate()` clones its
-   components and children, and `size_of` answers a vector.
+   components and children, and `size_of` answers a vector. After the
+   reimport (engine cb25b9b3): stubs 650 → 621, `login_offline` reaches its
+   summary with 294 error lines, 185 of them `foldable_group` reads.
 10. **Web export**, `web_smoke`, the size report, the `web` mappings.
 11. **Pictures against Godot's**, and what they show fixed.
 12. **A device.** iOS and Android signed and run once hardware is on the

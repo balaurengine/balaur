@@ -141,7 +141,7 @@ fn row_spec(S, at, row) {
         #{ kind: "label", role: "meta", width: 18, text: format!("{}", at + 1) },
         pick(S, at, "event", event, util::vec(scene::bindable_events()), 150.0),
         typed(S, at, "when", row.get("when").unwrap_or(""), "always", 130.0),
-        #{ kind: "label", role: "error_note", text: "→" },
+        #{ kind: "label", role: "meta", text: "→" },
         pick(S, at, "action", action, util::vec(scene::binding_actions()), 130.0),
     ];
     if targets_a_variable(action) {
@@ -332,7 +332,7 @@ pub fn view(S, k) {
             on: |_| { convert_to_script(S); },
         },
         #{
-            kind: "button", role: "row_action_warn", text: icons::ui("add") + "  Add row",
+            kind: "button", role: "row_action_accent", text: icons::ui("add") + "  Add row",
             on: |_| { add_row(S); },
         },
     ]);

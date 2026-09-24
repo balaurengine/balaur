@@ -270,7 +270,7 @@ fn script_section(S, k, title) {
                 on: |_| { shell::set_persona(S, "script"); },
             },
             #{
-                kind: "button", role: "row_action_warn", text: "remove",
+                kind: "button", role: "row_action_danger", text: "remove",
                 tooltip: "Detach the script from this node; the file stays",
                 on: |_| { shell::detach_script(S); },
             },

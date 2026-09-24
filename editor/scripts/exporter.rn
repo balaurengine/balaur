@@ -127,7 +127,7 @@ fn target_specs(S, row, out) {
         #{ kind: "label", role: "meta", text: readiness(installed, fetchable) },
     ];
     if note_text != "" {
-        controls.push(#{ kind: "label", role: "error_note", text: note_text });
+        controls.push(#{ kind: "label", role: "warn_note", text: note_text });
     }
     controls.push(#{ kind: "row", grow: 1 });
     let verb = export_button(S, name, installed, fetchable, status);
@@ -135,7 +135,7 @@ fn target_specs(S, row, out) {
         controls.push(verb);
     }
     if status == "started" {
-        controls.push(#{ kind: "label", role: "error_note", text: "building…" });
+        controls.push(#{ kind: "label", role: "meta", text: "building…" });
     } else if status == "failed" {
         controls.push(#{ kind: "label", role: "error_note", text: "failed" });
     } else if status == "done" {

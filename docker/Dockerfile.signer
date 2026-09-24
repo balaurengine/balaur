@@ -1,4 +1,4 @@
-# The signing toolchain, with no engine in it.
+# The signing and publishing toolchain, with no engine in it.
 #
 # Deliberately a separate image rather than another stage on the engine's.
 # This is the container that gets handed somebody's signing key, and the one
@@ -102,17 +102,34 @@ RUN set -eux; \
     fi; \
     rm -rf /var/lib/apt/lists/*
 
+# itch.io's own uploader. Kept in its unpacked directory: butler loads
+# 7z.so beside its own binary, so only the entry point is put on PATH.
+ARG BUTLER_VERSION=15.31.0
+RUN set -eux; \
+    case "${TARGETARCH}" in arm64) b_arch=linux-arm64 ;; amd64) b_arch=linux-amd64 ;; esac; \
+    curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors -o /tmp/butler.zip \
+      "https://broth.itch.zone/butler/${b_arch}/${BUTLER_VERSION}/archive/default"; \
+    unzip -q /tmp/butler.zip -d /usr/local/lib/butler; \
+    chmod +x /usr/local/lib/butler/butler; \
+    ln -s /usr/local/lib/butler/butler /usr/local/bin/butler; \
+    rm /tmp/butler.zip
+
 COPY sign.sh /usr/local/bin/balaur-sign
+COPY publish.sh /usr/local/bin/balaur-publish
+COPY publish_play.py /usr/local/bin/balaur-publish-play
+COPY publish_appstore.py /usr/local/bin/balaur-publish-appstore
 
 # Every tool actually runs, in the image that publishes it. `apt-get install`
 # succeeding says a package exists; it does not say a JAR has a JVM or that an
 # x86-64 binary has a loader. Both of those have been wrong here before.
-RUN chmod +x /usr/local/bin/balaur-sign \
+RUN chmod +x /usr/local/bin/balaur-sign /usr/local/bin/balaur-publish /usr/local/bin/balaur-publish-* \
     && rcodesign --version \
+    && butler -V \
     && osslsigncode --version \
     && apksigner version \
     && zipalign 2>&1 | head -1 \
-    && python3 -c 'import plistlib'
+    && python3 -c 'import plistlib' \
+    && python3 -c 'import ast, glob; [ast.parse(open(f).read()) for f in glob.glob("/usr/local/bin/balaur-publish-*")]'
 
 # Never root, and never with a home worth writing to. Nothing in a signing run
 # should outlive it.

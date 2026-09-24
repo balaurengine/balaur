@@ -1031,8 +1031,10 @@ fn a_callable_member_is_called_as_a_value_and_a_deferred_coroutine_makes_its_cal
     let source = [
         "extends Node",
         "var _is_idle: Callable",
+        "static var _provider := Callable()",
         "func _ready():",
         "\t_is_idle.call()",
+        "\t_provider.call()",
         "\t_focus_later.call_deferred()",
         "func _focus_later():",
         "\tawait get_tree().process_frame",
@@ -1051,4 +1053,44 @@ fn a_callable_member_is_called_as_a_value_and_a_deferred_coroutine_makes_its_cal
         "{}",
         out.rune
     );
+    assert!(
+        !out.rune.contains("_provider()"),
+        "a static Callable is a value:\n{}",
+        out.rune
+    );
+}
+
+#[test]
+fn a_base_class_property_read_bare_is_read_off_the_node() {
+    let source = [
+        "extends FoldableContainer",
+        "func same_group(other) -> bool:",
+        "\treturn other.foldable_group == foldable_group",
+        "",
+    ]
+    .join("\n");
+    let out = convert(&source, "scripts/fold.gd", &Classes::default());
+    assert!(
+        out.rune
+            .contains("(gd.field)(this.node, \"foldable_group\")"),
+        "{}",
+        out.rune
+    );
+    assert!(!out.rune.contains("todo"), "{}", out.rune);
+}
+
+#[test]
+fn a_node_s_auto_translate_mode_and_get_stack_translate() {
+    let source = [
+        "extends Control",
+        "func _ready():",
+        "\tauto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED",
+        "\tvar frames = get_stack()",
+        "",
+    ]
+    .join("\n");
+    let out = convert(&source, "scripts/lang.gd", &Classes::default());
+    assert!(!out.rune.contains("AUTO_TRANSLATE"), "{}", out.rune);
+    assert!(out.rune.contains("let frames = [];"), "{}", out.rune);
+    assert!(!out.rune.contains("todo"), "{}", out.rune);
 }

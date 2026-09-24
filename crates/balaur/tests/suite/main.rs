@@ -7,6 +7,7 @@
 mod components;
 mod dap;
 mod digest_cover;
+mod editor_theme;
 mod extensions;
 mod facade;
 mod fixed_update;

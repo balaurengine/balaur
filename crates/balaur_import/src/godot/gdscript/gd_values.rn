@@ -303,11 +303,13 @@ pub fn clear(container) {
 }
 
 pub fn duplicate(value) {
-    if scripted(value) {
-        return invoke(value, "duplicate");
-    }
+    // A node first: one with a script is scripted too, and its script has no
+    // `duplicate` of its own.
     if value is balaur::Node {
         return clone_node(value, value.parent());
+    }
+    if scripted(value) {
+        return invoke(value, "duplicate");
     }
     if value is Vec {
         let out = [];

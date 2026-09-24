@@ -4,32 +4,36 @@
 type = "widget_theme"
 dark = true
 
-# Four surfaces, one seam, three levels of text, one accent and one second
-# colour. A call site names one of these; nothing in the shell mixes its own.
+# Four sheets on the site's dark ramp, one seam, three text levels, an accent,
+# sage, warn and danger. Every ink reads at 4.5:1; `editor_theme.rs` holds it.
 [colors]
-bg = "#0b0e12"
-panel = "#12161c"
-sunken = "#080a0e"
-raised = "#1a2028"
-line = "#1e242c"
+bg = "#151f2a"
+panel = "#1e2b3a"
+sunken = "#10181f"
+raised = "#2a3b4d"
+line = "#2c3d50"
 text = "#e6e9ee"
-dim = "#98a3ae"
-faint = "#6b7683"
+dim = "#9ba6b1"
+faint = "#8a97a4"
 accent = "#6fa4d8"
 accent_fill = "#4287cc"
-accent_soft = "#1a2c40"
+accent_soft = "#22364d"
 sage = "#8fb8b0"
-sage_soft = "#1f3230"
-grid = "#151a21"
-grid_major = "#232a33"
-on_accent = "#f6f8fb"
+sage_soft = "#26403d"
+warn = "#e0b04a"
+danger = "#e37b7b"
+grid = "#1c2835"
+grid_major = "#2c3d50"
+# Ink on the blue, as the site draws its dark buttons: white on it reads at
+# 3.5:1, ink at 5.1:1.
+on_accent = "#0b0e12"
 k_key = "#6fa4d8"
 k_str = "#8fb8b0"
 k_num = "#9fc2e5"
-k_com = "#6b7683"
+k_com = "#8a97a4"
 k_fn = "#e6e9ee"
 k_type = "#b7d3cc"
-k_punc = "#98a3ae"
+k_punc = "#9ba6b1"
 node_plain = "#8b96a2"
 node_2d = "#c9a86a"
 node_3d = "#6fa4d8"
@@ -281,7 +285,7 @@ radius = 8
 size = 11
 font = "mono"
 fill = "sunken"
-color = "faint"
+color = "dim"
 
 [roles.bar.hover]
 fill = "raised"
@@ -637,15 +641,26 @@ font = "mono"
 size = 11
 color = "accent"
 
-# A verb that undoes something: the same tile, in the accent a warning takes.
-[roles.row_action_warn]
+# A verb in the accent: replay, rename, add a row. The one that takes
+# something away wears `danger` instead.
+[roles.row_action_accent]
 height = 20
 radius = 4
 size = 12
 strong = true
 fill = "sunken"
 color = "accent"
-[roles.row_action_warn.hover]
+[roles.row_action_accent.hover]
+fill = "raised"
+color = "text"
+[roles.row_action_danger]
+height = 20
+radius = 4
+size = 12
+strong = true
+fill = "sunken"
+color = "danger"
+[roles.row_action_danger.hover]
 fill = "raised"
 color = "text"
 
@@ -701,25 +716,25 @@ radius = 4
 size = 11
 strong = true
 fill = "sunken"
-color = "faint"
+color = "dim"
 [roles.section_drop.hover]
 fill = "raised"
 color = "text"
 [roles.section_drop.touch]
 height = 29
-# No `warn` token exists, and the row it replaced fell back to `faint`.
+# A line saying something needs attention, and one reporting a call that
+# came back refused.
 [roles.warn_note]
 font = "ui"
 size = 11
-color = "faint"
+color = "warn"
 
-# The note saying an edit reaches more than the active node.
-# A line reporting a call that came back refused.
 [roles.error_note]
 font = "mono"
 size = 11
-color = "accent"
+color = "danger"
 
+# The note saying an edit reaches more than the active node.
 [roles.multi_note]
 font = "ui"
 size = 11
@@ -757,7 +772,7 @@ height = 29
 [roles.switch]
 height = 18
 fill = "sunken"
-color = "faint"
+color = "dim"
 [roles.switch.active]
 fill = "accent_fill"
 color = "on_accent"
@@ -800,14 +815,14 @@ fill = "sunken"
 color = "accent"
 [roles.chrome_verb_on.touch]
 height = 29
-[roles.chrome_verb_warn]
+[roles.chrome_verb_danger]
 height = 20
 radius = 4
 size = 11
 strong = true
 fill = "sunken"
-color = "accent"
-[roles.chrome_verb_warn.touch]
+color = "danger"
+[roles.chrome_verb_danger.touch]
 height = 29
 [roles.chrome_verb_off]
 height = 20
@@ -815,7 +830,7 @@ radius = 4
 size = 11
 strong = true
 fill = "sunken"
-color = "line"
+color = "faint"
 [roles.chrome_verb_off.touch]
 height = 29
 [roles.chrome_field]
@@ -848,6 +863,7 @@ align = "left"
 color = "faint"
 [roles.menu_row_off.hover]
 fill = "raised"
+color = "dim"
 
 # A section heading inside a menu.
 [roles.menu_heading]

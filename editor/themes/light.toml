@@ -4,41 +4,43 @@
 type = "widget_theme"
 dark = false
 
-# Four surfaces, one seam, three levels of text, one accent and one second
-# colour. A call site names one of these; nothing in the shell mixes its own.
+# Four sheets on the site's paper, one seam, three text levels, an accent,
+# sage, warn and danger. Every ink reads at 4.5:1; `editor_theme.rs` holds it.
 [colors]
-bg = "#f8f7f3"
+bg = "#ebe9e3"
 panel = "#f1f3f6"
-sunken = "#e3e7ec"
+sunken = "#dadfe5"
 raised = "#ffffff"
-line = "#dde2e8"
+line = "#c5ccd4"
 text = "#14181d"
-dim = "#5b6670"
-faint = "#717b87"
-accent = "#2f6a9e"
-accent_fill = "#3577b1"
+dim = "#454f5a"
+faint = "#565f6b"
+accent = "#2b6291"
+accent_fill = "#3271a9"
 accent_soft = "#dce8f3"
-sage = "#4f7f78"
+sage = "#3a665f"
 sage_soft = "#dbe8e6"
-grid = "#e9ebed"
-grid_major = "#d0d6dd"
+warn = "#7a5400"
+danger = "#a4392b"
+grid = "#dedcd6"
+grid_major = "#cfcdc7"
 on_accent = "#f6f8fb"
 k_key = "#2b6291"
-k_str = "#3f6e67"
-k_num = "#2f6a9e"
-k_com = "#8e99a5"
+k_str = "#3a665f"
+k_num = "#2b6291"
+k_com = "#565f6b"
 k_fn = "#1c2128"
-k_type = "#4f7f78"
-k_punc = "#6b7683"
-node_plain = "#6b7580"
-node_2d = "#8a6d1f"
-node_3d = "#2f6a9e"
+k_type = "#33605a"
+k_punc = "#454f5a"
+node_plain = "#454f5a"
+node_2d = "#75580e"
+node_3d = "#2b6291"
 node_ui = "#6a4fa0"
-node_phys = "#4f7f78"
+node_phys = "#3a665f"
 # A rig modifier's reach, drawn over the bones it solves: a colour no bone
 # and no texture in the viewport is already using.
 modifier = "#7a3fa8"
-node_bone = "#a05a2c"
+node_bone = "#8b4c26"
 
 # Text. A call site names one of these and says nothing else about type.
 [roles.title]
@@ -281,7 +283,7 @@ radius = 8
 size = 11
 font = "mono"
 fill = "sunken"
-color = "faint"
+color = "dim"
 
 [roles.bar.hover]
 fill = "raised"
@@ -637,15 +639,26 @@ font = "mono"
 size = 11
 color = "accent"
 
-# A verb that undoes something: the same tile, in the accent a warning takes.
-[roles.row_action_warn]
+# A verb in the accent: replay, rename, add a row. The one that takes
+# something away wears `danger` instead.
+[roles.row_action_accent]
 height = 20
 radius = 4
 size = 12
 strong = true
 fill = "sunken"
 color = "accent"
-[roles.row_action_warn.hover]
+[roles.row_action_accent.hover]
+fill = "raised"
+color = "text"
+[roles.row_action_danger]
+height = 20
+radius = 4
+size = 12
+strong = true
+fill = "sunken"
+color = "danger"
+[roles.row_action_danger.hover]
 fill = "raised"
 color = "text"
 
@@ -701,25 +714,25 @@ radius = 4
 size = 11
 strong = true
 fill = "sunken"
-color = "faint"
+color = "dim"
 [roles.section_drop.hover]
 fill = "raised"
 color = "text"
 [roles.section_drop.touch]
 height = 29
-# No `warn` token exists, and the row it replaced fell back to `faint`.
+# A line saying something needs attention, and one reporting a call that
+# came back refused.
 [roles.warn_note]
 font = "ui"
 size = 11
-color = "faint"
+color = "warn"
 
-# The note saying an edit reaches more than the active node.
-# A line reporting a call that came back refused.
 [roles.error_note]
 font = "mono"
 size = 11
-color = "accent"
+color = "danger"
 
+# The note saying an edit reaches more than the active node.
 [roles.multi_note]
 font = "ui"
 size = 11
@@ -757,7 +770,7 @@ height = 29
 [roles.switch]
 height = 18
 fill = "sunken"
-color = "faint"
+color = "dim"
 [roles.switch.active]
 fill = "accent_fill"
 color = "on_accent"
@@ -800,14 +813,14 @@ fill = "sunken"
 color = "accent"
 [roles.chrome_verb_on.touch]
 height = 29
-[roles.chrome_verb_warn]
+[roles.chrome_verb_danger]
 height = 20
 radius = 4
 size = 11
 strong = true
 fill = "sunken"
-color = "accent"
-[roles.chrome_verb_warn.touch]
+color = "danger"
+[roles.chrome_verb_danger.touch]
 height = 29
 [roles.chrome_verb_off]
 height = 20
@@ -815,7 +828,7 @@ radius = 4
 size = 11
 strong = true
 fill = "sunken"
-color = "line"
+color = "faint"
 [roles.chrome_verb_off.touch]
 height = 29
 [roles.chrome_field]
@@ -848,6 +861,7 @@ align = "left"
 color = "faint"
 [roles.menu_row_off.hover]
 fill = "raised"
+color = "dim"
 
 # A section heading inside a menu.
 [roles.menu_heading]

@@ -802,6 +802,7 @@ impl<'a> Emitter<'a> {
             && let Expr::Name(name) = &**object
             && !self.is_local(name)
             && !self.context.members.contains(name)
+            && !self.context.static_vars.contains_key(name)
         {
             return Some(self.call(&Expr::Name(name.clone()), args));
         }

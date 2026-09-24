@@ -107,7 +107,7 @@ out world-writable — the same flag arrived as `1777` on one host here and
 `export.sh` checks this first and says so, rather than failing three steps
 later inside a copy.
 
-## Signing: `ghcr.io/balaurengine/balaur-signer`
+## Signing and publishing: `ghcr.io/balaurengine/balaur-signer`
 
 A second image, built from `Dockerfile.signer`, holding `rcodesign`,
 `apksigner`/`zipalign` and `osslsigncode` — and **no engine**. That separation
@@ -178,3 +178,45 @@ leak a certificate password.
 waits. A bare executable cannot be *stapled* — a ticket attaches to a bundle, a
 `.dmg` or a `.pkg` — so the approval is recorded on Apple's side and Gatekeeper
 finds it online. Ship a `.app` bundle if you want it stapled.
+
+### Publishing
+
+The same image uploads to a store, through `balaur-publish`:
+
+```sh
+docker run --rm \
+  -v "$PWD/signed:/in:ro" -v "$PWD/creds:/creds:ro" \
+  --tmpfs /work:rw,exec,mode=1777 \
+  -e PUBLISH_STORE=itch -e PUBLISH_ARTIFACT=game.apk \
+  -e PUBLISH_TARGET=user/game:android \
+  ghcr.io/balaurengine/balaur-signer:nightly balaur-publish
+```
+
+| `PUBLISH_STORE` | Credential file under `/creds` | Tool |
+|---|---|---|
+| `itch` | `itch_api_key` | `butler` |
+| `play` | `play_service_account` | `balaur-publish-play` (python3 + openssl) |
+| `appstore` | `apple_issuer_id`, `apple_key_id`, `apple_private_key` | `balaur-publish-appstore` (python3 + openssl) |
+
+For itch, `PUBLISH_TARGET` is `user/game:channel`; butler reads the platform
+from the channel name. A `.zip` is pushed as itself, so a web build's
+`index.html` lands at the channel root; every other artifact is pushed as
+one file. Set `PUBLISH_VERSION` to stamp the upload.
+
+For Play, `PUBLISH_TARGET` is `package:track` (`internal`, `alpha`, `beta`
+or `production`) and the credential is the service account's JSON key as
+Google Cloud downloads it. The run is the Developer API's edit → upload →
+track → commit: an `.aab` goes to `bundles`, an `.apk` to `apks`, the version
+code Play reads from it lands on the track as a completed release, named
+`PUBLISH_VERSION` if set. The app must already exist in Play Console with one
+release made by hand; Play refuses a new app's first upload through the API.
+
+For App Store Connect the credentials are notarisation's — the API key's
+issuer id, key id and `.p8` — and `PUBLISH_TARGET` is informational: the
+`.ipa`'s own Info.plist supplies the bundle id, version and build number.
+The run is Apple's build upload API: find the app by bundle id, reserve a
+`buildUpload` and a `buildUploadFile`, PUT the parts Apple asks for, mark
+the file uploaded, then read the upload's state for `PUBLISH_WAIT_MINUTES`
+(default 5). `COMPLETE` is reported as processed, `FAILED` quotes Apple, and
+a build still processing when the wait closes is reported as accepted —
+Apple mails the outcome. Nothing is submitted for review.
