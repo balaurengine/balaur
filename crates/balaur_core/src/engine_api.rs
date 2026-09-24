@@ -24,6 +24,9 @@ use crate::file_api::{
     fs_copy, fs_exists, fs_list, fs_mkdir, fs_mtime, fs_read, fs_remove, fs_rename, fs_write,
     json_encode, json_parse, toml_encode, toml_parse, toml_patch,
 };
+use crate::regex_api::{
+    regex_escape, regex_matches, regex_replace, regex_search, regex_search_all, regex_split,
+};
 use crate::scene;
 
 // Callers reach these through `engine_api` because that is where they were
@@ -289,6 +292,36 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         module: "engine",
         name: "user_data_dir_of",
         call: user_data_dir_of_project,
+    },
+    EngineOp {
+        module: "regex",
+        name: "matches",
+        call: regex_matches,
+    },
+    EngineOp {
+        module: "regex",
+        name: "search",
+        call: regex_search,
+    },
+    EngineOp {
+        module: "regex",
+        name: "search_all",
+        call: regex_search_all,
+    },
+    EngineOp {
+        module: "regex",
+        name: "replace",
+        call: regex_replace,
+    },
+    EngineOp {
+        module: "regex",
+        name: "split",
+        call: regex_split,
+    },
+    EngineOp {
+        module: "regex",
+        name: "escape",
+        call: regex_escape,
     },
     EngineOp {
         module: "strings",
@@ -621,6 +654,7 @@ fn document(module: &str, m: &mut dyn balaur_script::Bindings<Engine>) {
         "log" => crate::engine_docs::document_log(m),
         "save" => crate::engine_docs::document_save(m),
         "strings" => crate::engine_docs::document_strings(m),
+        "regex" => crate::engine_docs::document_regex(m),
         "rng" => crate::engine_docs::document_rng(m),
         "fs" => crate::engine_docs::document_fs(m),
         "toml" => crate::engine_docs::document_toml(m),

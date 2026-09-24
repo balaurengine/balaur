@@ -918,6 +918,17 @@ func _ready():\n\
 }
 
 #[test]
+fn every_cursor_shape_constant_keeps_its_number_under_both_spellings() {
+    let source = "extends Control\n\
+func _ready():\n\
+\tmouse_default_cursor_shape = Control.CURSOR_VSPLIT\n\
+\tmouse_default_cursor_shape = CursorShape.CURSOR_HELP\n";
+    let out = convert(source, "scripts/seam.gd", &Classes::default());
+    assert!(out.rune.contains("(gd.cursor_word)(14)"), "{}", out.rune);
+    assert!(out.rune.contains("(gd.cursor_word)(16)"), "{}", out.rune);
+}
+
+#[test]
 fn a_mouse_filter_set_from_a_script_says_whether_the_pointer_passes() {
     let source = "extends Control\n\
 func _ready():\n\
@@ -929,4 +940,65 @@ func _ready():\n\
         "{}",
         out.rune
     );
+}
+
+#[test]
+fn a_shader_material_a_shape_and_a_theme_override_go_through_the_shim() {
+    let source = [
+        "extends Control",
+        "func _ready():",
+        "\tvar m := ShaderMaterial.new()",
+        "\tm.shader = Shader.new()",
+        "\tm.set_shader_parameter(\"tint\", 1.0)",
+        "\tvar c := CircleShape2D.new()",
+        "\tadd_theme_color_override(\"font_color\", Color.RED)",
+        "\tget_popup().add_theme_constant_override(\"separation\", 4)",
+        "",
+    ]
+    .join("\n");
+    let out = convert(&source, "scripts/fx.gd", &Classes::default());
+    for want in [
+        "(gd.shader_material)()",
+        "(gd.shader)()",
+        "(gd.set_shader_parameter)(m, \"tint\", 1.0)",
+        "(gd.circle_shape)()",
+        "(gd.theme_override)(this.node, \"colors\", \"font_color\",",
+        "(gd.theme_override)(this.node, \"constants\", \"separation\", 4)",
+    ] {
+        assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+    }
+}
+
+#[test]
+fn an_image_loaded_at_run_time_is_the_texture_s_path() {
+    let source = "extends Node\n\
+func tex(path: String):\n\
+\tvar img := Image.new()\n\
+\tvar err := img.load(path)\n\
+\treturn ImageTexture.create_from_image(img)\n";
+    let out = convert(source, "scripts/pic.gd", &Classes::default());
+    for want in [
+        "(gd.image)()",
+        "(gd.image_load)(img, path)",
+        "(gd.image_texture)(img)",
+    ] {
+        assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+    }
+}
+
+#[test]
+fn a_regex_is_a_record_over_the_engine_s_module() {
+    let source = "extends Node\n\
+func valid(name: String) -> bool:\n\
+\tvar expression := RegEx.new()\n\
+\texpression.compile(\"^[a-z]+$\")\n\
+\treturn expression.search(name) != null\n";
+    let out = convert(source, "scripts/rules.gd", &Classes::default());
+    for want in [
+        "(gd.regexp)()",
+        "(gd.invoke1)(expression, \"compile\", \"^[a-z]+$\")",
+        "(gd.invoke1)(expression, \"search\", name)",
+    ] {
+        assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+    }
 }

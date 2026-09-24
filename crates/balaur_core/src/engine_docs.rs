@@ -124,6 +124,20 @@ pub(crate) fn document_assets(m: &mut dyn balaur_script::Bindings<Engine>) {
     ]);
 }
 
+pub(crate) fn document_regex(m: &mut dyn balaur_script::Bindings<Engine>) {
+    m.module_doc(
+        "Regular expressions, the `regex-lite` dialect: no look-around or back-references. A pattern is compiled on every call; a match is `#{ start, end, text, groups }` with byte offsets and one string per capture group, nil for a group that took no part.",
+    );
+    m.describe(&[
+        ("matches", &[], "(pattern: string, text: string) -> bool", "Whether the pattern matches anywhere in `text`."),
+        ("search", &[], "(pattern: string, text: string) -> table?", "The first match, or nil."),
+        ("search_all", &[], "(pattern: string, text: string) -> [table]", "Every non-overlapping match, in order."),
+        ("replace", &[], "(pattern: string, text: string, with: string, all: bool?) -> string", "`text` with the first match replaced, or every match when `all` is true; `$1` and `${name}` in `with` stand for groups."),
+        ("split", &[], "(pattern: string, text: string) -> [string]", "The pieces of `text` between matches."),
+        ("escape", &[], "(text: string) -> string", "`text` with every metacharacter escaped, so it matches itself."),
+    ]);
+}
+
 pub(crate) fn document_strings(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.module_doc(
         "Localization: one `strings/<locale>.toml` per language, keys to strings. `[locale]` in `project.toml` sets the starting locale and the fallback; a key neither has comes back as itself.",

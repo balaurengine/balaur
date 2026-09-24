@@ -922,7 +922,7 @@ pub fn unlisten(node, name, from) {
 /// zero, as Godot's is before its first layout.
 pub fn size_of(node) {
     if !(node is balaur::Node) {
-        return field(node, "size");
+        return vec_of(field(node, "size"));
     }
     let drawn = ui::widget_rect(node);
     if drawn is Object && drawn.contains_key("w") {
@@ -953,9 +953,57 @@ fn node_property(node, name) {
         "zoom" => camera_zoom(node),
         "selected" if node.has_component("widget") => option_index(node),
         "item_count" if node.has_component("widget") => option_count(node),
+        // Kept beside the node: the engine has no fold groups, and a material
+        // a script built is a record it never draws with.
+        "foldable_group" => get_meta(node, "foldable_group", ()),
+        "material" => get_meta(node, "material", ()),
         _ => (),
     };
     out
+}
+
+/// Godot's `add_theme_*_override`: the widget key that carries the item, or
+/// nothing where the widget has none.
+pub fn theme_override(node, group, name, value) {
+    if !(node is balaur::Node) || !node.has_component("widget") {
+        return ();
+    }
+    let key = match (group, name) {
+        ("colors", "font_color") => "text_color",
+        ("colors", "default_color") => "text_color",
+        ("colors", "icon_normal_color") => "icon_color",
+        ("constants", "separation") => "gap",
+        ("constants", "h_separation") => "gap",
+        ("constants", "v_separation") => "gap",
+        ("constants", "margin_left") => "padding",
+        ("constants", "margin_top") => "padding",
+        ("constants", "margin_right") => "padding",
+        ("constants", "margin_bottom") => "padding",
+        ("font_sizes", "font_size") => "font_size",
+        ("font_sizes", "normal_font_size") => "font_size",
+        _ => return (),
+    };
+    let tinted = key == "text_color" || key == "icon_color";
+    let patch = #{};
+    patch[key] = if tinted { color_list(value) } else { float(value) };
+    node.patch_component("widget", patch);
+}
+
+/// A copy of a node and everything under it, placed under `parent`: each
+/// component's table patched onto a fresh node of the same name.
+pub fn clone_node(node, parent) {
+    let holder = if is_nil(parent) { detached() } else { parent };
+    let copy = holder.add_child(node.name());
+    for component in node.component_names() {
+        let table = node.get_component(component);
+        if table is Object {
+            let _ = script::attempt(|| copy.patch_component(component, table));
+        }
+    }
+    for child in node.children() {
+        clone_node(child, copy);
+    }
+    copy
 }
 
 /// A Camera2D's zoom as Godot's multiplier: the engine's is pixels a unit.
@@ -991,10 +1039,23 @@ fn set_node_property(node, name, value) {
         option_select(node, value);
     } else if name == "zoom" && node.has_component("camera2d") {
         node.patch_component("camera2d", #{ "zoom": float(value.x) * PIXELS });
+    } else if name == "foldable_group" || name == "material" {
+        set_meta(node, name, value);
+    } else if name == "shape" && value is Object && value.contains_key("__shape") {
+        node.patch_component("collider2d", collider_of(value));
     } else {
         return false;
     }
     true
+}
+
+/// The `collider2d` keys a shape record describes, in units.
+fn collider_of(shape) {
+    if shape["__shape"] == "circle" {
+        return #{ "kind": "circle", "radius": float(shape["radius"]) / PIXELS };
+    }
+    let size = vec_of(shape["size"]);
+    #{ "kind": "rect", "half_extents": [size.x / PIXELS / 2.0, size.y / PIXELS / 2.0] }
 }
 
 /// The method a call with `count` arguments reaches: `name__1` stands in
@@ -2027,12 +2088,12 @@ pub fn cursor_word(shape) {
         7 => "grabbing",
         8 => "forbidden",
         9 => "resize_y",
-        14 => "resize_y",
         10 => "resize_x",
-        15 => "resize_x",
         11 => "resize_nesw",
         12 => "resize_nwse",
         13 => "move",
+        14 => "resize_row",
+        15 => "resize_col",
         16 => "help",
         _ => "",
     }

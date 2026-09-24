@@ -87,6 +87,7 @@ being built, marked `done`, never back in the shipped one.
 | **Scenes, assets and packs** — prefabs with per-path overrides, `id://` references that survive a rename, import settings beside each file, and sha256-verified binary packs. | 0.1 done | no plan |
 | **A bad call caught before it runs** — `balaur check` reads the scene beside the script and resolves a component's method against the table the run time uses. | 0.2 done | [PLAN-script-analysis.md](PLAN-script-analysis.md) |
 | **Addons as modules** — a file directly under `addons/<name>/` is `<name>::<file>` in every script, its functions and constants reached by path, in `balaur_script_rune`. | 0.2 done | no plan |
+| **Regular expressions** — a `regex` module over `regex-lite`: `search`, `search_all`, `replace`, `split` and `escape`, with a match as a table. | 0.2 done | [PLAN-polyglot-port.md](PLAN-polyglot-port.md) |
 | **FBX import** — `balaur import` over the `ufbx` crate, for the meshes, rigs and clips that never ship as glTF. | 0.7 | no plan |
 | **Godot import** — `balaur import` over `project.godot`, `.tscn`, `.tres` and `.gdshader`, writing scenes, assets, script bodies and a report naming what did not convert. | 0.2 done | [PLAN-godot-import.md](PLAN-godot-import.md) |
 | **Asset streaming** — a load that runs off the tick, a scene added to one already running, and an asset dropped when nothing names it. | 0.6 | no plan |

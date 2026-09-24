@@ -759,3 +759,55 @@ fn a_run_from_a_pack_is_not_a_dev_run() {
         .map(|(_, v)| v.clone());
     assert_eq!(dev, Some(Value::Bool(false)));
 }
+
+#[test]
+fn regex_searches_replaces_and_splits() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    let call = |name: &str, args: &[Value]| call(&app.engine, "regex", name, args).unwrap();
+    let text = |s: &str| Value::Str(s.to_string());
+    assert_eq!(
+        call("matches", &[text("^[a-z]+$"), text("ahoy")]),
+        Value::Bool(true)
+    );
+    assert_eq!(
+        call("search", &[text("^[a-z]+$"), text("Ahoy")]),
+        Value::Nil
+    );
+    let Value::Map(found) = call("search", &[text(r"(\w+) \[(\w+)\]"), text("word x [pin]")])
+    else {
+        panic!("a match is a table");
+    };
+    let field = |k: &str| {
+        found
+            .iter()
+            .find(|(key, _)| key == k)
+            .map(|(_, v)| v.clone())
+    };
+    assert_eq!(field("text"), Some(text("x [pin]")));
+    assert_eq!(field("start"), Some(Value::Int(5)));
+    assert_eq!(
+        field("groups"),
+        Some(Value::List(vec![text("x"), text("pin")]))
+    );
+    assert_eq!(
+        call(
+            "replace",
+            &[text("a"), text("banana"), text("o"), Value::Bool(true)]
+        ),
+        text("bonono")
+    );
+    assert_eq!(
+        call("replace", &[text("a"), text("banana"), text("o")]),
+        text("bonana")
+    );
+    assert_eq!(
+        call("split", &[text(r"\s*,\s*"), text("a, b ,c")]),
+        Value::List(vec![text("a"), text("b"), text("c")])
+    );
+    assert_eq!(call("escape", &[text("a.b")]), text(r"a\.b"));
+    let Value::List(all) = call("search_all", &[text("n"), text("banana")]) else {
+        panic!("every match is a list");
+    };
+    assert_eq!(all.len(), 2);
+}

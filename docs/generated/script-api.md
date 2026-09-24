@@ -35,6 +35,7 @@ cannot drift from what scripts actually see.
 | [`physics3d`](#physics3d) | 70 | 62 | the engine |
 | [`platform`](#platform) | 11 | 0 | the engine |
 | [`project`](#project) | 12 | 0 | the engine |
+| [`regex`](#regex) | 6 | 0 | the engine |
 | [`release`](#release) | 5 | 0 | the engine |
 | [`render`](#render) | 50 | 31 | the engine |
 | [`replay`](#replay) | 17 | 4 | the engine |
@@ -324,6 +325,10 @@ cannot drift from what scripts actually see.
 ## `project`
 
 **Functions:** `copy_example`, `create`, `examples`, `forget`, `home`, `in_tab`, `open`, `pick_folder`, `recent`, `templates`, `use_data`, `version`
+
+## `regex`
+
+**Functions:** `escape`, `matches`, `replace`, `search`, `search_all`, `split`
 
 ## `release`
 

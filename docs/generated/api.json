@@ -4508,6 +4508,48 @@
         "min": 0,
         "type": "int"
       },
+      "cursor": {
+        "default": "arrow",
+        "description": "The pointer's shape while it is over the widget: `hand` over anything that opens on a click; `arrow` is the platform's own",
+        "group": "type",
+        "options": [
+          "arrow",
+          "hand",
+          "text",
+          "vertical_text",
+          "cross",
+          "cell",
+          "wait",
+          "progress",
+          "help",
+          "context_menu",
+          "move",
+          "grab",
+          "grabbing",
+          "alias",
+          "copy",
+          "no_drop",
+          "forbidden",
+          "all_scroll",
+          "resize_x",
+          "resize_y",
+          "resize_n",
+          "resize_e",
+          "resize_s",
+          "resize_w",
+          "resize_ne",
+          "resize_nw",
+          "resize_se",
+          "resize_sw",
+          "resize_nesw",
+          "resize_nwse",
+          "resize_col",
+          "resize_row",
+          "zoom_in",
+          "zoom_out"
+        ],
+        "type": "enum"
+      },
       "deadzone": {
         "default": 0.0,
         "description": "How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once",
@@ -4905,6 +4947,12 @@
           "center"
         ],
         "type": "enum"
+      },
+      "pointer_through": {
+        "default": false,
+        "description": "Let the pointer pass through to the scene: the widget is drawn, never hovered or clicked, and `ui.wants_pointer()` stays false over it. A full-screen container over the world wants this",
+        "group": "events",
+        "type": "bool"
       },
       "problems": {
         "default": [],
@@ -7061,9 +7109,9 @@
         "composing": "The text an input method is still composing, for a field to show under its caret; empty once it commits into `typed`, and always empty without an input method.",
         "dropped_files": "The absolute paths of files dropped onto the window this frame, in drop order; desktop only.",
         "feed_action": "Put a value into an action for one frame without a binding, the way a `touch_button` does; the furthest from rest wins where something else feeds the same action. Takes effect on the next tick, since actions derive at the top of one.",
-        "feed_key": "Press or release a `KEY_*` key as if the window had reported it; the edge lasts this frame, the state until the opposite feed.",
-        "feed_mouse": "Move the cursor to a window-pixel position as if the window had reported it; the delta accumulates for this frame.",
-        "feed_mouse_button": "Press or release a `MOUSE_*` button as if the window had reported it.",
+        "feed_key": "Press or release a `KEY_*` key as if the window had reported it: next frame's edge, and the state until the opposite feed.",
+        "feed_mouse": "Move the cursor to a window-pixel position as if the window had reported it, from next frame; the delta accumulates for that frame.",
+        "feed_mouse_button": "Press or release a `MOUSE_*` button as if the window had reported it, from next frame.",
         "feed_touch": "Put a finger on the screen as if the window had reported it: `phase` is `start`, `move`, `end` or `cancel`, and the position is in the same pixels as `mouse_position`.",
         "gamepad_acceleration": "The pad's acceleration in g, gravity included, so a pad at rest reads 1 on one axis. Read from PlayStation pads on desktop; zero for a pad with no accelerometer.",
         "gamepad_axis": "How far the pad's `AXIS_*` stick or trigger is pushed, -1 to 1; zero at rest and for an absent pad.",
@@ -8936,6 +8984,37 @@
         "templates": "() -> Value",
         "use_data": "Option<String> -> Value",
         "version": "() -> Value"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [],
+      "doc": "Regular expressions, the `regex-lite` dialect: no look-around or back-references. A pattern is compiled on every call; a match is `#{ start, end, text, groups }` with byte offsets and one string per capture group, nil for a group that took no part.",
+      "docs": {
+        "escape": "`text` with every metacharacter escaped, so it matches itself.",
+        "matches": "Whether the pattern matches anywhere in `text`.",
+        "replace": "`text` with the first match replaced, or every match when `all` is true; `$1` and `${name}` in `with` stand for groups.",
+        "search": "The first match, or nil.",
+        "search_all": "Every non-overlapping match, in order.",
+        "split": "The pieces of `text` between matches."
+      },
+      "functions": [
+        "escape",
+        "matches",
+        "replace",
+        "search",
+        "search_all",
+        "split"
+      ],
+      "name": "regex",
+      "signatures": {
+        "escape": "(text: string) -> string",
+        "matches": "(pattern: string, text: string) -> bool",
+        "replace": "(pattern: string, text: string, with: string, all: bool?) -> string",
+        "search": "(pattern: string, text: string) -> table?",
+        "search_all": "(pattern: string, text: string) -> [table]",
+        "split": "(pattern: string, text: string) -> [string]"
       }
     },
     {

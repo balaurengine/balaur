@@ -5,6 +5,9 @@
 //! it was written and counted in the report, which is how the next rows get
 //! chosen.
 
+mod controls;
+mod globals;
+
 use super::emit::{quoted, safe};
 
 /// What `get_tree()` becomes. Its verbs are the scene module's, so the
@@ -125,32 +128,6 @@ fn numeric(name: &str, args: &[String]) -> Option<String> {
     })
 }
 
-/// Godot's `@GlobalScope` maths and random numbers.
-fn arithmetic(name: &str, all: &str, one: &str) -> Option<String> {
-    Some(match name {
-        "sqrt" => format!("math::sqrt({one})"),
-        "pow" => format!("math::pow({all})"),
-        "sin" | "cos" | "tan" | "asin" | "acos" | "atan" | "exp" | "log" => {
-            format!("math::{name}({one})")
-        }
-        "atan2" => format!("math::atan2({all})"),
-        "deg_to_rad" => format!("math::rad({one})"),
-        "rad_to_deg" => format!("math::deg({one})"),
-        "lerp" | "lerpf" => format!("(gd.lerp)({all})"),
-        "sign" | "signf" | "signi" => format!("(gd.sign)({one})"),
-        "snapped" | "snappedf" | "snappedi" => format!("(gd.snapped)({all})"),
-        "fmod" | "fposmod" => format!("(gd.fmod)({all})"),
-        "posmod" => format!("(gd.posmod)({all})"),
-        "move_toward" => format!("(gd.move_toward)({all})"),
-        "randf" => "rng::random()".into(),
-        "randi" => "rng::int(0, 2147483647)".into(),
-        "randi_range" => format!("rng::int({all})"),
-        "randf_range" => format!("rng::range({all})"),
-        "randomize" => "()".into(),
-        _ => return None,
-    })
-}
-
 /// A global function: `str(x)`, `range(n)`, `push_error(m)`.
 pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
     if let Some(text) = numeric(name, args) {
@@ -158,7 +135,10 @@ pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
     }
     let all = args.join(", ");
     let one = args.first().cloned().unwrap_or_default();
-    if let Some(text) = arithmetic(name, &all, &one) {
+    if let Some(text) = globals::arithmetic(name, &all, &one) {
+        return Some(text);
+    }
+    if let Some(text) = controls::own_control(name, &all) {
         return Some(text);
     }
     Some(match name {
@@ -296,6 +276,15 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
         ("JSON", "stringify") => format!("json::encode({one})"),
         ("JSON", "parse_string") => format!("json::parse({one})"),
         ("JSON", "new") => "(gd.json_object)()".into(),
+        ("Shader", "new") => "(gd.shader)()".into(),
+        ("RegEx", "new") => "(gd.regexp)()".into(),
+        ("RegEx", "create_from_string") => format!("(gd.regexp_of)({one})"),
+        // A texture is a path here, so an image loaded from one is that path.
+        ("Image", "new") => "(gd.image)()".into(),
+        ("ImageTexture", "create_from_image") => format!("(gd.image_texture)({one})"),
+        ("ShaderMaterial", "new") => "(gd.shader_material)()".into(),
+        ("CircleShape2D", "new") => "(gd.circle_shape)()".into(),
+        ("RectangleShape2D", "new") => "(gd.rect_shape)()".into(),
         ("FileAccess", "open") => format!("(gd.file_open)({all})"),
         ("FileAccess", "get_open_error") => "(gd.file_error)()".into(),
         ("FileAccess", "get_modified_time") => format!("fs::mtime((gd.project_path)({one}))"),
@@ -451,11 +440,23 @@ fn class_constant(class: &str, name: &str) -> Option<i64> {
         ("Control", "PRESET_TOP_LEFT") => 0,
         ("Control", "PRESET_CENTER") => 8,
         ("Control", "PRESET_FULL_RECT") => 15,
-        ("Control", "CURSOR_ARROW") => 0,
-        ("Control", "CURSOR_IBEAM") => 1,
-        ("Control", "CURSOR_POINTING_HAND") => 2,
-        ("Control", "CURSOR_CROSS") => 3,
-        ("Control", "CURSOR_WAIT") => 4,
+        ("Control" | "CursorShape", "CURSOR_ARROW") => 0,
+        ("Control" | "CursorShape", "CURSOR_IBEAM") => 1,
+        ("Control" | "CursorShape", "CURSOR_POINTING_HAND") => 2,
+        ("Control" | "CursorShape", "CURSOR_CROSS") => 3,
+        ("Control" | "CursorShape", "CURSOR_WAIT") => 4,
+        ("Control" | "CursorShape", "CURSOR_BUSY") => 5,
+        ("Control" | "CursorShape", "CURSOR_DRAG") => 6,
+        ("Control" | "CursorShape", "CURSOR_CAN_DROP") => 7,
+        ("Control" | "CursorShape", "CURSOR_FORBIDDEN") => 8,
+        ("Control" | "CursorShape", "CURSOR_VSIZE") => 9,
+        ("Control" | "CursorShape", "CURSOR_HSIZE") => 10,
+        ("Control" | "CursorShape", "CURSOR_BDIAGSIZE") => 11,
+        ("Control" | "CursorShape", "CURSOR_FDIAGSIZE") => 12,
+        ("Control" | "CursorShape", "CURSOR_MOVE") => 13,
+        ("Control" | "CursorShape", "CURSOR_VSPLIT") => 14,
+        ("Control" | "CursorShape", "CURSOR_HSPLIT") => 15,
+        ("Control" | "CursorShape", "CURSOR_HELP") => 16,
         ("BoxContainer" | "FlowContainer", "ALIGNMENT_BEGIN") => 0,
         ("BoxContainer" | "FlowContainer", "ALIGNMENT_CENTER") => 1,
         ("BoxContainer" | "FlowContainer", "ALIGNMENT_END") => 2,
@@ -954,6 +955,9 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         return Some(text);
     }
     if let Some(text) = tree_verb(receiver, name, args) {
+        return Some(text);
+    }
+    if let Some(text) = controls::control_verb(receiver, name, args) {
         return Some(text);
     }
     // A shim verb takes the value Godot called it on as its first argument.

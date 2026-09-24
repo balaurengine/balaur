@@ -138,42 +138,82 @@ pub(crate) mod words {
     pub(crate) const CTRL: &str = "ctrl";
     pub(crate) const ALT: &str = "alt";
     pub(crate) const SHIFT: &str = "shift";
-    // The pointer's shapes, as a widget's `cursor` names them.
-    pub(crate) const ARROW: &str = "arrow";
-    pub(crate) const HAND: &str = "hand";
-    pub(crate) const TEXT: &str = "text";
-    pub(crate) const CROSS: &str = "cross";
-    pub(crate) const WAIT: &str = "wait";
-    pub(crate) const MOVE: &str = "move";
-    pub(crate) const GRAB: &str = "grab";
-    pub(crate) const GRABBING: &str = "grabbing";
-    pub(crate) const FORBIDDEN: &str = "forbidden";
-    pub(crate) const HELP: &str = "help";
-    pub(crate) const RESIZE_X: &str = "resize_x";
-    pub(crate) const RESIZE_Y: &str = "resize_y";
-    pub(crate) const RESIZE_NESW: &str = "resize_nesw";
-    pub(crate) const RESIZE_NWSE: &str = "resize_nwse";
-    pub(crate) const ZOOM_IN: &str = "zoom_in";
-    pub(crate) const ZOOM_OUT: &str = "zoom_out";
-    pub(crate) const CURSORS: &[&str] = &[
-        ARROW,
-        HAND,
-        TEXT,
-        CROSS,
-        WAIT,
-        PROGRESS,
-        MOVE,
-        GRAB,
-        GRABBING,
-        FORBIDDEN,
-        HELP,
-        RESIZE_X,
-        RESIZE_Y,
-        RESIZE_NESW,
-        RESIZE_NWSE,
-        ZOOM_IN,
-        ZOOM_OUT,
-    ];
+    /// The pointer's shapes, as a widget's `cursor` names them: every shape
+    /// egui carries, under Balaur's names. Hiding the pointer is not a shape;
+    /// that is `window.set_cursor_hidden`.
+    pub(crate) mod cursor {
+        pub(crate) const ARROW: &str = "arrow";
+        pub(crate) const HAND: &str = "hand";
+        pub(crate) const TEXT: &str = "text";
+        pub(crate) const VERTICAL_TEXT: &str = "vertical_text";
+        pub(crate) const CROSS: &str = "cross";
+        pub(crate) const CELL: &str = "cell";
+        pub(crate) const WAIT: &str = "wait";
+        pub(crate) const PROGRESS: &str = "progress";
+        pub(crate) const HELP: &str = "help";
+        pub(crate) const CONTEXT_MENU: &str = "context_menu";
+        pub(crate) const MOVE: &str = "move";
+        pub(crate) const GRAB: &str = "grab";
+        pub(crate) const GRABBING: &str = "grabbing";
+        pub(crate) const ALIAS: &str = "alias";
+        pub(crate) const COPY: &str = "copy";
+        pub(crate) const NO_DROP: &str = "no_drop";
+        pub(crate) const FORBIDDEN: &str = "forbidden";
+        pub(crate) const ALL_SCROLL: &str = "all_scroll";
+        pub(crate) const RESIZE_X: &str = "resize_x";
+        pub(crate) const RESIZE_Y: &str = "resize_y";
+        pub(crate) const RESIZE_N: &str = "resize_n";
+        pub(crate) const RESIZE_E: &str = "resize_e";
+        pub(crate) const RESIZE_S: &str = "resize_s";
+        pub(crate) const RESIZE_W: &str = "resize_w";
+        pub(crate) const RESIZE_NE: &str = "resize_ne";
+        pub(crate) const RESIZE_NW: &str = "resize_nw";
+        pub(crate) const RESIZE_SE: &str = "resize_se";
+        pub(crate) const RESIZE_SW: &str = "resize_sw";
+        pub(crate) const RESIZE_NESW: &str = "resize_nesw";
+        pub(crate) const RESIZE_NWSE: &str = "resize_nwse";
+        pub(crate) const RESIZE_COL: &str = "resize_col";
+        pub(crate) const RESIZE_ROW: &str = "resize_row";
+        pub(crate) const ZOOM_IN: &str = "zoom_in";
+        pub(crate) const ZOOM_OUT: &str = "zoom_out";
+        /// Every shape, in the order the picker offers them.
+        pub(crate) const ALL: &[&str] = &[
+            ARROW,
+            HAND,
+            TEXT,
+            VERTICAL_TEXT,
+            CROSS,
+            CELL,
+            WAIT,
+            PROGRESS,
+            HELP,
+            CONTEXT_MENU,
+            MOVE,
+            GRAB,
+            GRABBING,
+            ALIAS,
+            COPY,
+            NO_DROP,
+            FORBIDDEN,
+            ALL_SCROLL,
+            RESIZE_X,
+            RESIZE_Y,
+            RESIZE_N,
+            RESIZE_E,
+            RESIZE_S,
+            RESIZE_W,
+            RESIZE_NE,
+            RESIZE_NW,
+            RESIZE_SE,
+            RESIZE_SW,
+            RESIZE_NESW,
+            RESIZE_NWSE,
+            RESIZE_COL,
+            RESIZE_ROW,
+            ZOOM_IN,
+            ZOOM_OUT,
+        ];
+    }
 }
 
 /// Every property key of the `widget` component and every option a `ui.*` call reads.

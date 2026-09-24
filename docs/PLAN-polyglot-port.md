@@ -287,7 +287,23 @@ Three rules belong to the importer rather than the translator:
    way: a press `input.feed_*` handed in was the frame's own and the pointer
    hooks run at the top of the next, so no fed press ever reached one; a fed
    event is now the next frame's, in a windowed and a headless run alike.
-9. **Retire the hand-written files** and reimport; the 54 again.
+   Also built: a `regex` module in `balaur_core` over `regex-lite`
+   (`matches`, `search`, `search_all`, `replace`, `split`, `escape`), which
+   the shim's `RegEx` record calls; `Image.new()` + `load` as the texture's
+   path. Not built, in balaur terms: `focus_neighbor_*` (the engine moves
+   focus itself), the app lifecycle notifications (the roadmap's "Suspend
+   and resume"), `MultiMeshInstance2D` (the wave rows set one transform per
+   instance, which a `cloner` does not take), and `tab_changed`.
+9. **Retire the hand-written files** and reimport; the 54 again. Started
+   2026-09-24 from the `login_offline` log, 1 394 error lines once
+   `run.sh` read it stripped of colour: `Shader.new()` and
+   `ShaderMaterial.new()` (510 each) are records the script keeps and the
+   engine never draws with, `CircleShape2D.new()` (96) patches the node's
+   `collider2d` when handed to a `shape`, `foldable_group` (185) and
+   `material` are kept as meta, `add_theme_*_override` lands on the widget
+   key it has (`text_color`, `gap`, `padding`, `font_size`) or nowhere,
+   `get_popup()` is the button itself, a node's `duplicate()` clones its
+   components and children, and `size_of` answers a vector.
 10. **Web export**, `web_smoke`, the size report, the `web` mappings.
 11. **Pictures against Godot's**, and what they show fixed.
 12. **A device.** iOS and Android signed and run once hardware is on the

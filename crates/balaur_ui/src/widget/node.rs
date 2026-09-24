@@ -348,17 +348,17 @@ impl Default for WidgetLayerConfig {
 /// `ui.wants_pointer()`: whether it is over any widget, and whether one of
 /// those takes the pointer rather than letting it through.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct UiPointer {
-    pub over: bool,
-    pub claimed: bool,
+pub(crate) struct UiPointer {
+    pub(crate) over: bool,
+    pub(crate) claimed: bool,
 }
 
 impl UiPointer {
     /// Whether the UI wants the pointer: egui's own answer, unless every
     /// widget under the pointer lets it through to the scene.
     #[must_use]
-    pub fn wants(self, egui_wants: bool) -> bool {
-        egui_wants && !(self.over && !self.claimed)
+    pub(crate) fn wants(self, egui_wants: bool) -> bool {
+        egui_wants && (!self.over || self.claimed)
     }
 }
 

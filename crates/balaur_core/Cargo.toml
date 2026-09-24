@@ -20,6 +20,7 @@ glamx.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 toml.workspace = true
+regex-lite.workspace = true
 # `toml.patch`: the one writer that keeps a hand-written file's comments and
 # key order, which `toml::to_string` cannot.
 toml_edit = "0.25"

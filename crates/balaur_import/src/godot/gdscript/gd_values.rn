@@ -306,6 +306,9 @@ pub fn duplicate(value) {
     if scripted(value) {
         return invoke(value, "duplicate");
     }
+    if value is balaur::Node {
+        return clone_node(value, value.parent());
+    }
     if value is Vec {
         let out = [];
         for item in value {
@@ -1534,4 +1537,125 @@ fn draw_picture(node, texture, rect, modulate) {
     let by = draw_scale(node);
     render::draw_texture_2d(texture, centre[0], centre[1], math::abs(float(size.x)) * by, math::abs(float(size.y)) * by, draw_color(modulate));
     return ();
+}
+
+/// Godot's `Shader.new()`: a record holding the code a script assigns. The
+/// engine draws with its own `material` assets, so the code is kept and
+/// never compiled.
+pub fn shader() {
+    #{ "__shader": true, "code": "" }
+}
+
+/// Godot's `ShaderMaterial.new()`: the shader it names and the parameters
+/// set on it, which `set_shader_parameter` and `get_shader_parameter` keep.
+pub fn shader_material() {
+    #{ "__material": true, "shader": (), "params": #{} }
+}
+
+pub fn set_shader_parameter(material, name, value) {
+    if material is Object && material.contains_key("params") {
+        material["params"][name] = value;
+    }
+}
+
+pub fn get_shader_parameter(material, name) {
+    if material is Object && material.contains_key("params") {
+        return get(material["params"], name, ());
+    }
+    return ();
+}
+
+/// Godot's `CircleShape2D.new()` and `RectangleShape2D.new()`: the shape a
+/// `CollisionShape2D` is handed, as the `collider2d` keys it becomes.
+pub fn circle_shape() {
+    #{ "__shape": "circle", "radius": 10.0 }
+}
+
+pub fn rect_shape() {
+    #{ "__shape": "rect", "size": vec2(20.0, 20.0) }
+}
+
+/// A colour as the `[r, g, b, a]` list a component key takes.
+pub fn color_list(value) {
+    let c = color_of(value);
+    [c.r, c.g, c.b, c.a]
+}
+
+/// Godot's `Image.new()` and `Image.load(path)`: a record naming the file,
+/// which `ImageTexture.create_from_image` answers as the texture's path.
+pub fn image() {
+    #{ "__image": true, "path": "" }
+}
+
+pub fn image_load(image, path) {
+    if !(image is Object) || !image.contains_key("__image") {
+        return -1;
+    }
+    image["path"] = project_path(path);
+    0
+}
+
+pub fn image_texture(image) {
+    if image is Object && image.contains_key("__image") {
+        return image["path"];
+    }
+    return ();
+}
+
+/// Godot's `RegEx.new()`: a record over `regex::*`, compiled by pattern on
+/// every call. `search` and `search_all` answer match records.
+pub fn regexp() {
+    let rx = #{ "pattern": "", "valid": false };
+    rx["compile"] = |pattern| {
+        let (ok, _) = script::attempt(|| regex::matches(pattern, ""));
+        rx["pattern"] = pattern;
+        rx["valid"] = ok;
+        if ok { 0 } else { 1 }
+    };
+    rx["is_valid"] = || rx["valid"];
+    rx["get_pattern"] = || rx["pattern"];
+    rx["search"] = |text| regexp_match(regex::search(rx["pattern"], text));
+    rx["search/2"] = |text, offset| regexp_match(regex::search(rx["pattern"], text));
+    rx["search_all"] = |text| {
+        let out = [];
+        for found in regex::search_all(rx["pattern"], text) {
+            out.push(regexp_match(found));
+        }
+        out
+    };
+    rx["sub"] = |text, with| regex::replace(rx["pattern"], text, with, false);
+    rx["sub/3"] = |text, with, all| regex::replace(rx["pattern"], text, with, all);
+    rx
+}
+
+pub fn regexp_of(pattern) {
+    let rx = regexp();
+    let _ = (rx["compile"])(pattern);
+    rx
+}
+
+/// Godot's `RegExMatch` over one `regex::search` answer: the whole match is
+/// group 0, and a group that took no part reads as "".
+fn regexp_match(found) {
+    if is_nil(found) {
+        return ();
+    }
+    let group = |n| {
+        if n == 0 {
+            return found["text"];
+        }
+        let g = found["groups"][n - 1];
+        if is_nil(g) { "" } else { g }
+    };
+    let strings = [found["text"]];
+    for g in found["groups"] {
+        strings.push(if is_nil(g) { "" } else { g });
+    }
+    let m = #{ "start": found["start"], "end": found["end"], "strings": strings };
+    m["get_string"] = group;
+    m["get_string/0"] = || found["text"];
+    m["get_start/0"] = || found["start"];
+    m["get_end/0"] = || found["end"];
+    m["get_group_count"] = || found["groups"].len() as i64;
+    m
 }

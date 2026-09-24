@@ -17,6 +17,7 @@ mod widget_focus;
 mod widget_kinds;
 mod widget_layer;
 mod widget_menus;
+mod widget_pointer;
 mod widget_reader;
 mod widget_roles;
 mod widget_rows;

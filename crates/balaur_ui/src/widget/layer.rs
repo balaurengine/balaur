@@ -187,6 +187,13 @@ fn inside_safe_area(eng: &Engine, area: egui::Rect, edges: [bool; 4]) -> egui::R
     area.intersect(safe)
 }
 
+/// What this pass found under the pointer, for `ui.wants_pointer()`.
+fn publish_pointer(eng: &Engine, found: UiPointer) {
+    if let Some(pointer) = eng.try_resource::<UiPointer>() {
+        *pointer.borrow_mut() = found;
+    }
+}
+
 /// Draw every widget entity. Runs inside the frame's egui pass, after the
 /// scripts' `draw_ui`.
 pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
@@ -296,9 +303,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     crate::widget::taffy::sweep(eng);
     let edits = std::mem::take(&mut painting.edits);
     let clicked = std::mem::take(&mut painting.clicked);
-    if let Some(pointer) = eng.try_resource::<UiPointer>() {
-        *pointer.borrow_mut() = painting.pointer;
-    }
+    publish_pointer(eng, painting.pointer);
     // Dropped before the arena moves: `Painting` borrows it for the draw.
     drop(painting);
     keep(placed, roots, index_of, stamp);
@@ -853,20 +858,18 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         }
     }
     tip(ui, entity, &tooltip);
-    shape_pointer(ui, &cursor);
-    if ui.rect_contains_pointer(ui.min_rect()) {
-        at.pointer.over = true;
-        at.pointer.claimed |= !through;
-    }
+    under_pointer(ui, at, &cursor, through);
 }
 
-/// The pointer takes the widget's `cursor` shape while it is over the widget
-/// just drawn.
-fn shape_pointer(ui: &egui::Ui, cursor: &str) {
-    let Some(icon) = pointer_icon(cursor) else {
+/// What the pointer meets over the widget just drawn: the widget's `cursor`
+/// shape, and whether it takes the pointer or lets it through.
+fn under_pointer(ui: &egui::Ui, at: &mut Painting<'_>, cursor: &str, through: bool) {
+    if !ui.rect_contains_pointer(ui.min_rect()) {
         return;
-    };
-    if ui.rect_contains_pointer(ui.min_rect()) {
+    }
+    at.pointer.over = true;
+    at.pointer.claimed |= !through;
+    if let Some(icon) = pointer_icon(cursor) {
         ui.ctx().set_cursor_icon(icon);
     }
 }
@@ -874,24 +877,42 @@ fn shape_pointer(ui: &egui::Ui, cursor: &str) {
 /// The platform pointer a `cursor` word names; the arrow is what the pointer
 /// already is, and an unknown word is nothing.
 pub(crate) fn pointer_icon(cursor: &str) -> Option<egui::CursorIcon> {
+    use crate::vocabulary::words::cursor as c;
     use egui::CursorIcon as C;
     Some(match cursor {
-        w::HAND => C::PointingHand,
-        w::TEXT => C::Text,
-        w::CROSS => C::Crosshair,
-        w::WAIT => C::Wait,
-        w::PROGRESS => C::Progress,
-        w::MOVE => C::Move,
-        w::GRAB => C::Grab,
-        w::GRABBING => C::Grabbing,
-        w::FORBIDDEN => C::NotAllowed,
-        w::HELP => C::Help,
-        w::RESIZE_X => C::ResizeHorizontal,
-        w::RESIZE_Y => C::ResizeVertical,
-        w::RESIZE_NESW => C::ResizeNeSw,
-        w::RESIZE_NWSE => C::ResizeNwSe,
-        w::ZOOM_IN => C::ZoomIn,
-        w::ZOOM_OUT => C::ZoomOut,
+        c::HAND => C::PointingHand,
+        c::TEXT => C::Text,
+        c::VERTICAL_TEXT => C::VerticalText,
+        c::CROSS => C::Crosshair,
+        c::CELL => C::Cell,
+        c::WAIT => C::Wait,
+        c::PROGRESS => C::Progress,
+        c::HELP => C::Help,
+        c::CONTEXT_MENU => C::ContextMenu,
+        c::MOVE => C::Move,
+        c::GRAB => C::Grab,
+        c::GRABBING => C::Grabbing,
+        c::ALIAS => C::Alias,
+        c::COPY => C::Copy,
+        c::NO_DROP => C::NoDrop,
+        c::FORBIDDEN => C::NotAllowed,
+        c::ALL_SCROLL => C::AllScroll,
+        c::RESIZE_X => C::ResizeHorizontal,
+        c::RESIZE_Y => C::ResizeVertical,
+        c::RESIZE_N => C::ResizeNorth,
+        c::RESIZE_E => C::ResizeEast,
+        c::RESIZE_S => C::ResizeSouth,
+        c::RESIZE_W => C::ResizeWest,
+        c::RESIZE_NE => C::ResizeNorthEast,
+        c::RESIZE_NW => C::ResizeNorthWest,
+        c::RESIZE_SE => C::ResizeSouthEast,
+        c::RESIZE_SW => C::ResizeSouthWest,
+        c::RESIZE_NESW => C::ResizeNeSw,
+        c::RESIZE_NWSE => C::ResizeNwSe,
+        c::RESIZE_COL => C::ResizeColumn,
+        c::RESIZE_ROW => C::ResizeRow,
+        c::ZOOM_IN => C::ZoomIn,
+        c::ZOOM_OUT => C::ZoomOut,
         _ => return None,
     })
 }
@@ -1089,16 +1110,26 @@ mod tests {
         let nothing = UiPointer::default();
         assert!(nothing.wants(true), "an egui panel with no widget under it");
         assert!(!nothing.wants(false));
-        let through = UiPointer { over: true, claimed: false };
+        let through = UiPointer {
+            over: true,
+            claimed: false,
+        };
         assert!(!through.wants(true), "only pass-through widgets under it");
-        let taken = UiPointer { over: true, claimed: true };
+        let taken = UiPointer {
+            over: true,
+            claimed: true,
+        };
         assert!(taken.wants(true), "a button inside a pass-through root");
     }
 
     #[test]
     fn every_cursor_word_names_a_pointer_and_no_word_names_none() {
-        for word in w::CURSORS {
-            assert_eq!(pointer_icon(word).is_some(), *word != w::ARROW, "{word}");
+        for word in w::cursor::ALL {
+            assert_eq!(
+                pointer_icon(word).is_some(),
+                *word != w::cursor::ARROW,
+                "{word}"
+            );
         }
         assert_eq!(pointer_icon(""), None);
         assert_eq!(pointer_icon("banana"), None);

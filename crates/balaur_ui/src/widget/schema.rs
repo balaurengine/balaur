@@ -122,7 +122,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::DEADZONE, r#"{ type = "float", default = 0.0, min = 0.0, description = "How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once", group = "value" }"#),
                     (k::ROLE, r#"{ type = "string", default = "", description = "A `[roles.<name>]` entry of the widget's theme, taken over its kind's own style; the one place a look is named rather than spelled", group = "paint" }"#),
                     (k::TOOLTIP, r#"{ type = "string", default = "", description = "Text shown after the pointer rests on the widget; still shown when it is `disabled`, which is where it says why", group = "type" }"#),
-                    (k::CURSOR, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "The pointer's shape while it is over the widget: `hand` over anything that opens on a click; `arrow` is the platform's own", group = "type" }}"#, w::ARROW, v::options(w::CURSORS))),
+                    (k::CURSOR, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "The pointer's shape while it is over the widget: `hand` over anything that opens on a click; `arrow` is the platform's own", group = "type" }}"#, w::cursor::ARROW, v::options(w::cursor::ALL))),
                     (k::ICON, r#"{ type = "string", default = "", description = "A glyph from the theme's icon family, drawn before `text`", group = "paint" }"#),
                     (k::ICON_COLOR, r#"{ type = "string", default = "", description = "What that glyph is tinted with, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the role's own", group = "paint" }"#),
                     (k::DISABLED, r#"{ type = "bool", default = false, description = "Grey the widget out and swallow its clicks" }"#),
@@ -1055,7 +1055,10 @@ mod tests {
         let hand = widget(&toml::toml! { kind = "label" cursor = "hand" }.into());
         assert_eq!(hand.cursor, "hand");
         let bare = widget(&toml::toml! { kind = "label" }.into());
-        assert_eq!(bare.cursor, "arrow", "the platform's own pointer");
+        assert!(
+            bare.cursor.is_empty(),
+            "the schema's `arrow` default is merged by add and patch, not read here"
+        );
     }
 
     /// The shaper is told which family to use. It shaped everything in `ui`

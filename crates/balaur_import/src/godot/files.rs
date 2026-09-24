@@ -430,6 +430,7 @@ mouse_filter = 2
 
 [node name="Bottom" type="Button" parent="Bars"]
 text = "Menu"
+mouse_default_cursor_shape = 14
 size_flags_horizontal = 4
 size_flags_vertical = 8
 
@@ -767,6 +768,26 @@ func _process(_delta):
     }
 
     #[test]
+    fn a_control_s_cursor_shape_and_mouse_filter_land_on_the_widget() {
+        let godot = godot();
+        let out = tempfile::tempdir().unwrap();
+        import_project(&godot.path().join("project.godot"), out.path()).unwrap();
+        let scene = read(out.path(), "scenes/main.toml");
+        let go = node(&scene, "Go");
+        assert_eq!(go["widget"]["cursor"].as_str(), Some("hand"));
+        assert_eq!(
+            go["widget"].get("pointer_through"),
+            None,
+            "STOP keeps the pointer"
+        );
+        assert_eq!(
+            node(&scene, "Bars")["widget"]["pointer_through"].as_bool(),
+            Some(true),
+            "IGNORE lets it through"
+        );
+    }
+
+    #[test]
     fn a_godot_project_converts_node_by_node() {
         let godot = godot();
         let out = tempfile::tempdir().unwrap();
@@ -819,13 +840,6 @@ func _process(_delta):
         assert_eq!(go["widget"]["kind"].as_str(), Some("button"));
         assert_eq!(go["widget"]["on_click"].as_str(), Some("on_go"));
         assert_eq!(go["widget"]["toggle"].as_bool(), Some(true));
-        assert_eq!(go["widget"]["cursor"].as_str(), Some("hand"));
-        assert_eq!(go["widget"].get("pointer_through"), None, "STOP keeps the pointer");
-        assert_eq!(
-            node(&scene, "Bars")["widget"]["pointer_through"].as_bool(),
-            Some(true),
-            "IGNORE lets it through"
-        );
         // A MarginContainer lays its children over one another, and each is
         // placed in the box by its size flags.
         assert_eq!(
@@ -835,6 +849,11 @@ func _process(_delta):
         assert_eq!(
             node(&scene, "Bottom")["widget"]["anchor"].as_str(),
             Some("center_bottom")
+        );
+        assert_eq!(
+            node(&scene, "Bottom")["widget"]["cursor"].as_str(),
+            Some("resize_row"),
+            "VSPLIT is its own shape, not VSIZE"
         );
         assert_eq!(go["widget"]["group"].as_str(), Some("ButtonGroup_tabs"));
         assert_eq!(
