@@ -21,13 +21,8 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 use crate::PhysicsState3d;
 use crate::rapier3d::prelude::{ColliderBuilder, SoftBodyBuilder, SoftBodyHandle};
 use crate::scalar::{self, Real, Vector};
+use crate::shared::softbody as cap;
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
-
-/// How many particles a generator is allowed to make.
-///
-/// A `cells` of a thousand per axis is a billion particles and a frozen
-/// editor, and the number comes from a text field anyone can type into.
-const MAX_PARTICLES: usize = 200_000;
 
 /// The shape rows: how a body's particles and elements are laid out, and the
 /// numbers each layout reads.
@@ -252,6 +247,14 @@ fn build_layout(
         |key: &str, default: [f32; 3]| pose.rotation * scalar::v3a(v::vec3(params, key, default));
     let count = |key: &str, default: f32| v::f(params, key, default).max(2.0) as usize;
     let cells = v::vec3(params, k::CELLS, [4.0, 4.0, 4.0]);
+    let axis = |i: usize| cap::particles_along(cells[i]);
+    cap::refuse_past_cap(match kind {
+        w::SOFT_CUBOID => axis(0) * axis(1) * axis(2),
+        w::CLOTH => axis(0) * axis(1),
+        w::CLOTH_TUBE => f64::from(cells[0].max(3.0)).floor() * axis(1),
+        w::ROPE_SOFT => f64::from(v::f(params, k::PARTICLES, 16.0).max(2.0)).floor(),
+        _ => 0.0,
+    })?;
     let builder = match kind {
         // Rapier counts the particles along an axis; the schema counts the
         // cells between them, which is the number an author means.
@@ -310,6 +313,7 @@ fn build_layout(
         w::VOLUMETRIC => {
             let (points, indices) = source_mesh(eng, params, pose)?;
             let size = scalar::real(v::f(params, k::CELL_SIZE, 0.25));
+            cap::refuse_past_cap(cap::grid_particles(&extents(&points), size))?;
             let built = if v::boolean(params, k::SKIN, false) {
                 SoftBodyBuilder::volumetric_skinned(&points, &indices, size)
             } else {
@@ -326,13 +330,21 @@ fn build_layout(
         }
         other => return Err(anyhow!("unknown soft-body kind '{other}'")),
     };
-    let particles = builder.positions.len();
-    if particles > MAX_PARTICLES {
-        return Err(anyhow!(
-            "that would be {particles} particles, past the {MAX_PARTICLES} a body may have: use fewer cells, or a larger cell size"
-        ));
-    }
+    cap::refuse_past_cap(builder.positions.len() as f64)?;
     Ok(with_settings(builder, params))
+}
+
+/// How wide the points spread along each axis.
+fn extents(points: &[Vector]) -> [f32; 3] {
+    let mut low = [f32::INFINITY; 3];
+    let mut high = [f32::NEG_INFINITY; 3];
+    for point in points {
+        for (axis, value) in scalar::a3(*point).into_iter().enumerate() {
+            low[axis] = low[axis].min(value);
+            high[axis] = high[axis].max(value);
+        }
+    }
+    [0, 1, 2].map(|axis| (high[axis] - low[axis]).max(0.0))
 }
 
 /// Build the node's soft body, replacing whatever it had.
@@ -416,7 +428,7 @@ pub(crate) fn write_solved_mesh(eng: &Engine, entity: Entity) {
         return;
     };
     let inverse = pose.inverse();
-    let (positions, indices, topology) = {
+    let (positions, indices) = {
         let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
         let Some(&handle) = state.soft_bodies.get(&entity) else {
@@ -431,7 +443,6 @@ pub(crate) fn write_solved_mesh(eng: &Engine, entity: Entity) {
                     .map(|p| scalar::a3(inverse * p))
                     .collect::<Vec<_>>(),
                 mesh.indices().to_vec(),
-                mesh.topology_version(),
             ),
             // A body with no collider still draws: its boundary is what a
             // generator laid out, and the particles are its vertices.
@@ -440,25 +451,17 @@ pub(crate) fn write_solved_mesh(eng: &Engine, entity: Entity) {
                     .map(|p| scalar::a3(inverse * p))
                     .collect(),
                 body.boundary().to_vec(),
-                body.topology_version(),
             ),
         }
     };
     let mut world = eng.world_mut();
     if let Ok(mut solved) = world.get::<&mut balaur_core::mesh::SolvedMesh>(entity) {
-        solved.positions = positions;
-        solved.indices = indices;
-        solved.topology = topology;
+        solved.update(positions, indices);
         return;
     }
-    let _ = world.insert_one(
-        entity,
-        balaur_core::mesh::SolvedMesh {
-            positions,
-            indices,
-            topology,
-        },
-    );
+    let mut solved = balaur_core::mesh::SolvedMesh::default();
+    solved.update(positions, indices);
+    let _ = world.insert_one(entity, solved);
 }
 
 /// Hand every soft body's positions over, which is what the step does once
@@ -489,6 +492,9 @@ pub(crate) fn register_softbody_component(reg: &mut Registry<'_>) {
             apply: Box::new(apply_softbody),
             remove: Box::new(|eng, entity| {
                 remove_softbody(eng, entity);
+                let _ = eng
+                    .world_mut()
+                    .remove_one::<balaur_core::mesh::SolvedMesh>(entity);
                 Ok(())
             }),
             get: Box::new(get_softbody_params),

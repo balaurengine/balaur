@@ -130,8 +130,8 @@ impl Deform {
 /// body's particles *are* the geometry, and subtracting a rest mesh to add it
 /// back would be two passes over the vertices for nothing.
 ///
-/// `topology` is bumped whenever the triangles change and not just the
-/// positions, which is what a tear does; a renderer holding an uploaded mesh
+/// `topology` changes whenever the triangles or the vertex count do, which is
+/// what a tear or a rebuilt body does; a renderer holding an uploaded mesh
 /// rebuilds it when the number it last saw is not this one.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SolvedMesh {
@@ -148,6 +148,39 @@ pub struct SolvedPolygon {
     /// Triangles, as indices into `positions`.
     pub indices: Vec<[u32; 3]>,
     pub topology: u32,
+}
+
+// Process-wide rather than per body: a solver's own count restarts at zero
+// for a rebuilt body, and a renderer comparing against it keeps stale faces.
+static NEXT_TOPOLOGY: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
+
+fn next_topology() -> u32 {
+    NEXT_TOPOLOGY.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
+
+impl SolvedMesh {
+    /// Take this step's geometry, with a new `topology` if its triangles or
+    /// its vertex count are not the ones held.
+    pub fn update(&mut self, positions: Vec<[f32; 3]>, indices: Vec<[u32; 3]>) {
+        if self.topology == 0 || positions.len() != self.positions.len() || indices != self.indices
+        {
+            self.topology = next_topology();
+            self.indices = indices;
+        }
+        self.positions = positions;
+    }
+}
+
+impl SolvedPolygon {
+    /// As [`SolvedMesh::update`].
+    pub fn update(&mut self, positions: Vec<[f32; 2]>, indices: Vec<[u32; 3]>) {
+        if self.topology == 0 || positions.len() != self.positions.len() || indices != self.indices
+        {
+            self.topology = next_topology();
+            self.indices = indices;
+        }
+        self.positions = positions;
+    }
 }
 
 /// The `kind` a mesh definition names to be built out of a shaped string.
@@ -1031,6 +1064,21 @@ mod tests {
     }
 
     const TRIANGLE: &str = "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
+
+    #[test]
+    fn solved_geometry_changes_topology_only_when_its_triangles_or_vertex_count_do() {
+        let mut solved = SolvedMesh::default();
+        solved.update(vec![[0.0; 3]; 3], vec![[0, 1, 2]]);
+        let first = solved.topology;
+        assert_ne!(first, 0, "the first geometry is a topology of its own");
+        solved.update(vec![[1.0; 3]; 3], vec![[0, 1, 2]]);
+        assert_eq!(solved.topology, first, "moved vertices keep the uploaded faces");
+        solved.update(vec![[0.0; 3]; 3], vec![[0, 2, 1]]);
+        let torn = solved.topology;
+        assert_ne!(torn, first, "new triangles are a new topology");
+        solved.update(vec![[0.0; 3]; 4], vec![[0, 2, 1]]);
+        assert_ne!(solved.topology, torn, "so is a rebuilt body's vertex count");
+    }
 
     #[test]
     fn a_triangle_becomes_three_vertices_and_one_face() {

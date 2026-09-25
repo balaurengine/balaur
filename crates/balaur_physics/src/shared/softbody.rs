@@ -97,3 +97,33 @@ macro_rules! material {
 }
 
 pub(crate) use material;
+
+/// How many particles a body may have. The count comes from a text field,
+/// and rapier allocates every particle before a built body could be counted.
+pub(crate) const MAX_PARTICLES: usize = 200_000;
+
+/// Refuse a layout whose particle count, worked out from its parameters
+/// before anything is built, is past the cap.
+pub(crate) fn refuse_past_cap(particles: f64) -> anyhow::Result<()> {
+    if particles.is_nan() || particles > MAX_PARTICLES as f64 {
+        return Err(anyhow::anyhow!(
+            "that would be {particles:.0} particles, past the {MAX_PARTICLES} a body may have: use fewer cells, or a larger cell size"
+        ));
+    }
+    Ok(())
+}
+
+/// The particles along an axis `cells` cells long, as the generators count
+/// them: one more than the cells between them.
+pub(crate) fn particles_along(cells: f32) -> f64 {
+    f64::from(cells.max(1.0)).floor() + 1.0
+}
+
+/// The most particles a volumetric fill of a box `extents` wide can make at a
+/// cell of `size`: one at each corner of the grid covering it.
+pub(crate) fn grid_particles(extents: &[f32], size: f32) -> f64 {
+    extents
+        .iter()
+        .map(|extent| (f64::from(*extent) / f64::from(size)).ceil().max(0.0) + 1.0)
+        .product()
+}

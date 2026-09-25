@@ -176,11 +176,15 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
 pub(crate) fn resolve_solved_system(eng: &Engine, _dt: f32) {
     let mut wanted: Vec<(Entity, MeshData, u32)> = Vec::new();
     let mut moved: Vec<(Entity, Option<Bounds3d>)> = Vec::new();
+    let mut drawn: Vec<Entity> = Vec::new();
     {
         let world = eng.world();
         for (entity, solved) in &mut world.query::<(Entity, &SolvedMesh)>() {
             if solved.positions.is_empty() || solved.indices.is_empty() {
                 continue;
+            }
+            if world.get::<&SolverDrawn>(entity).is_err() {
+                drawn.push(entity);
             }
             // Every step, not only on a tear: a body that deformed covers
             // different ground, and the box a click is picked against and the
@@ -213,7 +217,33 @@ pub(crate) fn resolve_solved_system(eng: &Engine, _dt: f32) {
     for (entity, mesh, topology) in wanted {
         install(eng, entity, mesh, topology);
     }
+    let mut world = eng.world_mut();
+    for entity in drawn {
+        let _ = world.insert_one(entity, SolverDrawn);
+    }
+    let gone: Vec<Entity> = world
+        .query::<Entity>()
+        .with::<&SolverDrawn>()
+        .without::<&SolvedMesh>()
+        .iter()
+        .collect();
+    for entity in gone {
+        let _ = world.remove_one::<SolverDrawn>(entity);
+        let ours = world
+            .get::<&Renderable3d>(entity)
+            .is_ok_and(|r| is_ours(&r));
+        if ours {
+            let _ = world.remove_one::<Renderable3d>(entity);
+        } else if let Ok(mut renderable) = world.get::<&mut Renderable3d>(entity) {
+            // The backend's node still holds the last deformed vertices.
+            renderable.version = renderable.version.wrapping_add(1);
+        }
+    }
 }
+
+/// On a node the solver drew, so the draw can be undone once the soft body
+/// is removed and its `SolvedMesh` goes with it.
+struct SolverDrawn;
 
 /// The box a set of positions covers, in the node's own space.
 fn bounds_of(positions: &[[f32; 3]]) -> Option<Bounds3d> {

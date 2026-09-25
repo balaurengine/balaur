@@ -166,6 +166,18 @@ fn a_layout_past_the_particle_cap_is_refused() {
     );
 }
 
+#[test]
+fn a_cell_count_no_integer_holds_is_refused_rather_than_built() {
+    let errors = run(r#"pub fn init(this) {
+    this.node.softbody3d.set_softbody(#{ kind: "cloth", cells: [1.0e30, 1.0e30, 1.0] });
+}
+"#);
+    assert!(
+        errors.iter().any(|e| e.contains("particles")),
+        "the cap did not report the particle count: {errors:#?}"
+    );
+}
+
 /// The point of a soft body: the solver owns the positions, and the node is
 /// drawn from them rather than from what was authored.
 #[test]
@@ -445,4 +457,31 @@ fn freeing_a_node_frees_its_soft_body() {
     balaur_core::scene::free_subtree(&mut app.engine.world_mut(), node);
     app.tick(1.0 / 60.0);
     assert_eq!(bodies(&app), 0, "the freed node left its soft body behind");
+}
+
+/// What the solver drew goes with the component, or the renderer keeps
+/// drawing the last pose of a body that no longer exists.
+#[test]
+fn removing_a_soft_body_takes_its_solved_mesh_with_it() {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut app = balaur_core::App::new(balaur_core::AppConfig::bare(".")).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin::default()).unwrap();
+    let root = app.engine.root();
+    let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Blob", root);
+    let cuboid = toml::from_str("kind = \"cuboid\"\ncells = [2.0, 2.0, 2.0]").unwrap();
+    balaur_core::components::add(&app.engine, node, "softbody3d", Some(&cuboid)).unwrap();
+    app.tick(1.0 / 60.0);
+    let solved = |app: &balaur_core::App| {
+        app.engine
+            .world()
+            .get::<&balaur_core::mesh::SolvedMesh>(node)
+            .is_ok()
+    };
+    assert!(solved(&app), "the body drew nothing to begin with");
+    balaur_core::components::remove(&app.engine, node, "softbody3d").unwrap();
+    app.tick(1.0 / 60.0);
+    assert_eq!(bodies(&app), 0, "the removed component left its soft body");
+    assert!(!solved(&app), "the removed component left its solved mesh");
 }

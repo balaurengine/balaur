@@ -23,6 +23,7 @@ use crate::rapier2d::prelude::{
     SoftBodyHandle as SoftBodyHandle2, SoftBodyParticleSettings as SoftBodyParticleSettings2,
 };
 use crate::scalar::{self, Vector2};
+use crate::shared::softbody as cap;
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
 
 crate::shared::softbody::material!(
@@ -32,10 +33,6 @@ crate::shared::softbody::material!(
     flow = threshold_2d,
     springs = springs_2d
 );
-
-/// As in 3D: a layout's particle count comes from a text field, and a typo
-/// should be an error rather than a frozen editor.
-const MAX_PARTICLES: usize = 200_000;
 
 /// How a 2D body's particles and elements are laid out.
 fn shape_schema() -> String {
@@ -144,6 +141,12 @@ fn build_layout(
     let at = pose.translation;
     let local = |key: &str, default: [f32; 2]| pose * scalar::v2a(v::vec2(params, key, default));
     let cells = v::vec2(params, k::CELLS, [4.0, 4.0]);
+    let particles = f64::from(v::f(params, k::PARTICLES, 16.0).max(2.0)).floor();
+    cap::refuse_past_cap(match kind {
+        w::GRID => cap::particles_along(cells[0]) * cap::particles_along(cells[1]),
+        w::DISK | w::ROPE_SOFT => particles,
+        _ => 0.0,
+    })?;
     let builder = match kind {
         // As in 3D: the schema counts cells, rapier counts the particles
         // between them.
@@ -188,6 +191,7 @@ fn build_layout(
             let (points, indices) = source_mesh(eng, params, pose)?;
             let border = outline(&points, &indices);
             let size = scalar::real(v::f(params, k::CELL_SIZE, 0.25));
+            cap::refuse_past_cap(cap::grid_particles(&extents(&points), size))?;
             let built = if v::boolean(params, k::SKIN, false) {
                 SoftBodyBuilder2::volumetric_skinned(&points, &border, size)
             } else {
@@ -199,13 +203,21 @@ fn build_layout(
         }
         other => return Err(anyhow!("unknown soft-body kind '{other}'")),
     };
-    let particles = builder.positions.len();
-    if particles > MAX_PARTICLES {
-        return Err(anyhow!(
-            "that would be {particles} particles, past the {MAX_PARTICLES} a body may have: use fewer cells, or a larger cell size"
-        ));
-    }
+    cap::refuse_past_cap(builder.positions.len() as f64)?;
     Ok(with_settings(builder, params))
+}
+
+/// How wide the points spread along each axis.
+fn extents(points: &[Vector2]) -> [f32; 2] {
+    let mut low = [f32::INFINITY; 2];
+    let mut high = [f32::NEG_INFINITY; 2];
+    for point in points {
+        for (axis, value) in scalar::a2(*point).into_iter().enumerate() {
+            low[axis] = low[axis].min(value);
+            high[axis] = high[axis].max(value);
+        }
+    }
+    [0, 1].map(|axis| (high[axis] - low[axis]).max(0.0))
 }
 
 /// The rows every layout shares. The same reading as 3D's, against rapier2d's
@@ -319,7 +331,7 @@ pub(crate) fn write_solved_polygon(eng: &Engine, entity: Entity) {
         return;
     };
     let inverse = pose.inverse();
-    let (positions, indices, topology) = {
+    let (positions, indices) = {
         let state = eng.resource::<PhysicsState2d>();
         let state = state.borrow();
         let Some(&handle) = state.soft_bodies.get(&entity) else {
@@ -335,24 +347,16 @@ pub(crate) fn write_solved_polygon(eng: &Engine, entity: Entity) {
                 .map(|p| scalar::a2(inverse * p))
                 .collect::<Vec<_>>(),
             body.cells().iter().map(|cell| cell.vertices).collect(),
-            body.topology_version(),
         )
     };
     let mut world = eng.world_mut();
     if let Ok(mut solved) = world.get::<&mut balaur_core::mesh::SolvedPolygon>(entity) {
-        solved.positions = positions;
-        solved.indices = indices;
-        solved.topology = topology;
+        solved.update(positions, indices);
         return;
     }
-    let _ = world.insert_one(
-        entity,
-        balaur_core::mesh::SolvedPolygon {
-            positions,
-            indices,
-            topology,
-        },
-    );
+    let mut solved = balaur_core::mesh::SolvedPolygon::default();
+    solved.update(positions, indices);
+    let _ = world.insert_one(entity, solved);
 }
 
 pub(crate) fn write_every_solved_polygon(eng: &Engine) {
@@ -381,6 +385,9 @@ pub(crate) fn register_softbody_component_2d(reg: &mut Registry<'_>) {
             apply: Box::new(apply_softbody_2d),
             remove: Box::new(|eng, entity| {
                 remove_softbody_2d(eng, entity);
+                let _ = eng
+                    .world_mut()
+                    .remove_one::<balaur_core::mesh::SolvedPolygon>(entity);
                 Ok(())
             }),
             get: Box::new(get_softbody_params_2d),
