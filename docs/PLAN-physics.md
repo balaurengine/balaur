@@ -41,7 +41,7 @@ the first two is a variant of one before it.
 ### Soft bodies
 
 `softbody2d` and `softbody3d`: a deformable body of particles linked by elastic
-constraints. **Done**, over rapier's `soft-bodies` branch.
+constraints. **Done**, on rapier 0.36.
 
 - **Laid out by `kind`.** Generators (`cuboid`, `sphere`, `cloth`, `cloth_tube`,
   `rope` in 3D; `grid`, `disk`, `rope` in 2D) or a mesh (`trimesh` for a
@@ -104,8 +104,8 @@ a yield stress. **Needs:** the fluid solver, plus a granular model.
 6. Editor: **done for soft bodies** — the Physics persona shows every
    physics-tagged component, and one click turns a mesh into a filled, skinned
    or surface soft body. Gizmos for emitters and volumes are still to come.
-7. Something to look at: **built**. `examples/cloth` drops the same ball onto
-   two pinned sheets, one of which has a `tear_strain` and lets it through.
+7. Something to look at: **built**. `examples/cloth` drapes one sheet over a
+   block, and drops a ball through a second, pinned sheet with a `tear_strain`.
 
 ## Open questions
 

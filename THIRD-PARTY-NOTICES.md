@@ -4,7 +4,7 @@
 
 Balaur's own source is licensed MIT (see [LICENSE](LICENSE)). A built
 engine, editor or exported game is a combined work that also contains the
-774 packages listed here, some under licences that are not MIT.
+773 packages listed here, some under licences that are not MIT.
 Ship this file with any binary you distribute.
 
 Two consequences worth stating plainly:
@@ -25,7 +25,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | `MIT OR Apache-2.0` | 409 |
 | `MIT` | 146 |
 | `Apache-2.0 OR MIT` | 51 |
-| `Apache-2.0` | 28 |
+| `Apache-2.0` | 27 |
 | `Zlib OR Apache-2.0 OR MIT` | 27 |
 | `Unicode-3.0` | 18 |
 | `BSD-3-Clause` | 16 |
@@ -458,7 +458,6 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [parking_lot](https://github.com/Amanieu/parking_lot) | 0.12.5 | `MIT OR Apache-2.0` |
 | [parking_lot_core](https://github.com/Amanieu/parking_lot) | 0.9.12 | `MIT OR Apache-2.0` |
 | [parry2d](https://github.com/dimforge/parry) | 0.31.1 | `Apache-2.0` |
-| [parry3d](https://github.com/dimforge/parry) | 0.30.2 | `Apache-2.0` |
 | [parry3d](https://github.com/dimforge/parry) | 0.31.1 | `Apache-2.0` |
 | [paste](https://github.com/dtolnay/paste) | 1.0.15 | `MIT OR Apache-2.0` |
 | [pastey](https://github.com/as1100k/pastey) | 0.1.1 | `MIT OR Apache-2.0` |
