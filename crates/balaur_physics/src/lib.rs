@@ -42,6 +42,7 @@ pub mod query;
 pub mod ragdoll;
 pub(crate) mod scalar;
 mod shared;
+pub mod softbody;
 pub mod tuning;
 pub mod vehicle;
 mod vocabulary;
@@ -64,6 +65,11 @@ pub struct PhysicsState3d {
     /// Joints per entity. Which of rapier's two sets a joint lives in is
     /// decided when it is made and never changes.
     pub joints: DetHashMap<Entity, joint::JointRef3d>,
+    /// Soft bodies per entity, and what each was built from. Rapier keeps the
+    /// particles, not the layout that laid them out, so the component would
+    /// lose its `kind` and its cell size on a read-back without this.
+    pub soft_bodies: DetHashMap<Entity, softbody::SoftRef3d>,
+    pub soft_params: DetHashMap<Entity, toml::Value>,
     /// What each collider and joint was authored from.
     ///
     /// Rapier keeps a shape, not the asset it was built from, and not the
@@ -106,6 +112,8 @@ impl PhysicsState3d {
             bodies: DetHashMap::default(),
             colliders: DetHashMap::default(),
             joints: DetHashMap::default(),
+            soft_bodies: DetHashMap::default(),
+            soft_params: DetHashMap::default(),
             collider_params: DetHashMap::default(),
             joint_params: DetHashMap::default(),
             paused: false,
@@ -214,12 +222,14 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
         query::install_pair_query_api(&mut *m);
         query::install_world_list_api(&mut *m);
         joint::install_joint_api(&mut *m);
+        softbody::install_softbody_api(&mut *m);
         character::install_character_api(&mut *m);
         vehicle::install_vehicle_api(&mut *m);
         ragdoll::install_ragdoll_api(&mut *m, true);
         body::register_body_component(reg);
         collider::register_collider_component(reg);
         joint::register_joint_component(reg);
+        softbody::register_softbody_component(reg);
         character::register_character_component(reg);
         vehicle::register_vehicle_components(reg);
         register_physics_presets(reg)?;
@@ -281,6 +291,29 @@ fn build_physics_digest(reg: &mut Registry<'_>) {
                 digest: h.finish(),
             });
         }
+        // A soft body has no one velocity, so every particle's goes in. Its
+        // topology too: a body that tore differently on two machines has the
+        // same positions for one step and a different mesh from then on.
+        for (&entity, &handle) in &state.soft_bodies {
+            if scope.as_ref().is_some_and(|s| !s.contains(&entity)) {
+                continue;
+            }
+            let Some(body) = state.world.soft_bodies.get(handle) else {
+                continue;
+            };
+            let mut h = Hasher::new();
+            h.write(&body.topology_version().to_le_bytes());
+            for v in body.particle_velocities() {
+                for value in [v.x, v.y, v.z] {
+                    h.write_f64(f64::from(value));
+                }
+            }
+            h.write(&[u8::from(body.is_sleeping())]);
+            out.push(Entry {
+                label: format!("{}/soft", node_label(&world, entity)),
+                digest: h.finish(),
+            });
+        }
     });
 }
 
@@ -296,6 +329,8 @@ struct PhysicsFrame3d {
     bodies: Vec<(NodeKey, RigidBodyHandle)>,
     colliders: Vec<(NodeKey, Vec<ColliderHandle>)>,
     joints: Vec<(NodeKey, joint::JointRef3d)>,
+    soft_bodies: Vec<(NodeKey, softbody::SoftRef3d)>,
+    soft_params: Vec<(NodeKey, toml::Value)>,
     collider_params: Vec<(NodeKey, toml::Value)>,
     joint_params: Vec<(NodeKey, toml::Value)>,
     wheel_inputs: Vec<(NodeKey, vehicle::WheelInput3d)>,
@@ -313,6 +348,8 @@ struct PhysicsFrameRef3d<'a> {
     bodies: Vec<(NodeKey, RigidBodyHandle)>,
     colliders: Vec<(NodeKey, Vec<ColliderHandle>)>,
     joints: Vec<(NodeKey, joint::JointRef3d)>,
+    soft_bodies: Vec<(NodeKey, softbody::SoftRef3d)>,
+    soft_params: Vec<(NodeKey, toml::Value)>,
     collider_params: Vec<(NodeKey, toml::Value)>,
     joint_params: Vec<(NodeKey, toml::Value)>,
     wheel_inputs: Vec<(NodeKey, vehicle::WheelInput3d)>,
@@ -372,6 +409,8 @@ fn save_physics(eng: &Engine) -> serde_json::Value {
         bodies: keyed(&world, &state.bodies),
         colliders: keyed(&world, &state.colliders),
         joints: keyed(&world, &state.joints),
+        soft_bodies: keyed(&world, &state.soft_bodies),
+        soft_params: keyed(&world, &state.soft_params),
         collider_params: keyed(&world, &state.collider_params),
         joint_params: keyed(&world, &state.joint_params),
         wheel_inputs: keyed(&world, &state.wheel_inputs),
@@ -394,6 +433,8 @@ fn load_physics(eng: &Engine, value: &serde_json::Value) {
     let bodies = resolved(eng, frame.bodies);
     let colliders = resolved(eng, frame.colliders);
     let joints = resolved(eng, frame.joints);
+    let soft_bodies = resolved(eng, frame.soft_bodies);
+    let soft_params = resolved(eng, frame.soft_params);
     let collider_params = resolved(eng, frame.collider_params);
     let joint_params = resolved(eng, frame.joint_params);
     let wheel_inputs = resolved(eng, frame.wheel_inputs);
@@ -407,6 +448,8 @@ fn load_physics(eng: &Engine, value: &serde_json::Value) {
     state.bodies = bodies;
     state.colliders = colliders;
     state.joints = joints;
+    state.soft_bodies = soft_bodies;
+    state.soft_params = soft_params;
     state.collider_params = collider_params;
     state.joint_params = joint_params;
     state.wheel_inputs = wheel_inputs;
@@ -458,6 +501,50 @@ fn register_physics_presets(reg: &mut Registry<'_>) -> Result<()> {
                 (c::BODY_3D, Some("kind = \"static\"")),
                 (c::COLLIDER_3D, None),
             ],
+        )?,
+    );
+    // The three soft bodies worth one click. Everything else a `softbody3d`
+    // can be is the same component with another `kind`.
+    reg.register_preset(
+        "soft_body3d",
+        balaur_core::presets::preset(
+            "A deformable block that squashes and springs back",
+            &[
+                balaur_core::components::tag::DIM_3D,
+                balaur_core::components::tag::PHYSICS,
+            ],
+            &[(
+                c::SOFTBODY_3D,
+                Some("kind = \"cuboid\"\ncell_model = \"corotational\"\nshape_matching = true"),
+            )],
+        )?,
+    );
+    reg.register_preset(
+        "cloth3d",
+        balaur_core::presets::preset(
+            "A hanging sheet; pin the particles it hangs from",
+            &[
+                balaur_core::components::tag::DIM_3D,
+                balaur_core::components::tag::PHYSICS,
+            ],
+            &[(
+                c::SOFTBODY_3D,
+                Some("kind = \"cloth\"\ncells = [12.0, 12.0, 1.0]\nself_contacts = true"),
+            )],
+        )?,
+    );
+    reg.register_preset(
+        "rope3d",
+        balaur_core::presets::preset(
+            "A rope of linked particles, pinned at one end",
+            &[
+                balaur_core::components::tag::DIM_3D,
+                balaur_core::components::tag::PHYSICS,
+            ],
+            &[(
+                c::SOFTBODY_3D,
+                Some("kind = \"rope\"\nparticles = 24.0\npinned = [0]"),
+            )],
         )?,
     );
     Ok(())
@@ -536,6 +623,9 @@ fn step_system(eng: &Engine, _dt: f32) {
         }
         (collector.take(), joint::broken(state, &world))
     };
+    // Before the events: a tear handler that reads the torn body's geometry
+    // should be given this step's, not the one it had before the tear.
+    softbody::write_every_solved_mesh(eng);
     // Delivered with the world no longer borrowed: a handler is ordinary
     // script code and may move the body it was just told about.
     events::deliver(eng, &events.0);
@@ -617,29 +707,39 @@ fn install_world_controls(m: &mut dyn Bindings<Engine>) {
     // Remove every body and collider (editors use this to reset a
     // play-in-editor session). Spans BOTH worlds.
     m.function("clear", |eng: &Engine, ()| {
-        let state = eng.resource::<PhysicsState3d>();
-        let mut state = state.borrow_mut();
-        // A fresh world, not a drained one: see `dim2::clear` for why a
-        // rebuilt scene would otherwise not simulate the way a fresh process
-        // does. Gravity and the step are settings, and carry over.
-        let gravity = state.world.gravity;
-        let params = state.world.integration_parameters;
-        state.world = PhysicsWorld::default();
-        state.world.gravity = gravity;
-        state.world.integration_parameters = params;
-        state.bodies.clear();
-        state.colliders.clear();
-        // Rapier drops a body's joints with the body, so the map is all that
-        // is left to clear.
-        state.joints.clear();
-        state.collider_params.clear();
-        state.joint_params.clear();
-        state.wheel_inputs.clear();
-        state.grounded.clear();
-        drop(state);
+        clear(eng);
         dim2::clear(eng);
         Ok(())
     });
+}
+
+/// Empty the 3D world, as a play-in-editor session does on stop.
+///
+/// A fresh world, not a drained one: see [`dim2::clear`] for why a rebuilt
+/// scene would otherwise not simulate the way a fresh process does. Gravity
+/// and the step are settings, and carry over.
+pub fn clear(eng: &Engine) {
+    let state = eng.resource::<PhysicsState3d>();
+    let mut state = state.borrow_mut();
+    let gravity = state.world.gravity;
+    let params = state.world.integration_parameters;
+    state.world = PhysicsWorld::default();
+    state.world.gravity = gravity;
+    state.world.integration_parameters = params;
+    state.bodies.clear();
+    state.colliders.clear();
+    // Rapier drops a body's joints with the body, so the map is all that is
+    // left to clear.
+    state.joints.clear();
+    // A fresh world restarts its arenas, so a handle left here would name
+    // whatever lands in that slot next, and removing it would take a live
+    // body with it.
+    state.soft_bodies.clear();
+    state.soft_params.clear();
+    state.collider_params.clear();
+    state.joint_params.clear();
+    state.wheel_inputs.clear();
+    state.grounded.clear();
 }
 
 /// Body kinds the 3D and 2D worlds both accept, so a script writes

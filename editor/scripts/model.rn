@@ -904,6 +904,66 @@ pub fn relative_file(S, value) {
     value
 }
 
+/// Hand the view to the game's own cameras, or take it back.
+///
+/// A `camera3d` drives the view whenever it is `current`, and the mirror
+/// carries the game's. While editing that is the editor's view to own: left
+/// alone, the scene's camera is written over the viewport's every frame, so
+/// an orbit or a zoom is undone as fast as it is made.
+pub fn hold_game_cameras(S, playing) {
+    if !(S.mirror is balaur::Node) || !S.mirror.is_valid() {
+        return;
+    }
+    for found in S.mirror.descendants() {
+        for name in ["camera3d", "camera2d"] {
+            if !found.has_component(name) {
+                continue;
+            }
+            // What the document says when the game runs, and never while the
+            // editor is the one looking.
+            let wanted = playing && authored_current(S, found, name);
+            found.patch_component(name, #{ current: wanted });
+        }
+    }
+}
+
+// Whether the document's own node asked to be the current camera.
+fn authored_current(S, found, name) {
+    let id = found.stable_id();
+    for node in S.doc {
+        if node.get("id").unwrap_or("") == id {
+            let params = util::obj(node.get(name).unwrap_or(#{}));
+            return params.get("current").unwrap_or(true) == true;
+        }
+    }
+    true
+}
+
+/// Point `S.refs` at the mirror node each document row names.
+///
+/// By id rather than by name path: `get_node` answers with the first sibling
+/// of a name, so two nodes called the same thing shared one live node, and a
+/// path that resolves to nothing leaves a row the inspector reads as empty.
+pub fn resolve_refs(S) {
+    S.refs = [];
+    let unresolved = 0;
+    for node in S.doc {
+        let id = node.get("id").unwrap_or("");
+        let found = scene::node_by_id(id, S.mirror);
+        S.refs.push(found);
+        if !(found is balaur::Node) {
+            unresolved += 1;
+            log::warn(format!("no mirror node with id '{}' for '{}'", id, node.name));
+        }
+    }
+    // A node with no ref is invisible to the inspector, the gizmo and every
+    // transform read. Silence here is what let a whole class of nested nodes
+    // go missing unnoticed, so it says so now.
+    if unresolved > 0 {
+        log::warn(format!("{} of {} nodes did not resolve in the mirror", unresolved, S.doc.len()));
+    }
+}
+
 pub fn build_mirror(S) {
     // Before the world goes: a game script still attached would get one more
     // update against bodies `physics::clear` has already removed.
@@ -926,26 +986,8 @@ pub fn build_mirror(S) {
     scene::instantiate(toml::encode(building), S.mirror, #{ scripts: false });
     physics::set_paused(true);
     S.playing = false;
-    S.refs = [];
-    let unresolved = 0;
-    for node in S.doc {
-        // By id rather than by name path: `find_node` answers with the first
-        // sibling of a name, so two nodes called the same thing used to share
-        // one live node and the inspector edited whichever came first.
-        let id = node.get("id").unwrap_or("");
-        let found = scene::node_by_id(id, S.mirror);
-        S.refs.push(found);
-        if !(found is balaur::Node) {
-            unresolved += 1;
-            log::warn(format!("no mirror node with id '{}' for '{}'", id, node.name));
-        }
-    }
-    // A node with no ref is invisible to the inspector, the gizmo and every
-    // transform read. Silence here is what let a whole class of nested nodes
-    // go missing unnoticed, so it says so now.
-    if unresolved > 0 {
-        log::warn(format!("{} of {} nodes did not resolve in the mirror", unresolved, S.doc.len()));
-    }
+    hold_game_cameras(S, false);
+    resolve_refs(S);
     // The mirror instantiates with the game's own `autoplay`, so pause every
     // animated node: nothing may animate under the inspector until play is
     // pressed.
@@ -968,6 +1010,10 @@ pub fn build_mirror(S) {
 
 // The live node for a doc index (`None` right after a rebuild).
 pub fn live(S, i) {
+    // -1 is the no-selection row, and an index lookup refuses a negative.
+    if i < 0 {
+        return None;
+    }
     if let Some(found) = S.refs.get(i) {
         if found is balaur::Node && found.is_valid() {
             return Some(found);
@@ -1063,10 +1109,20 @@ fn apply_transform(t, key, v) {
 /// The document index whose live node is `node`, or `None`. What a picker
 /// hands back is an engine node; everything the editor does is by index.
 pub fn index_of_live(S, node) {
-    for (i, found) in S.refs.iter().enumerate() {
-        if found is balaur::Node && found.is_valid() && found.path() == node.path() {
-            return Some(i);
+    let current = node;
+    for _ in 0..MAX_DEPTH {
+        let at = index_of_path(S, current.path());
+        if at.is_some() {
+            return at;
         }
+        // A pick can land on a node the document never named: a mesh's own
+        // child, or one a solver owns. The row that owns it is what the click
+        // meant, so climb until one of them is a row.
+        let up = current.parent();
+        if !(up is balaur::Node) {
+            return None;
+        }
+        current = up;
     }
     None
 }
@@ -1086,7 +1142,12 @@ pub fn selected(S) {
     (S.doc[S.sel], live(S, S.sel))
 }
 
+/// The active row's node, or a blank stand-in when nothing is selected, so a
+/// panel reading a name or a component off it degrades instead of erroring.
 pub fn selected_node(S) {
+    if S.sel < 0 || S.sel >= S.doc.len() {
+        return #{ name: "", id: "" };
+    }
     S.doc[S.sel]
 }
 
@@ -1555,6 +1616,42 @@ pub fn set_component_prop(S, name, prop, value) {
         };
         if has {
             set_component_prop_at(S, i, name, prop, value);
+        }
+    }
+}
+
+/// Set several of a component's properties at once, adding the component when
+/// the node has none.
+///
+/// One history entry rather than one per property: an action that says "make
+/// this a convex decomposition" writes three of them, and undo should take
+/// all three back together.
+pub fn set_component_props(S, name, props) {
+    history::record(S, format!("set {}", name), None);
+    for i in selection::all(S) {
+        let found = match live(S, i) {
+            Some(found) => found,
+            None => continue,
+        };
+        let node = S.doc[i];
+        let data = util::obj(found.get_component(name));
+        let params = doc_value(S, name, data, node.get(name));
+        for (prop, value) in props.iter() {
+            params[prop] = value;
+        }
+        found.set_component(name, absolute_files(S, params));
+        sync_component_doc_at(S, i, name);
+        // As in `set_component_prop_at`: the document keeps its own spelling
+        // of an asset path, so a retyped one is stamped back over.
+        let schema = schema(S, name);
+        for (prop, value) in props.iter() {
+            let spec = schema.get(prop);
+            let spec_some = spec;
+            if let Some(spec) = spec_some {
+                if spec["type"] == "asset" && node.contains_key(name) {
+                    node[name][prop] = value;
+                }
+            }
         }
     }
 }

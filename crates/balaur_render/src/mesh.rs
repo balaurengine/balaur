@@ -5,9 +5,10 @@
 //! crate. What lives here is the component that points a node at one.
 
 use crate::vocabulary::{keys as k, words};
+use crate::{Bounds3d, Renderable3d, Shape3d};
 use balaur_core::Engine;
 use balaur_core::hecs::Entity;
-use balaur_core::mesh::{MESH_ASSET_TYPE, MeshData};
+use balaur_core::mesh::{MESH_ASSET_TYPE, MeshData, SolvedMesh};
 use balaur_plugin::Registry;
 
 /// The `mesh` component: authored geometry on a node.
@@ -76,6 +77,9 @@ fn set_morph_weights(eng: &Engine, entity: Entity, source: &str, params: &toml::
 }
 
 pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
+    // Same stage as the other renderable builders: a solver's own geometry
+    // becomes its node's renderable once the scene has settled.
+    reg.add_system(balaur_core::Stage::SceneSync, resolve_solved_system);
     reg.register_component(
         MESH_ASSET_TYPE,
         balaur_core::components::ComponentDef {
@@ -155,6 +159,120 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                 }
                 Some(toml::Value::Table(map))
             }),
+        },
+    );
+}
+
+// A soft body built from a mesh is drawn as that mesh, deformed. One laid out
+// by a generator — a cloth, a cuboid, a rope — has no asset to be drawn as at
+// all, so the geometry it reports each step is its only geometry.
+
+/// Give every solver-owned node without a renderable one built from what the
+/// solver last reported, and rebuild it when the topology changes.
+///
+/// Only the topology: the positions move every step and the backend uploads
+/// those itself, so a version bump per step would rebuild the node every
+/// frame instead of rewriting its buffers.
+pub(crate) fn resolve_solved_system(eng: &Engine, _dt: f32) {
+    let mut wanted: Vec<(Entity, MeshData, u32)> = Vec::new();
+    let mut moved: Vec<(Entity, Option<Bounds3d>)> = Vec::new();
+    {
+        let world = eng.world();
+        for (entity, solved) in &mut world.query::<(Entity, &SolvedMesh)>() {
+            if solved.positions.is_empty() || solved.indices.is_empty() {
+                continue;
+            }
+            // Every step, not only on a tear: a body that deformed covers
+            // different ground, and the box a click is picked against and the
+            // one the editor draws around it are both this.
+            moved.push((entity, bounds_of(&solved.positions)));
+            // A node that draws something of its own keeps drawing it; the
+            // solver deforms that instead of replacing it.
+            if let Ok(renderable) = world.get::<&Renderable3d>(entity)
+                && !is_ours(&renderable)
+            {
+                continue;
+            }
+            if world
+                .get::<&Renderable3d>(entity)
+                .is_ok_and(|r| r.version == u64::from(solved.topology))
+            {
+                continue;
+            }
+            wanted.push((entity, mesh_of(solved), solved.topology));
+        }
+    }
+    {
+        let world = eng.world();
+        for (entity, bounds) in moved {
+            if let Ok(mut renderable) = world.get::<&mut Renderable3d>(entity) {
+                renderable.bounds = bounds;
+            }
+        }
+    }
+    for (entity, mesh, topology) in wanted {
+        install(eng, entity, mesh, topology);
+    }
+}
+
+/// The box a set of positions covers, in the node's own space.
+fn bounds_of(positions: &[[f32; 3]]) -> Option<Bounds3d> {
+    let first = glamx::Vec3::from_array(*positions.first()?);
+    let (mut min, mut max) = (first, first);
+    for p in positions {
+        let p = glamx::Vec3::from_array(*p);
+        min = min.min(p);
+        max = max.max(p);
+    }
+    Some(Bounds3d {
+        centre: (min + max) / 2.0,
+        half: (max - min) / 2.0,
+    })
+}
+
+/// Whether a renderable is one of ours to replace: `Built` geometry with no
+/// asset behind it is what this module makes, and nothing else does on a node
+/// the solver owns.
+fn is_ours(renderable: &Renderable3d) -> bool {
+    renderable.shape == Shape3d::Built && renderable.mesh.is_none()
+}
+
+fn mesh_of(solved: &SolvedMesh) -> MeshData {
+    MeshData {
+        positions: solved.positions.clone(),
+        indices: solved.indices.clone(),
+        ..MeshData::default()
+    }
+}
+
+fn install(eng: &Engine, entity: Entity, mesh: MeshData, topology: u32) {
+    let bounds = bounds_of(&mesh.positions);
+    let built = Some(std::sync::Arc::new(mesh));
+    let mut world = eng.world_mut();
+    // The version is the topology, so the backend rebuilds on a tear and on
+    // nothing else (see the module docs).
+    let version = u64::from(topology);
+    if let Ok(mut renderable) = world.get::<&mut Renderable3d>(entity) {
+        renderable.shape = Shape3d::Built;
+        renderable.built = built;
+        renderable.bounds = bounds;
+        renderable.version = version;
+        return;
+    }
+    let _ = world.insert_one(
+        entity,
+        Renderable3d {
+            shape: Shape3d::Built,
+            bounds,
+            color: [0.8, 0.8, 0.8, 1.0],
+            mesh: None,
+            built,
+            skeleton: String::new(),
+            texture: String::new(),
+            material: String::new(),
+            shadows: true,
+            layers: u32::MAX,
+            version,
         },
     );
 }

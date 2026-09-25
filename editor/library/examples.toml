@@ -31,6 +31,9 @@ note = "Fonts, markup and the locale catalogue"
 [concave]
 note = "Convex decomposition of a concave shape"
 
+[cloth]
+note = "Two soft-body sheets, one of them torn through"
+
 [pause]
 note = "Pause, process modes and the time scale"
 

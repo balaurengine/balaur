@@ -56,6 +56,24 @@ macro_rules! functions {
                 }
                 joint::is_live(&state.world, reference)
             });
+            // A soft body's proxy is a rigid body of rapier's own, so it goes
+            // through the set that made it rather than `remove_body`.
+            state.soft_bodies.retain(|&entity, handle| {
+                if world.contains(entity) {
+                    return true;
+                }
+                let w = &mut state.world;
+                w.soft_bodies.remove(
+                    *handle,
+                    &mut w.islands,
+                    &mut w.bodies,
+                    &mut w.colliders,
+                    &mut w.impulse_joints,
+                    &mut w.multibody_joints,
+                );
+                false
+            });
+            state.soft_params.retain(|e, _| world.contains(*e));
             state.collider_params.retain(|e, _| world.contains(*e));
             state.joint_params.retain(|e, _| world.contains(*e));
             state.grounded.retain(|e, _| world.contains(*e));

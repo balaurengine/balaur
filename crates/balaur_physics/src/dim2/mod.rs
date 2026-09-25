@@ -26,6 +26,7 @@ pub mod decompose;
 pub mod events;
 pub mod joint;
 pub mod query;
+pub mod softbody;
 pub mod tiles;
 
 use body::with_body;
@@ -46,6 +47,9 @@ pub struct PhysicsState2d {
     pub queries_ready: bool,
     /// Joints per entity, as in the 3D world.
     pub joints: DetHashMap<Entity, joint::JointRef2d>,
+    /// Soft bodies per entity, and what each was built from, as in 3D.
+    pub soft_bodies: DetHashMap<Entity, softbody::SoftRef2d>,
+    pub soft_params: DetHashMap<Entity, toml::Value>,
     /// What each collider and joint was authored from, as in the 3D world:
     /// rapier keeps the shape, not the asset or the choices behind it.
     pub collider_params: DetHashMap<Entity, toml::Value>,
@@ -80,6 +84,8 @@ impl PhysicsState2d {
             colliders: DetHashMap::default(),
             queries_ready: false,
             joints: DetHashMap::default(),
+            soft_bodies: DetHashMap::default(),
+            soft_params: DetHashMap::default(),
             collider_params: DetHashMap::default(),
             tile_params: DetHashMap::default(),
             tile_built: DetHashMap::default(),
@@ -182,6 +188,9 @@ fn step_system(eng: &Engine, _dt: f32) {
         }
         (collector.take(), joint::broken(state, &world))
     };
+    // Before the events, as in 3D: a tear handler reads the torn body's own
+    // geometry, not the one it had before the tear.
+    softbody::write_every_solved_polygon(eng);
     events::deliver(eng, &events.0);
     for entity in &events.1 {
         joint::remove_joint(eng, *entity);
@@ -205,6 +214,9 @@ pub fn clear(eng: &Engine) {
     state.bodies.clear();
     state.colliders.clear();
     state.joints.clear();
+    // As in 3D: a handle into the old world's arena would alias the new one's.
+    state.soft_bodies.clear();
+    state.soft_params.clear();
     state.collider_params.clear();
     state.tile_params.clear();
     state.tile_built.clear();
@@ -256,12 +268,14 @@ pub fn build(reg: &mut Registry<'_>) -> Result<()> {
         query::install_physics2d_shape_query_api(&mut *m);
         query::install_physics2d_pair_query_api(&mut *m);
         joint::install_joint2d_api(&mut *m);
+        softbody::install_softbody_api_2d(&mut *m);
         character::install_character2d_api(&mut *m);
         collider::install_voxel_2d_api(&mut *m);
     }
     body::register_body2d_component(reg);
     collider::register_collider2d_component(reg);
     joint::register_joint2d_component(reg);
+    softbody::register_softbody_component_2d(reg);
     character::register_character2d_component(reg);
 
     reg.register_preset(
@@ -292,6 +306,34 @@ pub fn build(reg: &mut Registry<'_>) -> Result<()> {
             ],
         )?,
     );
+    reg.register_preset(
+        "soft_body2d",
+        balaur_core::presets::preset(
+            "A deformable 2D block that squashes and springs back",
+            &[
+                balaur_core::components::tag::DIM_2D,
+                balaur_core::components::tag::PHYSICS,
+            ],
+            &[(
+                c::SOFTBODY_2D,
+                Some("kind = \"grid\"\ncell_model = \"corotational\"\nshape_matching = true"),
+            )],
+        )?,
+    );
+    reg.register_preset(
+        "rope2d",
+        balaur_core::presets::preset(
+            "A 2D rope of linked particles, pinned at one end",
+            &[
+                balaur_core::components::tag::DIM_2D,
+                balaur_core::components::tag::PHYSICS,
+            ],
+            &[(
+                c::SOFTBODY_2D,
+                Some("kind = \"rope\"\nparticles = 24.0\npinned = [0]"),
+            )],
+        )?,
+    );
 
     Ok(())
 }
@@ -312,6 +354,8 @@ struct PhysicsFrame2d {
     bodies: Vec<(crate::NodeKey, RigidBodyHandle2)>,
     colliders: Vec<(crate::NodeKey, Vec<ColliderHandle2>)>,
     joints: Vec<(crate::NodeKey, joint::JointRef2d)>,
+    soft_bodies: Vec<(crate::NodeKey, softbody::SoftRef2d)>,
+    soft_params: Vec<(crate::NodeKey, toml::Value)>,
     collider_params: Vec<(crate::NodeKey, toml::Value)>,
     joint_params: Vec<(crate::NodeKey, toml::Value)>,
     grounded: Vec<(crate::NodeKey, bool)>,
@@ -325,6 +369,8 @@ struct PhysicsFrameRef2d<'a> {
     bodies: Vec<(crate::NodeKey, RigidBodyHandle2)>,
     colliders: Vec<(crate::NodeKey, Vec<ColliderHandle2>)>,
     joints: Vec<(crate::NodeKey, joint::JointRef2d)>,
+    soft_bodies: Vec<(crate::NodeKey, softbody::SoftRef2d)>,
+    soft_params: Vec<(crate::NodeKey, toml::Value)>,
     collider_params: Vec<(crate::NodeKey, toml::Value)>,
     joint_params: Vec<(crate::NodeKey, toml::Value)>,
     grounded: Vec<(crate::NodeKey, bool)>,
@@ -341,6 +387,8 @@ fn save_physics2d(eng: &Engine) -> serde_json::Value {
         bodies: crate::keyed(&world, &state.bodies),
         colliders: crate::keyed(&world, &state.colliders),
         joints: crate::keyed(&world, &state.joints),
+        soft_bodies: crate::keyed(&world, &state.soft_bodies),
+        soft_params: crate::keyed(&world, &state.soft_params),
         collider_params: crate::keyed(&world, &state.collider_params),
         joint_params: crate::keyed(&world, &state.joint_params),
         grounded: crate::keyed(&world, &state.grounded),
@@ -361,6 +409,8 @@ fn load_physics2d(eng: &Engine, value: &serde_json::Value) {
     let bodies = crate::resolved(eng, frame.bodies);
     let colliders = crate::resolved(eng, frame.colliders);
     let joints = crate::resolved(eng, frame.joints);
+    let soft_bodies = crate::resolved(eng, frame.soft_bodies);
+    let soft_params = crate::resolved(eng, frame.soft_params);
     let collider_params = crate::resolved(eng, frame.collider_params);
     let joint_params = crate::resolved(eng, frame.joint_params);
     let grounded = crate::resolved(eng, frame.grounded);
@@ -372,6 +422,8 @@ fn load_physics2d(eng: &Engine, value: &serde_json::Value) {
     state.bodies = bodies;
     state.colliders = colliders;
     state.joints = joints;
+    state.soft_bodies = soft_bodies;
+    state.soft_params = soft_params;
     state.collider_params = collider_params;
     state.joint_params = joint_params;
     state.grounded = grounded;
@@ -411,6 +463,26 @@ fn build_physics2d_digest(reg: &mut Registry<'_>) {
             h.write(&[u8::from(body.is_sleeping())]);
             out.push(Entry {
                 label: node_label(&world, entity),
+                digest: h.finish(),
+            });
+        }
+        // Every particle's velocity and the body's topology, as in 3D: a
+        // deformable body has no one velocity, and a tear is a divergence
+        // nothing else would report.
+        for (&entity, &handle) in &state.soft_bodies {
+            let Some(body) = state.world.soft_bodies.get(handle) else {
+                continue;
+            };
+            let mut h = Hasher::new();
+            h.write(&body.topology_version().to_le_bytes());
+            for v in body.particle_velocities() {
+                for value in [v.x, v.y] {
+                    h.write_f64(f64::from(value));
+                }
+            }
+            h.write(&[u8::from(body.is_sleeping())]);
+            out.push(Entry {
+                label: format!("{}/soft", node_label(&world, entity)),
                 digest: h.finish(),
             });
         }

@@ -1,0 +1,448 @@
+//! `softbody3d` and `softbody2d`: what each layout builds, what the material
+//! rows change, and that the solver's positions reach the node.
+
+use balaur::{AppConfig, standard_app};
+
+use crate::LOG;
+
+/// A project holding a closed tetrahedron mesh, a soft cuboid in 3D and a
+/// soft grid in 2D, each with a script attached.
+fn run(script: &str) -> Vec<String> {
+    run_for(script, 4)
+}
+
+/// The same over `ticks` steps, for a body that has to be given time to fall,
+/// settle or come apart.
+fn run_for(script: &str, ticks: u32) -> Vec<String> {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("main.toml"),
+        r#"[[assets]]
+id = "wedge"
+type = "mesh"
+positions = [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+indices = [[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]]
+
+[[assets]]
+id = "square"
+type = "mesh"
+positions = [[-0.5, -0.5, 0.0], [0.5, -0.5, 0.0], [0.5, 0.5, 0.0], [-0.5, 0.5, 0.0]]
+indices = [[0, 1, 2], [0, 2, 3]]
+
+[[nodes]]
+id = "n_blob"
+name = "Blob"
+script = { source = "scripts/s.rn" }
+
+[nodes.softbody3d]
+kind = "cuboid"
+cells = [2.0, 2.0, 2.0]
+
+[[nodes]]
+id = "n_blob2d"
+name = "Blob2d"
+parent = "n_blob"
+
+[nodes.softbody2d]
+kind = "grid"
+cells = [2.0, 2.0]
+"#,
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("scripts/s.rn"), script).unwrap();
+
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
+    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    app.load_project().unwrap();
+    for _ in 0..ticks {
+        app.tick(1.0 / 60.0);
+    }
+    balaur_core::logbuf::recent(120)
+        .into_iter()
+        .filter(|e| e.level.eq_ignore_ascii_case("error"))
+        .map(|e| e.message)
+        .collect()
+}
+
+fn run_clean(script: &str) {
+    let errors = run(script);
+    assert!(errors.is_empty(), "the script logged errors: {errors:#?}");
+}
+
+/// How many soft bodies the 3D world holds.
+fn bodies(app: &balaur_core::App) -> usize {
+    let state = app.engine.resource::<balaur_physics::PhysicsState3d>();
+
+    state.borrow().soft_bodies.len()
+}
+
+fn run_clean_for(script: &str, ticks: u32) {
+    let errors = run_for(script, ticks);
+    assert!(errors.is_empty(), "the script logged errors: {errors:#?}");
+}
+
+#[test]
+fn a_cuboid_soft_body_has_the_particles_its_cell_counts_ask_for() {
+    run_clean(
+        r#"pub fn init(this) {
+    // Three particles an axis for two cells an axis.
+    assert_eq!(this.node.softbody3d.softbody_particles(), 27, "the cuboid was not 3x3x3 particles");
+}
+"#,
+    );
+}
+
+#[test]
+fn every_3d_layout_builds() {
+    run_clean(
+        r##"pub fn init(this) {
+    let body = this.node.softbody3d;
+    body.set_softbody(#{ kind: "sphere", radius: 0.5, subdivisions: 1.0 });
+    assert!(body.softbody_particles() > 0, "the sphere has no particles");
+    body.set_softbody(#{ kind: "cloth", cells: [3.0, 3.0, 1.0], size: [1.0, 0.0, 1.0] });
+    assert_eq!(body.softbody_particles(), 16, "a 3x3 cloth is 4x4 particles");
+    body.set_softbody(#{ kind: "cloth_tube", radius: 0.3, cells: [6.0, 4.0, 1.0] });
+    assert!(body.softbody_particles() > 0, "the tube has no particles");
+    body.set_softbody(#{ kind: "rope", particles: 8.0 });
+    assert_eq!(body.softbody_particles(), 8, "the rope has the wrong particle count");
+    body.set_softbody(#{ kind: "trimesh", mesh: "#wedge" });
+    assert_eq!(body.softbody_particles(), 4, "the wedge has four corners");
+}
+"##,
+    );
+}
+
+/// The approximate tetrahedrization: a closed mesh is covered with cells, and
+/// what comes out is a body with more particles than the mesh had corners.
+#[test]
+fn a_volumetric_body_fills_a_closed_mesh_with_cells() {
+    run_clean(
+        r##"pub fn init(this) {
+    let body = this.node.softbody3d;
+    body.set_softbody(#{ kind: "volumetric", mesh: "#wedge", cell_size: 0.2 });
+    assert!(body.softbody_particles() > 4, "the tetrahedrization added no particles");
+    assert!(body.softbody_volume() > 0.0, "the filled body encloses nothing");
+}
+"##,
+    );
+}
+
+/// The cell size is the knob that matters: a smaller one is a finer body.
+#[test]
+fn a_smaller_cell_size_makes_a_finer_volumetric_body() {
+    run_clean(
+        r##"pub fn init(this) {
+    let body = this.node.softbody3d;
+    body.set_softbody(#{ kind: "volumetric", mesh: "#wedge", cell_size: 0.4 });
+    let coarse = body.softbody_particles();
+    body.set_softbody(#{ kind: "volumetric", mesh: "#wedge", cell_size: 0.15 });
+    assert!(body.softbody_particles() > coarse, "halving the cell size added no particles");
+}
+"##,
+    );
+}
+
+/// A generator that would run the machine out of memory is an error, not a
+/// hang: the numbers come from a text field.
+#[test]
+fn a_layout_past_the_particle_cap_is_refused() {
+    let errors = run(r#"pub fn init(this) {
+    this.node.softbody3d.set_softbody(#{ kind: "cuboid", cells: [400.0, 400.0, 400.0] });
+}
+"#);
+    assert!(
+        errors.iter().any(|e| e.contains("particles")),
+        "the cap did not report the particle count: {errors:#?}"
+    );
+}
+
+/// The point of a soft body: the solver owns the positions, and the node is
+/// drawn from them rather than from what was authored.
+#[test]
+fn a_falling_soft_body_moves_its_particles() {
+    run_clean(
+        r#"pub fn init(this) {
+    this.first = this.node.softbody3d.softbody_position(0);
+    this.ticks = 0;
+}
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    if this.ticks == 3 {
+        let now = this.node.softbody3d.softbody_position(0);
+        assert!(now.y < this.first.y, "gravity did not move the body's particles");
+    }
+}
+"#,
+    );
+}
+
+/// A pinned particle is the hook a cloth hangs from, so it must not fall with
+/// the rest of the body.
+#[test]
+fn a_pinned_particle_stays_where_it_was_put() {
+    run_clean(
+        r#"pub fn init(this) {
+    this.node.softbody3d.set_softbody(#{ kind: "rope", particles: 8.0, pinned: [0] });
+    this.first = this.node.softbody3d.softbody_position(0);
+    this.ticks = 0;
+}
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    if this.ticks == 3 {
+        let body = this.node.softbody3d;
+        let held = body.softbody_position(0);
+        assert!((held.y - this.first.y).abs() < 0.001, "the pinned particle fell");
+        assert!(body.softbody_position(7).y < this.first.y, "the free end did not fall");
+    }
+}
+"#,
+    );
+}
+
+/// Every mechanical row round-trips: what is written is what the component
+/// reads back, so an inspector edit is not silently dropped.
+#[test]
+fn the_material_rows_are_set_and_read_back() {
+    run_clean(
+        r#"pub fn init(this) {
+    let node = this.node;
+    node.softbody3d.edge_frequency = 120.0;
+    node.softbody3d.bend_damping = 0.4;
+    node.softbody3d.cell_model = "corotational";
+    node.softbody3d.young_modulus = 50000.0;
+    node.softbody3d.poisson_ratio = 0.45;
+    node.softbody3d.plastic_yield = 0.2;
+    node.softbody3d.edge_plastic_flow = "compression";
+    node.softbody3d.tear_strain = 0.6;
+    node.softbody3d.shape_matching = true;
+    assert_eq!(node.softbody3d.edge_frequency, 120.0, "edge_frequency did not stick");
+    assert_eq!(node.softbody3d.bend_damping, 0.4, "bend_damping did not stick");
+    assert_eq!(node.softbody3d.cell_model, "corotational", "cell_model did not stick");
+    assert_eq!(node.softbody3d.young_modulus, 50000.0, "young_modulus did not stick");
+    assert_eq!(node.softbody3d.poisson_ratio, 0.45, "poisson_ratio did not stick");
+    assert_eq!(node.softbody3d.plastic_yield, 0.2, "plastic_yield did not stick");
+    assert_eq!(node.softbody3d.edge_plastic_flow, "compression", "edge_plastic_flow did not stick");
+    assert_eq!(node.softbody3d.tear_strain, 0.6, "tear_strain did not stick");
+    assert_eq!(node.softbody3d.shape_matching, true, "shape_matching did not stick");
+}
+"#,
+    );
+}
+
+/// Volume preservation is what keeps a jelly from collapsing, and the read
+/// side has to report it from the solver rather than from what was authored.
+#[test]
+fn volume_preservation_reads_back_from_the_solver() {
+    run_clean(
+        r#"pub fn init(this) {
+    let node = this.node;
+    node.softbody3d.volume_preservation = true;
+    node.softbody3d.volume_factor = 1.5;
+    assert_eq!(node.softbody3d.volume_preservation, true, "volume_preservation did not stick");
+    assert_eq!(node.softbody3d.volume_factor, 1.5, "volume_factor did not stick");
+    assert!(node.softbody3d.softbody_rest_volume() > 0.0, "the block encloses nothing at rest");
+}
+"#,
+    );
+}
+
+#[test]
+fn the_2d_world_has_the_same_shape_of_api() {
+    run_clean(
+        r##"pub fn init(this) {
+    let blob = this.node.get_node("Blob2d");
+    assert_eq!(blob.softbody2d.softbody_particles(), 9, "the grid was not 3x3 particles");
+    assert!(blob.softbody2d.softbody_rest_area() > 0.0, "the grid encloses nothing");
+    blob.softbody2d.set_softbody(#{ kind: "disk", radius: 0.5, particles: 12.0 });
+    assert!(blob.softbody2d.softbody_particles() > 0, "the disk has no particles");
+    blob.softbody2d.set_softbody(#{ kind: "rope", particles: 6.0 });
+    assert_eq!(blob.softbody2d.softbody_particles(), 6, "the 2D rope has the wrong count");
+    blob.softbody2d.set_softbody(#{ kind: "trimesh", mesh: "#square" });
+    assert_eq!(blob.softbody2d.softbody_particles(), 4, "the square has four corners");
+}
+"##,
+    );
+}
+
+/// The 2D half of the approximate meshing: an outline is triangulated rather
+/// than tetrahedrized, and the same `cell_size` knob decides how finely.
+#[test]
+fn a_2d_volumetric_body_fills_an_outline_with_triangles() {
+    run_clean(
+        r##"pub fn init(this) {
+    let blob = this.node.get_node("Blob2d");
+    blob.softbody2d.set_softbody(#{ kind: "volumetric", mesh: "#square", cell_size: 0.2 });
+    assert!(blob.softbody2d.softbody_particles() > 4, "the triangulation added no particles");
+    assert!(blob.softbody2d.softbody_area() > 0.0, "the filled body encloses nothing");
+}
+"##,
+    );
+}
+
+/// A tear threshold is a mechanical property like any other, and what it
+/// does is change the body's topology mid-step: a rope stretched past its
+/// strain comes apart, and the node's `on_tear` hears about it.
+#[test]
+fn a_rope_past_its_tear_strain_comes_apart() {
+    run_clean_for(
+        r#"pub fn init(this) {
+    // One end pinned, a heavy free end, and edges that break at a tenth of
+    // their rest length: the rope cannot hold itself up.
+    this.node.softbody3d.set_softbody(#{
+        kind: "rope", a: [0.0, 0.0, 0.0], b: [0.0, -2.0, 0.0], particles: 12.0,
+        pinned: [0], tear_strain: 0.05, tear_force: 2.0,
+        edge_frequency: 4.0, mass: 400.0,
+    });
+    this.torn = 0;
+    this.ticks = 0;
+    this.before = this.node.softbody3d.softbody_particles();
+}
+
+pub fn on_tear(this, pieces) {
+    this.torn = this.torn + 1;
+}
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    if this.ticks == 40 {
+        // A control first: without it a body that never simulated would
+        // pass this test by never tearing and never being asked to.
+        assert!(this.before == 12, "the rope was not built with twelve particles");
+        assert!(this.torn > 0, "the rope never tore, after 40 steps under its own weight");
+    }
+}
+"#,
+        45,
+    );
+}
+
+/// A cloth is looked at from above, so its triangles have to face up.
+///
+/// Rapier winds a sheet spanned along +x then +z with its front underneath
+/// (`du x dv` is -y), which drew the sheet unlit and back-face culled: it was
+/// there, and all you could see was its shadow.
+#[test]
+fn a_cloth_faces_up() {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut app = balaur_core::App::new(balaur_core::AppConfig::bare(".")).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin::default()).unwrap();
+    let root = app.engine.root();
+    let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Sheet", root);
+    balaur_core::components::add(
+        &app.engine,
+        node,
+        "softbody3d",
+        Some(
+            &toml::from_str("kind = \"cloth\"\ncells = [3.0, 3.0, 1.0]\nsize = [2.0, 0.0, 2.0]")
+                .unwrap(),
+        ),
+    )
+    .unwrap();
+
+    let solved = app.engine.world();
+    let solved = solved
+        .get::<&balaur_core::mesh::SolvedMesh>(node)
+        .expect("a soft body hands its geometry to whatever draws it");
+    assert!(!solved.indices.is_empty(), "the sheet has no triangles");
+    let up = solved
+        .indices
+        .iter()
+        .map(|[a, b, c]| {
+            let at = |i: &u32| glamx::Vec3::from_array(solved.positions[*i as usize]);
+            (at(b) - at(a)).cross(at(c) - at(a)).y
+        })
+        .filter(|y| *y > 0.0)
+        .count();
+    assert_eq!(
+        up,
+        solved.indices.len(),
+        "{} of {} triangles face down",
+        solved.indices.len() - up,
+        solved.indices.len()
+    );
+}
+
+/// What play-in-editor does on stop: the world is replaced by a fresh one,
+/// so every handle naming the old one's arena has to go with it.
+///
+/// Left behind, a stale handle names whatever lands in that slot next — the
+/// editor rebuilds the scene right after the clear — and removing the stale
+/// node takes the live body with it. The sheet then draws where it was built
+/// and never moves again, which is what this caught.
+#[test]
+fn clearing_the_world_forgets_the_soft_bodies_it_held() {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut app = balaur_core::App::new(balaur_core::AppConfig::bare(".")).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin::default()).unwrap();
+    let root = app.engine.root();
+    let cuboid = toml::from_str("kind = \"cuboid\"\ncells = [2.0, 2.0, 2.0]").unwrap();
+    let spawn = |app: &balaur_core::App, name: &str| {
+        let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), name, root);
+        balaur_core::components::add(&app.engine, node, "softbody3d", Some(&cuboid)).unwrap();
+        node
+    };
+
+    let first = spawn(&app, "First");
+    balaur_physics::clear(&app.engine);
+    assert_eq!(bodies(&app), 0, "the clear left a soft body behind");
+
+    // The rebuild the editor does next: its bodies take the slots the cleared
+    // ones had, so a handle left over from before would name one of them.
+    let second = spawn(&app, "Second");
+    assert_eq!(bodies(&app), 1, "the rebuilt node has no soft body");
+    balaur_core::scene::free_subtree(&mut app.engine.world_mut(), first);
+    app.tick(1.0 / 60.0);
+
+    assert_eq!(
+        bodies(&app),
+        1,
+        "pruning the cleared node took the live one too"
+    );
+    let state = app.engine.resource::<balaur_physics::PhysicsState3d>();
+    let state = state.borrow();
+    let handle = state.soft_bodies[&second];
+    assert!(
+        state.world.soft_bodies.get(handle).is_some(),
+        "the surviving node's handle names nothing in the world"
+    );
+}
+
+/// A body whose node is freed leaves nothing behind: the handles here index
+/// rapier's arena, and a stale one is a panic a script call away.
+#[test]
+fn freeing_a_node_frees_its_soft_body() {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut app = balaur_core::App::new(balaur_core::AppConfig::bare(".")).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin::default()).unwrap();
+    let root = app.engine.root();
+    let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Blob", root);
+    balaur_core::components::add(
+        &app.engine,
+        node,
+        "softbody3d",
+        Some(&toml::from_str("kind = \"cuboid\"\ncells = [2.0, 2.0, 2.0]").unwrap()),
+    )
+    .unwrap();
+    assert_eq!(bodies(&app), 1, "the soft body was not made");
+    balaur_core::scene::free_subtree(&mut app.engine.world_mut(), node);
+    app.tick(1.0 / 60.0);
+    assert_eq!(bodies(&app), 0, "the freed node left its soft body behind");
+}

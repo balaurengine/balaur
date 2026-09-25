@@ -300,6 +300,33 @@ pub(crate) fn with_material(builder: ColliderBuilder, params: &toml::Value) -> C
     builder
 }
 
+/// The layer and mask rows, as schema text. Named apart from the rest of
+/// `shared_collider_schema` because a soft body's collider is filtered the
+/// same way and has no density, no sensor and no contact skin.
+pub(crate) fn shared_group_schema() -> String {
+    let layers = v::layer_options();
+    v::schema(&[
+        (
+            k::LAYERS,
+            &format!(
+                r#"{{ type = "flags", default = ["0"], options = [{layers}], description = "The layers this body is on", group = "filtering" }}"#
+            ),
+        ),
+        (
+            k::MASK,
+            &format!(
+                r#"{{ type = "flags", default = [], options = [{layers}], description = "The layers it collides with; empty means every layer", group = "filtering" }}"#
+            ),
+        ),
+    ])
+}
+
+/// Put a collider on the layers `params` names, for a builder whose other
+/// rows its owner has already set.
+pub(crate) fn with_groups(builder: ColliderBuilder, params: &toml::Value) -> ColliderBuilder {
+    builder.collision_groups(interaction_groups(params, k::LAYERS, k::MASK))
+}
+
 crate::shared::collider::functions!(state = PhysicsState3d);
 
 /// The 32 collision layers, as a `flags` property of layer numbers.

@@ -16,10 +16,15 @@ pub fn only(S, i) {
 pub fn all(S) {
     let sels = S.sels;
     if sels is Vec && sels.len() > 0 {
-        sels
-    } else {
-        [S.sel]
+        return sels;
     }
+    // Empty, not `[-1]`: a click on empty space deselects, and a loop over
+    // this must then do nothing rather than index the document with -1.
+    if S.sel < 0 {
+        return [];
+    }
+    let one = [S.sel];
+    one
 }
 
 pub fn count(S) {
@@ -30,8 +35,9 @@ pub fn contains(S, i) {
     util::contains(all(S), i)
 }
 
-/// Add or drop one node; an added one becomes active. The set never empties,
-/// because every command downstream reads `S.sel` unconditionally.
+/// Add or drop one node; an added one becomes active. Dropping the last one
+/// leaves nothing selected, which the panels and tools draw as an empty
+/// frame.
 pub fn toggle(S, i) {
     let sels = S.sels;
     let at = util::position(sels, i);
@@ -63,6 +69,14 @@ pub fn extend_to(S, i) {
     }
     S.sels = out;
     S.sel = i;
+}
+
+/// Select nothing: a click on empty space in the viewport, or a delete that
+/// took the last selected row. `S.sel` of -1 is the no-selection the panels
+/// and tools already test for.
+pub fn clear(S) {
+    S.sels = [];
+    S.sel = -1;
 }
 
 /// Select exactly these rows; the first is active. An empty list is ignored.

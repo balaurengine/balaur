@@ -37,6 +37,10 @@ pub fn component(node) {
 // selection itself (the node a new clip would be created on).
 pub fn player_index(S) {
     let i = S.sel;
+    // Nothing selected: no clip is being edited, and -1 is not an index.
+    if i < 0 {
+        return i;
+    }
     for _ in 0..MAX_DEPTH {
         let node = match S.doc.get(i) {
             Some(node) => node,
@@ -66,7 +70,13 @@ pub fn player_index(S) {
 // The player's document node, live node and doc index.
 pub fn player(S) {
     let i = player_index(S);
-    (S.doc[i], model::live(S, i), i)
+    if i < 0 {
+        // Bound, not returned bare: a `}` with a `(` under it calls the block.
+        let none = (#{ name: "", id: "" }, None, i);
+        return none;
+    }
+    let held = (S.doc[i], model::live(S, i), i);
+    held
 }
 
 // The selection's node path relative to the player: what a track's `target`
@@ -76,7 +86,7 @@ pub fn target_path(S, player_i) {
         return "";
     }
     let names = [];
-    let node = Some(S.doc[S.sel]);
+    let node = if S.sel < 0 { None } else { Some(S.doc[S.sel]) };
     for _ in 0..MAX_DEPTH {
         let current = match node {
             Some(current) => current,

@@ -35,6 +35,7 @@ mod newnode;
 mod overlays;
 mod palette;
 mod pen;
+mod physics;
 mod plugins;
 mod polygon;
 mod pool;
@@ -64,7 +65,13 @@ const COMPACT_W = 1240.0;
 // The frame the splash comes off whether or not the shell has stopped moving.
 const FORM_BY = 30;
 
-pub fn init(this) {
+/// Every field the editor keeps, at its starting value.
+///
+/// A function rather than a literal in `init` so `hot_reload` can fill in
+/// whatever a running session predates: reload hands the old object to the
+/// new code, and a field only the new code knows about is otherwise absent,
+/// which errors on every frame that reads it.
+pub fn fresh_state() {
     let S = #{
         persona: "scene",
         tool: "select",
@@ -217,6 +224,20 @@ pub fn init(this) {
         textedit: textedit::state(),
         rig: rig::state(),
         polygon: polygon::state(),
+        // Where the Physics panel's pills drew this frame, for the selftest
+        // that presses them.
+        phys_pills: [],
+        viewport_check: (),
+        camera_check: (),
+        reselect: (),
+        empty_note: (),
+        // The row the inspector last rebound, so a row that cannot resolve is
+        // retried once rather than on every frame it is selected.
+        rebound: -1,
+        // What each pill caption measured last time it drew, so the wrap
+        // stops guessing.
+        phys_widths: #{},
+        phys_click: (),
         pen: pen::state(),
         weights: weights::state(),
         bonemap: bonemap::state(),
@@ -246,6 +267,11 @@ pub fn init(this) {
         plugins: #{},
         registry: plugins::state(),
     };
+    S
+}
+
+pub fn init(this) {
+    let S = fresh_state();
     this.S = S;
 
     model::load(S);
@@ -275,12 +301,7 @@ pub fn init(this) {
     S.start_states = engine::args().get(1).unwrap_or("");
 }
 
-fn resolve_refs(S) {
-    S.refs = [];
-    for node in S.doc {
-        S.refs.push(S.mirror.get_node(model::node_path(S.doc, node)));
-    }
-}
+
 
 // Every export reports here: started, done or failed, one call per step.
 pub fn on_export(this, e) {
@@ -358,8 +379,13 @@ pub fn update(this, dt) {
             shell::resume(S, if (n + 1) % 2 == 1 { debugger::STEP_OVER } else { debugger::CONTINUE });
         }
     }
-    if S.refs.len() != S.doc.len() || model::live(S, S.sel).is_none() {
-        resolve_refs(S);
+    // Nothing selected is not a stale mirror. Asking `live` about -1 rebuilt
+    // the refs every frame with `get_node`, which resolves by name path and
+    // so replaced the id-resolved ones a duplicate name needs.
+    let stale = S.refs.len() != S.doc.len()
+        || (S.sel >= 0 && model::live(S, S.sel).is_none());
+    if stale {
+        model::resolve_refs(S);
     }
     // A sweep is a compile per script, so it waits for typing to stop; the
     // mirror has to be resolved first, since the scene half reads live nodes.
@@ -398,6 +424,21 @@ pub fn update(this, dt) {
     if S.gesture_demo >= 0 {
         selftest::gesture_step(S);
     }
+    if S.phys_click is Object {
+        selftest::physics_click_step(S);
+    }
+    if S.viewport_check is Object {
+        selftest::viewport_click_step(S);
+    }
+    if S.empty_note is Object {
+        selftest::empty_note_step(S);
+    }
+    if S.reselect is Object {
+        selftest::reselect_step(S);
+    }
+    if S.camera_check is Object {
+        selftest::camera_check_step(S);
+    }
     if S.settings.demo >= 0 {
         selftest::settings_step(S);
     }
@@ -423,9 +464,9 @@ pub fn update(this, dt) {
     // A replay or a showcase feeds the pointer into the snapshot the viewport
     // tools read, so a drag would follow the feed rather than the mouse.
     if !session::scrubbing(S) && !showcase::feeding(S) {
-        // Two fingers on the stage are the camera's, so a gizmo never sees
-        // the frame they drive and the backend's own orbit stands off.
-        if viewport::camera_gesture(S) {
+        // The camera's own frames: two fingers on the stage, or the mouse
+        // buttons and wheel the editor drives itself. A gizmo never sees one.
+        if viewport::camera_gesture(S) || viewport::mouse_camera(S) {
             render::set_camera_input(false);
         } else {
             gizmo::update(S);
@@ -835,7 +876,27 @@ pub fn tree_delete(this) {
     model::delete_selected(this.S);
 }
 
+/// Give `S` every field a fresh state has and it lacks.
+///
+/// Reload hands the running object to the new code, so a field only the new
+/// code knows about is absent and errors on every frame that reads it.
+pub fn backfill(S) {
+    let added = [];
+    for (key, value) in fresh_state() {
+        if !S.contains_key(key) {
+            S[key] = value;
+            added.push(key);
+        }
+    }
+    added
+}
+
 pub fn hot_reload(this) {
-    theme::apply(this.S);
+    let S = this.S;
+    let added = backfill(S);
+    if !added.is_empty() {
+        log::info(format!("reload: state gained {:?}", added));
+    }
+    theme::apply(S);
     ui::request_repaint();
 }

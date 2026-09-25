@@ -568,6 +568,550 @@ pub fn physical_bones(S) {
     log::info("selftest physical bones: done");
 }
 
+/// A manipulation tool leaves the camera alone when there is no gizmo.
+///
+/// The camera's buttons are unbound ahead of a press, because the binding is
+/// what decides who receives it. That was keyed on the tool alone, so picking
+/// Move killed orbit and pan over the whole stage even with nothing selected
+/// and no handle to press.
+pub fn camera_keeps_pointer(S) {
+    S.camera_check = #{ waited: 0, stage: 0, was: 0.0 };
+}
+
+pub fn camera_check_step(S) {
+    let d = S.camera_check;
+    if !(d is Object) {
+        return;
+    }
+    if S.layout.stage.w <= 0.0 {
+        d.waited = d.waited + 1;
+        if d.waited > 30 {
+            S.camera_check = ();
+            log::info("selftest camera: nothing drew this run, skipped");
+        }
+        return;
+    }
+    if d.stage == 1 {
+        d.stage = 2;
+        check(crate::viewport::mouse_camera(S), "the wheel over the stage is the camera's");
+        return;
+    }
+    if d.stage == 2 {
+        camera_dollied(S, d);
+        return;
+    }
+    d.stage = 1;
+    let tool = S.tool;
+    S.tool = "move";
+    crate::selection::clear(S);
+    crate::gizmo::update(S);
+    check(render::camera_input(), "a manipulation tool with nothing selected leaves the camera its buttons");
+    // With something selected there is a gizmo to press, so it takes them.
+    if S.doc.len() > 1 {
+        shell::choose(S, 1);
+        crate::gizmo::update(S);
+        check(!render::camera_input(), "and takes them once a gizmo is drawn");
+    }
+    S.tool = tool;
+    // The wheel the editor drives itself, fed into the snapshot it reads: the
+    // backend's camera never sees a mouse event in the editor. A fed event
+    // lands next frame, and the pose it moves is published the one after.
+    let stage = S.layout.stage;
+    let (_, _, _, tx, ty, tz, _, dpi) = render::camera_pose();
+    let (cx, cy) = (stage.x + stage.w / 2.0, stage.y + stage.h / 2.0);
+    input::feed_mouse(cx * S.ui_scale * dpi, cy * S.ui_scale * dpi);
+    let (ex, ey, ez, _, _, _, _, _) = render::camera_pose();
+    d.was = reach(ex, ey, ez, tx, ty, tz);
+    input::feed_scroll(0.0, flick(crate::viewport::dolly_step()));
+}
+
+// The wheel this platform reports for a comfortable flick: enough to take a
+// couple of percent off the distance. macOS scrolls by the pixel and the rest
+// by the notch, so the count differs by two orders of magnitude.
+fn flick(step) {
+    let n = 1.0;
+    while math::pow(step, n) < 1.02 && n < 100000.0 {
+        n = n * 2.0;
+    }
+    n
+}
+
+// How far the eye stands from what it looks at.
+fn reach(ex, ey, ez, tx, ty, tz) {
+    let (ax, ay, az) = (ex - tx, ey - ty, ez - tz);
+    math::sqrt(ax * ax + ay * ay + az * az)
+}
+
+fn camera_dollied(S, d) {
+    S.camera_check = ();
+    let (ex, ey, ez, tx, ty, tz, _, _) = render::camera_pose();
+    let now = reach(ex, ey, ez, tx, ty, tz);
+    // Bounded, not just inward: a flick that swallows the whole distance is
+    // the zoom being orders of magnitude too strong, which reads as a teleport.
+    let took = d.was / util::max(now, 0.0001);
+    check(took > 1.005 && took < 1.1, format!("and dollies the camera in gently ({} to {})", d.was, now));
+    log::info("selftest camera: done");
+}
+
+/// The viewport still takes a click in the middle of the stage.
+///
+/// Every tool asks `viewport::owns_pointer` first, so a test that answers
+/// `false` over the stage makes the canvas dead: no picking, no gizmo, and a
+/// camera drag that re-anchors whenever the answer flickers.
+pub fn viewport_clicks(S) {
+    S.viewport_check = #{ waited: 0 };
+}
+
+pub fn viewport_click_step(S) {
+    let d = S.viewport_check;
+    if !(d is Object) {
+        return;
+    }
+    let stage = S.layout.stage;
+    // The rects are a frame late, and a headless run never lays them out.
+    if stage.w <= 0.0 || stage.h <= 0.0 {
+        d.waited = d.waited + 1;
+        if d.waited > 30 {
+            S.viewport_check = ();
+            log::info("selftest viewport clicks: nothing drew this run, skipped");
+        }
+        return;
+    }
+    S.viewport_check = ();
+    viewport_owns(S, stage);
+}
+
+fn viewport_owns(S, stage) {
+    let mid_x = stage.x + stage.w / 2.0;
+    let mid_y = stage.y + stage.h / 2.0;
+    check(
+        crate::viewport::owns_pointer(S, mid_x, mid_y),
+        "the middle of the stage is the viewport's to click",
+    );
+    // A dock is not, whichever one the persona opened.
+    let right = S.layout.right;
+    if right.w > 0.0 {
+        check(
+            !crate::viewport::owns_pointer(S, right.x + right.w / 2.0, right.y + right.h / 2.0),
+            "a point inside the right dock is not",
+        );
+    }
+    // The two strips the stage draws over itself, when they are up.
+    let chips = S.layout.chips;
+    if chips.w > 0.0 {
+        check(
+            !crate::viewport::owns_pointer(S, chips.x + chips.w / 2.0, chips.y + chips.h / 2.0),
+            "nor is the chip row along the stage's top",
+        );
+    }
+    let hud = S.layout.hud;
+    if hud.w > 0.0 {
+        check(
+            !crate::viewport::owns_pointer(S, hud.x + hud.w / 2.0, hud.y + hud.h / 2.0),
+            "nor is the reading row along its foot",
+        );
+    }
+    // An overlay covers the stage rather than sitting beside it, so while one
+    // is up the stage underneath is not the viewport's either.
+    crate::shell::open_palette(S, "");
+    check(
+        !crate::viewport::owns_pointer(S, mid_x, mid_y),
+        "nor is the stage while the command palette is over it",
+    );
+    S.palette = false;
+    check(
+        crate::viewport::owns_pointer(S, mid_x, mid_y),
+        "and it is the viewport's again once the palette closes",
+    );
+    log::info("selftest viewport clicks: done");
+}
+
+/// Nothing selected, which a click on empty space in the viewport leaves.
+///
+/// The panels all read the active row, so this is the state that breaks them:
+/// every one has to draw an empty frame rather than index past the document.
+/// The run this sets up draws with no selection for its whole length, so an
+/// error in any of them lands in the log the harness reads.
+/// A reload keeps the running state, so new fields have to be filled in.
+///
+/// Without this the editor works from a cold start and then errors on every
+/// frame once a script is edited: the field the new code reads is simply not
+/// on the object the old `init` built.
+pub fn reloaded(S) {
+    let fresh = crate::fresh_state();
+    let missing = [];
+    for (key, _) in fresh {
+        if !S.contains_key(key) {
+            missing.push(key);
+        }
+    }
+    check(missing.is_empty(), format!("the live state has every field a fresh one does ({:?})", missing));
+    // A session from before a field existed, which is what reload hands over.
+    let old = #{};
+    for (key, value) in S {
+        old[key] = value;
+    }
+    old.remove("tool");
+    old.remove("persona");
+    let added = crate::backfill(old);
+    check(added.len() == 2, format!("reload fills in what the old state lacked ({:?})", added));
+    check(old.contains_key("tool") && old.contains_key("persona"), "and the fields are readable after it");
+    check(old.persona == S.persona || old.persona == "scene", "at a fresh value rather than nothing");
+    log::info("selftest reload: done");
+}
+
+/// Every component a node carries is reachable from some persona.
+///
+/// The inspector shows a component when a persona names it or shares one of
+/// its tags. One that carries no tag any persona asks for cannot be drawn in
+/// any persona, so its properties are unreachable however the node is picked.
+pub fn component_reach(S) {
+    let personas = ["scene", "script", "anim", "phys", "ui"];
+    let seen = #{};
+    let orphans = [];
+    for i in 0..S.doc.len() {
+        let found_some = model::live(S, i);
+        let found = match found_some {
+            Some(found) => found,
+            None => continue,
+        };
+        for name in util::vec(found.component_names()) {
+            if seen.contains_key(name) {
+                continue;
+            }
+            seen[name] = true;
+            let tags = util::vec(scene::component_tags(name));
+            let reached = false;
+            for id in personas {
+                let wants = crate::defs::persona_inspector(id);
+                if util::contains(wants.named, name) {
+                    reached = true;
+                }
+                for tag in wants.tags {
+                    if util::contains(tags, tag) {
+                        reached = true;
+                    }
+                }
+            }
+            if !reached {
+                orphans.push(format!("{} {:?}", name, tags));
+            }
+        }
+    }
+    check(seen.len() > 0, format!("the scene's nodes carry {} kinds of component", seen.len()));
+    check(orphans.is_empty(), format!("every one of them reaches a persona ({:?})", orphans));
+    log::info("selftest reach: done");
+}
+
+pub fn deselected(S) {
+    S.reselect = #{ waited: 0, stage: 0, row: 0, had: 0, drawn: 0 };
+}
+
+/// Clearing the selection leaves the panels a blank node, and picking the same
+/// row again brings its components back.
+///
+/// `S.sel` of -1 is not a stale mirror. Treating it as one rebuilt `S.refs`
+/// every frame the canvas sat empty, by name path rather than by id, and the
+/// inspector then drew a node with nothing on it.
+pub fn reselect_step(S) {
+    let d = S.reselect;
+    if !(d is Object) {
+        return;
+    }
+    d.waited = d.waited + 1;
+    // Find a row with something on it, settle, record, deselect, settle,
+    // reselect, settle, compare. The pool keeps its rows between passes, so
+    // every reading is taken once the panel has stopped moving.
+    if d.stage == 0 {
+        for i in 0..S.doc.len() {
+            crate::selection::only(S, i);
+            if listed_components(S) > 0 {
+                break;
+            }
+        }
+        d.had = listed_components(S);
+        if d.had == 0 {
+            if d.waited > 40 {
+                S.reselect = ();
+                log::info("selftest deselect: nothing resolved this run, skipped");
+            }
+            return;
+        }
+        d.row = S.sel;
+        d.stage = 1;
+        d.waited = 0;
+        return;
+    }
+    if d.stage == 1 {
+        if d.waited < SETTLE {
+            return;
+        }
+        d.drawn = crate::inspector::drawn_rows();
+        check(d.drawn > 0, format!("the panel draws {} rows for the selected node", d.drawn));
+        deselect_checks(S, d.had);
+        d.stage = 2;
+        d.waited = 0;
+        return;
+    }
+    if d.stage == 2 {
+        if d.waited < SETTLE {
+            return;
+        }
+        crate::selection::only(S, d.row);
+        d.stage = 3;
+        d.waited = 0;
+        return;
+    }
+    if d.waited < SETTLE {
+        return;
+    }
+    S.reselect = ();
+    let now = listed_components(S);
+    check(model::live(S, d.row).is_some(), "the reselected row resolves to its live node");
+    check(now == d.had, format!("and its components are listed again ({} of {})", now, d.had));
+    // What the panel shows, not what it was asked to show: the form is a pool
+    // of retained rows, and one left hidden is invisible to a check that reads
+    // the spec list instead.
+    let drawn = crate::inspector::drawn_rows();
+    check(drawn == d.drawn, format!("and the panel draws them again ({} rows, was {})", drawn, d.drawn));
+    model::resolve_refs(S);
+    check(mirror_resolves(S), format!("re-resolving keeps all {} rows bound", S.doc.len()));
+    check(listed_components(S) == d.had, "and the components survive it");
+    check_empty_says_why(S);
+    log::info("selftest deselect: done");
+}
+
+// Frames to let the pooled form stop moving before a reading is taken.
+const SETTLE = 8;
+
+// A node the persona has nothing for draws a reason, not a blank panel: an
+// empty inspector is otherwise indistinguishable from components gone missing.
+fn check_empty_says_why(S) {
+    for i in 0..S.doc.len() {
+        crate::selection::only(S, i);
+        if listed_components(S) == 0 {
+            S.empty_note = #{ waited: 0 };
+            return;
+        }
+    }
+    log::info("selftest deselect: every row has a section, note not checked");
+}
+
+pub fn empty_note_step(S) {
+    let d = S.empty_note;
+    if !(d is Object) {
+        return;
+    }
+    d.waited = d.waited + 1;
+    if d.waited < SETTLE {
+        return;
+    }
+    S.empty_note = ();
+    let drawn = crate::inspector::drawn_rows();
+    check(drawn > 0, format!("a node with no section for this persona says so ({} rows)", drawn));
+    log::info("selftest note: done");
+}
+
+fn deselect_checks(S, had) {
+    check(had > 0, format!("the selected row lists {} components to begin with", had));
+    let before = crate::selection::count(S);
+    crate::selection::clear(S);
+    check(S.sel < 0, "clearing the selection leaves no active row");
+    check(crate::selection::count(S) == 0, "and no selected rows");
+    check(
+        model::selected_node(S).name == "",
+        "the panels read a blank node rather than indexing past the document",
+    );
+    check(mirror_resolves(S), format!("the scene still resolves ({} rows were selected)", before));
+}
+
+// How many components the inspector would list for the active row.
+fn listed_components(S) {
+    let wants = crate::defs::persona_inspector(S.persona);
+    crate::inspector::persona_components(S, wants).len()
+}
+
+/// Where the Physics panel's pills really land.
+///
+/// The editor's widgets take their pointer from the window, not from the
+/// input snapshot `input::feed_mouse` writes, so a script cannot press one:
+/// `showcase::click` only looks like it does, and calls the verb itself. What
+/// a script *can* do is read back where each pill drew and how wide it came
+/// out, which is the half that goes wrong on its own — a caption wider than
+/// the row was sized for draws over its neighbour or past the sheet, and the
+/// click then lands on something else.
+///
+/// So: every pill the panel offers is measured, and has to be wide enough to
+/// hit, inside the sheet, and clear of the pill beside it.
+pub fn physics_clicks(S) {
+    shell::set_persona(S, "phys");
+    S.phys_click = #{ waited: 0 };
+}
+
+// Where a recorded pill sits, in design pixels, or `()`. An object rather
+// than a tuple: `util::is_nil` reads Rune's unit as a tuple.
+fn pill_box(S, pill) {
+    let row = crate::inspector::form_row_node(pill.row);
+    if util::is_nil(row) {
+        return ();
+    }
+    let r = ui::widget_rect(row);
+    if util::is_nil(r) || r.w <= 0.0 {
+        return ();
+    }
+    // The row's horizontal starts at its left edge and is `full` wide, so a
+    // width-left of `from` puts the pill's left edge that far in from its end.
+    let left = r.x + pill.full - pill.from;
+    #{ left: left, right: left + (pill.from - pill.to), row: r }
+}
+
+// The smallest pill worth calling hittable. A touch run wants more, and says
+// so through `style::row_h`; this is the floor under either.
+const PILL_MIN_W = 16.0;
+
+pub fn physics_click_step(S) {
+    let d = S.phys_click;
+    if !(d is Object) {
+        return;
+    }
+    // The panel has to have drawn before any of it can be measured, and a
+    // headless run never lays anything out.
+    if S.phys_pills.is_empty() {
+        d.waited = d.waited + 1;
+        if d.waited > 30 {
+            S.phys_click = ();
+            if crate::inspector::form_drawn() {
+                check(false, "the Physics panel drew pills to measure");
+            } else {
+                log::info("selftest physics pills: no UI pass in this run, skipped");
+            }
+        }
+        return;
+    }
+    S.phys_click = ();
+    physics_pills_fit(S);
+    log::info("selftest physics pills: done");
+}
+
+fn physics_pills_fit(S) {
+    let boxes = [];
+    for pill in S.phys_pills {
+        let box = pill_box(S, pill);
+        if !(box is Object) {
+            check(false, format!("{}'s pill reports where it drew", pill.id));
+            continue;
+        }
+        box.id = pill.id;
+        box.row_at = pill.row;
+        boxes.push(box);
+    }
+    check(!boxes.is_empty(), "the panel's pills report where they drew");
+    let narrow = [];
+    let over = [];
+    for box in boxes {
+        if box.right - box.left < PILL_MIN_W {
+            narrow.push(format!("{} ({} px)", box.id, box.right - box.left));
+        }
+        // Past the row's own right edge is a pill the wrap had no room for:
+        // it is drawn clipped, and a click on where it looks to be misses.
+        if box.right > box.row.x + box.row.w + 0.5 {
+            over.push(box.id);
+        }
+    }
+    check(narrow.is_empty(), format!("every pill is wide enough to hit{}", listed(narrow)));
+    check(over.is_empty(), format!("no pill is pushed past its row{}", listed(over)));
+    physics_pills_apart(S, boxes);
+}
+
+// Two pills on one row must not cover the same pixels, or the one underneath
+// can never be clicked.
+fn physics_pills_apart(S, boxes) {
+    let clash = [];
+    for a in boxes {
+        for b in boxes {
+            if a.id == b.id || a.row_at != b.row_at {
+                continue;
+            }
+            if a.left < b.right - 0.5 && b.left < a.right - 0.5 {
+                clash.push(format!("{} over {}", a.id, b.id));
+            }
+        }
+    }
+    check(clash.is_empty(), format!("no two pills share a row's pixels{}", listed(clash)));
+}
+
+// The names behind a failure, so the message says which ones rather than how
+// many. Empty for a check that passed.
+fn listed(names) {
+    if names.is_empty() {
+        ""
+    } else {
+        format!(": {}", util::join(names, ", "))
+    }
+}
+
+/// The Physics panel: what its rows add, what its shape actions write, and
+/// that every property the soft body declares is one the inspector can draw.
+pub fn physics_panel(S) {
+    let target = None;
+    for i in 0..S.doc.len() {
+        if S.doc[i].contains_key("mesh") || S.doc[i].contains_key("polygon") {
+            target = Some(i);
+            break;
+        }
+    }
+    let target = match target {
+        Some(target) => target,
+        None => {
+            log::info("selftest physics panel: no node with a mesh; skipped");
+            return;
+        }
+    };
+    shell::choose(S, target);
+    let two_d = model::is_2d(S);
+    let collider = if two_d { "collider2d" } else { "collider3d" };
+    let soft = if two_d { "softbody2d" } else { "softbody3d" };
+
+    // The persona shows what carries the engine's `physics` tag, which is the
+    // check the old hard-coded list of names failed.
+    model::add_component(S, collider);
+    let wants = crate::defs::persona_inspector("phys");
+    let shown = crate::inspector::persona_components(S, wants);
+    check(crate::util::contains(shown, collider),
+        format!("the Physics persona shows {}", collider));
+
+    // A shape action writes the mesh and the kind together, in one undo.
+    let source = if two_d {
+        crate::polygon::component(S.doc[target]).unwrap().get("mesh").unwrap_or("")
+    } else {
+        S.doc[target].get("mesh").unwrap().get("source").unwrap_or("")
+    };
+    model::set_component_props(S, collider, #{ kind: "convex_decomposition", mesh: source });
+    let written = crate::util::obj(S.doc[target].get(collider).unwrap_or(#{}));
+    check(written.get("kind").unwrap_or("") == "convex_decomposition",
+        "the decomposition action wrote the collider's kind");
+
+    // The tetrahedrization, and every property it declares drawable.
+    model::set_component_props(S, soft, #{ kind: "volumetric", mesh: source });
+    let schema = model::schema(S, soft);
+    let missing = [];
+    for prop in crate::util::keys_sorted(schema) {
+        let spec = schema[prop];
+        if spec.get("type").unwrap_or("") == "" {
+            missing.push(prop);
+        }
+    }
+    check(missing.is_empty(),
+        format!("every {} property has a type the inspector can draw", soft));
+    check(schema.contains_key("young_modulus") && schema.contains_key("tear_strain"),
+        "the soft body's mechanical rows are in its schema");
+    check(mirror_resolves(S), "the scene resolves with a soft body on it");
+
+    undo_all(S);
+    check(mirror_resolves(S), "the undone scene resolves");
+    log::info("selftest physics panel: done");
+}
+
 /// The bone map dock: the humanoid guessed against a rig's own names, and
 /// the map written out as a `bone_map` asset.
 pub fn bonemap_panel(S) {
@@ -866,6 +1410,20 @@ pub fn picking(S) {
         check(model::index_of_live(S, hit).is_some(), "and it is one of the document's");
     }
 
+    // The distance too, which decides between two things under the pointer:
+    // a gizmo handle yields to an object in front of it.
+    let at = render::pick_ray_at(p.x, p.y, p.z + 200.0, 0.0, 0.0, -1.0);
+    if check(at is Object, format!("the ray reports what it met and how far ({:?})", at)) {
+        check(at.at > 0.0 && at.at < 400.0, format!("at a sane distance along the ray ({})", at.at));
+        check(model::index_of_live(S, at.node).is_some(), "and that node is one of the document's");
+    }
+    check(util::is_nil(render::pick_ray_at(p.x, p.y, p.z + 200.0, 0.0, 0.0, 1.0)),
+        "a ray pointing away reports no distance either");
+
+    // A pick can land on a node the document never named: a mesh's own child,
+    // or one a solver owns. The row that owns it is what the click meant.
+    check_climbs_to_owner(S);
+
     // The same ray pointing away meets nothing.
     let behind = render::pick_ray(p.x, p.y, p.z + 200.0, 0.0, 0.0, 1.0);
     check(util::is_nil(behind), "a ray pointing away from the scene picks nothing");
@@ -874,6 +1432,31 @@ pub fn picking(S) {
     let aside = render::pick_ray(p.x + 10000.0, p.y, p.z + 200.0, 0.0, 0.0, -1.0);
     check(util::is_nil(aside), "a ray beside the scene picks nothing");
     log::info("selftest picking: done");
+}
+
+// A pick landing on a child resolves to the row that owns it. Tried on a row
+// that has one, which the node aimed at above need not.
+fn check_climbs_to_owner(S) {
+    for i in 0..S.doc.len() {
+        let found_some = model::live(S, i);
+        let found = match found_some {
+            Some(found) => found,
+            None => continue,
+        };
+        for kid in util::vec(found.children()) {
+            // Only a child the document never named has anything to climb:
+            // one that is itself a row resolved before this existed too.
+            if model::index_of_path(S, kid.path()).is_some() {
+                continue;
+            }
+            check(
+                model::index_of_live(S, kid) == Some(i),
+                format!("a child the document never named resolves to its owner '{}'", S.doc[i].name),
+            );
+            return;
+        }
+    }
+    log::info("selftest picking: every child is a document row, climb not checked");
 }
 
 // The first numeric export in the scene, with the node carrying it. A number
@@ -1844,7 +2427,9 @@ fn open_and_check(S, d) {
 fn replayed_and_check(S, d) {
     check(replay::position() > d.was, "playing walks the recording forward");
     check(replay::state() == replay::STATE_PAUSED, "a spent session parks");
-    check(util::is_nil(replay::diverged()), "and reproduced what was recorded");
+    let split = replay::diverged();
+    let where_ = if util::is_nil(split) { "" } else { format!(" (tick {})", split.tick) };
+    check(util::is_nil(split), format!("and reproduced what was recorded{}", where_));
     crate::session::close(S);
     exported_and_check(S, d);
     check(!crate::session::loaded(S), "closing unloads the session");

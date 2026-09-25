@@ -163,6 +163,16 @@ fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<Colli
     }
 }
 
+/// Put a 2D collider on the layers `params` names, for a builder whose other
+/// rows its owner has already set (see `crate::collider::with_groups`).
+pub(crate) fn with_groups_2d(builder: ColliderBuilder2, params: &toml::Value) -> ColliderBuilder2 {
+    builder.collision_groups(InteractionGroups::new(
+        Group::from_bits_truncate(v::layer_bits(params, k::LAYERS, false)),
+        Group::from_bits_truncate(v::layer_bits(params, k::MASK, true)),
+        InteractionTestMode::And,
+    ))
+}
+
 /// The `mesh` asset's points as 2D, with the triangles over them.
 fn mesh_of(eng: &Engine, params: &toml::Value, kind: &str) -> Result<(Vec<Vector>, Vec<[u32; 3]>)> {
     let reference = params
@@ -469,7 +479,7 @@ pub(crate) fn max_contact_impulse(eng: &Engine, entity: Entity) -> Real {
     let mut max: Real = 0.0;
     for &handle in handles {
         for pair in state.world.narrow_phase.contact_pairs_with(handle) {
-            for manifold in &pair.manifolds {
+            for manifold in pair.manifolds() {
                 for point in &manifold.points {
                     max = max.max(point.data.impulse.abs());
                 }

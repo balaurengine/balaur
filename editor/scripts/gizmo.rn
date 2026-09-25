@@ -169,17 +169,30 @@ fn half_extents(node) {
     he
 }
 
-// The world half-extents of one row before the handle padding, which both the
-// gizmo and box select need.
+// The world half-extents of one row, before the handle padding. The engine's
+// own bounds first: an authored `half_extents` says nothing about a mesh, and
+// nothing about a body a solver deforms.
 pub fn extents_at(S, i) {
     let found = match model::live(S, i) {
         Some(found) => found,
         None => return None,
     };
-    let node = S.doc[i];
-    let he = half_extents(node);
     let s = found.transform.global_scale();
-    Some((util::xyz(found.transform.global_position()), [he[0] * s.x, he[1] * s.y, he[2] * s.z]))
+    let at = util::xyz(found.transform.global_position());
+    let drawn = render::bounds(found);
+    if drawn is Vec && drawn.len() == 2 {
+        // Vec3 values, read by field: `util::vec3` parses a list and answers
+        // its default for one of these, which sized every box to nothing.
+        let c = drawn[0];
+        let he = drawn[1];
+        // The box is in the node's own space, so its centre rides the node's.
+        return Some((
+            [at[0] + c.x * s.x, at[1] + c.y * s.y, at[2] + c.z * s.z],
+            [he.x * s.x, he.y * s.y, he.z * s.z],
+        ));
+    }
+    let he = half_extents(S.doc[i]);
+    Some((at, [he[0] * s.x, he[1] * s.y, he[2] * s.z]))
 }
 
 // An axis-aligned box around the whole set, so the gizmo over many nodes sits
@@ -219,31 +232,28 @@ fn set_geometry(S) {
 }
 
 fn geometry_at(S, i) {
-    let node = match S.doc.get(i) {
-        Some(node) => node,
-        None => return None,
-    };
     let found = match model::live(S, i) {
         Some(found) => found,
         None => return None,
     };
-    let p = found.transform.global_position();
-    let he = half_extents(node);
-    // The renderer sizes and orients by the GLOBAL transform (parents may
-    // carry scale/rotation), so the gizmo must too.
-    let s = found.transform.global_scale();
-    let hx = he[0] * s.x + 0.06;
-    let hy = he[1] * s.y + 0.06;
-    let hz = he[2] * s.z + 0.06;
+    // The same source the multi-selection box and box-select read, so one
+    // node's frame and a set's agree about what a node covers.
+    let (c, he) = match extents_at(S, i) {
+        Some(pair) => pair,
+        None => return None,
+    };
+    let hx = he[0] + 0.06;
+    let hy = he[1] + 0.06;
+    let hz = he[2] + 0.06;
     let min_he = util::min(hx, util::min(hy, hz));
     // steadyum: handle size scales with camera distance (constant on
     // screen), rings sit at 75% of the smallest extent.
     let (ex, ey, ez, _, _, _, _, _) = render::camera_pose();
-    let dist = math::sqrt((p.x - ex) * (p.x - ex) + (p.y - ey) * (p.y - ey) + (p.z - ez) * (p.z - ez));
+    let dist = math::sqrt((c[0] - ex) * (c[0] - ex) + (c[1] - ey) * (c[1] - ey) + (c[2] - ez) * (c[2] - ez));
     let marker = 0.6 * dist * 0.0144;
     let r = found.transform.global_rotation_euler();
     Some(#{
-        center: util::xyz(p),
+        center: c,
         basis: util::basis_from_euler(util::xyz(r)),
         he: [hx, hy, hz],
         // The rotation ball tracks the selection but never grows past a
@@ -251,6 +261,46 @@ fn geometry_at(S, i) {
         ring: util::clamp(min_he * 0.75, marker * 2.5, dist * 0.14),
         marker: marker,
     })
+}
+
+/// Select what the ray meets when it is nearer than the gizmo, and say so.
+///
+/// Measured against the gizmo's centre, which is the selected node's own: an
+/// object closer than that is between the camera and what is selected.
+fn took_click_in_front(S, cam, geo) {
+    let hit = render::pick_ray_at(
+        cam.ray_o[0], cam.ray_o[1], cam.ray_o[2],
+        cam.ray_d[0], cam.ray_d[1], cam.ray_d[2],
+    );
+    // Nil rather than `None` when the ray meets nothing: a binding answers
+    // with the host's own empty value.
+    if !(hit is Object) {
+        return false;
+    }
+    let found = hit;
+    let (dx, dy, dz) = (
+        geo.center[0] - cam.ray_o[0],
+        geo.center[1] - cam.ray_o[1],
+        geo.center[2] - cam.ray_o[2],
+    );
+    // Clear of the whole gizmo, not merely nearer than its centre: the ground
+    // a selected node stands on is nearer than that centre, and taking the
+    // click there would cost the drag the handle was pressed for.
+    let reach = util::max(geo.he[0], util::max(geo.he[1], geo.he[2])) + geo.marker;
+    if found.at >= math::sqrt(dx * dx + dy * dy + dz * dz) - reach {
+        return false;
+    }
+    let landed = model::index_of_live(S, found.node);
+    let landed_some = landed;
+    let i = match landed_some {
+        Some(i) => i,
+        None => return false,
+    };
+    if crate::selection::is_locked(S, i) || crate::selection::contains(S, i) {
+        return false;
+    }
+    shell::choose_click(S, i);
+    true
 }
 
 fn corners(geo) {
@@ -750,9 +800,11 @@ pub fn update(S) {
         S.gizmo.key = [];
     }
 
-    // The camera keeps the pointer unless a manipulation tool is active or
-    // the gizmo itself is hot.
-    render::set_camera_input(!viewport::manipulates(S.tool, false) && S.gizmo.hover.is_none() && S.gizmo.drag.is_none());
+    // The camera keeps the pointer unless the gizmo is hot, or a manipulation
+    // tool has a gizmo to be hot about. Hover counts: the button is unbound
+    // before the press, since the binding decides who receives it.
+    let busy = viewport::manipulates(S.tool, false) && geo.is_some();
+    render::set_camera_input(!busy && S.gizmo.hover.is_none() && S.gizmo.drag.is_none());
 
     if input::mouse_just_pressed(input::MOUSE_LEFT) && over_viewport {
         let hovered = match (S.gizmo.hover, geo) {
@@ -760,7 +812,14 @@ pub fn update(S) {
             _ => None,
         };
         match hovered {
-            Some((part, geo)) => start_gizmo_drag(S, cam, geo, part, mx, my),
+            Some((part, geo)) => {
+                // A handle is drawn over whatever is behind it, so an object
+                // in front of the gizmo takes the click: what the user aimed
+                // at is the object, not the handle covering it.
+                if !took_click_in_front(S, cam, geo) {
+                    start_gizmo_drag(S, cam, geo, part, mx, my);
+                }
+            }
             None => {
                 S.gizmo.in_viewport = true;
                 if S.tool == "select" {
@@ -811,6 +870,11 @@ pub fn update(S) {
                     history::commit(S);
                     crate::selection::set(S, rows);
                 }
+            } else {
+                // A click rather than a drag, and it landed on nothing: what
+                // was selected stops being.
+                history::commit(S);
+                crate::selection::clear(S);
             }
         }
         return;

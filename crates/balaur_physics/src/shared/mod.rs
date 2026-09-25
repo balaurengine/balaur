@@ -14,4 +14,5 @@ pub(crate) mod collider;
 pub(crate) mod events;
 pub(crate) mod joint;
 pub(crate) mod query;
+pub(crate) mod softbody;
 pub(crate) mod world;

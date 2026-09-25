@@ -358,6 +358,11 @@ for ex in examples/*/; do
   edit_step "$name: physical bones" "$ex" ragdolldemo
   printf 'ok\n'
 
+  # The Physics panel's rows: what each action writes. Where its pills land
+  # needs a drawn frame, so that is `uiaudit.sh`'s.
+  printf '  phys ...   '
+  edit_step "$name: physics panel" "$ex" physdemo
+  printf 'ok\n'
 
 
 

@@ -51,7 +51,10 @@ pub(crate) fn build_node(
     app: &App,
     scene: &mut SceneNode3d,
     renderable: &Renderable3d,
+    entity: balaur_core::hecs::Entity,
 ) -> Option<Built3d> {
+    // A solver owning the vertices makes the buffers dynamic, as a skin does.
+    let solved = crate::skinned_3d::solver_present(&app.engine.world(), entity);
     match renderable.shape {
         // Built by the mesher rather than by kiss3d: the triangles a collider
         // is fitted to and a ray is picked against are the ones uploaded here.
@@ -62,7 +65,7 @@ pub(crate) fn build_node(
             .as_deref()
             .filter(|mesh| !mesh.indices.is_empty())
             .map(|mesh| (upload_geometry(scene, mesh), None, None, None)),
-        Shape3d::Mesh => upload_mesh(app, scene, renderable),
+        Shape3d::Mesh => upload_mesh(app, scene, renderable, solved),
     }
 }
 
@@ -70,7 +73,12 @@ pub(crate) fn build_node(
 /// deform them by when the asset carries one. `None` when the asset is
 /// missing or unreadable, which is logged rather than fatal: one bad model
 /// must not stop the frame.
-fn upload_mesh(app: &App, scene: &mut SceneNode3d, renderable: &Renderable3d) -> Option<Built3d> {
+fn upload_mesh(
+    app: &App,
+    scene: &mut SceneNode3d,
+    renderable: &Renderable3d,
+    solved: bool,
+) -> Option<Built3d> {
     let reference = renderable.mesh.as_deref().filter(|r| !r.is_empty())?;
     let definition = match balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(
         &app.engine,
@@ -135,8 +143,9 @@ fn upload_mesh(app: &App, scene: &mut SceneNode3d, renderable: &Renderable3d) ->
         inverse_bind: skin.inverse_bind,
         skeleton: renderable.skeleton.clone(),
     });
-    // A skinned mesh is rewritten every frame; a rigid one is uploaded once.
-    let mut gpu = GpuMesh3d::new(coords, faces, normals, uvs, skin.is_some());
+    // A skinned mesh is rewritten every frame, and so is one a solver owns;
+    // a rigid one is uploaded once.
+    let mut gpu = GpuMesh3d::new(coords, faces, normals, uvs, skin.is_some() || solved);
     if let Some(targets) = morphs {
         gpu.set_morph_targets(targets);
     }

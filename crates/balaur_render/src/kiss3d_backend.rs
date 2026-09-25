@@ -40,6 +40,9 @@ struct Slot {
     surface: Option<crate::material::Surface>,
     /// A model's simpler copies, when its import settings ask for them.
     lods: Option<crate::lods::Lods>,
+    /// The topology a solver's mesh was last uploaded at (see
+    /// `crate::skinned_3d`).
+    solved: Option<u32>,
 }
 
 /// What a skinned 3D mesh keeps between frames: the vertices as authored,
@@ -135,8 +138,10 @@ impl Frontend {
         lights.adopt_sun(sun);
         let camera = OrbitCamera3d::default();
         let camera_2d = PanZoomCamera2d::default();
+        // Orbit on the wheel button: every editor tool starts with a left
+        // press, so left-drag could never reach the camera.
         let camera_buttons = CameraButtons {
-            rotate: camera.rotate_button(),
+            rotate: Some(kiss3d::event::MouseButton::Button3),
             drag: camera.drag_button(),
             drag_2d: camera_2d.drag_button(),
         };
@@ -735,7 +740,7 @@ fn sync(
             }
             // Nothing to draw yet, and whatever failed said why.
             let Some((mut node, skin, geometry, lods)) =
-                geometry::build_node(app, scene, renderable)
+                geometry::build_node(app, scene, renderable, entity)
             else {
                 continue;
             };
@@ -758,14 +763,13 @@ fn sync(
                     palette,
                     surface: None,
                     lods,
+                    solved: None,
                 },
             );
         }
         // The block above inserts the slot when it is missing.
         let slot = slots.get_mut(&entity).unwrap();
-        if let Some(skin) = &slot.skin {
-            pose_mesh(&world, entity, skin, slot.palette.as_ref(), &mut slot.node);
-        }
+        deform_node(&world, entity, slot);
         let [r, g, b, a] = crate::sync_2d::modulate(renderable.color, appearance.tint.to_array());
         // Every shape is real geometry at its authored size now, so the node
         // carries the scene's scale and nothing of the shape's.
@@ -781,7 +785,10 @@ fn sync(
             .set_visible(visible)
             .set_casts_shadows(renderable.shadows)
             .set_light_layers(renderable.layers);
-        let surface = crate::material::surface_of(&app.engine, reference);
+        let mut surface = crate::material::surface_of(&app.engine, reference);
+        // A solver's surface can be an open sheet, and a cloth has no inside
+        // to cull away; without a material of its own it draws both sides.
+        surface.double_sided |= reference.is_empty() && slot.solved.is_some();
         if slot.surface != Some(surface) {
             apply_surface(&mut slot.node, &surface);
             slot.surface = Some(surface);
@@ -853,6 +860,15 @@ pub(crate) fn apply_surface(node: &mut SceneNode3d, surface: &crate::material::S
     node.set_thickness(surface.thickness);
     let [r, g, b, _] = surface.attenuation_color;
     node.set_attenuation(Color::new(r, g, b, 1.0), surface.attenuation_distance);
+}
+
+/// Whatever rewrites this node's vertices this frame: a rig's joint palette,
+/// and a solver that owns them outright. Both no-op on a node with neither.
+fn deform_node(world: &balaur_core::hecs::World, entity: Entity, slot: &mut Slot) {
+    if let Some(skin) = &slot.skin {
+        pose_mesh(world, entity, skin, slot.palette.as_ref(), &mut slot.node);
+    }
+    slot.solved = crate::skinned_3d::draw_solved(world, entity, slot.solved, &mut slot.node);
 }
 
 /// Pose a skinned mesh for this frame from the rig's joint matrices: handed

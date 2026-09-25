@@ -58,7 +58,9 @@ pub fn component(name) {
     }
     if name.starts_with("body") || name.starts_with("collider")
         || name.starts_with("character") || name.starts_with("joint")
-        || name == "ragdoll" || name == "vehicle" {
+        || name.starts_with("softbody") || name.starts_with("wheel")
+        || name.starts_with("vehicle") || name == "tile_collision"
+        || name == "ragdoll" {
         return (persona("phys"), "node_phys");
     }
     if name.starts_with("camera") || name == "light" || name == "environment" {

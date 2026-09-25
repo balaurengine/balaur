@@ -13,7 +13,7 @@ const LABEL_W = 82.0;
 // A section heading that folds its rows away on click. Returns whether the
 // caller should draw them; the fold state lives on `S.collapsed` beside the
 // tree's, under an `inspector/` key so the two never collide.
-fn section(S, k, title) {
+pub fn section(S, k, title) {
     let key = format!("inspector/{}", title);
     let open = !S.collapsed.contains_key(key);
     let (mark, tint) = icons::component(title.to_lowercase());
@@ -57,6 +57,49 @@ fn fold_row_with(S, role, open, text, icon, icon_color, toggle, extra) {
 
 // The host the pool builds the rows on, and the hatch a drawn row names.
 const FORM_NODE = "Editor/Shell/Body/Right/RightSheet/RightScroll/RightForm";
+
+/// How many rows the inspector's pool is actually showing.
+///
+/// The spec list says what was asked for; this says what a reader can see, so
+/// a pooled row left hidden is visible to a test rather than only to the eye.
+pub fn drawn_rows() {
+    let host = scene::get_node(FORM_NODE);
+    if util::is_nil(host) {
+        return -1;
+    }
+    let shown = 0;
+    for row in host.children() {
+        if row.get_component("widget", "visible") != false {
+            shown += 1;
+        }
+    }
+    shown
+}
+
+/// Whether the form drew this run at all: a headless run has the nodes but
+/// never lays them out, so nothing has a rect to measure.
+pub fn form_drawn() {
+    let host = scene::get_node(FORM_NODE);
+    if util::is_nil(host) {
+        return false;
+    }
+    let r = ui::widget_rect(host);
+    !util::is_nil(r) && r.w > 0.0
+}
+
+/// The node one form row was drawn on, for a caller that needs where it is on
+/// screen rather than what is in it.
+pub fn form_row_node(at) {
+    let host = scene::get_node(FORM_NODE);
+    if util::is_nil(host) {
+        return ();
+    }
+    let rows = host.children();
+    if at < 0 || at >= rows.len() {
+        return ();
+    }
+    rows[at]
+}
 const ROW_HATCH = "draw_form_row";
 
 /// A form row and the control inside it, taller where a finger picks them.
@@ -124,7 +167,7 @@ fn prop_tip(prop, spec) {
 }
 
 /// A drawn row spanning both columns, for a heading or a note.
-fn wide_row(S, height, body) {
+pub fn wide_row(S, height, body) {
     S.form_draws.push(body);
     push(S, #{ full: true, height: height, draw: ROW_HATCH });
 }
@@ -158,6 +201,10 @@ fn label_w(S) {
 
 // The form's own width, as its rows were last drawn: a frame late, like every
 // box the layout reads back, and the sheet's inside until there is a frame.
+pub fn sheet_w(S) {
+    form_w(S)
+}
+
 fn form_w(S) {
     let host = scene::get_node(FORM_NODE);
     if !util::is_nil(host) {
@@ -1540,6 +1587,54 @@ fn bindings_note(S, k) {
 /// Kahn's order over `expects`: a component is drawn once nothing left still
 /// needs it. A cycle keeps registration order for what is left of it rather
 /// than dropping those sections.
+/// The components a persona shows: those on the selection carrying one of its
+/// tags, plus the ones it names outright.
+///
+/// Read from the tag rather than listed by name: a list is a second place to
+/// keep true, and the one that was here named `body` and `collider` where the
+/// engine registers `body3d` and `collider3d`, so the 3D rows never drew.
+pub fn persona_components(S, wants) {
+    let found_some = model::live(S, S.sel);
+    if found_some.is_none() {
+        found_some = rebind(S);
+    } else if S.rebound >= 0 {
+        // Bound again, so a later failure on this row is retried afresh.
+        S.rebound = -1;
+    }
+    let found = match found_some {
+        Some(found) => found,
+        None => return [],
+    };
+    let out = [];
+    for name in found.component_names() {
+        if util::contains(wants.named, name) {
+            out.push(name);
+            continue;
+        }
+        let tags = util::vec(scene::component_tags(name));
+        for tag in wants.tags {
+            if util::contains(tags, tag) {
+                out.push(name);
+                break;
+            }
+        }
+    }
+    out
+}
+
+// The selected row has no mirror node, so the panel would draw it as a node
+// with nothing on it. Rebind once and say so: a row that stays unbound is a
+// defect, and the log is where it can be read afterwards.
+fn rebind(S) {
+    if S.sel < 0 || S.sel >= S.doc.len() || S.rebound == S.sel {
+        return None;
+    }
+    S.rebound = S.sel;
+    log::warn(format!("inspector: '{}' had no mirror node, rebinding", S.doc[S.sel].name));
+    model::resolve_refs(S);
+    model::live(S, S.sel)
+}
+
 fn ordered_components(S, names) {
     let waiting = #{};
     for name in names {
@@ -1600,7 +1695,9 @@ fn component_sections(S, k, filter) {
         unmet[warning.component] = util::join(util::vec(warning.expects), ", ");
     }
     let query = crate::search::query(S, "inspector");
-    for comp in ordered_components(S, util::vec(found.component_names())) {
+    let all = util::vec(found.component_names());
+    let drew = 0;
+    for comp in ordered_components(S, all) {
         let shown = match filter {
             Some(filter) => util::contains(filter, comp),
             None => true,
@@ -1608,6 +1705,7 @@ fn component_sections(S, k, filter) {
         if !shown {
             continue;
         }
+        drew += 1;
         // Its rows are a table of tables, which no derived editor can draw
         // and the Events view already draws properly.
         if comp == "bindings" {
@@ -1662,7 +1760,7 @@ fn component_sections(S, k, filter) {
             }
             grouped[group].push(prop);
         }
-        order.sort();
+        order.sort_by(|a, b| crate::physics::group_order(a).cmp(crate::physics::group_order(b)));
         for group in order {
             if !subsection(S, comp, group, grouped[group].len()) {
                 continue;
@@ -1672,6 +1770,24 @@ fn component_sections(S, k, filter) {
             }
         }
     }
+    if drew == 0 {
+        empty_note(S, k, all.len(), query);
+    }
+}
+
+// A panel with no section in it says which of the three reasons it is, rather
+// than reading as a node whose components went missing.
+fn empty_note(S, k, carried, query) {
+    let text = if carried == 0 {
+        "this node has no components"
+    } else if query != "" {
+        "no component matches the search"
+    } else {
+        format!("nothing on this node belongs to this persona ({} on others)", carried)
+    };
+    wide_row(S, row_h(S) + 2.0, || {
+        style::empty(k, text);
+    });
 }
 
 fn events_section(S, k) {
@@ -1697,6 +1813,12 @@ fn events_section(S, k) {
 }
 
 pub fn body(S, k) {
+    if S.sel < 0 || S.sel >= S.doc.len() {
+        hide_form();
+        ui::add_space(10);
+        style::empty(k, "nothing selected");
+        return;
+    }
     let node = model::selected_node(S);
     ui::add_space(2);
     ui::horizontal(#{ height: row_h(S) }, || {
@@ -1720,38 +1842,46 @@ pub fn body(S, k) {
     multi_note(S);
     instance_note(S, k);
     instance_source_row(S, k, node);
-    if S.persona == "phys" {
-        component_sections(S, k, Some(["body", "collider", "body2d", "collider2d"]));
-        polygon_section(S, k);
-        script_section(S, k, "Script");
-    } else if S.persona == "script" {
-        script_section(S, k, "Attached script");
-    } else if S.persona == "anim" {
-        skeleton_section(S, k);
-        polygon_section(S, k);
-        animation_section(S, k);
-        component_sections(S, k, Some(["animation", "state_machine", "bone2d", "bone3d", "polygon", "transform"]));
-        script_section(S, k, "Script");
-    } else if S.persona == "ui" {
-        component_sections(S, k, Some(["widget"]));
-        interface_section(S, k);
-        script_section(S, k, "Script");
-    } else {
-        skeleton_section(S, k);
-        polygon_section(S, k);
-        component_sections(S, k, None);
-        script_section(S, k, "Script");
+    let wants = crate::defs::persona_inspector(S.persona);
+    // The sections a persona asks for, in the order the panel reads: what the
+    // node is, then what it is made of.
+    for name in wants.sections {
+        if name == "physics" {
+            crate::physics::actions(S, k);
+        } else if name == "skeleton" {
+            skeleton_section(S, k);
+        } else if name == "polygon" {
+            polygon_section(S, k);
+        } else if name == "animation" {
+            animation_section(S, k);
+        } else if name == "interface" {
+            interface_section(S, k);
+        } else if name == "events" {
+            events_section(S, k);
+        }
     }
-    events_section(S, k);
+    component_sections(S, k, Some(persona_components(S, wants)));
+    for name in wants.sections {
+        if name == "script" {
+            script_section(S, k, "Script");
+        }
+    }
     crate::plugins::draw_sections(S, k, node);
     crate::pool::sync(S, FORM_NODE, S.form, label_w(S), stacked(S));
 }
 
 /// The one control under the scroll, so a long form cannot push it away.
 pub fn foot_controls(S) {
-    [#{
+    // Nothing to add a component to.
+    if S.sel < 0 || S.sel >= S.doc.len() {
+        return [];
+    }
+    // Bound, not returned bare: a `}` with a `[` under it indexes the block
+    // above instead of starting a list.
+    let controls = [#{
         kind: "button", role: "button", height: 30, width: 0.0, grow: 1.0,
         icon: icons::ui("add"), text: "Add component",
         on: |_| { shell::open_palette(S, "add "); },
-    }]
+    }];
+    controls
 }

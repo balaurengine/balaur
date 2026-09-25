@@ -334,7 +334,7 @@ pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
             .map_err(|e| anyhow!("those two shapes cannot be measured: {e}"))
             .map(|d| {
                 let _ = world;
-                Value::Num(f64::from(d))
+                Value::Num(f64::from(d.distance))
             })
         })
     });
@@ -445,7 +445,7 @@ pub(crate) fn install_world_list_api(m: &mut dyn Bindings<Engine>) {
                 second.position(),
                 second.shape(),
             )
-            .map(Value::Bool)
+            .map(|hit| Value::Bool(hit.intersecting))
             .map_err(|e| anyhow!("those two shapes cannot be tested: {e}"))
         })
     });
@@ -479,7 +479,7 @@ fn contact_list(eng: &Engine, node: NodeId) -> Result<Value> {
             ) else {
                 continue;
             };
-            for manifold in &pair.manifolds {
+            for manifold in pair.manifolds() {
                 let normal = manifold.data.normal;
                 for point in &manifold.points {
                     // `local_p1` is in the first collider's own frame, and the
@@ -514,7 +514,7 @@ fn max_contact_impulse(eng: &Engine, node: NodeId) -> Result<Real> {
     let mut max: Real = 0.0;
     for &handle in handles {
         for pair in state.world.contact_pairs_with(handle) {
-            for manifold in &pair.manifolds {
+            for manifold in pair.manifolds() {
                 for point in &manifold.points {
                     max = max.max(point.data.impulse.abs());
                 }

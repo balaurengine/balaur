@@ -1,0 +1,271 @@
+// The Physics persona's section of the inspector: what a node can be given,
+// and the shapes its mesh can be turned into. Every action writes component
+// properties, never geometry; the engine does the work at apply time.
+
+use crate::model;
+use crate::style;
+use crate::util;
+
+/// The physics components a node can be given, per dimension, in the order
+/// the row offers them: what a body is first, what it collides with second,
+/// and the rest after.
+fn addable(two_d) {
+    if two_d {
+        [
+            ["body2d", "Body", "A body physics moves: dynamic, static or kinematic"],
+            ["collider2d", "Collider", "The shape it collides with; without a body it is static geometry"],
+            ["softbody2d", "Soft body", "A deformable body of particles: jelly, cloth, rope"],
+            ["joint2d", "Joint", "Holds this node's body to another's"],
+            ["character2d", "Character", "A controller that walks, climbs steps and slides along walls"],
+        ]
+    } else {
+        [
+            ["body3d", "Body", "A body physics moves: dynamic, static or kinematic"],
+            ["collider3d", "Collider", "The shape it collides with; without a body it is static geometry"],
+            ["softbody3d", "Soft body", "A deformable body of particles: jelly, cloth, rope"],
+            ["joint3d", "Joint", "Holds this node's body to another's"],
+            ["character3d", "Character", "A controller that walks, climbs steps and slides along walls"],
+            ["vehicle3d", "Vehicle", "A raycast car; each wheel is a wheel3d under it"],
+            ["wheel3d", "Wheel", "One wheel of the vehicle3d above it"],
+        ]
+    }
+}
+
+/// The mesh asset a node draws, which is what every shape below is built
+/// from: a `mesh` component's source in 3D, a `polygon`'s in 2D.
+fn drawn_mesh(node, two_d) {
+    if two_d {
+        let found = crate::polygon::component(node);
+        if let Some(polygon) = found {
+            let source = polygon.get("mesh").unwrap_or("");
+            if source != "" {
+                return Some(source);
+            }
+        }
+        return None;
+    }
+    let found = node.get("mesh");
+    if let Some(mesh) = found {
+        let source = mesh.get("source").unwrap_or("");
+        if source != "" {
+            return Some(source);
+        }
+    }
+    None
+}
+
+// The collider shapes a mesh can be turned into: the label, the tooltip that
+// says what it costs, and the properties the action writes.
+fn collider_shapes(two_d) {
+    if two_d {
+        [
+            ["hull", "Convex hull: the smallest convex outline around the points. One shape, fast, and it fills every dent", #{ kind: "convex_hull" }],
+            ["pieces", "Convex decomposition: cut into convex pieces exactly, over a triangulation. The only way a concave shape can be a dynamic body", #{ kind: "convex_decomposition", method: "exact" }],
+            ["approx", "The same cut approximately, over a voxel grid: fewer pieces and faster to solve, at the cost of the outline", #{ kind: "convex_decomposition", method: "vhacd" }],
+            ["trimesh", "The triangles as they are. Exact and concave, but static only: a dynamic trimesh has no inside", #{ kind: "trimesh" }],
+        ]
+    } else {
+        [
+            ["hull", "Convex hull: the smallest convex shape around the points. One shape, fast, and it fills every dent", #{ kind: "convex_hull" }],
+            ["pieces", "Convex decomposition: parry's VHACD cuts the mesh into convex pieces held as one compound. The only way a concave shape can be a dynamic body", #{ kind: "convex_decomposition" }],
+            ["trimesh", "The triangles as they are. Exact and concave, but static only: a dynamic trimesh has no inside", #{ kind: "trimesh" }],
+            ["voxels", "Voxelize: the mesh as filled cells, which a script may dig into while the game runs", #{ kind: "voxelized_mesh" }],
+            ["box", "The axis-aligned box around the mesh: the cheapest shape there is", #{ kind: "fit", fit: "aabb" }],
+            ["obb", "The tightest turned box around the mesh, which beats an axis-aligned one on anything drawn at an angle", #{ kind: "fit", fit: "obb" }],
+        ]
+    }
+}
+
+/// One shape action: the collider is given the mesh and the properties, and
+/// whatever shape it was is replaced.
+fn make_collider(S, two_d, source, props) {
+    let name = if two_d { "collider2d" } else { "collider3d" };
+    let params = #{ mesh: source };
+    for (key, value) in props.iter() {
+        params[key] = value;
+    }
+    model::set_component_props(S, name, params);
+}
+
+/// The Physics section: what this node can be given, and what its mesh can
+/// become. Drawn above the components so the panel reads as "add, then
+/// configure".
+pub fn actions(S, k) {
+    // Rebuilt every frame with the rows, so it never describes an older layout.
+    S.phys_pills = [];
+    if !crate::inspector::section(S, k, "Physics") {
+        return;
+    }
+    let node = model::selected_node(S);
+    let two_d = model::is_2d(S);
+    add_row(S, k, node, two_d);
+    let found = drawn_mesh(node, two_d);
+    if let Some(source) = found {
+        shape_rows(S, k, two_d, source);
+    } else {
+        crate::inspector::form_row(S, "From mesh", []);
+        crate::inspector::wide_row(S, style::row_h(S), || {
+            style::empty(k, if two_d {
+                "give the node a polygon to build shapes from it"
+            } else {
+                "give the node a mesh to build shapes from it"
+            });
+        });
+    }
+}
+
+// A pill is about seven pixels a character plus its padding, until it has
+// been drawn once and measured: `note_pill` records what it really took, and
+// the seventh-of-a-pixel guess is only used for a caption never drawn yet.
+const PILL_PAD = 18.0;
+const CHAR_W = 7.0;
+const LABEL_COL = 62.0;
+const GAP = 5.0;
+
+fn pill_w(S, label) {
+    match S.phys_widths.get(label) {
+        Some(w) => w,
+        None => PILL_PAD + CHAR_W * util::f(label.len()),
+    }
+}
+
+// Cut `items` into the rows that fit, each item measured by `label_of`. The
+// sheet is 308 px at its widest and these rows are five to seven pills long,
+// so one row per action would clip every one of them.
+fn wrapped(S, items, label_of) {
+    let room = crate::inspector::sheet_w(S) - LABEL_COL;
+    let rows = [];
+    let row = [];
+    let used = 0.0;
+    for item in items {
+        let w = pill_w(S, label_of(item)) + GAP;
+        if !row.is_empty() && used + w > room {
+            rows.push(row);
+            row = [];
+            used = 0.0;
+        }
+        row.push(item);
+        used += w;
+    }
+    if !row.is_empty() {
+        rows.push(row);
+    }
+    rows
+}
+
+// One wrapped row of pills, the label on the first. Each pill is measured as
+// it draws: the row's remaining width before and after it bracket it, and
+// `S.phys_pills` keeps the brackets for `selftest::physics_clicks`.
+fn pill_rows(S, k, label, items, label_of, id_of, draw) {
+    let rows = wrapped(S, items, label_of);
+    let first = true;
+    for row in rows {
+        let held = row;
+        let head = if first { label } else { "" };
+        let at = S.form.len();
+        first = false;
+        crate::inspector::wide_row(S, style::row_h(S) + 2.0, || {
+            ui::horizontal(#{ height: style::row_h(S) }, || {
+                let full = ui::available_width();
+                ui::add_space(2);
+                ui::label(head, style::mono_sm(k.faint));
+                ui::add_space(util::max(4.0, LABEL_COL - 2.0 - CHAR_W * util::f(head.len())));
+                for item in held {
+                    let before = ui::available_width();
+                    draw(item);
+                    let after = ui::available_width();
+                    note_pill(S, at, id_of(item), label_of(item), full, before, after);
+                    ui::add_space(GAP);
+                }
+            });
+        });
+    }
+}
+
+/// Where one pill ended up: its form row, what it stands for, and the width
+/// left in the row at the row's start, before it and after it.
+fn note_pill(S, at, id, label, full, before, after) {
+    S.phys_pills.push(#{
+        row: at, id: id, label: label, full: full, from: before, to: after,
+    });
+    S.phys_widths[label] = before - after;
+}
+
+// The pills that give the node a component it does not have yet.
+fn add_row(S, k, node, two_d) {
+    let missing = [];
+    for row in addable(two_d) {
+        if !node.contains_key(row[0]) {
+            missing.push(row);
+        }
+    }
+    if missing.is_empty() {
+        return;
+    }
+    pill_rows(S, k, "Add", missing, |row| row[1], |row| row[0], |row| {
+        let held = row;
+        if ui::pill(held[1], #{
+            role: "row_action", fill: k.sage_soft, color: k.sage,
+            tooltip: format!("{}: {}", held[0], held[2]),
+        }) {
+            model::add_component(S, held[0]);
+        }
+    });
+}
+
+// The shapes the node's mesh can be turned into, and the soft body it can be
+// filled with. Two actions: what it collides as, and what it deforms as.
+fn shape_rows(S, k, two_d, source) {
+    pill_rows(S, k, "Collide as", collider_shapes(two_d), |shape| shape[0], |shape| shape[0], |shape| {
+        let held = shape;
+        if ui::pill(held[0], #{ role: "row_action", tooltip: held[1] }) {
+            make_collider(S, two_d, source, held[2]);
+        }
+    });
+    let filled = if two_d {
+        "Fill the outline with triangles and simulate those: a soft body as coarse as its cell size, which the Shape rows below set"
+    } else {
+        "Fill the mesh with tetrahedra and simulate those: a soft body as coarse as its cell size, which the Shape rows below set. The mesh has to be closed"
+    };
+    let soft = [
+        ["solid", filled, "volumetric", false],
+        ["skinned", "The same, keeping the drawn mesh as the surface the cells carry: a detail the cell size cannot resolve survives, and contacts stay as coarse as the cells", "volumetric", true],
+        ["surface", "Simulate the mesh's own vertices and triangles: a sheet or a shell rather than a filled body, and no cell size to choose", "trimesh", false],
+    ];
+    pill_rows(S, k, "Deform as", soft, |row| row[0], |row| row[0], |row| {
+        let held = row;
+        if ui::pill(held[0], #{
+            role: "row_action", fill: k.sage_soft, color: k.sage, tooltip: held[1],
+        }) {
+            let name = if two_d { "softbody2d" } else { "softbody3d" };
+            model::set_component_props(S, name, #{
+                kind: held[2], mesh: source, skin: held[3],
+            });
+        }
+    });
+}
+
+/// How the inspector orders a physics component's property groups.
+///
+/// A soft body has nine of them and alphabetical put `elasticity` above
+/// `shape`, which is the one an author sets first. Named here so the order
+/// is the order the work is done in.
+pub fn group_order(group) {
+    match group {
+        "shape" => 0,
+        "stiffness" => 1,
+        "elasticity" => 2,
+        "volume" => 3,
+        "plasticity" => 4,
+        "tearing" => 5,
+        "particles" => 6,
+        "mass" => 7,
+        "surface" => 8,
+        "contacts" => 9,
+        "motion" => 10,
+        "limits" => 11,
+        "motor" => 12,
+        "filtering" => 13,
+        _ => 7,
+    }
+}

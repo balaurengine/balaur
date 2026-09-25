@@ -181,10 +181,12 @@ pub(crate) fn cut_groups(
         if !batchable(renderable, global) {
             continue;
         }
-        // A cloner draws its node many times already, and a morph deforms one
-        // node's vertices: both are the object's, and an instance has neither.
+        // A cloner draws its node many times already, and a morph or a
+        // solver deforms one node's vertices: all three are the object's, and
+        // an instance has none of them.
         if world.get::<&crate::Clones>(entity).is_ok()
             || world.get::<&crate::MorphWeights>(entity).is_ok()
+            || world.get::<&balaur_core::mesh::SolvedMesh>(entity).is_ok()
         {
             continue;
         }
@@ -258,8 +260,9 @@ fn build_group(
 ) -> Option<Group3d> {
     let head = *members.first()?;
     let renderable = world.get::<&Renderable3d>(head).ok()?;
+    // Never a solver's mesh: one is kept off the batch path above.
     let (mut node, skin, _geometry, lods) =
-        crate::kiss3d_backend::geometry::build_node(app, scene, &renderable)?;
+        crate::kiss3d_backend::geometry::build_node(app, scene, &renderable, head)?;
     // A skinned mesh is posed on its own node and a model with levels of
     // detail swaps geometry as the eye moves; neither can share an object.
     if skin.is_some() || lods.is_some() {

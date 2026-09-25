@@ -41,6 +41,31 @@ pub fn persona_name(id) {
     id
 }
 
+/// What the inspector keeps per persona: the component tags it shows, the
+/// components it names outright, and the hand-written sections beside them.
+///
+/// Tags rather than names, so a plugin's component joins the persona it
+/// declared a tag for without the editor knowing it exists. `transform` is
+/// named because it carries only `2d`/`3d`, which every physics and animation
+/// component carries too.
+pub fn persona_inspector(id) {
+    match id {
+        "script" => #{ tags: [], named: [], sections: ["script", "events"] },
+        "anim" => #{
+            tags: ["animation"], named: ["transform"],
+            sections: ["skeleton", "polygon", "animation"],
+        },
+        "phys" => #{ tags: ["physics"], named: [], sections: ["physics"] },
+        "ui" => #{ tags: ["ui"], named: [], sections: ["interface"] },
+        // Scene is what a scene is built of, and the one persona that also
+        // shows the script a node carries: a scene file holds it.
+        _ => #{
+            tags: ["render", "interaction", "audio"], named: ["transform"],
+            sections: ["skeleton", "polygon", "script"],
+        },
+    }
+}
+
 // Only tools something reads: a button that sets `S.tool` and is then ignored
 // advertises an editor that does not exist. Re-add each on its `gizmo` handler.
 pub fn tools(persona) {

@@ -68,6 +68,7 @@ being built, marked `done`, never back in the shipped one.
 | **The User data dock** — the files a game keeps for its player, saves and prefs among them, opened as trees and edited in place. | 0.2 done | [PLAN-gamend.md#2b-the-gamend-dock-the-server-target-and-logs](PLAN-gamend.md#2b-the-gamend-dock-the-server-target-and-logs) |
 | **Curve editor and onion skin** — tangent handles on keys, and ghosted neighbouring frames in the timeline. | 0.3 | [PLAN-editor.md#curve-editor-and-onion-skin](PLAN-editor.md#curve-editor-and-onion-skin) |
 | **Selection, alignment and a library** — multi-select, align and distribute, gizmos, a Pen tool, a material panel, an Events view, a Cost dock, and `editor/library`. | 0.1 done | no plan |
+| **The Physics panel** — every physics component on one panel, and a mesh turned into a hull, convex pieces, voxels or a soft body in one click. | 0.2 done | no plan |
 | **Multiplayer dock and Play as two** — a second instance of the game started from the editor, with each link and its stats in a dock. | 0.4 | [PLAN-multiplayer.md#3-steps](PLAN-multiplayer.md#3-steps) |
 | **The editor in a browser** — a project kept on Gamend rather than only in the browser, and native targets exported from a tab. | 0.6 | [PLAN-web-editor.md](PLAN-web-editor.md) |
 | **A green `main`** — the same outputs on every machine, a bad file an error rather than a crash, and documents that match the code. | (0.2) | [PLAN-hardening.md](PLAN-hardening.md) |
@@ -110,9 +111,9 @@ being built, marked `done`, never back in the shipped one.
 | **Rapier in 2D and 3D** — bodies, joints, character controllers, the query pipeline, collision events, ray-cast vehicles, and every collider shape including editable voxels. | 0.1 done | no plan |
 | **Concave 2D colliders** — a concave polygon cut into overlapping convex pieces, so nothing wedges into a seam, and imported Godot collision polygons keep their shape. | 0.2 done | [PLAN-convex-decomposition.md](PLAN-convex-decomposition.md) |
 | **Rigs and animation** — 2D and 3D skeletons with five modifiers each, GPU skinning, deform and morph tracks, retargeting through a `bone_map`, ragdolls, tweens, crossfades and state machines. | 0.1 done | no plan |
-| **Soft bodies** — `softbody2d` and `softbody3d`: a deformable mesh with stiffness, damping and pressure, drawn down the skinning path, on the fixed step. | 0.7 | [PLAN-physics.md#soft-bodies](PLAN-physics.md#soft-bodies) |
-| **Cloth and rope** — a sheet that hangs and a rope of linked segments over the same solver, pinned to a node and cut by a script. | 0.7 | [PLAN-physics.md#cloth-and-rope](PLAN-physics.md#cloth-and-rope) |
-| **Tearing** — a threshold on a soft body: past it the body splits into two bodies and two meshes, mid-step and in the digest. | 0.9 | [PLAN-physics.md#tearing](PLAN-physics.md#tearing) |
+| **Soft bodies** — `softbody2d` and `softbody3d`: particles and elastic cells from a mesh or a generator, with plasticity, drawn from the solver. | 0.7 done | [PLAN-physics.md#soft-bodies](PLAN-physics.md#soft-bodies) |
+| **Cloth and rope** — `cloth`, `cloth_tube` and `rope` layouts of a soft body, held in place by the particle indices `pinned` names. | 0.7 done | [PLAN-physics.md#cloth-and-rope](PLAN-physics.md#cloth-and-rope) |
+| **Tearing** — `tear_strain` and `tear_force` on a soft body: past either, its elements break mid-step, and the node's `on_tear` runs. | 0.9 done | [PLAN-physics.md#tearing](PLAN-physics.md#tearing) |
 | **Falling sand** — a 2D cellular grid of sand, water, lava and fire, in a `balaur_cells` plugin on the fixed step and in the digest. | 0.9 | no plan |
 | **Fluids** — `fluid2d` and `fluid3d`: particles with a rest density and a viscosity, with emitters and drains, drawn as points before a surface. | 0.9 | [PLAN-physics.md#fluids](PLAN-physics.md#fluids) |
 | **Gases and smoke** — a buoyant volume that rises, spreads and cools, read by the renderer as a density field rather than as particles. | 1.0 | [PLAN-physics.md#gases-and-smoke](PLAN-physics.md#gases-and-smoke) |

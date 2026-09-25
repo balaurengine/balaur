@@ -122,6 +122,34 @@ impl Deform {
     }
 }
 
+/// The vertex positions a solver produced this step, in the node's own space.
+///
+/// Written on a node by the physics plugin's soft bodies and read by whatever
+/// draws it, so a deformable body is another source of vertex positions for
+/// the path a skin already goes down. Positions rather than offsets: a soft
+/// body's particles *are* the geometry, and subtracting a rest mesh to add it
+/// back would be two passes over the vertices for nothing.
+///
+/// `topology` is bumped whenever the triangles change and not just the
+/// positions, which is what a tear does; a renderer holding an uploaded mesh
+/// rebuilds it when the number it last saw is not this one.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SolvedMesh {
+    pub positions: Vec<[f32; 3]>,
+    /// Triangles, as indices into `positions`.
+    pub indices: Vec<[u32; 3]>,
+    pub topology: u32,
+}
+
+/// The same in 2D, whose renderer draws a polygon rather than a mesh.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SolvedPolygon {
+    pub positions: Vec<[f32; 2]>,
+    /// Triangles, as indices into `positions`.
+    pub indices: Vec<[u32; 3]>,
+    pub topology: u32,
+}
+
 /// The `kind` a mesh definition names to be built out of a shaped string.
 pub const TEXT_SHAPE_KIND: &str = "text";
 

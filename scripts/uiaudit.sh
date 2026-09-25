@@ -68,6 +68,97 @@ check_layout() {
 }
 check_layout
 
+# The Physics panel's pills are measured as they draw, so like the layout
+# assertions they only mean anything in a run that really drew.
+check_pills() {
+  [ ${#only[@]} -eq 0 ] || return 0
+  printf '%-24s ' pills
+  local out
+  out=$("$BALAUR_BIN" edit examples/hello --editor "$editor" --offscreen --frames 60 \
+      --state physclickdemo 2>&1)
+  if echo "$out" | grep -q "selftest FAILED"; then
+    echo FAILED; failed+=(pills)
+  elif ! echo "$out" | grep -q "selftest ok"; then
+    echo "FAILED (checked nothing)"; failed+=(pills)
+  else
+    echo ok
+  fi
+}
+check_pills
+
+# Nothing selected is what a click on empty space leaves, and every panel
+# reads the active row: this draws a whole run without one.
+check_deselect() {
+  [ ${#only[@]} -eq 0 ] || return 0
+  printf '%-24s ' deselect
+  local out
+  out=$("$BALAUR_BIN" edit examples/hello --editor "$editor" --offscreen --frames 90 \
+      --state deselectdemo 2>&1)
+  if echo "$out" | grep -qE "selftest FAILED|ERROR"; then
+    echo FAILED; failed+=(deselect)
+  # The round trip runs over several frames, so a run that stopped early has
+  # to fail rather than pass on the checks it did reach.
+  elif ! echo "$out" | grep -q "selftest deselect: done"; then
+    echo "FAILED (checked nothing)"; failed+=(deselect)
+  else
+    echo ok
+  fi
+}
+check_deselect
+
+# The canvas still takes a click: every viewport tool asks this first, and a
+# test that answers wrongly makes the stage dead without erroring.
+check_viewport() {
+  [ ${#only[@]} -eq 0 ] || return 0
+  printf '%-24s ' viewport
+  local out
+  out=$("$BALAUR_BIN" edit examples/hello --editor "$editor" --offscreen --frames 60 \
+      --state viewportdemo 2>&1)
+  if echo "$out" | grep -qE "selftest FAILED|ERROR"; then
+    echo FAILED; failed+=(viewport)
+  elif ! echo "$out" | grep -q "selftest ok"; then
+    echo "FAILED (checked nothing)"; failed+=(viewport)
+  else
+    echo ok
+  fi
+}
+check_viewport
+
+# A reload keeps the running state, so a field the new scripts read has to be
+# filled in: without it the editor errors every frame after a script is edited.
+check_reload() {
+  [ ${#only[@]} -eq 0 ] || return 0
+  printf '%-24s ' reload
+  local out
+  out=$("$BALAUR_BIN" edit examples/hello --editor "$editor" --offscreen --frames 40 \
+      --state reloaddemo 2>&1)
+  if echo "$out" | grep -qE "selftest FAILED|ERROR"; then
+    echo FAILED; failed+=(reload)
+  elif ! echo "$out" | grep -q "selftest ok"; then
+    echo "FAILED (checked nothing)"; failed+=(reload)
+  else
+    echo ok
+  fi
+}
+check_reload
+
+# The camera keeps its buttons unless something is actually there to press.
+check_camera() {
+  [ ${#only[@]} -eq 0 ] || return 0
+  printf '%-24s ' camera
+  local out
+  out=$("$BALAUR_BIN" edit examples/hello --editor "$editor" --offscreen --frames 60 \
+      --state camerademo 2>&1)
+  if echo "$out" | grep -qE "selftest FAILED|ERROR"; then
+    echo FAILED; failed+=(camera)
+  elif ! echo "$out" | grep -q "selftest ok"; then
+    echo "FAILED (checked nothing)"; failed+=(camera)
+  else
+    echo ok
+  fi
+}
+check_camera
+
 shot 01-scene-3d        examples/hello      "scene,select:Spinner"
 shot 02-scene-2d        examples/angrynerds "scene,select:Bird,zoom:45"
 shot 03-script          examples/hello      "script,select:Spinner"

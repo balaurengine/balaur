@@ -136,6 +136,7 @@ pub struct InputSnapshot {
 enum Fed {
     Key(String, bool),
     Mouse(f32, f32),
+    Scroll(f32, f32),
     Button(usize, bool),
     Touch(u64, f32, f32, TouchPhase),
 }
@@ -159,6 +160,7 @@ impl InputSnapshot {
             match fed {
                 Fed::Key(key, down) => self.key_event(&key, down),
                 Fed::Mouse(x, y) => self.set_mouse_pos(x, y),
+                Fed::Scroll(x, y) => self.add_scroll(x, y),
                 Fed::Button(button, down) => self.mouse_button_event(button, down),
                 Fed::Touch(id, x, y, phase) => self.touch_event(id, x, y, phase),
             }
@@ -848,6 +850,7 @@ fn install_feed_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("feed_key", &[], "(key: string, down: bool)", "Press or release a `KEY_*` key as if the window had reported it: next frame's edge, and the state until the opposite feed."),
         ("feed_mouse", &[], "(x: float, y: float)", "Move the cursor to a window-pixel position as if the window had reported it, from next frame; the delta accumulates for that frame."),
+        ("feed_scroll", &[], "(x: float, y: float)", "Turn the wheel as if the window had reported it, from next frame; adds to that frame's `scroll_delta`."),
         ("feed_mouse_button", &[], "(button: int, down: bool)", "Press or release a `MOUSE_*` button as if the window had reported it, from next frame."),
         ("feed_touch", &[], "(id: int, x: float, y: float, phase: string)", "Put a finger on the screen as if the window had reported it: `phase` is `start`, `move`, `end` or `cancel`, and the position is in the same pixels as `mouse_position`."),
     ]);
@@ -862,6 +865,12 @@ fn install_feed_api(m: &mut dyn Bindings<Engine>) {
         eng.resource::<InputSnapshot>()
             .borrow_mut()
             .feed(Fed::Mouse(x, y));
+        Ok(())
+    });
+    m.function("feed_scroll", |eng: &Engine, (x, y): (f32, f32)| {
+        eng.resource::<InputSnapshot>()
+            .borrow_mut()
+            .feed(Fed::Scroll(x, y));
         Ok(())
     });
     m.function(

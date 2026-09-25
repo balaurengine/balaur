@@ -53,10 +53,10 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("set_camera", &[], "", "Point the 3D camera: the eye position xyz, then the world point it looks at, in world units."),
         ("set_camera_input", &[], "", "Allow or inhibit the backend's own mouse camera controls, so an editor can take the pointer for a drag."),
+        ("camera_input", &[], "()", "Whether the backend's own mouse camera controls are allowed. Scroll zoom is never inhibited; this is the orbit and pan buttons."),
         ("camera_matrix", &[], "", "The camera's projection*view matrix this frame, 16 numbers column-major; all zeros with no window."),
-        ("mouse_ray", &[], "", "The picking ray through the mouse position: its origin xyz then its direction xyz, in world units."),
-        ("pick_ray", &[], "", "The nearest node with a 3D shape that a world-space ray meets, from its origin xyz and direction xyz."),
         ("camera_pose", &[], "", "The camera the renderer actually used: eye xyz, target xyz, vertical fov in radians, HiDPI scale."),
+        ("bounds", &[], "(node: node)", "The box the node's geometry covers in its own space, as a centre xyz and half-extents xyz; nil for a node that draws nothing. A solver's body reports where it is now, not where it was built."),
     ]);
     // Writes `CameraConfig3d`; not an accessor pair with `render.camera_pose`,
     // which reads what the renderer actually did with the request.
@@ -71,13 +71,17 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
             Ok(())
         },
     );
-    // No reader by design (N8): `CameraInputConfig` in the typemap already
-    // holds the flag and windowed backends poll it; add `camera_input` when
-    // a caller actually needs to read it back.
     m.function("set_camera_input", |eng: &Engine, enabled: bool| {
         let config = eng.resource::<CameraInputConfig>();
         config.borrow_mut().enabled = enabled;
         Ok(())
+    });
+    // Read back so a tool can be tested on whether it left the camera the
+    // pointer, which is otherwise only visible by trying to orbit.
+    m.function("camera_input", |eng: &Engine, ()| {
+        let config = eng.resource::<CameraInputConfig>();
+        let enabled = config.borrow().enabled;
+        Ok(enabled)
     });
     // The camera's exact projection*view matrix (column-major, 16
     // numbers): scripts project points precisely as the renderer does.
@@ -86,6 +90,49 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
         let view_proj = cam.borrow().view_proj;
         Ok(view_proj.to_vec())
     });
+    // Eye xyz, target xyz, fov (rad), HiDPI scale; zeros and a scale of one
+    // with no windowed backend. Reads the published snapshot, not `set_camera`.
+    m.function("camera_pose", |eng: &Engine, ()| {
+        let cam = eng.resource::<ViewportSnapshot3d>();
+        let cam = cam.borrow();
+        Ok((
+            cam.eye[0],
+            cam.eye[1],
+            cam.eye[2],
+            cam.target[0],
+            cam.target[1],
+            cam.target[2],
+            cam.fov,
+            cam.scale_factor,
+        ))
+    });
+    // What a node covers, which an authored size cannot say for a mesh or for
+    // a body a solver deforms.
+    m.function("bounds", |eng: &Engine, node: balaur_script::NodeId| {
+        let entity = balaur_core::entity_of(node)?;
+        let world = eng.world();
+        let Ok(renderable) = world.get::<&crate::Renderable3d>(entity) else {
+            return Ok(balaur_script::Value::Nil);
+        };
+        let Some(bounds) = renderable.bounds else {
+            return Ok(balaur_script::Value::Nil);
+        };
+        Ok(balaur_script::Value::List(vec![
+            balaur_script::Value::Vec3(bounds.centre.to_array()),
+            balaur_script::Value::Vec3(bounds.half.to_array()),
+        ]))
+    });
+    install_pick_api(m);
+    install_screenshot_api(m);
+}
+
+/// Picking: the ray through the mouse, and what a ray meets first.
+fn install_pick_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("mouse_ray", &[], "", "The picking ray through the mouse position: its origin xyz then its direction xyz, in world units."),
+        ("pick_ray", &[], "", "The nearest node with a 3D shape that a world-space ray meets, from its origin xyz and direction xyz."),
+        ("pick_ray_at", &[], "", "As `pick_ray`, but `node` and `at`, how far along the ray it was met; nil when the ray meets nothing."),
+    ]);
     // Picking ray through the mouse: origin xyz, direction xyz.
     m.function("mouse_ray", |eng: &Engine, ()| {
         let cam = eng.resource::<ViewportSnapshot3d>();
@@ -111,23 +158,25 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
                 .map(|(entity, _)| balaur_core::node_id_of(entity)))
         },
     );
-    // Eye xyz, target xyz, fov (rad), HiDPI scale; zeros and a scale of one
-    // with no windowed backend. Reads the published snapshot, not `set_camera`.
-    m.function("camera_pose", |eng: &Engine, ()| {
-        let cam = eng.resource::<ViewportSnapshot3d>();
-        let cam = cam.borrow();
-        Ok((
-            cam.eye[0],
-            cam.eye[1],
-            cam.eye[2],
-            cam.target[0],
-            cam.target[1],
-            cam.target[2],
-            cam.fov,
-            cam.scale_factor,
-        ))
-    });
-    install_screenshot_api(m);
+    // The distance too, which `pick_ray` drops: a caller deciding between two
+    // things under the pointer needs to know which one is in front.
+    m.function(
+        "pick_ray_at",
+        |eng: &Engine, (ox, oy, oz, dx, dy, dz): (f64, f64, f64, f64, f64, f64)| {
+            let origin = glamx::Vec3::new(ox as f32, oy as f32, oz as f32);
+            let dir = glamx::Vec3::new(dx as f32, dy as f32, dz as f32);
+            let Some((entity, at)) = crate::pick::along_ray(eng, origin, dir) else {
+                return Ok(balaur_script::Value::Nil);
+            };
+            Ok(balaur_script::Value::Map(vec![
+                (
+                    "node".to_string(),
+                    balaur_script::Value::Node(balaur_core::node_id_of(entity).0),
+                ),
+                ("at".to_string(), balaur_script::Value::Num(f64::from(at))),
+            ]))
+        },
+    );
 }
 
 /// The 2D camera: its target center and zoom, the state it published this
