@@ -143,6 +143,7 @@ fn extended(source: &str, classes: &Classes) -> Option<String> {
 
 /// The `@export`s one file declares itself.
 fn own(source: &str, classes: &Classes) -> Vec<Export> {
+    let aliases = script_aliases(source);
     let mut out = Vec::new();
     let mut pending = false;
     for line in source.lines() {
@@ -154,7 +155,7 @@ fn own(source: &str, classes: &Classes) -> Vec<Export> {
         if !exporting && !pending {
             continue;
         }
-        match parse(line, classes) {
+        match parse(line, classes, &aliases) {
             Some(export) => {
                 out.push(export);
                 pending = false;
@@ -166,8 +167,35 @@ fn own(source: &str, classes: &Classes) -> Vec<Export> {
     out
 }
 
+/// A file's `const Name := preload("res://x.gd")`, each name to the script's
+/// project path: an export typed by one is a node of that script.
+fn script_aliases(source: &str) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    for line in source.lines() {
+        let Some(rest) = line.strip_prefix("const ") else {
+            continue;
+        };
+        let Some((name, value)) = rest.split_once('=') else {
+            continue;
+        };
+        let name = name.trim().trim_end_matches(':').trim();
+        let Some(path) = value
+            .trim()
+            .strip_prefix("preload(\"")
+            .and_then(|v| v.split('"').next())
+        else {
+            continue;
+        };
+        let path = path.strip_prefix("res://").unwrap_or(path);
+        if is_script(path) {
+            out.insert(name.to_string(), path.to_string());
+        }
+    }
+    out
+}
+
 /// `@export var name: Type = value`.
-fn parse(line: &str, classes: &Classes) -> Option<Export> {
+fn parse(line: &str, classes: &Classes, aliases: &BTreeMap<String, String>) -> Option<Export> {
     let at = line.find("var ")?;
     let rest = &line[at + 4..];
     let name: String = rest
@@ -203,7 +231,8 @@ fn parse(line: &str, classes: &Classes) -> Option<Export> {
     } else {
         // A hint the index does not know, `const Profile := preload(..)`
         // standing for a class, still says what it holds by its default.
-        kind_of_hint(&hint, classes).or_else(|| value.and_then(kind_of_constructor))
+        let class = aliases.get(&hint).unwrap_or(&hint);
+        kind_of_hint(class, classes).or_else(|| value.and_then(kind_of_constructor))
     };
     let default = match (kind, written) {
         (Some(Kind::Float), Some(n)) if !n.contains(['.', 'e', 'E']) => format!("{n}.0"),
@@ -816,6 +845,21 @@ mod tests {
             names,
             vec!["close_button=\"\"", "title=\"mine\"", "flag=true"]
         );
+    }
+
+    /// `const Layer := preload("res://layer.gd")` standing for a class: an
+    /// export typed by it holds a node of that script.
+    #[test]
+    fn an_export_typed_by_a_preloaded_script_constant_is_a_node() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("layer.gd"), "extends Control\n").unwrap();
+        let classes = super::class_index(dir.path(), &["layer.gd".to_string()]);
+        let found = exports(
+            "extends Node\nconst Layer := preload(\"res://layer.gd\")\n@export var layer: Layer\n",
+            &classes,
+        );
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].kind, Some(Kind::Node), "{:?}", found[0].kind);
     }
 
     #[test]
