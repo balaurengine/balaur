@@ -935,6 +935,7 @@ fn write_functions(
     write_widget_forwarders(out, &widget_keys);
     write_input_hooks(out, functions);
     write_draw_hook(out, functions);
+    notification::write_notification_hooks(out, functions);
 }
 
 /// What a function does before its own body: an int parameter truncated,
@@ -1159,6 +1160,7 @@ mod draw;
 mod inner;
 mod input;
 mod members;
+mod notification;
 #[cfg(test)]
 mod port_tests;
 #[cfg(test)]

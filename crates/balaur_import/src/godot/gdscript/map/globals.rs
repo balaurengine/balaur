@@ -75,6 +75,19 @@ pub(crate) fn global_constant(name: &str) -> Option<&'static str> {
         "SIZE_EXPAND_FILL" => "3",
         "SIZE_SHRINK_CENTER" => "4",
         "SIZE_SHRINK_END" => "8",
+        // Godot's own numbers: `_notification` compares `what` against them,
+        // and the hooks that call it hand the same ones over.
+        "NOTIFICATION_ENTER_TREE" => "10",
+        "NOTIFICATION_EXIT_TREE" => "11",
+        "NOTIFICATION_READY" => "13",
+        "NOTIFICATION_RESIZED" => "40",
+        "NOTIFICATION_THEME_CHANGED" => "45",
+        "NOTIFICATION_WM_CLOSE_REQUEST" => "1006",
+        "NOTIFICATION_WM_GO_BACK_REQUEST" => "1007",
+        "NOTIFICATION_APPLICATION_RESUMED" => "2014",
+        "NOTIFICATION_APPLICATION_PAUSED" => "2015",
+        "NOTIFICATION_APPLICATION_FOCUS_IN" => "2016",
+        "NOTIFICATION_APPLICATION_FOCUS_OUT" => "2017",
         _ => return None,
     })
 }

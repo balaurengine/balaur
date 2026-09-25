@@ -294,8 +294,10 @@ Three rules belong to the importer rather than the translator:
    (`matches`, `search`, `search_all`, `replace`, `split`, `escape`), which
    the shim's `RegEx` record calls; `Image.new()` + `load` as the texture's
    path. Not built, in balaur terms: `focus_neighbor_*` (the engine moves
-   focus itself) and the app lifecycle notifications (the roadmap's
-   "Suspend and resume"). A page picked on a `tab` is its `change` since
+   focus itself), and `NOTIFICATION_APPLICATION_PAUSED` and `_RESUMED`
+   (the roadmap's "Suspend and resume"). Focus in and out and the close
+   request reach `_notification` through `on_focus_changed` and
+   `on_quit_requested` since 2026-09-25. A page picked on a `tab` is its `change` since
    2026-09-25, carrying the page's name, which `tab_changed` connects to;
    a Godot handler that reads the index gets the name instead. A `MultiMesh` is the node's `cloner`
    in `mode = "list"` over one `polygon` child carrying the mesh, each

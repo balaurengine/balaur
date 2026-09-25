@@ -343,3 +343,24 @@ func probe() -> bool:\n\
     assert!(!out.rune.contains("todo"), "{}", out.rune);
     assert!(out.rune.contains("(gd.truthy)(())"), "{}", out.rune);
 }
+
+#[test]
+fn a_notification_handler_hears_the_engine_s_focus_and_quit_hooks() {
+    let source = "extends Node\n\
+func _notification(what: int) -> void:\n\
+\tif what == NOTIFICATION_APPLICATION_FOCUS_OUT:\n\
+\t\tprint(\"away\")\n\
+\telif what == NOTIFICATION_WM_CLOSE_REQUEST:\n\
+\t\tprint(\"closing\")\n";
+    let out = convert(source, "scripts/pause.gd", &Classes::default());
+    assert!(!out.rune.contains("todo"), "{}", out.rune);
+    for want in [
+        "(gd.same)(what, 2017)",
+        "pub fn on_focus_changed(this, focused) {",
+        "let what = if focused { 2016 } else { 2017 };",
+        "pub fn on_quit_requested(this) {",
+        "let what = 1006;",
+    ] {
+        assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+    }
+}

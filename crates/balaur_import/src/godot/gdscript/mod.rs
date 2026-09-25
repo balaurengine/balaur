@@ -22,7 +22,7 @@ pub(crate) use emit::{
 /// Where the shim lands in a converted project, and the local a body binds it
 /// to.
 pub(crate) const SHIM_PATH: &str = "gd.rn";
-pub(crate) use map::BUILTIN_SIGNALS;
+pub(crate) use map::{BUILTIN_SIGNALS, global_constant};
 pub(crate) use shim::SHIM;
 
 /// One function's body, translated.
