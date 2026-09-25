@@ -957,6 +957,7 @@ fn node_property(node, name) {
         // a script built is a record it never draws with.
         "foldable_group" => get_meta(node, "foldable_group", ()),
         "material" => get_meta(node, "material", ()),
+        "multimesh" => get_meta(node, "multimesh", ()),
         _ => (),
     };
     out
@@ -1040,6 +1041,9 @@ fn set_node_property(node, name, value) {
     } else if name == "zoom" && node.has_component("camera2d") {
         node.patch_component("camera2d", #{ "zoom": float(value.x) * PIXELS });
     } else if name == "foldable_group" || name == "material" {
+        set_meta(node, name, value);
+    } else if name == "multimesh" && value is Object && value.contains_key("__multimesh") {
+        value["node"] = node;
         set_meta(node, name, value);
     } else if name == "shape" && value is Object && value.contains_key("__shape") {
         node.patch_component("collider2d", collider_of(value));
@@ -2144,6 +2148,10 @@ pub fn set_field(owner, name, value) {
                 setter(owner, value);
                 return ();
             }
+        }
+        if name == "instance_count" && owner.contains_key("__multimesh") {
+            multimesh_count(owner, value);
+            return ();
         }
         owner[name] = value;
     }

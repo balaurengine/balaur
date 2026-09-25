@@ -350,6 +350,17 @@ impl Emitter<'_> {
             return None;
         }
         self.uses_shim = true;
+        // A local may hold a value whose fields are read-only, a transform:
+        // the write answers the changed value, which takes the local's place.
+        if let Expr::Field(base, _) = target
+            && let Expr::Name(local) = &**base
+            && self.is_local(local)
+        {
+            return Some(format!(
+                "{pad}{local} = (gd.with_field)({local}, {}, {text});\n",
+                quoted(&field)
+            ));
+        }
         let write = format!("(gd.set_field)({object}, {}, {text})", quoted(&field));
         Some(format!("{pad}{};\n", discardable(&write)))
     }

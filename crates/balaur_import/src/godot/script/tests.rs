@@ -414,7 +414,7 @@ func push(other):\n\
 \tvelocity.y += 1\n";
     let out = convert(source, "scripts/a.gd", &Classes::default());
     for expected in [
-        r#"(gd.set_field)(v, "x", 3)"#,
+        r#"v = (gd.with_field)(v, "x", 3);"#,
         r#"(gd.set_field)(this.velocity, "y", (gd.field)(this.velocity, "y") + 1)"#,
     ] {
         assert!(out.rune.contains(expected), "{expected}\n{}", out.rune);
@@ -1126,6 +1126,35 @@ fn signals_named_as_strings_and_widget_is_connected_translate() {
         "let mine = this.node.has_component(\"widget\");",
         "(gd.environment)(\"HOME\")",
         "|a0| _on_added(a0)",
+    ] {
+        assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+    }
+    assert!(!out.rune.contains("todo"), "{}", out.rune);
+}
+
+#[test]
+fn a_multimesh_and_a_transform_built_field_by_field_translate() {
+    let source = [
+        "extends Node2D",
+        "@export var waves: MultiMeshInstance2D",
+        "func _ready():",
+        "\tvar mm := MultiMesh.new()",
+        "\tvar mesh := ArrayMesh.new()",
+        "\tmm.mesh = mesh",
+        "\twaves.multimesh = mm",
+        "\tvar t := Transform2D()",
+        "\tt.x = Vector2(2.0, 0.0)",
+        "\tt.origin = Vector2(10.0, 20.0)",
+        "\tmm.set_instance_transform_2d(0, t)",
+        "",
+    ]
+    .join("\n");
+    let out = convert(&source, "scripts/waves.gd", &Classes::default());
+    for want in [
+        "(gd.multimesh)()",
+        "(gd.array_mesh)()",
+        "t = (gd.with_field)(t, \"x\", (gd.vec2)(2.0, 0.0));",
+        "t = (gd.with_field)(t, \"origin\",",
     ] {
         assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
     }

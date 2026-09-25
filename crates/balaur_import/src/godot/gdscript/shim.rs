@@ -89,4 +89,62 @@ mod tests {
             "the probe hid itself only if the shim compiled and did the sums"
         );
     }
+
+    /// A multimesh draws each instance as a `polygon` child sharing one mesh,
+    /// placed from a transform a script built axis by axis.
+    #[test]
+    fn a_multimesh_instance_is_a_polygon_child_where_its_transform_puts_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            "[[nodes]]\nid = \"probe\"\nname = \"Probe\"\nscript = { source = \"probe.rn\" }\n",
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let mesh = (gd.array_mesh)();",
+                "    let tri = [(gd.vec3)(0.0, 0.0, 0.0), (gd.vec3)(100.0, 0.0, 0.0), (gd.vec3)(0.0, 100.0, 0.0)];",
+                "    (mesh[\"add_surface_from_arrays\"])(3, [tri]);",
+                "    let mm = (gd.multimesh)();",
+                "    (gd.set_field)(mm, \"mesh\", mesh);",
+                "    (gd.set_field)(mm, \"instance_count\", 2);",
+                "    (gd.set_field)(this.node, \"multimesh\", mm);",
+                "    let t = (gd.transform2d)([]);",
+                "    t = (gd.with_field)(t, \"x\", (gd.vec2)(2.0, 0.0));",
+                "    t = (gd.with_field)(t, \"origin\", (gd.vec2)(300.0, 0.0));",
+                "    (mm[\"set_instance_transform_2d\"])(1, t);",
+                "    let child = this.node.get_node(\"instance_1\");",
+                "    let x = child.transform.position.x;",
+                "    let sx = child.transform.scale.x;",
+                "    if child.has_component(\"polygon\") && x == 3.0 && sx == 2.0 {",
+                "        this.node.set_visible(false);",
+                "    }",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert!(
+            !world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .visible,
+            "the probe hid itself only if instance 1 is a polygon at x 3 scaled 2"
+        );
+    }
 }

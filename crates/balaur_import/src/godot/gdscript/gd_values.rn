@@ -1662,3 +1662,106 @@ fn regexp_match(found) {
     m["get_group_count"] = || found["groups"].len() as i64;
     m
 }
+
+/// Godot's `ArrayMesh.new()`: the triangles `add_surface_from_arrays` hands
+/// it, in units, as the inline `mesh` asset a `polygon` draws.
+pub fn array_mesh() {
+    let mesh = #{ "__mesh": true, "positions": [], "indices": [] };
+    mesh["add_surface_from_arrays"] = |primitive, arrays| {
+        let base = mesh["positions"].len();
+        let vertices = arrays[0];
+        for v in vertices {
+            let at = units_of(v);
+            mesh["positions"].push([at[0], at[1]]);
+        }
+        for i in 0..vertices.len() {
+            mesh["indices"].push(base + i);
+        }
+    };
+    mesh
+}
+
+/// Godot's `MultiMesh.new()`: one mesh drawn once per instance. Each instance
+/// is a `polygon` child of the node holding it, all sharing one mesh, which
+/// the renderer draws as one call.
+pub fn multimesh() {
+    let mm = #{ "__multimesh": true, "mesh": (), "instance_count": 0, "node": (), "made": [] };
+    mm["set_instance_transform_2d"] = |idx, t| {
+        let child = multimesh_instance(mm, idx);
+        if !is_nil(child) {
+            place_instance(child, t);
+        }
+    };
+    mm["set_instance_color"] = |idx, c| {
+        let child = multimesh_instance(mm, idx);
+        if !is_nil(child) {
+            set_tint(child, c);
+        }
+    };
+    mm
+}
+
+/// The child standing for instance `idx`, made on first use; nil past the
+/// instance count or before the multimesh has a node and a mesh.
+fn multimesh_instance(mm, idx) {
+    let node = mm["node"];
+    if !(node is balaur::Node) || is_nil(mm["mesh"]) || idx >= mm["instance_count"] {
+        return ();
+    }
+    let name = `instance_${idx}`;
+    let child = node.get_node(name);
+    if is_nil(child) {
+        child = node.add_child(name);
+        mm["made"].push(child);
+        let mesh = mm["mesh"];
+        let shape = #{ "type": "mesh", "positions": mesh["positions"], "indices": mesh["indices"] };
+        child.patch_component("polygon", #{ "mesh": shape });
+    }
+    child.set_visible(true);
+    child
+}
+
+/// A Godot `Transform2D` in pixels, as a child's position, scale and turn.
+fn place_instance(child, t) {
+    let c = t.to_cols_array();
+    set_position(child, vec2(c[4], c[5]));
+    let sx = math::sqrt(c[0] * c[0] + c[1] * c[1]);
+    let sy = math::sqrt(c[2] * c[2] + c[3] * c[3]);
+    child.transform.scale = [sx, sy, 1.0];
+    set_rotation(child, math::atan2(c[1], c[0]));
+}
+
+/// A new instance count: instances past it are hidden, and come back when a
+/// transform reaches them again.
+pub fn multimesh_count(mm, count) {
+    mm["instance_count"] = count;
+    let idx = 0;
+    for child in mm["made"] {
+        if idx >= count {
+            child.set_visible(false);
+        }
+        idx += 1;
+    }
+}
+
+/// `local.field = value` on a value a script holds: the changed value, the
+/// same one for a node, a table or a vector, a new one for a `Transform2d`,
+/// whose axes are read-only.
+pub fn with_field(owner, name, value) {
+    if owner is balaur::Transform2d {
+        let c = owner.to_cols_array();
+        let x = vec2(c[0], c[1]);
+        let y = vec2(c[2], c[3]);
+        let o = vec2(c[4], c[5]);
+        if name == "x" {
+            x = vec_of(value);
+        } else if name == "y" {
+            y = vec_of(value);
+        } else if name == "origin" {
+            o = vec_of(value);
+        }
+        return balaur::Transform2d::from_cols(x, y, o);
+    }
+    set_field(owner, name, value);
+    owner
+}

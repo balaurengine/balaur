@@ -281,6 +281,8 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
         ("JSON", "parse_string") => format!("json::parse({one})"),
         ("JSON", "new") => "(gd.json_object)()".into(),
         ("Shader", "new") => "(gd.shader)()".into(),
+        ("ArrayMesh", "new") => "(gd.array_mesh)()".into(),
+        ("MultiMesh", "new") => "(gd.multimesh)()".into(),
         ("RegEx", "new") => "(gd.regexp)()".into(),
         ("RegEx", "create_from_string") => format!("(gd.regexp_of)({one})"),
         // A texture is a path here, so an image loaded from one is that path.
