@@ -904,6 +904,41 @@ pub fn relative_file(S, value) {
     value
 }
 
+/// Hand the view to the game's own cameras, or take it back.
+///
+/// A `camera3d` drives the view whenever it is `current`, and the mirror
+/// carries the game's. While editing that is the editor's view to own: left
+/// alone, the scene's camera is written over the viewport's every frame, so
+/// an orbit or a zoom is undone as fast as it is made.
+pub fn hold_game_cameras(S, playing) {
+    if !(S.mirror is balaur::Node) || !S.mirror.is_valid() {
+        return;
+    }
+    for found in S.mirror.descendants() {
+        for name in ["camera3d", "camera2d"] {
+            if !found.has_component(name) {
+                continue;
+            }
+            // What the document says when the game runs, and never while the
+            // editor is the one looking.
+            let wanted = playing && authored_current(S, found, name);
+            found.patch_component(name, #{ current: wanted });
+        }
+    }
+}
+
+// Whether the document's own node asked to be the current camera.
+fn authored_current(S, found, name) {
+    let id = found.stable_id();
+    for node in S.doc {
+        if node.get("id").unwrap_or("") == id {
+            let params = util::obj(node.get(name).unwrap_or(#{}));
+            return params.get("current").unwrap_or(true) == true;
+        }
+    }
+    true
+}
+
 pub fn build_mirror(S) {
     // Before the world goes: a game script still attached would get one more
     // update against bodies `physics::clear` has already removed.
@@ -926,6 +961,7 @@ pub fn build_mirror(S) {
     scene::instantiate(toml::encode(building), S.mirror, #{ scripts: false });
     physics::set_paused(true);
     S.playing = false;
+    hold_game_cameras(S, false);
     S.refs = [];
     let unresolved = 0;
     for node in S.doc {

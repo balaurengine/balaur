@@ -800,6 +800,7 @@ fn install_feed_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("feed_key", &[], "(key: string, down: bool)", "Press or release a `KEY_*` key as if the window had reported it; the edge lasts this frame, the state until the opposite feed."),
         ("feed_mouse", &[], "(x: float, y: float)", "Move the cursor to a window-pixel position as if the window had reported it; the delta accumulates for this frame."),
+        ("feed_scroll", &[], "(x: float, y: float)", "Turn the wheel as if the window had reported it; adds to this frame's `scroll_delta`."),
         ("feed_mouse_button", &[], "(button: int, down: bool)", "Press or release a `MOUSE_*` button as if the window had reported it."),
         ("feed_touch", &[], "(id: int, x: float, y: float, phase: string)", "Put a finger on the screen as if the window had reported it: `phase` is `start`, `move`, `end` or `cancel`, and the position is in the same pixels as `mouse_position`."),
     ]);
@@ -814,6 +815,12 @@ fn install_feed_api(m: &mut dyn Bindings<Engine>) {
         eng.resource::<InputSnapshot>()
             .borrow_mut()
             .set_mouse_pos(x, y);
+        Ok(())
+    });
+    m.function("feed_scroll", |eng: &Engine, (x, y): (f32, f32)| {
+        eng.resource::<InputSnapshot>()
+            .borrow_mut()
+            .add_scroll(x, y);
         Ok(())
     });
     m.function(

@@ -257,6 +257,8 @@ pub fn toggle_play(S) {
         // Real play-in-editor: attach the game's scripts to the mirrored
         // nodes (their init sets up physics etc.), then run.
         model::attach_game_scripts(S);
+        // The game looks through its own camera from here.
+        model::hold_game_cameras(S, true);
         S.playing = true;
         crate::docks::show(S, "output");
         // Physics and every animation player start next frame: the one a

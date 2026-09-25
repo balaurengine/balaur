@@ -575,7 +575,7 @@ pub fn physical_bones(S) {
 /// Move killed orbit and pan over the whole stage even with nothing selected
 /// and no handle to press.
 pub fn camera_keeps_pointer(S) {
-    S.camera_check = #{ waited: 0 };
+    S.camera_check = #{ waited: 0, stage: 0, was: 0.0 };
 }
 
 pub fn camera_check_step(S) {
@@ -591,7 +591,11 @@ pub fn camera_check_step(S) {
         }
         return;
     }
-    S.camera_check = ();
+    if d.stage == 1 {
+        camera_dollied(S, d);
+        return;
+    }
+    d.stage = 1;
     let tool = S.tool;
     S.tool = "move";
     crate::selection::clear(S);
@@ -604,6 +608,30 @@ pub fn camera_check_step(S) {
         check(!render::camera_input(), "and takes them once a gizmo is drawn");
     }
     S.tool = tool;
+    // The wheel the editor drives itself, fed into the snapshot it reads: the
+    // backend's camera never sees a mouse event in the editor.
+    let stage = S.layout.stage;
+    let (_, _, _, tx, ty, tz, _, dpi) = render::camera_pose();
+    let (cx, cy) = (stage.x + stage.w / 2.0, stage.y + stage.h / 2.0);
+    input::feed_mouse(cx * S.ui_scale * dpi, cy * S.ui_scale * dpi);
+    let (ex, ey, ez, _, _, _, _, _) = render::camera_pose();
+    d.was = reach(ex, ey, ez, tx, ty, tz);
+    input::feed_scroll(0.0, 3.0);
+    check(crate::viewport::mouse_camera(S), "the wheel over the stage is the camera's");
+}
+
+// How far the eye stands from what it looks at.
+fn reach(ex, ey, ez, tx, ty, tz) {
+    let (ax, ay, az) = (ex - tx, ey - ty, ez - tz);
+    math::sqrt(ax * ax + ay * ay + az * az)
+}
+
+// The pose is published by the backend a frame after it is asked for.
+fn camera_dollied(S, d) {
+    S.camera_check = ();
+    let (ex, ey, ez, tx, ty, tz, _, _) = render::camera_pose();
+    let now = reach(ex, ey, ez, tx, ty, tz);
+    check(now < d.was, format!("and dollies the camera in ({} to {})", d.was, now));
     log::info("selftest camera: done");
 }
 

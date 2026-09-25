@@ -231,6 +231,9 @@ pub fn open(S, name) {
     // world replays the same input into a different game. The mirror is built
     // with every animation player held, and only this lets them run.
     model::attach_game_scripts(S);
+    // Everything play does, this included: a replay whose cameras differ from
+    // the recording's is a different world from tick one.
+    model::hold_game_cameras(S, true);
     S.playing = true;
     crate::docks::show(S, "session");
     // Released on the replay's first frame, as play released the recording's.

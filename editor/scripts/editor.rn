@@ -434,9 +434,9 @@ pub fn update(this, dt) {
     // A replay or a showcase feeds the pointer into the snapshot the viewport
     // tools read, so a drag would follow the feed rather than the mouse.
     if !session::scrubbing(S) && !showcase::feeding(S) {
-        // Two fingers on the stage are the camera's, so a gizmo never sees
-        // the frame they drive and the backend's own orbit stands off.
-        if viewport::camera_gesture(S) {
+        // The camera's own frames: two fingers on the stage, or the mouse
+        // buttons and wheel the editor drives itself. A gizmo never sees one.
+        if viewport::camera_gesture(S) || viewport::mouse_camera(S) {
             render::set_camera_input(false);
         } else {
             gizmo::update(S);
