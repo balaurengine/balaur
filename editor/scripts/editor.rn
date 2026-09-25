@@ -229,6 +229,7 @@ pub fn fresh_state() {
         phys_pills: [],
         viewport_check: (),
         camera_check: (),
+        pool_check: (),
         reselect: (),
         empty_note: (),
         // The row the inspector last rebound, so a row that cannot resolve is
@@ -438,6 +439,9 @@ pub fn update(this, dt) {
     }
     if S.camera_check is Object {
         selftest::camera_check_step(S);
+    }
+    if S.pool_check is Object {
+        selftest::pool_check_step(S);
     }
     if S.settings.demo >= 0 {
         selftest::settings_step(S);

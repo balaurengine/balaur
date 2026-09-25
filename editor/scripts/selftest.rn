@@ -3324,6 +3324,49 @@ fn waited_for_import(S) {
     }
 }
 
+/// A pooled slot that turns from one kind of control into another holds the
+/// old control's value for a pass, and that value is not the reader's edit.
+///
+/// A dropdown's slot spent a frame as a colour row's label, and coming back it
+/// reported the label's `0.20 0.22 0.26 1.00` as a pick: a script by that name.
+pub fn pool_kinds(S) {
+    let root = scene::get_node("Editor");
+    if util::is_nil(root) {
+        log::info("selftest pool: no shell in this run, skipped");
+        return;
+    }
+    root.add_child("PoolCheck").set_component("widget", #{ kind: "row" });
+    S.pool_check = #{ stage: 0, heard: [] };
+}
+
+// One strip a pass, as the inspector does: the host made above resolves by
+// path from the next one.
+pub fn pool_check_step(S) {
+    let d = S.pool_check;
+    if !(d is Object) {
+        return;
+    }
+    let path = "Editor/PoolCheck";
+    let heard = d.heard;
+    let pick = #{ kind: "dropdown", text: "pick", options: ["a", "b"], on: |v| { heard.push(v); } };
+    let stage = d.stage;
+    d.stage = stage + 1;
+    if stage == 0 || stage == 2 || stage == 4 {
+        crate::pool::strip(S, path, [pick]);
+    } else if stage == 1 {
+        crate::pool::strip(S, path, [#{ kind: "label", text: "0.20 0.22 0.26 1.00" }]);
+    } else if stage == 3 {
+        check(heard.is_empty(), format!("a slot that changed kind reports nothing ({:?})", heard));
+        // The control: an edit on a slot that stayed a dropdown still reaches `on`.
+        scene::get_node(path + "/C0").patch_component("widget", #{ text: "b" });
+    } else {
+        S.pool_check = ();
+        check(heard.len() == 1 && heard[0] == "b", format!("and a pick on a dropdown is heard ({:?})", heard));
+        scene::get_node(path).queue_free();
+        log::info("selftest pool: done");
+    }
+}
+
 pub fn rows_step(S) {
     let tree = scene::get_node(TREE_NODE);
     if util::is_nil(tree) {

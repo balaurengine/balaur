@@ -130,10 +130,13 @@ fn apply_control(S, host, key, node, want) {
     // under its slot, and comparing across the two is not a comparison.
     let held = format!("{}:{}", key, carries);
     let fired = false;
+    // A node that was another kind last pass holds that control's value, not
+    // an edit: a label's colour text once reached a dropdown's `on` as a path.
+    let same = node.get_component("widget", "kind") == kind;
     // A submit is a press with a value: true for one frame, and the text the
     // reader left. Read before the value below, so a row that writes on Enter
     // hears it rather than every keystroke.
-    if node.get_component("widget", "submitted") == true {
+    if same && node.get_component("widget", "submitted") == true {
         let found = want.get("on_submit");
         if let Some(act) = found {
             act(node.get_component("widget", "text"));
@@ -142,14 +145,14 @@ fn apply_control(S, host, key, node, want) {
     // One property rather than the table, which is forty keys the pool has no
     // use for. A press is not a value: it is true for one frame and the layer
     // clears it, so there is nothing to write back.
-    if carries == "clicked" {
+    if same && carries == "clicked" {
         if node.get_component("widget", "clicked") == true {
             let found = want.get("on");
             if let Some(act) = found {
                 act(true);
             }
         }
-    } else if carries != "" {
+    } else if same && carries != "" {
         let seen = node.get_component("widget", carries);
         let table = memo(S, host);
         let before = table.get(held);
