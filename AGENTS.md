@@ -112,6 +112,10 @@ called or indexed, and the error names a type from the line above. Bind first:
     if again { prepare(world); }
     work(world);
 
+A line opening with `-` after any block, a loop's included, **subtracts from
+it**: a bare `-1` closing a function after a `while` is `() - 1`. Write
+`return -1;`.
+
 ## Tests
 
 - A test's name is a sentence about behaviour: `freeing_a_node_frees_its_children`,

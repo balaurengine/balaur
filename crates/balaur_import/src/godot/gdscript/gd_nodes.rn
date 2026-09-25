@@ -902,6 +902,8 @@ fn widget_handler_key(name) {
         "text_changed" => "on_change",
         "value_changed" => "on_change",
         "item_selected" => "on_change",
+        "tab_changed" => "on_change",
+        "tab_selected" => "on_change",
         "text_submitted" => "on_submit",
         _ => (),
     }
@@ -973,6 +975,10 @@ fn node_property(node, name) {
         "material" => get_meta(node, "material", ()),
         "multimesh" => get_meta(node, "multimesh", ()),
         "speed_scale" if node.has_component("animation") => float(get(node.get_component("animation"), "speed", 1.0)),
+        "amount" if node.has_component(PARTICLES) => particle_amount(node),
+        "lifetime" if node.has_component(PARTICLES) => get(node.get_component(PARTICLES), name, ()),
+        "emitting" if node.has_component(PARTICLES) => get(node.get_component(PARTICLES), name, ()),
+        "one_shot" if node.has_component(PARTICLES) => get(node.get_component(PARTICLES), name, ()),
         "current_animation" if node.has_component("animation") => {
             let current = node.animation.current();
             if is_nil(current) { "" } else { current }
@@ -1109,6 +1115,8 @@ fn set_node_property(node, name, value) {
         set_meta(node, name, value);
     } else if name == "speed_scale" && node.has_component("animation") {
         node.patch_component("animation", #{ "speed": float(value) });
+    } else if node.has_component(PARTICLES) && ["amount", "lifetime", "emitting", "one_shot"].iter().any(|n| n == name) {
+        set_particles(node, name, value);
     } else if name == "multimesh" && value is Object && value.contains_key("__multimesh") {
         multimesh_attach(value, node);
         set_meta(node, name, value);
@@ -1118,6 +1126,33 @@ fn set_node_property(node, name, value) {
         return false;
     }
     true
+}
+
+const PARTICLES = "particles";
+
+/// Godot's particle count: the engine's `rate` over one `lifetime`.
+fn particle_amount(node) {
+    let particles = node.get_component(PARTICLES);
+    let born = float(get(particles, "rate", 20.0)) * float(get(particles, "lifetime", 1.0));
+    return int(math::round(born));
+}
+
+/// A particle property written in Godot's terms: a count is a rate over the
+/// lifetime, and a new lifetime keeps the count.
+fn set_particles(node, name, value) {
+    let particles = node.get_component(PARTICLES);
+    let lifetime = math::max(float(get(particles, "lifetime", 1.0)), 0.05);
+    let patch = #{};
+    if name == "amount" {
+        patch["rate"] = float(value) / lifetime;
+    } else if name == "lifetime" {
+        let count = float(get(particles, "rate", 20.0)) * lifetime;
+        patch["lifetime"] = float(value);
+        patch["rate"] = count / math::max(float(value), 0.05);
+    } else {
+        patch[name] = value;
+    }
+    node.patch_component(PARTICLES, patch);
 }
 
 /// The `collider2d` keys a shape record describes, in units.
@@ -1293,7 +1328,7 @@ pub async fn wait_signal(owner, name) {
         let event = name;
         if name == "pressed" || name == "button_up" {
             event = "click";
-        } else if ["toggled", "value_changed", "text_changed", "item_selected"].iter().any(|n| n == name) {
+        } else if ["toggled", "value_changed", "text_changed", "item_selected", "tab_changed", "tab_selected"].iter().any(|n| n == name) {
             event = "change";
         } else if name == "text_submitted" {
             event = "submit";
@@ -1583,7 +1618,7 @@ pub fn option_index(node) {
         }
         index += 1;
     }
-    -1
+    return -1;
 }
 
 /// `selected = i` and `select(i)`.

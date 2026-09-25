@@ -173,6 +173,7 @@ def check_rune(path: Path) -> list[Finding]:
     # `match` is, a loop or an item is not.
     opened: list[bool] = []
     closed_value = False
+    closed_any = False
     for i, line in enumerate(path.read_text(errors="replace").splitlines(), 1):
         code = line.split("//")[0]
         # A line opening with `(` or `[` after an `if` or `match` block calls
@@ -181,7 +182,15 @@ def check_rune(path: Path) -> list[Finding]:
             findings.append(Finding(rel, i, "rune-block-call",
                                     "a `}` then `(` or `[` calls or indexes the block above; "
                                     "bind the value first (AGENTS.md)", "ERROR"))
+        # A `-` after any block, a loop's included, subtracts from its value.
+        opener = code.lstrip()
+        if closed_any and opener.startswith("-") and not opener.startswith("->"):
+            findings.append(Finding(rel, i, "rune-block-call",
+                                    "a `}` then a line opening with `-` subtracts from the block "
+                                    "above; write `return -1;` or bind first (AGENTS.md)",
+                                    "ERROR"))
         if code.strip():
+            closed_any = code.rstrip().endswith("}")
             closed_value = False
             bare = STRING_LITERAL.sub('""', code)
             statement = bool(BLOCK_STATEMENT.match(bare))
