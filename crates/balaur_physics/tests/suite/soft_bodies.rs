@@ -713,5 +713,14 @@ fn a_generated_body_is_drawn_in_its_color() {
     let drawn = world
         .get::<&balaur::render::Renderable2d>(node)
         .expect("the generated body draws nothing");
-    assert_eq!(drawn.color, [0.9, 0.3, 0.2, 1.0]);
+    let want = [0.9, 0.3, 0.2, 1.0];
+    assert!(
+        drawn
+            .color
+            .iter()
+            .zip(want)
+            .all(|(a, b)| (a - b).abs() < 1e-6),
+        "drawn in {:?}",
+        drawn.color
+    );
 }

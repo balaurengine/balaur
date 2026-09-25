@@ -177,10 +177,8 @@ fn build_layout(
             local(k::B, [0.0, -1.0]),
             v::f(params, k::PARTICLES, 16.0).max(2.0) as usize,
         ),
-        // The outline alone: a hoop of edges around an inside, which is what
-        // a 2D shape drawn by its border wants to be.
-        // Every triangle edge holds as well, or a vertex inside the outline
-        // is a particle nothing is attached to, and it falls out.
+        // A hoop around an inside; the triangle edges hold too, or a vertex
+        // inside the outline is a particle nothing holds, and it falls out.
         w::SOFT_POLYGON => {
             let (points, indices) = source_mesh(eng, params, pose)?;
             let border = outline(&indices);
