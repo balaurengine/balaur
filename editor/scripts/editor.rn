@@ -217,6 +217,13 @@ pub fn init(this) {
         textedit: textedit::state(),
         rig: rig::state(),
         polygon: polygon::state(),
+        // Where the Physics panel's pills drew this frame, for the selftest
+        // that presses them.
+        phys_pills: [],
+        // What each pill caption measured last time it drew, so the wrap
+        // stops guessing.
+        phys_widths: #{},
+        phys_click: (),
         pen: pen::state(),
         weights: weights::state(),
         bonemap: bonemap::state(),
@@ -396,6 +403,9 @@ pub fn update(this, dt) {
     }
     if S.gesture_demo >= 0 {
         selftest::gesture_step(S);
+    }
+    if S.phys_click is Object {
+        selftest::physics_click_step(S);
     }
     if S.settings.demo >= 0 {
         selftest::settings_step(S);

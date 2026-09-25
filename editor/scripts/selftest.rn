@@ -568,6 +568,125 @@ pub fn physical_bones(S) {
     log::info("selftest physical bones: done");
 }
 
+/// Where the Physics panel's pills really land.
+///
+/// The editor's widgets take their pointer from the window, not from the
+/// input snapshot `input::feed_mouse` writes, so a script cannot press one:
+/// `showcase::click` only looks like it does, and calls the verb itself. What
+/// a script *can* do is read back where each pill drew and how wide it came
+/// out, which is the half that goes wrong on its own — a caption wider than
+/// the row was sized for draws over its neighbour or past the sheet, and the
+/// click then lands on something else.
+///
+/// So: every pill the panel offers is measured, and has to be wide enough to
+/// hit, inside the sheet, and clear of the pill beside it.
+pub fn physics_clicks(S) {
+    shell::set_persona(S, "phys");
+    S.phys_click = #{ waited: 0 };
+}
+
+// Where a recorded pill sits, in design pixels, or `()`. An object rather
+// than a tuple: `util::is_nil` reads Rune's unit as a tuple.
+fn pill_box(S, pill) {
+    let row = crate::inspector::form_row_node(pill.row);
+    if util::is_nil(row) {
+        return ();
+    }
+    let r = ui::widget_rect(row);
+    if util::is_nil(r) || r.w <= 0.0 {
+        return ();
+    }
+    // The row's horizontal starts at its left edge and is `full` wide, so a
+    // width-left of `from` puts the pill's left edge that far in from its end.
+    let left = r.x + pill.full - pill.from;
+    #{ left: left, right: left + (pill.from - pill.to), row: r }
+}
+
+// The smallest pill worth calling hittable. A touch run wants more, and says
+// so through `style::row_h`; this is the floor under either.
+const PILL_MIN_W = 16.0;
+
+pub fn physics_click_step(S) {
+    let d = S.phys_click;
+    if !(d is Object) {
+        return;
+    }
+    // The panel has to have drawn before any of it can be measured, and a
+    // headless run never lays anything out.
+    if S.phys_pills.is_empty() {
+        d.waited = d.waited + 1;
+        if d.waited > 30 {
+            S.phys_click = ();
+            if crate::inspector::form_drawn() {
+                check(false, "the Physics panel drew pills to measure");
+            } else {
+                log::info("selftest physics pills: no UI pass in this run, skipped");
+            }
+        }
+        return;
+    }
+    S.phys_click = ();
+    physics_pills_fit(S);
+    log::info("selftest physics pills: done");
+}
+
+fn physics_pills_fit(S) {
+    let boxes = [];
+    for pill in S.phys_pills {
+        let box = pill_box(S, pill);
+        if !(box is Object) {
+            check(false, format!("{}'s pill reports where it drew", pill.id));
+            continue;
+        }
+        box.id = pill.id;
+        box.row_at = pill.row;
+        boxes.push(box);
+    }
+    check(!boxes.is_empty(), "the panel's pills report where they drew");
+    let narrow = [];
+    let over = [];
+    for box in boxes {
+        if box.right - box.left < PILL_MIN_W {
+            narrow.push(format!("{} ({} px)", box.id, box.right - box.left));
+        }
+        // Past the row's own right edge is a pill the wrap had no room for:
+        // it is drawn clipped, and a click on where it looks to be misses.
+        if box.right > box.row.x + box.row.w + 0.5 {
+            over.push(box.id);
+        }
+    }
+    check(narrow.is_empty(), format!("every pill is wide enough to hit{}", listed(narrow)));
+    check(over.is_empty(), format!("no pill is pushed past its row{}", listed(over)));
+    physics_pills_apart(S, boxes);
+}
+
+// Two pills on one row must not cover the same pixels, or the one underneath
+// can never be clicked.
+fn physics_pills_apart(S, boxes) {
+    let clash = [];
+    for a in boxes {
+        for b in boxes {
+            if a.id == b.id || a.row_at != b.row_at {
+                continue;
+            }
+            if a.left < b.right - 0.5 && b.left < a.right - 0.5 {
+                clash.push(format!("{} over {}", a.id, b.id));
+            }
+        }
+    }
+    check(clash.is_empty(), format!("no two pills share a row's pixels{}", listed(clash)));
+}
+
+// The names behind a failure, so the message says which ones rather than how
+// many. Empty for a check that passed.
+fn listed(names) {
+    if names.is_empty() {
+        ""
+    } else {
+        format!(": {}", util::join(names, ", "))
+    }
+}
+
 /// The Physics panel: what its rows add, what its shape actions write, and
 /// that every property the soft body declares is one the inspector can draw.
 pub fn physics_panel(S) {

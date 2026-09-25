@@ -57,6 +57,31 @@ fn fold_row_with(S, role, open, text, icon, icon_color, toggle, extra) {
 
 // The host the pool builds the rows on, and the hatch a drawn row names.
 const FORM_NODE = "Editor/Shell/Body/Right/RightSheet/RightScroll/RightForm";
+
+/// Whether the form drew this run at all: a headless run has the nodes but
+/// never lays them out, so nothing has a rect to measure.
+pub fn form_drawn() {
+    let host = scene::get_node(FORM_NODE);
+    if util::is_nil(host) {
+        return false;
+    }
+    let r = ui::widget_rect(host);
+    !util::is_nil(r) && r.w > 0.0
+}
+
+/// The node one form row was drawn on, for a caller that needs where it is on
+/// screen rather than what is in it.
+pub fn form_row_node(at) {
+    let host = scene::get_node(FORM_NODE);
+    if util::is_nil(host) {
+        return ();
+    }
+    let rows = host.children();
+    if at < 0 || at >= rows.len() {
+        return ();
+    }
+    rows[at]
+}
 const ROW_HATCH = "draw_form_row";
 
 /// A form row and the control inside it, taller where a finger picks them.
