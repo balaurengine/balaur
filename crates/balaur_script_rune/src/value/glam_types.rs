@@ -352,19 +352,19 @@ pub(crate) fn install(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     int_ops!(m, IVec2, I64Vec2);
     int_ops!(m, IVec3, I64Vec3);
     m.associated_function(&P::HASH, |v: &Vec2, h: &mut rune::runtime::Hasher| {
-        v.hash_lanes(h)
+        v.hash_lanes(h);
     })?;
     m.associated_function(&P::HASH, |v: &Vec3, h: &mut rune::runtime::Hasher| {
-        v.hash_lanes(h)
+        v.hash_lanes(h);
     })?;
     m.associated_function(&P::HASH, |v: &Vec4, h: &mut rune::runtime::Hasher| {
-        v.hash_lanes(h)
+        v.hash_lanes(h);
     })?;
     m.associated_function(&P::HASH, |v: &IVec2, h: &mut rune::runtime::Hasher| {
-        v.hash_lanes(h)
+        v.hash_lanes(h);
     })?;
     m.associated_function(&P::HASH, |v: &IVec3, h: &mut rune::runtime::Hasher| {
-        v.hash_lanes(h)
+        v.hash_lanes(h);
     })?;
     m.associated_function(&P::MUL, |q: &Quat, o: rune::Value| vm(quat_mul(q, &o)))?;
     m.associated_function(&P::ADD, |a: &Quat, b: &Quat| Quat::of(a.g() + b.g()))?;
