@@ -292,6 +292,32 @@ fn class_kind(class: &str, classes: &Classes) -> Option<Kind> {
     None
 }
 
+/// Whether the script at `script` is `base` or extends it, by path or by
+/// `class_name`, at any depth.
+pub(crate) fn inherits(classes: &Classes, script: &str, base: &str) -> bool {
+    let mut current = script.to_string();
+    for _ in 0..16 {
+        if current == base {
+            return true;
+        }
+        let Some(target) = crate::godot::io::text(&classes.root.join(&current))
+            .ok()
+            .and_then(|text| extends_target(&text))
+        else {
+            return false;
+        };
+        current = if is_script(&target) {
+            target
+        } else {
+            match classes.files.get(&target) {
+                Some(file) => file.clone(),
+                None => return false,
+            }
+        };
+    }
+    false
+}
+
 /// What a file's `extends` names: a class, or the project path of a script.
 fn extends_target(source: &str) -> Option<String> {
     let line = source.lines().find(|l| l.starts_with("extends "))?;

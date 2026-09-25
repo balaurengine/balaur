@@ -219,7 +219,7 @@ impl Walk<'_> {
         self.classes.insert(path.clone(), class.clone());
         self.write(&path, &class, mapped, &id);
         self.groups(section, index);
-        self.script(section, &path);
+        self.script(section, &path, None);
     }
 
     /// A node that instances another scene: a node of its own holding the
@@ -266,8 +266,9 @@ impl Walk<'_> {
         let mapped = map(&class, section, parent_class, &self.res);
         let id = format!("{}_root", self.ids[path]);
         self.write(path, &class, mapped, &id);
-        self.script(section, path);
-        self.retune(section, path, script_in(&self.res, &outline, ""));
+        let prefab_script = script_in(&self.res, &outline, "");
+        self.script(section, path, prefab_script.as_deref());
+        self.retune(section, path, prefab_script);
         self.instances.insert(path.to_string(), outline);
     }
 
@@ -309,7 +310,7 @@ impl Walk<'_> {
         let mapped = map(&class, section, parent_class, &self.res);
         let id = format!("{}_{}", self.ids[&owner], slug(inner));
         self.write(path, &class, mapped, &id);
-        self.script(section, path);
+        self.script(section, path, None);
         let godot = script_in(&self.res, &self.instances[&owner], inner);
         self.retune(section, path, godot);
     }
@@ -418,7 +419,7 @@ impl Walk<'_> {
 
     /// The node's script, renamed to the `.rn` the script phase writes, and
     /// the values its `@export`s were given here.
-    fn script(&mut self, section: &Section, path: &str) {
+    fn script(&mut self, section: &Section, path: &str, prefab_script: Option<&str>) {
         let Some(reference) = section.field("script") else {
             return;
         };
@@ -433,7 +434,20 @@ impl Walk<'_> {
         if !props.is_empty() {
             script.insert("props".into(), Toml::Table(props));
         }
-        if let Some(table) = self.table(path) {
+        // An override keeps the prefab's values, which Godot keeps only for a
+        // script that still declares them: any other is the node's own script.
+        let classes = &self.res.project.classes;
+        let replaces = match (self.slots.get(path), prefab_script) {
+            (Some(Slot::Override { instance, path }), Some(old)) if path == "." => {
+                (!crate::godot::exports::inherits(classes, &godot, old)).then_some(*instance)
+            }
+            _ => None,
+        };
+        let table = match replaces {
+            Some(instance) => self.nodes.get_mut(instance),
+            None => self.table(path),
+        };
+        if let Some(table) = table {
             table.insert("script".into(), Toml::Table(script));
         }
     }
