@@ -1530,11 +1530,28 @@ pub fn sync_component_doc_at(S, i, name) {
     };
     let data = found.get_component(name);
     if data is Object {
-        node[name] = doc_value(S, name, data, node.get(name));
+        let value = doc_value(S, name, data, node.get(name));
+        if is_held_camera_key(name, "current") {
+            keep_authored(value, node.get(name), "current");
+        }
+        node[name] = value;
     } else {
         node.remove(name);
     }
     record_override(S, node, name);
+}
+
+// `hold_game_cameras` turns every game camera off on the mirror while the
+// editor looks, and the document keeps what the author wrote instead.
+fn keep_authored(value, previous, key) {
+    let authored = match previous {
+        Some(previous) => if previous is Object { previous.get(key) } else { None },
+        None => None,
+    };
+    match authored {
+        Some(was) => { value[key] = was; }
+        None => { value.remove(key); }
+    }
 }
 
 // An edit to a row inside an instance is not written to the file — the row is
@@ -1708,6 +1725,16 @@ fn set_component_prop_at(S, i, name, prop, value) {
             node[name][prop] = value;
         }
     }
+    // The one camera key the editor holds for itself: the author's value goes
+    // to the document, and the mirror keeps the editor looking.
+    if is_held_camera_key(name, prop) && node.contains_key(name) {
+        node[name][prop] = value;
+        hold_game_cameras(S, S.playing);
+    }
+}
+
+fn is_held_camera_key(name, prop) {
+    prop == "current" && (name == "camera3d" || name == "camera2d")
 }
 
 // Where a copy of node `i` goes. A scene has one root, so a copy of the root

@@ -3367,6 +3367,32 @@ fn waited_for_import(S) {
     }
 }
 
+/// Editing a game camera writes what the author set, not the `current =
+/// false` the editor holds every game camera at while it looks.
+pub fn camera_document(S) {
+    let row = S.doc.len();
+    model::add_child(S, None);
+    crate::selection::only(S, row);
+    model::add_component(S, "camera3d");
+    model::hold_game_cameras(S, false);
+    model::set_component_prop(S, "camera3d", "bloom_intensity", 0.5);
+    let written = util::obj(S.doc[row].get("camera3d").unwrap_or(#{}));
+    check(written.get("bloom_intensity").is_some(), "the camera edit reached the document");
+    check(written.get("current").unwrap_or(true) == true,
+        format!("and the document keeps the camera current ({:?})", written.get("current")));
+    // An edit to `current` itself is the author's, and the editor keeps looking.
+    model::set_component_prop(S, "camera3d", "current", false);
+    let written = util::obj(S.doc[row].get("camera3d").unwrap_or(#{}));
+    check(written.get("current") == Some(false), "turning the camera off is written");
+    model::set_component_prop(S, "camera3d", "current", true);
+    let written = util::obj(S.doc[row].get("camera3d").unwrap_or(#{}));
+    check(written.get("current") == Some(true), "and so is turning it back on");
+    let live = model::live(S, row).unwrap();
+    check(live.get_component("camera3d", "current") == false, "while the editor still looks through its own");
+    model::delete_selected(S);
+    log::info("selftest camera document: done");
+}
+
 /// A pooled slot that turns from one kind of control into another holds the
 /// old control's value for a pass, and that value is not the reader's edit.
 ///

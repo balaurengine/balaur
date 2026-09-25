@@ -245,6 +245,7 @@ editor_states() {
   edit_step "$name: library" "$ex" librarydemo
   edit_step "$name: rows" "$ex" rowsdemo
   edit_step "$name: pool" "$ex" pooldemo
+  edit_step "$name: camera document" "$ex" camdocdemo
   printf 'ok\n'
 
   # The Pen: anchors, a handle, the loop closed, and the asset it writes.

@@ -769,6 +769,7 @@ fn states() {
         "librarydemo": crate::selftest::librarydemo,
         "rowsdemo": crate::selftest::row_views,
         "pooldemo": crate::selftest::pool_kinds,
+        "camdocdemo": crate::selftest::camera_document,
         "jobdemo": crate::selftest::importing,
         "pendemo": crate::selftest::pendemo,
         // The editor's half of the plugin seam; `counter.rn` registers the
