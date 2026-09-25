@@ -1149,10 +1149,34 @@ pub fn physics_panel(S) {
     check(schema.contains_key("young_modulus") && schema.contains_key("tear_strain"),
         "the soft body's mechanical rows are in its schema");
     check(mirror_resolves(S), "the scene resolves with a soft body on it");
+    each_from_its_own_mesh(S, two_d, collider);
 
     undo_all(S);
     check(mirror_resolves(S), "the undone scene resolves");
     log::info("selftest physics panel: done");
+}
+
+// Two meshed nodes turned into colliders at once: each is built from its own
+// mesh, not the active row's.
+fn each_from_its_own_mesh(S, two_d, collider) {
+    let meshed = [];
+    for i in 0..S.doc.len() {
+        if crate::physics::drawn_mesh(S.doc[i], two_d).is_some() {
+            meshed.push(i);
+        }
+    }
+    if meshed.len() < 2 {
+        log::info("selftest physics panel: one meshed node, the selection not checked");
+        return;
+    }
+    let pair = [meshed[0], meshed[1]];
+    crate::selection::set(S, pair);
+    crate::physics::make_collider(S, two_d, #{ kind: "convex_hull" });
+    for i in pair {
+        let wrote = util::obj(S.doc[i].get(collider).unwrap_or(#{})).get("mesh");
+        let own = crate::physics::drawn_mesh(S.doc[i], two_d);
+        check(wrote == own, format!("'{}' is built from its own mesh ({:?})", S.doc[i].name, wrote));
+    }
 }
 
 /// The bone map dock: the humanoid guessed against a rig's own names, and

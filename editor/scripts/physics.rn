@@ -33,7 +33,7 @@ fn addable(two_d) {
 
 /// The mesh asset a node draws, which is what every shape below is built
 /// from: a `mesh` component's source in 3D, a `polygon`'s in 2D.
-fn drawn_mesh(node, two_d) {
+pub fn drawn_mesh(node, two_d) {
     if two_d {
         let found = crate::polygon::component(node);
         if let Some(polygon) = found {
@@ -44,12 +44,14 @@ fn drawn_mesh(node, two_d) {
         }
         return None;
     }
+    // A table names its `source`; a plain string is the source itself.
     let found = node.get("mesh");
-    if let Some(mesh) = found {
-        let source = mesh.get("source").unwrap_or("");
-        if source != "" {
-            return Some(source);
-        }
+    let source = match found {
+        Some(mesh) => if mesh is Object { mesh.get("source").unwrap_or("") } else { mesh },
+        None => "",
+    };
+    if source is String && source != "" {
+        return Some(source);
     }
     None
 }
@@ -78,13 +80,24 @@ fn collider_shapes(two_d) {
 
 /// One shape action: the collider is given the mesh and the properties, and
 /// whatever shape it was is replaced.
-fn make_collider(S, two_d, source, props) {
+pub fn make_collider(S, two_d, props) {
     let name = if two_d { "collider2d" } else { "collider3d" };
+    model::set_component_props_each(S, name, |node| with_mesh(node, two_d, props));
+}
+
+// The properties an action writes, on a node's own mesh; `None` for a node
+// in the selection that draws none.
+fn with_mesh(node, two_d, props) {
+    let found = drawn_mesh(node, two_d);
+    let source = match found {
+        Some(source) => source,
+        None => return None,
+    };
     let params = #{ mesh: source };
     for (key, value) in props.iter() {
         params[key] = value;
     }
-    model::set_component_props(S, name, params);
+    Some(params)
 }
 
 /// The Physics section: what this node can be given, and what its mesh can
@@ -100,8 +113,8 @@ pub fn actions(S, k) {
     let two_d = model::is_2d(S);
     add_row(S, k, node, two_d);
     let found = drawn_mesh(node, two_d);
-    if let Some(source) = found {
-        shape_rows(S, k, two_d, source);
+    if found.is_some() {
+        shape_rows(S, k, two_d);
     } else {
         crate::inspector::form_row(S, "From mesh", []);
         crate::inspector::wide_row(S, style::row_h(S), || {
@@ -215,11 +228,11 @@ fn add_row(S, k, node, two_d) {
 
 // The shapes the node's mesh can be turned into, and the soft body it can be
 // filled with. Two actions: what it collides as, and what it deforms as.
-fn shape_rows(S, k, two_d, source) {
+fn shape_rows(S, k, two_d) {
     pill_rows(S, k, "Collide as", collider_shapes(two_d), |shape| shape[0], |shape| shape[0], |shape| {
         let held = shape;
         if ui::pill(held[0], #{ role: "row_action", tooltip: held[1] }) {
-            make_collider(S, two_d, source, held[2]);
+            make_collider(S, two_d, held[2]);
         }
     });
     let filled = if two_d {
@@ -238,9 +251,8 @@ fn shape_rows(S, k, two_d, source) {
             role: "row_action", fill: k.sage_soft, color: k.sage, tooltip: held[1],
         }) {
             let name = if two_d { "softbody2d" } else { "softbody3d" };
-            model::set_component_props(S, name, #{
-                kind: held[2], mesh: source, skin: held[3],
-            });
+            let props = #{ kind: held[2], skin: held[3] };
+            model::set_component_props_each(S, name, |node| with_mesh(node, two_d, props));
         }
     });
 }

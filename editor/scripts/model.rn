@@ -1675,6 +1675,13 @@ pub fn set_component_prop(S, name, prop, value) {
 /// this a convex decomposition" writes three of them, and undo should take
 /// all three back together.
 pub fn set_component_props(S, name, props) {
+    set_component_props_each(S, name, |_| Some(props));
+}
+
+/// As `set_component_props`, with each selected row's own properties:
+/// `props_of(node)` answers them, or `None` to leave that row alone. A shape
+/// built from a mesh is built from each node's mesh, not the active one's.
+pub fn set_component_props_each(S, name, props_of) {
     history::record(S, format!("set {}", name), None);
     for i in selection::all(S) {
         let found = match live(S, i) {
@@ -1682,6 +1689,11 @@ pub fn set_component_props(S, name, props) {
             None => continue,
         };
         let node = S.doc[i];
+        let wanted = props_of(node);
+        let props = match wanted {
+            Some(props) => props,
+            None => continue,
+        };
         let data = util::obj(found.get_component(name));
         let params = doc_value(S, name, data, node.get(name));
         for (prop, value) in props.iter() {
