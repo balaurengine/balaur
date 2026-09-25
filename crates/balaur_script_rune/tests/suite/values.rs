@@ -216,3 +216,21 @@ fn vectors_add_scale_and_measure() {
         assert_eq!(rune.number_field(node, field), Some(want), "{field}");
     }
 }
+
+/// A vector keys a map, as a Godot dictionary keyed by a `Vector2i` does:
+/// the same lanes find the same entry, and zero finds negative zero.
+#[test]
+fn a_vector_keys_a_map_by_its_lanes() {
+    let (_app, node, host) = run("let cells = std::collections::HashMap::new();\n\
+         cells.insert(balaur::Vec2::new(3.0, 4.0), 7);\n\
+         cells.insert(balaur::IVec2::new(1, 2), 9);\n\
+         cells.insert(balaur::Vec2::new(0.0, 1.0), 5);\n\
+         this.found = cells[balaur::Vec2::new(3.0, 4.0)];\n\
+         this.int_found = cells[balaur::IVec2::new(1, 2)];\n\
+         this.zero_found = cells[balaur::Vec2::new(-0.0, 1.0)];\n\
+         this.count = cells.len();");
+    assert_eq!(field(&host, node, "found"), 7.0);
+    assert_eq!(field(&host, node, "int_found"), 9.0);
+    assert_eq!(field(&host, node, "zero_found"), 5.0);
+    assert_eq!(field(&host, node, "count"), 3.0);
+}
