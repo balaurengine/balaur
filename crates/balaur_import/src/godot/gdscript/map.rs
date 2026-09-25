@@ -275,6 +275,8 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
         ("OS", "get_locale" | "get_locale_language") => "strings::locale()".into(),
         ("ConfigFile", "new") => "(gd.config)()".into(),
         ("OS", "get_cmdline_args" | "get_cmdline_user_args") => "engine::args()".into(),
+        ("OS", "get_environment") => format!("(gd.environment)({one})"),
+        ("OS", "has_environment") => format!("(gd.has_environment)({one})"),
         ("JSON", "stringify") => format!("json::encode({one})"),
         ("JSON", "parse_string") => format!("json::parse({one})"),
         ("JSON", "new") => "(gd.json_object)()".into(),

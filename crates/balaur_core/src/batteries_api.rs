@@ -200,6 +200,22 @@ pub(crate) fn rng_int(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Int(v))
 }
 
+/// An environment variable's value; nil when unset, and always on the web,
+/// which has no environment.
+pub(crate) fn environment(_: &Engine, args: &[Value]) -> Result<Value> {
+    let Some(Value::Str(name)) = args.first() else {
+        return Err(anyhow::anyhow!("environment takes a variable's name"));
+    };
+    #[cfg(target_family = "wasm")]
+    let value: Option<String> = {
+        let _ = name;
+        None
+    };
+    #[cfg(not(target_family = "wasm"))]
+    let value = std::env::var(name).ok();
+    Ok(value.map_or(Value::Nil, Value::Str))
+}
+
 pub(crate) fn platform(eng: &Engine, _: &[Value]) -> Result<Value> {
     let facts = crate::facts::platform(eng);
     Ok(Value::Map(vec![

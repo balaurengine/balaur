@@ -22,6 +22,7 @@ pub(crate) fn document_engine(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("tick_hz", &[], "()", "How many fixed steps a second this run takes, from `[time] tick_hz`. 60 unless the project says otherwise."),
         ("quit", &[], "(code: int?)", "Ask the app to shut down; the frame in flight still finishes, and the process exits with `code`, 0 when left out."),
         ("args", &[], "()", "The command-line arguments the app was started with, empty when it was given none."),
+        ("environment", &[], "(name: string) -> string?", "An environment variable's value, nil when it is unset. Nil on the web, which has none. Outside the simulation, like `args`: a replay does not record it."),
         ("reload_script", &[], "(key: string)", "Recompile one script by its project-relative key, for a tool editing files outside the watched root."),
         ("user_data_dir", &[], "()", "A writable per-user directory for saves and settings, created on first call and named after the project."),
         ("user_data_dir_of", &[], "(project: string)", "The user data directory a project of that name has, not created: where a tool finds another game's saves and logs."),

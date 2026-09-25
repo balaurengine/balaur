@@ -2099,6 +2099,25 @@ pub fn cursor_word(shape) {
     }
 }
 
+/// Godot's `OS.get_environment`: "" for a variable that is unset.
+pub fn environment(name) {
+    let value = engine::environment(name);
+    if is_nil(value) { "" } else { value }
+}
+
+pub fn has_environment(name) {
+    !is_nil(engine::environment(name))
+}
+
+/// Whether a widget signal's key names `handler`, which is what connecting
+/// it wrote.
+pub fn widget_connected(node, key, handler) {
+    if !(node is balaur::Node) || !node.has_component("widget") {
+        return false;
+    }
+    get(node.get_component("widget"), key, "") == handler
+}
+
 /// Writing a property on another script, through the setter every converted
 /// script carries.
 pub fn set_field(owner, name, value) {

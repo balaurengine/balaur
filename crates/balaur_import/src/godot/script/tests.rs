@@ -1094,3 +1094,40 @@ fn a_node_s_auto_translate_mode_and_get_stack_translate() {
     assert!(out.rune.contains("let frames = [];"), "{}", out.rune);
     assert!(!out.rune.contains("todo"), "{}", out.rune);
 }
+
+#[test]
+fn signals_named_as_strings_and_widget_is_connected_translate() {
+    let source = [
+        "extends LineEdit",
+        "signal saved",
+        "func _ready():",
+        "\tif not text_changed.is_connected(_on_text_changed):",
+        "\t\ttext_changed.connect(_on_text_changed)",
+        "\tif has_signal(\"editing_toggled\") and not is_connected(\"editing_toggled\", _on_toggled):",
+        "\t\tconnect(\"editing_toggled\", _on_toggled)",
+        "\tvar own = has_signal(\"saved\")",
+        "\tvar mine = has_signal(\"text_submitted\")",
+        "\tvar home = OS.get_environment(\"HOME\")",
+        "static func hook(tree):",
+        "\ttree.node_added.connect(_on_added)",
+        "static func _on_added(node):",
+        "\tpass",
+        "func _on_text_changed(t):",
+        "\tpass",
+        "func _on_toggled(on):",
+        "\tpass",
+        "",
+    ]
+    .join("\n");
+    let out = convert(&source, "scripts/name_edit.gd", &Classes::default());
+    for want in [
+        "(gd.widget_connected)(this.node, \"on_change\", \"_on_text_changed\")",
+        "let own = true;",
+        "let mine = this.node.has_component(\"widget\");",
+        "(gd.environment)(\"HOME\")",
+        "|a0| _on_added(a0)",
+    ] {
+        assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+    }
+    assert!(!out.rune.contains("todo"), "{}", out.rune);
+}

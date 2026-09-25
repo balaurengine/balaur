@@ -811,3 +811,23 @@ fn regex_searches_replaces_and_splits() {
     };
     assert_eq!(all.len(), 2);
 }
+
+#[test]
+fn an_unset_environment_variable_reads_as_nil() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    let read = |name: &str| {
+        call(
+            &app.engine,
+            "engine",
+            "environment",
+            &[Value::Str(name.into())],
+        )
+        .unwrap()
+    };
+    assert_eq!(read("BALAUR_SURELY_UNSET_7F3A"), Value::Nil);
+    assert!(
+        matches!(read("PATH"), Value::Str(_)),
+        "PATH is set wherever tests run"
+    );
+}

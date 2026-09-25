@@ -793,7 +793,7 @@ impl<'a> Emitter<'a> {
     /// local nor a member is a method of the class or its node.
     fn callable_shorthand(&mut self, callee: &Expr, args: &[Expr]) -> Option<String> {
         let Expr::Field(object, verb) = callee else {
-            return None;
+            return self.signal_by_name(callee, args);
         };
         if verb == "bind" {
             return self.callable(&Expr::Call(Box::new(callee.clone()), args.to_vec()));
@@ -807,6 +807,35 @@ impl<'a> Emitter<'a> {
             return Some(self.call(&Expr::Name(name.clone()), args));
         }
         None
+    }
+
+    /// `connect(&"sig", f)` and its kin on the class's own node: the same
+    /// call as `sig.connect(f)`. `has_signal` is decided here, where the
+    /// class's own signals and the widget's are known.
+    fn signal_by_name(&mut self, callee: &Expr, args: &[Expr]) -> Option<String> {
+        let Expr::Name(verb) = callee else {
+            return None;
+        };
+        let Some(Expr::Str(signal)) = args.first() else {
+            return None;
+        };
+        if self.is_local(verb) || self.context.methods.contains(verb) {
+            return None;
+        }
+        match verb.as_str() {
+            "has_signal" if args.len() == 1 => Some(if self.context.signals.contains(signal) {
+                "true".into()
+            } else if map::widget_signal(signal).is_some() {
+                "this.node.has_component(\"widget\")".into()
+            } else {
+                "false".into()
+            }),
+            "connect" | "disconnect" | "is_connected" if args.len() >= 2 => {
+                let named = Expr::Field(Box::new(Expr::Name(signal.clone())), verb.clone());
+                Some(self.call(&named, &args[1..2]))
+            }
+            _ => None,
+        }
     }
 
     fn call(&mut self, callee: &Expr, args: &[Expr]) -> String {
