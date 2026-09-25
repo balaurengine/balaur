@@ -317,7 +317,12 @@ impl<'a> Scanner<'a> {
             if self.done() || self.peek() == Some('[') {
                 return Ok(fields);
             }
-            let key = self.key();
+            // A config file quotes a key with a space in it.
+            let key = if self.peek() == Some('"') {
+                self.string()?
+            } else {
+                self.key()
+            };
             if key.is_empty() {
                 bail!(
                     "line {}: expected a `key = value` or a [section]",
@@ -646,6 +651,21 @@ blurb = "one
 lucky = true
 missing = null
 "#;
+
+    /// `export_presets.cfg` names a preset whose platform has a space in it.
+    #[test]
+    fn a_quoted_key_reads_as_its_text() {
+        let document = parse(
+            "[runnable_presets]\n\nWeb=\"Web\"\n\"Windows Desktop\"=\"Windows Desktop x86_64\"\n",
+        )
+        .expect("a quoted key parses");
+        let presets = document.first("runnable_presets").expect("the section");
+        assert_eq!(
+            presets.field("Windows Desktop").and_then(Value::as_str),
+            Some("Windows Desktop x86_64")
+        );
+        assert_eq!(presets.field("Web").and_then(Value::as_str), Some("Web"));
+    }
 
     #[test]
     fn every_shape_the_format_has_reads_back() {
