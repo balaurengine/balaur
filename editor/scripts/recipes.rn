@@ -1,0 +1,298 @@
+// Turning a node into another kind of node: what it draws becomes what the
+// new kind is built from, in one undo step. A soft body made from a sprite
+// traces the image's opaque outline and bends a polygon textured with it.
+
+use crate::history;
+use crate::model;
+use crate::util;
+
+// The keys a recipe reads off the components it converts.
+const TEXTURE = "texture";
+const PIXELS_PER_UNIT = "pixels_per_unit";
+const HALF_EXTENTS = "half_extents";
+const RADIUS = "radius";
+const COLOR = "color";
+const MESH = "mesh";
+
+// What a soft body replaces on a node: the rigid body and its shape.
+const RIGID_2D = ["body2d", "collider2d", "character2d"];
+const RIGID_3D = ["body3d", "collider3d", "character3d"];
+
+/// What `soft_body` would build from on row `i`, as a word for a menu, or
+/// `None` when the node draws nothing a soft body can be made of.
+pub fn soft_body_source(S, i) {
+    let node = S.doc[i];
+    let usable = if node.contains_key("sprite") {
+        sprite_convertible(node.sprite)
+    } else if node.contains_key("shape2d") {
+        shape2d_kind(node.shape2d).is_some()
+    } else if node.contains_key("shape3d") && mesh_source(node).is_none() {
+        shape3d_kind(node.shape3d).is_some()
+    } else {
+        true
+    };
+    if !usable {
+        return None;
+    }
+    let word = if node.contains_key("sprite") {
+        "sprite"
+    } else if node.contains_key("polygon") {
+        "polygon"
+    } else if node.contains_key("shape2d") || node.contains_key("shape3d") && mesh_source(node).is_none() {
+        "shape"
+    } else if mesh_source(node).is_some() {
+        "mesh"
+    } else {
+        ""
+    };
+    if word == "" { None } else { Some(word) }
+}
+
+/// Make row `i` a soft body built from what it draws, in one undo step;
+/// `false`, with a log line saying why, when it draws nothing to build from.
+pub fn soft_body(S, i) {
+    let source = soft_body_source(S, i);
+    if source.is_none() {
+        log::warn(format!("{} draws nothing a soft body can be made of: give it a sprite, a polygon, a shape or a mesh", S.doc[i].name));
+        return false;
+    }
+    let node = S.doc[i];
+    let two_d = node.contains_key("sprite") || node.contains_key("polygon") || node.contains_key("shape2d");
+    let parts = if two_d { soft_parts_2d(S, node) } else { soft_parts_3d(node) };
+    let parts = match parts {
+        Some(parts) => parts,
+        None => return false,
+    };
+    history::record(S, "make soft body", None);
+    replace(node, if two_d { RIGID_2D } else { RIGID_3D }, parts);
+    model::build_mirror(S);
+    crate::selection::only(S, i);
+    log::info(format!("{} is a soft body now, made from its {}", node.name, source.unwrap()));
+    true
+}
+
+/// Make a sprite on row `i` a polygon textured with the same image and cut
+/// to its opaque outline, in one undo step.
+pub fn sprite_to_polygon(S, i) {
+    let node = S.doc[i];
+    if !node.contains_key("sprite") {
+        return false;
+    }
+    let polygon = match sprite_polygon(S, node.sprite) {
+        Some(polygon) => polygon,
+        None => return false,
+    };
+    history::record(S, "trace sprite", None);
+    replace(node, [], #{ polygon: polygon });
+    node.remove("sprite");
+    model::build_mirror(S);
+    crate::selection::only(S, i);
+    true
+}
+
+// Take `gone` off the node and put `parts` on it; a part named `-key` takes
+// that key off too.
+fn replace(node, gone, parts) {
+    for key in gone {
+        node.remove(key);
+    }
+    for (key, value) in parts.iter() {
+        if key.starts_with("-") {
+            node.remove(key[1..]);
+        } else {
+            node[key] = value;
+        }
+    }
+}
+
+// What a 2D node becomes: its own polygon kept and bent by cells, a sprite
+// traced into one, or a shape turned into the generator that matches it.
+fn soft_parts_2d(S, node) {
+    if node.contains_key("sprite") {
+        let polygon = match sprite_polygon(S, node.sprite) {
+            Some(polygon) => polygon,
+            None => return None,
+        };
+        let points = polygon.mesh.positions;
+        return Some(#{
+            "-sprite": true,
+            polygon: polygon,
+            softbody2d: #{
+                kind: physics2d::SOFT_VOLUMETRIC,
+                mesh: #{ positions: util::copy(points) },
+                cell_size: cell_size(points),
+            },
+        });
+    }
+    if node.contains_key("polygon") {
+        let mesh = node.polygon.get(MESH).unwrap_or("");
+        if mesh is String && mesh == "" {
+            log::warn(format!("{}'s polygon has no mesh yet: trace or draw it first", node.name));
+            return None;
+        }
+        let body = #{ kind: physics2d::SOFT_VOLUMETRIC, mesh: util::copy(mesh) };
+        if mesh is Object {
+            body.cell_size = cell_size(util::vec(mesh.get("positions").unwrap_or([])));
+        }
+        return Some(#{ softbody2d: body });
+    }
+    let shape = node.shape2d;
+    let color = shape.get(COLOR).unwrap_or([0.8, 0.8, 0.8, 1.0]);
+    let kind = shape2d_kind(shape);
+    if kind == Some(render::SHAPE_RECT) {
+        let half = shape.get(HALF_EXTENTS).unwrap_or([0.5, 0.5]);
+        return Some(#{ "-shape2d": true, softbody2d: #{
+            kind: physics2d::SOFT_GRID, half_extents: half, cells: cells_2d(half), color: color,
+        } });
+    }
+    let radius = shape.get(RADIUS).unwrap_or(0.5);
+    Some(#{ "-shape2d": true, softbody2d: #{
+        kind: physics2d::SOFT_DISK, radius: radius, particles: 32.0, color: color,
+    } })
+}
+
+// What a 3D node becomes: a mesh the cells carry as a skin, or a shape turned
+// into the generator that matches it.
+fn soft_parts_3d(node) {
+    let source_some = mesh_source(node);
+    if let Some(source) = source_some {
+        return Some(#{ softbody3d: #{ kind: physics3d::SOFT_VOLUMETRIC, mesh: source, skin: true } });
+    }
+    let shape = node.shape3d;
+    let color = shape.get(COLOR).unwrap_or([0.8, 0.8, 0.8, 1.0]);
+    let kind = shape3d_kind(shape);
+    if kind == Some(render::SHAPE_BALL) {
+        return Some(#{ "-shape3d": true, softbody3d: #{
+            kind: physics3d::SOFT_SPHERE, radius: shape.get(RADIUS).unwrap_or(0.5), color: color,
+        } });
+    }
+    let half = shape.get(HALF_EXTENTS).unwrap_or([0.5, 0.5, 0.5]);
+    if kind == Some(render::SHAPE_PLANE) {
+        return Some(#{ "-shape3d": true, softbody3d: #{
+            kind: physics3d::SOFT_CLOTH, size: [half[0] * 2.0, 0.0, half[2] * 2.0],
+            cells: [12.0, 12.0, 1.0], color: color,
+        } });
+    }
+    Some(#{ "-shape3d": true, softbody3d: #{
+        kind: physics3d::SOFT_CUBOID, half_extents: half, cells: [4.0, 4.0, 4.0], color: color,
+    } })
+}
+
+// A sprite drawn from one whole image converts; one cut from a sheet or a
+// region is a frame of an image, which a trace of the whole would not match.
+fn sprite_convertible(sprite) {
+    sprite.get(TEXTURE).unwrap_or("") != ""
+        && sprite.get("sheet").unwrap_or("") == ""
+        && sprite.get("region_size").is_none()
+}
+
+// The polygon a sprite becomes: the image's opaque outline, traced at the
+// scale the sprite is drawn at, carrying its texture and colour.
+fn sprite_polygon(S, sprite) {
+    if !sprite_convertible(sprite) {
+        log::warn("only a sprite drawing one whole image can be traced, not a sheet's frame or a region");
+        return None;
+    }
+    let texture = sprite.get(TEXTURE).unwrap();
+    let ppu = drawn_scale(S, sprite, texture);
+    let opts = #{ pixels_per_unit: ppu, threshold: 0.5, tolerance: 2.0 };
+    let (ok, out) = script::attempt(|| render::trace_texture(S.game_root + "/" + texture, opts));
+    if !ok {
+        log::warn(format!("tracing {}: {:?}", texture, out));
+        return None;
+    }
+    let loops = util::vec(out);
+    if loops.len() == 0 || util::vec(loops[0]).len() < 3 {
+        log::warn(format!("{} has no opaque pixels to trace", texture));
+        return None;
+    }
+    let points = placed(sprite, util::vec(loops[0]));
+    Some(#{
+        mesh: #{ positions: points },
+        texture: texture,
+        pixels_per_unit: ppu,
+        color: sprite.get(COLOR).unwrap_or([1.0, 1.0, 1.0, 1.0]),
+    })
+}
+
+// The pixels a world unit holds where the sprite is drawn: its own setting, a
+// size it was stretched to, or the texture's import setting.
+fn drawn_scale(S, sprite, texture) {
+    let own = sprite.get(PIXELS_PER_UNIT).unwrap_or(0.0);
+    let half = sprite.get(HALF_EXTENTS);
+    let half_some = half;
+    if let Some(half) = half_some {
+        let (w, _) = render::texture_size(S.game_root + "/" + texture);
+        if half[0] > 0.0 {
+            let stretched = util::f(w) / (half[0] * 2.0);
+            return stretched;
+        }
+    }
+    if own > 0.0 { own } else { render::texture_pixels_per_unit(S.game_root + "/" + texture) }
+}
+
+// A traced outline where the sprite puts its image: flipped as it is, and
+// moved by its offset and by a corner anchor when it is not centred.
+fn placed(sprite, points) {
+    let flip_x = sprite.get("flip_x").unwrap_or(false);
+    let flip_y = sprite.get("flip_y").unwrap_or(false);
+    let offset = sprite.get("offset").unwrap_or([0.0, 0.0]);
+    let out = [];
+    for p in points {
+        let x = if flip_x { 0.0 - p.x } else { p.x };
+        let y = if flip_y { 0.0 - p.y } else { p.y };
+        out.push([x + offset[0], y + offset[1]]);
+    }
+    // A flip reverses the outline's winding, which a fill reads as inside out.
+    if flip_x != flip_y {
+        out.reverse();
+    }
+    out
+}
+
+// A cell about a tenth of the shape's widest side: fine enough to bend, and
+// coarse enough to stay well under the particle cap.
+fn cell_size(points) {
+    let low = [1000000.0, 1000000.0];
+    let high = [-1000000.0, -1000000.0];
+    for p in points {
+        low = [util::min(low[0], p[0]), util::min(low[1], p[1])];
+        high = [util::max(high[0], p[0]), util::max(high[1], p[1])];
+    }
+    let widest = util::max(high[0] - low[0], high[1] - low[1]);
+    util::clamp(widest / 10.0, 0.02, 1.0)
+}
+
+fn cells_2d(half) {
+    let longest = util::max(half[0], half[1]);
+    let per_unit = 8.0 / util::max(longest, 0.01);
+    [util::max(2.0, math::round(half[0] * per_unit)), util::max(2.0, math::round(half[1] * per_unit))]
+}
+
+fn shape2d_kind(shape) {
+    let kind = shape.get("kind").unwrap_or(render::SHAPE_RECT);
+    if kind == render::SHAPE_RECT || kind == render::SHAPE_CIRCLE {
+        Some(kind)
+    } else {
+        None
+    }
+}
+
+fn shape3d_kind(shape) {
+    let kind = shape.get("kind").unwrap_or(render::SHAPE_CUBOID);
+    if kind == render::SHAPE_CUBOID || kind == render::SHAPE_BALL || kind == render::SHAPE_PLANE {
+        Some(kind)
+    } else {
+        None
+    }
+}
+
+// The mesh asset a 3D node draws, when it draws one from a file.
+fn mesh_source(node) {
+    let found = node.get(MESH);
+    let source = match found {
+        Some(mesh) => if mesh is Object { mesh.get("source").unwrap_or("") } else { mesh },
+        None => "",
+    };
+    if source is String && source != "" { Some(source) } else { None }
+}

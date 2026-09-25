@@ -1699,7 +1699,9 @@ pub fn set_component_props_each(S, name, props_of) {
         for (prop, value) in props.iter() {
             params[prop] = value;
         }
-        found.set_component(name, absolute_files(S, params));
+        if !write_live(found, name, absolute_files(S, params)) {
+            continue;
+        }
         sync_component_doc_at(S, i, name);
         // As in `set_component_prop_at`: the document keeps its own spelling
         // of an asset path, so a retyped one is stamped back over.
@@ -1716,6 +1718,14 @@ pub fn set_component_props_each(S, name, props_of) {
     }
 }
 
+// Write a component on a live node; `false` when the component refused it.
+// The document keeps what it had, and the engine keeps why as a warning on
+// the property, which the inspector draws under it.
+fn write_live(found, name, params) {
+    let (ok, _) = script::attempt(|| found.set_component(name, params));
+    ok
+}
+
 fn set_component_prop_at(S, i, name, prop, value) {
     let found = match live(S, i) {
         Some(found) => found,
@@ -1725,7 +1735,9 @@ fn set_component_prop_at(S, i, name, prop, value) {
     let data = util::obj(found.get_component(name));
     let params = doc_value(S, name, data, node.get(name));
     params[prop] = value;
-    found.set_component(name, absolute_files(S, params));
+    if !write_live(found, name, absolute_files(S, params)) {
+        return;
+    }
     sync_component_doc_at(S, i, name);
     // `doc_value` keeps the document's spelling of an asset property, which is
     // exactly wrong for the one property that was just retyped, so it is

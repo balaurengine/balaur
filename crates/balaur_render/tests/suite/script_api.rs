@@ -254,3 +254,58 @@ log::info(`cell ${this.node.tilemap.cell(3, 1)} ${this.node.tilemap.cell(0, 0)} 
     );
     drop(app);
 }
+
+/// The scale a sprite that says 0 is drawn at: the image's own import
+/// setting, else 100. A tool turning a sprite into a polygon traces at it.
+#[test]
+fn a_texture_s_pixels_per_unit_is_its_import_setting_or_the_default() {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    std::fs::create_dir_all(root.join("art")).unwrap();
+    std::fs::create_dir_all(root.join("scripts")).unwrap();
+    let image = image::RgbaImage::from_pixel(8, 8, image::Rgba([255, 0, 0, 255]));
+    image.save(root.join("art/set.png")).unwrap();
+    image.save(root.join("art/plain.png")).unwrap();
+    std::fs::write(
+        root.join("art/set.png.import.toml"),
+        "pixels_per_unit = 64.0\n",
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("project.toml"),
+        "[application]\nname = \"r\"\nmain_scene = \"main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("main.toml"),
+        "[[nodes]]\nid = \"n\"\nname = \"N\"\nscript = { source = \"scripts/s.rn\" }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("scripts/s.rn"),
+        r#"pub fn init(this) {
+    assert!(render::texture_pixels_per_unit("art/set.png") == 64.0, "the import setting was not read");
+    assert!(render::texture_pixels_per_unit("art/plain.png") == 100.0, "an image with none is not at 100");
+    log::error("checked: pixels per unit");
+}
+"#,
+    )
+    .unwrap();
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
+    let mut app = standard_app(AppConfig::dev(root.to_string_lossy().as_ref())).unwrap();
+    app.load_project().unwrap();
+    app.tick(1.0 / 60.0);
+    let errors: Vec<String> = balaur_core::logbuf::recent(50)
+        .into_iter()
+        .filter(|e| e.level.eq_ignore_ascii_case("error"))
+        .map(|e| e.message)
+        .collect();
+    assert!(
+        errors.len() == 1 && errors[0].contains("checked: pixels per unit"),
+        "{errors:#?}"
+    );
+}

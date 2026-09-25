@@ -38,6 +38,7 @@ mod pen;
 mod physics;
 mod plugins;
 mod polygon;
+mod recipes;
 mod pool;
 mod refactor;
 mod rig;
@@ -140,6 +141,7 @@ pub fn fresh_state() {
         // Bumped whenever `S.doc` is replaced, so the outliner can keep a
         // flattened tree across frames instead of rebuilding one each pass.
         doc_rev: 0,
+        inspect_warned: #{},
         tree_cache: #{},
         // The selection set; `S.sel` is its head. Locks are editor state
         // keyed by node id, and isolate hides everything outside the set.
@@ -389,6 +391,7 @@ pub fn update(this, dt) {
     // A sweep is a compile per script, so it waits for typing to stop; the
     // mirror has to be resolved first, since the scene half reads live nodes.
     lint::idle(S);
+    lint::node_warnings(S);
     dropin::update(S);
     let is2d = model::is_2d(S);
     if is2d != S.mode2d {

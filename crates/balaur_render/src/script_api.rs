@@ -684,6 +684,13 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
             "An image's width and height in pixels, read from the file's own header.",
         ),
         (
+            "texture_pixels_per_unit",
+            &[],
+            "(path: string) -> float",
+            "How many of an image's pixels make a world unit when a sprite says 0: its own \
+             `pixels_per_unit` import setting, else 100.",
+        ),
+        (
             "trace_texture",
             &[],
             "(path: string, opts: table) -> list",
@@ -697,6 +704,9 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
     ]);
     m.function("texture_size", |eng: &Engine, path: String| {
         crate::texture::size_of(eng, &path)
+    });
+    m.function("texture_pixels_per_unit", |eng: &Engine, path: String| {
+        Ok(crate::texture::pixels_per_unit(eng, &path))
     });
     m.function(
         "trace_texture",

@@ -11,7 +11,7 @@ use crate::util;
 /// `at` is when the last sweep ran and `typed` when the buffer last changed,
 /// which is what `due` compares to hold a check off until typing stops.
 pub fn state() {
-    #{ found: [], at: -1.0, typed: -1.0, sources: "" }
+    #{ found: [], at: -1.0, typed: -1.0, sources: "", warned: #{}, warned_rev: -1, warned_at: -1000 }
 }
 
 const IDLE = 0.4;
@@ -95,9 +95,8 @@ fn scene_findings(S) {
             continue;
         }
         let found_node = live.unwrap();
-        for warning in util::vec(scene::unmet_expectations(found_node)) {
-            found.push(at(scene, 0, "warning", format!("{}: {} needs one of: {}",
-                node.name, warning.component, util::join(util::vec(warning.expects), ", "))));
+        for warning in util::vec(scene::warnings(found_node)) {
+            found.push(at(scene, 0, "warning", format!("{}: {}", node.name, describe(warning))));
         }
         for comp in found_node.component_names() {
             let schema = model::schema(S, comp);
@@ -127,6 +126,46 @@ fn scene_findings(S) {
         }
     }
     found
+}
+
+/// One engine warning as a line: the component, the property when it names
+/// one, and what is off.
+pub fn describe(warning) {
+    if util::is_nil(warning.property) {
+        format!("{}: {}", warning.component, warning.message)
+    } else {
+        format!("{}.{}: {}", warning.component, warning.property, warning.message)
+    }
+}
+
+// How often every node is asked again with no edit in between: a body the
+// solver just built can warn without anything in the document moving.
+const WARN_FRAMES = 20;
+
+/// Every node's warnings by id, for the tree's mark and the counts. Asked of
+/// the engine when the document moved or every few frames, not every draw.
+pub fn node_warnings(S) {
+    if S.lint.warned_rev == S.doc_rev && S.frame - S.lint.warned_at < WARN_FRAMES {
+        return;
+    }
+    S.lint.warned_rev = S.doc_rev;
+    S.lint.warned_at = S.frame;
+    let out = #{};
+    for (i, node) in S.doc.iter().enumerate() {
+        let live_some = model::live(S, i);
+        if let Some(live) = live_some {
+            let found = util::vec(scene::warnings(live));
+            if found.len() > 0 {
+                out[node.get("id").unwrap_or("")] = found;
+            }
+        }
+    }
+    S.lint.warned = out;
+}
+
+/// The warnings the last ask found on the node with `id`.
+pub fn warned(S, id) {
+    util::vec(S.lint.warned.get(id).unwrap_or([]))
 }
 
 /// Check every root and the scene, and replace the finding list.

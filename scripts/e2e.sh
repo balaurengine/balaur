@@ -246,6 +246,7 @@ editor_states() {
   edit_step "$name: rows" "$ex" rowsdemo
   edit_step "$name: pool" "$ex" pooldemo
   edit_step "$name: camera document" "$ex" camdocdemo
+  edit_step "$name: warnings" "$ex" warndemo
   printf 'ok\n'
 
   # The Pen: anchors, a handle, the loop closed, and the asset it writes.
@@ -364,6 +365,7 @@ for ex in examples/*/; do
   # needs a drawn frame, so that is `uiaudit.sh`'s.
   printf '  phys ...   '
   edit_step "$name: physics panel" "$ex" physdemo
+  edit_step "$name: soft body recipes" "$ex" recipedemo
   printf 'ok\n'
 
 

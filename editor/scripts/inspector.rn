@@ -1041,13 +1041,36 @@ fn holder_row(S, k, at, spec, note, add) {
     push(S, #{ label: at.label, tooltip: row_tip(at, spec), controls: controls });
 }
 
-/// One property, in whichever of the two rows its spec asks for.
+/// One property, in whichever of the two rows its spec asks for, with what
+/// the engine says is off about it underneath.
 fn property_row(S, k, comp, prop, spec, data) {
     if spec.get("readonly").unwrap_or(false) == true {
         readonly_row(S, prop, spec, data);
     } else {
         prop_row(S, k, comp, prop, spec, data);
     }
+    let notes_some = S.inspect_warned.get(format!("{}.{}", comp, prop));
+    if let Some(notes) = notes_some {
+        for note in notes {
+            warn_note(S, note);
+        }
+    }
+}
+
+// A full-width line of warning text under whatever row came before it.
+fn warn_note(S, text) {
+    push(S, #{ full: true, height: 0, controls: [#{
+        kind: "label", role: "note_warning", grow: 1, wrap: true, text: format!("⚠ {}", text),
+    }] });
+}
+
+fn has_prop_warning(by_prop, comp) {
+    for key in by_prop.keys() {
+        if key.starts_with(comp + ".") {
+            return true;
+        }
+    }
+    false
 }
 
 /// A fold inside a component section, for the properties a schema files under
@@ -1688,14 +1711,37 @@ fn component_sections(S, k, filter) {
         Some(found) => found,
         None => return,
     };
-    // Advisory only: the component is applied and working as far as the
-    // engine is concerned, but it has nothing to act on yet.
-    let unmet = #{};
-    for warning in util::vec(scene::unmet_expectations(found)) {
-        unmet[warning.component] = util::join(util::vec(warning.expects), ", ");
+    // Advisory only: the engine applied what it could, and says what is off.
+    let warned = util::vec(scene::warnings(found));
+    let whole = #{};
+    let by_prop = #{};
+    for warning in warned {
+        if util::is_nil(warning.property) {
+            let list = whole.get(warning.component).unwrap_or([]);
+            list.push(warning.message);
+            whole[warning.component] = list;
+        } else {
+            let key = format!("{}.{}", warning.component, warning.property);
+            let list = by_prop.get(key).unwrap_or([]);
+            list.push(warning.message);
+            by_prop[key] = list;
+        }
     }
+    S.inspect_warned = by_prop;
     let query = crate::search::query(S, "inspector");
     let all = util::vec(found.component_names());
+    // A component this workspace does not draw, or one the node went without
+    // because its write was refused, still says what is off, at the top.
+    for warning in warned {
+        let shown = match filter {
+            Some(filter) => util::contains(filter, warning.component),
+            None => true,
+        };
+        let drawn = util::contains(all, warning.component) && shown;
+        if !drawn {
+            warn_note(S, crate::lint::describe(warning));
+        }
+    }
     let drew = 0;
     for comp in ordered_components(S, all) {
         let shown = match filter {
@@ -1722,7 +1768,9 @@ fn component_sections(S, k, filter) {
         let open = !S.collapsed.contains_key(key);
         let held = comp;
         let (mark, tint) = icons::component(held);
-        fold_row_with(S, "section", open, held.to_uppercase(), mark,
+        let flagged = whole.contains_key(held) || has_prop_warning(by_prop, held);
+        let title = if flagged { held.to_uppercase() + "  ⚠" } else { held.to_uppercase() };
+        fold_row_with(S, "section", open, title, mark,
             k.get(tint).unwrap_or(k.text_muted), || {
                 if open {
                     S.collapsed[key] = true;
@@ -1737,11 +1785,10 @@ fn component_sections(S, k, filter) {
         if !open {
             continue;
         }
-        if let Some(needs) = unmet.get(comp) {
-            push(S, #{ full: true, height: 0, controls: [#{
-                kind: "label", role: "note_warning", grow: 1, wrap: true,
-                text: format!("⚠ needs one of: {}", needs),
-            }] });
+        if let Some(notes) = whole.get(comp) {
+            for note in notes {
+                warn_note(S, note);
+            }
         }
         let schema = model::schema(S, comp);
         let data = util::obj(found.get_component(comp));

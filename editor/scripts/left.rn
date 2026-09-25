@@ -267,7 +267,8 @@ fn show_tree(S, k, rows) {
         // The type's own colour on the row, which is what a mark alone
         // cannot say: 2D, 3D, UI and physics each read at a glance. The id is
         // the row's key: two nodes may share a name, never a row.
-        line += util::cells([mark, node.name, "", k.get(token).unwrap_or(k.text_default), node.id]);
+        let note = if crate::lint::warned(S, node.id).len() > 0 { "⚠" } else { "" };
+        line += util::cells([mark, node.name, note, k.get(token).unwrap_or(k.text_default), node.id]);
         items.push(line);
     }
     let params = util::obj(found.get_component("widget"));

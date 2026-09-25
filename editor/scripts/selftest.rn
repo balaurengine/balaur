@@ -3460,6 +3460,85 @@ pub fn camera_document(S) {
     log::info("selftest camera document: done");
 }
 
+/// A node made a soft body from what it draws, in one undo step: a sprite is
+/// traced into a textured polygon the cells bend, a shape becomes the
+/// generator that matches it, and undo puts the node back.
+pub fn soft_recipes(S) {
+    let sprite_row = None;
+    let shape_row = None;
+    for i in 0..S.doc.len() {
+        let source = crate::recipes::soft_body_source(S, i);
+        if source == Some("sprite") && sprite_row.is_none() {
+            sprite_row = Some(i);
+        }
+        if source == Some("shape") && shape_row.is_none() {
+            shape_row = Some(i);
+        }
+    }
+    if sprite_row.is_none() && shape_row.is_none() {
+        log::info("selftest recipes: nothing here to make a soft body of, skipped");
+        return;
+    }
+    if let Some(row) = sprite_row {
+        check(crate::recipes::soft_body(S, row), "a sprite becomes a soft body");
+        let node = S.doc[row];
+        check(!node.contains_key("sprite") && node.contains_key("polygon") && node.contains_key("softbody2d"),
+            "drawn by a polygon of the image, bent by a soft body");
+        let drawn = util::vec(node.polygon.mesh.positions).len();
+        let built = util::vec(node.softbody2d.mesh.positions).len();
+        check(drawn >= 3 && drawn == built,
+            format!("the body is built from the outline the polygon draws ({} of {})", built, drawn));
+        let bad = [];
+        for warning in util::vec(scene::warnings(model::live(S, row).unwrap())) {
+            bad.push(warning.message);
+        }
+        check(bad.is_empty(), format!("and the node has nothing to warn about ({:?})", bad));
+        undo_all(S);
+        check(S.doc[row].contains_key("sprite") && !S.doc[row].contains_key("softbody2d"),
+            "undo puts the sprite back");
+    }
+    if let Some(row) = shape_row {
+        let two_d = S.doc[row].contains_key("shape2d");
+        check(crate::recipes::soft_body(S, row), "a shape becomes a soft body");
+        let body = if two_d { "softbody2d" } else { "softbody3d" };
+        let shape = if two_d { "shape2d" } else { "shape3d" };
+        check(S.doc[row].contains_key(body) && !S.doc[row].contains_key(shape),
+            format!("the {} became a {} of its size", shape, body));
+        check(model::live(S, row).unwrap().has_component(body), "and the live node has it");
+        undo_all(S);
+    }
+    log::info("selftest recipes: done");
+}
+
+/// What the engine says is off reaches the editor: a mark on the tree's row,
+/// and a refused write that leaves the document as it was and names the
+/// property it was refused on, rather than throwing out of the inspector.
+pub fn warning_marks(S) {
+    let row = S.doc.len();
+    model::add_child(S, None);
+    crate::selection::only(S, row);
+    model::add_component(S, "body2d");
+    S.lint.warned_rev = -1;
+    crate::lint::node_warnings(S);
+    let id = S.doc[row].id;
+    check(crate::lint::warned(S, id).len() > 0,
+        format!("a body nothing collides with marks its row ({:?})", crate::lint::warned(S, id)));
+    model::add_component(S, "softbody2d");
+    let before = util::obj(S.doc[row].get("softbody2d").unwrap_or(#{})).get("cells");
+    model::set_component_prop(S, "softbody2d", "cells", [5000.0, 5000.0]);
+    let after = util::obj(S.doc[row].get("softbody2d").unwrap_or(#{})).get("cells");
+    check(after == before, format!("a refused write leaves the document as it was ({:?})", after));
+    let named = [];
+    for warning in util::vec(scene::warnings(model::live(S, row).unwrap())) {
+        if !util::is_nil(warning.property) {
+            named.push(warning.property);
+        }
+    }
+    check(util::contains(named, "cells"), format!("and the warning names the property ({:?})", named));
+    model::delete_selected(S);
+    log::info("selftest warnings: done");
+}
+
 /// A pooled slot that turns from one kind of control into another holds the
 /// old control's value for a pass, and that value is not the reader's edit.
 ///
