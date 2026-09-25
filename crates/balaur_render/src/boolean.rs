@@ -38,6 +38,7 @@ pub(crate) struct Boolean2d {
 /// What a boolean's schema offers.
 fn schema(name: &str) -> ComponentDef {
     ComponentDef {
+        warnings: None,
         doc: "",
         schema: ComponentDef::parse_schema(
             name,

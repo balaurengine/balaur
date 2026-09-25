@@ -583,6 +583,7 @@ pub(crate) fn register_camera_components(reg: &mut Registry<'_>) {
     reg.register_component(
         "camera3d",
         ComponentDef {
+            warnings: None,
             doc: "The perspective camera the scene is drawn from. `look_at` aims it, and the last `current` camera wins.",
             schema: ComponentDef::parse_schema(
                 "camera3d",
@@ -635,6 +636,7 @@ pub(crate) fn register_camera_components(reg: &mut Registry<'_>) {
     reg.register_component(
         "camera2d",
         ComponentDef {
+            warnings: None,
             doc: "The orthographic camera a flat scene is drawn from. `zoom` scales it, `ambient` lights every 2D surface, and the last `current` camera wins.",
             schema: ComponentDef::parse_schema(
                 "camera2d",

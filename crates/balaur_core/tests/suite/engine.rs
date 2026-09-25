@@ -135,6 +135,7 @@ fn app_with_mark() -> App {
     app.register_component(
         "mark",
         balaur_core::components::ComponentDef {
+            warnings: None,
             doc: "",
             schema: balaur_core::components::ComponentDef::parse_schema(
                 "mark",

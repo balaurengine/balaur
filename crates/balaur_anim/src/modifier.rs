@@ -242,6 +242,7 @@ pub(crate) fn register_modifier2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "modifier2d",
         ComponentDef {
+            warnings: None,
             doc: DOC_2D,
             schema: ComponentDef::parse_schema("modifier2d", &schema()),
             tags: &[
@@ -274,6 +275,7 @@ pub(crate) fn register_modifier3d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "modifier3d",
         ComponentDef {
+            warnings: None,
             doc: DOC_3D,
             schema: ComponentDef::parse_schema("modifier3d", &schema()),
             tags: &[

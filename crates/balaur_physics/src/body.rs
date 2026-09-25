@@ -702,6 +702,26 @@ pub(crate) fn install_body_sleep_api(m: &mut dyn Bindings<Engine>) {
     });
 }
 
+/// A dynamic body that nothing collides with: no collider on the node or
+/// under it, so it falls through everything.
+fn body_warnings(eng: &Engine, entity: Entity) -> Vec<balaur_core::warnings::Warning> {
+    let state = eng.resource::<crate::PhysicsState3d>();
+    let state = state.borrow();
+    let body = state
+        .bodies
+        .get(&entity)
+        .and_then(|&handle| state.world.bodies.get(handle));
+    match body {
+        Some(body) if body.is_dynamic() && body.colliders().is_empty() => {
+            vec![balaur_core::warnings::Warning::whole(format!(
+                "nothing collides with it: add a {} to the node or a child, or it falls through everything",
+                c::COLLIDER_3D
+            ))]
+        }
+        _ => Vec::new(),
+    }
+}
+
 /// The `body3d` key. Not backed by a component type: it writes into
 /// [`crate::PhysicsState3d`].
 pub(crate) fn register_body_component(reg: &mut Registry<'_>) {
@@ -723,6 +743,7 @@ pub(crate) fn register_body_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::BODY_3D,
         ComponentDef {
+            warnings: Some(Box::new(body_warnings)),
             doc: "A 3D rigid body simulated by rapier. `kind` is `dynamic`, `static`, `kinematic` or `kinematic_velocity`; add a `collider3d` for its shape.",
             schema: ComponentDef::parse_schema(c::BODY_3D, &schema),
             tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],

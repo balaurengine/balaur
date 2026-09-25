@@ -89,6 +89,7 @@ pub mod transform;
 pub mod transport;
 pub mod triangulate;
 pub mod variables;
+pub mod warnings;
 pub mod voxels;
 
 pub use app::{

@@ -23,6 +23,7 @@ fn app_in(dir: &std::path::Path) -> App {
     app.register_component(
         "marker",
         ComponentDef {
+            warnings: None,
             doc: "",
             schema: ComponentDef::parse_schema(
                 "marker",

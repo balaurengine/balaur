@@ -436,6 +436,11 @@ pub(crate) mod component {
     pub(crate) const VEHICLE_3D: &str = "vehicle3d";
     pub(crate) const SOFTBODY_3D: &str = "softbody3d";
     pub(crate) const SOFTBODY_2D: &str = "softbody2d";
+    /// What a 2D node can be drawn by: a soft body bends a polygon, and the
+    /// rest stay rigid over it. Render's own names, spelled again because
+    /// physics does not depend on the renderer.
+    pub(crate) const POLYGON: &str = "polygon";
+    pub(crate) const RIGID_2D_DRAWERS: &[&str] = &["sprite", "shape2d", "text2d"];
 }
 
 /// The script methods physics calls on a node.

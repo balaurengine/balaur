@@ -205,8 +205,8 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "scene",
-        name: "unmet_expectations",
-        call: unmet_expectations,
+        name: "warnings",
+        call: warnings,
     },
     EngineOp {
         module: "scene",
@@ -919,8 +919,8 @@ fn component_tags(eng: &Engine, args: &[Value]) -> Result<Value> {
 }
 
 /// What a component declares it needs something from, for a tool ordering or
-/// grouping its sections. `unmet_expectations` answers the same question about
-/// one node; this answers it about the type.
+/// grouping its sections. `warnings` says whether one node meets it; this
+/// answers it about the type.
 fn component_expects(eng: &Engine, args: &[Value]) -> Result<Value> {
     let registry = eng.resource::<crate::components::ComponentRegistry>();
     let registry = registry.borrow();
@@ -977,21 +977,19 @@ fn apply_preset(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
-/// Components on this node whose expectations nothing satisfies, as a list of
-/// `{ component, expects }`. Advisory: the editor warns, nothing blocks.
-fn unmet_expectations(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let entity =
-        optional_node(args, 0)?.ok_or_else(|| anyhow!("unmet_expectations needs a node"))?;
+/// What is off about this node, as a list of `{ component, property, message }`
+/// with `property` nil for the component as a whole. Advisory: nothing blocks.
+fn warnings(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let entity = optional_node(args, 0)?.ok_or_else(|| anyhow!("warnings needs a node"))?;
     Ok(Value::List(
-        crate::presets::unmet_expectations(eng, entity)
+        crate::warnings::warnings(eng, entity)
             .into_iter()
-            .map(|(component, expects)| {
+            .map(|found| {
+                let property = found.warning.property.map_or(Value::Nil, Value::Str);
                 Value::Map(vec![
-                    ("component".to_string(), Value::Str(component)),
-                    (
-                        "expects".to_string(),
-                        Value::List(expects.into_iter().map(Value::text).collect()),
-                    ),
+                    ("component".to_string(), Value::Str(found.component)),
+                    ("property".to_string(), property),
+                    ("message".to_string(), Value::Str(found.warning.message)),
                 ])
             })
             .collect(),

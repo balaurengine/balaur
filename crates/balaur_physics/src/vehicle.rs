@@ -248,6 +248,7 @@ pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
     reg.register_component(
         c::VEHICLE_3D,
         ComponentDef {
+            warnings: None,
             doc: "Makes the node's `body3d` a raycast vehicle chassis, driven by the `wheel3d` children under it. `forward_axis` and `up_axis` orient it.",
             schema: ComponentDef::parse_schema(
                 c::VEHICLE_3D,
@@ -276,6 +277,7 @@ pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
     reg.register_component(
         c::WHEEL_3D,
         ComponentDef {
+            warnings: None,
             doc: "One wheel of the `vehicle3d` above it; the node's position on the chassis is where its ray starts. `physics3d.set_engine_force`, `set_brake` and `set_steering` drive it.",
             schema: ComponentDef::parse_schema(
                 c::WHEEL_3D,

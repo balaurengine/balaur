@@ -24,6 +24,7 @@ mod script_api;
 mod settings;
 mod shapes_and_geometry;
 mod soft_bodies;
+mod warnings;
 // The thread count only means anything with the solver on rayon, which is
 // what `parallel` brings in.
 #[cfg(feature = "parallel")]

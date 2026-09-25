@@ -34,6 +34,7 @@ pub(crate) fn register_tile_collision_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::TILE_COLLISION,
         ComponentDef {
+            warnings: None,
             doc: "Collision for the node's `tilemap` cells: every tile the tileset marks solid, one shape per behaviour, with the material keys a `collider2d` takes.",
             schema: ComponentDef::parse_schema(c::TILE_COLLISION, &schema),
             tags: &[

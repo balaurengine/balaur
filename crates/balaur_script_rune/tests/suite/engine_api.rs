@@ -39,6 +39,7 @@ fn marker_component(app: &mut App) {
     app.register_component(
         "marker",
         ComponentDef {
+            warnings: None,
             doc: "Two numbers, for testing that a patch leaves one alone.",
             tags: &["test"],
             expects: &[],

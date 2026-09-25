@@ -102,16 +102,54 @@ pub(crate) use material;
 /// and rapier allocates every particle before a built body could be counted.
 pub(crate) const MAX_PARTICLES: usize = 200_000;
 
-/// Refuse a layout whose particle count, worked out from its parameters
-/// before anything is built, is past the cap.
-pub(crate) fn refuse_past_cap(particles: f64) -> anyhow::Result<()> {
+/// Refuse a layout of `kind` whose particle count, worked out from its
+/// parameters before anything is built, is past the cap.
+pub(crate) fn refuse_past_cap(particles: f64, kind: &str) -> anyhow::Result<()> {
     if particles.is_nan() || particles > MAX_PARTICLES as f64 {
+        let advice = cap_advice(kind);
         return Err(anyhow::anyhow!(
-            "that would be {particles:.0} particles, past the {MAX_PARTICLES} a body may have: use fewer cells, or a larger cell size"
+            "that would be {particles:.0} particles, past the {MAX_PARTICLES} a body may have: {advice}"
         ));
     }
     Ok(())
 }
+
+/// What to change for fewer particles, which depends on what the layout reads.
+fn cap_advice(kind: &str) -> String {
+    use crate::vocabulary::{keys as k, words as w};
+    match kind {
+        w::VOLUMETRIC => format!("raise {}", k::CELL_SIZE),
+        w::ROPE_SOFT | w::DISK => format!("lower {}", k::PARTICLES),
+        w::SPHERE => format!("lower {}", k::SUBDIVISIONS),
+        w::SURFACE_MESH | w::SOFT_POLYGON | w::POLYLINE => {
+            format!("build it from a {} with fewer points", k::MESH)
+        }
+        _ => format!("lower {}", k::CELLS),
+    }
+}
+
+/// How many particles a rope or a disk's rim has when `particles` is not set.
+pub(crate) const DEFAULT_PARTICLES: f32 = 16.0;
+/// The fewest particles a chain holds: its two ends.
+pub(crate) const MIN_CHAIN_PARTICLES: f32 = 2.0;
+/// The fewest a closed ring holds.
+pub(crate) const MIN_RING_PARTICLES: f32 = 3.0;
+
+/// The particle count `particles` asks for, and at least `least`.
+pub(crate) fn particle_count(params: &toml::Value, least: f32) -> f64 {
+    let asked = crate::vocabulary::f(
+        params,
+        crate::vocabulary::keys::PARTICLES,
+        DEFAULT_PARTICLES,
+    );
+    f64::from(asked.max(least)).floor()
+}
+
+/// What a body with nothing of its own to deform is drawn in.
+pub(crate) const DEFAULT_COLOR: [f32; 4] = [0.8, 0.8, 0.8, 1.0];
+
+/// A particle radius past this share of the body's width reads as hovering.
+const HOVER_FRACTION: f32 = 0.1;
 
 /// The particles along an axis `cells` cells long, as the generators count
 /// them: one more than the cells between them.
@@ -126,4 +164,18 @@ pub(crate) fn grid_particles(extents: &[f32], size: f32) -> f64 {
         .iter()
         .map(|extent| (f64::from(*extent) / f64::from(size)).ceil().max(0.0) + 1.0)
         .product()
+}
+
+/// A particle radius the layout worked out that is large against the body,
+/// which leaves it resting that far above whatever it lands on.
+pub(crate) fn hovering(radius: f32, widest: f32) -> Option<balaur_core::warnings::Warning> {
+    let key = crate::vocabulary::keys::PARTICLE_RADIUS;
+    (widest > 0.0 && radius > HOVER_FRACTION * widest).then(|| {
+        balaur_core::warnings::Warning::on(
+            key,
+            format!(
+                "the particles are {radius:.2} thick on a body {widest:.2} wide, so it rests that far above what it lands on: set a smaller {key}"
+            ),
+        )
+    })
 }

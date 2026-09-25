@@ -533,6 +533,7 @@ pub(crate) fn register_material_component(reg: &mut Registry<'_>) {
     reg.register_component(
         MATERIAL_COMPONENT,
         ComponentDef {
+            warnings: None,
             doc: "`source` is the `material` asset this node and everything under it draw with. A renderable's own `material` property overrides it for that node alone.",
             schema: ComponentDef::parse_schema(
                 MATERIAL_COMPONENT,

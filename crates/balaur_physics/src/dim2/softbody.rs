@@ -70,7 +70,11 @@ fn shape_schema() -> String {
         ),
         (
             k::PARTICLES,
-            r#"{ type = "float", default = 16.0, min = 2.0, description = "How many particles a rope or the rim of a disk is made of", group = "shape" }"#,
+            &format!(
+                r#"{{ type = "float", default = {:?}, min = {:?}, description = "How many particles a rope or the rim of a disk is made of", group = "shape" }}"#,
+                cap::DEFAULT_PARTICLES,
+                cap::MIN_CHAIN_PARTICLES
+            ),
         ),
         (
             k::MESH,
@@ -152,30 +156,34 @@ fn build_layout(
     let at = pose.translation;
     let local = |key: &str, default: [f32; 2]| pose * scalar::v2a(v::vec2(params, key, default));
     let cells = v::vec2(params, k::CELLS, [4.0, 4.0]);
-    let particles = f64::from(v::f(params, k::PARTICLES, 16.0).max(2.0)).floor();
-    cap::refuse_past_cap(match kind {
-        w::GRID => cap::particles_along(cells[0]) * cap::particles_along(cells[1]),
-        w::DISK | w::ROPE_SOFT => particles,
-        _ => 0.0,
-    })?;
+    let axis = |i: usize| cap::particles_along(cells[i]);
+    cap::refuse_past_cap(
+        match kind {
+            w::GRID => axis(0) * axis(1),
+            w::DISK => cap::particle_count(params, cap::MIN_RING_PARTICLES),
+            w::ROPE_SOFT => cap::particle_count(params, cap::MIN_CHAIN_PARTICLES),
+            _ => 0.0,
+        },
+        kind,
+    )?;
     let builder = match kind {
         // As in 3D: the schema counts cells, rapier counts the particles
         // between them.
         w::GRID => SoftBodyBuilder2::grid(
             at,
             scalar::v2a(v::vec2(params, k::HALF_EXTENTS, [0.5, 0.5])),
-            cells[0].max(1.0) as usize + 1,
-            cells[1].max(1.0) as usize + 1,
+            axis(0) as usize,
+            axis(1) as usize,
         ),
         w::DISK => SoftBodyBuilder2::disk(
             at,
             scalar::real(v::f(params, k::RADIUS, 0.5)),
-            v::f(params, k::PARTICLES, 16.0).max(3.0) as usize,
+            cap::particle_count(params, cap::MIN_RING_PARTICLES) as usize,
         ),
         w::ROPE_SOFT => SoftBodyBuilder2::rope(
             local(k::A, [0.0, 0.0]),
             local(k::B, [0.0, -1.0]),
-            v::f(params, k::PARTICLES, 16.0).max(2.0) as usize,
+            cap::particle_count(params, cap::MIN_CHAIN_PARTICLES) as usize,
         ),
         // A hoop around an inside; the triangle edges hold too, or a vertex
         // inside the outline is a particle nothing holds, and it falls out.
@@ -203,14 +211,14 @@ fn build_layout(
             let (points, indices) = source_mesh(eng, params, pose)?;
             let border = outline(&indices);
             let size = scalar::real(v::f(params, k::CELL_SIZE, 0.25));
-            cap::refuse_past_cap(cap::grid_particles(&extents(&points), size))?;
+            cap::refuse_past_cap(cap::grid_particles(&extents(&points), size), kind)?;
             SoftBodyBuilder2::volumetric_skinned(&points, &border, size).ok_or_else(|| {
                 anyhow!("that outline encloses nothing at a cell size of {size}: it has to be closed, and big enough to hold a cell")
             })?
         }
         other => return Err(anyhow!("unknown soft-body kind '{other}'")),
     };
-    cap::refuse_past_cap(builder.positions.len() as f64)?;
+    cap::refuse_past_cap(builder.positions.len() as f64, kind)?;
     Ok(with_settings(builder, params))
 }
 
@@ -400,11 +408,68 @@ pub(crate) fn write_every_solved_polygon(eng: &Engine) {
     }
 }
 
+/// What is off about a 2D soft body: a node that also draws something rigid,
+/// a polygon of another mesh than the body hands over, and a hovering radius.
+fn softbody_warnings_2d(eng: &Engine, entity: Entity) -> Vec<balaur_core::warnings::Warning> {
+    use balaur_core::warnings::Warning;
+    let mut out = Vec::new();
+    let present = balaur_core::components::present_on(eng, entity);
+    if let Some(drawer) = c::RIGID_2D_DRAWERS
+        .iter()
+        .find(|d| present.iter().any(|p| p == *d))
+    {
+        out.push(Warning::whole(format!(
+            "the node also draws a {drawer}, which stays rigid while the body moves: draw it as a polygon instead"
+        )));
+    }
+    if let Some(drawn) = polygon_points(eng, entity) {
+        let handed = eng
+            .world()
+            .get::<&balaur_core::mesh::SolvedPolygon>(entity)
+            .map_or(drawn, |solved| solved.positions.len());
+        if handed != drawn {
+            out.push(Warning::on(
+                k::MESH,
+                format!(
+                    "the polygon has {drawn} points and the body hands over {handed}, so the polygon does not bend: build the body from the polygon's mesh"
+                ),
+            ));
+        }
+    }
+    let state = eng.resource::<PhysicsState2d>();
+    let state = state.borrow();
+    let authored = state
+        .soft_params
+        .get(&entity)
+        .map_or(0.0, |params| v::f(params, k::PARTICLE_RADIUS, 0.0));
+    let body = state
+        .soft_bodies
+        .get(&entity)
+        .and_then(|&handle| state.world.soft_bodies.get(handle));
+    if let Some(body) = body.filter(|_| authored <= 0.0) {
+        let points: Vec<Vector2> = body.particle_positions().collect();
+        let widest = extents(&points).into_iter().fold(0.0, f32::max);
+        out.extend(cap::hovering(
+            scalar::f32_of(body.particle_radius()),
+            widest,
+        ));
+    }
+    out
+}
+
+/// How many points the node's own polygon draws, when it has one.
+fn polygon_points(eng: &Engine, entity: Entity) -> Option<usize> {
+    let polygon = balaur_core::components::get(eng, entity, c::POLYGON)?;
+    let reference = polygon.get(k::MESH).and_then(toml::Value::as_str)?;
+    let mesh = balaur_core::mesh::resolved(eng, reference).ok()?;
+    Some(mesh.positions.len())
+}
 pub(crate) fn register_softbody_component_2d(reg: &mut Registry<'_>) {
     let schema = [shape_schema(), crate::softbody::shared_softbody_schema()].join("\n");
     reg.register_component(
         c::SOFTBODY_2D,
         ComponentDef {
+            warnings: Some(Box::new(softbody_warnings_2d)),
             doc: "A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `trimesh` and `volumetric` kinds give and a generator does not.",
             schema: ComponentDef::parse_schema(c::SOFTBODY_2D, &schema),
             tags: &[

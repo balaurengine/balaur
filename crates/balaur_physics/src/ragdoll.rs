@@ -424,6 +424,7 @@ pub(crate) fn register_ragdoll_component(reg: &mut Registry<'_>) {
     reg.register_component(
         RAGDOLL,
         ComponentDef {
+            warnings: None,
             doc: "Drives a rig's bones from the `bodies` that `physics2d.ragdoll` or `physics3d.ragdoll` built. `blend` is how much of the simulated pose the bones take, 0 to 1.",
             schema: ComponentDef::parse_schema(
                 RAGDOLL,

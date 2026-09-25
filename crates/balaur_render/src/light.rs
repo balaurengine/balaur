@@ -232,6 +232,7 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "light2d",
         ComponentDef {
+            warnings: None,
             doc: "A 2D light at the node's position. `kind` is `point` or `directional`; the first `light2d` in a scene drops everything else to the camera's `ambient`.",
             schema: ComponentDef::parse_schema("light2d", &light_schema()),
             tags: &[words::ORTHOGRAPHIC, "render"],
@@ -303,6 +304,7 @@ pub(crate) fn register_occluder2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "occluder2d",
         ComponentDef {
+            warnings: None,
             doc: "The outline the node blocks 2D light with. With no `mesh` it follows the node's `collider2d`, or else its circle, capsule, rect or sprite shape.",
             schema: ComponentDef::parse_schema("occluder2d", &occluder_schema()),
             tags: &[words::ORTHOGRAPHIC, "render"],

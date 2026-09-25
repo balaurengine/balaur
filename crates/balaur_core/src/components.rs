@@ -249,6 +249,9 @@ pub type ApplyFn = Box<dyn Fn(&Engine, Entity, &toml::Value) -> Result<()>>;
 pub type RemoveFn = Box<dyn Fn(&Engine, Entity) -> Result<()>>;
 /// Read a component's property table, or `None` when the entity lacks it.
 pub type GetFn = Box<dyn Fn(&Engine, Entity) -> Option<toml::Value>>;
+/// What a component says is off about it on this node, beyond whether its
+/// last write was accepted (see [`crate::warnings`]).
+pub type WarningsFn = Option<Box<dyn Fn(&Engine, Entity) -> Vec<crate::warnings::Warning>>>;
 /// Read one of a component's properties, for a component that can answer
 /// without building its whole table. `None` means "ask the whole table",
 /// which is also the answer for a property the component does not hold.
@@ -288,6 +291,8 @@ pub struct ComponentDef {
     /// and defaults whatever it omits. Values the component derives are the
     /// exception, and must be left out for the same reason.
     pub get: GetFn,
+    /// What is off about the component on a node, for the editor to show.
+    pub warnings: WarningsFn,
 }
 
 pub mod tag {
@@ -1027,8 +1032,20 @@ fn apply_at(
         let (_, def) = registry
             .at(index)
             .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
-        (def.apply)(eng, entity, full).with_context(|| format!("applying component '{name}'"))?;
+        if let Err(why) = (def.apply)(eng, entity, full) {
+            let held = (def.get)(eng, entity);
+            let property = crate::warnings::changed_property(held.as_ref(), full);
+            let message = format!("{why:#}");
+            crate::warnings::refused(
+                eng,
+                entity,
+                name,
+                crate::warnings::Warning { property, message },
+            );
+            return Err(why.context(format!("applying component '{name}'")));
+        }
     }
+    crate::warnings::accepted(eng, entity, name);
     mark(eng, entity, index, true);
     Ok(())
 }
@@ -1058,6 +1075,7 @@ pub fn remove(eng: &Engine, entity: Entity, name: &str) -> Result<()> {
     };
     mark(eng, entity, index, false);
     forget(eng, entity, name);
+    crate::warnings::accepted(eng, entity, name);
     Ok(())
 }
 
@@ -1067,6 +1085,7 @@ pub fn remove(eng: &Engine, entity: Entity, name: &str) -> Result<()> {
 /// Reads [`Attached`] rather than asking every definition, so a node that
 /// was never given a component costs one lookup.
 pub fn remove_present(eng: &Engine, entity: Entity) {
+    crate::warnings::forget(eng, entity);
     let owed = attached_of(eng, entity);
     let bits = owed.hooked;
     #[cfg(debug_assertions)]

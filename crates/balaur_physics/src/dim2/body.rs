@@ -453,6 +453,26 @@ pub(crate) fn install_body2d_force_reader_api(m: &mut dyn Bindings<Engine>) {
     });
 }
 
+/// A dynamic body that nothing collides with: no collider on the node or
+/// under it, so it falls through everything.
+fn body_warnings_2d(eng: &Engine, entity: Entity) -> Vec<balaur_core::warnings::Warning> {
+    let state = eng.resource::<PhysicsState2d>();
+    let state = state.borrow();
+    let body = state
+        .bodies
+        .get(&entity)
+        .and_then(|&handle| state.world.bodies.get(handle));
+    match body {
+        Some(body) if body.is_dynamic() && body.colliders().is_empty() => {
+            vec![balaur_core::warnings::Warning::whole(format!(
+                "nothing collides with it: add a {} to the node or a child, or it falls through everything",
+                c::COLLIDER_2D
+            ))]
+        }
+        _ => Vec::new(),
+    }
+}
+
 /// The `body2d` key. Like `body3d`, backed by no component type: it writes
 /// into [`crate::PhysicsState2d`].
 pub(crate) fn register_body2d_component(reg: &mut Registry<'_>) {
@@ -473,6 +493,7 @@ pub(crate) fn register_body2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::BODY_2D,
         ComponentDef {
+            warnings: Some(Box::new(body_warnings_2d)),
             doc: "A 2D rigid body simulated by rapier in the xy plane. `kind` is `dynamic`, `static`, `kinematic` or `kinematic_velocity`; add a `collider2d` for its shape.",
             schema: ComponentDef::parse_schema(c::BODY_2D, &schema),
             tags: &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],

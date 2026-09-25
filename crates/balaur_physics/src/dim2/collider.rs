@@ -527,6 +527,7 @@ pub(crate) fn register_collider2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::COLLIDER_2D,
         ComponentDef {
+            warnings: None,
             doc: "The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2d` or the nearest body above it; without one it is static geometry.",
             schema: ComponentDef::parse_schema(c::COLLIDER_2D, &schema),
             tags: &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],

@@ -25,6 +25,7 @@ fn register_pair(app: &mut App) {
     app.register_component(
         "lonely",
         ComponentDef {
+            warnings: None,
             doc: "",
             schema: ComponentDef::parse_schema(
                 "lonely",
@@ -51,6 +52,7 @@ fn register_pair(app: &mut App) {
     app.register_component(
         "partner",
         ComponentDef {
+            warnings: None,
             doc: "",
             schema: ComponentDef::parse_schema(
                 "partner",

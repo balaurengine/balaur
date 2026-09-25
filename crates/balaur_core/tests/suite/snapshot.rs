@@ -199,6 +199,7 @@ fn app_with_marker() -> App {
     app.register_component(
         "marker",
         ComponentDef {
+            warnings: None,
             doc: "",
             schema: ComponentDef::parse_schema(
                 "marker",

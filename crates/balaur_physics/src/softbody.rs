@@ -66,7 +66,11 @@ fn shape_schema() -> String {
         ),
         (
             k::PARTICLES,
-            r#"{ type = "float", default = 16.0, min = 2.0, description = "How many particles a rope or a disk is made of", group = "shape" }"#,
+            &format!(
+                r#"{{ type = "float", default = {:?}, min = {:?}, description = "How many particles a rope is made of", group = "shape" }}"#,
+                cap::DEFAULT_PARTICLES,
+                cap::MIN_CHAIN_PARTICLES
+            ),
         ),
         (
             k::AXIS,
@@ -149,7 +153,7 @@ pub(crate) fn shared_softbody_schema() -> String {
             (k::PGS_ITERATIONS, r#"{ type = "float", default = 3.0, min = 0.0, max = 64.0, description = "Extra iterations inside each substep, for the same", group = "particles" }"#),
             (k::CAN_SLEEP, r#"{ type = "bool", default = true, description = "Let the body stop being simulated once it settles", group = "particles" }"#),
             (k::DOMINANCE, r#"{ type = "int", default = 0, min = -127, max = 127, description = "Which body wins a contact: a higher one is never pushed by a lower one", group = "particles" }"#),
-            (k::COLOR, r#"{ type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "What the body is drawn in when its node has nothing of its own to deform, as a cloth or a rope has not", group = "surface" }"#),
+            (k::COLOR, &format!(r#"{{ type = "color", default = {:?}, description = "What the body is drawn in when its node has nothing of its own to deform, as a cloth or a rope has not", group = "surface" }}"#, cap::DEFAULT_COLOR)),
             (k::FRICTION, r#"{ type = "float", default = 0.5, min = 0.0, description = "Surface friction of the body's collider; 0 is ice", group = "surface" }"#),
             (k::RESTITUTION, r#"{ type = "float", default = 0.0, min = 0.0, max = 1.0, description = "Bounciness of the body's collider", group = "surface" }"#),
         ]),
@@ -252,25 +256,28 @@ fn build_layout(
     let local = |key: &str, default: [f32; 3]| pose * scalar::v3a(v::vec3(params, key, default));
     let along =
         |key: &str, default: [f32; 3]| pose.rotation * scalar::v3a(v::vec3(params, key, default));
-    let count = |key: &str, default: f32| v::f(params, key, default).max(2.0) as usize;
     let cells = v::vec3(params, k::CELLS, [4.0, 4.0, 4.0]);
     let axis = |i: usize| cap::particles_along(cells[i]);
-    cap::refuse_past_cap(match kind {
-        w::SOFT_CUBOID => axis(0) * axis(1) * axis(2),
-        w::CLOTH => axis(0) * axis(1),
-        w::CLOTH_TUBE => f64::from(cells[0].max(3.0)).floor() * axis(1),
-        w::ROPE_SOFT => f64::from(v::f(params, k::PARTICLES, 16.0).max(2.0)).floor(),
-        _ => 0.0,
-    })?;
+    let ring = |around: f32| f64::from(around.max(cap::MIN_RING_PARTICLES)).floor();
+    cap::refuse_past_cap(
+        match kind {
+            w::SOFT_CUBOID => axis(0) * axis(1) * axis(2),
+            w::CLOTH => axis(0) * axis(1),
+            w::CLOTH_TUBE => ring(cells[0]) * axis(1),
+            w::ROPE_SOFT => cap::particle_count(params, cap::MIN_CHAIN_PARTICLES),
+            _ => 0.0,
+        },
+        kind,
+    )?;
     let builder = match kind {
         // Rapier counts the particles along an axis; the schema counts the
         // cells between them, which is the number an author means.
         w::SOFT_CUBOID => SoftBodyBuilder::cuboid(
             at,
             scalar::v3a(v::vec3(params, k::HALF_EXTENTS, [0.5, 0.5, 0.5])),
-            cells[0].max(1.0) as usize + 1,
-            cells[1].max(1.0) as usize + 1,
-            cells[2].max(1.0) as usize + 1,
+            axis(0) as usize,
+            axis(1) as usize,
+            axis(2) as usize,
         ),
         w::SPHERE => SoftBodyBuilder::sphere(
             at,
@@ -278,10 +285,7 @@ fn build_layout(
             v::f(params, k::SUBDIVISIONS, 2.0).clamp(0.0, 6.0) as usize,
         ),
         w::CLOTH => {
-            let (nu, nv) = (
-                cells[0].max(1.0) as usize + 1,
-                cells[1].max(1.0) as usize + 1,
-            );
+            let (nu, nv) = (axis(0) as usize, axis(1) as usize);
             let size = v::vec3(params, k::SIZE, [1.0, 0.0, 1.0]);
             // The sheet is spanned from a corner, so the node's own position
             // is its middle like every other layout's.
@@ -307,20 +311,20 @@ fn build_layout(
             along(k::AXIS, [0.0, 1.0, 0.0]),
             scalar::real(v::f(params, k::RADIUS, 0.5)),
             scalar::real(v::f(params, k::RADIUS, 0.5)),
-            cells[0].max(3.0) as usize,
-            cells[1].max(1.0) as usize + 1,
+            ring(cells[0]) as usize,
+            axis(1) as usize,
         ),
         w::ROPE_SOFT => SoftBodyBuilder::rope(
             local(k::A, [0.0, 0.0, 0.0]),
             local(k::B, [0.0, -1.0, 0.0]),
-            count(k::PARTICLES, 16.0),
+            cap::particle_count(params, cap::MIN_CHAIN_PARTICLES) as usize,
         ),
         // The approximate tetrahedrization: the mesh is covered with cells of
         // `cell_size` and the body is those cells.
         w::VOLUMETRIC => {
             let (points, indices) = source_mesh(eng, params, pose)?;
             let size = scalar::real(v::f(params, k::CELL_SIZE, 0.25));
-            cap::refuse_past_cap(cap::grid_particles(&extents(&points), size))?;
+            cap::refuse_past_cap(cap::grid_particles(&extents(&points), size), kind)?;
             let built = if v::boolean(params, k::SKIN, false) {
                 SoftBodyBuilder::volumetric_skinned(&points, &indices, size)
             } else {
@@ -337,7 +341,7 @@ fn build_layout(
         }
         other => return Err(anyhow!("unknown soft-body kind '{other}'")),
     };
-    cap::refuse_past_cap(builder.positions.len() as f64)?;
+    cap::refuse_past_cap(builder.positions.len() as f64, kind)?;
     Ok(with_settings(builder, params))
 }
 
@@ -482,8 +486,8 @@ pub(crate) fn write_solved_mesh(eng: &Engine, entity: Entity) {
 
 /// The colour a body draws in when its node has nothing of its own.
 pub(crate) fn drawn_color(params: Option<&toml::Value>) -> [f32; 4] {
-    params.map_or([0.8, 0.8, 0.8, 1.0], |params| {
-        v::color(params, k::COLOR, [0.8, 0.8, 0.8, 1.0])
+    params.map_or(cap::DEFAULT_COLOR, |params| {
+        v::color(params, k::COLOR, cap::DEFAULT_COLOR)
     })
 }
 
@@ -505,6 +509,7 @@ pub(crate) fn register_softbody_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::SOFTBODY_3D,
         ComponentDef {
+            warnings: Some(Box::new(softbody_warnings)),
             doc: "A deformable 3D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. The node is drawn from the solver's positions.",
             schema: ComponentDef::parse_schema(c::SOFTBODY_3D, &schema),
             tags: &[
@@ -523,6 +528,29 @@ pub(crate) fn register_softbody_component(reg: &mut Registry<'_>) {
             get: Box::new(get_softbody_params),
         },
     );
+}
+
+/// What is off about a soft body that built: a particle radius worked out so
+/// large that the body hovers.
+fn softbody_warnings(eng: &Engine, entity: Entity) -> Vec<balaur_core::warnings::Warning> {
+    let state = eng.resource::<PhysicsState3d>();
+    let state = state.borrow();
+    let authored = state
+        .soft_params
+        .get(&entity)
+        .map_or(0.0, |params| v::f(params, k::PARTICLE_RADIUS, 0.0));
+    let body = state
+        .soft_bodies
+        .get(&entity)
+        .and_then(|&handle| state.world.soft_bodies.get(handle));
+    let Some(body) = body.filter(|_| authored <= 0.0) else {
+        return Vec::new();
+    };
+    let points: Vec<Vector> = body.particle_positions().collect();
+    let widest = extents(&points).into_iter().fold(0.0, f32::max);
+    cap::hovering(scalar::f32_of(body.particle_radius()), widest)
+        .into_iter()
+        .collect()
 }
 
 /// What a script may ask a soft body, and the two things it may do to one.

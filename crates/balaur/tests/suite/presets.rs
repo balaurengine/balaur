@@ -24,6 +24,7 @@ fn def(app: &App, name: &str) -> components::ComponentDef {
     let registry = registry.borrow();
     let d = registry.def(name).unwrap_or_else(|| panic!("no `{name}`"));
     components::ComponentDef {
+        warnings: None,
         doc: "",
         schema: d.schema.clone(),
         tags: d.tags,
@@ -176,7 +177,7 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
             assert!(has(present, "collider2d"), "collider2d not applied");
             assert!(n.get_component("body2d").kind == "dynamic", "wrong body kind");
 
-            assert!(scene::unmet_expectations(n).len() == 0, "nothing should warn here");
+            assert!(scene::warnings(n).len() == 0, "nothing should warn here");
             this.done = 1;
         }
         "#,

@@ -305,6 +305,7 @@ pub(crate) fn register_listener_component(reg: &mut balaur_plugin::Registry<'_>)
     reg.register_component(
         "listener",
         ComponentDef {
+            warnings: None,
             doc: "The point positional sounds are heard from: distance sets volume, offset across its right sets pan. The last `current` listener wins; without one, sounds play flat.",
             schema: ComponentDef::parse_schema(
                 "listener",

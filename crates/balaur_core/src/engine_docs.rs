@@ -85,7 +85,7 @@ pub(crate) fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("presets", &[], "()", "The names of every registered preset."),
         ("preset_info", &[], "(name: string)", "A preset's description, tags and the components it adds; nil for a name nothing registered."),
         ("apply_preset", &[], "(node: node, name: string)", "Add every component a preset names to the node; a part that fails leaves the parts before it in place."),
-        ("unmet_expectations", &[], "(node: node)", "Components on the node whose expectations nothing satisfies, as `{ component, expects }`; advisory only."),
+        ("warnings", &[], "(node: node)", "What is off about the node, as `{ component, property, message }`: a component missing one it expects, a write its component refused, and what a component says of itself. `property` is nil for the whole component; advisory only."),
         ("variable", &[], "(name: string)", "A scene variable's value, or nil for a name nothing declared. A scene declares them under `[variables]`."),
         ("set_variable", &[], "(name: string, value: any)", "Write a scene variable, coerced to the type it was declared with. Every node declaring `on_variable_changed` hears about it at the end of the tick; writing the value it already holds says nothing."),
         ("variables", &[], "()", "Every declared variable as `{ name, type, value, persist }`, in name order."),
