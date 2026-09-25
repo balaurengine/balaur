@@ -144,7 +144,7 @@ pub(crate) fn shared_softbody_schema() -> String {
             (k::SHAPE_MATCHING, r#"{ type = "bool", default = false, description = "Pull the body back towards the shape it was built in, which is what keeps a jelly a jelly", group = "volume" }"#),
             (k::TENSION_ONLY, r#"{ type = "bool", default = false, description = "Let the edges resist stretching only, so the body folds freely and never pushes itself open", group = "volume" }"#),
             (k::MASS, r#"{ type = "float", default = 1.0, min = 0.0, description = "What the whole body weighs, spread over its particles", group = "particles" }"#),
-            (k::PINNED, r#"{ type = "strings", default = [], description = "The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from", group = "particles" }"#),
+            (k::PINNED, r#"{ type = "list", of = { type = "int" }, default = [], description = "The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from", group = "particles" }"#),
             (k::PARTICLE_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "How thick the particles are; 0 takes what the layout works out", group = "particles" }"#),
             (k::SELF_CONTACTS, r#"{ type = "bool", default = false, description = "Let the body's own surface collide with itself, which stops a cloth passing through its own fold", group = "particles" }"#),
             (k::ORIENTED, r#"{ type = "bool", default = false, description = "Treat the surface as closed and outward-facing, so its inside holds bodies in instead of pushing them out", group = "particles" }"#),

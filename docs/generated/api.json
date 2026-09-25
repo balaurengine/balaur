@@ -3613,7 +3613,11 @@
         "default": [],
         "description": "The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from",
         "group": "particles",
-        "type": "strings"
+        "of": {
+          "default": 0,
+          "type": "int"
+        },
+        "type": "list"
       },
       "plastic_creep": {
         "default": 1.0,
@@ -4121,7 +4125,11 @@
         "default": [],
         "description": "The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from",
         "group": "particles",
-        "type": "strings"
+        "of": {
+          "default": 0,
+          "type": "int"
+        },
+        "type": "list"
       },
       "plastic_creep": {
         "default": 1.0,

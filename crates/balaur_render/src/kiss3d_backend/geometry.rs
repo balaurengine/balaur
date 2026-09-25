@@ -51,8 +51,10 @@ pub(crate) fn build_node(
     app: &App,
     scene: &mut SceneNode3d,
     renderable: &Renderable3d,
-    solved: bool,
+    entity: balaur_core::hecs::Entity,
 ) -> Option<Built3d> {
+    // A solver owning the vertices makes the buffers dynamic, as a skin does.
+    let solved = crate::skinned_3d::solver_present(&app.engine.world(), entity);
     match renderable.shape {
         // Built by the mesher rather than by kiss3d: the triangles a collider
         // is fitted to and a ray is picked against are the ones uploaded here.

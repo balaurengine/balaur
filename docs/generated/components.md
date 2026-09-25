@@ -468,7 +468,7 @@ A deformable 2D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>particle_radius</code></td><td>float</td><td><code>0.0</code></td><td>How thick the particles are; 0 takes what the layout works out At least 0.0.</td></tr>
 <tr><td><code>particles</code></td><td>float</td><td><code>16.0</code></td><td>How many particles a rope or the rim of a disk is made of At least 2.0.</td></tr>
 <tr><td><code>pgs_iterations</code></td><td>float</td><td><code>3.0</code></td><td>Extra iterations inside each substep, for the same Range 0.0–64.0.</td></tr>
-<tr><td><code>pinned</code></td><td>strings</td><td><code>[]</code></td><td>The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from</td></tr>
+<tr><td><code>pinned</code></td><td>list of int</td><td><code>[]</code></td><td>The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from</td></tr>
 <tr><td><code>plastic_creep</code></td><td>float</td><td><code>1.0</code></td><td>How fast, per second, the strain past the yield is absorbed into the rest shape At least 0.0.</td></tr>
 <tr><td><code>plastic_max</code></td><td>float</td><td><code>1.0</code></td><td>The most permanent deformation a cell may take, so a crushed cell cannot flow to a sliver At least 0.0.</td></tr>
 <tr><td><code>plastic_yield</code></td><td>float</td><td><code>0.0</code></td><td>The cell strain past which the rest shape flows towards the current one; 0 is perfectly elastic At least 0.0.</td></tr>
@@ -1175,7 +1175,7 @@ A deformable 3D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>particle_radius</code></td><td>float</td><td><code>0.0</code></td><td>How thick the particles are; 0 takes what the layout works out At least 0.0.</td></tr>
 <tr><td><code>particles</code></td><td>float</td><td><code>16.0</code></td><td>How many particles a rope or a disk is made of At least 2.0.</td></tr>
 <tr><td><code>pgs_iterations</code></td><td>float</td><td><code>3.0</code></td><td>Extra iterations inside each substep, for the same Range 0.0–64.0.</td></tr>
-<tr><td><code>pinned</code></td><td>strings</td><td><code>[]</code></td><td>The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from</td></tr>
+<tr><td><code>pinned</code></td><td>list of int</td><td><code>[]</code></td><td>The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from</td></tr>
 <tr><td><code>plastic_creep</code></td><td>float</td><td><code>1.0</code></td><td>How fast, per second, the strain past the yield is absorbed into the rest shape At least 0.0.</td></tr>
 <tr><td><code>plastic_max</code></td><td>float</td><td><code>1.0</code></td><td>The most permanent deformation a cell may take, so a crushed cell cannot flow to a sliver At least 0.0.</td></tr>
 <tr><td><code>plastic_yield</code></td><td>float</td><td><code>0.0</code></td><td>The cell strain past which the rest shape flows towards the current one; 0 is perfectly elastic At least 0.0.</td></tr>

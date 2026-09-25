@@ -193,7 +193,7 @@ pub fn fixed_update(this, dt) {
 fn a_pinned_particle_stays_where_it_was_put() {
     run_clean(
         r#"pub fn init(this) {
-    this.node.softbody3d.set_softbody(#{ kind: "rope", particles: 8.0, pinned: ["0"] });
+    this.node.softbody3d.set_softbody(#{ kind: "rope", particles: 8.0, pinned: [0] });
     this.first = this.node.softbody3d.softbody_position(0);
     this.ticks = 0;
 }
@@ -302,7 +302,7 @@ fn a_rope_past_its_tear_strain_comes_apart() {
     // their rest length: the rope cannot hold itself up.
     this.node.softbody3d.set_softbody(#{
         kind: "rope", a: [0.0, 0.0, 0.0], b: [0.0, -2.0, 0.0], particles: 12.0,
-        pinned: ["0"], tear_strain: 0.05, tear_force: 2.0,
+        pinned: [0], tear_strain: 0.05, tear_force: 2.0,
         edge_frequency: 4.0, mass: 400.0,
     });
     this.torn = 0;
