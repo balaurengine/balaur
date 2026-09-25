@@ -153,6 +153,9 @@ pub(crate) fn global(name: &str, args: &[String]) -> Option<String> {
             args.first().cloned().unwrap_or_else(|| "0".into())
         ),
         "len" => format!("(gd.size)({one})"),
+        // Object's own `get` and `set`, called bare: a member by its name.
+        "get" if args.len() == 1 => format!("(gd.field)(this, {one})"),
+        "set" if args.len() == 2 => format!("(gd.set_field)(this, {all})"),
         "is_instance_valid" => format!("(gd.valid)({one})"),
         "typeof" => format!("(gd.type_of)({one})"),
         "is_zero_approx" => format!("(gd.is_zero_approx)({one})"),

@@ -1160,3 +1160,24 @@ fn a_multimesh_and_a_transform_built_field_by_field_translate() {
     }
     assert!(!out.rune.contains("todo"), "{}", out.rune);
 }
+
+#[test]
+fn a_member_read_and_written_by_name_goes_through_the_shim() {
+    let source = [
+        "extends Node",
+        "var music_db := -6.0",
+        "func level(member: String) -> float:",
+        "\tset(member, 0.0)",
+        "\treturn get(member)",
+        "",
+    ]
+    .join("\n");
+    let out = convert(&source, "scripts/sound.gd", &Classes::default());
+    for want in [
+        "(gd.set_field)(this, member, 0.0)",
+        "(gd.field)(this, member)",
+    ] {
+        assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+    }
+    assert!(!out.rune.contains("todo"), "{}", out.rune);
+}
