@@ -169,7 +169,11 @@ fn a_list_draws_exactly_its_copies_each_with_its_own_tint() {
     assert_eq!(drawn[1].position, Vec3::new(2.0, 0.0, 0.0));
     let want = [1.0, 0.5, 0.5, 0.25];
     assert!(
-        drawn[1].tint.iter().zip(want).all(|(a, b)| (a - b).abs() < 1e-6),
+        drawn[1]
+            .tint
+            .iter()
+            .zip(want)
+            .all(|(a, b)| (a - b).abs() < 1e-6),
         "{:?}",
         drawn[1].tint
     );
