@@ -38,6 +38,9 @@ pub(crate) struct Classes {
     /// Every member variable a class declares, by name across the project:
     /// a name that is one somewhere is not read as a signal.
     pub members: BTreeSet<String>,
+    /// The autoloads that are nodes of the main scene, read by name as the
+    /// node carrying `autoload_<name>`.
+    pub autoload_nodes: BTreeSet<String>,
 }
 
 /// What an export holds, in the types an `exports()` spec has.

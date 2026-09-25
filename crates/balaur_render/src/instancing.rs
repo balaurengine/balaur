@@ -12,7 +12,7 @@
 )]
 
 use balaur_core::scene::GlobalTransform;
-use glamx::{Mat3, Mat4, Vec3};
+use glamx::{Mat2, Mat3, Mat4, Vec2, Vec3};
 
 /// The node's own model matrix, as the shader's object uniform carries it.
 #[must_use]
@@ -42,6 +42,55 @@ pub(crate) fn split(here: Mat4, placed: Mat4, rotation: glamx::Quat) -> Option<(
     ))
 }
 
+/// One 2D copy, split as `object2d.wgsl` reads it: the vertex is scaled by
+/// the object, deformed by the instance, placed by the node's model, then
+/// offset by the instance. `angle` is the node's own turn.
+///
+/// The copy does `a` to the node's frame, so the deformation is `a` seen from
+/// inside the node's turn, and the offset is where the copy moved the origin.
+#[must_use]
+pub(crate) fn split_2d(here: Mat4, placed: Mat4, angle: f32) -> Option<(Mat2, Vec2)> {
+    let model = Mat3::from_mat4(here);
+    if model.determinant().abs() < 1e-12 {
+        return None;
+    }
+    let world_linear = Mat3::from_mat4(placed) * model.inverse();
+    let a = Mat2::from_cols(
+        world_linear.x_axis.truncate(),
+        world_linear.y_axis.truncate(),
+    );
+    let (sin, cos) = (
+        balaur_core::libm::sinf(angle),
+        balaur_core::libm::cosf(angle),
+    );
+    let turn = Mat2::from_cols(Vec2::new(cos, sin), Vec2::new(-sin, cos));
+    let offset = placed.w_axis.truncate().truncate() - here.w_axis.truncate().truncate();
+    Some((turn.transpose() * a * turn, offset))
+}
+
+/// A 2D node's copies, as the instances its object draws them through.
+#[cfg(feature = "kiss3d")]
+pub(crate) fn instances_2d(
+    clones: &crate::Clones,
+    global: &GlobalTransform,
+) -> Vec<kiss3d::scene::InstanceData2d> {
+    let here = model_of(global);
+    let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
+    clones
+        .0
+        .iter()
+        .filter_map(|copy| {
+            let (deformation, position) = split_2d(here, copy.at, angle)?;
+            Some(kiss3d::scene::InstanceData2d {
+                position,
+                deformation,
+                color: copy.tint,
+                ..Default::default()
+            })
+        })
+        .collect()
+}
+
 /// Put a node's copies on it, as the instance data the shader reads.
 #[cfg(feature = "kiss3d")]
 pub(crate) fn set_instances_3d(
@@ -59,13 +108,15 @@ pub(crate) fn set_instances_3d(
     let instances: Vec<InstanceData3d> = clones
         .0
         .iter()
-        .filter_map(|placed| split(here, *placed, global.rotation))
-        .map(|(deformation, position)| InstanceData3d {
+        .filter_map(|copy| {
+            let (deformation, position) = split(here, copy.at, global.rotation)?;
+            Some((deformation, position, copy.tint))
+        })
+        .map(|(deformation, position, [r, g, b, a])| InstanceData3d {
             position,
             deformation,
-            // White: a copy's colour multiplies the node's, and every copy
-            // draws in the node's own colour until something asks otherwise.
-            color: Color::new(1.0, 1.0, 1.0, 1.0),
+            // A copy's tint multiplies the node's own colour.
+            color: Color::new(r, g, b, a),
             lines_color: None,
             lines_width: None,
             points_color: None,
@@ -150,6 +201,41 @@ mod tests {
                 Vec3::new(4.0, -1.0, 0.25),
             ),
         );
+    }
+
+    /// What `object2d.wgsl` works out for one vertex of a node with no
+    /// object scale: deformed by the instance, turned and placed by the
+    /// model, then offset.
+    fn shaded_2d(here: &GlobalTransform, deform: Mat2, offset: Vec2, vertex: Vec2) -> Vec2 {
+        let (angle, _, _) = here.rotation.to_euler(glamx::EulerRot::ZYX);
+        let turn = Mat2::from_angle(angle);
+        let scaled = Vec2::new(here.scale.x, here.scale.y) * vertex;
+        offset + turn * (deform * scaled) + Vec2::new(here.position.x, here.position.y)
+    }
+
+    #[test]
+    fn a_2d_copy_turned_and_moved_lands_where_the_copy_puts_it() {
+        let here = pose(
+            Vec3::new(1.0, 2.0, 0.0),
+            Quat::from_rotation_z(0.6),
+            Vec3::new(2.0, 1.5, 1.0),
+        );
+        let model = model_of(&here);
+        let copy = Mat4::from_scale_rotation_translation(
+            Vec3::new(1.5, 0.5, 1.0),
+            Quat::from_rotation_z(-0.9),
+            Vec3::new(3.0, -1.0, 0.0),
+        );
+        let placed = copy * model;
+        let (deform, offset) = split_2d(model, placed, 0.6).expect("a node with an inverse");
+        for vertex in [Vec2::ZERO, Vec2::X, Vec2::new(0.4, -1.3)] {
+            let want = placed.transform_point3(vertex.extend(0.0)).truncate();
+            let got = shaded_2d(&here, deform, offset, vertex);
+            assert!(
+                (want - got).length() < 1e-4,
+                "vertex {vertex:?} landed at {got:?}, not {want:?}"
+            );
+        }
     }
 
     #[test]

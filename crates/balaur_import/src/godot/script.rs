@@ -199,6 +199,19 @@ fn forwarders(functions: &[Function]) -> Vec<Function> {
 
 /// A file's top-level declarations, one per entry, each joined across the
 /// lines its brackets run over: `const POPUPS := [` carries its whole list.
+/// Whether a script is code alone: static functions, constants and static
+/// variables, with no signal, no instance member and no hook to run.
+pub(crate) fn code_only(source: &str) -> bool {
+    top_level(source).iter().all(|line| {
+        let line = line.trim_start();
+        let line = line
+            .strip_prefix("@onready ")
+            .or_else(|| line.strip_prefix("@export "))
+            .unwrap_or(line);
+        !(line.starts_with("func ") || line.starts_with("var ") || line.starts_with("signal "))
+    })
+}
+
 fn top_level(source: &str) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     let mut open = 0i32;
@@ -409,6 +422,7 @@ fn context(
     }
     context.defaulted = classes.defaulted.clone();
     context.project_members.clone_from(&classes.members);
+    context.autoload_nodes.clone_from(&classes.autoload_nodes);
     context.inner = classes
         .inner
         .iter()

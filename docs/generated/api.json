@@ -70,7 +70,7 @@
     "camera3d": "The perspective camera the scene is drawn from. `look_at` aims it, and the last `current` camera wins.",
     "character2d": "A 2D character controller: `physics2d.move_character` slides the node along walls and steps it up ledges. Needs a `collider2d`; a `kinematic` `body2d` lets it push bodies.",
     "character3d": "A 3D character controller: `physics3d.move_character` slides the node along walls and steps it up ledges. Needs a `collider3d`; a `kinematic` `body3d` lets it push bodies.",
-    "cloner": "Draws the node's subtree many times; physics and scripts still see one node. `mode` is `linear`, `radial` or `grid`; `seed` and `random` scatter the copies.",
+    "cloner": "Draws the node's subtree many times; physics and scripts still see one node. `mode` is `linear`, `radial` or `grid`, or `list` for the `copies` a scene or a script places and tints one by one; `seed` and `random` scatter the copies.",
     "collider2d": "The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2d` or the nearest body above it; without one it is static geometry.",
     "collider3d": "The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3d` or the nearest body above it; without one it is static geometry.",
     "environment": "The scene's atmosphere: `sky`, `ambient`, `fog`, `exposure`, `tonemap`, colour grading and the shadow budget. The last `current` one wins; per-view effects stay on `camera.post`.",
@@ -1055,6 +1055,72 @@
         "description": "Degrees between copies on a ring; zero closes the ring evenly",
         "type": "float"
       },
+      "copies": {
+        "default": [],
+        "description": "The copies, when mode is list: each placed in the node's own space with the transform component's keys, and tinted over the node's colour. An empty list draws nothing",
+        "of": {
+          "default": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_euler": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "tint": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "fields": {
+            "position": {
+              "default": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "type": "vec3"
+            },
+            "rotation_euler": {
+              "default": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "type": "vec3"
+            },
+            "scale": {
+              "default": [
+                1.0,
+                1.0,
+                1.0
+              ],
+              "type": "vec3"
+            },
+            "tint": {
+              "default": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "type": "color"
+            }
+          },
+          "type": "record"
+        },
+        "type": "list"
+      },
       "count": {
         "default": 4,
         "description": "How many copies, when mode is linear or radial",
@@ -1076,7 +1142,8 @@
         "options": [
           "linear",
           "radial",
-          "grid"
+          "grid",
+          "list"
         ],
         "type": "enum"
       },
@@ -9068,6 +9135,9 @@
         "set_cell": [
           "tilemap"
         ],
+        "set_copy": [
+          "cloner"
+        ],
         "set_cuboid": [
           "shape3d"
         ],
@@ -9256,6 +9326,7 @@
         "set_camera_input": "Allow or inhibit the backend's own mouse camera controls, so an editor can take the pointer for a drag.",
         "set_cell": "Put one tile at a column and row; a tile below zero clears the cell, and a cell outside the map grows it in that direction. The mesh rebuilds on the next frame.",
         "set_channel": "Draw one channel of the scene (normals, uv, depth or albedo) instead of its colour; an empty name puts the picture back.",
+        "set_copy": "Place and tint one listed copy, `#{ position, rotation_euler, scale, tint }`, without writing the whole list: the list grows with plain copies up to `index`. What a script moving every copy each frame calls.",
         "set_cuboid": "Draw the node as a box from its three half-extents, in world units, replacing any other 3D shape.",
         "set_grid": "Turn the ground grid on or off, and optionally set its step in world units, major-line interval and extent.",
         "set_grid_colors": "Set the ground grid's minor line colour then its major line colour, as r, g, b channel floats.",
@@ -9308,6 +9379,7 @@
         "set_camera_input",
         "set_cell",
         "set_channel",
+        "set_copy",
         "set_cuboid",
         "set_grid",
         "set_grid_colors",
@@ -9361,6 +9433,7 @@
         "set_camera_input": "bool -> ()",
         "set_cell": "(NodeId, i64, i64, i64) -> ()",
         "set_channel": "String -> ()",
+        "set_copy": "(NodeId, i64, Value) -> ()",
         "set_cuboid": "(NodeId, f32, f32, f32) -> ()",
         "set_grid": "(bool, Option<f32>, Option<u32>, Option<i32>) -> ()",
         "set_grid_colors": "(f32, f32, f32, f32, f32, f32) -> ()",

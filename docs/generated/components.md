@@ -1170,17 +1170,18 @@ On a node carrying `ragdoll`, as `node.ragdoll.<method>`:
 
 ### `cloner`
 
-`render` · 8 properties · 1 method
+`render` · 9 properties · 2 methods
 
-Draws the node's subtree many times; physics and scripts still see one node. `mode` is `linear`, `radial` or `grid`; `seed` and `random` scatter the copies.
+Draws the node's subtree many times; physics and scripts still see one node. `mode` is `linear`, `radial` or `grid`, or `list` for the `copies` a scene or a script places and tints one by one; `seed` and `random` scatter the copies.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>angle</code></td><td>float</td><td><code>0.0</code></td><td>Degrees between copies on a ring; zero closes the ring evenly</td></tr>
+<tr><td><code>copies</code></td><td>list of record · <code>position, rotation_euler, scale, tint</code></td><td><code>[]</code></td><td>The copies, when mode is list: each placed in the node&#x27;s own space with the transform component&#x27;s keys, and tinted over the node&#x27;s colour. An empty list draws nothing</td></tr>
 <tr><td><code>count</code></td><td>int</td><td><code>4</code></td><td>How many copies, when mode is linear or radial At least 1.</td></tr>
 <tr><td><code>counts</code></td><td>vec3</td><td><code>[3, 1, 3]</code></td><td>How many along each axis, when mode is grid</td></tr>
-<tr><td><code>mode</code></td><td>enum</td><td><code>linear</code></td><td>How the copies are laid out One of <code>linear</code>, <code>radial</code>, <code>grid</code>.</td></tr>
+<tr><td><code>mode</code></td><td>enum</td><td><code>linear</code></td><td>How the copies are laid out One of <code>linear</code>, <code>radial</code>, <code>grid</code>, <code>list</code>.</td></tr>
 <tr><td><code>radius</code></td><td>float</td><td><code>2.0</code></td><td>How far out the ring sits, when mode is radial</td></tr>
 <tr><td><code>random</code></td><td>float</td><td><code>0.0</code></td><td>How far a copy may wander in position, turn and size Range 0.0–1.0.</td></tr>
 <tr><td><code>seed</code></td><td>int</td><td><code>0</code></td><td>The seed the scatter runs off; zero scatters nothing At least 0.</td></tr>
@@ -1194,6 +1195,7 @@ On a node carrying `cloner`, as `node.cloner.<method>`:
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
 <tr><td><code>clonesNodeId</code></td><td><code>Value</code></td><td>Where the node&#x27;s cloner puts each copy, in the node&#x27;s own space, as `#{ position, rotation, scale }`; an empty list when the node has no cloner. What a bake-to-nodes command spawns from.</td><td><code>render</code></td></tr>
+<tr><td><code>set_copy(i64, Value)</code></td><td>—</td><td>Place and tint one listed copy, `#{ position, rotation_euler, scale, tint }`, without writing the whole list: the list grows with plain copies up to `index`. What a script moving every copy each frame calls.</td><td><code>render</code></td></tr>
 </tbody>
 </table>
 

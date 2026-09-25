@@ -9,6 +9,9 @@
 //! resaved as text, and a second decoder would be a second grammar.
 
 pub(crate) mod anim;
+#[cfg(test)]
+#[path = "tests/autoload.rs"]
+mod autoload_tests;
 pub(crate) mod controls;
 pub(crate) mod exports;
 pub(crate) mod files;

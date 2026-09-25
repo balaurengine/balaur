@@ -1694,67 +1694,81 @@ pub fn array_mesh() {
     mesh
 }
 
-/// Godot's `MultiMesh.new()`: one mesh drawn once per instance. Each instance
-/// is a `polygon` child of the node holding it, all sharing one mesh, which
-/// the renderer draws as one call.
+/// Godot's `MultiMesh.new()`: one mesh drawn once per instance. The node
+/// holding it is a `cloner` listing a copy per instance, over one `polygon`
+/// child carrying the mesh, so every instance is one draw.
 pub fn multimesh() {
-    let mm = #{ "__multimesh": true, "mesh": (), "instance_count": 0, "node": (), "made": [] };
+    let mm = #{ "__multimesh": true, "mesh": (), "instance_count": 0, "node": (), "poses": [], "tints": [] };
     mm["set_instance_transform_2d"] = |idx, t| {
-        let child = multimesh_instance(mm, idx);
-        if !is_nil(child) {
-            place_instance(child, t);
-        }
+        multimesh_write(mm, idx, pose_of(t), ());
     };
     mm["set_instance_color"] = |idx, c| {
-        let child = multimesh_instance(mm, idx);
-        if !is_nil(child) {
-            set_tint(child, c);
-        }
+        multimesh_write(mm, idx, (), color_list(c));
     };
     mm
 }
 
-/// The child standing for instance `idx`, made on first use; nil past the
-/// instance count or before the multimesh has a node and a mesh.
-fn multimesh_instance(mm, idx) {
-    let node = mm["node"];
-    if !(node is balaur::Node) || is_nil(mm["mesh"]) || idx >= mm["instance_count"] {
-        return ();
+/// Give the node its cloner and the child that draws the mesh.
+pub fn multimesh_attach(mm, node) {
+    mm["node"] = node;
+    node.patch_component("cloner", #{ "mode": "list", "copies": [] });
+    let mesh = mm["mesh"];
+    if is_nil(mesh) || !is_nil(node.get_node("mesh")) {
+        return;
     }
-    let name = `instance_${idx}`;
-    let child = node.get_node(name);
-    if is_nil(child) {
-        child = node.add_child(name);
-        mm["made"].push(child);
-        let mesh = mm["mesh"];
-        let shape = #{ "type": "mesh", "positions": mesh["positions"], "indices": mesh["indices"] };
-        child.patch_component("polygon", #{ "mesh": shape });
-    }
-    child.set_visible(true);
-    child
+    let child = node.add_child("mesh");
+    let shape = #{ "type": "mesh", "positions": mesh["positions"], "indices": mesh["indices"] };
+    child.patch_component("polygon", #{ "mesh": shape });
 }
 
-/// A Godot `Transform2D` in pixels, as a child's position, scale and turn.
-fn place_instance(child, t) {
+/// One instance's pose or tint, the other kept from before; past the
+/// instance count it waits until the count reaches it.
+fn multimesh_write(mm, idx, pose, tint) {
+    while mm["poses"].len() <= idx {
+        mm["poses"].push(#{ "position": [0.0, 0.0, 0.0], "rotation_euler": [0.0, 0.0, 0.0], "scale": [1.0, 1.0, 1.0] });
+        mm["tints"].push([1.0, 1.0, 1.0, 1.0]);
+    }
+    if !is_nil(pose) {
+        mm["poses"][idx] = pose;
+    }
+    if !is_nil(tint) {
+        mm["tints"][idx] = tint;
+    }
+    let node = mm["node"];
+    if node is balaur::Node && idx < mm["instance_count"] {
+        node.cloner.set_copy(idx, multimesh_copy(mm, idx));
+    }
+}
+
+fn multimesh_copy(mm, idx) {
+    let copy = mm["poses"][idx];
+    #{ "position": copy["position"], "rotation_euler": copy["rotation_euler"], "scale": copy["scale"], "tint": mm["tints"][idx] }
+}
+
+/// A Godot `Transform2D` in pixels as a listed copy's keys, in units.
+fn pose_of(t) {
     let c = t.to_cols_array();
-    set_position(child, vec2(c[4], c[5]));
     let sx = math::sqrt(c[0] * c[0] + c[1] * c[1]);
     let sy = math::sqrt(c[2] * c[2] + c[3] * c[3]);
-    child.transform.scale = [sx, sy, 1.0];
-    set_rotation(child, math::atan2(c[1], c[0]));
+    let turn = -math::atan2(c[1], c[0]);
+    #{ "position": units_of(vec2(c[4], c[5])), "rotation_euler": [0.0, 0.0, turn], "scale": [sx, sy, 1.0] }
 }
 
-/// A new instance count: instances past it are hidden, and come back when a
-/// transform reaches them again.
+/// A new instance count: the cloner lists that many copies, those written
+/// already where they were.
 pub fn multimesh_count(mm, count) {
     mm["instance_count"] = count;
+    let node = mm["node"];
+    if !(node is balaur::Node) {
+        return;
+    }
+    let copies = [];
     let idx = 0;
-    for child in mm["made"] {
-        if idx >= count {
-            child.set_visible(false);
-        }
+    while idx < count && idx < mm["poses"].len() {
+        copies.push(multimesh_copy(mm, idx));
         idx += 1;
     }
+    node.patch_component("cloner", #{ "copies": copies });
 }
 
 /// `local.field = value` on a value a script holds: the changed value, the

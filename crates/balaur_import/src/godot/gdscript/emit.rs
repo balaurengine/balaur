@@ -42,6 +42,8 @@ pub(crate) struct Context {
     pub signal_arity: BTreeMap<String, usize>,
     /// Member variables declared anywhere in the project.
     pub project_members: BTreeSet<String>,
+    /// Autoloads that are nodes of the main scene.
+    pub autoload_nodes: BTreeSet<String>,
     /// Functions the async pass found, so a call to one gets `.await`.
     pub asyncs: BTreeSet<String>,
     /// A GDScript name that had to change, so calls reach the new one.
@@ -602,6 +604,10 @@ impl<'a> Emitter<'a> {
         }
         if let Some(text) = map::constant(name) {
             return self.shimmed(text);
+        }
+        // A node autoload is found by the id the importer gave its node.
+        if self.context.autoload_nodes.contains(name) {
+            return format!("scene::node_by_id({})", quoted(&format!("autoload_{name}")));
         }
         if self.context.classes.contains_key(name) {
             return self.class_module(name);

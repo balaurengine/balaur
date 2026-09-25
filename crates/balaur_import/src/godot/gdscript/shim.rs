@@ -166,10 +166,10 @@ mod tests {
         );
     }
 
-    /// A multimesh draws each instance as a `polygon` child sharing one mesh,
-    /// placed from a transform a script built axis by axis.
+    /// A multimesh is its node's listed cloner over one `polygon` child: each
+    /// instance a copy, placed from a transform a script built axis by axis.
     #[test]
-    fn a_multimesh_instance_is_a_polygon_child_where_its_transform_puts_it() {
+    fn a_multimesh_instance_is_a_listed_copy_where_its_transform_puts_it() {
         let dir = tempfile::tempdir().unwrap();
         let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
         put(
@@ -191,16 +191,17 @@ mod tests {
                 "    (mesh[\"add_surface_from_arrays\"])(3, [tri]);",
                 "    let mm = (gd.multimesh)();",
                 "    (gd.set_field)(mm, \"mesh\", mesh);",
-                "    (gd.set_field)(mm, \"instance_count\", 2);",
                 "    (gd.set_field)(this.node, \"multimesh\", mm);",
+                "    (gd.set_field)(mm, \"instance_count\", 2);",
                 "    let t = (gd.transform2d)([]);",
                 "    t = (gd.with_field)(t, \"x\", (gd.vec2)(2.0, 0.0));",
                 "    t = (gd.with_field)(t, \"origin\", (gd.vec2)(300.0, 0.0));",
                 "    (mm[\"set_instance_transform_2d\"])(1, t);",
-                "    let child = this.node.get_node(\"instance_1\");",
-                "    let x = child.transform.position.x;",
-                "    let sx = child.transform.scale.x;",
-                "    if child.has_component(\"polygon\") && x == 3.0 && sx == 2.0 {",
+                "    (mm[\"set_instance_color\"])(1, (gd.color)(1.0, 0.0, 0.0, 0.5));",
+                "    let copies = this.node.get_component(\"cloner\")[\"copies\"];",
+                "    let copy = copies[1];",
+                "    let polygon = this.node.get_node(\"mesh\").has_component(\"polygon\");",
+                "    if polygon && copies.len() == 2 && copy[\"position\"][0] == 3.0 && copy[\"scale\"][0] == 2.0 && copy[\"tint\"][3] == 0.5 {",
                 "        this.node.set_visible(false);",
                 "    }",
                 "}",
@@ -220,7 +221,7 @@ mod tests {
                 .get::<&balaur_core::scene::Appearance>(probe)
                 .unwrap()
                 .visible,
-            "the probe hid itself only if instance 1 is a polygon at x 3 scaled 2"
+            "the probe hid itself only if copy 1 sits at x 3, scaled 2, half see-through"
         );
     }
 }

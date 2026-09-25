@@ -629,57 +629,6 @@ func _process(_delta):
         dir
     }
 
-    #[test]
-    fn an_autoload_is_the_first_node_under_the_main_scenes_root() {
-        let godot = tempfile::tempdir().unwrap();
-        let put = |path: &str, text: &str| {
-            let file = godot.path().join(path);
-            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
-            std::fs::write(file, text).unwrap();
-        };
-        put(
-            "project.godot",
-            "config_version=5\n\n[application]\n\nconfig/name=\"Deck\"\nrun/main_scene=\"res://scenes/main.tscn\"\n\n[autoload]\n\nBoard=\"*res://scripts/board.gd\"\n",
-        );
-        put(
-            "scenes/main.tscn",
-            &[
-                "[gd_scene format=3]",
-                "",
-                "[node name=\"Main\" type=\"Node2D\"]",
-                "",
-                "[node name=\"Mast\" type=\"Node2D\" parent=\".\"]",
-                "",
-                "[node name=\"Sail\" type=\"Node2D\" parent=\".\"]",
-                "",
-                "[connection signal=\"hoisted\" from=\"Mast\" to=\"Sail\" method=\"_on_hoisted\"]",
-                "",
-            ]
-            .join("\n"),
-        );
-        put("scripts/board.gd", "extends Node\n\nvar seen := 0\n");
-        let out = tempfile::tempdir().unwrap();
-        import_project(&godot.path().join("project.godot"), out.path()).unwrap();
-        let main = std::fs::read_to_string(out.path().join("scenes/main.toml")).unwrap();
-        let board = main.find("name = \"Board\"").expect("the autoload's node");
-        let mast = main.find("name = \"Mast\"").expect("the scene's own child");
-        assert!(board < mast, "the autoload comes first: {main}");
-        assert!(
-            main.contains("source = \"scripts/board.rn\""),
-            "the autoload's script: {main}"
-        );
-        // The row the connection wrote stays on Mast: the autoload went in
-        // at index 1 after every row had found its node by index.
-        let scene: toml::Value = toml::from_str(&main).unwrap();
-        let mast = node(&scene, "Mast");
-        assert_eq!(
-            mast["bindings"]["rows"][0]["value"].as_str(),
-            Some("_on_hoisted"),
-            "the connection on its emitter: {main}"
-        );
-        assert!(node(&scene, "Board").get("bindings").is_none(), "{main}");
-    }
-
     /// Stepped and in one call write the same project. The editor takes a few
     /// files a frame and `balaur import` takes them all, and a reader comparing
     /// the two should not be able to tell which ran.

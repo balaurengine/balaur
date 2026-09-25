@@ -17,6 +17,8 @@ pub enum Mode {
     Radial,
     /// A box of copies, `counts` of them along each axis.
     Grid,
+    /// The copies a scene or a script lists, each placed and tinted on its own.
+    List,
 }
 
 impl Mode {
@@ -26,6 +28,7 @@ impl Mode {
             Self::Linear => words::LINEAR,
             Self::Radial => words::RADIAL,
             Self::Grid => words::GRID,
+            Self::List => words::LIST,
         }
     }
 
@@ -35,6 +38,7 @@ impl Mode {
             words::LINEAR => Some(Self::Linear),
             words::RADIAL => Some(Self::Radial),
             words::GRID => Some(Self::Grid),
+            words::LIST => Some(Self::List),
             _ => None,
         }
     }
@@ -45,8 +49,9 @@ pub mod words {
     pub const LINEAR: &str = "linear";
     pub const RADIAL: &str = "radial";
     pub const GRID: &str = "grid";
+    pub const LIST: &str = "list";
     /// In the order an inspector offers them.
-    pub const MODES: &[&str] = &[LINEAR, RADIAL, GRID];
+    pub const MODES: &[&str] = &[LINEAR, RADIAL, GRID, LIST];
 }
 
 /// Every key a cloner reads.
@@ -59,6 +64,12 @@ pub mod keys {
     pub const ANGLE: &str = "angle";
     pub const SEED: &str = "seed";
     pub const RANDOM: &str = "random";
+    pub const COPIES: &str = "copies";
+    /// A listed copy's own keys, named as the `transform` component names them.
+    pub const POSITION: &str = "position";
+    pub const ROTATION_EULER: &str = "rotation_euler";
+    pub const SCALE: &str = "scale";
+    pub const TINT: &str = "tint";
 }
 
 /// The most copies one cloner will lay out. A grid of three counts multiplies
@@ -66,7 +77,7 @@ pub mod keys {
 pub const MAX_CLONES: usize = 16_384;
 
 /// A cloner's parameters, as a scene writes them.
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Cloner {
     pub mode: Mode,
     /// How many, for linear and radial.
@@ -84,6 +95,8 @@ pub struct Cloner {
     /// How far a copy may wander, as a fraction: of the step in position, of
     /// a half turn in rotation, and of its own size in scale.
     pub random: f32,
+    /// The copies, for list mode.
+    pub copies: Vec<Clone3d>,
 }
 
 impl Default for Cloner {
@@ -97,16 +110,30 @@ impl Default for Cloner {
             angle: 0.0,
             seed: 0,
             random: 0.0,
+            copies: Vec::new(),
         }
     }
 }
 
-/// One copy: where it sits relative to the cloner's own node.
+/// One copy: where it sits relative to the cloner's own node, and the tint it
+/// draws in over the node's own colour.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Clone3d {
     pub position: Vec3,
     pub rotation: Quat,
     pub scale: Vec3,
+    pub tint: [f32; 4],
+}
+
+impl Default for Clone3d {
+    fn default() -> Self {
+        Self {
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+            scale: Vec3::ONE,
+            tint: [1.0; 4],
+        }
+    }
 }
 
 /// A stream of numbers from a seed, the same on every platform.
@@ -133,15 +160,17 @@ impl Scatter {
 }
 
 impl Cloner {
-    /// Where every copy goes, in the cloner node's own space. The first is
-    /// always at the origin, so a cloner with one copy draws its template
-    /// exactly where the template already is.
+    /// Where every copy goes, in the cloner node's own space. A laid-out
+    /// cloner's first copy is at the origin, so one copy draws its template
+    /// where the template already is; a list draws exactly what it lists, and
+    /// an empty list draws nothing.
     #[must_use]
     pub fn clones(&self) -> Vec<Clone3d> {
         let mut out = match self.mode {
             Mode::Linear => self.linear(),
             Mode::Radial => self.radial(),
             Mode::Grid => self.grid(),
+            Mode::List => self.copies.iter().take(MAX_CLONES).copied().collect(),
         };
         if self.seed != 0 && self.random > 0.0 {
             self.scatter(&mut out);
@@ -154,8 +183,7 @@ impl Cloner {
         (0..count)
             .map(|i| Clone3d {
                 position: self.step * i as f32,
-                rotation: Quat::IDENTITY,
-                scale: Vec3::ONE,
+                ..Clone3d::default()
             })
             .collect()
     }
@@ -178,7 +206,7 @@ impl Cloner {
                     // Facing outwards, so a ring of fence posts leans the
                     // way the ring goes rather than all one way.
                     rotation: Quat::from_rotation_y(-turn),
-                    scale: Vec3::ONE,
+                    ..Clone3d::default()
                 }
             })
             .collect()
@@ -197,8 +225,7 @@ impl Cloner {
                     let cell = Vec3::new(x as f32, y as f32, z as f32);
                     out.push(Clone3d {
                         position: self.step * cell,
-                        rotation: Quat::IDENTITY,
-                        scale: Vec3::ONE,
+                        ..Clone3d::default()
                     });
                 }
             }

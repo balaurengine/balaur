@@ -145,8 +145,37 @@ fn a_count_of_none_still_draws_the_template_once() {
 
 #[test]
 fn every_mode_has_a_word_and_answers_to_it() {
-    for mode in [Mode::Linear, Mode::Radial, Mode::Grid] {
+    for mode in [Mode::Linear, Mode::Radial, Mode::Grid, Mode::List] {
         assert_eq!(Mode::from_word(mode.word()), Some(mode));
     }
     assert_eq!(Mode::from_word("sprinkle"), None);
+}
+
+#[test]
+fn a_list_draws_exactly_its_copies_each_with_its_own_tint() {
+    use balaur_core::cloner::Clone3d;
+    let moved = Clone3d {
+        position: Vec3::new(2.0, 0.0, 0.0),
+        tint: [1.0, 0.5, 0.5, 0.25],
+        ..Clone3d::default()
+    };
+    let cloner = Cloner {
+        mode: Mode::List,
+        copies: vec![Clone3d::default(), moved],
+        ..Cloner::default()
+    };
+    let drawn = cloner.clones();
+    assert_eq!(drawn.len(), 2);
+    assert_eq!(drawn[1].position, Vec3::new(2.0, 0.0, 0.0));
+    let want = [1.0, 0.5, 0.5, 0.25];
+    assert!(
+        drawn[1].tint.iter().zip(want).all(|(a, b)| (a - b).abs() < 1e-6),
+        "{:?}",
+        drawn[1].tint
+    );
+    let empty = Cloner {
+        mode: Mode::List,
+        ..Cloner::default()
+    };
+    assert!(empty.clones().is_empty(), "an empty list draws nothing");
 }

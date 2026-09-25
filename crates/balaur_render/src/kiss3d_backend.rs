@@ -770,7 +770,7 @@ fn sync(
         // Every shape is real geometry at its authored size now, so the node
         // carries the scene's scale and nothing of the shape's.
         let scale = global.scale;
-        let visible = appearance.visible;
+        let visible = appearance.visible && !crate::cloner::emptied(&world, entity);
         if let Some(lods) = &mut slot.lods {
             lods.show(&mut slot.node, global.position.distance(eye));
         }

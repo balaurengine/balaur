@@ -38,7 +38,11 @@ fn cube(app: &App, parent: Entity, name: &str) -> Entity {
 fn placements(app: &App, entity: Entity) -> Vec<Vec3> {
     let world = app.engine.world();
     let clones = world.get::<&Clones>(entity).expect("a cloned node");
-    clones.0.iter().map(|m| m.w_axis.truncate()).collect()
+    clones
+        .0
+        .iter()
+        .map(|copy| copy.at.w_axis.truncate())
+        .collect()
 }
 
 #[test]
@@ -212,4 +216,62 @@ fn a_thousand_copies_are_one_list() {
     assert_eq!(at.len(), 1000, "a thousand copies in one go");
     let far = at.iter().fold(Vec3::ZERO, |far, p| far.max(*p));
     assert_eq!(far, Vec3::splat(9.0), "the far corner of the crowd");
+}
+
+#[test]
+fn a_listed_cloner_draws_each_copy_where_and_in_the_tint_it_lists() {
+    let (_dir, mut app) = app();
+    let root = app.engine.root();
+    let owner = node(&app, "Waves", root);
+    add(
+        &app,
+        owner,
+        "cloner",
+        "mode = \"list\"\ncopies = [\n  { position = [1.0, 0.0, 0.0] },\n  { position = [0.0, 3.0, 0.0], scale = [2.0, 2.0, 1.0], tint = \"#ff000080\" },\n]",
+    );
+    let child = cube(&app, owner, "Ring");
+    app.tick(1.0 / 60.0);
+    assert_eq!(
+        placements(&app, child),
+        vec![Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 3.0, 0.0)]
+    );
+    let world = app.engine.world();
+    let clones = world.get::<&Clones>(child).unwrap();
+    assert!(
+        clones.0[0].tint.iter().all(|c| (c - 1.0).abs() < 1e-6),
+        "a copy with no tint is white"
+    );
+    let [r, g, b, a] = clones.0[1].tint;
+    assert!((r - 1.0).abs() < 1e-6 && g.abs() < 1e-6 && b.abs() < 1e-6);
+    assert!((a - 128.0 / 255.0).abs() < 1e-3, "the hex's alpha: {a}");
+}
+
+#[test]
+fn an_empty_list_draws_no_copy() {
+    let (_dir, mut app) = app();
+    let root = app.engine.root();
+    let owner = node(&app, "Waves", root);
+    add(&app, owner, "cloner", "mode = \"list\"");
+    let child = cube(&app, owner, "Ring");
+    app.tick(1.0 / 60.0);
+    assert!(placements(&app, child).is_empty());
+}
+
+#[test]
+fn a_listed_cloner_reads_back_its_copies() {
+    let (_dir, mut app) = app();
+    let root = app.engine.root();
+    let owner = node(&app, "Waves", root);
+    add(
+        &app,
+        owner,
+        "cloner",
+        "mode = \"list\"\ncopies = [{ position = [1.0, 2.0, 0.0], tint = [0.5, 0.5, 0.5, 1.0] }]",
+    );
+    let back = components::get(&app.engine, owner, "cloner").unwrap();
+    let copies = back["copies"].as_array().unwrap();
+    assert_eq!(copies.len(), 1);
+    assert_eq!(copies[0]["position"][1].as_float(), Some(2.0));
+    assert_eq!(copies[0]["tint"][0].as_float(), Some(0.5));
+    app.tick(1.0 / 60.0);
 }

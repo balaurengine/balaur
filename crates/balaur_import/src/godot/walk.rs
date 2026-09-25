@@ -70,9 +70,18 @@ impl Walk {
                 };
                 let path = path.trim_start_matches('*');
                 let path = path.strip_prefix("res://").unwrap_or(path);
-                if let Some(stem) = path.strip_suffix(".gd") {
-                    lookups.autoloads.push((name.clone(), format!("{stem}.rn")));
+                let Some(stem) = path.strip_suffix(".gd") else {
+                    continue;
+                };
+                // Static functions and constants alone need no node: the name
+                // reads the translated module, as a `class_name` does.
+                let source = super::io::text(&root.join(path)).unwrap_or_default();
+                if super::script::code_only(&source) {
+                    lookups.classes.files.insert(name.clone(), path.to_string());
+                    continue;
                 }
+                lookups.autoloads.push((name.clone(), format!("{stem}.rn")));
+                lookups.classes.autoload_nodes.insert(name.clone());
             }
         }
         Ok(Self {

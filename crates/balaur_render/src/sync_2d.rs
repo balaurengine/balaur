@@ -443,8 +443,19 @@ pub(crate) fn sync_2d(
             slot.flip = flip;
         }
         let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
-        let visible = appearance.visible;
+        let mut visible = appearance.visible;
         let shift = lean_and_shift(slot, &renderable, &global);
+        // A cloner above this node draws it once per copy, each copy an
+        // instance; a list with no copies draws nothing.
+        if let Ok(clones) = world.get::<&crate::Clones>(entity)
+            && slot.node.data().object().is_some()
+        {
+            visible &= !clones.0.is_empty();
+            slot.node
+                .set_instances(&crate::instancing::instances_2d(&clones, &global));
+            // The shear cached with the old instance is gone with it.
+            slot.shear = f32::NAN;
+        }
         slot.node
             .set_position(Vec2::new(global.position.x, global.position.y) + shift)
             .set_rotation(angle)
