@@ -21,6 +21,7 @@ use crate::dim2::PhysicsState2d;
 use crate::rapier2d::prelude::{
     ColliderBuilder as ColliderBuilder2, SoftBodyBuilder as SoftBodyBuilder2,
     SoftBodyHandle as SoftBodyHandle2, SoftBodyParticleSettings as SoftBodyParticleSettings2,
+    SoftBodySolver as SoftBodySolver2,
 };
 use crate::scalar::{self, Vector2};
 use crate::shared::softbody as cap;
@@ -235,6 +236,11 @@ fn with_settings(mut builder: SoftBodyBuilder2, params: &toml::Value) -> SoftBod
         .additional_solver_iterations(v::f(params, k::SOLVER_ITERATIONS, 0.0).max(0.0) as usize)
         .additional_pgs_iterations(v::f(params, k::PGS_ITERATIONS, 3.0).max(0.0) as usize)
         .can_sleep(v::boolean(params, k::CAN_SLEEP, true))
+        .solver(if v::text(params, k::SOLVER, w::CONSTRAINTS) == w::FEM {
+            SoftBodySolver2::Fem
+        } else {
+            SoftBodySolver2::Constraints
+        })
         .surface_collider(
             crate::dim2::collider::with_groups_2d(ColliderBuilder2::ball(1.0), params)
                 .friction(scalar::real(v::f(params, k::FRICTION, 0.5)))
@@ -316,6 +322,11 @@ pub(crate) fn get_softbody_params_2d(eng: &Engine, entity: Entity) -> Option<tom
     // Not the mass, whose sum over the particles rounds off what was asked
     // for, nor the radius, whose 0 means "worked out from the layout".
     table.insert(k::VOLUME_FACTOR.into(), number(body.volume_factor()));
+    let solver = match body.solver() {
+        SoftBodySolver2::Fem => w::FEM,
+        SoftBodySolver2::Constraints => w::CONSTRAINTS,
+    };
+    table.insert(k::SOLVER.into(), toml::Value::String(solver.into()));
     table.insert(
         k::VOLUME_PRESERVATION.into(),
         toml::Value::Boolean(body.volume_preservation_enabled()),

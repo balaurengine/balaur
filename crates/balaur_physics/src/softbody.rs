@@ -19,7 +19,7 @@ use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::PhysicsState3d;
-use crate::rapier3d::prelude::{ColliderBuilder, SoftBodyBuilder, SoftBodyHandle};
+use crate::rapier3d::prelude::{ColliderBuilder, SoftBodyBuilder, SoftBodyHandle, SoftBodySolver};
 use crate::scalar::{self, Real, Vector};
 use crate::shared::softbody as cap;
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
@@ -189,6 +189,12 @@ fn with_settings(mut builder: SoftBodyBuilder, params: &toml::Value) -> SoftBody
         .additional_solver_iterations(v::f(params, k::SOLVER_ITERATIONS, 0.0).max(0.0) as usize)
         .additional_pgs_iterations(v::f(params, k::PGS_ITERATIONS, 3.0).max(0.0) as usize)
         .can_sleep(v::boolean(params, k::CAN_SLEEP, true))
+        .solver(if v::text(params, k::SOLVER, w::CONSTRAINTS) == w::FEM {
+            SoftBodySolver::Fem
+        } else {
+            SoftBodySolver::Constraints
+        })
+        .skin_collision(v::boolean(params, k::SKIN_COLLISION, false))
         .surface_collider(surface_collider(params));
     let mass = v::f(params, k::MASS, 1.0);
     if mass > 0.0 {
@@ -406,6 +412,11 @@ pub(crate) fn get_softbody_params(eng: &Engine, entity: Entity) -> Option<toml::
     // Not the mass, whose sum over the particles rounds off what was asked
     // for, nor the radius, whose 0 means "worked out from the layout".
     table.insert(k::VOLUME_FACTOR.into(), number(body.volume_factor()));
+    let solver = match body.solver() {
+        SoftBodySolver::Fem => w::FEM,
+        SoftBodySolver::Constraints => w::CONSTRAINTS,
+    };
+    table.insert(k::SOLVER.into(), toml::Value::String(solver.into()));
     table.insert(
         k::VOLUME_PRESERVATION.into(),
         toml::Value::Boolean(body.volume_preservation_enabled()),

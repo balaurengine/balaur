@@ -529,3 +529,47 @@ fn a_generated_2d_soft_body_is_drawn_from_its_cells() {
         "the drawn cells read back as an authored polygon"
     );
 }
+
+/// `solver = "fem"` runs the elasticity as one implicit step over the body,
+/// and a body on it still falls. The script logs once it has checked, so a
+/// run that never reached the check fails too.
+#[test]
+fn a_body_on_the_implicit_solver_falls() {
+    let errors = run_for(
+        r#"pub fn init(this) {
+    this.node.softbody3d.set_softbody(#{ kind: "cuboid", cells: [2.0, 2.0, 2.0], solver: "fem", cell_model: "corotational" });
+    let read = this.node.get_component("softbody3d");
+    assert!(read.solver == "fem", "the body runs on the constraint solver");
+    this.first = this.node.softbody3d.softbody_position(0);
+    this.ticks = 0;
+}
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    if this.ticks == 3 {
+        let now = this.node.softbody3d.softbody_position(0);
+        assert!(now.y < this.first.y, "the implicit solver held the body still");
+        log::error("checked: the body fell");
+    }
+}
+"#,
+        8,
+    );
+    assert!(
+        errors.len() == 1 && errors[0].contains("checked: the body fell"),
+        "the check did not run clean: {errors:#?}"
+    );
+}
+
+/// The skin as the collision mesh: a skinned volumetric body builds with it.
+#[test]
+fn a_skinned_body_can_collide_through_its_skin() {
+    run_clean(
+        r##"pub fn init(this) {
+    let body = this.node.softbody3d;
+    body.set_softbody(#{ kind: "volumetric", mesh: "#wedge", cell_size: 0.2, skin: true, skin_collision: true });
+    assert!(body.softbody_particles() > 0, "the skinned body has no particles");
+}
+"##,
+    );
+}
