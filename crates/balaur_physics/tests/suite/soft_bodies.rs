@@ -328,6 +328,53 @@ pub fn fixed_update(this, dt) {
     );
 }
 
+/// What play-in-editor does on stop: the world is replaced by a fresh one,
+/// so every handle naming the old one's arena has to go with it.
+///
+/// Left behind, a stale handle names whatever lands in that slot next — the
+/// editor rebuilds the scene right after the clear — and removing the stale
+/// node takes the live body with it. The sheet then draws where it was built
+/// and never moves again, which is what this caught.
+#[test]
+fn clearing_the_world_forgets_the_soft_bodies_it_held() {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut app = balaur_core::App::new(balaur_core::AppConfig::bare(".")).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin::default()).unwrap();
+    let root = app.engine.root();
+    let cuboid = toml::from_str("kind = \"cuboid\"\ncells = [2.0, 2.0, 2.0]").unwrap();
+    let spawn = |app: &balaur_core::App, name: &str| {
+        let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), name, root);
+        balaur_core::components::add(&app.engine, node, "softbody3d", Some(&cuboid)).unwrap();
+        node
+    };
+
+    let first = spawn(&app, "First");
+    balaur_physics::clear(&app.engine);
+    assert_eq!(bodies(&app), 0, "the clear left a soft body behind");
+
+    // The rebuild the editor does next: its bodies take the slots the cleared
+    // ones had, so a handle left over from before would name one of them.
+    let second = spawn(&app, "Second");
+    assert_eq!(bodies(&app), 1, "the rebuilt node has no soft body");
+    balaur_core::scene::free_subtree(&mut app.engine.world_mut(), first);
+    app.tick(1.0 / 60.0);
+
+    assert_eq!(
+        bodies(&app),
+        1,
+        "pruning the cleared node took the live one too"
+    );
+    let state = app.engine.resource::<balaur_physics::PhysicsState3d>();
+    let state = state.borrow();
+    let handle = state.soft_bodies[&second];
+    assert!(
+        state.world.soft_bodies.get(handle).is_some(),
+        "the surviving node's handle names nothing in the world"
+    );
+}
+
 /// A body whose node is freed leaves nothing behind: the handles here index
 /// rapier's arena, and a stale one is a panic a script call away.
 #[test]

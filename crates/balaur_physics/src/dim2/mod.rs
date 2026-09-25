@@ -214,6 +214,9 @@ pub fn clear(eng: &Engine) {
     state.bodies.clear();
     state.colliders.clear();
     state.joints.clear();
+    // As in 3D: a handle into the old world's arena would alias the new one's.
+    state.soft_bodies.clear();
+    state.soft_params.clear();
     state.collider_params.clear();
     state.tile_params.clear();
     state.tile_built.clear();

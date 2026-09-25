@@ -707,29 +707,39 @@ fn install_world_controls(m: &mut dyn Bindings<Engine>) {
     // Remove every body and collider (editors use this to reset a
     // play-in-editor session). Spans BOTH worlds.
     m.function("clear", |eng: &Engine, ()| {
-        let state = eng.resource::<PhysicsState3d>();
-        let mut state = state.borrow_mut();
-        // A fresh world, not a drained one: see `dim2::clear` for why a
-        // rebuilt scene would otherwise not simulate the way a fresh process
-        // does. Gravity and the step are settings, and carry over.
-        let gravity = state.world.gravity;
-        let params = state.world.integration_parameters;
-        state.world = PhysicsWorld::default();
-        state.world.gravity = gravity;
-        state.world.integration_parameters = params;
-        state.bodies.clear();
-        state.colliders.clear();
-        // Rapier drops a body's joints with the body, so the map is all that
-        // is left to clear.
-        state.joints.clear();
-        state.collider_params.clear();
-        state.joint_params.clear();
-        state.wheel_inputs.clear();
-        state.grounded.clear();
-        drop(state);
+        clear(eng);
         dim2::clear(eng);
         Ok(())
     });
+}
+
+/// Empty the 3D world, as a play-in-editor session does on stop.
+///
+/// A fresh world, not a drained one: see [`dim2::clear`] for why a rebuilt
+/// scene would otherwise not simulate the way a fresh process does. Gravity
+/// and the step are settings, and carry over.
+pub fn clear(eng: &Engine) {
+    let state = eng.resource::<PhysicsState3d>();
+    let mut state = state.borrow_mut();
+    let gravity = state.world.gravity;
+    let params = state.world.integration_parameters;
+    state.world = PhysicsWorld::default();
+    state.world.gravity = gravity;
+    state.world.integration_parameters = params;
+    state.bodies.clear();
+    state.colliders.clear();
+    // Rapier drops a body's joints with the body, so the map is all that is
+    // left to clear.
+    state.joints.clear();
+    // A fresh world restarts its arenas, so a handle left here would name
+    // whatever lands in that slot next, and removing it would take a live
+    // body with it.
+    state.soft_bodies.clear();
+    state.soft_params.clear();
+    state.collider_params.clear();
+    state.joint_params.clear();
+    state.wheel_inputs.clear();
+    state.grounded.clear();
 }
 
 /// Body kinds the 3D and 2D worlds both accept, so a script writes
