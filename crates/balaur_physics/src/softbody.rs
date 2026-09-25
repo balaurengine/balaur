@@ -134,7 +134,7 @@ pub(crate) fn shared_softbody_schema() -> String {
             (k::INTERIOR_STRENGTH, r#"{ type = "float", default = 1.0, min = 1.0, description = "How many times tougher an undamaged inside element is than a surface one, so cracks start at the surface and run inward", group = "tearing" }"#),
             (k::MAX_TEARS, r#"{ type = "float", default = 0.0, min = 0.0, description = "The most edges that may tear in one step, which paces a crack; 0 is no limit", group = "tearing" }"#),
             (k::MIN_PIECE, r#"{ type = "float", default = 0.0, min = 0.0, description = "The smallest piece, in elements, a tear may split off; 0 lets rapier choose", group = "tearing" }"#),
-            (k::VOLUME_PRESERVATION, r#"{ type = "bool", default = false, description = "Hold the volume each closed piece of the body encloses", group = "volume" }"#),
+            (k::VOLUME_PRESERVATION, r#"{ type = "bool", default = true, description = "Hold the volume each closed piece of the body encloses; an open sheet or a rope encloses none, and a hoop without it caves in", group = "volume" }"#),
             (k::VOLUME_FACTOR, r#"{ type = "float", default = 1.0, min = 0.0, description = "What that volume is held at, as a multiple of the rest volume; above 1 inflates the body", group = "volume" }"#),
             (k::SHAPE_MATCHING, r#"{ type = "bool", default = false, description = "Pull the body back towards the shape it was built in, which is what keeps a jelly a jelly", group = "volume" }"#),
             (k::TENSION_ONLY, r#"{ type = "bool", default = false, description = "Let the edges resist stretching only, so the body folds freely and never pushes itself open", group = "volume" }"#),
@@ -180,7 +180,7 @@ fn with_settings(mut builder: SoftBodyBuilder, params: &toml::Value) -> SoftBody
     builder = builder
         .material(read_material(params))
         .cell_model(read_cell_model(params))
-        .volume_preservation(v::boolean(params, k::VOLUME_PRESERVATION, false))
+        .volume_preservation(v::boolean(params, k::VOLUME_PRESERVATION, true))
         .volume_factor(scalar::real(v::f(params, k::VOLUME_FACTOR, 1.0)))
         .shape_matching(v::boolean(params, k::SHAPE_MATCHING, false))
         .self_contacts(v::boolean(params, k::SELF_CONTACTS, false))

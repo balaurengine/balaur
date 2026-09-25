@@ -428,7 +428,7 @@ On a node carrying `shape2d`, as `node.shape2d.<method>`:
 
 ### `softbody2d`
 
-`2d` · `physics` · 56 properties · 7 methods
+`2d` · `physics` · 55 properties · 7 methods
 
 A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `trimesh` and `volumetric` kinds give and a generator does not.
 
@@ -479,7 +479,6 @@ A deformable 2D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>shape_matching</code></td><td>bool</td><td><code>false</code></td><td>Pull the body back towards the shape it was built in, which is what keeps a jelly a jelly</td></tr>
 <tr><td><code>shape_matching_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of the shape-matching constraints Range 0.0–100.0.</td></tr>
 <tr><td><code>shape_matching_frequency</code></td><td>float</td><td><code>10.0</code></td><td>The same for shape matching, which pulls the body back towards the shape it was built in Range 0.0–10000.0.</td></tr>
-<tr><td><code>skin</code></td><td>bool</td><td><code>false</code></td><td>Keep the outline as the drawn shape and let the cells carry it, so a detail the cell size cannot resolve survives</td></tr>
 <tr><td><code>solver</code></td><td>enum</td><td><code>constraints</code></td><td>Which solver runs the elasticity: sequential constraints, or an implicit Euler step over the whole body One of <code>constraints</code>, <code>fem</code>.</td></tr>
 <tr><td><code>solver_iterations</code></td><td>float</td><td><code>0.0</code></td><td>Extra solver substeps for this body and everything it touches Range 0.0–64.0.</td></tr>
 <tr><td><code>tear_force</code></td><td>float</td><td><code>0.0</code></td><td>The pull past which an edge breaks; 0 is unbreakable. Either criterion tears an edge At least 0.0.</td></tr>
@@ -489,7 +488,7 @@ A deformable 2D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>volume_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of the volume constraints Range 0.0–100.0.</td></tr>
 <tr><td><code>volume_factor</code></td><td>float</td><td><code>1.0</code></td><td>What that volume is held at, as a multiple of the rest volume; above 1 inflates the body At least 0.0.</td></tr>
 <tr><td><code>volume_frequency</code></td><td>float</td><td><code>30.0</code></td><td>The same for the constraints holding a cell&#x27;s volume, and for the whole-body one Range 0.0–10000.0.</td></tr>
-<tr><td><code>volume_preservation</code></td><td>bool</td><td><code>false</code></td><td>Hold the volume each closed piece of the body encloses</td></tr>
+<tr><td><code>volume_preservation</code></td><td>bool</td><td><code>true</code></td><td>Hold the volume each closed piece of the body encloses; an open sheet or a rope encloses none, and a hoop without it caves in</td></tr>
 <tr><td><code>young_modulus</code></td><td>float</td><td><code>10000.0</code></td><td>Stiffness of the elastic cells, as force per unit area; a finer mesh does not get stiffer for it At least 0.0.</td></tr>
 </tbody>
 </table>
@@ -1199,7 +1198,7 @@ A deformable 3D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>volume_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of the volume constraints Range 0.0–100.0.</td></tr>
 <tr><td><code>volume_factor</code></td><td>float</td><td><code>1.0</code></td><td>What that volume is held at, as a multiple of the rest volume; above 1 inflates the body At least 0.0.</td></tr>
 <tr><td><code>volume_frequency</code></td><td>float</td><td><code>30.0</code></td><td>The same for the constraints holding a cell&#x27;s volume, and for the whole-body one Range 0.0–10000.0.</td></tr>
-<tr><td><code>volume_preservation</code></td><td>bool</td><td><code>false</code></td><td>Hold the volume each closed piece of the body encloses</td></tr>
+<tr><td><code>volume_preservation</code></td><td>bool</td><td><code>true</code></td><td>Hold the volume each closed piece of the body encloses; an open sheet or a rope encloses none, and a hoop without it caves in</td></tr>
 <tr><td><code>young_modulus</code></td><td>float</td><td><code>10000.0</code></td><td>Stiffness of the elastic cells, as force per unit area; a finer mesh does not get stiffer for it At least 0.0.</td></tr>
 </tbody>
 </table>

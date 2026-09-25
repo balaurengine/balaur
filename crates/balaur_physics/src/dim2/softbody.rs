@@ -27,6 +27,8 @@ use crate::scalar::{self, Vector2};
 use crate::shared::softbody as cap;
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
 
+mod draw;
+
 crate::shared::softbody::material!(
     rapier = rapier2d,
     material = read_material_2d,
@@ -81,10 +83,6 @@ fn shape_schema() -> String {
             k::CELL_SIZE,
             r#"{ type = "float", default = 0.25, min = 0.001, description = "How big one triangle is when a volumetric body fills an outline; smaller is finer, slower and stiffer to tear", group = "shape" }"#,
         ),
-        (
-            k::SKIN,
-            r#"{ type = "bool", default = false, description = "Keep the outline as the drawn shape and let the cells carry it, so a detail the cell size cannot resolve survives", group = "shape" }"#,
-        ),
     ])
 }
 
@@ -132,6 +130,18 @@ fn outline(indices: &[[u32; 3]]) -> Vec<[u32; 2]> {
         .collect()
 }
 
+/// Every edge of the triangles, once, in a stable order.
+fn triangle_edges(indices: &[[u32; 3]]) -> Vec<[u32; 2]> {
+    let mut edges = std::collections::BTreeSet::new();
+    for tri in indices {
+        for i in 0..3 {
+            let (a, b) = (tri[i], tri[(i + 1) % 3]);
+            edges.insert([a.min(b), a.max(b)]);
+        }
+    }
+    edges.into_iter().collect()
+}
+
 /// Lay the particles out the way `kind` asks, in world space around `pose`.
 fn build_layout(
     eng: &Engine,
@@ -169,10 +179,13 @@ fn build_layout(
         ),
         // The outline alone: a hoop of edges around an inside, which is what
         // a 2D shape drawn by its border wants to be.
+        // Every triangle edge holds as well, or a vertex inside the outline
+        // is a particle nothing is attached to, and it falls out.
         w::SOFT_POLYGON => {
             let (points, indices) = source_mesh(eng, params, pose)?;
             let border = outline(&indices);
             SoftBodyBuilder2::polyline(points, Some(border))
+                .map(|hoop| hoop.edges(triangle_edges(&indices)))
                 .ok_or_else(|| anyhow!("that mesh has no outline to make a soft polygon of"))?
         }
         w::POLYLINE => {
@@ -187,18 +200,13 @@ fn build_layout(
                 .ok_or_else(|| anyhow!("that mesh has no triangles to make a soft body of"))?
         }
         // The approximate triangulation: the outline is covered with cells of
-        // `cell_size` and the body is those cells.
+        // `cell_size`, and the mesh rides them as a skin, which is what draws.
         w::VOLUMETRIC => {
             let (points, indices) = source_mesh(eng, params, pose)?;
             let border = outline(&indices);
             let size = scalar::real(v::f(params, k::CELL_SIZE, 0.25));
             cap::refuse_past_cap(cap::grid_particles(&extents(&points), size))?;
-            let built = if v::boolean(params, k::SKIN, false) {
-                SoftBodyBuilder2::volumetric_skinned(&points, &border, size)
-            } else {
-                SoftBodyBuilder2::volumetric(&points, &border, size)
-            };
-            built.ok_or_else(|| {
+            SoftBodyBuilder2::volumetric_skinned(&points, &border, size).ok_or_else(|| {
                 anyhow!("that outline encloses nothing at a cell size of {size}: it has to be closed, and big enough to hold a cell")
             })?
         }
@@ -227,7 +235,7 @@ fn with_settings(mut builder: SoftBodyBuilder2, params: &toml::Value) -> SoftBod
     builder = builder
         .material(read_material_2d(params))
         .cell_model(read_cell_model_2d(params))
-        .volume_preservation(v::boolean(params, k::VOLUME_PRESERVATION, false))
+        .volume_preservation(v::boolean(params, k::VOLUME_PRESERVATION, true))
         .volume_factor(scalar::real(v::f(params, k::VOLUME_FACTOR, 1.0)))
         .shape_matching(v::boolean(params, k::SHAPE_MATCHING, false))
         .self_contacts(v::boolean(params, k::SELF_CONTACTS, false))
@@ -334,13 +342,18 @@ pub(crate) fn get_softbody_params_2d(eng: &Engine, entity: Entity) -> Option<tom
     Some(toml::Value::Table(table))
 }
 
-/// Hand this step's particle positions to whatever draws the node, in the
-/// node's own space (see [`crate::softbody::write_solved_mesh`]).
+/// Hand this step's geometry to whatever draws the node, in the node's own
+/// space (see [`crate::softbody::write_solved_mesh`]).
 pub(crate) fn write_solved_polygon(eng: &Engine, entity: Entity) {
     let Ok(pose) = crate::dim2::node_pose_2d(eng, entity) else {
         return;
     };
-    let inverse = pose.inverse();
+    let held = eng
+        .world()
+        .get::<&draw::SkinTriangles>(entity)
+        .ok()
+        .map(|t| t.0.clone());
+    let mut fresh = None;
     let (positions, indices) = {
         let state = eng.resource::<PhysicsState2d>();
         let state = state.borrow();
@@ -350,16 +363,22 @@ pub(crate) fn write_solved_polygon(eng: &Engine, entity: Entity) {
         let Some(body) = state.world.soft_bodies.get(handle) else {
             return;
         };
-        // The cells are what a 2D body is drawn as: a filled shape, not the
-        // outline its collision mesh reports.
-        (
-            body.particle_positions()
-                .map(|p| scalar::a2(inverse * p))
-                .collect::<Vec<_>>(),
-            body.cells().iter().map(|cell| cell.vertices).collect(),
-        )
+        let params = state.soft_params.get(&entity);
+        draw::drawn(body, pose.inverse(), || {
+            held.unwrap_or_else(|| {
+                let loaded = params
+                    .and_then(|params| source_mesh(eng, params, scalar::Pose2::IDENTITY).ok())
+                    .map(|(_, triangles)| triangles)
+                    .unwrap_or_default();
+                fresh = Some(loaded.clone());
+                loaded
+            })
+        })
     };
     let mut world = eng.world_mut();
+    if let Some(triangles) = fresh {
+        let _ = world.insert_one(entity, draw::SkinTriangles(triangles));
+    }
     if let Ok(mut solved) = world.get::<&mut balaur_core::mesh::SolvedPolygon>(entity) {
         solved.update(positions, indices);
         return;
@@ -395,9 +414,9 @@ pub(crate) fn register_softbody_component_2d(reg: &mut Registry<'_>) {
             apply: Box::new(apply_softbody_2d),
             remove: Box::new(|eng, entity| {
                 remove_softbody_2d(eng, entity);
-                let _ = eng
-                    .world_mut()
-                    .remove_one::<balaur_core::mesh::SolvedPolygon>(entity);
+                let mut world = eng.world_mut();
+                let _ = world.remove_one::<balaur_core::mesh::SolvedPolygon>(entity);
+                let _ = world.remove_one::<draw::SkinTriangles>(entity);
                 Ok(())
             }),
             get: Box::new(get_softbody_params_2d),

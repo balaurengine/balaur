@@ -48,6 +48,12 @@ type = "mesh"
 positions = [[-0.5, -0.5, 0.0], [0.5, -0.5, 0.0], [0.5, 0.5, 0.0], [-0.5, 0.5, 0.0]]
 indices = [[0, 1, 2], [0, 2, 3]]
 
+[[assets]]
+id = "hub"
+type = "mesh"
+positions = [[-0.5, -0.5, 0.0], [0.5, -0.5, 0.0], [0.5, 0.5, 0.0], [-0.5, 0.5, 0.0], [0.0, 0.0, 0.0]]
+indices = [[0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4]]
+
 [[nodes]]
 id = "n_blob"
 name = "Blob"
@@ -266,9 +272,9 @@ fn volume_preservation_reads_back_from_the_solver() {
     run_clean(
         r#"pub fn init(this) {
     let node = this.node;
-    node.softbody3d.volume_preservation = true;
+    node.softbody3d.volume_preservation = false;
     node.softbody3d.volume_factor = 1.5;
-    assert_eq!(node.softbody3d.volume_preservation, true, "volume_preservation did not stick");
+    assert_eq!(node.softbody3d.volume_preservation, false, "volume_preservation did not stick");
     assert_eq!(node.softbody3d.volume_factor, 1.5, "volume_factor did not stick");
     assert!(node.softbody3d.softbody_rest_volume() > 0.0, "the block encloses nothing at rest");
 }
@@ -571,5 +577,120 @@ fn a_skinned_body_can_collide_through_its_skin() {
     assert!(body.softbody_particles() > 0, "the skinned body has no particles");
 }
 "##,
+    );
+}
+
+/// A disk is a hoop of particles around nothing, so the area it holds is all
+/// that keeps it round when it lands. The script logs once it has checked.
+#[test]
+fn a_disk_keeps_its_area_when_it_lands() {
+    let errors = run_for(
+        r#"pub fn init(this) {
+    let floor = this.node.add_child("Floor");
+    floor.set_component("transform", #{ position: [0.0, -0.8, 0.0] });
+    floor.set_component("collider2d", #{ kind: "rect", half_extents: [5.0, 0.2] });
+    let blob = this.node.get_node("Blob2d").softbody2d;
+    blob.set_softbody(#{ kind: "disk", radius: 0.5, particles: 24.0 });
+    this.before = blob.softbody_area();
+    this.ticks = 0;
+}
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    if this.ticks == 90 {
+        let now = this.node.get_node("Blob2d").softbody2d.softbody_area();
+        assert!(now > this.before * 0.8, "the disk caved in when it landed");
+        log::error("checked: the disk held");
+    }
+}
+"#,
+        95,
+    );
+    assert!(
+        errors.len() == 1 && errors[0].contains("checked: the disk held"),
+        "the check did not run clean: {errors:#?}"
+    );
+}
+
+/// What the 2D blob hands the renderer after `script` ran and `ticks` passed.
+fn solved_2d(script: &str, ticks: u32) -> balaur_core::mesh::SolvedPolygon {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let (_dir, app) = boot(script, ticks);
+    let world = app.engine.world();
+    let node = balaur_core::ids::find(&world, app.engine.root(), "n_blob2d").expect("the 2D blob");
+    let solved = world
+        .get::<&balaur_core::mesh::SolvedPolygon>(node)
+        .expect("the body handed nothing to the renderer");
+    (*solved).clone()
+}
+
+/// A volumetric body carries the mesh it filled as a skin, so what it hands
+/// over is that mesh's own vertices and triangles, which a `polygon` drawing
+/// the same mesh deforms by, rather than the cells it simulates.
+#[test]
+fn a_2d_volumetric_body_hands_over_the_mesh_it_filled() {
+    let solved = solved_2d(
+        r##"pub fn init(this) {
+    this.node.get_node("Blob2d").softbody2d.set_softbody(#{ kind: "volumetric", mesh: "#square", cell_size: 0.2 });
+}
+"##,
+        20,
+    );
+    assert_eq!(solved.positions.len(), 4, "not the square's four corners");
+    assert_eq!(
+        solved.indices,
+        vec![[0, 1, 2], [0, 2, 3]],
+        "not the square's own triangles"
+    );
+    assert!(
+        solved.positions.iter().all(|p| p[1] < 0.3),
+        "the corners, from y = 0.5 at the top, did not fall with the cells: {:?}",
+        solved.positions
+    );
+}
+
+/// A rope has segments and no inside, so it is drawn as a strip along them.
+#[test]
+fn a_2d_rope_hands_over_a_ribbon() {
+    let solved = solved_2d(
+        r#"pub fn init(this) {
+    this.node.get_node("Blob2d").softbody2d.set_softbody(#{ kind: "rope", a: [0.0, 0.0], b: [1.0, 0.0], particles: 5.0 });
+}
+"#,
+        2,
+    );
+    assert_eq!(solved.positions.len(), 10, "two vertices a particle");
+    assert_eq!(solved.indices.len(), 8, "two triangles a segment");
+}
+
+/// A `polygon` body is its outline, and a vertex inside it is held by the
+/// mesh's own triangle edges: left free it fell through the floor alone.
+#[test]
+fn a_2d_polygon_body_keeps_a_vertex_inside_its_outline() {
+    let solved = solved_2d(
+        r##"pub fn init(this) {
+    let floor = this.node.add_child("Floor");
+    floor.set_component("transform", #{ position: [0.0, -0.8, 0.0] });
+    floor.set_component("collider2d", #{ kind: "rect", half_extents: [5.0, 0.2] });
+    this.node.get_node("Blob2d").softbody2d.set_softbody(#{ kind: "polygon", mesh: "#hub", particle_radius: 0.05 });
+}
+"##,
+        90,
+    );
+    let [x, y] = solved.positions[4];
+    let low = solved.positions[..4]
+        .iter()
+        .map(|p| p[1])
+        .fold(f32::MAX, f32::min);
+    let high = solved.positions[..4]
+        .iter()
+        .map(|p| p[1])
+        .fold(f32::MIN, f32::max);
+    assert!(
+        x.abs() < 0.3 && y > low && y < high,
+        "the hub left its outline: {:?}",
+        solved.positions
     );
 }

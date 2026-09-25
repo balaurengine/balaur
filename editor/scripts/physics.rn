@@ -235,23 +235,26 @@ fn shape_rows(S, k, two_d) {
             make_collider(S, two_d, held[2]);
         }
     });
-    let filled = if two_d {
-        "Fill the outline with triangles and simulate those: a soft body as coarse as its cell size, which the Shape rows below set"
+    let soft = if two_d {
+        [
+            ["solid", "Fill the outline with triangles and simulate those, with the polygon riding them: a soft body as coarse as its cell size, which the Shape rows below set", #{ kind: "volumetric" }],
+            ["outline", "Simulate the outline alone, holding the area it encloses: a balloon rather than a jelly", #{ kind: "polygon" }],
+            ["surface", "Simulate the mesh's own vertices and triangles, with no cell size to choose", #{ kind: "trimesh" }],
+        ]
     } else {
-        "Fill the mesh with tetrahedra and simulate those: a soft body as coarse as its cell size, which the Shape rows below set. The mesh has to be closed"
+        [
+            ["solid", "Fill the mesh with tetrahedra and simulate those: a soft body as coarse as its cell size, which the Shape rows below set. The mesh has to be closed", #{ kind: "volumetric", skin: false }],
+            ["skinned", "The same, keeping the drawn mesh as the surface the cells carry: a detail the cell size cannot resolve survives, and contacts stay as coarse as the cells", #{ kind: "volumetric", skin: true }],
+            ["surface", "Simulate the mesh's own vertices and triangles: a sheet or a shell rather than a filled body, and no cell size to choose", #{ kind: "trimesh", skin: false }],
+        ]
     };
-    let soft = [
-        ["solid", filled, "volumetric", false],
-        ["skinned", "The same, keeping the drawn mesh as the surface the cells carry: a detail the cell size cannot resolve survives, and contacts stay as coarse as the cells", "volumetric", true],
-        ["surface", "Simulate the mesh's own vertices and triangles: a sheet or a shell rather than a filled body, and no cell size to choose", "trimesh", false],
-    ];
     pill_rows(S, k, "Deform as", soft, |row| row[0], |row| row[0], |row| {
         let held = row;
         if ui::pill(held[0], #{
             role: "row_action", fill: k.sage_soft, color: k.sage, tooltip: held[1],
         }) {
             let name = if two_d { "softbody2d" } else { "softbody3d" };
-            let props = #{ kind: held[2], skin: held[3] };
+            let props = held[2];
             model::set_component_props_each(S, name, |node| with_mesh(node, two_d, props));
         }
     });

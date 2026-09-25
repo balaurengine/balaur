@@ -3758,12 +3758,6 @@
         "min": 0.0,
         "type": "float"
       },
-      "skin": {
-        "default": false,
-        "description": "Keep the outline as the drawn shape and let the cells carry it, so a detail the cell size cannot resolve survives",
-        "group": "shape",
-        "type": "bool"
-      },
       "solver": {
         "default": "constraints",
         "description": "Which solver runs the elasticity: sequential constraints, or an implicit Euler step over the whole body",
@@ -3833,8 +3827,8 @@
         "type": "float"
       },
       "volume_preservation": {
-        "default": false,
-        "description": "Hold the volume each closed piece of the body encloses",
+        "default": true,
+        "description": "Hold the volume each closed piece of the body encloses; an open sheet or a rope encloses none, and a hoop without it caves in",
         "group": "volume",
         "type": "bool"
       },
@@ -4369,8 +4363,8 @@
         "type": "float"
       },
       "volume_preservation": {
-        "default": false,
-        "description": "Hold the volume each closed piece of the body encloses",
+        "default": true,
+        "description": "Hold the volume each closed piece of the body encloses; an open sheet or a rope encloses none, and a hoop without it caves in",
         "group": "volume",
         "type": "bool"
       },
