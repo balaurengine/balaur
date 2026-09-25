@@ -356,6 +356,20 @@ pub fn min_size(node) {
     vec2(0.0, 0.0)
 }
 
+/// Godot's `get_combined_minimum_size`: the stated minimum, or the size the
+/// widget layer last laid the node out at, whichever is larger.
+pub fn combined_min_size(node) {
+    let floor = min_size(node);
+    if !(node is balaur::Node) {
+        return floor;
+    }
+    let drawn = ui::widget_rect(node);
+    if drawn is Object && drawn.contains_key("w") {
+        return vec2(math::max(floor.x, float(drawn["w"])), math::max(floor.y, float(drawn["h"])));
+    }
+    floor
+}
+
 pub fn set_min_size(node, size) {
     if node is balaur::Node {
         node.patch_component("widget", #{ "min_width": float(size.x), "min_height": float(size.y) });
@@ -958,9 +972,60 @@ fn node_property(node, name) {
         "foldable_group" => get_meta(node, "foldable_group", ()),
         "material" => get_meta(node, "material", ()),
         "multimesh" => get_meta(node, "multimesh", ()),
+        "speed_scale" if node.has_component("animation") => float(get(node.get_component("animation"), "speed", 1.0)),
+        "current_animation" if node.has_component("animation") => {
+            let current = node.animation.current();
+            if is_nil(current) { "" } else { current }
+        }
         _ => (),
     };
     out
+}
+
+/// Godot's `get_theme_constant`: the widget key a theme constant lands on,
+/// as `theme_override` writes it; 0 for one the widget has no key for.
+pub fn theme_constant(node, name) {
+    if !(node is balaur::Node) || !node.has_component("widget") {
+        return 0;
+    }
+    let widget = node.get_component("widget");
+    if name.starts_with("margin_") {
+        let padding = get(widget, "padding", 0.0);
+        if padding is Vec {
+            let side = match name {
+                "margin_left" => 0,
+                "margin_top" => 1,
+                "margin_right" => 2,
+                _ => 3,
+            };
+            return float(padding[side]);
+        }
+        return float(padding);
+    }
+    if name == "separation" || name == "h_separation" || name == "v_separation" {
+        return float(get(widget, "gap", 0.0));
+    }
+    0
+}
+
+/// Godot's `get_theme_color`: the widget's text or icon colour.
+pub fn theme_color(node, name) {
+    if !(node is balaur::Node) || !node.has_component("widget") {
+        return color(1.0, 1.0, 1.0, 1.0);
+    }
+    let key = if name.starts_with("icon") { "icon_color" } else { "text_color" };
+    let value = get(node.get_component("widget"), key, ());
+    if is_nil(value) || value == "" {
+        return color(1.0, 1.0, 1.0, 1.0);
+    }
+    color_of(value)
+}
+
+pub fn theme_font_size(node, name) {
+    if !(node is balaur::Node) || !node.has_component("widget") {
+        return 16;
+    }
+    int(get(node.get_component("widget"), "font_size", 16.0))
 }
 
 /// Godot's `add_theme_*_override`: the widget key that carries the item, or
@@ -1042,6 +1107,8 @@ fn set_node_property(node, name, value) {
         node.patch_component("camera2d", #{ "zoom": float(value.x) * PIXELS });
     } else if name == "foldable_group" || name == "material" {
         set_meta(node, name, value);
+    } else if name == "speed_scale" && node.has_component("animation") {
+        node.patch_component("animation", #{ "speed": float(value) });
     } else if name == "multimesh" && value is Object && value.contains_key("__multimesh") {
         value["node"] = node;
         set_meta(node, name, value);
@@ -1314,6 +1381,12 @@ fn glob(pattern, name) {
 fn node_method(node, name, args) {
     let count = args.len();
     let a0 = if count > 0 { args[0] } else { () };
+    if node.has_component("animation") {
+        let out = player_method(node, name, args);
+        if out != NOT_A_PLAYER_VERB {
+            return out;
+        }
+    }
     if name == "to_global" {
         return global_transform(node) * vec_of(a0);
     }
@@ -1422,6 +1495,68 @@ fn option_method(node, name, args) {
     if name == "set_item_disabled" {
         return true;
     }
+}
+
+/// Godot's `AnimationPlayer` verbs on a node carrying `animation`: `play`
+/// starts a clip, a bare `play()` resumes, `advance` moves the playhead on.
+/// `NOT_A_PLAYER_VERB` for any other name.
+fn player_method(node, name, args) {
+    let count = args.len();
+    let a0 = if count > 0 { args[0] } else { () };
+    let player = node.animation;
+    if name == "play" && count > 0 && a0 != "" {
+        let speed = if count > 2 { float(args[2]) } else { 1.0 };
+        player.play(a0, #{ "speed": speed, "from_start": true });
+        return ();
+    }
+    if name == "play" || name == "resume" {
+        player.resume();
+        return ();
+    }
+    if name == "stop" || name == "pause" {
+        player.pause();
+        return ();
+    }
+    if name == "seek" {
+        player.seek(float(a0));
+        return ();
+    }
+    if name == "advance" {
+        player.seek(player.time() + float(a0));
+        return ();
+    }
+    if name == "queue" {
+        player.queue(a0);
+        return ();
+    }
+    if name == "clear_queue" {
+        return ();
+    }
+    if name == "is_playing" {
+        return player.is_playing();
+    }
+    if name == "has_animation" {
+        return has_clip(node, a0);
+    }
+    if name == "get_current_animation" || name == "get_assigned_animation" {
+        let current = player.current();
+        let name = if is_nil(current) { "" } else { current };
+        return name;
+    }
+    NOT_A_PLAYER_VERB
+}
+
+const NOT_A_PLAYER_VERB = "__not_a_player_verb";
+
+/// Whether the node's clip library holds a clip of that name.
+fn has_clip(node, name) {
+    let library = get(node.get_component("animation"), "library", ());
+    let (ok, clips) = script::attempt(|| assets::load(library));
+    if !ok || !(clips is Object) {
+        return false;
+    }
+    let held = get(clips, "clips", clips);
+    held is Object && held.contains_key(name)
 }
 
 fn option_items(node) {
@@ -2451,6 +2586,49 @@ pub fn take_input_handled() {
 }
 
 const WIDGET_BOUND = "widget:bound:";
+
+/// Godot's `Signal` as a value, `button.pressed` handed to a function: a
+/// record whose `connect`, `is_connected` and `disconnect` reach the widget
+/// key when `key` names one, and the node's handlers otherwise. A one-shot
+/// flag is not kept: the caller disconnects.
+pub fn signal_value(node, name, key) {
+    let sig = #{ "__signal": name, "node": node, "key": key };
+    sig["connect"] = |f| signal_connect(sig, f);
+    sig["connect/2"] = |f, flags| signal_connect(sig, f);
+    sig["is_connected"] = |f| signal_connected(sig);
+    sig["disconnect"] = |f| signal_disconnect(sig);
+    sig
+}
+
+fn signal_connect(sig, f) {
+    if sig["key"] == "" {
+        return connect(sig["node"], sig["__signal"], f);
+    }
+    widget_bind(sig["node"], sig["key"], f)
+}
+
+fn signal_connected(sig) {
+    let node = sig["node"];
+    if !(node is balaur::Node) {
+        return false;
+    }
+    if sig["key"] == "" {
+        return is_connected(node, sig["__signal"]);
+    }
+    let list = script::stored(`${WIDGET_BOUND}${node.stable_id()}:${sig["key"]}`);
+    list is Vec && list.len() > 0
+}
+
+fn signal_disconnect(sig) {
+    let node = sig["node"];
+    if !(node is balaur::Node) {
+        return ();
+    }
+    if sig["key"] == "" {
+        return disconnect(node, sig["__signal"]);
+    }
+    script::store(`${WIDGET_BOUND}${node.stable_id()}:${sig["key"]}`, []);
+}
 
 /// A widget signal's handler that is no method here, a `.bind` or a lambda:
 /// the widget calls the class's forwarder with its node, which finds it.

@@ -289,6 +289,17 @@ impl Emitter<'_> {
         if let Some(text) = self.static_write(target, op, value, pad) {
             return Some(text);
         }
+        if let Expr::Field(object, field) = target
+            && let Expr::Name(class) = &**object
+            && op == "="
+            && !self.is_local(class)
+            && !self.context.members.contains(class)
+        {
+            let text = self.expression(value);
+            if let Some(write) = map::singleton_write(class, field, &text) {
+                return Some(format!("{pad}{};\n", discardable(&write)));
+            }
+        }
         let (object, field) = match target {
             Expr::Name(name)
                 if !self.is_local(name)

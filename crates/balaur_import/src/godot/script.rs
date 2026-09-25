@@ -21,7 +21,8 @@ use class::{
 use constants::{enum_members, self_contained, write_constants, write_enums};
 use draw::{DRAW_CALL, write_draw_hook};
 pub(crate) use inner::{
-    defaulted, function_names, inner_classes, inner_file, inner_scripts, signal_arities,
+    defaulted, function_names, inner_classes, inner_file, inner_scripts, member_names,
+    signal_arities,
 };
 use input::{write_input_hooks, write_widget_forwarders};
 use members::write_members;
@@ -407,6 +408,7 @@ fn context(
         }
     }
     context.defaulted = classes.defaulted.clone();
+    context.project_members.clone_from(&classes.members);
     context.inner = classes
         .inner
         .iter()
@@ -1132,5 +1134,7 @@ mod draw;
 mod inner;
 mod input;
 mod members;
+#[cfg(test)]
+mod port_tests;
 #[cfg(test)]
 mod tests;

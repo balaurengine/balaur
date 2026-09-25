@@ -25,3 +25,14 @@ pub(super) fn arithmetic(name: &str, all: &str, one: &str) -> Option<String> {
         _ => return None,
     })
 }
+
+/// A property written on one of Godot's singletons: `Engine.max_fps = 0`.
+/// The frame cap is the `window/max_fps` setting; low-processor mode has no
+/// switch here, since the loop already paces itself against the tick.
+pub(crate) fn singleton_write(class: &str, field: &str, value: &str) -> Option<String> {
+    Some(match (class, field) {
+        ("Engine", "max_fps") => format!("settings::set(\"window/max_fps\", {value})"),
+        ("OS", "low_processor_usage_mode" | "low_processor_usage_mode_sleep_usec") => "()".into(),
+        _ => return None,
+    })
+}

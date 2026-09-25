@@ -40,6 +40,8 @@ pub(crate) struct Context {
     /// How many values a signal carries: a handler connected to one is
     /// called with that many, whatever its own defaults say.
     pub signal_arity: BTreeMap<String, usize>,
+    /// Member variables declared anywhere in the project.
+    pub project_members: BTreeSet<String>,
     /// Functions the async pass found, so a call to one gets `.await`.
     pub asyncs: BTreeSet<String>,
     /// A GDScript name that had to change, so calls reach the new one.
@@ -747,6 +749,9 @@ impl<'a> Emitter<'a> {
             }
         }
         let text = self.expression(object);
+        if let Some(signal) = self.signal_as_value(&text, field) {
+            return signal;
+        }
         if let Some(mapped) = map::property(&text, field) {
             return self.shimmed(mapped);
         }
@@ -763,6 +768,28 @@ impl<'a> Emitter<'a> {
         }
         self.uses_shim = true;
         format!("(gd.field)({text}, {})", quoted(field))
+    }
+
+    /// `button.pressed` read rather than called: Godot's `Signal` as a value,
+    /// a record whose `connect` and kin reach the widget key or the node's
+    /// handlers. A name some class declares as a variable is read as one.
+    fn signal_as_value(&mut self, receiver: &str, field: &str) -> Option<String> {
+        let key = map::widget_signal(field);
+        let declared = self.context.signal_arity.contains_key(field)
+            && !self.context.members.contains(field)
+            && !self.context.project_members.contains(field);
+        if key.is_none() && !declared {
+            return None;
+        }
+        if let Some(key) = key {
+            self.widget_forwarders.insert(key.to_string());
+        }
+        self.uses_shim = true;
+        Some(format!(
+            "(gd.signal_value)({receiver}, {}, {})",
+            quoted(field),
+            quoted(key.unwrap_or(""))
+        ))
     }
 
     /// A call on one of Godot's own classes: `Timer.new()`, `OS.get_name()`.

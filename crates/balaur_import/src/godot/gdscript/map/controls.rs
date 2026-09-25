@@ -24,6 +24,12 @@ pub(super) fn control_verb(receiver: &str, name: &str, args: &[String]) -> Optio
         | "add_theme_font_override" => "()".into(),
         // An option button's popup is the button itself here: its rows.
         "get_popup" => receiver.into(),
+        "get_theme_constant" => format!("(gd.theme_constant)({receiver}, {one})"),
+        "get_combined_minimum_size" | "get_minimum_size" => {
+            format!("(gd.combined_min_size)({receiver})")
+        }
+        "get_theme_color" => format!("(gd.theme_color)({receiver}, {one})"),
+        "get_theme_font_size" => format!("(gd.theme_font_size)({receiver}, {one})"),
         "set_shader_parameter" => format!("(gd.set_shader_parameter)({receiver}, {all})"),
         "get_shader_parameter" => format!("(gd.get_shader_parameter)({receiver}, {one})"),
         // `Image.load(path)`; the global `load` is a preload by another name.
@@ -51,6 +57,12 @@ pub(super) fn own_control(name: &str, all: &str) -> Option<String> {
         | "add_theme_stylebox_override"
         | "add_theme_font_override" => "()".into(),
         "get_popup" => "this.node".into(),
+        "get_theme_constant" => format!("(gd.theme_constant)(this.node, {all})"),
+        "get_combined_minimum_size" | "get_minimum_size" => {
+            "(gd.combined_min_size)(this.node)".into()
+        }
+        "get_theme_color" => format!("(gd.theme_color)(this.node, {all})"),
+        "get_theme_font_size" => format!("(gd.theme_font_size)(this.node, {all})"),
         _ => return None,
     })
 }

@@ -241,6 +241,19 @@ pub fn same(a, b) {
     if b is String {
         return false;
     }
+    // A dictionary may be a hash map or an object, and the two never compare
+    // with `==`: equal when every key holds the same value.
+    if is_dict(a) && is_dict(b) {
+        if a.len() != b.len() {
+            return false;
+        }
+        for key in a.keys() {
+            if !has(b, key) || !same(a[key], b[key]) {
+                return false;
+            }
+        }
+        return true;
+    }
     a == b
 }
 

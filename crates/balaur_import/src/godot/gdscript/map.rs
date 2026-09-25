@@ -8,6 +8,8 @@
 mod controls;
 mod globals;
 
+pub(crate) use globals::singleton_write;
+
 use super::emit::{quoted, safe};
 
 /// What `get_tree()` becomes. Its verbs are the scene module's, so the

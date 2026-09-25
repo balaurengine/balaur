@@ -625,7 +625,11 @@ impl<'a> Parser<'a> {
     fn end_of_statement(&mut self) -> Option<()> {
         self.eat(&Tok::Op(";"));
         if self.check(&Tok::Newline) || self.at_end() || self.check(&Tok::Dedent) {
-            self.eat(&Tok::Newline);
+            // A one-line lambda's body leaves the line's end to the statement
+            // holding the lambda.
+            if self.inline == 0 {
+                self.eat(&Tok::Newline);
+            }
             return Some(());
         }
         // A lambda whose body was a block ends its statement with that block.
@@ -763,6 +767,34 @@ mod tests {
             "{out:?}"
         );
         assert!(matches!(out.get(2), Some(Stmt::Var { .. })), "{out:?}");
+    }
+
+    #[test]
+    fn a_typed_lambda_with_a_one_line_body_is_a_lambda() {
+        let out = parse("var forward := func() -> void: gate_released.emit(true)\n");
+        assert!(
+            matches!(
+                out.first(),
+                Some(Stmt::Var {
+                    value: Some(Expr::Lambda { .. }),
+                    ..
+                })
+            ),
+            "{out:?}"
+        );
+        let out = parse(
+            "var forward := func() -> void: gate_released.emit(true)\nwaited.connect(forward, CONNECT_ONE_SHOT)\n",
+        );
+        assert!(
+            matches!(
+                out.first(),
+                Some(Stmt::Var {
+                    value: Some(Expr::Lambda { .. }),
+                    ..
+                })
+            ),
+            "a statement after it: {out:?}"
+        );
     }
 
     #[test]

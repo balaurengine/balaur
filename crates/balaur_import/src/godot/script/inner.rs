@@ -54,6 +54,11 @@ pub(crate) fn signal_arities(source: &str) -> BTreeMap<String, usize> {
     declarations(source).signal_arity
 }
 
+/// Every member variable a file declares.
+pub(crate) fn member_names(source: &str) -> std::collections::BTreeSet<String> {
+    declarations(source).members
+}
+
 /// Every function a file declares, under the Rune name it is emitted with.
 pub(crate) fn function_names(source: &str) -> std::collections::BTreeSet<String> {
     split_functions(source)

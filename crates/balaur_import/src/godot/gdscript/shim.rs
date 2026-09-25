@@ -90,6 +90,82 @@ mod tests {
         );
     }
 
+    /// Godot's `AnimationPlayer` verbs reach the `animation` component: a clip
+    /// the library holds is found and plays, and one it does not is not found.
+    #[test]
+    fn an_animation_player_s_verbs_drive_the_animation_component() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        std::fs::create_dir_all(dir.path().join("animations")).unwrap();
+        put(
+            "animations/steal.toml",
+            &[
+                "type = \"animation_clip\"",
+                "[clips.start]",
+                "length = 2.0",
+                "[[clips.start.tracks]]",
+                "target = \"\"",
+                "property = \"position\"",
+                "interp = \"linear\"",
+                "keys = [{ t = 0.0, value = [0.0, 0.0, 0.0] }, { t = 2.0, value = [1.0, 0.0, 0.0] }]",
+                "",
+            ]
+            .join("\n"),
+        );
+        put(
+            "main.toml",
+            &[
+                "[[nodes]]",
+                "id = \"probe\"",
+                "name = \"Probe\"",
+                "script = { source = \"probe.rn\" }",
+                "animation = { library = \"animations/steal.toml\" }",
+                "",
+            ]
+            .join("\n"),
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let has = (gd.invoke1)(this.node, \"has_animation\", \"start\");",
+                "    let lacks = (gd.invoke1)(this.node, \"has_animation\", \"end\");",
+                "    (gd.invoke1)(this.node, \"play\", \"start\");",
+                "    (gd.set_field)(this.node, \"speed_scale\", 4.0);",
+                "    let playing = (gd.invoke)(this.node, \"is_playing\");",
+                "    let current = (gd.invoke)(this.node, \"get_current_animation\");",
+                "    let speed = (gd.field)(this.node, \"speed_scale\");",
+                "    if has && !lacks && playing && current == \"start\" && speed == 4.0 {",
+                "        this.node.set_z_index(7);",
+                "    }",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert_eq!(
+            world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .z_index,
+            7,
+            "the probe marked itself only if every verb answered as Godot's player"
+        );
+    }
+
     /// A multimesh draws each instance as a `polygon` child sharing one mesh,
     /// placed from a transform a script built axis by axis.
     #[test]
