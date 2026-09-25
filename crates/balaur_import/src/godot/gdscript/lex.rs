@@ -51,6 +51,28 @@ fn ends_a_value(kind: &Tok) -> bool {
     )
 }
 
+/// The source's lines, a `"""` string's lines joined to the one that opens
+/// it with their newlines kept: the lexer and the declaration scan both read
+/// a line at a time, and a string running over lines is still one token.
+pub(crate) fn logical_lines(source: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut open = false;
+    for line in source.lines() {
+        let opens = line.matches("\"\"\"").count() % 2 == 1;
+        match out.last_mut() {
+            Some(last) if open => {
+                last.push('\n');
+                last.push_str(line);
+            }
+            _ => out.push(line.to_string()),
+        }
+        if opens {
+            open = !open;
+        }
+    }
+    out
+}
+
 pub(crate) fn lex(source: &str) -> Result<Vec<Token>, String> {
     Lexer {
         out: Vec::new(),
@@ -84,7 +106,7 @@ struct Lambda {
 
 impl Lexer {
     fn run(mut self, source: &str) -> Result<Vec<Token>, String> {
-        for (index, raw) in source.lines().enumerate() {
+        for (index, raw) in logical_lines(source).iter().enumerate() {
             self.line = index + 1;
             let line = raw.trim_end();
             let trimmed = line.trim_start();

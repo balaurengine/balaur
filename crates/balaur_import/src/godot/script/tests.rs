@@ -943,3 +943,29 @@ func _ready():\n\
         out.rune
     );
 }
+
+#[test]
+fn a_constant_holding_a_triple_quoted_string_over_lines_is_one_declaration() {
+    let source = [
+        "extends Node",
+        "class Plugin:",
+        "\tconst HEADER: String = \"\"\"<?xml version=\"1.0\"?>",
+        "\t<plist version=\"1.0\">",
+        "\t<array>\\n\"\"\"",
+        "\tconst SUFFIX: String = \".ipa\"",
+        "\tfunc write(file):",
+        "\t\tfile.store_string(HEADER + SUFFIX)",
+        "",
+    ]
+    .join("\n");
+    let inner = super::inner_scripts(&source, "addons/deeplink.gd");
+    let (path, text) = inner
+        .iter()
+        .find(|(path, _)| path.contains("Plugin"))
+        .expect("the inner class's file");
+    let rune = convert(text, path, &Classes::default()).rune;
+    assert!(rune.contains("pub const HEADER = "), "{rune}");
+    assert!(rune.contains("<plist version="), "{rune}");
+    assert!(rune.contains("pub const SUFFIX = \".ipa\";"), "{rune}");
+    assert!(!rune.contains("PORT("), "{rune}");
+}

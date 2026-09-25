@@ -8,7 +8,7 @@
 
 mod ast;
 mod emit;
-mod lex;
+pub(crate) mod lex;
 mod map;
 mod parse;
 mod shim;

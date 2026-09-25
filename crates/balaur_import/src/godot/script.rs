@@ -216,7 +216,8 @@ fn top_level(source: &str) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     let mut open = 0i32;
     let mut pending: Option<String> = None;
-    for line in source.lines() {
+    for line in &gdscript::lex::logical_lines(source) {
+        let line = line.as_str();
         let code = uncommented(line);
         if let Some(text) = pending.as_mut() {
             text.push(' ');
@@ -250,8 +251,18 @@ fn top_level(source: &str) -> Vec<String> {
 /// opens no comment.
 fn uncommented(line: &str) -> &str {
     let mut quote = None;
+    let mut long = false;
     let mut chars = line.char_indices();
     while let Some((at, c)) = chars.next() {
+        // A `"""` string holds quotes and newlines of its own.
+        if line[at..].starts_with("\"\"\"") && quote.is_none() {
+            long = !long;
+            chars.nth(1);
+            continue;
+        }
+        if long {
+            continue;
+        }
         match (quote, c) {
             (Some(open), c) if c == open => quote = None,
             (Some(_), '\\') => {
