@@ -293,10 +293,14 @@ Three rules belong to the importer rather than the translator:
    the shim's `RegEx` record calls; `Image.new()` + `load` as the texture's
    path. Not built, in balaur terms: `focus_neighbor_*` (the engine moves
    focus itself), the app lifecycle notifications (the roadmap's "Suspend
-   and resume"), and `tab_changed`. A `MultiMesh` is built as `polygon`
-   children of its node, each with the same inline `mesh` asset, so the
-   batcher draws the city waves in one call per layer; `t.x = v` on a
-   `Transform2D` local rebuilds it through `gd.with_field`.
+   and resume"), and `tab_changed`. A `MultiMesh` is the node's `cloner`
+   in `mode = "list"` over one `polygon` child carrying the mesh, each
+   instance a copy `set_copy` places and tints: one draw per wave layer.
+   The cloner draws its copies in 2D since then, polygons included. `t.x = v`
+   on a `Transform2D` local rebuilds it through `gd.with_field`. An
+   autoload that is code alone is a module, read by name as a `class_name`
+   is; any other is a node of the main scene, read through
+   `scene::node_by_id("autoload_<name>")`.
 9. **Retire the hand-written files** and reimport; the 54 again. Started
    2026-09-24 from the `login_offline` log, 1 394 error lines once
    `run.sh` read it stripped of colour: `Shader.new()` and
@@ -309,6 +313,15 @@ Three rules belong to the importer rather than the translator:
    components and children, and `size_of` answers a vector. After the
    reimport (engine cb25b9b3): stubs 650 → 621, `login_offline` reaches its
    summary with 294 error lines, 185 of them `foldable_group` reads.
+   Done 2026-09-25: the four hand-written scripts are translated (port
+   048f5f8b), after the intro's signal-as-value, one-line lambda,
+   `AnimationPlayer` verbs and theme getters; only the Gamend SDK is kept
+   by hand. The 54: 32 reach a clean summary, as on 2026-09-21, and 24 end
+   with no error line, up from 7; on the 29 run under Godot too, the
+   verdicts agree on every one. Stubs 587. What 13 world-map scenarios
+   still log is `missing country scene cache`: the game ships its 52
+   country maps as binary `.scn` (`RSCC`), which the importer does not
+   read.
 10. **Web export**, `web_smoke`, the size report, the `web` mappings.
 11. **Pictures against Godot's**, and what they show fixed.
 12. **A device.** iOS and Android signed and run once hardware is on the
