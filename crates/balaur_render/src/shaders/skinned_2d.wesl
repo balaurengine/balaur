@@ -11,6 +11,7 @@ struct FrameUniforms {
 struct ObjectUniforms {
     model_0: vec4<f32>, model_1: vec4<f32>, model_2: vec4<f32>,
     color: vec4<f32>,
+    scale: vec4<f32>,
     joints: array<vec4<f32>, MAX_JOINTS * 3u>,
 }
 @group(0) @binding(0) var<uniform> frame: FrameUniforms;
@@ -24,9 +25,18 @@ struct VertexInput {
     @location(2) joints: vec4<u32>,
     @location(3) weights: vec4<f32>,
 }
+// One copy: an offset in the world, a tint, and a deformation between the
+// node's scale and its turn, as kiss3d's own `object2d.wgsl` reads them.
+struct InstanceInput {
+    @location(4) offset: vec2<f32>,
+    @location(5) color: vec4<f32>,
+    @location(6) def_0: vec2<f32>,
+    @location(7) def_1: vec2<f32>,
+}
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) tex_coord: vec2<f32>,
+    @location(1) tint: vec4<f32>,
 }
 
 fn joint_mat(j: u32) -> mat3x3<f32> {
@@ -35,7 +45,7 @@ fn joint_mat(j: u32) -> mat3x3<f32> {
 }
 
 @vertex
-fn vs_main(vertex: VertexInput) -> VertexOutput {
+fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
     var out: VertexOutput;
     let p = vec3<f32>(vertex.position, 1.0);
     let total = vertex.weights.x + vertex.weights.y + vertex.weights.z + vertex.weights.w;
@@ -49,15 +59,18 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
     let view = unpack_mat3(frame.view_0, frame.view_1, frame.view_2);
     let proj = unpack_mat3(frame.proj_0, frame.proj_1, frame.proj_2);
     let model = unpack_mat3(obj.model_0, obj.model_1, obj.model_2);
-    let world = model * vec3<f32>(skinned.xy, 1.0);
+    let deform = mat2x2<f32>(instance.def_0, instance.def_1);
+    let placed = deform * (obj.scale.xy * skinned.xy);
+    let world = model * vec3<f32>(placed, 1.0) + vec3<f32>(instance.offset, 0.0);
     var projected = proj * view * world;
     projected.z = 0.0;
     out.clip_position = vec4<f32>(projected, 1.0);
     out.tex_coord = vertex.tex_coord;
+    out.tint = instance.color;
     return out;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return textureSample(t_albedo, s_albedo, in.tex_coord) * obj.color;
+    return textureSample(t_albedo, s_albedo, in.tex_coord) * obj.color * in.tint;
 }

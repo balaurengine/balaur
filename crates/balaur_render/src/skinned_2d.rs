@@ -4,9 +4,10 @@
 //! shader blends the joint matrices the frame uploaded and the ordinary
 //! model, view and projection follow. A vertex whose weights sum to zero is
 //! left where it was authored, so an unskinned polygon draws through the
-//! same pipeline with an empty palette. The model matrix is built from the
-//! scene node's own pose and scale, so a flipped or scaled node flips or
-//! scales its polygon the way it does every other shape.
+//! same pipeline with an empty palette. The node's scale, a cloner copy's
+//! deformation and the node's pose apply in that order, as kiss3d's own 2D
+//! material applies them, so a flipped, scaled or cloned node draws its
+//! polygon the way it draws every other shape.
 //!
 //! Written here against kiss3d's `Material2d` rather than taken from its
 //! `SkinnedMesh2d`, which computes its own palette from a bone chain it
@@ -99,6 +100,8 @@ struct FrameUniforms {
 struct ObjectUniforms {
     model: [[f32; 4]; 3],
     color: [f32; 4],
+    /// The node's scale, applied before an instance deforms the polygon.
+    scale: [f32; 4],
     joints: [[f32; 4]; MAX_JOINTS * 3],
 }
 
@@ -256,7 +259,7 @@ fn vertex_layout(
     format: wgpu::VertexFormat,
 ) -> wgpu::VertexBufferLayout<'static> {
     // Leaked once per pipeline build: wgpu wants the attribute slice to
-    // outlive the descriptor, and four static layouts is what it costs.
+    // outlive the descriptor, and a few static layouts is what it costs.
     let attributes: &'static [wgpu::VertexAttribute] =
         Box::leak(Box::new([wgpu::VertexAttribute {
             offset: 0,
@@ -269,6 +272,42 @@ fn vertex_layout(
         attributes,
     }
 }
+
+/// One of kiss3d's per-instance buffers: an offset, a tint, or the two
+/// columns of a deformation, as `object2d.wgsl` reads them.
+fn instance_layout(
+    stride: usize,
+    attributes: &'static [wgpu::VertexAttribute],
+) -> wgpu::VertexBufferLayout<'static> {
+    wgpu::VertexBufferLayout {
+        array_stride: stride as wgpu::BufferAddress,
+        step_mode: wgpu::VertexStepMode::Instance,
+        attributes,
+    }
+}
+
+const INSTANCE_OFFSET: [wgpu::VertexAttribute; 1] = [wgpu::VertexAttribute {
+    offset: 0,
+    shader_location: 4,
+    format: wgpu::VertexFormat::Float32x2,
+}];
+const INSTANCE_COLOR: [wgpu::VertexAttribute; 1] = [wgpu::VertexAttribute {
+    offset: 0,
+    shader_location: 5,
+    format: wgpu::VertexFormat::Float32x4,
+}];
+const INSTANCE_DEFORM: [wgpu::VertexAttribute; 2] = [
+    wgpu::VertexAttribute {
+        offset: 0,
+        shader_location: 6,
+        format: wgpu::VertexFormat::Float32x2,
+    },
+    wgpu::VertexAttribute {
+        offset: 8,
+        shader_location: 7,
+        format: wgpu::VertexFormat::Float32x2,
+    },
+];
 
 /// The three bind group layouts: per frame, per object, the texture.
 fn bind_group_layouts(
@@ -304,6 +343,9 @@ fn build_pipeline(
             Some(vertex_layout(8, 1, wgpu::VertexFormat::Float32x2)),
             Some(vertex_layout(16, 2, wgpu::VertexFormat::Uint32x4)),
             Some(vertex_layout(16, 3, wgpu::VertexFormat::Float32x4)),
+            Some(instance_layout(8, &INSTANCE_OFFSET)),
+            Some(instance_layout(16, &INSTANCE_COLOR)),
+            Some(instance_layout(16, &INSTANCE_DEFORM)),
         ];
         crate::pipeline::material_pipeline(
             "polygon_pipeline",
@@ -380,7 +422,7 @@ impl SkinnedMaterial {
     /// The per-object uniform: the node's pose and scale as one matrix, its
     /// tint, and the palette, padded to the shader's array with identities.
     fn write_object(&self, transform: Pose2, scale: Vec2, data: &ObjectData2d) {
-        let model = transform.to_mat3() * Mat3::from_scale(scale);
+        let model = transform.to_mat3();
         let color = data.color();
         let mut joints = [[0.0f32; 4]; MAX_JOINTS * 3];
         let identity = padded(&Mat3::IDENTITY);
@@ -393,6 +435,7 @@ impl SkinnedMaterial {
         let uniforms = ObjectUniforms {
             model: padded(&model),
             color: [color.r, color.g, color.b, color.a],
+            scale: [scale.x, scale.y, 0.0, 0.0],
             joints,
         };
         Context::get().write_buffer(
@@ -419,11 +462,16 @@ impl Material2d for SkinnedMaterial {
         camera: &mut dyn Camera2d,
         data: &ObjectData2d,
         _mesh: &mut GpuMesh2d,
-        _instances: &mut InstancesBuffer2d,
+        instances: &mut InstancesBuffer2d,
         gpu_data: &mut dyn GpuData,
         _context: &RenderContext2d,
     ) {
         let ctxt = Context::get();
+        // A cloner's copies ride here, as they do on every other 2D object;
+        // a polygon with none carries kiss3d's one identity instance.
+        instances.positions.load_to_gpu();
+        instances.colors.load_to_gpu();
+        instances.deformations.load_to_gpu();
         let (view, proj) = camera.view_transform_pair();
         let frame = FrameUniforms {
             view: padded(&view),
@@ -475,7 +523,7 @@ impl Material2d for SkinnedMaterial {
         _camera: &mut dyn Camera2d,
         _data: &ObjectData2d,
         _mesh: &mut GpuMesh2d,
-        _instances: &mut InstancesBuffer2d,
+        instances: &mut InstancesBuffer2d,
         gpu_data: &mut dyn GpuData,
         render_pass: &mut wgpu::RenderPass<'_>,
         context: &RenderContext2d,
@@ -490,6 +538,14 @@ impl Material2d for SkinnedMaterial {
         ) else {
             return;
         };
+        let (Some(offsets), Some(colors), Some(deforms)) = (
+            instances.positions.buffer(),
+            instances.colors.buffer(),
+            instances.deformations.buffer(),
+        ) else {
+            return;
+        };
+        let count = u32::try_from(instances.len()).unwrap_or(u32::MAX);
         let pipeline = self.pipeline.get(context.sample_count);
         render_pass.set_pipeline(&pipeline);
         render_pass.set_bind_group(0, &self.frame_bind_group, &[]);
@@ -499,8 +555,11 @@ impl Material2d for SkinnedMaterial {
         render_pass.set_vertex_buffer(1, self.buffers.uvs.slice(..));
         render_pass.set_vertex_buffer(2, self.buffers.joints.slice(..));
         render_pass.set_vertex_buffer(3, self.buffers.weights.slice(..));
+        render_pass.set_vertex_buffer(4, offsets.slice(..));
+        render_pass.set_vertex_buffer(5, colors.slice(..));
+        render_pass.set_vertex_buffer(6, deforms.slice(..));
         render_pass.set_index_buffer(self.buffers.indices.slice(..), wgpu::IndexFormat::Uint32);
-        render_pass.draw_indexed(0..self.buffers.index_count, 0, 0..1);
+        render_pass.draw_indexed(0..self.buffers.index_count, 0, 0..count);
     }
 }
 

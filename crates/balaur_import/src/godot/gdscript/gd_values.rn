@@ -1687,8 +1687,11 @@ pub fn array_mesh() {
             let at = units_of(v);
             mesh["positions"].push([at[0], at[1]]);
         }
-        for i in 0..vertices.len() {
-            mesh["indices"].push(base + i);
+        // A mesh asset's indices are triangles, three corners each.
+        let i = 0;
+        while i + 2 < vertices.len() {
+            mesh["indices"].push([base + i, base + i + 1, base + i + 2]);
+            i += 3;
         }
     };
     mesh
