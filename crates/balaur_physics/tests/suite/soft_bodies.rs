@@ -485,3 +485,17 @@ fn removing_a_soft_body_takes_its_solved_mesh_with_it() {
     assert_eq!(bodies(&app), 0, "the removed component left its soft body");
     assert!(!solved(&app), "the removed component left its solved mesh");
 }
+
+/// A radius of 0 is worked out from the layout, and reading the component
+/// back has to say 0 still: a saved number would stay put when `cells` moves.
+#[test]
+fn an_automatic_particle_radius_reads_back_as_automatic() {
+    run_clean(
+        r#"pub fn init(this) {
+    this.node.softbody3d.set_softbody(#{ kind: "cuboid", cells: [2.0, 2.0, 2.0], particle_radius: 0.0 });
+    let read = this.node.get_component("softbody3d");
+    assert!(read.particle_radius == 0.0, "the automatic radius read back as a number");
+}
+"#,
+    );
+}

@@ -403,9 +403,8 @@ pub(crate) fn get_softbody_params(eng: &Engine, entity: Entity) -> Option<toml::
         return None;
     };
     let number = |value: Real| toml::Value::Float(f64::from(scalar::f32_of(value)));
-    // Not the mass: the solver's is the particles' sum, which rounds off what
-    // was asked for and would drift the component on every round trip.
-    table.insert(k::PARTICLE_RADIUS.into(), number(body.particle_radius()));
+    // Not the mass, whose sum over the particles rounds off what was asked
+    // for, nor the radius, whose 0 means "worked out from the layout".
     table.insert(k::VOLUME_FACTOR.into(), number(body.volume_factor()));
     table.insert(
         k::VOLUME_PRESERVATION.into(),
