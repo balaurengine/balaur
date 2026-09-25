@@ -243,6 +243,39 @@ impl ProjectFiles {
         ))
     }
 
+    /// Whether the pack holds a project-relative path, as a file or as a
+    /// directory above one.
+    #[must_use]
+    pub fn packs(&self, path: &str) -> bool {
+        let key = path.trim_end_matches('/');
+        let below = format!("{key}/");
+        self.packed.contains_key(key) || self.packed.keys().any(|k| k.starts_with(&below))
+    }
+
+    /// The names directly under a project-relative directory in the pack,
+    /// each with whether it is a directory.
+    #[must_use]
+    pub fn packed_children(&self, dir: &str) -> Vec<(String, bool)> {
+        let dir = dir.trim_end_matches('/');
+        let prefix = if dir.is_empty() || dir == "." {
+            String::new()
+        } else {
+            format!("{dir}/")
+        };
+        let mut out: Vec<(String, bool)> = self
+            .packed
+            .keys()
+            .filter_map(|key| key.strip_prefix(&prefix))
+            .map(|rest| match rest.split_once('/') {
+                Some((name, _)) => (name.to_string(), true),
+                None => (rest.to_string(), false),
+            })
+            .collect();
+        out.sort();
+        out.dedup();
+        out
+    }
+
     /// Project-relative paths directly under `dir`, from the pack and from
     /// disk, sorted and deduplicated. A packed game has no directory to walk,
     /// so anything that discovers files by scanning one asks here instead.
