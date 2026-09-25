@@ -121,7 +121,13 @@ pub(crate) fn shared_exclusions(presets: &Document) -> Vec<String> {
                 .filter(|p| !p.is_empty())
                 .map(|p| p.strip_prefix("res://").unwrap_or(p))
                 .map(|p| {
-                    let pattern = p.replace('*', "**").replace("****", "**");
+                    // The file the import writes for a scene or a script.
+                    let converted = match (p.strip_suffix(".tscn"), p.strip_suffix(".gd")) {
+                        (Some(stem), _) => format!("{stem}.toml"),
+                        (None, Some(stem)) => format!("{stem}.rn"),
+                        (None, None) => p.to_string(),
+                    };
+                    let pattern = converted.replace('*', "**").replace("****", "**");
                     if pattern.contains('/') {
                         pattern
                     } else {
@@ -650,9 +656,9 @@ locale/translations=PackedStringArray("res://lang/en.en.translation", "res://lan
     #[test]
     fn what_every_export_preset_excludes_is_ignored_and_nothing_else() {
         let presets = parse(
-            "[preset.0]\n\nname=\"Web\"\nexclude_filter=\"docs/*,packs/audio/*,data/countries/*.json\"\n\n\
+            "[preset.0]\n\nname=\"Web\"\nexclude_filter=\"docs/*,packs/audio/*,data/countries/*.json,teaser.tscn\"\n\n\
              [preset.0.options]\n\nx=1\n\n\
-             [preset.1]\n\nname=\"iOS\"\nexclude_filter=\"data/countries/*.json, docs/*,notes.txt\"\n",
+             [preset.1]\n\nname=\"iOS\"\nexclude_filter=\"data/countries/*.json, docs/*,notes.txt,teaser.tscn\"\n",
         )
         .expect("the presets parse");
         let ignore = shared_exclusions(&presets);
@@ -673,7 +679,14 @@ locale/translations=PackedStringArray("res://lang/en.en.translation", "res://lan
             &ignore,
             "packs/audio/sea.ogg"
         ));
-        assert_eq!(patterns, ["docs/**", "data/countries/**.json"]);
+        assert!(
+            balaur_core::ignore::ignored(&ignore, "scenes/teaser.toml"),
+            "a Godot scene's pattern names the scene the import wrote"
+        );
+        assert_eq!(
+            patterns,
+            ["docs/**", "data/countries/**.json", "**/teaser.toml"]
+        );
     }
 
     #[test]

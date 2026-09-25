@@ -294,8 +294,10 @@ Three rules belong to the importer rather than the translator:
    (`matches`, `search`, `search_all`, `replace`, `split`, `escape`), which
    the shim's `RegEx` record calls; `Image.new()` + `load` as the texture's
    path. Not built, in balaur terms: `focus_neighbor_*` (the engine moves
-   focus itself), the app lifecycle notifications (the roadmap's "Suspend
-   and resume"), and `tab_changed`. A `MultiMesh` is the node's `cloner`
+   focus itself) and the app lifecycle notifications (the roadmap's
+   "Suspend and resume"). A page picked on a `tab` is its `change` since
+   2026-09-25, carrying the page's name, which `tab_changed` connects to;
+   a Godot handler that reads the index gets the name instead. A `MultiMesh` is the node's `cloner`
    in `mode = "list"` over one `polygon` child carrying the mesh, each
    instance a copy `set_copy` places and tints: one draw per wave layer.
    The cloner draws its copies in 2D since then, polygons included. `t.x = v`

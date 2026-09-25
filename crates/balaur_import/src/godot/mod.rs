@@ -32,6 +32,9 @@ pub(crate) mod textures;
 pub(crate) mod theme;
 pub(crate) mod tiles;
 pub(crate) mod walk;
+#[cfg(test)]
+#[path = "tests/widget_signals.rs"]
+mod widget_signal_tests;
 
 use std::collections::BTreeMap;
 
@@ -353,12 +356,13 @@ impl<'a> Scanner<'a> {
     }
 
     /// A field's key: a word, plus the `:` a TileSet's atlas coordinates
-    /// carry (`0:0/0/terrain`). Only keys take it, since a value never does.
+    /// carry (`0:0/0/terrain`) and the `@` an export preset's image scale
+    /// does (`custom_image@2x`). Only keys take them; a value never does.
     fn key(&mut self) -> String {
         let mut key = self.word();
-        while self.peek() == Some(':') {
+        while let Some(joint @ (':' | '@')) = self.peek() {
             self.at += 1;
-            key.push(':');
+            key.push(joint);
             key.push_str(&self.word());
         }
         key
@@ -652,11 +656,12 @@ lucky = true
 missing = null
 "#;
 
-    /// `export_presets.cfg` names a preset whose platform has a space in it.
+    /// `export_presets.cfg` quotes a platform with a space in it, and names an
+    /// image scale with an `@`.
     #[test]
-    fn a_quoted_key_reads_as_its_text() {
+    fn a_quoted_key_and_an_image_scale_key_read_as_their_text() {
         let document = parse(
-            "[runnable_presets]\n\nWeb=\"Web\"\n\"Windows Desktop\"=\"Windows Desktop x86_64\"\n",
+            "[runnable_presets]\n\nWeb=\"Web\"\n\"Windows Desktop\"=\"Windows Desktop x86_64\"\nstoryboard/custom_image@2x=\"\"\n",
         )
         .expect("a quoted key parses");
         let presets = document.first("runnable_presets").expect("the section");
@@ -665,6 +670,12 @@ missing = null
             Some("Windows Desktop x86_64")
         );
         assert_eq!(presets.field("Web").and_then(Value::as_str), Some("Web"));
+        assert_eq!(
+            presets
+                .field("storyboard/custom_image@2x")
+                .and_then(Value::as_str),
+            Some("")
+        );
     }
 
     #[test]

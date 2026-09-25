@@ -1038,9 +1038,8 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
 pub(crate) fn widget_signal(signal: &str) -> Option<&'static str> {
     Some(match signal {
         "pressed" | "button_up" => "on_click",
-        "toggled" | "value_changed" | "text_changed" | "item_selected" | "color_changed" => {
-            "on_change"
-        }
+        "toggled" | "value_changed" | "text_changed" | "item_selected" | "color_changed"
+        | "tab_changed" | "tab_selected" => "on_change",
         "text_submitted" => "on_submit",
         _ => return None,
     })
@@ -1140,6 +1139,8 @@ pub(crate) const ENGINE_SIGNALS: &[&str] = &[
     "text_changed",
     "text_submitted",
     "item_selected",
+    "tab_changed",
+    "tab_selected",
     "visibility_changed",
     "resized",
     "tree_entered",

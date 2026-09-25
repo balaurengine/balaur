@@ -923,7 +923,7 @@ fn a_panels_own_padding_applies() {
 /// Two pages showing the same text are told apart by their node names, which
 /// is what the schema says `active` holds.
 #[test]
-fn clicking_a_tab_writes_the_pages_node_name() {
+fn clicking_a_tab_writes_the_pages_node_name_and_says_so() {
     let (_dir, mut app) = app();
     let tabs = add_widget(
         &app,
@@ -964,6 +964,11 @@ fn clicking_a_tab_writes_the_pages_node_name() {
     assert_eq!(
         active, "second",
         "a tab click wrote the page's label, not its node name"
+    );
+    assert_eq!(
+        balaur_core::events::delivered_from(&app.engine, tabs, balaur_ui::CHANGE_EVENT),
+        vec![balaur_script::Value::Str("second".into())],
+        "the page change is the tab's `change`, carrying the page's name"
     );
 }
 

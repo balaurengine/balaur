@@ -255,7 +255,7 @@ fn settle_one(
         }
         Edit::Active(name) => {
             widget.active = name.as_str().into();
-            None
+            Some((CHANGE_EVENT, Value::Str(name.clone()), &widget.on_change))
         }
         Edit::Moved([dx, dy]) => {
             let (sx, sy) = crate::widget::window::drag_signs(&widget.anchor);

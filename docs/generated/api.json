@@ -5505,7 +5505,7 @@
     "widget": {
       "active": {
         "default": "",
-        "description": "Which child a `tab` shows, by node name; empty shows the first",
+        "description": "Which child a `tab` shows, by node name; empty shows the first. A click on the strip writes it and calls `on_change` with the page's name",
         "group": "events",
         "type": "string"
       },

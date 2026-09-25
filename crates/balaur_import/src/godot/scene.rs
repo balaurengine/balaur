@@ -73,8 +73,6 @@ const UNSENT: &[&str] = &[
     "gui_input",
     "visibility_changed",
     "text_change_rejected",
-    "tab_changed",
-    "tab_selected",
     "draw",
     "resized",
     "ready",
@@ -539,7 +537,7 @@ impl Walk<'_> {
         let handler = match signal {
             "pressed" | "button_up" => Some("on_click"),
             "toggled" | "text_changed" | "value_changed" | "item_selected" | "folding_changed"
-            | "close_requested" => Some("on_change"),
+            | "close_requested" | "tab_changed" | "tab_selected" => Some("on_change"),
             "text_submitted" => Some("on_submit"),
             "focus_entered" => Some("on_focus"),
             _ => None,
