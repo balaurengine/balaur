@@ -1,0 +1,189 @@
+# One 2D soft body of each layout, each dropped onto something that shows
+# what it is made of: cells, a hoop, an outline, a filled mesh and a rope.
+
+[[assets]]
+id = "star"
+type = "mesh"
+positions = [
+  [0.0, 1.0], [-0.26, 0.36], [-0.95, 0.31], [-0.42, -0.14], [-0.59, -0.81],
+  [0.0, -0.45], [0.59, -0.81], [0.42, -0.14], [0.95, 0.31], [0.26, 0.36],
+]
+
+[[assets]]
+id = "arch"
+type = "mesh"
+positions = [
+  [-1.0, -0.8], [-0.55, -0.8], [-0.55, 0.2], [0.55, 0.2],
+  [0.55, -0.8], [1.0, -0.8], [1.0, 0.8], [-1.0, 0.8],
+]
+
+[[nodes]]
+id = "n_main"
+name = "Main"
+
+[nodes.script]
+source = "scripts/labels.rn"
+[nodes.script.props]
+# Set when the manual's picture or clip is being taken; empty for a normal run.
+shot = ""
+frames = ""
+
+[[nodes]]
+id = "n_ground"
+name = "Ground"
+parent = "n_main"
+
+[nodes.transform]
+position = [0.0, -4.6, 0.0]
+
+[nodes.shape2d]
+kind = "rect"
+half_extents = [11.0, 0.3]
+color = [0.20, 0.22, 0.26, 1.0]
+
+[nodes.collider2d]
+kind = "rect"
+half_extents = [11.0, 0.3]
+friction = 0.8
+
+# Cells laid out by a generator, draped over a peg.
+[[nodes]]
+id = "n_peg"
+name = "Peg"
+parent = "n_main"
+
+[nodes.transform]
+position = [-8.0, -3.7, 0.0]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 0.6
+color = [0.34, 0.36, 0.40, 1.0]
+
+[nodes.collider2d]
+kind = "circle"
+radius = 0.6
+
+[[nodes]]
+id = "n_block"
+name = "Block"
+parent = "n_main"
+
+[nodes.transform]
+position = [-8.0, 1.5, 0.0]
+
+[nodes.softbody2d]
+kind = "grid"
+half_extents = [1.0, 0.75]
+cells = [10.0, 8.0]
+edge_frequency = 12.0
+color = [0.88, 0.42, 0.28, 1.0]
+
+# A hoop of particles around nothing: the area it holds is what keeps it
+# round, and the box that lands on it squashes it.
+[[nodes]]
+id = "n_balloon"
+name = "Balloon"
+parent = "n_main"
+
+[nodes.transform]
+position = [-4.0, 0.0, 0.0]
+
+[nodes.softbody2d]
+kind = "disk"
+radius = 1.0
+particles = 32.0
+color = [0.29, 0.56, 0.82, 1.0]
+
+[[nodes]]
+id = "n_box"
+name = "Box"
+parent = "n_main"
+body2d = { kind = "dynamic" }
+
+[nodes.transform]
+position = [-4.0, 4.0, 0.0]
+
+[nodes.shape2d]
+kind = "rect"
+half_extents = [0.5, 0.5]
+color = [0.74, 0.57, 0.32, 1.0]
+
+[nodes.collider2d]
+kind = "rect"
+half_extents = [0.5, 0.5]
+density = 3.0
+
+# The outline of the star the node draws, with the polygon riding it.
+[[nodes]]
+id = "n_star"
+name = "Star"
+parent = "n_main"
+
+[nodes.transform]
+position = [0.0, 1.0, 0.0]
+
+[nodes.polygon]
+mesh = "#star"
+color = [0.37, 0.69, 0.54, 1.0]
+
+[nodes.softbody2d]
+kind = "polygon"
+mesh = "#star"
+particle_radius = 0.06
+
+# Cells fill the arch's outline, and the arch the node draws bends with them.
+[[nodes]]
+id = "n_arch"
+name = "Arch"
+parent = "n_main"
+
+[nodes.transform]
+position = [4.0, 1.0, 0.0]
+
+[nodes.polygon]
+mesh = "#arch"
+color = [0.62, 0.45, 0.78, 1.0]
+
+[nodes.softbody2d]
+kind = "volumetric"
+mesh = "#arch"
+cell_size = 0.15
+cell_model = "corotational"
+young_modulus = 60000.0
+
+# A rope pinned at both ends, and a ball dropped into it.
+[[nodes]]
+id = "n_bridge"
+name = "Bridge"
+parent = "n_main"
+
+[nodes.transform]
+position = [8.0, -1.0, 0.0]
+
+[nodes.softbody2d]
+kind = "rope"
+a = [-1.8, 0.0]
+b = [1.8, 0.0]
+particles = 24.0
+pinned = [0, 23]
+color = [0.79, 0.63, 0.25, 1.0]
+
+[[nodes]]
+id = "n_ball"
+name = "Ball"
+parent = "n_main"
+body2d = { kind = "dynamic" }
+
+[nodes.transform]
+position = [8.0, 3.0, 0.0]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 0.45
+color = [0.88, 0.45, 0.30, 1.0]
+
+[nodes.collider2d]
+kind = "circle"
+radius = 0.45
+density = 4.0

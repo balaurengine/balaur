@@ -1,0 +1,52 @@
+// Labels over each body, and the pictures the manual takes. The physics is
+// the scene's; nothing here moves anything.
+
+const INK = [0.93, 0.94, 0.96, 1.0];
+const FAINT = [0.62, 0.66, 0.72, 1.0];
+
+pub fn exports() {
+    #{ shot: "", frames: "" }
+}
+
+pub fn init(this) {
+    this.frame = 0;
+    render::set_background(0.07, 0.08, 0.10);
+    render::set_camera_2d(0.0, 0.5, 85.0);
+}
+
+fn label(x, y, text, size, color) {
+    render::draw_text_2d(x, y, text, #{ size: size, color: color, align: "center" });
+}
+
+pub fn update(this, dt) {
+    label(-8.0, 5.6, "grid", 26.0, INK);
+    label(-4.0, 5.6, "disk", 26.0, INK);
+    label(0.0, 5.6, "polygon", 26.0, INK);
+    label(4.0, 5.6, "volumetric", 26.0, INK);
+    label(8.0, 5.6, "rope", 26.0, INK);
+    label(-8.0, 5.1, "cells, over a peg", 18.0, FAINT);
+    label(-4.0, 5.1, "a hoop that holds its area", 18.0, FAINT);
+    label(0.0, 5.1, "the outline the star draws", 18.0, FAINT);
+    label(4.0, 5.1, "cells carry the arch", 18.0, FAINT);
+    label(8.0, 5.1, "pinned at both ends", 18.0, FAINT);
+
+    this.frame += 1;
+    // Late enough that every body has landed and settled.
+    if this.frame == 240 && this.shot != "" {
+        render::screenshot(this.shot);
+    }
+    if this.frames != "" && this.frame >= 2 && this.frame <= 301 {
+        render::screenshot(`${this.frames}/${padded(this.frame)}.png`);
+    }
+}
+
+// Three digits, so a directory listing plays the frames in order.
+fn padded(n) {
+    if n < 10 {
+        `00${n}`
+    } else if n < 100 {
+        `0${n}`
+    } else {
+        `${n}`
+    }
+}

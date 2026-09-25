@@ -54,12 +54,11 @@ constraints. **Done**, on rapier 0.36.
   implicit step.
 - The body's collision mesh goes onto the node as a `SolvedMesh` each fixed
   step. In 2D a `SolvedPolygon` outranks a deform track on the polygon's own
-  vertices, and a body a generator laid out is drawn as a polygon of its cells.
+  vertices. A 2D body hands over its skin, its cells, its outline filled or
+  its segments as a ribbon, so every layout draws; `color` tints one with no
+  polygon of its own.
 - Rapier's `PhysicsWorld` carries the `SoftBodySet` in the snapshot, and the
   digest hashes every particle's velocity and the body's topology version.
-
-Left: a 2D `rope` has no cells and draws nothing, and a 2D `volumetric` body
-whose particles outnumber its polygon's vertices draws the polygon undeformed.
 
 ### Cloth and rope
 
@@ -109,6 +108,7 @@ a yield stress. **Needs:** the fluid solver, plus a granular model.
    or surface soft body. Gizmos for emitters and volumes are still to come.
 7. Something to look at: **built**. `examples/cloth` drapes one sheet over a
    block, and drops a ball through a second, pinned sheet with a `tear_strain`.
+   `examples/jelly` drops one 2D body of each layout.
 
 ## Open questions
 

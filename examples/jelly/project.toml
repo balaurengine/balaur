@@ -1,0 +1,9 @@
+[application]
+name = "jelly"
+main_scene = "scenes/main.toml"
+
+# The size the manual's clip is taken at, which is what the website's player
+# expects of every clip on a page.
+[window]
+width = 1920
+height = 1080
