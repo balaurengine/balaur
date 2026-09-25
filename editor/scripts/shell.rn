@@ -727,6 +727,8 @@ fn states() {
         "physdemo": crate::selftest::physics_panel,
         "physclickdemo": crate::selftest::physics_clicks,
         "deselectdemo": crate::selftest::deselected,
+        "reloaddemo": crate::selftest::reloaded,
+        "reachdemo": crate::selftest::component_reach,
         "viewportdemo": crate::selftest::viewport_clicks,
         "camerademo": crate::selftest::camera_keeps_pointer,
         "tilesdemo": crate::selftest::tiles_tool,
@@ -1099,7 +1101,8 @@ fn state_persona(S, name) {
 // play; `update` alternates a step and a continue on every pause.
 pub fn break_demo(S) {
     for (i, node) in S.doc.iter().enumerate() {
-        let script_some = node.get("script");
+        // The node's `script` is a table; the breakpoint wants the path in it.
+        let script_some = model::script_rel(node);
         if let Some(script) = script_some {
             crate::selection::only(S, i);
             let hooks = model::hooks(S, script);

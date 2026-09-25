@@ -57,6 +57,7 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
         ("camera_matrix", &[], "", "The camera's projection*view matrix this frame, 16 numbers column-major; all zeros with no window."),
         ("mouse_ray", &[], "", "The picking ray through the mouse position: its origin xyz then its direction xyz, in world units."),
         ("pick_ray", &[], "", "The nearest node with a 3D shape that a world-space ray meets, from its origin xyz and direction xyz."),
+        ("pick_ray_at", &[], "", "As `pick_ray`, but `node` and `at`, how far along the ray it was met; nil when the ray meets nothing."),
         ("camera_pose", &[], "", "The camera the renderer actually used: eye xyz, target xyz, vertical fov in radians, HiDPI scale."),
         ("bounds", &[], "(node: node)", "The box the node's geometry covers in its own space, as a centre xyz and half-extents xyz; nil for a node that draws nothing. A solver's body reports where it is now, not where it was built."),
     ]);
@@ -115,6 +116,25 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
             let dir = glamx::Vec3::new(dx as f32, dy as f32, dz as f32);
             Ok(crate::pick::along_ray(eng, origin, dir)
                 .map(|(entity, _)| balaur_core::node_id_of(entity)))
+        },
+    );
+    // The distance too, which `pick_ray` drops: a caller deciding between two
+    // things under the pointer needs to know which one is in front.
+    m.function(
+        "pick_ray_at",
+        |eng: &Engine, (ox, oy, oz, dx, dy, dz): (f64, f64, f64, f64, f64, f64)| {
+            let origin = glamx::Vec3::new(ox as f32, oy as f32, oz as f32);
+            let dir = glamx::Vec3::new(dx as f32, dy as f32, dz as f32);
+            let Some((entity, at)) = crate::pick::along_ray(eng, origin, dir) else {
+                return Ok(balaur_script::Value::Nil);
+            };
+            Ok(balaur_script::Value::Map(vec![
+                (
+                    "node".to_string(),
+                    balaur_script::Value::Node(balaur_core::node_id_of(entity).0),
+                ),
+                ("at".to_string(), balaur_script::Value::Num(f64::from(at))),
+            ]))
         },
     );
     // Eye xyz, target xyz, fov (rad), HiDPI scale; zeros and a scale of one

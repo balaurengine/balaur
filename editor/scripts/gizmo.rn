@@ -263,6 +263,46 @@ fn geometry_at(S, i) {
     })
 }
 
+/// Select what the ray meets when it is nearer than the gizmo, and say so.
+///
+/// Measured against the gizmo's centre, which is the selected node's own: an
+/// object closer than that is between the camera and what is selected.
+fn took_click_in_front(S, cam, geo) {
+    let hit = render::pick_ray_at(
+        cam.ray_o[0], cam.ray_o[1], cam.ray_o[2],
+        cam.ray_d[0], cam.ray_d[1], cam.ray_d[2],
+    );
+    // Nil rather than `None` when the ray meets nothing: a binding answers
+    // with the host's own empty value.
+    if !(hit is Object) {
+        return false;
+    }
+    let found = hit;
+    let (dx, dy, dz) = (
+        geo.center[0] - cam.ray_o[0],
+        geo.center[1] - cam.ray_o[1],
+        geo.center[2] - cam.ray_o[2],
+    );
+    // Clear of the whole gizmo, not merely nearer than its centre: the ground
+    // a selected node stands on is nearer than that centre, and taking the
+    // click there would cost the drag the handle was pressed for.
+    let reach = util::max(geo.he[0], util::max(geo.he[1], geo.he[2])) + geo.marker;
+    if found.at >= math::sqrt(dx * dx + dy * dy + dz * dz) - reach {
+        return false;
+    }
+    let landed = model::index_of_live(S, found.node);
+    let landed_some = landed;
+    let i = match landed_some {
+        Some(i) => i,
+        None => return false,
+    };
+    if crate::selection::is_locked(S, i) || crate::selection::contains(S, i) {
+        return false;
+    }
+    shell::choose_click(S, i);
+    true
+}
+
 fn corners(geo) {
     let out = [];
     for sx in [-1.0, 1.0] {
@@ -772,7 +812,14 @@ pub fn update(S) {
             _ => None,
         };
         match hovered {
-            Some((part, geo)) => start_gizmo_drag(S, cam, geo, part, mx, my),
+            Some((part, geo)) => {
+                // A handle is drawn over whatever is behind it, so an object
+                // in front of the gizmo takes the click: what the user aimed
+                // at is the object, not the handle covering it.
+                if !took_click_in_front(S, cam, geo) {
+                    start_gizmo_drag(S, cam, geo, part, mx, my);
+                }
+            }
             None => {
                 S.gizmo.in_viewport = true;
                 if S.tool == "select" {

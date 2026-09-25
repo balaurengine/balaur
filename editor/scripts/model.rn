@@ -939,6 +939,31 @@ fn authored_current(S, found, name) {
     true
 }
 
+/// Point `S.refs` at the mirror node each document row names.
+///
+/// By id rather than by name path: `get_node` answers with the first sibling
+/// of a name, so two nodes called the same thing shared one live node, and a
+/// path that resolves to nothing leaves a row the inspector reads as empty.
+pub fn resolve_refs(S) {
+    S.refs = [];
+    let unresolved = 0;
+    for node in S.doc {
+        let id = node.get("id").unwrap_or("");
+        let found = scene::node_by_id(id, S.mirror);
+        S.refs.push(found);
+        if !(found is balaur::Node) {
+            unresolved += 1;
+            log::warn(format!("no mirror node with id '{}' for '{}'", id, node.name));
+        }
+    }
+    // A node with no ref is invisible to the inspector, the gizmo and every
+    // transform read. Silence here is what let a whole class of nested nodes
+    // go missing unnoticed, so it says so now.
+    if unresolved > 0 {
+        log::warn(format!("{} of {} nodes did not resolve in the mirror", unresolved, S.doc.len()));
+    }
+}
+
 pub fn build_mirror(S) {
     // Before the world goes: a game script still attached would get one more
     // update against bodies `physics::clear` has already removed.
@@ -962,26 +987,7 @@ pub fn build_mirror(S) {
     physics::set_paused(true);
     S.playing = false;
     hold_game_cameras(S, false);
-    S.refs = [];
-    let unresolved = 0;
-    for node in S.doc {
-        // By id rather than by name path: `find_node` answers with the first
-        // sibling of a name, so two nodes called the same thing used to share
-        // one live node and the inspector edited whichever came first.
-        let id = node.get("id").unwrap_or("");
-        let found = scene::node_by_id(id, S.mirror);
-        S.refs.push(found);
-        if !(found is balaur::Node) {
-            unresolved += 1;
-            log::warn(format!("no mirror node with id '{}' for '{}'", id, node.name));
-        }
-    }
-    // A node with no ref is invisible to the inspector, the gizmo and every
-    // transform read. Silence here is what let a whole class of nested nodes
-    // go missing unnoticed, so it says so now.
-    if unresolved > 0 {
-        log::warn(format!("{} of {} nodes did not resolve in the mirror", unresolved, S.doc.len()));
-    }
+    resolve_refs(S);
     // The mirror instantiates with the game's own `autoplay`, so pause every
     // animated node: nothing may animate under the inspector until play is
     // pressed.
@@ -1103,10 +1109,20 @@ fn apply_transform(t, key, v) {
 /// The document index whose live node is `node`, or `None`. What a picker
 /// hands back is an engine node; everything the editor does is by index.
 pub fn index_of_live(S, node) {
-    for (i, found) in S.refs.iter().enumerate() {
-        if found is balaur::Node && found.is_valid() && found.path() == node.path() {
-            return Some(i);
+    let current = node;
+    for _ in 0..MAX_DEPTH {
+        let at = index_of_path(S, current.path());
+        if at.is_some() {
+            return at;
         }
+        // A pick can land on a node the document never named: a mesh's own
+        // child, or one a solver owns. The row that owns it is what the click
+        // meant, so climb until one of them is a row.
+        let up = current.parent();
+        if !(up is balaur::Node) {
+            return None;
+        }
+        current = up;
     }
     None
 }

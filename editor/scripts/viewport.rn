@@ -93,7 +93,7 @@ pub fn mouse_camera(S) {
     if S.mode2d {
         let (cx, cy, zoom) = render::camera_2d();
         let held = util::max(zoom, 0.01);
-        let next = util::clamp(held * math::pow(1.1, wheel), 0.02, 4000.0);
+        let next = util::clamp(held * math::pow(dolly_step(), wheel), 0.02, 4000.0);
         if panning {
             render::set_camera_2d(cx - dx / held, cy + dy / held, next);
         } else {
@@ -105,10 +105,17 @@ pub fn mouse_camera(S) {
     true
 }
 
-// How far a pixel of drag turns the camera, and how much of the distance one
-// wheel notch takes off.
-const ORBIT_PER_PX = 0.008;
-const DOLLY_PER_NOTCH = 1.1;
+// How far a pixel of drag turns the camera: the backend camera's own step, so
+// a drag here moves the eye as far as one there.
+const ORBIT_PER_PX = 0.005;
+
+/// What one unit of wheel takes off the camera's distance. macOS reports
+/// scroll by the pixel and everything else by the notch, so the per-unit step
+/// differs by two orders of magnitude; these are the backend camera's own
+/// numbers, so the editor dollies at the speed the engine does.
+pub fn dolly_step() {
+    if engine::platform().os == "macos" { 1.0001 } else { 1.01 }
+}
 
 fn mouse_camera_3d(S, wheel, orbiting, panning, dx, dy) {
     let (ex, ey, ez, tx, ty, tz, fov, _) = render::camera_pose();
@@ -117,7 +124,7 @@ fn mouse_camera_3d(S, wheel, orbiting, panning, dx, dy) {
     if dist < 0.0001 {
         return;
     }
-    let want = util::clamp(dist / math::pow(DOLLY_PER_NOTCH, wheel), 0.05, 10000.0);
+    let want = util::clamp(dist / math::pow(dolly_step(), wheel), 0.05, 10000.0);
     if orbiting {
         // The angles the backend's own camera keeps, so a drag here and a
         // drag there move the eye the same way.

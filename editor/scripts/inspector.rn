@@ -58,6 +58,24 @@ fn fold_row_with(S, role, open, text, icon, icon_color, toggle, extra) {
 // The host the pool builds the rows on, and the hatch a drawn row names.
 const FORM_NODE = "Editor/Shell/Body/Right/RightSheet/RightScroll/RightForm";
 
+/// How many rows the inspector's pool is actually showing.
+///
+/// The spec list says what was asked for; this says what a reader can see, so
+/// a pooled row left hidden is visible to a test rather than only to the eye.
+pub fn drawn_rows() {
+    let host = scene::get_node(FORM_NODE);
+    if util::is_nil(host) {
+        return -1;
+    }
+    let shown = 0;
+    for row in host.children() {
+        if row.get_component("widget", "visible") != false {
+            shown += 1;
+        }
+    }
+    shown
+}
+
 /// Whether the form drew this run at all: a headless run has the nodes but
 /// never lays them out, so nothing has a rect to measure.
 pub fn form_drawn() {
@@ -1576,7 +1594,14 @@ fn bindings_note(S, k) {
 /// keep true, and the one that was here named `body` and `collider` where the
 /// engine registers `body3d` and `collider3d`, so the 3D rows never drew.
 pub fn persona_components(S, wants) {
-    let found = match model::live(S, S.sel) {
+    let found_some = model::live(S, S.sel);
+    if found_some.is_none() {
+        found_some = rebind(S);
+    } else if S.rebound >= 0 {
+        // Bound again, so a later failure on this row is retried afresh.
+        S.rebound = -1;
+    }
+    let found = match found_some {
         Some(found) => found,
         None => return [],
     };
@@ -1595,6 +1620,19 @@ pub fn persona_components(S, wants) {
         }
     }
     out
+}
+
+// The selected row has no mirror node, so the panel would draw it as a node
+// with nothing on it. Rebind once and say so: a row that stays unbound is a
+// defect, and the log is where it can be read afterwards.
+fn rebind(S) {
+    if S.sel < 0 || S.sel >= S.doc.len() || S.rebound == S.sel {
+        return None;
+    }
+    S.rebound = S.sel;
+    log::warn(format!("inspector: '{}' had no mirror node, rebinding", S.doc[S.sel].name));
+    model::resolve_refs(S);
+    model::live(S, S.sel)
 }
 
 fn ordered_components(S, names) {
@@ -1657,7 +1695,9 @@ fn component_sections(S, k, filter) {
         unmet[warning.component] = util::join(util::vec(warning.expects), ", ");
     }
     let query = crate::search::query(S, "inspector");
-    for comp in ordered_components(S, util::vec(found.component_names())) {
+    let all = util::vec(found.component_names());
+    let drew = 0;
+    for comp in ordered_components(S, all) {
         let shown = match filter {
             Some(filter) => util::contains(filter, comp),
             None => true,
@@ -1665,6 +1705,7 @@ fn component_sections(S, k, filter) {
         if !shown {
             continue;
         }
+        drew += 1;
         // Its rows are a table of tables, which no derived editor can draw
         // and the Events view already draws properly.
         if comp == "bindings" {
@@ -1729,6 +1770,24 @@ fn component_sections(S, k, filter) {
             }
         }
     }
+    if drew == 0 {
+        empty_note(S, k, all.len(), query);
+    }
+}
+
+// A panel with no section in it says which of the three reasons it is, rather
+// than reading as a node whose components went missing.
+fn empty_note(S, k, carried, query) {
+    let text = if carried == 0 {
+        "this node has no components"
+    } else if query != "" {
+        "no component matches the search"
+    } else {
+        format!("nothing on this node belongs to this persona ({} on others)", carried)
+    };
+    wide_row(S, row_h(S) + 2.0, || {
+        style::empty(k, text);
+    });
 }
 
 fn events_section(S, k) {
