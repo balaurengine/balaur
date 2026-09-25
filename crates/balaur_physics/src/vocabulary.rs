@@ -118,6 +118,58 @@ pub(crate) mod words {
     pub(crate) const JOINT_KINDS_2D: &[&str] =
         &[FIXED, REVOLUTE, PRISMATIC, ROPE, SPRING, PIN_SLOT, GENERIC];
 
+    pub(crate) const ROPE_SOFT: &str = "rope";
+    pub(crate) const CLOTH: &str = "cloth";
+    pub(crate) const CLOTH_TUBE: &str = "cloth_tube";
+    pub(crate) const SOFT_CUBOID: &str = "cuboid";
+    pub(crate) const SPHERE: &str = "sphere";
+    pub(crate) const VOLUMETRIC: &str = "volumetric";
+    pub(crate) const SURFACE_MESH: &str = "trimesh";
+    pub(crate) const GRID: &str = "grid";
+    pub(crate) const DISK: &str = "disk";
+    pub(crate) const SOFT_POLYGON: &str = "polygon";
+    /// How a 3D soft body's particles and elements are laid out, in the order
+    /// the inspector offers them.
+    pub(crate) const SOFT_KINDS: &[&str] = &[
+        SOFT_CUBOID,
+        SPHERE,
+        CLOTH,
+        CLOTH_TUBE,
+        ROPE_SOFT,
+        VOLUMETRIC,
+        SURFACE_MESH,
+    ];
+    /// The 2D layouts. A tetrahedrized volume is a triangulated area here, so
+    /// `volumetric` spells the same word in both dimensions.
+    pub(crate) const SOFT_KINDS_2D: &[&str] = &[
+        GRID,
+        DISK,
+        SOFT_POLYGON,
+        ROPE_SOFT,
+        VOLUMETRIC,
+        SURFACE_MESH,
+        POLYLINE,
+    ];
+
+    pub(crate) const VOLUME: &str = "volume";
+    pub(crate) const COROTATIONAL: &str = "corotational";
+    pub(crate) const NEO_HOOKEAN: &str = "neo_hookean";
+    /// What a cell resists with: a volume constraint, or one of the two
+    /// elastic models a Young modulus parameterises.
+    pub(crate) const CELL_MODELS: &[&str] = &[VOLUME, COROTATIONAL, NEO_HOOKEAN];
+
+    pub(crate) const CONSTRAINTS: &str = "constraints";
+    pub(crate) const FEM: &str = "fem";
+    /// Which of rapier's two solvers simulates the body's elasticity.
+    pub(crate) const SOFT_SOLVERS: &[&str] = &[CONSTRAINTS, FEM];
+
+    pub(crate) const BOTH: &str = "both";
+    pub(crate) const COMPRESSION_FLOW: &str = "compression";
+    pub(crate) const TENSION: &str = "tension";
+    /// Whether an edge takes a permanent set under a squeeze, a stretch, or
+    /// both.
+    pub(crate) const PLASTIC_FLOWS: &[&str] = &[BOTH, COMPRESSION_FLOW, TENSION];
+
     pub(crate) const OFF: &str = "off";
     pub(crate) const VELOCITY: &str = "velocity";
     pub(crate) const POSITION: &str = "position";
@@ -303,6 +355,45 @@ pub(crate) mod keys {
     pub(crate) const SOLID: &str = "solid";
     pub(crate) const SOLIDS: &str = "solids";
     pub(crate) const SOLVER: &str = "solver";
+    pub(crate) const BEND_DAMPING: &str = "bend_damping";
+    pub(crate) const BEND_FREQUENCY: &str = "bend_frequency";
+    pub(crate) const CELL_MODEL: &str = "cell_model";
+    pub(crate) const CELL_SIZE: &str = "cell_size";
+    pub(crate) const DEFORMATION_DAMPING: &str = "deformation_damping";
+    pub(crate) const EDGE_DAMPING: &str = "edge_damping";
+    pub(crate) const EDGE_FREQUENCY: &str = "edge_frequency";
+    pub(crate) const EDGE_PLASTIC_CREEP: &str = "edge_plastic_creep";
+    pub(crate) const EDGE_PLASTIC_FLOW: &str = "edge_plastic_flow";
+    pub(crate) const EDGE_PLASTIC_MAX: &str = "edge_plastic_max";
+    pub(crate) const EDGE_PLASTIC_YIELD: &str = "edge_plastic_yield";
+    pub(crate) const ELASTIC_DAMPING: &str = "elastic_damping";
+    pub(crate) const INTERIOR_STRENGTH: &str = "interior_strength";
+    pub(crate) const MAX_TEARS: &str = "max_tears_per_step";
+    pub(crate) const MIN_PIECE: &str = "min_piece";
+    pub(crate) const PARTICLES: &str = "particles";
+    pub(crate) const PARTICLE_RADIUS: &str = "particle_radius";
+    pub(crate) const PGS_ITERATIONS: &str = "pgs_iterations";
+    pub(crate) const PINNED: &str = "pinned";
+    pub(crate) const PLASTIC_CREEP: &str = "plastic_creep";
+    pub(crate) const PLASTIC_MAX: &str = "plastic_max";
+    pub(crate) const PLASTIC_YIELD: &str = "plastic_yield";
+    pub(crate) const POISSON_RATIO: &str = "poisson_ratio";
+    pub(crate) const SELF_CONTACTS: &str = "self_contacts";
+    pub(crate) const SHAPE_MATCHING: &str = "shape_matching";
+    pub(crate) const SHAPE_MATCHING_DAMPING: &str = "shape_matching_damping";
+    pub(crate) const SHAPE_MATCHING_FREQUENCY: &str = "shape_matching_frequency";
+    pub(crate) const SKIN: &str = "skin";
+    pub(crate) const SKIN_COLLISION: &str = "skin_collision";
+    pub(crate) const SUBDIVISIONS: &str = "subdivisions";
+    pub(crate) const TEAR_FORCE: &str = "tear_force";
+    pub(crate) const TEAR_SMOOTHING: &str = "tear_smoothing";
+    pub(crate) const TEAR_STRAIN: &str = "tear_strain";
+    pub(crate) const TENSION_ONLY: &str = "tension_only";
+    pub(crate) const VOLUME_DAMPING: &str = "volume_damping";
+    pub(crate) const VOLUME_FACTOR: &str = "volume_factor";
+    pub(crate) const VOLUME_FREQUENCY: &str = "volume_frequency";
+    pub(crate) const VOLUME_PRESERVATION: &str = "volume_preservation";
+    pub(crate) const YOUNG_MODULUS: &str = "young_modulus";
     pub(crate) const SOLVER_ITERATIONS: &str = "solver_iterations";
     pub(crate) const SOLVER_LAYERS: &str = "solver_layers";
     pub(crate) const SOLVER_MASK: &str = "solver_mask";
@@ -342,6 +433,8 @@ pub(crate) mod component {
     pub(crate) const CHARACTER_2D: &str = "character2d";
     pub(crate) const WHEEL_3D: &str = "wheel3d";
     pub(crate) const VEHICLE_3D: &str = "vehicle3d";
+    pub(crate) const SOFTBODY_3D: &str = "softbody3d";
+    pub(crate) const SOFTBODY_2D: &str = "softbody2d";
 }
 
 /// The script methods physics calls on a node.
@@ -417,6 +510,26 @@ pub(crate) fn vec2(params: &toml::Value, key: &str, default: [f32; 2]) -> [f32; 
         axis(params, key, 0, default[0]),
         axis(params, key, 1, default[1]),
     ]
+}
+
+/// The whole numbers a `strings`-typed property holds, for a property whose
+/// value is a list of indices; anything that is not one is skipped, so a
+/// half-typed row in the inspector does not throw the others away.
+pub(crate) fn indices(params: &toml::Value, key: &str) -> Vec<u32> {
+    params
+        .get(key)
+        .and_then(toml::Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| match item {
+                    toml::Value::Integer(n) => u32::try_from(*n).ok(),
+                    toml::Value::String(text) => text.trim().parse::<u32>().ok(),
+                    _ => None,
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Whether a `flags`-typed property holds `name`.
