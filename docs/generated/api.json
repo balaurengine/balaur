@@ -3416,6 +3416,12 @@
         "group": "shape",
         "type": "vec2"
       },
+      "collides": {
+        "default": true,
+        "description": "Meet the world at all; off, the body passes through everything and only its pins and ties hold it",
+        "group": "surface",
+        "type": "bool"
+      },
       "color": {
         "default": [
           0.8,
@@ -3490,6 +3496,39 @@
         "group": "plasticity",
         "min": 0.0,
         "type": "float"
+      },
+      "edge_springs": {
+        "default": [],
+        "description": "Edges with a spring of their own instead of the edge rows', each named by the two particles it joins",
+        "group": "stiffness",
+        "of": {
+          "default": {
+            "a": 0,
+            "b": 1,
+            "damping": 1.0,
+            "frequency": 30.0
+          },
+          "fields": {
+            "a": {
+              "default": 0,
+              "type": "int"
+            },
+            "b": {
+              "default": 1,
+              "type": "int"
+            },
+            "damping": {
+              "default": 1.0,
+              "type": "float"
+            },
+            "frequency": {
+              "default": 30.0,
+              "type": "float"
+            }
+          },
+          "type": "record"
+        },
+        "type": "list"
       },
       "elastic_damping": {
         "default": 1.0,
@@ -3638,6 +3677,16 @@
         "min": 0.0,
         "type": "float"
       },
+      "masses": {
+        "default": [],
+        "description": "Each particle's own mass, by index; empty spreads `mass` over them evenly",
+        "group": "particles",
+        "of": {
+          "default": 0.0,
+          "type": "float"
+        },
+        "type": "list"
+      },
       "max_tears_per_step": {
         "default": 0.0,
         "description": "The most edges that may tear in one step, which paces a crack; 0 is no limit",
@@ -3769,6 +3818,12 @@
         "min": 0.0,
         "type": "float"
       },
+      "skin_collision": {
+        "default": false,
+        "description": "Meet the world through the outline a volumetric body is drawn as, rather than its cells' boundary",
+        "group": "shape",
+        "type": "bool"
+      },
       "solver": {
         "default": "constraints",
         "description": "Which solver runs the elasticity: sequential constraints, or an implicit Euler step over the whole body",
@@ -3793,6 +3848,34 @@
         "group": "tearing",
         "min": 0.0,
         "type": "float"
+      },
+      "tear_resistance": {
+        "default": [],
+        "description": "Edges that tear sooner or later than the rest, each named by the two particles it joins: below 1 is a perforation, above 1 a seam",
+        "group": "tearing",
+        "of": {
+          "default": {
+            "a": 0,
+            "b": 1,
+            "resistance": 1.0
+          },
+          "fields": {
+            "a": {
+              "default": 0,
+              "type": "int"
+            },
+            "b": {
+              "default": 1,
+              "type": "int"
+            },
+            "resistance": {
+              "default": 1.0,
+              "type": "float"
+            }
+          },
+          "type": "record"
+        },
+        "type": "list"
       },
       "tear_smoothing": {
         "default": 0.0,
@@ -3932,6 +4015,12 @@
         "group": "shape",
         "type": "vec3"
       },
+      "collides": {
+        "default": true,
+        "description": "Meet the world at all; off, the body passes through everything and only its pins and ties hold it",
+        "group": "surface",
+        "type": "bool"
+      },
       "color": {
         "default": [
           0.8,
@@ -4006,6 +4095,39 @@
         "group": "plasticity",
         "min": 0.0,
         "type": "float"
+      },
+      "edge_springs": {
+        "default": [],
+        "description": "Edges with a spring of their own instead of the edge rows', each named by the two particles it joins",
+        "group": "stiffness",
+        "of": {
+          "default": {
+            "a": 0,
+            "b": 1,
+            "damping": 1.0,
+            "frequency": 30.0
+          },
+          "fields": {
+            "a": {
+              "default": 0,
+              "type": "int"
+            },
+            "b": {
+              "default": 1,
+              "type": "int"
+            },
+            "damping": {
+              "default": 1.0,
+              "type": "float"
+            },
+            "frequency": {
+              "default": 30.0,
+              "type": "float"
+            }
+          },
+          "type": "record"
+        },
+        "type": "list"
       },
       "elastic_damping": {
         "default": 1.0,
@@ -4155,6 +4277,16 @@
         "min": 0.0,
         "type": "float"
       },
+      "masses": {
+        "default": [],
+        "description": "Each particle's own mass, by index; empty spreads `mass` over them evenly",
+        "group": "particles",
+        "of": {
+          "default": 0.0,
+          "type": "float"
+        },
+        "type": "list"
+      },
       "max_tears_per_step": {
         "default": 0.0,
         "description": "The most edges that may tear in one step, which paces a crack; 0 is no limit",
@@ -4191,7 +4323,7 @@
       },
       "particles": {
         "default": 16.0,
-        "description": "How many particles a rope or a disk is made of",
+        "description": "How many particles a rope is made of",
         "group": "shape",
         "min": 2.0,
         "type": "float"
@@ -4286,6 +4418,13 @@
         "min": 0.0,
         "type": "float"
       },
+      "shear_frequency": {
+        "default": 0.0,
+        "description": "A cloth's resistance to being skewed; 0 takes edge_frequency",
+        "group": "shape",
+        "min": 0.0,
+        "type": "float"
+      },
       "size": {
         "default": [
           1.0,
@@ -4341,6 +4480,34 @@
         "min": 0.0,
         "type": "float"
       },
+      "tear_resistance": {
+        "default": [],
+        "description": "Edges that tear sooner or later than the rest, each named by the two particles it joins: below 1 is a perforation, above 1 a seam",
+        "group": "tearing",
+        "of": {
+          "default": {
+            "a": 0,
+            "b": 1,
+            "resistance": 1.0
+          },
+          "fields": {
+            "a": {
+              "default": 0,
+              "type": "int"
+            },
+            "b": {
+              "default": 1,
+              "type": "int"
+            },
+            "resistance": {
+              "default": 1.0,
+              "type": "float"
+            }
+          },
+          "type": "record"
+        },
+        "type": "list"
+      },
       "tear_smoothing": {
         "default": 0.0,
         "description": "Over how many seconds a load is averaged before it is tested, so one hard frame does not tear a body",
@@ -4389,6 +4556,20 @@
         "description": "Hold the volume each closed piece of the body encloses; an open sheet or a rope encloses none, and a hoop without it caves in",
         "group": "volume",
         "type": "bool"
+      },
+      "warp_frequency": {
+        "default": 0.0,
+        "description": "A cloth's stiffness along its first axis, in hertz, as woven cloth is stiffer along the warp; 0 takes edge_frequency",
+        "group": "shape",
+        "min": 0.0,
+        "type": "float"
+      },
+      "weft_frequency": {
+        "default": 0.0,
+        "description": "The same across it, along the weft; 0 takes edge_frequency",
+        "group": "shape",
+        "min": 0.0,
+        "type": "float"
       },
       "young_modulus": {
         "default": 10000.0,
@@ -8928,6 +9109,9 @@
         "add_force_at_point": [
           "body2d"
         ],
+        "add_softbody_force": [
+          "softbody2d"
+        ],
         "add_torque": [
           "body2d"
         ],
@@ -8940,8 +9124,26 @@
         "apply_impulse_at_point": [
           "body2d"
         ],
+        "apply_particle_impulse": [
+          "softbody2d"
+        ],
+        "apply_softbody_impulse": [
+          "softbody2d"
+        ],
+        "apply_softbody_impulse_at": [
+          "softbody2d"
+        ],
+        "apply_softbody_radial_impulse": [
+          "softbody2d"
+        ],
         "apply_torque_impulse": [
           "body2d"
+        ],
+        "attach_particle": [
+          "softbody2d"
+        ],
+        "detach_particle": [
+          "softbody2d"
         ],
         "is_grounded": [
           "character2d"
@@ -8982,6 +9184,9 @@
         "reset_forces": [
           "body2d"
         ],
+        "reset_softbody_forces": [
+          "softbody2d"
+        ],
         "reset_torques": [
           "body2d"
         ],
@@ -9000,6 +9205,15 @@
         "set_motor_velocity": [
           "joint2d"
         ],
+        "set_particle_position": [
+          "softbody2d"
+        ],
+        "set_particle_target": [
+          "softbody2d"
+        ],
+        "set_particle_velocity": [
+          "softbody2d"
+        ],
         "set_softbody": [
           "softbody2d"
         ],
@@ -9015,6 +9229,9 @@
         "softbody_center": [
           "softbody2d"
         ],
+        "softbody_edges": [
+          "softbody2d"
+        ],
         "softbody_particles": [
           "softbody2d"
         ],
@@ -9024,11 +9241,23 @@
         "softbody_rest_area": [
           "softbody2d"
         ],
+        "softbody_sleeping": [
+          "softbody2d"
+        ],
+        "softbody_stress": [
+          "softbody2d"
+        ],
+        "softbody_velocity": [
+          "softbody2d"
+        ],
         "teleport": [
           "body2d"
         ],
         "total_mass": [
           "body2d"
+        ],
+        "unpin_particle": [
+          "softbody2d"
         ],
         "user_force": [
           "body2d"
@@ -9044,6 +9273,9 @@
         ],
         "voxel_at": [
           "collider2d"
+        ],
+        "wake_softbody": [
+          "softbody2d"
         ],
         "wake_up": [
           "body2d"
@@ -9318,12 +9550,19 @@
       "docs": {
         "add_force": "Push the body until the force is reset; unlike an impulse this is spread over time.",
         "add_force_at_point": "Push at a world point, which also turns the body.",
+        "add_softbody_force": "Push every free particle with `force` each step until `reset_softbody_forces`.",
         "add_torque": "Turn the body until the torque is reset.",
         "angular_velocity": "How fast the body is spinning, in radians per second.",
         "apply_impulse": "Add an instant change in momentum, as if the body were struck.",
         "apply_impulse_at_point": "Strike the body at a world point, which spins it as well as moves it.",
+        "apply_particle_impulse": "Strike one particle.",
+        "apply_softbody_impulse": "Change every free particle's velocity by `impulse` at once, as a kick to the whole body.",
+        "apply_softbody_impulse_at": "Strike the particles within `radius` of `point`, less the further they are; a radius of 0 strikes them all.",
+        "apply_softbody_radial_impulse": "Push the particles within `radius` away from `center`, as a blast does.",
         "apply_torque_impulse": "Add an instant change in angular momentum, as if the body were spun.",
+        "attach_particle": "Tie one particle to a node's rigid body where it is now: the body and the particle pull on each other.",
         "box_hits": "Every collider whose bounds meet an axis-aligned box.",
+        "detach_particle": "Untie one particle from every body it was attached to; answers whether it was attached.",
         "distance": "The gap between two nodes' colliders, zero when they touch.",
         "gravity": "The 2D world's gravity.",
         "intersects": "Whether two nodes' colliders overlap right now, sensor or not.",
@@ -9345,6 +9584,7 @@
         "raycast_all": "Every collider a ray meets, nearest first.",
         "remove_joint": "Undo the node's joint, leaving both bodies free.",
         "reset_forces": "Drop every force added since the last step.",
+        "reset_softbody_forces": "Take back every force `add_softbody_force` gave the body.",
         "reset_torques": "Drop every torque added since the last step.",
         "set_angular_velocity": "Set how fast the body spins, in radians per second.",
         "set_gravity": "Set the 2D world's gravity, in units per second squared.",
@@ -9352,6 +9592,9 @@
         "set_linear_velocity": "Set how fast the body travels, in units per second.",
         "set_motor_position": "Drive the joint towards an angle or a distance, with a spring's stiffness and damping.",
         "set_motor_velocity": "Drive the joint towards a speed: how a wheel is powered.",
+        "set_particle_position": "Put one particle at `at` with no change of velocity.",
+        "set_particle_target": "Move a held particle to `at` over the next step, with the velocity that takes, which is how a cloth is dragged.",
+        "set_particle_velocity": "Set one particle's velocity; a held one keeps moving at it.",
         "set_softbody": "Build the node's soft body from a `softbody2d` table: `kind`, the shape rows, and the material rows.",
         "set_voxel": "Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs.",
         "shape_hits": "Every collider a shape overlaps where it stands.",
@@ -9359,28 +9602,41 @@
         "sleep": "Put the body to sleep now.",
         "softbody_area": "How much area the body encloses right now, against `softbody_rest_area` for how far it is squeezed.",
         "softbody_center": "The body's centre of mass, which is where it is when a deformable body has no one position.",
+        "softbody_edges": "Every edge as the two particle indices it joins, in the order `softbody_stress` reports them.",
         "softbody_particles": "How many particles the body ended up with, which a generator decides rather than the author.",
         "softbody_position": "Where one particle is, in world space.",
         "softbody_rest_area": "How much it encloses at rest.",
+        "softbody_sleeping": "Whether the body has come to rest and stopped being simulated.",
+        "softbody_stress": "How far each edge is stretched past its rest length, as a fraction of it: what a tear is judged on.",
+        "softbody_velocity": "How fast one particle is moving, in world space.",
         "teleport": "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick.",
         "total_mass": "The body's total mass, colliders included. The `mass` property is the extra on top of them.",
+        "unpin_particle": "Let a held particle go; it keeps the velocity it had.",
         "user_force": "The force the next step will integrate.",
         "user_torque": "The torque the next step will integrate.",
         "velocity_at_point": "How fast a world point on the body is moving, spin included.",
         "voxel": "Whether one cell of a voxel collider is filled.",
         "voxel_at": "The cell a world position falls in, as two whole numbers.",
         "wake_all": "Wake every sleeping body in the 2D world.",
+        "wake_softbody": "Start simulating a resting body again.",
         "wake_up": "Wake the body, so the next step moves it."
       },
       "functions": [
         "add_force",
         "add_force_at_point",
+        "add_softbody_force",
         "add_torque",
         "angular_velocity",
         "apply_impulse",
         "apply_impulse_at_point",
+        "apply_particle_impulse",
+        "apply_softbody_impulse",
+        "apply_softbody_impulse_at",
+        "apply_softbody_radial_impulse",
         "apply_torque_impulse",
+        "attach_particle",
         "box_hits",
+        "detach_particle",
         "distance",
         "gravity",
         "intersects",
@@ -9402,6 +9658,7 @@
         "raycast_all",
         "remove_joint",
         "reset_forces",
+        "reset_softbody_forces",
         "reset_torques",
         "set_angular_velocity",
         "set_gravity",
@@ -9409,6 +9666,9 @@
         "set_linear_velocity",
         "set_motor_position",
         "set_motor_velocity",
+        "set_particle_position",
+        "set_particle_target",
+        "set_particle_velocity",
         "set_softbody",
         "set_voxel",
         "shape_hits",
@@ -9416,29 +9676,42 @@
         "sleep",
         "softbody_area",
         "softbody_center",
+        "softbody_edges",
         "softbody_particles",
         "softbody_position",
         "softbody_rest_area",
+        "softbody_sleeping",
+        "softbody_stress",
+        "softbody_velocity",
         "teleport",
         "total_mass",
+        "unpin_particle",
         "user_force",
         "user_torque",
         "velocity_at_point",
         "voxel",
         "voxel_at",
         "wake_all",
+        "wake_softbody",
         "wake_up"
       ],
       "name": "physics2d",
       "signatures": {
         "add_force": "(NodeId, f32, f32) -> ()",
         "add_force_at_point": "(NodeId, f32, f32, f32, f32) -> ()",
+        "add_softbody_force": "(NodeId, Value) -> ()",
         "add_torque": "(NodeId, f32) -> ()",
         "angular_velocity": "NodeId -> f32",
         "apply_impulse": "(NodeId, f32, f32) -> ()",
         "apply_impulse_at_point": "(NodeId, f32, f32, f32, f32) -> ()",
+        "apply_particle_impulse": "(NodeId, i64, Value) -> ()",
+        "apply_softbody_impulse": "(NodeId, Value) -> ()",
+        "apply_softbody_impulse_at": "(NodeId, Value, Value, Value) -> ()",
+        "apply_softbody_radial_impulse": "(NodeId, Value, Value, Value) -> ()",
         "apply_torque_impulse": "(NodeId, f32) -> ()",
+        "attach_particle": "(NodeId, i64, NodeId) -> ()",
         "box_hits": "Value -> Value",
+        "detach_particle": "(NodeId, i64) -> bool",
         "distance": "(NodeId, NodeId) -> Value",
         "gravity": "() -> (f32, f32)",
         "intersects": "(NodeId, NodeId) -> Value",
@@ -9460,6 +9733,7 @@
         "raycast_all": "Value -> Value",
         "remove_joint": "NodeId -> ()",
         "reset_forces": "NodeId -> ()",
+        "reset_softbody_forces": "NodeId -> ()",
         "reset_torques": "NodeId -> ()",
         "set_angular_velocity": "(NodeId, f32) -> ()",
         "set_gravity": "(f32, f32) -> ()",
@@ -9467,6 +9741,9 @@
         "set_linear_velocity": "(NodeId, f32, f32) -> ()",
         "set_motor_position": "(NodeId, f32, f32, f32) -> ()",
         "set_motor_velocity": "(NodeId, f32, f32) -> ()",
+        "set_particle_position": "(NodeId, i64, Value) -> ()",
+        "set_particle_target": "(NodeId, i64, Value) -> ()",
+        "set_particle_velocity": "(NodeId, i64, Value) -> ()",
         "set_softbody": "(NodeId, Value) -> ()",
         "set_voxel": "(NodeId, i32, i32, bool) -> ()",
         "shape_hits": "Value -> Value",
@@ -9474,17 +9751,23 @@
         "sleep": "NodeId -> ()",
         "softbody_area": "NodeId -> f32",
         "softbody_center": "NodeId -> Value",
+        "softbody_edges": "NodeId -> Value",
         "softbody_particles": "NodeId -> i64",
         "softbody_position": "(NodeId, i64) -> Value",
         "softbody_rest_area": "NodeId -> f32",
+        "softbody_sleeping": "NodeId -> bool",
+        "softbody_stress": "NodeId -> Value",
+        "softbody_velocity": "(NodeId, i64) -> Value",
         "teleport": "(NodeId, f32, f32) -> ()",
         "total_mass": "NodeId -> f32",
+        "unpin_particle": "(NodeId, i64) -> ()",
         "user_force": "NodeId -> (f32, f32)",
         "user_torque": "NodeId -> f32",
         "velocity_at_point": "(NodeId, f32, f32) -> (f32, f32)",
         "voxel": "(NodeId, i32, i32) -> bool",
         "voxel_at": "(NodeId, f32, f32) -> (i64, i64)",
         "wake_all": "() -> ()",
+        "wake_softbody": "NodeId -> ()",
         "wake_up": "NodeId -> ()"
       }
     },
@@ -9499,6 +9782,9 @@
         "add_force_at_point": [
           "body3d"
         ],
+        "add_softbody_force": [
+          "softbody3d"
+        ],
         "add_torque": [
           "body3d"
         ],
@@ -9511,8 +9797,23 @@
         "apply_impulse_at_point": [
           "body3d"
         ],
+        "apply_particle_impulse": [
+          "softbody3d"
+        ],
+        "apply_softbody_impulse": [
+          "softbody3d"
+        ],
+        "apply_softbody_impulse_at": [
+          "softbody3d"
+        ],
+        "apply_softbody_radial_impulse": [
+          "softbody3d"
+        ],
         "apply_torque_impulse": [
           "body3d"
+        ],
+        "attach_particle": [
+          "softbody3d"
         ],
         "collider_mass": [
           "collider3d"
@@ -9525,6 +9826,9 @@
         ],
         "contacts": [
           "collider3d"
+        ],
+        "detach_particle": [
+          "softbody3d"
         ],
         "effective_dominance": [
           "body3d"
@@ -9580,6 +9884,9 @@
         "reset_forces": [
           "body3d"
         ],
+        "reset_softbody_forces": [
+          "softbody3d"
+        ],
         "reset_torques": [
           "body3d"
         ],
@@ -9607,6 +9914,15 @@
         "set_motor_velocity": [
           "joint3d"
         ],
+        "set_particle_position": [
+          "softbody3d"
+        ],
+        "set_particle_target": [
+          "softbody3d"
+        ],
+        "set_particle_velocity": [
+          "softbody3d"
+        ],
         "set_softbody": [
           "softbody3d"
         ],
@@ -9622,6 +9938,9 @@
         "softbody_center": [
           "softbody3d"
         ],
+        "softbody_edges": [
+          "softbody3d"
+        ],
         "softbody_particles": [
           "softbody3d"
         ],
@@ -9629,6 +9948,15 @@
           "softbody3d"
         ],
         "softbody_rest_volume": [
+          "softbody3d"
+        ],
+        "softbody_sleeping": [
+          "softbody3d"
+        ],
+        "softbody_stress": [
+          "softbody3d"
+        ],
+        "softbody_velocity": [
           "softbody3d"
         ],
         "softbody_volume": [
@@ -9645,6 +9973,9 @@
         ],
         "total_mass": [
           "body3d"
+        ],
+        "unpin_particle": [
+          "softbody3d"
         ],
         "user_force": [
           "body3d"
@@ -9663,6 +9994,9 @@
         ],
         "voxel_at": [
           "collider3d"
+        ],
+        "wake_softbody": [
+          "softbody3d"
         ],
         "wake_up": [
           "body3d"
@@ -9996,11 +10330,17 @@
         "active_bodies": "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving.",
         "add_force": "Push the body until the force is reset; unlike an impulse this is spread over time.",
         "add_force_at_point": "Push at a world point, which also turns the body.",
+        "add_softbody_force": "Push every free particle with `force` each step until `reset_softbody_forces`.",
         "add_torque": "Turn the body until the torque is reset.",
         "angular_velocity": "How fast the body is spinning, in radians per second about each axis.",
         "apply_impulse": "Add an instant change in momentum, as if the body were struck.",
         "apply_impulse_at_point": "Strike the body at a world point, which spins it as well as moves it.",
+        "apply_particle_impulse": "Strike one particle.",
+        "apply_softbody_impulse": "Change every free particle's velocity by `impulse` at once, as a kick to the whole body.",
+        "apply_softbody_impulse_at": "Strike the particles within `radius` of `point`, less the further they are; a radius of 0 strikes them all.",
+        "apply_softbody_radial_impulse": "Push the particles within `radius` away from `center`, as a blast does.",
         "apply_torque_impulse": "Add an instant change in angular momentum, as if the body were spun.",
+        "attach_particle": "Tie one particle to a node's rigid body where it is now: the body and the particle pull on each other.",
         "bodies": "Every node with a rigid body, sorted.",
         "box_hits": "Every collider whose bounds meet an axis-aligned box; cheaper and looser than shape_hits.",
         "closest_points": "The nearest point on each of two nodes' colliders.",
@@ -10008,6 +10348,7 @@
         "collider_mesh": "The collider's shape as points and triangles, including a voxel grid's, for drawing it or for spawning the pieces it broke into.",
         "collider_volume": "How much space the shape encloses.",
         "contacts": "Every contact point on this node's collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition.",
+        "detach_particle": "Untie one particle from every body it was attached to; answers whether it was attached.",
         "distance": "The gap between two nodes' colliders, zero when they touch or overlap.",
         "effective_dominance": "The dominance rapier will use for this body: its own group, or the rank every non-dynamic body outranks with.",
         "gravity": "The 3D world's gravity.",
@@ -10034,6 +10375,7 @@
         "raycast_all": "Every collider a ray meets, nearest first.",
         "remove_joint": "Undo the node's joint, leaving both bodies free.",
         "reset_forces": "Drop every force added since the last step.",
+        "reset_softbody_forces": "Take back every force `add_softbody_force` gave the body.",
         "reset_torques": "Drop every torque added since the last step.",
         "set_angular_velocity": "Set how fast the body spins, in radians per second about each axis.",
         "set_brake": "How hard this wheel brakes.",
@@ -10044,6 +10386,9 @@
         "set_linear_velocity": "Set how fast the body travels, in units per second.",
         "set_motor_position": "Drive the joint towards an angle or a distance, with a spring's stiffness and damping.",
         "set_motor_velocity": "Drive the joint towards a speed: how a wheel is powered or a door swings itself shut.",
+        "set_particle_position": "Put one particle at `at` with no change of velocity.",
+        "set_particle_target": "Move a held particle to `at` over the next step, with the velocity that takes, which is how a cloth is dragged.",
+        "set_particle_velocity": "Set one particle's velocity; a held one keeps moving at it.",
         "set_softbody": "Build the node's soft body from a `softbody3d` table: `kind`, the shape rows, and the material rows.",
         "set_steering": "Turn this wheel, in radians.",
         "set_voxel": "Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs.",
@@ -10051,15 +10396,20 @@
         "shapecast": "Sweep a shape along a direction until it hits something: a thick raycast, and how a camera avoids walls.",
         "sleep": "Put the body to sleep now.",
         "softbody_center": "The body's centre of mass, which is where it is when a deformable body has no one position.",
+        "softbody_edges": "Every edge as the two particle indices it joins, in the order `softbody_stress` reports them.",
         "softbody_particles": "How many particles the body ended up with, which a generator decides rather than the author.",
         "softbody_position": "Where one particle is, in world space.",
         "softbody_rest_volume": "How much it encloses at rest.",
+        "softbody_sleeping": "Whether the body has come to rest and stopped being simulated.",
+        "softbody_stress": "How far each edge is stretched past its rest length, as a fraction of it: what a tear is judged on.",
+        "softbody_velocity": "How fast one particle is moving, in world space.",
         "softbody_volume": "How much space the body encloses right now, against `softbody_rest_volume` for how far it is squeezed.",
         "solve_ik": "Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits.",
         "swept_aabb": "The box the collider covers over the next step, its motion included: what the broad phase actually tests.",
         "teleport": "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick.",
         "time_of_impact": "When two moving colliders would meet, given each one's velocity: `#{ velocity_a = [..], velocity_b = [..], max = 1.0 }`. Nothing when they never do.",
         "total_mass": "The body's total mass, colliders included. The `mass` property is the extra on top of them.",
+        "unpin_particle": "Let a held particle go; it keeps the velocity it had.",
         "user_force": "The force the next step will integrate.",
         "user_torque": "The torque the next step will integrate.",
         "vehicle_speed": "How fast the chassis is going along its forward axis, in units per second.",
@@ -10067,6 +10417,7 @@
         "voxel": "Whether one cell of a voxel collider is filled.",
         "voxel_at": "The cell a world position falls in, as three whole numbers.",
         "wake_all": "Wake every sleeping body in the 3D world.",
+        "wake_softbody": "Start simulating a resting body again.",
         "wake_up": "Wake the body, so the next step moves it.",
         "wheel_state": "What the last step did with this wheel: `#{ rotation, suspension_force, grounded, engine_force, brake, steering }`."
       },
@@ -10075,11 +10426,17 @@
         "active_bodies",
         "add_force",
         "add_force_at_point",
+        "add_softbody_force",
         "add_torque",
         "angular_velocity",
         "apply_impulse",
         "apply_impulse_at_point",
+        "apply_particle_impulse",
+        "apply_softbody_impulse",
+        "apply_softbody_impulse_at",
+        "apply_softbody_radial_impulse",
         "apply_torque_impulse",
+        "attach_particle",
         "bodies",
         "box_hits",
         "closest_points",
@@ -10087,6 +10444,7 @@
         "collider_mesh",
         "collider_volume",
         "contacts",
+        "detach_particle",
         "distance",
         "effective_dominance",
         "gravity",
@@ -10113,6 +10471,7 @@
         "raycast_all",
         "remove_joint",
         "reset_forces",
+        "reset_softbody_forces",
         "reset_torques",
         "set_angular_velocity",
         "set_brake",
@@ -10123,6 +10482,9 @@
         "set_linear_velocity",
         "set_motor_position",
         "set_motor_velocity",
+        "set_particle_position",
+        "set_particle_target",
+        "set_particle_velocity",
         "set_softbody",
         "set_steering",
         "set_voxel",
@@ -10130,15 +10492,20 @@
         "shapecast",
         "sleep",
         "softbody_center",
+        "softbody_edges",
         "softbody_particles",
         "softbody_position",
         "softbody_rest_volume",
+        "softbody_sleeping",
+        "softbody_stress",
+        "softbody_velocity",
         "softbody_volume",
         "solve_ik",
         "swept_aabb",
         "teleport",
         "time_of_impact",
         "total_mass",
+        "unpin_particle",
         "user_force",
         "user_torque",
         "vehicle_speed",
@@ -10146,6 +10513,7 @@
         "voxel",
         "voxel_at",
         "wake_all",
+        "wake_softbody",
         "wake_up",
         "wheel_state"
       ],
@@ -10155,11 +10523,17 @@
         "active_bodies": "() -> Value",
         "add_force": "(NodeId, f32, f32, f32) -> ()",
         "add_force_at_point": "(NodeId, f32, f32, f32, f32, f32, f32) -> ()",
+        "add_softbody_force": "(NodeId, Value) -> ()",
         "add_torque": "(NodeId, f32, f32, f32) -> ()",
         "angular_velocity": "NodeId -> (f32, f32, f32)",
         "apply_impulse": "(NodeId, f32, f32, f32) -> ()",
         "apply_impulse_at_point": "(NodeId, f32, f32, f32, f32, f32, f32) -> ()",
+        "apply_particle_impulse": "(NodeId, i64, Value) -> ()",
+        "apply_softbody_impulse": "(NodeId, Value) -> ()",
+        "apply_softbody_impulse_at": "(NodeId, Value, Value, Value) -> ()",
+        "apply_softbody_radial_impulse": "(NodeId, Value, Value, Value) -> ()",
         "apply_torque_impulse": "(NodeId, f32, f32, f32) -> ()",
+        "attach_particle": "(NodeId, i64, NodeId) -> ()",
         "bodies": "() -> Value",
         "box_hits": "Value -> Value",
         "closest_points": "(NodeId, NodeId) -> Value",
@@ -10167,6 +10541,7 @@
         "collider_mesh": "NodeId -> Value",
         "collider_volume": "NodeId -> f32",
         "contacts": "NodeId -> Value",
+        "detach_particle": "(NodeId, i64) -> bool",
         "distance": "(NodeId, NodeId) -> Value",
         "effective_dominance": "NodeId -> f32",
         "gravity": "() -> (f32, f32, f32)",
@@ -10193,6 +10568,7 @@
         "raycast_all": "Value -> Value",
         "remove_joint": "NodeId -> ()",
         "reset_forces": "NodeId -> ()",
+        "reset_softbody_forces": "NodeId -> ()",
         "reset_torques": "NodeId -> ()",
         "set_angular_velocity": "(NodeId, f32, f32, f32) -> ()",
         "set_brake": "(NodeId, f32) -> ()",
@@ -10203,6 +10579,9 @@
         "set_linear_velocity": "(NodeId, f32, f32, f32) -> ()",
         "set_motor_position": "(NodeId, f32, f32, f32) -> ()",
         "set_motor_velocity": "(NodeId, f32, f32) -> ()",
+        "set_particle_position": "(NodeId, i64, Value) -> ()",
+        "set_particle_target": "(NodeId, i64, Value) -> ()",
+        "set_particle_velocity": "(NodeId, i64, Value) -> ()",
         "set_softbody": "(NodeId, Value) -> ()",
         "set_steering": "(NodeId, f32) -> ()",
         "set_voxel": "(NodeId, i32, i32, i32, bool) -> ()",
@@ -10210,15 +10589,20 @@
         "shapecast": "Value -> Value",
         "sleep": "NodeId -> ()",
         "softbody_center": "NodeId -> Value",
+        "softbody_edges": "NodeId -> Value",
         "softbody_particles": "NodeId -> i64",
         "softbody_position": "(NodeId, i64) -> Value",
         "softbody_rest_volume": "NodeId -> f32",
+        "softbody_sleeping": "NodeId -> bool",
+        "softbody_stress": "NodeId -> Value",
+        "softbody_velocity": "(NodeId, i64) -> Value",
         "softbody_volume": "NodeId -> f32",
         "solve_ik": "(NodeId, f32, f32, f32) -> ()",
         "swept_aabb": "NodeId -> (f32, f32, f32, f32, f32, f32)",
         "teleport": "(NodeId, f32, f32, f32) -> ()",
         "time_of_impact": "(NodeId, NodeId, Value) -> Value",
         "total_mass": "NodeId -> f32",
+        "unpin_particle": "(NodeId, i64) -> ()",
         "user_force": "NodeId -> (f32, f32, f32)",
         "user_torque": "NodeId -> (f32, f32, f32)",
         "vehicle_speed": "NodeId -> f32",
@@ -10226,6 +10610,7 @@
         "voxel": "(NodeId, i32, i32, i32) -> bool",
         "voxel_at": "(NodeId, f32, f32, f32) -> (i64, i64, i64)",
         "wake_all": "() -> ()",
+        "wake_softbody": "NodeId -> ()",
         "wake_up": "NodeId -> ()",
         "wheel_state": "NodeId -> Value"
       }
@@ -10914,9 +11299,9 @@
         "source": "A scene file's raw TOML text, project-relative and found inside the pack in a packed run; nil when missing.",
         "switch": "Replace the scene with another one at the end of this tick, so a script asking inside `update` is not freeing the tree it runs in. `fade` is seconds the renderer crosses over; reset is a switch to the same file.",
         "tagged": "Every node filed under a tag, in tree order; what a scene's `tags` key and `node.add_tag` feed.",
-        "unmet_expectations": "Components on the node whose expectations nothing satisfies, as `{ component, expects }`; advisory only.",
         "variable": "A scene variable's value, or nil for a name nothing declared. A scene declares them under `[variables]`.",
         "variables": "Every declared variable as `{ name, type, value, persist }`, in name order.",
+        "warnings": "What is off about the node, as `{ component, property, message }`: a component missing one it expects, a write its component refused, and what a component says of itself. `property` is nil for the whole component; advisory only.",
         "with_component": "Every node carrying the named component, in tree order. What a script asks instead of walking the tree itself."
       },
       "functions": [
@@ -10938,9 +11323,9 @@
         "source",
         "switch",
         "tagged",
-        "unmet_expectations",
         "variable",
         "variables",
+        "warnings",
         "with_component"
       ],
       "name": "scene",
@@ -10963,9 +11348,9 @@
         "source": "(path: string)",
         "switch": "(path: string, options: map?)",
         "tagged": "(tag: string)",
-        "unmet_expectations": "(node: node)",
         "variable": "(name: string)",
         "variables": "()",
+        "warnings": "(node: node)",
         "with_component": "(component: string)"
       }
     },

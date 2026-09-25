@@ -829,3 +829,229 @@ pub fn fixed_update(this, dt) {
         "the check did not run clean: {errors:#?}"
     );
 }
+
+/// The calls a script uses to hold, drag, tie and push a body, checked over
+/// one script that logs once it reached its end.
+fn run_checked(script: &str, ticks: u32, done: &str) {
+    let errors = run_for(script, ticks);
+    assert!(
+        errors.len() == 1 && errors[0].contains(done),
+        "the check did not run clean: {errors:#?}"
+    );
+}
+
+#[test]
+fn pinning_a_free_particle_holds_it_and_unpinning_lets_it_fall() {
+    run_checked(
+        r#"pub fn init(this) {
+    let body = this.node.softbody3d;
+    body.set_softbody(#{ kind: "rope", particles: 8.0 });
+    body.pin_particle(0);
+    this.first = body.softbody_position(0).y;
+    this.ticks = 0;
+}
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    let body = this.node.softbody3d;
+    if this.ticks == 4 {
+        assert!((body.softbody_position(0).y - this.first).abs() < 0.001, "the pinned particle fell");
+        assert!(body.softbody_position(7).y < this.first, "the free end did not fall");
+        body.unpin_particle(0);
+    }
+    if this.ticks == 10 {
+        assert!(body.softbody_position(0).y < this.first - 0.001, "the released particle stayed put");
+        log::error("checked: held and let go");
+    }
+}
+"#,
+        12,
+        "checked: held and let go",
+    );
+}
+
+#[test]
+fn a_held_particle_is_dragged_to_its_target() {
+    run_checked(
+        r#"pub fn init(this) {
+    let body = this.node.softbody3d;
+    body.set_softbody(#{ kind: "rope", particles: 8.0, pinned: [0] });
+    body.set_particle_target(0, [2.0, 1.0, 0.0]);
+    this.ticks = 0;
+}
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    if this.ticks == 3 {
+        let at = this.node.softbody3d.softbody_position(0);
+        assert!((at.x - 2.0).abs() < 0.01 && (at.y - 1.0).abs() < 0.01, "the held particle did not move to its target");
+        log::error("checked: dragged");
+    }
+}
+"#,
+        5,
+        "checked: dragged",
+    );
+}
+
+#[test]
+fn an_impulse_kicks_the_body_and_the_edges_report_their_stress() {
+    run_checked(
+        r#"pub fn init(this) {
+    let body = this.node.softbody3d;
+    body.set_softbody(#{ kind: "rope", particles: 8.0, pinned: [0] });
+    body.apply_softbody_impulse([0.0, 20.0, 0.0]);
+    this.first = body.softbody_position(7).y;
+    this.ticks = 0;
+}
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    let body = this.node.softbody3d;
+    if this.ticks == 2 {
+        assert!(body.softbody_position(7).y > this.first, "the kick did not lift the free end");
+        assert!(body.softbody_velocity(7).y > 0.0, "and it is not moving up");
+        let edges = body.softbody_edges();
+        assert!(edges.len() > 0 && edges.len() == body.softbody_stress().len(), "the edges and their stress do not line up");
+        assert!(edges[0].len() == 2, "an edge is two particle indices");
+        log::error("checked: kicked");
+    }
+}
+"#,
+        4,
+        "checked: kicked",
+    );
+}
+
+#[test]
+fn a_particle_tied_to_a_body_hangs_from_it() {
+    run_checked(
+        r#"pub fn init(this) {
+    let hook = this.node.add_child("Hook");
+    hook.set_component("transform", #{ position: [0.0, 0.0, 0.0] });
+    hook.set_component("body3d", #{ kind: "static" });
+    let body = this.node.softbody3d;
+    body.set_softbody(#{ kind: "rope", particles: 8.0 });
+    this.hook = hook;
+    this.ticks = 0;
+    this.first = body.softbody_position(0).y;
+}
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    let body = this.node.softbody3d;
+    if this.ticks == 1 {
+        body.attach_particle(0, this.hook);
+    }
+    if this.ticks == 20 {
+        assert!(body.softbody_position(0).y > this.first - 0.2, "the tied particle fell away from the body");
+        assert!(body.detach_particle(0), "the particle was not attached");
+        log::error("checked: tied");
+    }
+}
+"#,
+        22,
+        "checked: tied",
+    );
+}
+
+#[test]
+fn the_2d_body_takes_the_same_calls() {
+    run_checked(
+        r#"pub fn init(this) {
+    let body = this.node.get_node("Blob2d").softbody2d;
+    body.set_softbody(#{ kind: "rope", particles: 6.0 });
+    body.pin_particle(0);
+    body.apply_softbody_radial_impulse([0.0, 0.0], 5.0, 0.0);
+    this.ticks = 0;
+}
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    if this.ticks == 2 {
+        let body = this.node.get_node("Blob2d").softbody2d;
+        assert!(body.softbody_edges().len() == body.softbody_stress().len(), "the edges and their stress do not line up");
+        assert!(!body.softbody_sleeping(), "a body just struck is asleep");
+        log::error("checked: 2d");
+    }
+}
+"#,
+        4,
+        "checked: 2d",
+    );
+}
+
+#[test]
+fn per_particle_and_per_edge_rows_build_and_name_what_they_cannot() {
+    run_checked(
+        r#"pub fn init(this) {
+    let body = this.node.softbody3d;
+    body.set_softbody(#{
+        kind: "rope", particles: 4.0,
+        masses: [1.0, 1.0, 1.0, 50.0],
+        tear_resistance: [#{ a: 1, b: 2, resistance: 0.2 }],
+        edge_springs: [#{ a: 0, b: 1, frequency: 90.0, damping: 1.0 }],
+    });
+    assert!(body.softbody_particles() == 4, "the rows changed the layout");
+    log::error("checked: rows built");
+}
+"#,
+        1,
+        "checked: rows built",
+    );
+    let short = run(r#"pub fn init(this) {
+    this.node.softbody3d.set_softbody(#{ kind: "rope", particles: 4.0, masses: [1.0, 2.0] });
+}
+"#);
+    assert!(short.iter().any(|e| e.contains("masses")), "{short:#?}");
+    let stray = run(r#"pub fn init(this) {
+    this.node.softbody3d.set_softbody(#{ kind: "rope", particles: 4.0, tear_resistance: [#{ a: 0, b: 3, resistance: 0.5 }] });
+}
+"#);
+    assert!(
+        stray
+            .iter()
+            .any(|e| e.contains("no edge joins particles 0 and 3")),
+        "{stray:#?}"
+    );
+}
+
+#[test]
+fn a_body_that_does_not_collide_lets_a_ray_through() {
+    run_checked(
+        r#"pub fn init(this) {
+    this.node.softbody3d.set_softbody(#{ kind: "cuboid", cells: [2.0, 2.0, 2.0], collides: false });
+    this.ticks = 0;
+}
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    if this.ticks == 2 {
+        let hit = physics3d::raycast(#{ from: [0.0, 5.0, 0.0], dir: [0.0, -1.0, 0.0], max: 20.0 });
+        assert!(!(hit is Object), "the ray met a body that does not collide");
+        log::error("checked: passed through");
+    }
+}
+"#,
+        4,
+        "checked: passed through",
+    );
+}
+
+#[test]
+fn a_woven_cloth_and_a_2d_skin_collision_build() {
+    run_checked(
+        r##"pub fn init(this) {
+    let cloth = this.node.softbody3d;
+    cloth.set_softbody(#{ kind: "cloth", cells: [4.0, 4.0, 1.0], warp_frequency: 80.0, weft_frequency: 10.0 });
+    assert!(cloth.softbody_particles() == 25, "a woven 4x4 cloth is not 5x5 particles");
+    let flat = this.node.get_node("Blob2d").softbody2d;
+    flat.set_softbody(#{ kind: "volumetric", mesh: "#square", cell_size: 0.2, skin_collision: true });
+    assert!(flat.softbody_particles() > 4, "the skinned 2D body has no cells");
+    log::error("checked: woven");
+}
+"##,
+        1,
+        "checked: woven",
+    );
+}

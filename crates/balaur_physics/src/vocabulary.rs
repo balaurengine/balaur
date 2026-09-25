@@ -360,6 +360,15 @@ pub(crate) mod keys {
     pub(crate) const CELL_MODEL: &str = "cell_model";
     pub(crate) const CELL_SIZE: &str = "cell_size";
     pub(crate) const COLOR: &str = "color";
+    pub(crate) const COLLIDES: &str = "collides";
+    pub(crate) const MASSES: &str = "masses";
+    pub(crate) const TEAR_RESISTANCE: &str = "tear_resistance";
+    pub(crate) const RESISTANCE: &str = "resistance";
+    pub(crate) const EDGE_SPRINGS: &str = "edge_springs";
+    pub(crate) const FREQUENCY: &str = "frequency";
+    pub(crate) const WARP_FREQUENCY: &str = "warp_frequency";
+    pub(crate) const WEFT_FREQUENCY: &str = "weft_frequency";
+    pub(crate) const SHEAR_FREQUENCY: &str = "shear_frequency";
     pub(crate) const DEFORMATION_DAMPING: &str = "deformation_damping";
     pub(crate) const EDGE_DAMPING: &str = "edge_damping";
     pub(crate) const EDGE_FREQUENCY: &str = "edge_frequency";

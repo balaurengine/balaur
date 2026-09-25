@@ -315,3 +315,411 @@ macro_rules! patch_in_place {
 }
 
 pub(crate) use patch_in_place;
+
+/// A vector a script passed: a `Vec2`, a `Vec3` or a list of numbers, of
+/// which the first `N` are read.
+pub(crate) fn vector_arg<const N: usize>(value: &balaur_script::Value) -> anyhow::Result<[f32; N]> {
+    use balaur_script::Value;
+    let numbers: Vec<f32> = match value {
+        Value::Vec2(v) => v.to_vec(),
+        Value::Vec3(v) => v.to_vec(),
+        Value::List(items) => items
+            .iter()
+            .map(|item| match item {
+                Value::Num(n) => Ok(*n as f32),
+                Value::Int(n) => Ok(*n as f32),
+                _ => Err(anyhow::anyhow!("a vector holds numbers only")),
+            })
+            .collect::<anyhow::Result<_>>()?,
+        _ => anyhow::bail!("expected a vector of {N} numbers"),
+    };
+    anyhow::ensure!(
+        numbers.len() >= N,
+        "expected a vector of {N} numbers, got {}",
+        numbers.len()
+    );
+    Ok(std::array::from_fn(|i| numbers[i]))
+}
+
+/// Particles held, moved and pushed from a script, and what the body's edges
+/// carry: the same calls on `softbody3d` and `softbody2d`.
+macro_rules! runtime_api {
+    (
+        install = $install:ident,
+        state = $State:ty,
+        handle = $Handle:ty,
+        component = $component:expr,
+        dims = $N:literal,
+        vector = $vector:path,
+        value = $value:path,
+        array = $array:path
+    ) => {
+        pub(crate) fn $install(m: &mut dyn balaur_script::Bindings<balaur_core::Engine>) {
+            use balaur_core::{Engine, entity_of};
+            use balaur_script::{BindingsExt, NodeId, Value};
+            use crate::shared::softbody::vector_arg;
+
+            // Run `f` on the node's soft body with the rest of the state beside it.
+            fn with<T>(
+                eng: &Engine,
+                node: NodeId,
+                f: impl FnOnce(&mut $State, $Handle) -> anyhow::Result<T>,
+            ) -> anyhow::Result<T> {
+                let entity = entity_of(node)?;
+                let state = eng.resource::<$State>();
+                let mut state = state.borrow_mut();
+                let handle = *state
+                    .soft_bodies
+                    .get(&entity)
+                    .ok_or_else(|| anyhow::anyhow!("node has no soft body"))?;
+                anyhow::ensure!(state.world.soft_bodies.get(handle).is_some(), "node has no soft body");
+                f(&mut state, handle)
+            }
+            // A particle index, checked against the body it indexes.
+            fn particle(count: usize, index: i64) -> anyhow::Result<usize> {
+                usize::try_from(index)
+                    .ok()
+                    .filter(|i| *i < count)
+                    .ok_or_else(|| anyhow::anyhow!("this body has no particle {index}"))
+            }
+            fn at(value: &Value) -> anyhow::Result<crate::scalar::Real> {
+                match value {
+                    Value::Num(n) => Ok(*n as crate::scalar::Real),
+                    Value::Int(n) => Ok(*n as crate::scalar::Real),
+                    _ => anyhow::bail!("expected a number"),
+                }
+            }
+
+            m.describe(&[
+                ("pin_particle", &[$component], "(index: int)", "Hold one particle where it is, which is how a cloth hangs from a hook."),
+                ("unpin_particle", &[$component], "(index: int)", "Let a held particle go; it keeps the velocity it had."),
+                ("set_particle_target", &[$component], "(index: int, at: vec)", "Move a held particle to `at` over the next step, with the velocity that takes, which is how a cloth is dragged."),
+                ("set_particle_position", &[$component], "(index: int, at: vec)", "Put one particle at `at` with no change of velocity."),
+                ("set_particle_velocity", &[$component], "(index: int, velocity: vec)", "Set one particle's velocity; a held one keeps moving at it."),
+                ("softbody_velocity", &[$component], "(index: int)", "How fast one particle is moving, in world space."),
+                ("attach_particle", &[$component], "(index: int, body: node)", "Tie one particle to a node's rigid body where it is now: the body and the particle pull on each other."),
+                ("detach_particle", &[$component], "(index: int)", "Untie one particle from every body it was attached to; answers whether it was attached."),
+                ("add_softbody_force", &[$component], "(force: vec)", "Push every free particle with `force` each step until `reset_softbody_forces`."),
+                ("reset_softbody_forces", &[$component], "()", "Take back every force `add_softbody_force` gave the body."),
+                ("apply_softbody_impulse", &[$component], "(impulse: vec)", "Change every free particle's velocity by `impulse` at once, as a kick to the whole body."),
+                ("apply_particle_impulse", &[$component], "(index: int, impulse: vec)", "Strike one particle."),
+                ("apply_softbody_impulse_at", &[$component], "(impulse: vec, point: vec, radius: float)", "Strike the particles within `radius` of `point`, less the further they are; a radius of 0 strikes them all."),
+                ("apply_softbody_radial_impulse", &[$component], "(center: vec, magnitude: float, radius: float)", "Push the particles within `radius` away from `center`, as a blast does."),
+                ("softbody_edges", &[$component], "()", "Every edge as the two particle indices it joins, in the order `softbody_stress` reports them."),
+                ("softbody_stress", &[$component], "()", "How far each edge is stretched past its rest length, as a fraction of it: what a tear is judged on."),
+                ("softbody_sleeping", &[$component], "()", "Whether the body has come to rest and stopped being simulated."),
+                ("wake_softbody", &[$component], "()", "Start simulating a resting body again."),
+            ]);
+            m.function("pin_particle", |eng: &Engine, (node, index): (NodeId, i64)| {
+                with(eng, node, |state, handle| {
+                    let body = state.world.soft_bodies.get_mut(handle).unwrap();
+                    let i = particle(body.num_particles(), index)?;
+                    body.set_particle_pinned(i, true);
+                    Ok(())
+                })
+            });
+            m.function("unpin_particle", |eng: &Engine, (node, index): (NodeId, i64)| {
+                with(eng, node, |state, handle| {
+                    let body = state.world.soft_bodies.get_mut(handle).unwrap();
+                    let i = particle(body.num_particles(), index)?;
+                    body.set_particle_pinned(i, false);
+                    Ok(())
+                })
+            });
+            m.function(
+                "set_particle_target",
+                |eng: &Engine, (node, index, target): (NodeId, i64, Value)| {
+                    let target = $vector(vector_arg::<$N>(&target)?);
+                    with(eng, node, |state, handle| {
+                        let body = state.world.soft_bodies.get_mut(handle).unwrap();
+                        let i = particle(body.num_particles(), index)?;
+                        anyhow::ensure!(body.particles()[i].is_pinned(), "particle {index} is free: pin it first");
+                        body.set_particle_kinematic_target(i, target);
+                        Ok(())
+                    })
+                },
+            );
+            m.function(
+                "set_particle_position",
+                |eng: &Engine, (node, index, target): (NodeId, i64, Value)| {
+                    let target = $vector(vector_arg::<$N>(&target)?);
+                    with(eng, node, |state, handle| {
+                        let body = state.world.soft_bodies.get_mut(handle).unwrap();
+                        let i = particle(body.num_particles(), index)?;
+                        body.set_particle_position(i, target);
+                        Ok(())
+                    })
+                },
+            );
+            m.function(
+                "set_particle_velocity",
+                |eng: &Engine, (node, index, velocity): (NodeId, i64, Value)| {
+                    let velocity = $vector(vector_arg::<$N>(&velocity)?);
+                    with(eng, node, |state, handle| {
+                        let body = state.world.soft_bodies.get_mut(handle).unwrap();
+                        let i = particle(body.num_particles(), index)?;
+                        body.set_particle_velocity(i, velocity);
+                        Ok(())
+                    })
+                },
+            );
+            m.function("softbody_velocity", |eng: &Engine, (node, index): (NodeId, i64)| {
+                with(eng, node, |state, handle| {
+                    let body = state.world.soft_bodies.get(handle).unwrap();
+                    let i = particle(body.num_particles(), index)?;
+                    Ok($value($array(body.particle_velocity(i))))
+                })
+            });
+            m.function(
+                "attach_particle",
+                |eng: &Engine, (node, index, other): (NodeId, i64, NodeId)| {
+                    let other = entity_of(other)?;
+                    with(eng, node, |state, handle| {
+                        let target = *state
+                            .bodies
+                            .get(&other)
+                            .ok_or_else(|| anyhow::anyhow!("that node has no rigid body to attach to"))?;
+                        let world = &mut state.world;
+                        let body = world.soft_bodies.get_mut(handle).unwrap();
+                        let i = particle(body.num_particles(), index)?;
+                        body.attach_particle(i, target, &world.bodies);
+                        Ok(())
+                    })
+                },
+            );
+            m.function("detach_particle", |eng: &Engine, (node, index): (NodeId, i64)| {
+                with(eng, node, |state, handle| {
+                    let body = state.world.soft_bodies.get_mut(handle).unwrap();
+                    let i = particle(body.num_particles(), index)?;
+                    Ok(body.detach_particle(i))
+                })
+            });
+            m.function("add_softbody_force", |eng: &Engine, (node, force): (NodeId, Value)| {
+                let force = $vector(vector_arg::<$N>(&force)?);
+                with(eng, node, |state, handle| {
+                    state.world.soft_bodies.get_mut(handle).unwrap().add_force(force, true);
+                    Ok(())
+                })
+            });
+            m.function("reset_softbody_forces", |eng: &Engine, node: NodeId| {
+                with(eng, node, |state, handle| {
+                    state.world.soft_bodies.get_mut(handle).unwrap().reset_forces(true);
+                    Ok(())
+                })
+            });
+            m.function(
+                "apply_softbody_impulse",
+                |eng: &Engine, (node, impulse): (NodeId, Value)| {
+                    let impulse = $vector(vector_arg::<$N>(&impulse)?);
+                    with(eng, node, |state, handle| {
+                        state.world.soft_bodies.get_mut(handle).unwrap().apply_impulse(impulse, true);
+                        Ok(())
+                    })
+                },
+            );
+            m.function(
+                "apply_particle_impulse",
+                |eng: &Engine, (node, index, impulse): (NodeId, i64, Value)| {
+                    let impulse = $vector(vector_arg::<$N>(&impulse)?);
+                    with(eng, node, |state, handle| {
+                        let body = state.world.soft_bodies.get_mut(handle).unwrap();
+                        let i = particle(body.num_particles(), index)?;
+                        body.apply_particle_impulse(i, impulse, true);
+                        Ok(())
+                    })
+                },
+            );
+            m.function(
+                "apply_softbody_impulse_at",
+                |eng: &Engine, (node, impulse, point, radius): (NodeId, Value, Value, Value)| {
+                    let impulse = $vector(vector_arg::<$N>(&impulse)?);
+                    let point = $vector(vector_arg::<$N>(&point)?);
+                    let radius = at(&radius)?;
+                    with(eng, node, |state, handle| {
+                        state
+                            .world
+                            .soft_bodies
+                            .get_mut(handle)
+                            .unwrap()
+                            .apply_impulse_at_point(impulse, point, radius, true);
+                        Ok(())
+                    })
+                },
+            );
+            m.function(
+                "apply_softbody_radial_impulse",
+                |eng: &Engine, (node, center, magnitude, radius): (NodeId, Value, Value, Value)| {
+                    let center = $vector(vector_arg::<$N>(&center)?);
+                    let (magnitude, radius) = (at(&magnitude)?, at(&radius)?);
+                    with(eng, node, |state, handle| {
+                        state
+                            .world
+                            .soft_bodies
+                            .get_mut(handle)
+                            .unwrap()
+                            .apply_radial_impulse(center, magnitude, radius, true);
+                        Ok(())
+                    })
+                },
+            );
+            m.function("softbody_edges", |eng: &Engine, node: NodeId| {
+                with(eng, node, |state, handle| {
+                    let body = state.world.soft_bodies.get(handle).unwrap();
+                    Ok(Value::List(
+                        body.edges()
+                            .iter()
+                            .map(|edge| {
+                                Value::List(edge.vertices.iter().map(|&i| Value::Int(i64::from(i))).collect())
+                            })
+                            .collect(),
+                    ))
+                })
+            });
+            m.function("softbody_stress", |eng: &Engine, node: NodeId| {
+                with(eng, node, |state, handle| {
+                    let body = state.world.soft_bodies.get(handle).unwrap();
+                    Ok(Value::List(
+                        body.edges().iter().map(|edge| Value::Num(f64::from(edge.stress()))).collect(),
+                    ))
+                })
+            });
+            m.function("softbody_sleeping", |eng: &Engine, node: NodeId| {
+                with(eng, node, |state, handle| {
+                    Ok(state.world.soft_bodies.get(handle).unwrap().is_sleeping())
+                })
+            });
+            m.function("wake_softbody", |eng: &Engine, node: NodeId| {
+                with(eng, node, |state, handle| {
+                    state.world.soft_bodies.get_mut(handle).unwrap().wake_up();
+                    Ok(())
+                })
+            });
+        }
+    };
+}
+
+pub(crate) use runtime_api;
+
+/// What a body's rows say of single particles and edges, read into plain
+/// numbers either dimension turns into its own rapier types.
+pub(crate) struct EdgeRows {
+    pub(crate) masses: Vec<f32>,
+    /// `(edge index, resistance)`, the index as rapier counts: the structural
+    /// edges, then the bending ones.
+    pub(crate) tear: Vec<(u32, f32)>,
+    /// `(structural edge index, frequency, damping)`.
+    pub(crate) springs: Vec<(u32, f32, f32)>,
+}
+
+/// Read `masses`, `tear_resistance` and `edge_springs` against the layout a
+/// generator made: an edge is named by the two particles it joins.
+pub(crate) fn edge_rows(
+    params: &toml::Value,
+    particles: usize,
+    structural: &[[u32; 2]],
+    bending: &[[u32; 2]],
+) -> anyhow::Result<EdgeRows> {
+    use crate::vocabulary::keys as k;
+    let masses: Vec<f32> = params
+        .get(k::MASSES)
+        .and_then(toml::Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(balaur_core::components::as_f64)
+                .map(|m| m as f32)
+                .collect()
+        })
+        .unwrap_or_default();
+    anyhow::ensure!(
+        masses.is_empty() || masses.len() == particles,
+        "{} names {} masses and the body has {particles} particles",
+        k::MASSES,
+        masses.len()
+    );
+    let find = |edges: &[[u32; 2]], a: u32, b: u32| {
+        edges
+            .iter()
+            .position(|e| (e[0] == a && e[1] == b) || (e[0] == b && e[1] == a))
+    };
+    let joined = |row: &toml::Value| -> anyhow::Result<(u32, u32)> {
+        let end = |key: &str| {
+            row.get(key)
+                .and_then(toml::Value::as_integer)
+                .and_then(|i| u32::try_from(i).ok())
+        };
+        match (end(k::A), end(k::B)) {
+            (Some(a), Some(b)) => Ok((a, b)),
+            _ => anyhow::bail!(
+                "an edge row names its two particles as {} and {}",
+                k::A,
+                k::B
+            ),
+        }
+    };
+    let rows = |key: &str| {
+        params
+            .get(key)
+            .and_then(toml::Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+    };
+    let number = |row: &toml::Value, key: &str, default: f64| {
+        row.get(key)
+            .and_then(balaur_core::components::as_f64)
+            .unwrap_or(default) as f32
+    };
+    let mut tear = Vec::new();
+    for row in rows(k::TEAR_RESISTANCE) {
+        let (a, b) = joined(&row)?;
+        let index = find(structural, a, b)
+            .or_else(|| find(bending, a, b).map(|i| structural.len() + i))
+            .ok_or_else(|| anyhow::anyhow!("no edge joins particles {a} and {b}"))?;
+        tear.push((index as u32, number(&row, k::RESISTANCE, 1.0)));
+    }
+    let mut springs = Vec::new();
+    for row in rows(k::EDGE_SPRINGS) {
+        let (a, b) = joined(&row)?;
+        let index = find(structural, a, b)
+            .ok_or_else(|| anyhow::anyhow!("no structural edge joins particles {a} and {b}"))?;
+        springs.push((
+            index as u32,
+            number(&row, k::FREQUENCY, 30.0),
+            number(&row, k::DAMPING, 1.0),
+        ));
+    }
+    Ok(EdgeRows {
+        masses,
+        tear,
+        springs,
+    })
+}
+
+/// The schema rows every body shares for single particles and edges.
+pub(crate) fn edge_schema() -> String {
+    use crate::vocabulary::keys as k;
+    let (a, b) = (k::A, k::B);
+    let (resistance, frequency, damping) = (k::RESISTANCE, k::FREQUENCY, k::DAMPING);
+    crate::vocabulary::schema(&[
+        (
+            k::MASSES,
+            r#"{ type = "list", of = { type = "float" }, default = [], description = "Each particle's own mass, by index; empty spreads `mass` over them evenly", group = "particles" }"#,
+        ),
+        (
+            k::TEAR_RESISTANCE,
+            &format!(
+                r#"{{ type = "list", of = {{ type = "record", fields = {{ {a} = {{ type = "int", default = 0 }}, {b} = {{ type = "int", default = 1 }}, {resistance} = {{ type = "float", default = 1.0 }} }} }}, default = [], description = "Edges that tear sooner or later than the rest, each named by the two particles it joins: below 1 is a perforation, above 1 a seam", group = "tearing" }}"#
+            ),
+        ),
+        (
+            k::EDGE_SPRINGS,
+            &format!(
+                r#"{{ type = "list", of = {{ type = "record", fields = {{ {a} = {{ type = "int", default = 0 }}, {b} = {{ type = "int", default = 1 }}, {frequency} = {{ type = "float", default = 30.0 }}, {damping} = {{ type = "float", default = 1.0 }} }} }}, default = [], description = "Edges with a spring of their own instead of the edge rows', each named by the two particles it joins", group = "stiffness" }}"#
+            ),
+        ),
+        (
+            k::COLLIDES,
+            r#"{ type = "bool", default = true, description = "Meet the world at all; off, the body passes through everything and only its pins and ties hold it", group = "surface" }"#,
+        ),
+    ])
+}

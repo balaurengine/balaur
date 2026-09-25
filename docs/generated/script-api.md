@@ -31,8 +31,8 @@ cannot drift from what scripts actually see.
 | [`multiplayer`](#multiplayer) | 14 | 18 | the engine |
 | [`node`](#node) | 56 | 0 | the engine |
 | [`physics`](#physics) | 14 | 0 | the engine |
-| [`physics2d`](#physics2d) | 55 | 64 | the engine |
-| [`physics3d`](#physics3d) | 77 | 77 | the engine |
+| [`physics2d`](#physics2d) | 72 | 64 | the engine |
+| [`physics3d`](#physics3d) | 94 | 77 | the engine |
 | [`platform`](#platform) | 11 | 0 | the engine |
 | [`project`](#project) | 13 | 0 | the engine |
 | [`regex`](#regex) | 6 | 0 | the engine |
@@ -250,7 +250,7 @@ cannot drift from what scripts actually see.
 
 ## `physics2d`
 
-**Functions:** `add_force`, `add_force_at_point`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_torque_impulse`, `box_hits`, `distance`, `gravity`, `intersects`, `is_grounded`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `pin_particle`, `point_hits`, `predict_position`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_torques`, `set_angular_velocity`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_softbody`, `set_voxel`, `shape_hits`, `shapecast`, `sleep`, `softbody_area`, `softbody_center`, `softbody_particles`, `softbody_position`, `softbody_rest_area`, `teleport`, `total_mass`, `user_force`, `user_torque`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_up`
+**Functions:** `add_force`, `add_force_at_point`, `add_softbody_force`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_particle_impulse`, `apply_softbody_impulse`, `apply_softbody_impulse_at`, `apply_softbody_radial_impulse`, `apply_torque_impulse`, `attach_particle`, `box_hits`, `detach_particle`, `distance`, `gravity`, `intersects`, `is_grounded`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `pin_particle`, `point_hits`, `predict_position`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_softbody_forces`, `reset_torques`, `set_angular_velocity`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_particle_position`, `set_particle_target`, `set_particle_velocity`, `set_softbody`, `set_voxel`, `shape_hits`, `shapecast`, `sleep`, `softbody_area`, `softbody_center`, `softbody_edges`, `softbody_particles`, `softbody_position`, `softbody_rest_area`, `softbody_sleeping`, `softbody_stress`, `softbody_velocity`, `teleport`, `total_mass`, `unpin_particle`, `user_force`, `user_torque`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_softbody`, `wake_up`
 
 **Constants** (64):
 
@@ -285,7 +285,7 @@ cannot drift from what scripts actually see.
 
 ## `physics3d`
 
-**Functions:** `aabb`, `active_bodies`, `add_force`, `add_force_at_point`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_torque_impulse`, `bodies`, `box_hits`, `closest_points`, `collider_mass`, `collider_mesh`, `collider_volume`, `contacts`, `distance`, `effective_dominance`, `gravity`, `handles`, `intersects`, `is_grounded`, `is_moving`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `pin_particle`, `point_hits`, `potential_energy`, `predict_position`, `predict_position_with_forces`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_torques`, `set_angular_velocity`, `set_brake`, `set_collider`, `set_engine_force`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_softbody`, `set_steering`, `set_voxel`, `shape_hits`, `shapecast`, `sleep`, `softbody_center`, `softbody_particles`, `softbody_position`, `softbody_rest_volume`, `softbody_volume`, `solve_ik`, `swept_aabb`, `teleport`, `time_of_impact`, `total_mass`, `user_force`, `user_torque`, `vehicle_speed`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_up`, `wheel_state`
+**Functions:** `aabb`, `active_bodies`, `add_force`, `add_force_at_point`, `add_softbody_force`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_particle_impulse`, `apply_softbody_impulse`, `apply_softbody_impulse_at`, `apply_softbody_radial_impulse`, `apply_torque_impulse`, `attach_particle`, `bodies`, `box_hits`, `closest_points`, `collider_mass`, `collider_mesh`, `collider_volume`, `contacts`, `detach_particle`, `distance`, `effective_dominance`, `gravity`, `handles`, `intersects`, `is_grounded`, `is_moving`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `pin_particle`, `point_hits`, `potential_energy`, `predict_position`, `predict_position_with_forces`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_softbody_forces`, `reset_torques`, `set_angular_velocity`, `set_brake`, `set_collider`, `set_engine_force`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_particle_position`, `set_particle_target`, `set_particle_velocity`, `set_softbody`, `set_steering`, `set_voxel`, `shape_hits`, `shapecast`, `sleep`, `softbody_center`, `softbody_edges`, `softbody_particles`, `softbody_position`, `softbody_rest_volume`, `softbody_sleeping`, `softbody_stress`, `softbody_velocity`, `softbody_volume`, `solve_ik`, `swept_aabb`, `teleport`, `time_of_impact`, `total_mass`, `unpin_particle`, `user_force`, `user_torque`, `vehicle_speed`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_softbody`, `wake_up`, `wheel_state`
 
 **Constants** (77):
 
@@ -396,7 +396,7 @@ cannot drift from what scripts actually see.
 
 ## `scene`
 
-**Functions:** `apply_preset`, `bindable_events`, `binding_actions`, `component_expects`, `component_properties`, `component_schema`, `component_tags`, `component_types`, `get_node`, `instantiate`, `node_by_id`, `preset_info`, `presets`, `root`, `set_variable`, `source`, `switch`, `tagged`, `unmet_expectations`, `variable`, `variables`, `with_component`
+**Functions:** `apply_preset`, `bindable_events`, `binding_actions`, `component_expects`, `component_properties`, `component_schema`, `component_tags`, `component_types`, `get_node`, `instantiate`, `node_by_id`, `preset_info`, `presets`, `root`, `set_variable`, `source`, `switch`, `tagged`, `variable`, `variables`, `warnings`, `with_component`
 
 ## `script`
 

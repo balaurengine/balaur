@@ -57,6 +57,18 @@ fn shape_schema() -> String {
             r#"{ type = "float", default = 2.0, min = 0.0, max = 6.0, description = "How many times a sphere's icosahedron is refined; each level quadruples the triangles", group = "shape" }"#,
         ),
         (
+            k::WARP_FREQUENCY,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "A cloth's stiffness along its first axis, in hertz, as woven cloth is stiffer along the warp; 0 takes edge_frequency", group = "shape" }"#,
+        ),
+        (
+            k::WEFT_FREQUENCY,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "The same across it, along the weft; 0 takes edge_frequency", group = "shape" }"#,
+        ),
+        (
+            k::SHEAR_FREQUENCY,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "A cloth's resistance to being skewed; 0 takes edge_frequency", group = "shape" }"#,
+        ),
+        (
             k::A,
             r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where a rope starts, relative to the node", group = "shape" }"#,
         ),
@@ -198,7 +210,7 @@ cap::patch_in_place!(
 );
 
 /// particles out.
-fn with_settings(mut builder: SoftBodyBuilder, params: &toml::Value) -> SoftBodyBuilder {
+fn with_settings(mut builder: SoftBodyBuilder, params: &toml::Value) -> Result<SoftBodyBuilder> {
     builder = builder
         .material(read_material(params))
         .cell_model(read_cell_model(params))
@@ -233,7 +245,32 @@ fn with_settings(mut builder: SoftBodyBuilder, params: &toml::Value) -> SoftBody
         dominance_group: v::f(params, k::DOMINANCE, 0.0).clamp(-127.0, 127.0) as i8,
         ..builder.particle_settings
     };
-    builder.particle_settings(settings)
+    builder = builder.particle_settings(settings);
+    let rows = cap::edge_rows(
+        params,
+        builder.positions.len(),
+        &builder.edges,
+        &builder.bend_edges,
+    )?;
+    // After `mass`, which spreads one total over the particles evenly.
+    if !rows.masses.is_empty() {
+        builder = builder.masses(rows.masses.iter().map(|m| scalar::real(*m)).collect());
+    }
+    if !rows.tear.is_empty() {
+        builder =
+            builder.edge_tear_resistance(rows.tear.iter().map(|(i, r)| (*i, scalar::real(*r))));
+    }
+    for (edge, frequency, damping) in rows.springs {
+        let spring = crate::rapier3d::prelude::SpringCoefficients::new(
+            scalar::real(frequency),
+            scalar::real(damping),
+        );
+        builder.edge_softness.push((edge, spring));
+    }
+    if !v::boolean(params, k::COLLIDES, true) {
+        builder = builder.no_surface_collider();
+    }
+    Ok(builder)
 }
 
 /// The mesh a layout is built out of, in world space.
@@ -305,13 +342,29 @@ fn build_layout(
             let du = pose.rotation * scalar::v3(size[0], 0.0, 0.0);
             let dv = pose.rotation * scalar::v3(0.0, 0.0, size[2]);
             let origin = at - (du + dv) * 0.5;
-            let mut built = SoftBodyBuilder::cloth(
-                origin,
-                du / (nu.max(2) - 1) as Real,
-                dv / (nv.max(2) - 1) as Real,
-                nu,
-                nv,
-            );
+            let (step_u, step_v) = (du / (nu.max(2) - 1) as Real, dv / (nv.max(2) - 1) as Real);
+            let woven = [k::WARP_FREQUENCY, k::WEFT_FREQUENCY, k::SHEAR_FREQUENCY]
+                .map(|key| v::f(params, key, 0.0));
+            let mut built = if woven.iter().any(|f| *f > 0.0) {
+                let edge = v::f(params, k::EDGE_FREQUENCY, 30.0);
+                let damping = scalar::real(v::f(params, k::EDGE_DAMPING, 1.0));
+                let spring = |f: f32| {
+                    let hz = if f > 0.0 { f } else { edge };
+                    crate::rapier3d::prelude::SpringCoefficients::new(scalar::real(hz), damping)
+                };
+                SoftBodyBuilder::cloth_anisotropic(
+                    origin,
+                    step_u,
+                    step_v,
+                    nu,
+                    nv,
+                    spring(woven[0]),
+                    spring(woven[1]),
+                    spring(woven[2]),
+                )
+            } else {
+                SoftBodyBuilder::cloth(origin, step_u, step_v, nu, nv)
+            };
             // Spanned +x then +z, rapier winds the sheet's front underneath
             // it (`du x dv` is -y); a flat cloth is looked at from above.
             for triangle in &mut built.surface {
@@ -355,7 +408,7 @@ fn build_layout(
         other => return Err(anyhow!("unknown soft-body kind '{other}'")),
     };
     cap::refuse_past_cap(builder.positions.len() as f64, kind)?;
-    Ok(with_settings(builder, params))
+    with_settings(builder, params)
 }
 
 /// How wide the points spread along each axis.
@@ -579,7 +632,7 @@ pub(crate) fn write_every_solved_mesh(eng: &Engine) {
 }
 
 pub(crate) fn register_softbody_component(reg: &mut Registry<'_>) {
-    let schema = [shape_schema(), shared_softbody_schema()].join("\n");
+    let schema = [shape_schema(), shared_softbody_schema(), cap::edge_schema()].join("\n");
     reg.register_component(
         c::SOFTBODY_3D,
         ComponentDef {
@@ -627,7 +680,19 @@ fn softbody_warnings(eng: &Engine, entity: Entity) -> Vec<balaur_core::warnings:
         .collect()
 }
 
-/// What a script may ask a soft body, and the two things it may do to one.
+cap::runtime_api!(
+    install = install_runtime,
+    state = PhysicsState3d,
+    handle = SoftBodyHandle,
+    component = c::SOFTBODY_3D,
+    dims = 3,
+    vector = scalar::v3a,
+    value = balaur_script::Value::Vec3,
+    array = scalar::a3
+);
+
+/// What a script may ask a soft body and do to it; the calls on particles,
+/// forces and edges are `install_runtime`.
 pub(crate) fn install_softbody_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("set_softbody", &[c::SOFTBODY_3D], "", "Build the node's soft body from a `softbody3d` table: `kind`, the shape rows, and the material rows."),
@@ -636,7 +701,6 @@ pub(crate) fn install_softbody_api(m: &mut dyn Bindings<Engine>) {
         ("softbody_volume", &[c::SOFTBODY_3D], "", "How much space the body encloses right now, against `softbody_rest_volume` for how far it is squeezed."),
         ("softbody_rest_volume", &[c::SOFTBODY_3D], "", "How much it encloses at rest."),
         ("softbody_center", &[c::SOFTBODY_3D], "", "The body's centre of mass, which is where it is when a deformable body has no one position."),
-        ("pin_particle", &[c::SOFTBODY_3D], "", "Hold one particle where it is, which is how a cloth hangs from a hook."),
     ]);
     m.function(
         "set_softbody",
@@ -677,31 +741,8 @@ pub(crate) fn install_softbody_api(m: &mut dyn Bindings<Engine>) {
             )))
         })
     });
-    m.function(
-        "pin_particle",
-        |eng: &Engine, (node, index): (NodeId, i64)| {
-            let entity = entity_of(node)?;
-            let state = eng.resource::<PhysicsState3d>();
-            let mut state = state.borrow_mut();
-            let state = &mut *state;
-            let handle = *state
-                .soft_bodies
-                .get(&entity)
-                .ok_or_else(|| anyhow!("node has no soft body"))?;
-            let body = state
-                .world
-                .soft_bodies
-                .get_mut(handle)
-                .ok_or_else(|| anyhow!("node has no soft body"))?;
-            let index = usize::try_from(index)
-                .ok()
-                .filter(|i| *i < body.num_particles())
-                .ok_or_else(|| anyhow!("this body has no particle {index}"))?;
-            let at = body.particle_position(index);
-            body.set_particle_kinematic_target(index, at);
-            Ok(())
-        },
-    );
+
+    install_runtime(m);
 }
 
 fn with_softbody<T>(
