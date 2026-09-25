@@ -726,6 +726,7 @@ fn states() {
         "physclickdemo": crate::selftest::physics_clicks,
         "deselectdemo": crate::selftest::deselected,
         "viewportdemo": crate::selftest::viewport_clicks,
+        "camerademo": crate::selftest::camera_keeps_pointer,
         "tilesdemo": crate::selftest::tiles_tool,
         "clipdemo": crate::selftest::clipboard,
         "assetdemo": crate::selftest::assets,

@@ -760,9 +760,11 @@ pub fn update(S) {
         S.gizmo.key = [];
     }
 
-    // The camera keeps the pointer unless a manipulation tool is active or
-    // the gizmo itself is hot.
-    render::set_camera_input(!viewport::manipulates(S.tool, false) && S.gizmo.hover.is_none() && S.gizmo.drag.is_none());
+    // The camera keeps the pointer unless the gizmo is hot, or a manipulation
+    // tool has a gizmo to be hot about. Hover counts: the button is unbound
+    // before the press, since the binding decides who receives it.
+    let busy = viewport::manipulates(S.tool, false) && geo.is_some();
+    render::set_camera_input(!busy && S.gizmo.hover.is_none() && S.gizmo.drag.is_none());
 
     if input::mouse_just_pressed(input::MOUSE_LEFT) && over_viewport {
         let hovered = match (S.gizmo.hover, geo) {

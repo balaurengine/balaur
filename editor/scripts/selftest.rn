@@ -568,6 +568,45 @@ pub fn physical_bones(S) {
     log::info("selftest physical bones: done");
 }
 
+/// A manipulation tool leaves the camera alone when there is no gizmo.
+///
+/// The camera's buttons are unbound ahead of a press, because the binding is
+/// what decides who receives it. That was keyed on the tool alone, so picking
+/// Move killed orbit and pan over the whole stage even with nothing selected
+/// and no handle to press.
+pub fn camera_keeps_pointer(S) {
+    S.camera_check = #{ waited: 0 };
+}
+
+pub fn camera_check_step(S) {
+    let d = S.camera_check;
+    if !(d is Object) {
+        return;
+    }
+    if S.layout.stage.w <= 0.0 {
+        d.waited = d.waited + 1;
+        if d.waited > 30 {
+            S.camera_check = ();
+            log::info("selftest camera: nothing drew this run, skipped");
+        }
+        return;
+    }
+    S.camera_check = ();
+    let tool = S.tool;
+    S.tool = "move";
+    crate::selection::clear(S);
+    crate::gizmo::update(S);
+    check(render::camera_input(), "a manipulation tool with nothing selected leaves the camera its buttons");
+    // With something selected there is a gizmo to press, so it takes them.
+    if S.doc.len() > 1 {
+        shell::choose(S, 1);
+        crate::gizmo::update(S);
+        check(!render::camera_input(), "and takes them once a gizmo is drawn");
+    }
+    S.tool = tool;
+    log::info("selftest camera: done");
+}
+
 /// The viewport still takes a click in the middle of the stage.
 ///
 /// Every tool asks `viewport::owns_pointer` first, so a test that answers

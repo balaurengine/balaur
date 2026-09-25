@@ -138,8 +138,10 @@ impl Frontend {
         lights.adopt_sun(sun);
         let camera = OrbitCamera3d::default();
         let camera_2d = PanZoomCamera2d::default();
+        // Orbit on the wheel button: every editor tool starts with a left
+        // press, so left-drag could never reach the camera.
         let camera_buttons = CameraButtons {
-            rotate: camera.rotate_button(),
+            rotate: Some(kiss3d::event::MouseButton::Button3),
             drag: camera.drag_button(),
             drag_2d: camera_2d.drag_button(),
         };

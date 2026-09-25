@@ -122,6 +122,23 @@ check_viewport() {
 }
 check_viewport
 
+# The camera keeps its buttons unless something is actually there to press.
+check_camera() {
+  [ ${#only[@]} -eq 0 ] || return 0
+  printf '%-24s ' camera
+  local out
+  out=$("$BALAUR_BIN" edit examples/hello --editor "$editor" --offscreen --frames 60 \
+      --state camerademo 2>&1)
+  if echo "$out" | grep -qE "selftest FAILED|ERROR"; then
+    echo FAILED; failed+=(camera)
+  elif ! echo "$out" | grep -q "selftest ok"; then
+    echo "FAILED (checked nothing)"; failed+=(camera)
+  else
+    echo ok
+  fi
+}
+check_camera
+
 shot 01-scene-3d        examples/hello      "scene,select:Spinner"
 shot 02-scene-2d        examples/angrynerds "scene,select:Bird,zoom:45"
 shot 03-script          examples/hello      "script,select:Spinner"

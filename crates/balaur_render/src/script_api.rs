@@ -53,6 +53,7 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("set_camera", &[], "", "Point the 3D camera: the eye position xyz, then the world point it looks at, in world units."),
         ("set_camera_input", &[], "", "Allow or inhibit the backend's own mouse camera controls, so an editor can take the pointer for a drag."),
+        ("camera_input", &[], "()", "Whether the backend's own mouse camera controls are allowed. Scroll zoom is never inhibited; this is the orbit and pan buttons."),
         ("camera_matrix", &[], "", "The camera's projection*view matrix this frame, 16 numbers column-major; all zeros with no window."),
         ("mouse_ray", &[], "", "The picking ray through the mouse position: its origin xyz then its direction xyz, in world units."),
         ("pick_ray", &[], "", "The nearest node with a 3D shape that a world-space ray meets, from its origin xyz and direction xyz."),
@@ -72,13 +73,17 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
             Ok(())
         },
     );
-    // No reader by design (N8): `CameraInputConfig` in the typemap already
-    // holds the flag and windowed backends poll it; add `camera_input` when
-    // a caller actually needs to read it back.
     m.function("set_camera_input", |eng: &Engine, enabled: bool| {
         let config = eng.resource::<CameraInputConfig>();
         config.borrow_mut().enabled = enabled;
         Ok(())
+    });
+    // Read back so a tool can be tested on whether it left the camera the
+    // pointer, which is otherwise only visible by trying to orbit.
+    m.function("camera_input", |eng: &Engine, ()| {
+        let config = eng.resource::<CameraInputConfig>();
+        let enabled = config.borrow().enabled;
+        Ok(enabled)
     });
     // The camera's exact projection*view matrix (column-major, 16
     // numbers): scripts project points precisely as the renderer does.

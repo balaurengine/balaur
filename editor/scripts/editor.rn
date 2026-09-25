@@ -221,6 +221,7 @@ pub fn init(this) {
         // that presses them.
         phys_pills: [],
         viewport_check: (),
+        camera_check: (),
         // What each pill caption measured last time it drew, so the wrap
         // stops guessing.
         phys_widths: #{},
@@ -410,6 +411,9 @@ pub fn update(this, dt) {
     }
     if S.viewport_check is Object {
         selftest::viewport_click_step(S);
+    }
+    if S.camera_check is Object {
+        selftest::camera_check_step(S);
     }
     if S.settings.demo >= 0 {
         selftest::settings_step(S);
