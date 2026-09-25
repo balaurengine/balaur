@@ -13,8 +13,6 @@ pub fn state() {
         // The category showing, "" until the first is picked.
         at: "",
         dirty: false,
-        // The search box. Non-empty means the list is results, not categories.
-        query: "",
         // What `editor/appearance/compact` asks for, which the window width
         // can only add to.
         compact: false,
@@ -26,11 +24,14 @@ pub fn state() {
     }
 }
 
-// The query lives in two places — this, and the search field's own buffer —
-// so whatever moves one writes both.
+// The search box's own buffer is the query: typing in it and a deep link
+// write the same text. Non-empty means the list is results, not categories.
 fn set_query(S, text) {
-    S.settings.query = text;
     S.search[FIELD] = text;
+}
+
+pub fn query(S) {
+    crate::search::query(S, FIELD)
 }
 
 // Open on a search, for a screenshot or a "configure this" link that knows
@@ -70,9 +71,9 @@ pub fn load_files(S) {
     apply(S);
 }
 
-// The editor's own settings live beside its sessions, not in any project.
+// The editor's own settings are the person's, in the folder every project shares.
 pub fn prefs_path() {
-    engine::user_data_dir() + "/settings.toml"
+    project::data_dir() + "/editor.toml"
 }
 
 // Categories in definition order, project first: a game author looks for what
@@ -118,7 +119,7 @@ fn current(S) {
 // What the list shows: the search results when there is a query, otherwise
 // everything in the chosen category.
 fn showing(S) {
-    let query = S.settings.query.to_lowercase();
+    let query = query(S).to_lowercase();
     let rows = [];
     for def in settings::all() {
         let matches = if query == "" {
@@ -263,7 +264,7 @@ fn side_controls(S, k) {
                 text: if scope == "project" { "PROJECT" } else { "THIS EDITOR" },
             });
         }
-        let on = S.settings.query == "" && category == current(S);
+        let on = query(S) == "" && category == current(S);
         out.push(#{
             kind: "button", text: category,
             role: if on { "side_row_on" } else { "side_row" },
@@ -282,8 +283,8 @@ fn form_specs(S, k) {
     let rows = showing(S);
     let out = [];
     let h = crate::style::row_h(S);
-    if S.settings.query != "" {
-        out.push(note_spec(format!("{} matching \"{}\"", rows.len(), S.settings.query)));
+    if query(S) != "" {
+        out.push(note_spec(format!("{} matching \"{}\"", rows.len(), query(S))));
     } else if scope_of(current(S)) == "project" {
         out.push(#{ full: true, height: 34, slot_role: "verb_row", controls: [
             #{
@@ -296,13 +297,13 @@ fn form_specs(S, k) {
         out.push(note_spec("Kept in this editor only, and never written to the project."));
     }
     if rows.is_empty() {
-        out.push(note_spec(crate::search::nothing_says(S.settings.query)));
+        out.push(note_spec(crate::search::nothing_says(query(S))));
         return out;
     }
     // Grouped by the middle of the path, in the order the first setting of
     // each group asks for. A search result skips the headings: its rows show
     // whole paths, and a heading would say the same thing.
-    let searching = S.settings.query != "";
+    let searching = query(S) != "";
     let group = "";
     let scope = scope_of(current(S));
     for def in rows {
@@ -319,10 +320,18 @@ fn form_specs(S, k) {
             }
         }
         let path = def.path;
+        let controls = [editor_control(S, def, path)];
+        if path == crate::theme::SETTING {
+            controls.push(#{
+                kind: "button", role: "row_action_accent", text: "Edit…",
+                tooltip: "Open the theme window",
+                on: |_| { crate::themewin::open(S); },
+            });
+        }
         out.push(#{
             label: if searching { path } else { key_of(def) },
-            height: h,
-            controls: [editor_control(S, def, path)],
+            height: h, slot_role: "verb_row",
+            controls: controls,
         });
         let spec = util::obj(def.spec);
         let help = spec.get("help").unwrap_or("");
@@ -406,10 +415,12 @@ fn editor_control(S, def, path) {
         };
     }
     if datatype == "enum" {
+        // The theme's choices are files, so they are listed, not declared.
+        let named = path == crate::theme::SETTING;
         return #{
             kind: "dropdown", role: "form_pick", grow: 1,
             text: if value is String { value } else { "" },
-            options: util::vec(spec.get("options").unwrap_or([])),
+            options: if named { crate::theme::names() } else { util::vec(spec.get("options").unwrap_or([])) },
             on: |picked| { write(S, path, picked); },
         };
     }
@@ -481,9 +492,9 @@ pub fn write(S, path, value) {
 // Editor settings take effect as they change, not on save: a theme you have
 // to save to see is a theme you cannot preview.
 pub fn apply(S) {
-    let theme_name = settings::get("editor/appearance/theme");
+    let theme_name = settings::get(crate::theme::SETTING);
     if theme_name is String {
-        crate::theme::set_dark(S, theme_name == "dark");
+        crate::theme::use_named(S, theme_name);
     }
     let scale = settings::get("editor/appearance/ui_scale");
     if !(scale is Tuple) {

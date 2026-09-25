@@ -1,0 +1,761 @@
+// The theme window: every colour, role and kind the worn theme holds, each
+// drawn as itself, with the keys of the one picked listed under it. A bundled
+// theme is read-only; a copy of it in the person's themes folder edits live.
+
+use crate::style;
+use crate::theme;
+use crate::util;
+
+const ID = "theme";
+
+// What a role with no fill of its own is drawn on, for its contrast.
+const GROUND = "panel";
+
+const PAGES = ["colours", "text", "controls", "boxes", "layout", "kinds", "problems"];
+
+// The tables under a role that replace it in a state, and the class one.
+const STATES = ["hover", "active", "focus", "disabled", "touch"];
+
+// Every key a role or a kind may state, in the order its rows list them.
+const KEYS = [
+    "fill", "color", "stroke", "icon_color", "plate",
+    "font", "size", "strong", "align",
+    "height", "width", "d", "radius", "round",
+    "padding", "padding_x", "padding_y", "gap", "stroke_width",
+];
+const COLOUR_KEYS = ["fill", "color", "stroke", "icon_color", "plate"];
+const FLAG_KEYS = ["strong", "round"];
+
+// Under this the pages go above the rows rather than beside them.
+const STACK_BELOW = 520.0;
+
+pub fn state() {
+    #{
+        page: "colours",
+        // The table picked: `["roles", "tab"]` or a kind's `["panel"]`, and
+        // which of its state tables, "" for the role itself.
+        path: [],
+        table: "",
+        // The person's theme as its file holds it, unmerged; nothing while a
+        // bundled theme is worn, which is what makes the window read-only.
+        own: (),
+        dirty: false,
+        // Every role's ink on its fill, for the worn document.
+        pairs: [],
+        said: "",
+        // Where `--state themeeditdemo` has got to; -1 when it is not running.
+        demo: -1,
+    }
+}
+
+pub fn open(S) {
+    crate::window::show(S, ID);
+    load_own(S);
+}
+
+/// Open on a page with one entry picked, for a screenshot or a self-test.
+pub fn open_at(S, page, path) {
+    open(S);
+    S.themewin.page = page;
+    S.themewin.path = path;
+    S.themewin.table = "";
+}
+
+pub fn editable(S) {
+    !util::is_nil(S.themewin.own)
+}
+
+fn load_own(S) {
+    let name = S.theme.name;
+    let own = if theme::is_bundled(name) { () } else { theme::read(name) };
+    S.themewin.own = own;
+    S.themewin.dirty = false;
+    let pairs = ui::contrast_pairs(S.theme.doc, GROUND);
+    S.themewin.pairs = pairs;
+}
+
+pub fn draw(S) {
+    let k = S.theme;
+    let stacked = ui::screen_size()[0] < STACK_BELOW;
+    let hosts = crate::window::sheet_form(S, ID, "Theme", || { save_button(S, k); });
+    if util::is_nil(hosts) {
+        return;
+    }
+    crate::pool::strip(S, hosts.side + "/SheetSideRows", if stacked { [] } else { side_controls(S) });
+    util::fill(hosts.side, #{ visible: !stacked });
+    let specs = form_specs(S);
+    if stacked {
+        specs.insert(0, page_picker(S));
+    }
+    crate::pool::sync(S, hosts.form, specs, label_w(S), stacked);
+}
+
+fn label_w(S) {
+    util::clamp((crate::window::inner_w(S) - 210.0) * 0.28, 120.0, 220.0)
+}
+
+fn save_button(S, k) {
+    if !S.themewin.dirty {
+        return;
+    }
+    if ui::pill("Save", #{ height: 24, size: style::MD, radius: 8, fill: k.accent_fill, color: k.on_accent }) {
+        save(S);
+    }
+}
+
+
+fn page_title(S, page) {
+    let n = if page == "colours" {
+        S.theme.doc.colors.len()
+    } else if page == "problems" {
+        problems(S).len()
+    } else if page == "kinds" {
+        kind_names(S.theme.doc).len()
+    } else {
+        role_names(S.theme.doc, page).len()
+    };
+    let word = page[0..1].to_uppercase() + page[1..];
+    format!("{}  {}", word, n)
+}
+
+fn side_controls(S) {
+    let out = [];
+    for name in PAGES {
+        // Bound afresh: a closure made in a loop captures the binding.
+        let page = name;
+        let on = S.themewin.page == page;
+        out.push(#{
+            kind: "button", text: page_title(S, page),
+            role: if on { "side_row_on" } else { "side_row" },
+            on: |_| { S.themewin.page = page; },
+        });
+    }
+    out
+}
+
+fn page_picker(S) {
+    #{ full: true, height: style::row_h(S), controls: [#{
+        kind: "dropdown", role: "form_pick", grow: 1,
+        text: S.themewin.page, options: PAGES,
+        on: |picked| { S.themewin.page = picked; },
+    }] }
+}
+
+/// Which page a role belongs on, from what it states: a role with a state
+/// table is a control, one with a fill a box, one with only an ink text, and
+/// one with none of them is layout.
+pub fn page_of(role) {
+    for word in ["hover", "active", "focus", "disabled"] {
+        if role.contains_key(word) && role[word] is Object {
+            return "controls";
+        }
+    }
+    if role.contains_key("fill") || role.contains_key("stroke") {
+        return "boxes";
+    }
+    if role.contains_key("color") {
+        return "text";
+    }
+    "layout"
+}
+
+fn sorted_keys(table) {
+    let out = [];
+    for (key, _) in table {
+        out.push(key);
+    }
+    out.sort();
+    out
+}
+
+fn role_names(doc, page) {
+    let roles = util::obj(doc.get("roles").unwrap_or(#{}));
+    let out = [];
+    for name in sorted_keys(roles) {
+        if page_of(roles[name]) == page {
+            out.push(name);
+        }
+    }
+    out
+}
+
+/// The kind tables: every table a document holds beside its colours and roles.
+fn kind_names(doc) {
+    let out = [];
+    for key in sorted_keys(doc) {
+        if key != "colors" && key != "roles" && doc[key] is Object {
+            out.push(key);
+        }
+    }
+    out
+}
+
+fn problems(S) {
+    let out = [];
+    for pair in util::vec(S.themewin.pairs) {
+        if pair.ratio < pair.need {
+            out.push(pair);
+        }
+    }
+    out
+}
+
+fn form_specs(S) {
+    let doc = S.theme.doc;
+    let out = head_specs(S);
+    let page = S.themewin.page;
+    if page == "colours" {
+        colour_specs(S, doc, out);
+    } else if page == "problems" {
+        problem_specs(S, out);
+    } else if page == "kinds" {
+        for name in kind_names(doc) {
+            entry_specs(S, doc, [name], out);
+        }
+    } else {
+        for name in role_names(doc, page) {
+            entry_specs(S, doc, ["roles", name], out);
+        }
+    }
+    out
+}
+
+
+fn head_specs(S) {
+    let h = style::row_h(S);
+    let name = S.theme.name;
+    let own = S.themewin.own;
+    let mine = editable(S);
+    let controls = [
+        #{
+            kind: "dropdown", role: "form_pick", width: 180,
+            text: name, options: theme::names(),
+            tooltip: "The theme the editor wears",
+            on: |picked| { choose(S, picked); },
+        },
+    ];
+    if mine {
+        controls.push(#{
+            kind: "dropdown", role: "form_pick", width: 150,
+            text: "based on " + theme::base_of(own), options: theme::BUNDLED,
+            tooltip: "The bundled theme every key this one leaves out comes from",
+            on: |picked| { rebase(S, picked); },
+        });
+    }
+    controls.push(#{ kind: "row", grow: 1 });
+    controls.push(#{
+        kind: "button", role: "row_action_accent", text: "Duplicate",
+        tooltip: "Copy this theme into your themes folder and wear the copy",
+        on: |_| { duplicate(S); },
+    });
+    if mine && S.themewin.dirty {
+        controls.push(#{
+            kind: "button", role: "row_action", text: "Revert",
+            tooltip: "Drop the edits since the last save",
+            on: |_| { revert(S); },
+        });
+    }
+    if mine {
+        controls.push(#{
+            kind: "button", role: "row_action_danger", text: "Delete",
+            tooltip: "Remove this theme's file and go back to its base",
+            on: |_| { remove(S); },
+        });
+    }
+    let out = [#{ full: true, height: h, slot_role: "verb_row", controls: controls }];
+    if mine {
+        out.push(#{ label: "name", height: h, controls: [#{
+            kind: "field", role: "form_field", grow: 1, text: name,
+            tooltip: "Enter renames the file",
+            on_submit: |text| { rename(S, text); },
+        }] });
+    }
+    let tail = if S.themewin.dirty { "  ·  unsaved" } else { "" };
+    out.push(note_spec(if mine {
+        format!("themes/{}.toml in your Balaur folder  ·  states only what differs from {}{}", name, theme::base_of(own), tail)
+    } else {
+        "Bundled with the editor, so it is read-only. Duplicate it to change a colour or a role."
+    }));
+    if S.themewin.said != "" {
+        out.push(note_spec(S.themewin.said));
+    }
+    out
+}
+
+fn note_spec(text) {
+    #{ full: true, height: 0, controls: [#{
+        kind: "label", role: "meta", grow: 1, wrap: true, text: text,
+    }] }
+}
+
+fn head_spec(text) {
+    #{ full: true, height: 24, controls: [#{
+        kind: "label", role: "section_head", grow: 1, text: text,
+    }] }
+}
+
+
+fn colour_specs(S, doc, out) {
+    let h = style::row_h(S);
+    let mine = editable(S);
+    let colors = doc.colors;
+    let ground = colors.get(GROUND).unwrap_or("#000000");
+    for token in sorted_keys(colors) {
+        // Bound afresh: a closure made in a loop captures the binding.
+        let name = token;
+        let hex = colors[name];
+        out.push(#{ label: name, height: h, slot_role: "verb_row", controls: [
+            #{
+                kind: "color", width: 34, color: rgba_of(hex), disabled: !mine,
+                on: |rgba| { edit(S, ["colors"], name, util::to_hex(rgba)); },
+            },
+            #{
+                kind: "field", role: "form_field", width: 96, text: hex, disabled: !mine,
+                on_submit: |text| { edit_hex(S, name, text); },
+            },
+            #{
+                kind: "label", role: "meta", grow: 1,
+                text: if is_hex(hex) && is_hex(ground) {
+                    format!("{:.2}:1 on {}", ui::contrast(hex, ground), GROUND)
+                } else {
+                    ""
+                },
+            },
+        ] });
+    }
+}
+
+fn rgba_of(hex) {
+    let (r, g, b) = util::hex_to_rgb(hex);
+    [r, g, b, 1.0]
+}
+
+fn is_hex(text) {
+    if !(text is String) || text.len() != 7 || !text.starts_with("#") {
+        return false;
+    }
+    let digits = "0123456789abcdefABCDEF";
+    for c in text[1..].chars() {
+        if !digits.contains(format!("{}", c)) {
+            return false;
+        }
+    }
+    true
+}
+
+fn edit_hex(S, name, text) {
+    if is_hex(text) {
+        edit(S, ["colors"], name, text.to_lowercase());
+    } else {
+        S.themewin.said = format!("'{}' is not a #rrggbb colour", text);
+    }
+}
+
+
+fn table_at(doc, path) {
+    let t = util::obj(doc);
+    for part in path {
+        if !(t.contains_key(part) && t[part] is Object) {
+            return #{};
+        }
+        t = t[part];
+    }
+    t
+}
+
+fn same_path(a, b) {
+    if a.len() != b.len() {
+        return false;
+    }
+    for i in 0..a.len() {
+        if a[i] != b[i] {
+            return false;
+        }
+    }
+    true
+}
+
+fn pick(S, path) {
+    let again = same_path(S.themewin.path, path);
+    let next = if again { [] } else { path };
+    S.themewin.path = next;
+    S.themewin.table = "";
+}
+
+fn height_of(S, t) {
+    let h = style::row_h(S);
+    let own = util::f(t.get("height").unwrap_or(t.get("d").unwrap_or(0.0)));
+    util::max(h, own + 4.0)
+}
+
+/// What a table states in a line: a layout role's air, or a kind's frame.
+fn summary(t) {
+    let out = "";
+    for key in KEYS {
+        if t.contains_key(key) && !(t[key] is Object) {
+            let part = format!("{} {}", key, t[key]);
+            out = if out == "" { part } else { out + "  ·  " + part };
+        }
+    }
+    if out == "" { "nothing stated" } else { out }
+}
+
+/// The entry drawn as itself: a text role as a label in it, a control or a
+/// box as a button wearing it, and layout as the numbers it states.
+fn sample(S, name, path, t) {
+    let page = if path.len() == 2 { page_of(t) } else { "kinds" };
+    if page == "layout" || page == "kinds" {
+        return #{ kind: "label", role: "meta", grow: 1, text: summary(t) };
+    }
+    if page == "text" {
+        return #{ kind: "label", role: name, grow: 1, text: name };
+    }
+    #{ kind: "button", role: name, width: 200, text: name, on: |_| { pick(S, path); } }
+}
+
+fn entry_specs(S, doc, path, out) {
+    let name = path[path.len() - 1];
+    let t = table_at(doc, path);
+    let picked = same_path(S.themewin.path, path);
+    out.push(#{ label: name, height: height_of(S, t), slot_role: "verb_row", controls: [
+        sample(S, name, path, t),
+        #{
+            kind: "button", role: if picked { "chip_on" } else { "chip" },
+            text: if picked { "editing" } else { "edit" },
+            on: |_| { pick(S, path); },
+        },
+    ] });
+    if picked {
+        inspector_specs(S, doc, path, out);
+    }
+}
+
+fn state_chips(S, t) {
+    let bare = S.themewin.table == "";
+    let chips = [#{
+        kind: "button", role: if bare { "chip_on" } else { "chip" }, text: "role",
+        on: |_| { S.themewin.table = ""; },
+    }];
+    for name in STATES {
+        let word = name;
+        let there = t.contains_key(word) && t[word] is Object;
+        let on = S.themewin.table == word;
+        chips.push(#{
+            kind: "button",
+            role: if on { "chip_on" } else if there { "chip" } else { "chip_quiet" },
+            text: if there { word } else { "+ " + word },
+            tooltip: if there { "Edit the table this state wears" } else { "Nothing stated for this state yet" },
+            on: |_| { S.themewin.table = word; },
+        });
+    }
+    chips
+}
+
+fn inspector_specs(S, doc, path, out) {
+    let h = style::row_h(S);
+    let mine = editable(S);
+    let role_t = table_at(doc, path);
+    out.push(#{ label: "  table", height: h, slot_role: "verb_row", controls: state_chips(S, role_t) });
+    let at = path.iter().collect::<Vec>();
+    if S.themewin.table != "" {
+        at.push(S.themewin.table);
+    }
+    let t = table_at(doc, at);
+    let own_t = table_at(S.themewin.own, at);
+    let missing = [];
+    for key in KEYS {
+        if t.contains_key(key) && !(t[key] is Object) {
+            out.push(key_spec(S, doc, at, key, t[key], own_t.contains_key(key), mine));
+        } else {
+            missing.push(key);
+        }
+    }
+    if mine && missing.len() > 0 {
+        out.push(#{ label: "  add", height: h, controls: [#{
+            kind: "dropdown", role: "form_pick", width: 200,
+            text: "add a key…", options: missing,
+            on: |picked| { edit(S, at, picked, default_of(picked)); },
+        }] });
+    }
+    if path.len() == 2 {
+        let who = if S.themewin.table == "" { path[1] } else { path[1] + "." + S.themewin.table };
+        for pair in util::vec(S.themewin.pairs) {
+            if pair.role == who {
+                let verdict = if pair.ratio >= pair.need { "reads at AA" } else { format!("needs {}", pair.need) };
+                out.push(note_spec(format!("{} on {}: {:.2}:1, {}", pair.ink, pair.fill, pair.ratio, verdict)));
+            }
+        }
+    }
+}
+
+fn key_spec(S, doc, at, key, value, stated, mine) {
+    let controls = control_for(S, doc, at, key, value, mine);
+    if mine && stated {
+        controls.push(#{
+            kind: "button", role: "chip_quiet", text: "×",
+            tooltip: "Back to the base theme's value",
+            on: |_| { clear(S, at, key); },
+        });
+    }
+    // A key this theme states reads as its own; one it leaves to its base is
+    // quieter, so what the file says stands out from what it inherits.
+    #{
+        label: "  " + key, label_role: if stated || !mine { "label" } else { "meta" },
+        height: h_of(S), slot_role: "verb_row", controls: controls,
+    }
+}
+
+fn h_of(S) {
+    style::row_h(S)
+}
+
+fn words_of(key) {
+    if key == "font" {
+        ["ui", "heading", "mono"]
+    } else if key == "align" {
+        ["left", "center", "end"]
+    } else {
+        []
+    }
+}
+
+fn control_for(S, doc, at, key, value, mine) {
+    if COLOUR_KEYS.iter().any(|c| c == key) {
+        let hex = doc.colors.get(value).unwrap_or(value);
+        let options = sorted_keys(doc.colors);
+        return [
+            #{
+                kind: "color", width: 34, color: rgba_of(if is_hex(hex) { hex } else { "#000000" }),
+                disabled: !mine,
+                on: |rgba| { edit(S, at, key, util::to_hex(rgba)); },
+            },
+            #{
+                kind: "dropdown", role: "form_pick", grow: 1,
+                text: format!("{}", value), options: options, disabled: !mine,
+                on: |picked| { edit(S, at, key, picked); },
+            },
+        ];
+    }
+    if FLAG_KEYS.iter().any(|f| f == key) {
+        return [#{
+            kind: "switch", role: "switch", checked: value == true, disabled: !mine,
+            on: |on| { edit(S, at, key, on); },
+        }];
+    }
+    let words = words_of(key);
+    if words.len() > 0 {
+        return [#{
+            kind: "dropdown", role: "form_pick", grow: 1,
+            text: format!("{}", value), options: words, disabled: !mine,
+            on: |picked| { edit(S, at, key, picked); },
+        }];
+    }
+    if value is i64 || value is f64 {
+        return [#{
+            kind: "drag_value", role: "form_value", grow: 1,
+            value: util::f(value), min: 0.0, max: 2000.0, step: 1.0, disabled: !mine,
+            on: |v| { edit(S, at, key, whole(v)); },
+        }];
+    }
+    let typed = [#{
+        kind: "field", role: "form_field", grow: 1, text: format!("{}", value), disabled: !mine,
+        on_submit: |text| { edit(S, at, key, text); },
+    }];
+    typed
+}
+
+/// A number as a file would spell it: whole ones without the `.0`.
+fn whole(v) {
+    let n = util::f(v);
+    let i = n as i64;
+    if (i as f64) == n { i } else { n }
+}
+
+fn default_of(key) {
+    if COLOUR_KEYS.iter().any(|c| c == key) {
+        return if key == "color" { "text" } else { "panel" };
+    }
+    if FLAG_KEYS.iter().any(|f| f == key) {
+        return false;
+    }
+    if key == "font" {
+        return "ui";
+    }
+    if key == "align" {
+        return "left";
+    }
+    if key == "size" { 12 } else { 0 }
+}
+
+
+fn problem_specs(S, out) {
+    let found = problems(S);
+    if found.is_empty() {
+        out.push(note_spec("Every role's text reads at WCAG AA on its fill: 4.5:1, or 3:1 from 18 px or 14 px bold."));
+        return;
+    }
+    let h = style::row_h(S);
+    for p in found {
+        let pair = p;
+        let parts = pair.role.split('.').collect::<Vec>();
+        let name = parts[0];
+        let table = if parts.len() > 1 { parts[1] } else { "" };
+        out.push(#{ label: pair.role, height: h, slot_role: "verb_row", controls: [
+            #{
+                kind: "label", role: "meta", grow: 1,
+                text: format!("{} on {}: {:.2}:1, needs {}", pair.ink, pair.fill, pair.ratio, pair.need),
+            },
+            #{
+                kind: "button", role: "chip", text: "edit",
+                on: |_| { show_role(S, name, table); },
+            },
+        ] });
+    }
+}
+
+/// Turn to the page a role is on, picked, at one of its state tables.
+pub fn show_role(S, name, table) {
+    let role = table_at(S.theme.doc, ["roles", name]);
+    S.themewin.page = page_of(role);
+    S.themewin.path = ["roles", name];
+    S.themewin.table = table;
+}
+
+
+/// Write one key of the person's theme and wear the result. A bundled theme
+/// has no `own`, so nothing is written.
+pub fn edit(S, path, key, value) {
+    let own = S.themewin.own;
+    if util::is_nil(own) {
+        return;
+    }
+    let t = own;
+    for part in path {
+        if !(t.contains_key(part) && t[part] is Object) {
+            t[part] = #{};
+        }
+        t = t[part];
+    }
+    t[key] = value;
+    changed(S);
+}
+
+fn clear(S, path, key) {
+    let own = S.themewin.own;
+    if util::is_nil(own) {
+        return;
+    }
+    let t = table_at(own, path);
+    if t.contains_key(key) {
+        t.remove(key);
+    }
+    changed(S);
+}
+
+fn changed(S) {
+    S.themewin.dirty = true;
+    S.themewin.said = "";
+    let own = S.themewin.own;
+    let doc = theme::merge(theme::read(theme::base_of(own)), own);
+    theme::wear(S, S.theme.name, doc);
+    let pairs = ui::contrast_pairs(doc, GROUND);
+    S.themewin.pairs = pairs;
+}
+
+fn rebase(S, picked) {
+    let own = S.themewin.own;
+    if util::is_nil(own) {
+        return;
+    }
+    own["base"] = picked;
+    changed(S);
+}
+
+/// Wear another theme, remembered as the setting.
+pub fn choose(S, name) {
+    settings::set(theme::SETTING, name);
+    crate::settings::commit_prefs(S);
+    theme::use_named(S, name);
+    load_own(S);
+    S.themewin.said = "";
+}
+
+/// Write the person's theme: only what differs from its base, under the base
+/// it names.
+pub fn save(S) {
+    let own = S.themewin.own;
+    if util::is_nil(own) {
+        return;
+    }
+    let base_name = theme::base_of(own);
+    let base = theme::read(base_name);
+    let out = theme::diff(base, theme::merge(base, own));
+    out["type"] = "widget_theme";
+    out["base"] = base_name;
+    let path = theme::path_of(S.theme.name);
+    fs::mkdir(theme::user_dir());
+    fs::write(path, toml::encode(out));
+    S.themewin.own = out;
+    S.themewin.dirty = false;
+    S.themewin.said = "Saved themes/" + S.theme.name + ".toml";
+}
+
+fn revert(S) {
+    theme::reload(S);
+    load_own(S);
+    S.themewin.said = "";
+}
+
+/// A name for a copy nobody has used: `dark-custom`, then `dark-custom-2`.
+fn fresh_name(from) {
+    let stem = if theme::is_bundled(from) { from + "-custom" } else { from + "-copy" };
+    let taken = theme::names();
+    let name = stem;
+    let n = 2;
+    while taken.iter().any(|x| x == name) {
+        name = format!("{}-{}", stem, n);
+        n += 1;
+    }
+    name
+}
+
+/// Copy the worn theme into the themes folder and wear the copy. A bundled one
+/// becomes a file naming it as its base and nothing else.
+pub fn duplicate(S) {
+    let from = S.theme.name;
+    let name = fresh_name(from);
+    let copy = if theme::is_bundled(from) { #{ base: from } } else { util::obj(theme::read(from)) };
+    copy["type"] = "widget_theme";
+    fs::mkdir(theme::user_dir());
+    fs::write(theme::path_of(name), toml::encode(copy));
+    choose(S, name);
+    S.themewin.said = "Duplicated " + from + " as " + name;
+    name
+}
+
+fn rename(S, text) {
+    let old = S.theme.name;
+    let name = text.trim();
+    let bad = name == "" || name.contains("/") || name.contains(".");
+    if bad || theme::is_bundled(name) || theme::names().iter().any(|x| x == name) {
+        S.themewin.said = format!("'{}' is not a name a new theme file can take", text);
+        return;
+    }
+    if S.themewin.dirty {
+        save(S);
+    }
+    fs::rename(theme::path_of(old), theme::path_of(name));
+    choose(S, name);
+    S.themewin.said = "Renamed " + old + " to " + name;
+}
+
+/// Remove the worn theme's file and go back to its base.
+pub fn remove(S) {
+    let own = S.themewin.own;
+    if util::is_nil(own) {
+        return;
+    }
+    let back = theme::base_of(own);
+    fs::remove(theme::path_of(S.theme.name));
+    choose(S, back);
+}

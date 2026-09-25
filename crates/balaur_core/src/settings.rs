@@ -16,7 +16,7 @@
 //! **Two scopes, and the difference matters.** A [`Scope::Project`] setting
 //! is the game's: it lives in `project.toml`, ships with the build and
 //! belongs in version control. A [`Scope::Editor`] setting is the person's:
-//! it lives in the editor's own data directory and never touches the project,
+//! it lives in the per-user `balaur/editor.toml` and never touches the project,
 //! so one developer turning on packet loss cannot ship that to anyone.
 //!
 //! **Anyone may define one.** A plugin declares its settings from `build`; a
@@ -45,7 +45,7 @@ use crate::tags::{OVERRIDE, Tags};
 pub enum Scope {
     /// The game's. Written to `project.toml`, shipped, version-controlled.
     Project,
-    /// The person's. Written to the editor's data directory, never shipped.
+    /// The person's. Written to the per-user `balaur/editor.toml`, never shipped.
     Editor,
 }
 
@@ -644,7 +644,7 @@ loss = { type = "float", default = 0.05, min = 0.0, max = 1.0, order = 4, help =
         &parse(
             "settings.editor.appearance",
             r#"
-theme = { type = "enum", default = "dark", options = ["dark", "light"], order = 1, help = "Which chrome the editor wears." }
+theme = { type = "enum", default = "dark", options = ["dark", "light"], order = 1, help = "Which chrome the editor wears: dark, light, or a theme in the per-user themes folder, which Settings lists by name." }
 ui_scale = { type = "float", default = 1.25, min = 0.75, max = 2.5, order = 2, applies = "restart", help = "How large the editor's own text and controls are drawn." }
 compact = { type = "bool", default = false, order = 3, help = "Drop labels the icon already says, for a narrow window." }
 "#,

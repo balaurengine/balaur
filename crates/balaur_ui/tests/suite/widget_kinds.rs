@@ -126,6 +126,27 @@ fn a_color_swatch_keeps_what_the_scene_gave_it() {
 }
 
 #[test]
+fn a_color_swatch_paints_its_floats_as_srgb() {
+    let (_dir, app) = app();
+    let params = toml::toml! { kind = "color" x = 0.0 y = 0.0 color = [0.5, 0.5, 0.5, 1.0] };
+    add_widget(&app, &params.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let out = pass(&app, &ctx, vec![]);
+    let mut fills = Vec::new();
+    for clipped in &out.shapes {
+        if let egui::epaint::Shape::Rect(rect) = &clipped.shape {
+            fills.push(rect.fill);
+        }
+    }
+    let grey = egui::Color32::from_rgb(128, 128, 128);
+    assert!(
+        fills.contains(&grey),
+        "0.5 is the sRGB mid-grey a label of the same colour draws, not a lighter linear one: {fills:?}"
+    );
+}
+
+#[test]
 fn a_dropdown_takes_the_option_that_was_clicked() {
     let (_dir, mut app) = app();
     let params = toml::toml! { kind = "dropdown" text = "One" options = ["One", "Two", "Three"] x = 0.0 y = 0.0 };

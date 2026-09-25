@@ -683,7 +683,8 @@ mod tests {
         let page = std::fs::read(project.path().join("art/walk.webp")).unwrap();
         assert_eq!(&page[..4], b"RIFF", "the atlas page is a WebP");
         assert_eq!(&page[8..12], b"WEBP");
-        let sampling = std::fs::read_to_string(project.path().join("art/walk.webp.toml")).unwrap();
+        let sampling =
+            std::fs::read_to_string(project.path().join("art/walk.webp.import.toml")).unwrap();
         assert!(
             sampling.contains("nearest"),
             "pixel art samples nearest: {sampling}"

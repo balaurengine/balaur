@@ -40,6 +40,10 @@ node_phys = "#3a665f"
 # A rig modifier's reach, drawn over the bones it solves: a colour no bone
 # and no texture in the viewport is already using.
 modifier = "#7a3fa8"
+# The disc the engine's dark mark sits on, in both themes, and the rings a
+# touch leaves over the game view.
+plate = "#e9edf2"
+ripple = "#ffffff"
 node_bone = "#8b4c26"
 
 # Text. A call site names one of these and says nothing else about type.
@@ -421,7 +425,7 @@ color = "text"
 fill = "sunken"
 radius = 6
 padding_x = 3
-plate = "#ffffff"
+plate = "plate"
 [roles.brand.touch]
 height = 33
 
@@ -997,7 +1001,7 @@ color = "text"
 # The mark on the About sheet: dark ink on a light plate, as the top bar sets
 # it, and the name and build line beside it.
 [roles.logo_plate]
-fill = "#e9edf2"
+fill = "plate"
 radius = 30
 padding = 5
 

@@ -162,7 +162,7 @@ import_clean() { # import_clean <project> <file>...
     stem=$(basename "$file"); stem=${stem%.*}
     # The page and its import settings, the sheet, the clips, the model and
     # its scene: everything `balaur import` writes for a sprite or a model.
-    rm -f "$project/art/$stem.webp" "$project/art/$stem.webp.toml" \
+    rm -f "$project/art/$stem.webp" "$project/art/$stem.webp.import.toml" \
       "$project/sheets/$stem.toml" "$project/animations/$stem.toml" \
       "$project/models/$stem.glb" "$project/models/$stem.gltf" \
       "$project/scenes/$stem.toml"

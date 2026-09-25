@@ -37,10 +37,10 @@ pub fn state() {
     }
 }
 
-// Where this game's sessions live: under the editor's own data directory,
-// not the game's, so nothing lands in the project or its version control.
+// Where this game's sessions live: in the per-user folder, one per project
+// name, so nothing lands in the project or its version control.
 pub fn dir(S) {
-    engine::user_data_dir() + "/sessions/" + S.game_name
+    project::data_dir() + "/sessions/" + S.game_name
 }
 
 // A fingerprint of the scripts the session is about to run, so a replay can

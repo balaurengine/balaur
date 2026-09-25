@@ -62,14 +62,15 @@ pub(crate) fn parse_hex(hex: &str) -> Option<Color32> {
 
 pub(crate) fn apply(tokens: &ThemeTokens, ctx: &egui::Context) {
     let c = |name: &str, fb: Color32| tokens.color(name, fb);
-    let panel = c("panel", Color32::from_rgb(0x20, 0x24, 0x2a));
-    let sunken = c("sunken", Color32::from_rgb(0x10, 0x12, 0x15));
-    let raised = c("raised", Color32::from_rgb(0x2b, 0x30, 0x37));
-    let line = c("line", Color32::from_rgb(0x34, 0x3a, 0x42));
-    let text = c("text", Color32::from_rgb(0xee, 0xf1, 0xf4));
-    let dim = c("dim", Color32::from_rgb(0xb0, 0xb8, 0xc0));
-    let accent = c("accent", Color32::from_rgb(0xf0, 0xa2, 0x73));
-    let accent_soft = c("accent_soft", Color32::from_rgb(0x3d, 0x24, 0x15));
+    // The editor's dark palette, so a screen that names no theme matches it.
+    let panel = c("panel", Color32::from_rgb(0x1e, 0x2b, 0x3a));
+    let sunken = c("sunken", Color32::from_rgb(0x10, 0x18, 0x1f));
+    let raised = c("raised", Color32::from_rgb(0x2a, 0x3b, 0x4d));
+    let line = c("line", Color32::from_rgb(0x2c, 0x3d, 0x50));
+    let text = c("text", Color32::from_rgb(0xe6, 0xe9, 0xee));
+    let dim = c("dim", Color32::from_rgb(0x9b, 0xa6, 0xb1));
+    let accent = c("accent", Color32::from_rgb(0x6f, 0xa4, 0xd8));
+    let accent_soft = c("accent_soft", Color32::from_rgb(0x22, 0x36, 0x4d));
 
     let mut visuals = if tokens.dark {
         egui::Visuals::dark()

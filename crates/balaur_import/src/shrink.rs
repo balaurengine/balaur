@@ -189,7 +189,7 @@ mod tests {
             "[application]\nname = \"t\"\n",
         )
         .unwrap();
-        std::fs::write(art.join("hero.png.toml"), "filter = \"nearest\"\n").unwrap();
+        std::fs::write(art.join("hero.png.import.toml"), "filter = \"nearest\"\n").unwrap();
         dir
     }
 

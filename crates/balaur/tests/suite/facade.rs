@@ -468,7 +468,7 @@ fn a_packed_project_reads_its_image_sidecars() {
     .unwrap();
     std::fs::write(root.join("art/hero.png"), PIXEL).unwrap();
     std::fs::write(
-        root.join("art/hero.png.toml"),
+        root.join("art/hero.png.import.toml"),
         "size = [400, 200]\nsrgb = false\n",
     )
     .unwrap();

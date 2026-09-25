@@ -1,7 +1,7 @@
 //! Import settings: how a file is read, stated beside the file.
 //!
 //! Godot writes a `.import` next to every asset; here it is a TOML sidecar
-//! named after the whole file, so `art/hero.png.toml` sorts beside its image
+//! named after the whole file, so `art/hero.png.import.toml` sorts beside its image
 //! and cannot collide with a scene or a clip of the same stem.
 //! `[import.<kind>]` in `project.toml` sets the default for every file of a
 //! kind, and the sidecar overrides it key by key.
@@ -141,8 +141,11 @@ pub fn kind_of(path: &str) -> Option<&'static str> {
 /// The sidecar that states one file's settings.
 #[must_use]
 pub fn sidecar_of(path: &str) -> String {
-    format!("{path}.toml")
+    format!("{path}{SIDECAR}")
 }
+
+/// What a sidecar's name adds to the file it describes: `hero.png.import.toml`.
+pub const SIDECAR: &str = ".import.toml";
 
 /// Whether a project file is a sidecar rather than content of its own.
 ///
@@ -150,7 +153,7 @@ pub fn sidecar_of(path: &str) -> String {
 /// not an asset a scene may name.
 #[must_use]
 pub fn is_sidecar(path: &str) -> bool {
-    let Some(rest) = path.strip_suffix(".toml") else {
+    let Some(rest) = path.strip_suffix(SIDECAR) else {
         return false;
     };
     kind_of(rest).is_some()
@@ -736,8 +739,8 @@ mod tests {
 
     #[test]
     fn a_sidecar_sorts_beside_the_file_it_settles() {
-        assert_eq!(sidecar_of("art/hero.png"), "art/hero.png.toml");
-        assert!(is_sidecar("art/hero.png.toml"));
+        assert_eq!(sidecar_of("art/hero.png"), "art/hero.png.import.toml");
+        assert!(is_sidecar("art/hero.png.import.toml"));
     }
 
     /// A scene and a clip are content, however they are named.

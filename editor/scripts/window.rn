@@ -37,7 +37,9 @@ pub fn inner_w(S) {
 /// Every open window, so one place decides what is on top and `esc` has
 /// something to close.
 pub fn state() {
-    #{ open: "" }
+    // `drawn` is the sheet the last frame drew, so a shut it did not ask for
+    // can be told from one that has not opened yet.
+    #{ open: "", drawn: "", demo: -1 }
 }
 
 pub fn show(S, id) {
@@ -46,7 +48,17 @@ pub fn show(S, id) {
 
 pub fn hide(S) {
     S.window.open = "";
+    S.window.drawn = "";
     util::fill(SHEET, #{ open: false });
+}
+
+/// Whether egui shut the sheet since the last frame drew it: a `dialog` puts
+/// `open` back on Escape or a click on the dim. Read before this frame writes
+/// `open` again, and only for a sheet that was already up.
+fn shut_outside(S, id) {
+    let was = S.window.drawn == id;
+    S.window.drawn = id;
+    was && util::prop(SHEET, "open") == false
 }
 
 pub fn showing(S, id) {
@@ -66,6 +78,10 @@ pub fn sheet(S, id, title, actions, body) {
     if !showing(S, id) {
         return;
     }
+    if shut_outside(S, id) {
+        hide(S);
+        return;
+    }
     // The body and the bar's own verbs are drawn, so the hatch under this
     // node runs them: what the sheet gives them is the frame, not the rows.
     S.sheet_drawn = #{ actions: actions, body: body };
@@ -74,11 +90,6 @@ pub fn sheet(S, id, title, actions, body) {
     crate::pool::strip(S, SHEET + "/SheetBar", bar_controls(S, title));
     util::fill(SHEET + "/SheetBody/SheetPage", #{ visible: true });
     util::hide(SHEET + "/SheetBody/SheetSplit");
-    // A `dialog` shuts itself on Escape or a click on the dim, and says so by
-    // putting `open` back; this reads that answer rather than the keys.
-    if util::prop(SHEET, "open") == false {
-        hide(S);
-    }
 }
 
 /// The bar across a sheet: its name, the verbs it carries, and the close.
@@ -104,16 +115,16 @@ pub fn sheet_form(S, id, title, actions) {
     if !showing(S, id) {
         return ();
     }
+    if shut_outside(S, id) {
+        hide(S);
+        return ();
+    }
     S.sheet_drawn = #{ actions: actions, body: nothing };
     let box = size(S);
     util::fill(SHEET, #{ open: true, width: box.w, height: box.h });
     crate::pool::strip(S, SHEET + "/SheetBar", bar_controls(S, title));
     util::hide(SHEET + "/SheetBody/SheetPage");
     util::fill(SHEET + "/SheetBody/SheetSplit", #{ visible: true });
-    if util::prop(SHEET, "open") == false {
-        hide(S);
-        return ();
-    }
     // Shut by the asking: a screen with no sidebar leaves it alone, and one
     // that fills it shows it. Hidden, the rows beside it take the whole sheet.
     util::hide(SHEET + "/SheetBody/SheetSplit/SheetSide");
@@ -144,6 +155,12 @@ pub fn picker(S, opts) {
     // One width, taken from the screen: a phone is narrower than what a
     // laptop gets, and every column inside is measured off what is left.
     let width = util::min(util::f(opts.width), util::max(screen[0] - 32.0, 240.0));
+    // A `dialog` shuts itself on Escape or a click on the dim, and says so by
+    // putting `open` back. Read before `open` is written again, and only once
+    // the picker has drawn, which is what the focus flag records.
+    if S.picker_focused == true && util::prop(PICKER, "open") == false {
+        return ();
+    }
     util::fill(PICKER, #{ open: true, width: width });
     crate::pool::strip(S, PICKER + "/PickerHead", [
         #{ kind: "label", role: "picker_mark", text: opts.mark },
@@ -166,11 +183,6 @@ pub fn picker(S, opts) {
             ui::set_focus(field);
             S.picker_focused = true;
         }
-    }
-    // A `dialog` shuts itself on Escape or a click on the dim, and says so by
-    // putting `open` back; this reads that answer rather than the keys.
-    if util::prop(PICKER, "open") == false {
-        return ();
     }
     PICKER + "/PickerScroll/PickerRows"
 }

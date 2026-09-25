@@ -20,8 +20,8 @@ const KEPT: usize = 20;
 
 /// Where the list lives, and what a pick answered.
 pub(crate) struct ProjectState {
-    /// The editor's own data directory, named once at start-up because the
-    /// manifest it is derived from is the editor's until a project opens.
+    /// The per-user folder the editor shares across projects, named once at
+    /// start-up because it is derived from the editor's own manifest.
     home: PathBuf,
     /// What the last folder pick chose, read once by the script that asked.
     picked: Option<String>,
@@ -56,7 +56,7 @@ impl balaur_plugin::Plugin for ProjectPlugin {
             let state = eng.resource::<ProjectState>();
             let mut state = state.borrow_mut();
             if state.home.as_os_str().is_empty() {
-                state.home = balaur_core::engine_api::user_data_dir_of(eng);
+                state.home = shared_dir(eng);
             }
         });
         let mut m = reg.script_module("project")?;
@@ -112,6 +112,12 @@ fn describe_project_api(m: &mut dyn Bindings<Engine>) {
             &[],
             "",
             "Where a new project goes unless the reader says otherwise: the home directory on a desktop, and the app's own writable directory where there is no such thing.",
+        ),
+        (
+            "data_dir",
+            &[],
+            "",
+            "The per-user folder the editor keeps across projects: `editor.toml`, `projects.toml`, `sessions/` and `themes/`. Made on first ask.",
         ),
         (
             "in_tab",
@@ -187,6 +193,13 @@ fn install_project_verbs(m: &mut dyn Bindings<Engine>) {
                 .to_string_lossy()
                 .into_owned(),
         ))
+    });
+    m.function("data_dir", |eng: &Engine, ()| {
+        let dir = home_of(eng);
+        balaur_core::files::backend(eng).mkdir(&dir)?;
+        // `fs.*` reaches only declared roots, and this one is the editor's.
+        balaur::file_api::add_root(eng, &dir);
+        Ok(Value::Str(dir.to_string_lossy().into_owned()))
     });
     m.function("in_tab", |_: &Engine, ()| {
         Ok(Value::Bool(cfg!(target_family = "wasm")))
@@ -398,13 +411,20 @@ fn home_of(eng: &Engine) -> PathBuf {
     let state = eng.resource::<ProjectState>();
     let home = state.borrow().home.clone();
     if home.as_os_str().is_empty() {
-        return balaur_core::engine_api::user_data_dir_of(eng);
+        return shared_dir(eng);
     }
     home
 }
 
+/// The per-user folder every project and the editor share: the parent of the
+/// editor's own data directory, so `balaur/` beside each game's.
+fn shared_dir(eng: &Engine) -> PathBuf {
+    let own = balaur_core::engine_api::user_data_dir_of(eng);
+    own.parent().map_or(own.clone(), Path::to_path_buf)
+}
+
 fn list_path(home: &Path) -> PathBuf {
-    home.join("recent.toml")
+    home.join("projects.toml")
 }
 
 /// The list as it is on disk, newest first. A file that will not parse is a

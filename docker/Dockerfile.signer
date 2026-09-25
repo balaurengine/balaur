@@ -27,13 +27,13 @@ ARG ANDROID_CMDLINE_TOOLS=11076708
 #                   full interpreter, not python3-minimal: `plistlib` is in the
 #                   standard library that the minimal package leaves out
 # * openssl       — unwraps that CMS
-# * default-jre   — apksigner is a JAR
+# * default-jdk   — apksigner is a JAR, and an .aab takes jarsigner's signature
 # * zip/unzip     — an .ipa is a zip, and signing one means opening it
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
-        default-jre-headless \
+        default-jdk-headless \
         openssl \
         osslsigncode \
         python3 \
@@ -127,6 +127,7 @@ RUN chmod +x /usr/local/bin/balaur-sign /usr/local/bin/balaur-publish /usr/local
     && butler -V \
     && osslsigncode --version \
     && apksigner version \
+    && jarsigner -help 2>&1 | grep -q Usage \
     && zipalign 2>&1 | head -1 \
     && python3 -c 'import plistlib' \
     && python3 -c 'import ast, glob; [ast.parse(open(f).read()) for f in glob.glob("/usr/local/bin/balaur-publish-*")]'

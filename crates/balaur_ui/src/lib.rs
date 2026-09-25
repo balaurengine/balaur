@@ -19,6 +19,7 @@
 //! table), so entire themes live in scripts and hot reload with them.
 
 mod bridge;
+pub mod contrast;
 mod images;
 mod immediate;
 mod loading;
@@ -191,6 +192,10 @@ pub struct UiState {
     /// length, and nothing about it changes on a frame that only moved a
     /// pointer.
     pub code_galleys: HashMap<String, (u64, std::sync::Arc<egui::Galley>)>,
+    /// What those galleys were laid out against. egui rebuilds the glyph atlas
+    /// at the same size when it fills or the text options change (a light
+    /// theme does), and a galley from the old atlas draws the wrong glyphs.
+    pub font_atlas: Option<FontAtlas>,
     pub focused_once: HashSet<String>,
     /// A finger down on a `scroll` with a deadzone, until it lifts.
     pub scroll_drags: HashMap<u64, ScrollDrag>,
@@ -360,6 +365,14 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
             // respawned node inherits the index the freed one had.
             ctx.memory_mut(|memory| memory.data.clear());
         }
+        let now = FontAtlas::of(ctx);
+        if state
+            .font_atlas
+            .as_ref()
+            .is_some_and(|was| was.rebuilt_by(&now))
+        {
+            state.code_galleys.clear();
+        }
     }
     // A second lookup and borrow, deliberately: the pending theme is the
     // script's to set and this crate's cache is not, so they are two entries.
@@ -389,4 +402,33 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
     splash::draw(eng, ctx);
     bridge::leave_pass();
     pacing::mark_pass(eng);
+    state.borrow_mut().font_atlas = Some(FontAtlas::of(ctx));
+}
+
+/// The glyph atlas as a cached galley depends on it.
+pub struct FontAtlas {
+    pixels_per_point: f32,
+    fill: f32,
+    options: egui::epaint::text::TextOptions,
+}
+
+impl FontAtlas {
+    fn of(ctx: &egui::Context) -> Self {
+        // Read apart: a context call inside `fonts` locks it twice.
+        let pixels_per_point = ctx.pixels_per_point();
+        let (fill, options) = ctx.fonts(|fonts| (fonts.font_atlas_fill_ratio(), *fonts.options()));
+        Self {
+            pixels_per_point,
+            fill,
+            options,
+        }
+    }
+
+    /// Whether `now` is a different atlas: the fill only falls when egui
+    /// starts over, and new options always start over.
+    fn rebuilt_by(&self, now: &Self) -> bool {
+        self.options != now.options
+            || now.fill < self.fill
+            || (self.pixels_per_point - now.pixels_per_point).abs() > f32::EPSILON
+    }
 }

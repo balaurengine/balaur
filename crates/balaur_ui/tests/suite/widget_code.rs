@@ -87,3 +87,64 @@ fn a_code_gutter_click_reports_its_line() {
         "the click on the first gutter row reached the handler with its line"
     );
 }
+
+fn cached_galley(app: &balaur_core::App) -> std::sync::Arc<egui::Galley> {
+    let state = app.engine.resource::<balaur_ui::UiState>();
+    let state = state.borrow();
+    let (_, galley) = state
+        .code_galleys
+        .values()
+        .next()
+        .expect("the code node cached its galley");
+    std::sync::Arc::clone(galley)
+}
+
+#[test]
+fn a_code_galley_is_laid_out_again_once_the_scale_rebuilds_the_atlas() {
+    let (_dir, app) = app();
+    let params = toml::toml! {
+        kind = "code" x = 0.0 y = 0.0 width = 300.0 height = 120.0 text = "one\ntwo"
+    };
+    add_widget(&app, &params.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, vec![]);
+    let before = cached_galley(&app);
+    set_scale(&app, &ctx, 2.0);
+    pass(&app, &ctx, vec![]);
+    let after = cached_galley(&app);
+    assert!(
+        !std::sync::Arc::ptr_eq(&before, &after),
+        "the galley from the old atlas is not kept"
+    );
+    assert!(
+        (after.pixels_per_point - 2.0).abs() < f32::EPSILON,
+        "the new one is laid out at the new scale, got {}",
+        after.pixels_per_point
+    );
+}
+
+#[test]
+fn a_code_galley_is_laid_out_again_when_a_light_theme_rebuilds_the_atlas() {
+    let (_dir, app) = app();
+    let params = toml::toml! {
+        kind = "code" x = 0.0 y = 0.0 width = 300.0 height = 120.0 text = "one\ntwo"
+    };
+    add_widget(&app, &params.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, vec![]);
+    let before = cached_galley(&app);
+    {
+        let config = app.engine.resource::<balaur_ui::UiConfig>();
+        let mut config = config.borrow_mut();
+        config.theme.dark = false;
+        config.changed = true;
+    }
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, vec![]);
+    assert!(
+        !std::sync::Arc::ptr_eq(&before, &cached_galley(&app)),
+        "the galley from the dark theme's atlas is not kept"
+    );
+}

@@ -60,7 +60,6 @@ const NEW_SHEET = "manager-new";
 pub const LOGO = "assets/balaur-logo.png";
 // The mark is dark ink on nothing, drawn for a light ground: the top bar sets
 // it on a light badge, and so does every other place that shows it.
-const PLATE = "#e9edf2";
 const MB = 1048576;
 
 /// Whether the editor is running in a browser tab, where a project is opened
@@ -111,11 +110,11 @@ pub fn pick(S) {
 
 /// The engine's mark on its plate, `width` across the ink. The box is its
 /// own: a frame fills the height of the row it sits in.
-pub fn mark(width) {
+pub fn mark(k, width) {
     let pad = util::max(width / 11.0, 2.0);
     let side = width + 2.0 * pad;
     ui::horizontal(#{ width: side, height: side }, || {
-        ui::frame(#{ fill: PLATE, radius: side / 2.0, padding_x: pad, padding_y: pad }, || {
+        ui::frame(#{ fill: k.plate, radius: side / 2.0, padding_x: pad, padding_y: pad }, || {
             ui::image(LOGO, #{ width: width });
         });
     });
@@ -434,7 +433,7 @@ fn project_row(S, k, w, row, h) {
                 ui::add_space(2);
                 // The engine's mark: a project keeps its own icon, and none
                 // of them is open, so the row wears the editor's.
-                mark(20.0);
+                mark(k, 20.0);
                 ui::add_space(8);
                 if ui::pill(row.name, #{
                     height: line, size: style::MD, align: ui::ALIGN_LEFT, radius: 8,
@@ -525,7 +524,7 @@ fn example_card(S, k, w, h, row) {
                     // still reads as a project rather than a blank.
                     ui::horizontal(#{ height: h - 54.0, width: w }, || {
                         ui::add_space(w / 2.0 - 22.0);
-                        mark(36.0);
+                        mark(k, 36.0);
                     });
                 }
                 ui::horizontal(#{ height: 20, width: w }, || {

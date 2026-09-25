@@ -222,6 +222,14 @@ editor_states() {
   edit_step "$name: theme" "$ex" themedemo
   printf 'ok\n'
 
+  # The theme window: a duplicate edited, saved as a diff and deleted, and a
+  # sheet and the palette shut from outside their dialog.
+  printf '  themes ... '
+  edit_step "$name: theme window" "$ex" themeeditdemo
+  edit_step "$name: sheet close" "$ex" sheetclosedemo
+  edit_step "$name: settings" "$ex" settingsdemo
+  printf 'ok\n'
+
   # Drag-in, one case per extension, and the file a drop copies in.
   printf '  drop ...   '
   edit_step "$name: drag-in" "$ex" dropdemo

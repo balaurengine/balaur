@@ -350,6 +350,10 @@ pub(crate) mod keys {
     pub(crate) const ROW_RULE: &str = "row_rule";
     pub(crate) const ROW_GUIDE: &str = "row_guide";
     pub(crate) const ROLES: &str = "roles";
+    /// What `ui::contrast_pairs` answers per pair.
+    pub(crate) const INK: &str = "ink";
+    pub(crate) const RATIO: &str = "ratio";
+    pub(crate) const NEED: &str = "need";
     pub(crate) const SECRET: &str = "secret";
     pub(crate) const SELECTABLE: &str = "selectable";
     pub(crate) const SELECTION: &str = "selection";

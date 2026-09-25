@@ -49,6 +49,7 @@ mod shell;
 mod showcase;
 mod style;
 mod theme;
+mod themewin;
 mod textedit;
 mod tiles;
 mod selection;
@@ -233,6 +234,7 @@ pub fn init(this) {
         import_from: 0,
         session: session::state(),
         settings: settings::state(),
+        themewin: themewin::state(),
         window: window::state(),
         search: #{},
         showcase: showcase::state(),
@@ -399,6 +401,12 @@ pub fn update(this, dt) {
     if S.settings.demo >= 0 {
         selftest::settings_step(S);
     }
+    if S.themewin.demo >= 0 {
+        selftest::theme_edit_step(S);
+    }
+    if S.window.demo >= 0 {
+        selftest::sheet_close_step(S);
+    }
     if S.machine.demo >= 0 {
         statemachine::demo_step(S);
     }
@@ -475,7 +483,7 @@ pub fn update(this, dt) {
     // picture while the pointer holds still, so all three are listed.
     let telling = !S.jobs.is_empty();
     if S.playing || S.showcase is Object || session::scrubbing(S) || S.capture is Object
-        || S.session.demo is Object || S.layout_demo >= 0 || S.settings.demo >= 0
+        || S.session.demo is Object || S.layout_demo >= 0 || S.settings.demo >= 0 || S.themewin.demo >= 0 || S.window.demo >= 0
         || S.rows_demo >= 0 || S.machine.demo >= 0 || S.plugin_demo >= 0
         || S.events_demo >= 0 || S.palette_demo >= 0
         || S.gesture_demo >= 0 || telling
@@ -620,7 +628,7 @@ pub fn draw_ui(this) {
             shell::undo(S);
         }
         if ui::shortcut("alt+l") {
-            theme::set_dark(S, !S.theme.dark);
+            theme::toggle(S);
         }
         if ui::shortcut("cmd+a") {
             selection::select_all(S);
@@ -691,6 +699,7 @@ pub fn draw_ui(this) {
     // belongs with the drawing, not over a dialog.
     textedit::draw(S, S.theme);
     settings::draw(S);
+    themewin::draw(S);
     about::draw(S);
     palette::draw(S);
     newnode::draw(S);

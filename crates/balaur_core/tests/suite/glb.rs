@@ -387,7 +387,7 @@ fn an_import_carries_the_side_buffer_and_the_texture_along() {
     // The image, and the sidecar carrying the sampler the file asked for.
     assert_eq!(
         names,
-        vec!["column.bin", "column_0.png", "column_0.png.toml"]
+        vec!["column.bin", "column_0.png", "column_0.png.import.toml"]
     );
     // The `.bin` is named rather than carried: importing a model never holds
     // the files it only copies.
@@ -551,9 +551,9 @@ fn a_material_keeps_its_factors_and_every_map_it_names() {
         files,
         vec![
             "hall_0.png",
-            "hall_0.png.toml",
+            "hall_0.png.import.toml",
             "hall_1.png",
-            "hall_1.png.toml"
+            "hall_1.png.import.toml"
         ]
     );
 }
@@ -733,7 +733,7 @@ fn an_image_the_file_names_is_not_read_while_importing() {
     let sidecar = imported
         .files
         .iter()
-        .find(|(name, _)| name == "stone.png.toml")
+        .find(|(name, _)| name == "stone.png.import.toml")
         .expect("a sidecar beside it");
     assert!(sidecar.1.bytes().is_some());
 }
@@ -756,7 +756,7 @@ fn a_texture_keeps_the_sampler_the_file_gave_it() {
         })
         .collect();
     assert_eq!(sidecar.len(), 2, "one sidecar beside each image");
-    assert_eq!(sidecar[0].0, "hall_0.png.toml");
+    assert_eq!(sidecar[0].0, "hall_0.png.import.toml");
     let text = String::from_utf8(sidecar[0].1.bytes().unwrap().to_vec()).unwrap();
     let settings: toml::Value = toml::from_str(&text).unwrap();
     // The fixture names no sampler, so glTF's own defaults apply: repeat, and
@@ -789,12 +789,12 @@ fn only_the_colour_maps_are_marked_srgb() {
         toml::from_str(&String::from_utf8(bytes).unwrap()).unwrap()
     };
     assert_eq!(
-        of("hall_0.png.toml").get("srgb").unwrap().as_bool(),
+        of("hall_0.png.import.toml").get("srgb").unwrap().as_bool(),
         Some(true),
         "the base colour is colour"
     );
     assert_eq!(
-        of("hall_1.png.toml").get("srgb").unwrap().as_bool(),
+        of("hall_1.png.import.toml").get("srgb").unwrap().as_bool(),
         Some(false),
         "the normal map is not"
     );

@@ -559,6 +559,7 @@ pub(crate) fn install_ui_api(reg: &mut Registry<'_>) -> Result<()> {
         m.constant(name, balaur_script::Value::Str((*value).to_string()));
     }
     crate::immediate::bindings::install_theme(m);
+    crate::contrast::install(m);
     crate::immediate::bindings::install_panels(m);
     crate::immediate::bindings::install_containers(m);
     crate::immediate::bindings::install_text(m);

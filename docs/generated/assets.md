@@ -389,7 +389,7 @@ fill = "#d33a3a"
 ## Import settings
 
 How a file is *read* is stated beside the file, not in the scene that
-names it. `art/hero.png.toml` holds one image's settings, and
+names it. `art/hero.png.import.toml` holds one image's settings, and
 `[import.texture]` in `project.toml` sets the default for every image
 in the project. The sidecar overrides the project key by key.
 
@@ -398,7 +398,7 @@ in the project. The sidecar overrides the project key by key.
 [import.texture]
 filter = "nearest"
 
-# art/hero.png.toml: this one image
+# art/hero.png.import.toml: this one image
 premultiply = true
 ```
 

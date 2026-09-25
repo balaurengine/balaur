@@ -34,7 +34,7 @@ cannot drift from what scripts actually see.
 | [`physics2d`](#physics2d) | 48 | 49 | the engine |
 | [`physics3d`](#physics3d) | 70 | 62 | the engine |
 | [`platform`](#platform) | 11 | 0 | the engine |
-| [`project`](#project) | 12 | 0 | the engine |
+| [`project`](#project) | 13 | 0 | the engine |
 | [`regex`](#regex) | 6 | 0 | the engine |
 | [`release`](#release) | 5 | 0 | the engine |
 | [`render`](#render) | 51 | 31 | the engine |
@@ -49,7 +49,7 @@ cannot drift from what scripts actually see.
 | [`strings`](#strings) | 6 | 0 | the engine |
 | [`task`](#task) | 3 | 0 | the engine |
 | [`toml`](#toml) | 3 | 0 | the engine |
-| [`ui`](#ui) | 66 | 66 | the engine |
+| [`ui`](#ui) | 68 | 66 | the engine |
 | [`web`](#web) | 7 | 0 | the engine |
 | [`websocket`](#websocket) | 3 | 0 | the engine |
 | [`window`](#window) | 8 | 0 | the engine |
@@ -324,7 +324,7 @@ cannot drift from what scripts actually see.
 
 ## `project`
 
-**Functions:** `copy_example`, `create`, `examples`, `forget`, `home`, `in_tab`, `open`, `pick_folder`, `recent`, `templates`, `use_data`, `version`
+**Functions:** `copy_example`, `create`, `data_dir`, `examples`, `forget`, `home`, `in_tab`, `open`, `pick_folder`, `recent`, `templates`, `use_data`, `version`
 
 ## `regex`
 
@@ -424,7 +424,7 @@ cannot drift from what scripts actually see.
 
 ## `ui`
 
-**Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bar`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `click`, `clipboard`, `code_editor`, `code_line`, `color`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `height_class`, `horizontal`, `image`, `image_button`, `label`, `left_panel`, `list`, `loaded`, `menu_item`, `modal`, `overlay`, `pill`, `pill_rect`, `rect_stroke`, `request_repaint`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_keyboard_focus`, `set_lazy`, `set_loading`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `tab_rect`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `wants_pointer`, `widget_rect`, `width_class`, `window`
+**Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bar`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `click`, `clipboard`, `code_editor`, `code_line`, `color`, `contrast`, `contrast_pairs`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `height_class`, `horizontal`, `image`, `image_button`, `label`, `left_panel`, `list`, `loaded`, `menu_item`, `modal`, `overlay`, `pill`, `pill_rect`, `rect_stroke`, `request_repaint`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_keyboard_focus`, `set_lazy`, `set_loading`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `tab_rect`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `wants_pointer`, `widget_rect`, `width_class`, `window`
 
 **Constants** (66):
 

@@ -707,6 +707,7 @@ fn states() {
         "manager": crate::manager::open,
         "examples": crate::manager::open_examples,
         "about": crate::about::open,
+        "theme": crate::themewin::open,
         "engine": crate::manager::open_versions,
         "newproject": crate::manager::open_new,
         "versions": crate::manager::open_versions,
@@ -737,6 +738,8 @@ fn states() {
         "tooldemo": crate::selftest::tooling,
         "sessiondemo": crate::selftest::sessions,
         "themedemo": crate::selftest::theme_switch,
+        "themeeditdemo": crate::selftest::theme_editing,
+        "sheetclosedemo": crate::selftest::sheet_closing,
         "settingsdemo": crate::selftest::settings_screen,
         "paneldemo": crate::selftest::menu_panels,
         "palettedemo": crate::selftest::palette_screen,
@@ -763,6 +766,8 @@ fn prefixed_states() {
         ("find:", state_find),
         ("settings?", state_settings_search),
         ("settings:", state_settings),
+        ("theme:", state_theme),
+        ("wear:", state_wear),
         ("override:", state_override),
         ("shot=", state_shot),
         ("frames=", state_frames),
@@ -798,6 +803,19 @@ fn state_focus(S) {
 
 fn state_settings(S, category) {
     crate::settings::open_at(S, category);
+}
+
+// `theme:controls` opens the theme window on a page, and `theme:controls:tab`
+// with that role picked.
+// `wear:<name>` wears a theme for this run, leaving the setting alone.
+fn state_wear(S, name) {
+    crate::theme::use_named(S, name);
+}
+
+fn state_theme(S, arg) {
+    let parts = arg.split(':').collect::<Vec>();
+    let path = if parts.len() > 1 { ["roles", parts[1]] } else { [] };
+    crate::themewin::open_at(S, parts[0], path);
 }
 
 fn state_settings_search(S, query) {

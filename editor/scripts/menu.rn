@@ -18,6 +18,7 @@ pub fn rows(S) {
     let out = [
         action(icons::ui("search"), "Command palette", "⌘K", |_| { shell::open_palette(S, ""); }),
         action(icons::ui("settings"), "Settings", "⌘,", |_| { crate::settings::open(S); }),
+        action(icons::ui("dark"), "Theme", "", |_| { crate::themewin::open(S); }),
         action(icons::ui("export"), "Export", "⌘E", |_| { crate::exporter::open(S); }),
         action(icons::ui("about"), "About Balaur", "", |_| { crate::about::open(S); }),
         rule(),

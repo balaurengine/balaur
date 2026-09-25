@@ -140,6 +140,17 @@ RUN set -eux; \
     "${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS}/aapt2" version; \
     "${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS}/apksigner" version
 
+# bundletool makes the App Bundle Play takes for a new app. Google ships it
+# apart from the SDK, and `balaur export --aab` looks for it beside the SDK,
+# so that is where it goes. Pinned for the same reason build-tools is.
+ARG BUNDLETOOL_VERSION=1.18.3
+RUN set -eux; \
+    curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
+      -o "${ANDROID_HOME}/bundletool.jar" \
+      "https://github.com/google/bundletool/releases/download/${BUNDLETOOL_VERSION}/bundletool-all-${BUNDLETOOL_VERSION}.jar"; \
+    chmod a+r "${ANDROID_HOME}/bundletool.jar"; \
+    java -jar "${ANDROID_HOME}/bundletool.jar" version
+
 # The debug keystore, generated here rather than on first use.
 #
 # `apksigner` signs an unreleased build with Android's debug identity, and the

@@ -232,7 +232,7 @@ fn a_sound_file_carries_its_own_level_and_loop() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("sfx")).unwrap();
     std::fs::write(
-        dir.path().join("sfx/theme.ogg.toml"),
+        dir.path().join("sfx/theme.ogg.import.toml"),
         "volume = 0.5\nloop = true\nloop_offset = 1.5\n",
     )
     .unwrap();

@@ -108,7 +108,7 @@ pub fn kind_of(rel) {
 }
 
 pub fn sidecar_of(rel) {
-    rel + ".toml"
+    rel + ".import.toml"
 }
 
 fn full(S, rel) {

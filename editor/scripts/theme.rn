@@ -1,17 +1,140 @@
-// The look lives in `themes/*.toml`, not here: colour tokens and the named
-// roles a widget takes with `role:`. This module only loads one and applies it.
+// Finds a theme, bundled or the person's own, fills it in from its base, and
+// hands the document to both readers. The look itself lives in the files.
 
 use crate::util;
 
-/// A theme asset, flattened into the shape `ui::set_theme` and every script's
-/// `k.<token>` lookup both want.
-pub fn load(name) {
-    let doc = toml::parse(fs::read("themes/" + name + ".toml"));
-    let t = #{ dark: doc.dark, roles: doc.roles };
+/// The two themes the editor ships, which every other one is based on.
+pub const BUNDLED = ["dark", "light"];
+pub const SETTING = "editor/appearance/theme";
+
+/// The root nodes that dress their subtree with the theme: the shell, the
+/// start screen, the palette and the one sheet.
+const ROOTS = ["Editor/Shell", "Editor/Manager", "Editor/Picker", "Editor/Sheet"];
+
+/// Where the person's own themes live.
+pub fn user_dir() {
+    project::data_dir() + "/themes"
+}
+
+pub fn is_bundled(name) {
+    BUNDLED.iter().any(|b| b == name)
+}
+
+/// A theme's file: bundled ones beside the editor, the rest in `user_dir()`.
+pub fn path_of(name) {
+    if is_bundled(name) {
+        "themes/" + name + ".toml"
+    } else {
+        user_dir() + "/" + name + ".toml"
+    }
+}
+
+/// Every theme there is to pick: the bundled two, then the person's, by name.
+pub fn names() {
+    let out = BUNDLED.iter().collect::<Vec>();
+    for entry in util::vec(fs::list(user_dir())) {
+        let file = entry.name;
+        if entry.is_dir || !file.ends_with(".toml") {
+            continue;
+        }
+        let name = file[..file.len() - 5];
+        if !is_bundled(name) {
+            out.push(name);
+        }
+    }
+    out
+}
+
+/// The document one file holds, unmerged, or nothing when it is missing or
+/// does not parse.
+pub fn read(name) {
+    let text = fs::read(path_of(name));
+    if !(text is String) {
+        return ();
+    }
+    let (ok, doc) = script::attempt(|| toml::parse(text));
+    if ok && doc is Object { doc } else { () }
+}
+
+/// `over` written onto `base`, table by table: a key `over` names wins, and a
+/// table both hold is merged rather than replaced.
+pub fn merge(base, over) {
+    let out = #{};
+    for (key, value) in base {
+        out[key] = value;
+    }
+    for (key, value) in over {
+        let nested = value is Object && out.contains_key(key) && out[key] is Object;
+        if nested {
+            let below = out[key];
+            out[key] = merge(below, value);
+        } else {
+            out[key] = value;
+        }
+    }
+    out
+}
+
+/// What `doc` says that `base` does not: the keys whose values differ, and
+/// the tables holding at least one.
+pub fn diff(base, doc) {
+    let out = #{};
+    for (key, value) in doc {
+        let had = base.contains_key(key);
+        if value is Object {
+            let below = if had && base[key] is Object { base[key] } else { #{} };
+            let inner = diff(below, value);
+            if inner.len() > 0 {
+                out[key] = inner;
+            }
+        } else if !had || !same(base[key], value) {
+            out[key] = value;
+        }
+    }
+    out
+}
+
+/// Equal as a file would spell them: `12` and `12.0` differ, and two values
+/// of different types compare without an error.
+pub fn same(a, b) {
+    format!("{:?}", a) == format!("{:?}", b)
+}
+
+/// The base a document is filled in from: what it names, or dark.
+pub fn base_of(doc) {
+    let named = util::obj(doc).get("base").unwrap_or("dark");
+    if named is String && is_bundled(named) { named } else { "dark" }
+}
+
+/// A theme by name, filled in from its base. A name that no longer resolves
+/// answers the dark theme, said once.
+pub fn resolve(name) {
+    let own = read(name);
+    if !(own is Object) {
+        if name != "dark" {
+            log::warn(format!("theme '{}' is not at {}; using dark", name, path_of(name)));
+        }
+        return #{ name: "dark", doc: read("dark") };
+    }
+    if is_bundled(name) {
+        return #{ name: name, doc: own };
+    }
+    #{ name: name, doc: merge(read(base_of(own)), own) }
+}
+
+/// A document flattened into the shape `ui::set_theme` and every script's
+/// `k.<token>` lookup want, keeping the document and its name beside.
+pub fn flat(name, doc) {
+    let t = #{ dark: doc.get("dark").unwrap_or(true), roles: doc.roles, name: name, doc: doc };
     for (key, value) in doc.colors {
         t[key] = value;
     }
     t
+}
+
+pub fn load(name) {
+    let found = resolve(name);
+    flat(found.name, found.doc)
 }
 
 pub fn dark() {
@@ -22,17 +145,17 @@ pub fn light() {
     load("light")
 }
 
-// Push the active theme into egui and the 3D viewport.
+// Push the active theme into egui, the widget nodes and the 3D viewport.
 pub fn apply(S) {
     let t = S.theme;
     ui::set_theme(t);
-    // The shell's own boxes are nodes, and they read the same file: one
-    // theme, so a role a script names and a role a node names cannot drift.
-    let shell = scene::get_node("Editor/Shell");
-    if shell is balaur::Node {
-        shell.patch_component("widget", #{
-            theme: if t.dark { "themes/dark.toml" } else { "themes/light.toml" },
-        });
+    // The document itself, inline, on each root: one table both readers take,
+    // so a role a script names and a role a node names cannot drift.
+    for path in ROOTS {
+        let root = scene::get_node(path);
+        if root is balaur::Node {
+            root.patch_component("widget", #{ theme: t.doc });
+        }
     }
     let (r, g, b) = util::hex_to_rgb(t.bg);
     render::set_background(r, g, b);
@@ -41,9 +164,40 @@ pub fn apply(S) {
     render::set_grid_colors(mr, mg, mb, jr, jg, jb);
 }
 
-// `on` rather than `dark`: a parameter of that name shadows `dark()` here,
-// and Rune would call the bool instead of the theme loader.
-pub fn set_dark(S, on) {
-    S.theme = if on { dark() } else { light() };
+/// Wear the named theme. The same name again is a no-op, so an unrelated
+/// setting written while a theme is being edited does not throw the edit away.
+pub fn use_named(S, name) {
+    if S.theme.name == name {
+        return;
+    }
+    S.theme = load(name);
     apply(S);
+}
+
+/// Read the worn theme from disk again, dropping an edit nobody saved.
+pub fn reload(S) {
+    S.theme = load(S.theme.name);
+    apply(S);
+}
+
+/// Wear a document that is not on disk yet: the theme window's live edit.
+pub fn wear(S, name, doc) {
+    S.theme = flat(name, doc);
+    apply(S);
+}
+
+// `on` rather than `dark`: a parameter of that name shadows `dark()` here,
+// and Rune would call the bool instead of the theme loader. For a start-up
+// state or a self-test: the person's setting is left as it was.
+pub fn set_dark(S, on) {
+    use_named(S, if on { "dark" } else { "light" });
+}
+
+/// The person flipping between the bundled two: remembered, so the settings
+/// screen shows it and the next start opens in it.
+pub fn toggle(S) {
+    let name = if S.theme.dark { "light" } else { "dark" };
+    settings::set(SETTING, name);
+    crate::settings::commit_prefs(S);
+    use_named(S, name);
 }

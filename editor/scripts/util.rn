@@ -326,6 +326,20 @@ fn hex_pair(hex, at) {
     (value as f64) / 255.0
 }
 
+/// Unit floats to `#rrggbb`: what a colour swatch reports, as a theme spells it.
+pub fn to_hex(rgba) {
+    let digits = "0123456789abcdef";
+    let out = "#";
+    for i in 0..3 {
+        let n = clamp(((f(rgba[i]) * 255.0) + 0.5) as i64, 0, 255);
+        let hi = n / 16;
+        let lo = n % 16;
+        out += digits[hi..hi + 1];
+        out += digits[lo..lo + 1];
+    }
+    out
+}
+
 /// A colour as the `[r, g, b]` the draw calls take.
 pub fn rgb(hex) {
     let (r, g, b) = hex_to_rgb(hex);

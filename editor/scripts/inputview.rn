@@ -166,7 +166,7 @@ pub fn draw(S) {
         });
         for band in 0..3 {
             let w = d - (band as f64) * 2.0;
-            let hue = if band == 2 { k.accent } else { "#ffffff" };
+            let hue = if band == 2 { k.accent } else { k.ripple };
             ui::overlay(format!("input-ripple-{}-{}", i, band), #{ x: r.x - w / 2.0, y: r.y - w / 2.0 }, || {
                 ui::frame(#{
                     fill: "#00000000", stroke: alpha(hue, left), radius: w / 2.0,

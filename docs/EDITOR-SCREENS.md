@@ -282,6 +282,25 @@ state draws the rows as a sheet: no offscreen run can click a popup open.
 | Node context menu | `left::tree_row`'s `menu:` — add child, attach script, duplicate, delete | — | right-click |
 | Showcase driver | `showcase::draw` — scripted input for the manual's clips | — | `--state show:<name>` |
 | Font sheet | `selftest::font_sheet` — every script the chain covers, the three faces, the icon font | `28` | `--state fontdemo` |
+| Theme window | `themewin::draw` — `window::sheet_form`, pages down the side, each role drawn as itself | `42`, `43` | the mark menu's Theme, or `--state theme:<page>:<role>` |
+
+The theme window is the one sheet whose rows change the chrome around them: an
+edit to a user theme is worn at once, and a bundled theme is read-only.
+
+```
+┌ Theme ────────────────────────────────────────────────────── Save  Close ┐
+│ Colours  34   │ [dusk ▾] [based on dark ▾]           Duplicate  Delete   │
+│ Text     25   │ name         [dusk                                    ]   │
+│ Controls 39   │ …/balaur/themes/dusk.toml · states only what differs      │
+│ Boxes    31   │ chip         ( chip )                          [editing]  │
+│ Layout   32   │   table      (role) (hover) + active + focus + touch      │
+│ Kinds     3   │   fill       ■ [sunken                             ▾]    │
+│ Problems  0   │   color      ■ [dim                                ▾] ×  │
+│               │   size       [              11                      ]    │
+│               │   add        [add a key…  ▾]                              │
+│               │ dim on sunken: 6.22:1, reads at AA                        │
+└──────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 

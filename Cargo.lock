@@ -456,7 +456,6 @@ dependencies = [
  "balaur_web",
  "balaur_websocket",
  "balaur_webtransport",
- "libm",
  "serde_json",
  "tempfile",
  "toml",

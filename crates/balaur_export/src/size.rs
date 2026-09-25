@@ -357,8 +357,10 @@ mod tests {
         let source = sample_png();
         let mut pack = pack_with("art/kept.png", source.clone());
         pack.assets.insert("art/shrunk.png".into(), source.clone());
-        pack.scenes
-            .insert("art/kept.png.toml".into(), "recode = \"keep\"\n".into());
+        pack.scenes.insert(
+            "art/kept.png.import.toml".into(),
+            "recode = \"keep\"\n".into(),
+        );
         let summary = prepare(&mut pack, &config).unwrap();
         assert_eq!(
             pack.assets["art/kept.png"], source,

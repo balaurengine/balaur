@@ -24,13 +24,13 @@ pub(crate) struct SyntaxColors {
 impl SyntaxColors {
     pub(crate) fn from_opts(opts: &Opts) -> Self {
         Self {
-            key: opts.color(k::K_KEY, Color32::from_rgb(0xf0, 0xa2, 0x73)),
-            string: opts.color(k::K_STR, Color32::from_rgb(0x8f, 0xbc, 0xae)),
-            number: opts.color(k::K_NUM, Color32::from_rgb(0xff, 0xc7, 0xa8)),
-            comment: opts.color(k::K_COM, Color32::from_rgb(0x76, 0x7e, 0x88)),
-            ident: opts.color(k::K_FN, Color32::from_rgb(0xee, 0xf1, 0xf4)),
-            builtin: opts.color(k::K_TYPE, Color32::from_rgb(0xb6, 0xd8, 0xcc)),
-            punct: opts.color(k::K_PUNC, Color32::from_rgb(0x98, 0xa1, 0xaa)),
+            key: opts.color(k::K_KEY, Color32::from_rgb(0x6f, 0xa4, 0xd8)),
+            string: opts.color(k::K_STR, Color32::from_rgb(0x8f, 0xb8, 0xb0)),
+            number: opts.color(k::K_NUM, Color32::from_rgb(0x9f, 0xc2, 0xe5)),
+            comment: opts.color(k::K_COM, Color32::from_rgb(0x8a, 0x97, 0xa4)),
+            ident: opts.color(k::K_FN, Color32::from_rgb(0xe6, 0xe9, 0xee)),
+            builtin: opts.color(k::K_TYPE, Color32::from_rgb(0xb7, 0xd3, 0xcc)),
+            punct: opts.color(k::K_PUNC, Color32::from_rgb(0x9b, 0xa6, 0xb1)),
         }
     }
 }
@@ -182,7 +182,7 @@ impl Marks {
         Self {
             errors: opts.lines(k::PROBLEMS),
             warnings: opts.lines(k::WARNINGS),
-            error_color: opts.color(k::PROBLEM_COLOR, Color32::from_rgb(0xe0, 0x4a, 0x4a)),
+            error_color: opts.color(k::PROBLEM_COLOR, Color32::from_rgb(0xe3, 0x7b, 0x7b)),
             warning_color: opts.color(k::WARNING_COLOR, Color32::from_rgb(0xe0, 0xb0, 0x4a)),
         }
     }
@@ -302,7 +302,7 @@ impl Gutter {
     fn from_opts(opts: &Opts, size: f32) -> Self {
         Self {
             width: opts.px(k::GUTTER_WIDTH, 34.0),
-            color: opts.color(k::GUTTER_COLOR, Color32::from_rgb(0x76, 0x7e, 0x88)),
+            color: opts.color(k::GUTTER_COLOR, Color32::from_rgb(0x8a, 0x97, 0xa4)),
             size,
             breakpoints: opts.lines(k::BREAKPOINTS),
             current_line: opts.f32(k::CURRENT_LINE, 0.0).max(0.0) as usize,

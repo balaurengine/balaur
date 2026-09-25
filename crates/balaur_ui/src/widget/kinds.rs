@@ -329,21 +329,22 @@ pub(crate) fn color(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let placed = &at.arena[index];
     let widget = &placed.widget;
     let entity = placed.entity;
-    let [r, g, b, a] = widget.color;
-    let mut rgba = egui::Rgba::from_rgba_unmultiplied(r, g, b, a);
+    // Unit floats are sRGB here as on every other widget property, so the
+    // picker is egui's sRGB one: its linear `Rgba` showed them too light.
+    let mut srgba = crate::widget::node::rgba_color(widget.color);
     let want = solved_of(widget, &at.style_of(widget), at.assigned);
     if want.x > 0.0 {
         ui.spacing_mut().interact_size.x = want.x;
     }
-    if egui::color_picker::color_edit_button_rgba(
+    if egui::color_picker::color_edit_button_srgba(
         ui,
-        &mut rgba,
+        &mut srgba,
         egui::color_picker::Alpha::OnlyBlend,
     )
     .changed()
     {
-        let [r, g, b, a] = rgba.to_rgba_unmultiplied();
-        at.edits.push((entity, Edit::Color([r, g, b, a])));
+        let unit = srgba.to_srgba_unmultiplied().map(|c| f32::from(c) / 255.0);
+        at.edits.push((entity, Edit::Color(unit)));
     }
 }
 

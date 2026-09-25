@@ -144,8 +144,12 @@ mod tests {
         pack.assets.insert("sprites/hero.web.png".into(), png(4, 2));
         let folded = apply(&mut pack, &Tags::for_target("web"), &[]);
         assert!(folded.warnings.is_empty(), "{:?}", folded.warnings);
-        let sidecar: toml::Table =
-            toml::from_str(pack.scenes.get("sprites/hero.png.toml").expect("a sidecar")).unwrap();
+        let sidecar: toml::Table = toml::from_str(
+            pack.scenes
+                .get("sprites/hero.png.import.toml")
+                .expect("a sidecar"),
+        )
+        .unwrap();
         let size: Vec<i64> = sidecar["size"]
             .as_array()
             .unwrap()

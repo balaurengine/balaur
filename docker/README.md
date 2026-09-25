@@ -67,6 +67,7 @@ from the matching release.
 | `BALAUR_TARGET` | required; one of the eight targets below |
 | `BALAUR_VERSION` | which templates under `/cache` to use |
 | `BALAUR_OUTPUT` | artifact name in `/out`; defaults per target |
+| `BALAUR_ANDROID_PACKAGE` | `apk` (default) or `aab`, for `android` on the `-android` image |
 
 With `/cache` mounted the export is offline and the template must already be
 there. Without it, balaur downloads the one it needs — what an ordinary CI job
@@ -83,9 +84,13 @@ printed on the way.
 | `windows-x64`, `windows-arm64` | `game.exe` |
 | `web` | `game.zip` |
 | `ios` | `game.ipa`, unsigned — see the signer image below |
-| `android` | `game.apk`, debug-signed, with the `-android` tag; otherwise `game.zip` of the layout |
+| `android` | `game.apk`, debug-signed, with the `-android` tag; `game.aab` with `BALAUR_ANDROID_PACKAGE=aab`; otherwise `game.zip` of the layout |
 
 One file per run, whatever shape the platform exports in.
+
+An `.aab` is what Play takes for a new app; an `.apk` is what installs on a
+device and what every other store takes. The Android image carries
+`bundletool.jar` beside the SDK for the first, pinned by `BUNDLETOOL_VERSION`.
 
 The Android image carries the SDK, a JDK and the **debug keystore**, generated
 when the image is built. The engine otherwise writes that keystore on first use
@@ -160,7 +165,7 @@ password.
 
 | `SIGN_TARGET` | Needs | Network |
 |---|---|---|
-| `android` | keystore, its two passwords, key alias | no |
+| `android` | keystore, its two passwords, key alias; an `.apk` through `apksigner`, an `.aab` through `jarsigner` | no |
 | `windows-x64`, `windows-arm64` | `.pfx`/`.p12`, its password, optionally a timestamp URL | only with a timestamp URL |
 | `macos-universal` | Developer ID `.p12` and its password | yes — rcodesign timestamps through Apple |
 | `ios` | Apple Distribution `.p12`, its password, a `.mobileprovision` | yes, same |

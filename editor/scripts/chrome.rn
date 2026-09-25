@@ -242,7 +242,7 @@ fn bar_controls(S, k) {
         kind: "button", height: row_h(S), width: icon_w(S), padding_x: 0, role: "bar",
         text: "", icon: if k.dark { icons::ui("dark") } else { icons::ui("light") },
         tooltip: "Toggle theme",
-        on: |_| { theme::set_dark(S, !k.dark); },
+        on: |_| { theme::toggle(S); },
     });
     let named = !S.compact;
     out.push(#{

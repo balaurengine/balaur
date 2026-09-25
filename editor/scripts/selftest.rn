@@ -2146,19 +2146,37 @@ const SETTINGS_SETTLED = 3;
 
 pub fn settings_step(S) {
     S.settings.demo = S.settings.demo + 1;
-    if S.settings.demo < SETTINGS_SETTLED {
+    let at = S.settings.demo;
+    if at < SETTINGS_SETTLED {
+        return;
+    }
+    if at == SETTINGS_SETTLED {
+        check(crate::settings::query(S) == "theme",
+            format!("a settings query survives the frames after it is set ('{}')", crate::settings::query(S)));
+        // The sheet is a `dialog` node stating its own size: hugging, its bar
+        // measures and its body is left with nothing.
+        let body = ui::widget_rect(scene::get_node("Editor/Sheet/SheetBody"));
+        check(!util::is_nil(body) && body.h > 100.0,
+            format!("the sheet's body has the room its frame states ({:?})", body));
+        // Typed rather than set: the field's text is what a key press
+        // changes, and the list has to follow it.
+        let field = scene::get_node("Editor/Sheet/SheetBody/SheetSplit/SheetSide/SheetSideRows/C0");
+        if check(!util::is_nil(field) && field.get_component("widget", "kind") == "field",
+            "the sidebar's first control is the search field") {
+            field.patch_component("widget", #{ text: "scale" });
+        }
+        return;
+    }
+    if at < SETTINGS_SETTLED + 2 {
         return;
     }
     S.settings.demo = -1;
-    check(S.settings.query == "theme",
-        format!("a settings query survives the frames after it is set ('{}')", S.settings.query));
-    check(crate::search::query(S, "settings") == "theme",
-        "and the field's own buffer holds the same text");
-    // The sheet is a `dialog` node stating its own size: hugging, its bar
-    // measures and its body is left with nothing.
-    let body = ui::widget_rect(scene::get_node("Editor/Sheet/SheetBody"));
-    check(!util::is_nil(body) && body.h > 100.0,
-        format!("the sheet's body has the room its frame states ({:?})", body));
+    check(crate::settings::query(S) == "scale",
+        format!("typing in the field is the query ('{}')", crate::settings::query(S)));
+    let note = scene::get_node("Editor/Sheet/SheetBody/SheetSplit/SheetScroll/SheetForm/R0/H/C/C0");
+    let said = if util::is_nil(note) { "" } else { note.get_component("widget", "text") };
+    check(said is String && said.contains("matching \"scale\"") && !said.starts_with("0 "),
+        format!("and the list is the matches for it ({:?})", said));
     settings_round_trip(S);
 }
 
@@ -2195,13 +2213,122 @@ fn settings_round_trip(S) {
 }
 
 pub fn theme_switch(S) {
-    check(S.theme.dark == true, "the editor starts on the dark theme");
+    theme::set_dark(S, true);
+    check(S.theme.dark == true, "the editor wears the dark theme");
+    let dark_sheet = scene::get_node("Editor/Sheet").get_component("widget", "theme");
     theme::set_dark(S, false);
     check(S.theme.dark == false, "the switch reaches the light theme");
     check(S.theme.bg != "", "and the light theme loaded its colours");
+    // The sheet, the palette and the start screen are roots of their own, not
+    // under the shell, and each has to wear the switch too.
+    for path in ["Editor/Shell", "Editor/Manager", "Editor/Picker", "Editor/Sheet"] {
+        let now = scene::get_node(path).get_component("widget", "theme");
+        check(now is String && now.starts_with("#!") && now != dark_sheet,
+            format!("{} wears the light theme ({:?})", path, now));
+    }
     theme::set_dark(S, true);
     check(S.theme.dark == true, "and switches back to the dark one");
     log::info("selftest theme: done");
+}
+
+/// `--state themeeditdemo`: a bundled theme is read-only, a duplicate is the
+/// person's to edit, an edit is worn at once and saved as only what differs,
+/// and deleting it goes back to its base. The preferences file is put back.
+pub fn theme_editing(S) {
+    let prefs = crate::settings::prefs_path();
+    S.themewin.test = #{ kept: fs::read(prefs), name: "" };
+    theme::set_dark(S, true);
+    crate::themewin::open(S);
+    check(crate::window::showing(S, "theme"), "the theme window opens");
+    check(!crate::themewin::editable(S), "a bundled theme is read-only");
+    let before = S.theme.accent;
+    crate::themewin::edit(S, ["colors"], "accent", "#ff0000");
+    check(S.theme.accent == before, "and an edit to it changes nothing");
+    let name = crate::themewin::duplicate(S);
+    S.themewin.test.name = name;
+    let path = theme::path_of(name);
+    check(fs::exists(path), format!("duplicating writes {}", path));
+    check(S.theme.name == name && crate::themewin::editable(S), "and the copy is worn and editable");
+    check(theme::names().iter().any(|n| n == name), "and listed beside the bundled two");
+    crate::themewin::edit(S, ["colors"], "accent", "#ff0000");
+    check(S.theme.accent == "#ff0000", "an edited token is worn at once");
+    let sheet = scene::get_node("Editor/Sheet").get_component("widget", "theme");
+    check(sheet is String && sheet.starts_with("#!"), "and the sheet's node wears it inline");
+    crate::themewin::edit(S, ["roles", "tab"], "size", 13);
+    crate::themewin::save(S);
+    let text = fs::read(path);
+    check(text is String && text.contains("accent") && text.contains("base = \"dark\""),
+        format!("saving writes the edit under its base: {:?}", text));
+    check(text is String && !text.contains("panel ="), "and nothing it leaves to that base");
+    theme::reload(S);
+    check(S.theme.accent == "#ff0000", "the saved theme reads back");
+    check(S.theme.roles.tab.size == 13, "with the role key it changed");
+    check(S.theme.roles.tab.color == "faint", "and the keys its base holds");
+    check(S.themewin.pairs.len() > 50, format!("every role's contrast is measured ({})", S.themewin.pairs.len()));
+    crate::themewin::show_role(S, "tab", "");
+    S.themewin.demo = 0;
+}
+
+/// `--state sheetclosedemo`: a sheet and the palette shut when their `dialog`
+/// is shut from outside, as egui does on Escape or a click on the dim. The
+/// close is put on the node the way the input settle puts it, between frames.
+pub fn sheet_closing(S) {
+    crate::about::open(S);
+    S.window.demo = 0;
+}
+
+pub fn sheet_close_step(S) {
+    S.window.demo = S.window.demo + 1;
+    let at = S.window.demo;
+    if at == 3 {
+        check(crate::window::showing(S, "about"), "the sheet stays up while nothing shuts it");
+        util::fill("Editor/Sheet", #{ open: false });
+    } else if at == 5 {
+        check(!crate::window::showing(S, "about"), "and goes when its dialog is shut from outside");
+        crate::shell::open_palette(S, "");
+    } else if at == 8 {
+        check(S.palette == true, "the palette stays up while nothing shuts it");
+        util::fill("Editor/Picker", #{ open: false });
+    } else if at == 10 {
+        S.window.demo = -1;
+        check(S.palette != true, "and goes when its dialog is shut from outside");
+        log::info("selftest sheetclose: done");
+    }
+}
+
+// Three frames: the pooled rows have to be made and drawn before one of them
+// can be read back.
+const THEME_SETTLED = 3;
+
+pub fn theme_edit_step(S) {
+    S.themewin.demo = S.themewin.demo + 1;
+    if S.themewin.demo < THEME_SETTLED {
+        return;
+    }
+    S.themewin.demo = -1;
+    let host = scene::get_node("Editor/Sheet/SheetBody/SheetSplit/SheetScroll/SheetForm");
+    let roles = [];
+    for row in host.children() {
+        if row.get_component("widget", "visible") == true {
+            let slot = row.get_node("H").get_node("C").get_node("C0");
+            roles.push(slot.get_component("widget", "role"));
+        }
+    }
+    check(roles.iter().any(|r| r == "tab"), format!("the Controls page draws the tab role as itself ({})", roles.len()));
+    let name = S.themewin.test.name;
+    crate::themewin::remove(S);
+    check(!fs::exists(theme::path_of(name)), "deleting removes the file");
+    check(S.theme.name == "dark", "and the editor goes back to the base");
+    let kept = S.themewin.test.kept;
+    let prefs = crate::settings::prefs_path();
+    if kept is String {
+        fs::write(prefs, kept);
+    } else {
+        fs::remove(prefs);
+    }
+    crate::settings::load_files(S);
+    crate::window::hide(S);
+    log::info("selftest themeedit: done");
 }
 
 

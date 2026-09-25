@@ -3,8 +3,7 @@
 
 use std::path::Path;
 
-const AA: f64 = 4.5;
-const AA_LARGE: f64 = 3.0;
+use balaur_ui::contrast::{AA, color_of, pairs, ratio};
 
 /// The inks a script or a role writes text in.
 const INKS: &[&str] = &[
@@ -44,98 +43,25 @@ fn themes() -> Vec<(&'static str, toml::Table)> {
         .collect()
 }
 
-fn luminance(hex: &str) -> f64 {
-    let channel = |at: usize| {
-        let c = f64::from(u8::from_str_radix(&hex[at..at + 2], 16).unwrap()) / 255.0;
-        if c <= 0.04045 {
-            c / 12.92
-        } else {
-            libm::pow((c + 0.055) / 1.055, 2.4)
-        }
-    };
-    0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5)
-}
-
-fn contrast(a: &str, b: &str) -> f64 {
-    let (la, lb) = (luminance(a), luminance(b));
-    (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
-}
-
-/// A colour as `#rrggbb`: a token looked up, or the literal a role states.
-fn hex<'a>(colors: &'a toml::Table, value: &'a str) -> &'a str {
-    colors
-        .get(value)
-        .and_then(toml::Value::as_str)
-        .unwrap_or(value)
-}
-
-/// What one role table and the state tables under it draw: the ink, the fill
-/// it sits on, and the ratio the size asks for. A state table inherits from
-/// the table above it; a role with no fill is drawn on `panel`.
-fn role_pairs(
-    name: &str,
-    table: &toml::Table,
-    base: &(String, String, f64),
-    out: &mut Vec<(String, String, String, f64)>,
-) {
-    let get = |key: &str| {
-        table
-            .get(key)
-            .and_then(toml::Value::as_str)
-            .map(str::to_owned)
-    };
-    let fill = get("fill").unwrap_or_else(|| base.0.clone());
-    let ink = get("color").unwrap_or_else(|| base.1.clone());
-    let size = table
-        .get("size")
-        .and_then(toml::Value::as_float)
-        .or_else(|| {
-            table
-                .get("size")
-                .and_then(toml::Value::as_integer)
-                .map(|n| n as f64)
-        });
-    let strong = table
-        .get("strong")
-        .and_then(toml::Value::as_bool)
-        .unwrap_or(false);
-    let large = size.is_some_and(|s| s >= 18.0 || (s >= 14.0 && strong));
-    let need = if large { AA_LARGE } else { base.2.min(AA) };
-    if !ink.is_empty() {
-        out.push((name.to_owned(), ink.clone(), fill.clone(), need));
-    }
-    for (key, value) in table {
-        if let Some(state) = value.as_table() {
-            role_pairs(
-                &format!("{name}.{key}"),
-                state,
-                &(fill.clone(), ink.clone(), need),
-                out,
-            );
-        }
-    }
+/// Two tokens' contrast, each looked up in `[colors]`.
+fn contrast(colors: &toml::Table, a: &str, b: &str) -> f64 {
+    ratio(
+        color_of(Some(colors), a).unwrap(),
+        color_of(Some(colors), b).unwrap(),
+    )
 }
 
 #[test]
 fn every_editor_theme_role_reads_at_aa_contrast() {
     for (theme, doc) in themes() {
-        let colors = doc["colors"].as_table().unwrap();
-        let mut pairs = Vec::new();
-        for (name, role) in doc["roles"].as_table().unwrap() {
-            role_pairs(
-                name,
-                role.as_table().unwrap(),
-                &("panel".into(), String::new(), AA),
-                &mut pairs,
-            );
-        }
-        let failing: Vec<String> = pairs
+        let doc = toml::Value::Table(doc);
+        let failing: Vec<String> = pairs(&doc, "panel")
             .iter()
-            .filter(|(_, ink, fill, need)| contrast(hex(colors, ink), hex(colors, fill)) < *need)
-            .map(|(name, ink, fill, need)| {
+            .filter(|pair| pair.ratio < pair.need)
+            .map(|pair| {
                 format!(
-                    "{theme} {name}: {ink} on {fill} is {:.2}:1, needs {need}",
-                    contrast(hex(colors, ink), hex(colors, fill))
+                    "{theme} {}: {} on {} is {:.2}:1, needs {}",
+                    pair.role, pair.ink, pair.fill, pair.ratio, pair.need
                 )
             })
             .collect();
@@ -150,14 +76,14 @@ fn every_text_token_reads_at_aa_on_every_sheet() {
         let mut failing = Vec::new();
         for ink in INKS {
             for sheet in SHEETS {
-                let ratio = contrast(hex(colors, ink), hex(colors, sheet));
+                let ratio = contrast(colors, ink, sheet);
                 if ratio < AA {
                     failing.push(format!("{theme} {ink} on {sheet} is {ratio:.2}:1"));
                 }
             }
         }
         for fill in ["accent_fill", "accent"] {
-            let ratio = contrast(hex(colors, "on_accent"), hex(colors, fill));
+            let ratio = contrast(colors, "on_accent", fill);
             if ratio < AA {
                 failing.push(format!("{theme} on_accent on {fill} is {ratio:.2}:1"));
             }

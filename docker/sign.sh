@@ -144,28 +144,55 @@ case "$SIGN_TARGET" in
   android)
     need android_keystore android_store_password android_key_alias android_key_password
 
-    # Alignment before signing, never after: zipalign rewrites offsets inside
-    # the zip, which is exactly what the v2 signature covers. Doing it the
-    # other way round produces an APK that fails to verify.
-    log "==> align"
-    zipalign -p -f 4 "$IN" /work/aligned.apk || fail "zipalign failed"
+    case "$SIGN_ARTIFACT" in
+      *.aab)
+        # An App Bundle takes a JAR signature, which apksigner does not write.
+        # The export's debug signature comes off first: two signers on one
+        # bundle is a bundle Play refuses.
+        cp "$IN" /work/unsigned.aab
+        zip -q -d /work/unsigned.aab 'META-INF/MANIFEST.MF' 'META-INF/*.SF' \
+          'META-INF/*.RSA' 'META-INF/*.EC' 'META-INF/*.DSA' >/dev/null 2>&1 || true
 
-    log "==> sign ${SIGN_ARTIFACT} for Android"
-    apksigner sign \
-      --ks /creds/android_keystore \
-      --ks-pass "file:/creds/android_store_password" \
-      --ks-key-alias "$(read_cred android_key_alias)" \
-      --key-pass "file:/creds/android_key_password" \
-      --out "$OUT" \
-      /work/aligned.apk || fail "apksigner failed"
+        log "==> sign ${SIGN_ARTIFACT} for Android"
+        jarsigner -keystore /creds/android_keystore \
+          -storepass:file /creds/android_store_password \
+          -keypass:file /creds/android_key_password \
+          -digestalg SHA-256 \
+          -signedjar "$OUT" /work/unsigned.aab \
+          "$(read_cred android_key_alias)" >/dev/null || fail "jarsigner failed"
+        rm -f /work/unsigned.aab
 
-    rm -f /work/aligned.apk
+        # Gates like apksigner's verify: an upload key is self-signed, so
+        # -strict would refuse every one; the verdict line is what counts.
+        log "==> verify"
+        jarsigner -verify "$OUT" | grep -q '^jar verified' \
+          || fail "the bundle we just signed does not verify"
+        ;;
+      *)
+        # Alignment before signing, never after: zipalign rewrites offsets inside
+        # the zip, which is exactly what the v2 signature covers. Doing it the
+        # other way round produces an APK that fails to verify.
+        log "==> align"
+        zipalign -p -f 4 "$IN" /work/aligned.apk || fail "zipalign failed"
 
-    # This one gates. `apksigner verify` checks the signature against the APK
-    # it is attached to, which is a real self-check and not a trust decision —
-    # if it fails, no device will install what we just made.
-    log "==> verify"
-    apksigner verify --verbose "$OUT" || fail "the APK we just signed does not verify"
+        log "==> sign ${SIGN_ARTIFACT} for Android"
+        apksigner sign \
+          --ks /creds/android_keystore \
+          --ks-pass "file:/creds/android_store_password" \
+          --ks-key-alias "$(read_cred android_key_alias)" \
+          --key-pass "file:/creds/android_key_password" \
+          --out "$OUT" \
+          /work/aligned.apk || fail "apksigner failed"
+
+        rm -f /work/aligned.apk
+
+        # This one gates. `apksigner verify` checks the signature against the APK
+        # it is attached to, which is a real self-check and not a trust decision —
+        # if it fails, no device will install what we just made.
+        log "==> verify"
+        apksigner verify --verbose "$OUT" || fail "the APK we just signed does not verify"
+        ;;
+    esac
     ;;
 
   *)
