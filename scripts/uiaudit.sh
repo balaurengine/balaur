@@ -86,6 +86,24 @@ check_pills() {
 }
 check_pills
 
+# Nothing selected is what a click on empty space leaves, and every panel
+# reads the active row: this draws a whole run without one.
+check_deselect() {
+  [ ${#only[@]} -eq 0 ] || return 0
+  printf '%-24s ' deselect
+  local out
+  out=$("$BALAUR_BIN" edit examples/hello --editor "$editor" --offscreen --frames 60 \
+      --state deselectdemo 2>&1)
+  if echo "$out" | grep -qE "selftest FAILED|ERROR"; then
+    echo FAILED; failed+=(deselect)
+  elif ! echo "$out" | grep -q "selftest ok"; then
+    echo "FAILED (checked nothing)"; failed+=(deselect)
+  else
+    echo ok
+  fi
+}
+check_deselect
+
 shot 01-scene-3d        examples/hello      "scene,select:Spinner"
 shot 02-scene-2d        examples/angrynerds "scene,select:Bird,zoom:45"
 shot 03-script          examples/hello      "script,select:Spinner"

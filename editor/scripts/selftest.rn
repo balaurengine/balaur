@@ -568,6 +568,25 @@ pub fn physical_bones(S) {
     log::info("selftest physical bones: done");
 }
 
+/// Nothing selected, which a click on empty space in the viewport leaves.
+///
+/// The panels all read the active row, so this is the state that breaks them:
+/// every one has to draw an empty frame rather than index past the document.
+/// The run this sets up draws with no selection for its whole length, so an
+/// error in any of them lands in the log the harness reads.
+pub fn deselected(S) {
+    let before = crate::selection::count(S);
+    crate::selection::clear(S);
+    check(S.sel < 0, "clearing the selection leaves no active row");
+    check(crate::selection::count(S) == 0, "and no selected rows");
+    check(
+        model::selected_node(S).name == "",
+        "the panels read a blank node rather than indexing past the document",
+    );
+    check(mirror_resolves(S), format!("the scene still resolves ({} rows were selected)", before));
+    log::info("selftest deselect: done");
+}
+
 /// Where the Physics panel's pills really land.
 ///
 /// The editor's widgets take their pointer from the window, not from the
@@ -712,7 +731,8 @@ pub fn physics_panel(S) {
     // The persona shows what carries the engine's `physics` tag, which is the
     // check the old hard-coded list of names failed.
     model::add_component(S, collider);
-    let shown = crate::inspector::physics_components(S);
+    let wants = crate::defs::persona_inspector("phys");
+    let shown = crate::inspector::persona_components(S, wants);
     check(crate::util::contains(shown, collider),
         format!("the Physics persona shows {}", collider));
 

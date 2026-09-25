@@ -148,10 +148,13 @@ pub fn manipulates(tool, mode2d) {
     core || (mode2d && (tool == "bone" || tool == "polygon" || tool == "pen"))
 }
 
-/// Whether the pointer belongs to the scene. Under Stage the scene is the
-/// whole window, so this is the inverse of the old test: it is the viewport's
-/// unless a sheet is over it.
+/// Whether a click at this point is the viewport's to act on.
+///
+/// The dock rects are not the whole interface: a menu, the command palette, a
+/// dropdown's popup and the controls floating over the stage all sit outside
+/// them, and a press on one of those used to be a click in the scene as well.
+/// `S.ui_pointer` is what the widgets themselves said on the frame just
+/// drawn; `ui::wants_pointer` can only be asked inside the pass.
 pub fn owns_pointer(S, x, y) {
-    let over = layout::over_sheet(S, x, y);
-    !over
+    !layout::over_sheet(S, x, y) && !S.ui_pointer
 }

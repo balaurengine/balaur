@@ -57,6 +57,7 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
         ("mouse_ray", &[], "", "The picking ray through the mouse position: its origin xyz then its direction xyz, in world units."),
         ("pick_ray", &[], "", "The nearest node with a 3D shape that a world-space ray meets, from its origin xyz and direction xyz."),
         ("camera_pose", &[], "", "The camera the renderer actually used: eye xyz, target xyz, vertical fov in radians, HiDPI scale."),
+        ("bounds", &[], "(node: node)", "The box the node's geometry covers in its own space, as a centre xyz and half-extents xyz; nil for a node that draws nothing. A solver's body reports where it is now, not where it was built."),
     ]);
     // Writes `CameraConfig3d`; not an accessor pair with `render.camera_pose`,
     // which reads what the renderer actually did with the request.
@@ -126,6 +127,22 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
             cam.fov,
             cam.scale_factor,
         ))
+    });
+    // What a node covers, which an authored size cannot say for a mesh or for
+    // a body a solver deforms.
+    m.function("bounds", |eng: &Engine, node: balaur_script::NodeId| {
+        let entity = balaur_core::entity_of(node)?;
+        let world = eng.world();
+        let Ok(renderable) = world.get::<&crate::Renderable3d>(entity) else {
+            return Ok(balaur_script::Value::Nil);
+        };
+        let Some(bounds) = renderable.bounds else {
+            return Ok(balaur_script::Value::Nil);
+        };
+        Ok(balaur_script::Value::List(vec![
+            balaur_script::Value::Vec3(bounds.centre.to_array()),
+            balaur_script::Value::Vec3(bounds.half.to_array()),
+        ]))
     });
     install_screenshot_api(m);
 }

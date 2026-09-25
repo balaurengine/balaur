@@ -175,12 +175,17 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
 /// frame instead of rewriting its buffers.
 pub(crate) fn resolve_solved_system(eng: &Engine, _dt: f32) {
     let mut wanted: Vec<(Entity, MeshData, u32)> = Vec::new();
+    let mut moved: Vec<(Entity, Option<Bounds3d>)> = Vec::new();
     {
         let world = eng.world();
         for (entity, solved) in &mut world.query::<(Entity, &SolvedMesh)>() {
             if solved.positions.is_empty() || solved.indices.is_empty() {
                 continue;
             }
+            // Every step, not only on a tear: a body that deformed covers
+            // different ground, and the box a click is picked against and the
+            // one the editor draws around it are both this.
+            moved.push((entity, bounds_of(&solved.positions)));
             // A node that draws something of its own keeps drawing it; the
             // solver deforms that instead of replacing it.
             if let Ok(renderable) = world.get::<&Renderable3d>(entity)
@@ -197,9 +202,32 @@ pub(crate) fn resolve_solved_system(eng: &Engine, _dt: f32) {
             wanted.push((entity, mesh_of(solved), solved.topology));
         }
     }
+    {
+        let world = eng.world();
+        for (entity, bounds) in moved {
+            if let Ok(mut renderable) = world.get::<&mut Renderable3d>(entity) {
+                renderable.bounds = bounds;
+            }
+        }
+    }
     for (entity, mesh, topology) in wanted {
         install(eng, entity, mesh, topology);
     }
+}
+
+/// The box a set of positions covers, in the node's own space.
+fn bounds_of(positions: &[[f32; 3]]) -> Option<Bounds3d> {
+    let first = glamx::Vec3::from_array(*positions.first()?);
+    let (mut min, mut max) = (first, first);
+    for p in positions {
+        let p = glamx::Vec3::from_array(*p);
+        min = min.min(p);
+        max = max.max(p);
+    }
+    Some(Bounds3d {
+        centre: (min + max) / 2.0,
+        half: (max - min) / 2.0,
+    })
 }
 
 /// Whether a renderable is one of ours to replace: `Built` geometry with no
@@ -218,13 +246,7 @@ fn mesh_of(solved: &SolvedMesh) -> MeshData {
 }
 
 fn install(eng: &Engine, entity: Entity, mesh: MeshData, topology: u32) {
-    let bounds = mesh.bounds().map(|(min, max)| {
-        let (min, max) = (glamx::Vec3::from_array(min), glamx::Vec3::from_array(max));
-        Bounds3d {
-            centre: (min + max) / 2.0,
-            half: (max - min) / 2.0,
-        }
-    });
+    let bounds = bounds_of(&mesh.positions);
     let built = Some(std::sync::Arc::new(mesh));
     let mut world = eng.world_mut();
     // The version is the topology, so the backend rebuilds on a tear and on

@@ -169,17 +169,30 @@ fn half_extents(node) {
     he
 }
 
-// The world half-extents of one row before the handle padding, which both the
-// gizmo and box select need.
+// The world half-extents of one row, before the handle padding. The engine's
+// own bounds first: an authored `half_extents` says nothing about a mesh, and
+// nothing about a body a solver deforms.
 pub fn extents_at(S, i) {
     let found = match model::live(S, i) {
         Some(found) => found,
         None => return None,
     };
-    let node = S.doc[i];
-    let he = half_extents(node);
     let s = found.transform.global_scale();
-    Some((util::xyz(found.transform.global_position()), [he[0] * s.x, he[1] * s.y, he[2] * s.z]))
+    let at = util::xyz(found.transform.global_position());
+    let drawn = render::bounds(found);
+    if drawn is Vec && drawn.len() == 2 {
+        // Vec3 values, read by field: `util::vec3` parses a list and answers
+        // its default for one of these, which sized every box to nothing.
+        let c = drawn[0];
+        let he = drawn[1];
+        // The box is in the node's own space, so its centre rides the node's.
+        return Some((
+            [at[0] + c.x * s.x, at[1] + c.y * s.y, at[2] + c.z * s.z],
+            [he.x * s.x, he.y * s.y, he.z * s.z],
+        ));
+    }
+    let he = half_extents(S.doc[i]);
+    Some((at, [he[0] * s.x, he[1] * s.y, he[2] * s.z]))
 }
 
 // An axis-aligned box around the whole set, so the gizmo over many nodes sits
@@ -219,31 +232,28 @@ fn set_geometry(S) {
 }
 
 fn geometry_at(S, i) {
-    let node = match S.doc.get(i) {
-        Some(node) => node,
-        None => return None,
-    };
     let found = match model::live(S, i) {
         Some(found) => found,
         None => return None,
     };
-    let p = found.transform.global_position();
-    let he = half_extents(node);
-    // The renderer sizes and orients by the GLOBAL transform (parents may
-    // carry scale/rotation), so the gizmo must too.
-    let s = found.transform.global_scale();
-    let hx = he[0] * s.x + 0.06;
-    let hy = he[1] * s.y + 0.06;
-    let hz = he[2] * s.z + 0.06;
+    // The same source the multi-selection box and box-select read, so one
+    // node's frame and a set's agree about what a node covers.
+    let (c, he) = match extents_at(S, i) {
+        Some(pair) => pair,
+        None => return None,
+    };
+    let hx = he[0] + 0.06;
+    let hy = he[1] + 0.06;
+    let hz = he[2] + 0.06;
     let min_he = util::min(hx, util::min(hy, hz));
     // steadyum: handle size scales with camera distance (constant on
     // screen), rings sit at 75% of the smallest extent.
     let (ex, ey, ez, _, _, _, _, _) = render::camera_pose();
-    let dist = math::sqrt((p.x - ex) * (p.x - ex) + (p.y - ey) * (p.y - ey) + (p.z - ez) * (p.z - ez));
+    let dist = math::sqrt((c[0] - ex) * (c[0] - ex) + (c[1] - ey) * (c[1] - ey) + (c[2] - ez) * (c[2] - ez));
     let marker = 0.6 * dist * 0.0144;
     let r = found.transform.global_rotation_euler();
     Some(#{
-        center: util::xyz(p),
+        center: c,
         basis: util::basis_from_euler(util::xyz(r)),
         he: [hx, hy, hz],
         // The rotation ball tracks the selection but never grows past a
@@ -811,6 +821,11 @@ pub fn update(S) {
                     history::commit(S);
                     crate::selection::set(S, rows);
                 }
+            } else {
+                // A click rather than a drag, and it landed on nothing: what
+                // was selected stops being.
+                history::commit(S);
+                crate::selection::clear(S);
             }
         }
         return;

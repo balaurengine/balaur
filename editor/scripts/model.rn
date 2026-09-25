@@ -968,6 +968,10 @@ pub fn build_mirror(S) {
 
 // The live node for a doc index (`None` right after a rebuild).
 pub fn live(S, i) {
+    // -1 is the no-selection row, and an index lookup refuses a negative.
+    if i < 0 {
+        return None;
+    }
     if let Some(found) = S.refs.get(i) {
         if found is balaur::Node && found.is_valid() {
             return Some(found);
@@ -1086,7 +1090,12 @@ pub fn selected(S) {
     (S.doc[S.sel], live(S, S.sel))
 }
 
+/// The active row's node, or a blank stand-in when nothing is selected, so a
+/// panel reading a name or a component off it degrades instead of erroring.
 pub fn selected_node(S) {
+    if S.sel < 0 || S.sel >= S.doc.len() {
+        return #{ name: "", id: "" };
+    }
     S.doc[S.sel]
 }
 

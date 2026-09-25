@@ -10268,6 +10268,7 @@
       ],
       "doc": "What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the backdrop, debug lines and screenshots. `window` holds the window itself.",
       "docs": {
+        "bounds": "The box the node's geometry covers in its own space, as a centre xyz and half-extents xyz; nil for a node that draws nothing. A solver's body reports where it is now, not where it was built.",
         "built_mesh": "The triangles the node's boolean settled on, as `#{ positions, indices }` ready to be written out as a `mesh` asset; nil when the node draws no built geometry.",
         "camera_2d": "The 2D camera this frame: centre xy and zoom in logical pixels per world unit; all zeros with no window.",
         "camera_matrix": "The camera's projection*view matrix this frame, 16 numbers column-major; all zeros with no window.",
@@ -10320,6 +10321,7 @@
         "trace_texture": "The outline of an image's opaque pixels, as `[x, y]` points in a node's own space, ready to be a polygon's `positions`. `opts` takes `threshold` (alpha counted as opaque, 0 to 1, default 0.5), `tolerance` (how many pixels of detail to drop, default 2), `pixels_per_unit` (default 100) and `holes` (include the loops inside the shape, default false). Counter-clockwise with y up, centred on the origin, the way a sprite at the same `pixels_per_unit` is drawn."
       },
       "functions": [
+        "bounds",
         "built_mesh",
         "camera_2d",
         "camera_matrix",
@@ -10373,6 +10375,7 @@
       ],
       "name": "render",
       "signatures": {
+        "bounds": "NodeId -> Value",
         "built_mesh": "NodeId -> Value",
         "camera_2d": "() -> (f32, f32, f32)",
         "camera_matrix": "() -> Vec<f32>",
