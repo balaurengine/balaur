@@ -119,15 +119,15 @@ fn every_3d_layout_builds() {
     run_clean(
         r##"pub fn init(this) {
     let body = this.node.softbody3d;
-    body.set_softbody(#{ kind: "sphere", radius: 0.5, subdivisions: 1.0 });
+    body.set_softbody(#{ kind: physics3d::SOFT_SPHERE, radius: 0.5, subdivisions: 1.0 });
     assert!(body.softbody_particles() > 0, "the sphere has no particles");
-    body.set_softbody(#{ kind: "cloth", cells: [3.0, 3.0, 1.0], size: [1.0, 0.0, 1.0] });
+    body.set_softbody(#{ kind: physics3d::SOFT_CLOTH, cells: [3.0, 3.0, 1.0], size: [1.0, 0.0, 1.0] });
     assert_eq!(body.softbody_particles(), 16, "a 3x3 cloth is 4x4 particles");
-    body.set_softbody(#{ kind: "cloth_tube", radius: 0.3, cells: [6.0, 4.0, 1.0] });
+    body.set_softbody(#{ kind: physics3d::SOFT_CLOTH_TUBE, radius: 0.3, cells: [6.0, 4.0, 1.0] });
     assert!(body.softbody_particles() > 0, "the tube has no particles");
-    body.set_softbody(#{ kind: "rope", particles: 8.0 });
+    body.set_softbody(#{ kind: physics3d::SOFT_ROPE, particles: 8.0 });
     assert_eq!(body.softbody_particles(), 8, "the rope has the wrong particle count");
-    body.set_softbody(#{ kind: "trimesh", mesh: "#wedge" });
+    body.set_softbody(#{ kind: physics3d::SOFT_TRIMESH, mesh: "#wedge" });
     assert_eq!(body.softbody_particles(), 4, "the wedge has four corners");
 }
 "##,
@@ -141,7 +141,7 @@ fn a_volumetric_body_fills_a_closed_mesh_with_cells() {
     run_clean(
         r##"pub fn init(this) {
     let body = this.node.softbody3d;
-    body.set_softbody(#{ kind: "volumetric", mesh: "#wedge", cell_size: 0.2 });
+    body.set_softbody(#{ kind: physics3d::SOFT_VOLUMETRIC, mesh: "#wedge", cell_size: 0.2 });
     assert!(body.softbody_particles() > 4, "the tetrahedrization added no particles");
     assert!(body.softbody_volume() > 0.0, "the filled body encloses nothing");
 }
@@ -155,9 +155,9 @@ fn a_smaller_cell_size_makes_a_finer_volumetric_body() {
     run_clean(
         r##"pub fn init(this) {
     let body = this.node.softbody3d;
-    body.set_softbody(#{ kind: "volumetric", mesh: "#wedge", cell_size: 0.4 });
+    body.set_softbody(#{ kind: physics3d::SOFT_VOLUMETRIC, mesh: "#wedge", cell_size: 0.4 });
     let coarse = body.softbody_particles();
-    body.set_softbody(#{ kind: "volumetric", mesh: "#wedge", cell_size: 0.15 });
+    body.set_softbody(#{ kind: physics3d::SOFT_VOLUMETRIC, mesh: "#wedge", cell_size: 0.15 });
     assert!(body.softbody_particles() > coarse, "halving the cell size added no particles");
 }
 "##,
@@ -169,7 +169,7 @@ fn a_smaller_cell_size_makes_a_finer_volumetric_body() {
 #[test]
 fn a_layout_past_the_particle_cap_is_refused() {
     let errors = run(r#"pub fn init(this) {
-    this.node.softbody3d.set_softbody(#{ kind: "cuboid", cells: [400.0, 400.0, 400.0] });
+    this.node.softbody3d.set_softbody(#{ kind: physics3d::SOFT_CUBOID, cells: [400.0, 400.0, 400.0] });
 }
 "#);
     assert!(
@@ -181,7 +181,7 @@ fn a_layout_past_the_particle_cap_is_refused() {
 #[test]
 fn a_cell_count_no_integer_holds_is_refused_rather_than_built() {
     let errors = run(r#"pub fn init(this) {
-    this.node.softbody3d.set_softbody(#{ kind: "cloth", cells: [1.0e30, 1.0e30, 1.0] });
+    this.node.softbody3d.set_softbody(#{ kind: physics3d::SOFT_CLOTH, cells: [1.0e30, 1.0e30, 1.0] });
 }
 "#);
     assert!(
@@ -217,7 +217,7 @@ pub fn fixed_update(this, dt) {
 fn a_pinned_particle_stays_where_it_was_put() {
     run_clean(
         r#"pub fn init(this) {
-    this.node.softbody3d.set_softbody(#{ kind: "rope", particles: 8.0, pinned: [0] });
+    this.node.softbody3d.set_softbody(#{ kind: physics3d::SOFT_ROPE, particles: 8.0, pinned: [0] });
     this.first = this.node.softbody3d.softbody_position(0);
     this.ticks = 0;
 }
@@ -244,20 +244,20 @@ fn the_material_rows_are_set_and_read_back() {
     let node = this.node;
     node.softbody3d.edge_frequency = 120.0;
     node.softbody3d.bend_damping = 0.4;
-    node.softbody3d.cell_model = "corotational";
+    node.softbody3d.cell_model = physics3d::CELL_COROTATIONAL;
     node.softbody3d.young_modulus = 50000.0;
     node.softbody3d.poisson_ratio = 0.45;
     node.softbody3d.plastic_yield = 0.2;
-    node.softbody3d.edge_plastic_flow = "compression";
+    node.softbody3d.edge_plastic_flow = physics3d::FLOW_COMPRESSION;
     node.softbody3d.tear_strain = 0.6;
     node.softbody3d.shape_matching = true;
     assert_eq!(node.softbody3d.edge_frequency, 120.0, "edge_frequency did not stick");
     assert_eq!(node.softbody3d.bend_damping, 0.4, "bend_damping did not stick");
-    assert_eq!(node.softbody3d.cell_model, "corotational", "cell_model did not stick");
+    assert_eq!(node.softbody3d.cell_model, physics3d::CELL_COROTATIONAL, "cell_model did not stick");
     assert_eq!(node.softbody3d.young_modulus, 50000.0, "young_modulus did not stick");
     assert_eq!(node.softbody3d.poisson_ratio, 0.45, "poisson_ratio did not stick");
     assert_eq!(node.softbody3d.plastic_yield, 0.2, "plastic_yield did not stick");
-    assert_eq!(node.softbody3d.edge_plastic_flow, "compression", "edge_plastic_flow did not stick");
+    assert_eq!(node.softbody3d.edge_plastic_flow, physics3d::FLOW_COMPRESSION, "edge_plastic_flow did not stick");
     assert_eq!(node.softbody3d.tear_strain, 0.6, "tear_strain did not stick");
     assert_eq!(node.softbody3d.shape_matching, true, "shape_matching did not stick");
 }
@@ -289,11 +289,11 @@ fn the_2d_world_has_the_same_shape_of_api() {
     let blob = this.node.get_node("Blob2d");
     assert_eq!(blob.softbody2d.softbody_particles(), 9, "the grid was not 3x3 particles");
     assert!(blob.softbody2d.softbody_rest_area() > 0.0, "the grid encloses nothing");
-    blob.softbody2d.set_softbody(#{ kind: "disk", radius: 0.5, particles: 12.0 });
+    blob.softbody2d.set_softbody(#{ kind: physics2d::SOFT_DISK, radius: 0.5, particles: 12.0 });
     assert!(blob.softbody2d.softbody_particles() > 0, "the disk has no particles");
-    blob.softbody2d.set_softbody(#{ kind: "rope", particles: 6.0 });
+    blob.softbody2d.set_softbody(#{ kind: physics2d::SOFT_ROPE, particles: 6.0 });
     assert_eq!(blob.softbody2d.softbody_particles(), 6, "the 2D rope has the wrong count");
-    blob.softbody2d.set_softbody(#{ kind: "trimesh", mesh: "#square" });
+    blob.softbody2d.set_softbody(#{ kind: physics2d::SOFT_TRIMESH, mesh: "#square" });
     assert_eq!(blob.softbody2d.softbody_particles(), 4, "the square has four corners");
 }
 "##,
@@ -307,7 +307,7 @@ fn a_2d_volumetric_body_fills_an_outline_with_triangles() {
     run_clean(
         r##"pub fn init(this) {
     let blob = this.node.get_node("Blob2d");
-    blob.softbody2d.set_softbody(#{ kind: "volumetric", mesh: "#square", cell_size: 0.2 });
+    blob.softbody2d.set_softbody(#{ kind: physics2d::SOFT_VOLUMETRIC, mesh: "#square", cell_size: 0.2 });
     assert!(blob.softbody2d.softbody_particles() > 4, "the triangulation added no particles");
     assert!(blob.softbody2d.softbody_area() > 0.0, "the filled body encloses nothing");
 }
@@ -325,7 +325,7 @@ fn a_rope_past_its_tear_strain_comes_apart() {
     // One end pinned, a heavy free end, and edges that break at a tenth of
     // their rest length: the rope cannot hold itself up.
     this.node.softbody3d.set_softbody(#{
-        kind: "rope", a: [0.0, 0.0, 0.0], b: [0.0, -2.0, 0.0], particles: 12.0,
+        kind: physics3d::SOFT_ROPE, a: [0.0, 0.0, 0.0], b: [0.0, -2.0, 0.0], particles: 12.0,
         pinned: [0], tear_strain: 0.05, tear_force: 2.0,
         edge_frequency: 4.0, mass: 400.0,
     });
@@ -504,7 +504,7 @@ fn removing_a_soft_body_takes_its_solved_mesh_with_it() {
 fn an_automatic_particle_radius_reads_back_as_automatic() {
     run_clean(
         r#"pub fn init(this) {
-    this.node.softbody3d.set_softbody(#{ kind: "cuboid", cells: [2.0, 2.0, 2.0], particle_radius: 0.0 });
+    this.node.softbody3d.set_softbody(#{ kind: physics3d::SOFT_CUBOID, cells: [2.0, 2.0, 2.0], particle_radius: 0.0 });
     let read = this.node.get_component("softbody3d");
     assert!(read.particle_radius == 0.0, "the automatic radius read back as a number");
 }
@@ -543,9 +543,9 @@ fn a_generated_2d_soft_body_is_drawn_from_its_cells() {
 fn a_body_on_the_implicit_solver_falls() {
     let errors = run_for(
         r#"pub fn init(this) {
-    this.node.softbody3d.set_softbody(#{ kind: "cuboid", cells: [2.0, 2.0, 2.0], solver: "fem", cell_model: "corotational" });
+    this.node.softbody3d.set_softbody(#{ kind: physics3d::SOFT_CUBOID, cells: [2.0, 2.0, 2.0], solver: physics3d::SOFT_SOLVER_FEM, cell_model: physics3d::CELL_COROTATIONAL });
     let read = this.node.get_component("softbody3d");
-    assert!(read.solver == "fem", "the body runs on the constraint solver");
+    assert!(read.solver == physics3d::SOFT_SOLVER_FEM, "the body runs on the constraint solver");
     this.first = this.node.softbody3d.softbody_position(0);
     this.ticks = 0;
 }
@@ -573,7 +573,7 @@ fn a_skinned_body_can_collide_through_its_skin() {
     run_clean(
         r##"pub fn init(this) {
     let body = this.node.softbody3d;
-    body.set_softbody(#{ kind: "volumetric", mesh: "#wedge", cell_size: 0.2, skin: true, skin_collision: true });
+    body.set_softbody(#{ kind: physics3d::SOFT_VOLUMETRIC, mesh: "#wedge", cell_size: 0.2, skin: true, skin_collision: true });
     assert!(body.softbody_particles() > 0, "the skinned body has no particles");
 }
 "##,
@@ -588,9 +588,9 @@ fn a_disk_keeps_its_area_when_it_lands() {
         r#"pub fn init(this) {
     let floor = this.node.add_child("Floor");
     floor.set_component("transform", #{ position: [0.0, -0.8, 0.0] });
-    floor.set_component("collider2d", #{ kind: "rect", half_extents: [5.0, 0.2] });
+    floor.set_component("collider2d", #{ kind: physics2d::SHAPE_RECT, half_extents: [5.0, 0.2] });
     let blob = this.node.get_node("Blob2d").softbody2d;
-    blob.set_softbody(#{ kind: "disk", radius: 0.5, particles: 24.0 });
+    blob.set_softbody(#{ kind: physics2d::SOFT_DISK, radius: 0.5, particles: 24.0 });
     this.before = blob.softbody_area();
     this.ticks = 0;
 }
@@ -633,7 +633,7 @@ fn solved_2d(script: &str, ticks: u32) -> balaur_core::mesh::SolvedPolygon {
 fn a_2d_volumetric_body_hands_over_the_mesh_it_filled() {
     let solved = solved_2d(
         r##"pub fn init(this) {
-    this.node.get_node("Blob2d").softbody2d.set_softbody(#{ kind: "volumetric", mesh: "#square", cell_size: 0.2 });
+    this.node.get_node("Blob2d").softbody2d.set_softbody(#{ kind: physics2d::SOFT_VOLUMETRIC, mesh: "#square", cell_size: 0.2 });
 }
 "##,
         20,
@@ -656,7 +656,7 @@ fn a_2d_volumetric_body_hands_over_the_mesh_it_filled() {
 fn a_2d_rope_hands_over_a_ribbon() {
     let solved = solved_2d(
         r#"pub fn init(this) {
-    this.node.get_node("Blob2d").softbody2d.set_softbody(#{ kind: "rope", a: [0.0, 0.0], b: [1.0, 0.0], particles: 5.0 });
+    this.node.get_node("Blob2d").softbody2d.set_softbody(#{ kind: physics2d::SOFT_ROPE, a: [0.0, 0.0], b: [1.0, 0.0], particles: 5.0 });
 }
 "#,
         2,
@@ -673,8 +673,8 @@ fn a_2d_polygon_body_keeps_a_vertex_inside_its_outline() {
         r##"pub fn init(this) {
     let floor = this.node.add_child("Floor");
     floor.set_component("transform", #{ position: [0.0, -0.8, 0.0] });
-    floor.set_component("collider2d", #{ kind: "rect", half_extents: [5.0, 0.2] });
-    this.node.get_node("Blob2d").softbody2d.set_softbody(#{ kind: "polygon", mesh: "#hub", particle_radius: 0.05 });
+    floor.set_component("collider2d", #{ kind: physics2d::SHAPE_RECT, half_extents: [5.0, 0.2] });
+    this.node.get_node("Blob2d").softbody2d.set_softbody(#{ kind: physics2d::SOFT_POLYGON, mesh: "#hub", particle_radius: 0.05 });
 }
 "##,
         90,
@@ -760,7 +760,7 @@ fn a_torn_off_piece_is_drawn_and_freed_with_its_node() {
     let (_dir, mut app) = boot(
         r#"pub fn init(this) {
     this.node.softbody3d.set_softbody(#{
-        kind: "rope", a: [0.0, 0.0, 0.0], b: [0.0, -2.0, 0.0], particles: 12.0,
+        kind: physics3d::SOFT_ROPE, a: [0.0, 0.0, 0.0], b: [0.0, -2.0, 0.0], particles: 12.0,
         pinned: [0], tear_strain: 0.05, tear_force: 2.0, edge_frequency: 4.0, mass: 400.0,
     });
 }
@@ -845,7 +845,7 @@ fn pinning_a_free_particle_holds_it_and_unpinning_lets_it_fall() {
     run_checked(
         r#"pub fn init(this) {
     let body = this.node.softbody3d;
-    body.set_softbody(#{ kind: "rope", particles: 8.0 });
+    body.set_softbody(#{ kind: physics3d::SOFT_ROPE, particles: 8.0 });
     body.pin_particle(0);
     this.first = body.softbody_position(0).y;
     this.ticks = 0;
@@ -875,7 +875,7 @@ fn a_held_particle_is_dragged_to_its_target() {
     run_checked(
         r#"pub fn init(this) {
     let body = this.node.softbody3d;
-    body.set_softbody(#{ kind: "rope", particles: 8.0, pinned: [0] });
+    body.set_softbody(#{ kind: physics3d::SOFT_ROPE, particles: 8.0, pinned: [0] });
     body.set_particle_target(0, [2.0, 1.0, 0.0]);
     this.ticks = 0;
 }
@@ -899,7 +899,7 @@ fn an_impulse_kicks_the_body_and_the_edges_report_their_stress() {
     run_checked(
         r#"pub fn init(this) {
     let body = this.node.softbody3d;
-    body.set_softbody(#{ kind: "rope", particles: 8.0, pinned: [0] });
+    body.set_softbody(#{ kind: physics3d::SOFT_ROPE, particles: 8.0, pinned: [0] });
     body.apply_softbody_impulse([0.0, 20.0, 0.0]);
     this.first = body.softbody_position(7).y;
     this.ticks = 0;
@@ -929,9 +929,9 @@ fn a_particle_tied_to_a_body_hangs_from_it() {
         r#"pub fn init(this) {
     let hook = this.node.add_child("Hook");
     hook.set_component("transform", #{ position: [0.0, 0.0, 0.0] });
-    hook.set_component("body3d", #{ kind: "static" });
+    hook.set_component("body3d", #{ kind: physics3d::BODY_STATIC });
     let body = this.node.softbody3d;
-    body.set_softbody(#{ kind: "rope", particles: 8.0 });
+    body.set_softbody(#{ kind: physics3d::SOFT_ROPE, particles: 8.0 });
     this.hook = hook;
     this.ticks = 0;
     this.first = body.softbody_position(0).y;
@@ -960,7 +960,7 @@ fn the_2d_body_takes_the_same_calls() {
     run_checked(
         r#"pub fn init(this) {
     let body = this.node.get_node("Blob2d").softbody2d;
-    body.set_softbody(#{ kind: "rope", particles: 6.0 });
+    body.set_softbody(#{ kind: physics2d::SOFT_ROPE, particles: 6.0 });
     body.pin_particle(0);
     body.apply_softbody_radial_impulse([0.0, 0.0], 5.0, 0.0);
     this.ticks = 0;
@@ -987,7 +987,7 @@ fn per_particle_and_per_edge_rows_build_and_name_what_they_cannot() {
         r#"pub fn init(this) {
     let body = this.node.softbody3d;
     body.set_softbody(#{
-        kind: "rope", particles: 4.0,
+        kind: physics3d::SOFT_ROPE, particles: 4.0,
         masses: [1.0, 1.0, 1.0, 50.0],
         tear_resistance: [#{ a: 1, b: 2, resistance: 0.2 }],
         edge_springs: [#{ a: 0, b: 1, frequency: 90.0, damping: 1.0 }],
@@ -1000,12 +1000,12 @@ fn per_particle_and_per_edge_rows_build_and_name_what_they_cannot() {
         "checked: rows built",
     );
     let short = run(r#"pub fn init(this) {
-    this.node.softbody3d.set_softbody(#{ kind: "rope", particles: 4.0, masses: [1.0, 2.0] });
+    this.node.softbody3d.set_softbody(#{ kind: physics3d::SOFT_ROPE, particles: 4.0, masses: [1.0, 2.0] });
 }
 "#);
     assert!(short.iter().any(|e| e.contains("masses")), "{short:#?}");
     let stray = run(r#"pub fn init(this) {
-    this.node.softbody3d.set_softbody(#{ kind: "rope", particles: 4.0, tear_resistance: [#{ a: 0, b: 3, resistance: 0.5 }] });
+    this.node.softbody3d.set_softbody(#{ kind: physics3d::SOFT_ROPE, particles: 4.0, tear_resistance: [#{ a: 0, b: 3, resistance: 0.5 }] });
 }
 "#);
     assert!(
@@ -1020,7 +1020,7 @@ fn per_particle_and_per_edge_rows_build_and_name_what_they_cannot() {
 fn a_body_that_does_not_collide_lets_a_ray_through() {
     run_checked(
         r#"pub fn init(this) {
-    this.node.softbody3d.set_softbody(#{ kind: "cuboid", cells: [2.0, 2.0, 2.0], collides: false });
+    this.node.softbody3d.set_softbody(#{ kind: physics3d::SOFT_CUBOID, cells: [2.0, 2.0, 2.0], collides: false });
     this.ticks = 0;
 }
 
@@ -1043,10 +1043,10 @@ fn a_woven_cloth_and_a_2d_skin_collision_build() {
     run_checked(
         r##"pub fn init(this) {
     let cloth = this.node.softbody3d;
-    cloth.set_softbody(#{ kind: "cloth", cells: [4.0, 4.0, 1.0], warp_frequency: 80.0, weft_frequency: 10.0 });
+    cloth.set_softbody(#{ kind: physics3d::SOFT_CLOTH, cells: [4.0, 4.0, 1.0], warp_frequency: 80.0, weft_frequency: 10.0 });
     assert!(cloth.softbody_particles() == 25, "a woven 4x4 cloth is not 5x5 particles");
     let flat = this.node.get_node("Blob2d").softbody2d;
-    flat.set_softbody(#{ kind: "volumetric", mesh: "#square", cell_size: 0.2, skin_collision: true });
+    flat.set_softbody(#{ kind: physics2d::SOFT_VOLUMETRIC, mesh: "#square", cell_size: 0.2, skin_collision: true });
     assert!(flat.softbody_particles() > 4, "the skinned 2D body has no cells");
     log::error("checked: woven");
 }

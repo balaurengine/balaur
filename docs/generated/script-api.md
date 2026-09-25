@@ -37,7 +37,7 @@ cannot drift from what scripts actually see.
 | [`project`](#project) | 13 | 0 | the engine |
 | [`regex`](#regex) | 6 | 0 | the engine |
 | [`release`](#release) | 5 | 0 | the engine |
-| [`render`](#render) | 54 | 31 | the engine |
+| [`render`](#render) | 54 | 36 | the engine |
 | [`replay`](#replay) | 17 | 4 | the engine |
 | [`rng`](#rng) | 5 | 0 | the engine |
 | [`rollback`](#rollback) | 2 | 0 | the engine |
@@ -338,10 +338,13 @@ cannot drift from what scripts actually see.
 
 **Functions:** `bounds`, `built_mesh`, `camera_2d`, `camera_input`, `camera_matrix`, `camera_pose`, `cell`, `channel`, `channels`, `check_material`, `clones`, `draw_arc_2d`, `draw_box`, `draw_capsule`, `draw_circle_2d`, `draw_line`, `draw_line_2d`, `draw_lines`, `draw_polygon_2d`, `draw_polyline_2d`, `draw_rect_2d`, `draw_sphere`, `draw_text`, `draw_text_2d`, `draw_texture_2d`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `pick_ray_at`, `screenshot`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_cell`, `set_channel`, `set_copy`, `set_cuboid`, `set_grid`, `set_grid_colors`, `set_rect`, `set_shader_preview`, `set_shader_probe`, `set_terrain`, `shader_probe`, `stats`, `terrain`, `text_size`, `texture_size`, `tile_data`, `trace_texture`
 
-**Constants** (31):
+**Constants** (36):
 
 | Name | Value |
 | --- | --- |
+| `ALIGN_CENTER` | `center` |
+| `ALIGN_END` | `end` |
+| `ALIGN_START` | `start` |
 | `ALPHA_BLEND` | `blend` |
 | `ALPHA_MASK` | `mask` |
 | `ALPHA_OPAQUE` | `opaque` |
@@ -349,6 +352,8 @@ cannot drift from what scripts actually see.
 | `FOG_EXPONENTIAL_SQUARED` | `exponential_squared` |
 | `FOG_LINEAR` | `linear` |
 | `FOG_NONE` | `none` |
+| `FONT_ITALIC` | `italic` |
+| `FONT_NORMAL` | `normal` |
 | `LIGHT_DIRECTIONAL` | `directional` |
 | `LIGHT_POINT` | `point` |
 | `LIGHT_SPOT` | `spot` |
@@ -361,13 +366,8 @@ cannot drift from what scripts actually see.
 | `SHAPE_ELLIPSE` | `ellipse` |
 | `SHAPE_NGON` | `ngon` |
 | `SHAPE_PLANE` | `plane` |
-| `SHAPE_POLYLINE` | `polyline` |
-| `SHAPE_PRISM` | `prism` |
-| `SHAPE_PYRAMID` | `pyramid` |
-| `SHAPE_RECT` | `rect` |
-| `SHAPE_STAR` | `star` |
 
-…and 7 more.
+…and 12 more.
 
 ## `replay`
 

@@ -3,6 +3,24 @@
 
 const INK = [0.93, 0.94, 0.96, 1.0];
 const FAINT = [0.62, 0.66, 0.72, 1.0];
+const TITLE_SIZE = 26.0;
+const NOTE_SIZE = 18.0;
+const TITLE_Y = 5.6;
+const NOTE_Y = 5.1;
+
+// The bodies the scene lays out, each titled by its own kind.
+const BODIES = [
+    ["Block", "cells, over a peg"],
+    ["Balloon", "a hoop that holds its area"],
+    ["Star", "the outline the star draws"],
+    ["Arch", "cells carry the arch"],
+    ["Bridge", "pinned at both ends"],
+];
+
+// Late enough that every body has landed and settled.
+const SHOT_FRAME = 240;
+const FIRST_CLIP_FRAME = 2;
+const LAST_CLIP_FRAME = 301;
 
 pub fn exports() {
     #{ shot: "", frames: "" }
@@ -15,27 +33,24 @@ pub fn init(this) {
 }
 
 fn label(x, y, text, size, color) {
-    render::draw_text_2d(x, y, text, #{ size: size, color: color, align: "center" });
+    render::draw_text_2d(x, y, text, #{ size: size, color: color, align: render::ALIGN_CENTER });
 }
 
 pub fn update(this, dt) {
-    label(-8.0, 5.6, "grid", 26.0, INK);
-    label(-4.0, 5.6, "disk", 26.0, INK);
-    label(0.0, 5.6, "polygon", 26.0, INK);
-    label(4.0, 5.6, "volumetric", 26.0, INK);
-    label(8.0, 5.6, "rope", 26.0, INK);
-    label(-8.0, 5.1, "cells, over a peg", 18.0, FAINT);
-    label(-4.0, 5.1, "a hoop that holds its area", 18.0, FAINT);
-    label(0.0, 5.1, "the outline the star draws", 18.0, FAINT);
-    label(4.0, 5.1, "cells carry the arch", 18.0, FAINT);
-    label(8.0, 5.1, "pinned at both ends", 18.0, FAINT);
+    for body in BODIES {
+        let node = this.node.get_node(body[0]);
+        // Read off the node rather than written twice: the word is the kind
+        // the solver built, and the label sits over where the body starts.
+        let x = node.transform.global_position().x;
+        label(x, TITLE_Y, node.softbody2d.kind, TITLE_SIZE, INK);
+        label(x, NOTE_Y, body[1], NOTE_SIZE, FAINT);
+    }
 
     this.frame += 1;
-    // Late enough that every body has landed and settled.
-    if this.frame == 240 && this.shot != "" {
+    if this.frame == SHOT_FRAME && this.shot != "" {
         render::screenshot(this.shot);
     }
-    if this.frames != "" && this.frame >= 2 && this.frame <= 301 {
+    if this.frames != "" && this.frame >= FIRST_CLIP_FRAME && this.frame <= LAST_CLIP_FRAME {
         render::screenshot(`${this.frames}/${padded(this.frame)}.png`);
     }
 }

@@ -15,25 +15,6 @@ use crate::vocabulary::keys as k;
 use crate::vocabulary::words;
 use crate::world_text::{Align, TextRenderable, TextStyle};
 
-/// The alignment words a scene and a script both spell.
-pub(crate) const ALIGNMENTS: &[&str] = &["start", "center", "end"];
-
-fn align_of(word: &str) -> Align {
-    match word {
-        "center" => Align::Center,
-        "end" => Align::End,
-        _ => Align::Start,
-    }
-}
-
-fn align_word(align: Align) -> &'static str {
-    match align {
-        Align::Start => "start",
-        Align::Center => "center",
-        Align::End => "end",
-    }
-}
-
 /// Write the component, keeping the version so the backend rebuilds.
 pub(crate) fn set_text(eng: &Engine, entity: Entity, mut next: TextRenderable) -> Result<()> {
     let world = eng.world_mut();
@@ -56,9 +37,9 @@ fn shared_schema() -> Vec<(&'static str, String)> {
         (k::TEXT_KEY, r#"{ type = "string", default = "", description = "A key in the project's strings, re-read every frame so a language change shows at once" }"#.into()),
         (k::FONT_SIZE, r#"{ type = "float", default = 32.0, min = 1.0, description = "Height in font pixels, before pixels_per_unit sizes it in the world" }"#.into()),
         (k::FONT_WEIGHT, r#"{ type = "int", default = 400, min = 100, max = 900, description = "Stroke weight, 400 regular and 700 bold" }"#.into()),
-        (k::FONT_STYLE, r#"{ type = "enum", default = "normal", options = ["normal", "italic"], description = "Upright or italic" }"#.into()),
+        (k::FONT_STYLE, format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Upright or italic" }}"#, words::NORMAL, crate::vocabulary::options(words::FONT_STYLES))),
         (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#.into()),
-        (k::ALIGN, format!(r#"{{ type = "enum", default = "center", options = [{}], description = "Where the block sits across the node's origin" }}"#, crate::vocabulary::options(ALIGNMENTS))),
+        (k::ALIGN, format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where the block sits across the node's origin" }}"#, words::CENTER, crate::vocabulary::options(words::TEXT_ALIGNS))),
         (k::MAX_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Font pixels the lines wrap at; zero runs the text on one line" }"#.into()),
         (k::MARKUP, r#"{ type = "bool", default = false, description = "Read the text as markup: bold, italic, colour, alignment, wave and inline images" }"#.into()),
         (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Font pixels to one world unit, sizing the block the way a sprite is sized" }"#.into()),
@@ -116,9 +97,9 @@ fn from_params(params: &toml::Value, in_3d: bool) -> TextRenderable {
         style: TextStyle {
             size: number(k::FONT_SIZE, 32.0).max(1.0),
             weight: number(k::FONT_WEIGHT, 400.0) as u16,
-            italic: text(k::FONT_STYLE) == "italic",
+            italic: text(k::FONT_STYLE) == words::ITALIC,
             color: crate::color_from_params(params),
-            align: align_of(&text(k::ALIGN)),
+            align: Align::of(&text(k::ALIGN)),
             markup: flag(k::MARKUP, false),
             max_width: (max_width > 0.0).then_some(max_width),
             font: text(k::FONT),
@@ -164,9 +145,9 @@ fn to_params(text: &TextRenderable) -> toml::Value {
         k::FONT_STYLE,
         toml::Value::String(
             if text.style.italic {
-                "italic"
+                words::ITALIC
             } else {
-                "normal"
+                words::NORMAL
             }
             .into(),
         ),
@@ -174,7 +155,7 @@ fn to_params(text: &TextRenderable) -> toml::Value {
     put(k::COLOR, crate::color_to_toml(text.style.color));
     put(
         k::ALIGN,
-        toml::Value::String(align_word(text.style.align).into()),
+        toml::Value::String(text.style.align.word().into()),
     );
     put(
         k::MAX_WIDTH,

@@ -23,4 +23,5 @@ mod reflection;
 mod script_api;
 mod sheet;
 mod sprite;
+mod text;
 mod tilemap;

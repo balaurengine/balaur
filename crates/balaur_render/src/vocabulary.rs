@@ -94,6 +94,17 @@ pub(crate) mod words {
     pub(crate) const NEUTRAL: &str = "neutral";
     /// The curves an `environment` maps its HDR film through.
     pub(crate) const TONEMAPS: &[&str] = &[NONE, ACES, REINHARD, AGX, NEUTRAL];
+
+    pub(crate) const START: &str = "start";
+    pub(crate) const CENTER: &str = "center";
+    pub(crate) const END: &str = "end";
+    /// Where a block of text sits across its origin.
+    pub(crate) const TEXT_ALIGNS: &[&str] = &[START, CENTER, END];
+
+    pub(crate) const NORMAL: &str = "normal";
+    pub(crate) const ITALIC: &str = "italic";
+    /// Upright or slanted text.
+    pub(crate) const FONT_STYLES: &[&str] = &[NORMAL, ITALIC];
 }
 
 /// The words as script constants, so a script writes `render.SHAPE_BALL`
@@ -131,6 +142,11 @@ pub(crate) const CONSTANTS: &[(&str, &str)] = &[
     ("TONEMAP_REINHARD", words::REINHARD),
     ("TONEMAP_AGX", words::AGX),
     ("TONEMAP_NEUTRAL", words::NEUTRAL),
+    ("ALIGN_START", words::START),
+    ("ALIGN_CENTER", words::CENTER),
+    ("ALIGN_END", words::END),
+    ("FONT_NORMAL", words::NORMAL),
+    ("FONT_ITALIC", words::ITALIC),
 ];
 
 /// Every property key the render components spell, so a schema line and the
@@ -198,6 +214,8 @@ pub(crate) mod keys {
     pub(crate) const HEIGHT: &str = p::HEIGHT;
     pub(crate) const IMAGE: &str = "image";
     pub(crate) const INTENSITY: &str = "intensity";
+    /// A `draw_text` option; `text2d` spells it `font_style`.
+    pub(crate) const ITALIC: &str = "italic";
     pub(crate) const MIRROR: &str = "mirror";
     pub(crate) const JOIN: &str = "join";
     pub(crate) const KIND: &str = p::KIND;
@@ -246,6 +264,8 @@ pub(crate) mod keys {
     pub(crate) const GAMMA: &str = "gamma";
     pub(crate) const SHADOW_DISTANCE: &str = "shadow_distance";
     pub(crate) const SHADOW_COLOR: &str = "shadow_color";
+    /// A `draw_text` option, `[x, y]`; `text2d` splits it in two.
+    pub(crate) const SHADOW_OFFSET: &str = "shadow_offset";
     pub(crate) const SHADOW_OFFSET_X: &str = "shadow_offset_x";
     pub(crate) const SHADOW_OFFSET_Y: &str = "shadow_offset_y";
     pub(crate) const SHEET: &str = "sheet";
@@ -260,6 +280,8 @@ pub(crate) mod keys {
     pub(crate) const TAPER: &str = "taper";
     pub(crate) const TEXTURE: &str = "texture";
     pub(crate) const TILESET: &str = "tileset";
+    /// A `draw_text` option; `text2d` spells it `font_weight`.
+    pub(crate) const WEIGHT: &str = "weight";
     pub(crate) const WIDTH: &str = "width";
     pub(crate) const ZOOM: &str = "zoom";
 }

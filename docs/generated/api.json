@@ -10821,6 +10821,18 @@
       ],
       "constants": [
         {
+          "name": "ALIGN_CENTER",
+          "value": "center"
+        },
+        {
+          "name": "ALIGN_END",
+          "value": "end"
+        },
+        {
+          "name": "ALIGN_START",
+          "value": "start"
+        },
+        {
           "name": "ALPHA_BLEND",
           "value": "blend"
         },
@@ -10847,6 +10859,14 @@
         {
           "name": "FOG_NONE",
           "value": "none"
+        },
+        {
+          "name": "FONT_ITALIC",
+          "value": "italic"
+        },
+        {
+          "name": "FONT_NORMAL",
+          "value": "normal"
         },
         {
           "name": "LIGHT_DIRECTIONAL",

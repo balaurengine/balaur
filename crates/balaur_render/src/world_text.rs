@@ -7,6 +7,8 @@
 
 use balaur_core::Engine;
 
+use crate::vocabulary::{keys as k, words as w};
+
 /// Where a block sits relative to the point it was drawn at.
 ///
 /// Its own enum rather than the shaper's: the buffer and its bindings are in
@@ -16,6 +18,25 @@ pub enum Align {
     Start,
     Center,
     End,
+}
+
+impl Align {
+    /// The alignment a scene or a script names; anything else starts.
+    pub(crate) fn of(word: &str) -> Self {
+        match word {
+            w::CENTER => Self::Center,
+            w::END => Self::End,
+            _ => Self::Start,
+        }
+    }
+
+    pub(crate) fn word(self) -> &'static str {
+        match self {
+            Self::Start => w::START,
+            Self::Center => w::CENTER,
+            Self::End => w::END,
+        }
+    }
 }
 
 /// An outline around the glyphs and a shadow behind them.
@@ -193,30 +214,34 @@ pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<Tex
     };
     for (key, value) in &entries {
         match key.as_str() {
-            "size" => style.size = number(value).unwrap_or(style.size),
-            "weight" => style.weight = number(value).unwrap_or(400.0) as u16,
-            "italic" => style.italic = matches!(value, Value::Bool(true)),
-            "markup" => style.markup = matches!(value, Value::Bool(true)),
-            "max_width" => style.max_width = number(value),
-            "font" => {
+            k::SIZE => style.size = number(value).unwrap_or(style.size),
+            k::WEIGHT => {
+                style.weight = number(value).map_or(style.weight, |weight| weight as u16);
+            }
+            k::ITALIC => style.italic = matches!(value, Value::Bool(true)),
+            k::MARKUP => style.markup = matches!(value, Value::Bool(true)),
+            k::MAX_WIDTH => style.max_width = number(value),
+            k::FONT => {
                 if let Value::Str(path) = value {
                     style.font.clone_from(path);
                 }
             }
-            "family" => {
+            k::FAMILY => {
                 if let Value::Str(chain) = value {
                     style.family.clone_from(chain);
                 }
             }
-            "line_height" => style.line_height = number(value).unwrap_or(0.0).max(0.0),
-            "letter_spacing" => style.letter_spacing = number(value).unwrap_or(0.0),
-            "alpha_cut" => style.alpha_cut = number(value).unwrap_or(0.0).clamp(0.0, 1.0),
-            "outline_size" => {
+            k::LINE_HEIGHT => style.line_height = number(value).unwrap_or(0.0).max(0.0),
+            k::LETTER_SPACING => style.letter_spacing = number(value).unwrap_or(0.0),
+            k::ALPHA_CUT => style.alpha_cut = number(value).unwrap_or(0.0).clamp(0.0, 1.0),
+            k::OUTLINE_SIZE => {
                 style.decoration.outline_size = number(value).unwrap_or(0.0).max(0.0);
             }
-            "outline_color" => style.decoration.outline_color = crate::draw_2d::color_of(value)?,
-            "shadow_color" => style.decoration.shadow_color = crate::draw_2d::color_of(value)?,
-            "shadow_offset" => {
+            k::OUTLINE_COLOR => {
+                style.decoration.outline_color = crate::draw_2d::color_of(value)?;
+            }
+            k::SHADOW_COLOR => style.decoration.shadow_color = crate::draw_2d::color_of(value)?,
+            k::SHADOW_OFFSET => {
                 if let Value::List(items) = value
                     && items.len() >= 2
                 {
@@ -226,11 +251,10 @@ pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<Tex
                     ];
                 }
             }
-            "color" => style.color = crate::draw_2d::color_of(value)?,
-            "align" => {
+            k::COLOR => style.color = crate::draw_2d::color_of(value)?,
+            k::ALIGN => {
                 style.align = match value {
-                    Value::Str(word) if word == "center" => Align::Center,
-                    Value::Str(word) if word == "end" => Align::End,
+                    Value::Str(word) => Align::of(word),
                     _ => Align::Start,
                 }
             }
