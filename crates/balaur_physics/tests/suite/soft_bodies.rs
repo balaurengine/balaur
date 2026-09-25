@@ -168,10 +168,10 @@ fn a_smaller_cell_size_makes_a_finer_volumetric_body() {
 /// hang: the numbers come from a text field.
 #[test]
 fn a_layout_past_the_particle_cap_is_refused() {
-    let errors = run(r#"pub fn init(this) {
+    let errors = run(r"pub fn init(this) {
     this.node.softbody3d.set_softbody(#{ kind: physics3d::SOFT_CUBOID, cells: [400.0, 400.0, 400.0] });
 }
-"#);
+");
     assert!(
         errors.iter().any(|e| e.contains("particles")),
         "the cap did not report the particle count: {errors:#?}"
@@ -180,10 +180,10 @@ fn a_layout_past_the_particle_cap_is_refused() {
 
 #[test]
 fn a_cell_count_no_integer_holds_is_refused_rather_than_built() {
-    let errors = run(r#"pub fn init(this) {
+    let errors = run(r"pub fn init(this) {
     this.node.softbody3d.set_softbody(#{ kind: physics3d::SOFT_CLOTH, cells: [1.0e30, 1.0e30, 1.0] });
 }
-"#);
+");
     assert!(
         errors.iter().any(|e| e.contains("particles")),
         "the cap did not report the particle count: {errors:#?}"
@@ -758,13 +758,13 @@ fn a_torn_off_piece_is_drawn_and_freed_with_its_node() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let (_dir, mut app) = boot(
-        r#"pub fn init(this) {
+        r"pub fn init(this) {
     this.node.softbody3d.set_softbody(#{
         kind: physics3d::SOFT_ROPE, a: [0.0, 0.0, 0.0], b: [0.0, -2.0, 0.0], particles: 12.0,
         pinned: [0], tear_strain: 0.05, tear_force: 2.0, edge_frequency: 4.0, mass: 400.0,
     });
 }
-"#,
+",
         45,
     );
     let node = {
@@ -999,15 +999,15 @@ fn per_particle_and_per_edge_rows_build_and_name_what_they_cannot() {
         1,
         "checked: rows built",
     );
-    let short = run(r#"pub fn init(this) {
+    let short = run(r"pub fn init(this) {
     this.node.softbody3d.set_softbody(#{ kind: physics3d::SOFT_ROPE, particles: 4.0, masses: [1.0, 2.0] });
 }
-"#);
+");
     assert!(short.iter().any(|e| e.contains("masses")), "{short:#?}");
-    let stray = run(r#"pub fn init(this) {
+    let stray = run(r"pub fn init(this) {
     this.node.softbody3d.set_softbody(#{ kind: physics3d::SOFT_ROPE, particles: 4.0, tear_resistance: [#{ a: 0, b: 3, resistance: 0.5 }] });
 }
-"#);
+");
     assert!(
         stray
             .iter()

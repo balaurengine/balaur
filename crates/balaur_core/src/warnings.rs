@@ -49,7 +49,20 @@ pub struct NodeWarning {
 #[derive(Default)]
 pub struct Refusals(DetHashMap<(Entity, String), Warning>);
 
-pub(crate) fn refused(eng: &Engine, entity: Entity, component: &str, warning: Warning) {
+/// Remember why `component` refused `asked`, on the one property it changed
+/// from what the component `held`.
+pub(crate) fn refused(
+    eng: &Engine,
+    entity: Entity,
+    component: &str,
+    held: Option<&toml::Value>,
+    asked: &toml::Value,
+    why: &anyhow::Error,
+) {
+    let warning = Warning {
+        property: changed_property(held, asked),
+        message: format!("{why:#}"),
+    };
     if let Some(refusals) = eng.try_resource::<Refusals>() {
         refusals
             .borrow_mut()

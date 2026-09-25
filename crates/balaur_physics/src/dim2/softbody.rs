@@ -450,7 +450,9 @@ pub(crate) fn write_solved_polygon(eng: &Engine, entity: Entity) {
             return;
         };
         let params = state.soft_params.get(&entity);
-        let skinned = body.meshes().any(|mesh| mesh.is_skinned());
+        let skinned = body
+            .meshes()
+            .any(crate::rapier2d::dynamics::SoftCollisionMesh::is_skinned);
         let mut drawn = draw::drawn(body, pose.inverse(), || {
             held.unwrap_or_else(|| {
                 let loaded = params

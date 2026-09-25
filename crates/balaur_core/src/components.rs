@@ -1034,14 +1034,7 @@ fn apply_at(
             .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
         if let Err(why) = (def.apply)(eng, entity, full) {
             let held = (def.get)(eng, entity);
-            let property = crate::warnings::changed_property(held.as_ref(), full);
-            let message = format!("{why:#}");
-            crate::warnings::refused(
-                eng,
-                entity,
-                name,
-                crate::warnings::Warning { property, message },
-            );
+            crate::warnings::refused(eng, entity, name, held.as_ref(), full, &why);
             return Err(why.context(format!("applying component '{name}'")));
         }
     }

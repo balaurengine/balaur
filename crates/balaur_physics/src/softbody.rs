@@ -562,21 +562,15 @@ pub(crate) fn write_solved_mesh(eng: &Engine, entity: Entity) {
                 continue;
             };
             let offset = positions.len() as u32;
-            match body.collision_mesh() {
-                Some(mesh) => {
-                    positions.extend(mesh.vertex_positions(body).map(|p| scalar::a3(inverse * p)));
-                    indices.extend(mesh.indices().iter().map(|t| t.map(|i| shifted(i, offset))));
-                }
+            if let Some(mesh) = body.collision_mesh() {
+                positions.extend(mesh.vertex_positions(body).map(|p| scalar::a3(inverse * p)));
+                indices.extend(mesh.indices().iter().map(|t| t.map(|i| shifted(i, offset))));
+            } else {
                 // A body with no collider still draws: its boundary is what a
                 // generator laid out, and the particles are its vertices.
-                None => {
-                    positions.extend(body.particle_positions().map(|p| scalar::a3(inverse * p)));
-                    indices.extend(
-                        body.boundary()
-                            .iter()
-                            .map(|t| t.map(|i| shifted(i, offset))),
-                    );
-                }
+                positions.extend(body.particle_positions().map(|p| scalar::a3(inverse * p)));
+                let boundary = body.boundary().iter();
+                indices.extend(boundary.map(|t| t.map(|i| shifted(i, offset))));
             }
         }
         if positions.is_empty() {
