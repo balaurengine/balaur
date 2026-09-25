@@ -329,6 +329,17 @@ Three rules belong to the importer rather than the translator:
    country maps as binary `.scn` (`RSCC`), which the importer does not
    read.
 10. **Web export**, `web_smoke`, the size report, the `web` mappings.
+    Done 2026-09-25: the pack is 139.0 MB and boots in headless Chrome,
+    drawing within 90 s with no warning or error. Scenes are 30.9 MB,
+    scripts 8.2 MB and assets 99.9 MB, of which PNG 47.6, CSV 35.6, fonts
+    9.7 and JSON 4.5. On the way: a packed game's `fs` reads its own files
+    from the pack, a pack carries `json` and `csv`, and `application/ignore`
+    takes what every Godot export preset leaves out, which cut the pack
+    from 186.9 MB. A window leaves fullscreen only when in it, a script
+    replacing a prefab's is the instance's own, `JavaScriptBridge` reads as
+    absent, and a method bound with arguments is a record. The report
+    lists 4 131 files, 42.3 MB, that nothing names; a script may build
+    their paths at run time, so none is stripped.
 11. **Pictures against Godot's**, and what they show fixed.
 12. **A device.** iOS and Android signed and run once hardware is on the
     desk.
