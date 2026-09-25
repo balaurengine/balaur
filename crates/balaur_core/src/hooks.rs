@@ -11,6 +11,13 @@ pub const ON_STATE_CHANGED: &str = "on_state_changed";
 /// Called on every script when the game pauses or resumes, the nodes the
 /// pause just stopped included.
 pub const ON_PAUSED: &str = "on_paused";
+/// Called on every script when the window comes to the front or leaves it,
+/// with whether it is in front now.
+pub const ON_FOCUS_CHANGED: &str = "on_focus_changed";
+/// Called on every script when the system turns dark mode on or off.
+pub const ON_DARK_MODE: &str = "on_dark_mode";
+/// Called on every script when the window is asked to close, before it does.
+pub const ON_QUIT_REQUESTED: &str = "on_quit_requested";
 
 /// The event a click on a node, or on a widget, answers to.
 pub const POINTER_CLICK: &str = "pointer_click";

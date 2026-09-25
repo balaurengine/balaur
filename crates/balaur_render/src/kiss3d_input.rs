@@ -108,7 +108,7 @@ pub(crate) fn pump_input(app: &App, window: &Window) -> Seen {
     drop(input);
     if closing {
         if let Some(host) = app.engine.script_host() {
-            host.call_all("on_quit_requested");
+            host.call_all(balaur_core::hooks::ON_QUIT_REQUESTED);
         }
         app.engine.request_quit();
     }

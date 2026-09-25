@@ -9086,6 +9086,18 @@
           "value": "static"
         },
         {
+          "name": "CELL_COROTATIONAL",
+          "value": "corotational"
+        },
+        {
+          "name": "CELL_NEO_HOOKEAN",
+          "value": "neo_hookean"
+        },
+        {
+          "name": "CELL_VOLUME",
+          "value": "volume"
+        },
+        {
           "name": "COLLIDE_DYNAMIC_DYNAMIC",
           "value": "dynamic_dynamic"
         },
@@ -9140,6 +9152,18 @@
         {
           "name": "EVENT_CONTACT_FORCE",
           "value": "contact_force"
+        },
+        {
+          "name": "FLOW_BOTH",
+          "value": "both"
+        },
+        {
+          "name": "FLOW_COMPRESSION",
+          "value": "compression"
+        },
+        {
+          "name": "FLOW_TENSION",
+          "value": "tension"
         },
         {
           "name": "JOINT_FIXED",
@@ -9244,6 +9268,42 @@
         {
           "name": "SHAPE_VOXELS",
           "value": "voxels"
+        },
+        {
+          "name": "SOFT_DISK",
+          "value": "disk"
+        },
+        {
+          "name": "SOFT_GRID",
+          "value": "grid"
+        },
+        {
+          "name": "SOFT_POLYGON",
+          "value": "polygon"
+        },
+        {
+          "name": "SOFT_POLYLINE",
+          "value": "polyline"
+        },
+        {
+          "name": "SOFT_ROPE",
+          "value": "rope"
+        },
+        {
+          "name": "SOFT_SOLVER_CONSTRAINTS",
+          "value": "constraints"
+        },
+        {
+          "name": "SOFT_SOLVER_FEM",
+          "value": "fem"
+        },
+        {
+          "name": "SOFT_TRIMESH",
+          "value": "trimesh"
+        },
+        {
+          "name": "SOFT_VOLUMETRIC",
+          "value": "volumetric"
         },
         {
           "name": "SOLVER_IMPULSE",
@@ -9662,6 +9722,18 @@
           "value": "static"
         },
         {
+          "name": "CELL_COROTATIONAL",
+          "value": "corotational"
+        },
+        {
+          "name": "CELL_NEO_HOOKEAN",
+          "value": "neo_hookean"
+        },
+        {
+          "name": "CELL_VOLUME",
+          "value": "volume"
+        },
+        {
           "name": "COLLIDE_DYNAMIC_DYNAMIC",
           "value": "dynamic_dynamic"
         },
@@ -9740,6 +9812,18 @@
         {
           "name": "FIT_OBB",
           "value": "obb"
+        },
+        {
+          "name": "FLOW_BOTH",
+          "value": "both"
+        },
+        {
+          "name": "FLOW_COMPRESSION",
+          "value": "compression"
+        },
+        {
+          "name": "FLOW_TENSION",
+          "value": "tension"
         },
         {
           "name": "JOINT_FIXED",
@@ -9860,6 +9944,42 @@
         {
           "name": "SHAPE_VOXELS",
           "value": "voxels"
+        },
+        {
+          "name": "SOFT_CLOTH",
+          "value": "cloth"
+        },
+        {
+          "name": "SOFT_CLOTH_TUBE",
+          "value": "cloth_tube"
+        },
+        {
+          "name": "SOFT_CUBOID",
+          "value": "cuboid"
+        },
+        {
+          "name": "SOFT_ROPE",
+          "value": "rope"
+        },
+        {
+          "name": "SOFT_SOLVER_CONSTRAINTS",
+          "value": "constraints"
+        },
+        {
+          "name": "SOFT_SOLVER_FEM",
+          "value": "fem"
+        },
+        {
+          "name": "SOFT_SPHERE",
+          "value": "sphere"
+        },
+        {
+          "name": "SOFT_TRIMESH",
+          "value": "trimesh"
+        },
+        {
+          "name": "SOFT_VOLUMETRIC",
+          "value": "volumetric"
         },
         {
           "name": "SOLVER_IMPULSE",

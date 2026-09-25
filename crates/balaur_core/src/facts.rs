@@ -365,9 +365,15 @@ pub(crate) fn announce_device_system(eng: &Engine, _: f32) {
         return;
     };
     if let Some(focused) = focus {
-        host.call_all_with("on_focus_changed", &[balaur_script::Value::Bool(focused)]);
+        host.call_all_with(
+            crate::hooks::ON_FOCUS_CHANGED,
+            &[balaur_script::Value::Bool(focused)],
+        );
     }
     if let Some(dark) = dark {
-        host.call_all_with("on_dark_mode", &[balaur_script::Value::Bool(dark)]);
+        host.call_all_with(
+            crate::hooks::ON_DARK_MODE,
+            &[balaur_script::Value::Bool(dark)],
+        );
     }
 }

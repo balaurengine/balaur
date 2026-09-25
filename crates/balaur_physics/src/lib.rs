@@ -889,6 +889,48 @@ pub const AXES: &[(&str, &str)] = &[
 pub const AXES_2D: &[(&str, &str)] =
     &[("AXIS_X", w::X), ("AXIS_Y", w::Y), ("AXIS_ANG_X", w::ANG_X)];
 
+/// How a 3D soft body's particles are laid out.
+pub const SOFT_KINDS: &[(&str, &str)] = &[
+    ("SOFT_CUBOID", w::SOFT_CUBOID),
+    ("SOFT_SPHERE", w::SPHERE),
+    ("SOFT_CLOTH", w::CLOTH),
+    ("SOFT_CLOTH_TUBE", w::CLOTH_TUBE),
+    ("SOFT_ROPE", w::ROPE_SOFT),
+    ("SOFT_VOLUMETRIC", w::VOLUMETRIC),
+    ("SOFT_TRIMESH", w::SURFACE_MESH),
+];
+
+/// The same, for a 2D soft body.
+pub const SOFT_KINDS_2D: &[(&str, &str)] = &[
+    ("SOFT_GRID", w::GRID),
+    ("SOFT_DISK", w::DISK),
+    ("SOFT_POLYGON", w::SOFT_POLYGON),
+    ("SOFT_ROPE", w::ROPE_SOFT),
+    ("SOFT_VOLUMETRIC", w::VOLUMETRIC),
+    ("SOFT_TRIMESH", w::SURFACE_MESH),
+    ("SOFT_POLYLINE", w::POLYLINE),
+];
+
+/// Which of rapier's solvers simulates a soft body's elasticity.
+pub const SOFT_SOLVERS: &[(&str, &str)] = &[
+    ("SOFT_SOLVER_CONSTRAINTS", w::CONSTRAINTS),
+    ("SOFT_SOLVER_FEM", w::FEM),
+];
+
+/// What a soft body's cells resist with.
+pub const CELL_MODELS: &[(&str, &str)] = &[
+    ("CELL_VOLUME", w::VOLUME),
+    ("CELL_COROTATIONAL", w::COROTATIONAL),
+    ("CELL_NEO_HOOKEAN", w::NEO_HOOKEAN),
+];
+
+/// Whether a soft body's edge sets under a squeeze, a stretch, or both.
+pub const PLASTIC_FLOWS: &[(&str, &str)] = &[
+    ("FLOW_BOTH", w::BOTH),
+    ("FLOW_COMPRESSION", w::COMPRESSION_FLOW),
+    ("FLOW_TENSION", w::TENSION),
+];
+
 /// Every table `physics3d` spells as constants.
 pub const CONSTANTS_3D: &[&[(&str, &str)]] = &[
     BODY_KINDS,
@@ -904,6 +946,10 @@ pub const CONSTANTS_3D: &[&[(&str, &str)]] = &[
     EVENTS,
     COLLISION_PAIRS,
     AXES,
+    SOFT_KINDS,
+    SOFT_SOLVERS,
+    CELL_MODELS,
+    PLASTIC_FLOWS,
 ];
 
 /// Every table `physics2d` spells as constants.
@@ -919,6 +965,10 @@ pub const CONSTANTS_2D: &[&[(&str, &str)]] = &[
     EVENTS,
     COLLISION_PAIRS,
     AXES_2D,
+    SOFT_KINDS_2D,
+    SOFT_SOLVERS,
+    CELL_MODELS,
+    PLASTIC_FLOWS,
 ];
 
 pub(crate) fn install_constants(m: &mut dyn Bindings<Engine>, tables: &[&[(&str, &str)]]) {

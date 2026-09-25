@@ -139,14 +139,13 @@ pub(crate) fn options_of(opts: Option<Value>, texture: bool) -> anyhow::Result<O
             k::Z_INDEX => out.z_index = Some(number(value)? as i32),
             k::REGION_ORIGIN if texture => origin = Some(point_of(value)?),
             k::REGION_SIZE if texture => size = Some(point_of(value)?),
-            other => bail!(
-                "draw options take {}, not '{other}'",
-                if texture {
-                    "z_index, region_origin and region_size"
-                } else {
-                    "z_index"
-                }
+            other if texture => bail!(
+                "draw options take {}, {} and {}, not '{other}'",
+                k::Z_INDEX,
+                k::REGION_ORIGIN,
+                k::REGION_SIZE
             ),
+            other => bail!("draw options take {}, not '{other}'", k::Z_INDEX),
         }
     }
     out.region = match (origin, size) {
@@ -154,7 +153,11 @@ pub(crate) fn options_of(opts: Option<Value>, texture: bool) -> anyhow::Result<O
             let [x, y] = origin.unwrap_or([0.0, 0.0]);
             Some([x, y, w, h])
         }
-        (Some(_), None) => bail!("a region_origin needs the region_size it starts"),
+        (Some(_), None) => bail!(
+            "a {} needs the {} it starts",
+            k::REGION_ORIGIN,
+            k::REGION_SIZE
+        ),
         (None, None) => None,
     };
     Ok(out)
@@ -230,7 +233,7 @@ pub(crate) fn install_draw_2d_api(m: &mut dyn Bindings<Engine>) {
                 radius: radius.max(0.0),
                 from,
                 to,
-                width: width.unwrap_or(1.0),
+                width: width.unwrap_or(crate::DEFAULT_LINE_WIDTH),
                 color: color_of(&color.unwrap_or(Value::Nil))?,
             };
             push(eng, shape, opts)
@@ -274,7 +277,7 @@ fn install_outline_api(m: &mut dyn Bindings<Engine>) {
          (points, width, color, opts): (Value, Option<f32>, Option<Value>, Option<Value>)| {
             let shape = Draw2d::Polyline {
                 points: points_of(&points)?,
-                width: width.unwrap_or(1.0),
+                width: width.unwrap_or(crate::DEFAULT_LINE_WIDTH),
                 color: color_of(&color.unwrap_or(Value::Nil))?,
             };
             push(eng, shape, opts)
@@ -534,12 +537,12 @@ mod tests {
 
     #[test]
     fn a_verb_s_options_place_it_and_cut_a_region_from_a_picture() {
-        let placed = options_of(Some(table(&[("z_index", Value::Int(3))])), false).unwrap();
+        let placed = options_of(Some(table(&[(k::Z_INDEX, Value::Int(3))])), false).unwrap();
         assert_eq!(placed.z_index, Some(3));
         assert_eq!(options_of(None, false).unwrap(), Options::default());
         let cut = Some(table(&[
-            ("region_origin", Value::Vec2([16.0, 8.0])),
-            ("region_size", Value::Vec2([32.0, 24.0])),
+            (k::REGION_ORIGIN, Value::Vec2([16.0, 8.0])),
+            (k::REGION_SIZE, Value::Vec2([32.0, 24.0])),
         ]));
         assert_eq!(
             options_of(cut.clone(), true).unwrap().region,
@@ -549,7 +552,7 @@ mod tests {
             options_of(cut, false).is_err(),
             "a circle has no picture to cut"
         );
-        let size_alone = Some(table(&[("region_size", Value::Vec2([4.0, 4.0]))]));
+        let size_alone = Some(table(&[(k::REGION_SIZE, Value::Vec2([4.0, 4.0]))]));
         assert_eq!(
             options_of(size_alone, true).unwrap().region,
             Some([0.0, 0.0, 4.0, 4.0])

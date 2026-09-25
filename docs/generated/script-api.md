@@ -31,8 +31,8 @@ cannot drift from what scripts actually see.
 | [`multiplayer`](#multiplayer) | 14 | 18 | the engine |
 | [`node`](#node) | 56 | 0 | the engine |
 | [`physics`](#physics) | 14 | 0 | the engine |
-| [`physics2d`](#physics2d) | 55 | 49 | the engine |
-| [`physics3d`](#physics3d) | 77 | 62 | the engine |
+| [`physics2d`](#physics2d) | 55 | 64 | the engine |
+| [`physics3d`](#physics3d) | 77 | 77 | the engine |
 | [`platform`](#platform) | 11 | 0 | the engine |
 | [`project`](#project) | 13 | 0 | the engine |
 | [`regex`](#regex) | 6 | 0 | the engine |
@@ -252,7 +252,7 @@ cannot drift from what scripts actually see.
 
 **Functions:** `add_force`, `add_force_at_point`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_torque_impulse`, `box_hits`, `distance`, `gravity`, `intersects`, `is_grounded`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `pin_particle`, `point_hits`, `predict_position`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_torques`, `set_angular_velocity`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_softbody`, `set_voxel`, `shape_hits`, `shapecast`, `sleep`, `softbody_area`, `softbody_center`, `softbody_particles`, `softbody_position`, `softbody_rest_area`, `teleport`, `total_mass`, `user_force`, `user_torque`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_up`
 
-**Constants** (49):
+**Constants** (64):
 
 | Name | Value |
 | --- | --- |
@@ -263,6 +263,9 @@ cannot drift from what scripts actually see.
 | `BODY_KINEMATIC` | `kinematic` |
 | `BODY_KINEMATIC_VELOCITY` | `kinematic_velocity` |
 | `BODY_STATIC` | `static` |
+| `CELL_COROTATIONAL` | `corotational` |
+| `CELL_NEO_HOOKEAN` | `neo_hookean` |
+| `CELL_VOLUME` | `volume` |
 | `COLLIDE_DYNAMIC_DYNAMIC` | `dynamic_dynamic` |
 | `COLLIDE_DYNAMIC_KINEMATIC` | `dynamic_kinematic` |
 | `COLLIDE_DYNAMIC_STATIC` | `dynamic_static` |
@@ -277,17 +280,14 @@ cannot drift from what scripts actually see.
 | `COMBINE_MULTIPLY` | `multiply` |
 | `EVENT_COLLISION` | `collision` |
 | `EVENT_CONTACT_FORCE` | `contact_force` |
-| `JOINT_FIXED` | `fixed` |
-| `JOINT_GENERIC` | `generic` |
-| `JOINT_PIN_SLOT` | `pin_slot` |
 
-…and 25 more.
+…and 40 more.
 
 ## `physics3d`
 
 **Functions:** `aabb`, `active_bodies`, `add_force`, `add_force_at_point`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_torque_impulse`, `bodies`, `box_hits`, `closest_points`, `collider_mass`, `collider_mesh`, `collider_volume`, `contacts`, `distance`, `effective_dominance`, `gravity`, `handles`, `intersects`, `is_grounded`, `is_moving`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `pin_particle`, `point_hits`, `potential_energy`, `predict_position`, `predict_position_with_forces`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_torques`, `set_angular_velocity`, `set_brake`, `set_collider`, `set_engine_force`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_softbody`, `set_steering`, `set_voxel`, `shape_hits`, `shapecast`, `sleep`, `softbody_center`, `softbody_particles`, `softbody_position`, `softbody_rest_volume`, `softbody_volume`, `solve_ik`, `swept_aabb`, `teleport`, `time_of_impact`, `total_mass`, `user_force`, `user_torque`, `vehicle_speed`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_up`, `wheel_state`
 
-**Constants** (62):
+**Constants** (77):
 
 | Name | Value |
 | --- | --- |
@@ -301,6 +301,9 @@ cannot drift from what scripts actually see.
 | `BODY_KINEMATIC` | `kinematic` |
 | `BODY_KINEMATIC_VELOCITY` | `kinematic_velocity` |
 | `BODY_STATIC` | `static` |
+| `CELL_COROTATIONAL` | `corotational` |
+| `CELL_NEO_HOOKEAN` | `neo_hookean` |
+| `CELL_VOLUME` | `volume` |
 | `COLLIDE_DYNAMIC_DYNAMIC` | `dynamic_dynamic` |
 | `COLLIDE_DYNAMIC_KINEMATIC` | `dynamic_kinematic` |
 | `COLLIDE_DYNAMIC_STATIC` | `dynamic_static` |
@@ -312,11 +315,8 @@ cannot drift from what scripts actually see.
 | `COMBINE_GEOMETRIC_MEAN` | `geometric_mean` |
 | `COMBINE_MAX` | `max` |
 | `COMBINE_MIN` | `min` |
-| `COMBINE_MULTIPLY` | `multiply` |
-| `EVENT_COLLISION` | `collision` |
-| `EVENT_CONTACT_FORCE` | `contact_force` |
 
-…and 38 more.
+…and 53 more.
 
 ## `platform`
 

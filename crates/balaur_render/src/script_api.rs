@@ -498,7 +498,7 @@ pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
                 [x1, y1, z1],
                 [x2, y2, z2],
                 [r, g, b],
-                width.unwrap_or(1.0),
+                width.unwrap_or(crate::DEFAULT_LINE_WIDTH),
                 perspective.unwrap_or(false),
                 on_top.unwrap_or(false),
             ));
@@ -541,17 +541,19 @@ fn install_text_api(m: &mut dyn Bindings<Engine>) {
             if options.z_index.is_some() {
                 let line = crate::draw_2d::Draw2d::Polyline {
                     points: vec![[x1, y1], [x2, y2]],
-                    width: width.unwrap_or(1.0),
+                    width: width.unwrap_or(crate::DEFAULT_LINE_WIDTH),
                     color: [r, g, b, 1.0],
                 };
                 crate::draw_2d::push_at(eng, line, options.z_index);
                 return Ok(());
             }
             let lines = eng.resource::<DebugLineBuffer2d>();
-            lines
-                .borrow_mut()
-                .lines
-                .push(([x1, y1], [x2, y2], [r, g, b], width.unwrap_or(1.0)));
+            lines.borrow_mut().lines.push((
+                [x1, y1],
+                [x2, y2],
+                [r, g, b],
+                width.unwrap_or(crate::DEFAULT_LINE_WIDTH),
+            ));
             Ok(())
         },
     );

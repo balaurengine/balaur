@@ -311,7 +311,8 @@ fn refuse_absent(app: &App, asked: &Selection) -> Result<()> {
         return Ok(());
     }
     bail!(
-        "project.toml asks for `{}`, which nothing registered: this build has no such plugin (build with --features {}) and no extension provides it",
+        "{} asks for `{}`, which nothing registered: this build has no such plugin (build with --features {}) and no extension provides it",
+        balaur_core::project::MANIFEST,
         missing.join("`, `"),
         missing.join(","),
     )
