@@ -14,11 +14,11 @@ use anyhow::{Context, Result, anyhow, bail};
 
 const MAGIC: &[u8; 5] = b"BPAK\x02";
 
-/// File extensions that ship inside a pack. A game's textures, sounds and
-/// fonts have to travel with it; source art and notes do not.
+/// File extensions that ship inside a pack. A game's textures, sounds, fonts
+/// and the data it reads have to travel with it; source art and notes do not.
 pub const ASSET_EXTENSIONS: &[&str] = &[
     "png", "jpg", "jpeg", "webp", "svg", "bmp", "tga", "ogg", "wav", "mp3", "flac", "ttf", "otf",
-    "fnt", "glb", "gltf", "bin", "obj",
+    "fnt", "glb", "gltf", "bin", "obj", "json", "csv",
 ];
 
 /// How many of the heaviest entries a report names: enough to see where the

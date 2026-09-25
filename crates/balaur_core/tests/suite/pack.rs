@@ -368,6 +368,24 @@ fn a_pack_leaves_out_what_the_project_ignores() {
     );
 }
 
+#[test]
+fn a_pack_carries_the_json_and_csv_a_game_reads_at_run_time() {
+    let dir = project();
+    std::fs::create_dir_all(dir.path().join("data")).unwrap();
+    std::fs::write(dir.path().join("data/levels.json"), "{\"first\": 1}").unwrap();
+    std::fs::write(dir.path().join("data/words.csv"), "en,ro\nsea,mare\n").unwrap();
+    let pack = Pack::build(dir.path(), &Reversing).unwrap();
+    assert_eq!(
+        pack.assets.get("data/levels.json").map(Vec::as_slice),
+        Some(&b"{\"first\": 1}"[..])
+    );
+    assert!(
+        pack.assets.contains_key("data/words.csv"),
+        "{:?}",
+        pack.assets.keys()
+    );
+}
+
 /// A nested project's scripts are its own: `editor/library` is a project, and
 /// its `addons/<name>/<file>.rn` resolve only when mounted at *its* root.
 #[test]

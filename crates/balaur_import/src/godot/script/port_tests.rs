@@ -331,3 +331,15 @@ fn a_bitwise_not_is_rune_s_bang_on_an_integer() {
     let out = convert(source, "addons/packer.gd", &Classes::default());
     assert!(out.rune.contains("return !(n >> 1);"), "{}", out.rune);
 }
+
+#[test]
+fn the_javascript_bridge_as_a_value_is_absent() {
+    let source = "extends Node\n\
+func probe() -> bool:\n\
+\tif not JavaScriptBridge:\n\
+\t\treturn false\n\
+\treturn JavaScriptBridge != null\n";
+    let out = convert(source, "scripts/probe.gd", &Classes::default());
+    assert!(!out.rune.contains("todo"), "{}", out.rune);
+    assert!(out.rune.contains("(gd.truthy)(())"), "{}", out.rune);
+}

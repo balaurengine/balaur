@@ -38,7 +38,12 @@ impl Walk {
         let document =
             super::parse(&text).with_context(|| format!("reading {}", file.display()))?;
         let uids = super::project::uid_index(&root);
-        let converted = super::project::convert(&document, &uids)?;
+        let ignore = super::io::text(&root.join("export_presets.cfg"))
+            .ok()
+            .and_then(|text| super::parse(&text).ok())
+            .map(|presets| super::project::shared_exclusions(&presets))
+            .unwrap_or_default();
+        let converted = super::project::convert(&document, &uids, &ignore)?;
 
         let mut report = Report::default();
         let mut sink = ProjectSink::new(project);

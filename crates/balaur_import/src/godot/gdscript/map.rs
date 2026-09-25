@@ -8,7 +8,7 @@
 mod controls;
 mod globals;
 
-pub(crate) use globals::singleton_write;
+pub(crate) use globals::{global_constant, singleton_write};
 
 use super::emit::{quoted, safe};
 
@@ -729,45 +729,6 @@ fn loaded(arg: &str) -> String {
         Some(stem) => quoted(&format!("{stem}.toml")),
         None => quoted(path),
     }
-}
-
-// Several rows share a value without sharing a meaning: `CONNECT_ONE_SHOT` is
-// not a mouse button, and merging them would hide what each row is for.
-#[allow(clippy::match_same_arms)]
-pub(crate) fn global_constant(name: &str) -> Option<&'static str> {
-    Some(match name {
-        "MOUSE_BUTTON_LEFT" => "1",
-        "MOUSE_BUTTON_RIGHT" => "2",
-        "MOUSE_BUTTON_MIDDLE" => "3",
-        "MOUSE_BUTTON_WHEEL_UP" => "4",
-        "MOUSE_BUTTON_WHEEL_DOWN" => "5",
-        "OK" => "0",
-        "FAILED" => "1",
-        // `typeof` answers the shim's type names, so its constants are those.
-        "TYPE_NIL" => "\"nil\"",
-        "TYPE_BOOL" => "\"bool\"",
-        "TYPE_INT" => "\"int\"",
-        "TYPE_FLOAT" => "\"float\"",
-        "TYPE_STRING" | "TYPE_STRING_NAME" => "\"String\"",
-        "TYPE_ARRAY" => "\"Array\"",
-        "TYPE_DICTIONARY" => "\"Dictionary\"",
-        "TYPE_OBJECT" => "\"Object\"",
-        "CONNECT_ONE_SHOT" => "4",
-        "CONNECT_DEFERRED" => "1",
-        "HORIZONTAL" => "0",
-        "VERTICAL" => "1",
-        "HORIZONTAL_ALIGNMENT_LEFT" | "VERTICAL_ALIGNMENT_TOP" => "0",
-        "HORIZONTAL_ALIGNMENT_CENTER" | "VERTICAL_ALIGNMENT_CENTER" => "1",
-        "HORIZONTAL_ALIGNMENT_RIGHT" | "VERTICAL_ALIGNMENT_BOTTOM" => "2",
-        "HORIZONTAL_ALIGNMENT_FILL" | "VERTICAL_ALIGNMENT_FILL" => "3",
-        "SIZE_SHRINK_BEGIN" => "0",
-        "SIZE_FILL" => "1",
-        "SIZE_EXPAND" => "2",
-        "SIZE_EXPAND_FILL" => "3",
-        "SIZE_SHRINK_CENTER" => "4",
-        "SIZE_SHRINK_END" => "8",
-        _ => return None,
-    })
 }
 
 /// What the importer could not translate, as something that compiles and says
