@@ -1891,6 +1891,8 @@ fn native(owner, name, args) {
             "angle_to_point" => (a0 - owner).to_angle(),
             "rotated" => owner.rotate_angle(float(a0)),
             "abs" => owner.abs(),
+            "max" => owner.max(a0),
+            "min" => owner.min(a0),
             "floor" => owner.floor(),
             "ceil" => owner.ceil(),
             "round" => owner.round(),

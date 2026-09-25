@@ -68,8 +68,10 @@ mod tests {
              \x20   let gd = script::require(\"gd.rn\");\n\
              \x20   let v = (gd.vec2)(1.0, 2.0) + (gd.neg)((gd.vec2)(0.5, 0.5));\n\
              \x20   let waited = (gd.invoke_async1)(#{ \"f\": async |x| x + 1 }, \"f\", 1).await;\n\
+             \x20   let wider = (gd.invoke1)((gd.vec2)(1.0, 5.0), \"max\", (gd.vec2)(3.0, 2.0));\n\
              \x20   if (gd.field)(v, \"x\") == 0.5 && (gd.color_of)(\"ff0000\").r == 1.0 && waited == 2\n\
-             \x20       && (gd.find)(\"a=b\", \"=\") == 1 && (gd.size)([1, 2]) - 3 == -1 {\n\
+             \x20       && (gd.find)(\"a=b\", \"=\") == 1 && (gd.size)([1, 2]) - 3 == -1\n\
+             \x20       && (gd.field)(wider, \"x\") == 3.0 && (gd.field)(wider, \"y\") == 5.0 {\n\
              \x20       this.node.set_visible(false);\n\
              \x20   }\n\
              }\n",
