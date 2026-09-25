@@ -817,9 +817,17 @@ fn apply_own_keys(
         eng.world_mut().insert_one(entity, tags)?;
     }
     for (key, handler) in handlers {
-        if let Some(value) = node.extra.get(key) {
-            handler(eng, entity, value)
-                .with_context(|| format!("scene key '{key}' on node '{}'", node.name))?;
+        let Some(value) = node.extra.get(key) else {
+            continue;
+        };
+        if let Err(why) = handler(eng, entity, value) {
+            // A component it refuses leaves the node without it, and says why
+            // on the node, rather than failing the whole scene over one value.
+            if crate::components::is_registered(eng, key) {
+                tracing::error!(node = %node.name, component = %key, "{why:#}");
+                continue;
+            }
+            return Err(why.context(format!("scene key '{key}' on node '{}'", node.name)));
         }
     }
     for key in node.extra.keys() {

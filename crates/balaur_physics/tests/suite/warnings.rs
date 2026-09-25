@@ -126,3 +126,14 @@ fn a_refused_layout_is_a_warning_on_what_was_asked() {
         .unwrap_or_else(|| panic!("{found:?}"));
     assert_eq!(warning.warning.property.as_deref(), Some("cells"));
 }
+
+/// A scene naming a component its component refuses still loads, and the
+/// node says why it went without it.
+#[test]
+fn a_refused_component_in_a_scene_leaves_the_rest_loaded() {
+    let found = warned(
+        "[[nodes]]\nid = \"n_blob\"\nname = \"Blob\"\nparent = \"n_root\"\nsoftbody2d = { kind = \"grid\", cells = [5000.0, 5000.0] }\n",
+        "n_blob",
+    );
+    assert!(says(&found, "softbody2d", "particles"), "{found:?}");
+}
