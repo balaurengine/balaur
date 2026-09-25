@@ -43,20 +43,23 @@ the first two is a variant of one before it.
 `softbody2d` and `softbody3d`: a deformable body of particles linked by elastic
 constraints. **Done**, on rapier 0.36.
 
-- **Laid out by `kind`.** Generators (`cuboid`, `sphere`, `cloth`, `cloth_tube`,
-  `rope` in 3D; `grid`, `disk`, `rope` in 2D) or a mesh (`trimesh` for a
-  surface, `volumetric` for the approximate tetrahedrization of a closed mesh,
-  `polygon` and `polyline` in 2D).
-- **Made of what the material rows say.** A spring frequency and damping ratio
-  per constraint family, a cell model (`volume`, `corotational`, `neo_hookean`)
-  with a Young modulus and a Poisson ratio, plasticity on the cells and on the
-  edges, and volume preservation.
-- **Drawn from the solver.** The body's collision mesh goes onto the node as a
-  `SolvedMesh` each fixed step; in 2D a `SolvedPolygon` outranks a deform track
-  on the polygon's own vertices.
-- **In the snapshot and the digest from the first commit.** Rapier's
-  `PhysicsWorld` carries the `SoftBodySet`, and the digest hashes every
-  particle's velocity and the body's topology version.
+- `kind` lays the particles out: generators (`cuboid`, `sphere`, `cloth`,
+  `cloth_tube`, `rope` in 3D; `grid`, `disk`, `rope` in 2D) or a mesh
+  (`trimesh` for a surface, `volumetric` for the approximate tetrahedrization
+  of a closed mesh, `polygon` and `polyline` in 2D).
+- The material rows set a spring frequency and damping ratio per constraint
+  family, a cell model (`volume`, `corotational`, `neo_hookean`) with a Young
+  modulus and a Poisson ratio, plasticity on the cells and on the edges, and
+  volume preservation. `solver = "fem"` runs the elasticity as rapier's
+  implicit step.
+- The body's collision mesh goes onto the node as a `SolvedMesh` each fixed
+  step. In 2D a `SolvedPolygon` outranks a deform track on the polygon's own
+  vertices, and a body a generator laid out is drawn as a polygon of its cells.
+- Rapier's `PhysicsWorld` carries the `SoftBodySet` in the snapshot, and the
+  digest hashes every particle's velocity and the body's topology version.
+
+Left: a 2D `rope` has no cells and draws nothing, and a 2D `volumetric` body
+whose particles outnumber its polygon's vertices draws the polygon undeformed.
 
 ### Cloth and rope
 

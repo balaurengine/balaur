@@ -278,6 +278,7 @@ pub fn group_order(group) {
         "limits" => 11,
         "motor" => 12,
         "filtering" => 13,
-        _ => 7,
+        // After every named group, in the order the rows met them.
+        _ => 14,
     }
 }

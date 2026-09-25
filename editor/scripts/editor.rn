@@ -302,8 +302,6 @@ pub fn init(this) {
     S.start_states = engine::args().get(1).unwrap_or("");
 }
 
-
-
 // Every export reports here: started, done or failed, one call per step.
 pub fn on_export(this, e) {
     exporter::report(this.S, e);

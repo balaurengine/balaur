@@ -1581,12 +1581,6 @@ fn bindings_note(S, k) {
     }] });
 }
 
-/// The node's components with each above the ones it needs, so the transform a
-/// body and a bone both expect sits under them rather than over them.
-///
-/// Kahn's order over `expects`: a component is drawn once nothing left still
-/// needs it. A cycle keeps registration order for what is left of it rather
-/// than dropping those sections.
 /// The components a persona shows: those on the selection carrying one of its
 /// tags, plus the ones it names outright.
 ///
@@ -1635,6 +1629,12 @@ fn rebind(S) {
     model::live(S, S.sel)
 }
 
+/// The node's components with each above the ones it needs, so the transform a
+/// body and a bone both expect sits under them rather than over them.
+///
+/// Kahn's order over `expects`: a component is drawn once nothing left still
+/// needs it. A cycle keeps registration order for what is left of it rather
+/// than dropping those sections.
 fn ordered_components(S, names) {
     let waiting = #{};
     for name in names {

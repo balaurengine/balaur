@@ -112,8 +112,9 @@ fn source_mesh(
 }
 
 /// The outline of a mesh, as the boundary segments of its triangles: the
-/// edges belonging to one triangle only, in the order they are met.
-fn outline(points: &[Vector2], indices: &[[u32; 3]]) -> Vec<[u32; 2]> {
+/// edges belonging to one triangle only, sorted so the result never depends
+/// on the order the triangles came in.
+fn outline(indices: &[[u32; 3]]) -> Vec<[u32; 2]> {
     let mut counts: std::collections::BTreeMap<[u32; 2], (u32, [u32; 2])> =
         std::collections::BTreeMap::new();
     for tri in indices {
@@ -124,7 +125,6 @@ fn outline(points: &[Vector2], indices: &[[u32; 3]]) -> Vec<[u32; 2]> {
             entry.0 += 1;
         }
     }
-    let _ = points;
     counts
         .into_values()
         .filter(|(count, _)| *count == 1)
@@ -171,7 +171,7 @@ fn build_layout(
         // a 2D shape drawn by its border wants to be.
         w::SOFT_POLYGON => {
             let (points, indices) = source_mesh(eng, params, pose)?;
-            let border = outline(&points, &indices);
+            let border = outline(&indices);
             SoftBodyBuilder2::polyline(points, Some(border))
                 .ok_or_else(|| anyhow!("that mesh has no outline to make a soft polygon of"))?
         }
@@ -190,7 +190,7 @@ fn build_layout(
         // `cell_size` and the body is those cells.
         w::VOLUMETRIC => {
             let (points, indices) = source_mesh(eng, params, pose)?;
-            let border = outline(&points, &indices);
+            let border = outline(&indices);
             let size = scalar::real(v::f(params, k::CELL_SIZE, 0.25));
             cap::refuse_past_cap(cap::grid_particles(&extents(&points), size))?;
             let built = if v::boolean(params, k::SKIN, false) {

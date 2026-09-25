@@ -512,9 +512,9 @@ pub(crate) fn vec2(params: &toml::Value, key: &str, default: [f32; 2]) -> [f32; 
     ]
 }
 
-/// The whole numbers a `strings`-typed property holds, for a property whose
-/// value is a list of indices; anything that is not one is skipped, so a
-/// half-typed row in the inspector does not throw the others away.
+/// The whole numbers a list-of-indices property holds; anything that is not
+/// one is skipped, so a half-typed row in the inspector does not throw the
+/// others away. A number written as text still counts, as scenes saved it so.
 pub(crate) fn indices(params: &toml::Value, key: &str) -> Vec<u32> {
     params
         .get(key)
