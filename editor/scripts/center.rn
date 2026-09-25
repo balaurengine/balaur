@@ -302,6 +302,10 @@ fn viewport(S, k) {
     }
     // Before the chrome's early return: a box select draws with the chrome hidden.
     crate::gizmo::draw_marquee(S, k);
+    // Cleared before either strip is decided: the frames that draw them write
+    // them back, and a frame that draws neither leaves the stage whole.
+    S.layout.chips = #{ x: 0.0, y: 0.0, w: 0.0, h: 0.0 };
+    S.layout.hud = #{ x: 0.0, y: 0.0, w: 0.0, h: 0.0 };
     // The scene is the document: the chips step back until the pointer comes
     // for them, the way a canvas tool's context bar does.
     let near = chips_wanted(S, vp);
@@ -313,6 +317,7 @@ fn viewport(S, k) {
     }
     let inset = crate::docks::fold_inset(S);
     let hud = hud_h(S);
+    S.layout.chips = #{ x: vp.x + inset, y: vp.y, w: vp.w - inset, h: hud };
     ui::overlay("vp-chips", #{ x: vp.x + inset, y: vp.y, w: vp.w - inset, h: hud }, || {
         // Drags sideways rather than truncating: a persona with one chip too
         // many used to paint its last over whatever sat beside the scene.
@@ -349,6 +354,7 @@ fn viewport(S, k) {
     }
     let foot_x = if S.rail_visible { S.layout.rail.x } else { vp.x };
     let foot_w = vp.x + vp.w - foot_x;
+    S.layout.hud = #{ x: foot_x, y: vp.y + vp.h - hud_h(S), w: foot_w, h: hud_h(S) };
     ui::overlay("vp-hud", #{
         x: foot_x, y: vp.y + vp.h - hud_h(S), w: foot_w, h: hud_h(S),
     }, || {

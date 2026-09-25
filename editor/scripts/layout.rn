@@ -34,6 +34,9 @@ pub fn state() {
         railtop: rect(0.0, 0.0, 0.0, 0.0),
         right: rect(0.0, 0.0, 0.0, 0.0), bottom: rect(0.0, 0.0, 0.0, 0.0),
         stage: rect(0.0, 0.0, 0.0, 0.0), doc: rect(0.0, 0.0, 0.0, 0.0),
+        // The two strips the stage draws over itself, written by `center` as
+        // it draws them and zero on a frame it does not.
+        chips: rect(0.0, 0.0, 0.0, 0.0), hud: rect(0.0, 0.0, 0.0, 0.0),
         hooks: rect(0.0, 0.0, 0.0, 0.0), split_w: 560.0, body_h: 96.0,
         // How tall the tool rail's column is, read back a frame late; the
         // rail flows into a second column rather than overrun it.
@@ -306,6 +309,10 @@ pub fn sheets(S) {
     if S.rail_visible {
         all.push(m.rail);
     }
+    // Over the stage rather than beside it, and each zero on a frame it did
+    // not draw.
+    all.push(m.chips);
+    all.push(m.hud);
     if S.doc_open {
         all.push(m.doc);
     }

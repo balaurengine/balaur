@@ -611,6 +611,21 @@ fn viewport_owns(S, stage) {
             "a point inside the right dock is not",
         );
     }
+    // The two strips the stage draws over itself, when they are up.
+    let chips = S.layout.chips;
+    if chips.w > 0.0 {
+        check(
+            !crate::viewport::owns_pointer(S, chips.x + chips.w / 2.0, chips.y + chips.h / 2.0),
+            "nor is the chip row along the stage's top",
+        );
+    }
+    let hud = S.layout.hud;
+    if hud.w > 0.0 {
+        check(
+            !crate::viewport::owns_pointer(S, hud.x + hud.w / 2.0, hud.y + hud.h / 2.0),
+            "nor is the reading row along its foot",
+        );
+    }
     // An overlay covers the stage rather than sitting beside it, so while one
     // is up the stage underneath is not the viewport's either.
     crate::shell::open_palette(S, "");
