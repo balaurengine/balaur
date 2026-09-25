@@ -298,17 +298,20 @@ fn build_physics_digest(reg: &mut Registry<'_>) {
             if scope.as_ref().is_some_and(|s| !s.contains(&entity)) {
                 continue;
             }
-            let Some(body) = state.world.soft_bodies.get(handle) else {
-                continue;
-            };
+            // What tore off is the node's body as much as what it kept.
             let mut h = Hasher::new();
-            h.write(&body.topology_version().to_le_bytes());
-            for v in body.particle_velocities() {
-                for value in [v.x, v.y, v.z] {
-                    h.write_f64(f64::from(value));
+            for piece in crate::shared::softbody::Family::family(&state.world.soft_bodies, handle) {
+                let Some(body) = state.world.soft_bodies.get(piece) else {
+                    continue;
+                };
+                h.write(&body.topology_version().to_le_bytes());
+                for v in body.particle_velocities() {
+                    for value in [v.x, v.y, v.z] {
+                        h.write_f64(f64::from(value));
+                    }
                 }
+                h.write(&[u8::from(body.is_sleeping())]);
             }
-            h.write(&[u8::from(body.is_sleeping())]);
             out.push(Entry {
                 label: format!("{}/soft", node_label(&world, entity)),
                 digest: h.finish(),

@@ -21,7 +21,7 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 use crate::PhysicsState3d;
 use crate::rapier3d::prelude::{ColliderBuilder, SoftBodyBuilder, SoftBodyHandle, SoftBodySolver};
 use crate::scalar::{self, Real, Vector};
-use crate::shared::softbody as cap;
+use crate::shared::softbody::{self as cap, Family};
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
 
 /// The shape rows: how a body's particles and elements are laid out, and the
@@ -180,6 +180,23 @@ fn surface_collider(params: &toml::Value) -> ColliderBuilder {
 }
 
 /// The rows every layout shares, applied after the generator has laid the
+/// Which solver runs the elasticity.
+fn solver_of(params: &toml::Value) -> SoftBodySolver {
+    if v::text(params, k::SOLVER, w::CONSTRAINTS) == w::FEM {
+        SoftBodySolver::Fem
+    } else {
+        SoftBodySolver::Constraints
+    }
+}
+
+cap::patch_in_place!(
+    patch_body,
+    crate::rapier3d::pipeline::PhysicsWorld,
+    SoftBodyHandle,
+    read_material,
+    solver_of
+);
+
 /// particles out.
 fn with_settings(mut builder: SoftBodyBuilder, params: &toml::Value) -> SoftBodyBuilder {
     builder = builder
@@ -194,11 +211,7 @@ fn with_settings(mut builder: SoftBodyBuilder, params: &toml::Value) -> SoftBody
         .additional_solver_iterations(v::f(params, k::SOLVER_ITERATIONS, 0.0).max(0.0) as usize)
         .additional_pgs_iterations(v::f(params, k::PGS_ITERATIONS, 3.0).max(0.0) as usize)
         .can_sleep(v::boolean(params, k::CAN_SLEEP, true))
-        .solver(if v::text(params, k::SOLVER, w::CONSTRAINTS) == w::FEM {
-            SoftBodySolver::Fem
-        } else {
-            SoftBodySolver::Constraints
-        })
+        .solver(solver_of(params))
         .skin_collision(v::boolean(params, k::SKIN_COLLISION, false))
         .surface_collider(surface_collider(params));
     let mass = v::f(params, k::MASS, 1.0);
@@ -358,8 +371,23 @@ fn extents(points: &[Vector]) -> [f32; 3] {
     [0, 1, 2].map(|axis| (high[axis] - low[axis]).max(0.0))
 }
 
+cap::stamp_colliders!(
+    stamp_colliders,
+    crate::rapier3d::pipeline::PhysicsWorld,
+    SoftBodyHandle
+);
+
 /// Build the node's soft body, replacing whatever it had.
 pub(crate) fn apply_softbody(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
+    if patched(eng, entity, params) {
+        return Ok(());
+    }
+    build_softbody(eng, entity, params)
+}
+
+/// Build the node's soft body from rest, replacing whatever it had: what a
+/// script's `set_softbody` asks for even when nothing changed.
+fn build_softbody(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
     let pose = crate::node_pose(eng, entity)?;
     let kind = v::text(params, k::KIND, w::SOFT_CUBOID).to_string();
     let builder =
@@ -376,11 +404,32 @@ pub(crate) fn apply_softbody(eng: &Engine, entity: Entity, params: &toml::Value)
         );
         state.soft_bodies.insert(entity, handle);
         state.soft_params.insert(entity, params.clone());
+        stamp_colliders(&mut state.world, handle, entity);
     }
     // The node draws from the solver, so it has geometry to draw before the
     // first step rather than a frame of nothing.
     write_solved_mesh(eng, entity);
     Ok(())
+}
+
+/// Take a write the live body can take as it stands; `false` when it has to
+/// be built again.
+fn patched(eng: &Engine, entity: Entity, params: &toml::Value) -> bool {
+    let state = eng.resource::<PhysicsState3d>();
+    let mut state = state.borrow_mut();
+    let state = &mut *state;
+    let (Some(built), Some(&handle)) = (
+        state.soft_params.get(&entity),
+        state.soft_bodies.get(&entity),
+    ) else {
+        return false;
+    };
+    if !cap::only_in_place(built, params) || state.world.soft_bodies.get(handle).is_none() {
+        return false;
+    }
+    patch_body(&mut state.world, handle, params);
+    state.soft_params.insert(entity, params.clone());
+    true
 }
 
 pub(crate) fn remove_softbody(eng: &Engine, entity: Entity) {
@@ -392,14 +441,16 @@ pub(crate) fn remove_softbody(eng: &Engine, entity: Entity) {
         return;
     };
     let world = &mut state.world;
-    world.soft_bodies.remove(
-        handle,
-        &mut world.islands,
-        &mut world.bodies,
-        &mut world.colliders,
-        &mut world.impulse_joints,
-        &mut world.multibody_joints,
-    );
+    for piece in world.soft_bodies.family(handle) {
+        world.soft_bodies.remove(
+            piece,
+            &mut world.islands,
+            &mut world.bodies,
+            &mut world.colliders,
+            &mut world.impulse_joints,
+            &mut world.multibody_joints,
+        );
+    }
 }
 
 /// What the component reads back: what was authored, under the few numbers
@@ -450,27 +501,35 @@ pub(crate) fn write_solved_mesh(eng: &Engine, entity: Entity) {
             return;
         };
         let color = drawn_color(state.soft_params.get(&entity));
-        let Some(body) = state.world.soft_bodies.get(handle) else {
-            return;
-        };
-        match body.collision_mesh() {
-            Some(mesh) => (
-                mesh.vertex_positions(body)
-                    .map(|p| scalar::a3(inverse * p))
-                    .collect::<Vec<_>>(),
-                mesh.indices().to_vec(),
-                color,
-            ),
-            // A body with no collider still draws: its boundary is what a
-            // generator laid out, and the particles are its vertices.
-            None => (
-                body.particle_positions()
-                    .map(|p| scalar::a3(inverse * p))
-                    .collect(),
-                body.boundary().to_vec(),
-                color,
-            ),
+        let mut positions: Vec<[f32; 3]> = Vec::new();
+        let mut indices: Vec<[u32; 3]> = Vec::new();
+        // The body and whatever tore off it, drawn as one mesh.
+        for piece in state.world.soft_bodies.family(handle) {
+            let Some(body) = state.world.soft_bodies.get(piece) else {
+                continue;
+            };
+            let offset = positions.len() as u32;
+            match body.collision_mesh() {
+                Some(mesh) => {
+                    positions.extend(mesh.vertex_positions(body).map(|p| scalar::a3(inverse * p)));
+                    indices.extend(mesh.indices().iter().map(|t| t.map(|i| shifted(i, offset))));
+                }
+                // A body with no collider still draws: its boundary is what a
+                // generator laid out, and the particles are its vertices.
+                None => {
+                    positions.extend(body.particle_positions().map(|p| scalar::a3(inverse * p)));
+                    indices.extend(
+                        body.boundary()
+                            .iter()
+                            .map(|t| t.map(|i| shifted(i, offset))),
+                    );
+                }
+            }
         }
+        if positions.is_empty() {
+            return;
+        }
+        (positions, indices, color)
     };
     let mut world = eng.world_mut();
     if let Ok(mut solved) = world.get::<&mut balaur_core::mesh::SolvedMesh>(entity) {
@@ -482,6 +541,15 @@ pub(crate) fn write_solved_mesh(eng: &Engine, entity: Entity) {
     solved.update(positions, indices);
     solved.color = color;
     let _ = world.insert_one(entity, solved);
+}
+
+// A wire pads its segments to triangles with `u32::MAX`, which stays itself.
+fn shifted(index: u32, offset: u32) -> u32 {
+    if index == u32::MAX {
+        index
+    } else {
+        index + offset
+    }
 }
 
 /// The colour a body draws in when its node has nothing of its own.
@@ -496,7 +564,13 @@ pub(crate) fn drawn_color(params: Option<&toml::Value>) -> [f32; 4] {
 pub(crate) fn write_every_solved_mesh(eng: &Engine) {
     let entities: Vec<Entity> = {
         let state = eng.resource::<PhysicsState3d>();
-        let state = state.borrow();
+        let mut state = state.borrow_mut();
+        let state = &mut *state;
+        // A tear makes pieces with colliders of their own, which need the
+        // node as much as the body they came off.
+        for (&entity, &handle) in &state.soft_bodies {
+            stamp_colliders(&mut state.world, handle, entity);
+        }
         state.soft_bodies.keys().copied().collect()
     };
     for entity in entities {
@@ -568,7 +642,7 @@ pub(crate) fn install_softbody_api(m: &mut dyn Bindings<Engine>) {
         "set_softbody",
         |eng: &Engine, (node, params): (NodeId, balaur_script::Value)| {
             let params = balaur_core::node_api::to_toml(&params)?;
-            apply_softbody(eng, entity_of(node)?, &params)
+            build_softbody(eng, entity_of(node)?, &params)
         },
     );
     m.function("softbody_particles", |eng: &Engine, node: NodeId| {

@@ -21,10 +21,14 @@ macro_rules! functions {
                     collider.user_data = flags | u128::from(entity.to_bits().get());
                 }
             }
-            // A soft body names its node the same way, and a tear reads it.
+            // A soft body names its node the same way, and a tear reads it; so
+            // does every piece torn off it.
             for (entity, &handle) in &state.soft_bodies {
-                if let Some(body) = state.world.soft_bodies.get_mut(handle) {
-                    body.user_data = u128::from(entity.to_bits().get());
+                use crate::shared::softbody::Family;
+                for piece in state.world.soft_bodies.family(handle) {
+                    if let Some(body) = state.world.soft_bodies.get_mut(piece) {
+                        body.user_data = u128::from(entity.to_bits().get());
+                    }
                 }
             }
         }
@@ -66,18 +70,21 @@ macro_rules! functions {
             // A soft body's proxy is a rigid body of rapier's own, so it goes
             // through the set that made it rather than `remove_body`.
             state.soft_bodies.retain(|&entity, handle| {
+                use crate::shared::softbody::Family;
                 if world.contains(entity) {
                     return true;
                 }
                 let w = &mut state.world;
-                w.soft_bodies.remove(
-                    *handle,
-                    &mut w.islands,
-                    &mut w.bodies,
-                    &mut w.colliders,
-                    &mut w.impulse_joints,
-                    &mut w.multibody_joints,
-                );
+                for piece in w.soft_bodies.family(*handle) {
+                    w.soft_bodies.remove(
+                        piece,
+                        &mut w.islands,
+                        &mut w.bodies,
+                        &mut w.colliders,
+                        &mut w.impulse_joints,
+                        &mut w.multibody_joints,
+                    );
+                }
                 false
             });
             state.soft_params.retain(|e, _| world.contains(*e));

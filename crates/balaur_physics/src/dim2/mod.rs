@@ -470,17 +470,20 @@ fn build_physics2d_digest(reg: &mut Registry<'_>) {
         // deformable body has no one velocity, and a tear is a divergence
         // nothing else would report.
         for (&entity, &handle) in &state.soft_bodies {
-            let Some(body) = state.world.soft_bodies.get(handle) else {
-                continue;
-            };
+            // What tore off is the node's body as much as what it kept.
             let mut h = Hasher::new();
-            h.write(&body.topology_version().to_le_bytes());
-            for v in body.particle_velocities() {
-                for value in [v.x, v.y] {
-                    h.write_f64(f64::from(value));
+            for piece in crate::shared::softbody::Family::family(&state.world.soft_bodies, handle) {
+                let Some(body) = state.world.soft_bodies.get(piece) else {
+                    continue;
+                };
+                h.write(&body.topology_version().to_le_bytes());
+                for v in body.particle_velocities() {
+                    for value in [v.x, v.y] {
+                        h.write_f64(f64::from(value));
+                    }
                 }
+                h.write(&[u8::from(body.is_sleeping())]);
             }
-            h.write(&[u8::from(body.is_sleeping())]);
             out.push(Entry {
                 label: format!("{}/soft", node_label(&world, entity)),
                 digest: h.finish(),

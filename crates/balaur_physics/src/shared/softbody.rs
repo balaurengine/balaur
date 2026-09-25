@@ -179,3 +179,139 @@ pub(crate) fn hovering(radius: f32, widest: f32) -> Option<balaur_core::warnings
         )
     })
 }
+
+/// A body and every piece a tear or a cut split off it, transitively, in the
+/// order they were made; a piece whose body is gone is left out.
+///
+/// Rapier makes each piece a soft body of its own, and a node keeps only the
+/// handle it was built with: everything that draws, frees or hashes a node's
+/// body goes through here, or a torn-off piece simulates unseen forever.
+pub(crate) trait Family<H> {
+    fn family(&self, root: H) -> Vec<H>;
+}
+
+macro_rules! family {
+    ($set:ty, $handle:ty) => {
+        impl Family<$handle> for $set {
+            fn family(&self, root: $handle) -> Vec<$handle> {
+                let mut out = Vec::new();
+                let mut todo = vec![root];
+                while let Some(handle) = todo.pop() {
+                    let Some(body) = self.get(handle) else {
+                        continue;
+                    };
+                    out.push(handle);
+                    todo.extend(body.pieces().iter().rev().copied());
+                }
+                out
+            }
+        }
+    };
+}
+
+family!(
+    crate::rapier3d::dynamics::SoftBodySet,
+    crate::rapier3d::dynamics::SoftBodyHandle
+);
+family!(
+    crate::rapier2d::dynamics::SoftBodySet,
+    crate::rapier2d::dynamics::SoftBodyHandle
+);
+
+/// Point a body's colliders, and its pieces', at the node: a contact or a ray
+/// that meets a soft body reads the node out of the collider it met.
+macro_rules! stamp_colliders {
+    ($name:ident, $world:ty, $handle:ty) => {
+        pub(crate) fn $name(world: &mut $world, root: $handle, entity: balaur_core::hecs::Entity) {
+            use crate::shared::softbody::Family;
+            let bits = u128::from(entity.to_bits().get());
+            for handle in world.soft_bodies.family(root) {
+                let Some(body) = world.soft_bodies.get_mut(handle) else {
+                    continue;
+                };
+                body.user_data = bits;
+                for mesh in body.meshes() {
+                    if let Some(collider) = world.colliders.get_mut(mesh.collider()) {
+                        collider.user_data = bits;
+                    }
+                }
+            }
+        }
+    };
+}
+
+pub(crate) use stamp_colliders;
+
+/// The rows a live body takes as they are, without being built again from
+/// rest: what it is made of, how it is solved, and what it is drawn in.
+const IN_PLACE: &[&str] = {
+    use crate::vocabulary::keys as k;
+    &[
+        k::EDGE_FREQUENCY,
+        k::EDGE_DAMPING,
+        k::BEND_FREQUENCY,
+        k::BEND_DAMPING,
+        k::VOLUME_FREQUENCY,
+        k::VOLUME_DAMPING,
+        k::SHAPE_MATCHING_FREQUENCY,
+        k::SHAPE_MATCHING_DAMPING,
+        k::YOUNG_MODULUS,
+        k::POISSON_RATIO,
+        k::ELASTIC_DAMPING,
+        k::PLASTIC_YIELD,
+        k::PLASTIC_CREEP,
+        k::PLASTIC_MAX,
+        k::DEFORMATION_DAMPING,
+        k::EDGE_PLASTIC_YIELD,
+        k::EDGE_PLASTIC_CREEP,
+        k::EDGE_PLASTIC_MAX,
+        k::EDGE_PLASTIC_FLOW,
+        k::TEAR_STRAIN,
+        k::TEAR_FORCE,
+        k::TEAR_SMOOTHING,
+        k::INTERIOR_STRENGTH,
+        k::MAX_TEARS,
+        k::MIN_PIECE,
+        k::SOLVER,
+        k::VOLUME_FACTOR,
+        k::VOLUME_PRESERVATION,
+        k::PGS_ITERATIONS,
+        k::COLOR,
+    ]
+};
+
+/// Whether `asked` differs from what the body was built from only in rows it
+/// takes in place: a stiffness tuned during play must not snap it to rest.
+pub(crate) fn only_in_place(built: &toml::Value, asked: &toml::Value) -> bool {
+    let (Some(built), Some(asked)) = (built.as_table(), asked.as_table()) else {
+        return false;
+    };
+    built
+        .keys()
+        .chain(asked.keys())
+        .all(|key| built.get(key) == asked.get(key) || IN_PLACE.contains(&key.as_str()))
+}
+
+/// Patch the rows [`only_in_place`] allows onto a live body and every piece
+/// torn off it, in either dimension.
+macro_rules! patch_in_place {
+    ($name:ident, $world:ty, $handle:ty, $material:ident, $solver:ident) => {
+        fn $name(world: &mut $world, root: $handle, params: &toml::Value) {
+            use crate::shared::softbody::Family;
+            for piece in world.soft_bodies.family(root) {
+                let Some(body) = world.soft_bodies.get_mut(piece) else {
+                    continue;
+                };
+                body.set_material($material(params));
+                body.set_solver($solver(params));
+                body.set_volume_factor(crate::scalar::real(v::f(params, k::VOLUME_FACTOR, 1.0)));
+                body.enable_volume_preservation(v::boolean(params, k::VOLUME_PRESERVATION, true));
+                body.set_additional_pgs_iterations(
+                    v::f(params, k::PGS_ITERATIONS, 3.0).max(0.0) as usize
+                );
+            }
+        }
+    };
+}
+
+pub(crate) use patch_in_place;

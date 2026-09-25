@@ -724,3 +724,108 @@ fn a_generated_body_is_drawn_in_its_color() {
         drawn.color
     );
 }
+
+/// A ray reads the node out of the collider it met, and a soft body's
+/// colliders are made by rapier, not by the node's own collider component.
+#[test]
+fn a_ray_that_meets_a_soft_body_names_its_node() {
+    let errors = run_for(
+        r#"pub fn init(this) { this.ticks = 0; }
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    if this.ticks == 2 {
+        let hit = physics3d::raycast(#{ from: [0.0, 5.0, 0.0], dir: [0.0, -1.0, 0.0], max: 20.0 });
+        assert!(hit is Object, "the ray passed through the soft body");
+        assert!(hit.node == this.node, "the ray met a collider that names no node");
+        log::error("checked: the ray named the body");
+    }
+}
+"#,
+        4,
+    );
+    assert!(
+        errors.len() == 1 && errors[0].contains("checked: the ray named the body"),
+        "the check did not run clean: {errors:#?}"
+    );
+}
+
+/// A tear makes each piece a soft body of its own: it draws with the node
+/// and goes when the node does, rather than falling on unseen.
+#[test]
+fn a_torn_off_piece_is_drawn_and_freed_with_its_node() {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let (_dir, mut app) = boot(
+        r#"pub fn init(this) {
+    this.node.softbody3d.set_softbody(#{
+        kind: "rope", a: [0.0, 0.0, 0.0], b: [0.0, -2.0, 0.0], particles: 12.0,
+        pinned: [0], tear_strain: 0.05, tear_force: 2.0, edge_frequency: 4.0, mass: 400.0,
+    });
+}
+"#,
+        45,
+    );
+    let node = {
+        let world = app.engine.world();
+        balaur_core::ids::find(&world, app.engine.root(), "n_blob").expect("the blob")
+    };
+    {
+        let state = app.engine.resource::<balaur_physics::PhysicsState3d>();
+        let state = state.borrow();
+        let handle = state.soft_bodies[&node];
+        let kept = state.world.soft_bodies.get(handle).unwrap().num_particles();
+        let everything: usize = state
+            .world
+            .soft_bodies
+            .iter()
+            .map(|(_, b)| b.num_particles())
+            .sum();
+        assert!(everything > kept, "the rope never came apart into pieces");
+        let world = app.engine.world();
+        let solved = world.get::<&balaur_core::mesh::SolvedMesh>(node).unwrap();
+        assert!(
+            solved.positions.len() > kept,
+            "only the piece the node kept is drawn: {} of {everything}",
+            solved.positions.len()
+        );
+    }
+    balaur_core::scene::free_subtree(&mut app.engine.world_mut(), node);
+    app.tick(1.0 / 60.0);
+    let state = app.engine.resource::<balaur_physics::PhysicsState3d>();
+    assert_eq!(
+        state.borrow().world.soft_bodies.len(),
+        0,
+        "a piece outlived its node"
+    );
+}
+
+/// A material row tuned on a live body takes effect where the body is: a
+/// stiffness changed mid-fall does not snap it back to where it was built.
+#[test]
+fn a_material_change_does_not_rebuild_the_body_from_rest() {
+    let errors = run_for(
+        r#"pub fn init(this) { this.ticks = 0; this.before = 0.0; }
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    let body = this.node.softbody3d;
+    if this.ticks == 6 {
+        this.before = body.softbody_position(0).y;
+        body.edge_frequency = 20.0;
+    }
+    if this.ticks == 7 {
+        assert!(body.edge_frequency == 20.0, "the stiffness did not take");
+        assert!(body.softbody_position(0).y <= this.before + 0.0001, "the change snapped the body back to rest");
+        log::error("checked: tuned in place");
+    }
+}
+"#,
+        9,
+    );
+    assert!(
+        errors.len() == 1 && errors[0].contains("checked: tuned in place"),
+        "the check did not run clean: {errors:#?}"
+    );
+}

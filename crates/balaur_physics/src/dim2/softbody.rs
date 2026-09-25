@@ -24,7 +24,7 @@ use crate::rapier2d::prelude::{
     SoftBodySolver as SoftBodySolver2,
 };
 use crate::scalar::{self, Vector2};
-use crate::shared::softbody as cap;
+use crate::shared::softbody::{self as cap, Family};
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
 
 mod draw;
@@ -236,6 +236,23 @@ fn extents(points: &[Vector2]) -> [f32; 2] {
 }
 
 /// The rows every layout shares. The same reading as 3D's, against rapier2d's
+/// Which solver runs the elasticity.
+fn solver_of_2d(params: &toml::Value) -> SoftBodySolver2 {
+    if v::text(params, k::SOLVER, w::CONSTRAINTS) == w::FEM {
+        SoftBodySolver2::Fem
+    } else {
+        SoftBodySolver2::Constraints
+    }
+}
+
+cap::patch_in_place!(
+    patch_body_2d,
+    crate::rapier2d::pipeline::PhysicsWorld,
+    SoftBodyHandle2,
+    read_material_2d,
+    solver_of_2d
+);
+
 /// own types.
 fn with_settings(mut builder: SoftBodyBuilder2, params: &toml::Value) -> SoftBodyBuilder2 {
     builder = builder
@@ -250,11 +267,7 @@ fn with_settings(mut builder: SoftBodyBuilder2, params: &toml::Value) -> SoftBod
         .additional_solver_iterations(v::f(params, k::SOLVER_ITERATIONS, 0.0).max(0.0) as usize)
         .additional_pgs_iterations(v::f(params, k::PGS_ITERATIONS, 3.0).max(0.0) as usize)
         .can_sleep(v::boolean(params, k::CAN_SLEEP, true))
-        .solver(if v::text(params, k::SOLVER, w::CONSTRAINTS) == w::FEM {
-            SoftBodySolver2::Fem
-        } else {
-            SoftBodySolver2::Constraints
-        })
+        .solver(solver_of_2d(params))
         .surface_collider(
             crate::dim2::collider::with_groups_2d(ColliderBuilder2::ball(1.0), params)
                 .friction(scalar::real(v::f(params, k::FRICTION, 0.5)))
@@ -282,7 +295,22 @@ fn with_settings(mut builder: SoftBodyBuilder2, params: &toml::Value) -> SoftBod
     builder.particle_settings(settings)
 }
 
+cap::stamp_colliders!(
+    stamp_colliders_2d,
+    crate::rapier2d::pipeline::PhysicsWorld,
+    SoftBodyHandle2
+);
+
 pub(crate) fn apply_softbody_2d(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
+    if patched_2d(eng, entity, params) {
+        return Ok(());
+    }
+    build_softbody_2d(eng, entity, params)
+}
+
+/// Build the node's soft body from rest, replacing whatever it had: what a
+/// script's `set_softbody` asks for even when nothing changed.
+fn build_softbody_2d(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
     let pose = crate::dim2::node_pose_2d(eng, entity)?;
     let kind = v::text(params, k::KIND, w::GRID).to_string();
     let builder =
@@ -299,9 +327,29 @@ pub(crate) fn apply_softbody_2d(eng: &Engine, entity: Entity, params: &toml::Val
         );
         state.soft_bodies.insert(entity, handle);
         state.soft_params.insert(entity, params.clone());
+        stamp_colliders_2d(&mut state.world, handle, entity);
     }
     write_solved_polygon(eng, entity);
     Ok(())
+}
+
+/// As the 3D `patched`: a write the live body takes as it stands.
+fn patched_2d(eng: &Engine, entity: Entity, params: &toml::Value) -> bool {
+    let state = eng.resource::<PhysicsState2d>();
+    let mut state = state.borrow_mut();
+    let state = &mut *state;
+    let (Some(built), Some(&handle)) = (
+        state.soft_params.get(&entity),
+        state.soft_bodies.get(&entity),
+    ) else {
+        return false;
+    };
+    if !cap::only_in_place(built, params) || state.world.soft_bodies.get(handle).is_none() {
+        return false;
+    }
+    patch_body_2d(&mut state.world, handle, params);
+    state.soft_params.insert(entity, params.clone());
+    true
 }
 
 pub(crate) fn remove_softbody_2d(eng: &Engine, entity: Entity) {
@@ -313,14 +361,16 @@ pub(crate) fn remove_softbody_2d(eng: &Engine, entity: Entity) {
         return;
     };
     let world = &mut state.world;
-    world.soft_bodies.remove(
-        handle,
-        &mut world.islands,
-        &mut world.bodies,
-        &mut world.colliders,
-        &mut world.impulse_joints,
-        &mut world.multibody_joints,
-    );
+    for piece in world.soft_bodies.family(handle) {
+        world.soft_bodies.remove(
+            piece,
+            &mut world.islands,
+            &mut world.bodies,
+            &mut world.colliders,
+            &mut world.impulse_joints,
+            &mut world.multibody_joints,
+        );
+    }
 }
 
 pub(crate) fn get_softbody_params_2d(eng: &Engine, entity: Entity) -> Option<toml::Value> {
@@ -370,7 +420,8 @@ pub(crate) fn write_solved_polygon(eng: &Engine, entity: Entity) {
             return;
         };
         let params = state.soft_params.get(&entity);
-        let drawn = draw::drawn(body, pose.inverse(), || {
+        let skinned = body.meshes().any(|mesh| mesh.is_skinned());
+        let mut drawn = draw::drawn(body, pose.inverse(), || {
             held.unwrap_or_else(|| {
                 let loaded = params
                     .and_then(|params| source_mesh(eng, params, scalar::Pose2::IDENTITY).ok())
@@ -380,6 +431,21 @@ pub(crate) fn write_solved_polygon(eng: &Engine, entity: Entity) {
                 loaded
             })
         });
+        // What tore off draws beside the body, unless the body is a skin a
+        // polygon bends by: that polygon has room for its own points alone.
+        if !skinned {
+            for piece in state.world.soft_bodies.family(handle).into_iter().skip(1) {
+                let Some(body) = state.world.soft_bodies.get(piece) else {
+                    continue;
+                };
+                let (points, triangles) = draw::drawn(body, pose.inverse(), Vec::new);
+                let offset = drawn.0.len() as u32;
+                drawn.0.extend(points);
+                drawn
+                    .1
+                    .extend(triangles.iter().map(|t| t.map(|i| i + offset)));
+            }
+        }
         (drawn, crate::softbody::drawn_color(params))
     };
     let mut world = eng.world_mut();
@@ -400,7 +466,11 @@ pub(crate) fn write_solved_polygon(eng: &Engine, entity: Entity) {
 pub(crate) fn write_every_solved_polygon(eng: &Engine) {
     let entities: Vec<Entity> = {
         let state = eng.resource::<PhysicsState2d>();
-        let state = state.borrow();
+        let mut state = state.borrow_mut();
+        let state = &mut *state;
+        for (&entity, &handle) in &state.soft_bodies {
+            stamp_colliders_2d(&mut state.world, handle, entity);
+        }
         state.soft_bodies.keys().copied().collect()
     };
     for entity in entities {
@@ -504,7 +574,7 @@ pub(crate) fn install_softbody_api_2d(m: &mut dyn Bindings<Engine>) {
         "set_softbody",
         |eng: &Engine, (node, params): (NodeId, balaur_script::Value)| {
             let params = balaur_core::node_api::to_toml(&params)?;
-            apply_softbody_2d(eng, entity_of(node)?, &params)
+            build_softbody_2d(eng, entity_of(node)?, &params)
         },
     );
     m.function("softbody_particles", |eng: &Engine, node: NodeId| {
