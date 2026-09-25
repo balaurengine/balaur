@@ -72,6 +72,9 @@ pub(crate) struct Context {
     /// its own accessor calls `__get_<name>` or `__set_<name>`.
     pub getters: BTreeSet<String>,
     pub setters: BTreeSet<String>,
+    /// The function `get = f` or `set = f` names, to its property: inside
+    /// it the property is read and written where it is kept.
+    pub named_accessors: BTreeMap<String, String>,
     /// Members typed or valued `bool`, and methods declared `-> bool`: a
     /// test of one needs no truthiness check.
     pub bools: BTreeSet<String>,
@@ -712,7 +715,14 @@ impl<'a> Emitter<'a> {
     }
 
     fn in_accessor_of(&self, name: &str) -> bool {
-        self.enclosing == format!("__get_{name}") || self.enclosing == format!("__set_{name}")
+        self.enclosing == format!("__get_{name}")
+            || self.enclosing == format!("__set_{name}")
+            || self
+                .context
+                .named_accessors
+                .get(&self.enclosing)
+                .map(String::as_str)
+                == Some(name)
     }
 
     fn field(&mut self, object: &Expr, field: &str) -> String {

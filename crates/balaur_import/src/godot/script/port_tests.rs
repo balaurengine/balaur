@@ -376,3 +376,32 @@ func _ready():\n\
     let want = "#{ \"__bound\": this.progress, \"__method\": \"refresh\", \"__args\": [true, 2] }";
     assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
 }
+
+#[test]
+fn a_named_accessor_reads_and_writes_the_property_s_own_storage() {
+    let source = "extends Node\n\
+@export var complete := false:\n\
+\tset = set_complete\n\
+var label := \"\":\n\
+\tget = get_label\n\
+func set_complete(is_complete: bool) -> void:\n\
+\tcomplete = is_complete\n\
+func get_label() -> String:\n\
+\treturn label\n";
+    let out = convert(source, "scripts/city.gd", &Classes::default());
+    assert!(
+        out.rune.contains("this.complete = is_complete;"),
+        "the setter writes the field, not itself: {}",
+        out.rune
+    );
+    assert!(
+        !out.rune.contains("__set_complete(this, is_complete)"),
+        "{}",
+        out.rune
+    );
+    assert!(
+        !out.rune.contains("return __get_label(this)"),
+        "the getter reads the field, not itself: {}",
+        out.rune
+    );
+}

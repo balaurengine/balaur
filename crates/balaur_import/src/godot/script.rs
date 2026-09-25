@@ -96,6 +96,7 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
     }
     let mut getters = BTreeSet::new();
     let mut setters = BTreeSet::new();
+    let mut named_accessors = BTreeMap::new();
     for level in &inherited {
         let found = members::accessors(level);
         for function in split_functions(&found.text) {
@@ -105,6 +106,7 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
         }
         getters.extend(found.getters);
         setters.extend(found.setters);
+        named_accessors.extend(found.named);
     }
     let fitted = forwarders(&functions);
     functions.extend(fitted);
@@ -117,6 +119,7 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
     let mut context = context(source, path, classes, &functions, &mut notes);
     context.getters = getters;
     context.setters = setters;
+    context.named_accessors = named_accessors;
     let documentation: Vec<String> = source
         .lines()
         .take_while(|line| !line.starts_with("func ") && !line.starts_with("static func "))

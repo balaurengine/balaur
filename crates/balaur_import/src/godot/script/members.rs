@@ -158,6 +158,9 @@ fn member_default(value: &str, context: &Context) -> Option<String> {
 pub(super) struct Accessors {
     pub getters: std::collections::BTreeSet<String>,
     pub setters: std::collections::BTreeSet<String>,
+    /// The function `get = f` or `set = f` names, to the property it keeps:
+    /// inside it, Godot reads and writes the property's own storage.
+    pub named: std::collections::BTreeMap<String, String>,
     /// The accessors as GDScript functions, for the translator to take.
     pub text: String,
     /// `static func` for a `static var`'s accessors, `func` otherwise.
@@ -212,6 +215,9 @@ pub(super) fn accessors(source: &str) -> Accessors {
 impl Accessors {
     /// `get = f` or `set = f`: the accessor calls the named function.
     fn named(&mut self, kind: &str, name: &str, callee: &str) {
+        if matches!(kind, "get" | "set") {
+            self.named.insert(callee.to_string(), name.to_string());
+        }
         match kind {
             "get" => {
                 let _ = write!(
