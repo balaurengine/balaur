@@ -601,6 +601,23 @@ pub fn camera_check_step(S) {
         return;
     }
     d.stage = 1;
+    // The 3D gizmo hands the backend's camera its buttons; in 2D the editor
+    // pans and zooms by itself, so there is no hand-over to check.
+    if !S.mode2d {
+        backend_buttons(S);
+    }
+    // The wheel the editor drives itself, fed into the snapshot it reads: the
+    // backend's camera never sees a mouse event in the editor. A fed event
+    // lands next frame, and the pose it moves is published the one after.
+    let stage = S.layout.stage;
+    let (_, _, _, _, _, _, _, dpi) = render::camera_pose();
+    let (cx, cy) = (stage.x + stage.w / 2.0, stage.y + stage.h / 2.0);
+    input::feed_mouse(cx * S.ui_scale * dpi, cy * S.ui_scale * dpi);
+    d.was = closeness(S);
+    input::feed_scroll(0.0, flick(crate::viewport::dolly_step()));
+}
+
+fn backend_buttons(S) {
     let tool = S.tool;
     S.tool = "move";
     crate::selection::clear(S);
@@ -613,16 +630,17 @@ pub fn camera_check_step(S) {
         check(!render::camera_input(), "and takes them once a gizmo is drawn");
     }
     S.tool = tool;
-    // The wheel the editor drives itself, fed into the snapshot it reads: the
-    // backend's camera never sees a mouse event in the editor. A fed event
-    // lands next frame, and the pose it moves is published the one after.
-    let stage = S.layout.stage;
-    let (_, _, _, tx, ty, tz, _, dpi) = render::camera_pose();
-    let (cx, cy) = (stage.x + stage.w / 2.0, stage.y + stage.h / 2.0);
-    input::feed_mouse(cx * S.ui_scale * dpi, cy * S.ui_scale * dpi);
-    let (ex, ey, ez, _, _, _, _, _) = render::camera_pose();
-    d.was = reach(ex, ey, ez, tx, ty, tz);
-    input::feed_scroll(0.0, flick(crate::viewport::dolly_step()));
+}
+
+// A number that grows as the camera closes in: the 2D zoom, or one over how
+// far the 3D eye stands from what it looks at.
+fn closeness(S) {
+    if S.mode2d {
+        let (_, _, zoom) = render::camera_2d();
+        return zoom;
+    }
+    let (ex, ey, ez, tx, ty, tz, _, _) = render::camera_pose();
+    1.0 / util::max(reach(ex, ey, ez, tx, ty, tz), 0.0001)
 }
 
 // The wheel this platform reports for a comfortable flick: enough to take a
@@ -644,11 +662,10 @@ fn reach(ex, ey, ez, tx, ty, tz) {
 
 fn camera_dollied(S, d) {
     S.camera_check = ();
-    let (ex, ey, ez, tx, ty, tz, _, _) = render::camera_pose();
-    let now = reach(ex, ey, ez, tx, ty, tz);
+    let now = closeness(S);
     // Bounded, not just inward: a flick that swallows the whole distance is
     // the zoom being orders of magnitude too strong, which reads as a teleport.
-    let took = d.was / util::max(now, 0.0001);
+    let took = now / util::max(d.was, 0.0000001);
     check(took > 1.005 && took < 1.1, format!("and dollies the camera in gently ({} to {})", d.was, now));
     log::info("selftest camera: done");
 }

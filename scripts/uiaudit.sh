@@ -142,22 +142,24 @@ check_reload() {
 }
 check_reload
 
-# The camera keeps its buttons unless something is actually there to press.
-check_camera() {
+# The camera keeps its buttons unless something is actually there to press,
+# and the wheel zooms it gently, in a 3D scene and a 2D one.
+check_camera() { # check_camera <example>
   [ ${#only[@]} -eq 0 ] || return 0
-  printf '%-24s ' camera
+  printf '%-24s ' "camera $1"
   local out
-  out=$("$BALAUR_BIN" edit examples/hello --editor "$editor" --offscreen --frames 60 \
+  out=$("$BALAUR_BIN" edit "examples/$1" --editor "$editor" --offscreen --frames 60 \
       --state camerademo 2>&1)
   if echo "$out" | grep -qE "selftest FAILED|ERROR"; then
-    echo FAILED; failed+=(camera)
-  elif ! echo "$out" | grep -q "selftest ok"; then
-    echo "FAILED (checked nothing)"; failed+=(camera)
+    echo FAILED; failed+=("camera $1")
+  elif ! echo "$out" | grep -q "selftest camera: done"; then
+    echo "FAILED (checked nothing)"; failed+=("camera $1")
   else
     echo ok
   fi
 }
-check_camera
+check_camera hello
+check_camera angrynerds
 
 shot 01-scene-3d        examples/hello      "scene,select:Spinner"
 shot 02-scene-2d        examples/angrynerds "scene,select:Bird,zoom:45"
