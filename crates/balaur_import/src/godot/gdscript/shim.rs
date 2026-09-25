@@ -388,4 +388,49 @@ mod tests {
             "the probe hid itself only if take heard 1 then 2"
         );
     }
+
+    /// Godot's root viewport is the window: its `size` is the window's, which
+    /// a game divides to pick its UI scale.
+    #[test]
+    fn the_root_viewport_s_size_is_the_window_s() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n\n[window]\nwidth = 840\nheight = 1920\n",
+        );
+        put(
+            "main.toml",
+            "[[nodes]]\nid = \"probe\"\nname = \"Probe\"\nscript = { source = \"probe.rn\" }\n",
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let size = (gd.field)(scene::root(), \"size\");",
+                "    if (gd.field)(size, \"x\") == 840.0 && (gd.field)(size, \"y\") == 1920.0 {",
+                "        this.node.set_visible(false);",
+                "    }",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert!(
+            !world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .visible,
+            "the probe hid itself only if the root viewport measured 840 by 1920"
+        );
+    }
 }

@@ -765,10 +765,17 @@ pub fn tween_running(t) {
 }
 
 /// Godot's `get_window()`: its content scale is the UI's global scale, and
-/// its size the screen in design pixels.
+/// its size the window's own pixels.
 pub fn window() {
+    #{ "content_scale_factor": ui::scale(), "size": window_pixels() }
+}
+
+/// The window in its own pixels, which Godot's root viewport and window
+/// measure in: the design size times the UI's scale.
+fn window_pixels() {
     let (w, h) = ui::screen_size();
-    #{ "content_scale_factor": ui::scale(), "size": vec2(w, h) }
+    let by = ui::scale();
+    vec2(w * by, h * by)
 }
 
 /// Hearing another node's event. A `from` that is not a node is nothing to
@@ -961,6 +968,7 @@ fn node_property(node, name) {
         "scale" => vec_of(node.transform.scale),
         "rotation" => rotation_of(node),
         "rotation_degrees" => math::deg(rotation_of(node)),
+        "size" if node.stable_id() == scene::root().stable_id() => window_pixels(),
         "size" => size_of(node),
         "visible" => node.visible(),
         "modulate" => node.tint(),
