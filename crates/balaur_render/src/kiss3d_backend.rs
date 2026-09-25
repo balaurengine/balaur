@@ -669,15 +669,16 @@ fn apply_window_config(app: &App, window: &Window) {
     #[cfg(not(mobile))]
     {
         use balaur_core::project::WindowMode;
+        // Left only when in it: a browser rejects leaving a fullscreen the
+        // page never entered.
+        if !matches!(config.mode, WindowMode::Fullscreen | WindowMode::Exclusive)
+            && window.is_fullscreen()
+        {
+            window.set_fullscreen(false);
+        }
         match config.mode {
-            WindowMode::Windowed => {
-                window.set_fullscreen(false);
-                window.set_maximized(false);
-            }
-            WindowMode::Maximized => {
-                window.set_fullscreen(false);
-                window.set_maximized(true);
-            }
+            WindowMode::Windowed => window.set_maximized(false),
+            WindowMode::Maximized => window.set_maximized(true),
             WindowMode::Fullscreen => window.set_fullscreen(true),
             WindowMode::Exclusive => window.set_exclusive_fullscreen(true),
         }
