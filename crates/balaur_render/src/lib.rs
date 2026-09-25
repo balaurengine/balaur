@@ -205,7 +205,7 @@ type DrawLineArgs = (
 /// them too and a producer must not depend on the renderer. Published API.
 pub use balaur_core::debug_lines::{DebugLine2d, DebugLine3d};
 pub use balaur_core::debug_lines::{DebugLineBuffer2d, DebugLineBuffer3d};
-pub use draw_2d::{Draw2d, DrawBuffer2d};
+pub use draw_2d::{Draw2d, DrawBuffer2d, Drawn2d};
 
 pub struct WindowedBackend;
 

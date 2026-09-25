@@ -169,6 +169,8 @@ pub struct TextDraw {
     pub pixels_per_unit: f32,
     /// Whether the 3D pass draws it, facing the camera.
     pub in_3d: bool,
+    /// Its place among the 2D nodes; over everything when `None`.
+    pub z_index: Option<i32>,
 }
 
 /// What scripts drew this frame; the backend drains it as it draws.
@@ -639,11 +641,12 @@ pub(crate) fn draw(
     app: &balaur_core::App,
     scene_2d: &mut kiss3d::scene::SceneNode2d,
     scene_3d: &mut kiss3d::scene::SceneNode3d,
+    placed: &crate::draw_2d::Layers2d,
     frame: &mut Frame,
     viewport_height: f32,
 ) {
     crate::text_component::sync_text(app, scene_2d, scene_3d, &mut frame.slots, viewport_height);
-    flush(app, scene_2d, scene_3d, &mut frame.transients);
+    flush(app, scene_2d, scene_3d, placed, &mut frame.transients);
 }
 
 /// The nodes one frame's text made, dropped when the next frame draws.
@@ -660,6 +663,7 @@ pub(crate) fn flush(
     app: &balaur_core::App,
     scene_2d: &mut kiss3d::scene::SceneNode2d,
     scene_3d: &mut kiss3d::scene::SceneNode3d,
+    placed: &crate::draw_2d::Layers2d,
     transients: &mut Transients,
 ) {
     use kiss3d::color::Color;
@@ -720,7 +724,8 @@ pub(crate) fn flush(
                 let Some(mesh) = mesh_2d(&block, scale, item.style.align, &shifts, &picks) else {
                     continue;
                 };
-                let mut node = scene_2d.add_mesh(mesh, glamx::Vec2::ONE);
+                let (mut parent, _) = placed.parent_of(item.z_index, scene_2d);
+                let mut node = parent.add_mesh(mesh, glamx::Vec2::ONE);
                 node.set_texture(texture.clone());
                 node.set_position(glamx::Vec2::new(item.at[0], item.at[1]));
                 node.set_color(Color::new(r, g, b, a));

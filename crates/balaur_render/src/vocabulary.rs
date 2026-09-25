@@ -222,6 +222,7 @@ pub(crate) mod keys {
     pub(crate) const RATE: &str = "rate";
     pub(crate) const REGION_ORIGIN: &str = "region_origin";
     pub(crate) const REGION_SIZE: &str = "region_size";
+    pub(crate) const Z_INDEX: &str = "z_index";
     pub(crate) const SHADOWS: &str = "shadows";
     pub(crate) const SHADOW_RESOLUTION: &str = "shadow_resolution";
     pub(crate) const SHADOW_SOFTNESS: &str = "shadow_softness";

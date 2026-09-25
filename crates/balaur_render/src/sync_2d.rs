@@ -47,32 +47,68 @@ fn layer_of(world: &balaur_core::hecs::World, entity: Entity) -> (i32, f32, Enti
     (layer, z, entity)
 }
 
-fn sorted(mut desired: Vec<(i32, f32, Entity)>) -> Vec<Entity> {
+fn sorted(desired: Vec<(i32, f32, Entity)>) -> Vec<Entity> {
+    sorted_layers(desired)
+        .into_iter()
+        .map(|(_, entity)| entity)
+        .collect()
+}
+
+fn sorted_layers(mut desired: Vec<(i32, f32, Entity)>) -> Vec<(i32, Entity)> {
     desired.sort_by(|a, b| {
         a.0.cmp(&b.0)
             .then(a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
     });
-    desired.into_iter().map(|(_, _, entity)| entity).collect()
+    desired
+        .into_iter()
+        .map(|(layer, _, entity)| (layer, entity))
+        .collect()
+}
+
+/// One place in the 2D draw order: a node's own, or the holder of what
+/// scripts drew at one `z_index`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Placed {
+    Node(Entity),
+    Layer(i32),
 }
 
 /// The drawing nodes under `root`, in the order they draw: `z_index` first,
-/// then z, then where the tree put them. `has_node` says which entities have
-/// something in the scene, whichever pass built it.
+/// then z, then where the tree put them, each with its index. `has_node`
+/// says which entities have something in the scene, whichever pass built it.
 fn ordered_nodes(
     world: &balaur_core::hecs::World,
     root: Entity,
     has_node: impl Fn(Entity) -> bool,
-) -> Vec<Entity> {
+) -> Vec<(i32, Entity)> {
     let mut desired: Vec<(i32, f32, Entity)> = Vec::new();
     for entity in balaur_core::scene::collect_subtree(world, root) {
         if has_node(entity) {
             desired.push(layer_of(world, entity));
         }
     }
-    sorted(desired)
+    sorted_layers(desired)
 }
 
-/// Sprites, polygons and tilemaps in one draw order.
+/// The nodes in their order with each drawn layer after the last node of
+/// its index, so it draws over that index and under the next.
+pub(crate) fn with_layers(
+    nodes: Vec<(i32, Entity)>,
+    layers: impl Iterator<Item = i32>,
+) -> Vec<Placed> {
+    let mut layers = layers.peekable();
+    let mut out = Vec::with_capacity(nodes.len());
+    for (layer, entity) in nodes {
+        while let Some(z) = layers.next_if(|z| *z < layer) {
+            out.push(Placed::Layer(z));
+        }
+        out.push(Placed::Node(entity));
+    }
+    out.extend(layers.map(Placed::Layer));
+    out
+}
+
+/// Sprites, polygons, tilemaps and the layers scripts draw at in one order.
 ///
 /// kiss3d draws 2D nodes in the order they were added, and a tilemap builds
 /// its node in a pass of its own, so without this every map drew over every
@@ -80,19 +116,20 @@ fn ordered_nodes(
 /// divergence on are detached and added again in the order, which costs
 /// nothing on a frame whose order held.
 pub(crate) fn order_layer_2d(
-    world: &balaur_core::hecs::World,
-    root: Entity,
+    app: &App,
     scene: &mut SceneNode2d,
     slots: &mut HashMap<Entity, Slot2d>,
     batches: &mut Batches,
     maps: &mut HashMap<Entity, crate::tilemap::TilemapSlot>,
-    order_cache: &mut Vec<Entity>,
+    layers: &crate::draw_2d::Layers2d,
+    order_cache: &mut Vec<Placed>,
 ) {
     // A run draws where its first member would have: every other member is
     // inside it, so only the head stands in the order.
-    let order = ordered_nodes(world, root, |entity| {
+    let nodes = ordered_nodes(&app.engine.world(), app.engine.root(), |entity| {
         slots.contains_key(&entity) || maps.contains_key(&entity) || batches.head(entity).is_some()
     });
+    let order = with_layers(nodes, layers.indices());
     let kept = order
         .iter()
         .zip(order_cache.iter())
@@ -107,12 +144,16 @@ pub(crate) fn order_layer_2d(
     let kept = if recut { 0 } else { kept };
     // A node holds its place while the prefix does; the rest is taken off
     // last-first and put back in order, which is the only move kiss3d has.
-    let mut node_of = |entity: &Entity| -> Option<SceneNode2d> {
+    let mut node_of = |placed: &Placed| -> Option<SceneNode2d> {
+        let entity = match *placed {
+            Placed::Layer(z) => return layers.holder(z),
+            Placed::Node(entity) => entity,
+        };
         slots
-            .get(entity)
+            .get(&entity)
             .map(|slot| slot.node.clone())
-            .or_else(|| maps.get(entity).map(|slot| slot.node.clone()))
-            .or_else(|| batches.head(*entity).map(|run| run.node.clone()))
+            .or_else(|| maps.get(&entity).map(|slot| slot.node.clone()))
+            .or_else(|| batches.head(entity).map(|run| run.node.clone()))
     };
     let moved: Vec<SceneNode2d> = order[kept..].iter().filter_map(&mut node_of).collect();
     for mut node in moved.iter().rev().cloned() {
@@ -618,10 +659,33 @@ mod tests {
             appearance.z_index = layer;
         }
         let order = super::ordered_nodes(&app.engine.world(), root, |_| true);
-        let places = |entity| order.iter().position(|held| *held == entity);
+        let places = |entity| order.iter().position(|(_, held)| *held == entity);
         assert!(
             places(sky) < places(ship),
             "the map at -100 draws under the ship at -1"
+        );
+    }
+
+    /// A shape a script draws at an index sits over that index's nodes and
+    /// under the next one's; an index no node has still takes its place.
+    #[test]
+    fn a_drawn_layer_sits_after_the_nodes_of_its_index() {
+        use super::Placed::{Layer, Node};
+        let mut world = balaur_core::hecs::World::new();
+        let (sea, ship, flag) = (world.spawn(()), world.spawn(()), world.spawn(()));
+        let nodes = vec![(-1, sea), (0, ship), (5, flag)];
+        let order = super::with_layers(nodes, [-3, 0, 2, 9].into_iter());
+        assert_eq!(
+            order,
+            [
+                Layer(-3),
+                Node(sea),
+                Node(ship),
+                Layer(0),
+                Layer(2),
+                Node(flag),
+                Layer(9)
+            ]
         );
     }
 }

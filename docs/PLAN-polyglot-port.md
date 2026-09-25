@@ -263,9 +263,11 @@ Three rules belong to the importer rather than the translator:
    with a `_draw` draws it every frame from `update`, and thirteen verbs go
    through the shim, which runs each point through the node's transform and
    the one `draw_set_transform` set, cuts a concave polygon into triangles,
-   and flips Godot's arc angles. The two options on the engine's verbs are
-   not built: a script's drawing sits over the scene, and a texture region
-   draws as the whole picture.
+   and flips Godot's arc angles. Done 2026-09-25: every verb takes a
+   trailing table, whose `z_index` hangs the shape under one holder node per
+   index that the 2D order places after that index's nodes, and a texture
+   takes `region_origin` and `region_size`. The shim draws a node's `_draw`
+   on its `global_z_index`, under the next index rather than over the scene.
 6. **Importer rules**: the `FoamTrail` sprites, export types, autoloads.
    Done 2026-09-24: a `ColorRect` with a material under a `Node2D` is a
    `shape2d` rectangle carrying it, 34 notes to 1; an export typed by a class

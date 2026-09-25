@@ -18,6 +18,12 @@ fn run(body: &str) -> (App, Vec<String>) {
 /// [`run`], and every line it logged. A caller that reads the buffer after
 /// `run` returns has already dropped the lock, and races the next test for it.
 fn run_logged(body: &str) -> (App, Vec<String>, Vec<String>) {
+    run_frames(body, 1)
+}
+
+/// `body` as a node's `init`, then `frames` ticks; what an immediate verb
+/// drew is still in its buffer with none.
+fn run_frames(body: &str, frames: usize) -> (App, Vec<String>, Vec<String>) {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -43,7 +49,9 @@ fn run_logged(body: &str) -> (App, Vec<String>, Vec<String>) {
     balaur_core::logbuf::clear();
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
-    app.tick(1.0 / 60.0);
+    for _ in 0..frames {
+        app.tick(1.0 / 60.0);
+    }
     let lines = balaur_core::logbuf::recent(50);
     let errors = lines
         .iter()
@@ -195,6 +203,40 @@ render::draw_rect_2d(0.5, 0.5, 2.0, 1.0);
 render::draw_arc_2d(0.0, 0.0, 1.0, 0.0, 90.0, 2.0);
 render::draw_polyline_2d([[0.0, 0.0], [1.0, 1.0], [2.0, 0.0]], 1.0, [0.0, 1.0, 0.0, 1.0]);
 render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0);"#,
+    );
+}
+
+#[test]
+fn a_shape_drawn_at_a_z_index_carries_it_and_a_picture_its_region() {
+    let (app, errors, _) = run_frames(
+        r#"render::draw_circle_2d(0.0, 0.0, 1.0, [1.0, 0.0, 0.0], #{ z_index: 2 });
+render::draw_line_2d(0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, #{ z_index: -1 });
+render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0, (), #{ region_origin: [8, 0], region_size: [8, 8] });"#,
+        0,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    let shapes = app
+        .engine
+        .resource::<balaur_render::DrawBuffer2d>()
+        .borrow()
+        .shapes
+        .clone();
+    let placed: Vec<Option<i32>> = shapes.iter().map(|d| d.z_index).collect();
+    assert_eq!(placed, [Some(2), Some(-1), None], "{shapes:?}");
+    assert!(
+        matches!(
+            &shapes[2].shape,
+            balaur_render::Draw2d::Texture {
+                region: Some([8.0, 0.0, 8.0, 8.0]),
+                ..
+            }
+        ),
+        "{shapes:?}"
+    );
+    let (_app, errors) = run(r"render::draw_rect_2d(0.0, 0.0, 1.0, 1.0, (), #{ z: 1 });");
+    assert!(
+        errors.iter().any(|e| e.contains("not 'z'")),
+        "a misspelt option is refused: {errors:#?}"
     );
 }
 

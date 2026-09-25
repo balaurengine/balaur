@@ -224,4 +224,58 @@ mod tests {
             "the probe hid itself only if copy 1 sits at x 3, scaled 2, half see-through"
         );
     }
+
+    /// A node's `_draw` lands on the node's own draw layer, and a texture
+    /// region is the part of the picture drawn.
+    #[test]
+    fn a_node_s_drawing_sits_on_its_layer_and_a_region_cuts_its_picture() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            "[[nodes]]\nid = \"probe\"\nname = \"Probe\"\nz_index = 3\nscript = { source = \"probe.rn\" }\n",
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn _draw(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    (gd.draw_circle)(this.node, (gd.vec2)(0.0, 0.0), 4.0, (), (), (), ());",
+                "    (gd.draw_texture_rect_region)(this.node, \"sheet.png\", (gd.rect)(0.0, 0.0, 8.0, 8.0), (gd.rect)(16.0, 0.0, 16.0, 8.0), (), (), ());",
+                "}",
+                "pub fn init(this) {",
+                "    (script::require(\"gd.rn\").draw_frame)(this.node);",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        let shapes = app
+            .engine
+            .resource::<balaur::render::DrawBuffer2d>()
+            .borrow()
+            .shapes
+            .clone();
+        let layers: Vec<Option<i32>> = shapes.iter().map(|d| d.z_index).collect();
+        assert_eq!(layers, [Some(3), Some(3)], "{shapes:?}");
+        assert!(
+            matches!(
+                &shapes[1].shape,
+                balaur::render::Draw2d::Texture {
+                    region: Some([16.0, 0.0, 16.0, 8.0]),
+                    ..
+                }
+            ),
+            "{shapes:?}"
+        );
+    }
 }

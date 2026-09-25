@@ -98,9 +98,11 @@ struct Frontend {
     materials: crate::shader_material::MaterialCache,
     materials_3d: crate::shader_material_3d::MaterialCache3d,
     light_map: crate::light_map::LightMap,
-    order_2d: Vec<Entity>,
+    order_2d: Vec<crate::sync_2d::Placed>,
     /// Last frame's immediate 2D shapes, detached before this frame's are drawn.
     transients: Vec<SceneNode2d>,
+    /// Where shapes and text drawn at a `z_index` sit in the 2D order.
+    layers_2d: crate::draw_2d::Layers2d,
     text: crate::world_text::Frame,
     frame: u64,
     /// Whether frames reach an OS window, which an offscreen run's do not.
@@ -165,6 +167,7 @@ impl Frontend {
             environment: None,
             order_2d: Vec::new(),
             transients: Vec::new(),
+            layers_2d: crate::draw_2d::Layers2d::default(),
             text: crate::world_text::Frame::default(),
             frame: 0,
             on_screen: true,
@@ -201,13 +204,14 @@ impl Frontend {
             &mut self.materials,
             reloaded,
         );
+        self.layers_2d.want(app);
         crate::sync_2d::order_layer_2d(
-            &app.engine.world(),
-            app.engine.root(),
+            app,
             &mut self.scene_2d,
             &mut self.slots_2d,
             &mut self.batches_2d,
             &mut self.tilemap_slots,
+            &self.layers_2d,
             &mut self.order_2d,
         );
     }
@@ -284,13 +288,20 @@ impl Frontend {
         // Last of the lit 2D syncs: the composite draws over everything the
         // syncs above put in the scene.
         self.light_map.sync(app, &mut self.scene_2d);
-        // Immediate shapes go over the composite, unlit, like debug lines.
-        crate::draw_2d::flush(app, window, &mut self.scene_2d, &mut self.transients);
+        // Immediate shapes with no `z_index` go over the composite, unlit.
+        crate::draw_2d::flush(
+            app,
+            window,
+            &self.scene_2d,
+            &self.layers_2d,
+            &mut self.transients,
+        );
         let tall = window.height() as f32;
         crate::world_text::draw(
             app,
             &mut self.scene_2d,
             &mut self.scene,
+            &self.layers_2d,
             &mut self.text,
             tall,
         );
