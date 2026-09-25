@@ -1,4 +1,4 @@
-// The Animate persona's adapter between the scene document and the engine's
+// The Animation workspace's adapter between the scene document and the engine's
 // `assets` / `animation` modules: scrubbing seeks the engine, nothing here
 // samples. The clip belongs to the player (`player`), keyed by node path.
 

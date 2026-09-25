@@ -62,6 +62,7 @@ pub fn start(S, name) {
         "manager" => manager_pages(S, q),
         "godot" => godot(S, q),
         "importing" => importing(S, q),
+        "theme_editor" => theme_editor(S, q),
         _ => {
             log::warn(format!("show:{}: no such showcase", name));
             return;
@@ -236,11 +237,11 @@ fn spot(S, name) {
     let bottom = S.layout.bottom;
     let right = S.layout.right;
     match name {
-        "scene_tab" => chrome::persona_spot(S, "scene"),
-        "script_tab" => chrome::persona_spot(S, "script"),
-        "anim_tab" => chrome::persona_spot(S, "anim"),
-        "phys_tab" => chrome::persona_spot(S, "phys"),
-        "ui_tab" => chrome::persona_spot(S, "ui"),
+        "scene_tab" => chrome::workspace_spot(S, "scene"),
+        "script_tab" => chrome::workspace_spot(S, "script"),
+        "animation_tab" => chrome::workspace_spot(S, "animation"),
+        "physics_tab" => chrome::workspace_spot(S, "physics"),
+        "ui_tab" => chrome::workspace_spot(S, "ui"),
         "focus_chip" => chrome::focus_spot(S),
         "play" => chrome::transport_spot(S, 0),
         "stop" => chrome::transport_spot(S, 2),
@@ -261,11 +262,11 @@ fn spot(S, name) {
     }
 }
 
-// A tool in the rail, by the id `defs::tools` gives it in this persona.
+// A tool in the rail, by the id `defs::tools` gives it in this workspace.
 fn tool_spot(S, tool) {
     let rail = S.layout.rail;
     let slot = 0;
-    for (i, id) in defs::tools(S.persona).iter().enumerate() {
+    for (i, id) in defs::tools(S.workspace).iter().enumerate() {
         if id == tool {
             slot = i;
         }
@@ -483,7 +484,7 @@ fn godot(S, q) {
 // keeps drawing while the job writes them.
 fn importing(S, q) {
     act(q, 1, || {
-        shell::set_persona(S, "scene");
+        shell::set_workspace(S, "scene");
         crate::docks::show(S, "assets");
         // The queue's own drip is off; the pointer takes one file per beat.
         S.import_from = 1000000;
@@ -510,7 +511,7 @@ fn drop_file(S, q, frame, fx, fy) {
 // The code pane taking the window: a node with a script, the Focus chip
 // folding the three docks away, and the shortcut putting them back.
 fn focusing(S, q) {
-    act(q, 1, || shell::set_persona(S, "script"));
+    act(q, 1, || shell::set_workspace(S, "script"));
     click_row(S, q, 40, "Spinner");
     click(S, q, 200, || spot(S, "focus_chip"), || shell::toggle_focus(S));
     chord(S, q, 480, ["LShift", "LWin", "Backslash"], || shell::toggle_focus(S));
@@ -519,7 +520,7 @@ fn focusing(S, q) {
 // Scenes and nodes, `examples/hello`: the tree, the inspector following the
 // selection, an edit, and its undo.
 fn scenes(S, q) {
-    act(q, 1, || shell::set_persona(S, "scene"));
+    act(q, 1, || shell::set_workspace(S, "scene"));
     click_row(S, q, 30, "Platform");
     click_row(S, q, 150, "Ball");
     click_row(S, q, 250, "Spinner");
@@ -550,7 +551,7 @@ fn scripting(S, q) {
     act(q, 1, || {
         q.kept[rel] = model::source(S, rel).unwrap_or("");
     });
-    click(S, q, 30, || spot(S, "script_tab"), || shell::set_persona(S, "script"));
+    click(S, q, 30, || spot(S, "script_tab"), || shell::set_workspace(S, "script"));
     click_row(S, q, 110, "Spinner");
     click(S, q, 200, || spot(S, "play"), || shell::toggle_play(S));
     // The cursor rests on the edited line, or on the last one the pane can
@@ -645,7 +646,7 @@ fn fit_figure(S) {
 // Animation, `examples/rig`: scrub the clip, pose the thigh, key it, play.
 fn animation(S, q) {
     act(q, 1, || fit_figure(S));
-    click(S, q, 20, || spot(S, "anim_tab"), || shell::set_persona(S, "anim"));
+    click(S, q, 20, || spot(S, "animation_tab"), || shell::set_workspace(S, "animation"));
     click_row(S, q, 90, "Thigh");
     click(S, q, 150, || spot(S, "bone_tool"), || {
         S.tool = "bone";
@@ -671,8 +672,8 @@ fn animation(S, q) {
 // Physics, `examples/angrynerds`: the collider overlays, then play and a
 // shot at the towers.
 fn physics(S, q) {
-    click(S, q, 20, || spot(S, "phys_tab"), || {
-        shell::set_persona(S, "phys");
+    click(S, q, 20, || spot(S, "physics_tab"), || {
+        shell::set_workspace(S, "physics");
         shell::set_zoom(S, 45.0);
     });
     click_row(S, q, 80, "Bird");
@@ -684,7 +685,7 @@ fn physics(S, q) {
 // Input, `examples/hello`: the overlay, fed the keys and clicks a person
 // would press.
 fn input_clip(S, q) {
-    act(q, 1, || shell::set_persona(S, "scene"));
+    act(q, 1, || shell::set_workspace(S, "scene"));
     click_row(S, q, 30, "Spinner");
     click(S, q, 110, || spot(S, "play"), || shell::toggle_play(S));
     tap(q, 200, "Space");
@@ -720,7 +721,7 @@ fn input_clip(S, q) {
 // pause, play on.
 fn determinism(S, q) {
     act(q, 1, || {
-        shell::set_persona(S, "scene");
+        shell::set_workspace(S, "scene");
         shell::set_zoom(S, 45.0);
         S.session.verify = true;
         crate::docks::show(S, "session");
@@ -746,7 +747,7 @@ fn determinism(S, q) {
 fn shaders(S, q) {
     let rel = "shaders/glow.wesl";
     act(q, 1, || {
-        shell::set_persona(S, "scene");
+        shell::set_workspace(S, "scene");
         // The dock names each previewed line and its type as it is asked for.
         crate::docks::show(S, "output");
         q.kept[rel] = model::source(S, rel).unwrap_or("");
@@ -776,5 +777,114 @@ fn shaders(S, q) {
     act(q, 1080, || {
         S.doctab = "script";
         restore_source(S, rel, q);
+    });
+}
+
+// The Theme window, `examples/hello`: a duplicate's accent walked to amber and
+// a chip's radius dragged. The copy and the preferences file are put back.
+const FORM = "Editor/Sheet/SheetBody/SheetSplit/SheetScroll/SheetForm";
+const SIDE = "Editor/Sheet/SheetBody/SheetSplit/SheetSide/SheetSideRows";
+
+fn centre_of(path) {
+    let node = scene::get_node(path);
+    let box = if util::is_nil(node) { () } else { ui::widget_rect(node) };
+    // `return`: a bare tuple after a block parses as a call on the block.
+    return if box is Object { (box.x + box.w / 2.0, box.y + box.h / 2.0) } else { (0.0, 0.0) };
+}
+
+// A form row's control, found by the row's label: the rows are pooled, so a
+// row's index moves with whatever the page shows above it.
+fn form_control(label, at) {
+    let host = scene::get_node(FORM);
+    if util::is_nil(host) {
+        return (0.0, 0.0);
+    }
+    for row in host.children() {
+        let named = row.get_node("L");
+        if row.get_component("widget", "visible") == true && !util::is_nil(named)
+            && named.get_component("widget", "text") == label {
+            return centre_of(format!("{}/{}/H/C/C{}", FORM, row.name(), at));
+        }
+    }
+    (0.0, 0.0)
+}
+
+// The head row's buttons, by their caption.
+fn head_control(text) {
+    let slot = FORM + "/R0/H/C";
+    let host = scene::get_node(slot);
+    if util::is_nil(host) {
+        return (0.0, 0.0);
+    }
+    for control in host.children() {
+        if control.get_component("widget", "text") == text {
+            return centre_of(slot + "/" + control.name());
+        }
+    }
+    (0.0, 0.0)
+}
+
+fn mix(a, b, p) {
+    let (ar, ag, ab) = util::hex_to_rgb(a);
+    let (br, bg, bb) = util::hex_to_rgb(b);
+    util::to_hex([lerp(ar, br, p), lerp(ag, bg, p), lerp(ab, bb, p)])
+}
+
+fn theme_editor(S, q) {
+    let prefs = crate::settings::prefs_path();
+    let kept = fs::read(prefs);
+    act(q, 1, || shell::set_workspace(S, "scene"));
+    chord(S, q, 40, ["LWin", "K"], || shell::open_palette(S, ""));
+    over_ui(q, 70, 110, |p| {
+        let word = "theme";
+        let n = util::i(util::min(5.0, p * 6.0));
+        S.palette_query = word[0..n];
+    });
+    click(S, q, 150, || centre_of("Editor/Picker/PickerScroll/PickerRows/R0"), || {
+        shell::close_palette(S);
+        crate::themewin::open(S);
+    });
+    click(S, q, 250, || head_control("Duplicate"), || { crate::themewin::duplicate(S); });
+    // The accent and the two fills beside it, walked together so the chrome
+    // stays one colour while it turns.
+    glide(S, q, 330 - GLIDE, 330, || form_control("accent", 0));
+    at(q, 330, || press(S));
+    over_ui(q, 335, 455, |p| {
+        let e = ease(p);
+        let own = S.themewin.own;
+        if !own.contains_key("colors") {
+            own["colors"] = #{};
+        }
+        own.colors["accent_fill"] = mix("#4287cc", "#b8793a", e);
+        own.colors["accent_soft"] = mix("#22364d", "#3d3024", e);
+        crate::themewin::edit(S, ["colors"], "accent", mix("#6fa4d8", "#e0a868", e));
+    });
+    at(q, 460, || release(S));
+    click(S, q, 540, || centre_of(SIDE + "/C2"), || { S.themewin.page = "controls"; });
+    click(S, q, 620, || form_control("chip", 1), || { crate::themewin::show_role(S, "chip", ""); });
+    glide(S, q, 700 - GLIDE, 700, || form_control("  radius", 0));
+    at(q, 700, || press(S));
+    over_ui(q, 705, 785, |p| {
+        crate::themewin::edit(S, ["roles", "chip"], "radius", util::i(lerp(6.0, 12.0, ease(p)) + 0.5));
+    });
+    over(q, 705, 785, |p| {
+        let (x, y) = form_control("  radius", 0);
+        feed_pointer(S, x + 40.0 * ease(p), y);
+    });
+    at(q, 790, || release(S));
+    click(S, q, 870, || {
+        let box = S.themewin.get("save_at").unwrap_or(());
+        if box is Object { (box.x + box.w / 2.0, box.y + box.h / 2.0) } else { centre_of("Editor/Sheet/SheetBar/C2") }
+    }, || crate::themewin::save(S));
+    click(S, q, 950, || centre_of("Editor/Sheet/SheetBar/C3"), || crate::window::hide(S));
+    // Put back what the take changed on disk, with the editor still wearing
+    // the copy for the frames already written.
+    at(q, 1030, || {
+        fs::remove(crate::theme::path_of(S.theme.name));
+        if kept is String {
+            fs::write(prefs, kept);
+        } else {
+            fs::remove(prefs);
+        }
     });
 }

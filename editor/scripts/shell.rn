@@ -1,4 +1,4 @@
-// The editor's verbs on its state `S`: selection, personas, play, the
+// The editor's verbs on its state `S`: selection, workspaces, play, the
 // palette, breakpoints, the pause, and the start-up states.
 
 use crate::anim;
@@ -69,17 +69,17 @@ pub fn redo(S) {
     step(S, "redo", history::redo(S));
 }
 
-pub fn set_persona(S, id) {
-    S.persona = id;
+pub fn set_workspace(S, id) {
+    S.workspace = id;
     S.tool = "select";
     if id == "script" {
         open_doc(S, "script");
     } else {
         S.doctab = "scene";
     }
-    // A persona is a set of open panels and nothing more: what it opens can
+    // A workspace is a set of open panels and nothing more: what it opens can
     // be closed again from a tab, and what it leaves out opened from the menu.
-    crate::docks::apply_persona(S, id);
+    crate::docks::apply_workspace(S, id);
 }
 
 /// Show a document tab, opening it when it was closed.
@@ -295,8 +295,8 @@ pub fn stop_play(S) {
 }
 
 // Viewport chip side effects (chips themselves live in center.rn).
-pub fn on_chip(S, persona, key, value) {
-    if persona == "phys" && key == "sleep" {
+pub fn on_chip(S, workspace, key, value) {
+    if workspace == "physics" && key == "sleep" {
         physics::set_sleeping_allowed(value);
     }
 }
@@ -304,8 +304,8 @@ pub fn on_chip(S, persona, key, value) {
 // The other half of the pair: chips that command the engine read their
 // state back from it, so nothing is mirrored in `S.chip_state`. `None` for a
 // chip the editor owns outright.
-pub fn chip_value(S, persona, key) {
-    if persona == "phys" && key == "sleep" {
+pub fn chip_value(S, workspace, key) {
+    if workspace == "physics" && key == "sleep" {
         return Some(physics::sleeping_allowed());
     }
     None
@@ -369,7 +369,7 @@ pub fn on_pause(S, p) {
             break;
         }
     }
-    set_persona(S, "script");
+    set_workspace(S, "script");
     crate::docks::show(S, "debugger");
     log::info(format!("paused at {}:{} ({})", S.debug.paused_rel, p.line, p.reason));
 }
@@ -572,7 +572,7 @@ pub fn open_script_at(S, rel, line) {
     for (i, node) in S.doc.iter().enumerate() {
         if model::script_rel(node) == Some(rel) {
             crate::selection::only(S, i);
-            set_persona(S, "script");
+            set_workspace(S, "script");
             S.doctab = "script";
             S.preview_line = line;
             return;
@@ -627,7 +627,7 @@ pub fn save_active(S) {
         return;
     }
     let node = model::selected_node(S);
-    let in_script = (S.persona == "script" || S.doctab == "script") && node.contains_key("script");
+    let in_script = (S.workspace == "script" || S.doctab == "script") && node.contains_key("script");
     if in_script {
         let rel = model::script_rel(node).unwrap_or("");
         let abs = S.game_root + "/" + rel;
@@ -853,7 +853,7 @@ fn state_find(S, query) {
     S.search["tree"] = query;
 }
 
-// One start-up state, mirroring the design prototype's startPersona prop. A
+// One start-up state, mirroring the design prototype's startWorkspace prop. A
 // plugin may extend a built-in state rather than replace it, so both run.
 pub fn apply_start_state(S, start) {
     for (prefix, run) in prefixed_states() {
@@ -878,7 +878,7 @@ pub fn apply_start_state(S, start) {
         None => (),
     }
     if !ran && start != "" {
-        state_persona(S, start);
+        state_workspace(S, start);
     }
 }
 
@@ -1109,13 +1109,13 @@ fn state_animdemo(S) {
             }
         }
     }
-    set_persona(S, "anim");
+    set_workspace(S, "animation");
 }
 
-// A bare name is a persona; the script persona also picks a scripted node so
+// A bare name is a workspace; the script workspace also picks a scripted node so
 // the centre pane has something to show.
-fn state_persona(S, name) {
-    set_persona(S, name);
+fn state_workspace(S, name) {
+    set_workspace(S, name);
     if name == "script" {
         for (i, node) in S.doc.iter().enumerate() {
             if node.contains_key("script") {

@@ -311,7 +311,7 @@ fn refuse_absent(app: &App, asked: &Selection) -> Result<()> {
         return Ok(());
     }
     bail!(
-        "project.toml asks for `{}`, which nothing registered: this build has          no such module (try --features {}) and no extension declares it",
+        "project.toml asks for `{}`, which nothing registered: this build has no such plugin (build with --features {}) and no extension provides it",
         missing.join("`, `"),
         missing.join(","),
     )

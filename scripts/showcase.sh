@@ -15,11 +15,11 @@ milestones="
 0.1 scenes_tree
 0.1 scripting_editor
 0.1 hello_open
-0.1 persona_scene
-0.1 persona_script
-0.1 persona_animate
-0.1 persona_physics
-0.1 persona_interface
+0.1 workspace_scene
+0.1 workspace_script
+0.1 workspace_animation
+0.1 workspace_physics
+0.1 workspace_ui
 0.1 editor_selection
 0.1 editor_events
 0.1 editor_cost
@@ -71,6 +71,7 @@ milestones="
 0.2 ui_text
 0.2 ui_tour
 0.2 log_settings
+0.2 theme_editor
 "
 
 milestone_of() { # milestone_of <name>: the milestone it is filed under, or ""
@@ -376,20 +377,20 @@ shot editor_focus      examples/hello      "script,select:Spinner,focus"
 shot ui_widgets        examples/angrynerds "ui,select:Restart,play"
 # hello playing with the docks folded, so its touch stick and button show.
 shot touch_controls    examples/hello      "scene,shut:left,shut:right,shut:bottom,shut:rail,play"
-# One still per persona for the editor page, plus the pages that had no picture.
+# One still per workspace for the editor page, plus the pages that had no picture.
 shot hello_open        examples/hello      "scene,select:World,dock:output"
-shot persona_scene     examples/angrynerds "scene,select:Bird"
-shot persona_script    examples/hello      "script,select:Spinner"
-shot persona_animate   examples/rig        "anim,select:Thigh"
+shot workspace_scene     examples/angrynerds "scene,select:Bird"
+shot workspace_script    examples/hello      "script,select:Spinner"
+shot workspace_animation   examples/rig        "animation,select:Thigh"
 # The selection set, the Events view, the Cost dock and the Library.
 shot editor_selection  examples/objects    "scene,select:Torus,dock:library,zoom:55"
 shot editor_events     examples/hello      "scene,select:Ball,tab:events"
 shot editor_cost       examples/objects    "scene,dock:cost,zoom:55"
 shot editor_lights     examples/hello      "scene,select:KeyLight,dock:inspector"
 # The rigging panels, each over the rig example's own figure.
-shot rigging_weights   examples/rig        "anim,select:Limb,tool:polygon,mode:weights,dock:weights,zoom:70"
-shot rigging_bonemap   examples/rig        "anim,select:Hip,dock:bonemap"
-shot rigging_modifiers examples/rig        "anim,select:Hero,dock:inspector,zoom:80"
+shot rigging_weights   examples/rig        "animation,select:Limb,tool:polygon,mode:weights,dock:weights,zoom:70"
+shot rigging_bonemap   examples/rig        "animation,select:Hip,dock:bonemap"
+shot rigging_modifiers examples/rig        "animation,select:Hero,dock:inspector,zoom:80"
 
 # The objects example photographs itself: its tour script saves one frame per
 # pose when run with `shots=`, so these come from `run` and not an editor state.
@@ -409,9 +410,9 @@ objects_shots() {
   if [ $any = 1 ]; then echo ok; else failed objects; fi
 }
 objects_shots
-shot persona_physics   examples/angrynerds "phys,select:Bird"
-shot persona_interface examples/angrynerds "ui,select:Restart,play"
-shot physics_overlays  examples/angrynerds "phys,select:Bird"
+shot workspace_physics   examples/angrynerds "physics,select:Bird"
+shot workspace_ui        examples/angrynerds "ui,select:Restart,play"
+shot physics_overlays  examples/angrynerds "physics,select:Bird"
 shot editor_profiler   examples/angrynerds "scene,select:Bird,play,dock:profiler"
 shot networking_faults examples/angrynerds "scene,settings:netcode"
 shot save_settings     examples/angrynerds "scene,settings:save"
@@ -441,6 +442,7 @@ clip determinism_replay examples/angrynerds 1120 "show:determinism"
 clip shader_preview    examples/shaders    1160 "show:shaders"
 clip script_focus      examples/hello      640  "show:focus"
 clip project_start     examples/hello      600  "show:manager"
+clip theme_editor      examples/hello      1040 "show:theme_editor"
 # The take ends part way: a project of this size is half a minute of importing,
 # and the clip runs at the rate it really goes rather than being sped up.
 godot_clip godot_import 840

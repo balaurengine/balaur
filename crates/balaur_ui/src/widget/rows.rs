@@ -37,13 +37,13 @@ impl Ink {
         let named = |key: &str, built_in: Color32| theme.token(key).unwrap_or(built_in);
         let weak = ui.visuals().weak_text_color();
         Self {
-            on: named(k::ROW_ON, ui.visuals().selection.bg_fill),
-            on_color: named(k::ROW_ON_COLOR, ui.visuals().selection.stroke.color),
+            on: named(k::ROW_SELECTED, ui.visuals().selection.bg_fill),
+            on_color: named(k::ROW_SELECTED_TEXT, ui.visuals().selection.stroke.color),
             hover: named(k::ROW_HOVER, crate::immediate::wash(ui, false)),
             active: named(k::ROW_ACTIVE, crate::immediate::wash(ui, true)),
             stripe: named(k::ROW_STRIPE, ui.visuals().faint_bg_color),
-            head: named(k::ROW_HEAD, ui.visuals().faint_bg_color),
-            rule: named(k::ROW_RULE, weak.gamma_multiply(0.5)),
+            head: named(k::HEADER_FILL, ui.visuals().faint_bg_color),
+            rule: named(k::COLUMN_RULE, weak.gamma_multiply(0.5)),
             guide: named(k::ROW_GUIDE, weak.gamma_multiply(0.55)),
         }
     }

@@ -24,13 +24,13 @@ pub(crate) struct SyntaxColors {
 impl SyntaxColors {
     pub(crate) fn from_opts(opts: &Opts) -> Self {
         Self {
-            key: opts.color(k::K_KEY, Color32::from_rgb(0x6f, 0xa4, 0xd8)),
-            string: opts.color(k::K_STR, Color32::from_rgb(0x8f, 0xb8, 0xb0)),
-            number: opts.color(k::K_NUM, Color32::from_rgb(0x9f, 0xc2, 0xe5)),
-            comment: opts.color(k::K_COM, Color32::from_rgb(0x8a, 0x97, 0xa4)),
-            ident: opts.color(k::K_FN, Color32::from_rgb(0xe6, 0xe9, 0xee)),
-            builtin: opts.color(k::K_TYPE, Color32::from_rgb(0xb7, 0xd3, 0xcc)),
-            punct: opts.color(k::K_PUNC, Color32::from_rgb(0x9b, 0xa6, 0xb1)),
+            key: opts.color(k::SYNTAX_KEYWORD, Color32::from_rgb(0x6f, 0xa4, 0xd8)),
+            string: opts.color(k::SYNTAX_STRING, Color32::from_rgb(0x8f, 0xb8, 0xb0)),
+            number: opts.color(k::SYNTAX_NUMBER, Color32::from_rgb(0x9f, 0xc2, 0xe5)),
+            comment: opts.color(k::SYNTAX_COMMENT, Color32::from_rgb(0x8a, 0x97, 0xa4)),
+            ident: opts.color(k::SYNTAX_IDENTIFIER, Color32::from_rgb(0xe6, 0xe9, 0xee)),
+            builtin: opts.color(k::SYNTAX_TYPE, Color32::from_rgb(0xb7, 0xd3, 0xcc)),
+            punct: opts.color(k::SYNTAX_PUNCTUATION, Color32::from_rgb(0x9b, 0xa6, 0xb1)),
         }
     }
 }
@@ -386,13 +386,13 @@ const THEME_COLORS: [&str; 12] = [
     k::CURRENT_FILL,
     k::PROBLEM_COLOR,
     k::WARNING_COLOR,
-    k::K_KEY,
-    k::K_STR,
-    k::K_NUM,
-    k::K_COM,
-    k::K_FN,
-    k::K_TYPE,
-    k::K_PUNC,
+    k::SYNTAX_KEYWORD,
+    k::SYNTAX_STRING,
+    k::SYNTAX_NUMBER,
+    k::SYNTAX_COMMENT,
+    k::SYNTAX_IDENTIFIER,
+    k::SYNTAX_TYPE,
+    k::SYNTAX_PUNCTUATION,
 ];
 
 /// A `code` widget's values as the options `code_editor` reads, so the node
@@ -407,7 +407,7 @@ pub(crate) fn code_opts(
         12.5
     };
     let mut given = vec![
-        (k::SIZE.into(), Value::Num(f64::from(size))),
+        (k::FONT_SIZE.into(), Value::Num(f64::from(size))),
         (k::LANGUAGE.into(), Value::Str(widget.source.to_string())),
         (
             k::CURRENT_LINE.into(),
@@ -473,7 +473,7 @@ pub(crate) fn code_editor(
         .text_buffers
         .remove(id)
         .unwrap_or_else(|| source.to_string());
-    let size = opts.px(k::SIZE, 12.5);
+    let size = opts.px(k::FONT_SIZE, 12.5);
     let gutter = Gutter::from_opts(opts, size);
     let colors = SyntaxColors::from_opts(opts);
     let marks = Marks::from_opts(opts);

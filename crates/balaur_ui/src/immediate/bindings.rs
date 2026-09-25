@@ -167,8 +167,8 @@ fn install_overlay(m: &mut dyn Bindings<Engine>) {
             with_ctx(|ctx| {
                 let x = opts.px(k::X, 0.0);
                 let y = opts.px(k::Y, 0.0);
-                let w = opts.px(k::W, 0.0);
-                let h = opts.px(k::H, 0.0);
+                let w = opts.px(k::WIDTH, 0.0);
+                let h = opts.px(k::HEIGHT, 0.0);
                 let mut result = Ok(());
                 let pad_x = opts.px(k::PADDING_X, 0.0);
                 let pad_y = opts.px(k::PADDING_Y, 0.0);
@@ -190,12 +190,12 @@ fn install_overlay(m: &mut dyn Bindings<Engine>) {
                 area.show(ctx, |ui| {
                     let mut frame = egui::Frame::new()
                         .inner_margin(egui::Margin::symmetric(pad_x as i8, pad_y as i8))
-                        .corner_radius(pill_radius(opts.px(k::RADIUS, 0.0) * 2.0));
+                        .corner_radius(pill_radius(opts.px(k::CORNER_RADIUS, 0.0) * 2.0));
                     if let Some(fill) = opts.opt_color(k::FILL) {
                         frame = frame.fill(fill);
                     }
-                    if let Some(stroke) = opts.opt_color(k::STROKE) {
-                        frame = frame.stroke(Stroke::new(1.0, stroke));
+                    if let Some(stroke) = opts.opt_stroke() {
+                        frame = frame.stroke(stroke);
                     }
                     if !sized {
                         frame.show(ui, |ui| {
@@ -245,13 +245,13 @@ pub(crate) fn install_text(m: &mut dyn Bindings<Engine>) {
         |_eng: &Engine, (s, opts): (String, Option<Value>)| {
             let opts = Opts::with_roles(opts);
             with_ui(|ui| {
-                let fam = opts.str(k::FONT).unwrap_or(w::UI);
+                let fam = opts.str(k::FONT_FAMILY).unwrap_or(w::UI);
                 let rt = text(
                     &s,
-                    opts.px(k::SIZE, 12.0),
+                    opts.px(k::FONT_SIZE, 12.0),
                     fam,
-                    opts.opt_color(k::COLOR),
-                    opts.boolean(k::STRONG, false),
+                    opts.opt_color(k::TEXT_COLOR),
+                    opts.bold(),
                 );
                 let mut label = egui::Label::new(rt).selectable(false);
                 if !opts.boolean(k::WRAP, false) {
@@ -324,7 +324,7 @@ pub(crate) fn install_code(m: &mut dyn Bindings<Engine>) {
         |_eng: &Engine, (gutter, spans, opts): (String, Value, Option<Value>)| {
             let opts = Opts::with_roles(opts);
             with_ui(|ui| {
-                let size = opts.px(k::SIZE, 12.5);
+                let size = opts.px(k::FONT_SIZE, 12.5);
                 let row_h = size * opts.f32(k::LINE_HEIGHT, 1.78);
                 let gutter_w = opts.px(k::GUTTER_WIDTH, 24.0);
                 let (rect, _) =
@@ -358,12 +358,14 @@ pub(crate) fn install_code(m: &mut dyn Bindings<Engine>) {
                         Some(Value::Str(s)) => s.clone(),
                         _ => String::new(),
                     };
-                    let color = match field(k::COLOR) {
+                    let color = match field(k::TEXT_COLOR) {
                         Some(Value::Str(c)) => parse_hex(c).unwrap_or(Color32::WHITE),
                         _ => Color32::WHITE,
                     };
                     let mut format = egui::TextFormat::simple(mono.clone(), color);
-                    if matches!(field(k::STRONG), Some(Value::Bool(true))) {
+                    if matches!(field(k::FONT_WEIGHT), Some(Value::Num(w)) if *w >= 600.0)
+                        || matches!(field(k::FONT_WEIGHT), Some(Value::Int(w)) if *w >= 600)
+                    {
                         format.font_id = FontId::new(size, theme::family(w::MONO));
                         format.underline = Stroke::NONE;
                         format.color = color;
@@ -466,8 +468,8 @@ pub(crate) fn install_modal(m: &mut dyn Bindings<Engine>) {
                         let mut frame = egui::Frame::new()
                             .corner_radius(pill_radius(32.0))
                             .fill(opts.color(k::FILL, Color32::from_rgb(0x20, 0x24, 0x2a)));
-                        if let Some(stroke) = opts.opt_color(k::STROKE) {
-                            frame = frame.stroke(Stroke::new(1.0, stroke));
+                        if let Some(stroke) = opts.opt_stroke() {
+                            frame = frame.stroke(stroke);
                         }
                         frame.show(ui, |ui| {
                             ui.set_width(width);
@@ -765,8 +767,8 @@ pub(crate) fn install_dropdown_select(m: &mut dyn Bindings<Engine>) {
                     _ => Vec::new(),
                 };
                 let w = opts.px(k::WIDTH, 160.0);
-                let size = opts.px(k::SIZE, 12.0);
-                let text_color = opts.color(k::COLOR, Color32::WHITE);
+                let size = opts.px(k::FONT_SIZE, 12.0);
+                let text_color = opts.color(k::TEXT_COLOR, Color32::WHITE);
                 let mut selected = current.clone();
                 ui.scope(|ui| {
                     // Pill-shaped shell and menu items for this widget only.
@@ -847,7 +849,7 @@ pub(crate) fn install_images(m: &mut dyn Bindings<Engine>) {
                 let rect = Rect::from_min_size(pos2(origin.x + x, origin.y + y), vec2(w, h));
                 let stroke = Stroke::new(
                     opts.f32(k::WIDTH, 1.5),
-                    opts.color(k::COLOR, Color32::from_rgb(0xd5, 0x81, 0x4e)),
+                    opts.color(k::TEXT_COLOR, Color32::from_rgb(0xd5, 0x81, 0x4e)),
                 );
                 if opts.boolean(k::DASHED, false) {
                     let corners = [
@@ -1005,23 +1007,18 @@ fn install_toggle_and_slider(m: &mut dyn Bindings<Engine>) {
     m.function(
         "toggle",
         |_eng: &Engine, (on, opts): (bool, Option<Value>)| {
-            let opts = Opts::with_roles(opts);
+            let given = Opts::with_roles(opts);
             with_ui(|ui| {
                 // Sized from the theme: a switch as tall as its row, not a
                 // slab that dwarfs the fields beside it.
-                let h = opts.px(k::HEIGHT, 18.0);
+                let h = given.px(k::HEIGHT, 18.0);
                 let (rect, response) = ui.allocate_exact_size(vec2(h * 1.75, h), Sense::click());
                 let on = if response.clicked() { !on } else { on };
-                let track = if on {
-                    opts.color(k::ON_FILL, Color32::from_rgb(0xd5, 0x81, 0x4e))
-                } else {
-                    opts.color(k::OFF_FILL, Color32::from_rgb(0x10, 0x12, 0x15))
-                };
-                let knob = if on {
-                    opts.color(k::ON_KNOB, Color32::from_rgb(0xf9, 0xf4, 0xed))
-                } else {
-                    opts.color(k::OFF_KNOB, Color32::from_rgb(0x76, 0x7e, 0x88))
-                };
+                // The track is the fill and the knob the text colour, and a
+                // switch that is on wears its role's `checked` table.
+                let opts = given.with_checked(on);
+                let track = opts.color(k::FILL, Color32::from_rgb(0x10, 0x12, 0x15));
+                let knob = opts.color(k::TEXT_COLOR, Color32::from_rgb(0x76, 0x7e, 0x88));
                 ui.painter().rect_filled(rect, h / 2.0, track);
                 let inset = h / 2.0;
                 let x = if on {
@@ -1129,7 +1126,7 @@ fn install_drag_value(m: &mut dyn Bindings<Engine>) {
                 if response.hovered() {
                     ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
                 }
-                let radius = opts.px(k::RADIUS, 0.0);
+                let radius = opts.px(k::CORNER_RADIUS, 0.0);
                 let corner = if radius > 0.0 {
                     pill_radius(radius * 2.0)
                 } else {
@@ -1139,15 +1136,12 @@ fn install_drag_value(m: &mut dyn Bindings<Engine>) {
                     rect,
                     corner,
                     opts.color(k::FILL, Color32::from_rgb(0x10, 0x12, 0x15)),
-                    Stroke::new(
-                        1.0,
-                        opts.color(k::STROKE, Color32::from_rgb(0x2b, 0x30, 0x37)),
-                    ),
+                    opts.stroke_or(Color32::from_rgb(0x2b, 0x30, 0x37)),
                     StrokeKind::Inside,
                 );
                 // Tight: three of these are one row of a vector, and the gap
                 // the label used to keep pushed the value out of its own cell.
-                let size = opts.px(k::SIZE, 12.0);
+                let size = opts.px(k::FONT_SIZE, 12.0);
                 let mut x = rect.min.x + 5.0;
                 if let Some(prefix) = opts.string(k::PREFIX) {
                     let color = opts.color(k::PREFIX_COLOR, Color32::from_rgb(0x6f, 0xa4, 0xd8));
@@ -1166,7 +1160,7 @@ fn install_drag_value(m: &mut dyn Bindings<Engine>) {
                     || format!("{value:.decimals$}"),
                     |s| format!("{value:.decimals$}{s}"),
                 );
-                let color = opts.color(k::COLOR, Color32::from_rgb(0xee, 0xf1, 0xf4));
+                let color = opts.color(k::TEXT_COLOR, Color32::from_rgb(0xee, 0xf1, 0xf4));
                 let galley = ui.painter().layout_no_wrap(
                     display,
                     FontId::new(size, theme::family(w::MONO)),

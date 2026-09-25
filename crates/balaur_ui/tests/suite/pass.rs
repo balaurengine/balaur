@@ -371,6 +371,36 @@ fn a_theme_can_be_set_from_a_script() {
 }
 
 #[test]
+fn a_frame_s_stroke_is_as_wide_as_it_asks() {
+    fn widths(shape: &egui::Shape, into: &mut Vec<f32>) {
+        match shape {
+            egui::epaint::Shape::Rect(rect) if rect.stroke.color == egui::Color32::RED => {
+                into.push(rect.stroke.width);
+            }
+            egui::epaint::Shape::Vec(inner) => inner.iter().for_each(|one| widths(one, into)),
+            _ => {}
+        }
+    }
+    let (_dir, app, ctx, errors) = draw_with(
+        r##"ui::central_panel(#{}, || {
+            ui::frame(#{ fill: "#000000", stroke: "#ff0000", stroke_width: 3.0 }, || { ui::label("boxed"); });
+        });"##,
+    );
+    assert!(errors.is_empty(), "the pass logged errors: {errors:#?}");
+    ctx.begin_pass(egui::RawInput::default());
+    balaur_ui::run_pass(&app.engine, &ctx);
+    let out = ctx.end_pass();
+    let mut found = Vec::new();
+    for clipped in &out.shapes {
+        widths(&clipped.shape, &mut found);
+    }
+    assert!(
+        found.iter().any(|w| (w - 3.0).abs() < 0.01),
+        "the outline is the stroke_width asked for: {found:?}"
+    );
+}
+
+#[test]
 fn the_widget_layer_can_be_placed_and_turned_off() {
     draw_clean(
         r#"

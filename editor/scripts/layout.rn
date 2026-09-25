@@ -574,8 +574,8 @@ pub fn window_rect(S, n) {
     rect(m.stage.x + 12.0, m.stage.y + 12.0 + (n as f64) * 176.0, 260.0, 164.0)
 }
 
-/// What one persona pill is estimated at, for the showcase's pointer.
-pub fn persona_w(S) {
+/// What one workspace pill is estimated at, for the showcase's pointer.
+pub fn workspace_w(S) {
     if S.compact { 40.0 } else { 76.0 }
 }
 

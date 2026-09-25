@@ -386,3 +386,39 @@ fn a_grown_label_is_cut_at_the_box_it_was_given() {
         "the path was not cut at its box: clips {cuts:?}, the verb starts at {verb_left}"
     );
 }
+
+#[test]
+fn a_role_pads_a_container_across_and_down_apart() {
+    let (dir, app) = app();
+    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+    std::fs::write(
+        dir.path().join("themes/padded.toml"),
+        "type = \"widget_theme\"\n\n[roles.list]\npadding = 2.0\npadding_x = 10.0\npadding_y = 4.0\n",
+    )
+    .unwrap();
+    let list = add_widget(
+        &app,
+        &toml::toml! { kind = "column" role = "list" theme = "themes/padded.toml" x = 0.0 y = 0.0 width = 200.0 height = 100.0 }
+            .into(),
+    );
+    let node = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Kid", list);
+    balaur::components::add(
+        &app.engine,
+        node,
+        "widget",
+        Some(&toml::toml! { kind = "row" height = 10.0 grow = 1 }.into()),
+    )
+    .unwrap();
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let outer = balaur_ui::widget_rect(list).expect("it drew");
+    let inner = balaur_ui::widget_rect(node).expect("it drew");
+    assert!(
+        (inner.min.x - outer.min.x - 10.0).abs() < 0.5,
+        "padding_x sets the space inside the left edge: {outer:?} {inner:?}"
+    );
+    assert!(
+        (inner.min.y - outer.min.y - 4.0).abs() < 0.5,
+        "padding_y sets the space inside the top edge: {outer:?} {inner:?}"
+    );
+}

@@ -203,8 +203,8 @@ const SHAPELESS = #{
 
 /// Fill a row of controls, one node each, making and hiding as needed.
 ///
-/// The strip the chrome is made of: how many personas, documents and tools
-/// there are changes with the persona and with what is open, so the bar can
+/// The strip the chrome is made of: how many workspaces, documents and tools
+/// there are changes with the workspace and with what is open, so the bar can
 /// no more be authored than the inspector's form can.
 pub fn strip(S, host_path, controls) {
     let host = scene::get_node(host_path);

@@ -81,15 +81,15 @@ pub(crate) fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
             let opts = Opts::with_roles(opts);
             with_ui(|ui| {
                 let mut result = Ok(());
-                let corner = pill_radius(opts.px(k::RADIUS, 0.0) * 2.0);
+                let corner = pill_radius(opts.px(k::CORNER_RADIUS, 0.0) * 2.0);
                 let mut frame = egui::Frame::new()
                     .inner_margin(Margin::symmetric(
                         opts.px(k::PADDING_X, 0.0) as i8,
                         opts.px(k::PADDING_Y, 0.0) as i8,
                     ))
                     .corner_radius(corner);
-                if let Some(stroke) = opts.opt_color(k::STROKE) {
-                    frame = frame.stroke(Stroke::new(1.0, stroke));
+                if let Some(stroke) = opts.opt_stroke() {
+                    frame = frame.stroke(stroke);
                 }
                 // Our fill, booked before the content: a hover is only known
                 // once the box is laid out, and it has to land under it.
@@ -108,7 +108,7 @@ pub(crate) fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
                 if tip.is_some() || menued || clicked {
                     let mut response = ui.interact(rect, framed.response.id, Sense::click());
                     if response.hovered() {
-                        fill = opts.opt_color(k::HOVER_FILL).or(fill);
+                        fill = opts.in_state(true, false).opt_color(k::FILL).or(fill);
                     }
                     // Only what a left click opens says "press me"; a frame
                     // with a right-click menu is not a button.
@@ -166,7 +166,7 @@ fn install_bar(m: &mut dyn Bindings<Engine>) {
             let opts = Opts::with_roles(opts);
             with_ui(|ui| {
                 let (w, h) = (opts.px(k::WIDTH, 120.0), opts.px(k::HEIGHT, 4.0));
-                let radius = opts.px(k::RADIUS, h / 2.0);
+                let radius = opts.px(k::CORNER_RADIUS, h / 2.0);
                 let (rect, _) = ui.allocate_exact_size(vec2(w, h), Sense::hover());
                 ui.painter()
                     .rect_filled(rect, radius, opts.color(k::TRACK, Color32::TRANSPARENT));
@@ -329,11 +329,11 @@ pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
         |eng: &Engine, (s, opts): (String, Option<Value>)| {
             let opts = Opts::with_roles(opts);
             with_ui(|ui| {
-                if opts.str(k::ALIGN) == Some(w::LEFT) {
+                if opts.str(k::TEXT_ALIGN) == Some(w::LEFT) {
                     return left_pill(eng, ui, &s, &opts);
                 }
                 let h = opts.px(k::HEIGHT, 27.0);
-                let fam = opts.str(k::FONT).unwrap_or(w::UI);
+                let fam = opts.str(k::FONT_FAMILY).unwrap_or(w::UI);
                 let mut display = String::new();
                 if let Some(icon) = opts.string(k::ICON) {
                     display.push_str(&icon);
@@ -353,19 +353,19 @@ pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
                 );
                 let rt = text(
                     &display,
-                    opts.px(k::SIZE, 12.0),
+                    opts.px(k::FONT_SIZE, 12.0),
                     fam,
-                    opts.opt_color(k::COLOR),
-                    opts.boolean(k::STRONG, false),
+                    opts.opt_color(k::TEXT_COLOR),
+                    opts.bold(),
                 );
                 let fill = opts.color(k::FILL, Color32::TRANSPARENT);
                 // Tiles by default: a shell of capsules reads as loose and
-                // never lines up. `round` is for the few controls that are
-                // genuinely circular.
-                let radius = opts.px(k::RADIUS, 0.0);
+                // never lines up. `corner_radius = "full"` is for the few
+                // controls that are genuinely circular.
+                let radius = opts.px(k::CORNER_RADIUS, 0.0);
                 let corner = if radius > 0.0 {
                     pill_radius(radius * 2.0)
-                } else if opts.boolean(k::ROUND, false) {
+                } else if opts.is_pill() {
                     pill_radius(h)
                 } else {
                     pill_radius(5.0 * 2.0)
@@ -374,10 +374,7 @@ pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
                     .fill(fill)
                     .corner_radius(corner)
                     .min_size(vec2(opts.px(k::MIN_WIDTH, 0.0), h));
-                button = match opts.opt_color(k::STROKE) {
-                    Some(color) => button.stroke(Stroke::new(1.0, color)),
-                    None => button.stroke(Stroke::NONE),
-                };
+                button = button.stroke(opts.opt_stroke().unwrap_or(Stroke::NONE));
                 // The gap either side of the label, when the caller or its
                 // role names one. Put back after: the spacing is the row's.
                 let was = ui.spacing().button_padding.x;
@@ -387,7 +384,7 @@ pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
                     // Widened to the floor rather than left to `min_size`:
                     // egui puts a caption where the layout says, which in a
                     // row is hard left of the space a floor made.
-                    let face = FontId::new(opts.px(k::SIZE, 12.0), theme::family(fam));
+                    let face = FontId::new(opts.px(k::FONT_SIZE, 12.0), theme::family(fam));
                     let ink = ui.fonts_mut(|f| {
                         f.layout_no_wrap(display.clone(), face, Color32::WHITE)
                             .size()
@@ -441,8 +438,8 @@ fn menu_row(ui: &mut egui::Ui, s: &str, opts: &Opts) -> bool {
             .unwrap_or_else(|| crate::immediate::wash(ui, false));
         ui.painter().rect_filled(rect, pill_radius(h), lit);
     }
-    let color = opts.color(k::COLOR, Color32::WHITE);
-    let font = FontId::new(opts.px(k::SIZE, 12.5), theme::family("ui"));
+    let color = opts.color(k::TEXT_COLOR, Color32::WHITE);
+    let font = FontId::new(opts.px(k::FONT_SIZE, 12.5), theme::family("ui"));
     let galley = ui.painter().layout_no_wrap(s.to_owned(), font, color);
     let y = rect.center().y - galley.size().y / 2.0;
     ui.painter()
@@ -478,7 +475,7 @@ pub(crate) fn install_button_shapes(m: &mut dyn Bindings<Engine>) {
         |_eng: &Engine, (glyph, opts): (String, Option<Value>)| {
             let opts = Opts::with_roles(opts);
             with_ui(|ui| {
-                let d = opts.px(k::D, 32.0);
+                let d = opts.px(k::DIAMETER, 32.0);
                 // Painted rather than handed to `egui::Button`: a button is
                 // as wide as its glyph plus egui's own padding, and a rail
                 // that reserved `d` was then a pixel too narrow for it.
@@ -494,7 +491,7 @@ pub(crate) fn install_button_shapes(m: &mut dyn Bindings<Engine>) {
                 let hovered = !off && response.hovered();
                 let opts = &opts.in_state(hovered, response.is_pointer_button_down_on());
                 let ink = opts
-                    .opt_color(k::COLOR)
+                    .opt_color(k::TEXT_COLOR)
                     .unwrap_or_else(|| ui.visuals().text_color());
                 let ink = if off { ink.gamma_multiply(0.4) } else { ink };
                 let fill = opts.color(k::FILL, Color32::TRANSPARENT);
@@ -505,13 +502,12 @@ pub(crate) fn install_button_shapes(m: &mut dyn Bindings<Engine>) {
                     let lit = crate::immediate::wash(ui, response.is_pointer_button_down_on());
                     ui.painter().circle_filled(rect.center(), d / 2.0, lit);
                 }
-                if let Some(stroke) = opts.opt_color(k::STROKE) {
-                    ui.painter()
-                        .circle_stroke(rect.center(), d / 2.0, Stroke::new(1.0, stroke));
+                if let Some(stroke) = opts.opt_stroke() {
+                    ui.painter().circle_stroke(rect.center(), d / 2.0, stroke);
                 }
                 let font = FontId::new(
-                    opts.px(k::SIZE, 14.0),
-                    theme::family(&opts.string(k::FONT).unwrap_or_else(|| "ui".into())),
+                    opts.px(k::FONT_SIZE, 14.0),
+                    theme::family(&opts.string(k::FONT_FAMILY).unwrap_or_else(|| "ui".into())),
                 );
                 ui.painter().text(
                     rect.center(),

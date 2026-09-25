@@ -25,22 +25,22 @@ pub fn sides() {
 }
 
 pub fn state() {
-    crate::defs::persona_docks("scene")
+    crate::defs::workspace_docks("scene")
 }
 
-/// Swap the open panels for the ones a persona works with. What is open is
-/// the persona's; what may be opened is not, so a panel closed here comes
-/// back from the logo menu without changing persona.
-pub fn apply_persona(S, id) {
-    let want = crate::defs::persona_docks(id);
+/// Swap the open panels for the ones a workspace works with. What is open is
+/// the workspace's; what may be opened is not, so a panel closed here comes
+/// back from the logo menu without changing workspace.
+pub fn apply_workspace(S, id) {
+    let want = crate::defs::workspace_docks(id);
     for side in sides() {
-        // A dock the reader folded away stays folded: the persona says which
+        // A dock the reader folded away stays folded: the workspace says which
         // panels, not whether the sheet is up.
         want[side].shut = S.docks[side].shut;
     }
     S.docks = want;
-    // A plugin's dock is in no persona's set: it was adopted when the plugin
-    // loaded, and a persona must not unregister it.
+    // A plugin's dock is in no workspace's set: it was adopted when the plugin
+    // loaded, and a workspace must not unregister it.
     for entry in S.registry.docks {
         adopt(S, entry.id);
     }
@@ -113,10 +113,10 @@ pub fn home(id) {
 /// A plugin's dock joins the table so it moves like everything else.
 ///
 /// Built once a frame: the tab row, the minimised rail and `bottom_tall` all
-/// ask, and the outline's own name re-reads every script in the Script persona.
+/// ask, and the outline's own name re-reads every script in the Script workspace.
 pub fn panels(S) {
     let cache = S.panels;
-    if cache is Object && cache.at == S.frame && cache.persona == S.persona {
+    if cache is Object && cache.at == S.frame && cache.workspace == S.workspace {
         return cache.table;
     }
     let table = #{
@@ -142,7 +142,7 @@ pub fn panels(S) {
     for entry in S.registry.docks {
         table[entry.id] = #{ name: entry.name, icon: icons::panel(entry.id), tall: entry.tall };
     }
-    S.panels = #{ at: S.frame, persona: S.persona, table: table };
+    S.panels = #{ at: S.frame, workspace: S.workspace, table: table };
     table
 }
 

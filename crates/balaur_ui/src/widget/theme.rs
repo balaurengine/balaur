@@ -61,13 +61,16 @@ pub struct WidgetState {
     pub pointer: Pointer,
     pub disabled: bool,
     pub focused: bool,
+    /// On: a switch or checkbox that is set, a toggle button held down, the
+    /// tab or row that is picked.
+    pub checked: bool,
 }
 
 impl WidgetState {
     /// Whether any state table could apply.
     #[must_use]
     pub fn any(self) -> bool {
-        self.pointer != Pointer::Away || self.disabled || self.focused
+        self.pointer != Pointer::Away || self.disabled || self.focused || self.checked
     }
 }
 
@@ -108,15 +111,18 @@ pub struct Style {
     /// states one of its own wins; this is not a floor.
     pub height: Option<f32>,
     pub width: Option<f32>,
-    /// The gap either side of a caption, in design pixels.
+    /// The space inside the left and right edges, and inside the top and
+    /// bottom ones, in design pixels: either side of a control's caption, and
+    /// round a container's children. Each wins over `padding` on its axis.
     pub padding_x: Option<f32>,
+    pub padding_y: Option<f32>,
     /// The gap between a container's children, in design pixels: Godot's
     /// theme separations, which a scene overrides with its own `gap`.
     pub gap: Option<f32>,
     /// The ink a control's picture is drawn in — a button's icon — where the
     /// theme tints it rather than showing the artwork's own colours.
     pub icon_color: Option<Color32>,
-    /// As round as it is tall, whatever `radius` says.
+    /// As round as it is tall, which is what `corner_radius = "full"` says.
     pub round: Option<bool>,
     /// What replaces this style while the pointer is over the widget, and
     /// while it is held down. Each is a whole style over this one.
@@ -130,6 +136,9 @@ pub struct Style {
     /// keyboard focus is on it and the pointer is not.
     pub disabled: Option<Rc<Style>>,
     pub focus: Option<Rc<Style>>,
+    /// What the widget wears while it is on, under whichever pointer table
+    /// applies; its own `hover` and `active` win over the entry's.
+    pub checked: Option<Rc<Style>>,
 }
 
 impl Style {
@@ -146,6 +155,7 @@ impl Style {
         Self {
             padding: None,
             padding_x: None,
+            padding_y: None,
             height: None,
             width: None,
             font_size: None,
@@ -182,6 +192,7 @@ impl Style {
             height: self.height.or(base.height),
             width: self.width.or(base.width),
             padding_x: self.padding_x.or(base.padding_x),
+            padding_y: self.padding_y.or(base.padding_y),
             gap: self.gap.or(base.gap),
             icon_color: self.icon_color.or(base.icon_color),
             round: self.round.or(base.round),
@@ -190,6 +201,7 @@ impl Style {
             active: self.active.clone().or_else(|| base.active.clone()),
             disabled: self.disabled.clone().or_else(|| base.disabled.clone()),
             focus: self.focus.clone().or_else(|| base.focus.clone()),
+            checked: self.checked.clone().or_else(|| base.checked.clone()),
         }
     }
 
@@ -210,22 +222,27 @@ impl Style {
         })
     }
 
-    /// The style with the table for the widget's state over it: disabled
-    /// first, then held, hovered, and focused with the pointer elsewhere.
+    /// The style with the tables for the widget's state over it: `checked`
+    /// under everything, then disabled, held, hovered, and focused with the
+    /// pointer elsewhere.
     #[must_use]
     pub fn in_states(&self, state: WidgetState) -> Self {
+        let on = match (&self.checked, state.checked) {
+            (Some(checked), true) => checked.over(self),
+            _ => self.clone(),
+        };
         let patch = if state.disabled {
-            self.disabled.as_ref()
+            on.disabled.as_ref()
         } else if state.pointer == Pointer::Held {
-            self.active.as_ref().or(self.hover.as_ref())
+            on.active.as_ref().or(on.hover.as_ref())
         } else if state.pointer == Pointer::Over {
-            self.hover.as_ref()
+            on.hover.as_ref()
         } else if state.focused {
-            self.focus.as_ref()
+            on.focus.as_ref()
         } else {
             None
         };
-        patch.map_or_else(|| self.clone(), |patch| patch.over(self))
+        patch.map_or_else(|| on.clone(), |patch| patch.over(&on))
     }
 }
 
@@ -344,7 +361,7 @@ fn color(value: &toml::Value, what: &str, colors: &BTreeMap<String, Color32>) ->
 
 /// The tables that name something other than a widget kind.
 fn is_reserved(key: &str) -> bool {
-    matches!(key, "type" | "dark" | "colors" | "roles")
+    matches!(key, "type" | "dark" | "colors" | "roles" | "sizes" | "base")
 }
 
 // The class words in force, and a number that changes when they do, so the
@@ -434,72 +451,80 @@ thread_local! {
         const { std::cell::RefCell::new(None) };
 }
 
-/// One `[kind]` or `[roles.name]` table as a style, with its own `hover` and
-/// `active` sub-tables read as styles over it.
-fn style_of(body: &toml::Table, colors: &BTreeMap<String, Color32>, what: &str) -> Style {
+/// The colours and sizes a theme's tables name, resolved from its `[colors]`
+/// and `[sizes]`.
+pub(crate) struct Tokens {
+    pub(crate) colors: BTreeMap<String, Color32>,
+    pub(crate) sizes: BTreeMap<String, f32>,
+}
+
+/// One `[kind]` or `[roles.name]` table as a style, with its state tables
+/// read as styles over it.
+fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
+    // A number is written as one, or as the name of a size the theme states.
     let number = |key: &str| {
-        body.get(key)
-            .and_then(balaur_core::components::as_f64)
+        let value = body.get(key)?;
+        balaur_core::components::as_f64(value)
             .map(|v| v as f32)
+            .or_else(|| tokens.sizes.get(value.as_str()?).copied())
     };
-    let flag = |key: &str| body.get(key).and_then(toml::Value::as_bool);
     let nested = |key: &str| {
         body.get(key)
             .and_then(toml::Value::as_table)
-            .map(|table| Rc::new(style_of(table, colors, what).paint_only()))
+            .map(|table| Rc::new(style_of(table, tokens, what).paint_only()))
     };
-    // A role spells its type the way a call site did: `size`, `color` and
-    // `strong` rather than the component's longer property names.
-    let weight =
-        number(k::FONT_WEIGHT).or_else(|| flag(k::STRONG).map(|on| if on { 700.0 } else { 400.0 }));
-    // `d` is a control that is as wide as it is tall, which is how the
-    // editor's tool and transport buttons are written down.
-    let square = number(k::D);
+    let colour = |key: &str| body.get(key).and_then(|v| color(v, what, &tokens.colors));
+    let pill = body.get(k::CORNER_RADIUS).and_then(toml::Value::as_str) == Some(w::FULL);
     Style {
-        fill: body.get(k::FILL).and_then(|v| color(v, what, colors)),
-        stroke: body.get(k::STROKE).and_then(|v| color(v, what, colors)),
-        radius: number(k::RADIUS),
+        fill: colour(k::FILL),
+        stroke: colour(k::STROKE),
+        radius: if pill { None } else { number(k::CORNER_RADIUS) },
         padding: number(k::PADDING),
-        stroke_width: number("stroke_width"),
+        stroke_width: number(k::STROKE_WIDTH),
         image: body
             .get(k::IMAGE)
             .and_then(toml::Value::as_str)
             .filter(|path| !path.is_empty())
             .map(str::to_string),
         slice: four_of(body.get(k::SLICE)),
-        text_color: body.get(k::COLOR).and_then(|v| color(v, what, colors)),
-        plate: body.get(k::PLATE).and_then(|v| color(v, what, colors)),
+        text_color: colour(k::TEXT_COLOR),
+        plate: colour(k::ICON_FILL),
         align: body
-            .get(k::ALIGN)
+            .get(k::TEXT_ALIGN)
             .and_then(toml::Value::as_str)
             .map(str::to_string),
-        font_size: number(k::SIZE).or_else(|| number(k::FONT_SIZE)),
+        font_size: number(k::FONT_SIZE),
         font: body
-            .get(k::FONT)
+            .get(k::FONT_FAMILY)
             .and_then(toml::Value::as_str)
             .map(str::to_string),
-        weight,
-        height: number(k::HEIGHT).or(square),
-        width: number(k::WIDTH).or(square),
+        weight: number(k::FONT_WEIGHT),
+        height: number(k::HEIGHT),
+        width: number(k::WIDTH),
         padding_x: number(k::PADDING_X),
+        padding_y: number(k::PADDING_Y),
         gap: number(k::GAP),
-        icon_color: body.get(k::ICON_COLOR).and_then(|v| color(v, what, colors)),
-        round: flag(k::ROUND),
-        // `hover_fill` is the one-line spelling the editor's roles already
-        // use; a whole `[x.hover]` table wins over it.
-        hover: nested("hover").or_else(|| {
-            let fill = body
-                .get(k::HOVER_FILL)
-                .and_then(|v| color(v, what, colors))?;
-            Some(Rc::new(Style {
-                fill: Some(fill),
-                ..Style::default()
-            }))
-        }),
+        icon_color: colour(k::ICON_COLOR),
+        round: pill.then_some(true),
+        hover: nested("hover"),
         active: nested("active"),
         disabled: nested("disabled"),
         focus: nested("focus"),
-        classes: class_styles(body, colors, what),
+        checked: body
+            .get(k::CHECKED)
+            .and_then(toml::Value::as_table)
+            .map(|table| Rc::new(checked_style(table, tokens, what))),
+        classes: class_styles(body, tokens, what),
+    }
+}
+
+/// A `checked` table: paint over the entry, with its own pointer tables.
+fn checked_style(table: &toml::Table, tokens: &Tokens, what: &str) -> Style {
+    let full = style_of(table, tokens, what);
+    Style {
+        hover: full.hover.clone(),
+        active: full.active.clone(),
+        ..full.paint_only()
     }
 }
 
@@ -507,14 +532,14 @@ fn style_of(body: &toml::Table, colors: &BTreeMap<String, Color32>, what: &str) 
 /// then the height, then the width.
 fn class_styles(
     body: &toml::Table,
-    colors: &BTreeMap<String, Color32>,
+    tokens: &Tokens,
     what: &str,
 ) -> Option<Rc<Vec<(SmolStr, Style)>>> {
     let found: Vec<(SmolStr, Style)> = crate::widget::schema::CLASS_KEYS
         .into_iter()
         .filter_map(|word| {
             let table = body.get(word)?.as_table()?;
-            Some((SmolStr::new(word), style_of(table, colors, what)))
+            Some((SmolStr::new(word), style_of(table, tokens, what)))
         })
         .collect();
     (!found.is_empty()).then(|| Rc::new(found))
@@ -528,6 +553,9 @@ fn class_styles(
 /// worse than one that starts plain.
 pub(crate) fn parse(value: &toml::Value) -> WidgetTheme {
     let mut theme = WidgetTheme::default();
+    // The seven source colours and four sizes become every token first, so a
+    // table naming `bg_panel` or `radius_large` finds it.
+    let value = crate::palette::complete(value);
     let Some(table) = value.as_table() else {
         return theme;
     };
@@ -538,6 +566,20 @@ pub(crate) fn parse(value: &toml::Value) -> WidgetTheme {
             }
         }
     }
+    let sizes: BTreeMap<String, f32> = table
+        .get(k::SIZES)
+        .and_then(toml::Value::as_table)
+        .map(|sizes| {
+            sizes
+                .iter()
+                .filter_map(|(name, v)| Some((name.clone(), balaur_core::components::as_f64(v)? as f32)))
+                .collect()
+        })
+        .unwrap_or_default();
+    let tokens = Tokens {
+        colors: theme.colors.clone(),
+        sizes,
+    };
     for (kind, body) in table {
         if is_reserved(kind) {
             continue;
@@ -547,7 +589,7 @@ pub(crate) fn parse(value: &toml::Value) -> WidgetTheme {
         };
         theme
             .kinds
-            .insert(kind.clone(), style_of(body, &theme.colors, kind));
+            .insert(kind.clone(), style_of(body, &tokens, kind));
     }
     if let Some(roles) = table.get(k::ROLES).and_then(toml::Value::as_table) {
         for (name, body) in roles {
@@ -556,7 +598,7 @@ pub(crate) fn parse(value: &toml::Value) -> WidgetTheme {
             };
             theme
                 .roles
-                .insert(name.clone(), style_of(body, &theme.colors, name));
+                .insert(name.clone(), style_of(body, &tokens, name));
         }
     }
     theme

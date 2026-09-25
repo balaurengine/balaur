@@ -147,7 +147,7 @@ Every Steamworks interface, and where each stands here.
 | `ISteamUserStats`: achievements, stats, leaderboards, global stats | Step 3, behind `platform.unlock` / `progress` / `submit_score` / `scores` |
 | `ISteamRemoteStorage`: Cloud files, quota | Step 4, behind `platform.cloud_read` / `cloud_write` |
 | Steam Auto-Cloud (path patterns, no code) | Step 4, and the one to reach for first: `save` already writes to a directory, and a pattern in the partner site syncs it with no engine code at all. The API is for a game that needs conflict resolution of its own |
-| `ISteamFriends`: persona, friends, rich presence, invite dialog, overlay activation | Step 5, behind `platform.set_presence` and `steam.overlay_*` |
+| `ISteamFriends`: workspace, friends, rich presence, invite dialog, overlay activation | Step 5, behind `platform.set_presence` and `steam.overlay_*` |
 | `ISteamUtils`: overlay notification position, Big Picture, Steam Deck detection, country, gamepad text input | Step 5. Deck detection is what a game branches its control hints on |
 | `ISteamApps`: DLC installed, build id, branch, launch command line, purchase time | Step 6 |
 | `ISteamMatchmaking`: lobbies, lobby chat, invites, favourites | Step 7. A lobby is the cheapest session layer this engine could have: `docs/PLAN-networking.md` §1's session layer asks for a member list and a way to send to each, and a lobby is both |

@@ -123,18 +123,18 @@ impl<'a> Measure<'a> {
             w::LABEL => self.text(index, widget, theme),
             // Room for a dozen wide letters: what a field takes before a
             // container or a `width` says otherwise.
-            w::FIELD => {
+            w::TEXT_FIELD => {
                 let line = self.galley(index, "MMMMMMMMMMMM", widget, theme);
                 line + self.padding
             }
-            w::TAB => {
+            w::TABS => {
                 let strip = self.strip(index, theme);
                 let pages = self.widest_child(index, theme);
                 let gap = widget.gap;
                 vec2(strip.x.max(pages.x), strip.y + gap + pages.y)
             }
             // A box the height of the text, then the caption.
-            w::CHECK => {
+            w::CHECKBOX => {
                 let text = self.text(index, widget, theme);
                 let line = widget.font_size;
                 vec2(text.x + line + self.padding.x, text.y.max(line))
@@ -154,7 +154,7 @@ impl<'a> Measure<'a> {
                 }
                 widest + self.padding + vec2(20.0, 0.0)
             }
-            w::SLIDER | w::PROGRESS => vec2(160.0, widget.font_size + self.padding.y),
+            w::SLIDER | w::PROGRESS_BAR => vec2(160.0, widget.font_size + self.padding.y),
             w::SEPARATOR => egui::Vec2::splat(6.0),
             w::WINDOW if !widget.open => egui::Vec2::ZERO,
             w::FOLD => {

@@ -158,7 +158,7 @@ the one this plan takes.
    read, a `.rn` written, one golden emission per node kind, and the emitted
    file compiled in the test.
 5. **The canvas.** The `graph` widget kind over `egui-snarl`, and a Graph
-   dock beside the Script persona.
+   dock beside the Script workspace.
 6. **The palette from `api.json`**, so a new binding is a new node with no
    edit here.
 

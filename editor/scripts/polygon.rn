@@ -774,7 +774,7 @@ pub fn trace(S) {
 
 // Whether a vertex drag is deforming rather than reshaping.
 pub fn deforming(S) {
-    S.persona == "anim" && S.clip is Object && mesh(S).is_some()
+    S.workspace == "animation" && S.clip is Object && mesh(S).is_some()
 }
 
 // The offsets, grown to the mesh and zero where they have not been set.

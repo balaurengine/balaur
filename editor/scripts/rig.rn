@@ -206,10 +206,10 @@ fn draw_bone_3d(g, color) {
 }
 
 // Every bone, whenever rigging is what the user is doing: the Animate
-// persona, the tool, or a selected bone.
+// workspace, the tool, or a selected bone.
 pub fn draw(S) {
     let selected_bone = S.sel >= 0 && is_bone(S.doc[S.sel]);
-    let show = S.persona == "anim" || S.tool == "bone" || selected_bone;
+    let show = S.workspace == "animation" || S.tool == "bone" || selected_bone;
     if !show {
         return;
     }

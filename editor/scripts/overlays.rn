@@ -54,7 +54,7 @@ pub fn guides(S) {
 }
 
 // The selected clip's position keys, joined in order, with a marker on each
-// (Motion path chip, anim persona).
+// (Motion path chip, anim workspace).
 pub fn motion_path(S) {
     let def = match anim::definition(S) {
         Some(def) => def,

@@ -249,7 +249,7 @@ pub fn draw(S) {
         Some(geo) => geo,
         None => return,
     };
-    if S.persona == "script" {
+    if S.workspace == "script" {
         return;
     }
     let hot = viewport::hot_part(S);
@@ -402,8 +402,8 @@ fn rows_in_box(S, x0, y0, x1, y1) {
 // proximity fallback for shapeless nodes.
 fn pick(S, mx, my) {
     // Rigging: a bone's thin diamond loses to any shape around it, so in the
-    // Animate persona bones are tried first.
-    if S.persona == "anim" {
+    // Animation workspace bones are tried first.
+    if S.workspace == "animation" {
         if let Some(bone) = rig::pick(S, mx, my) {
             return Some(bone);
         }
@@ -486,7 +486,7 @@ pub fn update(S, vp) {
 
     if S.gizmo.drag.is_none() {
         S.gizmo.hover = match geo {
-            Some(geo) => if over_viewport && S.persona != "script" { hit_test(S, geo, mx, my) } else { None },
+            Some(geo) => if over_viewport && S.workspace != "script" { hit_test(S, geo, mx, my) } else { None },
             None => None,
         };
     }

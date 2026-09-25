@@ -30,7 +30,7 @@ Built, and not built for this:
 | --- | --- |
 | A web build that links, packages and is checked on every push | `scripts/package_template.sh web`, the `build-platforms` job |
 | Browser backends for HTTP and WebSockets, as C shims compiled by `build.rs` | `crates/balaur_http`, `crates/balaur_websocket`, `.cargo/config.toml` |
-| An editor that is a Balaur project: five personas, all of it Rune | `editor/scripts/*.rn`, `defs::personas()` |
+| An editor that is a Balaur project: five workspaces, all of it Rune | `editor/scripts/*.rn`, `defs::workspaces()` |
 | The editor's own tooling bindings: `fs`, `toml`, `require`, `log.recent` | `balaur_core::file_api`, `engine_api` |
 | A scene mirrored as real nodes, play attaching the game's real scripts | `model.build_mirror`, `scene.instantiate` |
 | Hot reload of a script, and of the editor's own modules | `engine.reload_script`, `require` |
@@ -69,7 +69,7 @@ Missing, roughly in the order they block each other:
 **One editor, not a web editor.** The scripts under `editor/` are the
 deliverable and they do not fork. A handful of capability checks is fine —
 the same shape as a `platform` call resolving to `unsupported` in
-`docs/PLAN-steam.md` — but if a persona needs a web branch, the seam is in
+`docs/PLAN-steam.md` — but if a workspace needs a web branch, the seam is in
 the wrong crate and belongs lower. Everything in this plan is engineered so
 that `editor/scripts/*.rn` is untouched by it.
 
@@ -138,7 +138,7 @@ the web.
 | `require` and in-place module hot reload | Step 2. It reads through `fs`, so it follows for free |
 | Hot reload on save (`App::watch`) | Step 3. No watcher on the web: the editor writes the buffer, then calls the reload directly. The watcher stops being the only entry point |
 | `toml`, `json` | Have. Pure conversion, no platform in them |
-| The scene mirror, gizmos, personas, docks | Have, given the four rows above. This is the part that is genuinely already written |
+| The scene mirror, gizmos, workspaces, docks | Have, given the four rows above. This is the part that is genuinely already written |
 | Fonts (`editor/fonts`) | Step 3, fetched beside the wasm rather than read off a disk |
 | `http` | Have. `crates/balaur_http`'s emscripten shim is `-sFETCH`, already linked |
 | `websocket` | Have. `crates/balaur_websocket` links `-lwebsocket.js` |

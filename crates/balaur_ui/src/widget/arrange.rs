@@ -103,15 +103,18 @@ pub(crate) fn settle_rects() {
 ///
 /// One rule, wherever a container is measured or drawn: the widget's own
 /// `padding` where it states one — one number for every side, or four for
-/// left, top, right and bottom — else the theme's entry for its kind, else
-/// the built-in: 8 for a panel, which is the frame it has always drawn, and
-/// nothing for a box that only lays out.
+/// left, top, right and bottom — else the theme's for its role or kind, where
+/// `padding_x` and `padding_y` win over `padding` on their axis, else the
+/// built-in: 8 for a panel, and nothing for a box that only lays out.
 pub(crate) fn padding_of(widget: &Widget, style: &crate::widget::theme::Style) -> Pad {
     let built_in = if widget.kind == w::PANEL { 8.0 } else { 0.0 };
     if widget.padding.iter().any(|side| *side >= 0.0) {
         return Pad::of(widget.padding.map(|side| side.max(0.0)));
     }
-    Pad::all(style.padding.unwrap_or(built_in))
+    let both = style.padding.unwrap_or(built_in);
+    let across = style.padding_x.unwrap_or(both);
+    let down = style.padding_y.unwrap_or(both);
+    Pad::of([across, down, across, down])
 }
 
 /// The space inside a container's edge, per side.
@@ -124,15 +127,6 @@ pub(crate) struct Pad {
 }
 
 impl Pad {
-    pub(crate) const fn all(side: f32) -> Self {
-        Self {
-            left: side,
-            top: side,
-            right: side,
-            bottom: side,
-        }
-    }
-
     const fn of([left, top, right, bottom]: [f32; 4]) -> Self {
         Self {
             left,

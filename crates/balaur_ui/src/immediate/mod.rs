@@ -46,12 +46,26 @@ pub(crate) struct Opts(
     /// Which of the role's state tables paints over the rest: `hover` while
     /// the pointer is on the control, `active` while it is held.
     &'static str,
+    /// Whether the control is on, so its role's `checked` table paints first.
+    bool,
 );
+
+/// A sub-table of a role's entries, by name.
+fn table_in<'a>(entries: &'a [(String, Value)], name: &str) -> Option<&'a [(String, Value)]> {
+    match entries.iter().find(|(k, _)| k == name).map(|(_, v)| v) {
+        Some(Value::Map(inner)) => Some(inner.as_slice()),
+        _ => None,
+    }
+}
+
+fn entry<'a>(entries: &'a [(String, Value)], key: &str) -> Option<&'a Value> {
+    entries.iter().find(|(k, _)| k == key).map(|(_, v)| v)
+}
 
 /// What a role's `hover` or `active` table may set. Paint only: a control
 /// that resized under the pointer would move whatever sits beside it.
 const STATE_KEYS: &[&str] = &[
-    k::COLOR,
+    k::TEXT_COLOR,
     k::FILL,
     k::ICON_COLOR,
     k::STROKE,
@@ -65,40 +79,37 @@ const STATE_KEYS: &[&str] = &[
 /// real key on the wrong widget still passes, which is the price of not
 /// making every call site declare its own set.
 const KNOWN_KEYS: &[&str] = &[
-    k::ALIGN,
+    k::TEXT_ALIGN,
     k::AUTOFOCUS,
     k::AXIS,
-    k::BG,
     k::BREAKPOINT_COLOR,
     k::BREAKPOINTS,
     k::CLOSABLE,
     k::COLLAPSIBLE,
-    k::COLOR,
+    k::TEXT_COLOR,
     k::CURRENT_FILL,
     k::CURRENT_LINE,
-    k::D,
+    k::DIAMETER,
     k::DASHED,
     k::DECIMALS,
     k::DISABLED,
     k::FILL,
-    k::FONT,
+    k::FONT_FAMILY,
     k::GUTTER_COLOR,
     k::GUTTER_WIDTH,
-    k::H,
     k::HEIGHT,
     k::HIGHLIGHT,
-    k::HOVER_FILL,
     k::ICON,
     k::ICON_COLOR,
     k::ICON_SIZE,
     k::INTERACTIVE,
-    k::K_COM,
-    k::K_FN,
-    k::K_KEY,
-    k::K_NUM,
-    k::K_PUNC,
-    k::K_STR,
-    k::K_TYPE,
+    k::SYNTAX_COMMENT,
+    k::SYNTAX_IDENTIFIER,
+    k::SYNTAX_KEYWORD,
+    k::SYNTAX_NUMBER,
+    k::SYNTAX_PUNCTUATION,
+    k::SYNTAX_STRING,
+    k::SYNTAX_TYPE,
     k::KEEP_OPEN,
     k::KNOB,
     k::LANGUAGE,
@@ -110,11 +121,7 @@ const KNOWN_KEYS: &[&str] = &[
     k::MENU_CLICK,
     k::MIN,
     k::MIN_WIDTH,
-    k::OFF_FILL,
-    k::OFF_KNOB,
     k::OFFSET,
-    k::ON_FILL,
-    k::ON_KNOB,
     k::PADDING,
     k::PADDING_X,
     k::PADDING_Y,
@@ -122,19 +129,18 @@ const KNOWN_KEYS: &[&str] = &[
     k::PREFIX_COLOR,
     k::PROBLEM_COLOR,
     k::PROBLEMS,
-    k::RADIUS,
+    k::CORNER_RADIUS,
     k::RAIL,
     k::RESIZABLE,
     k::ROLE,
-    k::ROUND,
     k::ROW_HEIGHT,
     k::SCRIM,
     k::SEPARATOR,
-    k::SIZE,
+    k::FONT_SIZE,
     k::SPEED,
     k::STICK_TO_BOTTOM,
     k::STROKE,
-    k::STRONG,
+    k::STROKE_WIDTH,
     k::SUFFIX,
     k::TIGHT,
     k::TITLE,
@@ -147,7 +153,6 @@ const KNOWN_KEYS: &[&str] = &[
     k::TRANSPARENT,
     k::TRUNCATE,
     k::VALUE,
-    k::W,
     k::WARNING_COLOR,
     k::WARNINGS,
     k::WIDTH,
@@ -180,19 +185,38 @@ impl Opts {
     /// what it changes, and the look lives in the theme asset.
     pub(crate) fn with_roles(opts: Option<Value>) -> Self {
         let Some(Value::Map(given)) = opts.as_ref() else {
-            return Self(opts, None, "");
+            return Self(opts, None, "", false);
         };
         warn_unknown(given);
         let role = match given.iter().find(|(k, _)| k == k::ROLE).map(|(_, v)| v) {
             Some(Value::Str(name)) => crate::bridge::role(name),
             _ => None,
         };
-        Self(opts, role, "")
+        let checked = matches!(
+            given.iter().find(|(k, _)| k == k::CHECKED).map(|(_, v)| v),
+            Some(Value::Bool(true))
+        );
+        Self(opts, role, "", checked)
     }
 
     /// Options as given, with no role behind them.
     pub(crate) fn plain(opts: Option<Value>) -> Self {
-        Self(opts, None, "")
+        Self(opts, None, "", false)
+    }
+
+    /// The same options for a control that is on, or off.
+    pub(crate) fn with_checked(&self, on: bool) -> Self {
+        Self(self.0.clone(), self.1.clone(), self.2, on)
+    }
+
+    /// Whether the text is bold: a `font_weight` of 600 or more.
+    pub(crate) fn bold(&self) -> bool {
+        self.f32(k::FONT_WEIGHT, 400.0) >= 600.0
+    }
+
+    /// Whether `corner_radius` asks for a pill: as round as the box is short.
+    pub(crate) fn is_pill(&self) -> bool {
+        self.str(k::CORNER_RADIUS) == Some(w::FULL)
     }
 
     /// The same options with the role's `hover` or `active` table painting
@@ -205,21 +229,37 @@ impl Opts {
         } else {
             ""
         };
-        Self(self.0.clone(), self.1.clone(), state)
+        Self(self.0.clone(), self.1.clone(), state, self.3)
     }
 
-    /// What the role's state table says about `key`, for the paint keys a
-    /// state may set. `active` falls through to `hover` for what it leaves out.
+    /// What the role's state tables say about `key`, for the paint keys a
+    /// state may set: a control that is on reads its `checked` table first,
+    /// and the pointer's table inside it before the one beside it. `active`
+    /// falls through to `hover` for what it leaves out.
     fn state(&self, key: &str) -> Option<&Value> {
-        if self.2.is_empty() || !STATE_KEYS.contains(&key) {
+        if !STATE_KEYS.contains(&key) {
             return None;
         }
         let role = self.1.as_ref()?;
-        let table = |name: &str| match role.iter().find(|(k, _)| k == name).map(|(_, v)| v) {
-            Some(Value::Map(entries)) => entries.iter().find(|(k, _)| k == key).map(|(_, v)| v),
-            _ => None,
-        };
-        table(self.2).or_else(|| (self.2 == "active").then(|| table("hover")).flatten())
+        if self.3
+            && let Some(checked) = table_in(role, k::CHECKED)
+            && let Some(found) = self.pointer_in(checked, key).or_else(|| entry(checked, key))
+        {
+            return Some(found);
+        }
+        self.pointer_in(role, key)
+    }
+
+    /// The pointer's state table inside `entries`, for `key`.
+    fn pointer_in<'a>(&self, entries: &'a [(String, Value)], key: &str) -> Option<&'a Value> {
+        if self.2.is_empty() {
+            return None;
+        }
+        entry(table_in(entries, self.2)?, key).or_else(|| {
+            (self.2 == "active")
+                .then(|| table_in(entries, "hover").and_then(|t| entry(t, key)))
+                .flatten()
+        })
     }
 
     /// Whether the role dresses the state the control is in. One that does
@@ -233,6 +273,7 @@ impl Opts {
                 .iter()
                 .any(|(k, v)| (k == self.2 || k == "hover") && matches!(v, Value::Map(_)))
     }
+
 
     /// The state table if one paints this key, then what the caller said, and
     /// failing both what the role it named says.
@@ -292,6 +333,18 @@ impl Opts {
     }
     /// A dimension in design pixels, which egui's zoom turns into screen
     /// pixels for the whole pass.
+    /// The outline a caller or its role asks for, in `stroke`'s colour and
+    /// `stroke_width`'s design pixels, which default to one.
+    pub(crate) fn stroke_or(&self, fallback: Color32) -> Stroke {
+        Stroke::new(
+            self.px(k::STROKE_WIDTH, 1.0),
+            self.color(k::STROKE, fallback),
+        )
+    }
+    pub(crate) fn opt_stroke(&self) -> Option<Stroke> {
+        self.opt_color(k::STROKE)
+            .map(|color| Stroke::new(self.px(k::STROKE_WIDTH, 1.0), color))
+    }
     pub(crate) fn px(&self, key: &str, default: f32) -> f32 {
         self.f32(key, default)
     }
@@ -425,22 +478,22 @@ pub const WIDGET_KINDS: &[(&str, &str)] = &[
     ("WIDGET_ROW", w::ROW),
     ("WIDGET_COLUMN", w::COLUMN),
     ("WIDGET_SCROLL", w::SCROLL),
-    ("WIDGET_TAB", w::TAB),
+    ("WIDGET_TAB", w::TABS),
     ("WIDGET_DRAW", "draw"),
     ("WIDGET_IMAGE", w::IMAGE),
-    ("WIDGET_FIELD", w::FIELD),
+    ("WIDGET_FIELD", w::TEXT_FIELD),
     ("WIDGET_TEXT_AREA", w::TEXT_AREA),
-    ("WIDGET_CHECK", w::CHECK),
+    ("WIDGET_CHECK", w::CHECKBOX),
     ("WIDGET_SWITCH", w::SWITCH),
-    ("WIDGET_COLOR", w::COLOR),
+    ("WIDGET_COLOR", w::COLOR_PICKER),
     ("WIDGET_DROPDOWN", w::DROPDOWN),
     ("WIDGET_MENU", w::MENU),
     ("WIDGET_LIST", w::LIST),
     ("WIDGET_TREE", w::TREE),
     ("WIDGET_TABLE", w::TABLE),
     ("WIDGET_SLIDER", w::SLIDER),
-    ("WIDGET_DRAG_VALUE", w::DRAG_VALUE),
-    ("WIDGET_PROGRESS", w::PROGRESS),
+    ("WIDGET_DRAG_VALUE", w::NUMBER_FIELD),
+    ("WIDGET_PROGRESS", w::PROGRESS_BAR),
     ("WIDGET_GRID", w::GRID),
     ("WIDGET_FLOW", w::FLOW),
     ("WIDGET_FOLD", w::FOLD),
@@ -613,8 +666,8 @@ pub(crate) fn text_field(
         // the shell it wears is painted before egui lays the text out.
         let was = ui.ctx().read_response(egui::Id::new(id_owned.clone()));
         let opts = &opts.in_state(was.as_ref().is_some_and(egui::Response::hovered), false);
-        let size = opts.px(k::SIZE, 13.0);
-        let family = theme::family(opts.str(k::FONT).unwrap_or(w::UI));
+        let size = opts.px(k::FONT_SIZE, 13.0);
+        let family = theme::family(opts.str(k::FONT_FAMILY).unwrap_or(w::UI));
         // The hint carries the field's own font: a bare string is laid out in
         // egui's default body style, at neither this size nor this scale.
         let font = FontId::new(size, family);
@@ -624,7 +677,7 @@ pub(crate) fn text_field(
             .frame(egui::Frame::NONE)
             .hint_text(egui::RichText::new(placeholder).font(font.clone()))
             .font(font);
-        if let Some(color) = opts.opt_color(k::COLOR) {
+        if let Some(color) = opts.opt_color(k::TEXT_COLOR) {
             edit = edit.text_color(color);
         }
         // A `height` asks for the pill shell every other inspector control
@@ -640,7 +693,7 @@ pub(crate) fn text_field(
             // centres also fills, and the field then took the whole panel.
             let line = ui.fonts_mut(|f| f.row_height(&font_for_margin));
             let vpad = ((h - line) / 2.0).max(0.0);
-            let radius = opts.px(k::RADIUS, 0.0);
+            let radius = opts.px(k::CORNER_RADIUS, 0.0);
             let corner = if radius > 0.0 {
                 pill_radius(radius * 2.0)
             } else {
@@ -648,10 +701,7 @@ pub(crate) fn text_field(
             };
             egui::Frame::new()
                 .fill(opts.color(k::FILL, Color32::TRANSPARENT))
-                .stroke(Stroke::new(
-                    1.0,
-                    opts.color(k::STROKE, Color32::TRANSPARENT),
-                ))
+                .stroke(opts.stroke_or(Color32::TRANSPARENT))
                 .corner_radius(corner)
                 .inner_margin(Margin::symmetric(pad as i8, vpad as i8))
                 .show(ui, |ui| ui.add(edit))
@@ -711,19 +761,14 @@ pub(crate) fn left_pill(
     // The box is measured before the state is known and painted after: a row
     // that grew under the pointer would push the rows below it down.
     let opts = &opts.in_state(response.hovered(), response.is_pointer_button_down_on());
-    let mut fill = opts.color(k::FILL, Color32::TRANSPARENT);
-    if fill == Color32::TRANSPARENT
-        && response.hovered()
-        && let Some(hover) = opts.opt_color(k::HOVER_FILL)
-    {
-        fill = hover;
-    }
-    let lit = response.hovered() && !opts.dressed() && opts.opt_color(k::HOVER_FILL).is_none();
-    // Tiles by default, like every other pill; `round` opts back in.
-    let asked = opts.px(k::RADIUS, 0.0);
+    let fill = opts.color(k::FILL, Color32::TRANSPARENT);
+    let lit = response.hovered() && !opts.dressed();
+    // Tiles by default, like every other button; `corner_radius = "full"`
+    // opts back in.
+    let asked = opts.px(k::CORNER_RADIUS, 0.0);
     let corner = if asked > 0.0 {
         pill_radius(asked * 2.0)
-    } else if opts.boolean(k::ROUND, false) {
+    } else if opts.is_pill() {
         pill_radius(h)
     } else {
         pill_radius(5.0 * 2.0)
@@ -735,18 +780,18 @@ pub(crate) fn left_pill(
         ui.painter()
             .rect_filled(rect, corner, wash(ui, response.is_pointer_button_down_on()));
     }
-    if let Some(stroke) = opts.opt_color(k::STROKE) {
+    if let Some(stroke) = opts.opt_stroke() {
         ui.painter().rect(
             rect,
             corner,
             Color32::TRANSPARENT,
-            Stroke::new(1.0, stroke),
+            stroke,
             StrokeKind::Inside,
         );
     }
-    let fam = opts.str(k::FONT).unwrap_or(w::UI);
-    let size = opts.px(k::SIZE, 12.0);
-    let color = opts.color(k::COLOR, Color32::WHITE);
+    let fam = opts.str(k::FONT_FAMILY).unwrap_or(w::UI);
+    let size = opts.px(k::FONT_SIZE, 12.0);
+    let color = opts.color(k::TEXT_COLOR, Color32::WHITE);
     let mut x = rect.min.x + 10.0;
     if let Some(icon) = opts.string(k::ICON) {
         let icon_color = opts.opt_color(k::ICON_COLOR).unwrap_or(color);
@@ -760,7 +805,7 @@ pub(crate) fn left_pill(
         x += 7.0 + opts.px(k::ICON_SIZE, 12.0);
     }
     let mut font = FontId::new(size, theme::family(fam));
-    if opts.boolean(k::STRONG, false) {
+    if opts.bold() {
         font = FontId::new(
             size,
             theme::family(if fam == w::UI { w::HEADING } else { fam }),

@@ -20,6 +20,7 @@
 
 mod bridge;
 pub mod contrast;
+pub mod palette;
 mod images;
 mod immediate;
 mod loading;

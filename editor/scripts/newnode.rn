@@ -11,7 +11,7 @@ use crate::util;
 // the first group whose tag it has, so a `2d` `physics` preset lands in 2D
 // rather than twice.
 fn groups() {
-    [["3d", "3D"], ["2d", "2D"], ["ui", "Interface"], ["physics", "Physics"], ["", "Other"]]
+    [["3d", "3D"], ["2d", "2D"], ["ui", "UI"], ["physics", "Physics"], ["", "Other"]]
 }
 
 /// Which group a tag list belongs to: the first that matches, `Other` if none.

@@ -37,7 +37,7 @@ extra() {
   case $1 in
     weights) echo ",select:Limb,tool:polygon,mode:weights" ;;
     bonemap) echo ",select:Hip" ;;
-    timeline) echo ",anim,select:Thigh" ;;
+    timeline) echo ",animation,select:Thigh" ;;
     tiles) echo ",select:Ground,tool:tiles" ;;
     import|assets) echo ",asset:materials" ;;
     outline) echo ",script" ;;

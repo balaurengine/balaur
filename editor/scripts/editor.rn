@@ -73,7 +73,7 @@ const FORM_BY = 30;
 /// which errors on every frame that reads it.
 pub fn fresh_state() {
     let S = #{
-        persona: "scene",
+        workspace: "scene",
         tool: "select",
         doctab: "scene",
         // A shader opened from a material; empty means the code pane shows
@@ -296,7 +296,7 @@ pub fn init(this) {
     shell::apply_camera(S);
     log::info(format!("editing {} ({} nodes)", S.game_name, S.doc.len()));
 
-    // Optional start-up states, comma-separated (persona id, "palette",
+    // Optional start-up states, comma-separated (workspace id, "palette",
     // "light", "play", "select:<node>", "shot=<png path>"), applied in order.
     // Applied on the first frame, after the screen's class has folded the docks.
     S.start_states = engine::args().get(1).unwrap_or("");
@@ -477,10 +477,10 @@ pub fn update(this, dt) {
     }
     anim::update(S);
     // Scene-tree UI widgets draw during play (and for preview in the Interface
-    // persona), clipped to the viewport — and only while there is one, or the
+    // workspace), clipped to the viewport — and only while there is one, or the
     // rect is the stale one a document is now filling.
     let rect = gizmo::viewport_rect(S);
-    let widgets_on = (S.playing || S.persona == "ui") && S.viewport_live;
+    let widgets_on = (S.playing || S.workspace == "ui") && S.viewport_live;
     // Inset by the strip the axis and zoom pills own, so a bottom-anchored
     // HUD label sits above the editor's chrome instead of under it.
     let band = if widgets_on { center::hud_h(S) + 6.0 } else { 0.0 };
@@ -489,7 +489,7 @@ pub fn update(this, dt) {
     // a surface taken from it shrinks the shell it sizes, frame by frame.
     let (surface_w, surface_h) = ui::screen_size();
     ui::set_widget_surface("shell", true, 0.0, 0.0, surface_w, surface_h);
-    if S.tool == "key" && S.persona == "anim" && input::mouse_just_pressed(input::MOUSE_LEFT) {
+    if S.tool == "key" && S.workspace == "animation" && input::mouse_just_pressed(input::MOUSE_LEFT) {
         anim::add_key(S, S.anim.time);
     }
     gizmo::draw(S);
@@ -501,20 +501,20 @@ pub fn update(this, dt) {
     polygon::draw(S);
     pen::draw(S);
     tiles::draw(S);
-    let chips = util::obj(S.chip_state.get(S.persona).unwrap_or(#{}));
-    if S.persona == "scene" && chips.get("guides").unwrap_or(false) {
+    let chips = util::obj(S.chip_state.get(S.workspace).unwrap_or(#{}));
+    if S.workspace == "scene" && chips.get("guides").unwrap_or(false) {
         overlays::guides(S);
     }
-    if S.mode2d && chips.get("lights").unwrap_or(S.persona == "scene") {
+    if S.mode2d && chips.get("lights").unwrap_or(S.workspace == "scene") {
         overlays::lights2d(S);
     }
-    if S.persona == "anim" && chips.get("path").unwrap_or(true) {
+    if S.workspace == "animation" && chips.get("path").unwrap_or(true) {
         overlays::motion_path(S);
     }
-    if !S.mode2d && chips.get("lights").unwrap_or(S.persona == "scene") {
+    if !S.mode2d && chips.get("lights").unwrap_or(S.workspace == "scene") {
         overlays::lights3d(S);
     }
-    if S.persona == "phys" && chips.get("colliders").unwrap_or(true) {
+    if S.workspace == "physics" && chips.get("colliders").unwrap_or(true) {
         if S.mode2d {
             overlays::colliders2d(S);
         } else {
@@ -643,10 +643,10 @@ pub fn draw_ui(this) {
         if S.playing && !(S.debug.paused is Object) && ui::shortcut("f6") {
             debugger::request_break();
         }
-        let personas = ["scene", "script", "anim", "phys", "ui"];
-        for (i, id) in personas.iter().enumerate() {
+        let workspaces = ["scene", "script", "animation", "physics", "ui"];
+        for (i, id) in workspaces.iter().enumerate() {
             if ui::shortcut(format!("alt+{}", i + 1)) {
-                shell::set_persona(S, id);
+                shell::set_workspace(S, id);
             }
         }
         if ui::shortcut("shift+a") {
@@ -695,7 +695,7 @@ pub fn draw_ui(this) {
         if ui::shortcut("slash") {
             arrange::toggle_isolate(S);
         }
-        if S.persona == "anim" && ui::shortcut("k") {
+        if S.workspace == "animation" && ui::shortcut("k") {
             anim::add_key(S, S.anim.time);
         }
         if !completing && ui::shortcut("escape") {

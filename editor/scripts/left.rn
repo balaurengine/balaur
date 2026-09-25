@@ -1,4 +1,4 @@
-// Left column (262 px): node tree + per-persona secondary panel.
+// Left column (262 px): node tree + per-workspace secondary panel.
 
 use crate::anim;
 use crate::icons;
@@ -61,11 +61,11 @@ fn row(icon, name, meta, key, run) {
     #{ icon: icon, name: name, meta: meta, key: key, run: run }
 }
 
-// Per-persona secondary contents, from real project data where it exists.
+// Per-workspace secondary contents, from real project data where it exists.
 // Returns the section title and its rows; drawing is the caller's, so the
 // tree above can size itself to what this actually holds.
 fn secondary_content(S) {
-    if S.persona == "script" {
+    if S.workspace == "script" {
         let rows = [];
         for f in model::list(S, "scripts") {
             if !f.is_dir && f.name.ends_with(".rn") {
@@ -82,7 +82,7 @@ fn secondary_content(S) {
         }
         // `return`: a bare tuple after an `if` block parses as a call on the block's value.
         return ("Rune modules", rows);
-    } else if S.persona == "phys" {
+    } else if S.workspace == "physics" {
         // A 2D scene carries `body2d`/`collider2d`; reading `body` alone left
         // this panel empty for every 2D project.
         let rows = [];
@@ -103,7 +103,7 @@ fn secondary_content(S) {
             rows.push(row("▣", "no bodies or colliders", "", "", || {}));
         }
         return ("Collision", rows);
-    } else if S.persona == "anim" {
+    } else if S.workspace == "animation" {
         let rows = [];
         for (i, node) in S.doc.iter().enumerate() {
             if anim::component(node).is_some() {
@@ -121,7 +121,7 @@ fn secondary_content(S) {
             rows.push(row("◷", format!("no clips — {} Key in Timeline", icons::ui("add")), "", "", || {}));
         }
         return ("Clips", rows);
-    } else if S.persona == "ui" {
+    } else if S.workspace == "ui" {
         // Two ways a node puts something on screen: a `widget` component in the
         // scene, or a script with a `draw_ui` hook. Listing only the second
         // said "no UI scripts" over a viewport full of widgets.
@@ -138,7 +138,7 @@ fn secondary_content(S) {
         if rows.len() == 0 {
             rows.push(row("▤", "no widgets or draw_ui scripts", "", "", || {}));
         }
-        return ("Interface", rows);
+        return ("Widgets", rows);
     } else {
         let rows = [];
         for f in model::list(S, "scenes") {
@@ -155,7 +155,7 @@ fn secondary_content(S) {
     }
 }
 
-/// The tab name the persona's secondary list gets.
+/// The tab name the workspace's secondary list gets.
 pub fn outline_title(S) {
     let (title, _) = secondary_content(S);
     title
@@ -176,7 +176,7 @@ pub fn tree_tools(S, k) {
 // Facets the tree filters by, each a component tag the engine already
 // carries, so a plugin's component joins the chips it declared tags for.
 fn facets() {
-    [["3d", "3D"], ["2d", "2D"], ["physics", "Physics"], ["render", "Draws"], ["ui", "Interface"]]
+    [["3d", "3D"], ["2d", "2D"], ["physics", "Physics"], ["render", "Rendering"], ["ui", "UI"]]
 }
 
 /// Whether a node has any component carrying `tag`, which is what a facet

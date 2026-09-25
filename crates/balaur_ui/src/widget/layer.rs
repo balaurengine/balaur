@@ -29,7 +29,7 @@ fn takes_focus(widget: &Widget) -> bool {
             widget.kind.as_str(),
             // A line being typed into is where focus lands as much as a
             // button is: Tab reaches it, and a script may put the caret there.
-            w::BUTTON | w::CHECK | w::FOLD | w::FIELD | w::TEXT_AREA
+            w::BUTTON | w::CHECKBOX | w::FOLD | w::TEXT_FIELD | w::TEXT_AREA
         ) || !widget.on_click.is_empty())
 }
 
@@ -757,15 +757,15 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         }
         // A line the player types into. The text lives on the widget; the
         // draw only reports what was typed, and the next tick writes it.
-        w::FIELD => crate::widget::text::field(ui, at, index, &font, color),
+        w::TEXT_FIELD => crate::widget::text::field(ui, at, index, &font, color),
         w::TEXT_AREA => crate::widget::text::text_area(ui, at, index, &font, color),
         // A dialog is a panel drawn over a dimmed screen; the dimming is the
         // root draw's, so here it is the panel.
         w::PANEL | w::DIALOG | w::TOAST => panel(ui, at, index, &caption, &font, color),
         w::WINDOW => crate::widget::window::window(ui, at, index, &caption, &font, color),
-        w::CHECK => crate::widget::kinds::check(ui, at, index, &caption, &font, color),
+        w::CHECKBOX => crate::widget::kinds::check(ui, at, index, &caption, &font, color),
         w::SWITCH => crate::widget::kinds::switch(ui, at, index),
-        w::COLOR => crate::widget::kinds::color(ui, at, index),
+        w::COLOR_PICKER => crate::widget::kinds::color(ui, at, index),
         w::DROPDOWN => crate::widget::kinds::dropdown(ui, at, index, &font, color),
         w::MENU => crate::widget::kinds::menu(ui, at, index, &caption, &font, color),
         w::LIST => crate::widget::rows::list(ui, at, index, &font, color),
@@ -775,8 +775,8 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         // call has always had.
         w::CODE => crate::widget::kinds::code(ui, at, index),
         w::SLIDER => crate::widget::kinds::slider(ui, at, index),
-        w::DRAG_VALUE => crate::widget::kinds::drag_value(ui, at, index, &font, color),
-        w::PROGRESS => crate::widget::kinds::progress(ui, at, index, &caption, &font, color),
+        w::NUMBER_FIELD => crate::widget::kinds::drag_value(ui, at, index, &font, color),
+        w::PROGRESS_BAR => crate::widget::kinds::progress(ui, at, index, &caption, &font, color),
         w::SEPARATOR => crate::widget::kinds::separator(ui, at, index),
         w::GRID => crate::widget::kinds::grid(ui, at, index),
         w::STACK => crate::widget::kinds::stack(ui, at, index),
@@ -790,7 +790,7 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         w::SCROLL => scroller(ui, at, index),
         // One child at a time, with a strip of the rest above it. The strip is
         // drawn here rather than authored, so adding a page is adding a node.
-        w::TAB => tabs(ui, at, index),
+        w::TABS => tabs(ui, at, index),
         // The rect a script fills. The node owns the placement, the script
         // owns everything inside it, and neither has to know the other.
         w::DRAW => {

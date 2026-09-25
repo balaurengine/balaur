@@ -448,7 +448,7 @@ fn settle_clicks(
 
 /// A widget a click ticks and unticks: a `check`, or a `toggle` button.
 fn flips(widget: &Widget) -> bool {
-    widget.kind == w::CHECK || widget.kind == w::SWITCH || widget.toggle
+    widget.kind == w::CHECKBOX || widget.kind == w::SWITCH || widget.toggle
 }
 
 /// Tell the newly focused widget's script that focus arrived.

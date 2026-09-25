@@ -59,7 +59,7 @@ pub fn modes(S) {
     // into `document` too, which is the pitfall AGENTS.md names.
     let open = document || split;
     S.doc_open = open;
-    let has_tools = defs::tools(S.persona).len() > 0;
+    let has_tools = defs::tools(S.workspace).len() > 0;
     // Each shows where its own minimum fits in the room the docks leave: a
     // rail wants its column and a stage worth pointing at beside it, and the
     // chip and foot strips want the stage taller than the two of them.
@@ -93,14 +93,14 @@ pub fn rail_metrics(S) {
     #{ d: d, gap: 4.0, pad: 8.0 }
 }
 
-/// The marks the rail carries: the persona's tools, then the one that folds
+/// The marks the rail carries: the workspace's tools, then the one that folds
 /// them away. Folded, only the one that brings them back.
 pub fn rail_marks(S) {
     if S.rail_shut {
         return ["restore"];
     }
     let marks = [];
-    for tool in defs::tools(S.persona) {
+    for tool in defs::tools(S.workspace) {
         marks.push(tool);
     }
     marks.push("collapse");
@@ -179,13 +179,13 @@ fn rail_mark(S, k, mark, d) {
 }
 
 fn chip(S, k, key, label, default_on, near) {
-    if !S.chip_state.contains_key(S.persona) {
-        S.chip_state[S.persona] = #{};
+    if !S.chip_state.contains_key(S.workspace) {
+        S.chip_state[S.workspace] = #{};
     }
-    let state = S.chip_state[S.persona];
+    let state = S.chip_state[S.workspace];
     // Engine-backed chips (no declared default, see defs::chips) read their
     // value back from the engine every frame; the rest live in `chip_state`.
-    let live = shell::chip_value(S, S.persona, key);
+    let live = shell::chip_value(S, S.workspace, key);
     if live.is_none() && !state.contains_key(key) {
         state[key] = default_on.unwrap_or(false);
     }
@@ -204,7 +204,7 @@ fn chip(S, k, key, label, default_on, near) {
         if live.is_none() {
             state[key] = !on;
         }
-        shell::on_chip(S, S.persona, key, !on);
+        shell::on_chip(S, S.workspace, key, !on);
     }
 }
 
@@ -282,8 +282,8 @@ fn viewport(S, k) {
         return;
     }
     // Interface overlays: the safe-area inset and the 16:9 frame.
-    let chips_ui = util::obj(S.chip_state.get(S.persona).unwrap_or(#{}));
-    if S.persona == "ui" {
+    let chips_ui = util::obj(S.chip_state.get(S.workspace).unwrap_or(#{}));
+    if S.workspace == "ui" {
         ui::overlay("vp-frames", #{ x: vp.x, y: vp.y, w: vp.w, h: vp.h }, || {
             if chips_ui.get("safe").unwrap_or(true) {
                 ui::rect_stroke(34.0, 34.0, vp.w - 68.0, vp.h - 68.0, #{ color: k.accent_fill, dashed: true });
@@ -309,7 +309,7 @@ fn viewport(S, k) {
     // The scene is the document: the chips step back until the pointer comes
     // for them, the way a canvas tool's context bar does.
     let near = chips_wanted(S, vp);
-    // Sized, so the row is clipped to the scene: unsized, a persona with one
+    // Sized, so the row is clipped to the scene: unsized, a workspace with one
     // chip too many painted its last over the inspector beside it.
     // Clear of the folded left dock's handle, which shares this row.
     if !S.stage_chrome {
@@ -319,12 +319,12 @@ fn viewport(S, k) {
     let hud = hud_h(S);
     S.layout.chips = #{ x: vp.x + inset, y: vp.y, w: vp.w - inset, h: hud };
     ui::overlay("vp-chips", #{ x: vp.x + inset, y: vp.y, w: vp.w - inset, h: hud }, || {
-        // Drags sideways rather than truncating: a persona with one chip too
+        // Drags sideways rather than truncating: a workspace with one chip too
         // many used to paint its last over whatever sat beside the scene.
         ui::scroll("vp-chips", #{ axis: "horizontal", max_height: hud }, || {
         ui::horizontal(#{ height: hud }, || {
             ui::spacing(6, 0);
-            for c in defs::chips(S.persona) {
+            for c in defs::chips(S.workspace) {
                 let label = c[1];
                 if c[0] == "proj" && S.mode2d {
                     label = "2D · Orthographic";
@@ -337,7 +337,7 @@ fn viewport(S, k) {
                 ui::add_space(8);
                 polygon::mode_chips(S, k);
             }
-            if S.persona == "scene" {
+            if S.workspace == "scene" {
                 ui::add_space(8);
                 view_chip(S, k);
                 // The camera slots are the first thing a small window drops:

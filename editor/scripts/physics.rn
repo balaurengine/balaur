@@ -1,4 +1,4 @@
-// The Physics persona's section of the inspector: what a node can be given,
+// The Physics workspace's section of the inspector: what a node can be given,
 // and the shapes its mesh can be turned into. Every action writes component
 // properties, never geometry; the engine does the work at apply time.
 

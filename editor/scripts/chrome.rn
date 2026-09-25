@@ -1,4 +1,4 @@
-// The one bar across the top — brand, personas, the open documents, and the
+// The one bar across the top — brand, workspaces, the open documents, and the
 // transport, command and theme controls — and the status strip the bottom
 // dock carries at its foot, which is all of it once minimised.
 
@@ -83,19 +83,19 @@ fn plural(n, word) {
     if n == 1 { word } else { word + "s" }
 }
 
-// Where the first persona pill starts, after the brand.
-fn personas_x(S) {
+// Where the first workspace pill starts, after the brand.
+fn workspaces_x(S) {
     let name = if S.compact { 0.0 } else { 3.0 + NAME_W };
     S.layout.bar.x + PAD_X + 2.0 + MARK_W + name + 8.0
 }
 
-/// Where one persona pill's centre lands in the bar, in design px, so the
+/// Where one workspace pill's centre lands in the bar, in design px, so the
 /// showcase's drawn cursor can be put on the pill its verb presses.
-pub fn persona_spot(S, id) {
+pub fn workspace_spot(S, id) {
     let bar = S.layout.bar;
-    let per = crate::layout::persona_w(S);
+    let per = crate::layout::workspace_w(S);
     let slot = 0;
-    for (i, p) in defs::personas().iter().enumerate() {
+    for (i, p) in defs::workspaces().iter().enumerate() {
         if p.id == id {
             slot = i;
         }
@@ -105,16 +105,16 @@ pub fn persona_spot(S, id) {
         return spot;
     }
     // `return`: a bare tuple after a block parses as a call on the block.
-    return (personas_x(S) + ((slot as f64) + 0.5) * per, bar.y + bar.h / 2.0);
+    return (workspaces_x(S) + ((slot as f64) + 0.5) * per, bar.y + bar.h / 2.0);
 }
 
 /// Where a document tab's centre lands: the scene's, then the script's.
 pub fn doc_spot(S, id) {
     let bar = S.layout.bar;
-    let per = crate::layout::persona_w(S);
-    let first = personas_x(S) + (defs::personas().len() as f64) * per + 12.0;
+    let per = crate::layout::workspace_w(S);
+    let first = workspaces_x(S) + (defs::workspaces().len() as f64) * per + 12.0;
     let slot = if id == "script" { 1.0 } else { 0.0 };
-    let found = strip_spot(S, defs::personas().len() + (slot as i64));
+    let found = strip_spot(S, defs::workspaces().len() + (slot as i64));
     if let Some(spot) = found {
         return spot;
     }
@@ -122,7 +122,7 @@ pub fn doc_spot(S, id) {
 }
 
 /// Where the Focus chip sits, so the showcase's drawn cursor lands on the
-/// control its verb presses. The strip runs personas, documents, split,
+/// control its verb presses. The strip runs workspaces, documents, split,
 /// focus, the spring, then the transport, so it is two slots back.
 pub fn focus_spot(S) {
     let bar = S.layout.bar;
@@ -145,10 +145,10 @@ pub fn transport_spot(S, n) {
     return (block + 14.0 + (n as f64) * BUTTON_PITCH, bar.y + bar.h / 2.0);
 }
 
-// The transport comes after the personas, the open documents, the split, the
+// The transport comes after the workspaces, the open documents, the split, the
 // focus and the spring that pushes the right end over.
 fn transport_slot(S) {
-    defs::personas().len() + doc_controls(S, S.theme, row_h(S) - 4.0).len() + 3
+    defs::workspaces().len() + doc_controls(S, S.theme, row_h(S) - 4.0).len() + 3
 }
 
 /// The centre of the strip's `slot`-th control, in design px, from the node it
@@ -190,19 +190,19 @@ pub fn top_bar(S) {
     crate::pool::strip(S, STRIP_NODE, bar_controls(S, k));
 }
 
-// Everything on the bar past the brand, in the order it reads: the personas,
+// Everything on the bar past the brand, in the order it reads: the workspaces,
 // the open documents, then the split, and the right end after a spring.
 fn bar_controls(S, k) {
     let h = tab_h(S);
     let out = [];
-    for p in defs::personas() {
+    for p in defs::workspaces() {
         let id = p.id;
         out.push(#{
             kind: "button", height: h,
-            role: if S.persona == id { "navtab_on" } else { "navtab" },
+            role: if S.workspace == id { "navtab_on" } else { "navtab" },
             text: if S.compact { "" } else { p.name },
             icon: p.icon, tooltip: p.name,
-            on: |_| { shell::set_persona(S, id); },
+            on: |_| { shell::set_workspace(S, id); },
         });
     }
     for entry in doc_controls(S, k, h) {
@@ -368,7 +368,7 @@ fn transport_controls(S) {
 }
 
 /// The status strip: what the editor is doing, how big the scene is, and the
-/// persona and tool in hand. `room` is the width it has; `trailing` draws
+/// workspace and tool in hand. `room` is the width it has; `trailing` draws
 /// whatever the dock wants at the far right, which minimised is the handle
 /// that reopens it.
 /// The status strip's controls. The scene owns the row; this says what goes
@@ -456,7 +456,7 @@ fn status_controls(S, k, room) {
     if room > 420.0 {
         out.push(#{
             kind: "label", role: "meta", text_color: k.faint,
-            text: format!("{} · {}", defs::persona_name(S.persona), defs::tool_name(S.tool)),
+            text: format!("{} · {}", defs::workspace_name(S.workspace), defs::tool_name(S.tool)),
         });
     }
     out.push(#{ kind: "row", width: 6 });

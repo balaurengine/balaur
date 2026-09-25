@@ -81,7 +81,7 @@ fn owns_children(kind: &str) -> bool {
     lays_out(kind)
         && !matches!(
             kind,
-            w::TAB | w::SCROLL | w::GRID | w::FLOW | w::FOLD | w::MENU | w::STACK
+            w::TABS | w::SCROLL | w::GRID | w::FLOW | w::FOLD | w::MENU | w::STACK
         )
 }
 

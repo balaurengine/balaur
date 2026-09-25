@@ -103,7 +103,7 @@ a yield stress. **Needs:** the fluid solver, plus a granular model.
 3. Fluids in 2D with an emitter component and point rendering; then 3D.
 4. Gases as a fluid with buoyancy, drawn from a density field.
 5. Granular materials as a fluid variant.
-6. Editor: **done for soft bodies** — the Physics persona shows every
+6. Editor: **done for soft bodies** — the Physics workspace shows every
    physics-tagged component, and one click turns a mesh into a filled, skinned
    or surface soft body. Gizmos for emitters and volumes are still to come.
 7. Something to look at: **built**. `examples/cloth` drapes one sheet over a

@@ -16,10 +16,10 @@ Measured 2026-09-08, after the migration.
 
 | Surface | What it is now |
 | --- | --- |
-| the top bar | a `row` strip: personas, documents, transport, all `button` nodes |
+| the top bar | a `row` strip: workspaces, documents, transport, all `button` nodes |
 | the dock tab rows | a strip a dock, each tab a `row` of two buttons in one tile |
 | the outliner | one `tree` |
-| the persona outline, Output, Problems, Cost, Profiler, Docs | one `list` each |
+| the workspace outline, Output, Problems, Cost, Profiler, Docs | one `list` each |
 | Assets, Library, Tiles | one `list` with `columns`, in its card mode |
 | the Debugger | one `tree`: a frame is a row, its locals a tab deeper |
 | the Inspector and Import | a row pool: one node a row, made and reused |
@@ -42,7 +42,7 @@ Four capabilities, and every view fell out of them.
    `[<kind>.hover]` and `[<kind>.active]`. Without these the bar could not
    be nodes at all: 134 call sites spelled a fill and 81 a tooltip.
 3. **A pool.** A form whose fields change with the selection, and a strip
-   whose controls change with the persona, cannot be authored.
+   whose controls change with the workspace, cannot be authored.
    `editor/scripts/pool.rn` makes nodes to order and hides the spares.
 4. **`columns` on `list`, and `table` and `code` as kinds.** One property
    turned three views into three fills; `code` was a wrapper over the

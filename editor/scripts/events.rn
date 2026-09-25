@@ -173,18 +173,43 @@ fn row_spec(S, at, row) {
 ///
 /// One arm per action, spelling the call the interpreter makes, so a scene
 /// that outgrows the table graduates without a rewrite.
+// The prefix an event row carries for what its own node emits by name.
+const EMITTED = "emitted:";
+
 pub fn as_script(S) {
+    script_of(rows(S))
+}
+
+/// The same, for any list of rows.
+pub fn script_of(rows) {
     let byhook = #{};
-    for row in rows(S) {
-        let hook = "on_" + row.get("event").unwrap_or("pointer_click");
+    // An `emitted:<name>` row hears the node's own event, which a script only
+    // hears once it subscribes to it.
+    let heard = [];
+    for row in rows {
+        let event = row.get("event").unwrap_or("pointer_click");
+        let own = event.starts_with(EMITTED);
+        let name = if own { event[EMITTED.len()..] } else { event };
+        if own && !heard.iter().any(|h| h == name) {
+            heard.push(name);
+        }
+        let hook = "on_" + name;
         if !byhook.contains_key(hook) {
             byhook[hook] = [];
         }
         byhook[hook].push(row);
     }
     let out = "// Written from this node's event bindings.\n";
+    if heard.len() > 0 {
+        out += "\npub fn init(this) {\n";
+        for name in heard {
+            out += format!("    events::subscribe(this.node, \"{}\", this.node);\n", name);
+        }
+        out += "}\n";
+    }
     for hook in util::keys_sorted(byhook) {
-        out += format!("\npub fn {}(this{}) {{\n", hook, hook_args(hook));
+        let args = if heard.iter().any(|h| "on_" + h == hook) { ", payload" } else { hook_args(hook) };
+        out += format!("\npub fn {}(this{}) {{\n", hook, args);
         for row in byhook[hook] {
             out += "    " + guarded(row) + "\n";
         }
@@ -253,7 +278,8 @@ fn as_call(row) {
     let action = row.get("action").unwrap_or("state");
     let target = row.get("target").unwrap_or("");
     let value = as_text(row.get("value"));
-    let node = if target == "" { "this" } else { format!("this.get_node(\"{}\")", target) };
+    // `this` is the script's own table; the node it runs on is `this.node`.
+    let node = if target == "" { "this.node" } else { format!("this.node.get_node(\"{}\")", target) };
     match action {
         "state" => format!("{}.states.go(\"{}\");", node, value),
         "set_variable" => format!("scene::set_variable(\"{}\", {});", target, literal(value)),

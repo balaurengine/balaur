@@ -51,11 +51,11 @@ fn commands(S) {
         None => "Redo",
     };
     let list = [
-        command("Scene persona", "⌖", "⌥1", || shell::set_persona(S, "scene")),
-        command("Script persona", "‹›", "⌥2", || shell::set_persona(S, "script")),
-        command("Animate persona", "◷", "⌥3", || shell::set_persona(S, "anim")),
-        command("Physics persona", "▣", "⌥4", || shell::set_persona(S, "phys")),
-        command("Interface persona", "▤", "⌥5", || shell::set_persona(S, "ui")),
+        command("Scene workspace", "⌖", "⌥1", || shell::set_workspace(S, "scene")),
+        command("Script workspace", "‹›", "⌥2", || shell::set_workspace(S, "script")),
+        command("Animation workspace", "◷", "⌥3", || shell::set_workspace(S, "animation")),
+        command("Physics workspace", "▣", "⌥4", || shell::set_workspace(S, "physics")),
+        command("UI workspace", "▤", "⌥5", || shell::set_workspace(S, "ui")),
         command(undo_label, "⟲", "⌘Z", || shell::undo(S)),
         command(redo_label, "⟳", "⇧⌘Z", || shell::redo(S)),
         command("Add child node…", icons::ui("add"), "⇧A", || crate::newnode::open(S)),
@@ -72,7 +72,7 @@ fn commands(S) {
         command(if S.show_input { "Hide input overlay" } else { "Show input overlay" }, "⌨", "", || {
             S.show_input = !S.show_input;
         }),
-        // No chord: ⌥3 is the Animate persona's, and one chord names one verb.
+        // No chord: ⌥3 is the Animation workspace's, and one chord names one verb.
         command("Open animation timeline", "◷", "", || crate::docks::show(S, "timeline")),
         command("Open state machine", "◷", "", || crate::docks::show(S, "statemachine")),
         command("Open the cost dock", icons::panel("cost"), "", || crate::docks::show(S, "cost")),
@@ -194,7 +194,7 @@ pub fn draw(S) {
     let host = crate::window::picker(S, #{
         width: 560.0,
         mark: icons::ui("search"),
-        placeholder: "Nodes, commands, personas…",
+        placeholder: "Nodes, commands, workspaces…",
         query: S.palette_query,
         rows_h: (matched.len() as f64) * (row_h + 2.0) + 4.0,
         on: |text| { S.palette_query = text; },

@@ -189,7 +189,7 @@ pub fn apply_material(S, entry) {
 /// A mark per kind, so a card says what it places before its name is read.
 fn kind_icon(kind) {
     if kind == "material" {
-        return icons::persona("ui");
+        return icons::workspace("ui");
     }
     if kind == "sky" {
         return icons::ui("viewmode");
@@ -198,7 +198,7 @@ fn kind_icon(kind) {
         return icons::panel("bonemap");
     }
     if kind == "addon" {
-        return icons::persona("script");
+        return icons::workspace("script");
     }
     return icons::panel("scene");
 }

@@ -91,13 +91,13 @@ behind an Export button and an Import command, and the async self-tests once
 
 ## 6. Tools not yet built
 
-The curve editor, and the rigging panels below it. Each is a persona tool
+The curve editor, and the rigging panels below it. Each is a workspace tool
 or a dock registered like the built-ins, and each lands with a `--state`
 self-test.
 
 ### Tilemap editor — built, 2026-09-05
 
-The Scene persona has a Tiles tool (`editor/scripts/tiles.rn`, `tilesdemo`).
+The Scene workspace has a Tiles tool (`editor/scripts/tiles.rn`, `tilesdemo`).
 The palette dock cuts the tile set's texture by `tile_size` and picks a tile,
 left-drag paints it, right-drag erases, and a Rectangle mode fills between
 two corners. A layer is a sibling `tilemap` node: the Add layer button
@@ -122,7 +122,7 @@ which `origin` on the map replaces in that plan's step 2.
 
 ### Curve editor and onion skin
 
-The Animate persona's timeline shows keys as dots on a lane. A curve view
+The Animate workspace's timeline shows keys as dots on a lane. A curve view
 under it draws each track's channels as curves against time, with the
 easing of a segment editable by dragging a handle at the key — the twelve
 named easings stay the storage, and a handle drag picks the nearest one,
@@ -168,7 +168,7 @@ against that list. What is there now:
   `balaur_core::geometry2d`'s `trace` and `simplify` — a marched pixel
   boundary and Ramer-Douglas-Peucker, both with headless tests.
 - **Deform keys.** The Points mode edits the offset rather than the mesh
-  while the Animate persona is armed, and the Deform row keys them on
+  while the Animate workspace is armed, and the Deform row keys them on
   `polygon/deform` at the playhead.
 - **A bone map** (`editor/scripts/bonemap.rn`, the Bone map dock,
   `bonemapdemo`). Godot's BoneMap panel: the canonical humanoid against the

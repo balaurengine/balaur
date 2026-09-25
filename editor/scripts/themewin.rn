@@ -98,7 +98,11 @@ fn save_button(S, k) {
     if !S.themewin.dirty {
         return;
     }
-    if ui::pill("Save", #{ height: 24, size: style::MD, radius: 8, fill: k.accent_fill, color: k.on_accent }) {
+    let pressed = ui::pill("Save", #{ height: 24, size: style::MD, radius: 8, fill: k.accent_fill, color: k.on_accent });
+    // Where it drew, for a showcase pointing at it: an immediate control has
+    // no node to ask.
+    S.themewin.save_at = ui::pill_rect();
+    if pressed {
         save(S);
     }
 }

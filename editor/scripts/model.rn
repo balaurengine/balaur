@@ -34,7 +34,7 @@ pub fn source(S, rel) {
 }
 
 // How many lines a file has, counted once per cached read: the Script
-// persona's list asked for every script's count on every frame it drew.
+// workspace's list asked for every script's count on every frame it drew.
 pub fn line_count(S, rel) {
     let text = match source(S, rel) {
         Some(text) => text,
@@ -391,10 +391,10 @@ pub fn node_icon(node) {
         None => body2d_kind(node),
     };
     if node.contains_key("widget") {
-        return (crate::icons::persona("ui"), "node_ui");
+        return (crate::icons::workspace("ui"), "node_ui");
     }
     if kind.is_some() {
-        return (crate::icons::persona("phys"), "node_phys");
+        return (crate::icons::workspace("physics"), "node_phys");
     }
     if node.contains_key("bone2d") || node.contains_key("bone3d") {
         return (crate::icons::tool("bone"), "node_bone");
@@ -403,7 +403,7 @@ pub fn node_icon(node) {
         return (crate::icons::tool("polygon"), "node_2d");
     }
     if node.contains_key("shape3d") || node.contains_key("mesh") {
-        return (crate::icons::persona("scene"), "node_3d");
+        return (crate::icons::workspace("scene"), "node_3d");
     }
     if node.contains_key("script") {
         return (crate::icons::ui("scriptfile"), "node_plain");

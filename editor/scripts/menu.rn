@@ -28,8 +28,8 @@ pub fn rows(S) {
         out.push(pair);
     }
     out.push(rule());
-    let reset = format!("Reset to {}", defs::persona_name(S.persona));
-    out.push(action(icons::ui("reset"), reset, "", |_| { docks::apply_persona(S, S.persona); }));
+    let reset = format!("Reset to {}", defs::workspace_name(S.workspace));
+    out.push(action(icons::ui("reset"), reset, "", |_| { docks::apply_workspace(S, S.workspace); }));
     out
 }
 

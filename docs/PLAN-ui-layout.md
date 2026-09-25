@@ -102,7 +102,7 @@ out, in order of cost:
 - **Author it.** Containers divide explicit sizes and leftovers only; a leaf
   that must hug its content states a size. Covers the whole editor shell.
 - **Measure last frame.** Draw, record what was used, use it next frame. The
-  persona bar already does this (`layout.rn`'s `bar_fit`) and settles in one
+  workspace bar already does this (`layout.rn`'s `bar_fit`) and settles in one
   frame with no visible flicker.
 - **A real measure pass.** A binding over egui's text galley so a node can be
   asked its minimum before anything draws. The correct answer, and the only
@@ -326,7 +326,7 @@ Three real bugs came out of holding it to that standard:
   pass answers 0 for an empty box, and only what cannot be measured ahead — a
   script's rect, a scroll's contents — asks for the leftover. A zero-size box
   takes no seam either, which is what a hidden tool rail needs.
-- **The persona bar measured itself against a sheet that had no height yet**
+- **The workspace bar measured itself against a sheet that had no height yet**
   and overshot by exactly the width of the transport controls. It now waits
   for a sheet with both.
 

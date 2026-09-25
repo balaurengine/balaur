@@ -106,7 +106,7 @@ works, before the scene files are written once.
 4. **The inspector's Transform section goes.** `transform_section`,
    `vec3_row` and their history keys are deleted; the generated section draws
    the same three rows in the same order, because `keys_sorted` is alphabetical
-   and `position`, `rotation_euler`, `scale` already sort that way. The persona
+   and `position`, `rotation_euler`, `scale` already sort that way. The workspace
    filters gain `"transform"` where `transform_section` was called.
 5. **Every scene file.** `position`, `rotation_euler` and `scale` move under
    `[nodes.transform]` in every `.toml` under `examples/`, `editor/` and the
@@ -119,7 +119,7 @@ works, before the scene files are written once.
 
 - It does not split the transform into 2D and 3D. There is one struct, and a
   2D scene reads `z` as depth. A 2D inspector that wants two axes and one
-  angle is a display question the personas already answer, in the same place
+  angle is a display question the workspaces already answer, in the same place
   `unit` is read.
 - It does not remove `node.position()`. The method form stays as the short
   one.

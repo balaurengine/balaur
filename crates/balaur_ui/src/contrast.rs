@@ -103,15 +103,15 @@ fn walk(
     };
     let here = Inherited {
         fill: text(k::FILL).unwrap_or_else(|| above.fill.clone()),
-        ink: text(k::COLOR).unwrap_or_else(|| above.ink.clone()),
+        ink: text(k::TEXT_COLOR).unwrap_or_else(|| above.ink.clone()),
         size: table
-            .get(k::SIZE)
+            .get(k::FONT_SIZE)
             .and_then(balaur_core::components::as_f64)
             .or(above.size),
         strong: table
-            .get(k::STRONG)
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(above.strong),
+            .get(k::FONT_WEIGHT)
+            .and_then(balaur_core::components::as_f64)
+            .map_or(above.strong, |weight| weight >= 600.0),
     };
     let large = here
         .size

@@ -112,7 +112,7 @@ are for any mesh.
 
 ## 4. The editor
 
-A **Voxels tool** in the Scene persona's rail, and a **Blocks** dock beside
+A **Voxels tool** in the Scene workspace's rail, and a **Blocks** dock beside
 the Tiles one — the same palette pattern, swatches drawn from each block's
 texture.
 

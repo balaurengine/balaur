@@ -1,4 +1,4 @@
-// The completion popup in the Script persona: what may be typed at the caret,
+// The completion popup in the Script workspace: what may be typed at the caret,
 // under the caret, from the same `script::complete` an editor outside Balaur
 // reaches through `balaur lsp`.
 

@@ -705,7 +705,7 @@ fn viewport_owns(S, stage) {
         crate::viewport::owns_pointer(S, mid_x, mid_y),
         "the middle of the stage is the viewport's to click",
     );
-    // A dock is not, whichever one the persona opened.
+    // A dock is not, whichever one the workspace opened.
     let right = S.layout.right;
     if right.w > 0.0 {
         check(
@@ -769,21 +769,21 @@ pub fn reloaded(S) {
         old[key] = value;
     }
     old.remove("tool");
-    old.remove("persona");
+    old.remove("workspace");
     let added = crate::backfill(old);
     check(added.len() == 2, format!("reload fills in what the old state lacked ({:?})", added));
-    check(old.contains_key("tool") && old.contains_key("persona"), "and the fields are readable after it");
-    check(old.persona == S.persona || old.persona == "scene", "at a fresh value rather than nothing");
+    check(old.contains_key("tool") && old.contains_key("workspace"), "and the fields are readable after it");
+    check(old.workspace == S.workspace || old.workspace == "scene", "at a fresh value rather than nothing");
     log::info("selftest reload: done");
 }
 
-/// Every component a node carries is reachable from some persona.
+/// Every component a node carries is reachable from some workspace.
 ///
-/// The inspector shows a component when a persona names it or shares one of
-/// its tags. One that carries no tag any persona asks for cannot be drawn in
-/// any persona, so its properties are unreachable however the node is picked.
+/// The inspector shows a component when a workspace names it or shares one of
+/// its tags. One that carries no tag any workspace asks for cannot be drawn in
+/// any workspace, so its properties are unreachable however the node is picked.
 pub fn component_reach(S) {
-    let personas = ["scene", "script", "anim", "phys", "ui"];
+    let workspaces = ["scene", "script", "animation", "physics", "ui"];
     let seen = #{};
     let orphans = [];
     for i in 0..S.doc.len() {
@@ -799,8 +799,8 @@ pub fn component_reach(S) {
             seen[name] = true;
             let tags = util::vec(scene::component_tags(name));
             let reached = false;
-            for id in personas {
-                let wants = crate::defs::persona_inspector(id);
+            for id in workspaces {
+                let wants = crate::defs::workspace_inspector(id);
                 if util::contains(wants.named, name) {
                     reached = true;
                 }
@@ -816,12 +816,12 @@ pub fn component_reach(S) {
         }
     }
     check(seen.len() > 0, format!("the scene's nodes carry {} kinds of component", seen.len()));
-    check(orphans.is_empty(), format!("every one of them reaches a persona ({:?})", orphans));
+    check(orphans.is_empty(), format!("every one of them reaches a workspace ({:?})", orphans));
     log::info("selftest reach: done");
 }
 
 pub fn deselected(S) {
-    S.reselect = #{ waited: 0, stage: 0, row: 0, had: 0, drawn: 0, persona: "", tool: "" };
+    S.reselect = #{ waited: 0, stage: 0, row: 0, had: 0, drawn: 0, workspace: "", tool: "" };
 }
 
 /// Clearing the selection leaves the panels a blank node, and picking the same
@@ -866,7 +866,7 @@ pub fn reselect_step(S) {
         d.drawn = crate::inspector::drawn_rows();
         check(d.drawn > 0, format!("the panel draws {} rows for the selected node", d.drawn));
         deselect_checks(S, d.had);
-        d.persona = S.persona;
+        d.workspace = S.workspace;
         d.tool = S.tool;
         d.stage = 2;
         d.waited = 0;
@@ -877,7 +877,7 @@ pub fn reselect_step(S) {
             no_selection_frame(S, d);
             return;
         }
-        shell::set_persona(S, d.persona);
+        shell::set_workspace(S, d.workspace);
         shell::set_tool(S, d.tool);
         add_with_nothing_selected(S);
         crate::selection::only(S, d.row);
@@ -907,7 +907,7 @@ pub fn reselect_step(S) {
 // Frames to let the pooled form stop moving before a reading is taken.
 const SETTLE = 8;
 
-// A node the persona has nothing for draws a reason, not a blank panel: an
+// A node the workspace has nothing for draws a reason, not a blank panel: an
 // empty inspector is otherwise indistinguishable from components gone missing.
 fn check_empty_says_why(S) {
     for i in 0..S.doc.len() {
@@ -931,7 +931,7 @@ pub fn empty_note_step(S) {
     }
     S.empty_note = ();
     let drawn = crate::inspector::drawn_rows();
-    check(drawn > 0, format!("a node with no section for this persona says so ({} rows)", drawn));
+    check(drawn > 0, format!("a node with no section for this workspace says so ({} rows)", drawn));
     log::info("selftest note: done");
 }
 
@@ -964,13 +964,13 @@ fn deselect_checks(S, had) {
         "and every verb on the selection leaves the document and the selection alone");
 }
 
-// The personas and tools drawn with nothing selected, one pair a frame.
-const NO_SELECTION_PERSONAS = ["scene", "script", "anim", "phys", "ui"];
+// The workspaces and tools drawn with nothing selected, one pair a frame.
+const NO_SELECTION_WORKSPACES = ["scene", "script", "animation", "physics", "ui"];
 const NO_SELECTION_TOOLS = ["select", "move", "rotate", "scale", "polygon", "tiles", "bone", "pen", "key", "zoom"];
 
 fn no_selection_frame(S, d) {
     let i = d.waited % NO_SELECTION_TOOLS.len();
-    shell::set_persona(S, NO_SELECTION_PERSONAS[i % NO_SELECTION_PERSONAS.len()]);
+    shell::set_workspace(S, NO_SELECTION_WORKSPACES[i % NO_SELECTION_WORKSPACES.len()]);
     shell::set_tool(S, NO_SELECTION_TOOLS[i]);
 }
 
@@ -987,8 +987,8 @@ fn add_with_nothing_selected(S) {
 
 // How many components the inspector would list for the active row.
 fn listed_components(S) {
-    let wants = crate::defs::persona_inspector(S.persona);
-    crate::inspector::persona_components(S, wants).len()
+    let wants = crate::defs::workspace_inspector(S.workspace);
+    crate::inspector::workspace_components(S, wants).len()
 }
 
 /// Where the Physics panel's pills really land.
@@ -1004,7 +1004,7 @@ fn listed_components(S) {
 /// So: every pill the panel offers is measured, and has to be wide enough to
 /// hit, inside the sheet, and clear of the pill beside it.
 pub fn physics_clicks(S) {
-    shell::set_persona(S, "phys");
+    shell::set_workspace(S, "physics");
     S.phys_click = #{ waited: 0 };
 }
 
@@ -1132,13 +1132,13 @@ pub fn physics_panel(S) {
     let collider = if two_d { "collider2d" } else { "collider3d" };
     let soft = if two_d { "softbody2d" } else { "softbody3d" };
 
-    // The persona shows what carries the engine's `physics` tag, which is the
+    // The workspace shows what carries the engine's `physics` tag, which is the
     // check the old hard-coded list of names failed.
     model::add_component(S, collider);
-    let wants = crate::defs::persona_inspector("phys");
-    let shown = crate::inspector::persona_components(S, wants);
+    let wants = crate::defs::workspace_inspector("physics");
+    let shown = crate::inspector::workspace_components(S, wants);
     check(crate::util::contains(shown, collider),
-        format!("the Physics persona shows {}", collider));
+        format!("the Physics workspace shows {}", collider));
 
     // A shape action writes the mesh and the kind together, in one undo.
     let source = if two_d {
@@ -2195,7 +2195,7 @@ fn span(x, y, z) {
 }
 
 // The centre must be showing the viewport when no document is open: a stray
-// split used to leave a collapsed code pane over it in every persona.
+// split used to leave a collapsed code pane over it in every workspace.
 pub fn layout(S) {
     S.layout_demo = 0;
 }
@@ -2415,8 +2415,8 @@ pub fn font_sheet(S) {
             for id in ["select", "move", "rotate", "scale", "zoom", "key", "bone", "polygon"] {
                 ui::label(crate::icons::tool(id), #{ size: style::XL, color: k.text });
             }
-            for id in ["scene", "script", "anim", "phys", "ui"] {
-                ui::label(crate::icons::persona(id), #{ size: style::XL, color: k.accent });
+            for id in ["scene", "script", "animation", "physics", "ui"] {
+                ui::label(crate::icons::workspace(id), #{ size: style::XL, color: k.accent });
             }
         });
         ui::horizontal(#{ height: 24 }, || {
@@ -3200,6 +3200,29 @@ pub fn eventviews(S) {
         "a state row becomes the call that goes to it");
     check(written.contains("scene::variable(\"score\")"),
         "a `when` becomes the read that fetches the variable");
+    check(!written.contains("this.get_node") && !written.contains("this.queue_free"),
+        "a row's call goes through the node, not the script's own table");
+    let problems = [];
+    for found in util::vec(script::check("scripts/converted.rn", written)) {
+        if found.severity == "error" {
+            problems.push(found.message);
+        }
+    }
+    check(problems.is_empty(), format!("and the script it writes compiles: {:?}", problems));
+    let own = events::script_of([#{ event: "emitted:died", action: "free" }]);
+    check(own.contains("pub fn on_died(this, payload)")
+        && own.contains("events::subscribe(this.node, \"died\", this.node)"),
+        format!("a row on the node's own event hears it by subscribing: {}", own));
+    let own_problems = [];
+    for found in util::vec(script::check("scripts/converted.rn", own)) {
+        if found.severity == "error" {
+            own_problems.push(found.message);
+        }
+    }
+    check(own_problems.is_empty(), format!("and compiles: {:?}", own_problems));
+    // The control: the name the old conversion wrote is one the check refuses.
+    let refused = util::vec(script::check("scripts/converted.rn", "pub fn on_emitted:died(this) {}\n"));
+    check(refused.iter().any(|f| f.severity == "error"), "the check does refuse a name with a colon in it");
 
     let known = util::vec(scene::bindable_events());
     check(util::contains(known, "pointer_click"), "the engine names the events");

@@ -313,7 +313,7 @@ fn asset_look(name, is_dir) {
         return (crate::icons::panel("scene"), "accent");
     }
     if crate::importer::kind_of(name) == "texture" {
-        return (crate::icons::persona("ui"), "accent");
+        return (crate::icons::workspace("ui"), "accent");
     }
     return (crate::icons::ui("dot"), "faint");
 }
@@ -330,7 +330,7 @@ fn open_asset(S, rel) {
     for (i, node) in S.doc.iter().enumerate() {
         if model::script_rel(node) == Some(rel) {
             shell::choose(S, i);
-            shell::set_persona(S, "script");
+            shell::set_workspace(S, "script");
             return;
         }
     }
@@ -838,7 +838,7 @@ fn open_at(S, f) {
     for (i, node) in S.doc.iter().enumerate() {
         if model::script_rel(node) == Some(f.file) {
             shell::choose(S, i);
-            shell::set_persona(S, "script");
+            shell::set_workspace(S, "script");
             return;
         }
     }

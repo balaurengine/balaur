@@ -525,7 +525,7 @@ pub fn draw(S) {
         Some(geo) => geo,
         None => return,
     };
-    if S.persona == "script" {
+    if S.workspace == "script" {
         return;
     }
     let hot = viewport::hot_part(S);
@@ -790,7 +790,7 @@ pub fn update(S) {
         if pressed || !same_key(key, S.gizmo.key) {
             S.gizmo.key = key;
             S.gizmo.hover = match geo {
-                Some(geo) => if over_viewport && S.persona != "script" { hit_test(S, cam, geo, mx, my) } else { None },
+                Some(geo) => if over_viewport && S.workspace != "script" { hit_test(S, cam, geo, mx, my) } else { None },
                 None => None,
             };
         }
@@ -824,8 +824,8 @@ pub fn update(S) {
                 S.gizmo.in_viewport = true;
                 if S.tool == "select" {
                     // Rigging: a bone's thin octahedron loses to any origin
-                    // near it, so in the Animate persona bones are tried first.
-                    let bone = if S.persona == "anim" { rig::pick_3d(S, mx, my, on_screen) } else { None };
+                    // near it, so in the Animation workspace bones are tried first.
+                    let bone = if S.workspace == "animation" { rig::pick_3d(S, mx, my, on_screen) } else { None };
                     let bone_some = bone;
                     if let Some(bone) = bone_some {
                         shell::choose(S, bone);

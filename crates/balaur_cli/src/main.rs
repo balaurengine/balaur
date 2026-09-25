@@ -607,8 +607,8 @@ struct EditOpts {
     /// editor without one popping up.
     #[arg(long)]
     offscreen: bool,
-    /// Start-up state for the editor scripts (persona id, "palette",
-    /// "light", "play"), mirroring the design prototype's startPersona.
+    /// Start-up state for the editor scripts (workspace id, "palette",
+    /// "light", "play"), mirroring the design prototype's startWorkspace.
     #[arg(long)]
     state: Option<String>,
     /// The offscreen framebuffer, as `WIDTHxHEIGHT` in physical pixels.

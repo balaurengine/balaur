@@ -20,7 +20,7 @@ safe_area = ["left", "top", "right", "bottom"]
 anchor = "fill"
 role = "shell"
 
-# The one bar across the top: brand, personas, the open documents, and the
+# The one bar across the top: brand, workspaces, the open documents, and the
 # transport. It floats over this row, which holds the height and pushes the
 # body down.
 [[nodes]]
@@ -51,7 +51,7 @@ grow = 1
 gap = 8
 align = "center"
 
-# The brand, the shell's one menu, then a strip: how many personas and
+# The brand, the shell's one menu, then a strip: how many workspaces and
 # documents there are changes with what is open, so `chrome.rn` fills both.
 [[nodes]]
 id = "brand"

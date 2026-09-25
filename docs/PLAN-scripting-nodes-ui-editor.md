@@ -292,7 +292,7 @@ Status: **partly done** — the mirror resolves by stable id through `scene.node
 
 | What | Where | Shape |
 |---|---|---|
-| In the Interface persona the axis pill and the zoom pill draw over the HUD's bottom labels: the HUD surface is the whole stage rect, and the pills sit inside it | `editor/scripts/center.rn:206-234`, `editor.rn:207-209` | inset the widget surface by the HUD band, or draw the pills in the tab row |
+| In the Interface workspace the axis pill and the zoom pill draw over the HUD's bottom labels: the HUD surface is the whole stage rect, and the pills sit inside it | `editor/scripts/center.rn:206-234`, `editor.rn:207-209` | inset the widget surface by the HUD band, or draw the pills in the tab row |
 | D7 and D17 in `docs/EDITOR-SCREENS.md` are fixed in code (`dock.rn:14-41` hint table, `:132-138` padded columns) but still listed open; D10, D14 and D15 still stand | `docs/EDITOR-SCREENS.md` §8 | mark them, and re-capture |
 
 Status: open.

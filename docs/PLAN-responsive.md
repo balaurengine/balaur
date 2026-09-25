@@ -565,7 +565,7 @@ meant for a cursor.
 
 The screens after §11 were judged by eye and the eye was wrong about which
 controls disagreed, so the shell's own rects were printed instead. Three
-numbers came out of one bar: the persona tabs were 26 tall, the transport 30,
+numbers came out of one bar: the workspace tabs were 26 tall, the transport 30,
 and the theme toggle 26 wide against the transport's 38.
 
 None of it was the touch work. The bar has always drawn its tabs at
