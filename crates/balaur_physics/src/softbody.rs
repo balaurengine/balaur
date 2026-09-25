@@ -347,7 +347,6 @@ pub(crate) fn apply_softbody(eng: &Engine, entity: Entity, params: &toml::Value)
         );
         state.soft_bodies.insert(entity, handle);
         state.soft_params.insert(entity, params.clone());
-        state.shape_revision += 1;
     }
     // The node draws from the solver, so it has geometry to draw before the
     // first step rather than a frame of nothing.
@@ -372,7 +371,6 @@ pub(crate) fn remove_softbody(eng: &Engine, entity: Entity) {
         &mut world.impulse_joints,
         &mut world.multibody_joints,
     );
-    state.shape_revision += 1;
 }
 
 /// What the component reads back: what was authored, under the few numbers

@@ -1905,7 +1905,9 @@ fn open_and_check(S, d) {
 fn replayed_and_check(S, d) {
     check(replay::position() > d.was, "playing walks the recording forward");
     check(replay::state() == replay::STATE_PAUSED, "a spent session parks");
-    check(util::is_nil(replay::diverged()), "and reproduced what was recorded");
+    let split = replay::diverged();
+    let where_ = if util::is_nil(split) { "" } else { format!(" (tick {})", split.tick) };
+    check(util::is_nil(split), format!("and reproduced what was recorded{}", where_));
     crate::session::close(S);
     exported_and_check(S, d);
     check(!crate::session::loaded(S), "closing unloads the session");

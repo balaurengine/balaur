@@ -104,6 +104,8 @@ a yield stress. **Needs:** the fluid solver, plus a granular model.
 6. Editor: **done for soft bodies** — the Physics persona shows every
    physics-tagged component, and one click turns a mesh into a filled, skinned
    or surface soft body. Gizmos for emitters and volumes are still to come.
+7. Something to look at: **built**. `examples/cloth` drops the same ball onto
+   two pinned sheets, one of which has a `tear_strain` and lets it through.
 
 ## Open questions
 

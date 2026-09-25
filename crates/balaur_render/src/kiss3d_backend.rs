@@ -711,11 +711,7 @@ fn sync(
             .get::<&GlobalAppearance>(entity)
             .map_or_else(|_| GlobalAppearance::identity(), |a| *a);
         let owns_material = !renderable.material.is_empty();
-        // A soft body owns this node's vertices, which makes its buffers
-        // dynamic and its normals this frame's rather than the asset's.
-        let solved = world
-            .get::<&balaur_core::mesh::SolvedMesh>(entity)
-            .is_ok_and(|s| !s.positions.is_empty());
+        let solved = crate::skinned_3d::solver_present(&world, entity);
         // A reload rebuilds what was built from a file: the mesh is read
         // again and the texture uploaded under the new generation's name.
         let from_file = renderable.mesh.is_some() || !renderable.texture.is_empty();
@@ -776,7 +772,8 @@ fn sync(
             pose_mesh(&world, entity, skin, slot.palette.as_ref(), &mut slot.node);
         }
         if solved {
-            slot.solved = draw_solved_mesh(&world, entity, slot.solved, &mut slot.node);
+            slot.solved =
+                crate::skinned_3d::draw_solved(&world, entity, slot.solved, &mut slot.node);
         }
         let [r, g, b, a] = crate::sync_2d::modulate(renderable.color, appearance.tint.to_array());
         // Every shape is real geometry at its authored size now, so the node
@@ -793,7 +790,12 @@ fn sync(
             .set_visible(visible)
             .set_casts_shadows(renderable.shadows)
             .set_light_layers(renderable.layers);
-        let surface = crate::material::surface_of(&app.engine, reference);
+        let mut surface = crate::material::surface_of(&app.engine, reference);
+        // A solver's surface can be an open sheet, and a cloth has no inside
+        // to cull away; without a material of its own it draws both sides.
+        if reference.is_empty() && solved {
+            surface.double_sided = true;
+        }
         if slot.surface != Some(surface) {
             apply_surface(&mut slot.node, &surface);
             slot.surface = Some(surface);
@@ -932,41 +934,6 @@ fn pose_mesh(
         }
         None => node.recompute_normals(),
     }
-}
-
-/// Draw a node from what the physics solver produced this step: the vertex
-/// positions always, the triangles only when the topology changed, which is
-/// what a tear does.
-///
-/// Answers the topology now on the node, for the next frame to compare.
-fn draw_solved_mesh(
-    world: &balaur_core::hecs::World,
-    entity: Entity,
-    uploaded: Option<u32>,
-    node: &mut SceneNode3d,
-) -> Option<u32> {
-    let solved = world.get::<&balaur_core::mesh::SolvedMesh>(entity).ok()?;
-    if solved.positions.is_empty() {
-        return uploaded;
-    }
-    if uploaded != Some(solved.topology) {
-        let faces: Vec<[u32; 3]> = solved.indices.clone();
-        node.modify_faces(&mut |fs: &mut Vec<[u32; 3]>| {
-            fs.clone_from(&faces);
-        });
-    }
-    let positions: Vec<Vec3> = solved
-        .positions
-        .iter()
-        .map(|p| Vec3::from_array(*p))
-        .collect();
-    node.modify_vertices(&mut |coords: &mut Vec<Vec3>| {
-        coords.clone_from(&positions);
-    });
-    // The asset's normals belong to the shape as authored; a deformed one has
-    // to work its own out.
-    node.recompute_normals();
-    Some(solved.topology)
 }
 
 /// The kiss3d node a 2D shape needs. `None` when a polyline names no usable

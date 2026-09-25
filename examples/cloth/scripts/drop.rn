@@ -1,0 +1,50 @@
+// Labels over the two sheets, and the pictures the manual takes. The physics
+// is the scene's; nothing here moves anything.
+
+const INK = [0.93, 0.94, 0.96, 1.0];
+const FAINT = [0.62, 0.66, 0.72, 1.0];
+
+pub fn exports() {
+    #{ shot: "", frames: "" }
+}
+
+pub fn init(this) {
+    this.frame = 0;
+    render::set_background(0.07, 0.08, 0.10);
+}
+
+fn label(x, y, text, size, color) {
+    render::draw_text(x, y, 0.0, text, #{
+        size: size, color: color, align: "center", pixels_per_unit: 120.0,
+    });
+}
+
+pub fn update(this, dt) {
+    // Read off the sheet rather than written twice: the number under the
+    // label is the one the solver is actually using.
+    let strain = this.node.get_node("Tears").softbody3d.tear_strain;
+    label(-1.5, 2.5, "no tear strain", 30.0, INK);
+    label(1.5, 2.5, `tear_strain = ${strain}`, 30.0, INK);
+    label(-1.5, 1.9, "the sheet catches the ball", 20.0, FAINT);
+    label(1.5, 1.9, "the ball tears through", 20.0, FAINT);
+
+    this.frame += 1;
+    // Late enough that the left ball has settled and the right one is through.
+    if this.frame == 150 && this.shot != "" {
+        render::screenshot(this.shot);
+    }
+    if this.frames != "" && this.frame >= 2 && this.frame <= 181 {
+        render::screenshot(`${this.frames}/${padded(this.frame)}.png`);
+    }
+}
+
+// Three digits, so a directory listing plays the frames in order.
+fn padded(n) {
+    if n < 10 {
+        `00${n}`
+    } else if n < 100 {
+        `0${n}`
+    } else {
+        `${n}`
+    }
+}

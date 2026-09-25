@@ -267,7 +267,6 @@ pub(crate) fn apply_softbody_2d(eng: &Engine, entity: Entity, params: &toml::Val
         );
         state.soft_bodies.insert(entity, handle);
         state.soft_params.insert(entity, params.clone());
-        state.shape_revision += 1;
     }
     write_solved_polygon(eng, entity);
     Ok(())
@@ -290,7 +289,6 @@ pub(crate) fn remove_softbody_2d(eng: &Engine, entity: Entity) {
         &mut world.impulse_joints,
         &mut world.multibody_joints,
     );
-    state.shape_revision += 1;
 }
 
 pub(crate) fn get_softbody_params_2d(eng: &Engine, entity: Entity) -> Option<toml::Value> {
