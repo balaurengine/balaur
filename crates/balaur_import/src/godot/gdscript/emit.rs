@@ -683,6 +683,22 @@ impl<'a> Emitter<'a> {
                 quoted(name)
             );
         }
+        // `other.method.bind(a)`: the same record, carrying what `bind` fixed.
+        if let Expr::Call(callee, bound) = arg
+            && let Expr::Field(target, verb) = &**callee
+            && verb == "bind"
+            && let Expr::Field(object, name) = &**target
+            && !matches!(**object, Expr::SelfRef)
+            && !self.context.signals.contains(name)
+        {
+            let owner = self.expression(object);
+            let fixed: Vec<String> = bound.iter().map(|value| self.expression(value)).collect();
+            return format!(
+                "#{{ \"__bound\": {owner}, \"__method\": {}, \"__args\": [{}] }}",
+                quoted(name),
+                fixed.join(", ")
+            );
+        }
         self.connect_handler(arg)
             .unwrap_or_else(|| self.expression(arg))
     }

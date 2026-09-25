@@ -340,4 +340,52 @@ mod tests {
             "the probe hid itself only if amount read 40, wrote a rate of 5, and the pick read -1"
         );
     }
+
+    /// A method bound with arguments takes the signal's values first and
+    /// what `bind` fixed after them, as Godot's `Callable.bind` does.
+    #[test]
+    fn a_bound_method_takes_the_signal_s_values_then_the_bound_ones() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            "[[nodes]]\nid = \"probe\"\nname = \"Probe\"\nscript = { source = \"probe.rn\" }\n",
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn take(this, first, second) {",
+                "    if first == 1 && second == 2 {",
+                "        this.node.set_visible(false);",
+                "    }",
+                "}",
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let bound = #{ \"__bound\": this.node, \"__method\": \"take\", \"__args\": [2] };",
+                "    (gd.call_value)(bound, [1]);",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert!(
+            !world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .visible,
+            "the probe hid itself only if take heard 1 then 2"
+        );
+    }
 }

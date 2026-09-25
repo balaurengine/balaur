@@ -915,6 +915,7 @@ const LISTENERS = "__listeners";
 /// A Godot `Callable` over a class table: the object and the method name.
 const BOUND_OWNER = "__bound";
 const BOUND_METHOD = "__method";
+const BOUND_ARGS = "__args";
 const CALL_KEY = "__call";
 const CALL_TAKES = "__takes";
 
@@ -2095,7 +2096,15 @@ pub fn call_value(target, args) {
         return spread(target[CALL_KEY], fitted);
     }
     if target is Object && target.contains_key(BOUND_OWNER) {
-        return invoke_many(target[BOUND_OWNER], target[BOUND_METHOD], args);
+        // What `bind` fixed comes after what the signal carried, as in Godot.
+        let all = [];
+        for item in args {
+            all.push(item);
+        }
+        for item in get(target, BOUND_ARGS, []) {
+            all.push(item);
+        }
+        return invoke_many(target[BOUND_OWNER], target[BOUND_METHOD], all);
     }
     if is_nil(target) || args.len() == 0 {
         return ();

@@ -364,3 +364,15 @@ func _notification(what: int) -> void:\n\
         assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
     }
 }
+
+#[test]
+fn another_node_s_method_bound_with_arguments_is_a_record_not_a_read() {
+    let source = "extends Node\n\
+var progress: Node\n\
+var client\n\
+func _ready():\n\
+\tclient.rejoined.connect(progress.refresh.bind(true, 2))\n";
+    let out = convert(source, "scripts/sync.gd", &Classes::default());
+    let want = "#{ \"__bound\": this.progress, \"__method\": \"refresh\", \"__args\": [true, 2] }";
+    assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+}
