@@ -150,11 +150,13 @@ pub fn manipulates(tool, mode2d) {
 
 /// Whether a click at this point is the viewport's to act on.
 ///
-/// The dock rects are not the whole interface: a menu, the command palette, a
-/// dropdown's popup and the controls floating over the stage all sit outside
-/// them, and a press on one of those used to be a click in the scene as well.
-/// `S.ui_pointer` is what the widgets themselves said on the frame just
-/// drawn; `ui::wants_pointer` can only be asked inside the pass.
+/// The dock rects, plus the overlays that cover the stage rather than sit
+/// beside it. Not `ui::wants_pointer`: that answer is only available inside
+/// the draw pass, and a tool reading it here would be reading the frame
+/// before -- which swallows a press and re-anchors a drag mid-way.
 pub fn owns_pointer(S, x, y) {
-    !layout::over_sheet(S, x, y) && !S.ui_pointer
+    if S.palette || S.newnode {
+        return false;
+    }
+    !layout::over_sheet(S, x, y)
 }

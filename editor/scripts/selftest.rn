@@ -568,6 +568,64 @@ pub fn physical_bones(S) {
     log::info("selftest physical bones: done");
 }
 
+/// The viewport still takes a click in the middle of the stage.
+///
+/// Every tool asks `viewport::owns_pointer` first, so a test that answers
+/// `false` over the stage makes the canvas dead: no picking, no gizmo, and a
+/// camera drag that re-anchors whenever the answer flickers.
+pub fn viewport_clicks(S) {
+    S.viewport_check = #{ waited: 0 };
+}
+
+pub fn viewport_click_step(S) {
+    let d = S.viewport_check;
+    if !(d is Object) {
+        return;
+    }
+    let stage = S.layout.stage;
+    // The rects are a frame late, and a headless run never lays them out.
+    if stage.w <= 0.0 || stage.h <= 0.0 {
+        d.waited = d.waited + 1;
+        if d.waited > 30 {
+            S.viewport_check = ();
+            log::info("selftest viewport clicks: nothing drew this run, skipped");
+        }
+        return;
+    }
+    S.viewport_check = ();
+    viewport_owns(S, stage);
+}
+
+fn viewport_owns(S, stage) {
+    let mid_x = stage.x + stage.w / 2.0;
+    let mid_y = stage.y + stage.h / 2.0;
+    check(
+        crate::viewport::owns_pointer(S, mid_x, mid_y),
+        "the middle of the stage is the viewport's to click",
+    );
+    // A dock is not, whichever one the persona opened.
+    let right = S.layout.right;
+    if right.w > 0.0 {
+        check(
+            !crate::viewport::owns_pointer(S, right.x + right.w / 2.0, right.y + right.h / 2.0),
+            "a point inside the right dock is not",
+        );
+    }
+    // An overlay covers the stage rather than sitting beside it, so while one
+    // is up the stage underneath is not the viewport's either.
+    crate::shell::open_palette(S, "");
+    check(
+        !crate::viewport::owns_pointer(S, mid_x, mid_y),
+        "nor is the stage while the command palette is over it",
+    );
+    S.palette = false;
+    check(
+        crate::viewport::owns_pointer(S, mid_x, mid_y),
+        "and it is the viewport's again once the palette closes",
+    );
+    log::info("selftest viewport clicks: done");
+}
+
 /// Nothing selected, which a click on empty space in the viewport leaves.
 ///
 /// The panels all read the active row, so this is the state that breaks them:

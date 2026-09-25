@@ -219,9 +219,8 @@ pub fn init(this) {
         polygon: polygon::state(),
         // Where the Physics panel's pills drew this frame, for the selftest
         // that presses them.
-        // Whether the widgets took the pointer on the frame just drawn.
-        ui_pointer: false,
         phys_pills: [],
+        viewport_check: (),
         // What each pill caption measured last time it drew, so the wrap
         // stops guessing.
         phys_widths: #{},
@@ -409,6 +408,9 @@ pub fn update(this, dt) {
     if S.phys_click is Object {
         selftest::physics_click_step(S);
     }
+    if S.viewport_check is Object {
+        selftest::viewport_click_step(S);
+    }
     if S.settings.demo >= 0 {
         selftest::settings_step(S);
     }
@@ -517,10 +519,6 @@ fn apply_start_states(S) {
 
 pub fn draw_ui(this) {
     let S = this.S;
-    // Only answerable inside the pass, and the viewport tools ask in `update`:
-    // held here so a press on a menu or a control over the stage is not also
-    // a click in the scene (`viewport::owns_pointer`).
-    S.ui_pointer = ui::wants_pointer();
     // egui hands a paste to the frame it arrived on: this is the only place
     // it can be read, so ⌘V anywhere in the shell pastes a copied node.
     let pasted = ui::clipboard();

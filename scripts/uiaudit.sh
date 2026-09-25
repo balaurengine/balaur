@@ -104,6 +104,24 @@ check_deselect() {
 }
 check_deselect
 
+# The canvas still takes a click: every viewport tool asks this first, and a
+# test that answers wrongly makes the stage dead without erroring.
+check_viewport() {
+  [ ${#only[@]} -eq 0 ] || return 0
+  printf '%-24s ' viewport
+  local out
+  out=$("$BALAUR_BIN" edit examples/hello --editor "$editor" --offscreen --frames 60 \
+      --state viewportdemo 2>&1)
+  if echo "$out" | grep -qE "selftest FAILED|ERROR"; then
+    echo FAILED; failed+=(viewport)
+  elif ! echo "$out" | grep -q "selftest ok"; then
+    echo "FAILED (checked nothing)"; failed+=(viewport)
+  else
+    echo ok
+  fi
+}
+check_viewport
+
 shot 01-scene-3d        examples/hello      "scene,select:Spinner"
 shot 02-scene-2d        examples/angrynerds "scene,select:Bird,zoom:45"
 shot 03-script          examples/hello      "script,select:Spinner"
