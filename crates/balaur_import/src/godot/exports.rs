@@ -213,8 +213,14 @@ fn parse(line: &str, classes: &Classes, aliases: &BTreeMap<String, String>) -> O
     } else {
         // A hint the index does not know, `const Profile := preload(..)`
         // standing for a class, still says what it holds by its default.
-        let class = aliases.get(&hint).unwrap_or(&hint);
-        kind_of_hint(class, classes).or_else(|| value.and_then(kind_of_constructor))
+        // A preloaded node script is a node; any other keeps its default.
+        let aliased = aliases
+            .get(&hint)
+            .and_then(|script| kind_of_hint(script, classes))
+            .filter(|kind| *kind == Kind::Node);
+        aliased
+            .or_else(|| kind_of_hint(&hint, classes))
+            .or_else(|| value.and_then(kind_of_constructor))
     };
     let default = match (kind, written) {
         (Some(Kind::Float), Some(n)) if !n.contains(['.', 'e', 'E']) => format!("{n}.0"),
@@ -842,6 +848,24 @@ mod tests {
         );
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].kind, Some(Kind::Node), "{:?}", found[0].kind);
+    }
+
+    /// A preloaded resource script is no node: the export keeps what it had,
+    /// so its default still comes from the member's own.
+    #[test]
+    fn an_export_typed_by_a_preloaded_resource_script_is_no_node() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("profile.gd"), "extends Resource\n").unwrap();
+        let classes = super::class_index(dir.path(), &["profile.gd".to_string()]);
+        let found = exports(
+            "extends Node\nconst Profile := preload(\"res://profile.gd\")\n@export var profile: Profile = DEFAULT\n",
+            &classes,
+        );
+        assert!(
+            found.iter().all(|e| e.kind != Some(Kind::Node)),
+            "{:?}",
+            found.iter().map(|e| e.kind).collect::<Vec<_>>()
+        );
     }
 
     #[test]
