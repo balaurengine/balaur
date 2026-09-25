@@ -338,3 +338,39 @@ pub fn fixed_update(this, dt) {
     );
     assert!(errors.is_empty(), "the run logged errors: {errors:#?}");
 }
+
+/// A soft body names its node in `user_data`, which a tear event reads, so a
+/// restore onto a respawned node has to point it at the new entity.
+#[test]
+fn a_restored_soft_body_names_the_respawned_node() {
+    let mut app = app();
+    let root = app.engine.root();
+    let doomed = scene::spawn_node(&mut app.engine.world_mut(), "Blob", root);
+    app.engine
+        .world_mut()
+        .insert_one(doomed, StableId("n_blob".to_string()))
+        .unwrap();
+    let cuboid = toml::from_str("kind = \"cuboid\"\ncells = [2.0, 2.0, 2.0]").unwrap();
+    components::add(&app.engine, doomed, "softbody3d", Some(&cuboid)).unwrap();
+    app.tick(1.0 / 60.0);
+    let taken = snapshot::capture(&app.engine);
+
+    scene::free_subtree(&mut app.engine.world_mut(), doomed);
+    app.tick(1.0 / 60.0);
+    snapshot::restore(&app.engine, &taken);
+
+    let back = balaur_core::ids::find(&app.engine.world(), root, "n_blob")
+        .expect("the nodes source put the node back");
+    assert_ne!(back, doomed, "the respawn should mint a new entity");
+    let state = app.engine.resource::<PhysicsState3d>();
+    let state = state.borrow();
+    let handle = *state
+        .soft_bodies
+        .get(&back)
+        .expect("physics re-resolved the soft body onto the respawned node");
+    assert_eq!(
+        state.world.soft_bodies.get(handle).unwrap().user_data,
+        u128::from(back.to_bits().get()),
+        "the restored soft body still names the freed node"
+    );
+}

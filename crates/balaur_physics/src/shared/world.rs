@@ -4,7 +4,8 @@
 
 macro_rules! functions {
     (state = $State:ty, component = $component:expr, prune = $prune:ident) => {
-        /// Point every restored collider at the entity its node has *now*.
+        /// Point every restored collider and soft body at the entity its node
+        /// has *now*.
         ///
         /// The id rides in a collider's `user_data`, so a world deserialised from
         /// before a respawn names an entity that no longer exists — and every event
@@ -18,6 +19,12 @@ macro_rules! functions {
                     // The one-way platform's axis rides above the entity bits.
                     let flags = collider.user_data & !u128::from(u64::MAX);
                     collider.user_data = flags | u128::from(entity.to_bits().get());
+                }
+            }
+            // A soft body names its node the same way, and a tear reads it.
+            for (entity, &handle) in &state.soft_bodies {
+                if let Some(body) = state.world.soft_bodies.get_mut(handle) {
+                    body.user_data = u128::from(entity.to_bits().get());
                 }
             }
         }
