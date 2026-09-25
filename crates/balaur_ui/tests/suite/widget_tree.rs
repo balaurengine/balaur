@@ -144,7 +144,7 @@ fn a_ticked_check_emits_change_for_its_bindings() {
     let (_dir, mut app) = app();
     let tick = add_widget(
         &app,
-        &toml::toml! { kind = "check" text = "Sails" x = 0.0 y = 0.0 }.into(),
+        &toml::toml! { kind = "checkbox" text = "Sails" x = 0.0 y = 0.0 }.into(),
     );
     let rows = toml::toml! {
         rows = [{ event = "emitted:change", action = "add_variable", target = "flips", value = 1.0 }]

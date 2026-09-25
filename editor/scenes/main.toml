@@ -18,7 +18,7 @@ layer = "shell"
 # `fill`, the engine sizes and places it, insets and all; nothing patches it.
 safe_area = ["left", "top", "right", "bottom"]
 anchor = "fill"
-role = "shell"
+role = "layout_shell"
 
 # The one bar across the top: brand, workspaces, the open documents, and the
 # transport. It floats over this row, which holds the height and pushes the
@@ -49,7 +49,7 @@ parent = "head"
 kind = "row"
 grow = 1
 gap = 8
-align = "center"
+align_items = "center"
 
 # The brand, the shell's one menu, then a strip: how many workspaces and
 # documents there are changes with what is open, so `chrome.rn` fills both.
@@ -59,7 +59,7 @@ name = "Brand"
 parent = "head_row"
 [nodes.widget]
 kind = "menu"
-role = "brand"
+role = "action_brand"
 tooltip = "Menu"
 gap = 0
 
@@ -72,10 +72,10 @@ name = "HeadScroll"
 parent = "head_row"
 [nodes.widget]
 kind = "scroll"
-role = "head_strip"
+role = "header_toolbar"
 axis = "horizontal"
 grow = 1
-deadzone = 6
+scroll_deadzone = 6
 
 [[nodes]]
 id = "head_strip"
@@ -84,7 +84,7 @@ parent = "head_scroll"
 [nodes.widget]
 kind = "row"
 gap = 4
-align = "center"
+align_items = "center"
 
 [[nodes]]
 id = "body"
@@ -94,7 +94,7 @@ parent = "shell"
 kind = "row"
 grow = 1
 gap = 12
-handle = 12
+splitter_width = 12
 
 # The column a side dock owns, and the sheet inside it. Two boxes rather than
 # one: folded, the sheet is a square at the top and the rest of the column is
@@ -126,7 +126,7 @@ name = "LeftHead"
 parent = "left_sheet"
 [nodes.widget]
 kind = "row"
-role = "dock_head"
+role = "header_dock"
 
 # The tabs clip and drag sideways; the fold and the panel's own tools sit
 # outside the scroll, so they stay reachable however many tabs there are.
@@ -136,10 +136,10 @@ name = "LeftTabs"
 parent = "left_head"
 [nodes.widget]
 kind = "scroll"
-role = "dock_head"
+role = "header_dock"
 axis = "horizontal"
 grow = 1
-deadzone = 6
+scroll_deadzone = 6
 
 [[nodes]]
 id = "left_tabs_row"
@@ -147,8 +147,8 @@ name = "LeftTabsRow"
 parent = "left_tabs"
 [nodes.widget]
 kind = "row"
-role = "dock_strip"
-align = "center"
+role = "layout_dock"
+align_items = "center"
 
 [[nodes]]
 id = "left_tail"
@@ -156,8 +156,8 @@ name = "LeftTail"
 parent = "left_head"
 [nodes.widget]
 kind = "row"
-role = "dock_strip"
-align = "center"
+role = "layout_dock"
+align_items = "center"
 
 [[nodes]]
 id = "left_body"
@@ -198,7 +198,7 @@ name = "TreeAdd"
 parent = "tree_menu"
 [nodes.widget]
 kind = "button"
-role = "tree_verb"
+role = "action_tree"
 text = "Add child"
 on_click = "tree_add_child"
 
@@ -208,7 +208,7 @@ name = "TreeUp"
 parent = "tree_menu"
 [nodes.widget]
 kind = "button"
-role = "tree_verb"
+role = "action_tree"
 text = "Move up"
 on_click = "tree_move_up"
 
@@ -218,7 +218,7 @@ name = "TreeDown"
 parent = "tree_menu"
 [nodes.widget]
 kind = "button"
-role = "tree_verb"
+role = "action_tree"
 text = "Move down"
 on_click = "tree_move_down"
 
@@ -228,7 +228,7 @@ name = "TreeRename"
 parent = "tree_menu"
 [nodes.widget]
 kind = "button"
-role = "tree_verb"
+role = "action_tree"
 text = "Rename"
 on_click = "tree_rename"
 
@@ -238,7 +238,7 @@ name = "TreeScript"
 parent = "tree_menu"
 [nodes.widget]
 kind = "button"
-role = "tree_verb"
+role = "action_tree"
 text = "Attach script"
 on_click = "tree_attach_script"
 
@@ -248,7 +248,7 @@ name = "TreeDuplicate"
 parent = "tree_menu"
 [nodes.widget]
 kind = "button"
-role = "tree_verb"
+role = "action_tree"
 text = "Duplicate"
 on_click = "tree_duplicate"
 
@@ -258,7 +258,7 @@ name = "TreeHidden"
 parent = "tree_menu"
 [nodes.widget]
 kind = "button"
-role = "tree_verb"
+role = "action_tree"
 text = "Hide or show"
 on_click = "tree_toggle_hidden"
 
@@ -268,7 +268,7 @@ name = "TreeLocked"
 parent = "tree_menu"
 [nodes.widget]
 kind = "button"
-role = "tree_verb"
+role = "action_tree"
 text = "Lock or unlock"
 on_click = "tree_toggle_locked"
 
@@ -278,7 +278,7 @@ name = "TreeDelete"
 parent = "tree_menu"
 [nodes.widget]
 kind = "button"
-role = "tree_verb"
+role = "action_tree"
 text = "Delete"
 on_click = "tree_delete"
 
@@ -313,7 +313,7 @@ parent = "body"
 kind = "column"
 grow = 1
 gap = 12
-handle = 12
+splitter_width = 12
 
 # The rail and the scene share this row; the dock below is the centre's own
 # child, so it runs the full width rather than starting clear of the rail.
@@ -353,7 +353,7 @@ name = "RightHead"
 parent = "right_sheet"
 [nodes.widget]
 kind = "row"
-role = "dock_head"
+role = "header_dock"
 
 # The tabs clip and drag sideways; the fold and the panel's own tools sit
 # outside the scroll, so they stay reachable however many tabs there are.
@@ -363,10 +363,10 @@ name = "RightTabs"
 parent = "right_head"
 [nodes.widget]
 kind = "scroll"
-role = "dock_head"
+role = "header_dock"
 axis = "horizontal"
 grow = 1
-deadzone = 6
+scroll_deadzone = 6
 
 [[nodes]]
 id = "right_tabs_row"
@@ -374,8 +374,8 @@ name = "RightTabsRow"
 parent = "right_tabs"
 [nodes.widget]
 kind = "row"
-role = "dock_strip"
-align = "center"
+role = "layout_dock"
+align_items = "center"
 
 [[nodes]]
 id = "right_tail"
@@ -383,8 +383,8 @@ name = "RightTail"
 parent = "right_head"
 [nodes.widget]
 kind = "row"
-role = "dock_strip"
-align = "center"
+role = "layout_dock"
+align_items = "center"
 
 [[nodes]]
 id = "right_body"
@@ -413,7 +413,7 @@ parent = "right_sheet"
 # One button, so a pooled row rather than a hatch.
 [nodes.widget]
 kind = "row"
-align = "center"
+align_items = "center"
 height = 36
 
 # The Inspector's and Import's rows: a form whose fields change with the
@@ -507,7 +507,7 @@ name = "BottomHead"
 parent = "bottom"
 [nodes.widget]
 kind = "row"
-role = "dock_head"
+role = "header_dock"
 
 # The tabs clip and drag sideways; the fold and the panel's own tools sit
 # outside the scroll, so they stay reachable however many tabs there are.
@@ -517,10 +517,10 @@ name = "BottomTabs"
 parent = "bottom_head"
 [nodes.widget]
 kind = "scroll"
-role = "dock_head"
+role = "header_dock"
 axis = "horizontal"
 grow = 1
-deadzone = 6
+scroll_deadzone = 6
 
 [[nodes]]
 id = "bottom_tabs_row"
@@ -528,8 +528,8 @@ name = "BottomTabsRow"
 parent = "bottom_tabs"
 [nodes.widget]
 kind = "row"
-role = "dock_strip"
-align = "center"
+role = "layout_dock"
+align_items = "center"
 
 [[nodes]]
 id = "bottom_tail"
@@ -537,8 +537,8 @@ name = "BottomTail"
 parent = "bottom_head"
 [nodes.widget]
 kind = "row"
-role = "dock_strip"
-align = "center"
+role = "layout_dock"
+align_items = "center"
 
 # A panel's own chrome over the node it fills: the Assets path and verbs, the
 # Library's chips, the Tiles modes. A column, because a panel may keep more
@@ -549,7 +549,7 @@ name = "BottomChrome"
 parent = "bottom"
 [nodes.widget]
 kind = "column"
-role = "dock_chrome"
+role = "layout_toolbar"
 visible = false
 
 [[nodes]]
@@ -579,7 +579,7 @@ name = "BottomRowsColumn"
 parent = "bottom_rows"
 [nodes.widget]
 kind = "column"
-role = "dock_rows"
+role = "list_dock"
 grow = 1
 
 # The log-shaped panels, as one node. `dock.rn` fills whichever is up and hides
@@ -593,7 +593,7 @@ kind = "list"
 visible = false
 grow = 1
 row_height = 18
-font = "mono"
+font_family = "mono"
 
 # The Debugger's call stack: frames, with each frame's locals a level in.
 [nodes.widget.touch]
@@ -606,7 +606,7 @@ parent = "bottom"
 kind = "tree"
 visible = false
 grow = 1
-font = "mono"
+font_family = "mono"
 
 # Assets, Library and Tiles: three card grids, one node, filled in turns. Its
 # own `list` beside the log's, because a panel that forgot to state `columns`
@@ -636,7 +636,7 @@ kind = "table"
 visible = false
 grow = 1
 row_height = 18
-font = "mono"
+font_family = "mono"
 [nodes.widget.touch]
 row_height = 33
 
@@ -702,7 +702,7 @@ parent = "bottom"
 # dress it and the layout can keep its boxes between passes.
 [nodes.widget]
 kind = "row"
-align = "center"
+align_items = "center"
 gap = 8
 height = 24
 
@@ -742,7 +742,7 @@ name = "DocPanel"
 parent = "stage"
 [nodes.widget]
 kind = "panel"
-role = "doc_panel"
+role = "sheet_doc"
 # A `panel` draws its caption, and the default one is the word "label".
 text = ""
 visible = false
@@ -754,8 +754,8 @@ name = "DocHead"
 parent = "doc_panel"
 [nodes.widget]
 kind = "row"
-role = "doc_head"
-align = "center"
+role = "header_doc"
+align_items = "center"
 
 [[nodes]]
 id = "doc_scroll"
@@ -772,7 +772,7 @@ name = "DocRows"
 parent = "doc_scroll"
 [nodes.widget]
 kind = "column"
-role = "doc_rows"
+role = "list_doc"
 grow = 1
 
 # The file's engine-facing surface, beside the code. `layout.rn` writes 0 here
@@ -796,8 +796,8 @@ kind = "column"
 layer = "shell"
 anchor = "fill"
 safe_area = ["left", "top", "right", "bottom"]
-role = "manager_ground"
-align = "center"
+role = "sheet_manager"
+align_items = "center"
 visible = false
 
 [[nodes]]
@@ -806,7 +806,7 @@ name = "ManagerHead"
 parent = "manager"
 [nodes.widget]
 kind = "row"
-role = "manager_head"
+role = "header_manager"
 
 [[nodes]]
 id = "manager_tabs"
@@ -814,7 +814,7 @@ name = "ManagerTabs"
 parent = "manager"
 [nodes.widget]
 kind = "row"
-role = "manager_tabs"
+role = "toolbar_manager"
 
 # The page under the tabs. Still drawn: the project history is a `list`, which
 # builds only the rows on screen, and a column of nodes would build them all.
@@ -824,7 +824,7 @@ name = "ManagerBody"
 parent = "manager"
 [nodes.widget]
 kind = "column"
-role = "manager_body"
+role = "layout_manager"
 grow = 1
 
 [[nodes]]
@@ -846,7 +846,7 @@ parent = "n_editor"
 [nodes.widget]
 kind = "dialog"
 layer = "shell"
-role = "picker_window"
+role = "sheet_picker"
 # A `dialog` draws its caption, and the default one is the word "label".
 text = ""
 anchor = "center_top"
@@ -859,8 +859,8 @@ name = "PickerHead"
 parent = "picker"
 [nodes.widget]
 kind = "row"
-role = "picker_head"
-align = "center"
+role = "header_picker"
+align_items = "center"
 
 [[nodes]]
 id = "picker_scroll"
@@ -876,7 +876,7 @@ name = "PickerRows"
 parent = "picker_scroll"
 [nodes.widget]
 kind = "column"
-role = "picker_rows"
+role = "list_picker"
 grow = 1
 
 # The one sheet over the shell: About, Export, New project and Settings all
@@ -889,7 +889,7 @@ parent = "n_editor"
 [nodes.widget]
 kind = "dialog"
 layer = "shell"
-role = "sheet_window"
+role = "sheet_dialog"
 # A `dialog` draws its caption, and the default one is the word "label".
 text = ""
 open = false
@@ -900,7 +900,7 @@ name = "SheetBar"
 parent = "sheet"
 [nodes.widget]
 kind = "row"
-role = "sheet_bar"
+role = "header_dialog"
 
 # The body a screen fills. Drawn for now: every one of the four is immediate,
 # and the frame round them is what this node gives them.
@@ -929,7 +929,7 @@ name = "SheetSplit"
 parent = "sheet_body"
 [nodes.widget]
 kind = "row"
-role = "sheet_split"
+role = "layout_dialog"
 visible = false
 grow = 1
 
@@ -939,7 +939,7 @@ name = "SheetSide"
 parent = "sheet_split"
 [nodes.widget]
 kind = "scroll"
-role = "sheet_side"
+role = "layout_sidebar"
 axis = "vertical"
 
 [[nodes]]
@@ -948,7 +948,7 @@ name = "SheetSideRows"
 parent = "sheet_side"
 [nodes.widget]
 kind = "column"
-role = "sheet_side_rows"
+role = "list_sidebar"
 grow = 1
 
 [[nodes]]

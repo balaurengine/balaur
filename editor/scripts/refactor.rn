@@ -100,7 +100,7 @@ pub fn apply(S) {
         let abs = S.game_root + "/" + one.file;
         S.script_buffers[abs] = one.source;
         S.script_dirty[abs] = true;
-        ui::set_text(("edit:" + abs), one.source);
+        ui::set_field_text(("edit:" + abs), one.source);
     }
     log::info(format!("{} {} to {} in {} files",
         if S.refactor.mode == "rename" { "renamed" } else { "replaced" },
@@ -139,28 +139,28 @@ pub fn draw(S, k) {
         ui::add_space(8);
         let count = S.refactor.hits.len();
         ui::label(format!("{} matches in {} files", count, S.refactor.written.len()),
-            style::mono_sm(k.faint));
+            style::mono_sm(k.text_subtle));
         ui::add_space(6);
         ui::scroll("refactor-hits", #{ max_height: 120 }, || {
             for hit in S.refactor.hits {
-                ui::horizontal(#{ height: 20 }, || {
+                ui::row(#{ height: 20 }, || {
                     ui::add_space(4);
-                    ui::label(format!("{}:{}", hit.file, hit.line), style::mono_sm(k.dim));
+                    ui::label(format!("{}:{}", hit.file, hit.line), style::mono_sm(k.text_muted));
                 });
             }
         });
         ui::add_space(8);
-        ui::horizontal(#{ height: 24 }, || {
+        ui::row(#{ height: 24 }, || {
             let ready = S.refactor.to != "" && S.refactor.written.len() > 0;
-            if ui::pill("Apply", #{
-                role: "button", min_width: 70,
-                fill: if ready { k.accent_fill } else { k.sunken },
-                color: if ready { k.on_accent } else { k.faint },
+            if ui::button("Apply", #{
+                role: "action", min_width: 70,
+                fill: if ready { k.primary_fill } else { k.bg_control },
+                text_color: if ready { k.text_on_primary } else { k.text_subtle },
             }) && ready {
                 apply(S);
             }
             ui::add_space(6);
-            if ui::pill("Cancel", #{ role: "button", min_width: 70 }) {
+            if ui::button("Cancel", #{ role: "action", min_width: 70 }) {
                 close(S);
             }
         });

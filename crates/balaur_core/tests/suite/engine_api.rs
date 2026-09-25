@@ -831,3 +831,20 @@ fn an_unset_environment_variable_reads_as_nil() {
         "PATH is set wherever tests run"
     );
 }
+
+#[test]
+fn the_editor_keeps_its_user_data_beside_the_games_not_among_them() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    let Some(data) = dirs::data_dir() else {
+        return;
+    };
+    let editor = balaur_core::engine_api::user_data_dir_named(
+        &app.engine,
+        balaur_core::engine_api::EDITOR_NAME,
+    );
+    assert_eq!(editor, data.join("balaur-editor"));
+    let game = balaur_core::engine_api::user_data_dir_named(&app.engine, "themes");
+    assert_eq!(game, data.join("balaur").join("themes"));
+    assert!(!game.starts_with(&editor), "a game named themes stays out of the editor's folder");
+}

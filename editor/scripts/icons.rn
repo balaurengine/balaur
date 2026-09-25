@@ -39,13 +39,13 @@ pub fn workspace(id) {
 /// one read as the same thing in both panels.
 pub fn component(name) {
     if name == "transform" {
-        return (tool("move"), "node_plain");
+        return (tool("move"), "node_default");
     }
     if name == "widget" {
         return (workspace("ui"), "node_ui");
     }
     if name == "script" {
-        return (ui("scriptfile"), "node_plain");
+        return (ui("scriptfile"), "node_default");
     }
     if name == "bone2d" || name == "bone3d" || name == "skeleton" {
         return (tool("bone"), "node_bone");
@@ -61,26 +61,26 @@ pub fn component(name) {
         || name.starts_with("softbody") || name.starts_with("wheel")
         || name.starts_with("vehicle") || name == "tile_collision"
         || name == "ragdoll" {
-        return (workspace("physics"), "node_phys");
+        return (workspace("physics"), "node_physics");
     }
     if name.starts_with("camera") || name == "light" || name == "environment" {
-        return (ui("viewmode"), "node_plain");
+        return (ui("viewmode"), "node_default");
     }
     if name == "animation" || name == "animation_player" {
-        return (panel("timeline"), "node_plain");
+        return (panel("timeline"), "node_default");
     }
     if name == "tilemap" || name == "tileset" {
         return (panel("tiles"), "node_2d");
     }
     if name == "audio" || name == "audio_player" {
-        return (panel("session"), "node_plain");
+        return (panel("session"), "node_default");
     }
     if name == "bindings" || name == "events" {
-        return (ui("events"), "node_plain");
+        return (ui("events"), "node_default");
     }
     // `return`, not a bare tuple: a `}` with a `(` under it is a call in Rune,
     // and the error it raises names a tuple rather than this line.
-    return (node("world"), "node_plain");
+    return (node("world"), "node_default");
 }
 
 pub fn panel(id) {
@@ -184,9 +184,6 @@ pub fn ui(name) {
 /// A node's kind in the tree, by the role `model::node_icon` reports.
 pub fn node(role) {
     match role {
-        "sage" => "\u{ebe4}",
-        "accent" => "\u{e1da}",
-        "dim" => "\u{e6d6}",
         "world" => "\u{e18a}",
         _ => "\u{e18a}",
     }

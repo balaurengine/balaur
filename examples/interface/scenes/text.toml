@@ -94,14 +94,14 @@ parent = "sheet"
 kind = "row"
 height = 30
 gap = 10
-align = "center"
+align_items = "center"
 
 [[nodes]]
 id = "name"
 name = "Name"
 parent = "typing"
 [nodes.widget]
-kind = "field"
+kind = "text_field"
 text = "Vesper"
 placeholder = "Character name"
 width = 200
@@ -112,7 +112,7 @@ id = "note"
 name = "Note"
 parent = "typing"
 [nodes.widget]
-kind = "field"
+kind = "text_field"
 text = ""
 placeholder = "and a line they say"
 width = 260
@@ -135,14 +135,14 @@ parent = "sheet"
 kind = "row"
 height = 30
 gap = 10
-align = "center"
+align_items = "center"
 
 [[nodes]]
 id = "size"
 name = "Size"
 parent = "numbers"
 [nodes.widget]
-kind = "drag_value"
+kind = "number_field"
 value = 12
 min = 8
 max = 96
@@ -157,7 +157,7 @@ id = "speed"
 name = "Speed"
 parent = "numbers"
 [nodes.widget]
-kind = "drag_value"
+kind = "number_field"
 value = 4.5
 min = 0
 max = 20

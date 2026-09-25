@@ -97,7 +97,7 @@ pub fn draw(S) {
     // lays out none and focus mode gives the code the window, and the rect
     // left from before is stale, so in both they go by the window instead.
     let v = S.viewport;
-    let (_, sh) = ui::screen_size();
+    let (_, sh) = ui::window_size();
     let staged = !crate::manager::showing(S) && !S.focus && util::f(v.w) > 0.0;
     let vx = if staged { util::f(v.x) } else { 0.0 };
     let vy = if staged { util::f(v.y) } else { 0.0 };
@@ -132,18 +132,18 @@ pub fn draw(S) {
     iv.acts = acts_left;
     if chips.len() > 0 || actions.len() > 0 {
         ui::overlay("input-chips", #{ x: vx + 130.0, y: vy + vh - 46.0 }, || {
-            ui::horizontal(#{ height: 30 }, || {
+            ui::row(#{ height: 30 }, || {
                 for chip in chips {
-                    ui::pill(chip, #{
-                        height: 30, size: style::MD, strong: true,
-                        fill: k.accent_fill, color: k.on_accent,
+                    ui::button(chip, #{
+                        height: 30, font_size: style::MD, font_weight: 700,
+                        fill: k.primary_fill, text_color: k.text_on_primary,
                     });
                     ui::add_space(4);
                 }
                 for name in actions {
-                    ui::pill(name, #{
-                        height: 30, size: style::MD, strong: true,
-                        fill: k.sunken, stroke: k.accent, color: k.accent,
+                    ui::button(name, #{
+                        height: 30, font_size: style::MD, font_weight: 700,
+                        fill: k.bg_control, stroke: k.primary_text, text_color: k.primary_text,
                     });
                     ui::add_space(4);
                 }
@@ -160,18 +160,18 @@ pub fn draw(S) {
         let d = RIPPLE_FROM + (RIPPLE_TO - RIPPLE_FROM) * (1.0 - back * back * back);
         let left = back * back;
         ui::overlay(format!("input-wash-{}", i), #{ x: r.x - d / 2.0, y: r.y - d / 2.0 }, || {
-            ui::frame(#{ fill: alpha(k.accent, 0.30 * left), radius: d / 2.0 }, || {
-                ui::horizontal(#{ width: d, height: d }, || {});
+            ui::frame(#{ fill: alpha(k.primary_text, 0.30 * left), corner_radius: d / 2.0 }, || {
+                ui::row(#{ width: d, height: d }, || {});
             });
         });
         for band in 0..3 {
             let w = d - (band as f64) * 2.0;
-            let hue = if band == 2 { k.accent } else { k.ripple };
+            let hue = if band == 2 { k.primary_text } else { k.input_ripple };
             ui::overlay(format!("input-ripple-{}-{}", i, band), #{ x: r.x - w / 2.0, y: r.y - w / 2.0 }, || {
                 ui::frame(#{
-                    fill: "#00000000", stroke: alpha(hue, left), radius: w / 2.0,
+                    fill: "#00000000", stroke: alpha(hue, left), corner_radius: w / 2.0,
                 }, || {
-                    ui::horizontal(#{ width: w, height: w }, || {});
+                    ui::row(#{ width: w, height: w }, || {});
                 });
             });
         }
@@ -188,9 +188,9 @@ pub fn draw(S) {
         if held {
             ui::overlay("input-press", #{ x: x - 11.0, y: y - 11.0 }, || {
                 ui::frame(#{
-                    fill: alpha(k.accent, 0.45), stroke: k.accent, radius: 11.0,
+                    fill: alpha(k.primary_text, 0.45), stroke: k.primary_text, corner_radius: 11.0,
                 }, || {
-                    ui::horizontal(#{ width: 22.0, height: 22.0 }, || {});
+                    ui::row(#{ width: 22.0, height: 22.0 }, || {});
                 });
             });
         }

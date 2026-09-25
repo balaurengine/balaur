@@ -9,7 +9,7 @@ use crate::theme::family;
 use crate::vocabulary::words as w;
 use crate::widget::layer::Painting;
 use crate::widget::node::Widget;
-use crate::widget::theme::Style;
+use crate::widget::theme::{Pointer, Style, WidgetState};
 
 /// What a button paints inside itself: a picture, the icon glyph, the
 /// caption, the trailing text, and the box they need between them.
@@ -105,8 +105,9 @@ fn face_of(
     }
 }
 
-/// The face in the rect the button took: centred, or from the left edge for a
-/// role that says `align = "left"`, with the trailing text on the far edge.
+/// The face in the rect the button took: centred, or against the edge a
+/// `text_align` of `start` or `end` names, with the trailing text on the far
+/// edge.
 fn paint_face(
     ui: &egui::Ui,
     at: &Painting<'_>,
@@ -116,11 +117,12 @@ fn paint_face(
     style: &Style,
     pad_x: f32,
 ) {
-    let left = style.align.as_deref() == Some(w::LEFT);
-    let mut at_x = if left {
-        rect.min.x + pad_x
-    } else {
-        rect.center().x - face.size.x / 2.0
+    let align = style.align.as_deref();
+    let left = align == Some(w::START);
+    let mut at_x = match align {
+        Some(w::START) => rect.min.x + pad_x,
+        Some(w::END) => rect.max.x - pad_x - face.size.x,
+        _ => rect.center().x - face.size.x / 2.0,
     };
     if let Some(trailing) = &face.trailing {
         let x = if left {
@@ -236,9 +238,12 @@ pub(crate) fn button(
             .fill(Color32::TRANSPARENT)
             .stroke(Stroke::NONE),
     );
-    // A checked button is a toggle held down, and wears its pressed look.
-    let down = response.is_pointer_button_down_on() || widget.checked;
-    let style = base.in_state(response.hovered(), down);
+    let pointer = Pointer::of(&response);
+    let down = pointer == Pointer::Held || widget.checked;
+    let style = base.in_states(WidgetState {
+        pointer,
+        ..at.state
+    });
     let radius = corner(&style, &widget, response.rect.height());
     match style.image.as_ref() {
         Some(path) => crate::widget::kinds::nine_patch_plate(
@@ -264,7 +269,8 @@ pub(crate) fn button(
     }
     // A theme that dresses no state still lights the button up: every control
     // answers the pointer, and a theme refines what that looks like.
-    if (response.hovered() || widget.checked) && base.hover.is_none() && base.active.is_none() {
+    let plain = base.hover.is_none() && base.active.is_none() && base.checked.is_none();
+    if (response.hovered() || widget.checked) && plain {
         ui.painter()
             .rect_filled(response.rect, radius, crate::immediate::wash(ui, down));
     }

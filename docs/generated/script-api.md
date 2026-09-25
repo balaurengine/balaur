@@ -49,7 +49,7 @@ cannot drift from what scripts actually see.
 | [`strings`](#strings) | 6 | 0 | the engine |
 | [`task`](#task) | 3 | 0 | the engine |
 | [`toml`](#toml) | 3 | 0 | the engine |
-| [`ui`](#ui) | 68 | 66 | the engine |
+| [`ui`](#ui) | 69 | 65 | the engine |
 | [`web`](#web) | 7 | 0 | the engine |
 | [`websocket`](#websocket) | 3 | 0 | the engine |
 | [`window`](#window) | 8 | 0 | the engine |
@@ -324,7 +324,7 @@ cannot drift from what scripts actually see.
 
 ## `project`
 
-**Functions:** `copy_example`, `create`, `data_dir`, `examples`, `forget`, `home`, `in_tab`, `open`, `pick_folder`, `recent`, `templates`, `use_data`, `version`
+**Functions:** `copy_example`, `create`, `editor_data_dir`, `examples`, `forget`, `home`, `in_tab`, `open`, `pick_folder`, `recent`, `templates`, `use_data`, `version`
 
 ## `regex`
 
@@ -424,15 +424,14 @@ cannot drift from what scripts actually see.
 
 ## `ui`
 
-**Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bar`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `click`, `clipboard`, `code_editor`, `code_line`, `color`, `contrast`, `contrast_pairs`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `height_class`, `horizontal`, `image`, `image_button`, `label`, `left_panel`, `list`, `loaded`, `menu_item`, `modal`, `overlay`, `pill`, `pill_rect`, `rect_stroke`, `request_repaint`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_keyboard_focus`, `set_lazy`, `set_loading`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `tab_rect`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `wants_pointer`, `widget_rect`, `width_class`, `window`
+**Functions:** `activate_focused`, `add_space`, `align_right`, `available_height`, `available_width`, `bottom_panel`, `button`, `button_rect`, `central_panel`, `central_rect`, `circle_button`, `click`, `code_editor`, `code_line`, `color_picker`, `column`, `complete_theme`, `contrast`, `contrast_pairs`, `dialog`, `dot`, `dropdown`, `finish_loading`, `focus_next`, `focus_previous`, `focused_widget`, `frame`, `height_class`, `image`, `image_button`, `label`, `layout_y`, `left_panel`, `list`, `menu_item`, `number_field`, `overlay`, `pasted_text`, `progress_bar`, `rect_stroke`, `request_repaint`, `right_panel`, `row`, `scale`, `scroll`, `separator`, `set_clipboard`, `set_field_text`, `set_focus`, `set_keyboard_navigation`, `set_lazy`, `set_load_progress`, `set_scale`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `switch`, `tab_rect`, `text_field`, `top_panel`, `wants_keyboard`, `wants_pointer`, `widget_rect`, `width_class`, `window`, `window_size`
 
-**Constants** (66):
+**Constants** (65):
 
 | Name | Value |
 | --- | --- |
 | `ALIGN_CENTER` | `center` |
 | `ALIGN_END` | `end` |
-| `ALIGN_LEFT` | `left` |
 | `ALIGN_START` | `start` |
 | `ANCHOR_BOTTOM_LEFT` | `bottom_left` |
 | `ANCHOR_BOTTOM_RIGHT` | `bottom_right` |
@@ -454,8 +453,9 @@ cannot drift from what scripts actually see.
 | `FONT_MONO` | `mono` |
 | `FONT_STYLE_ITALIC` | `italic` |
 | `FONT_STYLE_NORMAL` | `normal` |
+| `HEIGHT_SHORT` | `short` |
 
-…and 42 more.
+…and 41 more.
 
 ## `web`
 

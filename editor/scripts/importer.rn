@@ -22,13 +22,13 @@ const ROWS = #{
         #{ key: "anisotropy", kind: "count", options: ["1", "2", "4", "8", "16"], fallback: 1,
            help: "samples per fetch on a surface seen edge-on; needs a linear filter" },
         #{ key: "premultiply", kind: "bool", fallback: false,
-           help: "colour scaled by alpha at upload, so a soft edge blends without a dark fringe" },
+           help: "color scaled by alpha at upload, so a soft edge blends without a dark fringe" },
         #{ key: "srgb", kind: "bool", fallback: true,
-           help: "off for a normal map or a mask, which carry data rather than colour" },
+           help: "off for a normal map or a mask, which carry data rather than color" },
         #{ key: "bleed", kind: "bool", fallback: true,
-           help: "the edge colour spread under transparent texels, so a linear filter reads no fringe" },
+           help: "the edge color spread under transparent texels, so a linear filter reads no fringe" },
         #{ key: "normal_map", kind: "bool", fallback: false,
-           help: "a normal map: data rather than colour, so srgb is off unless set" },
+           help: "a normal map: data rather than color, so srgb is off unless set" },
         #{ key: "flip_green", kind: "bool", fallback: false,
            help: "invert green, for a normal map baked the way DirectX reads one" },
         #{ key: "pixels_per_unit", kind: "number", fallback: 100.0, step: 1.0,
@@ -245,13 +245,13 @@ fn row(S, k, rel, kind, spec) {
     let whole = spec.get("whole").unwrap_or(false);
     let control = if spec.kind == "number" {
         #{
-            kind: "drag_value", grow: 1, tooltip: spec.help, arrows: true,
+            kind: "number_field", grow: 1, tooltip: spec.help, arrows: true,
             value: shown, step: spec.step,
             on: |v| { write(S, rel, key, if whole { math::round(v) as i64 } else { v }); },
         }
     } else if spec.kind == "bool" {
         #{
-            kind: "check", text: "", tooltip: spec.help,
+            kind: "checkbox", text: "", tooltip: spec.help,
             checked: effective == true,
             on: |on| { write(S, rel, key, on); },
         }
@@ -278,7 +278,7 @@ fn row(S, k, rel, kind, spec) {
             on: |_| { write(S, rel, key, ()); },
         }
     } else {
-        #{ kind: "label", text: source, role: "meta", width: 52 }
+        #{ kind: "label", text: source, role: "text_caption", width: 52 }
     };
     crate::inspector::form_row(S, key, [control, note]);
 }
@@ -377,11 +377,11 @@ pub fn panel(S, k) {
     let kind = kind_for(S, rel);
     let image = image_of(S, rel);
     ui::add_space(6);
-    ui::horizontal(#{ height: 24 }, || {
+    ui::row(#{ height: 24 }, || {
         ui::add_space(10);
-        ui::label(util::last_segment(rel), #{ size: style::MD, strong: true, color: k.text });
+        ui::label(util::last_segment(rel), #{ font_size: style::MD, font_weight: 700, text_color: k.text_default });
     });
-    ui::horizontal(#{ height: 20 }, || {
+    ui::row(#{ height: 20 }, || {
         ui::add_space(10);
         let from = if image != rel {
             "reads " + image
@@ -390,7 +390,7 @@ pub fn panel(S, k) {
         } else {
             "no settings file yet"
         };
-        ui::label(format!("{}  ·  {}", kind, from), style::mono_sm(k.faint));
+        ui::label(format!("{}  ·  {}", kind, from), style::mono_sm(k.text_subtle));
     });
     // The same pool the inspector fills: one form under the right sheet, and
     // whichever panel is up describes its rows.
@@ -400,7 +400,7 @@ pub fn panel(S, k) {
     }
     if kind == "texture" || kind == "audio" {
         for pair in shipped(S, image) {
-            crate::inspector::form_row(S, pair[0], [#{ kind: "label", text: pair[1], tooltip: pair[2], role: "meta", grow: 1 }]);
+            crate::inspector::form_row(S, pair[0], [#{ kind: "label", text: pair[1], tooltip: pair[2], role: "text_caption", grow: 1 }]);
         }
     }
     crate::inspector::close_pool(S);

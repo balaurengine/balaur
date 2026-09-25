@@ -615,7 +615,8 @@ impl Painting<'_> {
         let plain = style.hover.is_none()
             && style.active.is_none()
             && style.disabled.is_none()
-            && style.focus.is_none();
+            && style.focus.is_none()
+            && style.checked.is_none();
         if !self.state.any() || plain {
             return style;
         }
@@ -722,6 +723,7 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         pointer,
         disabled,
         focused,
+        checked: at.arena[index].widget.checked,
     };
     let outer = std::mem::replace(&mut at.state, state);
     crate::widget::kinds::context_sensor(ui, at, index);
@@ -806,7 +808,7 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             let rect = egui::Rect::from_min_size(room.min, size);
             let entity = placed.entity;
             let target = widget.draw.clone();
-            // A row's body sits on the row's centre line, where `ui::right`
+            // A row's body sits on the row's centre line, where `ui::align_right`
             // puts its own run: a field and the dropdown after it are one line.
             let layout = *ui.layout();
             let layout = if layout.is_horizontal() {

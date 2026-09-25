@@ -99,7 +99,7 @@ fn align_of(word: &str) -> AlignItems {
         w::END => AlignItems::END,
         // Stretch, not Start: a child across the container's direction fills
         // it unless the author asked for something else, which is the rule
-        // every scene written before `align` was laid out under.
+        // every scene written before `align_items` was laid out under.
         _ => AlignItems::STRETCH,
     }
 }
@@ -134,7 +134,7 @@ fn floor_or_none(px: f32) -> LengthPercentageAuto {
 /// One widget's `taffy::Style`.
 ///
 /// Every property the widget layer had before is one field here: `grow` is
-/// `flex_grow`, `gap` is `gap`, `padding` is `padding`, `align` is
+/// `flex_grow`, `gap` is `gap`, `padding` is `padding`, `align_items` is
 /// `align_items`, `justify` is `justify_content`, `columns` is how many a
 /// `flow` puts on a line, and a hidden widget is `Display::None`.
 /// Everything [`style_of`] and the `fills` override read, hashed into one

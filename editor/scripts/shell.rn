@@ -608,7 +608,7 @@ pub fn format_active(S) {
     S.script_dirty[abs] = true;
     // The widget keeps its own copy per id, so the pane would redraw the old
     // text until the next keystroke without this.
-    ui::set_text(("edit:" + abs), formatted);
+    ui::set_field_text(("edit:" + abs), formatted);
     log::info("formatted " + rel);
 }
 

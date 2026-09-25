@@ -251,7 +251,7 @@ fn dragging_a_seam_moves_the_column_beside_it() {
 fn a_list_holding_many_takes_the_rows_a_command_click_adds() {
     let (_dir, mut app) = app();
     let params = toml::toml! {
-        kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 200.0 multi = true
+        kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 200.0 multi_select = true
         row_height = 18.0 options = ["One", "Two", "Three", "Four"]
     };
     let entity = add_widget(&app, &params.into());
@@ -296,7 +296,7 @@ fn a_list_holding_many_takes_the_rows_a_command_click_adds() {
 fn shift_on_a_list_takes_the_run_from_the_last_row_clicked() {
     let (_dir, mut app) = app();
     let params = toml::toml! {
-        kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 200.0 multi = true
+        kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 200.0 multi_select = true
         row_height = 18.0 options = ["One", "Two", "Three", "Four"]
     };
     let entity = add_widget(&app, &params.into());
@@ -396,7 +396,7 @@ fn a_secondary_click_picks_the_row_it_lands_on() {
 fn a_secondary_click_on_a_picked_row_keeps_the_set() {
     let (_dir, mut app) = app();
     let params = toml::toml! {
-        kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 200.0 multi = true
+        kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 200.0 multi_select = true
         row_height = 18.0 options = ["One", "Two", "Three"]
         selection = ["One", "Two"] text = "Two"
     };
@@ -547,11 +547,11 @@ fn a_table(theme: bool) -> toml::Value {
 #[test]
 fn a_theme_that_hides_a_tables_rules_draws_none() {
     let ruled = rules(&themed(
-        "[colors]\nrow_rule = \"#808080\"\n",
+        "[colors]\ntable_rule = \"#808080\"\n",
         &a_table(true),
     ));
     let bare = rules(&themed(
-        "[colors]\nrow_rule = \"#00000000\"\n",
+        "[colors]\ntable_rule = \"#00000000\"\n",
         &a_table(true),
     ));
     assert!(ruled > 0, "a table rules its columns by default: {ruled}");
@@ -566,7 +566,7 @@ fn a_theme_names_the_plate_a_picked_row_wears() {
         "text".into(),
         toml::Value::String("map.png\u{1f}3 KB".into()),
     );
-    let painted = fills(&themed("[colors]\nrow_on = \"#008040\"\n", &params));
+    let painted = fills(&themed("[colors]\nrow_selected = \"#008040\"\n", &params));
     assert!(
         painted.contains(&want),
         "the picked row wears the theme's colour: {painted:?}"
@@ -603,7 +603,7 @@ fn a_theme_dresses_the_box_a_row_view_draws_in() {
         "a table with no fill of its own paints no box: {bare:?}"
     );
     let dressed = fills(&themed(
-        "[colors]\nink = \"#101020\"\n[table]\nfill = \"ink\"\nradius = 6\n",
+        "[colors]\nink = \"#101020\"\n[table]\nfill = \"ink\"\ncorner_radius = 6\n",
         &a_table(true),
     ));
     assert!(
@@ -620,7 +620,10 @@ fn a_list_takes_the_row_colours_its_theme_names() {
         row_height = 18.0 options = ["One", "Two"] text = "Two"
         theme = "themes/t.toml"
     };
-    let painted = fills(&themed("[colors]\nrow_on = \"#c81e1e\"\n", &params.into()));
+    let painted = fills(&themed(
+        "[colors]\nrow_selected = \"#c81e1e\"\n",
+        &params.into(),
+    ));
     assert!(
         painted.contains(&want),
         "a list's picked row wears it too: {painted:?}"

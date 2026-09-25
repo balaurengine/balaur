@@ -1,4 +1,4 @@
-// Editor plugins: unsandboxed Rune modules adding docks, windows, commands,
+// Editor plugins: unsandboxed Rune modules adding panels, dialogs, commands,
 // inspector sections, property editors, overlays and start-up states.
 
 use crate::style;
@@ -7,13 +7,13 @@ use crate::util;
 /// The registries, before any plugin has been seen.
 pub fn state() {
     #{
-        docks: [],
-        windows: [],
+        panels: [],
+        dialogs: [],
         commands: [],
-        sections: [],
+        inspector_sections: [],
         overlays: [],
-        editors: #{},
-        states: #{},
+        property_editors: #{},
+        startup_states: #{},
         open: #{},
         loaded: [],
     }
@@ -117,7 +117,7 @@ fn add_all(S, id, declared) {
             tall: entry.get("tall").unwrap_or(false),
             draw: script::shared(entry.draw), owner: id,
         });
-        // Registering a dock is not enough to reach it: a panel is drawn by
+        // Registering a panel is not enough to reach it: a panel is drawn by
         // the dock whose tab list holds its id.
         crate::docks::adopt(S, entry.id);
     }
@@ -151,9 +151,9 @@ fn add_all(S, id, declared) {
     }
 }
 
-/// A registered dock's entry, or `None`.
-pub fn dock(S, id) {
-    for entry in S.registry.docks {
+/// A registered panel's entry, or `None`.
+pub fn panel(S, id) {
+    for entry in S.registry.panels {
         if entry.id == id {
             return Some(entry);
         }
@@ -163,7 +163,7 @@ pub fn dock(S, id) {
 
 /// Whatever a plugin registered for the inspector, drawn after the built-ins.
 pub fn draw_sections(S, k, node) {
-    for entry in S.registry.sections {
+    for entry in S.registry.inspector_sections {
         let draw = entry.draw;
         draw(S, k, node);
     }
@@ -177,10 +177,10 @@ pub fn draw_overlays(S) {
     }
 }
 
-/// Every open plugin window, drawn as a sheet like every other surface.
-pub fn draw_windows(S, k) {
+/// Every open plugin dialog, drawn as a sheet like every other surface.
+pub fn draw_dialogs(S, k) {
     let n = 0;
-    for entry in S.registry.windows {
+    for entry in S.registry.dialogs {
         if S.registry.open.get(entry.id).unwrap_or(false) != true {
             continue;
         }
@@ -188,15 +188,15 @@ pub fn draw_windows(S, k) {
         n = n + 1;
         let draw = entry.draw;
         crate::style::sheet(k, entry.id, r, 12, 0, || {
-            ui::horizontal(#{ height: 30 }, || {
-                ui::label(entry.title, #{ size: style::MD, font: ui::FONT_HEADING, strong: true, color: k.text });
-                ui::right(|| {
-                    if ui::circle_button(crate::icons::ui("close"), #{ d: 20, size: style::SM, color: k.dim, tooltip: "Close" }) {
+            ui::row(#{ height: 30 }, || {
+                ui::label(entry.title, #{ font_size: style::MD, font_family: ui::FONT_HEADING, font_weight: 700, text_color: k.text_default });
+                ui::align_right(|| {
+                    if ui::circle_button(crate::icons::ui("close"), #{ diameter: 20, font_size: style::SM, text_color: k.text_muted, tooltip: "Close" }) {
                         S.registry.open[entry.id] = false;
                     }
                 });
             });
-            ui::separator(k.line);
+            ui::separator(k.border_default);
             ui::add_space(6);
             draw(S, k);
         });
@@ -204,8 +204,8 @@ pub fn draw_windows(S, k) {
 }
 
 /// A property editor a plugin registered for `datatype`, or `None`.
-pub fn editor(S, datatype) {
-    match S.registry.editors.get(datatype) {
+pub fn property_editor(S, datatype) {
+    match S.registry.property_editors.get(datatype) {
         Some(entry) => Some(entry.draw),
         None => None,
     }
@@ -213,7 +213,7 @@ pub fn editor(S, datatype) {
 
 /// A start-up state a plugin registered, or `None`.
 pub fn start_state(S, name) {
-    match S.registry.states.get(name) {
+    match S.registry.startup_states.get(name) {
         Some(entry) => Some(entry.run),
         None => None,
     }

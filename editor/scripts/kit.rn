@@ -133,7 +133,7 @@ fn tabs(S, host, id, names) {
         let name = entry;
         controls.push(#{
             kind: "button", text: name,
-            role: if name == picked.name { "chip_on" } else { "chip" },
+            role: "chip", checked: name == picked.name,
             on: |_| { picked.name = name; },
         });
     }
@@ -164,14 +164,14 @@ fn pages(S, host, id, groups) {
     let controls = [];
     for group in groups {
         if group.title != "" {
-            controls.push(#{ kind: "label", role: "meta", text: group.title });
+            controls.push(#{ kind: "label", role: "text_caption", text: group.title });
         }
         for entry in group.names {
             // Bound afresh: a closure made in a loop captures the binding.
             let name = entry;
             controls.push(#{
                 kind: "button", text: name,
-                role: if name == picked.name { "side_row_on" } else { "side_row" },
+                role: "item_sidebar", checked: name == picked.name,
                 on: |_| { picked.name = name; },
             });
         }
@@ -185,14 +185,14 @@ fn pages(S, host, id, groups) {
 /// A heading between groups of rows.
 fn section(title) {
     #{ full: true, height: 24, controls: [#{
-        kind: "label", role: "section_head", text: title,
+        kind: "label", role: "action_section", text: title,
     }] }
 }
 
 /// What a panel says when it has nothing.
 fn empty(text) {
     #{ full: true, height: 0, controls: [#{
-        kind: "label", role: "meta", grow: 1, wrap: true, text: text,
+        kind: "label", role: "text_caption", grow: 1, wrap: true, text: text,
     }] }
 }
 
@@ -213,7 +213,7 @@ fn field(S, label, value, opts) {
     let revealed = m.get(key).unwrap_or(false);
     let controls = [#{
         kind: "label", grow: 1, truncate: true,
-        role: option(opts, "role", "meta"),
+        role: option(opts, "role", "text_caption"),
         text: if masked && !revealed { mask(text) } else { text },
     }];
     if masked {
@@ -230,7 +230,7 @@ fn field(S, label, value, opts) {
             on: |_| { ui::set_clipboard(whole); },
         });
     }
-    #{ label: label, height: 22, slot_role: "verb_row", controls: controls }
+    #{ label: label, height: 22, slot_role: "layout_actions", controls: controls }
 }
 
 fn mask(text) {
@@ -304,13 +304,13 @@ fn container(S, out, path, label, value, edit, depth) {
     let open = m.get(key).unwrap_or(depth == 0);
     let count = if value is Object { format!("{} keys", value.len()) } else { format!("{} items", value.len()) };
     if label != "" || depth > 0 {
-        out.specs.push(#{ full: true, height: 22, slot_role: "verb_row", controls: [
+        out.specs.push(#{ full: true, height: 22, slot_role: "layout_actions", controls: [
             #{
                 kind: "button", role: "chip",
                 text: indent(depth) + (if open { "▾ " } else { "▸ " }) + label,
                 on: |_| { m[key] = !open; },
             },
-            #{ kind: "label", role: "meta", text: count },
+            #{ kind: "label", role: "text_caption", text: count },
         ] });
     }
     if !open {
@@ -351,7 +351,7 @@ fn leaf(S, out, path, label, value, edit, depth) {
     let text = shown(value);
     let control = if edit {
         #{
-            kind: "field", role: "form_field", grow: 1, text: text,
+            kind: "text_field", role: "input_form", grow: 1, text: text,
             on_submit: |typed| {
                 if typed != text {
                     held.value = parsed(value, typed);
@@ -360,7 +360,7 @@ fn leaf(S, out, path, label, value, edit, depth) {
             },
         }
     } else {
-        #{ kind: "label", role: "meta", grow: 1, truncate: true, text: text }
+        #{ kind: "label", role: "text_caption", grow: 1, truncate: true, text: text }
     };
     out.specs.push(#{
         label: indent(depth) + label, height: 22, controls: [control],
@@ -388,8 +388,8 @@ fn parsed(was, typed) {
 fn files(S, id, opts) {
     let root = option(opts, "root", game_data(S));
     let only = option(opts, "only", []);
-    let out = [#{ full: true, height: 24, slot_role: "verb_row", controls: [
-        #{ kind: "label", role: "meta", grow: 1, truncate: true, text: short_path(root) },
+    let out = [#{ full: true, height: 24, slot_role: "layout_actions", controls: [
+        #{ kind: "label", role: "text_caption", grow: 1, truncate: true, text: short_path(root) },
         #{ kind: "button", role: "chip", text: "reveal", on: |_| { reveal(root); } },
     ] }];
     let drawn = folder(S, id, root, "", only, option(opts, "edit", true), 0, out);
@@ -432,10 +432,10 @@ fn file_rows(S, id, path, rel, edit, out) {
     let when = fs::mtime(path);
     if when is f64 || when is i64 {
         let age = (engine::unix_time() as f64) - (when as f64);
-        controls.push(#{ kind: "label", role: "meta", text: ago(age) });
+        controls.push(#{ kind: "label", role: "text_caption", text: ago(age) });
     }
     controls.push(#{ kind: "button", role: "chip", text: "reveal", on: |_| { reveal(path); } });
-    out.push(#{ full: true, height: 24, slot_role: "verb_row", controls: controls });
+    out.push(#{ full: true, height: 24, slot_role: "layout_actions", controls: controls });
     if open {
         document(S, id, path, edit, out);
     }
@@ -462,7 +462,7 @@ fn document(S, id, path, edit, out) {
     };
     if !ok {
         out.push(#{ full: true, height: 22, controls: [#{
-            kind: "label", role: "warn_note", grow: 1, wrap: true,
+            kind: "label", role: "note_warning", grow: 1, wrap: true,
             text: format!("does not parse: {}", value),
         }] });
         return;

@@ -390,8 +390,8 @@ pub fn draw(S) {
         None => return,
     };
     let k = S.theme;
-    let accent = util::rgb(k.accent);
-    let dim = util::rgb(k.dim);
+    let accent = util::rgb(k.primary_text);
+    let dim = util::rgb(k.text_muted);
     let mark = MARK_PX * viewport::world_per_px(S);
     let hover = S.pen.hover;
     for i in 0..path.points.len() {

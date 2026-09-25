@@ -12,6 +12,7 @@ use crate::widget::arrange::{Axis, lay_out, padding_of, record_measure, record_r
 use crate::widget::layer::{Edit, Painting, draw_one};
 use crate::widget::measure::Measure;
 use crate::widget::node::Widget;
+use crate::widget::theme::{Pointer, WidgetState};
 
 /// A ticked box with a caption. The tick lives on the widget: the click is
 /// reported like a button's and the next tick flips `checked`.
@@ -43,9 +44,8 @@ pub(crate) fn check(
 
 /// An on/off switch: a track the theme fills and a knob at one end of it.
 ///
-/// `checked` is what it holds, so a role dresses the two states as a button's
-/// are dressed: `[roles.x]` while it is off and `[roles.x.active]` while it is
-/// on, because a checked widget wears the held look.
+/// `checked` is what it holds: `[roles.x]` dresses it off and
+/// `[roles.x.checked]` on, the held look standing in where a theme has none.
 pub(crate) fn switch(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let (entity, on) = {
         let placed = &at.arena[index];
@@ -57,7 +57,10 @@ pub(crate) fn switch(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     if response.clicked() {
         at.clicked.push(entity);
     }
-    let dressed = look.style.in_state(response.hovered() || on, on);
+    let dressed = look.style.in_states(WidgetState {
+        pointer: Pointer::of(&response),
+        ..at.state
+    });
     let track = dressed.fill.unwrap_or(Color32::TRANSPARENT);
     let knob = dressed
         .text_color
@@ -183,7 +186,7 @@ fn warn_code(err: &anyhow::Error) {
     tracing::warn!("code widget: {err:#}");
 }
 
-/// How much of a `drag_value`'s box its two arrows take, gap included.
+/// How much of a `number_field`'s box its two arrows take, gap included.
 const ARROWS: f32 = 18.0;
 
 /// A button that drops a list of items: Godot's `MenuButton`, and the same
@@ -324,7 +327,7 @@ pub(crate) fn popup_rows(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize)
 }
 
 /// A swatch that opens a picker: Godot's `ColorPickerButton`. The colour is
-/// the widget's own `color`, not the ink its caption is drawn in.
+/// the widget's own `picked_color`, not the ink its caption is drawn in.
 pub(crate) fn color(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let placed = &at.arena[index];
     let widget = &placed.widget;

@@ -53,7 +53,7 @@ fn a_role_aligns_a_label_s_caption() {
     std::fs::create_dir_all(dir.path().join("themes")).unwrap();
     std::fs::write(
         dir.path().join("themes/ends.toml"),
-        "type = \"widget_theme\"\n\n[roles.tail]\nalign = \"end\"\n",
+        "type = \"widget_theme\"\n\n[roles.tail]\ntext_align = \"end\"\n",
     )
     .unwrap();
     let at = |role: &str, y: f64| {
@@ -263,7 +263,7 @@ fn a_field_reports_its_submit_for_one_frame() {
     let (_dir, app) = app();
     let field = add_widget(
         &app,
-        &toml::toml! { kind = "field" text = "one" width = 200.0 x = 0.0 y = 0.0 }.into(),
+        &toml::toml! { kind = "text_field" text = "one" width = 200.0 x = 0.0 y = 0.0 }.into(),
     );
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -300,7 +300,7 @@ fn a_switch_flips_and_wears_its_role_s_two_states() {
     std::fs::create_dir_all(dir.path().join("themes")).unwrap();
     std::fs::write(
         dir.path().join("themes/flip.toml"),
-        "type = \"widget_theme\"\n\n[roles.flip]\nheight = 18.0\nfill = \"#101215\"\ncolor = \"#767e88\"\n[roles.flip.active]\nfill = \"#d5814e\"\ncolor = \"#f9f4ed\"\n",
+        "type = \"widget_theme\"\n\n[roles.flip]\nheight = 18.0\nfill = \"#101215\"\ntext_color = \"#767e88\"\n[roles.flip.checked]\nfill = \"#d5814e\"\ntext_color = \"#f9f4ed\"\n",
     )
     .unwrap();
     let flip = add_widget(

@@ -114,10 +114,10 @@ fn describe_project_api(m: &mut dyn Bindings<Engine>) {
             "Where a new project goes unless the reader says otherwise: the home directory on a desktop, and the app's own writable directory where there is no such thing.",
         ),
         (
-            "data_dir",
+            "editor_data_dir",
             &[],
             "",
-            "The per-user folder the editor keeps across projects: `editor.toml`, `projects.toml`, `sessions/` and `themes/`. Made on first ask.",
+            "The editor's per-user folder, `<data>/balaur-editor` beside the games' `<data>/balaur/<name>`: `editor.toml`, `projects.toml`, `sessions/` and `themes/`. Made on first ask.",
         ),
         (
             "in_tab",
@@ -194,7 +194,7 @@ fn install_project_verbs(m: &mut dyn Bindings<Engine>) {
                 .into_owned(),
         ))
     });
-    m.function("data_dir", |eng: &Engine, ()| {
+    m.function("editor_data_dir", |eng: &Engine, ()| {
         let dir = home_of(eng);
         balaur_core::files::backend(eng).mkdir(&dir)?;
         // `fs.*` reaches only declared roots, and this one is the editor's.
@@ -416,11 +416,10 @@ fn home_of(eng: &Engine) -> PathBuf {
     home
 }
 
-/// The per-user folder every project and the editor share: the parent of the
-/// editor's own data directory, so `balaur/` beside each game's.
+/// The editor's per-user folder: its own user data directory, which sits
+/// beside the games' rather than among them.
 fn shared_dir(eng: &Engine) -> PathBuf {
-    let own = balaur_core::engine_api::user_data_dir_of(eng);
-    own.parent().map_or(own.clone(), Path::to_path_buf)
+    balaur_core::engine_api::user_data_dir_of(eng)
 }
 
 fn list_path(home: &Path) -> PathBuf {

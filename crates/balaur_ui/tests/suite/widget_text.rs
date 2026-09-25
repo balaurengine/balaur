@@ -164,7 +164,7 @@ fn a_drag_over_a_selectable_label_selects_and_copies() {
 fn a_drag_value_steps_from_its_arrows_and_wears_its_suffix() {
     let (_dir, mut app) = app();
     let params = toml::toml! {
-        kind = "drag_value" value = 11.0 min = 0.0 max = 12.0 step = 1.0
+        kind = "number_field" value = 11.0 min = 0.0 max = 12.0 step = 1.0
         arrows = true placeholder = "W" suffix = "px" x = 10.0 y = 10.0
     };
     let entity = add_widget(&app, &params.into());

@@ -5,6 +5,8 @@ use crate::util;
 
 /// The two themes the editor ships, which every other one is based on.
 pub const BUNDLED = ["dark", "light"];
+/// The roles, kinds and sizes both bundled themes wear under their colours.
+const ROLES = "themes/roles.toml";
 pub const SETTING = "editor/appearance/theme";
 
 /// The root nodes that dress their subtree with the theme: the shell, the
@@ -13,7 +15,7 @@ const ROOTS = ["Editor/Shell", "Editor/Manager", "Editor/Picker", "Editor/Sheet"
 
 /// Where the person's own themes live.
 pub fn user_dir() {
-    project::data_dir() + "/themes"
+    project::editor_data_dir() + "/themes"
 }
 
 pub fn is_bundled(name) {
@@ -48,12 +50,23 @@ pub fn names() {
 /// The document one file holds, unmerged, or nothing when it is missing or
 /// does not parse.
 pub fn read(name) {
-    let text = fs::read(path_of(name));
+    read_at(path_of(name))
+}
+
+fn read_at(path) {
+    let text = fs::read(path);
     if !(text is String) {
         return ();
     }
     let (ok, doc) = script::attempt(|| toml::parse(text));
     if ok && doc is Object { doc } else { () }
+}
+
+/// A bundled theme as the editor wears it before anyone's edits: the shared
+/// roles under its colours.
+pub fn bundled(name) {
+    let roles = util::obj(read_at(ROLES));
+    merge(roles, util::obj(read(name)))
 }
 
 /// `over` written onto `base`, table by table: a key `over` names wins, and a
@@ -114,19 +127,22 @@ pub fn resolve(name) {
         if name != "dark" {
             log::warn(format!("theme '{}' is not at {}; using dark", name, path_of(name)));
         }
-        return #{ name: "dark", doc: read("dark") };
+        return #{ name: "dark", doc: bundled("dark") };
     }
     if is_bundled(name) {
-        return #{ name: name, doc: own };
+        return #{ name: name, doc: bundled(name) };
     }
-    #{ name: name, doc: merge(read(base_of(own)), own) }
+    #{ name: name, doc: merge(bundled(base_of(own)), own) }
 }
 
-/// A document flattened into the shape `ui::set_theme` and every script's
-/// `k.<token>` lookup want, keeping the document and its name beside.
+/// A document with every token worked out, flattened for a script's
+/// `k.<token>` lookup, keeping the document, its sizes and its name beside.
 pub fn flat(name, doc) {
-    let t = #{ dark: doc.get("dark").unwrap_or(true), roles: doc.roles, name: name, doc: doc };
-    for (key, value) in doc.colors {
+    let done = ui::complete_theme(doc);
+    let t = #{
+        dark: done.dark, roles: doc.roles, colors: done.colors, sizes: done.sizes, name: name, doc: doc,
+    };
+    for (key, value) in done.colors {
         t[key] = value;
     }
     t
@@ -141,14 +157,10 @@ pub fn dark() {
     load("dark")
 }
 
-pub fn light() {
-    load("light")
-}
-
 // Push the active theme into egui, the widget nodes and the 3D viewport.
 pub fn apply(S) {
     let t = S.theme;
-    ui::set_theme(t);
+    ui::set_theme(t.doc);
     // The document itself, inline, on each root: one table both readers take,
     // so a role a script names and a role a node names cannot drift.
     for path in ROOTS {
@@ -157,9 +169,9 @@ pub fn apply(S) {
             root.patch_component("widget", #{ theme: t.doc });
         }
     }
-    let (r, g, b) = util::hex_to_rgb(t.bg);
+    let (r, g, b) = util::hex_to_rgb(t.bg_app);
     render::set_background(r, g, b);
-    let (mr, mg, mb) = util::hex_to_rgb(t.grid);
+    let (mr, mg, mb) = util::hex_to_rgb(t.grid_minor);
     let (jr, jg, jb) = util::hex_to_rgb(t.grid_major);
     render::set_grid_colors(mr, mg, mb, jr, jg, jb);
 }

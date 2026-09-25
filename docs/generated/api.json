@@ -54,7 +54,7 @@
     },
     "widget_theme": {
       "directory": "themes",
-      "doc": "How each widget kind is drawn, one table per kind. `[colors]` names shared fills and `[roles.<name>]` is a look a widget picks with `role`.\n\n```toml\ntype = \"widget_theme\"            # a widget takes the theme of the nearest ancestor naming one\n\n[colors]                         # named fills the rest of the file may use\nink = \"#1b1b1b\"\nsky = \"#3aa0ff\"\nlink = \"#3aa0ff\"                 # what a `[url]` span in markup text is drawn in\nrow_on = \"#2f6fb0\"               # a picked row of a `list`, `tree` or `table`\nrow_on_color = \"#ffffff\"         # and the ink on it\nrow_hover = \"#ffffff12\"          # what a row takes under the pointer; `row_press` while held\nrow_stripe = \"#ffffff08\"         # a table's every other row; \"#00000000\" hides it\nrow_head = \"#ffffff08\"           # its header's plate\nrow_rule = \"#00000000\"           # the lines down its columns, hidden here\nrow_guide = \"#8a8a8a8c\"          # the lines down a tree's indent\n\n[button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look\nfill = \"sky\"\nstroke = \"ink\"\nstroke_width = 1.0\nradius = 6.0\npadding = 8.0\ngap = 4.0\nsize = 14.0\ncolor = \"ink\"                    # text colour\nicon_color = \"ink\"\nfont = \"ui\"\nstrong = true\n\n[button.hover]                   # the look under the pointer; [button.active] while pressed,\n                                 # [button.disabled] while off, [button.focus] with keyboard focus\nfill = \"#5cb4ff\"\n\n[panel]\nimage = \"art/panel.png\"          # a nine-patch, sliced in its own pixels\nslice = [8, 8, 8, 8]             # left, top, right, bottom\n\n[table]                          # a row view is dressed like any other kind\nfill = \"ink\"\nstroke = \"sky\"\nradius = 6.0\npadding_x = 10.0                 # the air either side of a cell's text\n\n[roles.danger]                   # what a widget with role = \"danger\" takes\nfill = \"#d33a3a\"\n```"
+      "doc": "How each widget kind is drawn, one table per kind. `[colors]` and `[sizes]` hold the tokens every table may name, and `[roles.<name>]` is a look a widget picks with `role`. Seven source colours and four sizes derive every other token; a token the file states wins.\n\n```toml\ntype = \"widget_theme\"            # a widget takes the theme of the nearest ancestor naming one\n\n[colors]                         # the sources; bg_panel, text_muted, primary_fill, ... derive from them\nbackground = \"#151f2a\"           # dark or light follows from it; `dark = true` overrides\nforeground = \"#e6e9ee\"\nprimary = \"#4287cc\"              # also secondary, success, warning, danger\ncontrast = 0.05                  # how far apart the surfaces step\nrow_selected = \"#2f6fb0\"         # a picked row of a `list`, `tree` or `table`\nrow_selected_text = \"#ffffff\"    # and the ink on it\nrow_hover = \"#ffffff12\"          # what a row takes under the pointer; `row_active` while held\nrow_stripe = \"#ffffff08\"         # a table's every other row; \"#00000000\" hides it\ntable_header = \"#ffffff08\"       # a table's header plate\ntable_rule = \"#00000000\"         # the lines down its columns, hidden here\ntree_guide = \"#8a8a8a8c\"         # the lines down a tree's indent\n\n[sizes]                          # font_size, radius, control_height, stroke_width; the rest derive\nfont_size = 16                   # font_size_small, font_size_large and font_size_title follow\nradius = 6                       # radius_small and radius_large follow\n\n[button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look\nfill = \"primary_fill\"\nstroke = \"border_default\"\nstroke_width = 1.0\ncorner_radius = \"radius_large\"   # a number, a size's name, or \"full\" for a pill\npadding = 8.0\ngap = 4.0\nfont_size = \"font_size_large\"\ntext_color = \"text_on_primary\"\nicon_color = \"text_on_primary\"\nfont_family = \"ui\"               # ui, heading, mono or icon\nfont_weight = 700\ntext_align = \"center\"            # start, center or end\n\n[button.hover]                   # under the pointer; [button.active] while held, [button.focus] with\n                                 # keyboard focus, [button.disabled] while off, [button.checked] while on\nfill = \"primary_fill_hover\"\n\n[panel]\nimage = \"art/panel.png\"          # a nine-patch, sliced in its own pixels\nslice = [8, 8, 8, 8]             # left, top, right, bottom\n\n[table]                          # a row view is dressed like any other kind\nfill = \"bg_control\"\nstroke = \"border_default\"\ncorner_radius = 6.0\npadding_x = 10.0                 # the air either side of a cell's text\n\n[roles.danger]                   # what a widget with role = \"danger\" takes\nfill = \"danger_fill\"\ntext_color = \"text_on_danger\"\n```"
     }
   },
   "component_docs": {
@@ -5700,13 +5700,7 @@
       }
     },
     "widget": {
-      "active": {
-        "default": "",
-        "description": "Which child a `tab` shows, by node name; empty shows the first. A click on the strip writes it and calls `on_change` with the page's name",
-        "group": "events",
-        "type": "string"
-      },
-      "align": {
+      "align_items": {
         "default": "start",
         "description": "Where a container puts its children across its own direction",
         "group": "layout",
@@ -5742,7 +5736,7 @@
       },
       "arrows": {
         "default": false,
-        "description": "Draw a step up and a step down beside a `drag_value`, each moving it by `step` within `min` and `max`",
+        "description": "Draw a step up and a step down beside a `number_field`, each moving it by `step` within `min` and `max`",
         "group": "type",
         "type": "bool"
       },
@@ -5775,7 +5769,7 @@
       },
       "checked": {
         "default": false,
-        "description": "Whether a `check` is ticked, every click flipping it and calling `on_change` with the new state; a checked `button` is held down, wearing its pressed look",
+        "description": "Whether a `checkbox` is ticked, every click flipping it and calling `on_change` with the new state; a checked `button` is held down, wearing its pressed look",
         "type": "bool"
       },
       "clicked": {
@@ -5784,17 +5778,6 @@
         "group": "events",
         "readonly": true,
         "type": "bool"
-      },
-      "color": {
-        "default": [
-          1.0,
-          1.0,
-          1.0,
-          1.0
-        ],
-        "description": "What a `color` swatch holds; `on_change` hears the new one",
-        "group": "paint",
-        "type": "color"
       },
       "columns": {
         "default": 0,
@@ -5809,12 +5792,24 @@
         "group": "events",
         "type": "string"
       },
+      "corner_radius": {
+        "default": -1.0,
+        "description": "Corner radius in design pixels; below zero takes the theme's own, which for a button is as round as its text is tall",
+        "group": "paint",
+        "type": "float"
+      },
       "current_line": {
         "default": 0,
         "description": "The line a `code` widget fills across its whole width, counting from 1, for the row a debugger is stopped on; 0 fills none",
         "group": "value",
         "min": 0,
         "type": "int"
+      },
+      "current_page": {
+        "default": "",
+        "description": "Which child a `tabs` shows, by node name; empty shows the first. A click on the strip writes it and calls `on_change` with the page's name",
+        "group": "events",
+        "type": "string"
       },
       "cursor": {
         "default": "arrow",
@@ -5857,13 +5852,6 @@
           "zoom_out"
         ],
         "type": "enum"
-      },
-      "deadzone": {
-        "default": 0.0,
-        "description": "How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once",
-        "group": "value",
-        "min": 0.0,
-        "type": "float"
       },
       "disabled": {
         "default": false,
@@ -5908,7 +5896,7 @@
         "group": "events",
         "type": "bool"
       },
-      "font": {
+      "font_family": {
         "default": "ui",
         "description": "Which of the theme's families the widget draws in",
         "group": "type",
@@ -5953,7 +5941,7 @@
       },
       "group": {
         "default": "",
-        "description": "A name this `check` or `toggle` button shares with the ones it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own",
+        "description": "A name this `checkbox` or `toggle` button shares with the ones it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own",
         "group": "value",
         "type": "string"
       },
@@ -5968,13 +5956,6 @@
         "default": 0.0,
         "description": "How wide a `code` widget's gutter is, in design pixels; 0 takes the built-in width, which holds four digits",
         "group": "layout",
-        "min": 0.0,
-        "type": "float"
-      },
-      "handle": {
-        "default": 0.0,
-        "description": "How wide a grab the seams between this container's children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one. On a `table` it is the grab between two columns, which is six pixels where it says nothing",
-        "group": "value",
         "min": 0.0,
         "type": "float"
       },
@@ -6072,22 +6053,22 @@
           "row",
           "column",
           "scroll",
-          "tab",
+          "tabs",
           "draw",
           "image",
-          "field",
+          "text_field",
           "text_area",
-          "check",
+          "checkbox",
           "switch",
-          "color",
+          "color_picker",
           "dropdown",
           "menu",
           "list",
           "tree",
           "table",
           "slider",
-          "drag_value",
-          "progress",
+          "number_field",
+          "progress_bar",
           "grid",
           "flow",
           "fold",
@@ -6114,20 +6095,20 @@
       },
       "max": {
         "default": 1.0,
-        "description": "The high end of a `slider` or `progress`; a `drag_value` runs free while this pair is the default 0 and 1",
+        "description": "The high end of a `slider` or `progress_bar`; a `number_field` runs free while this pair is the default 0 and 1",
         "group": "value",
         "type": "float"
       },
       "max_length": {
         "default": 0.0,
-        "description": "The most characters a `field` takes; 0 is no limit",
+        "description": "The most characters a `text_field` takes; 0 is no limit",
         "group": "value",
         "min": 0.0,
         "type": "float"
       },
       "min": {
         "default": 0.0,
-        "description": "The low end of a `slider` or `progress`; a `drag_value` runs free while this pair is the default 0 and 1",
+        "description": "The low end of a `slider` or `progress_bar`; a `number_field` runs free while this pair is the default 0 and 1",
         "group": "value",
         "type": "float"
       },
@@ -6145,7 +6126,7 @@
         "min": 0.0,
         "type": "float"
       },
-      "multi": {
+      "multi_select": {
         "default": false,
         "description": "Let a `list`, `tree` or `table` hold more than one row: the platform's command key toggles a row and shift takes the run from the last one clicked",
         "group": "value",
@@ -6153,13 +6134,13 @@
       },
       "numeric": {
         "default": false,
-        "description": "Keep a `field` to digits, a sign and a point",
+        "description": "Keep a `text_field` to digits, a sign and a point",
         "group": "value",
         "type": "bool"
       },
       "on_change": {
         "default": "",
-        "description": "Script method called with a `field`'s text after every edit, on this node or the nearest ancestor whose script declares it",
+        "description": "Script method called with a `text_field`'s text after every edit, on this node or the nearest ancestor whose script declares it",
         "group": "events",
         "type": "string"
       },
@@ -6195,7 +6176,7 @@
       },
       "on_submit": {
         "default": "",
-        "description": "Script method called with a `field`'s text on Enter, or when focus leaves it, on this node or the nearest ancestor whose script declares it",
+        "description": "Script method called with a `text_field`'s text on Enter, or when focus leaves it, on this node or the nearest ancestor whose script declares it",
         "group": "events",
         "type": "string"
       },
@@ -6238,9 +6219,20 @@
         "group": "events",
         "type": "bool"
       },
+      "picked_color": {
+        "default": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "description": "What a `color_picker` holds; `on_change` hears the new one",
+        "group": "paint",
+        "type": "color"
+      },
       "placeholder": {
         "default": "",
-        "description": "What a `field` shows while it is empty, and the letter a `drag_value` puts before its number",
+        "description": "What a `text_field` shows while it is empty, and the letter a `number_field` puts before its number",
         "group": "value",
         "type": "string"
       },
@@ -6271,12 +6263,6 @@
           "type": "string"
         },
         "type": "list"
-      },
-      "radius": {
-        "default": -1.0,
-        "description": "Corner radius in design pixels; below zero takes the theme's own, which for a button is as round as its text is tall",
-        "group": "paint",
-        "type": "float"
       },
       "reorderable": {
         "default": false,
@@ -6315,9 +6301,16 @@
         ],
         "type": "flags"
       },
+      "scroll_deadzone": {
+        "default": 0.0,
+        "description": "How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once",
+        "group": "value",
+        "min": 0.0,
+        "type": "float"
+      },
       "secret": {
         "default": false,
-        "description": "Draw a `field`'s text as dots, for a password",
+        "description": "Draw a `text_field`'s text as dots, for a password",
         "group": "value",
         "type": "bool"
       },
@@ -6377,9 +6370,16 @@
         "description": "The project-relative image an `image` widget draws, the picture a `button` draws before its caption at the caption's height, the sheet a `list` cuts its card faces from, and the language a `code` widget highlights",
         "type": "string"
       },
+      "splitter_width": {
+        "default": 0.0,
+        "description": "How wide a grab the seams between this container's children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one. On a `table` it is the grab between two columns, which is six pixels where it says nothing",
+        "group": "value",
+        "min": 0.0,
+        "type": "float"
+      },
       "step": {
         "default": 0.0,
-        "description": "The grid a `slider` snaps to, and how fast a `drag_value` moves under the pointer; 0 is continuous",
+        "description": "The grid a `slider` snaps to, and how fast a `number_field` moves under the pointer; 0 is continuous",
         "group": "value",
         "min": 0.0,
         "type": "float"
@@ -6392,13 +6392,13 @@
       },
       "submitted": {
         "default": false,
-        "description": "True for the one frame a `field` was submitted, the way `clicked` reports a press",
+        "description": "True for the one frame a `text_field` was submitted, the way `clicked` reports a press",
         "group": "events",
         "type": "bool"
       },
       "suffix": {
         "default": "",
-        "description": "Units drawn after a `drag_value`'s number, the way `placeholder` is drawn before it",
+        "description": "Units drawn after a `number_field`'s number, the way `placeholder` is drawn before it",
         "group": "type",
         "type": "string"
       },
@@ -6454,7 +6454,7 @@
       },
       "toggle": {
         "default": false,
-        "description": "A `button` a click holds down and the next releases, flipping `checked` as a `check` does, before `on_click` runs: Godot's toggle mode",
+        "description": "A `button` a click holds down and the next releases, flipping `checked` as a `checkbox` does, before `on_click` runs: Godot's toggle mode",
         "group": "value",
         "type": "bool"
       },
@@ -6478,7 +6478,7 @@
       },
       "value": {
         "default": 0.0,
-        "description": "Where a `slider`, `drag_value` or `progress` stands, between `min` and `max`; a slider and a drag value write it and call `on_change` with it",
+        "description": "Where a `slider`, `number_field` or `progress_bar` stands, between `min` and `max`; a slider and a drag value write it and call `on_change` with it",
         "type": "float"
       },
       "visible": {
@@ -10669,7 +10669,7 @@
       "docs": {
         "copy_example": "Copy one example into `into` under its own name, so the shipped one stays as it is. Answers `{ path, name }`, or `{ error }`.",
         "create": "Write a new project at `path` from a template id, or from nothing when the id is empty. Answers `{ path, name }`, or `{ error }`.",
-        "data_dir": "The per-user folder the editor keeps across projects: `editor.toml`, `projects.toml`, `sessions/` and `themes/`. Made on first ask.",
+        "editor_data_dir": "The editor's per-user folder, `<data>/balaur-editor` beside the games' `<data>/balaur/<name>`: `editor.toml`, `projects.toml`, `sessions/` and `themes/`. Made on first ask.",
         "examples": "The example projects shipped beside the editor: `{ id, name, note, cover, path }` each, where `cover` is a picture the editor's own project holds, or empty.",
         "forget": "Drop one project from the list. The folder is not touched.",
         "home": "Where a new project goes unless the reader says otherwise: the home directory on a desktop, and the app's own writable directory where there is no such thing.",
@@ -10684,7 +10684,7 @@
       "functions": [
         "copy_example",
         "create",
-        "data_dir",
+        "editor_data_dir",
         "examples",
         "forget",
         "home",
@@ -10700,7 +10700,7 @@
       "signatures": {
         "copy_example": "(String, String) -> Value",
         "create": "(String, String) -> Value",
-        "data_dir": "() -> Value",
+        "editor_data_dir": "() -> Value",
         "examples": "() -> Value",
         "forget": "String -> Value",
         "home": "() -> Value",
@@ -11600,10 +11600,6 @@
           "value": "end"
         },
         {
-          "name": "ALIGN_LEFT",
-          "value": "left"
-        },
-        {
           "name": "ALIGN_START",
           "value": "start"
         },
@@ -11688,64 +11684,52 @@
           "value": "normal"
         },
         {
-          "name": "MEDIUM",
-          "value": "medium"
-        },
-        {
-          "name": "MOD_ALT",
-          "value": "alt"
-        },
-        {
-          "name": "MOD_CMD",
-          "value": "cmd"
-        },
-        {
-          "name": "MOD_CTRL",
-          "value": "ctrl"
-        },
-        {
-          "name": "MOD_SHIFT",
-          "value": "shift"
-        },
-        {
-          "name": "NARROW",
-          "value": "narrow"
-        },
-        {
-          "name": "POINTER",
-          "value": "pointer"
-        },
-        {
-          "name": "SHORT",
+          "name": "HEIGHT_SHORT",
           "value": "short"
         },
         {
-          "name": "TALL",
+          "name": "HEIGHT_TALL",
           "value": "tall"
         },
         {
-          "name": "TOUCH",
+          "name": "INPUT_POINTER",
+          "value": "pointer"
+        },
+        {
+          "name": "INPUT_TOUCH",
           "value": "touch"
         },
         {
-          "name": "WIDE",
-          "value": "wide"
+          "name": "MODIFIER_ALT",
+          "value": "alt"
+        },
+        {
+          "name": "MODIFIER_CMD",
+          "value": "cmd"
+        },
+        {
+          "name": "MODIFIER_CTRL",
+          "value": "ctrl"
+        },
+        {
+          "name": "MODIFIER_SHIFT",
+          "value": "shift"
         },
         {
           "name": "WIDGET_BUTTON",
           "value": "button"
         },
         {
-          "name": "WIDGET_CHECK",
-          "value": "check"
+          "name": "WIDGET_CHECKBOX",
+          "value": "checkbox"
         },
         {
           "name": "WIDGET_CODE",
           "value": "code"
         },
         {
-          "name": "WIDGET_COLOR",
-          "value": "color"
+          "name": "WIDGET_COLOR_PICKER",
+          "value": "color_picker"
         },
         {
           "name": "WIDGET_COLUMN",
@@ -11756,20 +11740,12 @@
           "value": "dialog"
         },
         {
-          "name": "WIDGET_DRAG_VALUE",
-          "value": "drag_value"
-        },
-        {
           "name": "WIDGET_DRAW",
           "value": "draw"
         },
         {
           "name": "WIDGET_DROPDOWN",
           "value": "dropdown"
-        },
-        {
-          "name": "WIDGET_FIELD",
-          "value": "field"
         },
         {
           "name": "WIDGET_FLOW",
@@ -11800,12 +11776,16 @@
           "value": "menu"
         },
         {
+          "name": "WIDGET_NUMBER_FIELD",
+          "value": "number_field"
+        },
+        {
           "name": "WIDGET_PANEL",
           "value": "panel"
         },
         {
-          "name": "WIDGET_PROGRESS",
-          "value": "progress"
+          "name": "WIDGET_PROGRESS_BAR",
+          "value": "progress_bar"
         },
         {
           "name": "WIDGET_ROW",
@@ -11832,16 +11812,20 @@
           "value": "switch"
         },
         {
-          "name": "WIDGET_TAB",
-          "value": "tab"
-        },
-        {
           "name": "WIDGET_TABLE",
           "value": "table"
         },
         {
+          "name": "WIDGET_TABS",
+          "value": "tabs"
+        },
+        {
           "name": "WIDGET_TEXT_AREA",
           "value": "text_area"
+        },
+        {
+          "name": "WIDGET_TEXT_FIELD",
+          "value": "text_field"
         },
         {
           "name": "WIDGET_TOAST",
@@ -11854,219 +11838,234 @@
         {
           "name": "WIDGET_WINDOW",
           "value": "window"
+        },
+        {
+          "name": "WIDTH_MEDIUM",
+          "value": "medium"
+        },
+        {
+          "name": "WIDTH_NARROW",
+          "value": "narrow"
+        },
+        {
+          "name": "WIDTH_WIDE",
+          "value": "wide"
         }
       ],
       "doc": "Immediate-mode UI redrawn from a script's `draw_ui` every frame: panels, layout containers and widgets. HUD elements in the scene tree are the `widget` component.",
       "docs": {
         "activate_focused": "Activate the focused widget, exactly as a click on it would.",
         "add_space": "Insert blank space along the current layout, in design pixels.",
+        "align_right": "Lay the callback's widgets out against the right edge, still declared left to right.",
         "available_height": "The height left in the current container, in design pixels.",
         "available_width": "The width left in the current container, in design pixels.",
-        "bar": "Draw how far along something is: a `track` with `part` of it filled in `fill`, `width` by `height` design pixels, cornered by `radius`. `part` is 0 to 1, and one outside that is held at the nearest end.",
         "bottom_panel": "Dock a strip across the bottom of the window and draw the callback inside it; `height` is in design pixels. Answers the height it ended up with.",
+        "button": "Draw a button, or a row with its caption at the start when `text_align = \"start\"`; true on the frame it was clicked. `disabled` greys it out and swallows the click. `menu` hangs a right-click menu off it, `menu_click` one that opens on a left click.",
+        "button_rect": "Where the last `button` was drawn, as `#{ x, y, width, height }` in design pixels; empty before one has. An immediate control has no node `widget_rect` can be asked about, so a caller that wants to point at one reads it back here, straight after the call that drew it.",
         "central_panel": "Draw the callback into whatever room the docked panels left over.",
         "central_rect": "The x, y, width and height of the surface being drawn into, in design pixels.",
-        "circle_button": "Draw a round button holding one glyph, `d` design pixels across; true on the frame it was clicked. `disabled` greys it out and swallows the click.",
+        "circle_button": "Draw a round button holding one glyph, `diameter` design pixels across; true on the frame it was clicked. `disabled` greys it out and swallows the click.",
         "click": "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `#{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
-        "clipboard": "The text pasted this frame, empty otherwise: the platform clipboard is not readable on demand.",
         "code_editor": "Draw an editable, highlighted buffer with a gutter; returns the text, whether it changed, any line clicked, and the caret as `#{ x, y, index }`.",
         "code_line": "Draw one read-only code row from a list of `{ text, color, strong }` spans, with a gutter label on the left.",
-        "color": "Draw a colour picker over `value`, an `[r, g, b, a]` of unit floats; returns the colour and whether it changed.",
+        "color_picker": "Draw a color picker over `value`, an `[r, g, b, a]` of unit floats; returns the colour and whether it changed.",
+        "column": "Lay the callback's widgets out in a column.",
+        "complete_theme": "The theme document with every colour and size it leaves out derived from its sources, and `dark` stated.",
         "contrast": "The WCAG contrast ratio between two `#rrggbb` colours, 1 to 21. Body text wants 4.5, large or bold text 3.",
         "contrast_pairs": "Every ink a `widget_theme` document's roles draw on the fill each draws it on, as `{ role, ink, fill, ratio, need }`. A role with no fill is read on the `ground` token; `need` is 3 for large or bold text and 4.5 otherwise.",
-        "cursor_y": "How far down the current panel the next widget will land, in design pixels: the same origin `rect_stroke` measures from.",
-        "dot": "Draw a filled circle in a `#rrggbb` colour, `d` design pixels across.",
-        "drag_value": "Draw a number dragged sideways to change it; returns the value and whether this frame changed it.",
+        "dialog": "Draw the callback in a centered dialog over a dimming scrim; true on the frame the scrim was clicked. `width`, `height` and `top` size and place it, `fill`, `stroke` and `scrim` colour it; height follows the content when it is not given.",
+        "dot": "Draw a filled circle in a `#rrggbb` colour, `diameter` design pixels across.",
         "dropdown": "Draw a pill-shaped select over a list of strings; returns the selection and whether it changed this frame.",
+        "finish_loading": "Say the load is through, which lets a held splash go once `splash_seconds` has also passed. The editor calls it once its shell has settled.",
         "focus_next": "Move focus to the next widget in scene order, wrapping past the last.",
         "focus_previous": "Move focus to the previous widget in scene order, wrapping past the first.",
-        "focused": "The widget node focus is on, or nil.",
-        "frame": "Wrap the callback in a box with optional `fill`, `stroke`, `radius` and padding, in design pixels. `tooltip`, `menu` and `menu_click` make the whole box answer the pointer, the way a pill does, and `hover_fill` is the colour it takes while the pointer is over it.",
+        "focused_widget": "The widget node focus is on, or nil.",
+        "frame": "Wrap the callback in a box with optional `fill`, `stroke`, `corner_radius` and padding, in design pixels. `tooltip`, `menu` and `menu_click` make the whole box answer the pointer, the way a button does, and a `hover` table is what it wears while the pointer is over it.",
         "height_class": "How much height this screen has, as `ui::SHORT` or `ui::TALL`.",
-        "horizontal": "Lay the callback's widgets out in a row; `width`, `height` and `tight` size it, in design pixels.",
         "image": "Draw a PNG from the project, sized by `width`/`height` in design pixels and cached by path. `region` (`[x, y, w, h]` in the image's own pixels) draws one part of it, which is how an atlas is shown a tile at a time.",
         "image_button": "The same picture, answering a click: returns whether it was clicked this frame. Takes every `image` option plus `selected`, which draws the `stroke` border a chosen tile needs, and the `menu`/`menu_click` callbacks a pill takes.",
-        "label": "Draw a line of text; `size`, `font`, `color`, `strong`, `wrap` and `truncate` style it.",
+        "label": "Draw a line of text; `font_size`, `font_family`, `text_color`, `font_weight`, `wrap` and `truncate` style it.",
+        "layout_y": "How far down the current panel the next widget will land, in design pixels: the same origin `rect_stroke` measures from.",
         "left_panel": "Dock a column down the left of the window and draw the callback inside it; `width` is in design pixels. Answers the width it ended up with.",
         "list": "A scroll area of `count` rows of one height, calling the callback only for the rows on screen. `row_height` is the row, in design pixels.",
-        "loaded": "Say the load is through, which lets a held splash go once `splash_seconds` has also passed. The editor calls it once its shell has settled.",
         "menu_item": "Draw a row inside a menu, `width` design pixels across and with `trailing` set against its right edge; true on the frame it was clicked, which also closes the menu unless `keep_open` says otherwise.",
-        "modal": "Draw the callback in a centered dialog over a dimming scrim; true on the frame the scrim was clicked. `width`, `height` and `top` size and place it, `fill`, `stroke` and `scrim` colour it; height follows the content when it is not given.",
-        "overlay": "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer. `w`/`h` fix its size, and `fill`, `stroke`, `radius` and padding make it a sheet. `interactive = false` for one that is only read, which hands its clicks to what is behind it.",
-        "pill": "Draw a rounded button, or a left-aligned row when `align = \"left\"`; true on the frame it was clicked. `disabled` greys it out and swallows the click. `menu` hangs a right-click menu off it, `menu_click` one that opens on a left click.",
-        "pill_rect": "Where the last `pill` was drawn, as `#{ x, y, w, h }` in design pixels; empty before one has. An immediate control has no node `widget_rect` can be asked about, so a caller that wants to point at one reads it back here, straight after the call that drew it.",
+        "number_field": "Draw a number dragged sideways to change it; returns the value and whether this frame changed it.",
+        "overlay": "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer. `width`/`height` fix its size, and `fill`, `stroke`, `corner_radius` and padding make it a sheet. `interactive = false` for one that is only read, which hands its clicks to what is behind it.",
+        "pasted_text": "The text pasted this frame, empty otherwise: the platform clipboard is not readable on demand.",
+        "progress_bar": "Draw how far along something is: a `track` with `part` of it filled in `fill`, `width` by `height` design pixels, cornered by `corner_radius`. `part` is 0 to 1, and one outside that is held at the nearest end.",
         "rect_stroke": "Outline a rectangle at x/y/w/h design pixels from the current panel's corner, `dashed` when asked.",
         "request_repaint": "Run the UI pass this frame even when lazy; call it every frame something on screen moves without input, such as while the scene plays.",
-        "right": "Lay the callback's widgets out against the right edge, still declared left to right.",
         "right_panel": "Dock a column down the right of the window and draw the callback inside it; `width` is in design pixels. Answers the width it ended up with.",
+        "row": "Lay the callback's widgets out in a row; `width`, `height` and `tight` size it, in design pixels.",
         "scale": "The global UI scale: how many screen pixels a design pixel is drawn at, on top of the display's own.",
-        "screen_size": "The window's width and height, in design pixels; a headless run answers the `[window]` size the project states.",
         "scroll": "Put the callback in a scroll area. `axis` is `vertical` (the default), `horizontal` or `both`; `max_height` and `max_width` cap it, `stick_to_bottom` follows new content, and `offset` scrolls it to that many design pixels along.",
         "separator": "Draw a one-pixel rule across the container, in the given `#rrggbb` colour when one is passed.",
         "set_clipboard": "Copy text to the system clipboard.",
+        "set_field_text": "Overwrite what the field with this `id` is editing, leaving the seed its `value` option last wrote alone.",
         "set_focus": "Put focus on a widget node. A node focus cannot activate is refused at the next draw.",
-        "set_keyboard_focus": "Let the arrows, Tab, Enter and Space move and activate the focused widget. Off unless asked for, so a game that moves with the arrows does not click its own HUD; `standard_app` turns it on for a project declaring the `ui_*` actions.",
+        "set_keyboard_navigation": "Let the arrows, Tab, Enter and Space move and activate the focused widget. Off unless asked for, so a game that moves with the arrows does not click its own HUD; `standard_app` turns it on for a project declaring the `ui_*` actions.",
         "set_lazy": "Run the UI pass only when something asks for it (input, `request_repaint`, a log line, an asset reload, an egui animation, or the idle tick every 250 ms, which waits out a drag the UI is no part of) and re-present the last pass in between. Off by default: a HUD that reads live state each frame should leave it off. Ignored offscreen.",
-        "set_loading": "Report how far a load is, zero to one. This is what holds `[application] splash` past its seconds, and what draws the bar under it.",
+        "set_load_progress": "Report how far a load is, zero to one. This is what holds `[application] splash` past its seconds, and what draws the bar under it.",
         "set_scale": "Set the global UI scale, clamped to between 0.25 and 3.0. It is egui's zoom factor, so it grows every control and every font; `screen_size` already answers in the design pixels it leaves.",
-        "set_text": "Overwrite what the field with this `id` is editing, leaving the seed its `value` option last wrote alone.",
-        "set_theme": "Replace the theme: `name = \"#rrggbb\"` colour tokens, `dark = true|false`, and a `roles` table of named looks a widget takes with `role:`.",
+        "set_theme": "Dress every `ui::*` call from a theme document, the shape a `widget_theme` file holds: source colours under `colors`, sizes under `sizes`, and a `roles` table of named looks a call takes with `role`. What the document leaves out is derived from its sources.",
         "set_widget_layer": "Turn drawing of the scene's `widget` nodes on or off, and confine it to an x/y/w/h rect in design pixels.",
         "set_widget_surface": "The same for one named surface: roots whose `layer` is this name draw here instead. A name nothing has set takes the default surface.",
         "shortcut": "Whether this chord was pressed this frame, consuming it: modifiers and a key joined by `+`, as in `\"cmd+shift+s\"` or `\"f5\"`. `cmd` is the platform's command key, Command on a Mac and Control everywhere else.",
         "slider": "Draw a horizontal slider between `min` and `max`; returns the value after this frame and whether it moved.",
         "spacing": "Set the gap between the current container's widgets, in design pixels.",
-        "tab_rect": "Where a `tab` page's own button in the strip was last drawn, as `#{ x, y, w, h }` in design pixels; empty before the strip has drawn. `widget_rect` on the same node answers with the page body.",
+        "switch": "Draw an on/off switch; returns the state after this frame and whether it was clicked.",
+        "tab_rect": "Where a `tabs` page's own button in the strip was last drawn, as `#{ x, y, width, height }` in design pixels; empty before the strip has drawn. `widget_rect` on the same node answers with the page body.",
         "text_field": "Draw a single-line text box keyed by `id`; returns its text, whether it changed, and whether Enter was pressed.",
-        "toggle": "Draw an on/off switch; returns the state after this frame and whether it was clicked.",
         "top_panel": "Dock a strip across the top of the window and draw the callback inside it; `height` is in design pixels. Answers the height it ended up with.",
-        "vertical": "Lay the callback's widgets out in a column.",
         "wants_keyboard": "Whether a UI widget holds keyboard focus, so the game should leave this frame's key presses alone.",
         "wants_pointer": "Whether a UI widget took this frame's pointer or finger, so the game should leave it alone: what stops a tap on a HUD button also firing the shot behind it. False without a window.",
-        "widget_rect": "Where a `widget` node was last drawn, as `#{ x, y, w, h }` in design pixels; empty until it has drawn once.",
+        "widget_rect": "Where a `widget` node was last drawn, as `#{ x, y, width, height }` in design pixels; empty until it has drawn once.",
         "width_class": "How much width this screen has, as `ui::NARROW`, `ui::MEDIUM` or `ui::WIDE`. Read every frame: a rotation changes it. A run with no window answers `ui::WIDE`.",
-        "window": "Draw the callback in a floating window the user drags and resizes; false once its close button is used."
+        "window": "Draw the callback in a floating window the user drags and resizes; false once its close button is used.",
+        "window_size": "The window's width and height, in design pixels; a headless run answers the `[window]` size the project states."
       },
       "functions": [
         "activate_focused",
         "add_space",
+        "align_right",
         "available_height",
         "available_width",
-        "bar",
         "bottom_panel",
+        "button",
+        "button_rect",
         "central_panel",
         "central_rect",
         "circle_button",
         "click",
-        "clipboard",
         "code_editor",
         "code_line",
-        "color",
+        "color_picker",
+        "column",
+        "complete_theme",
         "contrast",
         "contrast_pairs",
-        "cursor_y",
+        "dialog",
         "dot",
-        "drag_value",
         "dropdown",
+        "finish_loading",
         "focus_next",
         "focus_previous",
-        "focused",
+        "focused_widget",
         "frame",
         "height_class",
-        "horizontal",
         "image",
         "image_button",
         "label",
+        "layout_y",
         "left_panel",
         "list",
-        "loaded",
         "menu_item",
-        "modal",
+        "number_field",
         "overlay",
-        "pill",
-        "pill_rect",
+        "pasted_text",
+        "progress_bar",
         "rect_stroke",
         "request_repaint",
-        "right",
         "right_panel",
+        "row",
         "scale",
-        "screen_size",
         "scroll",
         "separator",
         "set_clipboard",
+        "set_field_text",
         "set_focus",
-        "set_keyboard_focus",
+        "set_keyboard_navigation",
         "set_lazy",
-        "set_loading",
+        "set_load_progress",
         "set_scale",
-        "set_text",
         "set_theme",
         "set_widget_layer",
         "set_widget_surface",
         "shortcut",
         "slider",
         "spacing",
+        "switch",
         "tab_rect",
         "text_field",
-        "toggle",
         "top_panel",
-        "vertical",
         "wants_keyboard",
         "wants_pointer",
         "widget_rect",
         "width_class",
-        "window"
+        "window",
+        "window_size"
       ],
       "name": "ui",
       "signatures": {
         "activate_focused": "() -> ()",
         "add_space": "f32 -> ()",
+        "align_right": "CallbackId -> ()",
         "available_height": "() -> f32",
         "available_width": "() -> f32",
-        "bar": "(f32, Option<Value>) -> ()",
         "bottom_panel": "(String, Option<Value>, CallbackId) -> f64",
+        "button": "(String, Option<Value>) -> bool",
+        "button_rect": "() -> Value",
         "central_panel": "(Option<Value>, CallbackId) -> ()",
         "central_rect": "() -> (f32, f32, f32, f32)",
         "circle_button": "(String, Option<Value>) -> bool",
         "click": "(NodeId, Option<Value>) -> bool",
-        "clipboard": "() -> String",
         "code_editor": "(String, String, Option<Value>) -> (String, bool, Option<i64>, Value)",
         "code_line": "(String, Value, Option<Value>) -> ()",
-        "color": "Option<Value> -> (Vec<f64>, bool)",
+        "color_picker": "Option<Value> -> (Vec<f64>, bool)",
+        "column": "CallbackId -> ()",
+        "complete_theme": "Value -> Value",
         "contrast": "(String, String) -> Value",
         "contrast_pairs": "(Value, String) -> Value",
-        "cursor_y": "() -> f64",
+        "dialog": "(String, Option<Value>, CallbackId) -> bool",
         "dot": "(String, f32) -> ()",
-        "drag_value": "(f64, Option<Value>) -> (f64, bool)",
         "dropdown": "(String, String, Value, Option<Value>) -> (String, bool)",
+        "finish_loading": "() -> ()",
         "focus_next": "() -> ()",
         "focus_previous": "() -> ()",
-        "focused": "() -> Value",
+        "focused_widget": "() -> Value",
         "frame": "(Option<Value>, CallbackId) -> ()",
         "height_class": "() -> &str",
-        "horizontal": "(Option<Value>, CallbackId) -> ()",
         "image": "(String, Option<Value>) -> ()",
         "image_button": "(String, Option<Value>) -> bool",
         "label": "(String, Option<Value>) -> ()",
+        "layout_y": "() -> f64",
         "left_panel": "(String, Option<Value>, CallbackId) -> f64",
         "list": "(String, Option<Value>, i64, CallbackId) -> ()",
-        "loaded": "() -> ()",
         "menu_item": "(String, Option<Value>) -> bool",
-        "modal": "(String, Option<Value>, CallbackId) -> bool",
+        "number_field": "(f64, Option<Value>) -> (f64, bool)",
         "overlay": "(String, Option<Value>, CallbackId) -> ()",
-        "pill": "(String, Option<Value>) -> bool",
-        "pill_rect": "() -> Value",
+        "pasted_text": "() -> String",
+        "progress_bar": "(f32, Option<Value>) -> ()",
         "rect_stroke": "(f32, f32, f32, f32, Option<Value>) -> ()",
         "request_repaint": "() -> ()",
-        "right": "CallbackId -> ()",
         "right_panel": "(String, Option<Value>, CallbackId) -> f64",
+        "row": "(Option<Value>, CallbackId) -> ()",
         "scale": "() -> f32",
-        "screen_size": "() -> (f32, f32)",
         "scroll": "(String, Option<Value>, CallbackId) -> ()",
         "separator": "Option<String> -> ()",
         "set_clipboard": "String -> ()",
+        "set_field_text": "(String, String) -> ()",
         "set_focus": "NodeId -> ()",
-        "set_keyboard_focus": "bool -> ()",
+        "set_keyboard_navigation": "bool -> ()",
         "set_lazy": "bool -> ()",
-        "set_loading": "(f32, Option<String>) -> ()",
+        "set_load_progress": "(f32, Option<String>) -> ()",
         "set_scale": "f32 -> ()",
-        "set_text": "(String, String) -> ()",
         "set_theme": "Value -> ()",
         "set_widget_layer": "(bool, Option<f32>, Option<f32>, Option<f32>, Option<f32>) -> ()",
         "set_widget_surface": "(String, bool, Option<f32>, Option<f32>, Option<f32>, Option<f32>) -> ()",
         "shortcut": "String -> bool",
         "slider": "(f32, f32, f32, Option<Value>) -> (f32, bool)",
         "spacing": "(f32, f32) -> ()",
+        "switch": "(bool, Option<Value>) -> (bool, bool)",
         "tab_rect": "NodeId -> Value",
         "text_field": "(String, Option<String>, Option<Value>) -> (String, bool, bool)",
-        "toggle": "(bool, Option<Value>) -> (bool, bool)",
         "top_panel": "(String, Option<Value>, CallbackId) -> f64",
-        "vertical": "CallbackId -> ()",
         "wants_keyboard": "() -> bool",
         "wants_pointer": "() -> bool",
         "widget_rect": "NodeId -> Value",
         "width_class": "() -> &str",
-        "window": "(String, Option<Value>, CallbackId) -> bool"
+        "window": "(String, Option<Value>, CallbackId) -> bool",
+        "window_size": "() -> (f32, f32)"
       }
     },
     {

@@ -162,13 +162,13 @@ fn panels_and_containers_nest() {
     draw_clean(
         r#"
         ui::top_panel("bar", #{ height: 40 }, || {
-            ui::horizontal(#{}, || { ui::label("across"); });
+            ui::row(#{}, || { ui::label("across"); });
         });
         ui::bottom_panel("status", #{ height: 20 }, || { ui::label("bottom"); });
         ui::left_panel("side", #{ width: 60 }, || { ui::label("left"); });
         ui::right_panel("props", #{ width: 60 }, || { ui::label("right"); });
         ui::central_panel(#{}, || {
-            ui::vertical(|| { ui::label("down"); });
+            ui::column(|| { ui::label("down"); });
             ui::scroll("sc", #{}, || { ui::label("scrolled"); });
             ui::frame(#{}, || { ui::label("framed"); });
         });
@@ -189,7 +189,7 @@ fn text_and_layout_helpers_run() {
             ui::dot("#ffffff", 4);
             assert!(ui::available_width() is f64);
             assert!(ui::available_height() is f64);
-            let (w, h) = ui::screen_size();
+            let (w, h) = ui::window_size();
             assert!(w is f64 && h is f64);
             assert!(ui::wants_keyboard() is bool);
         });
@@ -202,9 +202,9 @@ fn interactive_widgets_report_no_interaction_without_input() {
     draw_clean(
         r#"
         ui::central_panel(#{}, || {
-            assert!(!ui::pill("a pill", #{ active: true }));
+            assert!(!ui::button("a pill", #{ active: true }));
             assert!(!ui::circle_button("x"));
-            let (on, clicked) = ui::toggle(false, #{});
+            let (on, clicked) = ui::switch(false, #{});
             assert!(!on && !clicked, "a toggle flipped with no input");
             let (text, changed, _) = ui::text_field("field", "type here");
             assert!(text is String, "text_field returns its buffer");
@@ -301,7 +301,7 @@ fn the_remaining_widgets_are_callable() {
     draw_clean(
         r#"
         ui::central_panel(#{}, || {
-            let (v, _) = ui::drag_value(1.5, #{});
+            let (v, _) = ui::number_field(1.5, #{});
             assert!(v is f64, "drag_value should return a number");
 
             let (choice, changed) = ui::dropdown("sel", "b", ["a", "b", "c"], #{});
@@ -321,7 +321,7 @@ fn a_modal_runs_its_body() {
         r#"
         this.in_modal = 0;
         ui::central_panel(#{}, || {
-            ui::modal("m", #{}, || { this.in_modal = 1; });
+            ui::dialog("m", #{}, || { this.in_modal = 1; });
         });
         "#,
     );
@@ -336,7 +336,7 @@ fn set_text_replaces_a_field_buffer() {
         r#"
         ui::central_panel(#{}, || {
             ui::text_field("f", "placeholder");
-            ui::set_text("f", "written from outside");
+            ui::set_field_text("f", "written from outside");
             let (shown, _, _) = ui::text_field("f", "placeholder");
             assert!(shown == "written from outside", "set_text did not take: {}", shown);
         });
@@ -586,7 +586,7 @@ fn a_frame_menu_opens_from_a_click_on_its_caption() {
     assert!(drawn > 0.0, "a click on the caption opened no menu");
 }
 
-/// The same frame takes `hover_fill` while the pointer is over it, painted
+/// The same frame takes its `hover` fill while the pointer is over it, painted
 /// under the callback's own widgets rather than over them.
 #[test]
 fn a_frame_menu_lights_up_under_the_pointer() {
@@ -594,7 +594,7 @@ fn a_frame_menu_lights_up_under_the_pointer() {
         r##"
         ui::central_panel(#{}, || {
             ui::frame(#{
-                padding_x: 8, fill: "#101215", hover_fill: "#2b3037",
+                padding_x: 8, fill: "#101215", hover: #{ fill: "#2b3037" },
                 menu_click: || { ui::menu_item("Open", #{ width: 120 }); },
             }, || {
                 ui::label("Balaur", #{});
@@ -638,7 +638,7 @@ fn a_pill_menu_opens_on_a_left_click() {
         r#"
         this.rows = 0.0;
         ui::central_panel(#{}, || {
-            ui::pill("Menu", #{ menu_click: || {
+            ui::button("Menu", #{ menu_click: || {
                 this.rows = this.rows + 1.0;
                 ui::menu_item("Open", #{ width: 120, trailing: "⌘O" });
             } });
@@ -695,7 +695,7 @@ fn a_drag_that_began_outside_the_ui_wants_no_pass_for_moving() {
 #[test]
 fn a_drag_that_began_on_a_widget_still_wants_its_passes() {
     let (_dir, app, ctx, errors) =
-        draw_with(r#"ui::central_panel(#{}, || { ui::pill("Go", #{}); });"#);
+        draw_with(r#"ui::central_panel(#{}, || { ui::button("Go", #{}); });"#);
     assert!(errors.is_empty(), "{errors:#?}");
     feed(&app, &ctx, tap(egui::pos2(24.0, 20.0), true));
     assert!(!balaur_ui::pointer_is_dragging_elsewhere(&ctx, true));
@@ -748,7 +748,7 @@ fn the_code_editor_lays_its_text_out_once_until_its_look_changes() {
         this.n = this.get("n").unwrap_or(0) + 1;
         let comment = if this.n > 2 { "#ff0000" } else { "#808080" };
         ui::central_panel(#{}, || {
-            ui::code_editor("ed", "// a\nlet x = 1;", #{ k_com: comment });
+            ui::code_editor("ed", "// a\nlet x = 1;", #{ syntax_comment: comment });
         });
         "##,
     );
@@ -787,10 +787,10 @@ fn laid_out(app: &App) -> std::sync::Arc<egui::Galley> {
 fn a_sized_overlay_keeps_its_layer_inside_the_box_it_was_given() {
     let (_dir, app, ctx, errors) = draw_with(
         r#"
-        ui::overlay("chips", #{ x: 10, y: 10, w: 60, h: 24 }, || {
-            ui::horizontal(#{ height: 24 }, || {
+        ui::overlay("chips", #{ x: 10, y: 10, width: 60, height: 24 }, || {
+            ui::row(#{ height: 24 }, || {
                 for n in 0..8 {
-                    ui::pill("chip", #{ height: 20 });
+                    ui::button("chip", #{ height: 20 });
                 }
             });
         });
@@ -816,11 +816,11 @@ fn a_roles_hover_table_repaints_the_pill_under_the_pointer() {
     let (_dir, app, ctx, errors) = draw_with(
         r##"
         ui::set_theme(#{
-            dark: true, ink: "#101215", warm: "#2b3037",
+            colors: #{ ink: "#101215", warm: "#2b3037" },
             roles: #{ tile: #{ fill: "ink", hover: #{ fill: "warm" } } },
         });
         ui::central_panel(#{}, || {
-            ui::pill("Go", #{ role: "tile", height: 24, min_width: 60 });
+            ui::button("Go", #{ role: "tile", height: 24, min_width: 60 });
         });
         "##,
     );
@@ -853,8 +853,8 @@ fn a_pill_in_a_sized_overlay_still_lights_up() {
     let (_dir, app, ctx, errors) = draw_with(
         r##"
         ui::overlay("bar", #{ x: 0, y: 0, w: 200, h: 40 }, || {
-            ui::horizontal(#{ height: 30 }, || {
-                ui::pill("Go", #{ height: 24, min_width: 60, fill: "#101215" });
+            ui::row(#{ height: 30 }, || {
+                ui::button("Go", #{ height: 24, min_width: 60, fill: "#101215" });
             });
         });
         "##,
@@ -890,7 +890,7 @@ fn a_headless_run_answers_the_window_the_project_states() {
     .unwrap();
     std::fs::write(
         dir.path().join("s.rn"),
-        "pub fn update(this, dt) {\n    let (w, h) = ui::screen_size();\n    this.w = w;\n    this.h = h;\n}\n",
+        "pub fn update(this, dt) {\n    let (w, h) = ui::window_size();\n    this.w = w;\n    this.h = h;\n}\n",
     )
     .unwrap();
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();

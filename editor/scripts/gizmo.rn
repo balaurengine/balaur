@@ -662,8 +662,8 @@ pub fn draw_marquee(S, k) {
     if w < 2.0 && h < 2.0 {
         return;
     }
-    ui::overlay("vp-marquee", #{ x: x, y: y, w: w, h: h }, || {
-        ui::rect_stroke(0.0, 0.0, w, h, #{ color: k.accent, width: 1.0, dashed: true });
+    ui::overlay("vp-marquee", #{ x: x, y: y, width: w, height: h }, || {
+        ui::rect_stroke(0.0, 0.0, w, h, #{ stroke: k.primary_text, stroke_width: 1.0, dashed: true });
     });
 }
 

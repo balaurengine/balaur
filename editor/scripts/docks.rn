@@ -41,7 +41,7 @@ pub fn apply_workspace(S, id) {
     S.docks = want;
     // A plugin's dock is in no workspace's set: it was adopted when the plugin
     // loaded, and a workspace must not unregister it.
-    for entry in S.registry.docks {
+    for entry in S.registry.panels {
         adopt(S, entry.id);
     }
 }
@@ -139,8 +139,9 @@ pub fn panels(S) {
         "bonemap": #{ name: "Bone map", icon: icons::panel("bonemap"), tall: true },
         "statemachine": #{ name: "State machine", icon: icons::panel("statemachine"), tall: true, chrome: true },
     };
-    for entry in S.registry.docks {
-        table[entry.id] = #{ name: entry.name, icon: icons::panel(entry.id), tall: entry.tall };
+    for entry in S.registry.panels {
+        let icon = if entry.icon == "" { icons::panel(entry.id) } else { entry.icon };
+        table[entry.id] = #{ name: entry.title, icon: icon, tall: entry.tall };
     }
     S.panels = #{ at: S.frame, workspace: S.workspace, table: table };
     table
@@ -291,7 +292,7 @@ fn body(S, k, id) {
         "session" => dock::session_list(S, k),
 
 
-        _ => match crate::plugins::dock(S, id) {
+        _ => match crate::plugins::panel(S, id) {
             Some(entry) => {
                 let draw = entry.draw;
                 // The node the editor made for this dock, not a `ui` handle:
@@ -361,7 +362,7 @@ fn sync_canvas(S, d) {
 pub fn chrome_rows(S, rows) {
     let groups = [];
     for row in rows {
-        groups.push(#{ kind: "row", role: "dock_chrome_row", gap: 6, align: "center", controls: row });
+        groups.push(#{ kind: "row", role: "toolbar_dock", gap: 6, align_items: "center", controls: row });
     }
     crate::pool::strip(S, BOTTOM + "BottomChrome", groups);
 }
@@ -384,7 +385,7 @@ fn owns_a_node(S, side, d) {
     }
     // Every plugin dock has one: the editor makes it a subtree rather than
     // lending it the hatch.
-    if crate::plugins::dock(S, d.active).is_some() {
+    if crate::plugins::panel(S, d.active).is_some() {
         return true;
     }
     for entry in node_owners()[side] {
@@ -588,7 +589,7 @@ pub fn plugin_host(S, side, id) {
 /// node keeps drawing until it is told not to.
 fn hide_plugin_hosts(S, side, active) {
     let any = false;
-    for entry in S.registry.docks {
+    for entry in S.registry.panels {
         if entry.id == active {
             any = true;
             continue;
@@ -658,7 +659,7 @@ fn tail_controls(S, side) {
         },
         #{
             kind: "button", height: tab_h(S), width: tab_h(S), padding_x: 0,
-            text: "", icon: icons::ui(shut_icon(side)), role: "icon_button",
+            text: "", icon: icons::ui(shut_icon(side)), role: "icon_action",
             tooltip: "Minimise",
             on: |_| { S.docks[side].shut = true; },
         },
@@ -686,23 +687,23 @@ fn tab_controls(S, k, side, d) {
         // halves inside it paint nothing, so the pair reads as one control.
         let inner = [];
         inner.push(#{
-            kind: "button", height: h, text: label, padding_x: 6, radius: 4, fill: "none",
-            role: if active { "tab_on" } else { "tab" },
+            kind: "button", height: h, text: label, padding_x: 6, corner_radius: 4, fill: "none",
+            role: "tab", checked: active,
             on: |_| { S.docks[side].active = held; },
         });
         // Its own role, so the half of the tile under the pointer is the half
         // that lights up: a mark that looked the same either way was aimed at
         // and missed, and the click landed on the name beside it.
         inner.push(#{
-            kind: "button", height: h, width: 22, text: "", radius: 4, role: "tab_close",
+            kind: "button", height: h, width: 22, text: "", corner_radius: 4, role: "icon_action_tab",
             icon: icons::ui("close"),
             tooltip: format!("Close {}", p.name),
             on: |_| { close(S, held); },
         });
         inner.push(#{ kind: "row", width: 3 });
         out.push(#{
-            height: h, radius: 5, controls: inner, align: "center",
-            fill: if active { "accent_soft" } else { "none" },
+            height: h, corner_radius: 4, controls: inner, align_items: "center",
+            fill: if active { "primary_bg" } else { "none" },
         });
     }
     out
@@ -770,7 +771,7 @@ fn tools(S, k, id, room) {
     let hint = dock::hint(S, id, room);
     if hint != "" {
         ui::add_space(6);
-        ui::label(hint, style::mono_sm(k.faint));
+        ui::label(hint, style::mono_sm(k.text_subtle));
     }
 }
 
@@ -849,7 +850,7 @@ fn scrolls_itself(S, id) {
     if id == "output" || id == "docs" || id == "bonemap" || id == "statemachine" {
         return true;
     }
-    crate::plugins::dock(S, id).is_some()
+    crate::plugins::panel(S, id).is_some()
 }
 
 /// The strip along the foot of the bottom dock: what is playing, and the
@@ -934,9 +935,9 @@ pub fn fold_foot(S, k) {
         return;
     }
     let step = crate::center::hud_step(S);
-    if ui::pill(icons::ui(open_icon("bottom")), #{
-        height: step + 2.0 * PAD_Y, min_width: step + 2.0 * PAD_X, size: style::LG,
-        padding_x: 0, radius: 8, fill: k.panel, color: k.dim,
+    if ui::button(icons::ui(open_icon("bottom")), #{
+        height: step + 2.0 * PAD_Y, min_width: step + 2.0 * PAD_X, font_size: style::LG,
+        padding_x: 0, corner_radius: 8, fill: k.bg_panel, text_color: k.text_muted,
         tooltip: "Open the dock",
     }) {
         S.docks.bottom.shut = false;
@@ -954,7 +955,7 @@ fn handle_tile(S, k, side, x, y) {
     let box = #{ x: x, y: y, w: tile(S), h: tile(S) };
     style::sheet(k, "fold-" + side, box, m.pad, m.pad, || {
         if ui::circle_button(icons::ui(open_icon(side)), #{
-            role: "tool", d: m.d, tooltip: format!("Open the {}", p.name.to_lowercase()),
+            role: "icon_action", diameter: m.d, tooltip: format!("Open the {}", p.name.to_lowercase()),
         }) {
             unfold(S, side);
         }

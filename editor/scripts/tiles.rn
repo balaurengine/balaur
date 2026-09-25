@@ -728,8 +728,8 @@ pub fn draw(S) {
         None => return,
     };
     let k = S.theme;
-    let faint = util::rgb(k.faint);
-    let accent = util::rgb(k.accent);
+    let faint = util::rgb(k.text_subtle);
+    let accent = util::rgb(k.primary_text);
     let w = viewport::world_per_px(S);
     // The grid is a guide, not the drawing: one pixel wide, and skipped
     // entirely when a cell is too small on screen to aim at.
@@ -854,7 +854,7 @@ fn set_rows(S, out) {
     let one_way = tile.get("one_way").unwrap_or(false) == true;
     let occluder = tile.get("occluder").unwrap_or(false) == true;
     out.push([
-        #{ kind: "label", role: "meta", text: format!("tile {}", S.tiles.tile) },
+        #{ kind: "label", role: "text_caption", text: format!("tile {}", S.tiles.tile) },
         flag_chip(S, "Solid", solid, "collision", if solid { () } else { "full" }),
         flag_chip(S, "One-way", one_way, "one_way", if one_way { () } else { true }),
         flag_chip(S, "Blocks light", occluder, "occluder", if occluder { () } else { true }),
@@ -863,7 +863,7 @@ fn set_rows(S, out) {
     if named.len() == 0 {
         return;
     }
-    let row = [#{ kind: "label", role: "meta", text: "terrain" }];
+    let row = [#{ kind: "label", role: "text_caption", text: "terrain" }];
     for entry in named {
         // Bound afresh: a closure made in a loop captures the binding.
         let name = entry.name;
@@ -883,7 +883,7 @@ fn flag_chip(S, text, on, key, value) {
 fn chip(text, on, act) {
     #{
         kind: "button", text: text,
-        role: if on { "chip_on" } else { "chip" },
+        role: "chip", checked: on,
         on: |_| { act(); },
     }
 }
@@ -932,7 +932,7 @@ pub fn palette(S, k) {
 }
 
 fn note(text) {
-    #{ kind: "label", role: "meta", text: text }
+    #{ kind: "label", role: "text_caption", text: text }
 }
 
 // The row every mode is on: the tools, the two verbs, and which tile is held.
@@ -954,7 +954,7 @@ fn mode_row(S, out) {
 // How many cells the stamp lays down, across and down.
 fn stamp_row(S, out) {
     let (wide, tall) = S.tiles.stamp;
-    let row = [#{ kind: "label", role: "meta", text: "block" }];
+    let row = [#{ kind: "label", role: "text_caption", text: "block" }];
     for n in [1, 2, 3, 4] {
         // Bound afresh: a closure made in a loop captures the binding.
         let size = n;
@@ -984,7 +984,7 @@ fn terrain_row(S, out) {
 
 // Which layer of the map is being painted, where the node has more than one.
 fn layer_row(S, found, out) {
-    let row = [#{ kind: "label", role: "meta", text: "layers" }];
+    let row = [#{ kind: "label", role: "text_caption", text: "layers" }];
     for layer in found {
         // Bound afresh: a closure made in a loop captures the binding.
         let index = layer.index;
@@ -1005,7 +1005,7 @@ fn show_swatches(S, k, set, count) {
             format!("{},{},{},{}", r[0], r[1], r[2], r[3]),
             format!("{}", tile),
             format!("tile {}", tile),
-            k.dim,
+            k.text_muted,
         ));
         tile += 1;
     }

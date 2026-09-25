@@ -9,29 +9,35 @@ use crate::util;
 const ID = "theme";
 
 // What a role with no fill of its own is drawn on, for its contrast.
-const GROUND = "panel";
+const GROUND = "bg_panel";
 
-const PAGES = ["colours", "text", "controls", "boxes", "layout", "kinds", "problems"];
+const PAGES = ["colors", "sizes", "text", "controls", "boxes", "layout", "kinds", "problems"];
 
 // The tables under a role that replace it in a state, and the class one.
-const STATES = ["hover", "active", "focus", "disabled", "touch"];
+const STATES = ["hover", "active", "focus", "disabled", "checked", "touch"];
 
 // Every key a role or a kind may state, in the order its rows list them.
 const KEYS = [
-    "fill", "color", "stroke", "icon_color", "plate",
-    "font", "size", "strong", "align",
-    "height", "width", "d", "radius", "round",
+    "fill", "text_color", "stroke", "icon_color", "icon_fill",
+    "font_family", "font_size", "font_weight", "text_align",
+    "height", "width", "corner_radius",
     "padding", "padding_x", "padding_y", "gap", "stroke_width",
 ];
-const COLOUR_KEYS = ["fill", "color", "stroke", "icon_color", "plate"];
-const FLAG_KEYS = ["strong", "round"];
+const COLOR_KEYS = ["fill", "text_color", "stroke", "icon_color", "icon_fill"];
+// The keys a size's name may stand in for a number on.
+const SIZE_KEYS = [
+    "font_size", "height", "width", "corner_radius",
+    "padding", "padding_x", "padding_y", "gap", "stroke_width",
+];
+// The colours a theme states, which every other token is worked out from.
+const SOURCES = ["background", "foreground", "primary", "secondary", "success", "warning", "danger"];
 
 // Under this the pages go above the rows rather than beside them.
 const STACK_BELOW = 520.0;
 
 pub fn state() {
     #{
-        page: "colours",
+        page: "colors",
         // The table picked: `["roles", "tab"]` or a kind's `["panel"]`, and
         // which of its state tables, "" for the role itself.
         path: [],
@@ -76,7 +82,7 @@ fn load_own(S) {
 
 pub fn draw(S) {
     let k = S.theme;
-    let stacked = ui::screen_size()[0] < STACK_BELOW;
+    let stacked = ui::window_size()[0] < STACK_BELOW;
     let hosts = crate::window::sheet_form(S, ID, "Theme", || { save_button(S, k); });
     if util::is_nil(hosts) {
         return;
@@ -98,10 +104,10 @@ fn save_button(S, k) {
     if !S.themewin.dirty {
         return;
     }
-    let pressed = ui::pill("Save", #{ height: 24, size: style::MD, radius: 8, fill: k.accent_fill, color: k.on_accent });
+    let pressed = ui::button("Save", #{ height: 24, font_size: style::MD, corner_radius: 8, fill: k.primary_fill, text_color: k.text_on_primary });
     // Where it drew, for a showcase pointing at it: an immediate control has
     // no node to ask.
-    S.themewin.save_at = ui::pill_rect();
+    S.themewin.save_at = ui::button_rect();
     if pressed {
         save(S);
     }
@@ -109,8 +115,10 @@ fn save_button(S, k) {
 
 
 fn page_title(S, page) {
-    let n = if page == "colours" {
-        S.theme.doc.colors.len()
+    let n = if page == "colors" {
+        S.theme.colors.len()
+    } else if page == "sizes" {
+        S.theme.sizes.len()
     } else if page == "problems" {
         problems(S).len()
     } else if page == "kinds" {
@@ -130,7 +138,7 @@ fn side_controls(S) {
         let on = S.themewin.page == page;
         out.push(#{
             kind: "button", text: page_title(S, page),
-            role: if on { "side_row_on" } else { "side_row" },
+            role: "item_sidebar", checked: on,
             on: |_| { S.themewin.page = page; },
         });
     }
@@ -139,28 +147,24 @@ fn side_controls(S) {
 
 fn page_picker(S) {
     #{ full: true, height: style::row_h(S), controls: [#{
-        kind: "dropdown", role: "form_pick", grow: 1,
+        kind: "dropdown", role: "choice_form", grow: 1,
         text: S.themewin.page, options: PAGES,
         on: |picked| { S.themewin.page = picked; },
     }] }
 }
 
-/// Which page a role belongs on, from what it states: a role with a state
-/// table is a control, one with a fill a box, one with only an ink text, and
-/// one with none of them is layout.
-pub fn page_of(role) {
-    for word in ["hover", "active", "focus", "disabled"] {
-        if role.contains_key(word) && role[word] is Object {
-            return "controls";
-        }
+/// Which page a role belongs on, by the component its name starts with.
+pub fn page_of(name) {
+    let component = name.split('_').next().unwrap_or("");
+    if component == "text" {
+        "text"
+    } else if component == "note" || component == "sheet" || component == "header" || component == "toolbar" {
+        "boxes"
+    } else if component == "layout" || component == "list" {
+        "layout"
+    } else {
+        "controls"
     }
-    if role.contains_key("fill") || role.contains_key("stroke") {
-        return "boxes";
-    }
-    if role.contains_key("color") {
-        return "text";
-    }
-    "layout"
 }
 
 fn sorted_keys(table) {
@@ -176,7 +180,7 @@ fn role_names(doc, page) {
     let roles = util::obj(doc.get("roles").unwrap_or(#{}));
     let out = [];
     for name in sorted_keys(roles) {
-        if page_of(roles[name]) == page {
+        if page_of(name) == page {
             out.push(name);
         }
     }
@@ -187,7 +191,7 @@ fn role_names(doc, page) {
 fn kind_names(doc) {
     let out = [];
     for key in sorted_keys(doc) {
-        if key != "colors" && key != "roles" && doc[key] is Object {
+        if key != "colors" && key != "sizes" && key != "roles" && doc[key] is Object {
             out.push(key);
         }
     }
@@ -208,8 +212,10 @@ fn form_specs(S) {
     let doc = S.theme.doc;
     let out = head_specs(S);
     let page = S.themewin.page;
-    if page == "colours" {
-        colour_specs(S, doc, out);
+    if page == "colors" {
+        color_specs(S, doc, out);
+    } else if page == "sizes" {
+        size_specs(S, doc, out);
     } else if page == "problems" {
         problem_specs(S, out);
     } else if page == "kinds" {
@@ -232,7 +238,7 @@ fn head_specs(S) {
     let mine = editable(S);
     let controls = [
         #{
-            kind: "dropdown", role: "form_pick", width: 180,
+            kind: "dropdown", role: "choice_form", width: 180,
             text: name, options: theme::names(),
             tooltip: "The theme the editor wears",
             on: |picked| { choose(S, picked); },
@@ -240,7 +246,7 @@ fn head_specs(S) {
     ];
     if mine {
         controls.push(#{
-            kind: "dropdown", role: "form_pick", width: 150,
+            kind: "dropdown", role: "choice_form", width: 150,
             text: "based on " + theme::base_of(own), options: theme::BUNDLED,
             tooltip: "The bundled theme every key this one leaves out comes from",
             on: |picked| { rebase(S, picked); },
@@ -248,37 +254,37 @@ fn head_specs(S) {
     }
     controls.push(#{ kind: "row", grow: 1 });
     controls.push(#{
-        kind: "button", role: "row_action_accent", text: "Duplicate",
+        kind: "button", role: "action_form_primary", text: "Duplicate",
         tooltip: "Copy this theme into your themes folder and wear the copy",
         on: |_| { duplicate(S); },
     });
     if mine && S.themewin.dirty {
         controls.push(#{
-            kind: "button", role: "row_action", text: "Revert",
+            kind: "button", role: "action_form", text: "Revert",
             tooltip: "Drop the edits since the last save",
             on: |_| { revert(S); },
         });
     }
     if mine {
         controls.push(#{
-            kind: "button", role: "row_action_danger", text: "Delete",
+            kind: "button", role: "action_form_danger", text: "Delete",
             tooltip: "Remove this theme's file and go back to its base",
             on: |_| { remove(S); },
         });
     }
-    let out = [#{ full: true, height: h, slot_role: "verb_row", controls: controls }];
+    let out = [#{ full: true, height: h, slot_role: "layout_actions", controls: controls }];
     if mine {
         out.push(#{ label: "name", height: h, controls: [#{
-            kind: "field", role: "form_field", grow: 1, text: name,
+            kind: "text_field", role: "input_form", grow: 1, text: name,
             tooltip: "Enter renames the file",
             on_submit: |text| { rename(S, text); },
         }] });
     }
     let tail = if S.themewin.dirty { "  ·  unsaved" } else { "" };
     out.push(note_spec(if mine {
-        format!("themes/{}.toml in your Balaur folder  ·  states only what differs from {}{}", name, theme::base_of(own), tail)
+        format!("themes/{}.toml in the editor's data folder  ·  states only what differs from {}{}", name, theme::base_of(own), tail)
     } else {
-        "Bundled with the editor, so it is read-only. Duplicate it to change a colour or a role."
+        "Bundled with the editor, so it is read-only. Duplicate it to change a color or a role."
     }));
     if S.themewin.said != "" {
         out.push(note_spec(S.themewin.said));
@@ -288,44 +294,66 @@ fn head_specs(S) {
 
 fn note_spec(text) {
     #{ full: true, height: 0, controls: [#{
-        kind: "label", role: "meta", grow: 1, wrap: true, text: text,
+        kind: "label", role: "text_caption", grow: 1, wrap: true, text: text,
     }] }
 }
 
-fn head_spec(text) {
-    #{ full: true, height: 24, controls: [#{
-        kind: "label", role: "section_head", grow: 1, text: text,
-    }] }
-}
-
-
-fn colour_specs(S, doc, out) {
+fn color_specs(S, doc, out) {
     let h = style::row_h(S);
     let mine = editable(S);
-    let colors = doc.colors;
+    let stated = util::obj(doc.get("colors").unwrap_or(#{}));
+    let colors = S.theme.colors;
     let ground = colors.get(GROUND).unwrap_or("#000000");
+    let names = SOURCES.iter().collect::<Vec>();
     for token in sorted_keys(colors) {
+        if !SOURCES.iter().any(|s| s == token) {
+            names.push(token);
+        }
+    }
+    for token in names {
         // Bound afresh: a closure made in a loop captures the binding.
         let name = token;
-        let hex = colors[name];
-        out.push(#{ label: name, height: h, slot_role: "verb_row", controls: [
-            #{
-                kind: "color", width: 34, color: rgba_of(hex), disabled: !mine,
-                on: |rgba| { edit(S, ["colors"], name, util::to_hex(rgba)); },
-            },
-            #{
-                kind: "field", role: "form_field", width: 96, text: hex, disabled: !mine,
-                on_submit: |text| { edit_hex(S, name, text); },
-            },
-            #{
-                kind: "label", role: "meta", grow: 1,
-                text: if is_hex(hex) && is_hex(ground) {
-                    format!("{:.2}:1 on {}", ui::contrast(hex, ground), GROUND)
-                } else {
-                    ""
+        let hex = colors.get(name).unwrap_or("#000000");
+        // A stated token reads as the theme's own; a derived one is quieter.
+        let own = stated.contains_key(name);
+        out.push(#{
+            label: name, label_role: if own { "text_label" } else { "text_caption" },
+            height: h, slot_role: "layout_actions", controls: [
+                #{
+                    kind: "color_picker", width: 34, picked_color: rgba_of(hex), disabled: !mine,
+                    on: |rgba| { edit(S, ["colors"], name, util::to_hex(rgba)); },
                 },
-            },
-        ] });
+                #{
+                    kind: "text_field", role: "input_form", width: 96, text: hex, disabled: !mine,
+                    on_submit: |text| { edit_hex(S, name, text); },
+                },
+                #{
+                    kind: "label", role: "text_caption", grow: 1,
+                    text: if is_hex(hex) && is_hex(ground) {
+                        format!("{}{:.2}:1 on {}", if own { "" } else { "derived  ·  " }, ui::contrast(hex, ground), GROUND)
+                    } else {
+                        ""
+                    },
+                },
+            ],
+        });
+    }
+}
+
+fn size_specs(S, doc, out) {
+    let h = style::row_h(S);
+    let mine = editable(S);
+    let stated = util::obj(doc.get("sizes").unwrap_or(#{}));
+    for token in sorted_keys(S.theme.sizes) {
+        let name = token;
+        out.push(#{
+            label: name, label_role: if stated.contains_key(name) { "text_label" } else { "text_caption" },
+            height: h, slot_role: "layout_actions", controls: [#{
+                kind: "number_field", role: "input_number", width: 96,
+                value: util::f(S.theme.sizes[name]), min: 0.0, max: 200.0, step: 1.0, disabled: !mine,
+                on: |v| { edit(S, ["sizes"], name, whole(v)); },
+            }],
+        });
     }
 }
 
@@ -351,7 +379,7 @@ fn edit_hex(S, name, text) {
     if is_hex(text) {
         edit(S, ["colors"], name, text.to_lowercase());
     } else {
-        S.themewin.said = format!("'{}' is not a #rrggbb colour", text);
+        S.themewin.said = format!("'{}' is not a #rrggbb color", text);
     }
 }
 
@@ -388,7 +416,7 @@ fn pick(S, path) {
 
 fn height_of(S, t) {
     let h = style::row_h(S);
-    let own = util::f(t.get("height").unwrap_or(t.get("d").unwrap_or(0.0)));
+    let own = style::px(S, t.get("height").unwrap_or(0.0));
     util::max(h, own + 4.0)
 }
 
@@ -407,9 +435,9 @@ fn summary(t) {
 /// The entry drawn as itself: a text role as a label in it, a control or a
 /// box as a button wearing it, and layout as the numbers it states.
 fn sample(S, name, path, t) {
-    let page = if path.len() == 2 { page_of(t) } else { "kinds" };
+    let page = if path.len() == 2 { page_of(name) } else { "kinds" };
     if page == "layout" || page == "kinds" {
-        return #{ kind: "label", role: "meta", grow: 1, text: summary(t) };
+        return #{ kind: "label", role: "text_caption", grow: 1, text: summary(t) };
     }
     if page == "text" {
         return #{ kind: "label", role: name, grow: 1, text: name };
@@ -421,10 +449,10 @@ fn entry_specs(S, doc, path, out) {
     let name = path[path.len() - 1];
     let t = table_at(doc, path);
     let picked = same_path(S.themewin.path, path);
-    out.push(#{ label: name, height: height_of(S, t), slot_role: "verb_row", controls: [
+    out.push(#{ label: name, height: height_of(S, t), slot_role: "layout_actions", controls: [
         sample(S, name, path, t),
         #{
-            kind: "button", role: if picked { "chip_on" } else { "chip" },
+            kind: "button", role: "chip", checked: picked,
             text: if picked { "editing" } else { "edit" },
             on: |_| { pick(S, path); },
         },
@@ -437,7 +465,7 @@ fn entry_specs(S, doc, path, out) {
 fn state_chips(S, t) {
     let bare = S.themewin.table == "";
     let chips = [#{
-        kind: "button", role: if bare { "chip_on" } else { "chip" }, text: "role",
+        kind: "button", role: "chip", checked: bare, text: "role",
         on: |_| { S.themewin.table = ""; },
     }];
     for name in STATES {
@@ -446,7 +474,7 @@ fn state_chips(S, t) {
         let on = S.themewin.table == word;
         chips.push(#{
             kind: "button",
-            role: if on { "chip_on" } else if there { "chip" } else { "chip_quiet" },
+            role: if there || on { "chip" } else { "chip_quiet" }, checked: on,
             text: if there { word } else { "+ " + word },
             tooltip: if there { "Edit the table this state wears" } else { "Nothing stated for this state yet" },
             on: |_| { S.themewin.table = word; },
@@ -459,7 +487,7 @@ fn inspector_specs(S, doc, path, out) {
     let h = style::row_h(S);
     let mine = editable(S);
     let role_t = table_at(doc, path);
-    out.push(#{ label: "  table", height: h, slot_role: "verb_row", controls: state_chips(S, role_t) });
+    out.push(#{ label: "  table", height: h, slot_role: "layout_actions", controls: state_chips(S, role_t) });
     let at = path.iter().collect::<Vec>();
     if S.themewin.table != "" {
         at.push(S.themewin.table);
@@ -476,7 +504,7 @@ fn inspector_specs(S, doc, path, out) {
     }
     if mine && missing.len() > 0 {
         out.push(#{ label: "  add", height: h, controls: [#{
-            kind: "dropdown", role: "form_pick", width: 200,
+            kind: "dropdown", role: "choice_form", width: 200,
             text: "add a key…", options: missing,
             on: |picked| { edit(S, at, picked, default_of(picked)); },
         }] });
@@ -504,8 +532,8 @@ fn key_spec(S, doc, at, key, value, stated, mine) {
     // A key this theme states reads as its own; one it leaves to its base is
     // quieter, so what the file says stands out from what it inherits.
     #{
-        label: "  " + key, label_role: if stated || !mine { "label" } else { "meta" },
-        height: h_of(S), slot_role: "verb_row", controls: controls,
+        label: "  " + key, label_role: if stated || !mine { "text_label" } else { "text_caption" },
+        height: h_of(S), slot_role: "layout_actions", controls: controls,
     }
 }
 
@@ -513,56 +541,56 @@ fn h_of(S) {
     style::row_h(S)
 }
 
-fn words_of(key) {
-    if key == "font" {
-        ["ui", "heading", "mono"]
-    } else if key == "align" {
-        ["left", "center", "end"]
+fn words_of(S, key, value) {
+    if key == "font_family" {
+        ["ui", "heading", "mono", "icon"]
+    } else if key == "text_align" {
+        ["start", "center", "end"]
+    } else if value is String && SIZE_KEYS.iter().any(|k| k == key) {
+        let names = sorted_keys(S.theme.sizes);
+        if key == "corner_radius" {
+            names.push("full");
+        }
+        names
     } else {
         []
     }
 }
 
 fn control_for(S, doc, at, key, value, mine) {
-    if COLOUR_KEYS.iter().any(|c| c == key) {
-        let hex = doc.colors.get(value).unwrap_or(value);
-        let options = sorted_keys(doc.colors);
+    if COLOR_KEYS.iter().any(|c| c == key) {
+        let hex = S.theme.colors.get(value).unwrap_or(value);
+        let options = sorted_keys(S.theme.colors);
         return [
             #{
-                kind: "color", width: 34, color: rgba_of(if is_hex(hex) { hex } else { "#000000" }),
+                kind: "color_picker", width: 34, picked_color: rgba_of(if is_hex(hex) { hex } else { "#000000" }),
                 disabled: !mine,
                 on: |rgba| { edit(S, at, key, util::to_hex(rgba)); },
             },
             #{
-                kind: "dropdown", role: "form_pick", grow: 1,
+                kind: "dropdown", role: "choice_form", grow: 1,
                 text: format!("{}", value), options: options, disabled: !mine,
                 on: |picked| { edit(S, at, key, picked); },
             },
         ];
     }
-    if FLAG_KEYS.iter().any(|f| f == key) {
-        return [#{
-            kind: "switch", role: "switch", checked: value == true, disabled: !mine,
-            on: |on| { edit(S, at, key, on); },
-        }];
-    }
-    let words = words_of(key);
+    let words = words_of(S, key, value);
     if words.len() > 0 {
         return [#{
-            kind: "dropdown", role: "form_pick", grow: 1,
+            kind: "dropdown", role: "choice_form", grow: 1,
             text: format!("{}", value), options: words, disabled: !mine,
             on: |picked| { edit(S, at, key, picked); },
         }];
     }
     if value is i64 || value is f64 {
         return [#{
-            kind: "drag_value", role: "form_value", grow: 1,
+            kind: "number_field", role: "input_number", grow: 1,
             value: util::f(value), min: 0.0, max: 2000.0, step: 1.0, disabled: !mine,
             on: |v| { edit(S, at, key, whole(v)); },
         }];
     }
     let typed = [#{
-        kind: "field", role: "form_field", grow: 1, text: format!("{}", value), disabled: !mine,
+        kind: "text_field", role: "input_form", grow: 1, text: format!("{}", value), disabled: !mine,
         on_submit: |text| { edit(S, at, key, text); },
     }];
     typed
@@ -576,19 +604,19 @@ fn whole(v) {
 }
 
 fn default_of(key) {
-    if COLOUR_KEYS.iter().any(|c| c == key) {
-        return if key == "color" { "text" } else { "panel" };
+    if COLOR_KEYS.iter().any(|c| c == key) {
+        return if key == "text_color" { "text_default" } else { "bg_panel" };
     }
-    if FLAG_KEYS.iter().any(|f| f == key) {
-        return false;
-    }
-    if key == "font" {
+    if key == "font_family" {
         return "ui";
     }
-    if key == "align" {
-        return "left";
+    if key == "text_align" {
+        return "start";
     }
-    if key == "size" { 12 } else { 0 }
+    if key == "font_weight" {
+        return 700;
+    }
+    if key == "font_size" { "font_size" } else { 0 }
 }
 
 
@@ -604,9 +632,9 @@ fn problem_specs(S, out) {
         let parts = pair.role.split('.').collect::<Vec>();
         let name = parts[0];
         let table = if parts.len() > 1 { parts[1] } else { "" };
-        out.push(#{ label: pair.role, height: h, slot_role: "verb_row", controls: [
+        out.push(#{ label: pair.role, height: h, slot_role: "layout_actions", controls: [
             #{
-                kind: "label", role: "meta", grow: 1,
+                kind: "label", role: "text_caption", grow: 1,
                 text: format!("{} on {}: {:.2}:1, needs {}", pair.ink, pair.fill, pair.ratio, pair.need),
             },
             #{
@@ -619,8 +647,7 @@ fn problem_specs(S, out) {
 
 /// Turn to the page a role is on, picked, at one of its state tables.
 pub fn show_role(S, name, table) {
-    let role = table_at(S.theme.doc, ["roles", name]);
-    S.themewin.page = page_of(role);
+    S.themewin.page = page_of(name);
     S.themewin.path = ["roles", name];
     S.themewin.table = table;
 }
@@ -660,7 +687,7 @@ fn changed(S) {
     S.themewin.dirty = true;
     S.themewin.said = "";
     let own = S.themewin.own;
-    let doc = theme::merge(theme::read(theme::base_of(own)), own);
+    let doc = theme::merge(theme::bundled(theme::base_of(own)), own);
     theme::wear(S, S.theme.name, doc);
     let pairs = ui::contrast_pairs(doc, GROUND);
     S.themewin.pairs = pairs;
@@ -692,7 +719,7 @@ pub fn save(S) {
         return;
     }
     let base_name = theme::base_of(own);
-    let base = theme::read(base_name);
+    let base = theme::bundled(base_name);
     let out = theme::diff(base, theme::merge(base, own));
     out["type"] = "widget_theme";
     out["base"] = base_name;

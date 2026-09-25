@@ -116,7 +116,7 @@ fn targets_a_variable(action) {
 // A dropdown over one of a row's fields.
 fn pick(S, at, key, current, choices, width) {
     #{
-        kind: "dropdown", role: "form_pick", width: width,
+        kind: "dropdown", role: "choice_form", width: width,
         text: current, options: choices,
         on: |picked| { set_field(S, at, key, picked); },
     }
@@ -125,7 +125,7 @@ fn pick(S, at, key, current, choices, width) {
 // A field over one of a row's fields, written on Enter rather than per key.
 fn typed(S, at, key, current, placeholder, width) {
     #{
-        kind: "field", role: "form_field", width: width,
+        kind: "text_field", role: "input_form", width: width,
         text: current, placeholder: placeholder,
         on_submit: |text| {
             if text != current {
@@ -141,10 +141,10 @@ fn row_spec(S, at, row) {
     let action = row.get("action").unwrap_or("state");
     let target = row.get("target").unwrap_or("");
     let controls = [
-        #{ kind: "label", role: "meta", width: 18, text: format!("{}", at + 1) },
+        #{ kind: "label", role: "text_caption", width: 18, text: format!("{}", at + 1) },
         pick(S, at, "event", event, util::vec(scene::bindable_events()), 150.0),
         typed(S, at, "when", row.get("when").unwrap_or(""), "always", 130.0),
-        #{ kind: "label", role: "meta", text: "→" },
+        #{ kind: "label", role: "text_caption", text: "→" },
         pick(S, at, "action", action, util::vec(scene::binding_actions()), 130.0),
     ];
     if targets_a_variable(action) {
@@ -152,7 +152,7 @@ fn row_spec(S, at, row) {
             variable_names(S), 120.0));
     } else {
         controls.push(#{
-            kind: "dropdown", role: "form_pick", width: 140,
+            kind: "dropdown", role: "choice_form", width: 140,
             text: if target == "" { "(this node)" } else { target },
             options: target_paths(S),
             on: |picked| {
@@ -166,7 +166,7 @@ fn row_spec(S, at, row) {
         tooltip: "Remove this binding",
         on: |_| { remove_row(S, at); },
     });
-    #{ full: true, height: ROW_H, slot_role: "verb_row", controls: controls }
+    #{ full: true, height: ROW_H, slot_role: "layout_actions", controls: controls }
 }
 
 /// The Rune a row is equivalent to, which is what "Convert to script" writes.
@@ -357,14 +357,14 @@ pub fn view(S, k) {
     util::fill(PANEL, #{ visible: true });
     let node = model::selected_node(S);
     crate::pool::strip(S, PANEL + "/DocHead", [
-        #{ kind: "label", role: "heading", grow: 1,
+        #{ kind: "label", role: "text_heading", grow: 1,
             text: format!("EVENT BINDINGS · {}", node.name) },
         #{
-            kind: "button", role: "row_action_sage", text: "‹›  Convert to script",
+            kind: "button", role: "action_form_secondary", text: "‹›  Convert to script",
             on: |_| { convert_to_script(S); },
         },
         #{
-            kind: "button", role: "row_action_accent", text: icons::ui("add") + "  Add row",
+            kind: "button", role: "action_form_primary", text: icons::ui("add") + "  Add row",
             on: |_| { add_row(S); },
         },
     ]);
@@ -383,13 +383,13 @@ pub fn view(S, k) {
 
 fn note(text) {
     #{ full: true, height: 0, controls: [#{
-        kind: "label", role: "meta", grow: 1, wrap: true, text: text,
+        kind: "label", role: "text_caption", grow: 1, wrap: true, text: text,
     }] }
 }
 
 fn head(text) {
     #{ full: true, height: 26, controls: [#{
-        kind: "label", role: "heading", grow: 1, text: text.to_uppercase(),
+        kind: "label", role: "text_heading", grow: 1, text: text.to_uppercase(),
     }] }
 }
 
@@ -403,11 +403,11 @@ fn variable_specs(S, out) {
         return;
     }
     for entry in declared {
-        out.push(#{ full: true, height: 24, slot_role: "verb_row", controls: [
-            #{ kind: "label", role: "mono", text: entry.name },
-            #{ kind: "label", role: "meta", text: entry["type"] },
+        out.push(#{ full: true, height: 24, slot_role: "layout_actions", controls: [
+            #{ kind: "label", role: "text_code", text: entry.name },
+            #{ kind: "label", role: "text_caption", text: entry["type"] },
             #{ kind: "row", grow: 1 },
-            #{ kind: "label", role: "answer_yes", text: format!("{}", entry.value) },
+            #{ kind: "label", role: "text_code_success", text: format!("{}", entry.value) },
         ] });
     }
 }
@@ -425,14 +425,14 @@ fn hook_specs(S, out) {
     for hook in model::hooks(S, script) {
         let lifecycle = hook.name == "init" || hook.name == "update";
         out.push(#{ full: true, height: 28, controls: [#{
-            kind: "row", role: "hook_pill", controls: [
+            kind: "row", role: "sheet_hook", controls: [
                 #{
                     kind: "label", text: "•",
-                    role: if lifecycle { "hook_dot_life" } else { "hook_dot" },
+                    role: if lifecycle { "text_mark_primary" } else { "text_mark_secondary" },
                 },
-                #{ kind: "label", role: "mono", text: format!("{}.{}()", node.name, hook.name) },
+                #{ kind: "label", role: "text_code", text: format!("{}.{}()", node.name, hook.name) },
                 #{ kind: "row", grow: 1 },
-                #{ kind: "label", role: "meta", text: format!("{}:{}", script, hook.line) },
+                #{ kind: "label", role: "text_caption", text: format!("{}:{}", script, hook.line) },
             ],
         }] });
     }

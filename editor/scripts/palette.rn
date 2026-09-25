@@ -138,16 +138,16 @@ fn commands(S) {
     list.push(command("Open the prefab behind the selection", icons::ui("instance"), "", || model::open_prefab(S)));
     let known = catalogue(S);
     // Channel views: draw normals, UVs or depth instead of the picture.
-    list.push(command("View: colour", "◐", "", || render::set_channel("")));
+    list.push(command("View: color", "◐", "", || render::set_channel("")));
     for name in known.channels {
         let channel = name;
         list.push(command("View: " + channel, "◐", "", || render::set_channel(channel)));
     }
     for entry in S.registry.commands {
         let run = entry.run;
-        list.push(command(entry.label, entry.icon, entry.key, || run(S)));
+        list.push(command(entry.title, entry.icon, entry.shortcut, || run(S)));
     }
-    for entry in S.registry.windows {
+    for entry in S.registry.dialogs {
         let wid = entry.id;
         list.push(command(format!("Open {}", entry.title), "▭", "", || {
             S.registry.open[wid] = true;
@@ -229,7 +229,7 @@ fn row_specs(S, matched, row_h) {
     let out = [];
     if matched.is_empty() {
         out.push(#{ full: true, height: 0, controls: [#{
-            kind: "label", role: "meta", grow: 1, wrap: true, text: "no matches",
+            kind: "label", role: "text_caption", grow: 1, wrap: true, text: "no matches",
         }] });
         S.palette_submit = false;
         return out;
@@ -245,10 +245,10 @@ fn row_specs(S, matched, row_h) {
     for (at, entry) in matched.iter().enumerate() {
         // Bound afresh: a closure made in a loop captures the binding.
         let cmd = entry;
-        out.push(#{ full: true, height: row_h, slot_role: "verb_row", controls: [
+        out.push(#{ full: true, height: row_h, slot_role: "layout_actions", controls: [
             #{
                 kind: "button", grow: 1, text: cmd.label, icon: cmd.icon,
-                role: if at == 0 { "picker_row_on" } else { "picker_row" },
+                role: "item_picker", checked: at == 0,
                 tooltip: cmd.key,
                 on: |_| {
                     let run = cmd.run;
@@ -256,7 +256,7 @@ fn row_specs(S, matched, row_h) {
                     shell::close_palette(S);
                 },
             },
-            #{ kind: "label", role: "meta", text: cmd.key },
+            #{ kind: "label", role: "text_caption", text: cmd.key },
         ] });
     }
     out

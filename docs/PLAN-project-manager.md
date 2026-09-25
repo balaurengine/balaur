@@ -29,7 +29,7 @@ widgets in the editor's own window, so it hot reloads and runs on the web.
   `list_projects`, `open_project`, `delete_project`, `import_project_pack`,
   `import_project_files`, `download_project`, and the website's
   `src/pages/editor.tsx` draws the list. Native has none of it.
-- Editor preferences persist at `project::data_dir() + "/editor.toml"`
+- Editor preferences persist at `project::editor_data_dir() + "/editor.toml"`
   (`editor/scripts/settings.rn`), which is `<data dir>/balaur/`, beside
   `projects.toml` and `sessions/<project name>/`.
 - No folder picker: `ui` has `modal` and `window`. `rfd` is already in the
@@ -48,7 +48,7 @@ widgets in the editor's own window, so it hot reloads and runs on the web.
    `import` (`crates/balaur_cli/src/project_api.rs`, loaded in `edit_project`
    and `own_modules`):
    - `project::recent()`: rows of `{ path, name, opened, exists }`, from
-     `projects.toml` in `project::data_dir()`, newest first, capped at 20.
+     `projects.toml` in `project::editor_data_dir()`, newest first, capped at 20.
      A missing path stays in the list with `exists = false` until forgotten.
    - `project::create(path, template)`: `new_project::create`, then the row.
    - `project::open(path)`: checks `project.toml` is there, writes the row,

@@ -14,7 +14,7 @@ pub struct Loading {
     pub progress: f32,
     /// What is loading, drawn under the bar; empty draws the bar alone.
     pub label: String,
-    /// Set by `ui.loaded()`: the splash may go.
+    /// Set by `ui.finish_loading()`: the splash may go.
     pub done: bool,
 }
 
@@ -36,17 +36,17 @@ fn report(eng: &Engine, progress: f32, label: String) {
 /// `ui.*` bindings: the load a splash waits on.
 pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("set_loading", &[], "(progress: float, label: string?)", "Report how far a load is, zero to one. This is what holds `[application] splash` past its seconds, and what draws the bar under it."),
-        ("loaded", &[], "()", "Say the load is through, which lets a held splash go once `splash_seconds` has also passed. The editor calls it once its shell has settled."),
+        ("set_load_progress", &[], "(progress: float, label: string?)", "Report how far a load is, zero to one. This is what holds `[application] splash` past its seconds, and what draws the bar under it."),
+        ("finish_loading", &[], "()", "Say the load is through, which lets a held splash go once `splash_seconds` has also passed. The editor calls it once its shell has settled."),
     ]);
     m.function(
-        "set_loading",
+        "set_load_progress",
         |eng: &Engine, (progress, label): (f32, Option<String>)| {
             report(eng, progress, label.unwrap_or_default());
             Ok(())
         },
     );
-    m.function("loaded", |eng: &Engine, ()| {
+    m.function("finish_loading", |eng: &Engine, ()| {
         report(eng, 1.0, String::new());
         if let Some(loading) = eng.try_resource::<Loading>() {
             loading.borrow_mut().done = true;

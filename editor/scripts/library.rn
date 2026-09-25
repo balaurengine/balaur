@@ -212,7 +212,7 @@ pub fn panel(S, k) {
         let id = chip[0];
         chips.push(#{
             kind: "button", text: chip[1],
-            role: if S.library.kind == id { "chip_on" } else { "chip" },
+            role: "chip", checked: S.library.kind == id,
             on: |_| { S.library.kind = id; },
         });
     }
@@ -243,7 +243,7 @@ fn show_cards(S, k, shown) {
     let items = [];
     for entry in shown {
         items.push(util::row(kind_icon(entry.kind), entry.name,
-            entry.get("note").unwrap_or(""), k.text));
+            entry.get("note").unwrap_or(""), k.text_default));
     }
     util::fill(dock::CARDS_NODE, #{
         options: items, visible: true, columns: 5, text: "",
@@ -273,9 +273,9 @@ fn templates(S, k, known) {
         return;
     }
     ui::add_space(2);
-    ui::horizontal(#{ height: 18 }, || {
+    ui::row(#{ height: 18 }, || {
         ui::add_space(8);
-        ui::label("a row is copied as the command that makes it", style::mono_sm(k.faint));
+        ui::label("a row is copied as the command that makes it", style::mono_sm(k.text_subtle));
     });
     let items = [];
     let commands = [];

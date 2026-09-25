@@ -4,7 +4,7 @@
 
 use balaur_core::components::ComponentDef;
 
-/// The closed word sets: what a `kind`, `anchor`, `align` or `font` may be.
+/// The closed word sets: what a `kind`, `anchor`, `align_items` or `font_family` may be.
 pub(crate) mod words {
     pub(crate) const LABEL: &str = "label";
     pub(crate) const BUTTON: &str = "button";
@@ -39,9 +39,37 @@ pub(crate) mod words {
     pub(crate) const TOAST: &str = "toast";
     /// The widget kinds, in the order the picker offers them.
     pub(crate) const WIDGET_KINDS: &[&str] = &[
-        LABEL, BUTTON, PANEL, ROW, COLUMN, SCROLL, TABS, DRAW, IMAGE, TEXT_FIELD, TEXT_AREA,
-        CHECKBOX, SWITCH, COLOR_PICKER, DROPDOWN, MENU, LIST, TREE, TABLE, SLIDER, NUMBER_FIELD,
-        PROGRESS_BAR, GRID, FLOW, FOLD, DIALOG, TOAST, WINDOW, SEPARATOR, CODE, STACK,
+        LABEL,
+        BUTTON,
+        PANEL,
+        ROW,
+        COLUMN,
+        SCROLL,
+        TABS,
+        DRAW,
+        IMAGE,
+        TEXT_FIELD,
+        TEXT_AREA,
+        CHECKBOX,
+        SWITCH,
+        COLOR_PICKER,
+        DROPDOWN,
+        MENU,
+        LIST,
+        TREE,
+        TABLE,
+        SLIDER,
+        NUMBER_FIELD,
+        PROGRESS_BAR,
+        GRID,
+        FLOW,
+        FOLD,
+        DIALOG,
+        TOAST,
+        WINDOW,
+        SEPARATOR,
+        CODE,
+        STACK,
     ];
 
     pub(crate) const CONTAIN: &str = "contain";
@@ -49,6 +77,8 @@ pub(crate) mod words {
     /// How a picture sits in the box it was given; empty is the picture's own
     /// size, which is what decides the box instead.
     pub(crate) const NONE_FIT: &str = "none";
+    /// A colour token that paints nothing.
+    pub(crate) const NONE: &str = "none";
     pub(crate) const FITS: &[&str] = &["", CONTAIN, COVER, FILL, NONE_FIT];
 
     pub(crate) const TOP_LEFT: &str = "top_left";
@@ -220,13 +250,15 @@ pub(crate) mod words {
 
 /// Every property key of the `widget` component and every option a `ui.*` call reads.
 pub(crate) mod keys {
-    pub(crate) const ACTIVE: &str = "active";
     /// Which page a `tabs` widget shows.
     pub(crate) const CURRENT_PAGE: &str = "current_page";
     pub(crate) const ALIGN_ITEMS: &str = "align_items";
     pub(crate) const ARROWS: &str = "arrows";
     pub(crate) const COLORS: &str = "colors";
-    /// The theme document's mode flag, and its table of named sizes.
+    /// The theme document's asset type, the theme it is written over, its
+    /// mode flag, and its table of named sizes.
+    pub(crate) const TYPE: &str = "type";
+    pub(crate) const BASE: &str = "base";
     pub(crate) const DARK: &str = "dark";
     pub(crate) const SIZES: &str = "sizes";
     pub(crate) const ANCHOR: &str = "anchor";
@@ -263,7 +295,6 @@ pub(crate) mod keys {
     pub(crate) const GROW: &str = "grow";
     pub(crate) const GUTTER_COLOR: &str = "gutter_color";
     pub(crate) const GUTTER_WIDTH: &str = "gutter_width";
-    pub(crate) const H: &str = "h";
     pub(crate) const SPLITTER_WIDTH: &str = "splitter_width";
     pub(crate) const HEIGHT: &str = "height";
     pub(crate) const HIGHLIGHT: &str = "highlight";
@@ -346,9 +377,9 @@ pub(crate) mod keys {
     pub(crate) const ROW_HOVER: &str = "row_hover";
     pub(crate) const ROW_ACTIVE: &str = "row_active";
     pub(crate) const ROW_STRIPE: &str = "row_stripe";
-    pub(crate) const HEADER_FILL: &str = "header_fill";
-    pub(crate) const COLUMN_RULE: &str = "column_rule";
-    pub(crate) const ROW_GUIDE: &str = "row_guide";
+    pub(crate) const TABLE_HEADER: &str = "table_header";
+    pub(crate) const TABLE_RULE: &str = "table_rule";
+    pub(crate) const TREE_GUIDE: &str = "tree_guide";
     pub(crate) const ROLES: &str = "roles";
     /// What `ui::contrast_pairs` answers per pair.
     pub(crate) const INK: &str = "ink";
@@ -391,7 +422,6 @@ pub(crate) mod keys {
     pub(crate) const VALUE: &str = "value";
     pub(crate) const SAFE_AREA: &str = "safe_area";
     pub(crate) const VISIBLE: &str = "visible";
-    pub(crate) const W: &str = "w";
     pub(crate) const WARNING_COLOR: &str = "warning_color";
     pub(crate) const WARNINGS: &str = "warnings";
     pub(crate) const WIDTH: &str = "width";
@@ -399,6 +429,106 @@ pub(crate) mod keys {
     pub(crate) const INDEX: &str = "index";
     pub(crate) const X: &str = "x";
     pub(crate) const Y: &str = "y";
+}
+
+/// The state tables a theme entry holds, by CSS's words. `checked` and
+/// `disabled` are the properties they answer to.
+pub(crate) mod states {
+    pub(crate) use super::keys::DISABLED;
+    pub(crate) const HOVER: &str = "hover";
+    pub(crate) const ACTIVE: &str = "active";
+    pub(crate) const FOCUS: &str = "focus";
+}
+
+/// The theme's tokens by name: the sources a theme states, and what Rust
+/// reads of what is derived from them.
+pub(crate) mod tokens {
+    pub(crate) use super::keys::{
+        FONT_SIZE, STROKE_WIDTH, SYNTAX_COMMENT, SYNTAX_IDENTIFIER, SYNTAX_KEYWORD, SYNTAX_NUMBER,
+        SYNTAX_PUNCTUATION, SYNTAX_STRING, SYNTAX_TYPE,
+    };
+
+    pub(crate) const BACKGROUND: &str = "background";
+    pub(crate) const FOREGROUND: &str = "foreground";
+    /// How far apart the surfaces step, in OKLab lightness; a number in `[colors]`.
+    pub(crate) const CONTRAST: &str = "contrast";
+    pub(crate) const PRIMARY: &str = "primary";
+    pub(crate) const SECONDARY: &str = "secondary";
+    pub(crate) const SUCCESS: &str = "success";
+    pub(crate) const WARNING: &str = "warning";
+    pub(crate) const DANGER: &str = "danger";
+
+    /// What a family's token paints, after its name: `primary_fill`.
+    pub(crate) const FILL: &str = "fill";
+    pub(crate) const FILL_HOVER: &str = "fill_hover";
+    pub(crate) const TEXT: &str = "text";
+    pub(crate) const BG: &str = "bg";
+
+    /// A family's token for one job: `of(PRIMARY, FILL)` is `primary_fill`.
+    pub(crate) fn of(family: &str, part: &str) -> String {
+        format!("{family}_{part}")
+    }
+
+    /// The ink drawn on a family's fill: `text_on_primary`.
+    pub(crate) fn on(family: &str) -> String {
+        format!("text_on_{family}")
+    }
+
+    pub(crate) const BG_APP: &str = "bg_app";
+    pub(crate) const BG_PANEL: &str = "bg_panel";
+    pub(crate) const BG_CONTROL: &str = "bg_control";
+    pub(crate) const BG_CONTROL_HOVER: &str = "bg_control_hover";
+    pub(crate) const BORDER_DEFAULT: &str = "border_default";
+    pub(crate) const TEXT_DEFAULT: &str = "text_default";
+    pub(crate) const TEXT_MUTED: &str = "text_muted";
+    pub(crate) const TEXT_SUBTLE: &str = "text_subtle";
+    pub(crate) const PRIMARY_TEXT: &str = "primary_text";
+    pub(crate) const PRIMARY_FILL: &str = "primary_fill";
+    pub(crate) const PRIMARY_BG: &str = "primary_bg";
+    pub(crate) const TEXT_ON_PRIMARY: &str = "text_on_primary";
+    pub(crate) const SECONDARY_TEXT: &str = "secondary_text";
+    pub(crate) const WARNING_TEXT: &str = "warning_text";
+    pub(crate) const DANGER_TEXT: &str = "danger_text";
+    pub(crate) const GRID_MINOR: &str = "grid_minor";
+    pub(crate) const GRID_MAJOR: &str = "grid_major";
+    pub(crate) const NODE_DEFAULT: &str = "node_default";
+    pub(crate) const BRAND_PLATE: &str = "brand_plate";
+    pub(crate) const INPUT_RIPPLE: &str = "input_ripple";
+
+    pub(crate) const FONT_SIZE_SMALL: &str = "font_size_small";
+    pub(crate) const FONT_SIZE_LARGE: &str = "font_size_large";
+    pub(crate) const FONT_SIZE_TITLE: &str = "font_size_title";
+    pub(crate) const RADIUS: &str = "radius";
+    pub(crate) const RADIUS_SMALL: &str = "radius_small";
+    pub(crate) const RADIUS_LARGE: &str = "radius_large";
+    pub(crate) const CONTROL_HEIGHT: &str = "control_height";
+    pub(crate) const CONTROL_HEIGHT_SMALL: &str = "control_height_small";
+    pub(crate) const CONTROL_HEIGHT_LARGE: &str = "control_height_large";
+    pub(crate) const CONTROL_HEIGHT_TOUCH: &str = "control_height_touch";
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn a_spelled_family_token_is_the_one_the_palette_builds() {
+            assert_eq!(of(PRIMARY, TEXT), PRIMARY_TEXT);
+            assert_eq!(of(PRIMARY, FILL), PRIMARY_FILL);
+            assert_eq!(of(PRIMARY, BG), PRIMARY_BG);
+            assert_eq!(on(PRIMARY), TEXT_ON_PRIMARY);
+            assert_eq!(of(SECONDARY, TEXT), SECONDARY_TEXT);
+            assert_eq!(of(WARNING, TEXT), WARNING_TEXT);
+            assert_eq!(of(DANGER, TEXT), DANGER_TEXT);
+        }
+    }
+}
+
+/// Font weights on the CSS scale: the regular one, and where bold starts.
+pub(crate) mod weights {
+    pub(crate) const REGULAR: f32 = 400.0;
+    /// From here a weight draws in the bold face, and counts as bold for
+    /// WCAG's large-text rule.
+    pub(crate) const BOLD_FROM: f32 = 600.0;
 }
 
 /// Schema text from `(key, spec)` lines; see [`ComponentDef::schema`].

@@ -785,7 +785,17 @@ pub fn user_data_dir_of(eng: &Engine) -> std::path::PathBuf {
     user_data_dir_named(eng, &name)
 }
 
-/// The user data directory a project named `name` has, made or not.
+/// The manifest name the editor's own project carries. Its per-user folder
+/// sits beside the games' rather than among them, so no game's name can
+/// reach the editor's settings, themes or project list.
+pub const EDITOR_NAME: &str = "balaur-editor";
+
+/// The folder every game's per-user folder sits in, under the platform's data
+/// directory.
+const GAMES_DIR: &str = "balaur";
+
+/// The user data directory a project named `name` has, made or not:
+/// `<data>/balaur/<name>` for a game and `<data>/balaur-editor` for the editor.
 pub fn user_data_dir_named(eng: &Engine, name: &str) -> std::path::PathBuf {
     let name = if name.is_empty() { "project" } else { name };
     // A manifest name is free text; keep only what every filesystem accepts.
@@ -799,16 +809,16 @@ pub fn user_data_dir_named(eng: &Engine, name: &str) -> std::path::PathBuf {
             }
         })
         .collect();
-    let base = dirs::data_dir().map_or_else(
-        || {
-            eng.resource::<crate::project::ProjectRoot>()
-                .borrow()
-                .0
-                .join("user_data")
-        },
-        |dir| dir.join("balaur"),
-    );
-    base.join(name)
+    match dirs::data_dir() {
+        Some(dir) if name == EDITOR_NAME => dir.join(EDITOR_NAME),
+        Some(dir) => dir.join(GAMES_DIR).join(name),
+        None => eng
+            .resource::<crate::project::ProjectRoot>()
+            .borrow()
+            .0
+            .join("user_data")
+            .join(name),
+    }
 }
 
 fn reload_script(eng: &Engine, args: &[Value]) -> Result<Value> {

@@ -22,7 +22,7 @@ pub fn rows(S) {
         action(icons::ui("export"), "Export", "⌘E", |_| { crate::exporter::open(S); }),
         action(icons::ui("about"), "About Balaur", "", |_| { crate::about::open(S); }),
         rule(),
-        #{ kind: "label", role: "menu_heading", text: "PANELS", width: ROW_W },
+        #{ kind: "label", role: "text_heading_menu", text: "PANELS", width: ROW_W },
     ];
     for pair in panel_pairs(S) {
         out.push(pair);
@@ -34,7 +34,7 @@ pub fn rows(S) {
 }
 
 fn action(icon, label, key, on) {
-    #{ kind: "button", role: "menu_row", icon: icon, text: label, trailing: key, width: ROW_W, on: on }
+    #{ kind: "button", role: "item_menu", icon: icon, text: label, trailing: key, width: ROW_W, on: on }
 }
 
 // A rule the width of the menu: a bare one takes the width it is offered.
@@ -62,7 +62,7 @@ fn panel_pairs(S) {
 fn cell(S, id) {
     let open = docks::side_of(S, id).is_some();
     #{
-        kind: "button", role: if open { "menu_row" } else { "menu_row_off" },
+        kind: "button", role: if open { "item_menu" } else { "item_menu_quiet" },
         // An em space where the tick would be: as wide as the glyph, so a shut
         // panel's name starts where an open one's does.
         icon: if open { icons::ui("check") } else { "\u{2003}" }, text: docks::name(S, id),

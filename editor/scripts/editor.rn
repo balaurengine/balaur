@@ -276,7 +276,7 @@ pub fn init(this) {
     this.S = S;
 
     model::load(S);
-    ui::set_loading(0.3, "");
+    ui::set_load_progress(0.3, "");
     plugins::load(S);
     // Exports and imports run off the frame and report back here as they go.
     export::listen(this.node, #{});
@@ -339,9 +339,9 @@ pub fn update(this, dt) {
         let ready = S.frame >= 3 && S.refs.len() == S.doc.len() && layout::settled(S);
         if ready || S.frame >= FORM_BY {
             S.formed = true;
-            ui::loaded();
+            ui::finish_loading();
         } else {
-            ui::set_loading(util::clamp(0.4 + 0.06 * util::f(S.frame), 0.0, 0.95), "");
+            ui::set_load_progress(util::clamp(0.4 + 0.06 * util::f(S.frame), 0.0, 0.95), "");
         }
     }
     let shot_some = S.shot;
@@ -487,7 +487,7 @@ pub fn update(this, dt) {
     ui::set_widget_layer(widgets_on, rect.x, rect.y, rect.w, util::max(0.0, rect.h - band));
     // The window, never `S.screen_w`: that is the shell's own solved rect, and
     // a surface taken from it shrinks the shell it sizes, frame by frame.
-    let (surface_w, surface_h) = ui::screen_size();
+    let (surface_w, surface_h) = ui::window_size();
     ui::set_widget_surface("shell", true, 0.0, 0.0, surface_w, surface_h);
     if S.tool == "key" && S.workspace == "animation" && input::mouse_just_pressed(input::MOUSE_LEFT) {
         anim::add_key(S, S.anim.time);
@@ -557,14 +557,14 @@ pub fn draw_ui(this) {
     let S = this.S;
     // egui hands a paste to the frame it arrived on: this is the only place
     // it can be read, so ⌘V anywhere in the shell pastes a copied node.
-    let pasted = ui::clipboard();
+    let pasted = ui::pasted_text();
     if pasted != "" {
         model::paste_nodes(S, pasted);
     }
     // The room the shell has, which the engine solved: the window less what
     // a notch covers. Read back a pass late, as every other rect here is;
     // the window stands in until it has drawn once.
-    let (sw, sh) = ui::screen_size();
+    let (sw, sh) = ui::window_size();
     let (rw, rh) = crate::layout::shell_room(S);
     S.screen_w = if rw > 0.0 { rw } else { sw };
     S.screen_h = if rh > 0.0 { rh } else { sh };
@@ -728,7 +728,7 @@ pub fn draw_ui(this) {
     center::draw(S);
     // Every dock is nodes now: the scene lays them out, paints them, and calls
     // `draw_dock_*` to fill them.
-    plugins::draw_windows(S, S.theme);
+    plugins::draw_dialogs(S, S.theme);
     if S.show_input {
         inputview::draw(S);
     }

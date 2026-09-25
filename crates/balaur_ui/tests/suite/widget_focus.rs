@@ -399,7 +399,7 @@ fn focus_put_on_a_field_takes_the_caret() {
         &app,
         column,
         "Query",
-        &toml::toml! { kind = "field" text = "" }.into(),
+        &toml::toml! { kind = "text_field" text = "" }.into(),
     );
     let ctx = egui::Context::default();
     settle(&app, &ctx);

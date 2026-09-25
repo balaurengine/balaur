@@ -15,7 +15,7 @@ pub fn grid2d(S) {
     if half_w > 200.0 || half_h > 200.0 {
         return;
     }
-    let minor = util::rgb(k.grid);
+    let minor = util::rgb(k.grid_minor);
     let major = util::rgb(k.grid_major);
     let x0 = math::floor(cx - half_w) as i64;
     let x1 = math::ceil(cx + half_w) as i64;
@@ -40,14 +40,14 @@ pub fn guides(S) {
     };
     let p = found.transform.global_position();
     let k = S.theme;
-    let a = util::rgb(k.accent);
-    let s = util::rgb(k.sage);
+    let a = util::rgb(k.axis_x);
+    let s = util::rgb(k.axis_y);
     if model::is_2d(S) {
         render::draw_line_2d(p.x - 4.0, p.y, p.x + 4.0, p.y, a[0], a[1], a[2], 1.0);
         render::draw_line_2d(p.x, p.y - 4.0, p.x, p.y + 4.0, s[0], s[1], s[2], 1.0);
         return;
     }
-    let d = util::rgb(k.dim);
+    let d = util::rgb(k.axis_z);
     render::draw_line(p.x - 4.0, p.y, p.z, p.x + 4.0, p.y, p.z, a[0], a[1], a[2], 1.0);
     render::draw_line(p.x, p.y - 4.0, p.z, p.x, p.y + 4.0, p.z, s[0], s[1], s[2], 1.0);
     render::draw_line(p.x, p.y, p.z - 4.0, p.x, p.y, p.z + 4.0, d[0], d[1], d[2], 1.0);
@@ -74,7 +74,7 @@ pub fn motion_path(S) {
         return;
     }
     let k = S.theme;
-    let c = util::rgb(k.accent);
+    let c = util::rgb(k.primary_text);
     let is2d = model::is_2d(S);
     let previous = None;
     for key in keys {
@@ -103,7 +103,7 @@ pub fn motion_path(S) {
 
 pub fn colliders2d(S) {
     let k = S.theme;
-    let c = util::rgb(k.sage);
+    let c = util::rgb(k.node_physics);
     for (i, node) in S.doc.iter().enumerate() {
         let collider = match node.get("collider2d") {
             Some(collider) => if collider is Object { collider } else { continue },
@@ -214,7 +214,7 @@ fn light_gizmo(found, light) {
 // derived one (from `collider2d`, or the node's shape) draws too.
 fn occluder_outline(S, found) {
     let k = S.theme;
-    let c = util::rgb(k.accent);
+    let c = util::rgb(k.primary_text);
     // Flat x, y pairs, already closed when the occluder is.
     let flat = found.occluder2d.outline();
     let count = flat.len() / 2;
@@ -229,7 +229,7 @@ fn occluder_outline(S, found) {
 
 pub fn colliders(S) {
     let k = S.theme;
-    let c = util::rgb(k.sage);
+    let c = util::rgb(k.node_physics);
     for (i, node) in S.doc.iter().enumerate() {
         let collider = match node.get("collider3d") {
             Some(collider) => if collider is Object { collider } else { continue },
@@ -337,7 +337,7 @@ pub fn lights3d(S) {
 }
 
 fn light3d_gizmo(found, light, selected, k) {
-    let c = if selected { util::rgb(k.accent) } else { component_rgb(light.get("color").unwrap_or(()), [1.0, 0.9, 0.7]) };
+    let c = if selected { util::rgb(k.primary_text) } else { component_rgb(light.get("color").unwrap_or(()), [1.0, 0.9, 0.7]) };
     let p = util::xyz(found.transform.global_position());
     let dir = forward_of(found);
     let kind = light.get("kind").unwrap_or(render::LIGHT_DIRECTIONAL);
@@ -391,7 +391,7 @@ fn light3d_gizmo(found, light, selected, k) {
 const FRUSTUM_REACH = 4.0;
 
 fn camera_gizmo(S, found, selected, k) {
-    let c = if selected { util::rgb(k.accent) } else { util::rgb(k.dim) };
+    let c = if selected { util::rgb(k.primary_text) } else { util::rgb(k.text_muted) };
     let width = if selected { 2.0 } else { 1.0 };
     let p = util::xyz(found.transform.global_position());
     let dir = forward_of(found);

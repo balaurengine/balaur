@@ -253,14 +253,14 @@ pub fn body(S, k) {
 fn offer(S) {
     // Bound, never a literal after a `}`: the block's value would be indexed
     // by the array rather than followed by it.
-    let out = [#{ kind: "label", role: "meta", text: "select a node to give it a state machine" }];
+    let out = [#{ kind: "label", role: "text_caption", text: "select a node to give it a state machine" }];
     if crate::model::selected_row(S).is_none() {
         return out;
     }
     out = [
-        #{ kind: "label", role: "meta", text: "no state machine on this node" },
+        #{ kind: "label", role: "text_caption", text: "no state machine on this node" },
         #{
-            kind: "button", role: "row_action_sage", text: "add state machine",
+            kind: "button", role: "action_form_secondary", text: "add state machine",
             tooltip: "Give the node an inline `state_machine` over its own player",
             on: |_| { create(S); },
         },
@@ -277,17 +277,17 @@ fn header_controls(S, found) {
         None => "inline",
     };
     let out = [
-        #{ kind: "label", role: "meta", text: place },
-        #{ kind: "label", role: "meta", text: "start" },
+        #{ kind: "label", role: "text_caption", text: place },
+        #{ kind: "label", role: "text_caption", text: "start" },
         #{
-            kind: "dropdown", role: "form_pick", width: FIELD_W,
+            kind: "dropdown", role: "choice_form", width: FIELD_W,
             text: doc.get("start").unwrap_or(""), options: state_names(doc),
             on: |picked| { set_start(S, picked); },
         },
     ];
     let now = live_state(S);
     if now != "" {
-        out.push(#{ kind: "label", role: "chip_on", text: format!("now {}", now) });
+        out.push(#{ kind: "label", role: "chip", checked: true, text: format!("now {}", now) });
     }
     out
 }
@@ -317,14 +317,14 @@ fn row_specs(S, doc) {
         let state = name;
         let control = if clip is String {
             #{
-                kind: "dropdown", role: "form_pick", width: FIELD_W,
+                kind: "dropdown", role: "choice_form", width: FIELD_W,
                 text: if clip == "" { state } else { clip }, options: clips,
                 on: |picked| { set_state_clip(S, state, picked); },
             }
         } else {
-            #{ kind: "label", role: "meta", text: "nested machine" }
+            #{ kind: "label", role: "text_caption", text: "nested machine" }
         };
-        out.push(#{ label: state, height: ROW_H, slot_role: "verb_row", controls: [
+        out.push(#{ label: state, height: ROW_H, slot_role: "layout_actions", controls: [
             control,
             #{
                 kind: "button", role: "chip_quiet", text: "×",
@@ -333,15 +333,15 @@ fn row_specs(S, doc) {
             },
         ] });
     }
-    out.push(#{ full: true, height: ROW_H, slot_role: "verb_row", controls: [
+    out.push(#{ full: true, height: ROW_H, slot_role: "layout_actions", controls: [
         #{
-            kind: "field", role: "form_field", width: NAME_W + FIELD_W,
+            kind: "text_field", role: "input_form", width: NAME_W + FIELD_W,
             text: S.machine.naming, placeholder: "new state",
             on: |text| { S.machine.naming = text; },
             on_submit: |text| { named(S, text); },
         },
         #{
-            kind: "button", role: "row_action_sage", text: "add state",
+            kind: "button", role: "action_form_secondary", text: "add state",
             tooltip: "A state playing the clip of its own name",
             on: |_| { named(S, S.machine.naming); },
         },
@@ -361,7 +361,7 @@ fn named(S, text) {
 
 fn transition_specs(S, doc, out) {
     out.push(head_spec("TRANSITIONS", [#{
-        kind: "button", role: "row_action_sage", text: "add transition",
+        kind: "button", role: "action_form_secondary", text: "add transition",
         tooltip: "A transition between two states, opened for editing",
         on: |_| { add_transition(S); },
     }]));
@@ -373,10 +373,10 @@ fn transition_specs(S, doc, out) {
         // Bound afresh: a closure made in a loop captures the binding.
         let index = at;
         let open = S.machine.open == Some(index);
-        out.push(#{ full: true, height: ROW_H, slot_role: "verb_row", controls: [
+        out.push(#{ full: true, height: ROW_H, slot_role: "layout_actions", controls: [
             #{
                 kind: "button", min_width: NAME_W + FIELD_W,
-                role: if open { "list_item_on" } else { "list_item" },
+                role: "item_list", checked: open,
                 text: format!("{} → {}  {}", t.get("from").unwrap_or("?"),
                     t.get("to").unwrap_or("?"),
                     t.get("advance").unwrap_or(animation::ADVANCE_ENABLED)),
@@ -397,11 +397,11 @@ fn transition_specs(S, doc, out) {
 
 /// A heading across the rows, with whatever verbs belong beside it.
 fn head_spec(text, verbs) {
-    let controls = [#{ kind: "label", role: "meta", text: text }];
+    let controls = [#{ kind: "label", role: "text_caption", text: text }];
     for verb in verbs {
         controls.push(verb);
     }
-    #{ full: true, height: ROW_H, slot_role: "verb_row", controls: controls }
+    #{ full: true, height: ROW_H, slot_role: "layout_actions", controls: controls }
 }
 
 // The label a transition's own field wears: indented, so the fields read as
@@ -412,7 +412,7 @@ fn field_spec(label, control) {
 
 fn choice(S, at, key, current, choices) {
     #{
-        kind: "dropdown", role: "form_pick", width: FIELD_W,
+        kind: "dropdown", role: "choice_form", width: FIELD_W,
         text: current, options: choices,
         on: |picked| { set_field(S, at, key, picked); },
     }
@@ -420,7 +420,7 @@ fn choice(S, at, key, current, choices) {
 
 fn text_of(S, at, key, current, placeholder) {
     #{
-        kind: "field", role: "form_field", width: FIELD_W,
+        kind: "text_field", role: "input_form", width: FIELD_W,
         text: current, placeholder: placeholder,
         on_submit: |value| {
             if value != current {
@@ -434,7 +434,7 @@ fn text_of(S, at, key, current, placeholder) {
 // decimals as its speed has, and `priority` parses a whole number only.
 fn number(S, at, key, current, whole) {
     #{
-        kind: "drag_value", role: "form_value", width: FIELD_W,
+        kind: "number_field", role: "input_number", width: FIELD_W,
         value: util::f(current), min: 0.0, max: if whole { 1000.0 } else { 100.0 },
         step: if whole { 1.0 } else { 0.01 },
         on: |v| { set_field(S, at, key, if whole { util::i(v) } else { v }); },
@@ -443,7 +443,7 @@ fn number(S, at, key, current, whole) {
 
 fn flag(S, at, key, on) {
     #{
-        kind: "switch", role: "switch", checked: on,
+        kind: "switch", role: "switch_form", checked: on,
         on: |v| { set_field(S, at, key, v); },
     }
 }

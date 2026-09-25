@@ -541,18 +541,18 @@ fn draw_menu(this) {
     // stays on screen beside its own numbers.
     ui::left_panel("bench", #{ width: 360.0 }, || {
         ui::add_space(10.0);
-        ui::label("Balaur benchmarks", #{ role: "heading" });
-        ui::label(this.status, #{ role: "meta" });
+        ui::label("Balaur benchmarks", #{ role: "text_heading" });
+        ui::label(this.status, #{ role: "text_caption" });
         ui::add_space(6.0);
-        ui::horizontal(#{}, || {
-            let (on, _) = ui::toggle(this.draw, ());
+        ui::row(#{}, || {
+            let (on, _) = ui::switch(this.draw, ());
             this.draw = on;
             ui::label("Draw the shapes", ());
         });
         ui::add_space(8.0);
         ui::scroll("cases", (), || {
             for entry in this.cases {
-                if ui::pill(entry.key, #{ align: "left", min_width: 220.0 }) {
+                if ui::button(entry.key, #{ text_align: "start", min_width: 220.0 }) {
                     this.queue.push(entry);
                     if this.state == "idle" {
                         start_next(this);
@@ -561,7 +561,7 @@ fn draw_menu(this) {
             }
             ui::separator(());
             for row in this.results {
-                ui::label(line_of(row), #{ role: "mono", wrap: false });
+                ui::label(line_of(row), #{ role: "text_code", wrap: false });
             }
         });
     });

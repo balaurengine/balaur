@@ -12,7 +12,7 @@ use crate::bridge::{scoped, with_ctx, with_ui};
 use crate::immediate::code::code_editor;
 use crate::immediate::{Opts, panel_frame, pill_radius, text, text_field};
 use crate::theme::{self, parse_hex};
-use crate::vocabulary::{keys as k, words as w};
+use crate::vocabulary::{keys as k, tokens as t, weights, words as w};
 use crate::{UiConfig, UiState};
 
 /// `ui.*` bindings: theme.
@@ -21,74 +21,29 @@ pub(crate) fn install_theme(m: &mut dyn Bindings<Engine>) {
         (
             "set_theme",
             &[],
-            "", "Replace the theme: `name = \"#rrggbb\"` colour tokens, `dark = true|false`, and a `roles` table of named looks a widget takes with `role:`.",
+            "(theme: table)",
+            "Dress every `ui::*` call from a theme document, the shape a `widget_theme` file holds: source colours under `colors`, sizes under `sizes`, and a `roles` table of named looks a call takes with `role`. What the document leaves out is derived from its sources.",
+        ),
+        (
+            "complete_theme",
+            &[],
+            "(theme: table)",
+            "The theme document with every colour and size it leaves out derived from its sources, and `dark` stated.",
         ),
     ]);
-    {
-        // No reader by design (N8): `UiConfig::theme` already holds every
-        // token the caller wrote, and scripts keep their own palette table;
-        // add `ui.theme` when a caller needs to read it back.
-        m.function("set_theme", |eng: &Engine, tokens: Value| {
-            let Value::Map(entries) = &tokens else {
-                anyhow::bail!("set_theme takes a table of tokens");
-            };
-            let config = eng.resource::<UiConfig>();
-            let mut config = config.borrow_mut();
-            config.theme.colors.clear();
-            config.theme.roles.clear();
-            // Colours first: a role names them, so they have to resolve.
-            let mut hex: std::collections::HashMap<String, String> =
-                std::collections::HashMap::new();
-            for (key, value) in entries {
-                match (key.as_str(), value) {
-                    ("dark", Value::Bool(dark)) => config.theme.dark = *dark,
-                    (_, Value::Str(text)) => {
-                        if let Some(color) = parse_hex(text) {
-                            config.theme.colors.insert(key.clone(), color);
-                            hex.insert(key.clone(), text.clone());
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            for (key, value) in entries {
-                let (Value::Map(roles), "roles") = (value, key.as_str()) else {
-                    continue;
-                };
-                for (name, body) in roles {
-                    let Value::Map(fields) = body else { continue };
-                    let resolved = fields
-                        .iter()
-                        .map(|(k, v)| (k.clone(), spelled(v, &hex)))
-                        .collect();
-                    config
-                        .theme
-                        .roles
-                        .insert(name.clone(), std::rc::Rc::new(resolved));
-                }
-            }
-            config.changed = true;
-            Ok(())
-        });
-    }
-}
-
-/// A role's value with colour tokens spelled out. Recurses one map deep, so
-/// the `hover` and `active` tables inside a role name colours the same way.
-fn spelled(value: &Value, hex: &std::collections::HashMap<String, String>) -> Value {
-    match value {
-        Value::Str(text) => match hex.get(text.as_str()) {
-            Some(found) => Value::Str(found.clone()),
-            None => value.clone(),
-        },
-        Value::Map(fields) => Value::Map(
-            fields
-                .iter()
-                .map(|(k, v)| (k.clone(), spelled(v, hex)))
-                .collect(),
-        ),
-        other => other.clone(),
-    }
+    // No reader by design (N8): the caller holds the document it passed.
+    m.function("set_theme", |eng: &Engine, doc: Value| {
+        let doc = balaur_core::node_api::to_toml(&doc)?;
+        let config = eng.resource::<UiConfig>();
+        let mut config = config.borrow_mut();
+        config.theme = theme::ThemeTokens::from_doc(&doc);
+        config.changed = true;
+        Ok(())
+    });
+    m.function("complete_theme", |_: &Engine, doc: Value| {
+        let doc = balaur_core::node_api::to_toml(&doc)?;
+        balaur_core::node_api::from_toml(&crate::palette::complete(&doc))
+    });
 }
 
 /// `ui.*` bindings: panels.
@@ -99,7 +54,7 @@ pub(crate) fn install_panels(m: &mut dyn Bindings<Engine>) {
         ("left_panel", &[], "", "Dock a column down the left of the window and draw the callback inside it; `width` is in design pixels. Answers the width it ended up with."),
         ("right_panel", &[], "", "Dock a column down the right of the window and draw the callback inside it; `width` is in design pixels. Answers the width it ended up with."),
         ("central_panel", &[], "", "Draw the callback into whatever room the docked panels left over."),
-        ("overlay", &[], "", "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer. `w`/`h` fix its size, and `fill`, `stroke`, `radius` and padding make it a sheet. `interactive = false` for one that is only read, which hands its clicks to what is behind it."),
+        ("overlay", &[], "", "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer. `width`/`height` fix its size, and `fill`, `stroke`, `corner_radius` and padding make it a sheet. `interactive = false` for one that is only read, which hands its clicks to what is behind it."),
     ]);
     macro_rules! panel {
         ($name:literal, $ctor:ident, $size_key:expr, $span:ident) => {
@@ -238,7 +193,7 @@ pub(crate) fn install_text(m: &mut dyn Bindings<Engine>) {
         w::LABEL,
         &[],
         "",
-        "Draw a line of text; `size`, `font`, `color`, `strong`, `wrap` and `truncate` style it.",
+        "Draw a line of text; `font_size`, `font_family`, `text_color`, `font_weight`, `wrap` and `truncate` style it.",
     )]);
     m.function(
         "label",
@@ -248,7 +203,7 @@ pub(crate) fn install_text(m: &mut dyn Bindings<Engine>) {
                 let fam = opts.str(k::FONT_FAMILY).unwrap_or(w::UI);
                 let rt = text(
                     &s,
-                    opts.px(k::FONT_SIZE, 12.0),
+                    opts.px(k::FONT_SIZE, theme::size(t::FONT_SIZE)),
                     fam,
                     opts.opt_color(k::TEXT_COLOR),
                     opts.bold(),
@@ -287,7 +242,7 @@ pub(crate) fn install_controls(m: &mut dyn Bindings<Engine>) {
 pub(crate) fn install_text_input(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("text_field", &[], "", "Draw a single-line text box keyed by `id`; returns its text, whether it changed, and whether Enter was pressed."),
-        ("set_text", &[], "", "Overwrite what the field with this `id` is editing, leaving the seed its `value` option last wrote alone."),
+        ("set_field_text", &[], "", "Overwrite what the field with this `id` is editing, leaving the seed its `value` option last wrote alone."),
     ]);
     {
         m.function(
@@ -299,16 +254,19 @@ pub(crate) fn install_text_input(m: &mut dyn Bindings<Engine>) {
         );
     }
     {
-        m.function("set_text", |eng: &Engine, (id, value): (String, String)| {
-            let state = eng.resource::<UiState>();
-            let mut state = state.borrow_mut();
-            // The seed is left alone on purpose: it records what the *source*
-            // last was, which this write does not change, so the override
-            // survives until the source itself moves.
-            state.text_buffers.insert(id.clone(), value);
-            state.focused_once.remove(&id);
-            Ok(())
-        });
+        m.function(
+            "set_field_text",
+            |eng: &Engine, (id, value): (String, String)| {
+                let state = eng.resource::<UiState>();
+                let mut state = state.borrow_mut();
+                // The seed is left alone on purpose: it records what the *source*
+                // last was, which this write does not change, so the override
+                // survives until the source itself moves.
+                state.text_buffers.insert(id.clone(), value);
+                state.focused_once.remove(&id);
+                Ok(())
+            },
+        );
     }
 }
 
@@ -324,7 +282,7 @@ pub(crate) fn install_code(m: &mut dyn Bindings<Engine>) {
         |_eng: &Engine, (gutter, spans, opts): (String, Value, Option<Value>)| {
             let opts = Opts::with_roles(opts);
             with_ui(|ui| {
-                let size = opts.px(k::FONT_SIZE, 12.5);
+                let size = opts.px(k::FONT_SIZE, theme::size(t::FONT_SIZE));
                 let row_h = size * opts.f32(k::LINE_HEIGHT, 1.78);
                 let gutter_w = opts.px(k::GUTTER_WIDTH, 24.0);
                 let (rect, _) =
@@ -333,7 +291,7 @@ pub(crate) fn install_code(m: &mut dyn Bindings<Engine>) {
                     ui.painter().rect_filled(rect, 0.0, fill);
                 }
                 let mono = FontId::new(size, theme::family(w::MONO));
-                let gutter_color = opts.color(k::GUTTER_COLOR, Color32::from_rgb(0x76, 0x7e, 0x88));
+                let gutter_color = opts.color(k::GUTTER_COLOR, theme::color(t::TEXT_MUTED));
                 ui.painter().text(
                     pos2(rect.min.x + gutter_w, rect.center().y),
                     Align2::RIGHT_CENTER,
@@ -363,8 +321,9 @@ pub(crate) fn install_code(m: &mut dyn Bindings<Engine>) {
                         _ => Color32::WHITE,
                     };
                     let mut format = egui::TextFormat::simple(mono.clone(), color);
-                    if matches!(field(k::FONT_WEIGHT), Some(Value::Num(w)) if *w >= 600.0)
-                        || matches!(field(k::FONT_WEIGHT), Some(Value::Int(w)) if *w >= 600)
+                    let bold = f64::from(weights::BOLD_FROM);
+                    if matches!(field(k::FONT_WEIGHT), Some(Value::Num(w)) if *w >= bold)
+                        || matches!(field(k::FONT_WEIGHT), Some(Value::Int(w)) if *w as f64 >= bold)
                     {
                         format.font_id = FontId::new(size, theme::family(w::MONO));
                         format.underline = Stroke::NONE;
@@ -431,12 +390,12 @@ pub(crate) fn install_window(m: &mut dyn Bindings<Engine>) {
 
 pub(crate) fn install_modal(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
-        "modal",
+        "dialog",
         &[],
         "", "Draw the callback in a centered dialog over a dimming scrim; true on the frame the scrim was clicked. `width`, `height` and `top` size and place it, `fill`, `stroke` and `scrim` colour it; height follows the content when it is not given.",
     )]);
     m.function(
-        "modal",
+        "dialog",
         |eng: &Engine, (id, opts, cb): (String, Option<Value>, CallbackId)| {
             let opts = Opts::with_roles(opts);
             with_ctx(|ctx| {
@@ -467,7 +426,7 @@ pub(crate) fn install_modal(m: &mut dyn Bindings<Engine>) {
                     .show(ctx, |ui| {
                         let mut frame = egui::Frame::new()
                             .corner_radius(pill_radius(32.0))
-                            .fill(opts.color(k::FILL, Color32::from_rgb(0x20, 0x24, 0x2a)));
+                            .fill(opts.color(k::FILL, theme::color(t::BG_PANEL)));
                         if let Some(stroke) = opts.opt_stroke() {
                             frame = frame.stroke(stroke);
                         }
@@ -504,13 +463,13 @@ pub(crate) fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
         "The same for one named surface: roots whose `layer` is this name draw here instead. A name nothing has set takes the default surface.",
     ),
     (
-        "set_keyboard_focus",
+        "set_keyboard_navigation",
         &[],
         "",
         "Let the arrows, Tab, Enter and Space move and activate the focused widget. Off unless asked for, so a game that moves with the arrows does not click its own HUD; `standard_app` turns it on for a project declaring the `ui_*` actions.",
     )]);
     {
-        m.function("set_keyboard_focus", |eng: &Engine, on: bool| {
+        m.function("set_keyboard_navigation", |eng: &Engine, on: bool| {
             eng.resource::<crate::WidgetLayerConfig>()
                 .borrow_mut()
                 .keyboard = on;
@@ -580,7 +539,7 @@ fn rect_of(x: Option<f32>, y: Option<f32>, w: Option<f32>, h: Option<f32>) -> Op
 fn install_focus(m: &mut dyn Bindings<Engine>) {
     use crate::widget::node::Move;
     m.describe(&[
-        ("focused", &[], "()", "The widget node focus is on, or nil."),
+        ("focused_widget", &[], "()", "The widget node focus is on, or nil."),
         (
             "set_focus",
             &[],
@@ -612,7 +571,7 @@ fn install_focus(m: &mut dyn Bindings<Engine>) {
             "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `#{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
         ),
     ]);
-    m.function("focused", |eng: &Engine, ()| {
+    m.function("focused_widget", |eng: &Engine, ()| {
         let focus = eng.resource::<crate::UiFocus>();
         let focused = focus.borrow().focused;
         Ok(focused.map_or(balaur_script::Value::Nil, |e| {
@@ -767,12 +726,12 @@ pub(crate) fn install_dropdown_select(m: &mut dyn Bindings<Engine>) {
                     _ => Vec::new(),
                 };
                 let w = opts.px(k::WIDTH, 160.0);
-                let size = opts.px(k::FONT_SIZE, 12.0);
+                let size = opts.px(k::FONT_SIZE, theme::size(t::FONT_SIZE));
                 let text_color = opts.color(k::TEXT_COLOR, Color32::WHITE);
                 let mut selected = current.clone();
                 ui.scope(|ui| {
                     // Pill-shaped shell and menu items for this widget only.
-                    let radius = pill_radius(5.0 * 2.0);
+                    let radius = pill_radius(theme::size(t::RADIUS_SMALL) * 2.0);
                     let visuals = &mut ui.style_mut().visuals;
                     visuals.widgets.inactive.corner_radius = radius;
                     visuals.widgets.hovered.corner_radius = radius;
@@ -812,7 +771,7 @@ pub(crate) fn install_images(m: &mut dyn Bindings<Engine>) {
         ("image", &[], "", "Draw a PNG from the project, sized by `width`/`height` in design pixels and cached by path. `region` (`[x, y, w, h]` in the image's own pixels) draws one part of it, which is how an atlas is shown a tile at a time."),
         ("image_button", &[], "", "The same picture, answering a click: returns whether it was clicked this frame. Takes every `image` option plus `selected`, which draws the `stroke` border a chosen tile needs, and the `menu`/`menu_click` callbacks a pill takes."),
         ("rect_stroke", &[], "", "Outline a rectangle at x/y/w/h design pixels from the current panel's corner, `dashed` when asked."),
-        ("cursor_y", &[], "", "How far down the current panel the next widget will land, in design pixels: the same origin `rect_stroke` measures from."),
+        ("layout_y", &[], "", "How far down the current panel the next widget will land, in design pixels: the same origin `rect_stroke` measures from."),
     ]);
     {
         m.function(
@@ -832,7 +791,7 @@ pub(crate) fn install_images(m: &mut dyn Bindings<Engine>) {
     }
     // Where the next widget lands, in `rect_stroke`'s coordinates, so a rule
     // can be drawn down through rows that have not been laid out yet.
-    m.function("cursor_y", |_eng: &Engine, (): ()| {
+    m.function("layout_y", |_eng: &Engine, (): ()| {
         with_ui(|ui| {
             let top = ui.max_rect().min.y;
             Ok(f64::from(ui.cursor().min.y - top))
@@ -848,8 +807,8 @@ pub(crate) fn install_images(m: &mut dyn Bindings<Engine>) {
                 let origin = ui.max_rect().min;
                 let rect = Rect::from_min_size(pos2(origin.x + x, origin.y + y), vec2(w, h));
                 let stroke = Stroke::new(
-                    opts.f32(k::WIDTH, 1.5),
-                    opts.color(k::TEXT_COLOR, Color32::from_rgb(0xd5, 0x81, 0x4e)),
+                    opts.px(k::STROKE_WIDTH, 1.5),
+                    opts.color(k::STROKE, theme::color(t::PRIMARY_FILL)),
                 );
                 if opts.boolean(k::DASHED, false) {
                     let corners = [
@@ -879,11 +838,11 @@ pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
         ("available_width", &[], "", "The width left in the current container, in design pixels."),
         ("available_height", &[], "", "The height left in the current container, in design pixels."),
         ("central_rect", &[], "", "The x, y, width and height of the surface being drawn into, in design pixels."),
-        ("screen_size", &[], "", "The window's width and height, in design pixels; a headless run answers the `[window]` size the project states."),
+        ("window_size", &[], "", "The window's width and height, in design pixels; a headless run answers the `[window]` size the project states."),
         ("shortcut", &[], "", "Whether this chord was pressed this frame, consuming it: modifiers and a key joined by `+`, as in `\"cmd+shift+s\"` or `\"f5\"`. `cmd` is the platform's command key, Command on a Mac and Control everywhere else."),
         ("set_clipboard", &[], "", "Copy text to the system clipboard."),
-        ("clipboard", &[], "", "The text pasted this frame, empty otherwise: the platform clipboard is not readable on demand."),
-        ("color", &[], "", "Draw a colour picker over `value`, an `[r, g, b, a]` of unit floats; returns the colour and whether it changed."),
+        ("pasted_text", &[], "", "The text pasted this frame, empty otherwise: the platform clipboard is not readable on demand."),
+        ("color_picker", &[], "", "Draw a color picker over `value`, an `[r, g, b, a]` of unit floats; returns the colour and whether it changed."),
         ("wants_keyboard", &[], "", "Whether a UI widget holds keyboard focus, so the game should leave this frame's key presses alone."),
         ("wants_pointer", &[], "", "Whether a UI widget took this frame's pointer or finger, so the game should leave it alone: what stops a tap on a HUD button also firing the shot behind it. False without a window."),
     ]);
@@ -904,7 +863,7 @@ pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
             Ok((rect.min.x, rect.min.y, rect.width(), rect.height()))
         })
     });
-    m.function("screen_size", |eng: &Engine, ()| {
+    m.function("window_size", |eng: &Engine, ()| {
         // The backend publishes the screen before the tick, and the tick runs
         // before the first pass: until then egui's viewport is a placeholder.
         let [w, h] = balaur_core::facts::device(eng).design_size();
@@ -946,7 +905,7 @@ fn install_clipboard_and_color(m: &mut dyn Bindings<Engine>) {
             Ok(())
         })
     });
-    m.function("clipboard", |_eng: &Engine, ()| {
+    m.function("pasted_text", |_eng: &Engine, ()| {
         with_ctx(|ctx| {
             Ok(ctx.input(|i| {
                 i.events
@@ -962,7 +921,7 @@ fn install_clipboard_and_color(m: &mut dyn Bindings<Engine>) {
     });
     // A colour as `[r, g, b, a]` in unit floats, which is how a schema's
     // `color` property is stored. Four drag values were the alternative.
-    m.function("color", |_eng: &Engine, value: Option<Value>| {
+    m.function("color_picker", |_eng: &Engine, value: Option<Value>| {
         let opts = Opts::plain(value);
         let start = opts.unit_rgba(k::VALUE);
         with_ui(|ui| {
@@ -1001,24 +960,34 @@ fn install_clipboard_and_color(m: &mut dyn Bindings<Engine>) {
 /// changed it, so a script can write back only on a real edit.
 fn install_toggle_and_slider(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("toggle", &[], "", "Draw an on/off switch; returns the state after this frame and whether it was clicked."),
+        ("switch", &[], "", "Draw an on/off switch; returns the state after this frame and whether it was clicked."),
         ("slider", &[], "", "Draw a horizontal slider between `min` and `max`; returns the value after this frame and whether it moved."),
     ]);
     m.function(
-        "toggle",
+        "switch",
         |_eng: &Engine, (on, opts): (bool, Option<Value>)| {
             let given = Opts::with_roles(opts);
             with_ui(|ui| {
                 // Sized from the theme: a switch as tall as its row, not a
                 // slab that dwarfs the fields beside it.
-                let h = given.px(k::HEIGHT, 18.0);
+                let h = given.px(k::HEIGHT, theme::size(t::CONTROL_HEIGHT_SMALL));
                 let (rect, response) = ui.allocate_exact_size(vec2(h * 1.75, h), Sense::click());
                 let on = if response.clicked() { !on } else { on };
                 // The track is the fill and the knob the text colour, and a
-                // switch that is on wears its role's `checked` table.
+                // switch that is on wears its `checked` table, or the
+                // primary fill where nothing dresses it.
                 let opts = given.with_checked(on);
-                let track = opts.color(k::FILL, Color32::from_rgb(0x10, 0x12, 0x15));
-                let knob = opts.color(k::TEXT_COLOR, Color32::from_rgb(0x76, 0x7e, 0x88));
+                let (track, knob) = if on && !opts.dresses_checked() {
+                    (
+                        theme::color(t::PRIMARY_FILL),
+                        theme::color(t::TEXT_ON_PRIMARY),
+                    )
+                } else {
+                    (
+                        opts.color(k::FILL, theme::color(t::BG_CONTROL)),
+                        opts.color(k::TEXT_COLOR, theme::color(t::TEXT_MUTED)),
+                    )
+                };
                 ui.painter().rect_filled(rect, h / 2.0, track);
                 let inset = h / 2.0;
                 let x = if on {
@@ -1066,19 +1035,19 @@ fn install_toggle_and_slider(m: &mut dyn Bindings<Engine>) {
                 ui.painter().rect_filled(
                     rail,
                     2.5,
-                    opts.color(k::RAIL, Color32::from_rgb(0x10, 0x12, 0x15)),
+                    opts.color(k::RAIL, theme::color(t::BG_CONTROL)),
                 );
                 let fill_rect = Rect::from_min_max(
                     rail.min,
                     pos2(rail.width().mul_add(t, rail.min.x), rail.max.y),
                 );
-                let accent = opts.color(k::FILL, Color32::from_rgb(0xd5, 0x81, 0x4e));
+                let accent = opts.color(k::FILL, theme::color(t::PRIMARY_FILL));
                 ui.painter().rect_filled(fill_rect, 2.5, accent);
                 let knob_x = rect.width().mul_add(t, rect.min.x);
                 ui.painter().circle_filled(
                     pos2(knob_x, rect.center().y),
                     6.5,
-                    opts.color(k::KNOB, Color32::from_rgb(0x17, 0x19, 0x1c)),
+                    opts.color(k::KNOB, theme::color(t::BG_APP)),
                 );
                 ui.painter().circle_stroke(
                     pos2(knob_x, rect.center().y),
@@ -1091,19 +1060,19 @@ fn install_toggle_and_slider(m: &mut dyn Bindings<Engine>) {
     );
 }
 
-/// `ui.drag_value` and its keyboard handling.
+/// `ui.number_field` and its keyboard handling.
 fn install_drag_value(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
-        "drag_value",
+        "number_field",
         &[],
         "", "Draw a number dragged sideways to change it; returns the value and whether this frame changed it.",
     )]);
     m.function(
-        "drag_value",
+        "number_field",
         |_eng: &Engine, (value, opts): (f64, Option<Value>)| {
             let opts = Opts::with_roles(opts);
             with_ui(|ui| {
-                let h = opts.px(k::HEIGHT, 28.0);
+                let h = opts.px(k::HEIGHT, theme::size(t::CONTROL_HEIGHT));
                 let w = {
                     let w = opts.px(k::WIDTH, 0.0);
                     if w > 0.0 {
@@ -1130,21 +1099,21 @@ fn install_drag_value(m: &mut dyn Bindings<Engine>) {
                 let corner = if radius > 0.0 {
                     pill_radius(radius * 2.0)
                 } else {
-                    pill_radius(5.0 * 2.0)
+                    pill_radius(theme::size(t::RADIUS_SMALL) * 2.0)
                 };
                 ui.painter().rect(
                     rect,
                     corner,
-                    opts.color(k::FILL, Color32::from_rgb(0x10, 0x12, 0x15)),
-                    opts.stroke_or(Color32::from_rgb(0x2b, 0x30, 0x37)),
+                    opts.color(k::FILL, theme::color(t::BG_CONTROL)),
+                    opts.stroke_or(theme::color(t::BORDER_DEFAULT)),
                     StrokeKind::Inside,
                 );
                 // Tight: three of these are one row of a vector, and the gap
                 // the label used to keep pushed the value out of its own cell.
-                let size = opts.px(k::FONT_SIZE, 12.0);
+                let size = opts.px(k::FONT_SIZE, theme::size(t::FONT_SIZE));
                 let mut x = rect.min.x + 5.0;
                 if let Some(prefix) = opts.string(k::PREFIX) {
-                    let color = opts.color(k::PREFIX_COLOR, Color32::from_rgb(0x6f, 0xa4, 0xd8));
+                    let color = opts.color(k::PREFIX_COLOR, theme::color(t::PRIMARY_TEXT));
                     let galley = ui.painter().layout_no_wrap(
                         prefix,
                         FontId::new(size, theme::family(w::HEADING)),
@@ -1160,7 +1129,7 @@ fn install_drag_value(m: &mut dyn Bindings<Engine>) {
                     || format!("{value:.decimals$}"),
                     |s| format!("{value:.decimals$}{s}"),
                 );
-                let color = opts.color(k::TEXT_COLOR, Color32::from_rgb(0xee, 0xf1, 0xf4));
+                let color = opts.color(k::TEXT_COLOR, theme::color(t::TEXT_DEFAULT));
                 let galley = ui.painter().layout_no_wrap(
                     display,
                     FontId::new(size, theme::family(w::MONO)),

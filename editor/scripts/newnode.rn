@@ -112,7 +112,7 @@ fn row_specs(S, k, row_h) {
     // no dimension to be filed under.
     if query == "" || "empty node".contains(query) {
         out.push(row_spec(row_h, "Empty node  ·  a transform and nothing else",
-            icons::node("world"), k.faint, || {
+            icons::node("world"), k.text_subtle, || {
                 model::add_child(S, None);
                 close(S);
             }));
@@ -132,7 +132,7 @@ fn row_specs(S, k, row_h) {
             continue;
         }
         out.push(#{ full: true, height: 20, controls: [#{
-            kind: "label", role: "meta", grow: 1, text: title,
+            kind: "label", role: "text_caption", grow: 1, text: title,
         }] });
         for entry in shown {
             // Bound afresh: a closure made in a loop captures the binding.
@@ -142,12 +142,12 @@ fn row_specs(S, k, row_h) {
             let (mark, tint) = icons::component(row.name);
             let caption = if row.note == "" { row.name } else { row.name + "  ·  " + row.note };
             out.push(row_spec(row_h, caption, mark,
-                k.get(tint).unwrap_or(k.accent), || { place(S, row); }));
+                k.get(tint).unwrap_or(k.primary_text), || { place(S, row); }));
         }
     }
     if out.is_empty() {
         out.push(#{ full: true, height: 0, controls: [#{
-            kind: "label", role: "meta", grow: 1, wrap: true,
+            kind: "label", role: "text_caption", grow: 1, wrap: true,
             text: crate::search::nothing_says(S.newnode_query),
         }] });
     }
@@ -158,7 +158,7 @@ fn row_specs(S, k, row_h) {
 // styling: the tree and the inspector draw the same pair.
 fn row_spec(row_h, caption, mark, color, act) {
     #{ full: true, height: row_h, controls: [#{
-        kind: "button", role: "picker_row", grow: 1,
+        kind: "button", role: "item_picker", grow: 1,
         text: caption, icon: mark, icon_color: color,
         on: |_| { act(); },
     }] }

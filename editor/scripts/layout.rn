@@ -150,7 +150,8 @@ fn role_num(S, role, key, fallback) {
     if let Some(entry) = found {
         let value = entry.get(key);
         if let Some(number) = value {
-            return util::f(number);
+            let px = crate::style::px(S, number);
+            return px;
         }
     }
     fallback
@@ -169,8 +170,8 @@ fn adopt(S) {
     }
     // The shell's gutter and seam are the theme's, so one file holds them and
     // a role a node takes cannot drift from the number this arithmetic uses.
-    m.gutter = role_num(S, "shell", "padding", 14.0);
-    m.gap = role_num(S, "shell", "gap", 12.0);
+    m.gutter = role_num(S, "layout_shell", "padding", 14.0);
+    m.gap = role_num(S, "layout_shell", "gap", 12.0);
     m.pad = stated(S, "leftsheet", "padding");
     m.tree_w = stated(S, "left", "width");
     m.insp_w = stated(S, "right", "width");
@@ -295,7 +296,7 @@ fn box_of(S, id) {
     }
     let r = ui::widget_rect(found);
     if r is Object {
-        return rect(r.x, r.y, r.w, r.h);
+        return rect(r.x, r.y, r.width, r.height);
     }
     rect(0.0, 0.0, 0.0, 0.0)
 }
@@ -505,7 +506,7 @@ pub fn shell_room(S) {
         return (0.0, 0.0);
     }
     // `return`: a bare tuple after a block parses as a call on the block.
-    return (util::f(box.w), util::f(box.h));
+    return (util::f(box.width), util::f(box.height));
 }
 
 /// Whether three columns fit across: both side docks and the stage at their

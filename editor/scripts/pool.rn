@@ -9,17 +9,17 @@ use crate::util;
 // What carries a control's value, per kind. A control the table does not
 // name reports nothing, which is what a label and a separator do.
 fn carrier(kind) {
-    if kind == "drag_value" || kind == "slider" || kind == "progress" {
+    if kind == "number_field" || kind == "slider" || kind == "progress_bar" {
         return "value";
     }
-    if kind == "check" || kind == "switch" {
+    if kind == "checkbox" || kind == "switch" {
         return "checked";
     }
-    if kind == "field" || kind == "dropdown" || kind == "text_area" || kind == "list" {
+    if kind == "text_field" || kind == "dropdown" || kind == "text_area" || kind == "list" {
         return "text";
     }
-    if kind == "color" {
-        return "color";
+    if kind == "color_picker" {
+        return "picked_color";
     }
     if kind == "button" {
         return "clicked";
@@ -91,7 +91,7 @@ fn make_row(host, index) {
     let row = host.add_child(format!("R{}", index));
     row.set_component("widget", #{ kind: "row", gap: 6, height: 24 });
     let label = row.add_child("L");
-    label.set_component("widget", #{ kind: "label", role: "label" });
+    label.set_component("widget", #{ kind: "label", role: "text_label" });
     let column = row.add_child("H");
     column.set_component("widget", #{ kind: "row", gap: 0, grow: 1 });
     // No `gap`: the row's `slot_role` carries it, and a number here would win
@@ -195,7 +195,7 @@ fn apply_control(S, host, key, node, want) {
 /// otherwise keep last frame's: a spacer that becomes a label draws it six
 /// pixels wide, which is one letter and an ellipsis.
 const SHAPELESS = #{
-    width: 0, height: 0, grow: 0, radius: -1, fill: "", tooltip: "",
+    width: 0, height: 0, grow: 0, corner_radius: -1, fill: "", tooltip: "", checked: false,
     // `text` too: a pooled node is made as a label, whose text is "label" by
     // default, and a spacer or a hatch that names none would wear it.
     text: "",
@@ -334,7 +334,7 @@ pub fn sync(S, host_path, specs, label_w, stacked) {
                 text: text,
                 width: if stack { 0.0 } else { label_w },
                 height: if stack { LABEL_H } else { 0.0 },
-                role: spec.get("label_role").unwrap_or("label"),
+                role: spec.get("label_role").unwrap_or("text_label"),
                 tooltip: spec.get("tooltip").unwrap_or(""),
             });
         }
@@ -359,7 +359,7 @@ pub fn sync(S, host_path, specs, label_w, stacked) {
         }
         patched(S, host_path, format!("r{}:C", i), slot, #{
             visible: drawn.is_none(),
-            role: spec.get("slot_role").unwrap_or("cells"),
+            role: spec.get("slot_role").unwrap_or("layout_cells"),
         });
         if drawn.is_some() {
             continue;

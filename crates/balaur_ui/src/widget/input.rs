@@ -125,7 +125,7 @@ pub fn click(eng: &Engine, entity: Entity, hidden: bool) -> bool {
     clickable
 }
 
-/// Submit a `field` as Enter would, settled at the next tick: the text lands
+/// Submit a `text_field` as Enter would, settled at the next tick: the text lands
 /// on the widget and `submitted` is true for one frame. What a headless
 /// harness types with, and what proves a pooled row hears it.
 pub fn submit(eng: &Engine, entity: Entity, text: &str) -> bool {
@@ -446,7 +446,7 @@ fn settle_clicks(
     signals
 }
 
-/// A widget a click ticks and unticks: a `check`, or a `toggle` button.
+/// A widget a click ticks and unticks: a `checkbox`, or a `toggle` button.
 fn flips(widget: &Widget) -> bool {
     widget.kind == w::CHECKBOX || widget.kind == w::SWITCH || widget.toggle
 }

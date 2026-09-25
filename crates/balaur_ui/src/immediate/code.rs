@@ -9,7 +9,7 @@ use crate::UiState;
 use crate::bridge::with_ui;
 use crate::immediate::Opts;
 use crate::theme;
-use crate::vocabulary::{keys as k, words as w};
+use crate::vocabulary::{keys as k, tokens as t, words as w};
 
 pub(crate) struct SyntaxColors {
     key: Color32,
@@ -24,13 +24,13 @@ pub(crate) struct SyntaxColors {
 impl SyntaxColors {
     pub(crate) fn from_opts(opts: &Opts) -> Self {
         Self {
-            key: opts.color(k::SYNTAX_KEYWORD, Color32::from_rgb(0x6f, 0xa4, 0xd8)),
-            string: opts.color(k::SYNTAX_STRING, Color32::from_rgb(0x8f, 0xb8, 0xb0)),
-            number: opts.color(k::SYNTAX_NUMBER, Color32::from_rgb(0x9f, 0xc2, 0xe5)),
-            comment: opts.color(k::SYNTAX_COMMENT, Color32::from_rgb(0x8a, 0x97, 0xa4)),
-            ident: opts.color(k::SYNTAX_IDENTIFIER, Color32::from_rgb(0xe6, 0xe9, 0xee)),
-            builtin: opts.color(k::SYNTAX_TYPE, Color32::from_rgb(0xb7, 0xd3, 0xcc)),
-            punct: opts.color(k::SYNTAX_PUNCTUATION, Color32::from_rgb(0x9b, 0xa6, 0xb1)),
+            key: opts.color(k::SYNTAX_KEYWORD, theme::color(t::SYNTAX_KEYWORD)),
+            string: opts.color(k::SYNTAX_STRING, theme::color(t::SYNTAX_STRING)),
+            number: opts.color(k::SYNTAX_NUMBER, theme::color(t::SYNTAX_NUMBER)),
+            comment: opts.color(k::SYNTAX_COMMENT, theme::color(t::SYNTAX_COMMENT)),
+            ident: opts.color(k::SYNTAX_IDENTIFIER, theme::color(t::SYNTAX_IDENTIFIER)),
+            builtin: opts.color(k::SYNTAX_TYPE, theme::color(t::SYNTAX_TYPE)),
+            punct: opts.color(k::SYNTAX_PUNCTUATION, theme::color(t::SYNTAX_PUNCTUATION)),
         }
     }
 }
@@ -182,8 +182,8 @@ impl Marks {
         Self {
             errors: opts.lines(k::PROBLEMS),
             warnings: opts.lines(k::WARNINGS),
-            error_color: opts.color(k::PROBLEM_COLOR, Color32::from_rgb(0xe3, 0x7b, 0x7b)),
-            warning_color: opts.color(k::WARNING_COLOR, Color32::from_rgb(0xe0, 0xb0, 0x4a)),
+            error_color: opts.color(k::PROBLEM_COLOR, theme::color(t::DANGER_TEXT)),
+            warning_color: opts.color(k::WARNING_COLOR, theme::color(t::WARNING_TEXT)),
         }
     }
 
@@ -302,14 +302,14 @@ impl Gutter {
     fn from_opts(opts: &Opts, size: f32) -> Self {
         Self {
             width: opts.px(k::GUTTER_WIDTH, 34.0),
-            color: opts.color(k::GUTTER_COLOR, Color32::from_rgb(0x8a, 0x97, 0xa4)),
+            color: opts.color(k::GUTTER_COLOR, theme::color(t::TEXT_SUBTLE)),
             size,
             breakpoints: opts.lines(k::BREAKPOINTS),
             current_line: opts.f32(k::CURRENT_LINE, 0.0).max(0.0) as usize,
-            breakpoint_color: opts.color(k::BREAKPOINT_COLOR, Color32::from_rgb(0xe0, 0x4a, 0x4a)),
+            breakpoint_color: opts.color(k::BREAKPOINT_COLOR, theme::color(t::DANGER_TEXT)),
             current_fill: opts.color(
                 k::CURRENT_FILL,
-                Color32::from_rgba_unmultiplied(0xe0, 0xb0, 0x4a, 0x40),
+                theme::color(t::WARNING_TEXT).gamma_multiply(0.25),
             ),
             marks: Marks::from_opts(opts),
         }
@@ -473,7 +473,7 @@ pub(crate) fn code_editor(
         .text_buffers
         .remove(id)
         .unwrap_or_else(|| source.to_string());
-    let size = opts.px(k::FONT_SIZE, 12.5);
+    let size = opts.px(k::FONT_SIZE, theme::size(t::FONT_SIZE));
     let gutter = Gutter::from_opts(opts, size);
     let colors = SyntaxColors::from_opts(opts);
     let marks = Marks::from_opts(opts);

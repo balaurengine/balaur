@@ -67,7 +67,7 @@ name = "List"
 parent = "list_box"
 [nodes.widget]
 kind = "list"
-multi = true
+multi_select = true
 reorderable = true
 on_move = "on_move"
 row_height = 22
@@ -100,7 +100,7 @@ kind = "tree"
 reorderable = true
 on_move = "on_move"
 row_height = 22
-font = "mono"
+font_family = "mono"
 grow = 1
 
 [[nodes]]
@@ -137,7 +137,7 @@ sortable = true
 sort = "size"
 widths = ["2", "1.4", "1"]
 row_height = 22
-font = "mono"
+font_family = "mono"
 grow = 1
 
 [[nodes]]

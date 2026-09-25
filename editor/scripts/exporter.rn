@@ -68,14 +68,14 @@ pub fn draw(S) {
 /// builds from, and a target with its verb.
 fn specs(S) {
     if S.exporter.rows.is_empty() {
-        let none = [note("no targets — this build has no exporter", "meta")];
+        let none = [note("no targets — this build has no exporter", "text_caption")];
         return none;
     }
     let out = [
-        note("Builds the project this editor is editing.", "meta"),
+        note("Builds the project this editor is editing.", "text_caption"),
         // The sheet builds; what it builds from is a settings page, so the
         // sentence that used to name the table is the link to it.
-        #{ full: true, height: 24, slot_role: "verb_row", controls: [#{
+        #{ full: true, height: 24, slot_role: "layout_actions", controls: [#{
             kind: "button", role: "chip", text: "export settings",
             on: |_| { crate::settings::open_at(S, "export"); },
         }] },
@@ -96,9 +96,9 @@ fn folder_button(S, k) {
     if S.exporter.landed == "" {
         return;
     }
-    if ui::pill("Open folder", #{
-        height: 24, size: style::MD, radius: 8, tooltip: "Show the last export in the file manager",
-        fill: k.sunken, color: k.dim,
+    if ui::button("Open folder", #{
+        height: 24, font_size: style::MD, corner_radius: 8, tooltip: "Show the last export in the file manager",
+        fill: k.bg_control, text_color: k.text_muted,
     }) {
         engine::reveal(S.exporter.landed);
     }
@@ -123,11 +123,11 @@ fn target_specs(S, row, out) {
     let status = S.exporter.status.get(name).unwrap_or("");
     let said = S.exporter.said.get(name).unwrap_or("");
     let controls = [
-        #{ kind: "label", role: "mono", text: name },
-        #{ kind: "label", role: "meta", text: readiness(installed, fetchable) },
+        #{ kind: "label", role: "text_code", text: name },
+        #{ kind: "label", role: "text_caption", text: readiness(installed, fetchable) },
     ];
     if note_text != "" {
-        controls.push(#{ kind: "label", role: "warn_note", text: note_text });
+        controls.push(#{ kind: "label", role: "note_warning", text: note_text });
     }
     controls.push(#{ kind: "row", grow: 1 });
     let verb = export_button(S, name, installed, fetchable, status);
@@ -135,16 +135,16 @@ fn target_specs(S, row, out) {
         controls.push(verb);
     }
     if status == "started" {
-        controls.push(#{ kind: "label", role: "meta", text: "building…" });
+        controls.push(#{ kind: "label", role: "text_caption", text: "building…" });
     } else if status == "failed" {
-        controls.push(#{ kind: "label", role: "error_note", text: "failed" });
+        controls.push(#{ kind: "label", role: "note_danger", text: "failed" });
     } else if status == "done" {
-        controls.push(#{ kind: "label", role: "meta", text: "done" });
+        controls.push(#{ kind: "label", role: "text_caption", text: "done" });
     }
-    out.push(#{ full: true, height: 24, slot_role: "verb_row", controls: controls });
+    out.push(#{ full: true, height: 24, slot_role: "layout_actions", controls: controls });
     // The path it wrote, or the reason it did not, under the row that says so.
     if said != "" {
-        out.push(note(said, if status == "failed" { "error_note" } else { "meta" }));
+        out.push(note(said, if status == "failed" { "note_danger" } else { "text_caption" }));
     }
 }
 
@@ -155,7 +155,7 @@ fn export_button(S, name, installed, fetchable, status) {
         return ();
     }
     #{
-        kind: "button", role: "row_action",
+        kind: "button", role: "action_form",
         text: if installed { "export" } else { "download & export" },
         tooltip: "Export the project for this target",
         on: |_| {

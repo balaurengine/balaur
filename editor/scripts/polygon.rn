@@ -896,8 +896,8 @@ pub fn draw(S) {
         None => return,
     };
     let k = S.theme;
-    let accent = util::rgb(k.accent);
-    let sage = util::rgb(k.sage);
+    let accent = util::rgb(k.primary_text);
+    let sage = util::rgb(k.secondary_text);
     let mode = S.polygon.mode;
     let points = world_points(S, mesh, f, mode == "uv");
     let outline = outline_count(mesh);
@@ -1115,11 +1115,11 @@ pub fn mode_chips(S, k) {
     let mode = S.polygon.mode;
     for id in modes(S) {
         let on = mode == id;
-        if ui::pill(mode_name(id), #{
-            height: 24, size: style::SM, strong: true,
-            fill: if on { k.accent_soft } else { k.panel },
-            stroke: k.line,
-            color: if on { k.accent } else { k.dim },
+        if ui::button(mode_name(id), #{
+            height: 24, font_size: style::SM, font_weight: 700,
+            fill: if on { k.primary_bg } else { k.bg_panel },
+            stroke: k.border_default,
+            text_color: if on { k.primary_text } else { k.text_muted },
         }) {
             set_mode(S, id);
         }

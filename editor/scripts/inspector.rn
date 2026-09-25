@@ -18,7 +18,7 @@ pub fn section(S, k, title) {
     let open = !S.collapsed.contains_key(key);
     let (mark, tint) = icons::component(title.to_lowercase());
     fold_row(S, "section", open, title.to_uppercase(), mark,
-        k.get(tint).unwrap_or(k.dim), || {
+        k.get(tint).unwrap_or(k.text_muted), || {
             if open {
                 S.collapsed[key] = true;
             } else {
@@ -40,11 +40,11 @@ fn fold_row(S, role, open, text, icon, icon_color, toggle) {
 fn fold_row_with(S, role, open, text, icon, icon_color, toggle, extra) {
     let controls = [
         #{
-            kind: "label", role: role + "_caret",
+            kind: "label", role: "text_caret_" + role,
             text: if open { icons::ui("caret-open") } else { icons::ui("caret-shut") },
         },
         #{
-            kind: "button", role: role + "_head", grow: 1,
+            kind: "button", role: "action_" + role, grow: 1,
             text: text, icon: icon, icon_color: icon_color,
             on: |_| { toggle(); },
         },
@@ -52,7 +52,7 @@ fn fold_row_with(S, role, open, text, icon, icon_color, toggle, extra) {
     for one in extra {
         controls.push(one);
     }
-    push(S, #{ full: true, height: row_h(S), slot_role: role + "_fold", controls: controls });
+    push(S, #{ full: true, height: row_h(S), slot_role: "layout_" + role, controls: controls });
 }
 
 // The host the pool builds the rows on, and the hatch a drawn row names.
@@ -84,7 +84,7 @@ pub fn form_drawn() {
         return false;
     }
     let r = ui::widget_rect(host);
-    !util::is_nil(r) && r.w > 0.0
+    !util::is_nil(r) && r.width > 0.0
 }
 
 /// The node one form row was drawn on, for a caller that needs where it is on
@@ -209,8 +209,8 @@ fn form_w(S) {
     let host = scene::get_node(FORM_NODE);
     if !util::is_nil(host) {
         let r = ui::widget_rect(host);
-        if !util::is_nil(r) && r.w > 0.0 {
-            return r.w;
+        if !util::is_nil(r) && r.width > 0.0 {
+            return r.width;
         }
     }
     S.layout.right.w - 16.0
@@ -236,7 +236,7 @@ fn multi_note(S) {
         return;
     }
     push(S, #{ full: true, height: row_h(S) + 4.0, controls: [#{
-        kind: "panel", role: "multi_note", grow: 1,
+        kind: "panel", role: "note_primary", grow: 1,
         icon: icons::ui("select-all"),
         text: if S.compact {
             format!("{} nodes selected", n)
@@ -253,20 +253,20 @@ fn instance_note(S, k) {
     }
     // A prefab path is as long as the project makes it, so the column cuts it.
     push(S, #{ full: true, height: row_h(S) + 8.0, controls: [#{
-        role: "note_box", grow: 1, controls: [
+        role: "sheet_note", grow: 1, controls: [
             #{
-                kind: "label", role: "note_line", grow: 1,
+                kind: "label", role: "text_note", grow: 1,
                 text: icons::ui("instance") + " from " + model::prefab_of(S, node),
             },
             #{
-                kind: "button", role: "prefab_open", text: "open",
+                kind: "button", role: "action_prefab", text: "open",
                 tooltip: "Edit the prefab itself, for every instance of it",
                 on: |_| { model::open_prefab(S); },
             },
         ],
     }] });
     push(S, #{ full: true, height: row_h(S), controls: [#{
-        kind: "label", role: "meta", grow: 1,
+        kind: "label", role: "text_caption", grow: 1,
         text: "edits become overrides on " + node.at,
     }] });
 }
@@ -277,10 +277,10 @@ fn instance_source_row(S, k, node) {
         return;
     }
     push(S, #{ label: "Instance", height: row_h(S), controls: [#{
-        role: "prefab_box", grow: 1, controls: [
-            #{ kind: "label", role: "prefab_name", grow: 1, truncate: true, text: node.instance },
+        role: "sheet_prefab", grow: 1, controls: [
+            #{ kind: "label", role: "text_code_secondary", grow: 1, truncate: true, text: node.instance },
             #{
-                kind: "button", role: "prefab_open", text: "open",
+                kind: "button", role: "action_prefab", text: "open",
                 tooltip: "Edit the prefab itself, for every instance of it",
                 on: |_| { model::open_prefab(S); },
             },
@@ -296,15 +296,15 @@ fn script_section(S, k, title) {
         return;
     }
     let has = node.contains_key("script");
-    push(S, #{ label: "Script", height: row_h(S), slot_role: "verb_row", controls: [
+    push(S, #{ label: "Script", height: row_h(S), slot_role: "layout_actions", controls: [
         #{
-            kind: "field", role: "path_field", grow: 1,
+            kind: "text_field", role: "input_path", grow: 1,
             text: model::script_rel(node).unwrap_or(""),
             placeholder: "scripts/name.rn",
             on_submit: |text| { shell::set_script_path(S, text); },
         },
         #{
-            kind: "dropdown", role: "pick", text: "pick",
+            kind: "dropdown", role: "choice", text: "pick",
             options: shell::script_files(S),
             on: |picked| { shell::set_script_path(S, picked); },
         },
@@ -312,19 +312,19 @@ fn script_section(S, k, title) {
     let verbs = if has {
         [
             #{
-                kind: "button", role: "row_action_on", text: "open",
+                kind: "button", role: "action_form_primary", text: "open",
                 tooltip: "Edit it in the code pane",
                 on: |_| { shell::set_workspace(S, "script"); },
             },
             #{
-                kind: "button", role: "row_action_danger", text: "remove",
+                kind: "button", role: "action_form_danger", text: "remove",
                 tooltip: "Detach the script from this node; the file stays",
                 on: |_| { shell::detach_script(S); },
             },
         ]
     } else {
         [#{
-            kind: "button", role: "row_action_on", text: icons::ui("add") + " new script",
+            kind: "button", role: "action_form_primary", text: icons::ui("add") + " new script",
             tooltip: "Write scripts/" + node.name.to_lowercase() + ".rn and attach it",
             on: |_| { shell::attach_script(S); },
         }]
@@ -380,10 +380,10 @@ fn clip_source_row(S, k, node) {
     let path = anim::library_path(node);
     let inline = path.is_none();
     // The clip's file: a library path is longer than the row, so it is cut.
-    push(S, #{ label: "Source", height: row_h(S), slot_role: "verb_row", controls: [
-        #{ kind: "label", role: "readonly_value", grow: 1, truncate: true, text: path.unwrap_or("— inline —") },
+    push(S, #{ label: "Source", height: row_h(S), slot_role: "layout_actions", controls: [
+        #{ kind: "label", role: "text_code_quiet", grow: 1, truncate: true, text: path.unwrap_or("— inline —") },
         #{
-            kind: "button", role: "clip_verb",
+            kind: "button", role: "action_dock_secondary",
             text: if inline { "save as file" } else { "make inline" },
             tooltip: if inline {
                 "Write this clip to animations/ and reference it"
@@ -417,9 +417,9 @@ fn skeleton_section(S, k) {
     let what = if rig::is_bone(node) { "this bone and below" } else { format!("under {}", node.name) };
     // The node's own name is in the line, so the column cuts it.
     verb_row(S, "Bones", [
-        #{ kind: "label", role: "value", grow: 1, truncate: true, text: format!("{} · {}", count, what) },
+        #{ kind: "label", role: "text_code", grow: 1, truncate: true, text: format!("{} · {}", count, what) },
         #{
-            kind: "button", role: "row_action_on", text: icons::ui("add") + " bone",
+            kind: "button", role: "action_form_primary", text: icons::ui("add") + " bone",
             tooltip: "Grow a bone under this node (in 2D, the Rig bone tool places one by clicking)",
             on: |_| {
                 if let Some(found) = model::live(S, S.sel) {
@@ -434,12 +434,12 @@ fn skeleton_section(S, k) {
     }
     verb_row(S, "Rest pose", [
         #{
-            kind: "button", role: "row_action", text: "reset",
+            kind: "button", role: "action_form", text: "reset",
             tooltip: "Reset to Rest Pose: pose every bone here at its rest",
             on: |_| { rig::apply_rest(S); },
         },
         #{
-            kind: "button", role: "row_action_sage", text: "overwrite",
+            kind: "button", role: "action_form_secondary", text: "overwrite",
             tooltip: "Overwrite Rest Pose: the pose every bone is in now becomes its rest",
             on: |_| { rig::overwrite_rest(S); },
         },
@@ -449,7 +449,7 @@ fn skeleton_section(S, k) {
         // Bound afresh: a closure made in a loop captures the binding.
         let axis = over;
         mirrors.push(#{
-            kind: "button", role: "row_action", text: axis,
+            kind: "button", role: "action_form", text: axis,
             tooltip: format!("Reflect every bone's rest over this node's {} axis, and hand each bone's rest to the one whose name differs by a side", axis),
             on: |_| { rig::mirror(S, axis); },
         });
@@ -457,20 +457,20 @@ fn skeleton_section(S, k) {
     verb_row(S, "Mirror", mirrors);
     let built = node.contains_key("ragdoll");
     let ragdoll = [#{
-        kind: "button", role: "row_action_sage",
+        kind: "button", role: "action_form_secondary",
         text: if built { "rebuild" } else { "physical bones" },
         tooltip: "Create Physical Skeleton: a body and a capsule per bone, hinged to its parent's, driven back onto the rig by the ragdoll component's blend",
         on: |_| { rig::physical_bones(S); },
     }];
     if built {
-        ragdoll.push(#{ kind: "label", role: "meta", grow: 1, text_align: "end", text: "blend below" });
+        ragdoll.push(#{ kind: "label", role: "text_caption", grow: 1, text_align: "end", text: "blend below" });
     }
     verb_row(S, "Ragdoll", ragdoll);
 }
 
 /// A labelled row of verbs, spaced the way the theme spaces a row of them.
 fn verb_row(S, label, controls) {
-    push(S, #{ label: label, height: row_h(S), slot_role: "verb_row", controls: controls });
+    push(S, #{ label: label, height: row_h(S), slot_role: "layout_actions", controls: controls });
 }
 
 // What the Polygon tool works on: the vertex and polygon counts, the rig's
@@ -488,7 +488,7 @@ fn polygon_section(S, k) {
         Some(mesh) => mesh,
         None => {
             push(S, #{ label: "Mesh", height: row_h(S), controls: [#{
-                kind: "label", role: "meta", grow: 1,
+                kind: "label", role: "text_caption", grow: 1,
                 text: if polygon::editable(S) {
                     "empty — trace it with the Polygon tool"
                 } else {
@@ -501,7 +501,7 @@ fn polygon_section(S, k) {
     let positions = util::vec(mesh.get("positions").unwrap_or([]));
     let internal = polygon::internal_count(mesh);
     push(S, #{ label: "Vertices", height: row_h(S), controls: [#{
-        kind: "label", role: "value", grow: 1,
+        kind: "label", role: "text_code", grow: 1,
         text: format!("{} · {} internal", positions.len(), internal),
     }] });
     // An occluder is the outline and nothing else: no triangles, no rig, no
@@ -511,12 +511,12 @@ fn polygon_section(S, k) {
     }
     let drawn = util::vec(mesh.get("polygons").unwrap_or([])).len();
     let polygons = [#{
-        kind: "label", role: "value", grow: 1,
+        kind: "label", role: "text_code", grow: 1,
         text: if drawn == 0 { "outline, automatic" } else { format!("{} drawn", drawn) },
     }];
     if drawn > 0 {
         polygons.push(#{
-            kind: "button", role: "row_action", text: "clear",
+            kind: "button", role: "action_form", text: "clear",
             tooltip: "Back to filling the outline automatically",
             on: |_| { polygon::clear_polygons(S); },
         });
@@ -524,12 +524,12 @@ fn polygon_section(S, k) {
     verb_row(S, "Polygons", polygons);
     verb_row(S, "Trace", [
         #{
-            kind: "button", role: "row_action_sage", text: "from alpha",
+            kind: "button", role: "action_form_secondary", text: "from alpha",
             tooltip: "Walk the texture's alpha and write the outline it finds as this polygon's points, replacing what is here",
             on: |_| { polygon::trace(S); },
         },
         #{
-            kind: "drag_value", grow: 1, value: S.polygon.tolerance,
+            kind: "number_field", grow: 1, value: S.polygon.tolerance,
             step: 0.1, min: 0.0, max: 64.0, placeholder: "px",
             on: |v| { S.polygon.tolerance = v; },
         },
@@ -538,13 +538,13 @@ fn polygon_section(S, k) {
     for over in ["x", "y"] {
         let axis = over;
         mirrors.push(#{
-            kind: "button", role: "row_action", text: axis,
+            kind: "button", role: "action_form", text: axis,
             tooltip: format!("Reflect the picked vertices over this node's {} axis, and hand each bone's weights to the bone whose name differs by a side", axis),
             on: |_| { polygon::mirror(S, axis); },
         });
     }
     mirrors.push(#{
-        kind: "label", role: "meta", grow: 1, text_align: "end",
+        kind: "label", role: "text_caption", grow: 1, text_align: "end",
         text: if polygon::has_pick(S) {
             format!("{} picked", polygon::picked(S).len())
         } else {
@@ -556,24 +556,24 @@ fn polygon_section(S, k) {
         let deformed = polygon::deformed(S);
         verb_row(S, "Deform", [
             #{
-                kind: "button", role: "row_action_on", text: "key",
+                kind: "button", role: "action_form_primary", text: "key",
                 tooltip: "Key every vertex's offset from its authored position on the armed clip, at the playhead",
                 on: |_| { polygon::key_deform(S); },
             },
             #{
-                kind: "button", role: "row_action", text: "clear",
+                kind: "button", role: "action_form", text: "clear",
                 tooltip: "Put every vertex back on its authored position",
                 on: |_| { polygon::clear_deform(S); },
             },
             #{
                 kind: "label", grow: 1, text_align: "end",
-                role: if deformed { "answer_on" } else { "meta" },
+                role: if deformed { "text_caption_primary" } else { "text_caption" },
                 text: if deformed { "deformed" } else { "at rest" },
             },
         ]);
     }
     verb_row(S, "Bones", [#{
-        kind: "button", role: "row_action_sage", text: "sync to rig",
+        kind: "button", role: "action_form_secondary", text: "sync to rig",
         tooltip: "Sync Bones to Polygon: list the rig's bones, keeping weights already painted",
         on: |_| { polygon::sync_bones(S); },
     }]);
@@ -583,19 +583,19 @@ fn polygon_section(S, k) {
         let held = bone;
         push(S, #{ full: true, height: row_h(S), controls: [#{
             kind: "button", grow: 1, text: held.path, icon: "⋈",
-            role: if S.polygon.bone == Some(at) { "bone_row_on" } else { "bone_row" },
+            role: "item_bone", checked: S.polygon.bone == Some(at),
             tooltip: "Paint this bone's weights in the Weights mode",
             on: |_| { S.polygon.bone = Some(at); },
         }] });
     }
     verb_row(S, "Brush", [
         #{
-            kind: "drag_value", grow: 1, value: S.polygon.radius,
+            kind: "number_field", grow: 1, value: S.polygon.radius,
             step: 0.5, min: 2.0, max: 400.0, placeholder: "px",
             on: |v| { S.polygon.radius = v; },
         },
         #{
-            kind: "drag_value", grow: 1, value: S.polygon.strength,
+            kind: "number_field", grow: 1, value: S.polygon.strength,
             step: 0.01, min: 0.01, max: 2.0, placeholder: "×",
             on: |v| { S.polygon.strength = v; },
         },
@@ -613,7 +613,7 @@ fn animation_section(S, k) {
         Some(def) => def,
         None => {
             push(S, #{ label: "Clip", height: row_h(S) + 6.0, controls: [#{
-                kind: "button", role: "make_row", grow: 1,
+                kind: "button", role: "action_primary", grow: 1,
                 text: icons::ui("add") + " Create clip",
                 on: |_| { anim::ensure_clip(S); },
             }] });
@@ -626,7 +626,7 @@ fn animation_section(S, k) {
     // No `min`: a `drag_value` runs free only while `min` and `max` are both
     // left at 0 and 1, and naming one would clamp the clip to the other.
     push(S, #{ label: "Length", height: row_h(S), controls: [#{
-        kind: "drag_value", grow: 1, value: anim::length(def),
+        kind: "number_field", grow: 1, value: anim::length(def),
         step: 0.01, suffix: " s",
         on: |v| {
             def.length = util::max(0.1, v);
@@ -645,7 +645,7 @@ fn animation_section(S, k) {
         },
     }] });
     push(S, #{ label: "Keys", height: row_h(S), controls: [#{
-        kind: "label", role: "value", grow: 1,
+        kind: "label", role: "text_code", grow: 1,
         text: format!("{} on {} tracks", anim::key_count(def), anim::tracks(def).len()),
     }] });
 }
@@ -659,7 +659,7 @@ fn interface_section(S, k) {
     let draws = model::draws_ui(S, node);
     push(S, #{ label: "Draws UI", height: row_h(S), controls: [#{
         kind: "label", grow: 1,
-        role: if draws { "answer_yes" } else { "answer_no" },
+        role: if draws { "text_code_success" } else { "text_code_quiet" },
         text: if draws { "yes · draw_ui()" } else { "no" },
     }] });
     if !S.chip_state.contains_key("ui") {
@@ -667,7 +667,7 @@ fn interface_section(S, k) {
     }
     let chips = S.chip_state["ui"];
     push(S, #{ label: "Safe area", height: row_h(S), controls: [#{
-        kind: "switch", role: "switch",
+        kind: "switch", role: "switch_form",
         checked: chips.get("safe").unwrap_or(false) == true,
         on: |on| { chips.safe = on; },
     }] });
@@ -895,7 +895,7 @@ fn edit_flags(S, k, at, spec, value) {
         let name = option;
         let on = util::contains(held, name);
         controls.push(#{
-            kind: "button", text: name, role: if on { "flag_on" } else { "flag" },
+            kind: "button", text: name, role: "chip_flag", checked: on,
             on: |_| {
                 let next = [];
                 for other in held {
@@ -926,14 +926,14 @@ fn edit_node(S, k, at, spec, value) {
     }
     push(S, #{
         label: at.label, tooltip: row_tip(at, spec),
-        height: row_h(S), slot_role: "verb_row",
+        height: row_h(S), slot_role: "layout_actions",
         controls: [
             #{
-                kind: "field", grow: 1, text: as_text(value), placeholder: "— none —",
+                kind: "text_field", grow: 1, text: as_text(value), placeholder: "— none —",
                 on_submit: |text| { write_at(S, at, text); },
             },
             #{
-                kind: "dropdown", role: "pick", text: "pick", options: paths,
+                kind: "dropdown", role: "choice", text: "pick", options: paths,
                 on: |picked| {
                     write_at(S, at, if picked == "— none —" { "" } else { picked });
                 },
@@ -1028,7 +1028,7 @@ fn edit_record(S, k, at, spec, value) {
 // What a composite says about itself before its rows: the label, what it
 // holds, and where an `add` is one of the things it takes.
 fn holder_row(S, k, at, spec, note, add) {
-    let controls = [#{ kind: "label", grow: 1, text: note, role: "meta" }];
+    let controls = [#{ kind: "label", grow: 1, text: note, role: "text_caption" }];
     // Unit is the empty tuple, which is what a record passes: its fields are
     // the schema's and there is nothing to add.
     if !(add is Tuple) {
@@ -1085,7 +1085,7 @@ fn prop_row(S, k, comp, prop, spec, data) {
 fn draw_value(S, k, at, spec, value) {
     // A plugin's editor for this datatype wins over the built-in, which is
     // what lets a project draw a curve or a colour ramp its own way.
-    match crate::plugins::editor(S, spec["type"]) {
+    match crate::plugins::property_editor(S, spec["type"]) {
         Some(draw) => {
             draw(S, k, at, spec, value);
             return;
@@ -1123,7 +1123,7 @@ fn number_of(value) {
 
 fn edit_float(S, k, at, spec, value) {
     push(S, #{ label: at.label, tooltip: row_tip(at, spec), controls: [#{
-        kind: "drag_value", grow: 1,
+        kind: "number_field", grow: 1,
         value: shown_as(spec, number_of(value)),
         step: spec.get("step").unwrap_or(0.02),
         on: |v| { write_at(S, at, stored_as(spec, clamped(spec, v))); },
@@ -1132,7 +1132,7 @@ fn edit_float(S, k, at, spec, value) {
 
 fn edit_int(S, k, at, spec, value) {
     push(S, #{ label: at.label, tooltip: row_tip(at, spec), controls: [#{
-        kind: "drag_value", grow: 1,
+        kind: "number_field", grow: 1,
         value: number_of(value),
         step: spec.get("step").unwrap_or(1.0),
         on: |v| { write_at(S, at, math::round(clamped(spec, v)) as i64); },
@@ -1141,7 +1141,7 @@ fn edit_int(S, k, at, spec, value) {
 
 fn edit_bool(S, k, at, spec, value) {
     push(S, #{ label: at.label, tooltip: row_tip(at, spec), controls: [#{
-        kind: "check", text: "",
+        kind: "checkbox", text: "",
         checked: value == true,
         on: |on| { write_at(S, at, on); },
     }] });
@@ -1164,8 +1164,8 @@ fn edit_color(S, k, at, spec, value) {
         fixed(channel(held, 0, 1.0), 2), fixed(channel(held, 1, 1.0), 2),
         fixed(channel(held, 2, 1.0), 2), fixed(channel(held, 3, 1.0), 2));
     push(S, #{ label: at.label, tooltip: row_tip(at, spec), controls: [
-        #{ kind: "color", width: 34, color: held, on: |rgba| { write_at(S, at, rgba); } },
-        #{ kind: "label", grow: 1, text: text, role: "meta" },
+        #{ kind: "color_picker", width: 34, picked_color: held, on: |rgba| { write_at(S, at, rgba); } },
+        #{ kind: "label", grow: 1, text: text, role: "text_caption" },
     ] });
 }
 
@@ -1189,7 +1189,7 @@ fn edit_vector(S, k, at, spec, value) {
     for i in 0..count {
         let slot = i;
         controls.push(#{
-            kind: "drag_value", grow: 1,
+            kind: "number_field", grow: 1,
             value: shown_as(spec, channel(held, slot, fallback)),
             step: spec.get("step").unwrap_or(if datatype == "color" { 0.005 } else { 0.02 }),
             placeholder: letters[slot],
@@ -1244,16 +1244,16 @@ fn edit_asset(S, k, at, spec, value) {
     let inline = reference.starts_with("#!");
     let dir = if asset_type != "" { assets::directory(asset_type) } else { "" };
     let controls = [if inline {
-        #{ kind: "label", role: "readonly_value", grow: 1, text: "— inline —" }
+        #{ kind: "label", role: "text_code_quiet", grow: 1, text: "— inline —" }
     } else {
         #{
-            kind: "field", grow: 1, text: reference, placeholder: placeholder,
+            kind: "text_field", grow: 1, text: reference, placeholder: placeholder,
             on_submit: |text| { write_at(S, at, text); },
         }
     }];
     if dir != "" {
         controls.push(#{
-            kind: "button", role: "clip_verb",
+            kind: "button", role: "action_dock_secondary",
             text: if inline { "save as file" } else { "make inline" },
             tooltip: if inline {
                 format!("Write this {} to {}/ and reference it", asset_type, dir)
@@ -1271,7 +1271,7 @@ fn edit_asset(S, k, at, spec, value) {
     }
     push(S, #{
         label: at.label, tooltip: row_tip(at, spec),
-        height: row_h(S), slot_role: "verb_row", controls: controls,
+        height: row_h(S), slot_role: "layout_actions", controls: controls,
     });
     // Not when the node's own `material` component is the source: it draws them.
     if asset_type == "material" && !here {
@@ -1350,9 +1350,9 @@ fn shader_row(S, k, reference, shader) {
     if !util::contains(choices, current) {
         choices.insert(0, current);
     }
-    push(S, #{ label: "  Shader", height: row_h(S), slot_role: "shader_row", controls: [
+    push(S, #{ label: "  Shader", height: row_h(S), slot_role: "layout_shader", controls: [
         #{
-            kind: "button", role: "shader_open", text: icons::ui("open"),
+            kind: "button", role: "icon_action_form_secondary", text: icons::ui("open"),
             tooltip: "Edit " + current,
             on: |_| {
                 S.shader_rel = model::relative_file(S, shader);
@@ -1378,7 +1378,7 @@ fn feature_rows(S, k, reference, features) {
         // Bound afresh: a closure made in a loop captures the binding.
         let name = key;
         push(S, #{ label: "  @" + name, height: row_h(S), controls: [#{
-            kind: "switch", role: "switch", checked: features[name] == true,
+            kind: "switch", role: "switch_form", checked: features[name] == true,
             on: |on| { write_material_feature(S, reference, name, on); },
         }] });
     }
@@ -1422,12 +1422,12 @@ fn material_row(S, k, reference, name, datatype, value) {
             util::vec(value)
         };
         #{
-            kind: "color", width: 34, color: channels,
+            kind: "color_picker", width: 34, picked_color: channels,
             on: |rgba| { write_material_param(S, reference, name, rgba); },
         }
     } else if datatype == "float" {
         #{
-            kind: "drag_value", grow: 1, value: util::f(value), step: 0.001,
+            kind: "number_field", grow: 1, value: util::f(value), step: 0.001,
             on: |v| { write_material_param(S, reference, name, v); },
         }
     } else if datatype == "texture" {
@@ -1457,7 +1457,7 @@ fn material_row(S, k, reference, name, datatype, value) {
             // Bound afresh: a closure made in a loop captures the binding.
             let slot = i;
             cells.push(#{
-                kind: "drag_value", grow: 1, step: 0.02, placeholder: letters[slot],
+                kind: "number_field", grow: 1, step: 0.02, placeholder: letters[slot],
                 value: match held.get(slot) { Some(x) => util::f(x), None => 0.0 },
                 on: |v| {
                     let out = [];
@@ -1508,7 +1508,7 @@ fn write_material_param(S, reference, name, value) {
 // Anything with no registered editor: its text, straight through.
 fn edit_text(S, k, at, spec, value) {
     push(S, #{ label: at.label, tooltip: row_tip(at, spec), controls: [#{
-        kind: "field", grow: 1, role: "field",
+        kind: "text_field", grow: 1, role: "input",
         text: model::relative_file(S, as_text(value)),
         placeholder: "— empty —",
         on: |text| { write_at(S, at, text); },
@@ -1561,10 +1561,10 @@ fn readonly_row(S, prop, spec, data) {
         label: util::prop_label(prop), tooltip: prop_tip(prop, spec),
         controls: [
             #{
-                kind: "label", role: "readonly_value", grow: 1, truncate: true,
+                kind: "label", role: "text_code_quiet", grow: 1, truncate: true,
                 text: readonly_text(spec, value),
             },
-            #{ kind: "label", role: "readonly_tag", text: "read-only" },
+            #{ kind: "label", role: "text_hint", text: "read-only" },
         ],
     });
 }
@@ -1574,7 +1574,7 @@ fn readonly_row(S, prop, spec, data) {
 fn bindings_note(S, k) {
     section(S, k, "BINDINGS");
     push(S, #{ full: true, height: row_h(S) + 2.0, controls: [#{
-        kind: "button", role: "note_action", grow: 1,
+        kind: "button", role: "action_note", grow: 1,
         text: format!("{} row(s) · open the Events view", crate::events::rows(S).len()),
         icon: icons::ui("events"),
         on: |_| { shell::open_doc(S, "events"); },
@@ -1723,14 +1723,14 @@ fn component_sections(S, k, filter) {
         let held = comp;
         let (mark, tint) = icons::component(held);
         fold_row_with(S, "section", open, held.to_uppercase(), mark,
-            k.get(tint).unwrap_or(k.dim), || {
+            k.get(tint).unwrap_or(k.text_muted), || {
                 if open {
                     S.collapsed[key] = true;
                 } else {
                     S.collapsed.remove(key);
                 }
             }, [#{
-                kind: "button", role: "section_drop", text: icons::ui("close"),
+                kind: "button", role: "icon_action_form", text: icons::ui("close"),
                 tooltip: "Remove component",
                 on: |_| { model::remove_component(S, held); },
             }]);
@@ -1739,7 +1739,7 @@ fn component_sections(S, k, filter) {
         }
         if let Some(needs) = unmet.get(comp) {
             push(S, #{ full: true, height: 0, controls: [#{
-                kind: "label", role: "warn_note", grow: 1, wrap: true,
+                kind: "label", role: "note_warning", grow: 1, wrap: true,
                 text: format!("⚠ needs one of: {}", needs),
             }] });
         }
@@ -1821,18 +1821,18 @@ pub fn body(S, k) {
     }
     let node = model::selected_node(S);
     ui::add_space(2);
-    ui::horizontal(#{ height: row_h(S) }, || {
+    ui::row(#{ height: row_h(S) }, || {
         let (icon, token) = model::node_icon(node);
-        ui::label(icon, #{ size: style::LG, color: k.get(token).unwrap_or(k.accent) });
+        ui::label(icon, #{ font_size: style::LG, text_color: k.get(token).unwrap_or(k.primary_text) });
         ui::add_space(7);
         // One line: the name, then its type beside it. The panel is narrow
         // and a second row was a whole line of height for four words.
         ui::label(node.name, #{
-            size: style::LG, font: ui::FONT_HEADING, strong: true, color: k.text, truncate: true,
+            font_size: style::LG, font_family: ui::FONT_HEADING, font_weight: 700, text_color: k.text_default, truncate: true,
         });
         ui::add_space(6);
         ui::label(model::node_type(node),
-            util::merge(style::mono_sm(k.faint), #{ truncate: true }));
+            util::merge(style::mono_sm(k.text_subtle), #{ truncate: true }));
     });
     ui::add_space(3);
     crate::search::field(S, k, "inspector", "Search", ui::available_width());
@@ -1879,7 +1879,7 @@ pub fn foot_controls(S) {
     // Bound, not returned bare: a `}` with a `[` under it indexes the block
     // above instead of starting a list.
     let controls = [#{
-        kind: "button", role: "button", height: 30, width: 0.0, grow: 1.0,
+        kind: "button", role: "action", height: 30, width: 0.0, grow: 1.0,
         icon: icons::ui("add"), text: "Add component",
         on: |_| { shell::open_palette(S, "add "); },
     }];

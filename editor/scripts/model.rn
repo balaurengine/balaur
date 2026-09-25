@@ -394,7 +394,7 @@ pub fn node_icon(node) {
         return (crate::icons::workspace("ui"), "node_ui");
     }
     if kind.is_some() {
-        return (crate::icons::workspace("physics"), "node_phys");
+        return (crate::icons::workspace("physics"), "node_physics");
     }
     if node.contains_key("bone2d") || node.contains_key("bone3d") {
         return (crate::icons::tool("bone"), "node_bone");
@@ -406,9 +406,9 @@ pub fn node_icon(node) {
         return (crate::icons::workspace("scene"), "node_3d");
     }
     if node.contains_key("script") {
-        return (crate::icons::ui("scriptfile"), "node_plain");
+        return (crate::icons::ui("scriptfile"), "node_default");
     }
-    return (crate::icons::node("world"), "node_plain");
+    return (crate::icons::node("world"), "node_default");
 }
 
 // How deep prefabs may nest before the editor stops following them. The

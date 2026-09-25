@@ -1016,7 +1016,7 @@ fn pill_box(S, pill) {
         return ();
     }
     let r = ui::widget_rect(row);
-    if util::is_nil(r) || r.w <= 0.0 {
+    if util::is_nil(r) || r.width <= 0.0 {
         return ();
     }
     // The row's horizontal starts at its left edge and is `full` wide, so a
@@ -2244,8 +2244,8 @@ pub fn layout_step(S) {
     // A root keeps the box it was handed on a pass that is not a fresh one:
     // restyled with none, it sized itself from its content instead.
     let body = ui::widget_rect(scene::get_node("Editor/Shell/Body"));
-    check(!util::is_nil(body) && body.h > S.screen_h * 0.5,
-        format!("the shell's body grew into the room left over ({})", body.h));
+    check(!util::is_nil(body) && body.height > S.screen_h * 0.5,
+        format!("the shell's body grew into the room left over ({})", body.height));
     // A window too small for three columns folds its docks and shows one
     // sheet at a time, so the desktop's invariants are asked of a desktop.
     if crate::docks::one_at_a_time(S) {
@@ -2314,10 +2314,10 @@ fn check_touch_targets(S) {
             boxes.push(ui::widget_rect(kid));
         }
         for r in boxes {
-            if util::is_nil(r) || r.h <= 0.0 {
+            if util::is_nil(r) || r.height <= 0.0 {
                 continue;
             }
-            let points = r.h * S.ui_scale;
+            let points = r.height * S.ui_scale;
             if points < smallest {
                 smallest = points;
                 where = path;
@@ -2347,9 +2347,9 @@ fn check_dock_tools(S) {
         // Zero is the tools giving way to the tabs, which is what a dock too
         // narrow for both does. What this catches is the state between: a
         // hatch a pixel or two wide, drawing what the row then clips.
-        check(box.w == 0.0 || (box.w > 20.0 && box.h > 12.0),
+        check(box.width == 0.0 || (box.width > 20.0 && box.height > 12.0),
             format!("the {} dock's tools have room to draw ({} × {})",
-                side, box.w as i64, box.h as i64));
+                side, box.width as i64, box.height as i64));
     }
 }
 
@@ -2386,46 +2386,46 @@ pub fn font_sheet(S) {
     let k = S.theme;
     let r = S.layout.stage;
     ui::overlay("fontsheet", #{
-        x: r.x, y: r.y, w: r.w, h: r.h,
-        fill: k.panel, stroke: k.line, radius: 11, padding_x: 16, padding_y: 12,
+        x: r.x, y: r.y, width: r.w, height: r.h,
+        fill: k.bg_panel, stroke: k.border_default, corner_radius: 11, padding_x: 16, padding_y: 12,
     }, || {
         ui::label("FONT COVERAGE  ·  --state fontdemo", style::heading(k));
         ui::add_space(10);
         ui::label("SCRIPTS", style::heading(k));
         ui::add_space(6);
         for (name, sample) in scripts() {
-            ui::horizontal(#{ height: 24 }, || {
-                ui::horizontal(#{ height: 24, width: 92 }, || {
-                    ui::label(name, style::mono_sm(k.faint));
+            ui::row(#{ height: 24 }, || {
+                ui::row(#{ height: 24, width: 92 }, || {
+                    ui::label(name, style::mono_sm(k.text_subtle));
                 });
-                ui::label(sample, #{ size: style::XL, color: k.text });
+                ui::label(sample, #{ font_size: style::XL, text_color: k.text_default });
             });
         }
         ui::add_space(10);
         ui::label("FACES", style::heading(k));
         ui::add_space(6);
-        ui::label("heading  Source Sans 3 Semibold", #{ size: style::XL, font: ui::FONT_HEADING, color: k.text });
-        ui::label("ui  Source Sans 3 Regular", #{ size: style::LG, color: k.text });
-        ui::label("mono  JetBrains Mono  0O1lI  ⌘⌥⇧⌃", style::mono(k.text));
+        ui::label("heading  Source Sans 3 Semibold", #{ font_size: style::XL, font_family: ui::FONT_HEADING, text_color: k.text_default });
+        ui::label("ui  Source Sans 3 Regular", #{ font_size: style::LG, text_color: k.text_default });
+        ui::label("mono  JetBrains Mono  0O1lI  ⌘⌥⇧⌃", style::mono(k.text_default));
         ui::add_space(10);
         ui::label("ICONS", style::heading(k));
         ui::add_space(6);
-        ui::horizontal(#{ height: 24 }, || {
+        ui::row(#{ height: 24 }, || {
             ui::spacing(8, 0);
             for id in ["select", "move", "rotate", "scale", "zoom", "key", "bone", "polygon"] {
-                ui::label(crate::icons::tool(id), #{ size: style::XL, color: k.text });
+                ui::label(crate::icons::tool(id), #{ font_size: style::XL, text_color: k.text_default });
             }
             for id in ["scene", "script", "animation", "physics", "ui"] {
-                ui::label(crate::icons::workspace(id), #{ size: style::XL, color: k.accent });
+                ui::label(crate::icons::workspace(id), #{ font_size: style::XL, text_color: k.primary_text });
             }
         });
-        ui::horizontal(#{ height: 24 }, || {
+        ui::row(#{ height: 24 }, || {
             ui::spacing(8, 0);
             for id in ["output", "problems", "assets", "timeline", "debugger", "session", "profiler"] {
-                ui::label(crate::icons::panel(id), #{ size: style::XL, color: k.text });
+                ui::label(crate::icons::panel(id), #{ font_size: style::XL, text_color: k.text_default });
             }
             for id in ["add", "close", "minimise", "search", "dark", "play", "pause", "stop", "instance", "split"] {
-                ui::label(crate::icons::ui(id), #{ size: style::XL, color: k.sage });
+                ui::label(crate::icons::ui(id), #{ font_size: style::XL, text_color: k.secondary_text });
             }
         });
     });
@@ -2618,10 +2618,10 @@ pub fn placing(S) {
 /// `--state counterdemo`: the editor's half of the plugin seam. Registering a
 /// dock has to put a tab somewhere, or nothing can ever bring the panel up.
 pub fn plugin_docks(S) {
-    if !check(S.registry.docks.len() > 0, "a plugin registered a dock") {
+    if !check(S.registry.panels.len() > 0, "a plugin registered a panel") {
         return;
     }
-    for entry in S.registry.docks {
+    for entry in S.registry.panels {
         let side = crate::docks::side_of(S, entry.id);
         if !check(side.is_some(), format!("the {} dock has a tab", entry.id)) {
             continue;
@@ -2725,7 +2725,7 @@ pub fn palette_step(S) {
     check(shown.len() > 0 && shown[0] == "picker_row_on",
         format!("the first match wears the held look, which is what Enter runs ({:?})", shown));
     let box = ui::widget_rect(scene::get_node("Editor/Picker"));
-    check(!util::is_nil(box) && box.h > 100.0,
+    check(!util::is_nil(box) && box.height > 100.0,
         format!("the picker is as tall as the matches it holds ({:?})", box));
     crate::shell::close_palette(S);
 }
@@ -2825,12 +2825,12 @@ pub fn settings_step(S) {
         // The sheet is a `dialog` node stating its own size: hugging, its bar
         // measures and its body is left with nothing.
         let body = ui::widget_rect(scene::get_node("Editor/Sheet/SheetBody"));
-        check(!util::is_nil(body) && body.h > 100.0,
+        check(!util::is_nil(body) && body.height > 100.0,
             format!("the sheet's body has the room its frame states ({:?})", body));
         // Typed rather than set: the field's text is what a key press
         // changes, and the list has to follow it.
         let field = scene::get_node("Editor/Sheet/SheetBody/SheetSplit/SheetSide/SheetSideRows/C0");
-        if check(!util::is_nil(field) && field.get_component("widget", "kind") == "field",
+        if check(!util::is_nil(field) && field.get_component("widget", "kind") == "text_field",
             "the sidebar's first control is the search field") {
             field.patch_component("widget", #{ text: "scale" });
         }
@@ -2887,7 +2887,7 @@ pub fn theme_switch(S) {
     let dark_sheet = scene::get_node("Editor/Sheet").get_component("widget", "theme");
     theme::set_dark(S, false);
     check(S.theme.dark == false, "the switch reaches the light theme");
-    check(S.theme.bg != "", "and the light theme loaded its colours");
+    check(S.theme.bg_app != "", "and the light theme loaded its colours");
     // The sheet, the palette and the start screen are roots of their own, not
     // under the shell, and each has to wear the switch too.
     for path in ["Editor/Shell", "Editor/Manager", "Editor/Picker", "Editor/Sheet"] {
@@ -2910,29 +2910,32 @@ pub fn theme_editing(S) {
     crate::themewin::open(S);
     check(crate::window::showing(S, "theme"), "the theme window opens");
     check(!crate::themewin::editable(S), "a bundled theme is read-only");
-    let before = S.theme.accent;
-    crate::themewin::edit(S, ["colors"], "accent", "#ff0000");
-    check(S.theme.accent == before, "and an edit to it changes nothing");
+    let before = S.theme.primary_text;
+    crate::themewin::edit(S, ["colors"], "primary_text", "#ff0000");
+    check(S.theme.primary_text == before, "and an edit to it changes nothing");
     let name = crate::themewin::duplicate(S);
     S.themewin.test.name = name;
     let path = theme::path_of(name);
     check(fs::exists(path), format!("duplicating writes {}", path));
     check(S.theme.name == name && crate::themewin::editable(S), "and the copy is worn and editable");
     check(theme::names().iter().any(|n| n == name), "and listed beside the bundled two");
-    crate::themewin::edit(S, ["colors"], "accent", "#ff0000");
-    check(S.theme.accent == "#ff0000", "an edited token is worn at once");
+    crate::themewin::edit(S, ["colors"], "primary", "#e0a868");
+    check(S.theme.primary_fill == "#e0a868", "a source colour is worn at once");
+    check(S.theme.primary_text != before, format!("and moves what derives from it ({})", S.theme.primary_text));
+    crate::themewin::edit(S, ["colors"], "primary_text", "#ff0000");
+    check(S.theme.primary_text == "#ff0000", "a stated token wins over its rule");
     let sheet = scene::get_node("Editor/Sheet").get_component("widget", "theme");
     check(sheet is String && sheet.starts_with("#!"), "and the sheet's node wears it inline");
-    crate::themewin::edit(S, ["roles", "tab"], "size", 13);
+    crate::themewin::edit(S, ["roles", "tab"], "font_size", 13);
     crate::themewin::save(S);
     let text = fs::read(path);
-    check(text is String && text.contains("accent") && text.contains("base = \"dark\""),
+    check(text is String && text.contains("primary_text") && text.contains("base = \"dark\""),
         format!("saving writes the edit under its base: {:?}", text));
-    check(text is String && !text.contains("panel ="), "and nothing it leaves to that base");
+    check(text is String && !text.contains("background ="), "and nothing it leaves to that base");
     theme::reload(S);
-    check(S.theme.accent == "#ff0000", "the saved theme reads back");
-    check(S.theme.roles.tab.size == 13, "with the role key it changed");
-    check(S.theme.roles.tab.color == "faint", "and the keys its base holds");
+    check(S.theme.primary_text == "#ff0000", "the saved theme reads back");
+    check(S.theme.roles.tab.font_size == 13, "with the role key it changed");
+    check(S.theme.roles.tab.text_color == "text_subtle", "and the keys its base holds");
     check(S.themewin.pairs.len() > 50, format!("every role's contrast is measured ({})", S.themewin.pairs.len()));
     crate::themewin::show_role(S, "tab", "");
     S.themewin.demo = 0;
@@ -3262,7 +3265,7 @@ pub fn events_step(S) {
     check(shown > events::rows(S).len(),
         format!("every binding is a row, and the headings under them ({})", shown));
     let box = ui::widget_rect(host);
-    check(!util::is_nil(box) && box.w > 200.0,
+    check(!util::is_nil(box) && box.width > 200.0,
         format!("the rows have the width the document area gives them ({:?})", box));
 }
 
@@ -3579,7 +3582,7 @@ fn rows_menu(widget) {
 fn rows_drawn(S, widget, rows) {
     check(rows.len() == S.doc.len(),
         format!("the outliner draws one row a node ({} of {})", rows.len(), S.doc.len()));
-    check(widget["multi"] == true, "its tree holds many rows at once");
+    check(widget["multi_select"] == true, "its tree holds many rows at once");
     let lit = util::vec(widget.get("selection").unwrap_or([]));
     check(lit.len() == selection::count(S),
         format!("every selected node is lit ({} of {})", lit.len(), selection::count(S)));

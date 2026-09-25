@@ -18,27 +18,27 @@ pub const XL = 17.0;
 
 /// A mono label, in `color`. Size and family come from the theme.
 pub fn mono(color) {
-    #{ role: "mono", color: color }
+    #{ role: "text_code", text_color: color }
 }
 
 /// One step down, for dense rows.
 pub fn mono_sm(color) {
-    #{ role: "meta", color: color }
+    #{ role: "text_caption", text_color: color }
 }
 
 /// One step up, for a value that carries the row.
 pub fn mono_lg(color) {
-    #{ role: "code", color: color }
+    #{ role: "text_code", text_color: color }
 }
 
 /// A panel section heading; the caller draws it upper case.
 pub fn heading(k) {
-    #{ role: "heading" }
+    #{ role: "text_heading" }
 }
 
 /// A mono text field of `width`: the inspector's editable value row.
 pub fn field(k, width) {
-    #{ role: "field", width: width }
+    #{ role: "input", width: width }
 }
 
 /// Whether a rect is one a surface may draw at. A zero rect is the frame
@@ -58,13 +58,23 @@ pub fn role_px(S, role, key, fallback) {
     if S.touchscreen {
         if let Some(touch) = table.get("touch") {
             if let Some(v) = touch.get(key) {
-                return util::f(v);
+                return px(S, v);
             }
         }
     }
     match table.get(key) {
-        Some(v) => util::f(v),
+        Some(v) => px(S, v),
         None => fallback,
+    }
+}
+
+/// A number a theme states, or the size it names: `"control_height"` is
+/// whatever the worn theme makes of it.
+pub fn px(S, value) {
+    if value is String {
+        util::f(S.theme.sizes.get(value).unwrap_or(0.0))
+    } else {
+        util::f(value)
     }
 }
 
@@ -81,7 +91,7 @@ pub fn sheet(k, id, r, pad_x, pad_y, cb) {
         return;
     }
     ui::overlay(id, #{
-        role: "sheet", x: r.x, y: r.y, w: r.w, h: r.h,
+        role: "sheet", x: r.x, y: r.y, width: r.w, height: r.h,
         padding_x: pad_x, padding_y: pad_y,
     }, cb);
 }
@@ -89,24 +99,24 @@ pub fn sheet(k, id, r, pad_x, pad_y, cb) {
 /// A section label: the shell's one way of naming a group of rows.
 pub fn section_label(k, title) {
     ui::add_space(11);
-    ui::horizontal(#{ height: 20 }, || {
+    ui::row(#{ height: 20 }, || {
         ui::add_space(2);
-        ui::label(title.to_uppercase(), #{ role: "heading" });
+        ui::label(title.to_uppercase(), #{ role: "text_heading" });
     });
     ui::add_space(5);
 }
 
 /// A full-width row tile: the shape a list uses everywhere in the shell.
 pub fn list_row(k, height) {
-    #{ role: "list_item", height: height, min_width: ui::available_width() }
+    #{ role: "item_list", height: height, min_width: ui::available_width() }
 }
 
 /// What a panel says when it has nothing: one line, centred, quiet.
 pub fn empty(k, text) {
     ui::add_space(14);
-    ui::horizontal(#{ height: 20 }, || {
+    ui::row(#{ height: 20 }, || {
         ui::add_space(10);
-        ui::label(text, mono_sm(k.faint));
+        ui::label(text, mono_sm(k.text_subtle));
     });
 }
 
@@ -115,16 +125,16 @@ pub fn empty(k, text) {
 /// is "" where nothing does.
 pub fn hook_pill(k, hook, label, trailing) {
     let lifecycle = hook == "init" || hook == "update";
-    ui::horizontal(#{ height: 30 }, || {
+    ui::row(#{ height: 30 }, || {
         ui::add_space(8);
-        ui::frame(#{ fill: k.sunken, radius: 15, padding_x: 11 }, || {
-            ui::horizontal(#{ height: 30 }, || {
-                ui::dot(if lifecycle { k.accent } else { k.sage }, 6);
+        ui::frame(#{ fill: k.bg_control, corner_radius: 15, padding_x: 11 }, || {
+            ui::row(#{ height: 30 }, || {
+                ui::dot(if lifecycle { k.primary_text } else { k.secondary_text }, 6);
                 ui::add_space(4);
-                ui::label(label, mono(k.text));
+                ui::label(label, mono(k.text_default));
                 if trailing != "" {
-                    ui::right(|| {
-                        ui::label(trailing, mono_sm(k.faint));
+                    ui::align_right(|| {
+                        ui::label(trailing, mono_sm(k.text_subtle));
                     });
                 }
             });

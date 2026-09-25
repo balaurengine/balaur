@@ -10,11 +10,11 @@ pub fn state() {
 /// What this plugin adds. Every list is optional.
 pub fn register() {
     #{
-        docks: [#{ id: "counter", name: "Counter", draw: dock }],
-        windows: [#{ id: "counter-window", title: "Counter", draw: window }],
-        commands: [#{ label: "Count scripted nodes", icon: "Σ", key: "", run: count }],
-        sections: [section],
-        states: #{ "counterdemo": selftest },
+        panels: [#{ id: "counter", title: "Counter", draw: panel }],
+        dialogs: [#{ id: "counter-window", title: "Counter", draw: dialog }],
+        commands: [#{ title: "Count scripted nodes", icon: "Σ", shortcut: "", run: count }],
+        inspector_sections: [section],
+        startup_states: #{ "counterdemo": selftest },
     }
 }
 
@@ -37,7 +37,7 @@ pub fn count(S) {
 /// `S.kit` is what the editor lends a plugin to fill it with: its verbs are
 /// stored functions, so each is bound to a local and called. A verb answers a
 /// row; `rows` is what puts the rows on the node.
-pub fn dock(S, k, host) {
+pub fn panel(S, k, host) {
     let section = S.kit.section;
     let rows = S.kit.rows;
     let specs = [section("Scripted nodes")];
@@ -54,14 +54,14 @@ pub fn dock(S, k, host) {
 
 /// The floating window, which is drawn: a plugin window has no node of its
 /// own yet, so this is the seam still on `ui::*`.
-pub fn window(S, k) {
+pub fn dialog(S, k) {
     let shown = S.plugins.counter.shown;
     let said = if shown < 0 {
         "run “Count scripted nodes” from the palette"
     } else {
         format!("{} scripted nodes", shown)
     };
-    ui::label(said, #{ role: "meta", color: k.dim, wrap: true });
+    ui::label(said, #{ role: "text_caption", text_color: k.text_muted, wrap: true });
 }
 
 /// An inspector section, drawn after the built-in ones.
@@ -71,7 +71,7 @@ pub fn section(S, k, node) {
     }
     ui::add_space(8);
     ui::label(format!("counter: {}", S.plugins.counter.shown), #{
-        size: 11, font: ui::FONT_MONO, color: k.faint,
+        font_size: 11, font_family: ui::FONT_MONO, text_color: k.text_subtle,
     });
 }
 

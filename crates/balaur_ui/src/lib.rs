@@ -10,7 +10,7 @@
 //! ```rune
 //! pub fn draw_ui(this) {
 //!     ui::top_panel("bar", #{ height: 56.0, fill: "#20242a" }, || {
-//!         if ui::pill("Scene", #{ active: true }) { /* ... */ }
+//!         if ui::button("Scene", #{ checked: true }) { /* ... */ }
 //!     });
 //! }
 //! ```
@@ -20,11 +20,11 @@
 
 mod bridge;
 pub mod contrast;
-pub mod palette;
 mod images;
 mod immediate;
 mod loading;
 mod pacing;
+pub mod palette;
 mod splash;
 mod theme;
 mod vocabulary;
@@ -60,9 +60,7 @@ pub fn widget_rect(entity: balaur_core::hecs::Entity) -> Option<egui::Rect> {
 /// bar overflows and the icons stop matching; the zoom grows all three.
 pub const TOUCH_TARGET: f32 = 44.0;
 
-pub use immediate::{
-    ALIGNS, ANCHORS, CLASSES, FONT_STYLES, FONTS, MODIFIERS, PILL_ALIGNS, WIDGET_KINDS,
-};
+pub use immediate::{ALIGNS, ANCHORS, CLASSES, FONT_STYLES, FONTS, MODIFIERS, WIDGET_KINDS};
 
 /// Where this project puts the lines between the screen classes, and whether
 /// the reader's own text size counts. Read once, after the project has

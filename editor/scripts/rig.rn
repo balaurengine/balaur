@@ -214,8 +214,8 @@ pub fn draw(S) {
         return;
     }
     let k = S.theme;
-    let sage = util::rgb(k.sage);
-    let accent = util::rgb(k.accent);
+    let bone_ink = util::rgb(k.node_bone);
+    let accent = util::rgb(k.primary_text);
     for (i, node) in S.doc.iter().enumerate() {
         if is_bone(node) {
             if let Some(g) = geometry(S, i) {
@@ -224,7 +224,7 @@ pub fn draw(S) {
                 } else if i == S.sel {
                     accent
                 } else {
-                    sage
+                    bone_ink
                 };
                 if S.mode2d {
                     draw_bone(S, g, color);
@@ -309,7 +309,7 @@ fn modifier_reach(S, i) {
 // handle at the target itself.
 fn draw_modifiers(S) {
     let k = S.theme;
-    let color = util::rgb(k.modifier);
+    let color = util::rgb(k.node_modifier);
     for i in 0..S.doc.len() {
         let reach = match modifier_reach(S, i) {
             Some(found) => found,

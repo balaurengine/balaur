@@ -164,9 +164,9 @@ pub fn outline_title(S) {
 /// The Scene tab's one control, drawn in the dock's tab row.
 pub fn tree_tools(S, k) {
     ui::add_space(6);
-    if ui::pill(icons::ui("add"), #{
-        role: "icon_button", min_width: 24,
-        fill: k.accent_soft, color: k.accent,
+    if ui::button(icons::ui("add"), #{
+        role: "icon_action", min_width: 24,
+        fill: k.primary_bg, text_color: k.primary_text,
         tooltip: "Add child node",
     }) {
         crate::newnode::open(S);
@@ -215,10 +215,10 @@ fn facet_picker(S, k, chips) {
             current = chip[1];
         }
     }
-    ui::horizontal(#{ height: 24 }, || {
+    ui::row(#{ height: 24 }, || {
         ui::add_space(2);
         let (pick, changed) = ui::dropdown("tree-facet", current, names,
-            #{ width: S.layout.left.w - 40.0, size: style::SM, color: k.dim });
+            #{ width: S.layout.left.w - 40.0, font_size: style::SM, text_color: k.text_muted });
         if changed {
             S.tree_facet = "";
             for chip in chips {
@@ -267,7 +267,7 @@ fn show_tree(S, k, rows) {
         // The type's own colour on the row, which is what a mark alone
         // cannot say: 2D, 3D, UI and physics each read at a glance. The id is
         // the row's key: two nodes may share a name, never a row.
-        line += util::cells([mark, node.name, "", k.get(token).unwrap_or(k.text), node.id]);
+        line += util::cells([mark, node.name, "", k.get(token).unwrap_or(k.text_default), node.id]);
         items.push(line);
     }
     let params = util::obj(found.get_component("widget"));
@@ -281,7 +281,7 @@ fn show_tree(S, k, rows) {
         }
     }
     // Every selected node lit, not only the active one: the document holds a
-    // set, and `multi` is what draws one.
+    // set, and `multi_select` is what draws one.
     let chosen = [];
     for (n, row) in rows.iter().enumerate() {
         if crate::selection::contains(S, row.index) {
@@ -291,7 +291,7 @@ fn show_tree(S, k, rows) {
     params["options"] = items;
     params["row_height"] = TREE_ROW;
     params["visible"] = true;
-    params["multi"] = true;
+    params["multi_select"] = true;
     params["selection"] = chosen;
     params["text"] = "";
     found.set_component("widget", params);
@@ -310,7 +310,7 @@ pub fn row_spot(S, i) {
         return None;
     }
     let n = selected_row(open_rows(S), i) as f64;
-    Some((box.x + box.w * 0.4, box.y + (n + 0.5) * TREE_ROW))
+    Some((box.x + box.width * 0.4, box.y + (n + 0.5) * TREE_ROW))
 }
 
 // Which drawn row is the selection, so the node can mark it.
@@ -429,7 +429,7 @@ pub fn rename_draw(S) {
         return;
     }
     crate::pool::sync(S, host, [#{ full: true, height: row_h, controls: [#{
-        kind: "button", role: "row_action_accent", grow: 1, text: "Rename",
+        kind: "button", role: "action_form_primary", grow: 1, text: "Rename",
         on: |_| { apply_rename(S); },
     }] }], 0.0, false);
 }

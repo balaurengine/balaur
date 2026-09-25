@@ -3,7 +3,7 @@
 
 use balaur_core::components::ComponentRegistry;
 use balaur_core::{App, AppConfig};
-use balaur_ui::{ALIGNS, ANCHORS, FONT_STYLES, FONTS, MODIFIERS, PILL_ALIGNS, WIDGET_KINDS};
+use balaur_ui::{ALIGNS, ANCHORS, CLASSES, FONT_STYLES, FONTS, MODIFIERS, WIDGET_KINDS};
 
 fn registered_options(field: &str) -> Vec<String> {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
@@ -38,7 +38,7 @@ fn widget_kind_constants_match_the_registered_schema() {
 #[test]
 fn align_and_font_style_constants_match_the_registered_schema() {
     let aligns: Vec<&str> = ALIGNS.iter().map(|(_, v)| *v).collect();
-    assert_eq!(aligns, registered_options("align"));
+    assert_eq!(aligns, registered_options("align_items"));
     assert_eq!(aligns, registered_options("text_align"));
     let styles: Vec<&str> = FONT_STYLES.iter().map(|(_, v)| *v).collect();
     assert_eq!(styles, registered_options("font_style"));
@@ -51,9 +51,9 @@ fn every_constant_is_screaming_snake_and_unique() {
         .iter()
         .chain(WIDGET_KINDS)
         .chain(ALIGNS)
-        .chain(PILL_ALIGNS)
         .chain(FONT_STYLES)
         .chain(FONTS)
+        .chain(CLASSES)
         .chain(MODIFIERS)
     {
         assert!(

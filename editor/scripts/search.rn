@@ -11,7 +11,7 @@ use crate::util;
 pub fn field(S, k, id, placeholder, width) {
     let current = S.search.get(id).unwrap_or("");
     let (text, _, _) = ui::text_field("search:" + id, placeholder,
-        util::merge(style::field(k, width), #{ value: current, font: ui::FONT_MONO, height: style::row_h(S) }));
+        util::merge(style::field(k, width), #{ value: current, font_family: ui::FONT_MONO, height: style::row_h(S) }));
     S.search[id] = text;
     text
 }
@@ -20,7 +20,7 @@ pub fn field(S, k, id, placeholder, width) {
 /// state under the same `id`, so `query` answers for either.
 pub fn control(S, id, placeholder, width) {
     #{
-        kind: "field", role: "chrome_field", width: width,
+        kind: "text_field", role: "input_dock", width: width,
         text: S.search.get(id).unwrap_or(""), placeholder: placeholder,
         on: |text| { S.search[id] = text; },
     }
@@ -50,7 +50,7 @@ pub fn matches(query, text) {
 /// A line the dock shows when a filter left nothing, so an empty list reads
 /// as "nothing matched" rather than "nothing exists".
 pub fn nothing(k, query) {
-    ui::label(nothing_says(query), style::mono_sm(k.faint));
+    ui::label(nothing_says(query), style::mono_sm(k.text_subtle));
 }
 
 /// The same line as text, for a caller putting it on a node.

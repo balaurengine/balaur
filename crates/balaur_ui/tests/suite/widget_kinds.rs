@@ -9,7 +9,7 @@ use egui::pos2;
 #[test]
 fn a_check_flips_on_click_and_reads_back() {
     let (_dir, mut app) = app();
-    let params = toml::toml! { kind = "check" text = "Music" x = 0.0 y = 0.0 };
+    let params = toml::toml! { kind = "checkbox" text = "Music" x = 0.0 y = 0.0 };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -61,7 +61,7 @@ fn a_slider_click_writes_where_it_landed() {
 fn a_drag_value_shows_its_number_and_takes_a_drag() {
     let (_dir, mut app) = app();
     let params =
-        toml::toml! { kind = "drag_value" x = 0.0 y = 0.0 width = 90.0 value = 2.0 step = 1.0 };
+        toml::toml! { kind = "number_field" x = 0.0 y = 0.0 width = 90.0 value = 2.0 step = 1.0 };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -107,13 +107,14 @@ fn a_text_area_keeps_the_newlines_a_field_would_drop() {
 #[test]
 fn a_color_swatch_keeps_what_the_scene_gave_it() {
     let (_dir, mut app) = app();
-    let params = toml::toml! { kind = "color" x = 0.0 y = 0.0 color = [1.0, 0.0, 0.0, 1.0] };
+    let params =
+        toml::toml! { kind = "color_picker" x = 0.0 y = 0.0 picked_color = [1.0, 0.0, 0.0, 1.0] };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     pass(&app, &ctx, vec![]);
     consume_input(&mut app);
-    let held = property(&app, entity, "color");
+    let held = property(&app, entity, "picked_color");
     let red = held
         .as_array()
         .and_then(|a| a.first())
@@ -128,7 +129,8 @@ fn a_color_swatch_keeps_what_the_scene_gave_it() {
 #[test]
 fn a_color_swatch_paints_its_floats_as_srgb() {
     let (_dir, app) = app();
-    let params = toml::toml! { kind = "color" x = 0.0 y = 0.0 color = [0.5, 0.5, 0.5, 1.0] };
+    let params =
+        toml::toml! { kind = "color_picker" x = 0.0 y = 0.0 picked_color = [0.5, 0.5, 0.5, 1.0] };
     add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -375,7 +377,7 @@ fn a_scroll_deadzone_lets_a_short_drag_click_and_a_long_one_scroll() {
     let (_dir, mut app) = app();
     let holder = add_widget(
         &app,
-        &toml::toml! { kind = "scroll" deadzone = 30.0 x = 0.0 y = 0.0 width = 200.0 height = 100.0 gap = 0.0 }
+        &toml::toml! { kind = "scroll" scroll_deadzone = 30.0 x = 0.0 y = 0.0 width = 200.0 height = 100.0 gap = 0.0 }
             .into(),
     );
     let first = add_child_widget(
@@ -436,12 +438,12 @@ fn face_theme(dir: &std::path::Path) {
     std::fs::create_dir_all(dir.join("themes")).unwrap();
     std::fs::write(
         dir.join("themes/face.toml"),
-        "type = \"widget_theme\"\n\n[roles.row]\nalign = \"left\"\n\n[roles.mark]\nplate = \"#ffffff\"\n",
+        "type = \"widget_theme\"\n\n[roles.row]\ntext_align = \"start\"\n\n[roles.mark]\nicon_fill = \"#ffffff\"\n",
     )
     .unwrap();
 }
 
-/// A role's `align = "left"` reaches a node button. It reached script pills
+/// A role's `text_align = "start"` reaches a node button. It reached script pills
 /// only, so a node `row` drew its caption in the middle of the row.
 /// A widget inside a `scroll` keeps the theme its ancestor named. A scroll
 /// is solved as a tree of its own, and measuring a leaf in it resolved only
@@ -454,7 +456,7 @@ fn a_widget_under_a_scroll_keeps_its_ancestor_s_theme() {
     std::fs::create_dir_all(dir.path().join("themes")).unwrap();
     std::fs::write(
         dir.path().join("themes/ink.toml"),
-        "type = \"widget_theme\"\n\n[colors]\nmark = \"#5b6670\"\n\n[roles.transport]\nd = 26\ncolor = \"mark\"\n",
+        "type = \"widget_theme\"\n\n[colors]\nmark = \"#5b6670\"\n\n[roles.transport]\nwidth = 26\nheight = 26\ntext_color = \"mark\"\n",
     )
     .unwrap();
     let icon = "\u{e1dc}";

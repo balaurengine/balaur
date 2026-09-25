@@ -42,6 +42,9 @@ use smol_str::SmolStr;
 
 use crate::theme::family;
 use crate::vocabulary::keys as k;
+use crate::vocabulary::states as st;
+use crate::vocabulary::tokens as t;
+use crate::vocabulary::weights;
 use crate::vocabulary::words as w;
 use crate::widget::node::{Widget, rgba_color};
 use egui::Color32;
@@ -53,6 +56,21 @@ pub enum Pointer {
     Away,
     Over,
     Held,
+}
+
+impl Pointer {
+    /// Where the pointer is for a widget that answers with its own response
+    /// rather than with the box the layout gave it.
+    #[must_use]
+    pub fn of(response: &egui::Response) -> Self {
+        if response.is_pointer_button_down_on() {
+            Self::Held
+        } else if response.hovered() {
+            Self::Over
+        } else {
+            Self::Away
+        }
+    }
 }
 
 /// What a widget is being, which the theme's state tables answer to.
@@ -94,7 +112,7 @@ pub struct Style {
     /// Left, top, right and bottom borders of `image` kept unstretched, in
     /// the picture's own pixels.
     pub slice: [f32; 4],
-    /// The ink a caption is drawn in, which a role spells `color`.
+    /// The ink a caption is drawn in, which a role spells `text_color`.
     pub text_color: Option<Color32>,
     /// The disc a control's picture sits on, so a dark mark reads on a dark
     /// sheet.
@@ -102,7 +120,7 @@ pub struct Style {
     /// Where a control's content sits across it: `left` for a row, else centred.
     pub align: Option<String>,
     pub font_size: Option<f32>,
-    /// Which of the theme's families, by the names `font` offers.
+    /// Which of the theme's families, by the names `font_family` offers.
     pub font: Option<String>,
     /// Weight on the CSS scale; a role's `strong = true` is 700.
     pub weight: Option<f32>,
@@ -205,28 +223,20 @@ impl Style {
         }
     }
 
-    /// The style for how the widget is being touched right now. A theme that
-    /// named neither state gets the base back, which is what it drew before.
-    #[must_use]
-    pub fn in_state(&self, hovered: bool, held: bool) -> Self {
-        let pointer = if held {
-            Pointer::Held
-        } else if hovered {
-            Pointer::Over
-        } else {
-            Pointer::Away
-        };
-        self.in_states(WidgetState {
-            pointer,
-            ..WidgetState::default()
-        })
-    }
-
     /// The style with the tables for the widget's state over it: `checked`
     /// under everything, then disabled, held, hovered, and focused with the
     /// pointer elsewhere.
     #[must_use]
     pub fn in_states(&self, state: WidgetState) -> Self {
+        if state.checked && self.checked.is_none() && !state.disabled {
+            // A theme with no `checked` table dresses a checked widget as held.
+            let held = WidgetState {
+                pointer: Pointer::Held,
+                checked: false,
+                ..state
+            };
+            return self.in_states(held);
+        }
         let on = match (&self.checked, state.checked) {
             (Some(checked), true) => checked.over(self),
             _ => self.clone(),
@@ -253,6 +263,7 @@ pub struct WidgetTheme {
     kinds: BTreeMap<String, Style>,
     roles: BTreeMap<String, Style>,
     colors: BTreeMap<String, Color32>,
+    sizes: BTreeMap<String, f32>,
     /// `resolved` remembered: a kind and a role name the same style for as
     /// long as the theme lives, and working it out walked two maps and cloned
     /// a style for every widget on the screen, every frame.
@@ -306,11 +317,21 @@ impl WidgetTheme {
         made
     }
 
+    /// A size by name: the theme's, or the one every theme derives when it
+    /// states none.
+    #[must_use]
+    pub fn size(&self, name: &str) -> f32 {
+        self.sizes
+            .get(name)
+            .copied()
+            .unwrap_or_else(|| crate::palette::default_size(name))
+    }
+
     /// A colour by the name `[colors]` filed it under, for a widget that
     /// names one rather than spelling a hex.
     #[must_use]
     pub fn token(&self, name: &str) -> Option<Color32> {
-        if name == "none" {
+        if name == w::NONE {
             return Some(Color32::TRANSPARENT);
         }
         parse_color(name).or_else(|| self.colors.get(name).copied())
@@ -361,7 +382,7 @@ fn color(value: &toml::Value, what: &str, colors: &BTreeMap<String, Color32>) ->
 
 /// The tables that name something other than a widget kind.
 fn is_reserved(key: &str) -> bool {
-    matches!(key, "type" | "dark" | "colors" | "roles" | "sizes" | "base")
+    [k::TYPE, k::DARK, k::COLORS, k::ROLES, k::SIZES, k::BASE].contains(&key)
 }
 
 // The class words in force, and a number that changes when they do, so the
@@ -506,10 +527,10 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
         gap: number(k::GAP),
         icon_color: colour(k::ICON_COLOR),
         round: pill.then_some(true),
-        hover: nested("hover"),
-        active: nested("active"),
-        disabled: nested("disabled"),
-        focus: nested("focus"),
+        hover: nested(st::HOVER),
+        active: nested(st::ACTIVE),
+        disabled: nested(st::DISABLED),
+        focus: nested(st::FOCUS),
         checked: body
             .get(k::CHECKED)
             .and_then(toml::Value::as_table)
@@ -572,10 +593,13 @@ pub(crate) fn parse(value: &toml::Value) -> WidgetTheme {
         .map(|sizes| {
             sizes
                 .iter()
-                .filter_map(|(name, v)| Some((name.clone(), balaur_core::components::as_f64(v)? as f32)))
+                .filter_map(|(name, v)| {
+                    Some((name.clone(), balaur_core::components::as_f64(v)? as f32))
+                })
                 .collect()
         })
         .unwrap_or_default();
+    theme.sizes.clone_from(&sizes);
     let tokens = Tokens {
         colors: theme.colors.clone(),
         sizes,
@@ -616,65 +640,72 @@ pub(crate) fn four_of(value: Option<&toml::Value>) -> [f32; 4] {
 }
 
 /// The doc string `balaur api` and the editor's asset picker show.
-pub(crate) const ASSET_DOC: &str = r##"How each widget kind is drawn, one table per kind. `[colors]` names shared fills and `[roles.<name>]` is a look a widget picks with `role`.
+pub(crate) const ASSET_DOC: &str = r##"How each widget kind is drawn, one table per kind. `[colors]` and `[sizes]` hold the tokens every table may name, and `[roles.<name>]` is a look a widget picks with `role`. Seven source colours and four sizes derive every other token; a token the file states wins.
 
 ```toml
 type = "widget_theme"            # a widget takes the theme of the nearest ancestor naming one
 
-[colors]                         # named fills the rest of the file may use
-ink = "#1b1b1b"
-sky = "#3aa0ff"
-link = "#3aa0ff"                 # what a `[url]` span in markup text is drawn in
-row_on = "#2f6fb0"               # a picked row of a `list`, `tree` or `table`
-row_on_color = "#ffffff"         # and the ink on it
-row_hover = "#ffffff12"          # what a row takes under the pointer; `row_press` while held
+[colors]                         # the sources; bg_panel, text_muted, primary_fill, ... derive from them
+background = "#151f2a"           # dark or light follows from it; `dark = true` overrides
+foreground = "#e6e9ee"
+primary = "#4287cc"              # also secondary, success, warning, danger
+contrast = 0.05                  # how far apart the surfaces step
+row_selected = "#2f6fb0"         # a picked row of a `list`, `tree` or `table`
+row_selected_text = "#ffffff"    # and the ink on it
+row_hover = "#ffffff12"          # what a row takes under the pointer; `row_active` while held
 row_stripe = "#ffffff08"         # a table's every other row; "#00000000" hides it
-row_head = "#ffffff08"           # its header's plate
-row_rule = "#00000000"           # the lines down its columns, hidden here
-row_guide = "#8a8a8a8c"          # the lines down a tree's indent
+table_header = "#ffffff08"       # a table's header plate
+table_rule = "#00000000"         # the lines down its columns, hidden here
+tree_guide = "#8a8a8a8c"         # the lines down a tree's indent
+
+[sizes]                          # font_size, radius, control_height, stroke_width; the rest derive
+font_size = 16                   # font_size_small, font_size_large and font_size_title follow
+radius = 6                       # radius_small and radius_large follow
 
 [button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look
-fill = "sky"
-stroke = "ink"
+fill = "primary_fill"
+stroke = "border_default"
 stroke_width = 1.0
-radius = 6.0
+corner_radius = "radius_large"   # a number, a size's name, or "full" for a pill
 padding = 8.0
 gap = 4.0
-size = 14.0
-color = "ink"                    # text colour
-icon_color = "ink"
-font = "ui"
-strong = true
+font_size = "font_size_large"
+text_color = "text_on_primary"
+icon_color = "text_on_primary"
+font_family = "ui"               # ui, heading, mono or icon
+font_weight = 700
+text_align = "center"            # start, center or end
 
-[button.hover]                   # the look under the pointer; [button.active] while pressed,
-                                 # [button.disabled] while off, [button.focus] with keyboard focus
-fill = "#5cb4ff"
+[button.hover]                   # under the pointer; [button.active] while held, [button.focus] with
+                                 # keyboard focus, [button.disabled] while off, [button.checked] while on
+fill = "primary_fill_hover"
 
 [panel]
 image = "art/panel.png"          # a nine-patch, sliced in its own pixels
 slice = [8, 8, 8, 8]             # left, top, right, bottom
 
 [table]                          # a row view is dressed like any other kind
-fill = "ink"
-stroke = "sky"
-radius = 6.0
+fill = "bg_control"
+stroke = "border_default"
+corner_radius = 6.0
 padding_x = 10.0                 # the air either side of a cell's text
 
 [roles.danger]                   # what a widget with role = "danger" takes
-fill = "#d33a3a"
+fill = "danger_fill"
+text_color = "text_on_danger"
 ```"##;
 
 pub(crate) const ASSET_TYPE: &str = "widget_theme";
 
 /// The style a widget is drawn with: its kind's, the `role` it names over
-/// that, and the `fill`, `stroke` and `radius` it states over both.
+/// that, and the `fill`, `stroke` and `corner_radius` it states over both.
 ///
 /// The measure pass calls this too, so a row is sized at the face it draws at.
 /// Dress the egui widgets a kind is drawn from in that kind's own style.
 ///
-/// A `drag_value`, a `slider` and a `field` are egui's widgets, so they wear
-/// egui's palette unless the theme is told to them here: a screen whose
-/// theme names a `[drag_value]` would otherwise show egui's grey beside the
+/// A `number_field`, a `slider` and a `text_field` are egui's widgets, so they
+/// wear egui's palette unless the theme is told to them here: a screen whose
+/// theme names a `[number_field]` would otherwise show egui's grey beside the
 /// buttons it dressed itself. A theme that names nothing changes nothing.
 pub(crate) fn dress(ui: &mut egui::Ui, style: &Style, ink: Color32) {
     let radius = style
@@ -718,7 +749,7 @@ pub(crate) fn dress(ui: &mut egui::Ui, style: &Style, ink: Color32) {
             state.fg_stroke.color = color;
         }
     }
-    // What a `field` draws its line on, which is not a widget state.
+    // What a `text_field` draws its line on, which is not a widget state.
     if let Some(fill) = style.fill {
         visuals.extreme_bg_color = fill;
     }
@@ -761,7 +792,7 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
 pub(crate) const DEFAULT_INK: Color32 = Color32::from_rgb(238, 241, 244);
 
 /// Where a caption sits across the width it was given: the node's own
-/// `text_align`, else its role's `align`. `start` is the schema's default and
+/// `text_align`, else its role's. `start` is the schema's default and
 /// means the node asked for nothing.
 pub(crate) fn text_align_of<'a>(style: &'a Style, widget: &'a Widget) -> &'a str {
     if widget.text_align.is_empty() || widget.text_align == w::START {
@@ -796,13 +827,13 @@ pub(crate) fn face(theme: &WidgetTheme, style: &Style, widget: &Widget) -> (Colo
     } else {
         style
             .text_color
-            .or_else(|| theme.token("text"))
+            .or_else(|| theme.token(t::TEXT_DEFAULT))
             .unwrap_or(DEFAULT_INK)
     };
     let size = if widget.font_size > 0.0 {
         widget.font_size
     } else {
-        style.font_size.unwrap_or(16.0)
+        style.font_size.unwrap_or_else(|| theme.size(t::FONT_SIZE))
     };
     (
         ink,
@@ -810,12 +841,12 @@ pub(crate) fn face(theme: &WidgetTheme, style: &Style, widget: &Widget) -> (Colo
     )
 }
 
-/// The weight a widget draws at, the theme answering for one left at 400.
+/// The weight a widget draws at, the theme answering for one left regular.
 pub(crate) fn weight_of(style: &Style, widget: &Widget) -> f32 {
-    if (widget.font_weight - 400.0).abs() > f32::EPSILON {
+    if (widget.font_weight - weights::REGULAR).abs() > f32::EPSILON {
         return widget.font_weight;
     }
-    style.weight.unwrap_or(400.0)
+    style.weight.unwrap_or(weights::REGULAR)
 }
 
 /// The theme in force for a widget: its own, or the nearest ancestor's.

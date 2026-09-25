@@ -178,10 +178,10 @@ fn pill_rows(S, k, label, items, label_of, id_of, draw) {
         let at = S.form.len();
         first = false;
         crate::inspector::wide_row(S, style::row_h(S) + 2.0, || {
-            ui::horizontal(#{ height: style::row_h(S) }, || {
+            ui::row(#{ height: style::row_h(S) }, || {
                 let full = ui::available_width();
                 ui::add_space(2);
-                ui::label(head, style::mono_sm(k.faint));
+                ui::label(head, style::mono_sm(k.text_subtle));
                 ui::add_space(util::max(4.0, LABEL_COL - 2.0 - CHAR_W * util::f(head.len())));
                 for item in held {
                     let before = ui::available_width();
@@ -217,8 +217,8 @@ fn add_row(S, k, node, two_d) {
     }
     pill_rows(S, k, "Add", missing, |row| row[1], |row| row[0], |row| {
         let held = row;
-        if ui::pill(held[1], #{
-            role: "row_action", fill: k.sage_soft, color: k.sage,
+        if ui::button(held[1], #{
+            role: "action_form", fill: k.secondary_bg, text_color: k.secondary_text,
             tooltip: format!("{}: {}", held[0], held[2]),
         }) {
             model::add_component(S, held[0]);
@@ -231,7 +231,7 @@ fn add_row(S, k, node, two_d) {
 fn shape_rows(S, k, two_d) {
     pill_rows(S, k, "Collide as", collider_shapes(two_d), |shape| shape[0], |shape| shape[0], |shape| {
         let held = shape;
-        if ui::pill(held[0], #{ role: "row_action", tooltip: held[1] }) {
+        if ui::button(held[0], #{ role: "action_form", tooltip: held[1] }) {
             make_collider(S, two_d, held[2]);
         }
     });
@@ -250,8 +250,8 @@ fn shape_rows(S, k, two_d) {
     };
     pill_rows(S, k, "Deform as", soft, |row| row[0], |row| row[0], |row| {
         let held = row;
-        if ui::pill(held[0], #{
-            role: "row_action", fill: k.sage_soft, color: k.sage, tooltip: held[1],
+        if ui::button(held[0], #{
+            role: "action_form", fill: k.secondary_bg, text_color: k.secondary_text, tooltip: held[1],
         }) {
             let name = if two_d { "softbody2d" } else { "softbody3d" };
             let props = held[2];

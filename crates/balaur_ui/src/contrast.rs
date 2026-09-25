@@ -6,7 +6,7 @@ use balaur_core::Engine;
 use balaur_script::{Bindings, BindingsExt, Value};
 
 use crate::theme::parse_hex;
-use crate::vocabulary::keys as k;
+use crate::vocabulary::{keys as k, weights};
 
 /// The ratio body text needs, and the one large or bold text needs.
 pub const AA: f64 = 4.5;
@@ -25,7 +25,8 @@ pub struct Pair {
     pub need: f64,
 }
 
-fn linear(channel: u8) -> f64 {
+/// An sRGB channel as linear light, 0 to 1.
+pub(crate) fn to_linear(channel: u8) -> f64 {
     let c = f64::from(channel) / 255.0;
     if c <= 0.04045 {
         c / 12.92
@@ -35,7 +36,7 @@ fn linear(channel: u8) -> f64 {
 }
 
 fn luminance(color: egui::Color32) -> f64 {
-    0.2126 * linear(color.r()) + 0.7152 * linear(color.g()) + 0.0722 * linear(color.b())
+    0.2126 * to_linear(color.r()) + 0.7152 * to_linear(color.g()) + 0.0722 * to_linear(color.b())
 }
 
 /// The WCAG 2 contrast ratio between two colours, 1 to 21.
@@ -55,14 +56,19 @@ pub fn color_of(colors: Option<&toml::Table>, value: &str) -> Option<egui::Color
     crate::theme::parse_hex(hex)
 }
 
-/// Every ink a document's roles draw, on the fill each draws it on.
+/// Every ink a document's roles draw, on the fill each draws it on, with the
+/// tokens it leaves out derived from its sources.
 ///
 /// A state table inherits the ink, fill and size of the table above it. A role
 /// that states no fill is drawn on `ground`, the token for the sheet under it.
 /// A pair whose ink or fill names no colour is left out.
 #[must_use]
 pub fn pairs(doc: &toml::Value, ground: &str) -> Vec<Pair> {
-    let colors = doc.get(k::COLORS).and_then(toml::Value::as_table);
+    let doc = crate::palette::complete(doc);
+    let tokens = Tokens {
+        colors: doc.get(k::COLORS).and_then(toml::Value::as_table),
+        sizes: doc.get(k::SIZES).and_then(toml::Value::as_table),
+    };
     let mut out = Vec::new();
     let Some(roles) = doc.get(k::ROLES).and_then(toml::Value::as_table) else {
         return out;
@@ -75,10 +81,25 @@ pub fn pairs(doc: &toml::Value, ground: &str) -> Vec<Pair> {
                 size: None,
                 strong: false,
             };
-            walk(name, role, &base, colors, &mut out);
+            walk(name, role, &base, &tokens, &mut out);
         }
     }
     out
+}
+
+struct Tokens<'a> {
+    colors: Option<&'a toml::Table>,
+    sizes: Option<&'a toml::Table>,
+}
+
+impl Tokens<'_> {
+    /// A number, or the name of one of the theme's sizes.
+    fn number(&self, value: &toml::Value) -> Option<f64> {
+        balaur_core::components::as_f64(value).or_else(|| {
+            let named = self.sizes?.get(value.as_str()?)?;
+            balaur_core::components::as_f64(named)
+        })
+    }
 }
 
 struct Inherited {
@@ -92,7 +113,7 @@ fn walk(
     name: &str,
     table: &toml::Table,
     above: &Inherited,
-    colors: Option<&toml::Table>,
+    tokens: &Tokens<'_>,
     out: &mut Vec<Pair>,
 ) {
     let text = |key: &str| {
@@ -106,16 +127,19 @@ fn walk(
         ink: text(k::TEXT_COLOR).unwrap_or_else(|| above.ink.clone()),
         size: table
             .get(k::FONT_SIZE)
-            .and_then(balaur_core::components::as_f64)
+            .and_then(|size| tokens.number(size))
             .or(above.size),
         strong: table
             .get(k::FONT_WEIGHT)
             .and_then(balaur_core::components::as_f64)
-            .map_or(above.strong, |weight| weight >= 600.0),
+            .map_or(above.strong, |weight| {
+                weight >= f64::from(weights::BOLD_FROM)
+            }),
     };
     let large = here
         .size
         .is_some_and(|size| size >= 18.0 || (size >= 14.0 && here.strong));
+    let colors = tokens.colors;
     if let (Some(ink), Some(fill)) = (color_of(colors, &here.ink), color_of(colors, &here.fill)) {
         out.push(Pair {
             role: name.to_owned(),
@@ -127,7 +151,7 @@ fn walk(
     }
     for (key, value) in table {
         if let Some(state) = value.as_table() {
-            walk(&format!("{name}.{key}"), state, &here, colors, out);
+            walk(&format!("{name}.{key}"), state, &here, tokens, out);
         }
     }
 }
@@ -187,19 +211,20 @@ mod tests {
     }
 
     #[test]
-    fn a_state_table_inherits_its_role_s_fill_and_size() {
+    fn a_state_table_inherits_its_role_s_fill_and_named_size() {
         let doc: toml::Value = toml::from_str(
-            "[colors]\npanel = \"#ffffff\"\ninkish = \"#777777\"\n\n\
-             [roles.tab]\ncolor = \"inkish\"\nsize = 18\n\n\
-             [roles.tab.hover]\ncolor = \"#000000\"\n",
+            "[colors]\nbg_panel = \"#ffffff\"\ninkish = \"#777777\"\n\n\
+             [sizes]\nfont_size = 13\n\n\
+             [roles.tab]\ntext_color = \"inkish\"\nfont_size = \"font_size_title\"\n\n\
+             [roles.tab.hover]\ntext_color = \"#000000\"\n",
         )
         .unwrap();
-        let found = pairs(&doc, "panel");
+        let found = pairs(&doc, "bg_panel");
         assert_eq!(found.len(), 2);
-        assert_eq!(found[0].fill, "panel");
+        assert_eq!(found[0].fill, "bg_panel");
         assert!((found[0].need - AA_LARGE).abs() < f64::EPSILON);
         assert_eq!(found[1].role, "tab.hover");
-        assert_eq!(found[1].fill, "panel", "the hover keeps the role's fill");
+        assert_eq!(found[1].fill, "bg_panel", "the hover keeps the role's fill");
         assert!(found[1].ratio > AA);
     }
 }

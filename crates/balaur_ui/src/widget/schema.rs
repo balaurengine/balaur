@@ -52,8 +52,8 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::PASS_NODE, r#"{ type = "bool", default = false, description = "Hand every handler this widget calls its own node as the last argument, so one method can serve many widgets", group = "events" }"#),
                     (k::POINTER_THROUGH, r#"{ type = "bool", default = false, description = "Let the pointer pass through to the scene: the widget is drawn, never hovered or clicked, and `ui.wants_pointer()` stays false over it. A full-screen container over the world wants this", group = "events" }"#),
                     (k::ON_LINK, r#"{ type = "string", default = "", description = "Script method called with the target of a `[url=target]` span in `markup` text that was clicked, on this node or the nearest ancestor whose script declares it", group = "events" }"#),
-                    (k::SUFFIX, r#"{ type = "string", default = "", description = "Units drawn after a `drag_value`'s number, the way `placeholder` is drawn before it", group = "type" }"#),
-                    (k::ARROWS, r#"{ type = "bool", default = false, description = "Draw a step up and a step down beside a `drag_value`, each moving it by `step` within `min` and `max`", group = "type" }"#),
+                    (k::SUFFIX, r#"{ type = "string", default = "", description = "Units drawn after a `number_field`'s number, the way `placeholder` is drawn before it", group = "type" }"#),
+                    (k::ARROWS, r#"{ type = "bool", default = false, description = "Draw a step up and a step down beside a `number_field`, each moving it by `step` within `min` and `max`", group = "type" }"#),
                     (k::SELECTABLE, r#"{ type = "bool", default = false, description = "Let a drag over this label select its text, and the platform's copy key take it", group = "type" }"#),
                     (k::BREAKPOINTS, r#"{ type = "list", of = { type = "string" }, default = [], description = "The lines a `code` widget dots in its gutter, counting from 1; whole numbers or the text of them. A click on the gutter reports its line through `on_gutter` and the script decides what the mark means", group = "value" }"#),
                     (k::PROBLEMS, r#"{ type = "list", of = { type = "string" }, default = [], description = "The lines a `code` widget underlines as errors, counting from 1, each also marked on the inner edge of its gutter", group = "value" }"#),
@@ -71,7 +71,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::MIN_HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "Smallest height a container may give this widget, in design pixels", group = "placement" }"#),
                     (k::DRAW, r#"{ type = "string", default = "", description = "What fills a `draw` widget: a script method on this node or the nearest scripted ancestor, or `scripts/file.rn:function` for a free function", group = "paint" }"#),
                     (k::SPLITTER_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "How wide a grab the seams between this container's children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one. On a `table` it is the grab between two columns, which is six pixels where it says nothing", group = "value" }"#),
-                    (k::CURRENT_PAGE, r#"{ type = "string", default = "", description = "Which child a `tab` shows, by node name; empty shows the first. A click on the strip writes it and calls `on_change` with the page's name", group = "events" }"#),
+                    (k::CURRENT_PAGE, r#"{ type = "string", default = "", description = "Which child a `tabs` shows, by node name; empty shows the first. A click on the strip writes it and calls `on_change` with the page's name", group = "events" }"#),
                     (k::LAYER, r#"{ type = "string", default = "", description = "The drawing surface this root belongs to; empty is the default one, and a name nothing has configured takes the default surface", group = "placement" }"#),
                     (k::WRAP, r#"{ type = "bool", default = false, description = "Break text to the width the widget was given instead of running past it on one line", group = "type" }"#),
                     (k::TRUNCATE, r#"{ type = "bool", default = false, description = "Cut a caption too long for the width the widget was given and end it with an ellipsis, rather than clip it mid-glyph", group = "type" }"#),
@@ -87,21 +87,21 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::MARKUP, r#"{ type = "bool", default = false, description = "Read inline marks in the text: `[b]`, `[i]`, `[color=#hex]`, `[center]`, `[right]`, `[wave amp=N freq=N]` and `[img=path width=N]`; off, brackets are text", group = "type" }"#),
                     (k::FONT_WEIGHT, r#"{ type = "float", default = 400.0, min = 100.0, max = 900.0, description = "Weight on the CSS scale, resolved against the faces the project ships: 400 regular, 700 bold", group = "type" }"#),
                     (k::FONT_STYLE, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Slant, from an italic face the project ships", group = "type" }}"#, w::NORMAL, v::options(w::FONT_STYLES))),
-                    (k::PLACEHOLDER, r#"{ type = "string", default = "", description = "What a `field` shows while it is empty, and the letter a `drag_value` puts before its number", group = "value" }"#),
-                    (k::MAX_LENGTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "The most characters a `field` takes; 0 is no limit", group = "value" }"#),
-                    (k::SECRET, r#"{ type = "bool", default = false, description = "Draw a `field`'s text as dots, for a password", group = "value" }"#),
-                    (k::NUMERIC, r#"{ type = "bool", default = false, description = "Keep a `field` to digits, a sign and a point", group = "value" }"#),
-                    (k::ON_CHANGE, r#"{ type = "string", default = "", description = "Script method called with a `field`'s text after every edit, on this node or the nearest ancestor whose script declares it", group = "events" }"#),
-                    (k::ON_SUBMIT, r#"{ type = "string", default = "", description = "Script method called with a `field`'s text on Enter, or when focus leaves it, on this node or the nearest ancestor whose script declares it", group = "events" }"#),
-                    (k::SUBMITTED, r#"{ type = "bool", default = false, description = "True for the one frame a `field` was submitted, the way `clicked` reports a press", group = "events" }"#),
-                    (k::CHECKED, r#"{ type = "bool", default = false, description = "Whether a `check` is ticked, every click flipping it and calling `on_change` with the new state; a checked `button` is held down, wearing its pressed look" }"#),
-                    (k::GROUP, r#"{ type = "string", default = "", description = "A name this `check` or `toggle` button shares with the ones it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own", group = "value" }"#),
-                    (k::TOGGLE, r#"{ type = "bool", default = false, description = "A `button` a click holds down and the next releases, flipping `checked` as a `check` does, before `on_click` runs: Godot's toggle mode", group = "value" }"#),
-                    (k::VALUE, r#"{ type = "float", default = 0.0, description = "Where a `slider`, `drag_value` or `progress` stands, between `min` and `max`; a slider and a drag value write it and call `on_change` with it" }"#),
-                    (k::MIN, r#"{ type = "float", default = 0.0, description = "The low end of a `slider` or `progress`; a `drag_value` runs free while this pair is the default 0 and 1", group = "value" }"#),
-                    (k::MAX, r#"{ type = "float", default = 1.0, description = "The high end of a `slider` or `progress`; a `drag_value` runs free while this pair is the default 0 and 1", group = "value" }"#),
-                    (k::STEP, r#"{ type = "float", default = 0.0, min = 0.0, description = "The grid a `slider` snaps to, and how fast a `drag_value` moves under the pointer; 0 is continuous", group = "value" }"#),
-                    (k::PICKED_COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "What a `color` swatch holds; `on_change` hears the new one", group = "paint" }"#),
+                    (k::PLACEHOLDER, r#"{ type = "string", default = "", description = "What a `text_field` shows while it is empty, and the letter a `number_field` puts before its number", group = "value" }"#),
+                    (k::MAX_LENGTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "The most characters a `text_field` takes; 0 is no limit", group = "value" }"#),
+                    (k::SECRET, r#"{ type = "bool", default = false, description = "Draw a `text_field`'s text as dots, for a password", group = "value" }"#),
+                    (k::NUMERIC, r#"{ type = "bool", default = false, description = "Keep a `text_field` to digits, a sign and a point", group = "value" }"#),
+                    (k::ON_CHANGE, r#"{ type = "string", default = "", description = "Script method called with a `text_field`'s text after every edit, on this node or the nearest ancestor whose script declares it", group = "events" }"#),
+                    (k::ON_SUBMIT, r#"{ type = "string", default = "", description = "Script method called with a `text_field`'s text on Enter, or when focus leaves it, on this node or the nearest ancestor whose script declares it", group = "events" }"#),
+                    (k::SUBMITTED, r#"{ type = "bool", default = false, description = "True for the one frame a `text_field` was submitted, the way `clicked` reports a press", group = "events" }"#),
+                    (k::CHECKED, r#"{ type = "bool", default = false, description = "Whether a `checkbox` is ticked, every click flipping it and calling `on_change` with the new state; a checked `button` is held down, wearing its pressed look" }"#),
+                    (k::GROUP, r#"{ type = "string", default = "", description = "A name this `checkbox` or `toggle` button shares with the ones it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own", group = "value" }"#),
+                    (k::TOGGLE, r#"{ type = "bool", default = false, description = "A `button` a click holds down and the next releases, flipping `checked` as a `checkbox` does, before `on_click` runs: Godot's toggle mode", group = "value" }"#),
+                    (k::VALUE, r#"{ type = "float", default = 0.0, description = "Where a `slider`, `number_field` or `progress_bar` stands, between `min` and `max`; a slider and a drag value write it and call `on_change` with it" }"#),
+                    (k::MIN, r#"{ type = "float", default = 0.0, description = "The low end of a `slider` or `progress_bar`; a `number_field` runs free while this pair is the default 0 and 1", group = "value" }"#),
+                    (k::MAX, r#"{ type = "float", default = 1.0, description = "The high end of a `slider` or `progress_bar`; a `number_field` runs free while this pair is the default 0 and 1", group = "value" }"#),
+                    (k::STEP, r#"{ type = "float", default = 0.0, min = 0.0, description = "The grid a `slider` snaps to, and how fast a `number_field` moves under the pointer; 0 is continuous", group = "value" }"#),
+                    (k::PICKED_COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "What a `color_picker` holds; `on_change` hears the new one", group = "paint" }"#),
                     (k::ROW_HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "The pitch of a `list` or `tree` row, in design pixels; 0 takes the font's own line height", group = "layout" }"#),
                     (k::FONT_FAMILY, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Which of the theme's families the widget draws in", group = "type" }}"#, w::UI, v::options(w::WIDGET_FONTS))),
                     (k::OPTIONS, r#"{ type = "list", of = { type = "string" }, default = [], description = "The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note, an `#rrggbb` for that row and a key that is never drawn, which two rows with the same label need to stay two rows, and a `table` row splits on the same into one cell a column. `on_change` hears every pick", group = "value" }"#),
@@ -429,7 +429,7 @@ fn code_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) 
 }
 
 /// The keys a widget's text carries: where it sits, the face it is drawn in,
-/// and what a `field` accepts.
+/// and what a `text_field` accepts.
 fn text_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) {
     map.insert(
         k::TEXT_ALIGN.into(),
@@ -517,7 +517,10 @@ fn controls_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Valu
         toml::Value::String(widget.group.to_string()),
     );
     map.insert(k::PICKED_COLOR.into(), four(widget.color));
-    map.insert(k::FONT_FAMILY.into(), toml::Value::String(widget.font.to_string()));
+    map.insert(
+        k::FONT_FAMILY.into(),
+        toml::Value::String(widget.font.to_string()),
+    );
     map.insert(
         k::ROW_HEIGHT.into(),
         toml::Value::Float(f64::from(widget.row_height)),
@@ -639,7 +642,7 @@ pub(crate) fn register_widget_presets(reg: &mut Registry<'_>) -> Result<()> {
             w::TABS,
             "One child showing, the rest named on a strip above it",
         ),
-        ("draw", "A rect a script fills, named by `draw`"),
+        (w::DRAW, "A rect a script fills, named by `draw`"),
         (
             w::IMAGE,
             "A picture from the project, sized by itself or by what it states",
@@ -1079,7 +1082,7 @@ mod tests {
     /// A widget naming its own family keeps it over the role's.
     #[test]
     fn a_widget_s_own_family_wins() {
-        let widget = widget(&toml::toml! { kind = "label" font = "heading" }.into());
+        let widget = widget(&toml::toml! { kind = "label" font_family = "heading" }.into());
         let style = Style {
             font: Some("mono".to_string()),
             ..Style::default()

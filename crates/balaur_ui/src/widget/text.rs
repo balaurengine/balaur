@@ -22,8 +22,8 @@ pub(crate) fn text_request<'a>(
 ) -> balaur_text::RequestRef<'a> {
     balaur_text::RequestRef {
         text: caption,
-        // The face the caller already resolved, so a role's `size` and
-        // `strong` reach the shaper the way they reach egui's own text.
+        // The face the caller already resolved, so a role's `font_size` and
+        // `font_weight` reach the shaper the way they reach egui's own text.
         size: font.size,
         weight: weight_of(style, widget).clamp(100.0, 900.0) as u16,
         italic: widget.font_style == w::ITALIC,
@@ -147,11 +147,11 @@ pub(crate) fn shaped_label(
     if selectable {
         selecting(ui, &response, &shaped, origin, entity);
     }
-    // A link wears the theme's own `link` colour where it names one, and
-    // egui's otherwise, so a `[url]` never reads as plain text.
+    // A link wears the theme's primary ink where it has one, and egui's
+    // otherwise, so a `[url]` never reads as plain text.
     let linked = (!shaped.links.is_empty()).then(|| {
         at.theme
-            .token("link")
+            .token(crate::vocabulary::tokens::PRIMARY_TEXT)
             .unwrap_or(ui.visuals().hyperlink_color)
     });
     balaur_text::paint(
@@ -398,7 +398,7 @@ pub(crate) fn field(
     edit(ui, at, index, font, color, false);
 }
 
-/// A `field` that keeps its newlines: Godot's `TextEdit`. `height` sizes it,
+/// A `text_field` that keeps its newlines: Godot's `TextEdit`. `height` sizes it,
 /// and everything a single line reads is read here too.
 pub(crate) fn text_area(
     ui: &mut egui::Ui,

@@ -189,9 +189,9 @@ fn as_one_draw(count: usize) -> (tempfile::TempDir, App) {
     let script = format!(
         "pub fn init(this) {{}}\n\
          pub fn cells(this) {{\n\
-         \x20   ui::horizontal(#{{ tight: true }}, || {{\n\
+         \x20   ui::row(#{{ tight: true }}, || {{\n\
          \x20       for i in 0..{count} {{\n\
-         \x20           ui::pill(\"cell\", #{{}});\n\
+         \x20           ui::button(\"cell\", #{{}});\n\
          \x20       }}\n\
          \x20   }});\n\
          }}\n"

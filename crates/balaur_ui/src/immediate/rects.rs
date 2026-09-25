@@ -13,8 +13,8 @@ fn rect_value(rect: Option<egui::Rect>) -> Value {
         Value::Map(vec![
             (k::X.into(), Value::Num(f64::from(r.min.x))),
             (k::Y.into(), Value::Num(f64::from(r.min.y))),
-            (k::W.into(), Value::Num(f64::from(r.width()))),
-            (k::H.into(), Value::Num(f64::from(r.height()))),
+            (k::WIDTH.into(), Value::Num(f64::from(r.width()))),
+            (k::HEIGHT.into(), Value::Num(f64::from(r.height()))),
         ])
     })
 }
@@ -25,19 +25,19 @@ pub(crate) fn install_rects(m: &mut dyn Bindings<Engine>) {
             "widget_rect",
             &[],
             "",
-            "Where a `widget` node was last drawn, as `#{ x, y, w, h }` in design pixels; empty until it has drawn once.",
+            "Where a `widget` node was last drawn, as `#{ x, y, width, height }` in design pixels; empty until it has drawn once.",
         ),
         (
             "tab_rect",
             &[],
             "",
-            "Where a `tab` page's own button in the strip was last drawn, as `#{ x, y, w, h }` in design pixels; empty before the strip has drawn. `widget_rect` on the same node answers with the page body.",
+            "Where a `tabs` page's own button in the strip was last drawn, as `#{ x, y, width, height }` in design pixels; empty before the strip has drawn. `widget_rect` on the same node answers with the page body.",
         ),
         (
-            "pill_rect",
+            "button_rect",
             &[],
             "",
-            "Where the last `pill` was drawn, as `#{ x, y, w, h }` in design pixels; empty before one has. An immediate control has no node `widget_rect` can be asked about, so a caller that wants to point at one reads it back here, straight after the call that drew it.",
+            "Where the last `button` was drawn, as `#{ x, y, width, height }` in design pixels; empty before one has. An immediate control has no node `widget_rect` can be asked about, so a caller that wants to point at one reads it back here, straight after the call that drew it.",
         ),
     ]);
     m.function(
@@ -53,7 +53,7 @@ pub(crate) fn install_rects(m: &mut dyn Bindings<Engine>) {
             balaur_core::entity_of(node)?,
         )))
     });
-    m.function("pill_rect", |_eng: &Engine, (): ()| {
+    m.function("button_rect", |_eng: &Engine, (): ()| {
         Ok(rect_value(crate::immediate::last_pill()))
     });
 }

@@ -48,14 +48,14 @@ fn current(S, list) {
 /// The module picker and a filter over its functions. In the body rather than
 /// the tab row: the dock carries fourteen tabs, and these would sit on them.
 fn controls(S, k, list) {
-    ui::horizontal(#{ height: 24 }, || {
+    ui::row(#{ height: 24 }, || {
         ui::add_space(6);
         let names = [];
         for m in list {
             names.push(m.name);
         }
         let (picked, changed) = ui::dropdown("docs-module", S.docs.pick, names, #{
-            width: 150, size: style::SM, height: 24, color: k.text,
+            width: 150, font_size: style::SM, height: 24, text_color: k.text_default,
         });
         if changed {
             S.docs.pick = picked;
@@ -86,7 +86,7 @@ pub fn draw(S, k) {
     let docs = util::obj(m.docs);
     let items = [];
     if m.doc != "" {
-        items.push("\u{1f}" + m.doc + "\u{1f}\u{1f}" + k.dim);
+        items.push("\u{1f}" + m.doc + "\u{1f}\u{1f}" + k.text_muted);
     }
     let shown = 0;
     for name in m.functions {
@@ -96,15 +96,15 @@ pub fn draw(S, k) {
         shown += 1;
         let picked = name == S.docs.fn_pick;
         let sig = signatures.get(name).unwrap_or("");
-        items.push("\u{1f}" + name + sig + "\u{1f}\u{1f}" + if picked { k.accent } else { k.text });
+        items.push("\u{1f}" + name + sig + "\u{1f}\u{1f}" + if picked { k.primary_text } else { k.text_default });
         let doc = docs.get(name).unwrap_or("");
         if doc != "" {
-            items.push("\u{1f}\t  " + doc + "\u{1f}\u{1f}" + k.faint);
+            items.push("\u{1f}\t  " + doc + "\u{1f}\u{1f}" + k.text_subtle);
         }
     }
     if query == "" {
         for c in m.constants {
-            items.push("\u{1f}" + format!("{}  {}", c.name, c.value) + "\u{1f}\u{1f}" + k.faint);
+            items.push("\u{1f}" + format!("{}  {}", c.name, c.value) + "\u{1f}\u{1f}" + k.text_subtle);
         }
     }
     crate::dock::show_log(items);

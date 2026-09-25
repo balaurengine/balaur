@@ -42,9 +42,9 @@ impl Ink {
             hover: named(k::ROW_HOVER, crate::immediate::wash(ui, false)),
             active: named(k::ROW_ACTIVE, crate::immediate::wash(ui, true)),
             stripe: named(k::ROW_STRIPE, ui.visuals().faint_bg_color),
-            head: named(k::HEADER_FILL, ui.visuals().faint_bg_color),
-            rule: named(k::COLUMN_RULE, weak.gamma_multiply(0.5)),
-            guide: named(k::ROW_GUIDE, weak.gamma_multiply(0.55)),
+            head: named(k::TABLE_HEADER, ui.visuals().faint_bg_color),
+            rule: named(k::TABLE_RULE, weak.gamma_multiply(0.5)),
+            guide: named(k::TREE_GUIDE, weak.gamma_multiply(0.55)),
         }
     }
 

@@ -4,6 +4,8 @@
 use balaur_core::Engine;
 use egui::{Color32, Rect, pos2};
 
+use crate::vocabulary::tokens as t;
+
 /// The loading bar's thickness, in design pixels.
 const HEIGHT: f32 = 4.0;
 
@@ -53,28 +55,16 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
         Color32::WHITE,
     );
-    // The bar, under the picture: what `ui.set_loading` last said, in the
+    // The bar, under the picture: what `ui.set_load_progress` last said, in the
     // theme's accent so a project's own colours reach its first frame. No
     // report, no bar.
     let Some(loading) = loading else {
         return;
     };
     let (progress, label) = (loading.progress, loading.label);
-    let (accent, track, ink) = eng.try_resource::<crate::UiConfig>().map_or(
-        (
-            Color32::WHITE,
-            Color32::from_gray(40),
-            Color32::from_gray(160),
-        ),
-        |config| {
-            let theme = &config.borrow().theme;
-            (
-                theme.color("accent", Color32::WHITE),
-                theme.color("sunken", Color32::from_gray(40)),
-                theme.color("faint", Color32::from_gray(160)),
-            )
-        },
-    );
+    let accent = crate::theme::color(t::PRIMARY_TEXT);
+    let track = crate::theme::color(t::BG_CONTROL);
+    let ink = crate::theme::color(t::TEXT_SUBTLE);
     let width = size.x.max(160.0).min(rect.width() - 48.0);
     let left = rect.center().x - width / 2.0;
     let top = (min.y + size.y + 24.0).min(rect.bottom() - 32.0);

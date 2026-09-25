@@ -32,7 +32,7 @@ parent = "sheet"
 kind = "row"
 height = 30
 gap = 10
-align = "center"
+align_items = "center"
 
 [[nodes]]
 id = "title"
@@ -224,7 +224,7 @@ text = ""
 grow = 1
 padding = 16
 gap = 6
-align = "end"
+align_items = "end"
 text_align = "end"
 context = "canvas_menu"
 tooltip = "Right click, or press and hold"
@@ -260,7 +260,7 @@ anchor = "top_right"
 x = 18
 y = 18
 # Hugging: the two lines decide the card's width, not the screen.
-align = "start"
+align_items = "start"
 padding = 12
 gap = 2
 duration = 0

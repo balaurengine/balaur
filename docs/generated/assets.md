@@ -333,52 +333,59 @@ cells = [[0, 0, 0], [0, 1, 0], [0, 2, 0]]   # signed coordinates
 
 Files: `themes/`. Used by: `widget.theme`.
 
-How each widget kind is drawn, one table per kind. `[colors]` names shared fills and `[roles.<name>]` is a look a widget picks with `role`.
+How each widget kind is drawn, one table per kind. `[colors]` and `[sizes]` hold the tokens every table may name, and `[roles.<name>]` is a look a widget picks with `role`. Seven source colours and four sizes derive every other token; a token the file states wins.
 
 ```toml
 type = "widget_theme"            # a widget takes the theme of the nearest ancestor naming one
 
-[colors]                         # named fills the rest of the file may use
-ink = "#1b1b1b"
-sky = "#3aa0ff"
-link = "#3aa0ff"                 # what a `[url]` span in markup text is drawn in
-row_on = "#2f6fb0"               # a picked row of a `list`, `tree` or `table`
-row_on_color = "#ffffff"         # and the ink on it
-row_hover = "#ffffff12"          # what a row takes under the pointer; `row_press` while held
+[colors]                         # the sources; bg_panel, text_muted, primary_fill, ... derive from them
+background = "#151f2a"           # dark or light follows from it; `dark = true` overrides
+foreground = "#e6e9ee"
+primary = "#4287cc"              # also secondary, success, warning, danger
+contrast = 0.05                  # how far apart the surfaces step
+row_selected = "#2f6fb0"         # a picked row of a `list`, `tree` or `table`
+row_selected_text = "#ffffff"    # and the ink on it
+row_hover = "#ffffff12"          # what a row takes under the pointer; `row_active` while held
 row_stripe = "#ffffff08"         # a table's every other row; "#00000000" hides it
-row_head = "#ffffff08"           # its header's plate
-row_rule = "#00000000"           # the lines down its columns, hidden here
-row_guide = "#8a8a8a8c"          # the lines down a tree's indent
+table_header = "#ffffff08"       # a table's header plate
+table_rule = "#00000000"         # the lines down its columns, hidden here
+tree_guide = "#8a8a8a8c"         # the lines down a tree's indent
+
+[sizes]                          # font_size, radius, control_height, stroke_width; the rest derive
+font_size = 16                   # font_size_small, font_size_large and font_size_title follow
+radius = 6                       # radius_small and radius_large follow
 
 [button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look
-fill = "sky"
-stroke = "ink"
+fill = "primary_fill"
+stroke = "border_default"
 stroke_width = 1.0
-radius = 6.0
+corner_radius = "radius_large"   # a number, a size's name, or "full" for a pill
 padding = 8.0
 gap = 4.0
-size = 14.0
-color = "ink"                    # text colour
-icon_color = "ink"
-font = "ui"
-strong = true
+font_size = "font_size_large"
+text_color = "text_on_primary"
+icon_color = "text_on_primary"
+font_family = "ui"               # ui, heading, mono or icon
+font_weight = 700
+text_align = "center"            # start, center or end
 
-[button.hover]                   # the look under the pointer; [button.active] while pressed,
-                                 # [button.disabled] while off, [button.focus] with keyboard focus
-fill = "#5cb4ff"
+[button.hover]                   # under the pointer; [button.active] while held, [button.focus] with
+                                 # keyboard focus, [button.disabled] while off, [button.checked] while on
+fill = "primary_fill_hover"
 
 [panel]
 image = "art/panel.png"          # a nine-patch, sliced in its own pixels
 slice = [8, 8, 8, 8]             # left, top, right, bottom
 
 [table]                          # a row view is dressed like any other kind
-fill = "ink"
-stroke = "sky"
-radius = 6.0
+fill = "bg_control"
+stroke = "border_default"
+corner_radius = 6.0
 padding_x = 10.0                 # the air either side of a cell's text
 
 [roles.danger]                   # what a widget with role = "danger" takes
-fill = "#d33a3a"
+fill = "danger_fill"
+text_color = "text_on_danger"
 ```
 
 

@@ -5,11 +5,11 @@ type = "widget_theme"
 [panel]
 fill = "#1b1f27d0"
 stroke = "#2f3644"
-radius = 10
+corner_radius = 10
 padding = 10
 
 [button]
 fill = "#242a35"
 stroke = "#d5814e"
 stroke_width = 1.5
-radius = 6
+corner_radius = 6
