@@ -1007,7 +1007,6 @@ mod tests {
 
     const TRIANGLE: &str = "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
 
-
     #[test]
     fn a_triangle_becomes_three_vertices_and_one_face() {
         let mesh = parse_obj(TRIANGLE.as_bytes(), "t.obj").unwrap();
