@@ -694,3 +694,24 @@ fn a_2d_polygon_body_keeps_a_vertex_inside_its_outline() {
         solved.positions
     );
 }
+
+/// A body with nothing of its own to deform is drawn in its `color`.
+#[test]
+fn a_generated_body_is_drawn_in_its_color() {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let (_dir, app) = boot(
+        r#"pub fn init(this) {
+    this.node.get_node("Blob2d").softbody2d.color = [0.9, 0.3, 0.2, 1.0];
+}
+"#,
+        3,
+    );
+    let world = app.engine.world();
+    let node = balaur_core::ids::find(&world, app.engine.root(), "n_blob2d").expect("the 2D blob");
+    let drawn = world
+        .get::<&balaur::render::Renderable2d>(node)
+        .expect("the generated body draws nothing");
+    assert_eq!(drawn.color, [0.9, 0.3, 0.2, 1.0]);
+}

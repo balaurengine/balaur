@@ -3416,6 +3416,17 @@
         "group": "shape",
         "type": "vec2"
       },
+      "color": {
+        "default": [
+          0.8,
+          0.8,
+          0.8,
+          1.0
+        ],
+        "description": "What the body is drawn in when its node has nothing of its own to deform, as a cloth or a rope has not",
+        "group": "surface",
+        "type": "color"
+      },
       "deformation_damping": {
         "default": 0.0,
         "description": "How fast the particles are pulled towards the body's own rigid motion, which settles a residual sway without slowing the body down",
@@ -3920,6 +3931,17 @@
         "description": "How many cells along each axis, for cuboid; a cloth reads the first two, and a cloth_tube reads them as particles around and cells along",
         "group": "shape",
         "type": "vec3"
+      },
+      "color": {
+        "default": [
+          0.8,
+          0.8,
+          0.8,
+          1.0
+        ],
+        "description": "What the body is drawn in when its node has nothing of its own to deform, as a cloth or a rope has not",
+        "group": "surface",
+        "type": "color"
       },
       "deformation_damping": {
         "default": 0.0,

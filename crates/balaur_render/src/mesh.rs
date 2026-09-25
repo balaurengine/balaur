@@ -174,8 +174,8 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
 /// those itself, so a version bump per step would rebuild the node every
 /// frame instead of rewriting its buffers.
 pub(crate) fn resolve_solved_system(eng: &Engine, _dt: f32) {
-    let mut wanted: Vec<(Entity, MeshData, u32)> = Vec::new();
-    let mut moved: Vec<(Entity, Option<Bounds3d>)> = Vec::new();
+    let mut wanted: Vec<(Entity, MeshData, u32, [f32; 4])> = Vec::new();
+    let mut moved: Vec<(Entity, Option<Bounds3d>, [f32; 4])> = Vec::new();
     let mut drawn: Vec<Entity> = Vec::new();
     {
         let world = eng.world();
@@ -189,7 +189,7 @@ pub(crate) fn resolve_solved_system(eng: &Engine, _dt: f32) {
             // Every step, not only on a tear: a body that deformed covers
             // different ground, and the box a click is picked against and the
             // one the editor draws around it are both this.
-            moved.push((entity, bounds_of(&solved.positions)));
+            moved.push((entity, bounds_of(&solved.positions), solved.color));
             // A node that draws something of its own keeps drawing it; the
             // solver deforms that instead of replacing it.
             if let Ok(renderable) = world.get::<&Renderable3d>(entity)
@@ -203,19 +203,22 @@ pub(crate) fn resolve_solved_system(eng: &Engine, _dt: f32) {
             {
                 continue;
             }
-            wanted.push((entity, mesh_of(solved), solved.topology));
+            wanted.push((entity, mesh_of(solved), solved.topology, solved.color));
         }
     }
     {
         let world = eng.world();
-        for (entity, bounds) in moved {
+        for (entity, bounds, color) in moved {
             if let Ok(mut renderable) = world.get::<&mut Renderable3d>(entity) {
                 renderable.bounds = bounds;
+                if is_ours(&renderable) {
+                    renderable.color = color;
+                }
             }
         }
     }
-    for (entity, mesh, topology) in wanted {
-        install(eng, entity, mesh, topology);
+    for (entity, mesh, topology, color) in wanted {
+        install(eng, entity, mesh, topology, color);
     }
     let mut world = eng.world_mut();
     for entity in drawn {
@@ -275,7 +278,7 @@ fn mesh_of(solved: &SolvedMesh) -> MeshData {
     }
 }
 
-fn install(eng: &Engine, entity: Entity, mesh: MeshData, topology: u32) {
+fn install(eng: &Engine, entity: Entity, mesh: MeshData, topology: u32, color: [f32; 4]) {
     let bounds = bounds_of(&mesh.positions);
     let built = Some(std::sync::Arc::new(mesh));
     let mut world = eng.world_mut();
@@ -287,6 +290,7 @@ fn install(eng: &Engine, entity: Entity, mesh: MeshData, topology: u32) {
         renderable.built = built;
         renderable.bounds = bounds;
         renderable.version = version;
+        renderable.color = color;
         return;
     }
     let _ = world.insert_one(
@@ -294,7 +298,7 @@ fn install(eng: &Engine, entity: Entity, mesh: MeshData, topology: u32) {
         Renderable3d {
             shape: Shape3d::Built,
             bounds,
-            color: [0.8, 0.8, 0.8, 1.0],
+            color,
             mesh: None,
             built,
             skeleton: String::new(),

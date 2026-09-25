@@ -149,6 +149,7 @@ pub(crate) fn shared_softbody_schema() -> String {
             (k::PGS_ITERATIONS, r#"{ type = "float", default = 3.0, min = 0.0, max = 64.0, description = "Extra iterations inside each substep, for the same", group = "particles" }"#),
             (k::CAN_SLEEP, r#"{ type = "bool", default = true, description = "Let the body stop being simulated once it settles", group = "particles" }"#),
             (k::DOMINANCE, r#"{ type = "int", default = 0, min = -127, max = 127, description = "Which body wins a contact: a higher one is never pushed by a lower one", group = "particles" }"#),
+            (k::COLOR, r#"{ type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "What the body is drawn in when its node has nothing of its own to deform, as a cloth or a rope has not", group = "surface" }"#),
             (k::FRICTION, r#"{ type = "float", default = 0.5, min = 0.0, description = "Surface friction of the body's collider; 0 is ice", group = "surface" }"#),
             (k::RESTITUTION, r#"{ type = "float", default = 0.0, min = 0.0, max = 1.0, description = "Bounciness of the body's collider", group = "surface" }"#),
         ]),
@@ -438,12 +439,13 @@ pub(crate) fn write_solved_mesh(eng: &Engine, entity: Entity) {
         return;
     };
     let inverse = pose.inverse();
-    let (positions, indices) = {
+    let (positions, indices, color) = {
         let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
         let Some(&handle) = state.soft_bodies.get(&entity) else {
             return;
         };
+        let color = drawn_color(state.soft_params.get(&entity));
         let Some(body) = state.world.soft_bodies.get(handle) else {
             return;
         };
@@ -453,6 +455,7 @@ pub(crate) fn write_solved_mesh(eng: &Engine, entity: Entity) {
                     .map(|p| scalar::a3(inverse * p))
                     .collect::<Vec<_>>(),
                 mesh.indices().to_vec(),
+                color,
             ),
             // A body with no collider still draws: its boundary is what a
             // generator laid out, and the particles are its vertices.
@@ -461,17 +464,27 @@ pub(crate) fn write_solved_mesh(eng: &Engine, entity: Entity) {
                     .map(|p| scalar::a3(inverse * p))
                     .collect(),
                 body.boundary().to_vec(),
+                color,
             ),
         }
     };
     let mut world = eng.world_mut();
     if let Ok(mut solved) = world.get::<&mut balaur_core::mesh::SolvedMesh>(entity) {
         solved.update(positions, indices);
+        solved.color = color;
         return;
     }
     let mut solved = balaur_core::mesh::SolvedMesh::default();
     solved.update(positions, indices);
+    solved.color = color;
     let _ = world.insert_one(entity, solved);
+}
+
+/// The colour a body draws in when its node has nothing of its own.
+pub(crate) fn drawn_color(params: Option<&toml::Value>) -> [f32; 4] {
+    params.map_or([0.8, 0.8, 0.8, 1.0], |params| {
+        v::color(params, k::COLOR, [0.8, 0.8, 0.8, 1.0])
+    })
 }
 
 /// Hand every soft body's positions over, which is what the step does once

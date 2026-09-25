@@ -359,6 +359,7 @@ pub(crate) mod keys {
     pub(crate) const BEND_FREQUENCY: &str = "bend_frequency";
     pub(crate) const CELL_MODEL: &str = "cell_model";
     pub(crate) const CELL_SIZE: &str = "cell_size";
+    pub(crate) const COLOR: &str = "color";
     pub(crate) const DEFORMATION_DAMPING: &str = "deformation_damping";
     pub(crate) const EDGE_DAMPING: &str = "edge_damping";
     pub(crate) const EDGE_FREQUENCY: &str = "edge_frequency";
@@ -503,6 +504,12 @@ pub(crate) fn vec3(params: &toml::Value, key: &str, default: [f32; 3]) -> [f32; 
         axis(params, key, 1, default[1]),
         axis(params, key, 2, default[2]),
     ]
+}
+
+/// A colour property, which the component layer has already turned into
+/// four channel floats.
+pub(crate) fn color(params: &toml::Value, key: &str, default: [f32; 4]) -> [f32; 4] {
+    [0, 1, 2, 3].map(|i| axis(params, key, i, default[i]))
 }
 
 pub(crate) fn vec2(params: &toml::Value, key: &str, default: [f32; 2]) -> [f32; 2] {

@@ -225,6 +225,7 @@ struct SolverDrawn2d(u32);
 /// frame, and a new polygon per step would rebuild the node every frame.
 fn resolve_solved_2d_system(eng: &Engine, _dt: f32) {
     let mut wanted: Vec<(Entity, PolygonMesh, u32)> = Vec::new();
+    let mut tinted: Vec<(Entity, [f32; 4])> = Vec::new();
     {
         let world = eng.world();
         for (entity, solved) in &mut world.query::<(Entity, &balaur_core::mesh::SolvedPolygon)>() {
@@ -236,6 +237,7 @@ fn resolve_solved_2d_system(eng: &Engine, _dt: f32) {
             if drawn.is_none() && world.get::<&Renderable2d>(entity).is_ok() {
                 continue;
             }
+            tinted.push((entity, solved.color));
             if drawn == Some(solved.topology) {
                 continue;
             }
@@ -245,6 +247,11 @@ fn resolve_solved_2d_system(eng: &Engine, _dt: f32) {
     for (entity, mesh, topology) in wanted {
         let _ = set_polygon(eng, entity, Arc::new(mesh));
         let _ = eng.world_mut().insert_one(entity, SolverDrawn2d(topology));
+    }
+    for (entity, color) in tinted {
+        if let Ok(mut drawn) = eng.world_mut().get::<&mut Renderable2d>(entity) {
+            drawn.color = color;
+        }
     }
     let mut world = eng.world_mut();
     let gone: Vec<Entity> = world

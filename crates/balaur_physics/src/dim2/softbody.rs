@@ -354,7 +354,7 @@ pub(crate) fn write_solved_polygon(eng: &Engine, entity: Entity) {
         .ok()
         .map(|t| t.0.clone());
     let mut fresh = None;
-    let (positions, indices) = {
+    let ((positions, indices), color) = {
         let state = eng.resource::<PhysicsState2d>();
         let state = state.borrow();
         let Some(&handle) = state.soft_bodies.get(&entity) else {
@@ -364,7 +364,7 @@ pub(crate) fn write_solved_polygon(eng: &Engine, entity: Entity) {
             return;
         };
         let params = state.soft_params.get(&entity);
-        draw::drawn(body, pose.inverse(), || {
+        let drawn = draw::drawn(body, pose.inverse(), || {
             held.unwrap_or_else(|| {
                 let loaded = params
                     .and_then(|params| source_mesh(eng, params, scalar::Pose2::IDENTITY).ok())
@@ -373,7 +373,8 @@ pub(crate) fn write_solved_polygon(eng: &Engine, entity: Entity) {
                 fresh = Some(loaded.clone());
                 loaded
             })
-        })
+        });
+        (drawn, crate::softbody::drawn_color(params))
     };
     let mut world = eng.world_mut();
     if let Some(triangles) = fresh {
@@ -381,10 +382,12 @@ pub(crate) fn write_solved_polygon(eng: &Engine, entity: Entity) {
     }
     if let Ok(mut solved) = world.get::<&mut balaur_core::mesh::SolvedPolygon>(entity) {
         solved.update(positions, indices);
+        solved.color = color;
         return;
     }
     let mut solved = balaur_core::mesh::SolvedPolygon::default();
     solved.update(positions, indices);
+    solved.color = color;
     let _ = world.insert_one(entity, solved);
 }
 

@@ -18,6 +18,8 @@ pub struct SolvedMesh {
     /// Triangles, as indices into `positions`.
     pub indices: Vec<[u32; 3]>,
     pub topology: u32,
+    /// What to draw it in when the node has nothing of its own to deform.
+    pub color: [f32; 4],
 }
 
 /// The same in 2D, whose renderer draws a polygon rather than a mesh.
@@ -27,6 +29,8 @@ pub struct SolvedPolygon {
     /// Triangles, as indices into `positions`.
     pub indices: Vec<[u32; 3]>,
     pub topology: u32,
+    /// As [`SolvedMesh::color`].
+    pub color: [f32; 4],
 }
 
 // Process-wide rather than per body: a solver's own count restarts at zero
