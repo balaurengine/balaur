@@ -316,6 +316,10 @@ pub(crate) fn get_softbody_params_2d(eng: &Engine, entity: Entity) -> Option<tom
 /// Hand this step's particle positions to whatever draws the node, in the
 /// node's own space (see [`crate::softbody::write_solved_mesh`]).
 pub(crate) fn write_solved_polygon(eng: &Engine, entity: Entity) {
+    let Ok(pose) = crate::dim2::node_pose_2d(eng, entity) else {
+        return;
+    };
+    let inverse = pose.inverse();
     let (positions, indices, topology) = {
         let state = eng.resource::<PhysicsState2d>();
         let state = state.borrow();
@@ -325,10 +329,8 @@ pub(crate) fn write_solved_polygon(eng: &Engine, entity: Entity) {
         let Some(body) = state.world.soft_bodies.get(handle) else {
             return;
         };
-        let Ok(pose) = crate::dim2::node_pose_2d(eng, entity) else {
-            return;
-        };
-        let inverse = pose.inverse();
+        // The cells are what a 2D body is drawn as: a filled shape, not the
+        // outline its collision mesh reports.
         (
             body.particle_positions()
                 .map(|p| scalar::a2(inverse * p))
@@ -370,7 +372,7 @@ pub(crate) fn register_softbody_component_2d(reg: &mut Registry<'_>) {
     reg.register_component(
         c::SOFTBODY_2D,
         ComponentDef {
-            doc: "A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. The node is drawn from the solver's positions.",
+            doc: "A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `trimesh` and `volumetric` kinds give and a generator does not.",
             schema: ComponentDef::parse_schema(c::SOFTBODY_2D, &schema),
             tags: &[
                 balaur_core::components::tag::DIM_2D,

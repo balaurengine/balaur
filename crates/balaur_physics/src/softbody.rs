@@ -397,31 +397,48 @@ pub(crate) fn get_softbody_params(eng: &Engine, entity: Entity) -> Option<toml::
     Some(toml::Value::Table(table))
 }
 
-/// Hand this step's particle positions to whatever draws the node.
+/// Hand this step's geometry to whatever draws the node.
+///
+/// The body's collision mesh rather than its particles: that is the surface
+/// it presents to the world, and for a skinned body it is the authored mesh
+/// the cells carry rather than the coarse cover around it.
 ///
 /// In the node's own space: the renderer puts the node's transform back on
 /// top, and a soft body under a turned parent has to draw where it is
 /// simulated rather than twice-rotated.
 pub(crate) fn write_solved_mesh(eng: &Engine, entity: Entity) {
-    let state = eng.resource::<PhysicsState3d>();
-    let state = state.borrow();
-    let Some(&handle) = state.soft_bodies.get(&entity) else {
-        return;
-    };
-    let Some(body) = state.world.soft_bodies.get(handle) else {
-        return;
-    };
     let Ok(pose) = crate::node_pose(eng, entity) else {
         return;
     };
     let inverse = pose.inverse();
-    let positions: Vec<[f32; 3]> = body
-        .particle_positions()
-        .map(|p| scalar::a3(inverse * p))
-        .collect();
-    let indices: Vec<[u32; 3]> = body.boundary().to_vec();
-    let topology = body.topology_version();
-    drop(state);
+    let (positions, indices, topology) = {
+        let state = eng.resource::<PhysicsState3d>();
+        let state = state.borrow();
+        let Some(&handle) = state.soft_bodies.get(&entity) else {
+            return;
+        };
+        let Some(body) = state.world.soft_bodies.get(handle) else {
+            return;
+        };
+        match body.collision_mesh() {
+            Some(mesh) => (
+                mesh.vertex_positions(body)
+                    .map(|p| scalar::a3(inverse * p))
+                    .collect::<Vec<_>>(),
+                mesh.indices().to_vec(),
+                mesh.topology_version(),
+            ),
+            // A body with no collider still draws: its boundary is what a
+            // generator laid out, and the particles are its vertices.
+            None => (
+                body.particle_positions()
+                    .map(|p| scalar::a3(inverse * p))
+                    .collect(),
+                body.boundary().to_vec(),
+                body.topology_version(),
+            ),
+        }
+    };
     let mut world = eng.world_mut();
     if let Ok(mut solved) = world.get::<&mut balaur_core::mesh::SolvedMesh>(entity) {
         solved.positions = positions;

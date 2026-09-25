@@ -533,6 +533,16 @@ pub(crate) fn write_deform(
     handle: &DeformHandle,
     was_deformed: bool,
 ) -> bool {
+    // A solver owns the vertices outright where a deform track only offsets
+    // them, so a soft body outranks one. Only when the two agree on how many
+    // vertices there are: a body laid out by a generator has its own count,
+    // and this buffer is the polygon's.
+    if let Ok(solved) = world.get::<&balaur_core::mesh::SolvedPolygon>(entity)
+        && solved.positions.len() == polygon.positions.len()
+    {
+        handle.fill(solved.positions.len(), |i| solved.positions[i]);
+        return true;
+    }
     let deform = world.get::<&balaur_core::mesh::Deform>(entity).ok();
     let deforming = deform.as_ref().is_some_and(|d| !d.is_rest());
     if !deforming {
