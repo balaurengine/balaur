@@ -328,6 +328,54 @@ pub fn fixed_update(this, dt) {
     );
 }
 
+/// A cloth is looked at from above, so its triangles have to face up.
+///
+/// Rapier winds a sheet spanned along +x then +z with its front underneath
+/// (`du x dv` is -y), which drew the sheet unlit and back-face culled: it was
+/// there, and all you could see was its shadow.
+#[test]
+fn a_cloth_faces_up() {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut app = balaur_core::App::new(balaur_core::AppConfig::bare(".")).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin::default()).unwrap();
+    let root = app.engine.root();
+    let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Sheet", root);
+    balaur_core::components::add(
+        &app.engine,
+        node,
+        "softbody3d",
+        Some(
+            &toml::from_str("kind = \"cloth\"\ncells = [3.0, 3.0, 1.0]\nsize = [2.0, 0.0, 2.0]")
+                .unwrap(),
+        ),
+    )
+    .unwrap();
+
+    let solved = app.engine.world();
+    let solved = solved
+        .get::<&balaur_core::mesh::SolvedMesh>(node)
+        .expect("a soft body hands its geometry to whatever draws it");
+    assert!(!solved.indices.is_empty(), "the sheet has no triangles");
+    let up = solved
+        .indices
+        .iter()
+        .map(|[a, b, c]| {
+            let at = |i: &u32| glamx::Vec3::from_array(solved.positions[*i as usize]);
+            (at(b) - at(a)).cross(at(c) - at(a)).y
+        })
+        .filter(|y| *y > 0.0)
+        .count();
+    assert_eq!(
+        up,
+        solved.indices.len(),
+        "{} of {} triangles face down",
+        solved.indices.len() - up,
+        solved.indices.len()
+    );
+}
+
 /// What play-in-editor does on stop: the world is replaced by a fresh one,
 /// so every handle naming the old one's arena has to go with it.
 ///

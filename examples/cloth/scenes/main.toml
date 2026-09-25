@@ -1,6 +1,6 @@
-# Two sheets of the same cloth, each pinned all round, each dropped the same
-# ball. The left one catches it; the right one has a tear strain, and the ball
-# goes through.
+# Two sheets of the same cloth, dropped two ways. The left one falls over a
+# block and folds around its corners. The right one is pinned all round and
+# has a tear strain, so the ball dropped on it goes through.
 
 [[nodes]]
 id = "n_main"
@@ -18,10 +18,10 @@ name = "Camera"
 parent = "n_main"
 
 [nodes.transform]
-position = [0.0, 2.6, 6.4]
+position = [0.0, 1.7, 6.6]
 
 [nodes.camera3d]
-look_at = [0.0, 0.7, 0.0]
+look_at = [0.0, 0.45, 0.0]
 
 [[nodes]]
 id = "n_ground"
@@ -29,7 +29,7 @@ name = "Ground"
 parent = "n_world"
 
 [nodes.transform]
-position = [0.0, -1.6, 0.0]
+position = [0.0, -0.95, 0.0]
 
 [nodes.shape3d]
 kind = "plane"
@@ -45,30 +45,45 @@ half_extents = [8.0, 0.1, 8.0]
 offset = [0.0, -0.1, 0.0]
 
 [[nodes]]
-id = "n_holds"
-name = "Holds"
+id = "n_block"
+name = "Block"
+parent = "n_world"
+
+# Sitting on the ground: half its height above it.
+[nodes.transform]
+position = [-1.5, -0.55, 0.0]
+
+[nodes.shape3d]
+kind = "cuboid"
+half_extents = [0.5, 0.4, 0.5]
+color = [0.34, 0.36, 0.40, 1.0]
+
+[nodes.collider3d]
+kind = "cuboid"
+half_extents = [0.5, 0.4, 0.5]
+friction = 0.9
+
+[[nodes]]
+id = "n_drapes"
+name = "Drapes"
 parent = "n_world"
 
 [nodes.transform]
-position = [-1.5, 1.2, 0.0]
+position = [-1.5, 0.55, 0.0]
 
 [nodes.softbody3d]
 kind = "cloth"
-size = [2.0, 0.0, 2.0]
-cells = [15.0, 15.0, 1.0]
-# The whole rim of the 16 by 16 sheet `cells` plus one works out to, so the
-# load spreads and the sheet is taut rather than hanging from four points.
-pinned = [
-  "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11",
-  "12", "13", "14", "15", "16", "31", "32", "47", "48", "63", "64", "79",
-  "80", "95", "96", "111", "112", "127", "128", "143", "144", "159", "160", "175",
-  "176", "191", "192", "207", "208", "223", "224", "239", "240", "241", "242", "243",
-  "244", "245", "246", "247", "248", "249", "250", "251", "252", "253", "254", "255",
-]
-mass = 2.0
-edge_frequency = 60.0
-bend_frequency = 6.0
+size = [2.4, 0.0, 2.4]
+# 24 particles a side: the folds over the block are only as fine as the mesh.
+cells = [23.0, 23.0, 1.0]
+mass = 1.0
+# Stiff along its threads and very soft across them, which is what makes a
+# sheet fold rather than stretch. Nothing is pinned: the block holds it up.
+edge_frequency = 120.0
+bend_frequency = 1.0
 solver_iterations = 4.0
+self_contacts = true
+friction = 0.9
 
 [[nodes]]
 id = "n_tears"
@@ -96,27 +111,6 @@ solver_iterations = 4.0
 # Past six percent of its rest length an edge gives way, which the ball's
 # impact reaches and the sheet's own weight does not.
 tear_strain = 0.06
-
-[[nodes]]
-id = "n_ball_holds"
-name = "BallHolds"
-parent = "n_world"
-
-[nodes.transform]
-position = [-1.5, 2.4, 0.0]
-
-[nodes.body3d]
-kind = "dynamic"
-
-[nodes.shape3d]
-kind = "ball"
-radius = 0.3
-color = [0.88, 0.45, 0.30, 1.0]
-
-[nodes.collider3d]
-kind = "ball"
-radius = 0.3
-density = 4.0
 
 [[nodes]]
 id = "n_ball_tears"

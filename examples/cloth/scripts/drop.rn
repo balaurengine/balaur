@@ -1,4 +1,4 @@
-// Labels over the two sheets, and the pictures the manual takes. The physics
+// Labels over the two rocks, and the pictures the manual takes. The physics
 // is the scene's; nothing here moves anything.
 
 const INK = [0.93, 0.94, 0.96, 1.0];
@@ -23,17 +23,16 @@ pub fn update(this, dt) {
     // Read off the sheet rather than written twice: the number under the
     // label is the one the solver is actually using.
     let strain = this.node.get_node("Tears").softbody3d.tear_strain;
-    label(-1.5, 2.5, "no tear strain", 30.0, INK);
-    label(1.5, 2.5, `tear_strain = ${strain}`, 30.0, INK);
-    label(-1.5, 1.9, "the sheet catches the ball", 20.0, FAINT);
-    label(1.5, 1.9, "the ball tears through", 20.0, FAINT);
+    label(-1.5, 2.15, "no tear strain", 28.0, INK);
+    label(1.5, 2.15, `tear_strain = ${strain}`, 28.0, INK);
+    label(-1.5, 1.8, "the cloth folds over the block", 18.0, FAINT);
+    label(1.5, 1.8, "the ball tears through", 18.0, FAINT);
 
     this.frame += 1;
-    // Late enough that the left ball has settled and the right one is through.
-    if this.frame == 150 && this.shot != "" {
+    if this.frame == 260 && this.shot != "" {
         render::screenshot(this.shot);
     }
-    if this.frames != "" && this.frame >= 2 && this.frame <= 181 {
+    if this.frames != "" && this.frame >= 2 && this.frame <= 301 {
         render::screenshot(`${this.frames}/${padded(this.frame)}.png`);
     }
 }

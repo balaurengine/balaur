@@ -278,13 +278,19 @@ fn build_layout(
             let du = pose.rotation * scalar::v3(size[0], 0.0, 0.0);
             let dv = pose.rotation * scalar::v3(0.0, 0.0, size[2]);
             let origin = at - (du + dv) * 0.5;
-            SoftBodyBuilder::cloth(
+            let mut built = SoftBodyBuilder::cloth(
                 origin,
                 du / (nu.max(2) - 1) as Real,
                 dv / (nv.max(2) - 1) as Real,
                 nu,
                 nv,
-            )
+            );
+            // Spanned +x then +z, rapier winds the sheet's front underneath
+            // it (`du x dv` is -y); a flat cloth is looked at from above.
+            for triangle in &mut built.surface {
+                triangle.swap(1, 2);
+            }
+            built
         }
         w::CLOTH_TUBE => SoftBodyBuilder::cloth_tube(
             at,
