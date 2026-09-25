@@ -214,11 +214,11 @@ fn parse(line: &str, classes: &Classes, aliases: &BTreeMap<String, String>) -> O
         // A hint the index does not know, `const Profile := preload(..)`
         // standing for a class, still says what it holds by its default.
         // A preloaded node script is a node; any other keeps its default.
-        let aliased = aliases
+        let node_script = aliases
             .get(&hint)
             .and_then(|script| kind_of_hint(script, classes))
             .filter(|kind| *kind == Kind::Node);
-        aliased
+        node_script
             .or_else(|| kind_of_hint(&hint, classes))
             .or_else(|| value.and_then(kind_of_constructor))
     };
