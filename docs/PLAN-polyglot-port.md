@@ -136,8 +136,9 @@ The rest are small keys, each a few sites and its own row:
 - **Signals** — `tab_changed` (2), `gui_input` and `text_change_rejected`
   connections nothing emits.
 - **Tracks** — `z_index`, `scale` on a Control and `update_position`, 16.
-- **Nodes** — `MultiMeshInstance2D` (3) onto `cloner`, `AnimatedSprite2D`
-  (1) onto `sprite_sheet`, a particle's colour curve (6).
+- **Nodes** — `MultiMeshInstance2D` (3) as `polygon` children sharing one
+  mesh, `AnimatedSprite2D` (1) onto `sprite_sheet`, a particle's colour
+  curve (6).
 - **Regular expressions** — 3 `RegEx.new()` sites in the pinyin index; a
   `regex` module over `regex-lite`, the whole surface (`compile`, `search`,
   `search_all`, `replace`, `split`, `escape`).
@@ -292,8 +293,10 @@ Three rules belong to the importer rather than the translator:
    the shim's `RegEx` record calls; `Image.new()` + `load` as the texture's
    path. Not built, in balaur terms: `focus_neighbor_*` (the engine moves
    focus itself), the app lifecycle notifications (the roadmap's "Suspend
-   and resume"), `MultiMeshInstance2D` (the wave rows set one transform per
-   instance, which a `cloner` does not take), and `tab_changed`.
+   and resume"), and `tab_changed`. A `MultiMesh` is built as `polygon`
+   children of its node, each with the same inline `mesh` asset, so the
+   batcher draws the city waves in one call per layer; `t.x = v` on a
+   `Transform2D` local rebuilds it through `gd.with_field`.
 9. **Retire the hand-written files** and reimport; the 54 again. Started
    2026-09-24 from the `login_offline` log, 1 394 error lines once
    `run.sh` read it stripped of colour: `Shader.new()` and
