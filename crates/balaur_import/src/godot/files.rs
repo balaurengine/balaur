@@ -643,7 +643,19 @@ func _process(_delta):
         );
         put(
             "scenes/main.tscn",
-            "[gd_scene format=3]\n\n[node name=\"Main\" type=\"Node2D\"]\n\n[node name=\"Mast\" type=\"Node2D\" parent=\".\"]\n",
+            &[
+                "[gd_scene format=3]",
+                "",
+                "[node name=\"Main\" type=\"Node2D\"]",
+                "",
+                "[node name=\"Mast\" type=\"Node2D\" parent=\".\"]",
+                "",
+                "[node name=\"Sail\" type=\"Node2D\" parent=\".\"]",
+                "",
+                "[connection signal=\"hoisted\" from=\"Mast\" to=\"Sail\" method=\"_on_hoisted\"]",
+                "",
+            ]
+            .join("\n"),
         );
         put("scripts/board.gd", "extends Node\n\nvar seen := 0\n");
         let out = tempfile::tempdir().unwrap();
@@ -656,6 +668,16 @@ func _process(_delta):
             main.contains("source = \"scripts/board.rn\""),
             "the autoload's script: {main}"
         );
+        // The row the connection wrote stays on Mast: the autoload went in
+        // at index 1 after every row had found its node by index.
+        let scene: toml::Value = toml::from_str(&main).unwrap();
+        let mast = node(&scene, "Mast");
+        assert_eq!(
+            mast["bindings"]["rows"][0]["value"].as_str(),
+            Some("_on_hoisted"),
+            "the connection on its emitter: {main}"
+        );
+        assert!(node(&scene, "Board").get("bindings").is_none(), "{main}");
     }
 
     /// Stepped and in one call write the same project. The editor takes a few

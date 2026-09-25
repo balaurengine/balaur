@@ -122,9 +122,6 @@ pub(crate) fn convert(
     for section in &nodes {
         walk.node(section);
     }
-    if path == project.main_scene {
-        walk.autoloads(&project.autoloads);
-    }
     for connection in document.each("connection") {
         walk.connection(connection);
     }
@@ -139,6 +136,11 @@ pub(crate) fn convert(
             }
             _ => {}
         }
+    }
+    // Last: the autoloads go in at index 1, and every row above found its
+    // node by an index they would have shifted.
+    if path == project.main_scene {
+        walk.autoloads(&project.autoloads);
     }
     let mut out = toml::Table::new();
     if !walk.assets.is_empty() {
