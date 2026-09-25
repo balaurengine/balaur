@@ -391,6 +391,9 @@ pub fn hide_outline() {
 
 /// Open the rename sheet on the selected node, with its name ready to replace.
 pub fn rename_open(S) {
+    if !crate::model::has_selection(S) {
+        return;
+    }
     S.renaming = true;
     S.rename_text = S.doc[S.sel].name;
 }
@@ -432,7 +435,7 @@ pub fn rename_draw(S) {
 }
 
 fn node_mark(S) {
-    let found = S.doc.get(S.sel);
+    let found = crate::model::selected_row(S);
     match found {
         Some(node) => {
             let (mark, _) = model::node_icon(node);

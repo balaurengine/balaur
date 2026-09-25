@@ -163,6 +163,9 @@ pub fn place(S, entry) {
 /// Point the selected node's 3D shape at a library material, which is what a
 /// designer means by dropping one onto something.
 pub fn apply_material(S, entry) {
+    if !crate::model::has_selection(S) {
+        return;
+    }
     for needed in util::vec(entry.get("needs").unwrap_or([])) {
         install(S, needed);
     }

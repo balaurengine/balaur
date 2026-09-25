@@ -377,6 +377,9 @@ pub fn on_pause(S, p) {
 const SCRIPT_TEMPLATE = "pub fn init(this) {\n}\n\npub fn update(this, dt) {\n}\n";
 
 pub fn attach_script(S) {
+    if !crate::model::has_selection(S) {
+        return;
+    }
     let node = S.doc[S.sel];
     if node.contains_key("script") {
         return;
@@ -398,6 +401,9 @@ pub fn script_files(S) {
 
 /// Take the script off the selected node. The file stays.
 pub fn detach_script(S) {
+    if !crate::model::has_selection(S) {
+        return;
+    }
     let node = S.doc[S.sel];
     let rel = match model::script_rel(node) {
         Some(rel) => rel,
@@ -413,6 +419,9 @@ pub fn detach_script(S) {
 /// as it is; a name nothing is at moves the current file there, or starts a
 /// new one when the node had none.
 pub fn set_script_path(S, path) {
+    if !crate::model::has_selection(S) {
+        return;
+    }
     let node = S.doc[S.sel];
     let rel = path.trim();
     if rel == "" {
@@ -526,7 +535,7 @@ pub fn toggle_shader_preview(S, rel, line) {
 /// project opens that file at its line; engine API has no file, so the Docs
 /// dock shows its module instead.
 pub fn goto_definition(S) {
-    let node = S.doc[S.sel];
+    let node = model::selected_node(S);
     if !node.contains_key("script") {
         return;
     }
@@ -578,7 +587,7 @@ pub fn format_active(S) {
     if S.shader_rel != "" && S.doctab == "script" {
         return;
     }
-    let node = S.doc[S.sel];
+    let node = model::selected_node(S);
     if !node.contains_key("script") {
         return;
     }
@@ -617,7 +626,7 @@ pub fn save_active(S) {
         }
         return;
     }
-    let node = S.doc[S.sel];
+    let node = model::selected_node(S);
     let in_script = (S.persona == "script" || S.doctab == "script") && node.contains_key("script");
     if in_script {
         let rel = model::script_rel(node).unwrap_or("");

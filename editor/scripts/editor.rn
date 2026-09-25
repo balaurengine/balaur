@@ -662,7 +662,7 @@ pub fn draw_ui(this) {
         }
         // ⌘V is read from the paste event above; the clipboard cannot be read
         // on demand, so only the copy half is a chord.
-        if ui::shortcut("cmd+c") {
+        if ui::shortcut("cmd+c") && model::has_selection(S) {
             ui::set_clipboard(model::copy_selected(S));
         }
         // Gated with the rest, so typing in the code editor keeps egui's own

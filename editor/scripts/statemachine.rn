@@ -24,7 +24,7 @@ pub fn state() {
 // The machine as it is authored: an inline table, or a file's contents and
 // its path. `None` when the node runs none.
 fn source(S) {
-    let node = S.doc.get(S.sel)?;
+    let node = crate::model::selected_row(S)?;
     let comp = node.get(COMPONENT)?;
     if !(comp is Object) {
         return None;
@@ -58,6 +58,9 @@ fn editable(S) {
 
 // Write `doc` back where it came from: into the scene, or over its file.
 fn write(S, found, label) {
+    if !crate::model::has_selection(S) {
+        return;
+    }
     match found.path {
         Some(path) => {
             fs::write(util::engine_path(S, path), toml::encode(found.doc));
@@ -79,6 +82,9 @@ fn write(S, found, label) {
 
 /// Give the selected node a machine of its own, driving its own player.
 pub fn create(S) {
+    if !crate::model::has_selection(S) {
+        return;
+    }
     history::record(S, "add state machine", None);
     let node = S.doc[S.sel];
     node[COMPONENT] = #{
@@ -248,7 +254,7 @@ fn offer(S) {
     // Bound, never a literal after a `}`: the block's value would be indexed
     // by the array rather than followed by it.
     let out = [#{ kind: "label", role: "meta", text: "select a node to give it a state machine" }];
-    if S.doc.get(S.sel).is_none() {
+    if crate::model::selected_row(S).is_none() {
         return out;
     }
     out = [

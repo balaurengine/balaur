@@ -19,7 +19,7 @@ const W = 1.6;
 /// The `path2d` reference the selected node strokes, or "" when it strokes
 /// none. A polyline names it where a mesh-backed one names a mesh.
 pub fn reference(S) {
-    let node = S.doc.get(S.sel);
+    let node = crate::model::selected_row(S);
     let node = match node {
         Some(node) => node,
         None => return "",
@@ -104,7 +104,7 @@ fn save(S) {
 }
 
 fn component_key(S) {
-    let node = S.doc.get(S.sel);
+    let node = crate::model::selected_row(S);
     match node {
         Some(node) => if node.contains_key("shape2d") { Some("shape2d") } else { None },
         None => None,

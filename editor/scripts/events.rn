@@ -16,7 +16,7 @@ pub fn state() {
 /// `[[nodes.bindings.rows]]`, and one the editor has saved spells them under
 /// `rows`; both are the same list.
 pub fn rows(S) {
-    let node = match S.doc.get(S.sel) {
+    let node = match crate::model::selected_row(S) {
         Some(node) => node,
         None => return [],
     };
@@ -28,6 +28,9 @@ pub fn rows(S) {
 }
 
 fn write(S, rows, label) {
+    if !crate::model::has_selection(S) {
+        return;
+    }
     history::record(S, label, None);
     let node = S.doc[S.sel];
     if rows.len() == 0 {
@@ -290,6 +293,9 @@ fn literal(value) {
 /// open it. The rows stay: deleting them is the author's call, once they have
 /// read what was written.
 pub fn convert_to_script(S) {
+    if !crate::model::has_selection(S) {
+        return;
+    }
     if rows(S).len() == 0 {
         log::info("this node has no bindings to convert");
         return;
@@ -323,7 +329,7 @@ pub fn rows_host() {
 /// The document tab: the selected node's rows, and the variables they read.
 pub fn view(S, k) {
     util::fill(PANEL, #{ visible: true });
-    let node = S.doc[S.sel];
+    let node = model::selected_node(S);
     crate::pool::strip(S, PANEL + "/DocHead", [
         #{ kind: "label", role: "heading", grow: 1,
             text: format!("EVENT BINDINGS · {}", node.name) },
@@ -383,7 +389,7 @@ fn variable_specs(S, out) {
 /// The hooks the node's own script declares, which is what this view used to
 /// be and is still worth showing beside the rows.
 fn hook_specs(S, out) {
-    let node = S.doc[S.sel];
+    let node = model::selected_node(S);
     let script_some = model::script_rel(node);
     let script = match script_some {
         Some(script) => script,

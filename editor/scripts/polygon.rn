@@ -30,7 +30,7 @@ const SIDE_PAIRS = [["left", "right"], ["_l_", "_r_"], ["l_", "r_"], ["_l", "_r"
 // The modes the selection offers. An `occluder2d` is an outline and nothing
 // else: it has no triangles to draw, no texture to lay UVs over, and no rig.
 pub fn modes(S) {
-    if target(S.doc[S.sel]) == Some("occluder2d") {
+    if target(crate::model::selected_node(S)) == Some("occluder2d") {
         return ["points"];
     }
     // An explicit return: a block followed by `[` parses as an index.
@@ -68,13 +68,13 @@ pub fn component(node) {
 }
 
 pub fn occluding(S) {
-    target(S.doc[S.sel]) == Some("occluder2d")
+    target(crate::model::selected_node(S)) == Some("occluder2d")
 }
 
 // The inline mesh table under edit, or `None`: a mesh that is a file
 // reference is edited by making it inline first (the inspector's asset row).
 pub fn mesh(S) {
-    match component(S.doc[S.sel]) {
+    match component(crate::model::selected_node(S)) {
         Some(comp) => match comp.get("mesh") {
             Some(mesh) => if mesh is Object { Some(mesh) } else { None },
             None => None,
@@ -84,7 +84,7 @@ pub fn mesh(S) {
 }
 
 pub fn editable(S) {
-    match component(S.doc[S.sel]) {
+    match component(crate::model::selected_node(S)) {
         Some(comp) => match comp.get("mesh") {
             Some(mesh) => mesh is Object || mesh == "",
             None => true,
@@ -143,7 +143,7 @@ fn point(p) {
 
 // Texture pixel size for the selection, cached per path.
 fn texture_size(S) {
-    let comp = match component(S.doc[S.sel]) {
+    let comp = match component(crate::model::selected_node(S)) {
         Some(comp) => comp,
         None => return None,
     };
@@ -169,7 +169,7 @@ fn texture_size(S) {
 }
 
 fn pixels_per_unit(S) {
-    match component(S.doc[S.sel]) {
+    match component(crate::model::selected_node(S)) {
         Some(comp) => util::f(comp.get("pixels_per_unit").unwrap_or(100.0)),
         None => 100.0,
     }

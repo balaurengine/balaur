@@ -106,7 +106,11 @@ fn commands(S) {
         command("New path to draw with the Pen", icons::ui("pen"), "", || crate::pen::new_path(S)),
         command("Close or open the selected path", icons::ui("path"), "", || crate::pen::toggle_closed(S)),
         command("Duplicate selected node", icons::ui("instance"), "", || model::duplicate_selected(S)),
-        command("Copy selected node", icons::ui("instance"), "⌘C", || ui::set_clipboard(model::copy_selected(S))),
+        command("Copy selected node", icons::ui("instance"), "⌘C", || {
+            if model::has_selection(S) {
+                ui::set_clipboard(model::copy_selected(S));
+            }
+        }),
         command("Delete selected node", icons::ui("close"), "", || model::delete_selected(S)),
         command("Create animation clip", "◷", "", || { anim::ensure_clip(S); }),
         command("Insert keyframe at playhead", "◆", "K", || anim::add_key(S, S.anim.time)),

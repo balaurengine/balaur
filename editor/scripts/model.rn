@@ -137,6 +137,9 @@ pub fn exports(S, rel) {
 // the `script` key. Takes effect the next time the script attaches, which for
 // play-in-editor is the next play.
 pub fn set_script_prop(S, prop, value) {
+    if !has_selection(S) {
+        return;
+    }
     let node = S.doc[S.sel];
     let rel = match script_rel(node) {
         Some(rel) => rel,
@@ -1139,13 +1142,29 @@ pub fn index_of_path(S, path) {
 }
 
 pub fn selected(S) {
-    (S.doc[S.sel], live(S, S.sel))
+    if !has_selection(S) {
+        return (selected_node(S), None);
+    }
+    let pair = (S.doc[S.sel], live(S, S.sel));
+    pair
+}
+
+/// Whether a row is active. A click on empty stage leaves none, so a verb on
+/// "the selected node" asks first.
+pub fn has_selection(S) {
+    S.sel >= 0 && S.sel < S.doc.len()
+}
+
+/// The active row, or `None` with nothing selected: `S.doc.get(-1)` throws
+/// rather than answering `None`.
+pub fn selected_row(S) {
+    if has_selection(S) { Some(S.doc[S.sel]) } else { None }
 }
 
 /// The active row's node, or a blank stand-in when nothing is selected, so a
 /// panel reading a name or a component off it degrades instead of erroring.
 pub fn selected_node(S) {
-    if S.sel < 0 || S.sel >= S.doc.len() {
+    if !has_selection(S) {
         return #{ name: "", id: "" };
     }
     S.doc[S.sel]
@@ -1178,6 +1197,9 @@ fn name_taken(doc, candidate) {
 // or removed here would have nowhere in the file to live. Property overrides
 // only (`docs/PLAN-scenes-and-assets.md`).
 fn refuse_structure(S, what) {
+    if !has_selection(S) {
+        return true;
+    }
     if !is_instanced(S.doc[S.sel]) {
         return false;
     }
@@ -1267,6 +1289,9 @@ fn prefab_name(rel) {
 // Open the prefab behind the selection — the instance node's file, or the one
 // the selected row came from. The button an instance row wants.
 pub fn open_prefab(S) {
+    if !has_selection(S) {
+        return;
+    }
     let node = S.doc[S.sel];
     let rel = if node.contains_key("instance") {
         Some(node.instance)
@@ -1352,6 +1377,9 @@ pub fn rename_selected(S, name) {
 }
 
 pub fn add_child(S, preset) {
+    if !has_selection(S) {
+        selection::only(S, 0);
+    }
     if refuse_structure(S, "add a node") {
         return;
     }
@@ -1580,6 +1608,9 @@ pub fn remove_component(S, name) {
 // Push the document's component onto the live node, for a tool that edited
 // the document in place and recorded history itself.
 pub fn apply_component(S, name) {
+    if !has_selection(S) {
+        return;
+    }
     let node = S.doc[S.sel];
     let found = match live(S, S.sel) {
         Some(found) => found,
@@ -1743,6 +1774,9 @@ pub fn paste_nodes(S, text) {
         return false;
     }
     history::record(S, "paste node", None);
+    if !has_selection(S) {
+        selection::only(S, 0);
+    }
     for node in nodes {
         if !(node is Object) || !node.contains_key("name") {
             continue;

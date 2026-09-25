@@ -37,7 +37,7 @@ pub fn mode_name(id) {
 
 /// The terrains the tile set names, for the brush to choose between.
 pub fn terrains(S) {
-    let comp = match component(S.doc[S.sel]) {
+    let comp = match component(model::selected_node(S)) {
         Some(comp) => comp,
         None => return [],
     };
@@ -177,6 +177,9 @@ fn write_block(S, x, y, rows, label) {
 /// Paint a terrain value and let the engine's own rules pick the tiles, then
 /// take the cells it resolved back into the document.
 pub fn paint_terrain(S, x, y, value) {
+    if !crate::model::has_selection(S) {
+        return;
+    }
     let found = match model::live(S, S.sel) {
         Some(found) => found,
         None => return false,
@@ -237,7 +240,7 @@ fn file_backed(comp) {
 /// engine reads by absolute path because the editor's own project root is not
 /// the game's.
 pub fn tileset(S) {
-    let comp = match component(S.doc[S.sel]) {
+    let comp = match component(model::selected_node(S)) {
         Some(comp) => comp,
         None => return None,
     };
@@ -336,7 +339,7 @@ pub fn tile_count(S) {
 }
 
 fn pixels_per_unit(S) {
-    match component(S.doc[S.sel]) {
+    match component(model::selected_node(S)) {
         Some(comp) => util::max(util::f(comp.get("pixels_per_unit").unwrap_or(100.0)), 0.01),
         None => 100.0,
     }
@@ -345,7 +348,7 @@ fn pixels_per_unit(S) {
 /// The grid as rows of tile ids, whichever form the document wrote. Empty is
 /// -1, the same spelling `cells` takes as a list.
 pub fn grid(S) {
-    let comp = match component(S.doc[S.sel]) {
+    let comp = match component(model::selected_node(S)) {
         Some(comp) => comp,
         None => return [],
     };
@@ -429,7 +432,7 @@ pub fn cell_at(S, f, wx, wy) {
 
 /// The coordinate of the map's first stored cell.
 pub fn origin(S) {
-    let comp = match component(S.doc[S.sel]) {
+    let comp = match component(model::selected_node(S)) {
         Some(comp) => comp,
         None => return (0, 0),
     };
@@ -462,6 +465,9 @@ fn apply(S) {
 /// and only when something actually changes: clicking a cell that already
 /// holds the tile must not cost an undo step.
 pub fn write_cells(S, cells, tile, label, key) {
+    if !crate::model::has_selection(S) {
+        return;
+    }
     let comp = match component(S.doc[S.sel]) {
         Some(comp) => comp,
         None => return false,
@@ -571,6 +577,9 @@ pub fn fill_rect(S, from, to, tile) {
 /// in it: what a layer is. Duplicating is what gives it the parent, the
 /// transform and a name nothing else has.
 pub fn add_layer(S) {
+    if !crate::model::has_selection(S) {
+        return;
+    }
     if !editable(S) {
         log::warn("select a tilemap to add a layer beside it");
         return false;
@@ -590,7 +599,7 @@ pub fn layers(S) {
     if !editable(S) {
         return [];
     }
-    let parent = S.doc[S.sel].get("parent").unwrap_or("");
+    let parent = model::selected_node(S).get("parent").unwrap_or("");
     let out = [];
     for (i, node) in S.doc.iter().enumerate() {
         if component(node).is_some() && node.get("parent").unwrap_or("") == parent {
@@ -770,7 +779,7 @@ pub fn draw(S) {
 /// The tile set behind the map, as a file to write back to: an inline
 /// definition is edited on the node instead, and has no file of its own.
 fn tileset_file(S) {
-    let comp = match component(S.doc[S.sel]) {
+    let comp = match component(model::selected_node(S)) {
         Some(comp) => comp,
         None => return None,
     };

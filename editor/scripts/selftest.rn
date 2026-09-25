@@ -804,7 +804,7 @@ pub fn component_reach(S) {
 }
 
 pub fn deselected(S) {
-    S.reselect = #{ waited: 0, stage: 0, row: 0, had: 0, drawn: 0 };
+    S.reselect = #{ waited: 0, stage: 0, row: 0, had: 0, drawn: 0, persona: "", tool: "" };
 }
 
 /// Clearing the selection leaves the panels a blank node, and picking the same
@@ -849,14 +849,20 @@ pub fn reselect_step(S) {
         d.drawn = crate::inspector::drawn_rows();
         check(d.drawn > 0, format!("the panel draws {} rows for the selected node", d.drawn));
         deselect_checks(S, d.had);
+        d.persona = S.persona;
+        d.tool = S.tool;
         d.stage = 2;
         d.waited = 0;
         return;
     }
     if d.stage == 2 {
-        if d.waited < SETTLE {
+        if d.waited < NO_SELECTION_TOOLS.len() {
+            no_selection_frame(S, d);
             return;
         }
+        shell::set_persona(S, d.persona);
+        shell::set_tool(S, d.tool);
+        add_with_nothing_selected(S);
         crate::selection::only(S, d.row);
         d.stage = 3;
         d.waited = 0;
@@ -923,6 +929,43 @@ fn deselect_checks(S, had) {
         "the panels read a blank node rather than indexing past the document",
     );
     check(mirror_resolves(S), format!("the scene still resolves ({} rows were selected)", before));
+    // Every verb on "the selected node", with none: each returns rather than
+    // indexing row -1, which threw and left a Cmd+S unsaved.
+    let rows = S.doc.len();
+    model::rename_selected(S, "Renamed");
+    model::duplicate_selected(S);
+    model::delete_selected(S);
+    model::open_prefab(S);
+    crate::left::rename_open(S);
+    shell::attach_script(S);
+    shell::detach_script(S);
+    shell::set_script_path(S, "scripts/nothing_selected.rn");
+    shell::goto_definition(S);
+    shell::format_active(S);
+    crate::statemachine::create(S);
+    check(S.doc.len() == rows && !S.renaming && S.sel < 0,
+        "and every verb on the selection leaves the document and the selection alone");
+}
+
+// The personas and tools drawn with nothing selected, one pair a frame.
+const NO_SELECTION_PERSONAS = ["scene", "script", "anim", "phys", "ui"];
+const NO_SELECTION_TOOLS = ["select", "move", "rotate", "scale", "polygon", "tiles", "bone", "pen", "key", "zoom"];
+
+fn no_selection_frame(S, d) {
+    let i = d.waited % NO_SELECTION_TOOLS.len();
+    shell::set_persona(S, NO_SELECTION_PERSONAS[i % NO_SELECTION_PERSONAS.len()]);
+    shell::set_tool(S, NO_SELECTION_TOOLS[i]);
+}
+
+// A node added with nothing selected goes under the root, and is taken out
+// again so the reselected row still lists what it did.
+fn add_with_nothing_selected(S) {
+    let rows = S.doc.len();
+    model::add_child(S, None);
+    check(S.doc.len() == rows + 1 && S.doc[rows].parent == S.doc[0].id,
+        "a node added with nothing selected goes under the root");
+    crate::selection::only(S, rows);
+    model::delete_selected(S);
 }
 
 // How many components the inspector would list for the active row.

@@ -995,6 +995,10 @@ pub fn free_nodes(eng: &Engine, entities: &[Entity]) {
             collect_subtree_into(&world, entity, &mut subtree);
         }
     }
+    // A node queued beside its own ancestor is in both subtrees, and a second
+    // remove pass finds its `Attached` already gone.
+    let mut once = crate::collections::DetHashSet::default();
+    subtree.retain(|e| once.insert(*e));
     if let Some(host) = eng.script_host() {
         for &e in &subtree {
             host.detach(crate::node_id_of(e));
