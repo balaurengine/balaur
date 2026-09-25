@@ -303,3 +303,31 @@ fn singleton_writes_and_theme_reads_translate() {
     }
     assert!(!out.rune.contains("todo"), "{}", out.rune);
 }
+
+#[test]
+fn a_member_with_only_a_getter_is_written_where_it_is_kept() {
+    let source = [
+        "extends RefCounted",
+        "var _message : Dictionary = {} : get = to_dictionary",
+        "func _init(topic : String):",
+        "\t_message = { topic = topic }",
+        "func to_dictionary():",
+        "\treturn _message",
+        "",
+    ]
+    .join("\n");
+    let out = convert(&source, "addons/message.gd", &Classes::default());
+    assert!(
+        out.rune.contains("this._message = #{ \"topic\": topic };"),
+        "{}",
+        out.rune
+    );
+    assert!(!out.rune.contains("__get__message(this) ="), "{}", out.rune);
+}
+
+#[test]
+fn a_bitwise_not_is_rune_s_bang_on_an_integer() {
+    let source = "extends RefCounted\nfunc unzig(n: int) -> int:\n\treturn ~(n >> 1)\n";
+    let out = convert(source, "addons/packer.gd", &Classes::default());
+    assert!(out.rune.contains("return !(n >> 1);"), "{}", out.rune);
+}

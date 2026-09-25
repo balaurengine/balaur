@@ -515,7 +515,14 @@ impl<'a> Parser<'a> {
                 }
                 loop {
                     let key = self.expression(0)?;
-                    self.consume(&Tok::Op(":"))?;
+                    // `{ name = value }`, Lua's spelling, keys by the name.
+                    let key = match key {
+                        Expr::Name(name) if self.eat(&Tok::Op("=")) => Expr::Str(name),
+                        key => {
+                            self.consume(&Tok::Op(":"))?;
+                            key
+                        }
+                    };
                     let value = self.expression(0)?;
                     pairs.push((key, value));
                     if self.eat(&Tok::Op(",")) {
@@ -767,6 +774,26 @@ mod tests {
             "{out:?}"
         );
         assert!(matches!(out.get(2), Some(Stmt::Var { .. })), "{out:?}");
+    }
+
+    #[test]
+    fn a_dictionary_in_lua_spelling_keys_by_the_name() {
+        let out = parse("var events := {\n\tclose = \"phx_close\",\n\tjoin = \"phx_join\"\n}\n");
+        let Some(Stmt::Var {
+            value: Some(Expr::Dict(pairs)),
+            ..
+        }) = out.first()
+        else {
+            panic!("{out:?}");
+        };
+        assert!(
+            matches!(&pairs[0].0, Expr::Str(k) if k == "close"),
+            "{pairs:?}"
+        );
+        assert!(
+            matches!(&pairs[1].1, Expr::Str(v) if v == "phx_join"),
+            "{pairs:?}"
+        );
     }
 
     #[test]

@@ -106,8 +106,12 @@ struct Lambda {
 
 impl Lexer {
     fn run(mut self, source: &str) -> Result<Vec<Token>, String> {
-        for (index, raw) in logical_lines(source).iter().enumerate() {
-            self.line = index + 1;
+        let mut physical = 1;
+        for raw in &logical_lines(source) {
+            // A joined line keeps the number of its first line, so a report
+            // names the line the reader sees.
+            self.line = physical;
+            physical += 1 + raw.matches('\n').count();
             let line = raw.trim_end();
             let trimmed = line.trim_start();
             let width = line.len() - trimmed.len();

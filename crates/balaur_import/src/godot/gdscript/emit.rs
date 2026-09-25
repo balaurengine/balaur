@@ -480,6 +480,10 @@ impl<'a> Emitter<'a> {
                 } else {
                     inner
                 };
+                // `~n` flips an integer's bits, which Rune spells `!`.
+                if *op == "~" {
+                    return format!("!{inner}");
+                }
                 // Rune negates a number and nothing else; a vector goes through
                 // the shim, which scales it.
                 if *op == "-" && !literal {

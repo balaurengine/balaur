@@ -209,6 +209,15 @@ fn a_compile_error_fails_the_build() {
 }
 
 #[test]
+fn every_script_that_fails_to_compile_is_named_not_only_the_first() {
+    let dir = project();
+    std::fs::write(dir.path().join("b.txt"), "second").unwrap();
+    let err = Pack::build(dir.path(), &Failing).unwrap_err().to_string();
+    assert!(err.contains("2 script(s) did not compile"), "{err}");
+    assert!(err.contains("no good: b.txt"), "{err}");
+}
+
+#[test]
 fn a_project_without_a_manifest_is_an_error() {
     let dir = tempfile::tempdir().unwrap();
     assert!(Pack::build(dir.path(), &Reversing).is_err());

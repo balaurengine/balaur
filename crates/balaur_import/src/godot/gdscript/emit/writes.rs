@@ -21,33 +21,9 @@ impl Emitter<'_> {
             _ => None,
         };
         if let Some(name) = member
-            && self.context.setters.contains(name)
-            && self.context.static_vars.contains_key(name)
-            && !self.in_accessor_of(name)
+            && let Some(text) = self.accessor_write(name, op, value, pad)
         {
-            let text = self.expression(value);
-            let text = if op == "=" {
-                text
-            } else {
-                format!("__get_{name}() {} ({text})", op.trim_end_matches('='))
-            };
-            let _ = writeln!(out, "{pad}__set_{name}({text});");
-            return out;
-        }
-        if let Some(name) = member
-            && self.context.setters.contains(name)
-            && self.context.members.contains(name)
-            && !self.in_accessor_of(name)
-        {
-            let text = self.expression(value);
-            let text = if op == "=" {
-                text
-            } else {
-                let read = self.member_read(name);
-                format!("{read} {} ({text})", op.trim_end_matches('='))
-            };
-            let _ = writeln!(out, "{pad}__set_{name}(this, {text});");
-            return out;
+            return text;
         }
         if let Expr::Index(object, index) = target
             && op == "="
@@ -119,6 +95,57 @@ impl Emitter<'_> {
         }
         let _ = writeln!(out, "{pad}{place} {op} {text};");
         out
+    }
+
+    /// A write to a member with an accessor: through `__set_<name>` where it
+    /// has a setter, and where it is kept when it has only a getter.
+    fn accessor_write(&mut self, name: &str, op: &str, value: &Expr, pad: &str) -> Option<String> {
+        let mut out = String::new();
+        if self.context.setters.contains(name)
+            && self.context.static_vars.contains_key(name)
+            && !self.in_accessor_of(name)
+        {
+            let text = self.expression(value);
+            let text = if op == "=" {
+                text
+            } else {
+                format!("__get_{name}() {} ({text})", op.trim_end_matches('='))
+            };
+            let _ = writeln!(out, "{pad}__set_{name}({text});");
+            return Some(out);
+        }
+        if self.context.setters.contains(name)
+            && self.context.members.contains(name)
+            && !self.in_accessor_of(name)
+        {
+            let text = self.expression(value);
+            let text = if op == "=" {
+                text
+            } else {
+                let read = self.member_read(name);
+                format!("{read} {} ({text})", op.trim_end_matches('='))
+            };
+            let _ = writeln!(out, "{pad}__set_{name}(this, {text});");
+            return Some(out);
+        }
+        // A member with a getter and no setter is written where it is kept:
+        // Godot calls no accessor for it.
+        if self.context.getters.contains(name)
+            && !self.context.setters.contains(name)
+            && self.context.members.contains(name)
+            && !self.context.static_vars.contains_key(name)
+        {
+            let text = self.expression(value);
+            let text = if op == "=" {
+                text
+            } else {
+                let read = self.member_read(name);
+                format!("{read} {} ({text})", op.trim_end_matches('='))
+            };
+            let _ = writeln!(out, "{pad}this.{} = {text};", safe(name));
+            return Some(out);
+        }
+        None
     }
 
     /// A chain as somewhere to write, rather than as a value to read: a field
