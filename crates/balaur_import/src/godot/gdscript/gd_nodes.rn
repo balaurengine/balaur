@@ -1320,6 +1320,26 @@ pub fn load(path) {
     rest
 }
 
+/// Godot's `ResourceLoader.exists`: whether the file the import wrote for a
+/// resource is there, a scene's `.toml` or a resource's module.
+pub fn resource_exists(path) {
+    if !(path is String) {
+        return false;
+    }
+    let rest = project_path(path);
+    if rest.ends_with(".tscn") {
+        let stem = rest[..rest.len() - 5];
+        let scene = `${stem}.toml`;
+        return fs::exists(scene);
+    }
+    if rest.ends_with(".tres") {
+        let module = `${rest}.rn`;
+        let found = fs::exists(module) || fs::exists(rest);
+        return found;
+    }
+    fs::exists(rest)
+}
+
 /// `create_timer(t)`: its `timeout` is what a script awaits or connects.
 pub fn timer(seconds) {
     #{ "timeout": #{ "__after": float(seconds) } }

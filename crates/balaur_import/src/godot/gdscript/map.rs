@@ -339,7 +339,7 @@ fn service_call(class: &str, name: &str, args: &[String]) -> Option<String> {
         // Godot's buttons count from one; the engine's from zero.
         ("Input", "is_mouse_button_pressed") => format!("input::is_mouse_down({one} - 1)"),
         ("Performance", "get_monitor") => format!("(gd.monitor)({one})"),
-        ("ResourceLoader", "exists") => format!("fs::exists((gd.project_path)({one}))"),
+        ("ResourceLoader", "exists") => format!("(gd.resource_exists)({one})"),
         ("ResourceLoader", "load") if !args.is_empty() => loaded(&args[0]),
         ("Marshalls", "base64_to_raw" | "base64_to_utf8") => {
             format!("encoding::from_base64({one})")

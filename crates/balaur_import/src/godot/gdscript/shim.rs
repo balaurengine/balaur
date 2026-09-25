@@ -433,4 +433,51 @@ mod tests {
             "the probe hid itself only if the root viewport measured 840 by 1920"
         );
     }
+
+    /// A scene a script names by its Godot path exists when the scene the
+    /// import wrote does, so a path built at run time finds it.
+    #[test]
+    fn a_godot_scene_path_exists_when_its_converted_scene_does() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            "[[nodes]]\nid = \"probe\"\nname = \"Probe\"\nscript = { source = \"probe.rn\" }\n",
+        );
+        put("ro.toml", "[[nodes]]\nid = \"ro\"\nname = \"Ro\"\n");
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let found = (gd.resource_exists)(`res://${\"ro\"}.tscn`);",
+                "    let missing = (gd.resource_exists)(\"res://hu.tscn\");",
+                "    if found && !missing {",
+                "        this.node.set_visible(false);",
+                "    }",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert!(
+            !world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .visible,
+            "the probe hid itself only if ro.tscn was found as ro.toml and hu.tscn was not"
+        );
+    }
 }
