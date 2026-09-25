@@ -8,6 +8,15 @@
 //! Binary `.scn` and `.res` are not read. A Godot project can always be
 //! resaved as text, and a second decoder would be a second grammar.
 
+/// Godot's scheme for a path inside the project.
+pub(crate) const RES: &str = "res://";
+
+/// A Godot `res://` path as the project-relative one the import writes; any
+/// other path as it is.
+pub(crate) fn relative_path(path: &str) -> &str {
+    path.strip_prefix(RES).unwrap_or(path)
+}
+
 pub(crate) mod anim;
 #[cfg(test)]
 #[path = "tests/autoload.rs"]

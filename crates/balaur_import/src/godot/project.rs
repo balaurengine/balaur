@@ -119,14 +119,11 @@ pub(crate) fn shared_exclusions(presets: &Document) -> Vec<String> {
                 .split(',')
                 .map(str::trim)
                 .filter(|p| !p.is_empty())
-                .map(|p| p.strip_prefix("res://").unwrap_or(p))
+                .map(crate::godot::relative_path)
                 .map(|p| {
                     // The file the import writes for a scene or a script.
-                    let converted = match (p.strip_suffix(".tscn"), p.strip_suffix(".gd")) {
-                        (Some(stem), _) => format!("{stem}.toml"),
-                        (None, Some(stem)) => format!("{stem}.rn"),
-                        (None, None) => p.to_string(),
-                    };
+                    use crate::godot::scene::{scene_path, script_path};
+                    let converted = script_path(&scene_path(p));
                     let pattern = converted.replace('*', "**").replace("****", "**");
                     if pattern.contains('/') {
                         pattern
@@ -201,14 +198,14 @@ pub(crate) fn custom_font(
     by_uid.or_else(|| {
         section
             .attr_str("path")
-            .map(|p| p.strip_prefix("res://").unwrap_or(p).to_string())
+            .map(|p| crate::godot::relative_path(p).to_string())
     })
 }
 
 /// `res://a/b.tscn` and `uid://xyz` as the path a balaur project would use.
 /// A scene keeps its stem and takes `.toml`; everything else keeps its name.
 fn resolve(reference: &str, uids: &BTreeMap<String, String>, notes: &mut Vec<String>) -> String {
-    let path = if let Some(rest) = reference.strip_prefix("res://") {
+    let path = if let Some(rest) = reference.strip_prefix(crate::godot::RES) {
         rest.to_string()
     } else if reference.starts_with("uid://") {
         if let Some(path) = uids.get(reference) {
@@ -220,10 +217,7 @@ fn resolve(reference: &str, uids: &BTreeMap<String, String>, notes: &mut Vec<Str
     } else {
         reference.to_string()
     };
-    match path.strip_suffix(".tscn") {
-        Some(stem) => format!("{stem}.toml"),
-        None => path,
-    }
+    crate::godot::scene::scene_path(&path)
 }
 
 fn window(document: &Document, out: &mut String, notes: &mut Vec<String>) -> Result<()> {

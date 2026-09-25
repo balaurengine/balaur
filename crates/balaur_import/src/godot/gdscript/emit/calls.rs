@@ -180,7 +180,11 @@ impl Emitter<'_> {
     pub(super) fn connect_handler(&mut self, handler: &Expr) -> Option<String> {
         let (text, takes) = self.callable_parts(handler)?;
         Some(match takes {
-            Some(takes) => format!("#{{ \"__call\": {text}, \"__takes\": {takes} }}"),
+            Some(takes) => format!(
+                "#{{ {}: {text}, {}: {takes} }}",
+                quoted(map::CALL_KEY),
+                quoted(map::CALL_TAKES)
+            ),
             None => text,
         })
     }
@@ -193,7 +197,7 @@ impl Emitter<'_> {
         }
         let (target, bound) = match handler {
             Expr::Call(callee, bound) => match &**callee {
-                Expr::Field(target, verb) if verb == "bind" => (&**target, bound.as_slice()),
+                Expr::Field(target, verb) if verb == map::BIND => (&**target, bound.as_slice()),
                 _ => return None,
             },
             other => (other, &[][..]),

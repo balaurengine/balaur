@@ -132,7 +132,7 @@ fn extended(source: &str, classes: &Classes) -> Option<String> {
     let line = source.lines().find(|l| l.starts_with("extends "))?;
     let target = line["extends ".len()..].trim();
     if let Some(path) = target.strip_prefix('"').and_then(|t| t.split('"').next()) {
-        return Some(path.strip_prefix("res://").unwrap_or(path).to_string());
+        return Some(crate::godot::relative_path(path).to_string());
     }
     let name: String = target
         .chars()
@@ -170,28 +170,10 @@ fn own(source: &str, classes: &Classes) -> Vec<Export> {
 /// A file's `const Name := preload("res://x.gd")`, each name to the script's
 /// project path: an export typed by one is a node of that script.
 fn script_aliases(source: &str) -> BTreeMap<String, String> {
-    let mut out = BTreeMap::new();
-    for line in source.lines() {
-        let Some(rest) = line.strip_prefix("const ") else {
-            continue;
-        };
-        let Some((name, value)) = rest.split_once('=') else {
-            continue;
-        };
-        let name = name.trim().trim_end_matches(':').trim();
-        let Some(path) = value
-            .trim()
-            .strip_prefix("preload(\"")
-            .and_then(|v| v.split('"').next())
-        else {
-            continue;
-        };
-        let path = path.strip_prefix("res://").unwrap_or(path);
-        if is_script(path) {
-            out.insert(name.to_string(), path.to_string());
-        }
-    }
-    out
+    source
+        .lines()
+        .filter_map(crate::godot::script::preloaded_script_file)
+        .collect()
 }
 
 /// `@export var name: Type = value`.
@@ -352,7 +334,7 @@ fn extends_target(source: &str) -> Option<String> {
     let line = source.lines().find(|l| l.starts_with("extends "))?;
     let target = line["extends ".len()..].trim();
     if let Some(path) = target.strip_prefix('"').and_then(|t| t.split('"').next()) {
-        return Some(path.strip_prefix("res://").unwrap_or(path).to_string());
+        return Some(crate::godot::relative_path(path).to_string());
     }
     let name: String = target
         .chars()

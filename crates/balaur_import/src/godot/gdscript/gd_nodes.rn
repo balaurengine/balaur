@@ -1,12 +1,12 @@
 /// Godot's viewport rectangle. The engine reports the screen as a pair, and
 /// the visible rect always starts at the origin.
 pub fn viewport_rect() {
-    let (w, h) = ui::screen_size();
+    let (w, h) = ui::window_size();
     rect(0.0, 0.0, w, h)
 }
 
 pub fn screen_size() {
-    let (w, h) = ui::screen_size();
+    let (w, h) = ui::window_size();
     return vec2(w, h);
 }
 
@@ -364,8 +364,8 @@ pub fn combined_min_size(node) {
         return floor;
     }
     let drawn = ui::widget_rect(node);
-    if drawn is Object && drawn.contains_key("w") {
-        return vec2(math::max(floor.x, float(drawn["w"])), math::max(floor.y, float(drawn["h"])));
+    if drawn is Object && drawn.contains_key("width") {
+        return vec2(math::max(floor.x, float(drawn["width"])), math::max(floor.y, float(drawn["height"])));
     }
     floor
 }
@@ -773,7 +773,7 @@ pub fn window() {
 /// The window in its own pixels, which Godot's root viewport and window
 /// measure in: the design size times the UI's scale.
 fn window_pixels() {
-    let (w, h) = ui::screen_size();
+    let (w, h) = ui::window_size();
     let by = ui::scale();
     vec2(w * by, h * by)
 }
@@ -900,18 +900,23 @@ pub fn emit_engine(emitter, name, args) {
     emit_obj(emitter, name, args)
 }
 
-/// The widget key holding the handler for a Godot control signal.
+/// The widget key holding the handler for a Godot control signal: the
+/// translator's `WIDGET_SIGNALS`, which a test holds this copy to.
 fn widget_handler_key(name) {
     match name {
         "pressed" => "on_click",
         "button_up" => "on_click",
         "toggled" => "on_change",
-        "text_changed" => "on_change",
         "value_changed" => "on_change",
+        "text_changed" => "on_change",
         "item_selected" => "on_change",
+        "color_changed" => "on_change",
         "tab_changed" => "on_change",
         "tab_selected" => "on_change",
+        "folding_changed" => "on_change",
+        "close_requested" => "on_change",
         "text_submitted" => "on_submit",
+        "focus_entered" => "on_focus",
         _ => (),
     }
 }
@@ -949,8 +954,8 @@ pub fn size_of(node) {
         return vec_of(field(node, "size"));
     }
     let drawn = ui::widget_rect(node);
-    if drawn is Object && drawn.contains_key("w") {
-        return vec2(float(drawn["w"]), float(drawn["h"]));
+    if drawn is Object && drawn.contains_key("width") {
+        return vec2(float(drawn["width"]), float(drawn["height"]));
     }
     vec2(0.0, 0.0)
 }
@@ -1138,26 +1143,29 @@ fn set_node_property(node, name, value) {
 }
 
 const PARTICLES = "particles";
+const RATE = "rate";
+const LIFETIME = "lifetime";
 
 /// Godot's particle count: the engine's `rate` over one `lifetime`.
 fn particle_amount(node) {
     let particles = node.get_component(PARTICLES);
-    let born = float(get(particles, "rate", 20.0)) * float(get(particles, "lifetime", 1.0));
+    let born = float(particles[RATE]) * float(particles[LIFETIME]);
     return int(math::round(born));
 }
 
 /// A particle property written in Godot's terms: a count is a rate over the
-/// lifetime, and a new lifetime keeps the count.
+/// lifetime, and a new lifetime keeps the count. The engine holds a lifetime
+/// above zero, so neither division needs a guard.
 fn set_particles(node, name, value) {
     let particles = node.get_component(PARTICLES);
-    let lifetime = math::max(float(get(particles, "lifetime", 1.0)), 0.05);
+    let lifetime = float(particles[LIFETIME]);
     let patch = #{};
     if name == "amount" {
-        patch["rate"] = float(value) / lifetime;
-    } else if name == "lifetime" {
-        let count = float(get(particles, "rate", 20.0)) * lifetime;
-        patch["lifetime"] = float(value);
-        patch["rate"] = count / math::max(float(value), 0.05);
+        patch[RATE] = float(value) / lifetime;
+    } else if name == LIFETIME {
+        let count = float(particles[RATE]) * lifetime;
+        patch[LIFETIME] = float(value);
+        patch[RATE] = count / float(value);
     } else {
         patch[name] = value;
     }
@@ -1310,14 +1318,20 @@ pub fn load(path) {
     if rest.ends_with(".csv") {
         return csv_resource(rest);
     }
-    if rest.ends_with(".tscn") {
-        // Bound first: a template straight after `return` is not an
-        // expression Rune's parser will take.
-        let stem = rest[..rest.len() - 5];
-        let out = `${stem}.toml`;
-        return out;
+    if rest.ends_with(SCENE_SUFFIX) {
+        return converted_scene(rest);
     }
     rest
+}
+
+const SCENE_SUFFIX = ".tscn";
+
+/// The scene the import wrote for a Godot scene path: the `.toml` beside it.
+fn converted_scene(path) {
+    let stem = path[..path.len() - SCENE_SUFFIX.len()];
+    // Bound first: a template straight after `return` does not parse.
+    let scene = `${stem}.toml`;
+    return scene;
 }
 
 /// Godot's `ResourceLoader.exists`: whether the file the import wrote for a
@@ -1327,10 +1341,8 @@ pub fn resource_exists(path) {
         return false;
     }
     let rest = project_path(path);
-    if rest.ends_with(".tscn") {
-        let stem = rest[..rest.len() - 5];
-        let scene = `${stem}.toml`;
-        return fs::exists(scene);
+    if rest.ends_with(SCENE_SUFFIX) {
+        return fs::exists(converted_scene(rest));
     }
     if rest.ends_with(".tres") {
         let module = `${rest}.rn`;
@@ -1354,14 +1366,9 @@ pub async fn wait_signal(owner, name) {
         return ();
     }
     if owner is balaur::Node {
-        let event = name;
-        if name == "pressed" || name == "button_up" {
-            event = "click";
-        } else if ["toggled", "value_changed", "text_changed", "item_selected", "tab_changed", "tab_selected"].iter().any(|n| n == name) {
-            event = "change";
-        } else if name == "text_submitted" {
-            event = "submit";
-        }
+        // A widget's key is `on_` and the event it emits.
+        let key = widget_handler_key(name);
+        let event = if key is String { key[3..] } else { name };
         let payload = task::wait(events::next(event, owner)).await;
         return payload;
     }
@@ -1674,7 +1681,7 @@ fn path_parts(path) {
 /// A control's rect where the layer last drew it, relative to `origin`'s.
 fn drawn_rect(node, origin) {
     let drawn = ui::widget_rect(node);
-    if !(drawn is Object && drawn.contains_key("w")) {
+    if !(drawn is Object && drawn.contains_key("width")) {
         return rect(0.0, 0.0, 0.0, 0.0);
     }
     let x = float(drawn["x"]);
@@ -1686,7 +1693,7 @@ fn drawn_rect(node, origin) {
             y -= float(base["y"]);
         }
     }
-    rect(x, y, float(drawn["w"]), float(drawn["h"]))
+    rect(x, y, float(drawn["width"]), float(drawn["height"]))
 }
 
 /// Godot's `Array` methods that are not collection verbs of the shim's own.

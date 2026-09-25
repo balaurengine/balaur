@@ -47,7 +47,7 @@ pub(crate) fn scene_path(godot: &str) -> String {
 }
 
 /// A script's path in the converted project: the same tree, `.rn`.
-fn script_path(godot: &str) -> String {
+pub(crate) fn script_path(godot: &str) -> String {
     match godot.strip_suffix(".gd") {
         Some(stem) => format!("{stem}.rn"),
         None => godot.to_string(),
@@ -61,11 +61,6 @@ enum Slot {
     Own(usize),
     Override { instance: usize, path: String },
 }
-
-/// What a widget emits by name when its value changes and when a field is
-/// submitted; `balaur_ui`'s `CHANGE_EVENT` and `SUBMIT_EVENT`.
-const CHANGE_EVENT: &str = "change";
-const SUBMIT_EVENT: &str = "submit";
 
 /// Godot signals of its own classes that nothing here emits; a row answering
 /// one waits on a script that does.
@@ -534,14 +529,7 @@ impl Walk<'_> {
         // A widget handler runs on the widget's node or the nearest scripted
         // ancestor, so it can say a connection to either and nothing else.
         let upward = to.is_empty() || from == to || from.starts_with(&format!("{to}/"));
-        let handler = match signal {
-            "pressed" | "button_up" => Some("on_click"),
-            "toggled" | "text_changed" | "value_changed" | "item_selected" | "folding_changed"
-            | "close_requested" | "tab_changed" | "tab_selected" => Some("on_change"),
-            "text_submitted" => Some("on_submit"),
-            "focus_entered" => Some("on_focus"),
-            _ => None,
-        };
+        let handler = crate::godot::gdscript::widget_signal(signal);
         if control
             && upward
             && let Some(handler) = handler
@@ -833,8 +821,8 @@ fn event_of(signal: &str, control: bool, handler: Option<&str>) -> String {
         "pressed" | "button_up" if control => "pointer_click".into(),
         _ => {
             let emitted = match handler {
-                Some("on_change") => CHANGE_EVENT,
-                Some("on_submit") => SUBMIT_EVENT,
+                Some(crate::godot::gdscript::ON_CHANGE) => balaur::ui::CHANGE_EVENT,
+                Some(crate::godot::gdscript::ON_SUBMIT) => balaur::ui::SUBMIT_EVENT,
                 _ => signal,
             };
             format!("emitted:{emitted}")

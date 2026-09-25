@@ -11,6 +11,7 @@ use std::fmt::Write as _;
 
 use super::ast::{Expr, MatchArm, Stmt};
 use super::map;
+use super::{GETTER, SETTER};
 
 mod calls;
 mod ops;
@@ -575,7 +576,7 @@ impl<'a> Emitter<'a> {
             && self.context.static_vars.contains_key(name)
             && !self.in_accessor_of(name)
         {
-            return format!("__get_{name}()");
+            return format!("{GETTER}{name}()");
         }
         if let Some(fallback) = self.context.static_vars.get(name).cloned() {
             self.uses_shim = true;
@@ -680,43 +681,56 @@ impl<'a> Emitter<'a> {
             && !matches!(**object, Expr::SelfRef)
             && !self.context.signals.contains(name)
         {
-            let owner = self.expression(object);
-            return format!(
-                "#{{ \"__bound\": {owner}, \"__method\": {} }}",
-                quoted(name)
-            );
+            return self.bound_record(object, name, &[]);
         }
         // `other.method.bind(a)`: the same record, carrying what `bind` fixed.
         if let Expr::Call(callee, bound) = arg
             && let Expr::Field(target, verb) = &**callee
-            && verb == "bind"
+            && verb == map::BIND
             && let Expr::Field(object, name) = &**target
             && !matches!(**object, Expr::SelfRef)
             && !self.context.signals.contains(name)
         {
-            let owner = self.expression(object);
-            let fixed: Vec<String> = bound.iter().map(|value| self.expression(value)).collect();
-            return format!(
-                "#{{ \"__bound\": {owner}, \"__method\": {}, \"__args\": [{}] }}",
-                quoted(name),
-                fixed.join(", ")
-            );
+            return self.bound_record(object, name, bound);
         }
         self.connect_handler(arg)
             .unwrap_or_else(|| self.expression(arg))
     }
 
+    /// Another object's method as a value, with what `bind` fixed: the
+    /// record the shim's `call_value` calls.
+    fn bound_record(&mut self, object: &Expr, name: &str, fixed: &[Expr]) -> String {
+        let owner = self.expression(object);
+        let mut record = format!(
+            "#{{ {}: {owner}, {}: {}",
+            quoted(map::BOUND_OWNER),
+            quoted(map::BOUND_METHOD),
+            quoted(name)
+        );
+        if !fixed.is_empty() {
+            let values: Vec<String> = fixed.iter().map(|value| self.expression(value)).collect();
+            let _ = write!(
+                record,
+                ", {}: [{}]",
+                quoted(map::BOUND_ARGS),
+                values.join(", ")
+            );
+        }
+        record.push_str(" }");
+        record
+    }
+
     /// A member read: its getter, outside the property's own accessors.
     fn member_read(&self, name: &str) -> String {
         if self.context.getters.contains(name) && !self.in_accessor_of(name) {
-            return format!("__get_{name}(this)");
+            return format!("{GETTER}{name}(this)");
         }
         format!("this.{}", safe(name))
     }
 
     fn in_accessor_of(&self, name: &str) -> bool {
-        self.enclosing == format!("__get_{name}")
-            || self.enclosing == format!("__set_{name}")
+        self.enclosing == format!("{GETTER}{name}")
+            || self.enclosing == format!("{SETTER}{name}")
             || self
                 .context
                 .named_accessors
@@ -858,7 +872,7 @@ impl<'a> Emitter<'a> {
         let Expr::Field(object, verb) = callee else {
             return self.signal_by_name(callee, args);
         };
-        if verb == "bind" {
+        if verb == map::BIND {
             return self.callable(&Expr::Call(Box::new(callee.clone()), args.to_vec()));
         }
         if (verb == "call" || verb == "call_deferred")

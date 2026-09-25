@@ -718,7 +718,7 @@ fn loaded(arg: &str) -> String {
     let Some(literal) = arg.strip_prefix('"').and_then(|a| a.strip_suffix('"')) else {
         return format!("(gd.load)({arg})");
     };
-    let path = literal.strip_prefix("res://").unwrap_or(literal);
+    let path = crate::godot::relative_path(literal);
     if crate::godot::files::has_extension(path, "tres") {
         return format!("(gd.resource)({})", quoted(&format!("{path}.rn")));
     }
@@ -880,7 +880,7 @@ fn node_query(receiver: &str, name: &str, args: &[String]) -> Option<String> {
             format!("(gd.canvas_transform)({receiver})")
         }
         "get_child_count" => format!("{receiver}.children().len()"),
-        "has_focus" => format!("(gd.same)(ui::focused(), {receiver})"),
+        "has_focus" => format!("(gd.same)(ui::focused_widget(), {receiver})"),
         // Focus is the widget layer's to give, and a foldable's title bar is
         // its `fold` widget's header.
         "release_focus" | "add_title_bar_control" => "()".into(),
@@ -1036,13 +1036,52 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
 /// widget calls `on_click` on the first ancestor whose script has the method,
 /// which is what `button.pressed.connect(self._on_pressed)` meant.
 pub(crate) fn widget_signal(signal: &str) -> Option<&'static str> {
-    Some(match signal {
-        "pressed" | "button_up" => "on_click",
-        "toggled" | "value_changed" | "text_changed" | "item_selected" | "color_changed"
-        | "tab_changed" | "tab_selected" => "on_change",
-        "text_submitted" => "on_submit",
-        _ => return None,
-    })
+    WIDGET_SIGNALS
+        .iter()
+        .find(|(godot, _)| *godot == signal)
+        .map(|(_, key)| *key)
+}
+
+/// The widget keys a control signal lands on, which `balaur_ui` spells.
+pub(crate) const ON_CLICK: &str = "on_click";
+pub(crate) const ON_CHANGE: &str = "on_change";
+pub(crate) const ON_SUBMIT: &str = "on_submit";
+pub(crate) const ON_FOCUS: &str = "on_focus";
+
+/// Each Godot control signal and the widget key that hears it. The scene
+/// importer and the translator read it here; the shim keeps a copy a test
+/// holds to it.
+pub(crate) const WIDGET_SIGNALS: &[(&str, &str)] = &[
+    ("pressed", ON_CLICK),
+    ("button_up", ON_CLICK),
+    ("toggled", ON_CHANGE),
+    ("value_changed", ON_CHANGE),
+    ("text_changed", ON_CHANGE),
+    ("item_selected", ON_CHANGE),
+    ("color_changed", ON_CHANGE),
+    ("tab_changed", ON_CHANGE),
+    ("tab_selected", ON_CHANGE),
+    ("folding_changed", ON_CHANGE),
+    ("close_requested", ON_CHANGE),
+    ("text_submitted", ON_SUBMIT),
+    ("focus_entered", ON_FOCUS),
+];
+
+/// The keys of the records the shim's `call_value` calls: another object's
+/// method, with what `bind` fixed, and a handler with how many it takes. The
+/// shim spells them too, and a test holds the two together.
+pub(crate) const BOUND_OWNER: &str = "__bound";
+pub(crate) const BOUND_METHOD: &str = "__method";
+pub(crate) const BOUND_ARGS: &str = "__args";
+pub(crate) const CALL_KEY: &str = "__call";
+pub(crate) const CALL_TAKES: &str = "__takes";
+
+/// Godot's `Callable.bind`.
+pub(crate) const BIND: &str = "bind";
+
+/// Whether the engine sends a signal itself: a widget's, or one of the rest.
+pub(crate) fn engine_signal(signal: &str) -> bool {
+    widget_signal(signal).is_some() || ENGINE_SIGNALS.contains(&signal)
 }
 
 /// Connecting one: the handler's name goes on the widget, and disconnecting
@@ -1084,7 +1123,7 @@ pub(crate) const MOST_ARGS: usize = 3;
 /// A node emitter is heard as an event, through the module's forwarder; a
 /// class table keeps the handler and calls it itself.
 pub(crate) fn signal_subscribe(receiver: &str, signal: &str, handler: &str) -> String {
-    if ENGINE_SIGNALS.contains(&signal) {
+    if engine_signal(signal) {
         return format!(
             "(gd.listen)(this.node, {}, {receiver}, {handler})",
             quoted(signal)
@@ -1094,7 +1133,7 @@ pub(crate) fn signal_subscribe(receiver: &str, signal: &str, handler: &str) -> S
 }
 
 pub(crate) fn signal_unsubscribe(receiver: &str, signal: &str) -> String {
-    if ENGINE_SIGNALS.contains(&signal) {
+    if engine_signal(signal) {
         return format!("(gd.unlisten)(this.node, {}, {receiver})", quoted(signal));
     }
     format!("(gd.disconnect)({receiver}, {})", quoted(signal))
@@ -1115,8 +1154,8 @@ pub(crate) fn signal_verb(signal: &str, verb: &str, args: &[String]) -> Option<S
     })
 }
 
-/// Signals the engine itself sends, heard as events; a script's own are
-/// called as they are emitted.
+/// Signals the engine itself sends besides a widget's, heard as events; a
+/// script's own are called as they are emitted.
 /// Godot's "it went away", which the engine reports as the visibility event.
 pub(crate) const HIDDEN_SIGNAL: &str = "hidden";
 
@@ -1131,16 +1170,7 @@ pub(crate) const ENGINE_SIGNALS: &[&str] = &[
     "body_exited",
     "area_entered",
     "area_exited",
-    "pressed",
-    "button_up",
     "button_down",
-    "toggled",
-    "value_changed",
-    "text_changed",
-    "text_submitted",
-    "item_selected",
-    "tab_changed",
-    "tab_selected",
     "visibility_changed",
     "resized",
     "tree_entered",
@@ -1149,7 +1179,6 @@ pub(crate) const ENGINE_SIGNALS: &[&str] = &[
     "ready",
     "mouse_entered",
     "mouse_exited",
-    "focus_entered",
     "focus_exited",
     "gui_input",
     "input_event",

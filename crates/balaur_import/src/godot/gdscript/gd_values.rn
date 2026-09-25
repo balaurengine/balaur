@@ -1057,7 +1057,7 @@ pub fn canvas_transform(node) {
     if zoom == 0.0 {
         return balaur::Transform2d::IDENTITY;
     }
-    let (w, h) = ui::screen_size();
+    let (w, h) = ui::window_size();
     let origin = vec2(float(w) / 2.0 - float(camera[0]) * zoom, float(h) / 2.0 + float(camera[1]) * zoom);
     let scale = zoom / PIXELS;
     balaur::Transform2d::from_scale_angle_translation(vec2(scale, scale), 0.0, origin)
@@ -1291,6 +1291,12 @@ pub fn json_object() {
 const DRAW_TRANSFORM = "draw:transform:";
 const DRAW_LIST = "draw:list:";
 const DRAW_WANTED = "draw:wanted:";
+/// The draw verbs' option keys, as `render` spells them.
+const Z_INDEX = "z_index";
+const REGION_ORIGIN = "region_origin";
+const REGION_SIZE = "region_size";
+/// The recorded verb a picture is drawn by.
+const TEXTURE = "texture";
 
 fn draw_key(prefix, node) {
     `${prefix}${node.stable_id()}`
@@ -1316,7 +1322,8 @@ pub fn draw_frame(node) {
     if !(list is Vec) {
         return ();
     }
-    let place = #{ "z_index": node.global_z_index() };
+    let place = #{};
+    place[Z_INDEX] = node.global_z_index();
     for entry in list {
         draw_entry(node, entry[0], entry[1], place);
     }
@@ -1418,11 +1425,11 @@ pub fn draw_colored_polygon(node, points, color, uvs, texture) {
 }
 
 pub fn draw_texture_rect(node, texture, rect, tile, modulate, transpose) {
-    return record(node, "texture", [texture, rect, modulate, ()]);
+    return record(node, TEXTURE, [texture, rect, modulate, ()]);
 }
 
 pub fn draw_texture_rect_region(node, texture, rect, src_rect, modulate, transpose, clip_uv) {
-    return record(node, "texture", [texture, rect, modulate, src_rect]);
+    return record(node, TEXTURE, [texture, rect, modulate, src_rect]);
 }
 
 pub fn draw_string(node, font, position, text, alignment, width, font_size, modulate) {
@@ -1480,13 +1487,14 @@ fn draw_entry(node, verb, a, place) {
         draw_filled(node, a[0], draw_color(a[1]), place);
         return ();
     }
-    if verb == "texture" {
+    if verb == TEXTURE {
         draw_picture(node, a[0], a[1], a[2], a[3], place);
         return ();
     }
     if verb == "text" {
         let at = draw_point(node, a[0]);
-        let opts = #{ "color": draw_color(a[3]), "z_index": place["z_index"] };
+        let opts = #{ "color": draw_color(a[3]) };
+        opts[Z_INDEX] = place[Z_INDEX];
         if !is_nil(a[2]) {
             opts["size"] = a[2];
         }
@@ -1552,12 +1560,13 @@ fn draw_picture(node, texture, rect, modulate, region, place) {
     let size = vec_of(field(rect, "size"));
     let centre = draw_point(node, vec2(pos.x + size.x / 2.0, pos.y + size.y / 2.0));
     let by = draw_scale(node);
-    let options = #{ "z_index": place["z_index"] };
+    let options = #{};
+    options[Z_INDEX] = place[Z_INDEX];
     if !is_nil(region) {
         let from = vec_of(field(region, "position"));
         let span = vec_of(field(region, "size"));
-        options["region_origin"] = [float(from.x), float(from.y)];
-        options["region_size"] = [float(span.x), float(span.y)];
+        options[REGION_ORIGIN] = [float(from.x), float(from.y)];
+        options[REGION_SIZE] = [float(span.x), float(span.y)];
     }
     render::draw_texture_2d(texture, centre[0], centre[1], math::abs(float(size.x)) * by, math::abs(float(size.y)) * by, draw_color(modulate), options);
     return ();

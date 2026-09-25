@@ -110,7 +110,7 @@ pub(crate) fn convert(document: &Document, res: &Resources<'_>) -> Option<Conver
                 }
             } else {
                 if let Some(size) = default_size {
-                    style.entry("size").or_insert(Toml::Float(size));
+                    style.entry("font_size").or_insert(Toml::Float(size));
                 }
                 kinds.insert(kind.to_string(), Toml::Table(style));
             }
@@ -120,13 +120,19 @@ pub(crate) fn convert(document: &Document, res: &Resources<'_>) -> Option<Conver
     }
     if let Some(size) = default_size {
         for kind in [
-            "label", "button", "field", "check", "dropdown", "tab", "fold",
+            "label",
+            "button",
+            "text_field",
+            "checkbox",
+            "dropdown",
+            "tabs",
+            "fold",
         ] {
             let entry = kinds
                 .entry(kind)
                 .or_insert_with(|| Toml::Table(toml::Table::new()));
             if let Toml::Table(table) = entry {
-                table.entry("size").or_insert(Toml::Float(size));
+                table.entry("font_size").or_insert(Toml::Float(size));
             }
         }
     }
@@ -196,7 +202,7 @@ fn style_of(
         .or_else(|| ink("default_color"))
         .or_else(|| ink("title_color"))
     {
-        style.insert("color".into(), color);
+        style.insert("text_color".into(), color);
     }
     if let Some(color) = ink("icon_normal_color") {
         style.insert("icon_color".into(), color);
@@ -210,21 +216,21 @@ fn style_of(
     {
         style.insert("gap".into(), Toml::Float(gap.max(0.0)));
     }
-    // A type drawn in a heavier face is `strong` here: the weight is the
-    // face's, and the chain the project ships is what resolves it.
+    // A type drawn in a heavier face is bold here: the weight is the face's,
+    // and the chain the project ships is what resolves it.
     if let Some(font) = item("fonts", "font")
         && res
             .sub(font)
             .and_then(|face| face.field("resource_name").and_then(Value::as_str))
             .is_some_and(|name| name.contains("bold") || name.contains("black"))
     {
-        style.insert("strong".into(), Toml::Boolean(true));
+        style.insert("font_weight".into(), Toml::Integer(700));
     }
     if let Some(size) = item("font_sizes", "font_size")
         .or_else(|| item("font_sizes", "normal_font_size"))
         .and_then(Value::as_f64)
     {
-        style.insert("size".into(), Toml::Float(size));
+        style.insert("font_size".into(), Toml::Float(size));
     }
     // A MarginContainer's four margins are one padding here, their mean when
     // they differ.
@@ -258,7 +264,7 @@ fn style_of(
             .map(|v| stylebox(v, res))
             .unwrap_or_default();
         if let Some(color) = ink(font) {
-            over.insert("color".into(), color);
+            over.insert("text_color".into(), color);
         }
         if let Some(color) = ink(icon) {
             over.insert("icon_color".into(), color);
@@ -385,7 +391,7 @@ fn flat(section: &Section, out: &mut toml::Table) {
         .filter_map(|corner| number(&format!("corner_radius_{corner}")))
         .reduce(f64::max)
     {
-        out.insert("radius".into(), Toml::Float(radius));
+        out.insert("corner_radius".into(), Toml::Float(radius));
     }
 }
 

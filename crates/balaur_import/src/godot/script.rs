@@ -678,7 +678,7 @@ fn extended(source: &str, classes: &Classes) -> Option<String> {
     let line = source.lines().find(|l| l.starts_with("extends "))?;
     let target = line["extends ".len()..].trim();
     if let Some(path) = target.strip_prefix('"').and_then(|t| t.split('"').next()) {
-        return Some(path.strip_prefix("res://").unwrap_or(path).to_string());
+        return Some(crate::godot::relative_path(path).to_string());
     }
     let name: String = target
         .chars()
@@ -704,6 +704,13 @@ struct Declarations {
 
 /// `const Name = preload("res://a/b.gd")`: the name and the module it loads.
 fn preloaded_script(line: &str) -> Option<(String, String)> {
+    let (name, file) = preloaded_script_file(line)?;
+    Some((name, crate::godot::scene::script_path(&file)))
+}
+
+/// `const Name = preload("res://a/b.gd")`, or `load(..)`: the name and the
+/// script's project path.
+pub(crate) fn preloaded_script_file(line: &str) -> Option<(String, String)> {
     let rest = line.strip_prefix("const ")?;
     let name = name_of(rest);
     let value = assigned(rest)?;
@@ -712,9 +719,8 @@ fn preloaded_script(line: &str) -> Option<(String, String)> {
         .strip_prefix("preload(")
         .or_else(|| value.trim().strip_prefix("load("))?;
     let path = inner.trim().strip_prefix('"')?.split('"').next()?;
-    let path = path.strip_prefix("res://").unwrap_or(path);
-    let module = path.strip_suffix(".gd")?;
-    Some((name, format!("{module}.rn")))
+    let path = crate::godot::relative_path(path);
+    crate::godot::exports::is_script(path).then(|| (name, path.to_string()))
 }
 
 /// A file's `static var`s, each with the GDScript text of its default.

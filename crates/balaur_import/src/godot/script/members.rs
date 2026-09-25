@@ -167,8 +167,7 @@ pub(super) struct Accessors {
     keyword: &'static str,
 }
 
-pub(super) const GETTER: &str = "__get_";
-pub(super) const SETTER: &str = "__set_";
+pub(super) use crate::godot::gdscript::{GETTER, SETTER};
 
 pub(super) fn accessors(source: &str) -> Accessors {
     let lines: Vec<&str> = source.lines().collect();
@@ -215,9 +214,6 @@ pub(super) fn accessors(source: &str) -> Accessors {
 impl Accessors {
     /// `get = f` or `set = f`: the accessor calls the named function.
     fn named(&mut self, kind: &str, name: &str, callee: &str) {
-        if matches!(kind, "get" | "set") {
-            self.named.insert(callee.to_string(), name.to_string());
-        }
         match kind {
             "get" => {
                 let _ = write!(
@@ -235,8 +231,9 @@ impl Accessors {
                 );
                 self.setters.insert(name.to_string());
             }
-            _ => {}
+            _ => return,
         }
+        self.named.insert(callee.to_string(), name.to_string());
     }
 
     /// The indented lines under `var name:`: `get:` and `set(v):` with their

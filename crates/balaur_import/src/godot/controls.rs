@@ -18,14 +18,14 @@ const WIDGET_KINDS: &[(&str, &str)] = &[
     ("LinkButton", "button"),
     ("MenuButton", "button"),
     ("TextureButton", "image"),
-    ("CheckBox", "check"),
-    ("CheckButton", "check"),
-    ("LineEdit", "field"),
+    ("CheckBox", "checkbox"),
+    ("CheckButton", "checkbox"),
+    ("LineEdit", "text_field"),
     ("OptionButton", "dropdown"),
     ("HSlider", "slider"),
     ("VSlider", "slider"),
-    ("ProgressBar", "progress"),
-    ("TextureProgressBar", "progress"),
+    ("ProgressBar", "progress_bar"),
+    ("TextureProgressBar", "progress_bar"),
     ("TextureRect", "image"),
     ("NinePatchRect", "image"),
     ("ColorRect", "stack"),
@@ -43,16 +43,16 @@ const WIDGET_KINDS: &[(&str, &str)] = &[
     ("HFlowContainer", "flow"),
     ("VFlowContainer", "flow"),
     ("ScrollContainer", "scroll"),
-    ("TabContainer", "tab"),
-    ("TabBar", "tab"),
+    ("TabContainer", "tabs"),
+    ("TabBar", "tabs"),
     ("FoldableContainer", "fold"),
     ("HSeparator", "separator"),
     ("VSeparator", "separator"),
     ("AcceptDialog", "dialog"),
     ("ConfirmationDialog", "dialog"),
     ("Window", "window"),
-    ("SpinBox", "field"),
-    ("TextEdit", "field"),
+    ("SpinBox", "text_field"),
+    ("TextEdit", "text_field"),
 ];
 
 /// The widget kind a Control class converts to.
@@ -268,7 +268,7 @@ fn style_override(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
     if let Some(value) = own {
         for (key, value) in crate::godot::theme::stylebox(value, res) {
             match key.as_str() {
-                "fill" | "stroke" | "radius" | "padding_x" => out.set("widget", &key, value),
+                "fill" | "stroke" | "corner_radius" | "padding_x" => out.set("widget", &key, value),
                 "padding" => {
                     let unset = out
                         .components
@@ -414,7 +414,7 @@ fn kind_properties(class: &str, section: &Section, res: &Resources<'_>, out: &mu
             }
         }
         "CenterContainer" => {
-            out.set("widget", "align", Toml::String("center".into()));
+            out.set("widget", "align_items", Toml::String("center".into()));
             out.set("widget", "justify", Toml::String("center".into()));
         }
         _ => {}

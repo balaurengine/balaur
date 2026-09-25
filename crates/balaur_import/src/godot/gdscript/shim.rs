@@ -47,6 +47,51 @@ mod tests {
         assert!(missing.is_empty(), "the shim defines none of {missing:?}");
     }
 
+    /// The shim's `widget_handler_key` is a copy of `WIDGET_SIGNALS`, since
+    /// Rune cannot read the Rust table; this keeps the two the same.
+    #[test]
+    fn the_shim_hears_every_widget_signal_the_translator_does() {
+        let body = super::SHIM
+            .split("fn widget_handler_key(name) {")
+            .nth(1)
+            .and_then(|rest| rest.split("_ => (),").next())
+            .expect("the shim has widget_handler_key");
+        let mut arms: Vec<(String, String)> = body
+            .lines()
+            .filter_map(|line| {
+                let (signal, key) = line.trim().trim_end_matches(',').split_once(" => ")?;
+                Some((
+                    signal.trim_matches('"').to_string(),
+                    key.trim_matches('"').to_string(),
+                ))
+            })
+            .collect();
+        let mut table: Vec<(String, String)> = crate::godot::gdscript::map::WIDGET_SIGNALS
+            .iter()
+            .map(|(signal, key)| ((*signal).to_string(), (*key).to_string()))
+            .collect();
+        arms.sort();
+        table.sort();
+        assert_eq!(arms, table);
+    }
+
+    /// The records the translator writes are read by the shim under the
+    /// same keys.
+    #[test]
+    fn the_shim_reads_the_record_keys_the_translator_writes() {
+        use crate::godot::gdscript::map;
+        for (name, key) in [
+            ("BOUND_OWNER", map::BOUND_OWNER),
+            ("BOUND_METHOD", map::BOUND_METHOD),
+            ("BOUND_ARGS", map::BOUND_ARGS),
+            ("CALL_KEY", map::CALL_KEY),
+            ("CALL_TAKES", map::CALL_TAKES),
+        ] {
+            let line = format!("const {name} = \"{key}\";");
+            assert!(super::SHIM.contains(&line), "the shim has no `{line}`");
+        }
+    }
+
     /// The shim is Rune text inside Rust: nothing but running it says it
     /// still compiles, and every converted script requires it.
     #[test]

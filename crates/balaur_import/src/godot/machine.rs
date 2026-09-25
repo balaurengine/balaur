@@ -146,7 +146,7 @@ pub(crate) fn base_script(
     let wanted = path.join("/");
     let node = document.each("node").find(|n| node_path_of(n) == wanted)?;
     let script = res.path(node.field("script")?)?;
-    Some(script.trim_start_matches("res://").to_string())
+    Some(crate::godot::relative_path(script).to_string())
 }
 
 /// A node section's path from the scene root, the root itself being empty.

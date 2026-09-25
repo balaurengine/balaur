@@ -104,7 +104,7 @@ pub(crate) fn resources_of<'a>(
             .cloned();
         let by_path = section
             .attr_str("path")
-            .map(|p| p.strip_prefix("res://").unwrap_or(p).to_string());
+            .map(|p| crate::godot::relative_path(p).to_string());
         let Some(path) = by_uid.or(by_path) else {
             continue;
         };

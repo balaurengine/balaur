@@ -993,10 +993,10 @@ func _process(_delta):
         let project = read(out.path(), "project.toml");
         assert_eq!(project["ui"]["theme"].as_str(), Some("themes/game.toml"));
         let theme = read(out.path(), "themes/game.toml");
-        assert_eq!(theme["button"]["radius"].as_float(), Some(16.0));
-        assert_eq!(theme["button"]["size"].as_float(), Some(40.0));
+        assert_eq!(theme["button"]["corner_radius"].as_float(), Some(16.0));
+        assert_eq!(theme["button"]["font_size"].as_float(), Some(40.0));
         assert_eq!(
-            theme["button"]["disabled"]["color"].as_str(),
+            theme["button"]["disabled"]["text_color"].as_str(),
             Some("#808080ff"),
             "a disabled state carries its font colour"
         );
