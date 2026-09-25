@@ -348,7 +348,7 @@ pub(crate) fn install_physics2d_pair_query_api(m: &mut dyn Bindings<Engine>) {
                 second.position(),
                 second.shape(),
             )
-            .map(|d| Value::Num(f64::from(d)))
+            .map(|d| Value::Num(f64::from(d.distance)))
             .map_err(|e| anyhow!("those two shapes cannot be measured: {e}"))
         })
     });
@@ -360,7 +360,7 @@ pub(crate) fn install_physics2d_pair_query_api(m: &mut dyn Bindings<Engine>) {
                 second.position(),
                 second.shape(),
             )
-            .map(Value::Bool)
+            .map(|hit| Value::Bool(hit.intersecting))
             .map_err(|e| anyhow!("those two shapes cannot be tested: {e}"))
         })
     });

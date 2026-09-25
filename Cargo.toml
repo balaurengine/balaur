@@ -75,8 +75,10 @@ notify = "8"
 # `parallel` is added per target in balaur_physics: it threads the solver on
 # rayon, which no wasm build can block on. rapier compiles that pipeline only
 # without `unsync-callbacks`, so the hooks in balaur_physics hold no `Engine`.
-rapier3d = { version = "0.35", features = ["enhanced-determinism", "serde-serialize", "debug-render"] }
-rapier2d = { version = "0.35", features = ["enhanced-determinism", "serde-serialize", "debug-render"] }
+# Soft bodies are only on rapier's `soft-bodies` branch, so both worlds come
+# from the checkout beside this one until that branch is released.
+rapier3d = { path = "../rapier/crates/rapier3d", features = ["enhanced-determinism", "serde-serialize", "debug-render"] }
+rapier2d = { path = "../rapier/crates/rapier2d", features = ["enhanced-determinism", "serde-serialize", "debug-render"] }
 serde = { version = "1", features = ["derive"] }
 bincode = { version = "2", features = ["serde"] }
 serde_json = "1"
@@ -116,8 +118,8 @@ debug = false
 # What ships: whole-program LTO and one codegen unit, a slower link for a
 # smaller, faster binary. `panic` stays unwind for the extension seam.
 [profile.release]
-lto = "fat"
-codegen-units = 1
+#lto = "fat"
+#codegen-units = 1
 
 # Every byte is a download the player waits for. Kept off `release` so a
 # native build pays nothing for a web trade. `panic = "abort"` is sound only

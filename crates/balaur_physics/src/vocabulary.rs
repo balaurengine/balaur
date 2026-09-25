@@ -17,6 +17,9 @@ pub(crate) mod words {
     pub(crate) const STATIC: &str = "static";
     pub(crate) const KINEMATIC: &str = "kinematic";
     pub(crate) const KINEMATIC_VELOCITY: &str = "kinematic_velocity";
+    /// A soft body's cluster proxy, which rapier makes itself: it is read back
+    /// but never accepted, so it stays out of `BODY_KINDS`.
+    pub(crate) const SOFT_FRAME: &str = "soft_frame";
     /// The body kinds both dimensions accept (N14).
     pub(crate) const BODY_KINDS: &[&str] = &[DYNAMIC, STATIC, KINEMATIC, KINEMATIC_VELOCITY];
 
@@ -347,6 +350,7 @@ pub(crate) mod hook {
     pub(crate) const ON_COLLISION_STOP: &str = "on_collision_stop";
     pub(crate) const ON_CONTACT_FORCE: &str = "on_contact_force";
     pub(crate) const ON_JOINT_BREAK: &str = "on_joint_break";
+    pub(crate) const ON_TEAR: &str = "on_tear";
 }
 
 /// Schema text from `(key, spec)` lines: the key comes from `keys`, the spec

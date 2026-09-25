@@ -14,6 +14,7 @@ macro_rules! functions {
             Started(Entity, Entity),
             Stopped(Entity, Entity),
             Force(Entity, Entity, f32, [f32; $N]),
+            Tear(Entity, u32),
         }
 
         impl Event {
@@ -27,6 +28,7 @@ macro_rules! functions {
                     Self::Started(a, b) => (*a, *b, 0),
                     Self::Stopped(a, b) => (*a, *b, 1),
                     Self::Force(a, b, _, _) => (*a, *b, 2),
+                    Self::Tear(a, _) => (*a, *a, 3),
                 };
                 (
                     a.to_bits().get().min(b.to_bits().get()),
@@ -111,6 +113,20 @@ macro_rules! functions {
                     crate::scalar::$axis(d),
                 ));
             }
+
+            fn handle_soft_body_tear_event(
+                &self,
+                soft_bodies: &SoftBodySet,
+                event: &SoftBodyTearEvent,
+            ) {
+                let Some(entity) = soft_bodies
+                    .get(event.soft_body)
+                    .and_then(|body| Entity::from_bits(body.user_data as u64))
+                else {
+                    return;
+                };
+                self.push(Event::Tear(entity, event.pieces.len() as u32));
+            }
         }
 
         /// The method a script implements for each event, and the arguments it
@@ -157,6 +173,13 @@ macro_rules! functions {
                         balaur_core::node_id_of(b),
                         hook::ON_CONTACT_FORCE,
                         &[node(a), force, towards],
+                    );
+                }
+                Event::Tear(a, pieces) => {
+                    host.call_on(
+                        balaur_core::node_id_of(a),
+                        hook::ON_TEAR,
+                        &[Value::Int(i64::from(pieces))],
                     );
                 }
             }

@@ -8,7 +8,7 @@
 
 use crate::rapier2d::prelude::{
     ColliderHandle, ColliderSet, CollisionEvent, ContactForceEvent, ContactModificationContext,
-    ContactPair, EventHandler, PhysicsHooks, RigidBodySet,
+    ContactPair, EventHandler, PhysicsHooks, RigidBodySet, SoftBodySet, SoftBodyTearEvent,
 };
 use crate::vocabulary::hook;
 use balaur_core::Engine;

@@ -22,6 +22,7 @@ macro_rules! functions {
                 RigidBodyType::Fixed => w::STATIC,
                 RigidBodyType::KinematicPositionBased => w::KINEMATIC,
                 RigidBodyType::KinematicVelocityBased => w::KINEMATIC_VELOCITY,
+                RigidBodyType::SoftFrame => w::SOFT_FRAME,
             }
         }
 

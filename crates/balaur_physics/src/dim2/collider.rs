@@ -469,7 +469,7 @@ pub(crate) fn max_contact_impulse(eng: &Engine, entity: Entity) -> Real {
     let mut max: Real = 0.0;
     for &handle in handles {
         for pair in state.world.narrow_phase.contact_pairs_with(handle) {
-            for manifold in &pair.manifolds {
+            for manifold in pair.manifolds() {
                 for point in &manifold.points {
                     max = max.max(point.data.impulse.abs());
                 }

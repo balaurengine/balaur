@@ -16,8 +16,8 @@ rapier3d = { workspace = true }
 rapier2d = { workspace = true }
 # Cutting and intersecting meshes need parry's `spade` feature, which rapier
 # leaves off; naming parry here turns it on for the copy rapier uses.
-parry3d = { version = "0.30.2", features = ["spade"] }
-parry2d = { version = "0.30.2", features = ["spade"] }
+parry3d = { version = "0.31.1", features = ["spade"] }
+parry2d = { version = "0.31.1", features = ["spade"] }
 glamx.workspace = true
 anyhow.workspace = true
 balaur_script.workspace = true
