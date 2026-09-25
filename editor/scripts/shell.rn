@@ -722,6 +722,7 @@ fn states() {
         "bonemapdemo": crate::selftest::bonemap_panel,
         "machinedemo": crate::statemachine::selftest,
         "ragdolldemo": crate::selftest::physical_bones,
+        "physdemo": crate::selftest::physics_panel,
         "tilesdemo": crate::selftest::tiles_tool,
         "clipdemo": crate::selftest::clipboard,
         "assetdemo": crate::selftest::assets,

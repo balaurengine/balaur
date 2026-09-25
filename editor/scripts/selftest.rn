@@ -568,6 +568,67 @@ pub fn physical_bones(S) {
     log::info("selftest physical bones: done");
 }
 
+/// The Physics panel: what its rows add, what its shape actions write, and
+/// that every property the soft body declares is one the inspector can draw.
+pub fn physics_panel(S) {
+    let target = None;
+    for i in 0..S.doc.len() {
+        if S.doc[i].contains_key("mesh") || S.doc[i].contains_key("polygon") {
+            target = Some(i);
+            break;
+        }
+    }
+    let target = match target {
+        Some(target) => target,
+        None => {
+            log::info("selftest physics panel: no node with a mesh; skipped");
+            return;
+        }
+    };
+    shell::choose(S, target);
+    let two_d = model::is_2d(S);
+    let collider = if two_d { "collider2d" } else { "collider3d" };
+    let soft = if two_d { "softbody2d" } else { "softbody3d" };
+
+    // The persona shows what carries the engine's `physics` tag, which is the
+    // check the old hard-coded list of names failed.
+    model::add_component(S, collider);
+    let shown = crate::inspector::physics_components(S);
+    check(crate::util::contains(shown, collider),
+        format!("the Physics persona shows {}", collider));
+
+    // A shape action writes the mesh and the kind together, in one undo.
+    let source = if two_d {
+        crate::polygon::component(S.doc[target]).unwrap().get("mesh").unwrap_or("")
+    } else {
+        S.doc[target].get("mesh").unwrap().get("source").unwrap_or("")
+    };
+    model::set_component_props(S, collider, #{ kind: "convex_decomposition", mesh: source });
+    let written = crate::util::obj(S.doc[target].get(collider).unwrap_or(#{}));
+    check(written.get("kind").unwrap_or("") == "convex_decomposition",
+        "the decomposition action wrote the collider's kind");
+
+    // The tetrahedrization, and every property it declares drawable.
+    model::set_component_props(S, soft, #{ kind: "volumetric", mesh: source });
+    let schema = model::schema(S, soft);
+    let missing = [];
+    for prop in crate::util::keys_sorted(schema) {
+        let spec = schema[prop];
+        if spec.get("type").unwrap_or("") == "" {
+            missing.push(prop);
+        }
+    }
+    check(missing.is_empty(),
+        format!("every {} property has a type the inspector can draw", soft));
+    check(schema.contains_key("young_modulus") && schema.contains_key("tear_strain"),
+        "the soft body's mechanical rows are in its schema");
+    check(mirror_resolves(S), "the scene resolves with a soft body on it");
+
+    undo_all(S);
+    check(mirror_resolves(S), "the undone scene resolves");
+    log::info("selftest physics panel: done");
+}
+
 /// The bone map dock: the humanoid guessed against a rig's own names, and
 /// the map written out as a `bone_map` asset.
 pub fn bonemap_panel(S) {

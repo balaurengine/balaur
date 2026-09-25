@@ -1559,6 +1559,42 @@ pub fn set_component_prop(S, name, prop, value) {
     }
 }
 
+/// Set several of a component's properties at once, adding the component when
+/// the node has none.
+///
+/// One history entry rather than one per property: an action that says "make
+/// this a convex decomposition" writes three of them, and undo should take
+/// all three back together.
+pub fn set_component_props(S, name, props) {
+    history::record(S, format!("set {}", name), None);
+    for i in selection::all(S) {
+        let found = match live(S, i) {
+            Some(found) => found,
+            None => continue,
+        };
+        let node = S.doc[i];
+        let data = util::obj(found.get_component(name));
+        let params = doc_value(S, name, data, node.get(name));
+        for (prop, value) in props.iter() {
+            params[prop] = value;
+        }
+        found.set_component(name, absolute_files(S, params));
+        sync_component_doc_at(S, i, name);
+        // As in `set_component_prop_at`: the document keeps its own spelling
+        // of an asset path, so a retyped one is stamped back over.
+        let schema = schema(S, name);
+        for (prop, value) in props.iter() {
+            let spec = schema.get(prop);
+            let spec_some = spec;
+            if let Some(spec) = spec_some {
+                if spec["type"] == "asset" && node.contains_key(name) {
+                    node[name][prop] = value;
+                }
+            }
+        }
+    }
+}
+
 fn set_component_prop_at(S, i, name, prop, value) {
     let found = match live(S, i) {
         Some(found) => found,

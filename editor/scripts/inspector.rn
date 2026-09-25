@@ -13,7 +13,7 @@ const LABEL_W = 82.0;
 // A section heading that folds its rows away on click. Returns whether the
 // caller should draw them; the fold state lives on `S.collapsed` beside the
 // tree's, under an `inspector/` key so the two never collide.
-fn section(S, k, title) {
+pub fn section(S, k, title) {
     let key = format!("inspector/{}", title);
     let open = !S.collapsed.contains_key(key);
     let (mark, tint) = icons::component(title.to_lowercase());
@@ -124,7 +124,7 @@ fn prop_tip(prop, spec) {
 }
 
 /// A drawn row spanning both columns, for a heading or a note.
-fn wide_row(S, height, body) {
+pub fn wide_row(S, height, body) {
     S.form_draws.push(body);
     push(S, #{ full: true, height: height, draw: ROW_HATCH });
 }
@@ -158,6 +158,10 @@ fn label_w(S) {
 
 // The form's own width, as its rows were last drawn: a frame late, like every
 // box the layout reads back, and the sheet's inside until there is a frame.
+pub fn sheet_w(S) {
+    form_w(S)
+}
+
 fn form_w(S) {
     let host = scene::get_node(FORM_NODE);
     if !util::is_nil(host) {
@@ -1540,6 +1544,26 @@ fn bindings_note(S, k) {
 /// Kahn's order over `expects`: a component is drawn once nothing left still
 /// needs it. A cycle keeps registration order for what is left of it rather
 /// than dropping those sections.
+/// The components the Physics persona shows: every one on the selection that
+/// carries the engine's `physics` tag.
+///
+/// Read from the tag rather than listed by name: a list is a second place to
+/// keep true, and the one that was here named `body` and `collider` where the
+/// engine registers `body3d` and `collider3d`, so the 3D rows never drew.
+pub fn physics_components(S) {
+    let found = match model::live(S, S.sel) {
+        Some(found) => found,
+        None => return [],
+    };
+    let out = [];
+    for name in found.component_names() {
+        if util::contains(util::vec(scene::component_tags(name)), "physics") {
+            out.push(name);
+        }
+    }
+    out
+}
+
 fn ordered_components(S, names) {
     let waiting = #{};
     for name in names {
@@ -1662,7 +1686,7 @@ fn component_sections(S, k, filter) {
             }
             grouped[group].push(prop);
         }
-        order.sort();
+        order.sort_by(|a, b| crate::physics::group_order(a).cmp(crate::physics::group_order(b)));
         for group in order {
             if !subsection(S, comp, group, grouped[group].len()) {
                 continue;
@@ -1721,7 +1745,8 @@ pub fn body(S, k) {
     instance_note(S, k);
     instance_source_row(S, k, node);
     if S.persona == "phys" {
-        component_sections(S, k, Some(["body", "collider", "body2d", "collider2d"]));
+        crate::physics::actions(S, k);
+        component_sections(S, k, Some(physics_components(S)));
         polygon_section(S, k);
         script_section(S, k, "Script");
     } else if S.persona == "script" {

@@ -35,6 +35,7 @@ mod newnode;
 mod overlays;
 mod palette;
 mod pen;
+mod physics;
 mod plugins;
 mod polygon;
 mod pool;
