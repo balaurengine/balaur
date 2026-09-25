@@ -512,8 +512,8 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [rand_pcg](https://github.com/rust-random/rngs) | 0.10.2 | `MIT OR Apache-2.0` |
 | [range-alloc](https://github.com/gfx-rs/range-alloc) | 0.1.5 | `MIT OR Apache-2.0` |
 | [rangemap](https://github.com/jeffparsons/rangemap) | 1.8.0 | `MIT OR Apache-2.0` |
-| [rapier2d](https://github.com/dimforge/rapier) | 0.35.3 | `Apache-2.0` |
-| [rapier3d](https://github.com/dimforge/rapier) | 0.35.3 | `Apache-2.0` |
+| [rapier2d](https://github.com/dimforge/rapier) | 0.36.0 | `Apache-2.0` |
+| [rapier3d](https://github.com/dimforge/rapier) | 0.36.0 | `Apache-2.0` |
 | [rav1e](https://github.com/xiph/rav1e/) | 0.8.1 | `BSD-2-Clause` |
 | [ravif](https://github.com/kornelski/cavif-rs) | 0.13.0 | `BSD-3-Clause` |
 | [raw-cpuid](https://github.com/gz/rust-cpuid) | 11.6.0 | `MIT` |
