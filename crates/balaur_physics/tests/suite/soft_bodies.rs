@@ -17,6 +17,16 @@ fn run_for(script: &str, ticks: u32) -> Vec<String> {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let (_dir, _app) = boot(script, ticks);
+    balaur_core::logbuf::recent(120)
+        .into_iter()
+        .filter(|e| e.level.eq_ignore_ascii_case("error"))
+        .map(|e| e.message)
+        .collect()
+}
+
+/// The project above, loaded and ticked, for a test that reads the world.
+fn boot(script: &str, ticks: u32) -> (tempfile::TempDir, balaur_core::App) {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
@@ -67,11 +77,7 @@ cells = [2.0, 2.0]
     for _ in 0..ticks {
         app.tick(1.0 / 60.0);
     }
-    balaur_core::logbuf::recent(120)
-        .into_iter()
-        .filter(|e| e.level.eq_ignore_ascii_case("error"))
-        .map(|e| e.message)
-        .collect()
+    (dir, app)
 }
 
 fn run_clean(script: &str) {
@@ -497,5 +503,29 @@ fn an_automatic_particle_radius_reads_back_as_automatic() {
     assert!(read.particle_radius == 0.0, "the automatic radius read back as a number");
 }
 "#,
+    );
+}
+
+/// A 2D body a generator laid out has no polygon to deform, so its cells are
+/// drawn as one, and that polygon is not a component the author added.
+#[test]
+fn a_generated_2d_soft_body_is_drawn_from_its_cells() {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let (_dir, app) = boot("pub fn init(this) {}\n", 2);
+    let world = app.engine.world();
+    let node = balaur_core::ids::find(&world, app.engine.root(), "n_blob2d").expect("the 2D blob");
+    let drawn = world
+        .get::<&balaur::render::Renderable2d>(node)
+        .expect("the generated body draws nothing");
+    let polygon = drawn.polygon.as_ref().expect("and not as a polygon");
+    assert_eq!(polygon.positions.len(), 9, "a 2x2 grid is 3x3 particles");
+    assert!(!polygon.indices.is_empty(), "with its cells as triangles");
+    drop(drawn);
+    drop(world);
+    assert!(
+        balaur_core::components::get(&app.engine, node, "polygon").is_none(),
+        "the drawn cells read back as an authored polygon"
     );
 }

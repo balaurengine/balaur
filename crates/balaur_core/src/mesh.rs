@@ -1072,7 +1072,10 @@ mod tests {
         let first = solved.topology;
         assert_ne!(first, 0, "the first geometry is a topology of its own");
         solved.update(vec![[1.0; 3]; 3], vec![[0, 1, 2]]);
-        assert_eq!(solved.topology, first, "moved vertices keep the uploaded faces");
+        assert_eq!(
+            solved.topology, first,
+            "moved vertices keep the uploaded faces"
+        );
         solved.update(vec![[0.0; 3]; 3], vec![[0, 2, 1]]);
         let torn = solved.topology;
         assert_ne!(torn, first, "new triangles are a new topology");
