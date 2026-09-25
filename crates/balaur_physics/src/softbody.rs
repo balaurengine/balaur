@@ -387,7 +387,8 @@ pub(crate) fn get_softbody_params(eng: &Engine, entity: Entity) -> Option<toml::
         return None;
     };
     let number = |value: Real| toml::Value::Float(f64::from(scalar::f32_of(value)));
-    table.insert(k::MASS.into(), number(body.mass()));
+    // Not the mass: the solver's is the particles' sum, which rounds off what
+    // was asked for and would drift the component on every round trip.
     table.insert(k::PARTICLE_RADIUS.into(), number(body.particle_radius()));
     table.insert(k::VOLUME_FACTOR.into(), number(body.volume_factor()));
     table.insert(
@@ -510,7 +511,9 @@ pub(crate) fn install_softbody_api(m: &mut dyn Bindings<Engine>) {
         },
     );
     m.function("softbody_particles", |eng: &Engine, node: NodeId| {
-        with_softbody(eng, node, |body| Ok(body.num_particles() as i64))
+        with_softbody(eng, node, |body| {
+            Ok(i64::try_from(body.num_particles()).unwrap_or(i64::MAX))
+        })
     });
     m.function(
         "softbody_position",

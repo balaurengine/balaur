@@ -1,6 +1,8 @@
-> **Status:** not started on the engine side. Written 2026-09-02, extended
-> 2026-09-07 with cloth, rope and gases. The simulation work is being built in
-> Rapier itself; this plan is how each material reaches a Balaur scene.
+> **Status:** soft bodies are in, in both dimensions, with cloth, rope and
+> tearing over the same component; the fluids below are not started. Written
+> 2026-09-02, extended 2026-09-07 with cloth, rope and gases, soft bodies
+> landed 2026-09-19. The simulation work is built in Rapier itself; this plan
+> is how each material reaches a Balaur scene.
 
 # Plan: soft bodies, cloth, tearing, fluids, gases, granular materials
 
@@ -38,25 +40,38 @@ the first two is a variant of one before it.
 
 ### Soft bodies
 
-`softbody2d` and `softbody3d`: a deformable body built from a mesh, with
-stiffness, damping and pressure. Rendering reads back what the solver produced.
-A 3D soft body's vertices go down the `modify_vertices` path the skin uses, and
-a 2D one is a `polygon` whose positions come from the solver instead of the
-joint palette. **Needs:** a soft-body solver.
+`softbody2d` and `softbody3d`: a deformable body of particles linked by elastic
+constraints. **Done**, over rapier's `soft-bodies` branch.
+
+- **Laid out by `kind`.** Generators (`cuboid`, `sphere`, `cloth`, `cloth_tube`,
+  `rope` in 3D; `grid`, `disk`, `rope` in 2D) or a mesh (`trimesh` for a
+  surface, `volumetric` for the approximate tetrahedrization of a closed mesh,
+  `polygon` and `polyline` in 2D).
+- **Made of what the material rows say.** A spring frequency and damping ratio
+  per constraint family, a cell model (`volume`, `corotational`, `neo_hookean`)
+  with a Young modulus and a Poisson ratio, plasticity on the cells and on the
+  edges, and volume preservation.
+- **Drawn from the solver.** The body's collision mesh goes onto the node as a
+  `SolvedMesh` each fixed step; in 2D a `SolvedPolygon` outranks a deform track
+  on the polygon's own vertices.
+- **In the snapshot and the digest from the first commit.** Rapier's
+  `PhysicsWorld` carries the `SoftBodySet`, and the digest hashes every
+  particle's velocity and the body's topology version.
 
 ### Cloth and rope
 
 A sheet that hangs and a rope of linked segments, both a `softbody` with its
-constraints laid out rather than a component of their own, pinned to a node by
-index and cut by a script. **Needs:** the soft-body solver, plus pinning
-constraints against a rigid body.
+constraints laid out rather than a component of their own. **Done:** the
+`cloth`, `cloth_tube` and `rope` layouts, `pinned` naming the particles held in
+place, and `pin_particle` doing it from a script.
 
 ### Tearing
 
-`tearable` on a soft body: a threshold that, once a constraint gives, splits
-the body into two bodies and two meshes mid-step. The split is a scene edit on
-the fixed tick, so it is in the snapshot and the digest like any other.
-**Needs:** tearing in the solver.
+A threshold that, once an element gives, breaks it mid-step. **Done:**
+`tear_strain` and `tear_force` on the component, with `tear_smoothing`,
+`interior_strength`, `max_tears_per_step` and `min_piece` shaping how a crack
+runs, and the node's `on_tear` hearing about it. The topology version is in the
+digest, so two machines that tore differently are caught on the step they did.
 
 ### Fluids
 
@@ -79,14 +94,16 @@ a yield stress. **Needs:** the fluid solver, plus a granular model.
 
 ## Phases
 
-1. Soft bodies in 2D as `softbody2d` drawing through `polygon`; snapshot,
-   digest and a cross-OS CI digest from day one.
-2. Soft bodies in 3D through the mesh path; cloth and rope over the same
-   solver; tearing in both dimensions.
+1. **Done.** Soft bodies in 2D as `softbody2d` drawing through `polygon`;
+   snapshot and digest from day one. The cross-OS CI digest is still to add.
+2. **Done.** Soft bodies in 3D through the mesh path; cloth and rope over the
+   same solver; tearing in both dimensions.
 3. Fluids in 2D with an emitter component and point rendering; then 3D.
 4. Gases as a fluid with buoyancy, drawn from a density field.
 5. Granular materials as a fluid variant.
-6. Editor: gizmos for emitters and volumes; the Physics persona lists them.
+6. Editor: **done for soft bodies** — the Physics persona shows every
+   physics-tagged component, and one click turns a mesh into a filled, skinned
+   or surface soft body. Gizmos for emitters and volumes are still to come.
 
 ## Open questions
 

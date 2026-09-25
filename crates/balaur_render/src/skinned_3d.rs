@@ -449,3 +449,52 @@ impl Material3d for SkinnedMaterial3d {
         render_pass.draw_indexed(0..self.buffers.index_count, 0, 0..1);
     }
 }
+
+// The physics plugin writes a `SolvedMesh` on a node holding a soft body;
+// these two read it into the node's vertex buffers each frame.
+
+/// Whether a solver owns this node's vertices, which makes its buffers
+/// dynamic and its normals this frame's rather than the asset's.
+pub(crate) fn solver_present(
+    world: &balaur_core::hecs::World,
+    entity: balaur_core::hecs::Entity,
+) -> bool {
+    world
+        .get::<&balaur_core::mesh::SolvedMesh>(entity)
+        .is_ok_and(|s| !s.positions.is_empty())
+}
+
+/// Draw a node from what the physics solver produced this step: the vertex
+/// positions always, the triangles only when the topology changed, which is
+/// what a tear does.
+///
+/// Answers the topology now on the node, for the next frame to compare.
+pub(crate) fn draw_solved(
+    world: &balaur_core::hecs::World,
+    entity: balaur_core::hecs::Entity,
+    uploaded: Option<u32>,
+    node: &mut SceneNode3d,
+) -> Option<u32> {
+    let solved = world.get::<&balaur_core::mesh::SolvedMesh>(entity).ok()?;
+    if solved.positions.is_empty() {
+        return uploaded;
+    }
+    if uploaded != Some(solved.topology) {
+        let faces: Vec<[u32; 3]> = solved.indices.clone();
+        node.modify_faces(&mut |fs: &mut Vec<[u32; 3]>| {
+            fs.clone_from(&faces);
+        });
+    }
+    let positions: Vec<Vec3> = solved
+        .positions
+        .iter()
+        .map(|p| Vec3::from_array(*p))
+        .collect();
+    node.modify_vertices(&mut |coords: &mut Vec<Vec3>| {
+        coords.clone_from(&positions);
+    });
+    // The asset's normals belong to the shape as authored; a deformed one has
+    // to work its own out.
+    node.recompute_normals();
+    Some(solved.topology)
+}

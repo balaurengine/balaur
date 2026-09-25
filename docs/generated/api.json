@@ -91,6 +91,8 @@
     "reflection_probe": "A box the room around it was captured inside. A reflective surface within it mirrors that capture, aimed at the box, instead of the distant sky.",
     "shape2d": "An untextured 2D primitive at the node. `kind` is `circle`, `rect`, `capsule`, `ellipse`, `star`, `ngon` or `polyline`; a `polyline` follows a `mesh` or `path2d` asset.",
     "shape3d": "An untextured 3D primitive at the node, tinted by `color`. `kind` is `ball`, `cuboid`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`.",
+    "softbody2d": "A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `trimesh` and `volumetric` kinds give and a generator does not.",
+    "softbody3d": "A deformable 3D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. The node is drawn from the solver's positions.",
     "sound": "A sound on the node: `file`, `volume`, `pitch` and `loop`. `autoplay` starts it on load, `audio.play_on` triggers it, and `positional` plays it from the node for the `listener`.",
     "sprite": "A textured 2D quad at the node, sized by `pixels_per_unit`. `columns` and `rows`, or a `sprite_sheet` in `sheet`, cut it into frames `frame` picks.",
     "state_machine": "Runs the `state_machine` asset in `machine` over the `player` node's clips. `auto` transitions fire when their conditions come on; `animation.travel` moves to a state.",
@@ -232,6 +234,14 @@
     "shape3d": [
       "3d",
       "render"
+    ],
+    "softbody2d": [
+      "2d",
+      "physics"
+    ],
+    "softbody3d": [
+      "3d",
+      "physics"
     ],
     "sound": [
       "audio"
@@ -3268,6 +3278,1032 @@
         "default": 0.2,
         "description": "Thickness of the ring, when kind is torus",
         "min": 0.01,
+        "type": "float"
+      }
+    },
+    "softbody2d": {
+      "a": {
+        "default": [
+          0.0,
+          0.0
+        ],
+        "description": "Where a rope starts, relative to the node",
+        "group": "shape",
+        "type": "vec2"
+      },
+      "b": {
+        "default": [
+          0.0,
+          -1.0
+        ],
+        "description": "Where a rope ends, relative to the node",
+        "group": "shape",
+        "type": "vec2"
+      },
+      "bend_damping": {
+        "default": 1.0,
+        "description": "The damping ratio of the bending springs",
+        "group": "stiffness",
+        "max": 100.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "bend_frequency": {
+        "default": 10.0,
+        "description": "The same for the bending edges, which are what stop a cloth folding flat",
+        "group": "stiffness",
+        "max": 10000.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "can_sleep": {
+        "default": true,
+        "description": "Let the body stop being simulated once it settles",
+        "group": "particles",
+        "type": "bool"
+      },
+      "cell_model": {
+        "default": "volume",
+        "description": "What a cell resists with: a volume constraint for a cheap jelly, or an elastic model a Young modulus parameterises",
+        "group": "elasticity",
+        "options": [
+          "volume",
+          "corotational",
+          "neo_hookean"
+        ],
+        "type": "enum"
+      },
+      "cell_size": {
+        "default": 0.25,
+        "description": "How big one triangle is when a volumetric body fills an outline; smaller is finer, slower and stiffer to tear",
+        "group": "shape",
+        "min": 0.001,
+        "type": "float"
+      },
+      "cells": {
+        "default": [
+          4.0,
+          4.0
+        ],
+        "description": "How many cells along each axis of a grid",
+        "group": "shape",
+        "type": "vec2"
+      },
+      "deformation_damping": {
+        "default": 0.0,
+        "description": "How fast the particles are pulled towards the body's own rigid motion, which settles a residual sway without slowing the body down",
+        "group": "elasticity",
+        "max": 1000.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "dominance": {
+        "default": 0,
+        "description": "Which body wins a contact: a higher one is never pushed by a lower one",
+        "group": "particles",
+        "max": 127,
+        "min": -127,
+        "type": "int"
+      },
+      "edge_damping": {
+        "default": 1.0,
+        "description": "The damping ratio of that spring; 1 settles without overshooting",
+        "group": "stiffness",
+        "max": 100.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "edge_frequency": {
+        "default": 30.0,
+        "description": "The frequency of the spring a structural edge is solved as, in hertz; higher is stiffer",
+        "group": "stiffness",
+        "max": 10000.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "edge_plastic_creep": {
+        "default": 1.0,
+        "description": "How fast, per second, an edge's excess strain is absorbed into its rest length",
+        "group": "plasticity",
+        "min": 0.0,
+        "type": "float"
+      },
+      "edge_plastic_flow": {
+        "default": "both",
+        "description": "Whether an edge sets under a squeeze, a stretch, or both: clay dents but does not stay stretched",
+        "group": "plasticity",
+        "options": [
+          "both",
+          "compression",
+          "tension"
+        ],
+        "type": "enum"
+      },
+      "edge_plastic_max": {
+        "default": 0.5,
+        "description": "The largest permanent set an edge may take, as a fraction of its first length",
+        "group": "plasticity",
+        "min": 0.0,
+        "type": "float"
+      },
+      "edge_plastic_yield": {
+        "default": 0.0,
+        "description": "The edge strain past which its rest length flows towards its current length",
+        "group": "plasticity",
+        "min": 0.0,
+        "type": "float"
+      },
+      "elastic_damping": {
+        "default": 1.0,
+        "description": "Damping ratio of the elastic cells",
+        "group": "elasticity",
+        "max": 100.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "friction": {
+        "default": 0.5,
+        "description": "Surface friction of the body's collider; 0 is ice",
+        "group": "surface",
+        "min": 0.0,
+        "type": "float"
+      },
+      "gravity_scale": {
+        "default": 1.0,
+        "description": "How much gravity pulls on the particles",
+        "group": "particles",
+        "type": "float"
+      },
+      "half_extents": {
+        "default": [
+          0.5,
+          0.5
+        ],
+        "description": "Half-sizes of the sheet, when kind is grid",
+        "group": "shape",
+        "type": "vec2"
+      },
+      "interior_strength": {
+        "default": 1.0,
+        "description": "How many times tougher an undamaged inside element is than a surface one, so cracks start at the surface and run inward",
+        "group": "tearing",
+        "min": 1.0,
+        "type": "float"
+      },
+      "kind": {
+        "default": "grid",
+        "description": "How the body's particles and elements are laid out",
+        "options": [
+          "grid",
+          "disk",
+          "polygon",
+          "rope",
+          "volumetric",
+          "trimesh",
+          "polyline"
+        ],
+        "type": "enum"
+      },
+      "layers": {
+        "default": [
+          "0"
+        ],
+        "description": "The layers this body is on",
+        "group": "filtering",
+        "options": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31"
+        ],
+        "type": "flags"
+      },
+      "linear_damping": {
+        "default": 0.0,
+        "description": "Air friction on the particles",
+        "group": "particles",
+        "min": 0.0,
+        "type": "float"
+      },
+      "mask": {
+        "default": [],
+        "description": "The layers it collides with; empty means every layer",
+        "group": "filtering",
+        "options": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31"
+        ],
+        "type": "flags"
+      },
+      "mass": {
+        "default": 1.0,
+        "description": "What the whole body weighs, spread over its particles",
+        "group": "particles",
+        "min": 0.0,
+        "type": "float"
+      },
+      "max_tears_per_step": {
+        "default": 0.0,
+        "description": "The most edges that may tear in one step, which paces a crack; 0 is no limit",
+        "group": "tearing",
+        "min": 0.0,
+        "type": "float"
+      },
+      "mesh": {
+        "asset": "mesh",
+        "default": "",
+        "description": "Points and triangles for a polygon, trimesh, polyline or volumetric body: the same asset a polygon draws",
+        "group": "shape",
+        "type": "asset"
+      },
+      "min_piece": {
+        "default": 0.0,
+        "description": "The smallest piece, in elements, a tear may split off; 0 lets rapier choose",
+        "group": "tearing",
+        "min": 0.0,
+        "type": "float"
+      },
+      "oriented": {
+        "default": false,
+        "description": "Treat the surface as closed and outward-facing, so its inside holds bodies in instead of pushing them out",
+        "group": "particles",
+        "type": "bool"
+      },
+      "particle_radius": {
+        "default": 0.0,
+        "description": "How thick the particles are; 0 takes what the layout works out",
+        "group": "particles",
+        "min": 0.0,
+        "type": "float"
+      },
+      "particles": {
+        "default": 16.0,
+        "description": "How many particles a rope or the rim of a disk is made of",
+        "group": "shape",
+        "min": 2.0,
+        "type": "float"
+      },
+      "pgs_iterations": {
+        "default": 3.0,
+        "description": "Extra iterations inside each substep, for the same",
+        "group": "particles",
+        "max": 64.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "pinned": {
+        "default": [],
+        "description": "The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from",
+        "group": "particles",
+        "type": "strings"
+      },
+      "plastic_creep": {
+        "default": 1.0,
+        "description": "How fast, per second, the strain past the yield is absorbed into the rest shape",
+        "group": "plasticity",
+        "min": 0.0,
+        "type": "float"
+      },
+      "plastic_max": {
+        "default": 1.0,
+        "description": "The most permanent deformation a cell may take, so a crushed cell cannot flow to a sliver",
+        "group": "plasticity",
+        "min": 0.0,
+        "type": "float"
+      },
+      "plastic_yield": {
+        "default": 0.0,
+        "description": "The cell strain past which the rest shape flows towards the current one; 0 is perfectly elastic",
+        "group": "plasticity",
+        "min": 0.0,
+        "type": "float"
+      },
+      "poisson_ratio": {
+        "default": 0.3,
+        "description": "How much an elastic cell bulges sideways when squeezed; towards 0.5 it stops changing volume at all",
+        "group": "elasticity",
+        "max": 0.499,
+        "min": 0.0,
+        "type": "float"
+      },
+      "radius": {
+        "default": 0.5,
+        "description": "Radius, when kind is disk",
+        "group": "shape",
+        "min": 0.001,
+        "type": "float"
+      },
+      "restitution": {
+        "default": 0.0,
+        "description": "Bounciness of the body's collider",
+        "group": "surface",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "self_contacts": {
+        "default": false,
+        "description": "Let the body's own surface collide with itself, which stops a cloth passing through its own fold",
+        "group": "particles",
+        "type": "bool"
+      },
+      "shape_matching": {
+        "default": false,
+        "description": "Pull the body back towards the shape it was built in, which is what keeps a jelly a jelly",
+        "group": "volume",
+        "type": "bool"
+      },
+      "shape_matching_damping": {
+        "default": 1.0,
+        "description": "The damping ratio of the shape-matching constraints",
+        "group": "stiffness",
+        "max": 100.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "shape_matching_frequency": {
+        "default": 10.0,
+        "description": "The same for shape matching, which pulls the body back towards the shape it was built in",
+        "group": "stiffness",
+        "max": 10000.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "skin": {
+        "default": false,
+        "description": "Keep the outline as the drawn shape and let the cells carry it, so a detail the cell size cannot resolve survives",
+        "group": "shape",
+        "type": "bool"
+      },
+      "solver": {
+        "default": "constraints",
+        "description": "Which solver runs the elasticity: sequential constraints, or an implicit Euler step over the whole body",
+        "group": "elasticity",
+        "options": [
+          "constraints",
+          "fem"
+        ],
+        "type": "enum"
+      },
+      "solver_iterations": {
+        "default": 0.0,
+        "description": "Extra solver substeps for this body and everything it touches",
+        "group": "particles",
+        "max": 64.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "tear_force": {
+        "default": 0.0,
+        "description": "The pull past which an edge breaks; 0 is unbreakable. Either criterion tears an edge",
+        "group": "tearing",
+        "min": 0.0,
+        "type": "float"
+      },
+      "tear_smoothing": {
+        "default": 0.0,
+        "description": "Over how many seconds a load is averaged before it is tested, so one hard frame does not tear a body",
+        "group": "tearing",
+        "min": 0.0,
+        "type": "float"
+      },
+      "tear_strain": {
+        "default": 0.0,
+        "description": "The stretch past which an element breaks, as a fraction of its rest length; 0 is unbreakable",
+        "group": "tearing",
+        "min": 0.0,
+        "type": "float"
+      },
+      "tension_only": {
+        "default": false,
+        "description": "Let the edges resist stretching only, so the body folds freely and never pushes itself open",
+        "group": "volume",
+        "type": "bool"
+      },
+      "volume_damping": {
+        "default": 1.0,
+        "description": "The damping ratio of the volume constraints",
+        "group": "stiffness",
+        "max": 100.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "volume_factor": {
+        "default": 1.0,
+        "description": "What that volume is held at, as a multiple of the rest volume; above 1 inflates the body",
+        "group": "volume",
+        "min": 0.0,
+        "type": "float"
+      },
+      "volume_frequency": {
+        "default": 30.0,
+        "description": "The same for the constraints holding a cell's volume, and for the whole-body one",
+        "group": "stiffness",
+        "max": 10000.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "volume_preservation": {
+        "default": false,
+        "description": "Hold the volume each closed piece of the body encloses",
+        "group": "volume",
+        "type": "bool"
+      },
+      "young_modulus": {
+        "default": 10000.0,
+        "description": "Stiffness of the elastic cells, as force per unit area; a finer mesh does not get stiffer for it",
+        "group": "elasticity",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    "softbody3d": {
+      "a": {
+        "default": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "Where a rope starts, relative to the node",
+        "group": "shape",
+        "type": "vec3"
+      },
+      "axis": {
+        "default": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "description": "The segment a cloth_tube is wrapped around, relative to the node",
+        "group": "shape",
+        "type": "vec3"
+      },
+      "b": {
+        "default": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "description": "Where a rope ends, relative to the node",
+        "group": "shape",
+        "type": "vec3"
+      },
+      "bend_damping": {
+        "default": 1.0,
+        "description": "The damping ratio of the bending springs",
+        "group": "stiffness",
+        "max": 100.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "bend_frequency": {
+        "default": 10.0,
+        "description": "The same for the bending edges, which are what stop a cloth folding flat",
+        "group": "stiffness",
+        "max": 10000.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "can_sleep": {
+        "default": true,
+        "description": "Let the body stop being simulated once it settles",
+        "group": "particles",
+        "type": "bool"
+      },
+      "cell_model": {
+        "default": "volume",
+        "description": "What a cell resists with: a volume constraint for a cheap jelly, or an elastic model a Young modulus parameterises",
+        "group": "elasticity",
+        "options": [
+          "volume",
+          "corotational",
+          "neo_hookean"
+        ],
+        "type": "enum"
+      },
+      "cell_size": {
+        "default": 0.25,
+        "description": "How big one tetrahedron is when a volumetric body fills a mesh; smaller is finer, slower and stiffer to tear",
+        "group": "shape",
+        "min": 0.001,
+        "type": "float"
+      },
+      "cells": {
+        "default": [
+          4.0,
+          4.0,
+          4.0
+        ],
+        "description": "How many cells along each axis, for cuboid; a cloth reads the first two, and a cloth_tube reads them as particles around and cells along",
+        "group": "shape",
+        "type": "vec3"
+      },
+      "deformation_damping": {
+        "default": 0.0,
+        "description": "How fast the particles are pulled towards the body's own rigid motion, which settles a residual sway without slowing the body down",
+        "group": "elasticity",
+        "max": 1000.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "dominance": {
+        "default": 0,
+        "description": "Which body wins a contact: a higher one is never pushed by a lower one",
+        "group": "particles",
+        "max": 127,
+        "min": -127,
+        "type": "int"
+      },
+      "edge_damping": {
+        "default": 1.0,
+        "description": "The damping ratio of that spring; 1 settles without overshooting",
+        "group": "stiffness",
+        "max": 100.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "edge_frequency": {
+        "default": 30.0,
+        "description": "The frequency of the spring a structural edge is solved as, in hertz; higher is stiffer",
+        "group": "stiffness",
+        "max": 10000.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "edge_plastic_creep": {
+        "default": 1.0,
+        "description": "How fast, per second, an edge's excess strain is absorbed into its rest length",
+        "group": "plasticity",
+        "min": 0.0,
+        "type": "float"
+      },
+      "edge_plastic_flow": {
+        "default": "both",
+        "description": "Whether an edge sets under a squeeze, a stretch, or both: clay dents but does not stay stretched",
+        "group": "plasticity",
+        "options": [
+          "both",
+          "compression",
+          "tension"
+        ],
+        "type": "enum"
+      },
+      "edge_plastic_max": {
+        "default": 0.5,
+        "description": "The largest permanent set an edge may take, as a fraction of its first length",
+        "group": "plasticity",
+        "min": 0.0,
+        "type": "float"
+      },
+      "edge_plastic_yield": {
+        "default": 0.0,
+        "description": "The edge strain past which its rest length flows towards its current length",
+        "group": "plasticity",
+        "min": 0.0,
+        "type": "float"
+      },
+      "elastic_damping": {
+        "default": 1.0,
+        "description": "Damping ratio of the elastic cells",
+        "group": "elasticity",
+        "max": 100.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "friction": {
+        "default": 0.5,
+        "description": "Surface friction of the body's collider; 0 is ice",
+        "group": "surface",
+        "min": 0.0,
+        "type": "float"
+      },
+      "gravity_scale": {
+        "default": 1.0,
+        "description": "How much gravity pulls on the particles",
+        "group": "particles",
+        "type": "float"
+      },
+      "half_extents": {
+        "default": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "description": "Half-sizes of the block, when kind is cuboid",
+        "group": "shape",
+        "type": "vec3"
+      },
+      "interior_strength": {
+        "default": 1.0,
+        "description": "How many times tougher an undamaged inside element is than a surface one, so cracks start at the surface and run inward",
+        "group": "tearing",
+        "min": 1.0,
+        "type": "float"
+      },
+      "kind": {
+        "default": "cuboid",
+        "description": "How the body's particles and elements are laid out",
+        "options": [
+          "cuboid",
+          "sphere",
+          "cloth",
+          "cloth_tube",
+          "rope",
+          "volumetric",
+          "trimesh"
+        ],
+        "type": "enum"
+      },
+      "layers": {
+        "default": [
+          "0"
+        ],
+        "description": "The layers this body is on",
+        "group": "filtering",
+        "options": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31"
+        ],
+        "type": "flags"
+      },
+      "linear_damping": {
+        "default": 0.0,
+        "description": "Air friction on the particles",
+        "group": "particles",
+        "min": 0.0,
+        "type": "float"
+      },
+      "mask": {
+        "default": [],
+        "description": "The layers it collides with; empty means every layer",
+        "group": "filtering",
+        "options": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31"
+        ],
+        "type": "flags"
+      },
+      "mass": {
+        "default": 1.0,
+        "description": "What the whole body weighs, spread over its particles",
+        "group": "particles",
+        "min": 0.0,
+        "type": "float"
+      },
+      "max_tears_per_step": {
+        "default": 0.0,
+        "description": "The most edges that may tear in one step, which paces a crack; 0 is no limit",
+        "group": "tearing",
+        "min": 0.0,
+        "type": "float"
+      },
+      "mesh": {
+        "asset": "mesh",
+        "default": "",
+        "description": "Geometry for a trimesh, polyline or volumetric body",
+        "group": "shape",
+        "type": "asset"
+      },
+      "min_piece": {
+        "default": 0.0,
+        "description": "The smallest piece, in elements, a tear may split off; 0 lets rapier choose",
+        "group": "tearing",
+        "min": 0.0,
+        "type": "float"
+      },
+      "oriented": {
+        "default": false,
+        "description": "Treat the surface as closed and outward-facing, so its inside holds bodies in instead of pushing them out",
+        "group": "particles",
+        "type": "bool"
+      },
+      "particle_radius": {
+        "default": 0.0,
+        "description": "How thick the particles are; 0 takes what the layout works out",
+        "group": "particles",
+        "min": 0.0,
+        "type": "float"
+      },
+      "particles": {
+        "default": 16.0,
+        "description": "How many particles a rope or a disk is made of",
+        "group": "shape",
+        "min": 2.0,
+        "type": "float"
+      },
+      "pgs_iterations": {
+        "default": 3.0,
+        "description": "Extra iterations inside each substep, for the same",
+        "group": "particles",
+        "max": 64.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "pinned": {
+        "default": [],
+        "description": "The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from",
+        "group": "particles",
+        "type": "strings"
+      },
+      "plastic_creep": {
+        "default": 1.0,
+        "description": "How fast, per second, the strain past the yield is absorbed into the rest shape",
+        "group": "plasticity",
+        "min": 0.0,
+        "type": "float"
+      },
+      "plastic_max": {
+        "default": 1.0,
+        "description": "The most permanent deformation a cell may take, so a crushed cell cannot flow to a sliver",
+        "group": "plasticity",
+        "min": 0.0,
+        "type": "float"
+      },
+      "plastic_yield": {
+        "default": 0.0,
+        "description": "The cell strain past which the rest shape flows towards the current one; 0 is perfectly elastic",
+        "group": "plasticity",
+        "min": 0.0,
+        "type": "float"
+      },
+      "poisson_ratio": {
+        "default": 0.3,
+        "description": "How much an elastic cell bulges sideways when squeezed; towards 0.5 it stops changing volume at all",
+        "group": "elasticity",
+        "max": 0.499,
+        "min": 0.0,
+        "type": "float"
+      },
+      "radius": {
+        "default": 0.5,
+        "description": "Radius, for sphere and cloth_tube",
+        "group": "shape",
+        "min": 0.001,
+        "type": "float"
+      },
+      "restitution": {
+        "default": 0.0,
+        "description": "Bounciness of the body's collider",
+        "group": "surface",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "self_contacts": {
+        "default": false,
+        "description": "Let the body's own surface collide with itself, which stops a cloth passing through its own fold",
+        "group": "particles",
+        "type": "bool"
+      },
+      "shape_matching": {
+        "default": false,
+        "description": "Pull the body back towards the shape it was built in, which is what keeps a jelly a jelly",
+        "group": "volume",
+        "type": "bool"
+      },
+      "shape_matching_damping": {
+        "default": 1.0,
+        "description": "The damping ratio of the shape-matching constraints",
+        "group": "stiffness",
+        "max": 100.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "shape_matching_frequency": {
+        "default": 10.0,
+        "description": "The same for shape matching, which pulls the body back towards the shape it was built in",
+        "group": "stiffness",
+        "max": 10000.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "size": {
+        "default": [
+          1.0,
+          0.0,
+          1.0
+        ],
+        "description": "The two edges a cloth is spanned over, as the sheet's extent along x and z",
+        "group": "shape",
+        "type": "vec3"
+      },
+      "skin": {
+        "default": false,
+        "description": "Keep the mesh as the drawn surface and let the cells carry it, so a detail the cell size cannot resolve survives",
+        "group": "shape",
+        "type": "bool"
+      },
+      "skin_collision": {
+        "default": false,
+        "description": "Meet the world through the skin rather than the cells' boundary",
+        "group": "shape",
+        "type": "bool"
+      },
+      "solver": {
+        "default": "constraints",
+        "description": "Which solver runs the elasticity: sequential constraints, or an implicit Euler step over the whole body",
+        "group": "elasticity",
+        "options": [
+          "constraints",
+          "fem"
+        ],
+        "type": "enum"
+      },
+      "solver_iterations": {
+        "default": 0.0,
+        "description": "Extra solver substeps for this body and everything it touches",
+        "group": "particles",
+        "max": 64.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "subdivisions": {
+        "default": 2.0,
+        "description": "How many times a sphere's icosahedron is refined; each level quadruples the triangles",
+        "group": "shape",
+        "max": 6.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "tear_force": {
+        "default": 0.0,
+        "description": "The pull past which an edge breaks; 0 is unbreakable. Either criterion tears an edge",
+        "group": "tearing",
+        "min": 0.0,
+        "type": "float"
+      },
+      "tear_smoothing": {
+        "default": 0.0,
+        "description": "Over how many seconds a load is averaged before it is tested, so one hard frame does not tear a body",
+        "group": "tearing",
+        "min": 0.0,
+        "type": "float"
+      },
+      "tear_strain": {
+        "default": 0.0,
+        "description": "The stretch past which an element breaks, as a fraction of its rest length; 0 is unbreakable",
+        "group": "tearing",
+        "min": 0.0,
+        "type": "float"
+      },
+      "tension_only": {
+        "default": false,
+        "description": "Let the edges resist stretching only, so the body folds freely and never pushes itself open",
+        "group": "volume",
+        "type": "bool"
+      },
+      "volume_damping": {
+        "default": 1.0,
+        "description": "The damping ratio of the volume constraints",
+        "group": "stiffness",
+        "max": 100.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "volume_factor": {
+        "default": 1.0,
+        "description": "What that volume is held at, as a multiple of the rest volume; above 1 inflates the body",
+        "group": "volume",
+        "min": 0.0,
+        "type": "float"
+      },
+      "volume_frequency": {
+        "default": 30.0,
+        "description": "The same for the constraints holding a cell's volume, and for the whole-body one",
+        "group": "stiffness",
+        "max": 10000.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "volume_preservation": {
+        "default": false,
+        "description": "Hold the volume each closed piece of the body encloses",
+        "group": "volume",
+        "type": "bool"
+      },
+      "young_modulus": {
+        "default": 10000.0,
+        "description": "Stiffness of the elastic cells, as force per unit area; a finer mesh does not get stiffer for it",
+        "group": "elasticity",
+        "min": 0.0,
         "type": "float"
       }
     },
@@ -7789,6 +8825,9 @@
         "overlaps": [
           "collider2d"
         ],
+        "pin_particle": [
+          "softbody2d"
+        ],
         "predict_position": [
           "body2d"
         ],
@@ -7816,11 +8855,29 @@
         "set_motor_velocity": [
           "joint2d"
         ],
+        "set_softbody": [
+          "softbody2d"
+        ],
         "set_voxel": [
           "collider2d"
         ],
         "sleep": [
           "body2d"
+        ],
+        "softbody_area": [
+          "softbody2d"
+        ],
+        "softbody_center": [
+          "softbody2d"
+        ],
+        "softbody_particles": [
+          "softbody2d"
+        ],
+        "softbody_position": [
+          "softbody2d"
+        ],
+        "softbody_rest_area": [
+          "softbody2d"
         ],
         "teleport": [
           "body2d"
@@ -7851,7 +8908,8 @@
         "body2d",
         "character2d",
         "collider2d",
-        "joint2d"
+        "joint2d",
+        "softbody2d"
       ],
       "constants": [
         {
@@ -8074,6 +9132,7 @@
         "nearest_point": "The closest point on any collider to a world point.",
         "next_position": "The position a kinematic body has been told to move to.",
         "overlaps": "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor.",
+        "pin_particle": "Hold one particle where it is, which is how a cloth hangs from a hook.",
         "point_hits": "Every collider containing a world point: what a mouse click asks.",
         "predict_position": "Where the body will be after `dt` seconds at its current velocity.",
         "ragdoll": "Build a 2D ragdoll from the rig under this node: a body and a capsule per bone, hinged to its parent's. The options table takes `thickness` (capsule radius as a fraction of bone length), `density`, `friction`, `limits` and `blend`. Answers the body nodes it made.",
@@ -8088,10 +9147,16 @@
         "set_linear_velocity": "Set how fast the body travels, in units per second.",
         "set_motor_position": "Drive the joint towards an angle or a distance, with a spring's stiffness and damping.",
         "set_motor_velocity": "Drive the joint towards a speed: how a wheel is powered.",
+        "set_softbody": "Build the node's soft body from a `softbody2d` table: `kind`, the shape rows, and the material rows.",
         "set_voxel": "Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs.",
         "shape_hits": "Every collider a shape overlaps where it stands.",
         "shapecast": "Sweep a shape along a direction until it hits something: a thick raycast.",
         "sleep": "Put the body to sleep now.",
+        "softbody_area": "How much area the body encloses right now, against `softbody_rest_area` for how far it is squeezed.",
+        "softbody_center": "The body's centre of mass, which is where it is when a deformable body has no one position.",
+        "softbody_particles": "How many particles the body ended up with, which a generator decides rather than the author.",
+        "softbody_position": "Where one particle is, in world space.",
+        "softbody_rest_area": "How much it encloses at rest.",
         "teleport": "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick.",
         "total_mass": "The body's total mass, colliders included. The `mass` property is the extra on top of them.",
         "user_force": "The force the next step will integrate.",
@@ -8124,6 +9189,7 @@
         "nearest_point",
         "next_position",
         "overlaps",
+        "pin_particle",
         "point_hits",
         "predict_position",
         "ragdoll",
@@ -8138,10 +9204,16 @@
         "set_linear_velocity",
         "set_motor_position",
         "set_motor_velocity",
+        "set_softbody",
         "set_voxel",
         "shape_hits",
         "shapecast",
         "sleep",
+        "softbody_area",
+        "softbody_center",
+        "softbody_particles",
+        "softbody_position",
+        "softbody_rest_area",
         "teleport",
         "total_mass",
         "user_force",
@@ -8175,6 +9247,7 @@
         "nearest_point": "Value -> Value",
         "next_position": "NodeId -> (f32, f32)",
         "overlaps": "NodeId -> Vec<NodeId>",
+        "pin_particle": "(NodeId, i64) -> ()",
         "point_hits": "Value -> Value",
         "predict_position": "(NodeId, f32) -> (f32, f32)",
         "ragdoll": "(NodeId, Option<Value>) -> Value",
@@ -8189,10 +9262,16 @@
         "set_linear_velocity": "(NodeId, f32, f32) -> ()",
         "set_motor_position": "(NodeId, f32, f32, f32) -> ()",
         "set_motor_velocity": "(NodeId, f32, f32) -> ()",
+        "set_softbody": "(NodeId, Value) -> ()",
         "set_voxel": "(NodeId, i32, i32, bool) -> ()",
         "shape_hits": "Value -> Value",
         "shapecast": "Value -> Value",
         "sleep": "NodeId -> ()",
+        "softbody_area": "NodeId -> f32",
+        "softbody_center": "NodeId -> Value",
+        "softbody_particles": "NodeId -> i64",
+        "softbody_position": "(NodeId, i64) -> Value",
+        "softbody_rest_area": "NodeId -> f32",
         "teleport": "(NodeId, f32, f32) -> ()",
         "total_mass": "NodeId -> f32",
         "user_force": "NodeId -> (f32, f32)",
@@ -8278,6 +9357,9 @@
         "overlaps": [
           "collider3d"
         ],
+        "pin_particle": [
+          "softbody3d"
+        ],
         "potential_energy": [
           "body3d"
         ],
@@ -8320,6 +9402,9 @@
         "set_motor_velocity": [
           "joint3d"
         ],
+        "set_softbody": [
+          "softbody3d"
+        ],
         "set_steering": [
           "wheel3d"
         ],
@@ -8328,6 +9413,21 @@
         ],
         "sleep": [
           "body3d"
+        ],
+        "softbody_center": [
+          "softbody3d"
+        ],
+        "softbody_particles": [
+          "softbody3d"
+        ],
+        "softbody_position": [
+          "softbody3d"
+        ],
+        "softbody_rest_volume": [
+          "softbody3d"
+        ],
+        "softbody_volume": [
+          "softbody3d"
         ],
         "solve_ik": [
           "joint3d"
@@ -8371,6 +9471,7 @@
         "character3d",
         "collider3d",
         "joint3d",
+        "softbody3d",
         "vehicle3d",
         "wheel3d"
       ],
@@ -8658,6 +9759,7 @@
         "nearest_point": "The closest point on any collider to a world point.",
         "next_position": "The pose a kinematic body has been told to move to.",
         "overlaps": "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor.",
+        "pin_particle": "Hold one particle where it is, which is how a cloth hangs from a hook.",
         "point_hits": "Every collider containing a world point.",
         "potential_energy": "The body's gravitational potential energy over one step.",
         "predict_position": "Where the body will be after `dt` seconds at its current velocity.",
@@ -8677,11 +9779,17 @@
         "set_linear_velocity": "Set how fast the body travels, in units per second.",
         "set_motor_position": "Drive the joint towards an angle or a distance, with a spring's stiffness and damping.",
         "set_motor_velocity": "Drive the joint towards a speed: how a wheel is powered or a door swings itself shut.",
+        "set_softbody": "Build the node's soft body from a `softbody3d` table: `kind`, the shape rows, and the material rows.",
         "set_steering": "Turn this wheel, in radians.",
         "set_voxel": "Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs.",
         "shape_hits": "Every collider a shape overlaps where it stands: an explosion's reach, a melee arc.",
         "shapecast": "Sweep a shape along a direction until it hits something: a thick raycast, and how a camera avoids walls.",
         "sleep": "Put the body to sleep now.",
+        "softbody_center": "The body's centre of mass, which is where it is when a deformable body has no one position.",
+        "softbody_particles": "How many particles the body ended up with, which a generator decides rather than the author.",
+        "softbody_position": "Where one particle is, in world space.",
+        "softbody_rest_volume": "How much it encloses at rest.",
+        "softbody_volume": "How much space the body encloses right now, against `softbody_rest_volume` for how far it is squeezed.",
         "solve_ik": "Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits.",
         "swept_aabb": "The box the collider covers over the next step, its motion included: what the broad phase actually tests.",
         "teleport": "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick.",
@@ -8730,6 +9838,7 @@
         "nearest_point",
         "next_position",
         "overlaps",
+        "pin_particle",
         "point_hits",
         "potential_energy",
         "predict_position",
@@ -8749,11 +9858,17 @@
         "set_linear_velocity",
         "set_motor_position",
         "set_motor_velocity",
+        "set_softbody",
         "set_steering",
         "set_voxel",
         "shape_hits",
         "shapecast",
         "sleep",
+        "softbody_center",
+        "softbody_particles",
+        "softbody_position",
+        "softbody_rest_volume",
+        "softbody_volume",
         "solve_ik",
         "swept_aabb",
         "teleport",
@@ -8803,6 +9918,7 @@
         "nearest_point": "Value -> Value",
         "next_position": "NodeId -> (f32, f32, f32)",
         "overlaps": "NodeId -> Vec<NodeId>",
+        "pin_particle": "(NodeId, i64) -> ()",
         "point_hits": "Value -> Value",
         "potential_energy": "NodeId -> f32",
         "predict_position": "(NodeId, f32) -> (f32, f32, f32)",
@@ -8822,11 +9938,17 @@
         "set_linear_velocity": "(NodeId, f32, f32, f32) -> ()",
         "set_motor_position": "(NodeId, f32, f32, f32) -> ()",
         "set_motor_velocity": "(NodeId, f32, f32) -> ()",
+        "set_softbody": "(NodeId, Value) -> ()",
         "set_steering": "(NodeId, f32) -> ()",
         "set_voxel": "(NodeId, i32, i32, i32, bool) -> ()",
         "shape_hits": "Value -> Value",
         "shapecast": "Value -> Value",
         "sleep": "NodeId -> ()",
+        "softbody_center": "NodeId -> Value",
+        "softbody_particles": "NodeId -> i64",
+        "softbody_position": "(NodeId, i64) -> Value",
+        "softbody_rest_volume": "NodeId -> f32",
+        "softbody_volume": "NodeId -> f32",
         "solve_ik": "(NodeId, f32, f32, f32) -> ()",
         "swept_aabb": "NodeId -> (f32, f32, f32, f32, f32, f32)",
         "teleport": "(NodeId, f32, f32, f32) -> ()",

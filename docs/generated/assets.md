@@ -136,7 +136,7 @@ mirror_normal = [0.0, 1.0, 0.0]   # which way the plane faces in the node's own 
 
 ### `mesh`
 
-Files: `models/`. Used by: `collider2d.mesh`, `collider3d.mesh`, `mesh.source`, `occluder2d.mesh`, `polygon.mesh`, `shape2d.mesh`.
+Files: `models/`. Used by: `collider2d.mesh`, `collider3d.mesh`, `mesh.source`, `occluder2d.mesh`, `polygon.mesh`, `shape2d.mesh`, `softbody2d.mesh`, `softbody3d.mesh`.
 
 Geometry for `mesh` properties: a `source` file, a primitive `kind`, or its own `positions` and `indices`. `skin`, `colors` and `morphs` add bone weights, vertex tints and blend shapes.
 

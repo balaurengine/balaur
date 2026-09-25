@@ -74,7 +74,6 @@ macro_rules! material {
                     smallest if smallest >= 1.0 => Some(smallest as u32),
                     _ => None,
                 },
-                ..SoftBodyMaterial::default()
             }
         }
 

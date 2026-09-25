@@ -8,6 +8,12 @@ use crate::LOG;
 /// A project holding a closed tetrahedron mesh, a soft cuboid in 3D and a
 /// soft grid in 2D, each with a script attached.
 fn run(script: &str) -> Vec<String> {
+    run_for(script, 4)
+}
+
+/// The same over `ticks` steps, for a body that has to be given time to fall,
+/// settle or come apart.
+fn run_for(script: &str, ticks: u32) -> Vec<String> {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -20,7 +26,7 @@ fn run(script: &str) -> Vec<String> {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        r##"[[assets]]
+        r#"[[assets]]
 id = "wedge"
 type = "mesh"
 positions = [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
@@ -49,7 +55,7 @@ parent = "n_blob"
 [nodes.softbody2d]
 kind = "grid"
 cells = [2.0, 2.0]
-"##,
+"#,
     )
     .unwrap();
     std::fs::write(dir.path().join("scripts/s.rn"), script).unwrap();
@@ -58,7 +64,7 @@ cells = [2.0, 2.0]
     balaur_core::logbuf::clear();
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
-    for _ in 0..4 {
+    for _ in 0..ticks {
         app.tick(1.0 / 60.0);
     }
     balaur_core::logbuf::recent(120)
@@ -70,6 +76,18 @@ cells = [2.0, 2.0]
 
 fn run_clean(script: &str) {
     let errors = run(script);
+    assert!(errors.is_empty(), "the script logged errors: {errors:#?}");
+}
+
+/// How many soft bodies the 3D world holds.
+fn bodies(app: &balaur_core::App) -> usize {
+    let state = app.engine.resource::<balaur_physics::PhysicsState3d>();
+
+    state.borrow().soft_bodies.len()
+}
+
+fn run_clean_for(script: &str, ticks: u32) {
+    let errors = run_for(script, ticks);
     assert!(errors.is_empty(), "the script logged errors: {errors:#?}");
 }
 
@@ -174,7 +192,7 @@ pub fn fixed_update(this, dt) {
 #[test]
 fn a_pinned_particle_stays_where_it_was_put() {
     run_clean(
-        r##"pub fn init(this) {
+        r#"pub fn init(this) {
     this.node.softbody3d.set_softbody(#{ kind: "rope", particles: 8.0, pinned: ["0"] });
     this.first = this.node.softbody3d.softbody_position(0);
     this.ticks = 0;
@@ -189,7 +207,7 @@ pub fn fixed_update(this, dt) {
         assert!(body.softbody_position(7).y < this.first.y, "the free end did not fall");
     }
 }
-"##,
+"#,
     );
 }
 
@@ -273,6 +291,43 @@ fn a_2d_volumetric_body_fills_an_outline_with_triangles() {
     );
 }
 
+/// A tear threshold is a mechanical property like any other, and what it
+/// does is change the body's topology mid-step: a rope stretched past its
+/// strain comes apart, and the node's `on_tear` hears about it.
+#[test]
+fn a_rope_past_its_tear_strain_comes_apart() {
+    run_clean_for(
+        r#"pub fn init(this) {
+    // One end pinned, a heavy free end, and edges that break at a tenth of
+    // their rest length: the rope cannot hold itself up.
+    this.node.softbody3d.set_softbody(#{
+        kind: "rope", a: [0.0, 0.0, 0.0], b: [0.0, -2.0, 0.0], particles: 12.0,
+        pinned: ["0"], tear_strain: 0.05, tear_force: 2.0,
+        edge_frequency: 4.0, mass: 400.0,
+    });
+    this.torn = 0;
+    this.ticks = 0;
+    this.before = this.node.softbody3d.softbody_particles();
+}
+
+pub fn on_tear(this, pieces) {
+    this.torn = this.torn + 1;
+}
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    if this.ticks == 40 {
+        // A control first: without it a body that never simulated would
+        // pass this test by never tearing and never being asked to.
+        assert!(this.before == 12, "the rope was not built with twelve particles");
+        assert!(this.torn > 0, "the rope never tore, after 40 steps under its own weight");
+    }
+}
+"#,
+        45,
+    );
+}
+
 /// A body whose node is freed leaves nothing behind: the handles here index
 /// rapier's arena, and a stale one is a panic a script call away.
 #[test]
@@ -291,11 +346,6 @@ fn freeing_a_node_frees_its_soft_body() {
         Some(&toml::from_str("kind = \"cuboid\"\ncells = [2.0, 2.0, 2.0]").unwrap()),
     )
     .unwrap();
-    fn bodies(app: &balaur_core::App) -> usize {
-        let state = app.engine.resource::<balaur_physics::PhysicsState3d>();
-        let count = state.borrow().soft_bodies.len();
-        count
-    }
     assert_eq!(bodies(&app), 1, "the soft body was not made");
     balaur_core::scene::free_subtree(&mut app.engine.world_mut(), node);
     app.tick(1.0 / 60.0);

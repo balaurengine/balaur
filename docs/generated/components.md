@@ -426,6 +426,89 @@ On a node carrying `shape2d`, as `node.shape2d.<method>`:
 </tbody>
 </table>
 
+### `softbody2d`
+
+`2d` · `physics` · 56 properties · 7 methods
+
+A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `trimesh` and `volumetric` kinds give and a generator does not.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>a</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Where a rope starts, relative to the node</td></tr>
+<tr><td><code>b</code></td><td>vec2</td><td><code>[0.0, -1.0]</code></td><td>Where a rope ends, relative to the node</td></tr>
+<tr><td><code>bend_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of the bending springs Range 0.0–100.0.</td></tr>
+<tr><td><code>bend_frequency</code></td><td>float</td><td><code>10.0</code></td><td>The same for the bending edges, which are what stop a cloth folding flat Range 0.0–10000.0.</td></tr>
+<tr><td><code>can_sleep</code></td><td>bool</td><td><code>true</code></td><td>Let the body stop being simulated once it settles</td></tr>
+<tr><td><code>cell_model</code></td><td>enum</td><td><code>volume</code></td><td>What a cell resists with: a volume constraint for a cheap jelly, or an elastic model a Young modulus parameterises One of <code>volume</code>, <code>corotational</code>, <code>neo_hookean</code>.</td></tr>
+<tr><td><code>cell_size</code></td><td>float</td><td><code>0.25</code></td><td>How big one triangle is when a volumetric body fills an outline; smaller is finer, slower and stiffer to tear At least 0.001.</td></tr>
+<tr><td><code>cells</code></td><td>vec2</td><td><code>[4.0, 4.0]</code></td><td>How many cells along each axis of a grid</td></tr>
+<tr><td><code>deformation_damping</code></td><td>float</td><td><code>0.0</code></td><td>How fast the particles are pulled towards the body&#x27;s own rigid motion, which settles a residual sway without slowing the body down Range 0.0–1000.0.</td></tr>
+<tr><td><code>dominance</code></td><td>int</td><td><code>0</code></td><td>Which body wins a contact: a higher one is never pushed by a lower one Range -127–127.</td></tr>
+<tr><td><code>edge_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of that spring; 1 settles without overshooting Range 0.0–100.0.</td></tr>
+<tr><td><code>edge_frequency</code></td><td>float</td><td><code>30.0</code></td><td>The frequency of the spring a structural edge is solved as, in hertz; higher is stiffer Range 0.0–10000.0.</td></tr>
+<tr><td><code>edge_plastic_creep</code></td><td>float</td><td><code>1.0</code></td><td>How fast, per second, an edge&#x27;s excess strain is absorbed into its rest length At least 0.0.</td></tr>
+<tr><td><code>edge_plastic_flow</code></td><td>enum</td><td><code>both</code></td><td>Whether an edge sets under a squeeze, a stretch, or both: clay dents but does not stay stretched One of <code>both</code>, <code>compression</code>, <code>tension</code>.</td></tr>
+<tr><td><code>edge_plastic_max</code></td><td>float</td><td><code>0.5</code></td><td>The largest permanent set an edge may take, as a fraction of its first length At least 0.0.</td></tr>
+<tr><td><code>edge_plastic_yield</code></td><td>float</td><td><code>0.0</code></td><td>The edge strain past which its rest length flows towards its current length At least 0.0.</td></tr>
+<tr><td><code>elastic_damping</code></td><td>float</td><td><code>1.0</code></td><td>Damping ratio of the elastic cells Range 0.0–100.0.</td></tr>
+<tr><td><code>friction</code></td><td>float</td><td><code>0.5</code></td><td>Surface friction of the body&#x27;s collider; 0 is ice At least 0.0.</td></tr>
+<tr><td><code>gravity_scale</code></td><td>float</td><td><code>1.0</code></td><td>How much gravity pulls on the particles</td></tr>
+<tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td>Half-sizes of the sheet, when kind is grid</td></tr>
+<tr><td><code>interior_strength</code></td><td>float</td><td><code>1.0</code></td><td>How many times tougher an undamaged inside element is than a surface one, so cracks start at the surface and run inward At least 1.0.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>grid</code></td><td>How the body&#x27;s particles and elements are laid out One of <code>grid</code>, <code>disk</code>, <code>polygon</code>, <code>rope</code>, <code>volumetric</code>, <code>trimesh</code>, <code>polyline</code>.</td></tr>
+<tr><td><code>layers</code></td><td>flags</td><td><code>[&quot;0&quot;]</code></td><td>The layers this body is on One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
+<tr><td><code>linear_damping</code></td><td>float</td><td><code>0.0</code></td><td>Air friction on the particles At least 0.0.</td></tr>
+<tr><td><code>mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
+<tr><td><code>mass</code></td><td>float</td><td><code>1.0</code></td><td>What the whole body weighs, spread over its particles At least 0.0.</td></tr>
+<tr><td><code>max_tears_per_step</code></td><td>float</td><td><code>0.0</code></td><td>The most edges that may tear in one step, which paces a crack; 0 is no limit At least 0.0.</td></tr>
+<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Points and triangles for a polygon, trimesh, polyline or volumetric body: the same asset a polygon draws</td></tr>
+<tr><td><code>min_piece</code></td><td>float</td><td><code>0.0</code></td><td>The smallest piece, in elements, a tear may split off; 0 lets rapier choose At least 0.0.</td></tr>
+<tr><td><code>oriented</code></td><td>bool</td><td><code>false</code></td><td>Treat the surface as closed and outward-facing, so its inside holds bodies in instead of pushing them out</td></tr>
+<tr><td><code>particle_radius</code></td><td>float</td><td><code>0.0</code></td><td>How thick the particles are; 0 takes what the layout works out At least 0.0.</td></tr>
+<tr><td><code>particles</code></td><td>float</td><td><code>16.0</code></td><td>How many particles a rope or the rim of a disk is made of At least 2.0.</td></tr>
+<tr><td><code>pgs_iterations</code></td><td>float</td><td><code>3.0</code></td><td>Extra iterations inside each substep, for the same Range 0.0–64.0.</td></tr>
+<tr><td><code>pinned</code></td><td>strings</td><td><code>[]</code></td><td>The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from</td></tr>
+<tr><td><code>plastic_creep</code></td><td>float</td><td><code>1.0</code></td><td>How fast, per second, the strain past the yield is absorbed into the rest shape At least 0.0.</td></tr>
+<tr><td><code>plastic_max</code></td><td>float</td><td><code>1.0</code></td><td>The most permanent deformation a cell may take, so a crushed cell cannot flow to a sliver At least 0.0.</td></tr>
+<tr><td><code>plastic_yield</code></td><td>float</td><td><code>0.0</code></td><td>The cell strain past which the rest shape flows towards the current one; 0 is perfectly elastic At least 0.0.</td></tr>
+<tr><td><code>poisson_ratio</code></td><td>float</td><td><code>0.3</code></td><td>How much an elastic cell bulges sideways when squeezed; towards 0.5 it stops changing volume at all Range 0.0–0.499.</td></tr>
+<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, when kind is disk At least 0.001.</td></tr>
+<tr><td><code>restitution</code></td><td>float</td><td><code>0.0</code></td><td>Bounciness of the body&#x27;s collider Range 0.0–1.0.</td></tr>
+<tr><td><code>self_contacts</code></td><td>bool</td><td><code>false</code></td><td>Let the body&#x27;s own surface collide with itself, which stops a cloth passing through its own fold</td></tr>
+<tr><td><code>shape_matching</code></td><td>bool</td><td><code>false</code></td><td>Pull the body back towards the shape it was built in, which is what keeps a jelly a jelly</td></tr>
+<tr><td><code>shape_matching_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of the shape-matching constraints Range 0.0–100.0.</td></tr>
+<tr><td><code>shape_matching_frequency</code></td><td>float</td><td><code>10.0</code></td><td>The same for shape matching, which pulls the body back towards the shape it was built in Range 0.0–10000.0.</td></tr>
+<tr><td><code>skin</code></td><td>bool</td><td><code>false</code></td><td>Keep the outline as the drawn shape and let the cells carry it, so a detail the cell size cannot resolve survives</td></tr>
+<tr><td><code>solver</code></td><td>enum</td><td><code>constraints</code></td><td>Which solver runs the elasticity: sequential constraints, or an implicit Euler step over the whole body One of <code>constraints</code>, <code>fem</code>.</td></tr>
+<tr><td><code>solver_iterations</code></td><td>float</td><td><code>0.0</code></td><td>Extra solver substeps for this body and everything it touches Range 0.0–64.0.</td></tr>
+<tr><td><code>tear_force</code></td><td>float</td><td><code>0.0</code></td><td>The pull past which an edge breaks; 0 is unbreakable. Either criterion tears an edge At least 0.0.</td></tr>
+<tr><td><code>tear_smoothing</code></td><td>float</td><td><code>0.0</code></td><td>Over how many seconds a load is averaged before it is tested, so one hard frame does not tear a body At least 0.0.</td></tr>
+<tr><td><code>tear_strain</code></td><td>float</td><td><code>0.0</code></td><td>The stretch past which an element breaks, as a fraction of its rest length; 0 is unbreakable At least 0.0.</td></tr>
+<tr><td><code>tension_only</code></td><td>bool</td><td><code>false</code></td><td>Let the edges resist stretching only, so the body folds freely and never pushes itself open</td></tr>
+<tr><td><code>volume_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of the volume constraints Range 0.0–100.0.</td></tr>
+<tr><td><code>volume_factor</code></td><td>float</td><td><code>1.0</code></td><td>What that volume is held at, as a multiple of the rest volume; above 1 inflates the body At least 0.0.</td></tr>
+<tr><td><code>volume_frequency</code></td><td>float</td><td><code>30.0</code></td><td>The same for the constraints holding a cell&#x27;s volume, and for the whole-body one Range 0.0–10000.0.</td></tr>
+<tr><td><code>volume_preservation</code></td><td>bool</td><td><code>false</code></td><td>Hold the volume each closed piece of the body encloses</td></tr>
+<tr><td><code>young_modulus</code></td><td>float</td><td><code>10000.0</code></td><td>Stiffness of the elastic cells, as force per unit area; a finer mesh does not get stiffer for it At least 0.0.</td></tr>
+</tbody>
+</table>
+
+On a node carrying `softbody2d`, as `node.softbody2d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>pin_particle(i64)</code></td><td>—</td><td>Hold one particle where it is, which is how a cloth hangs from a hook.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_softbody(Value)</code></td><td>—</td><td>Build the node&#x27;s soft body from a `softbody2d` table: `kind`, the shape rows, and the material rows.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_areaNodeId</code></td><td><code>f32</code></td><td>How much area the body encloses right now, against `softbody_rest_area` for how far it is squeezed.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_centerNodeId</code></td><td><code>Value</code></td><td>The body&#x27;s centre of mass, which is where it is when a deformable body has no one position.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_particlesNodeId</code></td><td><code>i64</code></td><td>How many particles the body ended up with, which a generator decides rather than the author.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_position(i64)</code></td><td><code>Value</code></td><td>Where one particle is, in world space.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_rest_areaNodeId</code></td><td><code>f32</code></td><td>How much it encloses at rest.</td><td><code>physics2d</code></td></tr>
+</tbody>
+</table>
+
 ### `sprite`
 
 `2d` · `render` · 13 properties
@@ -1046,6 +1129,93 @@ On a node carrying `shape3d`, as `node.shape3d.<method>`:
 <tbody>
 <tr><td><code>set_ball(f32)</code></td><td>—</td><td>Draw the node as a sphere of the given radius in world units, replacing any other 3D shape.</td><td><code>render</code></td></tr>
 <tr><td><code>set_cuboid(f32, f32, f32)</code></td><td>—</td><td>Draw the node as a box from its three half-extents, in world units, replacing any other 3D shape.</td><td><code>render</code></td></tr>
+</tbody>
+</table>
+
+### `softbody3d`
+
+`3d` · `physics` · 60 properties · 7 methods
+
+A deformable 3D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. The node is drawn from the solver's positions.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>a</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where a rope starts, relative to the node</td></tr>
+<tr><td><code>axis</code></td><td>vec3</td><td><code>[0.0, 1.0, 0.0]</code></td><td>The segment a cloth_tube is wrapped around, relative to the node</td></tr>
+<tr><td><code>b</code></td><td>vec3</td><td><code>[0.0, -1.0, 0.0]</code></td><td>Where a rope ends, relative to the node</td></tr>
+<tr><td><code>bend_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of the bending springs Range 0.0–100.0.</td></tr>
+<tr><td><code>bend_frequency</code></td><td>float</td><td><code>10.0</code></td><td>The same for the bending edges, which are what stop a cloth folding flat Range 0.0–10000.0.</td></tr>
+<tr><td><code>can_sleep</code></td><td>bool</td><td><code>true</code></td><td>Let the body stop being simulated once it settles</td></tr>
+<tr><td><code>cell_model</code></td><td>enum</td><td><code>volume</code></td><td>What a cell resists with: a volume constraint for a cheap jelly, or an elastic model a Young modulus parameterises One of <code>volume</code>, <code>corotational</code>, <code>neo_hookean</code>.</td></tr>
+<tr><td><code>cell_size</code></td><td>float</td><td><code>0.25</code></td><td>How big one tetrahedron is when a volumetric body fills a mesh; smaller is finer, slower and stiffer to tear At least 0.001.</td></tr>
+<tr><td><code>cells</code></td><td>vec3</td><td><code>[4.0, 4.0, 4.0]</code></td><td>How many cells along each axis, for cuboid; a cloth reads the first two, and a cloth_tube reads them as particles around and cells along</td></tr>
+<tr><td><code>deformation_damping</code></td><td>float</td><td><code>0.0</code></td><td>How fast the particles are pulled towards the body&#x27;s own rigid motion, which settles a residual sway without slowing the body down Range 0.0–1000.0.</td></tr>
+<tr><td><code>dominance</code></td><td>int</td><td><code>0</code></td><td>Which body wins a contact: a higher one is never pushed by a lower one Range -127–127.</td></tr>
+<tr><td><code>edge_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of that spring; 1 settles without overshooting Range 0.0–100.0.</td></tr>
+<tr><td><code>edge_frequency</code></td><td>float</td><td><code>30.0</code></td><td>The frequency of the spring a structural edge is solved as, in hertz; higher is stiffer Range 0.0–10000.0.</td></tr>
+<tr><td><code>edge_plastic_creep</code></td><td>float</td><td><code>1.0</code></td><td>How fast, per second, an edge&#x27;s excess strain is absorbed into its rest length At least 0.0.</td></tr>
+<tr><td><code>edge_plastic_flow</code></td><td>enum</td><td><code>both</code></td><td>Whether an edge sets under a squeeze, a stretch, or both: clay dents but does not stay stretched One of <code>both</code>, <code>compression</code>, <code>tension</code>.</td></tr>
+<tr><td><code>edge_plastic_max</code></td><td>float</td><td><code>0.5</code></td><td>The largest permanent set an edge may take, as a fraction of its first length At least 0.0.</td></tr>
+<tr><td><code>edge_plastic_yield</code></td><td>float</td><td><code>0.0</code></td><td>The edge strain past which its rest length flows towards its current length At least 0.0.</td></tr>
+<tr><td><code>elastic_damping</code></td><td>float</td><td><code>1.0</code></td><td>Damping ratio of the elastic cells Range 0.0–100.0.</td></tr>
+<tr><td><code>friction</code></td><td>float</td><td><code>0.5</code></td><td>Surface friction of the body&#x27;s collider; 0 is ice At least 0.0.</td></tr>
+<tr><td><code>gravity_scale</code></td><td>float</td><td><code>1.0</code></td><td>How much gravity pulls on the particles</td></tr>
+<tr><td><code>half_extents</code></td><td>vec3</td><td><code>[0.5, 0.5, 0.5]</code></td><td>Half-sizes of the block, when kind is cuboid</td></tr>
+<tr><td><code>interior_strength</code></td><td>float</td><td><code>1.0</code></td><td>How many times tougher an undamaged inside element is than a surface one, so cracks start at the surface and run inward At least 1.0.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>cuboid</code></td><td>How the body&#x27;s particles and elements are laid out One of <code>cuboid</code>, <code>sphere</code>, <code>cloth</code>, <code>cloth_tube</code>, <code>rope</code>, <code>volumetric</code>, <code>trimesh</code>.</td></tr>
+<tr><td><code>layers</code></td><td>flags</td><td><code>[&quot;0&quot;]</code></td><td>The layers this body is on One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
+<tr><td><code>linear_damping</code></td><td>float</td><td><code>0.0</code></td><td>Air friction on the particles At least 0.0.</td></tr>
+<tr><td><code>mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
+<tr><td><code>mass</code></td><td>float</td><td><code>1.0</code></td><td>What the whole body weighs, spread over its particles At least 0.0.</td></tr>
+<tr><td><code>max_tears_per_step</code></td><td>float</td><td><code>0.0</code></td><td>The most edges that may tear in one step, which paces a crack; 0 is no limit At least 0.0.</td></tr>
+<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Geometry for a trimesh, polyline or volumetric body</td></tr>
+<tr><td><code>min_piece</code></td><td>float</td><td><code>0.0</code></td><td>The smallest piece, in elements, a tear may split off; 0 lets rapier choose At least 0.0.</td></tr>
+<tr><td><code>oriented</code></td><td>bool</td><td><code>false</code></td><td>Treat the surface as closed and outward-facing, so its inside holds bodies in instead of pushing them out</td></tr>
+<tr><td><code>particle_radius</code></td><td>float</td><td><code>0.0</code></td><td>How thick the particles are; 0 takes what the layout works out At least 0.0.</td></tr>
+<tr><td><code>particles</code></td><td>float</td><td><code>16.0</code></td><td>How many particles a rope or a disk is made of At least 2.0.</td></tr>
+<tr><td><code>pgs_iterations</code></td><td>float</td><td><code>3.0</code></td><td>Extra iterations inside each substep, for the same Range 0.0–64.0.</td></tr>
+<tr><td><code>pinned</code></td><td>strings</td><td><code>[]</code></td><td>The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from</td></tr>
+<tr><td><code>plastic_creep</code></td><td>float</td><td><code>1.0</code></td><td>How fast, per second, the strain past the yield is absorbed into the rest shape At least 0.0.</td></tr>
+<tr><td><code>plastic_max</code></td><td>float</td><td><code>1.0</code></td><td>The most permanent deformation a cell may take, so a crushed cell cannot flow to a sliver At least 0.0.</td></tr>
+<tr><td><code>plastic_yield</code></td><td>float</td><td><code>0.0</code></td><td>The cell strain past which the rest shape flows towards the current one; 0 is perfectly elastic At least 0.0.</td></tr>
+<tr><td><code>poisson_ratio</code></td><td>float</td><td><code>0.3</code></td><td>How much an elastic cell bulges sideways when squeezed; towards 0.5 it stops changing volume at all Range 0.0–0.499.</td></tr>
+<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, for sphere and cloth_tube At least 0.001.</td></tr>
+<tr><td><code>restitution</code></td><td>float</td><td><code>0.0</code></td><td>Bounciness of the body&#x27;s collider Range 0.0–1.0.</td></tr>
+<tr><td><code>self_contacts</code></td><td>bool</td><td><code>false</code></td><td>Let the body&#x27;s own surface collide with itself, which stops a cloth passing through its own fold</td></tr>
+<tr><td><code>shape_matching</code></td><td>bool</td><td><code>false</code></td><td>Pull the body back towards the shape it was built in, which is what keeps a jelly a jelly</td></tr>
+<tr><td><code>shape_matching_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of the shape-matching constraints Range 0.0–100.0.</td></tr>
+<tr><td><code>shape_matching_frequency</code></td><td>float</td><td><code>10.0</code></td><td>The same for shape matching, which pulls the body back towards the shape it was built in Range 0.0–10000.0.</td></tr>
+<tr><td><code>size</code></td><td>vec3</td><td><code>[1.0, 0.0, 1.0]</code></td><td>The two edges a cloth is spanned over, as the sheet&#x27;s extent along x and z</td></tr>
+<tr><td><code>skin</code></td><td>bool</td><td><code>false</code></td><td>Keep the mesh as the drawn surface and let the cells carry it, so a detail the cell size cannot resolve survives</td></tr>
+<tr><td><code>skin_collision</code></td><td>bool</td><td><code>false</code></td><td>Meet the world through the skin rather than the cells&#x27; boundary</td></tr>
+<tr><td><code>solver</code></td><td>enum</td><td><code>constraints</code></td><td>Which solver runs the elasticity: sequential constraints, or an implicit Euler step over the whole body One of <code>constraints</code>, <code>fem</code>.</td></tr>
+<tr><td><code>solver_iterations</code></td><td>float</td><td><code>0.0</code></td><td>Extra solver substeps for this body and everything it touches Range 0.0–64.0.</td></tr>
+<tr><td><code>subdivisions</code></td><td>float</td><td><code>2.0</code></td><td>How many times a sphere&#x27;s icosahedron is refined; each level quadruples the triangles Range 0.0–6.0.</td></tr>
+<tr><td><code>tear_force</code></td><td>float</td><td><code>0.0</code></td><td>The pull past which an edge breaks; 0 is unbreakable. Either criterion tears an edge At least 0.0.</td></tr>
+<tr><td><code>tear_smoothing</code></td><td>float</td><td><code>0.0</code></td><td>Over how many seconds a load is averaged before it is tested, so one hard frame does not tear a body At least 0.0.</td></tr>
+<tr><td><code>tear_strain</code></td><td>float</td><td><code>0.0</code></td><td>The stretch past which an element breaks, as a fraction of its rest length; 0 is unbreakable At least 0.0.</td></tr>
+<tr><td><code>tension_only</code></td><td>bool</td><td><code>false</code></td><td>Let the edges resist stretching only, so the body folds freely and never pushes itself open</td></tr>
+<tr><td><code>volume_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of the volume constraints Range 0.0–100.0.</td></tr>
+<tr><td><code>volume_factor</code></td><td>float</td><td><code>1.0</code></td><td>What that volume is held at, as a multiple of the rest volume; above 1 inflates the body At least 0.0.</td></tr>
+<tr><td><code>volume_frequency</code></td><td>float</td><td><code>30.0</code></td><td>The same for the constraints holding a cell&#x27;s volume, and for the whole-body one Range 0.0–10000.0.</td></tr>
+<tr><td><code>volume_preservation</code></td><td>bool</td><td><code>false</code></td><td>Hold the volume each closed piece of the body encloses</td></tr>
+<tr><td><code>young_modulus</code></td><td>float</td><td><code>10000.0</code></td><td>Stiffness of the elastic cells, as force per unit area; a finer mesh does not get stiffer for it At least 0.0.</td></tr>
+</tbody>
+</table>
+
+On a node carrying `softbody3d`, as `node.softbody3d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>pin_particle(i64)</code></td><td>—</td><td>Hold one particle where it is, which is how a cloth hangs from a hook.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_softbody(Value)</code></td><td>—</td><td>Build the node&#x27;s soft body from a `softbody3d` table: `kind`, the shape rows, and the material rows.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_centerNodeId</code></td><td><code>Value</code></td><td>The body&#x27;s centre of mass, which is where it is when a deformable body has no one position.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_particlesNodeId</code></td><td><code>i64</code></td><td>How many particles the body ended up with, which a generator decides rather than the author.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_position(i64)</code></td><td><code>Value</code></td><td>Where one particle is, in world space.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_rest_volumeNodeId</code></td><td><code>f32</code></td><td>How much it encloses at rest.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_volumeNodeId</code></td><td><code>f32</code></td><td>How much space the body encloses right now, against `softbody_rest_volume` for how far it is squeezed.</td><td><code>physics3d</code></td></tr>
 </tbody>
 </table>
 

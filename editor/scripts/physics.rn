@@ -1,10 +1,6 @@
-// The Physics persona's own section of the inspector: what a node can be
-// given, and the shapes its mesh can be turned into.
-//
-// Everything below writes ordinary component properties. The engine does the
-// work at apply time — rapier and parry hold the decomposition, the
-// voxelizer and the tetrahedrizer — so an action here is a table of
-// properties and never geometry of its own.
+// The Physics persona's section of the inspector: what a node can be given,
+// and the shapes its mesh can be turned into. Every action writes component
+// properties, never geometry; the engine does the work at apply time.
 
 use crate::model;
 use crate::style;
@@ -116,10 +112,9 @@ pub fn actions(S, k) {
     }
 }
 
-// A pill is about seven pixels a character plus its padding, and the label
-// beside the row takes a fixed column. Estimated rather than measured: the
-// layout reports a rect a frame late, and a row that rewrapped a frame after
-// the panel resized would flicker.
+// A pill is about seven pixels a character plus its padding. Estimated, not
+// measured: the layout reports a rect a frame late, and a row rewrapping a
+// frame after a resize would flicker.
 const PILL_PAD = 18.0;
 const CHAR_W = 7.0;
 const LABEL_COL = 62.0;
