@@ -119,9 +119,9 @@ pub fn actions(S, k) {
         crate::inspector::form_row(S, "From mesh", []);
         crate::inspector::wide_row(S, style::row_h(S), || {
             style::empty(k, if two_d {
-                "give the node a polygon to build shapes from it"
+                "needs a polygon"
             } else {
-                "give the node a mesh to build shapes from it"
+                "needs a mesh"
             });
         });
     }
