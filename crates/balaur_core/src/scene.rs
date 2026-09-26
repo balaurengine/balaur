@@ -704,9 +704,15 @@ fn child_named(world: &World, parent: Entity, name: &str) -> Option<Entity> {
 }
 
 /// Resolve a `A/B/C` path relative to `from` by matching child names; `.`
-/// is the node itself and `..` climbs to the parent, as a Godot NodePath does.
+/// is the node itself, `..` climbs to the parent, and a leading `/` starts
+/// from the top of the tree, as a Godot NodePath does.
 pub fn find_node(world: &World, from: Entity, path: &str) -> Option<Entity> {
     let mut current = from;
+    if path.starts_with('/') {
+        while let Ok(parent) = world.get::<&Parent>(current).map(|p| p.0) {
+            current = parent;
+        }
+    }
     for segment in path.split('/').filter(|s| !s.is_empty() && *s != ".") {
         if segment == ".." {
             current = world.get::<&Parent>(current).ok()?.0;

@@ -357,7 +357,7 @@ Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bo
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>angle_limit</code></td><td>float</td><td><code>0.0</code></td><td>How far a ccdik bone may turn from its rest, in radians; 0 leaves it free</td></tr>
-<tr><td><code>bone</code></td><td>string</td><td>—</td><td>Node path to the driven bone, relative to this node; empty means this node. For a chain solver, its root</td></tr>
+<tr><td><code>bone</code></td><td>node</td><td>—</td><td>The driven bone; empty means this node. For a chain solver, its root</td></tr>
 <tr><td><code>chain_count</code></td><td>int</td><td><code>0</code></td><td>How many bones the chain holds, counting the driven one; 0 walks to the deepest tip</td></tr>
 <tr><td><code>damping</code></td><td>float</td><td><code>0.75</code></td><td>How much of a jiggle bone&#x27;s speed survives a tick, 0 to 1</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether the modifier runs; off leaves the clip&#x27;s pose alone</td></tr>
@@ -369,7 +369,7 @@ Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bo
 <tr><td><code>mass</code></td><td>float</td><td><code>0.75</code></td><td>What gravity weighs against stiffness on a jiggle bone</td></tr>
 <tr><td><code>offset</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where a follow node sits relative to its target, in world units</td></tr>
 <tr><td><code>stiffness</code></td><td>float</td><td><code>3.0</code></td><td>How hard a jiggle bone is pulled back to the pose</td></tr>
-<tr><td><code>target</code></td><td>string</td><td>—</td><td>Node path to the point to aim at, relative to this node. Unused by jiggle</td></tr>
+<tr><td><code>target</code></td><td>node</td><td>—</td><td>The point to aim at. Unused by jiggle</td></tr>
 <tr><td><code>tolerance</code></td><td>float</td><td><code>0.01</code></td><td>How close to the target ends a fabrik or ccdik solve early</td></tr>
 <tr><td><code>use_gravity</code></td><td>bool</td><td><code>false</code></td><td>Whether a jiggle chain is pulled by `gravity`</td></tr>
 </tbody>
@@ -410,7 +410,7 @@ A filled, textured 2D polygon from the `mesh` asset's points and triangles. With
 <tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
 <tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Vertices, triangulation, UVs and skin weights; positions are [x, y] in the node&#x27;s space</td></tr>
 <tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>100.0</code></td><td>Texture pixels per world unit, for the default UV mapping At least 0.01.</td></tr>
-<tr><td><code>skeleton</code></td><td>string</td><td>—</td><td>Node path to the rig root, relative to this node; empty means this node</td></tr>
+<tr><td><code>skeleton</code></td><td>node</td><td>—</td><td>The rig root; empty means this node</td></tr>
 <tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>Image file, project-relative, or a `texture` asset; empty draws the tint alone</td></tr>
 </tbody>
 </table>
@@ -1143,7 +1143,7 @@ A 3D light placed and aimed by the node. `kind` is `directional`, `point` or `sp
 <tr><td><code>cast_shadow</code></td><td>bool</td><td><code>true</code></td><td>Whether this casts a shadow from the lights that cast</td></tr>
 <tr><td><code>light_layers</code></td><td>int</td><td><code>-1</code></td><td>Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty draws with the built-in one</td></tr>
-<tr><td><code>skeleton</code></td><td>string</td><td>—</td><td>Node path to the rig a skinned mesh deforms with, relative to this node; empty means this node</td></tr>
+<tr><td><code>skeleton</code></td><td>node</td><td>—</td><td>The rig a skinned mesh deforms with; empty means this node</td></tr>
 <tr><td><code>source</code></td><td>asset · <code>mesh</code></td><td>—</td><td>The mesh asset this node draws</td></tr>
 <tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>Image file, project-relative, or a `texture` asset; empty draws the colour alone</td></tr>
 </tbody>
@@ -1159,7 +1159,7 @@ Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>angle_limit</code></td><td>float</td><td><code>0.0</code></td><td>How far a ccdik bone may turn from its rest, in radians; 0 leaves it free</td></tr>
-<tr><td><code>bone</code></td><td>string</td><td>—</td><td>Node path to the driven bone, relative to this node; empty means this node. For a chain solver, its root</td></tr>
+<tr><td><code>bone</code></td><td>node</td><td>—</td><td>The driven bone; empty means this node. For a chain solver, its root</td></tr>
 <tr><td><code>chain_count</code></td><td>int</td><td><code>0</code></td><td>How many bones the chain holds, counting the driven one; 0 walks to the deepest tip</td></tr>
 <tr><td><code>damping</code></td><td>float</td><td><code>0.75</code></td><td>How much of a jiggle bone&#x27;s speed survives a tick, 0 to 1</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether the modifier runs; off leaves the clip&#x27;s pose alone</td></tr>
@@ -1171,7 +1171,7 @@ Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `
 <tr><td><code>mass</code></td><td>float</td><td><code>0.75</code></td><td>What gravity weighs against stiffness on a jiggle bone</td></tr>
 <tr><td><code>offset</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where a follow node sits relative to its target, in world units</td></tr>
 <tr><td><code>stiffness</code></td><td>float</td><td><code>3.0</code></td><td>How hard a jiggle bone is pulled back to the pose</td></tr>
-<tr><td><code>target</code></td><td>string</td><td>—</td><td>Node path to the point to aim at, relative to this node. Unused by jiggle</td></tr>
+<tr><td><code>target</code></td><td>node</td><td>—</td><td>The point to aim at. Unused by jiggle</td></tr>
 <tr><td><code>tolerance</code></td><td>float</td><td><code>0.01</code></td><td>How close to the target ends a fabrik or ccdik solve early</td></tr>
 <tr><td><code>use_gravity</code></td><td>bool</td><td><code>false</code></td><td>Whether a jiggle chain is pulled by `gravity`</td></tr>
 </tbody>
@@ -1552,7 +1552,7 @@ Plays animation clips on the node. `library` is the clip asset, `autoplay` the c
 <tbody>
 <tr><td><code>autoplay</code></td><td>string</td><td>—</td><td>Clip to start when the scene loads; empty starts nothing</td></tr>
 <tr><td><code>library</code></td><td>asset · <code>animation_library</code></td><td>—</td><td>The clip library this node plays from</td></tr>
-<tr><td><code>root_node</code></td><td>string</td><td>—</td><td>Node path the clip&#x27;s tracks resolve against; empty means this node</td></tr>
+<tr><td><code>root_node</code></td><td>node</td><td>—</td><td>The node the clip&#x27;s tracks resolve against; empty means this node</td></tr>
 <tr><td><code>speed_scale</code></td><td>float</td><td><code>1.0</code></td><td>Playback rate for every clip on this node</td></tr>
 </tbody>
 </table>
@@ -1593,10 +1593,10 @@ Runs the `state_machine` asset in `machine` over the `player` node's clips. `aut
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>check_node</code></td><td>string</td><td>—</td><td>Node path whose script answers the transitions&#x27; `check` methods; empty means this node</td></tr>
+<tr><td><code>check_node</code></td><td>node</td><td>—</td><td>The node whose script answers the transitions&#x27; `check` methods; empty means this node</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether the machine is running</td></tr>
 <tr><td><code>machine</code></td><td>asset · <code>state_machine</code></td><td>—</td><td>The state machine to run</td></tr>
-<tr><td><code>player</code></td><td>string</td><td>—</td><td>Node path to the `animation` player it drives; empty means this node</td></tr>
+<tr><td><code>player</code></td><td>node</td><td>—</td><td>The `animation` player it drives; empty means this node</td></tr>
 </tbody>
 </table>
 

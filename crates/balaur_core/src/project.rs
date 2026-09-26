@@ -1065,9 +1065,8 @@ fn resolve_parent(
     let world = eng.world();
     let from_root = scene_root.and_then(|(name, entity)| {
         let rest = node.parent.strip_prefix(name)?;
-        (rest.is_empty() || rest.starts_with('/'))
-            .then(|| scene::find_node(&world, entity, rest))
-            .flatten()
+        let below = rest.strip_prefix('/').or(rest.is_empty().then_some(""));
+        below.and_then(|below| scene::find_node(&world, entity, below))
     });
     from_root
         .or_else(|| scene::find_node(&world, root, &node.parent))

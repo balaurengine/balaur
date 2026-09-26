@@ -170,11 +170,11 @@ fn schema() -> String {
         ),
         (
             k::TARGET,
-            r#"{ type = "string", default = "", description = "Node path to the point to aim at, relative to this node. Unused by jiggle" }"#,
+            r#"{ type = "node", default = "", description = "The point to aim at. Unused by jiggle" }"#,
         ),
         (
             k::BONE,
-            r#"{ type = "string", default = "", description = "Node path to the driven bone, relative to this node; empty means this node. For a chain solver, its root" }"#,
+            r#"{ type = "node", default = "", description = "The driven bone; empty means this node. For a chain solver, its root" }"#,
         ),
         (
             k::CHAIN_COUNT,

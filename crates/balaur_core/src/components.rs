@@ -236,13 +236,8 @@ pub fn as_node(eng: &Engine, from: Entity, value: Option<&toml::Value>) -> Optio
     if path.trim().is_empty() {
         return None;
     }
-    // A leading `/` walks from the scene root, as it does in Godot; the
-    // editor's node picker writes that form because it is the one spelling
+    // The editor's node picker writes the `/` form: it is the one spelling
     // that does not change when the node carrying it moves.
-    let (from, path) = match path.strip_prefix('/') {
-        Some(rest) => (eng.root(), rest),
-        None => (from, path),
-    };
     crate::scene::find_node(&eng.world(), from, path)
 }
 

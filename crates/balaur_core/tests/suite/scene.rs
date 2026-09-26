@@ -51,6 +51,19 @@ fn a_path_finds_a_descendant_and_missing_ones_are_none() {
 }
 
 #[test]
+fn a_leading_slash_starts_from_the_top_of_the_tree() {
+    let (engine, a, b, c) = tree();
+    let world = engine.world();
+    assert_eq!(find_node(&world, c, "/A/B"), Some(b));
+    assert_eq!(find_node(&world, a, "/A/B/C"), Some(c));
+    assert_eq!(
+        find_node(&world, c, "A"),
+        None,
+        "without the slash it is relative"
+    );
+}
+
+#[test]
 fn a_node_path_round_trips_through_find() {
     let (engine, _, _, c) = tree();
     let world = engine.world();

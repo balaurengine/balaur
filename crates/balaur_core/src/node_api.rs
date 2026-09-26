@@ -267,7 +267,7 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("global_position", &["transform"], "()", "The node's position in world space, as of the last transform sync."),
         ("global_rotation_euler", &["transform"], "()", "The node's world rotation as euler angles in radians, as of the last transform sync."),
         ("global_scale", &["transform"], "()", "The node's scale in world space, as of the last transform sync."),
-        ("get_node", &[], "(path: string)", "The node at an `A/B/C` path relative to this one, `..` climbing to the parent; nil when nothing matches."),
+        ("get_node", &[], "(path: string)", "The node at an `A/B/C` path relative to this one, `..` climbing to the parent and a leading `/` starting from the root; nil when nothing matches."),
         ("add_child", &[], "(name: string)", "Create a named child node under this one and return it."),
         ("parent", &[], "()", "The node's parent, nil at the root."),
         ("children", &[], "()", "The node's direct children, an empty list when it has none."),

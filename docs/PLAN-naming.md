@@ -34,19 +34,14 @@ with no alias and no migration, as `one way to do a thing` asks.
   axes as `x`/`y`/`z`, one-step `apply_force`, counts as `int`, and a particle
   `direction` with `spread_degrees`, and one `icon` font chain, `icon-` files,
   and the widget's `image`, `sheet` and `language`, with `enabled` and
-  `interactive` on unless turned off.
+  `interactive` on unless turned off, and every node reference typed `node`,
+  with a leading `/` starting from the root.
 - `NAMING.md` has the eight scopes, rules N18 to N23, and the picked names per
   system, from a survey of SDL3, Godot 4, Unity, Blender, GLFW, W3C, rapier and
   glTF on 2026-09-25.
 - What follows is left. Line numbers in the findings are from that day's tree.
 
-## 1. Scene files: components, properties, assets
-
-| Now | New | Why |
-| --- | --- | --- |
-| node references as strings (`modifier.bone`, `animation.root_node`, …) | typed `node` | |
-
-## 2. Script API
+## 1. Script API
 
 | Now | New | Why |
 | --- | --- | --- |
@@ -73,7 +68,7 @@ with no alias and no migration, as `one way to do a thing` asks.
 | `math.deg`, `rad`, `INF`; module `rng` | `to_degrees`, `to_radians`, `INFINITY`; `random` | D4 |
 | positional booleans (`set_z_index(z, relative)`, `release.install(.., allow_downgrade)`) | option table keys | N9 |
 
-## 3. Settings, the CLI and files on disk
+## 2. Settings, the CLI and files on disk
 
 | Now | New | Why |
 | --- | --- | --- |
@@ -96,7 +91,7 @@ with no alias and no migration, as `one way to do a thing` asks.
 | a positional path on `shrink` | `shrink <path>`; `import` and `atlas` keep `--project` | a destination is a flag |
 | `editor/library/manifest.toml` | `catalog.toml` | `manifest` means `project.toml` |
 
-## 4. The editor's words
+## 3. The editor's words
 
 One glossary, and every string follows it. Casing is sentence case, a button
 is a verb, and capitals in headings come from the theme.
@@ -135,7 +130,7 @@ is a verb, and capitals in headings come from the theme.
 - **US spelling** in the UI: `color`, `center`, `minimize`, as the API spells
   them.
 
-## 5. Crates, features and the Rust facade
+## 4. Crates, features and the Rust facade
 
 | Now | New | Why |
 | --- | --- | --- |
@@ -162,13 +157,11 @@ These are defects, not names, and each is fixed on its own:
 ## Steps
 
 1. The bugs above, each with its test.
-2. Scene files (section 1), with the Godot importer and every example scene in
-   the same change, and `scripts/api_lints.py` run over the live registry.
-3. The script API (section 2), with `docs/generated` and the website's
+2. The script API (section 1), with `docs/generated` and the website's
    reference.
-4. Settings, the CLI and disk (section 3).
-5. The editor's words (section 4), with the manual.
-6. Crates and the facade (section 5).
-7. A lint for each of N18, N19, N21 and N22 where one can be written: tokens
+3. Settings, the CLI and disk (section 2).
+4. The editor's words (section 3), with the manual.
+5. Crates and the facade (section 4).
+6. A lint for each of N18, N19, N21 and N22 where one can be written: tokens
    from the theme files, units from the settings registry, hooks from the hook
    list.

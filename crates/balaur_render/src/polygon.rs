@@ -74,7 +74,7 @@ fn polygon_schema() -> String {
         ),
         (
             k::SKELETON,
-            r#"{ type = "string", default = "", description = "Node path to the rig root, relative to this node; empty means this node" }"#,
+            r#"{ type = "node", default = "", description = "The rig root; empty means this node" }"#,
         ),
         (
             k::COLOR,

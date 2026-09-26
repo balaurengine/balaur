@@ -474,8 +474,8 @@
       },
       "root_node": {
         "default": "",
-        "description": "Node path the clip's tracks resolve against; empty means this node",
-        "type": "string"
+        "description": "The node the clip's tracks resolve against; empty means this node",
+        "type": "node"
       },
       "speed_scale": {
         "default": 1.0,
@@ -2868,8 +2868,8 @@
       },
       "skeleton": {
         "default": "",
-        "description": "Node path to the rig a skinned mesh deforms with, relative to this node; empty means this node",
-        "type": "string"
+        "description": "The rig a skinned mesh deforms with; empty means this node",
+        "type": "node"
       },
       "source": {
         "asset": "mesh",
@@ -2893,8 +2893,8 @@
       },
       "bone": {
         "default": "",
-        "description": "Node path to the driven bone, relative to this node; empty means this node. For a chain solver, its root",
-        "type": "string"
+        "description": "The driven bone; empty means this node. For a chain solver, its root",
+        "type": "node"
       },
       "chain_count": {
         "default": 0,
@@ -2969,8 +2969,8 @@
       },
       "target": {
         "default": "",
-        "description": "Node path to the point to aim at, relative to this node. Unused by jiggle",
-        "type": "string"
+        "description": "The point to aim at. Unused by jiggle",
+        "type": "node"
       },
       "tolerance": {
         "default": 0.01,
@@ -2991,8 +2991,8 @@
       },
       "bone": {
         "default": "",
-        "description": "Node path to the driven bone, relative to this node; empty means this node. For a chain solver, its root",
-        "type": "string"
+        "description": "The driven bone; empty means this node. For a chain solver, its root",
+        "type": "node"
       },
       "chain_count": {
         "default": 0,
@@ -3067,8 +3067,8 @@
       },
       "target": {
         "default": "",
-        "description": "Node path to the point to aim at, relative to this node. Unused by jiggle",
-        "type": "string"
+        "description": "The point to aim at. Unused by jiggle",
+        "type": "node"
       },
       "tolerance": {
         "default": 0.01,
@@ -3215,8 +3215,8 @@
       },
       "skeleton": {
         "default": "",
-        "description": "Node path to the rig root, relative to this node; empty means this node",
-        "type": "string"
+        "description": "The rig root; empty means this node",
+        "type": "node"
       },
       "texture": {
         "asset": "texture",
@@ -4900,8 +4900,8 @@
     "state_machine": {
       "check_node": {
         "default": "",
-        "description": "Node path whose script answers the transitions' `check` methods; empty means this node",
-        "type": "string"
+        "description": "The node whose script answers the transitions' `check` methods; empty means this node",
+        "type": "node"
       },
       "enabled": {
         "default": true,
@@ -4916,8 +4916,8 @@
       },
       "player": {
         "default": "",
-        "description": "Node path to the `animation` player it drives; empty means this node",
-        "type": "string"
+        "description": "The `animation` player it drives; empty means this node",
+        "type": "node"
       }
     },
     "states": {
@@ -9285,7 +9285,7 @@
         "detach_script": "Drop the script instance on this node, so no further lifecycle call reaches it; the node and its components stay.",
         "emit": "Emit an event from this node, delivered at the top of the next frame to whoever subscribed to `name` on this node, and to whoever subscribed to `name` from anyone. `call` is the twin that reaches one known script, now.",
         "get_component": "The named component's properties as a table, nil when the node does not carry it. With a key, that one property rather than the table, which is what a caller reading a single value should ask for.",
-        "get_node": "The node at an `A/B/C` path relative to this one, `..` climbing to the parent; nil when nothing matches.",
+        "get_node": "The node at an `A/B/C` path relative to this one, `..` climbing to the parent and a leading `/` starting from the root; nil when nothing matches.",
         "global_material": "The material the node draws with: its own, or the nearest ancestor's. Empty is the built-in one.",
         "global_position": "The node's position in world space, as of the last transform sync.",
         "global_rotation_euler": "The node's world rotation as euler angles in radians, as of the last transform sync.",
