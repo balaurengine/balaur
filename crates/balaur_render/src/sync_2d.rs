@@ -27,12 +27,27 @@ use crate::{Renderable2d, Shape2d, SpriteTexture};
 /// its places, and the rest is dropped last-first and rebuilt by appending.
 pub(crate) fn draw_order_2d(world: &balaur_core::hecs::World, root: Entity) -> Vec<Entity> {
     let mut desired: Vec<(i32, f32, Entity)> = Vec::new();
-    for entity in balaur_core::scene::collect_subtree(world, root) {
+    for entity in in_tree_order(world, root) {
         if world.get::<&Renderable2d>(entity).is_ok() {
             desired.push(layer_of(world, entity));
         }
     }
     sorted(desired)
+}
+
+/// `root` and everything under it in tree order: a node before its children,
+/// and a child's subtree before the next child's, so at one `z_index` and z
+/// a later sibling draws over an earlier one, as in Godot.
+fn in_tree_order(world: &balaur_core::hecs::World, root: Entity) -> Vec<Entity> {
+    let mut out = Vec::new();
+    let mut stack = vec![root];
+    while let Some(entity) = stack.pop() {
+        out.push(entity);
+        if let Ok(children) = world.get::<&balaur_core::scene::Children>(entity) {
+            stack.extend(children.0.iter().rev().copied());
+        }
+    }
+    out
 }
 
 /// One 2D node's place in the order: its `z_index` first, then how far along
@@ -82,7 +97,7 @@ fn ordered_nodes(
     has_node: impl Fn(Entity) -> bool,
 ) -> Vec<(i32, Entity)> {
     let mut desired: Vec<(i32, f32, Entity)> = Vec::new();
-    for entity in balaur_core::scene::collect_subtree(world, root) {
+    for entity in in_tree_order(world, root) {
         if has_node(entity) {
             desired.push(layer_of(world, entity));
         }
@@ -664,6 +679,27 @@ mod tests {
             places(sky) < places(ship),
             "the map at -100 draws under the ship at -1"
         );
+    }
+
+    /// Siblings at one index draw in tree order: the later one over the
+    /// earlier one, and a parent under its children.
+    #[test]
+    fn a_later_sibling_draws_over_an_earlier_one() {
+        let app = App::new(AppConfig::bare(std::path::PathBuf::from("tests/fixtures"))).unwrap();
+        let root = app.engine.root();
+        let spawn = |name: &str, parent| {
+            balaur_core::scene::spawn_node(&mut app.engine.world_mut(), name, parent)
+        };
+        let table = spawn("Table", root);
+        let map = spawn("Map", root);
+        let coast = spawn("Coast", map);
+        let order = super::ordered_nodes(&app.engine.world(), root, |_| true);
+        let place = |entity| order.iter().position(|(_, held)| *held == entity);
+        assert!(
+            place(table) < place(map),
+            "the map, added later, draws over the table"
+        );
+        assert!(place(map) < place(coast), "a child draws over its parent");
     }
 
     /// A shape a script draws at an index sits over that index's nodes and

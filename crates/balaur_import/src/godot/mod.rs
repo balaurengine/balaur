@@ -42,6 +42,7 @@ pub(crate) mod textures;
 pub(crate) mod theme;
 pub(crate) mod tiles;
 pub(crate) mod walk;
+pub(crate) mod world_label;
 #[cfg(test)]
 #[path = "tests/widget_signals.rs"]
 mod widget_signal_tests;

@@ -279,6 +279,10 @@ pub(crate) fn map(class: &str, section: &Section, parent: &str, res: &Resources<
         world_rect(section, res, &mut out);
         return out;
     }
+    if crate::godot::world_label::is_world_label(class, parent) {
+        crate::godot::world_label::world_label(class, section, parent, res, &mut out);
+        return out;
+    }
     match family(class) {
         Family::Node2d => transform(section, &mut out),
         Family::Control => {

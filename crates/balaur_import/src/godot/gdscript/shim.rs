@@ -66,7 +66,7 @@ mod tests {
                 ))
             })
             .collect();
-        let mut table: Vec<(String, String)> = crate::godot::gdscript::map::WIDGET_SIGNALS
+        let mut table: Vec<(String, String)> = crate::godot::gdscript::map::widgets::WIDGET_SIGNALS
             .iter()
             .map(|(signal, key)| ((*signal).to_string(), (*key).to_string()))
             .collect();
@@ -588,6 +588,124 @@ mod tests {
                 .unwrap()
                 .visible,
             "the probe hid itself only if the line counted, grew and read back in pixels"
+        );
+    }
+
+    /// A node made from a packed scene waits outside the tree until it is
+    /// added, so `is_inside_tree` is false until then.
+    #[test]
+    fn an_instantiated_scene_is_inside_the_tree_only_once_added() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            "[[nodes]]\nid = \"probe\"\nname = \"Probe\"\nscript = { source = \"probe.rn\" }\n",
+        );
+        put("part.toml", "[[nodes]]\nid = \"part\"\nname = \"Part\"\n");
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let made = (gd.instantiate)((gd.load)(\"res://part.tscn\"));",
+                "    let before = (gd.inside_tree)(made);",
+                "    let _ = (gd.add_child)(this.node, made);",
+                "    let after = (gd.inside_tree)(made);",
+                "    if made.is_valid() && !before && after {",
+                "        this.node.set_visible(false);",
+                "    }",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert!(
+            !world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .visible,
+            "the probe hid itself only if the part was outside the tree, then inside"
+        );
+    }
+
+    /// A label in the world keeps its caption on `text2d`: `text` reads and
+    /// writes it there, and a widget's stays on the widget.
+    #[test]
+    fn a_world_label_s_text_is_its_text2d() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            &[
+                "[[nodes]]",
+                "id = \"probe\"",
+                "name = \"Probe\"",
+                "script = { source = \"probe.rn\" }",
+                "",
+                "[[nodes]]",
+                "id = \"region\"",
+                "name = \"Region\"",
+                "parent = \"probe\"",
+                "text2d = { text = \"ALBA\" }",
+                "",
+                "[[nodes]]",
+                "id = \"caption\"",
+                "name = \"Caption\"",
+                "parent = \"probe\"",
+                "widget = { kind = \"label\", text = \"Hi\" }",
+                "",
+            ]
+            .join("\n"),
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let region = this.node.get_node(\"Region\");",
+                "    let caption = this.node.get_node(\"Caption\");",
+                "    let before = (gd.text_of)(region);",
+                "    (gd.set_text)(region, \"CLUJ\");",
+                "    (gd.set_text)(caption, \"Bye\");",
+                "    let moved = region.get_component(\"text2d\")[\"text\"];",
+                "    if before == \"ALBA\" && moved == \"CLUJ\" && (gd.text_of)(caption) == \"Bye\" && !region.has_component(\"widget\") {",
+                "        this.node.set_visible(false);",
+                "    }",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert!(
+            !world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .visible,
+            "the probe hid itself only if the world label's text moved on its text2d"
         );
     }
 }

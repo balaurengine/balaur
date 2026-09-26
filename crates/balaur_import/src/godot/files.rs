@@ -538,6 +538,19 @@ frame = 5
 points = PackedVector2Array(0, 0, 100, 200, 300, 0)
 width = 10.0
 
+[node name="RegionLabel" type="Label" parent="."]
+offset_left = 100.0
+offset_top = 200.0
+offset_right = 300.0
+offset_bottom = 260.0
+theme = ExtResource("3_theme")
+theme_type_variation = &"HeaderLarge"
+theme_override_font_sizes/font_size = 28
+text = "ALBA"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
 [node name="Tree" type="AnimationTree" parent="."]
 libraries/ = SubResource("Lib")
 tree_root = SubResource("Machine")
@@ -592,6 +605,8 @@ Button/styles/focus = SubResource("Green")
 ButtonGreen/base_type = &"Button"
 ButtonGreen/styles/normal = SubResource("Green")
 PanelContainer/styles/panel = SubResource("Plain")
+HeaderLarge/base_type = &"Label"
+HeaderLarge/colors/font_color = Color(0.5, 0.25, 0.375, 1)
 "#;
 
     const SCRIPT: &str = "extends Node2D\n\n@export var speed := 2.0\nvar hidden := 1\n";
@@ -1054,6 +1069,31 @@ func _process(_delta):
             floats(&controls[3]),
             vec![1.0, -2.0],
             "y flips and pixels become units"
+        );
+    }
+
+    /// A `Label` under a `Node2D` is text in the world, which the camera
+    /// moves and zooms: a `text2d` at its box's centre, in its role's colour.
+    #[test]
+    fn a_label_in_the_world_is_world_text() {
+        let godot = godot();
+        let out = tempfile::tempdir().unwrap();
+        import_project(&godot.path().join("project.godot"), out.path()).unwrap();
+        let scene = read(out.path(), "scenes/extras.toml");
+        let label = node(&scene, "RegionLabel");
+        assert!(
+            label.get("widget").is_none(),
+            "no widget on the screen: {label:?}"
+        );
+        let text = &label["text2d"];
+        assert_eq!(text["text"].as_str(), Some("ALBA"));
+        assert_eq!(text["font_size"].as_float(), Some(28.0));
+        assert_eq!(text["text_align"].as_str(), Some("center"));
+        assert_eq!(text["max_width"].as_float(), Some(200.0));
+        assert_eq!(text["color"].as_str(), Some("#804060ff"));
+        assert_eq!(
+            floats(&label["transform"]["position"]),
+            vec![2.0, -2.3, 0.0]
         );
     }
 

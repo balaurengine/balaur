@@ -320,12 +320,30 @@ pub fn instantiate(path) {
 /// Where a node `new()` made waits to be added: hidden, under the root.
 fn detached() {
     let root = scene::root();
-    let held = root.get_node("__detached");
+    let held = root.get_node(DETACHED);
     if is_nil(held) {
-        held = root.add_child("__detached");
+        held = root.add_child(DETACHED);
         held.set_visible(false);
     }
     held
+}
+
+const DETACHED = "__detached";
+
+/// Godot's `is_inside_tree()`: a live node the scene reaches, not one made by
+/// `new()` or `instantiate()` and still waiting to be added.
+pub fn inside_tree(node) {
+    if !(node is balaur::Node) || !node.is_valid() {
+        return false;
+    }
+    let at = node;
+    while at is balaur::Node {
+        if at.name() == DETACHED {
+            return false;
+        }
+        at = at.parent();
+    }
+    true
 }
 
 /// Godot's `add_child(node)`: a node made elsewhere moves under `parent`; a
@@ -1516,7 +1534,10 @@ fn node_method(node, name, args) {
     if name == "is_visible_in_tree" {
         return node.global_visible();
     }
-    if name == "is_inside_tree" || name == "is_node_ready" {
+    if name == "is_inside_tree" {
+        return inside_tree(node);
+    }
+    if name == "is_node_ready" {
         return node.is_valid();
     }
     if name == "queue_free" {
@@ -1753,6 +1774,28 @@ fn option_items(node) {
     let items = get(node.get_component("widget"), "options", ());
     if items is Vec { items } else { [] }
 }
+
+/// A caption: a world label's `text2d`, or the widget's.
+pub fn text_of(node) {
+    if node is balaur::Node && node.has_component(TEXT2D) {
+        return get(node.get_component(TEXT2D), "text", "");
+    }
+    if node is balaur::Node {
+        return get(node.get_component("widget"), "text", ());
+    }
+    field(node, "text")
+}
+
+/// `text = value` on a world label or a widget.
+pub fn set_text(node, value) {
+    if !(node is balaur::Node) {
+        return set_field(node, "text", value);
+    }
+    let component = if node.has_component(TEXT2D) { TEXT2D } else { "widget" };
+    node.patch_component(component, #{ "text": value });
+}
+
+const TEXT2D = "text2d";
 
 /// `item_count`.
 pub fn option_count(node) {
