@@ -355,7 +355,7 @@ pub fn add_child(parent, child) {
         return child;
     }
     if child is balaur::Node {
-        child.set_parent(parent);
+        move_keeping_local(child, parent);
         if child.has_tag(REMOVED) {
             child.remove_tag(REMOVED);
             child.set_visible(true);
@@ -881,11 +881,23 @@ pub fn emit_now(emitter, name, args) {
 /// waits under the root, hidden, until it is added again or freed.
 pub fn remove_child(child) {
     if child is balaur::Node && child.is_valid() && !child.has_tag(REMOVED) {
-        child.set_parent(scene::root());
+        move_keeping_local(child, scene::root());
         child.add_tag(REMOVED);
         child.set_visible(false);
     }
 }
+
+/// A node moved under `parent` as Godot moves one: its own transform is
+/// kept, where the engine's `set_parent` keeps where it is in the world.
+fn move_keeping_local(child, parent) {
+    let local = if child.has_component(TRANSFORM) { child.get_component(TRANSFORM) } else { () };
+    child.set_parent(parent);
+    if local is Object {
+        child.patch_component(TRANSFORM, local);
+    }
+}
+
+const TRANSFORM = "transform";
 
 /// Marks a node `remove_child` hid, so adding it back shows it again.
 const REMOVED = "__removed";

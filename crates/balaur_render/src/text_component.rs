@@ -466,6 +466,7 @@ fn place(
         for node in &mut slot.two_d {
             node.set_position(glamx::Vec2::new(global.position.x, global.position.y));
             node.set_rotation(angle);
+            node.set_local_scale(global.scale.x, global.scale.y);
             node.set_visible(visible);
             node.set_color(tint);
         }
@@ -478,6 +479,7 @@ fn place(
         };
         for node in &mut slot.three_d {
             node.set_position(global.position);
+            node.set_local_scale(global.scale.x, global.scale.y, global.scale.z);
             node.set_visible(visible);
             node.set_rotation(turned);
             node.set_color(tint);
@@ -505,6 +507,13 @@ fn facing(towards: glamx::Vec3) -> glamx::Quat {
     glamx::Quat::from_mat3(&glamx::Mat3::from_cols(right, up, forward))
 }
 
+/// One em in world units: the font size over `pixels_per_unit`, grown or
+/// shrunk by the node's own scale and every ancestor's.
+#[cfg(feature = "kiss3d")]
+fn em_in_world(size: f32, pixels_per_unit: f32, scale: glamx::Vec3) -> f32 {
+    size / pixels_per_unit.max(0.01) * scale.x.abs().max(scale.y.abs())
+}
+
 /// The size a block's glyphs should be rasterised at: how many pixels one em
 /// covers on screen, in buckets so a moving camera re-shapes rarely.
 ///
@@ -516,7 +525,7 @@ fn raster_size(
     global: &balaur_core::GlobalTransform,
     viewport_height: f32,
 ) -> f32 {
-    let em_world = text.style.size / text.pixels_per_unit.max(0.01);
+    let em_world = em_in_world(text.style.size, text.pixels_per_unit, global.scale);
     let per_unit = if text.in_3d {
         let Some(snapshot) = app.engine.try_resource::<crate::ViewportSnapshot3d>() else {
             return balaur_text::bucket(text.style.size);
@@ -536,4 +545,17 @@ fn raster_size(
         snapshot.borrow().zoom.max(0.01)
     };
     balaur_text::bucket((em_world * per_unit).clamp(1.0, 512.0))
+}
+
+#[cfg(all(test, feature = "kiss3d"))]
+mod tests {
+    /// Text under a scaled parent is that much larger or smaller, as a
+    /// sprite is, whichever axis is flipped.
+    #[test]
+    fn a_scaled_node_s_em_is_scaled_with_it() {
+        let em = |x, y| super::em_in_world(280.0, 100.0, glamx::Vec3::new(x, y, 1.0));
+        assert!((em(1.0, 1.0) - 2.8).abs() < 1e-5);
+        assert!((em(0.118, 0.118) - 0.3304).abs() < 1e-4);
+        assert!((em(-2.0, 1.0) - 5.6).abs() < 1e-5);
+    }
 }

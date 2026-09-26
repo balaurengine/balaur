@@ -734,4 +734,71 @@ mod tests {
             "the probe hid itself only if the world label's text moved on its text2d"
         );
     }
+
+    /// `add_child` and `remove_child` keep a node's own transform, as
+    /// Godot's do, under a parent that is moved and scaled.
+    #[test]
+    fn adding_a_child_keeps_its_own_transform() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            &[
+                "[[nodes]]",
+                "id = \"probe\"",
+                "name = \"Probe\"",
+                "script = { source = \"probe.rn\" }",
+                "",
+                "[[nodes]]",
+                "id = \"water\"",
+                "name = \"Water\"",
+                "parent = \"probe\"",
+                "transform = { position = [5.0, 0.0, 0.0], scale = [0.5, 0.5, 1.0] }",
+                "",
+            ]
+            .join("\n"),
+        );
+        put(
+            "part.toml",
+            "[[nodes]]\nid = \"part\"\nname = \"Part\"\ntransform = { position = [1.0, 2.0, 0.0] }\n",
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let water = this.node.get_node(\"Water\");",
+                "    let part = (gd.instantiate)((gd.load)(\"res://part.tscn\"));",
+                "    let _ = (gd.add_child)(water, part);",
+                "    (gd.remove_child)(part);",
+                "    let _ = (gd.add_child)(water, part);",
+                "    let t = part.get_component(\"transform\");",
+                "    if t[\"position\"][0] == 1.0 && t[\"position\"][1] == 2.0 && t[\"scale\"][0] == 1.0 {",
+                "        this.node.set_visible(false);",
+                "    }",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert!(
+            !world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .visible,
+            "the probe hid itself only if the part kept its own position and scale"
+        );
+    }
 }
