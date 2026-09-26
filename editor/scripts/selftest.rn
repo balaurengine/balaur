@@ -2733,12 +2733,13 @@ pub fn palette_step(S) {
     for row in host.children() {
         if row.get_component("widget", "visible") == true {
             let slot = row.get_node("H").get_node("C").get_node("C0");
-            shown.push(slot.get_component("widget", "role"));
+            shown.push(slot.get_component("widget", "checked") == true);
         }
     }
     check(shown.len() > 1, format!("the query narrowed the list to its matches ({})", shown.len()));
-    check(shown.len() > 0 && shown[0] == "picker_row_on",
-        format!("the first match wears the held look, which is what Enter runs ({:?})", shown));
+    let held = shown.iter().filter(|on| on).count();
+    check(shown.len() > 0 && shown[0] && held == 1,
+        format!("the first match alone wears the held look, which is what Enter runs ({:?})", shown));
     let box = ui::widget_rect(scene::get_node("Editor/Picker"));
     check(!util::is_nil(box) && box.height > 100.0,
         format!("the picker is as tall as the matches it holds ({:?})", box));
