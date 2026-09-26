@@ -228,6 +228,9 @@ fn pump_websocket_system(eng: &Engine, _: f32) {
     // here; the native one is a no-op.
     backend::pump();
     let mut dispatches: Vec<(Handler, Value)> = Vec::new();
+    // The connection's id, woken once it opens or fails, for a script that
+    // awaits `connect` rather than handling `open`.
+    let mut settled: Vec<(u64, Value)> = Vec::new();
     {
         let state = eng.resource::<WebsocketState>();
         let snapshot = eng.resource::<WebsocketSnapshot>();
@@ -246,8 +249,15 @@ fn pump_websocket_system(eng: &Engine, _: f32) {
                 | SocketEvent::Message { socket, .. }
                 | SocketEvent::Binary { socket, .. } => state.handlers.get(socket).cloned(),
             };
+            let opened = match &event {
+                SocketEvent::Open { socket } | SocketEvent::Failed { socket, .. } => Some(*socket),
+                _ => None,
+            };
             let value = event_value(event);
             snapshot.events.push(value.clone());
+            if let Some(socket) = opened {
+                settled.push((socket, value.clone()));
+            }
             if let Some(handler) = handler {
                 dispatches.push((handler, value));
             }
@@ -256,6 +266,9 @@ fn pump_websocket_system(eng: &Engine, _: f32) {
     if let Some(host) = eng.script_host() {
         for (handler, value) in dispatches {
             host.call_on(handler.node, &handler.method, std::slice::from_ref(&value));
+        }
+        for (socket, value) in settled {
+            host.wake(socket, &value);
         }
     }
 }
@@ -365,7 +378,7 @@ fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
         "A long-lived socket for text or binary frames. Events reach the node's `on_websocket_event` (or `on_event`) as a map with `socket` and `kind`: `open`, `message`, `binary`, `closed` or `error`.",
     );
     m.describe(&[
-        ("connect", &[], "", "Open a connection and return the id `send` and `close` take; options are `on_event`, `compression` and `headers`."),
+        ("connect", &[], "", "Open a connection and return the id `send` and `close` take, which `task.wait` resumes on with the `open` or `error` event; options are `on_event`, `compression` and `headers`."),
         ("send", &[], "", "Queue a frame on the connection, text for a string and binary for bytes; false when it is already gone."),
         ("close", &[], "", "Ask the connection to close, which still delivers a `closed` event; false when it was already gone."),
     ]);

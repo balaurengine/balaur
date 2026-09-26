@@ -528,13 +528,20 @@ fn pump_gamend_system(eng: &Engine, _: f32) {
                 | GamendEvent::Replied { request, .. } => {
                     (state.request_handlers.shift_remove(request), Some(*request))
                 }
-                GamendEvent::SocketClosed { socket, .. }
-                | GamendEvent::SocketError { socket, .. } => {
+                GamendEvent::SocketClosed { socket, .. } => {
                     state.sockets.shift_remove(socket);
                     (state.socket_handlers.shift_remove(socket), None)
                 }
-                GamendEvent::SocketOpen { socket }
-                | GamendEvent::SocketMessage { socket, .. }
+                // The connection's id settles on the first of these, for a
+                // script that awaits `connect`; a later one wakes nothing.
+                GamendEvent::SocketError { socket, .. } => {
+                    state.sockets.shift_remove(socket);
+                    (state.socket_handlers.shift_remove(socket), Some(*socket))
+                }
+                GamendEvent::SocketOpen { socket } => {
+                    (state.socket_handlers.get(socket).cloned(), Some(*socket))
+                }
+                GamendEvent::SocketMessage { socket, .. }
                 | GamendEvent::SocketReconnecting { socket, .. }
                 | GamendEvent::SocketReopened { socket, .. } => {
                     (state.socket_handlers.get(socket).cloned(), None)
@@ -767,7 +774,7 @@ fn install_gamend_api(m: &mut dyn Bindings<Engine>) {
         ("login", &[], "", "Open a session from a `device_id`, or an `email` and `password`, and return the id its `login` result answers."),
         ("register", &[], "(node: node?, account: map)", "Make an account from an `email` and a `password` (and a `username`, generated when left out) and open its session, as `login` does; its result is a `login` one. The server mails the address its confirmation link."),
         ("rest", &[], "", "Call a path on the configured server over HTTP; the result carries the `status` and the decoded `body`."),
-        ("connect", &[], "", "Open the realtime socket and return the id `join`, `push`, `leave`, `call_hook` and `close` take. A dropped connection comes back on its own: the handler hears `reconnecting` before each try, then `reopened` once its topics are joined again, or `error` when it gives up."),
+        ("connect", &[], "", "Open the realtime socket and return the id `join`, `push`, `leave`, `call_hook` and `close` take, which `task.wait` resumes on with the `open` or `error` event. A dropped connection comes back on its own: the handler hears `reconnecting` before each try, then `reopened` once its topics are joined again, or `error` when it gives up."),
     ]);
     // `gamend.configure(url)` — where the server lives. Everything else
     // errors until this is called.
