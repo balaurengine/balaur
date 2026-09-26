@@ -557,7 +557,12 @@ fn sync(
     };
     // A kind that places its own children is a leaf in the tree its parent
     // was solved in, so the subtree solved from it here starts with none.
-    let bare = is_root && held.tree.child_count(node) != placed.children.len();
+    let laid = placed
+        .children
+        .iter()
+        .filter(|child| !crate::widget::kinds::in_title_bar(arena, index, **child))
+        .count();
+    let bare = is_root && held.tree.child_count(node) != laid;
     if !deep && !bare {
         // The children taffy holds are the ones this arena put there, and the
         // leaf sizes with them: nothing below this node can have moved.
@@ -569,6 +574,7 @@ fn sync(
         placed
             .children
             .iter()
+            .filter(|child| !crate::widget::kinds::in_title_bar(arena, index, **child))
             .map(|child| {
                 sync(
                     held,

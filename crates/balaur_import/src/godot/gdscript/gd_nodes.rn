@@ -429,6 +429,26 @@ pub fn add_child(parent, child) {
     parent.add_child(child)
 }
 
+/// A FoldableContainer's title bar control: a child of the `fold`, drawn in
+/// its header beside the arrow.
+pub fn add_title_bar_control(fold, control) {
+    add_child(fold, control);
+    if control is balaur::Node && control.has_component("widget") {
+        let patch = #{};
+        patch[TITLE_BAR] = true;
+        control.patch_component("widget", patch);
+    }
+}
+
+const TITLE_BAR = "title_bar";
+
+/// A FoldableContainer's `folded`: its `fold` widget shut.
+pub fn folded(node) {
+    node is balaur::Node && node.has_component("widget") && !get(node.get_component("widget"), FOLD_OPEN, true)
+}
+
+const FOLD_OPEN = "open";
+
 /// A Control's `custom_minimum_size`, which is the widget's `min_width` and
 /// `min_height` here.
 pub fn min_size(node) {
@@ -1105,6 +1125,7 @@ fn node_property(node, name) {
         // Kept beside the node: the engine has no fold groups, and a material
         // a script built is a record it never draws with.
         "foldable_group" => get_meta(node, "foldable_group", ()),
+        "folded" if node.has_component("widget") => folded(node),
         "material" => get_meta(node, "material", ()),
         "multimesh" => get_meta(node, "multimesh", ()),
         "speed_scale" if node.has_component("animation") => float(get(node.get_component("animation"), SPEED_SCALE, 1.0)),
@@ -1244,6 +1265,10 @@ fn set_node_property(node, name, value) {
         option_select(node, value);
     } else if name == "zoom" && node.has_component("camera2d") {
         node.patch_component("camera2d", #{ "pixels_per_unit": float(value.x) * PIXELS });
+    } else if name == "folded" && node.has_component("widget") {
+        let patch = #{};
+        patch[FOLD_OPEN] = !value;
+        node.patch_component("widget", patch);
     } else if name == "foldable_group" || name == "material" {
         set_meta(node, name, value);
     } else if name == "points" && is_line(node) {

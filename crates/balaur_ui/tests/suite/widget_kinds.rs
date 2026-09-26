@@ -296,6 +296,39 @@ fn a_fold_hides_its_children_until_its_header_is_clicked() {
 }
 
 #[test]
+fn a_title_bar_child_is_drawn_in_its_fold_s_header_while_the_fold_is_shut() {
+    let (_dir, app) = app();
+    let fold = add_widget(
+        &app,
+        &toml::toml! { kind = "fold" open = false x = 0.0 y = 0.0 }.into(),
+    );
+    let title = add_child_widget(
+        &app,
+        fold,
+        "title",
+        &toml::toml! { kind = "label" text = "Audio" title_bar = true }.into(),
+    );
+    let inner = add_child_widget(
+        &app,
+        fold,
+        "inner",
+        &toml::toml! { kind = "label" text = "hidden line" }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let rect = balaur_ui::widget_rect(title).expect("the title bar child drew");
+    let fold_rect = root_rect(&ctx, fold);
+    assert!(
+        rect.min.x > fold_rect.min.x && (rect.center().y - fold_rect.center().y).abs() < 2.0,
+        "the child sits after the arrow, on the header's line: {rect:?} in {fold_rect:?}"
+    );
+    assert!(
+        balaur_ui::widget_rect(inner).is_none(),
+        "a closed fold drew its body"
+    );
+}
+
+#[test]
 fn a_dialog_dims_the_screen_and_keeps_clicks_from_what_is_behind() {
     let (_dir, mut app) = app();
     let behind = add_widget(

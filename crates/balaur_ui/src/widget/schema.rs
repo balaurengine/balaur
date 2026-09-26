@@ -123,6 +123,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::HIDE_ON_CLOSE, r#"{ type = "bool", default = true, description = "Whether a `window`'s close button shuts it; off, the button only emits `close_request` and the script decides", group = "events" }"#),
                     (k::ON_DROP, r#"{ type = "string", default = "", description = "Script method called with the card a drag let go outside the list, on this node or the nearest ancestor whose script declares it; the pointer is where it landed", group = "events" }"#),
                     (k::OPEN, r#"{ type = "bool", default = true, description = "Whether a `fold` shows its children; its header flips it and calls `on_change` with the new state", group = "events" }"#),
+                    (k::TITLE_BAR, r#"{ type = "bool", default = false, description = "On a `fold`'s child: drawn in the fold's header after its arrow and caption, as Godot's title bar control is", group = "layout" }"#),
                     (k::INSET, r#"{ type = "vec4", default = [0.0, 0.0, 0.0, 0.0], description = "Left, top, right and bottom margins a root with `anchor = \"fill\"` keeps from its surface, in design pixels", group = "placement" }"#),
                     (k::AVOID_KEYBOARD, r#"{ type = "bool", default = false, description = "On a root: measure the bottom of the surface from the top of the on-screen keyboard, so a form or a chat bar stays above it; nothing on a desktop", group = "placement" }"#),
                     (k::SLICE, r#"{ type = "vec4", default = [0.0, 0.0, 0.0, 0.0], description = "Left, top, right and bottom borders of an `image` kept unstretched, in the picture's own pixels; all zero stretches the whole picture", group = "paint" }"#),
@@ -612,6 +613,7 @@ fn controls_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Valu
         toml::Value::String(widget.on_move.to_string()),
     );
     map.insert(k::OPEN.into(), toml::Value::Boolean(widget.open));
+    map.insert(k::TITLE_BAR.into(), toml::Value::Boolean(widget.title_bar));
     map.insert(k::INSET.into(), four(widget.inset));
     map.insert(
         k::AVOID_KEYBOARD.into(),
@@ -885,6 +887,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         on_drop: smol_str::SmolStr::default(),
         columns: 2,
         open: true,
+        title_bar: false,
         inset: [0.0; 4],
         avoid_keyboard: false,
         slice: [0.0; 4],
@@ -975,6 +978,7 @@ fn read_controls(widget: &mut Widget, params: &toml::Value) {
     widget.on_drop = r.str(k::ON_DROP);
     widget.columns = f(k::COLUMNS).max(0.0) as u32;
     widget.open = b(k::OPEN);
+    widget.title_bar = b(k::TITLE_BAR);
     widget.inset = crate::widget::theme::four_of(params.get(k::INSET));
     widget.avoid_keyboard = b(k::AVOID_KEYBOARD);
     widget.safe_area = edges_of(params.get(k::SAFE_AREA));

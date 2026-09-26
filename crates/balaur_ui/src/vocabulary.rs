@@ -365,6 +365,7 @@ pub(crate) mod keys {
     pub(crate) const SCRIM: &str = "scrim";
     pub(crate) const ROW_HEIGHT: &str = "row_height";
     pub(crate) const TITLES: &str = "titles";
+    pub(crate) const TITLE_BAR: &str = "title_bar";
     pub(crate) const WIDTHS: &str = "widths";
     pub(crate) const HEADER: &str = "header";
     pub(crate) const SORT: &str = "sort";

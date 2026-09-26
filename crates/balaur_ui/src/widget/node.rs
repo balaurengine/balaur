@@ -234,6 +234,9 @@ pub struct Widget {
     pub columns: u32,
     /// Whether a `fold` shows its children.
     pub open: bool,
+    /// A `fold`'s child drawn in the fold's header after its arrow and
+    /// caption, rather than under it.
+    pub title_bar: bool,
     /// Left, top, right and bottom margins a `fill` root keeps from its
     /// surface, in design pixels.
     pub inset: [f32; 4],

@@ -919,4 +919,74 @@ mod tests {
             "the probe marked itself only if the icon became the widget's picture, as a raster"
         );
     }
+
+    /// A foldable's title bar control becomes a child of its `fold` marked
+    /// `title_bar`, and `folded` is the fold shut.
+    #[test]
+    fn a_title_bar_control_joins_its_fold_and_folded_shuts_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            &[
+                "[[nodes]]",
+                "id = \"root\"",
+                "name = \"Root\"",
+                "",
+                "[[nodes]]",
+                "id = \"fold\"",
+                "name = \"Fold\"",
+                "parent = \"root\"",
+                "script = { source = \"probe.rn\" }",
+                "widget = { kind = \"fold\" }",
+                "",
+                "[[nodes]]",
+                "id = \"tab\"",
+                "name = \"Tab\"",
+                "parent = \"root\"",
+                "widget = { kind = \"button\", text = \"Audio\" }",
+                "",
+            ]
+            .join("\n"),
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let tab = scene::node_by_id(\"tab\");",
+                "    let open_before = !(gd.folded)(this.node);",
+                "    (gd.add_title_bar_control)(this.node, tab);",
+                "    (gd.set_field)(this.node, \"folded\", true);",
+                "    let barred = tab.get_component(\"widget\")[\"title_bar\"];",
+                "    let shut = !this.node.get_component(\"widget\")[\"open\"];",
+                "    if open_before && barred && shut && (gd.same)(tab.parent(), this.node) && (gd.field)(this.node, \"folded\") {",
+                "        this.node.set_z_index(3);",
+                "    }",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let fold = balaur_core::scene::find_node(&world, app.engine.root(), "Root/Fold").unwrap();
+        assert_eq!(
+            world
+                .get::<&balaur_core::scene::Appearance>(fold)
+                .unwrap()
+                .z_index,
+            3,
+            "the probe marked itself only if the tab joined the fold's title bar and `folded` shut it"
+        );
+    }
 }

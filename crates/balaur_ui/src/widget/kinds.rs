@@ -526,7 +526,8 @@ pub(crate) fn separator(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) 
 
 /// A header that shows or hides the children under it. The header is a
 /// button by another shape: clicking it reports an `Open` edit, and focus
-/// lands on it as on a button.
+/// lands on it as on a button. A child marked `title_bar` is drawn in the
+/// header after the caption, and takes its own clicks first.
 pub(crate) fn fold(
     ui: &mut egui::Ui,
     at: &mut Painting<'_>,
@@ -538,29 +539,59 @@ pub(crate) fn fold(
     let placed = &at.arena[index];
     let (entity, open) = (placed.entity, placed.widget.open);
     let widget = placed.widget.clone();
+    let bar: Vec<usize> = placed
+        .children
+        .iter()
+        .copied()
+        .filter(|child| in_title_bar(at.arena, index, *child))
+        .collect();
     let style = at.style_of(&widget);
     let pad = padding_of(&widget, &style);
     let mark = if open { "▾" } else { "▸" };
-    let text = egui::RichText::new(format!("{mark} {caption}"))
-        .font(font.clone())
-        .color(color);
-    let header = ui.add(egui::Label::new(text).sense(Sense::click()));
+    let label = if caption.is_empty() {
+        mark.to_owned()
+    } else {
+        format!("{mark} {caption}")
+    };
+    let galley = ui.painter().layout_no_wrap(label, font.clone(), color);
+    let sizes: Vec<egui::Vec2> = {
+        let mut measure = Measure::new(at.eng, at.arena, ui);
+        bar.iter()
+            .map(|child| measure.of(*child, &at.theme))
+            .collect()
+    };
+    let room = ui.available_rect_before_wrap();
+    let tall = sizes
+        .iter()
+        .fold(galley.size().y, |most, size| most.max(size.y));
+    let strip = Rect::from_min_size(room.min, vec2(room.width(), tall));
+    // Sensed before the bar's children are drawn, so theirs sit on top.
+    let header = ui.interact(strip, ui.id().with(("fold", entity)), Sense::click());
     if header.clicked() {
         at.edits.push((entity, Edit::Open(!open)));
     }
+    let text_at = pos2(strip.min.x, strip.center().y - galley.size().y / 2.0);
+    let mut across = strip.min.x + galley.size().x + ui.spacing().item_spacing.x;
+    ui.painter().galley(text_at, galley, color);
+    for (child, size) in bar.iter().zip(sizes) {
+        let rect = Rect::from_min_size(pos2(across, strip.center().y - size.y / 2.0), size);
+        in_header(ui, at, *child, rect);
+        across = rect.max.x + ui.spacing().item_spacing.x;
+    }
     if at.focused == Some(entity) {
         ui.painter().rect_stroke(
-            header.rect.expand(2.0),
+            strip.expand(2.0),
             4.0,
             Stroke::new(2.0, color),
             egui::StrokeKind::Outside,
         );
     }
+    ui.advance_cursor_after_rect(strip);
     if !open {
         return;
     }
-    let room = ui.available_rect_before_wrap();
-    let body = Rect::from_min_max(pos2(room.min.x + pad.left, room.min.y), room.max);
+    let top = strip.max.y + ui.spacing().item_spacing.y;
+    let body = Rect::from_min_max(pos2(room.min.x + pad.left, top), room.max);
     // Solved on its own: the header is drawn here rather than authored, so
     // what is under it is a subtree of its own from the layout's side.
     let space = crate::widget::taffy::Room::scrolling(body, w::BOTH);
@@ -578,6 +609,37 @@ pub(crate) fn fold(
     lay_out(&mut inner, at, index, Axis::Column);
     at.rects = held;
     ui.advance_cursor_after_rect(inner.min_rect());
+}
+
+/// Whether `child` is drawn in its fold's header rather than under it.
+pub(crate) fn in_title_bar(
+    arena: &[crate::widget::arena::Placed],
+    parent: usize,
+    child: usize,
+) -> bool {
+    arena[parent].widget.kind == w::FOLD && arena[child].widget.title_bar
+}
+
+/// One title bar child in the box the header gave it, and what it lays out.
+fn in_header(ui: &mut egui::Ui, at: &mut Painting<'_>, child: usize, rect: Rect) {
+    let entity = at.arena[child].entity;
+    record_rect(entity, rect);
+    let solved = crate::widget::taffy::solve_subtree(
+        at.eng,
+        at.arena,
+        child,
+        ui,
+        &at.theme,
+        &crate::widget::taffy::Room::fixed(rect),
+        at.deep(child),
+    );
+    let held = std::mem::replace(&mut at.rects, solved);
+    let restore = std::mem::replace(&mut at.assigned, rect.size());
+    let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(rect));
+    draw_one(&mut inner, at, child);
+    record_measure(entity, inner.min_rect().size());
+    at.assigned = restore;
+    at.rects = held;
 }
 
 /// How many across a `grid` puts its children: what it states, or the two

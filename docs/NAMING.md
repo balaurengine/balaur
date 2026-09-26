@@ -298,6 +298,7 @@ A theme key is the widget property it styles. `active` means held, as in CSS, an
 | State tables | `hover`, `active`, `focus`, `disabled`, `checked` | CSS, Unity USS |
 | Screen-class tables | `touch`, `pointer`, `narrow`, `medium`, `wide`, `short`, `tall` | none |
 | Children's placement across the axis | `align_items` | CSS |
+| A fold's child drawn in its header | `title_bar` | Godot |
 | The tab showing | `current_page` | none |
 | A colour picker's value | `picked_color` | none |
 | Many rows selected at once | `multi_select` | none |

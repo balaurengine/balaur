@@ -158,7 +158,14 @@ impl<'a> Measure<'a> {
             w::SEPARATOR => egui::Vec2::splat(6.0),
             w::WINDOW if !widget.open => egui::Vec2::ZERO,
             w::FOLD => {
-                let head = self.text(index, widget, theme) + vec2(20.0, 0.0);
+                let mut head = self.text(index, widget, theme) + vec2(20.0, 0.0);
+                let arena = self.arena;
+                for child in &arena[index].children {
+                    if crate::widget::kinds::in_title_bar(arena, index, *child) {
+                        let size = self.of(*child, theme);
+                        head = vec2(head.x + size.x + 8.0, head.y.max(size.y));
+                    }
+                }
                 if !widget.open {
                     return head;
                 }
@@ -202,6 +209,9 @@ impl<'a> Measure<'a> {
         let mut across: f32 = 0.0;
         let mut drawn = 0usize;
         for child in &children {
+            if crate::widget::kinds::in_title_bar(self.arena, index, *child) {
+                continue;
+            }
             let size = self.of(*child, theme);
             if size == egui::Vec2::ZERO {
                 continue;

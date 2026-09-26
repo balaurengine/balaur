@@ -6819,6 +6819,12 @@
         "group": "paint",
         "type": "asset"
       },
+      "title_bar": {
+        "default": false,
+        "description": "On a `fold`'s child: drawn in the fold's header after its arrow and caption, as Godot's title bar control is",
+        "group": "layout",
+        "type": "bool"
+      },
       "titles": {
         "default": [],
         "description": "A `table`'s column names, in order, and with them how many columns it has: a name ending in `>` draws its column against the right edge, which is what a column of numbers wants. None takes the first row as the names",

@@ -674,6 +674,7 @@ pub(crate) fn property(receiver: &str, field: &str) -> Option<String> {
         "disabled" => format!("!(gd.get)({receiver}.get_component(\"widget\"), \"enabled\", true)"),
         "text" => format!("(gd.text_of)({receiver})"),
         "icon" => format!("(gd.icon_of)({receiver})"),
+        "folded" => format!("(gd.folded)({receiver})"),
         "pressed" | "button_pressed" | "editable" | "placeholder_text" | "tooltip_text"
         | "value" | "max_value" | "min_value" => {
             let key = widget_key(field);
@@ -903,9 +904,9 @@ fn node_query(receiver: &str, name: &str, args: &[String]) -> Option<String> {
         }
         "get_child_count" => format!("{receiver}.children().len()"),
         "has_focus" => format!("(gd.same)(ui::focused_widget(), {receiver})"),
-        // Focus is the widget layer's to give, and a foldable's title bar is
-        // its `fold` widget's header.
-        "release_focus" | "add_title_bar_control" => "()".into(),
+        // Focus is the widget layer's to give.
+        "release_focus" => "()".into(),
+        "add_title_bar_control" => format!("(gd.add_title_bar_control)({receiver}, {one})"),
         // The hook that handed the event over answers `true` for it.
         "accept_event" | "set_input_as_handled" => "(gd.set_input_handled)()".into(),
         // A per-node switch the hooks the translator writes read first.
