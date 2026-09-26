@@ -1,6 +1,6 @@
-// The node picker: every preset and every component a node can be made of,
-// grouped by the dimension tag each already carries. Opened by the tree's `+`
-// and by "Add child node…"; Esc, a scrim click or a pick closes it.
+// The node picker: every preset and component, grouped by dimension tag, or
+// what the selection can be changed to. A soft body asks what it is built
+// from first. Esc, a scrim click or a pick closes it.
 
 use crate::icons;
 use crate::model;
@@ -35,6 +35,27 @@ pub fn catalogue(S) {
     if found is Vec {
         return found;
     }
+    let rows = if S.newnode_soft != "" {
+        crate::recipes::soft_sources(S, S.newnode_soft == "2d")
+    } else if S.newnode_change {
+        changes(S)
+    } else {
+        everything(S)
+    };
+    S.newnode_cache = rows;
+    rows
+}
+
+// What the selected node can become, filed like the presets it names.
+fn changes(S) {
+    let rows = [];
+    for target in crate::recipes::targets(S, S.sel) {
+        rows.push(entry(target.name, target.note, target.tags, true));
+    }
+    rows
+}
+
+fn everything(S) {
     let rows = [];
     for name in scene::presets() {
         let info = scene::preset_info(name);
@@ -53,7 +74,6 @@ pub fn catalogue(S) {
         let tags = util::vec(scene::component_tags(name));
         rows.push(entry(name, "", tags, false));
     }
-    S.newnode_cache = rows;
     rows
 }
 
@@ -61,15 +81,40 @@ pub fn open(S) {
     S.newnode = true;
     S.newnode_query = "";
     S.newnode_cache = ();
+    S.newnode_change = false;
+    S.newnode_soft = "";
+}
+
+/// The picker over what the selected node can be changed to.
+pub fn open_change(S) {
+    if !model::has_selection(S) {
+        return;
+    }
+    open(S);
+    S.newnode_change = true;
 }
 
 pub fn close(S) {
     S.newnode = false;
+    S.newnode_change = false;
+    S.newnode_soft = "";
     crate::window::picker_shut(S);
 }
 
 pub fn place(S, row) {
-    if row.preset {
+    // A soft body is built from something, so it asks what before building:
+    // unless a node being changed already draws a thing to build it from.
+    let soft = crate::recipes::soft_dimension(row.name);
+    let drawn = S.newnode_change && crate::recipes::soft_body_source(S, S.sel).is_some();
+    if row.preset && soft != "" && !drawn {
+        S.newnode_soft = soft;
+        S.newnode_query = "";
+        S.newnode_cache = ();
+        return;
+    }
+    if S.newnode_change {
+        crate::recipes::change_type(S, S.sel, row.name);
+    } else if row.preset {
         model::add_child(S, Some(row.name));
     } else {
         // A child first, then the one component: `add_component` acts on the
@@ -80,16 +125,35 @@ pub fn place(S, row) {
     close(S);
 }
 
+// A source picked in the soft body's step: a new child built from it, or the
+// node being changed rebuilt from it.
+pub fn place_source(S, source) {
+    if S.newnode_change {
+        crate::recipes::give_soft_body(S, S.sel, source);
+    } else {
+        crate::recipes::add_soft_body(S, source);
+    }
+    close(S);
+}
+
 pub fn draw(S) {
     if !S.newnode {
         return;
     }
     let row_h = util::max(style::row_h(S), 30.0);
-    let specs = row_specs(S, S.theme, row_h);
+    let specs = if S.newnode_soft != "" { source_specs(S, S.theme, row_h) } else { row_specs(S, S.theme, row_h) };
+    let placeholder = if S.newnode_soft != "" {
+        "Build the soft body from a shape or a file…"
+    } else if S.newnode_change {
+        format!("Change {} to…", model::selected_node(S).get("name").unwrap_or("the node"))
+    } else {
+        "Nodes, components, 2d, physics…"
+    };
+    let mark = if S.newnode_change { icons::ui("reset") } else { icons::ui("add") };
     let host = crate::window::picker(S, #{
         width: 520.0,
-        mark: icons::ui("add"),
-        placeholder: "Nodes, components, 2d, physics…",
+        mark: mark,
+        placeholder: placeholder,
         query: S.newnode_query,
         rows_h: (specs.len() as f64) * (row_h + 2.0) + 4.0,
         on: |text| { S.newnode_query = text; },
@@ -110,7 +174,7 @@ fn row_specs(S, k, row_h) {
     let out = [];
     // Ahead of the groups and in none of them: a node with no components has
     // no dimension to be filed under.
-    if query == "" || "empty node".contains(query) {
+    if !S.newnode_change && (query == "" || "empty node".contains(query)) {
         out.push(row_spec(row_h, "Empty node  ·  a transform and nothing else",
             icons::node("world"), k.text_subtle, || {
                 model::add_child(S, None);
@@ -150,6 +214,27 @@ fn row_specs(S, k, row_h) {
             kind: "label", role: "text_caption", grow: 1, wrap: true,
             text: crate::search::nothing_says(S.newnode_query),
         }] });
+    }
+    out
+}
+
+/// The soft body's second step: a shape, or a file in the project, to build
+/// it from.
+fn source_specs(S, k, row_h) {
+    let query = S.newnode_query.to_lowercase();
+    let out = [#{ full: true, height: 20, controls: [#{
+        kind: "label", role: "text_caption", grow: 1, text: "Soft body from",
+    }] }];
+    for found in catalogue(S) {
+        let source = found;
+        let caption = source.label + "  ·  " + source.note;
+        if query != "" && !caption.to_lowercase().contains(query) {
+            continue;
+        }
+        let drawn = source.parts.keys().next().unwrap_or("");
+        let (mark, tint) = icons::component(drawn);
+        out.push(row_spec(row_h, caption, mark, k.get(tint).unwrap_or(k.primary_text),
+            || { place_source(S, source); }));
     }
     out
 }

@@ -101,6 +101,10 @@ pub fn fresh_state() {
         picker_focused: false,
         newnode: false,
         newnode_query: "",
+        // The picker lists what the selection can become, or, once a soft
+        // body is picked, what to build it from ("2d" or "3d").
+        newnode_change: false,
+        newnode_soft: "",
         renaming: false,
         rename_text: "",
         chip_state: #{},
@@ -847,6 +851,10 @@ pub fn draw_sheet_body(this) {
 // it picked the row under the pointer, so each acts on the selection.
 pub fn tree_add_child(this) {
     newnode::open(this.S);
+}
+
+pub fn tree_change_type(this) {
+    newnode::open_change(this.S);
 }
 
 pub fn tree_move_up(this) {

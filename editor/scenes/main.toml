@@ -203,6 +203,16 @@ text = "Add child"
 on_click = "tree_add_child"
 
 [[nodes]]
+id = "tree_change"
+name = "TreeChange"
+parent = "tree_menu"
+[nodes.widget]
+kind = "button"
+role = "action_tree"
+text = "Change type…"
+on_click = "tree_change_type"
+
+[[nodes]]
 id = "tree_up"
 name = "TreeUp"
 parent = "tree_menu"

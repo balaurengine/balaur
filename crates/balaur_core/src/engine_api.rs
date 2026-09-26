@@ -958,27 +958,35 @@ fn preset_info(eng: &Engine, args: &[Value]) -> Result<Value> {
     let name = text(args, 0)?;
     let registry = eng.resource::<crate::presets::PresetRegistry>();
     let registry = registry.borrow();
-    Ok(registry.0.get(name).map_or(Value::Nil, |def| {
-        Value::Map(vec![
-            (
-                "description".to_string(),
-                Value::Str(def.description.clone()),
+    let Some(def) = registry.0.get(name) else {
+        return Ok(Value::Nil);
+    };
+    let mut parts = Vec::new();
+    for part in &def.parts {
+        let params = part.params.as_ref().map(crate::node_api::from_toml);
+        let params = params.transpose()?.unwrap_or(Value::Map(Vec::new()));
+        parts.push((part.component.clone(), params));
+    }
+    Ok(Value::Map(vec![
+        (
+            "description".to_string(),
+            Value::Str(def.description.clone()),
+        ),
+        (
+            "tags".to_string(),
+            Value::List(def.tags.iter().cloned().map(Value::text).collect()),
+        ),
+        (
+            "components".to_string(),
+            Value::List(
+                def.parts
+                    .iter()
+                    .map(|p| Value::Str(p.component.clone()))
+                    .collect(),
             ),
-            (
-                "tags".to_string(),
-                Value::List(def.tags.iter().cloned().map(Value::text).collect()),
-            ),
-            (
-                "components".to_string(),
-                Value::List(
-                    def.parts
-                        .iter()
-                        .map(|p| Value::Str(p.component.clone()))
-                        .collect(),
-                ),
-            ),
-        ])
-    }))
+        ),
+        ("parts".to_string(), Value::Map(parts)),
+    ]))
 }
 
 fn apply_preset(eng: &Engine, args: &[Value]) -> Result<Value> {

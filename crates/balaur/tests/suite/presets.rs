@@ -167,6 +167,10 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
             assert!(!(info is Tuple), "no info for rigid_body2d");
             assert!(info.components.len() == 2, "rigid_body2d adds two components");
             assert!(info.description != "", "a preset needs a description");
+            // Each part's own properties, which is what makes the preset mean
+            // something: a rigid body is a dynamic one.
+            assert!(info.parts.body2d.kind == "dynamic", "the body part carries its kind");
+            assert!(info.parts.collider2d.len() == 0, "a part with no properties is an empty table");
 
             // Applying one puts the components on the node, and nothing records
             // that a preset was used.

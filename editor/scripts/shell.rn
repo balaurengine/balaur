@@ -772,6 +772,7 @@ fn states() {
         "camdocdemo": crate::selftest::camera_document,
         "warndemo": crate::selftest::warning_marks,
         "recipedemo": crate::selftest::soft_recipes,
+        "changedemo": crate::selftest::change_types,
         "jobdemo": crate::selftest::importing,
         "pendemo": crate::selftest::pendemo,
         // The editor's half of the plugin seam; `counter.rn` registers the

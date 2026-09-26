@@ -32,13 +32,14 @@ fn addable(two_d) {
 }
 
 /// The mesh asset a node draws, which is what every shape below is built
-/// from: a `mesh` component's source in 3D, a `polygon`'s in 2D.
+/// from: a `mesh` component's source in 3D, a `polygon`'s in 2D. Either is a
+/// path or an inline table, like the one a traced sprite's polygon holds.
 pub fn drawn_mesh(node, two_d) {
     if two_d {
         let found = crate::polygon::component(node);
         if let Some(polygon) = found {
             let source = polygon.get("mesh").unwrap_or("");
-            if source != "" {
+            if named(source) {
                 return Some(source);
             }
         }
@@ -50,10 +51,14 @@ pub fn drawn_mesh(node, two_d) {
         Some(mesh) => if mesh is Object { mesh.get("source").unwrap_or("") } else { mesh },
         None => "",
     };
-    if source is String && source != "" {
+    if named(source) {
         return Some(source);
     }
     None
+}
+
+fn named(source) {
+    source is Object || source is String && source != ""
 }
 
 // The collider shapes a mesh can be turned into: the label, the tooltip that
@@ -112,6 +117,7 @@ pub fn actions(S, k) {
     let node = model::selected_node(S);
     let two_d = model::is_2d(S);
     add_row(S, k, node, two_d);
+    make_row(S, k, node, two_d);
     let found = drawn_mesh(node, two_d);
     if found.is_some() {
         shape_rows(S, k, two_d);
@@ -222,6 +228,37 @@ fn add_row(S, k, node, two_d) {
             tooltip: format!("{}: {}", held[0], held[2]),
         }) {
             model::add_component(S, held[0]);
+        }
+    });
+}
+
+// What the node can be made into from what it draws, each one undo step: a
+// soft body bent from its sprite, shape or mesh, and a sprite's outline.
+fn make_row(S, k, node, two_d) {
+    if !model::has_selection(S) {
+        return;
+    }
+    let soft = if two_d { "softbody2d" } else { "softbody3d" };
+    let makes = [];
+    let source_some = crate::recipes::soft_body_source(S, S.sel);
+    if let Some(source) = source_some {
+        if !node.contains_key(soft) {
+            makes.push(["soft body", format!("A soft body bent from its {}, which it keeps drawing", source),
+                || crate::recipes::soft_body(S, S.sel)]);
+        }
+    }
+    if two_d && node.contains_key("sprite") {
+        makes.push(["polygon", "A polygon of the sprite's opaque outline, textured with it: what a rig or a soft body bends",
+            || crate::recipes::sprite_to_polygon(S, S.sel)]);
+    }
+    if makes.is_empty() {
+        return;
+    }
+    pill_rows(S, k, "Make", makes, |row| row[0], |row| row[0], |row| {
+        let held = row;
+        if ui::button(held[0], #{ role: "action_form", tooltip: held[1] }) {
+            let make = held[2];
+            make();
         }
     });
 }

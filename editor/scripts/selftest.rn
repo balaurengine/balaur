@@ -3510,6 +3510,102 @@ pub fn soft_recipes(S) {
     log::info("selftest recipes: done");
 }
 
+/// Changing a node's type keeps what it draws: a sprite made a rigid body
+/// gets a collider of its outline, a body made static keeps its collider, a
+/// shape made a polygon keeps its outline, and each is one undo step. A soft
+/// body added from the picker asks what to build it from first.
+pub fn change_types(S) {
+    let sprite_row = None;
+    let shape_row = None;
+    for i in 0..S.doc.len() {
+        let node = S.doc[i];
+        if node.contains_key("sprite") && crate::recipes::soft_body_source(S, i) == Some("sprite") && sprite_row.is_none() {
+            sprite_row = Some(i);
+        }
+        if node.contains_key("shape2d") && !node.contains_key("body2d") && shape_row.is_none() {
+            shape_row = Some(i);
+        }
+    }
+    if sprite_row.is_none() && shape_row.is_none() {
+        log::info("selftest change type: nothing 2D here to change, skipped");
+        return;
+    }
+    if let Some(row) = sprite_row {
+        crate::selection::only(S, row);
+        let offered = [];
+        for target in crate::recipes::targets(S, row) {
+            offered.push(target.name);
+        }
+        check(util::contains(offered, "rigid_body2d") && !util::contains(offered, "rigid_body3d"),
+            format!("a sprite is offered the 2D types and not the 3D ones ({:?})", offered));
+        check(crate::recipes::change_type(S, row, "rigid_body2d"), "a sprite becomes a rigid body");
+        let node = S.doc[row];
+        check(node.contains_key("sprite") && node.contains_key("body2d"), "and keeps drawing its sprite");
+        let collider = util::obj(node.get("collider2d").unwrap_or(#{}));
+        check(collider.get("kind") == Some(physics2d::SHAPE_CONVEX_DECOMPOSITION) && collider.get("mesh").is_some(),
+            format!("its collider is cut from the sprite's outline ({:?})", collider.get("kind")));
+        check(model::live(S, row).unwrap().has_component("collider2d"), "and the live node collides");
+        let bad = [];
+        for warning in util::vec(scene::warnings(model::live(S, row).unwrap())) {
+            bad.push(warning.message);
+        }
+        check(bad.is_empty(), format!("with nothing to warn about ({:?})", bad));
+        check(crate::recipes::change_type(S, row, "static_body2d"), "a rigid body becomes a static one");
+        let body = util::obj(S.doc[row].get("body2d").unwrap_or(#{}));
+        check(body.get("kind") == Some(physics2d::BODY_STATIC)
+            && util::obj(S.doc[row].collider2d).get("kind") == Some(physics2d::SHAPE_CONVEX_DECOMPOSITION),
+            "and keeps the collider it had");
+        undo_all(S);
+        check(!S.doc[row].contains_key("body2d") && !S.doc[row].contains_key("collider2d"),
+            "undo takes both changes back");
+        // The picker's own path: a soft body over a node that draws a sprite
+        // is built from it without asking.
+        newnode::open_change(S);
+        check(S.newnode && S.newnode_change, "Change type opens the picker");
+        let soft = ();
+        for row_of in newnode::catalogue(S) {
+            if row_of.name == "soft_body2d" {
+                soft = row_of;
+            }
+        }
+        check(soft is Object, "and offers a soft body");
+        if soft is Object {
+            newnode::place(S, soft);
+            check(!S.newnode && S.doc[row].contains_key("softbody2d") && !S.doc[row].contains_key("sprite"),
+                "which is built from the sprite and closes the picker");
+        }
+        undo_all(S);
+    }
+    if let Some(row) = shape_row {
+        check(crate::recipes::change_type(S, row, "polygon2d"), "a shape becomes a polygon");
+        let points = util::vec(util::obj(util::obj(S.doc[row].get("polygon").unwrap_or(#{})).get("mesh").unwrap_or(#{})).get("positions").unwrap_or([]));
+        check(points.len() >= 4 && !S.doc[row].contains_key("shape2d"),
+            format!("of the shape's outline ({} points)", points.len()));
+        undo_all(S);
+    }
+    let before = S.doc.len();
+    crate::selection::only(S, 0);
+    newnode::open(S);
+    let soft = ();
+    for row_of in newnode::catalogue(S) {
+        if row_of.name == "soft_body2d" {
+            soft = row_of;
+        }
+    }
+    if soft is Object {
+        newnode::place(S, soft);
+        check(S.newnode && S.newnode_soft == "2d", "a new soft body asks what to build it from");
+        let sources = newnode::catalogue(S);
+        check(sources.len() >= 2 && sources[0].label == "Rect", format!("a shape first ({} sources)", sources.len()));
+        newnode::place_source(S, sources[1]);
+        check(S.doc.len() == before + 1 && S.doc[S.sel].contains_key("softbody2d") && !S.newnode,
+            "and builds it from the one picked");
+        shell::undo(S);
+        check(S.doc.len() == before, "which one undo takes back");
+    }
+    log::info("selftest change type: done");
+}
+
 /// What the engine says is off reaches the editor: a mark on the tree's row,
 /// and a refused write that leaves the document as it was and names the
 /// property it was refused on, rather than throwing out of the inspector.

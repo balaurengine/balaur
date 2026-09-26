@@ -59,6 +59,12 @@ fn commands(S) {
         command(undo_label, "⟲", "⌘Z", || shell::undo(S)),
         command(redo_label, "⟳", "⇧⌘Z", || shell::redo(S)),
         command("Add child node…", icons::ui("add"), "⇧A", || crate::newnode::open(S)),
+        command("Change type of selection…", icons::ui("reset"), "", || crate::newnode::open_change(S)),
+        command("Make selection a soft body", icons::ui("reset"), "", || {
+            if crate::model::has_selection(S) {
+                crate::recipes::soft_body(S, S.sel);
+            }
+        }),
         command("Attach Rune script to selection", "‹›", "⌥S", || shell::attach_script(S)),
         command("Run scene", "▶", "F5", || shell::toggle_play(S)),
         // One save behind one label: ⌘S writes whichever of the scene, the

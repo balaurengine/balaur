@@ -11315,7 +11315,7 @@
         "get_node": "The node at an `A/B/C` path from the root, where `..` climbs to the parent; nil when nothing matches.",
         "instantiate": "Build a scene document (TOML text, not a path) under a parent; `{ scripts: false }` leaves scripts unattached.",
         "node_by_id": "The node carrying a stable id, which survives the rename and the reparent a path does not; nil when nothing carries it. `under` bounds the search to one subtree, for a tool holding more than one tree.",
-        "preset_info": "A preset's description, tags and the components it adds; nil for a name nothing registered.",
+        "preset_info": "A preset's `description`, `tags`, the `components` it adds, and `parts`: each component's own properties by name. Nil for a name nothing registered.",
         "presets": "The names of every registered preset.",
         "root": "The tree's root node.",
         "set_variable": "Write a scene variable, coerced to the type it was declared with. Every node declaring `on_variable_changed` hears about it at the end of the tick; writing the value it already holds says nothing.",

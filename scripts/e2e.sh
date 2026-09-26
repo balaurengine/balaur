@@ -366,6 +366,7 @@ for ex in examples/*/; do
   printf '  phys ...   '
   edit_step "$name: physics panel" "$ex" physdemo
   edit_step "$name: soft body recipes" "$ex" recipedemo
+  edit_step "$name: change type" "$ex" changedemo
   printf 'ok\n'
 
 
