@@ -8,6 +8,7 @@
 //! shell is most of the frame, and nothing in it moves while nobody touches
 //! it.
 
+use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
@@ -49,9 +50,10 @@ pub struct Pacing {
     last_pass: Option<Instant>,
     logs_seen: u64,
     assets_seen: u64,
-    /// The soonest a pass is owed: egui's delayed requests, which it reports
-    /// from any thread, and a script's `request_repaint(#{ after })`.
-    due: Arc<Mutex<Option<Instant>>>,
+    /// When passes are owed: egui's delayed requests, which it reports from
+    /// any thread, and a script's `request_repaint(#{ after })`. Every one is
+    /// kept, so one asked for as another comes due is not lost behind it.
+    due: Arc<Mutex<BTreeSet<Instant>>>,
     /// Whether egui reports its requests into `due` yet.
     heard: bool,
 }
@@ -65,12 +67,11 @@ pub enum NextFrame {
     Sleep(Option<Duration>),
 }
 
-/// Put `at` in `due` unless something sooner is there.
-fn owe(due: &Mutex<Option<Instant>>, at: Instant) {
-    let mut due = due.lock().unwrap_or_else(PoisonError::into_inner);
-    if due.is_none_or(|was| at < was) {
-        *due = Some(at);
-    }
+/// Owe a pass at `at`.
+fn owe(due: &Mutex<BTreeSet<Instant>>, at: Instant) {
+    due.lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .insert(at);
 }
 
 /// Have egui report every repaint it asks for, with its delay, into `due`.
@@ -110,7 +111,12 @@ pub fn next_frame(eng: &Engine, ctx: &egui::Context) -> NextFrame {
     if std::mem::take(&mut pacing.owed) || pacing.requested || settling(eng) {
         return NextFrame::Now;
     }
-    let due = *pacing.due.lock().unwrap_or_else(PoisonError::into_inner);
+    let due = pacing
+        .due
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .first()
+        .copied();
     match due {
         None => NextFrame::Sleep(None),
         Some(at) => match at.checked_duration_since(Instant::now()) {
@@ -130,18 +136,17 @@ fn settling(eng: &Engine) -> bool {
         .is_some_and(|config| config.borrow().changed)
 }
 
-/// Whether a repaint egui or a script scheduled has come due, clearing it.
+/// Whether a repaint egui or a script scheduled has come due, clearing what has.
 #[allow(
     clippy::disallowed_methods,
     reason = "a scheduled repaint is paced against the wall clock; nothing simulated reads it"
 )]
 fn take_due(pacing: &Pacing) -> bool {
+    let now = Instant::now();
     let mut due = pacing.due.lock().unwrap_or_else(PoisonError::into_inner);
-    if due.is_some_and(|at| at <= Instant::now()) {
-        *due = None;
-        return true;
-    }
-    false
+    let before = due.len();
+    due.retain(|at| *at > now);
+    due.len() < before
 }
 
 /// Let `ui.set_lazy` take effect: the loop calling this re-presents the last
@@ -176,6 +181,7 @@ pub fn wants_pass(eng: &Engine, ctx: &egui::Context, input_seen: bool, dragging:
     let mut pacing = pacing.borrow_mut();
     pacing.passes = 0;
     let requested = std::mem::take(&mut pacing.requested);
+    let due = take_due(&pacing);
     if !(pacing.lazy && pacing.honoured) {
         return true;
     }
@@ -188,7 +194,6 @@ pub fn wants_pass(eng: &Engine, ctx: &egui::Context, input_seen: bool, dragging:
     // The tick is for state that moves without input; a drag the UI is no
     // part of moves none of it, and the pass it forces stalls that drag.
     let idle = !dragging && pacing.last_pass.is_none_or(|at| at.elapsed() >= IDLE);
-    let due = take_due(&pacing);
     input_seen || requested || changed || settling(eng) || idle || due
 }
 
