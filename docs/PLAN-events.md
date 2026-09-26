@@ -1,7 +1,6 @@
 > **Status:** written 2026-09-26 from an audit of every crate, done by reading
-> the code. §2, §3 and §4 are built; a native window's focus and suspend wait
-> on the kiss3d fork (§4.7). The order is bugs first, then one delivery path,
-> then the events the engine does not send yet.
+> the code. §2, §3 and §4 are built. The order is bugs first, then one
+> delivery path, then the events the engine does not send yet.
 
 # Plan: events, and one way to hear each of them
 
@@ -153,17 +152,16 @@ In order of how often a game needs them.
    `#{ tween, step }`. A method key hands its `args` to the method. A
    one-shot `particles` burst announces `finished`, timed from its settings
    on the fixed step so a headless run hears it too.
-7. **The app and input:** part built. Right and middle buttons reach a
-   world node as the left does, and `on_action_released` answers an action
-   let go. Every script hears `on_suspended_changed` (a hidden browser tab),
-   `on_safe_area_changed`, `on_orientation_changed`, `on_gamepad_connected`
-   and `on_gamepad_disconnected`. The frame after a script changes one, it
-   hears `on_setting_changed` and `on_locale_changed`. A window minimised
-   or covered, and an Android activity sent back, is suspended too, and
-   focus reaches `on_focused_changed`, once the kiss3d fork's commit
-   `3fcc9a8e`, which sends both, is pushed and the lock bumped. The fork's
-   `5498f396` adds `WindowEvent::LowMemory` and iOS suspend; the engine's
-   `on_low_memory` follows the same push.
+7. **The app and input:** built. Right and middle buttons reach a world
+   node as the left does, and `on_action_released` answers an action let
+   go. Every script hears `on_suspended_changed` (a hidden browser tab, a
+   window minimised or covered, an app sent back), `on_low_memory` when iOS
+   or Android warns, `on_safe_area_changed`, `on_orientation_changed`,
+   `on_gamepad_connected` and `on_gamepad_disconnected`, and window focus
+   reaches `on_focused_changed`. The frame after a script changes one, it
+   hears `on_setting_changed` and `on_locale_changed`. On Apple platforms
+   `apple.listen` also hears a notification shown in front, a push's
+   payload, a Game Center invite and an iCloud change.
 8. **Render:** built. A camera announces `current_changed` when it becomes
    or stops being the one drawn from. `render.screenshot` answers every
    listener with `screenshot_written` or `screenshot_failed`, a run with no
@@ -188,9 +186,5 @@ In order of how often a game needs them.
 
 - **Upload progress in a browser:** `fetch` reports no upload, so a web
   build hears only the reply.
-
-- **Apple arrivals** (a notification in front, a remote push payload, Game
-  Center invites, iCloud changes): each needs Swift in `balaur_apple` and a
-  device to test on; `docs/PLAN-apple.md` holds them.
 - **A native plugin reporting to a script** waits on `docs/PLAN-c-api.md`.
 - **Navigation** has no crate; `docs/PLAN-navigation.md` names its events.

@@ -13,8 +13,9 @@ use block2::RcBlock;
 use core::ptr::NonNull;
 
 use objc2::rc::Retained;
+use objc2::runtime::NSObject;
 use objc2::runtime::{AnyObject, NSObjectProtocol, ProtocolObject};
-use objc2::{AllocAnyThread, msg_send};
+use objc2::{AllocAnyThread, MainThreadMarker, MainThreadOnly, define_class, msg_send};
 use objc2_foundation::{
     NSArray, NSError, NSNotification, NSNotificationCenter, NSRange, NSString, NSURL,
 };
@@ -159,8 +160,79 @@ fn watch_authentication() {
     OBSERVER.with_borrow_mut(|held| *held = Some(token));
 }
 
+/// Hear about invites the player accepts and matches they ask Game Center
+/// for, through a listener on the local player. Installed on the first ask.
+pub(crate) fn watch_invites() -> bool {
+    if INVITES.with_borrow(Option::is_some) {
+        return true;
+    }
+    let Some(mtm) = MainThreadMarker::new() else {
+        return false;
+    };
+    let listener = Invites::new(mtm);
+    unsafe {
+        let player = GKLocalPlayer::localPlayer();
+        let _: () = msg_send![&player, registerListener: &*listener];
+    }
+    INVITES.with_borrow_mut(|held| *held = Some(listener));
+    true
+}
+
+define_class!(
+    // SAFETY: NSObject has no subclassing requirements, and this class does
+    // not implement Drop.
+    #[unsafe(super(NSObject))]
+    #[thread_kind = MainThreadOnly]
+    #[name = "BalaurInviteListener"]
+    struct Invites;
+
+    unsafe impl NSObjectProtocol for Invites {}
+
+    impl Invites {
+        /// `GKInviteEventListener`, declared informally: GameKit sends a
+        /// listener only the selectors it answers.
+        #[unsafe(method(player:didAcceptInvite:))]
+        fn accepted(&self, _player: *mut AnyObject, invite: *mut AnyObject) {
+            let sender: *mut AnyObject = unsafe { invite.as_ref() }
+                .map_or(std::ptr::null_mut(), |invite| unsafe { msg_send![invite, sender] });
+            let (player, name) = who(sender);
+            crate::queue::push_apple(AppleEvent::InviteAccepted { player, name });
+        }
+
+        #[unsafe(method(player:didRequestMatchWithRecipients:))]
+        fn requested(&self, _player: *mut AnyObject, recipients: *mut NSArray<AnyObject>) {
+            let players = unsafe { recipients.as_ref() }.map_or_else(Vec::new, |list| {
+                (0..list.count())
+                    .map(|at| who(Retained::as_ptr(&list.objectAtIndex(at)).cast_mut()).0)
+                    .collect()
+            });
+            crate::queue::push_apple(AppleEvent::MatchRequested { players });
+        }
+    }
+);
+
+impl Invites {
+    fn new(mtm: MainThreadMarker) -> Retained<Self> {
+        unsafe { msg_send![Self::alloc(mtm), init] }
+    }
+}
+
+/// A Game Center player's id and the name they show.
+fn who(player: *mut AnyObject) -> (String, String) {
+    let Some(player) = (unsafe { player.as_ref() }) else {
+        return (String::new(), String::new());
+    };
+    let text = |value: Option<Retained<NSString>>| value.map(|v| v.to_string()).unwrap_or_default();
+    (
+        text(unsafe { msg_send![player, gamePlayerID] }),
+        text(unsafe { msg_send![player, displayName] }),
+    )
+}
+
 thread_local! {
     static WATCHING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static INVITES: std::cell::RefCell<Option<Retained<Invites>>> =
+        const { std::cell::RefCell::new(None) };
     /// The notification centre keeps its own reference; this one is ours, so
     /// the observation can be named and, one day, removed.
     static OBSERVER: std::cell::RefCell<Option<Retained<ProtocolObject<dyn NSObjectProtocol>>>> =

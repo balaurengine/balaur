@@ -1,5 +1,5 @@
-//! Local notifications: asking for permission, scheduling one, and the tap
-//! that brings a player back.
+//! Local notifications: asking for permission, scheduling one, the tap that
+//! brings a player back, and one that arrives while the game is in front.
 //!
 //! The notification centre's delegate is ours to set — nothing else in the
 //! engine wants it — so taps need no proxying. What a tap carries is the
@@ -132,19 +132,32 @@ define_class!(
             response: *mut AnyObject,
             completion: &DynBlock<dyn Fn()>,
         ) {
-            crate::queue::push_apple(AppleEvent::NotificationOpened { id: identifier(response) });
+            let notification = unsafe { response.as_ref() }
+                .map_or(std::ptr::null_mut(), |response| unsafe { msg_send![response, notification] });
+            let said = Said::of(notification);
+            crate::queue::push_apple(AppleEvent::NotificationOpened {
+                id: said.id,
+                data: said.data,
+            });
             completion.call(());
         }
 
         /// A notification that arrives while the game is in front is shown
-        /// rather than dropped: 1 << 2 is `banner`, 1 << 1 `sound`.
+        /// rather than dropped, and reported: 1 << 2 is `banner`, 1 << 1 `sound`.
         #[unsafe(method(userNotificationCenter:willPresentNotification:withCompletionHandler:))]
         fn presenting(
             &self,
             _center: *mut AnyObject,
-            _notification: *mut AnyObject,
+            notification: *mut AnyObject,
             completion: &DynBlock<dyn Fn(usize)>,
         ) {
+            let said = Said::of(notification);
+            crate::queue::push_apple(AppleEvent::NotificationReceived {
+                id: said.id,
+                title: said.title,
+                body: said.body,
+                data: said.data,
+            });
             completion.call(((1 << 2) | (1 << 1),));
         }
     }
@@ -156,23 +169,43 @@ impl Taps {
     }
 }
 
-/// The identifier the game scheduled a notification under, dug out of the
-/// response the delegate was handed.
-fn identifier(response: *mut AnyObject) -> String {
-    let Some(response) = (unsafe { response.as_ref() }) else {
-        return String::new();
-    };
-    unsafe {
-        let notification: *mut AnyObject = msg_send![response, notification];
-        if notification.is_null() {
-            return String::new();
+/// What a notification says: the identifier it was scheduled under, its
+/// title and body, and the `userInfo` its sender put in it.
+struct Said {
+    id: String,
+    title: String,
+    body: String,
+    data: serde_json::Value,
+}
+
+impl Said {
+    fn of(notification: *mut AnyObject) -> Self {
+        let text =
+            |value: Option<Retained<NSString>>| value.map(|v| v.to_string()).unwrap_or_default();
+        let empty = Self {
+            id: String::new(),
+            title: String::new(),
+            body: String::new(),
+            data: serde_json::Value::Null,
+        };
+        let Some(notification) = (unsafe { notification.as_ref() }) else {
+            return empty;
+        };
+        let request: *mut AnyObject = unsafe { msg_send![notification, request] };
+        let Some(request) = (unsafe { request.as_ref() }) else {
+            return empty;
+        };
+        let content: *mut AnyObject = unsafe { msg_send![request, content] };
+        let Some(content) = (unsafe { content.as_ref() }) else {
+            return empty;
+        };
+        let info: *mut AnyObject = unsafe { msg_send![content, userInfo] };
+        Self {
+            id: text(unsafe { msg_send![request, identifier] }),
+            title: text(unsafe { msg_send![content, title] }),
+            body: text(unsafe { msg_send![content, body] }),
+            data: crate::arrivals::json_of(info),
         }
-        let request: *mut AnyObject = msg_send![notification, request];
-        if request.is_null() {
-            return String::new();
-        }
-        let id: Option<Retained<NSString>> = msg_send![request, identifier];
-        id.map(|id| id.to_string()).unwrap_or_default()
     }
 }
 

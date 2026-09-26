@@ -1,7 +1,9 @@
 > **Status:** built on 2026-09-03 and 2026-09-04, every step — the `[apple]`
 > export table, `crates/balaur_platform` and the portable `platform.*` module,
 > and `crates/balaur_apple` for Game Center, iCloud, Sign in with Apple,
-> StoreKit, notifications and opened URLs. ARCHITECTURE.md's platform sections
+> StoreKit, notifications and opened URLs. On 2026-09-26 the arrivals: a
+> notification shown in front, a push's payload, Game Center invites and
+> iCloud changes. ARCHITECTURE.md's platform sections
 > are the record. `docs/PLAN-google.md` is the same document for Android,
 > `docs/PLAN-steam.md` for the desktop stores. What is left is below.
 
@@ -32,3 +34,7 @@ and hardware.
    template against a lower deployment target. `min_macos` has the same shape.
    `docs/PLAN-google.md` carries the matching note for `min_sdk` against the
    NDK level, so one check serves both platforms.
+4. **The arrivals have only been compiled.** `notification_received`,
+   `push_received`, `invite_accepted`, `match_requested` and `cloud_changed`
+   build for macOS; none has run on a device, and a push or an invite needs
+   Apple's servers as well.
