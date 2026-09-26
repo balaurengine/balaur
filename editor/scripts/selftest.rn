@@ -2246,6 +2246,7 @@ pub fn layout_step(S) {
     // control: a floor grew the box and left the glyph and its bar behind.
     check_touch_targets(S);
     check_dock_tools(S);
+    check_active_tabs(S);
     check(covered(S, crate::layout::sheets(S)), "and the middle of every sheet does not");
     // The gutter is a `padding`, which the component keeps as four sides
     // whatever the scene spelled; reading all four back placed the shell at 0.
@@ -2365,6 +2366,24 @@ fn check_dock_tools(S) {
         check(box.width == 0.0 || (box.width > 20.0 && box.height > 12.0),
             format!("the {} dock's tools have room to draw ({} × {})",
                 side, box.width as i64, box.height as i64));
+    }
+}
+
+// A narrow dock lists what its row cannot hold under "+N"; the active tab is
+// never one of them, so the panel showing always has its tab in view.
+fn check_active_tabs(S) {
+    for side in ["left", "bottom", "right"] {
+        if crate::docks::folded(S, side) {
+            continue;
+        }
+        if let Some((tab, strip)) = crate::docks::active_tab_box(S, side) {
+            check(tab.x >= strip.x - 0.5 && tab.x + tab.width <= strip.x + strip.width + 0.5,
+                format!("the {} dock's active tab is inside its row ({} to {} in {} to {})", side,
+                    tab.x as i64, (tab.x + tab.width) as i64, strip.x as i64,
+                    (strip.x + strip.width) as i64));
+        } else {
+            check(false, format!("the {} dock's active tab has a box", side));
+        }
     }
 }
 
