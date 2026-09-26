@@ -372,6 +372,18 @@ pub fn body2d_kind(node) {
 // True when the edited scene is 2D (any node carries a 2D component). The
 // editor switches camera, grid and gizmo accordingly.
 pub fn is_2d(S) {
+    // Asked several times a frame, and the answer is a scan of the document.
+    let key = [S.frame, S.doc_rev, S.doc.len()];
+    if key == S.is_2d_at {
+        return S.is_2d_was;
+    }
+    let found = scan_2d(S);
+    S.is_2d_at = key;
+    S.is_2d_was = found;
+    found
+}
+
+fn scan_2d(S) {
     for node in S.doc {
         if node.contains_key("shape2d") || node.contains_key("body2d") || node.contains_key("collider2d")
             || node.contains_key("polygon") || node.contains_key("bone2d") || node.contains_key("sprite")

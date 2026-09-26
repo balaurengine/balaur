@@ -147,6 +147,8 @@ pub fn fresh_state() {
         doc_rev: 0,
         inspect_warned: #{},
         tree_cache: #{},
+        // `model::is_2d`'s answer, and the frame and document it was for.
+        is_2d_at: [], is_2d_was: false,
         // The 3D light and camera marks, and what they were drawn for.
         overlay3d: #{ key: [], lines: [] },
         // The selection set; `S.sel` is its head. Locks are editor state

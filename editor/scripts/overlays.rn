@@ -352,7 +352,7 @@ pub fn lights3d(S) {
         }
         marked.push((found, light, camera, selected));
     }
-    if crate::gizmo::same_key(key, S.overlay3d.key) {
+    if key == S.overlay3d.key {
         render::draw_lines(S.overlay3d.lines);
         return;
     }

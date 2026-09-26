@@ -41,21 +41,6 @@ fn hover_key(S, cam, geo, mx, my) {
     out
 }
 
-// Element-wise: an array compares by identity in Rune, not by value.
-pub fn same_key(a, b) {
-    if a.len() != b.len() {
-        return false;
-    }
-    let i = 0;
-    while i < a.len() {
-        if a[i] != b[i] {
-            return false;
-        }
-        i += 1;
-    }
-    true
-}
-
 // center + basis-space offset -> world point.
 fn local_point(geo, ox, oy, oz) {
     let b = geo.basis;
@@ -537,7 +522,7 @@ pub fn draw(S) {
     // The lines follow from the box, the hot part and the two colours, and
     // none of them moves while the pointer is still: replay the list.
     let key = drawn_key(geo, hot);
-    if same_key(key, S.gizmo.drawn) {
+    if key == S.gizmo.drawn {
         render::draw_lines(S.gizmo.lines);
         return;
     }
@@ -613,7 +598,7 @@ pub fn draw(S) {
     S.gizmo.lines = out;
 }
 
-// What the drawn lines follow from, flat so `same_key` can compare it.
+// What the drawn lines follow from, as plain values so `==` compares them.
 fn drawn_key(geo, hot) {
     let out = [];
     for v in geo.center { out.push(v); }
@@ -828,7 +813,7 @@ pub fn update(S) {
         // always let through: it acts on the hover rather than changing it.
         let key = hover_key(S, cam, geo, mx, my);
         let pressed = input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT);
-        if pressed || !same_key(key, S.gizmo.key) {
+        if pressed || key != S.gizmo.key {
             S.gizmo.key = key;
             S.gizmo.hover = match geo {
                 Some(geo) => if over_viewport && S.workspace != defs::WORKSPACE_SCRIPT { hit_test(S, cam, geo, mx, my) } else { None },

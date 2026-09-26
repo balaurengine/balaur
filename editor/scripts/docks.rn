@@ -196,9 +196,12 @@ pub fn name(S, id) {
 
 /// Which dock holds `id`, or `None` when a plugin has been unloaded.
 pub fn side_of(S, id) {
+    // A plain loop: a closure a tab was most of what the tab rows cost.
     for side in sides() {
-        if S.docks[side].tabs.iter().any(|t| t == id) {
-            return Some(side);
+        for tab in S.docks[side].tabs {
+            if tab == id {
+                return Some(side);
+            }
         }
     }
     None

@@ -516,6 +516,25 @@ frame, which grows with the document; `util` 5.0k, `icons` 3.5k, `layout`
 states every strip on every pass, and stating it only when something changed
 is the next step.
 
+A second pass took it to 39,715: the outliner and the outline list patch the
+keys they own instead of reading the widget whole and setting it back, which
+rebuilt both every frame; `model::is_2d` scans once a frame; `docks::side_of`
+loops rather than calling a closure a tab; the gizmo and the overlays compare
+their keys with `==`, which in the fork compares by value.
+
+Two things the count does not say, both timed on 100,000 calls. A `const`
+table looked up is six times slower than the `match` it would replace,
+because the table is built again on every access, so `icons.rn` stays a
+`match`. A plain loop costs more instructions than `iter().any` with a
+closure and runs in 0.76 s against 1.23.
+
+`--timings` names each `draw` target now. On `hello`, under load 84, the
+three dock bodies are 1.1 to 1.4 ms each of a 9.5 ms `ui` pass, and the frame
+is 13 ms wall where the same load gave 118 before §6i. Each body restates
+its nodes every pass. Skipping that needs a document revision every edit
+bumps; `S.doc` is written in place from eight files today, and a cache keyed
+on `doc_rev` alone misses a rename or a component added.
+
 ## 7. The instrument
 
 `engine.profile_scripts(on)` and `engine.script_costs()` count VM instructions

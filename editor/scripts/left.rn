@@ -272,11 +272,10 @@ fn show_tree(S, k, rows) {
         line += util::cells([mark, node.name, note, k.get(token).unwrap_or(k.text_default), node.id]);
         items.push(line);
     }
-    let params = util::obj(found.get_component("widget"));
     // `text` is the pick channel and nothing else: the node writes the row a
     // click landed on, this reads it once and clears it. Held instead, a
     // selection made anywhere else would be undone by the stale row here.
-    let picked = params["text"];
+    let picked = found.get_component("widget", "text");
     for (n, item) in items.iter().enumerate() {
         if item == picked && rows[n].index != S.sel {
             crate::shell::choose_click(S, rows[n].index);
@@ -290,13 +289,11 @@ fn show_tree(S, k, rows) {
             chosen.push(items[n]);
         }
     }
-    params["options"] = items;
-    params["row_height"] = TREE_ROW;
-    params["visible"] = true;
-    params["multi_select"] = true;
-    params["selection"] = chosen;
-    params["text"] = "";
-    found.set_component("widget", params);
+    // A patch of what this owns: a frame that changed none of it writes nothing.
+    found.patch_component("widget", #{
+        options: items, row_height: TREE_ROW, visible: true, multi_select: true,
+        selection: chosen, text: "",
+    });
 }
 
 /// Where the tree drew the row for document index `i`, in design px; `None`
@@ -327,13 +324,7 @@ fn selected_row(rows, sel) {
 
 // Hidden while another panel is up, so its rows do not outlive the tree.
 pub fn hide_tree() {
-    let found = scene::get_node(TREE_NODE);
-    if util::is_nil(found) {
-        return;
-    }
-    let params = util::obj(found.get_component("widget"));
-    params["visible"] = false;
-    found.set_component("widget", params);
+    util::hide(TREE_NODE);
 }
 
 // Every node the query and the facet chip both allow, as a flat walk. One
@@ -364,31 +355,21 @@ pub fn outline_body(S, k) {
     for row in rows {
         items.push(util::cells([row.icon, row.name, row.meta, "", row.key]));
     }
-    let params = util::obj(found.get_component("widget"));
-    params["options"] = items;
-    params["visible"] = true;
-    found.set_component("widget", params);
     // The pick is the row's own action, looked up by the string the node
     // reports rather than held as a closure on the node.
-    let picked = params["text"];
+    let picked = found.get_component("widget", "text");
+    found.patch_component("widget", #{ options: items, visible: true });
     for (n, item) in items.iter().enumerate() {
         if item == picked {
             (rows[n].run)();
-            params["text"] = "";
-            found.set_component("widget", params);
+            found.patch_component("widget", #{ text: "" });
         }
     }
 }
 
 // Hidden while another panel is up, the way the tree is.
 pub fn hide_outline() {
-    let found = scene::get_node(OUTLINE_NODE);
-    if util::is_nil(found) {
-        return;
-    }
-    let params = util::obj(found.get_component("widget"));
-    params["visible"] = false;
-    found.set_component("widget", params);
+    util::hide(OUTLINE_NODE);
 }
 
 /// Open the rename sheet on the selected node, with its name ready to replace.

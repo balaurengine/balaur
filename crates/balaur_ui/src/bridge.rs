@@ -136,16 +136,21 @@ pub(crate) fn scoped_named(eng: &Engine, ui: &mut egui::Ui, node: NodeId, target
         return;
     };
     push(ui);
-    let result = if let Some((path, function)) = target.split_once(':') {
-        host.call_in(path, function, &[]).map(|_| ())
-    } else {
-        for owner in up_from(eng, node) {
-            if host.call_on(owner, target, &[]).is_some() {
-                break;
+    // A span a target, so the Profiler and `--timings` name the view a pass
+    // spends its script drawing.
+    let span = format!("draw {target}");
+    let result = balaur_core::timings::measure(eng, &span, || {
+        if let Some((path, function)) = target.split_once(':') {
+            host.call_in(path, function, &[]).map(|_| ())
+        } else {
+            for owner in up_from(eng, node) {
+                if host.call_on(owner, target, &[]).is_some() {
+                    break;
+                }
             }
+            Ok(())
         }
-        Ok(())
-    };
+    });
     pop();
     if let Err(err) = result {
         tracing::warn!("widget draw '{target}': {err:#}");
