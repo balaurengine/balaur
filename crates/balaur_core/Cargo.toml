@@ -74,12 +74,12 @@ workspace = true
 web-time = "1"
 # The console, for the log lines a browser has no stderr for, and the window,
 # which is what opens a URL in a tab.
-web-sys = { version = "0.3", features = ["console", "Window"] }
+web-sys = { version = "0.3.106", features = ["console", "Window"] }
 
 # The page's random numbers: the one salt an install id can draw in a browser,
 # since `std::process::id` panics on that target.
 [target.'cfg(target_family = "wasm")'.dependencies]
-js-sys = "0.3"
+js-sys = "0.3.106"
 
 # The shared-memory web build's workers, for `task::compute`: the pool the page
 # starts through `wasm-bindgen-rayon`, since `std::thread` cannot spawn there.
