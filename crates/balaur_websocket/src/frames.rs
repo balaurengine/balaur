@@ -472,7 +472,7 @@ fn deliver(
     } else {
         SocketEvent::Binary { socket, bytes }
     };
-    balaur_core::replay::report(&events, event);
+    balaur_core::replay::report(events, event);
     Ok(())
 }
 

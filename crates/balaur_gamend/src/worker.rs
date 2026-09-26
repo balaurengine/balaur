@@ -159,7 +159,7 @@ fn open(
     )? {
         anyhow::bail!("joining the user channel was refused");
     }
-    balaur_core::replay::report(&events, GamendEvent::SocketOpen { socket });
+    balaur_core::replay::report(events, GamendEvent::SocketOpen { socket });
     // What the game joined, with its payload: what a reconnect joins again.
     let mut topics: Vec<(String, Json)> = Vec::new();
     loop {
@@ -346,7 +346,7 @@ impl Calls {
         };
         let (_, request) = self.pending.remove(at);
         balaur_core::replay::report(
-            &events,
+            events,
             GamendEvent::Replied {
                 request,
                 status,
@@ -362,7 +362,7 @@ impl Calls {
         self.rejoining.clear();
         for (_, request) in self.pending.drain(..) {
             balaur_core::replay::report(
-                &events,
+                events,
                 GamendEvent::Failed {
                     request,
                     message: "the connection ended before the reply".into(),
@@ -385,7 +385,7 @@ fn reconnect(
     for attempt in 1..=crate::RECONNECT_TRIES {
         let wait = crate::backoff(attempt);
         balaur_core::replay::report(
-            &events,
+            events,
             GamendEvent::SocketReconnecting {
                 socket,
                 attempt,
@@ -431,7 +431,7 @@ fn wait_out(
                 SocketCommand::Leave { request, topic } => {
                     topics.retain(|(joined, _)| *joined != topic);
                     balaur_core::replay::report(
-                        &events,
+                        events,
                         GamendEvent::Replied {
                             request,
                             status: "ok".into(),
@@ -443,7 +443,7 @@ fn wait_out(
                 | SocketCommand::Push { request, .. }
                 | SocketCommand::CallHook { request, .. } => {
                     balaur_core::replay::report(
-                        &events,
+                        events,
                         GamendEvent::Failed {
                             request,
                             message: "the socket is reconnecting".into(),
@@ -482,7 +482,7 @@ fn reopen(
         }
     }
     topics.retain(|(topic, _)| !lost.contains(topic));
-    balaur_core::replay::report(&events, GamendEvent::SocketReopened { socket, lost });
+    balaur_core::replay::report(events, GamendEvent::SocketReopened { socket, lost });
     Ok(connection)
 }
 
@@ -495,7 +495,7 @@ fn forward_message(
     payload: Json,
 ) {
     balaur_core::replay::report(
-        &events,
+        events,
         GamendEvent::SocketMessage {
             socket,
             topic,

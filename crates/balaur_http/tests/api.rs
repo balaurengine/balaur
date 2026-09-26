@@ -268,7 +268,7 @@ fn a_long_body_reports_going_out_before_the_reply() {
     std::thread::spawn(move || {
         if let Ok((mut stream, _)) = listener.accept() {
             let mut seen = Vec::new();
-            let mut chunk = [0u8; 64 * 1024];
+            let mut chunk = vec![0u8; 64 * 1024];
             let length = loop {
                 let n = stream.read(&mut chunk).unwrap_or(0);
                 seen.extend_from_slice(&chunk[..n]);

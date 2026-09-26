@@ -492,6 +492,10 @@ pub async fn run_windowed_async(
 /// Wait out the frames nothing is owed under `[window] low_processor`: no
 /// input, no `balaur_core::wake`, no repaint due. A desktop blocks in the
 /// window system; a browser owns its loop, so a tab checks every 16 ms.
+#[cfg_attr(
+    not(target_family = "wasm"),
+    allow(clippy::unused_async, reason = "only a tab's sleep is awaited")
+)]
 async fn sleep_until_owed(app: &App, window: &mut Window) {
     loop {
         if balaur_core::wake::take() {

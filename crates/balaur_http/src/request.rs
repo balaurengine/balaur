@@ -187,7 +187,7 @@ fn stream_to_file(
         if received - reported >= PROGRESS_STEP {
             reported = received;
             balaur_core::replay::report(
-                &events,
+                events,
                 HttpEvent::Progress {
                     request,
                     received,
@@ -200,7 +200,7 @@ fn stream_to_file(
     drop(file);
     std::fs::rename(&partial, path)?;
     balaur_core::replay::report(
-        &events,
+        events,
         HttpEvent::Progress {
             request,
             received,

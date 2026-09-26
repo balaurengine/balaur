@@ -170,6 +170,27 @@ fn bake_tags(pack: &mut balaur::Pack, own: &[String]) -> Result<()> {
     Ok(())
 }
 
+/// Fold in the variants this target's tags pick. Before the pack is measured
+/// or stripped: a variant that lost is one this target was never going to carry.
+fn fold_variants(pack: &mut balaur::Pack, path: &Path, target: Option<&str>) -> Result<()> {
+    let source = config::manifest_text(path).unwrap_or_default();
+    let tags = config::tags_for(&source, target)?;
+    let declared =
+        toml::from_str(&source).map_or_else(|_| Vec::new(), |doc| balaur::tags::declared_in(&doc));
+    let folded = variants::apply(pack, &tags, &declared);
+    for why in &folded.warnings {
+        tracing::warn!("{why}");
+    }
+    if !folded.names.is_empty() {
+        tracing::info!(
+            "variants for {}: {}",
+            tags.0.join(", "),
+            folded.names.join(", ")
+        );
+    }
+    Ok(())
+}
+
 /// Write a `.bpak`, or a standalone game when a runtime is in play.
 pub fn export(opts: &Options<'_>) -> Result<()> {
     let target = opts.target.as_deref();
@@ -186,24 +207,8 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     let android = android::AndroidConfig::from_manifest(&manifest, &opts.path)?;
     let config = ExportConfig::from_manifest(&manifest, &opts.path)?;
     let windows_signing = config::WindowsConfig::from_manifest(&manifest, &opts.path)?;
-    // Before the pack is measured or stripped: a variant that lost is not an
-    // unreferenced asset, it is one this target was never going to carry.
-    let source = config::manifest_text(&opts.path).unwrap_or_default();
-    let tags = config::tags_for(&source, target)?;
-    let declared =
-        toml::from_str(&source).map_or_else(|_| Vec::new(), |doc| balaur::tags::declared_in(&doc));
-    let folded = variants::apply(&mut pack, &tags, &declared);
+    fold_variants(&mut pack, &opts.path, target)?;
     bake_tags(&mut pack, &config.tags)?;
-    for why in &folded.warnings {
-        tracing::warn!("{why}");
-    }
-    if !folded.names.is_empty() {
-        tracing::info!(
-            "variants for {}: {}",
-            tags.0.join(", "),
-            folded.names.join(", ")
-        );
-    }
     let summary = size::prepare_for(&mut pack, &config, &manifest)?;
     tracing::info!("\n{}", pack.report_with(&config.include));
     if summary.total_saved() > 0 {
