@@ -176,12 +176,18 @@ e2e_stream() {
   return $bad
 }
 
-# The web runtime's own target and flags, from scripts/package_runtime.sh.
+# The web runtime's own target and flags, from scripts/package_runtime.sh,
+# then the default features, where `window` is off: code gated on it alone
+# cannot be what an ungated module calls.
 wasm_stream() {
   side_env
+  local bad=0
   step 'clippy wasm' shape wasm clippy --target wasm32-unknown-unknown -p balaur_cli \
     --no-default-features --features audio,http,websocket,webtransport,gamend,multiplayer,browser,window \
-    -- -D warnings
+    -- -D warnings || bad=1
+  step 'clippy wasm default' shape wasm-default clippy --target wasm32-unknown-unknown \
+    -p balaur_cli -- -D warnings || bad=1
+  return $bad
 }
 
 # Opt in, and before any stream starts: every stream reads what this rewrites,

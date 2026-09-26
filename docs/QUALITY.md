@@ -27,7 +27,7 @@ with `rustfmt` and `clippy`, so every machine runs one linter version.
 - `cargo fmt --all --check`.
 - `cargo clippy --workspace --all-targets -- -D warnings`
 - Once for `window`, `extensions`, `apple`
-- Once for `wasm32-unknown-unknown`
+- Twice for `wasm32-unknown-unknown`: the web runtime's features, and the defaults
 - `examples/extension_greeter`, deliberately outside the workspace: the only
   thing proving an extension builds without the engine's build tree.
 

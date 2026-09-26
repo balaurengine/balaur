@@ -39,6 +39,10 @@ mod project_web;
 mod runtimes;
 mod update;
 mod version;
+// IndexedDB behind a tab's files. No window needed: `project_web` forgets
+// through it in every wasm build.
+#[cfg(target_family = "wasm")]
+mod web_store;
 
 #[derive(Parser)]
 #[command(name = "balaur", version = version::long(), about = "The Balaur game engine")]
@@ -303,8 +307,6 @@ enum Command {
 mod web;
 #[cfg(all(target_arch = "wasm32", feature = "window"))]
 mod web_export;
-#[cfg(all(target_arch = "wasm32", feature = "window"))]
-mod web_store;
 
 // Rayon's pool, built from Web Workers because `std::thread` spawns none on
 // this target. The page awaits `initThreadPool` before `start`; only the

@@ -78,6 +78,11 @@ jobs:
           cargo clippy --target wasm32-unknown-unknown -p balaur_cli \
             --no-default-features --features audio,http,websocket,webtransport,gamend,multiplayer,browser,window \
             -- -D warnings
+      # The default features, where `window` is off: code gated on it alone
+      # cannot be what an ungated module calls.
+      - name: Target `wasm32`, default features
+        if: runner.os == 'Linux'
+        run: cargo clippy --target wasm32-unknown-unknown -p balaur_cli -- -D warnings
       # extension_greeter is deliberately outside the workspace, so nothing
       # above reaches it. It is the only thing proving an extension builds
       # without the engine's build tree.
