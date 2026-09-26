@@ -167,7 +167,7 @@ pub(crate) fn install_vehicle_api(m: &mut dyn Bindings<Engine>) {
         ("set_engine_force", &[c::WHEEL_3D], "", "How hard this wheel drives, in newtons; negative reverses."),
         ("set_brake", &[c::WHEEL_3D], "", "How hard this wheel brakes."),
         ("set_steering", &[c::WHEEL_3D], "", "Turn this wheel, in radians."),
-        ("wheel_state", &[c::WHEEL_3D], "", "What the last step did with this wheel: `#{ rotation, suspension_force, grounded, engine_force, brake, steering }`."),
+        ("wheel_state", &[c::WHEEL_3D], "", "What the last step did with this wheel: `#{ rotation, suspension_force, in_contact, engine_force, brake, steering }`."),
         ("vehicle_speed", &[c::VEHICLE_3D], "", "How fast the chassis is going along its forward axis, in units per second."),
     ]);
     m.function(

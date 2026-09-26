@@ -643,7 +643,7 @@ fn step_system(eng: &Engine, _dt: f32) {
     tuning::warn_about_quarantine(eng);
 }
 
-/// Remove the joints that gave way this step and tell both ends.
+/// Remove the joints that gave way this step and tell each joint's node.
 ///
 /// A break is an event in every way that matters, so it travels the same
 /// path: after the step, in entity order, through the node's own script.

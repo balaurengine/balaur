@@ -9508,7 +9508,7 @@
         "kinetic_energy": "The body's kinetic energy, for a rest test the solver agrees with.",
         "linear_velocity": "How fast the body is travelling, in units per second.",
         "max_contact_impulse": "The hardest contact this body took in the last step, zero when nothing touched it.",
-        "move_character": "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, grounded, sliding, collisions }`. Call it from fixed_update.",
+        "move_character": "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, on_floor, sliding, collisions }`. Call it from fixed_update.",
         "next_position": "The position a kinematic body has been told to move to.",
         "overlap_aabb": "Every collider whose bounds meet an axis-aligned box.",
         "overlap_point": "Every collider containing a world point: what a mouse click asks.",
@@ -10297,7 +10297,7 @@
         "kinetic_energy": "The body's kinetic energy, for a rest test the solver agrees with.",
         "linear_velocity": "How fast the body is travelling, in units per second.",
         "max_contact_impulse": "The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number.",
-        "move_character": "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, grounded, sliding, collisions }`. Call it from fixed_update. It reads the world the step just wrote.",
+        "move_character": "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, on_floor, sliding, collisions }`. Call it from fixed_update. It reads the world the step just wrote.",
         "next_position": "The pose a kinematic body has been told to move to.",
         "overlap_aabb": "Every collider whose bounds meet an axis-aligned box; cheaper and looser than shape_hits.",
         "overlap_point": "Every collider containing a world point.",
@@ -10353,7 +10353,7 @@
         "wake_all": "Wake every sleeping body in the 3D world.",
         "wake_softbody": "Start simulating a resting body again.",
         "wake_up": "Wake the body, so the next step moves it.",
-        "wheel_state": "What the last step did with this wheel: `#{ rotation, suspension_force, grounded, engine_force, brake, steering }`."
+        "wheel_state": "What the last step did with this wheel: `#{ rotation, suspension_force, in_contact, engine_force, brake, steering }`."
       },
       "functions": [
         "aabb",

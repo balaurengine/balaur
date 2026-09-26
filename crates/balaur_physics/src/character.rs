@@ -208,7 +208,7 @@ fn apply_movement(eng: &Engine, entity: Entity, translation: Vector) {
 
 pub(crate) fn install_character_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("move_character", &[c::CHARACTER_3D], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, grounded, sliding, collisions }`. Call it from fixed_update. It reads the world the step just wrote."),
+        ("move_character", &[c::CHARACTER_3D], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, on_floor, sliding, collisions }`. Call it from fixed_update. It reads the world the step just wrote."),
         ("is_on_floor", &[c::CHARACTER_3D], "", "Whether the last move ended with ground under the character's feet."),
     ]);
     m.function(
