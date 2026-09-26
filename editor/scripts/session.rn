@@ -131,7 +131,7 @@ fn prune(S) {
 // Re-read at most twice a second: the dock draws every frame, and this reads
 // the header of every file it lists.
 pub fn listing(S) {
-    let now = engine::time();
+    let now = engine::unix_time();
     if S.session.listed_at >= 0.0 && now - S.session.listed_at < 0.5 {
         return S.session.list;
     }
@@ -220,7 +220,7 @@ pub fn open(S, name) {
     S.session.at = S.session.first;
     S.session.lanes = build_lanes();
     // Loading puts the clock back to where the session started, so every
-    // cache that ages against `engine::time()` now thinks it is fresh until
+    // cache that ages against `engine::unix_time()` now thinks it is fresh until
     // the clock catches up.
     S.sources = #{};
     S.listings = #{};

@@ -31,6 +31,15 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     if path.is_empty() || (eng.time() >= seconds && !held) {
         return;
     }
+    // The pass that takes it down has to be asked for, or a loop sleeping
+    // under `[window] low_processor` shows it until the pointer moves.
+    if held {
+        ctx.request_repaint();
+    } else {
+        ctx.request_repaint_after(std::time::Duration::from_secs_f64(
+            (seconds - eng.time()).max(0.0),
+        ));
+    }
     // A layer painter rather than an area: an area sizes itself invisibly
     // on its first frame, and the first frame is the one a splash is for.
     let rect = ctx.viewport_rect();

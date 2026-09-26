@@ -545,10 +545,11 @@ pub fn update(this, dt) {
             overlays::colliders(S);
         }
     }
-    // What moves without input asks for the next pass; the rest waits for one.
-    // A folding dock, a gizmo drag and an import counting up all move the
-    // picture while the pointer holds still, so all three are listed.
-    let telling = !S.jobs.is_empty();
+    // What moves without input asks for the next frame; under `[window]
+    // low_processor` nothing else draws one. The splash, a queued import and
+    // a `--state` run count frames, so they ask too.
+    let telling = !S.jobs.is_empty() || !S.import_queue.is_empty() || !S.formed
+        || S.start_states != "";
     if S.playing || S.showcase is Object || session::scrubbing(S) || S.capture is Object
         || S.session.demo is Object || S.layout_demo >= 0 || S.settings.demo >= 0 || S.themewin.demo >= 0 || S.window.demo >= 0
         || S.rows_demo >= 0 || S.machine.demo >= 0 || S.plugin_demo >= 0

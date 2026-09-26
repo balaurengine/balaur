@@ -35,7 +35,9 @@ use balaur_core::Engine;
 use std::collections::{HashMap, HashSet};
 
 pub use loading::Loading;
-pub use pacing::{Pacing, honour_lazy, pointer_is_dragging_elsewhere, wants_pass};
+pub use pacing::{
+    NextFrame, Pacing, honour_lazy, next_frame, pointer_is_dragging_elsewhere, wants_pass,
+};
 pub use theme::ThemeTokens;
 pub use widget::input::{
     ACTIVATE_EVENT, BLUR_EVENT, CHANGE_EVENT, CLICK_EVENT, CLOSE_REQUEST_EVENT, CLOSED_EVENT,

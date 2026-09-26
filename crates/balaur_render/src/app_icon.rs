@@ -61,6 +61,7 @@ pub(crate) fn apply_app_icon(app: &App, on_screen: bool, frame: u64) {
             let (tx, rx) = std::sync::mpsc::channel();
             std::thread::spawn(move || {
                 let _ = tx.send((dock_icon_png(&source), name));
+                balaur_core::wake::wake();
             });
             *pending = Some(rx);
         }

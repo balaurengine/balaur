@@ -581,6 +581,28 @@ settled. A strip whose inputs did not move is not stated again.
 - On `hello` offscreen, where the UI pass runs every frame, a frame is 32,048
   instructions with the keys ignored and 20,508 with them.
 
+## 6l. An idle editor draws nothing
+
+**Built 2026-09-26.** With the UI lazy, the windowed loop still ran every
+frame: the editor's `update`, the scene's render and the shell re-presented,
+at the display's rate. `[window] low_processor`, which the editor turns on,
+lets the loop sleep until something asks for a frame.
+
+- The loop blocks in kiss3d's `Window::wait_events` until input, a
+  `balaur_core::wake`, or the soonest repaint that egui or
+  `ui.request_repaint(#{ after })` scheduled.
+- A worker thread reports with `replay::report`, which wakes the loop. A log
+  line, the script watcher, the debug adapter and the dock icon's thread wake
+  it too.
+- The editor asks for a frame while it assembles, imports, plays, folds a dock
+  or runs a `--state`. Its debounces read `engine::unix_time`, because engine
+  time moves at most 0.1 s across an idle gap.
+- On `hello`, windowed and untouched, sampled by `top` over 5 s: 80 to 100% of
+  a core with it off, 0.0% with it on.
+
+A frame the pointer draws still runs every poll in `update`: the gizmo, the
+hotkeys, the overlays' lines. Those move onto hooks and nodes next.
+
 ## 7. The instrument
 
 `engine.set_script_profiling(on)` and `engine.script_costs()` count VM instructions

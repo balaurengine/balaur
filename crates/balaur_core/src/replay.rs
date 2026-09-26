@@ -102,6 +102,15 @@ pub fn suppressed(eng: &Engine) -> bool {
     is_playing(eng) || crate::rollback::is_resimulating(eng)
 }
 
+/// Hand a worker's event to the tick, and wake a loop sleeping under
+/// `[window] low_processor` so the tick runs to read it. What every worker
+/// thread reports with; a send from the tick itself needs no wake but takes
+/// no harm from one.
+pub fn report<E>(to: &Sender<E>, event: E) {
+    let _ = to.send(event);
+    crate::wake::wake();
+}
+
 /// A subsystem's channel to the outside world, with recording built in.
 ///
 /// Wraps the three things every I/O subsystem needs — the worker channel,

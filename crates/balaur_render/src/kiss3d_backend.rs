@@ -433,8 +433,15 @@ pub async fn run_windowed_async(
     // `[window] max_fps`: vsync already paces a display running at the tick
     // rate, and this is what caps the loop where it does not.
     let budget = app.frame_budget();
+    let low_processor = window_settings.low_processor;
+    if low_processor && let Some(waker) = window.waker() {
+        balaur_core::wake::set_hook(Some(Box::new(move || waker.wake())));
+    }
     let mut last = Instant::now();
     loop {
+        if low_processor {
+            sleep_until_owed(&app, &mut window).await;
+        }
         // A hidden tab gets no animation frame, so `render` would never
         // return: step the simulation on a timer and draw nothing, so a
         // socket's heartbeats and a fixed tick keep going behind the tab.
@@ -480,6 +487,35 @@ pub async fn run_windowed_async(
         cap_frame_rate(budget, last);
     }
     Ok(())
+}
+
+/// Wait out the frames nothing is owed under `[window] low_processor`: no
+/// input, no `balaur_core::wake`, no repaint due. A desktop blocks in the
+/// window system; a browser owns its loop, so a tab checks every 16 ms.
+async fn sleep_until_owed(app: &App, window: &mut Window) {
+    loop {
+        if balaur_core::wake::take() {
+            return;
+        }
+        let wait = match balaur_ui::next_frame(&app.engine, window.egui_context()) {
+            balaur_ui::NextFrame::Now => return,
+            balaur_ui::NextFrame::Sleep(wait) => wait,
+        };
+        #[cfg(target_family = "wasm")]
+        {
+            let _ = wait;
+            if window.wait_events(None) {
+                return;
+            }
+            crate::hidden_tab::sleep_for(16).await;
+        }
+        #[cfg(not(target_family = "wasm"))]
+        if window.wait_events(wait) {
+            // The frame about to run serves a wake that came with the input.
+            balaur_core::wake::take();
+            return;
+        }
+    }
 }
 
 /// Sleep out whatever is left of the frame's budget.

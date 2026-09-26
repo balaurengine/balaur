@@ -259,7 +259,7 @@ pub fn sweep(S) {
             last = job.at;
         }
     }
-    if engine::time() - last > KEPT_FOR {
+    if engine::unix_time() - last > KEPT_FOR {
         S.jobs = #{};
     }
 }
@@ -282,7 +282,7 @@ fn ended(S, source, over) {
     let job = S.jobs.get(source)
         .unwrap_or(#{ name: file_name(source), done: 0, files: 0, over: "", at: 0.0 });
     job.over = over;
-    job.at = engine::time();
+    job.at = engine::unix_time();
     S.jobs[source] = job;
 }
 

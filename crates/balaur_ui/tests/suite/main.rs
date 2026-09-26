@@ -9,6 +9,7 @@ mod support;
 mod constants;
 mod glyph_mesh;
 mod glyphs;
+mod pacing;
 mod pass;
 mod splash;
 mod widget_anchor;

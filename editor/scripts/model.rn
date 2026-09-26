@@ -19,7 +19,7 @@ const MAX_DEPTH = 256;
 // The text of a project-relative file, or `None` when there is no such file —
 // the caller that wants to say "missing" needs to tell that from "empty".
 pub fn source(S, rel) {
-    let now = engine::time();
+    let now = engine::unix_time();
     if let Some(entry) = S.sources.get(rel) {
         if now - entry.at < TTL {
             return entry.text;
@@ -78,7 +78,7 @@ pub fn list(S, rel) {
     if S.game_root == "" {
         return [];
     }
-    let now = engine::time();
+    let now = engine::unix_time();
     if let Some(entry) = S.listings.get(rel) {
         if now - entry.at < TTL {
             return entry.files;

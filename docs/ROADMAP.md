@@ -72,7 +72,7 @@ being built, marked `done`, never back in the shipped one.
 | **Multiplayer dock and Play as two** — a second instance of the game started from the editor, with each link and its stats in a dock. | 0.4 | [PLAN-multiplayer.md#3-steps](PLAN-multiplayer.md#3-steps) |
 | **The editor in a browser** — a project kept on Gamend rather than only in the browser, and native targets exported from a tab. | 0.6 | [PLAN-web-editor.md](PLAN-web-editor.md) |
 | **A green `main`** — the same outputs on every machine, a bad file an error rather than a crash, and documents that match the code. | (0.2) | [PLAN-hardening.md](PLAN-hardening.md) |
-| **What the editor's frame costs** — the docks rebuild every row every frame, so the shell costs more than a 60 Hz budget; a list draws only what is visible. | (0.2) | [PLAN-editor-performance.md](PLAN-editor-performance.md) |
+| **What the editor's frame costs** — the shell restates only what changed, and `[window] low_processor` draws no frame while nothing moves. | (0.2) | [PLAN-editor-performance.md](PLAN-editor-performance.md) |
 | **Node conversions** — reparent, make scene root, save a branch as a scene, fit a collider to what is drawn, and bake a boolean. | (0.2) | [PLAN-node-conversions.md](PLAN-node-conversions.md) |
 | **The editor on a tablet and a phone** — the docks fold away on a small screen and open one at a time, and every control clears a finger. | 0.8 | [PLAN-responsive.md](PLAN-responsive.md) |
 | **More than one window** — a second OS window: a dock torn off the editor, or a game on a second display. | 1.0 | no plan |

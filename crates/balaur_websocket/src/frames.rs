@@ -48,16 +48,19 @@ pub(crate) fn spawn_socket(
         let (connection, deflate) = match open(&url, &options) {
             Ok(opened) => opened,
             Err(err) => {
-                let _ = events.send(SocketEvent::Failed {
-                    socket,
-                    reason: format!("{err:#}"),
-                });
+                balaur_core::replay::report(
+                    &events,
+                    SocketEvent::Failed {
+                        socket,
+                        reason: format!("{err:#}"),
+                    },
+                );
                 return;
             }
         };
-        let _ = events.send(SocketEvent::Open { socket });
+        balaur_core::replay::report(&events, SocketEvent::Open { socket });
         let event = run(socket, connection, deflate, &commands, &events);
-        let _ = events.send(event);
+        balaur_core::replay::report(&events, event);
     });
 }
 
@@ -469,7 +472,7 @@ fn deliver(
     } else {
         SocketEvent::Binary { socket, bytes }
     };
-    let _ = events.send(event);
+    balaur_core::replay::report(&events, event);
     Ok(())
 }
 

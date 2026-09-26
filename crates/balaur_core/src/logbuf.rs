@@ -121,6 +121,9 @@ impl<S: Subscriber> Layer<S> for CaptureLayer {
             file::append(&entry);
             buffer.entries.push_back(entry);
         }
+        // Outside the lock: the wake may log, and this layer would take it again.
+        drop(guard);
+        crate::wake::wake();
     }
 }
 

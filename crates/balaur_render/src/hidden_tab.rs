@@ -17,13 +17,18 @@ pub(crate) fn is_hidden() -> bool {
 
 /// One hidden-tab interval, as a `setTimeout` future.
 pub(crate) async fn sleep() {
+    sleep_for(MILLISECONDS).await;
+}
+
+/// A `setTimeout` of `milliseconds`, as a future.
+pub(crate) async fn sleep_for(milliseconds: i32) {
     let Some(window) = web_sys::window() else {
         return;
     };
     let promise = js_sys::Promise::new(&mut |resolve, _| {
         let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
             resolve.unchecked_ref(),
-            MILLISECONDS,
+            milliseconds,
         );
     });
     let _ = JsFuture::from(promise).await;

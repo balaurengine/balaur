@@ -91,6 +91,7 @@ pub mod transport;
 pub mod triangulate;
 pub mod variables;
 pub mod voxels;
+pub mod wake;
 pub mod warnings;
 
 pub use app::{

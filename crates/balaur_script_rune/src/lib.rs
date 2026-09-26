@@ -245,6 +245,7 @@ impl RuneHost {
             let (tx, rx) = std::sync::mpsc::channel();
             let mut watcher = notify::recommended_watcher(move |res| {
                 let _ = tx.send(res);
+                balaur_core::wake::wake();
             })?;
             watcher
                 .watch(&project_root, RecursiveMode::Recursive)

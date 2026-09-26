@@ -50,7 +50,7 @@ pub(crate) fn spawn_login(
     let credentials = Credentials::from(credentials);
     std::thread::spawn(move || {
         let outcome = auth::login(&mut client.lock(), &credentials).map_err(|err| err.to_string());
-        let _ = events.send(GamendEvent::logged_in(request, outcome));
+        balaur_core::replay::report(&events, GamendEvent::logged_in(request, outcome));
     });
 }
 
@@ -69,7 +69,7 @@ pub(crate) fn spawn_rest(
             .lock()
             .call(&method, &path, body.as_ref())
             .map_err(|err| err.to_string());
-        let _ = events.send(GamendEvent::rest_done(request, outcome));
+        balaur_core::replay::report(&events, GamendEvent::rest_done(request, outcome));
     });
 }
 
@@ -89,7 +89,7 @@ pub(crate) fn spawn_socket(
                 reason: err.to_string(),
             },
         };
-        let _ = events.send(event);
+        balaur_core::replay::report(&events, event);
     });
 }
 
@@ -159,7 +159,7 @@ fn open(
     )? {
         anyhow::bail!("joining the user channel was refused");
     }
-    let _ = events.send(GamendEvent::SocketOpen { socket });
+    balaur_core::replay::report(&events, GamendEvent::SocketOpen { socket });
     // What the game joined, with its payload: what a reconnect joins again.
     let mut topics: Vec<(String, Json)> = Vec::new();
     loop {
@@ -345,11 +345,14 @@ impl Calls {
             return;
         };
         let (_, request) = self.pending.remove(at);
-        let _ = events.send(GamendEvent::Replied {
-            request,
-            status,
-            response,
-        });
+        balaur_core::replay::report(
+            &events,
+            GamendEvent::Replied {
+                request,
+                status,
+                response,
+            },
+        );
     }
 
     /// A reply that will never come is an error the caller must see, not a
@@ -358,10 +361,13 @@ impl Calls {
         self.joining.clear();
         self.rejoining.clear();
         for (_, request) in self.pending.drain(..) {
-            let _ = events.send(GamendEvent::Failed {
-                request,
-                message: "the connection ended before the reply".into(),
-            });
+            balaur_core::replay::report(
+                &events,
+                GamendEvent::Failed {
+                    request,
+                    message: "the connection ended before the reply".into(),
+                },
+            );
         }
     }
 }
@@ -378,12 +384,15 @@ fn reconnect(
 ) -> anyhow::Result<Option<Socket>> {
     for attempt in 1..=crate::RECONNECT_TRIES {
         let wait = crate::backoff(attempt);
-        let _ = events.send(GamendEvent::SocketReconnecting {
-            socket,
-            attempt,
-            reason: reason.clone(),
-            wait,
-        });
+        balaur_core::replay::report(
+            &events,
+            GamendEvent::SocketReconnecting {
+                socket,
+                attempt,
+                reason: reason.clone(),
+                wait,
+            },
+        );
         if !wait_out(wait, commands, events, topics) {
             return Ok(None);
         }
@@ -421,19 +430,25 @@ fn wait_out(
                 SocketCommand::Interrupt => {}
                 SocketCommand::Leave { request, topic } => {
                     topics.retain(|(joined, _)| *joined != topic);
-                    let _ = events.send(GamendEvent::Replied {
-                        request,
-                        status: "ok".into(),
-                        response: Json::Null,
-                    });
+                    balaur_core::replay::report(
+                        &events,
+                        GamendEvent::Replied {
+                            request,
+                            status: "ok".into(),
+                            response: Json::Null,
+                        },
+                    );
                 }
                 SocketCommand::Join { request, .. }
                 | SocketCommand::Push { request, .. }
                 | SocketCommand::CallHook { request, .. } => {
-                    let _ = events.send(GamendEvent::Failed {
-                        request,
-                        message: "the socket is reconnecting".into(),
-                    });
+                    balaur_core::replay::report(
+                        &events,
+                        GamendEvent::Failed {
+                            request,
+                            message: "the socket is reconnecting".into(),
+                        },
+                    );
                 }
             }
         }
@@ -467,7 +482,7 @@ fn reopen(
         }
     }
     topics.retain(|(topic, _)| !lost.contains(topic));
-    let _ = events.send(GamendEvent::SocketReopened { socket, lost });
+    balaur_core::replay::report(&events, GamendEvent::SocketReopened { socket, lost });
     Ok(connection)
 }
 
@@ -479,12 +494,15 @@ fn forward_message(
     event: String,
     payload: Json,
 ) {
-    let _ = events.send(GamendEvent::SocketMessage {
-        socket,
-        topic,
-        event,
-        payload,
-    });
+    balaur_core::replay::report(
+        &events,
+        GamendEvent::SocketMessage {
+            socket,
+            topic,
+            event,
+            payload,
+        },
+    );
 }
 
 /// Join a topic and pump the socket until its reply lands, forwarding

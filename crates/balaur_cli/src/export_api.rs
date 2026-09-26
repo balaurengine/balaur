@@ -179,9 +179,12 @@ fn start(eng: &Engine, target: &str, opts: Option<&Value>) -> bool {
         let report = report.clone();
         RUNNING.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         std::thread::spawn(move || {
-            let _ = report.send(ExportEvent::Started {
-                target: target.clone(),
-            });
+            balaur_core::replay::report(
+                &report,
+                ExportEvent::Started {
+                    target: target.clone(),
+                },
+            );
             let event = match run_export(&project, &target, download, sign, output) {
                 Ok(path) => ExportEvent::Done {
                     target,
@@ -192,7 +195,7 @@ fn start(eng: &Engine, target: &str, opts: Option<&Value>) -> bool {
                     message: format!("{err:#}"),
                 },
             };
-            let _ = report.send(event);
+            balaur_core::replay::report(&report, event);
             RUNNING.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
         });
     })

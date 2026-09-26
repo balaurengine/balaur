@@ -762,6 +762,7 @@ orientation = { type = "enum", default = "any", options = ["any", "portrait", "l
 vsync = { type = "bool", default = true, order = 5, applies = "restart", help = "Present in step with the display." }
 msaa = { type = "int", default = 1, min = 1, max = 4, order = 6, applies = "restart", help = "Samples per pixel. 1 is off and 4 is the only other count the renderer offers; it costs two render targets of four samples each." }
 max_fps = { type = "int", default = 0, min = 0, max = 1000, order = 7, applies = "restart", help = "The most frames a second the loop draws. Zero paces it against the tick instead, which is what vsync already does on a display that runs at the tick rate." }
+low_processor = { type = "bool", default = false, order = 8, applies = "restart", help = "Run a frame only when something asks for one: input, ui.request_repaint, a log line, a changed file or work finished on another thread. What a tool that sits still wants; a game that moves every frame leaves it off." }
 "#,
         ),
     );

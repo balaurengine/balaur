@@ -510,7 +510,7 @@ impl ImportJob {
         // Let go first: on a thread, the tick may read the count as soon as
         // the end arrives. Counted up once when the job was made.
         self.running.fetch_sub(1, Ordering::Relaxed);
-        let _ = self.report.send(event);
+        balaur_core::replay::report(&self.report, event);
         self.state = JobState::Over;
         Progress::Done
     }
@@ -538,7 +538,10 @@ impl ImportJob {
             return match balaur_import::ProjectWalk::begin(file, &self.project) {
                 Ok(walk) => {
                     let files = walk.files();
-                    let _ = self.report.send(ImportEvent::Started { source, files });
+                    balaur_core::replay::report(
+                        &self.report,
+                        ImportEvent::Started { source, files },
+                    );
                     self.state = JobState::Walking {
                         walk: Box::new(walk),
                         done: 0,
@@ -555,10 +558,13 @@ impl ImportJob {
         if !balaur_import::slices(&name) {
             // A level and a Godot project walk their own folder, so there is
             // nothing to plan and this is the one long slice.
-            let _ = self.report.send(ImportEvent::Started {
-                source: source.clone(),
-                files: 0,
-            });
+            balaur_core::replay::report(
+                &self.report,
+                ImportEvent::Started {
+                    source: source.clone(),
+                    files: 0,
+                },
+            );
             let Source::Beside(file) = &self.source else {
                 return self.over(ImportEvent::Failed {
                     source,
@@ -612,7 +618,7 @@ impl ImportJob {
         match planned {
             Ok(plan) => {
                 let files = plan.outputs();
-                let _ = self.report.send(ImportEvent::Started { source, files });
+                balaur_core::replay::report(&self.report, ImportEvent::Started { source, files });
                 self.state = JobState::Writing {
                     plan,
                     sink: balaur_import::ProjectSink::new(&self.project),
@@ -677,12 +683,15 @@ impl ImportJob {
                 match plan.write_next(&mut sink, &side) {
                     Ok(progress) => {
                         done += 1;
-                        let _ = self.report.send(ImportEvent::Wrote {
-                            source: source.clone(),
-                            path,
-                            done,
-                            files,
-                        });
+                        balaur_core::replay::report(
+                            &self.report,
+                            ImportEvent::Wrote {
+                                source: source.clone(),
+                                path,
+                                done,
+                                files,
+                            },
+                        );
                         if progress == Progress::Done {
                             break;
                         }
@@ -740,12 +749,15 @@ impl ImportJob {
             match walk.read_next() {
                 Ok(_) => {
                     done += 1;
-                    let _ = self.report.send(ImportEvent::Wrote {
-                        source: source.clone(),
-                        path,
-                        done,
-                        files,
-                    });
+                    balaur_core::replay::report(
+                        &self.report,
+                        ImportEvent::Wrote {
+                            source: source.clone(),
+                            path,
+                            done,
+                            files,
+                        },
+                    );
                 }
                 Err(why) => {
                     return self.over(ImportEvent::Failed {

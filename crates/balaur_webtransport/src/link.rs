@@ -43,7 +43,7 @@ pub(crate) fn dial(
     {
         Ok(runtime) => runtime,
         Err(e) => {
-            let _ = events.send(LinkEvent::Closed(format!("no runtime: {e}")));
+            balaur_core::replay::report(&events, LinkEvent::Closed(format!("no runtime: {e}")));
             return;
         }
     };
@@ -53,7 +53,7 @@ pub(crate) fn dial(
         let session = match connect(url, accept).await {
             Ok(session) => session,
             Err(e) => {
-                let _ = events.send(LinkEvent::Closed(reason(&e)));
+                balaur_core::replay::report(&events, LinkEvent::Closed(reason(&e)));
                 return;
             }
         };
@@ -62,12 +62,15 @@ pub(crate) fn dial(
         let stream = session.open_bi().await;
         match stream {
             Ok((send, recv)) => {
-                let _ = events.send(LinkEvent::Open);
+                balaur_core::replay::report(&events, LinkEvent::Open);
                 let ended = pump(session, send, recv, commands, events.clone()).await;
-                let _ = events.send(LinkEvent::Closed(ended));
+                balaur_core::replay::report(&events, LinkEvent::Closed(ended));
             }
             Err(e) => {
-                let _ = events.send(LinkEvent::Closed(format!("no reliable stream: {e}")));
+                balaur_core::replay::report(
+                    &events,
+                    LinkEvent::Closed(format!("no reliable stream: {e}")),
+                );
             }
         }
     });
@@ -173,12 +176,15 @@ pub(crate) fn listen(
 async fn serve(session: Session, commands: Receiver<LinkCommand>, events: Sender<LinkEvent>) {
     match session.accept_bi().await {
         Ok((send, recv)) => {
-            let _ = events.send(LinkEvent::Open);
+            balaur_core::replay::report(&events, LinkEvent::Open);
             let ended = pump(session, send, recv, commands, events.clone()).await;
-            let _ = events.send(LinkEvent::Closed(ended));
+            balaur_core::replay::report(&events, LinkEvent::Closed(ended));
         }
         Err(e) => {
-            let _ = events.send(LinkEvent::Closed(format!("no reliable stream: {e}")));
+            balaur_core::replay::report(
+                &events,
+                LinkEvent::Closed(format!("no reliable stream: {e}")),
+            );
         }
     }
 }

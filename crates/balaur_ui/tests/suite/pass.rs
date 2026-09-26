@@ -24,7 +24,7 @@ fn draw(body: &str) -> (tempfile::TempDir, App, Vec<String>) {
 /// The project directory comes back with the app: dropped while the app is
 /// still alive, a later pass fails to re-read the script and logs an error
 /// into whatever test is reading the log buffer at the time.
-fn draw_with(body: &str) -> (tempfile::TempDir, App, egui::Context, Vec<String>) {
+pub(crate) fn draw_with(body: &str) -> (tempfile::TempDir, App, egui::Context, Vec<String>) {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);

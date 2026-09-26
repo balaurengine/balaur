@@ -143,6 +143,8 @@ pub struct WindowSettings {
     /// it take one path.
     pub mode: WindowMode,
     pub orientation: Orientation,
+    /// Run a frame only when something asks for one, and sleep between.
+    pub low_processor: bool,
 }
 
 impl Default for WindowSettings {
@@ -154,6 +156,7 @@ impl Default for WindowSettings {
             vsync: true,
             mode: WindowMode::Windowed,
             orientation: Orientation::Any,
+            low_processor: false,
         }
     }
 }
@@ -170,6 +173,7 @@ impl WindowSettings {
             vsync: setting_bool(eng, "window/vsync", fallback.vsync),
             mode: WindowMode::parse(&setting_string(eng, "window/mode")).unwrap_or(fallback.mode),
             orientation: Orientation::parse(&setting_string(eng, "window/orientation")),
+            low_processor: setting_bool(eng, "window/low_processor", fallback.low_processor),
         }
     }
 }

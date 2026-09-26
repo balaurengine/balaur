@@ -256,7 +256,7 @@ fn check(eng: &Engine) -> bool {
                     message: format!("{e:#}"),
                 },
             };
-            let _ = report.send(event);
+            balaur_core::replay::report(&report, event);
         });
     })
 }
@@ -286,7 +286,7 @@ fn install(eng: &Engine, tag: String, channel: String, allow_downgrade: bool) ->
                     }
                     Step::Unpacking => ReleaseEvent::Unpacking { tag: named.clone() },
                 };
-                let _ = report.send(event);
+                balaur_core::replay::report(&report, event);
             };
             let result = crate::update::replace(
                 (!tag.is_empty()).then_some(tag.as_str()),
@@ -304,7 +304,7 @@ fn install(eng: &Engine, tag: String, channel: String, allow_downgrade: bool) ->
                     message: format!("{e:#}"),
                 },
             };
-            let _ = report.send(event);
+            balaur_core::replay::report(&report, event);
         });
     })
 }

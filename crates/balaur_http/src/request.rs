@@ -29,7 +29,7 @@ pub(crate) fn spawn_request(call: HttpCall, events: Sender<HttpEvent>, cancel: A
         };
         // The engine shutting down mid-flight drops the receiver; nothing to
         // report to, nothing to do.
-        let _ = events.send(event);
+        balaur_core::replay::report(&events, event);
     });
 }
 
@@ -186,21 +186,27 @@ fn stream_to_file(
         received += read as u64;
         if received - reported >= PROGRESS_STEP {
             reported = received;
-            let _ = events.send(HttpEvent::Progress {
-                request,
-                received,
-                total,
-            });
+            balaur_core::replay::report(
+                &events,
+                HttpEvent::Progress {
+                    request,
+                    received,
+                    total,
+                },
+            );
         }
     }
     file.flush()?;
     drop(file);
     std::fs::rename(&partial, path)?;
-    let _ = events.send(HttpEvent::Progress {
-        request,
-        received,
-        total: Some(total.unwrap_or(received)),
-    });
+    balaur_core::replay::report(
+        &events,
+        HttpEvent::Progress {
+            request,
+            received,
+            total: Some(total.unwrap_or(received)),
+        },
+    );
     Ok(())
 }
 

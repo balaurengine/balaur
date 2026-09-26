@@ -1318,5 +1318,11 @@ caller's business — once the level loaded, or after the hit lands. The
   Headless says so rather than leaving no file and a zero exit code.
 - The mode is a launch decision (`--headless`, `--offscreen`); nothing at
   runtime can promote a headless run.
+- `[window] low_processor` lets a windowed run skip the frames nothing asked
+  for. The loop blocks in kiss3d's `Window::wait_events` until input, a
+  `balaur_core::wake`, or a repaint egui or `ui.request_repaint` scheduled.
+  A worker thread reports with `replay::report`, which wakes it; a browser tab
+  checks every 16 ms instead. The editor runs this way, so an idle editor runs
+  no script and draws nothing.
 - Rendering stays a pure observer in every mode — that is what lets the three
   agree bit for bit.

@@ -186,7 +186,7 @@ pub fn run(S) {
         found.push(f);
     }
     S.lint.found = found;
-    S.lint.at = engine::time();
+    S.lint.at = engine::unix_time();
 }
 
 // What the next sweep would look at, so an unchanged project is not swept.
@@ -203,11 +203,13 @@ fn fingerprint(S) {
 /// A check is a compile on the frame thread — tens of milliseconds for a large
 /// file — so it waits out a burst of keystrokes rather than running inside one.
 pub fn idle(S) {
-    let now = engine::time();
+    let now = engine::unix_time();
     let sources = fingerprint(S);
     if sources != S.lint.sources {
         S.lint.sources = sources;
         S.lint.typed = now;
+        // The sweep waits for typing to stop; this is the frame it runs in.
+        ui::request_repaint(#{ after: IDLE });
         return;
     }
     if S.lint.at >= S.lint.typed && S.lint.at >= 0.0 {

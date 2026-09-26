@@ -5,8 +5,7 @@
 // put per-type knowledge back where the schema-driven inspector removed it.
 const MAX = 100;
 // A drag reports a change every frame; records sharing a key inside this many
-// seconds are one step. `engine::time()` advances once per frame, which is
-// the resolution this wants.
+// seconds of the wall clock are one step.
 const COALESCE = 0.4;
 
 fn frame(S, label) {
@@ -26,7 +25,7 @@ pub fn record(S, label, key) {
         return;
     }
     let h = S.history;
-    let now = engine::time();
+    let now = engine::unix_time();
     if key.is_some() && h.key == key && now - h.at < COALESCE {
         h.at = now;
         return;

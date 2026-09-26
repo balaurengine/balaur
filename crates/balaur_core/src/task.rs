@@ -103,6 +103,7 @@ pub fn compute<T: Send + 'static>(
     let (answer, answered) = std::sync::mpsc::channel();
     let run = move || {
         let _ = answer.send(work());
+        crate::wake::wake();
     };
     #[cfg(not(target_family = "wasm"))]
     std::thread::spawn(run);
