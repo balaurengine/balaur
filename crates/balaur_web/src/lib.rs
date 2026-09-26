@@ -25,7 +25,7 @@ use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as Json;
 
-#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+#[cfg(target_family = "wasm")]
 mod browser;
 
 /// What the page reports, recorded as it arrives.
@@ -279,11 +279,11 @@ impl balaur_plugin::Plugin for WebPlugin {
     }
 }
 
-#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+#[cfg(target_family = "wasm")]
 use browser as backend;
 
 /// Off the web: no page, so nothing to report and nowhere to post.
-#[cfg(not(all(target_family = "wasm", not(target_os = "emscripten"))))]
+#[cfg(not(target_family = "wasm"))]
 mod backend {
     use std::sync::mpsc::Sender;
 

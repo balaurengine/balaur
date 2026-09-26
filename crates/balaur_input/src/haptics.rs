@@ -197,14 +197,14 @@ fn millis(seconds: f64) -> u32 {
 
 /// The device's own motor. A page has `navigator.vibrate`; a desktop has
 /// nothing, and a phone's native hook is the export's to wire.
-#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+#[cfg(target_family = "wasm")]
 fn vibrate(milliseconds: u32) {
     if let Some(window) = web_sys::window() {
         let _ = window.navigator().vibrate_with_duration(milliseconds);
     }
 }
 
-#[cfg(not(all(target_family = "wasm", not(target_os = "emscripten"))))]
+#[cfg(not(target_family = "wasm"))]
 fn vibrate(milliseconds: u32) {
     tracing::debug!(milliseconds, "vibrate: no motor on this platform");
 }

@@ -106,11 +106,7 @@ mod debug_lines;
 mod device;
 #[cfg(feature = "kiss3d")]
 mod frame_group;
-#[cfg(all(
-    feature = "kiss3d",
-    target_family = "wasm",
-    not(target_os = "emscripten")
-))]
+#[cfg(all(feature = "kiss3d", target_family = "wasm"))]
 mod hidden_tab;
 #[cfg(feature = "kiss3d")]
 pub mod kiss3d_backend;

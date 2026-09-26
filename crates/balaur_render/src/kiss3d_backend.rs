@@ -438,7 +438,7 @@ pub async fn run_windowed_async(
         // A hidden tab gets no animation frame, so `render` would never
         // return: step the simulation on a timer and draw nothing, so a
         // socket's heartbeats and a fixed tick keep going behind the tab.
-        #[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+        #[cfg(target_family = "wasm")]
         if crate::hidden_tab::is_hidden() {
             crate::kiss3d_input::pump_input(&app, &window);
             let now = Instant::now();

@@ -47,12 +47,12 @@ fn clock_nanos() -> u64 {
         .map_or(0, |d| u64::try_from(d.as_nanos()).unwrap_or(u64::MAX))
 }
 
-#[cfg(not(all(target_family = "wasm", not(target_os = "emscripten"))))]
+#[cfg(not(target_family = "wasm"))]
 fn salt() -> u64 {
     u64::from(std::process::id())
 }
 
-#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+#[cfg(target_family = "wasm")]
 fn salt() -> u64 {
     js_sys::Math::random().to_bits()
 }

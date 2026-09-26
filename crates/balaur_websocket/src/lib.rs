@@ -37,20 +37,11 @@ mod backend {
     pub(crate) fn pump() {}
 }
 
-#[cfg(all(target_family = "wasm", target_os = "emscripten"))]
-mod emscripten;
-
-/// The browser backend: emscripten websockets, no threads.
-#[cfg(all(target_family = "wasm", target_os = "emscripten"))]
-mod backend {
-    pub(crate) use crate::emscripten::{pump, spawn_socket};
-}
-
-/// The browser outside emscripten: the WebSocket API through web-sys.
-#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+/// The browser: the WebSocket API through web-sys.
+#[cfg(target_family = "wasm")]
 mod browser;
 
-#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+#[cfg(target_family = "wasm")]
 mod backend {
     pub(crate) use crate::browser::{pump, spawn_socket};
 }

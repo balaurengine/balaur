@@ -40,9 +40,8 @@ use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 use serde_json::Value as Json;
 
 mod activity;
-#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+#[cfg(target_family = "wasm")]
 mod browser;
-#[cfg(not(target_os = "emscripten"))]
 mod channels;
 pub mod client;
 mod inspect;
@@ -58,78 +57,13 @@ mod backend {
     pub(crate) fn pump() {}
 }
 
-#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+#[cfg(target_family = "wasm")]
 mod backend {
     pub(crate) use crate::browser::{SharedClient, pump, spawn_login, spawn_rest, spawn_socket};
 }
 
-/// The emscripten stub: no networking stack compiles there, so every
-/// operation resolves to an error event and scripts keep running.
-#[cfg(all(target_family = "wasm", target_os = "emscripten"))]
-mod backend {
-    use std::sync::mpsc::{Receiver, Sender};
-
-    use crate::{GamendEvent, SocketCommand};
-
-    #[derive(Clone, Default)]
-    pub(crate) struct SharedClient;
-
-    impl SharedClient {
-        pub(crate) fn new(_base_url: &str) -> Self {
-            Self
-        }
-
-        pub(crate) fn session(&self) -> Option<crate::client::Session> {
-            None
-        }
-
-        pub(crate) fn set_session(&self, _session: Option<crate::client::Session>) {}
-    }
-
-    pub(crate) fn pump() {}
-
-    fn refuse(events: &Sender<GamendEvent>, request: u64) {
-        let _ = events.send(GamendEvent::Failed {
-            request,
-            message: "no network backend compiles for wasm".into(),
-        });
-    }
-
-    pub(crate) fn spawn_login(
-        _client: &SharedClient,
-        request: u64,
-        _credentials: crate::LoginCredentials,
-        events: &Sender<GamendEvent>,
-    ) {
-        refuse(events, request);
-    }
-
-    pub(crate) fn spawn_rest(
-        _client: &SharedClient,
-        request: u64,
-        _method: String,
-        _path: String,
-        _body: Option<serde_json::Value>,
-        events: &Sender<GamendEvent>,
-    ) {
-        refuse(events, request);
-    }
-
-    pub(crate) fn spawn_socket(
-        _client: &SharedClient,
-        socket: u64,
-        _commands: Receiver<SocketCommand>,
-        events: &Sender<GamendEvent>,
-    ) {
-        let _ = events.send(GamendEvent::SocketError {
-            socket,
-            reason: "no network backend compiles for wasm".into(),
-        });
-    }
-}
-
-/// Login input, mirrored from [`client::auth::Credentials`] so the wasm
-/// stub compiles without the wire layer.
+/// Login input, as a script spells it; converts into
+/// [`client::auth::Credentials`].
 pub enum LoginCredentials {
     EmailPassword {
         email: String,

@@ -15,7 +15,7 @@
 # Plan: the editor in a browser
 
 `editor/` is a Balaur project, and the engine already compiles to
-`wasm32-unknown-emscripten`. So the editor on the web is not a second editor:
+`wasm32-unknown-unknown`. So the editor on the web is not a second editor:
 it is the same wasm build with a canvas under it and somewhere to keep the
 files. What that costs is written down here.
 
@@ -80,7 +80,7 @@ file through the `embedded()` seam; `file_api` needs the same move —
 project-files trait held as a resource, `std::fs` on native and the browser's
 origin-private file system on the web. It stays synchronous, because the
 script API is synchronous and every editor script is written against that;
-OPFS through emscripten's filesystem is a synchronous mount, which is what
+a filesystem held in memory answers synchronously (step 2), which is what
 makes this possible at all rather than a rewrite of every caller.
 
 **Where a project lives, in three tiers.**
@@ -132,7 +132,7 @@ the web.
 | Piece | Decision |
 | --- | --- |
 | Rendering (kiss3d, wgpu) | Step 1, a WebGL2 or WebGPU surface on a canvas. Shared with web export, and the only blocker with no workaround |
-| egui, and the `ui` module the editor draws with | Step 1. egui runs in a browser already; what is unsettled is the emscripten target specifically, where its web-sys dependency leaves wasm-bindgen intrinsics undefined and `.cargo/config.toml` tolerates them at link |
+| egui, and the `ui` module the editor draws with | Step 1. egui runs in a browser already, through web-sys |
 | Input (winit, keyboard, mouse, wheel) | Step 1, through winit's canvas events. Chords are the risk: ⌘S and ⌘Z are the browser's before they are the editor's, and every one has to be claimed |
 | `fs`: read, write, list, exists, remove | Step 2, behind the backend seam. The whole plan turns on this one |
 | `require` and in-place module hot reload | Step 2. It reads through `fs`, so it follows for free |
@@ -140,9 +140,9 @@ the web.
 | `toml`, `json` | Have. Pure conversion, no platform in them |
 | The scene mirror, gizmos, workspaces, docks | Have, given the four rows above. This is the part that is genuinely already written |
 | Fonts (`editor/fonts`) | Step 3, fetched beside the wasm rather than read off a disk |
-| `http` | Have. `crates/balaur_http`'s emscripten shim is `-sFETCH`, already linked |
-| `websocket` | Have. `crates/balaur_websocket` links `-lwebsocket.js` |
-| `gamend` | Step 4. The wasm stub refuses everything today; the two rows above are the backends it needs, so this is plumbing, not research |
+| `http` | Have. `crates/balaur_http/src/browser.rs` is the Fetch API through web-sys |
+| `websocket` | Have. `crates/balaur_websocket/src/browser.rs` is the WebSocket API through web-sys |
+| `gamend` | Have. `crates/balaur_gamend/src/browser.rs` drives the same protocol code over Fetch and the WebSocket API |
 | WebTransport | `docs/PLAN-networking.md`. The browser has it natively and `crates/balaur_webtransport` is where it lands |
 | Audio | Step 6, and it is `balaur_audio`'s wasm stub plus the browser's autoplay rule: no sound until the player clicks something. A gesture the editor already has |
 | `save`, and the user data directory | Step 2, onto the same backend. A save in a tab is OPFS |
@@ -156,14 +156,14 @@ the web.
 | `balaur update`, template download | Not planned, and already cfg'd off. A page updates by reloading |
 | The LSP (`balaur lsp`) | Not planned. It is stdin/stdout for an editor outside Balaur, and the editor here is Balaur |
 | Multiplayer co-editing | Not planned. See §1 |
-| Threads (rayon, the `parallel` physics build) | Not planned first. Emscripten pthreads need `SharedArrayBuffer`, which needs COOP and COEP headers on every response, which is a hosting constraint on everyone who serves the editor. Single-threaded until something measured demands otherwise |
+| Threads (rayon, the `parallel` physics build) | Not planned first. Wasm threads need `SharedArrayBuffer`, which needs COOP and COEP headers on every response, which is a hosting constraint on everyone who serves the editor. Single-threaded until something measured demands otherwise |
 
 ## 3. Steps
 
-1. **A canvas.** *Built,* on `wasm32-unknown-unknown` with wasm-bindgen
-   rather than emscripten (§5 question 1): a wgpu surface on an HTML canvas,
-   events wired, and a shell page. Shared with web export. The digest check
-   §1 asks for has **not** been run, and is the first thing owed here.
+1. **A canvas.** *Built,* on `wasm32-unknown-unknown` with wasm-bindgen (§5
+   question 1): a wgpu surface on an HTML canvas, events wired, and a shell
+   page. Shared with web export. The digest check §1 asks for has **not** been
+   run, and is the first thing owed here.
 2. **Files.** *Built,* and not with OPFS. `balaur_core::files::FileBackend`
    is the seam, `DiskFs` on native and `MemoryFs` in a tab; a project is kept
    by mirroring every write into IndexedDB behind that memory filesystem
@@ -198,8 +198,7 @@ the web.
 The wasm build is already checked on every push, which is more than most of
 this repo's platform work starts with. Beyond that:
 
-- the `window` feature links for emscripten, and the undefined-symbol check
-  in `package_runtime.sh` still passes with the renderer in
+- the web build links with the `window` feature and the renderer in
 - `editor/scripts/selftest.rn` — the editor's own headless self-test — runs
   **in a browser**, driven by Playwright over the shell page. It already
   asserts the editor's behaviour on desktop, so the web job is the same
@@ -221,21 +220,18 @@ over.
 
 ## 5. Open questions
 
-1. **Emscripten or `wasm32-unknown-unknown` with wasm-bindgen?** *Settled
-   on 2026-09-03: wasm-bindgen.* The deciding evidence is not size or speed
-   but the renderer — kiss3d declares its web dependencies under
+1. **Which wasm target?** *Settled on 2026-09-03: `wasm32-unknown-unknown`
+   with wasm-bindgen.* The deciding evidence is not size or speed but the
+   renderer — kiss3d declares its web dependencies under
    `[target.wasm32-unknown-unknown.dependencies]` (wasm-bindgen, web-sys,
    `HtmlCanvasElement`, the pointer and key events) and already carries a
    canvas backend in `src/window/wgpu_canvas.rs`; wgpu reaches WebGPU only
-   through web-sys. Those `#[cfg(target_arch = "wasm32")]` blocks would
-   activate on emscripten too — emscripten *is* wasm32 — against
-   dependencies that are not declared there, which is the same defect
-   `.cargo/config.toml` already tolerates at link. `cargo check -p
-   balaur_render --features kiss3d --target wasm32-unknown-unknown` passes
-   with wgpu 30, naga, glow and egui 0.36 all resolving. The cost is the
-   synchronous filesystem §1 leans on: OPFS sync access handles exist only
-   inside a worker, so the engine runs in one, and the canvas becomes an
-   `OffscreenCanvas`. That is step 2's problem, and it is a known pattern.
+   through web-sys. `cargo check -p balaur_render --features kiss3d --target
+   wasm32-unknown-unknown` passes with wgpu 30, naga, glow and egui 0.36 all
+   resolving. The cost is the synchronous filesystem §1 leans on: OPFS sync
+   access handles exist only inside a worker, so the engine runs in one, and
+   the canvas becomes an `OffscreenCanvas`. That is step 2's problem, and it
+   is a known pattern.
 2. **How big is the editor?** The whole engine plus egui plus the Rune
    compiler in one module, and the number decides whether the front page can
    link to it. The floor is now measured: the headless template is 13.6 MB

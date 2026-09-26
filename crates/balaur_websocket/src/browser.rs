@@ -1,10 +1,8 @@
-//! The browser websocket backend outside emscripten: the `WebSocket` API
-//! through web-sys.
+//! The browser websocket backend: the `WebSocket` API through web-sys.
 //!
-//! The same shape as the emscripten backend next door — a registry of live
-//! sockets, callbacks that push events, and a `pump` that flushes queued
-//! sends once per tick — but with closures instead of C callbacks, so no
-//! raw pointer outlives anything and there is no `unsafe` here at all.
+//! A registry of live sockets, callbacks that push events, and a `pump` that
+//! flushes queued sends once per tick. The callbacks are closures, so no raw
+//! pointer outlives anything and there is no `unsafe` here at all.
 //!
 //! **Two options a browser will not honour.** `SocketOptions::headers` cannot
 //! be set: the WebSocket constructor takes a url and subprotocols, and the

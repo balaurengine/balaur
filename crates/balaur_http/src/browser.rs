@@ -1,11 +1,9 @@
-//! The browser HTTP backend outside emscripten: the Fetch API through web-sys.
+//! The browser HTTP backend: the Fetch API through web-sys.
 //!
-//! Same delivery contract as the emscripten backend next door, and for the
-//! same reason: browser I/O is already asynchronous on the main thread, so
-//! there is no worker thread. A promise settles between frames, feeds the
-//! channel the native worker feeds, and the pump drains it at `Stage::First`
-//! — which is what keeps a response landing on a tick boundary and inside
-//! the recording.
+//! Browser I/O is already asynchronous on the main thread, so there is no
+//! worker thread. A promise settles between frames, feeds the channel the
+//! native worker feeds, and the pump drains it at `Stage::First` — which is
+//! what keeps a response landing on a tick boundary and inside the recording.
 //!
 //! The browser owns the transport, so TLS, redirects and HTTP/2 or /3
 //! negotiation are its problem, not this crate's.

@@ -168,10 +168,9 @@ Every protocol a multiplayer engine could sit on, and where each stands here.
 
 Two constraints shape the browser half:
 
-- The emscripten build is thread-free and has no wasm-bindgen, so
-  `web-transport-wasm` (web-sys) does not apply. The browser transport is a C
-  shim over the browser API, the way the emscripten shim wraps fetch and
-  websockets today.
+- `web_sys::WebTransport` sits behind `web_sys_unstable_apis`, a rustflag
+  over the whole build, so the browser transport is a hand-written
+  wasm-bindgen binding in `balaur_webtransport/src/browser.rs`.
 - A browser accepts a self-signed certificate through
   `serverCertificateHashes` only while it is valid for at most two weeks.
   Enough for local play and CI; a shipped server needs a real certificate.

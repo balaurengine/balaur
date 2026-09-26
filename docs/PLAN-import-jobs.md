@@ -99,7 +99,7 @@ the progress event wants, so one design serves both.
 
 The half `ExternalIo` does not cover is how the work leaves the tick, written
 out per subsystem per target as a `mod backend` exposing one name:
-`balaur_http` in three (`request.rs`, `browser.rs`, `emscripten.rs`),
+`balaur_http` in two (`request.rs`, `browser.rs`),
 `balaur_gamend` in two, `balaur_webtransport` in two, and export in two.
 
 **One type, and only for the work that is the same work.** `task::step` is

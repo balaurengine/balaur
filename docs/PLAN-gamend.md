@@ -48,7 +48,7 @@ The engine:
 | Have | Where |
 | --- | --- |
 | `gamend::configure`, `login`, `rest`, `connect`, `join`, `push`, `leave`, `call_hook`, `close`: nine calls, all delivered once per tick and replayable | `crates/balaur_gamend/src/lib.rs` |
-| Phoenix Channels V2 over the websocket, Fetch and WebSocket in the browser, a refusing stub on emscripten | `client/phoenix.rs`, `browser.rs` |
+| Phoenix Channels V2 over the websocket, Fetch and WebSocket in the browser | `client/phoenix.rs`, `browser.rs` |
 | Tests against a real server, `GAMEND_URL` or gamend.org, in the e2e suite: the public API, and accounts that register by device, sign in again, open the socket and delete themselves | `crates/balaur_gamend/tests` |
 | A token the server refuses heals: a call refreshes on its 401 and runs again, and a socket renews a stale token before it connects. A refused refresh answers the 401 | `client/rest.rs`, `worker.rs`, `browser.rs` |
 | Player flows through the SDK addon, with a second player answering over HTTP: profile, lobby with chat and a ready check, friends, notifications, parties, groups, economy, quests, leaderboards, a tournament entry, push tokens | `tests/player_flows.rs`, `player_flows.rn` |

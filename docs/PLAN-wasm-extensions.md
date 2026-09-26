@@ -10,11 +10,10 @@ WebAssembly".
 - **A native library cannot load in the browser.** The web build is
   `wasm32-unknown-unknown` with wasm-bindgen, which has no dynamic linker. The
   `extensions` feature is off there, and off on iOS and Android.
-- **Godot's route needs Emscripten.** Its web export loads GDExtensions as
-  Emscripten side modules, through a template built with dynamic linking. The
-  web build chose wasm-bindgen over Emscripten on 2026-09-03, because kiss3d
-  and wgpu reach the browser only through web-sys (`docs/PLAN-web-editor.md`
-  §5).
+- **Godot's route needs a dynamically linked web template.** Its web export
+  loads GDExtensions as side modules through one. The web build here is
+  wasm-bindgen's target, chosen on 2026-09-03 because kiss3d and wgpu reach
+  the browser only through web-sys (`docs/PLAN-web-editor.md` §5).
 - **A module the host instantiates itself needs neither.** The browser
   compiles it with its own engine, and natively a runtime runs it. One file
   serves every platform, needs no compiler match, and cannot touch engine
@@ -28,7 +27,7 @@ WebAssembly".
 | `wasmtime` with Cranelift | planned, desktop and Android | A whole compiler in the binary, so it sits behind its own cargo feature, and step 6 measures its size. Has NaN canonicalisation and epoch interruption |
 | `wasmtime`'s Pulley interpreter | planned, iOS | iOS forbids JIT |
 | `wasmi` | fallback, every native target | A pure interpreter, taken if step 7 finds wasmtime too large or Pulley unusable on iOS |
-| Emscripten side modules, `dlopen` in the browser | not planned | Needs the Emscripten target the web build rejected |
+| Side modules, `dlopen` in the browser | not planned | Needs a dynamically linked web template, which wasm-bindgen's target cannot build |
 | Component model and WIT, `wasmtime::component` and `jco` | not planned for tier 1 | Browsers run core modules only, so the web needs `jco` to transpile and a JS toolchain in the export. Revisit for tier 2, where component schemas could use its record types |
 | WASI imports | not planned | Clock, files and randomness belong to the engine, and a clock read breaks determinism. A module importing outside `balaur` is refused, naming the import |
 | Extism | not planned | Its own byte-buffer ABI in place of `BalaurValue`, and a second plugin SDK beside ours |

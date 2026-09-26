@@ -14,14 +14,13 @@ balaur_plugin.workspace = true
 balaur_script.workspace = true
 anyhow.workspace = true
 
-# No HTTP stack compiles for wasm; those get the emscripten fetch backend or,
-# outside emscripten, a stub whose every request resolves to an error event.
+# No HTTP stack compiles for wasm; the browser backend takes over there.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 ureq.workspace = true
 
-# The browser outside emscripten: the Fetch API through web-sys. No threads —
-# a promise settles between frames and feeds the same channel.
-[target.'cfg(all(target_family = "wasm", not(target_os = "emscripten")))'.dependencies]
+# The browser: the Fetch API through web-sys. No threads — a promise settles
+# between frames and feeds the same channel.
+[target.'cfg(target_family = "wasm")'.dependencies]
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
@@ -33,10 +32,6 @@ web-sys = { version = "0.3", features = [
     "Response",
     "AbortSignal",
 ] }
-
-# Compiles the emscripten fetch shim for web builds only; see build.rs.
-[build-dependencies]
-cc = "1"
 
 [dev-dependencies]
 balaur_testkit.workspace = true

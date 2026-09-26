@@ -160,7 +160,7 @@ web)
   if [ -n "$threads" ]; then
     features="$features,parallel"
   fi
-  # wasm-bindgen, not emscripten: kiss3d declares its web dependencies under
+  # wasm-bindgen's target: kiss3d declares its web dependencies under
   # [target.wasm32-unknown-unknown] and wgpu reaches WebGPU only through web-sys.
   if [ -n "$threads" ]; then
     # std itself has to be rebuilt with atomics, and `-Z build-std` is nightly

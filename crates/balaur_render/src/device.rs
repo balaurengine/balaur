@@ -89,9 +89,9 @@ pub(crate) fn set_suspended(app: &App, suspended: bool) {
 
 /// Ask the platform to keep the screen on, or let it dim again.
 pub(crate) fn keep_awake(on: bool) {
-    #[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+    #[cfg(target_family = "wasm")]
     web::keep_awake(on);
-    #[cfg(not(all(target_family = "wasm", not(target_os = "emscripten"))))]
+    #[cfg(not(target_family = "wasm"))]
     tracing::debug!(on, "keep awake: nothing to ask on this platform");
 }
 
@@ -115,15 +115,12 @@ pub(crate) fn dark_mode() -> bool {
     name.to_string().contains("Dark")
 }
 
-#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+#[cfg(target_family = "wasm")]
 pub(crate) fn dark_mode() -> bool {
     web::dark_mode()
 }
 
-#[cfg(not(any(
-    target_os = "macos",
-    all(target_family = "wasm", not(target_os = "emscripten"))
-)))]
+#[cfg(not(any(target_os = "macos", target_family = "wasm")))]
 pub(crate) fn dark_mode() -> bool {
     false
 }
@@ -131,7 +128,7 @@ pub(crate) fn dark_mode() -> bool {
 /// What the on-screen keyboard covers: the part of the window the visual
 /// viewport no longer reaches. A window asks kiss3d, which asks UIKit or the
 /// Android activity and answers zero on a desktop.
-#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+#[cfg(target_family = "wasm")]
 fn keyboard_height(_window: &kiss3d::window::Window) -> f32 {
     let Some(window) = web_sys::window() else {
         return 0.0;
@@ -149,23 +146,23 @@ fn keyboard_height(_window: &kiss3d::window::Window) -> f32 {
     (covered.max(0.0) * ratio) as f32
 }
 
-#[cfg(not(all(target_family = "wasm", not(target_os = "emscripten"))))]
+#[cfg(not(target_family = "wasm"))]
 fn keyboard_height(window: &kiss3d::window::Window) -> f32 {
     window.keyboard_height()
 }
 
 /// The page reads its insets off the shell's CSS; a window asks kiss3d.
-#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+#[cfg(target_family = "wasm")]
 fn safe_area(_window: &kiss3d::window::Window) -> [f32; 4] {
     web::safe_area()
 }
 
-#[cfg(not(all(target_family = "wasm", not(target_os = "emscripten"))))]
+#[cfg(not(target_family = "wasm"))]
 fn safe_area(window: &kiss3d::window::Window) -> [f32; 4] {
     window.safe_area()
 }
 
-#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+#[cfg(target_family = "wasm")]
 mod web {
     use wasm_bindgen::JsValue;
 

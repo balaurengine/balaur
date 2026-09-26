@@ -220,15 +220,11 @@ One commit, after phases 1–3 land, so it describes the tree as it is:
   `PROPERTY_TYPES` has `flags` and `node`; the "roughly thirty helpers"
   paragraph and the `app()` escape hatch die with the registry migration;
   "five workspaces, fixed five-region layout" and "one node" predate Stage and
-  the shell tree; CI builds `wasm32-unknown-unknown` with `window`, not
-  emscripten headless; `camera.post` and the settings subsystem have no
-  section at all.
+  the shell tree; `camera.post` and the settings subsystem have no section
+  at all.
 - DETERMINISM.md: a snapshot does respawn and free nodes; hot reload is
   handled in the editor only; the two examples use `app.` where plugins now
   say `reg.`.
-- PLAN-networking.md §0: `browser.rs` exists, wasm-bindgen only, and is gated
-  on `target_family = "wasm"`, which the emscripten web target matches but
-  cannot run — so it is unreachable, which is what "not built" meant.
 - `docs/generated`: regenerate — `settings` still lists `editor_toml`,
   `pages`, `project_toml`; `ui.widget_rect` and `set_widget_surface` are
   missing. Then teach `gen_docs.py` the things it does not know: settings

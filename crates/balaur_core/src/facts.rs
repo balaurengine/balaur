@@ -55,7 +55,7 @@ impl PlatformFacts {
 
 /// A phone always has one; a page asks the browser, since a desktop tab and a
 /// tablet run the same build.
-#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+#[cfg(target_family = "wasm")]
 pub(crate) fn touchscreen() -> bool {
     let navigator = js_sys::Reflect::get(&js_sys::global(), &"navigator".into());
     navigator
@@ -65,7 +65,7 @@ pub(crate) fn touchscreen() -> bool {
         .is_some_and(|points| points > 0.0)
 }
 
-#[cfg(not(all(target_family = "wasm", not(target_os = "emscripten"))))]
+#[cfg(not(target_family = "wasm"))]
 pub(crate) const fn touchscreen() -> bool {
     cfg!(mobile)
 }
@@ -134,12 +134,12 @@ fn device_id(eng: &Engine) -> String {
 
 /// What tells two installs made in the same nanosecond apart. The browser has
 /// no processes and `std::process::id` panics there, so the page draws instead.
-#[cfg(not(all(target_family = "wasm", not(target_os = "emscripten"))))]
+#[cfg(not(target_family = "wasm"))]
 fn device_salt() -> u64 {
     u64::from(std::process::id())
 }
 
-#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+#[cfg(target_family = "wasm")]
 fn device_salt() -> u64 {
     js_sys::Math::random().to_bits()
 }

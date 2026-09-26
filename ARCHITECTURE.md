@@ -589,11 +589,11 @@ at load; every other packed run builds no compiler and no watcher.
 - `balaur::boot_pack(include_bytes!(...))` makes a self-contained binary. It is
   pure interpretation, so it ships where JIT is banned, iOS included. CI
   cross-compiles to iOS, Android and wasm on every push to main.
-- The web target is wasm-bindgen's, not emscripten's: kiss3d declares its web
-  dependencies there and wgpu reaches WebGPU through `web-sys`. Audio plays
-  through cpal's WebAudio host, its device opened on the first `UserActivation`
-  rather than at startup, since a browser refuses to start audio before a
-  gesture. `balaur_webtransport` has a browser backend, but no plugin registers
+- The web target is `wasm32-unknown-unknown` with wasm-bindgen: kiss3d declares
+  its web dependencies there and wgpu reaches WebGPU through `web-sys`. Audio
+  plays through cpal's WebAudio host, its device opened on the first
+  `UserActivation` rather than at startup, since a browser refuses to start
+  audio before a gesture. `balaur_webtransport` has a browser backend, but no plugin registers
   it and nothing outside its own tests opens a link, so it stays out of the
   default web feature set.
 - A pack is written in sorted key order, so two exports of one source tree give
