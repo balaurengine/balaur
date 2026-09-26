@@ -489,10 +489,7 @@ fn run(eng: &Engine, entity: Entity, row: &Binding, args: &[Value]) -> Result<()
                 Value::Num(n) => *n != 0.0,
                 _ => true,
             };
-            let world = eng.world();
-            if let Ok(mut appearance) = world.get::<&mut crate::Appearance>(target) {
-                appearance.visible = on;
-            }
+            crate::scene::set_visible(eng, target, on);
             Ok(())
         }
         Action::Call => {

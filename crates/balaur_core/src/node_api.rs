@@ -393,10 +393,8 @@ fn visible(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn set_visible(eng: &Engine, args: &[Value]) -> Result<Value> {
     let on = flag(args, 1)?;
-    let e = node(args)?;
-    let was = with_appearance(eng, e, |a| std::mem::replace(&mut a.visible, on))?;
-    if was != on {
-        crate::events::emit_from(eng, e, VISIBILITY_EVENT, Value::Bool(on));
+    if !crate::scene::set_visible(eng, node(args)?, on) {
+        bail!("node is dead");
     }
     Ok(Value::Nil)
 }

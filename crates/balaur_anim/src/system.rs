@@ -42,6 +42,8 @@ pub(crate) enum Effect {
     TweenFinished { entity: Entity, id: TweenId },
     /// Put a `polygon/deform` track's offsets on the node it deforms.
     Deform { entity: Entity, offsets: Vec<f32> },
+    /// Tell a node a `visible` track just flipped it.
+    Shown { entity: Entity, visible: bool },
 }
 
 /// What a player's node emits when a clip ends, with the clip's name.
@@ -384,7 +386,14 @@ pub(crate) fn write_pose<'a>(
         if matches!(value, TrackValue::Visible(_) | TrackValue::Tint(_)) {
             if let Ok(mut appearance) = world.get::<&mut balaur_core::scene::Appearance>(target) {
                 match value {
-                    TrackValue::Visible(on) => appearance.visible = on,
+                    // The flag is written here; its event waits for the borrow.
+                    TrackValue::Visible(on) if appearance.visible != on => {
+                        appearance.visible = on;
+                        effects.push(Effect::Shown {
+                            entity: target,
+                            visible: on,
+                        });
+                    }
                     TrackValue::Tint(tint) => appearance.tint = tint,
                     _ => {}
                 }
@@ -586,6 +595,14 @@ fn apply_effects(eng: &Engine, effects: &[Effect]) {
                     balaur_core::mesh::Deform {
                         offsets: offsets.clone(),
                     },
+                );
+            }
+            Effect::Shown { entity, visible } => {
+                balaur_core::events::announce(
+                    eng,
+                    *entity,
+                    balaur_core::node_api::VISIBILITY_EVENT,
+                    balaur_script::Value::Bool(*visible),
                 );
             }
             Effect::TweenFinished { entity, id } => {

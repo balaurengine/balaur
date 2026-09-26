@@ -980,6 +980,28 @@ pub fn is_within(world: &World, entity: Entity, root: Entity) -> bool {
     }
 }
 
+/// Show or hide a node, announcing `visibility_changed` when its own flag
+/// flips. Every run-time writer of the flag goes through here; false when the
+/// node is gone.
+pub fn set_visible(eng: &Engine, entity: Entity, on: bool) -> bool {
+    let was = {
+        let world = eng.world();
+        let Ok(mut appearance) = world.get::<&mut Appearance>(entity) else {
+            return false;
+        };
+        std::mem::replace(&mut appearance.visible, on)
+    };
+    if was != on {
+        crate::events::announce(
+            eng,
+            entity,
+            crate::node_api::VISIBILITY_EVENT,
+            balaur_script::Value::Bool(on),
+        );
+    }
+    true
+}
+
 /// Free a node the way a running engine must: detach every script instance
 /// under it, run every component's `remove` hook, then despawn.
 ///
