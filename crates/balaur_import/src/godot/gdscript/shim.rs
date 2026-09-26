@@ -92,7 +92,7 @@ mod tests {
                 ))
             })
             .collect();
-        let mut table: Vec<(String, String)> = crate::godot::gdscript::map::ENGINE_EVENTS
+        let mut table: Vec<(String, String)> = crate::godot::gdscript::map::events::ENGINE_EVENTS
             .iter()
             .map(|(signal, event)| ((*signal).to_string(), (*event).to_string()))
             .collect();
