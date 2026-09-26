@@ -147,42 +147,32 @@ enum Command {
         /// web build — needs this until the bytecode format is portable.
         #[arg(long)]
         keep_sources: bool,
-        /// Produce a macOS `.app` bundle instead of a flat executable — the
-        /// shape that can be code-signed.
-        #[arg(long)]
-        app: bool,
-        /// Sign with this identity, overriding `[export]`: a certificate name
-        /// on Apple platforms, a certificate file on Windows. On macOS it
-        /// implies `--app`, since a flat binary cannot be signed.
+        /// A package to make beside the export, repeatable: `app` (a macOS
+        /// bundle, the shape that can be code-signed), `pkg` (for the Mac App
+        /// Store), `ipa` (for App Store Connect), `apk` (installable, signed
+        /// with `[android] keystore` or Android's debug identity) or `aab`
+        /// (for Play; needs a JDK and `bundletool.jar`).
+        #[arg(long, value_enum)]
+        bundle: Vec<BundleKind>,
+        /// Sign with this identity, overriding the platform's table: a
+        /// certificate name on Apple platforms, a certificate file on
+        /// Windows. On macOS it implies `--bundle app`, since a flat binary
+        /// cannot be signed.
         #[arg(long)]
         sign: Option<String>,
         /// Submit the signed macOS bundle to Apple's notary service and
-        /// staple the ticket. Reads BALAUR_NOTARY_KEY, _KEY_ID and _ISSUER_ID.
+        /// staple the ticket. Reads BALAUR_APPLE_NOTARY_KEY, _KEY_ID and
+        /// _ISSUER_ID.
         #[arg(long)]
         notarize: bool,
         /// The `.mobileprovision` an iOS build is signed against.
         #[arg(long, value_name = "FILE")]
-        profile: Option<PathBuf>,
-        /// Wrap the iOS `.app` as the `.ipa` App Store Connect takes.
-        #[arg(long)]
-        ipa: bool,
-        /// Assemble the Android layout into an installable APK. Needs the
-        /// SDK's build-tools; signs with `[export] android_keystore`, or with
-        /// Android's debug identity when the project names none.
-        #[arg(long)]
-        apk: bool,
-        /// Also build the AAB Play takes for a new app. Needs the SDK, a JDK
-        /// and `bundletool.jar`, which Google ships apart from the SDK.
-        #[arg(long)]
-        aab: bool,
-        /// Wrap the macOS `.app` as the `.pkg` the Mac App Store takes.
-        #[arg(long)]
-        pkg: bool,
+        provisioning_profile: Option<PathBuf>,
         /// Print what the export would weigh and write nothing. Every script
         /// is still compiled, because a size nobody can produce is not a
         /// measurement.
         #[arg(long)]
-        report: bool,
+        dry_run: bool,
     },
     /// Serve diagnostics over the Language Server Protocol on stdin/stdout,
     /// for an editor outside Balaur. The same checks `balaur check` runs.
@@ -464,15 +454,11 @@ fn dispatch(command: Command) -> Result<()> {
             download,
             no_download,
             keep_sources,
-            app,
+            bundle,
             sign,
             notarize,
-            profile,
-            ipa,
-            apk,
-            aab,
-            pkg,
-            report,
+            provisioning_profile,
+            dry_run,
         } => export_game(&ExportArgs {
             path,
             output,
@@ -481,15 +467,11 @@ fn dispatch(command: Command) -> Result<()> {
             download,
             no_download,
             keep_sources,
-            app,
+            bundle,
             sign,
             notarize,
-            profile,
-            ipa,
-            apk,
-            aab,
-            pkg,
-            report,
+            provisioning_profile,
+            dry_run,
         }),
         Command::Check { path, strict } => check::project(&path, strict),
         Command::Test {
@@ -1043,15 +1025,21 @@ struct ExportArgs {
     download: bool,
     no_download: bool,
     keep_sources: bool,
-    app: bool,
+    bundle: Vec<BundleKind>,
     sign: Option<String>,
     notarize: bool,
-    profile: Option<PathBuf>,
-    ipa: bool,
-    apk: bool,
-    aab: bool,
-    pkg: bool,
-    report: bool,
+    provisioning_profile: Option<PathBuf>,
+    dry_run: bool,
+}
+
+/// A package `export --bundle` makes beside the export.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+enum BundleKind {
+    App,
+    Pkg,
+    Ipa,
+    Apk,
+    Aab,
 }
 
 /// The two policies balaur_export deliberately does not hold: where the
@@ -1074,16 +1062,16 @@ fn export_game(args: &ExportArgs) -> Result<()> {
         output: args.output.clone(),
         target: args.target.clone(),
         template: args.template.clone(),
-        app: args.app,
+        app: args.bundle.contains(&BundleKind::App),
         keep_sources: args.keep_sources,
         sign: args.sign.clone(),
         notarize: args.notarize,
-        profile: args.profile.clone(),
-        ipa: args.ipa,
-        apk: args.apk,
-        aab: args.aab,
-        pkg: args.pkg,
-        report_only: args.report,
+        provisioning_profile: args.provisioning_profile.clone(),
+        ipa: args.bundle.contains(&BundleKind::Ipa),
+        apk: args.bundle.contains(&BundleKind::Apk),
+        aab: args.bundle.contains(&BundleKind::Aab),
+        pkg: args.bundle.contains(&BundleKind::Pkg),
+        dry_run: args.dry_run,
         template_roots: balaur_export::default_roots(templates::cache_dir()),
         plugins,
         obtain: if args.no_download { None } else { Some(&fetch) },

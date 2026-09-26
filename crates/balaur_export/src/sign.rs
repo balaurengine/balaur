@@ -12,7 +12,7 @@ use std::process::Command;
 
 use anyhow::{Context, Result, bail};
 
-use crate::config::{ExportConfig, secret, secret_or};
+use crate::config::{ExportConfig, WindowsConfig, secret, secret_or};
 
 /// Run a signing tool, and fail with what it printed rather than a status.
 ///
@@ -146,9 +146,9 @@ pub(crate) fn notarize(bundle: &Path) -> Result<()> {
     if !cfg!(target_os = "macos") {
         bail!("--notarize runs xcrun notarytool, which needs macOS");
     }
-    let key = secret("BALAUR_NOTARY_KEY")?;
-    let key_id = secret("BALAUR_NOTARY_KEY_ID")?;
-    let issuer = secret("BALAUR_NOTARY_ISSUER_ID")?;
+    let key = secret("BALAUR_APPLE_NOTARY_KEY")?;
+    let key_id = secret("BALAUR_APPLE_NOTARY_KEY_ID")?;
+    let issuer = secret("BALAUR_APPLE_NOTARY_ISSUER_ID")?;
     let archive = bundle.with_extension("notarize.zip");
     run(
         Command::new("ditto")
@@ -215,7 +215,7 @@ pub(crate) fn build_ipa(app: &Path, output: &Path) -> Result<PathBuf> {
 /// bundle. Signed with an installer identity, not the application's.
 pub(crate) fn build_pkg(app: &Path, output: &Path, identity: Option<&str>) -> Result<PathBuf> {
     if !cfg!(target_os = "macos") {
-        bail!("--pkg runs productbuild, which needs macOS");
+        bail!("--bundle pkg runs productbuild, which needs macOS");
     }
     let pkg = output.with_extension("pkg");
     let mut command = Command::new("productbuild");
@@ -240,9 +240,9 @@ fn installer_identity(application: &str) -> String {
 /// Signing runs after fusing, because a signature cannot cover bytes appended
 /// later; the certificate table lands after the pack and
 /// `standalone::extract` reads in front of it.
-pub(crate) fn sign_windows(exe: &Path, project: &Path, config: &ExportConfig) -> Result<()> {
-    let timestamp = &config.windows_timestamp_url;
-    let certificate = ExportConfig::beside(project, &config.windows_certificate);
+pub(crate) fn sign_windows(exe: &Path, project: &Path, config: &WindowsConfig) -> Result<()> {
+    let timestamp = &config.timestamp_url;
+    let certificate = ExportConfig::beside(project, &config.certificate);
     if cfg!(windows) {
         let mut command = Command::new(tool("signtool.exe", "it ships in the Windows SDK")?);
         command.args(["sign", "/fd", "sha256", "/tr", timestamp, "/td", "sha256"]);
@@ -254,16 +254,16 @@ pub(crate) fn sign_windows(exe: &Path, project: &Path, config: &ExportConfig) ->
             }
             Some(path) => {
                 command.arg("/f").arg(path);
-                if let Ok(password) = std::env::var("BALAUR_SIGN_PASSWORD") {
+                if let Ok(password) = std::env::var("BALAUR_WINDOWS_CERTIFICATE_PASSWORD") {
                     command.args(["/p", &password]);
                 }
             }
-            None => bail!("[export] windows_certificate names no certificate to sign with"),
+            None => bail!("[windows] certificate names no certificate to sign with"),
         }
         run(command.arg(exe), "signtool")?;
     } else {
-        let certificate = certificate
-            .context("[export] windows_certificate names no certificate to sign with")?;
+        let certificate =
+            certificate.context("[windows] certificate names no certificate to sign with")?;
         let signed = exe.with_extension("signed.exe");
         let mut command = Command::new(tool(
             "osslsigncode",
@@ -272,7 +272,10 @@ pub(crate) fn sign_windows(exe: &Path, project: &Path, config: &ExportConfig) ->
         )?);
         command.args(["sign", "-h", "sha256", "-ts", timestamp]);
         command.arg("-pkcs12").arg(&certificate);
-        command.args(["-pass", &secret_or("BALAUR_SIGN_PASSWORD", "")]);
+        command.args([
+            "-pass",
+            &secret_or("BALAUR_WINDOWS_CERTIFICATE_PASSWORD", ""),
+        ]);
         run(
             command.arg("-in").arg(exe).arg("-out").arg(&signed),
             "osslsigncode",
@@ -285,7 +288,7 @@ pub(crate) fn sign_windows(exe: &Path, project: &Path, config: &ExportConfig) ->
 
 /// Trusted Signing's signtool plug-in, wherever the developer installed it.
 fn dlib() -> String {
-    secret_or("BALAUR_SIGN_DLIB", "Azure.CodeSigning.Dlib.dll")
+    secret_or("BALAUR_WINDOWS_SIGN_DLIB", "Azure.CodeSigning.Dlib.dll")
 }
 
 fn absolute(path: &Path) -> Result<PathBuf> {

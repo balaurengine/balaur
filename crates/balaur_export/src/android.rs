@@ -68,6 +68,12 @@ pub(crate) struct AndroidConfig {
     /// Which of the template's ABIs the export keeps. Empty means every one
     /// the template carries, so a game that says nothing ships everywhere.
     pub abis: Vec<Abi>,
+    /// A project-relative keystore, or empty for Android's debug identity.
+    pub keystore: String,
+    pub key: String,
+    /// Where `bundletool.jar` is. Empty looks at BALAUR_ANDROID_BUNDLETOOL and
+    /// then beside the SDK; Google ships it on its own, not in the SDK.
+    pub bundletool: String,
     /// `[window] orientation`, which Android settles in the manifest rather
     /// than at startup. Not a key of `[android]`: it is the same window
     /// setting every platform reads, taken from the same resolved document.
@@ -86,6 +92,9 @@ impl Default for AndroidConfig {
             min_sdk: 0,
             target_sdk: 35,
             abis: Vec::new(),
+            keystore: String::new(),
+            key: String::new(),
+            bundletool: String::new(),
             orientation: balaur::project::Orientation::Any,
         }
     }
@@ -384,7 +393,7 @@ pub(crate) fn assemble(
     layout: &Path,
     output: &Path,
     project: &Path,
-    config: &ExportConfig,
+    config: &AndroidConfig,
 ) -> Result<PathBuf> {
     let sdk = Sdk::find()?;
     let apk = output.with_extension("apk");
@@ -447,9 +456,9 @@ const JDK: &str = "install a JDK — Android Studio carries one";
 
 /// Where `bundletool.jar` is: what the project names, then the variable, then
 /// beside the SDK. Google ships it on its own, so the SDK never holds it.
-fn bundletool(project: &Path, config: &ExportConfig) -> Result<PathBuf> {
+fn bundletool(project: &Path, config: &AndroidConfig) -> Result<PathBuf> {
     let named = ExportConfig::beside(project, &config.bundletool)
-        .or_else(|| std::env::var_os("BALAUR_BUNDLETOOL").map(PathBuf::from));
+        .or_else(|| std::env::var_os("BALAUR_ANDROID_BUNDLETOOL").map(PathBuf::from));
     if let Some(path) = named {
         if path.is_file() {
             return Ok(path);
@@ -464,7 +473,7 @@ fn bundletool(project: &Path, config: &ExportConfig) -> Result<PathBuf> {
         _ => bail!(
             "no bundletool.jar: it is not part of the SDK. Download it from \
              https://github.com/google/bundletool/releases, then set \
-             BALAUR_BUNDLETOOL or [export] bundletool to where it is."
+             BALAUR_ANDROID_BUNDLETOOL or [android] bundletool to where it is."
         ),
     }
 }
@@ -479,7 +488,7 @@ pub(crate) fn bundle(
     layout: &Path,
     output: &Path,
     project: &Path,
-    config: &ExportConfig,
+    config: &AndroidConfig,
 ) -> Result<PathBuf> {
     let sdk = Sdk::find()?;
     let jar = bundletool(project, config)?;
@@ -633,22 +642,22 @@ struct Keystore {
 
 /// The project's release keystore, or Android's public debug identity for a
 /// build that has none — which installs on a device and ships nowhere.
-fn keystore_for(project: &Path, config: &ExportConfig) -> Result<Keystore> {
-    if let Some(path) = ExportConfig::beside(project, &config.android_keystore) {
+fn keystore_for(project: &Path, config: &AndroidConfig) -> Result<Keystore> {
+    if let Some(path) = ExportConfig::beside(project, &config.keystore) {
         anyhow::ensure!(
             path.is_file(),
-            "[export] android_keystore names {}, which does not exist",
+            "[android] keystore names {}, which does not exist",
             path.display()
         );
-        let store = crate::config::secret("BALAUR_KEYSTORE_PASSWORD")?;
-        let key = secret_or("BALAUR_KEY_PASSWORD", &store);
+        let store = crate::config::secret("BALAUR_ANDROID_KEYSTORE_PASSWORD")?;
+        let key = secret_or("BALAUR_ANDROID_KEY_PASSWORD", &store);
         anyhow::ensure!(
-            !config.android_key.is_empty(),
-            "[export] android_keystore needs android_key: a keystore holds more than one"
+            !config.key.is_empty(),
+            "[android] keystore needs key: a keystore holds more than one"
         );
         return Ok(Keystore {
             path,
-            alias: config.android_key.clone(),
+            alias: config.key.clone(),
             store_password: store,
             key_password: key,
             what: "release key",

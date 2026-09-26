@@ -438,8 +438,8 @@ SVG is not drawn; convert it to paths.
 | `scale` | a number | `1` | Pixels per unit when an SVG is rasterized. A raster ignores it. |
 | `pixels_per_unit` | a number | `100` | Texture pixels to one world unit, for a sprite whose own `pixels_per_unit` is `0`. |
 | `size` | `[width, height]` | the file's own | The pixels the image was drawn at, when a smaller copy shipped in its place. Written by an export that folds a variant or caps it at `max_size`; a sprite, a sheet and a tile measure by it. |
-| `recode` | `keep`, `webp`, `quantized` | `[export] images` | How an export re-encodes this file alone. `keep` also exempts it from `max_size`. |
-| `quality` | `0` to `100` | `[export] images_quality` | The palette's quality when this file is quantized. |
+| `recode` | `original`, `webp`, `quantized` | `[export] image_recode` | How an export re-encodes this file alone. `original` also exempts it from `max_size`. |
+| `quality` | `0` to `100` | `[export] image_quality` | The palette's quality when this file is quantized. |
 
 A value nothing knows reads as the default rather than refusing the
 texture, because a settings file is written by hand. `anisotropy`
@@ -457,7 +457,7 @@ straight. The UI draws a picture with the same filter and wrap.
 | `loop_offset` | seconds | `0` | Where each repeat starts, so an intro plays once. |
 | `force_mono` | `true`, `false` | `false` | Mix a WAV to one channel at export. |
 | `max_rate_hz` | Hz | `0` | The highest sample rate a WAV ships at, resampled at export; `0` keeps its own. |
-| `recode` | `keep`, `flac`, `vorbis` | `[export] audio` | How an export re-encodes this file alone. |
+| `recode` | `original`, `flac`, `vorbis` | `[export] audio_recode` | How an export re-encodes this file alone. |
 | `quality` | `-0.1` to `1` | `[export] audio_quality` | libvorbis's quality when this file is re-encoded as Vorbis. |
 
 ### Font keys
@@ -507,7 +507,7 @@ decides a cap or a re-encode from the image's own sidecar.
 Set it per target under `[override.<tag>.export]`, so a phone ships a
 smaller art set than a desktop. A capped image records its original
 `size`, so a sprite keeps its extent. Pixel art, a bitmap font's page
-and a file with `recode = "keep"` are never capped.
+and a file with `recode = "original"` are never capped.
 
 A file beside its variant, `hero.png` and `hero.web.png`, ships
 whichever the target answers to under the first name. `balaur shrink`

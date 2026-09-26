@@ -11,11 +11,11 @@ jump = ["Space", "gamepad:south"]
 [export]
 # "webp" writes images as lossless WebP, about a third off a PNG and nothing
 # off a JPEG, which it leaves alone. "quantized" is a 256-colour palette.
-images = "keep"
+image_recode = "original"
 # "subset" keeps only the code points the project's scenes and scripts name.
 # The largest saving here by far: it takes the `text` example down by 89%.
 # `font_ranges` adds hex ranges for text a server sends or a player types.
-fonts = "keep"
+font_recode = "original"
 # "flac" re-encodes uncompressed audio sample for sample; "vorbis" is lossy.
 # Neither touches an .ogg or an .mp3 that is already compressed.
-audio = "keep"
+audio_recode = "original"

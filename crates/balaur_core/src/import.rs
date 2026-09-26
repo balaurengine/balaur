@@ -103,9 +103,9 @@ pub mod words {
     pub const MIRROR: &str = "mirror";
     /// The edge texel held, which is what a sprite wants.
     pub const CLAMP: &str = "clamp";
-    /// `recode = "keep"`: ship this file's own bytes whatever the export's
+    /// `recode = "original"`: ship this file's own bytes whatever the export's
     /// mode is.
-    pub const KEEP: &str = "keep";
+    pub const ORIGINAL: &str = "original";
     /// `recode` for a picture: lossless WebP, or a 256-colour palette.
     pub const WEBP: &str = "webp";
     pub const QUANTIZED: &str = "quantized";

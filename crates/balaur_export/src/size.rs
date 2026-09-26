@@ -106,12 +106,12 @@ pub fn prepare_for(
 ) -> Result<Summary> {
     let mut summary = Summary::default();
     if config.strip {
-        for key in pack.unreferenced(&config.keep) {
+        for key in pack.unreferenced(&config.include) {
             let bytes = pack.assets.get(&key).map_or(0, Vec::len);
             summary.dropped_bytes += bytes;
             summary.dropped.push(key);
         }
-        pack.strip(&config.keep);
+        pack.strip(&config.include);
     }
     let keep = code_points(pack, config);
     let pages = crate::textures::font_pages(
@@ -196,26 +196,26 @@ pub(crate) fn smaller(
     use balaur::import::{kind_of, kinds};
     let own = balaur::import::word(settings, keys::RECODE, "");
     let own = (!own.is_empty()).then_some(own);
-    let images = image_mode(own, config.images);
-    let audio = audio_mode(own, config.audio);
+    let images = image_mode(own, config.image_recode);
+    let audio = audio_mode(own, config.audio_recode);
     match kind_of(path) {
         // The mode is read before the bytes are: an export that asked for no
         // re-encoding must not fail over a file that does not decode.
-        Some(kinds::TEXTURE) if images != ImageMode::Keep => {
-            let quality = number(settings, keys::QUALITY, f64::from(config.images_quality));
+        Some(kinds::TEXTURE) if images != ImageMode::Original => {
+            let quality = number(settings, keys::QUALITY, f64::from(config.image_quality));
             recode::image_at(bytes, images, quality.clamp(0.0, 100.0) as u8)
         }
-        Some(kinds::AUDIO) if audio != AudioMode::Keep => {
+        Some(kinds::AUDIO) if audio != AudioMode::Original => {
             let quality = number(settings, keys::QUALITY, f64::from(config.audio_quality));
             recode::audio_at(bytes, audio, quality.clamp(-0.1, 1.0) as f32)
         }
         // A `.fnt` is a text descriptor and a page image, neither of them a
         // face a subsetter can read.
         Some(kinds::FONT)
-            if config.fonts == FontMode::Subset
-                && own != Some(words::KEEP)
+            if config.font_recode == FontMode::Subset
+                && own != Some(words::ORIGINAL)
                 && !path.to_ascii_lowercase().ends_with(".fnt")
-                && !kept_whole(path, &config.font_keep) =>
+                && !kept_whole(path, &config.font_original) =>
         {
             recode::font(bytes, keep)
         }
@@ -227,7 +227,7 @@ pub(crate) fn smaller(
 fn image_mode(own: Option<&str>, fallback: ImageMode) -> ImageMode {
     match own {
         None => fallback,
-        Some(words::KEEP) => ImageMode::Keep,
+        Some(words::ORIGINAL) => ImageMode::Original,
         Some(words::WEBP) => ImageMode::Webp,
         Some(words::QUANTIZED) => ImageMode::Quantized,
         Some(other) => {
@@ -240,7 +240,7 @@ fn image_mode(own: Option<&str>, fallback: ImageMode) -> ImageMode {
 /// The audio mode one file is re-encoded under: its own word, or the export's.
 fn audio_mode(own: Option<&str>, fallback: AudioMode) -> AudioMode {
     match own {
-        Some(words::KEEP) => AudioMode::Keep,
+        Some(words::ORIGINAL) => AudioMode::Original,
         Some(words::FLAC) => AudioMode::Flac,
         Some(words::VORBIS) => AudioMode::Vorbis,
         // A picture's word on a sound is not a mistake worth a warning: one
@@ -249,7 +249,7 @@ fn audio_mode(own: Option<&str>, fallback: AudioMode) -> AudioMode {
     }
 }
 
-/// Whether a face is one `font_keep` protects from subsetting.
+/// Whether a face is one `font_original` protects from subsetting.
 fn kept_whole(path: &str, patterns: &[String]) -> bool {
     patterns
         .iter()
@@ -333,10 +333,10 @@ mod tests {
     }
 
     #[test]
-    fn a_keep_glob_survives_a_strip() {
+    fn an_include_glob_survives_a_strip() {
         let config = ExportConfig {
             strip: true,
-            keep: vec!["art/**".to_string()],
+            include: vec!["art/**".to_string()],
             ..ExportConfig::default()
         };
         let mut pack = pack_with("art/unused.png", vec![1, 2, 3]);
@@ -351,7 +351,7 @@ mod tests {
     fn a_files_own_recode_setting_beats_the_export_mode() {
         use crate::recode::ImageMode;
         let config = ExportConfig {
-            images: ImageMode::Webp,
+            image_recode: ImageMode::Webp,
             ..ExportConfig::default()
         };
         let source = sample_png();
@@ -359,7 +359,7 @@ mod tests {
         pack.assets.insert("art/shrunk.png".into(), source.clone());
         pack.scenes.insert(
             "art/kept.png.import.toml".into(),
-            "recode = \"keep\"\n".into(),
+            "recode = \"original\"\n".into(),
         );
         let summary = prepare(&mut pack, &config).unwrap();
         assert_eq!(

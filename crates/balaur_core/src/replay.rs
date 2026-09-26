@@ -676,7 +676,7 @@ pub(crate) fn record_frame_system(eng: &Engine, dt: f32) {
                 .then(|| crate::digest::digest(eng).0),
             events,
         };
-        if std::env::var("BALAUR_DUMP")
+        if std::env::var("BALAUR_REPLAY_DUMP")
             .ok()
             .and_then(|v| v.parse::<u64>().ok())
             == Some(eng.tick())
@@ -1053,7 +1053,7 @@ pub(crate) fn after_frame(eng: &Engine) {
         (expected, player.cursor >= session.frames.len())
     };
     if let Some((tick, expected)) = expected {
-        if std::env::var("BALAUR_DUMP")
+        if std::env::var("BALAUR_REPLAY_DUMP")
             .ok()
             .and_then(|v| v.parse::<u64>().ok())
             == Some(tick)

@@ -575,6 +575,10 @@ A command is a verb, a long flag is kebab-case, and an environment variable spel
 | Environment variable | `BALAUR_` and the settings path in capitals | Cargo |
 | A setting with a unit | the unit last: `timeout_seconds`, `delay_ticks`, `long_press_slop_pixels`, `narrow_below_pixels`, `max_rate_hz`, `min_ccd_seconds` | none |
 | A setting that reads as another type | `[log] to_file`, `[multiplayer] simulate_faults`, `[save] migrate_script`, `[application] script_language`, `[locale] initial`, `[import.audio] force_mono` | none |
+| Signing identities | `[apple] macos_identity`, `notarize`, `ios_identity`, `ios_provisioning_profile`; `[android] keystore`, `key`, `bundletool`; `[windows] certificate`, `timestamp_url` | none |
+| How an export re-encodes | `[export] image_recode`, `font_recode`, `audio_recode` and a file's `recode`, `original` among the values; `image_quality`, `audio_quality` | none |
+| Globs an export takes whatever it decides | `[export] include`, `font_original` | none |
+| A count of runs or files kept | `keep`, a count only: `[log] keep`, `[editor.recordings] keep` | none |
 | Store metadata | `[android] display_name`; `[apple] display_name`, `min_ios`, `build_number`, `team_id`, capability `sign-in-with-apple` | Apple, Google |
 | One spelling | US: `quantized`, `color`, `center` | none |
 | Test-only variable | `BALAUR_E2E_*`, `BALAUR_TEST_*` | none |

@@ -19,7 +19,7 @@ use image_webp::{ColorType, WebPEncoder};
 use serde::Deserialize;
 
 /// imagequant's quality target, on its own 0-100 scale, for `Quantized`.
-pub const DEFAULT_IMAGES_QUALITY: u8 = 80;
+pub const DEFAULT_IMAGE_QUALITY: u8 = 80;
 
 /// libvorbis's quality for `Vorbis`, where 0.5 is about 80 kbit/s in stereo.
 pub const DEFAULT_AUDIO_QUALITY: f32 = 0.5;
@@ -31,7 +31,7 @@ pub const DEFAULT_AUDIO_QUALITY: f32 = 0.5;
 pub enum ImageMode {
     /// Ship the author's bytes.
     #[default]
-    Keep,
+    Original,
     /// Write the pixels as lossless WebP.
     Webp,
     /// Cut the image to a 256-colour palette with alpha, then write it as a
@@ -45,7 +45,7 @@ pub enum ImageMode {
 pub enum FontMode {
     /// Ship every glyph the author's face carries.
     #[default]
-    Keep,
+    Original,
     /// Keep only the code points asked for, with the layout tables.
     Subset,
 }
@@ -56,7 +56,7 @@ pub enum FontMode {
 pub enum AudioMode {
     /// Ship the author's bytes.
     #[default]
-    Keep,
+    Original,
     /// Re-encode uncompressed PCM as FLAC, sample for sample.
     Flac,
     /// Re-encode uncompressed PCM as Ogg Vorbis, which the runtime decodes
@@ -84,7 +84,7 @@ impl Saving {
 
 /// The image re-encoded under `mode` at the default quality.
 pub fn image(bytes: &[u8], mode: ImageMode) -> Result<Option<Vec<u8>>> {
-    image_at(bytes, mode, DEFAULT_IMAGES_QUALITY)
+    image_at(bytes, mode, DEFAULT_IMAGE_QUALITY)
 }
 
 /// The image re-encoded under `mode`, or `None` to keep the source bytes.
@@ -93,11 +93,11 @@ pub fn image(bytes: &[u8], mode: ImageMode) -> Result<Option<Vec<u8>>> {
 /// JPEG is always kept: re-encoding one loses a second time.
 pub fn image_at(bytes: &[u8], mode: ImageMode, quality: u8) -> Result<Option<Vec<u8>>> {
     let format = image::guess_format(bytes).map_err(|why| anyhow!("reading the image: {why}"))?;
-    if mode == ImageMode::Keep || format == ImageFormat::Jpeg {
+    if mode == ImageMode::Original || format == ImageFormat::Jpeg {
         return Ok(None);
     }
     let candidate = match mode {
-        ImageMode::Keep => None,
+        ImageMode::Original => None,
         ImageMode::Webp => to_webp(bytes, format)?,
         ImageMode::Quantized => quantize(bytes, format, quality)?,
     };
@@ -123,11 +123,11 @@ pub fn audio(bytes: &[u8], mode: AudioMode) -> Result<Option<Vec<u8>>> {
 /// Only uncompressed PCM in a WAV is touched; an already-compressed stream is
 /// left alone.
 pub fn audio_at(bytes: &[u8], mode: AudioMode, quality: f32) -> Result<Option<Vec<u8>>> {
-    if mode == AudioMode::Keep || !is_wav(bytes) {
+    if mode == AudioMode::Original || !is_wav(bytes) {
         return Ok(None);
     }
     let candidate = match mode {
-        AudioMode::Keep => None,
+        AudioMode::Original => None,
         AudioMode::Flac => to_flac(bytes)?,
         AudioMode::Vorbis => to_vorbis(bytes, quality)?,
     };
@@ -542,7 +542,7 @@ mod tests {
     #[test]
     fn keeping_an_image_returns_the_authors_bytes() {
         let source = sample_png(16, 16);
-        assert_eq!(image(&source, ImageMode::Keep).unwrap(), None);
+        assert_eq!(image(&source, ImageMode::Original).unwrap(), None);
     }
 
     #[test]
@@ -754,7 +754,7 @@ mod tests {
 
     #[test]
     fn keeping_a_sound_returns_the_authors_bytes() {
-        assert_eq!(audio(&sample_wav(), AudioMode::Keep).unwrap(), None);
+        assert_eq!(audio(&sample_wav(), AudioMode::Original).unwrap(), None);
     }
 
     #[test]

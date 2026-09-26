@@ -24,7 +24,7 @@
 Three things a developer meets the day a game is ready for someone else:
 the file has to be signed or the OS refuses it, the export has to run on a
 machine that is not theirs, and the editor has to have a button. Today one
-target signs (`--app --sign` on macOS), nothing is reusable from a game's
+target signs (`--bundle app --sign` on macOS), nothing is reusable from a game's
 repository, and the editor's only "export" copies a replay session.
 
 ## 0. Where the tree is today
@@ -35,7 +35,7 @@ Built, and load-bearing here:
 | --- | --- |
 | Eight export targets: `linux-x64`, `linux-arm64`, `macos-universal`, `windows-x64`, `windows-arm64` as one fused executable each; a macOS `.app` with `--app`; an iOS `.app`; an Android APK layout; a web directory with a shell page | `crates/balaur_export`, `bundle.rs::{Bundle, export_macos_app, export_bundle}` |
 | A macOS `.app` signed as it is exported, ad-hoc or with `--sign <identity>`, its entitlements written from `[apple] capabilities` | `bundle.rs::codesign`, `apple.rs::write_entitlements` |
-| An Android layout assembled and signed, when the SDK is on the machine | `balaur export --apk`, `crates/balaur_export/src/android.rs` (`aapt2`, `zipalign`, `apksigner`) |
+| An Android layout assembled and signed, when the SDK is on the machine | `balaur export --bundle apk`, `crates/balaur_export/src/android.rs` (`aapt2`, `zipalign`, `apksigner`) |
 | Templates fetched from the release this build came from, verified against `SHA256SUMS`, cached per user per build id; `--download` and `--no-download` so a runner never prompts | `crates/balaur_cli/src/templates.rs`, `version.rs` |
 | Export as a library with the network stack, the prompt and the cache left to the caller, so an editor can link it | `balaur_export::{Options, ObtainTemplate, default_roots}` |
 | The engine's CI: four reusable workflows behind one entry point; `package.sh` builds, stages, exports a game onto the template it just built and *runs* it; `export_check.sh` proves the iOS, Android and web bundle shapes; `draft_release.sh` drafts `nightly` and `v*` | `.github/workflows/{runner,build,lint,test,docs}.yml`, `scripts/` |
@@ -92,7 +92,7 @@ step or a shell script beside it. A bug in a signed build has to be
 reproducible by exporting it by hand, which is only true while there is
 exactly one place that signs — the rule `docs/PLAN-deploy.md` holds for
 uploading, held for signing. So `assemble_apk.sh` moves into the exporter
-as `--apk`, and an action's whole job is to put credentials where the tools
+as `--bundle apk`, and an action's whole job is to put credentials where the tools
 look and call the command.
 
 **Name a thing by what comes out of it.** `balaur-export` and
@@ -126,7 +126,7 @@ arrives as an action input, the action writes it where the platform's own
 tool looks (a temporary keychain, `~/.android/`, the provisioning profiles
 directory) and passes the *name* to `balaur export`. The exporter reads
 passwords and API keys from the environment only (`BALAUR_SIGN_*`,
-`BALAUR_NOTARY_*`, `BALAUR_KEYSTORE_PASSWORD`), never from `project.toml`
+`BALAUR_APPLE_NOTARY_*`, `BALAUR_ANDROID_KEYSTORE_PASSWORD`), never from `project.toml`
 and never from a flag that would land in a shell history. Identity names,
 team ids, keystore paths and bundle ids are not secrets, and an `[export]`
 table in `project.toml` may hold them so a click in the editor and a run
@@ -136,12 +136,12 @@ on a runner agree:
 [export]
 output = "export"                 # <project>/export/<target>/, ignored by git
 macos_identity = "Developer ID Application: Studio (AB12CD34EF)"
-notarize = true                   # BALAUR_NOTARY_KEY_ID / _ISSUER_ID / _KEY
+notarize = true                   # BALAUR_APPLE_NOTARY_KEY_ID / _ISSUER_ID / _KEY
 ios_identity = "Apple Distribution: Studio (AB12CD34EF)"
 ios_profile = "signing/game.mobileprovision"
-android_keystore = "signing/release.jks"   # BALAUR_KEYSTORE_PASSWORD, _KEY_PASSWORD
+android_keystore = "signing/release.jks"   # BALAUR_ANDROID_KEYSTORE_PASSWORD, _KEY_PASSWORD
 android_key = "game"
-windows_certificate = "signing/game.pfx"   # BALAUR_SIGN_PASSWORD; or Trusted Signing
+windows_certificate = "signing/game.pfx"   # BALAUR_WINDOWS_CERTIFICATE_PASSWORD; or Trusted Signing
 ```
 
 **Every artifact gets provenance, signed or not.**
@@ -176,11 +176,11 @@ Every place a game from this engine could be asked to prove who made it.
 
 | Target | Today | Decision |
 | --- | --- | --- |
-| macOS game, `.app` | Ad-hoc or `--sign`; no hardened runtime, no timestamp, no notarization | Step 3: `--options runtime --timestamp` always; `--notarize` runs `xcrun notarytool submit --wait` with an App Store Connect API key from `BALAUR_NOTARY_*` and `xcrun stapler staple`. Distribution outside the App Store is Developer ID + notarization; the Mac App Store is `Apple Distribution` + a `.pkg` from `productbuild`, a `--pkg` flag in step 8 |
+| macOS game, `.app` | Ad-hoc or `--sign`; no hardened runtime, no timestamp, no notarization | Step 3: `--options runtime --timestamp` always; `--notarize` runs `xcrun notarytool submit --wait` with an App Store Connect API key from `BALAUR_APPLE_NOTARY_*` and `xcrun stapler staple`. Distribution outside the App Store is Developer ID + notarization; the Mac App Store is `Apple Distribution` + a `.pkg` from `productbuild`, a `--bundle pkg` flag in step 8 |
 | macOS game, flat fused binary | Cannot be signed; the docs say so | **Not planned** to change: appending is what a signature cannot cover. `--app` is the answer, and the editor's macOS row defaults to it |
-| iOS `.app` | Unsigned; entitlements written beside it | Step 4: `--sign <identity>` and `--profile <path>` copy the profile to `embedded.mobileprovision`, sign with the entitlements, and `--ipa` zips `Payload/<Game>.app` for TestFlight (`docs/PLAN-deploy.md` step 5) |
-| Android APK | A layout; `assemble_apk.sh` debug-signs it outside the exporter | Step 4: `--apk` assembles when `ANDROID_HOME` has build-tools, with `[export] android_keystore` or the debug key when there is none; the script is deleted. An `.aab` for Play is `bundletool build-bundle`, `docs/PLAN-google.md` step 1 |
-| Windows game, fused `.exe` | Unsigned; the trailer would be hidden by a signature | Step 5: `standalone::extract` learns to look before the PE certificate table when one is present (`IMAGE_DIRECTORY_ENTRY_SECURITY`); then `--sign` runs `signtool sign /fd sha256 /tr <rfc3161> /td sha256` on Windows and `osslsigncode` elsewhere, with `[export] windows_certificate` or Azure Trusted Signing (`/dlib`) when the certificate is in a cloud HSM — since 2023 an OV certificate's key cannot be a `.pfx` in a secret |
+| iOS `.app` | Unsigned; entitlements written beside it | Step 4: `--sign <identity>` and `--provisioning-profile <path>` copy the profile to `embedded.mobileprovision`, sign with the entitlements, and `--bundle ipa` zips `Payload/<Game>.app` for TestFlight (`docs/PLAN-deploy.md` step 5) |
+| Android APK | A layout; `assemble_apk.sh` debug-signs it outside the exporter | Step 4: `--bundle apk` assembles when `ANDROID_HOME` has build-tools, with `[android] keystore` or the debug key when there is none; the script is deleted. An `.aab` for Play is `bundletool build-bundle`, `docs/PLAN-google.md` step 1 |
+| Windows game, fused `.exe` | Unsigned; the trailer would be hidden by a signature | Step 5: `standalone::extract` learns to look before the PE certificate table when one is present (`IMAGE_DIRECTORY_ENTRY_SECURITY`); then `--sign` runs `signtool sign /fd sha256 /tr <rfc3161> /td sha256` on Windows and `osslsigncode` elsewhere, with `[windows] certificate` or Azure Trusted Signing (`/dlib`) when the certificate is in a cloud HSM — since 2023 an OV certificate's key cannot be a `.pfx` in a secret |
 | Linux game | Unsigned | **Not planned** beyond provenance: no desktop Linux checks a signature. An AppImage is `docs/PLAN-release.md` phase 2's shape, and `gh attestation verify` is the proof of origin |
 | Web | Unsigned | **Not planned**: a browser trusts the origin, and that is `docs/PLAN-deploy.md`'s |
 | The editor and runtime downloads | Unsigned on every platform | `docs/PLAN-release.md` phases 1 and 2, run through the same `sign` and `notarize` code in `package.sh` behind the maintainers' secrets, skipped when the secrets are absent (a fork, a pull request). Notarization takes a `.zip`, not a `.tar.gz`, so the macOS editor archive changes shape |
@@ -217,9 +217,9 @@ Every place a game from this engine could be asked to prove who made it.
 3. **macOS done properly.** Hardened runtime and timestamp in `codesign`;
    `--notarize` and stapling; frameworks signed before the bundle. Ends
    with: a `.app` a stranger's Mac opens without a dialog.
-4. **Mobile identities.** `--sign` and `--profile` for iOS, `--ipa`;
-   `--apk` with a release keystore for Android, `assemble_apk.sh` deleted.
-   Ends with: `balaur export --target ios --sign … --profile … --ipa` is
+4. **Mobile identities.** `--sign` and `--provisioning-profile` for iOS, `--bundle ipa`;
+   `--bundle apk` with a release keystore for Android, `assemble_apk.sh` deleted.
+   Ends with: `balaur export --target ios --sign … --provisioning-profile … --bundle ipa` is
    the whole path to a TestFlight upload, and the Android output installs
    with the developer's own key.
 5. **Windows.** `extract` reads past a certificate table; `--sign` through
@@ -249,7 +249,7 @@ Every place a game from this engine could be asked to prove who made it.
 
    Ends with: a game repository with a twelve-line workflow that produces a
    signed build per platform on every tag.
-8. **The Mac App Store shape.** `--pkg` over `productbuild`, with
+8. **The Mac App Store shape.** `--bundle pkg` over `productbuild`, with
    `Apple Distribution` and the sandbox entitlement. Last because nothing
    has asked, and `docs/PLAN-deploy.md` says a store submission is not a
    verb.

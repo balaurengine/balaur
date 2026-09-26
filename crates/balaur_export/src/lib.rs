@@ -62,7 +62,7 @@ pub struct Options<'a> {
     /// the ticket, so a stranger's Mac opens it without a dialog.
     pub notarize: bool,
     /// The `.mobileprovision` an iOS build is signed against.
-    pub profile: Option<PathBuf>,
+    pub provisioning_profile: Option<PathBuf>,
     /// Wrap the iOS `.app` as the `.ipa` App Store Connect takes.
     pub ipa: bool,
     /// Assemble the Android layout into an installable APK.
@@ -80,7 +80,7 @@ pub struct Options<'a> {
     /// Measure and print what the export would weigh, writing nothing. The
     /// pack is still built and every script still compiled, because a size
     /// nobody can produce is not a measurement.
-    pub report_only: bool,
+    pub dry_run: bool,
     /// Called when the target's template is on none of the roots. `None`
     /// refuses instead of fetching: a download needs a network stack, a
     /// release to fetch from and somewhere to ask the user, and none of the
@@ -185,6 +185,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     let apple = AppleConfig::from_manifest(&manifest, &opts.path)?;
     let android = android::AndroidConfig::from_manifest(&manifest, &opts.path)?;
     let config = ExportConfig::from_manifest(&manifest, &opts.path)?;
+    let windows_signing = config::WindowsConfig::from_manifest(&manifest, &opts.path)?;
     // Before the pack is measured or stripped: a variant that lost is not an
     // unreferenced asset, it is one this target was never going to carry.
     let source = config::manifest_text(&opts.path).unwrap_or_default();
@@ -204,11 +205,11 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         );
     }
     let summary = size::prepare_for(&mut pack, &config, &manifest)?;
-    tracing::info!("\n{}", pack.report_with(&config.keep));
+    tracing::info!("\n{}", pack.report_with(&config.include));
     if summary.total_saved() > 0 {
         tracing::info!("{summary}");
     }
-    if opts.report_only {
+    if opts.dry_run {
         return Ok(());
     }
     let name = project_name(&opts.path);
@@ -232,7 +233,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
             &android,
             &shell,
         )?;
-        return finish_bundle(kind, &written, opts, &config, &apple, &name);
+        return finish_bundle(kind, &written, opts, &apple, &android, &name);
     }
     let template = match (opts.template.clone(), target) {
         (Some(explicit), _) => Some(explicit),
@@ -253,11 +254,11 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     // binary is exactly what a signature cannot cover. Authenticode is the
     // exception, and records where it put itself.
     if opts.app || opts.pkg || (opts.sign.is_some() && !windows) {
-        let template = template.context("--app needs --target or --template")?;
+        let template = template.context("--bundle app needs --target or --template")?;
         if let Some(t) = target.filter(|t| !t.starts_with("macos")) {
-            anyhow::bail!("--app builds a macOS bundle, but the target is {t}");
+            anyhow::bail!("--bundle app builds a macOS bundle, but the target is {t}");
         }
-        let identity = identity(opts.sign.as_deref(), &config.macos_identity);
+        let identity = identity(opts.sign.as_deref(), &apple.macos_identity);
         let output = declared_output(opts, &config, "macos-universal", &format!("{name}.app"));
         let app = export_macos_app(
             &template,
@@ -268,7 +269,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
             &apple,
             &opts.path,
         )?;
-        if opts.notarize || config.notarize {
+        if opts.notarize || apple.notarize {
             sign::notarize(&app)?;
         }
         if opts.pkg {
@@ -277,18 +278,26 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         }
         return Ok(());
     }
-    export_desktop(opts, &config, &pack, &name, template, target, windows)
+    export_desktop(
+        opts,
+        &config,
+        &windows_signing,
+        &pack,
+        &name,
+        template,
+        target,
+    )
 }
 
 /// A `.bpak`, or the pack fused onto the flat executable a desktop runs.
 fn export_desktop(
     opts: &Options<'_>,
     config: &ExportConfig,
+    signing: &config::WindowsConfig,
     pack: &balaur::Pack,
     name: &str,
     template: Option<PathBuf>,
     target: Option<&str>,
-    windows: bool,
 ) -> Result<()> {
     let Some(template) = template else {
         let output = opts
@@ -307,6 +316,8 @@ fn export_desktop(
         );
         return Ok(());
     };
+    let windows = target.is_some_and(|t| t.contains("windows"))
+        || template.extension().is_some_and(|e| e == "exe");
     let bytes = std::fs::read(&template)
         .with_context(|| format!("reading template {}", template.display()))?;
     // Windows will not run a file without the extension, whatever its contents.
@@ -333,13 +344,13 @@ fn export_desktop(
         output.display()
     );
     let shipped = extensions::ship_for(&opts.path, &bytes, &output)?;
-    if windows && (opts.sign.is_some() || !config.windows_certificate.is_empty()) {
-        let mut config = config.clone();
+    if windows && (opts.sign.is_some() || !signing.certificate.is_empty()) {
+        let mut signing = signing.clone();
         if let Some(named) = &opts.sign {
-            config.windows_certificate.clone_from(named);
+            signing.certificate.clone_from(named);
         }
         for file in std::iter::once(&output).chain(&shipped) {
-            sign::sign_windows(file, &opts.path, &config)?;
+            sign::sign_windows(file, &opts.path, &signing)?;
         }
     }
     Ok(())
@@ -378,18 +389,18 @@ fn finish_bundle(
     kind: Bundle,
     written: &Path,
     opts: &Options<'_>,
-    config: &ExportConfig,
     apple: &AppleConfig,
+    android: &android::AndroidConfig,
     name: &str,
 ) -> Result<()> {
     match kind {
         Bundle::Web => Ok(()),
         Bundle::Ios => {
-            let identity = identity(opts.sign.as_deref(), &config.ios_identity);
+            let identity = identity(opts.sign.as_deref(), &apple.ios_identity);
             let profile = opts
-                .profile
+                .provisioning_profile
                 .clone()
-                .or_else(|| ExportConfig::beside(&opts.path, &config.ios_profile));
+                .or_else(|| ExportConfig::beside(&opts.path, &apple.ios_provisioning_profile));
             if let Some(profile) = &profile {
                 let embedded = written.join("embedded.mobileprovision");
                 std::fs::copy(profile, &embedded).with_context(|| {
@@ -399,7 +410,8 @@ fn finish_bundle(
             if identity.is_some() {
                 anyhow::ensure!(
                     profile.is_some(),
-                    "signing an iOS build needs a provisioning profile: pass --profile,                      or name one in [export] ios_profile"
+                    "signing an iOS build needs a provisioning profile: pass \
+                     --provisioning-profile, or name one in [apple] ios_provisioning_profile"
                 );
                 let entitlements = apple.write_entitlements(written, name)?;
                 sign::codesign(written, identity, entitlements.as_deref(), true)?;
@@ -414,10 +426,10 @@ fn finish_bundle(
         }
         Bundle::Android => {
             if opts.aab {
-                android::bundle(written, written, &opts.path, config)?;
+                android::bundle(written, written, &opts.path, android)?;
             }
-            if opts.apk || !config.android_keystore.is_empty() {
-                android::assemble(written, written, &opts.path, config)?;
+            if opts.apk || !android.keystore.is_empty() {
+                android::assemble(written, written, &opts.path, android)?;
             }
             Ok(())
         }

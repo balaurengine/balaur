@@ -110,6 +110,14 @@ pub(crate) struct AppleConfig {
     /// macOS only: `LSApplicationCategoryType`.
     pub category: String,
     pub capabilities: Vec<Capability>,
+    /// `Developer ID Application: …` for a download, `Apple Distribution: …`
+    /// for the Mac App Store.
+    pub macos_identity: String,
+    /// Submit to Apple's notary service after signing, and staple the ticket.
+    pub notarize: bool,
+    pub ios_identity: String,
+    /// A project-relative `.mobileprovision`, copied into the bundle.
+    pub ios_provisioning_profile: String,
     /// Keys merged into `Info.plist` as written. The exporter writes the
     /// plist whole, so a key it does not know goes here rather than into the
     /// template.
@@ -136,6 +144,10 @@ impl Default for AppleConfig {
             min_macos: "12.0".into(),
             category: String::new(),
             capabilities: Vec::new(),
+            macos_identity: String::new(),
+            notarize: false,
+            ios_identity: String::new(),
+            ios_provisioning_profile: String::new(),
             plist: BTreeMap::new(),
             orientation: balaur::project::Orientation::Any,
         }
@@ -418,6 +430,20 @@ mod tests {
         toml::from_str::<Manifest>(table)
             .expect("the table parses")
             .apple
+    }
+
+    #[test]
+    fn the_apple_table_names_its_signing_identities() {
+        let apple = config(
+            "[apple]\nmacos_identity = \"Developer ID Application: Studio\"\nnotarize = true\n\
+             ios_provisioning_profile = \"signing/game.mobileprovision\"\n",
+        );
+        assert_eq!(apple.macos_identity, "Developer ID Application: Studio");
+        assert!(apple.notarize);
+        assert_eq!(
+            apple.ios_provisioning_profile,
+            "signing/game.mobileprovision"
+        );
     }
 
     /// `[window] orientation` lands in the plist iOS reads, and a project

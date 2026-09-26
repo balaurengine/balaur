@@ -45,6 +45,10 @@ with no alias and no migration, as `one way to do a thing` asks.
   `simulate_faults`, `migrate_script`, `script_language`, `[locale] initial`,
   `force_mono`), and match the store's word (`display_name`, `min_ios`,
   `build_number`, `team_id`, `sign-in-with-apple`, `quantized`).
+  Signing keys live in the table of the platform they sign for, the
+  variables name it (`BALAUR_ANDROID_KEYSTORE_PASSWORD`), `export` takes
+  `--bundle <kind>`, `--provisioning-profile` and `--dry-run`, and `keep` is a
+  count only beside `include` and `*_recode = "original"`.
 - `NAMING.md` has the eight scopes, rules N18 to N23, and the picked names per
   system, from a survey of SDL3, Godot 4, Unity, Blender, GLFW, W3C, rapier and
   glTF on 2026-09-25.
@@ -54,17 +58,13 @@ with no alias and no migration, as `one way to do a thing` asks.
 
 | Now | New | Why |
 | --- | --- | --- |
-| `[export] macos_identity`, `android_keystore`, `windows_certificate`, … | `[apple] macos_identity`, `[android] keystore`, `[windows] certificate` | a key named after a table it is not in |
-| `BALAUR_SIGN_PASSWORD`, `BALAUR_KEYSTORE_PASSWORD`, `BALAUR_DUMP` | `BALAUR_WINDOWS_CERTIFICATE_PASSWORD`, `BALAUR_ANDROID_KEYSTORE_PASSWORD`, `BALAUR_REPLAY_DUMP` | the variable names its platform and its action input |
 | `export --template`, `balaur-template-*` | `--runtime`, `balaur-runtime-*` | `new --template` is a starter project |
 | `update --tag`, `shrink --tag` | `update --version`; `tag` means an override tag only | |
 | `gamend/target` | `gamend/server` | |
 | `run --record`, `.blr`, `sessions/`, `editor/sessions/*`, the Session panel | "recording": `recordings/`, `editor/recordings/*`, the Recordings panel | four names; `session` is also a Gamend login |
 | `input.toml`, `bindings_path` | `bindings.toml` | |
 | `units/` | `script_cache/` | Rune's word for compiled scripts |
-| `keep` as a count, a glob list and an enum value | `keep` is a count only; `include`, `*_recode = "original"` | |
 | `--state` self-tests `*demo`, poses `fontdemo`, separators `:`, `=` and `?` | `test:<name>`, plain nouns for poses, `:` only; an unknown state is an error | one suffix meant two things; e2e translates the names |
-| `--profile`, `--report`, `--app/--ipa/--apk/--aab/--pkg` | `--provisioning-profile`, `--dry-run`, `--bundle <kind>` | Cargo's `-p` already selects a crate |
 | a positional path on `shrink` | `shrink <path>`; `import` and `atlas` keep `--project` | a destination is a flag |
 | `editor/library/manifest.toml` | `catalog.toml` | `manifest` means `project.toml` |
 

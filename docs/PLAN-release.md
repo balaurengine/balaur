@@ -36,7 +36,7 @@ opens without a warning and updates itself.
    signs the fused result instead, which is the order `standalone::extract`
    already reads for. On macOS the template inside `Balaur.app` is the
    exception: notarization refuses a bundle holding an unsigned Mach-O, and
-   `export --app` replaces that signature rather than appending past it.
+   `export --bundle app` replaces that signature rather than appending past it.
 3. **Windows on ARM.** Built as `windows-arm64` on a `windows-11-arm`
    runner rather than cross-compiled, so `package.sh`'s smoke export runs the
    game it just made. It signs through the same profile the x64 download does,
@@ -51,7 +51,7 @@ opens without a warning and updates itself.
    `docs/PLAN-deploy.md`; the flags themselves — notarization, an iOS
    profile, a release keystore, Authenticode — are `docs/PLAN-actions.md` §2.
    What the export weighs is built: `balaur export` reports the pack by
-   section and extension, `--report` measures without writing, and `[export]`
+   section and extension, `--dry-run` measures without writing, and `[export]`
    `strip`, `images`, `fonts` and `audio` drop and re-encode losslessly.
 6. **The Download page** on the website reads the nightly by tag today
    (`RELEASE_TAG` in its `src/pages/download.tsx`); once a version is tagged it
