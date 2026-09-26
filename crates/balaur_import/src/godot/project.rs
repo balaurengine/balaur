@@ -370,11 +370,14 @@ fn binding(event: &Value) -> Option<String> {
             pad_button(int("button_index")?).map(|name| format!("gamepad:{name}"))
         }
         "InputEventJoypadMotion" => {
-            let axis = pad_axis(int("axis")?)?;
+            let index = int("axis")?;
+            let axis = pad_axis(index)?;
+            // Godot's stick y reads down as +1; balaur's reads up as +1.
+            let flipped = matches!(index, 1 | 3);
             let half = event
                 .field("axis_value")
                 .and_then(Value::as_f64)
-                .map_or("", |v| if v < 0.0 { "-" } else { "+" });
+                .map_or("", |v| if (v < 0.0) != flipped { "-" } else { "+" });
             Some(format!("axis:{axis}{half}"))
         }
         _ => None,
@@ -586,6 +589,11 @@ move_x={
 , Object(InputEventMouseButton,"button_index":1,"script":null)
 ]
 }
+move_up={
+"deadzone": 0.5,
+"events": [Object(InputEventJoypadMotion,"axis":1,"axis_value":-1.0,"script":null)
+]
+}
 
 [internationalization]
 
@@ -623,6 +631,11 @@ locale/translations=PackedStringArray("res://lang/en.en.translation", "res://lan
             "a joypad motion keeps the half its value names"
         );
         assert_eq!(actions["move_x"][1].as_str(), Some("mouse:left"));
+        assert_eq!(
+            actions["move_up"][0].as_str(),
+            Some("axis:LeftStickY+"),
+            "Godot's stick up is -1 and balaur's is +1"
+        );
     }
 
     /// Maximized is not fullscreen, and the sensor deciding is not portrait.

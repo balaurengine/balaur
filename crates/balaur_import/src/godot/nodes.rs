@@ -460,10 +460,12 @@ fn transform(section: &Section, out: &mut Mapped) {
 
 fn sprite(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
     out.touch("sprite");
-    let texture = section.field("texture").and_then(|t| res.path(t));
-    if let Some(path) = texture {
-        let texture = image_path(path, res, out);
-        out.set("sprite", "texture", Toml::String(texture));
+    let texture = section
+        .field("texture")
+        .and_then(|t| res.path(t))
+        .map(|path| image_path(path, res, out));
+    if let Some(texture) = &texture {
+        out.set("sprite", "texture", Toml::String(texture.clone()));
     }
     if let Some(color) = section.field("self_modulate").and_then(colour) {
         out.set("sprite", "color", color);
@@ -485,15 +487,25 @@ fn sprite(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
         out.set("sprite", "region_origin", floats(&[x, y]));
         out.set("sprite", "region_size", floats(&[w, h]));
     }
+    // `hframes` x `vframes` is a grid `sprite_sheet` over the same image.
     let frames = |key: &str| section.field(key).and_then(Value::as_i64);
-    let (columns, rows) = (frames("hframes"), frames("vframes"));
-    if columns.unwrap_or(1) > 1 || rows.unwrap_or(1) > 1 {
-        out.set(
-            "sprite",
-            "columns",
-            Toml::Float(columns.unwrap_or(1) as f64),
-        );
-        out.set("sprite", "rows", Toml::Float(rows.unwrap_or(1) as f64));
+    let (columns, rows) = (
+        frames("hframes").unwrap_or(1),
+        frames("vframes").unwrap_or(1),
+    );
+    if let Some(texture) = texture
+        && (columns > 1 || rows > 1)
+    {
+        let mut sheet = toml::Table::new();
+        sheet.insert("type".into(), Toml::String("sprite_sheet".into()));
+        sheet.insert("texture".into(), Toml::String(texture));
+        sheet.insert("columns".into(), Toml::Integer(columns));
+        sheet.insert("rows".into(), Toml::Integer(rows));
+        out.assets.push(Asset {
+            component: "sprite",
+            key: "sheet",
+            table: sheet,
+        });
         if let Some(frame) = frames("frame") {
             out.set("sprite", "frame", Toml::Float(frame as f64));
         }

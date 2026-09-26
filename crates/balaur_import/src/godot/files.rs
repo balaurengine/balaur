@@ -528,6 +528,12 @@ centered = false
 texture = ExtResource("2_hull")
 material = SubResource("Glow")
 
+[node name="Flipbook" type="Sprite2D" parent="."]
+texture = ExtResource("2_hull")
+hframes = 4
+vframes = 2
+frame = 5
+
 [node name="Tree" type="AnimationTree" parent="."]
 libraries/ = SubResource("Lib")
 tree_root = SubResource("Machine")
@@ -939,6 +945,20 @@ func _process(_delta):
             "a source_color default is in linear light: {glow:?}"
         );
         assert!(out.path().join("shaders/glow.wesl").is_file());
+
+        let flipbook = &node(&scene, "Flipbook")["sprite"];
+        assert_eq!(flipbook["frame"].as_float(), Some(5.0));
+        let reference = flipbook["sheet"].as_str().expect("the grid is a sheet");
+        let sheet = scene["assets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|a| Some(a["id"].as_str().unwrap()) == reference.strip_prefix('#'))
+            .expect("the sheet is an inline asset");
+        assert_eq!(sheet["type"].as_str(), Some("sprite_sheet"));
+        assert_eq!(sheet["columns"].as_integer(), Some(4));
+        assert_eq!(sheet["rows"].as_integer(), Some(2));
+        assert_eq!(sheet["texture"], flipbook["texture"]);
 
         let tree = node(&scene, "Tree");
         let machine = read(
