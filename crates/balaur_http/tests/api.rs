@@ -259,3 +259,76 @@ fn a_cancelled_request_says_so_and_its_late_reply_is_dropped() {
         );
     }
 }
+
+#[test]
+fn a_long_body_reports_going_out_before_the_reply() {
+    // Reads the whole body by its stated length, then answers.
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    std::thread::spawn(move || {
+        if let Ok((mut stream, _)) = listener.accept() {
+            let mut seen = Vec::new();
+            let mut chunk = [0u8; 64 * 1024];
+            let length = loop {
+                let n = stream.read(&mut chunk).unwrap_or(0);
+                seen.extend_from_slice(&chunk[..n]);
+                let text = String::from_utf8_lossy(&seen).to_lowercase();
+                if let Some(end) = text.find("\r\n\r\n") {
+                    let header = text.split("content-length:").nth(1).unwrap_or("0");
+                    let digits: String = header
+                        .trim()
+                        .chars()
+                        .take_while(char::is_ascii_digit)
+                        .collect();
+                    break end + 4 + digits.parse::<usize>().unwrap_or(0);
+                }
+                if n == 0 {
+                    break seen.len();
+                }
+            };
+            while seen.len() < length {
+                let n = stream.read(&mut chunk).unwrap_or(0);
+                if n == 0 {
+                    break;
+                }
+                seen.extend_from_slice(&chunk[..n]);
+            }
+            let reply = "HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok";
+            let _ = stream.write_all(reply.as_bytes());
+        }
+    });
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app_with_http(dir.path());
+    let id = app.engine.next_token();
+    let mut call = get_call(&format!("http://{addr}"));
+    call.method = "POST".into();
+    call.body = Some("x".repeat(600 * 1024));
+    {
+        let state = app.engine.resource::<HttpState>();
+        state.borrow_mut().request(&app.engine, id, call, None);
+    }
+    let mut kinds = Vec::new();
+    for _ in 0..1000 {
+        app.tick(1.0 / 60.0);
+        let snapshot = app.engine.resource::<HttpSnapshot>();
+        for event in &snapshot.borrow().responses {
+            if let Some(Value::Str(kind)) = field(event, "kind") {
+                kinds.push(kind.clone());
+            }
+        }
+        if kinds.iter().any(|k| k == "response") {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    let uploads = kinds.iter().filter(|k| *k == "upload").count();
+    assert!(
+        uploads >= 3,
+        "600 KB in 256 KB steps and the end: {kinds:?}"
+    );
+    assert_eq!(
+        kinds.last().map(String::as_str),
+        Some("response"),
+        "{kinds:?}"
+    );
+}

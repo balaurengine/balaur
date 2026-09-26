@@ -53,26 +53,23 @@ type Response = (u16, Vec<(String, String)>, String, Option<String>);
 
 fn perform(call: &HttpCall, events: &Sender<HttpEvent>, cancel: &AtomicBool) -> Result<Response> {
     let agent = agent_for(call);
-    let mut response =
-        match call.method.as_str() {
-            "GET" => with_headers(agent.get(&call.url), call).call()?,
-            // ureq sends a DELETE body only when forced to.
-            "DELETE" => match call.body.as_deref() {
-                Some(body) => {
-                    with_headers(agent.delete(&call.url).force_send_body(), call).send(body)?
-                }
-                None => with_headers(agent.delete(&call.url), call).call()?,
-            },
-            "HEAD" => with_headers(agent.head(&call.url), call).call()?,
-            "POST" => with_headers(agent.post(&call.url), call)
-                .send(call.body.as_deref().unwrap_or(""))?,
-            "PUT" => {
-                with_headers(agent.put(&call.url), call).send(call.body.as_deref().unwrap_or(""))?
-            }
-            "PATCH" => with_headers(agent.patch(&call.url), call)
-                .send(call.body.as_deref().unwrap_or(""))?,
-            other => return Err(anyhow!("unsupported method `{other}`")),
-        };
+    let mut response = match call.method.as_str() {
+        "GET" => with_headers(agent.get(&call.url), call).call()?,
+        // ureq sends a DELETE body only when forced to.
+        "DELETE" => match call.body.as_deref() {
+            Some(_) => send(
+                with_headers(agent.delete(&call.url).force_send_body(), call),
+                call,
+                events,
+            )?,
+            None => with_headers(agent.delete(&call.url), call).call()?,
+        },
+        "HEAD" => with_headers(agent.head(&call.url), call).call()?,
+        "POST" => send(with_headers(agent.post(&call.url), call), call, events)?,
+        "PUT" => send(with_headers(agent.put(&call.url), call), call, events)?,
+        "PATCH" => send(with_headers(agent.patch(&call.url), call), call, events)?,
+        other => return Err(anyhow!("unsupported method `{other}`")),
+    };
     let status = response.status().as_u16();
     let headers = response
         .headers()
@@ -103,6 +100,55 @@ fn perform(call: &HttpCall, events: &Sender<HttpEvent>, cancel: &AtomicBool) -> 
     }
     let body = response.body_mut().read_to_string()?;
     Ok((status, headers, body, None))
+}
+
+/// Send the call's body. One long enough to take a while goes out through a
+/// reader that reports every few hundred kilobytes, with its length stated
+/// so it is not sent chunked.
+fn send(
+    builder: ureq::RequestBuilder<ureq::typestate::WithBody>,
+    call: &HttpCall,
+    events: &Sender<HttpEvent>,
+) -> Result<ureq::http::Response<ureq::Body>> {
+    let body = call.body.as_deref().unwrap_or("");
+    if (body.len() as u64) < PROGRESS_STEP {
+        return Ok(builder.send(body)?);
+    }
+    let reader = Outgoing {
+        request: call.id,
+        body: body.as_bytes().to_vec(),
+        at: 0,
+        reported: 0,
+        events: events.clone(),
+    };
+    let sized = builder.header("content-length", body.len().to_string());
+    Ok(sized.send(ureq::SendBody::from_owned_reader(reader))?)
+}
+
+/// A body on its way out, telling the frame loop how much has gone.
+struct Outgoing {
+    request: u64,
+    body: Vec<u8>,
+    at: usize,
+    reported: usize,
+    events: Sender<HttpEvent>,
+}
+
+impl std::io::Read for Outgoing {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let n = (&self.body[self.at..]).read(buf)?;
+        self.at += n;
+        let done = self.at == self.body.len() && self.reported != self.at;
+        if done || (self.at - self.reported) as u64 >= PROGRESS_STEP {
+            self.reported = self.at;
+            let _ = self.events.send(HttpEvent::Sent {
+                request: self.request,
+                sent: self.at as u64,
+                total: self.body.len() as u64,
+            });
+        }
+        Ok(n)
+    }
 }
 
 /// Copy a body to disk as it arrives, reporting every few hundred kilobytes

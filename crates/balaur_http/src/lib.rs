@@ -133,6 +133,12 @@ pub(crate) enum HttpEvent {
         received: u64,
         total: Option<u64>,
     },
+    /// Part of a long request body gone out.
+    Sent {
+        request: u64,
+        sent: u64,
+        total: u64,
+    },
     Error {
         request: u64,
         message: String,
@@ -144,6 +150,7 @@ impl HttpEvent {
         match self {
             Self::Response { request, .. }
             | Self::Progress { request, .. }
+            | Self::Sent { request, .. }
             | Self::Error { request, .. } => *request,
         }
     }
@@ -265,13 +272,13 @@ fn pump_http_system(eng: &Engine, _: f32) {
             let request = event.request();
             // A cancelled request's reply still arrives; nobody is told.
             if state.cancelled.contains(&request) {
-                if !matches!(event, HttpEvent::Progress { .. }) {
+                if !matches!(event, HttpEvent::Progress { .. } | HttpEvent::Sent { .. }) {
                     state.cancelled.shift_remove(&request);
                 }
                 continue;
             }
-            // A chunk landing wakes nothing: the download is still going.
-            if let HttpEvent::Progress { .. } = &event {
+            // A chunk landing or leaving wakes nothing: the call is still going.
+            if matches!(event, HttpEvent::Progress { .. } | HttpEvent::Sent { .. }) {
                 let handler = state.progress.get(&request).cloned();
                 let value = event_value(event);
                 snapshot.responses.push(value.clone());
@@ -309,9 +316,10 @@ fn pump_http_system(eng: &Engine, _: f32) {
 pub mod kind {
     pub const RESPONSE: &str = "response";
     pub const PROGRESS: &str = "progress";
+    pub const UPLOAD: &str = "upload";
     pub const CANCELLED: &str = "cancelled";
     pub const ERROR: &str = balaur_core::handler::ERROR;
-    pub const ALL: &[&str] = &[RESPONSE, PROGRESS, CANCELLED, ERROR];
+    pub const ALL: &[&str] = &[RESPONSE, PROGRESS, UPLOAD, CANCELLED, ERROR];
 }
 
 fn event_value(event: HttpEvent) -> Value {
@@ -359,6 +367,22 @@ fn event_value(event: HttpEvent) -> Value {
                 total.map_or(Value::Nil, |n| {
                     Value::Int(i64::try_from(n).unwrap_or(i64::MAX))
                 }),
+            ),
+        ],
+        HttpEvent::Sent {
+            request,
+            sent,
+            total,
+        } => vec![
+            ("kind".into(), Value::Str(kind::UPLOAD.into())),
+            ("request".into(), id_value(request)),
+            (
+                "sent".into(),
+                Value::Int(i64::try_from(sent).unwrap_or(i64::MAX)),
+            ),
+            (
+                "total".into(),
+                Value::Int(i64::try_from(total).unwrap_or(i64::MAX)),
             ),
         ],
         HttpEvent::Error { request, message } => vec![
@@ -477,7 +501,7 @@ fn save_path_of(eng: &Engine, opts: Option<&Value>) -> Result<Option<std::path::
 /// `http.*`. Declared against the neutral seam, so it works on any backend.
 fn install_http_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "HTTP requests off the frame: `method`, `headers`, `body`, `timeout` and `save_to` options. The reply reaches `on_response` as a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; `save_to` downloads report to `on_progress` with `kind` `progress`. Each kind is an `EVENT_*` constant.",
+        "HTTP requests off the frame: `method`, `headers`, `body`, `timeout` and `save_to` options. The reply reaches `on_response` as a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; `save_to` downloads report to `on_progress` with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[
@@ -504,7 +528,8 @@ fn install_http_api(m: &mut dyn Bindings<Engine>) {
             let handler = handler_of(&node, opts.as_ref(), "on_response", "on_response")?;
             let mut call = call_of(&url, opts.as_ref())?;
             call.save_to = save_path_of(eng, opts.as_ref())?;
-            let progress = if call.save_to.is_some() {
+            // A download reports what lands and a long body what goes out.
+            let progress = if call.save_to.is_some() || call.body.is_some() {
                 handler_of(&node, opts.as_ref(), "on_progress", "on_progress")?
             } else {
                 None
