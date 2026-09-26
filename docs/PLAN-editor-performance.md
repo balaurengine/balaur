@@ -561,9 +561,25 @@ clean.
 The tab strips are what is left of a dock's script. Built once and handed
 over every frame, they cost what building them did, so the time is the pool's
 conversion and compare. A pool that kept its callbacks and heard its controls
-itself would let a strip skip the call. That is under 1 ms of a 12.7 ms `ui`
-pass under load, and it changes how every control's edit reaches its script,
-so it is not done.
+itself would let a strip skip the call. §6k is that pool.
+
+## 6k. The pool hears its controls
+
+**Built 2026-09-26.** The pool keeps each control's `on` and `on_submit`
+itself, and `apply_system` calls them from the clicks and changes the frame
+settled. A strip whose inputs did not move is not stated again.
+
+- `pool::strip_when(S, host, key, build)` and `pool::sync_when` fill a host
+  only when `key` moved. The key holds what the controls are built from.
+- A self-test run fills anyway and warns when the controls changed under a
+  key that did not, so a key missing an input fails e2e. The 80 states run
+  clean on `hello` and `angrynerds`.
+- `ui::edit(node, value)` changes a widget as the reader would. A script's own
+  write is not an edit and reaches no `on`, so a self-test types with it.
+- Keyed so far: the menu, the top bar, the status bar, each dock's tab strips,
+  and the inspector's foot and form.
+- On `hello` offscreen, where the UI pass runs every frame, a frame is 32,048
+  instructions with the keys ignored and 20,508 with them.
 
 ## 7. The instrument
 

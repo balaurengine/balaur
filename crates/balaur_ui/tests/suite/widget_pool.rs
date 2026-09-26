@@ -89,7 +89,7 @@ fn a_strip_makes_a_node_a_control_and_hides_what_a_shorter_list_leaves() {
 }
 
 #[test]
-fn a_reader_s_edit_reaches_on_and_the_pass_after_writes_what_the_model_says() {
+fn a_reader_s_click_reaches_on_and_a_script_s_write_does_not() {
     let (_dir, mut app) = app_with(
         "pub fn init(this) { this.on = false; this.edits = 0.0; }\n\
          pub fn update(this, dt) {\n\
@@ -106,9 +106,7 @@ fn a_reader_s_edit_reaches_on_and_the_pass_after_writes_what_the_model_says() {
         Some(toml::Value::Boolean(false))
     );
 
-    let mut edit = toml::map::Map::new();
-    edit.insert("checked".into(), toml::Value::Boolean(true));
-    balaur_core::components::patch(&app.engine, boxed, "widget", &edit.into()).unwrap();
+    assert!(balaur_ui::click(&app.engine, boxed, false));
     app.tick(1.0 / 60.0);
     assert_eq!(number(&app, "edits"), Some(1.0));
     assert_eq!(
@@ -116,14 +114,19 @@ fn a_reader_s_edit_reaches_on_and_the_pass_after_writes_what_the_model_says() {
         Some(toml::Value::Boolean(true))
     );
 
+    // A write that is not the reader's is no edit.
+    let mut write = toml::map::Map::new();
+    write.insert("checked".into(), toml::Value::Boolean(false));
+    balaur_core::components::patch(&app.engine, boxed, "widget", &write.into()).unwrap();
     app.tick(1.0 / 60.0);
     assert_eq!(
         number(&app, "edits"),
         Some(1.0),
-        "our own write is not an edit"
+        "a script's write is not an edit"
     );
     assert_eq!(
         prop(&app, boxed, "checked"),
-        Some(toml::Value::Boolean(true))
+        Some(toml::Value::Boolean(false)),
+        "and the pool writes only what its own spec changed"
     );
 }

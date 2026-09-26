@@ -2848,7 +2848,7 @@ pub fn settings_step(S) {
         let field = scene::get_node("Editor/Sheet/SheetBody/SheetSplit/SheetSide/SheetSideRows/C0");
         if check(!util::is_nil(field) && field.get_component("widget", "kind") == "text_field",
             "the sidebar's first control is the search field") {
-            field.patch_component("widget", #{ text: "scale" });
+            ui::edit(field, "scale");
         }
         return;
     }
@@ -3710,8 +3710,8 @@ pub fn pool_check_step(S) {
         crate::pool::strip(S, path, [#{ kind: "label", text: "0.20 0.22 0.26 1.00" }]);
     } else if stage == 3 {
         check(heard.is_empty(), format!("a slot that changed kind reports nothing ({:?})", heard));
-        // The control: an edit on a slot that stayed a dropdown still reaches `on`.
-        scene::get_node(path + "/C0").patch_component("widget", #{ text: "b" });
+        // The control: a pick on a slot that stayed a dropdown still reaches `on`.
+        ui::edit(scene::get_node(path + "/C0"), "b");
     } else {
         S.pool_check = ();
         check(heard.len() == 1 && heard[0] == "b", format!("and a pick on a dropdown is heard ({:?})", heard));

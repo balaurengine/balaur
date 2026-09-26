@@ -30,7 +30,39 @@ pub fn sync(S, host_path, specs, label_w, stacked) {
     ui::fill_rows(host_path, specs, label_w, stacked);
 }
 
-/// Stop drawing the whole pool, for a panel that has nothing to show.
-pub fn hide(host_path) {
+/// `strip`, when `key` moved since the host was last filled. The key holds
+/// whatever the controls are built from, so a frame that changed none of it
+/// builds nothing: the pool keeps the callbacks and hears the controls itself.
+///
+/// A self-test run builds and fills anyway, and warns when the controls
+/// changed under a key that did not: an input the key left out.
+pub fn strip_when(S, host_path, key, build) {
+    if S.pool_keys.get(host_path) == Some(key) {
+        if S.start_states != "" && ui::fill_strip(host_path, build()) {
+            log::warn(`the strip at ${host_path} changed while its key did not`);
+        }
+        return;
+    }
+    S.pool_keys[host_path] = key;
+    ui::fill_strip(host_path, build());
+}
+
+/// `sync`, when `key` moved; the same contract as `strip_when`.
+pub fn sync_when(S, host_path, key, label_w, stacked, build) {
+    let full = [key, label_w, stacked];
+    if S.pool_keys.get(host_path) == Some(full) {
+        if S.start_states != "" && ui::fill_rows(host_path, build(), label_w, stacked) {
+            log::warn(`the rows at ${host_path} changed while their key did not`);
+        }
+        return;
+    }
+    S.pool_keys[host_path] = full;
+    ui::fill_rows(host_path, build(), label_w, stacked);
+}
+
+/// Stop drawing the whole pool, for a panel that has nothing to show. What it
+/// was filled with goes back on when it shows again.
+pub fn hide(S, host_path) {
     util::hide(host_path);
+    S.pool_keys.remove(host_path);
 }

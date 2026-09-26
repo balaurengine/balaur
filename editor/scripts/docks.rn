@@ -268,10 +268,11 @@ const RIGHT_FOOT_NODE = "Editor/Shell/Body/Right/RightSheet/RightFoot";
 pub fn right_foot(S) {
     let d = S.docks.right;
     if d.shut || d.active != "inspector" {
-        crate::pool::hide(RIGHT_FOOT_NODE);
+        crate::pool::hide(S, RIGHT_FOOT_NODE);
         return;
     }
-    crate::pool::strip(S, RIGHT_FOOT_NODE, inspector::foot_controls(S));
+    let chosen = S.sel >= 0 && S.sel < S.doc.len();
+    crate::pool::strip_when(S, RIGHT_FOOT_NODE, [chosen], || inspector::foot_controls(S));
 }
 
 fn body(S, k, id) {
@@ -436,7 +437,7 @@ fn hide_node(S, which) {
     } else if which == "outline" {
         left::hide_outline();
     } else if which == "form" {
-        inspector::hide_form();
+        inspector::hide_form(S);
     }
 }
 
@@ -646,8 +647,16 @@ pub fn tools_box(side) {
 }
 
 fn tab_row(S, k, side, d) {
-    crate::pool::strip(S, head_of(side), tab_controls(S, k, side, d));
-    crate::pool::strip(S, tail_of(side), tail_controls(S, side));
+    // What the two strips are built from: the dock, its tabs' names, the
+    // Problems count its label carries, and the room the row has.
+    let names = [];
+    for id in d.tabs {
+        names.push(panel(S, id).name);
+    }
+    let (errors, warnings) = crate::lint::counts(S);
+    let key = [format!("{:?}", d), names, errors + warnings, tab_h(S), S.layout[side].w];
+    crate::pool::strip_when(S, head_of(side), key, || tab_controls(S, k, side, d));
+    crate::pool::strip_when(S, tail_of(side), key, || tail_controls(S, side));
 }
 
 /// The panel's own controls and the fold, in that order: where they have
@@ -738,8 +747,9 @@ fn tools_room(S, side) {
 }
 
 /// Stop drawing a dock's tab strip, for a dock that is folded or empty.
-fn hide_tabs(side) {
-    util::hide(head_of(side));
+fn hide_tabs(S, side) {
+    crate::pool::hide(S, head_of(side));
+    S.pool_keys.remove(tail_of(side));
 }
 
 // How wide the tab row's own tiles are, from the names: a flat width per tab
@@ -824,7 +834,7 @@ pub fn draw_bottom_body(S, k) {
     let d = S.docks.bottom;
     hide_unused(S, "bottom", d);
     if d.tabs.len() == 0 || d.shut {
-        hide_tabs("bottom");
+        hide_tabs(S, "bottom");
         return;
     }
     tab_row(S, k, "bottom", d);
@@ -866,7 +876,7 @@ pub fn draw_body(S, k, side) {
     let d = S.docks[side];
     hide_unused(S, side, d);
     if d.tabs.len() == 0 || d.shut {
-        hide_tabs(side);
+        hide_tabs(S, side);
         return;
     }
     tab_row(S, k, side, d);

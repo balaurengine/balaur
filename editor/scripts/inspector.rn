@@ -138,6 +138,8 @@ pub fn open_pool(S) {
 
 pub fn close_pool(S) {
     crate::pool::sync(S, FORM_NODE, S.form, label_w(S), stacked(S));
+    // The inspector's rows are not what the node holds now.
+    S.pool_keys.remove(FORM_NODE);
 }
 
 /// One labelled row of controls, for a panel describing its own form.
@@ -174,8 +176,8 @@ pub fn wide_row(S, height, body) {
 }
 
 /// Stop drawing the form, for a right dock showing something else.
-pub fn hide_form() {
-    crate::pool::hide(FORM_NODE);
+pub fn hide_form(S) {
+    crate::pool::hide(S, FORM_NODE);
 }
 
 /// Run the next drawn row. The pool draws its visible children in the order
@@ -1862,7 +1864,7 @@ fn events_section(S, k) {
 
 pub fn body(S, k) {
     if S.sel < 0 || S.sel >= S.doc.len() {
-        hide_form();
+        hide_form(S);
         ui::add_space(10);
         style::empty(k, "nothing selected");
         return;
@@ -1884,8 +1886,34 @@ pub fn body(S, k) {
     });
     ui::add_space(3);
     crate::search::field(S, k, "inspector", "Search", ui::available_width());
-    // Every row is a node now: the sections describe them, and the pool makes
-    // and reuses them under the sheet's scroll.
+    // Described again only when something the rows are built from moved; the
+    // drawn rows' cursor restarts every pass either way.
+    S.form_cursor = 0;
+    crate::pool::sync_when(S, FORM_NODE, form_key(S, k), label_w(S), stacked(S), || {
+        describe(S, k, node);
+        S.form
+    });
+}
+
+// What the form is built from: the selection and the document, the panel's
+// own folds, tabs and chips, the query, and while playing the live values,
+// which move every frame.
+fn form_key(S, k) {
+    let clip = match S.clip {
+        Some(clip) => [clip.index, clip.path, clip.dirty],
+        None => [],
+    };
+    [
+        S.sel, S.sels.clone(), S.doc_rev, S.workspace, S.tool, S.playing,
+        if S.playing { S.frame } else { 0 }, format!("{:?}", S.collapsed),
+        format!("{:?}", S.opened), format!("{:?}", S.polygon), format!("{:?}", S.chip_state),
+        clip, S.shader_rel, S.doctab, S.compact, S.touchscreen,
+        crate::search::query(S, "inspector"), k,
+    ]
+}
+
+// Every row of the form, pushed onto `S.form`.
+fn describe(S, k, node) {
     open_form(S);
     multi_note(S);
     instance_note(S, k);
@@ -1915,7 +1943,6 @@ pub fn body(S, k) {
         }
     }
     crate::plugins::draw_sections(S, k, node);
-    crate::pool::sync(S, FORM_NODE, S.form, label_w(S), stacked(S));
 }
 
 /// The one control under the scroll, so a long form cannot push it away.

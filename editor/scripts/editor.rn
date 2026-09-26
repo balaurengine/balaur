@@ -142,6 +142,8 @@ pub fn fresh_state() {
         layout_seen: -1.0,
         // The inspector's rows, described each frame and made by `pool.rn`.
         form: [], form_draws: [], form_cursor: 0,
+        // What each pooled host was last filled for; see `pool::strip_when`.
+        pool_keys: #{},
         // Bumped by every edit to `S.doc`: `history::record` before a recorded
         // one, `model::record_override` after the rest. A cache keyed on it
         // skips work a frame that edited nothing would otherwise repeat.

@@ -147,6 +147,44 @@ pub fn submit(eng: &Engine, entity: Entity, text: &str) -> bool {
     writable
 }
 
+/// Change a widget's value as the reader would, settled at the next tick: the
+/// value lands and the widget announces `change`. A number sets a slider or a
+/// number field, a colour a swatch, a boolean a fold, and text a field, a
+/// dropdown's pick, a list's row or a tab. False for a disabled widget or a
+/// value its kind does not take.
+pub fn edit(eng: &Engine, entity: Entity, value: &Value) -> bool {
+    let edit = {
+        let world = eng.world();
+        let Ok(widget) = world.get::<&Widget>(entity) else {
+            return false;
+        };
+        if widget.disabled {
+            return false;
+        }
+        let kind = widget.kind.as_str();
+        match value {
+            Value::Num(n) => Some(Edit::Value(*n as f32)),
+            Value::Int(n) => Some(Edit::Value(*n as f32)),
+            Value::Bool(open) => Some(Edit::Open(*open)),
+            Value::Color(rgba) => Some(Edit::Color(*rgba)),
+            Value::Str(text) if kind == w::DROPDOWN || kind == w::MENU => {
+                Some(Edit::Choice(text.clone()))
+            }
+            Value::Str(text) if kind == w::LIST || kind == w::TREE || kind == w::TABLE => {
+                Some(Edit::Picked(text.clone(), Vec::new()))
+            }
+            Value::Str(text) if kind == w::TABS => Some(Edit::Active(text.clone())),
+            Value::Str(text) => Some(Edit::Text(text.clone())),
+            _ => None,
+        }
+    };
+    let Some(edit) = edit else {
+        return false;
+    };
+    record(eng, &[], vec![(entity, edit)], None);
+    true
+}
+
 /// What a widget emits from its own node when its value changes, and when a
 /// field is submitted, with the new value: a `[[nodes.bindings.rows]]` row answers
 /// `emitted:change` on any node's script, as a Godot signal connected in a
@@ -312,6 +350,10 @@ fn apply_system(eng: &Engine, _dt: f32) {
     let mut emitted = Vec::new();
     let (mut typed, submitted) = settle_edits(eng, &edits, &mut emitted);
     let signals = settle_clicks(eng, &clicked, &submitted, &mut typed, &mut emitted);
+    // The pool's controls hear their edits and clicks here, before any named
+    // handler, so a strip nobody refilled still answers.
+    let hit: Vec<Entity> = clicked.iter().filter_map(|key| resolve(eng, key)).collect();
+    crate::widget::pool::dispatch(eng, &emitted, &hit);
     // A pointer event is a core hook: its rows, and the node's own
     // `on_pointer_*`, as a world node's. The widget's own events are emitted.
     for (entity, event, value) in emitted {

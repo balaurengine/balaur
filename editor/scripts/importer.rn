@@ -370,7 +370,7 @@ pub fn panel(S, k) {
     let specs = specs_for(S);
     if specs.len() == 0 {
         let why = if rel == "" { "select a file in Assets" } else { "nothing to import for this file" };
-        crate::inspector::hide_form();
+        crate::inspector::hide_form(S);
         style::empty(k, why);
         return;
     }

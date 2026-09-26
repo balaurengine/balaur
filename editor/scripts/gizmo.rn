@@ -13,10 +13,8 @@ use crate::viewport;
 
 /// The gizmo's own state, hung on `S.gizmo`.
 pub fn state() {
-    // `key` is what the hover test last answered to; see `hover_key`.
-    // `marquee` is the box-select drag: the design-px point it started at,
-    // and where the pointer is now.
-    // `drawn` is the key the line list in `lines` was built for; see `draw`.
+    // `key` and `drawn` are what the hover and the line list were last built
+    // for; `marquee` is the box-select drag, from its first point to the pointer.
     #{ hover: None, drag: None, in_viewport: false, key: [], marquee: None, drawn: [], lines: [] }
 }
 

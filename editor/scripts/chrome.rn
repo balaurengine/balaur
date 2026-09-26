@@ -186,8 +186,30 @@ pub fn top_bar(S) {
             height: row_h(S) - 4.0, showing: S.menu_open,
         });
     }
-    crate::pool::strip(S, BRAND_NODE, crate::menu::rows(S));
-    crate::pool::strip(S, STRIP_NODE, bar_controls(S, k));
+    // The menu lists every panel, ticked where it is open, under the names
+    // the Outline's among them changes.
+    let menu_key = [
+        S.workspace, format!("{:?}", S.docks), crate::docks::name(S, "outline"),
+        S.registry.panels.len(),
+    ];
+    crate::pool::strip_when(S, BRAND_NODE, menu_key, || crate::menu::rows(S));
+    crate::pool::strip_when(S, STRIP_NODE, bar_key(S, k), || bar_controls(S, k));
+}
+
+// What the bar is built from: the workspace and the toggles beside it, the
+// open documents and whether they are saved, the transport, and the theme.
+fn bar_key(S, k) {
+    let replaying = crate::session::loaded(S);
+    let paused = if replaying {
+        replay::state() == replay::STATE_PAUSED
+    } else {
+        S.playing && physics::is_paused()
+    };
+    [
+        S.workspace, S.compact, S.split, S.focus, S.touchscreen, S.sel, S.doc_rev,
+        S.playing, replaying, paused, k.dark, S.scene_rel, history::dirty(S),
+        S.script_open, format!("{:?}", S.script_dirty), S.events_open, S.doctab,
+    ]
 }
 
 // Everything on the bar past the brand, in the order it reads: the workspaces,
@@ -411,7 +433,10 @@ pub fn toast(S, k) {
 }
 
 pub fn status_bar(S, k, room) {
-    crate::pool::strip(S, STATUS_NODE, status_controls(S, k, room));
+    // `status_mode` carries the pause, the play, the frame rate while playing
+    // and an import in flight; `doc_rev` stands for the node and script counts.
+    let key = [status_mode(S), S.playing, k, room, S.doc_rev, S.workspace, S.tool];
+    crate::pool::strip_when(S, STATUS_NODE, key, || status_controls(S, k, room));
 }
 
 fn status_mode(S) {

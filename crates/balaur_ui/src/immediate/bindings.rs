@@ -570,6 +570,12 @@ fn install_focus(m: &mut dyn Bindings<Engine>) {
             "(node: node, opts: map?)",
             "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `#{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
         ),
+        (
+            "edit",
+            &[],
+            "(node: node, value)",
+            "Change a widget node's value as the reader would, at the next tick, so it announces `change`: a number for a slider or a number field, a colour for a swatch, a boolean for a fold, text for a field, a dropdown's pick, a list's row or a tab. False for a disabled widget or a value its kind does not take.",
+        ),
     ]);
     m.function("focused_widget", |eng: &Engine, ()| {
         let focus = eng.resource::<crate::UiFocus>();
@@ -588,6 +594,12 @@ fn install_focus(m: &mut dyn Bindings<Engine>) {
         focus.taking = true;
         Ok(())
     });
+    m.function(
+        "edit",
+        |eng: &Engine, (node, value): (balaur_script::NodeId, balaur_script::Value)| {
+            Ok(crate::edit(eng, balaur_core::entity_of(node)?, &value))
+        },
+    );
     m.function(
         "click",
         |eng: &Engine, (node, opts): (balaur_script::NodeId, Option<balaur_script::Value>)| {
