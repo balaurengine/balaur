@@ -22,6 +22,7 @@ use crate::rapier3d::prelude::{
 };
 use crate::vocabulary::hook;
 use balaur_core::Engine;
+use balaur_core::collections::DetHashMap;
 use balaur_core::hecs::Entity;
 use balaur_script::Value;
 use std::sync::Mutex;

@@ -365,13 +365,13 @@ pub(crate) fn announce_device_system(eng: &Engine, _: f32) {
         return;
     };
     if let Some(focused) = focus {
-        host.call_all_with(
+        host.announce(
             crate::hooks::ON_FOCUS_CHANGED,
             &[balaur_script::Value::Bool(focused)],
         );
     }
     if let Some(dark) = dark {
-        host.call_all_with(
+        host.announce(
             crate::hooks::ON_DARK_MODE,
             &[balaur_script::Value::Bool(dark)],
         );

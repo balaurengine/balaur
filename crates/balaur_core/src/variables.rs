@@ -224,18 +224,19 @@ pub fn dispatch_changes_system(eng: &Engine, _dt: f32) {
     if changed.is_empty() {
         return;
     }
-    let Some(host) = eng.script_host() else {
-        return;
-    };
     let listeners: Vec<crate::hecs::Entity> = {
         let world = eng.world();
         crate::scene::collect_subtree(&world, eng.root())
     };
+    let host = eng.script_host();
     for (name, value) in changed {
         let args = [Value::Str(name.clone()), value.clone()];
         for entity in &listeners {
+            crate::bindings::fire(eng, *entity, crate::hooks::VARIABLE_CHANGED, &args);
             let node = crate::node_id_of(*entity);
-            if host.has_method(node, crate::hooks::ON_VARIABLE_CHANGED) {
+            if let Some(host) = &host
+                && host.has_method(node, crate::hooks::ON_VARIABLE_CHANGED)
+            {
                 host.call_on(node, crate::hooks::ON_VARIABLE_CHANGED, &args);
             }
         }

@@ -111,6 +111,7 @@ fn clear(eng: &Engine, entity: Entity) {
     };
     for handle in &ours {
         state.world.remove_collider(*handle);
+        state.gone.insert(*handle, entity);
     }
     if let Some(handles) = state.colliders.get_mut(&entity) {
         handles.retain(|handle| !ours.contains(handle));

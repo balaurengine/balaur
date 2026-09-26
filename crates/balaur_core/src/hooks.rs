@@ -4,23 +4,30 @@
 //! cannot spell a hook three ways. A plugin's own hooks stay in its crate;
 //! these are the ones core, input and rendering dispatch.
 
-/// The two hooks the engine calls by name rather than through a binding, so
-/// each is spelled here as well as in [`BINDABLE`] without its prefix.
+/// The two hooks the engine calls by name, and the [`BINDABLE`] events whose
+/// rows run beside them.
 pub const ON_VARIABLE_CHANGED: &str = "on_variable_changed";
 pub const ON_STATE_CHANGED: &str = "on_state_changed";
+pub const VARIABLE_CHANGED: &str = "variable_changed";
+pub const STATE_CHANGED: &str = "state_changed";
 /// Called on every script when the game pauses or resumes, the nodes the
 /// pause just stopped included.
 pub const ON_PAUSED: &str = "on_paused";
-/// Called on every script when the window comes to the front or leaves it,
-/// with whether it is in front now.
+/// Called on every script, a paused one too, when the window comes to the
+/// front or leaves it, with whether it is in front now.
 pub const ON_FOCUS_CHANGED: &str = "on_focus_changed";
-/// Called on every script when the system turns dark mode on or off.
+/// Called on every script, a paused one too, when the system turns dark mode
+/// on or off.
 pub const ON_DARK_MODE: &str = "on_dark_mode";
-/// Called on every script when the window is asked to close, before it does.
+/// Called on every script, a paused one too, when the window is asked to
+/// close, before it does.
 pub const ON_QUIT_REQUESTED: &str = "on_quit_requested";
 
 /// The event a click on a node, or on a widget, answers to.
 pub const POINTER_CLICK: &str = "pointer_click";
+/// A collider starting and stopping to touch another, which physics sends.
+pub const COLLISION_ENTER: &str = "collision_enter";
+pub const COLLISION_EXIT: &str = "collision_exit";
 
 /// The events a `[[nodes.bindings.rows]]` row may name, which are these hooks with
 /// the `on_` prefix dropped. In the order the Events view offers them.
@@ -37,10 +44,10 @@ pub const BINDABLE: &[&str] = &[
     "action",
     "scroll",
     "resize",
-    "variable_changed",
-    "state_changed",
-    "collision_enter",
-    "collision_exit",
+    VARIABLE_CHANGED,
+    STATE_CHANGED,
+    COLLISION_ENTER,
+    COLLISION_EXIT,
 ];
 
 /// The prefix of a binding event that answers a name the node emitted:

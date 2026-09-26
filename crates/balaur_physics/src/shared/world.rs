@@ -44,6 +44,16 @@ macro_rules! functions {
                 if world.contains(entity) {
                     return true;
                 }
+                // Rapier drops the attached colliders with the body.
+                if let Some(body) = state.world.bodies.get(*handle) {
+                    for &collider in body.colliders() {
+                        let owner = state.world.colliders.get(collider);
+                        let owner = owner.and_then(|c| Entity::from_bits(c.user_data as u64));
+                        if let Some(owner) = owner {
+                            state.gone.insert(collider, owner);
+                        }
+                    }
+                }
                 state.world.remove_body(*handle);
                 false
             });
@@ -55,7 +65,9 @@ macro_rules! functions {
                     if alive && state.world.colliders.contains(handle) {
                         return true;
                     }
-                    state.world.remove_collider(handle);
+                    if state.world.remove_collider(handle).is_some() {
+                        state.gone.insert(handle, entity);
+                    }
                     false
                 });
                 !handles.is_empty()

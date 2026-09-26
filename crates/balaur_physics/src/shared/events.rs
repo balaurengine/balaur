@@ -44,9 +44,25 @@ macro_rules! functions {
         #[derive(Default)]
         pub(crate) struct Collector {
             events: Mutex<Vec<Event>>,
+            /// The owners of colliders removed since the last step, whose
+            /// contacts end during this one.
+            gone: DetHashMap<ColliderHandle, Entity>,
         }
 
         impl Collector {
+            pub(crate) fn after(gone: DetHashMap<ColliderHandle, Entity>) -> Self {
+                Self {
+                    events: Mutex::default(),
+                    gone,
+                }
+            }
+
+            /// The entity behind a collider handle: the id stored on it, or
+            /// the owner it had when it was removed.
+            fn owner(&self, colliders: &ColliderSet, handle: ColliderHandle) -> Option<Entity> {
+                entity_of(colliders, handle).or_else(|| self.gone.get(&handle).copied())
+            }
+
             pub(crate) fn take(self) -> Vec<Event> {
                 let mut events = self
                     .events
@@ -78,8 +94,8 @@ macro_rules! functions {
                 _pair: Option<&ContactPair>,
             ) {
                 let (Some(a), Some(b)) = (
-                    entity_of(colliders, event.collider1()),
-                    entity_of(colliders, event.collider2()),
+                    self.owner(colliders, event.collider1()),
+                    self.owner(colliders, event.collider2()),
                 ) else {
                     return;
                 };
@@ -138,28 +154,12 @@ macro_rules! functions {
             let node = |e: Entity| Value::Node(e.to_bits().get());
             match *event {
                 Event::Started(a, b) => {
-                    host.call_on(
-                        balaur_core::node_id_of(a),
-                        hook::ON_COLLISION_ENTER,
-                        &[node(b)],
-                    );
-                    host.call_on(
-                        balaur_core::node_id_of(b),
-                        hook::ON_COLLISION_ENTER,
-                        &[node(a)],
-                    );
+                    balaur_core::events::announce(eng, a, hook::COLLISION_ENTER, node(b));
+                    balaur_core::events::announce(eng, b, hook::COLLISION_ENTER, node(a));
                 }
                 Event::Stopped(a, b) => {
-                    host.call_on(
-                        balaur_core::node_id_of(a),
-                        hook::ON_COLLISION_EXIT,
-                        &[node(b)],
-                    );
-                    host.call_on(
-                        balaur_core::node_id_of(b),
-                        hook::ON_COLLISION_EXIT,
-                        &[node(a)],
-                    );
+                    balaur_core::events::announce(eng, a, hook::COLLISION_EXIT, node(b));
+                    balaur_core::events::announce(eng, b, hook::COLLISION_EXIT, node(a));
                 }
                 Event::Force(a, b, magnitude, direction) => {
                     let force = Value::Num(f64::from(magnitude));

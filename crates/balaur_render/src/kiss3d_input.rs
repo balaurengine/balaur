@@ -100,13 +100,14 @@ pub(crate) fn pump_input(app: &App, window: &Window) -> Seen {
         seen.beyond_motion = true;
         input.file_drop_event(path.to_string_lossy().into_owned());
     }
-    // A chance to save, not a veto: every script hears it, then the app goes.
+    // A chance to save, not a veto: every script hears it, a paused one too,
+    // then the app goes.
     // Outside the borrow above, since a handler reading input would re-enter
     // that same `RefCell`.
     drop(input);
     if closing {
         if let Some(host) = app.engine.script_host() {
-            host.call_all(balaur_core::hooks::ON_QUIT_REQUESTED);
+            host.announce(balaur_core::hooks::ON_QUIT_REQUESTED, &[]);
         }
         app.engine.request_quit();
     }

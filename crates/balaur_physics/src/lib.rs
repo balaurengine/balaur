@@ -62,6 +62,10 @@ pub struct PhysicsState3d {
     pub bodies: DetHashMap<Entity, RigidBodyHandle>,
     /// Colliders per entity (attached to the entity's body, or standalone).
     pub colliders: DetHashMap<Entity, Vec<ColliderHandle>>,
+    /// Colliders removed since the last step, by the node that owned them.
+    /// Rapier reports the contacts they ended during the next step, when
+    /// their handles resolve to nothing.
+    pub(crate) gone: DetHashMap<ColliderHandle, Entity>,
     /// Joints per entity. Which of rapier's two sets a joint lives in is
     /// decided when it is made and never changes.
     pub joints: DetHashMap<Entity, joint::JointRef3d>,
@@ -111,6 +115,7 @@ impl PhysicsState3d {
             world: PhysicsWorld::default(),
             bodies: DetHashMap::default(),
             colliders: DetHashMap::default(),
+            gone: DetHashMap::default(),
             joints: DetHashMap::default(),
             soft_bodies: DetHashMap::default(),
             soft_params: DetHashMap::default(),
@@ -605,7 +610,7 @@ fn step_system(eng: &Engine, _dt: f32) {
         state.world.integration_parameters.dt = scalar::real(fixed_dt());
         // The step rebuilds the broad phase itself.
         state.queries_ready = true;
-        let collector = events::Collector::default();
+        let collector = events::Collector::after(std::mem::take(&mut state.gone));
         // A span of its own, so a profiler tells rapier's step from what the
         // engine wraps around it.
         balaur_core::timings::measure(eng, "physics3d/step", || {

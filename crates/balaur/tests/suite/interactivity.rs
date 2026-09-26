@@ -434,3 +434,156 @@ fn a_timer_and_a_finished_clip_drive_bindings_with_no_script() {
     // The half-second clip ends once.
     assert_eq!(score(&app), 3 + 100);
 }
+
+/// A sensor with a crate resting in it, a row on each end of the contact,
+/// and a door whose state answers the score changing.
+const CONTACT: &str = r#"
+[variables]
+score = { type = "int", value = 0 }
+opened = { type = "bool", value = false }
+
+[[nodes]]
+id = "n_scene"
+name = "Scene"
+
+[[nodes]]
+id = "n_zone"
+name = "Zone"
+parent = "n_scene"
+
+[nodes.collider3d]
+kind = "box"
+size = [4.0, 4.0, 4.0]
+sensor = true
+events = ["collision"]
+
+[[nodes.bindings.rows]]
+event = "collision_enter"
+action = "add_variable"
+target = "score"
+value = 1
+
+[[nodes.bindings.rows]]
+event = "collision_exit"
+action = "add_variable"
+target = "score"
+value = 10
+
+[[nodes]]
+id = "n_crate"
+name = "Crate"
+parent = "n_scene"
+body3d = { kind = "dynamic", gravity_scale = 0.0 }
+
+[nodes.collider3d]
+kind = "sphere"
+radius = 0.5
+
+[[nodes]]
+id = "n_door"
+name = "Door"
+parent = "n_scene"
+
+[[nodes.bindings.rows]]
+event = "variable_changed"
+action = "state"
+value = "open"
+
+[[nodes.bindings.rows]]
+event = "state_changed"
+action = "set_variable"
+target = "opened"
+value = true
+
+[nodes.states]
+current = "shut"
+
+[nodes.states.shut]
+transform = { position = [0, 0, 0] }
+
+[nodes.states.open]
+transform = { position = [0, 1, 0] }
+"#;
+
+#[test]
+fn collision_rows_run_with_no_script_and_a_freed_node_still_ends_its_contact() {
+    let (_dir, mut app) = app_from(CONTACT);
+    for _ in 0..10 {
+        app.tick(1.0 / 60.0);
+    }
+    assert_eq!(score(&app), 1, "the crate starts inside the zone");
+    balaur_core::scene::free_node(&app.engine, node(&app, "Crate"));
+    for _ in 0..5 {
+        app.tick(1.0 / 60.0);
+    }
+    assert_eq!(score(&app), 11, "freeing the crate ends its contact");
+}
+
+#[test]
+fn variable_and_state_rows_run_with_no_script() {
+    let (_dir, mut app) = app_from(CONTACT);
+    for _ in 0..10 {
+        app.tick(1.0 / 60.0);
+    }
+    let door = node(&app, "Door");
+    assert_eq!(state_of(&app, door), "open", "the score changing opened it");
+    let variables = app.engine.resource::<Variables>();
+    let opened = variables.borrow().get("opened").cloned();
+    assert_eq!(opened, Some(Value::Bool(true)), "and the state change was heard");
+}
+
+/// A clip whose node's script also subscribes to its own event.
+const ONCE: &str = r#"
+[variables]
+score = { type = "int", value = 0 }
+
+[[nodes]]
+id = "n_scene"
+name = "Scene"
+
+[[nodes]]
+id = "n_wave"
+name = "Wave"
+parent = "n_scene"
+script = { source = "scenes/wave.rn" }
+
+[nodes.transform]
+position = [0, 0, 0]
+
+[nodes.animation]
+autoplay = "rise"
+
+[nodes.animation.library.clips.rise]
+length = 0.2
+[[nodes.animation.library.clips.rise.tracks]]
+property = "position"
+keys = [ { time = 0.0, value = [0, 0, 0] }, { time = 0.2, value = [0, 1, 0] } ]
+"#;
+
+#[test]
+fn a_finished_clip_calls_its_own_node_once_when_the_node_also_subscribes() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("scenes")).unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("scenes/main.toml"), ONCE).unwrap();
+    std::fs::write(
+        dir.path().join("scenes/wave.rn"),
+        "pub fn init(this) { events::subscribe(this.node, \"animation_finished\", this.node); }\n\
+         pub fn on_animation_finished(this, clip) {\n\
+         \x20   scene::set_variable(\"score\", scene::variable(\"score\") + 1);\n\
+         }\n",
+    )
+    .unwrap();
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = standard_app(config).unwrap();
+    app.load_project().unwrap();
+    for _ in 0..40 {
+        app.tick(1.0 / 60.0);
+    }
+    assert_eq!(score(&app), 1);
+}

@@ -43,6 +43,8 @@ pub struct PhysicsState2d {
     pub world: PhysicsWorld2,
     pub bodies: DetHashMap<Entity, RigidBodyHandle2>,
     pub colliders: DetHashMap<Entity, Vec<ColliderHandle2>>,
+    /// Removed colliders by owner until the next step, as in 3D.
+    pub(crate) gone: DetHashMap<ColliderHandle2, Entity>,
     /// Whether the broad phase's tree matches the colliders, as in 3D.
     pub queries_ready: bool,
     /// Joints per entity, as in the 3D world.
@@ -82,6 +84,7 @@ impl PhysicsState2d {
             world,
             bodies: DetHashMap::default(),
             colliders: DetHashMap::default(),
+            gone: DetHashMap::default(),
             queries_ready: false,
             joints: DetHashMap::default(),
             soft_bodies: DetHashMap::default(),
@@ -167,7 +170,7 @@ fn step_system(eng: &Engine, _dt: f32) {
         // The step rebuilds the broad phase itself, as in 3D; without this a
         // query after a collider was added rebuilds it a second time.
         state.queries_ready = true;
-        let collector = events::Collector::default();
+        let collector = events::Collector::after(std::mem::take(&mut state.gone));
         balaur_core::timings::measure(eng, "physics2d/step", || {
             state.world.step_with_events(&events::Hooks, &collector);
         });

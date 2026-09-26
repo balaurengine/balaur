@@ -456,8 +456,7 @@ pub(crate) mod component {
 
 /// The script methods physics calls on a node.
 pub(crate) mod hook {
-    pub(crate) const ON_COLLISION_ENTER: &str = "on_collision_enter";
-    pub(crate) const ON_COLLISION_EXIT: &str = "on_collision_exit";
+    pub(crate) use balaur_core::hooks::{COLLISION_ENTER, COLLISION_EXIT};
     pub(crate) const ON_CONTACT_FORCE: &str = "on_contact_force";
     pub(crate) const ON_JOINT_BREAK: &str = "on_joint_break";
     pub(crate) const ON_TEAR: &str = "on_tear";

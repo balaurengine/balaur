@@ -761,6 +761,30 @@ fn a_change_of_focus_or_dark_mode_reaches_every_script_once() {
     assert_eq!(rune.number_field(node, "focus"), Some(11.0));
 }
 
+#[test]
+fn a_paused_script_still_hears_the_window_lose_focus() {
+    let dir = project(&[(
+        "a.rn",
+        "pub fn init(this) { this.focus = 0.0; }\n\
+         pub fn on_focus_changed(this, focused) { if !focused { this.focus += 1.0; } }\n",
+    )]);
+    let mut app = app_in(dir.path());
+    let node = spawn(&app, "Listener");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(node), "a.rn").unwrap();
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    app.tick(1.0 / 60.0);
+    app.engine.set_paused(true);
+    app.tick(1.0 / 60.0);
+    balaur_core::facts::update_device(&app.engine, |facts| facts.focused = false);
+    app.tick(1.0 / 60.0);
+    app.tick(1.0 / 60.0);
+    assert_eq!(rune.number_field(node, "focus"), Some(1.0));
+}
+
 /// A tick borrows one VM per script and hands it back at the end. Two nodes
 /// on one file therefore share a VM across the batch, and a script that
 /// reaches back into the host mid-`update` has to get a different one.

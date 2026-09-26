@@ -126,6 +126,16 @@ macro_rules! functions {
             // Attached colliders die with the body inside rapier.
             state.colliders.swap_remove(&entity);
             if let Some(handle) = state.bodies.swap_remove(&entity) {
+                let state = &mut *state;
+                if let Some(body) = state.world.bodies.get(handle) {
+                    for &collider in body.colliders() {
+                        let owner = state.world.colliders.get(collider);
+                        let owner = owner.and_then(|c| Entity::from_bits(c.user_data as u64));
+                        if let Some(owner) = owner {
+                            state.gone.insert(collider, owner);
+                        }
+                    }
+                }
                 state.world.remove_body(handle);
             }
         }

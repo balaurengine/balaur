@@ -30,9 +30,6 @@ pub const COMPONENT: &str = "state_machine";
 pub const STATE_STARTED_EVENT: &str = "state_started";
 /// Emitted from the machine's node, with the state, as it leaves one.
 pub const STATE_FINISHED_EVENT: &str = "state_finished";
-/// The script methods the two events call on the machine's node.
-const STATE_STARTED_METHOD: &str = "on_state_started";
-const STATE_FINISHED_METHOD: &str = "on_state_finished";
 
 /// Godot's default priority: every hop costs the same, so travel takes the
 /// fewest.
@@ -646,36 +643,16 @@ fn decide(
         .map(|t| (t.to.clone(), Entry::over(t)))
 }
 
-/// Tell each machine's node what it left and what it entered: an event a
-/// binding row answers, and a method on its script.
+/// Tell each machine's node what it left and what it entered.
 pub(crate) fn announce(eng: &Engine, moved: &[Moved]) {
+    let state = |name: &str| balaur_script::Value::Str(name.to_string());
     for m in moved {
         if !m.left.is_empty() {
-            emit(
-                eng,
-                m.entity,
-                STATE_FINISHED_EVENT,
-                STATE_FINISHED_METHOD,
-                &m.left,
-            );
+            balaur_core::events::announce(eng, m.entity, STATE_FINISHED_EVENT, state(&m.left));
         }
         if !m.entered.is_empty() {
-            emit(
-                eng,
-                m.entity,
-                STATE_STARTED_EVENT,
-                STATE_STARTED_METHOD,
-                &m.entered,
-            );
+            balaur_core::events::announce(eng, m.entity, STATE_STARTED_EVENT, state(&m.entered));
         }
-    }
-}
-
-fn emit(eng: &Engine, entity: Entity, event: &str, method: &str, state: &str) {
-    let value = balaur_script::Value::Str(state.to_string());
-    balaur_core::events::emit_from(eng, entity, event, value.clone());
-    if let Some(host) = eng.script_host() {
-        host.call_on(balaur_core::node_id_of(entity), method, &[value]);
     }
 }
 

@@ -66,6 +66,7 @@ macro_rules! functions {
             if let Some(handles) = state.colliders.swap_remove(&entity) {
                 for handle in handles {
                     state.world.remove_collider(handle);
+                    state.gone.insert(handle, entity);
                 }
                 state.collider_params.swap_remove(&entity);
                 state.queries_ready = false;

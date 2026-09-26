@@ -25,9 +25,6 @@ use crate::sampler::{self, TrackValue};
 use crate::tween::{self, TweenId};
 use crate::words as w;
 
-/// The method a node's script is called with when its clip ends.
-const FINISHED_METHOD: &str = "on_animation_finished";
-
 /// Something a step wants done once the borrows are gone.
 pub(crate) enum Effect {
     /// Write one property of one component, leaving the rest of it alone.
@@ -639,20 +636,11 @@ fn settle_ended(eng: &Engine, ended: &[Entity]) {
                 .map(|playback| playback.finished.clone())
                 .unwrap_or_default()
         };
-        // Also an event from the player's node, which a binding row answers
-        // with no script: Godot's `animation_finished` connected in a scene.
-        balaur_core::events::emit_from(
+        balaur_core::events::announce(
             eng,
             entity,
             FINISHED_EVENT,
-            balaur_script::Value::Str(finished.clone()),
+            balaur_script::Value::Str(finished),
         );
-        if let Some(host) = eng.script_host() {
-            host.call_on(
-                balaur_core::node_id_of(entity),
-                FINISHED_METHOD,
-                &[balaur_script::Value::Str(finished)],
-            );
-        }
     }
 }
