@@ -113,7 +113,7 @@ being built, marked `done`, never back in the shipped one.
 | **Concave 2D colliders** — a concave polygon cut into overlapping convex pieces, so nothing wedges into a seam, and imported Godot collision polygons keep their shape. | 0.2 done | [PLAN-convex-decomposition.md](PLAN-convex-decomposition.md) |
 | **Rigs and animation** — 2D and 3D skeletons with five modifiers each, GPU skinning, deform and morph tracks, retargeting through a `bone_map`, ragdolls, tweens, crossfades and state machines. | 0.1 done | no plan |
 | **Soft bodies** — `softbody2d` and `softbody3d`: particles and elastic cells from a mesh, a traced sprite or a generator, with plasticity, drawn from the solver. | 0.7 done | [PLAN-physics.md#soft-bodies](PLAN-physics.md#soft-bodies) |
-| **Cloth and rope** — `cloth`, `cloth_tube` and `rope` layouts of a soft body, held in place by the particle indices `pinned` names. | 0.7 done | [PLAN-physics.md#cloth-and-rope](PLAN-physics.md#cloth-and-rope) |
+| **Cloth and rope** — `cloth`, `cloth_tube` and `rope` layouts of a soft body, held in place by the particle indices `pinned_particles` names. | 0.7 done | [PLAN-physics.md#cloth-and-rope](PLAN-physics.md#cloth-and-rope) |
 | **Tearing** — `tear_strain` and `tear_force` on a soft body: past either, its elements break mid-step, and the node's `on_tear` runs. | 0.9 done | [PLAN-physics.md#tearing](PLAN-physics.md#tearing) |
 | **Falling sand** — a 2D cellular grid of sand, water, lava and fire, in a `balaur_cells` plugin on the fixed step and in the digest. | 0.9 | no plan |
 | **Fluids** — `fluid2d` and `fluid3d`: particles with a rest density and a viscosity, with emitters and drains, drawn as points before a surface. | 0.9 | [PLAN-physics.md#fluids](PLAN-physics.md#fluids) |
