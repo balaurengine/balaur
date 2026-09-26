@@ -66,14 +66,18 @@ const fn handle_of(raw: i64) -> u64 {
 /// `audio.*`. Declared against the neutral seam, so it works on any backend.
 pub(crate) fn install_audio_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Sound playback: `play` a file with `volume`, `pitch`, `loop` and a `position` heard from the `listener`. The `sound` component gives a node its own.",
+        "Sound playback: `play` a file with `volume`, `pitch`, `loop` and a `position` heard from the `listener`. The `sound` component gives a node its own, which announces `finished` (`EVENT_FINISHED`) with the handle when it plays out.",
+    );
+    m.constant(
+        "EVENT_FINISHED",
+        Value::Str(crate::FINISHED_EVENT.to_string()),
     );
     m.describe(&[
         ("stop_playback", &[], "", "Silence the sound a handle names; a finished, stopped or unknown handle is left alone."),
         ("set_volume", &[], "", "Set a playing handle's linear gain, where 1 is the file's own level."),
         ("set_pitch", &[], "", "Set a playing handle's speed multiplier, which carries its pitch with it."),
         ("ready", &[], "()", "Whether an output device is open. False on a page until the first gesture, and false for good with no sound card; playing before then hands out handles that make no sound."),
-        ("is_playing", &[], "", "Whether a handle's sound is still audible; false once it ends, and always false with no output device."),
+        ("is_playing", &[], "", "Whether a handle's sound is still going: false once it plays out or is stopped, on the same tick with or without an output device."),
         ("stop_all", &[], "", "Silence everything at once and clear the playback every `sound` component was holding."),
         ("play", &["sound"], "", "Start the node's own `sound` from the top, replacing what it had going, and return the new handle."),
         ("stop", &["sound"], "", "Silence what the node's `sound` started; a node carrying none is left alone."),

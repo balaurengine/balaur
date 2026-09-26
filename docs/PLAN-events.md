@@ -118,9 +118,10 @@ Each is a wrong result today, not a missing feature.
 
 In order of how often a game needs them.
 
-1. **Sound finished:** on the node that played it, from the decoded length on
-   the simulation clock so a headless run and a replay agree
-   (`balaur_audio/src/lib.rs`). `audio.play` returns an id to await.
+1. **Sound finished:** built. The node whose `sound` played announces
+   `finished` with the handle, from the decoded length counted on the fixed
+   step, so a headless run and a replay end it on the same tick;
+   `events::next("finished", node)` awaits it.
 2. **Widget pointer and focus:** hover enter and exit, press and release with
    the button, right and double click on every widget, focus lost, and egui
    focus copied into `UiFocus` when a field is clicked

@@ -281,6 +281,21 @@ struct Routed {
     bus: String,
     volume: f32,
     applied: f32,
+    /// Seconds of the file left to play at speed 1, counted down on the
+    /// fixed step so a headless run and a replay end it on the same tick.
+    /// `None` for a looping sound, or a file whose length does not decode.
+    left: Option<f64>,
+    pitch: f32,
+}
+
+/// What a node announces when its sound plays out, with the handle.
+pub const FINISHED_EVENT: &str = "finished";
+
+/// How long a file plays at speed 1, when its container says.
+fn length_of(bytes: &[u8]) -> Option<f64> {
+    use rodio::Source as _;
+    let decoder = rodio::Decoder::try_from(std::io::Cursor::new(bytes.to_vec())).ok()?;
+    decoder.total_duration().map(|length| length.as_secs_f64())
 }
 
 /// One `play`: how loud and fast, looping or not, on which bus at what chain
@@ -437,12 +452,15 @@ impl AudioState {
         };
         let placed = placement.unwrap_or_default();
         let applied = (volume * cue.gain * placed.gain).max(0.0);
+        let looped = cue.looped || cue.file.looped;
         self.routing.insert(
             handle,
             Routed {
                 bus: cue.bus,
                 volume,
                 applied,
+                left: if looped { None } else { length_of(&bytes) },
+                pitch,
             },
         );
         self.open_if_needed();
@@ -533,6 +551,9 @@ impl AudioState {
 
     pub fn set_pitch(&mut self, handle: u64, pitch: f32) {
         let pitch = pitch.max(MIN_PITCH);
+        if let Some(routed) = self.routing.get_mut(&handle) {
+            routed.pitch = pitch;
+        }
         if let Some(emitter) = self.spatial.get_mut(&handle) {
             emitter.pitch = pitch;
         }
@@ -725,16 +746,78 @@ fn sweep_sounds_system(eng: &Engine, _: f32) {
         }
         false
     });
-    // A sink that has played out ends its handle's bookkeeping too. With no
-    // device nothing plays out, so a handle there lasts until it is stopped.
+    // A sink that has played out is dropped. A sound whose length is known
+    // ends on the fixed step's count instead, which a machine with no device
+    // reaches on the same tick; only one of unknown length ends here.
+    let mut ended = Vec::new();
     playing.retain(|handle, sink| {
-        if sink.finished() {
+        if !sink.finished() {
+            return true;
+        }
+        if routing
+            .get(handle)
+            .is_some_and(|routed| routed.left.is_none())
+        {
             spatial.shift_remove(handle);
             routing.shift_remove(handle);
-            return false;
+            ended.push(*handle);
         }
-        true
+        false
     });
+    drop(world);
+    drop(state);
+    announce_finished(eng, &ended);
+}
+
+/// Count every timed sound down by a fixed step, and end the ones that ran
+/// out.
+fn count_down_system(eng: &Engine, dt: f32) {
+    let ended: Vec<u64> = {
+        let state = eng.resource::<AudioState>();
+        let mut state = state.borrow_mut();
+        let mut ended = Vec::new();
+        for (handle, routed) in &mut state.routing {
+            if let Some(left) = &mut routed.left {
+                *left -= f64::from(dt) * f64::from(routed.pitch);
+                if *left <= 0.0 {
+                    ended.push(*handle);
+                }
+            }
+        }
+        for handle in &ended {
+            state.stop(*handle);
+        }
+        ended
+    };
+    announce_finished(eng, &ended);
+}
+
+/// Tell the node whose `sound` held each handle that it played out.
+fn announce_finished(eng: &Engine, ended: &[u64]) {
+    if ended.is_empty() {
+        return;
+    }
+    let owners: Vec<(Entity, u64)> = {
+        let state = eng.resource::<AudioState>();
+        let mut state = state.borrow_mut();
+        state
+            .nodes
+            .iter_mut()
+            .filter_map(|(entity, sound)| {
+                let handle = sound.handle.filter(|h| ended.contains(h))?;
+                sound.handle = None;
+                Some((*entity, handle))
+            })
+            .collect()
+    };
+    for (entity, handle) in owners {
+        balaur_core::events::announce(
+            eng,
+            entity,
+            FINISHED_EVENT,
+            balaur_script::Value::Int(i64::try_from(handle).unwrap_or(i64::MAX)),
+        );
+    }
 }
 
 impl balaur_plugin::Plugin for AudioPlugin {
@@ -761,6 +844,7 @@ impl balaur_plugin::Plugin for AudioPlugin {
 
         reg.add_system(Stage::First, open_on_activation_system);
         reg.add_system(Stage::PostUpdate, sweep_sounds_system);
+        reg.add_system(Stage::FixedUpdate, count_down_system);
         reg.add_system(Stage::SceneSync, spatial::spatialize_system);
         register_sound_component(reg);
         spatial::register_listener_component(reg);
@@ -780,9 +864,9 @@ fn register_sound_component(reg: &mut balaur_plugin::Registry<'_>) {
     reg.register_component(
         "sound",
         ComponentDef {
-            events: &[],
+            events: &[(FINISHED_EVENT, "the handle that played out")],
             warnings: None,
-            doc: "A sound on the node: `file`, `volume`, `pitch` and `loop`. `autoplay` starts it on load, `audio.play_on` triggers it, and `positional` plays it from the node for the `listener`.",
+            doc: "A sound on the node: `file`, `volume`, `pitch` and `loop`. `autoplay` starts it on load, `node.sound.play()` triggers it, `positional` plays it from the node for the `listener`, and the node announces `finished` when it plays out.",
             schema: ComponentDef::parse_schema(
                 "sound",
                 &balaur_core::components::ComponentDef::schema(&[

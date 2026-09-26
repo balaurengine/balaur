@@ -225,9 +225,8 @@ pub(crate) fn pump_system(eng: &Engine, _dt: f32) {
             crate::bindings::fire(eng, from, &row, std::slice::from_ref(&event.payload));
         }
     }
-    let Some(host) = eng.script_host() else {
-        return;
-    };
+    // Recorded with no script host too, so `delivered` answers a tool the same.
+    let host = eng.script_host();
     sweep(eng);
     for Queued {
         name,
@@ -271,15 +270,19 @@ pub(crate) fn pump_system(eng: &Engine, _dt: f32) {
             merged
         };
         let method = format!("on_{name}");
-        for entity in listeners {
-            host.call_on(
-                crate::node_id_of(entity),
-                &method,
-                std::slice::from_ref(&payload),
-            );
+        if let Some(host) = &host {
+            for entity in listeners {
+                host.call_on(
+                    crate::node_id_of(entity),
+                    &method,
+                    std::slice::from_ref(&payload),
+                );
+            }
         }
         // Every task parked on this event resumes with it, once.
-        let woken: Vec<u64> = {
+        let woken: Vec<u64> = if host.is_none() {
+            Vec::new()
+        } else {
             let state = eng.resource::<EventState>();
             let mut state = state.borrow_mut();
             let mut woken = Vec::new();
@@ -292,8 +295,10 @@ pub(crate) fn pump_system(eng: &Engine, _dt: f32) {
             });
             woken
         };
-        for token in woken {
-            host.wake(token, &payload);
+        if let Some(host) = &host {
+            for token in woken {
+                host.wake(token, &payload);
+            }
         }
         let state = eng.resource::<EventState>();
         state

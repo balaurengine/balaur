@@ -29,6 +29,27 @@ fn write_wav(dir: &Path, name: &str) {
     std::fs::write(dir.join(name), bytes).unwrap();
 }
 
+/// A silent 16-bit mono wav `samples` long at 8 kHz, for a sound whose
+/// length a test counts.
+fn write_wav_of(dir: &Path, name: &str, samples: u32) {
+    let data = samples * 2;
+    let mut bytes: Vec<u8> = Vec::new();
+    bytes.extend_from_slice(b"RIFF");
+    bytes.extend_from_slice(&(36 + data).to_le_bytes());
+    bytes.extend_from_slice(b"WAVEfmt ");
+    bytes.extend_from_slice(&16u32.to_le_bytes());
+    bytes.extend_from_slice(&1u16.to_le_bytes());
+    bytes.extend_from_slice(&1u16.to_le_bytes());
+    bytes.extend_from_slice(&8_000u32.to_le_bytes());
+    bytes.extend_from_slice(&16_000u32.to_le_bytes());
+    bytes.extend_from_slice(&2u16.to_le_bytes());
+    bytes.extend_from_slice(&16u16.to_le_bytes());
+    bytes.extend_from_slice(b"data");
+    bytes.extend_from_slice(&data.to_le_bytes());
+    bytes.resize(bytes.len() + data as usize, 0);
+    std::fs::write(dir.join(name), bytes).unwrap();
+}
+
 fn app_in(dir: &Path) -> App {
     let mut app = App::new(AppConfig::bare(dir.to_path_buf())).unwrap();
     balaur_plugin::load(&mut app, &mut AudioPlugin::default()).unwrap();
@@ -243,4 +264,46 @@ fn a_sound_file_carries_its_own_level_and_loop() {
     assert!((own.loop_offset - 1.5).abs() < f32::EPSILON);
     let plain = balaur_audio::FileSettings::of(&app.engine, "sfx/hit.ogg");
     assert_eq!(plain, balaur_audio::FileSettings::default());
+}
+
+/// A sound that plays out ends on the fixed step its length runs out on, with
+/// no output device, and its node announces `finished` with the handle.
+#[test]
+fn a_sound_announces_finished_on_the_tick_it_plays_out() {
+    let dir = tempfile::tempdir().unwrap();
+    // A tenth of a second: six fixed steps of a sixtieth.
+    write_wav_of(dir.path(), "tone.wav", 800);
+    let mut app = app_in(dir.path());
+    let entity = sound_node(&app, "file = \"tone.wav\"\nautoplay = true\n");
+    let handle = handle_of(&app, entity).expect("autoplay started it");
+    let mut ticks = 0;
+    while handle_of(&app, entity).is_some() && ticks < 60 {
+        app.tick(1.0 / 60.0);
+        ticks += 1;
+    }
+    assert!((6..=7).contains(&ticks), "it ended after {ticks} steps");
+    let playing = app
+        .engine
+        .resource::<AudioState>()
+        .borrow()
+        .is_playing(handle);
+    assert!(!playing, "the handle still plays");
+    // Heard at the next frame's pump, which runs before its fixed step.
+    app.tick(1.0 / 60.0);
+    assert_eq!(
+        balaur_core::events::delivered_from(&app.engine, entity, balaur_audio::FINISHED_EVENT),
+        vec![balaur_script::Value::Int(i64::try_from(handle).unwrap())]
+    );
+}
+
+#[test]
+fn a_looping_sound_never_finishes() {
+    let dir = tempfile::tempdir().unwrap();
+    write_wav_of(dir.path(), "chime.wav", 80);
+    let mut app = app_in(dir.path());
+    let entity = sound_node(&app, CHIME);
+    for _ in 0..120 {
+        app.tick(1.0 / 60.0);
+    }
+    assert!(handle_of(&app, entity).is_some(), "the loop stopped");
 }
