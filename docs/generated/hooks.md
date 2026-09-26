@@ -39,6 +39,7 @@ ones it wants. What a component announces is listed with the component in
 <tr><td><code>on_dark_mode_changed(dark)</code></td><td>The system switched dark mode, told to every script.</td></tr>
 <tr><td><code>on_quit_requested()</code></td><td>The window was asked to close; every script hears it, then the app goes.</td></tr>
 <tr><td><code>on_suspended_changed(suspended)</code></td><td>The game went to the background or came back: a hidden tab, a minimised or covered window, an app sent back; told to every script.</td></tr>
+<tr><td><code>on_low_memory()</code></td><td>The system is short of memory, on iOS and Android; told to every script.</td></tr>
 <tr><td><code>on_safe_area_changed(insets)</code></td><td>The screen&#x27;s safe area moved, as <code>[left, top, right, bottom]</code> in pixels; told to every script.</td></tr>
 <tr><td><code>on_orientation_changed(orientation)</code></td><td>The screen turned, to <code>portrait</code> or <code>landscape</code>; told to every script.</td></tr>
 <tr><td><code>on_gamepad_connected(pad)</code></td><td>A gamepad was plugged in, with the id <code>input</code> names it by; told to every script.</td></tr>

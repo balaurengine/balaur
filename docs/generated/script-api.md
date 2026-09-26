@@ -9,7 +9,7 @@ cannot drift from what scripts actually see.
 | Module | Functions | Constants | Declared by |
 | --- | ---: | ---: | --- |
 | [`animation`](#animation) | 20 | 80 | the engine |
-| [`apple`](#apple) | 18 | 20 | the engine |
+| [`apple`](#apple) | 20 | 25 | the engine |
 | [`assets`](#assets) | 11 | 0 | the engine |
 | [`audio`](#audio) | 19 | 1 | the engine |
 | [`debugger`](#debugger) | 9 | 4 | the engine |
@@ -22,7 +22,7 @@ cannot drift from what scripts actually see.
 | [`geometry2d`](#geometry2d) | 10 | 0 | the engine |
 | [`geometry3d`](#geometry3d) | 6 | 0 | the engine |
 | [`hash`](#hash) | 2 | 0 | the engine |
-| [`http`](#http) | 2 | 4 | the engine |
+| [`http`](#http) | 2 | 5 | the engine |
 | [`import`](#import) | 7 | 0 | the engine |
 | [`input`](#input) | 47 | 176 | the engine |
 | [`json`](#json) | 2 | 0 | the engine |
@@ -91,32 +91,38 @@ cannot drift from what scripts actually see.
 
 ## `apple`
 
-**Functions:** `access_point`, `authenticated`, `available`, `cancel_notification`, `credential_state`, `entitlements`, `finish_purchase`, `identity`, `listen`, `listen_for_urls`, `notify`, `products`, `purchase`, `register_for_push`, `request_notifications`, `restore_purchases`, `show_dashboard`, `sign_in`
+**Functions:** `access_point`, `authenticated`, `available`, `cancel_notification`, `credential_state`, `entitlements`, `finish_purchase`, `identity`, `listen`, `listen_for_cloud_changes`, `listen_for_invites`, `listen_for_urls`, `notify`, `products`, `purchase`, `register_for_push`, `request_notifications`, `restore_purchases`, `show_dashboard`, `sign_in`
 
-**Constants** (20):
+**Constants** (25):
 
 | Name | Value |
 | --- | --- |
 | `EVENT_CANCELLED` | `cancelled` |
+| `EVENT_CLOUD_CHANGED` | `cloud_changed` |
 | `EVENT_CREDENTIAL_STATE` | `credential_state` |
 | `EVENT_DASHBOARD_CLOSED` | `dashboard_closed` |
 | `EVENT_ENTITLEMENTS` | `entitlements` |
 | `EVENT_ERROR` | `error` |
 | `EVENT_FINISHED` | `finished` |
 | `EVENT_IDENTITY` | `identity` |
+| `EVENT_INVITE_ACCEPTED` | `invite_accepted` |
+| `EVENT_MATCH_REQUESTED` | `match_requested` |
 | `EVENT_NOTIFICATIONS` | `notifications` |
 | `EVENT_NOTIFICATION_OPENED` | `notification_opened` |
+| `EVENT_NOTIFICATION_RECEIVED` | `notification_received` |
 | `EVENT_PENDING` | `pending` |
 | `EVENT_PRODUCTS` | `products` |
 | `EVENT_PURCHASED` | `purchased` |
 | `EVENT_PUSH_FAILED` | `push_failed` |
+| `EVENT_PUSH_RECEIVED` | `push_received` |
 | `EVENT_PUSH_TOKEN` | `push_token` |
 | `EVENT_RESTORED` | `restored` |
 | `EVENT_SCHEDULED` | `scheduled` |
 | `EVENT_SIGNED_IN` | `signed_in` |
 | `EVENT_TRANSACTION` | `transaction` |
 | `EVENT_UNSUPPORTED` | `unsupported` |
-| `EVENT_URL` | `url` |
+
+…and 1 more.
 
 ## `assets`
 
@@ -199,7 +205,7 @@ cannot drift from what scripts actually see.
 
 **Functions:** `cancel`, `request`
 
-**Constants** (4):
+**Constants** (5):
 
 | Name | Value |
 | --- | --- |
@@ -207,6 +213,7 @@ cannot drift from what scripts actually see.
 | `EVENT_ERROR` | `error` |
 | `EVENT_PROGRESS` | `progress` |
 | `EVENT_RESPONSE` | `response` |
+| `EVENT_UPLOAD` | `upload` |
 
 ## `import`
 

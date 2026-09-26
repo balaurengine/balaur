@@ -7057,6 +7057,11 @@
       "The game went to the background or came back: a hidden tab, a minimised or covered window, an app sent back; told to every script."
     ],
     [
+      "on_low_memory",
+      "()",
+      "The system is short of memory, on iOS and Android; told to every script."
+    ],
+    [
       "on_safe_area_changed",
       "(insets)",
       "The screen's safe area moved, as `[left, top, right, bottom]` in pixels; told to every script."
@@ -7537,6 +7542,10 @@
           "value": "cancelled"
         },
         {
+          "name": "EVENT_CLOUD_CHANGED",
+          "value": "cloud_changed"
+        },
+        {
           "name": "EVENT_CREDENTIAL_STATE",
           "value": "credential_state"
         },
@@ -7561,12 +7570,24 @@
           "value": "identity"
         },
         {
+          "name": "EVENT_INVITE_ACCEPTED",
+          "value": "invite_accepted"
+        },
+        {
+          "name": "EVENT_MATCH_REQUESTED",
+          "value": "match_requested"
+        },
+        {
           "name": "EVENT_NOTIFICATIONS",
           "value": "notifications"
         },
         {
           "name": "EVENT_NOTIFICATION_OPENED",
           "value": "notification_opened"
+        },
+        {
+          "name": "EVENT_NOTIFICATION_RECEIVED",
+          "value": "notification_received"
         },
         {
           "name": "EVENT_PENDING",
@@ -7583,6 +7604,10 @@
         {
           "name": "EVENT_PUSH_FAILED",
           "value": "push_failed"
+        },
+        {
+          "name": "EVENT_PUSH_RECEIVED",
+          "value": "push_received"
         },
         {
           "name": "EVENT_PUSH_TOKEN",
@@ -7623,7 +7648,9 @@
         "entitlements": "What this player currently owns, each with the signed transaction a server checks.",
         "finish_purchase": "Tell StoreKit a transaction is dealt with. One that is never finished comes back on every launch.",
         "identity": "Fetch the items a server needs to verify this Game Center player, and return the id the answer carries.",
-        "listen": "Subscribe a node's method to everything that arrives unasked: a notification tapped, a URL opened, a push token, a transaction that landed elsewhere.",
+        "listen": "Subscribe a node's method to everything that arrives unasked: a notification tapped or shown in front, a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere.",
+        "listen_for_cloud_changes": "Hear about another device changing the iCloud key-value store, as `cloud_changed` with the `reason` and the `keys` it touched.",
+        "listen_for_invites": "Hear about Game Center invites the player accepts, as `invite_accepted` with the sender's `player` id and `name`, and matches they ask for, as `match_requested` with the `players`.",
         "listen_for_urls": "Hear about URLs the game is asked to open while it runs. A URL the game was launched with arrives before the engine boots and is not one of them.",
         "notify": "Schedule a local notification. The options take `title`, `after` in seconds and an `id` to cancel or recognise it by.",
         "products": "Ask the App Store about a list of product ids, and answer with what it knows: title, description, price and display price.",
@@ -7644,6 +7671,8 @@
         "finish_purchase",
         "identity",
         "listen",
+        "listen_for_cloud_changes",
+        "listen_for_invites",
         "listen_for_urls",
         "notify",
         "products",
@@ -7665,6 +7694,8 @@
         "finish_purchase": "(Value, Option<Value>, Option<Value>) -> Value",
         "identity": "(Option<Value>, Option<Value>) -> Value",
         "listen": "(Value, Option<Value>) -> Value",
+        "listen_for_cloud_changes": "() -> Value",
+        "listen_for_invites": "() -> Value",
         "listen_for_urls": "() -> Value",
         "notify": "(Value, Option<Value>, Option<Value>) -> Value",
         "products": "(Value, Option<Value>, Option<Value>) -> Value",
@@ -8300,9 +8331,13 @@
         {
           "name": "EVENT_RESPONSE",
           "value": "response"
+        },
+        {
+          "name": "EVENT_UPLOAD",
+          "value": "upload"
         }
       ],
-      "doc": "HTTP requests off the frame: `method`, `headers`, `body`, `timeout` and `save_to` options. The reply reaches `on_response` as a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; `save_to` downloads report to `on_progress` with `kind` `progress`. Each kind is an `EVENT_*` constant.",
+      "doc": "HTTP requests off the frame: `method`, `headers`, `body`, `timeout` and `save_to` options. The reply reaches `on_response` as a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; `save_to` downloads report to `on_progress` with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.",
       "docs": {
         "cancel": "Stop waiting on a request: its reply is dropped, a download stops writing, and the handler and any await hear `kind` `cancelled` next frame. False when it had already finished.",
         "request": "Start an HTTP request and return the id its reply carries, to await or to match inside the handler. With `save_to` the body is written under the user directory and the reply says where in `path`."
