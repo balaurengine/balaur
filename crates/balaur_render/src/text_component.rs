@@ -45,7 +45,7 @@ fn shared_schema() -> Vec<(&'static str, String)> {
         (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Font pixels to one world unit, sizing the block the way a sprite is sized" }"#.into()),
         (k::LINE_HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "Baseline to baseline as a multiple of the size; zero takes the default" }"#.into()),
         (k::LETTER_SPACING, r#"{ type = "float", default = 0.0, description = "Extra space between glyphs, in font pixels" }"#.into()),
-        (k::FONT_FAMILY, r#"{ type = "enum", default = "ui", options = ["ui", "heading", "mono", "icons"], description = "Which of the project's font chains to shape with" }"#.into()),
+        (k::FONT_FAMILY, r#"{ type = "enum", default = "ui", options = ["ui", "heading", "mono", "icon"], description = "Which of the project's font chains to shape with" }"#.into()),
         (k::BITMAP_FONT, r#"{ type = "string", default = "", description = "A project-relative AngelCode .fnt naming a bitmap face; empty shapes with the project's vector fonts" }"#.into()),
         (k::OUTLINE_SIZE, r#"{ type = "float", default = 0.0, min = 0.0, description = "Font pixels the outline reaches around the glyphs; zero draws none" }"#.into()),
         (k::OUTLINE_COLOR, r#"{ type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "The outline's colour" }"#.into()),

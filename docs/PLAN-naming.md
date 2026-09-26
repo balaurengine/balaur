@@ -32,7 +32,7 @@ with no alias and no migration, as `one way to do a thing` asks.
   capsule's `height` tip to tip; a body's `mass` as its total, layers 1 to 32,
   the joint's `max_length`, `rest_length`, `lock_*` and `articulation`, vehicle
   axes as `x`/`y`/`z`, one-step `apply_force`, counts as `int`, and a particle
-  `direction` with `spread_degrees`.
+  `direction` with `spread_degrees`, and one `icon` font chain, `icon-` files.
 - `NAMING.md` has the eight scopes, rules N18 to N23, and the picked names per
   system, from a survey of SDL3, Godot 4, Unity, Blender, GLFW, W3C, rapier and
   glTF on 2026-09-25.
@@ -42,7 +42,6 @@ with no alias and no migration, as `one way to do a thing` asks.
 
 | Now | New | Why |
 | --- | --- | --- |
-| the `icons` font chain beside the widget's `icon` | one word | `theme.rs` translates between them |
 | widget `source` (image, card sheet, code language) | `image`, `sheet`, `language` | `source` is raw text in the glossary |
 | widget `disabled` beside `enabled` elsewhere, `pointer_through` beside `interactive` | one polarity each | |
 | node references as strings (`modifier.bone`, `animation.root_node`, …) | typed `node` | |
@@ -91,7 +90,7 @@ with no alias and no migration, as `one way to do a thing` asks.
 | `quantised`, `applesignin` beside `game-center` | `quantized`, `sign-in-with-apple` | one spelling, one separator |
 | `android/label`, `apple/display_name`, `apple/min_os`, `apple/build`, `apple/team` | `display_name`, `min_ios`, `build_number`, `team_id` | |
 | `log/file` (a bool), `multiplayer/faults`, `save/migrate`, `application/language`, `locale/default` | `to_file`, `simulate_faults`, `migrate_script`, `script_language`, `initial` | the name reads as another type |
-| font prefix `icons-`, audio `mono` | `icon-`, `force_mono` | |
+| audio `mono` | `force_mono` | |
 | `--state` self-tests `*demo`, poses `fontdemo`, separators `:`, `=` and `?` | `test:<name>`, plain nouns for poses, `:` only; an unknown state is an error | one suffix meant two things; e2e translates the names |
 | `--profile`, `--report`, `--app/--ipa/--apk/--aab/--pkg` | `--provisioning-profile`, `--dry-run`, `--bundle <kind>` | Cargo's `-p` already selects a crate |
 | a positional path on `shrink` | `shrink <path>`; `import` and `atlas` keep `--project` | a destination is a flag |

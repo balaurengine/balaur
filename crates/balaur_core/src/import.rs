@@ -71,7 +71,7 @@ pub mod keys {
     pub const LOOP_OFFSET: &str = "loop_offset";
     /// A sound's own gain, multiplied into every play of it.
     pub const VOLUME: &str = "volume";
-    /// The family a face joins: `ui`, `heading`, `mono` or `icons`.
+    /// The family a face joins: `ui`, `heading`, `mono` or `icon`.
     pub const FONT_FAMILY: &str = "font_family";
     /// A face's vertical nudge, as a fraction of its size.
     pub const Y_OFFSET: &str = "y_offset";
@@ -112,11 +112,11 @@ pub mod words {
     /// `recode` for a sound: lossless FLAC, or lossy Ogg Vorbis.
     pub const FLAC: &str = "flac";
     pub const VORBIS: &str = "vorbis";
-    /// The font families `family` names.
+    /// The font families `font_family` names.
     pub const UI: &str = "ui";
     pub const HEADING: &str = "heading";
     pub const MONO: &str = "mono";
-    pub const ICONS: &str = "icons";
+    pub const ICON: &str = "icon";
 }
 
 /// Which kind a file belongs to, by extension, or `None` for a file no

@@ -55,7 +55,7 @@ const ROWS = #{
            help: "how an export re-encodes this file, over [export] audio" },
     ],
     font: [
-        #{ key: "family", kind: "enum", options: ["ui", "heading", "mono", "icons"], fallback: "name",
+        #{ key: "font_family", kind: "enum", options: ["ui", "heading", "mono", "icon"], fallback: "name",
            help: "the family this face joins; by default its file name's prefix decides" },
         #{ key: "scale", kind: "number", fallback: 1.0, step: 0.05,
            help: "how large the UI draws its glyphs, without moving the layout" },

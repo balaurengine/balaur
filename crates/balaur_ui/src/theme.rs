@@ -278,7 +278,7 @@ pub(crate) fn load_fonts(ctx: &egui::Context, faces: &[FontFace]) {
         match face.chain {
             w::HEADING => heading_chain.push(face.name.clone()),
             w::MONO => mono_chain.push(face.name.clone()),
-            "icons" => icon_chain.push(face.name.clone()),
+            "icon" => icon_chain.push(face.name.clone()),
             "system" => system_chain.push(face.name.clone()),
             _ => ui_chain.push(face.name.clone()),
         }

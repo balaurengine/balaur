@@ -4916,7 +4916,7 @@
           "ui",
           "heading",
           "mono",
-          "icons"
+          "icon"
         ],
         "type": "enum"
       },
@@ -5065,7 +5065,7 @@
           "ui",
           "heading",
           "mono",
-          "icons"
+          "icon"
         ],
         "type": "enum"
       },

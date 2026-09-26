@@ -79,7 +79,7 @@ pub struct TextStyle {
     /// A project-relative `.fnt` naming a bitmap face; empty shapes with the
     /// project's vector fonts.
     pub font: String,
-    /// Which named chain to shape with — `heading`, `ui`, `mono` or `icons`.
+    /// Which named chain to shape with — `heading`, `ui`, `mono` or `icon`.
     pub family: String,
     /// Baseline to baseline, as a multiple of the size; zero takes the default.
     pub line_height: f32,

@@ -607,7 +607,7 @@ A block of `text` drawn in the 2D pass, `pixels_per_unit` font pixels per world 
 <tbody>
 <tr><td><code>bitmap_font</code></td><td>string</td><td>—</td><td>A project-relative AngelCode .fnt naming a bitmap face; empty shapes with the project&#x27;s vector fonts</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
-<tr><td><code>font_family</code></td><td>enum</td><td><code>ui</code></td><td>Which of the project&#x27;s font chains to shape with One of <code>ui</code>, <code>heading</code>, <code>mono</code>, <code>icons</code>.</td></tr>
+<tr><td><code>font_family</code></td><td>enum</td><td><code>ui</code></td><td>Which of the project&#x27;s font chains to shape with One of <code>ui</code>, <code>heading</code>, <code>mono</code>, <code>icon</code>.</td></tr>
 <tr><td><code>font_size</code></td><td>float</td><td><code>32.0</code></td><td>Height in font pixels, before pixels_per_unit sizes it in the world At least 1.0.</td></tr>
 <tr><td><code>font_style</code></td><td>enum</td><td><code>normal</code></td><td>Upright or italic One of <code>normal</code>, <code>italic</code>.</td></tr>
 <tr><td><code>font_weight</code></td><td>int</td><td><code>400</code></td><td>Stroke weight, 400 regular and 700 bold Range 100–900.</td></tr>
@@ -1364,7 +1364,7 @@ A block of `text` drawn in the 3D pass on a quad, `pixels_per_unit` font pixels 
 <tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
 <tr><td><code>depth_test</code></td><td>bool</td><td><code>true</code></td><td>Let the scene hide it; off draws it over everything</td></tr>
 <tr><td><code>double_sided</code></td><td>bool</td><td><code>true</code></td><td>Draw the back of the quad as well as the front</td></tr>
-<tr><td><code>font_family</code></td><td>enum</td><td><code>ui</code></td><td>Which of the project&#x27;s font chains to shape with One of <code>ui</code>, <code>heading</code>, <code>mono</code>, <code>icons</code>.</td></tr>
+<tr><td><code>font_family</code></td><td>enum</td><td><code>ui</code></td><td>Which of the project&#x27;s font chains to shape with One of <code>ui</code>, <code>heading</code>, <code>mono</code>, <code>icon</code>.</td></tr>
 <tr><td><code>font_size</code></td><td>float</td><td><code>32.0</code></td><td>Height in font pixels, before pixels_per_unit sizes it in the world At least 1.0.</td></tr>
 <tr><td><code>font_style</code></td><td>enum</td><td><code>normal</code></td><td>Upright or italic One of <code>normal</code>, <code>italic</code>.</td></tr>
 <tr><td><code>font_weight</code></td><td>int</td><td><code>400</code></td><td>Stroke weight, 400 regular and 700 bold Range 100–900.</td></tr>
