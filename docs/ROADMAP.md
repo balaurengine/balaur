@@ -131,6 +131,7 @@ being built, marked `done`, never back in the shipped one.
 | --- | :-: | --- |
 | **Interactivity without a script** — hooks, states, scene variables and the binding rows the Events view authors over them, so a scene reacts with no `.rn` beside it. | 0.1 done | no plan |
 | **An event a script can finish** — a hook that answers `true` stops the broadcast, and a press reaches the node under the pointer and then every other node. | 0.2 done | [PLAN-interactivity.md](PLAN-interactivity.md) |
+| **One way to hear every event** — `events::announce` reaches hooks, rows, listeners and awaits alike, for physics, animation, widgets, the tree, the app and the network. | 0.2 | [PLAN-events.md](PLAN-events.md) |
 | **Navigation** — a `navmesh` asset, paths over it, and `agent2d` and `agent3d` with avoidance, all on the fixed step and in the digest. | 0.5 | [PLAN-navigation.md](PLAN-navigation.md) |
 | **Voice in a match** — capture, Opus, a jitter buffer, push-to-talk, echo cancellation and positional voice, never entering the simulation or the digest. | 0.5 | [PLAN-voice.md](PLAN-voice.md) |
 | **Motion and haptics beyond one pad** — Switch Pro and Joy-Con gyro, sensor calibration, adaptive triggers, waveform haptics, device motion, and pads on iOS and Android. | 0.8 | [PLAN-input.md](PLAN-input.md) |
