@@ -161,7 +161,10 @@ func _ready() -> void:\n\
 func _on_pressed() -> void:\n\
 \tpass\n";
     let out = convert(source, "scripts/a.gd", &Classes::default());
-    let at = out.rune.find("(gd.patch_widget)").expect("the connect patches the widget");
+    let at = out
+        .rune
+        .find("(gd.patch_widget)")
+        .expect("the connect patches the widget");
     let bound = out.rune[..at].rfind("let gd = script::require(\"gd.rn\");");
     assert!(bound.is_some(), "{}", out.rune);
 }
