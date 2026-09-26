@@ -407,3 +407,37 @@ fn a_patch_keeps_what_was_asked_for_even_where_get_is_silent() {
         "the patch fell back to the schema default instead of what was asked for"
     );
 }
+
+/// Every `current_changed` a camera heard over `frames` ticks, in order.
+fn current_changes(app: &mut App, camera: balaur_core::hecs::Entity, frames: u32) -> Vec<bool> {
+    let mut heard = Vec::new();
+    for _ in 0..frames {
+        app.tick(1.0 / 60.0);
+        for value in balaur_core::events::delivered_from(&app.engine, camera, "current_changed") {
+            if let balaur_script::Value::Bool(current) = value {
+                heard.push(current);
+            }
+        }
+    }
+    heard
+}
+
+#[test]
+fn a_camera_says_when_it_becomes_the_one_drawn_from_and_when_it_stops() {
+    let mut app = app();
+    let root = app.engine.root();
+    let first = node_at(&app, root, Vec3::ZERO);
+    let second = node_at(&app, root, Vec3::ZERO);
+    add_camera_2d(&app, first, "current = true");
+    add_camera_2d(&app, second, "current = false");
+    assert_eq!(current_changes(&mut app, first, 3), vec![true]);
+    add_camera_2d(&app, first, "current = false");
+    add_camera_2d(&app, second, "current = true");
+    app.tick(1.0 / 60.0);
+    let heard = |app: &App, camera| {
+        balaur_core::events::delivered_from(&app.engine, camera, "current_changed")
+    };
+    app.tick(1.0 / 60.0);
+    assert_eq!(heard(&app, first), vec![balaur_script::Value::Bool(false)]);
+    assert_eq!(heard(&app, second), vec![balaur_script::Value::Bool(true)]);
+}

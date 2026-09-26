@@ -384,6 +384,7 @@ pub(crate) fn run(
             Ok(None) => {
                 return SocketEvent::Closed {
                     socket,
+                    code: ABNORMAL,
                     reason: String::new(),
                 };
             }
@@ -410,11 +411,15 @@ fn handle(
         OpCode::Control(Control::Ping) => send(connection, Frame::pong(payload.into_owned()))?,
         OpCode::Control(Control::Pong) => {}
         OpCode::Control(Control::Close) => {
-            let reason = close_reason(&payload);
+            let (code, reason) = close_status(&payload);
             if !closing {
                 let _ = send(connection, Frame::close(None));
             }
-            return Ok(Some(SocketEvent::Closed { socket, reason }));
+            return Ok(Some(SocketEvent::Closed {
+                socket,
+                code,
+                reason,
+            }));
         }
         OpCode::Control(Control::Reserved(code)) => bail!("reserved control opcode {code}"),
         OpCode::Data(kind) => {
@@ -469,11 +474,18 @@ fn deliver(
 }
 
 /// The reason in a close frame: a two-byte code, then optional UTF-8.
-fn close_reason(payload: &[u8]) -> String {
-    payload
-        .get(2..)
-        .map(|reason| String::from_utf8_lossy(reason).into_owned())
-        .unwrap_or_default()
+/// The close codes RFC 6455 §7.4 names for a close this end saw or sent.
+const NORMAL: u16 = 1000;
+const NO_STATUS: u16 = 1005;
+const ABNORMAL: u16 = 1006;
+
+/// A close frame's status and reason; a frame naming no status is 1005.
+fn close_status(payload: &[u8]) -> (u16, String) {
+    let Some(&[high, low]) = payload.get(..2) else {
+        return (NO_STATUS, String::new());
+    };
+    let reason = String::from_utf8_lossy(&payload[2..]).into_owned();
+    (u16::from_be_bytes([high, low]), reason)
 }
 
 /// A read timeout on the raw stream is what turns the blocking read into the
@@ -518,7 +530,11 @@ fn drain_commands(
 fn request_close(connection: &mut Socket, closing: &mut bool) {
     if !*closing {
         *closing = true;
-        let _ = send(connection, Frame::close(None));
+        let normal = tungstenite::protocol::CloseFrame {
+            code: tungstenite::protocol::frame::coding::CloseCode::from(NORMAL),
+            reason: "bye".into(),
+        };
+        let _ = send(connection, Frame::close(Some(normal)));
     }
 }
 

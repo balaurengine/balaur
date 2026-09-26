@@ -356,3 +356,34 @@ fn the_websocket_table_of_the_manifest_sets_the_defaults() {
     ));
     assert!(!config.borrow().compression);
 }
+
+#[test]
+fn a_websocket_says_where_it_is_and_how_it_closed() {
+    let url = serve_echo();
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app_with_websocket(dir.path());
+    let id = app.engine.next_token();
+    let state = |app: &App| app.engine.resource::<WebsocketState>().borrow().state(id);
+    assert_eq!(state(&app), "closed", "nothing is connected yet");
+    {
+        let state = app.engine.resource::<WebsocketState>();
+        state
+            .borrow_mut()
+            .connect(&app.engine, id, &url, SocketOptions::default(), None);
+    }
+    assert_eq!(state(&app), "connecting");
+    wait_for(&mut app, |snapshot| socket_event(snapshot, "open"));
+    assert_eq!(state(&app), "open");
+    {
+        let state = app.engine.resource::<WebsocketState>();
+        assert!(state.borrow_mut().close(id));
+    }
+    assert_eq!(state(&app), "closing");
+    let closed = wait_for(&mut app, |snapshot| socket_event(snapshot, "closed"));
+    assert_eq!(
+        field(&closed, "code"),
+        Some(&Value::Int(1000)),
+        "our own close is a normal one, and the server echoes it"
+    );
+    assert_eq!(state(&app), "closed");
+}

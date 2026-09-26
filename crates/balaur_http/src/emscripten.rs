@@ -96,7 +96,12 @@ fn text_at(pointer: *const c_char, fallback: &str) -> String {
         .into_owned()
 }
 
-pub(crate) fn spawn_request(call: HttpCall, events: Sender<HttpEvent>) {
+/// A cancel here only drops the reply: the engine never delivers it.
+pub(crate) fn spawn_request(
+    call: HttpCall,
+    events: Sender<HttpEvent>,
+    _cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+) {
     let request = call.id;
     let refuse = |message: String| {
         let _ = events.send(HttpEvent::Error { request, message });

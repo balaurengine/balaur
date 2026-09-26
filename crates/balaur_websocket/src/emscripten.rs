@@ -86,10 +86,11 @@ extern "C" fn ws_received(user: *mut c_void, data: *const c_char, len: c_int, is
     let _ = state.events.send(event);
 }
 
-extern "C" fn ws_closed(user: *mut c_void, _code: c_int, reason: *const c_char) {
+extern "C" fn ws_closed(user: *mut c_void, code: c_int, reason: *const c_char) {
     let state = unsafe { &*user.cast::<SocketState>() };
     let _ = state.events.send(SocketEvent::Closed {
         socket: state.socket,
+        code: u16::try_from(code).unwrap_or(1006),
         reason: text_at(reason, ""),
     });
     state.finished.set(true);

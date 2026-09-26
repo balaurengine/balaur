@@ -168,6 +168,9 @@ pub(crate) mod keys {
     pub(crate) const LIGHT_LAYERS: &str = "light_layers";
     pub(crate) const OPERATION: &str = "operation";
     pub(crate) const OUTER_ANGLE_DEGREES: &str = "outer_angle_degrees";
+    /// A screenshot's file and what stopped it, in a `screenshot_failed` payload.
+    pub(crate) const PATH: &str = "path";
+    pub(crate) const ERROR: &str = "error";
     pub(crate) const POINTS: &str = p::POINTS;
     pub(crate) const RANGE: &str = "range";
     pub(crate) const RINGS: &str = p::RINGS;

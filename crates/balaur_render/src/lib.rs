@@ -146,11 +146,32 @@ mod touch_draw;
 /// can insert one directly. Served by the windowed backend and by the
 /// offscreen one — a screenshot needs a GPU, not a window. It is *not* served
 /// by a headless run, which builds no renderer at all; see
-/// [`warn_if_unserved`], which is why asking for one there says so instead of
-/// exiting cleanly with no file.
+/// [`unserved_screenshot_system`], which is why asking for one there says so
+/// instead of exiting cleanly with no file.
 pub struct ScreenshotRequest {
     pub path: std::path::PathBuf,
     pub after_frame: u64,
+}
+
+/// What a screenshot announces to anyone listening once its file is written,
+/// with the path.
+pub const SCREENSHOT_WRITTEN_EVENT: &str = "screenshot_written";
+/// What it announces when no file came of it, `#{ path, error }`.
+pub const SCREENSHOT_FAILED_EVENT: &str = "screenshot_failed";
+
+/// Tell every listener a screenshot could not be written.
+pub(crate) fn screenshot_failed(eng: &Engine, path: &std::path::Path, error: String) {
+    let payload = balaur_script::Value::Map(vec![
+        (
+            vocabulary::keys::PATH.into(),
+            balaur_script::Value::text(path.display().to_string()),
+        ),
+        (
+            vocabulary::keys::ERROR.into(),
+            balaur_script::Value::Str(error),
+        ),
+    ]);
+    balaur_core::events::emit(eng, SCREENSHOT_FAILED_EVENT, payload);
 }
 
 /// What `render.screenshot` does for a script, for a caller holding a path.
@@ -161,22 +182,24 @@ pub fn request_screenshot(eng: &balaur_core::Engine, path: std::path::PathBuf) {
     });
 }
 
-/// Complain about a screenshot nobody could take.
-///
-/// A request that no backend consumes used to leave no file, no message and a
-/// zero exit code, which reads exactly like success to a script. Called by the
-/// headless runner once the frame budget is spent — the one path where a
-/// `render.screenshot` call can go unanswered.
-pub fn warn_if_unserved(eng: &Engine) {
+/// Answer a screenshot nobody can take, at the end of the frame it was asked
+/// in: a backend claims the frame before the first one runs, so a request
+/// still here with none is one no file will come of.
+fn unserved_screenshot_system(eng: &Engine, _dt: f32) {
+    if eng.try_resource::<WindowedBackend>().is_some() {
+        return;
+    }
     let Some(request) = eng.try_resource::<ScreenshotRequest>() else {
         return;
     };
     let path = request.borrow().path.clone();
+    eng.remove_resource::<ScreenshotRequest>();
     tracing::error!(
         "no screenshot written to {}: this run has no renderer. Use --offscreen \
          (or a windowed build) — a screenshot needs a GPU, not a window.",
         path.display()
     );
+    screenshot_failed(eng, &path, "this run has no renderer".to_string());
 }
 
 /// Inserted by a windowed backend at startup to claim the debug-line
@@ -834,6 +857,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         reg.insert_resource(DrawBuffer2d::default());
         reg.insert_resource(world_text::TextDrawBuffer::default());
         reg.insert_resource(CameraConfig2d::default());
+        reg.insert_resource(camera::CurrentCameras::default());
         reg.insert_resource(PostConfig::default());
         reg.insert_resource(ViewportSnapshot2d::default());
         reg.insert_resource(ViewportSnapshot3d::default());
@@ -903,6 +927,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         // After the booleans: a cloner may multiply their result too.
         reg.add_system(Stage::SceneSync, cloner::resolve_cloners_system);
         reg.add_system(Stage::Render, clear_debug_lines_system);
+        reg.add_system(Stage::Last, unserved_screenshot_system);
 
         Ok(())
     }

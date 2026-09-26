@@ -107,7 +107,7 @@ impl HttpConfig {
     pub fn from_settings(eng: &Engine) -> Self {
         let fallback = Self::default();
         Self {
-            timeout: balaur_core::settings::get(eng, "http/timeout")
+            timeout: balaur_core::settings::get(eng, "http/timeout_seconds")
                 .as_ref()
                 .and_then(balaur_core::components::as_f64)
                 .unwrap_or(fallback.timeout),
@@ -158,6 +158,12 @@ pub struct HttpState {
     handlers: DetHashMap<u64, Handler>,
     /// Who hears a download's progress, by request.
     progress: DetHashMap<u64, Handler>,
+    /// Each request still in flight, with the flag that stops its worker.
+    in_flight: DetHashMap<u64, std::sync::Arc<std::sync::atomic::AtomicBool>>,
+    /// Cancelled requests whose late reply is still to be dropped.
+    cancelled: balaur_core::collections::DetHashSet<u64>,
+    /// Cancelled since the last pump, told to their handlers there.
+    cancelled_now: Vec<u64>,
 }
 
 impl HttpState {
@@ -196,8 +202,25 @@ impl HttpState {
             format!("{} {}", call.method, call.url),
             Some(serde_json::json!({ "id": id, "method": call.method, "url": call.url })),
         );
-        self.io
-            .start(eng, |report| backend::spawn_request(call, report.clone()));
+        let cancel = std::sync::Arc::<std::sync::atomic::AtomicBool>::default();
+        self.in_flight.insert(id, cancel.clone());
+        self.io.start(eng, |report| {
+            backend::spawn_request(call, report.clone(), cancel);
+        });
+    }
+
+    /// Stop waiting on a request: its reply is never delivered, a download
+    /// stops writing, and the handler hears `cancelled` at the next pump.
+    /// False when it had already finished.
+    pub fn cancel(&mut self, request: u64) -> bool {
+        let Some(flag) = self.in_flight.shift_remove(&request) else {
+            return false;
+        };
+        flag.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.progress.shift_remove(&request);
+        self.cancelled.insert(request);
+        self.cancelled_now.push(request);
+        true
     }
 }
 
@@ -229,8 +252,24 @@ fn pump_http_system(eng: &Engine, _: f32) {
         let mut state = state.borrow_mut();
         let mut snapshot = snapshot.borrow_mut();
         snapshot.responses.clear();
+        for request in std::mem::take(&mut state.cancelled_now) {
+            let handler = state.handlers.shift_remove(&request);
+            let value = Value::Map(vec![
+                ("kind".into(), Value::Str(kind::CANCELLED.into())),
+                ("request".into(), id_value(request)),
+            ]);
+            snapshot.responses.push(value.clone());
+            dispatches.push((handler, request, value));
+        }
         for event in state.io.drain() {
             let request = event.request();
+            // A cancelled request's reply still arrives; nobody is told.
+            if state.cancelled.contains(&request) {
+                if !matches!(event, HttpEvent::Progress { .. }) {
+                    state.cancelled.shift_remove(&request);
+                }
+                continue;
+            }
             // A chunk landing wakes nothing: the download is still going.
             if let HttpEvent::Progress { .. } = &event {
                 let handler = state.progress.get(&request).cloned();
@@ -243,6 +282,7 @@ fn pump_http_system(eng: &Engine, _: f32) {
             // so iteration stays deterministic.
             let handler = state.handlers.shift_remove(&request);
             state.progress.shift_remove(&request);
+            state.in_flight.shift_remove(&request);
             let value = event_value(event);
             snapshot.responses.push(value.clone());
             // Every completion wakes its id too, so a script that chose
@@ -269,8 +309,9 @@ fn pump_http_system(eng: &Engine, _: f32) {
 pub mod kind {
     pub const RESPONSE: &str = "response";
     pub const PROGRESS: &str = "progress";
+    pub const CANCELLED: &str = "cancelled";
     pub const ERROR: &str = balaur_core::handler::ERROR;
-    pub const ALL: &[&str] = &[RESPONSE, PROGRESS, ERROR];
+    pub const ALL: &[&str] = &[RESPONSE, PROGRESS, CANCELLED, ERROR];
 }
 
 fn event_value(event: HttpEvent) -> Value {
@@ -358,7 +399,7 @@ impl balaur_plugin::Plugin for HttpPlugin {
             &balaur_core::ComponentDef::parse_schema(
                 "settings.http",
                 r#"
-timeout = { type = "float", default = 10.0, min = 0.1, max = 600.0, help = "Seconds for a whole request, when the call names none." }
+timeout_seconds = { type = "float", default = 10.0, min = 0.1, max = 600.0, help = "Seconds for a whole request, when the call names none." }
 "#,
             ),
         );
@@ -441,7 +482,13 @@ fn install_http_api(m: &mut dyn Bindings<Engine>) {
     balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[
         ("request", &[], "", "Start an HTTP request and return the id its reply carries, to await or to match inside the handler. With `save_to` the body is written under the user directory and the reply says where in `path`."),
+        ("cancel", &[], "", "Stop waiting on a request: its reply is dropped, a download stops writing, and the handler and any await hear `kind` `cancelled` next frame. False when it had already finished."),
     ]);
+    m.function("cancel", |eng: &Engine, request: i64| {
+        let state = eng.resource::<HttpState>();
+        let cancelled = u64::try_from(request).is_ok_and(|id| state.borrow_mut().cancel(id));
+        Ok(Value::Bool(cancelled))
+    });
     // An HTTP error status is a response, not an error. With a nil node the
     // returned id is a token to suspend on (`await` / `task::wait`).
     m.function(

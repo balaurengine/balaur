@@ -50,11 +50,25 @@ pub(crate) fn take_if_due(app: &App, window: &Window, frame: u64) {
                 let _ = fs.mkdir(dir);
             }
             match fs.write(&path, &bytes) {
-                Ok(()) => tracing::debug!("saved screenshot to {}", path.display()),
-                Err(err) => tracing::error!("screenshot failed: {err:#}"),
+                Ok(()) => {
+                    tracing::debug!("saved screenshot to {}", path.display());
+                    let written = balaur_script::Value::text(path.display().to_string());
+                    balaur_core::events::emit(
+                        &app.engine,
+                        crate::SCREENSHOT_WRITTEN_EVENT,
+                        written,
+                    );
+                }
+                Err(err) => {
+                    tracing::error!("screenshot failed: {err:#}");
+                    crate::screenshot_failed(&app.engine, &path, format!("{err:#}"));
+                }
             }
         }
-        Err(err) => tracing::error!("screenshot failed: {err:#}"),
+        Err(err) => {
+            tracing::error!("screenshot failed: {err:#}");
+            crate::screenshot_failed(&app.engine, &path, format!("{err:#}"));
+        }
     }
     app.engine.remove_resource::<ScreenshotRequest>();
 }

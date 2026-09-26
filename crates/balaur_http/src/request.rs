@@ -1,5 +1,7 @@
 //! The HTTP worker: one thread per request, reporting back over the channel.
 
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
 use std::time::Duration;
 
@@ -9,10 +11,10 @@ use crate::{HttpCall, HttpEvent};
 
 /// Everything a request needs travels in `call`, so the thread owns its work
 /// outright and the frame loop never waits on it.
-pub(crate) fn spawn_request(call: HttpCall, events: Sender<HttpEvent>) {
+pub(crate) fn spawn_request(call: HttpCall, events: Sender<HttpEvent>, cancel: Arc<AtomicBool>) {
     std::thread::spawn(move || {
         let request = call.id;
-        let event = match perform(&call, &events) {
+        let event = match perform(&call, &events, &cancel) {
             Ok((status, headers, body, saved)) => HttpEvent::Response {
                 request,
                 status,
@@ -49,7 +51,7 @@ fn agent_for(call: &HttpCall) -> ureq::Agent {
 /// and where the body went instead when the call asked for a file.
 type Response = (u16, Vec<(String, String)>, String, Option<String>);
 
-fn perform(call: &HttpCall, events: &Sender<HttpEvent>) -> Result<Response> {
+fn perform(call: &HttpCall, events: &Sender<HttpEvent>, cancel: &AtomicBool) -> Result<Response> {
     let agent = agent_for(call);
     let mut response =
         match call.method.as_str() {
@@ -91,7 +93,7 @@ fn perform(call: &HttpCall, events: &Sender<HttpEvent>) -> Result<Response> {
     {
         let total = response.body().content_length();
         let mut reader = response.body_mut().as_reader();
-        stream_to_file(call.id, &mut reader, path, total, events)?;
+        stream_to_file(call.id, &mut reader, path, total, events, cancel)?;
         return Ok((
             status,
             headers,
@@ -111,6 +113,7 @@ fn stream_to_file(
     path: &std::path::Path,
     total: Option<u64>,
     events: &Sender<HttpEvent>,
+    cancel: &AtomicBool,
 ) -> Result<()> {
     use std::io::Write;
     if let Some(parent) = path.parent() {
@@ -124,6 +127,11 @@ fn stream_to_file(
     let mut received = 0u64;
     let mut reported = 0u64;
     loop {
+        if cancel.load(Ordering::Relaxed) {
+            drop(file);
+            let _ = std::fs::remove_file(&partial);
+            return Err(anyhow!("cancelled"));
+        }
         let read = reader.read(&mut buffer)?;
         if read == 0 {
             break;

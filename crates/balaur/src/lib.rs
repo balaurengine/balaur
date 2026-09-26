@@ -419,7 +419,6 @@ pub fn run(mut app: App, title: &str) -> Result<()> {
     {
         let _ = title;
         app.run();
-        balaur_render::warn_if_unserved(&app.engine);
         balaur_core::logbuf::flush_file();
         Ok(())
     }
@@ -427,7 +426,7 @@ pub fn run(mut app: App, title: &str) -> Result<()> {
 
 /// The project's `[log]` table: whether a run keeps a log file, and how many.
 const LOG_SCHEMA: &str = r#"
-file = { type = "bool", default = true, order = 1, help = "Write each run's log to logs/run.log in the user data directory, so a crash leaves its last lines behind." }
+to_file = { type = "bool", default = true, order = 1, help = "Write each run's log to logs/run.log in the user data directory, so a crash leaves its last lines behind." }
 keep = { type = "int", default = 5, min = 0, max = 50, order = 2, help = "How many earlier runs' logs stay beside it, as run.1.log and on." }
 "#;
 
@@ -438,7 +437,7 @@ keep = { type = "int", default = 5, min = 0, max = 50, order = 2, help = "How ma
 pub fn keep_log(app: &App) {
     let eng = &app.engine;
     let setting = |key: &str| balaur_core::settings::get(eng, &format!("log/{key}"));
-    if !setting("file").and_then(|v| v.as_bool()).unwrap_or(true) {
+    if !setting("to_file").and_then(|v| v.as_bool()).unwrap_or(true) {
         return;
     }
     let keep = setting("keep")

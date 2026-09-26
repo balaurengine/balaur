@@ -103,13 +103,18 @@ pub(crate) fn spawn_socket(
         let events = events.clone();
         let finished = Rc::clone(&finished);
         Closure::wrap(Box::new(move |event: JsValue| {
-            let reason = event
-                .dyn_ref::<CloseEvent>()
+            let close = event.dyn_ref::<CloseEvent>();
+            let code = close.map_or(1006, CloseEvent::code);
+            let reason = close
                 .map(CloseEvent::reason)
                 .filter(|r| !r.is_empty())
                 .unwrap_or_else(|| String::from("closed"));
             finished.set(true);
-            let _ = events.send(SocketEvent::Closed { socket, reason });
+            let _ = events.send(SocketEvent::Closed {
+                socket,
+                code,
+                reason,
+            });
         }) as Box<dyn FnMut(JsValue)>)
     };
     ws.set_onclose(Some(closed.as_ref().unchecked_ref()));

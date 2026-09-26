@@ -318,11 +318,12 @@ impl Default for Post {
 /// camera never re-asserts itself, which leaves `changed` alone and keeps the
 /// backend's interactive orbit/pan controls live between moves.
 pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
-    let (spatial, flat, post) = {
+    let (spatial, flat, post, winners) = {
         let world = eng.world();
         let mut spatial = None;
         let mut flat = None;
         let mut post = None;
+        let mut winners = (None, None);
         for entity in current_cameras(&world, eng.root()) {
             let Ok(global) = world.get::<&GlobalTransform>(entity) else {
                 continue;
@@ -332,6 +333,7 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
             {
                 post = Some(cam.post.clone());
                 spatial = Some((global.position, cam.look_at));
+                winners.0 = Some(entity);
             }
             if let Ok(cam) = world.get::<&Camera2d>(entity)
                 && cam.current
@@ -342,10 +344,12 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
                     cam.zoom,
                     cam.ambient,
                 ));
+                winners.1 = Some(entity);
             }
         }
-        (spatial, flat, post)
+        (spatial, flat, post, winners)
     };
+    announce_current(eng, winners);
     if let Some(post) = post {
         drive_post(eng, &post);
     }
@@ -373,6 +377,42 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
             config.center = center;
             config.zoom = zoom;
             config.changed = true;
+        }
+    }
+}
+
+/// What a camera announces when it becomes the one drawn from, `true`, and
+/// when another takes over, `false`.
+pub(crate) const CURRENT_CHANGED_EVENT: &str = "current_changed";
+
+/// The 3D and the 2D camera drawn from last frame.
+#[derive(Default)]
+pub(crate) struct CurrentCameras {
+    spatial: Option<Entity>,
+    flat: Option<Entity>,
+}
+
+/// Tell a camera it became the one drawn from, and the one it took over from
+/// that it stopped being, per dimension.
+fn announce_current(eng: &Engine, (spatial, flat): (Option<Entity>, Option<Entity>)) {
+    let changes: Vec<(Entity, bool)> = {
+        let held = eng.resource::<CurrentCameras>();
+        let mut held = held.borrow_mut();
+        let held = &mut *held;
+        let mut changes = Vec::new();
+        for (was, now) in [(&mut held.spatial, spatial), (&mut held.flat, flat)] {
+            if *was != now {
+                changes.extend(was.map(|entity| (entity, false)));
+                changes.extend(now.map(|entity| (entity, true)));
+                *was = now;
+            }
+        }
+        changes
+    };
+    for (entity, current) in changes {
+        if eng.world().contains(entity) {
+            let payload = balaur_script::Value::Bool(current);
+            balaur_core::events::announce(eng, entity, CURRENT_CHANGED_EVENT, payload);
         }
     }
 }
@@ -616,7 +656,7 @@ fn register_camera3d(reg: &mut Registry<'_>) {
     reg.register_component(
         "camera3d",
         ComponentDef {
-            events: &[],
+            events: &[(CURRENT_CHANGED_EVENT, "whether it is the camera drawn from now")],
             warnings: None,
             doc: "The perspective camera the scene is drawn from. `look_at` aims it, and the last `current` camera wins.",
             schema: ComponentDef::parse_schema(
@@ -673,7 +713,7 @@ fn register_camera2d(reg: &mut Registry<'_>) {
     reg.register_component(
         "camera2d",
         ComponentDef {
-            events: &[],
+            events: &[(CURRENT_CHANGED_EVENT, "whether it is the camera drawn from now")],
             warnings: None,
             doc: "The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it, `ambient_color` lights every 2D surface, and the last `current` camera wins.",
             schema: ComponentDef::parse_schema(

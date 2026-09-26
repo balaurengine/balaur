@@ -155,16 +155,24 @@ In order of how often a game needs them.
 7. **The app and input:** suspend and resume, low memory, orientation and
    safe area; right and middle mouse buttons; action released; gamepad
    connected and disconnected; settings and language changed.
-8. **Render:** camera became and stopped being current; a node entering and
-   leaving the screen; a screenshot written.
-9. **Network:** the Gamend addon's 19 unnamed server events, `match_found`
-   first (regenerated from the gamend repo); `http.cancel` and upload
-   progress; a websocket close code and state; `web.visible` changes and
+8. **Render:** part built. A camera announces `current_changed` when it
+   becomes or stops being the one drawn from. `render.screenshot` answers
+   every listener with `screenshot_written` or `screenshot_failed`, a run
+   with no renderer included. Left: a node entering and leaving the screen.
+9. **Network:** part built. `http.cancel` drops a reply, stops a download
+   writing and tells the handler `cancelled`. A websocket `closed` carries
+   its close `code`, and `websocket.state` says where a connection is. Left:
+   the Gamend addon's 19 unnamed server events, `match_found` first
+   (regenerated from the gamend repo); `web.visible` changes and
    `web.unlisten`.
 10. **The Godot import:** follows each of these: the signal map names what the
     engine now sends and drops what it does not.
 
 ## 5. Not planned
+
+- **Upload progress:** an `http` body is a string sent in one write, so
+  there is nothing between none sent and all of it; a file upload would
+  bring it.
 
 - **Apple arrivals** (a notification in front, a remote push payload, Game
   Center invites, iCloud changes): each needs Swift in `balaur_apple` and a

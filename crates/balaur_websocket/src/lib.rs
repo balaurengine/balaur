@@ -131,8 +131,12 @@ pub(crate) enum SocketEvent {
         socket: u64,
         bytes: Vec<u8>,
     },
+    /// `code` is the close frame's status (RFC 6455 §7.4): 1000 for a
+    /// normal close, 1005 when the frame named none, 1006 when there was no
+    /// frame at all.
     Closed {
         socket: u64,
+        code: u16,
         reason: String,
     },
     Failed {
@@ -149,6 +153,9 @@ pub struct WebsocketState {
     io: ExternalIo<SocketEvent>,
     sockets: DetHashMap<u64, Sender<SocketCommand>>,
     handlers: DetHashMap<u64, Handler>,
+    /// Where each connection is, from the events a replay reproduces rather
+    /// than from the worker channels a replay never opens.
+    status: DetHashMap<u64, &'static str>,
 }
 
 impl WebsocketState {
@@ -166,6 +173,7 @@ impl WebsocketState {
         if let Some(handler) = handler {
             self.handlers.insert(id, handler);
         }
+        self.status.insert(id, state::CONNECTING);
         balaur_core::replay::event(
             eng,
             "websocket.connect",
@@ -201,9 +209,19 @@ impl WebsocketState {
     /// Ask the connection to close. The `closed` event still arrives through
     /// the snapshot once the handshake finishes.
     pub fn close(&mut self, socket: u64) -> bool {
+        if let Some(status) = self.status.get_mut(&socket) {
+            *status = state::CLOSING;
+        }
         self.sockets
             .get(&socket)
             .is_some_and(|commands| commands.send(SocketCommand::Close).is_ok())
+    }
+
+    /// Where the connection is: one of [`state`]'s words, `closed` for an id
+    /// that names nothing.
+    #[must_use]
+    pub fn state(&self, socket: u64) -> &'static str {
+        self.status.get(&socket).copied().unwrap_or(state::CLOSED)
     }
 }
 
@@ -243,11 +261,18 @@ fn pump_websocket_system(eng: &Engine, _: f32) {
             let handler = match &event {
                 SocketEvent::Closed { socket, .. } | SocketEvent::Failed { socket, .. } => {
                     state.sockets.shift_remove(socket);
+                    state.status.shift_remove(socket);
                     state.handlers.shift_remove(socket)
                 }
-                SocketEvent::Open { socket }
-                | SocketEvent::Message { socket, .. }
-                | SocketEvent::Binary { socket, .. } => state.handlers.get(socket).cloned(),
+                SocketEvent::Open { socket } => {
+                    if let Some(status) = state.status.get_mut(socket) {
+                        *status = self::state::OPEN;
+                    }
+                    state.handlers.get(socket).cloned()
+                }
+                SocketEvent::Message { socket, .. } | SocketEvent::Binary { socket, .. } => {
+                    state.handlers.get(socket).cloned()
+                }
             };
             let opened = match &event {
                 SocketEvent::Open { socket } | SocketEvent::Failed { socket, .. } => Some(*socket),
@@ -283,6 +308,15 @@ pub mod kind {
     pub const ALL: &[&str] = &[OPEN, MESSAGE, BINARY, CLOSED, ERROR];
 }
 
+/// Where a connection is, as `websocket.state` answers.
+pub mod state {
+    pub const CONNECTING: &str = "connecting";
+    pub const OPEN: &str = "open";
+    pub const CLOSING: &str = "closing";
+    pub const CLOSED: &str = "closed";
+    pub const ALL: &[&str] = &[CONNECTING, OPEN, CLOSING, CLOSED];
+}
+
 fn event_value(event: SocketEvent) -> Value {
     let pairs = match event {
         SocketEvent::Open { socket } => vec![
@@ -299,9 +333,14 @@ fn event_value(event: SocketEvent) -> Value {
             ("kind".into(), Value::Str(kind::BINARY.into())),
             ("bytes".into(), Value::Bytes(bytes)),
         ],
-        SocketEvent::Closed { socket, reason } => vec![
+        SocketEvent::Closed {
+            socket,
+            code,
+            reason,
+        } => vec![
             ("socket".into(), id_value(socket)),
             ("kind".into(), Value::Str(kind::CLOSED.into())),
+            ("code".into(), Value::Int(i64::from(code))),
             ("reason".into(), Value::Str(reason)),
         ],
         SocketEvent::Failed { socket, reason } => vec![
@@ -391,8 +430,15 @@ fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("connect", &[], "", "Open a connection and return the id `send` and `close` take, which `task.wait` resumes on with the `open` or `error` event; options are `on_event`, `compression` and `headers`."),
         ("send", &[], "", "Queue a frame on the connection, text for a string and binary for bytes; false when it is already gone."),
-        ("close", &[], "", "Ask the connection to close, which still delivers a `closed` event; false when it was already gone."),
+        ("close", &[], "", "Ask the connection to close, which still delivers a `closed` event with its `code`; false when it was already gone."),
+        ("state", &[], "", "Where the connection is: `connecting`, `open`, `closing` or `closed`, each a `STATE_*` constant."),
     ]);
+    for word in state::ALL {
+        m.constant(
+            &format!("STATE_{}", word.to_uppercase()),
+            Value::Str((*word).to_string()),
+        );
+    }
     m.function(
         "connect",
         |eng: &Engine, (node, url, opts): (Value, String, Option<Value>)| {
@@ -423,5 +469,10 @@ fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
         let state = eng.resource::<WebsocketState>();
         let closed = u64::try_from(socket).is_ok_and(|id| state.borrow_mut().close(id));
         Ok(Value::Bool(closed))
+    });
+    m.function("state", |eng: &Engine, socket: i64| {
+        let state = eng.resource::<WebsocketState>();
+        let word = u64::try_from(socket).map_or(state::CLOSED, |id| state.borrow().state(id));
+        Ok(Value::Str(word.to_string()))
     });
 }

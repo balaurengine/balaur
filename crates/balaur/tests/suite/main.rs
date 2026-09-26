@@ -15,6 +15,7 @@ mod interactivity;
 mod presets;
 mod replay;
 mod script_check;
+mod screenshot_events;
 mod script_tooling;
 mod touch_replay;
 mod tree_events;

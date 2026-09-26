@@ -238,10 +238,8 @@ fn install_screenshot_api(m: &mut dyn Bindings<Engine>) {
         "screenshot",
         &[],
         "",
-        "Save the next rendered frame as a PNG at a project-relative path; a run with no renderer says so.",
+        "Save the next rendered frame as a PNG at a project-relative path. `screenshot_written` goes to every listener with the path once it is on disk, and `screenshot_failed` with `#{ path, error }` when it cannot be, a run with no renderer included.",
     )]);
-    // PNG on the next rendered frame; a run with no renderer says so. Fire
-    // and forget — the log line naming the file is the completion signal.
     m.function("screenshot", |eng: &Engine, path: String| {
         let full = resolve_project_path(eng, &path);
         eng.insert_resource(ScreenshotRequest {

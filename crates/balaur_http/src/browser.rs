@@ -21,7 +21,12 @@ use crate::{HttpCall, HttpEvent};
 /// The default when a call names no timeout, matching `HttpConfig`.
 const DEFAULT_TIMEOUT: f64 = 10.0;
 
-pub(crate) fn spawn_request(call: HttpCall, events: Sender<HttpEvent>) {
+/// A cancel here only drops the reply: the engine never delivers it.
+pub(crate) fn spawn_request(
+    call: HttpCall,
+    events: Sender<HttpEvent>,
+    _cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+) {
     let request = call.id;
     spawn_local(async move {
         let event = match send(call, &events).await {
