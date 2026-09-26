@@ -770,6 +770,16 @@ pub fn propagate_transforms(world: &mut World, root: Entity) {
 /// caller with no frame to place wants.
 pub fn propagate_transforms_at(world: &mut World, root: Entity, alpha: f32) {
     let blending = alpha < 1.0;
+    // One lookup per node for all six, with no borrow flag to take: six
+    // `world.get` calls were most of the pass.
+    let mut view = world.view_mut::<(
+        Option<&crate::interpolate::Interpolation>,
+        Option<&Transform>,
+        Option<&mut GlobalTransform>,
+        Option<&Appearance>,
+        Option<&mut GlobalAppearance>,
+        Option<&Children>,
+    )>();
     PROPAGATE_STACK.with_borrow_mut(|stack| {
         stack.clear();
         stack.push((
@@ -778,29 +788,27 @@ pub fn propagate_transforms_at(world: &mut World, root: Entity, alpha: f32) {
             GlobalAppearance::identity(),
         ));
         while let Some((entity, parent_global, parent_appearance)) = stack.pop() {
-            let drawn = blending
-                .then(|| world.get::<&crate::interpolate::Interpolation>(entity).ok())
-                .flatten()
-                .map(|kept| kept.pose(alpha));
-            let global = match (drawn, world.get::<&Transform>(entity)) {
-                (Some(local), _) => parent_global.mul(&local),
-                (None, Ok(local)) => parent_global.mul(&local),
-                (None, Err(_)) => parent_global,
+            let Some((kept, local, global_slot, look, look_slot, children)) = view.get_mut(entity)
+            else {
+                continue;
             };
-            if let Ok(mut slot) = world.get::<&mut GlobalTransform>(entity) {
+            let drawn = kept.filter(|_| blending).map(|kept| kept.pose(alpha));
+            let global = match (drawn, local) {
+                (Some(local), _) => parent_global.mul(&local),
+                (None, Some(local)) => parent_global.mul(local),
+                (None, None) => parent_global,
+            };
+            if let Some(slot) = global_slot {
                 *slot = global;
             }
-            let appearance = match world.get::<&Appearance>(entity) {
-                Ok(local) => parent_appearance.mul(*local),
-                Err(_) => parent_appearance,
-            };
-            if let Ok(mut slot) = world.get::<&mut GlobalAppearance>(entity) {
+            let appearance = look.map_or(parent_appearance, |local| parent_appearance.mul(*local));
+            if let Some(slot) = look_slot {
                 if slot.visible != appearance.visible || slot.tint != appearance.tint {
                     APPEARANCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 }
                 *slot = appearance;
             }
-            if let Ok(children) = world.get::<&Children>(entity) {
+            if let Some(children) = children {
                 // Reversed, so popping visits siblings in the order they are
                 // listed. A subtree's answer does not depend on it; a log does.
                 stack.extend(children.0.iter().rev().map(|&c| (c, global, appearance)));
@@ -918,6 +926,21 @@ fn sheared_local(parent: &GlobalTransform, child: &GlobalTransform, z: f32) -> T
     }
 }
 
+/// Whether `entity` is `ancestor` or sits somewhere beneath it.
+#[must_use]
+pub fn is_under(world: &World, entity: Entity, ancestor: Entity) -> bool {
+    let mut current = entity;
+    loop {
+        if current == ancestor {
+            return true;
+        }
+        match world.get::<&Parent>(current) {
+            Ok(parent) => current = parent.0,
+            Err(_) => return false,
+        }
+    }
+}
+
 /// Collect a subtree in despawn order (children before parents is not
 /// required by hecs, but callers also use this to tear down script
 /// instances and plugin state).
@@ -1000,9 +1023,8 @@ pub fn free_nodes(eng: &Engine, entities: &[Entity]) {
     let mut once = crate::collections::DetHashSet::default();
     subtree.retain(|e| once.insert(*e));
     if let Some(host) = eng.script_host() {
-        for &e in &subtree {
-            host.detach(crate::node_id_of(e));
-        }
+        let nodes: Vec<_> = subtree.iter().map(|&e| crate::node_id_of(e)).collect();
+        host.detach_all(&nodes);
     }
     for &e in &subtree {
         crate::components::remove_present(eng, e);

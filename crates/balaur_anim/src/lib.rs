@@ -2,10 +2,10 @@
 //!
 //! Seven pieces, in dependency order:
 //!
-//! 1. [`clip`] — the `animation_clip` asset type, registered through
+//! 1. [`clip`] — the `animation_library` asset type, registered through
 //!    `App::register_asset_type`. Core never learns what a clip is; a clip is
 //!    shared by every node that names it, and immutable once parsed.
-//! 2. [`ease`] — twelve transitions in four modes, on `libm`, with Godot's
+//! 2. [`ease`] — eleven transitions in four modes, on `libm`, with Godot's
 //!    names and Godot's shapes.
 //! 3. [`sampler`] — `(clip, time) -> pose`, pure, so a crossfade composes
 //!    samples without the data model changing under them.
@@ -52,7 +52,7 @@ pub mod vocabulary;
 
 pub(crate) use vocabulary::COMPONENT;
 pub use vocabulary::{
-    ADVANCE_MODES, CONSTANTS, EVENTS, INTERPS, LOOP_MODES, MACHINE_STATES, MODIFIER_KINDS,
+    ADVANCE_MODES, CONSTANTS, EVENTS, INTERPOLATIONS, LOOP_MODES, MACHINE_STATES, MODIFIER_KINDS,
     PROPERTIES, SWITCH_MODES, ease_constants, keys, words,
 };
 
@@ -69,8 +69,9 @@ use balaur_core::{Engine, Stage};
 pub use crate::bindings::install_animation_api;
 pub use crate::machine::{STATE_FINISHED_EVENT, STATE_STARTED_EVENT};
 pub use crate::player::{
-    AnimationState, CLIP_ASSET_TYPE, Playback, current, define, is_playing, just_finished, pause,
-    play, play_from, queue, resume, seek, set_retarget, set_speed, stop, time,
+    AnimationState, LIBRARY_ASSET_TYPE, Playback, add_clip, current_clip, is_playing, just_finished,
+    pause, play, play_blended, play_from, queue, resume, seek, set_retarget, set_speed_scale, stop,
+    time,
 };
 pub use crate::retarget::{BONE_MAP_ASSET_TYPE, BoneMap, PROFILE_ASSET_TYPE, SkeletonProfile};
 pub use crate::system::FINISHED_EVENT;
@@ -89,26 +90,26 @@ impl Default for AnimationPlugin {
 }
 
 /// What a definition table holds, for the generated reference.
-const CLIP_ASSET_DOC: &str = r#"A clip keys node properties over time. `loop` is `none`, `loop` or `pingpong`; each track names a `target`, a `property`, an `interp` and its `keys`.
+const LIBRARY_ASSET_DOC: &str = r#"A library holds clips, and a clip keys node properties over time. `loop_mode` is `none`, `linear` or `pingpong`; each track names a `target`, a `property`, an `interpolation` and its `keys`.
 
 ```toml
-type = "animation_clip"
+type = "animation_library"
 
 [clips.patrol]           # one clip per file, or several, addressed as file.toml#patrol
 length = 4.0             # seconds; left out, the clip ends at its last key
-loop = "pingpong"        # none, loop or pingpong
+loop_mode = "pingpong"   # none, linear or pingpong
 
 [[clips.patrol.tracks]]
 target = ""              # node path relative to the playing node; empty is that node
 property = "position"    # rotation_euler, rotation, scale, visible, tint or <component>/<property>
-interp = "linear"        # step, linear or cubic
+interpolation = "linear" # step, linear or cubic
 keys = [
-  { t = 0.0, value = [-2.5, 0.25, -2.0] },
-  { t = 4.0, value = [-2.5, 0.25, 2.0], ease = "in_out_sine" },
+  { time = 0.0, value = [-2.5, 0.25, -2.0] },
+  { time = 4.0, value = [-2.5, 0.25, 2.0], ease = "in_out_sine" },
 ]
 
 [[clips.patrol.tracks]]  # no property: a method track, each key a call on the node's script
-keys = [{ t = 2.0, call = "on_halfway" }]
+keys = [{ time = 2.0, call = "on_halfway" }]
 ```"#;
 
 impl balaur_plugin::Plugin for AnimationPlugin {
@@ -124,7 +125,7 @@ impl balaur_plugin::Plugin for AnimationPlugin {
         reg.add_system(Stage::Update, modifier::modify_system);
         modifier::register_modifier2d_component(reg);
         modifier::register_modifier3d_component(reg);
-        reg.register_asset_type(CLIP_ASSET_TYPE, "animations", CLIP_ASSET_DOC, |value| {
+        reg.register_asset_type(LIBRARY_ASSET_TYPE, "animations", LIBRARY_ASSET_DOC, |value| {
             Ok(Rc::new(clip::parse(value)?) as Rc<dyn Any>)
         });
         reg.register_asset_type(
@@ -164,14 +165,14 @@ fn register_animation_component(reg: &mut Registry<'_>) {
         COMPONENT,
         ComponentDef {
             warnings: None,
-            doc: "Plays animation clips on the node. `library` is the clip asset, `autoplay` the clip started on load, `speed` the rate; the `animation` module drives playback.",
+            doc: "Plays animation clips on the node. `library` is the clip asset, `autoplay` the clip started on load, `speed_scale` the rate; the `animation` module drives playback.",
             schema: ComponentDef::parse_schema(
                 "animation",
                 &balaur_core::components::ComponentDef::schema(&[
-                    (k::LIBRARY, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The clip library this node plays from" }}"#, crate::player::CLIP_ASSET_TYPE)),
+                    (k::LIBRARY, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The clip library this node plays from" }}"#, crate::player::LIBRARY_ASSET_TYPE)),
                     (k::AUTOPLAY, r#"{ type = "string", default = "", description = "Clip to start when the scene loads; empty starts nothing" }"#),
-                    (k::SPEED, r#"{ type = "float", default = 1.0, description = "Playback rate for every clip on this node" }"#),
-                    (k::ROOT, r#"{ type = "string", default = "", description = "Node path the clip's tracks resolve against; empty means this node" }"#),
+                    (k::SPEED_SCALE, r#"{ type = "float", default = 1.0, description = "Playback rate for every clip on this node" }"#),
+                    (k::ROOT_NODE, r#"{ type = "string", default = "", description = "Node path the clip's tracks resolve against; empty means this node" }"#),
                 ]),
             ),
             tags: &[balaur_core::components::tag::ANIMATION],
@@ -201,7 +202,7 @@ fn register_machine_component(reg: &mut Registry<'_>) {
                 &balaur_core::components::ComponentDef::schema(&[
                     (k::MACHINE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The state machine to run" }}"#, machine::MACHINE_ASSET_TYPE)),
                     (k::PLAYER, r#"{ type = "string", default = "", description = "Node path to the `animation` player it drives; empty means this node" }"#),
-                    (k::ACTIVE, r#"{ type = "bool", default = true, description = "Whether the machine is running" }"#),
+                    (k::ENABLED, r#"{ type = "bool", default = true, description = "Whether the machine is running" }"#),
                     (k::CHECK_NODE, r#"{ type = "string", default = "", description = "Node path whose script answers the transitions' `check` methods; empty means this node" }"#),
                 ]),
             ),
@@ -229,15 +230,15 @@ fn apply_animation(eng: &Engine, entity: Entity, params: &toml::Value) {
             .to_string()
     };
     let autoplay = text(k::AUTOPLAY);
-    let speed = balaur_core::components::prop_f32(params, k::SPEED);
+    let speed_scale = balaur_core::components::prop_f32(params, k::SPEED_SCALE);
     let running = {
         let state = eng.resource::<AnimationState>();
         let mut state = state.borrow_mut();
         let playback = state.players.entry(entity).or_default();
         playback.library = text(k::LIBRARY);
-        playback.root = text(k::ROOT);
+        playback.root_node = text(k::ROOT_NODE);
         playback.autoplay.clone_from(&autoplay);
-        playback.speed = speed;
+        playback.speed_scale = speed_scale;
         playback.active()
     };
     // Re-applying the component must not restart a running clip, and a clip
@@ -263,7 +264,7 @@ fn animation_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let mut out = toml::map::Map::new();
     out.insert(k::LIBRARY.into(), playback.library.clone().into());
     out.insert(k::AUTOPLAY.into(), playback.autoplay.clone().into());
-    out.insert(k::SPEED.into(), f64::from(playback.speed).into());
-    out.insert(k::ROOT.into(), playback.root.clone().into());
+    out.insert(k::SPEED_SCALE.into(), f64::from(playback.speed_scale).into());
+    out.insert(k::ROOT_NODE.into(), playback.root_node.clone().into());
     Some(toml::Value::Table(out))
 }

@@ -29,15 +29,15 @@ pub fn target_of(eng: &Engine, entity: Entity) -> Option<Vec2> {
 
 /// The bones a modifier drives, for a tool that draws the chain it solves.
 ///
-/// The editor's gizmo needs the same walk the solver makes — a `chain` of two
+/// The editor's gizmo needs the same walk the solver makes — a `chain_count` of two
 /// on a rig five deep draws two bones, not five — and this is that walk.
 #[must_use]
 pub fn chain_of_node(eng: &Engine, entity: Entity) -> Vec<Entity> {
     let world = eng.world();
     let (bone_path, chain) = match world.get::<&Modifier2d>(entity) {
-        Ok(m) => (m.0.bone.clone(), m.0.chain),
+        Ok(m) => (m.0.bone.clone(), m.0.chain_count),
         Err(_) => match world.get::<&Modifier3d>(entity) {
-            Ok(m) => (m.0.bone.clone(), m.0.chain),
+            Ok(m) => (m.0.bone.clone(), m.0.chain_count),
             Err(_) => return Vec::new(),
         },
     };

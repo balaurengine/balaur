@@ -17,6 +17,7 @@ mod bindings;
 mod cache;
 mod context;
 mod debugger;
+mod detach;
 mod handles;
 mod holds;
 mod inspect;
@@ -601,25 +602,6 @@ impl RuneHost {
         Ok(())
     }
 
-    /// Tasks the node's script left suspended die with it, a pause included.
-    pub fn detach(&self, entity: Entity) {
-        let (inst, paused) = {
-            let mut state = self.state.borrow_mut();
-            state.tasks.retain(|t| t.owner != entity);
-            let paused = state.paused.take_if(|p| p.owner == entity);
-            (state.instances.shift_remove(&entity), paused)
-        };
-        if let Some(paused) = paused {
-            self.drop_pause(&paused);
-        }
-        if let Some(inst) = inst
-            && let Some(on_free) = self.method(&inst.key, "on_free")
-            && let Err(err) = on_free.call::<()>((inst.state,)).into_result()
-        {
-            self.report(&inst.key, "on_free", &err);
-        }
-    }
-
     pub fn update(&self, dt: f32) {
         self.tick_lifecycle("update", dt);
     }
@@ -977,6 +959,14 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
         if let Ok(entity) = balaur_core::entity_of(node) {
             RuneHost::detach(self, entity);
         }
+    }
+
+    fn detach_all(&self, nodes: &[balaur_script::NodeId]) {
+        let entities: Vec<Entity> = nodes
+            .iter()
+            .filter_map(|node| balaur_core::entity_of(*node).ok())
+            .collect();
+        RuneHost::detach_all(self, &entities);
     }
 
     fn update(&self, dt: f32) {

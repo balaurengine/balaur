@@ -155,15 +155,16 @@ const STATE_MACHINE = "state_machine";
 const TREE_PLAYBACK = "parameters/playback";
 const TREE_CONDITIONS = "parameters/conditions/";
 const TREE_ACTIVE = "active";
+const MACHINE_ENABLED = "enabled";
 
 /// Godot's `AnimationNodeStateMachinePlayback`, over a tree node's machine.
 fn playback(tree) {
     #{
         "travel": |to| tree.state_machine.travel(to),
         "start": |to| tree.state_machine.jump(to),
-        "get_current_node": || tree.state_machine.state(),
-        "is_playing": || tree.state_machine.get()[TREE_ACTIVE],
-        "stop": || tree.state_machine.patch(#{ "active": false }),
+        "get_current_node": || tree.state_machine.current_state(),
+        "is_playing": || tree.state_machine.get()[MACHINE_ENABLED],
+        "stop": || tree.state_machine.patch(#{ "enabled": false }),
     }
 }
 

@@ -71,8 +71,8 @@ length = 1.0
 [[library.tracks]]
 property = "shape3d/color"
 keys = [
-  { t = 0.0, value = [0.0, 0.0, 0.0, 1.0] },
-  { t = 1.0, value = [1.0, 0.5, 0.0, 1.0] },
+  { time = 0.0, value = [0.0, 0.0, 0.0, 1.0] },
+  { time = 1.0, value = [1.0, 0.5, 0.0, 1.0] },
 ]
 "#,
     );
@@ -110,7 +110,7 @@ length = 1.0
 
 [[library.tracks]]
 property = "shape3d/radius"
-keys = [ { t = 0.0, value = 0.5 }, { t = 1.0, value = 2.0 } ]
+keys = [ { time = 0.0, value = 0.5 }, { time = 1.0, value = 2.0 } ]
 "#,
     );
     balaur_anim::play(&app.engine, entity, "").unwrap();
@@ -143,14 +143,14 @@ fn a_component_track_can_drive_a_child_node() {
         r#"
 [library]
 length = 1.0
-interp = "linear"
+interpolation = "linear"
 
 [[library.tracks]]
 target = "Halo"
 property = "shape3d/color"
 keys = [
-  { t = 0.0, value = [0.0, 0.0, 0.0, 1.0] },
-  { t = 1.0, value = [0.0, 0.0, 1.0, 1.0] },
+  { time = 0.0, value = [0.0, 0.0, 0.0, 1.0] },
+  { time = 1.0, value = [0.0, 0.0, 1.0, 1.0] },
 ]
 "#,
     );
@@ -180,7 +180,7 @@ length = 1.0
 
 [[library.tracks]]
 property = "wobbler/amount"
-keys = [ { t = 0.0, value = 0.0 }, { t = 1.0, value = 1.0 } ]
+keys = [ { time = 0.0, value = 0.0 }, { time = 1.0, value = 1.0 } ]
 "#,
     );
     balaur_anim::play(&app.engine, entity, "").unwrap();
@@ -204,10 +204,10 @@ fn app_recording_calls() -> (App, std::rc::Rc<Calls>) {
 const FOOTSTEPS: &str = r#"
 [library]
 length = 1.0
-loop = "loop"
+loop_mode = "linear"
 
 [[library.tracks]]
-keys = [ { t = 0.5, call = "on_footstep" } ]
+keys = [ { time = 0.5, call = "on_footstep" } ]
 "#;
 
 #[test]
@@ -256,7 +256,7 @@ length = 1.0
 
 [[library.tracks]]
 target = "Feet"
-keys = [ { t = 0.5, call = "on_footstep" } ]
+keys = [ { time = 0.5, call = "on_footstep" } ]
 "#,
     );
     balaur_anim::play(&app.engine, parent, "").unwrap();
@@ -281,7 +281,7 @@ length = 0.5
 
 [[library.tracks]]
 property = "position"
-keys = [ { t = 0.0, value = [0.0, 0.0, 0.0] }, { t = 0.5, value = [0.0, 1.0, 0.0] } ]
+keys = [ { time = 0.0, value = [0.0, 0.0, 0.0] }, { time = 0.5, value = [0.0, 1.0, 0.0] } ]
 "#,
     );
     balaur_anim::play(&app.engine, entity, "").unwrap();
@@ -342,14 +342,14 @@ autoplay = "spin""#,
 
     tick(&mut app, 30);
     assert_eq!(
-        balaur_anim::current(&app.engine, entity).as_deref(),
+        balaur_anim::current_clip(&app.engine, entity).as_deref(),
         Some("spin"),
         "a queued clip must wait its turn"
     );
 
     tick(&mut app, 40);
     assert_eq!(
-        balaur_anim::current(&app.engine, entity).as_deref(),
+        balaur_anim::current_clip(&app.engine, entity).as_deref(),
         Some("idle")
     );
     assert!(balaur_anim::is_playing(&app.engine, entity));
@@ -378,7 +378,7 @@ autoplay = "idle""#,
         held.to_bits()
     );
     assert_eq!(
-        balaur_anim::current(&app.engine, entity).as_deref(),
+        balaur_anim::current_clip(&app.engine, entity).as_deref(),
         Some("idle"),
         "a paused clip is still the current one"
     );
@@ -407,7 +407,7 @@ autoplay = "idle""#,
 
     assert!(!balaur_anim::is_playing(&app.engine, entity));
     assert_eq!(
-        balaur_anim::current(&app.engine, entity),
+        balaur_anim::current_clip(&app.engine, entity),
         None,
         "`resume` brought back a clip that `stop` had ended"
     );
@@ -421,12 +421,12 @@ fn a_clip_defined_at_run_time_plays_by_the_name_it_was_given() {
     let body: toml::Value = toml::from_str(
         r#"length = 1.0
 tracks = [ { property = "position", keys = [
-  { t = 0.0, value = [0.0, 0.0, 0.0] },
-  { t = 1.0, value = [0.0, 6.0, 0.0] },
+  { time = 0.0, value = [0.0, 0.0, 0.0] },
+  { time = 1.0, value = [0.0, 6.0, 0.0] },
 ] } ]"#,
     )
     .unwrap();
-    balaur_anim::define(&app.engine, entity, "hurt", body).unwrap();
+    balaur_anim::add_clip(&app.engine, entity, "hurt", body).unwrap();
 
     balaur_anim::play(&app.engine, entity, "hurt").unwrap();
     tick(&mut app, 61);
@@ -449,7 +449,7 @@ fn a_definition_that_is_not_a_clip_is_refused_where_it_was_written() {
         toml::from_str("length = 1.0\ntracks = [ { property = \"jiggle\" } ]").unwrap();
     let why = format!(
         "{:#}",
-        balaur_anim::define(&app.engine, entity, "hurt", body).unwrap_err()
+        balaur_anim::add_clip(&app.engine, entity, "hurt", body).unwrap_err()
     );
     assert!(why.contains("hurt"), "the message owes the name: {why}");
     assert!(why.contains("jiggle"), "unhelpful: {why}");
@@ -555,8 +555,8 @@ length = 1.0
 [[library.tracks]]
 property = "rotation"
 keys = [
-  {{ t = 0.0, value = [0, 0, 0, 1] }},
-  {{ t = 1.0, value = [0, 0, {half}, {half}] }},
+  {{ time = 0.0, value = [0, 0, 0, 1] }},
+  {{ time = 1.0, value = [0, 0, {half}, {half}] }},
 ]
 "#
         ),
@@ -596,14 +596,14 @@ length = 1.0
 [[library.tracks]]
 property = "tint"
 keys = [
-  { t = 0.0, value = [1.0, 1.0, 1.0, 1.0] },
-  { t = 1.0, value = [1.0, 1.0, 1.0, 0.0] },
+  { time = 0.0, value = [1.0, 1.0, 1.0, 1.0] },
+  { time = 1.0, value = [1.0, 1.0, 1.0, 0.0] },
 ]
 
 [[library.tracks]]
 property = "visible"
-interp = "linear"
-keys = [ { t = 0.0, value = 1.0 }, { t = 0.75, value = 0.0 } ]
+interpolation = "linear"
+keys = [ { time = 0.0, value = 1.0 }, { time = 0.75, value = 0.0 } ]
 "#,
     );
     balaur_anim::play(&app.engine, parent, "").unwrap();
@@ -631,7 +631,7 @@ keys = [ { t = 0.0, value = 1.0 }, { t = 0.75, value = 0.0 } ]
     let world = app.engine.world();
     assert!(
         !world.get::<&scene::Appearance>(parent).unwrap().visible,
-        "past its second key the node is hidden, `interp = \"linear\"` and all"
+        "past its second key the node is hidden, `interpolation = \"linear\"` and all"
     );
     assert!(
         !scene::composed_appearance(&world, child).visible,
@@ -657,12 +657,12 @@ length = 1.0
 
 [[library.tracks]]
 property = "text2d/text"
-interp = "linear"
-keys = [ { t = 0.0, value = "calm" }, { t = 0.5, value = "storm" } ]
+interpolation = "linear"
+keys = [ { time = 0.0, value = "calm" }, { time = 0.5, value = "storm" } ]
 
 [[library.tracks]]
 property = "text2d/markup"
-keys = [ { t = 0.0, value = false }, { t = 0.5, value = true } ]
+keys = [ { time = 0.0, value = false }, { time = 0.5, value = true } ]
 "#,
     );
     balaur_anim::play(&app.engine, entity, "").unwrap();
@@ -700,7 +700,7 @@ fn a_track_that_mixes_names_and_numbers_is_refused() {
 length = 1.0
 [[library.tracks]]
 property = "text2d/text"
-keys = [ { t = 0.0, value = "calm" }, { t = 0.5, value = 3.0 } ]
+keys = [ { time = 0.0, value = "calm" }, { time = 0.5, value = 3.0 } ]
 "#,
     )
     .unwrap();

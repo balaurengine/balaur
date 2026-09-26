@@ -1159,7 +1159,7 @@ overlay, dark and light token sets.
   player, so what is previewed is what ships. The clip lives inline
   (`[nodes.animation.library]`) or in `animations/<node>.toml`; **Save as file**
   and **Make inline** are exact inverses because both hold byte-identical
-  documents. Preview goes through `animation.define`, so the engine's parser
+  documents. Preview goes through `animation.add_clip`, so the engine's parser
   reads the table before it is written.
 - The clip belongs to the *player* — the selection or its nearest ancestor
   carrying `animation` — so keying a bone writes a track on the character's

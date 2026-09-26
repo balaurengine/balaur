@@ -28,7 +28,7 @@ One real game, counted rather than guessed.
 | `Node2D`, `Node`, `Marker2D` | 377, 59, 46 | a node with a `transform` and nothing else |
 | `Label`, `Button`, `TextureRect` | 255, 210, 186 | `widget` kinds `label`, `button`, `image` |
 | `HBoxContainer`, `VBoxContainer` | 174, 164 | `widget` kinds `row`, `column` |
-| `AnimationPlayer`, `AnimationLibrary` | 146, 111 | `animation` over `animation_clip` assets |
+| `AnimationPlayer`, `AnimationLibrary` | 146, 111 | `animation` over `animation_library` assets |
 | `PackedScene` references | 149 | `instance`, with `overrides` per path |
 | `Polygon2D` | 91 | `polygon` |
 | `ShaderMaterial`, `Shader` | 87, 48 | `material`, over a WESL port of the `.gdshader` |
@@ -76,7 +76,7 @@ are dictionary data and translation sources.
 | `SpriteFrames` | The `sprite_sheet` asset | `docs/generated/assets.md` |
 | `Polygon2D` skinned by `Skeleton2D` | `polygon.skeleton` over `bone2d` | `polygon.rs`, `skeleton.rs` |
 | `PackedScene` instance and its overrides | `instance` and `overrides."Path".component` | `examples/hello/scenes/main.toml` |
-| `AnimationPlayer` value tracks | `animation_clip` tracks, `component/property` | `crates/balaur_anim/src/clip.rs:85` |
+| `AnimationPlayer` value tracks | `animation_library` tracks, `component/property` | `crates/balaur_anim/src/clip.rs:85` |
 | `Tween` | `animation.tween`, `tween_to`, `tween_value` | `crates/balaur_anim/src/tween.rs` |
 | `signal` and `.connect` | `events.emit` and `events.subscribe` | script API `events` |
 | `TranslationServer.tr` | `strings.tr` over `strings/<locale>.toml` | script API `strings` |

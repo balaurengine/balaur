@@ -53,7 +53,7 @@ fn chain(app: &App, kind: &str, target: (f32, f32), flip: bool) -> (Entity, Enti
     balaur_core::skeleton::apply_rest(&mut app.engine.world_mut(), rig);
     node_at(app, "Target", rig, target.0, target.1);
     let params: toml::Value = toml::from_str(&format!(
-        "kind = \"{kind}\"\nbone = \"Shoulder\"\ntarget = \"Target\"\nflip = {flip}"
+        "kind = \"{kind}\"\nbone = \"Shoulder\"\ntarget = \"Target\"\nflip_bend_direction = {flip}"
     ))
     .unwrap();
     components::add(&app.engine, rig, "modifier2d", Some(&params)).unwrap();
@@ -100,7 +100,7 @@ fn two_bone_ik_lands_on_the_same_bits_whatever_it_solved_before() {
 }
 
 #[test]
-fn flip_bends_the_elbow_the_other_way_to_the_same_tip() {
+fn flip_bend_direction_bends_the_elbow_the_other_way_to_the_same_tip() {
     let mut app = app();
     let (_, elbow, hand) = chain(&app, "two_bone_ik", (1.2, 0.8), true);
     app.tick(1.0 / 60.0);
@@ -333,7 +333,7 @@ fn an_angle_limit_holds_every_ccdik_bone_near_its_rest() {
 #[test]
 fn a_chain_of_two_solves_two_bones_and_leaves_the_third() {
     let mut app = app();
-    let bones = long_chain(&app, "fabrik", 3, (0.0, 2.0), "chain = 2");
+    let bones = long_chain(&app, "fabrik", 3, (0.0, 2.0), "chain_count = 2");
     app.tick(1.0 / 60.0);
     let world = app.engine.world();
     let turned = |e: Entity| angle_about_z(world.get::<&Transform>(e).unwrap().rotation).abs();
@@ -508,7 +508,7 @@ fn every_kind_reads_back_the_way_it_was_written() {
     let rig = scene::spawn_node(&mut app.engine.world_mut(), "Rig", root);
     for kind in ["look_at", "two_bone_ik", "fabrik", "ccdik", "jiggle"] {
         let params: toml::Value = toml::from_str(&format!(
-            "kind = \"{kind}\"\ntarget = \"T\"\nchain = 3\niterations = 7\nangle_limit = 0.5\n\
+            "kind = \"{kind}\"\ntarget = \"T\"\nchain_count = 3\niterations = 7\nangle_limit = 0.5\n\
              stiffness = 2.5\ndamping = 0.25\nmass = 1.5\ngravity = [0.0, -3.0, 0.0]\n\
              use_gravity = true"
         ))
@@ -516,7 +516,7 @@ fn every_kind_reads_back_the_way_it_was_written() {
         components::add(&app.engine, rig, "modifier2d", Some(&params)).unwrap();
         let got = components::get(&app.engine, rig, "modifier2d").unwrap();
         assert_eq!(got.get("kind").unwrap().as_str(), Some(kind));
-        assert_eq!(got.get("chain").unwrap().as_integer(), Some(3));
+        assert_eq!(got.get("chain_count").unwrap().as_integer(), Some(3));
         assert_eq!(got.get("iterations").unwrap().as_integer(), Some(7));
         assert_eq!(got.get("use_gravity").unwrap().as_bool(), Some(true));
         let gravity = got.get("gravity").unwrap().as_array().unwrap();

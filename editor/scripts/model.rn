@@ -2,6 +2,7 @@
 // `S.doc` is plain data parsed from the scene TOML; the mirror is a real node
 // tree from the same TOML (scripts not attached, physics paused until play).
 
+use crate::defs;
 use crate::history;
 use crate::selection;
 use crate::util;
@@ -377,7 +378,7 @@ pub fn is_2d(S) {
             || node.contains_key("tilemap") {
             return true;
         }
-        if node.contains_key("camera2d") {
+        if node.contains_key(CAMERA_2D) {
             return true;
         }
     }
@@ -391,10 +392,10 @@ pub fn node_icon(node) {
         None => body2d_kind(node),
     };
     if node.contains_key("widget") {
-        return (crate::icons::workspace("ui"), "node_ui");
+        return (crate::icons::workspace(defs::WORKSPACE_UI), "node_ui");
     }
     if kind.is_some() {
-        return (crate::icons::workspace("physics"), "node_physics");
+        return (crate::icons::workspace(defs::WORKSPACE_PHYSICS), "node_physics");
     }
     if node.contains_key("bone2d") || node.contains_key("bone3d") {
         return (crate::icons::tool("bone"), "node_bone");
@@ -403,7 +404,7 @@ pub fn node_icon(node) {
         return (crate::icons::tool("polygon"), "node_2d");
     }
     if node.contains_key("shape3d") || node.contains_key("mesh") {
-        return (crate::icons::workspace("scene"), "node_3d");
+        return (crate::icons::workspace(defs::WORKSPACE_SCENE), "node_3d");
     }
     if node.contains_key("script") {
         return (crate::icons::ui("scriptfile"), "node_default");
@@ -907,6 +908,12 @@ pub fn relative_file(S, value) {
     value
 }
 
+/// The two camera components, and the key that says a camera is the one the
+/// game looks through.
+pub const CAMERA_3D = "camera3d";
+pub const CAMERA_2D = "camera2d";
+pub const CAMERA_CURRENT = "current";
+
 /// Hand the view to the game's own cameras, or take it back.
 ///
 /// A `camera3d` drives the view whenever it is `current`, and the mirror
@@ -918,14 +925,16 @@ pub fn hold_game_cameras(S, playing) {
         return;
     }
     for found in S.mirror.descendants() {
-        for name in ["camera3d", "camera2d"] {
+        for name in [CAMERA_3D, CAMERA_2D] {
             if !found.has_component(name) {
                 continue;
             }
             // What the document says when the game runs, and never while the
             // editor is the one looking.
             let wanted = playing && authored_current(S, found, name);
-            found.patch_component(name, #{ current: wanted });
+            let patch = #{};
+            patch[CAMERA_CURRENT] = wanted;
+            found.patch_component(name, patch);
         }
     }
 }
@@ -936,7 +945,7 @@ fn authored_current(S, found, name) {
     for node in S.doc {
         if node.get("id").unwrap_or("") == id {
             let params = util::obj(node.get(name).unwrap_or(#{}));
-            return params.get("current").unwrap_or(true) == true;
+            return params.get(CAMERA_CURRENT).unwrap_or(true) == true;
         }
     }
     true
@@ -1531,8 +1540,8 @@ pub fn sync_component_doc_at(S, i, name) {
     let data = found.get_component(name);
     if data is Object {
         let value = doc_value(S, name, data, node.get(name));
-        if is_held_camera_key(name, "current") {
-            keep_authored(value, node.get(name), "current");
+        if is_held_camera_key(name, CAMERA_CURRENT) {
+            keep_authored(value, node.get(name), CAMERA_CURRENT);
         }
         node[name] = value;
     } else {
@@ -1758,7 +1767,7 @@ fn set_component_prop_at(S, i, name, prop, value) {
 }
 
 fn is_held_camera_key(name, prop) {
-    prop == "current" && (name == "camera3d" || name == "camera2d")
+    prop == CAMERA_CURRENT && (name == CAMERA_3D || name == CAMERA_2D)
 }
 
 // Where a copy of node `i` goes. A scene has one root, so a copy of the root

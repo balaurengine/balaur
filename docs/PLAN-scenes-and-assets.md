@@ -62,7 +62,7 @@ turns on) and writes:
   the nine-patch `center` and `pivot`, and `keys` when the slice moves
   between frames;
 - `animations/walk.toml`, one clip per tag keying `sprite/frame` with
-  `interp = "step"` at the frames' own durations, `loop` for a forward or
+  `interpolation = "step"` at the frames' own durations, `linear` for a forward or
   reverse tag, `pingpong` for a ping-pong one, and a counted repeat unrolled
   into a clip that stops; a file with no tags gets one clip over every
   frame.

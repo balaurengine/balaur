@@ -27,8 +27,8 @@ const LIBRARY: &str = r#"
 length = 1.0
 tracks = [
   { property = "position", keys = [
-    { t = 0.0, value = [0.0, 0.0, 0.0] },
-    { t = 1.0, value = [0.0, 10.0, 0.0] },
+    { time = 0.0, value = [0.0, 0.0, 0.0] },
+    { time = 1.0, value = [0.0, 10.0, 0.0] },
   ] },
 ]
 "#;
@@ -92,7 +92,7 @@ fn a_scrub_moves_nothing_but_the_playhead() {
     );
     assert!(!balaur_anim::is_playing(&app.engine, entity));
     assert_eq!(
-        balaur_anim::current(&app.engine, entity).as_deref(),
+        balaur_anim::current_clip(&app.engine, entity).as_deref(),
         Some("rise"),
         "a scrub lost the clip it was scrubbing"
     );
@@ -107,7 +107,7 @@ fn an_inline_library_autoplays_the_entry_it_names() {
     let entity = animated(
         &app,
         "Box",
-        &format!("autoplay = \"rise\"\nspeed = 1.0\nroot = \"\"\n{LIBRARY}"),
+        &format!("autoplay = \"rise\"\nspeed_scale = 1.0\nroot_node = \"\"\n{LIBRARY}"),
     );
     tick(&mut app, 30);
     assert!(
@@ -145,7 +145,7 @@ parent = "Scene"
         "one unresolvable clip took the whole scene down"
     );
     let entity = scene::find_node(&app.engine.world(), root, "Scene/Box").unwrap();
-    assert!(balaur_anim::current(&app.engine, entity).is_none());
+    assert!(balaur_anim::current_clip(&app.engine, entity).is_none());
 }
 
 /// "Save as file" writes the definition the editor was already previewing.
@@ -165,7 +165,7 @@ fn a_clip_promoted_to_a_file_poses_exactly_as_the_inline_one_did() {
     promoted
         .as_table_mut()
         .unwrap()
-        .insert("type".into(), toml::Value::String("animation_clip".into()));
+        .insert("type".into(), toml::Value::String("animation_library".into()));
     std::fs::create_dir_all(dir.path().join("animations")).unwrap();
     std::fs::write(
         dir.path().join("animations/box.toml"),
@@ -209,8 +209,8 @@ animation.autoplay = "rise"
 length = 1.0
 tracks = [
   { property = "position", keys = [
-    { t = 0.0, value = [0.0, 0.0, 0.0] },
-    { t = 1.0, value = [0.0, 10.0, 0.0] },
+    { time = 0.0, value = [0.0, 0.0, 0.0] },
+    { time = 1.0, value = [0.0, 10.0, 0.0] },
   ] },
 ]
 "#,
@@ -226,7 +226,7 @@ tracks = [
     project::instantiate_scene(&app.engine, &encoded, root, false).unwrap();
     let entity = scene::find_node(&app.engine.world(), root, "Box").unwrap();
     assert_eq!(
-        balaur_anim::current(&app.engine, entity).as_deref(),
+        balaur_anim::current_clip(&app.engine, entity).as_deref(),
         Some("rise"),
         "an encoded-and-reparsed inline clip did not come back"
     );
@@ -254,14 +254,14 @@ fn a_clip_saved_while_it_plays_is_picked_up_without_losing_the_playhead() {
     .unwrap();
     let clip = |top: f32| {
         format!(
-            r#"type = "animation_clip"
+            r#"type = "animation_library"
 
 [clips.lift]
 length = 2.0
 tracks = [
   {{ property = "position", keys = [
-    {{ t = 0.0, value = [0.0, 0.0, 0.0] }},
-    {{ t = 2.0, value = [0.0, {top}, 0.0] }},
+    {{ time = 0.0, value = [0.0, 0.0, 0.0] }},
+    {{ time = 2.0, value = [0.0, {top}, 0.0] }},
   ] }},
 ]
 "#

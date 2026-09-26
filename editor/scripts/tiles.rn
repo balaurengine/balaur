@@ -340,8 +340,8 @@ pub fn tile_count(S) {
 
 fn pixels_per_unit(S) {
     match component(model::selected_node(S)) {
-        Some(comp) => util::max(util::f(comp.get("pixels_per_unit").unwrap_or(100.0)), 0.01),
-        None => 100.0,
+        Some(comp) => util::max(util::f(comp.get("pixels_per_unit").unwrap_or(util::DEFAULT_PIXELS_PER_UNIT)), 0.01),
+        None => util::DEFAULT_PIXELS_PER_UNIT,
     }
 }
 

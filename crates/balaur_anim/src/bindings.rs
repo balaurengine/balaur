@@ -28,7 +28,7 @@ pub fn install_animation_api(m: &mut dyn Bindings<Engine>) {
         "ease_names",
         &[],
         "() -> [string]",
-        "Every curve an `ease` takes, by name: the bare `linear`, then twelve transitions in four modes each.",
+        "Every curve an `ease` takes, by name: the bare `linear`, then eleven transitions in four modes each.",
     )]);
     m.function("ease_names", |_: &Engine, (): ()| {
         Ok(Value::List(
@@ -55,7 +55,7 @@ fn install_machine_api(m: &mut dyn Bindings<Engine>) {
         ("travel", MACHINE, "", "Head for the named state through the cheapest chain of transitions, each costing its priority and fading as it says; a state no transition reaches is cut to directly."),
         ("jump", MACHINE, "", "Cut the state machine to the named state on the next step, with no fade."),
         ("set_condition", MACHINE, "", "Turn on or off a condition that `auto` transitions wait on."),
-        ("state", MACHINE, "", "The state the machine is in, or nil before it has entered one."),
+        ("current_state", MACHINE, "", "The state the machine is in, or nil before it has entered one."),
     ]);
     m.function("travel", |eng: &Engine, (node, to): (NodeId, String)| {
         crate::machine::travel(eng, entity_of(node)?, &to)
@@ -69,30 +69,29 @@ fn install_machine_api(m: &mut dyn Bindings<Engine>) {
             crate::machine::set_condition(eng, entity_of(node)?, &name, on)
         },
     );
-    m.function("state", |eng: &Engine, node: NodeId| {
-        Ok(crate::machine::state(eng, entity_of(node)?).map_or(Value::Nil, Value::text))
+    m.function("current_state", |eng: &Engine, node: NodeId| {
+        Ok(crate::machine::current_state(eng, entity_of(node)?).map_or(Value::Nil, Value::text))
     });
 }
 
 /// Starting, queueing and holding a clip.
 fn install_transport_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("play", &[crate::COMPONENT], "", "Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier), `from_start`, `fade` (seconds to blend out of the clip before), `ease` (the fade's curve, an `EASE_*` constant), and `retarget` (a `bone_map` reference, so this rig can play another rig's clips)."),
+        ("play", &[crate::COMPONENT], "", "Start the clip of that name on this node; the trailing options table takes `speed_scale` (a multiplier), `from_start`, `blend_time` (seconds to blend out of the clip before), `ease` (the blend's curve, an `EASE_*` constant), and `retarget` (a `bone_map` reference, so this rig can play another rig's clips)."),
         ("queue", &[crate::COMPONENT], "", "Play the clip of that name once the current one ends; a looping clip never ends, so a queue behind one never drains."),
         ("stop", &[], "", "End the clip on a node, or the tween a handle names, leaving the pose where it is; `resume` cannot revive it."),
         ("pause", &[crate::COMPONENT], "", "Hold the playhead where it is, keeping the clip current so `resume` has something to go back to."),
         ("resume", &[crate::COMPONENT], "", "Carry on from where `pause` left off; a stopped, finished or never-started node is left alone."),
-        ("define", &[crate::COMPONENT], "", "Give this node a clip of its own under that name, from a definition table shaped like a scene file's."),
+        ("add_clip", &[crate::COMPONENT], "", "Give this node a clip of its own under that name, from a definition table shaped like a scene file's."),
     ]);
-    // `opts` is `{ speed = 1.5, from_start = false, fade = 0.2, ease = EASE_IN_SINE,
-    // retarget = "maps/hero.toml" }`, all optional. A flag in a trailing options table rather than a
-    // `play_from_start` (N9).
+    // `opts` is `{ speed_scale = 1.5, from_start = false, blend_time = 0.2,
+    // ease = EASE_IN_SINE, retarget = "maps/hero.toml" }`, all optional (N9).
     m.function(
         "play",
         |eng: &Engine, (node, name, opts): (NodeId, String, Option<Value>)| {
             let entity = entity_of(node)?;
-            if let Some(speed) = option(opts.as_ref(), k::SPEED).as_ref().and_then(number) {
-                player::set_speed(eng, entity, speed);
+            if let Some(scale) = option(opts.as_ref(), k::SPEED_SCALE).as_ref().and_then(number) {
+                player::set_speed_scale(eng, entity, scale);
             }
             // Before the clip starts: a map that will not load should stop
             // the call rather than let one frame play unretargeted.
@@ -103,7 +102,7 @@ fn install_transport_api(m: &mut dyn Bindings<Engine>) {
                 option(opts.as_ref(), k::FROM_START),
                 Some(Value::Bool(false))
             );
-            let fade = option(opts.as_ref(), k::FADE)
+            let blend_time = option(opts.as_ref(), k::BLEND_TIME)
                 .as_ref()
                 .and_then(number)
                 .unwrap_or(0.0);
@@ -111,7 +110,7 @@ fn install_transport_api(m: &mut dyn Bindings<Engine>) {
                 Some(Value::Str(name)) => Easing::parse(&name)?,
                 _ => Easing::LINEAR,
             };
-            player::play_faded(eng, entity, &name, fade, ease, from_start)
+            player::play_blended(eng, entity, &name, blend_time, ease, from_start)
         },
     );
     // Plays once the current clip ends. A looping clip never ends, so a queue
@@ -121,7 +120,7 @@ fn install_transport_api(m: &mut dyn Bindings<Engine>) {
         Ok(())
     });
     // Takes a node (ends its clip) or a tween handle (ends that tween).
-    // Stopping is not pausing: `current` goes nil and `resume` cannot revive it.
+    // Stopping is not pausing: `current_clip` goes nil and `resume` cannot revive it.
     m.function("stop", |eng: &Engine, what: Value| {
         match handle_of(&what)? {
             Stoppable::Node(node) => player::stop(eng, entity_of(node)?),
@@ -140,9 +139,9 @@ fn install_transport_api(m: &mut dyn Bindings<Engine>) {
     // A clip of this node's own, from a definition table: the same shape a
     // scene file writes inline, and cached by its content like one.
     m.function(
-        "define",
+        "add_clip",
         |eng: &Engine, (node, name, body): (NodeId, String, Value)| {
-            player::define(eng, entity_of(node)?, &name, node_api::to_toml(&body)?)
+            player::add_clip(eng, entity_of(node)?, &name, node_api::to_toml(&body)?)
         },
     );
 }
@@ -151,7 +150,7 @@ fn install_transport_api(m: &mut dyn Bindings<Engine>) {
 fn install_playhead_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("seek", &[crate::COMPONENT], "", "Move the playhead to a number of seconds and pose the node there, even on a paused or ended clip."),
-        ("current", &[crate::COMPONENT], "", "The clip playing or paused on this node, and nil once it has ended, been stopped, or never started."),
+        ("current_clip", &[crate::COMPONENT], "", "The clip playing or paused on this node, and nil once it has ended, been stopped, or never started."),
         ("time", &[crate::COMPONENT], "", "Seconds of playback since the current clip started, before wrapping; a stopped clip keeps where it stopped."),
         ("is_playing", &[crate::COMPONENT], "", "Whether a clip is advancing on this node; a paused, stopped, finished or absent one answers false."),
         ("just_finished", &[crate::COMPONENT], "", "The clip that ended on this node during the last step, and nil on every other frame."),
@@ -163,8 +162,8 @@ fn install_playhead_api(m: &mut dyn Bindings<Engine>) {
         Ok(())
     });
     // The clip playing or paused on this node, or nil once it has ended.
-    m.function("current", |eng: &Engine, node: NodeId| {
-        Ok(player::current(eng, entity_of(node)?))
+    m.function("current_clip", |eng: &Engine, node: NodeId| {
+        Ok(player::current_clip(eng, entity_of(node)?))
     });
     // Seconds of playback since the current clip started, before wrapping.
     m.function("time", |eng: &Engine, node: NodeId| {
@@ -213,12 +212,12 @@ fn install_tween_api(m: &mut dyn Bindings<Engine>) {
     // No component: a tween is generated from the node's current values and
     // kept beside the players, so the node needs no `animation` of its own.
     m.describe(&[
-        ("tween", &[], "", "Generate a clip on the node from a table of steps and run it, returning the handle `stop` and `is_tween_running` take. The table also takes `delay` in seconds, `then = <handle>` to wait for another tween, `loops` and `speed`; a step's `call` names a method or passes a function; the node's `on_tween_finished(handle)` is called when it runs out."),
+        ("tween", &[], "", "Generate a clip on the node from a table of steps and run it, returning the handle `stop` and `is_tween_running` take. The table also takes `delay` in seconds, `then = <handle>` to wait for another tween, `loops` and `speed_scale`; a step's `call` names a method or passes a function; the node's `on_tween_finished(handle)` is called when it runs out."),
         ("is_tween_running", &[], "", "Whether a handle still names a running tween; one that finished, was stopped, or lost its node answers false. Takes a tween handle, where `is_playing` takes a node and asks about its clip."),
         ("tween_value", &[], "(from: number, to: number, seconds: float, ease: string) -> int", "A tween over a number, or a list of up to four, that drives no node: read it each frame with `tween_value_of` and write it wherever you like. Returns a handle `stop` takes."),
         ("tween_value_of", &[], "(handle: int) -> number", "Where a value tween has got to, in the shape it was started with; nil once it is over."),
     ]);
-    // `{ loops = 1, speed = 1.0, steps = { ... } }`. Steps run one after
+    // `{ loops = 1, speed_scale = 1.0, steps = { ... } }`. Steps run one after
     // another; `parallel = true` joins a step to the one before it. Returns
     // the handle `stop` and `is_tween_running` take.
     m.function("tween", |eng: &Engine, (node, spec): (NodeId, Value)| {

@@ -256,12 +256,12 @@ fn level(section: &Section, res: &Resources<'_>, path: &str, out: &mut Converted
     table
 }
 
-/// One `AnimationNodeStateMachineTransition`'s fade, advance, switch,
+/// One `AnimationNodeStateMachineTransition`'s blend, advance, switch,
 /// condition, priority, reset and loop break, at Godot's defaults where it
 /// leaves them out.
 fn describe(section: &Section, res: &Resources<'_>, row: &mut toml::Table, out: &mut Converted) {
     if let Some(fade) = section.field("xfade_time").and_then(Value::as_f64) {
-        row.insert(k::FADE.into(), Toml::Float(fade));
+        row.insert(k::BLEND_TIME.into(), Toml::Float(fade));
     }
     // Godot's enums: advance 0 disabled, 1 enabled, 2 auto; switch 0
     // immediate, 1 sync, 2 at the end.
@@ -270,13 +270,13 @@ fn describe(section: &Section, res: &Resources<'_>, row: &mut toml::Table, out: 
         Some(2) => w::AUTO,
         _ => w::ENABLED,
     };
-    row.insert(k::ADVANCE.into(), Toml::String(advance.into()));
+    row.insert(k::ADVANCE_MODE.into(), Toml::String(advance.into()));
     let switch = match section.field("switch_mode").and_then(Value::as_i64) {
         Some(1) => w::SYNC,
         Some(2) => w::AT_END,
         _ => w::IMMEDIATE,
     };
-    row.insert(k::SWITCH.into(), Toml::String(switch.into()));
+    row.insert(k::SWITCH_MODE.into(), Toml::String(switch.into()));
     if let Some(condition) = section
         .field("advance_condition")
         .and_then(Value::as_str)
@@ -287,7 +287,7 @@ fn describe(section: &Section, res: &Resources<'_>, row: &mut toml::Table, out: 
     if let Some(priority) = section.field("priority").and_then(Value::as_i64) {
         row.insert(k::PRIORITY.into(), Toml::Integer(priority));
     }
-    for (godot, key) in [("reset", k::RESET), ("break_loop_at_end", k::BREAK_LOOP)] {
+    for (godot, key) in [("reset", k::RESET), ("break_loop_at_end", k::BREAK_LOOP_AT_END)] {
         if let Some(&Value::Bool(on)) = section.field(godot) {
             row.insert(key.into(), Toml::Boolean(on));
         }
@@ -295,7 +295,7 @@ fn describe(section: &Section, res: &Resources<'_>, row: &mut toml::Table, out: 
     if let Some(curve) = section.field("xfade_curve").and_then(|c| res.sub(c)) {
         match sampled(curve) {
             Some(points) => {
-                row.insert(k::FADE_CURVE.into(), points);
+                row.insert(k::BLEND_CURVE.into(), points);
             }
             None => out
                 .notes
@@ -442,7 +442,7 @@ advance_expression_base_node = NodePath("..")
         let go = &transitions[0];
         let name = check_name("velocity.length() > 1.0");
         assert_eq!(go["check"].as_str(), Some(name.as_str()));
-        let curve = go["fade_curve"].as_array().unwrap();
+        let curve = go["blend_curve"].as_array().unwrap();
         assert!(curve.len() > 4, "the curve is sampled: {curve:?}");
         let stop = &transitions[1];
         assert_eq!(stop["to"].as_str(), Some(w::END));

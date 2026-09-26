@@ -23,11 +23,11 @@ fn clip(x: f64, extra: &str) -> toml::Value {
     toml::from_str(&format!(
         r#"
         length = 1.0
-        loop = "loop"
+        loop_mode = "linear"
         [[tracks]]
         property = "position"
-        interp = "linear"
-        keys = [{{ t = 0.0, value = [{x}, 0.0, 0.0] }}, {{ t = 1.0, value = [{x}, 0.0, 0.0] }}]
+        interpolation = "linear"
+        keys = [{{ time = 0.0, value = [{x}, 0.0, 0.0] }}, {{ time = 1.0, value = [{x}, 0.0, 0.0] }}]
         {extra}
         "#
     ))
@@ -38,8 +38,8 @@ fn clip(x: f64, extra: &str) -> toml::Value {
 const GROW: &str = r#"
         [[tracks]]
         property = "scale"
-        interp = "linear"
-        keys = [{ t = 0.0, value = [1.0, 1.0, 1.0] }, { t = 1.0, value = [3.0, 3.0, 3.0] }]
+        interpolation = "linear"
+        keys = [{ time = 0.0, value = [1.0, 1.0, 1.0] }, { time = 1.0, value = [3.0, 3.0, 3.0] }]
 "#;
 
 /// A node with `left` (x = 0, growing), `right` (x = 1) and `far` (x = 2).
@@ -48,9 +48,9 @@ fn hero(app: &App) -> Entity {
     let root = eng.root();
     let entity = scene::spawn_node(&mut eng.world_mut(), "Hero", root);
     components::add(eng, entity, "animation", None).unwrap();
-    balaur_anim::define(eng, entity, "left", clip(0.0, GROW)).unwrap();
-    balaur_anim::define(eng, entity, "right", clip(1.0, "")).unwrap();
-    balaur_anim::define(eng, entity, "far", clip(2.0, "")).unwrap();
+    balaur_anim::add_clip(eng, entity, "left", clip(0.0, GROW)).unwrap();
+    balaur_anim::add_clip(eng, entity, "right", clip(1.0, "")).unwrap();
+    balaur_anim::add_clip(eng, entity, "far", clip(2.0, "")).unwrap();
     entity
 }
 
@@ -70,7 +70,7 @@ fn a_track_only_the_outgoing_clip_keys_keeps_playing_through_the_fade() {
     let hero = hero(&app);
     balaur_anim::play(&app.engine, hero, "left").unwrap();
     tick(&mut app, 15);
-    balaur_anim::player::play_faded(&app.engine, hero, "right", 1.0, Easing::LINEAR, true).unwrap();
+    balaur_anim::player::play_blended(&app.engine, hero, "right", 1.0, Easing::LINEAR, true).unwrap();
     tick(&mut app, 30);
 
     let at = transform(&app, hero);
@@ -92,10 +92,10 @@ fn a_fade_started_mid_fade_carries_on_from_where_the_blend_was() {
     let hero = hero(&app);
     balaur_anim::play(&app.engine, hero, "left").unwrap();
     tick(&mut app, 5);
-    balaur_anim::player::play_faded(&app.engine, hero, "right", 0.5, Easing::LINEAR, true).unwrap();
+    balaur_anim::player::play_blended(&app.engine, hero, "right", 0.5, Easing::LINEAR, true).unwrap();
     tick(&mut app, 15);
     let before = transform(&app, hero).position.x;
-    balaur_anim::player::play_faded(&app.engine, hero, "far", 0.5, Easing::LINEAR, true).unwrap();
+    balaur_anim::player::play_blended(&app.engine, hero, "far", 0.5, Easing::LINEAR, true).unwrap();
     tick(&mut app, 1);
     let after = transform(&app, hero).position.x;
     assert!(
@@ -114,7 +114,7 @@ fn a_cut_drops_a_fade_in_progress() {
     let mut app = app();
     let hero = hero(&app);
     balaur_anim::play(&app.engine, hero, "left").unwrap();
-    balaur_anim::player::play_faded(&app.engine, hero, "right", 1.0, Easing::LINEAR, true).unwrap();
+    balaur_anim::player::play_blended(&app.engine, hero, "right", 1.0, Easing::LINEAR, true).unwrap();
     tick(&mut app, 10);
     balaur_anim::play(&app.engine, hero, "far").unwrap();
     tick(&mut app, 1);
@@ -131,22 +131,22 @@ fn a_clip_that_ends_mid_fade_leaves_nothing_to_blend_later() {
         length = 0.25
         [[tracks]]
         property = "position"
-        keys = [{ t = 0.0, value = [3.0, 0.0, 0.0] }, { t = 0.25, value = [3.0, 0.0, 0.0] }]
+        keys = [{ time = 0.0, value = [3.0, 0.0, 0.0] }, { time = 0.25, value = [3.0, 0.0, 0.0] }]
         "#,
     )
     .unwrap();
-    balaur_anim::define(&app.engine, hero, "once", once).unwrap();
+    balaur_anim::add_clip(&app.engine, hero, "once", once).unwrap();
     balaur_anim::play(&app.engine, hero, "left").unwrap();
-    balaur_anim::player::play_faded(&app.engine, hero, "once", 1.0, Easing::LINEAR, true).unwrap();
+    balaur_anim::player::play_blended(&app.engine, hero, "once", 1.0, Easing::LINEAR, true).unwrap();
     tick(&mut app, 30);
     assert_eq!(
-        balaur_anim::current(&app.engine, hero),
+        balaur_anim::current_clip(&app.engine, hero),
         None,
         "`once` ended"
     );
     assert_eq!(fades(&app, hero), 0);
 
-    balaur_anim::player::play_faded(&app.engine, hero, "far", 0.5, Easing::LINEAR, true).unwrap();
+    balaur_anim::player::play_blended(&app.engine, hero, "far", 0.5, Easing::LINEAR, true).unwrap();
     tick(&mut app, 30);
     assert!(
         (transform(&app, hero).position.x - 2.0).abs() < 1e-5,

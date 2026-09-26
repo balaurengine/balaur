@@ -4,5 +4,5 @@ pub fn init(this) {
 }
 
 pub fn update(this, dt) {
-    this.found = !this.node.get_node("../..").is_nil();
+    this.found = !(this.node.get_node("../..") is Tuple);
 }

@@ -655,6 +655,8 @@ pub(crate) enum Edit {
     /// A row dragged over another: the row moved, the row it landed on, and
     /// whether it went before it, after it, or into it.
     Dropped(String, String, String),
+    /// A card a drag carried out of its `list` and let go there.
+    Carried(String),
     /// A swatch's colour.
     Color([f32; 4]),
     /// A window's title bar dragged, in design pixels.

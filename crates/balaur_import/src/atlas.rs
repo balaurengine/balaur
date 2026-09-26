@@ -316,17 +316,17 @@ fn clips_toml(stem: &str, frames: &[Frame], runs: &[(String, usize, usize)]) -> 
     }
     let mut out = format!(
         "# Packed by `balaur atlas` as {stem}: one clip per run of frames, keying `sprite/frame`.\n\
-         type = \"animation_clip\"\n"
+         type = \"animation_library\"\n"
     );
     for (name, first, last) in moving {
         let (mut at, mut keys) = (0, String::new());
         for (frame, shown) in frames.iter().enumerate().take(*last + 1).skip(*first) {
-            let _ = writeln!(keys, "  {{ t = {}, value = {frame}.0 }},", seconds(at));
+            let _ = writeln!(keys, "  {{ time = {}, value = {frame}.0 }},", seconds(at));
             at += shown.milliseconds;
         }
         let _ = write!(
             out,
-            "\n[clips.{name}]\nlength = {}\nloop = \"loop\"\n\n[[clips.{name}.tracks]]\nproperty = \"sprite/frame\"\ninterp = \"step\"\nkeys = [\n{keys}]\n",
+            "\n[clips.{name}]\nlength = {}\nloop_mode = \"linear\"\n\n[[clips.{name}.tracks]]\nproperty = \"sprite/frame\"\ninterpolation = \"step\"\nkeys = [\n{keys}]\n",
             seconds(at.max(1)),
             name = key(name)
         );

@@ -14,24 +14,24 @@ use balaur_script::Value;
 /// A library the scripts address by name, written where a project would
 /// keep it.
 const LIBRARY: &str = r#"
-type = "animation_clip"
+type = "animation_library"
 
 [clips.hop]
 length = 0.5
 tracks = [
   { property = "position", keys = [
-    { t = 0.0, value = [0.0, 0.0, 0.0] },
-    { t = 0.5, value = [0.0, 4.0, 0.0] },
+    { time = 0.0, value = [0.0, 0.0, 0.0] },
+    { time = 0.5, value = [0.0, 4.0, 0.0] },
   ] },
 ]
 
 [clips.wave]
 length = 1.0
-loop = "loop"
+loop_mode = "linear"
 tracks = [
   { property = "position", keys = [
-    { t = 0.0, value = [1.0, 0.0, 0.0] },
-    { t = 1.0, value = [3.0, 0.0, 0.0] },
+    { time = 0.0, value = [1.0, 0.0, 0.0] },
+    { time = 1.0, value = [3.0, 0.0, 0.0] },
   ] },
 ]
 "#;
@@ -43,7 +43,7 @@ tracks = [
 /// afterwards.
 const HERO: &str = r#"
 pub fn init(this) {
-    this.node.animation.play("hop", #{ "speed": 1.0 });
+    this.node.animation.play("hop", #{ "speed_scale": 1.0 });
 }
 pub fn on_animation_finished(this, name) {
     // The clip that ended is the argument, so the handler branches on it
@@ -147,7 +147,7 @@ fn a_script_plays_a_clip_and_hears_it_finish() {
         "the script's `animation::play` did not start anything"
     );
     assert_eq!(
-        balaur_anim::current(&app.engine, entity).as_deref(),
+        balaur_anim::current_clip(&app.engine, entity).as_deref(),
         Some("hop")
     );
     let quarter = height(&app, entity);
@@ -160,7 +160,7 @@ fn a_script_plays_a_clip_and_hears_it_finish() {
     // answers by playing `wave`.
     tick(&mut app, 30);
     assert_eq!(
-        balaur_anim::current(&app.engine, entity).as_deref(),
+        balaur_anim::current_clip(&app.engine, entity).as_deref(),
         Some("wave"),
         "`on_animation_finished` did not reach the script with the name of the \
          clip that ended"
@@ -179,7 +179,7 @@ pub fn init(this) {
     this.node.animation.seek(0.25);
 }
 pub fn update(this, dt) {
-    this.clip = this.node.animation.current();
+    this.clip = this.node.animation.current_clip();
     this.playing = this.node.animation.is_playing();
     this.elapsed = this.node.animation.time();
     let ended = this.node.animation.just_finished();
@@ -211,7 +211,7 @@ pub fn update(this, dt) {
     );
     assert_eq!(field(&app, entity, "playing"), Value::Bool(false));
     assert_eq!(
-        balaur_anim::current(&app.engine, entity),
+        balaur_anim::current_clip(&app.engine, entity),
         None,
         "what the script read back and what Rust reads back must agree"
     );
@@ -221,13 +221,13 @@ pub fn update(this, dt) {
 fn a_script_defines_a_clip_of_its_own_and_plays_it() {
     let script = r#"
 pub fn init(this) {
-    this.node.animation.define("hurt", #{
+    this.node.animation.add_clip("hurt", #{
         "length": 1.0,
         "tracks": [ #{
             "property": "position",
             "keys": [
-                #{ "t": 0.0, "value": [0.0, 0.0, 0.0] },
-                #{ "t": 1.0, "value": [0.0, 8.0, 0.0] },
+                #{ "time": 0.0, "value": [0.0, 0.0, 0.0] },
+                #{ "time": 1.0, "value": [0.0, 8.0, 0.0] },
             ],
         } ],
     });
@@ -240,7 +240,7 @@ pub fn init(this) {
 
     tick(&mut app, 30);
     assert_eq!(
-        balaur_anim::current(&app.engine, entity).as_deref(),
+        balaur_anim::current_clip(&app.engine, entity).as_deref(),
         Some("hurt"),
         "a definition table written in a script did not reach the asset layer"
     );
@@ -267,12 +267,12 @@ pub fn init(this) {
 
     tick(&mut app, 10);
     assert_eq!(
-        balaur_anim::current(&app.engine, entity).as_deref(),
+        balaur_anim::current_clip(&app.engine, entity).as_deref(),
         Some("hop")
     );
     tick(&mut app, 40);
     assert_eq!(
-        balaur_anim::current(&app.engine, entity).as_deref(),
+        balaur_anim::current_clip(&app.engine, entity).as_deref(),
         Some("wave")
     );
 }
@@ -306,7 +306,7 @@ pub fn update(this, dt) {
         "`resume` did not undo `pause`"
     );
     assert_eq!(
-        balaur_anim::current(&app.engine, entity).as_deref(),
+        balaur_anim::current_clip(&app.engine, entity).as_deref(),
         Some("wave")
     );
 }
@@ -330,7 +330,7 @@ pub fn update(this, dt) {
     tick(&mut app, 20);
 
     assert!(!balaur_anim::is_playing(&app.engine, entity));
-    assert_eq!(balaur_anim::current(&app.engine, entity), None);
+    assert_eq!(balaur_anim::current_clip(&app.engine, entity), None);
 }
 
 /// A tween written the way a game would write one: a data table, no builder
@@ -489,20 +489,20 @@ fn a_script_hears_which_tween_finished_and_reads_a_value_tween() {
 /// Spells every word through the module's constants rather than as a string.
 const CONSTANTS: &str = r#"
 pub fn init(this) {
-    this.node.animation.define("swing", #{
+    this.node.animation.add_clip("swing", #{
         "length": 1.0,
-        "loop": animation::LOOP_PINGPONG,
+        "loop_mode": animation::LOOP_PINGPONG,
         "tracks": [#{
             "property": animation::PROPERTY_POSITION,
-            "interp": animation::INTERP_CUBIC,
+            "interpolation": animation::INTERPOLATION_CUBIC,
             "keys": [
-                #{ "t": 0.0, "value": [0.0, 0.0, 0.0] },
-                #{ "t": 1.0, "value": [0.0, 2.0, 0.0], "ease": animation::EASE_IN_OUT_SINE },
+                #{ "time": 0.0, "value": [0.0, 0.0, 0.0] },
+                #{ "time": 1.0, "value": [0.0, 2.0, 0.0], "ease": animation::EASE_IN_OUT_SINE },
             ],
         }],
     });
     this.node.animation.play("wave");
-    this.node.animation.play("swing", #{ "fade": 0.5, "ease": animation::EASE_IN_QUAD });
+    this.node.animation.play("swing", #{ "blend_time": 0.5, "ease": animation::EASE_IN_QUAD });
 }
 "#;
 
@@ -518,8 +518,8 @@ fn a_script_names_curves_and_modes_through_the_module_constants() {
     let playback = &state.players[&entity];
     assert_eq!(playback.clip_name, "swing");
     assert_eq!(
-        playback.clip.as_ref().unwrap().wrap,
-        balaur_anim::clip::Wrap::PingPong
+        playback.clip.as_ref().unwrap().loop_mode,
+        balaur_anim::clip::LoopMode::PingPong
     );
     assert_eq!(playback.fades.len(), 1, "`wave` is fading out");
     assert_eq!(playback.fades[0].ease.name(), "in_quad");

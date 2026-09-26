@@ -93,12 +93,15 @@ use smol_str::SmolStr;
 use crate::engine::Engine;
 
 mod attached;
+mod authored;
 mod property;
 mod schema;
 
 use attached::mark;
 pub(crate) use attached::mark_present;
 pub use attached::{Attached, MAX_COMPONENTS, TRANSFORM_BIT, attached_of};
+pub use authored::Authored;
+use authored::{asked_for_at, forget, record_at, record_one};
 pub(crate) use property::resolve_property_hooks;
 pub use property::{
     PropertyReaders, PropertyWriteFn, PropertyWriters, answers_alone, answers_property, property,
@@ -528,54 +531,6 @@ impl<'a> IntoIterator for &'a ComponentRegistry {
     }
 }
 
-/// What a scene or a script asked of each component, by node and definition.
-///
-/// A component's live state is its own Rust struct, and `get` is the only way
-/// back to a table. [`patch`] builds on this rather than on `get` alone, so a
-/// `get` that does not mention a property cannot have it reset.
-#[derive(Default)]
-pub struct Authored(pub crate::collections::DetHashMap<(Entity, usize), toml::Value>);
-
-/// Merge what is being asked for into what was asked before, for the
-/// definition at `index`.
-fn record_at(eng: &Engine, entity: Entity, index: usize, params: Option<&toml::Value>, over: bool) {
-    let Some(authored) = eng.try_resource::<Authored>() else {
-        return;
-    };
-    let mut authored = authored.borrow_mut();
-    let slot = authored
-        .0
-        .entry((entity, index))
-        .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
-    if over {
-        *slot = toml::Value::Table(toml::map::Map::new());
-    }
-    let (Some(slot), Some(asked)) = (slot.as_table_mut(), params.and_then(toml::Value::as_table))
-    else {
-        return;
-    };
-    for (key, value) in asked {
-        slot.insert(key.clone(), value.clone());
-    }
-}
-
-/// What was asked of this component before now, if anything.
-fn asked_for_at(eng: &Engine, entity: Entity, index: usize) -> Option<toml::Value> {
-    let authored = eng.try_resource::<Authored>()?;
-    let asked = authored.borrow().0.get(&(entity, index)).cloned();
-    drop(authored);
-    asked
-}
-
-/// Forget what was asked of one component on one node.
-fn forget(eng: &Engine, entity: Entity, name: &str) {
-    let (Some(authored), Some(index)) = (eng.try_resource::<Authored>(), index_of(eng, name))
-    else {
-        return;
-    };
-    authored.borrow_mut().0.swap_remove(&(entity, index));
-}
-
 /// A registered component's position in the registry, which is its key above.
 /// Where `name` sits in registration order, which is the number every other
 /// `_at` entry point takes.
@@ -911,7 +866,25 @@ pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> 
         has_asset,
         has_record,
     } = resolve(eng, name)?;
+    // A write of what the component already holds changes nothing, and a
+    // script setting a value every frame would otherwise rebuild it every frame.
+    // The component's own reader answers that without building its table.
+    if let Some(asked) = params.as_table()
+        && attached_of(eng, entity).has(index)
+        && property::holds_already(eng, entity, index, asked)
+    {
+        unchanged(eng, entity, index, name, params);
+        return Ok(());
+    }
     let current = get_at(eng, entity, index);
+    if let (Some(toml::Value::Table(held)), Some(asked)) = (&current, params.as_table())
+        && asked
+            .iter()
+            .all(|(key, value)| held.get(key) == Some(value))
+    {
+        unchanged(eng, entity, index, name, params);
+        return Ok(());
+    }
     // The component's own table is the base, taken rather than copied: what
     // `get` leaves out is filled from the request, then from the defaults.
     let mut out = match current {
@@ -953,6 +926,13 @@ pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> 
     apply_at(eng, entity, index, name, &full)?;
     record_at(eng, entity, index, Some(params), false);
     Ok(())
+}
+
+/// What a [`patch`] that changed nothing still owes: the refusal it answers
+/// cleared, and the request filed for a save.
+fn unchanged(eng: &Engine, entity: Entity, index: usize, name: &str, params: &toml::Value) {
+    crate::warnings::accepted(eng, entity, name);
+    record_at(eng, entity, index, Some(params), false);
 }
 
 /// Whether a name is a registered component, as opposed to some other scene
@@ -1083,7 +1063,11 @@ pub fn remove_present(eng: &Engine, entity: Entity) {
     let bits = owed.hooked;
     #[cfg(debug_assertions)]
     let bits = bits | untracked(eng, entity, owed.present);
-    let _ = eng.world_mut().remove_one::<Attached>(entity);
+    // Cleared in place: removing the component moves the node to another
+    // archetype, a copy of everything it holds just before it is despawned.
+    if let Ok(mut held) = eng.world().get::<&mut Attached>(entity) {
+        *held = Attached::default();
+    }
     if bits == 0 {
         return;
     }

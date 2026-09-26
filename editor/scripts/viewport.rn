@@ -2,6 +2,7 @@
 // selection palette, the world-per-pixel scale, and the three questions a
 // tool asks about the current drag.
 
+use crate::defs;
 use crate::history;
 use crate::layout;
 use crate::model;
@@ -231,10 +232,7 @@ pub fn world_per_px(S) {
 
 /// Whether the Snap chip is on.
 pub fn snapping(S) {
-    match S.chip_state.get("scene") {
-        Some(chips) => chips.get("snap").unwrap_or(false) == true,
-        None => false,
-    }
+    defs::chip_on(S, defs::WORKSPACE_SCENE, defs::CHIP_SNAP)
 }
 
 /// The gizmo part under the pointer: the dragged one wins over the hovered.

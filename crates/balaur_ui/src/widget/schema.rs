@@ -116,6 +116,8 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::REVERSE, r#"{ type = "bool", default = false, description = "Take a `table`'s rows the other way round: the `sort` descending, or the order they were given bottom to top where none is named", group = "value" }"#),
                     (k::REORDERABLE, r#"{ type = "bool", default = false, description = "Let a drag move a row of a `list` or a `tree`. The kind moves nothing itself: it draws where the row would land and calls `on_move`, and the rows are the script's to reorder", group = "events" }"#),
                     (k::ON_MOVE, r#"{ type = "string", default = "", description = "Script method called when a dragged row is dropped, with the row moved, the row it landed on, and `before`, `after` or `into`, on this node or the nearest ancestor whose script declares it", group = "events" }"#),
+                    (k::DRAGGABLE, r#"{ type = "bool", default = false, description = "Let a drag carry a card of a `list` with `columns` out of it, drawn under the pointer; `on_drop` says where it was let go", group = "events" }"#),
+                    (k::ON_DROP, r#"{ type = "string", default = "", description = "Script method called with the card a drag let go outside the list, on this node or the nearest ancestor whose script declares it; the pointer is where it landed", group = "events" }"#),
                     (k::OPEN, r#"{ type = "bool", default = true, description = "Whether a `fold` shows its children; its header flips it and calls `on_change` with the new state", group = "events" }"#),
                     (k::INSET, r#"{ type = "vec4", default = [0.0, 0.0, 0.0, 0.0], description = "Left, top, right and bottom margins a root with `anchor = \"fill\"` keeps from its surface, in design pixels", group = "placement" }"#),
                     (k::AVOID_KEYBOARD, r#"{ type = "bool", default = false, description = "On a root: measure the bottom of the surface from the top of the on-screen keyboard, so a form or a chat bar stays above it; nothing on a desktop", group = "placement" }"#),
@@ -396,6 +398,11 @@ fn reach_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>)
         toml::Value::String(widget.suffix.to_string()),
     );
     map.insert(k::ARROWS.into(), toml::Value::Boolean(widget.arrows));
+    map.insert(k::DRAGGABLE.into(), toml::Value::Boolean(widget.draggable));
+    map.insert(
+        k::ON_DROP.into(),
+        toml::Value::String(widget.on_drop.to_string()),
+    );
 }
 
 /// What a `code` widget marks in its gutter and how wide that gutter is.
@@ -839,6 +846,8 @@ fn widget_from(params: &toml::Value) -> Widget {
         reverse: false,
         reorderable: false,
         on_move: smol_str::SmolStr::default(),
+        draggable: false,
+        on_drop: smol_str::SmolStr::default(),
         columns: 2,
         open: true,
         inset: [0.0; 4],
@@ -926,6 +935,8 @@ fn read_controls(widget: &mut Widget, params: &toml::Value) {
     widget.reverse = b(k::REVERSE);
     widget.reorderable = b(k::REORDERABLE);
     widget.on_move = r.str(k::ON_MOVE);
+    widget.draggable = b(k::DRAGGABLE);
+    widget.on_drop = r.str(k::ON_DROP);
     widget.columns = f(k::COLUMNS).max(0.0) as u32;
     widget.open = b(k::OPEN);
     widget.inset = crate::widget::theme::four_of(params.get(k::INSET));

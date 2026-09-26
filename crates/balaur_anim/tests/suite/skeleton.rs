@@ -20,22 +20,22 @@ fn app() -> App {
 const SWING: &str = r#"
 [library]
 length = 1.0
-loop = "loop"
+loop_mode = "linear"
 
 [[library.tracks]]
 target = "Hip/Thigh"
 property = "rotation_euler"
 keys = [
-  { t = 0.0, value = [0.0, 0.0, 0.0] },
-  { t = 1.0, value = [0.0, 0.0, 1.2] },
+  { time = 0.0, value = [0.0, 0.0, 0.0] },
+  { time = 1.0, value = [0.0, 0.0, 1.2] },
 ]
 
 [[library.tracks]]
 target = "Hip"
 property = "position"
 keys = [
-  { t = 0.0, value = [0.0, 1.0, 0.0] },
-  { t = 1.0, value = [0.0, 1.3, 0.0] },
+  { time = 0.0, value = [0.0, 1.0, 0.0] },
+  { time = 1.0, value = [0.0, 1.3, 0.0] },
 ]
 "#;
 

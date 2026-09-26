@@ -276,13 +276,12 @@ fn viewport(S, k) {
         return;
     }
     // Interface overlays: the safe-area inset and the 16:9 frame.
-    let chips_ui = util::obj(S.chip_state.get(S.workspace).unwrap_or(#{}));
-    if S.workspace == "ui" {
+    if S.workspace == defs::WORKSPACE_UI {
         ui::overlay("vp-frames", #{ x: vp.x, y: vp.y, width: vp.w, height: vp.h }, || {
-            if chips_ui.get("safe").unwrap_or(true) {
+            if defs::chip_on(S, defs::WORKSPACE_UI, defs::CHIP_SAFE) {
                 ui::rect_stroke(34.0, 34.0, vp.w - 68.0, vp.h - 68.0, #{ stroke: k.primary_fill, dashed: true });
             }
-            if chips_ui.get("res").unwrap_or(false) {
+            if defs::chip_on(S, defs::WORKSPACE_UI, defs::CHIP_RESOLUTION) {
                 let target = 16.0 / 9.0;
                 let w = vp.w;
                 let h = vp.w / target;
@@ -320,7 +319,7 @@ fn viewport(S, k) {
             ui::spacing(6, 0);
             for c in defs::chips(S.workspace) {
                 let label = c[1];
-                if c[0] == "proj" && S.mode2d {
+                if c[0] == defs::CHIP_PROJECTION && S.mode2d {
                     label = "2D · Orthographic";
                 }
                 chip(S, k, c[0], label, if c.len() > 2 { Some(c[2]) } else { None }, near);
@@ -331,7 +330,7 @@ fn viewport(S, k) {
                 ui::add_space(8);
                 polygon::mode_chips(S, k);
             }
-            if S.workspace == "scene" {
+            if S.workspace == defs::WORKSPACE_SCENE {
                 ui::add_space(8);
                 view_chip(S, k);
                 // The camera slots are the first thing a small window drops:

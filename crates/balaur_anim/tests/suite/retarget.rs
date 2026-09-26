@@ -38,8 +38,8 @@ length = 1.0
 [[tracks]]
 property = "polygon/deform"
 keys = [
-  { t = 0.0, value = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] },
-  { t = 1.0, value = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0] },
+  { time = 0.0, value = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] },
+  { time = 1.0, value = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0] },
 ]
 "#,
     );
@@ -62,8 +62,8 @@ keys = [
 fn a_deform_key_that_is_the_wrong_width_says_so() {
     let text = |value: &str| {
         format!(
-            "length = 1.0\n[[tracks]]\nproperty = \"polygon/deform\"\nkeys = [{{ t = 0.0, value = \
-             [0.0, 0.0] }}, {{ t = 1.0, value = {value} }}]"
+            "length = 1.0\n[[tracks]]\nproperty = \"polygon/deform\"\nkeys = [{{ time = 0.0, value = \
+             [0.0, 0.0] }}, {{ time = 1.0, value = {value} }}]"
         )
     };
     assert!(why(&text("[1.0, 2.0, 3.0, 4.0]")).contains("this track takes 2"));
@@ -71,7 +71,7 @@ fn a_deform_key_that_is_the_wrong_width_says_so() {
     // An odd first key never fixes a width at all.
     assert!(
         why(
-            "length = 1.0\n[[tracks]]\nproperty = \"polygon/deform\"\nkeys = [{ t = 0.0, value = \
+            "length = 1.0\n[[tracks]]\nproperty = \"polygon/deform\"\nkeys = [{ time = 0.0, value = \
              [1.0] }]"
         )
         .contains("two per vertex")
@@ -91,13 +91,13 @@ length = 1.0
 [[tracks]]
 property = "polygon/deform"
 keys = [
-  { t = 0.0, value = [0.0, 0.0, 0.0, 0.0] },
-  { t = 1.0, value = [0.0, 1.0, 0.0, -1.0] },
+  { time = 0.0, value = [0.0, 0.0, 0.0, 0.0] },
+  { time = 1.0, value = [0.0, 1.0, 0.0, -1.0] },
 ]
 "#,
     )
     .unwrap();
-    balaur_anim::define(&app.engine, node, "wave", def).unwrap();
+    balaur_anim::add_clip(&app.engine, node, "wave", def).unwrap();
     balaur_anim::play(&app.engine, node, "wave").unwrap();
 
     // One tick in, the track is barely off its first key: the component is
@@ -162,11 +162,11 @@ length = 1.0
 [[tracks]]
 target = "Hips"
 property = "rotation_euler"
-keys = [ { t = 0.0, value = [0.0, 0.0, 0.0] } ]
+keys = [ { time = 0.0, value = [0.0, 0.0, 0.0] } ]
 "#,
     )
     .unwrap();
-    balaur_anim::define(&app.engine, rig, "idle", def).unwrap();
+    balaur_anim::add_clip(&app.engine, rig, "idle", def).unwrap();
 
     // Without a map the track names no node and the bone keeps its rest.
     balaur_anim::play(&app.engine, rig, "idle").unwrap();
@@ -195,11 +195,11 @@ length = 1.0
 [[tracks]]
 target = "Hips"
 property = "rotation_euler"
-keys = [ { t = 0.0, value = [0.0, 0.0, 0.5] } ]
+keys = [ { time = 0.0, value = [0.0, 0.0, 0.5] } ]
 "#,
     )
     .unwrap();
-    balaur_anim::define(&app.engine, rig, "turn", turned).unwrap();
+    balaur_anim::add_clip(&app.engine, rig, "turn", turned).unwrap();
     balaur_anim::play(&app.engine, rig, "turn").unwrap();
     app.tick(1.0 / 60.0);
     let angle = angle_about_z(app.engine.world().get::<&Transform>(hips).unwrap().rotation);
@@ -247,14 +247,14 @@ fn a_deform_and_a_transform_track_share_one_clip() {
 length = 1.0
 [[tracks]]
 property = "position"
-keys = [ { t = 0.0, value = [0.0, 0.0, 0.0] }, { t = 1.0, value = [4.0, 0.0, 0.0] } ]
+keys = [ { time = 0.0, value = [0.0, 0.0, 0.0] }, { time = 1.0, value = [4.0, 0.0, 0.0] } ]
 [[tracks]]
 property = "polygon/deform"
-keys = [ { t = 0.0, value = [0.0, 0.0] }, { t = 1.0, value = [8.0, 0.0] } ]
+keys = [ { time = 0.0, value = [0.0, 0.0] }, { time = 1.0, value = [8.0, 0.0] } ]
 "#,
     )
     .unwrap();
-    balaur_anim::define(&app.engine, node, "both", def).unwrap();
+    balaur_anim::add_clip(&app.engine, node, "both", def).unwrap();
     balaur_anim::play(&app.engine, node, "both").unwrap();
     for _ in 0..30 {
         app.tick(1.0 / 60.0);

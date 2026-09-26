@@ -19,18 +19,18 @@ fn app() -> App {
 }
 
 /// A clip that lifts a node ten units over one second, written inline.
-fn rise(wrap: &str) -> String {
+fn rise(loop_mode: &str) -> String {
     format!(
         r#"
 [library]
 length = 1.0
-loop = "{wrap}"
+loop_mode = "{loop_mode}"
 
 [[library.tracks]]
 property = "position"
 keys = [
-  {{ t = 0.0, value = [0.0, 0.0, 0.0] }},
-  {{ t = 1.0, value = [0.0, 10.0, 0.0] }},
+  {{ time = 0.0, value = [0.0, 0.0, 0.0] }},
+  {{ time = 1.0, value = [0.0, 10.0, 0.0] }},
 ]
 "#
     )
@@ -77,7 +77,7 @@ fn height(app: &App, entity: Entity) -> f32 {
 #[test]
 fn a_rollback_across_a_playing_clip_restores_the_playhead() {
     let mut app = app();
-    let node = playing(&app, "n_platform", &rise("loop"));
+    let node = playing(&app, "n_platform", &rise("linear"));
     tick(&mut app, 10);
     let at = balaur_anim::time(&app.engine, node);
     let frame = snapshot::capture(&app.engine);
@@ -97,7 +97,7 @@ fn a_rollback_across_a_playing_clip_restores_the_playhead() {
 #[test]
 fn re_simulating_from_a_snapshot_reaches_the_same_pose() {
     let mut app = app();
-    let node = playing(&app, "n_platform", &rise("loop"));
+    let node = playing(&app, "n_platform", &rise("linear"));
     tick(&mut app, 10);
     let frame = snapshot::capture(&app.engine);
     tick(&mut app, 20);
@@ -120,27 +120,27 @@ fn re_simulating_from_a_snapshot_reaches_the_same_pose() {
 #[test]
 fn a_rollback_mid_crossfade_restores_every_fade_in_the_stack() {
     let mut app = app();
-    let node = playing(&app, "n_platform", &rise("loop"));
+    let node = playing(&app, "n_platform", &rise("linear"));
     let hold: toml::Value = toml::from_str(
         r#"
         length = 1.0
-        loop = "loop"
+        loop_mode = "linear"
         [[tracks]]
         property = "position"
-        keys = [{ t = 0.0, value = [0.0, 5.0, 0.0] }, { t = 1.0, value = [0.0, 5.0, 0.0] }]
+        keys = [{ time = 0.0, value = [0.0, 5.0, 0.0] }, { time = 1.0, value = [0.0, 5.0, 0.0] }]
         "#,
     )
     .unwrap();
-    balaur_anim::define(&app.engine, node, "hold", hold).unwrap();
+    balaur_anim::add_clip(&app.engine, node, "hold", hold).unwrap();
     let fades = |app: &App| {
         app.engine.resource::<AnimationState>().borrow().players[&node]
             .fades
             .len()
     };
     tick(&mut app, 10);
-    balaur_anim::player::play_faded(&app.engine, node, "hold", 0.5, Easing::LINEAR, true).unwrap();
+    balaur_anim::player::play_blended(&app.engine, node, "hold", 0.5, Easing::LINEAR, true).unwrap();
     tick(&mut app, 5);
-    balaur_anim::player::play_faded(&app.engine, node, "", 0.5, Easing::LINEAR, true).unwrap();
+    balaur_anim::player::play_blended(&app.engine, node, "", 0.5, Easing::LINEAR, true).unwrap();
     tick(&mut app, 2);
     assert_eq!(fades(&app), 2);
     let frame = snapshot::capture(&app.engine);
@@ -156,7 +156,7 @@ fn a_rollback_mid_crossfade_restores_every_fade_in_the_stack() {
 #[test]
 fn a_paused_player_digests_differently_from_a_playing_one() {
     let mut app = app();
-    let node = playing(&app, "n_platform", &rise("loop"));
+    let node = playing(&app, "n_platform", &rise("linear"));
     tick(&mut app, 10);
     let playing = digest::digest(&app.engine);
     let pose = height(&app, node).to_bits();
@@ -174,7 +174,7 @@ fn a_paused_player_digests_differently_from_a_playing_one() {
 #[test]
 fn a_stopped_clip_and_a_played_one_at_the_same_pose_digest_differently() {
     let mut app = app();
-    let node = playing(&app, "n_platform", &rise("loop"));
+    let node = playing(&app, "n_platform", &rise("linear"));
     tick(&mut app, 10);
     let before = digest::entries(&app.engine);
     balaur_anim::stop(&app.engine, node);
@@ -192,7 +192,7 @@ fn a_stopped_clip_and_a_played_one_at_the_same_pose_digest_differently() {
 #[test]
 fn the_snapshot_carries_the_fixed_step_residual() {
     let mut app = app();
-    animated(&app, "n_platform", &rise("loop"));
+    animated(&app, "n_platform", &rise("linear"));
     // A frame that does not divide the fixed step leaves time owed; a replay
     // or a rollback that dropped it would take its steps on other frames.
     app.tick(0.03);
@@ -236,11 +236,11 @@ fn a_tween_that_finished_after_the_snapshot_comes_back_with_it() {
 #[test]
 fn a_player_on_a_node_the_snapshot_never_saw_is_dropped_by_the_restore() {
     let mut app = app();
-    let first = playing(&app, "n_first", &rise("loop"));
+    let first = playing(&app, "n_first", &rise("linear"));
     tick(&mut app, 5);
     let frame = snapshot::capture(&app.engine);
 
-    let second = playing(&app, "n_second", &rise("loop"));
+    let second = playing(&app, "n_second", &rise("linear"));
     tick(&mut app, 5);
     assert!(balaur_anim::is_playing(&app.engine, second));
 
@@ -339,7 +339,7 @@ fn a_rollback_puts_a_jiggle_spring_back_mid_swing() {
 fn a_session_starts_the_playhead_step_from_a_frame_boundary() {
     let dir = tempfile::tempdir().unwrap();
     let mut app = app();
-    let hero = playing(&app, "hero", &rise("loop"));
+    let hero = playing(&app, "hero", &rise("linear"));
     // Just short of a step: nothing moves, and the remainder is nearly one.
     app.advance(0.0166);
     assert!(height(&app, hero).abs() < f32::EPSILON);

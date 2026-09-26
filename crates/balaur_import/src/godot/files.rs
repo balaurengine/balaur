@@ -858,7 +858,7 @@ func _process(_delta):
         assert_eq!(player["animation"]["autoplay"].as_str(), Some("fade"));
         let clips = read(out.path(), library);
         let fade = &clips["clips"]["fade"];
-        assert_eq!(fade["loop"].as_str(), Some("loop"));
+        assert_eq!(fade["loop_mode"].as_str(), Some("linear"));
         let tracks = fade["tracks"].as_array().unwrap();
         assert_eq!(tracks[0]["property"].as_str(), Some("tint"));
         assert_eq!(tracks[0]["target"].as_str(), Some("Ship"));
@@ -968,11 +968,11 @@ func _process(_delta):
         assert_eq!(machine["start"].as_str(), Some("idle"));
         let go = &machine["transitions"][0];
         assert_eq!(go["condition"].as_str(), Some("moving"));
-        assert_eq!(go["advance"].as_str(), Some("auto"));
-        assert_eq!(go["fade"].as_float(), Some(0.2));
+        assert_eq!(go["advance_mode"].as_str(), Some("auto"));
+        assert_eq!(go["blend_time"].as_float(), Some(0.2));
         assert_eq!(go["reset"].as_bool(), Some(false));
         assert_eq!(go["priority"].as_integer(), Some(3));
-        assert_eq!(go["break_loop"].as_bool(), Some(true));
+        assert_eq!(go["break_loop_at_end"].as_bool(), Some(true));
         assert!(
             tree["animation"]["library"].as_str().is_some(),
             "the tree plays its own clips"
@@ -1120,7 +1120,7 @@ func _process(_delta):
             app.tick(1.0 / 60.0);
         }
         assert_eq!(
-            balaur::animation::machine::state(&app.engine, tree).as_deref(),
+            balaur::animation::machine::current_state(&app.engine, tree).as_deref(),
             Some("walk"),
             "the converted script turned the tree on and travelled"
         );

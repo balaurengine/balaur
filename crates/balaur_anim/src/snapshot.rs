@@ -24,7 +24,7 @@ use glamx::{Quat, Vec3, Vec4};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::clip::{Clip, Interp, Key, Property, Track, Wrap};
+use crate::clip::{Clip, Interpolation, Key, Property, Track, LoopMode};
 use crate::ease::Easing;
 use crate::machine::MachineRun;
 use crate::modifier::Jiggle;
@@ -67,10 +67,10 @@ struct PlayerFrame {
     autoplay: String,
     clip_name: String,
     time: f32,
-    speed: f32,
+    speed_scale: f32,
     playing: bool,
     paused: bool,
-    root: String,
+    root_node: String,
     queue: Vec<String>,
     defined: Vec<(String, String)>,
     finished: String,
@@ -98,7 +98,7 @@ struct FadeFrame {
     #[serde(default)]
     curve: Vec<[f32; 2]>,
     #[serde(default)]
-    break_loop: bool,
+    break_loop_at_end: bool,
 }
 
 /// One running tween, generated clip included: a tween that ended between the
@@ -123,7 +123,7 @@ struct TweenFrame {
 #[derive(Serialize, Deserialize)]
 struct ClipFrame {
     length: f32,
-    wrap: String,
+    loop_mode: String,
     tracks: Vec<TrackFrame>,
 }
 
@@ -133,13 +133,13 @@ struct TrackFrame {
     /// `None` is a method track, which is a clip document with no `property`.
     property: Option<String>,
     channels: usize,
-    interp: String,
+    interpolation: String,
     keys: Vec<KeyFrame>,
 }
 
 #[derive(Serialize, Deserialize)]
 struct KeyFrame {
-    t: f32,
+    time: f32,
     value: [f32; 4],
     call: Option<String>,
     #[serde(default)]
@@ -172,7 +172,7 @@ struct MachineFrame {
     entity: u64,
     reference: String,
     player: String,
-    active: bool,
+    enabled: bool,
     current: String,
     travel: Vec<String>,
     jump: Option<String>,
@@ -222,10 +222,10 @@ fn capture(eng: &Engine) -> Value {
                 autoplay: playback.autoplay.clone(),
                 clip_name: playback.clip_name.clone(),
                 time: playback.time,
-                speed: playback.speed,
+                speed_scale: playback.speed_scale,
                 playing: playback.playing,
                 paused: playback.paused,
-                root: playback.root.clone(),
+                root_node: playback.root_node.clone(),
                 queue: playback.queue.clone(),
                 defined: playback
                     .defined
@@ -277,7 +277,7 @@ fn capture(eng: &Engine) -> Value {
                 entity: entity.to_bits().get(),
                 reference: run.reference.clone(),
                 player: run.player.clone(),
-                active: run.active,
+                enabled: run.enabled,
                 current: run.current.clone(),
                 travel: run.travel.clone(),
                 jump: run.jump.clone(),
@@ -309,7 +309,7 @@ fn fade_frame(fade: &crate::player::Fade) -> FadeFrame {
             .as_ref()
             .map(|curve| curve.points().to_vec())
             .unwrap_or_default(),
-        break_loop: fade.break_loop,
+        break_loop_at_end: fade.break_loop_at_end,
     }
 }
 
@@ -433,7 +433,7 @@ fn machines_of(eng: &Engine, frames: Vec<MachineFrame>) -> Vec<(Entity, MachineR
             let mut run = MachineRun {
                 reference: machine.reference,
                 player: machine.player,
-                active: machine.active,
+                enabled: machine.enabled,
                 current: machine.current,
                 travel: machine.travel,
                 jump: machine.jump,
@@ -514,7 +514,7 @@ fn fades_for(eng: &Engine, player: &PlayerFrame) -> Vec<crate::player::Fade> {
                 ease: Easing::parse(&fade.ease).unwrap_or(Easing::LINEAR),
                 curve: (!fade.curve.is_empty())
                     .then(|| crate::ease::Points::from_points(fade.curve.clone())),
-                break_loop: fade.break_loop,
+                break_loop_at_end: fade.break_loop_at_end,
             })
         })
         .collect()
@@ -549,10 +549,10 @@ fn playback_of(
         clip_name: player.clip_name,
         clip,
         time: player.time,
-        speed: player.speed,
+        speed_scale: player.speed_scale,
         playing: player.playing,
         paused: player.paused,
-        root: player.root,
+        root_node: player.root_node,
         queue: player.queue,
         finished: player.finished,
         retarget,
@@ -568,7 +568,7 @@ fn playback_of(
 fn clip_frame(clip: &Clip) -> ClipFrame {
     ClipFrame {
         length: clip.length,
-        wrap: clip.wrap.name().to_string(),
+        loop_mode: clip.loop_mode.name().to_string(),
         tracks: clip
             .tracks
             .iter()
@@ -576,12 +576,12 @@ fn clip_frame(clip: &Clip) -> ClipFrame {
                 target: track.target.clone(),
                 property: track.property.name(),
                 channels: track.channels,
-                interp: track.interp.name().to_string(),
+                interpolation: track.interpolation.name().to_string(),
                 keys: track
                     .keys
                     .iter()
                     .map(|key| KeyFrame {
-                        t: key.t,
+                        time: key.time,
                         value: key.value.to_array(),
                         call: key.call.clone(),
                         function: key.function,
@@ -599,7 +599,7 @@ fn clip_frame(clip: &Clip) -> ClipFrame {
 fn clip_of(frame: &ClipFrame) -> Clip {
     Clip {
         length: frame.length,
-        wrap: Wrap::parse(&frame.wrap).unwrap_or(Wrap::None),
+        loop_mode: LoopMode::parse(&frame.loop_mode).unwrap_or(LoopMode::None),
         tracks: frame
             .tracks
             .iter()
@@ -609,12 +609,12 @@ fn clip_of(frame: &ClipFrame) -> Clip {
                     Property::parse(name).unwrap_or(Property::Call)
                 }),
                 channels: track.channels,
-                interp: Interp::parse(&track.interp).unwrap_or(Interp::Linear),
+                interpolation: Interpolation::parse(&track.interpolation).unwrap_or(Interpolation::Linear),
                 keys: track
                     .keys
                     .iter()
                     .map(|key| Key {
-                        t: key.t,
+                        time: key.time,
                         value: Vec4::from(key.value),
                         call: key.call.clone(),
                         function: key.function,
@@ -652,7 +652,7 @@ fn digest_source(eng: &Engine, out: &mut Vec<Entry>) {
         }
         let mut h = Hasher::new();
         h.write_f32(playback.time);
-        h.write_f32(playback.speed);
+        h.write_f32(playback.speed_scale);
         h.write(&[u8::from(playback.playing), u8::from(playback.paused)]);
         h.write_str(&playback.clip_name);
         h.write_str(&playback.finished);

@@ -5858,6 +5858,12 @@
         "description": "Grey the widget out and swallow its clicks",
         "type": "bool"
       },
+      "draggable": {
+        "default": false,
+        "description": "Let a drag carry a card of a `list` with `columns` out of it, drawn under the pointer; `on_drop` says where it was let go",
+        "group": "events",
+        "type": "bool"
+      },
       "draw": {
         "default": "",
         "description": "What fills a `draw` widget: a script method on this node or the nearest scripted ancestor, or `scripts/file.rn:function` for a free function",
@@ -6147,6 +6153,12 @@
       "on_click": {
         "default": "",
         "description": "Script method called when the widget is clicked, on this node or the nearest ancestor whose script declares it. An `image` that names one senses clicks too, which is how a picture becomes a button",
+        "group": "events",
+        "type": "string"
+      },
+      "on_drop": {
+        "default": "",
+        "description": "Script method called with the card a drag let go outside the list, on this node or the nearest ancestor whose script declares it; the pointer is where it landed",
         "group": "events",
         "type": "string"
       },

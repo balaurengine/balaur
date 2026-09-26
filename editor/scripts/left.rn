@@ -1,6 +1,7 @@
 // Left column (262 px): node tree + per-workspace secondary panel.
 
 use crate::anim;
+use crate::defs;
 use crate::icons;
 use crate::model;
 use crate::shell;
@@ -65,7 +66,7 @@ fn row(icon, name, meta, key, run) {
 // Returns the section title and its rows; drawing is the caller's, so the
 // tree above can size itself to what this actually holds.
 fn secondary_content(S) {
-    if S.workspace == "script" {
+    if S.workspace == defs::WORKSPACE_SCRIPT {
         let rows = [];
         for f in model::list(S, "scripts") {
             if !f.is_dir && f.name.ends_with(".rn") {
@@ -82,7 +83,7 @@ fn secondary_content(S) {
         }
         // `return`: a bare tuple after an `if` block parses as a call on the block's value.
         return ("Rune modules", rows);
-    } else if S.workspace == "physics" {
+    } else if S.workspace == defs::WORKSPACE_PHYSICS {
         // A 2D scene carries `body2d`/`collider2d`; reading `body` alone left
         // this panel empty for every 2D project.
         let rows = [];
@@ -103,7 +104,7 @@ fn secondary_content(S) {
             rows.push(row("▣", "no bodies or colliders", "", "", || {}));
         }
         return ("Collision", rows);
-    } else if S.workspace == "animation" {
+    } else if S.workspace == defs::WORKSPACE_ANIMATION {
         let rows = [];
         for (i, node) in S.doc.iter().enumerate() {
             if anim::component(node).is_some() {
@@ -121,7 +122,7 @@ fn secondary_content(S) {
             rows.push(row("◷", format!("no clips — {} Key in Timeline", icons::ui("add")), "", "", || {}));
         }
         return ("Clips", rows);
-    } else if S.workspace == "ui" {
+    } else if S.workspace == defs::WORKSPACE_UI {
         // Two ways a node puts something on screen: a `widget` component in the
         // scene, or a script with a `draw_ui` hook. Listing only the second
         // said "no UI scripts" over a viewport full of widgets.

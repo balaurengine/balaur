@@ -1,9 +1,9 @@
-//! Easing: twelve transitions in four modes, and the names Godot gives them.
+//! Easing: eleven transitions in four modes, and the names Godot gives them.
 //!
 //! A curve is named `<mode>_<transition>` — `in_quad`, `out_back`,
 //! `in_out_elastic` — with mode one of `in`, `out`, `in_out`, `out_in` and
-//! transition one of the twelve below. `linear` is also spelled bare, because
-//! all four of its modes are the same straight line. The shapes are Godot's,
+//! transition one of the eleven curved ones below. A straight line is `linear`
+//! alone, because all four of its modes are the same line. The shapes are Godot's,
 //! so a curve ported from a Godot project moves the same way here.
 //!
 //! Every transcendental is `libm`'s. `f32::sin`, `f32::powf` and `f32::exp2`
@@ -51,15 +51,11 @@ pub enum Mode {
 
 /// Every curve, by the name a document spells it with.
 ///
-/// Index 0 is the bare `linear`; after it come the twelve transitions in
+/// Index 0 is the bare `linear`; after it come the eleven transitions in
 /// four modes each, in `TRANSITIONS` × `MODES` order, which is what
 /// [`Easing::transition`] and [`Easing::mode`] read back out of the index.
-const NAMES: [&str; 49] = [
+const NAMES: [&str; 45] = [
     "linear",
-    "in_linear",
-    "out_linear",
-    "in_out_linear",
-    "out_in_linear",
     "in_sine",
     "out_sine",
     "in_out_sine",
@@ -106,8 +102,7 @@ const NAMES: [&str; 49] = [
     "out_in_spring",
 ];
 
-const TRANSITIONS: [Transition; 12] = [
-    Transition::Linear,
+const TRANSITIONS: [Transition; 11] = [
     Transition::Sine,
     Transition::Quad,
     Transition::Cubic,
@@ -157,7 +152,7 @@ impl Easing {
                 anyhow!(
                     "`ease = \"{name}\"` is not a curve; a curve is <mode>_<transition> with \
                      mode one of \"in\", \"out\", \"in_out\", \"out_in\" and transition one of \
-                     \"linear\", \"sine\", \"quad\", \"cubic\", \"quart\", \"quint\", \"expo\", \
+                     \"sine\", \"quad\", \"cubic\", \"quart\", \"quint\", \"expo\", \
                      \"circ\", \"back\", \"elastic\", \"bounce\", \"spring\" — or plain \"linear\""
                 )
             })
@@ -281,7 +276,7 @@ impl Points {
 }
 
 /// Every curve's name, in declaration order: the bare `linear`, then the
-/// twelve transitions in four modes each.
+/// eleven transitions in four modes each.
 ///
 /// The catalogue the editor's curve picker reads, and what a test asserts is
 /// reachable one by one.

@@ -853,6 +853,58 @@ fn a_list_that_does_not_reorder_reports_no_drop() {
 }
 
 #[test]
+fn a_card_dragged_out_of_its_list_reports_itself_where_it_was_let_go() {
+    let script = "pub fn init(this) {\n    this.said = \"\";\n}\n\
+                  pub fn on_drop(this, card) {\n    this.said = card;\n}\n\
+                  pub fn said(this) {\n    this.said\n}\n";
+    let dropped = |to: egui::Pos2| {
+        let (_dir, mut app) = app_with_script(script);
+        let root = app.engine.root();
+        let owner = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Owner", root);
+        let host = app.engine.script_host().unwrap();
+        host.attach(balaur::node_id_of(owner), "scripts/paint.rn")
+            .unwrap();
+        add_child_widget(
+            &app,
+            owner,
+            "Cards",
+            &toml::toml! {
+                kind = "list" x = 0.0 y = 0.0 width = 240.0 height = 120.0
+                columns = 3 draggable = true on_drop = "on_drop"
+                options = ["One", "Two", "Three"]
+            }
+            .into(),
+        );
+        let ctx = egui::Context::default();
+        settle(&app, &ctx);
+        let drawn = texts(&pass(&app, &ctx, vec![]));
+        let from = drawn
+            .iter()
+            .find(|(t, _)| t == "One")
+            .map_or_else(|| panic!("One is drawn"), |(_, p)| *p);
+        pass(&app, &ctx, press(from, true));
+        pass(&app, &ctx, vec![egui::Event::PointerMoved(to)]);
+        pass(&app, &ctx, vec![egui::Event::PointerMoved(to)]);
+        pass(&app, &ctx, press(to, false));
+        consume_input(&mut app);
+        match host.call_on(balaur::node_id_of(owner), "said", &[]) {
+            Some(balaur_script::Value::Str(said)) => said,
+            other => panic!("the script answered {other:?}"),
+        }
+    };
+    assert_eq!(
+        dropped(egui::pos2(500.0, 400.0)),
+        "One",
+        "a card let go outside its list names itself"
+    );
+    assert_eq!(
+        dropped(egui::pos2(200.0, 20.0)),
+        "",
+        "and one let go back over the list is no drop"
+    );
+}
+
+#[test]
 fn a_table_puts_every_cell_where_its_text_align_says() {
     let places = |align: &str| {
         let (_dir, app) = app();

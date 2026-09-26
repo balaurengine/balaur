@@ -371,6 +371,8 @@ pub(crate) mod keys {
     pub(crate) const REVERSE: &str = "reverse";
     pub(crate) const REORDERABLE: &str = "reorderable";
     pub(crate) const ON_MOVE: &str = "on_move";
+    pub(crate) const DRAGGABLE: &str = "draggable";
+    pub(crate) const ON_DROP: &str = "on_drop";
     /// The `[colors]` a `list`, `tree` or `table` paints its parts with.
     pub(crate) const ROW_SELECTED: &str = "row_selected";
     pub(crate) const ROW_SELECTED_TEXT: &str = "row_selected_text";

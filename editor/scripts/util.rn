@@ -133,6 +133,9 @@ pub fn vec2(v, fallback) {
     }
 }
 
+/// Texture pixels to one world unit when a component names none.
+pub const DEFAULT_PIXELS_PER_UNIT = 100.0;
+
 /// A live node's `Vec3` as the `[x, y, z]` the draw and document code uses.
 pub fn xyz(v) {
     [v.x, v.y, v.z]

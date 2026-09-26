@@ -201,3 +201,46 @@ fn a_hex_colour_reaches_apply_expanded_through_patch_as_well_as_add() {
         table("v = [1.0, 0.0, 0.0, 1.0]").get("v").unwrap().clone()
     );
 }
+
+/// Mark the dial as it stands, where `get` cannot see: a later `apply`
+/// replaces the dial, and the mark with it.
+fn stamp(app: &App, entity: hecs::Entity) {
+    let world = app.engine.world();
+    let mut dial = world.get::<&mut Dial>(entity).unwrap();
+    dial.0
+        .as_table_mut()
+        .unwrap()
+        .insert("stamp".into(), toml::Value::Boolean(true));
+}
+
+fn stamped(app: &App, entity: hecs::Entity) -> bool {
+    let world = app.engine.world();
+    world.get::<&Dial>(entity).unwrap().0.get("stamp").is_some()
+}
+
+#[test]
+fn a_patch_of_what_the_component_already_holds_does_not_apply_it_again() {
+    let app = app_with_dial();
+    let entity = spawn(&app);
+    components::add(
+        &app.engine,
+        entity,
+        "dial",
+        Some(&table(r#"label = "gauge""#)),
+    )
+    .unwrap();
+    stamp(&app, entity);
+
+    components::patch(&app.engine, entity, "dial", &table(r#"label = "gauge""#)).unwrap();
+    assert!(
+        stamped(&app, entity),
+        "an unchanged value rebuilt the component"
+    );
+
+    components::patch(&app.engine, entity, "dial", &table(r#"label = "meter""#)).unwrap();
+    assert!(!stamped(&app, entity), "a changed value was not applied");
+    assert_eq!(
+        read(&app, entity, "label"),
+        toml::Value::String("meter".into())
+    );
+}

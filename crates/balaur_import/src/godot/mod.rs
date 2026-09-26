@@ -26,6 +26,7 @@ pub(crate) mod exports;
 pub(crate) mod files;
 pub(crate) mod gdscript;
 pub(crate) mod io;
+pub(crate) mod keys;
 pub(crate) mod machine;
 pub(crate) mod material;
 pub(crate) mod nodes;

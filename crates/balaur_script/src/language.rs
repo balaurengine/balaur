@@ -68,6 +68,13 @@ pub trait ScriptHost<C: ?Sized> {
     /// Detach and run `on_free`. Not an error for a node without a script.
     fn detach(&self, node: NodeId);
 
+    /// [`Self::detach`] for every node a frame frees, in that order.
+    fn detach_all(&self, nodes: &[NodeId]) {
+        for &node in nodes {
+            self.detach(node);
+        }
+    }
+
     /// Per-frame tick of every live instance, at the measured frame time.
     /// Presentation: anything a dropped or doubled frame may safely skip.
     fn update(&self, dt: f32);

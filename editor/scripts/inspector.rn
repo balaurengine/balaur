@@ -1,6 +1,7 @@
 // Inspector (308 px): live node properties, editable, per-workspace sections.
 
 use crate::anim;
+use crate::defs;
 use crate::icons;
 use crate::model;
 use crate::polygon;
@@ -314,7 +315,7 @@ fn script_section(S, k, title) {
             #{
                 kind: "button", role: "action_form_primary", text: "open",
                 tooltip: "Edit it in the code pane",
-                on: |_| { shell::set_workspace(S, "script"); },
+                on: |_| { shell::set_workspace(S, defs::WORKSPACE_SCRIPT); },
             },
             #{
                 kind: "button", role: "action_form_danger", text: "remove",
@@ -552,7 +553,7 @@ fn polygon_section(S, k) {
         },
     });
     verb_row(S, "Mirror", mirrors);
-    if S.workspace == "animation" {
+    if S.workspace == defs::WORKSPACE_ANIMATION {
         let deformed = polygon::deformed(S);
         verb_row(S, "Deform", [
             #{
@@ -620,7 +621,7 @@ fn animation_section(S, k) {
             return;
         }
     };
-    // The clip and the rate are `animation.autoplay` and `animation.speed`,
+    // The clip and the rate are `animation.autoplay` and `animation.speed_scale`,
     // edited in the player's own ANIMATION section rather than twice.
     clip_source_row(S, k, node);
     // No `min`: a `drag_value` runs free only while `min` and `max` are both
@@ -635,12 +636,12 @@ fn animation_section(S, k) {
     }] });
     // The engine's own vocabulary, not a boolean: pingpong is a third answer
     // and a toggle cannot say it.
-    push(S, #{ label: "Loop", height: row_h(S), controls: [#{
+    push(S, #{ label: "Loop mode", height: row_h(S), controls: [#{
         kind: "dropdown", grow: 1,
-        text: def.get("loop").unwrap_or(animation::LOOP_NONE),
-        options: [animation::LOOP_NONE, animation::LOOP_LOOP, animation::LOOP_PINGPONG],
+        text: def.get("loop_mode").unwrap_or(animation::LOOP_NONE),
+        options: [animation::LOOP_NONE, animation::LOOP_LINEAR, animation::LOOP_PINGPONG],
         on: |v| {
-            def["loop"] = v;
+            def["loop_mode"] = v;
             anim::touch(S);
         },
     }] });
@@ -662,14 +663,14 @@ fn interface_section(S, k) {
         role: if draws { "text_code_success" } else { "text_code_quiet" },
         text: if draws { "yes · draw_ui()" } else { "no" },
     }] });
-    if !S.chip_state.contains_key("ui") {
-        S.chip_state["ui"] = #{};
+    if !S.chip_state.contains_key(defs::WORKSPACE_UI) {
+        S.chip_state[defs::WORKSPACE_UI] = #{};
     }
-    let chips = S.chip_state["ui"];
+    let chips = S.chip_state[defs::WORKSPACE_UI];
     push(S, #{ label: "Safe area", height: row_h(S), controls: [#{
         kind: "switch", role: "switch_form",
-        checked: chips.get("safe").unwrap_or(false) == true,
-        on: |on| { chips.safe = on; },
+        checked: defs::chip_on(S, defs::WORKSPACE_UI, defs::CHIP_SAFE),
+        on: |on| { chips[defs::CHIP_SAFE] = on; },
     }] });
 }
 

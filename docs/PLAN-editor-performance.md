@@ -6,7 +6,8 @@
 >
 > Sections 5 to 7 ask a different question, on `examples/hello`: what the frame
 > costs outside the docks. The instrument in §7 is built and the allocation
-> fixes §5 names have landed; nothing else in this plan has.
+> fixes §5 names have landed; nothing else in this plan has. §6h's engine
+> fixes landed 2026-09-26 with ratios only, taken under load.
 
 # Plan: what the editor's frame costs
 
@@ -443,6 +444,35 @@ three:
 Where the rest of it sits, on `examples/hello` before this landed: the chrome
 with every dock shut was 5.8 ms of the 12.3, the inspector 2.7, the Output
 dock 2.4 and the outliner 1.5.
+
+## 6h. Work a frame did that changed nothing
+
+**Built 2026-09-26.** Sampled with `sample` on `examples/benchmark`'s script
+shapes, 2000 nodes each, and on the editor. Every figure here was taken with
+the load average between 50 and 100, so only the ratio within an interleaved
+pair holds. Re-run them on an idle machine and put the numbers here.
+
+- `propagate_transforms` made six `world.get` calls a node. One `view_mut`
+  lookup now reads all six: `propagate_transforms/1000` went from 1.34 ms to
+  243 µs.
+- The camera system collected every node in the tree each frame to find the
+  current camera. It queries the two camera components now and walks the tree
+  only when two cameras are current. With the change above, `scene_sync` on a
+  2000-node shape case went from 4.3–6.3 ms to 0.3–0.8 ms.
+- `components::patch` of values the component already holds returns before
+  rebuilding it. The component's own reader answers first, and the whole table
+  only when it cannot. The `component_read` shape went from 68 to 26 ms.
+- A script throwing in `update` rendered its diagnostic on every throw, about
+  26 µs each. The first throw at an instruction renders; the rest are counted
+  and said at 10, 100 and 1000.
+- A freed node had `Attached` removed, a move to another archetype just before
+  the despawn; it is cleared in place. Scripts detach in one pass over the
+  instances. Deleting 50,000 children went from 103–351 ms to 76–103 ms.
+
+The editor's own script is the other half of its frame. `hello` now costs
+144,085 instructions a frame against §5's 71,436, so the shell's work doubled
+since 2026-09-21, and nothing above touches it. Ablation, as §5 did it, is
+what finds where.
 
 ## 7. The instrument
 

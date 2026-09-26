@@ -1,13 +1,32 @@
 
 use crate::icons;
 
+/// The id each workspace is known by; `workspaces` lists them in order.
+pub const WORKSPACE_SCENE = "scene";
+pub const WORKSPACE_SCRIPT = "script";
+pub const WORKSPACE_ANIMATION = "animation";
+pub const WORKSPACE_PHYSICS = "physics";
+pub const WORKSPACE_UI = "ui";
+
+/// The viewport chips by key; `chips` says which workspace shows each and
+/// what it starts as.
+pub const CHIP_PROJECTION = "proj";
+pub const CHIP_SNAP = "snap";
+pub const CHIP_GUIDES = "guides";
+pub const CHIP_LIGHTS = "lights";
+pub const CHIP_PATH = "path";
+pub const CHIP_COLLIDERS = "colliders";
+pub const CHIP_SLEEP = "sleep";
+pub const CHIP_SAFE = "safe";
+pub const CHIP_RESOLUTION = "res";
+
 pub fn workspaces() {
     [
-        #{ id: "scene", name: "Scene", icon: icons::workspace("scene") },
-        #{ id: "script", name: "Script", icon: icons::workspace("script") },
-        #{ id: "animation", name: "Animation", icon: icons::workspace("animation") },
-        #{ id: "physics", name: "Physics", icon: icons::workspace("physics") },
-        #{ id: "ui", name: "UI", icon: icons::workspace("ui") },
+        #{ id: WORKSPACE_SCENE, name: "Scene", icon: icons::workspace(WORKSPACE_SCENE) },
+        #{ id: WORKSPACE_SCRIPT, name: "Script", icon: icons::workspace(WORKSPACE_SCRIPT) },
+        #{ id: WORKSPACE_ANIMATION, name: "Animation", icon: icons::workspace(WORKSPACE_ANIMATION) },
+        #{ id: WORKSPACE_PHYSICS, name: "Physics", icon: icons::workspace(WORKSPACE_PHYSICS) },
+        #{ id: WORKSPACE_UI, name: "UI", icon: icons::workspace(WORKSPACE_UI) },
     ]
 }
 
@@ -102,10 +121,27 @@ pub fn tool_icon(tool) {
 // no third entry is engine-backed: `shell::chip_value` reads it live each frame.
 pub fn chips(workspace) {
     match workspace {
-        "scene" => [["proj", "3D · Perspective", true], ["snap", "Snap 8 px", false], ["guides", "Guides", false], ["lights", "Lights", true]],
-        "animation" => [["path", "Motion path", true], ["snap", "Snap 8 px", false]],
-        "physics" => [["colliders", "Show colliders", true], ["sleep", "Sleep bodies"]],
-        "ui" => [["safe", "Safe area", true], ["res", "1920 × 1080", false]],
+        "scene" => [[CHIP_PROJECTION, "3D · Perspective", true], [CHIP_SNAP, "Snap 8 px", false], [CHIP_GUIDES, "Guides", false], [CHIP_LIGHTS, "Lights", true]],
+        "animation" => [[CHIP_PATH, "Motion path", true], [CHIP_SNAP, "Snap 8 px", false]],
+        "physics" => [[CHIP_COLLIDERS, "Show colliders", true], [CHIP_SLEEP, "Sleep bodies"]],
+        "ui" => [[CHIP_SAFE, "Safe area", true], [CHIP_RESOLUTION, "1920 × 1080", false]],
         _ => [],
     }
+}
+
+/// Whether a chip is on in a workspace: what its chip holds, or what `chips`
+/// starts it as before the chip is first drawn.
+pub fn chip_on(S, workspace, key) {
+    if let Some(state) = S.chip_state.get(workspace) {
+        if let Some(on) = state.get(key) {
+            return on == true;
+        }
+    }
+    for c in chips(workspace) {
+        if c[0] == key {
+            let on = c.len() > 2 && c[2] == true;
+            return on;
+        }
+    }
+    false
 }

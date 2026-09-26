@@ -2,6 +2,7 @@
 // outside the local AABB (opposite corner/edge anchored, Shift = uniform),
 // the interior translates, a center disc rotates about z; all 2D world space.
 
+use crate::defs;
 use crate::history;
 use crate::model;
 use crate::polygon;
@@ -249,7 +250,7 @@ pub fn draw(S) {
         Some(geo) => geo,
         None => return,
     };
-    if S.workspace == "script" {
+    if S.workspace == defs::WORKSPACE_SCRIPT {
         return;
     }
     let hot = viewport::hot_part(S);
@@ -403,7 +404,7 @@ fn rows_in_box(S, x0, y0, x1, y1) {
 fn pick(S, mx, my) {
     // Rigging: a bone's thin diamond loses to any shape around it, so in the
     // Animation workspace bones are tried first.
-    if S.workspace == "animation" {
+    if S.workspace == defs::WORKSPACE_ANIMATION {
         if let Some(bone) = rig::pick(S, mx, my) {
             return Some(bone);
         }
@@ -486,7 +487,7 @@ pub fn update(S, vp) {
 
     if S.gizmo.drag.is_none() {
         S.gizmo.hover = match geo {
-            Some(geo) => if over_viewport && S.workspace != "script" { hit_test(S, geo, mx, my) } else { None },
+            Some(geo) => if over_viewport && S.workspace != defs::WORKSPACE_SCRIPT { hit_test(S, geo, mx, my) } else { None },
             None => None,
         };
     }

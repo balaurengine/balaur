@@ -1570,7 +1570,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 104 properties
+`ui` · 106 properties
 
 A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button sets `clicked` and calls `on_click`.
 
@@ -1592,6 +1592,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>current_page</code></td><td>string</td><td>—</td><td>Which child a `tabs` shows, by node name; empty shows the first. A click on the strip writes it and calls `on_change` with the page&#x27;s name</td></tr>
 <tr><td><code>cursor</code></td><td>enum</td><td><code>arrow</code></td><td>The pointer&#x27;s shape while it is over the widget: `hand` over anything that opens on a click; `arrow` is the platform&#x27;s own One of <code>arrow</code>, <code>hand</code>, <code>text</code>, <code>vertical_text</code>, <code>cross</code>, <code>cell</code>, <code>wait</code>, <code>progress</code>, <code>help</code>, <code>context_menu</code>, <code>move</code>, <code>grab</code>, <code>grabbing</code>, <code>alias</code>, <code>copy</code>, <code>no_drop</code>, <code>forbidden</code>, <code>all_scroll</code>, <code>resize_x</code>, <code>resize_y</code>, <code>resize_n</code>, <code>resize_e</code>, <code>resize_s</code>, <code>resize_w</code>, <code>resize_ne</code>, <code>resize_nw</code>, <code>resize_se</code>, <code>resize_sw</code>, <code>resize_nesw</code>, <code>resize_nwse</code>, <code>resize_col</code>, <code>resize_row</code>, <code>zoom_in</code>, <code>zoom_out</code>.</td></tr>
 <tr><td><code>disabled</code></td><td>bool</td><td><code>false</code></td><td>Grey the widget out and swallow its clicks</td></tr>
+<tr><td><code>draggable</code></td><td>bool</td><td><code>false</code></td><td>Let a drag carry a card of a `list` with `columns` out of it, drawn under the pointer; `on_drop` says where it was let go</td></tr>
 <tr><td><code>draw</code></td><td>string</td><td>—</td><td>What fills a `draw` widget: a script method on this node or the nearest scripted ancestor, or `scripts/file.rn:function` for a free function</td></tr>
 <tr><td><code>duration</code></td><td>float</td><td><code>3.0</code></td><td>How long a `toast` stays, in seconds, counting the half second it fades over; zero leaves it up until the game takes it away At least 0.0.</td></tr>
 <tr><td><code>fill</code></td><td>string</td><td>—</td><td>What is painted behind this widget, as `#rrggbb` or a name from the theme&#x27;s `[colors]`; empty takes the theme&#x27;s own</td></tr>
@@ -1628,6 +1629,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>numeric</code></td><td>bool</td><td><code>false</code></td><td>Keep a `text_field` to digits, a sign and a point</td></tr>
 <tr><td><code>on_change</code></td><td>string</td><td>—</td><td>Script method called with a `text_field`&#x27;s text after every edit, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>on_click</code></td><td>string</td><td>—</td><td>Script method called when the widget is clicked, on this node or the nearest ancestor whose script declares it. An `image` that names one senses clicks too, which is how a picture becomes a button</td></tr>
+<tr><td><code>on_drop</code></td><td>string</td><td>—</td><td>Script method called with the card a drag let go outside the list, on this node or the nearest ancestor whose script declares it; the pointer is where it landed</td></tr>
 <tr><td><code>on_focus</code></td><td>string</td><td>—</td><td>Script method called when focus arrives, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>on_gutter</code></td><td>string</td><td>—</td><td>Script method called with the line a click on a `code` widget&#x27;s gutter landed on, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>on_link</code></td><td>string</td><td>—</td><td>Script method called with the target of a `[url=target]` span in `markup` text that was clicked, on this node or the nearest ancestor whose script declares it</td></tr>

@@ -13,7 +13,7 @@
 
 use glamx::{Quat, Vec3, Vec4};
 
-use crate::clip::{Clip, Interp, Key, Property, Track, Wrap};
+use crate::clip::{Clip, Interpolation, Key, Property, Track, LoopMode};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum TrackValue {
@@ -53,16 +53,16 @@ pub type Pose = Vec<TrackValue>;
 /// Where `elapsed` seconds of playback land inside the clip, and whether
 /// playback has run off the end.
 ///
-/// Only [`Wrap::None`] ever ends; a looping clip answers `false` forever.
+/// Only [`LoopMode::None`] ever ends; a looping clip answers `false` forever.
 /// The end asked about is the far one: a caller running time backwards has
 /// its own start to test, because a still playhead at zero has not ended.
 #[must_use]
 pub fn clip_time(clip: &Clip, elapsed: f32) -> (f32, bool) {
     let length = clip.length;
-    match clip.wrap {
-        Wrap::None => (elapsed.clamp(0.0, length), elapsed >= length),
-        Wrap::Loop => (fold(elapsed, length), false),
-        Wrap::PingPong => {
+    match clip.loop_mode {
+        LoopMode::None => (elapsed.clamp(0.0, length), elapsed >= length),
+        LoopMode::Linear => (fold(elapsed, length), false),
+        LoopMode::PingPong => {
             let doubled = fold(elapsed, 2.0 * length);
             let time = if doubled <= length {
                 doubled
@@ -117,7 +117,7 @@ pub fn spans(clip: &Clip, from: f32, to: f32) -> Vec<(f32, f32)> {
     if length <= 0.0 || !from.is_finite() || !to.is_finite() || still(from, to) {
         return Vec::new();
     }
-    if clip.wrap == Wrap::None {
+    if clip.loop_mode == LoopMode::None {
         let (a, b) = (from.clamp(0.0, length), to.clamp(0.0, length));
         return if still(a, b) {
             Vec::new()
@@ -162,7 +162,7 @@ fn pass_of(elapsed: f32, length: f32) -> i32 {
 /// pingpong clip plays its odd passes backwards, and a method key on the
 /// return leg is passed in the other direction.
 fn oriented(clip: &Clip, pass: i32, a: f32, b: f32) -> (f32, f32) {
-    if clip.wrap == Wrap::PingPong && pass.rem_euclid(2) == 1 {
+    if clip.loop_mode == LoopMode::PingPong && pass.rem_euclid(2) == 1 {
         (clip.length - a, clip.length - b)
     } else {
         (a, b)
@@ -292,7 +292,7 @@ fn mix_values(a: TrackValue, b: TrackValue, weight: f32) -> TrackValue {
 fn held(track: &Track, time: f32) -> toml::Value {
     let at = track
         .keys
-        .partition_point(|k| k.t <= time)
+        .partition_point(|k| k.time <= time)
         .saturating_sub(1);
     track.keys[at]
         .discrete
@@ -307,7 +307,7 @@ fn sample_wide(track: &Track, time: f32) -> Vec<f32> {
     let keys = &track.keys;
     let (index, raw) = segment(keys, time);
     let before = &keys[index].wide;
-    if raw <= 0.0 || track.interp == Interp::Step {
+    if raw <= 0.0 || track.interpolation == Interpolation::Step {
         return before.clone();
     }
     let u = eased(keys, index, raw);
@@ -316,12 +316,12 @@ fn sample_wide(track: &Track, time: f32) -> Vec<f32> {
     // clip built in code can still hand one over; the shorter of the two is
     // what both are known to hold.
     let width = before.len().min(after.len());
-    match track.interp {
-        Interp::Step => before.clone(),
-        Interp::Linear => (0..width)
+    match track.interpolation {
+        Interpolation::Step => before.clone(),
+        Interpolation::Linear => (0..width)
             .map(|i| before[i] + (after[i] - before[i]) * u)
             .collect(),
-        Interp::Cubic => {
+        Interpolation::Cubic => {
             let p0 = &keys[index.saturating_sub(1)].wide;
             let p3 = &keys[(index + 2).min(keys.len() - 1)].wide;
             (0..width)
@@ -350,21 +350,21 @@ fn segment(keys: &[Key], time: f32) -> (usize, f32) {
     let last = keys.len() - 1;
     // The end first: keys sharing a time are a jump, and at that instant the
     // later one holds, even when every key is at that instant.
-    if time >= keys[last].t {
+    if time >= keys[last].time {
         return (last, 0.0);
     }
-    if time <= keys[0].t {
+    if time <= keys[0].time {
         return (0, 0.0);
     }
     let mut index = 0;
-    while index + 1 < last && keys[index + 1].t <= time {
+    while index + 1 < last && keys[index + 1].time <= time {
         index += 1;
     }
-    let span = keys[index + 1].t - keys[index].t;
+    let span = keys[index + 1].time - keys[index].time;
     if span <= 0.0 {
         return (index, 0.0);
     }
-    (index, (time - keys[index].t) / span)
+    (index, (time - keys[index].time) / span)
 }
 
 /// How far along a segment the curve on the key it arrives at says we are.
@@ -388,10 +388,10 @@ fn sample_channels(track: &Track, time: f32) -> Vec4 {
     }
     let u = eased(keys, index, raw);
     let after = keys[index + 1].value;
-    match track.interp {
-        Interp::Step => before,
-        Interp::Linear => before + (after - before) * u,
-        Interp::Cubic => catmull_rom(
+    match track.interpolation {
+        Interpolation::Step => before,
+        Interpolation::Linear => before + (after - before) * u,
+        Interpolation::Cubic => catmull_rom(
             keys[index.saturating_sub(1)].value,
             before,
             after,
@@ -413,13 +413,13 @@ fn sample_rotation(track: &Track, time: f32, quat: impl Fn(&Key) -> Quat) -> Qua
     }
     let u = eased(keys, index, raw);
     let after = at(index + 1);
-    match track.interp {
-        Interp::Step => before,
-        Interp::Linear => slerp(before, after, u),
+    match track.interpolation {
+        Interpolation::Step => before,
+        Interpolation::Linear => slerp(before, after, u),
         // Catmull-Rom on the quaternion components, every control point first
         // flipped into `before`'s hemisphere so the curve takes the same short
         // way slerp does, then renormalised back onto the unit sphere.
-        Interp::Cubic => {
+        Interpolation::Cubic => {
             let earlier = at(index.saturating_sub(1));
             let later = at((index + 2).min(keys.len() - 1));
             catmull_rom_quat(

@@ -5,8 +5,10 @@
 //! Nothing here runs during a frame — the editor's inspector, the script
 //! checker and `script::functions` are the callers.
 
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use anyhow::{Result, anyhow, bail};
 use rune::ast::Spanned as _;
@@ -14,6 +16,7 @@ use rune::runtime::VmResult;
 use rune::{Diagnostics, Source, Sources};
 
 use hecs::Entity;
+use rustc_hash::FxHashMap;
 
 use crate::handles;
 use crate::packed::PackSourceLoader;
@@ -238,6 +241,43 @@ fn finding(
         severity,
         message: message.to_string(),
     }
+}
+
+/// Where a runtime error was thrown: the unit and instruction, or the message
+/// when the error carries no location.
+type ThrowSite = (usize, usize, String);
+
+thread_local! {
+    /// Each site's throws so far. The unit is held so its address cannot be
+    /// reused by a reload's new unit, whose errors must render again.
+    static THROWN: RefCell<FxHashMap<ThrowSite, (Option<Arc<rune::Unit>>, u64)>> =
+        RefCell::new(FxHashMap::default());
+}
+
+/// Count this throw at its site and answer how many there have been.
+///
+/// A script throwing in `update` on every node throws thousands of times a
+/// frame, and rendering each against its sources cost more than the frame.
+fn tally(key: &str, label: &str, err: &rune::runtime::VmError) -> u64 {
+    let (site, unit) = match err.first_location() {
+        Some(at) => (
+            (Arc::as_ptr(&at.unit) as usize, at.ip, label.to_string()),
+            Some(at.unit.clone()),
+        ),
+        None => ((0, 0, format!("{key}\n{label}\n{err}")), None),
+    };
+    THROWN.with_borrow_mut(|thrown| {
+        let entry = thrown.entry(site).or_insert((unit, 0));
+        entry.1 += 1;
+        entry.1
+    })
+}
+
+fn is_power_of_ten(mut n: u64) -> bool {
+    while n >= 10 && n % 10 == 0 {
+        n /= 10;
+    }
+    n == 1
 }
 
 pub(crate) fn render(diagnostics: &Diagnostics, sources: &Sources) -> String {
@@ -681,6 +721,13 @@ impl RuneHost {
     /// against the unit's sources is what turns "field not found" into a file,
     /// a line and the frames that led there.
     pub(crate) fn report(&self, key: &str, label: &str, err: &rune::runtime::VmError) {
+        let times = tally(key, label, err);
+        if times > 1 {
+            if is_power_of_ten(times) {
+                tracing::error!("[{key}] {label}: the same error, thrown {times} times");
+            }
+            return;
+        }
         // An error thrown in a unit another script required renders against
         // that unit's sources: its line numbers mean nothing in the caller's.
         let thrown = err.first_location().map(|at| at.unit.clone());

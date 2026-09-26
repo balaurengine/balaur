@@ -414,7 +414,7 @@ autoplay = "rise"
 length = 0.5
 [[nodes.animation.library.clips.rise.tracks]]
 property = "position"
-keys = [ { t = 0.0, value = [0, 0, 0] }, { t = 0.5, value = [0, 1, 0] } ]
+keys = [ { time = 0.0, value = [0, 0, 0] }, { time = 0.5, value = [0, 1, 0] } ]
 
 [[nodes.bindings.rows]]
 event = "emitted:animation_finished"

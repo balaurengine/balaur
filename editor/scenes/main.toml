@@ -632,6 +632,9 @@ kind = "list"
 visible = false
 grow = 1
 columns = 6
+# A card dragged onto the viewport places its file there.
+draggable = true
+on_drop = "assets_dropped"
 
 # The Profiler and the Cost dock: named columns a drag resizes, over rows the
 # panels hand over whole. One node, as the log list is.

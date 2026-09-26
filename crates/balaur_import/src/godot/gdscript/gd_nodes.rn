@@ -222,7 +222,7 @@ pub fn field(owner, name) {
             return known;
         }
         if name == TREE_ACTIVE && owner.has_component(STATE_MACHINE) {
-            return owner.state_machine.get()[TREE_ACTIVE];
+            return owner.state_machine.get()[MACHINE_ENABLED];
         }
         return ();
     }
@@ -988,13 +988,13 @@ fn node_property(node, name) {
         "foldable_group" => get_meta(node, "foldable_group", ()),
         "material" => get_meta(node, "material", ()),
         "multimesh" => get_meta(node, "multimesh", ()),
-        "speed_scale" if node.has_component("animation") => float(get(node.get_component("animation"), "speed", 1.0)),
+        "speed_scale" if node.has_component("animation") => float(get(node.get_component("animation"), SPEED_SCALE, 1.0)),
         "amount" if node.has_component(PARTICLES) => particle_amount(node),
         "lifetime" if node.has_component(PARTICLES) => get(node.get_component(PARTICLES), name, ()),
         "emitting" if node.has_component(PARTICLES) => get(node.get_component(PARTICLES), name, ()),
         "one_shot" if node.has_component(PARTICLES) => get(node.get_component(PARTICLES), name, ()),
         "current_animation" if node.has_component("animation") => {
-            let current = node.animation.current();
+            let current = node.animation.current_clip();
             if is_nil(current) { "" } else { current }
         }
         _ => (),
@@ -1128,7 +1128,9 @@ fn set_node_property(node, name, value) {
     } else if name == "foldable_group" || name == "material" {
         set_meta(node, name, value);
     } else if name == "speed_scale" && node.has_component("animation") {
-        node.patch_component("animation", #{ "speed": float(value) });
+        let patch = #{};
+        patch[SPEED_SCALE] = float(value);
+        node.patch_component("animation", patch);
     } else if node.has_component(PARTICLES) && ["amount", "lifetime", "emitting", "one_shot"].iter().any(|n| n == name) {
         set_particles(node, name, value);
     } else if name == "multimesh" && value is Object && value.contains_key("__multimesh") {
@@ -1143,6 +1145,8 @@ fn set_node_property(node, name, value) {
 }
 
 const PARTICLES = "particles";
+/// The animation playback rate, as `animation` spells it.
+const SPEED_SCALE = "speed_scale";
 const RATE = "rate";
 const LIFETIME = "lifetime";
 
@@ -1577,7 +1581,9 @@ fn player_method(node, name, args) {
     let player = node.animation;
     if name == "play" && count > 0 && a0 != "" {
         let speed = if count > 2 { float(args[2]) } else { 1.0 };
-        player.play(a0, #{ "speed": speed, "from_start": true });
+        let options = #{ "from_start": true };
+        options[SPEED_SCALE] = speed;
+        player.play(a0, options);
         return ();
     }
     if name == "play" || name == "resume" {
@@ -2353,7 +2359,9 @@ pub fn set_field(owner, name, value) {
             return ();
         }
         if name == TREE_ACTIVE && owner.has_component(STATE_MACHINE) {
-            return owner.state_machine.patch(#{ "active": value });
+            let patch = #{};
+            patch[MACHINE_ENABLED] = value;
+            return owner.state_machine.patch(patch);
         }
         return ();
     }
@@ -2565,21 +2573,39 @@ fn typed_code() {
     }
 }
 
-/// A key hook's event: Godot's `InputEventKey`. A key is named as the
-/// engine names it, which `KEY_*` spells the same way.
+/// A modifier as Godot codes it, one code for either side; any other key as
+/// the engine names it, which a translated `KEY_*` holds too.
+fn godot_key(key) {
+    if key == input::KEY_LEFT_SHIFT || key == input::KEY_RIGHT_SHIFT {
+        return input::KEY_SHIFT;
+    }
+    if key == input::KEY_LEFT_CONTROL || key == input::KEY_RIGHT_CONTROL {
+        return input::KEY_CONTROL;
+    }
+    if key == input::KEY_LEFT_ALT || key == input::KEY_RIGHT_ALT {
+        return input::KEY_ALT;
+    }
+    if key == input::KEY_LEFT_META || key == input::KEY_RIGHT_META {
+        return input::KEY_META;
+    }
+    return key;
+}
+
+/// A key hook's event: Godot's `InputEventKey`.
 pub fn key_event(key, pressed) {
+    let code = godot_key(key);
     let event = #{
         "__event": "InputEventKey",
-        "keycode": key,
-        "physical_keycode": key,
-        "key_label": key,
+        "keycode": code,
+        "physical_keycode": code,
+        "key_label": code,
         "pressed": pressed,
         "echo": false,
         "unicode": typed_code(),
-        "shift_pressed": false,
-        "ctrl_pressed": false,
-        "alt_pressed": false,
-        "meta_pressed": false,
+        "shift_pressed": input::key_down(input::KEY_SHIFT),
+        "ctrl_pressed": input::key_down(input::KEY_CONTROL),
+        "alt_pressed": input::key_down(input::KEY_ALT),
+        "meta_pressed": input::key_down(input::KEY_META),
     };
     event_verbs(event);
     return event;

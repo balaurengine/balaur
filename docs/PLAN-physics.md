@@ -59,6 +59,11 @@ constraints. **Done**, on rapier 0.36.
   polygon of its own.
 - Rapier's `PhysicsWorld` carries the `SoftBodySet` in the snapshot, and the
   digest hashes every particle's velocity and the body's topology version.
+- The editor makes one from what a node draws, in one undo step
+  (`editor/scripts/recipes.rn`): a sprite is traced into a textured polygon
+  the cells bend, a shape becomes its generator, a mesh is filled. The
+  outliner's Change type, the Physics panel's Make row and the new-node
+  picker all reach it.
 
 ### Cloth and rope
 

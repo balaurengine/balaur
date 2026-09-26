@@ -1,27 +1,27 @@
-//! The `animation_clip` asset: what a clip animates, and with what values.
+//! The `animation_library` asset: what a clip animates, and with what values.
 //!
 //! A clip is a length, what to do with time past that length, and a list of
 //! tracks. A track names a node relative to the player, a property on it, how
 //! to interpolate between keys, and the keys themselves:
 //!
 //! ```toml
-//! type = "animation_clip"
+//! type = "animation_library"
 //! length = 2.0
-//! loop = "loop"                 # none | loop | pingpong
+//! loop_mode = "linear"          # none | linear | pingpong
 //!
 //! [[tracks]]
 //! target = ""                   # node path relative to the player; "" = self
 //! property = "position"         # position | rotation_euler | rotation | scale
 //!                               # | visible | tint
 //!                               # or <component>/<property>: "color/rgba"
-//! interp = "linear"             # step | linear | cubic
+//! interpolation = "linear"      # step | linear | cubic
 //! keys = [
-//!   { t = 0.0, value = [0, 0, 0] },
-//!   { t = 1.0, value = [0, 3, 0], ease = "out_back" },
+//!   { time = 0.0, value = [0, 0, 0] },
+//!   { time = 1.0, value = [0, 3, 0], ease = "out_back" },
 //! ]                             # `ease` shapes the segment into its key
 //!
 //! [[tracks]]                    # a method track: no property, keys that call
-//! keys = [ { t = 0.8, call = "on_footstep" } ]
+//! keys = [ { time = 0.8, call = "on_footstep" } ]
 //! ```
 //!
 //! A library file is the same document with named entries (`[clips.idle]`),
@@ -42,39 +42,36 @@ use crate::keys as k;
 use crate::words as w;
 
 /// What happens to time once it runs past the end of a clip.
-///
-/// The document key is `loop`, which is a Rust keyword, so the field takes
-/// the word for what the mode does with time instead.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Wrap {
+pub enum LoopMode {
     /// Hold the last key and stop.
     None,
     /// Start over.
-    Loop,
+    Linear,
     /// Play backwards to the start, then forwards again.
     PingPong,
 }
 
-impl Wrap {
+impl LoopMode {
     pub(crate) fn parse(text: &str) -> Result<Self> {
         match text {
             w::NONE => Ok(Self::None),
-            w::LOOP => Ok(Self::Loop),
+            w::LINEAR => Ok(Self::Linear),
             w::PINGPONG => Ok(Self::PingPong),
             other => Err(anyhow!(
-                "`loop = \"{other}\"` is not one of \"{}\", \"{}\", \"{}\"",
+                "`loop_mode = \"{other}\"` is not one of \"{}\", \"{}\", \"{}\"",
                 w::NONE,
-                w::LOOP,
+                w::LINEAR,
                 w::PINGPONG
             )),
         }
     }
 
-    /// The name a document spells this mode with, and [`Wrap::parse`] reads.
+    /// The name a document spells this mode with, and [`LoopMode::parse`] reads.
     pub(crate) const fn name(self) -> &'static str {
         match self {
             Self::None => w::NONE,
-            Self::Loop => w::LOOP,
+            Self::Linear => w::LINEAR,
             Self::PingPong => w::PINGPONG,
         }
     }
@@ -196,7 +193,7 @@ pub const DEFORM: &str = "polygon/deform";
 
 /// How a track gets from one key to the next.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Interp {
+pub enum Interpolation {
     /// Hold each key until the next one.
     Step,
     Linear,
@@ -204,14 +201,14 @@ pub enum Interp {
     Cubic,
 }
 
-impl Interp {
+impl Interpolation {
     pub(crate) fn parse(text: &str) -> Result<Self> {
         match text {
             w::STEP => Ok(Self::Step),
             w::LINEAR => Ok(Self::Linear),
             w::CUBIC => Ok(Self::Cubic),
             other => Err(anyhow!(
-                "`interp = \"{other}\"` is not one of \"{}\", \"{}\", \"{}\"",
+                "`interpolation = \"{other}\"` is not one of \"{}\", \"{}\", \"{}\"",
                 w::STEP,
                 w::LINEAR,
                 w::CUBIC
@@ -219,7 +216,7 @@ impl Interp {
         }
     }
 
-    /// The name a document spells this mode with, and [`Interp::parse`] reads.
+    /// The name a document spells this mode with, and [`Interpolation::parse`] reads.
     pub(crate) const fn name(self) -> &'static str {
         match self {
             Self::Step => w::STEP,
@@ -233,7 +230,7 @@ impl Interp {
 #[derive(Debug)]
 pub struct Key {
     /// Seconds from the start of the clip.
-    pub t: f32,
+    pub time: f32,
     /// The key's numbers, read as the property's units: metres for
     /// `position` and `scale`, euler radians for `rotation_euler`, and
     /// whatever the property means for a component track. Channels past the
@@ -274,7 +271,7 @@ pub struct Track {
     /// authored with — one number for `shape/radius`, four for `color/rgba`.
     /// A `polygon/deform` track goes past four and keys `Key::wide` instead.
     pub channels: usize,
-    pub interp: Interp,
+    pub interpolation: Interpolation,
     /// Sorted by time at parse, so the sampler can assume it.
     pub keys: Vec<Key>,
 }
@@ -286,22 +283,22 @@ pub struct Clip {
     /// sample at.
     pub length: f32,
     /// What the player does with time past `length`.
-    pub wrap: Wrap,
+    pub loop_mode: LoopMode,
     pub tracks: Vec<Track>,
 }
 
 /// Parse one clip definition, the body of a document or of a named entry.
 ///
-/// This is what `App::register_asset_type("animation_clip", ..)` hands the
+/// This is what `App::register_asset_type("animation_library", ..)` hands the
 /// asset layer, so every error here reaches a scene author with the reference
 /// that named the clip already wrapped around it.
 pub fn parse(value: &toml::Value) -> Result<Clip> {
-    let wrap = match value.get(k::LOOP) {
-        Some(v) => Wrap::parse(
+    let loop_mode = match value.get(k::LOOP_MODE) {
+        Some(v) => LoopMode::parse(
             v.as_str()
-                .ok_or_else(|| anyhow!("`loop` is {}, not a mode name", v.type_str()))?,
+                .ok_or_else(|| anyhow!("`loop_mode` is {}, not a mode name", v.type_str()))?,
         )?,
-        None => Wrap::None,
+        None => LoopMode::None,
     };
     let mut tracks = Vec::new();
     match value.get(k::TRACKS) {
@@ -316,7 +313,7 @@ pub fn parse(value: &toml::Value) -> Result<Clip> {
     let length = clip_length(value, &tracks)?;
     Ok(Clip {
         length,
-        wrap,
+        loop_mode,
         tracks,
     })
 }
@@ -331,7 +328,7 @@ fn clip_length(value: &toml::Value, tracks: &[Track]) -> Result<f32> {
         None => tracks
             .iter()
             .filter_map(|track| track.keys.last())
-            .map(|key| key.t)
+            .map(|key| key.time)
             .fold(0.0_f32, f32::max),
     };
     if length <= 0.0 || !length.is_finite() {
@@ -357,19 +354,19 @@ fn parse_track(value: &toml::Value) -> Result<Track> {
         )?,
         None => Property::Call,
     };
-    let interp = match value.get(k::INTERP) {
-        Some(v) => Interp::parse(
+    let interpolation = match value.get(k::INTERPOLATION) {
+        Some(v) => Interpolation::parse(
             v.as_str()
-                .ok_or_else(|| anyhow!("`interp` is {}, not a mode name", v.type_str()))?,
+                .ok_or_else(|| anyhow!("`interpolation` is {}, not a mode name", v.type_str()))?,
         )?,
-        None => Interp::Linear,
+        None => Interpolation::Linear,
     };
     // A node is shown or hidden and nothing in between, so a `visible` track
     // holds its key until the next one whatever the document asked for.
-    let interp = if property == Property::Visible {
-        Interp::Step
+    let interpolation = if property == Property::Visible {
+        Interpolation::Step
     } else {
-        interp
+        interpolation
     };
     let mut channels = property.channels();
     let keys = parse_keys(value, &property, &mut channels)?;
@@ -377,12 +374,12 @@ fn parse_track(value: &toml::Value) -> Result<Track> {
     if discrete != 0 && discrete != keys.len() {
         bail!("a track keys both names and numbers; a property is one or the other");
     }
-    let interp = if discrete > 0 { Interp::Step } else { interp };
+    let interpolation = if discrete > 0 { Interpolation::Step } else { interpolation };
     Ok(Track {
         target,
         property,
         channels: channels.unwrap_or(0),
-        interp,
+        interpolation,
         keys,
     })
 }
@@ -405,7 +402,7 @@ fn parse_keys(
     }
     // Sampling assumes ascending time; keys may arrive unsorted. `total_cmp`
     // keeps NaN ordering platform-independent.
-    keys.sort_by(|a, b| a.t.total_cmp(&b.t));
+    keys.sort_by(|a, b| a.time.total_cmp(&b.time));
     Ok(keys)
 }
 
@@ -414,10 +411,10 @@ fn parse_key(
     property: &Property,
     channels: &mut Option<usize>,
 ) -> Result<Key> {
-    let t = value
-        .get(k::T)
+    let time = value
+        .get(k::TIME)
         .and_then(as_f64)
-        .ok_or_else(|| anyhow!("a key needs `t`, its time in seconds"))? as f32;
+        .ok_or_else(|| anyhow!("a key needs `time`, in seconds"))? as f32;
     let ease = match value.get(k::EASE) {
         Some(v) => Some(Easing::parse(v.as_str().ok_or_else(|| {
             anyhow!("`ease` is {}, not a curve name", v.type_str())
@@ -436,7 +433,7 @@ fn parse_key(
             })?
             .to_string();
         return Ok(Key {
-            t,
+            time,
             value: Vec4::ZERO,
             call: Some(call),
             function: None,
@@ -451,7 +448,7 @@ fn parse_key(
     if *property == Property::Deform {
         let wide = parse_wide(value, channels)?;
         return Ok(Key {
-            t,
+            time,
             value: Vec4::ZERO,
             call: None,
             function: None,
@@ -466,7 +463,7 @@ fn parse_key(
         && let Some(raw @ (toml::Value::String(_) | toml::Value::Boolean(_))) = value.get(k::VALUE)
     {
         return Ok(Key {
-            t,
+            time,
             value: Vec4::ZERO,
             call: None,
             function: None,
@@ -476,7 +473,7 @@ fn parse_key(
         });
     }
     Ok(Key {
-        t,
+        time,
         value: parse_value(value, channels)?,
         call: None,
         function: None,

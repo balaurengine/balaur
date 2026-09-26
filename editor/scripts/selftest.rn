@@ -640,7 +640,7 @@ fn closeness(S) {
         return zoom;
     }
     let (ex, ey, ez, tx, ty, tz, _, _) = render::camera_pose();
-    1.0 / util::max(reach(ex, ey, ez, tx, ty, tz), 0.0001)
+    1.0 / util::max(reach(ex, ey, ez, tx, ty, tz), EPSILON)
 }
 
 // The wheel this platform reports for a comfortable flick: enough to take a
@@ -654,6 +654,9 @@ fn flick(step) {
     n
 }
 
+// What a distance is floored at before it divides.
+const EPSILON = 0.0000001;
+
 // How far the eye stands from what it looks at.
 fn reach(ex, ey, ez, tx, ty, tz) {
     let (ax, ay, az) = (ex - tx, ey - ty, ez - tz);
@@ -665,7 +668,7 @@ fn camera_dollied(S, d) {
     let now = closeness(S);
     // Bounded, not just inward: a flick that swallows the whole distance is
     // the zoom being orders of magnitude too strong, which reads as a teleport.
-    let took = now / util::max(d.was, 0.0000001);
+    let took = now / util::max(d.was, EPSILON);
     check(took > 1.005 && took < 1.1, format!("and dollies the camera in gently ({} to {})", d.was, now));
     log::info("selftest camera: done");
 }
@@ -773,7 +776,7 @@ pub fn reloaded(S) {
     let added = crate::backfill(old);
     check(added.len() == 2, format!("reload fills in what the old state lacked ({:?})", added));
     check(old.contains_key("tool") && old.contains_key("workspace"), "and the fields are readable after it");
-    check(old.workspace == S.workspace || old.workspace == "scene", "at a fresh value rather than nothing");
+    check(old.workspace == S.workspace || old.workspace == crate::defs::WORKSPACE_SCENE, "at a fresh value rather than nothing");
     log::info("selftest reload: done");
 }
 
@@ -783,7 +786,6 @@ pub fn reloaded(S) {
 /// its tags. One that carries no tag any workspace asks for cannot be drawn in
 /// any workspace, so its properties are unreachable however the node is picked.
 pub fn component_reach(S) {
-    let workspaces = ["scene", "script", "animation", "physics", "ui"];
     let seen = #{};
     let orphans = [];
     for i in 0..S.doc.len() {
@@ -799,8 +801,8 @@ pub fn component_reach(S) {
             seen[name] = true;
             let tags = util::vec(scene::component_tags(name));
             let reached = false;
-            for id in workspaces {
-                let wants = crate::defs::workspace_inspector(id);
+            for p in crate::defs::workspaces() {
+                let wants = crate::defs::workspace_inspector(p.id);
                 if util::contains(wants.named, name) {
                     reached = true;
                 }
@@ -873,7 +875,7 @@ pub fn reselect_step(S) {
         return;
     }
     if d.stage == 2 {
-        if d.waited < NO_SELECTION_TOOLS.len() {
+        if d.waited < no_selection_tools().len() {
             no_selection_frame(S, d);
             return;
         }
@@ -964,14 +966,26 @@ fn deselect_checks(S, had) {
         "and every verb on the selection leaves the document and the selection alone");
 }
 
-// The workspaces and tools drawn with nothing selected, one pair a frame.
-const NO_SELECTION_WORKSPACES = ["scene", "script", "animation", "physics", "ui"];
-const NO_SELECTION_TOOLS = ["select", "move", "rotate", "scale", "polygon", "tiles", "bone", "pen", "key", "zoom"];
+// Every tool any workspace offers, each drawn with nothing selected.
+fn no_selection_tools() {
+    let tools = [];
+    for p in crate::defs::workspaces() {
+        for tool in crate::defs::tools(p.id) {
+            if !util::contains(tools, tool) {
+                tools.push(tool);
+            }
+        }
+    }
+    tools
+}
 
+// One workspace and tool pair a frame.
 fn no_selection_frame(S, d) {
-    let i = d.waited % NO_SELECTION_TOOLS.len();
-    shell::set_workspace(S, NO_SELECTION_WORKSPACES[i % NO_SELECTION_WORKSPACES.len()]);
-    shell::set_tool(S, NO_SELECTION_TOOLS[i]);
+    let workspaces = crate::defs::workspaces();
+    let tools = no_selection_tools();
+    let i = d.waited % tools.len();
+    shell::set_workspace(S, workspaces[i % workspaces.len()].id);
+    shell::set_tool(S, tools[i]);
 }
 
 // A node added with nothing selected goes under the root, and is taken out
@@ -1004,7 +1018,7 @@ fn listed_components(S) {
 /// So: every pill the panel offers is measured, and has to be wide enough to
 /// hit, inside the sheet, and clear of the pill beside it.
 pub fn physics_clicks(S) {
-    shell::set_workspace(S, "physics");
+    shell::set_workspace(S, crate::defs::WORKSPACE_PHYSICS);
     S.phys_click = #{ waited: 0 };
 }
 
@@ -1135,7 +1149,7 @@ pub fn physics_panel(S) {
     // The workspace shows what carries the engine's `physics` tag, which is the
     // check the old hard-coded list of names failed.
     model::add_component(S, collider);
-    let wants = crate::defs::workspace_inspector("physics");
+    let wants = crate::defs::workspace_inspector(crate::defs::WORKSPACE_PHYSICS);
     let shown = crate::inspector::workspace_components(S, wants);
     check(crate::util::contains(shown, collider),
         format!("the Physics workspace shows {}", collider));
@@ -1188,7 +1202,8 @@ fn each_from_its_own_mesh(S, two_d, collider) {
     }
     let pair = [meshed[0], meshed[1]];
     crate::selection::set(S, pair);
-    crate::physics::make_collider(S, two_d, #{ kind: "convex_hull" });
+    let hull = if two_d { physics2d::SHAPE_CONVEX_HULL } else { physics3d::SHAPE_CONVEX_HULL };
+    crate::physics::make_collider(S, two_d, #{ kind: hull });
     for i in pair {
         let wrote = util::obj(S.doc[i].get(collider).unwrap_or(#{})).get("mesh");
         let own = crate::physics::drawn_mesh(S.doc[i], two_d);
@@ -2415,8 +2430,8 @@ pub fn font_sheet(S) {
             for id in ["select", "move", "rotate", "scale", "zoom", "key", "bone", "polygon"] {
                 ui::label(crate::icons::tool(id), #{ font_size: style::XL, text_color: k.text_default });
             }
-            for id in ["scene", "script", "animation", "physics", "ui"] {
-                ui::label(crate::icons::workspace(id), #{ font_size: style::XL, text_color: k.primary_text });
+            for p in crate::defs::workspaces() {
+                ui::label(crate::icons::workspace(p.id), #{ font_size: style::XL, text_color: k.primary_text });
             }
         });
         ui::row(#{ height: 24 }, || {
@@ -3134,6 +3149,18 @@ pub fn dropping(S) {
     dropin::take(S, source);
     check(fs::exists(root + "art/selftest-drop_2.png"), "a second drop of one name is numbered, not overwritten");
 
+    // A card dragged out of the Assets dock names the file where it lies.
+    let cards = util::obj(scene::get_node(crate::dock::CARDS_NODE).get_component("widget"));
+    let handler = cards.get("on_drop").unwrap_or("");
+    check(cards.get("draggable") == Some(true) && handler != "" && scene::get_node("Editor").has_method(handler),
+        format!("the Assets dock's cards hand a drop to a method the editor declares ({})", handler));
+    dropin::place_file(S, "art/selftest-drop.png");
+    let placed = S.doc[S.doc.len() - 1];
+    let drawn = util::obj(placed.get("sprite").unwrap_or(placed.get("mesh").unwrap_or(#{}))).get("texture");
+    check(S.doc.len() == was + 3 && drawn == Some("art/selftest-drop.png") && !fs::exists(root + "art/selftest-drop_3.png"),
+        format!("a file placed from the Assets dock is named where it lies ({:?})", drawn));
+    shell::undo(S);
+
     shell::undo(S);
     shell::undo(S);
     check(S.doc.len() == was, "undo takes both back");
@@ -3172,6 +3199,20 @@ pub fn dropping(S) {
 }
 
 
+// Where the converted script is checked as if it were saved.
+const CONVERTED = "scripts/converted.rn";
+
+// What the script check calls an error in `text`, by message.
+fn errors_in(text) {
+    let out = [];
+    for found in util::vec(script::check(CONVERTED, text)) {
+        if found.severity == "error" {
+            out.push(found.message);
+        }
+    }
+    out
+}
+
 /// The Events view authors rows and writes the script they are equivalent to.
 pub fn eventviews(S) {
     let target = None;
@@ -3205,27 +3246,17 @@ pub fn eventviews(S) {
         "a `when` becomes the read that fetches the variable");
     check(!written.contains("this.get_node") && !written.contains("this.queue_free"),
         "a row's call goes through the node, not the script's own table");
-    let problems = [];
-    for found in util::vec(script::check("scripts/converted.rn", written)) {
-        if found.severity == "error" {
-            problems.push(found.message);
-        }
-    }
+    let problems = errors_in(written);
     check(problems.is_empty(), format!("and the script it writes compiles: {:?}", problems));
-    let own = events::script_of([#{ event: "emitted:died", action: "free" }]);
+    let own = events::script_of([#{ event: events::EMITTED + "died", action: "free" }]);
     check(own.contains("pub fn on_died(this, payload)")
         && own.contains("events::subscribe(this.node, \"died\", this.node)"),
         format!("a row on the node's own event hears it by subscribing: {}", own));
-    let own_problems = [];
-    for found in util::vec(script::check("scripts/converted.rn", own)) {
-        if found.severity == "error" {
-            own_problems.push(found.message);
-        }
-    }
+    let own_problems = errors_in(own);
     check(own_problems.is_empty(), format!("and compiles: {:?}", own_problems));
     // The control: the name the old conversion wrote is one the check refuses.
-    let refused = util::vec(script::check("scripts/converted.rn", "pub fn on_emitted:died(this) {}\n"));
-    check(refused.iter().any(|f| f.severity == "error"), "the check does refuse a name with a colon in it");
+    let refused = errors_in("pub fn on_emitted:died(this) {}\n");
+    check(!refused.is_empty(), "the check does refuse a name with a colon in it");
 
     let known = util::vec(scene::bindable_events());
     check(util::contains(known, "pointer_click"), "the engine names the events");
@@ -3440,22 +3471,22 @@ pub fn camera_document(S) {
     let row = S.doc.len();
     model::add_child(S, None);
     crate::selection::only(S, row);
-    model::add_component(S, "camera3d");
+    model::add_component(S, model::CAMERA_3D);
     model::hold_game_cameras(S, false);
-    model::set_component_prop(S, "camera3d", "bloom_intensity", 0.5);
-    let written = util::obj(S.doc[row].get("camera3d").unwrap_or(#{}));
+    model::set_component_prop(S, model::CAMERA_3D, "bloom_intensity", 0.5);
+    let written = util::obj(S.doc[row].get(model::CAMERA_3D).unwrap_or(#{}));
     check(written.get("bloom_intensity").is_some(), "the camera edit reached the document");
-    check(written.get("current").unwrap_or(true) == true,
-        format!("and the document keeps the camera current ({:?})", written.get("current")));
+    check(written.get(model::CAMERA_CURRENT).unwrap_or(true) == true,
+        format!("and the document keeps the camera current ({:?})", written.get(model::CAMERA_CURRENT)));
     // An edit to `current` itself is the author's, and the editor keeps looking.
-    model::set_component_prop(S, "camera3d", "current", false);
-    let written = util::obj(S.doc[row].get("camera3d").unwrap_or(#{}));
-    check(written.get("current") == Some(false), "turning the camera off is written");
-    model::set_component_prop(S, "camera3d", "current", true);
-    let written = util::obj(S.doc[row].get("camera3d").unwrap_or(#{}));
-    check(written.get("current") == Some(true), "and so is turning it back on");
+    model::set_component_prop(S, model::CAMERA_3D, model::CAMERA_CURRENT, false);
+    let written = util::obj(S.doc[row].get(model::CAMERA_3D).unwrap_or(#{}));
+    check(written.get(model::CAMERA_CURRENT) == Some(false), "turning the camera off is written");
+    model::set_component_prop(S, model::CAMERA_3D, model::CAMERA_CURRENT, true);
+    let written = util::obj(S.doc[row].get(model::CAMERA_3D).unwrap_or(#{}));
+    check(written.get(model::CAMERA_CURRENT) == Some(true), "and so is turning it back on");
     let live = model::live(S, row).unwrap();
-    check(live.get_component("camera3d", "current") == false, "while the editor still looks through its own");
+    check(live.get_component(model::CAMERA_3D, model::CAMERA_CURRENT) == false, "while the editor still looks through its own");
     model::delete_selected(S);
     log::info("selftest camera document: done");
 }
@@ -3526,6 +3557,12 @@ pub fn change_types(S) {
             shape_row = Some(i);
         }
     }
+    // Every node lists what it can become without throwing, whatever it holds.
+    let listed = 0;
+    for i in 0..S.doc.len() {
+        listed += crate::recipes::targets(S, i).len();
+    }
+    check(listed > 0, format!("every node lists what it can become ({} targets)", listed));
     if sprite_row.is_none() && shape_row.is_none() {
         log::info("selftest change type: nothing 2D here to change, skipped");
         return;
@@ -3635,18 +3672,22 @@ pub fn warning_marks(S) {
     log::info("selftest warnings: done");
 }
 
+// The row the pool check builds its strip in, under the shell's root.
+const POOL_HOST = "Editor";
+const POOL_CHECK = "PoolCheck";
+
 /// A pooled slot that turns from one kind of control into another holds the
 /// old control's value for a pass, and that value is not the reader's edit.
 ///
 /// A dropdown's slot spent a frame as a colour row's label, and coming back it
 /// reported the label's `0.20 0.22 0.26 1.00` as a pick: a script by that name.
 pub fn pool_kinds(S) {
-    let root = scene::get_node("Editor");
+    let root = scene::get_node(POOL_HOST);
     if util::is_nil(root) {
         log::info("selftest pool: no shell in this run, skipped");
         return;
     }
-    root.add_child("PoolCheck").set_component("widget", #{ kind: "row" });
+    root.add_child(POOL_CHECK).set_component("widget", #{ kind: ui::WIDGET_ROW });
     S.pool_check = #{ stage: 0, heard: [] };
 }
 
@@ -3657,7 +3698,7 @@ pub fn pool_check_step(S) {
     if !(d is Object) {
         return;
     }
-    let path = "Editor/PoolCheck";
+    let path = POOL_HOST + "/" + POOL_CHECK;
     let heard = d.heard;
     let pick = #{ kind: "dropdown", text: "pick", options: ["a", "b"], on: |v| { heard.push(v); } };
     let stage = d.stage;

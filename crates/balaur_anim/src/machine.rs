@@ -14,7 +14,7 @@ use balaur_core::collections::DetHashMap;
 use balaur_core::hecs::{Entity, World};
 use std::rc::Rc;
 
-use crate::clip::{Clip, Wrap};
+use crate::clip::{Clip, LoopMode};
 use crate::ease::{Easing, Points};
 use crate::keys as k;
 use crate::player::{AnimationState, Playback, fixed_dt};
@@ -41,7 +41,7 @@ const DEFAULT_PRIORITY: u32 = 1;
 /// Joins a nested machine's name to its states: `locomotion/walk`.
 pub const GROUP_SEPARATOR: &str = "/";
 
-pub(crate) const MACHINE_ASSET_DOC: &str = r#"Switches an animation player between clips. `start` is the first state, `[states]` maps states to clips or to nested machines, each `[[transitions]]` entry names `from`, `to`, `fade`, `ease` or `fade_curve`, `advance`, `switch`, `condition`, `check`, `priority`, `reset` and `break_loop`. A transition to `end` stops the machine until a travel or a jump.
+pub(crate) const MACHINE_ASSET_DOC: &str = r#"Switches an animation player between clips. `start` is the first state, `[states]` maps states to clips or to nested machines, each `[[transitions]]` entry names `from`, `to`, `blend_time`, `ease` or `blend_curve`, `advance_mode`, `switch_mode`, `condition`, `check`, `priority`, `reset` and `break_loop_at_end`. A transition to `end` stops the machine until a travel or a jump.
 
 ```toml
 type = "state_machine"
@@ -57,25 +57,25 @@ states = { walk = "", run = "run_cycle" }
 [[transitions]]
 from = "idle"
 to = "move"                      # entering a nested machine enters its start
-fade = 0.2                       # seconds
-ease = "in_out_sine"             # the curve the fade follows; linear by default
-advance = "auto"                 # disabled, enabled (fires on animation.travel) or auto
-switch = "immediate"             # immediate, sync (keeps the playhead) or at_end
+blend_time = 0.2                 # seconds
+ease = "in_out_sine"             # the curve the blend follows; linear by default
+advance_mode = "auto"            # disabled, enabled (fires on animation.travel) or auto
+switch_mode = "immediate"        # immediate, sync (keeps the playhead) or at_end
 condition = "moving"             # turned on by animation.set_condition
 check = "can_move"               # a script method that has to answer true, asked each frame
 priority = 1                     # lower wins among auto transitions and on travel
 reset = true                     # false resumes where the state was last left
-break_loop = false               # true holds a looping clip's end while it fades out
+break_loop_at_end = false        # true holds a looping clip's end while it blends out
 
 [[transitions]]
 from = "move"                    # leaves from any state inside the nested machine
 to = "end"
-fade_curve = [[0.0, 0.0], [0.3, 0.8], [1.0, 1.0]]   # [u, weight] points, in place of ease
+blend_curve = [[0.0, 0.0], [0.3, 0.8], [1.0, 1.0]]   # [u, weight] points, in place of ease
 ```"#;
 
 /// When a transition may fire without being travelled through.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Advance {
+pub enum AdvanceMode {
     Disabled,
     Enabled,
     Auto,
@@ -83,7 +83,7 @@ pub enum Advance {
 
 /// How a transition cuts over.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Switch {
+pub enum SwitchMode {
     Immediate,
     Sync,
     AtEnd,
@@ -93,9 +93,9 @@ pub enum Switch {
 pub struct Transition {
     pub from: String,
     pub to: String,
-    pub fade: f32,
-    pub advance: Advance,
-    pub switch: Switch,
+    pub blend_time: f32,
+    pub advance_mode: AdvanceMode,
+    pub switch_mode: SwitchMode,
     /// The condition that has to be on for `auto` to fire; empty needs none.
     pub condition: String,
     /// The curve the fade's weight follows.
@@ -108,7 +108,7 @@ pub struct Transition {
     pub reset: bool,
     /// Whether a looping clip being left holds its end rather than wrapping
     /// while it fades out.
-    pub break_loop: bool,
+    pub break_loop_at_end: bool,
     /// A method on a script that has to answer true for `auto` to fire;
     /// empty asks nothing. Godot's `advance_expression`.
     pub check: String,
@@ -166,7 +166,7 @@ impl Machine {
     fn between(&self, from: &str, to: &str) -> Option<&Transition> {
         self.transitions
             .iter()
-            .filter(|t| t.from == from && t.to == to && t.advance != Advance::Disabled)
+            .filter(|t| t.from == from && t.to == to && t.advance_mode != AdvanceMode::Disabled)
             .min_by_key(|t| t.priority)
     }
 
@@ -189,7 +189,7 @@ impl Machine {
             for t in self
                 .transitions
                 .iter()
-                .filter(|t| t.from == at && t.advance != Advance::Disabled && t.to != from)
+                .filter(|t| t.from == at && t.advance_mode != AdvanceMode::Disabled && t.to != from)
             {
                 let reach = cost + u64::from(t.priority);
                 if best
@@ -216,7 +216,7 @@ impl Machine {
 ///
 /// # Errors
 /// When a transition names a state the machine does not have, or a word
-/// `advance` or `switch` does not know.
+/// `advance_mode` or `switch_mode` does not know.
 pub fn parse(value: &toml::Value) -> Result<Machine> {
     let mut machine = Machine::default();
     machine.start = flatten(&mut machine, value, "")?;
@@ -323,30 +323,30 @@ fn parse_transition(
     } else {
         return Err(unknown(&from));
     };
-    let advance = match text(item, k::ADVANCE).as_str() {
-        w::DISABLED => Advance::Disabled,
-        "" | w::ENABLED => Advance::Enabled,
-        w::AUTO => Advance::Auto,
+    let advance_mode = match text(item, k::ADVANCE_MODE).as_str() {
+        w::DISABLED => AdvanceMode::Disabled,
+        "" | w::ENABLED => AdvanceMode::Enabled,
+        w::AUTO => AdvanceMode::Auto,
         other => bail!(
-            "transition {i}: `advance` is '{other}', not {}, {} or {}",
+            "transition {i}: `advance_mode` is '{other}', not {}, {} or {}",
             w::DISABLED,
             w::ENABLED,
             w::AUTO
         ),
     };
-    let switch = match text(item, k::SWITCH).as_str() {
-        "" | w::IMMEDIATE => Switch::Immediate,
-        w::SYNC => Switch::Sync,
-        w::AT_END => Switch::AtEnd,
+    let switch_mode = match text(item, k::SWITCH_MODE).as_str() {
+        "" | w::IMMEDIATE => SwitchMode::Immediate,
+        w::SYNC => SwitchMode::Sync,
+        w::AT_END => SwitchMode::AtEnd,
         other => bail!(
-            "transition {i}: `switch` is '{other}', not {}, {} or {}",
+            "transition {i}: `switch_mode` is '{other}', not {}, {} or {}",
             w::IMMEDIATE,
             w::SYNC,
             w::AT_END
         ),
     };
-    let fade = item
-        .get(k::FADE)
+    let blend_time = item
+        .get(k::BLEND_TIME)
         .and_then(|v| v.as_float().or_else(|| v.as_integer().map(|n| n as f64)))
         .unwrap_or_default() as f32;
     let ease = match text(item, k::EASE).as_str() {
@@ -363,10 +363,10 @@ fn parse_transition(
             })?,
     };
     let curve = item
-        .get(k::FADE_CURVE)
+        .get(k::BLEND_CURVE)
         .map(Points::parse)
         .transpose()
-        .with_context(|| format!("transition {i}: `{}`", k::FADE_CURVE))?;
+        .with_context(|| format!("transition {i}: `{}`", k::BLEND_CURVE))?;
     let flag = |key: &str, default: bool| {
         item.get(key)
             .and_then(toml::Value::as_bool)
@@ -375,14 +375,14 @@ fn parse_transition(
     let template = Transition {
         from: String::new(),
         to,
-        fade,
-        advance,
-        switch,
+        blend_time,
+        advance_mode,
+        switch_mode,
         condition: text(item, k::CONDITION),
         ease,
         priority,
         reset: flag(k::RESET, true),
-        break_loop: flag(k::BREAK_LOOP, false),
+        break_loop_at_end: flag(k::BREAK_LOOP_AT_END, false),
         check: text(item, k::CHECK),
         curve,
     };
@@ -404,7 +404,7 @@ pub struct MachineRun {
     /// Path to the node whose `animation` player this drives; empty is this
     /// node.
     pub player: String,
-    pub active: bool,
+    pub enabled: bool,
     /// The state the machine is in; empty until it has entered `start`, and
     /// again once it has reached `end`.
     pub current: String,
@@ -443,7 +443,7 @@ pub(crate) fn prepare(eng: &Engine) {
         state
             .machines
             .iter()
-            .filter(|(_, run)| run.active && run.resolved_at != Some(generation))
+            .filter(|(_, run)| run.enabled && run.resolved_at != Some(generation))
             .map(|(&entity, run)| {
                 (
                     entity,
@@ -541,12 +541,12 @@ impl Entry {
 
     fn over(t: &Transition) -> Self {
         Self {
-            fade: t.fade,
+            fade: t.blend_time,
             ease: t.ease,
             curve: t.curve.clone(),
-            sync: t.switch == Switch::Sync,
+            sync: t.switch_mode == SwitchMode::Sync,
             reset: t.reset,
-            break_loop: t.break_loop,
+            break_loop: t.break_loop_at_end,
         }
     }
 }
@@ -563,7 +563,7 @@ pub(crate) fn step(
     moved: &mut Vec<Moved>,
 ) {
     for (&entity, run) in machines.iter_mut() {
-        if !run.active || !balaur_core::process::ticks(world, entity, paused) {
+        if !run.enabled || !balaur_core::process::ticks(world, entity, paused) {
             continue;
         }
         let Some(machine) = run.machine.clone() else {
@@ -636,7 +636,7 @@ fn decide(
         .iter()
         .filter(|t| {
             t.from == run.current
-                && t.advance == Advance::Auto
+                && t.advance_mode == AdvanceMode::Auto
                 && (t.condition.is_empty()
                     || run.conditions.get(&t.condition).copied().unwrap_or(false))
                 && (t.check.is_empty() || run.checks.get(&t.check).copied().unwrap_or(false))
@@ -683,7 +683,7 @@ fn emit(eng: &Engine, entity: Entity, event: &str, method: &str, state: &str) {
 /// its fade so it finishes with the clip, and any other waits for a fade
 /// already running to finish.
 fn ready(t: &Transition, playback: &Playback, ended: bool) -> bool {
-    if t.switch != Switch::AtEnd {
+    if t.switch_mode != SwitchMode::AtEnd {
         return playback.fades.is_empty();
     }
     if ended || wrapped(playback) {
@@ -692,16 +692,16 @@ fn ready(t: &Transition, playback: &Playback, ended: bool) -> bool {
     let Some(clip) = playback
         .clip
         .as_ref()
-        .filter(|_| t.fade > 0.0 && playback.playing)
+        .filter(|_| t.blend_time > 0.0 && playback.playing)
     else {
         return false;
     };
-    let into = if clip.wrap == Wrap::None || clip.length <= 0.0 {
+    let into = if clip.loop_mode == LoopMode::None || clip.length <= 0.0 {
         playback.time
     } else {
         playback.time - libm::floorf(playback.time / clip.length) * clip.length
     };
-    clip.length - into <= t.fade
+    clip.length - into <= t.blend_time
 }
 
 /// Whether a looping clip went round its end on the step just taken.
@@ -709,10 +709,10 @@ fn wrapped(playback: &Playback) -> bool {
     let Some(clip) = playback.clip.as_ref() else {
         return false;
     };
-    if clip.wrap == Wrap::None || clip.length <= 0.0 || !playback.playing {
+    if clip.loop_mode == LoopMode::None || clip.length <= 0.0 || !playback.playing {
         return false;
     }
-    let before = (playback.time - fixed_dt() * playback.speed).max(0.0);
+    let before = (playback.time - fixed_dt() * playback.speed_scale).max(0.0);
     // Which pass over the clip each end of the step is on, as a whole number.
     let pass = |time: f32| libm::floorf(time / clip.length) as i64;
     pass(before) != pass(playback.time)
@@ -778,7 +778,7 @@ pub(crate) fn evaluate_checks(eng: &Engine) {
         state
             .machines
             .iter()
-            .filter(|(_, run)| run.active)
+            .filter(|(_, run)| run.enabled)
             .filter_map(|(&entity, run)| {
                 let machine = run.machine.as_ref()?;
                 let mut methods: Vec<String> = Vec::new();
@@ -888,7 +888,7 @@ pub fn set_condition(eng: &Engine, entity: Entity, name: &str, on: bool) -> Resu
 
 /// The state the machine is in, or `None` before it has entered one.
 #[must_use]
-pub fn state(eng: &Engine, entity: Entity) -> Option<String> {
+pub fn current_state(eng: &Engine, entity: Entity) -> Option<String> {
     let state = eng.try_resource::<AnimationState>()?;
     let state = state.borrow();
     state
@@ -909,8 +909,8 @@ pub(crate) fn apply(eng: &Engine, entity: Entity, params: &toml::Value) {
         run.reference = reference;
         run.player = player;
     }
-    run.active = params
-        .get(k::ACTIVE)
+    run.enabled = params
+        .get(k::ENABLED)
         .and_then(toml::Value::as_bool)
         .unwrap_or(true);
     run.check_node = text(params, k::CHECK_NODE);
@@ -929,7 +929,7 @@ pub(crate) fn get(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let mut out = toml::map::Map::new();
     out.insert(k::MACHINE.into(), run.reference.clone().into());
     out.insert(k::PLAYER.into(), run.player.clone().into());
-    out.insert(k::ACTIVE.into(), run.active.into());
+    out.insert(k::ENABLED.into(), run.enabled.into());
     out.insert(k::CHECK_NODE.into(), run.check_node.clone().into());
     Some(toml::Value::Table(out))
 }

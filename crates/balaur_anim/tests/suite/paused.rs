@@ -26,8 +26,8 @@ length = 1.0
 [[library.rise.tracks]]
 property = "position"
 keys = [
-  { t = 0.0, value = [0.0, 0.0, 0.0] },
-  { t = 1.0, value = [0.0, 10.0, 0.0] },
+  { time = 0.0, value = [0.0, 0.0, 0.0] },
+  { time = 1.0, value = [0.0, 10.0, 0.0] },
 ]
 "#,
     )

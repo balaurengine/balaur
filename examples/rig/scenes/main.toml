@@ -47,31 +47,31 @@ position = [0, -1.25, 0]
 
 [nodes.animation]
 autoplay = "wave"
-speed = 1.0
+speed_scale = 1.0
 
 [nodes.animation.library]
-type = "animation_clip"
+type = "animation_library"
 
 [nodes.animation.library.clips.wave]
 length = 2.0
-loop = "loop"
+loop_mode = "linear"
 
 [[nodes.animation.library.clips.wave.tracks]]
 target = "Hip/Thigh"
 property = "rotation_euler"
 keys = [
-  { t = 0.0, value = [0, 0, -0.5] },
-  { t = 1.0, value = [0, 0, 0.5], ease = "in_out_sine" },
-  { t = 2.0, value = [0, 0, -0.5], ease = "in_out_sine" },
+  { time = 0.0, value = [0, 0, -0.5] },
+  { time = 1.0, value = [0, 0, 0.5], ease = "in_out_sine" },
+  { time = 2.0, value = [0, 0, -0.5], ease = "in_out_sine" },
 ]
 
 [[nodes.animation.library.clips.wave.tracks]]
 target = "Hip/Thigh/Shin"
 property = "rotation_euler"
 keys = [
-  { t = 0.0, value = [0, 0, 0.4] },
-  { t = 1.0, value = [0, 0, -0.6], ease = "in_out_sine" },
-  { t = 2.0, value = [0, 0, 0.4], ease = "in_out_sine" },
+  { time = 0.0, value = [0, 0, 0.4] },
+  { time = 1.0, value = [0, 0, -0.6], ease = "in_out_sine" },
+  { time = 2.0, value = [0, 0, 0.4], ease = "in_out_sine" },
 ]
 
 # The arm reaches for this point; `modifier2d` on Hero does the reaching.
@@ -79,11 +79,11 @@ keys = [
 target = "Target"
 property = "position"
 keys = [
-  { t = 0.0, value = [2.0, 1.4, 0] },
-  { t = 0.5, value = [1.7, 2.3, 0], ease = "in_out_sine" },
-  { t = 1.0, value = [1.0, 2.5, 0], ease = "in_out_sine" },
-  { t = 1.5, value = [1.4, 1.6, 0], ease = "in_out_sine" },
-  { t = 2.0, value = [2.0, 1.4, 0], ease = "in_out_sine" },
+  { time = 0.0, value = [2.0, 1.4, 0] },
+  { time = 0.5, value = [1.7, 2.3, 0], ease = "in_out_sine" },
+  { time = 1.0, value = [1.0, 2.5, 0], ease = "in_out_sine" },
+  { time = 1.5, value = [1.4, 1.6, 0], ease = "in_out_sine" },
+  { time = 2.0, value = [2.0, 1.4, 0], ease = "in_out_sine" },
 ]
 
 # The body's outline breathing, as an [dx, dy] offset per vertex over the
@@ -92,11 +92,11 @@ keys = [
 [[nodes.animation.library.clips.wave.tracks]]
 target = "Limb"
 property = "polygon/deform"
-interp = "linear"
+interpolation = "linear"
 keys = [
-  { t = 0.0, value = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
-  { t = 1.0, value = [-0.09, 0, 0.09, 0, 0.07, 0, 0.05, 0, 0.04, 0, -0.04, 0, -0.05, 0, -0.07, 0], ease = "in_out_sine" },
-  { t = 2.0, value = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], ease = "in_out_sine" },
+  { time = 0.0, value = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { time = 1.0, value = [-0.09, 0, 0.09, 0, 0.07, 0, 0.05, 0, 0.04, 0, -0.04, 0, -0.05, 0, -0.07, 0], ease = "in_out_sine" },
+  { time = 2.0, value = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], ease = "in_out_sine" },
 ]
 
 # A bow: the body leans towards the arm and the arm reaches low. It keys no
@@ -108,27 +108,27 @@ length = 1.5
 target = "Hip/Thigh"
 property = "rotation_euler"
 keys = [
-  { t = 0.0, value = [0, 0, -0.5] },
-  { t = 0.75, value = [0, 0, -1.0], ease = "in_out_sine" },
-  { t = 1.5, value = [0, 0, -0.5], ease = "in_out_sine" },
+  { time = 0.0, value = [0, 0, -0.5] },
+  { time = 0.75, value = [0, 0, -1.0], ease = "in_out_sine" },
+  { time = 1.5, value = [0, 0, -0.5], ease = "in_out_sine" },
 ]
 
 [[nodes.animation.library.clips.bow.tracks]]
 target = "Hip/Thigh/Shin"
 property = "rotation_euler"
 keys = [
-  { t = 0.0, value = [0, 0, 0.4] },
-  { t = 0.75, value = [0, 0, -0.3], ease = "in_out_sine" },
-  { t = 1.5, value = [0, 0, 0.4], ease = "in_out_sine" },
+  { time = 0.0, value = [0, 0, 0.4] },
+  { time = 0.75, value = [0, 0, -0.3], ease = "in_out_sine" },
+  { time = 1.5, value = [0, 0, 0.4], ease = "in_out_sine" },
 ]
 
 [[nodes.animation.library.clips.bow.tracks]]
 target = "Target"
 property = "position"
 keys = [
-  { t = 0.0, value = [2.0, 1.4, 0] },
-  { t = 0.75, value = [2.6, 0.7, 0], ease = "in_out_sine" },
-  { t = 1.5, value = [2.0, 1.4, 0], ease = "in_out_sine" },
+  { time = 0.0, value = [2.0, 1.4, 0] },
+  { time = 0.75, value = [2.6, 0.7, 0], ease = "in_out_sine" },
+  { time = 1.5, value = [2.0, 1.4, 0], ease = "in_out_sine" },
 ]
 
 # Wave once, bow once, and again: each clip hands over as it ends, over an
@@ -145,16 +145,16 @@ bow = ""
 [[nodes.state_machine.machine.transitions]]
 from = "wave"
 to = "bow"
-advance = "auto"
-switch = "at_end"
+advance_mode = "auto"
+switch_mode = "at_end"
 fade = 0.5
 ease = "in_out_sine"
 
 [[nodes.state_machine.machine.transitions]]
 from = "bow"
 to = "wave"
-advance = "auto"
-switch = "at_end"
+advance_mode = "auto"
+switch_mode = "at_end"
 fade = 0.5
 ease = "in_out_sine"
 

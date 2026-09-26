@@ -582,7 +582,7 @@ fn speed_scales_the_whole_sequence() {
         &app,
         entity,
         r#"
-speed = 2.0
+speed_scale = 2.0
 
 [[steps]]
 property = "position"
@@ -706,7 +706,7 @@ fn a_tween_that_would_run_backwards_forever_is_rejected() {
         &app.engine,
         entity,
         &spec(
-            "speed = -1.0\n[[steps]]\nproperty = \"position\"\nto = [0.0,1.0,0.0]\nduration = 0.5",
+            "speed_scale = -1.0\n[[steps]]\nproperty = \"position\"\nto = [0.0,1.0,0.0]\nduration = 0.5",
         ),
     )
     .unwrap_err();

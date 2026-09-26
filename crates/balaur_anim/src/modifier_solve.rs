@@ -10,7 +10,7 @@ use glamx::{Mat3, Mat4, Quat, Vec2, Vec3};
 /// inverts and there is no elbow angle to find anyway.
 pub(crate) const MIN_BONE: f32 = 1e-5;
 
-/// How far down a chain a modifier will walk when `chain` is left at zero.
+/// How far down a chain a modifier will walk when `chain_count` is left at zero.
 /// A cycle cannot happen in a scene tree, but a rig deep enough to matter
 /// here is already past what a solver converges on.
 const MAX_CHAIN: usize = 64;
@@ -378,7 +378,7 @@ fn two_bone_angles(l1: f32, l2: f32, distance: f32, base: f32, sign: f32) -> (f3
 }
 
 /// The 3D two-bone solve. The chain bends in the plane holding the root, the
-/// target and the pole — `flip` picks the other side of it — and the two
+/// target and the pole — `flip_bend_direction` picks the other side of it — and the two
 /// angles are the same law of cosines the 2D solve uses.
 pub(crate) fn two_bone_ik_3d(world: &World, root: Entity, target: Vec3, flip: bool) {
     let (Some(mid), Some(tip)) = (

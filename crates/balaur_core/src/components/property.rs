@@ -12,7 +12,7 @@
 use anyhow::{Result, anyhow};
 use hecs::Entity;
 
-use super::{PropertyFn, get_at, index_of, patch_at, record_at};
+use super::{PropertyFn, get_at, index_of, patch_at, record_one};
 use crate::engine::Engine;
 
 /// The components that can answer one property on their own, by name.
@@ -183,9 +183,7 @@ pub fn set_property_at(
         return patch_at(eng, entity, index, &params);
     }
     // The fast path wrote the component but not the record a save reads.
-    let mut one = toml::map::Map::new();
-    one.insert(key.to_string(), value.clone());
-    record_at(eng, entity, index, Some(&toml::Value::Table(one)), false);
+    record_one(eng, entity, index, key, value);
     Ok(())
 }
 
@@ -193,6 +191,28 @@ pub fn set_property_at(
 /// knows how to answer: `get` and index is what happens otherwise.
 pub fn property(eng: &Engine, entity: Entity, name: &str, key: &str) -> Option<toml::Value> {
     property_at(eng, entity, index_of(eng, name)?, key)
+}
+
+/// Whether the component's own reader reports every value in `asked` already.
+///
+/// `false` for a component with no reader, or a key its reader cannot answer:
+/// the caller then reads the whole table to find out.
+pub(crate) fn holds_already(
+    eng: &Engine,
+    entity: Entity,
+    index: usize,
+    asked: &toml::map::Map<String, toml::Value>,
+) -> bool {
+    let Some(readers) = eng.try_resource::<PropertyReaders>() else {
+        return false;
+    };
+    let readers = readers.borrow();
+    let Some(Some(read)) = readers.by_index.get(index) else {
+        return false;
+    };
+    asked
+        .iter()
+        .all(|(key, value)| read(eng, entity, key).as_ref() == Some(value))
 }
 
 /// [`property`] with the definition already resolved.

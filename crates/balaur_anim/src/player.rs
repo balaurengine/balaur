@@ -13,7 +13,7 @@ use balaur_core::assets;
 use balaur_core::collections::DetHashMap;
 use balaur_core::hecs::Entity;
 
-use crate::clip::{Clip, Wrap};
+use crate::clip::{Clip, LoopMode};
 use crate::ease::{Easing, Points};
 use crate::tween::{Tween, TweenId};
 
@@ -23,7 +23,7 @@ pub(crate) use balaur_core::{fixed_dt, max_substeps};
 
 /// The asset type name every clip is parsed through, and the one this crate
 /// registers.
-pub const CLIP_ASSET_TYPE: &str = "animation_clip";
+pub const LIBRARY_ASSET_TYPE: &str = "animation_library";
 
 /// What one node is playing, and where it is.
 ///
@@ -42,7 +42,7 @@ pub struct Playback {
     pub clip: Option<std::rc::Rc<Clip>>,
     /// Seconds of playback, before wrapping. Advanced by the fixed step.
     pub time: f32,
-    pub speed: f32,
+    pub speed_scale: f32,
     /// Whether the playhead is advancing.
     pub playing: bool,
     /// A clip is current but held. `stop` clears both; `pause` moves from one
@@ -50,12 +50,12 @@ pub struct Playback {
     /// go back to.
     pub paused: bool,
     /// Node path a track's `target` resolves against; empty is this node.
-    pub root: String,
+    pub root_node: String,
     /// What to play when the current clip ends, in the order it was asked
     /// for. A looping clip never ends, so it never drains — the same as
     /// Godot's queue.
     pub queue: Vec<String>,
-    /// Clips this node was given at run time by `animation.define`, as asset
+    /// Clips this node was given at run time by `animation.add_clip`, as asset
     /// references the cache already holds. Insertion-ordered, because a name
     /// lookup that iterates must not depend on a hasher's seed.
     pub defined: DetHashMap<String, String>,
@@ -90,7 +90,7 @@ pub struct Fade {
     pub curve: Option<Points>,
     /// A looping clip holds its last frame rather than wrapping while it
     /// fades: Godot's `break_loop_at_end`.
-    pub break_loop: bool,
+    pub break_loop_at_end: bool,
 }
 
 impl Fade {
@@ -111,7 +111,7 @@ impl Fade {
     /// the end of the pass it was on rather than wrapping.
     #[must_use]
     pub fn local_time(&self) -> f32 {
-        if self.break_loop {
+        if self.break_loop_at_end {
             self.time.clamp(0.0, self.clip.length)
         } else {
             crate::sampler::clip_time(&self.clip, self.time).0
@@ -126,7 +126,7 @@ pub(crate) fn leaving(
     duration: f32,
     ease: Easing,
     curve: Option<Points>,
-    break_loop: bool,
+    break_loop_at_end: bool,
 ) -> Option<Fade> {
     let clip = playback.clip.clone()?;
     if duration <= 0.0 || !playback.active() {
@@ -134,20 +134,20 @@ pub(crate) fn leaving(
     }
     // Held, the playhead is rebased onto the pass it is in, so clamping it
     // to the clip stops it at that pass's end.
-    let (time, speed) = if break_loop && clip.wrap != Wrap::None && clip.length > 0.0 {
+    let (time, speed) = if break_loop_at_end && clip.loop_mode != LoopMode::None && clip.length > 0.0 {
         let (local, _) = crate::sampler::clip_time(&clip, playback.time);
         let pass = libm::floorf(playback.time / clip.length) as i64;
-        let backward = clip.wrap == Wrap::PingPong && pass % 2 != 0;
+        let backward = clip.loop_mode == LoopMode::PingPong && pass % 2 != 0;
         (
             local,
             if backward {
-                -playback.speed
+                -playback.speed_scale
             } else {
-                playback.speed
+                playback.speed_scale
             },
         )
     } else {
-        (playback.time, playback.speed)
+        (playback.time, playback.speed_scale)
     };
     Some(Fade {
         clip_name: playback.clip_name.clone(),
@@ -158,7 +158,7 @@ pub(crate) fn leaving(
         duration,
         ease,
         curve,
-        break_loop,
+        break_loop_at_end,
     })
 }
 
@@ -170,10 +170,10 @@ impl Default for Playback {
             clip_name: String::new(),
             clip: None,
             time: 0.0,
-            speed: 1.0,
+            speed_scale: 1.0,
             playing: false,
             paused: false,
-            root: String::new(),
+            root_node: String::new(),
             queue: Vec::new(),
             defined: DetHashMap::default(),
             finished: String::new(),
@@ -296,21 +296,21 @@ pub fn play(eng: &Engine, entity: Entity, clip_name: &str) -> Result<()> {
 /// # Errors
 /// As [`play`].
 pub fn play_from(eng: &Engine, entity: Entity, clip_name: &str, from_start: bool) -> Result<()> {
-    play_faded(eng, entity, clip_name, 0.0, Easing::LINEAR, from_start)
+    play_blended(eng, entity, clip_name, 0.0, Easing::LINEAR, from_start)
 }
 
-/// [`play_from`], fading out of whatever is current over `fade` seconds on
+/// [`play_from`], fading out of whatever is current over `blend_time` seconds on
 /// the `ease` curve rather than cutting to the new clip: both are sampled and
 /// blended until the fade has run. A fade of zero is a cut, and drops any
 /// fade still running.
 ///
 /// # Errors
 /// As [`play`].
-pub fn play_faded(
+pub fn play_blended(
     eng: &Engine,
     entity: Entity,
     clip_name: &str,
-    fade: f32,
+    blend_time: f32,
     ease: Easing,
     from_start: bool,
 ) -> Result<()> {
@@ -326,7 +326,7 @@ pub fn play_faded(
             playback.reference(clip_name),
             playback.defined.contains_key(clip_name) || !playback.library.trim().is_empty(),
             same,
-            leaving(playback, fade, ease, None, false).filter(|_| !same),
+            leaving(playback, blend_time, ease, None, false).filter(|_| !same),
         )
     };
     if !addressable {
@@ -347,7 +347,7 @@ pub fn play_faded(
         playback.paused = false;
         match outgoing {
             Some(outgoing) => playback.fades.push(outgoing),
-            None if fade <= 0.0 => playback.fades.clear(),
+            None if blend_time <= 0.0 => playback.fades.clear(),
             None => {}
         }
     }
@@ -398,7 +398,7 @@ pub fn queue(eng: &Engine, entity: Entity, clip_name: &str) {
 /// Stop playback, leaving the pose where it is. A no-op on a node that is not
 /// playing.
 ///
-/// The clip stops being current, so `current` answers nothing afterwards and
+/// The clip stops being current, so `current_clip` answers nothing afterwards and
 /// `resume` has nothing to go back to — that is what separates this from
 /// [`pause`].
 pub fn stop(eng: &Engine, entity: Entity) {
@@ -431,10 +431,10 @@ pub fn resume(eng: &Engine, entity: Entity) {
 }
 
 /// Scale playback: 2.0 is twice as fast, a negative speed runs the clip
-/// backwards. Also what the component's `speed` property writes.
-pub fn set_speed(eng: &Engine, entity: Entity, speed: f32) {
+/// backwards. Also what the component's `speed_scale` property writes.
+pub fn set_speed_scale(eng: &Engine, entity: Entity, speed_scale: f32) {
     with_playback(eng, entity, |playback| {
-        playback.speed = speed;
+        playback.speed_scale = speed_scale;
     });
 }
 
@@ -458,7 +458,7 @@ pub fn seek(eng: &Engine, entity: Entity, time: f32) {
 /// The clip playing or held on `entity`, or `None` once it has ended or been
 /// stopped.
 #[must_use]
-pub fn current(eng: &Engine, entity: Entity) -> Option<String> {
+pub fn current_clip(eng: &Engine, entity: Entity) -> Option<String> {
     read(eng, entity, |playback| {
         playback.active().then(|| playback.clip_name.clone())
     })
@@ -495,19 +495,19 @@ pub fn just_finished(eng: &Engine, entity: Entity) -> Option<String> {
 /// clip twice costs one entry rather than two.
 ///
 /// # Errors
-/// If the table is not a clip the `animation_clip` parser accepts.
-pub fn define(eng: &Engine, entity: Entity, clip_name: &str, body: toml::Value) -> Result<()> {
-    let reference = assets::define_inline(eng, CLIP_ASSET_TYPE, body)
-        .with_context(|| format!("defining animation '{clip_name}'"))?
+/// If the table is not a clip the `animation_library` parser accepts.
+pub fn add_clip(eng: &Engine, entity: Entity, clip_name: &str, body: toml::Value) -> Result<()> {
+    let reference = assets::define_inline(eng, LIBRARY_ASSET_TYPE, body)
+        .with_context(|| format!("adding animation clip '{clip_name}'"))?
         .to_string();
     // Parse it now rather than at the first `play`, so a malformed definition
     // is an error where it was written.
     assets::load_typed::<Clip>(eng, &reference)
-        .with_context(|| format!("defining animation '{clip_name}'"))?;
+        .with_context(|| format!("adding animation clip '{clip_name}'"))?;
     with_playback(eng, entity, |playback| {
         playback
             .defined
             .insert(clip_name.to_string(), reference.clone());
     })
-    .ok_or_else(|| anyhow!("this node has no `animation` component to define a clip on"))
+    .ok_or_else(|| anyhow!("this node has no `animation` component to add a clip to"))
 }

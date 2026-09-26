@@ -49,9 +49,13 @@ fn editable(S) {
     util::deep(rows(S))
 }
 
+// The event a new row answers to, and the prefix a hook's name carries.
+const DEFAULT_EVENT = "pointer_click";
+const HOOK_PREFIX = "on_";
+
 pub fn add_row(S) {
     let rows = editable(S);
-    rows.push(#{ event: "pointer_click", action: "state", target: "", value: "" });
+    rows.push(#{ event: DEFAULT_EVENT, action: "state", target: "", value: "" });
     write(S, rows, "add binding");
 }
 
@@ -137,7 +141,7 @@ fn typed(S, at, key, current, placeholder, width) {
 
 /// One binding: what happens, when, and what it does.
 fn row_spec(S, at, row) {
-    let event = row.get("event").unwrap_or("pointer_click");
+    let event = row.get("event").unwrap_or(DEFAULT_EVENT);
     let action = row.get("action").unwrap_or("state");
     let target = row.get("target").unwrap_or("");
     let controls = [
@@ -174,7 +178,7 @@ fn row_spec(S, at, row) {
 /// One arm per action, spelling the call the interpreter makes, so a scene
 /// that outgrows the table graduates without a rewrite.
 // The prefix an event row carries for what its own node emits by name.
-const EMITTED = "emitted:";
+pub const EMITTED = "emitted:";
 
 pub fn as_script(S) {
     script_of(rows(S))
@@ -187,13 +191,13 @@ pub fn script_of(rows) {
     // hears once it subscribes to it.
     let heard = [];
     for row in rows {
-        let event = row.get("event").unwrap_or("pointer_click");
+        let event = row.get("event").unwrap_or(DEFAULT_EVENT);
         let own = event.starts_with(EMITTED);
         let name = if own { event[EMITTED.len()..] } else { event };
         if own && !heard.iter().any(|h| h == name) {
             heard.push(name);
         }
-        let hook = "on_" + name;
+        let hook = HOOK_PREFIX + name;
         if !byhook.contains_key(hook) {
             byhook[hook] = [];
         }
@@ -208,7 +212,7 @@ pub fn script_of(rows) {
         out += "}\n";
     }
     for hook in util::keys_sorted(byhook) {
-        let args = if heard.iter().any(|h| "on_" + h == hook) { ", payload" } else { hook_args(hook) };
+        let args = if heard.iter().any(|h| HOOK_PREFIX + h == hook) { ", payload" } else { hook_args(hook) };
         out += format!("\npub fn {}(this{}) {{\n", hook, args);
         for row in byhook[hook] {
             out += "    " + guarded(row) + "\n";

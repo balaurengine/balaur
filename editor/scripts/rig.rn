@@ -2,6 +2,7 @@
 // that grows a chain, and the two rest-pose verbs. A bone is a node with
 // `bone2d` or `bone3d`; this module only reads and writes those.
 
+use crate::defs;
 use crate::history;
 use crate::model;
 use crate::util;
@@ -209,7 +210,7 @@ fn draw_bone_3d(g, color) {
 // workspace, the tool, or a selected bone.
 pub fn draw(S) {
     let selected_bone = S.sel >= 0 && is_bone(S.doc[S.sel]);
-    let show = S.workspace == "animation" || S.tool == "bone" || selected_bone;
+    let show = S.workspace == defs::WORKSPACE_ANIMATION || S.tool == "bone" || selected_bone;
     if !show {
         return;
     }
@@ -279,7 +280,7 @@ fn modifier_reach(S, i) {
     let target = if target_path == "" { () } else { found.get_node(target_path) };
     let chain = [];
     let at = model::index_of_path(S, driven.path());
-    let limit = util::max(1, util::i(util::f(comp.get("chain").unwrap_or(0.0))));
+    let limit = util::max(1, util::i(util::f(comp.get("chain_count").unwrap_or(0.0))));
     let kind = comp.get("kind").unwrap_or(animation::MODIFIER_LOOK_AT);
     // `look_at` drives one bone whatever the chain says; `two_bone_ik` is
     // three by definition. The rest walk as far as `chain` allows.
@@ -287,7 +288,7 @@ fn modifier_reach(S, i) {
         1
     } else if kind == animation::MODIFIER_TWO_BONE_IK {
         3
-    } else if util::f(comp.get("chain").unwrap_or(0.0)) > 0.0 {
+    } else if util::f(comp.get("chain_count").unwrap_or(0.0)) > 0.0 {
         limit
     } else {
         64

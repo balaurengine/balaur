@@ -2,6 +2,7 @@
 // Timeline / Debugger.
 
 use crate::anim;
+use crate::defs;
 use crate::icons;
 use crate::model;
 use crate::session;
@@ -313,7 +314,7 @@ fn asset_look(name, is_dir) {
         return (crate::icons::panel("scene"), "primary_text");
     }
     if crate::importer::kind_of(name) == "texture" {
-        return (crate::icons::workspace("ui"), "primary_text");
+        return (crate::icons::workspace(defs::WORKSPACE_UI), "primary_text");
     }
     return (crate::icons::ui("dot"), "text_subtle");
 }
@@ -330,7 +331,7 @@ fn open_asset(S, rel) {
     for (i, node) in S.doc.iter().enumerate() {
         if model::script_rel(node) == Some(rel) {
             shell::choose(S, i);
-            shell::set_workspace(S, "script");
+            shell::set_workspace(S, defs::WORKSPACE_SCRIPT);
             return;
         }
     }
@@ -349,7 +350,7 @@ fn parent_dir(dir) {
 /// The Assets dock's own state, hung on `S.assets`. `sel` is the card acted
 /// on by rename and delete; `renaming` swaps the breadcrumb for a field.
 pub fn assets_state() {
-    #{ dir: "", sel: "", renaming: false }
+    #{ dir: "", sel: "", renaming: false, cards: #{} }
 }
 
 // New folder, rename and delete: what a file browser is for, and what this
@@ -505,11 +506,16 @@ fn show_cards(S, k, dir, files) {
         paths.push(rel);
     }
     let chosen = "";
+    let cards = #{};
     for (n, rel) in paths.iter().enumerate() {
         if rel == S.assets.sel {
             chosen = items[n];
         }
+        if !files[n].is_dir {
+            cards[items[n]] = rel;
+        }
     }
+    S.assets.cards = cards;
     util::fill(CARDS_NODE, #{
         options: items, visible: true, columns: 6, text: chosen,
     });
@@ -537,6 +543,20 @@ fn show_cards(S, k, dir, files) {
         S.assets.sel = paths[n];
         S.assets.renaming = false;
     }
+}
+
+/// A card dragged out of the Assets dock and let go: over the viewport, the
+/// file is placed where the pointer is; anywhere else, nothing happens.
+pub fn drop_card(S, card) {
+    let rel = match S.assets.get("cards").unwrap_or(#{}).get(card) {
+        Some(rel) => rel,
+        None => return false,
+    };
+    let (x, y) = input::mouse_position();
+    if !crate::viewport::owns_pointer(S, x / S.ui_scale, y / S.ui_scale) {
+        return false;
+    }
+    crate::dropin::place_file(S, rel)
 }
 
 // Keyframe timeline over the engine's clip (scripts/anim.rn is the adapter):
@@ -632,7 +652,7 @@ pub fn timeline(S, k) {
                 ui::add_space(14);
                 let cursor = 0.0;
                 for key in util::vec(track.get("keys").unwrap_or([])) {
-                    let t = util::f(key.get("t").unwrap_or(0.0));
+                    let t = util::f(key.get("time").unwrap_or(0.0));
                     let x = util::max(0.0, (t / length) * lane_w - 5.0);
                     if x - cursor > 0.0 {
                         ui::add_space(x - cursor);
@@ -838,7 +858,7 @@ fn open_at(S, f) {
     for (i, node) in S.doc.iter().enumerate() {
         if model::script_rel(node) == Some(f.file) {
             shell::choose(S, i);
-            shell::set_workspace(S, "script");
+            shell::set_workspace(S, defs::WORKSPACE_SCRIPT);
             return;
         }
     }

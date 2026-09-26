@@ -63,7 +63,7 @@ use balaur_core::scene::{self, Transform};
 use balaur_script::Value;
 use glamx::{Quat, Vec4};
 
-use crate::clip::{Clip, Interp, Key, Property, Track, Wrap};
+use crate::clip::{Clip, Interpolation, Key, Property, Track, LoopMode};
 use crate::ease::Easing;
 use crate::keys as k;
 use crate::player::{AnimationState, fixed_dt};
@@ -132,7 +132,7 @@ pub struct Tween {
 /// nothing, a target that names no node, or a component the node does not
 /// have.
 pub fn start(eng: &Engine, node: Entity, spec: &toml::Value) -> Result<TweenId> {
-    let speed = match spec.get(k::SPEED) {
+    let speed = match spec.get(k::SPEED_SCALE) {
         Some(v) => {
             as_f64(v).ok_or_else(|| anyhow!("`speed` is {}, not a number", v.type_str()))? as f32
         }
@@ -198,13 +198,13 @@ pub fn start_value(
         target: String::new(),
         property: VALUE_PROPERTY,
         channels,
-        interp: Interp::Linear,
+        interpolation: Interpolation::Linear,
         keys: Vec::new(),
     };
     push_segment(&mut track, 0.0, duration, from, to, ease);
     let clip = Clip {
         length: duration.max(fixed_dt()),
-        wrap: Wrap::None,
+        loop_mode: LoopMode::None,
         tracks: vec![track],
     };
     let state = eng.resource::<AnimationState>();
@@ -538,7 +538,7 @@ fn build(eng: &Engine, node: Entity, spec: &toml::Value) -> Result<Clip> {
             .with_context(|| format!("tween step {index}"))?;
     }
     for track in &mut builder.tracks {
-        track.keys.sort_by(|a, b| a.t.total_cmp(&b.t));
+        track.keys.sort_by(|a, b| a.time.total_cmp(&b.time));
     }
     Ok(Clip {
         // A tween of nothing but callbacks has no duration of its own, and
@@ -550,7 +550,7 @@ fn build(eng: &Engine, node: Entity, spec: &toml::Value) -> Result<Clip> {
         },
         // Repeats are the tween's own business: `loops` counts them, and a
         // looping clip would never end and never be cleaned up.
-        wrap: Wrap::None,
+        loop_mode: LoopMode::None,
         tracks: builder.tracks,
     })
 }
@@ -612,7 +612,7 @@ impl Builder<'_> {
         target_of(self.eng, self.node, target)?;
         let index = self.track_for(target, &Property::Call, 0);
         self.tracks[index].keys.push(Key {
-            t: start.max(CALL_AT_HEAD),
+            time: start.max(CALL_AT_HEAD),
             value: Vec4::ZERO,
             call: method.map(str::to_string),
             function,
@@ -728,7 +728,7 @@ impl Builder<'_> {
             channels,
             // The shaping is the key's own `ease`; the track between keys is
             // the straight line every curve is measured against.
-            interp: Interp::Linear,
+            interpolation: Interpolation::Linear,
             keys: Vec::new(),
         });
         self.tracks.len() - 1
@@ -765,12 +765,12 @@ fn push_segment(
     // pause: the previous value is held right up to the moment this step
     // begins, and the two keys at the same time are what say so.
     if let Some(last) = track.keys.last()
-        && last.t < start
+        && last.time < start
         && last.value != from
     {
         let held = last.value;
         track.keys.push(Key {
-            t: start,
+            time: start,
             value: held,
             call: None,
             function: None,
@@ -780,7 +780,7 @@ fn push_segment(
         });
     }
     track.keys.push(Key {
-        t: start,
+        time: start,
         value: from,
         call: None,
         function: None,
@@ -789,7 +789,7 @@ fn push_segment(
         discrete: None,
     });
     track.keys.push(Key {
-        t: start + duration,
+        time: start + duration,
         value: to,
         call: None,
         function: None,

@@ -151,14 +151,14 @@ mod tests {
         put(
             "animations/steal.toml",
             &[
-                "type = \"animation_clip\"",
+                "type = \"animation_library\"",
                 "[clips.start]",
                 "length = 2.0",
                 "[[clips.start.tracks]]",
                 "target = \"\"",
                 "property = \"position\"",
-                "interp = \"linear\"",
-                "keys = [{ t = 0.0, value = [0.0, 0.0, 0.0] }, { t = 2.0, value = [1.0, 0.0, 0.0] }]",
+                "interpolation = \"linear\"",
+                "keys = [{ time = 0.0, value = [0.0, 0.0, 0.0] }, { time = 2.0, value = [1.0, 0.0, 0.0] }]",
                 "",
             ]
             .join("\n"),

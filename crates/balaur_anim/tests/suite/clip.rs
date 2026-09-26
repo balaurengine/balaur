@@ -4,7 +4,7 @@
 //! parsing is `(document) -> clip`, and both being reachable with no engine at
 //! all is what a blend tree will later be built on.
 
-use balaur_anim::clip::{self, Interp, Property, Wrap};
+use balaur_anim::clip::{self, Interpolation, Property, LoopMode};
 use balaur_anim::ease::Easing;
 use balaur_anim::sampler::{self, TrackValue};
 use std::f32::consts::FRAC_PI_2;
@@ -29,15 +29,15 @@ fn position_at(clip: &clip::Clip, time: f32) -> Vec3 {
 
 const RISE: &str = r#"
 length = 2.0
-loop = "pingpong"
+loop_mode = "pingpong"
 
 [[tracks]]
 target = "Arm"
 property = "position"
-interp = "step"
+interpolation = "step"
 keys = [
-  { t = 0.0, value = [0.0, 0.0, 0.0] },
-  { t = 2.0, value = [0.0, 10.0, 0.0], ease = "out_back" },
+  { time = 0.0, value = [0.0, 0.0, 0.0] },
+  { time = 2.0, value = [0.0, 10.0, 0.0], ease = "out_back" },
 ]
 "#;
 
@@ -45,12 +45,12 @@ keys = [
 fn a_clip_reads_its_length_loop_mode_and_tracks() {
     let clip = clip_of(RISE);
     assert_eq!(clip.length.to_bits(), 2.0f32.to_bits());
-    assert_eq!(clip.wrap, Wrap::PingPong);
+    assert_eq!(clip.loop_mode, LoopMode::PingPong);
     assert_eq!(clip.tracks.len(), 1);
     let track = &clip.tracks[0];
     assert_eq!(track.target, "Arm");
     assert_eq!(track.property, Property::Position);
-    assert_eq!(track.interp, Interp::Step);
+    assert_eq!(track.interpolation, Interpolation::Step);
     assert_eq!(track.keys.len(), 2);
     assert_eq!(
         track.keys[1].ease.map(Easing::name),
@@ -66,15 +66,15 @@ fn a_clip_takes_its_length_from_its_last_key_when_it_declares_none() {
 [[tracks]]
 property = "position"
 keys = [
-  { t = 0.0, value = [0.0, 0.0, 0.0] },
-  { t = 1.5, value = [0.0, 1.0, 0.0] },
+  { time = 0.0, value = [0.0, 0.0, 0.0] },
+  { time = 1.5, value = [0.0, 1.0, 0.0] },
 ]
 "#,
     );
     assert_eq!(clip.length.to_bits(), 1.5f32.to_bits());
     assert_eq!(
-        clip.wrap,
-        Wrap::None,
+        clip.loop_mode,
+        LoopMode::None,
         "a clip that says nothing does not loop"
     );
 }
@@ -88,13 +88,13 @@ length = 2.0
 [[tracks]]
 property = "position"
 keys = [
-  { t = 2.0, value = [0.0, 10.0, 0.0] },
-  { t = 0.0, value = [0.0, 0.0, 0.0] },
-  { t = 1.0, value = [0.0, 5.0, 0.0] },
+  { time = 2.0, value = [0.0, 10.0, 0.0] },
+  { time = 0.0, value = [0.0, 0.0, 0.0] },
+  { time = 1.0, value = [0.0, 5.0, 0.0] },
 ]
 "#,
     );
-    let times: Vec<f32> = clip.tracks[0].keys.iter().map(|key| key.t).collect();
+    let times: Vec<f32> = clip.tracks[0].keys.iter().map(|key| key.time).collect();
     assert_eq!(times, vec![0.0, 1.0, 2.0]);
 }
 
@@ -119,8 +119,8 @@ length = 2.0
 [[tracks]]
 property = "position"
 keys = [
-  { t = 0.0, value = [0.0, 0.0, 0.0] },
-  { t = 2.0, value = [0.0, 10.0, 0.0] },
+  { time = 0.0, value = [0.0, 0.0, 0.0] },
+  { time = 2.0, value = [0.0, 10.0, 0.0] },
 ]
 "#,
     );
@@ -136,12 +136,12 @@ length = 3.0
 
 [[tracks]]
 property = "position"
-interp = "cubic"
+interpolation = "cubic"
 keys = [
-  { t = 0.0, value = [0.0, 0.0, 0.0] },
-  { t = 1.0, value = [0.0, 4.0, 0.0] },
-  { t = 2.0, value = [0.0, 1.0, 0.0] },
-  { t = 3.0, value = [0.0, 9.0, 0.0] },
+  { time = 0.0, value = [0.0, 0.0, 0.0] },
+  { time = 1.0, value = [0.0, 4.0, 0.0] },
+  { time = 2.0, value = [0.0, 1.0, 0.0] },
+  { time = 3.0, value = [0.0, 9.0, 0.0] },
 ]
 "#,
     );
@@ -162,7 +162,7 @@ keys = [
 #[test]
 fn a_looping_clip_never_ends_and_a_plain_one_does() {
     let looping = clip_of(
-        "length = 2.0\nloop = \"loop\"\n[[tracks]]\nproperty = \"position\"\nkeys = [ { t = 0.0, value = [0.0, 0.0, 0.0] } ]",
+        "length = 2.0\nloop_mode = \"linear\"\n[[tracks]]\nproperty = \"position\"\nkeys = [ { time = 0.0, value = [0.0, 0.0, 0.0] } ]",
     );
     let (time, finished) = sampler::clip_time(&looping, 5.0);
     assert!(!finished);
@@ -172,7 +172,7 @@ fn a_looping_clip_never_ends_and_a_plain_one_does() {
     );
 
     let once = clip_of(
-        "length = 2.0\n[[tracks]]\nproperty = \"position\"\nkeys = [ { t = 0.0, value = [0.0, 0.0, 0.0] } ]",
+        "length = 2.0\n[[tracks]]\nproperty = \"position\"\nkeys = [ { time = 0.0, value = [0.0, 0.0, 0.0] } ]",
     );
     let (time, finished) = sampler::clip_time(&once, 5.0);
     assert!(finished);
@@ -186,7 +186,7 @@ fn a_looping_clip_never_ends_and_a_plain_one_does() {
 #[test]
 fn a_pingpong_clip_folds_time_back_on_itself() {
     let clip = clip_of(
-        "length = 2.0\nloop = \"pingpong\"\n[[tracks]]\nproperty = \"position\"\nkeys = [ { t = 0.0, value = [0.0, 0.0, 0.0] } ]",
+        "length = 2.0\nloop_mode = \"pingpong\"\n[[tracks]]\nproperty = \"position\"\nkeys = [ { time = 0.0, value = [0.0, 0.0, 0.0] } ]",
     );
     for (elapsed, expected) in [(0.5, 0.5), (2.5, 1.5), (3.5, 0.5), (4.5, 0.5)] {
         let (time, finished) = sampler::clip_time(&clip, elapsed);
@@ -207,8 +207,8 @@ length = 1.0
 [[tracks]]
 property = "rotation_euler"
 keys = [
-  { t = 0.0, value = [0.0, 0.0, 2.9670597] },
-  { t = 1.0, value = [0.0, 0.0, -2.9670597] },
+  { time = 0.0, value = [0.0, 0.0, 2.9670597] },
+  { time = 1.0, value = [0.0, 0.0, -2.9670597] },
 ]
 "#,
     );
@@ -244,7 +244,7 @@ fn the_euler_convention_matches_the_engines_own() {
 #[test]
 fn a_track_can_name_a_component_property() {
     let clip = clip_of(
-        "length = 1.0\n[[tracks]]\nproperty = \"color/rgba\"\nkeys = [ { t = 0.0, value = [1.0, 0.0, 0.0, 1.0] } ]",
+        "length = 1.0\n[[tracks]]\nproperty = \"color/rgba\"\nkeys = [ { time = 0.0, value = [1.0, 0.0, 0.0, 1.0] } ]",
     );
     assert_eq!(
         clip.tracks[0].property,
@@ -259,7 +259,7 @@ fn a_track_can_name_a_component_property() {
 #[test]
 fn a_component_track_is_as_wide_as_its_keys() {
     let one = clip_of(
-        "length = 1.0\n[[tracks]]\nproperty = \"shape/radius\"\nkeys = [ { t = 0.0, value = 0.5 }, { t = 1.0, value = 2.0 } ]",
+        "length = 1.0\n[[tracks]]\nproperty = \"shape/radius\"\nkeys = [ { time = 0.0, value = 0.5 }, { time = 1.0, value = 2.0 } ]",
     );
     assert_eq!(one.tracks[0].channels, 1, "a single number is one channel");
     match &sampler::sample(&one, 0.5)[0] {
@@ -270,7 +270,7 @@ fn a_component_track_is_as_wide_as_its_keys() {
         other => panic!("a component track sampled as {other:?}"),
     }
     let why = rejection(
-        "length = 1.0\n[[tracks]]\nproperty = \"shape/radius\"\nkeys = [ { t = 0.0, value = 0.5 }, { t = 1.0, value = [1.0, 2.0] } ]",
+        "length = 1.0\n[[tracks]]\nproperty = \"shape/radius\"\nkeys = [ { time = 0.0, value = 0.5 }, { time = 1.0, value = [1.0, 2.0] } ]",
     );
     assert!(why.contains("key 1"), "the message owes a key: {why}");
     assert!(why.contains("takes 1"), "unhelpful: {why}");
@@ -284,7 +284,7 @@ fn a_property_that_is_neither_a_transform_nor_a_path_is_rejected() {
         ("property = \"/rgba\"", "/rgba"),
     ] {
         let why = rejection(&format!(
-            "length = 1.0\n[[tracks]]\n{source}\nkeys = [ {{ t = 0.0, value = [0.0, 0.0, 0.0] }} ]"
+            "length = 1.0\n[[tracks]]\n{source}\nkeys = [ {{ time = 0.0, value = [0.0, 0.0, 0.0] }} ]"
         ));
         assert!(why.contains(word), "unhelpful: {why}");
         assert!(why.contains("component/property"), "unhelpful: {why}");
@@ -294,7 +294,7 @@ fn a_property_that_is_neither_a_transform_nor_a_path_is_rejected() {
 #[test]
 fn a_track_with_no_property_is_a_method_track() {
     let clip = clip_of(
-        "length = 1.0\n[[tracks]]\ntarget = \"Feet\"\nkeys = [ { t = 0.8, call = \"on_footstep\" } ]",
+        "length = 1.0\n[[tracks]]\ntarget = \"Feet\"\nkeys = [ { time = 0.8, call = \"on_footstep\" } ]",
     );
     assert_eq!(clip.tracks[0].property, Property::Call);
     assert_eq!(clip.tracks[0].keys[0].call.as_deref(), Some("on_footstep"));
@@ -307,7 +307,7 @@ fn a_track_with_no_property_is_a_method_track() {
 
 #[test]
 fn a_key_that_neither_calls_nor_carries_a_value_says_which_it_needs() {
-    let why = rejection("length = 1.0\n[[tracks]]\nkeys = [ { t = 0.5 } ]");
+    let why = rejection("length = 1.0\n[[tracks]]\nkeys = [ { time = 0.5 } ]");
     assert!(why.contains("call"), "unhelpful: {why}");
     assert!(why.contains("property"), "unhelpful: {why}");
 }
@@ -315,7 +315,7 @@ fn a_key_that_neither_calls_nor_carries_a_value_says_which_it_needs() {
 #[test]
 fn a_call_on_a_track_that_animates_a_value_is_rejected() {
     let why = rejection(
-        "length = 1.0\n[[tracks]]\nproperty = \"position\"\nkeys = [ { t = 0.5, call = \"boom\", value = [0.0, 0.0, 0.0] } ]",
+        "length = 1.0\n[[tracks]]\nproperty = \"position\"\nkeys = [ { time = 0.5, call = \"boom\", value = [0.0, 0.0, 0.0] } ]",
     );
     assert!(why.contains("call"), "unhelpful: {why}");
 }
@@ -323,7 +323,7 @@ fn a_call_on_a_track_that_animates_a_value_is_rejected() {
 #[test]
 fn a_method_key_is_passed_once_per_loop_and_never_by_a_seek() {
     let clip = clip_of(
-        "length = 1.0\nloop = \"loop\"\n[[tracks]]\nkeys = [ { t = 0.5, call = \"step\" } ]",
+        "length = 1.0\nloop_mode = \"linear\"\n[[tracks]]\nkeys = [ { time = 0.5, call = \"step\" } ]",
     );
     let crossed = |from: f32, to: f32| {
         sampler::spans(&clip, from, to)
@@ -343,7 +343,7 @@ fn a_method_key_is_passed_once_per_loop_and_never_by_a_seek() {
 #[test]
 fn a_step_over_the_whole_clip_passes_every_key_exactly_once() {
     let clip = clip_of(
-        "length = 1.0\nloop = \"loop\"\n[[tracks]]\nkeys = [ { t = 0.2, call = \"a\" }, { t = 0.8, call = \"b\" } ]",
+        "length = 1.0\nloop_mode = \"linear\"\n[[tracks]]\nkeys = [ { time = 0.2, call = \"a\" }, { time = 0.8, call = \"b\" } ]",
     );
     let spans = sampler::spans(&clip, 0.1, 3.7);
     for t in [0.2_f32, 0.8] {
@@ -355,7 +355,7 @@ fn a_step_over_the_whole_clip_passes_every_key_exactly_once() {
 #[test]
 fn a_pingpong_return_leg_passes_a_key_the_other_way_round() {
     let clip = clip_of(
-        "length = 1.0\nloop = \"pingpong\"\n[[tracks]]\nkeys = [ { t = 0.5, call = \"step\" } ]",
+        "length = 1.0\nloop_mode = \"pingpong\"\n[[tracks]]\nkeys = [ { time = 0.5, call = \"step\" } ]",
     );
     let out = sampler::spans(&clip, 0.4, 0.6);
     assert!(out[0].1 > out[0].0, "the outward leg runs forwards");
@@ -368,7 +368,7 @@ fn a_pingpong_return_leg_passes_a_key_the_other_way_round() {
 #[test]
 fn an_unknown_loop_mode_is_rejected_naming_it() {
     let why = rejection(
-        "length = 1.0\nloop = \"boomerang\"\n[[tracks]]\nproperty = \"position\"\nkeys = [ { t = 0.0, value = [0.0, 0.0, 0.0] } ]",
+        "length = 1.0\nloop_mode = \"boomerang\"\n[[tracks]]\nproperty = \"position\"\nkeys = [ { time = 0.0, value = [0.0, 0.0, 0.0] } ]",
     );
     assert!(why.contains("boomerang"), "unhelpful: {why}");
     assert!(
@@ -380,8 +380,8 @@ fn an_unknown_loop_mode_is_rejected_naming_it() {
 #[test]
 fn a_clip_with_no_positive_length_is_rejected() {
     for source in [
-        "length = 0.0\n[[tracks]]\nproperty = \"position\"\nkeys = [ { t = 0.0, value = [0.0, 0.0, 0.0] } ]",
-        "[[tracks]]\nproperty = \"position\"\nkeys = [ { t = 0.0, value = [0.0, 0.0, 0.0] } ]",
+        "length = 0.0\n[[tracks]]\nproperty = \"position\"\nkeys = [ { time = 0.0, value = [0.0, 0.0, 0.0] } ]",
+        "[[tracks]]\nproperty = \"position\"\nkeys = [ { time = 0.0, value = [0.0, 0.0, 0.0] } ]",
     ] {
         let why = rejection(source);
         assert!(why.contains("length"), "unhelpful: {why}");
@@ -391,7 +391,7 @@ fn a_clip_with_no_positive_length_is_rejected() {
 #[test]
 fn a_track_says_which_of_its_keys_is_malformed() {
     let why = rejection(
-        "length = 1.0\n[[tracks]]\nproperty = \"position\"\nkeys = [ { t = 0.0, value = [0.0, 0.0, 0.0] }, { t = 1.0, value = [0.0, 1.0] } ]",
+        "length = 1.0\n[[tracks]]\nproperty = \"position\"\nkeys = [ { time = 0.0, value = [0.0, 0.0, 0.0] }, { time = 1.0, value = [0.0, 1.0] } ]",
     );
     assert!(why.contains("track 0"), "the message owes a track: {why}");
     assert!(why.contains("key 1"), "the message owes a key: {why}");
@@ -412,8 +412,8 @@ length = 1.0
 [[tracks]]
 property = "position"
 keys = [
-  { t = 0.0, value = [0.0, 0.0, 0.0] },
-  { t = 1.0, value = [0.0, 10.0, 0.0], ease = "in_quad" },
+  { time = 0.0, value = [0.0, 0.0, 0.0] },
+  { time = 1.0, value = [0.0, 10.0, 0.0], ease = "in_quad" },
 ]
 "#,
     );
@@ -445,8 +445,8 @@ length = 1.0
 [[tracks]]
 property = "position"
 keys = [
-  { t = 0.0, value = [0.0, 0.0, 0.0] },
-  { t = 1.0, value = [0.0, 10.0, 0.0], ease = "out_back" },
+  { time = 0.0, value = [0.0, 0.0, 0.0] },
+  { time = 1.0, value = [0.0, 10.0, 0.0], ease = "out_back" },
 ]
 "#,
     );
@@ -467,7 +467,7 @@ length = 1.0
 
 [[tracks]]
 property = "position"
-keys = [ { t = 0.0, value = [0.0, 0.0, 0.0], ease = "out_wobble" } ]
+keys = [ { time = 0.0, value = [0.0, 0.0, 0.0], ease = "out_wobble" } ]
 "#,
     );
     assert!(why.contains("out_wobble"), "{why}");

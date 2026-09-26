@@ -321,9 +321,10 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
         ("TranslationServer", "set_locale") => format!("strings::set_locale({one})"),
         ("TranslationServer", "get_loaded_locales") => "strings::locales()".into(),
         ("ProjectSettings", "set_setting") => format!("settings::set({all})"),
-        ("Input", "is_action_pressed") => format!("input::is_action_pressed({one})"),
-        ("Input", "is_action_just_pressed") => format!("input::is_action_just_pressed({one})"),
-        ("Input", "is_key_pressed") => format!("input::is_down({one})"),
+        ("Input", "is_action_pressed") => format!("input::action_down({one})"),
+        ("Input", "is_action_just_pressed") => format!("input::action_just_pressed({one})"),
+        ("Input", "is_action_just_released") => format!("input::action_just_released({one})"),
+        ("Input", "is_key_pressed" | "is_physical_key_pressed") => format!("input::key_down({one})"),
         _ => return service_call(class, name, args),
     })
 }
@@ -337,7 +338,7 @@ fn service_call(class: &str, name: &str, args: &[String]) -> Option<String> {
     let one = args.first().cloned().unwrap_or_default();
     Some(match (class, name) {
         // Godot's buttons count from one; the engine's from zero.
-        ("Input", "is_mouse_button_pressed") => format!("input::is_mouse_down({one} - 1)"),
+        ("Input", "is_mouse_button_pressed") => format!("input::mouse_down({one} - 1)"),
         ("Performance", "get_monitor") => format!("(gd.monitor)({one})"),
         ("ResourceLoader", "exists") => format!("(gd.resource_exists)({one})"),
         ("ResourceLoader", "load") if !args.is_empty() => loaded(&args[0]),
@@ -545,11 +546,13 @@ pub(crate) fn value_type(name: &str) -> Option<&'static str> {
 /// A name used as a value: Godot's enums and singletons that have a constant
 /// counterpart here.
 pub(crate) fn constant(name: &str) -> Option<String> {
-    // A key is its name here: `KEY_A` is what `input.is_down("A")` reads.
-    if let Some(key) = name.strip_prefix("KEY_")
-        && key.len() == 1
+    // A key is the engine's constant for it, which holds the code a key hook
+    // hands over and `input::key_down` takes.
+    if let Some(key) = name
+        .strip_prefix("KEY_")
+        .and_then(crate::godot::keys::key_constant)
     {
-        return Some(quoted(key));
+        return Some(format!("input::{key}"));
     }
     Some(match name {
         "PI" => "math::PI".into(),

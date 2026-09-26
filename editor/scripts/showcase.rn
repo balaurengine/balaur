@@ -484,7 +484,7 @@ fn godot(S, q) {
 // keeps drawing while the job writes them.
 fn importing(S, q) {
     act(q, 1, || {
-        shell::set_workspace(S, "scene");
+        shell::set_workspace(S, defs::WORKSPACE_SCENE);
         crate::docks::show(S, "assets");
         // The queue's own drip is off; the pointer takes one file per beat.
         S.import_from = 1000000;
@@ -511,7 +511,7 @@ fn drop_file(S, q, frame, fx, fy) {
 // The code pane taking the window: a node with a script, the Focus chip
 // folding the three docks away, and the shortcut putting them back.
 fn focusing(S, q) {
-    act(q, 1, || shell::set_workspace(S, "script"));
+    act(q, 1, || shell::set_workspace(S, defs::WORKSPACE_SCRIPT));
     click_row(S, q, 40, "Spinner");
     click(S, q, 200, || spot(S, "focus_chip"), || shell::toggle_focus(S));
     chord(S, q, 480, [input::KEY_LEFT_SHIFT, input::KEY_LEFT_META, input::KEY_BACKSLASH], || shell::toggle_focus(S));
@@ -520,7 +520,7 @@ fn focusing(S, q) {
 // Scenes and nodes, `examples/hello`: the tree, the inspector following the
 // selection, an edit, and its undo.
 fn scenes(S, q) {
-    act(q, 1, || shell::set_workspace(S, "scene"));
+    act(q, 1, || shell::set_workspace(S, defs::WORKSPACE_SCENE));
     click_row(S, q, 30, "Platform");
     click_row(S, q, 150, "Ball");
     click_row(S, q, 250, "Spinner");
@@ -551,7 +551,7 @@ fn scripting(S, q) {
     act(q, 1, || {
         q.kept[rel] = model::source(S, rel).unwrap_or("");
     });
-    click(S, q, 30, || spot(S, "script_tab"), || shell::set_workspace(S, "script"));
+    click(S, q, 30, || spot(S, "script_tab"), || shell::set_workspace(S, defs::WORKSPACE_SCRIPT));
     click_row(S, q, 110, "Spinner");
     click(S, q, 200, || spot(S, "play"), || shell::toggle_play(S));
     // The cursor rests on the edited line, or on the last one the pane can
@@ -646,7 +646,7 @@ fn fit_figure(S) {
 // Animation, `examples/rig`: scrub the clip, pose the thigh, key it, play.
 fn animation(S, q) {
     act(q, 1, || fit_figure(S));
-    click(S, q, 20, || spot(S, "animation_tab"), || shell::set_workspace(S, "animation"));
+    click(S, q, 20, || spot(S, "animation_tab"), || shell::set_workspace(S, defs::WORKSPACE_ANIMATION));
     click_row(S, q, 90, "Thigh");
     click(S, q, 150, || spot(S, "bone_tool"), || {
         S.tool = "bone";
@@ -673,7 +673,7 @@ fn animation(S, q) {
 // shot at the towers.
 fn physics(S, q) {
     click(S, q, 20, || spot(S, "physics_tab"), || {
-        shell::set_workspace(S, "physics");
+        shell::set_workspace(S, defs::WORKSPACE_PHYSICS);
         shell::set_zoom(S, 45.0);
     });
     click_row(S, q, 80, "Bird");
@@ -685,7 +685,7 @@ fn physics(S, q) {
 // Input, `examples/hello`: the overlay, fed the keys and clicks a person
 // would press.
 fn input_clip(S, q) {
-    act(q, 1, || shell::set_workspace(S, "scene"));
+    act(q, 1, || shell::set_workspace(S, defs::WORKSPACE_SCENE));
     click_row(S, q, 30, "Spinner");
     click(S, q, 110, || spot(S, "play"), || shell::toggle_play(S));
     tap(q, 200, "Space");
@@ -721,7 +721,7 @@ fn input_clip(S, q) {
 // pause, play on.
 fn determinism(S, q) {
     act(q, 1, || {
-        shell::set_workspace(S, "scene");
+        shell::set_workspace(S, defs::WORKSPACE_SCENE);
         shell::set_zoom(S, 45.0);
         S.session.verify = true;
         crate::docks::show(S, "session");
@@ -747,7 +747,7 @@ fn determinism(S, q) {
 fn shaders(S, q) {
     let rel = "shaders/glow.wesl";
     act(q, 1, || {
-        shell::set_workspace(S, "scene");
+        shell::set_workspace(S, defs::WORKSPACE_SCENE);
         // The dock names each previewed line and its type as it is asked for.
         crate::docks::show(S, "output");
         q.kept[rel] = model::source(S, rel).unwrap_or("");
@@ -834,11 +834,12 @@ fn mix(a, b, p) {
 fn theme_editor(S, q) {
     let prefs = crate::settings::prefs_path();
     let kept = fs::read(prefs);
-    act(q, 1, || shell::set_workspace(S, "scene"));
+    act(q, 1, || shell::set_workspace(S, defs::WORKSPACE_SCENE));
     chord(S, q, 40, [input::KEY_LEFT_META, input::KEY_K], || shell::open_palette(S, ""));
     over_ui(q, 70, 110, |p| {
         let word = "theme";
-        let n = util::i(util::min(5.0, p * 6.0));
+        let last = util::f(word.len());
+        let n = util::i(util::min(last, p * (last + 1.0)));
         S.palette_query = word[0..n];
     });
     click(S, q, 150, || centre_of("Editor/Picker/PickerScroll/PickerRows/R0"), || {

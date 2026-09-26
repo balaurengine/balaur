@@ -666,8 +666,8 @@ impl Walk<'_> {
             .entry("animation")
             .or_insert_with(|| Toml::Table(toml::Table::new()));
         if let Toml::Table(animation) = animation {
-            animation.insert("library".into(), Toml::String(file));
-            animation.insert("root".into(), Toml::String(root));
+            animation.insert(ak::LIBRARY.into(), Toml::String(file));
+            animation.insert(ak::ROOT_NODE.into(), Toml::String(root));
             if let Some(clip) = autoplay.filter(|c| !c.is_empty()) {
                 if clips.names.contains(&clip) {
                     animation.insert("autoplay".into(), Toml::String(clip));
@@ -744,7 +744,7 @@ impl Walk<'_> {
         let mut component = toml::Table::new();
         component.insert(ak::MACHINE.into(), Toml::String(file));
         component.insert(ak::PLAYER.into(), Toml::String(player));
-        component.insert(ak::ACTIVE.into(), Toml::Boolean(active));
+        component.insert(ak::ENABLED.into(), Toml::Boolean(active));
         if !machine.checks.is_empty() {
             component.insert(ak::CHECK_NODE.into(), Toml::String(check_node));
         }

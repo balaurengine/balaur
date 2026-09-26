@@ -2,6 +2,7 @@
 // palette, breakpoints, the pause, and the start-up states.
 
 use crate::anim;
+use crate::defs;
 use crate::history;
 use crate::model;
 use crate::theme;
@@ -296,7 +297,7 @@ pub fn stop_play(S) {
 
 // Viewport chip side effects (chips themselves live in center.rn).
 pub fn on_chip(S, workspace, key, value) {
-    if workspace == "physics" && key == "sleep" {
+    if workspace == defs::WORKSPACE_PHYSICS && key == defs::CHIP_SLEEP {
         physics::set_sleeping_allowed(value);
     }
 }
@@ -305,7 +306,7 @@ pub fn on_chip(S, workspace, key, value) {
 // state back from it, so nothing is mirrored in `S.chip_state`. `None` for a
 // chip the editor owns outright.
 pub fn chip_value(S, workspace, key) {
-    if workspace == "physics" && key == "sleep" {
+    if workspace == defs::WORKSPACE_PHYSICS && key == defs::CHIP_SLEEP {
         return Some(physics::sleeping_allowed());
     }
     None
@@ -369,7 +370,7 @@ pub fn on_pause(S, p) {
             break;
         }
     }
-    set_workspace(S, "script");
+    set_workspace(S, defs::WORKSPACE_SCRIPT);
     crate::docks::show(S, "debugger");
     log::info(format!("paused at {}:{} ({})", S.debug.paused_rel, p.line, p.reason));
 }
@@ -572,7 +573,7 @@ pub fn open_script_at(S, rel, line) {
     for (i, node) in S.doc.iter().enumerate() {
         if model::script_rel(node) == Some(rel) {
             crate::selection::only(S, i);
-            set_workspace(S, "script");
+            set_workspace(S, defs::WORKSPACE_SCRIPT);
             S.doctab = "script";
             S.preview_line = line;
             return;
@@ -627,7 +628,7 @@ pub fn save_active(S) {
         return;
     }
     let node = model::selected_node(S);
-    let in_script = (S.workspace == "script" || S.doctab == "script") && node.contains_key("script");
+    let in_script = (S.workspace == defs::WORKSPACE_SCRIPT || S.doctab == "script") && node.contains_key("script");
     if in_script {
         let rel = model::script_rel(node).unwrap_or("");
         let abs = S.game_root + "/" + rel;
@@ -1112,7 +1113,7 @@ fn state_animdemo(S) {
             }
         }
     }
-    set_workspace(S, "animation");
+    set_workspace(S, defs::WORKSPACE_ANIMATION);
 }
 
 // A bare name is a workspace; the script workspace also picks a scripted node so

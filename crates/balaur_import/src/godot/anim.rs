@@ -1,4 +1,4 @@
-//! An `AnimationPlayer`'s libraries as one `animation_clip` file.
+//! An `AnimationPlayer`'s libraries as one `animation_library` file.
 //!
 //! Godot keys a node property along a `NodePath("Target:property")`; a clip
 //! here keys `target` and `property` apart, relative to the same root, so the
@@ -9,6 +9,7 @@
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
+use balaur::animation::{LIBRARY_ASSET_TYPE, keys as ak, words as aw};
 use balaur_plugin::toml;
 use toml::Value as Toml;
 
@@ -95,7 +96,7 @@ pub(crate) fn convert(
         table.insert(name, clip);
     }
     let mut document = toml::Table::new();
-    document.insert("type".into(), Toml::String("animation_clip".into()));
+    document.insert("type".into(), Toml::String(LIBRARY_ASSET_TYPE.into()));
     document.insert("clips".into(), Toml::Table(table));
     let mut toml = String::new();
     let _ = writeln!(
@@ -142,12 +143,12 @@ fn clip(
         .and_then(Value::as_f64)
         .unwrap_or(1.0);
     clip.insert("length".into(), Toml::Float(length));
-    let wrap = match animation.field("loop_mode").and_then(Value::as_i64) {
-        Some(1) => "loop",
-        Some(2) => "pingpong",
-        _ => "none",
+    let loop_mode = match animation.field("loop_mode").and_then(Value::as_i64) {
+        Some(1) => aw::LINEAR,
+        Some(2) => aw::PINGPONG,
+        _ => aw::NONE,
     };
-    clip.insert("loop".into(), Toml::String(wrap.into()));
+    clip.insert(ak::LOOP_MODE.into(), Toml::String(loop_mode.into()));
     let mut tracks = Vec::new();
     let mut eased = false;
     for index in 0.. {
@@ -255,11 +256,11 @@ fn value_track<'a>(
         .and_then(Value::numbers)
         .unwrap_or_default();
     let discrete = get("update").and_then(Value::as_i64) == Some(1);
-    let interp = match field("interp").and_then(Value::as_i64) {
-        _ if discrete => "step",
-        Some(0) => "step",
-        Some(2 | 4) => "cubic",
-        _ => "linear",
+    let interpolation = match field("interp").and_then(Value::as_i64) {
+        _ if discrete => aw::STEP,
+        Some(0) => aw::STEP,
+        Some(2 | 4) => aw::CUBIC,
+        _ => aw::LINEAR,
     };
     let mut out_keys = Vec::new();
     for (index, (t, value)) in times.iter().zip(values).enumerate() {
@@ -267,7 +268,7 @@ fn value_track<'a>(
             continue;
         };
         let mut key = toml::Table::new();
-        key.insert("t".into(), Toml::Float(*t));
+        key.insert(ak::TIME.into(), Toml::Float(*t));
         key.insert("value".into(), value);
         // Godot's curve shapes the segment leaving a key; here `ease` shapes
         // the one arriving, so key i's curve is key i + 1's ease.
@@ -291,7 +292,7 @@ fn value_track<'a>(
     let mut track = toml::Table::new();
     track.insert("target".into(), Toml::String(target.to_string()));
     track.insert("property".into(), Toml::String(here));
-    track.insert("interp".into(), Toml::String(interp.into()));
+    track.insert(ak::INTERPOLATION.into(), Toml::String(interpolation.into()));
     track.insert("keys".into(), Toml::Array(out_keys));
     Some(track)
 }
@@ -399,7 +400,7 @@ fn method_track(target: &str, keys: Option<&Value>) -> Option<toml::Table> {
             continue;
         };
         let mut key = toml::Table::new();
-        key.insert("t".into(), Toml::Float(*t));
+        key.insert(ak::TIME.into(), Toml::Float(*t));
         key.insert("call".into(), Toml::String(method.to_string()));
         out_keys.push(Toml::Table(key));
     }

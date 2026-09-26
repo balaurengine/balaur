@@ -14,8 +14,10 @@ with no alias and no migration, as `one way to do a thing` asks.
   N18 to N20), the `ui::*` function and constant names, the widget kinds and
   their renamed properties, the editor's per-user folder, the plugin
   `register()` keys, "persona" becoming "workspace", the input names (keys
-  by W3C code, gamepads by position, `key_down` and its edges), and
-  `application/asset_source`.
+  by W3C code, gamepads by position, `key_down` and its edges),
+  `application/asset_source`, and the animation names (`animation_library`,
+  `loop_mode`, `interpolation`, `time`, `speed_scale`, `blend_time`, the
+  transition modes, `add_clip`, `current_clip`, `current_state`, bare `linear`).
 - `NAMING.md` has the eight scopes, rules N18 to N23, and the picked names per
   system, from a survey of SDL3, Godot 4, Unity, Blender, GLFW, W3C, rapier and
   glTF on 2026-09-25.
@@ -39,12 +41,9 @@ with no alias and no migration, as `one way to do a thing` asks.
 | softbody and collider `ball`, `cuboid`, `disk` | `sphere`, `box`, `circle` | only parry says ball |
 | `camera2d.zoom` (pixels per unit) | `pixels_per_unit` | Godot's `zoom` is a multiplier; every other component says `pixels_per_unit` |
 | `boolean.op` | `operation` | D4 |
-| track `interp`, key `t` | `interpolation`, `time` | D4 |
-| clip `loop = "loop"` | `loop_mode = "linear"` | repeats its key |
-| asset `animation_clip` holding many clips | `animation_library` | Godot's word |
 | widget `disabled` beside `enabled` elsewhere, `pointer_through` beside `interactive` | one polarity each | |
 | counts typed `float` (`solver_iterations`, `frame`, `resolution`, …) | `int` | |
-| node references as strings (`modifier.bone`, `animation.root`, …) | typed `node` | |
+| node references as strings (`modifier.bone`, `animation.root_node`, …) | typed `node` | |
 
 ## 2. Script API
 

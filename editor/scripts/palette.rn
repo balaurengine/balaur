@@ -2,6 +2,7 @@
 // running a command closes. Substring filter, first result pre-highlighted.
 
 use crate::anim;
+use crate::defs;
 use crate::history;
 use crate::icons;
 use crate::model;
@@ -50,12 +51,12 @@ fn commands(S) {
         Some(label) => format!("Redo {}", label),
         None => "Redo",
     };
-    let list = [
-        command("Scene workspace", "⌖", "⌥1", || shell::set_workspace(S, "scene")),
-        command("Script workspace", "‹›", "⌥2", || shell::set_workspace(S, "script")),
-        command("Animation workspace", "◷", "⌥3", || shell::set_workspace(S, "animation")),
-        command("Physics workspace", "▣", "⌥4", || shell::set_workspace(S, "physics")),
-        command("UI workspace", "▤", "⌥5", || shell::set_workspace(S, "ui")),
+    let list = [];
+    for (i, p) in defs::workspaces().iter().enumerate() {
+        let id = p.id;
+        list.push(command(p.name + " workspace", p.icon, format!("⌥{}", i + 1), || shell::set_workspace(S, id)));
+    }
+    for c in [
         command(undo_label, "⟲", "⌘Z", || shell::undo(S)),
         command(redo_label, "⟳", "⇧⌘Z", || shell::redo(S)),
         command("Add child node…", icons::ui("add"), "⇧A", || crate::newnode::open(S)),
@@ -124,7 +125,9 @@ fn commands(S) {
         command("Make clip inline", "◷", "", || anim::make_inline(S)),
         command("UI scale +", icons::ui("add"), "⌘=", || shell::set_ui_scale(S, S.ui_scale + 0.125)),
         command("UI scale −", "−", "⌘-", || shell::set_ui_scale(S, S.ui_scale - 0.125)),
-    ];
+    ] {
+        list.push(c);
+    }
     // The start screen, from inside a project: the same module, so what opens
     // from here is what opens on a bare launch. A tab has no folder picker and
     // nowhere to write a template, but it reopens what the browser keeps.

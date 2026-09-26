@@ -19,8 +19,8 @@ fn every_named_curve_is_reachable_by_name() {
     let names = ease::names();
     assert_eq!(
         names.len(),
-        49,
-        "twelve transitions in four modes, plus bare `linear`"
+        45,
+        "eleven transitions in four modes, plus bare `linear`"
     );
     for name in names {
         let curve = Easing::parse(name).unwrap_or_else(|why| panic!("'{name}': {why:#}"));
@@ -116,23 +116,14 @@ fn an_in_out_curve_meets_in_the_middle() {
 }
 
 #[test]
-fn the_four_linear_modes_are_one_straight_line() {
-    for name in [
-        "linear",
-        "in_linear",
-        "out_linear",
-        "in_out_linear",
-        "out_in_linear",
-    ] {
-        let curve = Easing::parse(name).unwrap();
-        for i in 0..=10 {
-            let u = i as f32 / 10.0;
-            assert!(
-                (curve.apply(u) - u).abs() < 1e-6,
-                "'{name}' bends: {u} became {}",
-                curve.apply(u)
-            );
-        }
+fn linear_is_one_straight_line_with_no_modes() {
+    let curve = Easing::parse("linear").unwrap();
+    for i in 0..=10 {
+        let u = i as f32 / 10.0;
+        assert!((curve.apply(u) - u).abs() < 1e-6, "linear bends: {u} became {}", curve.apply(u));
+    }
+    for moded in ["in_linear", "out_linear", "in_out_linear", "out_in_linear"] {
+        assert!(Easing::parse(moded).is_err(), "'{moded}' still parses");
     }
 }
 

@@ -100,7 +100,7 @@ pub struct Params {
     pub(crate) bone: String,
     /// How many bones the chain holds, counting the driven one. Zero walks
     /// to the deepest tip.
-    pub(crate) chain: usize,
+    pub(crate) chain_count: usize,
     /// Solver passes for `fabrik` and `ccdik`.
     iterations: u32,
     /// How close to the target ends a `fabrik` or `ccdik` solve early.
@@ -119,7 +119,7 @@ pub struct Params {
     lag: f32,
     /// Where a `follow` node sits relative to its target, in world units.
     offset: Vec3,
-    flip: bool,
+    flip_bend_direction: bool,
     enabled: bool,
 }
 
@@ -177,7 +177,7 @@ fn schema() -> String {
             r#"{ type = "string", default = "", description = "Node path to the driven bone, relative to this node; empty means this node. For a chain solver, its root" }"#,
         ),
         (
-            k::CHAIN,
+            k::CHAIN_COUNT,
             r#"{ type = "int", default = 0, description = "How many bones the chain holds, counting the driven one; 0 walks to the deepest tip" }"#,
         ),
         (
@@ -223,7 +223,7 @@ fn schema() -> String {
             r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where a follow node sits relative to its target, in world units" }"#,
         ),
         (
-            k::FLIP,
+            k::FLIP_BEND_DIRECTION,
             r#"{ type = "bool", default = false, description = "Bend a two-bone chain the other way" }"#,
         ),
         (
@@ -341,7 +341,7 @@ fn params_of(params: &toml::Value) -> Result<Params> {
         kind: Kind::parse(params.get(k::KIND).and_then(toml::Value::as_str))?,
         target: text(k::TARGET),
         bone: text(k::BONE),
-        chain: count(k::CHAIN, 0) as usize,
+        chain_count: count(k::CHAIN_COUNT, 0) as usize,
         iterations: count(k::ITERATIONS, 10),
         tolerance: number(k::TOLERANCE, 0.01),
         angle_limit: number(k::ANGLE_LIMIT, 0.0),
@@ -355,7 +355,7 @@ fn params_of(params: &toml::Value) -> Result<Params> {
         // A lag below zero would grow the gap instead of closing it.
         lag: number(k::LAG, 0.0).max(0.0),
         offset: vector(params, k::OFFSET, Vec3::ZERO),
-        flip: flag(k::FLIP, false),
+        flip_bend_direction: flag(k::FLIP_BEND_DIRECTION, false),
         enabled: flag(k::ENABLED, true),
     })
 }
@@ -377,8 +377,8 @@ fn table_of(m: &Params) -> toml::Value {
     put(k::TARGET, toml::Value::String(m.target.clone()));
     put(k::BONE, toml::Value::String(m.bone.clone()));
     put(
-        k::CHAIN,
-        toml::Value::Integer(i64::try_from(m.chain).unwrap_or(0)),
+        k::CHAIN_COUNT,
+        toml::Value::Integer(i64::try_from(m.chain_count).unwrap_or(0)),
     );
     put(k::ITERATIONS, toml::Value::Integer(i64::from(m.iterations)));
     put(k::TOLERANCE, toml::Value::Float(f64::from(m.tolerance)));
@@ -406,7 +406,7 @@ fn table_of(m: &Params) -> toml::Value {
                 .collect(),
         ),
     );
-    put(k::FLIP, toml::Value::Boolean(m.flip));
+    put(k::FLIP_BEND_DIRECTION, toml::Value::Boolean(m.flip_bend_direction));
     put(k::ENABLED, toml::Value::Boolean(m.enabled));
     toml::Value::Table(out)
 }
@@ -676,7 +676,7 @@ fn run_one(eng: &Engine, entity: Entity, m: &Params, dim3: bool, steps: u32) {
         if steps == 0 {
             return;
         }
-        let chain = chain_of(&world, bone, m.chain);
+        let chain = chain_of(&world, bone, m.chain_count);
         // The spring's own state, taken out of the map for the tick: the
         // solver writes transforms, and holding the resource borrow across
         // that is what a component `apply` hook would panic on.
@@ -710,17 +710,17 @@ fn run_one(eng: &Engine, entity: Entity, m: &Params, dim3: bool, steps: u32) {
     match (m.kind, dim3) {
         (Kind::LookAt, false) => aim_at_point_2d(&world, bone, point.truncate()),
         (Kind::LookAt, true) => aim_at_point_3d(&world, bone, point),
-        (Kind::TwoBoneIk, false) => two_bone_ik_2d(&world, bone, point.truncate(), m.flip),
-        (Kind::TwoBoneIk, true) => two_bone_ik_3d(&world, bone, point, m.flip),
+        (Kind::TwoBoneIk, false) => two_bone_ik_2d(&world, bone, point.truncate(), m.flip_bend_direction),
+        (Kind::TwoBoneIk, true) => two_bone_ik_3d(&world, bone, point, m.flip_bend_direction),
         (Kind::Fabrik, _) => {
-            let chain = chain_of(&world, bone, m.chain);
+            let chain = chain_of(&world, bone, m.chain_count);
             let mut points = chain_points(&world, &chain, dim3);
             let lengths = segment_lengths(&points);
             fabrik(&mut points, &lengths, point, m.iterations, m.tolerance);
             apply_points(&world, &chain, &points, dim3);
         }
         (Kind::Ccdik, _) => {
-            let chain = chain_of(&world, bone, m.chain);
+            let chain = chain_of(&world, bone, m.chain_count);
             ccdik(&world, &chain, point, m, dim3);
         }
         (Kind::Follow, _) => follow_point(&world, bone, point + m.offset, m.lag, dim3, steps),

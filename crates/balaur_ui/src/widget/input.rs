@@ -165,6 +165,9 @@ pub const GUTTER_EVENT: &str = "gutter";
 /// the row it landed on, and where it went.
 pub const MOVE_EVENT: &str = "move";
 
+/// What a `list` emits when a card dragged out of it is let go, with the card.
+pub const DROP_EVENT: &str = "drop";
+
 fn apply_system(eng: &Engine, _dt: f32) {
     // A replay keeps what `restore` just put back, and a re-simulated tick
     // keeps what its first run had; only a live tick takes the draw's report.
@@ -310,6 +313,7 @@ fn settle_one(
                 .collect();
             Some((MOVE_EVENT, Value::List(said), &widget.on_move))
         }
+        Edit::Carried(card) => Some((DROP_EVENT, Value::Str(card.clone()), &widget.on_drop)),
         // Written nowhere: a link and a gutter mark are the script's to act on.
         Edit::Link(target) => Some((LINK_EVENT, Value::Str(target.clone()), &widget.on_link)),
         Edit::Gutter(line) => Some((GUTTER_EVENT, Value::Int(*line), &widget.on_gutter)),

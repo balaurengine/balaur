@@ -3,6 +3,7 @@
 
 use anyhow::anyhow;
 use balaur_core::components::ComponentDef;
+use balaur_core::hecs::{self, Entity};
 use balaur_core::{Engine, GlobalTransform};
 use balaur_plugin::Registry;
 
@@ -322,10 +323,7 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
         let mut spatial = None;
         let mut flat = None;
         let mut post = None;
-        // One walk over the tree, both components read at each node: which
-        // current camera came last has to be answered across the two, and a
-        // query apiece would answer it within one.
-        for entity in balaur_core::scene::collect_subtree(&world, eng.root()) {
+        for entity in current_cameras(&world, eng.root()) {
             let Ok(global) = world.get::<&GlobalTransform>(entity) else {
                 continue;
             };
@@ -376,6 +374,36 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
             config.zoom = zoom;
             config.changed = true;
         }
+    }
+}
+
+/// Every current camera in the tree, in tree order: the last one wins, and
+/// which came last is answered across both kinds.
+///
+/// Queried rather than walked, since a frame has a camera or two and the tree
+/// has thousands of nodes; the walk runs only when two cameras need ordering.
+fn current_cameras(world: &hecs::World, root: Entity) -> Vec<Entity> {
+    let mut current: Vec<Entity> = world
+        .query::<(Entity, &Camera3d)>()
+        .iter()
+        .filter(|(_, cam)| cam.current)
+        .map(|(e, _)| e)
+        .collect();
+    current.extend(
+        world
+            .query::<(Entity, &Camera2d)>()
+            .iter()
+            .filter(|(_, cam)| cam.current)
+            .map(|(e, _)| e),
+    );
+    match current.len() {
+        0 => current,
+        1 if balaur_core::scene::is_under(world, current[0], root) => current,
+        1 => Vec::new(),
+        _ => balaur_core::scene::collect_subtree(world, root)
+            .into_iter()
+            .filter(|e| current.contains(e))
+            .collect(),
     }
 }
 

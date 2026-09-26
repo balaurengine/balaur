@@ -224,6 +224,10 @@ pub struct Widget {
     /// Method called with the row moved, the row it landed on, and whether it
     /// went `before` it, `after` it or `into` it.
     pub on_move: SmolStr,
+    /// Whether a drag carries a card of a `list` out of it.
+    pub draggable: bool,
+    /// Method called with the card let go outside the list.
+    pub on_drop: SmolStr,
     /// How many children a `grid` puts on each row.
     pub columns: u32,
     /// Whether a `fold` shows its children.

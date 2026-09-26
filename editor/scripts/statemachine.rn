@@ -192,7 +192,7 @@ pub fn add_transition(S) {
     }
     let to = if names.len() > 1 { names[1] } else { names[0] };
     let held = transitions(found.doc);
-    held.push(#{ from: names[0], to: to, advance: animation::ADVANCE_ENABLED });
+    held.push(#{ from: names[0], to: to, advance_mode: animation::ADVANCE_MODE_ENABLED });
     S.machine.open = Some(held.len() - 1);
     found.doc.transitions = held;
     write(S, found, "add transition");
@@ -303,7 +303,7 @@ fn live_state(S) {
         Some(node) => node,
         None => return "",
     };
-    let (ok, now) = script::attempt(|| found.state_machine.state());
+    let (ok, now) = script::attempt(|| found.state_machine.current_state());
     if ok && now is String { now } else { "" }
 }
 
@@ -379,7 +379,7 @@ fn transition_specs(S, doc, out) {
                 role: "item_list", checked: open,
                 text: format!("{} → {}  {}", t.get("from").unwrap_or("?"),
                     t.get("to").unwrap_or("?"),
-                    t.get("advance").unwrap_or(animation::ADVANCE_ENABLED)),
+                    t.get("advance_mode").unwrap_or(animation::ADVANCE_MODE_ENABLED)),
                 tooltip: "Open the transition's fields",
                 on: |_| { S.machine.open = if open { None } else { Some(index) }; },
             },
@@ -451,18 +451,21 @@ fn flag(S, at, key, on) {
 fn field_specs(S, at, t, names, targets, out) {
     out.push(field_spec("from", choice(S, at, "from", t.get("from").unwrap_or(""), names)));
     out.push(field_spec("to", choice(S, at, "to", t.get("to").unwrap_or(""), targets)));
-    out.push(field_spec("fade", number(S, at, "fade", t.get("fade").unwrap_or(0.0), false)));
+    out.push(field_spec("blend time", number(S, at, "blend_time", t.get("blend_time").unwrap_or(0.0), false)));
     out.push(field_spec("ease", choice(S, at, "ease", t.get("ease").unwrap_or(animation::EASE_LINEAR),
         util::vec(animation::ease_names()))));
-    out.push(field_spec("advance", choice(S, at, "advance", t.get("advance").unwrap_or(animation::ADVANCE_ENABLED),
-        [animation::ADVANCE_DISABLED, animation::ADVANCE_ENABLED, animation::ADVANCE_AUTO])));
-    out.push(field_spec("switch", choice(S, at, "switch", t.get("switch").unwrap_or(animation::SWITCH_IMMEDIATE),
-        [animation::SWITCH_IMMEDIATE, animation::SWITCH_SYNC, animation::SWITCH_AT_END])));
+    out.push(field_spec("advance mode", choice(S, at, "advance_mode",
+        t.get("advance_mode").unwrap_or(animation::ADVANCE_MODE_ENABLED),
+        [animation::ADVANCE_MODE_DISABLED, animation::ADVANCE_MODE_ENABLED, animation::ADVANCE_MODE_AUTO])));
+    out.push(field_spec("switch mode", choice(S, at, "switch_mode",
+        t.get("switch_mode").unwrap_or(animation::SWITCH_MODE_IMMEDIATE),
+        [animation::SWITCH_MODE_IMMEDIATE, animation::SWITCH_MODE_SYNC, animation::SWITCH_MODE_AT_END])));
     out.push(field_spec("condition", text_of(S, at, "condition", t.get("condition").unwrap_or(""), "none")));
     out.push(field_spec("check", text_of(S, at, "check", t.get("check").unwrap_or(""), "no method")));
     out.push(field_spec("priority", number(S, at, "priority", t.get("priority").unwrap_or(1), true)));
     out.push(field_spec("reset", flag(S, at, "reset", t.get("reset").unwrap_or(true))));
-    out.push(field_spec("break loop", flag(S, at, "break_loop", t.get("break_loop").unwrap_or(false))));
+    out.push(field_spec("break loop at end", flag(S, at, "break_loop_at_end",
+        t.get("break_loop_at_end").unwrap_or(false))));
 }
 
 fn check(ok, what) {
@@ -505,11 +508,11 @@ pub fn selftest(S) {
     add_transition(S);
     let at = count;
     set_field(S, at, "to", "sm_probe");
-    set_field(S, at, "fade", 0.3);
-    set_field(S, at, "advance", animation::ADVANCE_AUTO);
+    set_field(S, at, "blend_time", 0.3);
+    set_field(S, at, "advance_mode", animation::ADVANCE_MODE_AUTO);
     set_field(S, at, "priority", 2);
     let t = transitions(source(S).unwrap().doc)[at];
-    check(t.get("fade") == Some(0.3) && t.get("advance") == Some(animation::ADVANCE_AUTO),
+    check(t.get("blend_time") == Some(0.3) && t.get("advance_mode") == Some(animation::ADVANCE_MODE_AUTO),
         "a transition's fields are written");
     check(t.get("priority") == Some(2), "priority stays a whole number");
     set_field(S, at, "condition", "go");

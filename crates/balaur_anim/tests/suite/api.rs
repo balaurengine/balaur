@@ -21,18 +21,18 @@ fn app() -> App {
 }
 
 /// A clip that lifts a node ten units over one second, written inline.
-fn rise(wrap: &str) -> String {
+fn rise(loop_mode: &str) -> String {
     format!(
         r#"
 [library]
 length = 1.0
-loop = "{wrap}"
+loop_mode = "{loop_mode}"
 
 [[library.tracks]]
 property = "position"
 keys = [
-  {{ t = 0.0, value = [0.0, 0.0, 0.0] }},
-  {{ t = 1.0, value = [0.0, 10.0, 0.0] }},
+  {{ time = 0.0, value = [0.0, 0.0, 0.0] }},
+  {{ time = 1.0, value = [0.0, 10.0, 0.0] }},
 ]
 "#
     )
@@ -84,14 +84,14 @@ fn a_clip_drives_a_nodes_position_over_time() {
 #[test]
 fn a_looping_clip_wraps_back_to_the_start() {
     let mut app = app();
-    let entity = animated(&app, "Box", &rise("loop"));
+    let entity = animated(&app, "Box", &rise("linear"));
     balaur_anim::play(&app.engine, entity, "").unwrap();
     // 1.25 seconds into a one second clip: a quarter of the way through the
     // second pass.
     tick(&mut app, 75);
     assert!(
         (height(&app, entity) - 2.5).abs() < 0.05,
-        "a looping clip did not wrap: {}",
+        "a looping clip did not loop_mode: {}",
         height(&app, entity)
     );
     assert!(balaur_anim::is_playing(&app.engine, entity));
@@ -192,8 +192,8 @@ length = 1.0
 [[library.tracks]]
 property = "rotation_euler"
 keys = [
-  { t = 0.0, value = [0.0, 0.0, 2.9670597] },
-  { t = 1.0, value = [0.0, 0.0, -2.9670597] },
+  { time = 0.0, value = [0.0, 0.0, 2.9670597] },
+  { time = 1.0, value = [0.0, 0.0, -2.9670597] },
 ]
 "#,
     );
@@ -221,8 +221,8 @@ length = 1.0
 target = "Arm"
 property = "position"
 keys = [
-  { t = 0.0, value = [0.0, 0.0, 0.0] },
-  { t = 1.0, value = [0.0, 10.0, 0.0] },
+  { time = 0.0, value = [0.0, 0.0, 0.0] },
+  { time = 1.0, value = [0.0, 10.0, 0.0] },
 ]
 "#,
     );
@@ -244,7 +244,7 @@ keys = [
 #[test]
 fn the_speed_property_scales_playback() {
     let mut app = app();
-    let params = format!("speed = 2.0\n{}", rise("none"));
+    let params = format!("speed_scale = 2.0\n{}", rise("none"));
     let entity = animated(&app, "Box", &params);
     balaur_anim::play(&app.engine, entity, "").unwrap();
     // Quarter of a second at double speed is half the clip.
@@ -291,7 +291,7 @@ fn a_clip_the_library_does_not_have_fails_with_the_reference_it_asked_for() {
 #[test]
 fn removing_the_component_stops_the_node_being_animated() {
     let mut app = app();
-    let entity = animated(&app, "Box", &rise("loop"));
+    let entity = animated(&app, "Box", &rise("linear"));
     balaur_anim::play(&app.engine, entity, "").unwrap();
     tick(&mut app, 30);
     let stopped_at = height(&app, entity);
@@ -318,7 +318,7 @@ fn what_the_component_reports_back_is_what_the_scene_set() {
     let entity = animated(
         &app,
         "Hero",
-        "library = \"animations/hero.toml\"\nautoplay = \"idle\"\nspeed = 2.0\nroot = \"Rig\"",
+        "library = \"animations/hero.toml\"\nautoplay = \"idle\"\nspeed_scale = 2.0\nroot_node = \"Rig\"",
     );
     let reported = components::get(&app.engine, entity, "animation").unwrap();
     assert_eq!(
@@ -330,11 +330,11 @@ fn what_the_component_reports_back_is_what_the_scene_set() {
         Some("idle")
     );
     assert_eq!(
-        reported.get("speed").and_then(toml::Value::as_float),
+        reported.get("speed_scale").and_then(toml::Value::as_float),
         Some(2.0)
     );
     assert_eq!(
-        reported.get("root").and_then(toml::Value::as_str),
+        reported.get("root_node").and_then(toml::Value::as_str),
         Some("Rig")
     );
 }
@@ -349,31 +349,31 @@ fn the_same_setup_animates_identically_twice() {
             r#"
 [library]
 length = 1.3
-loop = "pingpong"
+loop_mode = "pingpong"
 
 [[library.tracks]]
 property = "position"
-interp = "cubic"
+interpolation = "cubic"
 keys = [
-  { t = 0.0, value = [0.0, 0.0, 0.0] },
-  { t = 0.4, value = [1.0, 3.0, -2.0] },
-  { t = 0.9, value = [-4.0, 1.0, 5.0] },
-  { t = 1.3, value = [2.0, -1.0, 0.5] },
+  { time = 0.0, value = [0.0, 0.0, 0.0] },
+  { time = 0.4, value = [1.0, 3.0, -2.0] },
+  { time = 0.9, value = [-4.0, 1.0, 5.0] },
+  { time = 1.3, value = [2.0, -1.0, 0.5] },
 ]
 
 [[library.tracks]]
 property = "rotation_euler"
 keys = [
-  { t = 0.0, value = [0.0, 0.0, 2.9670597] },
-  { t = 0.7, value = [1.1, -0.4, -2.9670597] },
-  { t = 1.3, value = [-0.3, 2.2, 0.8] },
+  { time = 0.0, value = [0.0, 0.0, 2.9670597] },
+  { time = 0.7, value = [1.1, -0.4, -2.9670597] },
+  { time = 1.3, value = [-0.3, 2.2, 0.8] },
 ]
 
 [[library.tracks]]
 property = "scale"
 keys = [
-  { t = 0.0, value = [1.0, 1.0, 1.0] },
-  { t = 1.3, value = [0.25, 3.5, 1.75] },
+  { time = 0.0, value = [1.0, 1.0, 1.0] },
+  { time = 1.3, value = [0.25, 3.5, 1.75] },
 ]
 "#,
         );
@@ -403,7 +403,7 @@ fn a_non_looping_clip_run_backwards_finishes_at_the_start() {
     let entity = animated(&app, "Box", &rise("none"));
     balaur_anim::play(&app.engine, entity, "").unwrap();
     balaur_anim::seek(&app.engine, entity, 1.0);
-    balaur_anim::set_speed(&app.engine, entity, -1.0);
+    balaur_anim::set_speed_scale(&app.engine, entity, -1.0);
 
     tick(&mut app, 30);
     assert!(
@@ -425,7 +425,7 @@ fn a_clip_run_backwards_names_itself_as_the_one_that_finished() {
     let entity = animated(&app, "Box", "library = \"animations/hero.toml\"\n");
     balaur_anim::play(&app.engine, entity, "spin").unwrap();
     balaur_anim::seek(&app.engine, entity, 0.1);
-    balaur_anim::set_speed(&app.engine, entity, -1.0);
+    balaur_anim::set_speed_scale(&app.engine, entity, -1.0);
     tick(&mut app, 7);
     assert_eq!(
         balaur_anim::just_finished(&app.engine, entity).as_deref(),
