@@ -1,6 +1,7 @@
 > **Status:** written 2026-09-26 from an audit of every crate, done by reading
-> the code. §2, §3 and §4 are built but for §4.7's native lifecycle and §4.9's Gamend events. The order is bugs
-> first, then one delivery path, then the events the engine does not send yet.
+> the code. §2, §3 and §4 are built, but for suspend, resume and focus on a
+> native window (§4.7). The order is bugs first, then one delivery path, then
+> the events the engine does not send yet.
 
 # Plan: events, and one way to hear each of them
 
@@ -166,12 +167,13 @@ In order of how often a game needs them.
    listener with `screenshot_written` or `screenshot_failed`, a run with no
    renderer included. A `screen_notifier2d` box announces `screen_enter` and
    `screen_exit` against the current 2D camera's view.
-9. **Network:** part built. `http.cancel` drops a reply, stops a download
+9. **Network:** built. `http.cancel` drops a reply, stops a download
    writing and tells the handler `cancelled`. A websocket `closed` carries
    its close `code`, and `websocket.state` says where a connection is. A
    tab shown or hidden is `on_suspended_changed`, and `web.stop_listening`
-   undoes `web.listen`. Left: the Gamend addon's 19 unnamed server events,
-   `match_found` first (regenerated from the gamend repo).
+   undoes `web.listen`. The Gamend addon names every event the server
+   pushes: `gamend::events::user::MATCH_FOUND`, the tournament and webrtc
+   events, and a `signaling` module, from gamend's `clients/events.json`.
 10. **The Godot import:** built. `ENGINE_EVENTS` in the translator names the
     engine's event for each Godot signal it sends its own way (`body_entered`
     is `collision_enter`, `screen_exited` is `screen_exit`), for a connect, an

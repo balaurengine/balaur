@@ -83,8 +83,21 @@ pub mod party {
     pub const READY_CHECK_UPDATED = "ready_check_updated";
 }
 
+/// What arrives on `signaling` topics, as `decode` names it.
+pub mod signaling {
+    pub const ANSWER = "signaling_answer";
+    pub const ICE = "signaling_ice";
+    pub const OFFER = "signaling_offer";
+    pub const ROOM_CLOSED = "signaling_room_closed";
+    pub const USER_JOINED = "signaling_user_joined";
+    pub const USER_LEFT = "signaling_user_left";
+    pub const USER_REJOINED = "signaling_user_rejoined";
+}
+
 /// What arrives on `user` topics, as `decode` names it.
 pub mod user {
+    pub const CHAT_MUTED = "chat_muted";
+    pub const CHAT_UNMUTED = "chat_unmuted";
     pub const FRIEND_ADDED = "friend_added";
     pub const FRIEND_BLOCKED = "friend_blocked";
     pub const FRIEND_CHAT_MESSAGE = "friend_chat_message";
@@ -102,6 +115,7 @@ pub mod user {
     pub const INVENTORY_UPDATED = "inventory_updated";
     pub const KV_DELETED = "kv_deleted";
     pub const KV_UPDATED = "kv_updated";
+    pub const MATCH_FOUND = "match_found";
     pub const NOTIFICATION_EMITTED = "notification_emitted";
     pub const PARTY_INVITE_ACCEPTED = "party_invite_accepted";
     pub const PARTY_INVITE_CANCELLED = "party_invite_cancelled";
@@ -109,8 +123,21 @@ pub mod user {
     pub const QUEST_CLAIMED = "quest_claimed";
     pub const QUEST_COMPLETED = "quest_completed";
     pub const QUEST_PROGRESS = "quest_progress";
+    pub const READY_CHECK_FAILED = "ready_check_failed";
+    pub const READY_CHECK_PASSED = "ready_check_passed";
+    pub const READY_CHECK_STARTED = "ready_check_started";
+    pub const READY_CHECK_UPDATED = "ready_check_updated";
+    pub const TOURNAMENT_FINISHED = "tournament_finished";
+    pub const TOURNAMENT_MATCH_READY = "tournament_match_ready";
+    pub const TOURNAMENT_MATCH_RESOLVED = "tournament_match_resolved";
+    pub const TOURNAMENT_UPDATED = "tournament_updated";
     pub const UPDATED = "user_updated";
     pub const WALLET_UPDATED = "wallet_updated";
+    pub const WEBRTC_ANSWER = "webrtc_answer";
+    pub const WEBRTC_CHANNEL_CLOSED = "webrtc_channel_closed";
+    pub const WEBRTC_CHANNEL_OPEN = "webrtc_channel_open";
+    pub const WEBRTC_ICE = "webrtc_ice";
+    pub const WEBRTC_STATE = "webrtc_state";
 }
 
 /// Every row of the table: the channel a topic belongs to, the event the
@@ -198,6 +225,29 @@ pub fn table() {
     ["groups", "group_created", "group_created"],
     ["groups", "group_updated", "group_list_updated"],
     ["groups", "group_deleted", "group_deleted"],
+    ["user", "match_found", "match_found"],
+    ["user", "chat_muted", "chat_muted"],
+    ["user", "chat_unmuted", "chat_unmuted"],
+    ["user", "tournament_updated", "tournament_updated"],
+    ["user", "tournament_finished", "tournament_finished"],
+    ["user", "tournament_match_ready", "tournament_match_ready"],
+    ["user", "tournament_match_resolved", "tournament_match_resolved"],
+    ["user", "webrtc:answer", "webrtc_answer"],
+    ["user", "webrtc:ice", "webrtc_ice"],
+    ["user", "webrtc:channel_open", "webrtc_channel_open"],
+    ["user", "webrtc:channel_closed", "webrtc_channel_closed"],
+    ["user", "webrtc:state", "webrtc_state"],
+    ["user", "ready_check_started", "ready_check_started"],
+    ["user", "ready_check_updated", "ready_check_updated"],
+    ["user", "ready_check_passed", "ready_check_passed"],
+    ["user", "ready_check_failed", "ready_check_failed"],
+    ["signaling", "user_joined", "signaling_user_joined"],
+    ["signaling", "user_rejoined", "signaling_user_rejoined"],
+    ["signaling", "user_left", "signaling_user_left"],
+    ["signaling", "offer", "signaling_offer"],
+    ["signaling", "answer", "signaling_answer"],
+    ["signaling", "ice", "signaling_ice"],
+    ["signaling", "room_closed", "signaling_room_closed"],
     ]
 }
 

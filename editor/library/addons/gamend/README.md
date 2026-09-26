@@ -13,7 +13,7 @@ let reply = task::wait(gamend::lobbies::quick_join(this.node, #{
 if e["kind"] == gamend::events::lobby::MEMBER_JOINED { }
 ```
 
-259 operations in 40 modules, and 71 realtime events.
+259 operations in 40 modules, and 90 realtime events.
 
 Beside the generated modules and `events.rn`, written by hand:
 
