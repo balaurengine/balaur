@@ -29,6 +29,7 @@ ones it wants. What a component announces is listed with the component in
 <tr><td><code>on_key_down(key)</code></td><td>A key went down; every node hears it, the last child first, until one answers <code>true</code>.</td></tr>
 <tr><td><code>on_key_up(key)</code></td><td>A key came up, reaching nodes as <code>on_key_down</code> does.</td></tr>
 <tr><td><code>on_action(name)</code></td><td>A declared input action was pressed, reaching nodes as <code>on_key_down</code> does.</td></tr>
+<tr><td><code>on_action_released(name)</code></td><td>A declared input action was let go, reaching nodes as <code>on_key_down</code> does.</td></tr>
 <tr><td><code>on_scroll(dx, dy)</code></td><td>The wheel turned, over the node or, over nothing, to every node.</td></tr>
 <tr><td><code>on_resize(width, height)</code></td><td>The window changed size, told to every node.</td></tr>
 <tr><td><code>on_variable_changed(name, value)</code></td><td>A scene variable changed, told to every node at the end of the frame.</td></tr>
@@ -37,6 +38,13 @@ ones it wants. What a component announces is listed with the component in
 <tr><td><code>on_focused_changed(focused)</code></td><td>The window came to the front or left it, told to every script.</td></tr>
 <tr><td><code>on_dark_mode_changed(dark)</code></td><td>The system switched dark mode, told to every script.</td></tr>
 <tr><td><code>on_quit_requested()</code></td><td>The window was asked to close; every script hears it, then the app goes.</td></tr>
+<tr><td><code>on_suspended_changed(suspended)</code></td><td>The game went to the background or came back, a hidden browser tab included; told to every script.</td></tr>
+<tr><td><code>on_safe_area_changed(insets)</code></td><td>The screen&#x27;s safe area moved, as <code>[left, top, right, bottom]</code> in pixels; told to every script.</td></tr>
+<tr><td><code>on_orientation_changed(orientation)</code></td><td>The screen turned, to <code>portrait</code> or <code>landscape</code>; told to every script.</td></tr>
+<tr><td><code>on_gamepad_connected(pad)</code></td><td>A gamepad was plugged in, with the id <code>input</code> names it by; told to every script.</td></tr>
+<tr><td><code>on_gamepad_disconnected(pad)</code></td><td>A gamepad went away, with its id; told to every script.</td></tr>
+<tr><td><code>on_setting_changed(change)</code></td><td>A script set a setting, <code>#{ path, value }</code>; every script hears it the next frame.</td></tr>
+<tr><td><code>on_locale_changed(locale)</code></td><td>The language changed; every script hears it the next frame.</td></tr>
 </tbody>
 </table>
 

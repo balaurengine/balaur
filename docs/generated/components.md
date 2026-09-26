@@ -48,7 +48,7 @@ its heading.
 
 ### `body2d`
 
-`2d` · `physics` · 17 properties · 27 methods
+`2d` · `physics` · 17 properties · 30 methods
 
 A 2D rigid body simulated by rapier in the xy plane. `kind` is `dynamic`, `static`, `kinematic` or `kinematic_velocity`; add a `collider2d` for its shape.
 
@@ -75,6 +75,18 @@ A 2D rigid body simulated by rapier in the xy plane. `kind` is `dynamic`, `stati
 </tbody>
 </table>
 
+Announced from a node carrying `body2d`:
+
+<table>
+<thead><tr><th>event</th><th>payload</th></tr></thead>
+<tbody>
+<tr><td><code>collision_enter</code></td><td>the other collider&#x27;s node, for a collider under it</td></tr>
+<tr><td><code>collision_exit</code></td><td>the other collider&#x27;s node, for a collider under it</td></tr>
+<tr><td><code>contact_force</code></td><td><code>#{ other, force, direction }</code>, for a collider under it</td></tr>
+<tr><td><code>sleeping_changed</code></td><td>whether it sleeps now</td></tr>
+</tbody>
+</table>
+
 On a node carrying `body2d`, as `node.body2d.<method>`:
 
 <table>
@@ -92,11 +104,14 @@ On a node carrying `body2d`, as `node.body2d.<method>`:
 <tr><td><code>apply_torque_impulse(f32)</code></td><td>—</td><td>Add an instant change in angular momentum, as if the body were spun.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>constant_force()</code></td><td><code>(f32, f32)</code></td><td>The force every step integrates until it is set back to zero.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>constant_torque()</code></td><td><code>f32</code></td><td>The torque every step integrates until it is set back to zero.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>effective_dominance()</code></td><td><code>f32</code></td><td>The dominance rapier will use for this body: its own group, or the rank every non-dynamic body outranks with.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>is_moving()</code></td><td><code>bool</code></td><td>Whether the body is awake and actually going somewhere.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>is_sleeping()</code></td><td><code>bool</code></td><td>Whether the body is asleep and being skipped.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>kinetic_energy()</code></td><td><code>f32</code></td><td>The body&#x27;s kinetic energy, for a rest test the solver agrees with.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>linear_velocity()</code></td><td><code>(f32, f32)</code></td><td>How fast the body is travelling, in units per second.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>max_contact_impulse()</code></td><td><code>f32</code></td><td>The hardest contact this body took in the last step, zero when nothing touched it.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>next_position()</code></td><td><code>(f32, f32)</code></td><td>The position a kinematic body has been told to move to.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>potential_energy()</code></td><td><code>f32</code></td><td>The body&#x27;s gravitational potential energy over one step.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>predict_position(f32)</code></td><td><code>(f32, f32)</code></td><td>Where the body will be after `dt` seconds at its current velocity.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_angular_velocity(f32)</code></td><td>—</td><td>Set how fast the body spins, in radians per second.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_constant_force(f32, f32)</code></td><td>—</td><td>Replace the constant force with this one; zero stops the push.</td><td><code>physics2d</code></td></tr>
@@ -166,6 +181,15 @@ The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it,
 </tbody>
 </table>
 
+Announced from a node carrying `camera2d`:
+
+<table>
+<thead><tr><th>event</th><th>payload</th></tr></thead>
+<tbody>
+<tr><td><code>current_changed</code></td><td>whether it is the camera drawn from now</td></tr>
+</tbody>
+</table>
+
 ### `character2d`
 
 `2d` · `physics` · 12 properties · 2 methods
@@ -202,7 +226,7 @@ On a node carrying `character2d`, as `node.character2d.<method>`:
 
 ### `collider2d`
 
-`2d` · `physics` · 41 properties · 4 methods
+`2d` · `physics` · 41 properties · 5 methods
 
 The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2d` or the nearest body above it; without one it is static geometry.
 
@@ -269,6 +293,7 @@ On a node carrying `collider2d`, as `node.collider2d.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
+<tr><td><code>contacts()</code></td><td><code>Value</code></td><td>Every contact point on this node&#x27;s collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>overlaps()</code></td><td><code>Vec&lt;NodeId&gt;</code></td><td>The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_voxel(i32, i32, bool)</code></td><td>—</td><td>Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>voxel(i32, i32)</code></td><td><code>bool</code></td><td>Whether one cell of a voxel collider is filled.</td><td><code>physics2d</code></td></tr>
@@ -415,6 +440,39 @@ A filled, textured 2D polygon from the `mesh` asset's points and triangles. With
 </tbody>
 </table>
 
+### `screen_notifier2d`
+
+`2d` · `render` · 2 properties · 1 method
+
+A box that announces `screen_enter` as it comes on screen and `screen_exit` as it leaves; `offset` and `size` place it around the node. A hidden node is off screen.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>offset</code></td><td>vec2</td><td><code>[-0.5, -0.5]</code></td><td>The box&#x27;s lower corner from the node, in world units</td></tr>
+<tr><td><code>size</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>The box&#x27;s width and height, in world units</td></tr>
+</tbody>
+</table>
+
+Announced from a node carrying `screen_notifier2d`:
+
+<table>
+<thead><tr><th>event</th><th>payload</th></tr></thead>
+<tbody>
+<tr><td><code>screen_enter</code></td><td>nil, as any of the box comes on screen</td></tr>
+<tr><td><code>screen_exit</code></td><td>nil, as the last of it leaves</td></tr>
+</tbody>
+</table>
+
+On a node carrying `screen_notifier2d`, as `node.screen_notifier2d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>is_on_screen()</code></td><td><code>bool</code></td><td>Whether any of the notifier&#x27;s box was on screen at the end of the last frame.</td><td><code>render</code></td></tr>
+</tbody>
+</table>
+
 ### `shape2d`
 
 `2d` · `render` · 21 properties · 1 method
@@ -459,7 +517,7 @@ On a node carrying `shape2d`, as `node.shape2d.<method>`:
 
 ### `softbody2d`
 
-`2d` · `physics` · 61 properties · 24 methods
+`2d` · `physics` · 63 properties · 24 methods
 
 A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `triangle_mesh` and `volumetric` kinds give and a generator does not.
 
@@ -478,6 +536,7 @@ A deformable 2D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers this body is on One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>What the body is drawn in when its node has nothing of its own to deform, as a cloth or a rope has not</td></tr>
+<tr><td><code>contact_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>How hard a contact must be before on_contact_force is called At least 0.0.</td></tr>
 <tr><td><code>deformation_damping</code></td><td>float</td><td><code>0.0</code></td><td>How fast the particles are pulled towards the body&#x27;s own rigid motion, which settles a residual sway without slowing the body down Range 0.0–1000.0.</td></tr>
 <tr><td><code>dominance</code></td><td>int</td><td><code>0</code></td><td>Which body wins a contact: a higher one is never pushed by a lower one Range -127–127.</td></tr>
 <tr><td><code>edge_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of that spring; 1 settles without overshooting Range 0.0–100.0.</td></tr>
@@ -488,6 +547,7 @@ A deformable 2D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>edge_plastic_yield</code></td><td>float</td><td><code>0.0</code></td><td>The edge strain past which its rest length flows towards its current length At least 0.0.</td></tr>
 <tr><td><code>edge_springs</code></td><td>list of record · <code>a, b, damping, frequency</code></td><td><code>[]</code></td><td>Edges with a spring of their own instead of the edge rows&#x27;, each named by the two particles it joins</td></tr>
 <tr><td><code>elastic_damping</code></td><td>float</td><td><code>1.0</code></td><td>Damping ratio of the elastic cells Range 0.0–100.0.</td></tr>
+<tr><td><code>events</code></td><td>flags</td><td><code>[]</code></td><td>What this body reports to its node&#x27;s script: on_collision_enter and on_collision_exit, or on_contact_force One of <code>collision</code>, <code>contact_force</code>.</td></tr>
 <tr><td><code>friction</code></td><td>float</td><td><code>0.5</code></td><td>Surface friction of the body&#x27;s collider; 0 is ice At least 0.0.</td></tr>
 <tr><td><code>gravity_scale</code></td><td>float</td><td><code>1.0</code></td><td>How much gravity pulls on the particles</td></tr>
 <tr><td><code>interior_strength</code></td><td>float</td><td><code>1.0</code></td><td>How many times tougher an undamaged inside element is than a surface one, so cracks start at the surface and run inward At least 1.0.</td></tr>
@@ -535,7 +595,11 @@ Announced from a node carrying `softbody2d`:
 <table>
 <thead><tr><th>event</th><th>payload</th></tr></thead>
 <tbody>
-<tr><td><code>tear</code></td><td><code>#{ pieces }</code></td></tr>
+<tr><td><code>collision_enter</code></td><td>the other collider&#x27;s node</td></tr>
+<tr><td><code>collision_exit</code></td><td>the other collider&#x27;s node</td></tr>
+<tr><td><code>contact_force</code></td><td><code>#{ other, force, direction }</code></td></tr>
+<tr><td><code>sleeping_changed</code></td><td>whether it sleeps now</td></tr>
+<tr><td><code>tear</code></td><td><code>#{ pieces, edges }</code>: how many pieces, and each torn edge&#x27;s two particles</td></tr>
 </tbody>
 </table>
 
@@ -804,6 +868,18 @@ A 3D rigid body simulated by rapier. `kind` is `dynamic`, `static`, `kinematic` 
 </tbody>
 </table>
 
+Announced from a node carrying `body3d`:
+
+<table>
+<thead><tr><th>event</th><th>payload</th></tr></thead>
+<tbody>
+<tr><td><code>collision_enter</code></td><td>the other collider&#x27;s node, for a collider under it</td></tr>
+<tr><td><code>collision_exit</code></td><td>the other collider&#x27;s node, for a collider under it</td></tr>
+<tr><td><code>contact_force</code></td><td><code>#{ other, force, direction }</code>, for a collider under it</td></tr>
+<tr><td><code>sleeping_changed</code></td><td>whether it sleeps now</td></tr>
+</tbody>
+</table>
+
 On a node carrying `body3d`, as `node.body3d.<method>`:
 
 <table>
@@ -903,6 +979,15 @@ The perspective camera the scene is drawn from. `look_at` aims it, and the last 
 <tr><td><code>ssao_radius</code></td><td>float</td><td><code>0.5</code></td><td>How far the `ssao` pass looks for something occluding a point, in world units. Scale it with the scene At least 0.001.</td></tr>
 <tr><td><code>vignette_amount</code></td><td>float</td><td><code>0.35</code></td><td>How dark the corners go under the `vignette` pass Range 0.0–1.0.</td></tr>
 <tr><td><code>vignette_roundness</code></td><td>float</td><td><code>1.0</code></td><td>1 darkens in a circle whatever shape the frame is; 0 follows the frame Range 0.0–1.0.</td></tr>
+</tbody>
+</table>
+
+Announced from a node carrying `camera3d`:
+
+<table>
+<thead><tr><th>event</th><th>payload</th></tr></thead>
+<tbody>
+<tr><td><code>current_changed</code></td><td>whether it is the camera drawn from now</td></tr>
 </tbody>
 </table>
 
@@ -1232,7 +1317,7 @@ On a node carrying `shape3d`, as `node.shape3d.<method>`:
 
 ### `softbody3d`
 
-`3d` · `physics` · 67 properties · 24 methods
+`3d` · `physics` · 69 properties · 24 methods
 
 A deformable 3D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. The node is drawn from the solver's positions.
 
@@ -1252,6 +1337,7 @@ A deformable 3D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers this body is on One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>What the body is drawn in when its node has nothing of its own to deform, as a cloth or a rope has not</td></tr>
+<tr><td><code>contact_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>How hard a contact must be before on_contact_force is called At least 0.0.</td></tr>
 <tr><td><code>deformation_damping</code></td><td>float</td><td><code>0.0</code></td><td>How fast the particles are pulled towards the body&#x27;s own rigid motion, which settles a residual sway without slowing the body down Range 0.0–1000.0.</td></tr>
 <tr><td><code>dominance</code></td><td>int</td><td><code>0</code></td><td>Which body wins a contact: a higher one is never pushed by a lower one Range -127–127.</td></tr>
 <tr><td><code>edge_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of that spring; 1 settles without overshooting Range 0.0–100.0.</td></tr>
@@ -1262,6 +1348,7 @@ A deformable 3D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>edge_plastic_yield</code></td><td>float</td><td><code>0.0</code></td><td>The edge strain past which its rest length flows towards its current length At least 0.0.</td></tr>
 <tr><td><code>edge_springs</code></td><td>list of record · <code>a, b, damping, frequency</code></td><td><code>[]</code></td><td>Edges with a spring of their own instead of the edge rows&#x27;, each named by the two particles it joins</td></tr>
 <tr><td><code>elastic_damping</code></td><td>float</td><td><code>1.0</code></td><td>Damping ratio of the elastic cells Range 0.0–100.0.</td></tr>
+<tr><td><code>events</code></td><td>flags</td><td><code>[]</code></td><td>What this body reports to its node&#x27;s script: on_collision_enter and on_collision_exit, or on_contact_force One of <code>collision</code>, <code>contact_force</code>.</td></tr>
 <tr><td><code>friction</code></td><td>float</td><td><code>0.5</code></td><td>Surface friction of the body&#x27;s collider; 0 is ice At least 0.0.</td></tr>
 <tr><td><code>gravity_scale</code></td><td>float</td><td><code>1.0</code></td><td>How much gravity pulls on the particles</td></tr>
 <tr><td><code>interior_strength</code></td><td>float</td><td><code>1.0</code></td><td>How many times tougher an undamaged inside element is than a surface one, so cracks start at the surface and run inward At least 1.0.</td></tr>
@@ -1314,7 +1401,11 @@ Announced from a node carrying `softbody3d`:
 <table>
 <thead><tr><th>event</th><th>payload</th></tr></thead>
 <tbody>
-<tr><td><code>tear</code></td><td><code>#{ pieces }</code></td></tr>
+<tr><td><code>collision_enter</code></td><td>the other collider&#x27;s node</td></tr>
+<tr><td><code>collision_exit</code></td><td>the other collider&#x27;s node</td></tr>
+<tr><td><code>contact_force</code></td><td><code>#{ other, force, direction }</code></td></tr>
+<tr><td><code>sleeping_changed</code></td><td>whether it sleeps now</td></tr>
+<tr><td><code>tear</code></td><td><code>#{ pieces, edges }</code>: how many pieces, and each torn edge&#x27;s two particles</td></tr>
 </tbody>
 </table>
 
@@ -1539,6 +1630,15 @@ A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `direction`, 
 </tbody>
 </table>
 
+Announced from a node carrying `particles`:
+
+<table>
+<thead><tr><th>event</th><th>payload</th></tr></thead>
+<tbody>
+<tr><td><code>finished</code></td><td>nil, once a one-shot burst has died out</td></tr>
+</tbody>
+</table>
+
 ## Animation
 
 ### `animation`
@@ -1562,6 +1662,9 @@ Announced from a node carrying `animation`:
 <table>
 <thead><tr><th>event</th><th>payload</th></tr></thead>
 <tbody>
+<tr><td><code>animation_started</code></td><td>the clip&#x27;s name</td></tr>
+<tr><td><code>animation_changed</code></td><td><code>#{ from, to }</code>, the clips&#x27; names</td></tr>
+<tr><td><code>animation_looped</code></td><td>the clip&#x27;s name</td></tr>
 <tr><td><code>animation_finished</code></td><td>the clip&#x27;s name</td></tr>
 </tbody>
 </table>

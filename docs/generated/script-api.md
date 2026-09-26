@@ -8,7 +8,7 @@ cannot drift from what scripts actually see.
 
 | Module | Functions | Constants | Declared by |
 | --- | ---: | ---: | --- |
-| [`animation`](#animation) | 20 | 75 | the engine |
+| [`animation`](#animation) | 20 | 80 | the engine |
 | [`apple`](#apple) | 18 | 20 | the engine |
 | [`assets`](#assets) | 11 | 0 | the engine |
 | [`audio`](#audio) | 19 | 1 | the engine |
@@ -22,7 +22,7 @@ cannot drift from what scripts actually see.
 | [`geometry2d`](#geometry2d) | 10 | 0 | the engine |
 | [`geometry3d`](#geometry3d) | 6 | 0 | the engine |
 | [`hash`](#hash) | 2 | 0 | the engine |
-| [`http`](#http) | 1 | 3 | the engine |
+| [`http`](#http) | 2 | 4 | the engine |
 | [`import`](#import) | 7 | 0 | the engine |
 | [`input`](#input) | 47 | 176 | the engine |
 | [`json`](#json) | 2 | 0 | the engine |
@@ -31,14 +31,14 @@ cannot drift from what scripts actually see.
 | [`multiplayer`](#multiplayer) | 14 | 18 | the engine |
 | [`node`](#node) | 56 | 0 | the engine |
 | [`physics`](#physics) | 14 | 0 | the engine |
-| [`physics2d`](#physics2d) | 75 | 61 | the engine |
+| [`physics2d`](#physics2d) | 81 | 61 | the engine |
 | [`physics3d`](#physics3d) | 97 | 72 | the engine |
 | [`platform`](#platform) | 11 | 7 | the engine |
 | [`project`](#project) | 13 | 0 | the engine |
 | [`random`](#random) | 5 | 0 | the engine |
 | [`regex`](#regex) | 6 | 0 | the engine |
 | [`release`](#release) | 5 | 0 | the engine |
-| [`render`](#render) | 55 | 36 | the engine |
+| [`render`](#render) | 56 | 36 | the engine |
 | [`replay`](#replay) | 17 | 4 | the engine |
 | [`rollback`](#rollback) | 2 | 0 | the engine |
 | [`save`](#save) | 6 | 0 | the engine |
@@ -50,15 +50,15 @@ cannot drift from what scripts actually see.
 | [`task`](#task) | 3 | 0 | the engine |
 | [`toml`](#toml) | 3 | 0 | the engine |
 | [`ui`](#ui) | 72 | 65 | the engine |
-| [`web`](#web) | 7 | 0 | the engine |
-| [`websocket`](#websocket) | 3 | 5 | the engine |
+| [`web`](#web) | 8 | 0 | the engine |
+| [`websocket`](#websocket) | 4 | 9 | the engine |
 | [`window`](#window) | 8 | 0 | the engine |
 
 ## `animation`
 
 **Functions:** `add_clip`, `current_clip`, `current_state`, `ease_names`, `is_playing`, `is_tween_running`, `jump`, `just_finished`, `pause`, `play`, `queue`, `resume`, `seek`, `set_condition`, `stop`, `time`, `travel`, `tween`, `tween_value`, `tween_value_of`
 
-**Constants** (75):
+**Constants** (80):
 
 | Name | Value |
 | --- | --- |
@@ -87,7 +87,7 @@ cannot drift from what scripts actually see.
 | `EASE_IN_QUINT` | `in_quint` |
 | `EASE_IN_SINE` | `in_sine` |
 
-…and 51 more.
+…and 56 more.
 
 ## `apple`
 
@@ -197,12 +197,13 @@ cannot drift from what scripts actually see.
 
 ## `http`
 
-**Functions:** `request`
+**Functions:** `cancel`, `request`
 
-**Constants** (3):
+**Constants** (4):
 
 | Name | Value |
 | --- | --- |
+| `EVENT_CANCELLED` | `cancelled` |
 | `EVENT_ERROR` | `error` |
 | `EVENT_PROGRESS` | `progress` |
 | `EVENT_RESPONSE` | `response` |
@@ -303,7 +304,7 @@ cannot drift from what scripts actually see.
 
 ## `physics2d`
 
-**Functions:** `add_constant_force`, `add_constant_force_at_point`, `add_constant_torque`, `add_softbody_force`, `angular_velocity`, `apply_force`, `apply_force_at_point`, `apply_impulse`, `apply_impulse_at_point`, `apply_particle_impulse`, `apply_softbody_impulse`, `apply_softbody_impulse_at`, `apply_softbody_radial_impulse`, `apply_torque`, `apply_torque_impulse`, `attach_particle`, `closest_point`, `constant_force`, `constant_torque`, `detach_particle`, `distance`, `gravity`, `intersects`, `is_on_floor`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `next_position`, `overlap_aabb`, `overlap_point`, `overlap_shape`, `overlaps`, `pin_particle`, `predict_position`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_softbody_forces`, `set_angular_velocity`, `set_constant_force`, `set_constant_torque`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_particle_position`, `set_particle_target`, `set_particle_velocity`, `set_softbody`, `set_voxel`, `shapecast`, `sleep`, `softbody_area`, `softbody_center`, `softbody_edges`, `softbody_particles`, `softbody_position`, `softbody_rest_area`, `softbody_sleeping`, `softbody_stress`, `softbody_velocity`, `teleport`, `total_mass`, `unpin_particle`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_softbody`, `wake_up`
+**Functions:** `active_bodies`, `add_constant_force`, `add_constant_force_at_point`, `add_constant_torque`, `add_softbody_force`, `angular_velocity`, `apply_force`, `apply_force_at_point`, `apply_impulse`, `apply_impulse_at_point`, `apply_particle_impulse`, `apply_softbody_impulse`, `apply_softbody_impulse_at`, `apply_softbody_radial_impulse`, `apply_torque`, `apply_torque_impulse`, `attach_particle`, `bodies`, `closest_point`, `constant_force`, `constant_torque`, `contacts`, `detach_particle`, `distance`, `effective_dominance`, `gravity`, `intersects`, `is_moving`, `is_on_floor`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `next_position`, `overlap_aabb`, `overlap_point`, `overlap_shape`, `overlaps`, `pin_particle`, `potential_energy`, `predict_position`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_softbody_forces`, `set_angular_velocity`, `set_constant_force`, `set_constant_torque`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_particle_position`, `set_particle_target`, `set_particle_velocity`, `set_softbody`, `set_voxel`, `shapecast`, `sleep`, `softbody_area`, `softbody_center`, `softbody_edges`, `softbody_particles`, `softbody_position`, `softbody_rest_area`, `softbody_sleeping`, `softbody_stress`, `softbody_velocity`, `teleport`, `total_mass`, `unpin_particle`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_softbody`, `wake_up`
 
 **Constants** (61):
 
@@ -405,7 +406,7 @@ cannot drift from what scripts actually see.
 
 ## `render`
 
-**Functions:** `bounds`, `built_mesh`, `camera_2d`, `camera_input`, `camera_matrix`, `camera_pose`, `cell`, `check_material`, `clones`, `debug_view`, `debug_views`, `draw_arc_2d`, `draw_box`, `draw_capsule`, `draw_circle_2d`, `draw_line_2d`, `draw_line_3d`, `draw_lines`, `draw_polygon_2d`, `draw_polyline_2d`, `draw_rect_2d`, `draw_sphere`, `draw_text_2d`, `draw_text_3d`, `draw_texture_2d`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `pick_ray_at`, `screenshot`, `set_background`, `set_box`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_cell`, `set_copy`, `set_debug_view`, `set_grid`, `set_grid_colors`, `set_rectangle`, `set_shader_preview`, `set_shader_probe`, `set_sphere`, `set_terrain`, `shader_probe`, `stats`, `terrain`, `text_size`, `texture_pixels_per_unit`, `texture_size`, `tile_data`, `trace_texture`
+**Functions:** `bounds`, `built_mesh`, `camera_2d`, `camera_input`, `camera_matrix`, `camera_pose`, `cell`, `check_material`, `clones`, `debug_view`, `debug_views`, `draw_arc_2d`, `draw_box`, `draw_capsule`, `draw_circle_2d`, `draw_line_2d`, `draw_line_3d`, `draw_lines`, `draw_polygon_2d`, `draw_polyline_2d`, `draw_rect_2d`, `draw_sphere`, `draw_text_2d`, `draw_text_3d`, `draw_texture_2d`, `is_on_screen`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `pick_ray_at`, `screenshot`, `set_background`, `set_box`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_cell`, `set_copy`, `set_debug_view`, `set_grid`, `set_grid_colors`, `set_rectangle`, `set_shader_preview`, `set_shader_probe`, `set_sphere`, `set_terrain`, `shader_probe`, `stats`, `terrain`, `text_size`, `texture_pixels_per_unit`, `texture_size`, `tile_data`, `trace_texture`
 
 **Constants** (36):
 
@@ -524,13 +525,13 @@ cannot drift from what scripts actually see.
 
 ## `web`
 
-**Functions:** `hardware_concurrency`, `listen`, `location`, `messages`, `post_message`, `user_agent`, `visible`
+**Functions:** `hardware_concurrency`, `listen`, `location`, `messages`, `post_message`, `stop_listening`, `user_agent`, `visible`
 
 ## `websocket`
 
-**Functions:** `close`, `connect`, `send`
+**Functions:** `close`, `connect`, `send`, `state`
 
-**Constants** (5):
+**Constants** (9):
 
 | Name | Value |
 | --- | --- |
@@ -539,6 +540,10 @@ cannot drift from what scripts actually see.
 | `EVENT_ERROR` | `error` |
 | `EVENT_MESSAGE` | `message` |
 | `EVENT_OPEN` | `open` |
+| `STATE_CLOSED` | `closed` |
+| `STATE_CLOSING` | `closing` |
+| `STATE_CONNECTING` | `connecting` |
+| `STATE_OPEN` | `open` |
 
 ## `window`
 

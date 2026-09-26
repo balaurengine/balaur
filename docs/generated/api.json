@@ -89,6 +89,7 @@
     "polygon": "A filled, textured 2D polygon from the `mesh` asset's points and triangles. With skin weights, the rig `skeleton` names deforms it.",
     "ragdoll": "Drives a rig's bones from the `bodies` that `physics2d.ragdoll` or `physics3d.ragdoll` built. `influence` is how much of the simulated pose the bones take, 0 to 1.",
     "reflection_probe": "A box the room around it was captured inside. A reflective surface within it mirrors that capture, aimed at the box, instead of the distant sky.",
+    "screen_notifier2d": "A box that announces `screen_enter` as it comes on screen and `screen_exit` as it leaves; `offset` and `size` place it around the node. A hidden node is off screen.",
     "shape2d": "An untextured 2D primitive at the node. `kind` is `circle`, `rectangle`, `capsule`, `ellipse`, `star`, `ngon` or `polyline`; a `polyline` follows a `mesh` or `path2d` asset.",
     "shape3d": "An untextured 3D primitive at the node, tinted by `color`. `kind` is `sphere`, `box`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`.",
     "softbody2d": "A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `triangle_mesh` and `volumetric` kinds give and a generator does not.",
@@ -112,8 +113,68 @@
   "component_events": {
     "animation": [
       [
+        "animation_started",
+        "the clip's name"
+      ],
+      [
+        "animation_changed",
+        "`#{ from, to }`, the clips' names"
+      ],
+      [
+        "animation_looped",
+        "the clip's name"
+      ],
+      [
         "animation_finished",
         "the clip's name"
+      ]
+    ],
+    "body2d": [
+      [
+        "collision_enter",
+        "the other collider's node, for a collider under it"
+      ],
+      [
+        "collision_exit",
+        "the other collider's node, for a collider under it"
+      ],
+      [
+        "contact_force",
+        "`#{ other, force, direction }`, for a collider under it"
+      ],
+      [
+        "sleeping_changed",
+        "whether it sleeps now"
+      ]
+    ],
+    "body3d": [
+      [
+        "collision_enter",
+        "the other collider's node, for a collider under it"
+      ],
+      [
+        "collision_exit",
+        "the other collider's node, for a collider under it"
+      ],
+      [
+        "contact_force",
+        "`#{ other, force, direction }`, for a collider under it"
+      ],
+      [
+        "sleeping_changed",
+        "whether it sleeps now"
+      ]
+    ],
+    "camera2d": [
+      [
+        "current_changed",
+        "whether it is the camera drawn from now"
+      ]
+    ],
+    "camera3d": [
+      [
+        "current_changed",
+        "whether it is the camera drawn from now"
       ]
     ],
     "collider2d": [
@@ -156,16 +217,64 @@
         "`#{ a, b, force }`"
       ]
     ],
+    "particles": [
+      [
+        "finished",
+        "nil, once a one-shot burst has died out"
+      ]
+    ],
+    "screen_notifier2d": [
+      [
+        "screen_enter",
+        "nil, as any of the box comes on screen"
+      ],
+      [
+        "screen_exit",
+        "nil, as the last of it leaves"
+      ]
+    ],
     "softbody2d": [
       [
+        "collision_enter",
+        "the other collider's node"
+      ],
+      [
+        "collision_exit",
+        "the other collider's node"
+      ],
+      [
+        "contact_force",
+        "`#{ other, force, direction }`"
+      ],
+      [
+        "sleeping_changed",
+        "whether it sleeps now"
+      ],
+      [
         "tear",
-        "`#{ pieces }`"
+        "`#{ pieces, edges }`: how many pieces, and each torn edge's two particles"
       ]
     ],
     "softbody3d": [
       [
+        "collision_enter",
+        "the other collider's node"
+      ],
+      [
+        "collision_exit",
+        "the other collider's node"
+      ],
+      [
+        "contact_force",
+        "`#{ other, force, direction }`"
+      ],
+      [
+        "sleeping_changed",
+        "whether it sleeps now"
+      ],
+      [
         "tear",
-        "`#{ pieces }`"
+        "`#{ pieces, edges }`: how many pieces, and each torn edge's two particles"
       ]
     ],
     "sound": [
@@ -391,6 +500,10 @@
     ],
     "reflection_probe": [
       "3d",
+      "render"
+    ],
+    "screen_notifier2d": [
+      "2d",
       "render"
     ],
     "shape2d": [
@@ -3279,6 +3392,24 @@
         "type": "vec3"
       }
     },
+    "screen_notifier2d": {
+      "offset": {
+        "default": [
+          -0.5,
+          -0.5
+        ],
+        "description": "The box's lower corner from the node, in world units",
+        "type": "vec2"
+      },
+      "size": {
+        "default": [
+          1.0,
+          1.0
+        ],
+        "description": "The box's width and height, in world units",
+        "type": "vec2"
+      }
+    },
     "shape2d": {
       "cap": {
         "default": "round",
@@ -3703,6 +3834,13 @@
         "group": "surface",
         "type": "color"
       },
+      "contact_force_threshold": {
+        "default": 0.0,
+        "description": "How hard a contact must be before on_contact_force is called",
+        "group": "filtering",
+        "min": 0.0,
+        "type": "float"
+      },
       "deformation_damping": {
         "default": 0.0,
         "description": "How fast the particles are pulled towards the body's own rigid motion, which settles a residual sway without slowing the body down",
@@ -3807,6 +3945,16 @@
         "max": 100.0,
         "min": 0.0,
         "type": "float"
+      },
+      "events": {
+        "default": [],
+        "description": "What this body reports to its node's script: on_collision_enter and on_collision_exit, or on_contact_force",
+        "group": "filtering",
+        "options": [
+          "collision",
+          "contact_force"
+        ],
+        "type": "flags"
       },
       "friction": {
         "default": 0.5,
@@ -4302,6 +4450,13 @@
         "group": "surface",
         "type": "color"
       },
+      "contact_force_threshold": {
+        "default": 0.0,
+        "description": "How hard a contact must be before on_contact_force is called",
+        "group": "filtering",
+        "min": 0.0,
+        "type": "float"
+      },
       "deformation_damping": {
         "default": 0.0,
         "description": "How fast the particles are pulled towards the body's own rigid motion, which settles a residual sway without slowing the body down",
@@ -4406,6 +4561,16 @@
         "max": 100.0,
         "min": 0.0,
         "type": "float"
+      },
+      "events": {
+        "default": [],
+        "description": "What this body reports to its node's script: on_collision_enter and on_collision_exit, or on_contact_force",
+        "group": "filtering",
+        "options": [
+          "collision",
+          "contact_force"
+        ],
+        "type": "flags"
       },
       "friction": {
         "default": 0.5,
@@ -6842,6 +7007,11 @@
       "A declared input action was pressed, reaching nodes as `on_key_down` does."
     ],
     [
+      "on_action_released",
+      "(name)",
+      "A declared input action was let go, reaching nodes as `on_key_down` does."
+    ],
+    [
       "on_scroll",
       "(dx, dy)",
       "The wheel turned, over the node or, over nothing, to every node."
@@ -6880,6 +7050,41 @@
       "on_quit_requested",
       "()",
       "The window was asked to close; every script hears it, then the app goes."
+    ],
+    [
+      "on_suspended_changed",
+      "(suspended)",
+      "The game went to the background or came back, a hidden browser tab included; told to every script."
+    ],
+    [
+      "on_safe_area_changed",
+      "(insets)",
+      "The screen's safe area moved, as `[left, top, right, bottom]` in pixels; told to every script."
+    ],
+    [
+      "on_orientation_changed",
+      "(orientation)",
+      "The screen turned, to `portrait` or `landscape`; told to every script."
+    ],
+    [
+      "on_gamepad_connected",
+      "(pad)",
+      "A gamepad was plugged in, with the id `input` names it by; told to every script."
+    ],
+    [
+      "on_gamepad_disconnected",
+      "(pad)",
+      "A gamepad went away, with its id; told to every script."
+    ],
+    [
+      "on_setting_changed",
+      "(change)",
+      "A script set a setting, `#{ path, value }`; every script hears it the next frame."
+    ],
+    [
+      "on_locale_changed",
+      "(locale)",
+      "The language changed; every script hears it the next frame."
     ]
   ],
   "modules": [
@@ -7126,8 +7331,20 @@
           "value": "out_spring"
         },
         {
+          "name": "EVENT_ANIMATION_CHANGED",
+          "value": "animation_changed"
+        },
+        {
           "name": "EVENT_ANIMATION_FINISHED",
           "value": "animation_finished"
+        },
+        {
+          "name": "EVENT_ANIMATION_LOOPED",
+          "value": "animation_looped"
+        },
+        {
+          "name": "EVENT_ANIMATION_STARTED",
+          "value": "animation_started"
         },
         {
           "name": "EVENT_STATE_FINISHED",
@@ -7140,6 +7357,14 @@
         {
           "name": "EVENT_TWEEN_FINISHED",
           "value": "tween_finished"
+        },
+        {
+          "name": "EVENT_TWEEN_LOOPED",
+          "value": "tween_looped"
+        },
+        {
+          "name": "EVENT_TWEEN_STEP",
+          "value": "tween_step"
         },
         {
           "name": "INTERPOLATION_CUBIC",
@@ -8061,6 +8286,10 @@
       "components": [],
       "constants": [
         {
+          "name": "EVENT_CANCELLED",
+          "value": "cancelled"
+        },
+        {
           "name": "EVENT_ERROR",
           "value": "error"
         },
@@ -8075,13 +8304,16 @@
       ],
       "doc": "HTTP requests off the frame: `method`, `headers`, `body`, `timeout` and `save_to` options. The reply reaches `on_response` as a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; `save_to` downloads report to `on_progress` with `kind` `progress`. Each kind is an `EVENT_*` constant.",
       "docs": {
+        "cancel": "Stop waiting on a request: its reply is dropped, a download stops writing, and the handler and any await hear `kind` `cancelled` next frame. False when it had already finished.",
         "request": "Start an HTTP request and return the id its reply carries, to await or to match inside the handler. With `save_to` the body is written under the user directory and the reply says where in `path`."
       },
       "functions": [
+        "cancel",
         "request"
       ],
       "name": "http",
       "signatures": {
+        "cancel": "i64 -> Value",
         "request": "(Value, Option<Value>, Option<Value>) -> Value"
       }
     },
@@ -9577,8 +9809,17 @@
         "constant_torque": [
           "body2d"
         ],
+        "contacts": [
+          "collider2d"
+        ],
         "detach_particle": [
           "softbody2d"
+        ],
+        "effective_dominance": [
+          "body2d"
+        ],
+        "is_moving": [
+          "body2d"
         ],
         "is_on_floor": [
           "character2d"
@@ -9609,6 +9850,9 @@
         ],
         "pin_particle": [
           "softbody2d"
+        ],
+        "potential_energy": [
+          "body2d"
         ],
         "predict_position": [
           "body2d"
@@ -9965,6 +10209,7 @@
       ],
       "doc": "The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.",
       "docs": {
+        "active_bodies": "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving.",
         "add_constant_force": "Push the body every step until the constant force is set back to zero; unlike an impulse this is spread over time.",
         "add_constant_force_at_point": "Push at a world point every step, which also turns the body.",
         "add_constant_torque": "Turn the body every step until the constant torque is set back to zero.",
@@ -9981,13 +10226,17 @@
         "apply_torque": "Turn the body for the next step only; `add_constant_torque` keeps turning it.",
         "apply_torque_impulse": "Add an instant change in angular momentum, as if the body were spun.",
         "attach_particle": "Tie one particle to a node's rigid body where it is now: the body and the particle pull on each other.",
+        "bodies": "Every node with a rigid body, sorted.",
         "closest_point": "The closest point on any collider to a world point.",
         "constant_force": "The force every step integrates until it is set back to zero.",
         "constant_torque": "The torque every step integrates until it is set back to zero.",
+        "contacts": "Every contact point on this node's collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition.",
         "detach_particle": "Untie one particle from every body it was attached to; answers whether it was attached.",
         "distance": "The gap between two nodes' colliders, zero when they touch.",
+        "effective_dominance": "The dominance rapier will use for this body: its own group, or the rank every non-dynamic body outranks with.",
         "gravity": "The 2D world's gravity.",
         "intersects": "Whether two nodes' colliders overlap right now, sensor or not.",
+        "is_moving": "Whether the body is awake and actually going somewhere.",
         "is_on_floor": "Whether the last move ended with ground under the character's feet.",
         "is_sleeping": "Whether the body is asleep and being skipped.",
         "joint_impulse": "How hard the joint is pulling right now.",
@@ -10001,6 +10250,7 @@
         "overlap_shape": "Every collider a shape overlaps where it stands.",
         "overlaps": "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor.",
         "pin_particle": "Hold one particle where it is, which is how a cloth hangs from a hook.",
+        "potential_energy": "The body's gravitational potential energy over one step.",
         "predict_position": "Where the body will be after `dt` seconds at its current velocity.",
         "ragdoll": "Build a 2D ragdoll from the rig under this node: a body and a capsule per bone, hinged to its parent's. The options table takes `thickness` (capsule radius as a fraction of bone length), `density`, `friction`, `limits` and `influence`. Answers the body nodes it made.",
         "raycast": "The first collider a ray meets: `#{ from = [x, y], dir = [x, y], max = 100.0, filter = #{ exclude = node } }`. Returns `#{ node, point, normal, distance }`, or nothing.",
@@ -10042,6 +10292,7 @@
         "wake_up": "Wake the body, so the next step moves it."
       },
       "functions": [
+        "active_bodies",
         "add_constant_force",
         "add_constant_force_at_point",
         "add_constant_torque",
@@ -10058,13 +10309,17 @@
         "apply_torque",
         "apply_torque_impulse",
         "attach_particle",
+        "bodies",
         "closest_point",
         "constant_force",
         "constant_torque",
+        "contacts",
         "detach_particle",
         "distance",
+        "effective_dominance",
         "gravity",
         "intersects",
+        "is_moving",
         "is_on_floor",
         "is_sleeping",
         "joint_impulse",
@@ -10078,6 +10333,7 @@
         "overlap_shape",
         "overlaps",
         "pin_particle",
+        "potential_energy",
         "predict_position",
         "ragdoll",
         "raycast",
@@ -10120,6 +10376,7 @@
       ],
       "name": "physics2d",
       "signatures": {
+        "active_bodies": "() -> Value",
         "add_constant_force": "(NodeId, f32, f32) -> ()",
         "add_constant_force_at_point": "(NodeId, f32, f32, f32, f32) -> ()",
         "add_constant_torque": "(NodeId, f32) -> ()",
@@ -10136,13 +10393,17 @@
         "apply_torque": "(NodeId, f32) -> ()",
         "apply_torque_impulse": "(NodeId, f32) -> ()",
         "attach_particle": "(NodeId, i64, NodeId) -> ()",
+        "bodies": "() -> Value",
         "closest_point": "Value -> Value",
         "constant_force": "NodeId -> (f32, f32)",
         "constant_torque": "NodeId -> f32",
+        "contacts": "NodeId -> Value",
         "detach_particle": "(NodeId, i64) -> bool",
         "distance": "(NodeId, NodeId) -> Value",
+        "effective_dominance": "NodeId -> f32",
         "gravity": "() -> (f32, f32)",
         "intersects": "(NodeId, NodeId) -> Value",
+        "is_moving": "NodeId -> bool",
         "is_on_floor": "NodeId -> bool",
         "is_sleeping": "NodeId -> bool",
         "joint_impulse": "NodeId -> f32",
@@ -10156,6 +10417,7 @@
         "overlap_shape": "Value -> Value",
         "overlaps": "NodeId -> Vec<NodeId>",
         "pin_particle": "(NodeId, i64) -> ()",
+        "potential_energy": "NodeId -> f32",
         "predict_position": "(NodeId, f32) -> (f32, f32)",
         "ragdoll": "(NodeId, Option<Value>) -> Value",
         "raycast": "Value -> Value",
@@ -11264,6 +11526,9 @@
         "clones": [
           "cloner"
         ],
+        "is_on_screen": [
+          "screen_notifier2d"
+        ],
         "outline": [
           "occluder2d"
         ],
@@ -11296,6 +11561,7 @@
         "boolean3d",
         "cloner",
         "occluder2d",
+        "screen_notifier2d",
         "shape2d",
         "shape3d",
         "tilemap"
@@ -11473,6 +11739,7 @@
         "draw_text_2d": "Draw a line of text in 2D world space for this frame, shaped by the engine's fonts. `opts` takes the `text2d` keys (`font_size`, `font_weight`, `font_style`, `color`, `text_align`, `markup`, `max_width`, `font_family`, `bitmap_font`, \u2026), `pixels_per_unit` and `z_index`.",
         "draw_text_3d": "The same in 3D world space, on a quad that faces the camera. `pixels_per_unit` sizes it, so text a metre away reads the same whatever the font size.",
         "draw_texture_2d": "Draw a project image over a rectangle centred at a point, in world units, for this frame; the colour tints it. `opts` takes `z_index`, and `region_origin` and `region_size` in the image's pixels for part of it.",
+        "is_on_screen": "Whether any of the notifier's box was on screen at the end of the last frame.",
         "material_params": "The material's editable rows, one `#{ name, type, value }` per field its linked shader declares; empty when it will not link.",
         "mouse_ray": "The picking ray through the mouse position: its origin xyz then its direction xyz, in world units.",
         "mouse_world_2d": "The mouse position in 2D world coordinates, for picking.",
@@ -11530,6 +11797,7 @@
         "draw_text_2d",
         "draw_text_3d",
         "draw_texture_2d",
+        "is_on_screen",
         "material_params",
         "mouse_ray",
         "mouse_world_2d",
@@ -11588,6 +11856,7 @@
         "draw_text_2d": "(f32, f32, String, Option<Value>) -> ()",
         "draw_text_3d": "(f32, f32, f32, String, Option<Value>) -> ()",
         "draw_texture_2d": "(String, f32, f32, f32, f32, Option<Value>, Option<Value>) -> ()",
+        "is_on_screen": "NodeId -> bool",
         "material_params": "String -> Value",
         "mouse_ray": "() -> (f32, f32, f32, f32, f32, f32)",
         "mouse_world_2d": "() -> (f32, f32)",
@@ -12353,7 +12622,7 @@
         "pasted_text": "The text pasted this frame, empty otherwise: the platform clipboard is not readable on demand.",
         "progress_bar": "Draw how far along something is: a `track` with `part` of it filled in `fill`, `width` by `height` design pixels, cornered by `corner_radius`. `part` is 0 to 1, and one outside that is held at the nearest end.",
         "rect_stroke": "Outline a rectangle at x/y/w/h design pixels from the current panel's corner, `dashed` when asked.",
-        "request_repaint": "Run the UI pass this frame even when lazy; call it every frame something on screen moves without input, such as while the scene plays.",
+        "request_repaint": "Run the UI pass this frame even when lazy, and the frame itself under `[window] low_processor`; call it every frame something on screen moves without input, such as while the scene plays. `#{ after: seconds }` asks for one that far ahead instead.",
         "right_panel": "Dock a column down the right of the window and draw the callback inside it; `width` is in design pixels. Answers the width it ended up with.",
         "row": "Lay the callback's widgets out in a row; `width`, `height` and `tight` size it, in design pixels.",
         "scale": "The global UI scale: how many screen pixels a design pixel is drawn at, on top of the display's own.",
@@ -12502,7 +12771,7 @@
         "pasted_text": "() -> String",
         "progress_bar": "(f32, Option<Value>) -> ()",
         "rect_stroke": "(f32, f32, f32, f32, Option<Value>) -> ()",
-        "request_repaint": "() -> ()",
+        "request_repaint": "Option<Value> -> ()",
         "right_panel": "(String, Option<Value>, CallbackId) -> f64",
         "row": "(Option<Value>, CallbackId) -> ()",
         "scale": "() -> f32",
@@ -12544,6 +12813,7 @@
         "location": "The page's URL, or nil off the web.",
         "messages": "Every message the parent frame posted this tick, for a script that would rather ask than declare a method.",
         "post_message": "Post a value to the page that embeds this one. False off the web, and false while a recording plays.",
+        "stop_listening": "Stop the node hearing the parent frame's messages. Not an error when it never listened.",
         "user_agent": "The browser's user agent string, or nil off the web.",
         "visible": "Whether the tab is in front of the player; true off the web."
       },
@@ -12553,6 +12823,7 @@
         "location",
         "messages",
         "post_message",
+        "stop_listening",
         "user_agent",
         "visible"
       ],
@@ -12563,6 +12834,7 @@
         "location": "() -> Value",
         "messages": "() -> Value",
         "post_message": "Value -> bool",
+        "stop_listening": "NodeId -> ()",
         "user_agent": "() -> Value",
         "visible": "() -> bool"
       }
@@ -12590,24 +12862,43 @@
         {
           "name": "EVENT_OPEN",
           "value": "open"
+        },
+        {
+          "name": "STATE_CLOSED",
+          "value": "closed"
+        },
+        {
+          "name": "STATE_CLOSING",
+          "value": "closing"
+        },
+        {
+          "name": "STATE_CONNECTING",
+          "value": "connecting"
+        },
+        {
+          "name": "STATE_OPEN",
+          "value": "open"
         }
       ],
       "doc": "A long-lived socket for text or binary frames. Events reach the node's `on_websocket_event` (or `on_event`) as a map with `socket` and `kind`: `open`, `message`, `binary`, `closed` or `error`, each an `EVENT_*` constant.",
       "docs": {
-        "close": "Ask the connection to close, which still delivers a `closed` event; false when it was already gone.",
+        "close": "Ask the connection to close, which still delivers a `closed` event with its `code`; false when it was already gone.",
         "connect": "Open a connection and return the id `send` and `close` take, which `task.wait` resumes on with the `open` or `error` event; options are `on_event`, `compression` and `headers`.",
-        "send": "Queue a frame on the connection, text for a string and binary for bytes; false when it is already gone."
+        "send": "Queue a frame on the connection, text for a string and binary for bytes; false when it is already gone.",
+        "state": "Where the connection is: `connecting`, `open`, `closing` or `closed`, each a `STATE_*` constant."
       },
       "functions": [
         "close",
         "connect",
-        "send"
+        "send",
+        "state"
       ],
       "name": "websocket",
       "signatures": {
         "close": "i64 -> Value",
         "connect": "(Value, String, Option<Value>) -> Value",
-        "send": "(i64, Value) -> Value"
+        "send": "(i64, Value) -> Value",
+        "state": "i64 -> Value"
       }
     },
     {
