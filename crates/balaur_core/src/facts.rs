@@ -203,8 +203,8 @@ pub struct DeviceFacts {
     /// while nothing is playing.
     #[serde(default)]
     pub game_area: Option<[f32; 4]>,
-    /// Whether the game is in the background: a hidden browser tab. False
-    /// where the platform does not say.
+    /// Whether the game is in the background: a hidden browser tab, a window
+    /// out of sight, an app sent back. False where the platform does not say.
     #[serde(default)]
     pub suspended: bool,
 }

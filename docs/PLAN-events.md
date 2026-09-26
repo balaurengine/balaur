@@ -1,7 +1,7 @@
 > **Status:** written 2026-09-26 from an audit of every crate, done by reading
-> the code. §2, §3 and §4 are built, but for suspend, resume and focus on a
-> native window (§4.7). The order is bugs first, then one delivery path, then
-> the events the engine does not send yet.
+> the code. §2, §3 and §4 are built; a native window's focus and suspend wait
+> on the kiss3d fork (§4.7). The order is bugs first, then one delivery path,
+> then the events the engine does not send yet.
 
 # Plan: events, and one way to hear each of them
 
@@ -158,10 +158,12 @@ In order of how often a game needs them.
    let go. Every script hears `on_suspended_changed` (a hidden browser tab),
    `on_safe_area_changed`, `on_orientation_changed`, `on_gamepad_connected`
    and `on_gamepad_disconnected`. The frame after a script changes one, it
-   hears `on_setting_changed` and `on_locale_changed`. Left: suspend,
-   resume and low memory on desktop and mobile, which wait on the kiss3d
-   fork passing winit's lifecycle events on; the same gap means
-   `on_focused_changed` never fires from a window today.
+   hears `on_setting_changed` and `on_locale_changed`. A window minimised
+   or covered, and an Android activity sent back, is suspended too, and
+   focus reaches `on_focused_changed`, once the kiss3d fork's commit
+   `3fcc9a8e`, which sends both, is pushed and the lock bumped. Left: low
+   memory everywhere and suspend on iOS, which kiss3d's application
+   handlers do not take yet.
 8. **Render:** built. A camera announces `current_changed` when it becomes
    or stops being the one drawn from. `render.screenshot` answers every
    listener with `screenshot_written` or `screenshot_failed`, a run with no

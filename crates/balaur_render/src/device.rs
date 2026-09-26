@@ -82,6 +82,11 @@ pub(crate) fn set_focused(app: &App, focused: bool) {
     balaur_core::facts::update_device(&app.engine, |facts| facts.focused = focused);
 }
 
+/// A window out of sight or an app in the background, as the backend says.
+pub(crate) fn set_suspended(app: &App, suspended: bool) {
+    balaur_core::facts::update_device(&app.engine, |facts| facts.suspended = suspended);
+}
+
 /// Ask the platform to keep the screen on, or let it dim again.
 pub(crate) fn keep_awake(on: bool) {
     #[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]

@@ -75,6 +75,7 @@ pub(crate) fn pump_input(app: &App, window: &Window) -> Seen {
                 input.touch_event(id, x as f32, y as f32, phase);
             }
             WindowEvent::Focus(focused) => crate::device::set_focused(app, focused),
+            WindowEvent::Iconify(hidden) => crate::device::set_suspended(app, hidden),
             WindowEvent::Close => closing = true,
             _ => {}
         }

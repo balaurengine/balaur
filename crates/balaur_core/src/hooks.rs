@@ -23,7 +23,8 @@ pub const ON_DARK_MODE_CHANGED: &str = "on_dark_mode_changed";
 /// close, before it does.
 pub const ON_QUIT_REQUESTED: &str = "on_quit_requested";
 /// Called on every script, a paused one too, when the game goes to the
-/// background or comes back: a browser tab hidden or shown.
+/// background or comes back: a browser tab hidden, a window minimised or
+/// covered, an Android activity sent back.
 pub const ON_SUSPENDED_CHANGED: &str = "on_suspended_changed";
 /// Called on every script when the screen's safe area moves.
 pub const ON_SAFE_AREA_CHANGED: &str = "on_safe_area_changed";
@@ -146,7 +147,7 @@ pub const REFERENCE: &[(&str, &str, &str)] = &[
     (ON_FOCUSED_CHANGED, "(focused)", "The window came to the front or left it, told to every script."),
     (ON_DARK_MODE_CHANGED, "(dark)", "The system switched dark mode, told to every script."),
     (ON_QUIT_REQUESTED, "()", "The window was asked to close; every script hears it, then the app goes."),
-    (ON_SUSPENDED_CHANGED, "(suspended)", "The game went to the background or came back, a hidden browser tab included; told to every script."),
+    (ON_SUSPENDED_CHANGED, "(suspended)", "The game went to the background or came back: a hidden tab, a minimised or covered window, an app sent back; told to every script."),
     (ON_SAFE_AREA_CHANGED, "(insets)", "The screen's safe area moved, as `[left, top, right, bottom]` in pixels; told to every script."),
     (ON_ORIENTATION_CHANGED, "(orientation)", "The screen turned, to `portrait` or `landscape`; told to every script."),
     (ON_GAMEPAD_CONNECTED, "(pad)", "A gamepad was plugged in, with the id `input` names it by; told to every script."),
