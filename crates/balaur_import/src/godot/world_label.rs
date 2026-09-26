@@ -17,12 +17,12 @@ thread_local! {
         const { RefCell::new(BTreeMap::new()) };
 }
 
-/// Whether a class drawn under `parent` is a label in the world. One with
-/// no parent, a scene's root or a script's `Label.new()`, is a widget.
+/// Whether a class drawn under `parent` is a label in the world: under a
+/// 2D node. Under a `CanvasLayer`, a plain node or none it is on the screen.
 pub(crate) fn is_world_label(class: &str, parent: &str) -> bool {
     matches!(class, "Label" | "RichTextLabel")
         && !parent.is_empty()
-        && crate::godot::nodes::family(parent) != crate::godot::nodes::Family::Control
+        && crate::godot::nodes::family(parent) == crate::godot::nodes::Family::Node2d
 }
 
 /// The label's caption, box and look as a `text2d` at the point of its box
@@ -163,6 +163,13 @@ fn converted(written: &str, res: &Resources<'_>) -> Option<toml::Table> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_label_on_a_canvas_layer_is_on_the_screen() {
+        assert!(!super::is_world_label("Label", "CanvasLayer"));
+        assert!(!super::is_world_label("Label", "Node"));
+        assert!(super::is_world_label("Label", "Node2D"));
+    }
+
     #[test]
     fn a_label_made_by_new_is_a_widget() {
         let doc = crate::godot::nodes::bare_document("Label", "made").unwrap();
