@@ -471,8 +471,50 @@ pair holds. Re-run them on an idle machine and put the numbers here.
 
 The editor's own script is the other half of its frame. `hello` now costs
 144,085 instructions a frame against §5's 71,436, so the shell's work doubled
-since 2026-09-21, and nothing above touches it. Ablation, as §5 did it, is
-what finds where.
+since 2026-09-21, and nothing above touches it. §6i found where.
+
+## 6i. Where the shell's script went
+
+**Measured 2026-09-26**, in instructions, which load does not move. §7's
+counter charges only the lifecycle calls, so a `draw` callback and a pool
+callback were never in it. A build of the rune fork with an
+instruction-pointer histogram, `RUNE_PROFILE_IPS`, attributed every executed
+instruction to its function. That build is a measurement over a `paths`
+override and is not committed.
+
+Steady state on `examples/hello`:
+
+| | instructions a frame |
+| --- | ---: |
+| before | 186,662 |
+| the pool in Rust | 51,845 |
+| the 3D light and camera marks cached | 43,269 |
+
+Before, `util::copy` and `util::merge` were 48.6k at 235 calls each, the pool
+28.6k and the gizmo 59k. The gizmo had not grown since §5's 53k. The pool is
+what doubled the shell: every control's table was merged over `SHAPELESS`,
+merged again and compared, in Rune, on every pass.
+
+- The pool is `ui::fill_strip` and `ui::fill_rows` in
+  `crates/balaur_ui/src/widget/pool.rs`, writing through the node operations
+  a script calls. The 80 editor states e2e runs pass on `angrynerds` and
+  `hello`, and a screenshot of each matches the Rune pool's but for the
+  Output dock's timestamps.
+- The gizmo keeps its line list against the box, the hot part and the two
+  colours, and replays it with one `render::draw_lines`. The 3D overlays do
+  the same, keyed on each light's and camera's pose, its table by value and
+  the selection.
+
+The `ui` pass, three interleaved pairs of 1000 frames under load 23 to 108,
+went from 88 ms to between 35 and 69 ms, and `scripts/update` from 16 to
+between 5 and 11 ms. Only the ratio holds.
+
+What is left of the 43k: `docks` 8.0k, rebuilding its tabs and panels every
+pass; `model` 5.8k, most of it `is_2d` scanning the document three times a
+frame, which grows with the document; `util` 5.0k, `icons` 3.5k, `layout`
+3.1k, `left` 2.6k, `dock::output` 2.4k and `center` 2.2k. The shell still
+states every strip on every pass, and stating it only when something changed
+is the next step.
 
 ## 7. The instrument
 

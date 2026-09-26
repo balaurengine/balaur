@@ -433,6 +433,26 @@ pub(crate) mod keys {
     pub(crate) const Y: &str = "y";
 }
 
+/// What a pooled control's spec names beside the `widget` properties it
+/// carries, which `ui::fill_strip` and `ui::fill_rows` read.
+pub(crate) mod pool {
+    /// The component every pooled node carries.
+    pub(crate) const WIDGET: &str = "widget";
+    /// The callback that hears the reader's edit.
+    pub(crate) const ON: &str = "on";
+    /// A spec's children: the spec is a group, one node holding them.
+    pub(crate) const CONTROLS: &str = "controls";
+    /// A row's label, and the roles its label and control column wear.
+    pub(crate) const LABEL: &str = "label";
+    pub(crate) const LABEL_ROLE: &str = "label_role";
+    pub(crate) const SLOT_ROLE: &str = "slot_role";
+    /// A row spanning both columns, with no label beside it.
+    pub(crate) const FULL: &str = "full";
+    /// The roles a row wears where its spec names none.
+    pub(crate) const TEXT_LABEL: &str = "text_label";
+    pub(crate) const LAYOUT_CELLS: &str = "layout_cells";
+}
+
 /// The state tables a theme entry holds, by CSS's words. `checked` and
 /// `disabled` are the properties they answer to.
 pub(crate) mod states {

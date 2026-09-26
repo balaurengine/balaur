@@ -49,7 +49,7 @@ cannot drift from what scripts actually see.
 | [`strings`](#strings) | 6 | 0 | the engine |
 | [`task`](#task) | 3 | 0 | the engine |
 | [`toml`](#toml) | 3 | 0 | the engine |
-| [`ui`](#ui) | 69 | 65 | the engine |
+| [`ui`](#ui) | 71 | 65 | the engine |
 | [`web`](#web) | 7 | 0 | the engine |
 | [`websocket`](#websocket) | 3 | 0 | the engine |
 | [`window`](#window) | 8 | 0 | the engine |
@@ -424,7 +424,7 @@ cannot drift from what scripts actually see.
 
 ## `ui`
 
-**Functions:** `activate_focused`, `add_space`, `align_right`, `available_height`, `available_width`, `bottom_panel`, `button`, `button_rect`, `central_panel`, `central_rect`, `circle_button`, `click`, `code_editor`, `code_line`, `color_picker`, `column`, `complete_theme`, `contrast`, `contrast_pairs`, `dialog`, `dot`, `dropdown`, `finish_loading`, `focus_next`, `focus_previous`, `focused_widget`, `frame`, `height_class`, `image`, `image_button`, `label`, `layout_y`, `left_panel`, `list`, `menu_item`, `number_field`, `overlay`, `pasted_text`, `progress_bar`, `rect_stroke`, `request_repaint`, `right_panel`, `row`, `scale`, `scroll`, `separator`, `set_clipboard`, `set_field_text`, `set_focus`, `set_keyboard_navigation`, `set_lazy`, `set_load_progress`, `set_scale`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `switch`, `tab_rect`, `text_field`, `top_panel`, `wants_keyboard`, `wants_pointer`, `widget_rect`, `width_class`, `window`, `window_size`
+**Functions:** `activate_focused`, `add_space`, `align_right`, `available_height`, `available_width`, `bottom_panel`, `button`, `button_rect`, `central_panel`, `central_rect`, `circle_button`, `click`, `code_editor`, `code_line`, `color_picker`, `column`, `complete_theme`, `contrast`, `contrast_pairs`, `dialog`, `dot`, `dropdown`, `fill_rows`, `fill_strip`, `finish_loading`, `focus_next`, `focus_previous`, `focused_widget`, `frame`, `height_class`, `image`, `image_button`, `label`, `layout_y`, `left_panel`, `list`, `menu_item`, `number_field`, `overlay`, `pasted_text`, `progress_bar`, `rect_stroke`, `request_repaint`, `right_panel`, `row`, `scale`, `scroll`, `separator`, `set_clipboard`, `set_field_text`, `set_focus`, `set_keyboard_navigation`, `set_lazy`, `set_load_progress`, `set_scale`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `switch`, `tab_rect`, `text_field`, `top_panel`, `wants_keyboard`, `wants_pointer`, `widget_rect`, `width_class`, `window`, `window_size`
 
 **Constants** (65):
 

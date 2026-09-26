@@ -663,6 +663,7 @@ pub(crate) fn install_ui_api(reg: &mut Registry<'_>) -> Result<()> {
     crate::immediate::bindings::install_modal(m);
     crate::immediate::bindings::install_window(m);
     crate::immediate::bindings::install_widget_layer(m);
+    crate::widget::pool::install_pool(m);
     crate::immediate::bindings::install_scale(m);
     crate::immediate::bindings::install_classes(m);
     crate::pacing::install(m);

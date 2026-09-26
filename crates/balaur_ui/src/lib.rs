@@ -279,6 +279,7 @@ impl balaur_plugin::Plugin for UiPlugin {
         reg.insert_resource(UiState::default());
         reg.insert_resource(Pacing::default());
         reg.insert_resource(WidgetLayerConfig::default());
+        reg.insert_resource(widget::pool::PoolState::default());
         reg.insert_resource(UiFocus::default());
         reg.insert_resource(crate::widget::node::UiPointer::default());
         balaur_text::glyph::install(reg);

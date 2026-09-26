@@ -141,12 +141,14 @@ pub fn fresh_state() {
         // settled shell rather than on the frame it was still bootstrapping.
         layout_seen: -1.0,
         // The inspector's rows, described each frame and made by `pool.rn`.
-        form: [], form_draws: [], form_cursor: 0, pool: #{},
+        form: [], form_draws: [], form_cursor: 0,
         // Bumped whenever `S.doc` is replaced, so the outliner can keep a
         // flattened tree across frames instead of rebuilding one each pass.
         doc_rev: 0,
         inspect_warned: #{},
         tree_cache: #{},
+        // The 3D light and camera marks, and what they were drawn for.
+        overlay3d: #{ key: [], lines: [] },
         // The selection set; `S.sel` is its head. Locks are editor state
         // keyed by node id, and isolate hides everything outside the set.
         sels: [0],

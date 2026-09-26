@@ -16,7 +16,8 @@ pub fn state() {
     // `key` is what the hover test last answered to; see `hover_key`.
     // `marquee` is the box-select drag: the design-px point it started at,
     // and where the pointer is now.
-    #{ hover: None, drag: None, in_viewport: false, key: [], marquee: None }
+    // `drawn` is the key the line list in `lines` was built for; see `draw`.
+    #{ hover: None, drag: None, in_viewport: false, key: [], marquee: None, drawn: [], lines: [] }
 }
 
 // What the hover answers to: the pointer, the camera and the gizmo's own box.
@@ -41,7 +42,7 @@ fn hover_key(S, cam, geo, mx, my) {
 }
 
 // Element-wise: an array compares by identity in Rune, not by value.
-fn same_key(a, b) {
+pub fn same_key(a, b) {
     if a.len() != b.len() {
         return false;
     }
@@ -466,14 +467,16 @@ fn hit_test(S, cam, geo, mx, my) {
 // steadyum's 6px stroke, 30% thinner per taste.
 const W = 4.2;
 
-fn line(a, b, color, width, on_top) {
-    render::draw_line_3d(a[0], a[1], a[2], b[0], b[1], b[2], color[0], color[1], color[2], width, false, on_top);
+// One segment onto `out`, in `render::draw_lines`' eleven numbers.
+fn line(out, a, b, color, width, on_top) {
+    let top = if on_top { 1.0 } else { 0.0 };
+    out.extend([a[0], a[1], a[2], b[0], b[1], b[2], color[0], color[1], color[2], width, top]);
 }
 
 // Corner marker in steadyum's open-bracket style: of the mini-cube's 12
 // edges, draw only those with at least one outward face (faces whose sign
 // matches the handle's corner sign), leaving an open bracket.
-fn draw_handle_marker(geo, signs, half, color) {
+fn draw_handle_marker(out, geo, signs, half, color) {
     // Corner offset in the box's local frame.
     let base = [signs[0] * geo.he[0], signs[1] * geo.he[1], signs[2] * geo.he[2]];
     for axis in 0..3 {
@@ -492,6 +495,7 @@ fn draw_handle_marker(geo, signs, half, color) {
                     a[c_axis] = a[c_axis] + c_sign * half;
                     b[c_axis] = b[c_axis] + c_sign * half;
                     line(
+                        out,
                         local_point(geo, a[0], a[1], a[2]),
                         local_point(geo, b[0], b[1], b[2]),
                         color,
@@ -530,6 +534,14 @@ pub fn draw(S) {
         return;
     }
     let hot = viewport::hot_part(S);
+    // The lines follow from the box, the hot part and the two colours, and
+    // none of them moves while the pointer is still: replay the list.
+    let key = drawn_key(geo, hot);
+    if same_key(key, S.gizmo.drawn) {
+        render::draw_lines(S.gizmo.lines);
+        return;
+    }
+    let out = [];
     let he = geo.he;
     let hot_face = if hot_is(hot, "face") { hot } else { None };
     // The 12 box edges, in the node's rotated frame. An edge bounds the
@@ -554,6 +566,7 @@ pub fn draw(S) {
                     o[c_axis] = sc2 * he[c_axis];
                 }
                 line(
+                    out,
                     local_point(geo, a_off[0], a_off[1], a_off[2]),
                     local_point(geo, b_off[0], b_off[1], b_off[2]),
                     color,
@@ -568,7 +581,7 @@ pub fn draw(S) {
             Some(part) => part.kind == "handle" && part.index == i,
             None => false,
         };
-        draw_handle_marker(geo, corner.signs, geo.marker, if hot_handle { viewport::hover_color() } else { viewport::orange() });
+        draw_handle_marker(out, geo, corner.signs, geo.marker, if hot_handle { viewport::hover_color() } else { viewport::orange() });
     }
     // Face-center scale rectangles (drag = scale along the face normal).
     for (i, face) in faces(geo).iter().enumerate() {
@@ -579,7 +592,7 @@ pub fn draw(S) {
         let color = if hot_rect { viewport::hover_color() } else { viewport::orange() };
         let pts = face_rect_points(geo, face);
         for j in 0..4 {
-            line(pts[j], pts[(j + 1) % 4], color, W, false);
+            line(out, pts[j], pts[(j + 1) % 4], color, W, false);
         }
     }
     for axis in 0..3 {
@@ -591,10 +604,37 @@ pub fn draw(S) {
         let prev = ring_point(geo, axis, 0.0);
         for t in 1..49 {
             let next = ring_point(geo, axis, (t as f64) / 48.0);
-            line(prev, next, color, W, true);
+            line(out, prev, next, color, W, true);
             prev = next;
         }
     }
+    render::draw_lines(out);
+    S.gizmo.drawn = key;
+    S.gizmo.lines = out;
+}
+
+// What the drawn lines follow from, flat so `same_key` can compare it.
+fn drawn_key(geo, hot) {
+    let out = [];
+    for v in geo.center { out.push(v); }
+    for v in geo.he { out.push(v); }
+    for row in geo.basis {
+        for v in row { out.push(v); }
+    }
+    out.push(geo.ring);
+    out.push(geo.marker);
+    for v in viewport::orange() { out.push(v); }
+    for v in viewport::hover_color() { out.push(v); }
+    match hot {
+        Some(part) => {
+            out.push(part.kind);
+            out.push(part.get("index").unwrap_or(-1));
+            out.push(part.get("axis").unwrap_or(-1));
+            out.push(part.get("sign").unwrap_or(0.0));
+        }
+        None => out.push(""),
+    }
+    out
 }
 
 // Screen direction (design px per world unit) of a world direction at a point.

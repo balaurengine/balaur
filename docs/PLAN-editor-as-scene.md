@@ -118,7 +118,9 @@ Rune and tooling traps, all avoidable:
 ## 4. The pool
 
 `editor/scripts/pool.rn`, used by the Inspector, Import and every chrome
-strip.
+strip. Since 2026-09-26 it is `ui::fill_strip` and `ui::fill_rows` in
+`crates/balaur_ui/src/widget/pool.rs`, which write through the same node
+operations a script calls; `pool.rn` is the three names in front of them.
 
 - `sync` fills a column with labelled rows; `strip` fills a row with
   controls; a control carrying its own `controls` is a group with no air in

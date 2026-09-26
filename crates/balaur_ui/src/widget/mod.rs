@@ -10,6 +10,7 @@ pub(crate) mod kinds;
 pub(crate) mod layer;
 pub(crate) mod measure;
 pub(crate) mod node;
+pub(crate) mod pool;
 pub(crate) mod rows;
 pub(crate) mod schema;
 pub(crate) mod scroll;

@@ -289,19 +289,20 @@ fn forward_of(found) {
     [-b[2][0], -b[2][1], -b[2][2]]
 }
 
-fn line3(a, b, c, width) {
-    render::draw_line_3d(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2], width);
+// One segment onto `out`, in `render::draw_lines`' eleven numbers.
+fn line3(out, a, b, c, width) {
+    out.extend([a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2], width, 0.0]);
 }
 
 /// A ring of `radius` about `center` in the plane spanned by `u` and `v`.
-fn ring3(center, u, v, radius, c, width) {
+fn ring3(out, center, u, v, radius, c, width) {
     let prev = util::vadd(center, util::vscale(u, radius));
     for t in 1..25 {
         let a = (t as f64) / 24.0 * math::PI * 2.0;
         let next = util::vadd(center, util::vadd(
             util::vscale(u, math::cos(a) * radius),
             util::vscale(v, math::sin(a) * radius)));
-        line3(prev, next, c, width);
+        line3(out, prev, next, c, width);
         prev = next;
     }
 }
@@ -319,24 +320,57 @@ fn across(dir) {
 /// frustum for a camera. Nothing here draws for the game.
 pub fn lights3d(S) {
     let k = S.theme;
+    // The lines follow from each light's and camera's pose, its table and
+    // whether it is selected; a frame where none moved replays the list.
+    let key = [k.primary_text, k.text_muted];
+    let marked = [];
     for (i, node) in S.doc.iter().enumerate() {
         let found = match model::live(S, i) {
             Some(found) => found,
             None => continue,
         };
-        let light_some = node.get("light3d");
-        if let Some(light) = light_some {
-            if light is Object {
-                light3d_gizmo(found, light, crate::selection::contains(S, i), k);
-            }
+        let light = match node.get("light3d") {
+            Some(light) => if light is Object { Some(light) } else { None },
+            None => None,
+        };
+        let camera = node.get("camera3d").is_some();
+        if light.is_none() && !camera {
+            continue;
         }
-        if node.get("camera3d").is_some() {
-            camera_gizmo(S, found, crate::selection::contains(S, i), k);
+        let selected = crate::selection::contains(S, i);
+        key.push(i);
+        key.push(selected);
+        key.extend(util::xyz(found.transform.global_position()));
+        key.extend(util::xyz(found.transform.global_rotation_euler()));
+        if let Some(table) = light {
+            // By value: an edit writes into the same table, which compares
+            // equal to itself.
+            key.push(format!("{:?}", table));
+        }
+        if camera {
+            key.push(found.get_component("camera3d", "fov"));
+        }
+        marked.push((found, light, camera, selected));
+    }
+    if crate::gizmo::same_key(key, S.overlay3d.key) {
+        render::draw_lines(S.overlay3d.lines);
+        return;
+    }
+    let out = [];
+    for (found, light, camera, selected) in marked {
+        if let Some(table) = light {
+            light3d_gizmo(out, found, table, selected, k);
+        }
+        if camera {
+            camera_gizmo(out, S, found, selected, k);
         }
     }
+    render::draw_lines(out);
+    S.overlay3d.key = key;
+    S.overlay3d.lines = out;
 }
 
-fn light3d_gizmo(found, light, selected, k) {
+fn light3d_gizmo(out, found, light, selected, k) {
     let c = if selected { util::rgb(k.primary_text) } else { component_rgb(light.get("color").unwrap_or(()), [1.0, 0.9, 0.7]) };
     let p = util::xyz(found.transform.global_position());
     let dir = forward_of(found);
@@ -346,7 +380,7 @@ fn light3d_gizmo(found, light, selected, k) {
     for axis in 0..3 {
         let step = [0.0, 0.0, 0.0];
         step[axis] = 0.18;
-        line3(util::vsub(p, step), util::vadd(p, step), c, width + 1.0);
+        line3(out, util::vsub(p, step), util::vadd(p, step), c, width + 1.0);
     }
     if kind == render::LIGHT_DIRECTIONAL {
         // A sun: parallel rays through the node, so its aim reads at a glance.
@@ -354,7 +388,7 @@ fn light3d_gizmo(found, light, selected, k) {
         for step in [-1.0, 0.0, 1.0] {
             for other in [-1.0, 0.0, 1.0] {
                 let base = util::vadd(p, util::vadd(util::vscale(u, step * 0.35), util::vscale(v, other * 0.35)));
-                line3(base, util::vadd(base, util::vscale(dir, 1.2)), c, width);
+                line3(out, base, util::vadd(base, util::vscale(dir, 1.2)), c, width);
             }
         }
         return;
@@ -370,27 +404,27 @@ fn light3d_gizmo(found, light, selected, k) {
         let tip = util::vadd(p, util::vscale(dir, reach));
         for angle in [inner, outer] {
             let r = reach * math::tan(angle);
-            ring3(tip, u, v, r, c, width);
+            ring3(out, tip, u, v, r, c, width);
             for step in [0.0, math::PI / 2.0, math::PI, math::PI * 1.5] {
                 let edge = util::vadd(tip, util::vadd(
                     util::vscale(u, math::cos(step) * r),
                     util::vscale(v, math::sin(step) * r)));
-                line3(p, edge, c, width);
+                line3(out, p, edge, c, width);
             }
         }
         return;
     }
     // A point light: its reach as three rings, the way a sphere is drawn.
-    ring3(p, [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], radius, c, width);
-    ring3(p, [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], radius, c, width);
-    ring3(p, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], radius, c, width);
+    ring3(out, p, [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], radius, c, width);
+    ring3(out, p, [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], radius, c, width);
+    ring3(out, p, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], radius, c, width);
 }
 
 /// A camera's frustum, out to a length that fits a viewport rather than to its
 /// far plane, which is usually past the whole scene.
 const FRUSTUM_REACH = 4.0;
 
-fn camera_gizmo(S, found, selected, k) {
+fn camera_gizmo(out, S, found, selected, k) {
     let c = if selected { util::rgb(k.primary_text) } else { util::rgb(k.text_muted) };
     let width = if selected { 2.0 } else { 1.0 };
     let p = util::xyz(found.transform.global_position());
@@ -407,10 +441,10 @@ fn camera_gizmo(S, found, selected, k) {
             util::vscale(v, signs[1] * half))));
     }
     for n in 0..4 {
-        line3(p, corners[n], c, width);
-        line3(corners[n], corners[(n + 1) % 4], c, width);
+        line3(out, p, corners[n], c, width);
+        line3(out, corners[n], corners[(n + 1) % 4], c, width);
     }
     // Which way is up, so a rolled camera reads as rolled.
     let top = util::vscale(util::vadd(corners[2], corners[3]), 0.5);
-    line3(top, util::vadd(top, util::vscale(v, half * 0.4)), c, width);
+    line3(out, top, util::vadd(top, util::vscale(v, half * 0.4)), c, width);
 }
