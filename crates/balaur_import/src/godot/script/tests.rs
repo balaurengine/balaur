@@ -154,6 +154,18 @@ func _finish(button):\n\
 }
 
 #[test]
+fn the_system_s_dark_mode_is_the_engine_s() {
+    let source = "extends Node\n\n\
+func dark() -> bool:\n\
+\tif DisplayServer.has_method(\"is_dark_mode\"):\n\
+\t\treturn DisplayServer.is_dark_mode()\n\
+\treturn false\n";
+    let out = convert(source, "scripts/a.gd", &Classes::default());
+    assert!(out.rune.contains("if (gd.truthy)(true) {"), "{}", out.rune);
+    assert!(out.rune.contains("engine::dark_mode()"), "{}", out.rune);
+}
+
+#[test]
 fn the_window_scale_and_a_debug_build_have_engine_answers() {
     let source = "extends Node\n\n\
 func grow():\n\

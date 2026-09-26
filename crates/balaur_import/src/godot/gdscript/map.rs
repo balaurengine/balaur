@@ -362,6 +362,7 @@ fn service_call(class: &str, name: &str, args: &[String]) -> Option<String> {
         // A platform has the display verbs this table carries, and no other.
         ("DisplayServer", "has_method") => {
             let known = [
+                "is_dark_mode",
                 "screen_set_keep_on",
                 "virtual_keyboard_get_height",
                 "window_get_size",
@@ -371,6 +372,7 @@ fn service_call(class: &str, name: &str, args: &[String]) -> Option<String> {
             known.to_string()
         }
         ("DisplayServer", "virtual_keyboard_get_height") => "input::keyboard_height()".into(),
+        ("DisplayServer", "is_dark_mode") => "engine::dark_mode()".into(),
         // The page answers the one question the game asks of the browser;
         // a reload and a heap probe get nothing. Decided on the literal,
         // since the shim compiles in builds that carry no `web` module.
