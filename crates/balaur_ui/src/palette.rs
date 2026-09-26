@@ -356,7 +356,10 @@ fn derive_colors(stated: &Table, stated_dark: Option<bool>) -> (Table, bool) {
         // The ink on the fill is also the ink on the family text a hovered
         // primary action fills with, so that is where it is picked.
         let text = work.at(&t::of(family, t::TEXT));
-        let on = match (contrast(near_white, text) >= AA, contrast(near_black, text) >= AA) {
+        let on = match (
+            contrast(near_white, text) >= AA,
+            contrast(near_black, text) >= AA,
+        ) {
             (true, false) => near_white,
             (false, true) => near_black,
             _ if contrast(near_white, own) >= contrast(near_black, own) => near_white,
@@ -371,7 +374,8 @@ fn derive_colors(stated: &Table, stated_dark: Option<bool>) -> (Table, bool) {
         // read on it.
         let mut tint = TINT_MIX;
         while tint > 0.0
-            && (contrast(fg, mix(panel, own, tint)) < AA || contrast(text, mix(panel, own, tint)) < AA)
+            && (contrast(fg, mix(panel, own, tint)) < AA
+                || contrast(text, mix(panel, own, tint)) < AA)
         {
             tint -= 0.01;
         }
@@ -379,6 +383,21 @@ fn derive_colors(stated: &Table, stated_dark: Option<bool>) -> (Table, bool) {
     }
     work.put(t::GRID_MINOR, mix(bg, fg, GRID_MINOR_MIX));
     work.put(t::GRID_MAJOR, mix(bg, fg, GRID_MAJOR_MIX));
+    derive_syntax(&mut work, fg);
+    work.put(t::NODE_DEFAULT, work.at(t::TEXT_SUBTLE));
+    for (name, degrees) in FIXED_HUES {
+        work.put(
+            name,
+            work.legible(work.ink(degrees.to_radians(), FIXED_CHROMA)),
+        );
+    }
+    work.put(t::BRAND_PLATE, parse(BRAND_PLATE).unwrap_or(fg));
+    work.put(t::INPUT_RIPPLE, parse(INPUT_RIPPLE).unwrap_or(fg));
+    (work.colors, work.dark)
+}
+
+/// Code colours from the primary and secondary inks and the text tiers.
+fn derive_syntax(work: &mut Work, fg: Lab) {
     let primary_text = work.at(t::PRIMARY_TEXT);
     let secondary_text = work.at(t::SECONDARY_TEXT);
     work.put(t::SYNTAX_KEYWORD, primary_text);
@@ -394,16 +413,6 @@ fn derive_colors(stated: &Table, stated_dark: Option<bool>) -> (Table, bool) {
         t::SYNTAX_TYPE,
         work.legible(mix(secondary_text, fg, SYNTAX_MIX)),
     );
-    work.put(t::NODE_DEFAULT, work.at(t::TEXT_SUBTLE));
-    for (name, degrees) in FIXED_HUES {
-        work.put(
-            name,
-            work.legible(work.ink(degrees.to_radians(), FIXED_CHROMA)),
-        );
-    }
-    work.put(t::BRAND_PLATE, parse(BRAND_PLATE).unwrap_or(fg));
-    work.put(t::INPUT_RIPPLE, parse(INPUT_RIPPLE).unwrap_or(fg));
-    (work.colors, work.dark)
 }
 
 /// The four size sources and the sizes derived from them, a stated one
@@ -516,7 +525,10 @@ mod tests {
         let done = colors(
             "[colors]\nbackground = \"#21252b\"\nbg_control = \"#3e4451\"\nforeground = \"#abb2bf\"\n",
         );
-        assert_ne!(done["bg_control_hover"], done["bg_control"], "the hover still shows");
+        assert_ne!(
+            done["bg_control_hover"], done["bg_control"],
+            "the hover still shows"
+        );
         for ink in ["text_default", "text_muted", "text_subtle"] {
             let r = reads(&done, ink, "bg_control_hover");
             assert!(r >= AA, "{ink} on the hover is {r:.2}");

@@ -153,7 +153,11 @@ fn a_bundled_theme_states_colours_and_the_roles_file_states_none() {
         for half in HALVES {
             let doc = file(&format!("{pair}/{half}"));
             let keys: Vec<&String> = doc.keys().collect();
-            assert_eq!(keys, ["colors", "type"], "{pair}/{half} states only its colours");
+            assert_eq!(
+                keys,
+                ["colors", "type"],
+                "{pair}/{half} states only its colours"
+            );
         }
     }
     assert!(

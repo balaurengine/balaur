@@ -99,13 +99,13 @@ pub use tilemap::{TILESET_ASSET_TYPE, TileSet, Tilemap};
 #[cfg(feature = "window")]
 mod app_icon;
 #[cfg(feature = "window")]
+mod appearance;
+#[cfg(feature = "window")]
 mod bind_layout;
 #[cfg(feature = "window")]
 mod debug_lines;
 #[cfg(feature = "window")]
 mod device;
-#[cfg(feature = "window")]
-mod appearance;
 #[cfg(all(feature = "window", target_os = "android"))]
 pub use appearance::keep_android_app;
 #[cfg(feature = "window")]

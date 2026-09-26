@@ -64,7 +64,10 @@ pub(crate) fn is_dark() -> bool {
     let Some(mtm) = MainThreadMarker::new() else {
         return false;
     };
-    #[allow(deprecated, reason = "the window scene's screen needs a scene this code does not hold")]
+    #[allow(
+        deprecated,
+        reason = "the window scene's screen needs a scene this code does not hold"
+    )]
     let screen = UIScreen::mainScreen(mtm);
     // SAFETY: read on the main thread, which `mtm` proves this is.
     let style = unsafe { screen.traitCollection().userInterfaceStyle() };
@@ -191,7 +194,8 @@ mod portal {
     ) -> *mut c_void;
     type InitAppend = unsafe extern "C" fn(*mut c_void, *mut Iter);
     type AppendBasic = unsafe extern "C" fn(*mut Iter, c_int, *const c_void) -> u32;
-    type SendBlock = unsafe extern "C" fn(*mut c_void, *mut c_void, c_int, *mut Error) -> *mut c_void;
+    type SendBlock =
+        unsafe extern "C" fn(*mut c_void, *mut c_void, c_int, *mut Error) -> *mut c_void;
     type IterInit = unsafe extern "C" fn(*mut c_void, *mut Iter) -> u32;
     type ArgType = unsafe extern "C" fn(*mut Iter) -> c_int;
     type Recurse = unsafe extern "C" fn(*mut Iter, *mut Iter);
@@ -230,7 +234,9 @@ mod portal {
                     new_call: *lib.get(b"dbus_message_new_method_call\0").ok()?,
                     init_append: *lib.get(b"dbus_message_iter_init_append\0").ok()?,
                     append_basic: *lib.get(b"dbus_message_iter_append_basic\0").ok()?,
-                    send_block: *lib.get(b"dbus_connection_send_with_reply_and_block\0").ok()?,
+                    send_block: *lib
+                        .get(b"dbus_connection_send_with_reply_and_block\0")
+                        .ok()?,
                     iter_init: *lib.get(b"dbus_message_iter_init\0").ok()?,
                     arg_type: *lib.get(b"dbus_message_iter_get_arg_type\0").ok()?,
                     recurse: *lib.get(b"dbus_message_iter_recurse\0").ok()?,
