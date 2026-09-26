@@ -352,6 +352,47 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_hidden_node_draws_nothing_of_its_draw() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            "[[nodes]]\nid = \"probe\"\nname = \"Probe\"\nscript = { source = \"probe.rn\" }\n",
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn _draw(this) {",
+                "    (script::require(\"gd.rn\").draw_circle)(this.node, (script::require(\"gd.rn\").vec2)(0.0, 0.0), 4.0, (), (), (), ());",
+                "}",
+                "pub fn init(this) {",
+                "    (script::require(\"gd.rn\").draw_frame)(this.node);",
+                "    this.node.set_visible(false);",
+                "    (script::require(\"gd.rn\").draw_frame)(this.node);",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        let shapes = app
+            .engine
+            .resource::<balaur::render::DrawBuffer2d>()
+            .borrow()
+            .shapes
+            .len();
+        assert_eq!(shapes, 1, "one circle while shown, none once hidden");
+    }
+
     /// A particle count is the engine's rate over one lifetime, both ways,
     /// and a dropdown showing none of its items answers index -1.
     #[test]

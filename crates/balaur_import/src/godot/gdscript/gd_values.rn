@@ -1312,6 +1312,10 @@ pub fn queue_redraw(node) {
 /// A frame of a node that draws: `_draw` when it is wanted, then every verb
 /// it recorded, drawn where the node is now and on its draw layer.
 pub fn draw_frame(node) {
+    // Godot draws no hidden canvas item, nor any under one.
+    if !node.visible_in_tree() {
+        return ();
+    }
     let wanted = script::stored(draw_key(DRAW_WANTED, node));
     let list = script::stored(draw_key(DRAW_LIST, node));
     if !(list is Vec) || (wanted is bool && wanted) {
