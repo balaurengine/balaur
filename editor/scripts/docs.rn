@@ -107,7 +107,7 @@ pub fn draw(S, k) {
             items.push("\u{1f}" + format!("{}  {}", c.name, c.value) + "\u{1f}\u{1f}" + k.text_subtle);
         }
     }
-    crate::dock::show_log(items);
+    crate::dock::show_log(S, items);
     if shown == 0 && query != "" {
         search::nothing(k, query);
     }

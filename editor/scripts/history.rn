@@ -20,6 +20,8 @@ pub fn reset(S) {
 // Called by every mutator *before* it mutates. `key` coalesces a continuing
 // drag into the step it started; pass `None` for a discrete action.
 pub fn record(S, label, key) {
+    // Every edit, a drag's continuing ones included: what a cache keys on.
+    S.doc_rev += 1;
     if !S.contains_key("history") {
         return;
     }
@@ -55,6 +57,7 @@ fn restore(S, into, from) {
     };
     into.push(frame(S, top.label));
     S.doc = top.doc;
+    S.doc_rev += 1;
     // Restored here rather than through `selection`, which reads the model:
     // history owns the document and may not depend on what records into it.
     let rows = [];

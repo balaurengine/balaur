@@ -239,22 +239,61 @@ pub fn tree_body(S, k) {
     ui::add_space(4);
     let filtering = query != "" || S.tree_facet != "";
     let rows = if filtering { filtered_rows(S, query) } else { open_rows(S) };
+    // What the rows came from, so the row strings are built once for it.
+    let rows_key = if filtering {
+        format!("{}\u{1f}{}\u{1f}{}", S.doc_rev, query, S.tree_facet)
+    } else {
+        S.tree_cache["key"]
+    };
     if filtering && rows.len() == 0 {
-        hide_tree();
+        hide_tree(S);
         ui::add_space(8);
         crate::search::nothing(k, if query != "" { query } else { S.tree_facet });
         return;
     }
-    show_tree(S, k, rows);
+    show_tree(S, k, rows, rows_key);
 }
 
 // The outliner's rows on the `tree` node beside this hatch. One string a row:
 // a tab a level, then the icon and the name either side of a unit separator.
-fn show_tree(S, k, rows) {
+fn show_tree(S, k, rows, rows_key) {
     let found = scene::get_node(TREE_NODE);
     if util::is_nil(found) {
         return;
     }
+    // The rows' strings follow from the rows, the document, the warnings, the
+    // selection and the theme; a frame that moved none of them reuses them.
+    let key = [rows_key, S.doc_rev, S.lint.warned, S.sels.clone(), k];
+    let built = S.tree_items;
+    let same = built.get("key") == Some(key);
+    if !same {
+        built = tree_items(S, k, rows);
+        built.key = key;
+        S.tree_items = built;
+    }
+    let items = built.items;
+    // `text` is the pick channel and nothing else: the node writes the row a
+    // click landed on, this reads it once and clears it. Held instead, a
+    // selection made anywhere else would be undone by the stale row here.
+    let picked = found.get_component("widget", "text");
+    // Nothing to clear and nothing new: the node already holds all of it.
+    if same && picked == "" {
+        return;
+    }
+    for (n, item) in items.iter().enumerate() {
+        if item == picked && rows[n].index != S.sel {
+            crate::shell::choose_click(S, rows[n].index);
+        }
+    }
+    // A patch of what this owns: a frame that changed none of it writes nothing.
+    found.patch_component("widget", #{
+        options: items, row_height: TREE_ROW, visible: true, multi_select: true,
+        selection: built.chosen, text: "",
+    });
+}
+
+// Each row's string, and the strings of the selected rows.
+fn tree_items(S, k, rows) {
     let items = [];
     for row in rows {
         let node = S.doc[row.index];
@@ -272,15 +311,6 @@ fn show_tree(S, k, rows) {
         line += util::cells([mark, node.name, note, k.get(token).unwrap_or(k.text_default), node.id]);
         items.push(line);
     }
-    // `text` is the pick channel and nothing else: the node writes the row a
-    // click landed on, this reads it once and clears it. Held instead, a
-    // selection made anywhere else would be undone by the stale row here.
-    let picked = found.get_component("widget", "text");
-    for (n, item) in items.iter().enumerate() {
-        if item == picked && rows[n].index != S.sel {
-            crate::shell::choose_click(S, rows[n].index);
-        }
-    }
     // Every selected node lit, not only the active one: the document holds a
     // set, and `multi_select` is what draws one.
     let chosen = [];
@@ -289,11 +319,7 @@ fn show_tree(S, k, rows) {
             chosen.push(items[n]);
         }
     }
-    // A patch of what this owns: a frame that changed none of it writes nothing.
-    found.patch_component("widget", #{
-        options: items, row_height: TREE_ROW, visible: true, multi_select: true,
-        selection: chosen, text: "",
-    });
+    #{ items: items, chosen: chosen }
 }
 
 /// Where the tree drew the row for document index `i`, in design px; `None`
@@ -323,8 +349,10 @@ fn selected_row(rows, sel) {
 }
 
 // Hidden while another panel is up, so its rows do not outlive the tree.
-pub fn hide_tree() {
+pub fn hide_tree(S) {
     util::hide(TREE_NODE);
+    // The rows go back on when it shows again, which a kept cache would skip.
+    S.tree_items = #{};
 }
 
 // Every node the query and the facet chip both allow, as a flat walk. One

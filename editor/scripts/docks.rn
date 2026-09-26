@@ -420,9 +420,9 @@ fn node_owners() {
     }
 }
 
-fn hide_node(which) {
+fn hide_node(S, which) {
     if which == "log" {
-        dock::hide_log();
+        dock::hide_log(S);
     } else if which == "table" {
         dock::hide_table();
     } else if which == "cards" {
@@ -432,7 +432,7 @@ fn hide_node(which) {
     } else if which == "rows" {
         dock::hide_rows();
     } else if which == "tree" {
-        left::hide_tree();
+        left::hide_tree(S);
     } else if which == "outline" {
         left::hide_outline();
     } else if which == "form" {
@@ -453,7 +453,7 @@ fn hide_unused(S, side, d) {
             }
         }
         if d.shut || !wanted {
-            hide_node(entry.hide);
+            hide_node(S, entry.hide);
         }
     }
 }

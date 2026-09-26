@@ -142,11 +142,17 @@ pub fn fresh_state() {
         layout_seen: -1.0,
         // The inspector's rows, described each frame and made by `pool.rn`.
         form: [], form_draws: [], form_cursor: 0,
-        // Bumped whenever `S.doc` is replaced, so the outliner can keep a
-        // flattened tree across frames instead of rebuilding one each pass.
+        // Bumped by every edit to `S.doc`: `history::record` before a recorded
+        // one, `model::record_override` after the rest. A cache keyed on it
+        // skips work a frame that edited nothing would otherwise repeat.
         doc_rev: 0,
+        // What `model::settle_revision` last settled on, and the document a
+        // self-test run's `model::check_revision` saw last frame.
+        doc_settled: 0, doc_seen: #{ text: "", rev: -1 },
         inspect_warned: #{},
         tree_cache: #{},
+        // The outliner's row strings and what they were built for.
+        tree_items: #{},
         // `model::is_2d`'s answer, and the frame and document it was for.
         is_2d_at: [], is_2d_was: false,
         // The 3D light and camera marks, and what they were drawn for.
@@ -221,6 +227,8 @@ pub fn fresh_state() {
         log_query: "",
         // Per-frame and per-session caches, built on first use.
         log_cache: (),
+        // Where `log::since` left off, and the rows the log node was last given.
+        log_cursor: 0, log_items: (),
         panels: (),
         palette_cache: (),
         newnode_cache: (),
@@ -341,6 +349,10 @@ pub fn update(this, dt) {
         S.fps = (if S.fps == 0.0 { now } else { S.fps }) * 0.9 + now * 0.1;
     }
     S.frame += 1;
+    model::settle_revision(S);
+    if S.start_states != "" {
+        model::check_revision(S);
+    }
     shell::release_world(S);
     // The splash holds until the shell stops moving: every box is read back a
     // pass after it was written, so the sizes correct themselves for several.

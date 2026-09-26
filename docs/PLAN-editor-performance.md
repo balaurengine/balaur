@@ -48,8 +48,8 @@ the open tree as an array and draws none of it.
 | the flattened tree cached | **2.8 to 3.9 ms** | **17.1 to 23.1 ms** |
 
 Seven to nine times quicker at 2000 nodes. The cache is keyed on a `doc_rev`
-bumped wherever `S.doc` is replaced, plus the two lengths, so a fold or an edit
-rebuilds and a still frame does not. The docks now sit 1.7 to 2.9 ms over the
+every edit bumps (§6j), plus the two lengths, so a fold or an edit rebuilds and
+a still frame does not. The docks now sit 1.7 to 2.9 ms over the
 shut baseline of 1.06 ms, against 25.2 ms before.
 
 Read the spread, not the middle: two runs of the same command differ by up to
@@ -534,6 +534,36 @@ is 13 ms wall where the same load gave 118 before §6i. Each body restates
 its nodes every pass. Skipping that needs a document revision every edit
 bumps; `S.doc` is written in place from eight files today, and a cache keyed
 on `doc_rev` alone misses a rename or a component added.
+
+## 6j. A revision every edit bumps
+
+**Built 2026-09-26.** `doc_rev` is bumped by every edit to `S.doc` now:
+`history::record` before a recorded one, a drag's continuing steps included;
+undo and redo; and `model::record_override`, which every unrecorded writer
+ends in. The frame after a bump bumps once more, in `model::settle_revision`,
+because a cache built between an edit's bump and its write holds the old
+document under the new number.
+
+A self-test run checks it. `model::check_revision` compares the document's
+text frame to frame and warns when it changed while `doc_rev` did not, and a
+warning fails e2e. A rename planted without a bump trips it; the 80 states run
+clean.
+
+- The outliner keeps its row strings and selection until the rows, the
+  document, the warnings, the selection or the theme move, and writes nothing
+  to its node on a frame where none did.
+- Output remakes its lines only when `log::since` returns a new one, or the
+  filter or the theme changes, and every writer of the log node skips a list
+  equal to the last one it wrote.
+- Min of four interleaved pairs under load 36 to 62: left dock 3.36 to
+  2.46 ms, right 2.92 to 2.49, bottom 3.10 to 2.88, `ui` 25.5 to 22.4.
+
+The tab strips are what is left of a dock's script. Built once and handed
+over every frame, they cost what building them did, so the time is the pool's
+conversion and compare. A pool that kept its callbacks and heard its controls
+itself would let a strip skip the call. That is under 1 ms of a 12.7 ms `ui`
+pass under load, and it changes how every control's edit reaches its script,
+so it is not done.
 
 ## 7. The instrument
 

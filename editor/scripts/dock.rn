@@ -109,6 +109,7 @@ pub fn output_tools(S, k, room) {
         fill: k.bg_control, text_color: k.text_muted,
     }) {
         log::clear();
+        S.log_cache = ();
     }
     if room < 200.0 {
         return;
@@ -158,18 +159,17 @@ fn floor_of(level) {
 // Filtering lowercases every message, so it is redone only when the log, the
 // level or the filter has actually moved.
 fn filtered(S) {
-    // The buffer holds 500; asking for 60 threw away most of the session.
-    let entries = util::vec(log::recent(500));
-    let newest = if entries.len() > 0 {
-        format!("{}{}", util::f(entries[entries.len() - 1].time), entries[entries.len() - 1].message)
-    } else {
-        ""
-    };
-    let mark = format!("{}|{}|{}|{}", entries.len(), newest, S.log_level, S.log_query);
+    // `since` hands back only what was logged after the cursor, so a frame
+    // that logged nothing costs one call rather than the whole buffer.
+    let news = log::since(S.log_cursor);
+    S.log_cursor = news.cursor;
+    let mark = format!("{}|{}", S.log_level, S.log_query);
     let cache = S.log_cache;
-    if cache is Object && cache.mark == mark {
+    if cache is Object && cache.mark == mark && news.entries.len() == 0 && news.missed == 0 {
         return cache;
     }
+    // The buffer holds 500; asking for 60 threw away most of the session.
+    let entries = util::vec(log::recent(500));
     let floor = floor_of(S.log_level);
     let query = S.log_query.to_lowercase();
     let rows = [];
@@ -195,7 +195,13 @@ const LOG_NODE = "Editor/Shell/Body/Centre/Bottom/BottomLog";
 
 // Put `items` on the node and show it. A row is icon, label, note and colour,
 // separated by U+001F, which is what a `list` row splits on.
-pub fn show_log(items) {
+pub fn show_log(S, items) {
+    // Written when it differs from what the node was last given: the Output
+    // dock asks every frame, and five hundred rows are a large patch.
+    if S.log_items == items {
+        return;
+    }
+    S.log_items = items;
     util::fill(LOG_NODE, #{ options: items, visible: true });
 }
 
@@ -205,8 +211,10 @@ fn taken_log() {
 }
 
 // Hidden while a panel that is not a list is up.
-pub fn hide_log() {
+pub fn hide_log(S) {
     util::hide(LOG_NODE);
+    // What it held goes back on when it shows again.
+    S.log_items = ();
 }
 
 // The bottom dock's column of pooled rows, which a panel whose rows are nodes
@@ -272,8 +280,26 @@ pub fn taken_table() {
 
 pub fn output(S, k) {
     let shown = filtered(S);
+    // The lines are made once for the rows the filter kept, and again only for
+    // new ones or a new theme.
+    if shown.get("theme") != Some(k) {
+        shown.items = log_lines(shown.rows, k);
+        shown.theme = k;
+    }
+    show_log(S, shown.items);
+    if shown.rows.len() == 0 {
+        style::empty(k, if shown.hidden > 0 {
+            format!("{} entries hidden by the filter", shown.hidden)
+        } else {
+            "nothing logged yet"
+        });
+    }
+}
+
+// One `list` row a log entry: its mark, the time, tag and message, its ink.
+fn log_lines(rows, k) {
     let items = [];
-    for entry in shown.rows {
+    for entry in rows {
         let tint = k.text_muted;
         let marker = " ";
         if entry.level == "error" {
@@ -291,14 +317,7 @@ pub fn output(S, k) {
         line += "\u{1f}\u{1f}" + tint;
         items.push(line);
     }
-    show_log(items);
-    if shown.rows.len() == 0 {
-        style::empty(k, if shown.hidden > 0 {
-            format!("{} entries hidden by the filter", shown.hidden)
-        } else {
-            "nothing logged yet"
-        });
-    }
+    items
 }
 
 // Icon and ink by extension, so a directory of assets reads at a glance. The
@@ -838,11 +857,11 @@ pub fn problems(S, k) {
         items.push(line);
     }
     if rows.len() == 0 {
-        hide_log();
+        hide_log(S);
         style::empty(k, if S.lint.at < 0.0 { "not checked yet" } else { "no problems" });
         return;
     }
-    show_log(items);
+    show_log(S, items);
     // The pick is the row, so the click opens the file it names.
     let picked = taken_log();
     for (n, item) in items.iter().enumerate() {

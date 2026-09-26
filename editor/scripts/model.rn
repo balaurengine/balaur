@@ -371,9 +371,31 @@ pub fn body2d_kind(node) {
 
 // True when the edited scene is 2D (any node carries a 2D component). The
 // editor switches camera, grid and gizmo accordingly.
+/// Bump `doc_rev` once more the frame after it moved. An edit bumps it before
+/// it writes, so a cache built in between holds the old document under the
+/// new number; this makes every reader build again from what the edit left.
+pub fn settle_revision(S) {
+    if S.doc_rev != S.doc_settled {
+        S.doc_rev += 1;
+        S.doc_settled = S.doc_rev;
+    }
+}
+
+/// A self-test run's check that every edit says so: the document compared by
+/// value with the last frame's. A change that left `doc_rev` where it was is
+/// a writer that bumps nothing, and every cache keyed on it goes stale.
+pub fn check_revision(S) {
+    let now = format!("{:?}", S.doc);
+    let seen = S.doc_seen;
+    if seen.rev == S.doc_rev && seen.text != "" && seen.text != now {
+        log::warn(`the document changed at frame ${S.frame} and doc_rev did not`);
+    }
+    S.doc_seen = #{ text: now, rev: S.doc_rev };
+}
+
 pub fn is_2d(S) {
     // Asked several times a frame, and the answer is a scan of the document.
-    let key = [S.frame, S.doc_rev, S.doc.len()];
+    let key = [S.doc_rev, S.doc.len()];
     if key == S.is_2d_at {
         return S.is_2d_was;
     }
@@ -1579,6 +1601,9 @@ fn keep_authored(value, previous, key) {
 // not in it. It becomes an `overrides` entry on the node that named the
 // prefab, which is.
 pub fn record_override(S, node, key) {
+    // Every writer that records no history ends here, so this is where it
+    // says the document moved.
+    S.doc_rev += 1;
     if !is_instanced(node) {
         return;
     }
