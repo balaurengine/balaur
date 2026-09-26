@@ -148,7 +148,7 @@ pub(crate) fn widget(
     if matches!(kind, "button") {
         if let Some(path) = section.field("icon").and_then(|t| res.path(t)) {
             let source = image_path(path, res, out);
-            out.set("widget", "source", Toml::String(source));
+            out.set("widget", "image", Toml::String(source));
         }
         // A toggle Button held down is a checked button here.
         if let Some(Value::Bool(on)) = section.field("button_pressed") {
@@ -233,10 +233,10 @@ fn caption(class: &str, section: &Section, res: &Resources<'_>, out: &mut Mapped
     // Godot's `MOUSE_FILTER_IGNORE`; `PASS` still keeps the pointer from
     // the world, as `STOP` does.
     if section.field("mouse_filter").and_then(Value::as_i64) == Some(2) {
-        out.set("widget", "pointer_through", Toml::Boolean(true));
+        out.set("widget", "interactive", Toml::Boolean(false));
     }
     if let Some(Value::Bool(on)) = section.field("disabled") {
-        out.set("widget", "disabled", Toml::Boolean(*on));
+        out.set("widget", "enabled", Toml::Boolean(!*on));
     }
     if section
         .field("autowrap_mode")
@@ -496,7 +496,7 @@ fn picture(class: &str, section: &Section, res: &Resources<'_>, out: &mut Mapped
     };
     if let Some(path) = section.field(key).and_then(|t| res.path(t)) {
         let source = image_path(path, res, out);
-        out.set("widget", "source", Toml::String(source));
+        out.set("widget", "image", Toml::String(source));
     }
     if class == "NinePatchRect" {
         let slice: Vec<f64> = ["left", "top", "right", "bottom"]

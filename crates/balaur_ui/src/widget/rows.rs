@@ -850,7 +850,7 @@ fn card(ui: &mut egui::Ui, item: &str, c: &Card<'_>) -> CardHit {
     ui.painter()
         .rect_filled(rect, egui::CornerRadius::same(5), fill);
     let mut head = rect.top() + 6.0;
-    // A list that names a `source` reads the icon field as `x,y,w,h` in that
+    // A list that names a `sheet` reads the icon field as `x,y,w,h` in that
     // picture's own pixels, which is how an atlas picker shows its tiles.
     let region = sheet.and_then(|(_, native)| region_uv(native, icon));
     if let (Some((sheet, _)), Some(uv)) = (sheet, region) {
@@ -987,7 +987,7 @@ fn card_size(widget: &Widget, room: f32, gap: f32, columns: usize) -> egui::Vec2
     egui::vec2(side, tall)
 }
 
-/// The picture a list's `source` names, which its cards' icons are cut from,
+/// The picture a list's `sheet` names, which its cards' icons are cut from,
 /// with the pixels its regions are counted in.
 fn card_sheet(
     ui: &egui::Ui,

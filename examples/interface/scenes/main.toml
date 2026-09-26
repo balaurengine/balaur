@@ -253,7 +253,7 @@ parent = "b_row"
 [nodes.widget]
 kind = "button"
 text = "disabled"
-disabled = true
+enabled = false
 tooltip = "A disabled control keeps its tooltip, which is where it says why"
 
 [[nodes]]
@@ -589,7 +589,7 @@ name = "Cursor"
 parent = "n_screen"
 [nodes.widget]
 kind = "image"
-source = "assets/cursor.png"
+image = "assets/cursor.png"
 anchor = "top_left"
 x = 0
 y = 0

@@ -178,7 +178,7 @@ fn a_click_with_no_draw_pass_runs_the_buttons_rows_and_skips_a_disabled_one() {
     );
     let shut = add_widget(
         &app,
-        &toml::toml! { kind = "button" text = "Shut" disabled = true }.into(),
+        &toml::toml! { kind = "button" text = "Shut" enabled = false }.into(),
     );
     let rows = toml::toml! {
         rows = [{ event = "pointer_click", action = "add_variable", target = "sailed", value = 1.0 }]

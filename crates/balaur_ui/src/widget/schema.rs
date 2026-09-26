@@ -51,7 +51,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::ON_CLICK, r#"{ type = "string", default = "", description = "Script method called when the widget is clicked, on this node or the nearest ancestor whose script declares it. An `image` that names one senses clicks too, which is how a picture becomes a button", group = "events" }"#),
                     (k::CLICKED, r#"{ type = "bool", default = false, readonly = true, description = "True on the frame the button was clicked", group = "events" }"#),
                     (k::PASS_NODE, r#"{ type = "bool", default = false, description = "Hand every handler this widget calls its own node as the last argument, so one method can serve many widgets", group = "events" }"#),
-                    (k::POINTER_THROUGH, r#"{ type = "bool", default = false, description = "Let the pointer pass through to the scene: the widget is drawn, never hovered or clicked, and `ui.wants_pointer()` stays false over it. A full-screen container over the world wants this", group = "events" }"#),
+                    (k::INTERACTIVE, r#"{ type = "bool", default = true, description = "Off, the pointer passes through to the scene: the widget is drawn, never hovered or clicked, and `ui.wants_pointer()` stays false over it. A full-screen container over the world wants this", group = "events" }"#),
                     (k::ON_LINK, r#"{ type = "string", default = "", description = "Script method called with the target of a `[url=target]` span in `markup` text that was clicked, on this node or the nearest ancestor whose script declares it", group = "events" }"#),
                     (k::SUFFIX, r#"{ type = "string", default = "", description = "Units drawn after a `number_field`'s number, the way `placeholder` is drawn before it", group = "type" }"#),
                     (k::ARROWS, r#"{ type = "bool", default = false, description = "Draw a step up and a step down beside a `number_field`, each moving it by `step` within `min` and `max`", group = "type" }"#),
@@ -83,7 +83,9 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::PLACEMENT, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where a `menu` opens: under its button, above it, at the pointer, or centred on the screen", group = "placement" }}"#, w::BELOW, v::options(w::PLACEMENTS))),
                     (k::KEEP_OPEN, r#"{ type = "bool", default = false, description = "A menu row that leaves its menu open when clicked, as a toggle does; any other row closes it", group = "events" }"#),
                     (k::TEXT_ALIGN, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where text sits in the width the widget was given, and where every cell of a `table` sits in its column; a column whose name ends in `>` pins its own to the right", group = "type" }}"#, w::START, v::options(w::ALIGNS))),
-                    (k::SOURCE, r#"{ type = "string", default = "", description = "The project-relative image an `image` widget draws, the picture a `button` draws before its caption at the caption's height, the sheet a `list` cuts its card faces from, and the language a `code` widget highlights" }"#),
+                    (k::IMAGE, r#"{ type = "string", default = "", description = "The project-relative image an `image` widget draws, or the picture a `button` draws before its caption at the caption's height" }"#),
+                    (k::SHEET, r#"{ type = "string", default = "", description = "The picture a `list` cuts its card faces from" }"#),
+                    (k::LANGUAGE, r#"{ type = "string", default = "", description = "The language a `code` widget highlights" }"#),
                     (k::FIT, &format!(r#"{{ type = "enum", default = "", options = [{}], description = "How an `image` sits in the box it was given: `contain` and `cover` keep its shape, `fill` stretches, `none` leaves it its own size, centred. Empty lets the picture decide the box instead", group = "value" }}"#, v::options(w::FITS))),
                     (k::MARKUP, r#"{ type = "bool", default = false, description = "Read inline marks in the text: `[b]`, `[i]`, `[color=#hex]`, `[center]`, `[right]`, `[wave amp=N freq=N]` and `[img=path width=N]`; off, brackets are text", group = "type" }"#),
                     (k::FONT_WEIGHT, r#"{ type = "float", default = 400.0, min = 100.0, max = 900.0, description = "Weight on the CSS scale, resolved against the faces the project ships: 400 regular, 700 bold", group = "type" }"#),
@@ -126,11 +128,11 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::SLICE, r#"{ type = "vec4", default = [0.0, 0.0, 0.0, 0.0], description = "Left, top, right and bottom borders of an `image` kept unstretched, in the picture's own pixels; all zero stretches the whole picture", group = "paint" }"#),
                     (k::SCROLL_DEADZONE, r#"{ type = "float", default = 0.0, min = 0.0, description = "How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once", group = "value" }"#),
                     (k::ROLE, r#"{ type = "string", default = "", description = "A `[roles.<name>]` entry of the widget's theme, taken over its kind's own style; the one place a look is named rather than spelled", group = "paint" }"#),
-                    (k::TOOLTIP, r#"{ type = "string", default = "", description = "Text shown after the pointer rests on the widget; still shown when it is `disabled`, which is where it says why", group = "type" }"#),
+                    (k::TOOLTIP, r#"{ type = "string", default = "", description = "Text shown after the pointer rests on the widget; still shown while `enabled` is off, which is where it says why", group = "type" }"#),
                     (k::CURSOR, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "The pointer's shape while it is over the widget: `hand` over anything that opens on a click; `arrow` is the platform's own", group = "type" }}"#, w::cursor::ARROW, v::options(w::cursor::ALL))),
                     (k::ICON, r#"{ type = "string", default = "", description = "A glyph from the theme's icon family, drawn before `text`", group = "paint" }"#),
                     (k::ICON_COLOR, r#"{ type = "string", default = "", description = "What that glyph is tinted with, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the role's own", group = "paint" }"#),
-                    (k::DISABLED, r#"{ type = "bool", default = false, description = "Grey the widget out and swallow its clicks" }"#),
+                    (k::ENABLED, r#"{ type = "bool", default = true, description = "Off, the widget is greyed out and swallows its clicks" }"#),
                     (k::FILL, r#"{ type = "string", default = "", description = "What is painted behind this widget, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the theme's own", group = "paint" }"#),
                     (k::STROKE, r#"{ type = "string", default = "", description = "The outline around this widget, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the theme's own", group = "paint" }"#),
                     (k::CORNER_RADIUS, r#"{ type = "float", default = -1.0, description = "Corner radius in design pixels; below zero takes the theme's own, which for a button is as round as its text is tall", group = "paint" }"#),
@@ -314,8 +316,8 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
     );
     map.insert(k::PASS_NODE.into(), toml::Value::Boolean(widget.pass_node));
     map.insert(
-        k::POINTER_THROUGH.into(),
-        toml::Value::Boolean(widget.pointer_through),
+        k::INTERACTIVE.into(),
+        toml::Value::Boolean(!widget.pointer_through),
     );
     reach_to_toml(widget, &mut map);
     map.insert(k::PADDING.into(), four(widget.padding));
@@ -448,10 +450,20 @@ fn text_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) 
         k::TEXT_ALIGN.into(),
         toml::Value::String(widget.text_align.to_string()),
     );
-    map.insert(
-        k::SOURCE.into(),
-        toml::Value::String(widget.source.to_string()),
-    );
+    // One field under three names: which one a widget reads depends on its kind.
+    let named = match widget.kind.as_str() {
+        w::CODE => k::LANGUAGE,
+        w::LIST => k::SHEET,
+        _ => k::IMAGE,
+    };
+    for key in [k::IMAGE, k::SHEET, k::LANGUAGE] {
+        let value = if key == named {
+            widget.source.to_string()
+        } else {
+            String::new()
+        };
+        map.insert(key.into(), toml::Value::String(value));
+    }
     map.insert(k::FIT.into(), toml::Value::String(widget.fit.to_string()));
     map.insert(k::MARKUP.into(), toml::Value::Boolean(widget.markup));
     map.insert(
@@ -500,7 +512,7 @@ fn look_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) 
         k::ICON_COLOR.into(),
         toml::Value::String(widget.icon_color.to_string()),
     );
-    map.insert(k::DISABLED.into(), toml::Value::Boolean(widget.disabled));
+    map.insert(k::ENABLED.into(), toml::Value::Boolean(!widget.disabled));
     map.insert(k::FILL.into(), toml::Value::String(widget.fill.to_string()));
     map.insert(
         k::STROKE.into(),
@@ -725,6 +737,22 @@ impl Read<'_> {
         balaur_core::components::prop_bool(self.0, key)
     }
 
+    /// A switch that is on unless the table turns it off, so a table that
+    /// never met the schema's defaults still reads as on.
+    fn on_unless_off(&self, key: &str) -> bool {
+        self.0
+            .get(key)
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(true)
+    }
+
+    /// The first of `keys` the table names, for one field three kinds spell
+    /// three ways.
+    fn first(&self, keys: &[&str]) -> smol_str::SmolStr {
+        let mut named = keys.iter().map(|key| self.str(key));
+        named.find(|value| !value.is_empty()).unwrap_or_default()
+    }
+
     /// One colour's four channels. Hex strings were expanded to floats by
     /// `merge_defaults`, so this only ever reads an array.
     fn quad(&self, key: &str) -> [f32; 4] {
@@ -775,7 +803,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         font: s(k::FONT_FAMILY),
         on_click: s(k::ON_CLICK),
         pass_node: r.flag(k::PASS_NODE),
-        pointer_through: r.flag(k::POINTER_THROUGH),
+        pointer_through: !r.on_unless_off(k::INTERACTIVE),
         context: s(k::CONTEXT),
         on_link: s(k::ON_LINK),
         selectable: r.flag(k::SELECTABLE),
@@ -812,7 +840,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         placement: s(k::PLACEMENT),
         duration: f(k::DURATION),
         text_align: s(k::TEXT_ALIGN),
-        source: s(k::SOURCE),
+        source: r.first(&[k::IMAGE, k::SHEET, k::LANGUAGE]),
         fit: s(k::FIT),
         markup: r.flag(k::MARKUP),
         font_weight: f(k::FONT_WEIGHT),
@@ -829,7 +857,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         cursor: s(k::CURSOR),
         icon: s(k::ICON),
         icon_color: s(k::ICON_COLOR),
-        disabled: r.flag(k::DISABLED),
+        disabled: !r.on_unless_off(k::ENABLED),
         fill: s(k::FILL),
         stroke: s(k::STROKE),
         radius: f(k::CORNER_RADIUS),
@@ -1068,7 +1096,7 @@ mod tests {
 
     #[test]
     fn a_widget_lets_the_pointer_through_only_when_it_says_so() {
-        let through = widget(&toml::toml! { kind = "panel" pointer_through = true }.into());
+        let through = widget(&toml::toml! { kind = "panel" interactive = false }.into());
         assert!(through.pointer_through);
         assert!(!widget(&toml::toml! { kind = "panel" }.into()).pointer_through);
     }

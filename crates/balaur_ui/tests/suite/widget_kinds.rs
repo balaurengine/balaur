@@ -363,7 +363,7 @@ fn a_sliced_image_keeps_its_corners_at_their_own_size() {
     picture.save(dir.path().join("frame.png")).unwrap();
     let entity = add_widget(
         &app,
-        &toml::toml! { kind = "image" source = "frame.png" slice = [2.0, 2.0, 2.0, 2.0] width = 100.0 height = 50.0 x = 0.0 y = 0.0 }
+        &toml::toml! { kind = "image" image = "frame.png" slice = [2.0, 2.0, 2.0, 2.0] width = 100.0 height = 50.0 x = 0.0 y = 0.0 }
             .into(),
     );
     let ctx = egui::Context::default();
@@ -607,7 +607,7 @@ fn a_picture_sits_on_its_role_s_plate() {
     );
     let pictured = add_widget(
         &app,
-        &toml::toml! { kind = "button" text = "B" source = "mark.png" role = "mark" theme = "themes/face.toml" x = 0.0 y = 100.0 }
+        &toml::toml! { kind = "button" text = "B" image = "mark.png" role = "mark" theme = "themes/face.toml" x = 0.0 y = 100.0 }
             .into(),
     );
     let ctx = egui::Context::default();
@@ -675,9 +675,9 @@ fn a_picture_with_a_fit_takes_the_box_it_was_given() {
         &app,
         &toml::toml! { kind = "row" width = 400.0 height = 80.0 }.into(),
     );
-    let params = toml::toml! { kind = "image" source = "wide.png" fit = "contain" width = 40.0 };
+    let params = toml::toml! { kind = "image" image = "wide.png" fit = "contain" width = 40.0 };
     let fitted = add_child_widget(&app, row, "Fitted", &params.into());
-    let own = toml::toml! { kind = "image" source = "wide.png" };
+    let own = toml::toml! { kind = "image" image = "wide.png" };
     let native = add_child_widget(&app, row, "Native", &own.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);

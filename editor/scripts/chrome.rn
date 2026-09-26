@@ -182,7 +182,7 @@ pub fn top_bar(S) {
     let node = scene::get_node(BRAND_NODE);
     if !util::is_nil(node) {
         node.patch_component("widget", #{
-            source: mark.logo, text: mark.name, trailing: icons::ui("caret-down"),
+            image: mark.logo, text: mark.name, trailing: icons::ui("caret-down"),
             height: row_h(S) - 4.0, showing: S.menu_open,
         });
     }
@@ -223,7 +223,7 @@ fn bar_controls(S, k) {
         icon: icons::ui(if S.focus { "unfocus" } else { "focus" }),
         role: "tab_workspace", checked: S.focus,
         text: if S.compact { "" } else { "Focus" },
-        disabled: !can_focus,
+        enabled: can_focus,
         tooltip: if S.focus {
             "Put the docks back (⇧⌘\\)"
         } else if can_focus {
@@ -333,7 +333,7 @@ fn transport_controls(S) {
             on: |_| { shell::toggle_play(S); },
         },
         #{
-            kind: "button", text: "", icon: icons::ui("pause"), disabled: !running,
+            kind: "button", text: "", icon: icons::ui("pause"), enabled: running,
             height: row_h(S), width: icon_w(S), padding_x: 0, icon_size: STEP_SIZE,
             role: "icon_action_primary", checked: paused,
             tooltip: if !running {
@@ -352,7 +352,7 @@ fn transport_controls(S) {
             },
         },
         #{
-            kind: "button", text: "", icon: icons::ui("stop"), disabled: !running,
+            kind: "button", text: "", icon: icons::ui("stop"), enabled: running,
             height: row_h(S), width: icon_w(S), padding_x: 0, icon_size: STEP_SIZE,
             role: "icon_action_primary",
             tooltip: if running { "Stop" } else { "Nothing is running" },

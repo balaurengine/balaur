@@ -320,11 +320,11 @@ fn color_specs(S, doc, out) {
             label: name, label_role: if own { "text_label" } else { "text_caption" },
             height: h, slot_role: "layout_actions", controls: [
                 #{
-                    kind: "color_picker", width: 34, picked_color: rgba_of(hex), disabled: !mine,
+                    kind: "color_picker", width: 34, picked_color: rgba_of(hex), enabled: mine,
                     on: |rgba| { edit(S, ["colors"], name, util::to_hex(rgba)); },
                 },
                 #{
-                    kind: "text_field", role: "input_form", width: 96, text: hex, disabled: !mine,
+                    kind: "text_field", role: "input_form", width: 96, text: hex, enabled: mine,
                     on_submit: |text| { edit_hex(S, name, text); },
                 },
                 #{
@@ -350,7 +350,7 @@ fn size_specs(S, doc, out) {
             label: name, label_role: if stated.contains_key(name) { "text_label" } else { "text_caption" },
             height: h, slot_role: "layout_actions", controls: [#{
                 kind: "number_field", role: "input_number", width: 96,
-                value: util::f(S.theme.sizes[name]), min: 0.0, max: 200.0, step: 1.0, disabled: !mine,
+                value: util::f(S.theme.sizes[name]), min: 0.0, max: 200.0, step: 1.0, enabled: mine,
                 on: |v| { edit(S, ["sizes"], name, whole(v)); },
             }],
         });
@@ -564,12 +564,12 @@ fn control_for(S, doc, at, key, value, mine) {
         return [
             #{
                 kind: "color_picker", width: 34, picked_color: rgba_of(if is_hex(hex) { hex } else { "#000000" }),
-                disabled: !mine,
+                enabled: mine,
                 on: |rgba| { edit(S, at, key, util::to_hex(rgba)); },
             },
             #{
                 kind: "dropdown", role: "choice_form", grow: 1,
-                text: format!("{}", value), options: options, disabled: !mine,
+                text: format!("{}", value), options: options, enabled: mine,
                 on: |picked| { edit(S, at, key, picked); },
             },
         ];
@@ -578,19 +578,19 @@ fn control_for(S, doc, at, key, value, mine) {
     if words.len() > 0 {
         return [#{
             kind: "dropdown", role: "choice_form", grow: 1,
-            text: format!("{}", value), options: words, disabled: !mine,
+            text: format!("{}", value), options: words, enabled: mine,
             on: |picked| { edit(S, at, key, picked); },
         }];
     }
     if value is i64 || value is f64 {
         return [#{
             kind: "number_field", role: "input_number", grow: 1,
-            value: util::f(value), min: 0.0, max: 2000.0, step: 1.0, disabled: !mine,
+            value: util::f(value), min: 0.0, max: 2000.0, step: 1.0, enabled: mine,
             on: |v| { edit(S, at, key, whole(v)); },
         }];
     }
     let typed = [#{
-        kind: "text_field", role: "input_form", grow: 1, text: format!("{}", value), disabled: !mine,
+        kind: "text_field", role: "input_form", grow: 1, text: format!("{}", value), enabled: mine,
         on_submit: |text| { edit(S, at, key, text); },
     }];
     typed

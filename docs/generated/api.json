@@ -226,6 +226,46 @@
       [
         "drop",
         "the card"
+      ],
+      [
+        "double_click",
+        "nil"
+      ],
+      [
+        "focus",
+        "nil"
+      ],
+      [
+        "blur",
+        "nil"
+      ],
+      [
+        "commit",
+        "the value, once the drag or the typing is over"
+      ],
+      [
+        "activate",
+        "the row double-clicked"
+      ],
+      [
+        "fold",
+        "`#{ row, open }`"
+      ],
+      [
+        "opened",
+        "nil"
+      ],
+      [
+        "closed",
+        "nil"
+      ],
+      [
+        "scrolled",
+        "the offset, `[x, y]`"
+      ],
+      [
+        "close_request",
+        "nil"
       ]
     ]
   },
@@ -5991,11 +6031,6 @@
         ],
         "type": "enum"
       },
-      "disabled": {
-        "default": false,
-        "description": "Grey the widget out and swallow its clicks",
-        "type": "bool"
-      },
       "draggable": {
         "default": false,
         "description": "Let a drag carry a card of a `list` with `columns` out of it, drawn under the pointer; `on_drop` says where it was let go",
@@ -6014,6 +6049,11 @@
         "group": "type",
         "min": 0.0,
         "type": "float"
+      },
+      "enabled": {
+        "default": true,
+        "description": "Off, the widget is greyed out and swallows its clicks",
+        "type": "bool"
       },
       "fill": {
         "default": "",
@@ -6123,6 +6163,12 @@
         "min": 0.0,
         "type": "float"
       },
+      "hide_on_close": {
+        "default": true,
+        "description": "Whether a `window`'s close button shuts it; off, the button only emits `close_request` and the script decides",
+        "group": "events",
+        "type": "bool"
+      },
       "hide_shorter": {
         "default": 0.0,
         "description": "Not drawn while the room is shorter than this many design pixels. Zero is no line",
@@ -6156,6 +6202,11 @@
         "group": "paint",
         "type": "string"
       },
+      "image": {
+        "default": "",
+        "description": "The project-relative image an `image` widget draws, or the picture a `button` draws before its caption at the caption's height",
+        "type": "string"
+      },
       "inset": {
         "default": [
           0.0,
@@ -6166,6 +6217,12 @@
         "description": "Left, top, right and bottom margins a root with `anchor = \"fill\"` keeps from its surface, in design pixels",
         "group": "placement",
         "type": "vec4"
+      },
+      "interactive": {
+        "default": true,
+        "description": "Off, the pointer passes through to the scene: the widget is drawn, never hovered or clicked, and `ui.wants_pointer()` stays false over it. A full-screen container over the world wants this",
+        "group": "events",
+        "type": "bool"
       },
       "justify": {
         "default": "start",
@@ -6224,6 +6281,11 @@
           "stack"
         ],
         "type": "enum"
+      },
+      "language": {
+        "default": "",
+        "description": "The language a `code` widget highlights",
+        "type": "string"
       },
       "layer": {
         "default": "",
@@ -6398,12 +6460,6 @@
         ],
         "type": "enum"
       },
-      "pointer_through": {
-        "default": false,
-        "description": "Let the pointer pass through to the scene: the widget is drawn, never hovered or clicked, and `ui.wants_pointer()` stays false over it. A full-screen container over the world wants this",
-        "group": "events",
-        "type": "bool"
-      },
       "problems": {
         "default": [],
         "description": "The lines a `code` widget underlines as errors, counting from 1, each also marked on the inner edge of its gutter",
@@ -6480,6 +6536,11 @@
         },
         "type": "list"
       },
+      "sheet": {
+        "default": "",
+        "description": "The picture a `list` cuts its card faces from",
+        "type": "string"
+      },
       "shortcut": {
         "default": "",
         "description": "A chord that clicks this widget wherever it is, as `cmd+shift+s` or `f5`; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`",
@@ -6514,11 +6575,6 @@
         "description": "Let a click on a `table`'s header sort by that column, and the next click on the same one turn it round; the column sorted by carries a caret",
         "group": "events",
         "type": "bool"
-      },
-      "source": {
-        "default": "",
-        "description": "The project-relative image an `image` widget draws, the picture a `button` draws before its caption at the caption's height, the sheet a `list` cuts its card faces from, and the language a `code` widget highlights",
-        "type": "string"
       },
       "splitter_width": {
         "default": 0.0,
@@ -6610,7 +6666,7 @@
       },
       "tooltip": {
         "default": "",
-        "description": "Text shown after the pointer rests on the widget; still shown when it is `disabled`, which is where it says why",
+        "description": "Text shown after the pointer rests on the widget; still shown while `enabled` is off, which is where it says why",
         "group": "type",
         "type": "string"
       },
@@ -12249,11 +12305,11 @@
         "available_height": "The height left in the current container, in design pixels.",
         "available_width": "The width left in the current container, in design pixels.",
         "bottom_panel": "Dock a strip across the bottom of the window and draw the callback inside it; `height` is in design pixels. Answers the height it ended up with.",
-        "button": "Draw a button, or a row with its caption at the start when `text_align = \"start\"`; true on the frame it was clicked. `disabled` greys it out and swallows the click. `menu` hangs a right-click menu off it, `menu_click` one that opens on a left click.",
+        "button": "Draw a button, or a row with its caption at the start when `text_align = \"start\"`; true on the frame it was clicked. `enabled = false` greys it out and swallows the click. `menu` hangs a right-click menu off it, `menu_click` one that opens on a left click.",
         "button_rect": "Where the last `button` was drawn, as `#{ x, y, width, height }` in design pixels; empty before one has. An immediate control has no node `widget_rect` can be asked about, so a caller that wants to point at one reads it back here, straight after the call that drew it.",
         "central_panel": "Draw the callback into whatever room the docked panels left over.",
         "central_rect": "The x, y, width and height of the surface being drawn into, in design pixels.",
-        "circle_button": "Draw a round button holding one glyph, `diameter` design pixels across; true on the frame it was clicked. `disabled` greys it out and swallows the click.",
+        "circle_button": "Draw a round button holding one glyph, `diameter` design pixels across; true on the frame it was clicked. `enabled = false` greys it out and swallows the click.",
         "click": "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `#{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
         "code_editor": "Draw an editable, highlighted buffer with a gutter; returns the text, whether it changed, any line clicked, and the caret as `#{ x, y, index }`.",
         "code_line": "Draw one read-only code row from a list of `{ text, color, strong }` spans, with a gutter label on the left.",

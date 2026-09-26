@@ -33,7 +33,7 @@ fn specs(S) {
     let mine = util::obj(release::installed());
     let out = [#{ full: true, height: 56, slot_role: "layout_actions", controls: [
         #{ kind: "panel", role: "sheet_logo", controls: [
-            #{ kind: "image", source: crate::manager::LOGO, width: 44 },
+            #{ kind: "image", image: crate::manager::LOGO, width: 44 },
         ] },
         #{ kind: "column", role: "layout_about", controls: [
             #{ kind: "label", role: "text_title", text: "Balaur " + mine.version },

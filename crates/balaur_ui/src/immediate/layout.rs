@@ -288,15 +288,15 @@ pub(crate) fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
     });
 }
 
-/// Add a button, greyed out and inert when the caller said `disabled`.
+/// Add a button, greyed out and inert when the caller said `enabled: false`.
 fn enabled_add(ui: &mut egui::Ui, button: egui::Button<'_>, opts: &Opts) -> egui::Response {
-    ui.add_enabled(!opts.boolean(k::DISABLED, false), button)
+    ui.add_enabled(opts.boolean(k::ENABLED, true), button)
 }
 
 /// A tooltip that still shows on a disabled button, which is where it
 /// explains why the button is off.
 fn hover_text(response: egui::Response, opts: &Opts, tip: String) -> egui::Response {
-    if opts.boolean(k::DISABLED, false) {
+    if !opts.boolean(k::ENABLED, true) {
         return response.on_disabled_hover_text(tip);
     }
     crate::widget::theme::tip(&response, &tip);
@@ -321,7 +321,7 @@ pub(crate) fn attach_menus(eng: &Engine, response: &egui::Response, opts: &Opts)
 /// `ui.button` and `ui.menu_item`.
 pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("button", &[], "", "Draw a button, or a row with its caption at the start when `text_align = \"start\"`; true on the frame it was clicked. `disabled` greys it out and swallows the click. `menu` hangs a right-click menu off it, `menu_click` one that opens on a left click."),
+        ("button", &[], "", "Draw a button, or a row with its caption at the start when `text_align = \"start\"`; true on the frame it was clicked. `enabled = false` greys it out and swallows the click. `menu` hangs a right-click menu off it, `menu_click` one that opens on a left click."),
         ("menu_item", &[], "", "Draw a row inside a menu, `width` design pixels across and with `trailing` set against its right edge; true on the frame it was clicked, which also closes the menu unless `keep_open` says otherwise."),
     ]);
     m.function(
@@ -473,7 +473,7 @@ fn menu_row(ui: &mut egui::Ui, s: &str, opts: &Opts) -> bool {
 /// `ui.circle_button` and `ui.dot`.
 pub(crate) fn install_button_shapes(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("circle_button", &[], "", "Draw a round button holding one glyph, `diameter` design pixels across; true on the frame it was clicked. `disabled` greys it out and swallows the click."),
+        ("circle_button", &[], "", "Draw a round button holding one glyph, `diameter` design pixels across; true on the frame it was clicked. `enabled = false` greys it out and swallows the click."),
         ("dot", &[], "", "Draw a filled circle in a `#rrggbb` colour, `diameter` design pixels across."),
     ]);
     m.function(
@@ -488,7 +488,7 @@ pub(crate) fn install_button_shapes(m: &mut dyn Bindings<Engine>) {
                 // Painted rather than handed to `egui::Button`: a button is
                 // as wide as its glyph plus egui's own padding, and a rail
                 // that reserved `diameter` was then a pixel too narrow for it.
-                let off = opts.boolean(k::DISABLED, false);
+                let off = !opts.boolean(k::ENABLED, true);
                 // A disabled control is inert: it takes no click, and only
                 // the hover the tooltip needs.
                 let sense = if off {

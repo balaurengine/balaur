@@ -757,13 +757,13 @@ func _process(_delta):
         let go = node(&scene, "Go");
         assert_eq!(go["widget"]["cursor"].as_str(), Some("hand"));
         assert_eq!(
-            go["widget"].get("pointer_through"),
+            go["widget"].get("interactive"),
             None,
             "STOP keeps the pointer"
         );
         assert_eq!(
-            node(&scene, "Bars")["widget"]["pointer_through"].as_bool(),
-            Some(true),
+            node(&scene, "Bars")["widget"]["interactive"].as_bool(),
+            Some(false),
             "IGNORE lets it through"
         );
     }

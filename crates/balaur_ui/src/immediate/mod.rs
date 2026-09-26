@@ -92,7 +92,7 @@ const KNOWN_KEYS: &[&str] = &[
     k::DASHED,
     k::DECIMALS,
     k::DIAMETER,
-    k::DISABLED,
+    k::ENABLED,
     k::FILL,
     k::FONT_FAMILY,
     k::FONT_SIZE,

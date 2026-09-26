@@ -1012,7 +1012,7 @@ fn show_swatches(S, k, set, count) {
     let chosen = if S.tiles.tile < items.len() { items[S.tiles.tile] } else { "" };
     util::fill(crate::dock::CARDS_NODE, #{
         options: items, visible: true, columns: 8, text: chosen,
-        source: util::engine_path(S, set.texture),
+        sheet: util::engine_path(S, set.texture),
     });
     let picked = util::prop(crate::dock::CARDS_NODE, "text");
     for (n, item) in items.iter().enumerate() {

@@ -282,7 +282,6 @@ pub(crate) mod keys {
     pub(crate) const DASHED: &str = "dashed";
     pub(crate) const SCROLL_DEADZONE: &str = "scroll_deadzone";
     pub(crate) const DECIMALS: &str = "decimals";
-    pub(crate) const DISABLED: &str = "disabled";
     pub(crate) const DURATION: &str = "duration";
     pub(crate) const DRAW: &str = "draw";
     pub(crate) const FILL: &str = "fill";
@@ -337,7 +336,6 @@ pub(crate) mod keys {
     pub(crate) const ON_CHANGE: &str = "on_change";
     pub(crate) const ON_CLICK: &str = "on_click";
     pub(crate) const PASS_NODE: &str = "pass_node";
-    pub(crate) const POINTER_THROUGH: &str = "pointer_through";
     pub(crate) const ON_LINK: &str = "on_link";
     pub(crate) const ON_FOCUS: &str = "on_focus";
     pub(crate) const ON_GUTTER: &str = "on_gutter";
@@ -357,6 +355,7 @@ pub(crate) mod keys {
     /// Whether an overlay answers the pointer. Off for one that is read over
     /// what is behind it, which must keep its clicks.
     pub(crate) const INTERACTIVE: &str = "interactive";
+    pub(crate) const ENABLED: &str = "enabled";
     pub(crate) const RAIL: &str = "rail";
     pub(crate) const REGION: &str = "region";
     pub(crate) const RESIZABLE: &str = "resizable";
@@ -399,7 +398,7 @@ pub(crate) mod keys {
     pub(crate) const SEPARATOR: &str = "separator";
     pub(crate) const FIT: &str = "fit";
     pub(crate) const SLICE: &str = "slice";
-    pub(crate) const SOURCE: &str = "source";
+    pub(crate) const SHEET: &str = "sheet";
     pub(crate) const SPEED: &str = "speed";
     pub(crate) const STEP: &str = "step";
     pub(crate) const STICK_TO_BOTTOM: &str = "stick_to_bottom";
@@ -456,10 +455,10 @@ pub(crate) mod pool {
     pub(crate) const LAYOUT_CELLS: &str = "layout_cells";
 }
 
-/// The state tables a theme entry holds, by CSS's words. `checked` and
-/// `disabled` are the properties they answer to.
+/// The state tables a theme entry holds, by CSS's words. `checked` answers
+/// to the property of that name, `disabled` to `enabled = false`.
 pub(crate) mod states {
-    pub(crate) use super::keys::DISABLED;
+    pub(crate) const DISABLED: &str = "disabled";
     pub(crate) const HOVER: &str = "hover";
     pub(crate) const ACTIVE: &str = "active";
     pub(crate) const FOCUS: &str = "focus";

@@ -665,7 +665,8 @@ pub(crate) fn property(receiver: &str, field: &str) -> Option<String> {
         "current_scene" | "root" => "scene::root()".into(),
         "selected" => format!("(gd.option_index)({receiver})"),
         "item_count" => format!("(gd.option_count)({receiver})"),
-        "text" | "disabled" | "pressed" | "button_pressed" | "editable" | "placeholder_text"
+        "disabled" => format!("!(gd.get)({receiver}.get_component(\"widget\"), \"enabled\", true)"),
+        "text" | "pressed" | "button_pressed" | "editable" | "placeholder_text"
         | "tooltip_text" | "value" | "max_value" | "min_value" | "icon" => {
             let key = widget_key(field);
             format!("(gd.get)({receiver}.get_component(\"widget\"), \"{key}\", ())")
@@ -749,7 +750,6 @@ pub(crate) fn todo(what: &str) -> String {
 pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String> {
     const WIDGET: &[&str] = &[
         "text",
-        "disabled",
         "pressed",
         "button_pressed",
         "editable",
@@ -762,6 +762,11 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
     ];
     if field == "selected" {
         return Some(format!("(gd.option_select)({receiver}, {value})"));
+    }
+    if field == "disabled" {
+        return Some(format!(
+            "{receiver}.patch_component(\"widget\", #{{ \"enabled\": !({value}) }})"
+        ));
     }
     // The window's content scale is the UI's global scale here.
     if field == "content_scale_factor" {
@@ -784,7 +789,7 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
         ),
         // `MOUSE_FILTER_IGNORE` is 2; the other two keep the pointer.
         "mouse_filter" => format!(
-            "{receiver}.patch_component(\"widget\", #{{ \"pointer_through\": {value} == 2 }})"
+            "{receiver}.patch_component(\"widget\", #{{ \"interactive\": {value} != 2 }})"
         ),
         "position" => format!("(gd.set_position)({receiver}, {value})"),
         "global_position" => format!("(gd.set_global_position)({receiver}, {value})"),

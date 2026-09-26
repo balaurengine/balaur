@@ -938,7 +938,7 @@ func _ready():\n\
     let out = convert(source, "scripts/veil.gd", &Classes::default());
     assert!(
         out.rune
-            .contains("patch_component(\"widget\", #{ \"pointer_through\": 2 == 2 })"),
+            .contains("patch_component(\"widget\", #{ \"interactive\": 2 != 2 })"),
         "{}",
         out.rune
     );

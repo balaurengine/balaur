@@ -231,7 +231,7 @@ pub fn draw_body(S, k) {
 /// The head strip: the mark, the name, the version, and the way back.
 fn head_controls(S, k) {
     let out = [
-        #{ kind: "image", role: "layout_mark", source: LOGO },
+        #{ kind: "image", role: "layout_mark", image: LOGO },
         #{ kind: "label", role: "text_title", text: "Balaur" },
         #{ kind: "label", role: "text_caption", text: project::version() },
         #{ kind: "row", grow: 1 },

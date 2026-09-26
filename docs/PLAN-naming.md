@@ -32,7 +32,9 @@ with no alias and no migration, as `one way to do a thing` asks.
   capsule's `height` tip to tip; a body's `mass` as its total, layers 1 to 32,
   the joint's `max_length`, `rest_length`, `lock_*` and `articulation`, vehicle
   axes as `x`/`y`/`z`, one-step `apply_force`, counts as `int`, and a particle
-  `direction` with `spread_degrees`, and one `icon` font chain, `icon-` files.
+  `direction` with `spread_degrees`, and one `icon` font chain, `icon-` files,
+  and the widget's `image`, `sheet` and `language`, with `enabled` and
+  `interactive` on unless turned off.
 - `NAMING.md` has the eight scopes, rules N18 to N23, and the picked names per
   system, from a survey of SDL3, Godot 4, Unity, Blender, GLFW, W3C, rapier and
   glTF on 2026-09-25.
@@ -42,8 +44,6 @@ with no alias and no migration, as `one way to do a thing` asks.
 
 | Now | New | Why |
 | --- | --- | --- |
-| widget `source` (image, card sheet, code language) | `image`, `sheet`, `language` | `source` is raw text in the glossary |
-| widget `disabled` beside `enabled` elsewhere, `pointer_through` beside `interactive` | one polarity each | |
 | node references as strings (`modifier.bone`, `animation.root_node`, …) | typed `node` | |
 
 ## 2. Script API
