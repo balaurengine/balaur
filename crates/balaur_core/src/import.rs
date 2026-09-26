@@ -86,9 +86,9 @@ pub mod keys {
     /// simpler copy takes over; each further one takes over at twice it.
     pub const LOD_DISTANCE: &str = "lod_distance";
     /// Mix a sound to one channel at export.
-    pub const MONO: &str = "mono";
+    pub const FORCE_MONO: &str = "force_mono";
     /// The highest sample rate a sound ships at, in Hz; 0 keeps its own.
-    pub const MAX_RATE: &str = "max_rate";
+    pub const MAX_RATE_HZ: &str = "max_rate_hz";
     /// Smooth a face's glyph edges; off draws every pixel on or off.
     pub const ANTIALIAS: &str = "antialias";
 }
@@ -108,7 +108,7 @@ pub mod words {
     pub const KEEP: &str = "keep";
     /// `recode` for a picture: lossless WebP, or a 256-colour palette.
     pub const WEBP: &str = "webp";
-    pub const QUANTISED: &str = "quantised";
+    pub const QUANTIZED: &str = "quantized";
     /// `recode` for a sound: lossless FLAC, or lossy Ogg Vorbis.
     pub const FLAC: &str = "flac";
     pub const VORBIS: &str = "vorbis";

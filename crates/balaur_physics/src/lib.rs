@@ -170,7 +170,7 @@ max_corrective_velocity = { type = "float", default = 3.0, min = 0.0, max = 1000
 prediction_distance = { type = "float", default = 0.02, min = 0.0, max = 1.0, help = "How far ahead contacts are predicted." }
 internal_iterations = { type = "float", default = 1.0, min = 0.0, max = 64.0, help = "Projected Gauss-Seidel iterations inside one solver iteration." }
 stabilization_iterations = { type = "float", default = 1.0, min = 0.0, max = 64.0, help = "Iterations spent pushing overlapping bodies apart rather than solving velocities." }
-min_ccd_dt = { type = "float", default = 0.000167, min = 0.0, max = 1.0, help = "The smallest substep continuous collision detection will take." }
+min_ccd_seconds = { type = "float", default = 0.000167, min = 0.0, max = 1.0, help = "The smallest substep continuous collision detection will take." }
 warmstart = { type = "float", default = 1.0, min = 0.0, max = 1.0, help = "How much of the last step's impulses the solver starts from." }
 warmstart_joints = { type = "bool", default = false, help = "Warm-start joints as well as contacts." }
 friction_in_bias_pass = { type = "bool", default = false, help = "Solve friction in the bias pass, which is stabler at the cost of a little drift." }

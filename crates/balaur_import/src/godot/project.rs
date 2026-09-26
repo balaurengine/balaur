@@ -302,7 +302,7 @@ fn locale(document: &Document, out: &mut String) -> Result<()> {
         &locales[0]
     };
     writeln!(out, "\n[locale]")?;
-    writeln!(out, "default = {}", quote(default))?;
+    writeln!(out, "initial = {}", quote(default))?;
     writeln!(out, "fallback = {}", quote(default))?;
     Ok(())
 }
@@ -525,7 +525,7 @@ locale/translations=PackedStringArray("res://lang/en.en.translation", "res://lan
             "a `.tscn` reference becomes the `.toml` beside it"
         );
         assert_eq!(doc["window"]["width"].as_integer(), Some(840));
-        assert_eq!(doc["locale"]["default"].as_str(), Some("en"));
+        assert_eq!(doc["locale"]["initial"].as_str(), Some("en"));
         let actions = &doc["input"]["actions"];
         assert_eq!(
             actions["jump"].as_array().map(std::vec::Vec::len),

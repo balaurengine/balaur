@@ -12648,6 +12648,28 @@
       }
     }
   ],
+  "node_events": [
+    [
+      "visibility_changed",
+      "its own `visible`, now"
+    ],
+    [
+      "child_added",
+      "the child"
+    ],
+    [
+      "child_removed",
+      "the child; freed, it is still readable in this node's own hook"
+    ],
+    [
+      "renamed",
+      "the name it had; `name()` says the new one"
+    ],
+    [
+      "reparented",
+      "the parent it left; `parent()` says the new one"
+    ]
+  ],
   "types": [
     {
       "constants": [],

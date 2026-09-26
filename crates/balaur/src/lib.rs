@@ -99,7 +99,7 @@ fn backend_for(config: &AppConfig) -> Result<balaur_core::ScriptHostFactory> {
     match language.as_str() {
         "rune" => Ok(balaur_script_rune::factory()),
         other => Err(anyhow::anyhow!(
-            "project.toml asks for language \"{other}\"; this build has rune"
+            "project.toml asks for script_language \"{other}\"; this build has rune"
         )),
     }
 }

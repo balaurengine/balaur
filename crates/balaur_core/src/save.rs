@@ -53,7 +53,7 @@ impl SaveConfig {
             .and_then(|v| v.as_integer())
             .and_then(|v| u32::try_from(v).ok())
             .unwrap_or(fallback.version);
-        let migrate = crate::settings::get(eng, "save/migrate")
+        let migrate = crate::settings::get(eng, "save/migrate_script")
             .and_then(|v| v.as_str().map(str::to_string))
             .unwrap_or(fallback.migrate);
         Self { version, migrate }

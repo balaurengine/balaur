@@ -174,8 +174,8 @@ pub(crate) fn shipped(
         }
         Some(kinds::AUDIO) => {
             let shape = recode::AudioShape {
-                mono: flag(settings, keys::MONO, false),
-                max_rate: number(settings, keys::MAX_RATE, 0.0).clamp(0.0, 384_000.0) as u32,
+                mono: flag(settings, keys::FORCE_MONO, false),
+                max_rate: number(settings, keys::MAX_RATE_HZ, 0.0).clamp(0.0, 384_000.0) as u32,
             };
             let shaped =
                 recode::shape_audio(bytes, shape).with_context(|| format!("preparing {path}"))?;
@@ -229,7 +229,7 @@ fn image_mode(own: Option<&str>, fallback: ImageMode) -> ImageMode {
         None => fallback,
         Some(words::KEEP) => ImageMode::Keep,
         Some(words::WEBP) => ImageMode::Webp,
-        Some(words::QUANTISED) => ImageMode::Quantised,
+        Some(words::QUANTIZED) => ImageMode::Quantized,
         Some(other) => {
             tracing::warn!("recode: '{other}' is not a way to re-encode a picture");
             fallback

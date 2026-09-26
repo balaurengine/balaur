@@ -438,8 +438,8 @@ SVG is not drawn; convert it to paths.
 | `scale` | a number | `1` | Pixels per unit when an SVG is rasterized. A raster ignores it. |
 | `pixels_per_unit` | a number | `100` | Texture pixels to one world unit, for a sprite whose own `pixels_per_unit` is `0`. |
 | `size` | `[width, height]` | the file's own | The pixels the image was drawn at, when a smaller copy shipped in its place. Written by an export that folds a variant or caps it at `max_size`; a sprite, a sheet and a tile measure by it. |
-| `recode` | `keep`, `webp`, `quantised` | `[export] images` | How an export re-encodes this file alone. `keep` also exempts it from `max_size`. |
-| `quality` | `0` to `100` | `[export] images_quality` | The palette's quality when this file is quantised. |
+| `recode` | `keep`, `webp`, `quantized` | `[export] images` | How an export re-encodes this file alone. `keep` also exempts it from `max_size`. |
+| `quality` | `0` to `100` | `[export] images_quality` | The palette's quality when this file is quantized. |
 
 A value nothing knows reads as the default rather than refusing the
 texture, because a settings file is written by hand. `anisotropy`
@@ -452,11 +452,11 @@ straight. The UI draws a picture with the same filter and wrap.
 
 | Key | Values | Default | What it does |
 | --- | --- | --- | --- |
-| `volume` | a number | `1` | The file's own level, multiplied into every play of it. A handle's volume of `1` is this level. |
+| `volume_linear` | a number | `1` | The file's own level, multiplied into every play of it. A handle's volume of `1` is this level. |
 | `loop` | `true`, `false` | `false` | Loop the file wherever it is played, whatever the caller asked. |
 | `loop_offset` | seconds | `0` | Where each repeat starts, so an intro plays once. |
-| `mono` | `true`, `false` | `false` | Mix a WAV to one channel at export. |
-| `max_rate` | Hz | `0` | The highest sample rate a WAV ships at, resampled at export; `0` keeps its own. |
+| `force_mono` | `true`, `false` | `false` | Mix a WAV to one channel at export. |
+| `max_rate_hz` | Hz | `0` | The highest sample rate a WAV ships at, resampled at export; `0` keeps its own. |
 | `recode` | `keep`, `flac`, `vorbis` | `[export] audio` | How an export re-encodes this file alone. |
 | `quality` | `-0.1` to `1` | `[export] audio_quality` | libvorbis's quality when this file is re-encoded as Vorbis. |
 
@@ -466,7 +466,7 @@ A project's own faces under `fonts/` read these; the UI applies them.
 
 | Key | Values | Default | What it does |
 | --- | --- | --- | --- |
-| `family` | `ui`, `heading`, `mono`, `icons` | the file name's prefix | The family this face joins. |
+| `family` | `ui`, `heading`, `mono`, `icon` | the file name's prefix | The family this face joins. |
 | `scale` | a number | `1` | How large its glyphs are drawn, without moving the layout. |
 | `y_offset` | a fraction of the size | `0` | A nudge down, for a face that sits high in its line. |
 | `hinting` | `true`, `false` | the UI's own | Snap outlines to the pixel grid. |

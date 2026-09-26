@@ -318,7 +318,7 @@ pub(crate) mod keys {
     pub(crate) const MESH: &str = "mesh";
     pub(crate) const METHOD: &str = "method";
     pub(crate) const MIN: &str = "min";
-    pub(crate) const MIN_CCD_DT: &str = "min_ccd_dt";
+    pub(crate) const MIN_CCD_SECONDS: &str = "min_ccd_seconds";
     pub(crate) const MIN_PIECE: &str = "min_piece";
     pub(crate) const MIN_SLIDE_ANGLE: &str = "min_slide_angle";
     pub(crate) const MOTOR: &str = "motor";

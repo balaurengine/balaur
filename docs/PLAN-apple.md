@@ -22,10 +22,10 @@ and hardware.
    implemented purchases yet. Play Billing and Steam's inventory are shaped
    differently enough that the portable verb should be designed against two of
    them, not one.
-3. **`min_os` is free text over a floor the project cannot see.**
-   `AppleConfig::min_os` is written into `MinimumOSVersion` exactly as given,
+3. **`min_ios` is free text over a floor the project cannot see.**
+   `AppleConfig::min_ios` is written into `MinimumOSVersion` exactly as given,
    while `scripts/package_template.sh` builds the iOS template at
-   `IPHONEOS_DEPLOYMENT_TARGET=15.0`. A game that sets `min_os = "12.0"` ships
+   `IPHONEOS_DEPLOYMENT_TARGET=15.0`. A game that sets `min_ios = "12.0"` ships
    a plist promising what its binary cannot do, and the failure lands on a
    player's device rather than in the build. The exporter should clamp, with an
    error that names the floor, and a game that wants lower rebuilds the

@@ -56,7 +56,7 @@ pub(crate) struct AndroidConfig {
     /// against. Empty keeps the invented `org.balaur.<name>`.
     pub application_id: String,
     /// The name under the icon. Empty means the project's own.
-    pub label: String,
+    pub display_name: String,
     /// `versionName`: what a player is shown.
     pub version: String,
     /// `versionCode`: what Play orders updates by, and the only one it reads.
@@ -79,7 +79,7 @@ impl Default for AndroidConfig {
     fn default() -> Self {
         Self {
             application_id: String::new(),
-            label: String::new(),
+            display_name: String::new(),
             version: "1.0".into(),
             version_code: 1,
             // 0 defers to the template's own, read at export.
@@ -185,10 +185,10 @@ impl AndroidConfig {
                 self.target_sdk
             );
         }
-        let label = if self.label.is_empty() {
+        let label = if self.display_name.is_empty() {
             name
         } else {
-            self.label.as_str()
+            self.display_name.as_str()
         };
         let mut xml = set_attr(template, "package", &id)?;
         xml = set_attr(&xml, "android:versionCode", &self.version_code.to_string())?;
@@ -816,7 +816,7 @@ mod tests {
     fn the_project_names_the_id_the_version_and_the_label() {
         let config = AndroidConfig {
             application_id: "com.studio.tide".into(),
-            label: "Tide & Sand".into(),
+            display_name: "Tide & Sand".into(),
             version: "2.3".into(),
             version_code: 17,
             target_sdk: 34,

@@ -154,7 +154,7 @@ fn an_old_save_is_brought_forward_one_version_at_a_time() {
         dir.path().join("project.toml"),
         format!(
             "[application]\nname = \"{name}\"\nmain_scene = \"main.toml\"\n\n\
-             [save]\nversion = 3\nmigrate = \"scripts/saves.rn\"\n"
+             [save]\nversion = 3\nmigrate_script = \"scripts/saves.rn\"\n"
         ),
     )
     .unwrap();

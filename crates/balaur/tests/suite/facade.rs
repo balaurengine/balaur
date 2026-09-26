@@ -5,7 +5,7 @@ use balaur::{App, AppConfig, standard_app};
 
 fn project(dir: &std::path::Path, language: Option<&str>, script: (&str, &str)) {
     std::fs::create_dir_all(dir.join("scripts")).unwrap();
-    let lang = language.map_or(String::new(), |l| format!("language = \"{l}\"\n"));
+    let lang = language.map_or(String::new(), |l| format!("script_language = \"{l}\"\n"));
     std::fs::write(
         dir.join("project.toml"),
         format!("[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n{lang}"),

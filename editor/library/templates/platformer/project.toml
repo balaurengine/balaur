@@ -10,7 +10,7 @@ jump = ["Space", "gamepad:south"]
 # build ships the bytes you gave it; each is measured on the examples.
 [export]
 # "webp" writes images as lossless WebP, about a third off a PNG and nothing
-# off a JPEG, which it leaves alone. "quantised" is a 256-colour palette.
+# off a JPEG, which it leaves alone. "quantized" is a 256-colour palette.
 images = "keep"
 # "subset" keeps only the code points the project's scenes and scripts name.
 # The largest saving here by far: it takes the `text` example down by 89%.

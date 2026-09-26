@@ -43,7 +43,7 @@ pub(crate) enum Capability {
 impl Capability {
     const fn name(self) -> &'static str {
         match self {
-            Self::Applesignin => "applesignin",
+            Self::Applesignin => "sign-in-with-apple",
             Self::GameCenter => "game-center",
             Self::IcloudKv => "icloud-kv",
             Self::InAppPurchase => "in-app-purchase",
@@ -83,9 +83,9 @@ pub(crate) enum PlistValue {
 /// ```toml
 /// [apple]
 /// bundle_id = "com.studio.game"
-/// team = "AB12CD34EF"
-/// min_os = "15.0"
-/// capabilities = ["applesignin", "game-center", "icloud-kv"]
+/// team_id = "AB12CD34EF"
+/// min_ios = "15.0"
+/// capabilities = ["sign-in-with-apple", "game-center", "icloud-kv"]
 ///
 /// [apple.plist]
 /// ITSAppUsesNonExemptEncryption = false
@@ -99,12 +99,12 @@ pub(crate) struct AppleConfig {
     /// The ten-character team identifier. Xcode expands
     /// `$(TeamIdentifierPrefix)` from it; nothing expands anything here, so
     /// an entitlement that carries the prefix needs the real value.
-    pub team: String,
+    pub team_id: String,
     pub display_name: String,
     pub version: String,
-    pub build: String,
+    pub build_number: String,
     /// `MinimumOSVersion` on iOS.
-    pub min_os: String,
+    pub min_ios: String,
     /// `LSMinimumSystemVersion` on macOS.
     pub min_macos: String,
     /// macOS only: `LSApplicationCategoryType`.
@@ -125,14 +125,14 @@ impl Default for AppleConfig {
     fn default() -> Self {
         Self {
             bundle_id: String::new(),
-            team: String::new(),
+            team_id: String::new(),
             display_name: String::new(),
             version: "1.0".into(),
-            build: "1".into(),
+            build_number: "1".into(),
             // The templates are built for these (scripts/package_template.sh,
             // scripts/package.sh), which is where StoreKit 2 starts; a plist
             // may not claim less than the binary was built for.
-            min_os: "15.0".into(),
+            min_ios: "15.0".into(),
             min_macos: "12.0".into(),
             category: String::new(),
             capabilities: Vec::new(),
@@ -199,7 +199,7 @@ impl AppleConfig {
             format!(
                 "[apple] {} = \"{declared}\" is not a version",
                 match platform {
-                    Platform::Ios => "min_os",
+                    Platform::Ios => "min_ios",
                     Platform::Macos => "min_macos",
                 }
             )
@@ -215,9 +215,9 @@ impl AppleConfig {
                 );
             }
         }
-        if self.capabilities.contains(&Capability::IcloudKv) && self.team.is_empty() {
+        if self.capabilities.contains(&Capability::IcloudKv) && self.team_id.is_empty() {
             bail!(
-                "[apple] icloud-kv needs `team`: the key-value store identifier is \
+                "[apple] icloud-kv needs `team_id`: the key-value store identifier is \
                  <team>.<bundle_id>, and nothing expands $(TeamIdentifierPrefix) outside Xcode"
             );
         }
@@ -226,7 +226,7 @@ impl AppleConfig {
 
     fn deployment(&self, platform: Platform) -> &str {
         match platform {
-            Platform::Ios => &self.min_os,
+            Platform::Ios => &self.min_ios,
             Platform::Macos => &self.min_macos,
         }
     }
@@ -252,7 +252,7 @@ impl AppleConfig {
                         body,
                         "  <key>com.apple.developer.ubiquity-kvstore-identifier</key>\n  \
                          <string>{}.{}</string>\n",
-                        self.team, self.bundle_id
+                        self.team_id, self.bundle_id
                     );
                 }
                 // In-app purchase needs no entitlement; it is a capability
@@ -286,12 +286,12 @@ impl AppleConfig {
         string_key(&mut body, "CFBundleDisplayName", display);
         string_key(&mut body, "CFBundlePackageType", "APPL");
         string_key(&mut body, "CFBundleShortVersionString", &self.version);
-        string_key(&mut body, "CFBundleVersion", &self.build);
+        string_key(&mut body, "CFBundleVersion", &self.build_number);
         match platform {
             Platform::Ios => {
                 body.push_str("  <key>LSRequiresIPhoneOS</key><true/>\n");
                 body.push_str("  <key>UILaunchScreen</key><dict/>\n");
-                string_key(&mut body, "MinimumOSVersion", &self.min_os);
+                string_key(&mut body, "MinimumOSVersion", &self.min_ios);
                 // A project naming the key itself is left alone: it may want
                 // an order or a set this one window setting cannot say.
                 if !self.plist.contains_key(ORIENTATIONS) {
@@ -491,13 +491,13 @@ mod tests {
             .check(Platform::Ios)
             .expect_err("nothing expands $(TeamIdentifierPrefix) here")
             .to_string();
-        assert!(err.contains("team"), "{err}");
+        assert!(err.contains("team_id"), "{err}");
     }
 
     #[test]
     fn game_center_below_the_version_its_identity_signature_needs_is_refused() {
         let config = config(
-            "[apple]\nbundle_id = \"com.studio.game\"\nmin_os = \"13.0\"\n\
+            "[apple]\nbundle_id = \"com.studio.game\"\nmin_ios = \"13.0\"\n\
              capabilities = [\"game-center\"]\n",
         );
         let err = config
@@ -510,8 +510,8 @@ mod tests {
     #[test]
     fn every_capability_writes_its_own_entitlement() {
         let config = config(
-            "[apple]\nbundle_id = \"com.studio.game\"\nteam = \"AB12CD34EF\"\n\
-             min_os = \"15.0\"\n\
+            "[apple]\nbundle_id = \"com.studio.game\"\nteam_id = \"AB12CD34EF\"\n\
+             min_ios = \"15.0\"\n\
              capabilities = [\"applesignin\", \"game-center\", \"icloud-kv\"]\n",
         );
         config.check(Platform::Ios).expect("a complete table");
@@ -528,7 +528,7 @@ mod tests {
     fn the_plist_carries_the_projects_identifier_and_its_own_keys() {
         let config = config(
             "[apple]\nbundle_id = \"com.studio.game\"\ndisplay_name = \"My Game\"\n\
-             version = \"2.1\"\nbuild = \"7\"\nmin_os = \"15.0\"\n\
+             version = \"2.1\"\nbuild_number = \"7\"\nmin_ios = \"15.0\"\n\
              [apple.plist]\nITSAppUsesNonExemptEncryption = false\n\
              UISupportedInterfaceOrientations = [\"UIInterfaceOrientationLandscapeLeft\"]\n",
         );
@@ -552,7 +552,7 @@ mod tests {
     #[test]
     fn in_app_purchase_writes_no_entitlement_and_still_checks_the_version() {
         let below = config(
-            "[apple]\nbundle_id = \"com.studio.game\"\nmin_os = \"14.0\"\n\
+            "[apple]\nbundle_id = \"com.studio.game\"\nmin_ios = \"14.0\"\n\
              capabilities = [\"in-app-purchase\"]\n",
         );
         let err = below

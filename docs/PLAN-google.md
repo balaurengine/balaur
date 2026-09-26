@@ -152,7 +152,7 @@ than in the build. So the exporter clamps: below the template's floor is an
 error that names the floor, and a game that wants lower rebuilds the template
 against a lower NDK level.
 
-The same trap is already live on Apple, where `[apple] min_os` is free text
+The same trap is already live on Apple, where `[apple] min_ios` is free text
 and the template is built at `IPHONEOS_DEPLOYMENT_TARGET=15.0`. One check
 serves both, and `docs/PLAN-apple.md` should grow the matching line.
 

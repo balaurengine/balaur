@@ -19,11 +19,11 @@ fn core_defines_settings_in_both_scopes() {
     let all = all.borrow();
     let paths: Vec<&str> = all.0.iter().map(|d| d.path.as_str()).collect();
     assert!(paths.contains(&"application/name"));
-    assert!(paths.contains(&"multiplayer/faults"));
+    assert!(paths.contains(&"multiplayer/simulate_faults"));
     let faults = all
         .0
         .iter()
-        .find(|d| d.path == "multiplayer/faults")
+        .find(|d| d.path == "multiplayer/simulate_faults")
         .unwrap();
     assert_eq!(
         faults.scope,
@@ -31,7 +31,7 @@ fn core_defines_settings_in_both_scopes() {
         "fault injection is a developer's tool, not something a game ships"
     );
     assert_eq!(faults.category(), "multiplayer");
-    assert_eq!(faults.label(), "faults");
+    assert_eq!(faults.label(), "simulate_faults");
 }
 
 /// A path nests: `editor/appearance/theme` is `[editor.appearance] theme`.
@@ -60,16 +60,16 @@ fn a_nested_path_reads_and_writes_where_it_says() {
 fn a_setting_falls_back_to_its_schema_default() {
     let app = app();
     assert_eq!(
-        settings::get(&app.engine, "multiplayer/faults"),
+        settings::get(&app.engine, "multiplayer/simulate_faults"),
         Some(toml::Value::Boolean(false))
     );
     settings::set(
         &app.engine,
-        "multiplayer/faults",
+        "multiplayer/simulate_faults",
         toml::Value::Boolean(true),
     );
     assert_eq!(
-        settings::get(&app.engine, "multiplayer/faults"),
+        settings::get(&app.engine, "multiplayer/simulate_faults"),
         Some(toml::Value::Boolean(true))
     );
 }
@@ -126,7 +126,7 @@ fn an_editor_setting_stays_out_of_the_manifest() {
     let app = app();
     settings::set(
         &app.engine,
-        "multiplayer/faults",
+        "multiplayer/simulate_faults",
         toml::Value::Boolean(true),
     );
     let written = settings::to_toml(
@@ -179,10 +179,14 @@ fn the_multiplayer_page_produces_the_faults_it_describes() {
     );
     settings::set(
         &app.engine,
-        "multiplayer/faults",
+        "multiplayer/simulate_faults",
         toml::Value::Boolean(true),
     );
-    settings::set(&app.engine, "multiplayer/delay", toml::Value::Float(9.0));
+    settings::set(
+        &app.engine,
+        "multiplayer/delay_ticks",
+        toml::Value::Float(9.0),
+    );
     let faults = settings::faults(&app.engine).expect("turned on");
     assert_eq!(faults.delay, 9);
 }

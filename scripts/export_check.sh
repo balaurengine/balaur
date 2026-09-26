@@ -40,9 +40,9 @@ if [ "$platform" = ios ]; then
 
 [apple]
 bundle_id = "org.balaur.example"
-team = "AB12CD34EF"
-min_os = "15.0"
-capabilities = ["applesignin", "game-center", "icloud-kv", "in-app-purchase"]
+team_id = "AB12CD34EF"
+min_ios = "15.0"
+capabilities = ["sign-in-with-apple", "game-center", "icloud-kv", "in-app-purchase"]
 
 [apple.plist]
 ITSAppUsesNonExemptEncryption = false

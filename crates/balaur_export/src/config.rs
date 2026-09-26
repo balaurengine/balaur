@@ -52,11 +52,11 @@ pub struct ExportConfig {
     /// Globs an export keeps whatever else it decides, for the paths a
     /// script builds at run time.
     pub keep: Vec<String>,
-    /// `keep`, `webp` or `quantised`: how an image is re-encoded on the way
-    /// into the pack. Every mode keeps the size; `quantised` is the one that
+    /// `keep`, `webp` or `quantized`: how an image is re-encoded on the way
+    /// into the pack. Every mode keeps the size; `quantized` is the one that
     /// does not keep the pixels.
     pub images: crate::recode::ImageMode,
-    /// imagequant's 0-100 quality target, which `images = "quantised"` reads
+    /// imagequant's 0-100 quality target, which `images = "quantized"` reads
     /// and every other mode ignores.
     pub images_quality: u8,
     /// The longest side an image ships at, in pixels; 0 ships every one at
@@ -276,7 +276,7 @@ mod tests {
         std::fs::write(
             dir.path().join("project.toml"),
             "[export]\noutput = \"builds\"\n\n\
-             [override.mobile.export]\nimages = \"quantised\"\n\n\
+             [override.mobile.export]\nimages = \"quantized\"\n\n\
              [window]\norientation = \"portrait\"\n\n\
              [override.desktop.window]\norientation = \"any\"\n",
         )
@@ -285,7 +285,7 @@ mod tests {
         let desktop = ExportConfig::load(dir.path(), Some("linux-x64")).unwrap();
         let phone = ExportConfig::load(dir.path(), Some("android")).unwrap();
         assert_eq!(desktop.images, crate::recode::ImageMode::Keep);
-        assert_eq!(phone.images, crate::recode::ImageMode::Quantised);
+        assert_eq!(phone.images, crate::recode::ImageMode::Quantized);
         assert_eq!(
             phone.output, "builds",
             "what no override touched still lands"

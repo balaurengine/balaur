@@ -132,8 +132,8 @@ Seven rules.
 | Class | Words | Line, in design pixels | Read from |
 | --- | --- | --- | --- |
 | Input | `touch`, `pointer` | `platform.touchscreen`, with `emulate_touch_from_mouse` counting | `Tags::current`; an export for `ios` or `android` carries `touch`, one for the web decides at run time |
-| Width | `narrow`, `medium`, `wide` | `[ui] narrow_below`, default 600; `[ui] wide_from`, default 840 | the layer's surface width over `ui_scale` |
-| Height | `short`, `tall` | `[ui] short_below`, default 480 | the layer's surface height over `ui_scale` |
+| Width | `narrow`, `medium`, `wide` | `[ui] narrow_below_pixels`, default 600; `[ui] wide_from_pixels`, default 840 | the layer's surface width over `ui_scale` |
+| Height | `short`, `tall` | `[ui] short_below_pixels`, default 480 | the layer's surface height over `ui_scale` |
 
 **Fixed words, moved lines.** The words are the engine's, constants in
 `crates/balaur_ui` exposed to scripts as `ui::NARROW` and its siblings through
@@ -256,7 +256,7 @@ decision.
 | --- | --- |
 | Knowing a finger may arrive | Have: `platform.touchscreen`. Planned: the `touch` tag in `Tags::ALL` and `Tags::current`, derived from the fact; `Tags::for_target` carries it for `ios` and `android` |
 | The screen's room | Planned: `ui.width_class()` and `ui.height_class()`, words from `DeviceFacts`, with `ui::NARROW`, `ui::MEDIUM`, `ui::WIDE`, `ui::SHORT`, `ui::TALL` as script constants |
-| The lines | Planned: `[ui] narrow_below`, `wide_from` and `short_below`, defaults 600, 840 and 480, overridable per tag |
+| The lines | Planned: `[ui] narrow_below_pixels`, `wide_from_pixels` and `short_below_pixels`, defaults 600, 840 and 480, overridable per tag |
 | A project's own class words | Not planned: the words are the contract a theme, a scene and an addon share. A fourth line is a script reading `ui.screen_size()` |
 | A game played in the editor | Planned: its class from the layer's rect and its own `[ui]` lines, declared by the editor at play |
 | A widget that changes by class | Have: a table per class word on the `widget` component, any declared key but `kind`, resolved each frame in the declared order |

@@ -94,7 +94,11 @@ pub(crate) fn tick(eng: &Engine, dt: f32) {
         eng.try_resource::<InputConfig>()
             .map_or((0.0, f32::MAX, 0.0), |s| {
                 let s = s.borrow();
-                (s.swipe_pixels, s.long_press_seconds, s.long_press_slop)
+                (
+                    s.swipe_pixels,
+                    s.long_press_seconds,
+                    s.long_press_slop_pixels,
+                )
             });
     let snapshot = snapshot.borrow();
     let mut g = gestures.borrow_mut();

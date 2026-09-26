@@ -573,6 +573,10 @@ A command is a verb, a long flag is kebab-case, and an environment variable spel
 | Negative flag | `--no-<x>`, as `--no-download` | none |
 | Positional argument | what the command acts on; a destination is `--project <DIR>` | Cargo |
 | Environment variable | `BALAUR_` and the settings path in capitals | Cargo |
+| A setting with a unit | the unit last: `timeout_seconds`, `delay_ticks`, `long_press_slop_pixels`, `narrow_below_pixels`, `max_rate_hz`, `min_ccd_seconds` | none |
+| A setting that reads as another type | `[log] to_file`, `[multiplayer] simulate_faults`, `[save] migrate_script`, `[application] script_language`, `[locale] initial`, `[import.audio] force_mono` | none |
+| Store metadata | `[android] display_name`; `[apple] display_name`, `min_ios`, `build_number`, `team_id`, capability `sign-in-with-apple` | Apple, Google |
+| One spelling | US: `quantized`, `color`, `center` | none |
 | Test-only variable | `BALAUR_E2E_*`, `BALAUR_TEST_*` | none |
 | Prebuilt player | `--runtime`, `balaur-runtime-*`, `runtimes/`, `BALAUR_RUNTIMES`, `BALAUR_RUNTIME_TAG` | none |
 | Engine version to install | `update --version` | Cargo |

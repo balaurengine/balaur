@@ -586,7 +586,7 @@ pub(crate) fn build_core_settings(eng: &Engine) {
             r#"
 name = { type = "string", default = "", order = 1, help = "The game's name, used for its window title and its data directory." }
 main_scene = { type = "string", default = "", order = 2, help = "The scene a run opens with." }
-language = { type = "enum", default = "rune", options = ["rune"], order = 3, applies = "restart", help = "Which scripting language this project is written in." }
+script_language = { type = "enum", default = "rune", options = ["rune"], order = 3, applies = "restart", help = "Which scripting language this project is written in." }
 asset_source = { type = "enum", default = "files", options = ["files", "embedded", "embedded_then_files"], order = 4, applies = "restart", help = "Where a shipped game may read its bytes from. Only bites once packed; a dev run always reads the source tree." }
 splash = { type = "string", default = "", order = 5, applies = "restart", help = "A project-relative picture shown over the first frames, on every target. Empty shows none." }
 splash_seconds = { type = "float", default = 1.5, min = 0.0, max = 60.0, order = 6, applies = "restart", help = "How long the splash stays, in seconds of engine time, and the least it stays when a script is reporting a load through `ui.set_load_progress`." }
@@ -604,7 +604,7 @@ ignore = { type = "list", of = { type = "string" }, default = [], order = 7, app
             "settings.save",
             r#"
 version = { type = "int", default = 1, min = 1, max = 9999, help = "The save version this build writes. A lower file is migrated; a higher one is refused." }
-migrate = { type = "string", default = "", help = "A script whose migrate_save(version, data) brings a file forward one version per call." }
+migrate_script = { type = "string", default = "", help = "A script whose migrate_save(version, data) brings a file forward one version per call." }
 "#,
         ),
     );
@@ -615,7 +615,7 @@ migrate = { type = "string", default = "", help = "A script whose migrate_save(v
         &parse(
             "settings.locale",
             r#"
-default = { type = "string", default = "en", help = "The locale a fresh run starts in." }
+initial = { type = "string", default = "en", help = "The locale a fresh run starts in." }
 fallback = { type = "string", default = "en", help = "Where a key missing from the current locale is looked for next." }
 "#,
         ),
@@ -627,9 +627,9 @@ fallback = { type = "string", default = "en", help = "Where a key missing from t
         &parse(
             "settings.multiplayer",
             r#"
-faults = { type = "bool", default = false, order = 1, help = "Put delay, jitter and packet loss on every multiplayer link, to test rollback against a link that misbehaves." }
-delay = { type = "int", default = 9, min = 0, max = 60, order = 2, help = "Ticks every payload waits before delivery. Nine is about 150 ms at 60 Hz." }
-jitter = { type = "int", default = 3, min = 0, max = 30, order = 3, help = "Extra ticks drawn per payload. Jitter is what reorders a stream." }
+simulate_faults = { type = "bool", default = false, order = 1, help = "Put delay, jitter and packet loss on every multiplayer link, to test rollback against a link that misbehaves." }
+delay_ticks = { type = "int", default = 9, min = 0, max = 60, order = 2, help = "Ticks every payload waits before delivery. Nine is about 150 ms at 60 Hz." }
+jitter_ticks = { type = "int", default = 3, min = 0, max = 30, order = 3, help = "Extra ticks drawn per payload. Jitter is what reorders a stream." }
 loss = { type = "float", default = 0.05, min = 0.0, max = 1.0, order = 4, help = "The fraction of datagrams dropped. Datagrams only: losing a reliable payload would break the transport's contract." }
 "#,
         ),
@@ -693,10 +693,10 @@ pixels_per_unit = { type = "float", default = 100.0, min = 0.01, order = 8, appl
         &parse(
             "settings.import.audio",
             r#"
-volume = { type = "float", default = 1.0, min = 0.0, max = 4.0, order = 1, applies = "restart", help = "Every sound's own level, multiplied into each play of it. A file's sidecar sets its own." }
+volume_linear = { type = "float", default = 1.0, min = 0.0, max = 4.0, order = 1, applies = "restart", help = "Every sound's own level, multiplied into each play of it. A file's sidecar sets its own." }
 loop = { type = "bool", default = false, order = 2, applies = "restart", help = "Loop every sound wherever it is played. A music folder usually sets this per file instead." }
-mono = { type = "bool", default = false, order = 3, applies = "restart", help = "Mix every WAV to one channel at export, which halves a stereo file. A sound played from a place in the world is heard mono anyway." }
-max_rate = { type = "int", default = 0, min = 0, max = 192000, order = 4, applies = "restart", help = "The highest sample rate a WAV ships at, in Hz; 0 keeps each file's own. 22050 is plenty for most effects. Set it per target to ship a phone less." }
+force_mono = { type = "bool", default = false, order = 3, applies = "restart", help = "Mix every WAV to one channel at export, which halves a stereo file. A sound played from a place in the world is heard mono anyway." }
+max_rate_hz = { type = "int", default = 0, min = 0, max = 192000, order = 4, applies = "restart", help = "The highest sample rate a WAV ships at, in Hz; 0 keeps each file's own. 22050 is plenty for most effects. Set it per target to ship a phone less." }
 "#,
         ),
     );
@@ -776,9 +776,9 @@ system_fonts = { type = "bool", default = true, applies = "restart", help = "App
 theme = { type = "string", default = "", help = "A project-relative `widget_theme` every widget starts from, as Godot's project theme is. A widget that names its own `theme` still dresses its subtree with that one." }
 scale = { type = "float", default = 1.0, min = 0.25, max = 3.0, help = "How large the game's own UI is drawn, as egui's zoom factor: every control and every font together, on top of the display's own scale. A phone usually wants more than a desktop, which is what `[override.mobile.ui] scale` is for. `ui.set_scale` changes it later." }
 system_text_size = { type = "bool", default = true, applies = "restart", help = "Multiply the scale by the size the reader asked their system for. Off for a game whose layout cannot give text more room." }
-narrow_below = { type = "float", default = 600.0, min = 1.0, max = 8192.0, applies = "restart", help = "Under this many design pixels of width a layout reads `narrow`: one column, one panel at a time. Android's own line between its compact and medium window classes." }
-wide_from = { type = "float", default = 840.0, min = 1.0, max = 8192.0, applies = "restart", help = "From this many design pixels of width a layout reads `wide` and may spread out. Between the two lines it reads `medium`." }
-short_below = { type = "float", default = 480.0, min = 1.0, max = 8192.0, applies = "restart", help = "Under this many design pixels of height a layout reads `short`, which is a phone on its side." }
+narrow_below_pixels = { type = "float", default = 600.0, min = 1.0, max = 8192.0, applies = "restart", help = "Under this many design pixels of width a layout reads `narrow`: one column, one panel at a time. Android's own line between its compact and medium window classes." }
+wide_from_pixels = { type = "float", default = 840.0, min = 1.0, max = 8192.0, applies = "restart", help = "From this many design pixels of width a layout reads `wide` and may spread out. Between the two lines it reads `medium`." }
+short_below_pixels = { type = "float", default = 480.0, min = 1.0, max = 8192.0, applies = "restart", help = "Under this many design pixels of height a layout reads `short`, which is a phone on its side." }
 "#,
         ),
     );
@@ -787,7 +787,7 @@ short_below = { type = "float", default = 480.0, min = 1.0, max = 8192.0, applie
 /// The faults the `multiplayer` settings ask for, or `None` when they are off.
 #[must_use]
 pub fn faults(eng: &Engine) -> Option<crate::transport::Faults> {
-    if !get(eng, "multiplayer/faults")?.as_bool()? {
+    if !get(eng, "multiplayer/simulate_faults")?.as_bool()? {
         return None;
     }
     // `as_f64`, not `as_float`: a tick count is an integer in the file and in
@@ -799,8 +799,8 @@ pub fn faults(eng: &Engine) -> Option<crate::transport::Faults> {
         reason = "a tick count from a bounded setting"
     )]
     Some(crate::transport::Faults {
-        delay: number("multiplayer/delay").unwrap_or(0.0) as u32,
-        jitter: number("multiplayer/jitter").unwrap_or(0.0) as u32,
+        delay: number("multiplayer/delay_ticks").unwrap_or(0.0) as u32,
+        jitter: number("multiplayer/jitter_ticks").unwrap_or(0.0) as u32,
         loss: number("multiplayer/loss").unwrap_or(0.0) as f32,
     })
 }

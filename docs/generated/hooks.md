@@ -15,7 +15,7 @@ ones it wants. What a component announces is listed with the component in
 <tr><td><code>fixed_update(dt)</code></td><td>Every fixed step, with the step&#x27;s length; not while paused.</td></tr>
 <tr><td><code>draw_ui()</code></td><td>Every UI pass, for immediate <code>ui::*</code> calls.</td></tr>
 <tr><td><code>on_free()</code></td><td>Once, as the node is freed or its script detached.</td></tr>
-<tr><td><code>hot_reload()</code></td><td>After the script&#x27;s file changed and it was rebuilt, with its state kept.</td></tr>
+<tr><td><code>on_hot_reload()</code></td><td>After the script&#x27;s file changed and it was rebuilt, with its state kept.</td></tr>
 <tr><td><code>defaults()</code></td><td>When the instance is made, before the scene&#x27;s properties land.</td></tr>
 <tr><td><code>save_state()</code></td><td>When a rollback or a save snapshots the world; answers the state to keep.</td></tr>
 <tr><td><code>load_state(state)</code></td><td>When a rollback or a load puts that state back.</td></tr>
@@ -33,9 +33,26 @@ ones it wants. What a component announces is listed with the component in
 <tr><td><code>on_resize(width, height)</code></td><td>The window changed size, told to every node.</td></tr>
 <tr><td><code>on_variable_changed(name, value)</code></td><td>A scene variable changed, told to every node at the end of the frame.</td></tr>
 <tr><td><code>on_state_changed(was, now)</code></td><td>The node&#x27;s <code>states</code> moved to another state.</td></tr>
-<tr><td><code>on_paused(paused)</code></td><td>The game paused or resumed, told to every script, a paused one too.</td></tr>
-<tr><td><code>on_focus_changed(focused)</code></td><td>The window came to the front or left it, told to every script.</td></tr>
-<tr><td><code>on_dark_mode(dark)</code></td><td>The system switched dark mode, told to every script.</td></tr>
+<tr><td><code>on_paused_changed(paused)</code></td><td>The game paused or resumed, told to every script, a paused one too.</td></tr>
+<tr><td><code>on_focused_changed(focused)</code></td><td>The window came to the front or left it, told to every script.</td></tr>
+<tr><td><code>on_dark_mode_changed(dark)</code></td><td>The system switched dark mode, told to every script.</td></tr>
 <tr><td><code>on_quit_requested()</code></td><td>The window was asked to close; every script hears it, then the app goes.</td></tr>
+</tbody>
+</table>
+
+## Every node
+
+Every node announces these, whatever its components: its own script hears
+`on_<event>(this, payload)`, a scene row answers `emitted:<event>`, and
+`events::listen` hears it at the next pump.
+
+<table>
+<thead><tr><th>event</th><th>payload</th></tr></thead>
+<tbody>
+<tr><td><code>visibility_changed</code></td><td>its own <code>visible</code>, now</td></tr>
+<tr><td><code>child_added</code></td><td>the child</td></tr>
+<tr><td><code>child_removed</code></td><td>the child; freed, it is still readable in this node&#x27;s own hook</td></tr>
+<tr><td><code>renamed</code></td><td>the name it had; <code>name()</code> says the new one</td></tr>
+<tr><td><code>reparented</code></td><td>the parent it left; <code>parent()</code> says the new one</td></tr>
 </tbody>
 </table>

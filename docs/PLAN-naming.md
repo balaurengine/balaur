@@ -40,6 +40,11 @@ with no alias and no migration, as `one way to do a thing` asks.
   linear levels, radians and seconds throughout, `listen` and
   `on_<module>_event`, the `on_<reader>_changed` hooks, and options tables in
   place of positional booleans.
+  Settings keys name their unit (`timeout_seconds`, `delay_ticks`,
+  `narrow_below_pixels`, `max_rate_hz`), read as their type (`to_file`,
+  `simulate_faults`, `migrate_script`, `script_language`, `[locale] initial`,
+  `force_mono`), and match the store's word (`display_name`, `min_ios`,
+  `build_number`, `team_id`, `sign-in-with-apple`, `quantized`).
 - `NAMING.md` has the eight scopes, rules N18 to N23, and the picked names per
   system, from a survey of SDL3, Godot 4, Unity, Blender, GLFW, W3C, rapier and
   glTF on 2026-09-25.
@@ -57,12 +62,7 @@ with no alias and no migration, as `one way to do a thing` asks.
 | `run --record`, `.blr`, `sessions/`, `editor/sessions/*`, the Session panel | "recording": `recordings/`, `editor/recordings/*`, the Recordings panel | four names; `session` is also a Gamend login |
 | `input.toml`, `bindings_path` | `bindings.toml` | |
 | `units/` | `script_cache/` | Rune's word for compiled scripts |
-| keys without units: `http/timeout`, `multiplayer/delay`, `input/long_press_slop`, `ui/narrow_below`, `import/audio/max_rate`, `physics/min_ccd_dt` | `timeout_seconds`, `delay_ticks`, `long_press_slop_pixels`, `narrow_below_pixels`, `max_rate_hz`, `min_ccd_seconds` | the keys that carry a unit (`splash_seconds`, `tick_hz`) show the rule |
 | `keep` as a count, a glob list and an enum value | `keep` is a count only; `include`, `*_recode = "original"` | |
-| `quantised`, `applesignin` beside `game-center` | `quantized`, `sign-in-with-apple` | one spelling, one separator |
-| `android/label`, `apple/display_name`, `apple/min_os`, `apple/build`, `apple/team` | `display_name`, `min_ios`, `build_number`, `team_id` | |
-| `log/file` (a bool), `multiplayer/faults`, `save/migrate`, `application/language`, `locale/default` | `to_file`, `simulate_faults`, `migrate_script`, `script_language`, `initial` | the name reads as another type |
-| audio `mono` | `force_mono` | |
 | `--state` self-tests `*demo`, poses `fontdemo`, separators `:`, `=` and `?` | `test:<name>`, plain nouns for poses, `:` only; an unknown state is an error | one suffix meant two things; e2e translates the names |
 | `--profile`, `--report`, `--app/--ipa/--apk/--aab/--pkg` | `--provisioning-profile`, `--dry-run`, `--bundle <kind>` | Cargo's `-p` already selects a crate |
 | a positional path on `shrink` | `shrink <path>`; `import` and `atlas` keep `--project` | a destination is a flag |

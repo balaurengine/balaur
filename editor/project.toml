@@ -14,6 +14,6 @@ strict = true
 # `layout.rn`'s own floors, not a phone's and a tablet's: what asks
 # `ui::width_class` in here, a plugin's dock among it, gets the shell's answer.
 [ui]
-narrow_below = 532
-wide_from = 712
-short_below = 321
+narrow_below_pixels = 532
+wide_from_pixels = 712
+short_below_pixels = 321
