@@ -120,6 +120,13 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
     context.getters = getters;
     context.setters = setters;
     context.named_accessors = named_accessors;
+    if !context.object_class {
+        context.data_exports = crate::godot::exports::exports(source, classes)
+            .into_iter()
+            .filter(|e| e.kind.is_none() && e.data)
+            .map(|e| e.name)
+            .collect();
+    }
     let documentation: Vec<String> = source
         .lines()
         .take_while(|line| !line.starts_with("func ") && !line.starts_with("static func "))
@@ -854,7 +861,7 @@ fn write_functions(
     if static_init {
         out.push_str(&static_init_guard(&context.static_prefix));
     }
-    if write_default_init(out, functions, scened) {
+    if write_default_init(out, functions, scened, &context.data_exports) {
         seen.push("init".to_string());
     }
     for function in functions {
@@ -973,6 +980,9 @@ fn write_prologue(
     }
     if name == "init" && constructs(functions) {
         out.push_str(init_call(functions));
+    }
+    if name == "init" {
+        out.push_str(&class::data_reads(&context.data_exports));
     }
     // Godot's `set_process` switched the hook off; here it sets a flag,
     // and the hook reads it.

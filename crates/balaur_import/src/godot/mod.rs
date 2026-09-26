@@ -22,6 +22,9 @@ pub(crate) mod anim;
 #[path = "tests/autoload.rs"]
 mod autoload_tests;
 pub(crate) mod controls;
+#[cfg(test)]
+#[path = "tests/data_exports.rs"]
+mod data_export_tests;
 pub(crate) mod exports;
 pub(crate) mod files;
 pub(crate) mod gdscript;
@@ -42,10 +45,10 @@ pub(crate) mod textures;
 pub(crate) mod theme;
 pub(crate) mod tiles;
 pub(crate) mod walk;
-pub(crate) mod world_label;
 #[cfg(test)]
 #[path = "tests/widget_signals.rs"]
 mod widget_signal_tests;
+pub(crate) mod world_label;
 
 use std::collections::BTreeMap;
 

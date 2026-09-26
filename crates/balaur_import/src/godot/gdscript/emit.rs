@@ -69,6 +69,9 @@ pub(crate) struct Context {
     /// Whether the class is a `RefCounted` or a `Resource` rather than a
     /// node: its `new()` is a table, and `self` is that table.
     pub object_class: bool,
+    /// Exports whose values no script prop holds: the scene files them in
+    /// the node's `meta`, and `init` reads them back as Godot's types.
+    pub data_exports: Vec<String>,
     /// Properties with a `get` or a `set`: a read or a write of one outside
     /// its own accessor calls `__get_<name>` or `__set_<name>`.
     pub getters: BTreeSet<String>,

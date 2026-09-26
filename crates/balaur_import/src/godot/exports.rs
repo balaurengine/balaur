@@ -73,6 +73,9 @@ pub(crate) struct Export {
     pub default: String,
     /// The GDScript text of its value, for a kind `exports()` cannot hold.
     pub value: Option<String>,
+    /// A value type no prop holds, a `Rect2`, a `Dictionary` or an `Array` of
+    /// them: the scene files it in the node's `meta` for `init` to read.
+    pub data: bool,
 }
 
 impl Export {
@@ -230,14 +233,108 @@ fn parse(line: &str, classes: &Classes, aliases: &BTreeMap<String, String>) -> O
         (Some(kind), None) => zero(kind).to_string(),
         (None, _) => String::new(),
     };
+    let data = kind.is_none() && (is_data_hint(&hint) || value.is_some_and(is_data_value));
     Some(Export {
         name,
         hint,
         kind,
         default,
         value: value.map(str::to_string),
+        data,
     })
 }
+
+/// Whether a GDScript type is plain data a scene can write out: the value
+/// types no prop has, and the collections of them.
+fn is_data_hint(hint: &str) -> bool {
+    matches!(
+        hint,
+        "Rect2" | "Rect2i" | "Dictionary" | "Array" | "Transform2D"
+    ) || hint.starts_with("Array[")
+        || hint.starts_with("Dictionary[")
+        || hint.starts_with("Packed")
+}
+
+/// Whether an untyped export's default says it is plain data: `:= Rect2()`,
+/// `:= {}` or `:= []`.
+fn is_data_value(value: &str) -> bool {
+    let value = value.trim();
+    [
+        "Rect2(",
+        "Rect2i(",
+        "Transform2D(",
+        "Packed",
+        "Array",
+        "Dictionary",
+        "{",
+        "[",
+    ]
+    .iter()
+    .any(|start| value.starts_with(start))
+}
+
+/// A Godot value as TOML the shim's `export_value` turns back into it: plain
+/// values as they are, a vector, a rectangle or a colour tagged with its
+/// type, since TOML would read one as a list of numbers. `None` for what no
+/// scene can file, a resource or an object.
+pub(crate) fn tagged(value: &Value) -> Option<Toml> {
+    let tag = |ty: &str, numbers: Vec<Toml>| {
+        let mut table = toml::Table::new();
+        table.insert(GODOT_TAG.into(), Toml::String(ty.into()));
+        table.insert("v".into(), Toml::Array(numbers));
+        Toml::Table(table)
+    };
+    let floats = |args: &[Value]| -> Option<Vec<Toml>> {
+        args.iter().map(|a| a.as_f64().map(Toml::Float)).collect()
+    };
+    Some(match value {
+        Value::Null => tag("Nil", Vec::new()),
+        Value::Bool(b) => Toml::Boolean(*b),
+        Value::Int(i) => Toml::Integer(*i),
+        Value::Float(f) => Toml::Float(*f),
+        Value::Str(text) | Value::Name(text) => Toml::String(text.clone()),
+        Value::Array(items) => Toml::Array(items.iter().map(tagged).collect::<Option<_>>()?),
+        Value::Dict(pairs) => {
+            let mut table = toml::Table::new();
+            for (key, item) in pairs {
+                let key = match key {
+                    Value::Str(k) | Value::Name(k) => k.clone(),
+                    Value::Int(i) => i.to_string(),
+                    _ => return None,
+                };
+                table.insert(key, tagged(item)?);
+            }
+            Toml::Table(table)
+        }
+        Value::Call { name, args } => match name.as_str() {
+            "Vector2" | "Vector2i" => tag("Vector2", floats(args)?),
+            "Vector3" | "Vector3i" => tag("Vector3", floats(args)?),
+            "Rect2" | "Rect2i" => tag("Rect2", floats(args)?),
+            "Color" => tag("Color", floats(args)?),
+            "PackedVector2Array" => {
+                let flat = floats(args)?;
+                tag(
+                    "Vector2Array",
+                    flat.chunks(2).map(|p| Toml::Array(p.to_vec())).collect(),
+                )
+            }
+            "PackedFloat32Array" | "PackedFloat64Array" | "PackedInt32Array"
+            | "PackedInt64Array" | "PackedStringArray" | "PackedByteArray" => {
+                Toml::Array(args.iter().map(tagged).collect::<Option<_>>()?)
+            }
+            "NodePath" | "StringName" => tagged(args.first()?)?,
+            // `Array[Dictionary]([...])`: a typed array's one argument.
+            typed if typed.starts_with("Array") || typed.starts_with("Dictionary") => {
+                tagged(args.first()?)?
+            }
+            _ => return None,
+        },
+        Value::Object { .. } => return None,
+    })
+}
+
+/// The key a tagged value names its Godot type under.
+pub(crate) const GODOT_TAG: &str = "__godot";
 
 /// Whether a resource path names a GDScript file.
 pub(crate) fn is_script(path: &str) -> bool {

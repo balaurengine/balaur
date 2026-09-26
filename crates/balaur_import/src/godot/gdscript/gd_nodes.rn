@@ -175,6 +175,70 @@ pub fn set_meta(node, key, value) {
     script::store(slot, if kept { () } else { value });
 }
 
+/// Godot's value for an export the scene filed in the node's `meta`, or
+/// `fallback` where the scene set none.
+pub fn export_value(node, name, fallback) {
+    if !(node is balaur::Node) || !node.has_component(META) {
+        return fallback;
+    }
+    let filed = get(get(node.get_component(META), EXPORTS_META, #{}), name, ());
+    if is_nil(filed) {
+        return fallback;
+    }
+    godot_value(filed)
+}
+
+const EXPORTS_META = "__exports";
+const META = "meta";
+const GODOT_TAG = "__godot";
+
+/// A filed value back as Godot's: a tagged vector, rectangle or colour as
+/// that type, and a list or a table with every value inside it turned back.
+fn godot_value(value) {
+    if value is Vec {
+        let out = [];
+        for item in value {
+            out.push(godot_value(item));
+        }
+        return out;
+    }
+    if !(value is Object) {
+        return value;
+    }
+    if value.contains_key(GODOT_TAG) {
+        return tagged_value(value[GODOT_TAG], get(value, "v", []));
+    }
+    let out = #{};
+    for (key, item) in value {
+        out[key] = godot_value(item);
+    }
+    out
+}
+
+fn tagged_value(tag, v) {
+    if tag == "Vector2" {
+        return vec2(float(v[0]), float(v[1]));
+    }
+    if tag == "Vector3" {
+        return vec3(float(v[0]), float(v[1]), float(v[2]));
+    }
+    if tag == "Rect2" {
+        return rect(v[0], v[1], v[2], v[3]);
+    }
+    if tag == "Color" {
+        let alpha = if v.len() > 3 { v[3] } else { 1.0 };
+        return color(v[0], v[1], v[2], alpha);
+    }
+    if tag == "Vector2Array" {
+        let out = [];
+        for p in v {
+            out.push(vec2(float(p[0]), float(p[1])));
+        }
+        return out;
+    }
+    return ();
+}
+
 pub fn get_meta(node, key, fallback) {
     let held = script::stored(`meta:${node.stable_id()}:${key}`);
     if !is_nil(held) {

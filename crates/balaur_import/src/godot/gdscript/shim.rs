@@ -801,4 +801,64 @@ mod tests {
             "the probe hid itself only if the part kept its own position and scale"
         );
     }
+
+    /// An export the scene filed in `meta` comes back as Godot's types: a
+    /// rectangle with its methods, and a vector inside a dictionary.
+    #[test]
+    fn a_filed_export_reads_back_as_godot_values() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            &[
+                "[[nodes]]",
+                "id = \"probe\"",
+                "name = \"Probe\"",
+                "script = { source = \"probe.rn\" }",
+                "",
+                "[nodes.meta.__exports]",
+                "bounds = { __godot = \"Rect2\", v = [16.0, 13.0, 166.0, 115.0] }",
+                "cities = [{ id = \"b\", pos = { __godot = \"Vector2\", v = [120.0, 88.0] } }]",
+                "",
+            ]
+            .join("\n"),
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let bounds = (gd.export_value)(this.node, \"bounds\", ());",
+                "    let cities = (gd.export_value)(this.node, \"cities\", []);",
+                "    let unset = (gd.export_value)(this.node, \"regions\", 7);",
+                "    let centre = (gd.invoke)(bounds, \"get_center\");",
+                "    let pos = (gd.get)(cities[0], \"pos\", ());",
+                "    if centre.x == 99.0 && pos.y == 88.0 && unset == 7 {",
+                "        this.node.set_visible(false);",
+                "    }",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert!(
+            !world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .visible,
+            "the probe hid itself only if the filed rect, vector and fallback read back"
+        );
+    }
 }

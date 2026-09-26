@@ -62,6 +62,21 @@ enum Slot {
     Override { instance: usize, path: String },
 }
 
+/// Exports no prop holds, filed in the node's `meta` under `EXPORTS_META`
+/// beside whatever metadata the scene gave it.
+fn file_data(table: &mut toml::Table, data: toml::Table) {
+    let meta = table
+        .entry("meta")
+        .or_insert_with(|| Toml::Table(toml::Table::new()));
+    if let Toml::Table(meta) = meta {
+        meta.insert(EXPORTS_META.into(), Toml::Table(data));
+    }
+}
+
+/// The `meta` key a node's data exports are filed under, which the shim's
+/// `export_value` reads.
+pub(crate) const EXPORTS_META: &str = "__exports";
+
 /// Godot signals of its own classes that nothing here emits; a row answering
 /// one waits on a script that does.
 const UNSENT: &[&str] = &[
@@ -421,7 +436,7 @@ impl Walk<'_> {
                 .push(format!("`{path}`: an inline script is not converted"));
             return;
         };
-        let props = self.script_props(section, path, &godot);
+        let (props, data) = self.script_props(section, path, &godot);
         let mut script = toml::Table::new();
         script.insert("source".into(), Toml::String(script_path(&godot)));
         if !props.is_empty() {
@@ -442,6 +457,9 @@ impl Walk<'_> {
         };
         if let Some(table) = table {
             table.insert("script".into(), Toml::Table(script));
+            if !data.is_empty() {
+                file_data(table, data);
+            }
         }
     }
 
@@ -451,7 +469,12 @@ impl Walk<'_> {
         let Some(godot) = godot.filter(|_| section.field("script").is_none()) else {
             return;
         };
-        let props = self.script_props(section, path, &godot);
+        let (props, data) = self.script_props(section, path, &godot);
+        if !data.is_empty() {
+            self.notes.push(format!(
+                "`{path}`: the data exports an instance line sets are dropped"
+            ));
+        }
         if props.is_empty() {
             return;
         }
@@ -463,10 +486,16 @@ impl Walk<'_> {
     }
 
     /// The values `section` gives the exports of the Godot script `godot`.
-    fn script_props(&mut self, section: &Section, path: &str, godot: &str) -> toml::Table {
+    fn script_props(
+        &mut self,
+        section: &Section,
+        path: &str,
+        godot: &str,
+    ) -> (toml::Table, toml::Table) {
         let source = crate::godot::io::text(&self.res.root.join(godot)).unwrap_or_default();
         let exports = crate::godot::exports::exports(&source, &self.res.project.classes);
         let mut props = toml::Table::new();
+        let mut data = toml::Table::new();
         let res = &self.res;
         let path_of = |v: &Value| res.path(v).map(scene_path);
         for (key, value) in &section.fields {
@@ -474,10 +503,15 @@ impl Walk<'_> {
                 continue;
             };
             let Some(kind) = export.kind else {
-                self.notes.push(format!(
-                    "`{path}`: export `{key}` is a {}, which a scene prop cannot hold; dropped",
-                    export.hint
-                ));
+                match crate::godot::exports::tagged(value).filter(|_| export.data) {
+                    Some(value) => {
+                        data.insert(key.clone(), value);
+                    }
+                    None => self.notes.push(format!(
+                        "`{path}`: export `{key}` is a {}, which a scene prop cannot hold; dropped",
+                        export.hint
+                    )),
+                }
                 continue;
             };
             match crate::godot::exports::scene_value(kind, value, &path_of) {
@@ -490,7 +524,7 @@ impl Walk<'_> {
                 )),
             }
         }
-        props
+        (props, data)
     }
 
     /// A signal connection as the handler key a widget names, or a binding

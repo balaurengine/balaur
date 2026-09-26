@@ -8,10 +8,17 @@ use super::{Classes, Function, gdscript, safe, shim_binding};
 /// The `init` hook a class with no `_ready` still needs, when it has
 /// defaults to set or a `_init` to run: nothing else would call them, and a
 /// member read before its default is set is an error at run time.
-pub(super) fn write_default_init(out: &mut String, functions: &[Function], scened: bool) -> bool {
+pub(super) fn write_default_init(
+    out: &mut String,
+    functions: &[Function],
+    scened: bool,
+    data: &[String],
+) -> bool {
     // The plain members are the engine's to set; what is left for `init` is
-    // the half that waits for the scene, and a Godot `_init`.
-    if !(scened || constructs(functions)) || functions.iter().any(|f| f.name == "_ready") {
+    // the half that waits for the scene, a Godot `_init`, and the exports
+    // the scene filed in `meta`.
+    let needed = scened || constructs(functions) || !data.is_empty();
+    if !needed || functions.iter().any(|f| f.name == "_ready") {
         return false;
     }
     let set = if scened {
@@ -24,8 +31,24 @@ pub(super) fn write_default_init(out: &mut String, functions: &[Function], scene
     } else {
         ""
     };
-    let _ = write!(out, "\npub fn init(this) {{\n{set}{init}}}\n");
+    let reads = data_reads(data);
+    let _ = write!(out, "\npub fn init(this) {{\n{set}{init}{reads}}}\n");
     true
+}
+
+/// `init`'s reads of the exports the scene filed in the node's `meta`, each
+/// back as the Godot value it was, or the member's default where the scene
+/// set none.
+pub(super) fn data_reads(data: &[String]) -> String {
+    let mut out = String::new();
+    for name in data {
+        let field = safe(name);
+        let _ = writeln!(
+            out,
+            "    this.{field} = (script::require(\"gd.rn\").export_value)(this.node, \"{name}\", this.{field});"
+        );
+    }
+    out
 }
 
 /// Whether the class has a `_init` taking nothing, which Godot ran when the
