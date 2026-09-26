@@ -61,19 +61,19 @@ pub fn load_files(S) {
     if S.game_root != "" {
         let manifest = fs::read(S.game_root + "/project.toml");
         if manifest is String {
-            settings::load(manifest);
+            settings::merge_toml(manifest);
         }
     }
     let prefs = fs::read(prefs_path());
     if prefs is String {
-        settings::load(prefs);
+        settings::merge_toml(prefs);
     }
     apply(S);
 }
 
 // The editor's own settings are the person's, in the folder every project shares.
 pub fn prefs_path() {
-    project::editor_data_dir() + "/editor.toml"
+    project::editor_data_directory() + "/editor.toml"
 }
 
 // Categories in definition order, project first: a game author looks for what

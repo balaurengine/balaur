@@ -13,7 +13,7 @@ pub fn screen_size() {
 /// `OS.has_feature(name)`. The engine reports where it runs as a table, not
 /// as Godot's flat list of feature tags.
 pub fn has_feature(name) {
-    let here = engine::platform();
+    let here = engine::target();
     if name == "editor" {
         return here.editor;
     }
@@ -30,7 +30,7 @@ pub fn has_feature(name) {
 }
 
 pub fn os_name() {
-    return engine::platform().os;
+    return engine::target().os;
 }
 
 /// Godot's `ConfigFile`: sections of keys, read from and written to a `save`
@@ -418,7 +418,7 @@ pub fn project_path(path) {
         return path[6..];
     }
     if path.starts_with("user://") {
-        return engine::user_data_dir() + "/" + path[7..];
+        return engine::user_data_directory() + "/" + path[7..];
     }
     path
 }
@@ -435,10 +435,10 @@ pub fn button_group() {
 /// seeded generator, which is what keeps a replay the same.
 pub fn random_numbers() {
     #{
-        "randf": || rng::random(),
-        "randf_range": |low, high| rng::range(float(low), float(high)),
-        "randi": || rng::int(0, 2147483647),
-        "randi_range": |low, high| rng::int(low, high),
+        "randf": || random::float(),
+        "randf_range": |low, high| random::range(float(low), float(high)),
+        "randi": || random::int(0, 2147483647),
+        "randi_range": |low, high| random::int(low, high),
         "randomize": || (),
     }
 }
@@ -800,7 +800,7 @@ fn window_pixels() {
 /// subscribe to, and saying so beats an error inside the engine.
 pub fn listen(node, name, from, handler) {
     if from is balaur::Node {
-        events::subscribe(node, name, from);
+        events::listen(node, name, from);
         return ();
     }
     if from is Object && !is_nil(handler) {
@@ -961,7 +961,7 @@ pub fn emit_obj(owner, name, args) {
 
 pub fn unlisten(node, name, from) {
     if from is balaur::Node {
-        events::unsubscribe(node, name, from);
+        events::stop_listening(node, name, from);
     }
 }
 
@@ -990,7 +990,7 @@ fn node_property(node, name) {
         "global_position" => global_position_of(node),
         "scale" => vec_of(node.transform.scale),
         "rotation" => rotation_of(node),
-        "rotation_degrees" => math::deg(rotation_of(node)),
+        "rotation_degrees" => math::to_degrees(rotation_of(node)),
         "size" if node.stable_id() == scene::root().stable_id() => window_pixels(),
         "size" => size_of(node),
         "visible" => node.visible(),
@@ -1133,7 +1133,7 @@ fn set_node_property(node, name, value) {
     } else if name == "rotation" {
         set_rotation(node, value);
     } else if name == "rotation_degrees" {
-        set_rotation(node, math::rad(value));
+        set_rotation(node, math::to_radians(value));
     } else if name == "visible" {
         node.set_visible(value);
     } else if name == "modulate" || name == "self_modulate" {
@@ -1532,7 +1532,7 @@ fn node_method(node, name, args) {
         return node.get_node(a0);
     }
     if name == "is_visible_in_tree" {
-        return node.global_visible();
+        return node.visible_in_tree();
     }
     if name == "is_inside_tree" {
         return inside_tree(node);
@@ -1917,12 +1917,12 @@ fn array_method(list, name, args) {
         if list.len() == 0 {
             return ();
         }
-        return list[rng::int(0, list.len() as i64 - 1)];
+        return list[random::int(0, list.len() as i64 - 1)];
     }
     if name == "shuffle" {
         let at = list.len() as i64 - 1;
         while at > 0 {
-            let other = rng::int(0, at);
+            let other = random::int(0, at);
             let held = list[at];
             list[at] = list[other];
             list[other] = held;

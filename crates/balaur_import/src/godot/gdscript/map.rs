@@ -259,7 +259,7 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
         ("Engine", "is_debug_build") => "false".into(),
         ("Engine", "has_singleton") => "engine::has_plugin({one})".replace("{one}", &one),
         ("OS", "get_unique_id") => "engine::device_id()".into(),
-        ("OS", "is_debug_build") => "engine::platform().dev".into(),
+        ("OS", "is_debug_build") => "engine::target().dev".into(),
         // A button group is the widget's `group` name here.
         ("ButtonGroup" | "FoldableGroup", "new") => "(gd.button_group)()".into(),
         ("RandomNumberGenerator", "new") => "(gd.random_numbers)()".into(),
@@ -277,7 +277,7 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
         ("OS", "has_feature") => format!("(gd.has_feature)({one})"),
         ("OS" | "DisplayServer", "get_name") => "(gd.os_name)()".into(),
         ("DisplayServer", "window_get_size" | "screen_get_size") => "(gd.screen_size)()".into(),
-        ("OS", "get_user_data_dir") => "engine::user_data_dir()".into(),
+        ("OS", "get_user_data_dir") => "engine::user_data_directory()".into(),
         ("OS", "shell_open") => format!("engine::open_url({one})"),
         ("OS", "get_locale" | "get_locale_language") => "strings::locale()".into(),
         ("ConfigFile", "new") => "(gd.config)()".into(),
@@ -300,7 +300,9 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
         ("RectangleShape2D", "new") => "(gd.rect_shape)()".into(),
         ("FileAccess", "open") => format!("(gd.file_open)({all})"),
         ("FileAccess", "get_open_error") => "(gd.file_error)()".into(),
-        ("FileAccess", "get_modified_time") => format!("fs::mtime((gd.project_path)({one}))"),
+        ("FileAccess", "get_modified_time") => {
+            format!("fs::modified_time((gd.project_path)({one}))")
+        }
         ("FileAccess", "get_file_as_string") => {
             format!("(gd.or_text)(fs::read((gd.project_path)({one})))")
         }
@@ -314,7 +316,7 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
             format!("fs::exists({one})")
         }
         ("DirAccess", "make_dir_recursive_absolute" | "make_dir_absolute") => {
-            format!("fs::mkdir({one})")
+            format!("fs::create_directory({one})")
         }
         ("TranslationServer", "translate") => format!("strings::tr({one})"),
         ("TranslationServer", "get_locale") => "strings::locale()".into(),
@@ -378,18 +380,18 @@ fn service_call(class: &str, name: &str, args: &[String]) -> Option<String> {
         // Every bus is the master bus here, as `get_bus_index` says.
         ("AudioServer", "set_bus_volume_db") if args.len() == 2 => {
             format!(
-                "audio::set_bus_volume(\"master\", (gd.db_to_linear)({}))",
+                "audio::set_bus_volume_linear(\"master\", (gd.db_to_linear)({}))",
                 args[1]
             )
         }
         ("AudioServer", "get_bus_volume_db") => {
-            "(gd.linear_to_db)(audio::bus_volume(\"master\"))".into()
+            "(gd.linear_to_db)(audio::bus_volume_linear(\"master\"))".into()
         }
         ("AudioServer", "set_bus_mute") if args.len() == 2 => format!(
-            "audio::set_bus_volume(\"master\", if {} {{ 0.0 }} else {{ 1.0 }})",
+            "audio::set_bus_volume_linear(\"master\", if {} {{ 0.0 }} else {{ 1.0 }})",
             args[1]
         ),
-        ("AudioServer", "is_bus_mute") => "(audio::bus_volume(\"master\") <= 0.0)".into(),
+        ("AudioServer", "is_bus_mute") => "(audio::bus_volume_linear(\"master\") <= 0.0)".into(),
         ("Geometry2D", "is_point_in_polygon") if args.len() == 2 => {
             format!("geometry2d::contains({}, {})", args[1], args[0])
         }
@@ -561,7 +563,7 @@ pub(crate) fn constant(name: &str) -> Option<String> {
     Some(match name {
         "PI" => "math::PI".into(),
         "TAU" => "math::TAU".into(),
-        "INF" => "math::INF".into(),
+        "INF" => "math::INFINITY".into(),
         "NAN" => "(gd.nan)()".into(),
         _ => return None,
     })
@@ -659,7 +661,7 @@ pub(crate) fn property(receiver: &str, field: &str) -> Option<String> {
         "modulate" | "self_modulate" => format!("{receiver}.tint()"),
         "z_index" => format!("{receiver}.z_index()"),
         "name" => format!("{receiver}.name()"),
-        "rotation_degrees" => format!("math::deg((gd.rotation_of)({receiver}))"),
+        "rotation_degrees" => format!("math::to_degrees((gd.rotation_of)({receiver}))"),
         "custom_minimum_size" => format!("(gd.min_size)({receiver})"),
         "size" => format!("(gd.size_of)({receiver})"),
         "theme" => format!("(gd.theme_of)({receiver})"),
@@ -802,7 +804,7 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
         "modulate" | "self_modulate" => format!("(gd.set_tint)({receiver}, {value})"),
         "z_index" => format!("{receiver}.set_z_index({value})"),
         "name" => format!("{receiver}.set_name({value})"),
-        "rotation_degrees" => format!("(gd.set_rotation)({receiver}, math::rad({value}))"),
+        "rotation_degrees" => format!("(gd.set_rotation)({receiver}, math::to_radians({value}))"),
         "rotation" => format!("(gd.set_rotation)({receiver}, {value})"),
         "custom_minimum_size" => format!("(gd.set_min_size)({receiver}, {value})"),
         // A control's own size is the widget panel's width and height here.
@@ -1003,7 +1005,7 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         "hide" | "show" => format!("{receiver}.set_visible({})", name == "show"),
         "set_visible" => format!("{receiver}.set_visible({one})"),
         "is_visible" => format!("{receiver}.visible()"),
-        "is_visible_in_tree" => format!("{receiver}.global_visible()"),
+        "is_visible_in_tree" => format!("{receiver}.visible_in_tree()"),
         "get_instance_id" => format!("{receiver}.stable_id()"),
         "is_in_group" => format!("{receiver}.has_tag({one})"),
         "add_to_group" => format!("{receiver}.add_tag({one})"),
@@ -1127,7 +1129,7 @@ pub(crate) fn signal_verb(signal: &str, verb: &str, args: &[String]) -> Option<S
         // event goes out too, for a scene's rows and the engine's listeners.
         "emit" => format!("(gd.emit_now)(this.node, {name}, [{}])", args.join(", ")),
         "connect" if !args.is_empty() => format!("(gd.connect)(this.node, {name}, {})", args[0]),
-        "connect" => format!("events::subscribe(this.node, {name}, this.node)"),
+        "connect" => format!("events::listen(this.node, {name}, this.node)"),
         "disconnect" => format!("(gd.disconnect)(this.node, {name})"),
         "is_connected" => format!("(gd.is_connected)(this.node, {name})"),
         "get_connections" => format!("/* connections of {} */ []", safe(signal)),

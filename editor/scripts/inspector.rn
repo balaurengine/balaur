@@ -154,12 +154,12 @@ pub fn form_row(S, label, controls) {
 /// component, the scene file and a script all hold what the schema declares,
 /// and `min`, `max` and `step` are written in the unit shown.
 fn shown_as(spec, v) {
-    if spec.get("unit").unwrap_or("") == "degrees" { math::deg(v) } else { v }
+    if spec.get("unit").unwrap_or("") == "degrees" { math::to_degrees(v) } else { v }
 }
 
 /// The inverse of `shown_as`, for the value a row writes back.
 fn stored_as(spec, v) {
-    if spec.get("unit").unwrap_or("") == "degrees" { math::rad(v) } else { v }
+    if spec.get("unit").unwrap_or("") == "degrees" { math::to_radians(v) } else { v }
 }
 
 /// A property's full label, and what its schema says it is under it.

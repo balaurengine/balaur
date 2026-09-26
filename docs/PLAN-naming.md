@@ -35,40 +35,17 @@ with no alias and no migration, as `one way to do a thing` asks.
   `direction` with `spread_degrees`, and one `icon` font chain, `icon-` files,
   and the widget's `image`, `sheet` and `language`, with `enabled` and
   `interactive` on unless turned off, and every node reference typed `node`,
-  with a leading `/` starting from the root.
+  with a leading `/` starting from the root. The script API is done too: the
+  names `NAMING.md` lists under engine, files and scripts, audio's cues and
+  linear levels, radians and seconds throughout, `listen` and
+  `on_<module>_event`, the `on_<reader>_changed` hooks, and options tables in
+  place of positional booleans.
 - `NAMING.md` has the eight scopes, rules N18 to N23, and the picked names per
   system, from a survey of SDL3, Godot 4, Unity, Blender, GLFW, W3C, rapier and
   glTF on 2026-09-25.
 - What follows is left. Line numbers in the findings are from that day's tree.
 
-## 1. Script API
-
-| Now | New | Why |
-| --- | --- | --- |
-| `node.global_tint`, `global_visible`, `global_material`, `global_z_index` | `tint_in_tree`, `visible_in_tree`, `material_in_tree`, `z_index_in_tree` | `global_` means world space on `global_position`; Godot says `is_visible_in_tree` |
-| `debugger.paused()` (a location) | `stop_location` | `engine.paused()` is a bool |
-| `export.running()`, `import.running()` (counts) | `running_count` | |
-| `multiplayer.settled()`, `replay.diverged()` (ticks) | `settled_tick`, `divergence_tick` | |
-| `engine.profile_scripts(on)`, `physics.ragdoll_blend(node, f)`, `node.go(state)` | `set_script_profiling`, `set_ragdoll_influence`, `set_state` | setters named as readers; Godot's `influence` |
-| `engine.platform()` | `engine.target()` | `platform.*` is store services (N1) |
-| `render.draw_arc_2d` in degrees | radians | every other angle is radians |
-| `input.vibrate(milliseconds)` | seconds | every other duration is seconds |
-| `audio.events`, `play_event` | `cues`, `play_cue` | `events` is the signal module |
-| `render.channel`, `set_channel` | `debug_view`, `set_debug_view` | `release.channels` are release lines |
-| the `terrain` directory | `heightfields/`, `voxels/` | `render.terrain` is the autotile set |
-| `settings.load(text)` | `merge_toml`, pairing `to_toml` | `load` takes a path in the glossary |
-| `dir`, `directory`, `folder`; `fs.mkdir`, `mtime` | `directory` everywhere; `create_directory`, `modified_time` | three words for one thing; D4 |
-| option keys `dir`, `max` outside `ui::*` | `direction`, `max_distance` | D4; the `ui::*` keys are done |
-| `listen`, `watch`, `subscribe` | `listen` | one verb for "call my node when" |
-| handler names `on_apple`, `on_platform`, `on_web_message`, `on_*_event` | `on_<module>_event`, key `on_event` | seven shapes today |
-| `on_paused`, `on_focus_changed`, `on_dark_mode` | `on_paused_changed`, `on_focused_changed`, `on_dark_mode_changed` | `on_<reader>_changed` |
-| `hot_reload` | `on_hot_reload` | bare means the engine asks, `on_` means it tells |
-| collision `collision_start`, `collision_stop` | `collision_enter`, `collision_exit` | beside `pointer_enter`, `pointer_exit` |
-| bindings `spawn`, `state`, `sound` | `instantiate`, `go`, `play_sound` | the glossary's `spawn` is one empty node |
-| `math.deg`, `rad`, `INF`; module `rng` | `to_degrees`, `to_radians`, `INFINITY`; `random` | D4 |
-| positional booleans (`set_z_index(z, relative)`, `release.install(.., allow_downgrade)`) | option table keys | N9 |
-
-## 2. Settings, the CLI and files on disk
+## 1. Settings, the CLI and files on disk
 
 | Now | New | Why |
 | --- | --- | --- |
@@ -91,7 +68,7 @@ with no alias and no migration, as `one way to do a thing` asks.
 | a positional path on `shrink` | `shrink <path>`; `import` and `atlas` keep `--project` | a destination is a flag |
 | `editor/library/manifest.toml` | `catalog.toml` | `manifest` means `project.toml` |
 
-## 3. The editor's words
+## 2. The editor's words
 
 One glossary, and every string follows it. Casing is sentence case, a button
 is a verb, and capitals in headings come from the theme.
@@ -130,7 +107,7 @@ is a verb, and capitals in headings come from the theme.
 - **US spelling** in the UI: `color`, `center`, `minimize`, as the API spells
   them.
 
-## 4. Crates, features and the Rust facade
+## 3. Crates, features and the Rust facade
 
 | Now | New | Why |
 | --- | --- | --- |
@@ -157,11 +134,9 @@ These are defects, not names, and each is fixed on its own:
 ## Steps
 
 1. The bugs above, each with its test.
-2. The script API (section 1), with `docs/generated` and the website's
-   reference.
-3. Settings, the CLI and disk (section 2).
-4. The editor's words (section 3), with the manual.
-5. Crates and the facade (section 4).
-6. A lint for each of N18, N19, N21 and N22 where one can be written: tokens
+2. Settings, the CLI and disk (section 1).
+3. The editor's words (section 2), with the manual.
+4. Crates and the facade (section 3).
+5. A lint for each of N18, N19, N21 and N22 where one can be written: tokens
    from the theme files, units from the settings registry, hooks from the hook
    list.

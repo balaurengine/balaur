@@ -376,7 +376,8 @@ fn node_keys(section: &Section, out: &mut Mapped) {
         out.keys.insert("z_index".into(), Toml::Integer(z));
     }
     if section.field("z_as_relative") == Some(&Value::Bool(false)) {
-        out.keys.insert("z_relative".into(), Toml::Boolean(false));
+        out.keys
+            .insert("z_as_relative".into(), Toml::Boolean(false));
     }
     metadata(section, out);
 }
@@ -992,12 +993,12 @@ fn sound(class: &str, section: &Section, res: &Resources<'_>, out: &mut Mapped) 
     if let Some(db) = section.field("volume_db").and_then(Value::as_f64) {
         out.set(
             "sound",
-            "volume",
+            "volume_linear",
             Toml::Float(balaur_core::libm::pow(10.0, db / 20.0)),
         );
     }
     if let Some(pitch) = section.field("pitch_scale").and_then(Value::as_f64) {
-        out.set("sound", "pitch", Toml::Float(pitch));
+        out.set("sound", "pitch_scale", Toml::Float(pitch));
     }
     if let Some(bus) = section.field("bus").and_then(Value::as_str) {
         out.set("sound", "bus", Toml::String(bus.to_string()));

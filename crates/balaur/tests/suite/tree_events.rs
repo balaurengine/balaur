@@ -43,8 +43,8 @@ pub fn update(this, dt) {
     let stage = scene::variable("stage");
     if stage == 0 {
         let kid = this.node.add_child("Kid");
-        events::subscribe(this.node, "renamed", kid);
-        events::subscribe(this.node, "reparented", kid);
+        events::listen(this.node, "renamed", kid);
+        events::listen(this.node, "reparented", kid);
         kid.set_name("Renamed");
         kid.set_parent(this.node.get_node("Other"));
     }

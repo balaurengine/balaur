@@ -73,7 +73,7 @@ fn install(S, rel) {
         ""
     };
     if dir != "" {
-        fs::mkdir(S.game_root + "/" + dir);
+        fs::create_directory(S.game_root + "/" + dir);
     }
     let target = free_name(S, rel);
     fs::copy(from, S.game_root + "/" + target);
@@ -101,7 +101,7 @@ fn install_tree(S, rel) {
 
 /// Every file under `from`, into `to`, directories included.
 fn copy_tree(from, to) {
-    fs::mkdir(to);
+    fs::create_directory(to);
     for f in util::vec(fs::list(from)) {
         if f.is_dir {
             copy_tree(from + "/" + f.name, to + "/" + f.name);

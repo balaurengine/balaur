@@ -200,7 +200,7 @@ render::draw_capsule(2.0, 0.0, 0.0, 0.25, 1.0, [0.0, 0.0, 1.0]);
 render::draw_polygon_2d([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]], [1.0, 1.0, 0.0, 1.0]);
 render::draw_circle_2d(0.0, 0.0, 1.0, [1.0, 0.0, 0.0]);
 render::draw_rect_2d(0.5, 0.5, 2.0, 1.0);
-render::draw_arc_2d(0.0, 0.0, 1.0, 0.0, 90.0, 2.0);
+render::draw_arc_2d(0.0, 0.0, 1.0, 0.0, math::PI / 2.0, 2.0);
 render::draw_polyline_2d([[0.0, 0.0], [1.0, 1.0], [2.0, 0.0]], 1.0, [0.0, 1.0, 0.0, 1.0]);
 render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0);"#,
     );

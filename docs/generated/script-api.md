@@ -11,7 +11,7 @@ cannot drift from what scripts actually see.
 | [`animation`](#animation) | 20 | 75 | the engine |
 | [`apple`](#apple) | 18 | 20 | the engine |
 | [`assets`](#assets) | 11 | 0 | the engine |
-| [`audio`](#audio) | 19 | 0 | the engine |
+| [`audio`](#audio) | 19 | 1 | the engine |
 | [`debugger`](#debugger) | 9 | 4 | the engine |
 | [`encoding`](#encoding) | 2 | 0 | the engine |
 | [`engine`](#engine) | 28 | 0 | the engine |
@@ -35,11 +35,11 @@ cannot drift from what scripts actually see.
 | [`physics3d`](#physics3d) | 97 | 72 | the engine |
 | [`platform`](#platform) | 11 | 7 | the engine |
 | [`project`](#project) | 13 | 0 | the engine |
+| [`random`](#random) | 5 | 0 | the engine |
 | [`regex`](#regex) | 6 | 0 | the engine |
 | [`release`](#release) | 5 | 0 | the engine |
 | [`render`](#render) | 55 | 36 | the engine |
 | [`replay`](#replay) | 17 | 4 | the engine |
-| [`rng`](#rng) | 5 | 0 | the engine |
 | [`rollback`](#rollback) | 2 | 0 | the engine |
 | [`save`](#save) | 6 | 0 | the engine |
 | [`scene`](#scene) | 22 | 0 | the engine |
@@ -91,7 +91,7 @@ cannot drift from what scripts actually see.
 
 ## `apple`
 
-**Functions:** `access_point`, `authenticated`, `available`, `cancel_notification`, `credential_state`, `entitlements`, `finish_purchase`, `identity`, `notify`, `products`, `purchase`, `register_for_push`, `request_notifications`, `restore_purchases`, `show_dashboard`, `sign_in`, `watch`, `watch_urls`
+**Functions:** `access_point`, `authenticated`, `available`, `cancel_notification`, `credential_state`, `entitlements`, `finish_purchase`, `identity`, `listen`, `listen_for_urls`, `notify`, `products`, `purchase`, `register_for_push`, `request_notifications`, `restore_purchases`, `show_dashboard`, `sign_in`
 
 **Constants** (20):
 
@@ -124,11 +124,17 @@ cannot drift from what scripts actually see.
 
 ## `audio`
 
-**Functions:** `bus_volume`, `buses`, `distance_gain`, `emitter_position`, `events`, `is_playing`, `listener`, `pan`, `play`, `play_event`, `ready`, `set_bus_volume`, `set_emitter_position`, `set_listener`, `set_pitch`, `set_volume`, `stop`, `stop_all`, `stop_playback`
+**Functions:** `bus_volume_linear`, `buses`, `cues`, `device_ready`, `distance_gain`, `emitter_position`, `is_playing`, `listener_position`, `pan`, `play`, `play_cue`, `set_bus_volume_linear`, `set_emitter_position`, `set_listener_position`, `set_pitch_scale`, `set_volume_linear`, `stop`, `stop_all`, `stop_playback`
+
+**Constants** (1):
+
+| Name | Value |
+| --- | --- |
+| `EVENT_FINISHED` | `finished` |
 
 ## `debugger`
 
-**Functions:** `break_on_error`, `breakpoints`, `paused`, `request_break`, `resume`, `scope`, `set_break_on_error`, `set_breakpoints`, `set_scope`
+**Functions:** `break_on_error`, `breakpoints`, `request_break`, `resume`, `scope`, `set_break_on_error`, `set_breakpoints`, `set_scope`, `stop_location`
 
 **Constants** (4):
 
@@ -145,19 +151,19 @@ cannot drift from what scripts actually see.
 
 ## `engine`
 
-**Functions:** `args`, `dark_mode`, `delta`, `device_id`, `environment`, `focused`, `function_costs`, `has_plugin`, `open_url`, `paused`, `platform`, `plugin_version`, `plugins`, `profile_scripts`, `quit`, `reload_script`, `reveal`, `script_costs`, `set_paused`, `set_time_scale`, `tick`, `tick_hz`, `time`, `time_scale`, `timings`, `unix_time`, `user_data_dir`, `user_data_dir_of`
+**Functions:** `args`, `dark_mode`, `delta`, `device_id`, `environment`, `focused`, `function_costs`, `has_plugin`, `open_url`, `paused`, `plugin_version`, `plugins`, `quit`, `reload_script`, `reveal`, `script_costs`, `set_paused`, `set_script_profiling`, `set_time_scale`, `target`, `tick`, `tick_hz`, `time`, `time_scale`, `timings`, `unix_time`, `user_data_directory`, `user_data_directory_of`
 
 ## `events`
 
-**Functions:** `emit`, `emitted`, `emitted_from`, `next`, `subscribe`, `unsubscribe`
+**Functions:** `emit`, `emitted`, `emitted_from`, `listen`, `next`, `stop_listening`
 
 ## `export`
 
-**Functions:** `listen`, `output`, `preview`, `running`, `start`, `targets`
+**Functions:** `listen`, `output`, `preview`, `running_count`, `start`, `targets`
 
 ## `fs`
 
-**Functions:** `copy`, `exists`, `list`, `mkdir`, `mtime`, `read`, `remove`, `rename`, `write`
+**Functions:** `copy`, `create_directory`, `exists`, `list`, `modified_time`, `read`, `remove`, `rename`, `write`
 
 ## `gamend`
 
@@ -203,7 +209,7 @@ cannot drift from what scripts actually see.
 
 ## `import`
 
-**Functions:** `cancel`, `choose`, `file`, `handles`, `listen`, `running`, `start`
+**Functions:** `cancel`, `choose`, `file`, `handles`, `listen`, `running_count`, `start`
 
 ## `input`
 
@@ -250,19 +256,19 @@ cannot drift from what scripts actually see.
 
 ## `math`
 
-**Functions:** `abs`, `acos`, `asin`, `atan`, `atan2`, `ceil`, `clamp`, `cos`, `cosh`, `deg`, `exp`, `floor`, `log`, `log10`, `max`, `min`, `pow`, `rad`, `round`, `sin`, `sinh`, `sqrt`, `tan`, `tanh`
+**Functions:** `abs`, `acos`, `asin`, `atan`, `atan2`, `ceil`, `clamp`, `cos`, `cosh`, `exp`, `floor`, `log`, `log10`, `max`, `min`, `pow`, `round`, `sin`, `sinh`, `sqrt`, `tan`, `tanh`, `to_degrees`, `to_radians`
 
 **Constants** (3):
 
 | Name | Value |
 | --- | --- |
-| `INF` | `inf` |
+| `INFINITY` | `inf` |
 | `PI` | `3.141592653589793` |
 | `TAU` | `6.283185307179586` |
 
 ## `multiplayer`
 
-**Functions:** `add_bot`, `host`, `join`, `leave`, `local_player`, `players`, `role`, `set_input`, `set_input_for`, `settled`, `start`, `state`, `stats`, `tick`
+**Functions:** `add_bot`, `host`, `join`, `leave`, `local_player`, `players`, `role`, `set_input`, `set_input_for`, `settled_tick`, `start`, `state`, `stats`, `tick`
 
 **Constants** (18):
 
@@ -289,7 +295,7 @@ cannot drift from what scripts actually see.
 
 ## `node`
 
-**Functions:** `add_child`, `add_tag`, `attach_script`, `call`, `call_async`, `children`, `component_names`, `descendants`, `detach_script`, `emit`, `get_component`, `get_node`, `global_material`, `global_position`, `global_rotation_euler`, `global_scale`, `global_tint`, `global_visible`, `global_z_index`, `go`, `has_component`, `has_method`, `has_tag`, `interpolate`, `is_valid`, `material`, `name`, `parent`, `patch_component`, `path`, `process`, `queue_free`, `remove_component`, `remove_tag`, `reset_interpolation`, `script_field`, `script_path`, `set_component`, `set_interpolate`, `set_material`, `set_name`, `set_parent`, `set_process`, `set_sibling_index`, `set_tint`, `set_visible`, `set_z_index`, `sibling_index`, `stable_id`, `state`, `tags`, `ticking`, `tint`, `translate`, `visible`, `z_index`
+**Functions:** `add_child`, `add_tag`, `attach_script`, `call`, `call_async`, `children`, `component_names`, `descendants`, `detach_script`, `effective_material`, `effective_tint`, `effective_z_index`, `emit`, `get_component`, `get_node`, `global_position`, `global_rotation_euler`, `global_scale`, `has_component`, `has_method`, `has_tag`, `interpolate`, `is_valid`, `material`, `name`, `parent`, `patch_component`, `path`, `process`, `queue_free`, `remove_component`, `remove_tag`, `reset_interpolation`, `script_field`, `script_path`, `set_component`, `set_interpolate`, `set_material`, `set_name`, `set_parent`, `set_process`, `set_sibling_index`, `set_state`, `set_tint`, `set_visible`, `set_z_index`, `sibling_index`, `stable_id`, `state`, `tags`, `ticking`, `tint`, `translate`, `visible`, `visible_in_tree`, `z_index`
 
 ## `physics`
 
@@ -383,7 +389,11 @@ cannot drift from what scripts actually see.
 
 ## `project`
 
-**Functions:** `copy_example`, `create`, `editor_data_dir`, `examples`, `forget`, `home`, `in_tab`, `open`, `pick_folder`, `recent`, `templates`, `use_data`, `version`
+**Functions:** `copy_example`, `create`, `editor_data_directory`, `examples`, `forget`, `home`, `in_tab`, `open`, `pick_directory`, `recent`, `templates`, `use_data`, `version`
+
+## `random`
+
+**Functions:** `float`, `int`, `range`, `seed`, `uuid`
 
 ## `regex`
 
@@ -395,7 +405,7 @@ cannot drift from what scripts actually see.
 
 ## `render`
 
-**Functions:** `bounds`, `built_mesh`, `camera_2d`, `camera_input`, `camera_matrix`, `camera_pose`, `cell`, `channel`, `channels`, `check_material`, `clones`, `draw_arc_2d`, `draw_box`, `draw_capsule`, `draw_circle_2d`, `draw_line_2d`, `draw_line_3d`, `draw_lines`, `draw_polygon_2d`, `draw_polyline_2d`, `draw_rect_2d`, `draw_sphere`, `draw_text_2d`, `draw_text_3d`, `draw_texture_2d`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `pick_ray_at`, `screenshot`, `set_background`, `set_box`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_cell`, `set_channel`, `set_copy`, `set_grid`, `set_grid_colors`, `set_rectangle`, `set_shader_preview`, `set_shader_probe`, `set_sphere`, `set_terrain`, `shader_probe`, `stats`, `terrain`, `text_size`, `texture_pixels_per_unit`, `texture_size`, `tile_data`, `trace_texture`
+**Functions:** `bounds`, `built_mesh`, `camera_2d`, `camera_input`, `camera_matrix`, `camera_pose`, `cell`, `check_material`, `clones`, `debug_view`, `debug_views`, `draw_arc_2d`, `draw_box`, `draw_capsule`, `draw_circle_2d`, `draw_line_2d`, `draw_line_3d`, `draw_lines`, `draw_polygon_2d`, `draw_polyline_2d`, `draw_rect_2d`, `draw_sphere`, `draw_text_2d`, `draw_text_3d`, `draw_texture_2d`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `pick_ray_at`, `screenshot`, `set_background`, `set_box`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_cell`, `set_copy`, `set_debug_view`, `set_grid`, `set_grid_colors`, `set_rectangle`, `set_shader_preview`, `set_shader_probe`, `set_sphere`, `set_terrain`, `shader_probe`, `stats`, `terrain`, `text_size`, `texture_pixels_per_unit`, `texture_size`, `tile_data`, `trace_texture`
 
 **Constants** (36):
 
@@ -430,7 +440,7 @@ cannot drift from what scripts actually see.
 
 ## `replay`
 
-**Functions:** `diverged`, `events`, `header`, `info`, `length`, `load`, `marks`, `pause`, `play`, `position`, `record`, `recording`, `seek`, `session_name`, `state`, `stop`, `unload`
+**Functions:** `divergence_tick`, `events`, `header`, `info`, `length`, `load`, `marks`, `pause`, `play`, `position`, `record`, `recording`, `seek`, `session_name`, `state`, `stop`, `unload`
 
 **Constants** (4):
 
@@ -441,17 +451,13 @@ cannot drift from what scripts actually see.
 | `STATE_SEEKING` | `seeking` |
 | `STATE_STOPPED` | `stopped` |
 
-## `rng`
-
-**Functions:** `int`, `random`, `range`, `seed`, `uuid`
-
 ## `rollback`
 
 **Functions:** `input`, `is_resimulating`
 
 ## `save`
 
-**Functions:** `folder`, `read`, `remove`, `slots`, `version`, `write`
+**Functions:** `directory`, `read`, `remove`, `slots`, `version`, `write`
 
 ## `scene`
 
@@ -463,7 +469,7 @@ cannot drift from what scripts actually see.
 
 ## `settings`
 
-**Functions:** `all`, `base`, `clear`, `define`, `get`, `known_tags`, `load`, `overrides`, `set`, `tags`, `to_toml`
+**Functions:** `all`, `base`, `clear`, `define`, `get`, `known_tags`, `merge_toml`, `overrides`, `set`, `tags`, `to_toml`
 
 ## `skeleton`
 

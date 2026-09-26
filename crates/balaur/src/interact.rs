@@ -248,14 +248,14 @@ fn fill_action_runners(app: &balaur_core::App) {
     #[cfg(feature = "audio")]
     set_runner(
         eng,
-        Action::Sound,
+        Action::PlaySound,
         Rc::new(|eng: &Engine, entity, _value: &Value| {
             balaur_audio::play_on(eng, entity).map(|_| ())
         }),
     );
     set_runner(
         eng,
-        Action::Spawn,
+        Action::Instantiate,
         Rc::new(|eng: &Engine, entity, value: &Value| {
             let before = balaur_core::scene::child_count(&eng.world(), entity);
             balaur_core::project::instantiate_scene_file(eng, &text_of(value), entity, true)?;

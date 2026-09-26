@@ -9,7 +9,7 @@
 >
 > `import.start` runs an import a few files per frame and reports each to
 > whatever `import.listen` named,
-> `import.running` counts what is in flight, and `import.file` stays as the one
+> `import.running_count` counts what is in flight, and `import.file` stays as the one
 > call a command and a test want. A drop starts a job, the status strip says
 > what is in flight, `chrome::toast` lists the batch with a bar under it, and a
 > failure opens the Output dock.
@@ -126,8 +126,8 @@ matters is the one `ARCHITECTURE.md` names -- a channel outside `ExternalIo`
 
 ### 2.1 Three verbs, one event
 
-`import::start(path, options)`, `import::running()` and `import::listen(node)`,
-named and shaped as the export trio is. One event, `on_import`:
+`import::start(path, options)`, `import::running_count()` and `import::listen(node)`,
+named and shaped as the export trio is. One event, `on_import_event`:
 
 | kind | carries |
 | --- | --- |
@@ -330,7 +330,7 @@ rather than itself.
    cancels before the first slice, where the count is deterministic.
 
    What a script sees of a count is an integer, not a float. `Value::Num` for
-   `files` and `done` made `import::running() == 1` a type error in Rune and
+   `files` and `done` made `import::running_count() == 1` a type error in Rune and
    printed "3.0 files"; both went away with `Value::Int`.
 7. **The buttons.** Import project is built and the lists are one list.
 
@@ -443,7 +443,7 @@ as `k`. Every control now names its shape or is given a neutral one.
   view of imports alone is a view built twice.
 - **No thread, task or job handed to a script.** A script runs inside the
   fixed step and its digest has to match on every machine, so what it gets is
-  the event: `on_import`, as `on_response` and `on_export` already are. The
+  the event: `on_import_event`, as `on_response` and `on_export_event` already are. The
   verbs a script calls start work and ask how much is in flight, and that is
   the whole of the surface.
 - **No `on_files_dropped` hook.** Hooks address a node and a window's drop

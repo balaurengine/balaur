@@ -356,7 +356,7 @@ func _notification(what: int) -> void:\n\
     assert!(!out.rune.contains("todo"), "{}", out.rune);
     for want in [
         "(gd.same)(what, 2017)",
-        "pub fn on_focus_changed(this, focused) {",
+        "pub fn on_focused_changed(this, focused) {",
         "let what = if focused { 2016 } else { 2017 };",
         "pub fn on_quit_requested(this) {",
         "let what = 1006;",

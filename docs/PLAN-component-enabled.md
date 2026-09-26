@@ -14,7 +14,7 @@
 - The other thirty components have no way to be turned off. A `sprite` a scene
   wants gone is removed, which loses what it held, or hidden through the
   node's `visible`, which hides its siblings too.
-- The node has `visible`, `z_index` and `z_relative` in `Appearance`,
+- The node has `visible`, `z_index` and `z_as_relative` in `Appearance`,
   propagated down the tree as `GlobalAppearance`. `visible` stops drawing and
   nothing else -- a hidden collider still collides, which is what a game hiding
   a sprite for a frame expects.

@@ -583,7 +583,7 @@ settled. A strip whose inputs did not move is not stated again.
 
 ## 7. The instrument
 
-`engine.profile_scripts(on)` and `engine.script_costs()` count VM instructions
+`engine.set_script_profiling(on)` and `engine.script_costs()` count VM instructions
 per script, and the Profiler dock has a `scripts` toggle that turns them on.
 Instructions rather than milliseconds, so two runs of the same frame report the
 same number and a change in the reading is a change in what a script does.

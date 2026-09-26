@@ -201,10 +201,10 @@ in the game; "not planned" is a deliberate no.
 | A `.wasm`, JS glue, the pack fetched beside it, a canvas that resizes with the page, focus on start | Step 1: `balaur export --target web` writes a shell, and the shell is a template a project may override |
 | Audio in the browser, behind the user gesture every browser demands | Step 1: a WebAudio backend under `balaur_audio` — cpal's `wasm-bindgen` host on `wasm32-unknown-unknown`, or `web-sys` `AudioContext` directly — decoding through symphonia as native does, and `audio.ready()` for the unlock |
 | The backend from a tab: login, REST, hooks, the socket | Step 1: `balaur_gamend`'s `backend` module over `balaur_http`'s Fetch and `balaur_websocket`'s browser backend; the seam exists and only the wasm side is a stub |
-| Settings, a session token and downloaded content that survive a reload | Step 1: a `FileBackend` over the origin-private file system (`web-sys` `FileSystemDirectoryHandle`) for `engine.user_data_dir()`, so `fs`, `save` and `settings` work unchanged and `localStorage` is never needed |
-| A script reaching the page | Step 1: `web.storage(key)`, `web.set_storage(key, value)`, `web.open(url, target)`, `web.post_message(target, payload)` with `on_web_message`, `web.query(name)` for `user_agent`, `language`, `dark_mode`, `hardware_concurrency`, `web.location`, `web.visible`. **`web.eval` not planned** |
+| Settings, a session token and downloaded content that survive a reload | Step 1: a `FileBackend` over the origin-private file system (`web-sys` `FileSystemDirectoryHandle`) for `engine.user_data_directory()`, so `fs`, `save` and `settings` work unchanged and `localStorage` is never needed |
+| A script reaching the page | Step 1: `web.storage(key)`, `web.set_storage(key, value)`, `web.open(url, target)`, `web.post_message(target, payload)` with `on_web_event`, `web.query(name)` for `user_agent`, `language`, `dark_mode`, `hardware_concurrency`, `web.location`, `web.visible`. **`web.eval` not planned** |
 | The socket kept alive in a backgrounded tab | Step 1: the web loop falls back from `requestAnimationFrame` to a timer on `visibilitychange`, ticking at a reduced rate so heartbeats and the fixed step continue |
-| A vendor SDK over `postMessage` (an embedded-app platform) | Fallback: a Rune `mod` over `web.post_message` and `on_web_message`, shipped as an example. A module per vendor **not planned** |
+| A vendor SDK over `postMessage` (an embedded-app platform) | Fallback: a Rune `mod` over `web.post_message` and `on_web_event`, shipped as an example. A module per vendor **not planned** |
 | Threads in the browser | Have: the engine is single-threaded by design, so the wasm build needs no shared-memory headers |
 
 ### Text
@@ -226,7 +226,7 @@ in the game; "not planned" is a deliberate no.
 | Need | Decision |
 | --- | --- |
 | Hide a node and its subtree | Step 3: `visible` on the node, propagated, honoured by every render component |
-| A layer a subtree carries | Step 3: `z_index` on the node, relative to the parent by default, `z_relative = false` for absolute; sorted inside the global-z pass |
+| A layer a subtree carries | Step 3: `z_index` on the node, relative to the parent by default, `z_as_relative = false` for absolute; sorted inside the global-z pass |
 | Y-sorting | Fallback: set `z_index` from `update`; a `y_sort` flag **not planned** until a scene needs hundreds of sorted nodes |
 | A region of an atlas on a sprite | Step 3: `region = [x, y, w, h]` on `sprite`, in texture pixels |
 | Clip a subtree to a node's bounds | Step 3: `clip = true` on a node, a scissor to the node's own quad or polygon for its subtree |
@@ -266,7 +266,7 @@ in the game; "not planned" is a deliberate no.
 | Nine-patch images | Have: `image` and `slice = [left, top, right, bottom]` on a `widget_theme` entry and `slice` on the `image` kind |
 | A widget that fills its parent minus a margin | Have: `anchor = "fill"` with `inset`; four fractional anchors **not planned** |
 | Per-node theme overrides | Have: a node's own properties override its theme |
-| Runtime theme switch and dark mode | Have: `engine.dark_mode()`, recorded, `on_dark_mode(bool)` on change (macOS and the page answer; other desktops say false); a game ships two `widget_theme` assets and swaps `theme` on the root, as the editor does |
+| Runtime theme switch and dark mode | Have: `engine.dark_mode()`, recorded, `on_dark_mode_changed(bool)` on change (macOS and the page answer; other desktops say false); a game ships two `widget_theme` assets and swaps `theme` on the root, as the editor does |
 | The display's safe area | Have: `window.safe_area()`, recorded; the page reads `env(safe-area-inset-*)` through the shell's CSS variables, iOS reads UIKit's `safeAreaInsets` through the fork's `Window::safe_area`, a desktop answers zero. Android is `docs/PLAN-google.md`'s |
 | Focus, neighbours, focus visuals off on pointer input | Have `focusable`, `ui.focus_*`; explicit neighbours **not planned** — the arrangement order is the neighbour order |
 | A drag threshold before a scroll view scrolls, so a tap on a child lands | Have: `deadzone` on `scroll`, in design pixels; 0 scrolls at once, so a touch scene sets 32 |
@@ -281,12 +281,12 @@ in the game; "not planned" is a deliberate no.
 | Pinch and two-finger pan | Have: `input.pinch()` and `input.pan()`, with `swipe()` and `long_press()` beside them, derived from the recorded touches. This row once said *not planned*; `docs/PLAN-touch.md` reversed it, since a scene wanting one wants all four |
 | Mouse as a touch on desktop | Have: a script reads both; a `touch_from_mouse` setting is a step 4 convenience |
 | Actions bound to keys, pad and axes | Have: `[input.actions]` |
-| A phone's vibration | Have: `input.vibrate(milliseconds)` — the page's `navigator.vibrate`; an effect, never recorded, like rumble. A phone's native motor is the export's to wire (`docs/PLAN-google.md`) |
+| A phone's vibration | Have: `input.vibrate(seconds)` — the page's `navigator.vibrate`; an effect, never recorded, like rumble. A phone's native motor is the export's to wire (`docs/PLAN-google.md`) |
 | The Android back button | Have: it arrives as `KEY_BROWSER_BACK`, the same key the browser's back key is |
-| Focus lost, app paused, quit requested | Have: `engine.focused()`, recorded, `on_focus_changed(bool)` on change, `on_quit_requested` on every script before the window closes — a chance to save, not a veto |
+| Focus lost, app paused, quit requested | Have: `engine.focused()`, recorded, `on_focused_changed(bool)` on change, `on_quit_requested` on every script before the window closes — a chance to save, not a veto |
 | Keep the screen on | Have: `window.set_keep_awake(bool)` — a wake lock on the page, nothing to ask on a desktop |
 | Screen refresh rate | Have: `window.refresh_rate()`, measured from the frame intervals vsync paces, recorded |
-| The OS, and whether this is a phone, a browser or the editor | Have: `engine.platform()`, recorded in the session's header, since a replay on another machine must answer as the original did |
+| The OS, and whether this is a phone, a browser or the editor | Have: `engine.target()`, recorded in the session's header, since a replay on another machine must answer as the original did |
 | A stable per-install id, for device login | Have: `engine.device_id()`, generated once into the user directory |
 | Wall-clock time | Have: `engine.unix_time()`, read at the top of the tick and recorded |
 | Frame cost, draw calls, memory, for an in-game panel | Have: `engine.timings()` is that map; a second name **not planned** |
@@ -296,9 +296,9 @@ in the game; "not planned" is a deliberate no.
 
 | Need | Decision |
 | --- | --- |
-| Buses with volume and mute, declared and at run time | Have: `[audio.buses]`, `audio.set_bus_volume`, which makes a bus it does not know; `define_bus` **not planned** |
+| Buses with volume and mute, declared and at run time | Have: `[audio.buses]`, `audio.set_bus_volume_linear`, which makes a bus it does not know; `define_bus` **not planned** |
 | Effects on a bus: a limiter, reverb | Roadmap 0.9, "Sound that fills a room": buses are gain today (`bus.rs:1-18`), and that milestone makes them a graph. Until then, normalise the files offline |
-| Duck music under speech | Have: `animation.tween_value` driving `audio.set_bus_volume` from `update`; `audio.duck(bus, to, seconds)` if the pattern recurs |
+| Duck music under speech | Have: `animation.tween_value` driving `audio.set_bus_volume_linear` from `update`; `audio.duck(bus, to, seconds)` if the pattern recurs |
 | Content downloaded at run time: a manifest, a pack per language, verified, then played | Have: `http.request` with `save_to` (a path under the user directory, streamed to disk, `on_progress` per chunk, the reply's `path`); `hash.sha256(path)`; the content is a directory of files, and `audio.play` on an absolute path does the rest. Mounting a second pack **not planned**: the roadmap's asset streaming is the general answer, a directory the specific one |
 | Streaming a long file | Roadmap's asset streaming; every play decodes from memory today |
 | Positional audio, pitch | Have |
@@ -319,12 +319,12 @@ in the game; "not planned" is a deliberate no.
 
 | Need | Decision |
 | --- | --- |
-| Signals between nodes | Have: `events.subscribe`/`emit` and direct method calls; §5 asks whether UI-driven chains need a same-frame path |
+| Signals between nodes | Have: `events.listen`/`emit` and direct method calls; §5 asks whether UI-driven chains need a same-frame path |
 | Classify nodes and query by class | Have: `tags = ["door", "obstacle"]` on a node, `node.tags`, `has_tag`, `add_tag`, `remove_tag`, `scene.tagged(name)`; in the digest and the snapshot |
 | Wait a frame, wait a second | Have: `task::frames(n).await` and `task::seconds(t).await`, counted on the fixed step so they replay and survive a snapshot |
 | Defer a call to the next frame | Have: `events.emit` to self; `node.queue_free` already defers |
 | Polygon booleans, triangulation, point-in-polygon, segment intersection | Have: `geometry2d` — `triangulate` over `balaur_core::triangulate`; `union`, `intersection`, `difference` from `i_overlay`, which works in fixed point and so lands on the same vertices everywhere; `contains`, `segments_intersect`, `area`, `is_clockwise`, `convex_hull` |
-| Base64, a random id | Have: `encoding.base64`/`from_base64`; `rng.uuid()` from the engine's own stream, so it replays |
+| Base64, a random id | Have: `encoding.base64`/`from_base64`; `random.uuid()` from the engine's own stream, so it replays |
 | A test runner for a game's own headless tests | Have: `balaur test` runs every `tests/**/*.rn` on its own node in a headless copy of the project; Rune's own `assert!` is the assertion, a logged script error fails the test, and the exit code says so |
 | Threads | Have: none, by design; I/O lands on a tick |
 | A CSV or spreadsheet importer for game data | Not planned: a build step writes TOML or JSON into the pack and `fs`/`json` read it |
@@ -344,10 +344,10 @@ in the game; "not planned" is a deliberate no.
 | --- | --- |
 | REST, hooks, a realtime socket, token refresh | Have: `gamend.*`, `settings` or `save` for the token |
 | Binary realtime frames | Have text and binary frames; a protobuf codec **not planned** until measured against JSON |
-| OAuth through the system browser and back | Have: `web.open(url, target)` on the page; a desktop `engine.open_url` is `docs/PLAN-deploy.md`'s to add beside the store links; the return leg is `apple.watch_urls` on Apple, `[android] urls` in `docs/PLAN-google.md`, `web.location` on the web |
+| OAuth through the system browser and back | Have: `web.open(url, target)` on the page; a desktop `engine.open_url` is `docs/PLAN-deploy.md`'s to add beside the store links; the return leg is `apple.listen_for_urls` on Apple, `[android] urls` in `docs/PLAN-google.md`, `web.location` on the web |
 | Sign in with the platform | Have on Apple in code; `docs/PLAN-apple.md` §4 says it has never reached Apple's servers; Google is `docs/PLAN-google.md` step 3 |
 | In-app purchases | `docs/PLAN-apple.md` (have, untested), `docs/PLAN-google.md` step 4; a web checkout is `engine.open_url` |
-| Deep links | Have `apple.watch_urls`; Android in `docs/PLAN-google.md` |
+| Deep links | Have `apple.listen_for_urls`; Android in `docs/PLAN-google.md` |
 | Peer-to-peer, WebRTC | `docs/PLAN-networking.md`; nothing here needs them |
 | Telemetry to a file and an upload | Have: `fs`, `http.request` |
 
@@ -387,7 +387,7 @@ the kiss3d fork's `balaur-hooks` branch, which `Cargo.toml` names.
    template; audio on wasm behind `audio.ready()`; `balaur_gamend`'s wasm
    backend over Fetch and the browser socket; a `FileBackend` on the
    origin-private file system for the user directory; the `web` module's
-   verbs and `on_web_message`; the background-tab timer. Ends with:
+   verbs and `on_web_event`; the background-tab timer. Ends with:
    `examples/hello` and a device login in a tab, and a settings change that
    survives a refresh.
 2. **Text.** Shaping and bidi through `cosmic-text`; `font_weight` and
@@ -405,7 +405,7 @@ the kiss3d fork's `balaur-hooks` branch, which `Cargo.toml` names.
    `anchor = "fill"` with `inset`; the scale floor; the scroll deadzone.
    Then `task.frames`/`task.seconds`; node tags; tween `delay`, `then`,
    `on_tween_finished`, `tween_value`; `geometry2d`; `hash.sha256`;
-   `encoding.base64`; `rng.uuid`; `http.request` `save_to` with progress;
+   `encoding.base64`; `random.uuid`; `http.request` `save_to` with progress;
    `strings.system_locale`; `engine.open_url`, `platform`, `device_id`,
    `unix_time`, `dark_mode`, `focused`, `stats`; `window.safe_area`,
    `set_keep_awake`, `refresh_rate`; `input.vibrate`, `KEY_BROWSER_BACK`;

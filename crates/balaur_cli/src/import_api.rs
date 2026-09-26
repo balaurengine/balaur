@@ -220,7 +220,7 @@ fn install_import_api(m: &mut dyn Bindings<Engine>) {
             "Import one file into the edited project, or into `project` when one is named, a few files per frame, reporting each to whatever `listen` named. Answers false while a recording plays. A model and a sprite are read first and then written a slice at a time, and a Godot project is walked a few files at a time; a level walks its own folder and takes one long slice, which says so in `files`.",
         ),
         (
-            "running",
+            "running_count",
             &[],
             "()",
             "How many imports are in flight.",
@@ -264,7 +264,7 @@ fn install_import_api(m: &mut dyn Bindings<Engine>) {
             .store(true, Ordering::Relaxed);
         Ok(Value::Nil)
     });
-    m.function("running", |eng: &Engine, ()| {
+    m.function("running_count", |eng: &Engine, ()| {
         let running = eng
             .resource::<ImportState>()
             .borrow()
@@ -272,11 +272,11 @@ fn install_import_api(m: &mut dyn Bindings<Engine>) {
             .load(Ordering::Relaxed);
         Ok(count(running))
     });
-    install_listen::<ImportState, ImportEvent>(m, "on_import");
+    install_listen::<ImportState, ImportEvent>(m, "on_import_event");
 }
 
 /// What `listen` is documented as.
-const LISTEN_DOC: &str = "Have the node's `on_import(event)`, or the `on_event` method the options name, called as an import starts, writes each file, finishes or fails.";
+const LISTEN_DOC: &str = "Have the node's `on_import_event(event)`, or the `on_event` method the options name, called as an import starts, writes each file, finishes or fails.";
 
 /// Ask for a file and import it. A desktop dialog answers with a path, so
 /// this is the picker and `start`; a tab's chooser answers on an event, so

@@ -90,7 +90,7 @@ Head = "Armature/Hips/Spine/Neck/Head"
 
 ### `heightfield`
 
-Files: `terrain/`. Used by: `collider2d.heightfield`, `collider3d.heightfield`.
+Files: `heightfields/`. Used by: `collider2d.heightfield`, `collider3d.heightfield`.
 
 A grid of heights for terrain: `rows` by `columns` samples in `heights`, row-major, one value per grid point.
 
@@ -317,7 +317,7 @@ first_tile = 16
 
 ### `voxels`
 
-Files: `terrain/`. Used by: `collider2d.voxels`, `collider3d.voxels`.
+Files: `voxels/`. Used by: `collider2d.voxels`, `collider3d.voxels`.
 
 A voxel grid for a collider: `size` is one cell in world units, `cells` the filled coordinates. `physics3d.set_voxel` adds or removes a cell.
 

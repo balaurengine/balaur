@@ -1,13 +1,13 @@
-//! Named sounds: `audio/events.toml`, played by name rather than by path.
+//! Named sounds: `audio/cues.toml`, played by name rather than by path.
 //!
 //! ```toml
 //! [hit]
 //! files = ["sfx/hit1.wav", "sfx/hit2.wav", "sfx/hit3.wav"]
 //! bus = "sfx"
-//! volume = 0.9
+//! volume_linear = 0.9
 //! ```
 //!
-//! `audio.play_event("hit")` is what a script says; which file, at what level,
+//! `audio.play_cue("hit")` is what a script says; which file, at what level,
 //! through which bus is what a sound designer says. That is the whole point:
 //! the two can be tuned without touching each other.
 //!
@@ -25,99 +25,99 @@ use balaur_core::Engine;
 /// One named sound.
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct Event {
+pub struct Cue {
     /// The variations, taken in turn. One file is a sound with no variation.
     pub files: Vec<String>,
     /// The bus this plays through; empty is `master`.
     pub bus: String,
-    pub volume: f32,
-    pub pitch: f32,
-    /// Restart when it ends — for an ambience declared as an event.
+    pub volume_linear: f32,
+    pub pitch_scale: f32,
+    /// Restart when it ends — for an ambience declared as a cue.
     #[serde(rename = "loop")]
     pub looped: bool,
     /// How far the sound carries, when a caller plays it at a position: full
     /// volume inside `min_distance`, silent past `max_distance`, and
-    /// `doppler` of the closing speed in its pitch.
+    /// `doppler_level` of the closing speed in its pitch.
     pub min_distance: f32,
     pub max_distance: f32,
-    pub doppler: f32,
+    pub doppler_level: f32,
 }
 
-impl Default for Event {
+impl Default for Cue {
     fn default() -> Self {
         Self {
             files: Vec::new(),
             bus: String::new(),
-            volume: 1.0,
-            pitch: 1.0,
+            volume_linear: 1.0,
+            pitch_scale: 1.0,
             looped: false,
             min_distance: 1.0,
             max_distance: 50.0,
-            doppler: 0.0,
+            doppler_level: 0.0,
         }
     }
 }
 
-/// Every declared event, and where each rotation has got to.
+/// Every declared cue, and where each rotation has got to.
 #[derive(Default)]
-pub struct Events {
-    events: BTreeMap<String, Event>,
-    /// Next variation per event. Presentation state: it is not in a snapshot
+pub struct Cues {
+    cues: BTreeMap<String, Cue>,
+    /// Next variation per cue. Presentation state: it is not in a snapshot
     /// and not in the digest, because which of three footsteps played is not
     /// something a replay has to agree about.
     turn: RefCell<BTreeMap<String, usize>>,
     loaded: bool,
 }
 
-impl Events {
-    /// A declared event by name.
+impl Cues {
+    /// A declared cue by name.
     #[must_use]
-    pub fn get(&self, name: &str) -> Option<&Event> {
-        self.events.get(name)
+    pub fn get(&self, name: &str) -> Option<&Cue> {
+        self.cues.get(name)
     }
 
-    /// Every event, in name order.
+    /// Every cue, in name order.
     #[must_use]
     pub fn names(&self) -> Vec<String> {
-        self.events.keys().cloned().collect()
+        self.cues.keys().cloned().collect()
     }
 
-    /// The next file for an event, advancing its rotation.
+    /// The next file for a cue, advancing its rotation.
     #[must_use]
     pub fn next_file(&self, name: &str) -> Option<String> {
-        let event = self.events.get(name)?;
-        if event.files.is_empty() {
+        let cue = self.cues.get(name)?;
+        if cue.files.is_empty() {
             return None;
         }
         let mut turn = self.turn.borrow_mut();
         let at = turn.entry(name.to_string()).or_insert(0);
-        let file = event.files[*at % event.files.len()].clone();
+        let file = cue.files[*at % cue.files.len()].clone();
         *at = at.wrapping_add(1);
         Some(file)
     }
 }
 
-/// Read `audio/events.toml` once, the first time anything asks.
+/// Read `audio/cues.toml` once, the first time anything asks.
 pub fn ensure_loaded(eng: &Engine) {
-    let events = eng.resource::<Events>();
-    if events.borrow().loaded {
+    let cues = eng.resource::<Cues>();
+    if cues.borrow().loaded {
         return;
     }
     let read = read(eng);
-    let mut events = events.borrow_mut();
-    events.events = read;
-    events.loaded = true;
+    let mut cues = cues.borrow_mut();
+    cues.cues = read;
+    cues.loaded = true;
 }
 
-/// The events file, or nothing. A project with no events is the normal case.
-fn read(eng: &Engine) -> BTreeMap<String, Event> {
-    let Ok(source) = balaur_core::project::scene_text(eng, "audio/events.toml") else {
+/// The cues file, or nothing. A project with no cues is the normal case.
+fn read(eng: &Engine) -> BTreeMap<String, Cue> {
+    let Ok(source) = balaur_core::project::scene_text(eng, "audio/cues.toml") else {
         return BTreeMap::new();
     };
-    match toml::from_str::<BTreeMap<String, Event>>(&source) {
-        Ok(events) => events,
+    match toml::from_str::<BTreeMap<String, Cue>>(&source) {
+        Ok(cues) => cues,
         Err(err) => {
-            tracing::warn!("audio/events.toml: {err}; no events declared");
+            tracing::warn!("audio/cues.toml: {err}; no cues declared");
             BTreeMap::new()
         }
     }

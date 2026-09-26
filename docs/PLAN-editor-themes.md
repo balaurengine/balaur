@@ -14,7 +14,7 @@ window that shows every control the theme dresses.
   `editor/themes/light.toml`: `[colors]`, `[roles.*]` and a table per kind.
   They are read-only in an install.
 - A person's own themes are `<data dir>/balaur/themes/<name>.toml`, where
-  `project::editor_data_dir()` names the folder. A user theme states
+  `project::editor_data_directory()` names the folder. A user theme states
   `base = "dark"` or `base = "light"` and only the keys that differ from it.
 - `editor/appearance/theme` names one. It stays an `enum` of the bundled two,
   and the settings screen lists every file in the folder beside them, since

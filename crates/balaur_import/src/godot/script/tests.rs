@@ -149,7 +149,7 @@ func grow():\n\
 \treturn OS.is_debug_build()\n";
     let out = convert(source, "scripts/a.gd", &Classes::default());
     assert!(out.rune.contains("ui::set_scale(2.0)"), "{}", out.rune);
-    assert!(out.rune.contains("engine::platform().dev"), "{}", out.rune);
+    assert!(out.rune.contains("engine::target().dev"), "{}", out.rune);
 }
 
 #[test]
@@ -402,7 +402,7 @@ fn visible_in_tree_asks_the_ancestors_too() {
 func shown(box):\n\
 \treturn box.is_visible_in_tree()\n";
     let out = convert(source, "scripts/a.gd", &Classes::default());
-    assert!(out.rune.contains("box.global_visible()"), "{}", out.rune);
+    assert!(out.rune.contains("box.visible_in_tree()"), "{}", out.rune);
 }
 
 #[test]

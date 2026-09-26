@@ -100,7 +100,7 @@ pub fn open_versions(S) {
 
 /// Ask for a folder and open what is in it, without the screen in between.
 pub fn pick(S) {
-    let picked = project::pick_folder();
+    let picked = project::pick_directory();
     if picked is String {
         go(S, picked);
         return;
@@ -334,7 +334,7 @@ fn toolbar(S, k, w) {
                 fill: k.bg_panel, text_color: k.text_default,
                 tooltip: "Pick a project folder to convert; Godot is the one read today",
             }) {
-                let picked = project::pick_folder();
+                let picked = project::pick_directory();
                 if picked is String {
                     import_project(S, picked);
                 }
@@ -345,7 +345,7 @@ fn toolbar(S, k, w) {
                 height: h, font_size: style::MD, corner_radius: 8, padding_x: 14, min_width: room,
                 fill: k.bg_panel, text_color: k.text_default,
             }) {
-                let picked = project::pick_folder();
+                let picked = project::pick_directory();
                 if picked is String {
                     go(S, picked);
                 }
@@ -987,7 +987,7 @@ pub fn put(S, channel, tag) {
     if installing(S) {
         return;
     }
-    if !release::install(channel, tag, true) {
+    if !release::install(channel, tag, #{ allow_downgrade: true }) {
         S.manager.failed = "nothing installs while a recording plays";
         return;
     }

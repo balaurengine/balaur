@@ -1,5 +1,5 @@
 > **Status:** steps 1 to 6 built, the last on 2026-09-11. Appearance has not
-> moved: `visible`, `tint`, `z_index` and `z_relative` are still keys at the
+> moved: `visible`, `tint`, `z_index` and `z_as_relative` are still keys at the
 > node. Written 2026-09-08 from the inspector question "why is Transform
 > hand-written when every other section is generated".
 

@@ -184,7 +184,7 @@ value = 1
 [[nodes.bindings.rows]]
 event = "pointer_click"
 when = "score >= 3"
-action = "state"
+action = "set_state"
 target = "../Door"
 value = "open"
 
@@ -353,7 +353,7 @@ fn every_deferred_action_has_a_runner() {
         // The six core runs itself; the rest are filled at load.
         let own = matches!(
             action,
-            bindings::Action::State
+            bindings::Action::SetState
                 | bindings::Action::SetVariable
                 | bindings::Action::AddVariable
                 | bindings::Action::Free
@@ -364,7 +364,7 @@ fn every_deferred_action_has_a_runner() {
             continue;
         }
         // Audio is a cargo feature, so its runner is only in a build with it.
-        if matches!(action, bindings::Action::Sound) && cfg!(not(feature = "audio")) {
+        if matches!(action, bindings::Action::PlaySound) && cfg!(not(feature = "audio")) {
             continue;
         }
         assert!(
@@ -485,7 +485,7 @@ parent = "n_scene"
 
 [[nodes.bindings.rows]]
 event = "variable_changed"
-action = "state"
+action = "set_state"
 value = "open"
 
 [[nodes.bindings.rows]]
@@ -575,7 +575,7 @@ fn a_finished_clip_calls_its_own_node_once_when_the_node_also_subscribes() {
     std::fs::write(dir.path().join("scenes/main.toml"), ONCE).unwrap();
     std::fs::write(
         dir.path().join("scenes/wave.rn"),
-        "pub fn init(this) { events::subscribe(this.node, \"animation_finished\", this.node); }\n\
+        "pub fn init(this) { events::listen(this.node, \"animation_finished\", this.node); }\n\
          pub fn on_animation_finished(this, clip) {\n\
          \x20   scene::set_variable(\"score\", scene::variable(\"score\") + 1);\n\
          }\n",

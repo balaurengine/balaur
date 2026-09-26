@@ -344,8 +344,8 @@ pub fn update_device(eng: &Engine, change: impl FnOnce(&mut DeviceFacts)) {
     }
 }
 
-/// Tell every script what changed since the last tick: `on_focus_changed`
-/// and `on_dark_mode`, each with the new state.
+/// Tell every script what changed since the last tick: `on_focused_changed`
+/// and `on_dark_mode_changed`, each with the new state.
 pub(crate) fn announce_device_system(eng: &Engine, _: f32) {
     let Some(device) = eng.try_resource::<Device>() else {
         return;
@@ -366,13 +366,13 @@ pub(crate) fn announce_device_system(eng: &Engine, _: f32) {
     };
     if let Some(focused) = focus {
         host.announce(
-            crate::hooks::ON_FOCUS_CHANGED,
+            crate::hooks::ON_FOCUSED_CHANGED,
             &[balaur_script::Value::Bool(focused)],
         );
     }
     if let Some(dark) = dark {
         host.announce(
-            crate::hooks::ON_DARK_MODE,
+            crate::hooks::ON_DARK_MODE_CHANGED,
             &[balaur_script::Value::Bool(dark)],
         );
     }

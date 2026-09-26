@@ -586,6 +586,26 @@ A command is a verb, a long flag is kebab-case, and an environment variable spel
 | Replay dump | `BALAUR_REPLAY_DUMP` | none |
 | Run flags | `--headless`, `--frames`, `--debug`, `--debug-wait`, `--offscreen`, `--timings`, `--fixed-tick`, `--trace-digest` | Godot |
 
+### Engine, files and scripts
+
+A reader that answers a count, a tick or a place says so in its name, and a setter starts with `set_`.
+
+| Concept | Balaur name | Follows |
+| --- | --- | --- |
+| Where this build runs | `engine.target` | Cargo |
+| Count what scripts cost | `engine.set_script_profiling`, `script_costs`, `function_costs` | none |
+| Where the debugger stopped | `debugger.stop_location` | none |
+| Jobs in flight | `export.running_count`, `import.running_count` | none |
+| The tick rollback cannot pass, the first one a replay missed | `multiplayer.settled_tick`, `replay.divergence_tick` | none |
+| Fold TOML text into the settings, write it back | `settings.merge_toml`, `settings.to_toml` | none |
+| Directories | `fs.create_directory`, `fs.modified_time`, `engine.user_data_directory`, `save.directory`, `project.pick_directory` | none |
+| The seeded stream | `random.seed`, `random.float`, `random.range`, `random.int`, `random.uuid` | Godot, Unity |
+| Angle units and infinity | `math.to_degrees`, `math.to_radians`, `math.INFINITY` | Rust |
+| A view other than colour | `render.debug_view`, `render.set_debug_view`, `render.debug_views` | Godot |
+| A node's named look | `node.states.set_state` | none |
+| Binding actions | `set_state`, `set_variable`, `add_variable`, `play`, `play_sound`, `instantiate`, `free`, `switch`, `open_url`, `emit`, `call`, `visible`, `toast` | none |
+| A boolean beside the value | an options key: `set_z_index(z, #{ z_as_relative: false })`, `release.install(channel, tag, #{ allow_downgrade: true })` | N9 |
+
 ### Lifecycle and events
 
 A bare hook is the engine asking, and `on_` is the engine telling, as N22 says.
@@ -613,4 +633,6 @@ There is no `late_update`, `draw` or `input` hook. Draw from `update` with `rend
 | Pressed by any device | `on_press` | Godot |
 | Touched the ground | `on_land` | none |
 | A timer ran out | `timeout` | Godot |
+| Hear a named event | `events.listen`, `events.stop_listening` | none |
+| Hear a module's reports | `<module>.listen(node, options)`, calling `on_<module>_event` unless `on_event` names another | none |
 

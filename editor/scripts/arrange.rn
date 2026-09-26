@@ -31,8 +31,8 @@ pub fn align(S, axis, mode) {
         log::info("align needs two or more nodes");
         return;
     }
-    let lo = math::INF;
-    let hi = -math::INF;
+    let lo = math::INFINITY;
+    let hi = -math::INFINITY;
     let sum = 0.0;
     for i in rows {
         let v = world_of(S, i)[axis];

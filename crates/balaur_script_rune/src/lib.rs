@@ -768,7 +768,7 @@ impl RuneHost {
     /// Tell every instance of a reloaded script that its code changed.
     ///
     /// The instance keeps the state object it had — Rune swaps the unit, not
-    /// the data — so a script whose field shapes moved has `hot_reload` as
+    /// the data — so a script whose field shapes moved has `on_hot_reload` as
     /// the one place to migrate them.
     fn announce_reload(&self, key: &str) {
         let batch: Vec<(Entity, rune::Value)> = self
@@ -780,7 +780,7 @@ impl RuneHost {
             .filter_map(|(e, i)| Some((*e, i.state.try_clone().ok()?)))
             .collect();
         for (entity, state) in batch {
-            self.invoke(entity, key, balaur_core::hooks::HOT_RELOAD, (state,), false, None);
+            self.invoke(entity, key, balaur_core::hooks::ON_HOT_RELOAD, (state,), false, None);
         }
     }
 

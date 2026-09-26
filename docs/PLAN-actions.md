@@ -157,7 +157,7 @@ module over `balaur_export`, registered by `balaur_cli` when it boots the
 editor — so the download stays in the one crate that has the network
 stack, and `Options::obtain` is the editor asking through a modal rather
 than a terminal prompt. The export runs through `ExternalIo::start` and
-reports on a tick, `on_export` with `kind` one of `started`, `progress`,
+reports on a tick, `on_export_event` with `kind` one of `started`, `progress`,
 `done`, `failed`, exactly the shape `docs/PLAN-deploy.md` gives an upload,
 so the sheet draws a bar from its own script and the palette's Export
 command is one call. `docs/PLAN-editor.md` §4's `engine::export(root)`
@@ -194,7 +194,7 @@ Every place a game from this engine could be asked to prove who made it.
 | --- | --- | --- |
 | A verb | none | Step 6: `Export game…` in the palette, `⌘E`, opening the sheet |
 | The sheet | none | Step 6: one row per target; each says *installed*, *download* (this build's release has it), *source build* (no release to fetch from; `--template` or `build-engine`), or *needs macOS* / *needs the Android SDK*; a Sign column showing the `[export]` identity and whether its credential is in the environment; an Export button per row and one for all checked |
-| Progress | none | Step 6: a bar from `on_export` events, the log in the Output dock, `failed` opening it |
+| Progress | none | Step 6: a bar from `on_export_event` events, the log in the Output dock, `failed` opening it |
 | Where the result goes | the working directory, or `-o` | Step 6: `[export] output`, default `export/<target>/`, and `balaur new` writes a `.gitignore` with `export/` in it |
 | Opening the folder | no host function | Step 6: `engine.reveal(path)` through the `opener` crate (`opener::reveal`), and `engine.open_url(url)` beside it since it is the same crate; both are effects, never recorded, like rumble |
 | Template download | CLI prompt only | Step 6: `Options::obtain` bound to a modal ("download balaur-runtime-windows-x64 (41 MB) from v0.2.0?"), into the same cache, verified the same way |
@@ -225,7 +225,7 @@ Every place a game from this engine could be asked to prove who made it.
 5. **Windows.** `extract` reads past a certificate table; `--sign` through
    `signtool` or `osslsigncode`. Ends with: a fused `.exe` SmartScreen does
    not warn about, once the certificate has reputation.
-6. **The Export sheet.** The `export` script module, `on_export`, the
+6. **The Export sheet.** The `export` script module, `on_export_event`, the
    palette verb, the sheet, `engine.reveal`, `[export]`, the `.gitignore`.
    Ends with: a game exported for every installed target from one sheet,
    the folder open in Finder at the end.

@@ -43,7 +43,7 @@ fn specs(S) {
     fact(out, "Version", mine.version);
     fact(out, "Build", if mine.source == true { "from a checkout" } else { mine.id });
     fact(out, "Channel", if mine.channel == "" { "none" } else { mine.channel });
-    fact(out, "Platform", engine::platform().os);
+    fact(out, "Platform", engine::target().os);
     fact(out, "Licence", "MIT");
     // A tab runs the build the page served it, so it has no line to follow.
     // Drawn, because the check and the install are the start screen's own.

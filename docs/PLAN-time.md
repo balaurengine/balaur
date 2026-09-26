@@ -16,7 +16,7 @@
   nodes the pause holds — scripts, animation players, tweens, state machines,
   the `timer` component — so an `always` subtree ticks inside a held game.
   Physics is one world and is held whole, as Godot's is.
-- `on_paused(bool)` reaches every script, the ones the pause just stopped
+- `on_paused_changed(bool)` reaches every script, the ones the pause just stopped
   included: `ScriptHost::announce` is `call_all_with` without the pause filter.
 - `engine.set_time_scale(s)` multiplies measured frame time before it is owed,
   and the substep cap scales with it so fast forward is not silently capped.
@@ -70,7 +70,7 @@ an `always` node, as Godot's does.
 
 **A pause is not recorded.** The script that paused runs again on replay and
 pauses again; nothing about it enters the input trace. A pause from outside
-the simulation — the OS suspending the app — arrives as `on_focus_changed`
+the simulation — the OS suspending the app — arrives as `on_focused_changed`
 already, and what a game does with it is a script's.
 
 **Time scale feeds the accumulator.** `engine.set_time_scale(s)` multiplies
@@ -107,7 +107,7 @@ game has a reason.
 
 | Need | Decision |
 | --- | --- |
-| Pause the game, keep the menu alive | Step 1: `engine.set_paused`, `engine.paused`, `process` on a node, `on_paused(bool)` on every script |
+| Pause the game, keep the menu alive | Step 1: `engine.set_paused`, `engine.paused`, `process` on a node, `on_paused_changed(bool)` on every script |
 | A node that never ticks | Step 1: `process = "disabled"` |
 | Slow motion, fast forward | Step 2: `engine.set_time_scale`, `engine.time_scale`; `engine.time` keeps counting scaled time, `engine.unix_time` does not |
 | A hitch that should not run four steps at once | Have: `MAX_SUBSTEPS` drops the time; step 2 scales the cap with the time scale so fast forward is not silently capped |

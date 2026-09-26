@@ -409,7 +409,7 @@ struct AppearanceFrame {
     #[serde(default = "untinted")]
     tint: [f32; 4],
     z_index: i32,
-    z_relative: bool,
+    z_as_relative: bool,
     /// The reference, since ids are per process. Empty is none, and left out.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     material: String,
@@ -431,7 +431,7 @@ fn save_appearance(eng: &Engine) -> serde_json::Value {
                 visible: a.visible,
                 tint: a.tint.into(),
                 z_index: a.z_index,
-                z_relative: a.z_relative,
+                z_as_relative: a.z_as_relative,
                 material: a.material.reference().to_string(),
             })
         })
@@ -459,7 +459,7 @@ fn load_appearance(eng: &Engine, value: &serde_json::Value) {
         a.visible = frame.visible;
         a.tint = frame.tint.into();
         a.z_index = frame.z_index;
-        a.z_relative = frame.z_relative;
+        a.z_as_relative = frame.z_as_relative;
         a.material = crate::scene::MaterialId::intern(&frame.material);
     }
 }

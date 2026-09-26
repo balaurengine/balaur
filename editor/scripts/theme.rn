@@ -15,7 +15,7 @@ const ROOTS = ["Editor/Shell", "Editor/Manager", "Editor/Picker", "Editor/Sheet"
 
 /// Where the person's own themes live.
 pub fn user_dir() {
-    project::editor_data_dir() + "/themes"
+    project::editor_data_directory() + "/themes"
 }
 
 pub fn is_bundled(name) {

@@ -28,7 +28,7 @@ pub const DEBUGGER_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "debugger",
-        name: "paused",
+        name: "stop_location",
         call: paused,
     },
     EngineOp {
@@ -71,7 +71,7 @@ pub fn install_debugger_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("set_breakpoints", &[], "(path: string, lines: [int])", "Replace one file's breakpoints with the given lines, returning the lines they landed on."),
         ("breakpoints", &[], "(path: string)", "The lines one file's breakpoints landed on."),
-        ("paused", &[], "()", "Where a script is stopped (node, path, line, reason and frames, innermost first) or nil while none is."),
+        ("stop_location", &[], "()", "Where a script is stopped (node, path, line, reason and frames, innermost first) or nil while none is."),
         ("resume", &[], "(mode: string?)", "Let the stopped script go on, in the given step mode (`CONTINUE`, `STEP_OVER`, `STEP_INTO`, `STEP_OUT`)."),
         ("set_break_on_error", &[], "(on: bool)", "Stop where a script throws instead of logging it and moving on; off by default."),
         ("break_on_error", &[], "()", "Whether a script that throws stops rather than being logged."),

@@ -77,19 +77,19 @@ fn mixed_pile() {
         ("place", |w, i| {
             let at = world::lattice_2d(i, [30.0, 30.0], 88, [-1305.0, 930.0], 0.05);
             let node = world::body(w, [at[0], -at[1]], pile_shape(i % 4));
-            node.transform.rotation_euler = [0.0, 0.0, rng::range(-3.14159, 3.14159)];
+            node.transform.rotation_euler = [0.0, 0.0, random::range(-3.14159, 3.14159)];
         }),
     ])
 }
 
 fn pile_shape(kind) {
     if kind == 0 {
-        rect(rng::range(14.0, 26.0), rng::range(14.0, 26.0))
+        rect(random::range(14.0, 26.0), random::range(14.0, 26.0))
     } else if kind == 1 {
-        #{ kind: "circle", radius: rng::range(7.0, 13.0) }
+        #{ kind: "circle", radius: random::range(7.0, 13.0) }
     } else if kind == 2 {
-        let radius = rng::range(6.0, 10.0);
-        #{ kind: "capsule", radius: radius, height: rng::range(22.0, 34.0) + 2.0 * radius }
+        let radius = random::range(6.0, 10.0);
+        #{ kind: "capsule", radius: radius, height: random::range(22.0, 34.0) + 2.0 * radius }
     } else {
         // A fixed pentagon rather than a sized one: a hull comes from a mesh
         // asset, and the collider has no scale to vary it with.
@@ -221,12 +221,12 @@ fn query_storm() {
         ("place", |w, i| {
             if i < STATICS {
                 let node = world::fixed(w, scatter(),
-                    rect(rng::range(20.0, 60.0), rng::range(20.0, 60.0)));
-                node.transform.rotation_euler = [0.0, 0.0, rng::range(-3.14159, 3.14159)];
+                    rect(random::range(20.0, 60.0), random::range(20.0, 60.0)));
+                node.transform.rotation_euler = [0.0, 0.0, random::range(-3.14159, 3.14159)];
             } else {
-                let node = world::body(w, scatter(), #{ kind: "circle", radius: rng::range(10.0, 24.0) });
+                let node = world::body(w, scatter(), #{ kind: "circle", radius: random::range(10.0, 24.0) });
                 node.patch_component("body2d", #{ gravity_scale: 0.0 });
-                node.body2d.set_linear_velocity(rng::range(-60.0, 60.0), rng::range(-60.0, 60.0));
+                node.body2d.set_linear_velocity(random::range(-60.0, 60.0), random::range(-60.0, 60.0));
             }
         }),
         ("step", |w, tick| { storm(w, tick); }),
@@ -235,7 +235,7 @@ fn query_storm() {
 }
 
 fn scatter() {
-    [rng::range(-FIELD, FIELD), rng::range(-FIELD, FIELD)]
+    [random::range(-FIELD, FIELD), random::range(-FIELD, FIELD)]
 }
 
 fn storm(w, tick) {

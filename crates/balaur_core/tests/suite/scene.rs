@@ -312,7 +312,7 @@ fn a_relative_z_index_adds_to_its_parents_and_an_absolute_one_does_not() {
         world.get::<&mut scene::Appearance>(b).unwrap().z_index = 5;
         let mut leaf = world.get::<&mut scene::Appearance>(c).unwrap();
         leaf.z_index = 2;
-        leaf.z_relative = false;
+        leaf.z_as_relative = false;
     }
     propagate_transforms(&mut engine.world_mut(), engine.root());
     let world = engine.world();

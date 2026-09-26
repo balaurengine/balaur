@@ -93,7 +93,7 @@ pub fn profiler_tools(S, k) {
         text_color: if on { k.bg_control } else { k.text_muted },
     }) {
         S.script_profiling = !on;
-        engine::profile_scripts(!on);
+        engine::set_script_profiling(!on);
     }
 }
 
@@ -434,7 +434,7 @@ pub fn new_folder(S) {
         name = format!("{}-{}", base, n);
         n += 1;
     }
-    fs::mkdir(asset_path(S, name));
+    fs::create_directory(asset_path(S, name));
     model::forget(S, None);
     S.assets.sel = name;
     log::info(format!("made res://{}", name));
@@ -889,7 +889,7 @@ fn open_at(S, f) {
 // clicking the ruler seeks — backwards by rebuilding and running to it again.
 pub fn session_view(S, k) {
     ui::add_space(4);
-    let split = replay::diverged();
+    let split = replay::divergence_tick();
     let first = S.session.first;
     let last = S.session.last;
     let span = util::max(1.0, util::f(last - first));
@@ -1154,7 +1154,7 @@ fn script_rows(items, k) {
         ]));
         n += 1;
     }
-    engine::profile_scripts(true);
+    engine::set_script_profiling(true);
 }
 
 /// How many of the dearest functions the Profiler lists under the scripts.

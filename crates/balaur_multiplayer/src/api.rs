@@ -93,7 +93,7 @@ const DOCS: &[balaur_script::FnDoc] = &[
         "The match tick being simulated; what a match branches on instead of `engine.tick`.",
     ),
     (
-        "settled",
+        "settled_tick",
         &[],
         "()",
         "The tick before which nothing can be rolled back any more.",
@@ -204,7 +204,7 @@ fn install_play(m: &mut dyn Bindings<Engine>) {
     m.function("tick", |eng: &Engine, (): ()| {
         Ok(tick_value(rollback::clock(eng).tick))
     });
-    m.function("settled", |eng: &Engine, (): ()| {
+    m.function("settled_tick", |eng: &Engine, (): ()| {
         let clock = rollback::clock(eng);
         Ok(tick_value(clock.settled.min(clock.tick)))
     });

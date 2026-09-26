@@ -65,7 +65,7 @@ value = 1
 [[nodes.bindings.rows]]
 event = "pointer_click"
 when = "score >= 3"
-action = "state"
+action = "set_state"
 target = "../Door"
 value = "open"
 

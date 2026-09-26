@@ -403,7 +403,7 @@ impl RuneHost {
         self.batch(|entity| balaur_core::process::ticks(&world, entity, paused))
     }
 
-    /// [`Self::live_batch`] without the pause: what `on_paused` is announced
+    /// [`Self::live_batch`] without the pause: what `on_paused_changed` is announced
     /// over, since a script the pause stopped is exactly the one that wants
     /// to hear about it.
     pub(crate) fn unpaused_batch(&self) -> Vec<(Entity, Rc<str>, rune::Value)> {
@@ -438,7 +438,7 @@ impl RuneHost {
     }
 
     /// As [`Self::call_all_with`], reaching the instances the game's pause
-    /// holds too. What `on_paused` is announced over.
+    /// holds too. What `on_paused_changed` is announced over.
     pub fn announce(&self, method: &str, args: &[balaur_script::Value]) {
         self.call_batch_with(method, args, self.unpaused_batch());
     }

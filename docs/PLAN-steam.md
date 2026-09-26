@@ -92,7 +92,7 @@ pub async fn init(this) {
     platform::unlock(this.node, "first_blood");
 }
 
-pub fn on_platform(this, e) {
+pub fn on_platform_event(this, e) {
     if e["kind"] == "unlocked" { log::info(`achievement ${e["id"]}`); }
 }
 ```

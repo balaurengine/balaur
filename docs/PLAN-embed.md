@@ -88,7 +88,7 @@ is.
 
 **An iframe is the same protocol across a frame.** A hosted URL from
 `docs/PLAN-deploy.md` embeds in Notion, Webflow, Framer and an `<iframe>`
-anywhere; `postMessage` to the frame reaches `on_web_message` today, and the
+anywhere; `postMessage` to the frame reaches `on_web_event` today, and the
 protocol above is what it carries.
 
 **The module fits the game.** The template is built in CI as variants over

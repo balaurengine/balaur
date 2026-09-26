@@ -727,8 +727,8 @@ fn a_change_of_focus_or_dark_mode_reaches_every_script_once() {
     let dir = project(&[(
         "a.rn",
         "pub fn init(this) { this.focus = 0.0; this.dark = 0.0; }\n\
-         pub fn on_focus_changed(this, focused) { if focused { this.focus += 1.0; } else { this.focus += 10.0; } }\n\
-         pub fn on_dark_mode(this, dark) { if dark { this.dark += 1.0; } }\n",
+         pub fn on_focused_changed(this, focused) { if focused { this.focus += 1.0; } else { this.focus += 10.0; } }\n\
+         pub fn on_dark_mode_changed(this, dark) { if dark { this.dark += 1.0; } }\n",
     )]);
     let mut app = app_in(dir.path());
     let node = spawn(&app, "Listener");
@@ -766,7 +766,7 @@ fn a_paused_script_still_hears_the_window_lose_focus() {
     let dir = project(&[(
         "a.rn",
         "pub fn init(this) { this.focus = 0.0; }\n\
-         pub fn on_focus_changed(this, focused) { if !focused { this.focus += 1.0; } }\n",
+         pub fn on_focused_changed(this, focused) { if !focused { this.focus += 1.0; } }\n",
     )]);
     let mut app = app_in(dir.path());
     let node = spawn(&app, "Listener");

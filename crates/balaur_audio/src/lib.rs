@@ -26,7 +26,7 @@ use balaur_core::{DetHashMap, Engine, Stage, scene};
 
 pub mod bus;
 pub mod cache;
-pub mod event;
+pub mod cue;
 mod script_api;
 pub mod spatial;
 pub mod vocabulary;
@@ -189,7 +189,7 @@ mod backend {
     }
 }
 
-/// The floor `pitch` is clamped to, matching the schema's `min`: rodio takes
+/// The floor `pitch_scale` is clamped to, matching the schema's `min`: rodio takes
 /// a playback speed, and zero would park the sink forever.
 const MIN_PITCH: f32 = 0.01;
 
@@ -300,7 +300,7 @@ fn length_of(bytes: &[u8]) -> Option<f64> {
 
 /// One `play`: how loud and fast, looping or not, on which bus at what chain
 /// gain, and, for a positional sound, where it plays from.
-pub struct Cue {
+pub struct Playback {
     pub volume: f32,
     pub pitch: f32,
     pub looped: bool,
@@ -312,7 +312,7 @@ pub struct Cue {
     pub file: FileSettings,
 }
 
-impl Default for Cue {
+impl Default for Playback {
     fn default() -> Self {
         Self {
             volume: 1.0,
@@ -326,7 +326,7 @@ impl Default for Cue {
     }
 }
 
-/// A sound file's import settings: its own `volume`, whether it loops
+/// A sound file's import settings: its own `volume_linear`, whether it loops
 /// wherever it is played, and where each repeat starts. Its level is baked
 /// into the samples, so a handle's volume of 1 is still the file's own level.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -354,7 +354,7 @@ impl FileSettings {
         let resolved = balaur_core::import::resolved(eng, path);
         let settings = &resolved.settings;
         Self {
-            level: number(settings, keys::VOLUME, 1.0).max(0.0) as f32,
+            level: number(settings, keys::VOLUME_LINEAR, 1.0).max(0.0) as f32,
             looped: flag(settings, keys::LOOP, false),
             loop_offset: number(settings, keys::LOOP_OFFSET, 0.0).max(0.0) as f32,
         }
@@ -416,9 +416,9 @@ impl AudioState {
         bus: &str,
         gain: f32,
     ) -> u64 {
-        self.play_cue(
+        self.play_with(
             bytes,
-            Cue {
+            Playback {
                 volume,
                 pitch,
                 looped,
@@ -430,17 +430,17 @@ impl AudioState {
         )
     }
 
-    /// Start a whole cue, positional or not, and hand back its handle.
+    /// Start a whole playback, positional or not, and hand back its handle.
     ///
-    /// A cue carrying an emitter is placed here rather than waiting for the
+    /// A playback carrying an emitter is placed here rather than waiting for the
     /// next frame's pass: a sound the far side of the level must not be heard
     /// at full volume for the frame before it is placed.
-    pub fn play_cue(&mut self, bytes: Vec<u8>, cue: Cue) -> u64 {
+    pub fn play_with(&mut self, bytes: Vec<u8>, playback: Playback) -> u64 {
         let handle = self.next_handle;
         self.next_handle += 1;
-        let volume = cue.volume.max(0.0);
-        let pitch = cue.pitch.max(MIN_PITCH);
-        let placement = match cue.emitter {
+        let volume = playback.volume.max(0.0);
+        let pitch = playback.pitch.max(MIN_PITCH);
+        let placement = match playback.emitter {
             Some(mut emitter) => {
                 emitter.pitch = pitch;
                 emitter.placement = spatial::place(&self.listener, &emitter);
@@ -451,12 +451,12 @@ impl AudioState {
             None => None,
         };
         let placed = placement.unwrap_or_default();
-        let applied = (volume * cue.gain * placed.gain).max(0.0);
-        let looped = cue.looped || cue.file.looped;
+        let applied = (volume * playback.gain * placed.gain).max(0.0);
+        let looped = playback.looped || playback.file.looped;
         self.routing.insert(
             handle,
             Routed {
-                bus: cue.bus,
+                bus: playback.bus,
                 volume,
                 applied,
                 left: if looped { None } else { length_of(&bytes) },
@@ -466,9 +466,9 @@ impl AudioState {
         self.open_if_needed();
         if let Some(device) = &self.device {
             let shape = Shape {
-                looped: cue.looped || cue.file.looped,
-                level: cue.file.level,
-                loop_offset: cue.file.loop_offset,
+                looped: playback.looped || playback.file.looped,
+                level: playback.file.level,
+                loop_offset: playback.file.loop_offset,
             };
             let started = backend::play(
                 device,
@@ -621,7 +621,7 @@ pub fn play_on(eng: &Engine, entity: Entity) -> Result<u64> {
     bus::ensure_loaded(eng);
     let state = eng.resource::<AudioState>();
     let mut state = state.borrow_mut();
-    let (file, current, mut cue) = {
+    let (file, current, mut playback) = {
         let sound = state
             .nodes
             .get(&entity)
@@ -629,7 +629,7 @@ pub fn play_on(eng: &Engine, entity: Entity) -> Result<u64> {
         (
             sound.file.clone(),
             sound.handle,
-            Cue {
+            Playback {
                 volume: sound.volume,
                 pitch: sound.pitch,
                 looped: sound.looped,
@@ -651,8 +651,8 @@ pub fn play_on(eng: &Engine, entity: Entity) -> Result<u64> {
         bail!("the node's `sound` component names no `file`");
     }
     let bytes = read_sound(eng, &file)?;
-    cue.file = FileSettings::of(eng, &file);
-    if let Some(emitter) = &mut cue.emitter {
+    playback.file = FileSettings::of(eng, &file);
+    if let Some(emitter) = &mut playback.emitter {
         // Composed here rather than read off `GlobalTransform`: a node that
         // entered the scene this frame has not been through a scene sync, and
         // a sound must not start from the origin and jump.
@@ -661,8 +661,8 @@ pub fn play_on(eng: &Engine, entity: Entity) -> Result<u64> {
     if let Some(current) = current {
         state.stop(current);
     }
-    cue.gain = eng.resource::<bus::Buses>().borrow().gain(&cue.bus);
-    let handle = state.play_cue(bytes, cue);
+    playback.gain = eng.resource::<bus::Buses>().borrow().gain(&playback.bus);
+    let handle = state.play_with(bytes, playback);
     if let Some(sound) = state.nodes.get_mut(&entity) {
         sound.handle = Some(handle);
     }
@@ -839,7 +839,7 @@ impl balaur_plugin::Plugin for AudioPlugin {
             next_handle: 1,
         });
         reg.insert_resource(bus::Buses::default());
-        reg.insert_resource(event::Events::default());
+        reg.insert_resource(cue::Cues::default());
         reg.insert_resource(cache::SoundCache::default());
 
         reg.add_system(Stage::First, open_on_activation_system);
@@ -866,20 +866,20 @@ fn register_sound_component(reg: &mut balaur_plugin::Registry<'_>) {
         ComponentDef {
             events: &[(FINISHED_EVENT, "the handle that played out")],
             warnings: None,
-            doc: "A sound on the node: `file`, `volume`, `pitch` and `loop`. `autoplay` starts it on load, `node.sound.play()` triggers it, `positional` plays it from the node for the `listener`, and the node announces `finished` when it plays out.",
+            doc: "A sound on the node: `file`, `volume_linear`, `pitch_scale` and `loop`. `autoplay` starts it on load, `node.sound.play()` triggers it, `positional` plays it from the node for the `listener`, and the node announces `finished` when it plays out.",
             schema: ComponentDef::parse_schema(
                 "sound",
                 &balaur_core::components::ComponentDef::schema(&[
                     (k::FILE, r#"{ type = "string", default = "", description = "Audio file, project-relative; required to play" }"#),
                     (k::AUTOPLAY, r#"{ type = "bool", default = false, description = "Start playing when the node enters the scene" }"#),
-                    (k::VOLUME, r#"{ type = "float", default = 1.0, min = 0.0, description = "Linear gain; 1 is the file's own level" }"#),
-                    (k::PITCH, r#"{ type = "float", default = 1.0, min = 0.01, description = "Playback speed multiplier" }"#),
+                    (k::VOLUME_LINEAR, r#"{ type = "float", default = 1.0, min = 0.0, description = "Linear gain; 1 is the file's own level" }"#),
+                    (k::PITCH_SCALE, r#"{ type = "float", default = 1.0, min = 0.01, description = "Playback speed multiplier" }"#),
                     (k::LOOP, r#"{ type = "bool", default = false, description = "Restart the sound when it ends" }"#),
                     (k::BUS, r#"{ type = "string", default = "", description = "Audio bus this plays through; empty is `master`" }"#),
                     (k::POSITIONAL, r#"{ type = "bool", default = false, description = "Place the sound where the node is, heard from the `listener`" }"#),
                     (k::MIN_DISTANCE, r#"{ type = "float", default = 1.0, min = 0.001, description = "Full volume within this distance of the listener" }"#),
                     (k::MAX_DISTANCE, r#"{ type = "float", default = 50.0, min = 0.001, description = "Silent beyond this distance from the listener" }"#),
-                    (k::DOPPLER, r#"{ type = "float", default = 0.0, min = 0.0, description = "How much the closing speed bends the pitch; 0 is off, 1 physical" }"#),
+                    (k::DOPPLER_LEVEL, r#"{ type = "float", default = 0.0, min = 0.0, description = "How much the closing speed bends the pitch; 0 is off, 1 physical" }"#),
                 ]),
             ),
             tags: &[balaur_core::components::tag::AUDIO],
@@ -908,8 +908,8 @@ fn apply_sound(eng: &Engine, entity: Entity, params: &toml::Value) {
         |key: &str, default: f64| params.get(key).and_then(as_f64).unwrap_or(default) as f32;
     let (autoplay, volume, pitch) = (
         flag(k::AUTOPLAY),
-        level(k::VOLUME, 1.0),
-        level(k::PITCH, 1.0),
+        level(k::VOLUME_LINEAR, 1.0),
+        level(k::PITCH_SCALE, 1.0),
     );
     let has_file = !file.trim().is_empty();
     bus::ensure_loaded(eng);
@@ -934,7 +934,7 @@ fn apply_sound(eng: &Engine, entity: Entity, params: &toml::Value) {
             sound.positional = flag(k::POSITIONAL);
             sound.min_distance = level(k::MIN_DISTANCE, f64::from(DEFAULT_MIN_DISTANCE));
             sound.max_distance = level(k::MAX_DISTANCE, f64::from(DEFAULT_MAX_DISTANCE));
-            sound.doppler = level(k::DOPPLER, 0.0);
+            sound.doppler = level(k::DOPPLER_LEVEL, 0.0);
             // A `sound` now naming another file drops the old playback.
             if file_changed {
                 (true, sound.handle.take())
@@ -979,13 +979,13 @@ fn sound_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let mut out = toml::map::Map::new();
     out.insert(k::FILE.into(), sound.file.clone().into());
     out.insert(k::AUTOPLAY.into(), sound.autoplay.into());
-    out.insert(k::VOLUME.into(), f64::from(sound.volume).into());
-    out.insert(k::PITCH.into(), f64::from(sound.pitch).into());
+    out.insert(k::VOLUME_LINEAR.into(), f64::from(sound.volume).into());
+    out.insert(k::PITCH_SCALE.into(), f64::from(sound.pitch).into());
     out.insert(k::LOOP.into(), sound.looped.into());
     out.insert(k::BUS.into(), sound.bus.clone().into());
     out.insert(k::POSITIONAL.into(), sound.positional.into());
     out.insert(k::MIN_DISTANCE.into(), f64::from(sound.min_distance).into());
     out.insert(k::MAX_DISTANCE.into(), f64::from(sound.max_distance).into());
-    out.insert(k::DOPPLER.into(), f64::from(sound.doppler).into());
+    out.insert(k::DOPPLER_LEVEL.into(), f64::from(sound.doppler).into());
     Some(toml::Value::Table(out))
 }

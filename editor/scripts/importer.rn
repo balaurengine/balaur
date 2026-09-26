@@ -41,7 +41,7 @@ const ROWS = #{
            help: "the palette's 0 to 100 quality when this file is quantised" },
     ],
     audio: [
-        #{ key: "volume", kind: "number", fallback: 1.0, step: 0.05,
+        #{ key: "volume_linear", kind: "number", fallback: 1.0, step: 0.05,
            help: "the file's own level, multiplied into every play of it" },
         #{ key: "loop", kind: "bool", fallback: false,
            help: "loop wherever it is played" },

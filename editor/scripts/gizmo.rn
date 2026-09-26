@@ -183,8 +183,8 @@ pub fn extents_at(S, i) {
 // An axis-aligned box around the whole set, so the gizmo over many nodes sits
 // where a designer would draw one frame.
 fn set_geometry(S) {
-    let lo = [math::INF, math::INF, math::INF];
-    let hi = [-math::INF, -math::INF, -math::INF];
+    let lo = [math::INFINITY, math::INFINITY, math::INFINITY];
+    let hi = [-math::INFINITY, -math::INFINITY, -math::INFINITY];
     let any = false;
     for i in crate::selection::all(S) {
         let found = extents_at(S, i);
@@ -643,10 +643,10 @@ fn rows_in_box(S, cam, x0, y0, x1, y1) {
         let found = extents_at(S, i);
         let found_some = found;
         if let Some((c, he)) = found_some {
-            let bx0 = math::INF;
-            let by0 = math::INF;
-            let bx1 = -math::INF;
-            let by1 = -math::INF;
+            let bx0 = math::INFINITY;
+            let by0 = math::INFINITY;
+            let bx1 = -math::INFINITY;
+            let by1 = -math::INFINITY;
             let seen = false;
             for sx in [-1.0, 1.0] {
                 for sy in [-1.0, 1.0] {

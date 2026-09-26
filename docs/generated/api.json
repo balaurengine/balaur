@@ -9,7 +9,7 @@
       "doc": "Lets one rig play another's clips: `[bones]` pairs canonical bone names with node paths on this rig, `profile` names the `skeleton_profile` they come from.\n\n```toml\ntype = \"bone_map\"\n# profile = \"animations/humanoid.toml\"   # left out, the built-in humanoid profile\n# Used as animation.play(node, clip, { retarget = \"maps/hero.toml\" })\n\n[bones]\nHips = \"Armature/Hips\"\nSpine = \"Armature/Hips/Spine\"\nHead = \"Armature/Hips/Spine/Neck/Head\"\n```"
     },
     "heightfield": {
-      "directory": "terrain",
+      "directory": "heightfields",
       "doc": "A grid of heights for terrain: `rows` by `columns` samples in `heights`, row-major, one value per grid point.\n\n```toml\n[[assets]]\nid = \"valley\"\ntype = \"heightfield\"\nrows = 3\ncolumns = 3\nheights = [0, 0, 0, 0, -1, 0, 0, 0, 0]\n```"
     },
     "material": {
@@ -49,7 +49,7 @@
       "doc": "An image cut into equal tiles for `tilemap`: `texture`, `tile_size` in pixels and `columns` per row. `[tiles.<id>]` gives a tile `collision`; `[[terrains]]` auto-tiles by `kind`.\n\n```toml\ntype = \"tileset\"\ntexture = \"art/dungeon.png\"\ntile_size = 16                   # or [w, h]\ncolumns = 8\nspacing = 0                      # gutter between tiles\nmargin = 0                       # border around the sheet\n\n[tiles.3]                        # tile ids count row by row from the top left\ncollision = \"full\"\n\n[tiles.7]\ncollision = [[[0, 16], [16, 16], [16, 8]]]   # polygons in tile pixels, y down\none_way = true                   # a platform a body passes through from below\n\n[[terrains]]                     # paints by value and picks the tiles\nname = \"grass\"\nvalue = 1\nkind = \"quarters\"                # rules, sides, corners, corners_and_sides or quarters\nfirst_tile = 16\n# quarters = [fill, horizontal edge, vertical edge, outer corner, inner corner] tile ids, when they do not follow first_tile\n```"
     },
     "voxels": {
-      "directory": "terrain",
+      "directory": "voxels",
       "doc": "A voxel grid for a collider: `size` is one cell in world units, `cells` the filled coordinates. `physics3d.set_voxel` adds or removes a cell.\n\n```toml\n[[assets]]\nid = \"pillar\"\ntype = \"voxels\"\nsize = [1.0, 1.0, 1.0]\ncells = [[0, 0, 0], [0, 1, 0], [0, 2, 0]]   # signed coordinates\n```"
     },
     "widget_theme": {
@@ -93,10 +93,10 @@
     "shape3d": "An untextured 3D primitive at the node, tinted by `color`. `kind` is `sphere`, `box`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`.",
     "softbody2d": "A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `triangle_mesh` and `volumetric` kinds give and a generator does not.",
     "softbody3d": "A deformable 3D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. The node is drawn from the solver's positions.",
-    "sound": "A sound on the node: `file`, `volume`, `pitch` and `loop`. `autoplay` starts it on load, `audio.play_on` triggers it, and `positional` plays it from the node for the `listener`.",
+    "sound": "A sound on the node: `file`, `volume_linear`, `pitch_scale` and `loop`. `autoplay` starts it on load, `node.sound.play()` triggers it, `positional` plays it from the node for the `listener`, and the node announces `finished` when it plays out.",
     "sprite": "A textured 2D quad at the node, sized by `pixels_per_unit`. `columns` and `rows`, or a `sprite_sheet` in `sheet`, cut it into frames `frame` picks.",
     "state_machine": "Runs the `state_machine` asset in `machine` over the `player` node's clips. `auto` transitions fire when their conditions come on; `animation.travel` moves to a state.",
-    "states": "Named looks for the node. Every key beside `current` and `duration` is a state holding per-component property tables; `node.states.go(\"hover\")` patches one over the node.",
+    "states": "Named looks for the node. Every key beside `current` and `duration` is a state holding per-component property tables; `node.states.set_state(\"hover\")` patches one over the node.",
     "text2d": "A block of `text` drawn in the 2D pass, `pixels_per_unit` font pixels per world unit.",
     "text3d": "A block of `text` drawn in the 3D pass on a quad, `pixels_per_unit` font pixels per world unit; `billboard` turns it to the camera.",
     "tile_collision": "Collision for the node's `tilemap` cells: every tile the tileset marks solid, one shape per behaviour, with the material keys a `collider2d` takes.",
@@ -166,6 +166,12 @@
       [
         "tear",
         "`#{ pieces }`"
+      ]
+    ],
+    "sound": [
+      [
+        "finished",
+        "the handle that played out"
       ]
     ],
     "state_machine": [
@@ -4762,7 +4768,7 @@
         "description": "Audio bus this plays through; empty is `master`",
         "type": "string"
       },
-      "doppler": {
+      "doppler_level": {
         "default": 0.0,
         "description": "How much the closing speed bends the pitch; 0 is off, 1 physical",
         "min": 0.0,
@@ -4790,7 +4796,7 @@
         "min": 0.001,
         "type": "float"
       },
-      "pitch": {
+      "pitch_scale": {
         "default": 1.0,
         "description": "Playback speed multiplier",
         "min": 0.01,
@@ -4801,7 +4807,7 @@
         "description": "Place the sound where the node is, heard from the `listener`",
         "type": "bool"
       },
-      "volume": {
+      "volume_linear": {
         "default": 1.0,
         "description": "Linear gain; 1 is the file's own level",
         "min": 0.0,
@@ -6766,7 +6772,7 @@
       "Once, as the node is freed or its script detached."
     ],
     [
-      "hot_reload",
+      "on_hot_reload",
       "()",
       "After the script's file changed and it was rebuilt, with its state kept."
     ],
@@ -6856,17 +6862,17 @@
       "The node's `states` moved to another state."
     ],
     [
-      "on_paused",
+      "on_paused_changed",
       "(paused)",
       "The game paused or resumed, told to every script, a paused one too."
     ],
     [
-      "on_focus_changed",
+      "on_focused_changed",
       "(focused)",
       "The window came to the front or left it, told to every script."
     ],
     [
-      "on_dark_mode",
+      "on_dark_mode_changed",
       "(dark)",
       "The system switched dark mode, told to every script."
     ],
@@ -7382,7 +7388,7 @@
           "value": "url"
         }
       ],
-      "doc": "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer on a later tick as a map whose `kind` is an `EVENT_*` constant, to the node's `on_apple` or the awaited id.",
+      "doc": "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer on a later tick as a map whose `kind` is an `EVENT_*` constant, to the node's `on_apple_event` or the awaited id.",
       "docs": {
         "access_point": "Show or hide Game Center's floating access point, and answer whether it is showing; `location` is a corner: top_leading, top_trailing, bottom_leading or bottom_trailing.",
         "authenticated": "Whether Game Center has a signed-in player right now.",
@@ -7392,16 +7398,16 @@
         "entitlements": "What this player currently owns, each with the signed transaction a server checks.",
         "finish_purchase": "Tell StoreKit a transaction is dealt with. One that is never finished comes back on every launch.",
         "identity": "Fetch the items a server needs to verify this Game Center player, and return the id the answer carries.",
+        "listen": "Subscribe a node's method to everything that arrives unasked: a notification tapped, a URL opened, a push token, a transaction that landed elsewhere.",
+        "listen_for_urls": "Hear about URLs the game is asked to open while it runs. A URL the game was launched with arrives before the engine boots and is not one of them.",
         "notify": "Schedule a local notification. The options take `title`, `after` in seconds and an `id` to cancel or recognise it by.",
         "products": "Ask the App Store about a list of product ids, and answer with what it knows: title, description, price and display price.",
         "purchase": "Buy a product. The answer is `purchased`, `cancelled` or `pending`, and a purchase carries the signed `jws` a server checks.",
-        "register_for_push": "Ask the OS for a push token. It arrives at everything watching, not at the caller, because the OS hands it over whenever it likes.",
+        "register_for_push": "Ask the OS for a push token. It arrives at everything listening, not at the caller, because the OS hands it over whenever it likes.",
         "request_notifications": "Ask the player to allow notifications, and answer with what they said.",
         "restore_purchases": "Ask the App Store to hand this device's purchases back: the button a review expects a game to have.",
         "show_dashboard": "Open Game Center's dashboard over the game; `state` picks the page : default, leaderboards, achievements, challenges, profile, dashboard or friends.",
-        "sign_in": "Sign in with Apple, and return the id the identity token comes back on. Game Center's own sign-in is `platform.sign_in`.",
-        "watch": "Subscribe a node's method to everything that arrives unasked: a notification tapped, a URL opened, a push token, a transaction that landed elsewhere.",
-        "watch_urls": "Hear about URLs the game is asked to open while it runs. A URL the game was launched with arrives before the engine boots and is not one of them."
+        "sign_in": "Sign in with Apple, and return the id the identity token comes back on. Game Center's own sign-in is `platform.sign_in`."
       },
       "functions": [
         "access_point",
@@ -7412,6 +7418,8 @@
         "entitlements",
         "finish_purchase",
         "identity",
+        "listen",
+        "listen_for_urls",
         "notify",
         "products",
         "purchase",
@@ -7419,9 +7427,7 @@
         "request_notifications",
         "restore_purchases",
         "show_dashboard",
-        "sign_in",
-        "watch",
-        "watch_urls"
+        "sign_in"
       ],
       "name": "apple",
       "signatures": {
@@ -7433,6 +7439,8 @@
         "entitlements": "(Option<Value>, Option<Value>) -> Value",
         "finish_purchase": "(Value, Option<Value>, Option<Value>) -> Value",
         "identity": "(Option<Value>, Option<Value>) -> Value",
+        "listen": "(Value, Option<Value>) -> Value",
+        "listen_for_urls": "() -> Value",
         "notify": "(Value, Option<Value>, Option<Value>) -> Value",
         "products": "(Value, Option<Value>, Option<Value>) -> Value",
         "purchase": "(Value, Option<Value>, Option<Value>) -> Value",
@@ -7440,9 +7448,7 @@
         "request_notifications": "(Option<Value>, Option<Value>) -> Value",
         "restore_purchases": "(Option<Value>, Option<Value>) -> Value",
         "show_dashboard": "(Option<Value>, Option<Value>) -> Value",
-        "sign_in": "(Option<Value>, Option<Value>) -> Value",
-        "watch": "(Value, Option<Value>) -> Value",
-        "watch_urls": "() -> Value"
+        "sign_in": "(Option<Value>, Option<Value>) -> Value"
       }
     },
     {
@@ -7503,68 +7509,73 @@
       "components": [
         "sound"
       ],
-      "constants": [],
-      "doc": "Sound playback: `play` a file with `volume`, `pitch`, `loop` and a `position` heard from the `listener`. The `sound` component gives a node its own.",
+      "constants": [
+        {
+          "name": "EVENT_FINISHED",
+          "value": "finished"
+        }
+      ],
+      "doc": "Sound playback: `play` a file with `volume_linear`, `pitch_scale`, `loop` and a `position` heard from the `listener`. The `sound` component gives a node its own, which announces `finished` (`EVENT_FINISHED`) with the handle when it plays out.",
       "docs": {
-        "bus_volume": "One bus's own gain, without its parents'.",
+        "bus_volume_linear": "One bus's own gain, without its parents'.",
         "buses": "Every audio bus, declared in `[audio.buses]` or made by setting a volume, in name order.",
+        "cues": "Every sound named in `audio/cues.toml`, in name order.",
+        "device_ready": "Whether an output device is open. False on a page until the first gesture, and false for good with no sound card; playing before then hands out handles that make no sound.",
         "distance_gain": "The gain the distance to the listener is costing a positional handle right now: 1 up close, 0 out of range.",
         "emitter_position": "Where a handle played with a `position` is; nil for a flat or unknown one.",
-        "events": "Every sound named in `audio/events.toml`, in name order.",
-        "is_playing": "Whether a handle's sound is still audible; false once it ends, and always false with no output device.",
-        "listener": "Where the ears are: the current `listener` node's world position, or what `set_listener` last put there.",
+        "is_playing": "Whether a handle's sound is still going: false once it plays out or is stopped, on the same tick with or without an output device.",
+        "listener_position": "Where the ears are: the current `listener` node's world position, or what `set_listener_position` last put there.",
         "pan": "Where a positional handle sits between the speakers: -1 hard left, 0 centred, 1 hard right.",
         "play": "Start the node's own `sound` from the top, replacing what it had going, and return the new handle.",
-        "play_event": "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. A `position` in the options table places it. Nil for a name nothing declared.",
-        "ready": "Whether an output device is open. False on a page until the first gesture, and false for good with no sound card; playing before then hands out handles that make no sound.",
-        "set_bus_volume": "Set one bus's gain and re-apply it to everything already playing on it: which is what a volume slider is.",
+        "play_cue": "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. A `position` in the options table places it. Nil for a name nothing declared.",
+        "set_bus_volume_linear": "Set one bus's gain and re-apply it to everything already playing on it: which is what a volume slider is.",
         "set_emitter_position": "Move what a handle plays from, so a sound follows something the script is driving; the frame takes its doppler from how far it moved.",
-        "set_listener": "Put the ears at a point by hand, for a game whose view is not a node; a `listener` node in the scene takes it back on the next frame.",
-        "set_pitch": "Set a playing handle's speed multiplier, which carries its pitch with it.",
-        "set_volume": "Set a playing handle's linear gain, where 1 is the file's own level.",
+        "set_listener_position": "Put the ears at a point by hand, for a game whose view is not a node; a `listener` node in the scene takes it back on the next frame.",
+        "set_pitch_scale": "Set a playing handle's speed multiplier, which carries its pitch with it.",
+        "set_volume_linear": "Set a playing handle's linear gain, where 1 is the file's own level.",
         "stop": "Silence what the node's `sound` started; a node carrying none is left alone.",
         "stop_all": "Silence everything at once and clear the playback every `sound` component was holding.",
         "stop_playback": "Silence the sound a handle names; a finished, stopped or unknown handle is left alone."
       },
       "functions": [
-        "bus_volume",
+        "bus_volume_linear",
         "buses",
+        "cues",
+        "device_ready",
         "distance_gain",
         "emitter_position",
-        "events",
         "is_playing",
-        "listener",
+        "listener_position",
         "pan",
         "play",
-        "play_event",
-        "ready",
-        "set_bus_volume",
+        "play_cue",
+        "set_bus_volume_linear",
         "set_emitter_position",
-        "set_listener",
-        "set_pitch",
-        "set_volume",
+        "set_listener_position",
+        "set_pitch_scale",
+        "set_volume_linear",
         "stop",
         "stop_all",
         "stop_playback"
       ],
       "name": "audio",
       "signatures": {
-        "bus_volume": "String -> f32",
+        "bus_volume_linear": "String -> f32",
         "buses": "() -> Value",
+        "cues": "() -> Value",
+        "device_ready": "() -> bool",
         "distance_gain": "i64 -> Value",
         "emitter_position": "i64 -> Value",
-        "events": "() -> Value",
         "is_playing": "i64 -> bool",
-        "listener": "() -> Value",
+        "listener_position": "() -> Value",
         "pan": "i64 -> Value",
         "play": "NodeId -> u64",
-        "play_event": "(String, Option<Value>) -> Value",
-        "ready": "() -> bool",
-        "set_bus_volume": "(String, f32) -> ()",
+        "play_cue": "(String, Option<Value>) -> Value",
+        "set_bus_volume_linear": "(String, f32) -> ()",
         "set_emitter_position": "(i64, Value, Option<Value>, Option<Value>) -> ()",
-        "set_listener": "(Value, Option<Value>, Option<Value>) -> ()",
-        "set_pitch": "(i64, f32) -> ()",
-        "set_volume": "(i64, f32) -> ()",
+        "set_listener_position": "(Value, Option<Value>, Option<Value>) -> ()",
+        "set_pitch_scale": "(i64, f32) -> ()",
+        "set_volume_linear": "(i64, f32) -> ()",
         "stop": "NodeId -> ()",
         "stop_all": "() -> ()",
         "stop_playback": "i64 -> ()"
@@ -7595,36 +7606,36 @@
       "docs": {
         "break_on_error": "Whether a script that throws stops rather than being logged.",
         "breakpoints": "The lines one file's breakpoints landed on.",
-        "paused": "Where a script is stopped (node, path, line, reason and frames, innermost first) or nil while none is.",
         "request_break": "Ask to stop at the next line any script runs; nothing is stopped yet when it returns.",
         "resume": "Let the stopped script go on, in the given step mode (`CONTINUE`, `STEP_OVER`, `STEP_INTO`, `STEP_OUT`).",
         "scope": "The node whose subtree a pause holds still, or nil when a pause stops the whole tree.",
         "set_break_on_error": "Stop where a script throws instead of logging it and moving on; off by default.",
         "set_breakpoints": "Replace one file's breakpoints with the given lines, returning the lines they landed on.",
-        "set_scope": "Limit the pause to one node's subtree, so an editor keeps running while the game stops; nil means the whole tree."
+        "set_scope": "Limit the pause to one node's subtree, so an editor keeps running while the game stops; nil means the whole tree.",
+        "stop_location": "Where a script is stopped (node, path, line, reason and frames, innermost first) or nil while none is."
       },
       "functions": [
         "break_on_error",
         "breakpoints",
-        "paused",
         "request_break",
         "resume",
         "scope",
         "set_break_on_error",
         "set_breakpoints",
-        "set_scope"
+        "set_scope",
+        "stop_location"
       ],
       "name": "debugger",
       "signatures": {
         "break_on_error": "()",
         "breakpoints": "(path: string)",
-        "paused": "()",
         "request_break": "()",
         "resume": "(mode: string?)",
         "scope": "()",
         "set_break_on_error": "(on: bool)",
         "set_breakpoints": "(path: string, lines: [int])",
-        "set_scope": "(node: node?)"
+        "set_scope": "(node: node?)",
+        "stop_location": "()"
       }
     },
     {
@@ -7653,33 +7664,33 @@
       "doc": "The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugins` and `quit`.",
       "docs": {
         "args": "The command-line arguments the app was started with, empty when it was given none.",
-        "dark_mode": "Whether the system is in dark mode this tick; every script's `on_dark_mode(bool)` is called when it changes. False where nothing says.",
+        "dark_mode": "Whether the system is in dark mode this tick; every script's `on_dark_mode_changed(bool)` is called when it changes. False where nothing says.",
         "delta": "Seconds the frame in progress covers, the same number a system is handed.",
         "device_id": "One id per install, made on first use and kept in the user directory: what a device login sends. Recorded with the session.",
         "environment": "An environment variable's value, nil when it is unset. Nil on the web, which has none. Outside the simulation, like `args`: a replay does not record it.",
-        "focused": "Whether the window is in front of the player this tick; every script's `on_focus_changed(bool)` is called when it changes. True with no window.",
-        "function_costs": "What each function has cost since `profile_scripts(true)`, dearest first: a list of `{ function, calls, instructions }`, a function's own instructions without its callees'. A `draw` callback and a closure a native call runs are in it.",
+        "focused": "Whether the window is in front of the player this tick; every script's `on_focused_changed(bool)` is called when it changes. True with no window.",
+        "function_costs": "What each function has cost since `set_script_profiling(true)`, dearest first: a list of `{ function, calls, instructions }`, a function's own instructions without its callees'. A `draw` callback and a closure a native call runs are in it.",
         "has_plugin": "Whether one plugin loaded, so a game shipped without `http` can say so rather than call into a module that is not there.",
         "open_url": "Open an http, https or mailto URL in whatever the player browses with: an opener on a desktop, a new tab on the web. Not on iOS or Android yet, where it reports that it has no opener. An effect on the world outside the game: never recorded, and it does nothing while a recording plays.",
         "paused": "Whether the game is paused.",
-        "platform": "Where this runs: `{ os, web, mobile, touchscreen, editor, dev }`, `dev` being a run from the sources rather than an exported pack. Recorded in a session's header, so a replay on another machine answers as the original did.",
         "plugin_version": "The version of one loaded plugin, or nil when it did not load.",
         "plugins": "Every plugin this build loaded, named, in load order.",
-        "profile_scripts": "Start or stop counting what each script costs. Turning it on clears the tally.",
         "quit": "Ask the app to shut down; the frame in flight still finishes, and the process exits with `code`, 0 when left out.",
         "reload_script": "Recompile one script by its project-relative key, for a tool editing files outside the watched root.",
         "reveal": "Show a file or directory in the system file manager, selected where the platform can. Desktops only: neither a browser tab nor a phone has a file manager to ask. Never recorded, like `open_url`.",
-        "script_costs": "What each script has cost since `profile_scripts(true)`, dearest first: a list of `{ path, calls, instructions }`. Instructions, not seconds, so the number is the same on every machine.",
-        "set_paused": "Pause or resume the game. Every node whose `process` mode is `pausable` stops ticking, physics holds both worlds, and the frame loop keeps drawing; an `always` subtree is what a pause menu runs in. Every script's `on_paused(bool)` follows, the ones the pause just stopped included.",
+        "script_costs": "What each script has cost since `set_script_profiling(true)`, dearest first: a list of `{ path, calls, instructions }`. Instructions, not seconds, so the number is the same on every machine.",
+        "set_paused": "Pause or resume the game. Every node whose `process` mode is `pausable` stops ticking, physics holds both worlds, and the frame loop keeps drawing; an `always` subtree is what a pause menu runs in. Every script's `on_paused_changed(bool)` follows, the ones the pause just stopped included.",
+        "set_script_profiling": "Start or stop counting what each script costs. Turning it on clears the tally.",
         "set_time_scale": "Multiply wall-clock time before the simulation is owed it: 0.5 is slow motion, 2.0 fast forward, each still whole fixed steps. Zero stops time without stopping a single node. A replay and a networked session drive by tick and ignore it.",
+        "target": "Where this runs: `{ os, web, mobile, touchscreen, editor, dev }`, `dev` being a run from the sources rather than an exported pack. Recorded in a session's header, so a replay on another machine answers as the original did.",
         "tick": "Which frame this is, counted whole: what simulation code branches on instead of `time`.",
         "tick_hz": "How many fixed steps a second this run takes, from `[time] tick_hz`. 60 unless the project says otherwise.",
         "time": "Seconds of engine time since the app started, accumulated as a float.",
         "time_scale": "What time is being multiplied by; 1.0 is real time.",
         "timings": "What the last frame cost, in seconds: `{ frame, fixed_steps, stages, spans }`. Presentation only: branching a `fixed_update` on wall time desyncs, and nothing records it.",
         "unix_time": "The wall clock at the top of this tick, in seconds since 1970. Read once per frame and recorded, so a replay sees the time the recording saw.",
-        "user_data_dir": "A writable per-user directory for saves and settings, created on first call and named after the project.",
-        "user_data_dir_of": "The user data directory a project of that name has, not created: where a tool finds another game's saves and logs."
+        "user_data_directory": "A writable per-user directory for saves and settings, created on first call and named after the project.",
+        "user_data_directory_of": "The user data directory a project of that name has, not created: where a tool finds another game's saves and logs."
       },
       "functions": [
         "args",
@@ -7692,24 +7703,24 @@
         "has_plugin",
         "open_url",
         "paused",
-        "platform",
         "plugin_version",
         "plugins",
-        "profile_scripts",
         "quit",
         "reload_script",
         "reveal",
         "script_costs",
         "set_paused",
+        "set_script_profiling",
         "set_time_scale",
+        "target",
         "tick",
         "tick_hz",
         "time",
         "time_scale",
         "timings",
         "unix_time",
-        "user_data_dir",
-        "user_data_dir_of"
+        "user_data_directory",
+        "user_data_directory_of"
       ],
       "name": "engine",
       "signatures": {
@@ -7723,67 +7734,67 @@
         "has_plugin": "(name: string)",
         "open_url": "(url: string)",
         "paused": "()",
-        "platform": "()",
         "plugin_version": "(name: string)",
         "plugins": "()",
-        "profile_scripts": "(on)",
         "quit": "(code: int?)",
         "reload_script": "(key: string)",
         "reveal": "(path: string)",
         "script_costs": "()",
         "set_paused": "(on: bool)",
+        "set_script_profiling": "(on)",
         "set_time_scale": "(scale: float)",
+        "target": "()",
         "tick": "()",
         "tick_hz": "()",
         "time": "()",
         "time_scale": "()",
         "timings": "()",
         "unix_time": "()",
-        "user_data_dir": "()",
-        "user_data_dir_of": "(project: string)"
+        "user_data_directory": "()",
+        "user_data_directory_of": "(project: string)"
       }
     },
     {
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Named events between scripts. A node subscribes to a name and hears it as its `on_<name>` method; `node.emit` and `events.emit` send one.",
+      "doc": "Named events between scripts. A node listens for a name and hears it as its `on_<name>` method; `node.emit` and `events.emit` send one.",
       "docs": {
-        "emit": "Queue an event from no particular node, delivered at the top of the next frame's update to whoever subscribed to the name from anyone.",
+        "emit": "Queue an event from no particular node, delivered at the top of the next frame's update to whoever listens for the name from anyone.",
         "emitted": "The payloads delivered under this name this frame whoever emitted them, in emission order; empty when none were.",
         "emitted_from": "The payloads delivered under this name this frame from that node, in emission order; empty when none were.",
+        "listen": "Hear an event on this node, as its script's `on_<name>(payload)`. Pass the node whose events to hear, or leave it out for every emitter. Listening twice is once.",
         "next": "A token for `task.wait` that wakes, with the payload, the next time the name is delivered from that node or, left out, from anyone: `let payload = task::wait(events::next(\"finished\", door)).await;`, a GDScript `await door.finished`.",
-        "subscribe": "Hear an event on this node, as its script's `on_<name>(payload)`. Pass the node whose events to hear, or leave it out for every emitter. Subscribing twice is once.",
-        "unsubscribe": "Stop hearing an event on this node, `from` being the emitter it was subscribed with. Not an error when it was never subscribed."
+        "stop_listening": "Stop hearing an event on this node, `from` being the emitter it listened with. Not an error when it never listened."
       },
       "functions": [
         "emit",
         "emitted",
         "emitted_from",
+        "listen",
         "next",
-        "subscribe",
-        "unsubscribe"
+        "stop_listening"
       ],
       "name": "events",
       "signatures": {
         "emit": "(String, Option<Value>) -> ()",
         "emitted": "String -> Value",
         "emitted_from": "(NodeId, String) -> Value",
+        "listen": "(NodeId, String, Option<NodeId>) -> ()",
         "next": "(String, Option<NodeId>) -> i64",
-        "subscribe": "(NodeId, String, Option<NodeId>) -> ()",
-        "unsubscribe": "(NodeId, String, Option<NodeId>) -> ()"
+        "stop_listening": "(NodeId, String, Option<NodeId>) -> ()"
       }
     },
     {
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Exports the project being edited. `targets` lists what this install can build; `start` runs one off the frame and reports to `on_export`.",
+      "doc": "Exports the project being edited. `targets` lists what this install can build; `start` runs one off the frame and reports to `on_export_event`.",
       "docs": {
-        "listen": "Have the node's `on_export(event)`, or the `on_event` method the options name, called as each export starts, finishes or fails.",
+        "listen": "Have the node's `on_export_event(event)`, or the `on_event` method the options name, called as each export starts, finishes or fails.",
         "output": "Where an export for this target will be written, as the project's `[export] output` decides.",
         "preview": "What one file becomes in a target's pack, as the Import tab shows it: `{ source, before, after, width, height, drawn_width, drawn_height, gpu_bytes }`, where `source` is the file or the variant that ships and `drawn_*` is zero unless a smaller copy does. Nil when the file does not ship there. An empty target is this machine's own.",
-        "running": "How many exports are in flight.",
+        "running_count": "How many exports are in flight.",
         "start": "Export the edited project for one target, on a thread. `download` allows fetching a missing template, `sign` names an identity, `output` overrides where it lands. Answers false while a recording plays.",
         "targets": "Every target, each `{ name, bundle, installed, fetchable, note }`: whether its runtime template is already here, whether a missing one could be fetched, and what a signed build of it would also need."
       },
@@ -7791,7 +7802,7 @@
         "listen",
         "output",
         "preview",
-        "running",
+        "running_count",
         "start",
         "targets"
       ],
@@ -7800,7 +7811,7 @@
         "listen": "(NodeId, Option<Value>) -> ()",
         "output": "String -> Value",
         "preview": "(String, String) -> Value",
-        "running": "() -> i64",
+        "running_count": "() -> i64",
         "start": "(String, Option<Value>) -> bool",
         "targets": "() -> Value"
       }
@@ -7812,10 +7823,10 @@
       "doc": "Files on disk, project-relative unless the path is absolute. A packed build's contents are reached through `assets` and `scene.source`.",
       "docs": {
         "copy": "Copy a file byte for byte, creating the destination's parent first. What `read` and `write` cannot do for an image or a model.",
+        "create_directory": "Create a project-relative directory and every parent it needs.",
         "exists": "Whether a project-relative path has anything at it, file or directory.",
         "list": "A directory's entries as `{ name, is_dir }`, sorted, dotfiles skipped; empty for a directory that is not there.",
-        "mkdir": "Create a project-relative directory and every parent it needs.",
-        "mtime": "When a file last changed, in seconds since the Unix epoch; nil for one that is not there.",
+        "modified_time": "When a file last changed, in seconds since the Unix epoch; nil for one that is not there.",
         "read": "A whole file as text, project-relative unless absolute; nil when it cannot be read.",
         "remove": "Delete a project-relative file, or a directory and everything under it; false when there was nothing there.",
         "rename": "Move a project-relative file or directory, creating the destination's parent first.",
@@ -7823,10 +7834,10 @@
       },
       "functions": [
         "copy",
+        "create_directory",
         "exists",
         "list",
-        "mkdir",
-        "mtime",
+        "modified_time",
         "read",
         "remove",
         "rename",
@@ -7835,10 +7846,10 @@
       "name": "fs",
       "signatures": {
         "copy": "(from: string, to: string)",
+        "create_directory": "(path: string)",
         "exists": "(path: string)",
         "list": "(path: string)",
-        "mkdir": "(path: string)",
-        "mtime": "(path: string)",
+        "modified_time": "(path: string)",
         "read": "(path: string)",
         "remove": "(path: string)",
         "rename": "(from: string, to: string)",
@@ -8084,8 +8095,8 @@
         "choose": "Ask the reader for a file and import what they pick, reporting as `start` does. On a desktop that is the OS dialog; in a tab it is the page's own chooser, which takes several files at once so a `.gltf` can be picked with the images it names. Answers whether the asking began.",
         "file": "Import one file into the edited project, in one call. Answers `{ files, scene, note }`: the project-relative paths written, the scene to instantiate when there is one, and a line for the log. Answers `{ error }` when the import failed. A whole project is the work of seconds, so an editor keeping its frame wants `start`.",
         "handles": "Whether an importer claims this file, by extension.",
-        "listen": "Have the node's `on_import(event)`, or the `on_event` method the options name, called as an import starts, writes each file, finishes or fails.",
-        "running": "How many imports are in flight.",
+        "listen": "Have the node's `on_import_event(event)`, or the `on_event` method the options name, called as an import starts, writes each file, finishes or fails.",
+        "running_count": "How many imports are in flight.",
         "start": "Import one file into the edited project, or into `project` when one is named, a few files per frame, reporting each to whatever `listen` named. Answers false while a recording plays. A model and a sprite are read first and then written a slice at a time, and a Godot project is walked a few files at a time; a level walks its own folder and takes one long slice, which says so in `files`."
       },
       "functions": [
@@ -8094,7 +8105,7 @@
         "file",
         "handles",
         "listen",
-        "running",
+        "running_count",
         "start"
       ],
       "name": "import",
@@ -8104,7 +8115,7 @@
         "file": "String -> Value",
         "handles": "String -> Value",
         "listen": "(NodeId, Option<Value>) -> ()",
-        "running": "() -> Value",
+        "running_count": "() -> Value",
         "start": "(String, Option<String>) -> Value"
       }
     },
@@ -8865,7 +8876,7 @@
         "touches_just_ended": "The ids of the fingers that lifted or were cancelled this frame.",
         "touches_just_started": "The ids of the fingers that touched down this frame.",
         "typed": "The characters typed this frame, in order: what a text field appends, where `key_just_pressed` says which key went down.",
-        "vibrate": "Buzz the device for that long: a phone's motor, or a page's `navigator.vibrate`. Nothing on a desktop, and never recorded, like rumble."
+        "vibrate": "Buzz the device for that many seconds: a phone's motor, or a page's `navigator.vibrate`. Nothing on a desktop, and never recorded, like rumble."
       },
       "functions": [
         "action_down",
@@ -8964,7 +8975,7 @@
         "touches_just_ended": "() -> Value",
         "touches_just_started": "() -> Value",
         "typed": "() -> Value",
-        "vibrate": "i64 -> ()"
+        "vibrate": "f64 -> ()"
       }
     },
     {
@@ -9025,7 +9036,7 @@
       "components": [],
       "constants": [
         {
-          "name": "INF",
+          "name": "INFINITY",
           "value": "inf"
         },
         {
@@ -9048,7 +9059,6 @@
         "clamp": "The first argument held inside the range given by the second (low) and third (high).",
         "cos": "The cosine of an angle in radians.",
         "cosh": "The hyperbolic cosine.",
-        "deg": "Radians converted to degrees.",
         "exp": "e raised to the given power.",
         "floor": "The largest whole number at or below the argument, still a float.",
         "log": "The natural logarithm, or the logarithm in the base given as a second argument.",
@@ -9056,13 +9066,14 @@
         "max": "The larger of two numbers.",
         "min": "The smaller of two numbers.",
         "pow": "The first argument raised to the power of the second.",
-        "rad": "Degrees converted to radians.",
         "round": "The nearest whole number, with halfway cases going away from zero.",
         "sin": "The sine of an angle in radians.",
         "sinh": "The hyperbolic sine.",
         "sqrt": "The square root; NaN for a negative argument.",
         "tan": "The tangent of an angle in radians.",
-        "tanh": "The hyperbolic tangent, between -1 and 1."
+        "tanh": "The hyperbolic tangent, between -1 and 1.",
+        "to_degrees": "Radians converted to degrees.",
+        "to_radians": "Degrees converted to radians."
       },
       "functions": [
         "abs",
@@ -9074,7 +9085,6 @@
         "clamp",
         "cos",
         "cosh",
-        "deg",
         "exp",
         "floor",
         "log",
@@ -9082,13 +9092,14 @@
         "max",
         "min",
         "pow",
-        "rad",
         "round",
         "sin",
         "sinh",
         "sqrt",
         "tan",
-        "tanh"
+        "tanh",
+        "to_degrees",
+        "to_radians"
       ],
       "name": "math",
       "signatures": {
@@ -9101,7 +9112,6 @@
         "clamp": "(x: float, low: float, high: float)",
         "cos": "(angle: float)",
         "cosh": "(x: float)",
-        "deg": "(radians: float)",
         "exp": "(power: float)",
         "floor": "(x: float)",
         "log": "(x: float, base: float?)",
@@ -9109,13 +9119,14 @@
         "max": "(a: float, b: float)",
         "min": "(a: float, b: float)",
         "pow": "(base: float, exponent: float)",
-        "rad": "(degrees: float)",
         "round": "(x: float)",
         "sin": "(angle: float)",
         "sinh": "(x: float)",
         "sqrt": "(x: float)",
         "tan": "(angle: float)",
-        "tanh": "(x: float)"
+        "tanh": "(x: float)",
+        "to_degrees": "(radians: float)",
+        "to_radians": "(degrees: float)"
       }
     },
     {
@@ -9206,7 +9217,7 @@
         "role": "`ROLE_HOST` or `ROLE_CLIENT`, or nil when idle.",
         "set_input": "What this machine's player does on the next tick, until set again; ignored while a tick re-runs.",
         "set_input_for": "The same for a bot slot this machine plays.",
-        "settled": "The tick before which nothing can be rolled back any more.",
+        "settled_tick": "The tick before which nothing can be rolled back any more.",
         "start": "On a host, start with whoever is in rather than waiting for `players`; false when there is no lobby to start.",
         "state": "`STATE_IDLE`, `STATE_CONNECTING`, `STATE_LOBBY` or `STATE_PLAYING`.",
         "stats": "`{ rtt_ms, loss, bytes_in, bytes_out }` for the link a slot is reached over; nil for this machine's own. An observer: never simulate from it.",
@@ -9222,7 +9233,7 @@
         "role",
         "set_input",
         "set_input_for",
-        "settled",
+        "settled_tick",
         "start",
         "state",
         "stats",
@@ -9239,7 +9250,7 @@
         "role": "() -> Value",
         "set_input": "Value -> Value",
         "set_input_for": "(i64, Value) -> Value",
-        "settled": "() -> Value",
+        "settled_tick": "() -> Value",
         "start": "() -> Value",
         "state": "() -> Value",
         "stats": "i64 -> Value",
@@ -9257,7 +9268,7 @@
         "global_scale": [
           "transform"
         ],
-        "go": [
+        "set_state": [
           "states"
         ],
         "state": [
@@ -9283,17 +9294,15 @@
         "component_names": "The names of every component on the node.",
         "descendants": "Every node under this one, in tree order, the node itself excluded.",
         "detach_script": "Drop the script instance on this node, so no further lifecycle call reaches it; the node and its components stay.",
+        "effective_material": "The material the node draws with: its own, or the nearest ancestor's. Empty is the built-in one.",
+        "effective_tint": "What the renderer multiplies by: this node's tint with every ancestor's folded in.",
+        "effective_z_index": "The layer the node actually draws on, with every ancestor's added in.",
         "emit": "Emit an event from this node, delivered at the top of the next frame to whoever subscribed to `name` on this node, and to whoever subscribed to `name` from anyone. `call` is the twin that reaches one known script, now.",
         "get_component": "The named component's properties as a table, nil when the node does not carry it. With a key, that one property rather than the table, which is what a caller reading a single value should ask for.",
         "get_node": "The node at an `A/B/C` path relative to this one, `..` climbing to the parent and a leading `/` starting from the root; nil when nothing matches.",
-        "global_material": "The material the node draws with: its own, or the nearest ancestor's. Empty is the built-in one.",
         "global_position": "The node's position in world space, as of the last transform sync.",
         "global_rotation_euler": "The node's world rotation as euler angles in radians, as of the last transform sync.",
         "global_scale": "The node's scale in world space, as of the last transform sync.",
-        "global_tint": "What the renderer multiplies by: this node's tint with every ancestor's folded in.",
-        "global_visible": "What the renderer sees: false when the node or any ancestor is hidden.",
-        "global_z_index": "The layer the node actually draws on, with every ancestor's added in.",
-        "go": "Put the node in one of its `states`: the state's table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone.",
         "has_component": "Whether the node carries the named component.",
         "has_method": "Whether the node's script declares this method, so a caller can tell \"no handler\" from \"a handler that answered nothing\".",
         "has_tag": "Whether the node is filed under a name.",
@@ -9318,9 +9327,10 @@
         "set_parent": "Move the node under another, keeping where it is in the world; an error for a cycle or a dead parent.",
         "set_process": "Set when the node and its subtree tick. \"always\" runs through a pause, which is what a pause menu is; \"when_paused\" runs only while paused; \"disabled\" never runs; \"inherit\" goes back to the parent's. Physics is one world and is held whole by a pause whatever this says.",
         "set_sibling_index": "Move the node to that place among its siblings, clamped to the end. Order is draw order in a `row` or a `column`, and tree order in the digest.",
+        "set_state": "Put the node in one of its `states`: the state's table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone.",
         "set_tint": "Multiply a colour into everything the node and its subtree draw, alpha included, one meaning untinted. A renderable's own `color` is the node's alone; this is the one that inherits.",
         "set_visible": "Show or hide the node and everything under it, emitting `visibility_changed` with the new value when the flag moves. Physics is untouched: a hidden collider still collides.",
-        "set_z_index": "Put the node and its subtree on a draw layer: higher draws later. Relative by default, adding to the parent's layer; false makes it absolute.",
+        "set_z_index": "Put the node and its subtree on a draw layer: higher draws later. It adds to the parent's layer unless `z_as_relative = false` makes it absolute.",
         "sibling_index": "Where the node sits among its parent's children, counting from zero; 0 at the root.",
         "stable_id": "The node's stable id: what a scene file declared, or what it was given when it was spawned. Survives rename and reparent, which a path does not.",
         "state": "The state the node is in, or \"\" for the pose the scene gave it.",
@@ -9329,6 +9339,7 @@
         "tint": "The node's own tint as r, g, b, a channel floats; an ancestor's multiplies into it on the way to the screen.",
         "translate": "Move the node by an offset in its parent's space, given as three numbers or one vector.",
         "visible": "Whether the node itself is set to draw; an ancestor may still hide it.",
+        "visible_in_tree": "What the renderer sees: false when the node or any ancestor is hidden.",
         "z_index": "The node's own draw layer, added to its parent's unless set absolute."
       },
       "functions": [
@@ -9341,17 +9352,15 @@
         "component_names",
         "descendants",
         "detach_script",
+        "effective_material",
+        "effective_tint",
+        "effective_z_index",
         "emit",
         "get_component",
         "get_node",
-        "global_material",
         "global_position",
         "global_rotation_euler",
         "global_scale",
-        "global_tint",
-        "global_visible",
-        "global_z_index",
-        "go",
         "has_component",
         "has_method",
         "has_tag",
@@ -9376,6 +9385,7 @@
         "set_parent",
         "set_process",
         "set_sibling_index",
+        "set_state",
         "set_tint",
         "set_visible",
         "set_z_index",
@@ -9387,6 +9397,7 @@
         "tint",
         "translate",
         "visible",
+        "visible_in_tree",
         "z_index"
       ],
       "name": "node",
@@ -9400,17 +9411,15 @@
         "component_names": "()",
         "descendants": "()",
         "detach_script": "()",
+        "effective_material": "(node)",
+        "effective_tint": "(node)",
+        "effective_z_index": "(node)",
         "emit": "(name: string, payload: any?)",
         "get_component": "(component: string, key: string?)",
         "get_node": "(path: string)",
-        "global_material": "(node)",
         "global_position": "()",
         "global_rotation_euler": "()",
         "global_scale": "()",
-        "global_tint": "(node)",
-        "global_visible": "(node)",
-        "global_z_index": "(node)",
-        "go": "(state: string)",
         "has_component": "(component: string)",
         "has_method": "(method: string)",
         "has_tag": "(node, tag: string)",
@@ -9435,9 +9444,10 @@
         "set_parent": "(parent: node)",
         "set_process": "(node, mode: string)",
         "set_sibling_index": "(index: int)",
+        "set_state": "(state: string)",
         "set_tint": "(node, r: float, g: float, b: float, a: float?)",
         "set_visible": "(node, on: bool)",
-        "set_z_index": "(node, z: int, relative: bool)",
+        "set_z_index": "(node, z: int, options: map?)",
         "sibling_index": "()",
         "stable_id": "()",
         "state": "()",
@@ -9446,6 +9456,7 @@
         "tint": "(node)",
         "translate": "(x: float, y: float, z: float)",
         "visible": "(node)",
+        "visible_in_tree": "(node)",
         "z_index": "(node)"
       }
     },
@@ -11061,7 +11072,7 @@
           "value": "unsupported"
         }
       ],
-      "doc": "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers later on `on_platform` with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `error` or `unsupported`, each an `EVENT_*` constant.",
+      "doc": "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers later on `on_platform_event` with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `error` or `unsupported`, each an `EVENT_*` constant.",
       "docs": {
         "backend": "The name of the loaded store, or \"none\".",
         "cloud_read": "Read a value the store syncs between the player's devices.",
@@ -11111,13 +11122,13 @@
       "docs": {
         "copy_example": "Copy one example into `into` under its own name, so the shipped one stays as it is. Answers `{ path, name }`, or `{ error }`.",
         "create": "Write a new project at `path` from a template id, or from nothing when the id is empty. Answers `{ path, name }`, or `{ error }`.",
-        "editor_data_dir": "The editor's per-user folder, `<data>/balaur-editor` beside the games' `<data>/balaur/<name>`: `editor.toml`, `projects.toml`, `sessions/` and `themes/`. Made on first ask.",
+        "editor_data_directory": "The editor's per-user folder, `<data>/balaur-editor` beside the games' `<data>/balaur/<name>`: `editor.toml`, `projects.toml`, `sessions/` and `themes/`. Made on first ask.",
         "examples": "The example projects shipped beside the editor: `{ id, name, note, cover, path }` each, where `cover` is a picture the editor's own project holds, or empty.",
         "forget": "Drop one project from the list. The folder is not touched.",
         "home": "Where a new project goes unless the reader says otherwise: the home directory on a desktop, and the app's own writable directory where there is no such thing.",
         "in_tab": "Whether this editor runs in a browser tab, where the page holds the projects and opening one is its call rather than this screen's.",
         "open": "Remember `path` and start the editor on it, then ask this one to quit. Answers `{ error }` when there is no project there.",
-        "pick_folder": "Open the OS folder picker and answer what was chosen, or `()` when it was dismissed. Blocks while the dialog is up, and answers `()` on a platform with no picker.",
+        "pick_directory": "Open the OS folder picker and answer what was chosen, or `()` when it was dismissed. Blocks while the dialog is up, and answers `()` on a platform with no picker.",
         "recent": "The projects opened on this machine, newest first: `{ path, name, opened, exists }` each, where `opened` is a Unix time in seconds and `exists` says whether the folder is still there.",
         "templates": "What a new project may start from: `{ id, note }` each, read from the editor's own library.",
         "use_data": "Keep `save::` slots and the device id in the user data directory of the game named `name`, and let `fs` reach it, so a game played here and run alone share saves and a device login. Nil goes back to the editor's own. Answers the directory, or nil.",
@@ -11126,13 +11137,13 @@
       "functions": [
         "copy_example",
         "create",
-        "editor_data_dir",
+        "editor_data_directory",
         "examples",
         "forget",
         "home",
         "in_tab",
         "open",
-        "pick_folder",
+        "pick_directory",
         "recent",
         "templates",
         "use_data",
@@ -11142,17 +11153,45 @@
       "signatures": {
         "copy_example": "(String, String) -> Value",
         "create": "(String, String) -> Value",
-        "editor_data_dir": "() -> Value",
+        "editor_data_directory": "() -> Value",
         "examples": "() -> Value",
         "forget": "String -> Value",
         "home": "() -> Value",
         "in_tab": "() -> Value",
         "open": "String -> Value",
-        "pick_folder": "() -> Value",
+        "pick_directory": "() -> Value",
         "recent": "() -> Value",
         "templates": "() -> Value",
         "use_data": "Option<String> -> Value",
         "version": "() -> Value"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [],
+      "doc": "The engine's one deterministic PCG32 stream: the same seed draws the same numbers on every platform, and a replay reproduces every draw.",
+      "docs": {
+        "float": "A float from the deterministic engine stream, uniform in `[0, 1)`.",
+        "int": "A whole number from the deterministic engine stream, uniform in `[low, high]`, both ends included.",
+        "range": "A float from the deterministic engine stream, uniform in `[low, high)`: the two arguments.",
+        "seed": "Restart the deterministic engine stream at the given seed, so every draw after it repeats.",
+        "uuid": "A version-4 UUID drawn from the deterministic engine stream, so a replay makes the same ids; not for anything that must be unique across machines."
+      },
+      "functions": [
+        "float",
+        "int",
+        "range",
+        "seed",
+        "uuid"
+      ],
+      "name": "random",
+      "signatures": {
+        "float": "()",
+        "int": "(low: int, high: int)",
+        "range": "(low: float, high: float)",
+        "seed": "(seed: int)",
+        "uuid": "()"
       }
     },
     {
@@ -11194,9 +11233,9 @@
       "docs": {
         "channels": "Every release line a build may follow, in the order a version moves through them.",
         "check": "Read the release feed on a thread. `listen` hears `{ kind: \"listed\", rows }`, newest first, each `{ tag, id, channel, when, current, order, download }`: `order` is `newer`, `older` or `same` than this build, empty where they do not order, and `download` is the .dmg a macOS bundle fetches instead. `{ kind: \"failed\", job: \"check\", message }` when the feed could not be read. False while a recording plays.",
-        "install": "Replace this install with what that channel or tag holds, on a thread. `listen` hears `downloading` with `done` and `total` bytes, `unpacking`, then `installed` with a `note`, or `failed` with `job: \"install\"`. Refuses where `installed().held` says why. False while a recording plays.",
+        "install": "Replace this install with what that channel or tag holds, on a thread; `allow_downgrade = true` lets an older build replace a newer one. `listen` hears `downloading` with `done` and `total` bytes, `unpacking`, then `installed` with a `note`, or `failed` with `job: \"install\"`. Refuses where `installed().held` says why. False while a recording plays.",
         "installed": "This build: `{ version, id, channel, tag, source, held }`, where `id` is the build id a release was tagged with, `tag` is the release its assets live under, `source` is true for a build from a checkout, and `held` says why this install cannot replace itself, empty when it can.",
-        "listen": "Call a method on `node` with every report a check or an install makes: `on_release` unless `opts.on_event` names another."
+        "listen": "Call a method on `node` with every report a check or an install makes: `on_release_event` unless `opts.on_event` names another."
       },
       "functions": [
         "channels",
@@ -11209,7 +11248,7 @@
       "signatures": {
         "channels": "() -> Value",
         "check": "() -> bool",
-        "install": "(String, String, bool) -> bool",
+        "install": "(String, String, Option<Value>) -> bool",
         "installed": "() -> Value",
         "listen": "(NodeId, Option<Value>) -> ()"
       }
@@ -11416,11 +11455,11 @@
         "camera_matrix": "The camera's projection*view matrix this frame, 16 numbers column-major; all zeros with no window.",
         "camera_pose": "The camera the renderer actually used: eye xyz, target xyz, vertical fov in radians, HiDPI scale.",
         "cell": "The tile at a column and row, or -1 for an empty cell or one past the edge.",
-        "channel": "Which channel the viewport is drawing instead of the scene's colour, or empty for the scene as it is.",
-        "channels": "Every channel name `set_channel` accepts, as a list.",
         "check_material": "Every diagnostic about the material at that path, as `[#{ file, line, column, severity, message }]`; empty when it links.",
         "clones": "Where the node's cloner puts each copy, in the node's own space, as `#{ position, rotation, scale }`; an empty list when the node has no cloner. What a bake-to-nodes command spawns from.",
-        "draw_arc_2d": "Stroke an arc between two angles in degrees, counter-clockwise from the x axis, for this frame; width is in pixels, and `opts` takes `z_index`.",
+        "debug_view": "Which channel the viewport is drawing instead of the scene's colour, or empty for the scene as it is.",
+        "debug_views": "Every channel name `set_debug_view` accepts, as a list.",
+        "draw_arc_2d": "Stroke an arc between two angles in radians, counter-clockwise from the x axis, for this frame; width is in pixels, and `opts` takes `z_index`.",
         "draw_box": "Draw a wireframe box centred at a point, from its three half-extents in world units, for this frame.",
         "draw_capsule": "Draw a wireframe capsule centred at a point, `height` being the straight part along y, for this frame.",
         "draw_circle_2d": "Fill a circle in world units for this frame, over everything the scene drew; `opts.z_index` places it among the nodes of that index instead.",
@@ -11440,15 +11479,15 @@
         "outline": "The outline this node blocks 2D light with, in world space: x then y for each point in turn, with the first repeated at the end when the outline is closed. Empty on a node with no `occluder2d`.",
         "pick_ray": "The nearest node with a 3D shape that a world-space ray meets, from its origin xyz and direction xyz.",
         "pick_ray_at": "As `pick_ray`, but `node` and `at`, how far along the ray it was met; nil when the ray meets nothing.",
-        "screenshot": "Save the next rendered frame as a PNG at a project-relative path; a run with no renderer says so.",
+        "screenshot": "Save the next rendered frame as a PNG at a project-relative path. `screenshot_written` goes to every listener with the path once it is on disk, and `screenshot_failed` with `#{ path, error }` when it cannot be, a run with no renderer included.",
         "set_background": "Set the colour the viewport is cleared to behind everything drawn, as r, g, b channel floats.",
         "set_box": "Draw the node as a box from its three half-extents, in world units, replacing any other 3D shape.",
         "set_camera": "Point the 3D camera: the eye position xyz, then the world point it looks at, in world units.",
         "set_camera_2d": "Point the 2D camera: the world centre xy, then the zoom in logical pixels per world unit.",
         "set_camera_input": "Allow or inhibit the backend's own mouse camera controls, so an editor can take the pointer for a drag.",
         "set_cell": "Put one tile at a column and row; a tile below zero clears the cell, and a cell outside the map grows it in that direction. The mesh rebuilds on the next frame.",
-        "set_channel": "Draw one channel of the scene (normals, uv, depth or albedo) instead of its colour; an empty name puts the picture back.",
         "set_copy": "Place and tint one listed copy, `#{ position, rotation_euler, scale, tint }`, without writing the whole list: the list grows with plain copies up to `index`. What a script moving every copy each frame calls.",
+        "set_debug_view": "Draw one channel of the scene (normals, uv, depth or albedo) instead of its colour; an empty name puts the picture back.",
         "set_grid": "Turn the ground grid on or off, and optionally set its step in world units, major-line interval and extent.",
         "set_grid_colors": "Set the ground grid's minor line colour then its major line colour, as r, g, b channel floats.",
         "set_rectangle": "Draw the node as a rectangle from its two half-extents, in world units, replacing any other 2D shape.",
@@ -11473,10 +11512,10 @@
         "camera_matrix",
         "camera_pose",
         "cell",
-        "channel",
-        "channels",
         "check_material",
         "clones",
+        "debug_view",
+        "debug_views",
         "draw_arc_2d",
         "draw_box",
         "draw_capsule",
@@ -11504,8 +11543,8 @@
         "set_camera_2d",
         "set_camera_input",
         "set_cell",
-        "set_channel",
         "set_copy",
+        "set_debug_view",
         "set_grid",
         "set_grid_colors",
         "set_rectangle",
@@ -11531,10 +11570,10 @@
         "camera_matrix": "() -> Vec<f32>",
         "camera_pose": "() -> (f32, f32, f32, f32, f32, f32, f32, f32)",
         "cell": "(NodeId, i64, i64) -> i64",
-        "channel": "() -> String",
-        "channels": "() -> Value",
         "check_material": "String -> Value",
         "clones": "NodeId -> Value",
+        "debug_view": "() -> String",
+        "debug_views": "() -> Value",
         "draw_arc_2d": "(f32, f32, f32, f32, f32, Option<f32>, Option<Value>, Option<Value>) -> ()",
         "draw_box": "(f32, f32, f32, f32, f32, f32, Option<Value>) -> ()",
         "draw_capsule": "(f32, f32, f32, f32, f32, Option<Value>) -> ()",
@@ -11562,8 +11601,8 @@
         "set_camera_2d": "(f32, f32, f32) -> ()",
         "set_camera_input": "bool -> ()",
         "set_cell": "(NodeId, i64, i64, i64) -> ()",
-        "set_channel": "String -> ()",
         "set_copy": "(NodeId, i64, Value) -> ()",
+        "set_debug_view": "String -> ()",
         "set_grid": "(bool, Option<f32>, Option<u32>, Option<i32>) -> ()",
         "set_grid_colors": "(f32, f32, f32, f32, f32, f32) -> ()",
         "set_rectangle": "(NodeId, f32, f32) -> ()",
@@ -11604,7 +11643,7 @@
       ],
       "doc": "Records what a running game is fed and plays it back. A recording holds each tick's input, network arrivals and events; `balaur run --record` writes one.",
       "docs": {
-        "diverged": "The first tick whose replay did not reproduce the recorded digest, or nil.",
+        "divergence_tick": "The first tick whose replay did not reproduce the recorded digest, or nil.",
         "events": "The events recorded between two ticks, each with its tick, kind, label and data.",
         "header": "The loaded session's project, start time, script fingerprint and how it ended.",
         "info": "The same summary for a session file on disk, without loading it.",
@@ -11623,7 +11662,7 @@
         "unload": "Drop the loaded session and let the game run live again."
       },
       "functions": [
-        "diverged",
+        "divergence_tick",
         "events",
         "header",
         "info",
@@ -11643,7 +11682,7 @@
       ],
       "name": "replay",
       "signatures": {
-        "diverged": "()",
+        "divergence_tick": "()",
         "events": "(from: int, to: int)",
         "header": "()",
         "info": "(path: string)",
@@ -11660,34 +11699,6 @@
         "state": "()",
         "stop": "(reason: string?)",
         "unload": "()"
-      }
-    },
-    {
-      "acts_on": {},
-      "components": [],
-      "constants": [],
-      "doc": "The engine's one deterministic PCG32 stream: the same seed draws the same numbers on every platform, and a replay reproduces every draw.",
-      "docs": {
-        "int": "A whole number from the deterministic engine stream, uniform in `[low, high]`, both ends included.",
-        "random": "A float from the deterministic engine stream, uniform in `[0, 1)`.",
-        "range": "A float from the deterministic engine stream, uniform in `[low, high)`: the two arguments.",
-        "seed": "Restart the deterministic engine stream at the given seed, so every draw after it repeats.",
-        "uuid": "A version-4 UUID drawn from the deterministic engine stream, so a replay makes the same ids; not for anything that must be unique across machines."
-      },
-      "functions": [
-        "int",
-        "random",
-        "range",
-        "seed",
-        "uuid"
-      ],
-      "name": "rng",
-      "signatures": {
-        "int": "(low: int, high: int)",
-        "random": "()",
-        "range": "(low: float, high: float)",
-        "seed": "(seed: int)",
-        "uuid": "()"
       }
     },
     {
@@ -11715,7 +11726,7 @@
       "constants": [],
       "doc": "Save games: a table in, a table out, stored per user. `[save] version` stamps each file; `[save] migrate` names the script whose `migrate_save(version, data)` upgrades older ones.",
       "docs": {
-        "folder": "The directory slots are kept in, not created until something is written.",
+        "directory": "The directory slots are kept in, not created until something is written.",
         "read": "The table in a slot, brought forward to this build's version; nil when the slot was never written. An error when the file was written by a newer build, or when it needs a migration the project declares no script for.",
         "remove": "Delete a slot. Not an error when it was not there.",
         "slots": "Every slot that has been written, in name order.",
@@ -11723,7 +11734,7 @@
         "write": "Write a table to a named slot, stamped with the project's save version. Written beside the target and renamed over it, so a crash mid-save cannot destroy the last one."
       },
       "functions": [
-        "folder",
+        "directory",
         "read",
         "remove",
         "slots",
@@ -11732,7 +11743,7 @@
       ],
       "name": "save",
       "signatures": {
-        "folder": "()",
+        "directory": "()",
         "read": "(slot: string)",
         "remove": "(slot: string)",
         "slots": "()",
@@ -11901,7 +11912,7 @@
         "define": "Declare a setting of your own: `type`, `default`, and optionally `min`, `max`, `options`, `help`, `order` and `applies`. A path starting `editor/` is kept on this machine; anything else ships with the game.",
         "get": "One setting's value here: the narrowest `[override.<tag>]` this platform answers to, else what was set, else what its definition defaults to, else nil.",
         "known_tags": "Every tag a project may write an override for: the engine's, then the project's own from `[export] tags`.",
-        "load": "Read values out of a TOML text, folding them onto what is already loaded.",
+        "merge_toml": "Read values out of a TOML text, folding them onto what is already loaded.",
         "overrides": "The tags this project holds an override for at `path`, in tag order.",
         "set": "Change one setting, in memory. Whether it takes effect now or on the next run is the setting's own business; `all` reports it as `applies`.",
         "tags": "The names this run answers to, broad to narrow: the kind of machine, the operating system, the architecture, the build.",
@@ -11914,7 +11925,7 @@
         "define",
         "get",
         "known_tags",
-        "load",
+        "merge_toml",
         "overrides",
         "set",
         "tags",
@@ -11928,7 +11939,7 @@
         "define": "(String, Value) -> Value",
         "get": "String -> Value",
         "known_tags": "() -> Value",
-        "load": "String -> Value",
+        "merge_toml": "String -> Value",
         "overrides": "String -> Value",
         "set": "(String, Value) -> Value",
         "tags": "() -> Value",
@@ -12526,10 +12537,10 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "The page a browser build runs in; off the web every query answers nil. A parent-frame message reaches `on_web_message` on every node that called `listen`.",
+      "doc": "The page a browser build runs in; off the web every query answers nil. A parent-frame message reaches `on_web_event` on every node that called `listen`.",
       "docs": {
         "hardware_concurrency": "How many threads the browser reports, or nil off the web.",
-        "listen": "Have the node's `on_web_message(payload)`, or the `on_event` method the options name, called for every message the parent frame posts.",
+        "listen": "Have the node's `on_web_event(payload)`, or the `on_event` method the options name, called for every message the parent frame posts.",
         "location": "The page's URL, or nil off the web.",
         "messages": "Every message the parent frame posted this tick, for a script that would rather ask than declare a method.",
         "post_message": "Post a value to the page that embeds this one. False off the web, and false while a recording plays.",

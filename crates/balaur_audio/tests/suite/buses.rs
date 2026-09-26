@@ -24,9 +24,9 @@ fn app(buses: &str) -> (tempfile::TempDir, App) {
 
 const NESTED: &str = "
 [audio.buses]
-sfx = { volume = 0.5 }
-ui = { volume = 0.5, parent = \"sfx\" }
-music = { volume = 0.25 }
+sfx = { volume_linear = 0.5 }
+ui = { volume_linear = 0.5, parent = \"sfx\" }
+music = { volume_linear = 0.25 }
 ";
 
 fn gain(app: &App, bus: &str) -> f32 {
@@ -68,7 +68,7 @@ fn a_bus_nobody_declared_is_unity_rather_than_silence() {
 
 #[test]
 fn an_empty_bus_name_is_master() {
-    let (_dir, app) = app("\n[audio.buses]\nmaster = { volume = 0.5 }\n");
+    let (_dir, app) = app("\n[audio.buses]\nmaster = { volume_linear = 0.5 }\n");
     assert!((gain(&app, "") - 0.5).abs() < 1e-6);
 }
 
@@ -115,8 +115,8 @@ fn setting_a_volume_makes_a_bus_that_was_not_declared() {
 fn a_cycle_is_cut_rather_than_looping_forever() {
     let (_dir, app) = app("
 [audio.buses]
-a = { volume = 0.5, parent = \"b\" }
-b = { volume = 0.5, parent = \"a\" }
+a = { volume_linear = 0.5, parent = \"b\" }
+b = { volume_linear = 0.5, parent = \"a\" }
 ");
     // The assertion is that this returns at all; the value is whatever the
     // chain came to before the cut.
@@ -228,7 +228,7 @@ fn a_sound_on_a_bus_nobody_declared_is_left_at_unity() {
     assert_eq!(state.borrow().effective_volume(handle), Some(1.0));
 }
 
-fn with_events(events: &str) -> (tempfile::TempDir, App) {
+fn with_cues(cues: &str) -> (tempfile::TempDir, App) {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
@@ -237,18 +237,18 @@ fn with_events(events: &str) -> (tempfile::TempDir, App) {
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), "").unwrap();
     std::fs::create_dir_all(dir.path().join("audio")).unwrap();
-    std::fs::write(dir.path().join("audio/events.toml"), events).unwrap();
+    std::fs::write(dir.path().join("audio/cues.toml"), cues).unwrap();
     let mut app = App::new(AppConfig::bare(dir.path().to_path_buf())).unwrap();
     balaur_plugin::load(&mut app, &mut AudioPlugin::default()).unwrap();
     app.load_project().unwrap();
     (dir, app)
 }
 
-const EVENTS: &str = r#"
+const CUES: &str = r#"
 [hit]
 files = ["sfx/hit1.wav", "sfx/hit2.wav", "sfx/hit3.wav"]
 bus = "sfx"
-volume = 0.9
+volume_linear = 0.9
 
 [music]
 files = ["music/theme.ogg"]
@@ -256,17 +256,17 @@ bus = "music"
 loop = true
 "#;
 
-use balaur_audio::event::{self, Events};
+use balaur_audio::cue::{self, Cues};
 
 /// A rotation, not a draw: variations exist so the same sample is not heard
 /// twice running, and taking them in turn guarantees it.
 #[test]
 fn variations_are_taken_in_turn_and_wrap() {
-    let (_dir, app) = with_events(EVENTS);
-    event::ensure_loaded(&app.engine);
-    let events = app.engine.resource::<Events>();
-    let events = events.borrow();
-    let next = || events.next_file("hit").expect("hit is declared");
+    let (_dir, app) = with_cues(CUES);
+    cue::ensure_loaded(&app.engine);
+    let cues = app.engine.resource::<Cues>();
+    let cues = cues.borrow();
+    let next = || cues.next_file("hit").expect("hit is declared");
     assert_eq!(next(), "sfx/hit1.wav");
     assert_eq!(next(), "sfx/hit2.wav");
     assert_eq!(next(), "sfx/hit3.wav");
@@ -275,62 +275,56 @@ fn variations_are_taken_in_turn_and_wrap() {
 
 #[test]
 fn one_variation_is_a_sound_with_no_variation() {
-    let (_dir, app) = with_events(EVENTS);
-    event::ensure_loaded(&app.engine);
-    let events = app.engine.resource::<Events>();
-    let events = events.borrow();
-    assert_eq!(
-        events.next_file("music").as_deref(),
-        Some("music/theme.ogg")
-    );
-    assert_eq!(
-        events.next_file("music").as_deref(),
-        Some("music/theme.ogg")
-    );
+    let (_dir, app) = with_cues(CUES);
+    cue::ensure_loaded(&app.engine);
+    let cues = app.engine.resource::<Cues>();
+    let cues = cues.borrow();
+    assert_eq!(cues.next_file("music").as_deref(), Some("music/theme.ogg"));
+    assert_eq!(cues.next_file("music").as_deref(), Some("music/theme.ogg"));
 }
 
 #[test]
-fn an_event_carries_its_bus_volume_and_loop() {
-    let (_dir, app) = with_events(EVENTS);
-    event::ensure_loaded(&app.engine);
-    let events = app.engine.resource::<Events>();
-    let events = events.borrow();
-    let hit = events.get("hit").expect("declared");
+fn a_cue_carries_its_bus_volume_and_loop() {
+    let (_dir, app) = with_cues(CUES);
+    cue::ensure_loaded(&app.engine);
+    let cues = app.engine.resource::<Cues>();
+    let cues = cues.borrow();
+    let hit = cues.get("hit").expect("declared");
     assert_eq!(hit.bus, "sfx");
-    assert!((hit.volume - 0.9).abs() < 1e-6);
+    assert!((hit.volume_linear - 0.9).abs() < 1e-6);
     assert!(!hit.looped);
-    assert!(events.get("music").expect("declared").looped);
+    assert!(cues.get("music").expect("declared").looped);
 }
 
 #[test]
-fn events_are_listed_in_name_order() {
-    let (_dir, app) = with_events(EVENTS);
-    event::ensure_loaded(&app.engine);
+fn cues_are_listed_in_name_order() {
+    let (_dir, app) = with_cues(CUES);
+    cue::ensure_loaded(&app.engine);
     assert_eq!(
-        app.engine.resource::<Events>().borrow().names(),
+        app.engine.resource::<Cues>().borrow().names(),
         vec!["hit", "music"]
     );
 }
 
 #[test]
-fn a_project_with_no_events_file_is_empty() {
+fn a_project_with_no_cues_file_is_empty() {
     let (_dir, app) = app(NESTED);
-    event::ensure_loaded(&app.engine);
-    assert!(app.engine.resource::<Events>().borrow().names().is_empty());
+    cue::ensure_loaded(&app.engine);
+    assert!(app.engine.resource::<Cues>().borrow().names().is_empty());
     assert_eq!(
-        app.engine.resource::<Events>().borrow().next_file("hit"),
+        app.engine.resource::<Cues>().borrow().next_file("hit"),
         None
     );
 }
 
-/// Rotations are per event, so one sound playing does not advance another's.
+/// Rotations are per cue, so one sound playing does not advance another's.
 #[test]
-fn each_event_keeps_its_own_place() {
-    let (_dir, app) = with_events(EVENTS);
-    event::ensure_loaded(&app.engine);
-    let events = app.engine.resource::<Events>();
-    let events = events.borrow();
-    assert_eq!(events.next_file("hit").as_deref(), Some("sfx/hit1.wav"));
-    let _ = events.next_file("music");
-    assert_eq!(events.next_file("hit").as_deref(), Some("sfx/hit2.wav"));
+fn each_cue_keeps_its_own_place() {
+    let (_dir, app) = with_cues(CUES);
+    cue::ensure_loaded(&app.engine);
+    let cues = app.engine.resource::<Cues>();
+    let cues = cues.borrow();
+    assert_eq!(cues.next_file("hit").as_deref(), Some("sfx/hit1.wav"));
+    let _ = cues.next_file("music");
+    assert_eq!(cues.next_file("hit").as_deref(), Some("sfx/hit2.wav"));
 }

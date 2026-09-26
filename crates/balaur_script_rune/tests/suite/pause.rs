@@ -36,10 +36,10 @@ fn field(app: &App, node: hecs::Entity, name: &str) -> Option<f64> {
     balaur_script_rune::rune_of(&app.engine).number_field(node, name)
 }
 
-/// Counts its own ticks and files the last `on_paused` it was told about.
+/// Counts its own ticks and files the last `on_paused_changed` it was told about.
 const COUNTER: &str = "pub fn init(this) {\n    this.n = 0;\n    this.told = -1.0;\n}\n\
 pub fn update(this, dt) {\n    this.n = this.n + 1;\n}\n\
-pub fn on_paused(this, paused) {\n    this.told = if paused { 1.0 } else { 0.0 };\n}\n";
+pub fn on_paused_changed(this, paused) {\n    this.told = if paused { 1.0 } else { 0.0 };\n}\n";
 
 #[test]
 fn a_pause_stops_update_and_an_always_node_keeps_ticking() {

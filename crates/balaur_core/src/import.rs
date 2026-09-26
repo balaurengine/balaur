@@ -70,7 +70,7 @@ pub mod keys {
     /// Seconds into a looping sound its repeats start from, past an intro.
     pub const LOOP_OFFSET: &str = "loop_offset";
     /// A sound's own gain, multiplied into every play of it.
-    pub const VOLUME: &str = "volume";
+    pub const VOLUME_LINEAR: &str = "volume_linear";
     /// The family a face joins: `ui`, `heading`, `mono` or `icon`.
     pub const FONT_FAMILY: &str = "font_family";
     /// A face's vertical nudge, as a fraction of its size.

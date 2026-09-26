@@ -388,7 +388,7 @@ fn global_visible_reports_a_hidden_ancestor() {
         "the child's own flag is untouched"
     );
     assert_eq!(
-        call(&app.engine, "global_visible", &[child]).unwrap(),
+        call(&app.engine, "visible_in_tree", &[child]).unwrap(),
         Value::Bool(false),
         "but nothing under a hidden node draws"
     );

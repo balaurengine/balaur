@@ -139,10 +139,10 @@ pub(crate) fn install_haptics_api(m: &mut dyn Bindings<Engine>) {
         ("gamepad_can_rumble", &[], "", "Whether the pad has motors to rumble; false for a pad that is not connected, and on a build with no force feedback."),
         ("gamepad_rumble", &[], "", "Rumble the pad, `{ strong, weak, duration }`: the two motors at 0..1 for that many seconds. Returns whether it started; a second rumble replaces the first."),
         ("gamepad_stop_rumble", &[], "", "Silence the pad now, rather than waiting out the rumble's duration."),
-        ("vibrate", &[], "(milliseconds: int)", "Buzz the device for that long: a phone's motor, or a page's `navigator.vibrate`. Nothing on a desktop, and never recorded, like rumble."),
+        ("vibrate", &[], "(seconds: float)", "Buzz the device for that many seconds: a phone's motor, or a page's `navigator.vibrate`. Nothing on a desktop, and never recorded, like rumble."),
     ]);
-    m.function("vibrate", |_: &Engine, milliseconds: i64| {
-        vibrate(u32::try_from(milliseconds.max(0)).unwrap_or(u32::MAX));
+    m.function("vibrate", |_: &Engine, seconds: f64| {
+        vibrate(millis(seconds));
         Ok(())
     });
     m.function("gamepad_can_rumble", |eng: &Engine, id: i64| {
@@ -182,6 +182,19 @@ fn number(opts: Option<&Value>, key: &str) -> Option<f32> {
     }
 }
 
+/// Whole milliseconds, which is what the motors take; a negative or NaN
+/// duration is none.
+fn millis(seconds: f64) -> u32 {
+    let ms = (seconds * 1000.0).round();
+    if ms.is_nan() || ms <= 0.0 {
+        0
+    } else if ms >= f64::from(u32::MAX) {
+        u32::MAX
+    } else {
+        ms as u32
+    }
+}
+
 /// The device's own motor. A page has `navigator.vibrate`; a desktop has
 /// nothing, and a phone's native hook is the export's to wire.
 #[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
@@ -194,4 +207,14 @@ fn vibrate(milliseconds: u32) {
 #[cfg(not(all(target_family = "wasm", not(target_os = "emscripten"))))]
 fn vibrate(milliseconds: u32) {
     tracing::debug!(milliseconds, "vibrate: no motor on this platform");
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_vibration_is_given_in_seconds() {
+        assert_eq!(super::millis(0.25), 250);
+        assert_eq!(super::millis(-1.0), 0);
+        assert_eq!(super::millis(f64::NAN), 0);
+    }
 }

@@ -73,7 +73,7 @@ pub fn setup(url) {
 /// A game played inside the editor shares its process, its log and its log
 /// file, none of which are the game's to send.
 fn in_editor() {
-    let host = engine::platform();
+    let host = engine::target();
     let editor = host.get("editor").unwrap_or(false);
     editor is bool && editor
 }
@@ -452,7 +452,7 @@ fn session_payload(sink) {
     if sink.registered {
         return #{ "client_session_id": sink.run };
     }
-    let host = engine::platform();
+    let host = engine::target();
     let os = host.get("os").unwrap_or("unknown");
     let web = host.get("web").unwrap_or(false);
     let platform = if web { "web" } else { os };

@@ -118,8 +118,8 @@ pub fn extents_at(S, i) {
 // An axis-aligned frame around the whole set: a set has no one rotation to
 // align to, so the frame does not turn with any node in it.
 fn set_geometry(S) {
-    let lo = [math::INF, math::INF];
-    let hi = [-math::INF, -math::INF];
+    let lo = [math::INFINITY, math::INFINITY];
+    let hi = [-math::INFINITY, -math::INFINITY];
     let any = false;
     for i in crate::selection::all(S) {
         let found = extents_at(S, i);
@@ -415,7 +415,7 @@ fn pick(S, mx, my) {
         }
     }
     let best = None;
-    let best_area = math::INF;
+    let best_area = math::INFINITY;
     for (i, node) in S.doc.iter().enumerate() {
         if crate::selection::is_locked(S, i) {
             continue;

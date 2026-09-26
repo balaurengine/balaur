@@ -10,7 +10,7 @@
 //! Delivery is the engine's usual one: a call returns an id immediately, the
 //! backend reports on a channel, and [`ExternalIo`] lands the result at
 //! [`Stage::First`] of a later tick: recorded, replayable, and dispatched to
-//! the node's `on_platform` method as well as to whoever awaits the id.
+//! the node's `on_platform_event` method as well as to whoever awaits the id.
 //!
 //! ```rune
 //! pub async fn init(this) {
@@ -18,7 +18,7 @@
 //!     platform::unlock(this.node, "first_blood");
 //! }
 //!
-//! pub fn on_platform(this, e) {
+//! pub fn on_platform_event(this, e) {
 //!     if e["kind"] == platform::EVENT_UNSUPPORTED { log::info("no store here"); }
 //! }
 //! ```
@@ -591,7 +591,7 @@ fn counted(opts: Option<&Value>, key: &str, fallback: u32) -> Result<u32> {
 }
 
 fn start_call(eng: &Engine, node: &Value, opts: Option<&Value>, call: Call) -> Result<Value> {
-    let handler = handler_of(node, opts, "on_platform", "on_platform")?;
+    let handler = handler_of(node, opts, "on_event", "on_platform_event")?;
     let id = eng.next_token();
     let state = eng.resource::<PlatformState>();
     state.borrow_mut().start(eng, id, call, handler);
@@ -602,7 +602,7 @@ fn start_call(eng: &Engine, node: &Value, opts: Option<&Value>, call: Call) -> R
 /// with a store, without one, and inside a replay.
 fn install_platform_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers later on `on_platform` with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `error` or `unsupported`, each an `EVENT_*` constant.",
+        "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers later on `on_platform_event` with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `error` or `unsupported`, each an `EVENT_*` constant.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[

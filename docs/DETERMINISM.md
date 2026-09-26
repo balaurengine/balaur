@@ -95,7 +95,7 @@ source writes. `crates/balaur_core/tests/suite/snapshot.rs` holds it.
 
 | Hazard | Status |
 | --- | --- |
-| `rng::random`, `rng::range`, `rng::int` | Handled — seeded stream, recorded in the replay header |
+| `random::float`, `random::range`, `random::int` | Handled — seeded stream, recorded in the replay header |
 | `math::sin`, `cos`, `exp`, … | Handled — pure-Rust `libm` |
 | `Quat::from_euler`, `Vec3::normalize`, … | Handled — `glamx` pinned to `libm` and `scalar-math` |
 | Physics across platforms | Handled — rapier's `enhanced-determinism` |

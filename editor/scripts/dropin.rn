@@ -146,7 +146,7 @@ fn drop_shader(S, path) {
     };
     let name = stem_of(path);
     let material = format!("materials/{}.toml", name);
-    fs::mkdir(S.game_root + "/materials");
+    fs::create_directory(S.game_root + "/materials");
     fs::write(S.game_root + "/" + material, toml::encode(#{
         type: "material",
         shader: rel,

@@ -51,9 +51,9 @@ pub fn adopt_game_data(S) {
 /// The user data directory the open game has when it runs on its own.
 pub fn game_data(S) {
     if S.game_root == "" {
-        return engine::user_data_dir();
+        return engine::user_data_directory();
     }
-    engine::user_data_dir_of(game_name(S))
+    engine::user_data_directory_of(game_name(S))
 }
 
 fn game_name(S) {
@@ -429,7 +429,7 @@ fn file_rows(S, id, path, rel, edit, out) {
         text: (if open { "▾ " } else { "▸ " }) + rel,
         on: |_| { m[key] = !open; },
     }];
-    let when = fs::mtime(path);
+    let when = fs::modified_time(path);
     if when is f64 || when is i64 {
         let age = (engine::unix_time() as f64) - (when as f64);
         controls.push(#{ kind: "label", role: "text_caption", text: ago(age) });

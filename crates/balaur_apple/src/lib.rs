@@ -575,7 +575,7 @@ fn restore(eng: &Engine, value: &serde_json::Value) {
 /// has it.
 fn install_apple_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer on a later tick as a map whose `kind` is an `EVENT_*` constant, to the node's `on_apple` or the awaited id.",
+        "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer on a later tick as a map whose `kind` is an `EVENT_*` constant, to the node's `on_apple_event` or the awaited id.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[
@@ -699,7 +699,7 @@ fn install_screens_api(m: &mut dyn Bindings<Engine>) {
 fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         (
-            "watch",
+            "listen",
             &[],
             "",
             "Subscribe a node's method to everything that arrives unasked: a notification tapped, a URL opened, a push token, a transaction that landed elsewhere.",
@@ -726,20 +726,23 @@ fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
             "register_for_push",
             &[],
             "",
-            "Ask the OS for a push token. It arrives at everything watching, not at the caller, because the OS hands it over whenever it likes.",
+            "Ask the OS for a push token. It arrives at everything listening, not at the caller, because the OS hands it over whenever it likes.",
         ),
         (
-            "watch_urls",
+            "listen_for_urls",
             &[],
             "",
             "Hear about URLs the game is asked to open while it runs. A URL the game was launched with arrives before the engine boots and is not one of them.",
         ),
     ]);
     m.function(
-        "watch",
+        "listen",
         |eng: &Engine, (node, opts): (Value, Option<Value>)| {
-            let Some(handler) = handler_of(&node, opts.as_ref(), "on_apple", "on_apple")? else {
-                return Err(anyhow!("watching takes a node whose method hears about it"));
+            let Some(handler) = handler_of(&node, opts.as_ref(), "on_event", "on_apple_event")?
+            else {
+                return Err(anyhow!(
+                    "listening takes a node whose method hears about it"
+                ));
             };
             eng.resource::<AppleState>().borrow_mut().watch(handler);
             Ok(Value::Bool(true))
@@ -810,7 +813,7 @@ fn install_device_arrivals_api(m: &mut dyn Bindings<Engine>) {
     m.function("register_for_push", |_: &Engine, ()| {
         Ok(Value::Bool(backend::request_push_token()))
     });
-    m.function("watch_urls", |_: &Engine, ()| {
+    m.function("listen_for_urls", |_: &Engine, ()| {
         Ok(Value::Bool(backend::watch_urls()))
     });
 }
@@ -999,7 +1002,7 @@ fn corner_of(name: &str) -> Result<isize> {
 }
 
 /// The node-or-options first argument both calls take: with a node the answer
-/// reaches its `on_apple` method, without one the returned id is awaited.
+/// reaches its `on_apple_event` method, without one the returned id is awaited.
 fn start_call(
     eng: &Engine,
     node: Option<Value>,
@@ -1007,7 +1010,7 @@ fn start_call(
     call: AppleCall,
 ) -> Result<Value> {
     let node = node.unwrap_or(Value::Nil);
-    let handler = handler_of(&node, opts, "on_apple", "on_apple")?;
+    let handler = handler_of(&node, opts, "on_event", "on_apple_event")?;
     let id = eng.next_token();
     // A notification the script did not name is named after the call, so two
     // runs of the same session schedule the same identifier.

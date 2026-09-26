@@ -103,7 +103,7 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
 - Most events also ship a polling twin (`animation.just_finished(node)`,
   `input.key_just_pressed(key)`): an event is a frame-scoped
   snapshot.
-- `events.subscribe(node, name)` / `events.emit(name, payload)` deliver
+- `events.listen(node, name)` / `events.emit(name, payload)` deliver
   `on_<name>(payload)` at the top of the next `Update`, in emission then
   subscription order. The frame of delay keeps a handler from freeing the node
   being ticked. Not recorded — a replay re-runs the script, which emits again.
@@ -119,7 +119,7 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
 
 ### Model
 
-- Lifecycle: `init`, `update(dt)`, `fixed_update(dt)`, `on_free`, `hot_reload`.
+- Lifecycle: `init`, `update(dt)`, `fixed_update(dt)`, `on_free`, `on_hot_reload`.
   One instance per attached node, with `node` on it.
 - Free functions take the instance first (`pub fn update(this, dt)`) and mutate
   it in place. `mod name;` pulls in `name.rn` beside the file — disk in a dev
@@ -193,7 +193,7 @@ the node's own, and the root's children become the node's.
   compile error keeps the previous unit running, reported once.
 - Rune compiles to an immutable unit, so the new unit replaces the old,
   instances keep their state, and the next call resolves against new code.
-  Save-to-live latency is the watcher's, a few milliseconds. `hot_reload`
+  Save-to-live latency is the watcher's, a few milliseconds. `on_hot_reload`
   migrates state shapes.
 - Content reloads through the same watcher, sorted by extension exactly as
   `Pack::build` does. A `.toml` asset was parsed, so the cache forgets it; a
@@ -730,24 +730,24 @@ write. It walks widgets in scene order and wraps.
 
 ## Audio
 
-**Buses** form a tree (`[audio.buses] ui = { volume = 1.0, parent = "sfx" }`).
+**Buses** form a tree (`[audio.buses] ui = { volume_linear = 1.0, parent = "sfx" }`).
 
 - A sound's gain is its own volume times every bus to the root. `master` exists
   whether declared or not.
-- `set_bus_volume` re-applies to what is already sounding — the difference
+- `set_bus_volume_linear` re-applies to what is already sounding — the difference
   between a mixer and a default; a handle remembers its bus and starting volume.
 - An undeclared bus is unity, not silence, so a typo stays audible and findable.
   A parent cycle is cut and reported.
 
-**Events** are named sounds in `audio/events.toml`. A script says
-`audio.play_event("hit")`; which file, level and bus is the sound designer's.
+**Cues** are named sounds in `audio/cues.toml`. A script says
+`audio.play_cue("hit")`; which file, level and bus is the sound designer's.
 **Variations are taken in turn, not at random** — a rotation must not repeat,
 and the engine RNG would put what a player hears into the simulation's stream.
 Where the rotation got to is presentation: not snapshotted, not digested.
 
 **Positional.** A `listener` node is the ears: distance sets volume, offset
 across its right sets pan. A sound is placed by its `sound` component or per
-call; `audio.set_listener` covers a game whose ears are not a node.
+call; `audio.set_listener_position` covers a game whose ears are not a node.
 
 - Attenuation is inverse-distance, full inside `min_distance`, halving per
   doubling, cut at `max_distance`. Pan is equal-power amplitude computed with
@@ -809,7 +809,7 @@ things are shared.
   none every call still answers.
 - **Delivery is the engine's usual one**: an id out, the answer across a
   channel, `ExternalIo` landing it at `Stage::First` of a later tick — recorded,
-  replayable with no store present, dispatched to `on_platform` and to whoever
+  replayable with no store present, dispatched to `on_platform_event` and to whoever
   awaits the id.
 - **A write waits for its tick to settle.** A rollback cannot take an
   achievement back, so an outward call is held until its tick leaves the

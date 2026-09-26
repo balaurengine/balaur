@@ -352,7 +352,7 @@ pub fn play(this) {
 }
 
 pub fn diverged(this) {
-    let d = replay::diverged();
+    let d = replay::divergence_tick();
     if d is Object { format!("tick {}", d.tick) } else { "" }
 }
 "#;

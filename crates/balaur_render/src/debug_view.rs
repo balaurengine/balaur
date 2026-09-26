@@ -71,20 +71,20 @@ pub(crate) fn channel_view(eng: &Engine) -> String {
         .map_or_else(String::new, |view| view.borrow().channel.clone())
 }
 
-/// `render::set_channel`, `render::channel`, `render::channels` and
+/// `render::set_debug_view`, `render::debug_view`, `render::debug_views` and
 /// `render::set_shader_preview`.
 pub(crate) fn install_debug_view_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("set_channel", &[], "", "Draw one channel of the scene (normals, uv, depth or albedo) instead of its colour; an empty name puts the picture back."),
-        ("channel", &[], "", "Which channel the viewport is drawing instead of the scene's colour, or empty for the scene as it is."),
-        ("channels", &[], "", "Every channel name `set_channel` accepts, as a list."),
+        ("set_debug_view", &[], "", "Draw one channel of the scene (normals, uv, depth or albedo) instead of its colour; an empty name puts the picture back."),
+        ("debug_view", &[], "", "Which channel the viewport is drawing instead of the scene's colour, or empty for the scene as it is."),
+        ("debug_views", &[], "", "Every channel name `set_debug_view` accepts, as a list."),
         ("set_shader_preview", &[], "", "Draw the value a shader's line computes for every pixel that reaches it; line 0 puts the picture back."),
         ("set_shader_probe", &[], "", "Ask what the previewed line computed at one framebuffer pixel; the answer arrives through `shader_probe` a frame later."),
         ("shader_probe", &[], "", "The four channels the previewed line wrote at the probed pixel, or `()` when nothing has been read yet."),
     ]);
     // Draw one channel of the scene instead of its colour: "normals", "uv",
     // "depth", "albedo", or "" for the scene as it is.
-    m.function("set_channel", |eng: &Engine, channel: String| {
+    m.function("set_debug_view", |eng: &Engine, channel: String| {
         if !channel.is_empty() && !shaders::CHANNELS.contains(&channel.as_str()) {
             return Err(anyhow!(
                 "no channel '{channel}'; the channels are {}",
@@ -94,12 +94,12 @@ pub(crate) fn install_debug_view_api(m: &mut dyn Bindings<Engine>) {
         eng.insert_resource(ChannelView { channel });
         Ok(())
     });
-    m.function("channel", |eng: &Engine, ()| {
+    m.function("debug_view", |eng: &Engine, ()| {
         Ok(eng
             .try_resource::<ChannelView>()
             .map_or_else(String::new, |view| view.borrow().channel.clone()))
     });
-    m.function("channels", |_eng: &Engine, ()| {
+    m.function("debug_views", |_eng: &Engine, ()| {
         Ok(balaur_script::Value::List(
             shaders::CHANNELS
                 .iter()

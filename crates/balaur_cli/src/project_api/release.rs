@@ -181,14 +181,14 @@ fn install_release_api(m: &mut dyn Bindings<Engine>) {
         (
             "install",
             &[],
-            "(channel: string, tag: string, allow_downgrade: bool)",
-            "Replace this install with what that channel or tag holds, on a thread. `listen` hears `downloading` with `done` and `total` bytes, `unpacking`, then `installed` with a `note`, or `failed` with `job: \"install\"`. Refuses where `installed().held` says why. False while a recording plays.",
+            "(channel: string, tag: string, options: map?)",
+            "Replace this install with what that channel or tag holds, on a thread; `allow_downgrade = true` lets an older build replace a newer one. `listen` hears `downloading` with `done` and `total` bytes, `unpacking`, then `installed` with a `note`, or `failed` with `job: \"install\"`. Refuses where `installed().held` says why. False while a recording plays.",
         ),
         (
             "listen",
             &[],
             "(node: Node, opts?: table)",
-            "Call a method on `node` with every report a check or an install makes: `on_release` unless `opts.on_event` names another.",
+            "Call a method on `node` with every report a check or an install makes: `on_release_event` unless `opts.on_event` names another.",
         ),
     ]);
     m.function("installed", |_: &Engine, ()| {
@@ -229,11 +229,15 @@ fn install_release_api(m: &mut dyn Bindings<Engine>) {
     m.function("check", |eng: &Engine, ()| Ok(check(eng)));
     m.function(
         "install",
-        |eng: &Engine, (channel, tag, allow_downgrade): (String, String, bool)| {
+        |eng: &Engine, (channel, tag, opts): (String, String, Option<Value>)| {
+            let allow_downgrade = matches!(
+                balaur::handler::opt(opts.as_ref(), "allow_downgrade"),
+                Some(Value::Bool(true))
+            );
             Ok(install(eng, tag, channel, allow_downgrade))
         },
     );
-    install_listen::<ReleaseState, ReleaseEvent>(m, "on_release");
+    install_listen::<ReleaseState, ReleaseEvent>(m, "on_release_event");
 }
 
 /// Read the feed on a thread, unless a recording is playing.

@@ -1980,7 +1980,7 @@ const CHECK_AT = 28;
 /// leaves in the list, and the row forgotten again. Writes under the editor's
 /// own data directory, which is the one place it owns on every machine.
 pub fn manager_screen(S) {
-    let home = engine::user_data_dir() + "/selftest-project";
+    let home = engine::user_data_directory() + "/selftest-project";
     let made = util::obj(project::create(home, "empty"));
     let failed = made.get("error");
     if let Some(why) = failed {
@@ -2015,7 +2015,7 @@ const GODOT_SCENE = "[gd_scene format=3]\n\n[node name=\"Root\" type=\"Node2D\"]
 // Import project: the button's own half, with a hand-off in place of the open
 // that would quit this process. The files land over the frames that follow.
 fn converting_a_project(S) {
-    let home = engine::user_data_dir();
+    let home = engine::user_data_directory();
     // Where new projects land. The screen sets this from the preferences; a
     // run editing a project never opened the screen, so it is empty here.
     S.manager.parent = home;
@@ -2137,7 +2137,7 @@ fn example_projects(S) {
         }
     };
     check(one.get("note").unwrap_or("") != "", format!("and each says what it is ({})", one.note));
-    let into = engine::user_data_dir() + "/selftest-copies";
+    let into = engine::user_data_directory() + "/selftest-copies";
     let made = util::obj(project::copy_example("hello", into));
     let failed = made.get("error");
     if let Some(why) = failed {
@@ -2526,7 +2526,7 @@ fn open_and_check(S, d) {
 fn replayed_and_check(S, d) {
     check(replay::position() > d.was, "playing walks the recording forward");
     check(replay::state() == replay::STATE_PAUSED, "a spent session parks");
-    let split = replay::diverged();
+    let split = replay::divergence_tick();
     let where_ = if util::is_nil(split) { "" } else { format!(" (tick {})", split.tick) };
     check(util::is_nil(split), format!("and reproduced what was recorded{}", where_));
     crate::session::close(S);
@@ -2882,7 +2882,7 @@ fn settings_round_trip(S) {
     let text = fs::read(crate::settings::prefs_path());
     if check(text is String, "the preferences file was written") {
         check(text.contains("keep"), "and names the setting that changed");
-        settings::load(text);
+        settings::merge_toml(text);
         check(util::i(settings::get(path)) == want,
             format!("a re-read of the file agrees ({})", settings::get(path)));
     }
@@ -3241,7 +3241,7 @@ pub fn eventviews(S) {
     let written = events::as_script(S);
     check(written.contains("pub fn on_pointer_click(this, button)"),
         "the script it writes declares the hook the rows answer");
-    check(written.contains(".states.go(\"open\")"),
+    check(written.contains(".states.set_state(\"open\")"),
         "a state row becomes the call that goes to it");
     check(written.contains("scene::variable(\"score\")"),
         "a `when` becomes the read that fetches the variable");
@@ -3251,7 +3251,7 @@ pub fn eventviews(S) {
     check(problems.is_empty(), format!("and the script it writes compiles: {:?}", problems));
     let own = events::script_of([#{ event: events::EMITTED + "died", action: "free" }]);
     check(own.contains("pub fn on_died(this, payload)")
-        && own.contains("events::subscribe(this.node, \"died\", this.node)"),
+        && own.contains("events::listen(this.node, \"died\", this.node)"),
         format!("a row on the node's own event hears it by subscribing: {}", own));
     let own_problems = errors_in(own);
     check(own_problems.is_empty(), format!("and compiles: {:?}", own_problems));
@@ -3262,7 +3262,7 @@ pub fn eventviews(S) {
     let known = util::vec(scene::bindable_events());
     check(util::contains(known, "pointer_click"), "the engine names the events");
     let verbs = util::vec(scene::binding_actions());
-    check(util::contains(verbs, "state") && util::contains(verbs, "set_variable"),
+    check(util::contains(verbs, "set_state") && util::contains(verbs, "set_variable"),
         "and the actions");
     check(mirror_resolves(S), "the mirror still resolves");
     // Left on the tab, so the shot this state takes is of the rows and the
@@ -3399,7 +3399,7 @@ pub fn import_step(S) {
             waited_for_import(S);
             return;
         }
-        check(import::running() == 0, "a finished import lets go of its place");
+        check(import::running_count() == 0, "a finished import lets go of its place");
         check(crate::dropin::in_flight(S) == 0, "and nothing is in flight");
         check(job.name == "column.glb", "the list says which file");
         check(job.over == "imported", format!("and how it ended ({})", job.over));
@@ -3439,7 +3439,7 @@ pub fn import_step(S) {
         waited_for_import(S);
         return;
     }
-    check(import::running() == 0, "a stopped import lets go of its place");
+    check(import::running_count() == 0, "a stopped import lets go of its place");
     let landed = fs::exists(S.game_root + "/models/column.glb");
     check(job.over == "stopped" || job.over == "imported",
         format!("it ends stopped or, on a thread already done, imported ({})", job.over));

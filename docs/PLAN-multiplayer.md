@@ -212,7 +212,7 @@ pub fn on_multiplayer_event(this, e) {
 | `multiplayer::leave()` | Say goodbye and go idle |
 | `multiplayer::set_input(value)`, `set_input_for(slot, value)` | The input for the next tick, kept until set again; the second form drives a bot's slot |
 | `multiplayer::players()`, `local_player()`, `role()`, `state()` | The roster as `{ slot, name, bot, local, status }`; this machine's slot; `ROLE_*`; `STATE_IDLE`, `CONNECTING`, `LOBBY` or `PLAYING` |
-| `multiplayer::tick()`, `settled()` | The tick being simulated, and the tick before which nothing can be taken back (`rollback::Clock`) |
+| `multiplayer::tick()`, `settled_tick()` | The tick being simulated, and the tick before which nothing can be taken back (`rollback::Clock`) |
 | `multiplayer::stats(slot)` | `rtt_ms`, `loss`, `bytes_in`, `bytes_out` for the link a slot is reached over: an observer, never hashed |
 
 Words come from constants, as everywhere: `TRANSPORT_*`, `ROLE_*`,

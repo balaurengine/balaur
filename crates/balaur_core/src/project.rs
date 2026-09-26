@@ -411,7 +411,7 @@ pub(crate) struct SceneNode {
     tint: Option<toml::Value>,
     z_index: Option<i32>,
     /// False makes `z_index` absolute rather than added to the parent's.
-    z_relative: Option<bool>,
+    z_as_relative: Option<bool>,
     /// When this node and its subtree tick: `pausable`, `always`,
     /// `when_paused`, `disabled`, or `inherit` to take the parent's.
     process: Option<String>,
@@ -797,8 +797,8 @@ fn apply_own_keys(
         if let Some(z) = node.z_index {
             appearance.z_index = z;
         }
-        if let Some(on) = node.z_relative {
-            appearance.z_relative = on;
+        if let Some(on) = node.z_as_relative {
+            appearance.z_as_relative = on;
         }
     }
     apply_process(eng, entity, node.process.as_deref(), &node.name)?;
@@ -986,7 +986,7 @@ const NODE_KEYS: [&str; 7] = [
     "visible",
     "tint",
     "z_index",
-    "z_relative",
+    "z_as_relative",
     crate::process::KEY,
     crate::interpolate::KEY,
     "tags",
@@ -1006,8 +1006,8 @@ fn apply_node_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
     if let Some(z) = table.get("z_index").and_then(toml::Value::as_integer) {
         appearance.z_index = z as i32;
     }
-    if let Some(on) = table.get("z_relative").and_then(toml::Value::as_bool) {
-        appearance.z_relative = on;
+    if let Some(on) = table.get("z_as_relative").and_then(toml::Value::as_bool) {
+        appearance.z_as_relative = on;
     }
     drop(appearance);
     drop(world);

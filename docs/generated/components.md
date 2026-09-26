@@ -29,7 +29,7 @@ with no methods of its own is still reachable that way.
 
 **Events.** What a component announces from its node reaches the
 node's own `on_<name>(payload)`, an `emitted:<name>` row in
-`[[nodes.bindings.rows]]`, `events::subscribe` and
+`[[nodes.bindings.rows]]`, `events::listen` and
 `task::wait(events::next(name, node))`. The collision pair keeps
 its row spelling without the prefix.
 
@@ -1641,21 +1641,30 @@ The point positional sounds are heard from: distance sets volume, offset across 
 
 `audio` · 10 properties · 2 methods
 
-A sound on the node: `file`, `volume`, `pitch` and `loop`. `autoplay` starts it on load, `audio.play_on` triggers it, and `positional` plays it from the node for the `listener`.
+A sound on the node: `file`, `volume_linear`, `pitch_scale` and `loop`. `autoplay` starts it on load, `node.sound.play()` triggers it, `positional` plays it from the node for the `listener`, and the node announces `finished` when it plays out.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>autoplay</code></td><td>bool</td><td><code>false</code></td><td>Start playing when the node enters the scene</td></tr>
 <tr><td><code>bus</code></td><td>string</td><td>—</td><td>Audio bus this plays through; empty is `master`</td></tr>
-<tr><td><code>doppler</code></td><td>float</td><td><code>0.0</code></td><td>How much the closing speed bends the pitch; 0 is off, 1 physical At least 0.0.</td></tr>
+<tr><td><code>doppler_level</code></td><td>float</td><td><code>0.0</code></td><td>How much the closing speed bends the pitch; 0 is off, 1 physical At least 0.0.</td></tr>
 <tr><td><code>file</code></td><td>string</td><td>—</td><td>Audio file, project-relative; required to play</td></tr>
 <tr><td><code>loop</code></td><td>bool</td><td><code>false</code></td><td>Restart the sound when it ends</td></tr>
 <tr><td><code>max_distance</code></td><td>float</td><td><code>50.0</code></td><td>Silent beyond this distance from the listener At least 0.001.</td></tr>
 <tr><td><code>min_distance</code></td><td>float</td><td><code>1.0</code></td><td>Full volume within this distance of the listener At least 0.001.</td></tr>
-<tr><td><code>pitch</code></td><td>float</td><td><code>1.0</code></td><td>Playback speed multiplier At least 0.01.</td></tr>
+<tr><td><code>pitch_scale</code></td><td>float</td><td><code>1.0</code></td><td>Playback speed multiplier At least 0.01.</td></tr>
 <tr><td><code>positional</code></td><td>bool</td><td><code>false</code></td><td>Place the sound where the node is, heard from the `listener`</td></tr>
-<tr><td><code>volume</code></td><td>float</td><td><code>1.0</code></td><td>Linear gain; 1 is the file&#x27;s own level At least 0.0.</td></tr>
+<tr><td><code>volume_linear</code></td><td>float</td><td><code>1.0</code></td><td>Linear gain; 1 is the file&#x27;s own level At least 0.0.</td></tr>
+</tbody>
+</table>
+
+Announced from a node carrying `sound`:
+
+<table>
+<thead><tr><th>event</th><th>payload</th></tr></thead>
+<tbody>
+<tr><td><code>finished</code></td><td>the handle that played out</td></tr>
 </tbody>
 </table>
 
@@ -1849,7 +1858,7 @@ Named values filed on the node, like Godot's `set_meta`. It has no fixed propert
 
 `interaction` · 2 properties · 2 methods
 
-Named looks for the node. Every key beside `current` and `duration` is a state holding per-component property tables; `node.states.go("hover")` patches one over the node.
+Named looks for the node. Every key beside `current` and `duration` is a state holding per-component property tables; `node.states.set_state("hover")` patches one over the node.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -1864,7 +1873,7 @@ On a node carrying `states`, as `node.states.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
-<tr><td><code>go(state: string)</code></td><td>—</td><td>Put the node in one of its `states`: the state&#x27;s table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone.</td><td><code>node</code></td></tr>
+<tr><td><code>set_state(state: string)</code></td><td>—</td><td>Put the node in one of its `states`: the state&#x27;s table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone.</td><td><code>node</code></td></tr>
 <tr><td><code>state()</code></td><td>—</td><td>The state the node is in, or &quot;&quot; for the pose the scene gave it.</td><td><code>node</code></td></tr>
 </tbody>
 </table>

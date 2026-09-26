@@ -101,7 +101,7 @@ rotation_euler = [0, 90, 0]
 "shape3d/color" = "#f0c060"
 ```
 
-`node.states.go("open")` and `node.states.go("open", #{ duration: 1.0 })`
+`node.states.set_state("open")` and `node.states.set_state("open", #{ duration: 1.0 })`
 tween every path through the sampler `balaur_anim` already has, so the
 twelve easings are the same twelve; `current` is data, in the snapshot and
 the digest, so a rollback puts a door back mid-swing. `on_state_changed(this,
@@ -125,7 +125,7 @@ it, and anything a comparison cannot say is a script.
 [[nodes.bindings.rows]]
 event = "pointer_click"
 when = "score >= 3"
-action = "state"
+action = "set_state"
 target = "../Door"
 value = "open"
 ```

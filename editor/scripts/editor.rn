@@ -68,7 +68,7 @@ const FORM_BY = 30;
 
 /// Every field the editor keeps, at its starting value.
 ///
-/// A function rather than a literal in `init` so `hot_reload` can fill in
+/// A function rather than a literal in `init` so `on_hot_reload` can fill in
 /// whatever a running session predates: reload hands the old object to the
 /// new code, and a field only the new code knows about is otherwise absent,
 /// which errors on every frame that reads it.
@@ -307,7 +307,7 @@ pub fn init(this) {
     settings::load_files(S);
     theme::apply(S);
     chrome::set_app_icon();
-    S.touchscreen = engine::platform().touchscreen;
+    S.touchscreen = engine::target().touchscreen;
     shell::set_ui_scale(S, shell::scale_for_screen(S));
     // The shell redraws when something asks, not every frame: on the web the
     // pass is most of the frame, and nothing in it moves untouched.
@@ -323,17 +323,17 @@ pub fn init(this) {
 }
 
 // Every export reports here: started, done or failed, one call per step.
-pub fn on_export(this, e) {
+pub fn on_export_event(this, e) {
     exporter::report(this.S, e);
 }
 
 // A release check or install reports here, for the start screen and About.
-pub fn on_release(this, e) {
+pub fn on_release_event(this, e) {
     manager::heard(this.S, e);
 }
 
 // Every import reports here: what is coming, each file, then the end.
-pub fn on_import(this, e) {
+pub fn on_import_event(this, e) {
     let S = this.S;
     // The start screen's conversion is its own; every other import is a drop's.
     if manager::owns(S, e) {
@@ -391,7 +391,7 @@ pub fn update(this, dt) {
         ui::request_repaint();
         return;
     }
-    let paused = debugger::paused();
+    let paused = debugger::stop_location();
     if paused is Object && !(S.debug.paused is Object) {
         shell::on_pause(S, paused);
     }
@@ -925,7 +925,7 @@ pub fn backfill(S) {
     added
 }
 
-pub fn hot_reload(this) {
+pub fn on_hot_reload(this) {
     let S = this.S;
     let added = backfill(S);
     if !added.is_empty() {

@@ -24,7 +24,7 @@ use crate::file_api::{
     fs_copy, fs_exists, fs_list, fs_mkdir, fs_mtime, fs_read, fs_remove, fs_rename, fs_write,
     json_encode, json_parse, toml_encode, toml_parse, toml_patch,
 };
-use crate::profile_api::{function_costs, profile_scripts, script_costs};
+use crate::profile_api::{function_costs, script_costs, set_script_profiling};
 use crate::regex_api::{
     regex_escape, regex_matches, regex_replace, regex_search, regex_search_all, regex_split,
 };
@@ -106,7 +106,7 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "engine",
-        name: "user_data_dir",
+        name: "user_data_directory",
         call: user_data_dir,
     },
     EngineOp {
@@ -121,7 +121,7 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "engine",
-        name: "platform",
+        name: "target",
         call: platform,
     },
     EngineOp {
@@ -256,8 +256,8 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "engine",
-        name: "profile_scripts",
-        call: profile_scripts,
+        name: "set_script_profiling",
+        call: set_script_profiling,
     },
     EngineOp {
         module: "engine",
@@ -296,12 +296,12 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "save",
-        name: "folder",
+        name: "directory",
         call: save_folder,
     },
     EngineOp {
         module: "engine",
-        name: "user_data_dir_of",
+        name: "user_data_directory_of",
         call: user_data_dir_of_project,
     },
     EngineOp {
@@ -475,27 +475,27 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         call: log_file,
     },
     EngineOp {
-        module: "rng",
+        module: "random",
         name: "seed",
         call: rng_seed,
     },
     EngineOp {
-        module: "rng",
-        name: "random",
+        module: "random",
+        name: "float",
         call: rng_random,
     },
     EngineOp {
-        module: "rng",
+        module: "random",
         name: "range",
         call: rng_range,
     },
     EngineOp {
-        module: "rng",
+        module: "random",
         name: "int",
         call: rng_int,
     },
     EngineOp {
-        module: "rng",
+        module: "random",
         name: "uuid",
         call: rng_uuid,
     },
@@ -546,7 +546,7 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "fs",
-        name: "mkdir",
+        name: "create_directory",
         call: fs_mkdir,
     },
     EngineOp {
@@ -561,7 +561,7 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "fs",
-        name: "mtime",
+        name: "modified_time",
         call: fs_mtime,
     },
     EngineOp {
@@ -666,7 +666,7 @@ fn document(module: &str, m: &mut dyn balaur_script::Bindings<Engine>) {
         "save" => crate::engine_docs::document_save(m),
         "strings" => crate::engine_docs::document_strings(m),
         "regex" => crate::engine_docs::document_regex(m),
-        "rng" => crate::engine_docs::document_rng(m),
+        "random" => crate::engine_docs::document_random(m),
         "fs" => crate::engine_docs::document_fs(m),
         "toml" => crate::engine_docs::document_toml(m),
         "json" => crate::engine_docs::document_json(m),

@@ -1,4 +1,4 @@
-//! `engine.profile_scripts`, `engine.script_costs` and `engine.function_costs`:
+//! `engine.set_script_profiling`, `engine.script_costs` and `engine.function_costs`:
 //! what the script host counted, as the rows a profiler lists.
 
 // Every declaration shares one signature so they can sit in `ENGINE_OPS`;
@@ -10,9 +10,9 @@ use balaur_script::Value;
 
 use crate::engine::Engine;
 
-/// `engine.profile_scripts(on)`: start or stop counting what each script
+/// `engine.set_script_profiling(on)`: start or stop counting what each script
 /// costs. Turning it on clears the tally.
-pub(crate) fn profile_scripts(eng: &Engine, args: &[Value]) -> Result<Value> {
+pub(crate) fn set_script_profiling(eng: &Engine, args: &[Value]) -> Result<Value> {
     let on = matches!(args.first(), Some(Value::Bool(true)));
     if let Some(host) = eng.script_host() {
         host.set_profiling(on);

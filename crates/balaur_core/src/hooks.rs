@@ -12,13 +12,13 @@ pub const VARIABLE_CHANGED: &str = "variable_changed";
 pub const STATE_CHANGED: &str = "state_changed";
 /// Called on every script when the game pauses or resumes, the nodes the
 /// pause just stopped included.
-pub const ON_PAUSED: &str = "on_paused";
+pub const ON_PAUSED_CHANGED: &str = "on_paused_changed";
 /// Called on every script, a paused one too, when the window comes to the
 /// front or leaves it, with whether it is in front now.
-pub const ON_FOCUS_CHANGED: &str = "on_focus_changed";
+pub const ON_FOCUSED_CHANGED: &str = "on_focused_changed";
 /// Called on every script, a paused one too, when the system turns dark mode
 /// on or off.
-pub const ON_DARK_MODE: &str = "on_dark_mode";
+pub const ON_DARK_MODE_CHANGED: &str = "on_dark_mode_changed";
 /// Called on every script, a paused one too, when the window is asked to
 /// close, before it does.
 pub const ON_QUIT_REQUESTED: &str = "on_quit_requested";
@@ -29,7 +29,7 @@ pub const UPDATE: &str = "update";
 pub const FIXED_UPDATE: &str = "fixed_update";
 pub const DRAW_UI: &str = "draw_ui";
 pub const ON_FREE: &str = "on_free";
-pub const HOT_RELOAD: &str = "hot_reload";
+pub const ON_HOT_RELOAD: &str = "on_hot_reload";
 pub const DEFAULTS: &str = "defaults";
 pub const SAVE_STATE: &str = "save_state";
 pub const LOAD_STATE: &str = "load_state";
@@ -106,7 +106,7 @@ pub const REFERENCE: &[(&str, &str, &str)] = &[
     (FIXED_UPDATE, "(dt)", "Every fixed step, with the step's length; not while paused."),
     (DRAW_UI, "()", "Every UI pass, for immediate `ui::*` calls."),
     (ON_FREE, "()", "Once, as the node is freed or its script detached."),
-    (HOT_RELOAD, "()", "After the script's file changed and it was rebuilt, with its state kept."),
+    (ON_HOT_RELOAD, "()", "After the script's file changed and it was rebuilt, with its state kept."),
     (DEFAULTS, "()", "When the instance is made, before the scene's properties land."),
     (SAVE_STATE, "()", "When a rollback or a save snapshots the world; answers the state to keep."),
     (LOAD_STATE, "(state)", "When a rollback or a load puts that state back."),
@@ -124,8 +124,8 @@ pub const REFERENCE: &[(&str, &str, &str)] = &[
     ("on_resize", "(width, height)", "The window changed size, told to every node."),
     (ON_VARIABLE_CHANGED, "(name, value)", "A scene variable changed, told to every node at the end of the frame."),
     (ON_STATE_CHANGED, "(was, now)", "The node's `states` moved to another state."),
-    (ON_PAUSED, "(paused)", "The game paused or resumed, told to every script, a paused one too."),
-    (ON_FOCUS_CHANGED, "(focused)", "The window came to the front or left it, told to every script."),
-    (ON_DARK_MODE, "(dark)", "The system switched dark mode, told to every script."),
+    (ON_PAUSED_CHANGED, "(paused)", "The game paused or resumed, told to every script, a paused one too."),
+    (ON_FOCUSED_CHANGED, "(focused)", "The window came to the front or left it, told to every script."),
+    (ON_DARK_MODE_CHANGED, "(dark)", "The system switched dark mode, told to every script."),
     (ON_QUIT_REQUESTED, "()", "The window was asked to close; every script hears it, then the app goes."),
 ];

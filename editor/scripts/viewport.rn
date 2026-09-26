@@ -115,7 +115,7 @@ const ORBIT_PER_PX = 0.005;
 /// differs by two orders of magnitude; these are the backend camera's own
 /// numbers, so the editor dollies at the speed the engine does.
 pub fn dolly_step() {
-    if engine::platform().os == "macos" { 1.0001 } else { 1.01 }
+    if engine::target().os == "macos" { 1.0001 } else { 1.01 }
 }
 
 fn mouse_camera_3d(S, wheel, orbiting, panning, dx, dy) {

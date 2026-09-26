@@ -201,7 +201,7 @@ fn sample_load(this, t, stages, spans) {
     for row in costs {
         total = total + row.instructions;
     }
-    engine::profile_scripts(true);
+    engine::set_script_profiling(true);
     push(this, "instructions", total as f64);
 }
 
@@ -251,7 +251,7 @@ fn advance(this) {
         if this.count > 0 && is_load(c) {
             c.count = this.count;
         }
-        rng::seed(this.case.seed);
+        random::seed(this.case.seed);
         tune(this, c);
         frame_view(dimensions_of(c), c.get("view"));
         this.world = world::new(this.node, dimensions_of(c), this.draw);
@@ -264,7 +264,7 @@ fn advance(this) {
             this.build_ms = 0.0;
         } else {
             if is_load(c) {
-                engine::profile_scripts(true);
+                engine::set_script_profiling(true);
             }
             // Bound first: a `}` followed by `(` calls the block's value.
             let setup = c.setup;
@@ -411,7 +411,7 @@ fn physics_result(this, c) {
         physics_ms: summary(this, "physics_ms"),
         script_ms: summary(this, "script_ms"),
         frame_ms: summary(this, "frame_ms"),
-        platform: engine::platform(),
+        platform: engine::target(),
     }
 }
 
@@ -438,7 +438,7 @@ fn load_result(this, c) {
         render_gpu_ms: summary(this, "render_gpu_ms"),
         instructions: summary(this, "instructions"),
         extra_metrics: (c.extra)(this.world),
-        platform: engine::platform(),
+        platform: engine::target(),
     }
 }
 
@@ -452,7 +452,7 @@ fn node_result(this, c) {
         stages: c.stages,
         build_ms: this.build_ms,
         loop_ms: summary(this, "loop_ms"),
-        platform: engine::platform(),
+        platform: engine::target(),
     }
 }
 

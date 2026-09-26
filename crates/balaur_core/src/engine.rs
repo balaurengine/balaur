@@ -52,7 +52,7 @@ pub(crate) struct EngineInner {
     /// The game's own pause, which a script owns and the debugger's freeze
     /// knows nothing about.
     pub(crate) paused: Cell<bool>,
-    /// A pause or a resume nobody has announced yet, for `on_paused`.
+    /// A pause or a resume nobody has announced yet, for `on_paused_changed`.
     pub(crate) pause_change: Cell<Option<bool>>,
     /// What measured frame time is multiplied by before it is owed to the
     /// fixed step: slow motion, fast forward, and 0 for neither.
@@ -285,7 +285,7 @@ impl Engine {
         self.inner.paused.get()
     }
 
-    /// The change `on_paused` has yet to announce, taken so it is announced
+    /// The change `on_paused_changed` has yet to announce, taken so it is announced
     /// once. A pause and a resume inside one frame cancel to the last state,
     /// which is the one a script would have been told about anyway.
     pub fn take_pause_change(&self) -> Option<bool> {

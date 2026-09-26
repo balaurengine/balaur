@@ -724,7 +724,7 @@ pub fn save(S) {
     out["type"] = "widget_theme";
     out["base"] = base_name;
     let path = theme::path_of(S.theme.name);
-    fs::mkdir(theme::user_dir());
+    fs::create_directory(theme::user_dir());
     fs::write(path, toml::encode(out));
     S.themewin.own = out;
     S.themewin.dirty = false;
@@ -757,7 +757,7 @@ pub fn duplicate(S) {
     let name = fresh_name(from);
     let copy = if theme::is_bundled(from) { #{ base: from } } else { util::obj(theme::read(from)) };
     copy["type"] = "widget_theme";
-    fs::mkdir(theme::user_dir());
+    fs::create_directory(theme::user_dir());
     fs::write(theme::path_of(name), toml::encode(copy));
     choose(S, name);
     S.themewin.said = "Duplicated " + from + " as " + name;

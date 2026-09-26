@@ -180,7 +180,7 @@ pub trait ScriptHost<C: ?Sized> {
     fn call_all_with(&self, method: &str, args: &[Value]);
 
     /// As [`ScriptHost::call_all_with`], reaching the instances a pause is
-    /// holding as well: `on_paused(true)` is how a script learns it stopped,
+    /// holding as well: `on_paused_changed(true)` is how a script learns it stopped,
     /// so the pause must not filter it. A debugger's freeze still stops it.
     fn announce(&self, method: &str, args: &[Value]) {
         self.call_all_with(method, args);

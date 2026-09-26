@@ -337,26 +337,26 @@ fn sweep(eng: &Engine) {
 /// where every other core module is declared.
 pub fn install_events_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Named events between scripts. A node subscribes to a name and hears it as its `on_<name>` method; `node.emit` and `events.emit` send one.",
+        "Named events between scripts. A node listens for a name and hears it as its `on_<name>` method; `node.emit` and `events.emit` send one.",
     );
     m.describe(&[
         (
-            "subscribe",
+            "listen",
             &[],
             "(node: node, name: string, from: node?)",
-            "Hear an event on this node, as its script's `on_<name>(payload)`. Pass the node whose events to hear, or leave it out for every emitter. Subscribing twice is once.",
+            "Hear an event on this node, as its script's `on_<name>(payload)`. Pass the node whose events to hear, or leave it out for every emitter. Listening twice is once.",
         ),
         (
-            "unsubscribe",
+            "stop_listening",
             &[],
             "(node: node, name: string, from: node?)",
-            "Stop hearing an event on this node, `from` being the emitter it was subscribed with. Not an error when it was never subscribed.",
+            "Stop hearing an event on this node, `from` being the emitter it listened with. Not an error when it never listened.",
         ),
         (
             "emit",
             &[],
             "(name: string, payload: any?)",
-            "Queue an event from no particular node, delivered at the top of the next frame's update to whoever subscribed to the name from anyone.",
+            "Queue an event from no particular node, delivered at the top of the next frame's update to whoever listens for the name from anyone.",
         ),
         (
             "emitted",
@@ -378,7 +378,7 @@ pub fn install_events_api(m: &mut dyn Bindings<Engine>) {
         ),
     ]);
     m.function(
-        "subscribe",
+        "listen",
         |eng: &Engine, (node, name, from): (NodeId, String, Option<NodeId>)| {
             let from = from.map(crate::entity_of).transpose()?;
             subscribe(eng, crate::entity_of(node)?, &name, from);
@@ -386,7 +386,7 @@ pub fn install_events_api(m: &mut dyn Bindings<Engine>) {
         },
     );
     m.function(
-        "unsubscribe",
+        "stop_listening",
         |eng: &Engine, (node, name, from): (NodeId, String, Option<NodeId>)| {
             let from = from.map(crate::entity_of).transpose()?;
             unsubscribe(eng, crate::entity_of(node)?, &name, from);

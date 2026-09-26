@@ -1324,7 +1324,7 @@ pub fn draw_frame(node) {
         return ();
     }
     let place = #{};
-    place[Z_INDEX] = node.global_z_index();
+    place[Z_INDEX] = node.effective_z_index();
     for entry in list {
         draw_entry(node, entry[0], entry[1], place);
     }
@@ -1444,7 +1444,7 @@ fn draw_entry(node, verb, a, place) {
         let r = float(a[1]) * draw_scale(node);
         let c = draw_color(a[2]);
         if a[3] is bool && !a[3] {
-            render::draw_arc_2d(at[0], at[1], r, 0.0, 360.0, draw_width(a[4]), c, place);
+            render::draw_arc_2d(at[0], at[1], r, 0.0, math::TAU, draw_width(a[4]), c, place);
         } else {
             render::draw_circle_2d(at[0], at[1], r, c, place);
         }
@@ -1473,7 +1473,7 @@ fn draw_entry(node, verb, a, place) {
         let r = float(a[1]) * draw_scale(node);
         // Godot's angles run clockwise in radians with y down; the engine's
         // counter-clockwise in degrees with y up, so the sign flips.
-        render::draw_arc_2d(at[0], at[1], r, -math::deg(float(a[2])), -math::deg(float(a[3])), draw_width(a[5]), draw_color(a[4]), place);
+        render::draw_arc_2d(at[0], at[1], r, -float(a[2]), -float(a[3]), draw_width(a[5]), draw_color(a[4]), place);
         return ();
     }
     if verb == "polyline" {

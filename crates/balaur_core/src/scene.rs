@@ -228,7 +228,7 @@ pub struct Appearance {
     pub z_index: i32,
     /// Add `z_index` to the parent's rather than replacing it, so moving a
     /// subtree between layers keeps the order inside it.
-    pub z_relative: bool,
+    pub z_as_relative: bool,
     /// The material this node and every descendant naming none draw with.
     /// [`MaterialId::NONE`] takes the parent's.
     pub material: MaterialId,
@@ -240,7 +240,7 @@ impl Appearance {
             visible: true,
             tint: Vec4::ONE,
             z_index: 0,
-            z_relative: true,
+            z_as_relative: true,
             material: MaterialId::NONE,
         }
     }
@@ -320,7 +320,7 @@ impl GlobalAppearance {
         Self {
             visible: self.visible && local.visible,
             tint: self.tint * local.tint,
-            z_index: if local.z_relative {
+            z_index: if local.z_as_relative {
                 self.z_index.saturating_add(local.z_index)
             } else {
                 local.z_index

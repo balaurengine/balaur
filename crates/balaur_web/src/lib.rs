@@ -4,14 +4,14 @@
 //! Facts about it (the tab's visibility, the user agent, the location) are
 //! read once per tick at [`Stage::First`], recorded, and answered from the
 //! recording on replay. A message from the parent frame arrives the same
-//! way, dispatched to `on_web_message` on the nodes that asked. Posting a
+//! way, dispatched to `on_web_event` on the nodes that asked. Posting a
 //! message is an effect on the world and goes out through [`ExternalIo`],
 //! which never fires while a recording plays.
 //!
 //! Named verbs rather than `eval`: an arbitrary string run now, returning
 //! anything, is both a determinism hole and a security one. A vendor SDK
 //! that speaks `postMessage` is a Rune `mod` over `post_message` and
-//! `on_web_message`; the engine carries the bridge, not the protocol.
+//! `on_web_event`; the engine carries the bridge, not the protocol.
 //!
 //! Off the web every query answers nil, `visible` answers true and
 //! `post_message` answers false, so a script written for a page still runs
@@ -43,7 +43,7 @@ pub struct PageFacts {
     pub hardware_concurrency: Option<u32>,
 }
 
-/// Where messages go: `on_web_message` on one node's script.
+/// Where messages go: `on_web_event` on one node's script.
 #[derive(Clone)]
 pub struct Handler {
     pub node: NodeId,
@@ -170,10 +170,10 @@ fn opt<'a>(opts: Option<&'a Value>, key: &str) -> Option<&'a Value> {
 
 fn install_web_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "The page a browser build runs in; off the web every query answers nil. A parent-frame message reaches `on_web_message` on every node that called `listen`.",
+        "The page a browser build runs in; off the web every query answers nil. A parent-frame message reaches `on_web_event` on every node that called `listen`.",
     );
     m.describe(&[
-        ("listen", &[], "(node: node, options: map)", "Have the node's `on_web_message(payload)`, or the `on_event` method the options name, called for every message the parent frame posts."),
+        ("listen", &[], "(node: node, options: map)", "Have the node's `on_web_event(payload)`, or the `on_event` method the options name, called for every message the parent frame posts."),
         ("messages", &[], "()", "Every message the parent frame posted this tick, for a script that would rather ask than declare a method."),
         ("post_message", &[], "(payload: map)", "Post a value to the page that embeds this one. False off the web, and false while a recording plays."),
         ("visible", &[], "()", "Whether the tab is in front of the player; true off the web."),
@@ -189,7 +189,7 @@ fn install_web_api(m: &mut dyn Bindings<Engine>) {
                 Some(other) => {
                     return Err(anyhow!("`on_event` should be a method name, got {other:?}"));
                 }
-                None => "on_web_message".to_string(),
+                None => "on_web_event".to_string(),
             };
             eng.resource::<WebState>()
                 .borrow_mut()

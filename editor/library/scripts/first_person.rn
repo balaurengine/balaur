@@ -44,8 +44,8 @@ pub fn update(this, dt) {
     // past them the world rolls over.
     this.pitch = math::clamp(this.pitch - dy * this.sensitivity, -89.0, 89.0);
     let eye = this.node.transform.position;
-    let yaw = math::rad(this.yaw);
-    let pitch = math::rad(this.pitch);
+    let yaw = math::to_radians(this.yaw);
+    let pitch = math::to_radians(this.pitch);
     // A 3D camera is aimed by `camera.look_at`, never by the node's rotation,
     // so looking around is moving the point it looks at.
     let flat = math::cos(pitch) * FAR;

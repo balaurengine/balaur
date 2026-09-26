@@ -166,7 +166,7 @@ decision, not an oversight.
 | Raising the keyboard for a `field` | Have, from before this plan: the backend shows the system keyboard while egui holds keyboard focus, through the fork's `set_keyboard_visible` |
 | Mouse as a touch on the web | Have: a page reports both, and the emulation covers the rest |
 | An example | Have: `examples/hello` carries a stick on `spin` and a button on `reverse`, with the mouse standing in for a finger |
-| A phone's vibration | Have: `input.vibrate(milliseconds)` |
+| A phone's vibration | Have: `input.vibrate(seconds)` |
 | A gesture the widget layer consumes | Not planned. A gesture is read from the snapshot by whoever wants it; only pointer and keyboard are claimed |
 
 ## 4. Steps

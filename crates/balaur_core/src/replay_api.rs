@@ -94,7 +94,7 @@ pub const REPLAY_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "replay",
-        name: "diverged",
+        name: "divergence_tick",
         call: diverged,
     },
     EngineOp {
@@ -126,7 +126,7 @@ pub fn install_replay_api(m: &mut dyn Bindings<Engine>) {
         ("info", &[], "(path: string)", "The same summary for a session file on disk, without loading it."),
         ("events", &[], "(from: int, to: int)", "The events recorded between two ticks, each with its tick, kind, label and data."),
         ("marks", &[], "(source: string, key: string?)", "The ticks at which one replay source held a non-empty list under a key, and what it held."),
-        ("diverged", &[], "()", "The first tick whose replay did not reproduce the recorded digest, or nil."),
+        ("divergence_tick", &[], "()", "The first tick whose replay did not reproduce the recorded digest, or nil."),
         ("session_name", &[], "()", "A file-safe name for a session starting now, so a list of them sorts by when they ran."),
     ]);
     for d in REPLAY_OPS {

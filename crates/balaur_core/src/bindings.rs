@@ -21,8 +21,8 @@ use crate::{Engine, hooks};
 /// silence at run time.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Action {
-    /// `node.go(value)` on the target.
-    State,
+    /// `node.states.set_state(value)` on the target.
+    SetState,
     /// `scene.set_variable(target, value)`.
     SetVariable,
     /// Add `value` to a number variable; `target` names it.
@@ -30,9 +30,9 @@ pub enum Action {
     /// `animation.play(target, value)`.
     Play,
     /// `sound.play` on the target.
-    Sound,
+    PlaySound,
     /// `scene.instantiate(value)` under the target.
-    Spawn,
+    Instantiate,
     /// `node.free()` on the target.
     Free,
     /// `scene.switch(value)`.
@@ -52,12 +52,12 @@ pub enum Action {
 /// The words a scene spells each action with, in the order the Events view
 /// offers them.
 pub const ACTIONS: &[(&str, Action)] = &[
-    ("state", Action::State),
+    ("set_state", Action::SetState),
     ("set_variable", Action::SetVariable),
     ("add_variable", Action::AddVariable),
     ("play", Action::Play),
-    ("sound", Action::Sound),
-    ("spawn", Action::Spawn),
+    ("play_sound", Action::PlaySound),
+    ("instantiate", Action::Instantiate),
     ("free", Action::Free),
     ("switch", Action::Switch),
     ("open_url", Action::OpenUrl),
@@ -466,7 +466,9 @@ fn text_of(value: &Value) -> String {
 
 fn run(eng: &Engine, entity: Entity, row: &Binding, args: &[Value]) -> Result<()> {
     match row.action {
-        Action::State => crate::states::go(eng, target_of(eng, entity, row)?, &text_of(&row.value)),
+        Action::SetState => {
+            crate::states::go(eng, target_of(eng, entity, row)?, &text_of(&row.value))
+        }
         Action::SetVariable => {
             let variables = eng.resource::<Variables>();
             let mut variables = variables.borrow_mut();
@@ -646,7 +648,7 @@ mod tests {
             r#"
 event = "pointer_click"
 when = "score >= 3"
-action = "state"
+action = "set_state"
 target = "../Door"
 value = "open"
 "#,
@@ -654,7 +656,7 @@ value = "open"
         .unwrap();
         let binding = parse_binding(&row).unwrap();
         assert_eq!(binding.event, "pointer_click");
-        assert_eq!(binding.action, Action::State);
+        assert_eq!(binding.action, Action::SetState);
         assert_eq!(binding.target, "../Door");
         assert_eq!(binding.value, Value::Str("open".into()));
         assert!(binding.when.is_some());
@@ -665,7 +667,7 @@ value = "open"
         assert!(err.contains("no action `teleport`"), "{err}");
 
         let unknown: toml::Value =
-            toml::from_str("event = \"telepathy\"\naction = \"state\"").unwrap();
+            toml::from_str("event = \"telepathy\"\naction = \"set_state\"").unwrap();
         let err = parse_binding(&unknown).unwrap_err().to_string();
         assert!(err.contains("no event `telepathy`"), "{err}");
     }

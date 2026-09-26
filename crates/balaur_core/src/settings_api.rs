@@ -40,7 +40,7 @@ pub fn install_settings_api(m: &mut dyn Bindings<Engine>) {
         ("clear", &[], "(path: string)", "Forget one value, so the next write drops the key: how an override is removed."),
         ("set", &[], "(path: string, value: any)", "Change one setting, in memory. Whether it takes effect now or on the next run is the setting's own business; `all` reports it as `applies`."),
         ("define", &[], "(path: string, spec: table)", "Declare a setting of your own: `type`, `default`, and optionally `min`, `max`, `options`, `help`, `order` and `applies`. A path starting `editor/` is kept on this machine; anything else ships with the game."),
-        ("load", &[], "(text: string)", "Read values out of a TOML text, folding them onto what is already loaded."),
+        ("merge_toml", &[], "(text: string)", "Read values out of a TOML text, folding them onto what is already loaded."),
         ("to_toml", &[], "(scope: string, existing: string)", "The text one scope would write, starting from `existing` so anything no setting describes survives. Scope is \"project\" or \"editor\"."),
     ]);
     m.function("all", |eng: &Engine, (): ()| {
@@ -86,7 +86,7 @@ pub fn install_settings_api(m: &mut dyn Bindings<Engine>) {
         );
         Ok(Value::Nil)
     });
-    m.function("load", |eng: &Engine, text: String| {
+    m.function("merge_toml", |eng: &Engine, text: String| {
         settings::load(eng, &text)?;
         Ok(Value::Nil)
     });

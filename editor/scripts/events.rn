@@ -55,7 +55,7 @@ const HOOK_PREFIX = "on_";
 
 pub fn add_row(S) {
     let rows = editable(S);
-    rows.push(#{ event: DEFAULT_EVENT, action: "state", target: "", value: "" });
+    rows.push(#{ event: DEFAULT_EVENT, action: "set_state", target: "", value: "" });
     write(S, rows, "add binding");
 }
 
@@ -151,7 +151,7 @@ fn offered(S) {
 /// One binding: what happens, when, and what it does.
 fn row_spec(S, at, row) {
     let event = row.get("event").unwrap_or(DEFAULT_EVENT);
-    let action = row.get("action").unwrap_or("state");
+    let action = row.get("action").unwrap_or("set_state");
     let target = row.get("target").unwrap_or("");
     let controls = [
         #{ kind: "label", role: "text_caption", width: 18, text: format!("{}", at + 1) },
@@ -216,7 +216,7 @@ pub fn script_of(rows) {
     if heard.len() > 0 {
         out += "\npub fn init(this) {\n";
         for name in heard {
-            out += format!("    events::subscribe(this.node, \"{}\", this.node);\n", name);
+            out += format!("    events::listen(this.node, \"{}\", this.node);\n", name);
         }
         out += "}\n";
     }
@@ -288,20 +288,20 @@ fn rune_clause(clause) {
 }
 
 fn as_call(row) {
-    let action = row.get("action").unwrap_or("state");
+    let action = row.get("action").unwrap_or("set_state");
     let target = row.get("target").unwrap_or("");
     let value = as_text(row.get("value"));
     // `this` is the script's own table; the node it runs on is `this.node`.
     let node = if target == "" { "this.node" } else { format!("this.node.get_node(\"{}\")", target) };
     match action {
-        "state" => format!("{}.states.go(\"{}\");", node, value),
+        "set_state" => format!("{}.states.set_state(\"{}\");", node, value),
         "set_variable" => format!("scene::set_variable(\"{}\", {});", target, literal(value)),
         "add_variable" => format!(
             "scene::set_variable(\"{}\", scene::variable(\"{}\") + {});",
             target, target, literal(value)),
         "play" => format!("{}.animation.play(\"{}\");", node, value),
-        "sound" => format!("{}.sound.play();", node),
-        "spawn" => format!("scene::instantiate(fs::read(\"{}\"), {});", value, node),
+        "play_sound" => format!("{}.sound.play();", node),
+        "instantiate" => format!("scene::instantiate(fs::read(\"{}\"), {});", value, node),
         "free" => format!("{}.queue_free();", node),
         "switch" => format!("scene::switch(\"{}\", #{{}});", value),
         "open_url" => format!("engine::open_url(\"{}\");", value),

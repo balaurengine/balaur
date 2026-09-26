@@ -114,7 +114,7 @@ fn describe_project_api(m: &mut dyn Bindings<Engine>) {
             "Where a new project goes unless the reader says otherwise: the home directory on a desktop, and the app's own writable directory where there is no such thing.",
         ),
         (
-            "editor_data_dir",
+            "editor_data_directory",
             &[],
             "",
             "The editor's per-user folder, `<data>/balaur-editor` beside the games' `<data>/balaur/<name>`: `editor.toml`, `projects.toml`, `sessions/` and `themes/`. Made on first ask.",
@@ -144,7 +144,7 @@ fn describe_project_api(m: &mut dyn Bindings<Engine>) {
             "Copy one example into `into` under its own name, so the shipped one stays as it is. Answers `{ path, name }`, or `{ error }`.",
         ),
         (
-            "pick_folder",
+            "pick_directory",
             &[],
             "",
             "Open the OS folder picker and answer what was chosen, or `()` when it was dismissed. Blocks while the dialog is up, and answers `()` on a platform with no picker.",
@@ -194,7 +194,7 @@ fn install_project_verbs(m: &mut dyn Bindings<Engine>) {
                 .into_owned(),
         ))
     });
-    m.function("editor_data_dir", |eng: &Engine, ()| {
+    m.function("editor_data_directory", |eng: &Engine, ()| {
         let dir = home_of(eng);
         balaur_core::files::backend(eng).mkdir(&dir)?;
         // `fs.*` reaches only declared roots, and this one is the editor's.
@@ -221,7 +221,7 @@ fn install_project_verbs(m: &mut dyn Bindings<Engine>) {
             Value::Str(dir.to_string_lossy().into_owned())
         }))
     });
-    m.function("pick_folder", |eng: &Engine, ()| {
+    m.function("pick_directory", |eng: &Engine, ()| {
         let picked = pick_folder();
         // What the reader picked is theirs to hand over, so `fs.*` may read
         // it: Import project looks inside for the manifest.

@@ -27,7 +27,7 @@ pub enum Draw2d {
         size: [f32; 2],
         color: [f32; 4],
     },
-    /// Degrees, counter-clockwise from the x axis; width in pixels.
+    /// Radians, counter-clockwise from the x axis; width in pixels.
     Arc {
         center: [f32; 2],
         radius: f32,
@@ -196,7 +196,7 @@ pub(crate) fn install_draw_2d_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("draw_circle_2d", &[], "(x: float, y: float, radius: float, color: color, opts: table)", "Fill a circle in world units for this frame, over everything the scene drew; `opts.z_index` places it among the nodes of that index instead."),
         ("draw_rect_2d", &[], "(x: float, y: float, width: float, height: float, color: color, opts: table)", "Fill a rectangle centred at a point, in world units, for this frame; `opts` takes `z_index`."),
-        ("draw_arc_2d", &[], "(x: float, y: float, radius: float, from: float, to: float, width: float, color: color, opts: table)", "Stroke an arc between two angles in degrees, counter-clockwise from the x axis, for this frame; width is in pixels, and `opts` takes `z_index`."),
+        ("draw_arc_2d", &[], "(x: float, y: float, radius: float, from: float, to: float, width: float, color: color, opts: table)", "Stroke an arc between two angles in radians, counter-clockwise from the x axis, for this frame; width is in pixels, and `opts` takes `z_index`."),
         ("draw_polygon_2d", &[], "(points: list, color: color, opts: table)", "Fill a convex outline of world-space points for this frame; `geometry2d` cuts a concave one into triangles first. `opts` takes `z_index`."),
         ("draw_polyline_2d", &[], "(points: list, width: float, color: color, opts: table)", "Stroke a chain of world-space points for this frame; width is in pixels, and `opts` takes `z_index`."),
         ("draw_texture_2d", &[], "(path: string, x: float, y: float, width: float, height: float, color: color, opts: table)", "Draw a project image over a rectangle centred at a point, in world units, for this frame; the colour tints it. `opts` takes `z_index`, and `region_origin` and `region_size` in the image's pixels for part of it."),
@@ -503,10 +503,10 @@ fn stroke(
 #[cfg(any(feature = "kiss3d", test))]
 pub(crate) fn arc_points(center: [f32; 2], radius: f32, from: f32, to: f32) -> Vec<[f32; 2]> {
     let sweep = to - from;
-    let steps = ((sweep.abs() / 5.0).ceil() as usize).clamp(1, 360);
+    let steps = ((sweep.abs().to_degrees() / 5.0).ceil() as usize).clamp(1, 360);
     (0..=steps)
         .map(|i| {
-            let angle = (from + sweep * i as f32 / steps as f32).to_radians();
+            let angle = from + sweep * i as f32 / steps as f32;
             let (sin, cos) = libm::sincosf(angle);
             [center[0] + cos * radius, center[1] + sin * radius]
         })
@@ -519,7 +519,7 @@ mod tests {
 
     #[test]
     fn an_arc_starts_and_ends_on_its_angles() {
-        let points = arc_points([0.0, 0.0], 2.0, 0.0, 90.0);
+        let points = arc_points([0.0, 0.0], 2.0, 0.0, core::f32::consts::FRAC_PI_2);
         assert!((points[0][0] - 2.0).abs() < 1e-5 && points[0][1].abs() < 1e-5);
         let last = points.last().unwrap();
         assert!(last[0].abs() < 1e-5 && (last[1] - 2.0).abs() < 1e-5);

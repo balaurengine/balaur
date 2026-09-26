@@ -60,7 +60,7 @@ const RUNE: Syntax = Syntax {
         "physics2d",
         "render",
         "audio",
-        "rng",
+        "random",
         "ui",
         "log",
         "node",

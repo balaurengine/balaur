@@ -165,7 +165,7 @@ arms; these names still fall to `gd.todo`:
 | `FileAccess.open`, `get_sha256`, `get_file_as_bytes`; `DirAccess.rename_absolute`, `remove_absolute` | 14 | `fs`, `hash` |
 | physics ray and point queries, `get_world_2d` | 15 | `physics2d.raycast`, `point_hits` |
 | `WebSocketPeer` | 10 | `websocket` |
-| `AudioServer.set_bus_volume_db`, `set_bus_mute` | 10 | `audio.set_bus_volume` |
+| `AudioServer.set_bus_volume_db`, `set_bus_mute` | 10 | `audio.set_bus_volume_linear` |
 | `get_viewport_transform`, `get_global_transform_with_canvas`, `to_local` | 16 | `render.camera_2d`, `transform` |
 | `Geometry2D` | 6 | `geometry2d` |
 | `HTTPRequest` | 4 | `http` |
@@ -267,7 +267,7 @@ Three rules belong to the importer rather than the translator:
    trailing table, whose `z_index` hangs the shape under one holder node per
    index that the 2D order places after that index's nodes, and a texture
    takes `region_origin` and `region_size`. The shim draws a node's `_draw`
-   on its `global_z_index`, under the next index rather than over the scene.
+   on its `effective_z_index`, under the next index rather than over the scene.
 6. **Importer rules**: the `FoamTrail` sprites, export types, autoloads.
    Done 2026-09-24: a `ColorRect` with a material under a `Node2D` is a
    `shape2d` rectangle carrying it, 34 notes to 1; an export typed by a class
@@ -296,7 +296,7 @@ Three rules belong to the importer rather than the translator:
    path. Not built, in balaur terms: `focus_neighbor_*` (the engine moves
    focus itself), and `NOTIFICATION_APPLICATION_PAUSED` and `_RESUMED`
    (the roadmap's "Suspend and resume"). Focus in and out and the close
-   request reach `_notification` through `on_focus_changed` and
+   request reach `_notification` through `on_focused_changed` and
    `on_quit_requested` since 2026-09-25. A page picked on a `tab` is its `change` since
    2026-09-25, carrying the page's name, which `tab_changed` connects to;
    a Godot handler that reads the index gets the name instead. A `MultiMesh` is the node's `cloner`

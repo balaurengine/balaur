@@ -763,9 +763,9 @@ fn shaders(S, q) {
     click(S, q, 320, || spot(S, "doc_scene"), || {
         S.doctab = "scene";
     });
-    act(q, 400, || render::set_channel("uv"));
-    act(q, 520, || render::set_channel("normals"));
-    act(q, 640, || render::set_channel(""));
+    act(q, 400, || render::set_debug_view("uv"));
+    act(q, 520, || render::set_debug_view("normals"));
+    act(q, 640, || render::set_debug_view(""));
     click(S, q, 700, || spot(S, "doc_code"), || {
         S.doctab = "script";
     });

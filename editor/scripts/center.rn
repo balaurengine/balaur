@@ -206,16 +206,16 @@ fn chip(S, k, key, label, default_on, near) {
 // channel of it. The channels come from the engine, so a plugin's is here too.
 fn view_modes() {
     let out = [["", "Shaded"]];
-    for name in render::channels() {
+    for name in render::debug_views() {
         out.push([name, crate::util::match_case("A", name)]);
     }
     out
 }
 
 /// The view-mode chip: shaded, or one channel drawn instead. Never a game
-/// feature; `render.set_channel` is the same call the palette makes.
+/// feature; `render.set_debug_view` is the same call the palette makes.
 fn view_chip(S, k) {
-    let current = render::channel();
+    let current = render::debug_view();
     let label = "Shaded";
     for mode in view_modes() {
         if mode[0] == current {
@@ -228,7 +228,7 @@ fn view_chip(S, k) {
             for mode in view_modes() {
                 let name = mode[0];
                 if ui::menu_item(mode[1], #{ text_color: if name == current { k.primary_text } else { k.text_default } }) {
-                    render::set_channel(name);
+                    render::set_debug_view(name);
                 }
             }
         },

@@ -394,7 +394,7 @@ def gen_components(components, tags, docs=None, methods=None, events=None):
         "with no methods of its own is still reachable that way.\n\n"
         "**Events.** What a component announces from its node reaches the\n"
         "node's own `on_<name>(payload)`, an `emitted:<name>` row in\n"
-        "`[[nodes.bindings.rows]]`, `events::subscribe` and\n"
+        "`[[nodes.bindings.rows]]`, `events::listen` and\n"
         "`task::wait(events::next(name, node))`. The collision pair keeps\n"
         "its row spelling without the prefix.\n\n"
         "**Properties.** Every property in the tables below is also a field on\n"
@@ -652,7 +652,7 @@ def gen_hooks(api):
         "## Every node\n\n"
         "Every node announces these, whatever its components: its own script hears\n"
         "`on_<event>(this, payload)`, a scene row answers `emitted:<event>`, and\n"
-        "`events::subscribe` hears it at the next pump.\n\n"
+        "`events::listen` hears it at the next pump.\n\n"
         "<table>\n<thead><tr><th>event</th><th>payload</th></tr></thead>\n"
         f"<tbody>\n{events}\n</tbody>\n</table>\n"
     )

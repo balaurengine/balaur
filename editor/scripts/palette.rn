@@ -37,7 +37,7 @@ fn catalogue(S) {
             tags: util::join(util::vec(scene::component_tags(name)), " "),
         });
     }
-    found = #{ presets: presets, components: components, channels: render::channels() };
+    found = #{ presets: presets, components: components, channels: render::debug_views() };
     S.palette_cache = found;
     found
 }
@@ -147,10 +147,10 @@ fn commands(S) {
     list.push(command("Open the prefab behind the selection", icons::ui("instance"), "", || model::open_prefab(S)));
     let known = catalogue(S);
     // Channel views: draw normals, UVs or depth instead of the picture.
-    list.push(command("View: color", "◐", "", || render::set_channel("")));
+    list.push(command("View: color", "◐", "", || render::set_debug_view("")));
     for name in known.channels {
         let channel = name;
-        list.push(command("View: " + channel, "◐", "", || render::set_channel(channel)));
+        list.push(command("View: " + channel, "◐", "", || render::set_debug_view(channel)));
     }
     for entry in S.registry.commands {
         let run = entry.run;
