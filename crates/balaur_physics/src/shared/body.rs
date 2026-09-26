@@ -28,7 +28,10 @@ macro_rules! functions {
 
         pub(crate) fn add_body(eng: &Engine, entity: Entity, kind: &str) -> Result<()> {
             let pose = $node_pose(eng, entity)?;
-            let builder = $Builder::new(body_type(kind)?).pose(pose);
+            // The node rides in `user_data`, so a collision can name the body too.
+            let builder = $Builder::new(body_type(kind)?)
+                .pose(pose)
+                .user_data(u128::from(entity.to_bits().get()));
             let state = eng.resource::<$State>();
             let mut state = state.borrow_mut();
             let builder = if state.sleeping_allowed {
@@ -158,8 +161,12 @@ macro_rules! functions {
                     for &collider in body.colliders() {
                         let owner = state.world.colliders.get(collider);
                         let owner = owner.and_then(|c| Entity::from_bits(c.user_data as u64));
+                        // The body's node lives on, so it hears the contacts end too.
                         if let Some(owner) = owner {
-                            state.gone.insert(collider, owner);
+                            let body = Some(u128::from(entity.to_bits().get()));
+                            state
+                                .gone
+                                .insert(collider, crate::shared::events::Owner::of(owner, body));
                         }
                     }
                 }

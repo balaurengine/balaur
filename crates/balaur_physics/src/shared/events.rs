@@ -1,6 +1,26 @@
 //! The event plumbing both dimensions share: what a step collected, the order
 //! it is delivered in, and the one mid-step rule that reads collider data.
 
+use balaur_core::hecs::Entity;
+
+/// Who a collider event is told to: the collider's node, and the node of the
+/// body it hangs from when that is another one.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Owner {
+    pub(crate) node: Entity,
+    pub(crate) body: Option<Entity>,
+}
+
+impl Owner {
+    /// A collider's node, and its body's from the `user_data` that body holds.
+    pub(crate) fn of(node: Entity, body_data: Option<u128>) -> Self {
+        Self {
+            node,
+            body: body_data.and_then(|data| Entity::from_bits(data as u64)),
+        }
+    }
+}
+
 macro_rules! functions {
     (
         dimensions = $N:literal,
@@ -11,10 +31,11 @@ macro_rules! functions {
     ) => {
         /// One thing that happened, in Balaur's terms rather than rapier's handles.
         pub(crate) enum Event {
-            Started(Entity, Entity),
-            Stopped(Entity, Entity),
-            Force(Entity, Entity, f32, [f32; $N]),
-            Tear(Entity, u32),
+            Started(Owner, Owner),
+            Stopped(Owner, Owner),
+            Force(Owner, Owner, f32, [f32; $N]),
+            /// The soft body, how many pieces, and the particle pairs torn.
+            Tear(Entity, u32, Vec<[u32; 2]>),
         }
 
         impl Event {
@@ -25,10 +46,10 @@ macro_rules! functions {
             /// and a `Force` in one step.
             fn key(&self) -> (u64, u64, u8) {
                 let (a, b, kind) = match self {
-                    Self::Started(a, b) => (*a, *b, 0),
-                    Self::Stopped(a, b) => (*a, *b, 1),
-                    Self::Force(a, b, _, _) => (*a, *b, 2),
-                    Self::Tear(a, _) => (*a, *a, 3),
+                    Self::Started(a, b) => (a.node, b.node, 0),
+                    Self::Stopped(a, b) => (a.node, b.node, 1),
+                    Self::Force(a, b, _, _) => (a.node, b.node, 2),
+                    Self::Tear(a, _, _) => (*a, *a, 3),
                 };
                 (
                     a.to_bits().get().min(b.to_bits().get()),
@@ -46,21 +67,26 @@ macro_rules! functions {
             events: Mutex<Vec<Event>>,
             /// The owners of colliders removed since the last step, whose
             /// contacts end during this one.
-            gone: DetHashMap<ColliderHandle, Entity>,
+            gone: DetHashMap<ColliderHandle, Owner>,
         }
 
         impl Collector {
-            pub(crate) fn after(gone: DetHashMap<ColliderHandle, Entity>) -> Self {
+            pub(crate) fn after(gone: DetHashMap<ColliderHandle, Owner>) -> Self {
                 Self {
                     events: Mutex::default(),
                     gone,
                 }
             }
 
-            /// The entity behind a collider handle: the id stored on it, or
-            /// the owner it had when it was removed.
-            fn owner(&self, colliders: &ColliderSet, handle: ColliderHandle) -> Option<Entity> {
-                entity_of(colliders, handle).or_else(|| self.gone.get(&handle).copied())
+            /// Who is behind a collider handle: the ids stored on it and its
+            /// body, or the owners it had when it was removed.
+            fn owner(
+                &self,
+                bodies: &RigidBodySet,
+                colliders: &ColliderSet,
+                handle: ColliderHandle,
+            ) -> Option<Owner> {
+                owner_of(bodies, colliders, handle).or_else(|| self.gone.get(&handle).copied())
             }
 
             pub(crate) fn take(self) -> Vec<Event> {
@@ -80,22 +106,29 @@ macro_rules! functions {
             }
         }
 
-        /// The entity behind a collider handle, from the id stored on it.
-        fn entity_of(colliders: &ColliderSet, handle: ColliderHandle) -> Option<Entity> {
-            Entity::from_bits(colliders.get(handle)?.user_data as u64)
+        /// The collider's node and its body's, from the ids stored on both.
+        fn owner_of(
+            bodies: &RigidBodySet,
+            colliders: &ColliderSet,
+            handle: ColliderHandle,
+        ) -> Option<Owner> {
+            let collider = colliders.get(handle)?;
+            let node = Entity::from_bits(collider.user_data as u64)?;
+            let body = collider.parent().and_then(|b| bodies.get(b));
+            Some(Owner::of(node, body.map(|b| b.user_data)))
         }
 
         impl EventHandler for Collector {
             fn handle_collision_event(
                 &self,
-                _bodies: &RigidBodySet,
+                bodies: &RigidBodySet,
                 colliders: &ColliderSet,
                 event: CollisionEvent,
                 _pair: Option<&ContactPair>,
             ) {
                 let (Some(a), Some(b)) = (
-                    self.owner(colliders, event.collider1()),
-                    self.owner(colliders, event.collider2()),
+                    self.owner(bodies, colliders, event.collider1()),
+                    self.owner(bodies, colliders, event.collider2()),
                 ) else {
                     return;
                 };
@@ -109,15 +142,15 @@ macro_rules! functions {
             fn handle_contact_force_event(
                 &self,
                 dt: crate::scalar::Real,
-                _bodies: &RigidBodySet,
+                bodies: &RigidBodySet,
                 colliders: &ColliderSet,
                 pair: &ContactPair,
                 total_force_magnitude: crate::scalar::Real,
             ) {
                 let event = ContactForceEvent::from_contact_pair(dt, pair, total_force_magnitude);
                 let (Some(a), Some(b)) = (
-                    entity_of(colliders, event.collider1),
-                    entity_of(colliders, event.collider2),
+                    owner_of(bodies, colliders, event.collider1),
+                    owner_of(bodies, colliders, event.collider2),
                 ) else {
                     return;
                 };
@@ -141,7 +174,8 @@ macro_rules! functions {
                 else {
                     return;
                 };
-                self.push(Event::Tear(entity, event.pieces.len() as u32));
+                let pieces = event.pieces.len() as u32;
+                self.push(Event::Tear(entity, pieces, event.torn_edges.clone()));
             }
         }
 
@@ -149,29 +183,45 @@ macro_rules! functions {
         /// gets.
         fn dispatch(eng: &Engine, event: &Event) {
             let node = |e: Entity| Value::Node(e.to_bits().get());
-            match *event {
+            // The collider's node first, then the body it hangs from.
+            let tell = |at: Owner, name: &str, payload: Value| {
+                if let Some(body) = at.body.filter(|&body| body != at.node) {
+                    balaur_core::events::announce(eng, at.node, name, payload.clone());
+                    balaur_core::events::announce(eng, body, name, payload);
+                } else {
+                    balaur_core::events::announce(eng, at.node, name, payload);
+                }
+            };
+            match event {
                 Event::Started(a, b) => {
-                    balaur_core::events::announce(eng, a, hook::COLLISION_ENTER, node(b));
-                    balaur_core::events::announce(eng, b, hook::COLLISION_ENTER, node(a));
+                    tell(*a, hook::COLLISION_ENTER, node(b.node));
+                    tell(*b, hook::COLLISION_ENTER, node(a.node));
                 }
                 Event::Stopped(a, b) => {
-                    balaur_core::events::announce(eng, a, hook::COLLISION_EXIT, node(b));
-                    balaur_core::events::announce(eng, b, hook::COLLISION_EXIT, node(a));
+                    tell(*a, hook::COLLISION_EXIT, node(b.node));
+                    tell(*b, hook::COLLISION_EXIT, node(a.node));
                 }
                 Event::Force(a, b, magnitude, direction) => {
-                    let contact = |other: Entity| {
+                    let contact = |other: Owner| {
                         crate::vocabulary::map([
-                            (k::OTHER, node(other)),
-                            (k::FORCE, Value::Num(f64::from(magnitude))),
-                            (k::DIRECTION, Value::$towards(direction)),
+                            (k::OTHER, node(other.node)),
+                            (k::FORCE, Value::Num(f64::from(*magnitude))),
+                            (k::DIRECTION, Value::$towards(*direction)),
                         ])
                     };
-                    balaur_core::events::announce(eng, a, hook::CONTACT_FORCE, contact(b));
-                    balaur_core::events::announce(eng, b, hook::CONTACT_FORCE, contact(a));
+                    tell(*a, hook::CONTACT_FORCE, contact(*b));
+                    tell(*b, hook::CONTACT_FORCE, contact(*a));
                 }
-                Event::Tear(a, pieces) => {
-                    let tear = crate::vocabulary::map([(k::PIECES, Value::Int(i64::from(pieces)))]);
-                    balaur_core::events::announce(eng, a, hook::TEAR, tear);
+                Event::Tear(a, pieces, torn) => {
+                    let edges = torn
+                        .iter()
+                        .map(|pair| Value::List(pair.map(|p| Value::Int(i64::from(p))).to_vec()))
+                        .collect();
+                    let tear = crate::vocabulary::map([
+                        (k::PIECES, Value::Int(i64::from(*pieces))),
+                        (k::TORN_EDGES, Value::List(edges)),
+                    ]);
+                    balaur_core::events::announce(eng, *a, hook::TEAR, tear);
                 }
             }
         }

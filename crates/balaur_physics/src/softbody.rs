@@ -166,6 +166,7 @@ pub(crate) fn shared_softbody_schema() -> String {
             (k::RESTITUTION, r#"{ type = "float", default = 0.0, min = 0.0, max = 1.0, description = "Bounciness of the body's collider", group = "surface" }"#),
         ]),
         crate::collider::shared_group_schema(),
+        crate::collider::shared_event_schema(),
     ]
     .join("\n")
 }
@@ -184,7 +185,7 @@ fn surface_collider(params: &toml::Value) -> ColliderBuilder {
     let builder = ColliderBuilder::ball(1.0)
         .friction(scalar::real(v::f(params, k::FRICTION, 0.5)))
         .restitution(scalar::real(v::f(params, k::RESTITUTION, 0.0)));
-    crate::collider::with_groups(builder, params)
+    crate::collider::with_events(crate::collider::with_groups(builder, params), params)
 }
 
 /// The rows every layout shares, applied after the generator has laid the

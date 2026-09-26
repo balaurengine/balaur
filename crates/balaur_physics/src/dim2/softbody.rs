@@ -274,9 +274,12 @@ fn with_settings(mut builder: SoftBodyBuilder2, params: &toml::Value) -> Result<
         .solver(solver_of_2d(params))
         .skin_collision(v::boolean(params, k::SKIN_COLLISION, false))
         .surface_collider(
-            crate::dim2::collider::with_groups_2d(ColliderBuilder2::ball(1.0), params)
-                .friction(scalar::real(v::f(params, k::FRICTION, 0.5)))
-                .restitution(scalar::real(v::f(params, k::RESTITUTION, 0.0))),
+            crate::dim2::collider::with_events_2d(
+                crate::dim2::collider::with_groups_2d(ColliderBuilder2::ball(1.0), params),
+                params,
+            )
+            .friction(scalar::real(v::f(params, k::FRICTION, 0.5)))
+            .restitution(scalar::real(v::f(params, k::RESTITUTION, 0.0))),
         );
     let mass = v::f(params, k::MASS, 1.0);
     if mass > 0.0 {

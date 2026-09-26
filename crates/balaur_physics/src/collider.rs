@@ -329,6 +329,33 @@ pub(crate) fn shared_group_schema() -> String {
     ])
 }
 
+/// The event rows, as schema text, for a soft body: its surface collider
+/// reports the way a `collider3d` does.
+pub(crate) fn shared_event_schema() -> String {
+    let events = v::options(&v::flags::events().map(|(name, _)| name));
+    v::schema(&[
+        (
+            k::EVENTS,
+            &format!(
+                r#"{{ type = "flags", default = [], options = [{events}], description = "What this body reports to its node's script: on_collision_enter and on_collision_exit, or on_contact_force", group = "filtering" }}"#
+            ),
+        ),
+        (
+            k::CONTACT_FORCE_THRESHOLD,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "How hard a contact must be before on_contact_force is called", group = "filtering" }"#,
+        ),
+    ])
+}
+
+/// Report what `params` asks for, for a builder whose other rows its owner
+/// has already set.
+pub(crate) fn with_events(builder: ColliderBuilder, params: &toml::Value) -> ColliderBuilder {
+    let threshold = scalar::real(v::f(params, k::CONTACT_FORCE_THRESHOLD, 0.0));
+    builder
+        .active_events(active_events(params))
+        .contact_force_event_threshold(threshold)
+}
+
 /// Put a collider on the layers `params` names, for a builder whose other
 /// rows its owner has already set.
 pub(crate) fn with_groups(builder: ColliderBuilder, params: &toml::Value) -> ColliderBuilder {

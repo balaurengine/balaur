@@ -198,6 +198,9 @@ pub(crate) fn install_body2d_state_api(m: &mut dyn Bindings<Engine>) {
         ("velocity_at_point", &[c::BODY_2D], "", "How fast a world point on the body is moving, spin included."),
         ("total_mass", &[c::BODY_2D], "", "The body's total mass: its `mass` when it states one, or what its colliders weigh."),
         ("kinetic_energy", &[c::BODY_2D], "", "The body's kinetic energy, for a rest test the solver agrees with."),
+        ("potential_energy", &[c::BODY_2D], "", "The body's gravitational potential energy over one step."),
+        ("is_moving", &[c::BODY_2D], "", "Whether the body is awake and actually going somewhere."),
+        ("effective_dominance", &[c::BODY_2D], "", "The dominance rapier will use for this body: its own group, or the rank every non-dynamic body outranks with."),
         ("teleport", &[c::BODY_2D], "", "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick."),
     ]);
     m.function(
@@ -214,6 +217,20 @@ pub(crate) fn install_body2d_state_api(m: &mut dyn Bindings<Engine>) {
     });
     m.function("kinetic_energy", |eng: &Engine, node: NodeId| {
         read_body(eng, entity_of(node)?, RigidBody::kinetic_energy)
+    });
+    m.function("potential_energy", |eng: &Engine, node: NodeId| {
+        let gravity = eng.resource::<PhysicsState2d>().borrow().world.gravity;
+        read_body(eng, entity_of(node)?, |body| {
+            body.gravitational_potential_energy(scalar::real(balaur_core::fixed_dt()), gravity)
+        })
+    });
+    m.function("is_moving", |eng: &Engine, node: NodeId| {
+        read_body(eng, entity_of(node)?, |body| -> bool { body.is_moving() })
+    });
+    m.function("effective_dominance", |eng: &Engine, node: NodeId| {
+        read_body(eng, entity_of(node)?, |body| {
+            f32::from(body.effective_dominance_group())
+        })
     });
     m.function(
         "teleport",
@@ -581,7 +598,7 @@ pub(crate) fn register_body2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::BODY_2D,
         ComponentDef {
-            events: &[],
+            events: crate::vocabulary::hook::BODY,
             warnings: Some(Box::new(body_warnings_2d)),
             doc: "A 2D rigid body simulated by rapier in the xy plane. `kind` is `dynamic`, `static`, `kinematic` or `kinematic_velocity`; add a `collider2d` for its shape.",
             schema: ComponentDef::parse_schema(c::BODY_2D, &schema),

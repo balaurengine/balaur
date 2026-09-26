@@ -183,6 +183,15 @@ pub(crate) fn with_groups_2d(builder: ColliderBuilder2, params: &toml::Value) ->
     ))
 }
 
+/// Report what `params` asks for, as `crate::collider::with_events` does in 3D.
+pub(crate) fn with_events_2d(builder: ColliderBuilder2, params: &toml::Value) -> ColliderBuilder2 {
+    let events = ActiveEvents::from_bits_truncate(v::bits(params, k::EVENTS, &v::flags::events()));
+    let threshold = scalar::real(v::f(params, k::CONTACT_FORCE_THRESHOLD, 0.0));
+    builder
+        .active_events(events)
+        .contact_force_event_threshold(threshold)
+}
+
 /// The `mesh` asset's points as 2D, with the triangles over them.
 fn mesh_of(eng: &Engine, params: &toml::Value, kind: &str) -> Result<(Vec<Vector>, Vec<[u32; 3]>)> {
     let reference = params

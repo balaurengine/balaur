@@ -111,8 +111,11 @@ fn clear(eng: &Engine, entity: Entity) {
         return;
     };
     for handle in &ours {
-        state.world.remove_collider(*handle);
-        state.gone.insert(*handle, entity);
+        if let Some(removed) = state.world.remove_collider(*handle) {
+            let body = removed.parent().and_then(|b| state.world.bodies.get(b));
+            let owner = crate::shared::events::Owner::of(entity, body.map(|b| b.user_data));
+            state.gone.insert(*handle, owner);
+        }
     }
     if let Some(handles) = state.colliders.get_mut(&entity) {
         handles.retain(|handle| !ours.contains(handle));

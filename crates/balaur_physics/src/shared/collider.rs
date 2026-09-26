@@ -65,8 +65,12 @@ macro_rules! functions {
             let mut state = state.borrow_mut();
             if let Some(handles) = state.colliders.swap_remove(&entity) {
                 for handle in handles {
-                    state.world.remove_collider(handle);
-                    state.gone.insert(handle, entity);
+                    if let Some(removed) = state.world.remove_collider(handle) {
+                        let body = removed.parent().and_then(|b| state.world.bodies.get(b));
+                        let owner =
+                            crate::shared::events::Owner::of(entity, body.map(|b| b.user_data));
+                        state.gone.insert(handle, owner);
+                    }
                 }
                 state.collider_params.swap_remove(&entity);
                 state.queries_ready = false;

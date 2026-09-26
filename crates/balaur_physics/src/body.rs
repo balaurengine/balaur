@@ -827,7 +827,7 @@ pub(crate) fn register_body_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::BODY_3D,
         ComponentDef {
-            events: &[],
+            events: crate::vocabulary::hook::BODY,
             warnings: Some(Box::new(body_warnings)),
             doc: "A 3D rigid body simulated by rapier. `kind` is `dynamic`, `static`, `kinematic` or `kinematic_velocity`; add a `collider3d` for its shape.",
             schema: ComponentDef::parse_schema(c::BODY_3D, &schema),

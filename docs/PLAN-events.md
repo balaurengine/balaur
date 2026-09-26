@@ -1,5 +1,5 @@
 > **Status:** written 2026-09-26 from an audit of every crate, done by reading
-> the code. §2, §3 and §4.1 to §4.4 are built; §4.5 is next. The order is bugs
+> the code. §2, §3 and §4.1 to §4.5 are built; §4.6 is next. The order is bugs
 > first, then one delivery path, then the events the engine does not send yet.
 
 # Plan: events, and one way to hear each of them
@@ -16,7 +16,7 @@ A script hears the engine through four channels:
 | Channel | What it is | Who hears it |
 | --- | --- | --- |
 | Hook | the engine calls `on_<name>(this, ..)` on one node's script, at once | that node's script |
-| Emitted event | `events::emit_from(node, name, payload)`, delivered at the top of the next `Update` | `emitted:<name>` rows on the node, `events::subscribe` listeners, `task::wait(events::next(..))` |
+| Emitted event | `events::emit_from(node, name, payload)`, delivered at the top of the next `Update` | `emitted:<name>` rows on the node, `events::listen` listeners, `task::wait(events::next(..))` |
 | Binding row | `[[nodes.bindings.rows]]` naming an event in `hooks::BINDABLE`, run by `bindings::fire` | the scene, with no script |
 | Poll | a function the script asks every frame | whoever asks |
 
@@ -138,11 +138,13 @@ In order of how often a game needs them.
    is still readable in the parent's own hook. A node announces `renamed` with
    the name it had and `reparented` with the parent it left. Loading a scene,
    switching one and restoring a snapshot stay silent.
-5. **Physics:** sleep and wake on bodies and soft bodies; a soft body's own
-   `events` and `contact_force_threshold` rows; the torn edges and pieces in
-   the tear payload; collision hooks told to the body as well as the
-   collider; the joint break force and the other body; `contacts()` and
-   `is_moving` in 2D.
+5. **Physics:** built. A body and a soft body announce `sleeping_changed`
+   with whether they sleep now. A body hears the collisions and contact
+   forces of every collider under it. A soft body takes `events` and
+   `contact_force_threshold` as a collider does, and its `tear` carries the
+   torn edges. A joint break names both ends and the force. 2D gained
+   `is_moving`, `contacts`, `bodies`, `active_bodies`, `potential_energy` and
+   `effective_dominance`.
 6. **Animation:** clip started, changed and looped; tween loop and step;
    method-track keys with arguments; one-shot particles finished.
 7. **The app and input:** suspend and resume, low memory, orientation and

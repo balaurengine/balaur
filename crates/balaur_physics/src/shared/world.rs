@@ -21,6 +21,16 @@ macro_rules! functions {
                     collider.user_data = flags | u128::from(entity.to_bits().get());
                 }
             }
+            // A body names its node the same way, for the collisions under it.
+            for (entity, &handle) in &state.bodies {
+                if let Some(body) = state.world.bodies.get_mut(handle) {
+                    body.user_data = u128::from(entity.to_bits().get());
+                }
+            }
+            // What was asleep in the restored world, so its first step reports
+            // only what changes after it.
+            let asleep: Vec<Entity> = sleeping(state).collect();
+            state.asleep = asleep.into_iter().collect();
             // A soft body names its node the same way, and a tear reads it; so
             // does every piece torn off it.
             for (entity, &handle) in &state.soft_bodies {
@@ -44,13 +54,16 @@ macro_rules! functions {
                 if world.contains(entity) {
                     return true;
                 }
-                // Rapier drops the attached colliders with the body.
+                // Rapier drops the attached colliders with the body, and the
+                // body's node is gone with it.
                 if let Some(body) = state.world.bodies.get(*handle) {
                     for &collider in body.colliders() {
                         let owner = state.world.colliders.get(collider);
                         let owner = owner.and_then(|c| Entity::from_bits(c.user_data as u64));
-                        if let Some(owner) = owner {
-                            state.gone.insert(collider, owner);
+                        if let Some(node) = owner {
+                            state
+                                .gone
+                                .insert(collider, crate::shared::events::Owner::of(node, None));
                         }
                     }
                 }
@@ -65,8 +78,11 @@ macro_rules! functions {
                     if alive && state.world.colliders.contains(handle) {
                         return true;
                     }
-                    if state.world.remove_collider(handle).is_some() {
-                        state.gone.insert(handle, entity);
+                    if let Some(removed) = state.world.remove_collider(handle) {
+                        let body = removed.parent().and_then(|b| state.world.bodies.get(b));
+                        let owner =
+                            crate::shared::events::Owner::of(entity, body.map(|b| b.user_data));
+                        state.gone.insert(handle, owner);
                     }
                     false
                 });
@@ -103,8 +119,51 @@ macro_rules! functions {
             state.collider_params.retain(|e, _| world.contains(*e));
             state.joint_params.retain(|e, _| world.contains(*e));
             state.grounded.retain(|e, _| world.contains(*e));
+            state.asleep.retain(|e| world.contains(*e));
             if state.world.colliders.len() != before {
                 state.queries_ready = false;
+            }
+        }
+
+        /// Every body and soft body asleep now, in the order they were made.
+        fn sleeping(state: &$State) -> impl Iterator<Item = Entity> + '_ {
+            let bodies = state.bodies.iter().filter(|(_, handle)| {
+                state
+                    .world
+                    .bodies
+                    .get(**handle)
+                    .is_some_and(|b| b.is_sleeping())
+            });
+            let soft = state.soft_bodies.iter().filter(|(_, handle)| {
+                state
+                    .world
+                    .soft_bodies
+                    .get(**handle)
+                    .is_some_and(|b| b.is_sleeping())
+            });
+            bodies.map(|(e, _)| *e).chain(soft.map(|(e, _)| *e))
+        }
+
+        /// The bodies and soft bodies that fell asleep or woke this step, with
+        /// whether each sleeps now, remembered for the next.
+        fn sleep_changes(state: &mut $State) -> Vec<(Entity, bool)> {
+            let now: balaur_core::collections::DetHashSet<Entity> = sleeping(state).collect();
+            let changed: Vec<(Entity, bool)> = state
+                .bodies
+                .keys()
+                .chain(state.soft_bodies.keys())
+                .filter(|e| now.contains(*e) != state.asleep.contains(*e))
+                .map(|e| (*e, now.contains(e)))
+                .collect();
+            state.asleep = now;
+            changed
+        }
+
+        /// Announce each change [`sleep_changes`] found, from the node.
+        fn announce_sleep(eng: &Engine, changed: &[(Entity, bool)]) {
+            for &(entity, asleep) in changed {
+                let payload = balaur_script::Value::Bool(asleep);
+                balaur_core::events::announce(eng, entity, hook::SLEEPING_CHANGED, payload);
             }
         }
 

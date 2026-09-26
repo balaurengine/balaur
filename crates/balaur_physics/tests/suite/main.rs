@@ -10,6 +10,7 @@ pub(crate) static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 mod api;
 mod bodies;
+mod body_events;
 mod colliders;
 mod constants;
 mod convex_decomposition;

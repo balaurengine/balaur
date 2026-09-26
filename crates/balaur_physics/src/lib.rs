@@ -65,7 +65,10 @@ pub struct PhysicsState3d {
     /// Colliders removed since the last step, by the node that owned them.
     /// Rapier reports the contacts they ended during the next step, when
     /// their handles resolve to nothing.
-    pub(crate) gone: DetHashMap<ColliderHandle, Entity>,
+    pub(crate) gone: DetHashMap<ColliderHandle, crate::shared::events::Owner>,
+    /// The bodies and soft bodies asleep after the last step, so the next
+    /// one can say which fell asleep or woke.
+    pub(crate) asleep: balaur_core::collections::DetHashSet<Entity>,
     /// Joints per entity. Which of rapier's two sets a joint lives in is
     /// decided when it is made and never changes.
     pub joints: DetHashMap<Entity, joint::JointRef3d>,
@@ -116,6 +119,7 @@ impl PhysicsState3d {
             bodies: DetHashMap::default(),
             colliders: DetHashMap::default(),
             gone: DetHashMap::default(),
+            asleep: balaur_core::collections::DetHashSet::default(),
             joints: DetHashMap::default(),
             soft_bodies: DetHashMap::default(),
             soft_params: DetHashMap::default(),
@@ -629,7 +633,11 @@ fn step_system(eng: &Engine, _dt: f32) {
                 t.rotation = scalar::quat_of(*body.rotation());
             }
         }
-        (collector.take(), joint::broken(state, &world))
+        (
+            collector.take(),
+            joint::broken(state, &world),
+            sleep_changes(state),
+        )
     };
     // Before the events: a tear handler that reads the torn body's geometry
     // should be given this step's, not the one it had before the tear.
@@ -638,6 +646,7 @@ fn step_system(eng: &Engine, _dt: f32) {
     // script code and may move the body it was just told about.
     events::deliver(eng, &events.0);
     break_joints(eng, &events.1);
+    announce_sleep(eng, &events.2);
     // Rapier disables a body whose pose went non-finite rather than letting
     // the world become NaN. A game that never asks still deserves to be told.
     tuning::warn_about_quarantine(eng);
@@ -745,6 +754,7 @@ pub fn clear(eng: &Engine) {
     state.joint_params.clear();
     state.wheel_inputs.clear();
     state.grounded.clear();
+    state.asleep.clear();
 }
 
 /// Body kinds the 3D and 2D worlds both accept, so a script writes

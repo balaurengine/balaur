@@ -342,6 +342,8 @@ pub(crate) mod keys {
     pub(crate) const PARTICLE_COUNT: &str = "particle_count";
     pub(crate) const PARTICLE_RADIUS: &str = "particle_radius";
     pub(crate) const PIECES: &str = "pieces";
+    /// The particle pairs a tear cut, in a `tear` payload.
+    pub(crate) const TORN_EDGES: &str = "edges";
     pub(crate) const PINNED_PARTICLES: &str = "pinned_particles";
     pub(crate) const PLASTIC_CREEP: &str = "plastic_creep";
     pub(crate) const PLASTIC_MAX: &str = "plastic_max";
@@ -455,6 +457,7 @@ pub(crate) mod hook {
     pub(crate) const CONTACT_FORCE: &str = "contact_force";
     pub(crate) const JOINT_BREAK: &str = "joint_break";
     pub(crate) const TEAR: &str = "tear";
+    pub(crate) const SLEEPING_CHANGED: &str = "sleeping_changed";
 
     /// What each component announces, for the Events view and the reference.
     pub(crate) const COLLIDER: &[(&str, &str)] = &[
@@ -462,8 +465,33 @@ pub(crate) mod hook {
         (COLLISION_EXIT, "the other collider's node"),
         (CONTACT_FORCE, "`#{ other, force, direction }`"),
     ];
+    /// A body hears what every collider under it hears, as well as its own sleep.
+    pub(crate) const BODY: &[(&str, &str)] = &[
+        (
+            COLLISION_ENTER,
+            "the other collider's node, for a collider under it",
+        ),
+        (
+            COLLISION_EXIT,
+            "the other collider's node, for a collider under it",
+        ),
+        (
+            CONTACT_FORCE,
+            "`#{ other, force, direction }`, for a collider under it",
+        ),
+        (SLEEPING_CHANGED, "whether it sleeps now"),
+    ];
     pub(crate) const JOINT: &[(&str, &str)] = &[(JOINT_BREAK, "`#{ a, b, force }`")];
-    pub(crate) const SOFT_BODY: &[(&str, &str)] = &[(TEAR, "`#{ pieces }`")];
+    pub(crate) const SOFT_BODY: &[(&str, &str)] = &[
+        (COLLISION_ENTER, "the other collider's node"),
+        (COLLISION_EXIT, "the other collider's node"),
+        (CONTACT_FORCE, "`#{ other, force, direction }`"),
+        (SLEEPING_CHANGED, "whether it sleeps now"),
+        (
+            TEAR,
+            "`#{ pieces, edges }`: how many pieces, and each torn edge's two particles",
+        ),
+    ];
 }
 
 /// Schema text from `(key, spec)` lines: the key comes from `keys`, the spec

@@ -10,6 +10,7 @@ use crate::rapier2d::prelude::{
     ColliderHandle, ColliderSet, CollisionEvent, ContactForceEvent, ContactModificationContext,
     ContactPair, EventHandler, PhysicsHooks, RigidBodySet, SoftBodySet, SoftBodyTearEvent,
 };
+use crate::shared::events::Owner;
 use crate::vocabulary::hook;
 use crate::vocabulary::keys as k;
 use balaur_core::Engine;

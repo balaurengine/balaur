@@ -384,3 +384,90 @@ fn with_pair(
         &state.world.colliders[second],
     )
 }
+
+/// What the 2D world holds, and what touches a node: `crate::query`'s
+/// `install_world_list_api` in two dimensions.
+pub(crate) fn install_physics2d_world_list_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("bodies", &[], "()", "Every node with a rigid body, sorted."),
+        ("active_bodies", &[], "()", "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving."),
+        ("contacts", &[c::COLLIDER_2D], "", "Every contact point on this node's collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition."),
+    ]);
+    m.function("bodies", |eng: &Engine, ()| {
+        let state = eng.resource::<PhysicsState2d>();
+        let state = state.borrow();
+        let mut nodes: Vec<Entity> = state.bodies.keys().copied().collect();
+        node_list(&mut nodes, &eng.world())
+    });
+    m.function("active_bodies", |eng: &Engine, ()| {
+        let state = eng.resource::<PhysicsState2d>();
+        let state = state.borrow();
+        let awake = |handle: &crate::rapier2d::prelude::RigidBodyHandle| {
+            state
+                .world
+                .bodies
+                .get(*handle)
+                .is_some_and(|body| !body.is_sleeping())
+        };
+        let mut nodes: Vec<Entity> = state
+            .bodies
+            .iter()
+            .filter(|(_, handle)| awake(handle))
+            .map(|(entity, _)| *entity)
+            .collect();
+        node_list(&mut nodes, &eng.world())
+    });
+    m.function("contacts", |eng: &Engine, node: NodeId| {
+        contact_list(eng, node)
+    });
+}
+
+/// Every contact point on a node's colliders, in the order rapier holds them
+/// within a pair and by the other node's stable id between pairs.
+fn contact_list(eng: &Engine, node: NodeId) -> Result<Value> {
+    let entity = entity_of(node)?;
+    let world = eng.world();
+    let state = eng.resource::<PhysicsState2d>();
+    let state = state.borrow();
+    let Some(handles) = state.colliders.get(&entity) else {
+        return Ok(Value::List(Vec::new()));
+    };
+    let mut out: Vec<(String, Value)> = Vec::new();
+    for &handle in handles {
+        for pair in state.world.contact_pairs_with(handle) {
+            let other_handle = if pair.collider1 == handle {
+                pair.collider2
+            } else {
+                pair.collider1
+            };
+            let (Some(other), Some(first)) = (
+                state
+                    .world
+                    .colliders
+                    .get(other_handle)
+                    .and_then(entity_of_collider),
+                state.world.colliders.get(pair.collider1),
+            ) else {
+                continue;
+            };
+            for manifold in pair.manifolds() {
+                let normal = manifold.data.normal;
+                for point in &manifold.points {
+                    // `local_p1` is in the first collider's own frame, as in 3D.
+                    let p = first.position() * point.local_p1;
+                    out.push((
+                        balaur_core::ids::order_key(&world, other)?,
+                        map([
+                            (k::NODE, Value::Node(other.to_bits().get())),
+                            (k::POINT, Value::Vec2(scalar::a2(p))),
+                            (k::NORMAL, Value::Vec2(scalar::a2(normal))),
+                            (k::IMPULSE, Value::Num(f64::from(point.data.impulse))),
+                        ]),
+                    ));
+                }
+            }
+        }
+    }
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    Ok(Value::List(out.into_iter().map(|(_, v)| v).collect()))
+}

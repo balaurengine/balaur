@@ -44,7 +44,9 @@ pub struct PhysicsState2d {
     pub bodies: DetHashMap<Entity, RigidBodyHandle2>,
     pub colliders: DetHashMap<Entity, Vec<ColliderHandle2>>,
     /// Removed colliders by owner until the next step, as in 3D.
-    pub(crate) gone: DetHashMap<ColliderHandle2, Entity>,
+    pub(crate) gone: DetHashMap<ColliderHandle2, crate::shared::events::Owner>,
+    /// Asleep after the last step, as in 3D.
+    pub(crate) asleep: balaur_core::collections::DetHashSet<Entity>,
     /// Whether the broad phase's tree matches the colliders, as in 3D.
     pub queries_ready: bool,
     /// Joints per entity, as in the 3D world.
@@ -85,6 +87,7 @@ impl PhysicsState2d {
             bodies: DetHashMap::default(),
             colliders: DetHashMap::default(),
             gone: DetHashMap::default(),
+            asleep: balaur_core::collections::DetHashSet::default(),
             queries_ready: false,
             joints: DetHashMap::default(),
             soft_bodies: DetHashMap::default(),
@@ -189,7 +192,11 @@ fn step_system(eng: &Engine, _dt: f32) {
                 t.rotation = Quat::from_rotation_z(scalar::f32_of(body.rotation().angle()));
             }
         }
-        (collector.take(), joint::broken(state, &world))
+        (
+            collector.take(),
+            joint::broken(state, &world),
+            sleep_changes(state),
+        )
     };
     // Before the events, as in 3D: a tear handler reads the torn body's own
     // geometry, not the one it had before the tear.
@@ -200,6 +207,7 @@ fn step_system(eng: &Engine, _dt: f32) {
         joint::remove_joint(eng, *entity);
         balaur_core::events::announce(eng, *entity, hook::JOINT_BREAK, payload);
     }
+    announce_sleep(eng, &events.2);
 }
 
 pub fn clear(eng: &Engine) {
@@ -225,6 +233,7 @@ pub fn clear(eng: &Engine) {
     state.tile_colliders.clear();
     state.joint_params.clear();
     state.grounded.clear();
+    state.asleep.clear();
 }
 
 pub fn set_paused(eng: &Engine, paused: bool) {
@@ -269,6 +278,7 @@ pub fn build(reg: &mut Registry<'_>) -> Result<()> {
         query::install_physics2d_volume_query_api(&mut *m);
         query::install_physics2d_shape_query_api(&mut *m);
         query::install_physics2d_pair_query_api(&mut *m);
+        query::install_physics2d_world_list_api(&mut *m);
         joint::install_joint2d_api(&mut *m);
         softbody::install_softbody_api_2d(&mut *m);
         character::install_character2d_api(&mut *m);
