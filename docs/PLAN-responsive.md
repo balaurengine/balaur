@@ -869,7 +869,7 @@ looks at, a drag slides both across it, and the 2D camera gets the same pair
 as a zoom and a centre. The slide is measured in world units per design
 pixel at the target's depth, so the ground stays under the finger. While it
 holds the camera the gizmo does not see the frame and the backend's own
-mouse orbit stands off. `--state gesturedemo` feeds the two fingers and
+mouse orbit stands off. `--state test:gestures` feeds the two fingers and
 checks both, a frame apart, because a fed finger is read by the next tick and
 acted on later in that frame.
 

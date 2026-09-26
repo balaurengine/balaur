@@ -14,7 +14,7 @@ pub fn register() {
         dialogs: [#{ id: "counter-window", title: "Counter", draw: dialog }],
         commands: [#{ title: "Count scripted nodes", icon: "Σ", shortcut: "", run: count }],
         inspector_sections: [section],
-        startup_states: #{ "counterdemo": selftest },
+        startup_states: #{ "test:plugin_docks": selftest },
     }
 }
 
@@ -75,7 +75,7 @@ pub fn section(S, k, node) {
     });
 }
 
-/// `--state counterdemo`: the plugin seam, asserted the way the editor's own
+/// `--state test:plugin_docks`: the plugin seam, asserted the way the editor's own
 /// self-tests are. `log::error` is what fails the run.
 pub fn selftest(S) {
     let expected = scripted(S);

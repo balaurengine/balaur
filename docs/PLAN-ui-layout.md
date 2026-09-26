@@ -312,7 +312,7 @@ engine's `tab` has no notion of, and the dock bodies are immediate-mode
 lose features to gain a shared name.
 
 **Verified against the editor it replaced**: all 30 audit screens, every
-published rect identical to a tenth of a pixel, and `layoutdemo`'s nine
+published rect identical to a tenth of a pixel, and `test:layout`'s nine
 invariants pass.
 
 Three real bugs came out of holding it to that standard:
@@ -333,7 +333,7 @@ Three real bugs came out of holding it to that standard:
 The cost is one frame: the widget layer draws after `draw_ui`, so a rect read
 back is the previous frame's. Rects are published at the end of the draw
 rather than the start of the next one, which is the smaller of the two lags
-available, and `layoutdemo` waits for a shell rather than for a frame number.
+available, and `test:layout` waits for a shell rather than for a frame number.
 
 ## 6. What this does not change
 

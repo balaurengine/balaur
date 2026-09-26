@@ -267,7 +267,7 @@ The mark at the head of the bar is the shell's one menu, opened with a left
 click: the command palette, Settings and Export, then every panel there is with
 a tick beside the open ones, two to a line, then the row that puts the current
 workspace's panels back. A folded side dock is a rail of the same marks: the one
-that opens it, then one per panel it holds. Shot `36-menu`, whose `menudemo`
+that opens it, then one per panel it holds. Shot `36-menu`, whose `menu`
 state draws the rows as a sheet: no offscreen run can click a popup open.
 
 ---
@@ -278,10 +278,10 @@ state draws the rows as a sheet: no offscreen run can click a popup open.
 |---|---|---|---|
 | Command palette | `palette::draw` — `ui::modal`, the one scrim | `07` | ⌘K, or `--state palette` |
 | Input overlay | `inputview::draw` — key chips, click ripples, drawn cursor | `18` | `--state input` |
-| Plugin window | `plugins::draw_windows` — `ui::window`, floating | `19` | `--state counterdemo` |
+| Plugin window | `plugins::draw_windows` — `ui::window`, floating | `19` | `--state test:plugin_docks` |
 | Node context menu | `left::tree_row`'s `menu:` — add child, attach script, duplicate, delete | — | right-click |
 | Showcase driver | `showcase::draw` — scripted input for the manual's clips | — | `--state show:<name>` |
-| Font sheet | `selftest::font_sheet` — every script the chain covers, the three faces, the icon font | `28` | `--state fontdemo` |
+| Font sheet | `selftest::font_sheet` — every script the chain covers, the three faces, the icon font | `28` | `--state font_sheet` |
 | Theme window | `themewin::draw` — `window::sheet_form`, pages down the side, each role drawn as itself | `42`, `43` | the mark menu's Theme, or `--state theme:<page>:<role>` |
 
 The theme window is the one sheet whose rows change the chrome around them: an
@@ -342,10 +342,10 @@ dropped as they are fixed; git holds them.
 | D13 | **The palette card has no edge.** Card fill ≈ scrimmed background, the first-row highlight is narrower than the rows, and the list clips mid-row with no scroll cue. | `palette::draw` | `07` |
 | D14 | **Script identity is stated four times** — the tree's `‹›` glyph, the Rune modules list, the hooks sidebar, the inspector's Events section and the events document tab. Five, counting the tab. | across | `03`, `16` |
 | D15 | **The dock tab row is 12 controls wide** — 8 tabs, a filter field, three level pills and clear — with no grouping. | `dock::tab_row` | `01` |
-| D19 | **Plugin docks are unreachable.** The dock tab lists are fixed (`docks::state`), `registry.docks` is read for names only, nothing pushes a plugin's id, and `counter.rn` writes `S.dock`, a field that is gone — so the "one per registered plugin" tab above never draws. | `docks.rn`, `plugins.rn`, `editor/plugins/counter.rn` | `--state counterdemo` |
+| D19 | **Plugin docks are unreachable.** The dock tab lists are fixed (`docks::state`), `registry.docks` is read for names only, nothing pushes a plugin's id, and `counter.rn` writes `S.dock`, a field that is gone — so the "one per registered plugin" tab above never draws. | `docks.rn`, `plugins.rn`, `editor/plugins/counter.rn` | `--state test:plugin_docks` |
 | D20 | **Preferences load only when Settings opens.** `init` never calls `settings::load(prefs)` or `apply`, so theme, `ui_scale`, `sessions/keep`, `verify` and the fault settings are defaults until the window is opened; `editor/appearance/compact` never applies because `editor.rn` overwrites `S.compact` from the window width every frame. | `editor.rn:init`, `settings.rn` | any |
 | D22 | **Showcase clicks land off-target.** `showcase.rn` measures its spots off the pre-Stage shell (`ROW = 27` against the tree's 23 px rows, tabs at `y = 27`), so the drawn cursor misses the control the verb drives in every clip. | `showcase.rn` | `--state show:*` |
-| D23 | **`settings?<query>` clears itself.** `open_search` sets the query but not the search field's buffer, which the next frame writes back as empty; a category click while a query is typed does the same. | `settings.rn`, `search.rn` | `--state settings?theme` |
+| D23 | **`settings_search:<query>` clears itself.** `open_search` sets the query but not the search field's buffer, which the next frame writes back as empty; a category click while a query is typed does the same. | `settings.rn`, `search.rn` | `--state settings?theme` |
 | D24 | **The top bar clips instead of folding on a narrow screen.** At 390 px the bar ends after the fourth workspace: Interface, play, pause, stop and the command pill are not drawn, so a phone cannot start the game from the bar. At 844 × 390 the last control is cut at the edge. | `chrome::top_bar` | `40`, `41` |
 | D25 | **A moved panel draws in the wrong dock.** Output moved to the left dock shows an empty body; Assets moved to the right draws its toolbar there and its cards in the bottom dock, under the Problems tab. | `docks::move_to`, `dock::draw` | `27` |
 | D26 | **Whatever draws at the top of the stage sits under the viewport's chip strip.** The font sheet's `FONT COVERAGE` and a playing game's `Score 0` overdraw `3D · Perspective` and `2D · Orthographic`. | `center::viewport`'s chips | `09`, `28` |

@@ -3,11 +3,11 @@
 > **Status:** Stage is standing (2026-09-03). Phases 1–2 are done — `layout.rn`
 > owns every rect, `viewport::owns_pointer` inverts the hit test, every panel
 > draws through `ui::overlay` as a sheet over a full-bleed scene, and
-> `layoutdemo` asserts nine invariants including that no two sheets overlap.
+> `test:layout` asserts nine invariants including that no two sheets overlap.
 > §5.1, §5.2, §5.3 and the plugin-window half of §5.5 came with it, and the
 > three panels are now one dock model (`docks.rn`). Phase 3 has started: the
 > radius ladder and the inspector grid are done. §5.7 is done too:
-> `shell::toggle_focus`, the chip beside Split, `⇧⌘\`, and `focusdemo`. What is
+> `shell::toggle_focus`, the chip beside Split, `⇧⌘\`, and `test:focus`. What is
 > left is below.
 >
 > Written 2026-09-03 against the screen catalogue in
@@ -139,7 +139,7 @@ document owns the centre.
 | Persisting it | Nowhere, like isolate and lock |
 | A focus layout per workspace | Not planned. A workspace already says what to have open; this is that answer minus everything |
 
-`focusdemo` is the `--state` that proves it: open a script, focus, assert the
+`test:focus` is the `--state` that proves it: open a script, focus, assert the
 three docks are shut and the code pane holds the work area, unfocus, assert
 the rects came back. It joins `scripts/uiaudit.sh` and
 [EDITOR-SCREENS.md](EDITOR-SCREENS.md) like every other surface.
@@ -163,7 +163,7 @@ Both are `S.layout` inputs, so the one rect authority covers them for free.
 check, not a chore: commit a golden set under `docs/screens/` at half
 resolution and fail on a pixel delta over a threshold. The editor is
 deterministic offscreen and the examples are fixed, so this is stable. The
-`layoutdemo` assertions run in the e2e suite already, where a number is
+`test:layout` assertions run in the e2e suite already, where a number is
 cheaper than a picture.
 
 Under Stage this matters more than it did, not less: the class of bug the

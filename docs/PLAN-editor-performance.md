@@ -630,7 +630,7 @@ not price them again.
    are on `table`, and the outliner's search view draws on the same `tree`
    node the unfiltered walk does, so no view of the document emits a row at a
    time any more. What still does draws controls per row rather than rows.
-   `rowsdemo` is the self-test state that reads the outliner's node back.
+   `test:rows` is the self-test state that reads the outliner's node back.
 4. The gizmo and overlay line lists cached against their inputs, and the
    tessellation cache in the fork. Neither waits on the kinds above.
 

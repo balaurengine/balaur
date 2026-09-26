@@ -1,7 +1,7 @@
 > **Status:** built on 2026-09-15, three tabs. `balaur` with no project opens
 > the screen, a double-clicked bundle lands there too, `project.*` and
 > `release.*` are the modules behind it, the palette reaches it from inside a
-> project, and `--state managerdemo` checks all of it. What is left is §8.
+> project, and `--state test:manager` checks all of it. What is left is §8.
 
 # Plan: project manager
 

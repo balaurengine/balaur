@@ -202,7 +202,7 @@ What is left is drawn on purpose, and each has its reason here:
    to 3. `Palette` is a `dialog` anchored `center_top`, stating the width the
    screen leaves it; its head is a pooled strip and its matches are pooled
    rows inside a `scroll` the script states the height of, so the box grows
-   with the list and stops at half the screen. `palettedemo` asserts the
+   with the list and stops at half the screen. `test:palette` asserts the
    query survives the pool's round trip, the matches are nodes, and the first
    wears the held look. The node picker and the rename are on the same node:
    `window::picker` is the one box, since only one of the three is ever up,
@@ -242,7 +242,7 @@ What is left is drawn on purpose, and each has its reason here:
    its children every frame, so they never needed free space. Those fifteen
    `size` calls a frame were holding up a broken solve.
 
-   `layoutdemo` asserts it, not a unit test: the harness rebuilds its arena
+   `test:layout` asserts it, not a unit test: the harness rebuilds its arena
    fresh every pass, so a test there passes with the bug in place. Two tests
    written for this passed without the fix before that was noticed.
 
@@ -395,7 +395,7 @@ What is left is drawn on purpose, and each has its reason here:
    dock hands over with `dock::rows_host`; `node_owners` hides it for every
    other panel, the way the `list` and the `table` are hidden. The header is
    the dock's own chrome strip, the states and transitions are pooled rows,
-   and an open transition's fields are rows under it. `machinedemo` asserts
+   and an open transition's fields are rows under it. `test:state_machine` asserts
    what the pool left on the scene, since the rows are only there after a
    draw.
 4. **The Events view's row pool.** Done 2026-09-22, 26 calls to 0. `DocPanel`
@@ -403,7 +403,7 @@ What is left is drawn on purpose, and each has its reason here:
    over the whole of it, since the bindings tab never splits with the scene.
    Its head carries the title and the two verbs, and a binding is a row of
    eight controls; the scene's variables and the node's script hooks are rows
-   under them. `eventsdemo` asserts what the pool left and the width the
+   under them. `test:events` asserts what the pool left and the width the
    document area gave it. Every other document tab draws, so `center.rn`
    hides the node for them.
 5. **`plugins::editor` returns a closure**, and a `draw` widget names a
@@ -421,7 +421,7 @@ What is left is drawn on purpose, and each has its reason here:
    wherever it starts. Measured at 67 px against a 28 px chrome. So the
    hatch gives its room up, and `panels()` says which panels keep chrome with
    `chrome = true`; the strip is a column of pooled rows, since Tiles keeps
-   four of them. `layoutdemo` asserts the tab row's box.
+   four of them. `test:layout` asserts the tab row's box.
 
 ## 7. Where a number lives
 
@@ -509,7 +509,7 @@ Three things this settles that the call kit could not:
   A dock that proves it needs a window over hundreds of such rows is what
   brings `pool::window` back; nothing does yet.
 
-`counterdemo` asserts the seam: the host is a subtree, the User data dock's
+`test:plugin_docks` asserts the seam: the host is a subtree, the User data dock's
 files are rows on it, and a file opened puts its keys under the row that
 opened it.
 

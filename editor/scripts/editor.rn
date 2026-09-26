@@ -317,7 +317,7 @@ pub fn init(this) {
     log::info(format!("editing {} ({} nodes)", S.game_name, S.doc.len()));
 
     // Optional start-up states, comma-separated (workspace id, "palette",
-    // "light", "play", "select:<node>", "shot=<png path>"), applied in order.
+    // "light", "play", "select:<node>", "shot:<png path>"), applied in order.
     // Applied on the first frame, after the screen's class has folded the docks.
     S.start_states = engine::args().get(1).unwrap_or("");
 }

@@ -55,7 +55,7 @@ view() { # view <panel>
   printf '%-14s ' "$1"
   rm -f "$work/$1.png" "$out/$1.png"
   "$BALAUR_BIN" edit "$(project "$1")" --editor "$editor" --offscreen --frames 70 \
-    --state "view:$1$(extra "$1"),shot=$work/$1.png" >"$work/$1.log" 2>&1
+    --state "view:$1$(extra "$1"),shot:$work/$1.png" >"$work/$1.log" 2>&1
   local rect
   rect=$(grep -oE "viewrect $1 [0-9.]+ [0-9.]+ [0-9.]+ [0-9.]+" "$work/$1.log" | tail -1)
   if [ ! -f "$work/$1.png" ] || [ -z "$rect" ]; then

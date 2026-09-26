@@ -13,7 +13,7 @@
 > call a command and a test want. A drop starts a job, the status strip says
 > what is in flight, `chrome::toast` lists the batch with a bar under it, and a
 > failure opens the Output dock.
-> `jobdemo` drops a real `.glb` and asserts all of it across frames. Of step
+> `test:import_job` drops a real `.glb` and asserts all of it across frames. Of step
 > 5's own half:
 > `plan_bytes` answers a `Plan` that has written nothing, and
 > `Plan::write_next` writes one file and says whether any are left, so a
@@ -326,7 +326,7 @@ rather than itself.
 
    `import::cancel` stops what is in flight at the end of the file it is
    writing, which every job reads at the top of its next slice. What was
-   written stays: the files are the output, not a transaction. `jobdemo`
+   written stays: the files are the output, not a transaction. `test:import_job`
    cancels before the first slice, where the count is deterministic.
 
    What a script sees of a count is an integer, not a float. `Value::Num` for
@@ -340,7 +340,7 @@ rather than itself.
    The start screen shows the count, a bar and a stop under its header, and
    refuses to open anything while it runs, because opening quits the process.
    `convert` takes what to do once the files are written: the button opens the
-   project, and `managerdemo` asserts on what landed instead. The button no
+   project, and `test:manager` asserts on what landed instead. The button no
    longer says Godot: `MANIFESTS` is the list it looks for, and a second engine
    is a line there.
 

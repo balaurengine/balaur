@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Regenerate every image and clip the website's manual shows. The editor is
-# driven offscreen by `--state`: `shot=` takes one PNG, `show:<name>` runs a
+# driven offscreen by `--state`: `shot:` takes one PNG, `show:<name>` runs a
 # scripted sequence and `frames=` captures it every other frame; ffmpeg turns
 # a frame directory into a .webm and an .mp4 with the first frame as poster.
 # Needs a GPU and ffmpeg.
@@ -146,7 +146,7 @@ shot() { # shot <name> <project> <state>
   wanted "$1" || return 0
   printf '%-22s image  ' "$1"
   rm -f "$work/$1.png"
-  balaur edit "$2" --offscreen --frames 100 --state "$3,shot=$PWD/$work/$1.png" >"$work/$1.log" 2>&1 || true
+  balaur edit "$2" --offscreen --frames 100 --state "$3,shot:$PWD/$work/$1.png" >"$work/$1.log" 2>&1 || true
   reset_examples
   [ -f "$work/$1.png" ] || { failed "$1"; return 0; }
   cp "$work/$1.png" "$img/$1.png"
@@ -290,7 +290,7 @@ clip() { # clip <name> <project> <frames> <state>
   printf '%-22s clip   ' "$1"
   rm -rf "$work/$1"
   mkdir -p "$work/$1"
-  balaur edit "$2" --offscreen --frames "$3" --state "$4,frames=$PWD/$work/$1" >"$work/$1.log" 2>&1 || true
+  balaur edit "$2" --offscreen --frames "$3" --state "$4,frames:$PWD/$work/$1" >"$work/$1.log" 2>&1 || true
   reset_examples
   if grep -q ERROR "$work/$1.log" || [ ! -f "$work/$1/000000.png" ]; then failed "$1"; return 0; fi
   # Globbed, not numbered: a frame the backend could not serve leaves a hole,

@@ -1,6 +1,6 @@
 > **Status:** built on 2026-09-25. The Theme window, user themes with a
 > `base`, the setting that lists them, and a contrast check on every role.
-> `--state themeeditdemo` checks all of it. What is left is below, under
+> `--state test:theme_editing` checks all of it. What is left is below, under
 > "Not done".
 
 # Plan: editor themes

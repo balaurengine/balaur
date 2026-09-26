@@ -1722,7 +1722,7 @@ fn found_in(S, rel, severity) {
     out
 }
 
-/// `--state lintdemo`: a broken buffer is found at the line it broke on, and
+/// `--state test:lint`: a broken buffer is found at the line it broke on, and
 /// a good one leaves nothing behind. The buffer, not the file — a check is
 /// about what is on screen, and the test must not write a broken script out.
 pub fn linting(S) {
@@ -1763,7 +1763,7 @@ pub fn linting(S) {
     log::info("selftest lint: done");
 }
 
-/// `--state tooldemo`: what the caret is offered, what is under it, and what a
+/// `--state test:tools`: what the caret is offered, what is under it, and what a
 /// rename would rewrite. The buffer, not the file: a tool answers about what
 /// is on screen, and the test must not write over a script.
 pub fn tooling(S) {
@@ -2630,7 +2630,7 @@ pub fn placing(S) {
 // The theme switch, both ways. One way was all it ever managed: a `dark`
 // parameter shadowed `theme::dark()`, so asking for the dark theme back
 // called a bool and the editor stayed light for the rest of the session.
-/// `--state counterdemo`: the editor's half of the plugin seam. Registering a
+/// `--state test:plugin_docks`: the editor's half of the plugin seam. Registering a
 /// dock has to put a tab somewhere, or nothing can ever bring the panel up.
 pub fn plugin_docks(S) {
     if !check(S.registry.panels.len() > 0, "a plugin registered a panel") {
@@ -2706,7 +2706,7 @@ pub fn plugin_step(S) {
     fs::remove(crate::kit::game_data(S) + "/" + PROBE_FILE);
 }
 
-/// `--state palettedemo`: the palette opens on a query, its matches are rows
+/// `--state test:palette`: the palette opens on a query, its matches are rows
 /// on the scene, and the query survives the frames after it is set.
 pub fn palette_screen(S) {
     crate::shell::open_palette(S, "physics");
@@ -2746,7 +2746,7 @@ pub fn palette_step(S) {
     crate::shell::close_palette(S);
 }
 
-/// `--state paneldemo`: every row of the mark's menu opens the panel it names
+/// `--state test:panels`: every row of the mark's menu opens the panel it names
 /// and closes it again. A panel something else reopens on the same frame, or
 /// one no dock will take, reads as a row that does nothing.
 pub fn menu_panels(S) {
@@ -2766,7 +2766,7 @@ pub fn menu_panels(S) {
     log::info("selftest menu panels: done");
 }
 
-/// `--state focusdemo`: focus folds the shell round the code, and leaving it
+/// `--state test:focus`: focus folds the shell round the code, and leaving it
 /// puts back exactly the layout it folded.
 pub fn focusing(S) {
     if !shell::select_scripted(S) {
@@ -2817,7 +2817,7 @@ pub fn focusing(S) {
     log::info("selftest focus: done");
 }
 
-/// `--state settingsdemo`: the settings screen's search field and the query it
+/// `--state test:settings`: the settings screen's search field and the query it
 /// filters by are one thing, which they stopped being for a frame; then a
 /// value written on the screen is round-tripped through the file.
 pub fn settings_screen(S) {
@@ -2916,7 +2916,7 @@ pub fn theme_switch(S) {
     log::info("selftest theme: done");
 }
 
-/// `--state themeeditdemo`: a bundled theme is read-only, a duplicate is the
+/// `--state test:theme_editing`: a bundled theme is read-only, a duplicate is the
 /// person's to edit, an edit is worn at once and saved as only what differs,
 /// and deleting it goes back to its base. The preferences file is put back.
 pub fn theme_editing(S) {
@@ -2957,7 +2957,7 @@ pub fn theme_editing(S) {
     S.themewin.demo = 0;
 }
 
-/// `--state sheetclosedemo`: a sheet and the palette shut when their `dialog`
+/// `--state test:sheet_close`: a sheet and the palette shut when their `dialog`
 /// is shut from outside, as egui does on Escape or a click on the dim. The
 /// close is put on the node the way the input settle puts it, between frames.
 pub fn sheet_closing(S) {

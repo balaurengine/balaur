@@ -56,18 +56,14 @@ with no alias and no migration, as `one way to do a thing` asks.
   the Recordings panel, `replay.recording_name`); a player's rebindings are
   `bindings.toml`, compiled scripts `script_cache/`, the library's list
   `catalog.toml`, and Gamend's choice of server `gamend/server`.
+  A self-test state is `test:<name>`, a pose a plain noun, `:` the one
+  separator, and a state nothing knows is an error.
 - `NAMING.md` has the eight scopes, rules N18 to N23, and the picked names per
   system, from a survey of SDL3, Godot 4, Unity, Blender, GLFW, W3C, rapier and
   glTF on 2026-09-25.
 - What follows is left. Line numbers in the findings are from that day's tree.
 
-## 1. Settings, the CLI and files on disk
-
-| Now | New | Why |
-| --- | --- | --- |
-| `--state` self-tests `*demo`, poses `fontdemo`, separators `:`, `=` and `?` | `test:<name>`, plain nouns for poses, `:` only; an unknown state is an error | one suffix meant two things; e2e translates the names |
-
-## 2. The editor's words
+## 1. The editor's words
 
 One glossary, and every string follows it. Casing is sentence case, a button
 is a verb, and capitals in headings come from the theme.
@@ -106,7 +102,7 @@ is a verb, and capitals in headings come from the theme.
 - **US spelling** in the UI: `color`, `center`, `minimize`, as the API spells
   them.
 
-## 3. Crates, features and the Rust facade
+## 2. Crates, features and the Rust facade
 
 | Now | New | Why |
 | --- | --- | --- |
@@ -133,9 +129,8 @@ These are defects, not names, and each is fixed on its own:
 ## Steps
 
 1. The bugs above, each with its test.
-2. Settings, the CLI and disk (section 1).
-3. The editor's words (section 2), with the manual.
-4. Crates and the facade (section 3).
-5. A lint for each of N18, N19, N21 and N22 where one can be written: tokens
+2. The editor's words (section 1), with the manual.
+3. Crates and the facade (section 2).
+4. A lint for each of N18, N19, N21 and N22 where one can be written: tokens
    from the theme files, units from the settings registry, hooks from the hook
    list.

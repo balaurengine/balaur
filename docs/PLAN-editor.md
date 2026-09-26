@@ -16,7 +16,7 @@ ARCHITECTURE.md and the website roadmap already use.
 
 **Async for sequences that span frames.** Four places hold a state machine
 in `S` to do something "next frame" or "after N frames": `anim_rebind`,
-`shot` at frame 60, `breakdemo`'s alternation, `polygon::idle`'s backdrop.
+`shot` at frame 60, `breakpoint`'s alternation, `polygon::idle`'s backdrop.
 Each is a flag, a check in `update`, and a reset. As `pub async fn` they
 read as what they are:
 
@@ -97,7 +97,7 @@ self-test.
 
 ### Tilemap editor — built, 2026-09-05
 
-The Scene workspace has a Tiles tool (`editor/scripts/tiles.rn`, `tilesdemo`).
+The Scene workspace has a Tiles tool (`editor/scripts/tiles.rn`, `test:tiles`).
 The palette dock cuts the tile set's texture by `tile_size` and picks a tile,
 left-drag paints it, right-drag erases, and a Rectangle mode fills between
 two corners. A layer is a sibling `tilemap` node: the Add layer button
@@ -141,7 +141,7 @@ against that list. What is there now:
   and Overwrite Rest Pose — and the Polygon tool's Points, Polygons, UV and
   Weights modes with a brush.
 - **A weight table** (`editor/scripts/weights.rn`, the Weights dock,
-  `weightdemo`). Spine's Weights view: the picked vertices, one editable
+  `test:weights`). Spine's Weights view: the picked vertices, one editable
   number per bone, a per-vertex sum that goes red when it is not one, and
   Bind, Unbind, Normalise, Auto (weights by the square of the distance to
   each bone's segment, the same segment `rig::geometry` draws) and Smooth
@@ -171,7 +171,7 @@ against that list. What is there now:
   while the Animate workspace is armed, and the Deform row keys them on
   `polygon/deform` at the playhead.
 - **A bone map** (`editor/scripts/bonemap.rn`, the Bone map dock,
-  `bonemapdemo`). Godot's BoneMap panel: the canonical humanoid against the
+  `test:bone_map`). Godot's BoneMap panel: the canonical humanoid against the
   rig's own bones, a guess by name that ignores case, separators and an
   exporter's prefix, and a `bone_map` asset written out for
   `animation.play(node, clip, { retarget = … })`.
