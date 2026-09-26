@@ -7054,7 +7054,7 @@
     [
       "on_suspended_changed",
       "(suspended)",
-      "The game went to the background or came back, a hidden browser tab included; told to every script."
+      "The game went to the background or came back: a hidden tab, a minimised or covered window, an app sent back; told to every script."
     ],
     [
       "on_safe_area_changed",
