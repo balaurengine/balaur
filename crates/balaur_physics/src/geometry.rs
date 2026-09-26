@@ -119,9 +119,9 @@ pub(crate) fn install_geometry_api(m: &mut dyn Bindings<Engine>) {
                 crate::rapier3d::parry::transformation::vhacd::VHACDParameters::default();
             params.resolution = opts.f32(k::RESOLUTION, params.resolution as f32).max(1.0) as u32;
             params.concavity =
-                scalar::real(opts.f32(k::CONCAVITY, scalar::f32_of(params.concavity)));
+                scalar::real(opts.f32(k::MAX_CONCAVITY, scalar::f32_of(params.concavity)));
             params.max_convex_hulls = opts
-                .f32(k::MAX_PIECES, params.max_convex_hulls as f32)
+                .f32(k::MAX_CONVEX_HULLS, params.max_convex_hulls as f32)
                 .max(1.0) as u32;
             let vhacd = crate::rapier3d::parry::transformation::vhacd::VHACD::decompose(
                 &params, &points, &indices, true,

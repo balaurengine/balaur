@@ -6,7 +6,7 @@ macro_rules! functions {
         /// Rapier's controller, built from the component every time it is used.
         ///
         /// Cheap — the struct is a dozen floats — and it means a script that changes
-        /// `max_climb_angle` mid-game is obeyed on the next move rather than at the
+        /// `floor_max_angle` mid-game is obeyed on the next move rather than at the
         /// next scene load.
         pub(crate) fn controller_of(
             params: &toml::Value,
@@ -22,28 +22,32 @@ macro_rules! functions {
                     CharacterLength::Absolute(value)
                 }
             };
-            let autostep_height = crate::vocabulary::f(params, k::AUTOSTEP, 0.3);
+            let autostep_height = crate::vocabulary::f(params, k::STEP_HEIGHT, 0.3);
             KinematicCharacterController {
                 up,
-                offset: length(crate::vocabulary::f(params, k::OFFSET, 0.01)),
+                offset: length(crate::vocabulary::f(params, k::SAFE_MARGIN, 0.01)),
                 slide: crate::vocabulary::boolean(params, k::SLIDE, true),
                 autostep: (autostep_height > 0.0).then(|| CharacterAutostep {
                     max_height: length(autostep_height),
-                    min_width: length(crate::vocabulary::f(params, k::AUTOSTEP_MIN_WIDTH, 0.2)),
+                    min_width: length(crate::vocabulary::f(params, k::STEP_MIN_WIDTH, 0.2)),
                     include_dynamic_bodies: crate::vocabulary::boolean(
                         params,
-                        k::AUTOSTEP_DYNAMIC,
+                        k::STEP_ON_DYNAMIC,
                         false,
                     ),
                 }),
-                max_slope_climb_angle: scalar::real(
-                    crate::vocabulary::f(params, k::MAX_CLIMB_ANGLE, 45.0).to_radians(),
-                ),
-                min_slope_slide_angle: scalar::real(
-                    crate::vocabulary::f(params, k::MIN_SLIDE_ANGLE, 30.0).to_radians(),
-                ),
+                max_slope_climb_angle: scalar::real(crate::vocabulary::f(
+                    params,
+                    k::FLOOR_MAX_ANGLE,
+                    std::f32::consts::FRAC_PI_4,
+                )),
+                min_slope_slide_angle: scalar::real(crate::vocabulary::f(
+                    params,
+                    k::MIN_SLIDE_ANGLE,
+                    std::f32::consts::FRAC_PI_6,
+                )),
                 snap_to_ground: {
-                    let distance = crate::vocabulary::f(params, k::SNAP_TO_GROUND, 0.2);
+                    let distance = crate::vocabulary::f(params, k::FLOOR_SNAP_LENGTH, 0.2);
                     (distance > 0.0).then(|| length(distance))
                 },
                 normal_nudge_factor: scalar::real(crate::vocabulary::f(

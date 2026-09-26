@@ -51,15 +51,15 @@ pub(crate) fn shared_body_schema() -> String {
             r#"{ type = "float", default = 0.0, min = 0.0, description = "Extra solver iterations for this body alone, for the one stack that jitters", group = "solver" }"#,
         ),
         (
-            k::CCD,
+            k::CONTINUOUS_COLLISION,
             r#"{ type = "bool", default = false, description = "Sweep the body's whole path each step so a fast one cannot pass through a wall", group = "fast motion" }"#,
         ),
         (
-            k::SOFT_CCD,
+            k::SPECULATIVE_DISTANCE,
             r#"{ type = "float", default = 0.0, min = 0.0, description = "Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies", group = "fast motion" }"#,
         ),
         (
-            k::FAST_ROTATION,
+            k::ALLOW_FAST_ROTATION,
             r#"{ type = "bool", default = false, description = "Allow a spin fast enough that rapier would otherwise clamp it", group = "fast motion" }"#,
         ),
         (
@@ -67,7 +67,7 @@ pub(crate) fn shared_body_schema() -> String {
             r#"{ type = "bool", default = true, description = "Let the body stop being simulated once it has held still", group = "sleep" }"#,
         ),
         (
-            k::SLEEP_TIME,
+            k::TIME_TO_SLEEP,
             r#"{ type = "float", default = 0.5, min = 0.0, description = "Seconds of stillness before the body sleeps", group = "sleep" }"#,
         ),
         (
@@ -128,10 +128,10 @@ pub(crate) fn write_body(body: &mut RigidBody, params: &toml::Value, world_may_s
     body.set_dominance_group(v::f(params, k::DOMINANCE, 0.0).clamp(-127.0, 127.0) as i8);
     body.set_additional_solver_iterations(v::f(params, k::SOLVER_ITERATIONS, 0.0).max(0.0) as usize);
     body.set_locked_axes(locked_axes(params), true);
-    body.enable_ccd(v::boolean(params, k::CCD, false));
-    body.set_soft_ccd_prediction(scalar::real(v::f(params, k::SOFT_CCD, 0.0)));
-    body.set_allow_fast_rotation(v::boolean(params, k::FAST_ROTATION, false));
-    body.enable_gyroscopic_forces(v::boolean(params, k::GYROSCOPIC, false));
+    body.enable_ccd(v::boolean(params, k::CONTINUOUS_COLLISION, false));
+    body.set_soft_ccd_prediction(scalar::real(v::f(params, k::SPECULATIVE_DISTANCE, 0.0)));
+    body.set_allow_fast_rotation(v::boolean(params, k::ALLOW_FAST_ROTATION, false));
+    body.enable_gyroscopic_forces(v::boolean(params, k::GYROSCOPIC_FORCES, false));
     body.set_enabled(v::boolean(params, k::ENABLED, true));
     write_mass(body, params);
     // The world-wide toggle wins while it is off: `physics.set_sleeping_allowed`
@@ -144,9 +144,9 @@ pub(crate) fn write_body(body: &mut RigidBody, params: &toml::Value, world_may_s
         body.wake_up(true);
         RigidBodyActivation::cannot_sleep()
     };
-    // A body that cannot sleep keeps its `sleep_time` anyway: the negative
+    // A body that cannot sleep keeps its `time_to_sleep` anyway: the negative
     // thresholds are what hold it awake, so the number survives a re-save.
-    activation.time_until_sleep = scalar::real(v::f(params, k::SLEEP_TIME, 0.5).max(0.0));
+    activation.time_until_sleep = scalar::real(v::f(params, k::TIME_TO_SLEEP, 0.5).max(0.0));
     *body.activation_mut() = activation;
 }
 
@@ -220,14 +220,17 @@ pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Valu
             LockedAxes::ROTATION_LOCKED_Z,
         ),
     );
-    map.insert(k::CCD.into(), body.is_ccd_enabled().into());
-    map.insert(k::SOFT_CCD.into(), f(body.soft_ccd_prediction()));
+    map.insert(k::CONTINUOUS_COLLISION.into(), body.is_ccd_enabled().into());
     map.insert(
-        k::FAST_ROTATION.into(),
+        k::SPECULATIVE_DISTANCE.into(),
+        f(body.soft_ccd_prediction()),
+    );
+    map.insert(
+        k::ALLOW_FAST_ROTATION.into(),
         body.is_fast_rotation_allowed().into(),
     );
     map.insert(
-        k::GYROSCOPIC.into(),
+        k::GYROSCOPIC_FORCES.into(),
         body.gyroscopic_forces_enabled().into(),
     );
     map.insert(k::ENABLED.into(), body.is_enabled().into());
@@ -235,7 +238,10 @@ pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Valu
         k::CAN_SLEEP.into(),
         (body.activation().normalized_linear_threshold >= 0.0).into(),
     );
-    map.insert(k::SLEEP_TIME.into(), f(body.activation().time_until_sleep));
+    map.insert(
+        k::TIME_TO_SLEEP.into(),
+        f(body.activation().time_until_sleep),
+    );
     read_mass(body, &mut map);
     Some(toml::Value::Table(map))
 }
@@ -328,46 +334,46 @@ pub(crate) fn install_body_api(m: &mut dyn Bindings<Engine>) {
 pub(crate) fn install_force_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         (
-            "add_force",
+            "add_constant_force",
             &[c::BODY_3D],
             "",
-            "Push the body until the force is reset; unlike an impulse this is spread over time.",
+            "Push the body every step until the constant force is set back to zero; unlike an impulse this is spread over time.",
         ),
         (
-            "add_force_at_point",
+            "add_constant_force_at_point",
             &[c::BODY_3D],
             "",
-            "Push at a world point, which also turns the body.",
+            "Push at a world point every step, which also turns the body.",
         ),
         (
-            "add_torque",
+            "add_constant_torque",
             &[c::BODY_3D],
             "",
-            "Turn the body until the torque is reset.",
+            "Turn the body every step until the constant torque is set back to zero.",
         ),
         (
-            "reset_forces",
+            "set_constant_force",
             &[c::BODY_3D],
             "",
-            "Drop every force added since the last step.",
+            "Replace the constant force with this one; zero stops the push.",
         ),
         (
-            "reset_torques",
+            "set_constant_torque",
             &[c::BODY_3D],
             "",
-            "Drop every torque added since the last step.",
+            "Replace the constant torque with this one; zero stops the turn.",
         ),
         (
-            "user_force",
+            "constant_force",
             &[c::BODY_3D],
             "",
-            "The force the next step will integrate.",
+            "The force every step integrates until it is set back to zero.",
         ),
         (
-            "user_torque",
+            "constant_torque",
             &[c::BODY_3D],
             "",
-            "The torque the next step will integrate.",
+            "The torque every step integrates until it is set back to zero.",
         ),
         (
             "set_gravity",
@@ -383,7 +389,7 @@ pub(crate) fn install_force_api(m: &mut dyn Bindings<Engine>) {
         ),
     ]);
     m.function(
-        "add_force",
+        "add_constant_force",
         |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].add_force(scalar::v3(x, y, z), true);
@@ -391,7 +397,7 @@ pub(crate) fn install_force_api(m: &mut dyn Bindings<Engine>) {
         },
     );
     m.function(
-        "add_force_at_point",
+        "add_constant_force_at_point",
         |eng: &Engine, (node, x, y, z, px, py, pz): (NodeId, f32, f32, f32, f32, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].add_force_at_point(
@@ -403,7 +409,7 @@ pub(crate) fn install_force_api(m: &mut dyn Bindings<Engine>) {
         },
     );
     m.function(
-        "add_torque",
+        "add_constant_torque",
         |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].add_torque(scalar::v3(x, y, z), true);
@@ -420,23 +426,33 @@ pub(crate) fn install_force_reader_api(m: &mut dyn Bindings<Engine>) {
         ("overlaps", &[c::COLLIDER_3D], "", "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor."),
         ("gravity", &[], "", "The 3D world's gravity."),
     ]);
-    m.function("reset_forces", |eng: &Engine, node: NodeId| {
-        with_body(eng, entity_of(node)?, |state, handle| {
-            state.world.bodies[handle].reset_forces(true);
-        })
-    });
-    m.function("reset_torques", |eng: &Engine, node: NodeId| {
-        with_body(eng, entity_of(node)?, |state, handle| {
-            state.world.bodies[handle].reset_torques(true);
-        })
-    });
-    m.function("user_force", |eng: &Engine, node: NodeId| {
+    m.function(
+        "set_constant_force",
+        |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                let body = &mut state.world.bodies[handle];
+                body.reset_forces(true);
+                body.add_force(scalar::v3(x, y, z), true);
+            })
+        },
+    );
+    m.function(
+        "set_constant_torque",
+        |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                let body = &mut state.world.bodies[handle];
+                body.reset_torques(true);
+                body.add_torque(scalar::v3(x, y, z), true);
+            })
+        },
+    );
+    m.function("constant_force", |eng: &Engine, node: NodeId| {
         read_body(eng, entity_of(node)?, |body| {
             let f = body.user_force();
             (f.x, f.y, f.z)
         })
     });
-    m.function("user_torque", |eng: &Engine, node: NodeId| {
+    m.function("constant_torque", |eng: &Engine, node: NodeId| {
         read_body(eng, entity_of(node)?, |body| {
             let t = body.user_torque();
             (t.x, t.y, t.z)
@@ -735,7 +751,7 @@ pub(crate) fn register_body_component(reg: &mut Registry<'_>) {
             (k::LOCK_ROTATION, &format!(r#"{{ type = "flags", default = [], options = [{axes}], group = "locks", description = "World axes the body may not turn about; locking all three keeps a character upright" }}"#)),
             (k::CENTER_OF_MASS, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], group = "mass", description = "Where the extra mass sits, in the node's own space; only read when mass is set" }"#),
             (k::INERTIA, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], group = "mass", description = "Resistance to spin about each axis; 0 lets rapier derive it from the mass" }"#),
-            (k::GYROSCOPIC, r#"{ type = "bool", default = false, group = "solver", description = "Model the wobble a spinning body's own inertia gives it, as a thrown American football has" }"#),
+            (k::GYROSCOPIC_FORCES, r#"{ type = "bool", default = false, group = "solver", description = "Model the wobble a spinning body's own inertia gives it, as a thrown American football has" }"#),
         ]),
         shared_body_schema(),
     ]

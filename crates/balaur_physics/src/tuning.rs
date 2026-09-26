@@ -297,7 +297,7 @@ pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
                 Value::Num(counters.cd.narrow_phase_time.time_ms()),
             ),
             (
-                k::CONTACT_PAIRS,
+                k::CONTACT_PAIR_COUNT,
                 Value::Num(counters.cd.ncontact_pairs as f64),
             ),
         ]))

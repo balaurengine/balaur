@@ -163,7 +163,7 @@ fn smash() {
             let ox = -0.5 * ((SMASH_COLUMNS - 1) as f64) * BOX;
             let shot = world::body(w, [ox - 900.0, (SMASH_ROWS as f64) * BOX * 0.5],
                 #{ kind: "circle", radius: 40.0 });
-            shot.patch_component("body2d", #{ mass: 800.0, gravity_scale: 0.0, ccd: true });
+            shot.patch_component("body2d", #{ mass: 800.0, gravity_scale: 0.0, continuous_collision: true });
             shot.body2d.set_linear_velocity(4000.0, 0.0);
         }),
         ("extra", |w| { spread(w) }),
@@ -258,7 +258,7 @@ fn storm(w, tick) {
     }
     for i in 0..POINTS {
         let a = phase * 2.3 + 6.28318 * (i as f64) / (POINTS as f64);
-        let hits = physics2d::point_hits(#{
+        let hits = physics2d::overlap_point(#{
             point: [math::cos(a) * FIELD * 0.6, math::sin(a) * FIELD * 0.6],
         });
         count(w, !hits.is_empty());
@@ -300,5 +300,5 @@ fn drop_at(i) {
 
 /// Godot's `rect` takes a whole size; a `collider2d` takes half-extents.
 fn rect(w, h) {
-    #{ kind: "rect", half_extents: [w * 0.5, h * 0.5] }
+    #{ kind: "rectangle", half_extents: [w * 0.5, h * 0.5] }
 }

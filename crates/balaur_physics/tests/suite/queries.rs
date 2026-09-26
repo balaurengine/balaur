@@ -36,7 +36,7 @@ script = { source = "scripts/s.rn" }
 position = [0.0, 6.0, 0.0]
 
 [nodes.collider3d]
-kind = "ball"
+kind = "sphere"
 radius = 0.5
 
 [[nodes]]
@@ -48,7 +48,7 @@ parent = "n_world"
 position = [0.0, 2.0, 0.0]
 
 [nodes.collider3d]
-kind = "ball"
+kind = "sphere"
 radius = 0.5
 "#,
     )
@@ -80,7 +80,7 @@ fn run_clean(body: &str) {
 fn a_ray_finds_the_nearest_collider() {
     run_clean(
         r#"
-        let hit = physics3d::raycast(#{ from: [0.0, 10.0, 0.0], dir: [0.0, -1.0, 0.0], max: 100.0 });
+        let hit = physics3d::raycast(#{ origin: [0.0, 10.0, 0.0], direction: [0.0, -1.0, 0.0], max_distance: 100.0 });
         assert!(hit is Object, "the ray found nothing");
         assert!(hit.distance > 3.4 && hit.distance < 3.6, "hit the far ball first: {}", hit.distance);
         assert!(hit.normal.y > 0.9, "the normal points up, not {}", hit.normal.y);
@@ -92,7 +92,7 @@ fn a_ray_finds_the_nearest_collider() {
 fn raycast_all_is_sorted_nearest_first() {
     run_clean(
         r#"
-        let hits = physics3d::raycast_all(#{ from: [0.0, 10.0, 0.0], dir: [0.0, -1.0, 0.0], max: 100.0 });
+        let hits = physics3d::raycast_all(#{ origin: [0.0, 10.0, 0.0], direction: [0.0, -1.0, 0.0], max_distance: 100.0 });
         assert!(hits.len() == 2, "expected both balls, got {}", hits.len());
         assert!(hits[0].distance < hits[1].distance, "not sorted by distance");
         "#,
@@ -103,7 +103,7 @@ fn raycast_all_is_sorted_nearest_first() {
 fn a_ray_that_hits_nothing_returns_nothing() {
     run_clean(
         r#"
-        let hit = physics3d::raycast(#{ from: [50.0, 10.0, 0.0], dir: [0.0, -1.0, 0.0], max: 100.0 });
+        let hit = physics3d::raycast(#{ origin: [50.0, 10.0, 0.0], direction: [0.0, -1.0, 0.0], max_distance: 100.0 });
         assert!(!(hit is Object), "a ray into empty space found {:?}", hit);
         "#,
     );
@@ -114,7 +114,7 @@ fn a_filter_excludes_the_node_it_names() {
     run_clean(
         r#"
         let hit = physics3d::raycast(#{
-            from: [0.0, 10.0, 0.0], dir: [0.0, -1.0, 0.0], max: 100.0,
+            origin: [0.0, 10.0, 0.0], direction: [0.0, -1.0, 0.0], max_distance: 100.0,
             filter: #{ exclude: this.node },
         });
         assert!(hit is Object, "excluding the near ball found nothing at all");
@@ -128,7 +128,7 @@ fn a_predicate_can_reject_a_hit() {
     run_clean(
         r#"
         let hit = physics3d::raycast(#{
-            from: [0.0, 10.0, 0.0], dir: [0.0, -1.0, 0.0], max: 100.0,
+            origin: [0.0, 10.0, 0.0], direction: [0.0, -1.0, 0.0], max_distance: 100.0,
             filter: #{ predicate: |node| node.name() != "Near" },
         });
         assert!(hit is Object, "the predicate rejected everything");
@@ -141,9 +141,9 @@ fn a_predicate_can_reject_a_hit() {
 fn a_shape_query_finds_what_it_overlaps() {
     run_clean(
         r#"
-        let hits = physics3d::shape_hits(#{
+        let hits = physics3d::overlap_shape(#{
             at: [0.0, 6.0, 0.0],
-            shape: #{ kind: "ball", radius: 1.0 },
+            shape: #{ kind: "sphere", radius: 1.0 },
         });
         assert!(hits.len() >= 1, "a ball at the near ball's position found nothing");
         "#,
@@ -154,7 +154,7 @@ fn a_shape_query_finds_what_it_overlaps() {
 fn the_nearest_point_lands_on_the_surface() {
     run_clean(
         r#"
-        let found = physics3d::nearest_point(#{ point: [3.0, 6.0, 0.0], max: 100.0 });
+        let found = physics3d::closest_point(#{ point: [3.0, 6.0, 0.0], max_distance: 100.0 });
         assert!(found is Object, "nothing was near");
         assert!(math::abs(found.point.x - 0.5) < 1e-3, "not on the surface: {}", found.point.x);
         "#,
@@ -166,8 +166,8 @@ fn a_shapecast_stops_at_the_first_thing_in_the_way() {
     run_clean(
         r#"
         let hit = physics3d::shapecast(#{
-            from: [0.0, 10.0, 0.0], dir: [0.0, -1.0, 0.0], max: 100.0,
-            shape: #{ kind: "ball", radius: 0.25 },
+            origin: [0.0, 10.0, 0.0], direction: [0.0, -1.0, 0.0], max_distance: 100.0,
+            shape: #{ kind: "sphere", radius: 0.25 },
         });
         assert!(hit is Object, "the swept ball hit nothing");
         assert!(hit.distance > 3.1 && hit.distance < 3.4, "stopped at {}", hit.distance);

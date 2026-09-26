@@ -234,7 +234,7 @@ fn fitted_2d(S, node) {
         if shape2d_kind(shape) == Some(render::SHAPE_CIRCLE) {
             return Some(#{ kind: physics2d::SHAPE_CIRCLE, radius: shape.get(RADIUS).unwrap_or(0.5) });
         }
-        return Some(#{ kind: physics2d::SHAPE_RECT, half_extents: shape.get(HALF_EXTENTS).unwrap_or([0.5, 0.5]) });
+        return Some(#{ kind: physics2d::SHAPE_RECTANGLE, half_extents: shape.get(HALF_EXTENTS).unwrap_or([0.5, 0.5]) });
     }
     let outline = outline_2d(S, node, true);
     if let Some(mesh) = outline {
@@ -247,17 +247,17 @@ fn fitted_3d(node, parts) {
     let static_body = util::obj(parts.get("body3d").unwrap_or(#{})).get("kind") == Some(physics3d::BODY_STATIC);
     let source_some = mesh_source(node);
     if let Some(source) = source_some {
-        let kind = if static_body { physics3d::SHAPE_TRIMESH } else { physics3d::SHAPE_CONVEX_HULL };
+        let kind = if static_body { physics3d::SHAPE_TRIANGLE_MESH } else { physics3d::SHAPE_CONVEX_HULL };
         return Some(#{ kind: kind, mesh: source });
     }
     if !node.contains_key("shape3d") {
         return None;
     }
     let shape = node.shape3d;
-    if shape3d_kind(shape) == Some(render::SHAPE_BALL) {
-        return Some(#{ kind: physics3d::SHAPE_BALL, radius: shape.get(RADIUS).unwrap_or(0.5) });
+    if shape3d_kind(shape) == Some(render::SHAPE_SPHERE) {
+        return Some(#{ kind: physics3d::SHAPE_SPHERE, radius: shape.get(RADIUS).unwrap_or(0.5) });
     }
-    Some(#{ kind: physics3d::SHAPE_CUBOID, half_extents: shape.get(HALF_EXTENTS).unwrap_or([0.5, 0.5, 0.5]) })
+    Some(#{ kind: physics3d::SHAPE_BOX, half_extents: shape.get(HALF_EXTENTS).unwrap_or([0.5, 0.5, 0.5]) })
 }
 
 // The outline a 2D node draws, as a mesh a polygon or a collider takes: its
@@ -339,7 +339,7 @@ fn already(found, info) {
 }
 
 // Equal, with an integer and a float of one value alike: a preset spells
-// `pinned = [0]` where the component reads back `[0.0]`.
+// `pinned_particles = [0]` where the component reads back `[0.0]`.
 fn same(a, b) {
     if (a is i64 || a is f64) && (b is i64 || b is f64) {
         return util::f(a) == util::f(b);
@@ -413,7 +413,7 @@ fn recipe_note(S, i, name) {
 pub fn soft_sources(S, two_d) {
     let out = [];
     if two_d {
-        out.push(source_row("Rect", "a block of cells", "Jelly", #{ shape2d: #{ kind: render::SHAPE_RECT } }));
+        out.push(source_row("Rectangle", "a block of cells", "Jelly", #{ shape2d: #{ kind: render::SHAPE_RECTANGLE } }));
         out.push(source_row("Circle", "a ring of particles holding its area", "Blob",
             #{ shape2d: #{ kind: render::SHAPE_CIRCLE, radius: 0.5 } }));
         for rel in project_files(S, |rel| crate::dropin::kind_of(rel) == "image") {
@@ -421,8 +421,8 @@ pub fn soft_sources(S, two_d) {
                 #{ sprite: #{ texture: rel } }));
         }
     } else {
-        out.push(source_row("Cuboid", "a block of cells", "Jelly", #{ shape3d: #{ kind: render::SHAPE_CUBOID } }));
-        out.push(source_row("Ball", "a sphere of cells", "Blob", #{ shape3d: #{ kind: render::SHAPE_BALL, radius: 0.5 } }));
+        out.push(source_row("Box", "a block of cells", "Jelly", #{ shape3d: #{ kind: render::SHAPE_BOX } }));
+        out.push(source_row("Sphere", "a ball of cells", "Blob", #{ shape3d: #{ kind: render::SHAPE_SPHERE, radius: 0.5 } }));
         out.push(source_row("Plane", "a sheet of cloth", "Cloth",
             #{ shape3d: #{ kind: render::SHAPE_PLANE, half_extents: [1.0, 0.0, 1.0] } }));
         for rel in project_files(S, |rel| is_model(rel)) {
@@ -584,7 +584,7 @@ fn soft_parts_2d(S, node) {
     let shape = node.shape2d;
     let color = shape.get(COLOR).unwrap_or([0.8, 0.8, 0.8, 1.0]);
     let kind = shape2d_kind(shape);
-    if kind == Some(render::SHAPE_RECT) {
+    if kind == Some(render::SHAPE_RECTANGLE) {
         let half = shape.get(HALF_EXTENTS).unwrap_or([0.5, 0.5]);
         return Some(#{ "-shape2d": true, softbody2d: #{
             kind: physics2d::SOFT_GRID, half_extents: half, cells: cells_2d(half), color: color,
@@ -592,7 +592,7 @@ fn soft_parts_2d(S, node) {
     }
     let radius = shape.get(RADIUS).unwrap_or(0.5);
     Some(#{ "-shape2d": true, softbody2d: #{
-        kind: physics2d::SOFT_DISK, radius: radius, particles: 32.0, color: color,
+        kind: physics2d::SOFT_CIRCLE, radius: radius, particle_count: 32, color: color,
     } })
 }
 
@@ -606,7 +606,7 @@ fn soft_parts_3d(node) {
     let shape = node.shape3d;
     let color = shape.get(COLOR).unwrap_or([0.8, 0.8, 0.8, 1.0]);
     let kind = shape3d_kind(shape);
-    if kind == Some(render::SHAPE_BALL) {
+    if kind == Some(render::SHAPE_SPHERE) {
         return Some(#{ "-shape3d": true, softbody3d: #{
             kind: physics3d::SOFT_SPHERE, radius: shape.get(RADIUS).unwrap_or(0.5), color: color,
         } });
@@ -619,7 +619,7 @@ fn soft_parts_3d(node) {
         } });
     }
     Some(#{ "-shape3d": true, softbody3d: #{
-        kind: physics3d::SOFT_CUBOID, half_extents: half, cells: [4.0, 4.0, 4.0], color: color,
+        kind: physics3d::SOFT_BOX, half_extents: half, cells: [4.0, 4.0, 4.0], color: color,
     } })
 }
 
@@ -746,8 +746,8 @@ fn cells_2d(half) {
 }
 
 fn shape2d_kind(shape) {
-    let kind = shape.get("kind").unwrap_or(render::SHAPE_RECT);
-    if kind == render::SHAPE_RECT || kind == render::SHAPE_CIRCLE {
+    let kind = shape.get("kind").unwrap_or(render::SHAPE_RECTANGLE);
+    if kind == render::SHAPE_RECTANGLE || kind == render::SHAPE_CIRCLE {
         Some(kind)
     } else {
         None
@@ -755,8 +755,8 @@ fn shape2d_kind(shape) {
 }
 
 fn shape3d_kind(shape) {
-    let kind = shape.get("kind").unwrap_or(render::SHAPE_CUBOID);
-    if kind == render::SHAPE_CUBOID || kind == render::SHAPE_BALL || kind == render::SHAPE_PLANE {
+    let kind = shape.get("kind").unwrap_or(render::SHAPE_BOX);
+    if kind == render::SHAPE_BOX || kind == render::SHAPE_SPHERE || kind == render::SHAPE_PLANE {
         Some(kind)
     } else {
         None

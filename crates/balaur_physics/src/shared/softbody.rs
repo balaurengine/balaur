@@ -66,7 +66,7 @@ macro_rules! material {
                 interior_strength: crate::scalar::real(v::f(params, k::INTERIOR_STRENGTH, 1.0)),
                 // A schema writes "no limit" as zero; rapier writes it as the
                 // largest number of tears a step could possibly ask for.
-                max_tears_per_step: match v::f(params, k::MAX_TEARS, 0.0) {
+                max_tears_per_step: match v::f(params, k::MAX_TEARS_PER_STEP, 0.0) {
                     limit if limit >= 1.0 => limit as u32,
                     _ => u32::MAX,
                 },
@@ -119,27 +119,27 @@ fn cap_advice(kind: &str) -> String {
     use crate::vocabulary::{keys as k, words as w};
     match kind {
         w::VOLUMETRIC => format!("raise {}", k::CELL_SIZE),
-        w::ROPE_SOFT | w::DISK => format!("lower {}", k::PARTICLES),
+        w::ROPE_SOFT | w::CIRCLE => format!("lower {}", k::PARTICLE_COUNT),
         w::SPHERE => format!("lower {}", k::SUBDIVISIONS),
-        w::SURFACE_MESH | w::SOFT_POLYGON | w::POLYLINE => {
+        w::TRIANGLE_MESH | w::SOFT_POLYGON | w::POLYLINE => {
             format!("build it from a {} with fewer points", k::MESH)
         }
         _ => format!("lower {}", k::CELLS),
     }
 }
 
-/// How many particles a rope or a disk's rim has when `particles` is not set.
+/// How many particles a rope or a circle's rim has when `particle_count` is not set.
 pub(crate) const DEFAULT_PARTICLES: f32 = 16.0;
 /// The fewest particles a chain holds: its two ends.
 pub(crate) const MIN_CHAIN_PARTICLES: f32 = 2.0;
 /// The fewest a closed ring holds.
 pub(crate) const MIN_RING_PARTICLES: f32 = 3.0;
 
-/// The particle count `particles` asks for, and at least `least`.
+/// The particle count `particle_count` asks for, and at least `least`.
 pub(crate) fn particle_count(params: &toml::Value, least: f32) -> f64 {
     let asked = crate::vocabulary::f(
         params,
-        crate::vocabulary::keys::PARTICLES,
+        crate::vocabulary::keys::PARTICLE_COUNT,
         DEFAULT_PARTICLES,
     );
     f64::from(asked.max(least)).floor()
@@ -270,12 +270,12 @@ const IN_PLACE: &[&str] = {
         k::TEAR_FORCE,
         k::TEAR_SMOOTHING,
         k::INTERIOR_STRENGTH,
-        k::MAX_TEARS,
+        k::MAX_TEARS_PER_STEP,
         k::MIN_PIECE,
         k::SOLVER,
         k::VOLUME_FACTOR,
         k::VOLUME_PRESERVATION,
-        k::PGS_ITERATIONS,
+        k::SOLVER_ITERATIONS,
         k::COLOR,
     ]
 };
@@ -307,7 +307,7 @@ macro_rules! patch_in_place {
                 body.set_volume_factor(crate::scalar::real(v::f(params, k::VOLUME_FACTOR, 1.0)));
                 body.enable_volume_preservation(v::boolean(params, k::VOLUME_PRESERVATION, true));
                 body.set_additional_pgs_iterations(
-                    v::f(params, k::PGS_ITERATIONS, 3.0).max(0.0) as usize
+                    v::f(params, k::SOLVER_ITERATIONS, 3.0).max(0.0) as usize,
                 );
             }
         }

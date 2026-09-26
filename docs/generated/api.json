@@ -74,8 +74,8 @@
     "collider2d": "The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2d` or the nearest body above it; without one it is static geometry.",
     "collider3d": "The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3d` or the nearest body above it; without one it is static geometry.",
     "environment": "The scene's atmosphere: `sky`, `ambient`, `fog`, `exposure`, `tonemap`, colour grading and the shadow budget. The last `current` one wins; per-view effects stay on `camera.post`.",
-    "joint2d": "Joins this node's body to `body`. `kind` is `fixed`, `revolute`, `prismatic`, `rope`, `spring`, `pin_slot` or `generic`; both ends need a `body2d` on or above the node.",
-    "joint3d": "Joins this node's body to `body`. `kind` is `fixed`, `revolute`, `prismatic`, `spherical`, `rope`, `spring` or `generic`; both ends need a `body3d` on or above the node.",
+    "joint2d": "Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `rope`, `spring`, `groove` or `generic`; both ends need a `body2d` on or above the node.",
+    "joint3d": "Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `ball_socket`, `rope`, `spring` or `generic`; both ends need a `body3d` on or above the node.",
     "light2d": "A 2D light at the node's position. `kind` is `point` or `directional`; the first `light2d` in a scene drops everything else to the camera's `ambient`.",
     "light3d": "A 3D light placed and aimed by the node. `kind` is `directional`, `point` or `spot`; the first `light3d` in a scene retires the engine's default key light.",
     "listener": "The point positional sounds are heard from: distance sets volume, offset across its right sets pan. The last `current` listener wins; without one, sounds play flat.",
@@ -87,11 +87,11 @@
     "occluder2d": "The outline the node blocks 2D light with. With no `mesh` it follows the node's `collider2d`, or else its circle, capsule, rect or sprite shape.",
     "particles": "A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `spread` and `gravity`. The live particles are renderer state the simulation never sees.",
     "polygon": "A filled, textured 2D polygon from the `mesh` asset's points and triangles. With skin weights, the rig `skeleton` names deforms it.",
-    "ragdoll": "Drives a rig's bones from the `bodies` that `physics2d.ragdoll` or `physics3d.ragdoll` built. `blend` is how much of the simulated pose the bones take, 0 to 1.",
+    "ragdoll": "Drives a rig's bones from the `bodies` that `physics2d.ragdoll` or `physics3d.ragdoll` built. `influence` is how much of the simulated pose the bones take, 0 to 1.",
     "reflection_probe": "A box the room around it was captured inside. A reflective surface within it mirrors that capture, aimed at the box, instead of the distant sky.",
-    "shape2d": "An untextured 2D primitive at the node. `kind` is `circle`, `rect`, `capsule`, `ellipse`, `star`, `ngon` or `polyline`; a `polyline` follows a `mesh` or `path2d` asset.",
-    "shape3d": "An untextured 3D primitive at the node, tinted by `color`. `kind` is `ball`, `cuboid`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`.",
-    "softbody2d": "A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `trimesh` and `volumetric` kinds give and a generator does not.",
+    "shape2d": "An untextured 2D primitive at the node. `kind` is `circle`, `rectangle`, `capsule`, `ellipse`, `star`, `ngon` or `polyline`; a `polyline` follows a `mesh` or `path2d` asset.",
+    "shape3d": "An untextured 3D primitive at the node, tinted by `color`. `kind` is `sphere`, `box`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`.",
+    "softbody2d": "A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `triangle_mesh` and `volumetric` kinds give and a generator does not.",
     "softbody3d": "A deformable 3D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. The node is drawn from the solver's positions.",
     "sound": "A sound on the node: `file`, `volume`, `pitch` and `loop`. `autoplay` starts it on load, `audio.play_on` triggers it, and `positional` plays it from the node for the `listener`.",
     "sprite": "A textured 2D quad at the node, sized by `pixels_per_unit`. `columns` and `rows`, or a `sprite_sheet` in `sheet`, cut it into frames `frame` picks.",
@@ -363,6 +363,12 @@
       }
     },
     "body2d": {
+      "allow_fast_rotation": {
+        "default": false,
+        "description": "Allow a spin fast enough that rapier would otherwise clamp it",
+        "group": "fast motion",
+        "type": "bool"
+      },
       "angular_damping": {
         "default": 0.0,
         "description": "Drag on spin, in the same terms as linear_damping",
@@ -376,12 +382,6 @@
         "group": "sleep",
         "type": "bool"
       },
-      "ccd": {
-        "default": false,
-        "description": "Sweep the body's whole path each step so a fast one cannot pass through a wall",
-        "group": "fast motion",
-        "type": "bool"
-      },
       "center_of_mass": {
         "default": [
           0.0,
@@ -390,6 +390,12 @@
         "description": "Where the extra mass sits, in the node's own space; only read when mass is set",
         "group": "mass",
         "type": "vec2"
+      },
+      "continuous_collision": {
+        "default": false,
+        "description": "Sweep the body's whole path each step so a fast one cannot pass through a wall",
+        "group": "fast motion",
+        "type": "bool"
       },
       "dominance": {
         "default": 0.0,
@@ -402,12 +408,6 @@
       "enabled": {
         "default": true,
         "description": "Simulate this body at all; a disabled body keeps its state and costs nothing",
-        "type": "bool"
-      },
-      "fast_rotation": {
-        "default": false,
-        "description": "Allow a spin fast enough that rapier would otherwise clamp it",
-        "group": "fast motion",
         "type": "bool"
       },
       "gravity_scale": {
@@ -463,29 +463,35 @@
         "min": 0.0,
         "type": "float"
       },
-      "sleep_time": {
-        "default": 0.5,
-        "description": "Seconds of stillness before the body sleeps",
-        "group": "sleep",
-        "min": 0.0,
-        "type": "float"
-      },
-      "soft_ccd": {
-        "default": 0.0,
-        "description": "Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies",
-        "group": "fast motion",
-        "min": 0.0,
-        "type": "float"
-      },
       "solver_iterations": {
         "default": 0.0,
         "description": "Extra solver iterations for this body alone, for the one stack that jitters",
         "group": "solver",
         "min": 0.0,
         "type": "float"
+      },
+      "speculative_distance": {
+        "default": 0.0,
+        "description": "Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies",
+        "group": "fast motion",
+        "min": 0.0,
+        "type": "float"
+      },
+      "time_to_sleep": {
+        "default": 0.5,
+        "description": "Seconds of stillness before the body sleeps",
+        "group": "sleep",
+        "min": 0.0,
+        "type": "float"
       }
     },
     "body3d": {
+      "allow_fast_rotation": {
+        "default": false,
+        "description": "Allow a spin fast enough that rapier would otherwise clamp it",
+        "group": "fast motion",
+        "type": "bool"
+      },
       "angular_damping": {
         "default": 0.0,
         "description": "Drag on spin, in the same terms as linear_damping",
@@ -499,12 +505,6 @@
         "group": "sleep",
         "type": "bool"
       },
-      "ccd": {
-        "default": false,
-        "description": "Sweep the body's whole path each step so a fast one cannot pass through a wall",
-        "group": "fast motion",
-        "type": "bool"
-      },
       "center_of_mass": {
         "default": [
           0.0,
@@ -514,6 +514,12 @@
         "description": "Where the extra mass sits, in the node's own space; only read when mass is set",
         "group": "mass",
         "type": "vec3"
+      },
+      "continuous_collision": {
+        "default": false,
+        "description": "Sweep the body's whole path each step so a fast one cannot pass through a wall",
+        "group": "fast motion",
+        "type": "bool"
       },
       "dominance": {
         "default": 0.0,
@@ -528,18 +534,12 @@
         "description": "Simulate this body at all; a disabled body keeps its state and costs nothing",
         "type": "bool"
       },
-      "fast_rotation": {
-        "default": false,
-        "description": "Allow a spin fast enough that rapier would otherwise clamp it",
-        "group": "fast motion",
-        "type": "bool"
-      },
       "gravity_scale": {
         "default": 1.0,
         "description": "Multiplier on world gravity for this body: 0 hangs in the air, negative floats up",
         "type": "float"
       },
-      "gyroscopic": {
+      "gyroscopic_forces": {
         "default": false,
         "description": "Model the wobble a spinning body's own inertia gives it, as a thrown American football has",
         "group": "solver",
@@ -602,24 +602,24 @@
         "min": 0.0,
         "type": "float"
       },
-      "sleep_time": {
-        "default": 0.5,
-        "description": "Seconds of stillness before the body sleeps",
-        "group": "sleep",
+      "solver_iterations": {
+        "default": 0.0,
+        "description": "Extra solver iterations for this body alone, for the one stack that jitters",
+        "group": "solver",
         "min": 0.0,
         "type": "float"
       },
-      "soft_ccd": {
+      "speculative_distance": {
         "default": 0.0,
         "description": "Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies",
         "group": "fast motion",
         "min": 0.0,
         "type": "float"
       },
-      "solver_iterations": {
-        "default": 0.0,
-        "description": "Extra solver iterations for this body alone, for the one stack that jitters",
-        "group": "solver",
+      "time_to_sleep": {
+        "default": 0.5,
+        "description": "Seconds of stillness before the body sleeps",
+        "group": "sleep",
         "min": 0.0,
         "type": "float"
       }
@@ -903,20 +903,17 @@
       }
     },
     "character2d": {
-      "autostep": {
-        "default": 0.3,
-        "description": "The tallest step the character climbs without jumping; 0 turns stepping off",
+      "floor_max_angle": {
+        "default": 0.7853982,
+        "description": "The steepest slope the character may walk up, in radians",
+        "max": 1.5707964,
         "min": 0.0,
-        "type": "float"
+        "type": "float",
+        "unit": "degrees"
       },
-      "autostep_dynamic": {
-        "default": false,
-        "description": "Climb onto dynamic bodies too, not only static and kinematic ones",
-        "type": "bool"
-      },
-      "autostep_min_width": {
+      "floor_snap_length": {
         "default": 0.2,
-        "description": "How much clear ground a step needs on top before it may be climbed",
+        "description": "How far below its feet the character looks for ground to stay stuck to over a crest; 0 turns snapping off",
         "min": 0.0,
         "type": "float"
       },
@@ -929,29 +926,17 @@
         ],
         "type": "enum"
       },
-      "max_climb_angle": {
-        "default": 45.0,
-        "description": "The steepest slope the character may walk up, in degrees",
-        "max": 90.0,
-        "min": 0.0,
-        "type": "float"
-      },
       "min_slide_angle": {
-        "default": 30.0,
-        "description": "The shallowest slope the character slides back down, in degrees",
-        "max": 90.0,
+        "default": 0.5235988,
+        "description": "The shallowest slope the character slides back down, in radians",
+        "max": 1.5707964,
         "min": 0.0,
-        "type": "float"
+        "type": "float",
+        "unit": "degrees"
       },
       "normal_nudge": {
         "default": 0.0001,
         "description": "A tiny push along the contact normal that stops the character catching on seams",
-        "min": 0.0,
-        "type": "float"
-      },
-      "offset": {
-        "default": 0.01,
-        "description": "A gap kept between the character and everything else, so the solver never has to push it out of a wall",
         "min": 0.0,
         "type": "float"
       },
@@ -960,18 +945,35 @@
         "description": "Push dynamic bodies the character walks into, rather than passing through them",
         "type": "bool"
       },
+      "safe_margin": {
+        "default": 0.01,
+        "description": "A gap kept between the character and everything else, so the solver never has to push it out of a wall",
+        "min": 0.0,
+        "type": "float"
+      },
       "slide": {
         "default": true,
         "description": "Slide along what is in the way instead of stopping dead against it",
         "type": "bool"
       },
-      "snap_to_ground": {
-        "default": 0.2,
-        "description": "How far below its feet the character looks for ground to stay stuck to over a crest; 0 turns snapping off",
+      "step_height": {
+        "default": 0.3,
+        "description": "The tallest step the character climbs without jumping; 0 turns stepping off",
         "min": 0.0,
         "type": "float"
       },
-      "up": {
+      "step_min_width": {
+        "default": 0.2,
+        "description": "How much clear ground a step needs on top before it may be climbed",
+        "min": 0.0,
+        "type": "float"
+      },
+      "step_on_dynamic": {
+        "default": false,
+        "description": "Climb onto dynamic bodies too, not only static and kinematic ones",
+        "type": "bool"
+      },
+      "up_direction": {
         "default": [
           0.0,
           1.0
@@ -981,20 +983,17 @@
       }
     },
     "character3d": {
-      "autostep": {
-        "default": 0.3,
-        "description": "The tallest step the character climbs without jumping; 0 turns stepping off",
+      "floor_max_angle": {
+        "default": 0.7853982,
+        "description": "The steepest slope the character may walk up, in radians",
+        "max": 1.5707964,
         "min": 0.0,
-        "type": "float"
+        "type": "float",
+        "unit": "degrees"
       },
-      "autostep_dynamic": {
-        "default": false,
-        "description": "Climb onto dynamic bodies too, not only static and kinematic ones",
-        "type": "bool"
-      },
-      "autostep_min_width": {
+      "floor_snap_length": {
         "default": 0.2,
-        "description": "How much clear ground a step needs on top before it may be climbed",
+        "description": "How far below its feet the character looks for ground to stay stuck to over a crest; 0 turns snapping off",
         "min": 0.0,
         "type": "float"
       },
@@ -1007,29 +1006,17 @@
         ],
         "type": "enum"
       },
-      "max_climb_angle": {
-        "default": 45.0,
-        "description": "The steepest slope the character may walk up, in degrees",
-        "max": 90.0,
-        "min": 0.0,
-        "type": "float"
-      },
       "min_slide_angle": {
-        "default": 30.0,
-        "description": "The shallowest slope the character slides back down, in degrees",
-        "max": 90.0,
+        "default": 0.5235988,
+        "description": "The shallowest slope the character slides back down, in radians",
+        "max": 1.5707964,
         "min": 0.0,
-        "type": "float"
+        "type": "float",
+        "unit": "degrees"
       },
       "normal_nudge": {
         "default": 0.0001,
         "description": "A tiny push along the contact normal that stops the character catching on seams",
-        "min": 0.0,
-        "type": "float"
-      },
-      "offset": {
-        "default": 0.01,
-        "description": "A gap kept between the character and everything else, so the solver never has to push it out of a wall",
         "min": 0.0,
         "type": "float"
       },
@@ -1038,18 +1025,35 @@
         "description": "Push dynamic bodies the character walks into, rather than passing through them",
         "type": "bool"
       },
+      "safe_margin": {
+        "default": 0.01,
+        "description": "A gap kept between the character and everything else, so the solver never has to push it out of a wall",
+        "min": 0.0,
+        "type": "float"
+      },
       "slide": {
         "default": true,
         "description": "Slide along what is in the way instead of stopping dead against it",
         "type": "bool"
       },
-      "snap_to_ground": {
-        "default": 0.2,
-        "description": "How far below its feet the character looks for ground to stay stuck to over a crest; 0 turns snapping off",
+      "step_height": {
+        "default": 0.3,
+        "description": "The tallest step the character climbs without jumping; 0 turns stepping off",
         "min": 0.0,
         "type": "float"
       },
-      "up": {
+      "step_min_width": {
+        "default": 0.2,
+        "description": "How much clear ground a step needs on top before it may be climbed",
+        "min": 0.0,
+        "type": "float"
+      },
+      "step_on_dynamic": {
+        "default": false,
+        "description": "Climb onto dynamic bodies too, not only static and kinematic ones",
+        "type": "bool"
+      },
+      "up_direction": {
         "default": [
           0.0,
           1.0,
@@ -1195,24 +1199,6 @@
         "group": "shape",
         "type": "vec2"
       },
-      "active_collisions": {
-        "default": [
-          "dynamic_dynamic",
-          "dynamic_kinematic",
-          "dynamic_static"
-        ],
-        "description": "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default",
-        "group": "filtering",
-        "options": [
-          "dynamic_dynamic",
-          "dynamic_kinematic",
-          "dynamic_static",
-          "kinematic_kinematic",
-          "kinematic_static",
-          "static_static"
-        ],
-        "type": "flags"
-      },
       "b": {
         "default": [
           1.0,
@@ -1221,13 +1207,6 @@
         "description": "Second corner, when kind is triangle or segment",
         "group": "shape",
         "type": "vec2"
-      },
-      "border": {
-        "default": 0.0,
-        "description": "Rounds a rect or triangle by this radius, so it slides over seams instead of catching on them",
-        "group": "shape",
-        "min": 0.0,
-        "type": "float"
       },
       "c": {
         "default": [
@@ -1238,123 +1217,7 @@
         "group": "shape",
         "type": "vec2"
       },
-      "clean": {
-        "default": false,
-        "description": "Merge duplicate vertices and drop degenerate triangles when building a trimesh",
-        "group": "shape",
-        "type": "bool"
-      },
-      "concavity": {
-        "default": 0.01,
-        "description": "How deep a dent a vhacd piece may keep before it is cut again",
-        "group": "shape",
-        "min": 0.0,
-        "type": "float"
-      },
-      "contact_force_threshold": {
-        "default": 0.0,
-        "description": "How hard a contact must be before on_contact_force is called",
-        "group": "contacts",
-        "min": 0.0,
-        "type": "float"
-      },
-      "contact_skin": {
-        "default": 0.0,
-        "description": "A margin the solver treats as already touching; stops thin shapes tunnelling and jittering",
-        "group": "contacts",
-        "min": 0.0,
-        "type": "float"
-      },
-      "density": {
-        "default": 1.0,
-        "description": "Mass per volume, so the shape's size sets its mass",
-        "group": "mass",
-        "min": 0.001,
-        "type": "float"
-      },
-      "enabled": {
-        "default": true,
-        "description": "Collide at all; a disabled collider keeps its shape and costs nothing",
-        "type": "bool"
-      },
-      "events": {
-        "default": [],
-        "description": "What this collider reports to its node's script: on_collision_start and on_collision_stop, or on_contact_force",
-        "group": "filtering",
-        "options": [
-          "collision",
-          "contact_force"
-        ],
-        "type": "flags"
-      },
-      "fix_internal_edges": {
-        "default": true,
-        "description": "Take neighbouring triangles into account for a trimesh's contacts, so a body does not catch on the seam between two of them",
-        "group": "contacts",
-        "type": "bool"
-      },
-      "friction": {
-        "default": 0.5,
-        "description": "Surface friction; 0 is ice",
-        "group": "surface",
-        "min": 0.0,
-        "type": "float"
-      },
-      "friction_combine": {
-        "default": "average",
-        "description": "How this surface's friction combines with the other one's",
-        "group": "surface",
-        "options": [
-          "average",
-          "min",
-          "multiply",
-          "max",
-          "clamped_sum",
-          "geometric_mean"
-        ],
-        "type": "enum"
-      },
-      "half_extents": {
-        "default": [
-          0.5,
-          0.5
-        ],
-        "description": "Half-sizes of the rect, when kind is rect",
-        "type": "vec2"
-      },
-      "height": {
-        "default": 1.0,
-        "description": "Length along y of the straight part, when kind is capsule",
-        "min": 0.01,
-        "type": "float"
-      },
-      "heightfield": {
-        "asset": "heightfield",
-        "default": "",
-        "description": "A row of heights, when kind is heightfield: a side-scroller's ground",
-        "group": "shape",
-        "type": "asset"
-      },
-      "kind": {
-        "default": "rect",
-        "description": "Collision shape",
-        "options": [
-          "circle",
-          "rect",
-          "capsule",
-          "triangle",
-          "segment",
-          "halfspace",
-          "trimesh",
-          "convex_hull",
-          "convex_decomposition",
-          "polyline",
-          "heightfield",
-          "voxels"
-        ],
-        "type": "enum"
-      },
-      "layers": {
+      "collision_layer": {
         "default": [
           "0"
         ],
@@ -1396,7 +1259,14 @@
         ],
         "type": "flags"
       },
-      "mask": {
+      "collision_margin": {
+        "default": 0.0,
+        "description": "A margin the solver treats as already touching; stops thin shapes tunnelling and jittering",
+        "group": "contacts",
+        "min": 0.0,
+        "type": "float"
+      },
+      "collision_mask": {
         "default": [],
         "description": "The layers it collides with; empty means every layer",
         "group": "filtering",
@@ -1436,6 +1306,127 @@
         ],
         "type": "flags"
       },
+      "contact_force_threshold": {
+        "default": 0.0,
+        "description": "How hard a contact must be before on_contact_force is called",
+        "group": "contacts",
+        "min": 0.0,
+        "type": "float"
+      },
+      "contact_pairs": {
+        "default": [
+          "dynamic_dynamic",
+          "dynamic_kinematic",
+          "dynamic_static"
+        ],
+        "description": "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default",
+        "group": "filtering",
+        "options": [
+          "dynamic_dynamic",
+          "dynamic_kinematic",
+          "dynamic_static",
+          "kinematic_kinematic",
+          "kinematic_static",
+          "static_static"
+        ],
+        "type": "flags"
+      },
+      "density": {
+        "default": 1.0,
+        "description": "Mass per volume, so the shape's size sets its mass",
+        "group": "mass",
+        "min": 0.001,
+        "type": "float"
+      },
+      "edge_radius": {
+        "default": 0.0,
+        "description": "Rounds a rect or triangle by this radius, so it slides over seams instead of catching on them",
+        "group": "shape",
+        "min": 0.0,
+        "type": "float"
+      },
+      "enabled": {
+        "default": true,
+        "description": "Collide at all; a disabled collider keeps its shape and costs nothing",
+        "type": "bool"
+      },
+      "events": {
+        "default": [],
+        "description": "What this collider reports to its node's script: on_collision_enter and on_collision_exit, or on_contact_force",
+        "group": "filtering",
+        "options": [
+          "collision",
+          "contact_force"
+        ],
+        "type": "flags"
+      },
+      "fix_internal_edges": {
+        "default": true,
+        "description": "Take neighbouring triangles into account for a triangle_mesh's contacts, so a body does not catch on the seam between two of them",
+        "group": "contacts",
+        "type": "bool"
+      },
+      "friction": {
+        "default": 0.5,
+        "description": "Surface friction; 0 is ice",
+        "group": "surface",
+        "min": 0.0,
+        "type": "float"
+      },
+      "friction_combine": {
+        "default": "average",
+        "description": "How this surface's friction combines with the other one's",
+        "group": "surface",
+        "options": [
+          "average",
+          "min",
+          "multiply",
+          "max",
+          "clamped_sum",
+          "geometric_mean"
+        ],
+        "type": "enum"
+      },
+      "half_extents": {
+        "default": [
+          0.5,
+          0.5
+        ],
+        "description": "Half-sizes of the rectangle, when kind is rectangle",
+        "type": "vec2"
+      },
+      "height": {
+        "default": 1.0,
+        "description": "Length along y of the straight part, when kind is capsule",
+        "min": 0.01,
+        "type": "float"
+      },
+      "heightfield": {
+        "asset": "heightfield",
+        "default": "",
+        "description": "A row of heights, when kind is heightfield: a side-scroller's ground",
+        "group": "shape",
+        "type": "asset"
+      },
+      "kind": {
+        "default": "rectangle",
+        "description": "Collision shape",
+        "options": [
+          "circle",
+          "rectangle",
+          "capsule",
+          "triangle",
+          "segment",
+          "world_boundary",
+          "triangle_mesh",
+          "convex_hull",
+          "convex_decomposition",
+          "polyline",
+          "heightfield",
+          "voxels"
+        ],
+        "type": "enum"
+      },
       "mass": {
         "default": 0.0,
         "description": "Mass in kilograms, overriding what density works out to; 0 keeps the density",
@@ -1443,7 +1434,14 @@
         "min": 0.0,
         "type": "float"
       },
-      "max_pieces": {
+      "max_concavity": {
+        "default": 0.01,
+        "description": "How deep a dent a vhacd piece may keep before it is cut again",
+        "group": "shape",
+        "min": 0.0,
+        "type": "float"
+      },
+      "max_convex_hulls": {
         "default": 1024.0,
         "description": "The most pieces a vhacd cut may leave",
         "group": "shape",
@@ -1453,7 +1451,7 @@
       "mesh": {
         "asset": "mesh",
         "default": "",
-        "description": "Points and triangles for a trimesh, convex_hull, convex_decomposition or polyline collider: the same asset a polygon draws",
+        "description": "Points and triangles for a triangle_mesh, convex_hull, convex_decomposition or polyline collider: the same asset a polygon draws",
         "group": "shape",
         "type": "asset"
       },
@@ -1472,7 +1470,7 @@
           0.0,
           1.0
         ],
-        "description": "Which way the infinite line faces, when kind is halfspace",
+        "description": "Which way the infinite line faces, when kind is world_boundary",
         "group": "shape",
         "type": "vec2"
       },
@@ -1508,7 +1506,7 @@
       },
       "oriented": {
         "default": false,
-        "description": "Treat a trimesh or polyline as one-sided: the winding decides which side is solid, counter-clockwise enclosing the solid",
+        "description": "Treat a triangle_mesh or polyline as one-sided: the winding decides which side is solid, counter-clockwise enclosing the solid",
         "group": "shape",
         "type": "bool"
       },
@@ -1569,7 +1567,7 @@
         "description": "Detects overlaps without colliding: bodies pass through and are reported",
         "type": "bool"
       },
-      "solver_layers": {
+      "solver_layer": {
         "default": [
           "0"
         ],
@@ -1657,6 +1655,12 @@
         "description": "Filled cells, when kind is voxels; a script may dig into them while the game runs",
         "group": "shape",
         "type": "asset"
+      },
+      "weld_vertices": {
+        "default": false,
+        "description": "Merge duplicate vertices and drop degenerate triangles when building a triangle_mesh",
+        "group": "shape",
+        "type": "bool"
       }
     },
     "collider3d": {
@@ -1670,24 +1674,6 @@
         "group": "shape",
         "type": "vec3"
       },
-      "active_collisions": {
-        "default": [
-          "dynamic_dynamic",
-          "dynamic_kinematic",
-          "dynamic_static"
-        ],
-        "description": "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default",
-        "group": "filtering",
-        "options": [
-          "dynamic_dynamic",
-          "dynamic_kinematic",
-          "dynamic_static",
-          "kinematic_kinematic",
-          "kinematic_static",
-          "static_static"
-        ],
-        "type": "flags"
-      },
       "b": {
         "default": [
           1.0,
@@ -1697,13 +1683,6 @@
         "description": "Second corner, when kind is triangle or segment",
         "group": "shape",
         "type": "vec3"
-      },
-      "border": {
-        "default": 0.0,
-        "description": "Rounds a cuboid, cylinder, cone or triangle by this radius; a rounded shape slides over seams instead of catching on them",
-        "group": "shape",
-        "min": 0.0,
-        "type": "float"
       },
       "c": {
         "default": [
@@ -1715,143 +1694,7 @@
         "group": "shape",
         "type": "vec3"
       },
-      "clean": {
-        "default": false,
-        "description": "Drop duplicate vertices and degenerate triangles when building a trimesh",
-        "group": "shape",
-        "type": "bool"
-      },
-      "contact_force_threshold": {
-        "default": 0.0,
-        "description": "How hard a contact must be before on_contact_force is called",
-        "group": "contacts",
-        "min": 0.0,
-        "type": "float"
-      },
-      "contact_skin": {
-        "default": 0.0,
-        "description": "A margin the solver treats as already touching; stops thin shapes tunnelling and jittering",
-        "group": "contacts",
-        "min": 0.0,
-        "type": "float"
-      },
-      "density": {
-        "default": 1.0,
-        "description": "Mass per volume, so the shape's size sets its mass",
-        "group": "mass",
-        "min": 0.001,
-        "type": "float"
-      },
-      "enabled": {
-        "default": true,
-        "description": "Collide at all; a disabled collider keeps its shape and costs nothing",
-        "type": "bool"
-      },
-      "events": {
-        "default": [],
-        "description": "What this collider reports to its node's script: on_collision_start and on_collision_stop, or on_contact_force",
-        "group": "filtering",
-        "options": [
-          "collision",
-          "contact_force"
-        ],
-        "type": "flags"
-      },
-      "fill": {
-        "default": "solid",
-        "description": "Whether voxelizing a mesh fills its inside or only its shell",
-        "group": "shape",
-        "options": [
-          "solid",
-          "surface"
-        ],
-        "type": "enum"
-      },
-      "fit": {
-        "default": "convex_hull",
-        "description": "The shape fitted to the mesh, when kind is fit",
-        "group": "shape",
-        "options": [
-          "convex_hull",
-          "aabb",
-          "obb",
-          "convex_decomposition"
-        ],
-        "type": "enum"
-      },
-      "fix_internal_edges": {
-        "default": true,
-        "description": "Smooth the seams between a trimesh's triangles, so a character does not catch on flat ground",
-        "group": "contacts",
-        "type": "bool"
-      },
-      "friction": {
-        "default": 0.5,
-        "description": "Surface friction; 0 is ice",
-        "group": "surface",
-        "min": 0.0,
-        "type": "float"
-      },
-      "friction_combine": {
-        "default": "average",
-        "description": "How this surface's friction combines with the other one's",
-        "group": "surface",
-        "options": [
-          "average",
-          "min",
-          "multiply",
-          "max",
-          "clamped_sum",
-          "geometric_mean"
-        ],
-        "type": "enum"
-      },
-      "half_extents": {
-        "default": [
-          0.5,
-          0.5,
-          0.5
-        ],
-        "description": "Half-sizes of the cuboid, when kind is cuboid",
-        "type": "vec3"
-      },
-      "height": {
-        "default": 1.0,
-        "description": "Length along y of the straight part, for capsule, cylinder and cone",
-        "min": 0.01,
-        "type": "float"
-      },
-      "heightfield": {
-        "asset": "heightfield",
-        "default": "",
-        "description": "Terrain grid, when kind is heightfield",
-        "group": "shape",
-        "type": "asset"
-      },
-      "kind": {
-        "default": "cuboid",
-        "description": "Collision shape",
-        "options": [
-          "ball",
-          "cuboid",
-          "capsule",
-          "cylinder",
-          "cone",
-          "triangle",
-          "segment",
-          "halfspace",
-          "trimesh",
-          "convex_hull",
-          "convex_decomposition",
-          "polyline",
-          "heightfield",
-          "voxels",
-          "voxelized_mesh",
-          "fit"
-        ],
-        "type": "enum"
-      },
-      "layers": {
+      "collision_layer": {
         "default": [
           "0"
         ],
@@ -1893,7 +1736,14 @@
         ],
         "type": "flags"
       },
-      "mask": {
+      "collision_margin": {
+        "default": 0.0,
+        "description": "A margin the solver treats as already touching; stops thin shapes tunnelling and jittering",
+        "group": "contacts",
+        "min": 0.0,
+        "type": "float"
+      },
+      "collision_mask": {
         "default": [],
         "description": "The layers it collides with; empty means every layer",
         "group": "filtering",
@@ -1933,6 +1783,154 @@
         ],
         "type": "flags"
       },
+      "contact_force_threshold": {
+        "default": 0.0,
+        "description": "How hard a contact must be before on_contact_force is called",
+        "group": "contacts",
+        "min": 0.0,
+        "type": "float"
+      },
+      "contact_pairs": {
+        "default": [
+          "dynamic_dynamic",
+          "dynamic_kinematic",
+          "dynamic_static"
+        ],
+        "description": "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default",
+        "group": "filtering",
+        "options": [
+          "dynamic_dynamic",
+          "dynamic_kinematic",
+          "dynamic_static",
+          "kinematic_kinematic",
+          "kinematic_static",
+          "static_static"
+        ],
+        "type": "flags"
+      },
+      "density": {
+        "default": 1.0,
+        "description": "Mass per volume, so the shape's size sets its mass",
+        "group": "mass",
+        "min": 0.001,
+        "type": "float"
+      },
+      "edge_radius": {
+        "default": 0.0,
+        "description": "Rounds a box, cylinder, cone or triangle by this radius; a rounded shape slides over seams instead of catching on them",
+        "group": "shape",
+        "min": 0.0,
+        "type": "float"
+      },
+      "enabled": {
+        "default": true,
+        "description": "Collide at all; a disabled collider keeps its shape and costs nothing",
+        "type": "bool"
+      },
+      "events": {
+        "default": [],
+        "description": "What this collider reports to its node's script: on_collision_enter and on_collision_exit, or on_contact_force",
+        "group": "filtering",
+        "options": [
+          "collision",
+          "contact_force"
+        ],
+        "type": "flags"
+      },
+      "fill": {
+        "default": "solid",
+        "description": "Whether voxelizing a mesh fills its inside or only its shell",
+        "group": "shape",
+        "options": [
+          "solid",
+          "surface"
+        ],
+        "type": "enum"
+      },
+      "fit": {
+        "default": "convex_hull",
+        "description": "The shape fitted to the mesh, when kind is fit",
+        "group": "shape",
+        "options": [
+          "convex_hull",
+          "aabb",
+          "obb",
+          "convex_decomposition"
+        ],
+        "type": "enum"
+      },
+      "fix_internal_edges": {
+        "default": true,
+        "description": "Smooth the seams between a triangle_mesh's triangles, so a character does not catch on flat ground",
+        "group": "contacts",
+        "type": "bool"
+      },
+      "friction": {
+        "default": 0.5,
+        "description": "Surface friction; 0 is ice",
+        "group": "surface",
+        "min": 0.0,
+        "type": "float"
+      },
+      "friction_combine": {
+        "default": "average",
+        "description": "How this surface's friction combines with the other one's",
+        "group": "surface",
+        "options": [
+          "average",
+          "min",
+          "multiply",
+          "max",
+          "clamped_sum",
+          "geometric_mean"
+        ],
+        "type": "enum"
+      },
+      "half_extents": {
+        "default": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "description": "Half-sizes of the box, when kind is box",
+        "type": "vec3"
+      },
+      "height": {
+        "default": 1.0,
+        "description": "Length along y of the straight part, for capsule, cylinder and cone",
+        "min": 0.01,
+        "type": "float"
+      },
+      "heightfield": {
+        "asset": "heightfield",
+        "default": "",
+        "description": "Terrain grid, when kind is heightfield",
+        "group": "shape",
+        "type": "asset"
+      },
+      "kind": {
+        "default": "box",
+        "description": "Collision shape",
+        "options": [
+          "sphere",
+          "box",
+          "capsule",
+          "cylinder",
+          "cone",
+          "triangle",
+          "segment",
+          "world_boundary",
+          "triangle_mesh",
+          "convex_hull",
+          "convex_decomposition",
+          "polyline",
+          "heightfield",
+          "voxels",
+          "voxelized_mesh",
+          "fit"
+        ],
+        "type": "enum"
+      },
       "mass": {
         "default": 0.0,
         "description": "Mass in kilograms, overriding what density works out to; 0 keeps the density",
@@ -1943,7 +1941,7 @@
       "mesh": {
         "asset": "mesh",
         "default": "",
-        "description": "Geometry for a trimesh, convex_hull or polyline collider",
+        "description": "Geometry for a triangle_mesh, convex_hull or polyline collider",
         "group": "shape",
         "type": "asset"
       },
@@ -1953,7 +1951,7 @@
           1.0,
           0.0
         ],
-        "description": "Which way the infinite plane faces, when kind is halfspace",
+        "description": "Which way the infinite plane faces, when kind is world_boundary",
         "group": "shape",
         "type": "vec3"
       },
@@ -1995,7 +1993,7 @@
       },
       "oriented": {
         "default": false,
-        "description": "Treat the trimesh as a closed, outward-facing surface, which makes inside and outside meaningful",
+        "description": "Treat the triangle_mesh as a closed, outward-facing surface, which makes inside and outside meaningful",
         "group": "shape",
         "type": "bool"
       },
@@ -2042,7 +2040,7 @@
         "description": "Detects overlaps without colliding: bodies pass through and are reported",
         "type": "bool"
       },
-      "solver_layers": {
+      "solver_layer": {
         "default": [
           "0"
         ],
@@ -2137,6 +2135,12 @@
         "description": "Filled cells, when kind is voxels; a script may dig into them while the game runs",
         "group": "shape",
         "type": "asset"
+      },
+      "weld_vertices": {
+        "default": false,
+        "description": "Drop duplicate vertices and degenerate triangles when building a triangle_mesh",
+        "group": "shape",
+        "type": "bool"
       }
     },
     "environment": {
@@ -2298,21 +2302,29 @@
         "description": "The direction a prismatic joint slides along",
         "type": "vec2"
       },
-      "body": {
-        "default": "",
-        "description": "The node at the joint's other end; this node is the first end",
-        "type": "node"
-      },
       "break_force": {
         "default": 0.0,
         "description": "The pull that snaps the joint and calls on_joint_break; 0 never breaks",
         "min": 0.0,
         "type": "float"
       },
-      "contacts": {
+      "collide_connected": {
         "default": false,
         "description": "Let the two joined bodies collide with each other",
         "type": "bool"
+      },
+      "connected_anchor": {
+        "default": [
+          0.0,
+          0.0
+        ],
+        "description": "Where it attaches on the other node, in that node's space",
+        "type": "vec2"
+      },
+      "connected_body": {
+        "default": "",
+        "description": "The node at the joint's other end; this node is the first end",
+        "type": "node"
       },
       "damping": {
         "default": 1.0,
@@ -2330,11 +2342,11 @@
         "description": "How the two bodies may move relative to each other",
         "options": [
           "fixed",
-          "revolute",
-          "prismatic",
+          "hinge",
+          "slider",
           "rope",
           "spring",
-          "pin_slot",
+          "groove",
           "generic"
         ],
         "type": "enum"
@@ -2393,14 +2405,6 @@
         "description": "The speed or the position the motor drives towards",
         "type": "float"
       },
-      "other_anchor": {
-        "default": [
-          0.0,
-          0.0
-        ],
-        "description": "Where it attaches on the other node, in that node's space",
-        "type": "vec2"
-      },
       "solver": {
         "default": "impulse",
         "description": "impulse holds any arrangement, loops included; reduced never drifts and can be solved for inverse kinematics, but cannot close a loop",
@@ -2436,21 +2440,30 @@
         "description": "The axis a revolute joint turns about or a prismatic one slides along",
         "type": "vec3"
       },
-      "body": {
-        "default": "",
-        "description": "The node at the joint's other end; this node is the first end",
-        "type": "node"
-      },
       "break_force": {
         "default": 0.0,
         "description": "The pull that snaps the joint and calls on_joint_break; 0 never breaks",
         "min": 0.0,
         "type": "float"
       },
-      "contacts": {
+      "collide_connected": {
         "default": false,
         "description": "Let the two joined bodies collide with each other",
         "type": "bool"
+      },
+      "connected_anchor": {
+        "default": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "Where it attaches on the other node, in that node's space",
+        "type": "vec3"
+      },
+      "connected_body": {
+        "default": "",
+        "description": "The node at the joint's other end; this node is the first end",
+        "type": "node"
       },
       "damping": {
         "default": 1.0,
@@ -2468,9 +2481,9 @@
         "description": "How the two bodies may move relative to each other",
         "options": [
           "fixed",
-          "revolute",
-          "prismatic",
-          "spherical",
+          "hinge",
+          "slider",
+          "ball_socket",
           "rope",
           "spring",
           "generic"
@@ -2533,15 +2546,6 @@
         "default": 0.0,
         "description": "The speed or the position the motor drives towards",
         "type": "float"
-      },
-      "other_anchor": {
-        "default": [
-          0.0,
-          0.0,
-          0.0
-        ],
-        "description": "Where it attaches on the other node, in that node's space",
-        "type": "vec3"
       },
       "solver": {
         "default": "impulse",
@@ -3044,17 +3048,17 @@
       }
     },
     "ragdoll": {
-      "blend": {
+      "bodies": {
+        "default": "",
+        "description": "The node holding the bodies, one per bone, named after it",
+        "type": "node"
+      },
+      "influence": {
         "default": 1.0,
         "description": "How much of the simulated pose the bones take",
         "max": 1.0,
         "min": 0.0,
         "type": "float"
-      },
-      "bodies": {
-        "default": "",
-        "description": "The node holding the bodies, one per bone, named after it",
-        "type": "node"
       }
     },
     "reflection_probe": {
@@ -3119,7 +3123,7 @@
       },
       "corner_radius": {
         "default": 0.0,
-        "description": "How far the corners are rounded off, when kind is rect; zero is a square corner",
+        "description": "How far the corners are rounded off, when kind is rectangle; zero is a square corner",
         "min": 0.0,
         "type": "float"
       },
@@ -3144,7 +3148,7 @@
           0.5,
           0.5
         ],
-        "description": "Half-sizes, when kind is rect or ellipse",
+        "description": "Half-sizes, when kind is rectangle or ellipse",
         "type": "vec2"
       },
       "height": {
@@ -3170,11 +3174,11 @@
         "type": "enum"
       },
       "kind": {
-        "default": "rect",
+        "default": "rectangle",
         "description": "Rendered 2D shape",
         "options": [
           "circle",
-          "rect",
+          "rectangle",
           "capsule",
           "ellipse",
           "star",
@@ -3259,7 +3263,7 @@
       },
       "corner_radius": {
         "default": 0.0,
-        "description": "How far the edges are rounded off, when kind is cuboid; zero is a square edge",
+        "description": "How far the edges are rounded off, when kind is box; zero is a square edge",
         "min": 0.0,
         "type": "float"
       },
@@ -3269,7 +3273,7 @@
           0.5,
           0.5
         ],
-        "description": "Half-sizes, when kind is cuboid, plane or pyramid",
+        "description": "Half-sizes, when kind is box, plane or pyramid",
         "type": "vec3"
       },
       "height": {
@@ -3285,11 +3289,11 @@
         "type": "float"
       },
       "kind": {
-        "default": "cuboid",
+        "default": "box",
         "description": "Rendered 3D shape",
         "options": [
-          "ball",
-          "cuboid",
+          "sphere",
+          "box",
           "capsule",
           "cylinder",
           "cone",
@@ -3314,7 +3318,7 @@
       },
       "radius": {
         "default": 0.5,
-        "description": "Radius, for every kind but cuboid, plane and pyramid",
+        "description": "Radius, for every kind but box, plane and pyramid",
         "min": 0.01,
         "type": "float"
       },
@@ -3421,6 +3425,88 @@
         "description": "Meet the world at all; off, the body passes through everything and only its pins and ties hold it",
         "group": "surface",
         "type": "bool"
+      },
+      "collision_layer": {
+        "default": [
+          "0"
+        ],
+        "description": "The layers this body is on",
+        "group": "filtering",
+        "options": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31"
+        ],
+        "type": "flags"
+      },
+      "collision_mask": {
+        "default": [],
+        "description": "The layers it collides with; empty means every layer",
+        "group": "filtering",
+        "options": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31"
+        ],
+        "type": "flags"
       },
       "color": {
         "default": [
@@ -3572,56 +3658,14 @@
         "description": "How the body's particles and elements are laid out",
         "options": [
           "grid",
-          "disk",
+          "circle",
           "polygon",
           "rope",
           "volumetric",
-          "trimesh",
+          "triangle_mesh",
           "polyline"
         ],
         "type": "enum"
-      },
-      "layers": {
-        "default": [
-          "0"
-        ],
-        "description": "The layers this body is on",
-        "group": "filtering",
-        "options": [
-          "0",
-          "1",
-          "2",
-          "3",
-          "4",
-          "5",
-          "6",
-          "7",
-          "8",
-          "9",
-          "10",
-          "11",
-          "12",
-          "13",
-          "14",
-          "15",
-          "16",
-          "17",
-          "18",
-          "19",
-          "20",
-          "21",
-          "22",
-          "23",
-          "24",
-          "25",
-          "26",
-          "27",
-          "28",
-          "29",
-          "30",
-          "31"
-        ],
-        "type": "flags"
       },
       "linear_damping": {
         "default": 0.0,
@@ -3629,46 +3673,6 @@
         "group": "particles",
         "min": 0.0,
         "type": "float"
-      },
-      "mask": {
-        "default": [],
-        "description": "The layers it collides with; empty means every layer",
-        "group": "filtering",
-        "options": [
-          "0",
-          "1",
-          "2",
-          "3",
-          "4",
-          "5",
-          "6",
-          "7",
-          "8",
-          "9",
-          "10",
-          "11",
-          "12",
-          "13",
-          "14",
-          "15",
-          "16",
-          "17",
-          "18",
-          "19",
-          "20",
-          "21",
-          "22",
-          "23",
-          "24",
-          "25",
-          "26",
-          "27",
-          "28",
-          "29",
-          "30",
-          "31"
-        ],
-        "type": "flags"
       },
       "mass": {
         "default": 1.0,
@@ -3697,7 +3701,7 @@
       "mesh": {
         "asset": "mesh",
         "default": "",
-        "description": "Points and triangles for a polygon, trimesh, polyline or volumetric body: the same asset a polygon draws",
+        "description": "Points and triangles for a polygon, triangle_mesh, polyline or volumetric body: the same asset a polygon draws",
         "group": "shape",
         "type": "asset"
       },
@@ -3714,6 +3718,13 @@
         "group": "particles",
         "type": "bool"
       },
+      "particle_count": {
+        "default": 16,
+        "description": "How many particles a rope or the rim of a circle is made of",
+        "group": "shape",
+        "min": 2,
+        "type": "int"
+      },
       "particle_radius": {
         "default": 0.0,
         "description": "How thick the particles are; 0 takes what the layout works out",
@@ -3721,22 +3732,7 @@
         "min": 0.0,
         "type": "float"
       },
-      "particles": {
-        "default": 16.0,
-        "description": "How many particles a rope or the rim of a disk is made of",
-        "group": "shape",
-        "min": 2.0,
-        "type": "float"
-      },
-      "pgs_iterations": {
-        "default": 3.0,
-        "description": "Extra iterations inside each substep, for the same",
-        "group": "particles",
-        "max": 64.0,
-        "min": 0.0,
-        "type": "float"
-      },
-      "pinned": {
+      "pinned_particles": {
         "default": [],
         "description": "The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from",
         "group": "particles",
@@ -3777,7 +3773,7 @@
       },
       "radius": {
         "default": 0.5,
-        "description": "Radius, when kind is disk",
+        "description": "Radius, when kind is circle",
         "group": "shape",
         "min": 0.001,
         "type": "float"
@@ -3790,7 +3786,7 @@
         "min": 0.0,
         "type": "float"
       },
-      "self_contacts": {
+      "self_collision": {
         "default": false,
         "description": "Let the body's own surface collide with itself, which stops a cloth passing through its own fold",
         "group": "particles",
@@ -3835,6 +3831,14 @@
         "type": "enum"
       },
       "solver_iterations": {
+        "default": 3.0,
+        "description": "Extra iterations inside each substep, for the same",
+        "group": "particles",
+        "max": 64.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "solver_substeps": {
         "default": 0.0,
         "description": "Extra solver substeps for this body and everything it touches",
         "group": "particles",
@@ -4011,7 +4015,7 @@
           4.0,
           4.0
         ],
-        "description": "How many cells along each axis, for cuboid; a cloth reads the first two, and a cloth_tube reads them as particles around and cells along",
+        "description": "How many cells along each axis, for box; a cloth reads the first two, and a cloth_tube reads them as particles around and cells along",
         "group": "shape",
         "type": "vec3"
       },
@@ -4020,6 +4024,88 @@
         "description": "Meet the world at all; off, the body passes through everything and only its pins and ties hold it",
         "group": "surface",
         "type": "bool"
+      },
+      "collision_layer": {
+        "default": [
+          "0"
+        ],
+        "description": "The layers this body is on",
+        "group": "filtering",
+        "options": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31"
+        ],
+        "type": "flags"
+      },
+      "collision_mask": {
+        "default": [],
+        "description": "The layers it collides with; empty means every layer",
+        "group": "filtering",
+        "options": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31"
+        ],
+        "type": "flags"
       },
       "color": {
         "default": [
@@ -4156,7 +4242,7 @@
           0.5,
           0.5
         ],
-        "description": "Half-sizes of the block, when kind is cuboid",
+        "description": "Half-sizes of the block, when kind is box",
         "group": "shape",
         "type": "vec3"
       },
@@ -4168,60 +4254,18 @@
         "type": "float"
       },
       "kind": {
-        "default": "cuboid",
+        "default": "box",
         "description": "How the body's particles and elements are laid out",
         "options": [
-          "cuboid",
+          "box",
           "sphere",
           "cloth",
           "cloth_tube",
           "rope",
           "volumetric",
-          "trimesh"
+          "triangle_mesh"
         ],
         "type": "enum"
-      },
-      "layers": {
-        "default": [
-          "0"
-        ],
-        "description": "The layers this body is on",
-        "group": "filtering",
-        "options": [
-          "0",
-          "1",
-          "2",
-          "3",
-          "4",
-          "5",
-          "6",
-          "7",
-          "8",
-          "9",
-          "10",
-          "11",
-          "12",
-          "13",
-          "14",
-          "15",
-          "16",
-          "17",
-          "18",
-          "19",
-          "20",
-          "21",
-          "22",
-          "23",
-          "24",
-          "25",
-          "26",
-          "27",
-          "28",
-          "29",
-          "30",
-          "31"
-        ],
-        "type": "flags"
       },
       "linear_damping": {
         "default": 0.0,
@@ -4229,46 +4273,6 @@
         "group": "particles",
         "min": 0.0,
         "type": "float"
-      },
-      "mask": {
-        "default": [],
-        "description": "The layers it collides with; empty means every layer",
-        "group": "filtering",
-        "options": [
-          "0",
-          "1",
-          "2",
-          "3",
-          "4",
-          "5",
-          "6",
-          "7",
-          "8",
-          "9",
-          "10",
-          "11",
-          "12",
-          "13",
-          "14",
-          "15",
-          "16",
-          "17",
-          "18",
-          "19",
-          "20",
-          "21",
-          "22",
-          "23",
-          "24",
-          "25",
-          "26",
-          "27",
-          "28",
-          "29",
-          "30",
-          "31"
-        ],
-        "type": "flags"
       },
       "mass": {
         "default": 1.0,
@@ -4297,7 +4301,7 @@
       "mesh": {
         "asset": "mesh",
         "default": "",
-        "description": "Geometry for a trimesh, polyline or volumetric body",
+        "description": "Geometry for a triangle_mesh, polyline or volumetric body",
         "group": "shape",
         "type": "asset"
       },
@@ -4314,6 +4318,13 @@
         "group": "particles",
         "type": "bool"
       },
+      "particle_count": {
+        "default": 16,
+        "description": "How many particles a rope is made of",
+        "group": "shape",
+        "min": 2,
+        "type": "int"
+      },
       "particle_radius": {
         "default": 0.0,
         "description": "How thick the particles are; 0 takes what the layout works out",
@@ -4321,22 +4332,7 @@
         "min": 0.0,
         "type": "float"
       },
-      "particles": {
-        "default": 16.0,
-        "description": "How many particles a rope is made of",
-        "group": "shape",
-        "min": 2.0,
-        "type": "float"
-      },
-      "pgs_iterations": {
-        "default": 3.0,
-        "description": "Extra iterations inside each substep, for the same",
-        "group": "particles",
-        "max": 64.0,
-        "min": 0.0,
-        "type": "float"
-      },
-      "pinned": {
+      "pinned_particles": {
         "default": [],
         "description": "The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from",
         "group": "particles",
@@ -4390,7 +4386,7 @@
         "min": 0.0,
         "type": "float"
       },
-      "self_contacts": {
+      "self_collision": {
         "default": false,
         "description": "Let the body's own surface collide with itself, which stops a cloth passing through its own fold",
         "group": "particles",
@@ -4458,6 +4454,14 @@
         "type": "enum"
       },
       "solver_iterations": {
+        "default": 3.0,
+        "description": "Extra iterations inside each substep, for the same",
+        "group": "particles",
+        "max": 64.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "solver_substeps": {
         "default": 0.0,
         "description": "Extra solver substeps for this body and everything it touches",
         "group": "particles",
@@ -5045,82 +5049,7 @@
       }
     },
     "tile_collision": {
-      "active_collisions": {
-        "default": [
-          "dynamic_dynamic",
-          "dynamic_kinematic",
-          "dynamic_static"
-        ],
-        "description": "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default",
-        "group": "filtering",
-        "options": [
-          "dynamic_dynamic",
-          "dynamic_kinematic",
-          "dynamic_static",
-          "kinematic_kinematic",
-          "kinematic_static",
-          "static_static"
-        ],
-        "type": "flags"
-      },
-      "contact_force_threshold": {
-        "default": 0.0,
-        "description": "How hard a contact must be before on_contact_force is called",
-        "group": "contacts",
-        "min": 0.0,
-        "type": "float"
-      },
-      "contact_skin": {
-        "default": 0.0,
-        "description": "A margin the solver treats as already touching; stops thin shapes tunnelling and jittering",
-        "group": "contacts",
-        "min": 0.0,
-        "type": "float"
-      },
-      "density": {
-        "default": 1.0,
-        "description": "Mass per volume, so the shape's size sets its mass",
-        "group": "mass",
-        "min": 0.001,
-        "type": "float"
-      },
-      "enabled": {
-        "default": true,
-        "description": "Collide at all; a disabled collider keeps its shape and costs nothing",
-        "type": "bool"
-      },
-      "events": {
-        "default": [],
-        "description": "What this collider reports to its node's script: on_collision_start and on_collision_stop, or on_contact_force",
-        "group": "filtering",
-        "options": [
-          "collision",
-          "contact_force"
-        ],
-        "type": "flags"
-      },
-      "friction": {
-        "default": 0.5,
-        "description": "Surface friction; 0 is ice",
-        "group": "surface",
-        "min": 0.0,
-        "type": "float"
-      },
-      "friction_combine": {
-        "default": "average",
-        "description": "How this surface's friction combines with the other one's",
-        "group": "surface",
-        "options": [
-          "average",
-          "min",
-          "multiply",
-          "max",
-          "clamped_sum",
-          "geometric_mean"
-        ],
-        "type": "enum"
-      },
-      "layers": {
+      "collision_layer": {
         "default": [
           "0"
         ],
@@ -5162,7 +5091,14 @@
         ],
         "type": "flags"
       },
-      "mask": {
+      "collision_margin": {
+        "default": 0.0,
+        "description": "A margin the solver treats as already touching; stops thin shapes tunnelling and jittering",
+        "group": "contacts",
+        "min": 0.0,
+        "type": "float"
+      },
+      "collision_mask": {
         "default": [],
         "description": "The layers it collides with; empty means every layer",
         "group": "filtering",
@@ -5201,6 +5137,74 @@
           "31"
         ],
         "type": "flags"
+      },
+      "contact_force_threshold": {
+        "default": 0.0,
+        "description": "How hard a contact must be before on_contact_force is called",
+        "group": "contacts",
+        "min": 0.0,
+        "type": "float"
+      },
+      "contact_pairs": {
+        "default": [
+          "dynamic_dynamic",
+          "dynamic_kinematic",
+          "dynamic_static"
+        ],
+        "description": "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default",
+        "group": "filtering",
+        "options": [
+          "dynamic_dynamic",
+          "dynamic_kinematic",
+          "dynamic_static",
+          "kinematic_kinematic",
+          "kinematic_static",
+          "static_static"
+        ],
+        "type": "flags"
+      },
+      "density": {
+        "default": 1.0,
+        "description": "Mass per volume, so the shape's size sets its mass",
+        "group": "mass",
+        "min": 0.001,
+        "type": "float"
+      },
+      "enabled": {
+        "default": true,
+        "description": "Collide at all; a disabled collider keeps its shape and costs nothing",
+        "type": "bool"
+      },
+      "events": {
+        "default": [],
+        "description": "What this collider reports to its node's script: on_collision_enter and on_collision_exit, or on_contact_force",
+        "group": "filtering",
+        "options": [
+          "collision",
+          "contact_force"
+        ],
+        "type": "flags"
+      },
+      "friction": {
+        "default": 0.5,
+        "description": "Surface friction; 0 is ice",
+        "group": "surface",
+        "min": 0.0,
+        "type": "float"
+      },
+      "friction_combine": {
+        "default": "average",
+        "description": "How this surface's friction combines with the other one's",
+        "group": "surface",
+        "options": [
+          "average",
+          "min",
+          "multiply",
+          "max",
+          "clamped_sum",
+          "geometric_mean"
+        ],
+        "type": "enum"
       },
       "mass": {
         "default": 0.0,
@@ -5242,7 +5246,7 @@
         "description": "Detects overlaps without colliding: bodies pass through and are reported",
         "type": "bool"
       },
-      "solver_layers": {
+      "solver_layer": {
         "default": [
           "0"
         ],
@@ -5441,6 +5445,15 @@
         "min": 0.0,
         "type": "float"
       },
+      "kind": {
+        "default": "circle",
+        "description": "The touch area's outline; a circle uses the larger half of the box",
+        "options": [
+          "rectangle",
+          "circle"
+        ],
+        "type": "enum"
+      },
       "offset": {
         "default": [
           -110.0,
@@ -5458,15 +5471,6 @@
         ],
         "description": "Fill while a finger is on it",
         "type": "color"
-      },
-      "shape": {
-        "default": "circle",
-        "description": "The touch area's outline; a circle uses the larger half of the box",
-        "options": [
-          "rect",
-          "circle"
-        ],
-        "type": "enum"
       },
       "visibility": {
         "default": "touchscreen",
@@ -5635,42 +5639,21 @@
         "description": "The axle the wheel turns about, in the chassis's own space",
         "type": "vec3"
       },
-      "compression": {
+      "damping_compression": {
         "default": 0.82,
         "description": "Damping while the suspension is being squashed",
         "min": 0.0,
         "type": "float"
       },
-      "damping": {
+      "damping_relaxation": {
         "default": 0.88,
         "description": "Damping while the suspension is coming back",
         "min": 0.0,
         "type": "float"
       },
-      "direction": {
-        "default": [
-          0.0,
-          -1.0,
-          0.0
-        ],
-        "description": "Which way the suspension pushes, in the chassis's own space: down",
-        "type": "vec3"
-      },
       "friction_slip": {
         "default": 10.5,
         "description": "Grip along the wheel's rolling direction; lower slides more",
-        "min": 0.0,
-        "type": "float"
-      },
-      "max_force": {
-        "default": 6000.0,
-        "description": "The most force this suspension may push the chassis with",
-        "min": 0.0,
-        "type": "float"
-      },
-      "max_travel": {
-        "default": 5.0,
-        "description": "How far the suspension may move in total",
         "min": 0.0,
         "type": "float"
       },
@@ -5692,9 +5675,30 @@
         "min": 0.0,
         "type": "float"
       },
-      "stiffness": {
+      "suspension_direction": {
+        "default": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "description": "Which way the suspension pushes, in the chassis's own space: down",
+        "type": "vec3"
+      },
+      "suspension_max_force": {
+        "default": 6000.0,
+        "description": "The most force this suspension may push the chassis with",
+        "min": 0.0,
+        "type": "float"
+      },
+      "suspension_stiffness": {
         "default": 30.0,
         "description": "Spring stiffness: higher is a stiffer, twitchier car",
+        "min": 0.0,
+        "type": "float"
+      },
+      "suspension_travel": {
+        "default": 5.0,
+        "description": "How far the suspension may move in total",
         "min": 0.0,
         "type": "float"
       }
@@ -8982,7 +8986,7 @@
     },
     {
       "acts_on": {
-        "ragdoll_blend": [
+        "set_ragdoll_influence": [
           "ragdoll"
         ]
       },
@@ -8997,9 +9001,9 @@
         "debug_draw": "What the debug renderer is drawing now, as a table of `enabled` and one flag per mode.",
         "is_paused": "Whether stepping is stopped.",
         "quarantined": "The nodes rapier disabled this step because their position or velocity stopped being a number. Empty is the normal answer.",
-        "ragdoll_blend": "How much of the ragdoll's simulated pose the rig's bones take, 0 to 1: 0 leaves the clip in charge while the bodies simulate unseen, 1 goes limp. Tween it to fall over and get back up.",
         "set_debug_draw": "Draw the physics world over the scene: `true` for the usual shapes, or a table naming modes (`#{ colliders = true, joints = true }`).",
         "set_paused": "Stop or resume stepping both worlds; nodes keep their poses.",
+        "set_ragdoll_influence": "How much of the ragdoll's simulated pose the rig's bones take, 0 to 1: 0 leaves the clip in charge while the bodies simulate unseen, 1 goes limp. Tween it to fall over and get back up.",
         "set_sleeping_allowed": "Allow or forbid resting bodies falling asleep, in both worlds and for bodies added later.",
         "set_threads": "How many threads the solver may use, from a script's `init`: rayon's pool is built once, before the first step, and a call after that says so and changes nothing. `[physics] threads` in `project.toml` does the same and outranks nothing -- an `init` that asks wins. The default is one less than the machine reports, capped at eight.",
         "set_tuning": "Change how the solver behaves in both worlds: `solver_iterations`, `length_unit`, `ccd_substeps`, contact softness and the rest. Every value here changes results, so a recording only replays against the same numbers: prefer `[physics]` in project.toml.",
@@ -9013,9 +9017,9 @@
         "debug_draw",
         "is_paused",
         "quarantined",
-        "ragdoll_blend",
         "set_debug_draw",
         "set_paused",
+        "set_ragdoll_influence",
         "set_sleeping_allowed",
         "set_threads",
         "set_tuning",
@@ -9030,9 +9034,9 @@
         "debug_draw": "() -> Value",
         "is_paused": "() -> bool",
         "quarantined": "() -> Value",
-        "ragdoll_blend": "(NodeId, f32) -> ()",
         "set_debug_draw": "Value -> ()",
         "set_paused": "bool -> ()",
+        "set_ragdoll_influence": "(NodeId, f32) -> ()",
         "set_sleeping_allowed": "bool -> ()",
         "set_threads": "i64 -> Value",
         "set_tuning": "Value -> ()",
@@ -9043,17 +9047,17 @@
     },
     {
       "acts_on": {
-        "add_force": [
+        "add_constant_force": [
           "body2d"
         ],
-        "add_force_at_point": [
+        "add_constant_force_at_point": [
+          "body2d"
+        ],
+        "add_constant_torque": [
           "body2d"
         ],
         "add_softbody_force": [
           "softbody2d"
-        ],
-        "add_torque": [
-          "body2d"
         ],
         "angular_velocity": [
           "body2d"
@@ -9082,10 +9086,16 @@
         "attach_particle": [
           "softbody2d"
         ],
+        "constant_force": [
+          "body2d"
+        ],
+        "constant_torque": [
+          "body2d"
+        ],
         "detach_particle": [
           "softbody2d"
         ],
-        "is_grounded": [
+        "is_on_floor": [
           "character2d"
         ],
         "is_sleeping": [
@@ -9121,16 +9131,16 @@
         "remove_joint": [
           "joint2d"
         ],
-        "reset_forces": [
-          "body2d"
-        ],
         "reset_softbody_forces": [
           "softbody2d"
         ],
-        "reset_torques": [
+        "set_angular_velocity": [
           "body2d"
         ],
-        "set_angular_velocity": [
+        "set_constant_force": [
+          "body2d"
+        ],
+        "set_constant_torque": [
           "body2d"
         ],
         "set_joint_limits": [
@@ -9198,12 +9208,6 @@
         ],
         "unpin_particle": [
           "softbody2d"
-        ],
-        "user_force": [
-          "body2d"
-        ],
-        "user_torque": [
-          "body2d"
         ],
         "velocity_at_point": [
           "body2d"
@@ -9346,20 +9350,20 @@
           "value": "generic"
         },
         {
-          "name": "JOINT_PIN_SLOT",
-          "value": "pin_slot"
+          "name": "JOINT_GROOVE",
+          "value": "groove"
         },
         {
-          "name": "JOINT_PRISMATIC",
-          "value": "prismatic"
-        },
-        {
-          "name": "JOINT_REVOLUTE",
-          "value": "revolute"
+          "name": "JOINT_HINGE",
+          "value": "hinge"
         },
         {
           "name": "JOINT_ROPE",
           "value": "rope"
+        },
+        {
+          "name": "JOINT_SLIDER",
+          "value": "slider"
         },
         {
           "name": "JOINT_SPRING",
@@ -9410,10 +9414,6 @@
           "value": "convex_hull"
         },
         {
-          "name": "SHAPE_HALFSPACE",
-          "value": "halfspace"
-        },
-        {
           "name": "SHAPE_HEIGHTFIELD",
           "value": "heightfield"
         },
@@ -9422,8 +9422,8 @@
           "value": "polyline"
         },
         {
-          "name": "SHAPE_RECT",
-          "value": "rect"
+          "name": "SHAPE_RECTANGLE",
+          "value": "rectangle"
         },
         {
           "name": "SHAPE_SEGMENT",
@@ -9434,16 +9434,20 @@
           "value": "triangle"
         },
         {
-          "name": "SHAPE_TRIMESH",
-          "value": "trimesh"
+          "name": "SHAPE_TRIANGLE_MESH",
+          "value": "triangle_mesh"
         },
         {
           "name": "SHAPE_VOXELS",
           "value": "voxels"
         },
         {
-          "name": "SOFT_DISK",
-          "value": "disk"
+          "name": "SHAPE_WORLD_BOUNDARY",
+          "value": "world_boundary"
+        },
+        {
+          "name": "SOFT_CIRCLE",
+          "value": "circle"
         },
         {
           "name": "SOFT_GRID",
@@ -9470,8 +9474,8 @@
           "value": "fem"
         },
         {
-          "name": "SOFT_TRIMESH",
-          "value": "trimesh"
+          "name": "SOFT_TRIANGLE_MESH",
+          "value": "triangle_mesh"
         },
         {
           "name": "SOFT_VOLUMETRIC",
@@ -9488,10 +9492,10 @@
       ],
       "doc": "The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.",
       "docs": {
-        "add_force": "Push the body until the force is reset; unlike an impulse this is spread over time.",
-        "add_force_at_point": "Push at a world point, which also turns the body.",
+        "add_constant_force": "Push the body every step until the constant force is set back to zero; unlike an impulse this is spread over time.",
+        "add_constant_force_at_point": "Push at a world point every step, which also turns the body.",
+        "add_constant_torque": "Turn the body every step until the constant torque is set back to zero.",
         "add_softbody_force": "Push every free particle with `force` each step until `reset_softbody_forces`.",
-        "add_torque": "Turn the body until the torque is reset.",
         "angular_velocity": "How fast the body is spinning, in radians per second.",
         "apply_impulse": "Add an instant change in momentum, as if the body were struck.",
         "apply_impulse_at_point": "Strike the body at a world point, which spins it as well as moves it.",
@@ -9501,32 +9505,35 @@
         "apply_softbody_radial_impulse": "Push the particles within `radius` away from `center`, as a blast does.",
         "apply_torque_impulse": "Add an instant change in angular momentum, as if the body were spun.",
         "attach_particle": "Tie one particle to a node's rigid body where it is now: the body and the particle pull on each other.",
-        "box_hits": "Every collider whose bounds meet an axis-aligned box.",
+        "closest_point": "The closest point on any collider to a world point.",
+        "constant_force": "The force every step integrates until it is set back to zero.",
+        "constant_torque": "The torque every step integrates until it is set back to zero.",
         "detach_particle": "Untie one particle from every body it was attached to; answers whether it was attached.",
         "distance": "The gap between two nodes' colliders, zero when they touch.",
         "gravity": "The 2D world's gravity.",
         "intersects": "Whether two nodes' colliders overlap right now, sensor or not.",
-        "is_grounded": "Whether the last move ended with ground under the character's feet.",
+        "is_on_floor": "Whether the last move ended with ground under the character's feet.",
         "is_sleeping": "Whether the body is asleep and being skipped.",
         "joint_impulse": "How hard the joint is pulling right now.",
         "kinetic_energy": "The body's kinetic energy, for a rest test the solver agrees with.",
         "linear_velocity": "How fast the body is travelling, in units per second.",
         "max_contact_impulse": "The hardest contact this body took in the last step, zero when nothing touched it.",
         "move_character": "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, grounded, sliding, collisions }`. Call it from fixed_update.",
-        "nearest_point": "The closest point on any collider to a world point.",
         "next_position": "The position a kinematic body has been told to move to.",
+        "overlap_aabb": "Every collider whose bounds meet an axis-aligned box.",
+        "overlap_point": "Every collider containing a world point: what a mouse click asks.",
+        "overlap_shape": "Every collider a shape overlaps where it stands.",
         "overlaps": "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor.",
         "pin_particle": "Hold one particle where it is, which is how a cloth hangs from a hook.",
-        "point_hits": "Every collider containing a world point: what a mouse click asks.",
         "predict_position": "Where the body will be after `dt` seconds at its current velocity.",
-        "ragdoll": "Build a 2D ragdoll from the rig under this node: a body and a capsule per bone, hinged to its parent's. The options table takes `thickness` (capsule radius as a fraction of bone length), `density`, `friction`, `limits` and `blend`. Answers the body nodes it made.",
+        "ragdoll": "Build a 2D ragdoll from the rig under this node: a body and a capsule per bone, hinged to its parent's. The options table takes `thickness` (capsule radius as a fraction of bone length), `density`, `friction`, `limits` and `influence`. Answers the body nodes it made.",
         "raycast": "The first collider a ray meets: `#{ from = [x, y], dir = [x, y], max = 100.0, filter = #{ exclude = node } }`. Returns `#{ node, point, normal, distance }`, or nothing.",
         "raycast_all": "Every collider a ray meets, nearest first.",
         "remove_joint": "Undo the node's joint, leaving both bodies free.",
-        "reset_forces": "Drop every force added since the last step.",
         "reset_softbody_forces": "Take back every force `add_softbody_force` gave the body.",
-        "reset_torques": "Drop every torque added since the last step.",
         "set_angular_velocity": "Set how fast the body spins, in radians per second.",
+        "set_constant_force": "Replace the constant force with this one; zero stops the push.",
+        "set_constant_torque": "Replace the constant torque with this one; zero stops the turn.",
         "set_gravity": "Set the 2D world's gravity, in units per second squared.",
         "set_joint_limits": "Set how far the joint may travel.",
         "set_linear_velocity": "Set how fast the body travels, in units per second.",
@@ -9537,7 +9544,6 @@
         "set_particle_velocity": "Set one particle's velocity; a held one keeps moving at it.",
         "set_softbody": "Build the node's soft body from a `softbody2d` table: `kind`, the shape rows, and the material rows.",
         "set_voxel": "Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs.",
-        "shape_hits": "Every collider a shape overlaps where it stands.",
         "shapecast": "Sweep a shape along a direction until it hits something: a thick raycast.",
         "sleep": "Put the body to sleep now.",
         "softbody_area": "How much area the body encloses right now, against `softbody_rest_area` for how far it is squeezed.",
@@ -9552,8 +9558,6 @@
         "teleport": "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick.",
         "total_mass": "The body's total mass, colliders included. The `mass` property is the extra on top of them.",
         "unpin_particle": "Let a held particle go; it keeps the velocity it had.",
-        "user_force": "The force the next step will integrate.",
-        "user_torque": "The torque the next step will integrate.",
         "velocity_at_point": "How fast a world point on the body is moving, spin included.",
         "voxel": "Whether one cell of a voxel collider is filled.",
         "voxel_at": "The cell a world position falls in, as two whole numbers.",
@@ -9562,10 +9566,10 @@
         "wake_up": "Wake the body, so the next step moves it."
       },
       "functions": [
-        "add_force",
-        "add_force_at_point",
+        "add_constant_force",
+        "add_constant_force_at_point",
+        "add_constant_torque",
         "add_softbody_force",
-        "add_torque",
         "angular_velocity",
         "apply_impulse",
         "apply_impulse_at_point",
@@ -9575,32 +9579,35 @@
         "apply_softbody_radial_impulse",
         "apply_torque_impulse",
         "attach_particle",
-        "box_hits",
+        "closest_point",
+        "constant_force",
+        "constant_torque",
         "detach_particle",
         "distance",
         "gravity",
         "intersects",
-        "is_grounded",
+        "is_on_floor",
         "is_sleeping",
         "joint_impulse",
         "kinetic_energy",
         "linear_velocity",
         "max_contact_impulse",
         "move_character",
-        "nearest_point",
         "next_position",
+        "overlap_aabb",
+        "overlap_point",
+        "overlap_shape",
         "overlaps",
         "pin_particle",
-        "point_hits",
         "predict_position",
         "ragdoll",
         "raycast",
         "raycast_all",
         "remove_joint",
-        "reset_forces",
         "reset_softbody_forces",
-        "reset_torques",
         "set_angular_velocity",
+        "set_constant_force",
+        "set_constant_torque",
         "set_gravity",
         "set_joint_limits",
         "set_linear_velocity",
@@ -9611,7 +9618,6 @@
         "set_particle_velocity",
         "set_softbody",
         "set_voxel",
-        "shape_hits",
         "shapecast",
         "sleep",
         "softbody_area",
@@ -9626,8 +9632,6 @@
         "teleport",
         "total_mass",
         "unpin_particle",
-        "user_force",
-        "user_torque",
         "velocity_at_point",
         "voxel",
         "voxel_at",
@@ -9637,10 +9641,10 @@
       ],
       "name": "physics2d",
       "signatures": {
-        "add_force": "(NodeId, f32, f32) -> ()",
-        "add_force_at_point": "(NodeId, f32, f32, f32, f32) -> ()",
+        "add_constant_force": "(NodeId, f32, f32) -> ()",
+        "add_constant_force_at_point": "(NodeId, f32, f32, f32, f32) -> ()",
+        "add_constant_torque": "(NodeId, f32) -> ()",
         "add_softbody_force": "(NodeId, Value) -> ()",
-        "add_torque": "(NodeId, f32) -> ()",
         "angular_velocity": "NodeId -> f32",
         "apply_impulse": "(NodeId, f32, f32) -> ()",
         "apply_impulse_at_point": "(NodeId, f32, f32, f32, f32) -> ()",
@@ -9650,32 +9654,35 @@
         "apply_softbody_radial_impulse": "(NodeId, Value, Value, Value) -> ()",
         "apply_torque_impulse": "(NodeId, f32) -> ()",
         "attach_particle": "(NodeId, i64, NodeId) -> ()",
-        "box_hits": "Value -> Value",
+        "closest_point": "Value -> Value",
+        "constant_force": "NodeId -> (f32, f32)",
+        "constant_torque": "NodeId -> f32",
         "detach_particle": "(NodeId, i64) -> bool",
         "distance": "(NodeId, NodeId) -> Value",
         "gravity": "() -> (f32, f32)",
         "intersects": "(NodeId, NodeId) -> Value",
-        "is_grounded": "NodeId -> bool",
+        "is_on_floor": "NodeId -> bool",
         "is_sleeping": "NodeId -> bool",
         "joint_impulse": "NodeId -> f32",
         "kinetic_energy": "NodeId -> f32",
         "linear_velocity": "NodeId -> (f32, f32)",
         "max_contact_impulse": "NodeId -> f32",
         "move_character": "(NodeId, f32, f32) -> Value",
-        "nearest_point": "Value -> Value",
         "next_position": "NodeId -> (f32, f32)",
+        "overlap_aabb": "Value -> Value",
+        "overlap_point": "Value -> Value",
+        "overlap_shape": "Value -> Value",
         "overlaps": "NodeId -> Vec<NodeId>",
         "pin_particle": "(NodeId, i64) -> ()",
-        "point_hits": "Value -> Value",
         "predict_position": "(NodeId, f32) -> (f32, f32)",
         "ragdoll": "(NodeId, Option<Value>) -> Value",
         "raycast": "Value -> Value",
         "raycast_all": "Value -> Value",
         "remove_joint": "NodeId -> ()",
-        "reset_forces": "NodeId -> ()",
         "reset_softbody_forces": "NodeId -> ()",
-        "reset_torques": "NodeId -> ()",
         "set_angular_velocity": "(NodeId, f32) -> ()",
+        "set_constant_force": "(NodeId, f32, f32) -> ()",
+        "set_constant_torque": "(NodeId, f32) -> ()",
         "set_gravity": "(f32, f32) -> ()",
         "set_joint_limits": "(NodeId, f32, f32) -> ()",
         "set_linear_velocity": "(NodeId, f32, f32) -> ()",
@@ -9686,7 +9693,6 @@
         "set_particle_velocity": "(NodeId, i64, Value) -> ()",
         "set_softbody": "(NodeId, Value) -> ()",
         "set_voxel": "(NodeId, i32, i32, bool) -> ()",
-        "shape_hits": "Value -> Value",
         "shapecast": "Value -> Value",
         "sleep": "NodeId -> ()",
         "softbody_area": "NodeId -> f32",
@@ -9701,8 +9707,6 @@
         "teleport": "(NodeId, f32, f32) -> ()",
         "total_mass": "NodeId -> f32",
         "unpin_particle": "(NodeId, i64) -> ()",
-        "user_force": "NodeId -> (f32, f32)",
-        "user_torque": "NodeId -> f32",
         "velocity_at_point": "(NodeId, f32, f32) -> (f32, f32)",
         "voxel": "(NodeId, i32, i32) -> bool",
         "voxel_at": "(NodeId, f32, f32) -> (i64, i64)",
@@ -9716,17 +9720,17 @@
         "aabb": [
           "collider3d"
         ],
-        "add_force": [
+        "add_constant_force": [
           "body3d"
         ],
-        "add_force_at_point": [
+        "add_constant_force_at_point": [
+          "body3d"
+        ],
+        "add_constant_torque": [
           "body3d"
         ],
         "add_softbody_force": [
           "softbody3d"
-        ],
-        "add_torque": [
-          "body3d"
         ],
         "angular_velocity": [
           "body3d"
@@ -9764,6 +9768,12 @@
         "collider_volume": [
           "collider3d"
         ],
+        "constant_force": [
+          "body3d"
+        ],
+        "constant_torque": [
+          "body3d"
+        ],
         "contacts": [
           "collider3d"
         ],
@@ -9776,11 +9786,11 @@
         "handles": [
           "collider3d"
         ],
-        "is_grounded": [
-          "character3d"
-        ],
         "is_moving": [
           "body3d"
+        ],
+        "is_on_floor": [
+          "character3d"
         ],
         "is_sleeping": [
           "body3d"
@@ -9821,14 +9831,8 @@
         "remove_joint": [
           "joint3d"
         ],
-        "reset_forces": [
-          "body3d"
-        ],
         "reset_softbody_forces": [
           "softbody3d"
-        ],
-        "reset_torques": [
-          "body3d"
         ],
         "set_angular_velocity": [
           "body3d"
@@ -9838,6 +9842,12 @@
         ],
         "set_collider": [
           "collider3d"
+        ],
+        "set_constant_force": [
+          "body3d"
+        ],
+        "set_constant_torque": [
+          "body3d"
         ],
         "set_engine_force": [
           "wheel3d"
@@ -9916,12 +9926,6 @@
         ],
         "unpin_particle": [
           "softbody3d"
-        ],
-        "user_force": [
-          "body3d"
-        ],
-        "user_torque": [
-          "body3d"
         ],
         "vehicle_speed": [
           "vehicle3d"
@@ -10100,6 +10104,10 @@
           "value": "tension"
         },
         {
+          "name": "JOINT_BALL_SOCKET",
+          "value": "ball_socket"
+        },
+        {
           "name": "JOINT_FIXED",
           "value": "fixed"
         },
@@ -10108,20 +10116,16 @@
           "value": "generic"
         },
         {
-          "name": "JOINT_PRISMATIC",
-          "value": "prismatic"
-        },
-        {
-          "name": "JOINT_REVOLUTE",
-          "value": "revolute"
+          "name": "JOINT_HINGE",
+          "value": "hinge"
         },
         {
           "name": "JOINT_ROPE",
           "value": "rope"
         },
         {
-          "name": "JOINT_SPHERICAL",
-          "value": "spherical"
+          "name": "JOINT_SLIDER",
+          "value": "slider"
         },
         {
           "name": "JOINT_SPRING",
@@ -10156,8 +10160,8 @@
           "value": "velocity"
         },
         {
-          "name": "SHAPE_BALL",
-          "value": "ball"
+          "name": "SHAPE_BOX",
+          "value": "box"
         },
         {
           "name": "SHAPE_CAPSULE",
@@ -10176,20 +10180,12 @@
           "value": "convex_hull"
         },
         {
-          "name": "SHAPE_CUBOID",
-          "value": "cuboid"
-        },
-        {
           "name": "SHAPE_CYLINDER",
           "value": "cylinder"
         },
         {
           "name": "SHAPE_FIT",
           "value": "fit"
-        },
-        {
-          "name": "SHAPE_HALFSPACE",
-          "value": "halfspace"
         },
         {
           "name": "SHAPE_HEIGHTFIELD",
@@ -10204,12 +10200,16 @@
           "value": "segment"
         },
         {
+          "name": "SHAPE_SPHERE",
+          "value": "sphere"
+        },
+        {
           "name": "SHAPE_TRIANGLE",
           "value": "triangle"
         },
         {
-          "name": "SHAPE_TRIMESH",
-          "value": "trimesh"
+          "name": "SHAPE_TRIANGLE_MESH",
+          "value": "triangle_mesh"
         },
         {
           "name": "SHAPE_VOXELIZED_MESH",
@@ -10220,16 +10220,20 @@
           "value": "voxels"
         },
         {
+          "name": "SHAPE_WORLD_BOUNDARY",
+          "value": "world_boundary"
+        },
+        {
+          "name": "SOFT_BOX",
+          "value": "box"
+        },
+        {
           "name": "SOFT_CLOTH",
           "value": "cloth"
         },
         {
           "name": "SOFT_CLOTH_TUBE",
           "value": "cloth_tube"
-        },
-        {
-          "name": "SOFT_CUBOID",
-          "value": "cuboid"
         },
         {
           "name": "SOFT_ROPE",
@@ -10248,8 +10252,8 @@
           "value": "sphere"
         },
         {
-          "name": "SOFT_TRIMESH",
-          "value": "trimesh"
+          "name": "SOFT_TRIANGLE_MESH",
+          "value": "triangle_mesh"
         },
         {
           "name": "SOFT_VOLUMETRIC",
@@ -10268,10 +10272,10 @@
       "docs": {
         "aabb": "The world-space box the collider currently occupies, as its two opposite corners.",
         "active_bodies": "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving.",
-        "add_force": "Push the body until the force is reset; unlike an impulse this is spread over time.",
-        "add_force_at_point": "Push at a world point, which also turns the body.",
+        "add_constant_force": "Push the body every step until the constant force is set back to zero; unlike an impulse this is spread over time.",
+        "add_constant_force_at_point": "Push at a world point every step, which also turns the body.",
+        "add_constant_torque": "Turn the body every step until the constant torque is set back to zero.",
         "add_softbody_force": "Push every free particle with `force` each step until `reset_softbody_forces`.",
-        "add_torque": "Turn the body until the torque is reset.",
         "angular_velocity": "How fast the body is spinning, in radians per second about each axis.",
         "apply_impulse": "Add an instant change in momentum, as if the body were struck.",
         "apply_impulse_at_point": "Strike the body at a world point, which spins it as well as moves it.",
@@ -10282,11 +10286,13 @@
         "apply_torque_impulse": "Add an instant change in angular momentum, as if the body were spun.",
         "attach_particle": "Tie one particle to a node's rigid body where it is now: the body and the particle pull on each other.",
         "bodies": "Every node with a rigid body, sorted.",
-        "box_hits": "Every collider whose bounds meet an axis-aligned box; cheaper and looser than shape_hits.",
+        "closest_point": "The closest point on any collider to a world point.",
         "closest_points": "The nearest point on each of two nodes' colliders.",
         "collider_mass": "What this collider weighs, density and size together.",
         "collider_mesh": "The collider's shape as points and triangles, including a voxel grid's, for drawing it or for spawning the pieces it broke into.",
         "collider_volume": "How much space the shape encloses.",
+        "constant_force": "The force every step integrates until it is set back to zero.",
+        "constant_torque": "The torque every step integrates until it is set back to zero.",
         "contacts": "Every contact point on this node's collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition.",
         "detach_particle": "Untie one particle from every body it was attached to; answers whether it was attached.",
         "distance": "The gap between two nodes' colliders, zero when they touch or overlap.",
@@ -10294,32 +10300,33 @@
         "gravity": "The 3D world's gravity.",
         "handles": "The rapier handles behind this node, its body and its colliders, as `#{ body, colliders }` of index and generation pairs. For matching a log line against rapier's own output.",
         "intersects": "Whether two nodes' colliders overlap right now, sensor or not.",
-        "is_grounded": "Whether the last move ended with ground under the character's feet.",
         "is_moving": "Whether the body is awake and actually going somewhere.",
+        "is_on_floor": "Whether the last move ended with ground under the character's feet.",
         "is_sleeping": "Whether the body is asleep and being skipped.",
         "joint_impulse": "How hard the joint is pulling right now: what a breakable one is measured against.",
         "kinetic_energy": "The body's kinetic energy, for a rest test the solver agrees with.",
         "linear_velocity": "How fast the body is travelling, in units per second.",
         "max_contact_impulse": "The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number.",
         "move_character": "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, grounded, sliding, collisions }`. Call it from fixed_update. It reads the world the step just wrote.",
-        "nearest_point": "The closest point on any collider to a world point.",
         "next_position": "The pose a kinematic body has been told to move to.",
+        "overlap_aabb": "Every collider whose bounds meet an axis-aligned box; cheaper and looser than shape_hits.",
+        "overlap_point": "Every collider containing a world point.",
+        "overlap_shape": "Every collider a shape overlaps where it stands: an explosion's reach, a melee arc.",
         "overlaps": "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor.",
         "pin_particle": "Hold one particle where it is, which is how a cloth hangs from a hook.",
-        "point_hits": "Every collider containing a world point.",
         "potential_energy": "The body's gravitational potential energy over one step.",
         "predict_position": "Where the body will be after `dt` seconds at its current velocity.",
         "predict_position_with_forces": "The same, with the forces already applied taken into account: where a thrust or a spring will have put it.",
-        "ragdoll": "Build a 3D ragdoll from the rig under this node: a body and a capsule per bone, hinged to its parent's. The options table takes `thickness` (capsule radius as a fraction of bone length), `density`, `friction`, `limits` and `blend`. Answers the body nodes it made.",
+        "ragdoll": "Build a 3D ragdoll from the rig under this node: a body and a capsule per bone, hinged to its parent's. The options table takes `thickness` (capsule radius as a fraction of bone length), `density`, `friction`, `limits` and `influence`. Answers the body nodes it made.",
         "raycast": "The first collider a ray meets: `#{ from = [x, y, z], dir = [x, y, z], max = 100.0, filter = #{ exclude = node, only = \"dynamic\" } }`. Returns `#{ node, point, normal, distance }`, or nothing.",
         "raycast_all": "Every collider a ray meets, nearest first.",
         "remove_joint": "Undo the node's joint, leaving both bodies free.",
-        "reset_forces": "Drop every force added since the last step.",
         "reset_softbody_forces": "Take back every force `add_softbody_force` gave the body.",
-        "reset_torques": "Drop every torque added since the last step.",
         "set_angular_velocity": "Set how fast the body spins, in radians per second about each axis.",
         "set_brake": "How hard this wheel brakes.",
         "set_collider": "Replace the node's collider from a `collider3d` table: `kind`, `radius`, `half_extents`, `friction`, and the rest of the component's own vocabulary.",
+        "set_constant_force": "Replace the constant force with this one; zero stops the push.",
+        "set_constant_torque": "Replace the constant torque with this one; zero stops the turn.",
         "set_engine_force": "How hard this wheel drives, in newtons; negative reverses.",
         "set_gravity": "Set the 3D world's gravity, in units per second squared.",
         "set_joint_limits": "Set how far the joint may travel, in radians for a revolute one and units for a prismatic one.",
@@ -10332,7 +10339,6 @@
         "set_softbody": "Build the node's soft body from a `softbody3d` table: `kind`, the shape rows, and the material rows.",
         "set_steering": "Turn this wheel, in radians.",
         "set_voxel": "Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs.",
-        "shape_hits": "Every collider a shape overlaps where it stands: an explosion's reach, a melee arc.",
         "shapecast": "Sweep a shape along a direction until it hits something: a thick raycast, and how a camera avoids walls.",
         "sleep": "Put the body to sleep now.",
         "softbody_center": "The body's centre of mass, which is where it is when a deformable body has no one position.",
@@ -10350,8 +10356,6 @@
         "time_of_impact": "When two moving colliders would meet, given each one's velocity: `#{ velocity_a = [..], velocity_b = [..], max = 1.0 }`. Nothing when they never do.",
         "total_mass": "The body's total mass, colliders included. The `mass` property is the extra on top of them.",
         "unpin_particle": "Let a held particle go; it keeps the velocity it had.",
-        "user_force": "The force the next step will integrate.",
-        "user_torque": "The torque the next step will integrate.",
         "vehicle_speed": "How fast the chassis is going along its forward axis, in units per second.",
         "velocity_at_point": "How fast a world point on the body is moving, spin included.",
         "voxel": "Whether one cell of a voxel collider is filled.",
@@ -10364,10 +10368,10 @@
       "functions": [
         "aabb",
         "active_bodies",
-        "add_force",
-        "add_force_at_point",
+        "add_constant_force",
+        "add_constant_force_at_point",
+        "add_constant_torque",
         "add_softbody_force",
-        "add_torque",
         "angular_velocity",
         "apply_impulse",
         "apply_impulse_at_point",
@@ -10378,11 +10382,13 @@
         "apply_torque_impulse",
         "attach_particle",
         "bodies",
-        "box_hits",
+        "closest_point",
         "closest_points",
         "collider_mass",
         "collider_mesh",
         "collider_volume",
+        "constant_force",
+        "constant_torque",
         "contacts",
         "detach_particle",
         "distance",
@@ -10390,19 +10396,20 @@
         "gravity",
         "handles",
         "intersects",
-        "is_grounded",
         "is_moving",
+        "is_on_floor",
         "is_sleeping",
         "joint_impulse",
         "kinetic_energy",
         "linear_velocity",
         "max_contact_impulse",
         "move_character",
-        "nearest_point",
         "next_position",
+        "overlap_aabb",
+        "overlap_point",
+        "overlap_shape",
         "overlaps",
         "pin_particle",
-        "point_hits",
         "potential_energy",
         "predict_position",
         "predict_position_with_forces",
@@ -10410,12 +10417,12 @@
         "raycast",
         "raycast_all",
         "remove_joint",
-        "reset_forces",
         "reset_softbody_forces",
-        "reset_torques",
         "set_angular_velocity",
         "set_brake",
         "set_collider",
+        "set_constant_force",
+        "set_constant_torque",
         "set_engine_force",
         "set_gravity",
         "set_joint_limits",
@@ -10428,7 +10435,6 @@
         "set_softbody",
         "set_steering",
         "set_voxel",
-        "shape_hits",
         "shapecast",
         "sleep",
         "softbody_center",
@@ -10446,8 +10452,6 @@
         "time_of_impact",
         "total_mass",
         "unpin_particle",
-        "user_force",
-        "user_torque",
         "vehicle_speed",
         "velocity_at_point",
         "voxel",
@@ -10461,10 +10465,10 @@
       "signatures": {
         "aabb": "NodeId -> (f32, f32, f32, f32, f32, f32)",
         "active_bodies": "() -> Value",
-        "add_force": "(NodeId, f32, f32, f32) -> ()",
-        "add_force_at_point": "(NodeId, f32, f32, f32, f32, f32, f32) -> ()",
+        "add_constant_force": "(NodeId, f32, f32, f32) -> ()",
+        "add_constant_force_at_point": "(NodeId, f32, f32, f32, f32, f32, f32) -> ()",
+        "add_constant_torque": "(NodeId, f32, f32, f32) -> ()",
         "add_softbody_force": "(NodeId, Value) -> ()",
-        "add_torque": "(NodeId, f32, f32, f32) -> ()",
         "angular_velocity": "NodeId -> (f32, f32, f32)",
         "apply_impulse": "(NodeId, f32, f32, f32) -> ()",
         "apply_impulse_at_point": "(NodeId, f32, f32, f32, f32, f32, f32) -> ()",
@@ -10475,11 +10479,13 @@
         "apply_torque_impulse": "(NodeId, f32, f32, f32) -> ()",
         "attach_particle": "(NodeId, i64, NodeId) -> ()",
         "bodies": "() -> Value",
-        "box_hits": "Value -> Value",
+        "closest_point": "Value -> Value",
         "closest_points": "(NodeId, NodeId) -> Value",
         "collider_mass": "NodeId -> f32",
         "collider_mesh": "NodeId -> Value",
         "collider_volume": "NodeId -> f32",
+        "constant_force": "NodeId -> (f32, f32, f32)",
+        "constant_torque": "NodeId -> (f32, f32, f32)",
         "contacts": "NodeId -> Value",
         "detach_particle": "(NodeId, i64) -> bool",
         "distance": "(NodeId, NodeId) -> Value",
@@ -10487,19 +10493,20 @@
         "gravity": "() -> (f32, f32, f32)",
         "handles": "NodeId -> Value",
         "intersects": "(NodeId, NodeId) -> Value",
-        "is_grounded": "NodeId -> bool",
         "is_moving": "NodeId -> bool",
+        "is_on_floor": "NodeId -> bool",
         "is_sleeping": "NodeId -> bool",
         "joint_impulse": "NodeId -> f32",
         "kinetic_energy": "NodeId -> f32",
         "linear_velocity": "NodeId -> (f32, f32, f32)",
         "max_contact_impulse": "NodeId -> f32",
         "move_character": "(NodeId, f32, f32, f32) -> Value",
-        "nearest_point": "Value -> Value",
         "next_position": "NodeId -> (f32, f32, f32)",
+        "overlap_aabb": "Value -> Value",
+        "overlap_point": "Value -> Value",
+        "overlap_shape": "Value -> Value",
         "overlaps": "NodeId -> Vec<NodeId>",
         "pin_particle": "(NodeId, i64) -> ()",
-        "point_hits": "Value -> Value",
         "potential_energy": "NodeId -> f32",
         "predict_position": "(NodeId, f32) -> (f32, f32, f32)",
         "predict_position_with_forces": "(NodeId, f32) -> (f32, f32, f32)",
@@ -10507,12 +10514,12 @@
         "raycast": "Value -> Value",
         "raycast_all": "Value -> Value",
         "remove_joint": "NodeId -> ()",
-        "reset_forces": "NodeId -> ()",
         "reset_softbody_forces": "NodeId -> ()",
-        "reset_torques": "NodeId -> ()",
         "set_angular_velocity": "(NodeId, f32, f32, f32) -> ()",
         "set_brake": "(NodeId, f32) -> ()",
         "set_collider": "(NodeId, Value) -> ()",
+        "set_constant_force": "(NodeId, f32, f32, f32) -> ()",
+        "set_constant_torque": "(NodeId, f32, f32, f32) -> ()",
         "set_engine_force": "(NodeId, f32) -> ()",
         "set_gravity": "(f32, f32, f32) -> ()",
         "set_joint_limits": "(NodeId, f32, f32) -> ()",
@@ -10525,7 +10532,6 @@
         "set_softbody": "(NodeId, Value) -> ()",
         "set_steering": "(NodeId, f32) -> ()",
         "set_voxel": "(NodeId, i32, i32, i32, bool) -> ()",
-        "shape_hits": "Value -> Value",
         "shapecast": "Value -> Value",
         "sleep": "NodeId -> ()",
         "softbody_center": "NodeId -> Value",
@@ -10543,8 +10549,6 @@
         "time_of_impact": "(NodeId, NodeId, Value) -> Value",
         "total_mass": "NodeId -> f32",
         "unpin_particle": "(NodeId, i64) -> ()",
-        "user_force": "NodeId -> (f32, f32, f32)",
-        "user_torque": "NodeId -> (f32, f32, f32)",
         "vehicle_speed": "NodeId -> f32",
         "velocity_at_point": "(NodeId, f32, f32, f32) -> (f32, f32, f32)",
         "voxel": "(NodeId, i32, i32, i32) -> bool",
@@ -10726,7 +10730,7 @@
         "outline": [
           "occluder2d"
         ],
-        "set_ball": [
+        "set_box": [
           "shape3d"
         ],
         "set_cell": [
@@ -10735,11 +10739,11 @@
         "set_copy": [
           "cloner"
         ],
-        "set_cuboid": [
-          "shape3d"
-        ],
-        "set_rect": [
+        "set_rectangle": [
           "shape2d"
+        ],
+        "set_sphere": [
+          "shape3d"
         ],
         "set_terrain": [
           "tilemap"
@@ -10821,8 +10825,8 @@
           "value": "spot"
         },
         {
-          "name": "SHAPE_BALL",
-          "value": "ball"
+          "name": "SHAPE_BOX",
+          "value": "box"
         },
         {
           "name": "SHAPE_CAPSULE",
@@ -10835,10 +10839,6 @@
         {
           "name": "SHAPE_CONE",
           "value": "cone"
-        },
-        {
-          "name": "SHAPE_CUBOID",
-          "value": "cuboid"
         },
         {
           "name": "SHAPE_CYLINDER",
@@ -10869,8 +10869,12 @@
           "value": "pyramid"
         },
         {
-          "name": "SHAPE_RECT",
-          "value": "rect"
+          "name": "SHAPE_RECTANGLE",
+          "value": "rectangle"
+        },
+        {
+          "name": "SHAPE_SPHERE",
+          "value": "sphere"
         },
         {
           "name": "SHAPE_STAR",
@@ -10940,19 +10944,19 @@
         "pick_ray_at": "As `pick_ray`, but `node` and `at`, how far along the ray it was met; nil when the ray meets nothing.",
         "screenshot": "Save the next rendered frame as a PNG at a project-relative path; a run with no renderer says so.",
         "set_background": "Set the colour the viewport is cleared to behind everything drawn, as r, g, b channel floats.",
-        "set_ball": "Draw the node as a sphere of the given radius in world units, replacing any other 3D shape.",
+        "set_box": "Draw the node as a box from its three half-extents, in world units, replacing any other 3D shape.",
         "set_camera": "Point the 3D camera: the eye position xyz, then the world point it looks at, in world units.",
         "set_camera_2d": "Point the 2D camera: the world centre xy, then the zoom in logical pixels per world unit.",
         "set_camera_input": "Allow or inhibit the backend's own mouse camera controls, so an editor can take the pointer for a drag.",
         "set_cell": "Put one tile at a column and row; a tile below zero clears the cell, and a cell outside the map grows it in that direction. The mesh rebuilds on the next frame.",
         "set_channel": "Draw one channel of the scene (normals, uv, depth or albedo) instead of its colour; an empty name puts the picture back.",
         "set_copy": "Place and tint one listed copy, `#{ position, rotation_euler, scale, tint }`, without writing the whole list: the list grows with plain copies up to `index`. What a script moving every copy each frame calls.",
-        "set_cuboid": "Draw the node as a box from its three half-extents, in world units, replacing any other 3D shape.",
         "set_grid": "Turn the ground grid on or off, and optionally set its step in world units, major-line interval and extent.",
         "set_grid_colors": "Set the ground grid's minor line colour then its major line colour, as r, g, b channel floats.",
-        "set_rect": "Draw the node as a rectangle from its two half-extents, in world units, replacing any other 2D shape.",
+        "set_rectangle": "Draw the node as a rectangle from its two half-extents, in world units, replacing any other 2D shape.",
         "set_shader_preview": "Draw the value a shader's line computes for every pixel that reaches it; line 0 puts the picture back.",
         "set_shader_probe": "Ask what the previewed line computed at one framebuffer pixel; the answer arrives through `shader_probe` a frame later.",
+        "set_sphere": "Draw the node as a sphere of the given radius in world units, replacing any other 3D shape.",
         "set_terrain": "Paint a terrain value at a column and row and let the tileset's rules pick the tiles, for that cell and the ring around it; below zero clears it.",
         "shader_probe": "The four channels the previewed line wrote at the probed pixel, or `()` when nothing has been read yet.",
         "stats": "What this frame draws: `{ draws, triangles, texture_bytes, textures, nodes }`, where `nodes` is a row per node that drew, each `{ node, draws, triangles, texture_bytes, copies }`. Presentation, never simulation: nothing in the digest reads it.",
@@ -10997,19 +11001,19 @@
         "pick_ray_at",
         "screenshot",
         "set_background",
-        "set_ball",
+        "set_box",
         "set_camera",
         "set_camera_2d",
         "set_camera_input",
         "set_cell",
         "set_channel",
         "set_copy",
-        "set_cuboid",
         "set_grid",
         "set_grid_colors",
-        "set_rect",
+        "set_rectangle",
         "set_shader_preview",
         "set_shader_probe",
+        "set_sphere",
         "set_terrain",
         "shader_probe",
         "stats",
@@ -11055,19 +11059,19 @@
         "pick_ray_at": "(f64, f64, f64, f64, f64, f64) -> Value",
         "screenshot": "String -> ()",
         "set_background": "(f32, f32, f32) -> ()",
-        "set_ball": "(NodeId, f32) -> ()",
+        "set_box": "(NodeId, f32, f32, f32) -> ()",
         "set_camera": "(f32, f32, f32, f32, f32, f32) -> ()",
         "set_camera_2d": "(f32, f32, f32) -> ()",
         "set_camera_input": "bool -> ()",
         "set_cell": "(NodeId, i64, i64, i64) -> ()",
         "set_channel": "String -> ()",
         "set_copy": "(NodeId, i64, Value) -> ()",
-        "set_cuboid": "(NodeId, f32, f32, f32) -> ()",
         "set_grid": "(bool, Option<f32>, Option<u32>, Option<i32>) -> ()",
         "set_grid_colors": "(f32, f32, f32, f32, f32, f32) -> ()",
-        "set_rect": "(NodeId, f32, f32) -> ()",
+        "set_rectangle": "(NodeId, f32, f32) -> ()",
         "set_shader_preview": "(String, i64) -> ()",
         "set_shader_probe": "(f64, f64) -> ()",
+        "set_sphere": "(NodeId, f32) -> ()",
         "set_terrain": "(NodeId, i64, i64, i64) -> ()",
         "shader_probe": "() -> Value",
         "stats": "() -> Value",

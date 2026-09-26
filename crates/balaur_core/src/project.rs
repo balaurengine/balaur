@@ -10,7 +10,7 @@
 //!
 //! Scene files declare the node tree; behavior lives in scripts. Keys the
 //! core does not know are dispatched to plugin-registered handlers, so a
-//! plugin can teach scenes new keys (e.g. `shape = "ball"`).
+//! plugin can teach scenes new keys (e.g. `shape = "sphere"`).
 
 use std::collections::{BTreeMap, HashMap};
 

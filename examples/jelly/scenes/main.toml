@@ -37,12 +37,12 @@ parent = "n_main"
 position = [0.0, -4.6, 0.0]
 
 [nodes.shape2d]
-kind = "rect"
+kind = "rectangle"
 half_extents = [11.0, 0.3]
 color = [0.20, 0.22, 0.26, 1.0]
 
 [nodes.collider2d]
-kind = "rect"
+kind = "rectangle"
 half_extents = [11.0, 0.3]
 friction = 0.8
 
@@ -90,9 +90,9 @@ parent = "n_main"
 position = [-4.0, 0.0, 0.0]
 
 [nodes.softbody2d]
-kind = "disk"
+kind = "circle"
 radius = 1.0
-particles = 32.0
+particle_count = 32
 color = [0.29, 0.56, 0.82, 1.0]
 
 [[nodes]]
@@ -105,12 +105,12 @@ body2d = { kind = "dynamic" }
 position = [-4.0, 4.0, 0.0]
 
 [nodes.shape2d]
-kind = "rect"
+kind = "rectangle"
 half_extents = [0.5, 0.5]
 color = [0.74, 0.57, 0.32, 1.0]
 
 [nodes.collider2d]
-kind = "rect"
+kind = "rectangle"
 half_extents = [0.5, 0.5]
 density = 3.0
 
@@ -165,8 +165,8 @@ position = [8.0, -1.0, 0.0]
 kind = "rope"
 a = [-1.8, 0.0]
 b = [1.8, 0.0]
-particles = 24.0
-pinned = [0, 23]
+particle_count = 24
+pinned_particles = [0, 23]
 color = [0.79, 0.63, 0.25, 1.0]
 
 [[nodes]]

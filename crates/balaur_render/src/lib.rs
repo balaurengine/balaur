@@ -954,7 +954,7 @@ fn register_render_presets(reg: &mut Registry<'_>) -> Result<()> {
                 balaur_core::components::tag::DIM_2D,
                 balaur_core::components::tag::RENDER,
             ],
-            &[("shape2d", Some("kind = \"rect\""))],
+            &[("shape2d", Some("kind = \"rectangle\""))],
         )?,
     );
     reg.register_preset(

@@ -28,7 +28,7 @@ use crate::vocabulary::{self as v, component as c, keys as k, words as w};
 /// numbers each layout reads.
 fn shape_schema() -> String {
     let kinds = v::options(w::SOFT_KINDS);
-    let default = w::SOFT_CUBOID;
+    let default = w::BOX;
     v::schema(&[
         (
             k::KIND,
@@ -38,11 +38,11 @@ fn shape_schema() -> String {
         ),
         (
             k::HALF_EXTENTS,
-            r#"{ type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the block, when kind is cuboid", group = "shape" }"#,
+            r#"{ type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the block, when kind is box", group = "shape" }"#,
         ),
         (
             k::CELLS,
-            r#"{ type = "vec3", default = [4.0, 4.0, 4.0], description = "How many cells along each axis, for cuboid; a cloth reads the first two, and a cloth_tube reads them as particles around and cells along", group = "shape" }"#,
+            r#"{ type = "vec3", default = [4.0, 4.0, 4.0], description = "How many cells along each axis, for box; a cloth reads the first two, and a cloth_tube reads them as particles around and cells along", group = "shape" }"#,
         ),
         (
             k::SIZE,
@@ -77,11 +77,11 @@ fn shape_schema() -> String {
             r#"{ type = "vec3", default = [0.0, -1.0, 0.0], description = "Where a rope ends, relative to the node", group = "shape" }"#,
         ),
         (
-            k::PARTICLES,
+            k::PARTICLE_COUNT,
             &format!(
-                r#"{{ type = "float", default = {:?}, min = {:?}, description = "How many particles a rope is made of", group = "shape" }}"#,
-                cap::DEFAULT_PARTICLES,
-                cap::MIN_CHAIN_PARTICLES
+                r#"{{ type = "int", default = {}, min = {}, description = "How many particles a rope is made of", group = "shape" }}"#,
+                cap::DEFAULT_PARTICLES as i64,
+                cap::MIN_CHAIN_PARTICLES as i64
             ),
         ),
         (
@@ -91,7 +91,7 @@ fn shape_schema() -> String {
         (
             k::MESH,
             &format!(
-                r#"{{ type = "asset", asset = "{}", default = "", description = "Geometry for a trimesh, polyline or volumetric body", group = "shape" }}"#,
+                r#"{{ type = "asset", asset = "{}", default = "", description = "Geometry for a triangle_mesh, polyline or volumetric body", group = "shape" }}"#,
                 balaur_core::mesh::MESH_ASSET_TYPE
             ),
         ),
@@ -148,21 +148,21 @@ pub(crate) fn shared_softbody_schema() -> String {
             (k::TEAR_FORCE, r#"{ type = "float", default = 0.0, min = 0.0, description = "The pull past which an edge breaks; 0 is unbreakable. Either criterion tears an edge", group = "tearing" }"#),
             (k::TEAR_SMOOTHING, r#"{ type = "float", default = 0.0, min = 0.0, description = "Over how many seconds a load is averaged before it is tested, so one hard frame does not tear a body", group = "tearing" }"#),
             (k::INTERIOR_STRENGTH, r#"{ type = "float", default = 1.0, min = 1.0, description = "How many times tougher an undamaged inside element is than a surface one, so cracks start at the surface and run inward", group = "tearing" }"#),
-            (k::MAX_TEARS, r#"{ type = "float", default = 0.0, min = 0.0, description = "The most edges that may tear in one step, which paces a crack; 0 is no limit", group = "tearing" }"#),
+            (k::MAX_TEARS_PER_STEP, r#"{ type = "float", default = 0.0, min = 0.0, description = "The most edges that may tear in one step, which paces a crack; 0 is no limit", group = "tearing" }"#),
             (k::MIN_PIECE, r#"{ type = "float", default = 0.0, min = 0.0, description = "The smallest piece, in elements, a tear may split off; 0 lets rapier choose", group = "tearing" }"#),
             (k::VOLUME_PRESERVATION, r#"{ type = "bool", default = true, description = "Hold the volume each closed piece of the body encloses; an open sheet or a rope encloses none, and a hoop without it caves in", group = "volume" }"#),
             (k::VOLUME_FACTOR, r#"{ type = "float", default = 1.0, min = 0.0, description = "What that volume is held at, as a multiple of the rest volume; above 1 inflates the body", group = "volume" }"#),
             (k::SHAPE_MATCHING, r#"{ type = "bool", default = false, description = "Pull the body back towards the shape it was built in, which is what keeps a jelly a jelly", group = "volume" }"#),
             (k::TENSION_ONLY, r#"{ type = "bool", default = false, description = "Let the edges resist stretching only, so the body folds freely and never pushes itself open", group = "volume" }"#),
             (k::MASS, r#"{ type = "float", default = 1.0, min = 0.0, description = "What the whole body weighs, spread over its particles", group = "particles" }"#),
-            (k::PINNED, r#"{ type = "list", of = { type = "int" }, default = [], description = "The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from", group = "particles" }"#),
+            (k::PINNED_PARTICLES, r#"{ type = "list", of = { type = "int" }, default = [], description = "The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from", group = "particles" }"#),
             (k::PARTICLE_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "How thick the particles are; 0 takes what the layout works out", group = "particles" }"#),
-            (k::SELF_CONTACTS, r#"{ type = "bool", default = false, description = "Let the body's own surface collide with itself, which stops a cloth passing through its own fold", group = "particles" }"#),
+            (k::SELF_COLLISION, r#"{ type = "bool", default = false, description = "Let the body's own surface collide with itself, which stops a cloth passing through its own fold", group = "particles" }"#),
             (k::ORIENTED, r#"{ type = "bool", default = false, description = "Treat the surface as closed and outward-facing, so its inside holds bodies in instead of pushing them out", group = "particles" }"#),
             (k::LINEAR_DAMPING, r#"{ type = "float", default = 0.0, min = 0.0, description = "Air friction on the particles", group = "particles" }"#),
             (k::GRAVITY_SCALE, r#"{ type = "float", default = 1.0, description = "How much gravity pulls on the particles", group = "particles" }"#),
-            (k::SOLVER_ITERATIONS, r#"{ type = "float", default = 0.0, min = 0.0, max = 64.0, description = "Extra solver substeps for this body and everything it touches", group = "particles" }"#),
-            (k::PGS_ITERATIONS, r#"{ type = "float", default = 3.0, min = 0.0, max = 64.0, description = "Extra iterations inside each substep, for the same", group = "particles" }"#),
+            (k::SOLVER_SUBSTEPS, r#"{ type = "float", default = 0.0, min = 0.0, max = 64.0, description = "Extra solver substeps for this body and everything it touches", group = "particles" }"#),
+            (k::SOLVER_ITERATIONS, r#"{ type = "float", default = 3.0, min = 0.0, max = 64.0, description = "Extra iterations inside each substep, for the same", group = "particles" }"#),
             (k::CAN_SLEEP, r#"{ type = "bool", default = true, description = "Let the body stop being simulated once it settles", group = "particles" }"#),
             (k::DOMINANCE, r#"{ type = "int", default = 0, min = -127, max = 127, description = "Which body wins a contact: a higher one is never pushed by a lower one", group = "particles" }"#),
             (k::COLOR, &format!(r#"{{ type = "color", default = {:?}, description = "What the body is drawn in when its node has nothing of its own to deform, as a cloth or a rope has not", group = "surface" }}"#, cap::DEFAULT_COLOR)),
@@ -217,11 +217,11 @@ fn with_settings(mut builder: SoftBodyBuilder, params: &toml::Value) -> Result<S
         .volume_preservation(v::boolean(params, k::VOLUME_PRESERVATION, true))
         .volume_factor(scalar::real(v::f(params, k::VOLUME_FACTOR, 1.0)))
         .shape_matching(v::boolean(params, k::SHAPE_MATCHING, false))
-        .self_contacts(v::boolean(params, k::SELF_CONTACTS, false))
+        .self_contacts(v::boolean(params, k::SELF_COLLISION, false))
         .linear_damping(scalar::real(v::f(params, k::LINEAR_DAMPING, 0.0)))
         .gravity_scale(scalar::real(v::f(params, k::GRAVITY_SCALE, 1.0)))
-        .additional_solver_iterations(v::f(params, k::SOLVER_ITERATIONS, 0.0).max(0.0) as usize)
-        .additional_pgs_iterations(v::f(params, k::PGS_ITERATIONS, 3.0).max(0.0) as usize)
+        .additional_solver_iterations(v::f(params, k::SOLVER_SUBSTEPS, 0.0).max(0.0) as usize)
+        .additional_pgs_iterations(v::f(params, k::SOLVER_ITERATIONS, 3.0).max(0.0) as usize)
         .can_sleep(v::boolean(params, k::CAN_SLEEP, true))
         .solver(solver_of(params))
         .skin_collision(v::boolean(params, k::SKIN_COLLISION, false))
@@ -240,7 +240,7 @@ fn with_settings(mut builder: SoftBodyBuilder, params: &toml::Value) -> Result<S
     if v::boolean(params, k::TENSION_ONLY, false) {
         builder = builder.tension_only();
     }
-    builder = builder.pinned_particles(v::indices(params, k::PINNED));
+    builder = builder.pinned_particles(v::indices(params, k::PINNED_PARTICLES));
     let settings = crate::rapier3d::prelude::SoftBodyParticleSettings {
         dominance_group: v::f(params, k::DOMINANCE, 0.0).clamp(-127.0, 127.0) as i8,
         ..builder.particle_settings
@@ -311,7 +311,7 @@ fn build_layout(
     let ring = |around: f32| f64::from(around.max(cap::MIN_RING_PARTICLES)).floor();
     cap::refuse_past_cap(
         match kind {
-            w::SOFT_CUBOID => axis(0) * axis(1) * axis(2),
+            w::BOX => axis(0) * axis(1) * axis(2),
             w::CLOTH => axis(0) * axis(1),
             w::CLOTH_TUBE => ring(cells[0]) * axis(1),
             w::ROPE_SOFT => cap::particle_count(params, cap::MIN_CHAIN_PARTICLES),
@@ -322,7 +322,7 @@ fn build_layout(
     let builder = match kind {
         // Rapier counts the particles along an axis; the schema counts the
         // cells between them, which is the number an author means.
-        w::SOFT_CUBOID => SoftBodyBuilder::cuboid(
+        w::BOX => SoftBodyBuilder::cuboid(
             at,
             scalar::v3a(v::vec3(params, k::HALF_EXTENTS, [0.5, 0.5, 0.5])),
             axis(0) as usize,
@@ -400,7 +400,7 @@ fn build_layout(
                 anyhow!("that mesh encloses nothing at a cell size of {size}: it has to be closed, and big enough to hold a cell")
             })?
         }
-        w::SURFACE_MESH => {
+        w::TRIANGLE_MESH => {
             let (points, indices) = source_mesh(eng, params, pose)?;
             SoftBodyBuilder::trimesh(points, indices)
                 .ok_or_else(|| anyhow!("that mesh has no triangles to make a soft surface of"))?
@@ -442,7 +442,7 @@ pub(crate) fn apply_softbody(eng: &Engine, entity: Entity, params: &toml::Value)
 /// script's `set_softbody` asks for even when nothing changed.
 fn build_softbody(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
     let pose = crate::node_pose(eng, entity)?;
-    let kind = v::text(params, k::KIND, w::SOFT_CUBOID).to_string();
+    let kind = v::text(params, k::KIND, w::BOX).to_string();
     let builder =
         build_layout(eng, params, pose, &kind)?.user_data(u128::from(entity.to_bits().get()));
     remove_softbody(eng, entity);

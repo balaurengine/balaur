@@ -63,9 +63,9 @@ pub(crate) fn write_body(body: &mut RigidBody, params: &toml::Value, world_may_s
     body.set_dominance_group(v::f(params, k::DOMINANCE, 0.0).clamp(-127.0, 127.0) as i8);
     body.set_additional_solver_iterations(v::f(params, k::SOLVER_ITERATIONS, 0.0).max(0.0) as usize);
     body.set_locked_axes(locked_axes(params), true);
-    body.enable_ccd(v::boolean(params, k::CCD, false));
-    body.set_soft_ccd_prediction(scalar::real(v::f(params, k::SOFT_CCD, 0.0)));
-    body.set_allow_fast_rotation(v::boolean(params, k::FAST_ROTATION, false));
+    body.enable_ccd(v::boolean(params, k::CONTINUOUS_COLLISION, false));
+    body.set_soft_ccd_prediction(scalar::real(v::f(params, k::SPECULATIVE_DISTANCE, 0.0)));
+    body.set_allow_fast_rotation(v::boolean(params, k::ALLOW_FAST_ROTATION, false));
     body.set_enabled(v::boolean(params, k::ENABLED, true));
     write_mass(body, params);
     let may_sleep = world_may_sleep && v::boolean(params, k::CAN_SLEEP, true);
@@ -75,9 +75,9 @@ pub(crate) fn write_body(body: &mut RigidBody, params: &toml::Value, world_may_s
         body.wake_up(true);
         RigidBodyActivation::cannot_sleep()
     };
-    // A body that cannot sleep keeps its `sleep_time` anyway: the negative
+    // A body that cannot sleep keeps its `time_to_sleep` anyway: the negative
     // thresholds are what hold it awake, so the number survives a re-save.
-    activation.time_until_sleep = scalar::real(v::f(params, k::SLEEP_TIME, 0.5).max(0.0));
+    activation.time_until_sleep = scalar::real(v::f(params, k::TIME_TO_SLEEP, 0.5).max(0.0));
     *body.activation_mut() = activation;
 }
 
@@ -133,10 +133,13 @@ pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Valu
         k::LOCK_ROTATION.into(),
         axes.contains(LockedAxes::ROTATION_LOCKED).into(),
     );
-    map.insert(k::CCD.into(), body.is_ccd_enabled().into());
-    map.insert(k::SOFT_CCD.into(), f(body.soft_ccd_prediction()));
+    map.insert(k::CONTINUOUS_COLLISION.into(), body.is_ccd_enabled().into());
     map.insert(
-        k::FAST_ROTATION.into(),
+        k::SPECULATIVE_DISTANCE.into(),
+        f(body.soft_ccd_prediction()),
+    );
+    map.insert(
+        k::ALLOW_FAST_ROTATION.into(),
         body.is_fast_rotation_allowed().into(),
     );
     map.insert(k::ENABLED.into(), body.is_enabled().into());
@@ -144,7 +147,10 @@ pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Valu
         k::CAN_SLEEP.into(),
         (body.activation().normalized_linear_threshold >= 0.0).into(),
     );
-    map.insert(k::SLEEP_TIME.into(), f(body.activation().time_until_sleep));
+    map.insert(
+        k::TIME_TO_SLEEP.into(),
+        f(body.activation().time_until_sleep),
+    );
     read_mass(body, &mut map);
     Some(toml::Value::Table(map))
 }
@@ -328,46 +334,46 @@ pub(crate) fn install_body2d_force_api(m: &mut dyn Bindings<Engine>) {
             "Add an instant change in angular momentum, as if the body were spun.",
         ),
         (
-            "add_force",
+            "add_constant_force",
             &[c::BODY_2D],
             "",
-            "Push the body until the force is reset; unlike an impulse this is spread over time.",
+            "Push the body every step until the constant force is set back to zero; unlike an impulse this is spread over time.",
         ),
         (
-            "add_force_at_point",
+            "add_constant_force_at_point",
             &[c::BODY_2D],
             "",
-            "Push at a world point, which also turns the body.",
+            "Push at a world point every step, which also turns the body.",
         ),
         (
-            "add_torque",
+            "add_constant_torque",
             &[c::BODY_2D],
             "",
-            "Turn the body until the torque is reset.",
+            "Turn the body every step until the constant torque is set back to zero.",
         ),
         (
-            "reset_forces",
+            "set_constant_force",
             &[c::BODY_2D],
             "",
-            "Drop every force added since the last step.",
+            "Replace the constant force with this one; zero stops the push.",
         ),
         (
-            "reset_torques",
+            "set_constant_torque",
             &[c::BODY_2D],
             "",
-            "Drop every torque added since the last step.",
+            "Replace the constant torque with this one; zero stops the turn.",
         ),
         (
-            "user_force",
+            "constant_force",
             &[c::BODY_2D],
             "",
-            "The force the next step will integrate.",
+            "The force every step integrates until it is set back to zero.",
         ),
         (
-            "user_torque",
+            "constant_torque",
             &[c::BODY_2D],
             "",
-            "The torque the next step will integrate.",
+            "The torque every step integrates until it is set back to zero.",
         ),
     ]);
     m.function(
@@ -397,7 +403,7 @@ pub(crate) fn install_body2d_force_api(m: &mut dyn Bindings<Engine>) {
 /// The forces and impulses a script applies to a 2D body.
 fn install_body_forces(m: &mut dyn Bindings<Engine>) {
     m.function(
-        "add_force",
+        "add_constant_force",
         |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].add_force(scalar::v2(x, y), true);
@@ -405,7 +411,7 @@ fn install_body_forces(m: &mut dyn Bindings<Engine>) {
         },
     );
     m.function(
-        "add_force_at_point",
+        "add_constant_force_at_point",
         |eng: &Engine, (node, x, y, px, py): (NodeId, f32, f32, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].add_force_at_point(
@@ -417,7 +423,7 @@ fn install_body_forces(m: &mut dyn Bindings<Engine>) {
         },
     );
     m.function(
-        "add_torque",
+        "add_constant_torque",
         |eng: &Engine, (node, torque): (NodeId, f32)| {
             let torque = scalar::real(torque);
             with_body(eng, entity_of(node)?, |state, handle| {
@@ -432,23 +438,34 @@ fn install_body_forces(m: &mut dyn Bindings<Engine>) {
 /// Split from [`install_body2d_force_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_body2d_force_reader_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[]);
-    m.function("reset_forces", |eng: &Engine, node: NodeId| {
-        with_body(eng, entity_of(node)?, |state, handle| {
-            state.world.bodies[handle].reset_forces(true);
-        })
-    });
-    m.function("reset_torques", |eng: &Engine, node: NodeId| {
-        with_body(eng, entity_of(node)?, |state, handle| {
-            state.world.bodies[handle].reset_torques(true);
-        })
-    });
-    m.function("user_force", |eng: &Engine, node: NodeId| {
+    m.function(
+        "set_constant_force",
+        |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                let body = &mut state.world.bodies[handle];
+                body.reset_forces(true);
+                body.add_force(scalar::v2(x, y), true);
+            })
+        },
+    );
+    m.function(
+        "set_constant_torque",
+        |eng: &Engine, (node, torque): (NodeId, f32)| {
+            let torque = scalar::real(torque);
+            with_body(eng, entity_of(node)?, |state, handle| {
+                let body = &mut state.world.bodies[handle];
+                body.reset_torques(true);
+                body.add_torque(torque, true);
+            })
+        },
+    );
+    m.function("constant_force", |eng: &Engine, node: NodeId| {
         read_body(eng, entity_of(node)?, |body| {
             let f = body.user_force();
             (f.x, f.y)
         })
     });
-    m.function("user_torque", |eng: &Engine, node: NodeId| {
+    m.function("constant_torque", |eng: &Engine, node: NodeId| {
         read_body(eng, entity_of(node)?, RigidBody::user_torque)
     });
 }

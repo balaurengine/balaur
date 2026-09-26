@@ -76,7 +76,7 @@ fn every_constant_table_matches_the_registered_schema() {
             "COLLISION_PAIRS",
             COLLISION_PAIRS,
             "collider2d",
-            "active_collisions",
+            "contact_pairs",
         ),
         ("AXES", AXES, "joint3d", "locked_axes"),
         ("AXES_2D", AXES_2D, "joint2d", "locked_axes"),
@@ -120,7 +120,7 @@ fn every_constant_is_screaming_snake_and_unique_in_its_world() {
 
 /// A name both worlds spell means the same thing in each: `SHAPE_CAPSULE` is
 /// a capsule in 2D and 3D alike, and a name that is not, such as
-/// `SHAPE_BALL`, exists in one world only.
+/// `SHAPE_SPHERE`, exists in one world only.
 #[test]
 fn a_name_the_two_worlds_share_has_one_meaning() {
     let three: std::collections::BTreeMap<&str, &str> = CONSTANTS_3D

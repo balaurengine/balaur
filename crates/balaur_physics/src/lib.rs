@@ -86,7 +86,7 @@ pub struct PhysicsState3d {
     /// step (see [`vehicle`]).
     pub wheel_inputs: DetHashMap<Entity, vehicle::WheelInput3d>,
     /// What the last `move_character` found under each character's feet, so
-    /// `is_grounded` can answer without sweeping the shape again.
+    /// `is_on_floor` can answer without sweeping the shape again.
     pub grounded: DetHashMap<Entity, bool>,
     /// Whether the broad phase's tree matches the colliders.
     ///
@@ -518,7 +518,7 @@ fn register_physics_presets(reg: &mut Registry<'_>) -> Result<()> {
             ],
             &[(
                 c::SOFTBODY_3D,
-                Some("kind = \"cuboid\"\ncell_model = \"corotational\"\nshape_matching = true"),
+                Some("kind = \"box\"\ncell_model = \"corotational\"\nshape_matching = true"),
             )],
         )?,
     );
@@ -757,15 +757,15 @@ pub const BODY_KINDS: &[(&str, &str)] = &[
 
 /// Collider shapes for the 3D world, in the schema's order.
 pub const SHAPE_KINDS: &[(&str, &str)] = &[
-    ("SHAPE_BALL", w::BALL),
-    ("SHAPE_CUBOID", w::CUBOID),
+    ("SHAPE_SPHERE", w::SPHERE),
+    ("SHAPE_BOX", w::BOX),
     ("SHAPE_CAPSULE", w::CAPSULE),
     ("SHAPE_CYLINDER", w::CYLINDER),
     ("SHAPE_CONE", w::CONE),
     ("SHAPE_TRIANGLE", w::TRIANGLE),
     ("SHAPE_SEGMENT", w::SEGMENT),
-    ("SHAPE_HALFSPACE", w::HALFSPACE),
-    ("SHAPE_TRIMESH", w::TRIMESH),
+    ("SHAPE_WORLD_BOUNDARY", w::WORLD_BOUNDARY),
+    ("SHAPE_TRIANGLE_MESH", w::TRIANGLE_MESH),
     ("SHAPE_CONVEX_HULL", w::CONVEX_HULL),
     ("SHAPE_CONVEX_DECOMPOSITION", w::CONVEX_DECOMPOSITION),
     ("SHAPE_POLYLINE", w::POLYLINE),
@@ -778,12 +778,12 @@ pub const SHAPE_KINDS: &[(&str, &str)] = &[
 /// Collider shapes for the 2D world.
 pub const SHAPE_KINDS_2D: &[(&str, &str)] = &[
     ("SHAPE_CIRCLE", w::CIRCLE),
-    ("SHAPE_RECT", w::RECT),
+    ("SHAPE_RECTANGLE", w::RECTANGLE),
     ("SHAPE_CAPSULE", w::CAPSULE),
     ("SHAPE_TRIANGLE", w::TRIANGLE),
     ("SHAPE_SEGMENT", w::SEGMENT),
-    ("SHAPE_HALFSPACE", w::HALFSPACE),
-    ("SHAPE_TRIMESH", w::TRIMESH),
+    ("SHAPE_WORLD_BOUNDARY", w::WORLD_BOUNDARY),
+    ("SHAPE_TRIANGLE_MESH", w::TRIANGLE_MESH),
     ("SHAPE_CONVEX_HULL", w::CONVEX_HULL),
     ("SHAPE_CONVEX_DECOMPOSITION", w::CONVEX_DECOMPOSITION),
     ("SHAPE_POLYLINE", w::POLYLINE),
@@ -794,9 +794,9 @@ pub const SHAPE_KINDS_2D: &[(&str, &str)] = &[
 /// Joint kinds for the 3D world.
 pub const JOINT_KINDS: &[(&str, &str)] = &[
     ("JOINT_FIXED", w::FIXED),
-    ("JOINT_REVOLUTE", w::REVOLUTE),
-    ("JOINT_PRISMATIC", w::PRISMATIC),
-    ("JOINT_SPHERICAL", w::SPHERICAL),
+    ("JOINT_HINGE", w::HINGE),
+    ("JOINT_SLIDER", w::SLIDER),
+    ("JOINT_BALL_SOCKET", w::BALL_SOCKET),
     ("JOINT_ROPE", w::ROPE),
     ("JOINT_SPRING", w::SPRING),
     ("JOINT_GENERIC", w::GENERIC),
@@ -805,11 +805,11 @@ pub const JOINT_KINDS: &[(&str, &str)] = &[
 /// Joint kinds for the 2D world.
 pub const JOINT_KINDS_2D: &[(&str, &str)] = &[
     ("JOINT_FIXED", w::FIXED),
-    ("JOINT_REVOLUTE", w::REVOLUTE),
-    ("JOINT_PRISMATIC", w::PRISMATIC),
+    ("JOINT_HINGE", w::HINGE),
+    ("JOINT_SLIDER", w::SLIDER),
     ("JOINT_ROPE", w::ROPE),
     ("JOINT_SPRING", w::SPRING),
-    ("JOINT_PIN_SLOT", w::PIN_SLOT),
+    ("JOINT_GROOVE", w::GROOVE),
     ("JOINT_GENERIC", w::GENERIC),
 ];
 
@@ -891,23 +891,23 @@ pub const AXES_2D: &[(&str, &str)] =
 
 /// How a 3D soft body's particles are laid out.
 pub const SOFT_KINDS: &[(&str, &str)] = &[
-    ("SOFT_CUBOID", w::SOFT_CUBOID),
+    ("SOFT_BOX", w::BOX),
     ("SOFT_SPHERE", w::SPHERE),
     ("SOFT_CLOTH", w::CLOTH),
     ("SOFT_CLOTH_TUBE", w::CLOTH_TUBE),
     ("SOFT_ROPE", w::ROPE_SOFT),
     ("SOFT_VOLUMETRIC", w::VOLUMETRIC),
-    ("SOFT_TRIMESH", w::SURFACE_MESH),
+    ("SOFT_TRIANGLE_MESH", w::TRIANGLE_MESH),
 ];
 
 /// The same, for a 2D soft body.
 pub const SOFT_KINDS_2D: &[(&str, &str)] = &[
     ("SOFT_GRID", w::GRID),
-    ("SOFT_DISK", w::DISK),
+    ("SOFT_CIRCLE", w::CIRCLE),
     ("SOFT_POLYGON", w::SOFT_POLYGON),
     ("SOFT_ROPE", w::ROPE_SOFT),
     ("SOFT_VOLUMETRIC", w::VOLUMETRIC),
-    ("SOFT_TRIMESH", w::SURFACE_MESH),
+    ("SOFT_TRIANGLE_MESH", w::TRIANGLE_MESH),
     ("SOFT_POLYLINE", w::POLYLINE),
 ];
 

@@ -58,7 +58,7 @@ fn shape_schema() -> String {
         ),
         (
             k::RADIUS,
-            r#"{ type = "float", default = 0.5, min = 0.001, description = "Radius, when kind is disk", group = "shape" }"#,
+            r#"{ type = "float", default = 0.5, min = 0.001, description = "Radius, when kind is circle", group = "shape" }"#,
         ),
         (
             k::A,
@@ -69,17 +69,17 @@ fn shape_schema() -> String {
             r#"{ type = "vec2", default = [0.0, -1.0], description = "Where a rope ends, relative to the node", group = "shape" }"#,
         ),
         (
-            k::PARTICLES,
+            k::PARTICLE_COUNT,
             &format!(
-                r#"{{ type = "float", default = {:?}, min = {:?}, description = "How many particles a rope or the rim of a disk is made of", group = "shape" }}"#,
-                cap::DEFAULT_PARTICLES,
-                cap::MIN_CHAIN_PARTICLES
+                r#"{{ type = "int", default = {}, min = {}, description = "How many particles a rope or the rim of a circle is made of", group = "shape" }}"#,
+                cap::DEFAULT_PARTICLES as i64,
+                cap::MIN_CHAIN_PARTICLES as i64
             ),
         ),
         (
             k::MESH,
             &format!(
-                r#"{{ type = "asset", asset = "{}", default = "", description = "Points and triangles for a polygon, trimesh, polyline or volumetric body: the same asset a polygon draws", group = "shape" }}"#,
+                r#"{{ type = "asset", asset = "{}", default = "", description = "Points and triangles for a polygon, triangle_mesh, polyline or volumetric body: the same asset a polygon draws", group = "shape" }}"#,
                 balaur_core::mesh::MESH_ASSET_TYPE
             ),
         ),
@@ -164,7 +164,7 @@ fn build_layout(
     cap::refuse_past_cap(
         match kind {
             w::GRID => axis(0) * axis(1),
-            w::DISK => cap::particle_count(params, cap::MIN_RING_PARTICLES),
+            w::CIRCLE => cap::particle_count(params, cap::MIN_RING_PARTICLES),
             w::ROPE_SOFT => cap::particle_count(params, cap::MIN_CHAIN_PARTICLES),
             _ => 0.0,
         },
@@ -179,7 +179,7 @@ fn build_layout(
             axis(0) as usize,
             axis(1) as usize,
         ),
-        w::DISK => SoftBodyBuilder2::disk(
+        w::CIRCLE => SoftBodyBuilder2::disk(
             at,
             scalar::real(v::f(params, k::RADIUS, 0.5)),
             cap::particle_count(params, cap::MIN_RING_PARTICLES) as usize,
@@ -204,7 +204,7 @@ fn build_layout(
                 .ok_or_else(|| anyhow!("that mesh has no points to make a soft wire of"))?
         }
         // The triangles the asset already carries, kept as the body's cells.
-        w::SURFACE_MESH => {
+        w::TRIANGLE_MESH => {
             let (points, indices) = source_mesh(eng, params, pose)?;
             SoftBodyBuilder2::trimesh(points, indices)
                 .ok_or_else(|| anyhow!("that mesh has no triangles to make a soft body of"))?
@@ -265,11 +265,11 @@ fn with_settings(mut builder: SoftBodyBuilder2, params: &toml::Value) -> Result<
         .volume_preservation(v::boolean(params, k::VOLUME_PRESERVATION, true))
         .volume_factor(scalar::real(v::f(params, k::VOLUME_FACTOR, 1.0)))
         .shape_matching(v::boolean(params, k::SHAPE_MATCHING, false))
-        .self_contacts(v::boolean(params, k::SELF_CONTACTS, false))
+        .self_contacts(v::boolean(params, k::SELF_COLLISION, false))
         .linear_damping(scalar::real(v::f(params, k::LINEAR_DAMPING, 0.0)))
         .gravity_scale(scalar::real(v::f(params, k::GRAVITY_SCALE, 1.0)))
-        .additional_solver_iterations(v::f(params, k::SOLVER_ITERATIONS, 0.0).max(0.0) as usize)
-        .additional_pgs_iterations(v::f(params, k::PGS_ITERATIONS, 3.0).max(0.0) as usize)
+        .additional_solver_iterations(v::f(params, k::SOLVER_SUBSTEPS, 0.0).max(0.0) as usize)
+        .additional_pgs_iterations(v::f(params, k::SOLVER_ITERATIONS, 3.0).max(0.0) as usize)
         .can_sleep(v::boolean(params, k::CAN_SLEEP, true))
         .solver(solver_of_2d(params))
         .skin_collision(v::boolean(params, k::SKIN_COLLISION, false))
@@ -292,7 +292,7 @@ fn with_settings(mut builder: SoftBodyBuilder2, params: &toml::Value) -> Result<
     if v::boolean(params, k::TENSION_ONLY, false) {
         builder = builder.tension_only();
     }
-    builder = builder.pinned_particles(v::indices(params, k::PINNED));
+    builder = builder.pinned_particles(v::indices(params, k::PINNED_PARTICLES));
     let settings = SoftBodyParticleSettings2 {
         dominance_group: v::f(params, k::DOMINANCE, 0.0).clamp(-127.0, 127.0) as i8,
         ..builder.particle_settings
@@ -577,7 +577,7 @@ pub(crate) fn register_softbody_component_2d(reg: &mut Registry<'_>) {
         c::SOFTBODY_2D,
         ComponentDef {
             warnings: Some(Box::new(softbody_warnings_2d)),
-            doc: "A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `trimesh` and `volumetric` kinds give and a generator does not.",
+            doc: "A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `triangle_mesh` and `volumetric` kinds give and a generator does not.",
             schema: ComponentDef::parse_schema(c::SOFTBODY_2D, &schema),
             tags: &[
                 balaur_core::components::tag::DIM_2D,

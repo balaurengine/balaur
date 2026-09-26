@@ -54,8 +54,8 @@ fn bounds(mesh: &MeshData) -> ([f32; 3], [f32; 3]) {
 /// that mixes up two axes is caught.
 fn closed_solids() -> Vec<(&'static str, Solid)> {
     vec![
-        ("ball", Solid::ball(0.7)),
-        ("cuboid", Solid::cuboid(0.4, 0.9, 0.6)),
+        ("sphere", Solid::ball(0.7)),
+        ("box", Solid::cuboid(0.4, 0.9, 0.6)),
         (
             "rounded cuboid",
             Solid::Cuboid {
@@ -243,7 +243,7 @@ fn signed_area(outline: &[Vec2]) -> f32 {
 fn flats() -> Vec<(&'static str, Flat)> {
     vec![
         ("circle", Flat::circle(0.6)),
-        ("rect", Flat::rect(0.8, 0.4)),
+        ("rectangle", Flat::rect(0.8, 0.4)),
         (
             "rounded rect",
             Flat::Rect {

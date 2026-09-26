@@ -26,12 +26,12 @@ crate::shared::query::functions!(
 );
 
 fn ray_of(opts: &Opts<'_>) -> (Ray, Real, bool) {
-    let from = opts.vec2(k::FROM, [0.0; 2]);
-    let dir = opts.vec2(k::DIR, [0.0, -1.0]);
+    let from = opts.vec2(k::ORIGIN, [0.0; 2]);
+    let dir = opts.vec2(k::DIRECTION, [0.0, -1.0]);
     (
         Ray::new(scalar::v2a(from), scalar::v2a(dir)),
-        scalar::real(opts.f32(k::MAX, 1000.0)),
-        opts.boolean(k::SOLID, true),
+        scalar::real(opts.f32(k::MAX_DISTANCE, 1000.0)),
+        opts.boolean(k::HIT_FROM_INSIDE, true),
     )
 }
 
@@ -171,10 +171,10 @@ pub(crate) fn install_physics2d_shapecast_api(m: &mut dyn Bindings<Engine>) {
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
         let builder = crate::dim2::collider::collider_builder(eng, &params)?;
-        let from = scalar::v2a(opts.vec2(k::FROM, [0.0; 2]));
-        let dir = scalar::v2a(opts.vec2(k::DIR, [0.0, -1.0]));
+        let from = scalar::v2a(opts.vec2(k::ORIGIN, [0.0; 2]));
+        let dir = scalar::v2a(opts.vec2(k::DIRECTION, [0.0, -1.0]));
         let options = ShapeCastOptions {
-            max_time_of_impact: scalar::real(opts.f32(k::MAX, 1000.0)),
+            max_time_of_impact: scalar::real(opts.f32(k::MAX_DISTANCE, 1000.0)),
             stop_at_penetration: opts.boolean(k::STOP_AT_PENETRATION, true),
             ..ShapeCastOptions::default()
         };
@@ -209,25 +209,25 @@ pub(crate) fn install_physics2d_shapecast_api(m: &mut dyn Bindings<Engine>) {
 pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         (
-            "nearest_point",
+            "closest_point",
             &[],
             "(opts: table)",
             "The closest point on any collider to a world point.",
         ),
         (
-            "point_hits",
+            "overlap_point",
             &[],
             "(opts: table)",
             "Every collider containing a world point: what a mouse click asks.",
         ),
         (
-            "shape_hits",
+            "overlap_shape",
             &[],
             "(opts: table)",
             "Every collider a shape overlaps where it stands.",
         ),
         (
-            "box_hits",
+            "overlap_aabb",
             &[],
             "(opts: table)",
             "Every collider whose bounds meet an axis-aligned box.",
@@ -245,7 +245,7 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
             "Whether two nodes' colliders overlap right now, sensor or not.",
         ),
     ]);
-    m.function("nearest_point", |eng: &Engine, opts: Value| {
+    m.function("closest_point", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let point = scalar::v2a(opts.vec2(k::POINT, [0.0; 2]));
@@ -258,8 +258,8 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
             .query_pipeline_with_filter(filter)
             .project_point(
                 point,
-                scalar::real(opts.f32(k::MAX, 1000.0)),
-                opts.boolean(k::SOLID, true),
+                scalar::real(opts.f32(k::MAX_DISTANCE, 1000.0)),
+                opts.boolean(k::HIT_FROM_INSIDE, true),
             );
         let Some((handle, projection)) = found else {
             return Ok(Value::Nil);
@@ -275,7 +275,7 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
             ("distance", Value::Num(f64::from((p - point).length()))),
         ]))
     });
-    m.function("point_hits", |eng: &Engine, opts: Value| {
+    m.function("overlap_point", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let point = scalar::v2a(opts.vec2(k::POINT, [0.0; 2]));
@@ -298,7 +298,7 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
 /// Split from [`install_physics2d_volume_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_physics2d_shape_query_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[]);
-    m.function("shape_hits", |eng: &Engine, opts: Value| {
+    m.function("overlap_shape", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
@@ -316,7 +316,7 @@ pub(crate) fn install_physics2d_shape_query_api(m: &mut dyn Bindings<Engine>) {
             .collect();
         node_list(&mut hits, &eng.world())
     });
-    m.function("box_hits", |eng: &Engine, opts: Value| {
+    m.function("overlap_aabb", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let min = scalar::v2a(opts.vec2(k::MIN, [0.0; 2]));

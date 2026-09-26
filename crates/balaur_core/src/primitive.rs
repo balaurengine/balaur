@@ -21,8 +21,8 @@ use glamx::Vec2;
 
 /// The kind each primitive answers to, in a scene, a schema and a script.
 pub mod words {
-    pub const BALL: &str = "ball";
-    pub const CUBOID: &str = "cuboid";
+    pub const SPHERE: &str = "sphere";
+    pub const BOX: &str = "box";
     pub const CAPSULE: &str = "capsule";
     pub const CYLINDER: &str = "cylinder";
     pub const CONE: &str = "cone";
@@ -33,16 +33,16 @@ pub mod words {
     pub const TUBE: &str = "tube";
     /// The 3D primitives, in the order an inspector offers them.
     pub const SOLIDS: &[&str] = &[
-        BALL, CUBOID, CAPSULE, CYLINDER, CONE, PLANE, TORUS, PYRAMID, PRISM, TUBE,
+        SPHERE, BOX, CAPSULE, CYLINDER, CONE, PLANE, TORUS, PYRAMID, PRISM, TUBE,
     ];
 
     pub const CIRCLE: &str = "circle";
-    pub const RECT: &str = "rect";
+    pub const RECTANGLE: &str = "rectangle";
     pub const ELLIPSE: &str = "ellipse";
     pub const STAR: &str = "star";
     pub const NGON: &str = "ngon";
-    /// The 2D primitives. A circle is not a ball and a rect is not a cuboid.
-    pub const FLATS: &[&str] = &[CIRCLE, RECT, CAPSULE, ELLIPSE, STAR, NGON];
+    /// The 2D primitives.
+    pub const FLATS: &[&str] = &[CIRCLE, RECTANGLE, CAPSULE, ELLIPSE, STAR, NGON];
 }
 
 /// Every key a primitive reads, spelled once so a schema line, a scene file
@@ -220,8 +220,8 @@ impl Solid {
     #[must_use]
     pub const fn kind(&self) -> &'static str {
         match self {
-            Self::Ball { .. } => words::BALL,
-            Self::Cuboid { .. } => words::CUBOID,
+            Self::Ball { .. } => words::SPHERE,
+            Self::Cuboid { .. } => words::BOX,
             Self::Capsule { .. } => words::CAPSULE,
             Self::Cylinder { .. } => words::CYLINDER,
             Self::Cone { .. } => words::CONE,
@@ -397,7 +397,7 @@ impl Flat {
         match self {
             Self::Circle { .. } => words::CIRCLE,
             Self::Ellipse { .. } => words::ELLIPSE,
-            Self::Rect { .. } => words::RECT,
+            Self::Rect { .. } => words::RECTANGLE,
             Self::Capsule { .. } => words::CAPSULE,
             Self::Star { .. } => words::STAR,
             Self::Ngon { .. } => words::NGON,

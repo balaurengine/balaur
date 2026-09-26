@@ -123,8 +123,7 @@ Recorded so each stops being cited as precedent for the next.
 | `render.camera_2d`, `set_camera_2d`, `mouse_world_2d`, `draw_line_2d` | Correct under N5; none quotes a key or module name |
 | `balaur_core`, `balaur_import`, `balaur_cli` words | N17 is not met yet: core keeps its words in the domain module that owns them (`primitive`, `csg`, `cloner`, `skeleton`), and the importer spells the scene keys it writes. The lint binds a crate the moment it has a `vocabulary.rs` |
 | `render` as one large module | Revisited at 58 functions: the eight that drive the OS window and read the display moved to `window`, leaving 50. A `render2d` split would break 58 call sites for a boundary `ui` manages without. Revisit past ~70 functions |
-| `"ball"` / `"cuboid"` | parry's words, but nothing in the tree translates them and no bug traces to them. 2D's `circle`/`rect` are already design words |
-| `render.set_ball` / `set_cuboid` | N9 does not reach them: `balaur_render` has no physics dependency, and in a dynamic API a function whose argument count and meaning differ stays its own function |
+| `render.set_sphere` / `set_box` | N9 does not reach them: `balaur_render` has no physics dependency, and in a dynamic API a function whose argument count and meaning differ stays its own function |
 | `rotation_euler` | The Rust field is a quaternion, so bare `rotation` becomes ambiguous the day a quaternion accessor lands. Degrees are additive (`set_rotation_degrees`) |
 | `widget.x` / `widget.y` | Anchor-relative offsets against five anchor corners, not a position vector |
 | `SHAPE_KINDS_2D` | SCREAMING_SNAKE has no lowercase to be consistent with (N4) |
@@ -613,6 +612,3 @@ There is no `late_update`, `draw` or `input` hook. Draw from `update` with `rend
 | Touched the ground | `on_land` | none |
 | A timer ran out | `timeout` | Godot |
 
-### Exemptions these retire
-
-`sphere` and `box` retire the `"ball"` and `"cuboid"` exemption once they land.

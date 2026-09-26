@@ -194,7 +194,7 @@ name = "Door"
 parent = "n_scene"
 
 [nodes.shape3d]
-kind = "cuboid"
+kind = "box"
 color = [0.45, 0.32, 0.17, 1]
 
 [nodes.states]
@@ -261,13 +261,13 @@ fn a_state_leaves_what_it_does_not_name_alone() {
     let door = node(&app, "Door");
     let before = balaur_core::components::get(&app.engine, door, "shape3d").unwrap();
     let kind = before.get("kind").and_then(toml::Value::as_str).unwrap();
-    assert_eq!(kind, "cuboid");
+    assert_eq!(kind, "box");
 
     balaur_core::states::go(&app.engine, door, "open").unwrap();
     let after = balaur_core::components::get(&app.engine, door, "shape3d").unwrap();
     assert_eq!(
         after.get("kind").and_then(toml::Value::as_str),
-        Some("cuboid"),
+        Some("box"),
         "the state said nothing about the shape's kind"
     );
     let green = after

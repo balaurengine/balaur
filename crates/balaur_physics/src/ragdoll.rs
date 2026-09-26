@@ -38,7 +38,7 @@ use glamx::{Quat, Vec3};
 use crate::vocabulary::{component as c, keys as k, words as w};
 
 /// The `ragdoll` component's own keys.
-pub(crate) const BLEND: &str = "blend";
+pub(crate) const INFLUENCE: &str = "influence";
 pub(crate) const BODIES: &str = "bodies";
 
 /// The component a built ragdoll leaves on the rig root.
@@ -86,7 +86,7 @@ impl Recipe {
                 "thickness" => out.thickness = number(value).unwrap_or(out.thickness).max(0.001),
                 k::DENSITY => out.density = number(value).unwrap_or(out.density).max(0.0),
                 k::FRICTION => out.friction = number(value).unwrap_or(out.friction).max(0.0),
-                BLEND => out.blend = number(value).unwrap_or(out.blend).clamp(0.0, 1.0),
+                INFLUENCE => out.blend = number(value).unwrap_or(out.blend).clamp(0.0, 1.0),
                 k::LIMITS => {
                     if let Value::List(pair) = value
                         && pair.len() >= 2
@@ -257,7 +257,10 @@ fn build(eng: &Engine, rig: Entity, opts: Option<&Value>, dim3: bool) -> Result<
     }
     let bodies = relative_path(&eng.world(), rig, container);
     let mut params = toml::map::Map::new();
-    params.insert(BLEND.into(), toml::Value::Float(f64::from(recipe.blend)));
+    params.insert(
+        INFLUENCE.into(),
+        toml::Value::Float(f64::from(recipe.blend)),
+    );
     params.insert(BODIES.into(), toml::Value::String(bodies));
     balaur_core::components::add(eng, rig, RAGDOLL, Some(&toml::Value::Table(params)))?;
     Ok(made.into_iter().map(|(_, node)| node).collect())
@@ -352,11 +355,11 @@ fn add_joint(
     let theirs = local(other, segment.from);
     let path = relative_path(&eng.world(), node, other);
     let mut params = toml::map::Map::new();
-    let kind = if dim3 { w::SPHERICAL } else { w::REVOLUTE };
+    let kind = if dim3 { w::BALL_SOCKET } else { w::HINGE };
     params.insert(k::KIND.into(), toml::Value::String(kind.into()));
-    params.insert(k::BODY.into(), toml::Value::String(path));
+    params.insert(k::CONNECTED_BODY.into(), toml::Value::String(path));
     params.insert(k::ANCHOR.into(), vector(mine, dim3));
-    params.insert(k::OTHER_ANCHOR.into(), vector(theirs, dim3));
+    params.insert(k::CONNECTED_ANCHOR.into(), vector(theirs, dim3));
     #[allow(clippy::float_cmp, reason = "a recipe's own pair, not a computed one")]
     let limited = recipe.limits[0] != recipe.limits[1];
     if limited {
@@ -425,11 +428,11 @@ pub(crate) fn register_ragdoll_component(reg: &mut Registry<'_>) {
         RAGDOLL,
         ComponentDef {
             warnings: None,
-            doc: "Drives a rig's bones from the `bodies` that `physics2d.ragdoll` or `physics3d.ragdoll` built. `blend` is how much of the simulated pose the bones take, 0 to 1.",
+            doc: "Drives a rig's bones from the `bodies` that `physics2d.ragdoll` or `physics3d.ragdoll` built. `influence` is how much of the simulated pose the bones take, 0 to 1.",
             schema: ComponentDef::parse_schema(
                 RAGDOLL,
                 &ComponentDef::schema(&[
-                    (BLEND, r#"{ type = "float", default = 1.0, min = 0.0, max = 1.0, description = "How much of the simulated pose the bones take" }"#),
+                    (INFLUENCE, r#"{ type = "float", default = 1.0, min = 0.0, max = 1.0, description = "How much of the simulated pose the bones take" }"#),
                     (BODIES, r#"{ type = "node", default = "", description = "The node holding the bodies, one per bone, named after it" }"#),
                 ]),
             ),
@@ -438,7 +441,7 @@ pub(crate) fn register_ragdoll_component(reg: &mut Registry<'_>) {
             apply: Box::new(|eng, entity, params| {
                 let ragdoll = Ragdoll {
                     blend: params
-                        .get(BLEND)
+                        .get(INFLUENCE)
                         .and_then(as_f64)
                         .map_or(1.0, |v| (v as f32).clamp(0.0, 1.0)),
                     bodies: params
@@ -459,7 +462,7 @@ pub(crate) fn register_ragdoll_component(reg: &mut Registry<'_>) {
                 let world = eng.world();
                 let r = world.get::<&Ragdoll>(entity).ok()?;
                 let mut out = toml::map::Map::new();
-                out.insert(BLEND.into(), toml::Value::Float(f64::from(r.blend)));
+                out.insert(INFLUENCE.into(), toml::Value::Float(f64::from(r.blend)));
                 out.insert(BODIES.into(), toml::Value::String(r.bodies.clone()));
                 Some(toml::Value::Table(out))
             }),
@@ -574,16 +577,16 @@ pub(crate) fn blend_system(eng: &Engine, _dt: f32) {
     }
 }
 
-/// `ragdoll` and `ragdoll_blend`, on both `physics2d` and `physics3d`.
+/// `ragdoll`, on both `physics2d` and `physics3d`.
 pub(crate) fn install_ragdoll_api(m: &mut dyn Bindings<Engine>, dim3: bool) {
     let doc = if dim3 {
         "Build a 3D ragdoll from the rig under this node: a body and a capsule per bone, hinged \
          to its parent's. The options table takes `thickness` (capsule radius as a fraction of \
-         bone length), `density`, `friction`, `limits` and `blend`. Answers the body nodes it made."
+         bone length), `density`, `friction`, `limits` and `influence`. Answers the body nodes it made."
     } else {
         "Build a 2D ragdoll from the rig under this node: a body and a capsule per bone, hinged \
          to its parent's. The options table takes `thickness` (capsule radius as a fraction of \
-         bone length), `density`, `friction`, `limits` and `blend`. Answers the body nodes it made."
+         bone length), `density`, `friction`, `limits` and `influence`. Answers the body nodes it made."
     };
     m.describe(&[("ragdoll", &[], "(node: node, opts: table) -> list", doc)]);
     m.function(
@@ -604,12 +607,12 @@ pub(crate) fn install_ragdoll_api(m: &mut dyn Bindings<Engine>, dim3: bool) {
     );
 }
 
-/// `ragdoll_blend`, on `physics` rather than on either dimension: a blend
-/// weight means the same thing in both, and a verb spelled twice is a verb
+/// `set_ragdoll_influence`, on `physics` rather than on either dimension: an
+/// influence means the same thing in both, and a verb spelled twice is a verb
 /// a reader has to check twice.
 pub(crate) fn install_blend_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
-        "ragdoll_blend",
+        "set_ragdoll_influence",
         &[RAGDOLL],
         "(node: node, weight: float)",
         "How much of the ragdoll's simulated pose the rig's bones take, 0 to 1: 0 leaves the clip \
@@ -617,12 +620,12 @@ pub(crate) fn install_blend_api(m: &mut dyn Bindings<Engine>) {
          back up.",
     )]);
     m.function(
-        "ragdoll_blend",
+        "set_ragdoll_influence",
         |eng: &Engine, (node, weight): (NodeId, f32)| {
             let entity = entity_of(node)?;
             let mut params = toml::map::Map::new();
             params.insert(
-                BLEND.into(),
+                INFLUENCE.into(),
                 toml::Value::Float(f64::from(weight.clamp(0.0, 1.0))),
             );
             balaur_core::components::patch(eng, entity, RAGDOLL, &toml::Value::Table(params))

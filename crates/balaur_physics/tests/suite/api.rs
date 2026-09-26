@@ -19,7 +19,7 @@ fn body(app: &App, kind: &str) -> Entity {
     let e = scene::spawn_node(&mut app.engine.world_mut(), "B", root);
     let params: toml::Value = toml::from_str(&format!("kind = \"{kind}\"")).unwrap();
     components::add(&app.engine, e, "body3d", Some(&params)).unwrap();
-    let collider: toml::Value = toml::from_str("kind = \"ball\"\nradius = 0.5").unwrap();
+    let collider: toml::Value = toml::from_str("kind = \"sphere\"\nradius = 0.5").unwrap();
     components::add(&app.engine, e, "collider3d", Some(&collider)).unwrap();
     e
 }
@@ -157,7 +157,7 @@ fn a_3d_collider_takes_friction_restitution_and_density() {
     let mut app = app();
     let root = app.engine.root();
     let ground = scene::spawn_node(&mut app.engine.world_mut(), "Ground", root);
-    let flat: toml::Value = toml::from_str("kind = \"cuboid\"\nhalf_extents = [10.0, 0.5, 10.0]")
+    let flat: toml::Value = toml::from_str("kind = \"box\"\nhalf_extents = [10.0, 0.5, 10.0]")
         .expect("literal collider params parse");
     components::add(&app.engine, ground, "collider3d", Some(&flat)).unwrap();
 
@@ -172,7 +172,7 @@ fn a_3d_collider_takes_friction_restitution_and_density() {
         toml::from_str("kind = \"dynamic\"").expect("literal body params parse");
     components::add(&app.engine, ball, "body3d", Some(&body)).unwrap();
     let bouncy: toml::Value = toml::from_str(
-        "kind = \"ball\"\nradius = 0.5\nrestitution = 0.9\nfriction = 0.2\ndensity = 3.0",
+        "kind = \"sphere\"\nradius = 0.5\nrestitution = 0.9\nfriction = 0.2\ndensity = 3.0",
     )
     .expect("literal collider params parse");
     components::add(&app.engine, ball, "collider3d", Some(&bouncy)).unwrap();
@@ -214,7 +214,7 @@ fn a_sensor_reports_overlap_without_collision_response() {
     let root = app.engine.root();
     let sensor = scene::spawn_node(&mut app.engine.world_mut(), "Sensor", root);
     let gate: toml::Value =
-        toml::from_str("kind = \"rect\"\nhalf_extents = [2.0, 0.5]\nsensor = true")
+        toml::from_str("kind = \"rectangle\"\nhalf_extents = [2.0, 0.5]\nsensor = true")
             .expect("literal collider params parse");
     components::add(&app.engine, sensor, "collider2d", Some(&gate)).unwrap();
 
@@ -284,8 +284,8 @@ fn node_at(app: &App) -> Entity {
 #[test]
 fn every_parametric_collider_kind_applies() {
     for source in [
-        "kind = \"ball\"\nradius = 0.5",
-        "kind = \"cuboid\"",
+        "kind = \"sphere\"\nradius = 0.5",
+        "kind = \"box\"",
         "kind = \"capsule\"\nradius = 0.4\nheight = 2.0",
         "kind = \"cylinder\"\nradius = 0.4\nheight = 2.0",
         "kind = \"cone\"\nradius = 0.4\nheight = 2.0",
@@ -312,7 +312,7 @@ fn a_2d_capsule_collider_applies() {
 /// rather than failing somewhere later with no name attached.
 #[test]
 fn a_mesh_collider_without_its_asset_says_so() {
-    for kind in ["trimesh", "convex_hull", "polyline"] {
+    for kind in ["triangle_mesh", "convex_hull", "polyline"] {
         let app = app();
         let e = node_at(&app);
         let params: toml::Value = toml::from_str(&format!("kind = \"{kind}\"")).unwrap();
@@ -360,7 +360,7 @@ fn named_body(app: &App, name: &str, kind: &str) -> Entity {
     let e = scene::spawn_node(&mut app.engine.world_mut(), name, root);
     let params: toml::Value = toml::from_str(&format!("kind = \"{kind}\"")).unwrap();
     components::add(&app.engine, e, "body3d", Some(&params)).unwrap();
-    let collider: toml::Value = toml::from_str("kind = \"ball\"\nradius = 0.5").unwrap();
+    let collider: toml::Value = toml::from_str("kind = \"sphere\"\nradius = 0.5").unwrap();
     components::add(&app.engine, e, "collider3d", Some(&collider)).unwrap();
     e
 }
@@ -382,7 +382,7 @@ fn a_joint_is_remade_when_the_body_it_lost_returns() {
         &app.engine,
         hanging,
         "joint3d",
-        Some(&toml::from_str("kind = \"revolute\"\nbody = \"/Anchor\"").unwrap()),
+        Some(&toml::from_str("kind = \"hinge\"\nconnected_body = \"/Anchor\"").unwrap()),
     )
     .unwrap();
     app.tick(1.0 / 60.0);
@@ -414,7 +414,10 @@ fn a_disabled_joint_is_not_retried_every_step() {
         &app.engine,
         hanging,
         "joint3d",
-        Some(&toml::from_str("kind = \"revolute\"\nbody = \"/Anchor\"\nenabled = false").unwrap()),
+        Some(
+            &toml::from_str("kind = \"hinge\"\nconnected_body = \"/Anchor\"\nenabled = false")
+                .unwrap(),
+        ),
     )
     .unwrap();
     for _ in 0..5 {

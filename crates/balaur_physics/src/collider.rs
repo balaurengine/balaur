@@ -26,7 +26,7 @@ fn collider_mesh(eng: &Engine, params: &toml::Value) -> Result<balaur_core::mesh
         .get(k::MESH)
         .and_then(|v| v.as_str())
         .filter(|s| !s.is_empty())
-        .ok_or_else(|| anyhow!("a trimesh or convex_hull collider needs a `mesh` asset"))?;
+        .ok_or_else(|| anyhow!("a triangle_mesh or convex_hull collider needs a `mesh` asset"))?;
     let definition =
         balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(eng, reference)?;
     balaur_core::mesh::load_from(eng, &definition)
@@ -40,12 +40,12 @@ fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<Colli
     match kind {
         // The flags are what stop a character controller catching on the seam
         // between two triangles of a flat floor.
-        w::TRIMESH => {
+        w::TRIANGLE_MESH => {
             let mut flags = crate::rapier3d::prelude::TriMeshFlags::empty();
             if v::boolean(params, k::FIX_INTERNAL_EDGES, true) {
                 flags |= crate::rapier3d::prelude::TriMeshFlags::FIX_INTERNAL_EDGES;
             }
-            if v::boolean(params, k::CLEAN, false) {
+            if v::boolean(params, k::WELD_VERTICES, false) {
                 flags |= crate::rapier3d::prelude::TriMeshFlags::MERGE_DUPLICATE_VERTICES
                     | crate::rapier3d::prelude::TriMeshFlags::DELETE_DEGENERATE_TRIANGLES
                     | crate::rapier3d::prelude::TriMeshFlags::DELETE_BAD_TOPOLOGY_TRIANGLES;
@@ -54,7 +54,7 @@ fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<Colli
                 flags |= crate::rapier3d::prelude::TriMeshFlags::ORIENTED;
             }
             ColliderBuilder::trimesh_with_flags(points, mesh.indices.clone(), flags)
-                .map_err(|e| anyhow!("that mesh cannot be a trimesh collider: {e}"))
+                .map_err(|e| anyhow!("that mesh cannot be a triangle_mesh collider: {e}"))
         }
         // The only way to get a *dynamic* concave shape: rapier's VHACD cuts
         // the mesh into convex pieces and keeps them as one compound.
@@ -163,7 +163,7 @@ fn heightfield_collider(
     // The asset is f32; a f64 build widens each height here, once, on load.
     let heights: Vec<Real> = field.heights.iter().map(|h| scalar::real(*h)).collect();
     let grid = crate::rapier3d::parry::utils::Array2::new(field.rows, field.columns, heights);
-    // The flag a trimesh gets by default, for the same reason: without it a
+    // The flag a triangle_mesh gets by default, for the same reason: without it a
     // character catches on the seam between two cells of flat ground.
     let mut flags = crate::rapier3d::parry::shape::HeightFieldFlags::empty();
     if v::boolean(params, k::FIX_INTERNAL_EDGES, true) {
@@ -178,7 +178,7 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
     let kind = params
         .get(k::KIND)
         .and_then(|v| v.as_str())
-        .unwrap_or(w::CUBOID);
+        .unwrap_or(w::BOX);
     let f = |key: &str, default: f64| {
         params
             .get(key)
@@ -214,14 +214,14 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
     let half_height = (scalar::real(f(k::HEIGHT, 1.0)).max(0.01)) / 2.0;
     // A rounded shape is a shape plus a border radius, not nine more kinds.
     // Ball and capsule are already round, so they ignore it.
-    let border = scalar::real(f(k::BORDER, 0.0)).max(0.0);
+    let border = scalar::real(f(k::EDGE_RADIUS, 0.0)).max(0.0);
     let rounded = border > 0.0;
     let builder = match kind {
-        w::BALL => ColliderBuilder::ball(radius),
-        w::CUBOID if rounded => {
+        w::SPHERE => ColliderBuilder::ball(radius),
+        w::BOX if rounded => {
             ColliderBuilder::round_cuboid(he(0).max(0.01), he(1).max(0.01), he(2).max(0.01), border)
         }
-        w::CUBOID => ColliderBuilder::cuboid(he(0).max(0.01), he(1).max(0.01), he(2).max(0.01)),
+        w::BOX => ColliderBuilder::cuboid(he(0).max(0.01), he(1).max(0.01), he(2).max(0.01)),
         w::CAPSULE => ColliderBuilder::capsule_y(half_height, radius),
         w::CYLINDER if rounded => ColliderBuilder::round_cylinder(half_height, radius, border),
         w::CYLINDER => ColliderBuilder::cylinder(half_height, radius),
@@ -238,17 +238,17 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
             point(k::B, [1.0, 0.0, 0.0]),
             point(k::C, [0.0, 1.0, 0.0]),
         ),
-        w::TRIMESH | w::CONVEX_HULL | w::POLYLINE | w::CONVEX_DECOMPOSITION | w::FIT => {
+        w::TRIANGLE_MESH | w::CONVEX_HULL | w::POLYLINE | w::CONVEX_DECOMPOSITION | w::FIT => {
             mesh_collider(eng, params, kind)?
         }
         w::VOXELS => voxel_collider(eng, params)?,
         w::VOXELIZED_MESH => voxelized_mesh_collider(eng, params)?,
         w::HEIGHTFIELD => heightfield_collider(eng, params, point(k::SCALE, [1.0, 1.0, 1.0]))?,
         // An infinite plane, for a floor that needs no size and no triangles.
-        w::HALFSPACE => {
+        w::WORLD_BOUNDARY => {
             let n = point(k::NORMAL, [0.0, 1.0, 0.0]);
             if n.length_squared() < 1.0e-12 {
-                bail!("a halfspace collider needs a non-zero `normal`");
+                bail!("a world_boundary collider needs a non-zero `normal`");
             }
             ColliderBuilder::new(crate::rapier3d::prelude::SharedShape::halfspace(
                 n.normalize(),
@@ -282,10 +282,16 @@ pub(crate) fn with_material(builder: ColliderBuilder, params: &toml::Value) -> C
             k::RESTITUTION_COMBINE,
             w::AVERAGE,
         )))
-        .contact_skin(scalar::real(v::f(params, k::CONTACT_SKIN, 0.0).max(0.0)))
+        .contact_skin(scalar::real(
+            v::f(params, k::COLLISION_MARGIN, 0.0).max(0.0),
+        ))
         .contact_force_event_threshold(scalar::real(v::f(params, k::CONTACT_FORCE_THRESHOLD, 0.0)))
-        .collision_groups(interaction_groups(params, k::LAYERS, k::MASK))
-        .solver_groups(interaction_groups(params, k::SOLVER_LAYERS, k::SOLVER_MASK))
+        .collision_groups(interaction_groups(
+            params,
+            k::COLLISION_LAYER,
+            k::COLLISION_MASK,
+        ))
+        .solver_groups(interaction_groups(params, k::SOLVER_LAYER, k::SOLVER_MASK))
         .active_collision_types(active_collision_types(params))
         .active_events(active_events(params))
         .active_hooks(active_hooks(params))
@@ -307,13 +313,13 @@ pub(crate) fn shared_group_schema() -> String {
     let layers = v::layer_options();
     v::schema(&[
         (
-            k::LAYERS,
+            k::COLLISION_LAYER,
             &format!(
                 r#"{{ type = "flags", default = ["0"], options = [{layers}], description = "The layers this body is on", group = "filtering" }}"#
             ),
         ),
         (
-            k::MASK,
+            k::COLLISION_MASK,
             &format!(
                 r#"{{ type = "flags", default = [], options = [{layers}], description = "The layers it collides with; empty means every layer", group = "filtering" }}"#
             ),
@@ -324,14 +330,18 @@ pub(crate) fn shared_group_schema() -> String {
 /// Put a collider on the layers `params` names, for a builder whose other
 /// rows its owner has already set.
 pub(crate) fn with_groups(builder: ColliderBuilder, params: &toml::Value) -> ColliderBuilder {
-    builder.collision_groups(interaction_groups(params, k::LAYERS, k::MASK))
+    builder.collision_groups(interaction_groups(
+        params,
+        k::COLLISION_LAYER,
+        k::COLLISION_MASK,
+    ))
 }
 
 crate::shared::collider::functions!(state = PhysicsState3d);
 
 /// The 32 collision layers, as a `flags` property of layer numbers.
 ///
-/// An empty `mask` means *every* layer: the alternative is 32 strings in every
+/// An empty `collision_mask` means *every* layer: the alternative is 32 strings in every
 /// scene file that wants the default, and the default is what most colliders
 /// want.
 pub(crate) fn interaction_groups(
@@ -354,7 +364,7 @@ pub(crate) fn interaction_groups(
 pub(crate) fn active_collision_types(params: &toml::Value) -> ActiveCollisionTypes {
     ActiveCollisionTypes::from_bits_truncate(v::bits(
         params,
-        k::ACTIVE_COLLISIONS,
+        k::CONTACT_PAIRS,
         &v::flags::collision_types(),
     ))
 }
@@ -507,7 +517,7 @@ fn warn_if_hollow_and_dynamic(
         )
     {
         tracing::warn!(
-            "a dynamic body with a trimesh, polyline, heightfield or halfspace collider has no \
+            "a dynamic body with a triangle_mesh, polyline, heightfield or world_boundary collider has no \
              well-defined mass; give it a convex_hull or a primitive, or make it static"
         );
     }
@@ -524,12 +534,12 @@ fn collider_shape_params(
     let vec3 = |x: Real, y: Real, z: Real| toml::Value::Array(vec![f(x), f(y), f(z)]);
     let mut map = toml::map::Map::new();
     if let Some(ball) = shape.as_ball() {
-        map.insert(k::KIND.into(), w::BALL.into());
+        map.insert(k::KIND.into(), w::SPHERE.into());
         map.insert(k::RADIUS.into(), f(ball.radius));
         return Some(map);
     }
     if let Some(cuboid) = shape.as_cuboid() {
-        map.insert(k::KIND.into(), w::CUBOID.into());
+        map.insert(k::KIND.into(), w::BOX.into());
         let he = cuboid.half_extents;
         map.insert(k::HALF_EXTENTS.into(), vec3(he.x, he.y, he.z));
         return Some(map);
@@ -568,7 +578,7 @@ fn collider_shape_params(
         return Some(map);
     }
     if let Some(halfspace) = shape.as_halfspace() {
-        map.insert(k::KIND.into(), w::HALFSPACE.into());
+        map.insert(k::KIND.into(), w::WORLD_BOUNDARY.into());
         let n = halfspace.normal;
         map.insert(k::NORMAL.into(), vec3(n.x, n.y, n.z));
         return Some(map);
@@ -577,23 +587,23 @@ fn collider_shape_params(
     // rounded it, which is exactly how the schema spells them.
     if let Some(round) = shape.as_round_cuboid() {
         let he = round.inner_shape.half_extents;
-        map.insert(k::KIND.into(), w::CUBOID.into());
+        map.insert(k::KIND.into(), w::BOX.into());
         map.insert(k::HALF_EXTENTS.into(), vec3(he.x, he.y, he.z));
-        map.insert(k::BORDER.into(), f(round.border_radius));
+        map.insert(k::EDGE_RADIUS.into(), f(round.border_radius));
         return Some(map);
     }
     if let Some(round) = shape.as_round_cylinder() {
         map.insert(k::KIND.into(), w::CYLINDER.into());
         map.insert(k::RADIUS.into(), f(round.inner_shape.radius));
         map.insert(k::HEIGHT.into(), f(round.inner_shape.half_height * 2.0));
-        map.insert(k::BORDER.into(), f(round.border_radius));
+        map.insert(k::EDGE_RADIUS.into(), f(round.border_radius));
         return Some(map);
     }
     if let Some(round) = shape.as_round_cone() {
         map.insert(k::KIND.into(), w::CONE.into());
         map.insert(k::RADIUS.into(), f(round.inner_shape.radius));
         map.insert(k::HEIGHT.into(), f(round.inner_shape.half_height * 2.0));
-        map.insert(k::BORDER.into(), f(round.border_radius));
+        map.insert(k::EDGE_RADIUS.into(), f(round.border_radius));
         return Some(map);
     }
     None
@@ -724,7 +734,7 @@ pub(crate) fn shared_collider_schema() -> String {
             ),
         ),
         (
-            k::CONTACT_SKIN,
+            k::COLLISION_MARGIN,
             r#"{ type = "float", default = 0.0, min = 0.0, description = "A margin the solver treats as already touching; stops thin shapes tunnelling and jittering", group = "contacts" }"#,
         ),
         (
@@ -736,19 +746,19 @@ pub(crate) fn shared_collider_schema() -> String {
             r#"{ type = "bool", default = true, description = "Collide at all; a disabled collider keeps its shape and costs nothing" }"#,
         ),
         (
-            k::LAYERS,
+            k::COLLISION_LAYER,
             &format!(
                 r#"{{ type = "flags", default = ["0"], options = [{layers}], description = "The layers this collider is on", group = "filtering" }}"#
             ),
         ),
         (
-            k::MASK,
+            k::COLLISION_MASK,
             &format!(
                 r#"{{ type = "flags", default = [], options = [{layers}], description = "The layers it collides with; empty means every layer", group = "filtering" }}"#
             ),
         ),
         (
-            k::SOLVER_LAYERS,
+            k::SOLVER_LAYER,
             &format!(
                 r#"{{ type = "flags", default = ["0"], options = [{layers}], description = "Layers for the solver alone: a pair can be detected but not resolved", group = "filtering" }}"#
             ),
@@ -762,7 +772,7 @@ pub(crate) fn shared_collider_schema() -> String {
         (
             k::EVENTS,
             &format!(
-                r#"{{ type = "flags", default = [], options = [{events}], description = "What this collider reports to its node's script: on_collision_start and on_collision_stop, or on_contact_force", group = "filtering" }}"#
+                r#"{{ type = "flags", default = [], options = [{events}], description = "What this collider reports to its node's script: on_collision_enter and on_collision_exit, or on_contact_force", group = "filtering" }}"#
             ),
         ),
         (
@@ -770,7 +780,7 @@ pub(crate) fn shared_collider_schema() -> String {
             r#"{ type = "float", default = 0.0, min = 0.0, description = "How hard a contact must be before on_contact_force is called", group = "contacts" }"#,
         ),
         (
-            k::ACTIVE_COLLISIONS,
+            k::CONTACT_PAIRS,
             &format!(
                 r#"{{ type = "flags", default = [{watched}], options = [{collisions}], description = "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default", group = "filtering" }}"#
             ),
@@ -786,7 +796,7 @@ pub(crate) fn shared_collider_schema() -> String {
 /// into [`crate::PhysicsState3d`].
 pub(crate) fn register_collider_component(reg: &mut Registry<'_>) {
     let shapes = v::options(w::SHAPES);
-    let default = w::CUBOID;
+    let default = w::BOX;
     let fills = v::options(w::FILL_MODES);
     let solid = w::SOLID;
     let hull = w::CONVEX_HULL;
@@ -796,21 +806,21 @@ pub(crate) fn register_collider_component(reg: &mut Registry<'_>) {
             (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{shapes}], description = "Collision shape" }}"#)),
             (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Radius, for ball, capsule, cylinder and cone" }"#),
             (k::HEIGHT, r#"{ type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, for capsule, cylinder and cone" }"#),
-            (k::HALF_EXTENTS, r#"{ type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the cuboid, when kind is cuboid" }"#),
-            (k::BORDER, r#"{ type = "float", default = 0.0, min = 0.0, description = "Rounds a cuboid, cylinder, cone or triangle by this radius; a rounded shape slides over seams instead of catching on them", group = "shape" }"#),
+            (k::HALF_EXTENTS, r#"{ type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the box, when kind is box" }"#),
+            (k::EDGE_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "Rounds a box, cylinder, cone or triangle by this radius; a rounded shape slides over seams instead of catching on them", group = "shape" }"#),
             (k::A, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "First corner, when kind is triangle or segment", group = "shape" }"#),
             (k::B, r#"{ type = "vec3", default = [1.0, 0.0, 0.0], description = "Second corner, when kind is triangle or segment", group = "shape" }"#),
             (k::C, r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Third corner, when kind is triangle", group = "shape" }"#),
-            (k::NORMAL, r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Which way the infinite plane faces, when kind is halfspace", group = "shape" }"#),
-            (k::MESH, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Geometry for a trimesh, convex_hull or polyline collider", group = "shape" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
+            (k::NORMAL, r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Which way the infinite plane faces, when kind is world_boundary", group = "shape" }"#),
+            (k::MESH, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Geometry for a triangle_mesh, convex_hull or polyline collider", group = "shape" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
             (k::HEIGHTFIELD, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Terrain grid, when kind is heightfield", group = "shape" }}"#, balaur_core::heightfield::HEIGHTFIELD_ASSET_TYPE)),
             (k::VOXELS, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Filled cells, when kind is voxels; a script may dig into them while the game runs", group = "shape" }}"#, balaur_core::voxels::VOXELS_ASSET_TYPE)),
             (k::VOXEL_SIZE, r#"{ type = "float", default = 0.25, min = 0.001, description = "How big one cell is, when kind is voxelized_mesh", group = "shape" }"#),
             (k::FILL, &format!(r#"{{ type = "enum", default = "{solid}", options = [{fills}], description = "Whether voxelizing a mesh fills its inside or only its shell", group = "shape" }}"#)),
             (k::FIT, &format!(r#"{{ type = "enum", default = "{hull}", options = [{fits}], description = "The shape fitted to the mesh, when kind is fit", group = "shape" }}"#)),
-            (k::FIX_INTERNAL_EDGES, r#"{ type = "bool", default = true, description = "Smooth the seams between a trimesh's triangles, so a character does not catch on flat ground", group = "contacts" }"#),
-            (k::CLEAN, r#"{ type = "bool", default = false, description = "Drop duplicate vertices and degenerate triangles when building a trimesh", group = "shape" }"#),
-            (k::ORIENTED, r#"{ type = "bool", default = false, description = "Treat the trimesh as a closed, outward-facing surface, which makes inside and outside meaningful", group = "shape" }"#),
+            (k::FIX_INTERNAL_EDGES, r#"{ type = "bool", default = true, description = "Smooth the seams between a triangle_mesh's triangles, so a character does not catch on flat ground", group = "contacts" }"#),
+            (k::WELD_VERTICES, r#"{ type = "bool", default = false, description = "Drop duplicate vertices and degenerate triangles when building a triangle_mesh", group = "shape" }"#),
+            (k::ORIENTED, r#"{ type = "bool", default = false, description = "Treat the triangle_mesh as a closed, outward-facing surface, which makes inside and outside meaningful", group = "shape" }"#),
             (k::SCALE, r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Cell size and height scale of a heightfield", group = "shape" }"#),
             (k::ONE_WAY_AXIS, r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "The direction a one-way platform lets bodies through from", group = "contacts" }"#),
             (k::OFFSET, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where the shape sits relative to the node", group = "shape" }"#),

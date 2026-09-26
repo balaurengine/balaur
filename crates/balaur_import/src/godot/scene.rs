@@ -814,8 +814,8 @@ impl Walk<'_> {
 /// emits, a widget's change and submit included.
 fn event_of(signal: &str, control: bool, handler: Option<&str>) -> String {
     match signal {
-        "body_entered" | "area_entered" => "collision_start".into(),
-        "body_exited" | "area_exited" => "collision_stop".into(),
+        "body_entered" | "area_entered" => "collision_enter".into(),
+        "body_exited" | "area_exited" => "collision_exit".into(),
         "mouse_entered" => "pointer_enter".into(),
         "mouse_exited" => "pointer_exit".into(),
         "pressed" | "button_up" if control => "pointer_click".into(),

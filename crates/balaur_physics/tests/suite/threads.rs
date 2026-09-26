@@ -25,7 +25,7 @@ fn resting_ball_at(app: &App, x: f32) -> Entity {
         &app.engine,
         ground,
         "collider3d",
-        Some(&toml::from_str("kind = \"cuboid\"\nhalf_extents = [50.0, 0.5, 50.0]").unwrap()),
+        Some(&toml::from_str("kind = \"box\"\nhalf_extents = [50.0, 0.5, 50.0]").unwrap()),
     )
     .unwrap();
 
@@ -45,7 +45,7 @@ fn resting_ball_at(app: &App, x: f32) -> Entity {
         &app.engine,
         ball,
         "collider3d",
-        Some(&toml::from_str("kind = \"ball\"\nradius = 0.5").unwrap()),
+        Some(&toml::from_str("kind = \"sphere\"\nradius = 0.5").unwrap()),
     )
     .unwrap();
     ball

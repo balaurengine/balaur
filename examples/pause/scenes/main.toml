@@ -33,12 +33,12 @@ position = [0.0, -2.6, 0.0]
 
 [nodes.collider2d]
 half_extents = [6.0, 0.3]
-kind = "rect"
+kind = "rectangle"
 
 [nodes.shape2d]
 color = "#3c4753"
 half_extents = [6.0, 0.3]
-kind = "rect"
+kind = "rectangle"
 
 [[nodes]]
 body2d = { kind = "static" }
@@ -51,12 +51,12 @@ position = [-4.2, -0.3, 0.0]
 
 [nodes.collider2d]
 half_extents = [0.3, 2.6]
-kind = "rect"
+kind = "rectangle"
 
 [nodes.shape2d]
 color = "#3c4753"
 half_extents = [0.3, 2.6]
-kind = "rect"
+kind = "rectangle"
 
 [[nodes]]
 body2d = { kind = "static" }
@@ -69,9 +69,9 @@ position = [4.2, -0.3, 0.0]
 
 [nodes.collider2d]
 half_extents = [0.3, 2.6]
-kind = "rect"
+kind = "rectangle"
 
 [nodes.shape2d]
 color = "#3c4753"
 half_extents = [0.3, 2.6]
-kind = "rect"
+kind = "rectangle"

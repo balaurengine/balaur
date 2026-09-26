@@ -55,7 +55,7 @@ parent = "n_world"
 script = { source = "scripts/s.rn" }
 
 [nodes.collider3d]
-kind = "cuboid"
+kind = "box"
 half_extents = [2.0, 2.0, 2.0]
 sensor = true
 events = ["collision"]
@@ -70,13 +70,13 @@ body3d = { kind = "dynamic" }
 position = [0.0, 6.0, 0.0]
 
 [nodes.collider3d]
-kind = "ball"
+kind = "sphere"
 radius = 0.5
 "#,
         r#"pub fn init(this) { this.seen = 0; this.left = 0; this.ticks = 0; }
 
-pub fn on_collision_start(this, other) { this.seen += 1; }
-pub fn on_collision_stop(this, other) { this.left += 1; }
+pub fn on_collision_enter(this, other) { this.seen += 1; }
+pub fn on_collision_exit(this, other) { this.left += 1; }
 
 pub fn fixed_update(this, dt) {
     this.ticks = this.ticks + 1;
@@ -103,7 +103,7 @@ parent = "n_world"
 body3d = { kind = "static" }
 
 [nodes.collider3d]
-kind = "ball"
+kind = "sphere"
 radius = 0.2
 
 [[nodes]]
@@ -117,12 +117,12 @@ script = { source = "scripts/s.rn" }
 position = [1.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "ball"
+kind = "sphere"
 radius = 0.2
 
 [nodes.joint3d]
-kind = "revolute"
-body = "/World/Anchor"
+kind = "hinge"
+connected_body = "/World/Anchor"
 axis = [0.0, 0.0, 1.0]
 anchor = [-1.0, 0.0, 0.0]
 "#,
@@ -157,7 +157,7 @@ parent = "n_world"
 body3d = { kind = "static" }
 
 [nodes.collider3d]
-kind = "ball"
+kind = "sphere"
 radius = 0.2
 
 [[nodes]]
@@ -171,7 +171,7 @@ script = { source = "scripts/s.rn" }
 position = [1.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "ball"
+kind = "sphere"
 radius = 0.2
 
 [[nodes]]
@@ -180,8 +180,8 @@ name = "Link"
 parent = "n_hanging"
 
 [nodes.joint3d]
-kind = "revolute"
-body = "/World/Anchor"
+kind = "hinge"
+connected_body = "/World/Anchor"
 axis = [0.0, 0.0, 1.0]
 anchor = [-1.0, 0.0, 0.0]
 "#,
@@ -237,8 +237,8 @@ name = "Link"
 parent = "n_hanging"
 
 [nodes.joint2d]
-kind = "revolute"
-body = "/World/Anchor"
+kind = "hinge"
+connected_body = "/World/Anchor"
 anchor = [-1.0, 0.0]
 "#,
         r#"pub fn init(this) { this.ticks = 0; }
@@ -276,12 +276,12 @@ script = { source = "scripts/s.rn" }
 position = [1.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "ball"
+kind = "sphere"
 radius = 0.2
 
 [nodes.joint3d]
-kind = "revolute"
-body = "/World/Anchor"
+kind = "hinge"
+connected_body = "/World/Anchor"
 anchor = [-1.0, 0.0, 0.0]
 
 [[nodes]]
@@ -291,7 +291,7 @@ parent = "n_world"
 body3d = { kind = "static" }
 
 [nodes.collider3d]
-kind = "ball"
+kind = "sphere"
 radius = 0.2
 "#,
         r#"pub fn init(this) { this.ticks = 0; }
@@ -326,7 +326,7 @@ parent = "n_world"
 position = [2.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "cuboid"
+kind = "box"
 half_extents = [0.5, 4.0, 8.0]
 
 [[nodes]]
@@ -341,7 +341,7 @@ radius = 0.4
 height = 1.0
 
 [nodes.character3d]
-snap_to_ground = 0.0
+floor_snap_length = 0.0
 "#,
         r#"pub fn init(this) { this.ticks = 0; }
 
@@ -391,7 +391,7 @@ fn joints_and_shape_edits_survive_a_snapshot() {
             &app.engine,
             e,
             "collider3d",
-            Some(&toml::from_str("kind = \"ball\"\nradius = 0.2").unwrap()),
+            Some(&toml::from_str("kind = \"sphere\"\nradius = 0.2").unwrap()),
         )
         .unwrap();
         e
@@ -403,7 +403,7 @@ fn joints_and_shape_edits_survive_a_snapshot() {
         hanging,
         "joint3d",
         Some(
-            &toml::from_str("kind = \"revolute\"\nbody = \"/Anchor\"\nbreak_force = 500.0")
+            &toml::from_str("kind = \"hinge\"\nconnected_body = \"/Anchor\"\nbreak_force = 500.0")
                 .unwrap(),
         ),
     )
@@ -464,7 +464,7 @@ parent = "n_world"
 position = [0.0, -1.0, 0.0]
 
 [nodes.collider3d]
-kind = "cuboid"
+kind = "box"
 half_extents = [8.0, 0.5, 8.0]
 
 [[nodes]]
@@ -493,11 +493,11 @@ pub fn fixed_update(this, dt) {
     }
     if this.ticks == 40 {
         this.parked = this.node.transform.position.y;
-        this.grounded = this.node.character3d.is_grounded();
+        this.grounded = this.node.character3d.is_on_floor();
     }
     let i = 0;
     while i < 8 {
-        this.node.character3d.is_grounded();
+        this.node.character3d.is_on_floor();
         i += 1;
     }
     if this.ticks == 100 {
@@ -525,12 +525,12 @@ script = { source = "scripts/s.rn" }
 rotation_euler = [0.0, 0.0, 1.5707963]
 
 [nodes.collider2d]
-kind = "rect"
+kind = "rectangle"
 half_extents = [1.0, 0.05]
 
 [nodes.character2d]
-snap_to_ground = 0.0
-autostep = 0.0
+floor_snap_length = 0.0
+step_height = 0.0
 "#,
         r#"pub fn init(this) { this.ticks = 0; }
 
@@ -538,9 +538,9 @@ pub fn fixed_update(this, dt) {
     this.ticks = this.ticks + 1;
     this.node.character2d.move_character(0.0, 0.0);
     if this.ticks == 30 {
-        let flat = physics2d::raycast(#{ from: [0.5, 3.0], dir: [0.0, -1.0], max: 100.0 });
+        let flat = physics2d::raycast(#{ origin: [0.5, 3.0], direction: [0.0, -1.0], max_distance: 100.0 });
         assert!(flat is Tuple, "the character lay back down: a ray beside it still hits");
-        let upright = physics2d::raycast(#{ from: [0.0, 3.0], dir: [0.0, -1.0], max: 100.0 });
+        let upright = physics2d::raycast(#{ origin: [0.0, 3.0], direction: [0.0, -1.0], max_distance: 100.0 });
         assert!(!(upright is Tuple), "the character is not where the test thinks it is");
     }
 }
@@ -567,7 +567,7 @@ parent = "n_world"
 position = [0.0, -10.0, 0.0]
 
 [nodes.collider3d]
-kind = "cuboid"
+kind = "box"
 half_extents = [8.0, 0.5, 8.0]
 
 [[nodes]]
@@ -581,7 +581,7 @@ script = { source = "scripts/s.rn" }
 position = [0.0, -8.0, 0.0]
 
 [nodes.collider3d]
-kind = "ball"
+kind = "sphere"
 radius = 0.5
 "#,
         r#"pub fn init(this) { this.ticks = 0; this.seen = 0; }

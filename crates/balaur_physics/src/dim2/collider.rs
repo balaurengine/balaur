@@ -67,19 +67,19 @@ pub(crate) fn add_collider_at(
 /// The collider described by `params`, in the `collider2d` schema's own
 /// vocabulary — so a script table and a scene-file entry build the same thing.
 pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder2> {
-    let kind = v::text(params, k::KIND, w::RECT);
+    let kind = v::text(params, k::KIND, w::RECTANGLE);
     let radius = scalar::real(v::f(params, k::RADIUS, 0.5)).max(0.01);
     // `height` is the straight part, caps excluded, as it is in 3D.
     let half_height = scalar::real(v::f(params, k::HEIGHT, 1.0).max(0.01)) / 2.0;
     let he = |i: usize| scalar::real(v::axis(params, k::HALF_EXTENTS, i, 0.5)).max(0.01);
     let point = |key: &str, fallback: [f32; 2]| scalar::v2a(v::vec2(params, key, fallback));
-    let border = scalar::real(v::f(params, k::BORDER, 0.0)).max(0.0);
+    let border = scalar::real(v::f(params, k::EDGE_RADIUS, 0.0)).max(0.0);
     let rounded = border > 0.0;
     let mut mass = None;
     let builder = match kind {
         w::CIRCLE => ColliderBuilder2::ball(radius),
-        w::RECT if rounded => ColliderBuilder2::round_cuboid(he(0), he(1), border),
-        w::RECT => ColliderBuilder2::cuboid(he(0), he(1)),
+        w::RECTANGLE if rounded => ColliderBuilder2::round_cuboid(he(0), he(1), border),
+        w::RECTANGLE => ColliderBuilder2::cuboid(he(0), he(1)),
         w::CAPSULE => ColliderBuilder2::capsule_y(half_height, radius),
         w::TRIANGLE if rounded => ColliderBuilder2::round_triangle(
             point(k::A, [0.0, 0.0]),
@@ -93,16 +93,18 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
             point(k::C, [0.0, 1.0]),
         ),
         w::SEGMENT => ColliderBuilder2::segment(point(k::A, [0.0, 0.0]), point(k::B, [1.0, 0.0])),
-        w::HALFSPACE => {
+        w::WORLD_BOUNDARY => {
             let n = point(k::NORMAL, [0.0, 1.0]);
             if n.length_squared() < 1.0e-12 {
-                return Err(anyhow!("a halfspace collider needs a non-zero `normal`"));
+                return Err(anyhow!(
+                    "a world_boundary collider needs a non-zero `normal`"
+                ));
             }
             ColliderBuilder2::new(crate::rapier2d::prelude::SharedShape::halfspace(
                 n.normalize(),
             ))
         }
-        w::TRIMESH | w::CONVEX_HULL | w::POLYLINE => mesh_collider(eng, params, kind)?,
+        w::TRIANGLE_MESH | w::CONVEX_HULL | w::POLYLINE => mesh_collider(eng, params, kind)?,
         w::CONVEX_DECOMPOSITION => {
             let (shape, weight) = decomposition_collider(eng, params)?;
             mass = weight;
@@ -128,12 +130,12 @@ fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<Colli
     match kind {
         // The flags 3D passes, for the same reason: without them a body
         // catches on the seam between two triangles of flat ground.
-        w::TRIMESH => {
+        w::TRIANGLE_MESH => {
             let mut flags = crate::rapier2d::prelude::TriMeshFlags::empty();
             if v::boolean(params, k::FIX_INTERNAL_EDGES, true) {
                 flags |= crate::rapier2d::prelude::TriMeshFlags::FIX_INTERNAL_EDGES;
             }
-            if v::boolean(params, k::CLEAN, false) {
+            if v::boolean(params, k::WELD_VERTICES, false) {
                 flags |= crate::rapier2d::prelude::TriMeshFlags::MERGE_DUPLICATE_VERTICES
                     | crate::rapier2d::prelude::TriMeshFlags::DELETE_DEGENERATE_TRIANGLES
                     | crate::rapier2d::prelude::TriMeshFlags::DELETE_BAD_TOPOLOGY_TRIANGLES;
@@ -142,7 +144,7 @@ fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<Colli
                 flags |= crate::rapier2d::prelude::TriMeshFlags::ORIENTED;
             }
             ColliderBuilder2::trimesh_with_flags(points, indices, flags)
-                .map_err(|e| anyhow!("that mesh cannot be a trimesh collider: {e}"))
+                .map_err(|e| anyhow!("that mesh cannot be a triangle_mesh collider: {e}"))
         }
         w::CONVEX_HULL => ColliderBuilder2::convex_hull(&points)
             .ok_or_else(|| anyhow!("those {} points have no hull", points.len())),
@@ -167,8 +169,8 @@ fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<Colli
 /// rows its owner has already set (see `crate::collider::with_groups`).
 pub(crate) fn with_groups_2d(builder: ColliderBuilder2, params: &toml::Value) -> ColliderBuilder2 {
     builder.collision_groups(InteractionGroups::new(
-        Group::from_bits_truncate(v::layer_bits(params, k::LAYERS, false)),
-        Group::from_bits_truncate(v::layer_bits(params, k::MASK, true)),
+        Group::from_bits_truncate(v::layer_bits(params, k::COLLISION_LAYER, false)),
+        Group::from_bits_truncate(v::layer_bits(params, k::COLLISION_MASK, true)),
         InteractionTestMode::And,
     ))
 }
@@ -201,7 +203,7 @@ fn decomposition_collider(
     params: &toml::Value,
 ) -> Result<(ColliderBuilder2, Option<MassProperties>)> {
     let (points, indices) = mesh_of(eng, params, w::CONVEX_DECOMPOSITION)?;
-    let border = scalar::real(v::f(params, k::BORDER, 0.0)).max(0.0);
+    let border = scalar::real(v::f(params, k::EDGE_RADIUS, 0.0)).max(0.0);
     if v::text(params, k::METHOD, w::EXACT) == w::VHACD {
         return Ok((vhacd_collider(params, &points, &indices, border), None));
     }
@@ -246,9 +248,13 @@ fn vhacd_collider(
 ) -> ColliderBuilder2 {
     let mut tuning = crate::rapier2d::parry::transformation::vhacd::VHACDParameters::default();
     tuning.resolution = v::f(params, k::RESOLUTION, tuning.resolution as f32).max(1.0) as u32;
-    tuning.concavity = scalar::real(v::f(params, k::CONCAVITY, scalar::f32_of(tuning.concavity)));
+    tuning.concavity = scalar::real(v::f(
+        params,
+        k::MAX_CONCAVITY,
+        scalar::f32_of(tuning.concavity),
+    ));
     tuning.max_convex_hulls =
-        v::f(params, k::MAX_PIECES, tuning.max_convex_hulls as f32).max(1.0) as u32;
+        v::f(params, k::MAX_CONVEX_HULLS, tuning.max_convex_hulls as f32).max(1.0) as u32;
     let outline = boundary(indices);
     if border > 0.0 {
         return ColliderBuilder2::round_convex_decomposition_with_params(
@@ -329,21 +335,23 @@ pub(crate) fn with_material(builder: ColliderBuilder2, params: &toml::Value) -> 
             k::RESTITUTION_COMBINE,
             w::AVERAGE,
         )))
-        .contact_skin(scalar::real(v::f(params, k::CONTACT_SKIN, 0.0).max(0.0)))
+        .contact_skin(scalar::real(
+            v::f(params, k::COLLISION_MARGIN, 0.0).max(0.0),
+        ))
         .contact_force_event_threshold(scalar::real(v::f(params, k::CONTACT_FORCE_THRESHOLD, 0.0)))
         .collision_groups(InteractionGroups::new(
-            Group::from_bits_truncate(v::layer_bits(params, k::LAYERS, false)),
-            Group::from_bits_truncate(v::layer_bits(params, k::MASK, true)),
+            Group::from_bits_truncate(v::layer_bits(params, k::COLLISION_LAYER, false)),
+            Group::from_bits_truncate(v::layer_bits(params, k::COLLISION_MASK, true)),
             InteractionTestMode::And,
         ))
         .solver_groups(InteractionGroups::new(
-            Group::from_bits_truncate(v::layer_bits(params, k::SOLVER_LAYERS, false)),
+            Group::from_bits_truncate(v::layer_bits(params, k::SOLVER_LAYER, false)),
             Group::from_bits_truncate(v::layer_bits(params, k::SOLVER_MASK, true)),
             InteractionTestMode::And,
         ))
         .active_collision_types(ActiveCollisionTypes::from_bits_truncate(v::bits(
             params,
-            k::ACTIVE_COLLISIONS,
+            k::CONTACT_PAIRS,
             &v::flags::collision_types(),
         )))
         .active_events(ActiveEvents::from_bits_truncate(v::bits(
@@ -432,16 +440,16 @@ fn shape_params(collider: &Collider) -> Option<toml::map::Map<String, toml::Valu
         return Some(map);
     }
     if let Some(cuboid) = shape.as_cuboid() {
-        map.insert(k::KIND.into(), w::RECT.into());
+        map.insert(k::KIND.into(), w::RECTANGLE.into());
         let he = cuboid.half_extents;
         map.insert(k::HALF_EXTENTS.into(), vec2(he.x, he.y));
         return Some(map);
     }
     if let Some(round) = shape.as_round_cuboid() {
-        map.insert(k::KIND.into(), w::RECT.into());
+        map.insert(k::KIND.into(), w::RECTANGLE.into());
         let he = round.inner_shape.half_extents;
         map.insert(k::HALF_EXTENTS.into(), vec2(he.x, he.y));
-        map.insert(k::BORDER.into(), f(round.border_radius));
+        map.insert(k::EDGE_RADIUS.into(), f(round.border_radius));
         return Some(map);
     }
     if let Some(tri) = shape.as_triangle() {
@@ -458,7 +466,7 @@ fn shape_params(collider: &Collider) -> Option<toml::map::Map<String, toml::Valu
         return Some(map);
     }
     if let Some(halfspace) = shape.as_halfspace() {
-        map.insert(k::KIND.into(), w::HALFSPACE.into());
+        map.insert(k::KIND.into(), w::WORLD_BOUNDARY.into());
         map.insert(
             k::NORMAL.into(),
             vec2(halfspace.normal.x, halfspace.normal.y),
@@ -493,30 +501,30 @@ pub(crate) fn max_contact_impulse(eng: &Engine, entity: Entity) -> Real {
 /// [`crate::PhysicsState2d`].
 pub(crate) fn register_collider2d_component(reg: &mut Registry<'_>) {
     let shapes = v::options(w::SHAPES_2D);
-    let default = w::RECT;
+    let default = w::RECTANGLE;
     let schema = [
         v::schema(&[
             (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{shapes}], description = "Collision shape" }}"#)),
             (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Circle radius, when kind is circle or capsule" }"#),
             (k::HEIGHT, r#"{ type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, when kind is capsule" }"#),
-            (k::HALF_EXTENTS, r#"{ type = "vec2", default = [0.5, 0.5], description = "Half-sizes of the rect, when kind is rect" }"#),
-            (k::BORDER, r#"{ type = "float", default = 0.0, min = 0.0, description = "Rounds a rect or triangle by this radius, so it slides over seams instead of catching on them", group = "shape" }"#),
+            (k::HALF_EXTENTS, r#"{ type = "vec2", default = [0.5, 0.5], description = "Half-sizes of the rectangle, when kind is rectangle" }"#),
+            (k::EDGE_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "Rounds a rect or triangle by this radius, so it slides over seams instead of catching on them", group = "shape" }"#),
             (k::A, r#"{ type = "vec2", default = [0.0, 0.0], description = "First corner, when kind is triangle or segment", group = "shape" }"#),
             (k::B, r#"{ type = "vec2", default = [1.0, 0.0], description = "Second corner, when kind is triangle or segment", group = "shape" }"#),
             (k::C, r#"{ type = "vec2", default = [0.0, 1.0], description = "Third corner, when kind is triangle", group = "shape" }"#),
-            (k::NORMAL, r#"{ type = "vec2", default = [0.0, 1.0], description = "Which way the infinite line faces, when kind is halfspace", group = "shape" }"#),
-            (k::MESH, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Points and triangles for a trimesh, convex_hull, convex_decomposition or polyline collider: the same asset a polygon draws", group = "shape" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
+            (k::NORMAL, r#"{ type = "vec2", default = [0.0, 1.0], description = "Which way the infinite line faces, when kind is world_boundary", group = "shape" }"#),
+            (k::MESH, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Points and triangles for a triangle_mesh, convex_hull, convex_decomposition or polyline collider: the same asset a polygon draws", group = "shape" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
             (k::HEIGHTFIELD, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "A row of heights, when kind is heightfield: a side-scroller's ground", group = "shape" }}"#, balaur_core::heightfield::HEIGHTFIELD_ASSET_TYPE)),
             (k::SCALE, r#"{ type = "vec2", default = [1.0, 1.0], description = "Width and height scale of a heightfield", group = "shape" }"#),
             (k::VOXELS, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Filled cells, when kind is voxels; a script may dig into them while the game runs", group = "shape" }}"#, balaur_core::voxels::VOXELS_ASSET_TYPE)),
-            (k::FIX_INTERNAL_EDGES, r#"{ type = "bool", default = true, description = "Take neighbouring triangles into account for a trimesh's contacts, so a body does not catch on the seam between two of them", group = "contacts" }"#),
-            (k::CLEAN, r#"{ type = "bool", default = false, description = "Merge duplicate vertices and drop degenerate triangles when building a trimesh", group = "shape" }"#),
-            (k::ORIENTED, r#"{ type = "bool", default = false, description = "Treat a trimesh or polyline as one-sided: the winding decides which side is solid, counter-clockwise enclosing the solid", group = "shape" }"#),
+            (k::FIX_INTERNAL_EDGES, r#"{ type = "bool", default = true, description = "Take neighbouring triangles into account for a triangle_mesh's contacts, so a body does not catch on the seam between two of them", group = "contacts" }"#),
+            (k::WELD_VERTICES, r#"{ type = "bool", default = false, description = "Merge duplicate vertices and drop degenerate triangles when building a triangle_mesh", group = "shape" }"#),
+            (k::ORIENTED, r#"{ type = "bool", default = false, description = "Treat a triangle_mesh or polyline as one-sided: the winding decides which side is solid, counter-clockwise enclosing the solid", group = "shape" }"#),
             (k::OVERLAP, r#"{ type = "float", default = 0.9, min = 0.0, max = 1.0, description = "How far a convex_decomposition piece grows through each seam it shares, so nothing wedges into one: 0 leaves the plain pieces, 1 grows flush with the face that stops it", group = "shape" }"#),
             (k::METHOD, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How a convex_decomposition is cut: exact, over the mesh's own triangles, or vhacd, which voxelises the outline", group = "shape" }}"#, w::EXACT, v::options(w::DECOMPOSITION_METHODS))),
             (k::RESOLUTION, r#"{ type = "float", default = 64.0, min = 1.0, description = "How fine the voxel grid is, when method is vhacd", group = "shape" }"#),
-            (k::CONCAVITY, r#"{ type = "float", default = 0.01, min = 0.0, description = "How deep a dent a vhacd piece may keep before it is cut again", group = "shape" }"#),
-            (k::MAX_PIECES, r#"{ type = "float", default = 1024.0, min = 1.0, description = "The most pieces a vhacd cut may leave", group = "shape" }"#),
+            (k::MAX_CONCAVITY, r#"{ type = "float", default = 0.01, min = 0.0, description = "How deep a dent a vhacd piece may keep before it is cut again", group = "shape" }"#),
+            (k::MAX_CONVEX_HULLS, r#"{ type = "float", default = 1024.0, min = 1.0, description = "The most pieces a vhacd cut may leave", group = "shape" }"#),
             (k::OFFSET, r#"{ type = "vec2", default = [0.0, 0.0], description = "Where the shape sits relative to the node", group = "shape" }"#),
             (k::OFFSET_ROTATION, r#"{ type = "float", default = 0.0, description = "How the shape is turned relative to the node, in radians", group = "shape" }"#),
             (k::ONE_WAY_AXIS, r#"{ type = "vec2", default = [0.0, 1.0], description = "The direction a one-way platform lets bodies through from", group = "contacts" }"#),

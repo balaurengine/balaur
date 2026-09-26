@@ -140,24 +140,24 @@ macro_rules! functions {
                 Event::Started(a, b) => {
                     host.call_on(
                         balaur_core::node_id_of(a),
-                        hook::ON_COLLISION_START,
+                        hook::ON_COLLISION_ENTER,
                         &[node(b)],
                     );
                     host.call_on(
                         balaur_core::node_id_of(b),
-                        hook::ON_COLLISION_START,
+                        hook::ON_COLLISION_ENTER,
                         &[node(a)],
                     );
                 }
                 Event::Stopped(a, b) => {
                     host.call_on(
                         balaur_core::node_id_of(a),
-                        hook::ON_COLLISION_STOP,
+                        hook::ON_COLLISION_EXIT,
                         &[node(b)],
                     );
                     host.call_on(
                         balaur_core::node_id_of(b),
-                        hook::ON_COLLISION_STOP,
+                        hook::ON_COLLISION_EXIT,
                         &[node(a)],
                     );
                 }

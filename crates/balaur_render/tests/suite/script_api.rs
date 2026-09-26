@@ -71,15 +71,15 @@ fn run_clean(body: &str) {
 fn shapes_can_be_set_from_a_script_in_both_dimensions() {
     run_clean(
         r#"
-        this.node.shape3d.set(#{ kind: "ball", radius: 0.5 });
-        this.node.shape3d.set(#{ kind: "cuboid", half_extents: [1.0, 2.0, 3.0] });
+        this.node.shape3d.set(#{ kind: "sphere", radius: 0.5 });
+        this.node.shape3d.set(#{ kind: "box", half_extents: [1.0, 2.0, 3.0] });
         let kind = this.node.shape3d.kind;
-        assert!(kind == "cuboid", "the last shape set should win, got {}", kind);
+        assert!(kind == "box", "the last shape set should win, got {}", kind);
 
         this.node.shape2d.set(#{ kind: "circle", radius: 0.25 });
-        this.node.shape2d.set(#{ kind: "rect", half_extents: [1.0, 2.0] });
+        this.node.shape2d.set(#{ kind: "rectangle", half_extents: [1.0, 2.0] });
         let kind_2d = this.node.shape2d.kind;
-        assert!(kind_2d == "rect", "the last 2D shape set should win, got {}", kind_2d);
+        assert!(kind_2d == "rectangle", "the last 2D shape set should win, got {}", kind_2d);
         "#,
     );
 }
@@ -88,7 +88,7 @@ fn shapes_can_be_set_from_a_script_in_both_dimensions() {
 fn a_colour_set_from_a_script_reads_back() {
     run_clean(
         r#"
-        this.node.shape3d.set(#{ kind: "ball", radius: 0.5 });
+        this.node.shape3d.set(#{ kind: "sphere", radius: 0.5 });
         this.node.shape3d.color = [0.25, 0.5, 0.75, 1.0];
         let [r, g, b, _] = this.node.shape3d.color;
         assert!(math::abs(r - 0.25) < 1e-4, "red was not kept: {}", r);
@@ -102,7 +102,7 @@ fn a_colour_set_from_a_script_reads_back() {
 fn a_colour_may_be_set_without_alpha() {
     run_clean(
         r#"
-        this.node.shape3d.set(#{ kind: "ball", radius: 0.5 });
+        this.node.shape3d.set(#{ kind: "sphere", radius: 0.5 });
         this.node.shape3d.color = [1.0, 0.0, 0.0, 1.0];
         let [r, _, _, _] = this.node.shape3d.color;
         assert!(math::abs(r - 1.0) < 1e-4);

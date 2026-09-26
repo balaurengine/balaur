@@ -1088,7 +1088,7 @@ fn physics_pills_fit(S) {
         }
         // Past the row's own right edge is a pill the wrap had no room for:
         // it is drawn clipped, and a click on where it looks to be misses.
-        if box.right > box.row.x + box.row.w + 0.5 {
+        if box.right > box.row.x + box.row.width + 0.5 {
             over.push(box.id);
         }
     }
@@ -3633,7 +3633,7 @@ pub fn change_types(S) {
         newnode::place(S, soft);
         check(S.newnode && S.newnode_soft == "2d", "a new soft body asks what to build it from");
         let sources = newnode::catalogue(S);
-        check(sources.len() >= 2 && sources[0].label == "Rect", format!("a shape first ({} sources)", sources.len()));
+        check(sources.len() >= 2 && sources[0].label == "Rectangle", format!("a shape first ({} sources)", sources.len()));
         newnode::place_source(S, sources[1]);
         check(S.doc.len() == before + 1 && S.doc[S.sel].contains_key("softbody2d") && !S.newnode,
             "and builds it from the one picked");

@@ -34,10 +34,10 @@ position = [3.5, 1.0, 0.0]
 kind = "dynamic"
 
 [nodes.collider2d]
-kind = "rect"
+kind = "rectangle"
 half_extents = [0.4, 0.4]
 
 [nodes.shape2d]
-kind = "rect"
+kind = "rectangle"
 half_extents = [0.4, 0.4]
 color = [0.9, 0.6, 0.3, 1.0]

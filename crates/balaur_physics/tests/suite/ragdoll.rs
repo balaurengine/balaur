@@ -106,7 +106,7 @@ fn global_y(app: &App, entity: Entity) -> f32 {
 fn a_ragdoll_gives_every_bone_a_body_and_a_joint() {
     let (app, errors) = run(
         RIG,
-        r"pub fn init(this) { physics2d::ragdoll(this.node, #{ blend: 0.0 }); }",
+        r"pub fn init(this) { physics2d::ragdoll(this.node, #{ influence: 0.0 }); }",
         2,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -130,11 +130,11 @@ fn a_ragdoll_gives_every_bone_a_body_and_a_joint() {
     let knee = find(&app, "Rig_ragdoll/Knee").unwrap();
     assert!(balaur_core::components::get(&app.engine, hip, "joint2d").is_none());
     let joint = balaur_core::components::get(&app.engine, knee, "joint2d").unwrap();
-    assert_eq!(joint.get("kind").unwrap().as_str(), Some("revolute"));
+    assert_eq!(joint.get("kind").unwrap().as_str(), Some("hinge"));
     // And the rig itself carries the component that drives the bones back.
     let rig = find(&app, "Rig").unwrap();
     let ragdoll = balaur_core::components::get(&app.engine, rig, "ragdoll").unwrap();
-    assert_eq!(ragdoll.get("blend").unwrap().as_float(), Some(0.0));
+    assert_eq!(ragdoll.get("influence").unwrap().as_float(), Some(0.0));
 }
 
 #[test]
@@ -154,7 +154,7 @@ fn a_ragdoll_at_full_blend_makes_the_rig_fall() {
 fn a_blend_of_zero_leaves_the_rig_where_the_clip_put_it() {
     let (app, errors) = run(
         RIG,
-        r"pub fn init(this) { physics2d::ragdoll(this.node, #{ blend: 0.0 }); }",
+        r"pub fn init(this) { physics2d::ragdoll(this.node, #{ influence: 0.0 }); }",
         90,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -175,14 +175,14 @@ fn ragdoll_blend_turns_it_on_partway_through() {
     let (app, errors) = run(
         RIG,
         r"pub fn init(this) {
-    physics2d::ragdoll(this.node, #{ blend: 0.0 });
+    physics2d::ragdoll(this.node, #{ influence: 0.0 });
     this.ticks = 0;
 }
 
 pub fn update(this, dt) {
     this.ticks += 1;
     if this.ticks == 30 {
-        this.node.ragdoll.ragdoll_blend(1.0);
+        this.node.ragdoll.set_ragdoll_influence(1.0);
     }
 }",
         90,
@@ -222,14 +222,14 @@ fn a_blend_back_to_zero_hands_the_rig_back_its_own_pose() {
     let (app, errors) = run(
         RIG,
         r"pub fn init(this) {
-    physics2d::ragdoll(this.node, #{ blend: 1.0 });
+    physics2d::ragdoll(this.node, #{ influence: 1.0 });
     this.ticks = 0;
 }
 
 pub fn update(this, dt) {
     this.ticks += 1;
     if this.ticks == 30 {
-        this.node.ragdoll.ragdoll_blend(0.0);
+        this.node.ragdoll.set_ragdoll_influence(0.0);
     }
 }",
         60,
@@ -252,13 +252,13 @@ pub fn update(this, dt) {
 fn a_rollback_to_a_limp_tick_gets_back_up_the_same_way() {
     let (mut app, errors) = run(
         RIG,
-        r"pub fn init(this) { physics2d::ragdoll(this.node, #{ blend: 1.0 }); }",
+        r"pub fn init(this) { physics2d::ragdoll(this.node, #{ influence: 1.0 }); }",
         29,
     );
     assert!(errors.is_empty(), "{errors:#?}");
     let rig = find(&app, "Rig").unwrap();
     let stand = |app: &mut App| {
-        let zero = toml::from_str::<toml::Value>("blend = 0.0").unwrap();
+        let zero = toml::from_str::<toml::Value>("influence = 0.0").unwrap();
         balaur_core::components::patch(&app.engine, rig, "ragdoll", &zero).unwrap();
         app.tick(1.0 / 60.0);
         global_at(app, "Rig/Hip/Knee")

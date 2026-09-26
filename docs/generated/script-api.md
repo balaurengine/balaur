@@ -246,11 +246,11 @@ cannot drift from what scripts actually see.
 
 ## `physics`
 
-**Functions:** `clear`, `counters`, `debug_draw`, `is_paused`, `quarantined`, `ragdoll_blend`, `set_debug_draw`, `set_paused`, `set_sleeping_allowed`, `set_threads`, `set_tuning`, `sleeping_allowed`, `threads`, `tuning`
+**Functions:** `clear`, `counters`, `debug_draw`, `is_paused`, `quarantined`, `set_debug_draw`, `set_paused`, `set_ragdoll_influence`, `set_sleeping_allowed`, `set_threads`, `set_tuning`, `sleeping_allowed`, `threads`, `tuning`
 
 ## `physics2d`
 
-**Functions:** `add_force`, `add_force_at_point`, `add_softbody_force`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_particle_impulse`, `apply_softbody_impulse`, `apply_softbody_impulse_at`, `apply_softbody_radial_impulse`, `apply_torque_impulse`, `attach_particle`, `box_hits`, `detach_particle`, `distance`, `gravity`, `intersects`, `is_grounded`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `pin_particle`, `point_hits`, `predict_position`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_softbody_forces`, `reset_torques`, `set_angular_velocity`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_particle_position`, `set_particle_target`, `set_particle_velocity`, `set_softbody`, `set_voxel`, `shape_hits`, `shapecast`, `sleep`, `softbody_area`, `softbody_center`, `softbody_edges`, `softbody_particles`, `softbody_position`, `softbody_rest_area`, `softbody_sleeping`, `softbody_stress`, `softbody_velocity`, `teleport`, `total_mass`, `unpin_particle`, `user_force`, `user_torque`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_softbody`, `wake_up`
+**Functions:** `add_constant_force`, `add_constant_force_at_point`, `add_constant_torque`, `add_softbody_force`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_particle_impulse`, `apply_softbody_impulse`, `apply_softbody_impulse_at`, `apply_softbody_radial_impulse`, `apply_torque_impulse`, `attach_particle`, `closest_point`, `constant_force`, `constant_torque`, `detach_particle`, `distance`, `gravity`, `intersects`, `is_on_floor`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `next_position`, `overlap_aabb`, `overlap_point`, `overlap_shape`, `overlaps`, `pin_particle`, `predict_position`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_softbody_forces`, `set_angular_velocity`, `set_constant_force`, `set_constant_torque`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_particle_position`, `set_particle_target`, `set_particle_velocity`, `set_softbody`, `set_voxel`, `shapecast`, `sleep`, `softbody_area`, `softbody_center`, `softbody_edges`, `softbody_particles`, `softbody_position`, `softbody_rest_area`, `softbody_sleeping`, `softbody_stress`, `softbody_velocity`, `teleport`, `total_mass`, `unpin_particle`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_softbody`, `wake_up`
 
 **Constants** (64):
 
@@ -285,7 +285,7 @@ cannot drift from what scripts actually see.
 
 ## `physics3d`
 
-**Functions:** `aabb`, `active_bodies`, `add_force`, `add_force_at_point`, `add_softbody_force`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_particle_impulse`, `apply_softbody_impulse`, `apply_softbody_impulse_at`, `apply_softbody_radial_impulse`, `apply_torque_impulse`, `attach_particle`, `bodies`, `box_hits`, `closest_points`, `collider_mass`, `collider_mesh`, `collider_volume`, `contacts`, `detach_particle`, `distance`, `effective_dominance`, `gravity`, `handles`, `intersects`, `is_grounded`, `is_moving`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `pin_particle`, `point_hits`, `potential_energy`, `predict_position`, `predict_position_with_forces`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_softbody_forces`, `reset_torques`, `set_angular_velocity`, `set_brake`, `set_collider`, `set_engine_force`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_particle_position`, `set_particle_target`, `set_particle_velocity`, `set_softbody`, `set_steering`, `set_voxel`, `shape_hits`, `shapecast`, `sleep`, `softbody_center`, `softbody_edges`, `softbody_particles`, `softbody_position`, `softbody_rest_volume`, `softbody_sleeping`, `softbody_stress`, `softbody_velocity`, `softbody_volume`, `solve_ik`, `swept_aabb`, `teleport`, `time_of_impact`, `total_mass`, `unpin_particle`, `user_force`, `user_torque`, `vehicle_speed`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_softbody`, `wake_up`, `wheel_state`
+**Functions:** `aabb`, `active_bodies`, `add_constant_force`, `add_constant_force_at_point`, `add_constant_torque`, `add_softbody_force`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_particle_impulse`, `apply_softbody_impulse`, `apply_softbody_impulse_at`, `apply_softbody_radial_impulse`, `apply_torque_impulse`, `attach_particle`, `bodies`, `closest_point`, `closest_points`, `collider_mass`, `collider_mesh`, `collider_volume`, `constant_force`, `constant_torque`, `contacts`, `detach_particle`, `distance`, `effective_dominance`, `gravity`, `handles`, `intersects`, `is_moving`, `is_on_floor`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `next_position`, `overlap_aabb`, `overlap_point`, `overlap_shape`, `overlaps`, `pin_particle`, `potential_energy`, `predict_position`, `predict_position_with_forces`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_softbody_forces`, `set_angular_velocity`, `set_brake`, `set_collider`, `set_constant_force`, `set_constant_torque`, `set_engine_force`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_particle_position`, `set_particle_target`, `set_particle_velocity`, `set_softbody`, `set_steering`, `set_voxel`, `shapecast`, `sleep`, `softbody_center`, `softbody_edges`, `softbody_particles`, `softbody_position`, `softbody_rest_volume`, `softbody_sleeping`, `softbody_stress`, `softbody_velocity`, `softbody_volume`, `solve_ik`, `swept_aabb`, `teleport`, `time_of_impact`, `total_mass`, `unpin_particle`, `vehicle_speed`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_softbody`, `wake_up`, `wheel_state`
 
 **Constants** (77):
 
@@ -336,7 +336,7 @@ cannot drift from what scripts actually see.
 
 ## `render`
 
-**Functions:** `bounds`, `built_mesh`, `camera_2d`, `camera_input`, `camera_matrix`, `camera_pose`, `cell`, `channel`, `channels`, `check_material`, `clones`, `draw_arc_2d`, `draw_box`, `draw_capsule`, `draw_circle_2d`, `draw_line`, `draw_line_2d`, `draw_lines`, `draw_polygon_2d`, `draw_polyline_2d`, `draw_rect_2d`, `draw_sphere`, `draw_text`, `draw_text_2d`, `draw_texture_2d`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `pick_ray_at`, `screenshot`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_cell`, `set_channel`, `set_copy`, `set_cuboid`, `set_grid`, `set_grid_colors`, `set_rect`, `set_shader_preview`, `set_shader_probe`, `set_terrain`, `shader_probe`, `stats`, `terrain`, `text_size`, `texture_pixels_per_unit`, `texture_size`, `tile_data`, `trace_texture`
+**Functions:** `bounds`, `built_mesh`, `camera_2d`, `camera_input`, `camera_matrix`, `camera_pose`, `cell`, `channel`, `channels`, `check_material`, `clones`, `draw_arc_2d`, `draw_box`, `draw_capsule`, `draw_circle_2d`, `draw_line`, `draw_line_2d`, `draw_lines`, `draw_polygon_2d`, `draw_polyline_2d`, `draw_rect_2d`, `draw_sphere`, `draw_text`, `draw_text_2d`, `draw_texture_2d`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `pick_ray_at`, `screenshot`, `set_background`, `set_box`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_cell`, `set_channel`, `set_copy`, `set_grid`, `set_grid_colors`, `set_rectangle`, `set_shader_preview`, `set_shader_probe`, `set_sphere`, `set_terrain`, `shader_probe`, `stats`, `terrain`, `text_size`, `texture_pixels_per_unit`, `texture_size`, `tile_data`, `trace_texture`
 
 **Constants** (36):
 
@@ -357,15 +357,15 @@ cannot drift from what scripts actually see.
 | `LIGHT_DIRECTIONAL` | `directional` |
 | `LIGHT_POINT` | `point` |
 | `LIGHT_SPOT` | `spot` |
-| `SHAPE_BALL` | `ball` |
+| `SHAPE_BOX` | `box` |
 | `SHAPE_CAPSULE` | `capsule` |
 | `SHAPE_CIRCLE` | `circle` |
 | `SHAPE_CONE` | `cone` |
-| `SHAPE_CUBOID` | `cuboid` |
 | `SHAPE_CYLINDER` | `cylinder` |
 | `SHAPE_ELLIPSE` | `ellipse` |
 | `SHAPE_NGON` | `ngon` |
 | `SHAPE_PLANE` | `plane` |
+| `SHAPE_POLYLINE` | `polyline` |
 
 …and 12 more.
 

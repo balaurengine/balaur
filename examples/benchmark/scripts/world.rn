@@ -102,13 +102,13 @@ pub fn pin(w, a, b, at_a, at_b) {
     let path = relative(w, b);
     if w.dimensions == 2 {
         node.set_component("joint2d", #{
-            kind: "revolute", body: path,
-            anchor: [anchor[0], anchor[1]], other_anchor: [other[0], other[1]],
+            kind: "hinge", connected_body: path,
+            anchor: [anchor[0], anchor[1]], connected_anchor: [other[0], other[1]],
         });
     } else {
         node.set_component("joint3d", #{
-            kind: "spherical", body: path,
-            anchor: anchor, other_anchor: other,
+            kind: "ball_socket", connected_body: path,
+            anchor: anchor, connected_anchor: other,
         });
     }
     node
@@ -151,11 +151,11 @@ fn draw(w, node, shape) {
     if !w.draw {
         return;
     }
-    let kind = shape.get("kind").unwrap_or(if w.dimensions == 2 { "rect" } else { "cuboid" });
+    let kind = shape.get("kind").unwrap_or(if w.dimensions == 2 { "rectangle" } else { "box" });
     let drawn = if w.dimensions == 2 {
         if kind == "convex_hull" { #{ kind: "circle", radius: 13.0 } } else { copy(shape) }
     } else {
-        if kind == "convex_hull" { #{ kind: "ball", radius: 0.45 } } else { copy(shape) }
+        if kind == "convex_hull" { #{ kind: "sphere", radius: 0.45 } } else { copy(shape) }
     };
     // A few colours in turn, so a stack reads as bodies rather than as a slab.
     drawn.insert("color", PALETTE[(w.bodies.len() + w.statics) % PALETTE.len()]);

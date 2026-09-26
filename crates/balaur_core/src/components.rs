@@ -42,7 +42,7 @@
 //!                           decision to put it away by default)
 //!
 //! `type` declares a property's datatype; `kind` is a property *name*, the one
-//! reserved for a tagged union's discriminant (`shape.kind = "ball"`), so a
+//! reserved for a tagged union's discriminant (`shape.kind = "sphere"`), so a
 //! discriminant reads `kind = { type = "enum", options = [...] }`.
 //! `ComponentDef::parse_schema` enforces all of that and panics on a schema
 //! that departs from it.

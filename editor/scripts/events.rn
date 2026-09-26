@@ -238,8 +238,8 @@ fn hook_args(hook) {
         "on_resize" => ", width, height",
         "on_variable_changed" => ", name, value",
         "on_state_changed" => ", from, to",
-        "on_collision_start" => ", other",
-        "on_collision_stop" => ", other",
+        "on_collision_enter" => ", other",
+        "on_collision_exit" => ", other",
         _ => "",
     }
 }

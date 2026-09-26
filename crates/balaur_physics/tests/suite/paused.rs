@@ -17,7 +17,7 @@ fn falling_body(app: &App, name: &str, kind: &str) -> Entity {
     let e = scene::spawn_node(&mut app.engine.world_mut(), name, root);
     let params: toml::Value = toml::from_str(&format!("kind = \"{kind}\"")).unwrap();
     components::add(&app.engine, e, "body3d", Some(&params)).unwrap();
-    let collider: toml::Value = toml::from_str("kind = \"ball\"\nradius = 0.5").unwrap();
+    let collider: toml::Value = toml::from_str("kind = \"sphere\"\nradius = 0.5").unwrap();
     components::add(&app.engine, e, "collider3d", Some(&collider)).unwrap();
     e
 }

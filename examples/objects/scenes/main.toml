@@ -196,7 +196,7 @@ parent = "n_world"
 position = [4, 0.8, 0]
 
 [nodes.shape3d]
-kind = "cuboid"
+kind = "box"
 half_extents = [0.7, 0.7, 0.7]
 corner_radius = 0.25
 segments = 16
@@ -252,7 +252,7 @@ name = "A"
 parent = "n_union"
 
 [nodes.shape3d]
-kind = "cuboid"
+kind = "box"
 half_extents = [0.7, 0.7, 0.7]
 
 [[nodes]]
@@ -264,7 +264,7 @@ parent = "n_union"
 position = [0.55, 0.55, 0.55]
 
 [nodes.shape3d]
-kind = "ball"
+kind = "sphere"
 radius = 0.5
 
 [[nodes]]
@@ -284,7 +284,7 @@ name = "A"
 parent = "n_difference"
 
 [nodes.shape3d]
-kind = "cuboid"
+kind = "box"
 half_extents = [0.7, 0.7, 0.7]
 
 [[nodes]]
@@ -296,7 +296,7 @@ parent = "n_difference"
 position = [0.6, 0.6, 0.6]
 
 [nodes.shape3d]
-kind = "ball"
+kind = "sphere"
 radius = 0.55
 
 [[nodes]]
@@ -316,7 +316,7 @@ name = "A"
 parent = "n_intersection"
 
 [nodes.shape3d]
-kind = "cuboid"
+kind = "box"
 half_extents = [0.7, 0.7, 0.7]
 
 [[nodes]]
@@ -325,7 +325,7 @@ name = "B"
 parent = "n_intersection"
 
 [nodes.shape3d]
-kind = "ball"
+kind = "sphere"
 radius = 0.9
 
 [[nodes]]
@@ -372,7 +372,7 @@ name = "Post"
 parent = "n_ring_of"
 
 [nodes.shape3d]
-kind = "cuboid"
+kind = "box"
 half_extents = [0.16, 0.4, 0.16]
 color = [0.5, 0.65, 0.75, 1]
 

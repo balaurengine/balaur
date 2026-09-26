@@ -3,7 +3,7 @@
 
 pub fn init(this) {
     this.node.body3d.set(#{ kind: physics3d::BODY_DYNAMIC });
-    this.node.collider3d.set(#{ kind: physics3d::SHAPE_BALL, radius: 0.5 });
+    this.node.collider3d.set(#{ kind: physics3d::SHAPE_SPHERE, radius: 0.5 });
     this.reported = false;
 }
 

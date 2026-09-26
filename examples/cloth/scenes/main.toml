@@ -40,7 +40,7 @@ color = [0.20, 0.22, 0.26, 1.0]
 # Real ground, not just something drawn: the ball that tears through lands on
 # it rather than falling out of the scene.
 [nodes.collider3d]
-kind = "cuboid"
+kind = "box"
 half_extents = [8.0, 0.1, 8.0]
 offset = [0.0, -0.1, 0.0]
 
@@ -54,12 +54,12 @@ parent = "n_world"
 position = [-1.5, -0.55, 0.0]
 
 [nodes.shape3d]
-kind = "cuboid"
+kind = "box"
 half_extents = [0.5, 0.4, 0.5]
 color = [0.34, 0.36, 0.40, 1.0]
 
 [nodes.collider3d]
-kind = "cuboid"
+kind = "box"
 half_extents = [0.5, 0.4, 0.5]
 friction = 0.9
 
@@ -81,8 +81,8 @@ mass = 1.0
 # sheet fold rather than stretch. Nothing is pinned: the block holds it up.
 edge_frequency = 120.0
 bend_frequency = 1.0
-solver_iterations = 4.0
-self_contacts = true
+solver_substeps = 4.0
+self_collision = true
 friction = 0.9
 
 [[nodes]]
@@ -97,7 +97,7 @@ position = [1.5, 1.2, 0.0]
 kind = "cloth"
 size = [2.0, 0.0, 2.0]
 cells = [15.0, 15.0, 1.0]
-pinned = [
+pinned_particles = [
   0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
   12, 13, 14, 15, 16, 31, 32, 47, 48, 63, 64, 79,
   80, 95, 96, 111, 112, 127, 128, 143, 144, 159, 160, 175,
@@ -107,7 +107,7 @@ pinned = [
 mass = 2.0
 edge_frequency = 60.0
 bend_frequency = 6.0
-solver_iterations = 4.0
+solver_substeps = 4.0
 # Past six percent of its rest length an edge gives way, which the ball's
 # impact reaches and the sheet's own weight does not.
 tear_strain = 0.06
@@ -124,11 +124,11 @@ position = [1.5, 2.4, 0.0]
 kind = "dynamic"
 
 [nodes.shape3d]
-kind = "ball"
+kind = "sphere"
 radius = 0.3
 color = [0.88, 0.45, 0.30, 1.0]
 
 [nodes.collider3d]
-kind = "ball"
+kind = "sphere"
 radius = 0.3
 density = 4.0

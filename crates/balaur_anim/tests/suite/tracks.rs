@@ -58,7 +58,7 @@ fn a_clip_animates_a_component_the_animation_crate_does_not_depend_on() {
         &app,
         entity,
         "shape3d",
-        "kind = \"cuboid\"\ncolor = [0.0, 0.0, 0.0, 1.0]",
+        "kind = \"box\"\ncolor = [0.0, 0.0, 0.0, 1.0]",
     );
     set(
         &app,
@@ -97,7 +97,7 @@ fn animating_one_property_leaves_the_rest_of_its_component_alone() {
         &app,
         entity,
         "shape3d",
-        r#"kind = "cuboid"
+        r#"kind = "box"
 half_extents = [2.0, 3.0, 4.0]"#,
     );
     set(
@@ -134,7 +134,7 @@ fn a_component_track_can_drive_a_child_node() {
         &app,
         child,
         "shape3d",
-        "kind = \"ball\"\ncolor = [0.0, 0.0, 0.0, 1.0]",
+        "kind = \"sphere\"\ncolor = [0.0, 0.0, 0.0, 1.0]",
     );
     set(
         &app,
@@ -169,7 +169,7 @@ keys = [
 fn a_track_naming_a_component_nothing_registered_leaves_the_node_alone() {
     let mut app = app();
     let entity = spawn(&app, "Box");
-    set(&app, entity, "shape3d", r#"kind = "ball""#);
+    set(&app, entity, "shape3d", r#"kind = "sphere""#);
     set(
         &app,
         entity,

@@ -6,10 +6,10 @@ pub(crate) mod words {
     pub(crate) const TOUCH_BUTTON: &str = "touch_button";
     pub(crate) const TOUCH_STICK: &str = "touch_stick";
 
-    pub(crate) const RECT: &str = "rect";
+    pub(crate) const RECTANGLE: &str = "rectangle";
     pub(crate) const CIRCLE: &str = "circle";
     /// What a button's touch area is.
-    pub(crate) const SHAPES: &[&str] = &[RECT, CIRCLE];
+    pub(crate) const SHAPES: &[&str] = &[RECTANGLE, CIRCLE];
 
     pub(crate) const TOP_LEFT: &str = "top_left";
     pub(crate) const TOP_RIGHT: &str = "top_right";
@@ -49,13 +49,13 @@ pub(crate) mod keys {
     pub(crate) const COLOR: &str = "color";
     pub(crate) const DEADZONE: &str = "deadzone";
     pub(crate) const HEIGHT: &str = "height";
+    pub(crate) const KIND: &str = "kind";
     pub(crate) const KNOB_COLOR: &str = "knob_color";
     pub(crate) const KNOB_RADIUS: &str = "knob_radius";
     pub(crate) const OFFSET: &str = "offset";
     pub(crate) const PRESSED_COLOR: &str = "pressed_color";
     pub(crate) const RADIUS: &str = "radius";
     pub(crate) const RECENTER: &str = "recenter";
-    pub(crate) const SHAPE: &str = "shape";
     pub(crate) const VISIBILITY: &str = "visibility";
     pub(crate) const WIDTH: &str = "width";
 }

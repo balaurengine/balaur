@@ -514,7 +514,7 @@ pub(crate) fn register_touch_button(reg: &mut Registry<'_>) {
                     (k::OFFSET, r#"{ type = "vec2", default = [-110.0, -110.0], description = "From the anchor to the button's centre, in design pixels, x right and y down" }"#),
                     (k::WIDTH, r#"{ type = "float", default = 120.0, min = 0.0, description = "Touch area width in design pixels" }"#),
                     (k::HEIGHT, r#"{ type = "float", default = 120.0, min = 0.0, description = "Touch area height in design pixels" }"#),
-                    (k::SHAPE, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "The touch area's outline; a circle uses the larger half of the box" }}"#, w::CIRCLE, ComponentDef::options(w::SHAPES))),
+                    (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "The touch area's outline; a circle uses the larger half of the box" }}"#, w::CIRCLE, ComponentDef::options(w::SHAPES))),
                     (k::VISIBILITY, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "`touchscreen` hides it and stops it taking fingers where the platform has no touch screen" }}"#, w::TOUCHSCREEN, ComponentDef::options(w::VISIBILITIES))),
                     (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 0.25], description = "Fill while nothing is on it, as channel floats or #rrggbb / #rrggbbaa" }"#),
                     (k::PRESSED_COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 0.5], description = "Fill while a finger is on it" }"#),
@@ -532,7 +532,7 @@ pub(crate) fn register_touch_button(reg: &mut Registry<'_>) {
                     offset: vec2_of(params, k::OFFSET, [-110.0, -110.0]),
                     width: number(params, k::WIDTH, 120.0).max(0.0),
                     height: number(params, k::HEIGHT, 120.0).max(0.0),
-                    shape: if prop_str(params, k::SHAPE) == w::RECT {
+                    shape: if prop_str(params, k::KIND) == w::RECTANGLE {
                         Shape::Rect
                     } else {
                         Shape::Circle
@@ -569,10 +569,10 @@ pub(crate) fn register_touch_button(reg: &mut Registry<'_>) {
                     toml::Value::Float(f64::from(button.height)),
                 );
                 out.insert(
-                    k::SHAPE.into(),
+                    k::KIND.into(),
                     toml::Value::String(
                         match button.shape {
-                            Shape::Rect => w::RECT,
+                            Shape::Rect => w::RECTANGLE,
                             Shape::Circle => w::CIRCLE,
                         }
                         .into(),

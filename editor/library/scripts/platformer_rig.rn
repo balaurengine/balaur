@@ -16,7 +16,7 @@ pub fn fixed_update(this, dt) {
     let sideways = right - left;
     // The controller reports whether the last move ended on the ground, which
     // is what decides between falling and being able to jump.
-    if this.node.character2d.is_grounded() {
+    if this.node.character2d.is_on_floor() {
         let pressed = input::key_just_pressed(input::KEY_SPACE);
         this.vy = if pressed { this.jump } else { 0.0 };
     } else {

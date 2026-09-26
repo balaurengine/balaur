@@ -57,7 +57,7 @@ fn the_plugin_inserts_the_resources_a_frame_reads() {
 fn a_shape_component_puts_a_renderable_on_the_node() {
     let app = app();
     let e = node(&app);
-    let params: toml::Value = toml::from_str("kind = \"ball\"\nradius = 2.0").unwrap();
+    let params: toml::Value = toml::from_str("kind = \"sphere\"\nradius = 2.0").unwrap();
     components::add(&app.engine, e, "shape3d", Some(&params)).unwrap();
 
     let world = app.engine.world();
@@ -83,8 +83,8 @@ fn a_2d_shape_component_puts_a_2d_renderable_on_the_node() {
 fn every_shape_kind_the_schema_offers_is_accepted() {
     let app = app();
     for (component, kinds) in [
-        ("shape3d", ["ball", "cuboid"]),
-        ("shape2d", ["circle", "rect"]),
+        ("shape3d", ["sphere", "box"]),
+        ("shape2d", ["circle", "rectangle"]),
     ] {
         for kind in kinds {
             let e = node(&app);
@@ -101,7 +101,7 @@ fn a_colour_reads_back_as_it_was_set() {
     let e = node(&app);
     // Colour is a property of the renderable, not a component of its own.
     let params: toml::Value =
-        toml::from_str("kind = \"ball\"\ncolor = [0.25, 0.5, 0.75, 1.0]").unwrap();
+        toml::from_str("kind = \"sphere\"\ncolor = [0.25, 0.5, 0.75, 1.0]").unwrap();
     components::add(&app.engine, e, "shape3d", Some(&params)).unwrap();
 
     let got = components::get(&app.engine, e, "shape3d").expect("colour reads back");
@@ -116,7 +116,7 @@ fn a_colour_reads_back_as_it_was_set() {
 fn removing_a_shape_takes_the_renderable_with_it() {
     let app = app();
     let e = node(&app);
-    let params: toml::Value = toml::from_str("kind = \"ball\"").unwrap();
+    let params: toml::Value = toml::from_str("kind = \"sphere\"").unwrap();
     components::add(&app.engine, e, "shape3d", Some(&params)).unwrap();
     components::remove(&app.engine, e, "shape3d").unwrap();
     assert!(app.engine.world().get::<&Renderable3d>(e).is_err());
@@ -212,7 +212,7 @@ fn camera_input_can_be_switched_off() {
 fn ticking_a_headless_app_with_render_does_not_panic() {
     let mut app = app();
     let e = node(&app);
-    let params: toml::Value = toml::from_str("kind = \"ball\"").unwrap();
+    let params: toml::Value = toml::from_str("kind = \"sphere\"").unwrap();
     components::add(&app.engine, e, "shape3d", Some(&params)).unwrap();
     for _ in 0..10 {
         app.tick(1.0 / 60.0);
@@ -225,8 +225,8 @@ fn ticking_a_headless_app_with_render_does_not_panic() {
 #[test]
 fn every_3d_shape_kind_round_trips() {
     for (source, expected) in [
-        ("kind = \"ball\"\nradius = 2.0", "ball"),
-        ("kind = \"cuboid\"", "cuboid"),
+        ("kind = \"sphere\"\nradius = 2.0", "sphere"),
+        ("kind = \"box\"", "box"),
         ("kind = \"capsule\"\nradius = 0.5\nheight = 2.0", "capsule"),
         (
             "kind = \"cylinder\"\nradius = 0.5\nheight = 2.0",
@@ -271,7 +271,7 @@ fn a_capsule_keeps_the_height_it_was_given() {
 fn every_2d_shape_kind_round_trips() {
     for (source, expected) in [
         ("kind = \"circle\"\nradius = 1.0", "circle"),
-        ("kind = \"rect\"", "rect"),
+        ("kind = \"rectangle\"", "rectangle"),
         ("kind = \"capsule\"\nradius = 0.5\nheight = 2.0", "capsule"),
     ] {
         let app = app();

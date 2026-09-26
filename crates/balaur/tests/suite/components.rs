@@ -31,8 +31,8 @@ fn plugin_components_roundtrip_through_the_registry() {
             // set_component adds with defaults when the node lacks the
             // component, and merges when it has it; there is no add_component.
             n.set_component("body3d");
-            n.set_component("collider3d", #{ kind: "ball", radius: 0.7 });
-            n.set_component("shape3d", #{ kind: "ball", radius: 0.7 });
+            n.set_component("collider3d", #{ kind: "sphere", radius: 0.7 });
+            n.set_component("shape3d", #{ kind: "sphere", radius: 0.7 });
             n.set_component("widget", #{ text: "hi" });
 
             let body = n.get_component("body3d");
@@ -157,7 +157,7 @@ fn a_hex_string_is_a_colour_wherever_a_colour_is_taken() {
     // A renderable's `color` property, written as the hex a scene uses.
     let e = spawn(&app, "Red");
     let params = toml::Value::Table(toml::toml! {
-        kind = "ball"
+        kind = "sphere"
         color = "#ff0000"
     });
     balaur::components::add(&app.engine, e, "shape3d", Some(&params)).unwrap();
@@ -441,7 +441,7 @@ fn a_keyed_read_answers_one_property() {
         pub fn init(this) {
             let n = scene::root().add_child("Keyed");
             n.set_component("widget", #{ text: "hi", kind: "button" });
-            n.set_component("collider3d", #{ kind: "ball", radius: 0.7 });
+            n.set_component("collider3d", #{ kind: "sphere", radius: 0.7 });
 
             assert!(n.get_component("widget", "text") == "hi", "widget text");
             assert!(n.get_component("widget", "kind") == "button", "widget kind");
@@ -450,7 +450,7 @@ fn a_keyed_read_answers_one_property() {
             assert!(n.get_component("widget", "value") == table.value, "same as the table");
 
             // No fast path: the table is read and indexed.
-            assert!(n.get_component("collider3d", "kind") == "ball", "collider kind");
+            assert!(n.get_component("collider3d", "kind") == "sphere", "collider kind");
 
             assert!(n.get_component("widget", "no_such_property") == (), "unknown property");
             assert!(n.get_component("body3d", "kind") == (), "component the node lacks");

@@ -416,7 +416,7 @@ fn world_rect(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
         "position",
         floats(&[x / PIXELS_PER_UNIT, -y / PIXELS_PER_UNIT, 0.0]),
     );
-    out.set("shape2d", "kind", Toml::String("rect".into()));
+    out.set("shape2d", "kind", Toml::String("rectangle".into()));
     out.set(
         "shape2d",
         "half_extents",
@@ -781,7 +781,7 @@ fn collision_shape(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
     match shape.attr_str("type").unwrap_or_default() {
         "RectangleShape2D" => {
             let [w, h] = shape.field("size").and_then(pair).unwrap_or([20.0, 20.0]);
-            out.set("collider2d", "kind", Toml::String("rect".into()));
+            out.set("collider2d", "kind", Toml::String("rectangle".into()));
             out.set(
                 "collider2d",
                 "half_extents",
@@ -825,7 +825,7 @@ fn collision_shape(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
             );
         }
         "WorldBoundaryShape2D" => {
-            out.set("collider2d", "kind", Toml::String("halfspace".into()));
+            out.set("collider2d", "kind", Toml::String("world_boundary".into()));
         }
         "ConvexPolygonShape2D" => {
             let points = shape.field("points").map(points_of).unwrap_or_default();

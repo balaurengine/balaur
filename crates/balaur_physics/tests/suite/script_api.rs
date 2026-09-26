@@ -54,8 +54,8 @@ fn colliders_can_be_added_in_every_shape_the_api_offers() {
     run_clean(
         r"
         this.node.body3d.set(#{ kind: physics3d::BODY_DYNAMIC });
-        this.node.collider3d.set(#{ kind: physics3d::SHAPE_BALL, radius: 0.5 });
-        this.node.collider3d.set(#{ kind: physics3d::SHAPE_CUBOID, half_extents: [0.5, 0.5, 0.5] });
+        this.node.collider3d.set(#{ kind: physics3d::SHAPE_SPHERE, radius: 0.5 });
+        this.node.collider3d.set(#{ kind: physics3d::SHAPE_BOX, half_extents: [0.5, 0.5, 0.5] });
         ",
     );
 }
@@ -65,7 +65,7 @@ fn linear_velocity_is_set_and_read_back() {
     run_clean(
         r#"
         this.node.body3d.set(#{ kind: physics3d::BODY_DYNAMIC });
-        this.node.collider3d.set(#{ kind: physics3d::SHAPE_BALL, radius: 0.5 });
+        this.node.collider3d.set(#{ kind: physics3d::SHAPE_SPHERE, radius: 0.5 });
         this.node.body3d.set_linear_velocity(1.0, 2.0, 3.0);
         let (x, y, z) = this.node.body3d.linear_velocity();
         assert!(math::abs(x - 1.0) < 1e-4, "x was not kept: {}", x);
@@ -80,7 +80,7 @@ fn an_impulse_starts_a_body_moving() {
     run_clean(
         r#"
         this.node.body3d.set(#{ kind: physics3d::BODY_DYNAMIC });
-        this.node.collider3d.set(#{ kind: physics3d::SHAPE_BALL, radius: 0.5 });
+        this.node.collider3d.set(#{ kind: physics3d::SHAPE_SPHERE, radius: 0.5 });
         this.node.body3d.apply_impulse(10.0, 0.0, 0.0);
         let (x, _, _) = this.node.body3d.linear_velocity();
         assert!(x > 0.0, "the impulse did nothing: {}", x);
@@ -139,7 +139,7 @@ fn overlaps_returns_an_empty_list_for_a_node_touching_nothing() {
     run_clean(
         r#"
         this.node.body3d.set(#{ kind: physics3d::BODY_DYNAMIC });
-        this.node.collider3d.set(#{ kind: physics3d::SHAPE_BALL, radius: 0.5 });
+        this.node.collider3d.set(#{ kind: physics3d::SHAPE_SPHERE, radius: 0.5 });
         let hits = this.node.collider3d.overlaps();
         assert!(hits is Vec && hits.len() == 0, "3D overlaps should be empty");
 
@@ -243,7 +243,7 @@ fn vehicle_speed_measures_along_the_chassis_forward_axis() {
     run_clean(
         r#"
         this.node.set_component("body3d", #{ kind: "dynamic" });
-        this.node.set_component("collider3d", #{ kind: "cuboid" });
+        this.node.set_component("collider3d", #{ kind: "box" });
         this.node.set_component("vehicle3d", #{ forward_axis: 0.0 });
         this.node.body3d.set_linear_velocity(5.0, 0.0, 0.0);
         let along_x = this.node.vehicle3d.vehicle_speed();
@@ -259,7 +259,7 @@ fn a_collider_property_is_read_and_written_as_a_field() {
     run_clean(
         r#"
         this.node.set_component("body3d", #{ kind: "dynamic" });
-        this.node.set_component("collider3d", #{ kind: "cuboid", density: 1.0 });
+        this.node.set_component("collider3d", #{ kind: "box", density: 1.0 });
         this.node.collider3d.density = 15.0;
         let back = this.node.collider3d.density;
         assert!(math::abs(back - 15.0) < 1e-4, "density came back as {}", back);
@@ -276,7 +276,7 @@ fn a_collider_property_is_read_and_written_as_a_field() {
 fn writing_one_property_field_leaves_the_others() {
     run_clean(
         r#"
-        this.node.set_component("collider3d", #{ kind: "ball", radius: 0.75, friction: 0.25 });
+        this.node.set_component("collider3d", #{ kind: "sphere", radius: 0.75, friction: 0.25 });
         this.node.collider3d.friction = 0.9;
         let radius = this.node.collider3d.radius;
         assert!(math::abs(radius - 0.75) < 1e-4, "radius became {}", radius);
@@ -293,7 +293,7 @@ fn a_property_of_another_component_is_refused() {
     run_clean(
         r#"
         this.node.set_component("body3d", #{ kind: "dynamic" });
-        this.node.set_component("collider3d", #{ kind: "ball" });
+        this.node.set_component("collider3d", #{ kind: "sphere" });
         let (ok, why) = script::attempt(|| this.node.body3d.density);
         assert!(!ok, "`density` answered on a body3d");
         let (wrote, _) = script::attempt(|| { this.node.body3d.density = 4.0; });

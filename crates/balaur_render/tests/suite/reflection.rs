@@ -228,7 +228,7 @@ fn the_frame_counts_every_triangle_it_draws() {
         &app,
         entity,
         "shape3d",
-        "kind = \"cuboid\"\nhalf_extents = [1.0, 1.0, 1.0]",
+        "kind = \"box\"\nhalf_extents = [1.0, 1.0, 1.0]",
     );
     settle(&mut app);
 

@@ -69,13 +69,13 @@ fn collider_shapes(two_d) {
             ["hull", "Convex hull: the smallest convex outline around the points. One shape, fast, and it fills every dent", #{ kind: "convex_hull" }],
             ["pieces", "Convex decomposition: cut into convex pieces exactly, over a triangulation. The only way a concave shape can be a dynamic body", #{ kind: "convex_decomposition", method: "exact" }],
             ["approx", "The same cut approximately, over a voxel grid: fewer pieces and faster to solve, at the cost of the outline", #{ kind: "convex_decomposition", method: "vhacd" }],
-            ["trimesh", "The triangles as they are. Exact and concave, but static only: a dynamic trimesh has no inside", #{ kind: "trimesh" }],
+            ["mesh", "The triangles as they are. Exact and concave, but static only: a dynamic triangle mesh has no inside", #{ kind: "triangle_mesh" }],
         ]
     } else {
         [
             ["hull", "Convex hull: the smallest convex shape around the points. One shape, fast, and it fills every dent", #{ kind: "convex_hull" }],
             ["pieces", "Convex decomposition: parry's VHACD cuts the mesh into convex pieces held as one compound. The only way a concave shape can be a dynamic body", #{ kind: "convex_decomposition" }],
-            ["trimesh", "The triangles as they are. Exact and concave, but static only: a dynamic trimesh has no inside", #{ kind: "trimesh" }],
+            ["mesh", "The triangles as they are. Exact and concave, but static only: a dynamic triangle mesh has no inside", #{ kind: "triangle_mesh" }],
             ["voxels", "Voxelize: the mesh as filled cells, which a script may dig into while the game runs", #{ kind: "voxelized_mesh" }],
             ["box", "The axis-aligned box around the mesh: the cheapest shape there is", #{ kind: "fit", fit: "aabb" }],
             ["obb", "The tightest turned box around the mesh, which beats an axis-aligned one on anything drawn at an angle", #{ kind: "fit", fit: "obb" }],
@@ -276,13 +276,13 @@ fn shape_rows(S, k, two_d) {
         [
             ["solid", "Fill the outline with triangles and simulate those, with the polygon riding them: a soft body as coarse as its cell size, which the Shape rows below set", #{ kind: "volumetric" }],
             ["outline", "Simulate the outline alone, holding the area it encloses: a balloon rather than a jelly", #{ kind: "polygon" }],
-            ["surface", "Simulate the mesh's own vertices and triangles, with no cell size to choose", #{ kind: "trimesh" }],
+            ["surface", "Simulate the mesh's own vertices and triangles, with no cell size to choose", #{ kind: "triangle_mesh" }],
         ]
     } else {
         [
             ["solid", "Fill the mesh with tetrahedra and simulate those: a soft body as coarse as its cell size, which the Shape rows below set. The mesh has to be closed", #{ kind: "volumetric", skin: false }],
             ["skinned", "The same, keeping the drawn mesh as the surface the cells carry: a detail the cell size cannot resolve survives, and contacts stay as coarse as the cells", #{ kind: "volumetric", skin: true }],
-            ["surface", "Simulate the mesh's own vertices and triangles: a sheet or a shell rather than a filled body, and no cell size to choose", #{ kind: "trimesh", skin: false }],
+            ["surface", "Simulate the mesh's own vertices and triangles: a sheet or a shell rather than a filled body, and no cell size to choose", #{ kind: "triangle_mesh", skin: false }],
         ]
     };
     pill_rows(S, k, "Deform as", soft, |row| row[0], |row| row[0], |row| {

@@ -39,8 +39,8 @@ pub const BINDABLE: &[&str] = &[
     "resize",
     "variable_changed",
     "state_changed",
-    "collision_start",
-    "collision_stop",
+    "collision_enter",
+    "collision_exit",
 ];
 
 /// The prefix of a binding event that answers a name the node emitted:

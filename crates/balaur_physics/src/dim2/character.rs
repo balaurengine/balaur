@@ -1,6 +1,6 @@
 //! `character2d`: the 2D half of `crate::character`.
 //!
-//! Same controller, same properties, one axis fewer. `up` is a `vec2`, and a
+//! Same controller, same properties, one axis fewer. `up_direction` is a `vec2`, and a
 //! platformer's is `[0, 1]`.
 
 use crate::rapier2d::control::{
@@ -38,7 +38,11 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector2)
             .map_err(|_| anyhow!("node has no character2d"))?;
         character.0.clone()
     };
-    let up = scalar::v2a(crate::vocabulary::vec2(&params, k::UP, [0.0, 1.0]));
+    let up = scalar::v2a(crate::vocabulary::vec2(
+        &params,
+        k::UP_DIRECTION,
+        [0.0, 1.0],
+    ));
     let up = if up.length_squared() < 1.0e-12 {
         Vector2::Y
     } else {
@@ -127,7 +131,7 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector2)
     Ok(map([
         (k::X, Value::Num(f64::from(movement.translation.x))),
         (k::Y, Value::Num(f64::from(movement.translation.y))),
-        (k::GROUNDED, Value::Bool(movement.grounded)),
+        (k::ON_FLOOR, Value::Bool(movement.grounded)),
         (k::SLIDING, Value::Bool(movement.is_sliding_down_slope)),
         (k::COLLISIONS, collision_list(eng, &collisions)),
     ]))
@@ -136,7 +140,7 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector2)
 pub(crate) fn install_character2d_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("move_character", &[c::CHARACTER_2D], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, grounded, sliding, collisions }`. Call it from fixed_update."),
-        ("is_grounded", &[c::CHARACTER_2D], "", "Whether the last move ended with ground under the character's feet."),
+        ("is_on_floor", &[c::CHARACTER_2D], "", "Whether the last move ended with ground under the character's feet."),
     ]);
     m.function(
         "move_character",
@@ -146,7 +150,7 @@ pub(crate) fn install_character2d_api(m: &mut dyn Bindings<Engine>) {
     );
     // A reader, as in 3D: a zero-translation sweep would still snap to ground
     // and write the transform, so asking would move the character.
-    m.function("is_grounded", |eng: &Engine, node: NodeId| {
+    m.function("is_on_floor", |eng: &Engine, node: NodeId| {
         let entity = entity_of(node)?;
         let state = eng.resource::<PhysicsState2d>();
         let grounded = state.borrow().grounded.get(&entity).copied();
@@ -158,7 +162,7 @@ pub(crate) fn register_character2d_component(reg: &mut Registry<'_>) {
     let shared = shared_character_schema();
     let schema = [
         v::schema(&[
-            (k::UP, r#"{ type = "vec2", default = [0.0, 1.0], description = "Which way is up for this character: the axis it stands along and measures slopes against" }"#),
+            (k::UP_DIRECTION, r#"{ type = "vec2", default = [0.0, 1.0], description = "Which way is up for this character: the axis it stands along and measures slopes against" }"#),
         ]),
         shared,
     ]

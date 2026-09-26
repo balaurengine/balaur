@@ -37,8 +37,8 @@ pub struct JointRef2d {
 
 fn free_axes(kind: &str) -> &'static [JointAxis] {
     match kind {
-        w::REVOLUTE => &[JointAxis::AngX],
-        w::PRISMATIC | w::ROPE | w::SPRING | w::PIN_SLOT => &[JointAxis::LinX],
+        w::HINGE => &[JointAxis::AngX],
+        w::SLIDER | w::ROPE | w::SPRING | w::GROOVE => &[JointAxis::LinX],
         _ => &[],
     }
 }
@@ -66,7 +66,7 @@ pub(crate) fn joint_of(params: &toml::Value) -> Result<GenericJoint> {
         axis.normalize()
     };
     let anchor1 = scalar::v2a(v::vec2(params, k::ANCHOR, [0.0; 2]));
-    let anchor2 = scalar::v2a(v::vec2(params, k::OTHER_ANCHOR, [0.0; 2]));
+    let anchor2 = scalar::v2a(v::vec2(params, k::CONNECTED_ANCHOR, [0.0; 2]));
     let length = scalar::real(v::f(params, k::LENGTH, 0.0));
     let stiffness = scalar::real(v::f(params, k::STIFFNESS, 0.0));
     let damping = scalar::real(v::f(params, k::DAMPING, 1.0));
@@ -76,12 +76,12 @@ pub(crate) fn joint_of(params: &toml::Value) -> Result<GenericJoint> {
             .local_anchor2(anchor2)
             .build()
             .into(),
-        w::REVOLUTE => RevoluteJointBuilder::new()
+        w::HINGE => RevoluteJointBuilder::new()
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
             .build()
             .into(),
-        w::PRISMATIC => PrismaticJointBuilder::new(axis)
+        w::SLIDER => PrismaticJointBuilder::new(axis)
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
             .build()
@@ -96,7 +96,7 @@ pub(crate) fn joint_of(params: &toml::Value) -> Result<GenericJoint> {
             .local_anchor2(anchor2)
             .build()
             .into(),
-        w::PIN_SLOT => PinSlotJointBuilder::new(axis)
+        w::GROOVE => PinSlotJointBuilder::new(axis)
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
             .build()
@@ -109,7 +109,7 @@ pub(crate) fn joint_of(params: &toml::Value) -> Result<GenericJoint> {
             .build(),
         other => return Err(anyhow!("unknown joint2d kind '{other}'")),
     };
-    joint.set_contacts_enabled(v::boolean(params, k::CONTACTS, false));
+    joint.set_contacts_enabled(v::boolean(params, k::COLLIDE_CONNECTED, false));
     let limits = scalar::v2a(v::vec2(params, k::LIMITS, [0.0; 2]));
     let motor = v::text(params, k::MOTOR, w::OFF);
     let target = scalar::real(v::f(params, k::MOTOR_TARGET, 0.0));
@@ -164,7 +164,7 @@ pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) ->
     if !v::boolean(params, k::ENABLED, true) {
         return Ok(());
     }
-    let Some(other) = as_node(eng, entity, params.get(k::BODY)) else {
+    let Some(other) = as_node(eng, entity, params.get(k::CONNECTED_BODY)) else {
         return Ok(());
     };
     // A bodiless child stands for the nearest body above it, as in 3D.
@@ -222,8 +222,8 @@ pub(crate) fn get_joint_params(eng: &Engine, entity: Entity) -> Option<toml::Val
     let vec2 = |v: Vector2| toml::Value::Array(vec![f(v.x), f(v.y)]);
     let mut map = authored;
     map.insert(k::ANCHOR.into(), vec2(data.local_anchor1()));
-    map.insert(k::OTHER_ANCHOR.into(), vec2(data.local_anchor2()));
-    map.insert(k::CONTACTS.into(), data.contacts_enabled().into());
+    map.insert(k::CONNECTED_ANCHOR.into(), vec2(data.local_anchor2()));
+    map.insert(k::COLLIDE_CONNECTED.into(), data.contacts_enabled().into());
     map.insert(
         k::SOLVER.into(),
         toml::Value::String(
@@ -312,9 +312,9 @@ pub(crate) fn register_joint2d_component(reg: &mut Registry<'_>) {
     let schema = [
         v::schema(&[
             (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{kinds}], description = "How the two bodies may move relative to each other" }}"#)),
-            (k::BODY, r#"{ type = "node", default = "", description = "The node at the joint's other end; this node is the first end" }"#),
+            (k::CONNECTED_BODY, r#"{ type = "node", default = "", description = "The node at the joint's other end; this node is the first end" }"#),
             (k::ANCHOR, r#"{ type = "vec2", default = [0.0, 0.0], description = "Where the joint attaches on this node, in its own space" }"#),
-            (k::OTHER_ANCHOR, r#"{ type = "vec2", default = [0.0, 0.0], description = "Where it attaches on the other node, in that node's space" }"#),
+            (k::CONNECTED_ANCHOR, r#"{ type = "vec2", default = [0.0, 0.0], description = "Where it attaches on the other node, in that node's space" }"#),
             (k::AXIS, r#"{ type = "vec2", default = [1.0, 0.0], description = "The direction a prismatic joint slides along" }"#),
             (k::LIMITS, r#"{ type = "vec2", default = [0.0, 0.0], description = "How far the joint may travel, as a low and a high; equal values mean no limit" }"#),
             (k::LOCKED_AXES, &format!(r#"{{ type = "flags", default = [], options = [{axes}], description = "Which of the three freedoms a generic joint takes away" }}"#)),
@@ -326,7 +326,7 @@ pub(crate) fn register_joint2d_component(reg: &mut Registry<'_>) {
         c::JOINT_2D,
         ComponentDef {
             warnings: None,
-            doc: "Joins this node's body to `body`. `kind` is `fixed`, `revolute`, `prismatic`, `rope`, `spring`, `pin_slot` or `generic`; both ends need a `body2d` on or above the node.",
+            doc: "Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `rope`, `spring`, `groove` or `generic`; both ends need a `body2d` on or above the node.",
             schema: ComponentDef::parse_schema(c::JOINT_2D, &schema),
             tags: &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
             expects: &[c::BODY_2D],

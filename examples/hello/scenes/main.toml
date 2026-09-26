@@ -34,11 +34,11 @@ position = [0, -1, 0]
 
 [nodes.collider3d]
 half_extents = [10, 0.5, 10]
-kind = "cuboid"
+kind = "box"
 
 [nodes.shape3d]
 half_extents = [10, 0.5, 10]
-kind = "cuboid"
+kind = "box"
 color = [0.3, 0.55, 0.3, 1]
 
 [[nodes]]
@@ -51,7 +51,7 @@ script = { source = "scripts/ball.rn" }
 position = [0, 6, 0]
 
 [nodes.shape3d]
-kind = "ball"
+kind = "sphere"
 radius = 0.5
 color = [0.9, 0.9, 0.9, 1]
 
@@ -85,7 +85,7 @@ speed = 3.5
 
 [nodes.shape3d]
 half_extents = [0.5, 0.5, 0.5]
-kind = "cuboid"
+kind = "box"
 color = [0.2, 0.4, 0.9, 1]
 
 [[nodes]]
@@ -104,11 +104,11 @@ library = "animations/platform.toml"
 
 [nodes.collider3d]
 half_extents = [1, 0.25, 1]
-kind = "cuboid"
+kind = "box"
 
 [nodes.shape3d]
 half_extents = [1, 0.25, 1]
-kind = "cuboid"
+kind = "box"
 color = [0.55, 0.35, 0.8, 1]
 
 # Two instances of one prefab. The second overrides a node inside it, which
@@ -150,7 +150,7 @@ rotation_euler = [1.5708, 0, 0]
 source = "#ring"
 
 [nodes.collider3d]
-kind = "trimesh"
+kind = "triangle_mesh"
 mesh = "#ring"
 
 # Interactivity with no script in the project: clicking the ball counts, and
@@ -165,7 +165,7 @@ parent = "n_world"
 position = [-4.5, 0.75, 0]
 
 [nodes.shape3d]
-kind = "cuboid"
+kind = "box"
 half_extents = [0.15, 1.25, 1.1]
 color = [0.45, 0.32, 0.17, 1]
 

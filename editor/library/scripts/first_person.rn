@@ -84,7 +84,7 @@ pub fn fixed_update(this, dt) {
     let (sin, cos) = (math::sin(yaw), math::cos(yaw));
     let x = (sideways * cos - forward * sin) * this.speed * dt;
     let z = (-sideways * sin - forward * cos) * this.speed * dt;
-    if this.node.character3d.is_grounded() {
+    if this.node.character3d.is_on_floor() {
         // Nothing holds it down: a push big enough to keep the capsule on the
         // floor aims the move into it, and the controller spends whole frames
         // resolving that instead of walking.

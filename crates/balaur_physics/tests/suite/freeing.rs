@@ -46,7 +46,7 @@ fn spawn(app: &App, name: &str, id: &str, y: f32, body: bool) -> Entity {
         &app.engine,
         e,
         "collider3d",
-        Some(&toml::from_str("kind = \"ball\"\nradius = 0.5").unwrap()),
+        Some(&toml::from_str("kind = \"sphere\"\nradius = 0.5").unwrap()),
     )
     .unwrap();
     e
@@ -115,7 +115,7 @@ fn freeing_one_end_of_a_joint_drops_the_joint_too() {
         &app.engine,
         hanging,
         "joint3d",
-        Some(&toml::from_str("kind = \"revolute\"\nbody = \"/Anchor\"").unwrap()),
+        Some(&toml::from_str("kind = \"hinge\"\nconnected_body = \"/Anchor\"").unwrap()),
     )
     .unwrap();
     app.tick(1.0 / 60.0);
@@ -277,7 +277,7 @@ parent = "n_world"
 position = [0.0, 2.0, 0.0]
 
 [nodes.collider3d]
-kind = "ball"
+kind = "sphere"
 radius = 0.5
 "#;
 
@@ -291,7 +291,7 @@ fn a_raycast_stops_finding_a_freed_node() {
 
 pub fn fixed_update(this, dt) {
     this.ticks = this.ticks + 1;
-    let opts = #{ from: [0.0, 8.0, 0.0], dir: [0.0, -1.0, 0.0], max: 100.0 };
+    let opts = #{ origin: [0.0, 8.0, 0.0], direction: [0.0, -1.0, 0.0], max_distance: 100.0 };
     if this.ticks == 2 {
         let hit = physics3d::raycast(opts);
         this.hit_before = !(hit is Tuple);
@@ -350,7 +350,7 @@ fn a_restored_soft_body_names_the_respawned_node() {
         .world_mut()
         .insert_one(doomed, StableId("n_blob".to_string()))
         .unwrap();
-    let cuboid = toml::from_str("kind = \"cuboid\"\ncells = [2.0, 2.0, 2.0]").unwrap();
+    let cuboid = toml::from_str("kind = \"box\"\ncells = [2.0, 2.0, 2.0]").unwrap();
     components::add(&app.engine, doomed, "softbody3d", Some(&cuboid)).unwrap();
     app.tick(1.0 / 60.0);
     let taken = snapshot::capture(&app.engine);

@@ -111,7 +111,7 @@ macro_rules! functions {
                 map.insert(k::MASS.into(), f(0.0));
                 map.insert(k::DENSITY.into(), f(collider.density()));
             }
-            map.insert(k::CONTACT_SKIN.into(), f(collider.contact_skin()));
+            map.insert(k::COLLISION_MARGIN.into(), f(collider.contact_skin()));
             map.insert(
                 k::CONTACT_FORCE_THRESHOLD.into(),
                 f(collider.contact_force_event_threshold()),
@@ -127,11 +127,17 @@ macro_rules! functions {
                 combine_name(collider.restitution_combine_rule()).into(),
             );
             let groups = collider.collision_groups();
-            map.insert(k::LAYERS.into(), v::layer_names(groups.memberships.bits()));
-            map.insert(k::MASK.into(), v::layer_names(groups.filter.bits()));
+            map.insert(
+                k::COLLISION_LAYER.into(),
+                v::layer_names(groups.memberships.bits()),
+            );
+            map.insert(
+                k::COLLISION_MASK.into(),
+                v::layer_names(groups.filter.bits()),
+            );
             let solver = collider.solver_groups();
             map.insert(
-                k::SOLVER_LAYERS.into(),
+                k::SOLVER_LAYER.into(),
                 v::layer_names(solver.memberships.bits()),
             );
             map.insert(k::SOLVER_MASK.into(), v::layer_names(solver.filter.bits()));
@@ -140,7 +146,7 @@ macro_rules! functions {
                 v::names(collider.active_events().bits(), &v::flags::events()),
             );
             map.insert(
-                k::ACTIVE_COLLISIONS.into(),
+                k::CONTACT_PAIRS.into(),
                 v::names(
                     collider.active_collision_types().bits(),
                     &v::flags::collision_types(),

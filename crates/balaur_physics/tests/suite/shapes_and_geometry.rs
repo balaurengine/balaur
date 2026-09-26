@@ -95,7 +95,7 @@ fn a_voxel_collider_can_be_turned_into_a_mesh() {
 fn the_mesh_backed_shapes_build() {
     run_clean(
         r##"pub fn init(this) {
-    for kind in ["convex_hull", "convex_decomposition", "trimesh"] {
+    for kind in ["convex_hull", "convex_decomposition", "triangle_mesh"] {
         this.node.collider3d.set_collider(#{ kind: kind, mesh: "#wedge" });
     }
     for fit in ["aabb", "obb", "convex_hull"] {

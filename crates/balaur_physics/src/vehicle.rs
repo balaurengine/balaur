@@ -98,15 +98,19 @@ fn drive_one(eng: &Engine, chassis: Entity) -> Result<()> {
     for (entity, wheel_params, at) in &wheels {
         let real = |key: &str, default: f32| scalar::real(v::f(wheel_params, key, default));
         let tuning = WheelTuning {
-            suspension_stiffness: real(k::STIFFNESS, 30.0),
-            suspension_compression: real(k::COMPRESSION, 0.82),
-            suspension_damping: real(k::DAMPING, 0.88),
-            max_suspension_travel: real(k::MAX_TRAVEL, 5.0),
+            suspension_stiffness: real(k::SUSPENSION_STIFFNESS, 30.0),
+            suspension_compression: real(k::DAMPING_COMPRESSION, 0.82),
+            suspension_damping: real(k::DAMPING_RELAXATION, 0.88),
+            max_suspension_travel: real(k::SUSPENSION_TRAVEL, 5.0),
             side_friction_stiffness: real(k::SIDE_FRICTION, 1.0),
             friction_slip: real(k::FRICTION_SLIP, 10.5),
-            max_suspension_force: real(k::MAX_FORCE, 6000.0),
+            max_suspension_force: real(k::SUSPENSION_MAX_FORCE, 6000.0),
         };
-        let direction = scalar::v3a(v::vec3(wheel_params, k::DIRECTION, [0.0, -1.0, 0.0]));
+        let direction = scalar::v3a(v::vec3(
+            wheel_params,
+            k::SUSPENSION_DIRECTION,
+            [0.0, -1.0, 0.0],
+        ));
         let axle = scalar::v3a(v::vec3(wheel_params, k::AXLE, [-1.0, 0.0, 0.0]));
         let wheel = controller.add_wheel(
             scalar::v3(at.x, at.y, at.z),
@@ -194,7 +198,7 @@ pub(crate) fn install_vehicle_api(m: &mut dyn Bindings<Engine>) {
                 k::SUSPENSION_FORCE,
                 Value::Num(f64::from(input.suspension_force)),
             ),
-            (k::GROUNDED, Value::Bool(input.grounded)),
+            (k::IN_CONTACT, Value::Bool(input.grounded)),
             (k::ENGINE_FORCE, Value::Num(f64::from(input.engine_force))),
             (k::BRAKE, Value::Num(f64::from(input.brake))),
             (k::STEERING, Value::Num(f64::from(input.steering))),
@@ -284,15 +288,15 @@ pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
                 &v::schema(&[
                     (k::RADIUS, r#"{ type = "float", default = 0.4, min = 0.01, description = "The wheel's radius, which is how far off the ground it holds the ray's end" }"#),
                     (k::REST_LENGTH, r#"{ type = "float", default = 0.3, min = 0.0, description = "How long the suspension is with no weight on it" }"#),
-                    (k::DIRECTION, r#"{ type = "vec3", default = [0.0, -1.0, 0.0], description = "Which way the suspension pushes, in the chassis's own space: down" }"#),
+                    (k::SUSPENSION_DIRECTION, r#"{ type = "vec3", default = [0.0, -1.0, 0.0], description = "Which way the suspension pushes, in the chassis's own space: down" }"#),
                     (k::AXLE, r#"{ type = "vec3", default = [-1.0, 0.0, 0.0], description = "The axle the wheel turns about, in the chassis's own space" }"#),
-                    (k::STIFFNESS, r#"{ type = "float", default = 30.0, min = 0.0, description = "Spring stiffness: higher is a stiffer, twitchier car" }"#),
-                    (k::COMPRESSION, r#"{ type = "float", default = 0.82, min = 0.0, description = "Damping while the suspension is being squashed" }"#),
-                    (k::DAMPING, r#"{ type = "float", default = 0.88, min = 0.0, description = "Damping while the suspension is coming back" }"#),
-                    (k::MAX_TRAVEL, r#"{ type = "float", default = 5.0, min = 0.0, description = "How far the suspension may move in total" }"#),
+                    (k::SUSPENSION_STIFFNESS, r#"{ type = "float", default = 30.0, min = 0.0, description = "Spring stiffness: higher is a stiffer, twitchier car" }"#),
+                    (k::DAMPING_COMPRESSION, r#"{ type = "float", default = 0.82, min = 0.0, description = "Damping while the suspension is being squashed" }"#),
+                    (k::DAMPING_RELAXATION, r#"{ type = "float", default = 0.88, min = 0.0, description = "Damping while the suspension is coming back" }"#),
+                    (k::SUSPENSION_TRAVEL, r#"{ type = "float", default = 5.0, min = 0.0, description = "How far the suspension may move in total" }"#),
                     (k::FRICTION_SLIP, r#"{ type = "float", default = 10.5, min = 0.0, description = "Grip along the wheel's rolling direction; lower slides more" }"#),
                     (k::SIDE_FRICTION, r#"{ type = "float", default = 1.0, min = 0.0, description = "Grip sideways: what stops the car sliding out of a corner" }"#),
-                    (k::MAX_FORCE, r#"{ type = "float", default = 6000.0, min = 0.0, description = "The most force this suspension may push the chassis with" }"#),
+                    (k::SUSPENSION_MAX_FORCE, r#"{ type = "float", default = 6000.0, min = 0.0, description = "The most force this suspension may push the chassis with" }"#),
                 ]),
             ),
             tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],

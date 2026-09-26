@@ -8,8 +8,8 @@
 pub(crate) mod words {
     use balaur_core::primitive::words as p;
 
-    pub(crate) const BALL: &str = p::BALL;
-    pub(crate) const CUBOID: &str = p::CUBOID;
+    pub(crate) const SPHERE: &str = p::SPHERE;
+    pub(crate) const BOX: &str = p::BOX;
     pub(crate) const CAPSULE: &str = p::CAPSULE;
     pub(crate) const CYLINDER: &str = p::CYLINDER;
     pub(crate) const CONE: &str = p::CONE;
@@ -23,7 +23,7 @@ pub(crate) mod words {
     pub(crate) const SHAPES: &[&str] = p::SOLIDS;
 
     pub(crate) const CIRCLE: &str = p::CIRCLE;
-    pub(crate) const RECT: &str = p::RECT;
+    pub(crate) const RECTANGLE: &str = p::RECTANGLE;
     pub(crate) const ELLIPSE: &str = p::ELLIPSE;
     pub(crate) const STAR: &str = p::STAR;
     pub(crate) const NGON: &str = p::NGON;
@@ -107,12 +107,12 @@ pub(crate) mod words {
     pub(crate) const FONT_STYLES: &[&str] = &[NORMAL, ITALIC];
 }
 
-/// The words as script constants, so a script writes `render.SHAPE_BALL`
-/// rather than spelling "ball" and finding out at runtime that "Ball" fell
+/// The words as script constants, so a script writes `render.SHAPE_SPHERE`
+/// rather than spelling "sphere" and finding out at runtime that "Sphere" fell
 /// through to the default. One list: a capsule is a capsule in 2D and 3D.
 pub(crate) const CONSTANTS: &[(&str, &str)] = &[
-    ("SHAPE_BALL", words::BALL),
-    ("SHAPE_CUBOID", words::CUBOID),
+    ("SHAPE_SPHERE", words::SPHERE),
+    ("SHAPE_BOX", words::BOX),
     ("SHAPE_CAPSULE", words::CAPSULE),
     ("SHAPE_CYLINDER", words::CYLINDER),
     ("SHAPE_CONE", words::CONE),
@@ -122,7 +122,7 @@ pub(crate) const CONSTANTS: &[(&str, &str)] = &[
     ("SHAPE_PRISM", words::PRISM),
     ("SHAPE_TUBE", words::TUBE),
     ("SHAPE_CIRCLE", words::CIRCLE),
-    ("SHAPE_RECT", words::RECT),
+    ("SHAPE_RECTANGLE", words::RECTANGLE),
     ("SHAPE_ELLIPSE", words::ELLIPSE),
     ("SHAPE_STAR", words::STAR),
     ("SHAPE_NGON", words::NGON),

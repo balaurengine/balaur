@@ -433,7 +433,7 @@ fn collider_outline(eng: &Engine, entity: Entity) -> Option<Vec<Vec2>> {
     };
     match params.get(k::KIND).and_then(toml::Value::as_str)? {
         words::CIRCLE => Some(Flat::circle(num(k::RADIUS, 0.5)).outline()),
-        words::RECT => {
+        words::RECTANGLE => {
             let he = point(k::HALF_EXTENTS);
             Some(Flat::rect(he.x, he.y).outline())
         }

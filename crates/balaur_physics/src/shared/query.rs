@@ -58,14 +58,14 @@ macro_rules! functions {
                 Some(crate::vocabulary::words::STATIC) => flags |= QueryFilterFlags::ONLY_FIXED,
                 _ => {}
             }
-            if !filter.boolean(k::SENSORS, true) {
+            if !filter.boolean(k::HIT_SENSORS, true) {
                 flags |= QueryFilterFlags::EXCLUDE_SENSORS;
             }
-            if !filter.boolean(k::SOLIDS, true) {
+            if !filter.boolean(k::HIT_SOLIDS, true) {
                 flags |= QueryFilterFlags::EXCLUDE_SOLIDS;
             }
             let mut out = QueryFilter::from(flags);
-            if let Some(Value::List(items)) = filter.get(k::MASK) {
+            if let Some(Value::List(items)) = filter.get(k::COLLISION_MASK) {
                 let mut bits = 0u32;
                 for item in items {
                     let layer = match item {
@@ -202,7 +202,7 @@ macro_rules! functions {
         /// Nodes whose colliders intersect this node's, in a stable order.
         ///
         /// Rapier tracks an intersection pair only when one side is a sensor, which is
-        /// why this is not the same question as `shape_hits`.
+        /// why this is not the same question as `overlap_shape`.
         pub fn overlaps(eng: &Engine, entity: Entity) -> Result<Vec<Entity>> {
             let state = eng.resource::<$State>();
             let state = state.borrow();

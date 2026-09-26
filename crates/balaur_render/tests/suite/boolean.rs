@@ -64,14 +64,14 @@ fn two_cubes(app: &App, op: &str) -> (Entity, Entity, Entity) {
         app,
         a,
         "shape3d",
-        "kind = \"cuboid\"\nhalf_extents = [0.5, 0.5, 0.5]",
+        "kind = \"box\"\nhalf_extents = [0.5, 0.5, 0.5]",
     );
     let b = node(app, "B", owner);
     add(
         app,
         b,
         "shape3d",
-        "kind = \"cuboid\"\nhalf_extents = [0.5, 0.5, 0.5]",
+        "kind = \"box\"\nhalf_extents = [0.5, 0.5, 0.5]",
     );
     place(app, b, Vec3::splat(0.5));
     (owner, a, b)
@@ -181,14 +181,14 @@ fn a_boolean_can_take_another_booleans_result() {
         &app,
         a,
         "shape3d",
-        "kind = \"cuboid\"\nhalf_extents = [0.5, 0.5, 0.5]",
+        "kind = \"box\"\nhalf_extents = [0.5, 0.5, 0.5]",
     );
     let b = node(&app, "B", inner);
     add(
         &app,
         b,
         "shape3d",
-        "kind = \"cuboid\"\nhalf_extents = [0.5, 0.5, 0.5]",
+        "kind = \"box\"\nhalf_extents = [0.5, 0.5, 0.5]",
     );
     place(&app, b, Vec3::new(3.0, 0.0, 0.0));
     // Twice: the inner one settles first, the outer one reads its result.
@@ -212,14 +212,14 @@ fn a_two_dimensional_boolean_fills_the_shapes_combined() {
         &app,
         a,
         "shape2d",
-        "kind = \"rect\"\nhalf_extents = [1.0, 1.0]",
+        "kind = \"rectangle\"\nhalf_extents = [1.0, 1.0]",
     );
     let b = node(&app, "B", owner);
     add(
         &app,
         b,
         "shape2d",
-        "kind = \"rect\"\nhalf_extents = [1.0, 1.0]",
+        "kind = \"rectangle\"\nhalf_extents = [1.0, 1.0]",
     );
     place(&app, b, Vec3::new(1.0, 0.0, 0.0));
     app.tick(1.0 / 60.0);

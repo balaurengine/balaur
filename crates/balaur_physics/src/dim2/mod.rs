@@ -61,7 +61,7 @@ pub struct PhysicsState2d {
     pub(crate) tile_colliders: DetHashMap<Entity, Vec<ColliderHandle2>>,
     pub joint_params: DetHashMap<Entity, toml::Value>,
     /// What the last `move_character` found under each character's feet, as
-    /// in 3D, so `is_grounded` reads rather than moves.
+    /// in 3D, so `is_on_floor` reads rather than moves.
     pub grounded: DetHashMap<Entity, bool>,
     pub paused: bool,
     /// Mirrors `PhysicsState3d::sleeping_allowed`; `physics.set_sleeping_allowed`

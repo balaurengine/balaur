@@ -34,7 +34,7 @@ pub fn update(this, dt) {
 }
 
 pub fn fixed_update(this, dt) {
-    if this.node.character3d.is_grounded() {
+    if this.node.character3d.is_on_floor() {
         this.vy = 0.0;
     } else {
         this.vy -= this.gravity * dt;

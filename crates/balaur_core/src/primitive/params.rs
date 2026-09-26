@@ -69,19 +69,19 @@ impl Solid {
         let kind = params
             .get(keys::KIND)
             .and_then(Value::as_str)
-            .unwrap_or(words::CUBOID);
+            .unwrap_or(words::BOX);
         let radius = extent(params, keys::RADIUS, 0.5);
         let height = extent(params, keys::HEIGHT, 1.0);
         let segments = count(params, keys::SEGMENTS, DEFAULT_SEGMENTS);
         let rings = count(params, keys::RINGS, DEFAULT_RINGS);
         let sides = count(params, keys::SIDES, DEFAULT_SIDES);
         Ok(match kind {
-            words::BALL => Self::Ball {
+            words::SPHERE => Self::Ball {
                 radius,
                 segments,
                 rings,
             },
-            words::CUBOID => Self::Cuboid {
+            words::BOX => Self::Cuboid {
                 hx: half(params, 0),
                 hy: half(params, 1),
                 hz: half(params, 2),
@@ -245,7 +245,7 @@ impl Flat {
         let kind = params
             .get(keys::KIND)
             .and_then(Value::as_str)
-            .unwrap_or(words::RECT);
+            .unwrap_or(words::RECTANGLE);
         let radius = extent(params, keys::RADIUS, 0.5);
         let segments = count(params, keys::SEGMENTS, DEFAULT_SEGMENTS);
         Ok(match kind {
@@ -255,7 +255,7 @@ impl Flat {
                 hy: half(params, 1),
                 segments,
             },
-            words::RECT => Self::Rect {
+            words::RECTANGLE => Self::Rect {
                 hx: half(params, 0),
                 hy: half(params, 1),
                 corner_radius: optional(params, keys::CORNER_RADIUS, 0.0),

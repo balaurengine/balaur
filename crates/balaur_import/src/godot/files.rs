@@ -795,7 +795,7 @@ func _process(_delta):
         assert_eq!(ship["tags"][0].as_str(), Some("boats"));
 
         let shape = node(&scene, "Shape");
-        assert_eq!(shape["collider2d"]["kind"].as_str(), Some("rect"));
+        assert_eq!(shape["collider2d"]["kind"].as_str(), Some("rectangle"));
         assert_eq!(floats(&shape["collider2d"]["half_extents"]), vec![0.2, 0.1]);
         assert_eq!(
             shape["collider2d"]["sensor"].as_bool(),
@@ -804,7 +804,7 @@ func _process(_delta):
         );
         assert_eq!(shape["collider2d"]["events"][0].as_str(), Some("collision"));
         let row = &shape["bindings"]["rows"][0];
-        assert_eq!(row["event"].as_str(), Some("collision_start"));
+        assert_eq!(row["event"].as_str(), Some("collision_enter"));
         assert_eq!(row["action"].as_str(), Some("call"));
         assert_eq!(
             row["target"].as_str(),

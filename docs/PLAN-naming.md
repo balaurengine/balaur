@@ -17,7 +17,11 @@ with no alias and no migration, as `one way to do a thing` asks.
   by W3C code, gamepads by position, `key_down` and its edges),
   `application/asset_source`, and the animation names (`animation_library`,
   `loop_mode`, `interpolation`, `time`, `speed_scale`, `blend_time`, the
-  transition modes, `add_clip`, `current_clip`, `current_state`, bare `linear`).
+  transition modes, `add_clip`, `current_clip`, `current_state`, bare `linear`),
+  and the physics and shape words (`sphere`, `box`, `rectangle`,
+  `world_boundary`, `triangle_mesh`, the Godot joint kinds, `collision_layer`,
+  `collision_mask`, the character, wheel and soft body keys, the query options,
+  `add_constant_force`, `overlap_*`, `on_collision_enter`, `set_ragdoll_influence`).
 - `NAMING.md` has the eight scopes, rules N18 to N23, and the picked names per
   system, from a survey of SDL3, Godot 4, Unity, Blender, GLFW, W3C, rapier and
   glTF on 2026-09-25.
@@ -30,15 +34,17 @@ with no alias and no migration, as `one way to do a thing` asks.
 | text `family`, sidecar `family` | `font_family`; text `font` → `bitmap_font` | the widget already says `font_family`; `icons` and `icon` translated in `theme.rs` |
 | text `align` | `text_align` | the widget's name for it |
 | widget `source` (image, card sheet, code language) | `image`, `sheet`, `language` | `source` is raw text in the glossary |
-| `cloner.mode`, `touch_button.shape`, terrain `mode` | `kind` | N6; the lint misses schemas built with `format!` |
-| softbody `particles` (a float count) | `particle_count`, an int | reuses a component's name |
+| `cloner.mode`, terrain `mode` | `kind` | N6; the lint misses schemas built with `format!` |
 | body `mass` | `mass`, the total | every engine but rapier reads it so; collider `mass` overrides |
-| collider `layers`, `mask` | `collision_layer`, `collision_mask` | Godot's keys, so an import reads one to one |
 | render `layers` | `light_layers` | |
 | every angle in degrees | radians, as `floor_max_angle` | `angle` is radians on `bone2d` and degrees on `cloner` |
-| character `offset` | `safe_margin` | Godot; four meanings of `offset` |
-| `contacts`, `border`, `autostep*`, `snap_to_ground`, `pgs_iterations`, `ccd` | `collide_connected`, `edge_radius`, `step_*`, `floor_snap_length`, `solver_iterations`, `continuous_collision` | rapier's words (N14) |
-| softbody and collider `ball`, `cuboid`, `disk` | `sphere`, `box`, `circle` | only parry says ball |
+| collider and softbody `half_extents` | `size`, full extents | Godot and Unity; softbody3d's `size` already means a cloth's span |
+| capsule `height`, the straight part | tip to tip | Godot and Unity; the importer copies Godot's today |
+| layers numbered 0 to 31 | 1 to 32 | Godot's numbering |
+| joint `length` for a rope and a spring | `max_length`, `rest_length` | one key, two meanings |
+| joint `locked_axes`, `solver` | `lock_translation`, `lock_rotation`, `articulation` | |
+| vehicle `up_axis`, `forward_axis` as 0, 1, 2 | `x`, `y`, `z` | |
+| `add_constant_force` alone | `apply_force`, `apply_force_at_point`, `apply_torque` for one step | Godot and Unity split them |
 | `camera2d.zoom` (pixels per unit) | `pixels_per_unit` | Godot's `zoom` is a multiplier; every other component says `pixels_per_unit` |
 | `boolean.op` | `operation` | D4 |
 | widget `disabled` beside `enabled` elsewhere, `pointer_through` beside `interactive` | one polarity each | |

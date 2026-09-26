@@ -394,9 +394,9 @@ fn a_patch_keeps_what_was_asked_for_even_where_get_is_silent() {
     // A ball has no half-extents, so `shape3d` does not report the ones asked
     // for here: they are only in the table the scene handed over.
     let asked: toml::Value =
-        toml::from_str("kind = \"ball\"\nradius = 0.7\nhalf_extents = [2.0, 1.0, 2.0]").unwrap();
+        toml::from_str("kind = \"sphere\"\nradius = 0.7\nhalf_extents = [2.0, 1.0, 2.0]").unwrap();
     components::add(&app.engine, node, "shape3d", Some(&asked)).unwrap();
-    let becomes: toml::Value = toml::from_str("kind = \"cuboid\"").unwrap();
+    let becomes: toml::Value = toml::from_str("kind = \"box\"").unwrap();
     components::patch(&app.engine, node, "shape3d", &becomes).unwrap();
     let read = components::get(&app.engine, node, "shape3d").unwrap();
     let half = read["half_extents"].as_array().unwrap();

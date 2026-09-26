@@ -38,7 +38,7 @@ fn body_with(app: &App, name: &str, params: &str) -> Entity {
 fn with_body_params(app: &App, e: Entity, params: &str) -> Entity {
     let params: toml::Value = toml::from_str(params).unwrap();
     components::add(&app.engine, e, "body3d", Some(&params)).unwrap();
-    let collider: toml::Value = toml::from_str("kind = \"ball\"\nradius = 0.5").unwrap();
+    let collider: toml::Value = toml::from_str("kind = \"sphere\"\nradius = 0.5").unwrap();
     components::add(&app.engine, e, "collider3d", Some(&collider)).unwrap();
     e
 }
@@ -58,10 +58,10 @@ dominance = 7.0
 solver_iterations = 3.0
 lock_translation = ["y"]
 lock_rotation = ["x", "z"]
-ccd = true
-soft_ccd = 0.75
-fast_rotation = true
-sleep_time = 1.5"#,
+continuous_collision = true
+speculative_distance = 0.75
+allow_fast_rotation = true
+time_to_sleep = 1.5"#,
     );
     let back = components::get(&app.engine, e, "body3d").expect("body3d reports itself");
     let f = |key: &str| {
@@ -81,9 +81,9 @@ sleep_time = 1.5"#,
     assert!((f("gravity_scale") - 2.0).abs() < 1e-6);
     assert!((f("dominance") - 7.0).abs() < 1e-6);
     assert!((f("solver_iterations") - 3.0).abs() < 1e-6);
-    assert!((f("soft_ccd") - 0.75).abs() < 1e-6);
-    assert!((f("sleep_time") - 1.5).abs() < 1e-6);
-    assert!(b("ccd") && b("fast_rotation") && b("enabled"));
+    assert!((f("speculative_distance") - 0.75).abs() < 1e-6);
+    assert!((f("time_to_sleep") - 1.5).abs() < 1e-6);
+    assert!(b("continuous_collision") && b("allow_fast_rotation") && b("enabled"));
     assert_eq!(flags("lock_translation"), ["y"]);
     assert_eq!(flags("lock_rotation"), ["x", "z"]);
 }
@@ -96,12 +96,12 @@ fn sleep_time_survives_a_body_that_cannot_sleep() {
     let e = body_with(
         &app,
         "Awake",
-        "kind = \"dynamic\"\ncan_sleep = false\nsleep_time = 1.5",
+        "kind = \"dynamic\"\ncan_sleep = false\ntime_to_sleep = 1.5",
     );
     let read = |app: &App| {
         components::get(&app.engine, e, "body3d")
             .and_then(|b| {
-                b.get("sleep_time")
+                b.get("time_to_sleep")
                     .and_then(balaur_core::components::as_f64)
             })
             .unwrap_or_default()
@@ -235,7 +235,7 @@ fn can_sleep_false_keeps_a_body_awake() {
         &app.engine,
         ground,
         "collider3d",
-        Some(&toml::from_str("kind = \"cuboid\"\nhalf_extents = [10.0, 0.5, 10.0]").unwrap()),
+        Some(&toml::from_str("kind = \"box\"\nhalf_extents = [10.0, 0.5, 10.0]").unwrap()),
     )
     .unwrap();
     // Apart, because sleeping is decided per island: two bodies that touch
@@ -305,7 +305,7 @@ fn a_body_reports_the_mass_properties_it_was_given() {
 mass = 5.0
 inertia = [1.0, 2.0, 3.0]
 center_of_mass = [0.0, 0.5, 0.0]
-gyroscopic = true"#,
+gyroscopic_forces = true"#,
     );
     let back = components::get(&app.engine, e, "body3d").expect("body3d reports itself");
     let f = |key: &str| {
@@ -318,7 +318,7 @@ gyroscopic = true"#,
         "mass came back as {}",
         f("mass")
     );
-    assert_eq!(back.get("gyroscopic").unwrap().as_bool(), Some(true));
+    assert_eq!(back.get("gyroscopic_forces").unwrap().as_bool(), Some(true));
     let inertia = back.get("inertia").unwrap().as_array().unwrap();
     assert!((inertia[1].as_float().unwrap() - 2.0).abs() < 1e-5);
     let com = back.get("center_of_mass").unwrap().as_array().unwrap();
@@ -355,7 +355,7 @@ center_of_mass = [0.25, 0.0]"#,
     let com = back.get("center_of_mass").unwrap().as_array().unwrap();
     assert!((com[0].as_float().unwrap() - 0.25).abs() < 1e-5);
     assert!(
-        back.get("gyroscopic").is_none(),
+        back.get("gyroscopic_forces").is_none(),
         "2D cannot apply gyroscopic"
     );
 }

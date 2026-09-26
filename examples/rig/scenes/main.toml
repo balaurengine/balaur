@@ -26,13 +26,13 @@ parent = "n_main"
 position = [0, -1.5, 0]
 
 [nodes.shape2d]
-kind = "rect"
+kind = "rectangle"
 half_extents = [6, 0.25]
 color = [0.35, 0.5, 0.3, 1.0]
 
 # Something for the ragdoll to land on. A collider with no body is static.
 [nodes.collider2d]
-kind = "rect"
+kind = "rectangle"
 half_extents = [6, 0.25]
 friction = 0.9
 
