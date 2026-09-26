@@ -6,7 +6,8 @@
 //! the same name, which is what `theme_type_variation` already converts to. A
 //! `StyleBoxFlat` is a fill, an outline, a radius and padding; a
 //! `StyleBoxTexture` is a nine-patch picture. What a widget theme has no key
-//! for (fonts, icons, a second fill for a bar's progress) is reported.
+//! for (fonts, icons past a fold's arrows, a second fill for a bar's progress)
+//! is reported.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -48,6 +49,12 @@ fn states(class: &str) -> (&'static str, Option<&'static str>, Option<&'static s
         "HSlider" | "VSlider" => ("slider", None, None),
         "HSeparator" | "VSeparator" => ("separator", None, None),
         "Window" => ("embedded_border", None, None),
+        // A fold's resting header is its shut one; `fold_parts` adds the open.
+        "FoldableContainer" => (
+            "title_collapsed_panel",
+            Some("title_collapsed_hover_panel"),
+            None,
+        ),
         _ => ("panel", None, None),
     }
 }
@@ -273,14 +280,72 @@ fn style_of(
             style.insert(state.into(), Toml::Table(over));
         }
     }
+    if class == "FoldableContainer" {
+        fold_parts(items, res, &mut style);
+    }
     let styles = [Some(rest), hover, held, Some(disabled), Some(focus)];
     for (group, name, _) in items {
-        if !used(group, name, styles) {
+        let folds = class == "FoldableContainer" && FOLD_ITEMS.contains(&(*group, *name));
+        if !used(group, name, styles) && !folds {
             *dropped.entry((*group).to_string()).or_default() += 1;
         }
     }
     style
 }
+
+/// What a FoldableContainer has beyond a kind's states: the open header is
+/// the fold's `checked` table, its open body the `body` frame, and its two
+/// arrows pictures.
+fn fold_parts(items: &[(&str, &str, &Value)], res: &Resources<'_>, style: &mut toml::Table) {
+    let item = |group: &str, name: &str| {
+        items
+            .iter()
+            .find(|(g, n, _)| *g == group && *n == name)
+            .map(|(_, _, v)| *v)
+    };
+    let boxed = |name: &str| item("styles", name).map(|v| stylebox(v, res));
+    let ink = |name: &str| {
+        item("colors", name)
+            .and_then(colour)
+            .map(|c| Toml::String(hex(&c)))
+    };
+    let picture = |name: &str| {
+        let path = res.path(item("icons", name)?)?;
+        Some(Toml::String(image_path(path, res, &mut Mapped::default())))
+    };
+    let mut open = boxed("title_panel").unwrap_or_default();
+    if let Some(hover) = boxed("title_hover_panel") {
+        open.insert("hover".into(), Toml::Table(hover));
+    }
+    if let Some(color) = ink("font_color") {
+        open.insert("text_color".into(), color);
+    }
+    if let Some(arrow) = picture("expanded_arrow") {
+        open.insert("arrow".into(), arrow);
+    }
+    if !open.is_empty() {
+        style.insert("checked".into(), Toml::Table(open));
+    }
+    if let Some(body) = boxed("panel") {
+        style.insert("body".into(), Toml::Table(body));
+    }
+    if let Some(arrow) = picture("folded_arrow") {
+        style.insert("arrow".into(), arrow);
+    }
+    if let Some(color) = ink("collapsed_font_color") {
+        style.insert("text_color".into(), color);
+    }
+}
+
+/// The FoldableContainer items `fold_parts` reads.
+const FOLD_ITEMS: [(&str, &str); 6] = [
+    ("styles", "title_panel"),
+    ("styles", "title_hover_panel"),
+    ("styles", "panel"),
+    ("icons", "expanded_arrow"),
+    ("icons", "folded_arrow"),
+    ("colors", "collapsed_font_color"),
+];
 
 /// Whether a theme item is one a style table reads; `styles` names the
 /// stylebox items of the type.
@@ -418,4 +483,65 @@ fn textured(section: &Section, res: &Resources<'_>, out: &mut toml::Table) {
         })
         .collect();
     out.insert("slice".into(), Toml::Array(slice));
+}
+
+#[cfg(test)]
+mod tests {
+    use balaur_plugin::toml;
+
+    const FOLD_THEME: &str = r#"[gd_resource type="Theme" load_steps=6 format=3]
+
+[ext_resource type="Texture2D" path="res://icons/down.png" id="1_down"]
+[ext_resource type="Texture2D" path="res://icons/right.png" id="2_right"]
+
+[sub_resource type="StyleBoxFlat" id="Shut"]
+bg_color = Color(0.1, 0.1, 0.1, 1)
+
+[sub_resource type="StyleBoxFlat" id="Open"]
+bg_color = Color(0.2, 0.2, 0.2, 1)
+
+[sub_resource type="StyleBoxFlat" id="Body"]
+bg_color = Color(0.3, 0.3, 0.3, 1)
+
+[resource]
+FoldableContainer/icons/expanded_arrow = ExtResource("1_down")
+FoldableContainer/icons/folded_arrow = ExtResource("2_right")
+FoldableContainer/styles/panel = SubResource("Body")
+FoldableContainer/styles/title_collapsed_panel = SubResource("Shut")
+FoldableContainer/styles/title_panel = SubResource("Open")
+"#;
+
+    #[test]
+    fn a_foldable_s_open_header_body_and_arrows_reach_the_fold_theme() {
+        let document = crate::godot::parse(FOLD_THEME).unwrap();
+        let project = crate::godot::nodes::Project::default();
+        let res = crate::godot::nodes::resources_of(&document, std::path::Path::new(""), &project);
+        let converted = super::convert(&document, &res).unwrap();
+        let theme: toml::Table = toml::from_str(&converted.toml).unwrap();
+        let fold = theme["fold"].as_table().unwrap();
+        let fill = |table: &toml::Table| {
+            table
+                .get("fill")
+                .and_then(toml::Value::as_str)
+                .map(str::to_string)
+        };
+        let shut = fill(fold);
+        let open = fill(fold["checked"].as_table().unwrap());
+        let body = fill(fold["body"].as_table().unwrap());
+        assert!(
+            shut.is_some() && open.is_some() && body.is_some(),
+            "{fold:?}"
+        );
+        assert!(shut != open && open != body, "{fold:?}");
+        assert_eq!(fold["arrow"].as_str(), Some("icons/right.png"));
+        assert_eq!(fold["checked"]["arrow"].as_str(), Some("icons/down.png"));
+        assert!(
+            !converted
+                .notes
+                .iter()
+                .any(|note| note.contains("`styles`") || note.contains("`icons`")),
+            "{:?}",
+            converted.notes
+        );
+    }
 }

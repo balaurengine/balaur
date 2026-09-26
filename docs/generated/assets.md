@@ -383,6 +383,13 @@ stroke = "border_default"
 corner_radius = 6.0
 padding_x = 10.0                 # the air either side of a cell's text
 
+[fold]                           # the header; [fold.checked] while open
+arrow = "art/folded.png"         # the header's arrow picture; the ▸ and ▾ glyphs where none
+
+[fold.body]                      # the frame around what an open fold shows
+fill = "bg_panel"
+padding = 8.0
+
 [roles.danger]                   # what a widget with role = "danger" takes
 fill = "danger_fill"
 text_color = "text_on_danger"

@@ -173,13 +173,9 @@ impl<'a> Measure<'a> {
                 if !widget.open {
                     return head;
                 }
-                let frame = look
-                    .style
-                    .body
-                    .as_deref()
-                    .map_or(egui::Vec2::ZERO, |body| {
-                        crate::widget::arrange::style_padding(body, 0.0).taken()
-                    });
+                let frame = look.style.body.as_deref().map_or(egui::Vec2::ZERO, |body| {
+                    crate::widget::arrange::style_padding(body, 0.0).taken()
+                });
                 let body = self.container(index, theme) + frame;
                 vec2(head.x.max(body.x), head.y + 8.0 + body.y)
             }

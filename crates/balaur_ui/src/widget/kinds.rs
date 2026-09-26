@@ -673,7 +673,8 @@ fn fold_arrow(
     let texture = picture.and_then(|path| crate::images::texture_of(eng, ui.ctx(), path).ok());
     if let Some(texture) = texture {
         let whole = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
-        ui.painter().image(texture.id(), rect, whole, Color32::WHITE);
+        ui.painter()
+            .image(texture.id(), rect, whole, Color32::WHITE);
         return;
     }
     let mark = if open { "▾" } else { "▸" };
@@ -737,13 +738,13 @@ fn grown(
         .filter(|(child, _)| arena[**child].widget.grow <= 0.0)
         .map(|(_, size)| size.x + gap)
         .sum();
-    let spare = (width - taken).max(0.0);
+    let left = (width - taken).max(0.0);
     bar.iter()
         .zip(sizes)
         .map(|(child, size)| {
             let share = arena[*child].widget.grow.max(0.0) / growing;
             if share > 0.0 {
-                vec2(size.x.max(spare * share), size.y)
+                vec2(size.x.max(left * share), size.y)
             } else {
                 size
             }
