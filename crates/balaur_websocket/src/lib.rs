@@ -343,11 +343,11 @@ fn event_value(event: SocketEvent) -> Value {
     Value::Map(pairs)
 }
 
-pub struct WebsocketPlugin {
+pub struct WebSocketPlugin {
     manifest: balaur_plugin::Manifest,
 }
 
-impl Default for WebsocketPlugin {
+impl Default for WebSocketPlugin {
     fn default() -> Self {
         Self {
             manifest: balaur_plugin::Manifest::new("websocket", env!("CARGO_PKG_VERSION")),
@@ -355,7 +355,7 @@ impl Default for WebsocketPlugin {
     }
 }
 
-impl balaur_plugin::Plugin for WebsocketPlugin {
+impl balaur_plugin::Plugin for WebSocketPlugin {
     fn manifest(&self) -> &balaur_plugin::Manifest {
         &self.manifest
     }

@@ -549,6 +549,9 @@ Every string is sentence case, and a button is a verb.
 | Rust, dylib and Rune additions | plugin, extension, addon in `addons/` | Godot, Blender |
 | A crate | `balaur_<plugin name>`: `balaur_animation`, `balaur_physics`; the facade re-exports each under its crate name without `balaur_`, `balaur::script_rune` | none |
 | A cargo feature | one name for a concept in every crate, never the backend's: `window`, `extensions` | N14 |
+| The page a browser build runs in | the `browser` plugin: crate `balaur_browser`, feature `browser`, module `browser.*`, handler `on_browser_event` | none |
+| A type named for a web protocol | the protocol's own casing: `WebSocketPlugin` | C-CASE |
+| A request's time limit | `timeout_seconds`, an option and `[http] timeout_seconds` | N21 |
 | A default beside a setting | `DEFAULT_TICK_HZ`, `DEFAULT_FIXED_DT` | none |
 | A rollback's saved world | `Checkpoint`, `CheckpointRing`; `*Snapshot` is D3's | none |
 | A log line's tag | the crate without `balaur_`, or `script` for a script's own line | none |

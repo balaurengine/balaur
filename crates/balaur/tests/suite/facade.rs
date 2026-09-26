@@ -128,7 +128,7 @@ fn a_module_the_project_turns_off_does_not_load() {
 #[test]
 fn a_table_in_plugins_leaves_the_module_on() {
     let dir = tempfile::tempdir().unwrap();
-    project_asking(dir.path(), "http = { timeout = 5 }");
+    project_asking(dir.path(), "http = { timeout_seconds = 5 }");
 
     assert!(booted(dir.path()).unwrap().contains(&"http".to_string()));
 }

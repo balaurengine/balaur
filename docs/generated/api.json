@@ -7840,6 +7840,43 @@
     {
       "acts_on": {},
       "components": [],
+      "constants": [],
+      "doc": "The page a browser build runs in; off the web every query answers nil. A parent-frame message reaches `on_browser_event` on every node that called `listen`.",
+      "docs": {
+        "hardware_concurrency": "How many threads the browser reports, or nil off the web.",
+        "listen": "Have the node's `on_browser_event(payload)`, or the `on_event` method the options name, called for every message the parent frame posts.",
+        "location": "The page's URL, or nil off the web.",
+        "messages": "Every message the parent frame posted this tick, for a script that would rather ask than declare a method.",
+        "post_message": "Post a value to the page that embeds this one. False off the web, and false while a recording plays.",
+        "stop_listening": "Stop the node hearing the parent frame's messages. Not an error when it never listened.",
+        "user_agent": "The browser's user agent string, or nil off the web.",
+        "visible": "Whether the tab is in front of the player; true off the web."
+      },
+      "functions": [
+        "hardware_concurrency",
+        "listen",
+        "location",
+        "messages",
+        "post_message",
+        "stop_listening",
+        "user_agent",
+        "visible"
+      ],
+      "name": "browser",
+      "signatures": {
+        "hardware_concurrency": "() -> Value",
+        "listen": "(NodeId, Option<Value>) -> ()",
+        "location": "() -> Value",
+        "messages": "() -> Value",
+        "post_message": "Value -> bool",
+        "stop_listening": "NodeId -> ()",
+        "user_agent": "() -> Value",
+        "visible": "() -> bool"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
       "constants": [
         {
           "name": "CONTINUE",
@@ -8337,7 +8374,7 @@
           "value": "upload"
         }
       ],
-      "doc": "HTTP requests off the frame: `method`, `headers`, `body`, `timeout` and `save_to` options. The reply reaches `on_response` as a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; `save_to` downloads report to `on_progress` with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.",
+      "doc": "HTTP requests off the frame: `method`, `headers`, `body`, `timeout_seconds` and `save_to` options. The reply reaches `on_response` as a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; `save_to` downloads report to `on_progress` with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.",
       "docs": {
         "cancel": "Stop waiting on a request: its reply is dropped, a download stops writing, and the handler and any await hear `kind` `cancelled` next frame. False when it had already finished.",
         "request": "Start an HTTP request and return the id its reply carries, to await or to match inside the handler. With `save_to` the body is written under the user directory and the reply says where in `path`."
@@ -12835,43 +12872,6 @@
         "width_class": "() -> &str",
         "window": "(String, Option<Value>, CallbackId) -> bool",
         "window_size": "() -> (f32, f32)"
-      }
-    },
-    {
-      "acts_on": {},
-      "components": [],
-      "constants": [],
-      "doc": "The page a browser build runs in; off the web every query answers nil. A parent-frame message reaches `on_web_event` on every node that called `listen`.",
-      "docs": {
-        "hardware_concurrency": "How many threads the browser reports, or nil off the web.",
-        "listen": "Have the node's `on_web_event(payload)`, or the `on_event` method the options name, called for every message the parent frame posts.",
-        "location": "The page's URL, or nil off the web.",
-        "messages": "Every message the parent frame posted this tick, for a script that would rather ask than declare a method.",
-        "post_message": "Post a value to the page that embeds this one. False off the web, and false while a recording plays.",
-        "stop_listening": "Stop the node hearing the parent frame's messages. Not an error when it never listened.",
-        "user_agent": "The browser's user agent string, or nil off the web.",
-        "visible": "Whether the tab is in front of the player; true off the web."
-      },
-      "functions": [
-        "hardware_concurrency",
-        "listen",
-        "location",
-        "messages",
-        "post_message",
-        "stop_listening",
-        "user_agent",
-        "visible"
-      ],
-      "name": "web",
-      "signatures": {
-        "hardware_concurrency": "() -> Value",
-        "listen": "(NodeId, Option<Value>) -> ()",
-        "location": "() -> Value",
-        "messages": "() -> Value",
-        "post_message": "Value -> bool",
-        "stop_listening": "NodeId -> ()",
-        "user_agent": "() -> Value",
-        "visible": "() -> bool"
       }
     },
     {

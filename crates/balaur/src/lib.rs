@@ -69,8 +69,8 @@ modules! {
     gamend = "gamend" => balaur_gamend::GamendPlugin,
     http = "http" => balaur_http::HttpPlugin,
     multiplayer = "multiplayer" => balaur_multiplayer::MultiplayerPlugin,
-    web = "web" => balaur_web::WebPlugin,
-    websocket = "websocket" => balaur_websocket::WebsocketPlugin,
+    browser = "browser" => balaur_browser::BrowserPlugin,
+    websocket = "websocket" => balaur_websocket::WebSocketPlugin,
 }
 
 /// The project's manifest, read the way `standard_app` needs it: before the

@@ -1,12 +1,12 @@
 [package]
-name = "balaur_web"
+name = "balaur_browser"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
-description = "Balaur web plugin: the page a browser build runs in, as named verbs for scripts"
+description = "Balaur browser plugin: the page a browser build runs in, as named verbs for scripts"
 
 [dependencies]
 balaur_core.workspace = true
@@ -32,7 +32,7 @@ web-sys = { version = "0.3", features = [
 ] }
 
 [dev-dependencies]
-balaur = { workspace = true, features = ["web"] }
+balaur = { workspace = true, features = ["browser"] }
 tempfile = "3"
 
 [lints]

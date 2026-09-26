@@ -147,7 +147,7 @@ returning anything. The engine offers the handful of things a game does
 with a page — storage, a popup, a message to the parent frame, a media
 query, the location, the tab's visibility — as named calls whose results
 are recorded values. A vendor SDK that speaks `postMessage` is then a Rune
-`mod` over `web.post_message`, not an engine module: the engine carries the
+`mod` over `browser.post_message`, not an engine module: the engine carries the
 bridge, not the protocol.
 
 **Text is a render-side subsystem.** Shaping and layout never feed the
@@ -202,9 +202,9 @@ in the game; "not planned" is a deliberate no.
 | Audio in the browser, behind the user gesture every browser demands | Step 1: a WebAudio backend under `balaur_audio` — cpal's `wasm-bindgen` host on `wasm32-unknown-unknown`, or `web-sys` `AudioContext` directly — decoding through symphonia as native does, and `audio.ready()` for the unlock |
 | The backend from a tab: login, REST, hooks, the socket | Step 1: `balaur_gamend`'s `backend` module over `balaur_http`'s Fetch and `balaur_websocket`'s browser backend; the seam exists and only the wasm side is a stub |
 | Settings, a session token and downloaded content that survive a reload | Step 1: a `FileBackend` over the origin-private file system (`web-sys` `FileSystemDirectoryHandle`) for `engine.user_data_directory()`, so `fs`, `save` and `settings` work unchanged and `localStorage` is never needed |
-| A script reaching the page | Step 1: `web.storage(key)`, `web.set_storage(key, value)`, `web.open(url, target)`, `web.post_message(target, payload)` with `on_web_event`, `web.query(name)` for `user_agent`, `language`, `dark_mode`, `hardware_concurrency`, `web.location`, `web.visible`. **`web.eval` not planned** |
+| A script reaching the page | Step 1: `browser.storage(key)`, `browser.set_storage(key, value)`, `browser.open(url, target)`, `browser.post_message(target, payload)` with `on_browser_event`, `web.query(name)` for `user_agent`, `language`, `dark_mode`, `hardware_concurrency`, `browser.location`, `browser.visible`. **`web.eval` not planned** |
 | The socket kept alive in a backgrounded tab | Step 1: the web loop falls back from `requestAnimationFrame` to a timer on `visibilitychange`, ticking at a reduced rate so heartbeats and the fixed step continue |
-| A vendor SDK over `postMessage` (an embedded-app platform) | Fallback: a Rune `mod` over `web.post_message` and `on_web_event`, shipped as an example. A module per vendor **not planned** |
+| A vendor SDK over `postMessage` (an embedded-app platform) | Fallback: a Rune `mod` over `browser.post_message` and `on_browser_event`, shipped as an example. A module per vendor **not planned** |
 | Threads in the browser | Have: the engine is single-threaded by design, so the wasm build needs no shared-memory headers |
 
 ### Text
@@ -344,7 +344,7 @@ in the game; "not planned" is a deliberate no.
 | --- | --- |
 | REST, hooks, a realtime socket, token refresh | Have: `gamend.*`, `settings` or `save` for the token |
 | Binary realtime frames | Have text and binary frames; a protobuf codec **not planned** until measured against JSON |
-| OAuth through the system browser and back | Have: `web.open(url, target)` on the page; a desktop `engine.open_url` is `docs/PLAN-deploy.md`'s to add beside the store links; the return leg is `apple.listen_for_urls` on Apple, `[android] urls` in `docs/PLAN-google.md`, `web.location` on the web |
+| OAuth through the system browser and back | Have: `browser.open(url, target)` on the page; a desktop `engine.open_url` is `docs/PLAN-deploy.md`'s to add beside the store links; the return leg is `apple.listen_for_urls` on Apple, `[android] urls` in `docs/PLAN-google.md`, `browser.location` on the web |
 | Sign in with the platform | Have on Apple in code; `docs/PLAN-apple.md` §4 says it has never reached Apple's servers; Google is `docs/PLAN-google.md` step 3 |
 | In-app purchases | `docs/PLAN-apple.md` (have, untested), `docs/PLAN-google.md` step 4; a web checkout is `engine.open_url` |
 | Deep links | Have `apple.listen_for_urls`; Android in `docs/PLAN-google.md` |
@@ -387,7 +387,7 @@ the kiss3d fork's `balaur-hooks` branch, which `Cargo.toml` names.
    template; audio on wasm behind `audio.ready()`; `balaur_gamend`'s wasm
    backend over Fetch and the browser socket; a `FileBackend` on the
    origin-private file system for the user directory; the `web` module's
-   verbs and `on_web_event`; the background-tab timer. Ends with:
+   verbs and `on_browser_event`; the background-tab timer. Ends with:
    `examples/hello` and a device login in a tab, and a settings change that
    survives a refresh.
 2. **Text.** Shaping and bidi through `cosmic-text`; `font_weight` and

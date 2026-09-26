@@ -7,11 +7,11 @@ use std::net::TcpListener;
 
 use balaur_core::{App, AppConfig};
 use balaur_script::Value;
-use balaur_websocket::{SocketOptions, WebsocketPlugin, WebsocketSnapshot, WebsocketState};
+use balaur_websocket::{SocketOptions, WebSocketPlugin, WebsocketSnapshot, WebsocketState};
 
 fn app_with_websocket(dir: &std::path::Path) -> App {
     let mut app = App::new(AppConfig::bare(dir.to_path_buf())).unwrap();
-    balaur_plugin::load(&mut app, &mut WebsocketPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut WebSocketPlugin::default()).unwrap();
     app
 }
 

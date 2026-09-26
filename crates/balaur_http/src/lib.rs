@@ -70,7 +70,7 @@ pub struct HttpCall {
 ///
 /// ```toml
 /// [http]
-/// timeout = 10.0   # seconds, when a request names none
+/// timeout_seconds = 10.0   # when a request names none
 /// ```
 ///
 /// A call's own options override these.
@@ -444,7 +444,7 @@ fn call_of(url: &str, opts: Option<&Value>) -> Result<HttpCall> {
         None => None,
     };
     let headers = headers_of(opts)?;
-    let timeout = match opt(opts, "timeout") {
+    let timeout = match opt(opts, "timeout_seconds") {
         Some(Value::Num(n)) => Some(*n),
         #[allow(clippy::cast_precision_loss, reason = "a timeout in seconds")]
         Some(Value::Int(n)) => Some(*n as f64),
@@ -489,7 +489,7 @@ fn save_path_of(eng: &Engine, opts: Option<&Value>) -> Result<Option<std::path::
 /// `http.*`. Declared against the neutral seam, so it works on any backend.
 fn install_http_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "HTTP requests off the frame: `method`, `headers`, `body`, `timeout` and `save_to` options. The reply reaches `on_response` as a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; `save_to` downloads report to `on_progress` with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.",
+        "HTTP requests off the frame: `method`, `headers`, `body`, `timeout_seconds` and `save_to` options. The reply reaches `on_response` as a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; `save_to` downloads report to `on_progress` with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[

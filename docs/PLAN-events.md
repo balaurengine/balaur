@@ -171,8 +171,8 @@ In order of how often a game needs them.
    writing and tells the handler `cancelled`. A websocket `closed` carries
    its close `code`, and `websocket.state` says where a connection is. A
    request body over 256 KB reports going out as `kind` `upload`, natively. A
-   tab shown or hidden is `on_suspended_changed`, and `web.stop_listening`
-   undoes `web.listen`. The Gamend addon names every event the server
+   tab shown or hidden is `on_suspended_changed`, and `browser.stop_listening`
+   undoes `browser.listen`. The Gamend addon names every event the server
    pushes: `gamend::events::user::MATCH_FOUND`, the tournament and webrtc
    events, and a `signaling` module, from gamend's `clients/events.json`.
 10. **The Godot import:** built. `ENGINE_EVENTS` in the translator names the

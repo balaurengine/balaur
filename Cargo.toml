@@ -58,7 +58,7 @@ balaur_websocket = { path = "crates/balaur_websocket", version = "0.2.0" }
 balaur_webtransport = { path = "crates/balaur_webtransport", version = "0.2.0" }
 balaur_gamend = { path = "crates/balaur_gamend", version = "0.2.0" }
 balaur_multiplayer = { path = "crates/balaur_multiplayer", version = "0.2.0", default-features = false }
-balaur_web = { path = "crates/balaur_web", version = "0.2.0" }
+balaur_browser = { path = "crates/balaur_browser", version = "0.2.0" }
 balaur_platform = { path = "crates/balaur_platform", version = "0.2.0" }
 balaur_apple = { path = "crates/balaur_apple", version = "0.2.0" }
 balaur_import = { path = "crates/balaur_import", version = "0.2.0" }

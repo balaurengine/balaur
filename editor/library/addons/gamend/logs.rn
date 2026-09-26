@@ -219,7 +219,7 @@ pub fn headers(sink) {
 fn ask_policy(sink, node) {
     sink.retry_in = RETRY;
     let url = sink.url + POLICY_PATH;
-    let opts = #{ headers: headers(sink), timeout: 10.0 };
+    let opts = #{ headers: headers(sink), timeout_seconds: 10.0 };
     let (ok, id) = script::attempt(|| http::request(node, url, opts));
     if ok {
         sink.policy = id;
@@ -421,7 +421,7 @@ fn trim(sink) {
 fn send(sink, node, records) {
     let body = json::encode(#{ "session": session_payload(sink), "entries": rendered(records) });
     let url = sink.url + INGEST_PATH;
-    let opts = #{ method: "POST", headers: headers(sink), body: body, timeout: 15.0 };
+    let opts = #{ method: "POST", headers: headers(sink), body: body, timeout_seconds: 15.0 };
     script::attempt(|| http::request(node, url, opts))
 }
 

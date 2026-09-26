@@ -441,6 +441,7 @@ dependencies = [
  "balaur_animation",
  "balaur_apple",
  "balaur_audio",
+ "balaur_browser",
  "balaur_core",
  "balaur_gamend",
  "balaur_http",
@@ -453,7 +454,6 @@ dependencies = [
  "balaur_script",
  "balaur_script_rune",
  "balaur_ui",
- "balaur_web",
  "balaur_websocket",
  "balaur_webtransport",
  "serde_json",
@@ -542,6 +542,23 @@ dependencies = [
  "hecs",
  "tempfile",
  "toml",
+]
+
+[[package]]
+name = "balaur_browser"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "balaur",
+ "balaur_core",
+ "balaur_plugin",
+ "balaur_script",
+ "js-sys",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
@@ -910,23 +927,6 @@ dependencies = [
  "tempfile",
  "toml",
  "tracing",
-]
-
-[[package]]
-name = "balaur_web"
-version = "0.2.0"
-dependencies = [
- "anyhow",
- "balaur",
- "balaur_core",
- "balaur_plugin",
- "balaur_script",
- "js-sys",
- "serde",
- "serde_json",
- "tempfile",
- "wasm-bindgen",
- "web-sys",
 ]
 
 [[package]]

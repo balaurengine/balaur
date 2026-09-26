@@ -24,7 +24,7 @@ Built, and not built for this:
 
 | Have | Where |
 | --- | --- |
-| Hooks dispatched to a node's script: collisions, contact force, joint break, tween and animation finished, focus, `on_click` on widgets, web and network messages | `balaur_physics`, `balaur_animation`, `balaur_ui`, `balaur_web`, `balaur_http` |
+| Hooks dispatched to a node's script: collisions, contact force, joint break, tween and animation finished, focus, `on_click` on widgets, web and network messages | `balaur_physics`, `balaur_animation`, `balaur_ui`, `balaur_browser`, `balaur_http` |
 | An event bus: `emit`, `subscribe`, `emitted`, `on_event` | `events` |
 | Headless picking: the ray through the mouse, the nearest node it meets | `render.mouse_ray`, `render.pick_ray`, `pick.rs`; `render.mouse_world_2d` for 2D |
 | Point and shape queries in both physics worlds; sensors that fire `on_collision_start` | `physics2d`, `physics3d`, `collider*.sensor` |

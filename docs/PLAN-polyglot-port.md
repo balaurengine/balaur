@@ -161,7 +161,7 @@ arms; these names still fall to `gd.todo`:
 | Godot | Sites | Engine |
 | --- | --: | --- |
 | `Performance.get_monitor` | 19 | `engine.timings`, `render.stats` |
-| `JavaScriptBridge.eval`, `get_interface` | 13 | `web.visible`, `web.location`; the heap probes answer nothing |
+| `JavaScriptBridge.eval`, `get_interface` | 13 | `browser.visible`, `browser.location`; the heap probes answer nothing |
 | `FileAccess.open`, `get_sha256`, `get_file_as_bytes`; `DirAccess.rename_absolute`, `remove_absolute` | 14 | `fs`, `hash` |
 | physics ray and point queries, `get_world_2d` | 15 | `physics2d.raycast`, `point_hits` |
 | `WebSocketPeer` | 10 | `websocket` |

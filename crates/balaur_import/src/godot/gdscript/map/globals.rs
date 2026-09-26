@@ -49,7 +49,7 @@ pub(crate) fn global_constant(name: &str) -> Option<&'static str> {
         "MOUSE_BUTTON_WHEEL_DOWN" => "5",
         "OK" => "0",
         "FAILED" => "1",
-        // No JavaScript bridge: `web::visible` and `on_dark_mode_changed` answer what
+        // No JavaScript bridge: `browser::visible` and `on_dark_mode_changed` answer what
         // its probes read, so a script finds it absent.
         "JavaScriptBridge" => "()",
         // `typeof` answers the shim's type names, so its constants are those.

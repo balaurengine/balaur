@@ -12,6 +12,7 @@ cannot drift from what scripts actually see.
 | [`apple`](#apple) | 20 | 25 | the engine |
 | [`assets`](#assets) | 11 | 0 | the engine |
 | [`audio`](#audio) | 19 | 1 | the engine |
+| [`browser`](#browser) | 8 | 0 | the engine |
 | [`debugger`](#debugger) | 9 | 4 | the engine |
 | [`encoding`](#encoding) | 2 | 0 | the engine |
 | [`engine`](#engine) | 28 | 0 | the engine |
@@ -50,7 +51,6 @@ cannot drift from what scripts actually see.
 | [`task`](#task) | 3 | 0 | the engine |
 | [`toml`](#toml) | 3 | 0 | the engine |
 | [`ui`](#ui) | 72 | 65 | the engine |
-| [`web`](#web) | 8 | 0 | the engine |
 | [`websocket`](#websocket) | 4 | 9 | the engine |
 | [`window`](#window) | 8 | 0 | the engine |
 
@@ -137,6 +137,10 @@ cannot drift from what scripts actually see.
 | Name | Value |
 | --- | --- |
 | `EVENT_FINISHED` | `finished` |
+
+## `browser`
+
+**Functions:** `hardware_concurrency`, `listen`, `location`, `messages`, `post_message`, `stop_listening`, `user_agent`, `visible`
 
 ## `debugger`
 
@@ -529,10 +533,6 @@ cannot drift from what scripts actually see.
 | `HEIGHT_SHORT` | `short` |
 
 …and 41 more.
-
-## `web`
-
-**Functions:** `hardware_concurrency`, `listen`, `location`, `messages`, `post_message`, `stop_listening`, `user_agent`, `visible`
 
 ## `websocket`
 

@@ -374,7 +374,7 @@ fn service_call(class: &str, name: &str, args: &[String]) -> Option<String> {
         // The page answers the one question the game asks of the browser;
         // a reload and a heap probe get nothing. Decided on the literal,
         // since the shim compiles in builds that carry no `web` module.
-        ("JavaScriptBridge", "eval") if one.contains("document.hidden") => "!web::visible()".into(),
+        ("JavaScriptBridge", "eval") if one.contains("document.hidden") => "!browser::visible()".into(),
         ("JavaScriptBridge", "eval") if one.contains("reload") => "()".into(),
         ("JavaScriptBridge", "eval") => "-1".into(),
         ("JavaScriptBridge", "get_interface") => "()".into(),

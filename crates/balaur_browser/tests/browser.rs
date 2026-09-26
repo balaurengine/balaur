@@ -1,8 +1,8 @@
-//! The `web` plugin off the web, and fed from a recording.
+//! The `browser` plugin off the web, and fed from a recording.
 
 use balaur::{App, AppConfig, standard_app};
 use balaur_script::Value;
-use balaur_web::{WebSnapshot, WebState};
+use balaur_browser::{BrowserSnapshot, BrowserState};
 use serde_json::json;
 
 fn app() -> App {
@@ -23,7 +23,7 @@ fn app() -> App {
 #[test]
 fn off_the_web_the_page_answers_nil_and_the_tab_counts_as_visible() {
     let app = app();
-    let state = app.engine.resource::<WebState>();
+    let state = app.engine.resource::<BrowserState>();
     let state = state.borrow();
     assert!(state.visible());
     assert_eq!(state.facts().user_agent, None);
@@ -34,7 +34,7 @@ fn off_the_web_the_page_answers_nil_and_the_tab_counts_as_visible() {
 #[test]
 fn posting_off_the_web_reports_that_nothing_was_sent() {
     let app = app();
-    assert!(!balaur_web::post_message(&app.engine, &Value::Map(Vec::new())).unwrap());
+    assert!(!balaur_browser::post_message(&app.engine, &Value::Map(Vec::new())).unwrap());
 }
 
 #[test]
@@ -42,7 +42,7 @@ fn a_recorded_tick_delivers_the_pages_reports_as_the_browser_did() {
     let mut app = app();
     let mut sources = serde_json::Map::new();
     sources.insert(
-        "web".into(),
+        "browser".into(),
         json!({
             "io": [
                 { "Message": { "payload": { "kind": "ready", "n": 2 } } },
@@ -55,7 +55,7 @@ fn a_recorded_tick_delivers_the_pages_reports_as_the_browser_did() {
     balaur_core::replay::restore(&app.engine, &sources);
     app.tick(1.0 / 60.0);
 
-    let snapshot = app.engine.resource::<WebSnapshot>();
+    let snapshot = app.engine.resource::<BrowserSnapshot>();
     let messages = &snapshot.borrow().messages;
     assert_eq!(messages.len(), 1, "one message arrived this tick");
     let Value::Map(pairs) = &messages[0] else {
@@ -63,7 +63,7 @@ fn a_recorded_tick_delivers_the_pages_reports_as_the_browser_did() {
     };
     assert!(pairs.iter().any(|(k, v)| k == "n" && *v == Value::Int(2)));
 
-    let state = app.engine.resource::<WebState>();
+    let state = app.engine.resource::<BrowserState>();
     let state = state.borrow();
     assert!(
         !state.visible(),

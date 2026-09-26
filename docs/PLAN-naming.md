@@ -67,21 +67,12 @@ with no alias and no migration, as `one way to do a thing` asks.
   without `balaur_` or `script`.
 - Linted: N18 and N19 over every theme file, N21 over every settings schema,
   N22 over the hook list.
-- Left in section 1: `web` → `browser`, `WebSocketPlugin` and an HTTP
-  request's `timeout_seconds`, all inside the networking crates another
-  change is reworking now; they follow it.
+  The page a browser build runs in is the `browser` plugin, the WebSocket
+  plugin is `WebSocketPlugin`, and an HTTP request takes `timeout_seconds`.
 - `NAMING.md` has the eight scopes, rules N18 to N23, and the picked names per
   system, from a survey of SDL3, Godot 4, Unity, Blender, GLFW, W3C, rapier and
   glTF on 2026-09-25.
-- What follows is left. Line numbers in the findings are from that day's tree.
-
-## 1. Crates, features and the Rust facade
-
-| Now | New | Why |
-| --- | --- | --- |
-| feature and crate `web`, module `web.*` | `browser` | reads as a build target and as the head of `websocket` |
-| `WebsocketPlugin` | `WebSocketPlugin` | C-CASE |
-| an HTTP request's `timeout` option | `timeout_seconds` | N21 |
+- What follows is left: one defect, which waits on a push.
 
 ## Bugs the audit found
 
@@ -96,4 +87,3 @@ These are defects, not names, and each is fixed on its own:
 ## Steps
 
 1. The bugs above, each with its test.
-2. Crates and the facade (section 1).

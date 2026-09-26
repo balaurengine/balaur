@@ -1,17 +1,17 @@
-//! The page a browser build runs in, as a Balaur plugin: `web.*` for scripts.
+//! The page a browser build runs in, as a Balaur plugin: `browser.*` for scripts.
 //!
 //! A page is outside the simulation, so it is reached the way a socket is.
 //! Facts about it (the tab's visibility, the user agent, the location) are
 //! read once per tick at [`Stage::First`], recorded, and answered from the
 //! recording on replay. A message from the parent frame arrives the same
-//! way, dispatched to `on_web_event` on the nodes that asked. Posting a
+//! way, dispatched to `on_browser_event` on the nodes that asked. Posting a
 //! message is an effect on the world and goes out through [`ExternalIo`],
 //! which never fires while a recording plays.
 //!
 //! Named verbs rather than `eval`: an arbitrary string run now, returning
 //! anything, is both a determinism hole and a security one. A vendor SDK
 //! that speaks `postMessage` is a Rune `mod` over `post_message` and
-//! `on_web_event`; the engine carries the bridge, not the protocol.
+//! `on_browser_event`; the engine carries the bridge, not the protocol.
 //!
 //! Off the web every query answers nil, `visible` answers true and
 //! `post_message` answers false, so a script written for a page still runs
@@ -43,7 +43,7 @@ pub struct PageFacts {
     pub hardware_concurrency: Option<u32>,
 }
 
-/// Where messages go: `on_web_event` on one node's script.
+/// Where messages go: `on_browser_event` on one node's script.
 #[derive(Clone)]
 pub struct Handler {
     pub node: NodeId,
@@ -51,14 +51,14 @@ pub struct Handler {
 }
 
 /// The channel the page reports on, who listens, and what it last said.
-pub struct WebState {
+pub struct BrowserState {
     io: ExternalIo<WebEvent>,
     listeners: Vec<Handler>,
     facts: PageFacts,
     visible: bool,
 }
 
-impl WebState {
+impl BrowserState {
     /// Whether the tab is in front of the player, as of this tick.
     #[must_use]
     pub const fn visible(&self) -> bool {
@@ -71,7 +71,7 @@ impl WebState {
     }
 }
 
-impl Default for WebState {
+impl Default for BrowserState {
     fn default() -> Self {
         Self {
             io: ExternalIo::default(),
@@ -84,12 +84,12 @@ impl Default for WebState {
 
 /// This tick's messages, as the values handlers received.
 #[derive(Default)]
-pub struct WebSnapshot {
+pub struct BrowserSnapshot {
     pub messages: Vec<Value>,
 }
 
 /// The facts and the visibility, alongside the channel's arrivals, so a
-/// replay on a desktop answers `web.user_agent` as the browser did.
+/// replay on a desktop answers `browser.user_agent` as the browser did.
 #[derive(Serialize, Deserialize)]
 struct Captured {
     io: Json,
@@ -97,8 +97,8 @@ struct Captured {
     visible: bool,
 }
 
-fn capture_web(eng: &Engine) -> Json {
-    let state = eng.resource::<WebState>();
+fn capture_browser(eng: &Engine) -> Json {
+    let state = eng.resource::<BrowserState>();
     let state = state.borrow();
     serde_json::to_value(Captured {
         io: state.io.capture(),
@@ -108,11 +108,11 @@ fn capture_web(eng: &Engine) -> Json {
     .unwrap_or(Json::Null)
 }
 
-fn restore_web(eng: &Engine, value: &Json) {
+fn restore_browser(eng: &Engine, value: &Json) {
     let Ok(captured) = Captured::deserialize(value) else {
         return;
     };
-    let state = eng.resource::<WebState>();
+    let state = eng.resource::<BrowserState>();
     let mut state = state.borrow_mut();
     state.io.restore(&captured.io);
     state.facts = captured.facts;
@@ -124,8 +124,8 @@ fn restore_web(eng: &Engine, value: &Json) {
 fn pump_web_system(eng: &Engine, _: f32) {
     let mut dispatches: Vec<(Handler, Value)> = Vec::new();
     {
-        let state = eng.resource::<WebState>();
-        let snapshot = eng.resource::<WebSnapshot>();
+        let state = eng.resource::<BrowserState>();
+        let snapshot = eng.resource::<BrowserSnapshot>();
         let mut state = state.borrow_mut();
         let mut snapshot = snapshot.borrow_mut();
         snapshot.messages.clear();
@@ -160,7 +160,7 @@ pub fn post_message(eng: &Engine, payload: &Value) -> Result<bool> {
     if !backend::SUPPORTED {
         return Ok(false);
     }
-    let state = eng.resource::<WebState>();
+    let state = eng.resource::<BrowserState>();
     let state = state.borrow();
     Ok(state.io.start(eng, |_| backend::post_message(&json)))
 }
@@ -174,10 +174,10 @@ fn opt<'a>(opts: Option<&'a Value>, key: &str) -> Option<&'a Value> {
 
 fn install_web_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "The page a browser build runs in; off the web every query answers nil. A parent-frame message reaches `on_web_event` on every node that called `listen`.",
+        "The page a browser build runs in; off the web every query answers nil. A parent-frame message reaches `on_browser_event` on every node that called `listen`.",
     );
     m.describe(&[
-        ("listen", &[], "(node: node, options: map)", "Have the node's `on_web_event(payload)`, or the `on_event` method the options name, called for every message the parent frame posts."),
+        ("listen", &[], "(node: node, options: map)", "Have the node's `on_browser_event(payload)`, or the `on_event` method the options name, called for every message the parent frame posts."),
         ("stop_listening", &[], "(node: node)", "Stop the node hearing the parent frame's messages. Not an error when it never listened."),
         ("messages", &[], "()", "Every message the parent frame posted this tick, for a script that would rather ask than declare a method."),
         ("post_message", &[], "(payload: map)", "Post a value to the page that embeds this one. False off the web, and false while a recording plays."),
@@ -194,9 +194,9 @@ fn install_web_api(m: &mut dyn Bindings<Engine>) {
                 Some(other) => {
                     return Err(anyhow!("`on_event` should be a method name, got {other:?}"));
                 }
-                None => "on_web_event".to_string(),
+                None => "on_browser_event".to_string(),
             };
-            eng.resource::<WebState>()
+            eng.resource::<BrowserState>()
                 .borrow_mut()
                 .listeners
                 .push(Handler {
@@ -207,7 +207,7 @@ fn install_web_api(m: &mut dyn Bindings<Engine>) {
         },
     );
     m.function("stop_listening", |eng: &Engine, node: NodeId| {
-        eng.resource::<WebState>()
+        eng.resource::<BrowserState>()
             .borrow_mut()
             .listeners
             .retain(|listener| listener.node != node);
@@ -215,14 +215,14 @@ fn install_web_api(m: &mut dyn Bindings<Engine>) {
     });
     m.function("messages", |eng: &Engine, ()| {
         Ok(Value::List(
-            eng.resource::<WebSnapshot>().borrow().messages.clone(),
+            eng.resource::<BrowserSnapshot>().borrow().messages.clone(),
         ))
     });
     m.function("post_message", |eng: &Engine, payload: Value| {
         post_message(eng, &payload)
     });
     m.function("visible", |eng: &Engine, ()| {
-        Ok(eng.resource::<WebState>().borrow().visible)
+        Ok(eng.resource::<BrowserState>().borrow().visible)
     });
     m.function("user_agent", |eng: &Engine, ()| {
         Ok(fact(eng, |f| f.user_agent.clone().map(Value::text)))
@@ -238,31 +238,31 @@ fn install_web_api(m: &mut dyn Bindings<Engine>) {
 }
 
 fn fact(eng: &Engine, read: impl FnOnce(&PageFacts) -> Option<Value>) -> Value {
-    read(&eng.resource::<WebState>().borrow().facts).unwrap_or(Value::Nil)
+    read(&eng.resource::<BrowserState>().borrow().facts).unwrap_or(Value::Nil)
 }
 
-pub struct WebPlugin {
+pub struct BrowserPlugin {
     manifest: balaur_plugin::Manifest,
 }
 
-impl Default for WebPlugin {
+impl Default for BrowserPlugin {
     fn default() -> Self {
         Self {
-            manifest: balaur_plugin::Manifest::new("web", env!("CARGO_PKG_VERSION")),
+            manifest: balaur_plugin::Manifest::new("browser", env!("CARGO_PKG_VERSION")),
         }
     }
 }
 
-impl balaur_plugin::Plugin for WebPlugin {
+impl balaur_plugin::Plugin for BrowserPlugin {
     fn manifest(&self) -> &balaur_plugin::Manifest {
         &self.manifest
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
-        let state = WebState {
+        let state = BrowserState {
             facts: backend::facts(),
             visible: backend::visible(),
-            ..WebState::default()
+            ..BrowserState::default()
         };
         // Through `start`, so a replay registers nothing and the recording
         // supplies the page's reports instead.
@@ -270,10 +270,10 @@ impl balaur_plugin::Plugin for WebPlugin {
             .io
             .start(reg.engine(), |report| backend::listen(report.clone()));
         reg.insert_resource(state);
-        reg.insert_resource(WebSnapshot::default());
+        reg.insert_resource(BrowserSnapshot::default());
         reg.add_system(Stage::First, pump_web_system);
-        reg.add_replay_source("web", capture_web, restore_web);
-        let mut m = reg.script_module("web")?;
+        reg.add_replay_source("browser", capture_browser, restore_browser);
+        let mut m = reg.script_module("browser")?;
         install_web_api(&mut *m);
         Ok(())
     }
