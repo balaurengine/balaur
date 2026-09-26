@@ -95,8 +95,8 @@ pub mod wake;
 pub mod warnings;
 
 pub use app::{
-    App, AppConfig, DEFAULT_FIXED_DT, MAX_SUBSTEPS, ScriptArgs, ScriptHostFactory, ScriptSetup, Stage,
-    DEFAULT_TICK_HZ, fixed_dt, max_substeps, set_tick_hz, tick_hz,
+    App, AppConfig, DEFAULT_FIXED_DT, DEFAULT_TICK_HZ, MAX_SUBSTEPS, ScriptArgs, ScriptHostFactory,
+    ScriptSetup, Stage, fixed_dt, max_substeps, set_tick_hz, tick_hz,
 };
 pub use assets::{AssetRef, AssetState, AssetTypeRegistry};
 pub use collections::{DetHashMap, DetHashSet};
@@ -116,7 +116,7 @@ pub use scene::{
     Appearance, Children, GlobalAppearance, GlobalTransform, Name, Parent, ScriptAttachment,
     Transform,
 };
-pub use snapshot::{Checkpoint, SnapshotRegistry, CheckpointRing};
+pub use snapshot::{Checkpoint, CheckpointRing, SnapshotRegistry};
 pub use transport::{Delivery, Faults, Faulty, LinkState, Received, Transport};
 
 /// Inserted by a windowed backend on the first key, button or touch: the

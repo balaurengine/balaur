@@ -76,7 +76,8 @@ impl Options {
                 .unwrap_or_else(|| setting_int(eng, "depth").try_into().unwrap_or(16))
                 .try_into()
                 .unwrap_or(16),
-            timeout: number(opts, "timeout_seconds")?.unwrap_or_else(|| setting_number(eng, "timeout_seconds")),
+            timeout: number(opts, "timeout_seconds")?
+                .unwrap_or_else(|| setting_number(eng, "timeout_seconds")),
             name: text(opts, "name")?.unwrap_or_else(|| String::from("Player")),
             token: text(opts, "token")?.unwrap_or_default(),
             cert_hash: text(opts, "cert_hash")?.filter(|hash| !hash.is_empty()),

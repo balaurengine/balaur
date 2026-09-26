@@ -111,7 +111,10 @@ fn the_device_s_changes_reach_every_script() {
         device.memory_warnings += 1;
     });
     app.tick(1.0 / 60.0);
-    assert_eq!(said(&app), "suspended true;low memory;insets 47.0;portrait;");
+    assert_eq!(
+        said(&app),
+        "suspended true;low memory;insets 47.0;portrait;"
+    );
 }
 
 #[test]

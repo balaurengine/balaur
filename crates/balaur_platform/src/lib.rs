@@ -430,7 +430,15 @@ pub mod kind {
     pub const READ: &str = "read";
     pub const UNSUPPORTED: &str = "unsupported";
     pub const ERROR: &str = balaur_core::handler::ERROR;
-    pub const ALL: &[&str] = &[SIGNED_IN, SIGNED_OUT, DONE, SCORES, READ, UNSUPPORTED, ERROR];
+    pub const ALL: &[&str] = &[
+        SIGNED_IN,
+        SIGNED_OUT,
+        DONE,
+        SCORES,
+        READ,
+        UNSUPPORTED,
+        ERROR,
+    ];
 }
 
 fn event_value(event: PlatformEvent) -> Value {

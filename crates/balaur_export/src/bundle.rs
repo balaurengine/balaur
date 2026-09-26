@@ -239,8 +239,8 @@ pub(crate) fn export_macos_app(
     )?;
     std::fs::create_dir_all(&macos_dir)?;
     std::fs::create_dir_all(&resources)?;
-    let bytes = std::fs::read(runtime)
-        .with_context(|| format!("reading runtime {}", runtime.display()))?;
+    let bytes =
+        std::fs::read(runtime).with_context(|| format!("reading runtime {}", runtime.display()))?;
     let executable = macos_dir.join(name);
     balaur::standalone::write_executable(&executable, &bytes, runtime)?;
     // Before codesign, which signs nested code first and seals it into the bundle.

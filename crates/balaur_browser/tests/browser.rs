@@ -1,8 +1,8 @@
 //! The `browser` plugin off the web, and fed from a recording.
 
 use balaur::{App, AppConfig, standard_app};
-use balaur_script::Value;
 use balaur_browser::{BrowserSnapshot, BrowserState};
+use balaur_script::Value;
 use serde_json::json;
 
 fn app() -> App {

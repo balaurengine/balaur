@@ -59,8 +59,10 @@ macro_rules! write_parameters {
             f(k::PREDICTION_DISTANCE, p.normalized_prediction_distance);
         p.normalized_max_linear_velocity =
             f(k::MAX_LINEAR_VELOCITY, p.normalized_max_linear_velocity);
-        p.contact_softness.natural_frequency =
-            f(k::CONTACT_FREQUENCY_HZ, p.contact_softness.natural_frequency);
+        p.contact_softness.natural_frequency = f(
+            k::CONTACT_FREQUENCY_HZ,
+            p.contact_softness.natural_frequency,
+        );
         p.contact_softness.damping_ratio = f(k::CONTACT_DAMPING, p.contact_softness.damping_ratio);
         p.static_contact_softness.natural_frequency = f(
             k::STATIC_CONTACT_FREQUENCY_HZ,

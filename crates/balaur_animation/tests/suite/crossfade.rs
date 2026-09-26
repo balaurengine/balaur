@@ -97,7 +97,8 @@ fn a_fade_started_mid_fade_carries_on_from_where_the_blend_was() {
         .unwrap();
     tick(&mut app, 15);
     let before = transform(&app, hero).position.x;
-    balaur_animation::player::play_blended(&app.engine, hero, "far", 0.5, Easing::LINEAR, true).unwrap();
+    balaur_animation::player::play_blended(&app.engine, hero, "far", 0.5, Easing::LINEAR, true)
+        .unwrap();
     tick(&mut app, 1);
     let after = transform(&app, hero).position.x;
     assert!(
@@ -150,7 +151,8 @@ fn a_clip_that_ends_mid_fade_leaves_nothing_to_blend_later() {
     );
     assert_eq!(fades(&app, hero), 0);
 
-    balaur_animation::player::play_blended(&app.engine, hero, "far", 0.5, Easing::LINEAR, true).unwrap();
+    balaur_animation::player::play_blended(&app.engine, hero, "far", 0.5, Easing::LINEAR, true)
+        .unwrap();
     tick(&mut app, 30);
     assert!(
         (transform(&app, hero).position.x - 2.0).abs() < 1e-5,

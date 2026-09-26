@@ -269,8 +269,7 @@ mod imp {
     /// rather than a failure: a line can exist before it has a release.
     pub(crate) fn looked_up(tag: Option<&str>, channel: Option<&str>) -> Result<Option<Published>> {
         let source = source(tag, channel)?;
-        let Some(text) = crate::runtimes::fetch_text(&format!("{}/VERSION", source.base()))?
-        else {
+        let Some(text) = crate::runtimes::fetch_text(&format!("{}/VERSION", source.base()))? else {
             return Ok(None);
         };
         let id = text.trim().to_string();

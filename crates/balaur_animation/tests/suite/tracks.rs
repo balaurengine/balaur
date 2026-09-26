@@ -705,7 +705,8 @@ keys = [ { time = 0.0, value = "calm" }, { time = 0.5, value = 3.0 } ]
     )
     .unwrap();
     components::add(&app.engine, entity, "animation", Some(&params)).unwrap();
-    let why = balaur_animation::play(&app.engine, entity, "").expect_err("a mixed track is not a clip");
+    let why =
+        balaur_animation::play(&app.engine, entity, "").expect_err("a mixed track is not a clip");
     let why = format!("{why:#}");
     assert!(why.contains("names and numbers"), "{why}");
 }

@@ -589,7 +589,10 @@ impl RuneHost {
             .map_err(|_| anyhow!("cannot attach script to a dead node"))?;
         // A script that simulates on the fixed step moves its node between
         // frames, which is exactly what drawing between steps is for.
-        if self.resolve(&key, balaur_core::hooks::FIXED_UPDATE).is_some() {
+        if self
+            .resolve(&key, balaur_core::hooks::FIXED_UPDATE)
+            .is_some()
+        {
             balaur_core::interpolate::enable(&self.engine, entity);
         }
         {
@@ -781,7 +784,14 @@ impl RuneHost {
             .filter_map(|(e, i)| Some((*e, i.state.try_clone().ok()?)))
             .collect();
         for (entity, state) in batch {
-            self.invoke(entity, key, balaur_core::hooks::ON_HOT_RELOAD, (state,), false, None);
+            self.invoke(
+                entity,
+                key,
+                balaur_core::hooks::ON_HOT_RELOAD,
+                (state,),
+                false,
+                None,
+            );
         }
     }
 

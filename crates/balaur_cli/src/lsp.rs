@@ -311,7 +311,10 @@ impl Server {
         let Some(to) = params["newName"].as_str() else {
             return Json::Null;
         };
-        let from = word_at(&source, balaur::script_rune::offset_of(&source, line, column));
+        let from = word_at(
+            &source,
+            balaur::script_rune::offset_of(&source, line, column),
+        );
         if from.is_empty() {
             return Json::Null;
         }

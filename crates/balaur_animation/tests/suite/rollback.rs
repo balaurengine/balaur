@@ -90,7 +90,10 @@ fn a_rollback_across_a_playing_clip_restores_the_playhead() {
     );
 
     snapshot::restore(&app.engine, &frame);
-    assert_eq!(balaur_animation::time(&app.engine, node).to_bits(), at.to_bits());
+    assert_eq!(
+        balaur_animation::time(&app.engine, node).to_bits(),
+        at.to_bits()
+    );
     assert!(balaur_animation::is_playing(&app.engine, node));
 }
 
@@ -141,7 +144,8 @@ fn a_rollback_mid_crossfade_restores_every_fade_in_the_stack() {
     balaur_animation::player::play_blended(&app.engine, node, "hold", 0.5, Easing::LINEAR, true)
         .unwrap();
     tick(&mut app, 5);
-    balaur_animation::player::play_blended(&app.engine, node, "", 0.5, Easing::LINEAR, true).unwrap();
+    balaur_animation::player::play_blended(&app.engine, node, "", 0.5, Easing::LINEAR, true)
+        .unwrap();
     tick(&mut app, 2);
     assert_eq!(fades(&app), 2);
     let frame = snapshot::capture(&app.engine);
