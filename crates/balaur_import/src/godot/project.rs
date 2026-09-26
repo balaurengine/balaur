@@ -377,7 +377,7 @@ fn binding(event: &Value) -> Option<String> {
             let half = event
                 .field("axis_value")
                 .and_then(Value::as_f64)
-                .map_or("", |v| if (v < 0.0) != flipped { "-" } else { "+" });
+                .map_or("", |v| if (v < 0.0) == flipped { "+" } else { "-" });
             Some(format!("axis:{axis}{half}"))
         }
         _ => None,
