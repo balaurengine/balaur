@@ -7,7 +7,7 @@ rustflags = [
     "-Clink-arg=-lwebsocket.js",
     # egui depends on web-sys for every wasm32 target, emscripten included,
     # where wasm-bindgen's intrinsics have no implementation and nothing calls
-    # them. package_template.sh checks that only those stay undefined.
+    # them. package_runtime.sh checks that only those stay undefined.
     "-Clink-arg=-sERROR_ON_UNDEFINED_SYMBOLS=0",
 ]
 

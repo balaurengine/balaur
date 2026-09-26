@@ -10,11 +10,7 @@ use crate::Command;
 /// `balaur shrink` or `balaur atlas`, whichever `command` is.
 pub(crate) fn run(command: Command) -> Result<()> {
     match command {
-        Command::Shrink {
-            project,
-            tag,
-            scale,
-        } => shrink(&project, &tag, scale),
+        Command::Shrink { path, tag, scale } => shrink(&path, &tag, scale),
         Command::Atlas {
             inputs,
             name,

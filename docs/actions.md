@@ -1,7 +1,7 @@
 # GitHub Actions for a Balaur game
 
 A game's repository pins one version — the engine's — and gets the engine, its
-runtime templates and the actions that know its flags from the same tag.
+runtimes and the actions that know its flags from the same tag.
 
 | `uses:` | Produces |
 | --- | --- |
@@ -110,8 +110,8 @@ macOS. For a different set — a smaller web build, or one without networking:
 ```
 
 `build-engine` stands in a checkout of *this* repository and produces the same
-`balaur-editor-*`, `balaur-runtime-*` and `balaur-template-*` files a release
-holds, so a later `export-game` uses them by pointing `BALAUR_TEMPLATES` at
+`balaur-editor-*`, `balaur-runtime-*` and `balaur-runtime-*` files a release
+holds, so a later `export-game` uses them by pointing `BALAUR_RUNTIMES` at
 where they landed. `docs/generated/features.md` says what each feature costs.
 
 ## What a run costs

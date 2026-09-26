@@ -4,7 +4,7 @@
 > `max-page-size=16384`, and the `[android]` table now carries the application
 > id, label, version and SDK floors that the exporter writes into the staged
 > manifest. CI reads each back — the alignment off the ELF in
-> `package_template.sh`, the ABIs and the rewritten package out of the export
+> `package_runtime.sh`, the ABIs and the rewritten package out of the export
 > in `export_check.sh`. The AAB is what is left of step 1.
 >
 > Written down on 2026-09-03 so the order was decided before the first line:
@@ -34,8 +34,8 @@ Built, and not built for this:
 | A NativeActivity entry point holding the `AndroidApp` handle | `crates/balaur_android` |
 | The pack as an APK asset, read through the asset manager | `android_main`, `PACK_ASSET` |
 | An application id, label, version and SDK floors the game owns | `[android]` in `project.toml`, `AndroidConfig::manifest` |
-| All four ABIs in the template, and `[android] abis` to pick from them | `scripts/package_template.sh`, `android::{Abi, AndroidConfig}` |
-| 16 KB aligned 64-bit libraries, read back off the ELF | `.cargo/config.toml`, `scripts/package_template.sh` |
+| All four ABIs in the template, and `[android] abis` to pick from them | `scripts/package_runtime.sh`, `android::{Abi, AndroidConfig}` |
+| 16 KB aligned 64-bit libraries, read back off the ELF | `.cargo/config.toml`, `scripts/package_runtime.sh` |
 | Work off the frame landing on a tick boundary, recorded and replayable | `ExternalIo`, `Stage::First`, `balaur_core::handler` |
 | A server with login, REST and hooks to verify a token against | `balaur_gamend` |
 | A save file, atomic, versioned, in the user data directory | `balaur_core::save` |
@@ -94,7 +94,7 @@ largest blast radius, and there is no way around it: resolving
 `com.google.android.gms:play-services-games-v2` by hand means resolving its
 transitive graph by hand, merging manifest fragments by hand, and running
 `d8` and `aapt2` over the result — which is Gradle, written badly. So
-`scripts/package_template.sh android` gains a Gradle project whose only
+`scripts/package_runtime.sh android` gains a Gradle project whose only
 Kotlin/Java is the shim, whose native library is the one cargo already
 builds, and whose output is both an APK (installable, what CI checks) and an
 AAB (uploadable). `--bundle apk` stays for the no-Google path: a

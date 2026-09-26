@@ -49,6 +49,9 @@ with no alias and no migration, as `one way to do a thing` asks.
   variables name it (`BALAUR_ANDROID_KEYSTORE_PASSWORD`), `export` takes
   `--bundle <kind>`, `--provisioning-profile` and `--dry-run`, and `keep` is a
   count only beside `include` and `*_recode = "original"`.
+  A prebuilt player is a runtime (`--runtime`, `balaur-runtime-*`,
+  `runtimes/`, `BALAUR_RUNTIMES`), `update` takes `--version`, and `shrink`
+  takes the project it acts on as its argument.
 - `NAMING.md` has the eight scopes, rules N18 to N23, and the picked names per
   system, from a survey of SDL3, Godot 4, Unity, Blender, GLFW, W3C, rapier and
   glTF on 2026-09-25.
@@ -58,14 +61,11 @@ with no alias and no migration, as `one way to do a thing` asks.
 
 | Now | New | Why |
 | --- | --- | --- |
-| `export --template`, `balaur-template-*` | `--runtime`, `balaur-runtime-*` | `new --template` is a starter project |
-| `update --tag`, `shrink --tag` | `update --version`; `tag` means an override tag only | |
 | `gamend/target` | `gamend/server` | |
 | `run --record`, `.blr`, `sessions/`, `editor/sessions/*`, the Session panel | "recording": `recordings/`, `editor/recordings/*`, the Recordings panel | four names; `session` is also a Gamend login |
 | `input.toml`, `bindings_path` | `bindings.toml` | |
 | `units/` | `script_cache/` | Rune's word for compiled scripts |
 | `--state` self-tests `*demo`, poses `fontdemo`, separators `:`, `=` and `?` | `test:<name>`, plain nouns for poses, `:` only; an unknown state is an error | one suffix meant two things; e2e translates the names |
-| a positional path on `shrink` | `shrink <path>`; `import` and `atlas` keep `--project` | a destination is a flag |
 | `editor/library/manifest.toml` | `catalog.toml` | `manifest` means `project.toml` |
 
 ## 2. The editor's words

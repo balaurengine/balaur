@@ -209,7 +209,7 @@ developer can turn on.
 
 - the release binary and each desktop template carry no engine symbol
 - a unit compiled on the host decodes and runs on wasm32 — through
-  `wasm-bindgen-test` in Node, which the web template job has the toolchain
+  `wasm-bindgen-test` in Node, which the web runtime job has the toolchain
   for, or failing that in the headless page `export_check.sh web` drives
 - a sealed pack contains no plaintext fragment, opens with its key, refuses a
   wrong one by name, still opens as v2 when unsealed, and exports

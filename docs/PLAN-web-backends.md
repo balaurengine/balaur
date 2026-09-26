@@ -11,7 +11,7 @@ the runtime chooses.
 ## Steps
 
 1. **Turn the backend on and see what breaks.** wgpu's GL backend targets
-   WebGL2. Build the web template with it and run `examples/hello` and
+   WebGL2. Build the web runtime with it and run `examples/hello` and
    `examples/angrynerds`. The failures will be specific and worth listing
    before designing anything around them.
 2. **Find the shaders that do not translate.** WESL compiles to WGSL and naga
@@ -24,7 +24,7 @@ the runtime chooses.
    console can both show it. No per-frame switching and no user-facing toggle.
 4. **Measure the module.** One wasm carrying both backends is simpler to ship
    and larger to download; two modules with a picker is the opposite. Measure
-   against the current web template before choosing, and keep the comparison
+   against the current web runtime before choosing, and keep the comparison
    next to the numbers in `docs/BENCHMARKS.md`.
 
 ## What does not change

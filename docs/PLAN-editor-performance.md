@@ -153,7 +153,7 @@ In this order, measuring after each:
 
 ## 4. What this costs to ship
 
-`balaur_ui` is in the game runtime, not only the editor, and a web template is
+`balaur_ui` is in the game runtime, not only the editor, and a web runtime is
 prebuilt, so a crate the editor links is carried by every exported game. The
 web module is 20.4 MB today. Measure each addition against
 `docs/generated/features.md` before taking it, and split the template only when

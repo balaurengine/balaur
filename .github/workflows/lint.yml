@@ -70,7 +70,7 @@ jobs:
         run: cargo clippy -p balaur_apple -p balaur --features balaur/apple --all-targets -- -D warnings
       # Nothing above compiles `#[cfg(target_family = "wasm")]` code, so a
       # browser-only mistake used to reach CI as a failed download. Flags are
-      # the web template's, from scripts/package_template.sh.
+      # the web runtime's, from scripts/package_runtime.sh.
       - name: Target `wasm32`
         if: runner.os == 'Linux'
         run: |

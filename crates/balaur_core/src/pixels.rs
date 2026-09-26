@@ -3,7 +3,7 @@
 //!
 //! A raster is decoded; an SVG is rasterized at its `scale`; then the texel
 //! settings of [`crate::import::texture::Texels`] are applied. An exported
-//! pack holds the SVG's raster under the SVG's own name, so a game template
+//! pack holds the SVG's raster under the SVG's own name, so a game runtime
 //! built without the `svg` feature never needs the rasterizer.
 
 use anyhow::{Result, anyhow};

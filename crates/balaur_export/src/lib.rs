@@ -8,8 +8,8 @@
 //! only true while there is one exporter.
 //!
 //! What stays with the caller is policy this crate has no business holding: a
-//! network stack, a terminal prompt, and which release a template is fetched
-//! from. Those arrive as [`Options::template_roots`] and [`Options::obtain`].
+//! network stack, a terminal prompt, and which release a runtime is fetched
+//! from. Those arrive as [`Options::runtime_roots`] and [`Options::obtain`].
 
 use std::path::{Path, PathBuf};
 
@@ -30,7 +30,7 @@ mod variants;
 
 use apple::AppleConfig;
 pub use bundle::web_shell;
-use bundle::{Bundle, export_bundle, export_macos_app, find_bundle_template};
+use bundle::{Bundle, export_bundle, export_macos_app, find_bundle_runtime};
 pub use config::{DEFAULT_OUTPUT, ExportConfig};
 
 /// Everything an export was asked for.
@@ -44,11 +44,11 @@ pub struct Options<'a> {
     pub path: PathBuf,
     /// Where the result goes. Each shape names its own default.
     pub output: Option<PathBuf>,
-    /// The platform to build a standalone game for, naming a template.
+    /// The platform to build a standalone game for, naming a runtime.
     /// `TARGETS` is every one of them.
     pub target: Option<String>,
-    /// A runtime template to append to, bypassing lookup entirely.
-    pub template: Option<PathBuf>,
+    /// A runtime to append to, bypassing lookup entirely.
+    pub runtime: Option<PathBuf>,
     /// Produce a macOS `.app` rather than a flat executable.
     pub app: bool,
     /// Keep script sources in the pack instead of bytecode, for a runtime
@@ -72,8 +72,8 @@ pub struct Options<'a> {
     pub aab: bool,
     /// Wrap the macOS `.app` as the `.pkg` the Mac App Store takes.
     pub pkg: bool,
-    /// Where runtime templates are looked for, most specific first.
-    pub template_roots: Vec<PathBuf>,
+    /// Where runtimes are looked for, most specific first.
+    pub runtime_roots: Vec<PathBuf>,
     /// Modules to register before compiling, for a project whose scripts
     /// call something this binary adds rather than the engine.
     pub plugins: Option<&'a ExtraModules>,
@@ -81,20 +81,20 @@ pub struct Options<'a> {
     /// pack is still built and every script still compiled, because a size
     /// nobody can produce is not a measurement.
     pub dry_run: bool,
-    /// Called when the target's template is on none of the roots. `None`
+    /// Called when the target's runtime is on none of the roots. `None`
     /// refuses instead of fetching: a download needs a network stack, a
     /// release to fetch from and somewhere to ask the user, and none of the
     /// three belongs in here.
-    pub obtain: Option<&'a ObtainTemplate>,
+    pub obtain: Option<&'a ObtainRuntime>,
 }
 
-/// Fetch the template for one target, however the caller wants to: the CLI
+/// Fetch the runtime for one target, however the caller wants to: the CLI
 /// downloads and verifies it, the editor asks first, a test hands one over.
-pub type ObtainTemplate = dyn Fn(&str) -> Result<PathBuf>;
+pub type ObtainRuntime = dyn Fn(&str) -> Result<PathBuf>;
 
 /// Modules the calling binary registers before the project is compiled.
 ///
-/// The same policy split as [`ObtainTemplate`]: this crate compiles a
+/// The same policy split as [`ObtainRuntime`]: this crate compiles a
 /// project, and which modules that project may call is the caller's. The
 /// editor's own scripts call the CLI's `export`, and Rune resolves a module
 /// while compiling, so exporting the editor has to load it first.
@@ -113,13 +113,13 @@ pub const TARGETS: [&str; 8] = [
     "web",
 ];
 
-/// Whether the runtime template for `target` is already on one of `roots`, so
+/// Whether the runtime for `target` is already on one of `roots`, so
 /// an export sheet can say what it can build now and what it must fetch.
 #[must_use]
-pub fn template_installed(target: &str, roots: &[PathBuf]) -> bool {
+pub fn runtime_installed(target: &str, roots: &[PathBuf]) -> bool {
     Bundle::for_target(target).map_or_else(
-        || find_template(target, roots).is_ok(),
-        |kind| find_bundle_template(kind, roots).is_ok(),
+        || find_runtime(target, roots).is_ok(),
+        |kind| find_bundle_runtime(kind, roots).is_ok(),
     )
 }
 
@@ -134,7 +134,7 @@ pub fn data_roots(exe_dir: &Path) -> Vec<PathBuf> {
     roots
 }
 
-/// Where templates are looked for: an explicit directory first, then the one
+/// Where runtimes are looked for: an explicit directory first, then the one
 /// that ships beside the binary in the editor download, then the per-user
 /// cache a download lands in.
 ///
@@ -142,13 +142,13 @@ pub fn data_roots(exe_dir: &Path) -> Vec<PathBuf> {
 /// baked into the binary rather than known here.
 pub fn default_roots(cache: Option<PathBuf>) -> Vec<PathBuf> {
     let mut roots = Vec::new();
-    if let Ok(dir) = std::env::var("BALAUR_TEMPLATES") {
+    if let Ok(dir) = std::env::var("BALAUR_RUNTIMES") {
         roots.push(PathBuf::from(dir));
     }
     if let Ok(exe) = std::env::current_exe()
         && let Some(dir) = exe.parent()
     {
-        roots.extend(data_roots(dir).into_iter().map(|r| r.join("templates")));
+        roots.extend(data_roots(dir).into_iter().map(|r| r.join("runtimes")));
     }
     if let Some(cache) = cache {
         roots.push(cache);
@@ -170,7 +170,7 @@ fn bake_tags(pack: &mut balaur::Pack, own: &[String]) -> Result<()> {
     Ok(())
 }
 
-/// Write a `.bpak`, or a standalone game when a template is in play.
+/// Write a `.bpak`, or a standalone game when a runtime is in play.
 pub fn export(opts: &Options<'_>) -> Result<()> {
     let target = opts.target.as_deref();
     let bundle = target.and_then(Bundle::for_target);
@@ -217,15 +217,15 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     // inside it as a resource rather than onto the end of a binary.
     if let Some(kind) = bundle {
         extensions::warn_left_behind(&extensions::in_project(&opts.path), kind.platform());
-        let template = match opts.template.clone() {
+        let runtime = match opts.runtime.clone() {
             Some(explicit) => explicit,
-            None => find_bundle_template(kind, &opts.template_roots)?,
+            None => find_bundle_runtime(kind, &opts.runtime_roots)?,
         };
         let shell = web_shell(&opts.path)?;
         let output = declared_output(opts, &config, kind.platform(), &bundle_name(kind, &name));
         let written = export_bundle(
             kind,
-            &template,
+            &runtime,
             &pack.encode(),
             &name,
             output,
@@ -235,9 +235,9 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         )?;
         return finish_bundle(kind, &written, opts, &apple, &android, &name);
     }
-    let template = match (opts.template.clone(), target) {
+    let runtime = match (opts.runtime.clone(), target) {
         (Some(explicit), _) => Some(explicit),
-        (None, Some(target)) => Some(match find_template(target, &opts.template_roots) {
+        (None, Some(target)) => Some(match find_runtime(target, &opts.runtime_roots) {
             Ok(found) => found,
             Err(missing) => match opts.obtain {
                 Some(obtain) => obtain(target).with_context(|| missing.to_string())?,
@@ -247,21 +247,21 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         (None, None) => None,
     };
     let windows = target.is_some_and(|t| t.contains("windows"))
-        || template
+        || runtime
             .as_ref()
             .is_some_and(|t| t.extension().is_some_and(|e| e == "exe"));
     // A macOS game that will be signed has to be a .app: appending to a flat
     // binary is exactly what a signature cannot cover. Authenticode is the
     // exception, and records where it put itself.
     if opts.app || opts.pkg || (opts.sign.is_some() && !windows) {
-        let template = template.context("--bundle app needs --target or --template")?;
+        let runtime = runtime.context("--bundle app needs --target or --runtime")?;
         if let Some(t) = target.filter(|t| !t.starts_with("macos")) {
             anyhow::bail!("--bundle app builds a macOS bundle, but the target is {t}");
         }
         let identity = identity(opts.sign.as_deref(), &apple.macos_identity);
         let output = declared_output(opts, &config, "macos-universal", &format!("{name}.app"));
         let app = export_macos_app(
-            &template,
+            &runtime,
             &pack.encode(),
             &name,
             output,
@@ -284,7 +284,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         &windows_signing,
         &pack,
         &name,
-        template,
+        runtime,
         target,
     )
 }
@@ -296,10 +296,10 @@ fn export_desktop(
     signing: &config::WindowsConfig,
     pack: &balaur::Pack,
     name: &str,
-    template: Option<PathBuf>,
+    runtime: Option<PathBuf>,
     target: Option<&str>,
 ) -> Result<()> {
-    let Some(template) = template else {
+    let Some(runtime) = runtime else {
         let output = opts
             .output
             .clone()
@@ -317,9 +317,9 @@ fn export_desktop(
         return Ok(());
     };
     let windows = target.is_some_and(|t| t.contains("windows"))
-        || template.extension().is_some_and(|e| e == "exe");
-    let bytes = std::fs::read(&template)
-        .with_context(|| format!("reading template {}", template.display()))?;
+        || runtime.extension().is_some_and(|e| e == "exe");
+    let bytes = std::fs::read(&runtime)
+        .with_context(|| format!("reading runtime {}", runtime.display()))?;
     // Windows will not run a file without the extension, whatever its contents.
     let file = if windows {
         format!("{name}.exe")
@@ -335,12 +335,12 @@ fn export_desktop(
         std::fs::create_dir_all(dir)?;
     }
     let game = balaur::standalone::build(&bytes, &pack.encode());
-    balaur::standalone::write_executable(&output, &game, &template)?;
+    balaur::standalone::write_executable(&output, &game, &runtime)?;
     tracing::info!(
         "exported {} scripts, {} scenes onto {} -> {}",
         pack.scripts.len(),
         pack.scenes.len(),
-        template.display(),
+        runtime.display(),
         output.display()
     );
     let shipped = extensions::ship_for(&opts.path, &bytes, &output)?;
@@ -453,12 +453,12 @@ pub(crate) fn roots_for_message(roots: &[PathBuf]) -> String {
         .join(", ")
 }
 
-/// Find the runtime template for `target`.
+/// Find the runtime for `target`.
 ///
-/// Templates are what CI publishes per platform, unpacked next to the binary
-/// (or wherever BALAUR_TEMPLATES points). Exporting for a platform you have no
-/// template for has to say so plainly — it is the most common way this fails.
-fn find_template(target: &str, roots: &[PathBuf]) -> Result<PathBuf> {
+/// Runtimes are what CI publishes per platform, unpacked next to the binary
+/// (or wherever BALAUR_RUNTIMES points). Exporting for a platform you have no
+/// runtime for has to say so plainly — it is the most common way this fails.
+fn find_runtime(target: &str, roots: &[PathBuf]) -> Result<PathBuf> {
     for root in roots {
         for name in [
             format!("balaur-runtime-{target}.exe"),
@@ -472,38 +472,38 @@ fn find_template(target: &str, roots: &[PathBuf]) -> Result<PathBuf> {
     }
     let looked = roots_for_message(roots);
     anyhow::bail!(
-        "no runtime template for \"{target}\" (looked in: {looked}). \
-         Download the templates for this release, or pass --template <file>."
+        "no runtime for \"{target}\" (looked in: {looked}). \
+         Download the runtimes for this release, or pass --runtime <file>."
     )
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Options, Path, PathBuf, find_template};
+    use super::{Options, Path, PathBuf, find_runtime};
 
     #[test]
-    fn a_template_is_found_on_any_root() {
+    fn a_runtime_is_found_on_any_root() {
         let dir = tempfile::tempdir().unwrap();
-        let root = dir.path().join("templates");
+        let root = dir.path().join("runtimes");
         std::fs::create_dir_all(&root).unwrap();
-        std::fs::write(root.join("balaur-runtime-linux-x64"), b"template").unwrap();
+        std::fs::write(root.join("balaur-runtime-linux-x64"), b"runtime").unwrap();
         let roots = vec![dir.path().join("absent"), root.clone()];
         assert_eq!(
-            find_template("linux-x64", &roots).unwrap(),
+            find_runtime("linux-x64", &roots).unwrap(),
             root.join("balaur-runtime-linux-x64")
         );
     }
 
-    /// The message names every root, because "no template" with no list is
+    /// The message names every root, because "no runtime" with no list is
     /// the failure a first export hits and cannot act on.
     #[test]
-    fn a_missing_template_names_where_it_looked() {
-        let roots = vec![std::path::PathBuf::from("/nowhere/templates")];
-        let err = find_template("macos-universal", &roots)
+    fn a_missing_runtime_names_where_it_looked() {
+        let roots = vec![std::path::PathBuf::from("/nowhere/runtimes")];
+        let err = find_runtime("macos-universal", &roots)
             .unwrap_err()
             .to_string();
         assert!(err.contains("macos-universal"), "{err}");
-        assert!(err.contains("/nowhere/templates"), "{err}");
+        assert!(err.contains("/nowhere/runtimes"), "{err}");
     }
 
     /// A default `Options` exports a pack and reaches no network: the shape
@@ -512,7 +512,7 @@ mod tests {
     fn options_default_to_a_pack_and_no_download() {
         let opts = Options::default();
         assert!(opts.target.is_none());
-        assert!(opts.template_roots.is_empty());
+        assert!(opts.runtime_roots.is_empty());
         assert!(opts.obtain.is_none());
     }
 

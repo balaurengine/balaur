@@ -26,7 +26,7 @@ Built, and not built for this:
 | The module booted on a canvas, and the editor too | `balaur::boot_pack_on_canvas`, `boot_editor_on_canvas`, `crates/balaur_cli/src/web.rs` |
 | A page bridge, recorded and replayable: `post_message`, `listen`, `messages`, `visible`, `location`, `user_agent` | `balaur_web` |
 | The site's loader and player, one stamped set of glue, module and packs | `../balaur-website/src/play.ts`, `src/components/Player` |
-| The template built per push with a chosen feature set, its size measured raw, gzip and brotli | `scripts/package_template.sh web`, `WEB_FEATURES`, `docs/generated/features.md`, the site's `play-size.json` |
+| The template built per push with a chosen feature set, its size measured raw, gzip and brotli | `scripts/package_runtime.sh web`, `WEB_FEATURES`, `docs/generated/features.md`, the site's `play-size.json` |
 | Packs with sources or compiled, both running on the 32-bit runtime | `balaur export --keep-sources` |
 | A nightly bundle the site pulls | `scripts/package_play.sh`, `balaur-play.tar.gz` |
 | Screenshots from any GPU run; frames to a video through ffmpeg | `render.screenshot`, `scripts/showcase.sh` |

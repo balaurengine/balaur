@@ -277,7 +277,7 @@ decision.
 | A headless run | Have: `screen_size` is zero. Planned: zero reads `wide` and `tall` |
 | A test feeding a size | Planned: `touch(pos, phase)` beside `press` in the widget suite's support, and a screen rect the test chooses |
 | Rendering at a phone's size | Planned: `--size WxH` on `balaur edit` and `balaur run` offscreen, replacing the constant; `--touch` setting the fact for the run |
-| A simulator build | Planned: `aarch64-apple-ios-sim` beside `aarch64-apple-ios` in `scripts/package_template.sh`, as `--target ios-sim` |
+| A simulator build | Planned: `aarch64-apple-ios-sim` beside `aarch64-apple-ios` in `scripts/package_runtime.sh`, as `--target ios-sim` |
 | The editor on a tablet | Planned: the `touch` and `medium` rows of §2's table |
 | The editor on a phone | Planned: the `narrow` and `short` rows, as step 7 |
 | A palette row per shortcut | Planned: an audit that fails the selftest for a `ui::shortcut` no `palette.rn` row names |
@@ -898,7 +898,7 @@ and its editors take what the sheet leaves.
 **`hide_taller` exists**, the fourth line, with the same test as the other
 three.
 
-**The simulator template builds.** `scripts/package_template.sh ios-sim`
+**The simulator template builds.** `scripts/package_runtime.sh ios-sim`
 takes the host's own architecture, since that is what a simulator runs, and
 writes the same unsigned bundle under its own name. What it cannot answer is
 whether the editor is usable on a phone in the hand, which is the check the

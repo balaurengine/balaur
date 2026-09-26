@@ -105,7 +105,7 @@ organisation name already says whose they are:
 | --- | --- | --- |
 | `balaurengine/balaur/.github/actions/setup@v0.2.0` | Downloads the published build named by the ref it was called at (`github.action_ref`), verifies it against `SHA256SUMS`, puts `balaur` on `PATH`, seeds the template cache for `targets`, and caches all of it by build id | nothing |
 | `balaurengine/balaur/.github/actions/export-game@v0.2.0` | `balaur export` once per entry in `targets`, with the signing flags built from its credential inputs; uploads `game-<target>` artifacts and attests them | a `balaur` on `PATH`, from `setup` or `build-engine` |
-| `balaurengine/balaur/.github/actions/build-engine@v0.2.0` | Builds the engine from the checkout it stands in with `features` and `targets`, through `scripts/package.sh` and `package_template.sh`, and uploads the same `balaur-editor-*`, `balaur-runtime-*` and `balaur-template-*` names a release holds | a checkout of this repo or a fork, a Rust toolchain |
+| `balaurengine/balaur/.github/actions/build-engine@v0.2.0` | Builds the engine from the checkout it stands in with `features` and `targets`, through `scripts/package.sh` and `package_runtime.sh`, and uploads the same `balaur-editor-*`, `balaur-runtime-*` and `balaur-runtime-*` names a release holds | a checkout of this repo or a fork, a Rust toolchain |
 
 They live in this repository, not in three of their own, because the
 version that matters is the engine's: a game pins `@v0.2.0` once and gets
@@ -206,7 +206,7 @@ Every place a game from this engine could be asked to prove who made it.
 
 1. **Extensions in the shipped templates**, decided one way or the other
    (§6 question 4); it blocks only the last row of §2. If on: `--features window,extensions` in `package.sh`
-   and `package_template.sh`, and a smoke test that loads
+   and `package_runtime.sh`, and a smoke test that loads
    `examples/extension_c_counter`. If off: the header leaves the editor
    download and the docs say `build-engine`.
 2. **Provenance and the web check.** `actions/attest-build-provenance` on

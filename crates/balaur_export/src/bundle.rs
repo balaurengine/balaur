@@ -34,12 +34,12 @@ impl Bundle {
         }
     }
 
-    /// The template directory `package_template.sh` produces.
-    const fn template_dir(self) -> &'static str {
+    /// The runtime directory `package_runtime.sh` produces.
+    const fn runtime_dir(self) -> &'static str {
         match self {
             Self::Ios => "Balaur.app",
-            Self::Android => "balaur-template-android",
-            Self::Web => "balaur-template-web",
+            Self::Android => "balaur-runtime-android",
+            Self::Web => "balaur-runtime-web",
         }
     }
 
@@ -88,14 +88,14 @@ fn replace_export(dir: &Path, pack_inside: &Path) -> Result<()> {
     std::fs::remove_dir_all(dir).with_context(|| format!("replacing {}", dir.display()))
 }
 
-/// Copy a bundle template and put the pack where that platform looks for it.
+/// Copy a bundle runtime and put the pack where that platform looks for it.
 #[allow(
     clippy::too_many_arguments,
     reason = "what to write, and what each platform adds; a struct here would exist to satisfy a count"
 )]
 pub(crate) fn export_bundle(
     kind: Bundle,
-    template: &Path,
+    runtime: &Path,
     pack: &[u8],
     name: &str,
     output: Option<PathBuf>,
@@ -119,10 +119,10 @@ pub(crate) fn export_bundle(
         std::fs::create_dir_all(dir)?;
     }
     replace_export(&output, &inside)?;
-    copy_dir(template, &output)?;
-    // After the copy, because both read the layout the template just became:
+    copy_dir(runtime, &output)?;
+    // After the copy, because both read the layout the runtime just became:
     // a game keeps the ABIs it names, and the manifest stops being the
-    // template's own.
+    // runtime's own.
     if kind == Bundle::Android {
         android.prune(&output)?;
         let path = output.join("AndroidManifest.xml");
@@ -154,7 +154,7 @@ pub(crate) fn export_bundle(
     }
     if kind == Bundle::Ios {
         let plist = output.join("Info.plist");
-        let executable = template_executable(&plist).unwrap_or_else(|| "Balaur".to_string());
+        let executable = runtime_executable(&plist).unwrap_or_else(|| "Balaur".to_string());
         std::fs::write(&plist, apple.info_plist(Platform::Ios, &executable, name))
             .with_context(|| format!("writing {}", plist.display()))?;
         if let Some(path) = apple.write_entitlements(&output, name)? {
@@ -170,10 +170,10 @@ pub(crate) fn export_bundle(
     Ok(output)
 }
 
-/// The binary inside the template bundle, read off the plist the exporter is
-/// about to replace: the executable file keeps the template's name, so the
+/// The binary inside the runtime bundle, read off the plist the exporter is
+/// about to replace: the executable file keeps the runtime's name, so the
 /// new plist has to name the same one.
-fn template_executable(plist: &Path) -> Option<String> {
+fn runtime_executable(plist: &Path) -> Option<String> {
     let text = std::fs::read_to_string(plist).ok()?;
     let after = text.split("<key>CFBundleExecutable</key>").nth(1)?;
     let open = after.find("<string>")? + "<string>".len();
@@ -184,7 +184,7 @@ fn template_executable(plist: &Path) -> Option<String> {
 pub(crate) fn copy_dir(from: &Path, to: &Path) -> Result<()> {
     std::fs::create_dir_all(to).with_context(|| format!("creating {}", to.display()))?;
     for entry in
-        std::fs::read_dir(from).with_context(|| format!("reading template {}", from.display()))?
+        std::fs::read_dir(from).with_context(|| format!("reading runtime {}", from.display()))?
     {
         let entry = entry?;
         let target = to.join(entry.file_name());
@@ -193,7 +193,7 @@ pub(crate) fn copy_dir(from: &Path, to: &Path) -> Result<()> {
         } else {
             std::fs::copy(entry.path(), &target)?;
             // The executable inside an .app has to stay executable, and a
-            // template that came through an artifact store has already lost
+            // runtime that came through an artifact store has already lost
             // the bit once.
             #[cfg(unix)]
             {
@@ -211,12 +211,12 @@ pub(crate) fn copy_dir(from: &Path, to: &Path) -> Result<()> {
     Ok(())
 }
 
-/// A macOS game as a signable `.app`: the template binary untouched, the
+/// A macOS game as a signable `.app`: the runtime binary untouched, the
 /// pack a resource beside it (`standalone::own_pack` looks there inside a
 /// bundle), the extensions in `Contents/PlugIns`, and `codesign` run over
 /// the result.
 pub(crate) fn export_macos_app(
-    template: &Path,
+    runtime: &Path,
     pack: &[u8],
     name: &str,
     output: Option<PathBuf>,
@@ -239,10 +239,10 @@ pub(crate) fn export_macos_app(
     )?;
     std::fs::create_dir_all(&macos_dir)?;
     std::fs::create_dir_all(&resources)?;
-    let bytes = std::fs::read(template)
-        .with_context(|| format!("reading template {}", template.display()))?;
+    let bytes = std::fs::read(runtime)
+        .with_context(|| format!("reading runtime {}", runtime.display()))?;
     let executable = macos_dir.join(name);
-    balaur::standalone::write_executable(&executable, &bytes, template)?;
+    balaur::standalone::write_executable(&executable, &bytes, runtime)?;
     // Before codesign, which signs nested code first and seals it into the bundle.
     crate::extensions::ship_for(project, &bytes, &executable)?;
     std::fs::write(resources.join(balaur::standalone::BUNDLED_PACK), pack)?;
@@ -267,19 +267,19 @@ pub(crate) fn export_macos_app(
     Ok(app)
 }
 
-/// Find the bundle template for a mobile platform.
-pub(crate) fn find_bundle_template(kind: Bundle, roots: &[PathBuf]) -> Result<PathBuf> {
+/// Find the bundle runtime for a mobile platform.
+pub(crate) fn find_bundle_runtime(kind: Bundle, roots: &[PathBuf]) -> Result<PathBuf> {
     for root in roots {
-        let candidate = root.join(kind.template_dir());
+        let candidate = root.join(kind.runtime_dir());
         if candidate.is_dir() {
             return Ok(candidate);
         }
     }
     anyhow::bail!(
-        "no {} template (looked for {} in: {}). Unpack balaur-template-{} from the \
-         release into the templates directory, or pass --template <dir>.",
+        "no {} runtime (looked for {} in: {}). Unpack balaur-runtime-{} from the \
+         release into the runtimes directory, or pass --runtime <dir>.",
         kind.platform(),
-        kind.template_dir(),
+        kind.runtime_dir(),
         roots_for_message(roots),
         kind.platform(),
     )
@@ -319,17 +319,17 @@ mod tests {
     }
 
     #[test]
-    fn a_web_export_is_the_template_the_pack_and_a_page_that_names_both() {
+    fn a_web_export_is_the_runtime_the_pack_and_a_page_that_names_both() {
         let dir = tempfile::tempdir().unwrap();
-        let template = dir.path().join("balaur-template-web");
-        std::fs::create_dir(&template).unwrap();
-        std::fs::write(template.join("balaur.js"), b"export default 1;").unwrap();
-        std::fs::write(template.join("balaur_bg.wasm"), b"\0asm").unwrap();
+        let runtime = dir.path().join("balaur-runtime-web");
+        std::fs::create_dir(&runtime).unwrap();
+        std::fs::write(runtime.join("balaur.js"), b"export default 1;").unwrap();
+        std::fs::write(runtime.join("balaur_bg.wasm"), b"\0asm").unwrap();
         let out = dir.path().join("game-web");
 
         export_bundle(
             Bundle::Web,
-            &template,
+            &runtime,
             b"pack",
             "Tide",
             Some(out.clone()),

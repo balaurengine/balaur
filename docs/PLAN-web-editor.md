@@ -28,7 +28,7 @@ Built, and not built for this:
 
 | Have | Where |
 | --- | --- |
-| A web build that links, packages and is checked on every push | `scripts/package_template.sh web`, the `build-platforms` job |
+| A web build that links, packages and is checked on every push | `scripts/package_runtime.sh web`, the `build-platforms` job |
 | Browser backends for HTTP and WebSockets, as C shims compiled by `build.rs` | `crates/balaur_http`, `crates/balaur_websocket`, `.cargo/config.toml` |
 | An editor that is a Balaur project: five workspaces, all of it Rune | `editor/scripts/*.rn`, `defs::workspaces()` |
 | The editor's own tooling bindings: `fs`, `toml`, `require`, `log.recent` | `balaur_core::file_api`, `engine_api` |
@@ -40,7 +40,7 @@ Built, and not built for this:
 
 Missing, roughly in the order they block each other:
 
-- **A canvas.** The web template is built with default features, so no
+- **A canvas.** The web runtime is built with default features, so no
   `window`: it links the simulation and no renderer. kiss3d owns the window
   and the swapchain, and a wgpu surface on an HTML canvas is the one blocker
   `docs/PLAN-mobile-export.md` has been carrying. Nothing below matters
@@ -199,7 +199,7 @@ The wasm build is already checked on every push, which is more than most of
 this repo's platform work starts with. Beyond that:
 
 - the `window` feature links for emscripten, and the undefined-symbol check
-  in `package_template.sh` still passes with the renderer in
+  in `package_runtime.sh` still passes with the renderer in
 - `editor/scripts/selftest.rn` — the editor's own headless self-test — runs
   **in a browser**, driven by Playwright over the shell page. It already
   asserts the editor's behaviour on desktop, so the web job is the same

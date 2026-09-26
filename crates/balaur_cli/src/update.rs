@@ -167,7 +167,7 @@ mod imp {
     /// already failed.
     fn has_a_release(channel: &str) -> bool {
         let url = format!("{}/VERSION", channel_base(channel));
-        matches!(crate::templates::fetch_text(&url), Ok(Some(_)))
+        matches!(crate::runtimes::fetch_text(&url), Ok(Some(_)))
     }
 
     /// `--tag` names one release, `--channel` one line, and a build with
@@ -207,7 +207,7 @@ mod imp {
     pub(crate) fn releases() -> Result<Vec<Release>> {
         const FEED: &str = "https://api.github.com/repos/balaurengine/balaur/releases?per_page=30";
         let text =
-            crate::templates::fetch_text(FEED)?.context("the release feed answered nothing")?;
+            crate::runtimes::fetch_text(FEED)?.context("the release feed answered nothing")?;
         let mut out = parse_feed(&text)?;
         // A version tag is its own build id; only a rolling tag has to be
         // asked, through its VERSION, which build it holds now.
@@ -269,7 +269,7 @@ mod imp {
     /// rather than a failure: a line can exist before it has a release.
     pub(crate) fn looked_up(tag: Option<&str>, channel: Option<&str>) -> Result<Option<Published>> {
         let source = source(tag, channel)?;
-        let Some(text) = crate::templates::fetch_text(&format!("{}/VERSION", source.base()))?
+        let Some(text) = crate::runtimes::fetch_text(&format!("{}/VERSION", source.base()))?
         else {
             return Ok(None);
         };
@@ -363,14 +363,14 @@ mod imp {
     }
 
     pub(crate) fn run(opts: &crate::UpdateOpts) -> Result<()> {
-        let found = published(opts.tag.as_deref(), opts.channel.as_deref())?;
+        let found = published(opts.version.as_deref(), opts.channel.as_deref())?;
         let own = crate::version::build_id().unwrap_or("dev");
         tracing::info!("installed: {own}; {}: {}", found.source, found.id);
         if opts.check {
             return Ok(());
         }
         let note = replace(
-            opts.tag.as_deref(),
+            opts.version.as_deref(),
             opts.channel.as_deref(),
             opts.allow_downgrade,
             &mut |_| {},
@@ -391,12 +391,12 @@ mod imp {
         let ext = if cfg!(windows) { "zip" } else { "tar.gz" };
         let name = format!("balaur-editor-{target}.{ext}");
         let url = format!("{base}/{name}");
-        let expected = crate::templates::expected_sha256(&format!("{base}/SHA256SUMS"), &name)?;
+        let expected = crate::runtimes::expected_sha256(&format!("{base}/SHA256SUMS"), &name)?;
         let staging = install.join(".balaur-update");
         std::fs::remove_dir_all(&staging).ok();
         std::fs::create_dir_all(&staging)?;
         let archive = staging.join(&name);
-        crate::templates::download_reporting(
+        crate::runtimes::download_reporting(
             &url,
             &archive,
             expected.as_deref(),

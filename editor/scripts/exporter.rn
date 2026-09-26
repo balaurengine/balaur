@@ -42,7 +42,7 @@ pub fn report(S, e) {
         said[target] = where_;
         S.exporter.landed = where_;
         log::info(format!("exported {} -> {}", target, where_));
-        // A template that was downloaded on the way is installed now.
+        // A runtime that was downloaded on the way is installed now.
         refresh(S);
     } else if kind == "failed" {
         let why = ev.get("message").unwrap_or("");
@@ -111,7 +111,7 @@ fn readiness(installed, fetchable) {
     } else if fetchable {
         "downloads on first export"
     } else {
-        "source build — no release to fetch a template from"
+        "source build — no release to fetch a runtime from"
     }
 }
 
@@ -162,7 +162,7 @@ fn export_button(S, name, installed, fetchable, status) {
             let status_map = S.exporter.status;
             status_map[name] = "started";
             // `download` is the consent this click just gave: the engine
-            // never fetches a template without being told it may.
+            // never fetches a runtime without being told it may.
             export::start(name, #{ download: true });
         },
     }

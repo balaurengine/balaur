@@ -24,7 +24,7 @@ Built, and not built for this:
 | Export as a library any caller can drive, not a subcommand's private code | `balaur_export::{export, Options}`. The network stack, the terminal prompt and the per-user cache stay with the caller, so an editor can drive it without any of the three |
 | A macOS `.app` signed with an identity the developer holds | `export --bundle app --sign`, `bundle.rs::export_macos_app` |
 | A signed iOS `.app` and an assembled, signed APK | `bundle.rs::export_bundle`, `balaur_export::{sign, android}`, `docs/PLAN-actions.md` |
-| A web build that links and packages, headless | `scripts/package_template.sh web`, the `build-platforms` job |
+| A web build that links and packages, headless | `scripts/package_runtime.sh web`, the `build-platforms` job |
 | Templates fetched, checksum-verified, and an install that updates itself | `templates.rs`, `update.rs`, `balaur update` |
 | CI artifacts turned into a release draft on every push and tag | `scripts/draft_release.sh` |
 | Work off the frame landing on a tick boundary, recorded and replayable | `ExternalIo`, `Stage::First`, `balaur_core::handler` |

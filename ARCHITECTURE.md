@@ -371,7 +371,7 @@ content is `asset`.
   `scale` and a model's `scale` do set sizes, and every build reads them alike.
 - Every reader of a picture goes through `balaur_core::pixels`: a raster
   decoded, an SVG rasterized, then `bleed` and `flip_green` applied. An export
-  writes an SVG's raster under its own name, so a game template has no
+  writes an SVG's raster under its own name, so a game runtime has no
   rasterizer.
 - A texture property is asset-typed, `asset = "texture"`: a plain image path
   resolves as `{ source = <path> }`, so the asset layer reads no file, and a
@@ -613,8 +613,8 @@ at load; every other packed run builds no compiler and no watcher.
   the CLI reads its own executable (`core::standalone`): a pack means it is a game
   and argv is never read. One binary is the editor, the CLI and every game's
   runtime.
-- Templates resolve from `BALAUR_TEMPLATES`, then `templates/` beside the
-  executable, then `<data dir>/balaur/templates/<build id>`. A missing desktop
+- Runtimes resolve from `BALAUR_RUNTIMES`, then `runtimes/` beside the
+  executable, then `<data dir>/balaur/runtimes/<build id>`. A missing desktop
   template is offered for download from the release this build came from and
   verified against its `SHA256SUMS` — pinned exactly, because a pack must only
   meet the runtime its compiler shipped with. The prompt needs a terminal or

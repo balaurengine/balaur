@@ -137,7 +137,7 @@ impl Default for AppleConfig {
             display_name: String::new(),
             version: "1.0".into(),
             build_number: "1".into(),
-            // The templates are built for these (scripts/package_template.sh,
+            // The templates are built for these (scripts/package_runtime.sh,
             // scripts/package.sh), which is where StoreKit 2 starts; a plist
             // may not claim less than the binary was built for.
             min_ios: "15.0".into(),

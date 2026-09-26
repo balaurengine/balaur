@@ -6,11 +6,11 @@
 # each gets the shape its OS actually launches, and what a game does with the
 # template differs per platform. See docs/PLAN-mobile-export.md.
 #
-# Usage: package_template.sh <platform>     ios | ios-sim | android | web
+# Usage: package_runtime.sh <platform>     ios | ios-sim | android | web
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-platform=${1:?usage: package_template.sh <platform>}
+platform=${1:?usage: package_runtime.sh <platform>}
 dist=$(mkdir -p "${DIST:-dist}" && cd "${DIST:-dist}" && pwd)
 
 step() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
@@ -60,7 +60,7 @@ ios | ios-sim)
 </dict>
 </plist>
 PLIST
-  (cd "$dist" && tar -czf "balaur-template-$platform.tar.gz" "Balaur.app")
+  (cd "$dist" && tar -czf "balaur-runtime-$platform.tar.gz" "Balaur.app")
   rm -rf "$app"
   ;;
 
@@ -73,7 +73,7 @@ x86:i686-linux-android x86_64:x86_64-linux-android"
   # Laid out the way an APK expects, so the remaining step is assembling and
   # signing one — which needs aapt2 and a keystore that belongs to whoever
   # ships the game, not to CI.
-  skeleton="$dist/balaur-template-android"
+  skeleton="$dist/balaur-runtime-android"
   rm -rf "$skeleton"
   mkdir -p "$skeleton/assets"
 
@@ -134,7 +134,7 @@ MANIFEST
   # An exported game drops its pack in here; the bare template ships it empty.
   printf 'A game exported for Android puts game.bpak in this directory.\n' \
     >"$skeleton/assets/README"
-  (cd "$dist" && tar -czf balaur-template-android.tar.gz balaur-template-android)
+  (cd "$dist" && tar -czf balaur-runtime-android.tar.gz balaur-runtime-android)
   rm -rf "$skeleton"
   ;;
 
@@ -148,7 +148,7 @@ web)
   # carries its own name: `-threads` for the shared-memory build, `-editor`
   # for the module the web editor runs.
   variant=${WEB_VARIANT:-${threads:+threads}}
-  name=balaur-template-web${variant:+-$variant}
+  name=balaur-runtime-web${variant:+-$variant}
   step "build ($target, windowed${threads:+, threads})"
   rustup target add "$target"
   # WEB_FEATURES builds a smaller template; docs/generated/features.md says
@@ -221,7 +221,7 @@ web)
   # — to a module with no engine in it. That shipped once, at 73 KB.
   floor=$((5 * 1024 * 1024))
   if [ "$raw" -lt "$floor" ]; then
-    printf '::error::web template is %d bytes, under the %d floor — the engine is not in it. Check that web.rs still exports a #[wasm_bindgen] entry point.\n' "$raw" "$floor"
+    printf '::error::web runtime is %d bytes, under the %d floor — the engine is not in it. Check that web.rs still exports a #[wasm_bindgen] entry point.\n' "$raw" "$floor"
     exit 1
   fi
   gz=$(gzip -9 -c "$dist/balaur_bg.wasm" | wc -c)

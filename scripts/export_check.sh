@@ -14,16 +14,16 @@ BUNDLETOOL=1.18.3
 dist=$(mkdir -p "${DIST:-dist}" && cd "${DIST:-dist}" && pwd)
 work="$dist/export-$platform"
 rm -rf "$work"
-mkdir -p "$work/templates"
+mkdir -p "$work/runtimes"
 
 step() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 fail() { printf '::error::%s\n' "$1"; exit 1; }
 
 step "unpack the template"
-archive="$dist/balaur-template-$platform.tar.gz"
+archive="$dist/balaur-runtime-$platform.tar.gz"
 [ -f "$archive" ] || fail "no $archive — did the template build upload it?"
-tar -xzf "$archive" -C "$work/templates"
-ls "$work/templates"
+tar -xzf "$archive" -C "$work/runtimes"
+ls "$work/runtimes"
 
 step "build the exporter"
 # Headless: exporting compiles scripts and copies files, and never opens a
@@ -66,7 +66,7 @@ if [ "$platform" = android ]; then
   export BALAUR_ANDROID_BUNDLETOOL="$jar"
 fi
 # shellcheck disable=SC2086
-(cd "$work" && BALAUR_TEMPLATES="$work/templates" \
+(cd "$work" && BALAUR_RUNTIMES="$work/runtimes" \
   "$balaur" export project --target "$platform" $apk)
 
 case $platform in

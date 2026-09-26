@@ -32,7 +32,7 @@ pub(crate) enum Abi {
 
 impl Abi {
     /// The directory name under `lib/`, which is the same string a project
-    /// writes and the name `package_template.sh` stages.
+    /// writes and the name `package_runtime.sh` stages.
     pub(crate) const fn dir(self) -> &'static str {
         match self {
             Self::Arm64V8a => "arm64-v8a",
@@ -174,7 +174,7 @@ impl AndroidConfig {
         }
         let floor: u32 = attr(template, "android:minSdkVersion")?.parse().context(
             "the template's android:minSdkVersion is not a number; \
-             scripts/package_template.sh writes it",
+             scripts/package_runtime.sh writes it",
         )?;
         let min_sdk = if self.min_sdk == 0 {
             floor
@@ -758,7 +758,7 @@ mod tests {
         assert!(err.contains("arm64-v8a"), "{err}");
     }
 
-    /// The manifest scripts/package_template.sh stages, activity and all.
+    /// The manifest scripts/package_runtime.sh stages, activity and all.
     const TEMPLATE_WITH_ACTIVITY: &str = r#"<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="org.balaur.template"
@@ -775,7 +775,7 @@ mod tests {
 </manifest>
 "#;
 
-    /// The manifest scripts/package_template.sh stages.
+    /// The manifest scripts/package_runtime.sh stages.
     const TEMPLATE: &str = r#"<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="org.balaur.template"

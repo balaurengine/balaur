@@ -55,7 +55,7 @@ carried — a wgpu surface on an HTML canvas — is solved on
 `wasm32-unknown-unknown` with wasm-bindgen. Audio plays. Web needed no signing
 and no bundle format, which is why it landed before the rest of this plan.
 
-`scripts/package_template.sh web` builds and packages that `.wasm` on every
+`scripts/package_runtime.sh web` builds and packages that `.wasm` on every
 push. The target is `wasm32-unknown-unknown` with wasm-bindgen, not
 emscripten: kiss3d and wgpu only support the browser there
 (`docs/PLAN-web-editor.md` §5 question 1). The job builds with `window` on

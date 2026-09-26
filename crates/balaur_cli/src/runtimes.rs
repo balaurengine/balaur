@@ -1,15 +1,15 @@
-//! The per-user template cache, and downloading a missing template into it.
+//! The per-user runtime cache, and downloading a missing runtime into it.
 
 use std::path::PathBuf;
 
-/// Downloaded templates live per user, never inside a project:
-/// `<platform data dir>/balaur/templates/<build id>`. Keyed by the exact
-/// build because a template must match the engine that compiled the pack.
+/// Downloaded runtimes live per user, never inside a project:
+/// `<platform data dir>/balaur/runtimes/<build id>`. Keyed by the exact
+/// build because a runtime must match the engine that compiled the pack.
 #[cfg(not(target_family = "wasm"))]
 pub(crate) fn cache_dir() -> Option<PathBuf> {
     dirs::data_dir().map(|d| {
         d.join("balaur")
-            .join("templates")
+            .join("runtimes")
             .join(crate::version::build_id().unwrap_or("dev"))
     })
 }
@@ -21,7 +21,7 @@ pub(crate) fn cache_dir() -> Option<PathBuf> {
 
 #[cfg(target_family = "wasm")]
 pub(crate) fn obtain(_target: &str, _assume_yes: bool) -> anyhow::Result<PathBuf> {
-    anyhow::bail!("template download is not available in this build")
+    anyhow::bail!("runtime download is not available in this build")
 }
 
 #[cfg(not(target_family = "wasm"))]
@@ -41,15 +41,15 @@ mod fetch {
     const RELEASE_BASE: &str = "https://github.com/balaurengine/balaur/releases/download";
 
     /// The tag this build's own assets live under, so a pack only ever meets
-    /// the runtime its compiler shipped with. BALAUR_TEMPLATE_TAG overrides.
+    /// the runtime its compiler shipped with. BALAUR_RUNTIME_TAG overrides.
     fn release_tag() -> Result<String> {
-        if let Ok(tag) = std::env::var("BALAUR_TEMPLATE_TAG") {
+        if let Ok(tag) = std::env::var("BALAUR_RUNTIME_TAG") {
             return Ok(tag);
         }
         crate::version::release_tag().map(str::to_string).context(
             "this is a source build with no release to download from; build the \
-             template yourself (cargo build --release -p balaur_cli), pass \
-             --template <file>, or set BALAUR_TEMPLATE_TAG",
+             runtime yourself (cargo build --release -p balaur_cli), pass \
+             --runtime <file>, or set BALAUR_RUNTIME_TAG",
         )
     }
 
@@ -61,7 +61,7 @@ mod fetch {
         }
     }
 
-    /// Download the template for `target` into the cache and return its path.
+    /// Download the runtime for `target` into the cache and return its path.
     /// Asks first on a terminal; without one it refuses unless `assume_yes`
     /// (`--download`), so CI never fetches by surprise.
     pub(crate) fn obtain(target: &str, assume_yes: bool) -> Result<PathBuf> {
@@ -88,25 +88,25 @@ mod fetch {
         }
         if !std::io::stdin().is_terminal() {
             bail!(
-                "template {name} is not installed; pass --download to fetch it \
+                "runtime {name} is not installed; pass --download to fetch it \
                  from {url} into {}",
                 dir.display()
             );
         }
         eprint!(
-            "Template {name} is not installed. Download it from\n{url}\ninto {}? [y/N] ",
+            "Runtime {name} is not installed. Download it from\n{url}\ninto {}? [y/N] ",
             dir.display()
         );
         std::io::stderr().flush()?;
         let mut answer = String::new();
         std::io::stdin().read_line(&mut answer)?;
         if !matches!(answer.trim(), "y" | "Y" | "yes") {
-            bail!("not downloading; install the template manually or pass --template <file>");
+            bail!("not downloading; install the runtime manually or pass --runtime <file>");
         }
         Ok(())
     }
 
-    /// The rolling `nightly` tag moves: a template published after this
+    /// The rolling `nightly` tag moves: a runtime published after this
     /// binary was built comes from a different compiler, and fusing the two
     /// is undefined. The release's VERSION asset names the build it holds.
     fn refuse_a_stale_nightly(tag: &str) -> Result<()> {
@@ -266,8 +266,8 @@ mod fetch {
         #[test]
         fn the_cache_is_keyed_by_the_build_id() {
             // Under cargo no build id is baked in, so the cache says `dev`.
-            let dir = crate::templates::cache_dir().expect("desktop platforms have a data dir");
-            assert!(dir.ends_with("balaur/templates/dev"));
+            let dir = crate::runtimes::cache_dir().expect("desktop platforms have a data dir");
+            assert!(dir.ends_with("balaur/runtimes/dev"));
         }
 
         #[test]

@@ -219,10 +219,10 @@ this.
 
 The web editor and an exported game are one module today:
 `scripts/package_play.sh` copies `balaur.js` and `balaur_bg.wasm` out of
-`package_template.sh web` and ships them beside `editor.bpak` and a pack per
+`package_runtime.sh web` and ships them beside `editor.bpak` and a pack per
 example. The `import` cargo feature on `balaur_cli` is what splits them, and
 is built: on by default and in every native build, which is where the command
-lives, and off in `package_template.sh web`, so a game a reader downloads
+lives, and off in `package_runtime.sh web`, so a game a reader downloads
 carries no importer. `balaur import` and `balaur shrink` exist only with it.
 
 **The importers do compile for a browser**, which was the open question:
@@ -239,7 +239,7 @@ The second module is built. `package_play.sh` takes `EDITOR_MODULE` when a
 build already made one and builds its own otherwise, and `build-platforms`
 grew a third web entry -- `variant: editor`, the plain set plus `import` --
 which `bundle web` downloads and points at. `WEB_VARIANT` carries the name
-through `package_template.sh`, so the tarball matches the artifact the way
+through `package_runtime.sh`, so the tarball matches the artifact the way
 `-threads` already did.
 
 Run here, not only planned: the editor's module is **21.43 MB raw, 5.81 MB
@@ -453,7 +453,7 @@ as `k`. Every control now names its shape or is given a neutral one.
   shared memory. A shared-memory build of it plans on a worker, but a worker
   cannot reach the tab's filesystem, so writing and walking a folder stay
   under the tick there too.
-- **No importer in the game template.** A game reads what an import wrote; it
+- **No importer in the game runtime.** A game reads what an import wrote; it
   never imports. The feature stays off there however cheap it turns out to be.
 - **No import over a project's own files.** A drop copies into the project
   first, which is what `dropin::copy_in` already does. An importer that reads

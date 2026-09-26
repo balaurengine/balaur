@@ -10,7 +10,7 @@ authors.workspace = true
 balaur_cfg.workspace = true
 
 [features]
-# SVG textures rasterized at their `scale`. Off in a game template: an export
+# SVG textures rasterized at their `scale`. Off in a game runtime: an export
 # has already written the raster into the pack.
 svg = ["dep:resvg"]
 

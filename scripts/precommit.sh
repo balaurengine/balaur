@@ -176,7 +176,7 @@ e2e_stream() {
   return $bad
 }
 
-# The web template's own target and flags, from scripts/package_template.sh.
+# The web runtime's own target and flags, from scripts/package_runtime.sh.
 wasm_stream() {
   side_env
   step 'clippy wasm' shape wasm clippy --target wasm32-unknown-unknown -p balaur_cli \

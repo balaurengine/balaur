@@ -113,12 +113,12 @@ WEB_HEAVY = ["egui", "wgpu", "image", "rodio", "rapier3d", "parry3d", "cosmic-te
 NOTABLE = ["kiss3d", "wgpu", "naga", "winit", "egui-wgpu", "glow", "image", "exr", "rodio", "cpal", "symphonia", "quinn"]
 
 
-def web_template_features():
-    """The feature set scripts/package_template.sh builds the web template with."""
-    text = (ROOT / "scripts" / "package_template.sh").read_text()
+def web_runtime_features():
+    """The feature set scripts/package_runtime.sh builds the web runtime with."""
+    text = (ROOT / "scripts" / "package_runtime.sh").read_text()
     m = re.search(r"WEB_FEATURES:-([a-z0-9_,]+)", text)
     if not m:
-        raise SystemExit("scripts/package_template.sh no longer names WEB_FEATURES")
+        raise SystemExit("scripts/package_runtime.sh no longer names WEB_FEATURES")
     return m.group(1).split(",")
 
 
@@ -171,7 +171,7 @@ def mdx_safe(text):
 
 
 def gen_features(crates):
-    template = web_template_features()
+    template = web_runtime_features()
     cli = crates["balaur_cli"]
     docs = feature_docs(crates["balaur"]["manifest"])
     docs.update({k: v for k, v in feature_docs(cli["manifest"]).items() if k not in docs})
@@ -185,18 +185,18 @@ def gen_features(crates):
             lambda n: web_crates([m for m in names if m != n]), names)))
     body = (
         "# Features and the web build\n\n"
-        "The cargo features of `balaur_cli`, the binary every runtime template is built\n"
+        "The cargo features of `balaur_cli`, the binary every runtime is built\n"
         f"from, and what each adds to a `{WEB_TARGET}` build. A feature's native\n"
         "dependencies are gated off that target, so `http` or `websocket` costs a browser\n"
         "build only the plugin's own code; the two that matter there are `audio` and\n"
         "`window`.\n\n"
-        f"The web template (`scripts/package_template.sh web`) is built with\n"
+        f"The web runtime (`scripts/package_runtime.sh web`) is built with\n"
         f"`--no-default-features --features {','.join(template)}` and links {len(linked)} crates.\n"
-        "Override the set with `WEB_FEATURES=... scripts/package_template.sh web`.\n\n"
-        "`WEB_THREADS=1` builds the second template, which adds `parallel` to that\n"
+        "Override the set with `WEB_FEATURES=... scripts/package_runtime.sh web`.\n\n"
+        "`WEB_THREADS=1` builds the second runtime, which adds `parallel` to that\n"
         "set: rapier's solver threads on rayon, which needs the shared memory and\n"
         "atomics only that build has.\n\n"
-        "| Feature | Default | Web template | What it is | Adds to a web build |\n"
+        "| Feature | Default | Web runtime | What it is | Adds to a web build |\n"
         "| --- | --- | --- | --- | --- |\n"
     )
     for name in names:
@@ -208,7 +208,7 @@ def gen_features(crates):
             f"| {mdx_safe(docs.get(name, ''))} | {shown or 'nothing'} |\n"
         )
     body += (
-        "\n## What the web template resolves\n\n"
+        "\n## What the web runtime resolves\n\n"
         "The features on in the dependencies that weigh most. A feature named here is\n"
         "enabled; whether it links code on the web is up to that crate's own target\n"
         "gates (`winit`'s X11 is on and compiles nothing in a browser).\n\n"
@@ -220,7 +220,7 @@ def gen_features(crates):
             lambda c: resolved_features(template, c, linked[c]), heavy)))
     for crate in WEB_HEAVY:
         if crate not in linked:
-            body += f"| `{crate}` | — | not in the template |\n"
+            body += f"| `{crate}` | — | not in the runtime |\n"
             continue
         on = resolved[crate]
         body += f"| `{crate}` | {linked[crate]} | {', '.join(f'`{f}`' for f in on) or 'none'} |\n"

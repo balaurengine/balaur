@@ -36,7 +36,7 @@ mod project_tests;
 // that opens one, which is a page reload rather than a second process.
 #[cfg(target_family = "wasm")]
 mod project_web;
-mod templates;
+mod runtimes;
 mod update;
 mod version;
 
@@ -121,25 +121,25 @@ enum Command {
     /// Export the project as a pack: every script checked, scenes and
     /// manifest bundled.
     ///
-    /// With `--target` or `--template` the pack is carried inside a runtime
+    /// With `--target` or `--runtime` the pack is carried inside a runtime
     /// binary instead, producing a game the player can just run.
     Export {
         #[arg(default_value = ".")]
         path: PathBuf,
         #[arg(short, long)]
         output: Option<PathBuf>,
-        /// Platform to build a standalone game for, naming a template in the
-        /// templates directory (e.g. `linux-x64`, `macos-universal`,
+        /// Platform to build a standalone game for, naming a runtime in the
+        /// runtimes directory (e.g. `linux-x64`, `macos-universal`,
         /// `windows-x64`, `windows-arm64`).
         #[arg(long)]
         target: Option<String>,
-        /// Runtime template to append to, bypassing template lookup.
+        /// Runtime to append to, bypassing lookup.
         #[arg(long)]
-        template: Option<PathBuf>,
-        /// Download a missing runtime template without asking.
+        runtime: Option<PathBuf>,
+        /// Download a missing runtime without asking.
         #[arg(long, conflicts_with = "no_download")]
         download: bool,
-        /// Never download a missing runtime template; fail instead.
+        /// Never download a missing runtime; fail instead.
         #[arg(long)]
         no_download: bool,
         /// Keep script sources in the pack instead of bytecode. A pack for a
@@ -269,9 +269,9 @@ enum Command {
     /// size the original was drawn at so a sprite over it stays that size.
     /// Pixel art, sampled nearest, is left alone.
     Shrink {
-        /// The project to write into.
-        #[arg(long, default_value = ".")]
-        project: PathBuf,
+        /// The project whose images to shrink.
+        #[arg(default_value = ".")]
+        path: PathBuf,
         /// The target the copy is for: `web`, `mobile`, `android`, `ios`.
         #[arg(long, default_value = "web")]
         tag: String,
@@ -450,7 +450,7 @@ fn dispatch(command: Command) -> Result<()> {
             path,
             output,
             target,
-            template,
+            runtime,
             download,
             no_download,
             keep_sources,
@@ -463,7 +463,7 @@ fn dispatch(command: Command) -> Result<()> {
             path,
             output,
             target,
-            template,
+            runtime,
             download,
             no_download,
             keep_sources,
@@ -559,9 +559,10 @@ pub(crate) struct UpdateOpts {
     /// Release channel to follow: alpha, beta, rc, stable or nightly.
     #[arg(long)]
     channel: Option<String>,
-    /// One exact release tag, rather than whatever a channel holds now.
+    /// One exact release, by its version tag, rather than whatever a
+    /// channel holds now.
     #[arg(long, conflicts_with = "channel")]
-    tag: Option<String>,
+    version: Option<String>,
     /// Only report whether an update exists.
     #[arg(long)]
     check: bool,
@@ -1021,7 +1022,7 @@ struct ExportArgs {
     path: PathBuf,
     output: Option<PathBuf>,
     target: Option<String>,
-    template: Option<PathBuf>,
+    runtime: Option<PathBuf>,
     download: bool,
     no_download: bool,
     keep_sources: bool,
@@ -1047,7 +1048,7 @@ enum BundleKind {
 /// template may be fetched.
 fn export_game(args: &ExportArgs) -> Result<()> {
     let download = args.download;
-    let fetch = move |wanted: &str| templates::obtain(wanted, download);
+    let fetch = move |wanted: &str| runtimes::obtain(wanted, download);
     #[cfg(not(target_family = "wasm"))]
     let modules = {
         let project = args.path.clone();
@@ -1061,7 +1062,7 @@ fn export_game(args: &ExportArgs) -> Result<()> {
         path: args.path.clone(),
         output: args.output.clone(),
         target: args.target.clone(),
-        template: args.template.clone(),
+        runtime: args.runtime.clone(),
         app: args.bundle.contains(&BundleKind::App),
         keep_sources: args.keep_sources,
         sign: args.sign.clone(),
@@ -1072,7 +1073,7 @@ fn export_game(args: &ExportArgs) -> Result<()> {
         aab: args.bundle.contains(&BundleKind::Aab),
         pkg: args.bundle.contains(&BundleKind::Pkg),
         dry_run: args.dry_run,
-        template_roots: balaur_export::default_roots(templates::cache_dir()),
+        runtime_roots: balaur_export::default_roots(runtimes::cache_dir()),
         plugins,
         obtain: if args.no_download { None } else { Some(&fetch) },
     })

@@ -44,13 +44,13 @@ downloaded; mount one and the export is fully offline:
 
 ```sh
 docker run --rm --network=none \
-  -v "$PWD:/src:ro" -v "$PWD/out:/out" -v "$HOME/templates:/cache:ro" \
+  -v "$PWD:/src:ro" -v "$PWD/out:/out" -v "$HOME/runtimes:/cache:ro" \
   -e BALAUR_TARGET=linux-x64 -e BALAUR_VERSION=v0.2.0 \
   ghcr.io/balaurengine/balaur:v0.2.0
 ```
 
 `/cache` holds `runtimes/balaur/<version>/<target>`, which is the
-`balaur-runtime-<target>` file (or the extracted `balaur-template-*` directory)
+`balaur-runtime-<target>` file (or the extracted `balaur-runtime-*` directory)
 from the matching release.
 
 ### The contract
@@ -59,13 +59,13 @@ from the matching release.
 |---|---|
 | `/src` | the project, read-only |
 | `/out` | where the artifact is written |
-| `/cache` | runtime templates, optional, read-only |
+| `/cache` | runtimes, optional, read-only |
 | `/work` | scratch; a tmpfs if you are being careful |
 
 | Variable | |
 |---|---|
 | `BALAUR_TARGET` | required; one of the eight targets below |
-| `BALAUR_VERSION` | which templates under `/cache` to use |
+| `BALAUR_VERSION` | which runtimes under `/cache` to use |
 | `BALAUR_OUTPUT` | artifact name in `/out`; defaults per target |
 | `BALAUR_ANDROID_PACKAGE` | `apk` (default) or `aab`, for `android` on the `-android` image |
 
