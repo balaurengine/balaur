@@ -429,6 +429,28 @@ pub fn add_child(parent, child) {
     parent.add_child(child)
 }
 
+/// The exports the scene set, as the instance holds them before Godot's
+/// `_init` runs: those that differ from the default `exports()` declares.
+pub fn scene_exports(this, specs) {
+    let kept = #{};
+    for (name, spec) in specs {
+        let fallback = if spec is Object && spec.contains_key("type") { spec["default"] } else { spec };
+        if let Some(value) = this.get(name) {
+            if !same(value, fallback) {
+                kept[name] = value;
+            }
+        }
+    }
+    kept
+}
+
+/// The scene's exports back over what `_init` wrote.
+pub fn keep_exports(this, kept) {
+    for (name, value) in kept {
+        this[name] = value;
+    }
+}
+
 /// A FoldableContainer's title bar control: a child of the `fold`, drawn in
 /// its header beside the arrow.
 pub fn add_title_bar_control(fold, control) {

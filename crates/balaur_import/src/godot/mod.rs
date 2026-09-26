@@ -28,6 +28,9 @@ mod data_export_tests;
 pub(crate) mod exports;
 pub(crate) mod files;
 pub(crate) mod gdscript;
+#[cfg(test)]
+#[path = "tests/init_order.rs"]
+mod init_order_tests;
 pub(crate) mod io;
 pub(crate) mod keys;
 pub(crate) mod machine;

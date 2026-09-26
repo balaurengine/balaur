@@ -150,6 +150,7 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
             export.name, export.hint
         ));
     }
+    context.scene_exports = !entries.is_empty() && !context.object_class;
     if !entries.is_empty() {
         let _ = write!(
             out,
@@ -861,7 +862,7 @@ fn write_functions(
     if static_init {
         out.push_str(&static_init_guard(&context.static_prefix));
     }
-    if write_default_init(out, functions, scened, &context.data_exports) {
+    if write_default_init(out, functions, scened, context) {
         seen.push("init".to_string());
     }
     for function in functions {
@@ -979,7 +980,7 @@ fn write_prologue(
         out.push_str("    scene_defaults(this);\n");
     }
     if name == "init" && constructs(functions) {
-        out.push_str(init_call(functions));
+        out.push_str(&init_call(functions, context.scene_exports));
     }
     if name == "init" {
         out.push_str(&class::data_reads(&context.data_exports));

@@ -72,6 +72,9 @@ pub(crate) struct Context {
     /// Exports whose values no script prop holds: the scene files them in
     /// the node's `meta`, and `init` reads them back as Godot's types.
     pub data_exports: Vec<String>,
+    /// Whether the node class writes an `exports()`: `init` keeps what the
+    /// scene set in it across `_init`, which Godot ran before the scene's.
+    pub scene_exports: bool,
     /// Properties with a `get` or a `set`: a read or a write of one outside
     /// its own accessor calls `__get_<name>` or `__set_<name>`.
     pub getters: BTreeSet<String>,
