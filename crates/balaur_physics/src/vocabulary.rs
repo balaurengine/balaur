@@ -243,7 +243,7 @@ pub(crate) mod keys {
     pub(crate) const CONTACT_CLUSTERING: &str = "contact_clustering";
     pub(crate) const CONTACT_DAMPING: &str = "contact_damping";
     pub(crate) const CONTACT_FORCE_THRESHOLD: &str = "contact_force_threshold";
-    pub(crate) const CONTACT_FREQUENCY: &str = "contact_frequency";
+    pub(crate) const CONTACT_FREQUENCY_HZ: &str = "contact_frequency_hz";
     pub(crate) const CONTACT_PAIRS: &str = "contact_pairs";
     pub(crate) const CONTACT_PAIR_COUNT: &str = "contact_pair_count";
     pub(crate) const CONTACT_RECYCLING: &str = "contact_recycling";
@@ -385,7 +385,7 @@ pub(crate) mod keys {
     pub(crate) const SPECULATIVE_DISTANCE: &str = "speculative_distance";
     pub(crate) const STABILIZATION_ITERATIONS: &str = "stabilization_iterations";
     pub(crate) const STATIC_CONTACT_DAMPING: &str = "static_contact_damping";
-    pub(crate) const STATIC_CONTACT_FREQUENCY: &str = "static_contact_frequency";
+    pub(crate) const STATIC_CONTACT_FREQUENCY_HZ: &str = "static_contact_frequency_hz";
     pub(crate) const STEERING: &str = "steering";
     pub(crate) const STEP_HEIGHT: &str = "step_height";
     pub(crate) const STEP_MIN_WIDTH: &str = "step_min_width";

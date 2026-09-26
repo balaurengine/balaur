@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import json
 import re
 import sys
 from dataclasses import dataclass
@@ -750,6 +751,116 @@ def check_showcase() -> list[Finding]:
     return out
 
 
+# N21: a setting or option that measures time, rate or distance names its
+# unit. The words that mean a measure, and the suffixes that say which one.
+MEASURE_WORDS = ("timeout", "delay", "duration", "interval", "jitter", "slop", "rate",
+                 "dt", "frequency", "period", "latency")
+UNIT_SUFFIXES = ("_seconds", "_ticks", "_hz", "_pixels", "_degrees", "_fps")
+SCHEMA_KEY = re.compile(r"^([a-z_]+) = \{", re.M)
+SCHEMA_BLOCK = re.compile(r'r#"(.*?)"#', re.S)
+
+
+def check_setting_units(files: list[Path]) -> list[Finding]:
+    out = []
+    for path in files:
+        if is_test_file(path.relative_to(ROOT)):
+            continue
+        text = path.read_text()
+        if "define_group" not in text and "SCHEMA" not in text:
+            continue
+        for block in SCHEMA_BLOCK.finditer(text):
+            body = block.group(1)
+            if "type = " not in body or "help = " not in body:
+                continue
+            for key in SCHEMA_KEY.finditer(body):
+                name = key.group(1)
+                if name.endswith(UNIT_SUFFIXES):
+                    continue
+                if any(re.search(rf"(^|_){w}($|_)", name) for w in MEASURE_WORDS):
+                    line = text.count("\n", 0, block.start(1) + key.start()) + 1
+                    out.append(Finding(path, line, "setting-unit",
+                                       f"`{name}` measures something and says no unit: "
+                                       f"end it in one of {', '.join(UNIT_SUFFIXES)} (N21)", "ERROR"))
+    return out
+
+
+# N18 and N19, read off every theme a project or the editor ships.
+HUES = ("red", "orange", "yellow", "green", "blue", "purple", "violet", "pink", "cyan",
+        "teal", "magenta", "gray", "grey", "white", "black", "brown")
+FAMILIES = ("primary", "secondary", "success", "warning", "danger")
+FAMILY_SUFFIXES = ("", "_fill", "_fill_hover", "_text", "_bg")
+# Theme tables that are not widget styles, and the per-state and per-class
+# sub-tables a style may hold.
+THEME_SECTIONS = {"colors", "sizes", "fonts"}
+THEME_STATES = {"hover", "active", "focus", "disabled", "checked", "touch", "pointer",
+                "narrow", "medium", "wide", "short", "tall"}
+# Theme keys with no widget property of the same name: each styles a part
+# of a widget that has no property of its own.
+THEME_ONLY = {"icon_fill", "padding_y", "stroke_width"}
+
+
+def theme_files() -> list[Path]:
+    out = []
+    for pattern in ("editor/themes/*.toml", "examples/*/themes/*.toml",
+                    "editor/library/**/themes/*.toml"):
+        out.extend(sorted(ROOT.glob(pattern)))
+    return out
+
+
+def token_findings(path: Path, line: int, name: str) -> list[Finding]:
+    words = name.split("_")
+    if any(h in words for h in HUES):
+        return [Finding(path, line, "theme-token",
+                        f"`{name}` names a hue; a token names its job (N18)", "ERROR")]
+    family = next((f for f in FAMILIES if name == f or name.startswith(f + "_")), None)
+    if family and name[len(family):] not in FAMILY_SUFFIXES:
+        return [Finding(path, line, "theme-token",
+                        f"`{name}`: a family takes {', '.join(s or '(bare)' for s in FAMILY_SUFFIXES)} "
+                        "(N18)", "ERROR")]
+    return []
+
+
+def check_themes() -> list[Finding]:
+    import tomllib
+    api = ROOT / "docs" / "generated" / "api.json"
+    if not api.exists():
+        return []
+    widget = set(json.loads(api.read_text())["components"].get("widget", {}))
+    out = []
+    for path in theme_files():
+        text = path.read_text()
+        lines = text.splitlines()
+        try:
+            doc = tomllib.loads(text)
+        except tomllib.TOMLDecodeError:
+            continue
+
+        def line_of(key: str) -> int:
+            return next((i + 1 for i, l in enumerate(lines) if l.strip().startswith(f"{key} =")), 1)
+
+        for name in doc.get("colors", {}):
+            out.extend(token_findings(path, line_of(name), name))
+
+        def walk(table: dict, top: bool) -> None:
+            for key, value in table.items():
+                if isinstance(value, dict):
+                    if not (top and key in THEME_SECTIONS):
+                        walk(value, False)
+                    continue
+                if top or key in THEME_STATES:
+                    continue
+                if key not in widget and key not in THEME_ONLY:
+                    out.append(Finding(path, line_of(key), "theme-key",
+                                       f"`{key}` is no widget property; a theme key is the "
+                                       "property it styles, spelled the same (N19)", "ERROR"))
+                if isinstance(value, str) and key.endswith(("color", "fill", "stroke")) \
+                        and re.fullmatch(r"[a-z][a-z0-9_]*", value):
+                    out.extend(token_findings(path, line_of(key), value))
+
+        walk(doc, True)
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--fail-on-error", action="store_true")
@@ -767,6 +878,8 @@ def main() -> int:
     for path in rune_files():
         findings.extend(check_rune(path))
     findings.extend(check_showcase())
+    findings.extend(check_setting_units(files))
+    findings.extend(check_themes())
 
     errors = [f for f in findings if f.severity == "ERROR"]
     reports = [f for f in findings if f.severity == "REPORT"]

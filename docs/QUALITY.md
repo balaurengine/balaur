@@ -53,6 +53,8 @@ only.
 | `rune-short-circuit`, `rune-rebound-let` | two Rune shapes that compile and then misbehave (`AGENTS.md`) |
 | `std-fs`, `is-absolute` | `std::fs` and `Path::is_absolute` in engine crates, which the web build has no disk for; `files::backend` and `files::rooted` are the substitutes |
 | `hover-only-control` | an editor control shown only while hovered, which a finger cannot reach |
+| `setting-unit` | a setting or option that measures time, rate or distance and names no unit (`NAMING.md` N21) |
+| `theme-token`, `theme-key` | a colour token that names a hue or a family suffix outside the set, and a theme key that is no widget property (N18, N19) |
 
 ## Comments
 
@@ -178,6 +180,8 @@ render steps cover what drawing reports. What a screen looks like is
   metadata and a booted engine, and fails on any diff.
 - `api_lints.py` requires a doc line on every script module, function,
   component and asset type.
+- `api_lints.py` `hook-name`: a hook the engine tells starts with `on_`, and
+  one told a flag's new value ends in `_changed` (N22).
 - `scripts/prose_lints.py` fails a roadmap row over one sentence or 25 words,
   and every hand-written `.md` on the mechanical half of the `avoid-ai-writing`
   skill. Sentence length, filler and em dashes are reported on

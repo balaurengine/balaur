@@ -103,11 +103,11 @@ module name (`register_shape2d_component`).
 | N15 | `*_system` is reserved for anything passed to `App::add_system`. A backend loop step takes a verb bound to the N2 category it touches: `apply_*` (Config in), `publish_*` (Snapshot out), `flush_*` (drain a Buffer), `pump_*` (fill a Snapshot from the OS), `sync_*` (mirror ECS into the backend) | rust-internal | ERROR |
 | N16 | A component key names what the scene author manipulates, and its registration says in a doc comment what state it writes — the mapping from key to storage is neither one-to-one nor total | rust-internal | REPORT |
 | N17 | A crate's words and keys live in one `vocabulary.rs`: the strings a schema, its reader, a matcher and a read-back all spell, as `words` and `keys` modules with the script constants beside them. A call site names a constant, never the string | rust-internal | ERROR |
-| N18 | A colour token is `<group>_<role>`: `bg_*`, `text_*`, `border_*`, or a family (`primary`, `secondary`, `success`, `warning`, `danger`) taking `_fill`, `_fill_hover`, `_text` and `_bg`, with `text_on_<family>` for ink on its fill. A token never names a hue | theme | — |
-| N19 | A theme key is the widget property it styles, spelled the same: `text_color`, `font_size`, `corner_radius`. A number may be a size's name instead | theme | — |
+| N18 | A colour token is `<group>_<role>`: `bg_*`, `text_*`, `border_*`, or a family (`primary`, `secondary`, `success`, `warning`, `danger`) taking `_fill`, `_fill_hover`, `_text` and `_bg`, with `text_on_<family>` for ink on its fill. A token never names a hue | theme | `house_lints` theme-token |
+| N19 | A theme key is the widget property it styles, spelled the same: `text_color`, `font_size`, `corner_radius`. A number may be a size's name instead | theme | `house_lints` theme-key |
 | N20 | A role is `<component>[_<context>][_<emphasis>]`, emphasis one of `primary`, `secondary`, `success`, `warning`, `danger` or `quiet`. A state is a sub-table, never a suffix, and no role takes a widget kind's word | theme | test |
-| N21 | A key or parameter carries its unit (`_seconds`, `_ticks`, `_hz`, `_pixels`, `_degrees`) unless it is the module's own. Radians and seconds are the default | settings-path, script-api, scene-file | — |
-| N22 | A bare hook is the engine asking (`init`, `update`, `exports`), `on_` is the engine telling, and a boolean change is `on_<reader>_changed` | script-api | — |
+| N21 | A key or parameter carries its unit (`_seconds`, `_ticks`, `_hz`, `_pixels`, `_degrees`) unless it is the module's own. Radians and seconds are the default | settings-path, script-api, scene-file | `house_lints` setting-unit, on settings |
+| N22 | A bare hook is the engine asking (`init`, `update`, `exports`), `on_` is the engine telling, and a boolean change is `on_<reader>_changed` | script-api | `api_lints` hook-name |
 | N23 | The editor names a thing the way the API and the file do, in sentence case and US spelling, with the glossary's words for its own parts | editor-ui | — |
 
 ## Deliberate exemptions

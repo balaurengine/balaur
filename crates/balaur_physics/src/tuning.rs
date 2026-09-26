@@ -60,10 +60,10 @@ macro_rules! write_parameters {
         p.normalized_max_linear_velocity =
             f(k::MAX_LINEAR_VELOCITY, p.normalized_max_linear_velocity);
         p.contact_softness.natural_frequency =
-            f(k::CONTACT_FREQUENCY, p.contact_softness.natural_frequency);
+            f(k::CONTACT_FREQUENCY_HZ, p.contact_softness.natural_frequency);
         p.contact_softness.damping_ratio = f(k::CONTACT_DAMPING, p.contact_softness.damping_ratio);
         p.static_contact_softness.natural_frequency = f(
-            k::STATIC_CONTACT_FREQUENCY,
+            k::STATIC_CONTACT_FREQUENCY_HZ,
             p.static_contact_softness.natural_frequency,
         );
         p.static_contact_softness.damping_ratio = f(
@@ -203,7 +203,7 @@ fn tuning_value(p: &IntegrationParameters) -> Value {
             Value::Num(f64::from(p.normalized_max_linear_velocity)),
         ),
         (
-            k::CONTACT_FREQUENCY,
+            k::CONTACT_FREQUENCY_HZ,
             Value::Num(f64::from(p.contact_softness.natural_frequency)),
         ),
         (
@@ -211,7 +211,7 @@ fn tuning_value(p: &IntegrationParameters) -> Value {
             Value::Num(f64::from(p.contact_softness.damping_ratio)),
         ),
         (
-            k::STATIC_CONTACT_FREQUENCY,
+            k::STATIC_CONTACT_FREQUENCY_HZ,
             Value::Num(f64::from(p.static_contact_softness.natural_frequency)),
         ),
         (

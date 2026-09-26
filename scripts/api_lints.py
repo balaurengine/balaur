@@ -357,6 +357,36 @@ def check_documented(api: dict) -> list[Finding]:
     return out
 
 
+# N22: the hooks the engine calls ask by a bare name and tell with `on_`; a
+# hook told a flag's new value is `on_<reader>_changed`.
+ASKING_HOOKS = {"init", "update", "fixed_update", "draw_ui", "exports", "defaults",
+                "save_state", "load_state"}
+EVENT_VERBS = {"down", "up", "released", "enter", "exit", "click", "drag", "drop",
+               "connected", "disconnected", "requested", "changed"}
+
+
+def check_hooks(api: dict) -> list[Finding]:
+    out = []
+    for name, args, _doc in api.get("hooks", []):
+        if name in ASKING_HOOKS:
+            continue
+        if not name.startswith("on_"):
+            out.append(Finding(name, "hook-name",
+                               "the engine tells a script about this, so it starts with `on_`; "
+                               "a bare name is the engine asking (N22)", "ERROR"))
+            continue
+        params = [p.strip() for p in args.strip("()").split(",") if p.strip()]
+        told = params[0] if len(params) == 1 else ""
+        words = name[3:].split("_")
+        # `on_key_down(key)` is an edge told which key; `on_dark_mode(dark)`
+        # is a flag told its value, and only the second wants `_changed`.
+        rest = words[1:] if words and words[0] == told else []
+        if told and words[0] == told and not (set(rest) & EVENT_VERBS):
+            out.append(Finding(name, "hook-name",
+                               f"told the new `{told}`, so its name ends in `_changed` (N22)", "ERROR"))
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--fail-on-error", action="store_true")
@@ -366,7 +396,7 @@ def main() -> int:
 
     api = script_api(args.api_json)
     findings = (check_modules(api) + check_functions(api, declaration_sites())
-                + check_schemas() + check_documented(api))
+                + check_schemas() + check_documented(api) + check_hooks(api))
 
     errors = [f for f in findings if f.severity == "ERROR"]
     reports = [f for f in findings if f.severity == "REPORT"]

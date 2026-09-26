@@ -175,9 +175,9 @@ warmstart = { type = "float", default = 1.0, min = 0.0, max = 1.0, help = "How m
 warmstart_joints = { type = "bool", default = false, help = "Warm-start joints as well as contacts." }
 friction_in_bias_pass = { type = "bool", default = false, help = "Solve friction in the bias pass, which is stabler at the cost of a little drift." }
 max_linear_velocity = { type = "float", default = 400.0, min = 0.0, max = 100000.0, help = "A cap on how fast a body may travel, in length units per second." }
-contact_frequency = { type = "float", default = 30.0, min = 0.0, max = 1000.0, help = "The frequency of the spring a contact is solved as, in hertz." }
+contact_frequency_hz = { type = "float", default = 30.0, min = 0.0, max = 1000.0, help = "The frequency of the spring a contact is solved as, in hertz." }
 contact_damping = { type = "float", default = 10.0, min = 0.0, max = 1000.0, help = "The damping ratio of that spring." }
-static_contact_frequency = { type = "float", default = 60.0, min = 0.0, max = 1000000.0, help = "The same, for a contact with a body that never moves." }
+static_contact_frequency_hz = { type = "float", default = 60.0, min = 0.0, max = 1000000.0, help = "The same, for a contact with a body that never moves." }
 static_contact_damping = { type = "float", default = 10.0, min = 0.0, max = 1000.0, help = "The damping ratio of a static contact." }
 threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", help = "How many threads the solver may take. 0 is one less than the machine reports, capped at eight; a script's own set_threads outranks this." }
 "#,

@@ -65,8 +65,11 @@ with no alias and no migration, as `one way to do a thing` asks.
   `window` and `extensions` in every crate, the rollback's world a
   `Checkpoint`, the tick constants `DEFAULT_*`, and a log line's tag the crate
   without `balaur_` or `script`.
-- Left in section 1: `web` → `browser` and `WebSocketPlugin`, both inside the
-  networking crates another change is reworking now; they follow it.
+- Linted: N18 and N19 over every theme file, N21 over every settings schema,
+  N22 over the hook list.
+- Left in section 1: `web` → `browser`, `WebSocketPlugin` and an HTTP
+  request's `timeout_seconds`, all inside the networking crates another
+  change is reworking now; they follow it.
 - `NAMING.md` has the eight scopes, rules N18 to N23, and the picked names per
   system, from a survey of SDL3, Godot 4, Unity, Blender, GLFW, W3C, rapier and
   glTF on 2026-09-25.
@@ -78,6 +81,7 @@ with no alias and no migration, as `one way to do a thing` asks.
 | --- | --- | --- |
 | feature and crate `web`, module `web.*` | `browser` | reads as a build target and as the head of `websocket` |
 | `WebsocketPlugin` | `WebSocketPlugin` | C-CASE |
+| an HTTP request's `timeout` option | `timeout_seconds` | N21 |
 
 ## Bugs the audit found
 
@@ -93,6 +97,3 @@ These are defects, not names, and each is fixed on its own:
 
 1. The bugs above, each with its test.
 2. Crates and the facade (section 1).
-3. A lint for each of N18, N19, N21 and N22 where one can be written: tokens
-   from the theme files, units from the settings registry, hooks from the hook
-   list.

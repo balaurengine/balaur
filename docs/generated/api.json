@@ -9441,8 +9441,8 @@
       "doc": "Host, join and play a rollback match. Set this machine's input with `set_input` and read every slot's with `rollback.input(slot)`; events reach every script's `on_multiplayer_event` as a map with a `kind`.",
       "docs": {
         "add_bot": "On a host, a slot its own script plays with `set_input_for`; answers the slot, or nil when the lobby is full.",
-        "host": "Listen and take slot 0; answers `{ url, cert_hash, transport }`, what a joiner needs. Options over `[multiplayer]`: `transport`, `address`, `players`, `scene`, `depth`, `timeout`, `name`, `token`.",
-        "join": "Dial a host at a `ws://` or `https://` url; `connected` or `failed` follows. Options: `cert_hash` for a self-signed host, `name`, `token`, `timeout`.",
+        "host": "Listen and take slot 0; answers `{ url, cert_hash, transport }`, what a joiner needs. Options over `[multiplayer]`: `transport`, `address`, `players`, `scene`, `depth`, `timeout_seconds`, `name`, `token`.",
+        "join": "Dial a host at a `ws://` or `https://` url; `connected` or `failed` follows. Options: `cert_hash` for a self-signed host, `name`, `token`, `timeout_seconds`.",
         "leave": "Say goodbye and go idle; a host leaving ends the match for everyone.",
         "local_player": "This machine's own slot, or nil before it has one.",
         "players": "Every slot as `{ slot, name, bot, local, status }`, `status` as of the tick being simulated.",

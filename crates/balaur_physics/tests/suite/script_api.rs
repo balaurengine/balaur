@@ -203,7 +203,7 @@ fn every_tuning_key_that_can_be_written_reads_back() {
             max_corrective_velocity: 12.5,
             prediction_distance: 0.006,
             max_linear_velocity: 77.0,
-            static_contact_frequency: 41.0,
+            static_contact_frequency_hz: 41.0,
             static_contact_damping: 3.5,
         });
         let back = physics::tuning();
@@ -212,7 +212,7 @@ fn every_tuning_key_that_can_be_written_reads_back() {
         assert!((back.max_corrective_velocity - 12.5) < 0.0001, "max_corrective_velocity");
         assert!((back.prediction_distance - 0.006) < 0.0001, "prediction_distance");
         assert!((back.max_linear_velocity - 77.0) < 0.0001, "max_linear_velocity");
-        assert!((back.static_contact_frequency - 41.0) < 0.0001, "static_contact_frequency");
+        assert!((back.static_contact_frequency_hz - 41.0) < 0.0001, "static_contact_frequency");
         assert!((back.static_contact_damping - 3.5) < 0.0001, "static_contact_damping");
         "#,
     );

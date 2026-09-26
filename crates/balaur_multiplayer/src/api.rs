@@ -24,13 +24,13 @@ const DOCS: &[balaur_script::FnDoc] = &[
         "host",
         &[],
         "(options: map?)",
-        "Listen and take slot 0; answers `{ url, cert_hash, transport }`, what a joiner needs. Options over `[multiplayer]`: `transport`, `address`, `players`, `scene`, `depth`, `timeout`, `name`, `token`.",
+        "Listen and take slot 0; answers `{ url, cert_hash, transport }`, what a joiner needs. Options over `[multiplayer]`: `transport`, `address`, `players`, `scene`, `depth`, `timeout_seconds`, `name`, `token`.",
     ),
     (
         "join",
         &[],
         "(url: string, options: map?)",
-        "Dial a host at a `ws://` or `https://` url; `connected` or `failed` follows. Options: `cert_hash` for a self-signed host, `name`, `token`, `timeout`.",
+        "Dial a host at a `ws://` or `https://` url; `connected` or `failed` follows. Options: `cert_hash` for a self-signed host, `name`, `token`, `timeout_seconds`.",
     ),
     (
         "start",

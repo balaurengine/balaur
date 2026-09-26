@@ -18,7 +18,7 @@ address = { type = "string", default = "127.0.0.1:0", order = 11, help = "Where 
 players = { type = "int", default = 2, min = 0, max = 64, order = 12, help = "How many slots fill before a match starts on its own; 0 waits for the host's `start`." }
 scene = { type = "string", default = "", order = 13, help = "The scene a match loads on every machine; empty for the main scene." }
 depth = { type = "int", default = 16, min = 4, max = 120, order = 14, help = "Snapshots kept for rollback: how many ticks late an input can still be answered." }
-timeout = { type = "float", default = 5.0, min = 0.5, max = 120.0, order = 15, help = "Seconds a join may take, and a link may go silent, before it is dropped." }
+timeout_seconds = { type = "float", default = 5.0, min = 0.5, max = 120.0, order = 15, help = "Seconds a join may take, and a link may go silent, before it is dropped." }
 "#;
 
 /// Everything a match is opened with.
@@ -76,7 +76,7 @@ impl Options {
                 .unwrap_or_else(|| setting_int(eng, "depth").try_into().unwrap_or(16))
                 .try_into()
                 .unwrap_or(16),
-            timeout: number(opts, "timeout")?.unwrap_or_else(|| setting_number(eng, "timeout")),
+            timeout: number(opts, "timeout_seconds")?.unwrap_or_else(|| setting_number(eng, "timeout_seconds")),
             name: text(opts, "name")?.unwrap_or_else(|| String::from("Player")),
             token: text(opts, "token")?.unwrap_or_default(),
             cert_hash: text(opts, "cert_hash")?.filter(|hash| !hash.is_empty()),
