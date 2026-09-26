@@ -26,7 +26,10 @@ pub(crate) fn bindable_events(eng: &Engine, args: &[Value]) -> Result<Value> {
         _ => None,
     };
     if let Some(entity) = node {
-        let mut announced = vec![crate::node_api::VISIBILITY_EVENT];
+        let mut announced: Vec<&str> = crate::node_api::NODE_EVENTS
+            .iter()
+            .map(|(name, _)| *name)
+            .collect();
         announced.extend(crate::components::events_on(eng, entity));
         // A core hook's name is already listed, spelled without the prefix.
         for name in announced {

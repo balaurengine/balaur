@@ -80,7 +80,9 @@ fn under_pointer(eng: &Engine) -> Option<Entity> {
 }
 
 fn button_name(button: u8) -> Value {
-    let name = hooks::BUTTONS.get(usize::from(button)).unwrap_or(&hooks::BUTTONS[0]);
+    let name = hooks::BUTTONS
+        .get(usize::from(button))
+        .unwrap_or(&hooks::BUTTONS[0]);
     Value::Str((*name).to_string())
 }
 
@@ -255,7 +257,10 @@ fn fill_action_runners(app: &balaur_core::App) {
         eng,
         Action::Spawn,
         Rc::new(|eng: &Engine, entity, value: &Value| {
-            balaur_core::project::instantiate_scene_file(eng, &text_of(value), entity, true)
+            let before = balaur_core::scene::child_count(&eng.world(), entity);
+            balaur_core::project::instantiate_scene_file(eng, &text_of(value), entity, true)?;
+            balaur_core::scene::announce_added_since(eng, entity, before);
+            Ok(())
         }),
     );
     set_runner(

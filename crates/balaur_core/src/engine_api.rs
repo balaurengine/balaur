@@ -890,7 +890,9 @@ fn instantiate(eng: &Engine, args: &[Value]) -> Result<Value> {
             .any(|(k, v)| k == "scripts" && matches!(v, Value::Bool(false))),
         _ => true,
     };
+    let before = scene::child_count(&eng.world(), base);
     crate::project::instantiate_scene(eng, text(args, 0)?, base, attach)?;
+    scene::announce_added_since(eng, base, before);
     Ok(Value::Nil)
 }
 

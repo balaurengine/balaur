@@ -637,6 +637,10 @@ def gen_hooks(api):
         f"<tr><td><code>{html.escape(name)}{html.escape(args)}</code></td><td>{code_spans(doc)}</td></tr>"
         for name, args, doc in api.get("hooks", [])
     )
+    events = "\n".join(
+        f"<tr><td><code>{html.escape(name)}</code></td><td>{code_spans(payload)}</td></tr>"
+        for name, payload in api.get("node_events", [])
+    )
     return (
         "# Hooks\n\n"
         "The methods the engine calls on a node's script by name. Each takes the\n"
@@ -644,7 +648,13 @@ def gen_hooks(api):
         "ones it wants. What a component announces is listed with the component in\n"
         "[components.md](./components.md).\n\n"
         "<table>\n<thead><tr><th>hook</th><th>when</th></tr></thead>\n"
-        f"<tbody>\n{rows}\n</tbody>\n</table>\n"
+        f"<tbody>\n{rows}\n</tbody>\n</table>\n\n"
+        "## Every node\n\n"
+        "Every node announces these, whatever its components: its own script hears\n"
+        "`on_<event>(this, payload)`, a scene row answers `emitted:<event>`, and\n"
+        "`events::subscribe` hears it at the next pump.\n\n"
+        "<table>\n<thead><tr><th>event</th><th>payload</th></tr></thead>\n"
+        f"<tbody>\n{events}\n</tbody>\n</table>\n"
     )
 
 

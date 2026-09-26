@@ -155,7 +155,10 @@ pub fn announce(eng: &Engine, entity: Entity, name: &str, payload: Value) {
             std::slice::from_ref(&payload),
         );
     }
-    let state = eng.resource::<EventState>();
+    // A bare engine, with no event system installed, has nobody to queue for.
+    let Some(state) = eng.try_resource::<EventState>() else {
+        return;
+    };
     state.borrow_mut().queued.push(Queued {
         name: name.into(),
         from: Some(entity),

@@ -77,6 +77,7 @@ pub(crate) fn dump_api() -> Result<()> {
     api["component_events"] = serde_json::to_value(component_events)?;
     // Every method the engine calls on a script by name.
     api["hooks"] = serde_json::to_value(balaur::hooks::REFERENCE)?;
+    api["node_events"] = serde_json::to_value(balaur::node_api::NODE_EVENTS)?;
     let asset_types: std::collections::BTreeMap<String, serde_json::Value> = app
         .engine
         .try_resource::<balaur::assets::AssetTypeRegistry>()

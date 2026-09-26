@@ -447,6 +447,7 @@ impl App {
                 }
             }
             if !freed.is_empty() {
+                scene::announce_leaving(eng, &freed);
                 scene::free_nodes(eng, &freed);
             }
         });

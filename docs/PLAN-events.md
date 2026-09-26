@@ -1,5 +1,5 @@
 > **Status:** written 2026-09-26 from an audit of every crate, done by reading
-> the code. §2, §3 and §4.1 to §4.3 are built; §4.4 is next. The order is bugs
+> the code. §2, §3 and §4.1 to §4.4 are built; §4.5 is next. The order is bugs
 > first, then one delivery path, then the events the engine does not send yet.
 
 # Plan: events, and one way to hear each of them
@@ -133,8 +133,11 @@ In order of how often a game needs them.
    open. Menus, dropdowns and dialogs emit `opened` and `closed`; a scroll
    emits `scrolled` with its offset. A window's cross emits `close_request`,
    and with `hide_on_close = false` it only asks.
-4. **The tree:** `child_added`, `child_removed`, `renamed` and `reparented`
-   from the parent (`balaur_core/src/scene.rs`).
+4. **The tree:** built. A parent announces `child_added` and `child_removed`
+   for a node added, instantiated, moved or freed under it, and a freed child
+   is still readable in the parent's own hook. A node announces `renamed` with
+   the name it had and `reparented` with the parent it left. Loading a scene,
+   switching one and restoring a snapshot stay silent.
 5. **Physics:** sleep and wake on bodies and soft bodies; a soft body's own
    `events` and `contact_force_threshold` rows; the torn edges and pieces in
    the tear payload; collision hooks told to the body as well as the

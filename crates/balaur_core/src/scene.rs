@@ -1098,6 +1098,60 @@ pub fn free_nodes(eng: &Engine, entities: &[Entity]) {
     }
 }
 
+/// How many children `parent` holds.
+#[must_use]
+pub fn child_count(world: &World, parent: Entity) -> usize {
+    world.get::<&Children>(parent).map_or(0, |c| c.0.len())
+}
+
+/// Announce `child_added` from `parent` for each child past its first
+/// `before`, which is where a spawn appends.
+pub fn announce_added_since(eng: &Engine, parent: Entity, before: usize) {
+    let added: Vec<Entity> = eng.world().get::<&Children>(parent).map_or_else(
+        |_| Vec::new(),
+        |c| c.0.iter().skip(before).copied().collect(),
+    );
+    for child in added {
+        let child = balaur_script::Value::Node(crate::node_id_of(child).0);
+        crate::events::announce(eng, parent, crate::node_api::CHILD_ADDED_EVENT, child);
+    }
+}
+
+/// Announce `child_removed` from the parent of each node about to be freed,
+/// while the node can still be read. A parent going in the same batch is
+/// told nothing.
+pub fn announce_leaving(eng: &Engine, entities: &[Entity]) {
+    let doomed: crate::collections::DetHashSet<Entity> = entities.iter().copied().collect();
+    let mut told = Vec::new();
+    {
+        let world = eng.world();
+        let mut survives = crate::collections::DetHashMap::<Entity, bool>::default();
+        let mut once = crate::collections::DetHashSet::default();
+        for &entity in entities {
+            let Ok(parent) = world.get::<&Parent>(entity).map(|p| p.0) else {
+                continue;
+            };
+            let kept = *survives.entry(parent).or_insert_with(|| {
+                let mut at = Some(parent);
+                while let Some(node) = at {
+                    if doomed.contains(&node) {
+                        return false;
+                    }
+                    at = world.get::<&Parent>(node).ok().map(|p| p.0);
+                }
+                true
+            });
+            if kept && once.insert(entity) {
+                told.push((parent, entity));
+            }
+        }
+    }
+    for (parent, child) in told {
+        let child = balaur_script::Value::Node(crate::node_id_of(child).0);
+        crate::events::announce(eng, parent, crate::node_api::CHILD_REMOVED_EVENT, child);
+    }
+}
+
 /// Despawn a node and its whole subtree, unlinking it from its parent.
 pub fn free_subtree(world: &mut World, entity: Entity) {
     if let Ok(parent) = world.get::<&Parent>(entity).map(|p| p.0) {

@@ -402,6 +402,31 @@ fn set_visible(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// What a node emits when its own `visible` flips, carrying the new value.
 /// An ancestor hiding it does not: the flag this reports is the node's own.
 pub const VISIBILITY_EVENT: &str = "visibility_changed";
+/// What a parent announces when a node is added under it, carrying the child.
+pub const CHILD_ADDED_EVENT: &str = "child_added";
+/// What a parent announces as a child leaves it, freed or moved: a freed
+/// child is still readable in the parent's own hook, gone by the next pump.
+pub const CHILD_REMOVED_EVENT: &str = "child_removed";
+/// What a node announces when its name changes, carrying the name it had.
+pub const RENAMED_EVENT: &str = "renamed";
+/// What a node announces when it moves under another parent, carrying the
+/// parent it left.
+pub const REPARENTED_EVENT: &str = "reparented";
+
+/// What every node announces, whatever its components, with its payload.
+pub const NODE_EVENTS: &[(&str, &str)] = &[
+    (VISIBILITY_EVENT, "its own `visible`, now"),
+    (CHILD_ADDED_EVENT, "the child"),
+    (
+        CHILD_REMOVED_EVENT,
+        "the child; freed, it is still readable in this node's own hook",
+    ),
+    (RENAMED_EVENT, "the name it had; `name()` says the new one"),
+    (
+        REPARENTED_EVENT,
+        "the parent it left; `parent()` says the new one",
+    ),
+];
 
 /// What the renderer sees: false when any ancestor is hidden.
 fn global_visible(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -617,7 +642,14 @@ fn name(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn set_name(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
-    scene::rename(&eng.world(), e, text(args, 1)?);
+    let name = text(args, 1)?;
+    let Ok(was) = eng.world().get::<&Name>(e).map(|n| n.0.clone()) else {
+        bail!("node is dead");
+    };
+    scene::rename(&eng.world(), e, name);
+    if was != name {
+        crate::events::announce(eng, e, RENAMED_EVENT, Value::Str(was));
+    }
     Ok(Value::Nil)
 }
 
@@ -682,7 +714,9 @@ fn add_child(eng: &Engine, args: &[Value]) -> Result<Value> {
         format!("added {name}"),
         Some(serde_json::json!({ "name": name })),
     );
-    Ok(Value::Node(crate::node_id_of(child).0))
+    let made = Value::Node(crate::node_id_of(child).0);
+    crate::events::announce(eng, e, CHILD_ADDED_EVENT, made.clone());
+    Ok(made)
 }
 
 fn parent(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -702,7 +736,18 @@ fn set_parent(eng: &Engine, args: &[Value]) -> Result<Value> {
         Some(Value::Node(id)) => crate::entity_of(balaur_script::NodeId(*id))?,
         other => return Err(anyhow!("argument 1 should be a node, got {other:?}")),
     };
+    let left = eng.world().get::<&Parent>(e).ok().map(|p| p.0);
     scene::reparent(&mut eng.world_mut(), e, parent)?;
+    if left == Some(parent) {
+        return Ok(Value::Nil);
+    }
+    let moved = Value::Node(crate::node_id_of(e).0);
+    let left = left.map_or(Value::Nil, |old| {
+        crate::events::announce(eng, old, CHILD_REMOVED_EVENT, moved.clone());
+        Value::Node(crate::node_id_of(old).0)
+    });
+    crate::events::announce(eng, parent, CHILD_ADDED_EVENT, moved);
+    crate::events::announce(eng, e, REPARENTED_EVENT, left);
     Ok(Value::Nil)
 }
 

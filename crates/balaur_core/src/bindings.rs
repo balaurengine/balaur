@@ -480,7 +480,9 @@ fn run(eng: &Engine, entity: Entity, row: &Binding, args: &[Value]) -> Result<()
             variables.set(&row.target, &next)
         }
         Action::Free => {
-            crate::scene::free_node(eng, target_of(eng, entity, row)?);
+            let target = target_of(eng, entity, row)?;
+            crate::scene::announce_leaving(eng, &[target]);
+            crate::scene::free_node(eng, target);
             Ok(())
         }
         Action::Visible => {
