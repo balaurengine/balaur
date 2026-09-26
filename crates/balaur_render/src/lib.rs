@@ -560,15 +560,15 @@ pub(crate) fn set_lighting(eng: &Engine, entity: Entity, shadows: bool, layers: 
     }
 }
 
-/// The `shadows` and `layers` keys a 3D renderable component offers, applied
-/// to whatever renderable the node just gained.
+/// The `cast_shadow` and `light_layers` keys a 3D renderable component
+/// offers, applied to whatever renderable the node just gained.
 pub(crate) fn lighting_from_params(eng: &Engine, entity: Entity, params: &toml::Value) {
     let shadows = params
-        .get("shadows")
+        .get(crate::vocabulary::keys::CAST_SHADOW)
         .and_then(toml::Value::as_bool)
         .unwrap_or(true);
     let layers = params
-        .get("layers")
+        .get(crate::vocabulary::keys::LIGHT_LAYERS)
         .and_then(balaur_core::components::as_f64)
         .map_or(u32::MAX, |v| v as i64 as u32);
     set_lighting(eng, entity, shadows, layers);

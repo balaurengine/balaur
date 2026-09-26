@@ -74,7 +74,7 @@ fn a_current_camera_component_drives_the_camera_config() {
 fn a_2d_camera_component_drives_center_and_zoom() {
     let mut app = app();
     let cam = node_at(&app, app.engine.root(), Vec3::new(7.0, -2.0, 0.0));
-    add_camera_2d(&app, cam, "zoom = 30.0");
+    add_camera_2d(&app, cam, "pixels_per_unit = 30.0");
     {
         // Control: the boot default must differ from the node, and the boot
         // `changed` is cleared as a backend would after applying it.
@@ -213,11 +213,11 @@ fn unchanged_post_effects_do_not_reassert_themselves() {
 fn the_component_round_trips() {
     let app = app();
     let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
-    add_camera_2d(&app, cam, "current = false\nzoom = 25.0");
+    add_camera_2d(&app, cam, "current = false\npixels_per_unit = 25.0");
     let saved = components::get(&app.engine, cam, "camera2d").unwrap();
     let table = saved.as_table().unwrap();
     assert!(!table["current"].as_bool().unwrap());
-    assert!((table["zoom"].as_float().unwrap() - 25.0).abs() < 1e-6);
+    assert!((table["pixels_per_unit"].as_float().unwrap() - 25.0).abs() < 1e-6);
     // The split is what keeps this out: a flat camera has nothing to aim.
     assert!(
         !table.contains_key("look_at"),

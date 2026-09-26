@@ -700,7 +700,7 @@ pub fn tween_property(t, target, path, to, seconds) {
     } else if track == "zoom" && target is balaur::Node && target.has_component("camera2d") {
         // A camera's zoom is one number here, scaled as `set_node_property`'s.
         let zoom = if want is Vec { want[0] } else { want };
-        track = "camera2d/zoom";
+        track = "camera2d/pixels_per_unit";
         want = float(zoom) * PIXELS;
     }
     let step = #{ "property": track, "to": want, "duration": float(seconds), "ease": easing(t) };
@@ -1100,7 +1100,7 @@ fn camera_zoom(node) {
     if !node.has_component("camera2d") {
         return ();
     }
-    let zoom = float(get(node.get_component("camera2d"), "zoom", PIXELS)) / PIXELS;
+    let zoom = float(get(node.get_component("camera2d"), "pixels_per_unit", PIXELS)) / PIXELS;
     vec2(zoom, zoom)
 }
 
@@ -1127,7 +1127,7 @@ fn set_node_property(node, name, value) {
     } else if name == "selected" && node.has_component("widget") {
         option_select(node, value);
     } else if name == "zoom" && node.has_component("camera2d") {
-        node.patch_component("camera2d", #{ "zoom": float(value.x) * PIXELS });
+        node.patch_component("camera2d", #{ "pixels_per_unit": float(value.x) * PIXELS });
     } else if name == "foldable_group" || name == "material" {
         set_meta(node, name, value);
     } else if name == "points" && is_line(node) {

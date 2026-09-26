@@ -92,8 +92,8 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                     (k::SKELETON, r#"{ type = "string", default = "", description = "Node path to the rig a skinned mesh deforms with, relative to this node; empty means this node" }"#),
                     (k::TEXTURE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset; empty draws the colour alone" }}"#, balaur_core::texture_asset::TEXTURE_ASSET_TYPE)),
                     (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
-                    (k::SHADOWS, r#"{ type = "bool", default = true, description = "Whether this casts a shadow from the lights that cast" }"#),
-                    (k::LAYERS, r#"{ type = "int", default = -1, description = "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer" }"#),
+                    (k::CAST_SHADOW, r#"{ type = "bool", default = true, description = "Whether this casts a shadow from the lights that cast" }"#),
+                    (k::LIGHT_LAYERS, r#"{ type = "int", default = -1, description = "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer" }"#),
                 ]),
             ),
             tags: &[words::PERSPECTIVE, "render"],
@@ -143,9 +143,9 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                     "material".into(),
                     toml::Value::String(renderable.material.clone()),
                 );
-                map.insert(k::SHADOWS.into(), toml::Value::Boolean(renderable.shadows));
+                map.insert(k::CAST_SHADOW.into(), toml::Value::Boolean(renderable.shadows));
                 map.insert(
-                    k::LAYERS.into(),
+                    k::LIGHT_LAYERS.into(),
                     toml::Value::Integer(i64::from(renderable.layers.cast_signed())),
                 );
                 // One key per shape the mesh can blend towards, so a clip

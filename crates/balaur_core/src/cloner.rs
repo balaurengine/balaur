@@ -44,24 +44,24 @@ impl Mode {
     }
 }
 
-/// The modes, spelled once for a schema, a scene and a script.
+/// The kinds, spelled once for a schema, a scene and a script.
 pub mod words {
     pub const LINEAR: &str = "linear";
     pub const RADIAL: &str = "radial";
     pub const GRID: &str = "grid";
     pub const LIST: &str = "list";
     /// In the order an inspector offers them.
-    pub const MODES: &[&str] = &[LINEAR, RADIAL, GRID, LIST];
+    pub const KINDS: &[&str] = &[LINEAR, RADIAL, GRID, LIST];
 }
 
 /// Every key a cloner reads.
 pub mod keys {
-    pub const MODE: &str = "mode";
+    pub const KIND: &str = "kind";
     pub const COUNT: &str = "count";
     pub const COUNTS: &str = "counts";
     pub const STEP: &str = "step";
     pub const RADIUS: &str = "radius";
-    pub const ANGLE: &str = "angle";
+    pub const ANGLE_DEGREES: &str = "angle_degrees";
     pub const SEED: &str = "seed";
     pub const RANDOM: &str = "random";
     pub const COPIES: &str = "copies";

@@ -81,8 +81,8 @@ pub(crate) fn register_shape_component(reg: &mut Registry<'_>) {
                     (k::SIDES, r#"{ type = "int", default = 4, min = 3, description = "Flat faces, when kind is pyramid or prism" }"#),
                     (k::COLOR, r#"{ type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#),
                     (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
-                    (k::SHADOWS, r#"{ type = "bool", default = true, description = "Whether this casts a shadow from the lights that cast" }"#),
-                    (k::LAYERS, r#"{ type = "int", default = -1, description = "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer" }"#),
+                    (k::CAST_SHADOW, r#"{ type = "bool", default = true, description = "Whether this casts a shadow from the lights that cast" }"#),
+                    (k::LIGHT_LAYERS, r#"{ type = "int", default = -1, description = "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer" }"#),
                 ]),
             ),
             tags: &[words::PERSPECTIVE, "render"],
@@ -115,9 +115,9 @@ pub(crate) fn register_shape_component(reg: &mut Registry<'_>) {
                         "material".into(),
                         toml::Value::String(renderable.material.clone()),
                     );
-                    map.insert(k::SHADOWS.into(), toml::Value::Boolean(renderable.shadows));
+                    map.insert(k::CAST_SHADOW.into(), toml::Value::Boolean(renderable.shadows));
                     map.insert(
-                        k::LAYERS.into(),
+                        k::LIGHT_LAYERS.into(),
                         toml::Value::Integer(i64::from(renderable.layers.cast_signed())),
                     );
                 }

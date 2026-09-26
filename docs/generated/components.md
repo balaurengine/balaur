@@ -126,7 +126,7 @@ Draws the node as its 2D children combined by `op`: `union`, `difference` or `in
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>op</code></td><td>enum</td><td><code>union</code></td><td>How the children are combined, in the order they are declared One of <code>union</code>, <code>difference</code>, <code>intersection</code>.</td></tr>
+<tr><td><code>operation</code></td><td>enum</td><td><code>union</code></td><td>How the children are combined, in the order they are declared One of <code>union</code>, <code>difference</code>, <code>intersection</code>.</td></tr>
 </tbody>
 </table>
 
@@ -134,18 +134,19 @@ Draws the node as its 2D children combined by `op`: `union`, `difference` or `in
 
 `2d` · `render` · 15 properties
 
-The orthographic camera a flat scene is drawn from. `zoom` scales it, `ambient` lights every 2D surface, and the last `current` camera wins.
+The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it, `ambient_color` lights every 2D surface, and the last `current` camera wins.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>aberration_amount</code></td><td>float</td><td><code>0.004</code></td><td>How far `aberration` slides red from blue at the frame&#x27;s edge, as a fraction of it At least 0.0.</td></tr>
-<tr><td><code>ambient</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 1.0]</code></td><td>Light every 2D surface gets before any `light2d`</td></tr>
+<tr><td><code>ambient_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 1.0]</code></td><td>Light every 2D surface gets before any `light2d`</td></tr>
 <tr><td><code>bloom_intensity</code></td><td>float</td><td><code>0.6</code></td><td>How much of the bloom is added back over the frame At least 0.0.</td></tr>
 <tr><td><code>bloom_threshold</code></td><td>float</td><td><code>1.0</code></td><td>Brightness a pixel has to pass to bloom At least 0.0.</td></tr>
 <tr><td><code>current</code></td><td>bool</td><td><code>true</code></td><td>Whether this camera drives the view; the last current one wins</td></tr>
 <tr><td><code>grain_amount</code></td><td>float</td><td><code>0.06</code></td><td>How much the `grain` pass lightens and darkens a pixel At least 0.0.</td></tr>
 <tr><td><code>pixelate_size</code></td><td>float</td><td><code>4.0</code></td><td>The side of one block the `pixelate` pass reads the frame back in, in pixels At least 1.0.</td></tr>
+<tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>60.0</code></td><td>Zoom in logical pixels per world unit At least 0.01.</td></tr>
 <tr><td><code>post</code></td><td>list of string</td><td><code>[]</code></td><td>The frame&#x27;s passes, in order. bloom, ssao, ssr, dof, fxaa, sharpen, tonemap, vignette, aberration, grain, pixelate name the engine&#x27;s own -- `ssao`, `ssr` and `dof` are 3D only, and where each physically runs is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame, and those run in the order given. `tonemap` is where the film becomes a picture: a material before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head</td></tr>
 <tr><td><code>ssao_bias</code></td><td>float</td><td><code>0.025</code></td><td>How far in front of a surface a sample must be to occlude it. Too small and a glancing surface occludes itself into black At least 0.0.</td></tr>
 <tr><td><code>ssao_intensity</code></td><td>float</td><td><code>1.2</code></td><td>How strongly the `ssao` pass darkens At least 0.0.</td></tr>
@@ -153,7 +154,6 @@ The orthographic camera a flat scene is drawn from. `zoom` scales it, `ambient` 
 <tr><td><code>ssao_radius</code></td><td>float</td><td><code>0.5</code></td><td>How far the `ssao` pass looks for something occluding a point, in world units. Scale it with the scene At least 0.001.</td></tr>
 <tr><td><code>vignette_amount</code></td><td>float</td><td><code>0.35</code></td><td>How dark the corners go under the `vignette` pass Range 0.0–1.0.</td></tr>
 <tr><td><code>vignette_roundness</code></td><td>float</td><td><code>1.0</code></td><td>1 darkens in a circle whatever shape the frame is; 0 follows the frame Range 0.0–1.0.</td></tr>
-<tr><td><code>zoom</code></td><td>float</td><td><code>60.0</code></td><td>Zoom in logical pixels per world unit At least 0.01.</td></tr>
 </tbody>
 </table>
 
@@ -303,16 +303,16 @@ On a node carrying `joint2d`, as `node.joint2d.<method>`:
 
 `2d` · `render` · 5 properties
 
-A 2D light at the node's position. `kind` is `point` or `directional`; the first `light2d` in a scene drops everything else to the camera's `ambient`.
+A 2D light at the node's position. `kind` is `point` or `directional`; the first `light2d` in a scene drops everything else to the camera's `ambient_color`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Light colour, as channel floats or #rrggbb / #rrggbbaa</td></tr>
 <tr><td><code>intensity</code></td><td>float</td><td><code>1.0</code></td><td>Brightness multiplier; over 1 blows past white At least 0.0.</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>point</code></td><td>A point light fades to nothing at `radius`; a directional one lights the whole view One of <code>point</code>, <code>directional</code>.</td></tr>
-<tr><td><code>radius</code></td><td>float</td><td><code>6.0</code></td><td>How far a point light reaches, in world units At least 0.0.</td></tr>
-<tr><td><code>shadows</code></td><td>bool</td><td><code>true</code></td><td>Whether `occluder2d` outlines cast shadows from this light</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>point</code></td><td>A point light fades to nothing at `range`; a directional one lights the whole view One of <code>point</code>, <code>directional</code>.</td></tr>
+<tr><td><code>range</code></td><td>float</td><td><code>6.0</code></td><td>How far a point light reaches, in world units At least 0.0.</td></tr>
+<tr><td><code>shadow_enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether `occluder2d` outlines cast shadows from this light</td></tr>
 </tbody>
 </table>
 
@@ -813,7 +813,7 @@ Draws the node as its children combined by `op`: `union`, `difference` or `inter
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>op</code></td><td>enum</td><td><code>union</code></td><td>How the children are combined, in the order they are declared One of <code>union</code>, <code>difference</code>, <code>intersection</code>.</td></tr>
+<tr><td><code>operation</code></td><td>enum</td><td><code>union</code></td><td>How the children are combined, in the order they are declared One of <code>union</code>, <code>difference</code>, <code>intersection</code>.</td></tr>
 </tbody>
 </table>
 
@@ -962,31 +962,31 @@ On a node carrying `collider3d`, as `node.collider3d.<method>`:
 
 `3d` · `render` · 21 properties
 
-The scene's atmosphere: `sky`, `ambient`, `fog`, `exposure`, `tonemap`, colour grading and the shadow budget. The last `current` one wins; per-view effects stay on `camera.post`.
+The scene's atmosphere: `sky`, `ambient_color`, `fog_mode`, `exposure`, `tonemap`, colour grading and the shadow budget. The last `current` one wins; per-view effects stay on `camera.post`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>ambient</code></td><td>color</td><td><code>[0.125, 0.14, 0.157, 1.0]</code></td><td>Light every surface gets whatever the lights do</td></tr>
+<tr><td><code>ambient_color</code></td><td>color</td><td><code>[0.125, 0.14, 0.157, 1.0]</code></td><td>Light every surface gets whatever the lights do</td></tr>
 <tr><td><code>contrast</code></td><td>float</td><td><code>1.0</code></td><td>Contrast around mid grey At least 0.0.</td></tr>
 <tr><td><code>current</code></td><td>bool</td><td><code>true</code></td><td>Whether this is the environment the scene draws under; the last current one in tree order wins</td></tr>
 <tr><td><code>exposure</code></td><td>float</td><td><code>1.0</code></td><td>Linear multiplier before the tonemap At least 0.0.</td></tr>
-<tr><td><code>fog</code></td><td>enum</td><td><code>none</code></td><td>How fog thickens with distance One of <code>none</code>, <code>linear</code>, <code>exponential</code>, <code>exponential_squared</code>.</td></tr>
 <tr><td><code>fog_color</code></td><td>color</td><td><code>[0.624, 0.706, 0.784, 1.0]</code></td><td>What distance fades toward</td></tr>
 <tr><td><code>fog_density</code></td><td>float</td><td><code>0.02</code></td><td>Thickness, for exponential fog At least 0.0.</td></tr>
 <tr><td><code>fog_end</code></td><td>float</td><td><code>80.0</code></td><td>Where linear fog is total, in world units At least 0.0.</td></tr>
 <tr><td><code>fog_height_falloff</code></td><td>float</td><td><code>0.0</code></td><td>How fast fog thins with height; zero fills the scene evenly At least 0.0.</td></tr>
+<tr><td><code>fog_mode</code></td><td>enum</td><td><code>none</code></td><td>How fog thickens with distance One of <code>none</code>, <code>linear</code>, <code>exponential</code>, <code>exponential_squared</code>.</td></tr>
 <tr><td><code>fog_start</code></td><td>float</td><td><code>10.0</code></td><td>Where linear fog begins, in world units At least 0.0.</td></tr>
 <tr><td><code>gamma</code></td><td>float</td><td><code>1.0</code></td><td>Gamma applied in linear space At least 0.01.</td></tr>
 <tr><td><code>saturation</code></td><td>float</td><td><code>1.0</code></td><td>Colour multiplier around luminance; zero is grey At least 0.0.</td></tr>
 <tr><td><code>shadow_distance</code></td><td>float</td><td><code>60.0</code></td><td>How far from the camera shadows are drawn At least 0.0.</td></tr>
+<tr><td><code>shadow_enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether any light casts shadows at all</td></tr>
 <tr><td><code>shadow_resolution</code></td><td>int</td><td><code>2048</code></td><td>Side of the shadow map, in texels At least 256.</td></tr>
 <tr><td><code>shadow_softness</code></td><td>float</td><td><code>1.0</code></td><td>How far a shadow&#x27;s edge is blurred At least 0.0.</td></tr>
-<tr><td><code>shadows</code></td><td>bool</td><td><code>true</code></td><td>Whether any light casts shadows at all</td></tr>
-<tr><td><code>show_sky</code></td><td>bool</td><td><code>true</code></td><td>False turns the sky off entirely: it stops drawing and stops lighting. The renderer has one dial for both</td></tr>
 <tr><td><code>sky</code></td><td>string</td><td>—</td><td>Equirectangular image, project-relative: .hdr, .exr or .png. It draws behind the scene and lights it. Empty is no sky</td></tr>
+<tr><td><code>sky_enabled</code></td><td>bool</td><td><code>true</code></td><td>False turns the sky off entirely: it stops drawing and stops lighting. The renderer has one dial for both</td></tr>
 <tr><td><code>sky_intensity</code></td><td>float</td><td><code>1.0</code></td><td>Brightness of the sky, and of the light it casts At least 0.0.</td></tr>
-<tr><td><code>sky_rotation</code></td><td>float</td><td><code>0.0</code></td><td>Turn of the sky about y, in degrees</td></tr>
+<tr><td><code>sky_rotation_degrees</code></td><td>float</td><td><code>0.0</code></td><td>Turn of the sky about y, in degrees</td></tr>
 <tr><td><code>tonemap</code></td><td>enum</td><td><code>neutral</code></td><td>The curve the HDR film is mapped through One of <code>none</code>, <code>aces</code>, <code>reinhard</code>, <code>agx</code>, <code>neutral</code>.</td></tr>
 </tbody>
 </table>
@@ -1045,13 +1045,13 @@ A 3D light placed and aimed by the node. `kind` is `directional`, `point` or `sp
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Light colour, as channel floats or #rrggbb / #rrggbbaa</td></tr>
-<tr><td><code>inner</code></td><td>float</td><td><code>20.0</code></td><td>Half-angle of a spot light&#x27;s full-brightness cone, in degrees Range 0.0–179.0.</td></tr>
+<tr><td><code>inner_angle_degrees</code></td><td>float</td><td><code>20.0</code></td><td>Half-angle of a spot light&#x27;s full-brightness cone, in degrees Range 0.0–179.0.</td></tr>
 <tr><td><code>intensity</code></td><td>float</td><td><code>3.0</code></td><td>Brightness multiplier; over 1 blows past white At least 0.0.</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>directional</code></td><td>A point light fades to nothing at `radius`, a directional one lights the whole scene, a spot one throws a cone the node aims One of <code>directional</code>, <code>point</code>, <code>spot</code>.</td></tr>
-<tr><td><code>layers</code></td><td>int</td><td><code>-1</code></td><td>Light-layer bitmask; a node is lit when its own `layers` share a bit with these. -1 is every layer</td></tr>
-<tr><td><code>outer</code></td><td>float</td><td><code>35.0</code></td><td>Half-angle a spot light fades to nothing at, in degrees Range 0.0–179.0.</td></tr>
-<tr><td><code>radius</code></td><td>float</td><td><code>30.0</code></td><td>How far a point or spot light reaches, in world units At least 0.0.</td></tr>
-<tr><td><code>shadows</code></td><td>bool</td><td><code>true</code></td><td>Whether this light casts shadows from the nodes that say they cast</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>directional</code></td><td>A point light fades to nothing at `range`, a directional one lights the whole scene, a spot one throws a cone the node aims One of <code>directional</code>, <code>point</code>, <code>spot</code>.</td></tr>
+<tr><td><code>light_layers</code></td><td>int</td><td><code>-1</code></td><td>Light-layer bitmask; a node is lit when its own `light_layers` share a bit with these. -1 is every layer</td></tr>
+<tr><td><code>outer_angle_degrees</code></td><td>float</td><td><code>35.0</code></td><td>Half-angle a spot light fades to nothing at, in degrees Range 0.0–179.0.</td></tr>
+<tr><td><code>range</code></td><td>float</td><td><code>30.0</code></td><td>How far a point or spot light reaches, in world units At least 0.0.</td></tr>
+<tr><td><code>shadow_enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether this light casts shadows from the nodes that say they cast</td></tr>
 </tbody>
 </table>
 
@@ -1064,9 +1064,9 @@ A 3D light placed and aimed by the node. `kind` is `directional`, `point` or `sp
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>layers</code></td><td>int</td><td><code>-1</code></td><td>Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer</td></tr>
+<tr><td><code>cast_shadow</code></td><td>bool</td><td><code>true</code></td><td>Whether this casts a shadow from the lights that cast</td></tr>
+<tr><td><code>light_layers</code></td><td>int</td><td><code>-1</code></td><td>Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty draws with the built-in one</td></tr>
-<tr><td><code>shadows</code></td><td>bool</td><td><code>true</code></td><td>Whether this casts a shadow from the lights that cast</td></tr>
 <tr><td><code>skeleton</code></td><td>string</td><td>—</td><td>Node path to the rig a skinned mesh deforms with, relative to this node; empty means this node</td></tr>
 <tr><td><code>source</code></td><td>asset · <code>mesh</code></td><td>—</td><td>The mesh asset this node draws</td></tr>
 <tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>Image file, project-relative, or a `texture` asset; empty draws the colour alone</td></tr>
@@ -1113,8 +1113,8 @@ A box the room around it was captured inside. A reflective surface within it mir
 <tr><td><code>falloff</code></td><td>float</td><td><code>0.5</code></td><td>How wide the soft edge at the box&#x27;s face is; a surface crossing it fades back to the sky At least 0.0.</td></tr>
 <tr><td><code>half_extents</code></td><td>vec3</td><td><code>[5.0, 5.0, 5.0]</code></td><td>Half the box this probe speaks for, in world units, centred on the node At least 0.0.</td></tr>
 <tr><td><code>image</code></td><td>string</td><td>—</td><td>Baked equirectangular image, project-relative. Empty captures the scene from the node&#x27;s own position</td></tr>
+<tr><td><code>image_rotation_degrees</code></td><td>float</td><td><code>0.0</code></td><td>Turn of the captured map about y, in degrees</td></tr>
 <tr><td><code>intensity</code></td><td>float</td><td><code>1.0</code></td><td>Brightness of what the probe reflects At least 0.0.</td></tr>
-<tr><td><code>rotation</code></td><td>float</td><td><code>0.0</code></td><td>Turn of the captured map about y, in degrees</td></tr>
 </tbody>
 </table>
 
@@ -1127,18 +1127,18 @@ An untextured 3D primitive at the node, tinted by `color`. `kind` is `sphere`, `
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>cast_shadow</code></td><td>bool</td><td><code>true</code></td><td>Whether this casts a shadow from the lights that cast</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
 <tr><td><code>corner_radius</code></td><td>float</td><td><code>0.0</code></td><td>How far the edges are rounded off, when kind is box; zero is a square edge At least 0.0.</td></tr>
 <tr><td><code>half_extents</code></td><td>vec3</td><td><code>[0.5, 0.5, 0.5]</code></td><td>Half-sizes, when kind is box, plane or pyramid</td></tr>
 <tr><td><code>height</code></td><td>float</td><td><code>1.0</code></td><td>Length along y, for capsule, cylinder, cone, prism and tube At least 0.01.</td></tr>
 <tr><td><code>inner_radius</code></td><td>float</td><td><code>0.25</code></td><td>Radius of the hole, when kind is tube At least 0.01.</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>box</code></td><td>Rendered 3D shape One of <code>sphere</code>, <code>box</code>, <code>capsule</code>, <code>cylinder</code>, <code>cone</code>, <code>plane</code>, <code>torus</code>, <code>pyramid</code>, <code>prism</code>, <code>tube</code>.</td></tr>
-<tr><td><code>layers</code></td><td>int</td><td><code>-1</code></td><td>Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer</td></tr>
+<tr><td><code>light_layers</code></td><td>int</td><td><code>-1</code></td><td>Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty draws with the built-in one</td></tr>
 <tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, for every kind but box, plane and pyramid At least 0.01.</td></tr>
 <tr><td><code>rings</code></td><td>int</td><td><code>16</code></td><td>Cuts along the axis, for ball, capsule and torus At least 3.</td></tr>
 <tr><td><code>segments</code></td><td>int</td><td><code>32</code></td><td>Cuts around the axis, or across a plane At least 3.</td></tr>
-<tr><td><code>shadows</code></td><td>bool</td><td><code>true</code></td><td>Whether this casts a shadow from the lights that cast</td></tr>
 <tr><td><code>sides</code></td><td>int</td><td><code>4</code></td><td>Flat faces, when kind is pyramid or prism At least 3.</td></tr>
 <tr><td><code>tube_radius</code></td><td>float</td><td><code>0.2</code></td><td>Thickness of the ring, when kind is torus At least 0.01.</td></tr>
 </tbody>
@@ -1389,20 +1389,20 @@ On a node carrying `ragdoll`, as `node.ragdoll.<method>`:
 
 `render` · 9 properties · 2 methods
 
-Draws the node's subtree many times; physics and scripts still see one node. `mode` is `linear`, `radial` or `grid`, or `list` for the `copies` a scene or a script places and tints one by one; `seed` and `random` scatter the copies.
+Draws the node's subtree many times; physics and scripts still see one node. `kind` is `linear`, `radial` or `grid`, or `list` for the `copies` a scene or a script places and tints one by one; `seed` and `random` scatter the copies.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>angle</code></td><td>float</td><td><code>0.0</code></td><td>Degrees between copies on a ring; zero closes the ring evenly</td></tr>
-<tr><td><code>copies</code></td><td>list of record · <code>position, rotation_euler, scale, tint</code></td><td><code>[]</code></td><td>The copies, when mode is list: each placed in the node&#x27;s own space with the transform component&#x27;s keys, and tinted over the node&#x27;s colour. An empty list draws nothing</td></tr>
-<tr><td><code>count</code></td><td>int</td><td><code>4</code></td><td>How many copies, when mode is linear or radial At least 1.</td></tr>
-<tr><td><code>counts</code></td><td>vec3</td><td><code>[3, 1, 3]</code></td><td>How many along each axis, when mode is grid</td></tr>
-<tr><td><code>mode</code></td><td>enum</td><td><code>linear</code></td><td>How the copies are laid out One of <code>linear</code>, <code>radial</code>, <code>grid</code>, <code>list</code>.</td></tr>
-<tr><td><code>radius</code></td><td>float</td><td><code>2.0</code></td><td>How far out the ring sits, when mode is radial</td></tr>
+<tr><td><code>angle_degrees</code></td><td>float</td><td><code>0.0</code></td><td>Degrees between copies on a ring; zero closes the ring evenly</td></tr>
+<tr><td><code>copies</code></td><td>list of record · <code>position, rotation_euler, scale, tint</code></td><td><code>[]</code></td><td>The copies, when kind is list: each placed in the node&#x27;s own space with the transform component&#x27;s keys, and tinted over the node&#x27;s colour. An empty list draws nothing</td></tr>
+<tr><td><code>count</code></td><td>int</td><td><code>4</code></td><td>How many copies, when kind is linear or radial At least 1.</td></tr>
+<tr><td><code>counts</code></td><td>vec3</td><td><code>[3, 1, 3]</code></td><td>How many along each axis, when kind is grid</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>linear</code></td><td>How the copies are laid out One of <code>linear</code>, <code>radial</code>, <code>grid</code>, <code>list</code>.</td></tr>
+<tr><td><code>radius</code></td><td>float</td><td><code>2.0</code></td><td>How far out the ring sits, when kind is radial</td></tr>
 <tr><td><code>random</code></td><td>float</td><td><code>0.0</code></td><td>How far a copy may wander in position, turn and size Range 0.0–1.0.</td></tr>
 <tr><td><code>seed</code></td><td>int</td><td><code>0</code></td><td>The seed the scatter runs off; zero scatters nothing At least 0.</td></tr>
-<tr><td><code>step</code></td><td>vec3</td><td><code>[1.0, 0.0, 0.0]</code></td><td>The gap between copies, when mode is linear or grid</td></tr>
+<tr><td><code>step</code></td><td>vec3</td><td><code>[1.0, 0.0, 0.0]</code></td><td>The gap between copies, when kind is linear or grid</td></tr>
 </tbody>
 </table>
 

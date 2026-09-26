@@ -23,7 +23,7 @@ name = "Environment"
 parent = "n_world"
 
 [nodes.environment]
-ambient = "#1c2026"
+ambient_color = "#1c2026"
 tonemap = "neutral"
 
 [[nodes]]
@@ -39,9 +39,9 @@ rotation_euler = [-0.7854, 0.69813, 0]
 kind = "spot"
 color = "#fff4e6"
 intensity = 8
-radius = 40
-inner = 25
-outer = 50
+range = 40
+inner_angle_degrees = 25
+outer_angle_degrees = 50
 
 [[nodes]]
 id = "n_stand"

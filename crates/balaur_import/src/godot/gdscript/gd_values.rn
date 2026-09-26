@@ -1732,7 +1732,7 @@ pub fn multimesh() {
 /// Give the node its cloner and the child that draws the mesh.
 pub fn multimesh_attach(mm, node) {
     mm["node"] = node;
-    node.patch_component("cloner", #{ "mode": "list", "copies": [] });
+    node.patch_component("cloner", #{ "kind": "list", "copies": [] });
     let mesh = mm["mesh"];
     if is_nil(mesh) || !is_nil(node.get_node("mesh")) {
         return;

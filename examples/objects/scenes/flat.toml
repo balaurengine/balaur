@@ -10,7 +10,7 @@ name = "Camera2D"
 parent = "n_layer2d"
 
 [nodes.camera2d]
-zoom = 60.0
+pixels_per_unit = 60.0
 
 [[nodes]]
 id = "n_flat"
@@ -83,7 +83,7 @@ parent = "n_flat"
 position = [-6, -2.6, 0]
 
 [nodes.boolean2d]
-op = "union"
+operation = "union"
 
 [[nodes]]
 id = "n_union2d_a"
@@ -115,7 +115,7 @@ parent = "n_flat"
 position = [0, -2.6, 0]
 
 [nodes.boolean2d]
-op = "difference"
+operation = "difference"
 
 [[nodes]]
 id = "n_difference2d_a"
@@ -147,7 +147,7 @@ parent = "n_flat"
 position = [6, -2.6, 0]
 
 [nodes.boolean2d]
-op = "intersection"
+operation = "intersection"
 
 [[nodes]]
 id = "n_intersection2d_a"

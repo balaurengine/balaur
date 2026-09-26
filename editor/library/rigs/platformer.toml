@@ -39,7 +39,7 @@ position = [0, 0, 10]
 
 [nodes.camera2d]
 current = true
-zoom = 48
+pixels_per_unit = 48
 
 [nodes.modifier2d]
 kind = "follow"

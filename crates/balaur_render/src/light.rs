@@ -218,11 +218,11 @@ fn light_schema() -> String {
     let kinds = crate::vocabulary::options(words::LIGHT_KINDS);
     let default = words::POINT;
     format!(
-        r#"kind = {{ type = "enum", default = "{default}", options = [{kinds}], description = "A point light fades to nothing at `radius`; a directional one lights the whole view" }}
+        r#"kind = {{ type = "enum", default = "{default}", options = [{kinds}], description = "A point light fades to nothing at `range`; a directional one lights the whole view" }}
 color = {{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Light colour, as channel floats or #rrggbb / #rrggbbaa" }}
-radius = {{ type = "float", default = 6.0, min = 0.0, description = "How far a point light reaches, in world units" }}
+range = {{ type = "float", default = 6.0, min = 0.0, description = "How far a point light reaches, in world units" }}
 intensity = {{ type = "float", default = 1.0, min = 0.0, description = "Brightness multiplier; over 1 blows past white" }}
-shadows = {{ type = "bool", default = true, description = "Whether `occluder2d` outlines cast shadows from this light" }}"#
+shadow_enabled = {{ type = "bool", default = true, description = "Whether `occluder2d` outlines cast shadows from this light" }}"#
     )
 }
 
@@ -233,7 +233,7 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
         "light2d",
         ComponentDef {
             warnings: None,
-            doc: "A 2D light at the node's position. `kind` is `point` or `directional`; the first `light2d` in a scene drops everything else to the camera's `ambient`.",
+            doc: "A 2D light at the node's position. `kind` is `point` or `directional`; the first `light2d` in a scene drops everything else to the camera's `ambient_color`.",
             schema: ComponentDef::parse_schema("light2d", &light_schema()),
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
@@ -249,9 +249,9 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
                     Light2d {
                         kind,
                         color: color_from_params(params),
-                        radius: prop_f32(params, k::RADIUS).max(0.0),
+                        radius: prop_f32(params, k::RANGE).max(0.0),
                         intensity: prop_f32(params, k::INTENSITY).max(0.0),
-                        shadows: prop_bool(params, k::SHADOWS),
+                        shadows: prop_bool(params, k::SHADOW_ENABLED),
                     },
                 )
             }),
@@ -269,12 +269,12 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
                 let mut map = toml::map::Map::new();
                 map.insert(k::KIND.into(), toml::Value::String(kind.into()));
                 map.insert(k::COLOR.into(), color_to_toml(light.color));
-                map.insert(k::RADIUS.into(), toml::Value::Float(f64::from(light.radius)));
+                map.insert(k::RANGE.into(), toml::Value::Float(f64::from(light.radius)));
                 map.insert(
                     k::INTENSITY.into(),
                     toml::Value::Float(f64::from(light.intensity)),
                 );
-                map.insert("shadows".into(), toml::Value::Boolean(light.shadows));
+                map.insert(k::SHADOW_ENABLED.into(), toml::Value::Boolean(light.shadows));
                 Some(toml::Value::Table(map))
             }),
         },

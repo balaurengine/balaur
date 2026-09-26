@@ -502,13 +502,13 @@ fn camera3d_from_params(params: &toml::Value) -> Camera3d {
 /// The authored 2D camera a full property table describes.
 fn camera2d_from_params(params: &toml::Value) -> Camera2d {
     let zoom = params
-        .get(k::ZOOM)
+        .get(k::PIXELS_PER_UNIT)
         .and_then(balaur_core::components::as_f64)
         .unwrap_or(60.0) as f32;
     Camera2d {
         post: post_from_params(params),
         current: balaur_core::components::prop_bool(params, k::CURRENT),
-        ambient: color_from_params_named(params, k::AMBIENT),
+        ambient: color_from_params_named(params, k::AMBIENT_COLOR),
         zoom: zoom.max(MIN_ZOOM_2D),
     }
 }
@@ -665,13 +665,13 @@ pub(crate) fn register_camera_components(reg: &mut Registry<'_>) {
         "camera2d",
         ComponentDef {
             warnings: None,
-            doc: "The orthographic camera a flat scene is drawn from. `zoom` scales it, `ambient` lights every 2D surface, and the last `current` camera wins.",
+            doc: "The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it, `ambient_color` lights every 2D surface, and the last `current` camera wins.",
             schema: ComponentDef::parse_schema(
                 "camera2d",
                 &[
                     balaur_core::components::ComponentDef::schema(&[
-                        (k::ZOOM, r#"{ type = "float", default = 60.0, min = 0.01, description = "Zoom in logical pixels per world unit" }"#),
-                        (k::AMBIENT, r#"{ type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "Light every 2D surface gets before any `light2d`" }"#),
+                        (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 60.0, min = 0.01, description = "Zoom in logical pixels per world unit" }"#),
+                        (k::AMBIENT_COLOR, r#"{ type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "Light every 2D surface gets before any `light2d`" }"#),
                     ]),
                     post_schema(),
                 ]
@@ -700,8 +700,8 @@ pub(crate) fn register_camera_components(reg: &mut Registry<'_>) {
                 let camera = world.get::<&Camera2d>(entity).ok()?;
                 let mut map = toml::map::Map::new();
                 map.insert(k::CURRENT.into(), toml::Value::Boolean(camera.current));
-                map.insert(k::ZOOM.into(), toml::Value::Float(f64::from(camera.zoom)));
-                map.insert(k::AMBIENT.into(), color_to_toml(camera.ambient));
+                map.insert(k::PIXELS_PER_UNIT.into(), toml::Value::Float(f64::from(camera.zoom)));
+                map.insert(k::AMBIENT_COLOR.into(), color_to_toml(camera.ambient));
                 post_to_map(&camera.post, &mut map);
                 Some(toml::Value::Table(map))
             }),

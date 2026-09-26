@@ -754,7 +754,11 @@ fn camera(section: &Section, out: &mut Mapped) {
         .field("zoom")
         .and_then(pair)
         .map_or(1.0, |[zoom, _]| zoom);
-    out.set("camera2d", "zoom", Toml::Float(zoom * PIXELS_PER_UNIT));
+    out.set(
+        "camera2d",
+        "pixels_per_unit",
+        Toml::Float(zoom * PIXELS_PER_UNIT),
+    );
     if section.field("enabled") == Some(&Value::Bool(false)) {
         out.set("camera2d", "current", Toml::Boolean(false));
     }
@@ -1019,7 +1023,7 @@ fn light(class: &str, section: &Section, out: &mut Mapped) {
         out.set("light2d", "intensity", Toml::Float(energy));
     }
     if let Some(Value::Bool(on)) = section.field("shadow_enabled") {
-        out.set("light2d", "shadows", Toml::Boolean(*on));
+        out.set("light2d", "shadow_enabled", Toml::Boolean(*on));
     }
     if class == "PointLight2D" {
         out.note(

@@ -194,9 +194,9 @@ rotation_euler = [-0.87266, 0.69813, 0]
 kind = "spot"
 color = "#fff2e0"
 intensity = 6
-radius = 30
-inner = 25
-outer = 45
+range = 30
+inner_angle_degrees = 25
+outer_angle_degrees = 45
 
 [[nodes]]
 id = "n_env"
@@ -204,10 +204,10 @@ name = "Environment"
 parent = "n_main"
 
 [nodes.environment]
-ambient = "#20242a"
+ambient_color = "#20242a"
 tonemap = "neutral"
 exposure = 1.1
-fog = "exponential"
+fog_mode = "exponential"
 fog_color = "#9fb4c8"
 fog_density = 0.012
 

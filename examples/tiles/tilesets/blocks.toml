@@ -19,5 +19,5 @@ occluder = true
 [[terrains]]
 name = "grass"
 value = 1
-mode = "sides"
+kind = "sides"
 first_tile = 0

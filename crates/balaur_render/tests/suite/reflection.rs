@@ -50,7 +50,7 @@ fn a_probe_resolves_to_the_box_its_node_sits_in() {
         &app,
         entity,
         "reflection_probe",
-        "half_extents = [6.0, 3.0, 4.0]\nfalloff = 0.75\nintensity = 0.8\nrotation = 90.0",
+        "half_extents = [6.0, 3.0, 4.0]\nfalloff = 0.75\nintensity = 0.8\nimage_rotation_degrees = 90.0",
     );
     place(&app, entity, Vec3::new(2.0, 1.0, -3.0));
     settle(&mut app);

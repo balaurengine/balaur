@@ -244,7 +244,7 @@ parent = "n_world"
 position = [-3.5, 1, -24]
 
 [nodes.boolean3d]
-op = "union"
+operation = "union"
 
 [[nodes]]
 id = "n_union_a"
@@ -276,7 +276,7 @@ parent = "n_world"
 position = [0, 1, -24]
 
 [nodes.boolean3d]
-op = "difference"
+operation = "difference"
 
 [[nodes]]
 id = "n_difference_a"
@@ -308,7 +308,7 @@ parent = "n_world"
 position = [3.5, 1, -24]
 
 [nodes.boolean3d]
-op = "intersection"
+operation = "intersection"
 
 [[nodes]]
 id = "n_intersection_a"
@@ -337,7 +337,7 @@ parent = "n_world"
 position = [-5.6, 0.4, -36]
 
 [nodes.cloner]
-mode = "linear"
+kind = "linear"
 count = 5
 step = [0.9, 0.0, 0.0]
 
@@ -362,7 +362,7 @@ parent = "n_world"
 position = [0.6, 0.4, -36]
 
 [nodes.cloner]
-mode = "radial"
+kind = "radial"
 count = 9
 radius = 1.3
 
@@ -387,7 +387,7 @@ parent = "n_world"
 position = [4.0, 0.3, -37]
 
 [nodes.cloner]
-mode = "grid"
+kind = "grid"
 counts = [4, 1, 4]
 step = [0.8, 0.0, 0.8]
 seed = 7

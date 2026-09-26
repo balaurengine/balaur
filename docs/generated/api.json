@@ -46,7 +46,7 @@
     },
     "tileset": {
       "directory": "tilesets",
-      "doc": "An image cut into equal tiles for `tilemap`: `texture`, `tile_size` in pixels and `columns` per row. `[tiles.<id>]` gives a tile `collision`; `[[terrains]]` auto-tiles by `mode`.\n\n```toml\ntype = \"tileset\"\ntexture = \"art/dungeon.png\"\ntile_size = 16                   # or [w, h]\ncolumns = 8\nspacing = 0                      # gutter between tiles\nmargin = 0                       # border around the sheet\n\n[tiles.3]                        # tile ids count row by row from the top left\ncollision = \"full\"\n\n[tiles.7]\ncollision = [[[0, 16], [16, 16], [16, 8]]]   # polygons in tile pixels, y down\none_way = true                   # a platform a body passes through from below\n\n[[terrains]]                     # paints by value and picks the tiles\nname = \"grass\"\nvalue = 1\nmode = \"quarters\"                # rules, sides, corners, corners_and_sides or quarters\nfirst_tile = 16\n# quarters = [fill, horizontal edge, vertical edge, outer corner, inner corner] tile ids, when they do not follow first_tile\n```"
+      "doc": "An image cut into equal tiles for `tilemap`: `texture`, `tile_size` in pixels and `columns` per row. `[tiles.<id>]` gives a tile `collision`; `[[terrains]]` auto-tiles by `kind`.\n\n```toml\ntype = \"tileset\"\ntexture = \"art/dungeon.png\"\ntile_size = 16                   # or [w, h]\ncolumns = 8\nspacing = 0                      # gutter between tiles\nmargin = 0                       # border around the sheet\n\n[tiles.3]                        # tile ids count row by row from the top left\ncollision = \"full\"\n\n[tiles.7]\ncollision = [[[0, 16], [16, 16], [16, 8]]]   # polygons in tile pixels, y down\none_way = true                   # a platform a body passes through from below\n\n[[terrains]]                     # paints by value and picks the tiles\nname = \"grass\"\nvalue = 1\nkind = \"quarters\"                # rules, sides, corners, corners_and_sides or quarters\nfirst_tile = 16\n# quarters = [fill, horizontal edge, vertical edge, outer corner, inner corner] tile ids, when they do not follow first_tile\n```"
     },
     "voxels": {
       "directory": "terrain",
@@ -66,17 +66,17 @@
     "bone3d": "Makes the node a 3D bone. `rest_position`, `rest_rotation` and `rest_scale` are the pose a rig returns to; `length` draws its gizmo.",
     "boolean2d": "Draws the node as its 2D children combined by `op`: `union`, `difference` or `intersection`. The children stay in the tree, hidden and editable.",
     "boolean3d": "Draws the node as its children combined by `op`: `union`, `difference` or `intersection`. The children stay in the tree, hidden and editable.",
-    "camera2d": "The orthographic camera a flat scene is drawn from. `zoom` scales it, `ambient` lights every 2D surface, and the last `current` camera wins.",
+    "camera2d": "The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it, `ambient_color` lights every 2D surface, and the last `current` camera wins.",
     "camera3d": "The perspective camera the scene is drawn from. `look_at` aims it, and the last `current` camera wins.",
     "character2d": "A 2D character controller: `physics2d.move_character` slides the node along walls and steps it up ledges. Needs a `collider2d`; a `kinematic` `body2d` lets it push bodies.",
     "character3d": "A 3D character controller: `physics3d.move_character` slides the node along walls and steps it up ledges. Needs a `collider3d`; a `kinematic` `body3d` lets it push bodies.",
-    "cloner": "Draws the node's subtree many times; physics and scripts still see one node. `mode` is `linear`, `radial` or `grid`, or `list` for the `copies` a scene or a script places and tints one by one; `seed` and `random` scatter the copies.",
+    "cloner": "Draws the node's subtree many times; physics and scripts still see one node. `kind` is `linear`, `radial` or `grid`, or `list` for the `copies` a scene or a script places and tints one by one; `seed` and `random` scatter the copies.",
     "collider2d": "The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2d` or the nearest body above it; without one it is static geometry.",
     "collider3d": "The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3d` or the nearest body above it; without one it is static geometry.",
-    "environment": "The scene's atmosphere: `sky`, `ambient`, `fog`, `exposure`, `tonemap`, colour grading and the shadow budget. The last `current` one wins; per-view effects stay on `camera.post`.",
+    "environment": "The scene's atmosphere: `sky`, `ambient_color`, `fog_mode`, `exposure`, `tonemap`, colour grading and the shadow budget. The last `current` one wins; per-view effects stay on `camera.post`.",
     "joint2d": "Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `rope`, `spring`, `groove` or `generic`; both ends need a `body2d` on or above the node.",
     "joint3d": "Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `ball_socket`, `rope`, `spring` or `generic`; both ends need a `body3d` on or above the node.",
-    "light2d": "A 2D light at the node's position. `kind` is `point` or `directional`; the first `light2d` in a scene drops everything else to the camera's `ambient`.",
+    "light2d": "A 2D light at the node's position. `kind` is `point` or `directional`; the first `light2d` in a scene drops everything else to the camera's `ambient_color`.",
     "light3d": "A 3D light placed and aimed by the node. `kind` is `directional`, `point` or `spot`; the first `light3d` in a scene retires the engine's default key light.",
     "listener": "The point positional sounds are heard from: distance sets volume, offset across its right sets pan. The last `current` listener wins; without one, sounds play flat.",
     "material": "`source` is the `material` asset this node and everything under it draw with. A renderable's own `material` property overrides it for that node alone.",
@@ -686,7 +686,7 @@
       }
     },
     "boolean2d": {
-      "op": {
+      "operation": {
         "default": "union",
         "description": "How the children are combined, in the order they are declared",
         "options": [
@@ -698,7 +698,7 @@
       }
     },
     "boolean3d": {
-      "op": {
+      "operation": {
         "default": "union",
         "description": "How the children are combined, in the order they are declared",
         "options": [
@@ -716,7 +716,7 @@
         "min": 0.0,
         "type": "float"
       },
-      "ambient": {
+      "ambient_color": {
         "default": [
           0.0,
           0.0,
@@ -753,6 +753,12 @@
         "default": 4.0,
         "description": "The side of one block the `pixelate` pass reads the frame back in, in pixels",
         "min": 1.0,
+        "type": "float"
+      },
+      "pixels_per_unit": {
+        "default": 60.0,
+        "description": "Zoom in logical pixels per world unit",
+        "min": 0.01,
         "type": "float"
       },
       "post": {
@@ -800,12 +806,6 @@
         "description": "1 darkens in a circle whatever shape the frame is; 0 follows the frame",
         "max": 1.0,
         "min": 0.0,
-        "type": "float"
-      },
-      "zoom": {
-        "default": 60.0,
-        "description": "Zoom in logical pixels per world unit",
-        "min": 0.01,
         "type": "float"
       }
     },
@@ -1064,14 +1064,14 @@
       }
     },
     "cloner": {
-      "angle": {
+      "angle_degrees": {
         "default": 0.0,
         "description": "Degrees between copies on a ring; zero closes the ring evenly",
         "type": "float"
       },
       "copies": {
         "default": [],
-        "description": "The copies, when mode is list: each placed in the node's own space with the transform component's keys, and tinted over the node's colour. An empty list draws nothing",
+        "description": "The copies, when kind is list: each placed in the node's own space with the transform component's keys, and tinted over the node's colour. An empty list draws nothing",
         "of": {
           "default": {
             "position": [
@@ -1137,7 +1137,7 @@
       },
       "count": {
         "default": 4,
-        "description": "How many copies, when mode is linear or radial",
+        "description": "How many copies, when kind is linear or radial",
         "min": 1,
         "type": "int"
       },
@@ -1147,10 +1147,10 @@
           1,
           3
         ],
-        "description": "How many along each axis, when mode is grid",
+        "description": "How many along each axis, when kind is grid",
         "type": "vec3"
       },
-      "mode": {
+      "kind": {
         "default": "linear",
         "description": "How the copies are laid out",
         "options": [
@@ -1163,7 +1163,7 @@
       },
       "radius": {
         "default": 2.0,
-        "description": "How far out the ring sits, when mode is radial",
+        "description": "How far out the ring sits, when kind is radial",
         "type": "float"
       },
       "random": {
@@ -1185,7 +1185,7 @@
           0.0,
           0.0
         ],
-        "description": "The gap between copies, when mode is linear or grid",
+        "description": "The gap between copies, when kind is linear or grid",
         "type": "vec3"
       }
     },
@@ -2144,7 +2144,7 @@
       }
     },
     "environment": {
-      "ambient": {
+      "ambient_color": {
         "default": [
           0.125,
           0.14,
@@ -2170,17 +2170,6 @@
         "description": "Linear multiplier before the tonemap",
         "min": 0.0,
         "type": "float"
-      },
-      "fog": {
-        "default": "none",
-        "description": "How fog thickens with distance",
-        "options": [
-          "none",
-          "linear",
-          "exponential",
-          "exponential_squared"
-        ],
-        "type": "enum"
       },
       "fog_color": {
         "default": [
@@ -2210,6 +2199,17 @@
         "min": 0.0,
         "type": "float"
       },
+      "fog_mode": {
+        "default": "none",
+        "description": "How fog thickens with distance",
+        "options": [
+          "none",
+          "linear",
+          "exponential",
+          "exponential_squared"
+        ],
+        "type": "enum"
+      },
       "fog_start": {
         "default": 10.0,
         "description": "Where linear fog begins, in world units",
@@ -2234,6 +2234,11 @@
         "min": 0.0,
         "type": "float"
       },
+      "shadow_enabled": {
+        "default": true,
+        "description": "Whether any light casts shadows at all",
+        "type": "bool"
+      },
       "shadow_resolution": {
         "default": 2048,
         "description": "Side of the shadow map, in texels",
@@ -2246,20 +2251,15 @@
         "min": 0.0,
         "type": "float"
       },
-      "shadows": {
-        "default": true,
-        "description": "Whether any light casts shadows at all",
-        "type": "bool"
-      },
-      "show_sky": {
-        "default": true,
-        "description": "False turns the sky off entirely: it stops drawing and stops lighting. The renderer has one dial for both",
-        "type": "bool"
-      },
       "sky": {
         "default": "",
         "description": "Equirectangular image, project-relative: .hdr, .exr or .png. It draws behind the scene and lights it. Empty is no sky",
         "type": "string"
+      },
+      "sky_enabled": {
+        "default": true,
+        "description": "False turns the sky off entirely: it stops drawing and stops lighting. The renderer has one dial for both",
+        "type": "bool"
       },
       "sky_intensity": {
         "default": 1.0,
@@ -2267,7 +2267,7 @@
         "min": 0.0,
         "type": "float"
       },
-      "sky_rotation": {
+      "sky_rotation_degrees": {
         "default": 0.0,
         "description": "Turn of the sky about y, in degrees",
         "type": "float"
@@ -2582,20 +2582,20 @@
       },
       "kind": {
         "default": "point",
-        "description": "A point light fades to nothing at `radius`; a directional one lights the whole view",
+        "description": "A point light fades to nothing at `range`; a directional one lights the whole view",
         "options": [
           "point",
           "directional"
         ],
         "type": "enum"
       },
-      "radius": {
+      "range": {
         "default": 6.0,
         "description": "How far a point light reaches, in world units",
         "min": 0.0,
         "type": "float"
       },
-      "shadows": {
+      "shadow_enabled": {
         "default": true,
         "description": "Whether `occluder2d` outlines cast shadows from this light",
         "type": "bool"
@@ -2612,7 +2612,7 @@
         "description": "Light colour, as channel floats or #rrggbb / #rrggbbaa",
         "type": "color"
       },
-      "inner": {
+      "inner_angle_degrees": {
         "default": 20.0,
         "description": "Half-angle of a spot light's full-brightness cone, in degrees",
         "max": 179.0,
@@ -2627,7 +2627,7 @@
       },
       "kind": {
         "default": "directional",
-        "description": "A point light fades to nothing at `radius`, a directional one lights the whole scene, a spot one throws a cone the node aims",
+        "description": "A point light fades to nothing at `range`, a directional one lights the whole scene, a spot one throws a cone the node aims",
         "options": [
           "directional",
           "point",
@@ -2635,25 +2635,25 @@
         ],
         "type": "enum"
       },
-      "layers": {
+      "light_layers": {
         "default": -1,
-        "description": "Light-layer bitmask; a node is lit when its own `layers` share a bit with these. -1 is every layer",
+        "description": "Light-layer bitmask; a node is lit when its own `light_layers` share a bit with these. -1 is every layer",
         "type": "int"
       },
-      "outer": {
+      "outer_angle_degrees": {
         "default": 35.0,
         "description": "Half-angle a spot light fades to nothing at, in degrees",
         "max": 179.0,
         "min": 0.0,
         "type": "float"
       },
-      "radius": {
+      "range": {
         "default": 30.0,
         "description": "How far a point or spot light reaches, in world units",
         "min": 0.0,
         "type": "float"
       },
-      "shadows": {
+      "shadow_enabled": {
         "default": true,
         "description": "Whether this light casts shadows from the nodes that say they cast",
         "type": "bool"
@@ -2675,7 +2675,12 @@
       }
     },
     "mesh": {
-      "layers": {
+      "cast_shadow": {
+        "default": true,
+        "description": "Whether this casts a shadow from the lights that cast",
+        "type": "bool"
+      },
+      "light_layers": {
         "default": -1,
         "description": "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer",
         "type": "int"
@@ -2685,11 +2690,6 @@
         "default": "",
         "description": "The material this draws with; empty draws with the built-in one",
         "type": "asset"
-      },
-      "shadows": {
-        "default": true,
-        "description": "Whether this casts a shadow from the lights that cast",
-        "type": "bool"
       },
       "skeleton": {
         "default": "",
@@ -3083,15 +3083,15 @@
         "description": "Baked equirectangular image, project-relative. Empty captures the scene from the node's own position",
         "type": "string"
       },
+      "image_rotation_degrees": {
+        "default": 0.0,
+        "description": "Turn of the captured map about y, in degrees",
+        "type": "float"
+      },
       "intensity": {
         "default": 1.0,
         "description": "Brightness of what the probe reflects",
         "min": 0.0,
-        "type": "float"
-      },
-      "rotation": {
-        "default": 0.0,
-        "description": "Turn of the captured map about y, in degrees",
         "type": "float"
       }
     },
@@ -3251,6 +3251,11 @@
       }
     },
     "shape3d": {
+      "cast_shadow": {
+        "default": true,
+        "description": "Whether this casts a shadow from the lights that cast",
+        "type": "bool"
+      },
       "color": {
         "default": [
           0.8,
@@ -3305,7 +3310,7 @@
         ],
         "type": "enum"
       },
-      "layers": {
+      "light_layers": {
         "default": -1,
         "description": "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer",
         "type": "int"
@@ -3333,11 +3338,6 @@
         "description": "Cuts around the axis, or across a plane",
         "min": 3,
         "type": "int"
-      },
-      "shadows": {
-        "default": true,
-        "description": "Whether this casts a shadow from the lights that cast",
-        "type": "bool"
       },
       "sides": {
         "default": 4,

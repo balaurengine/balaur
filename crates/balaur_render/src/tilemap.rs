@@ -16,7 +16,7 @@ pub use balaur_core::tiles::{TILESET_ASSET_TYPE, TileSet};
 pub(crate) use crate::tilemap_mesh::{TilemapSlot, sync_tilemaps};
 
 /// What a definition table holds, for the generated reference.
-const TILESET_ASSET_DOC: &str = r#"An image cut into equal tiles for `tilemap`: `texture`, `tile_size` in pixels and `columns` per row. `[tiles.<id>]` gives a tile `collision`; `[[terrains]]` auto-tiles by `mode`.
+const TILESET_ASSET_DOC: &str = r#"An image cut into equal tiles for `tilemap`: `texture`, `tile_size` in pixels and `columns` per row. `[tiles.<id>]` gives a tile `collision`; `[[terrains]]` auto-tiles by `kind`.
 
 ```toml
 type = "tileset"
@@ -36,7 +36,7 @@ one_way = true                   # a platform a body passes through from below
 [[terrains]]                     # paints by value and picks the tiles
 name = "grass"
 value = 1
-mode = "quarters"                # rules, sides, corners, corners_and_sides or quarters
+kind = "quarters"                # rules, sides, corners, corners_and_sides or quarters
 first_tile = 16
 # quarters = [fill, horizontal edge, vertical edge, outer corner, inner corner] tile ids, when they do not follow first_tile
 ```"#;

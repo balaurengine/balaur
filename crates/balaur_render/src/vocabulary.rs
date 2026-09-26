@@ -156,18 +156,29 @@ pub(crate) mod keys {
 
     /// A primitive's keys are the mesher's, so a schema line here and the
     /// reader there cannot drift apart.
+    pub(crate) const AMBIENT_COLOR: &str = "ambient_color";
+    pub(crate) const CAST_SHADOW: &str = "cast_shadow";
     pub(crate) const CORNER_RADIUS: &str = p::CORNER_RADIUS;
+    pub(crate) const FOG_MODE: &str = "fog_mode";
+    pub(crate) const IMAGE_ROTATION_DEGREES: &str = "image_rotation_degrees";
+    pub(crate) const INNER_ANGLE_DEGREES: &str = "inner_angle_degrees";
     pub(crate) const INNER_RADIUS: &str = p::INNER_RADIUS;
+    pub(crate) const LIGHT_LAYERS: &str = "light_layers";
+    pub(crate) const OPERATION: &str = "operation";
+    pub(crate) const OUTER_ANGLE_DEGREES: &str = "outer_angle_degrees";
     pub(crate) const POINTS: &str = p::POINTS;
+    pub(crate) const RANGE: &str = "range";
     pub(crate) const RINGS: &str = p::RINGS;
     pub(crate) const SEGMENTS: &str = p::SEGMENTS;
+    pub(crate) const SHADOW_ENABLED: &str = "shadow_enabled";
     pub(crate) const SIDES: &str = p::SIDES;
+    pub(crate) const SKY_ENABLED: &str = "sky_enabled";
+    pub(crate) const SKY_ROTATION_DEGREES: &str = "sky_rotation_degrees";
     pub(crate) const TUBE_RADIUS: &str = p::TUBE_RADIUS;
 
     pub(crate) const A: &str = "a";
     pub(crate) const ALIGN: &str = "align";
     pub(crate) const ALPHA_CUT: &str = "alpha_cut";
-    pub(crate) const AMBIENT: &str = "ambient";
     pub(crate) const ANGLE: &str = "angle";
     pub(crate) const B: &str = "b";
     pub(crate) const BILLBOARD: &str = "billboard";
@@ -230,28 +241,19 @@ pub(crate) mod keys {
     pub(crate) const MITER_LIMIT: &str = "miter_limit";
     pub(crate) const OFFSET: &str = "offset";
     pub(crate) const ONE_SHOT: &str = "one_shot";
-    pub(crate) const OP: &str = "op";
     pub(crate) const OUTLINE_COLOR: &str = "outline_color";
     pub(crate) const OUTLINE_SIZE: &str = "outline_size";
     pub(crate) const PIXELS_PER_UNIT: &str = "pixels_per_unit";
     pub(crate) const POST: &str = "post";
-    pub(crate) const ROTATION: &str = "rotation";
     pub(crate) const RADIUS: &str = p::RADIUS;
     pub(crate) const RATE: &str = "rate";
     pub(crate) const REGION_ORIGIN: &str = "region_origin";
     pub(crate) const REGION_SIZE: &str = "region_size";
     pub(crate) const Z_INDEX: &str = "z_index";
-    pub(crate) const SHADOWS: &str = "shadows";
     pub(crate) const SHADOW_RESOLUTION: &str = "shadow_resolution";
     pub(crate) const SHADOW_SOFTNESS: &str = "shadow_softness";
-    pub(crate) const LAYERS: &str = "layers";
-    pub(crate) const INNER: &str = "inner";
-    pub(crate) const OUTER: &str = "outer";
     pub(crate) const SKY: &str = "sky";
     pub(crate) const SKY_INTENSITY: &str = "sky_intensity";
-    pub(crate) const SKY_ROTATION: &str = "sky_rotation";
-    pub(crate) const SHOW_SKY: &str = "show_sky";
-    pub(crate) const FOG: &str = "fog";
     pub(crate) const FOG_COLOR: &str = "fog_color";
     pub(crate) const FOG_DENSITY: &str = "fog_density";
     pub(crate) const FOG_START: &str = "fog_start";
@@ -283,7 +285,6 @@ pub(crate) mod keys {
     /// A `draw_text` option; `text2d` spells it `font_weight`.
     pub(crate) const WEIGHT: &str = "weight";
     pub(crate) const WIDTH: &str = "width";
-    pub(crate) const ZOOM: &str = "zoom";
 }
 
 /// The words a schema property offers, as its `options` list.

@@ -21,7 +21,11 @@ with no alias and no migration, as `one way to do a thing` asks.
   and the physics and shape words (`sphere`, `box`, `rectangle`,
   `world_boundary`, `triangle_mesh`, the Godot joint kinds, `collision_layer`,
   `collision_mask`, the character, wheel and soft body keys, the query options,
-  `add_constant_force`, `overlap_*`, `on_collision_enter`, `set_ragdoll_influence`).
+  `add_constant_force`, `overlap_*`, `on_collision_enter`, `set_ragdoll_influence`),
+  and the render keys (`light_layers`, `cast_shadow`, `shadow_enabled`, `range`,
+  the spot's `*_angle_degrees`, `ambient_color`, `fog_mode`, `sky_enabled`,
+  `sky_rotation_degrees`, `pixels_per_unit`, `operation`, cloner and terrain
+  `kind`, cloner `angle_degrees`, the probe's `image_rotation_degrees`).
 - `NAMING.md` has the eight scopes, rules N18 to N23, and the picked names per
   system, from a survey of SDL3, Godot 4, Unity, Blender, GLFW, W3C, rapier and
   glTF on 2026-09-25.
@@ -34,9 +38,7 @@ with no alias and no migration, as `one way to do a thing` asks.
 | text `family`, sidecar `family` | `font_family`; text `font` → `bitmap_font` | the widget already says `font_family`; `icons` and `icon` translated in `theme.rs` |
 | text `align` | `text_align` | the widget's name for it |
 | widget `source` (image, card sheet, code language) | `image`, `sheet`, `language` | `source` is raw text in the glossary |
-| `cloner.mode`, terrain `mode` | `kind` | N6; the lint misses schemas built with `format!` |
 | body `mass` | `mass`, the total | every engine but rapier reads it so; collider `mass` overrides |
-| render `layers` | `light_layers` | |
 | every angle in degrees | radians, as `floor_max_angle` | `angle` is radians on `bone2d` and degrees on `cloner` |
 | collider and softbody `half_extents` | `size`, full extents | Godot and Unity; softbody3d's `size` already means a cloth's span |
 | capsule `height`, the straight part | tip to tip | Godot and Unity; the importer copies Godot's today |
@@ -45,8 +47,6 @@ with no alias and no migration, as `one way to do a thing` asks.
 | joint `locked_axes`, `solver` | `lock_translation`, `lock_rotation`, `articulation` | |
 | vehicle `up_axis`, `forward_axis` as 0, 1, 2 | `x`, `y`, `z` | |
 | `add_constant_force` alone | `apply_force`, `apply_force_at_point`, `apply_torque` for one step | Godot and Unity split them |
-| `camera2d.zoom` (pixels per unit) | `pixels_per_unit` | Godot's `zoom` is a multiplier; every other component says `pixels_per_unit` |
-| `boolean.op` | `operation` | D4 |
 | widget `disabled` beside `enabled` elsewhere, `pointer_through` beside `interactive` | one polarity each | |
 | counts typed `float` (`solver_iterations`, `frame`, `resolution`, …) | `int` | |
 | node references as strings (`modifier.bone`, `animation.root_node`, …) | typed `node` | |

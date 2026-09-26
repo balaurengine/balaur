@@ -636,7 +636,7 @@ fn fit_figure(S) {
         Some(i) => {
             crate::selection::only(S, i);
             model::set_transform(S, i, #{ position: [0.6, 0.1, 0.0] });
-            model::set_component_prop(S, "camera2d", "zoom", 150.0);
+            model::set_component_prop(S, "camera2d", "pixels_per_unit", 150.0);
         }
         None => (),
     }

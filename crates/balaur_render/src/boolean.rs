@@ -43,7 +43,7 @@ fn schema(name: &str) -> ComponentDef {
         schema: ComponentDef::parse_schema(
             name,
             &ComponentDef::schema(&[(
-                k::OP,
+                k::OPERATION,
                 &format!(
                     r#"{{ type = "enum", default = "{}", options = [{}], description = "How the children are combined, in the order they are declared" }}"#,
                     csg::words::UNION,
@@ -62,7 +62,7 @@ fn schema(name: &str) -> ComponentDef {
 /// The operation a params table names.
 fn op_from_params(params: &toml::Value) -> Result<Op> {
     let word = params
-        .get(k::OP)
+        .get(k::OPERATION)
         .and_then(toml::Value::as_str)
         .unwrap_or(csg::words::UNION);
     Op::from_word(word).ok_or_else(|| anyhow!("unknown boolean op '{word}'"))
@@ -97,7 +97,10 @@ pub(crate) fn register_boolean3d_component(reg: &mut Registry<'_>) {
         let world = eng.world();
         let boolean = world.get::<&Boolean3d>(entity).ok()?;
         let mut map = toml::map::Map::new();
-        map.insert(k::OP.into(), toml::Value::String(boolean.op.word().into()));
+        map.insert(
+            k::OPERATION.into(),
+            toml::Value::String(boolean.op.word().into()),
+        );
         Some(toml::Value::Table(map))
     });
     reg.register_component("boolean3d", def);
@@ -130,7 +133,10 @@ pub(crate) fn register_boolean2d_component(reg: &mut Registry<'_>) {
         let world = eng.world();
         let boolean = world.get::<&Boolean2d>(entity).ok()?;
         let mut map = toml::map::Map::new();
-        map.insert(k::OP.into(), toml::Value::String(boolean.op.word().into()));
+        map.insert(
+            k::OPERATION.into(),
+            toml::Value::String(boolean.op.word().into()),
+        );
         Some(toml::Value::Table(map))
     });
     reg.register_component("boolean2d", def);

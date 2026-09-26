@@ -717,7 +717,7 @@ mod tests {
     /// vertical 2, outer 3, inner 4.
     fn quartered() -> TileSet {
         set(
-            "texture = \"a.png\"\ntile_size = 8\ncolumns = 8\n\n[[terrains]]\nname = \"grass\"\nmode = \"quarters\"\nfirst_tile = 0",
+            "texture = \"a.png\"\ntile_size = 8\ncolumns = 8\n\n[[terrains]]\nname = \"grass\"\nkind = \"quarters\"\nfirst_tile = 0",
         )
     }
 
@@ -787,7 +787,7 @@ mod tests {
     #[test]
     fn a_terrain_whose_block_is_not_five_in_a_row_names_its_tiles() {
         let named = set(
-            "texture = \"a.png\"\ntile_size = 8\ncolumns = 2\n\n[[terrains]]\nname = \"grass\"\nmode = \"quarters\"\nquarters = [0, 1, 2, 3, 6]",
+            "texture = \"a.png\"\ntile_size = 8\ncolumns = 2\n\n[[terrains]]\nname = \"grass\"\nkind = \"quarters\"\nquarters = [0, 1, 2, 3, 6]",
         );
         let grid = grid(&[&[-1, 0], &[0, 0]]);
         let quarters = grid.quarters(&named, 1, 1).expect("the cell is quartered");
@@ -796,7 +796,7 @@ mod tests {
             "the inner corner is where the sheet keeps it"
         );
         let wrong = toml::from_str::<toml::Value>(
-            "texture = \"a.png\"\ntile_size = 8\ncolumns = 2\n\n[[terrains]]\nname = \"grass\"\nmode = \"quarters\"\nquarters = [0, 1]",
+            "texture = \"a.png\"\ntile_size = 8\ncolumns = 2\n\n[[terrains]]\nname = \"grass\"\nkind = \"quarters\"\nquarters = [0, 1]",
         )
         .unwrap();
         assert!(

@@ -30,7 +30,7 @@ pub struct ReflectionProbe {
     /// crossing it fades back to the sky rather than jumping.
     pub falloff: f32,
     pub intensity: f32,
-    /// Turn about y, in degrees, matching `environment.sky_rotation`.
+    /// Turn about y, in degrees, matching `environment.sky_rotation_degrees`.
     pub rotation: f32,
     /// A baked equirectangular image, project-relative. Empty captures the
     /// scene from the probe's own position instead.
@@ -85,7 +85,7 @@ fn probe_schema() -> String {
     r#"half_extents = { type = "vec3", default = [5.0, 5.0, 5.0], min = 0.0, description = "Half the box this probe speaks for, in world units, centred on the node" }
 falloff = { type = "float", default = 0.5, min = 0.0, description = "How wide the soft edge at the box's face is; a surface crossing it fades back to the sky" }
 intensity = { type = "float", default = 1.0, min = 0.0, description = "Brightness of what the probe reflects" }
-rotation = { type = "float", default = 0.0, description = "Turn of the captured map about y, in degrees" }
+image_rotation_degrees = { type = "float", default = 0.0, description = "Turn of the captured map about y, in degrees" }
 image = { type = "string", default = "", description = "Baked equirectangular image, project-relative. Empty captures the scene from the node's own position" }"#
         .to_string()
 }
@@ -116,7 +116,7 @@ pub(crate) fn register_reflection_probe_component(reg: &mut Registry<'_>) {
                     half_extents: Vec3::new(extent(0, 5.0), extent(1, 5.0), extent(2, 5.0)),
                     falloff: num(k::FALLOFF, 0.5),
                     intensity: num(k::INTENSITY, 1.0),
-                    rotation: num(k::ROTATION, 0.0),
+                    rotation: num(k::IMAGE_ROTATION_DEGREES, 0.0),
                     image: prop_str(params, k::IMAGE).to_string(),
                 };
                 let mut world = eng.world_mut();
@@ -156,7 +156,7 @@ pub(crate) fn register_reflection_probe_component(reg: &mut Registry<'_>) {
                     toml::Value::Float(f64::from(probe.intensity)),
                 );
                 map.insert(
-                    k::ROTATION.into(),
+                    k::IMAGE_ROTATION_DEGREES.into(),
                     toml::Value::Float(f64::from(probe.rotation)),
                 );
                 map.insert(k::IMAGE.into(), toml::Value::String(probe.image.clone()));

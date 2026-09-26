@@ -50,4 +50,4 @@ parent = "Head"
 kind = "point"
 color = "#ffe1a8"
 intensity = 6
-radius = 12
+range = 12

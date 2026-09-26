@@ -58,7 +58,7 @@ fn volume(app: &App, entity: Entity) -> f64 {
 fn two_cubes(app: &App, op: &str) -> (Entity, Entity, Entity) {
     let root = app.engine.root();
     let owner = node(app, "Cut", root);
-    add(app, owner, "boolean3d", &format!("op = \"{op}\""));
+    add(app, owner, "boolean3d", &format!("operation = \"{op}\""));
     let a = node(app, "A", owner);
     add(
         app,
@@ -173,9 +173,9 @@ fn a_boolean_can_take_another_booleans_result() {
     let (_dir, mut app) = app();
     let root = app.engine.root();
     let outer = node(&app, "Outer", root);
-    add(&app, outer, "boolean3d", "op = \"union\"");
+    add(&app, outer, "boolean3d", "operation = \"union\"");
     let inner = node(&app, "Inner", outer);
-    add(&app, inner, "boolean3d", "op = \"union\"");
+    add(&app, inner, "boolean3d", "operation = \"union\"");
     let a = node(&app, "A", inner);
     add(
         &app,
@@ -206,7 +206,7 @@ fn a_two_dimensional_boolean_fills_the_shapes_combined() {
     let (_dir, mut app) = app();
     let root = app.engine.root();
     let owner = node(&app, "Cut", root);
-    add(&app, owner, "boolean2d", "op = \"difference\"");
+    add(&app, owner, "boolean2d", "operation = \"difference\"");
     let a = node(&app, "A", owner);
     add(
         &app,
@@ -245,6 +245,6 @@ fn an_unknown_operation_is_refused_rather_than_guessed() {
     let (_dir, app) = app();
     let root = app.engine.root();
     let owner = node(&app, "Cut", root);
-    let params: toml::Value = toml::from_str("op = \"smoosh\"").unwrap();
+    let params: toml::Value = toml::from_str("operation = \"smoosh\"").unwrap();
     assert!(components::add(&app.engine, owner, "boolean3d", Some(&params)).is_err());
 }

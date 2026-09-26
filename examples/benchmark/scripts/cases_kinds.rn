@@ -25,14 +25,14 @@ pub fn all() {
             points: [[-1.5, -1.5], [1.5, -1.5], [1.5, 1.5], [-1.5, 1.5]],
         }),
         kind("text2d", 1000, 2, "text2d", #{ text: "balaur", pixels_per_unit: 32.0 }),
-        kind("light2d", 200, 2, "light2d", #{ kind: "point", radius: 12.0 }),
+        kind("light2d", 200, 2, "light2d", #{ kind: "point", range: 12.0 }),
         kind("particles2d", 200, 2, "particles", #{ rate: 20.0, lifetime: 1.0, speed: 4.0 }),
         // 3D: the same question for meshes and lights.
         kind("shape3d", COUNT_3D, 3, "shape3d", #{ kind: "sphere", radius: 0.6 }),
         kind("shape3d_cuboid", COUNT_3D, 3, "shape3d", #{ kind: "box", size: [1.0, 1.0, 1.0] }),
         kind("text3d", 500, 3, "text3d", #{ text: "balaur", pixels_per_unit: 64.0 }),
-        kind("light3d", 200, 3, "light3d", #{ kind: "point", range: 8.0, shadows: false }),
-        kind("light3d_shadow", 40, 3, "light3d", #{ kind: "point", range: 8.0, shadows: true }),
+        kind("light3d", 200, 3, "light3d", #{ kind: "point", range: 8.0, shadow_enabled: false }),
+        kind("light3d_shadow", 40, 3, "light3d", #{ kind: "point", range: 8.0, shadow_enabled: true }),
         // Neither: the node itself, and what a component with no drawing costs.
         bare(),
         kind("timer", COUNT, 2, "timer", #{ wait_time: 1.0, running: true }),
