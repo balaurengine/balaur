@@ -1719,81 +1719,157 @@ pub fn array_mesh() {
     mesh
 }
 
-/// Godot's `MultiMesh.new()`: one mesh drawn once per instance. The node
-/// holding it is a `cloner` listing a copy per instance, over one `polygon`
-/// child carrying the mesh, so every instance is one draw.
+/// Godot's `MultiMesh.new()`: the resource a `MultiMeshInstance2D` or
+/// `MultiMeshInstance3D` draws. `multimesh = mm` gives the node a
+/// `multimesh2d` or `multimesh3d` over it; every call after that forwards to
+/// the node's handle, and one made before waits here until then.
 pub fn multimesh() {
-    let mm = #{ "__multimesh": true, "mesh": (), "instance_count": 0, "node": (), "poses": [], "tints": [] };
+    let mm = #{ "__multimesh": true, "mesh": (), "instance_count": 0, "node": (), "pending": [] };
     mm["set_instance_transform_2d"] = |idx, t| {
-        multimesh_write(mm, idx, pose_of(t), ());
+        mm["flat"] = true;
+        multimesh_write(mm, ["transform", idx, balaur_transform_of(t)]);
+    };
+    mm["set_instance_transform"] = |idx, t| {
+        mm["flat"] = false;
+        multimesh_write(mm, ["transform", idx, t]);
     };
     mm["set_instance_color"] = |idx, c| {
-        multimesh_write(mm, idx, (), color_list(c));
+        multimesh_write(mm, ["color", idx, color_of(c)]);
     };
+    mm["set_instance_custom_data"] = |idx, c| {
+        multimesh_write(mm, ["custom", idx, color_of(c)]);
+    };
+    mm["get_instance_transform_2d"] = |idx| {
+        godot_transform_of(multimesh_handle(mm).instance_transform(idx))
+    };
+    mm["get_instance_color"] = |idx| multimesh_handle(mm).instance_color(idx);
+    mm["get_instance_custom_data"] = |idx| multimesh_handle(mm).instance_custom_data(idx);
     mm
 }
 
-/// Give the node its cloner and the child that draws the mesh.
-pub fn multimesh_attach(mm, node) {
-    mm["node"] = node;
-    node.patch_component("cloner", #{ "kind": "list", "copies": [] });
-    let mesh = mm["mesh"];
-    if is_nil(mesh) || !is_nil(node.get_node("mesh")) {
-        return;
-    }
-    let child = node.add_child("mesh");
-    let shape = #{ "type": "mesh", "positions": mesh["positions"], "indices": mesh["indices"] };
-    child.patch_component("polygon", #{ "mesh": shape });
-}
-
-/// One instance's pose or tint, the other kept from before; past the
-/// instance count it waits until the count reaches it.
-fn multimesh_write(mm, idx, pose, tint) {
-    while mm["poses"].len() <= idx {
-        mm["poses"].push(#{ "position": [0.0, 0.0, 0.0], "rotation_euler": [0.0, 0.0, 0.0], "scale": [1.0, 1.0, 1.0] });
-        mm["tints"].push([1.0, 1.0, 1.0, 1.0]);
-    }
-    if !is_nil(pose) {
-        mm["poses"][idx] = pose;
-    }
-    if !is_nil(tint) {
-        mm["tints"][idx] = tint;
-    }
-    let node = mm["node"];
-    if node is balaur::Node && idx < mm["instance_count"] {
-        node.cloner.set_copy(idx, multimesh_copy(mm, idx));
-    }
-}
-
-fn multimesh_copy(mm, idx) {
-    let copy = mm["poses"][idx];
-    #{ "position": copy["position"], "rotation_euler": copy["rotation_euler"], "scale": copy["scale"], "tint": mm["tints"][idx] }
-}
-
-/// A Godot `Transform2D` in pixels as a listed copy's keys, in units.
-fn pose_of(t) {
+/// A Godot `Transform2D`, in pixels with y down, as the engine's own.
+fn balaur_transform_of(t) {
     let c = t.to_cols_array();
     let sx = math::sqrt(c[0] * c[0] + c[1] * c[1]);
     let sy = math::sqrt(c[2] * c[2] + c[3] * c[3]);
     let turn = -math::atan2(c[1], c[0]);
-    #{ "position": units_of(vec2(c[4], c[5])), "rotation_euler": [0.0, 0.0, turn], "scale": [sx, sy, 1.0] }
+    let at = units_of(vec2(c[4], c[5]));
+    balaur::Transform2d::from_scale_angle_translation(vec2(sx, sy), turn, vec2(at[0], at[1]))
 }
 
-/// A new instance count: the cloner lists that many copies, those written
-/// already where they were.
-pub fn multimesh_count(mm, count) {
-    mm["instance_count"] = count;
+/// The engine's `Transform2d` back in Godot's pixels, y down.
+fn godot_transform_of(t) {
+    let (scale, turn, at) = t.to_scale_angle_translation();
+    balaur::Transform2d::from_scale_angle_translation(scale, -turn, vec2(at.x * PIXELS, -at.y * PIXELS))
+}
+
+/// Whether the node draws the multimesh flat: a component the scene gave it
+/// says so first, then `transform_format`, then the calls made so far.
+fn multimesh_flat(mm, node) {
+    if node.has_component("multimesh2d") {
+        return true;
+    }
+    if node.has_component("multimesh3d") {
+        return false;
+    }
+    let format = get(mm, "transform_format", ());
+    if !is_nil(format) {
+        return format == 0;
+    }
+    get(mm, "flat", true)
+}
+
+/// The mesh a `MultiMesh` names, as the asset's inline `mesh`; one it has not
+/// been given yet is empty until `mm.mesh` names one.
+fn multimesh_mesh(mm, flat) {
+    let mesh = mm["mesh"];
+    if is_nil(mesh) || !(mesh is Object) || !mesh.contains_key("__mesh") {
+        return #{ "type": "mesh", "positions": [], "indices": [] };
+    }
+    let positions = if flat {
+        mesh["positions"]
+    } else {
+        mesh["positions"].iter().map(|p| [p[0], p[1], 0.0]).collect::<Vec>()
+    };
+    #{ "type": "mesh", "positions": positions, "indices": mesh["indices"] }
+}
+
+fn multimesh_handle(mm) {
+    let node = mm["node"];
+    if mm["flat"] { node.multimesh2d } else { node.multimesh3d }
+}
+
+/// Give the node its component over the multimesh, then replay what was set
+/// on it before.
+pub fn multimesh_attach(mm, node) {
+    mm["node"] = node;
+    let flat = multimesh_flat(mm, node);
+    mm["flat"] = flat;
+    let component = if flat { "multimesh2d" } else { "multimesh3d" };
+    node.patch_component(component, #{ "source": #{ "type": "multimesh", "mesh": multimesh_mesh(mm, flat) } });
+    let handle = multimesh_handle(mm);
+    handle.set_instance_count(mm["instance_count"]);
+    let visible = get(mm, "visible_instance_count", ());
+    if !is_nil(visible) {
+        handle.set_visible_instance_count(visible);
+    }
+    for write in mm["pending"] {
+        multimesh_apply(handle, write);
+    }
+    mm["pending"] = [];
+}
+
+/// One write: straight to the node's handle once attached, queued before.
+fn multimesh_write(mm, write) {
+    let node = mm["node"];
+    if !(node is balaur::Node) {
+        mm["pending"].push(write);
+        return;
+    }
+    // A 2D transform on a node attached as 3D, or the reverse: the node was
+    // attached before the calls said which it draws, so it moves over.
+    let flat = mm["flat"];
+    if write[0] == "transform" && flat != node.has_component("multimesh2d") {
+        let instances = if flat { node.multimesh3d.instances() } else { node.multimesh2d.instances() };
+        node.remove_component(if flat { "multimesh3d" } else { "multimesh2d" });
+        multimesh_attach(mm, node);
+        multimesh_handle(mm).set_instances(instances);
+    }
+    multimesh_apply(multimesh_handle(mm), write);
+}
+
+fn multimesh_apply(handle, write) {
+    let idx = write[1];
+    // Godot refuses an index past the count; a port that wrote one before
+    // setting the count gets the count grown to it instead.
+    if idx >= handle.instance_count() {
+        handle.set_instance_count(idx + 1);
+    }
+    match write[0] {
+        "transform" => handle.set_instance_transform(idx, write[2]),
+        "color" => handle.set_instance_color(idx, write[2]),
+        _ => handle.set_instance_custom_data(idx, write[2]),
+    }
+}
+
+/// A `MultiMesh` property set: the count, the visible count, the mesh and the
+/// format, each reaching the node once attached.
+pub fn multimesh_set(mm, name, value) {
+    mm[name] = value;
     let node = mm["node"];
     if !(node is balaur::Node) {
         return;
     }
-    let copies = [];
-    let idx = 0;
-    while idx < count && idx < mm["poses"].len() {
-        copies.push(multimesh_copy(mm, idx));
-        idx += 1;
+    match name {
+        "instance_count" => multimesh_handle(mm).set_instance_count(value),
+        "visible_instance_count" => multimesh_handle(mm).set_visible_instance_count(value),
+        "mesh" => {
+            let instances = multimesh_handle(mm).instances();
+            multimesh_attach(mm, node);
+            multimesh_handle(mm).set_instances(instances);
+        }
+        _ => {}
     }
-    node.patch_component("cloner", #{ "copies": copies });
 }
 
 /// `local.field = value` on a value a script holds: the changed value, the

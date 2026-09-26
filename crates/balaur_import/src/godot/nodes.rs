@@ -297,6 +297,8 @@ pub(crate) fn map(class: &str, section: &Section, parent: &str, res: &Resources<
             out.note("AnimatedSprite2D: its SpriteFrames need converting to a `sprite_sheet`");
         }
         "Polygon2D" => polygon(section, res, &mut out),
+        "MultiMeshInstance2D" => crate::godot::multimesh::instance_2d(section, res, &mut out),
+        "MultiMeshInstance3D" => crate::godot::multimesh::instance_3d(section, res, &mut out),
         "Line2D" => line(section, &mut out),
         "Bone2D" => bone(section, &mut out),
         "Camera2D" => camera(section, &mut out),

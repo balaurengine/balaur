@@ -82,6 +82,8 @@ struct ShaderGpuData3d {
     /// over. The window remakes the reflection's target on every resize, so
     /// the group has to be built again when the count moves.
     mirror_generation: Option<u64>,
+    /// Each instance's custom data, for a material that reads it.
+    custom: crate::multimesh::CustomBuffer,
 }
 
 impl GpuData for ShaderGpuData3d {
@@ -114,6 +116,8 @@ pub(crate) struct ShaderMaterial3d {
     /// Whether the pipeline carries the per-vertex colour attribute, and so
     /// whether a draw has to bind one.
     vertex_color: bool,
+    /// The same for each instance's custom data.
+    instance_custom: bool,
     /// Whether the frame being drawn is a mirror's or a probe's capture. A
     /// mirror must not draw into its own picture, so it stands out of one.
     capturing: Cell<bool>,
@@ -153,7 +157,13 @@ const COPY_DEFORM: [wgpu::VertexAttribute; 3] = [
 /// the `vertex_color` feature.
 const VERTEX_TINT: [wgpu::VertexAttribute; 1] = [attribute(8, wgpu::VertexFormat::Float32x4)];
 
-fn vertex_layouts(vertex_color: bool) -> Vec<Option<wgpu::VertexBufferLayout<'static>>> {
+/// One instance's custom data, behind the `instance_custom` feature.
+const COPY_CUSTOM: [wgpu::VertexAttribute; 1] = [attribute(9, wgpu::VertexFormat::Float32x4)];
+
+fn vertex_layouts(
+    vertex_color: bool,
+    instance_custom: bool,
+) -> Vec<Option<wgpu::VertexBufferLayout<'static>>> {
     const VEC3: u64 = std::mem::size_of::<[f32; 3]>() as u64;
     const VEC2: u64 = std::mem::size_of::<[f32; 2]>() as u64;
     const VEC4: u64 = std::mem::size_of::<[f32; 4]>() as u64;
@@ -179,10 +189,13 @@ fn vertex_layouts(vertex_color: bool) -> Vec<Option<wgpu::VertexBufferLayout<'st
         per_copy(VEC4, &COPY_COLOR),
         per_copy(3 * VEC3, &COPY_DEFORM),
     ];
-    // Last, so a material that did not ask for it leaves every other slot
-    // where it was.
+    // Last, so a material that did not ask for either leaves every other
+    // slot where it was.
     if vertex_color {
         layouts.push(per_vertex(VEC4, &VERTEX_TINT));
+    }
+    if instance_custom {
+        layouts.push(per_copy(VEC4, &COPY_CUSTOM));
     }
     layouts
 }
@@ -208,14 +221,14 @@ fn build_pipeline(
     shader: std::rc::Rc<wgpu::ShaderModule>,
     cull: Option<wgpu::Face>,
     label: &'static str,
-    vertex_color: bool,
+    (vertex_color, instance_custom): (bool, bool),
 ) -> PipelineCache {
     PipelineCache::new(move |sample_count| {
         crate::pipeline::material_pipeline(
             label,
             &layout,
             &shader,
-            &vertex_layouts(vertex_color),
+            &vertex_layouts(vertex_color, instance_custom),
             cull,
             &crate::pipeline::Depth::Tested,
             sample_count,
@@ -239,7 +252,12 @@ fn build_prepass(
     let build = |cull| {
         let (layout, shader) = (layout.clone(), shader.clone());
         PipelineCache::new(move |_| {
-            crate::pipeline::prepass_pipeline(&layout, &shader, &vertex_layouts(vertex_color), cull)
+            crate::pipeline::prepass_pipeline(
+                &layout,
+                &shader,
+                &vertex_layouts(vertex_color, false),
+                cull,
+            )
         })
     };
     Ok(Prepass {
@@ -292,14 +310,14 @@ impl ShaderMaterial3d {
             shader.clone(),
             Some(wgpu::Face::Back),
             "material3d_pipeline_cull",
-            compiled.vertex_color,
+            (compiled.vertex_color, compiled.instance_custom),
         );
         let no_cull = build_pipeline(
             pipeline_layout.clone(),
             shader,
             None,
             "material3d_pipeline_no_cull",
-            compiled.vertex_color,
+            (compiled.vertex_color, compiled.instance_custom),
         );
         // A prepass that will not link is a material that contributes no
         // geometry to the screen-space passes, not a material that fails to
@@ -321,6 +339,7 @@ impl ShaderMaterial3d {
             frame_counter: Cell::new(0),
             last_frame: Cell::new(u64::MAX),
             vertex_color: compiled.vertex_color,
+            instance_custom: compiled.instance_custom,
             capturing: Cell::new(false),
             slots,
         }
@@ -392,6 +411,7 @@ impl Material3d for ShaderMaterial3d {
             texture_bind_group: None,
             texture_ptr: 0,
             mirror_generation: None,
+            custom: crate::multimesh::CustomBuffer::default(),
         })
     }
 
@@ -590,8 +610,15 @@ impl Material3d for ShaderMaterial3d {
         render_pass.set_vertex_buffer(3, copy_offsets.slice(..));
         render_pass.set_vertex_buffer(4, copy_colors.slice(..));
         render_pass.set_vertex_buffer(5, copy_deforms.slice(..));
+        let mut slot = 6;
         if let Some(tints) = tints.as_ref() {
-            render_pass.set_vertex_buffer(6, tints.slice(..));
+            render_pass.set_vertex_buffer(slot, tints.slice(..));
+            slot += 1;
+        }
+        // The prepass pipeline reads no custom data, so its draw binds none.
+        if self.instance_custom && context.phase != RenderPhase::Prepass {
+            let custom = gpu_data.custom.fill(data.user_data(), copies as usize);
+            render_pass.set_vertex_buffer(slot, custom.slice(..));
         }
         render_pass.set_index_buffer(faces.slice(..), VERTEX_INDEX_FORMAT);
         render_pass.draw_indexed(0..mesh.num_indices(), 0, 0..copies);

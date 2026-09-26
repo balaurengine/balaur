@@ -39,6 +39,9 @@ struct VertexInput {
     @location(3) instance_color: vec4<f32>,
     @location(4) deformation_0: vec2<f32>,
     @location(5) deformation_1: vec2<f32>,
+    // A multimesh instance's four floats of custom data, bound only with
+    // `features = { instance_custom = true }`; zero on anything else.
+    @if(instance_custom) @location(6) instance_custom: vec4<f32>,
 }
 
 struct VertexOutput {
@@ -79,6 +82,12 @@ fn texture_pixel_size() -> vec2<f32> {
 // One pixel of the frame, in the units `screen_uv` answers in.
 fn screen_pixel_size() -> vec2<f32> {
     return vec2<f32>(1.0, 1.0) / frame.clock.yz;
+}
+
+// This instance's custom data: what a multimesh instance's `custom` holds,
+// and zero for a node drawn once. Only with `features = { instance_custom = true }`.
+@if(instance_custom) fn instance_custom(in: VertexInput) -> vec4<f32> {
+    return in.instance_custom;
 }
 
 // The node's tint times the instance's own.

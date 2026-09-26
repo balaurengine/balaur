@@ -1819,6 +1819,13 @@ fn component_sections(S, k, filter) {
                 property_row(S, k, comp, prop, schema[prop], data);
             }
         }
+        if comp == "multimesh3d" || comp == "multimesh2d" {
+            verb_row(S, "Instances", [#{
+                kind: "button", role: "action_form_secondary", text: "Populate…",
+                tooltip: "Write the asset's instances over a surface, or as a row, a ring or a grid",
+                on: |_| { crate::populate::open(S); },
+            }]);
+        }
     }
     if drew == 0 {
         empty_note(S, k, all.len(), query);

@@ -105,7 +105,7 @@ heights = [0, 0, 0, 0, -1, 0, 0, 0, 0]
 
 ### `material`
 
-Files: `materials/`. Used by: `material.source`, `mesh.material`, `shape2d.material`, `shape3d.material`, `sprite.material`, `tilemap.material`.
+Files: `materials/`. Used by: `material.source`, `mesh.material`, `multimesh3d.material`, `shape2d.material`, `shape3d.material`, `sprite.material`, `tilemap.material`.
 
 A shader and its values. `shader` names a `.wesl` file, `[features]` sets its `@if` flags, `[params]` fills its `Params` struct by field name.
 
@@ -146,7 +146,7 @@ id = "blade"
 type = "mesh"
 source = "models/blade.obj"      # imported...
 part = "stone"                   # glTF only: just this material's triangles
-# ...or a primitive, one of ball, cuboid, capsule, cylinder, cone, plane,
+# ...or a primitive, one of sphere, box, capsule, cylinder, cone, plane,
 # torus, pyramid, prism, tube:
 kind = "torus"
 radius = 1.0
@@ -161,6 +161,23 @@ indices = [[0, 1, 2]]
 colors = [[1, 0, 0, 1], [0, 1, 0, 1], [0, 0, 1, 1]]   # a tint per vertex
 skin = { bones = [{ path = "Rig/Hip", weights = [1, 1, 1] }] }   # one weight per vertex
 morphs = [{ name = "smile", positions = [[0, 0, 0], [0.1, 0, 0], [0, 0.1, 0]] }]   # a clip drives it as mesh/morph.smile
+```
+
+### `multimesh`
+
+Files: `multimeshes/`. Used by: `multimesh2d.source`, `multimesh3d.source`.
+
+Godot's `MultiMesh`: a mesh and the instances it is drawn at, for `multimesh3d.source` and `multimesh2d.source`. Each instance is a transform in the node's space, a `color` and four floats of `custom` data a material's shader reads. `visible_instance_count` draws the first so many; -1 draws them all.
+
+```toml
+type = "multimesh"
+mesh = "models/post.toml"          # a mesh asset, or an inline { type = "mesh", ... }
+visible_instance_count = -1
+instances = [                      # a 2D instance writes [x, y] and turns about z
+  { position = [0.0, 0.0, 0.0] },
+  { position = [0.9, 0.0, 0.0], rotation_euler = [0.0, 0.5, 0.0], scale = [1.0, 2.0, 1.0] },
+  { position = [1.8, 0.0, 0.0], color = "#ff8080", custom = [1.0, 0.0, 0.0, 0.0] },
+]
 ```
 
 ### `path2d`
@@ -275,7 +292,7 @@ blend_curve = [[0.0, 0.0], [0.3, 0.8], [1.0, 1.0]]   # [u, weight] points, in pl
 
 ### `texture`
 
-Files: `textures/`. Used by: `mesh.texture`, `particles.texture`, `polygon.texture`, `shape2d.texture`, `sprite.texture`.
+Files: `textures/`. Used by: `mesh.texture`, `multimesh2d.texture`, `multimesh3d.texture`, `particles.texture`, `polygon.texture`, `shape2d.texture`, `sprite.texture`.
 
 An image and the import settings it is read with. A texture property takes a plain image path, which reads the image with its sidecar; this is for one use of a picture that reads it differently. Any key the image's sidecar takes may be written here, and wins over it.
 

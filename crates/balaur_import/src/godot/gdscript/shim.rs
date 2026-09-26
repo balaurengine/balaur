@@ -239,10 +239,11 @@ mod tests {
         );
     }
 
-    /// A multimesh is its node's listed cloner over one `polygon` child: each
-    /// instance a copy, placed from a transform a script built axis by axis.
+    /// A multimesh is its node's `multimesh2d`: each instance placed from a
+    /// transform a script built axis by axis, in Godot's pixels, and read
+    /// back the same way.
     #[test]
-    fn a_multimesh_instance_is_a_listed_copy_where_its_transform_puts_it() {
+    fn a_multimesh_instance_lands_where_its_transform_puts_it() {
         let dir = tempfile::tempdir().unwrap();
         let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
         put(
@@ -264,6 +265,9 @@ mod tests {
                 "    (mesh[\"add_surface_from_arrays\"])(3, [tri]);",
                 "    let mm = (gd.multimesh)();",
                 "    (gd.set_field)(mm, \"mesh\", mesh);",
+                "    let early = (gd.transform2d)([]);",
+                "    early = (gd.with_field)(early, \"origin\", (gd.vec2)(0.0, 100.0));",
+                "    (mm[\"set_instance_transform_2d\"])(0, early);",
                 "    (gd.set_field)(this.node, \"multimesh\", mm);",
                 "    (gd.set_field)(mm, \"instance_count\", 2);",
                 "    let t = (gd.transform2d)([]);",
@@ -271,10 +275,12 @@ mod tests {
                 "    t = (gd.with_field)(t, \"origin\", (gd.vec2)(300.0, 0.0));",
                 "    (mm[\"set_instance_transform_2d\"])(1, t);",
                 "    (mm[\"set_instance_color\"])(1, (gd.color)(1.0, 0.0, 0.0, 0.5));",
-                "    let copies = this.node.get_component(\"cloner\")[\"copies\"];",
-                "    let copy = copies[1];",
-                "    let polygon = this.node.get_node(\"mesh\").has_component(\"polygon\");",
-                "    if polygon && copies.len() == 2 && copy[\"position\"][0] == 3.0 && copy[\"scale\"][0] == 2.0 && copy[\"tint\"][3] == 0.5 {",
+                "    let handle = this.node.multimesh2d;",
+                "    let (scale, turn, at) = handle.instance_transform(1).to_scale_angle_translation();",
+                "    let (_, _, first) = handle.instance_transform(0).to_scale_angle_translation();",
+                "    let back = (mm[\"get_instance_transform_2d\"])(1).to_cols_array();",
+                "    let alpha = handle.instance_color(1).a;",
+                "    if handle.instance_count() == 2 && at.x == 3.0 && scale.x == 2.0 && first.y == -1.0 && back[4] == 300.0 && alpha == 0.5 {",
                 "        this.node.set_visible(false);",
                 "    }",
                 "}",
@@ -294,7 +300,7 @@ mod tests {
                 .get::<&balaur_core::scene::Appearance>(probe)
                 .unwrap()
                 .visible,
-            "the probe hid itself only if copy 1 sits at x 3, scaled 2, half see-through"
+            "the probe hid itself only if instance 1 sits at x 3, scaled 2, half see-through, and the early write landed at y -1"
         );
     }
 

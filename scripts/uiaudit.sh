@@ -196,6 +196,7 @@ shot 36-menu            examples/hello      "scene,select:Spinner,menu"
 shot 37-focus           examples/hello      "script,select:Spinner,focus"
 shot 42-theme           examples/hello      "scene,theme:controls:chip"
 shot 43-theme-light     examples/hello      "scene,light,theme:colors"
+shot 44-populate        examples/objects    "scene,select:Field,populate"
 # A small window has few design pixels, which is where the sheets used to
 # stack in the corner. Two scales stand in for it.
 shot 29-narrow          examples/angrynerds "scene,select:Bird,scale:1.8"

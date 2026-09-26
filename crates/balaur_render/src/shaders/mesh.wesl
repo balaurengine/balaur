@@ -122,6 +122,9 @@ struct VertexInput {
     // One colour per vertex -- what a glTF's COLOR_0 carries -- bound only
     // with `features = { vertex_color = true }`.
     @if(vertex_color) @location(8) vertex_tint: vec4<f32>,
+    // A multimesh instance's four floats of custom data, bound only with
+    // `features = { instance_custom = true }`; zero on anything else.
+    @if(instance_custom) @location(9) copy_custom: vec4<f32>,
 }
 
 struct VertexOutput {
@@ -405,6 +408,12 @@ fn place_deformed(position: vec3<f32>, normal: vec3<f32>, uv: vec2<f32>) -> Vert
 // white, so asking costs a material nothing but the attribute.
 @if(vertex_color) fn vertex_color(in: VertexInput) -> vec4<f32> {
     return in.vertex_tint;
+}
+
+// This copy's custom data: what a multimesh instance's `custom` holds, and
+// zero for a mesh drawn once. Only with `features = { instance_custom = true }`.
+@if(instance_custom) fn copy_custom(in: VertexInput) -> vec4<f32> {
+    return in.copy_custom;
 }
 
 // Which copy of the mesh this vertex belongs to, counting from zero. One

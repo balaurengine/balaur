@@ -163,6 +163,8 @@ pub struct Compiled {
     /// Whether the material asked for a colour per vertex, which decides
     /// whether its pipeline carries the attribute at all.
     pub vertex_color: bool,
+    /// Whether it asked for each instance's custom data, the same way.
+    pub instance_custom: bool,
 }
 
 /// Link `material`'s shader and pack its values against what it declares.
@@ -211,5 +213,6 @@ pub fn compile_with(
         params,
         probes,
         vertex_color: material.reads_vertex_color(),
+        instance_custom: material.reads_instance_custom(),
     })
 }

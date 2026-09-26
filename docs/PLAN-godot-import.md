@@ -43,7 +43,7 @@ One real game, counted rather than guessed.
 | `RichTextLabel` | 7 | a `label` with `markup = true` |
 | `ProgressBar`, `HSlider`, `OptionButton` | 7, 4, 8 | `progress`, `slider`, `dropdown` |
 | `CanvasLayer` | 6 | `ui.set_widget_layer` and `node.z_index` |
-| `MultiMeshInstance2D`, `MultiMesh` | 3, 3 | `cloner` |
+| `MultiMeshInstance2D`, `MultiMeshInstance3D`, `MultiMesh` | 3, 0, 3 | `multimesh2d` and `multimesh3d` over an inline `multimesh`, its `buffer` read into instances |
 | `RemoteTransform2D` | 4 | `modifier2d` of kind `follow` |
 | `AnimationTree`, `AnimationNodeStateMachine` | 2, 2 | `state_machine` over a `state_machine` asset |
 | `Window`, `SpinBox`, `TextureButton` | 1, 1, 1 | `window`, `field` with `numeric`, an `image` with `on_click` |
@@ -460,7 +460,7 @@ the second run that day, largest first:
 | Unequal margins on a MarginContainer | 5 | built |
 | `z_index`, `scale` on a Control, `update_position` as tracks | 16 tracks | planned |
 | Built-in signals nothing here emits: `gui_input`, `visibility_changed`, `tab_changed` | 7 | their rows wait on a script's `emit` |
-| `MultiMeshInstance2D`, `VSplitContainer`, `AnimatedSprite2D` | 5 | the `cloner`, a split kind, a `sprite_sheet` |
+| `VSplitContainer`, `AnimatedSprite2D` | 2 | a split kind, a `sprite_sheet` |
 
 What is left between this table and a game that plays, in order, is
 `docs/PLAN-polyglot-port.md`.

@@ -18,7 +18,11 @@
     },
     "mesh": {
       "directory": "models",
-      "doc": "Geometry for `mesh` properties: a `source` file, a primitive `kind`, or its own `positions` and `indices`. `skin`, `colors` and `morphs` add bone weights, vertex tints and blend shapes.\n\n```toml\n[[assets]]\nid = \"blade\"\ntype = \"mesh\"\nsource = \"models/blade.obj\"      # imported...\npart = \"stone\"                   # glTF only: just this material's triangles\n# ...or a primitive, one of ball, cuboid, capsule, cylinder, cone, plane,\n# torus, pyramid, prism, tube:\nkind = \"torus\"\nradius = 1.0\ntube_radius = 0.3\n# ...or a word, shaped and filled from the project's fonts:\nkind = \"text\"\ntext = \"BALAUR\"\nsize = 1.0\n# ...or, instead of any of those:\npositions = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]\nindices = [[0, 1, 2]]\ncolors = [[1, 0, 0, 1], [0, 1, 0, 1], [0, 0, 1, 1]]   # a tint per vertex\nskin = { bones = [{ path = \"Rig/Hip\", weights = [1, 1, 1] }] }   # one weight per vertex\nmorphs = [{ name = \"smile\", positions = [[0, 0, 0], [0.1, 0, 0], [0, 0.1, 0]] }]   # a clip drives it as mesh/morph.smile\n```"
+      "doc": "Geometry for `mesh` properties: a `source` file, a primitive `kind`, or its own `positions` and `indices`. `skin`, `colors` and `morphs` add bone weights, vertex tints and blend shapes.\n\n```toml\n[[assets]]\nid = \"blade\"\ntype = \"mesh\"\nsource = \"models/blade.obj\"      # imported...\npart = \"stone\"                   # glTF only: just this material's triangles\n# ...or a primitive, one of sphere, box, capsule, cylinder, cone, plane,\n# torus, pyramid, prism, tube:\nkind = \"torus\"\nradius = 1.0\ntube_radius = 0.3\n# ...or a word, shaped and filled from the project's fonts:\nkind = \"text\"\ntext = \"BALAUR\"\nsize = 1.0\n# ...or, instead of any of those:\npositions = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]\nindices = [[0, 1, 2]]\ncolors = [[1, 0, 0, 1], [0, 1, 0, 1], [0, 0, 1, 1]]   # a tint per vertex\nskin = { bones = [{ path = \"Rig/Hip\", weights = [1, 1, 1] }] }   # one weight per vertex\nmorphs = [{ name = \"smile\", positions = [[0, 0, 0], [0.1, 0, 0], [0, 0.1, 0]] }]   # a clip drives it as mesh/morph.smile\n```"
+    },
+    "multimesh": {
+      "directory": "multimeshes",
+      "doc": "Godot's `MultiMesh`: a mesh and the instances it is drawn at, for `multimesh3d.source` and `multimesh2d.source`. Each instance is a transform in the node's space, a `color` and four floats of `custom` data a material's shader reads. `visible_instance_count` draws the first so many; -1 draws them all.\n\n```toml\ntype = \"multimesh\"\nmesh = \"models/post.toml\"          # a mesh asset, or an inline { type = \"mesh\", ... }\nvisible_instance_count = -1\ninstances = [                      # a 2D instance writes [x, y] and turns about z\n  { position = [0.0, 0.0, 0.0] },\n  { position = [0.9, 0.0, 0.0], rotation_euler = [0.0, 0.5, 0.0], scale = [1.0, 2.0, 1.0] },\n  { position = [1.8, 0.0, 0.0], color = \"#ff8080\", custom = [1.0, 0.0, 0.0, 0.0] },\n]\n```"
     },
     "path2d": {
       "directory": "paths",
@@ -70,7 +74,6 @@
     "camera3d": "The perspective camera the scene is drawn from. `look_at` aims it, and the last `current` camera wins.",
     "character2d": "A 2D character controller: `physics2d.move_character` slides the node along walls and steps it up ledges. Needs a `collider2d`; a `kinematic` `body2d` lets it push bodies.",
     "character3d": "A 3D character controller: `physics3d.move_character` slides the node along walls and steps it up ledges. Needs a `collider3d`; a `kinematic` `body3d` lets it push bodies.",
-    "cloner": "Draws the node's subtree many times; physics and scripts still see one node. `kind` is `linear`, `radial` or `grid`, or `list` for the `copies` a scene or a script places and tints one by one; `seed` and `random` scatter the copies.",
     "collider2d": "The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2d` or the nearest body above it; without one it is static geometry.",
     "collider3d": "The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3d` or the nearest body above it; without one it is static geometry.",
     "environment": "The scene's atmosphere: `sky`, `ambient_color`, `fog_mode`, `exposure`, `tonemap`, colour grading and the shadow budget. The last `current` one wins; per-view effects stay on `camera.post`.",
@@ -84,6 +87,8 @@
     "meta": "Named values filed on the node, like Godot's `set_meta`. It has no fixed properties; every key is the author's.",
     "modifier2d": "Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.",
     "modifier3d": "Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.",
+    "multimesh2d": "Godot's `MultiMeshInstance2D`: the `multimesh` asset in `source`, its mesh drawn flat once per instance in one call, each instance tinted over `color`. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.",
+    "multimesh3d": "Godot's `MultiMeshInstance3D`: the `multimesh` asset in `source`, its mesh drawn once per instance in one call. Each instance's `color` is the colour it draws in. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.",
     "occluder2d": "The outline the node blocks 2D light with. With no `mesh` it follows the node's `collider2d`, or else its circle, capsule, rect or sprite shape.",
     "particles": "A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `direction`, `spread_degrees` and `gravity`. The live particles are renderer state the simulation never sees.",
     "polygon": "A filled, textured 2D polygon from the `mesh` asset's points and triangles. With skin weights, the rig `skeleton` names deforms it.",
@@ -431,9 +436,6 @@
       "3d",
       "physics"
     ],
-    "cloner": [
-      "render"
-    ],
     "collider2d": [
       "2d",
       "physics"
@@ -482,6 +484,14 @@
     "modifier3d": [
       "3d",
       "animation"
+    ],
+    "multimesh2d": [
+      "2d",
+      "render"
+    ],
+    "multimesh3d": [
+      "3d",
+      "render"
     ],
     "occluder2d": [
       "2d",
@@ -1339,132 +1349,6 @@
           0.0
         ],
         "description": "Which way is up for this character: the axis it stands along and measures slopes against",
-        "type": "vec3"
-      }
-    },
-    "cloner": {
-      "angle_degrees": {
-        "default": 0.0,
-        "description": "Degrees between copies on a ring; zero closes the ring evenly",
-        "type": "float"
-      },
-      "copies": {
-        "default": [],
-        "description": "The copies, when kind is list: each placed in the node's own space with the transform component's keys, and tinted over the node's colour. An empty list draws nothing",
-        "of": {
-          "default": {
-            "position": [
-              0.0,
-              0.0,
-              0.0
-            ],
-            "rotation_euler": [
-              0.0,
-              0.0,
-              0.0
-            ],
-            "scale": [
-              1.0,
-              1.0,
-              1.0
-            ],
-            "tint": [
-              1.0,
-              1.0,
-              1.0,
-              1.0
-            ]
-          },
-          "fields": {
-            "position": {
-              "default": [
-                0.0,
-                0.0,
-                0.0
-              ],
-              "type": "vec3"
-            },
-            "rotation_euler": {
-              "default": [
-                0.0,
-                0.0,
-                0.0
-              ],
-              "type": "vec3"
-            },
-            "scale": {
-              "default": [
-                1.0,
-                1.0,
-                1.0
-              ],
-              "type": "vec3"
-            },
-            "tint": {
-              "default": [
-                1.0,
-                1.0,
-                1.0,
-                1.0
-              ],
-              "type": "color"
-            }
-          },
-          "type": "record"
-        },
-        "type": "list"
-      },
-      "count": {
-        "default": 4,
-        "description": "How many copies, when kind is linear or radial",
-        "min": 1,
-        "type": "int"
-      },
-      "counts": {
-        "default": [
-          3,
-          1,
-          3
-        ],
-        "description": "How many along each axis, when kind is grid",
-        "type": "vec3"
-      },
-      "kind": {
-        "default": "linear",
-        "description": "How the copies are laid out",
-        "options": [
-          "linear",
-          "radial",
-          "grid",
-          "list"
-        ],
-        "type": "enum"
-      },
-      "radius": {
-        "default": 2.0,
-        "description": "How far out the ring sits, when kind is radial",
-        "type": "float"
-      },
-      "random": {
-        "default": 0.0,
-        "description": "How far a copy may wander in position, turn and size",
-        "max": 1.0,
-        "min": 0.0,
-        "type": "float"
-      },
-      "seed": {
-        "default": 0,
-        "description": "The seed the scatter runs off; zero scatters nothing",
-        "min": 0,
-        "type": "int"
-      },
-      "step": {
-        "default": [
-          1.0,
-          0.0,
-          0.0
-        ],
-        "description": "The gap between copies, when kind is linear or grid",
         "type": "vec3"
       }
     },
@@ -3198,6 +3082,60 @@
         "default": false,
         "description": "Whether a jiggle chain is pulled by `gravity`",
         "type": "bool"
+      }
+    },
+    "multimesh2d": {
+      "color": {
+        "default": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "description": "Tint under every instance's own colour, as channel floats or #rrggbb / #rrggbbaa",
+        "type": "color"
+      },
+      "source": {
+        "asset": "multimesh",
+        "default": "",
+        "description": "The multimesh asset: the mesh and the instances it is drawn at",
+        "type": "asset"
+      },
+      "texture": {
+        "asset": "texture",
+        "default": "",
+        "description": "Image file, project-relative, or a `texture` asset; empty draws the colour alone",
+        "type": "asset"
+      }
+    },
+    "multimesh3d": {
+      "cast_shadow": {
+        "default": true,
+        "description": "Whether the instances cast a shadow from the lights that cast",
+        "type": "bool"
+      },
+      "light_layers": {
+        "default": -1,
+        "description": "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer",
+        "type": "int"
+      },
+      "material": {
+        "asset": "material",
+        "default": "",
+        "description": "The material every instance draws with; empty draws with the built-in one",
+        "type": "asset"
+      },
+      "source": {
+        "asset": "multimesh",
+        "default": "",
+        "description": "The multimesh asset: the mesh and the instances it is drawn at",
+        "type": "asset"
+      },
+      "texture": {
+        "asset": "texture",
+        "default": "",
+        "description": "Image file, project-relative, or a `texture` asset; empty draws the colour alone",
+        "type": "asset"
       }
     },
     "occluder2d": {
@@ -11595,14 +11533,35 @@
     },
     {
       "acts_on": {
+        "buffer": [
+          "multimesh2d",
+          "multimesh3d"
+        ],
         "built_mesh": [
           "boolean3d"
         ],
         "cell": [
           "tilemap"
         ],
-        "clones": [
-          "cloner"
+        "instance_color": [
+          "multimesh2d",
+          "multimesh3d"
+        ],
+        "instance_count": [
+          "multimesh2d",
+          "multimesh3d"
+        ],
+        "instance_custom_data": [
+          "multimesh2d",
+          "multimesh3d"
+        ],
+        "instance_transform": [
+          "multimesh2d",
+          "multimesh3d"
+        ],
+        "instances": [
+          "multimesh2d",
+          "multimesh3d"
         ],
         "is_on_screen": [
           "screen_notifier2d"
@@ -11610,14 +11569,39 @@
         "outline": [
           "occluder2d"
         ],
+        "populate": [
+          "multimesh2d",
+          "multimesh3d"
+        ],
         "set_box": [
           "shape3d"
+        ],
+        "set_buffer": [
+          "multimesh2d",
+          "multimesh3d"
         ],
         "set_cell": [
           "tilemap"
         ],
-        "set_copy": [
-          "cloner"
+        "set_instance_color": [
+          "multimesh2d",
+          "multimesh3d"
+        ],
+        "set_instance_count": [
+          "multimesh2d",
+          "multimesh3d"
+        ],
+        "set_instance_custom_data": [
+          "multimesh2d",
+          "multimesh3d"
+        ],
+        "set_instance_transform": [
+          "multimesh2d",
+          "multimesh3d"
+        ],
+        "set_instances": [
+          "multimesh2d",
+          "multimesh3d"
         ],
         "set_rectangle": [
           "shape2d"
@@ -11628,16 +11612,25 @@
         "set_terrain": [
           "tilemap"
         ],
+        "set_visible_instance_count": [
+          "multimesh2d",
+          "multimesh3d"
+        ],
         "terrain": [
           "tilemap"
         ],
         "tile_data": [
           "tilemap"
+        ],
+        "visible_instance_count": [
+          "multimesh2d",
+          "multimesh3d"
         ]
       },
       "components": [
         "boolean3d",
-        "cloner",
+        "multimesh2d",
+        "multimesh3d",
         "occluder2d",
         "screen_notifier2d",
         "shape2d",
@@ -11704,6 +11697,22 @@
         {
           "name": "LIGHT_SPOT",
           "value": "spot"
+        },
+        {
+          "name": "POPULATE_GRID",
+          "value": "grid"
+        },
+        {
+          "name": "POPULATE_RING",
+          "value": "ring"
+        },
+        {
+          "name": "POPULATE_ROW",
+          "value": "row"
+        },
+        {
+          "name": "POPULATE_SURFACE",
+          "value": "surface"
         },
         {
           "name": "SHAPE_BOX",
@@ -11793,6 +11802,7 @@
       "doc": "What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the backdrop, debug lines and screenshots. `window` holds the window itself.",
       "docs": {
         "bounds": "The box the node's geometry covers in its own space, as a centre xyz and half-extents xyz; nil for a node that draws nothing. A solver's body reports where it is now, not where it was built.",
+        "buffer": "Every instance as one flat list of floats in Godot's `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data.",
         "built_mesh": "The triangles the node's boolean settled on, as `#{ positions, indices }` ready to be written out as a `mesh` asset; nil when the node draws no built geometry.",
         "camera_2d": "The 2D camera this frame: centre xy and zoom in logical pixels per world unit; all zeros with no window.",
         "camera_input": "Whether the backend's own mouse camera controls are allowed. Scroll zoom is never inhibited; this is the orbit and pan buttons.",
@@ -11800,7 +11810,6 @@
         "camera_pose": "The camera the renderer actually used: eye xyz, target xyz, vertical fov in radians, HiDPI scale.",
         "cell": "The tile at a column and row, or -1 for an empty cell or one past the edge.",
         "check_material": "Every diagnostic about the material at that path, as `[#{ file, line, column, severity, message }]`; empty when it links.",
-        "clones": "Where the node's cloner puts each copy, in the node's own space, as `#{ position, rotation, scale }`; an empty list when the node has no cloner. What a bake-to-nodes command spawns from.",
         "debug_view": "Which channel the viewport is drawing instead of the scene's colour, or empty for the scene as it is.",
         "debug_views": "Every channel name `set_debug_view` accepts, as a list.",
         "draw_arc_2d": "Stroke an arc between two angles in radians, counter-clockwise from the x axis, for this frame; width is in pixels, and `opts` takes `z_index`.",
@@ -11817,6 +11826,11 @@
         "draw_text_2d": "Draw a line of text in 2D world space for this frame, shaped by the engine's fonts. `opts` takes the `text2d` keys (`font_size`, `font_weight`, `font_style`, `color`, `text_align`, `markup`, `max_width`, `font_family`, `bitmap_font`, \u2026), `pixels_per_unit` and `z_index`.",
         "draw_text_3d": "The same in 3D world space, on a quad that faces the camera. `pixels_per_unit` sizes it, so text a metre away reads the same whatever the font size.",
         "draw_texture_2d": "Draw a project image over a rectangle centred at a point, in world units, for this frame; the colour tints it. `opts` takes `z_index`, and `region_origin` and `region_size` in the image's pixels for part of it.",
+        "instance_color": "The colour one instance draws in.",
+        "instance_count": "How many instances the node holds.",
+        "instance_custom_data": "One instance's four floats of custom data, as a colour.",
+        "instance_transform": "One instance's transform: a `Transform3d`, or a `Transform2d` on a 2D node.",
+        "instances": "Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file.",
         "is_on_screen": "Whether any of the notifier's box was on screen at the end of the last frame.",
         "material_params": "The material's editable rows, one `#{ name, type, value }` per field its linked shader declares; empty when it will not link.",
         "mouse_ray": "The picking ray through the mouse position: its origin xyz then its direction xyz, in world units.",
@@ -11824,22 +11838,29 @@
         "outline": "The outline this node blocks 2D light with, in world space: x then y for each point in turn, with the first repeated at the end when the outline is closed. Empty on a node with no `occluder2d`.",
         "pick_ray": "The nearest node with a 3D shape that a world-space ray meets, from its origin xyz and direction xyz.",
         "pick_ray_at": "As `pick_ray`, but `node` and `at`, how far along the ray it was met; nil when the ray meets nothing.",
+        "populate": "Godot's Populate Surface, and a row, a ring or a grid: the instances a layout would write, worked out from `seed`, returned in the `multimesh` asset's shape rather than set. `kind` is `render.POPULATE_SURFACE` with a `surface` node, `POPULATE_ROW` (`count`, `step`), `POPULATE_RING` (`count`, `radius`) or `POPULATE_GRID` (`counts`, `step`); `rotation`, `tilt` and `random_scale` vary each instance, as fractions, around `scale`.",
         "screenshot": "Save the next rendered frame as a PNG at a project-relative path. `screenshot_written` goes to every listener with the path once it is on disk, and `screenshot_failed` with `#{ path, error }` when it cannot be, a run with no renderer included.",
         "set_background": "Set the colour the viewport is cleared to behind everything drawn, as r, g, b channel floats.",
         "set_box": "Draw the node as a box from its three half-extents, in world units, replacing any other 3D shape.",
+        "set_buffer": "Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance.",
         "set_camera": "Point the 3D camera: the eye position xyz, then the world point it looks at, in world units.",
         "set_camera_2d": "Point the 2D camera: the world centre xy, then the zoom in logical pixels per world unit.",
         "set_camera_input": "Allow or inhibit the backend's own mouse camera controls, so an editor can take the pointer for a drag.",
         "set_cell": "Put one tile at a column and row; a tile below zero clears the cell, and a cell outside the map grows it in that direction. The mesh rebuilds on the next frame.",
-        "set_copy": "Place and tint one listed copy, `#{ position, rotation_euler, scale, tint }`, without writing the whole list: the list grows with plain copies up to `index`. What a script moving every copy each frame calls.",
         "set_debug_view": "Draw one channel of the scene (normals, uv, depth or albedo) instead of its colour; an empty name puts the picture back.",
         "set_grid": "Turn the ground grid on or off, and optionally set its step in world units, major-line interval and extent.",
         "set_grid_colors": "Set the ground grid's minor line colour then its major line colour, as r, g, b channel floats.",
+        "set_instance_color": "The colour one instance draws in.",
+        "set_instance_count": "How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node.",
+        "set_instance_custom_data": "Four floats a material's shader reads for one instance, as a colour or a list.",
+        "set_instance_transform": "Place one instance with a `Transform3d`, or a `Transform2d` on a 2D node. A shear is dropped: an instance is a position, a rotation and a scale.",
+        "set_instances": "Replace every instance with a list in the `multimesh` asset's shape.",
         "set_rectangle": "Draw the node as a rectangle from its two half-extents, in world units, replacing any other 2D shape.",
         "set_shader_preview": "Draw the value a shader's line computes for every pixel that reaches it; line 0 puts the picture back.",
         "set_shader_probe": "Ask what the previewed line computed at one framebuffer pixel; the answer arrives through `shader_probe` a frame later.",
         "set_sphere": "Draw the node as a sphere of the given radius in world units, replacing any other 3D shape.",
         "set_terrain": "Paint a terrain value at a column and row and let the tileset's rules pick the tiles, for that cell and the ring around it; below zero clears it.",
+        "set_visible_instance_count": "How many instances draw, from the first; -1 draws them all.",
         "shader_probe": "The four channels the previewed line wrote at the probed pixel, or `()` when nothing has been read yet.",
         "stats": "What this frame draws: `{ draws, triangles, texture_bytes, textures, nodes }`, where `nodes` is a row per node that drew, each `{ node, draws, triangles, texture_bytes, copies }`. Presentation, never simulation: nothing in the digest reads it.",
         "terrain": "The terrain value painted at a column and row, or -1 where nothing was painted.",
@@ -11847,10 +11868,12 @@
         "texture_pixels_per_unit": "How many of an image's pixels make a world unit when a sprite says 0: its own `pixels_per_unit` import setting, else 100.",
         "texture_size": "An image's width and height in pixels, read from the file's own header.",
         "tile_data": "What the tileset says about the tile at a column and row -- its `[tiles.<id>.data]` table -- or nil where the cell is empty or the tile carries none.",
-        "trace_texture": "The outline of an image's opaque pixels, as `[x, y]` points in a node's own space, ready to be a polygon's `positions`. `opts` takes `threshold` (alpha counted as opaque, 0 to 1, default 0.5), `tolerance` (how many pixels of detail to drop, default 2), `pixels_per_unit` (default 100) and `holes` (every loop, largest first: each other island counter-clockwise and each hole clockwise; default false keeps the largest alone). Counter-clockwise with y up, centred on the origin, the way a sprite at the same `pixels_per_unit` is drawn."
+        "trace_texture": "The outline of an image's opaque pixels, as `[x, y]` points in a node's own space, ready to be a polygon's `positions`. `opts` takes `threshold` (alpha counted as opaque, 0 to 1, default 0.5), `tolerance` (how many pixels of detail to drop, default 2), `pixels_per_unit` (default 100) and `holes` (every loop, largest first: each other island counter-clockwise and each hole clockwise; default false keeps the largest alone). Counter-clockwise with y up, centred on the origin, the way a sprite at the same `pixels_per_unit` is drawn.",
+        "visible_instance_count": "How many instances draw; -1 is all of them."
       },
       "functions": [
         "bounds",
+        "buffer",
         "built_mesh",
         "camera_2d",
         "camera_input",
@@ -11858,7 +11881,6 @@
         "camera_pose",
         "cell",
         "check_material",
-        "clones",
         "debug_view",
         "debug_views",
         "draw_arc_2d",
@@ -11875,6 +11897,11 @@
         "draw_text_2d",
         "draw_text_3d",
         "draw_texture_2d",
+        "instance_color",
+        "instance_count",
+        "instance_custom_data",
+        "instance_transform",
+        "instances",
         "is_on_screen",
         "material_params",
         "mouse_ray",
@@ -11882,22 +11909,29 @@
         "outline",
         "pick_ray",
         "pick_ray_at",
+        "populate",
         "screenshot",
         "set_background",
         "set_box",
+        "set_buffer",
         "set_camera",
         "set_camera_2d",
         "set_camera_input",
         "set_cell",
-        "set_copy",
         "set_debug_view",
         "set_grid",
         "set_grid_colors",
+        "set_instance_color",
+        "set_instance_count",
+        "set_instance_custom_data",
+        "set_instance_transform",
+        "set_instances",
         "set_rectangle",
         "set_shader_preview",
         "set_shader_probe",
         "set_sphere",
         "set_terrain",
+        "set_visible_instance_count",
         "shader_probe",
         "stats",
         "terrain",
@@ -11905,11 +11939,13 @@
         "texture_pixels_per_unit",
         "texture_size",
         "tile_data",
-        "trace_texture"
+        "trace_texture",
+        "visible_instance_count"
       ],
       "name": "render",
       "signatures": {
         "bounds": "NodeId -> Value",
+        "buffer": "NodeId -> Value",
         "built_mesh": "NodeId -> Value",
         "camera_2d": "() -> (f32, f32, f32)",
         "camera_input": "() -> bool",
@@ -11917,7 +11953,6 @@
         "camera_pose": "() -> (f32, f32, f32, f32, f32, f32, f32, f32)",
         "cell": "(NodeId, i64, i64) -> i64",
         "check_material": "String -> Value",
-        "clones": "NodeId -> Value",
         "debug_view": "() -> String",
         "debug_views": "() -> Value",
         "draw_arc_2d": "(f32, f32, f32, f32, f32, Option<f32>, Option<Value>, Option<Value>) -> ()",
@@ -11934,6 +11969,11 @@
         "draw_text_2d": "(f32, f32, String, Option<Value>) -> ()",
         "draw_text_3d": "(f32, f32, f32, String, Option<Value>) -> ()",
         "draw_texture_2d": "(String, f32, f32, f32, f32, Option<Value>, Option<Value>) -> ()",
+        "instance_color": "(NodeId, i64) -> Value",
+        "instance_count": "NodeId -> i64",
+        "instance_custom_data": "(NodeId, i64) -> Value",
+        "instance_transform": "(NodeId, i64) -> Value",
+        "instances": "NodeId -> Value",
         "is_on_screen": "NodeId -> bool",
         "material_params": "String -> Value",
         "mouse_ray": "() -> (f32, f32, f32, f32, f32, f32)",
@@ -11941,22 +11981,29 @@
         "outline": "NodeId -> Vec<f32>",
         "pick_ray": "(f64, f64, f64, f64, f64, f64) -> Option<NodeId>",
         "pick_ray_at": "(f64, f64, f64, f64, f64, f64) -> Value",
+        "populate": "(NodeId, Value) -> Value",
         "screenshot": "String -> ()",
         "set_background": "(f32, f32, f32) -> ()",
         "set_box": "(NodeId, f32, f32, f32) -> ()",
+        "set_buffer": "(NodeId, Value) -> ()",
         "set_camera": "(f32, f32, f32, f32, f32, f32) -> ()",
         "set_camera_2d": "(f32, f32, f32) -> ()",
         "set_camera_input": "bool -> ()",
         "set_cell": "(NodeId, i64, i64, i64) -> ()",
-        "set_copy": "(NodeId, i64, Value) -> ()",
         "set_debug_view": "String -> ()",
         "set_grid": "(bool, Option<f32>, Option<u32>, Option<i32>) -> ()",
         "set_grid_colors": "(f32, f32, f32, f32, f32, f32) -> ()",
+        "set_instance_color": "(NodeId, i64, Value) -> ()",
+        "set_instance_count": "(NodeId, i64) -> ()",
+        "set_instance_custom_data": "(NodeId, i64, Value) -> ()",
+        "set_instance_transform": "(NodeId, i64, Value) -> ()",
+        "set_instances": "(NodeId, Value) -> ()",
         "set_rectangle": "(NodeId, f32, f32) -> ()",
         "set_shader_preview": "(String, i64) -> ()",
         "set_shader_probe": "(f64, f64) -> ()",
         "set_sphere": "(NodeId, f32) -> ()",
         "set_terrain": "(NodeId, i64, i64, i64) -> ()",
+        "set_visible_instance_count": "(NodeId, i64) -> ()",
         "shader_probe": "() -> Value",
         "stats": "() -> Value",
         "terrain": "(NodeId, i64, i64) -> i64",
@@ -11964,7 +12011,8 @@
         "texture_pixels_per_unit": "String -> f32",
         "texture_size": "String -> (u32, u32)",
         "tile_data": "(NodeId, i64, i64) -> Value",
-        "trace_texture": "(String, Option<Value>) -> Value"
+        "trace_texture": "(String, Option<Value>) -> Value",
+        "visible_instance_count": "NodeId -> i64"
       }
     },
     {

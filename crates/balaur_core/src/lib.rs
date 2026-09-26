@@ -12,7 +12,6 @@ pub mod assets;
 pub mod attachments;
 mod batteries_api;
 pub mod bindings;
-pub mod cloner;
 pub mod collections;
 pub mod components;
 pub mod csg;

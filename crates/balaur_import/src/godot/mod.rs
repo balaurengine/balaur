@@ -35,6 +35,7 @@ pub(crate) mod io;
 pub(crate) mod keys;
 pub(crate) mod machine;
 pub(crate) mod material;
+pub(crate) mod multimesh;
 pub(crate) mod nodes;
 pub(crate) mod project;
 pub(crate) mod resource;

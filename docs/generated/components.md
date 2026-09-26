@@ -400,6 +400,44 @@ Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bo
 </tbody>
 </table>
 
+### `multimesh2d`
+
+`2d` · `render` · 3 properties · 15 methods
+
+Godot's `MultiMeshInstance2D`: the `multimesh` asset in `source`, its mesh drawn flat once per instance in one call, each instance tinted over `color`. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Tint under every instance&#x27;s own colour, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>source</code></td><td>asset · <code>multimesh</code></td><td>—</td><td>The multimesh asset: the mesh and the instances it is drawn at</td></tr>
+<tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>Image file, project-relative, or a `texture` asset; empty draws the colour alone</td></tr>
+</tbody>
+</table>
+
+On a node carrying `multimesh2d`, as `node.multimesh2d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>buffer()</code></td><td><code>Value</code></td><td>Every instance as one flat list of floats in Godot&#x27;s `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data.</td><td><code>render</code></td></tr>
+<tr><td><code>instance_color(i64)</code></td><td><code>Value</code></td><td>The colour one instance draws in.</td><td><code>render</code></td></tr>
+<tr><td><code>instance_count()</code></td><td><code>i64</code></td><td>How many instances the node holds.</td><td><code>render</code></td></tr>
+<tr><td><code>instance_custom_data(i64)</code></td><td><code>Value</code></td><td>One instance&#x27;s four floats of custom data, as a colour.</td><td><code>render</code></td></tr>
+<tr><td><code>instance_transform(i64)</code></td><td><code>Value</code></td><td>One instance&#x27;s transform: a `Transform3d`, or a `Transform2d` on a 2D node.</td><td><code>render</code></td></tr>
+<tr><td><code>instances()</code></td><td><code>Value</code></td><td>Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file.</td><td><code>render</code></td></tr>
+<tr><td><code>populate(Value)</code></td><td><code>Value</code></td><td>Godot&#x27;s Populate Surface, and a row, a ring or a grid: the instances a layout would write, worked out from `seed`, returned in the `multimesh` asset&#x27;s shape rather than set. `kind` is `render.POPULATE_SURFACE` with a `surface` node, `POPULATE_ROW` (`count`, `step`), `POPULATE_RING` (`count`, `radius`) or `POPULATE_GRID` (`counts`, `step`); `rotation`, `tilt` and `random_scale` vary each instance, as fractions, around `scale`.</td><td><code>render</code></td></tr>
+<tr><td><code>set_buffer(Value)</code></td><td>—</td><td>Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance.</td><td><code>render</code></td></tr>
+<tr><td><code>set_instance_color(i64, Value)</code></td><td>—</td><td>The colour one instance draws in.</td><td><code>render</code></td></tr>
+<tr><td><code>set_instance_count(i64)</code></td><td>—</td><td>How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node.</td><td><code>render</code></td></tr>
+<tr><td><code>set_instance_custom_data(i64, Value)</code></td><td>—</td><td>Four floats a material&#x27;s shader reads for one instance, as a colour or a list.</td><td><code>render</code></td></tr>
+<tr><td><code>set_instance_transform(i64, Value)</code></td><td>—</td><td>Place one instance with a `Transform3d`, or a `Transform2d` on a 2D node. A shear is dropped: an instance is a position, a rotation and a scale.</td><td><code>render</code></td></tr>
+<tr><td><code>set_instances(Value)</code></td><td>—</td><td>Replace every instance with a list in the `multimesh` asset&#x27;s shape.</td><td><code>render</code></td></tr>
+<tr><td><code>set_visible_instance_count(i64)</code></td><td>—</td><td>How many instances draw, from the first; -1 draws them all.</td><td><code>render</code></td></tr>
+<tr><td><code>visible_instance_count()</code></td><td><code>i64</code></td><td>How many instances draw; -1 is all of them.</td><td><code>render</code></td></tr>
+</tbody>
+</table>
+
 ### `occluder2d`
 
 `2d` · `render` · 2 properties · 1 method
@@ -1262,6 +1300,46 @@ Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `
 </tbody>
 </table>
 
+### `multimesh3d`
+
+`3d` · `render` · 5 properties · 15 methods
+
+Godot's `MultiMeshInstance3D`: the `multimesh` asset in `source`, its mesh drawn once per instance in one call. Each instance's `color` is the colour it draws in. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>cast_shadow</code></td><td>bool</td><td><code>true</code></td><td>Whether the instances cast a shadow from the lights that cast</td></tr>
+<tr><td><code>light_layers</code></td><td>int</td><td><code>-1</code></td><td>Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer</td></tr>
+<tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material every instance draws with; empty draws with the built-in one</td></tr>
+<tr><td><code>source</code></td><td>asset · <code>multimesh</code></td><td>—</td><td>The multimesh asset: the mesh and the instances it is drawn at</td></tr>
+<tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>Image file, project-relative, or a `texture` asset; empty draws the colour alone</td></tr>
+</tbody>
+</table>
+
+On a node carrying `multimesh3d`, as `node.multimesh3d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>buffer()</code></td><td><code>Value</code></td><td>Every instance as one flat list of floats in Godot&#x27;s `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data.</td><td><code>render</code></td></tr>
+<tr><td><code>instance_color(i64)</code></td><td><code>Value</code></td><td>The colour one instance draws in.</td><td><code>render</code></td></tr>
+<tr><td><code>instance_count()</code></td><td><code>i64</code></td><td>How many instances the node holds.</td><td><code>render</code></td></tr>
+<tr><td><code>instance_custom_data(i64)</code></td><td><code>Value</code></td><td>One instance&#x27;s four floats of custom data, as a colour.</td><td><code>render</code></td></tr>
+<tr><td><code>instance_transform(i64)</code></td><td><code>Value</code></td><td>One instance&#x27;s transform: a `Transform3d`, or a `Transform2d` on a 2D node.</td><td><code>render</code></td></tr>
+<tr><td><code>instances()</code></td><td><code>Value</code></td><td>Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file.</td><td><code>render</code></td></tr>
+<tr><td><code>populate(Value)</code></td><td><code>Value</code></td><td>Godot&#x27;s Populate Surface, and a row, a ring or a grid: the instances a layout would write, worked out from `seed`, returned in the `multimesh` asset&#x27;s shape rather than set. `kind` is `render.POPULATE_SURFACE` with a `surface` node, `POPULATE_ROW` (`count`, `step`), `POPULATE_RING` (`count`, `radius`) or `POPULATE_GRID` (`counts`, `step`); `rotation`, `tilt` and `random_scale` vary each instance, as fractions, around `scale`.</td><td><code>render</code></td></tr>
+<tr><td><code>set_buffer(Value)</code></td><td>—</td><td>Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance.</td><td><code>render</code></td></tr>
+<tr><td><code>set_instance_color(i64, Value)</code></td><td>—</td><td>The colour one instance draws in.</td><td><code>render</code></td></tr>
+<tr><td><code>set_instance_count(i64)</code></td><td>—</td><td>How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node.</td><td><code>render</code></td></tr>
+<tr><td><code>set_instance_custom_data(i64, Value)</code></td><td>—</td><td>Four floats a material&#x27;s shader reads for one instance, as a colour or a list.</td><td><code>render</code></td></tr>
+<tr><td><code>set_instance_transform(i64, Value)</code></td><td>—</td><td>Place one instance with a `Transform3d`, or a `Transform2d` on a 2D node. A shear is dropped: an instance is a position, a rotation and a scale.</td><td><code>render</code></td></tr>
+<tr><td><code>set_instances(Value)</code></td><td>—</td><td>Replace every instance with a list in the `multimesh` asset&#x27;s shape.</td><td><code>render</code></td></tr>
+<tr><td><code>set_visible_instance_count(i64)</code></td><td>—</td><td>How many instances draw, from the first; -1 draws them all.</td><td><code>render</code></td></tr>
+<tr><td><code>visible_instance_count()</code></td><td><code>i64</code></td><td>How many instances draw; -1 is all of them.</td><td><code>render</code></td></tr>
+</tbody>
+</table>
+
 ### `reflection_probe`
 
 `3d` · `render` · 5 properties
@@ -1559,37 +1637,6 @@ On a node carrying `ragdoll`, as `node.ragdoll.<method>`:
 </table>
 
 ## Rendering
-
-### `cloner`
-
-`render` · 9 properties · 2 methods
-
-Draws the node's subtree many times; physics and scripts still see one node. `kind` is `linear`, `radial` or `grid`, or `list` for the `copies` a scene or a script places and tints one by one; `seed` and `random` scatter the copies.
-
-<table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
-<tbody>
-<tr><td><code>angle_degrees</code></td><td>float</td><td><code>0.0</code></td><td>Degrees between copies on a ring; zero closes the ring evenly</td></tr>
-<tr><td><code>copies</code></td><td>list of record · <code>position, rotation_euler, scale, tint</code></td><td><code>[]</code></td><td>The copies, when kind is list: each placed in the node&#x27;s own space with the transform component&#x27;s keys, and tinted over the node&#x27;s colour. An empty list draws nothing</td></tr>
-<tr><td><code>count</code></td><td>int</td><td><code>4</code></td><td>How many copies, when kind is linear or radial At least 1.</td></tr>
-<tr><td><code>counts</code></td><td>vec3</td><td><code>[3, 1, 3]</code></td><td>How many along each axis, when kind is grid</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>linear</code></td><td>How the copies are laid out One of <code>linear</code>, <code>radial</code>, <code>grid</code>, <code>list</code>.</td></tr>
-<tr><td><code>radius</code></td><td>float</td><td><code>2.0</code></td><td>How far out the ring sits, when kind is radial</td></tr>
-<tr><td><code>random</code></td><td>float</td><td><code>0.0</code></td><td>How far a copy may wander in position, turn and size Range 0.0–1.0.</td></tr>
-<tr><td><code>seed</code></td><td>int</td><td><code>0</code></td><td>The seed the scatter runs off; zero scatters nothing At least 0.</td></tr>
-<tr><td><code>step</code></td><td>vec3</td><td><code>[1.0, 0.0, 0.0]</code></td><td>The gap between copies, when kind is linear or grid</td></tr>
-</tbody>
-</table>
-
-On a node carrying `cloner`, as `node.cloner.<method>`:
-
-<table>
-<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
-<tbody>
-<tr><td><code>clones()</code></td><td><code>Value</code></td><td>Where the node&#x27;s cloner puts each copy, in the node&#x27;s own space, as `#{ position, rotation, scale }`; an empty list when the node has no cloner. What a bake-to-nodes command spawns from.</td><td><code>render</code></td></tr>
-<tr><td><code>set_copy(i64, Value)</code></td><td>—</td><td>Place and tint one listed copy, `#{ position, rotation_euler, scale, tint }`, without writing the whole list: the list grows with plain copies up to `index`. What a script moving every copy each frame calls.</td><td><code>render</code></td></tr>
-</tbody>
-</table>
 
 ### `material`
 

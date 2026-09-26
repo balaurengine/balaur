@@ -72,6 +72,7 @@ milestones="
 0.2 ui_tour
 0.2 log_settings
 0.2 theme_editor
+0.3 editor_populate
 "
 
 milestone_of() { # milestone_of <name>: the milestone it is filed under, or ""
@@ -386,6 +387,7 @@ shot workspace_animation   examples/rig        "animation,select:Thigh"
 shot editor_selection  examples/objects    "scene,select:Torus,dock:library,zoom:55"
 shot editor_events     examples/hello      "scene,select:Ball,tab:events"
 shot editor_cost       examples/objects    "scene,dock:cost,zoom:55"
+shot editor_populate   examples/objects    "scene,select:Field,populate"
 shot editor_lights     examples/hello      "scene,select:KeyLight,dock:inspector"
 # The rigging panels, each over the rig example's own figure.
 shot rigging_weights   examples/rig        "animation,select:Limb,tool:polygon,mode:weights,dock:weights,zoom:70"

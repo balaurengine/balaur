@@ -128,6 +128,11 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
             }),
             get: Box::new(|eng, entity| {
                 let world = eng.world();
+                // A `multimesh3d` draws its asset's mesh through the same
+                // renderable, and is not a `mesh` the author added.
+                if crate::multimesh::holds(&world, entity) {
+                    return None;
+                }
                 let renderable = world.get::<&crate::Renderable3d>(entity).ok()?;
                 let source = renderable.mesh.clone()?;
                 let mut map = toml::map::Map::new();

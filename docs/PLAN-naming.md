@@ -24,8 +24,8 @@ with no alias and no migration, as `one way to do a thing` asks.
   `add_constant_force`, `overlap_*`, `on_collision_enter`, `set_ragdoll_influence`),
   and the render keys (`light_layers`, `cast_shadow`, `shadow_enabled`, `range`,
   the spot's `*_angle_degrees`, `ambient_color`, `fog_mode`, `sky_enabled`,
-  `sky_rotation_degrees`, `pixels_per_unit`, `operation`, cloner and terrain
-  `kind`, cloner `angle_degrees`, the probe's `image_rotation_degrees`), and the
+  `sky_rotation_degrees`, `pixels_per_unit`, `operation`, terrain `kind`, the
+  probe's `image_rotation_degrees`), and the
   text keys (`font_family`, `bitmap_font`, `text_align`, the `text2d` keys as
   `draw_text_2d` options) with `draw_text_3d` and `draw_line_3d`, and `size` as
   the whole extent on every shape, collider, soft body, sprite and probe, with a

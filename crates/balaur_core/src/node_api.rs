@@ -1099,6 +1099,8 @@ pub fn to_toml(v: &Value) -> Result<toml::Value> {
         Value::Vec2(a) => number_list(a),
         Value::Vec3(a) => number_list(a),
         Value::Color(a) => number_list(a),
+        Value::Transform2d(a) => number_list(a),
+        Value::Transform3d(a) => number_list(a),
         Value::List(items) => toml::Value::Array(items.iter().map(to_toml).collect::<Result<_>>()?),
         Value::Map(pairs) => toml::Value::Table(
             pairs

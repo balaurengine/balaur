@@ -67,6 +67,13 @@ pub(crate) mod words {
         BLOOM, SSAO, SSR, DOF, FXAA, SHARPEN, TONEMAP, VIGNETTE, ABERRATION, GRAIN, PIXELATE,
     ];
 
+    /// What a multimesh's `populate` lays its instances out as: scattered
+    /// over a surface node, or in a row, a ring or a grid.
+    pub(crate) const SURFACE: &str = "surface";
+    pub(crate) const ROW: &str = "row";
+    pub(crate) const RING: &str = "ring";
+    pub(crate) const GRID: &str = "grid";
+
     pub(crate) const POINT: &str = "point";
     pub(crate) const DIRECTIONAL: &str = "directional";
     pub(crate) const SPOT: &str = "spot";
@@ -147,6 +154,10 @@ pub(crate) const CONSTANTS: &[(&str, &str)] = &[
     ("ALIGN_END", words::END),
     ("FONT_NORMAL", words::NORMAL),
     ("FONT_ITALIC", words::ITALIC),
+    ("POPULATE_SURFACE", words::SURFACE),
+    ("POPULATE_ROW", words::ROW),
+    ("POPULATE_RING", words::RING),
+    ("POPULATE_GRID", words::GRID),
 ];
 
 /// Every property key the render components spell, so a schema line and the
@@ -283,6 +294,22 @@ pub(crate) mod keys {
     pub(crate) const TAPER: &str = "taper";
     pub(crate) const TEXTURE: &str = "texture";
     pub(crate) const TILESET: &str = "tileset";
+    /// A `multimesh` asset's keys, and one instance's: the transform
+    /// component's three, a colour and four floats of custom data.
+    pub(crate) const INSTANCES: &str = "instances";
+    pub(crate) const VISIBLE_INSTANCE_COUNT: &str = "visible_instance_count";
+    pub(crate) const POSITION: &str = "position";
+    pub(crate) const ROTATION_EULER: &str = "rotation_euler";
+    pub(crate) const SCALE: &str = "scale";
+    pub(crate) const CUSTOM: &str = "custom";
+    /// `populate`'s options.
+    pub(crate) const COUNT: &str = "count";
+    pub(crate) const COUNTS: &str = "counts";
+    pub(crate) const STEP: &str = "step";
+    pub(crate) const ROTATION: &str = "rotation";
+    pub(crate) const TILT: &str = "tilt";
+    pub(crate) const RANDOM_SCALE: &str = "random_scale";
+    pub(crate) const SURFACE: &str = "surface";
     /// A `draw_text` option; `text2d` spells it `font_weight`.
     pub(crate) const WIDTH: &str = "width";
 }

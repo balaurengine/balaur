@@ -22,7 +22,7 @@ pub struct NodeCost {
     pub triangles: u32,
     /// Bytes of image the node's textures occupy, uncompressed on the GPU.
     pub texture_bytes: u64,
-    /// How many copies a `cloner` above it draws, or one.
+    /// How many instances a multimesh on it draws, or one.
     pub copies: u32,
 }
 
@@ -101,8 +101,13 @@ pub fn measure(eng: &Engine) {
                 continue;
             }
             let copies = world
-                .get::<&crate::Clones>(entity)
-                .map_or(1, |clones| clones.0.len().max(1) as u32);
+                .get::<&crate::MultiMesh>(entity)
+                .map_or(1, |multimesh| multimesh.drawn().len() as u32);
+            // A multimesh with nothing to draw draws nothing, as the backend
+            // hides it.
+            if copies == 0 {
+                continue;
+            }
             let mut cost = NodeCost {
                 copies,
                 ..NodeCost::default()

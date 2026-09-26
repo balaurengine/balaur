@@ -184,7 +184,7 @@ the module.
 | AOVs: depth, normals, segmentation (*fork* `builtin/aov.rs`) | Not planned for games. `docs/PLAN-editor-ergonomics.md` may borrow the normals view |
 | 2D global illumination (*fork* `post_processing/gi2d.rs`) | Not planned; the light map is 2D's answer. Revisit only if `light2d` shadows prove too hard-edged |
 | Morph targets and vertex colours | Built: `MeshData` carries both, and a material asks for the colours with `features = { vertex_color = true }` |
-| Instancing (*fork* `set_instances`) | Built: `balaur_render::instancing`, which the `cloner` draws through |
+| Instancing (*fork* `set_instances`) | Built: `balaur_render::instancing`, which `multimesh3d` and `multimesh2d` draw through |
 | Baked lightmaps | Not planned; nothing in the fork bakes, and IBL plus shadows is what a design tool ships |
 | Decals: a texture projected onto what is under it | Step 9. Not in the fork: a screen-space pass over the depth buffer, with a `decal` component carrying a projector box |
 | Volumetric fog and light shafts | Step 9. Not in the fork either: a froxel march the shadow atlas already has the data for |

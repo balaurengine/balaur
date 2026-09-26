@@ -4142,3 +4142,64 @@ pub fn pendemo(S) {
     fs::remove(S.game_root + "/" + rel);
     log::info("selftest pendemo: done");
 }
+
+// How many instances the selected multimesh holds on its live node.
+fn instance_count(S) {
+    let name = match crate::populate::component(model::selected_node(S)) {
+        Some(name) => name,
+        None => return -1,
+    };
+    match model::live(S, S.sel) {
+        Some(found) => {
+            let handle = if name == "multimesh2d" { found.multimesh2d } else { found.multimesh3d };
+            handle.instance_count()
+        }
+        None => -1,
+    }
+}
+
+/// Populate: a grid, then a surface, written into the selected multimesh's
+/// asset, each one undo step. A scene with no multimesh skips itself.
+pub fn populate(S) {
+    let at = -1;
+    for (i, node) in S.doc.iter().enumerate() {
+        if at < 0 && crate::populate::component(node).is_some() {
+            at = i;
+        }
+    }
+    if at < 0 {
+        log::info("selftest populate: no multimesh in this scene, skipped");
+        return;
+    }
+    shell::choose(S, at);
+    let before = instance_count(S);
+    check(before >= 0, format!("the multimesh resolves in the mirror ({})", before));
+
+    S.populate.kind = render::POPULATE_GRID;
+    S.populate.columns = 3;
+    S.populate.rows = 2;
+    crate::populate::apply(S);
+    check(instance_count(S) == 6, format!("a 3 by 2 grid writes six instances ({})", instance_count(S)));
+    check(history::dirty(S), "populating marks the scene dirty");
+    check(mirror_resolves(S), "populating resolves every node in the mirror");
+
+    let surface = "";
+    for node in S.doc {
+        if surface == "" && (node.contains_key("shape3d") || node.contains_key("mesh")) {
+            surface = "/" + model::node_path(S.doc, node);
+        }
+    }
+    if surface != "" {
+        S.populate.kind = render::POPULATE_SURFACE;
+        S.populate.surface = surface;
+        S.populate.count = 20;
+        crate::populate::apply(S);
+        check(instance_count(S) == 20, format!("twenty instances over {} ({})", surface, instance_count(S)));
+        shell::undo(S);
+        check(instance_count(S) == 6, format!("undo puts the grid back ({})", instance_count(S)));
+    }
+    shell::undo(S);
+    check(instance_count(S) == before, format!("undo puts the asset back ({})", instance_count(S)));
+    check(history::dirty(S) == false, "undo back to the load point is clean");
+    log::info("selftest populate: done");
+}

@@ -21,6 +21,11 @@ pub enum Value {
     Vec2([f32; 2]),
     Vec3([f32; 3]),
     Color([f32; 4]),
+    /// An affine transform's columns, glam's `Affine2::to_cols_array`: the
+    /// two axes, then the origin.
+    Transform2d([f32; 6]),
+    /// The three axes, then the origin, as glam's `Affine3A::to_cols_array`.
+    Transform3d([f32; 12]),
     /// A node, as `hecs::Entity::to_bits()`. Kept opaque so this crate
     /// depends on nothing.
     Node(u64),
@@ -60,6 +65,8 @@ impl Value {
             Self::Vec2(_) => "vec2",
             Self::Vec3(_) => "vec3",
             Self::Color(_) => "color",
+            Self::Transform2d(_) => "transform2d",
+            Self::Transform3d(_) => "transform3d",
             Self::Node(_) => "node",
             Self::Callback(_) => "function",
             Self::List(_) => "list",

@@ -7,7 +7,7 @@ const POSES = [
     #{ slug: "primitives", eye: [0.0, 3.6, 10.0], at: [0.0, 0.8, 0.0] },
     #{ slug: "paths", eye: [0.0, 3.6, -2.0], at: [0.0, 0.9, -12.0] },
     #{ slug: "booleans", eye: [0.0, 3.6, -14.0], at: [0.0, 0.9, -24.0] },
-    #{ slug: "cloner", eye: [1.0, 3.6, -26.0], at: [1.0, 0.4, -36.0] },
+    #{ slug: "multimesh", eye: [1.0, 3.6, -26.0], at: [1.0, 0.4, -36.0] },
     #{ slug: "text", eye: [0.0, 3.0, -39.5], at: [0.0, 0.9, -48.0] },
     // Past the end of the ground: an empty backdrop for the 2D layer.
     #{ slug: "flat", eye: [0.0, 3.0, 40.0], at: [0.0, 1.0, 50.0] },

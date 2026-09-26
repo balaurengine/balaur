@@ -121,7 +121,7 @@ Recorded so each stops being cited as precedent for the next.
 | `node.get_component` / `get_node` | N7 exemption. Dropping the prefix gives `node.component(name)` beside `node.component_names()`, and `node.node(path)` |
 | `render.set_camera` / `camera_pose` | Not an accessor pair: the setter writes `CameraConfig3d`, the reader reads the published `ViewportSnapshot3d`. Command in, truth out — fixed by a doc line under N8 |
 | `render.camera_2d`, `set_camera_2d`, `mouse_world_2d`, `draw_line_2d` | Correct under N5; none quotes a key or module name |
-| `balaur_core`, `balaur_import`, `balaur_cli` words | N17 is not met yet: core keeps its words in the domain module that owns them (`primitive`, `csg`, `cloner`, `skeleton`), and the importer spells the scene keys it writes. The lint binds a crate the moment it has a `vocabulary.rs` |
+| `balaur_core`, `balaur_import`, `balaur_cli` words | N17 is not met yet: core keeps its words in the domain module that owns them (`primitive`, `csg`, `skeleton`), and the importer spells the scene keys it writes. The lint binds a crate the moment it has a `vocabulary.rs` |
 | `render` as one large module | Revisited at 58 functions: the eight that drive the OS window and read the display moved to `window`, leaving 50. A `render2d` split would break 58 call sites for a boundary `ui` manages without. Revisit past ~70 functions |
 | `render.set_sphere` / `set_box` | N9 does not reach them: `balaur_render` has no physics dependency, and in a dynamic API a function whose argument count and meaning differ stays its own function |
 | `rotation_euler` | The Rust field is a quaternion, so bare `rotation` becomes ambiguous the day a quaternion accessor lands. Degrees are additive (`set_rotation_degrees`) |
@@ -398,7 +398,7 @@ Every angle a scene stores in degrees carries `_degrees`; radians are the defaul
 | Tile flips | `flips` | Tiled |
 | Tile map | `tileset`, `origin`, `seed`, `pixels_per_unit` | Tiled, LDtk |
 | Boolean shapes | `operation`, with `subtraction` | Godot, Unreal |
-| Cloner | `kind`, `angle_degrees` | none |
+| One mesh drawn per instance | `multimesh` asset, `multimesh3d`, `multimesh2d`, `set_instance_transform`, `instance_count`, `visible_instance_count` | Godot |
 | 3D debug drawing | `draw_line_3d`, `draw_lines_3d`, `draw_text_3d`, `draw_box_3d`, `draw_sphere_3d`, `draw_capsule_3d` | Bevy |
 | 2D debug drawing, in radians | `draw_rect_2d`, `draw_circle_2d`, `draw_arc_2d`, `draw_polygon_2d`, `draw_polyline_2d`, `draw_texture_2d` | Godot |
 

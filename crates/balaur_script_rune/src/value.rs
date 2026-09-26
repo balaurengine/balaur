@@ -240,6 +240,9 @@ pub(crate) fn to_neutral(v: &rune::Value) -> Result<Neutral> {
             c.r as f32, c.g as f32, c.b as f32, c.a as f32,
         ]));
     }
+    if let Some(transform) = transform_of(v) {
+        return Ok(transform);
+    }
     if let Ok(items) = v.borrow_ref::<rune::runtime::Vec>() {
         return Ok(Neutral::List(
             items.iter().map(to_neutral).collect::<Result<_>>()?,
@@ -329,6 +332,9 @@ pub(crate) fn to_plain(v: &rune::Value) -> Option<Neutral> {
             c.r as f32, c.g as f32, c.b as f32, c.a as f32,
         ]));
     }
+    if let Some(transform) = transform_of(v) {
+        return Some(transform);
+    }
     if v.borrow_ref::<rune::runtime::Function>().is_ok() {
         return None;
     }
@@ -354,6 +360,22 @@ pub(crate) fn to_plain(v: &rune::Value) -> Option<Neutral> {
         && t.is_empty()
     {
         return Some(Neutral::Nil);
+    }
+    None
+}
+
+/// A `Transform2d` or a `Transform3d`, as its columns.
+fn transform_of(v: &rune::Value) -> Option<Neutral> {
+    use glam_types::Glam as _;
+    if let Ok(t) = v.borrow_ref::<glam_types::Transform2d>() {
+        return Some(Neutral::Transform2d(
+            t.g().to_cols_array().map(|c| c as f32),
+        ));
+    }
+    if let Ok(t) = v.borrow_ref::<glam_types::Transform3d>() {
+        return Some(Neutral::Transform3d(
+            t.g().to_cols_array().map(|c| c as f32),
+        ));
     }
     None
 }
@@ -384,6 +406,18 @@ pub(crate) fn from_neutral(v: &Neutral) -> Result<rune::Value> {
             b: f64::from(*b),
             a: f64::from(*a),
         })?,
+        Neutral::Transform2d(columns) => {
+            use glam_types::Glam as _;
+            rune::to_value(glam_types::Transform2d::of(
+                glamx::glam::DAffine2::from_cols_array(&columns.map(f64::from)),
+            ))?
+        }
+        Neutral::Transform3d(columns) => {
+            use glam_types::Glam as _;
+            rune::to_value(glam_types::Transform3d::of(
+                glamx::glam::DAffine3::from_cols_array(&columns.map(f64::from)),
+            ))?
+        }
         Neutral::Many(items) => {
             let mut out = Vec::with_capacity(items.len());
             for it in items {

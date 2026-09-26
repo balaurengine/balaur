@@ -4,10 +4,10 @@
 //! shader blends the joint matrices the frame uploaded and the ordinary
 //! model, view and projection follow. A vertex whose weights sum to zero is
 //! left where it was authored, so an unskinned polygon draws through the
-//! same pipeline with an empty palette. The node's scale, a cloner copy's
-//! deformation and the node's pose apply in that order, as kiss3d's own 2D
-//! material applies them, so a flipped, scaled or cloned node draws its
-//! polygon the way it draws every other shape.
+//! same pipeline with an empty palette. The node's scale, a multimesh
+//! instance's deformation and the node's pose apply in that order, as
+//! kiss3d's own 2D material applies them, so a flipped, scaled or instanced
+//! node draws its polygon the way it draws every other shape.
 //!
 //! Written here against kiss3d's `Material2d` rather than taken from its
 //! `SkinnedMesh2d`, which computes its own palette from a bone chain it
@@ -188,16 +188,24 @@ pub(crate) fn build(
     );
     let material: Rc<RefCell<Box<dyn Material2d + 'static>>> =
         Rc::new(RefCell::new(Box::new(material)));
-    // The object needs a mesh to exist; the material draws its own buffers
-    // and never reads this one.
-    let placeholder = Rc::new(RefCell::new(GpuMesh2d::new(
-        vec![Vec2::ZERO, Vec2::ZERO, Vec2::ZERO],
-        vec![[0, 0, 0]],
-        None,
+    // The skinning material draws its own buffers; a shader material a node
+    // names in its place draws the object's mesh, so that is the polygon too.
+    let shape = Rc::new(RefCell::new(GpuMesh2d::new(
+        polygon.positions.clone(),
+        polygon.indices.clone(),
+        Some(
+            polygon
+                .uvs
+                .iter()
+                .copied()
+                .chain(std::iter::repeat(Vec2::ZERO))
+                .take(count)
+                .collect(),
+        ),
         false,
     )));
     let texture = TextureManager::get_global_manager(|tm| tm.get_default());
-    let object = Object2d::new(placeholder, 1.0, 1.0, 1.0, texture, material);
+    let object = Object2d::new(shape, 1.0, 1.0, 1.0, texture, material);
     let node = SceneNode2d::new(Vec2::ONE, Pose2::IDENTITY, Some(object));
     scene.add_child(node.clone());
     let handle = polygon.skin.is_some().then_some(SkinHandle(palette));
@@ -467,8 +475,8 @@ impl Material2d for SkinnedMaterial {
         _context: &RenderContext2d,
     ) {
         let ctxt = Context::get();
-        // A cloner's copies ride here, as they do on every other 2D object;
-        // a polygon with none carries kiss3d's one identity instance.
+        // A multimesh's instances ride here, as they do on every other 2D
+        // object; a polygon with none carries kiss3d's one identity instance.
         instances.positions.load_to_gpu();
         instances.colors.load_to_gpu();
         instances.deformations.load_to_gpu();

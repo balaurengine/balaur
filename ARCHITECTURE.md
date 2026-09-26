@@ -453,9 +453,11 @@ and the triangles on screen are the same triangles.
   the two that reach another asset resolve through `mesh::load_from`.
 - A node draws `Shape3d::Solid` (parameters), `Shape3d::Mesh` (an asset) or
   `Shape3d::Built` (what a `boolean3d` settled on) — the split `Shape2d::Polygon`
-  already used. A `cloner` multiplies what is under it (`core::cloner` places
-  the copies, `render::instancing` splits each matrix for the shader); automatic
-  instancing will draw through that seam.
+  already used. A `multimesh3d` or `multimesh2d` draws its `multimesh` asset's
+  mesh once per instance, and `render::instancing` splits each instance's
+  matrix for the shader; automatic instancing draws through the same seam.
+  The node copies the asset's instances when it attaches, so a script's edits
+  stay on that node.
 
 ### Skeletons and skins
 

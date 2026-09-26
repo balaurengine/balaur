@@ -1,7 +1,8 @@
-> **Status:** not started. Written 2026-09-26 from the question "what does the
-> cloner's `list` mode do": it is the `multimesh` of
+> **Status:** built 2026-09-26, steps 1 to 7. Written the same day from the
+> question "what does the cloner's `list` mode do": it was the `multimesh` of
 > `PLAN-views-and-culling.md` step 8, built inside another component. This plan
-> builds it the way Godot's `MultiMesh` works and removes the cloner.
+> builds it the way Godot's `MultiMesh` works and removes the cloner. What is
+> left is in section 6.
 
 # Plan: `multimesh`, and no `cloner`
 
@@ -101,12 +102,12 @@ drops Godot's `get_` (NAMING N7).
 | `set_instance_transform`, `set_instance_transform_2d` | `set_instance_transform(i, t)`: a `Transform3d` on `multimesh3d`, a `Transform2d` on `multimesh2d` | step 2 |
 | `get_instance_transform`, `get_instance_transform_2d` | `instance_transform(i)` | step 2 |
 | `set_instance_color`, `get_instance_color` | `set_instance_color(i, c)`, `instance_color(i)` | step 2 |
-| `set_instance_custom_data`, `get_instance_custom_data` | `set_instance_custom_data(i, v)`, `instance_custom_data(i)`; the fork's instance data has no slot for them yet | step 7 |
+| `set_instance_custom_data`, `get_instance_custom_data` | `set_instance_custom_data(i, v)`, `instance_custom_data(i)`; a material reads them with `features = { instance_custom = true }` | step 7 |
 | `transform_format`, `use_colors`, `use_custom_data` | none: every instance carries a transform, a colour and custom data | not planned |
-| `buffer` | `instances` set whole; a flat float array once a benchmark shows the tables cost | step 7 |
+| `buffer` | `set_instances(list)` in the asset's shape, and `buffer()` and `set_buffer(floats)` in Godot's layout | step 2, step 7 |
 | `custom_aabb`, `get_aabb` | the bounds culling reads | `PLAN-views-and-culling.md` step 1 |
 | `physics_interpolation_quality`, `reset_instance_physics_interpolation` | the node's pose blends under `[time] interpolate`; an instance moved each fixed step does not, since that means keeping a second list | not planned |
-| the editor's MultiMesh › Populate Surface | a Populate command on the component | step 5 |
+| the editor's MultiMesh › Populate Surface | a Populate sheet on the component, over `populate(options)` on the handle | step 5 |
 
 An index past the end is an error that names the count.
 
@@ -148,11 +149,20 @@ An index past the end is an error that names the count.
    with a `MultiMesh` resource becomes the component and an inline asset, its
    `buffer` read into instances: 8 floats a 2D transform, 12 a 3D one, then 4
    of colour with `use_colors` and 4 of custom data with `use_custom_data`.
-7. **Custom data and a flat buffer.** `custom` once the fork's instance data
-   has a slot for it; the flat float array once a benchmark case of ten
-   thousand instances moved every frame says the tables cost.
+7. **Custom data and a flat buffer.** `custom` reaches a material through
+   Balaur's own pipelines, not the fork's instance data: the object carries
+   the floats as its user data, and the material binds them as one more
+   per-instance buffer. A material asks with `features = { instance_custom =
+   true }` and reads `copy_custom(in)` in 3D, `instance_custom(in)` in 2D.
+   `benches/multimesh.rs` moves ten thousand instances every frame: 8.5 ms
+   through `set_instance_transform`, 58.5 ms through one `set_buffer`, in a
+   release build on a four-core Linux container. So the flat buffer is there
+   for a Godot port that uses `buffer`, not for speed.
 
 ## 4. Where it differs from Godot
+
+- `populate` returns the instances rather than setting them, so the editor
+  writes them into the asset as one undo step.
 
 - A script's edits stay on the node, where Godot's move every holder of the
   resource. `instances()` and `assets.save` are how a layout is shared.
@@ -172,3 +182,13 @@ An index past the end is an error that names the count.
 A scene that still has a `cloner` fails to load with the unknown-component
 error. The `objects` example and the shim are the only users in this
 repository.
+
+## 6. What is left
+
+- **Bounds.** A multimesh's own box, for culling and picking, arrives with
+  `PLAN-views-and-culling.md` step 1. Picking hits the node's mesh at the
+  node, not each instance.
+- **A mesh the importer cannot read.** Step 6 reads Godot's primitive meshes
+  and, in 2D, a `QuadMesh`. An `ArrayMesh` saved in a scene is binary
+  surfaces, and a `material_override` is not carried; both leave a note.
+- **Instances interpolated between fixed steps.** Not planned, as above.

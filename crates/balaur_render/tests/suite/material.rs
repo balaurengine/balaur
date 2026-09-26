@@ -211,7 +211,7 @@ fn a_3d_material_links_against_the_mesh_contract() {
 }
 
 /// A material that never mentions instancing still gets the per-copy inputs,
-/// which is what lets a cloner multiply a node the shader knows nothing
+/// which is what lets a multimesh multiply a node the shader knows nothing
 /// about. The locations have to match `vertex_layouts` in
 /// `shader_material_3d.rs`, and this is what says so without a GPU.
 #[test]
@@ -629,4 +629,81 @@ fn the_layer_stack_links_layer_by_layer_and_all_at_once() {
     let every = link_with(&|_| true).expect("every layer at once must link");
     assert!(every.contains("noise_hash"), "{every}");
     assert!(every.len() > bare.len(), "layers add code, not nothing");
+}
+
+/// A material asks for each instance's custom data by name, as it asks for
+/// vertex colours, and reads it through `copy_custom` in 3D and
+/// `instance_custom` in 2D. One that does not ask carries no such input.
+#[test]
+fn instance_custom_data_arrives_only_for_a_material_that_asks() {
+    let dir = project();
+    std::fs::write(
+        dir.path().join("shaders/custom.wesl"),
+        r"
+import package::mesh::{VertexInput, VertexOutput, vertex, copy_custom, shade};
+
+@vertex fn vs_main(in: VertexInput) -> VertexOutput {
+    var out: VertexOutput = vertex(in);
+    out.tint = copy_custom(in);
+    return out;
+}
+
+@fragment fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    return shade(in);
+}
+",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("shaders/custom2d.wesl"),
+        r"
+import package::sprite::{VertexInput, VertexOutput, place, instance_custom};
+
+@vertex fn vs_main(in: VertexInput) -> VertexOutput {
+    var out: VertexOutput = place(in, vec2<f32>(0.0, 0.0));
+    out.color = instance_custom(in);
+    return out;
+}
+
+@fragment fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    return in.color;
+}
+",
+    )
+    .unwrap();
+    for (name, shader) in [("custom", "custom"), ("custom2d", "custom2d")] {
+        std::fs::write(
+            dir.path().join(format!("materials/{name}.toml")),
+            format!(
+                "type = \"material\"\nshader = \"shaders/{shader}.wesl\"\nfeatures = {{ instance_custom = true }}\n"
+            ),
+        )
+        .unwrap();
+    }
+    let app = app(dir.path());
+    for (name, location) in [("custom", 9), ("custom2d", 6)] {
+        let asset = balaur_core::assets::load_typed::<Material3d>(
+            &app.engine,
+            &format!("materials/{name}.toml"),
+        )
+        .unwrap();
+        assert!(asset.reads_instance_custom());
+        let source = balaur_core::project::scene_text(&app.engine, &asset.shader).unwrap();
+        let compiled = compile(&asset, &source).expect("a material reading custom data links");
+        assert!(
+            compiled.instance_custom,
+            "the feature reaches the compiled {name}"
+        );
+        assert!(
+            compiled.wgsl.contains(&format!("@location({location})")),
+            "{name} carries the custom attribute at {location}: {}",
+            compiled.wgsl
+        );
+    }
+    let plain =
+        balaur_core::assets::load_typed::<Material3d>(&app.engine, "materials/lit.toml").unwrap();
+    let plain_source = balaur_core::project::scene_text(&app.engine, &plain.shader).unwrap();
+    let plain = compile(&plain, &plain_source).unwrap();
+    assert!(!plain.instance_custom);
+    assert!(!plain.wgsl.contains("@location(9)"), "{}", plain.wgsl);
 }

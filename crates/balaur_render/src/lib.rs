@@ -19,7 +19,6 @@ mod batch_2d;
 mod batch_3d;
 mod boolean;
 mod camera;
-mod cloner;
 mod config;
 mod debug_view;
 mod draw_2d;
@@ -48,10 +47,12 @@ pub fn take_launch_url() -> Option<String> {
 
 #[cfg(feature = "window")]
 mod morph;
+mod multimesh;
 mod notifier;
 mod particles;
 pub mod pick;
 mod polygon;
+mod populate;
 pub mod preview;
 #[cfg(feature = "window")]
 mod probe;
@@ -74,9 +75,12 @@ mod tilemap_mesh;
 mod vocabulary;
 pub mod world_text;
 pub use camera::{Camera2d, Camera3d, Finish, Occlusion, Post, PostPass};
-pub use cloner::Clones;
 pub use debug_view::{ChannelView, PreviewRequest, ProbeReading, ProbeRequest};
 pub use light::{Light2d, LightKind2d, LitLight2d, Occluder2d};
+pub use multimesh::{
+    Instance, MAX_INSTANCES, MULTIMESH_2D, MULTIMESH_3D, MULTIMESH_ASSET_TYPE, MeshSource,
+    MultiMesh, MultiMeshAsset, Placed, buffer_of, buffer_stride, instances_from_buffer,
+};
 pub use pick::under_pointer as pick_under_pointer;
 
 /// The window the renderer last drew into, in logical points. Zero with no
@@ -148,7 +152,7 @@ mod touch_draw;
 /// can insert one directly. Served by the windowed backend and by the
 /// offscreen one — a screenshot needs a GPU, not a window. It is *not* served
 /// by a headless run, which builds no renderer at all; see
-/// [`unserved_screenshot_system`], which is why asking for one there says so
+/// `unserved_screenshot_system`, which is why asking for one there says so
 /// instead of exiting cleanly with no file.
 pub struct ScreenshotRequest {
     pub path: std::path::PathBuf,
@@ -881,7 +885,9 @@ impl balaur_plugin::Plugin for RenderPlugin {
         material::install_material_params(&mut *m);
         shape::install_shape_api(&mut *m);
         boolean::install_boolean_api(&mut *m);
-        cloner::install_cloner_api(&mut *m);
+        multimesh::install_multimesh_api(&mut *m);
+        multimesh::install_multimesh_list_api(&mut *m);
+        populate::install_populate_api(&mut *m);
         light::install_occluder_api(&mut *m);
         stats::install_stats_api(&mut *m);
         script_api::install_sprite_api(&mut *m);
@@ -906,7 +912,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         light::register_occluder2d_component(reg);
         boolean::register_boolean3d_component(reg);
         boolean::register_boolean2d_component(reg);
-        cloner::register_cloner_component(reg);
+        multimesh::register_multimesh(reg);
         mesh::register_mesh_component(reg);
         material::register_material_asset(reg);
         material::register_material_component(reg);
@@ -930,8 +936,6 @@ impl balaur_plugin::Plugin for RenderPlugin {
         // Same stage: a boolean's operands have settled, so its result is
         // built from where they ended up this tick.
         reg.add_system(Stage::SceneSync, boolean::resolve_booleans_system);
-        // After the booleans: a cloner may multiply their result too.
-        reg.add_system(Stage::SceneSync, cloner::resolve_cloners_system);
         reg.add_system(Stage::Render, clear_debug_lines_system);
         reg.add_system(Stage::Last, unserved_screenshot_system);
 

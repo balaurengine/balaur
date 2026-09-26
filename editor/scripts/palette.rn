@@ -145,6 +145,9 @@ fn commands(S) {
         }
     }
     list.push(command("Open the prefab behind the selection", icons::ui("instance"), "", || model::open_prefab(S)));
+    if model::has_selection(S) && crate::populate::component(model::selected_node(S)).is_some() {
+        list.push(command("Populate…", icons::workspace("scene"), "", || crate::populate::open(S)));
+    }
     let known = catalogue(S);
     // Channel views: draw normals, UVs or depth instead of the picture.
     list.push(command("View: color", "◐", "", || render::set_debug_view("")));

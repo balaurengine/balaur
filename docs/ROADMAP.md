@@ -177,7 +177,8 @@ can do today, in the batches it would be built in.
 | **Particles in 3D** — `particles3d`, and in both dimensions: emission shapes, attractors, colliders, trails, sub-emitters, lit particles and a compute stepper. | 0.3 | [PLAN-particles.md](PLAN-particles.md) |
 | **2D batching** — `balaur_render` draws the sprites and shapes that share a texture and a material in one call rather than one each. | 0.2 done | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
 | **Automatic instancing** — meshes sharing geometry, a texture and a material draw as one call with an instance each. | 0.2 done | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
-| **Culling and level of detail** — frustum culling and `render.in_view`, cull masks, MSAA, level of detail in the mesh asset, and `multimesh`. | 0.3 | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
+| **Culling and level of detail** — frustum culling and `render.in_view`, cull masks, MSAA, and level of detail in the mesh asset. | 0.3 | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
+| **Godot's MultiMesh** — a `multimesh` asset drawn by `multimesh3d` and `multimesh2d` in one call, with per-instance custom data, Godot import and Populate. | 0.3 done | [PLAN-multimesh.md](PLAN-multimesh.md) |
 | **Voxels and terrain** — block types in a `voxel_set`, a greedy chunk mesher, a chunked grid file, a Voxels tool, `.vox` import, and heightfield meshing. | 0.3 | [PLAN-voxels.md](PLAN-voxels.md) |
 | **More than one view** — a `viewport` component for split screen, a camera rendered to a texture, and picture-in-picture. | 0.3 | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
 | **Video playback** — a movie on a texture with its audio on a bus, render-side only. | 0.3 | no plan |

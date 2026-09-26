@@ -715,6 +715,7 @@ dependencies = [
  "balaur_plugin",
  "balaur_render",
  "balaur_text",
+ "glamx",
  "image",
  "naga",
  "serde_json",

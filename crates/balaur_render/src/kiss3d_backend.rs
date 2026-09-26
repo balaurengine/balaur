@@ -826,7 +826,7 @@ fn sync(
         // Every shape is real geometry at its authored size now, so the node
         // carries the scene's scale and nothing of the shape's.
         let scale = global.scale;
-        let visible = appearance.visible && !crate::cloner::emptied(&world, entity);
+        let visible = appearance.visible && !crate::multimesh::draws_nothing(&world, entity);
         if let Some(lods) = &mut slot.lods {
             lods.show(&mut slot.node, global.position.distance(eye));
         }
@@ -849,9 +849,9 @@ fn sync(
         if let Ok(morphs) = world.get::<&crate::MorphWeights>(entity) {
             slot.node.set_morph_weights(&morphs.weights);
         }
-        // A cloner above this node turns it into one draw of many copies.
-        let clones = world.get::<&crate::Clones>(entity).ok();
-        crate::instancing::set_instances_3d(&mut slot.node, clones.as_deref(), global);
+        if let Ok(multimesh) = world.get::<&crate::MultiMesh>(entity) {
+            crate::instancing::draw_multimesh_3d(&mut slot.node, &multimesh, global);
+        }
     }
     crate::batch_3d::flush(batches);
     drop_unseen(slots, &seen);

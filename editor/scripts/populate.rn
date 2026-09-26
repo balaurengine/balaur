@@ -1,0 +1,245 @@
+// Godot's MultiMesh › Populate Surface over the selected multimesh: the
+// handle's `populate` lays the instances out, and this writes them in one step.
+
+use crate::model;
+use crate::util;
+
+const SHEET = "populate";
+const LABEL_W = 110.0;
+const MULTIMESH3D = "multimesh3d";
+const MULTIMESH2D = "multimesh2d";
+const NONE = "— none —";
+
+pub fn state() {
+    #{
+        kind: render::POPULATE_SURFACE, surface: "", count: 50, columns: 4, rows: 4,
+        step: 1.0, radius: 2.0, rotation: 1.0, tilt: 0.0, scale: 1.0, random_scale: 0.2,
+        seed: 1, said: "",
+    }
+}
+
+/// The multimesh component a node carries, if it carries one.
+pub fn component(node) {
+    if node.contains_key(MULTIMESH3D) {
+        return Some(MULTIMESH3D);
+    }
+    if node.contains_key(MULTIMESH2D) {
+        return Some(MULTIMESH2D);
+    }
+    None
+}
+
+pub fn open(S) {
+    if !model::has_selection(S) || component(model::selected_node(S)).is_none() {
+        return;
+    }
+    S.populate.said = "";
+    crate::window::show(S, SHEET);
+}
+
+pub fn draw(S) {
+    let hosts = crate::window::sheet_form(S, SHEET, "Populate", || {});
+    if util::is_nil(hosts) {
+        return;
+    }
+    crate::pool::sync(S, hosts.form, specs(S), LABEL_W, false);
+}
+
+fn specs(S) {
+    let P = S.populate;
+    let node = model::selected_node(S);
+    let name = component(node).unwrap_or(MULTIMESH3D);
+    let out = [];
+    out.push(#{ label: "Layout", height: 24, controls: [#{
+        kind: "dropdown", grow: 1, text: P.kind,
+        options: [render::POPULATE_SURFACE, render::POPULATE_ROW, render::POPULATE_RING, render::POPULATE_GRID],
+        on: |picked| { S.populate.kind = picked; },
+    }] });
+    if P.kind == render::POPULATE_SURFACE {
+        let paths = [NONE];
+        for other in S.doc {
+            if drawn(other) && other.get("id") != node.get("id") {
+                paths.push("/" + model::node_path(S.doc, other));
+            }
+        }
+        out.push(#{ label: "Surface", height: 24, controls: [#{
+            kind: "dropdown", grow: 1, text: if P.surface == "" { NONE } else { P.surface },
+            options: paths,
+            on: |picked| {
+                let named = if picked == NONE { "" } else { picked };
+                S.populate.surface = named;
+            },
+        }] });
+    }
+    if P.kind == render::POPULATE_GRID {
+        out.push(whole(S, "Columns", P.columns, |v| { S.populate.columns = v; }));
+        out.push(whole(S, "Rows", P.rows, |v| { S.populate.rows = v; }));
+    } else {
+        out.push(whole(S, "Count", P.count, |v| { S.populate.count = v; }));
+    }
+    if P.kind == render::POPULATE_ROW || P.kind == render::POPULATE_GRID {
+        out.push(number(S, "Step", P.step, 0.1, |v| { S.populate.step = v; }));
+    }
+    if P.kind == render::POPULATE_RING {
+        out.push(number(S, "Radius", P.radius, 0.1, |v| { S.populate.radius = v; }));
+    }
+    out.push(fraction(S, "Rotation", P.rotation, |v| { S.populate.rotation = v; }));
+    if name == MULTIMESH3D {
+        out.push(fraction(S, "Tilt", P.tilt, |v| { S.populate.tilt = v; }));
+    }
+    out.push(number(S, "Scale", P.scale, 0.05, |v| { S.populate.scale = v; }));
+    out.push(fraction(S, "Random scale", P.random_scale, |v| { S.populate.random_scale = v; }));
+    out.push(whole(S, "Seed", P.seed, |v| { S.populate.seed = v; }));
+    out.push(#{ label: "Writes", height: 24, controls: [#{
+        kind: "label", role: "text_caption", grow: 1, text: target_text(S, node, name),
+    }] });
+    if P.said != "" {
+        out.push(#{ label: "", height: 24, controls: [#{
+            kind: "label", role: "text_caption", grow: 1, text: P.said,
+        }] });
+    }
+    out.push(#{ full: true, height: 30, slot_role: "layout_actions", controls: [#{
+        kind: "button", role: "action_form_primary", grow: 1, text: "Populate",
+        tooltip: "Replace the asset's instances with this layout, as one undo step",
+        on: |_| { apply(S); },
+    }] });
+    out
+}
+
+fn whole(S, label, value, write) {
+    #{ label: label, height: 24, controls: [#{
+        kind: "number_field", grow: 1, value: value as f64, step: 1.0,
+        on: |v| { write(util::max(math::round(v), 0.0) as i64); },
+    }] }
+}
+
+fn number(S, label, value, step, write) {
+    #{ label: label, height: 24, controls: [#{
+        kind: "number_field", grow: 1, value: value, step: step,
+        on: |v| { write(v); },
+    }] }
+}
+
+// A share from nothing to all of it: of a half turn for rotation and tilt, of
+// `scale` for its variation.
+fn fraction(S, label, value, write) {
+    #{ label: label, height: 24, controls: [#{
+        kind: "number_field", grow: 1, value: value, step: 0.05, min: 0.0, max: 1.0,
+        on: |v| { write(util::min(util::max(v, 0.0), 1.0)); },
+    }] }
+}
+
+// Whether a node draws something a surface can be read off.
+fn drawn(node) {
+    node.contains_key("mesh") || node.contains_key("shape3d") || node.contains_key("polygon")
+        || node.contains_key("shape2d")
+}
+
+// Where the list lands, in words: the asset itself when it is inline, the
+// scene's block, or a file, which is written outside the undo history.
+fn target_text(S, node, name) {
+    let source = node[name].get("source").unwrap_or("");
+    if source is Object {
+        return "this node's own asset";
+    }
+    if source.starts_with("#") {
+        return format!("the scene's [[assets]] block {}", source);
+    }
+    if source == "" {
+        return "nothing: the node names no asset";
+    }
+    format!("{}, saved now and outside undo", source)
+}
+
+/// The options the engine's `populate` reads, from the sheet's fields.
+fn options(S, flat) {
+    let P = S.populate;
+    let out = #{
+        kind: P.kind, count: P.count, radius: P.radius, rotation: P.rotation,
+        tilt: P.tilt, scale: P.scale, random_scale: P.random_scale, seed: P.seed,
+    };
+    let step = if P.kind == render::POPULATE_ROW {
+        [P.step, 0.0, 0.0]
+    } else if flat {
+        [P.step, P.step, 0.0]
+    } else {
+        [P.step, 0.0, P.step]
+    };
+    let counts = if flat { [P.columns, P.rows, 1] } else { [P.columns, 1, P.rows] };
+    out.step = step;
+    out.counts = counts;
+    out
+}
+
+pub fn apply(S) {
+    let node = model::selected_node(S);
+    let name = match component(node) {
+        Some(name) => name,
+        None => return,
+    };
+    let found = match model::live(S, S.sel) {
+        Some(found) => found,
+        None => return,
+    };
+    let flat = name == MULTIMESH2D;
+    let asked = options(S, flat);
+    if S.populate.kind == render::POPULATE_SURFACE {
+        let surface = match surface_node(S) {
+            Some(surface) => surface,
+            None => {
+                S.populate.said = "Pick the surface to populate.";
+                return;
+            }
+        };
+        asked.surface = surface;
+    }
+    let handle = if flat { found.multimesh2d } else { found.multimesh3d };
+    let instances = handle.populate(asked);
+    let wrote = write(S, node, name, instances);
+    S.populate.said = format!("{} instances written to {}.", instances.len(), wrote);
+}
+
+// The live node the Surface row names, by the path the dropdown showed.
+fn surface_node(S) {
+    if S.populate.surface == "" {
+        return None;
+    }
+    for (i, node) in S.doc.iter().enumerate() {
+        if "/" + model::node_path(S.doc, node) == S.populate.surface {
+            return model::live(S, i);
+        }
+    }
+    None
+}
+
+// The list into wherever the node's asset lives. Inline and in a scene block
+// it is one history step; a file has no place in the document's history.
+fn write(S, node, name, instances) {
+    let source = node[name].get("source").unwrap_or("");
+    if source is Object {
+        crate::history::record(S, "Populate", None);
+        node[name].source.instances = instances;
+        model::apply_component(S, name);
+        return "this node's asset";
+    }
+    if source.starts_with("#") {
+        let id = match source.split_once('#') {
+            Some((_, id)) => id,
+            None => source,
+        };
+        crate::history::record(S, "Populate", None);
+        for block in S.scene_doc.get("assets").unwrap_or([]) {
+            if block.get("id") == Some(id) {
+                block.instances = instances;
+            }
+        }
+        S.assets_touched = true;
+        model::build_mirror(S);
+        return source;
+    }
+    let definition = assets::duplicate(source);
+    definition.instances = instances;
+    assets::save(source, definition);
+    model::apply_component(S, name);
+    source
+}

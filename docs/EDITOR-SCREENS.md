@@ -283,6 +283,7 @@ state draws the rows as a sheet: no offscreen run can click a popup open.
 | Showcase driver | `showcase::draw` — scripted input for the manual's clips | — | `--state show:<name>` |
 | Font sheet | `selftest::font_sheet` — every script the chain covers, the three faces, the icon font | `28` | `--state font_sheet` |
 | Theme window | `themewin::draw` — `window::sheet_form`, pages down the side, each role drawn as itself | `42`, `43` | the mark menu's Theme, or `--state theme:<page>:<role>` |
+| Populate | `populate::draw` — `window::sheet_form`, one row per option of the layout picked | `44` | Populate… on a `multimesh3d` or `multimesh2d` section, or `--state populate` |
 
 The theme window is the one sheet whose rows change the chrome around them: an
 edit to a user theme is worn at once, and a bundled theme is read-only.
@@ -300,6 +301,25 @@ edit to a user theme is worn at once, and a bundled theme is read-only.
 │               │   add        [add a key…  ▾]                              │
 │               │ dim on sunken: 6.22:1, reads at AA                        │
 └──────────────────────────────────────────────────────────────────────────┘
+```
+
+Populate is Godot's Populate Surface over the selected multimesh. The rows
+follow the layout: a surface asks which node, a grid its columns and rows,
+a ring its radius. The last row says where the list will land.
+
+```
+┌ Populate ─────────────────────────────────────────────────────── Close ┐
+│ Layout        [surface                                          ▾]   │
+│ Surface       [/Main/World/Ground                               ▾]   │
+│ Count         [                       50                         ]   │
+│ Rotation      [                      1.00                        ]   │
+│ Tilt          [                      0.00                        ]   │
+│ Scale         [                      1.00                        ]   │
+│ Random scale  [                      0.20                        ]   │
+│ Seed          [                         1                        ]   │
+│ Writes        the scene's [[assets]] block #blades                     │
+│ [                          Populate                                ]   │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---

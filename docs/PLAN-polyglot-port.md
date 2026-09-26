@@ -136,8 +136,7 @@ The rest are small keys, each a few sites and its own row:
 - **Signals** — `tab_changed` (2), `gui_input` and `text_change_rejected`
   connections nothing emits.
 - **Tracks** — `z_index`, `scale` on a Control and `update_position`, 16.
-- **Nodes** — `MultiMeshInstance2D` (3) as `polygon` children sharing one
-  mesh, `AnimatedSprite2D` (1) onto `sprite_sheet`, a particle's colour
+- **Nodes** — `AnimatedSprite2D` (1) onto `sprite_sheet`, a particle's colour
   curve (6).
 - **Regular expressions** — 3 `RegEx.new()` sites in the pinyin index; a
   `regex` module over `regex-lite`, the whole surface (`compile`, `search`,
@@ -299,10 +298,10 @@ Three rules belong to the importer rather than the translator:
    request reach `_notification` through `on_focused_changed` and
    `on_quit_requested` since 2026-09-25. A page picked on a `tab` is its `change` since
    2026-09-25, carrying the page's name, which `tab_changed` connects to;
-   a Godot handler that reads the index gets the name instead. A `MultiMesh` is the node's `cloner`
-   in `mode = "list"` over one `polygon` child carrying the mesh, each
-   instance a copy `set_copy` places and tints: one draw per wave layer.
-   The cloner draws its copies in 2D since then, polygons included. `t.x = v`
+   a Godot handler that reads the index gets the name instead. A `MultiMesh` is the node's
+   `multimesh2d` over an inline asset carrying the mesh, and
+   `set_instance_transform_2d` and `set_instance_color` pass through to its
+   handle: one draw per wave layer. `t.x = v`
    on a `Transform2D` local rebuilds it through `gd.with_field`. An
    autoload that is code alone is a module, read by name as a `class_name`
    is; any other is a node of the main scene, read through

@@ -127,7 +127,7 @@ fn apply_polygon(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<(
 /// The geometry a `polygon` draws, with a missing or unreadable mesh warned
 /// about and drawn as nothing: one bad reference must not take the scene
 /// down, and the editor adds the component before it has any points.
-fn resolve(
+pub(crate) fn resolve(
     eng: &Engine,
     mesh: String,
     texture: String,
@@ -186,10 +186,12 @@ fn texture_size(eng: &Engine, texture: &str) -> Result<(u32, u32)> {
 
 fn polygon_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let world = eng.world();
-    // A `boolean2d` draws its result as a polygon too, and so does a soft
-    // body a generator laid out; neither is a `polygon` the author added.
+    // A `boolean2d` draws its result as a polygon too, and so do a soft body
+    // a generator laid out and a `multimesh2d`; none is a `polygon` the
+    // author added.
     if world.get::<&crate::boolean::Boolean2d>(entity).is_ok()
         || world.get::<&SolverDrawn2d>(entity).is_ok()
+        || crate::multimesh::holds(&world, entity)
     {
         return None;
     }

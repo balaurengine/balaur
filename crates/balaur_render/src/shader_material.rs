@@ -68,6 +68,8 @@ struct ShaderGpuData {
     texture_ptr: usize,
     /// Which screen texture it was built with, for a material that reads one.
     screen_generation: u64,
+    /// Each instance's custom data, for a material that reads it.
+    custom: crate::multimesh::CustomBuffer,
 }
 
 impl ShaderGpuData {
@@ -83,6 +85,7 @@ impl ShaderGpuData {
             texture_bind_group: None,
             texture_ptr: 0,
             screen_generation: u64::MAX,
+            custom: crate::multimesh::CustomBuffer::default(),
         }
     }
 }
@@ -115,6 +118,8 @@ pub(crate) struct ShaderMaterial {
     screen: Option<wgpu::Sampler>,
     /// The material's own images, one per slot; `None` reads the fallback.
     slots: Vec<Option<Arc<Texture>>>,
+    /// Whether the pipeline carries each instance's custom data.
+    instance_custom: bool,
 }
 
 const fn float32x2(shader_location: u32, offset: u64) -> wgpu::VertexAttribute {
@@ -136,10 +141,17 @@ const INSTANCE_COLOR: [wgpu::VertexAttribute; 1] = [wgpu::VertexAttribute {
     format: wgpu::VertexFormat::Float32x4,
 }];
 const DEFORMATION: [wgpu::VertexAttribute; 2] = [float32x2(4, 0), float32x2(5, 8)];
+/// One instance's custom data, behind the `instance_custom` feature.
+const INSTANCE_CUSTOM: [wgpu::VertexAttribute; 1] = [wgpu::VertexAttribute {
+    offset: 0,
+    shader_location: 6,
+    format: wgpu::VertexFormat::Float32x4,
+}];
 
 /// The five buffers kiss3d binds for a 2D object: vertex positions and UVs,
-/// then the instance offset, colour and deformation.
-fn vertex_layouts() -> [Option<wgpu::VertexBufferLayout<'static>>; 5] {
+/// then the instance offset, colour and deformation; and a sixth, each
+/// instance's custom data, for a material that reads it.
+fn vertex_layouts(instance_custom: bool) -> Vec<Option<wgpu::VertexBufferLayout<'static>>> {
     const VEC2: u64 = std::mem::size_of::<[f32; 2]>() as u64;
     const VEC4: u64 = std::mem::size_of::<[f32; 4]>() as u64;
     let vertex = |array_stride, attributes| {
@@ -156,13 +168,17 @@ fn vertex_layouts() -> [Option<wgpu::VertexBufferLayout<'static>>; 5] {
             attributes,
         })
     };
-    [
+    let mut layouts = vec![
         vertex(VEC2, &POSITION),
         vertex(VEC2, &UV),
         instance(VEC2, &INSTANCE_POSITION),
         instance(VEC4, &INSTANCE_COLOR),
         instance(VEC4, &DEFORMATION),
-    ]
+    ];
+    if instance_custom {
+        layouts.push(instance(VEC4, &INSTANCE_CUSTOM));
+    }
+    layouts
 }
 
 /// How many images a 2D material binds itself, and the binding the first
@@ -207,13 +223,17 @@ pub(crate) fn post_params_group(values: &[u8]) -> Option<(wgpu::BindGroupLayout,
     material_group(values, None, "material")
 }
 
-fn build_pipeline(layout: wgpu::PipelineLayout, shader: wgpu::ShaderModule) -> PipelineCache {
+fn build_pipeline(
+    layout: wgpu::PipelineLayout,
+    shader: wgpu::ShaderModule,
+    instance_custom: bool,
+) -> PipelineCache {
     PipelineCache::new(move |sample_count| {
         crate::pipeline::material_pipeline(
             "material_pipeline",
             &layout,
             &shader,
-            &vertex_layouts(),
+            &vertex_layouts(instance_custom),
             None,
             &crate::pipeline::Depth::Ignored,
             sample_count,
@@ -264,7 +284,7 @@ impl ShaderMaterial {
             immediate_size: 0,
         });
         let shader = ctxt.create_shader_module(Some("material_shader"), &compiled.wgsl);
-        let pipeline = build_pipeline(pipeline_layout, shader);
+        let pipeline = build_pipeline(pipeline_layout, shader, compiled.instance_custom);
         let frame_uniform = ctxt.create_buffer(&wgpu::BufferDescriptor {
             label: Some("material_frame_uniform"),
             size: std::mem::size_of::<FrameUniforms>() as u64,
@@ -293,6 +313,7 @@ impl ShaderMaterial {
             last_frame: Cell::new(u64::MAX),
             screen,
             slots,
+            instance_custom: compiled.instance_custom,
         }
     }
 
@@ -445,7 +466,7 @@ impl Material2d for ShaderMaterial {
         _transform: Pose2,
         _scale: Vec2,
         _camera: &mut dyn Camera2d,
-        _data: &ObjectData2d,
+        data: &ObjectData2d,
         mesh: &mut GpuMesh2d,
         instances: &mut InstancesBuffer2d,
         gpu_data: &mut dyn GpuData,
@@ -509,6 +530,10 @@ impl Material2d for ShaderMaterial {
         render_pass.set_vertex_buffer(2, positions.slice(..));
         render_pass.set_vertex_buffer(3, colors.slice(..));
         render_pass.set_vertex_buffer(4, deformations.slice(..));
+        if self.instance_custom {
+            let custom = gpu_data.custom.fill(data.user_data(), instance_count);
+            render_pass.set_vertex_buffer(5, custom.slice(..));
+        }
         render_pass.set_index_buffer(faces.slice(..), VERTEX_INDEX_FORMAT);
         render_pass.draw_indexed(0..mesh.num_indices(), 0, 0..instance_count as u32);
     }

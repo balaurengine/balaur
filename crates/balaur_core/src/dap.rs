@@ -720,6 +720,8 @@ fn render(value: &Value) -> String {
         Value::Vec2([x, y]) => format!("({x}, {y})"),
         Value::Vec3([x, y, z]) => format!("({x}, {y}, {z})"),
         Value::Color([r, g, b, a]) => format!("rgba({r}, {g}, {b}, {a})"),
+        Value::Transform2d([.., x, y]) => format!("transform2d at ({x}, {y})"),
+        Value::Transform3d([.., x, y, z]) => format!("transform3d at ({x}, {y}, {z})"),
         Value::Node(bits) => format!("node #{bits}"),
         Value::Callback(_) => "function".into(),
         Value::List(items) | Value::Many(items) => format!("[{} items]", items.len()),

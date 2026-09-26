@@ -2733,8 +2733,8 @@ pub fn set_field(owner, name, value) {
                 return ();
             }
         }
-        if name == "instance_count" && owner.contains_key("__multimesh") {
-            multimesh_count(owner, value);
+        if owner.contains_key("__multimesh") && ["instance_count", "visible_instance_count", "mesh"].iter().any(|n| n == name) {
+            multimesh_set(owner, name, value);
             return ();
         }
         owner[name] = value;

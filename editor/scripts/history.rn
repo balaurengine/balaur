@@ -8,8 +8,15 @@ const MAX = 100;
 // seconds of the wall clock are one step.
 const COALESCE = 0.4;
 
+// The scene's `[[assets]]` travel with the nodes: a tool writes a block there,
+// and undoing it has to put the block back.
 fn frame(S, label) {
-    #{ doc: crate::util::deep(S.doc), sels: crate::util::deep(S.sels), label: label }
+    let assets = if S.contains_key("scene_doc") { S.scene_doc.get("assets") } else { None };
+    let kept = match assets {
+        Some(held) => crate::util::deep(held),
+        None => (),
+    };
+    #{ doc: crate::util::deep(S.doc), sels: crate::util::deep(S.sels), assets: kept, label: label }
 }
 
 pub fn reset(S) {
@@ -56,6 +63,10 @@ fn restore(S, into, from) {
     };
     into.push(frame(S, top.label));
     S.doc = top.doc;
+    let assets = top.get("assets").unwrap_or(());
+    if !crate::util::is_nil(assets) && S.contains_key("scene_doc") {
+        S.scene_doc.assets = assets;
+    }
     S.doc_rev += 1;
     // Restored here rather than through `selection`, which reads the model:
     // history owns the document and may not depend on what records into it.

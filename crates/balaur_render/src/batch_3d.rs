@@ -181,10 +181,10 @@ pub(crate) fn cut_groups(
         if !batchable(renderable, global) {
             continue;
         }
-        // A cloner draws its node many times already, and a morph or a
+        // A multimesh draws its node many times already, and a morph or a
         // solver deforms one node's vertices: all three are the object's, and
         // an instance has none of them.
-        if world.get::<&crate::Clones>(entity).is_ok()
+        if world.get::<&crate::MultiMesh>(entity).is_ok()
             || world.get::<&crate::MorphWeights>(entity).is_ok()
             || world.get::<&balaur_core::mesh::SolvedMesh>(entity).is_ok()
         {

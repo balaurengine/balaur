@@ -1,9 +1,8 @@
 //! The instanced draw path: one node, many copies, one call.
 //!
-//! The seam a cloner draws through, and the one automatic instancing and a
-//! scripted mass of copies will draw through when they arrive. Splitting a
-//! copy's world matrix into the two halves the shader reads is the whole of
-//! it, and it lives here rather than in the backend so that arithmetic can
+//! The seam a `multimesh3d` or `multimesh2d` draws through. Splitting an
+//! instance's world matrix into the two halves the shader reads is the whole
+//! of it, and it lives here rather than in the backend so that arithmetic can
 //! be read, and tested, on its own.
 
 #![cfg_attr(
@@ -68,54 +67,55 @@ pub(crate) fn split_2d(here: Mat4, placed: Mat4, angle: f32) -> Option<(Mat2, Ve
     Some((turn.transpose() * a * turn, offset))
 }
 
-/// A 2D node's copies, as the instances its object draws them through.
+/// A 2D node's instances, as its object draws them.
 #[cfg(feature = "window")]
-pub(crate) fn instances_2d(
-    clones: &crate::Clones,
+fn instances_2d(
+    multimesh: &crate::MultiMesh,
     global: &GlobalTransform,
 ) -> Vec<kiss3d::scene::InstanceData2d> {
     let here = model_of(global);
     let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
-    clones
-        .0
+    multimesh
+        .placed(global)
         .iter()
-        .filter_map(|copy| {
-            let (deformation, position) = split_2d(here, copy.at, angle)?;
+        .filter_map(|placed| {
+            let (deformation, position) = split_2d(here, placed.at, angle)?;
             Some(kiss3d::scene::InstanceData2d {
                 position,
                 deformation,
-                color: copy.tint,
+                color: placed.color,
                 ..Default::default()
             })
         })
         .collect()
 }
 
-/// Put a node's copies on it, as the instance data the shader reads.
+/// Put a 3D node's instances on it: the placement the shader reads, and each
+/// one's custom data for a material that reads it.
 #[cfg(feature = "window")]
-pub(crate) fn set_instances_3d(
+pub(crate) fn draw_multimesh_3d(
     node: &mut kiss3d::scene::SceneNode3d,
-    clones: Option<&crate::Clones>,
+    multimesh: &crate::MultiMesh,
     global: &GlobalTransform,
 ) {
     use kiss3d::prelude::Color;
     use kiss3d::scene::InstanceData3d;
 
-    let Some(clones) = clones.filter(|clones| !clones.0.is_empty()) else {
+    if multimesh.drawn().is_empty() {
         return;
-    };
+    }
     let here = model_of(global);
-    let instances: Vec<InstanceData3d> = clones
-        .0
+    let instances: Vec<InstanceData3d> = multimesh
+        .placed(global)
         .iter()
-        .filter_map(|copy| {
-            let (deformation, position) = split(here, copy.at, global.rotation)?;
-            Some((deformation, position, copy.tint))
+        .filter_map(|placed| {
+            let (deformation, position) = split(here, placed.at, global.rotation)?;
+            Some((deformation, position, placed.color))
         })
         .map(|(deformation, position, [r, g, b, a])| InstanceData3d {
             position,
             deformation,
-            // A copy's tint multiplies the node's own colour.
+            // An instance's colour multiplies the node's own.
             color: Color::new(r, g, b, a),
             lines_color: None,
             lines_width: None,
@@ -124,6 +124,33 @@ pub(crate) fn set_instances_3d(
         })
         .collect();
     node.set_instances(&instances);
+    if let Some(object) = node.data_mut().object_mut() {
+        object.set_user_data(Box::new(custom_of(multimesh)));
+    }
+}
+
+/// Put a 2D node's instances on its object, and answer whether it has any to
+/// draw.
+#[cfg(feature = "window")]
+pub(crate) fn draw_multimesh_2d(
+    object: &mut kiss3d::scene::Object2d,
+    multimesh: &crate::MultiMesh,
+    global: &GlobalTransform,
+) -> bool {
+    object.set_instances(&instances_2d(multimesh, global));
+    object.set_user_data(Box::new(custom_of(multimesh)));
+    !multimesh.drawn().is_empty()
+}
+
+#[cfg(feature = "window")]
+fn custom_of(multimesh: &crate::MultiMesh) -> crate::multimesh::InstanceCustom {
+    crate::multimesh::InstanceCustom(
+        multimesh
+            .drawn()
+            .iter()
+            .map(|instance| instance.custom)
+            .collect(),
+    )
 }
 
 #[cfg(test)]
@@ -153,8 +180,7 @@ mod tests {
     /// where the copy's world matrix says it should.
     ///
     /// `copy` is what the copy does to the node's whole frame, so the matrix
-    /// handed over is that applied to the node's own -- which is what a
-    /// cloner writes.
+    /// handed over is that applied to the node's own.
     fn round_trips(here: GlobalTransform, copy: Mat4) {
         let model = model_of(&here);
         let placed = copy * model;
@@ -178,7 +204,7 @@ mod tests {
     }
 
     #[test]
-    fn a_copy_turned_about_the_cloner_lands_turned() {
+    fn a_copy_turned_about_its_node_lands_turned() {
         round_trips(
             pose(Vec3::new(1.0, 0.0, 0.0), Quat::IDENTITY, Vec3::ONE),
             Mat4::from_rotation_y(std::f32::consts::FRAC_PI_2),

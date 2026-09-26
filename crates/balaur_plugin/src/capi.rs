@@ -365,6 +365,10 @@ struct Arena {
     maps: Vec<Box<[BalaurEntry]>>,
 }
 
+fn numbers(values: &[f32]) -> Vec<Value> {
+    values.iter().map(|v| Value::Num(f64::from(*v))).collect()
+}
+
 fn to_c(value: &Value, arena: &mut Arena) -> BalaurValue {
     let (kind, payload) = match value {
         Value::Nil => (BALAUR_NIL, BalaurPayload { bits: 0 }),
@@ -396,6 +400,9 @@ fn to_c(value: &Value, arena: &mut Arena) -> BalaurValue {
             },
         ),
         Value::Color(rgba) => (BALAUR_COLOR, BalaurPayload { vector: *rgba }),
+        // A payload holds four floats at most, so C is handed a list.
+        Value::Transform2d(columns) => (BALAUR_LIST, list_payload(&numbers(columns), arena)),
+        Value::Transform3d(columns) => (BALAUR_LIST, list_payload(&numbers(columns), arena)),
         Value::Node(bits) => (BALAUR_NODE, BalaurPayload { bits: *bits }),
         Value::Callback(id) => (BALAUR_CALLBACK, BalaurPayload { bits: id.0 }),
         Value::List(items) => (BALAUR_LIST, list_payload(items, arena)),

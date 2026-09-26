@@ -50,10 +50,11 @@ pub fn component(name) {
     if name == "bone2d" || name == "bone3d" || name == "skeleton" {
         return (tool("bone"), "node_bone");
     }
-    if name == "polygon" || name == "shape2d" || name == "sprite" || name == "text2d" {
+    if name == "polygon" || name == "shape2d" || name == "sprite" || name == "text2d"
+        || name == "multimesh2d" {
         return (tool("polygon"), "node_2d");
     }
-    if name == "shape3d" || name == "mesh" || name == "text3d" {
+    if name == "shape3d" || name == "mesh" || name == "text3d" || name == "multimesh3d" {
         return (workspace("scene"), "node_3d");
     }
     if name.starts_with("body") || name.starts_with("collider")

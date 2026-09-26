@@ -10,6 +10,7 @@ authors.workspace = true
 balaur = { workspace = true, default-features = false }
 balaur_core.workspace = true
 balaur_plugin.workspace = true
+glamx.workspace = true
 # `balaur import file.aseprite` reads the editor's own format.
 balaur_render = { workspace = true, features = ["aseprite"] }
 # The `.fnt` reader, so `balaur shrink` leaves a bitmap font's page alone.

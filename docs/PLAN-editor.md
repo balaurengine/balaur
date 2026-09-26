@@ -120,6 +120,22 @@ node, so the painter moves the node by half of what it added to hold the
 tiles already down still, and a cell left of column zero has nowhere to go,
 which `origin` on the map replaces in that plan's step 2.
 
+### Populate — built, 2026-09-26
+
+Godot's MultiMesh › Populate Surface, as a sheet over the selected
+`multimesh3d` or `multimesh2d` (`editor/scripts/populate.rn`,
+`test:populate`). It opens from the button on the component's section and
+from the command palette. It lays instances over a surface node's
+triangles, picked by area and standing on each normal, or as a row, a ring
+or a grid. Rotation, tilt and random scale vary each one, from a seed.
+
+The layout is the engine's: `populate` on the node's handle works it out and
+returns the list rather than setting it. The sheet writes that list into the
+asset the node names. Inline or in the scene's `[[assets]]` block it is one
+history step, so undo is free; history now carries the blocks, and a save
+writes them back once a tool has touched one. An asset in its own file is
+saved at once and outside undo, as the tile map's file is.
+
 ### Curve editor and onion skin
 
 The Animate workspace's timeline shows keys as dots on a lane. A curve view

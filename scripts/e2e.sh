@@ -353,6 +353,12 @@ for ex in examples/*/; do
   edit_step "$name: rig" "$ex" test:rig
   printf 'ok\n'
 
+  # Populate: a grid and a surface written into a multimesh's asset, and
+  # both undone. A scene with no multimesh skips itself.
+  printf '  populate . '
+  edit_step "$name: populate" "$ex" test:populate
+  printf 'ok\n'
+
   # The Polygon tool: trace, sync bones, paint, draw a polygon, undo.
   printf '  poly ...   '
   edit_step "$name: polygon" "$ex" test:polygons

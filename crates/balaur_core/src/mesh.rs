@@ -408,7 +408,7 @@ id = "blade"
 type = "mesh"
 source = "models/blade.obj"      # imported...
 part = "stone"                   # glTF only: just this material's triangles
-# ...or a primitive, one of ball, cuboid, capsule, cylinder, cone, plane,
+# ...or a primitive, one of sphere, box, capsule, cylinder, cone, plane,
 # torus, pyramid, prism, tube:
 kind = "torus"
 radius = 1.0

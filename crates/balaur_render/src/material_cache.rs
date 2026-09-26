@@ -135,6 +135,7 @@ macro_rules! define {
                         params: Vec::new(),
                         probes: false,
                         vertex_color: false,
+                        instance_custom: false,
                     })
                 })
                 .inspect_err(|why| tracing::error!(channel, "{why:#}"))

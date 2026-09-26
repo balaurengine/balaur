@@ -360,6 +360,8 @@ fn display_types() {
         ("bone2d", "Bone2D"),
         ("bone3d", "Bone3D"),
         ("polygon", "Polygon2D"),
+        ("multimesh3d", "MultiMeshInstance3D"),
+        ("multimesh2d", "MultiMeshInstance2D"),
         ("mesh", "MeshInstance3D"),
         ("shape3d", "MeshInstance3D"),
         ("shape2d", "MeshInstance2D"),
@@ -432,7 +434,7 @@ fn scan_2d(S) {
     for node in S.doc {
         if node.contains_key("shape2d") || node.contains_key("body2d") || node.contains_key("collider2d")
             || node.contains_key("polygon") || node.contains_key("bone2d") || node.contains_key("sprite")
-            || node.contains_key("tilemap") {
+            || node.contains_key("tilemap") || node.contains_key("multimesh2d") {
             return true;
         }
         if node.contains_key(CAMERA_2D) {
@@ -457,10 +459,11 @@ pub fn node_icon(node) {
     if node.contains_key("bone2d") || node.contains_key("bone3d") {
         return (crate::icons::tool("bone"), "node_bone");
     }
-    if node.contains_key("polygon") || node.contains_key("shape2d") || node.contains_key("sprite") {
+    if node.contains_key("polygon") || node.contains_key("shape2d") || node.contains_key("sprite")
+        || node.contains_key("multimesh2d") {
         return (crate::icons::tool("polygon"), "node_2d");
     }
-    if node.contains_key("shape3d") || node.contains_key("mesh") {
+    if node.contains_key("shape3d") || node.contains_key("mesh") || node.contains_key("multimesh3d") {
         return (crate::icons::workspace(defs::WORKSPACE_SCENE), "node_3d");
     }
     if node.contains_key("script") {
@@ -1244,7 +1247,16 @@ pub fn save(S) {
     // and every table the editor does not model.
     let existing = fs::read(S.scene_path);
     let text = if existing is String { existing } else { "" };
-    fs::write(S.scene_path, toml::patch(text, #{ nodes: authored(S.doc) }));
+    let written = #{ nodes: authored(S.doc) };
+    // The blocks only once a tool changed one: patching them rewrites the
+    // whole list, comments and all.
+    if S.assets_touched {
+        if let Some(assets) = S.scene_doc.get("assets") {
+            written.assets = assets;
+        }
+        S.assets_touched = false;
+    }
+    fs::write(S.scene_path, toml::patch(text, written));
     forget(S, None);
     history::mark_saved(S);
     log::info("saved " + S.scene_rel);
