@@ -673,8 +673,9 @@ pub(crate) fn property(receiver: &str, field: &str) -> Option<String> {
         "item_count" => format!("(gd.option_count)({receiver})"),
         "disabled" => format!("!(gd.get)({receiver}.get_component(\"widget\"), \"enabled\", true)"),
         "text" => format!("(gd.text_of)({receiver})"),
+        "icon" => format!("(gd.icon_of)({receiver})"),
         "pressed" | "button_pressed" | "editable" | "placeholder_text" | "tooltip_text"
-        | "value" | "max_value" | "min_value" | "icon" => {
+        | "value" | "max_value" | "min_value" => {
             let key = widget_key(field);
             format!("(gd.get)({receiver}.get_component(\"widget\"), \"{key}\", ())")
         }
@@ -764,13 +765,15 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
         "max_value",
         "min_value",
         "tooltip_text",
-        "icon",
     ];
     if field == "selected" {
         return Some(format!("(gd.option_select)({receiver}, {value})"));
     }
     if field == "text" {
         return Some(format!("(gd.set_text)({receiver}, {value})"));
+    }
+    if field == "icon" {
+        return Some(format!("(gd.set_icon)({receiver}, {value})"));
     }
     if field == "disabled" {
         return Some(format!(

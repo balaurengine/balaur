@@ -1454,10 +1454,27 @@ pub fn load(path) {
     if rest.ends_with(SCENE_SUFFIX) {
         return converted_scene(rest);
     }
+    if rest.ends_with(SVG_SUFFIX) {
+        return raster_of(rest);
+    }
     rest
 }
 
 const SCENE_SUFFIX = ".tscn";
+const SVG_SUFFIX = ".svg";
+
+/// The picture the import wrote beside an SVG, which Godot drew from the
+/// raster it kept; the SVG itself where there is none.
+fn raster_of(path) {
+    let stem = path[..path.len() - SVG_SUFFIX.len()];
+    for extension in ["webp", "png"] {
+        let raster = `${stem}.${extension}`;
+        if fs::exists(raster) {
+            return raster;
+        }
+    }
+    return path;
+}
 
 /// The scene the import wrote for a Godot scene path: the `.toml` beside it.
 fn converted_scene(path) {
@@ -1872,6 +1889,23 @@ fn option_items(node) {
     let items = get(node.get_component("widget"), "options", ());
     if items is Vec { items } else { [] }
 }
+
+/// A button's `icon`: the picture its widget draws, nil for none.
+pub fn icon_of(node) {
+    let image = get(node.get_component("widget"), WIDGET_IMAGE, "");
+    if image == "" { () } else { image }
+}
+
+/// `icon = texture`: the picture the widget draws before its caption, or
+/// none for nil.
+pub fn set_icon(node, texture) {
+    let image = if texture is String { texture } else { "" };
+    let patch = #{};
+    patch[WIDGET_IMAGE] = image;
+    node.patch_component("widget", patch);
+}
+
+const WIDGET_IMAGE = "image";
 
 /// A caption: a world label's `text2d`, or the widget's.
 pub fn text_of(node) {

@@ -861,4 +861,62 @@ mod tests {
             "the probe hid itself only if the filed rect, vector and fallback read back"
         );
     }
+
+    /// A button's `icon` is the picture its widget draws, and an SVG loads
+    /// as the raster the import wrote beside it.
+    #[test]
+    fn a_button_icon_is_its_widget_s_picture_and_an_svg_its_raster() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            &[
+                "[[nodes]]",
+                "id = \"probe\"",
+                "name = \"Probe\"",
+                "script = { source = \"probe.rn\" }",
+                "widget = { kind = \"button\" }",
+                "",
+            ]
+            .join("\n"),
+        );
+        put("close.webp", "not really an image");
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let before = (gd.icon_of)(this.node);",
+                "    (gd.set_icon)(this.node, (gd.load)(\"res://close.svg\"));",
+                "    let image = this.node.get_component(\"widget\")[\"image\"];",
+                "    let glyph = (gd.get)(this.node.get_component(\"widget\"), \"icon\", \"\");",
+                "    if (gd.same)(before, ()) && image == \"close.webp\" && glyph == \"\" {",
+                "        this.node.set_z_index(3);",
+                "    }",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert_eq!(
+            world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .z_index,
+            3,
+            "the probe marked itself only if the icon became the widget's picture, as a raster"
+        );
+    }
 }
