@@ -246,6 +246,25 @@ fn a_flow_wraps_when_the_row_is_full() {
     );
 }
 
+/// A label that names `on_click` is clicked by the pointer, not only by
+/// focus and accept.
+#[test]
+fn a_label_with_on_click_takes_a_pointer_click() {
+    let (_dir, mut app) = app();
+    let label = add_widget(
+        &app,
+        &toml::toml! { kind = "label" text = "Continue" on_click = "on_go" x = 0.0 y = 0.0 }
+            .into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let rect = balaur_ui::widget_rect(label).expect("the label drew");
+    pass(&app, &ctx, press(rect.center(), true));
+    pass(&app, &ctx, press(rect.center(), false));
+    consume_input(&mut app);
+    assert!(clicked(&app, label));
+}
+
 #[test]
 fn a_fold_hides_its_children_until_its_header_is_clicked() {
     let (_dir, mut app) = app();

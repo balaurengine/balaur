@@ -119,6 +119,23 @@ fn accepting_the_focused_widget_is_a_click() {
     assert!(!clicked(&app, buttons[0]), "it clicked the wrong one");
 }
 
+#[test]
+fn accepting_a_focused_fold_turns_it() {
+    let (_dir, mut app) = app();
+    let fold = add_widget(
+        &app,
+        &toml::toml! { kind = "fold" text = "Advanced" open = false x = 0.0 y = 0.0 }.into(),
+    );
+    keyboard(&app);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, key(egui::Key::ArrowDown));
+    assert_eq!(focused(&app), Some(fold));
+    pass(&app, &ctx, key(egui::Key::Enter));
+    consume_input(&mut app);
+    assert_eq!(property(&app, fold, "open"), toml::Value::Boolean(true));
+}
+
 /// Focus exists to activate something, so a widget with nothing to activate
 /// is never a stop on the way to one.
 #[test]

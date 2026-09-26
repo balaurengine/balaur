@@ -244,6 +244,13 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     let shown = reachable(&placed, &roots, &|name| surface_of(name).enabled);
     let stops = focus_stops(&placed, &shown);
     let accepted = advance(eng, &stops, asked);
+    // Accept on a fold turns it, as a click on its header does.
+    let turned = accepted.and_then(|entity| {
+        let fold = placed
+            .iter()
+            .find(|p| p.entity == entity && p.widget.kind == w::FOLD)?;
+        Some((entity, Edit::Open(!fold.widget.open)))
+    });
     // A chord is a click by another name, as an `accept` is.
     let fired = shortcuts(ctx, &placed, &shown);
     let focused = eng
@@ -264,7 +271,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         theme: theme_root(eng),
         assigned: egui::Vec2::ZERO,
         bounds: egui::Vec2::ZERO,
-        edits: Vec::new(),
+        edits: turned.into_iter().collect(),
         rects: crate::widget::taffy::Rects::default(),
         fresh,
         touched,
@@ -729,9 +736,40 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     };
     let outer = std::mem::replace(&mut at.state, state);
     crate::widget::kinds::context_sensor(ui, at, index);
+    click_sensor(ui, at, index);
     draw_kind(ui, at, index);
     crate::widget::kinds::context_menu(ui, at, index);
     at.state = outer;
+}
+
+/// A click on a widget that draws nothing clickable of its own, when its
+/// `on_click` names a handler. Sensed before the kind draws, so a child
+/// drawn inside it still takes its own clicks first.
+fn click_sensor(ui: &egui::Ui, at: &mut Painting<'_>, index: usize) {
+    let placed = &at.arena[index];
+    let widget = &placed.widget;
+    let passive = matches!(
+        widget.kind.as_str(),
+        w::LABEL
+            | w::PANEL
+            | w::ROW
+            | w::COLUMN
+            | w::GRID
+            | w::STACK
+            | w::FLOW
+            | w::SCROLL
+            | w::PROGRESS_BAR
+    );
+    if !passive || widget.on_click.is_empty() || widget.disabled {
+        return;
+    }
+    let id = egui::Id::new(("balaur-click", placed.entity));
+    if ui
+        .interact(ui.max_rect(), id, egui::Sense::click())
+        .clicked()
+    {
+        at.clicked.push(placed.entity);
+    }
 }
 
 /// Whether the pointer is over the box this widget was given, and whether it

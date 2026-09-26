@@ -96,7 +96,6 @@ pub(crate) fn shaped_label(
         crate::widget::theme::text_align_of(style, widget).to_owned(),
         widget.selectable,
     );
-    let on_link = widget.on_link.clone();
     let room = ui.available_width();
     // A wrapping block takes the room; a truncating line takes its column, so
     // the shaper knows where to cut. Neither is the other.
@@ -176,7 +175,7 @@ pub(crate) fn shaped_label(
             );
         }
     }
-    spans(ui, at, &response, &shaped, (origin, entity, &on_link));
+    spans(ui, at, &response, &shaped, (origin, entity));
     ui.set_clip_rect(held);
     true
 }
@@ -358,9 +357,9 @@ fn spans(
     at: &mut Painting<'_>,
     response: &egui::Response,
     shaped: &balaur_text::Shaped,
-    what: (egui::Pos2, balaur_core::hecs::Entity, &str),
+    what: (egui::Pos2, balaur_core::hecs::Entity),
 ) {
-    let (origin, entity, on_link) = what;
+    let (origin, entity) = what;
     let Some(pos) = response.hover_pos() else {
         return;
     };
@@ -380,7 +379,9 @@ fn spans(
         return;
     };
     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-    if response.clicked() && !on_link.is_empty() {
+    // Emitted whether or not `on_link` names a handler: a row or a
+    // subscriber may be the one listening.
+    if response.clicked() {
         at.edits.push((entity, Edit::Link(target.clone())));
     }
 }

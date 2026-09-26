@@ -287,8 +287,11 @@ fn settle_one(
             widget.color = *rgba;
             Some((CHANGE_EVENT, Value::Color(*rgba), &widget.on_change))
         }
+        // A dropdown shows what was picked; a menu keeps its caption.
         Edit::Choice(choice) => {
-            widget.text = choice.as_str().into();
+            if widget.kind != w::MENU {
+                widget.text = choice.as_str().into();
+            }
             Some((CHANGE_EVENT, Value::Str(choice.clone()), &widget.on_change))
         }
         Edit::Picked(row, rows) => {
