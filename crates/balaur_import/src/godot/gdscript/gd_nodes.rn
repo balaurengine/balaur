@@ -451,6 +451,14 @@ pub fn keep_exports(this, kept) {
     }
 }
 
+/// A Control property written to its widget. A node with none, such as a
+/// label in the world, has nothing to take it: a patch would make one.
+pub fn patch_widget(node, patch) {
+    if node is balaur::Node && node.has_component("widget") {
+        node.patch_component("widget", patch);
+    }
+}
+
 /// A FoldableContainer's title bar control: a child of the `fold`, drawn in
 /// its header beside the arrow.
 pub fn add_title_bar_control(fold, control) {
@@ -1213,6 +1221,9 @@ pub fn theme_font_size(node, name) {
 /// Godot's `add_theme_*_override`: the widget key that carries the item, or
 /// nothing where the widget has none.
 pub fn theme_override(node, group, name, value) {
+    if node is balaur::Node && node.has_component(TEXT2D) {
+        return world_text_override(node, group, name, value);
+    }
     if !(node is balaur::Node) || !node.has_component("widget") {
         return ();
     }
@@ -1235,6 +1246,20 @@ pub fn theme_override(node, group, name, value) {
     let patch = #{};
     patch[key] = if tinted { color_list(value) } else { float(value) };
     node.patch_component("widget", patch);
+}
+
+/// A label in the world takes a theme override on its `text2d`.
+fn world_text_override(node, group, name, value) {
+    let key = match (group, name) {
+        ("colors", "font_color") => "color",
+        ("colors", "font_outline_color") => "outline_color",
+        ("font_sizes", "font_size") => "font_size",
+        ("constants", "outline_size") => "outline_size",
+        _ => return (),
+    };
+    let patch = #{};
+    patch[key] = if group == "colors" { color_list(value) } else { float(value) };
+    node.patch_component(TEXT2D, patch);
 }
 
 /// A copy of a node and everything under it, placed under `parent`: each

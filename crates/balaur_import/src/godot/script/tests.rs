@@ -925,7 +925,7 @@ func _ready():\n\
     let out = convert(source, "scripts/entry.gd", &Classes::default());
     assert!(
         out.rune
-            .contains("patch_component(\"widget\", #{ \"cursor\": (gd.cursor_word)(2) })"),
+            .contains("(gd.patch_widget)(this.name_label, #{ \"cursor\": (gd.cursor_word)(2) })"),
         "{}",
         out.rune
     );
@@ -950,7 +950,7 @@ func _ready():\n\
     let out = convert(source, "scripts/veil.gd", &Classes::default());
     assert!(
         out.rune
-            .contains("patch_component(\"widget\", #{ \"interactive\": 2 != 2 })"),
+            .contains("(gd.patch_widget)(this.node, #{ \"interactive\": 2 != 2 })"),
         "{}",
         out.rune
     );

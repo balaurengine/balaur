@@ -707,8 +707,8 @@ mod tests {
         );
     }
 
-    /// A label in the world keeps its caption on `text2d`: `text` reads and
-    /// writes it there, and a widget's stays on the widget.
+    /// A label in the world keeps its caption and theme on `text2d`, and a
+    /// Control property written to it makes no widget.
     #[test]
     fn a_world_label_s_text_is_its_text2d() {
         let dir = tempfile::tempdir().unwrap();
@@ -751,8 +751,11 @@ mod tests {
                 "    let before = (gd.text_of)(region);",
                 "    (gd.set_text)(region, \"CLUJ\");",
                 "    (gd.set_text)(caption, \"Bye\");",
+                "    (gd.patch_widget)(region, #{ \"interactive\": false });",
+                "    (gd.theme_override)(region, \"font_sizes\", \"font_size\", 30);",
                 "    let moved = region.get_component(\"text2d\")[\"text\"];",
-                "    if before == \"ALBA\" && moved == \"CLUJ\" && (gd.text_of)(caption) == \"Bye\" && !region.has_component(\"widget\") {",
+                "    let size = region.get_component(\"text2d\")[\"font_size\"];",
+                "    if before == \"ALBA\" && moved == \"CLUJ\" && size == 30.0 && (gd.text_of)(caption) == \"Bye\" && !region.has_component(\"widget\") {",
                 "        this.node.set_visible(false);",
                 "    }",
                 "}",

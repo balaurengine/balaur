@@ -784,7 +784,7 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
     }
     if field == "disabled" {
         return Some(format!(
-            "{receiver}.patch_component(\"widget\", #{{ \"enabled\": !({value}) }})"
+            "(gd.patch_widget)({receiver}, #{{ \"enabled\": !({value}) }})"
         ));
     }
     // The window's content scale is the UI's global scale here.
@@ -794,7 +794,7 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
     if WIDGET.contains(&field) {
         let key = widget_key(field);
         return Some(format!(
-            "{receiver}.patch_component(\"widget\", #{{ \"{key}\": {value} }})"
+            "(gd.patch_widget)({receiver}, #{{ \"{key}\": {value} }})"
         ));
     }
     if receiver != "this.node" && NODE_PROPERTIES.contains(&field) {
@@ -803,12 +803,12 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
     Some(match field {
         "visible" => format!("{receiver}.set_visible({value})"),
         // Godot numbers its cursor shapes; the widget names its `cursor`.
-        "mouse_default_cursor_shape" => format!(
-            "{receiver}.patch_component(\"widget\", #{{ \"cursor\": (gd.cursor_word)({value}) }})"
-        ),
+        "mouse_default_cursor_shape" => {
+            format!("(gd.patch_widget)({receiver}, #{{ \"cursor\": (gd.cursor_word)({value}) }})")
+        }
         // `MOUSE_FILTER_IGNORE` is 2; the other two keep the pointer.
         "mouse_filter" => {
-            format!("{receiver}.patch_component(\"widget\", #{{ \"interactive\": {value} != 2 }})")
+            format!("(gd.patch_widget)({receiver}, #{{ \"interactive\": {value} != 2 }})")
         }
         "position" => format!("(gd.set_position)({receiver}, {value})"),
         "global_position" => format!("(gd.set_global_position)({receiver}, {value})"),
@@ -821,9 +821,9 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
         "custom_minimum_size" => format!("(gd.set_min_size)({receiver}, {value})"),
         // A control's own size is the widget panel's width and height here.
         "size" => format!("(gd.set_size)({receiver}, {value})"),
-        "button_group" => format!(
-            "{receiver}.patch_component(\"widget\", #{{ \"group\": {value}, \"toggle\": true }})"
-        ),
+        "button_group" => {
+            format!("(gd.patch_widget)({receiver}, #{{ \"group\": {value}, \"toggle\": true }})")
+        }
         _ => return None,
     })
 }
@@ -1054,7 +1054,7 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         "remove_child" => format!("(gd.remove_child)({one})"),
         "get_process_delta_time" | "get_physics_process_delta_time" => "engine::delta()".into(),
         "set_pressed_no_signal" | "set_pressed" => {
-            format!("{receiver}.patch_component(\"widget\", #{{ \"checked\": {one} }})")
+            format!("(gd.patch_widget)({receiver}, #{{ \"checked\": {one} }})")
         }
         _ => return None,
     })
@@ -1083,7 +1083,7 @@ pub(crate) fn engine_signal(signal: &str) -> bool {
 /// takes it off again.
 pub(crate) fn widget_connect(receiver: &str, key: &str, handler: Option<&str>) -> String {
     let name = quoted(handler.unwrap_or(""));
-    format!("{receiver}.patch_component(\"widget\", #{{ \"{key}\": {name} }})")
+    format!("(gd.patch_widget)({receiver}, #{{ \"{key}\": {name} }})")
 }
 
 /// Hearing another node's signal. The engine calls the subscriber's
