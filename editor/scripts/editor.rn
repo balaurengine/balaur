@@ -496,7 +496,7 @@ pub fn update(this, dt) {
     // a surface taken from it shrinks the shell it sizes, frame by frame.
     let (surface_w, surface_h) = ui::window_size();
     ui::set_widget_surface("shell", true, 0.0, 0.0, surface_w, surface_h);
-    if S.tool == "key" && S.workspace == "animation" && input::mouse_just_pressed(input::MOUSE_LEFT) {
+    if S.tool == "key" && S.workspace == "animation" && input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
         anim::add_key(S, S.anim.time);
     }
     gizmo::draw(S);

@@ -21,6 +21,7 @@ pub mod gestures;
 pub mod haptics;
 pub mod settings;
 pub mod touch_controls;
+mod keys;
 mod vocabulary;
 // A pad's motion and touchpad come from reading its HID reports, which a tab
 // cannot do; `GamepadState` gates the field the same way.
@@ -31,6 +32,7 @@ pub use actions::InputActions;
 pub use gamepad::{GamepadState, Motion, PAD_AXIS_NAMES, PAD_BUTTON_NAMES, PadTouch};
 pub use gestures::Gestures;
 pub use settings::InputConfig;
+pub use keys::{EITHER_SIDE, KEYS};
 pub use touch_controls::{TouchButton, TouchStick};
 
 const MOUSE_BUTTONS: usize = 8;
@@ -309,12 +311,12 @@ impl InputSnapshot {
     }
 
     /// Touches that began this frame.
-    pub fn touches_started(&self) -> &[u64] {
+    pub fn touches_just_started(&self) -> &[u64] {
         &self.touches_started
     }
 
     /// Touches that ended (or were cancelled) this frame.
-    pub fn touches_ended(&self) -> &[u64] {
+    pub fn touches_just_ended(&self) -> &[u64] {
         &self.touches_ended
     }
 
@@ -357,17 +359,18 @@ impl InputSnapshot {
         self.scroll.1 += dy;
     }
 
-    /// True for the one frame a key went down.
-    pub fn just_pressed(&self, key: &str) -> bool {
-        self.just_pressed.contains(key)
+    /// True for the one frame a key went down. `Shift`, `Control`, `Alt` and
+    /// `Meta` answer for either side.
+    pub fn key_just_pressed(&self, key: &str) -> bool {
+        keys::any_code(key, |code| self.just_pressed.contains(code))
     }
 
     /// True for the one frame a key came up.
-    pub fn just_released(&self, key: &str) -> bool {
-        self.just_released.contains(key)
+    pub fn key_just_released(&self, key: &str) -> bool {
+        keys::any_code(key, |code| self.just_released.contains(code))
     }
 
-    pub fn is_mouse_down(&self, button: usize) -> bool {
+    pub fn mouse_down(&self, button: usize) -> bool {
         self.mouse_down.get(button).copied().unwrap_or(false)
     }
 
@@ -395,8 +398,9 @@ impl InputSnapshot {
         self.scroll
     }
 
-    pub fn is_down(&self, key: &str) -> bool {
-        self.down.contains(key)
+    /// Whether a key is held, however long it has been.
+    pub fn key_down(&self, key: &str) -> bool {
+        keys::any_code(key, |code| self.down.contains(code))
     }
 
     pub const fn mouse_pos(&self) -> (f32, f32) {
@@ -485,208 +489,18 @@ impl balaur_plugin::Plugin for InputPlugin {
     }
 }
 
-/// Every key name a script may ask about.
-///
-/// This is the vocabulary, not a mirror of some backend's enum: whichever
-/// windowing backend feeds events has to produce names from this list, and
-/// `kiss3d_backend` has a test that says so. Keeping it here means a typo in
-/// a script is caught even in a headless run, where no backend is attached.
-pub const KEY_NAMES: &[&str] = &[
-    "Key1",
-    "Key2",
-    "Key3",
-    "Key4",
-    "Key5",
-    "Key6",
-    "Key7",
-    "Key8",
-    "Key9",
-    "Key0",
-    "A",
-    "B",
-    "C",
-    "D",
-    "E",
-    "F",
-    "G",
-    "H",
-    "I",
-    "J",
-    "K",
-    "L",
-    "M",
-    "N",
-    "O",
-    "P",
-    "Q",
-    "R",
-    "S",
-    "T",
-    "U",
-    "V",
-    "W",
-    "X",
-    "Y",
-    "Z",
-    "Escape",
-    "F1",
-    "F2",
-    "F3",
-    "F4",
-    "F5",
-    "F6",
-    "F7",
-    "F8",
-    "F9",
-    "F10",
-    "F11",
-    "F12",
-    "F13",
-    "F14",
-    "F15",
-    "F16",
-    "F17",
-    "F18",
-    "F19",
-    "F20",
-    "F21",
-    "F22",
-    "F23",
-    "F24",
-    "Snapshot",
-    "Scroll",
-    "Pause",
-    "Insert",
-    "Home",
-    "Delete",
-    "End",
-    "PageDown",
-    "PageUp",
-    "Left",
-    "Up",
-    "Right",
-    "Down",
-    "Back",
-    "Return",
-    "Space",
-    "Compose",
-    "Caret",
-    "Numlock",
-    "Numpad0",
-    "Numpad1",
-    "Numpad2",
-    "Numpad3",
-    "Numpad4",
-    "Numpad5",
-    "Numpad6",
-    "Numpad7",
-    "Numpad8",
-    "Numpad9",
-    "AbntC1",
-    "AbntC2",
-    "Add",
-    "Apostrophe",
-    "Apps",
-    "At",
-    "Ax",
-    "Backslash",
-    "Calculator",
-    "Capital",
-    "Colon",
-    "Comma",
-    "Convert",
-    "Decimal",
-    "Divide",
-    "Equals",
-    "Grave",
-    "Kana",
-    "Kanji",
-    "LAlt",
-    "LBracket",
-    "LControl",
-    "LShift",
-    "LWin",
-    "Mail",
-    "MediaSelect",
-    "MediaStop",
-    "Minus",
-    "Multiply",
-    "Mute",
-    "MyComputer",
-    "NavigateForward",
-    "NavigateBackward",
-    "NextTrack",
-    "NoConvert",
-    "NumpadComma",
-    "NumpadEnter",
-    "NumpadEquals",
-    "OEM102",
-    "Period",
-    "PlayPause",
-    "Power",
-    "PrevTrack",
-    "RAlt",
-    "RBracket",
-    "RControl",
-    "RShift",
-    "RWin",
-    "Semicolon",
-    "Slash",
-    "Sleep",
-    "Stop",
-    "Subtract",
-    "Sysrq",
-    "Tab",
-    "Underline",
-    "Unlabeled",
-    "VolumeDown",
-    "VolumeUp",
-    "Wake",
-    "WebBack",
-    "WebFavorites",
-    "WebForward",
-    "WebHome",
-    "WebRefresh",
-    "WebSearch",
-    "WebStop",
-    "Yen",
-    "Copy",
-    "Paste",
-    "Cut",
-    "Unknown",
-];
-
-/// The constant a key name is exposed as: `Space` becomes `KEY_SPACE`,
-/// `PageDown` becomes `KEY_PAGE_DOWN`, `Key1` becomes `KEY_1`.
-///
-/// Derived rather than listed, so the names and the constants cannot drift.
-fn const_name(key: &str) -> String {
-    let core = match key.strip_prefix("Key") {
-        Some(digit) if digit.len() == 1 && digit.starts_with(|c: char| c.is_ascii_digit()) => digit,
-        _ => key,
-    };
-    let mut out = String::from("KEY_");
-    let mut prev = '_';
-    for c in core.chars() {
-        if c.is_ascii_uppercase() && (prev.is_ascii_lowercase() || prev.is_ascii_digit()) {
-            out.push('_');
-        }
-        out.push(c.to_ascii_uppercase());
-        prev = c;
-    }
-    out
-}
-
-/// Every key name this engine can ever report, so a dispatcher can ask about
-/// each rather than keeping its own list.
+/// Every key code a backend can report, in the order `input.KEY_*` lists
+/// them. A headless run has no backend, so a typo in a script is caught here.
 #[must_use]
-pub fn known_keys() -> &'static [&'static str] {
-    KEY_NAMES
+pub fn known_keys() -> impl Iterator<Item = &'static str> {
+    keys::KEYS.iter().map(|(_, code)| *code)
 }
 
-/// True when `key` is a name this engine can ever report.
+/// True when `key` is a code a backend can report, or a modifier on either
+/// side.
 pub fn is_known_key(key: &str) -> bool {
-    KEY_NAMES.contains(&key)
+    keys::KEYS.iter().any(|(_, code)| *code == key)
+        || keys::EITHER_SIDE.iter().any(|(_, name, _)| *name == key)
 }
 
 /// Warn once per unrecognised name.
@@ -703,12 +517,17 @@ fn check_key(key: &str) {
     }
 }
 
-/// Mouse buttons, so scripts say `input.MOUSE_LEFT` rather than `0`.
+/// Mouse buttons, so scripts say `input.MOUSE_BUTTON_LEFT` rather than `0`.
 ///
 /// The index is the one `InputSnapshot` stores, so a constant and a raw number
 /// cannot disagree.
-pub const MOUSE_BUTTON_CONSTANTS: &[(&str, i64)] =
-    &[("MOUSE_LEFT", 0), ("MOUSE_RIGHT", 1), ("MOUSE_MIDDLE", 2)];
+pub const MOUSE_BUTTON_CONSTANTS: &[(&str, i64)] = &[
+    ("MOUSE_BUTTON_LEFT", 0),
+    ("MOUSE_BUTTON_RIGHT", 1),
+    ("MOUSE_BUTTON_MIDDLE", 2),
+    ("MOUSE_BUTTON_BACK", 3),
+    ("MOUSE_BUTTON_FORWARD", 4),
+];
 
 /// `input.*`. Declared against the neutral seam.
 fn install_input_api(m: &mut dyn Bindings<Engine>) {
@@ -716,43 +535,43 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
         "One frame of input: keyboard, mouse, touch screen and gamepads, plus what went down or came up this frame. A headless run answers every query neutrally.",
     );
     m.describe(&[
-        ("is_down", &[], "", "Whether the `KEY_*` key is held down right now, however many frames it has been down."),
-        ("just_pressed", &[], "", "Whether the `KEY_*` key went down this frame; true for that one frame only."),
-        ("just_released", &[], "", "Whether the `KEY_*` key came up this frame; true for that one frame only."),
+        ("key_down", &[], "", "Whether the `KEY_*` key is held down right now, however many frames it has been down. `KEY_SHIFT`, `KEY_CONTROL`, `KEY_ALT` and `KEY_META` answer for either side."),
+        ("key_just_pressed", &[], "", "Whether the `KEY_*` key went down this frame; true for that one frame only."),
+        ("key_just_released", &[], "", "Whether the `KEY_*` key came up this frame; true for that one frame only."),
         ("mouse_position", &[], "", "The cursor's position in window pixels, with (0, 0) at the top-left corner."),
         ("mouse_delta", &[], "", "How far the cursor moved this frame, in pixels; movement, not a position."),
         ("scroll_delta", &[], "", "How far the wheel turned this frame, as an (x, y) pair; zero when it did not turn."),
-        ("is_mouse_down", &[], "", "Whether the `MOUSE_*` button is held down right now, however many frames it has been down."),
-        ("mouse_just_pressed", &[], "", "Whether the `MOUSE_*` button went down this frame; true for that one frame only."),
-        ("mouse_just_released", &[], "", "Whether the `MOUSE_*` button came up this frame; true for that one frame only."),
+        ("mouse_down", &[], "", "Whether the `MOUSE_BUTTON_*` button is held down right now, however many frames it has been down."),
+        ("mouse_just_pressed", &[], "", "Whether the `MOUSE_BUTTON_*` button went down this frame; true for that one frame only."),
+        ("mouse_just_released", &[], "", "Whether the `MOUSE_BUTTON_*` button came up this frame; true for that one frame only."),
     ]);
     for (name, index) in MOUSE_BUTTON_CONSTANTS {
         m.constant(name, balaur_script::Value::Int(*index));
     }
     // `input.KEY_SPACE` instead of "Space". In Rune a misspelled constant is a
     // compile error rather than a key that quietly never fires.
-    for key in KEY_NAMES {
-        m.constant(
-            &const_name(key),
-            balaur_script::Value::Str((*key).to_string()),
-        );
+    for (name, code) in keys::KEYS {
+        m.constant(name, balaur_script::Value::Str((*code).to_string()));
     }
-    m.function("is_down", |eng: &Engine, key: String| {
+    for (name, key, _) in keys::EITHER_SIDE {
+        m.constant(name, balaur_script::Value::Str((*key).to_string()));
+    }
+    m.function("key_down", |eng: &Engine, key: String| {
         check_key(&key);
         let state = eng.resource::<InputSnapshot>();
-        let v = state.borrow().is_down(&key);
+        let v = state.borrow().key_down(&key);
         Ok(v)
     });
-    m.function("just_pressed", |eng: &Engine, key: String| {
+    m.function("key_just_pressed", |eng: &Engine, key: String| {
         check_key(&key);
         let state = eng.resource::<InputSnapshot>();
-        let v = state.borrow().just_pressed(&key);
+        let v = state.borrow().key_just_pressed(&key);
         Ok(v)
     });
-    m.function("just_released", |eng: &Engine, key: String| {
+    m.function("key_just_released", |eng: &Engine, key: String| {
         check_key(&key);
         let state = eng.resource::<InputSnapshot>();
-        let v = state.borrow().just_released(&key);
+        let v = state.borrow().key_just_released(&key);
         Ok(v)
     });
     m.function("mouse_position", |eng: &Engine, ()| {
@@ -770,11 +589,11 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
         let v = state.borrow().scroll_delta();
         Ok(v)
     });
-    // Buttons are 0-based: 0 = left, 1 = right, 2 = middle. Same indexing as
-    // the engine uses internally, and the same in every language.
-    m.function("is_mouse_down", |eng: &Engine, button: usize| {
+    // Buttons are 0-based: left, right, middle, back, forward. Same indexing
+    // as the engine uses internally.
+    m.function("mouse_down", |eng: &Engine, button: usize| {
         let state = eng.resource::<InputSnapshot>();
-        let v = state.borrow().is_mouse_down(button);
+        let v = state.borrow().mouse_down(button);
         Ok(v)
     });
     m.function("mouse_just_pressed", |eng: &Engine, button: usize| {
@@ -851,7 +670,7 @@ fn install_feed_api(m: &mut dyn Bindings<Engine>) {
         ("feed_key", &[], "(key: string, down: bool)", "Press or release a `KEY_*` key as if the window had reported it: next frame's edge, and the state until the opposite feed."),
         ("feed_mouse", &[], "(x: float, y: float)", "Move the cursor to a window-pixel position as if the window had reported it, from next frame; the delta accumulates for that frame."),
         ("feed_scroll", &[], "(x: float, y: float)", "Turn the wheel as if the window had reported it, from next frame; adds to that frame's `scroll_delta`."),
-        ("feed_mouse_button", &[], "(button: int, down: bool)", "Press or release a `MOUSE_*` button as if the window had reported it, from next frame."),
+        ("feed_mouse_button", &[], "(button: int, down: bool)", "Press or release a `MOUSE_BUTTON_*` button as if the window had reported it, from next frame."),
         ("feed_touch", &[], "(id: int, x: float, y: float, phase: string)", "Put a finger on the screen as if the window had reported it: `phase` is `start`, `move`, `end` or `cancel`, and the position is in the same pixels as `mouse_position`."),
     ]);
     m.function("feed_key", |eng: &Engine, (key, down): (String, bool)| {
@@ -907,10 +726,10 @@ fn install_feed_api(m: &mut dyn Bindings<Engine>) {
 fn install_touch_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("touches", &[], "", "Every finger on the screen as `{ id, x, y }`, oldest first, in the same pixels as `mouse_position`."),
-        ("touches_started", &[], "", "The ids of the fingers that touched down this frame."),
-        ("touches_ended", &[], "", "The ids of the fingers that lifted or were cancelled this frame."),
+        ("touches_just_started", &[], "", "The ids of the fingers that touched down this frame."),
+        ("touches_just_ended", &[], "", "The ids of the fingers that lifted or were cancelled this frame."),
         ("dropped_files", &[], "", "The absolute paths of files dropped onto the window this frame, in drop order; desktop only."),
-        ("typed", &[], "", "The characters typed this frame, in order: what a text field appends, where `just_pressed` says which key went down."),
+        ("typed", &[], "", "The characters typed this frame, in order: what a text field appends, where `key_just_pressed` says which key went down."),
         ("keyboard_height", &[], "", "How much of the window the on-screen keyboard covers, in pixels from the bottom: what a form moves up by. Zero with no keyboard up, and always zero on a desktop."),
         ("composing", &[], "", "The text an input method is still composing, for a field to show under its caret; empty once it commits into `typed`, and always empty without an input method."),
     ]);
@@ -937,21 +756,21 @@ fn install_touch_api(m: &mut dyn Bindings<Engine>) {
             .collect();
         Ok(Value::List(touches))
     });
-    m.function("touches_started", |eng: &Engine, ()| {
+    m.function("touches_just_started", |eng: &Engine, ()| {
         let state = eng.resource::<InputSnapshot>();
         let ids = state
             .borrow()
-            .touches_started()
+            .touches_just_started()
             .iter()
             .map(|id| Value::Int(id.cast_signed()))
             .collect();
         Ok(Value::List(ids))
     });
-    m.function("touches_ended", |eng: &Engine, ()| {
+    m.function("touches_just_ended", |eng: &Engine, ()| {
         let state = eng.resource::<InputSnapshot>();
         let ids = state
             .borrow()
-            .touches_ended()
+            .touches_just_ended()
             .iter()
             .map(|id| Value::Int(id.cast_signed()))
             .collect();
@@ -992,20 +811,20 @@ fn install_gamepad_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("gamepads", &[], "", "The ids of every connected pad, ordered so the list is stable from frame to frame."),
         ("gamepad_name", &[], "", "The pad's name as the platform reports it, empty when no pad has that id."),
-        ("gamepad_down", &[], "", "Whether the pad's `PAD_*` button is held down right now, however many frames it has been down."),
-        ("gamepad_just_pressed", &[], "", "Whether the pad's `PAD_*` button went down this frame; true for that one frame only."),
-        ("gamepad_just_released", &[], "", "Whether the pad's `PAD_*` button came up this frame; true for that one frame only."),
-        ("gamepad_axis", &[], "", "How far the pad's `AXIS_*` stick or trigger is pushed, -1 to 1; zero at rest and for an absent pad."),
+        ("gamepad_down", &[], "", "Whether the pad's `GAMEPAD_BUTTON_*` button is held down right now, however many frames it has been down."),
+        ("gamepad_just_pressed", &[], "", "Whether the pad's `GAMEPAD_BUTTON_*` button went down this frame; true for that one frame only."),
+        ("gamepad_just_released", &[], "", "Whether the pad's `GAMEPAD_BUTTON_*` button came up this frame; true for that one frame only."),
+        ("gamepad_axis", &[], "", "How far the pad's `GAMEPAD_AXIS_*` stick or trigger is pushed: a stick -1 to 1 with up and right positive, a trigger 0 to 1; zero at rest and for an absent pad."),
     ]);
     for name in PAD_BUTTON_NAMES {
         m.constant(
-            &pad_const_name("PAD_", name),
+            &pad_const_name("GAMEPAD_BUTTON_", name),
             Value::Str((*name).to_string()),
         );
     }
     for name in PAD_AXIS_NAMES {
         m.constant(
-            &pad_const_name("AXIS_", name),
+            &pad_const_name("GAMEPAD_AXIS_", name),
             Value::Str((*name).to_string()),
         );
     }
@@ -1076,17 +895,7 @@ fn install_gamepad_api(m: &mut dyn Bindings<Engine>) {
 /// camel-splitting the key constants use, with `DPad` kept as one word so
 /// scripts read `PAD_DPAD_UP` rather than `PAD_D_PAD_UP`.
 fn pad_const_name(prefix: &str, name: &str) -> String {
-    let name = name.replace("DPad", "Dpad");
-    let mut out = String::from(prefix);
-    let mut prev = '_';
-    for c in name.chars() {
-        if c.is_ascii_uppercase() && (prev.is_ascii_lowercase() || prev.is_ascii_digit()) {
-            out.push('_');
-        }
-        out.push(c.to_ascii_uppercase());
-        prev = c;
-    }
-    out
+    format!("{prefix}{}", name.to_ascii_uppercase())
 }
 
 /// Warn once per unrecognised pad button, mirroring `check_key`.
@@ -1110,7 +919,7 @@ fn warn_unknown_once(what: &'static str, name: &str, known: &[&str]) {
 
 #[cfg(test)]
 mod tests {
-    use super::{Fed, InputSnapshot, KEY_NAMES, MOUSE_BUTTON_CONSTANTS, const_name, is_known_key};
+    use super::{EITHER_SIDE, Fed, InputSnapshot, KEYS, MOUSE_BUTTON_CONSTANTS, is_known_key};
 
     #[test]
     fn a_fed_press_is_next_frame_s_edge_and_stays_down_after_it() {
@@ -1121,7 +930,7 @@ mod tests {
         assert!(input.mouse_just_pressed(0));
         input.begin_frame();
         assert!(!input.mouse_just_pressed(0), "an edge is one frame's");
-        assert!(input.is_mouse_down(0), "the state holds until the release");
+        assert!(input.mouse_down(0), "the state holds until the release");
     }
 
     #[test]
@@ -1161,38 +970,47 @@ mod tests {
 
     #[test]
     fn constant_names_are_unique_and_well_formed() {
-        let mut seen = std::collections::BTreeMap::new();
-        for key in KEY_NAMES {
-            let name = const_name(key);
+        let mut names = std::collections::BTreeSet::new();
+        let mut codes = std::collections::BTreeSet::new();
+        let every = KEYS
+            .iter()
+            .copied()
+            .chain(EITHER_SIDE.iter().map(|(name, key, _)| (*name, *key)));
+        for (name, code) in every {
             assert!(
-                name.chars()
-                    .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_'),
-                "{key} mangles to {name}, which is not SCREAMING_SNAKE_CASE"
+                name.strip_prefix("KEY_").is_some_and(|rest| rest
+                    .chars()
+                    .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')),
+                "{name} is not KEY_ and SCREAMING_SNAKE_CASE"
             );
-            if let Some(other) = seen.insert(name.clone(), *key) {
-                panic!("{key} and {other} both mangle to {name}");
-            }
+            assert!(names.insert(name), "{name} is declared twice");
+            assert!(codes.insert(code), "{code} has two names");
         }
         for (name, _) in MOUSE_BUTTON_CONSTANTS {
-            assert!(!seen.contains_key(*name), "{name} collides with a key");
+            assert!(!names.contains(*name), "{name} collides with a key");
         }
     }
 
     #[test]
-    fn the_mangling_reads_the_way_a_script_author_would_guess() {
-        assert_eq!(const_name("Space"), "KEY_SPACE");
-        assert_eq!(const_name("PageDown"), "KEY_PAGE_DOWN");
-        assert_eq!(const_name("Key1"), "KEY_1");
-        assert_eq!(const_name("F12"), "KEY_F12");
-        assert_eq!(const_name("Numpad0"), "KEY_NUMPAD0");
-        assert_eq!(const_name("AbntC1"), "KEY_ABNT_C1");
+    fn a_key_holds_its_w3c_code() {
+        let code = |name: &str| KEYS.iter().find(|(n, _)| *n == name).map(|(_, c)| *c);
+        assert_eq!(code("KEY_A"), Some("KeyA"));
+        assert_eq!(code("KEY_1"), Some("Digit1"));
+        assert_eq!(code("KEY_LEFT"), Some("ArrowLeft"));
+        assert_eq!(code("KEY_LEFT_SHIFT"), Some("ShiftLeft"));
+        assert_eq!(code("KEY_ENTER"), Some("Enter"));
+        assert_eq!(code("KEY_NUMPAD_PERIOD"), Some("NumpadDecimal"));
     }
 
     #[test]
-    fn every_constant_names_a_key_the_engine_knows() {
-        for key in KEY_NAMES {
-            assert!(is_known_key(key));
-        }
+    fn a_modifier_named_without_a_side_answers_for_either() {
+        let mut input = InputSnapshot::default();
+        input.begin_frame();
+        input.key_event("ShiftRight", true);
+        assert!(input.key_down("Shift"));
+        assert!(input.key_just_pressed("Shift"));
+        assert!(!input.key_down("ShiftLeft"), "the side still says which");
+        assert!(is_known_key("Shift") && is_known_key("ShiftRight"));
         assert!(!is_known_key("Spcae"));
     }
 }

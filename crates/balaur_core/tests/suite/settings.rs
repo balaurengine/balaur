@@ -354,7 +354,7 @@ fn a_table_folds_each_override_on_key_by_key() {
 /// else does.
 #[test]
 fn a_pack_answers_to_the_tags_its_export_wrote() {
-    let manifest = "[application]\nname = \"g\"\nmain_scene = \"main.toml\"\nassets = \"embedded\"\n\n\
+    let manifest = "[application]\nname = \"g\"\nmain_scene = \"main.toml\"\nasset_source = \"embedded\"\n\n\
                     [build]\ntags = [\"demo\"]\n\n[override.demo.window]\nvsync = false\n";
     let mut pack = balaur_core::Pack {
         manifest: manifest.to_string(),
@@ -379,7 +379,7 @@ fn a_pack_answers_to_the_tags_its_export_wrote() {
     assert_eq!(
         files.borrow().source(),
         balaur_core::project::AssetSource::Embedded,
-        "application/assets is read through the registry before the files exist"
+        "application/asset_source is read through the registry before the files exist"
     );
 }
 
@@ -423,4 +423,19 @@ fn a_demo_pack_opens_the_demo_s_scene() {
     let mut app = App::new(AppConfig::packed(pack)).unwrap();
     app.load_project().unwrap();
     assert_eq!(app.manifest().unwrap().main_scene, "demo.toml");
+}
+
+/// Every value the settings screen offers for the asset source is one the
+/// boot reader parses: an offered value it rejects fell back to `embedded`
+/// without a word.
+#[test]
+fn every_offered_asset_source_is_one_the_boot_reader_accepts() {
+    let app = app();
+    let def = settings::def(&app.engine, "application/asset_source").expect("defined");
+    let options = def.spec["options"].as_array().expect("an enum").clone();
+    assert_eq!(options.len(), 3, "files, embedded and the two together");
+    for option in options {
+        let parsed: Result<balaur_core::project::AssetSource, _> = option.clone().try_into();
+        assert!(parsed.is_ok(), "{option} is offered and not accepted");
+    }
 }

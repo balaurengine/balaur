@@ -335,10 +335,16 @@ def component_methods(api):
 
 
 def bound_signature(signature):
-    """The signature as the handle takes it: the node is already bound."""
+    """The signature as the handle takes it: the node is already bound.
+
+    A binding of one argument spells it bare, `NodeId -> f32`, with no
+    parentheses to strip.
+    """
     for prefix, rest in (("(NodeId, ", "("), ("(NodeId)", "()")):
         if signature.startswith(prefix):
             return rest + signature[len(prefix) :]
+    if signature == "NodeId" or signature.startswith("NodeId -> "):
+        return "()" + signature[len("NodeId") :]
     return signature
 
 

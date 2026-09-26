@@ -10,7 +10,7 @@
 
 Raw touch was built and recorded. Everything above it was not.
 
-- **`input.touches()`, `touches_started()`, `touches_ended()`**: id, x and y
+- **`input.touches()`, `touches_just_started()`, `touches_just_ended()`**: id, x and y
   per finger, oldest first, fed from kiss3d's `WindowEvent::Touch` and
   serialized into the replay snapshot.
 - **`input.keyboard_height()`**: in the snapshot, bound, documented. The
@@ -219,7 +219,7 @@ the navigation bar both at the bottom and at the side.
 2. **Whether `emulate_mouse_from_touch` should default on.** Godot's does, and
    it is why its Control set works on a phone at all. Ours would do the same
    for the existing kinds, and would also mean a game reading
-   `input.is_mouse_down()` sees fingers it never asked for.
+   `input.mouse_down()` sees fingers it never asked for.
 3. **What a swipe reports while it is still running.** A finger that has
    travelled far enough is a swipe when it lifts and a drag until then, and
    different scenes want different halves.

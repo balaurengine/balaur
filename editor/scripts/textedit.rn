@@ -36,7 +36,7 @@ pub fn editable(S) {
 
 // Watch for the second click of a pair over the selected text node.
 pub fn update(S) {
-    if S.textedit.node >= 0 || !input::mouse_just_pressed(input::MOUSE_LEFT) {
+    if S.textedit.node >= 0 || !input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
         return;
     }
     let (mx, my) = input::mouse_position();

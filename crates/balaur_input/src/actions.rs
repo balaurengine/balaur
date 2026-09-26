@@ -8,8 +8,8 @@
 //!
 //! ```toml
 //! [input.actions]
-//! jump = ["Space", "gamepad:South"]
-//! move_x = ["keys:A,D", "axis:LeftStickX"]
+//! jump = ["Space", "gamepad:south"]
+//! move_x = ["keys:KeyA,KeyD", "axis:left_x"]
 //! ```
 
 use serde::Deserialize as _;
@@ -36,14 +36,15 @@ const PRESSED: f32 = 0.5;
 pub(crate) enum Binding {
     /// A key, spelled as `input.KEY_*` spells it: `"Space"`, `"KeyA"`.
     Key(String),
-    /// `"mouse:left"`, `"mouse:right"`, `"mouse:middle"`.
+    /// `"mouse:left"`, `"mouse:right"`, `"mouse:middle"`, `"mouse:back"`,
+    /// `"mouse:forward"`.
     Mouse(usize),
-    /// `"gamepad:South"`, using the `input.PAD_*` spelling.
+    /// `"gamepad:south"`, using the `input.GAMEPAD_BUTTON_*` spelling.
     Pad(String),
-    /// `"axis:LeftStickX"`, and the half-axes `"axis:LeftStickY+"` and
-    /// `"axis:LeftStickY-"` for a direction that should read as one action.
+    /// `"axis:left_x"`, and the half-axes `"axis:left_y+"` and
+    /// `"axis:left_y-"` for a direction that should read as one action.
     Axis { name: String, half: Half },
-    /// `"keys:A,D"`: two keys as one axis, the first negative.
+    /// `"keys:KeyA,KeyD"`: two keys as one axis, the first negative.
     KeyPair(String, String),
 }
 
@@ -69,6 +70,8 @@ impl Binding {
                 "left" => Ok(Self::Mouse(0)),
                 "right" => Ok(Self::Mouse(1)),
                 "middle" => Ok(Self::Mouse(2)),
+                "back" => Ok(Self::Mouse(3)),
+                "forward" => Ok(Self::Mouse(4)),
                 other => Err(format!("'{other}' is not a mouse button")),
             },
             "gamepad" => {
@@ -97,7 +100,7 @@ impl Binding {
             }
             "keys" => {
                 let Some((low, high)) = rest.split_once(',') else {
-                    return Err(format!("'{rest}' needs two key names, as 'A,D'"));
+                    return Err(format!("'{rest}' needs two key names, as 'KeyA,KeyD'"));
                 };
                 let (low, high) = (low.trim(), high.trim());
                 for key in [low, high] {
@@ -114,8 +117,8 @@ impl Binding {
     /// This binding's contribution this frame, in -1..1.
     fn value(&self, keys: &InputSnapshot, pads: &GamepadState) -> f32 {
         match self {
-            Self::Key(key) => f32::from(u8::from(keys.is_down(key))),
-            Self::Mouse(button) => f32::from(u8::from(keys.is_mouse_down(*button))),
+            Self::Key(key) => f32::from(u8::from(keys.key_down(key))),
+            Self::Mouse(button) => f32::from(u8::from(keys.mouse_down(*button))),
             Self::Pad(button) => {
                 f32::from(u8::from(pads.pads().iter().any(|pad| pad.is_down(button))))
             }
@@ -140,7 +143,7 @@ impl Binding {
                 }
             }
             Self::KeyPair(low, high) => {
-                f32::from(u8::from(keys.is_down(high))) - f32::from(u8::from(keys.is_down(low)))
+                f32::from(u8::from(keys.key_down(high))) - f32::from(u8::from(keys.key_down(low)))
             }
         }
     }
@@ -213,7 +216,7 @@ impl InputActions {
         self.state.get(name).map_or(0.0, |s| s.value)
     }
 
-    pub fn is_pressed(&self, name: &str) -> bool {
+    pub fn is_down(&self, name: &str) -> bool {
         self.value(name).abs() >= PRESSED
     }
 
@@ -498,8 +501,8 @@ pub(crate) fn install_actions(m: &mut dyn Bindings<Engine>) {
 
     m.describe(&[
         ("actions", &[], "", "Every action `[input.actions]` declares, so a rebinding screen can list them."),
-        ("action_value", &[], "", "How far the action is pushed, -1 to 1; a key answers 0 or 1, a stick or `keys:A,D` the whole range."),
-        ("action_pressed", &[], "", "Whether the action is held down now."),
+        ("action_value", &[], "", "How far the action is pushed, -1 to 1; a key answers 0 or 1, a stick or `keys:KeyA,KeyD` the whole range."),
+        ("action_down", &[], "", "Whether the action is held down now."),
         ("action_just_pressed", &[], "", "Whether the action went down this frame."),
         ("action_just_released", &[], "", "Whether the action came up this frame."),
         ("bindings", &[], "", "What the action is bound to now, whether from the project or from the player's own rebinding."),
@@ -525,16 +528,16 @@ pub(crate) fn install_actions(m: &mut dyn Bindings<Engine>) {
         let names = eng.resource::<InputActions>().borrow().names();
         Ok(Value::List(names.into_iter().map(Value::text).collect()))
     });
-    // -1..1. A digital binding reads 0 or 1; `keys:A,D` and an axis read the
+    // -1..1. A digital binding reads 0 or 1; `keys:KeyA,KeyD` and an axis read the
     // whole range, so one action serves a key, a stick and a d-pad at once.
     m.function("action_value", |eng: &Engine, name: String| {
         check_action(eng, &name);
         let v = eng.resource::<InputActions>().borrow().value(&name);
         Ok(v)
     });
-    m.function("action_pressed", |eng: &Engine, name: String| {
+    m.function("action_down", |eng: &Engine, name: String| {
         check_action(eng, &name);
-        let v = eng.resource::<InputActions>().borrow().is_pressed(&name);
+        let v = eng.resource::<InputActions>().borrow().is_down(&name);
         Ok(v)
     });
     m.function("action_just_pressed", |eng: &Engine, name: String| {
@@ -553,7 +556,7 @@ pub(crate) fn install_actions(m: &mut dyn Bindings<Engine>) {
         let list = eng.resource::<InputActions>().borrow().bindings(&name);
         Ok(Value::List(list.into_iter().map(Value::text).collect()))
     });
-    // `input.bind("jump", "gamepad:North")`, or a list for several. Replaces
+    // `input.bind("jump", "gamepad:north")`, or a list for several. Replaces
     // what the action had and saves to the user data directory.
     install_rebinding(m);
 }

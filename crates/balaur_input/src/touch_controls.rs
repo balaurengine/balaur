@@ -281,7 +281,7 @@ pub(crate) fn tick(eng: &Engine) {
     let touchscreen = has_touchscreen(eng);
     let snapshot = snapshot.borrow();
     let touches: Vec<(u64, f32, f32)> = snapshot.touches().to_vec();
-    let ended: Vec<u64> = snapshot.touches_ended().to_vec();
+    let ended: Vec<u64> = snapshot.touches_just_ended().to_vec();
     drop(snapshot);
     let mut actions = actions.borrow_mut();
     let world = eng.world();

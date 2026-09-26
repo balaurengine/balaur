@@ -326,8 +326,8 @@ pub fn update(S, over_viewport, mx, my) {
         None => return,
     };
     S.pen.hover = if over_viewport { pick(S, path, f, mx, my) } else { None };
-    let broken = input::is_down("LAlt") || input::is_down("RAlt");
-    if over_viewport && input::mouse_just_pressed(input::MOUSE_LEFT) {
+    let broken = input::key_down(input::KEY_ALT);
+    if over_viewport && input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
         let hit_some = S.pen.hover;
         match hit_some {
             Some(hit) => {
@@ -348,7 +348,7 @@ pub fn update(S, over_viewport, mx, my) {
             }
         }
     }
-    if over_viewport && input::mouse_just_pressed(input::MOUSE_RIGHT) {
+    if over_viewport && input::mouse_just_pressed(input::MOUSE_BUTTON_RIGHT) {
         let hit_some = S.pen.hover;
         if let Some(hit) = hit_some {
             if hit[1] {
@@ -356,7 +356,7 @@ pub fn update(S, over_viewport, mx, my) {
             }
         }
     }
-    if !input::is_mouse_down(input::MOUSE_LEFT) {
+    if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
         if S.pen.drag.is_some() {
             history::commit(S);
         }

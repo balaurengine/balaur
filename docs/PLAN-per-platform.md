@@ -126,7 +126,7 @@ Every step above is built.
   too, against the machine's tags and a pack's `[build] tags`, so
   `[override.ios.plugins] http = false` decides what loads and a demo build
   opens `[override.demo.application] main_scene`. A pack's
-  `application/assets` is read through the registry at boot.
+  `application/asset_source` is read through the registry at boot.
 - `App::load_project` refuses a key `settings::unknown` finds.
 - `settings::to_toml` edits through `toml_edit` and writes only what was set.
 - `crates/balaur_export/src/settings.rs` declares `[export]`, `[android]` and

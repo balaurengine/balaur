@@ -218,7 +218,7 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     // Before any setting is read, since the tags in force decide which
     // `[override.<tag>]` a read answers from.
     eng.insert_resource(crate::tags::Tags::current());
-    // A pack's manifest is here already, and `application/assets` decides
+    // A pack's manifest is here already, and `application/asset_source` decides
     // how its files are served, so it is read before the files exist.
     if let Some(pack) = config.pack.as_ref()
         && crate::settings::load(eng, &pack.manifest).is_ok()
@@ -232,7 +232,7 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
             Some(pack) => crate::project::ProjectFiles::packed(
                 config.project_root.clone(),
                 pack.assets.clone(),
-                crate::settings::stated(eng, "application/assets")
+                crate::settings::stated(eng, "application/asset_source")
                     .and_then(|v| v.try_into().ok())
                     .unwrap_or_default(),
             )

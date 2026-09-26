@@ -8,12 +8,13 @@ use serde::Deserialize;
 
 use crate::engine::Engine;
 
-/// Where a project is allowed to read its bytes from, set by `assets` in
-/// `project.toml`. The default is deliberately the strict one: a shipped game
+/// Where a project is allowed to read its bytes from, set by
+/// `application/asset_source` in `project.toml`. The default is deliberately
+/// the strict one: a shipped game
 /// that quietly falls back to the working directory runs on the machine that
 /// built it and nowhere else.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum AssetSource {
     /// The pack only. A miss is an error naming the file.
     #[default]
@@ -22,7 +23,6 @@ pub enum AssetSource {
     Files,
     /// The pack first, then the directory — loose DLC, mods, or an override
     /// folder shipped beside the executable.
-    #[serde(rename = "embedded+files")]
     EmbeddedThenFiles,
 }
 
@@ -238,7 +238,8 @@ impl ProjectFiles {
         }
         Err(anyhow!(
             "no asset '{path}' in the pack. It ships only what `balaur export` \
-             collected; set `assets = \"embedded+files\"` in project.toml to also \
+             collected; set `asset_source = \"embedded_then_files\"` under \
+             `[application]` in project.toml to also \
              read files beside the game."
         ))
     }

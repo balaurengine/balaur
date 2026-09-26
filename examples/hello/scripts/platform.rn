@@ -8,7 +8,7 @@ pub fn init(this) {
 pub fn update(this, dt) {
     // P holds the clip where it is; P again carries on from there. `stop`
     // would end it instead, leaving nothing to resume.
-    if input::just_pressed(input::KEY_P) {
+    if input::key_just_pressed(input::KEY_P) {
         if this.node.animation.is_playing() {
             this.node.animation.pause();
         } else {

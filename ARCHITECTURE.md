@@ -101,7 +101,7 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
   subscription is a node plus a method name: `ScriptHost::call_on(node, method,
   args)`. Persistent callbacks would need an id space with explicit release.
 - Most events also ship a polling twin (`animation.just_finished(node)`,
-  `input.just_pressed(key)`): an event is a frame-scoped
+  `input.key_just_pressed(key)`): an event is a frame-scoped
   snapshot.
 - `events.subscribe(node, name)` / `events.emit(name, payload)` deliver
   `on_<name>(payload)` at the top of the next `Update`, in emission then
@@ -630,7 +630,7 @@ at load; every other packed run builds no compiler and no watcher.
   macOS), and `--notarize` staples Apple's ticket.
 - The exporter sets the execute bits on its output: a template from a zip or an
   artifact store has lost them.
-- Rune resolves `input::just_pressed` at compile time, so `balaur::build_pack`
+- Rune resolves `input::key_just_pressed` at compile time, so `balaur::build_pack`
   boots the app the game would boot and compiles through its host. A bare
   `rune::Context` rejects every script that touches the engine.
 
@@ -1191,15 +1191,15 @@ frame is all a replay needs.
 
 ```toml
 [input.actions]
-jump = ["Space", "gamepad:South"]
-move_x = ["keys:A,D", "axis:LeftStickX"]
+jump = ["Space", "gamepad:south"]
+move_x = ["keys:KeyA,KeyD", "axis:left_x"]
 fire = ["mouse:left"]
 ```
 
-- Five binding forms: a key name, `mouse:left`, `gamepad:South`,
-  `axis:LeftStickX` (`+`/`-` for one direction), `keys:A,D` (two keys as one
-  axis, first negative).
-- Scripts read `action_value` (-1..1), `action_pressed`, `action_just_pressed`,
+- Five binding forms: a key's W3C code, `mouse:left`, `gamepad:south`,
+  `axis:left_x` (`+`/`-` for one direction), `keys:KeyA,KeyD` (two keys as
+  one axis, first negative).
+- Scripts read `action_value` (-1..1), `action_down`, `action_just_pressed`,
   `action_just_released`. Every binding contributes and the action takes the
   value furthest from rest, so one action serves a key, a stick and a d-pad. An
   axis has a deadzone, counts as pressed past half throw, and takes its edges

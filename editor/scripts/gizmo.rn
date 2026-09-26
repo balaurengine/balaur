@@ -770,7 +770,7 @@ pub fn update(S) {
         S.gizmo.drag = None;
         render::set_camera_input(false);
         S.rig.hover = if over_viewport { rig::pick_3d(S, mx, my, on_screen) } else { None };
-        if over_viewport && input::mouse_just_pressed(input::MOUSE_LEFT) {
+        if over_viewport && input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
             match S.rig.hover {
                 Some(hover) => shell::choose(S, hover),
                 None => {
@@ -786,7 +786,7 @@ pub fn update(S) {
         // Re-test only when something the answer depends on moved. A click is
         // always let through: it acts on the hover rather than changing it.
         let key = hover_key(S, cam, geo, mx, my);
-        let pressed = input::mouse_just_pressed(input::MOUSE_LEFT);
+        let pressed = input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT);
         if pressed || !same_key(key, S.gizmo.key) {
             S.gizmo.key = key;
             S.gizmo.hover = match geo {
@@ -806,7 +806,7 @@ pub fn update(S) {
     let busy = viewport::manipulates(S.tool, false) && geo.is_some();
     render::set_camera_input(!busy && S.gizmo.hover.is_none() && S.gizmo.drag.is_none());
 
-    if input::mouse_just_pressed(input::MOUSE_LEFT) && over_viewport {
+    if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) && over_viewport {
         let hovered = match (S.gizmo.hover, geo) {
             (Some(part), Some(geo)) => Some((part, geo)),
             _ => None,
@@ -861,7 +861,7 @@ pub fn update(S) {
         m.x1 = mx;
         m.y1 = my;
         render::set_camera_input(false);
-        if !input::is_mouse_down(input::MOUSE_LEFT) {
+        if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
             S.gizmo.marquee = None;
             S.gizmo.in_viewport = false;
             if util::abs(m.x1 - m.x0) > 3.0 || util::abs(m.y1 - m.y0) > 3.0 {
@@ -880,7 +880,7 @@ pub fn update(S) {
         return;
     }
 
-    if !input::is_mouse_down(input::MOUSE_LEFT) {
+    if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
         S.gizmo.drag = None;
         S.gizmo.in_viewport = false;
     }
@@ -900,7 +900,7 @@ pub fn update(S) {
     };
     if S.tool == "move" {
         let delta = [0.0, 0.0, 0.0];
-        if input::is_down("LShift") || input::is_down("RShift") {
+        if input::key_down(input::KEY_SHIFT) {
             delta[1] = -dy * cam.wpp;
         } else {
             let (flat, _) = util::vnorm([cam.forward[0], 0.0, cam.forward[2]]);

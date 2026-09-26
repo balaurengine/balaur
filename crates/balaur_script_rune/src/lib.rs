@@ -81,7 +81,7 @@ pub fn factory() -> balaur_core::ScriptHostFactory {
 /// stamps a format number and refuses anything else.
 ///
 /// The compile runs through the live host, not a bare context. Rune resolves
-/// `input::just_pressed` and friends at compile time, so a context without the
+/// `input::key_just_pressed` and friends at compile time, so a context without the
 /// engine's modules rejects every script that touches the engine. That is why
 /// the exporter boots an app (`AppConfig::export`) and compiles through its
 /// host rather than constructing a compiler out of thin air.

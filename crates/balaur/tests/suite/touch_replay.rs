@@ -151,7 +151,7 @@ const VERBS: &str = "pub fn update(this, dt) {
     input::feed_action(\"reached\", 1.0);
 }
 pub fn fixed_update(this, dt) {
-    if input::action_pressed(\"jump\") { this.node.transform.translate(dt, 0.0, 0.0); }
+    if input::action_down(\"jump\") { this.node.transform.translate(dt, 0.0, 0.0); }
 }
 ";
 
@@ -203,7 +203,7 @@ fn a_host_can_declare_another_projects_input_config() {
     app.tick(FIXED_DT);
     let input = app.engine.resource::<InputSnapshot>();
     assert!(
-        !input.borrow().is_mouse_down(0),
+        !input.borrow().mouse_down(0),
         "the finger stayed a finger"
     );
 }

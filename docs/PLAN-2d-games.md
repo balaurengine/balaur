@@ -282,7 +282,7 @@ in the game; "not planned" is a deliberate no.
 | Mouse as a touch on desktop | Have: a script reads both; a `touch_from_mouse` setting is a step 4 convenience |
 | Actions bound to keys, pad and axes | Have: `[input.actions]` |
 | A phone's vibration | Have: `input.vibrate(milliseconds)` — the page's `navigator.vibrate`; an effect, never recorded, like rumble. A phone's native motor is the export's to wire (`docs/PLAN-google.md`) |
-| The Android back button | Have: it arrives as `KEY_NAVIGATE_BACKWARD`, the same key the browser's back key is; `KEY_BACK` is backspace, as kiss3d names it |
+| The Android back button | Have: it arrives as `KEY_BROWSER_BACK`, the same key the browser's back key is |
 | Focus lost, app paused, quit requested | Have: `engine.focused()`, recorded, `on_focus_changed(bool)` on change, `on_quit_requested` on every script before the window closes — a chance to save, not a veto |
 | Keep the screen on | Have: `window.set_keep_awake(bool)` — a wake lock on the page, nothing to ask on a desktop |
 | Screen refresh rate | Have: `window.refresh_rate()`, measured from the frame intervals vsync paces, recorded |
@@ -379,7 +379,7 @@ Ordered so a game reaches a browser after step 1, draws its screens after
 step 3, and plays after step 5. Each step ends with something a person can
 open. All five are built; what each list names is in the tree, with the
 exceptions the rows above spell out (`engine.stats` is `engine.timings`,
-`audio.define_bus` was never needed, `KEY_BACK` is `KEY_NAVIGATE_BACKWARD`).
+`audio.define_bus` was never needed, the back key is `KEY_BROWSER_BACK`).
 IME composition, the frame-so-far `screen` copy and UIKit's safe area ride
 the kiss3d fork's `balaur-hooks` branch, which `Cargo.toml` names.
 
@@ -408,7 +408,7 @@ the kiss3d fork's `balaur-hooks` branch, which `Cargo.toml` names.
    `encoding.base64`; `rng.uuid`; `http.request` `save_to` with progress;
    `strings.system_locale`; `engine.open_url`, `platform`, `device_id`,
    `unix_time`, `dark_mode`, `focused`, `stats`; `window.safe_area`,
-   `set_keep_awake`, `refresh_rate`; `input.vibrate`, `KEY_BACK`;
+   `set_keep_awake`, `refresh_rate`; `input.vibrate`, `KEY_BROWSER_BACK`;
    `audio.define_bus`; `[application] splash`; `balaur test`. Ends with: a
    settings screen, a shop screen, and a content pack downloaded, verified
    and played.

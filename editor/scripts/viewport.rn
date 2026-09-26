@@ -84,8 +84,8 @@ pub fn mouse_camera(S) {
         return false;
     }
     let (_, wheel) = input::scroll_delta();
-    let orbiting = input::is_mouse_down(input::MOUSE_MIDDLE);
-    let panning = input::is_mouse_down(input::MOUSE_RIGHT);
+    let orbiting = input::mouse_down(input::MOUSE_BUTTON_MIDDLE);
+    let panning = input::mouse_down(input::MOUSE_BUTTON_RIGHT);
     if wheel == 0.0 && !orbiting && !panning {
         return false;
     }

@@ -190,14 +190,13 @@ fn input_system(eng: &Engine, state: &mut Pointer) {
         let input = input.borrow();
         let taken = |test: &dyn Fn(&str) -> bool| -> Vec<String> {
             balaur_input::known_keys()
-                .iter()
                 .filter(|key| test(key))
-                .map(|key| (*key).to_string())
+                .map(str::to_string)
                 .collect()
         };
         (
-            taken(&|key| input.just_pressed(key)),
-            taken(&|key| input.just_released(key)),
+            taken(&|key| input.key_just_pressed(key)),
+            taken(&|key| input.key_just_released(key)),
         )
     };
     for key in down {

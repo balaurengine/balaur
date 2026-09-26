@@ -119,7 +119,6 @@ Recorded so each stops being cited as precedent for the next.
 | `resource` for the typemap | D1 |
 | `DetHashMap` / `DetHashSet` | The prefix is the whole job: it says which one the house lint wants you to use |
 | `node.get_component` / `get_node` | N7 exemption. Dropping the prefix gives `node.component(name)` beside `node.component_names()`, and `node.node(path)` |
-| `input.is_mouse_down` | `is_down(key)` and `is_mouse_down(button)` are one question about a held button and must agree |
 | `render.set_camera` / `camera_pose` | Not an accessor pair: the setter writes `CameraConfig3d`, the reader reads the published `ViewportSnapshot3d`. Command in, truth out — fixed by a doc line under N8 |
 | `render.camera_2d`, `set_camera_2d`, `mouse_world_2d`, `draw_line_2d` | Correct under N5; none quotes a key or module name |
 | `balaur_core`, `balaur_import`, `balaur_cli` words | N17 is not met yet: core keeps its words in the domain module that owns them (`primitive`, `csg`, `cloner`, `skeleton`), and the importer spells the scene keys it writes. The lint binds a crate the moment it has a `vocabulary.rs` |
@@ -616,4 +615,4 @@ There is no `late_update`, `draw` or `input` hook. Draw from `update` with `rend
 
 ### Exemptions these retire
 
-`mouse_down` retires the `input.is_mouse_down` exemption, and `sphere` and `box` retire `"ball"` and `"cuboid"`, once each lands.
+`sphere` and `box` retire the `"ball"` and `"cuboid"` exemption once they land.

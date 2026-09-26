@@ -633,8 +633,8 @@ pub fn update(S, over_viewport, mx, my) {
     };
     let (x, y) = cell_at(S, f, mx, my);
     S.tiles.hover = if over_viewport { Some((x, y)) } else { None };
-    let left = input::is_mouse_down(input::MOUSE_LEFT);
-    let right = input::is_mouse_down(input::MOUSE_RIGHT);
+    let left = input::mouse_down(input::MOUSE_BUTTON_LEFT);
+    let right = input::mouse_down(input::MOUSE_BUTTON_RIGHT);
     if !left && !right {
         // A rectangle is drawn on release, from the cell the drag began in.
         let anchor_some = S.tiles.anchor;

@@ -142,7 +142,7 @@ fn an_embedded_game_will_not_read_a_file_beside_it() {
         .read("art/hero.png")
         .expect_err("embedded must not fall through to disk");
     assert!(
-        err.to_string().contains("embedded+files"),
+        err.to_string().contains("embedded_then_files"),
         "the error should say how to allow it: {err}"
     );
 
@@ -154,7 +154,7 @@ fn an_embedded_game_will_not_read_a_file_beside_it() {
     assert_eq!(
         permissive.read("art/hero.png").unwrap(),
         PNG,
-        "embedded+files falls through to the directory"
+        "embedded_then_files falls through to the directory"
     );
 }
 

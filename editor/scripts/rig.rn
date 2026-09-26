@@ -620,7 +620,7 @@ pub fn update(S, over_viewport, mx, my) {
         S.rig.hover = None;
         return;
     }
-    if !input::is_mouse_down(input::MOUSE_LEFT) {
+    if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
         S.rig.drag = None;
     }
     if let Some(drag) = S.rig.drag {
@@ -628,7 +628,7 @@ pub fn update(S, over_viewport, mx, my) {
         return;
     }
     S.rig.hover = if over_viewport { pick(S, mx, my) } else { None };
-    if !(over_viewport && input::mouse_just_pressed(input::MOUSE_LEFT)) {
+    if !(over_viewport && input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT)) {
         return;
     }
     // A modifier's target handle wins over the bone under it: the handle is

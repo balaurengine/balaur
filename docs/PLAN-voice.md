@@ -51,7 +51,7 @@ Missing:
 stats, voice is heard and never simulated: no tick reads it, no digest hashes
 it, no snapshot restores it, and a `.blr` does not carry it. A script may ask
 who is speaking for a UI indicator, which is a frame-scoped answer like
-`input::just_pressed`. The pipeline runs on the audio thread and a worker,
+`input::key_just_pressed`. The pipeline runs on the audio thread and a worker,
 and the only thing the tick does is hand the roster to it.
 
 **The pipeline.** Mono at 48 kHz in 20 ms frames, which is 960 samples and

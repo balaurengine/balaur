@@ -304,7 +304,7 @@ fn a_rune_project_that_calls_the_engine_can_be_exported() {
         (
             "s.rn",
             "pub fn init(this) {\n\
-             \x20   if input::just_pressed(input::KEY_SPACE) {\n\
+             \x20   if input::key_just_pressed(input::KEY_SPACE) {\n\
              \x20       this.ran = true;\n\
              \x20   }\n\
              }\n",

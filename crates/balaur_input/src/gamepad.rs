@@ -23,39 +23,38 @@ use balaur_core::collections::DetHashSet;
 use balaur_script::{Bindings, BindingsExt, Value};
 use serde::Deserialize as _;
 
-/// Buttons scripts can ask about, in gilrs's naming. The list is the
-/// vocabulary (same contract as `KEY_NAMES`): queries validate against it,
-/// and the poller only ever produces names from it.
+/// Buttons scripts can ask about, named by position as SDL3 names them, so
+/// `south` is the same button on every pad. Queries validate against the
+/// list, and the poller only ever produces names from it.
 pub const PAD_BUTTON_NAMES: &[&str] = &[
-    "South",
-    "East",
-    "North",
-    "West",
-    "LeftTrigger",
-    "LeftTrigger2",
-    "RightTrigger",
-    "RightTrigger2",
-    "Select",
-    "Start",
-    "Mode",
-    "LeftThumb",
-    "RightThumb",
-    "DPadUp",
-    "DPadDown",
-    "DPadLeft",
-    "DPadRight",
+    "south",
+    "east",
+    "north",
+    "west",
+    "left_shoulder",
+    "left_trigger",
+    "right_shoulder",
+    "right_trigger",
+    "back",
+    "start",
+    "guide",
+    "left_stick",
+    "right_stick",
+    "dpad_up",
+    "dpad_down",
+    "dpad_left",
+    "dpad_right",
 ];
 
-/// Axes scripts can ask about, in gilrs's naming. Values are -1..1.
+/// Axes scripts can ask about: a stick -1..1 with up and right positive, a
+/// trigger 0..1.
 pub const PAD_AXIS_NAMES: &[&str] = &[
-    "LeftStickX",
-    "LeftStickY",
-    "LeftZ",
-    "RightStickX",
-    "RightStickY",
-    "RightZ",
-    "DPadX",
-    "DPadY",
+    "left_x",
+    "left_y",
+    "right_x",
+    "right_y",
+    "left_trigger",
+    "right_trigger",
 ];
 
 /// A pad's motion sensors, in the units a script integrates directly: gyro as
@@ -234,36 +233,44 @@ struct Runtime {
 /// says so).
 #[cfg(not(target_family = "wasm"))]
 const BUTTONS: &[(&str, gilrs::Button)] = &[
-    ("South", gilrs::Button::South),
-    ("East", gilrs::Button::East),
-    ("North", gilrs::Button::North),
-    ("West", gilrs::Button::West),
-    ("LeftTrigger", gilrs::Button::LeftTrigger),
-    ("LeftTrigger2", gilrs::Button::LeftTrigger2),
-    ("RightTrigger", gilrs::Button::RightTrigger),
-    ("RightTrigger2", gilrs::Button::RightTrigger2),
-    ("Select", gilrs::Button::Select),
-    ("Start", gilrs::Button::Start),
-    ("Mode", gilrs::Button::Mode),
-    ("LeftThumb", gilrs::Button::LeftThumb),
-    ("RightThumb", gilrs::Button::RightThumb),
-    ("DPadUp", gilrs::Button::DPadUp),
-    ("DPadDown", gilrs::Button::DPadDown),
-    ("DPadLeft", gilrs::Button::DPadLeft),
-    ("DPadRight", gilrs::Button::DPadRight),
+    ("south", gilrs::Button::South),
+    ("east", gilrs::Button::East),
+    ("north", gilrs::Button::North),
+    ("west", gilrs::Button::West),
+    ("left_shoulder", gilrs::Button::LeftTrigger),
+    ("left_trigger", gilrs::Button::LeftTrigger2),
+    ("right_shoulder", gilrs::Button::RightTrigger),
+    ("right_trigger", gilrs::Button::RightTrigger2),
+    ("back", gilrs::Button::Select),
+    ("start", gilrs::Button::Start),
+    ("guide", gilrs::Button::Mode),
+    ("left_stick", gilrs::Button::LeftThumb),
+    ("right_stick", gilrs::Button::RightThumb),
+    ("dpad_up", gilrs::Button::DPadUp),
+    ("dpad_down", gilrs::Button::DPadDown),
+    ("dpad_left", gilrs::Button::DPadLeft),
+    ("dpad_right", gilrs::Button::DPadRight),
 ];
+
+/// Where an axis is read from: a stick's own axis, or a trigger's pressure.
+#[cfg(not(target_family = "wasm"))]
+#[derive(Clone, Copy)]
+enum Source {
+    Axis(gilrs::Axis),
+    /// gilrs maps an analog trigger to a button and keeps its travel as the
+    /// button's value, so the `LeftZ` axis reads zero on most pads.
+    Trigger(gilrs::Button),
+}
 
 /// The gilrs mapping behind [`PAD_AXIS_NAMES`], same contract as [`BUTTONS`].
 #[cfg(not(target_family = "wasm"))]
-const AXES: &[(&str, gilrs::Axis)] = &[
-    ("LeftStickX", gilrs::Axis::LeftStickX),
-    ("LeftStickY", gilrs::Axis::LeftStickY),
-    ("LeftZ", gilrs::Axis::LeftZ),
-    ("RightStickX", gilrs::Axis::RightStickX),
-    ("RightStickY", gilrs::Axis::RightStickY),
-    ("RightZ", gilrs::Axis::RightZ),
-    ("DPadX", gilrs::Axis::DPadX),
-    ("DPadY", gilrs::Axis::DPadY),
+const AXES: &[(&str, Source)] = &[
+    ("left_x", Source::Axis(gilrs::Axis::LeftStickX)),
+    ("left_y", Source::Axis(gilrs::Axis::LeftStickY)),
+    ("right_x", Source::Axis(gilrs::Axis::RightStickX)),
+    ("right_y", Source::Axis(gilrs::Axis::RightStickY)),
+    ("left_trigger", Source::Trigger(gilrs::Button::LeftTrigger2)),
+    ("right_trigger", Source::Trigger(gilrs::Button::RightTrigger2)),
 ];
 
 impl GamepadState {
@@ -377,10 +384,15 @@ impl GamepadState {
                     pad.just_released.insert((*name).to_string());
                 }
             }
-            for (name, axis) in AXES {
-                let value = gamepad
-                    .axis_data(*axis)
-                    .map_or(0.0, gilrs::ev::state::AxisData::value);
+            for (name, source) in AXES {
+                let value = match *source {
+                    Source::Axis(axis) => gamepad
+                        .axis_data(axis)
+                        .map_or(0.0, gilrs::ev::state::AxisData::value),
+                    Source::Trigger(button) => gamepad
+                        .button_data(button)
+                        .map_or(0.0, gilrs::ev::state::ButtonData::value),
+                };
                 pad.axes.push((name, value));
             }
             let ids = (
@@ -549,17 +561,17 @@ mod tests {
         let older = serde_json::json!([{
             "id": 3,
             "name": "Older Pad",
-            "down": ["South"],
+            "down": ["south"],
             "just_pressed": [],
             "just_released": [],
-            "axes": [["LeftStickX", 0.5]],
+            "axes": [["left_x", 0.5]],
         }]);
         let mut state = GamepadState::default();
         restore(&mut state, &older);
 
         let pad = state.pad(3).expect("the pad still restored");
-        assert!(pad.is_down("South"));
-        assert!((pad.axis("LeftStickX") - 0.5).abs() < 1e-6);
+        assert!(pad.is_down("south"));
+        assert!((pad.axis("left_x") - 0.5).abs() < 1e-6);
         assert_eq!(pad.motion(), Motion::default());
         assert!(pad.touches().is_empty());
         assert!(!pad.can_rumble());

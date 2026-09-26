@@ -11,13 +11,13 @@ pub fn init(this) {
 }
 
 pub fn fixed_update(this, dt) {
-    let right = if input::is_down(input::KEY_D) { 1.0 } else { 0.0 };
-    let left = if input::is_down(input::KEY_A) { 1.0 } else { 0.0 };
+    let right = if input::key_down(input::KEY_D) { 1.0 } else { 0.0 };
+    let left = if input::key_down(input::KEY_A) { 1.0 } else { 0.0 };
     let sideways = right - left;
     // The controller reports whether the last move ended on the ground, which
     // is what decides between falling and being able to jump.
     if this.node.character2d.is_grounded() {
-        let pressed = input::just_pressed(input::KEY_SPACE);
+        let pressed = input::key_just_pressed(input::KEY_SPACE);
         this.vy = if pressed { this.jump } else { 0.0 };
     } else {
         this.vy -= this.gravity * dt;

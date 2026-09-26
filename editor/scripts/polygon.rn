@@ -1017,7 +1017,7 @@ pub fn cancel(S) {
 }
 
 fn alt_down() {
-    input::is_down("LAlt") || input::is_down("RAlt")
+    input::key_down(input::KEY_ALT)
 }
 
 pub fn update(S, over_viewport, mx, my) {
@@ -1030,7 +1030,7 @@ pub fn update(S, over_viewport, mx, my) {
         Some(mesh) => mesh,
         None => {
             S.polygon.hover = None;
-            if over_viewport && input::mouse_just_pressed(input::MOUSE_LEFT) && mode == "points" {
+            if over_viewport && input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) && mode == "points" {
                 add_vertex(S, mx, my, alt_down());
             }
             return;
@@ -1038,7 +1038,7 @@ pub fn update(S, over_viewport, mx, my) {
     };
     let hover = if over_viewport { pick(S, mesh, f, mx, my, mode == "uv") } else { None };
     S.polygon.hover = hover;
-    if !input::is_mouse_down(input::MOUSE_LEFT) {
+    if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
         S.polygon.drag = None;
     }
     if let Some(drag) = S.polygon.drag {
@@ -1053,7 +1053,7 @@ pub fn update(S, over_viewport, mx, my) {
         return;
     }
     if mode == "points" {
-        if input::mouse_just_pressed(input::MOUSE_LEFT) {
+        if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
             match hover {
                 Some(hover) => {
                     S.polygon.drag = Some(hover);
@@ -1062,14 +1062,14 @@ pub fn update(S, over_viewport, mx, my) {
                     add_vertex(S, mx, my, alt_down());
                 }
             }
-        } else if input::mouse_just_pressed(input::MOUSE_RIGHT) {
+        } else if input::mouse_just_pressed(input::MOUSE_BUTTON_RIGHT) {
             let hover_some = hover;
             if let Some(hover) = hover_some {
                 remove_vertex(S, hover);
             }
         }
     } else if mode == "polygons" {
-        if input::mouse_just_pressed(input::MOUSE_LEFT) {
+        if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
             let hover_some = hover;
             if let Some(hover) = hover_some {
                 let ring = S.polygon.chain.unwrap_or([]);
@@ -1081,20 +1081,20 @@ pub fn update(S, over_viewport, mx, my) {
                     S.polygon.chain = Some(ring);
                 }
             }
-        } else if input::mouse_just_pressed(input::MOUSE_RIGHT) {
+        } else if input::mouse_just_pressed(input::MOUSE_BUTTON_RIGHT) {
             S.polygon.chain = None;
         }
     } else if mode == "uv" {
-        if input::mouse_just_pressed(input::MOUSE_LEFT) {
+        if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
             let hover_some = hover;
             if let Some(hover) = hover_some {
                 S.polygon.drag = Some(hover);
             }
         }
     } else if mode == "weights" {
-        let sign = if input::is_mouse_down(input::MOUSE_LEFT) {
+        let sign = if input::mouse_down(input::MOUSE_BUTTON_LEFT) {
             1.0
-        } else if input::is_mouse_down(input::MOUSE_RIGHT) {
+        } else if input::mouse_down(input::MOUSE_BUTTON_RIGHT) {
             -1.0
         } else {
             0.0

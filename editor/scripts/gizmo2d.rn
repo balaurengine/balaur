@@ -346,7 +346,7 @@ fn apply_drag(S, mx, my) {
                 }
             }
         }
-        if input::is_down("LShift") || input::is_down("RShift") {
+        if input::key_down(input::KEY_SHIFT) {
             let dominant = 1.0;
             for i in 0..2 {
                 if d.part.signs[i] != 0.0 && util::abs(factors[i] - 1.0) > util::abs(dominant - 1.0) {
@@ -493,7 +493,7 @@ pub fn update(S, vp) {
 
     render::set_camera_input(!viewport::manipulates(S.tool, true) && S.gizmo.hover.is_none() && S.gizmo.drag.is_none());
 
-    if input::mouse_just_pressed(input::MOUSE_LEFT) && over_viewport {
+    if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) && over_viewport {
         let hovered = match (S.gizmo.hover, geo) {
             (Some(part), Some(geo)) => Some((part, geo)),
             _ => None,
@@ -529,7 +529,7 @@ pub fn update(S, vp) {
         m.wx1 = mx;
         m.wy1 = my;
         render::set_camera_input(false);
-        if !input::is_mouse_down(input::MOUSE_LEFT) {
+        if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
             S.gizmo.marquee = None;
             S.gizmo.in_viewport = false;
             if util::abs(m.x1 - m.x0) > 3.0 || util::abs(m.y1 - m.y0) > 3.0 {
@@ -542,7 +542,7 @@ pub fn update(S, vp) {
         }
         return;
     }
-    if !input::is_mouse_down(input::MOUSE_LEFT) {
+    if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
         S.gizmo.drag = None;
         S.gizmo.in_viewport = false;
     }

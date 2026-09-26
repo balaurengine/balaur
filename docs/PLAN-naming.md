@@ -13,7 +13,9 @@ with no alias and no migration, as `one way to do a thing` asks.
 - Done in 0.3: theme tokens, theme keys, roles and state tables (`NAMING.md`
   N18 to N20), the `ui::*` function and constant names, the widget kinds and
   their renamed properties, the editor's per-user folder, the plugin
-  `register()` keys, and "persona" becoming "workspace".
+  `register()` keys, "persona" becoming "workspace", the input names (keys
+  by W3C code, gamepads by position, `key_down` and its edges), and
+  `application/asset_source`.
 - `NAMING.md` has the eight scopes, rules N18 to N23, and the picked names per
   system, from a survey of SDL3, Godot 4, Unity, Blender, GLFW, W3C, rapier and
   glTF on 2026-09-25.
@@ -49,7 +51,6 @@ with no alias and no migration, as `one way to do a thing` asks.
 | Now | New | Why |
 | --- | --- | --- |
 | `node.global_tint`, `global_visible`, `global_material`, `global_z_index` | `tint_in_tree`, `visible_in_tree`, `material_in_tree`, `z_index_in_tree` | `global_` means world space on `global_position`; Godot says `is_visible_in_tree` |
-| `input.is_down`, `is_mouse_down`, `gamepad_down`, `action_pressed` | `key_down`, `mouse_down`, `gamepad_down`, `action_down` | four spellings of "held"; the edge readers follow |
 | `render.draw_line`, `draw_text` | `draw_line_3d`, `draw_text_3d` | D5, beside `_2d` |
 | `debugger.paused()` (a location) | `stop_location` | `engine.paused()` is a bool |
 | `export.running()`, `import.running()` (counts) | `running_count` | |
@@ -70,7 +71,6 @@ with no alias and no migration, as `one way to do a thing` asks.
 | `hot_reload` | `on_hot_reload` | bare means the engine asks, `on_` means it tells |
 | collision `collision_start`, `collision_stop` | `collision_enter`, `collision_exit` | beside `pointer_enter`, `pointer_exit` |
 | bindings `spawn`, `state`, `sound` | `instantiate`, `go`, `play_sound` | the glossary's `spawn` is one empty node |
-| `KEY_BACK`, `KEY_CAPITAL`, `PAD_*`, `AXIS_*`, `MOUSE_*` | the input table in `NAMING.md`: `KEY_BACKSPACE`, `KEY_CAPS_LOCK`, `GAMEPAD_BUTTON_LEFT_SHOULDER`, `GAMEPAD_AXIS_LEFT_X`, `MOUSE_BUTTON_LEFT` | SDL3 and W3C; a key's value is its W3C `code` |
 | `math.deg`, `rad`, `INF`; module `rng` | `to_degrees`, `to_radians`, `INFINITY`; `random` | D4 |
 | positional booleans (`set_z_index(z, relative)`, `release.install(.., allow_downgrade)`) | option table keys | N9 |
 
@@ -78,7 +78,6 @@ with no alias and no migration, as `one way to do a thing` asks.
 
 | Now | New | Why |
 | --- | --- | --- |
-| `application/assets = embeddedthenfiles` | `asset_source = embedded_then_files` | the parser only accepts `embedded+files`, so this option falls back silently today |
 | `[export] macos_identity`, `android_keystore`, `windows_certificate`, … | `[apple] macos_identity`, `[android] keystore`, `[windows] certificate` | a key named after a table it is not in |
 | `BALAUR_SIGN_PASSWORD`, `BALAUR_KEYSTORE_PASSWORD`, `BALAUR_DUMP` | `BALAUR_WINDOWS_CERTIFICATE_PASSWORD`, `BALAUR_ANDROID_KEYSTORE_PASSWORD`, `BALAUR_REPLAY_DUMP` | the variable names its platform and its action input |
 | `export --template`, `balaur-template-*` | `--runtime`, `balaur-runtime-*` | `new --template` is a starter project |
@@ -155,23 +154,11 @@ is a verb, and capitals in headings come from the theme.
 
 These are defects, not names, and each is fixed on its own:
 
-- `application/assets = embeddedthenfiles` is rejected by the parser and the
-  game falls back to `embedded` without a word (`settings.rs:590`,
-  `project_files.rs:15`).
-- 21 `KEY_*` names never fire on desktop, `KEY_CAPITAL` and `KEY_APPS` among
-  them: kiss3d's `translate_key` has no case for them. The web table misses 42
-  more. Passing the W3C `code` through removes both tables.
-- Analog triggers cannot be read: gilrs reports them as `LeftTrigger2`, a
-  button, and Balaur only asks whether it is pressed.
-- An imported stick's Y may be flipped: gilrs reads up as +1, Godot down, and
-  the importer copies the sign.
-- Back, Forward and every extra mouse button fold into one on desktop, and
-  only three of the eight stored buttons have a constant.
-- `actions.rs:37` says a key binding is spelled `"KeyA"`; today it is `"A"`.
-- 66 method rows in `docs/generated/components.md` glue the argument type to
-  the name, as in `currentNodeId`.
-- The Godot importer writes `sprite.columns`, `rows` and `frame`, which the
-  sprite schema does not declare (`nodes.rs:489`).
+- Four keys never fire on desktop (`KEY_CAPS_LOCK`, `KEY_INTERNATIONAL_RO`,
+  `KEY_CONTEXT_MENU`, `KEY_NUMPAD_EQUAL`) and 45 on the web, and Back and
+  Forward fold into one mouse button on desktop: the kiss3d fork's tables miss
+  them. The fork's `ca5cecfb` adds every case; it waits on a push and a
+  `Cargo.lock` bump.
 
 ## Steps
 

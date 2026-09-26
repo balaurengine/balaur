@@ -10,8 +10,8 @@ name = "actions test"
 main_scene = "main.toml"
 
 [input.actions]
-jump = ["Space", "gamepad:South"]
-move_x = ["keys:A,D", "axis:LeftStickX"]
+jump = ["Space", "gamepad:south"]
+move_x = ["keys:KeyA,KeyD", "axis:left_x"]
 fire = ["mouse:left"]
 "#;
 
@@ -49,7 +49,7 @@ fn pressed(app: &App, name: &str) -> bool {
     app.engine
         .resource::<InputActions>()
         .borrow()
-        .is_pressed(name)
+        .is_down(name)
 }
 
 fn just_pressed(app: &App, name: &str) -> bool {
@@ -99,14 +99,14 @@ fn an_edge_fires_for_one_frame_the_way_a_key_does() {
 #[test]
 fn a_key_pair_reads_as_an_axis() {
     let (_dir, mut app) = app(MANIFEST);
-    frame(&mut app, &[("D", true)]);
+    frame(&mut app, &[("KeyD", true)]);
     assert!((value(&app, "move_x") - 1.0).abs() < 1e-6);
 
-    frame(&mut app, &[("D", false), ("A", true)]);
+    frame(&mut app, &[("KeyD", false), ("KeyA", true)]);
     assert!((value(&app, "move_x") + 1.0).abs() < 1e-6);
 
     // Both ends at once cancel, which is what a keyboard "axis" should do.
-    frame(&mut app, &[("D", true)]);
+    frame(&mut app, &[("KeyD", true)]);
     assert!(value(&app, "move_x").abs() < 1e-6);
 }
 
@@ -140,12 +140,12 @@ fn rebinding_replaces_what_the_project_declared() {
     app.engine
         .resource::<InputActions>()
         .borrow_mut()
-        .rebind("jump", &[String::from("J")])
+        .rebind("jump", &[String::from("KeyJ")])
         .unwrap();
 
     frame(&mut app, &[("Space", true)]);
     assert!(!pressed(&app, "jump"), "the old binding still fires");
-    frame(&mut app, &[("Space", false), ("J", true)]);
+    frame(&mut app, &[("Space", false), ("KeyJ", true)]);
     assert!(pressed(&app, "jump"));
 }
 
@@ -160,6 +160,31 @@ fn rebinding_to_something_unparseable_is_refused() {
         .rebind("jump", &[String::from("gamepad:Nope")])
         .unwrap_err();
     assert!(err.contains("gamepad button"), "{err}");
+}
+
+#[test]
+fn bindings_take_w3c_codes_and_position_names_and_refuse_the_old_ones() {
+    let (_dir, mut app) = app(MANIFEST);
+    frame(&mut app, &[]);
+    let actions = app.engine.resource::<InputActions>();
+    let good = [
+        "KeyJ",
+        "ShiftLeft",
+        "mouse:back",
+        "mouse:forward",
+        "gamepad:left_shoulder",
+        "axis:left_trigger",
+        "keys:ArrowLeft,ArrowRight",
+    ]
+    .map(String::from);
+    actions
+        .borrow_mut()
+        .rebind("jump", &good)
+        .expect("every current spelling parses");
+    for old in ["J", "LShift", "gamepad:South", "axis:LeftStickX"] {
+        let err = actions.borrow_mut().rebind("jump", &[String::from(old)]);
+        assert!(err.is_err(), "{old} is the old spelling and still parses");
+    }
 }
 
 #[test]
@@ -191,8 +216,8 @@ fn the_same_keys_produce_the_same_actions_every_run() {
     let keys = [
         vec![("Space", true)],
         vec![],
-        vec![("D", true)],
-        vec![("Space", false), ("D", false), ("A", true)],
+        vec![("KeyD", true)],
+        vec![("Space", false), ("KeyD", false), ("KeyA", true)],
     ];
     let mut runs = Vec::new();
     for _ in 0..2 {
@@ -231,7 +256,7 @@ fn a_recordings_bindings_survive_a_rebinding() {
         .engine
         .resource::<InputActions>()
         .borrow_mut()
-        .rebind("jump", &[String::from("J")])
+        .rebind("jump", &[String::from("KeyJ")])
         .unwrap();
     let loaded = balaur_core::replay::Session::read(&session).unwrap();
     balaur_core::replay::begin(&replay.engine, loaded);
@@ -247,6 +272,6 @@ fn a_recordings_bindings_survive_a_rebinding() {
             .resource::<InputActions>()
             .borrow()
             .bindings("jump"),
-        vec![String::from("Space"), String::from("gamepad:South")]
+        vec![String::from("Space"), String::from("gamepad:south")]
     );
 }

@@ -107,7 +107,7 @@ pub(crate) fn tick(eng: &Engine, dt: f32) {
 
     // A finger that lifted is a swipe or nothing, and either way its span
     // goes. The oldest lift wins, because a two-finger lift is a pan ending.
-    for id in snapshot.touches_ended() {
+    for id in snapshot.touches_just_ended() {
         let Some(at) = g.spans.iter().position(|s| s.id == *id) else {
             continue;
         };

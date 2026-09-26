@@ -24,7 +24,7 @@ cannot drift from what scripts actually see.
 | [`hash`](#hash) | 2 | 0 | the engine |
 | [`http`](#http) | 1 | 0 | the engine |
 | [`import`](#import) | 7 | 0 | the engine |
-| [`input`](#input) | 47 | 190 | the engine |
+| [`input`](#input) | 47 | 176 | the engine |
 | [`json`](#json) | 2 | 0 | the engine |
 | [`log`](#log) | 7 | 0 | the engine |
 | [`math`](#math) | 24 | 3 | the engine |
@@ -160,38 +160,38 @@ cannot drift from what scripts actually see.
 
 ## `input`
 
-**Functions:** `action_just_pressed`, `action_just_released`, `action_pressed`, `action_value`, `actions`, `bind`, `bindings`, `composing`, `dropped_files`, `feed_action`, `feed_key`, `feed_mouse`, `feed_mouse_button`, `feed_scroll`, `feed_touch`, `gamepad_acceleration`, `gamepad_axis`, `gamepad_can_rumble`, `gamepad_down`, `gamepad_gyro`, `gamepad_just_pressed`, `gamepad_just_released`, `gamepad_name`, `gamepad_rumble`, `gamepad_stop_rumble`, `gamepad_touches`, `gamepads`, `is_down`, `is_mouse_down`, `just_pressed`, `just_released`, `keyboard_height`, `long_press`, `mouse_delta`, `mouse_just_pressed`, `mouse_just_released`, `mouse_position`, `pan`, `pinch`, `reset_bindings`, `scroll_delta`, `swipe`, `touches`, `touches_ended`, `touches_started`, `typed`, `vibrate`
+**Functions:** `action_down`, `action_just_pressed`, `action_just_released`, `action_value`, `actions`, `bind`, `bindings`, `composing`, `dropped_files`, `feed_action`, `feed_key`, `feed_mouse`, `feed_mouse_button`, `feed_scroll`, `feed_touch`, `gamepad_acceleration`, `gamepad_axis`, `gamepad_can_rumble`, `gamepad_down`, `gamepad_gyro`, `gamepad_just_pressed`, `gamepad_just_released`, `gamepad_name`, `gamepad_rumble`, `gamepad_stop_rumble`, `gamepad_touches`, `gamepads`, `key_down`, `key_just_pressed`, `key_just_released`, `keyboard_height`, `long_press`, `mouse_delta`, `mouse_down`, `mouse_just_pressed`, `mouse_just_released`, `mouse_position`, `pan`, `pinch`, `reset_bindings`, `scroll_delta`, `swipe`, `touches`, `touches_just_ended`, `touches_just_started`, `typed`, `vibrate`
 
-**Constants** (190):
+**Constants** (176):
 
 | Name | Value |
 | --- | --- |
-| `AXIS_DPAD_X` | `DPadX` |
-| `AXIS_DPAD_Y` | `DPadY` |
-| `AXIS_LEFT_STICK_X` | `LeftStickX` |
-| `AXIS_LEFT_STICK_Y` | `LeftStickY` |
-| `AXIS_LEFT_Z` | `LeftZ` |
-| `AXIS_RIGHT_STICK_X` | `RightStickX` |
-| `AXIS_RIGHT_STICK_Y` | `RightStickY` |
-| `AXIS_RIGHT_Z` | `RightZ` |
-| `KEY_0` | `Key0` |
-| `KEY_1` | `Key1` |
-| `KEY_2` | `Key2` |
-| `KEY_3` | `Key3` |
-| `KEY_4` | `Key4` |
-| `KEY_5` | `Key5` |
-| `KEY_6` | `Key6` |
-| `KEY_7` | `Key7` |
-| `KEY_8` | `Key8` |
-| `KEY_9` | `Key9` |
-| `KEY_A` | `A` |
-| `KEY_ABNT_C1` | `AbntC1` |
-| `KEY_ABNT_C2` | `AbntC2` |
-| `KEY_ADD` | `Add` |
-| `KEY_APOSTROPHE` | `Apostrophe` |
-| `KEY_APPS` | `Apps` |
+| `GAMEPAD_AXIS_LEFT_TRIGGER` | `left_trigger` |
+| `GAMEPAD_AXIS_LEFT_X` | `left_x` |
+| `GAMEPAD_AXIS_LEFT_Y` | `left_y` |
+| `GAMEPAD_AXIS_RIGHT_TRIGGER` | `right_trigger` |
+| `GAMEPAD_AXIS_RIGHT_X` | `right_x` |
+| `GAMEPAD_AXIS_RIGHT_Y` | `right_y` |
+| `GAMEPAD_BUTTON_BACK` | `back` |
+| `GAMEPAD_BUTTON_DPAD_DOWN` | `dpad_down` |
+| `GAMEPAD_BUTTON_DPAD_LEFT` | `dpad_left` |
+| `GAMEPAD_BUTTON_DPAD_RIGHT` | `dpad_right` |
+| `GAMEPAD_BUTTON_DPAD_UP` | `dpad_up` |
+| `GAMEPAD_BUTTON_EAST` | `east` |
+| `GAMEPAD_BUTTON_GUIDE` | `guide` |
+| `GAMEPAD_BUTTON_LEFT_SHOULDER` | `left_shoulder` |
+| `GAMEPAD_BUTTON_LEFT_STICK` | `left_stick` |
+| `GAMEPAD_BUTTON_LEFT_TRIGGER` | `left_trigger` |
+| `GAMEPAD_BUTTON_NORTH` | `north` |
+| `GAMEPAD_BUTTON_RIGHT_SHOULDER` | `right_shoulder` |
+| `GAMEPAD_BUTTON_RIGHT_STICK` | `right_stick` |
+| `GAMEPAD_BUTTON_RIGHT_TRIGGER` | `right_trigger` |
+| `GAMEPAD_BUTTON_SOUTH` | `south` |
+| `GAMEPAD_BUTTON_START` | `start` |
+| `GAMEPAD_BUTTON_WEST` | `west` |
+| `KEY_0` | `Digit0` |
 
-…and 166 more.
+…and 152 more.
 
 ## `json`
 

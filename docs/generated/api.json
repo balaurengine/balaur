@@ -7648,148 +7648,216 @@
       "components": [],
       "constants": [
         {
-          "name": "AXIS_DPAD_X",
-          "value": "DPadX"
+          "name": "GAMEPAD_AXIS_LEFT_TRIGGER",
+          "value": "left_trigger"
         },
         {
-          "name": "AXIS_DPAD_Y",
-          "value": "DPadY"
+          "name": "GAMEPAD_AXIS_LEFT_X",
+          "value": "left_x"
         },
         {
-          "name": "AXIS_LEFT_STICK_X",
-          "value": "LeftStickX"
+          "name": "GAMEPAD_AXIS_LEFT_Y",
+          "value": "left_y"
         },
         {
-          "name": "AXIS_LEFT_STICK_Y",
-          "value": "LeftStickY"
+          "name": "GAMEPAD_AXIS_RIGHT_TRIGGER",
+          "value": "right_trigger"
         },
         {
-          "name": "AXIS_LEFT_Z",
-          "value": "LeftZ"
+          "name": "GAMEPAD_AXIS_RIGHT_X",
+          "value": "right_x"
         },
         {
-          "name": "AXIS_RIGHT_STICK_X",
-          "value": "RightStickX"
+          "name": "GAMEPAD_AXIS_RIGHT_Y",
+          "value": "right_y"
         },
         {
-          "name": "AXIS_RIGHT_STICK_Y",
-          "value": "RightStickY"
+          "name": "GAMEPAD_BUTTON_BACK",
+          "value": "back"
         },
         {
-          "name": "AXIS_RIGHT_Z",
-          "value": "RightZ"
+          "name": "GAMEPAD_BUTTON_DPAD_DOWN",
+          "value": "dpad_down"
+        },
+        {
+          "name": "GAMEPAD_BUTTON_DPAD_LEFT",
+          "value": "dpad_left"
+        },
+        {
+          "name": "GAMEPAD_BUTTON_DPAD_RIGHT",
+          "value": "dpad_right"
+        },
+        {
+          "name": "GAMEPAD_BUTTON_DPAD_UP",
+          "value": "dpad_up"
+        },
+        {
+          "name": "GAMEPAD_BUTTON_EAST",
+          "value": "east"
+        },
+        {
+          "name": "GAMEPAD_BUTTON_GUIDE",
+          "value": "guide"
+        },
+        {
+          "name": "GAMEPAD_BUTTON_LEFT_SHOULDER",
+          "value": "left_shoulder"
+        },
+        {
+          "name": "GAMEPAD_BUTTON_LEFT_STICK",
+          "value": "left_stick"
+        },
+        {
+          "name": "GAMEPAD_BUTTON_LEFT_TRIGGER",
+          "value": "left_trigger"
+        },
+        {
+          "name": "GAMEPAD_BUTTON_NORTH",
+          "value": "north"
+        },
+        {
+          "name": "GAMEPAD_BUTTON_RIGHT_SHOULDER",
+          "value": "right_shoulder"
+        },
+        {
+          "name": "GAMEPAD_BUTTON_RIGHT_STICK",
+          "value": "right_stick"
+        },
+        {
+          "name": "GAMEPAD_BUTTON_RIGHT_TRIGGER",
+          "value": "right_trigger"
+        },
+        {
+          "name": "GAMEPAD_BUTTON_SOUTH",
+          "value": "south"
+        },
+        {
+          "name": "GAMEPAD_BUTTON_START",
+          "value": "start"
+        },
+        {
+          "name": "GAMEPAD_BUTTON_WEST",
+          "value": "west"
         },
         {
           "name": "KEY_0",
-          "value": "Key0"
+          "value": "Digit0"
         },
         {
           "name": "KEY_1",
-          "value": "Key1"
+          "value": "Digit1"
         },
         {
           "name": "KEY_2",
-          "value": "Key2"
+          "value": "Digit2"
         },
         {
           "name": "KEY_3",
-          "value": "Key3"
+          "value": "Digit3"
         },
         {
           "name": "KEY_4",
-          "value": "Key4"
+          "value": "Digit4"
         },
         {
           "name": "KEY_5",
-          "value": "Key5"
+          "value": "Digit5"
         },
         {
           "name": "KEY_6",
-          "value": "Key6"
+          "value": "Digit6"
         },
         {
           "name": "KEY_7",
-          "value": "Key7"
+          "value": "Digit7"
         },
         {
           "name": "KEY_8",
-          "value": "Key8"
+          "value": "Digit8"
         },
         {
           "name": "KEY_9",
-          "value": "Key9"
+          "value": "Digit9"
         },
         {
           "name": "KEY_A",
-          "value": "A"
+          "value": "KeyA"
         },
         {
-          "name": "KEY_ABNT_C1",
-          "value": "AbntC1"
-        },
-        {
-          "name": "KEY_ABNT_C2",
-          "value": "AbntC2"
-        },
-        {
-          "name": "KEY_ADD",
-          "value": "Add"
+          "name": "KEY_ALT",
+          "value": "Alt"
         },
         {
           "name": "KEY_APOSTROPHE",
-          "value": "Apostrophe"
+          "value": "Quote"
         },
         {
-          "name": "KEY_APPS",
-          "value": "Apps"
+          "name": "KEY_AUDIO_VOLUME_DOWN",
+          "value": "AudioVolumeDown"
         },
         {
-          "name": "KEY_AT",
-          "value": "At"
+          "name": "KEY_AUDIO_VOLUME_MUTE",
+          "value": "AudioVolumeMute"
         },
         {
-          "name": "KEY_AX",
-          "value": "Ax"
+          "name": "KEY_AUDIO_VOLUME_UP",
+          "value": "AudioVolumeUp"
         },
         {
           "name": "KEY_B",
-          "value": "B"
+          "value": "KeyB"
         },
         {
-          "name": "KEY_BACK",
-          "value": "Back"
+          "name": "KEY_BACKQUOTE",
+          "value": "Backquote"
         },
         {
           "name": "KEY_BACKSLASH",
           "value": "Backslash"
         },
         {
+          "name": "KEY_BACKSPACE",
+          "value": "Backspace"
+        },
+        {
+          "name": "KEY_BROWSER_BACK",
+          "value": "BrowserBack"
+        },
+        {
+          "name": "KEY_BROWSER_FORWARD",
+          "value": "BrowserForward"
+        },
+        {
+          "name": "KEY_BROWSER_HOME",
+          "value": "BrowserHome"
+        },
+        {
+          "name": "KEY_BROWSER_REFRESH",
+          "value": "BrowserRefresh"
+        },
+        {
+          "name": "KEY_BROWSER_SEARCH",
+          "value": "BrowserSearch"
+        },
+        {
           "name": "KEY_C",
-          "value": "C"
+          "value": "KeyC"
         },
         {
-          "name": "KEY_CALCULATOR",
-          "value": "Calculator"
-        },
-        {
-          "name": "KEY_CAPITAL",
-          "value": "Capital"
-        },
-        {
-          "name": "KEY_CARET",
-          "value": "Caret"
-        },
-        {
-          "name": "KEY_COLON",
-          "value": "Colon"
+          "name": "KEY_CAPS_LOCK",
+          "value": "CapsLock"
         },
         {
           "name": "KEY_COMMA",
           "value": "Comma"
         },
         {
-          "name": "KEY_COMPOSE",
-          "value": "Compose"
+          "name": "KEY_CONTEXT_MENU",
+          "value": "ContextMenu"
+        },
+        {
+          "name": "KEY_CONTROL",
+          "value": "Control"
         },
         {
           "name": "KEY_CONVERT",
@@ -7805,35 +7873,31 @@
         },
         {
           "name": "KEY_D",
-          "value": "D"
-        },
-        {
-          "name": "KEY_DECIMAL",
-          "value": "Decimal"
+          "value": "KeyD"
         },
         {
           "name": "KEY_DELETE",
           "value": "Delete"
         },
         {
-          "name": "KEY_DIVIDE",
-          "value": "Divide"
-        },
-        {
           "name": "KEY_DOWN",
-          "value": "Down"
+          "value": "ArrowDown"
         },
         {
           "name": "KEY_E",
-          "value": "E"
+          "value": "KeyE"
         },
         {
           "name": "KEY_END",
           "value": "End"
         },
         {
-          "name": "KEY_EQUALS",
-          "value": "Equals"
+          "name": "KEY_ENTER",
+          "value": "Enter"
+        },
+        {
+          "name": "KEY_EQUAL",
+          "value": "Equal"
         },
         {
           "name": "KEY_ESCAPE",
@@ -7841,7 +7905,7 @@
         },
         {
           "name": "KEY_F",
-          "value": "F"
+          "value": "KeyF"
         },
         {
           "name": "KEY_F1",
@@ -7941,15 +8005,11 @@
         },
         {
           "name": "KEY_G",
-          "value": "G"
-        },
-        {
-          "name": "KEY_GRAVE",
-          "value": "Grave"
+          "value": "KeyG"
         },
         {
           "name": "KEY_H",
-          "value": "H"
+          "value": "KeyH"
         },
         {
           "name": "KEY_HOME",
@@ -7957,63 +8017,75 @@
         },
         {
           "name": "KEY_I",
-          "value": "I"
+          "value": "KeyI"
         },
         {
           "name": "KEY_INSERT",
           "value": "Insert"
         },
         {
+          "name": "KEY_INTERNATIONAL_BACKSLASH",
+          "value": "IntlBackslash"
+        },
+        {
+          "name": "KEY_INTERNATIONAL_RO",
+          "value": "IntlRo"
+        },
+        {
+          "name": "KEY_INTERNATIONAL_YEN",
+          "value": "IntlYen"
+        },
+        {
           "name": "KEY_J",
-          "value": "J"
+          "value": "KeyJ"
         },
         {
           "name": "KEY_K",
-          "value": "K"
+          "value": "KeyK"
         },
         {
-          "name": "KEY_KANA",
-          "value": "Kana"
-        },
-        {
-          "name": "KEY_KANJI",
-          "value": "Kanji"
+          "name": "KEY_KANA_MODE",
+          "value": "KanaMode"
         },
         {
           "name": "KEY_L",
-          "value": "L"
+          "value": "KeyL"
         },
         {
-          "name": "KEY_LALT",
-          "value": "LAlt"
-        },
-        {
-          "name": "KEY_LBRACKET",
-          "value": "LBracket"
-        },
-        {
-          "name": "KEY_LCONTROL",
-          "value": "LControl"
+          "name": "KEY_LAUNCH_MAIL",
+          "value": "LaunchMail"
         },
         {
           "name": "KEY_LEFT",
-          "value": "Left"
+          "value": "ArrowLeft"
         },
         {
-          "name": "KEY_LSHIFT",
-          "value": "LShift"
+          "name": "KEY_LEFT_ALT",
+          "value": "AltLeft"
         },
         {
-          "name": "KEY_LWIN",
-          "value": "LWin"
+          "name": "KEY_LEFT_BRACKET",
+          "value": "BracketLeft"
+        },
+        {
+          "name": "KEY_LEFT_CONTROL",
+          "value": "ControlLeft"
+        },
+        {
+          "name": "KEY_LEFT_META",
+          "value": "MetaLeft"
+        },
+        {
+          "name": "KEY_LEFT_SHIFT",
+          "value": "ShiftLeft"
         },
         {
           "name": "KEY_M",
-          "value": "M"
+          "value": "KeyM"
         },
         {
-          "name": "KEY_MAIL",
-          "value": "Mail"
+          "name": "KEY_MEDIA_PLAY_PAUSE",
+          "value": "MediaPlayPause"
         },
         {
           "name": "KEY_MEDIA_SELECT",
@@ -8024,108 +8096,112 @@
           "value": "MediaStop"
         },
         {
+          "name": "KEY_MEDIA_TRACK_NEXT",
+          "value": "MediaTrackNext"
+        },
+        {
+          "name": "KEY_MEDIA_TRACK_PREVIOUS",
+          "value": "MediaTrackPrevious"
+        },
+        {
+          "name": "KEY_META",
+          "value": "Meta"
+        },
+        {
           "name": "KEY_MINUS",
           "value": "Minus"
         },
         {
-          "name": "KEY_MULTIPLY",
-          "value": "Multiply"
-        },
-        {
-          "name": "KEY_MUTE",
-          "value": "Mute"
-        },
-        {
-          "name": "KEY_MY_COMPUTER",
-          "value": "MyComputer"
-        },
-        {
           "name": "KEY_N",
-          "value": "N"
+          "value": "KeyN"
         },
         {
-          "name": "KEY_NAVIGATE_BACKWARD",
-          "value": "NavigateBackward"
+          "name": "KEY_NON_CONVERT",
+          "value": "NonConvert"
         },
         {
-          "name": "KEY_NAVIGATE_FORWARD",
-          "value": "NavigateForward"
-        },
-        {
-          "name": "KEY_NEXT_TRACK",
-          "value": "NextTrack"
-        },
-        {
-          "name": "KEY_NO_CONVERT",
-          "value": "NoConvert"
-        },
-        {
-          "name": "KEY_NUMLOCK",
-          "value": "Numlock"
-        },
-        {
-          "name": "KEY_NUMPAD0",
+          "name": "KEY_NUMPAD_0",
           "value": "Numpad0"
         },
         {
-          "name": "KEY_NUMPAD1",
+          "name": "KEY_NUMPAD_1",
           "value": "Numpad1"
         },
         {
-          "name": "KEY_NUMPAD2",
+          "name": "KEY_NUMPAD_2",
           "value": "Numpad2"
         },
         {
-          "name": "KEY_NUMPAD3",
+          "name": "KEY_NUMPAD_3",
           "value": "Numpad3"
         },
         {
-          "name": "KEY_NUMPAD4",
+          "name": "KEY_NUMPAD_4",
           "value": "Numpad4"
         },
         {
-          "name": "KEY_NUMPAD5",
+          "name": "KEY_NUMPAD_5",
           "value": "Numpad5"
         },
         {
-          "name": "KEY_NUMPAD6",
+          "name": "KEY_NUMPAD_6",
           "value": "Numpad6"
         },
         {
-          "name": "KEY_NUMPAD7",
+          "name": "KEY_NUMPAD_7",
           "value": "Numpad7"
         },
         {
-          "name": "KEY_NUMPAD8",
+          "name": "KEY_NUMPAD_8",
           "value": "Numpad8"
         },
         {
-          "name": "KEY_NUMPAD9",
+          "name": "KEY_NUMPAD_9",
           "value": "Numpad9"
+        },
+        {
+          "name": "KEY_NUMPAD_ADD",
+          "value": "NumpadAdd"
         },
         {
           "name": "KEY_NUMPAD_COMMA",
           "value": "NumpadComma"
         },
         {
+          "name": "KEY_NUMPAD_DIVIDE",
+          "value": "NumpadDivide"
+        },
+        {
           "name": "KEY_NUMPAD_ENTER",
           "value": "NumpadEnter"
         },
         {
-          "name": "KEY_NUMPAD_EQUALS",
-          "value": "NumpadEquals"
+          "name": "KEY_NUMPAD_EQUAL",
+          "value": "NumpadEqual"
+        },
+        {
+          "name": "KEY_NUMPAD_MULTIPLY",
+          "value": "NumpadMultiply"
+        },
+        {
+          "name": "KEY_NUMPAD_PERIOD",
+          "value": "NumpadDecimal"
+        },
+        {
+          "name": "KEY_NUMPAD_SUBTRACT",
+          "value": "NumpadSubtract"
+        },
+        {
+          "name": "KEY_NUM_LOCK",
+          "value": "NumLock"
         },
         {
           "name": "KEY_O",
-          "value": "O"
-        },
-        {
-          "name": "KEY_OEM102",
-          "value": "OEM102"
+          "value": "KeyO"
         },
         {
           "name": "KEY_P",
-          "value": "P"
+          "value": "KeyP"
         },
         {
           "name": "KEY_PAGE_DOWN",
@@ -8148,64 +8224,60 @@
           "value": "Period"
         },
         {
-          "name": "KEY_PLAY_PAUSE",
-          "value": "PlayPause"
-        },
-        {
           "name": "KEY_POWER",
           "value": "Power"
         },
         {
-          "name": "KEY_PREV_TRACK",
-          "value": "PrevTrack"
+          "name": "KEY_PRINT_SCREEN",
+          "value": "PrintScreen"
         },
         {
           "name": "KEY_Q",
-          "value": "Q"
+          "value": "KeyQ"
         },
         {
           "name": "KEY_R",
-          "value": "R"
-        },
-        {
-          "name": "KEY_RALT",
-          "value": "RAlt"
-        },
-        {
-          "name": "KEY_RBRACKET",
-          "value": "RBracket"
-        },
-        {
-          "name": "KEY_RCONTROL",
-          "value": "RControl"
-        },
-        {
-          "name": "KEY_RETURN",
-          "value": "Return"
+          "value": "KeyR"
         },
         {
           "name": "KEY_RIGHT",
-          "value": "Right"
+          "value": "ArrowRight"
         },
         {
-          "name": "KEY_RSHIFT",
-          "value": "RShift"
+          "name": "KEY_RIGHT_ALT",
+          "value": "AltRight"
         },
         {
-          "name": "KEY_RWIN",
-          "value": "RWin"
+          "name": "KEY_RIGHT_BRACKET",
+          "value": "BracketRight"
+        },
+        {
+          "name": "KEY_RIGHT_CONTROL",
+          "value": "ControlRight"
+        },
+        {
+          "name": "KEY_RIGHT_META",
+          "value": "MetaRight"
+        },
+        {
+          "name": "KEY_RIGHT_SHIFT",
+          "value": "ShiftRight"
         },
         {
           "name": "KEY_S",
-          "value": "S"
+          "value": "KeyS"
         },
         {
-          "name": "KEY_SCROLL",
-          "value": "Scroll"
+          "name": "KEY_SCROLL_LOCK",
+          "value": "ScrollLock"
         },
         {
           "name": "KEY_SEMICOLON",
           "value": "Semicolon"
+        },
+        {
+          "name": "KEY_SHIFT",
+          "value": "Shift"
         },
         {
           "name": "KEY_SLASH",
@@ -8216,28 +8288,12 @@
           "value": "Sleep"
         },
         {
-          "name": "KEY_SNAPSHOT",
-          "value": "Snapshot"
-        },
-        {
           "name": "KEY_SPACE",
           "value": "Space"
         },
         {
-          "name": "KEY_STOP",
-          "value": "Stop"
-        },
-        {
-          "name": "KEY_SUBTRACT",
-          "value": "Subtract"
-        },
-        {
-          "name": "KEY_SYSRQ",
-          "value": "Sysrq"
-        },
-        {
           "name": "KEY_T",
-          "value": "T"
+          "value": "KeyT"
         },
         {
           "name": "KEY_TAB",
@@ -8245,175 +8301,63 @@
         },
         {
           "name": "KEY_U",
-          "value": "U"
-        },
-        {
-          "name": "KEY_UNDERLINE",
-          "value": "Underline"
-        },
-        {
-          "name": "KEY_UNKNOWN",
-          "value": "Unknown"
-        },
-        {
-          "name": "KEY_UNLABELED",
-          "value": "Unlabeled"
+          "value": "KeyU"
         },
         {
           "name": "KEY_UP",
-          "value": "Up"
+          "value": "ArrowUp"
         },
         {
           "name": "KEY_V",
-          "value": "V"
-        },
-        {
-          "name": "KEY_VOLUME_DOWN",
-          "value": "VolumeDown"
-        },
-        {
-          "name": "KEY_VOLUME_UP",
-          "value": "VolumeUp"
+          "value": "KeyV"
         },
         {
           "name": "KEY_W",
-          "value": "W"
+          "value": "KeyW"
         },
         {
-          "name": "KEY_WAKE",
-          "value": "Wake"
-        },
-        {
-          "name": "KEY_WEB_BACK",
-          "value": "WebBack"
-        },
-        {
-          "name": "KEY_WEB_FAVORITES",
-          "value": "WebFavorites"
-        },
-        {
-          "name": "KEY_WEB_FORWARD",
-          "value": "WebForward"
-        },
-        {
-          "name": "KEY_WEB_HOME",
-          "value": "WebHome"
-        },
-        {
-          "name": "KEY_WEB_REFRESH",
-          "value": "WebRefresh"
-        },
-        {
-          "name": "KEY_WEB_SEARCH",
-          "value": "WebSearch"
-        },
-        {
-          "name": "KEY_WEB_STOP",
-          "value": "WebStop"
+          "name": "KEY_WAKE_UP",
+          "value": "WakeUp"
         },
         {
           "name": "KEY_X",
-          "value": "X"
+          "value": "KeyX"
         },
         {
           "name": "KEY_Y",
-          "value": "Y"
-        },
-        {
-          "name": "KEY_YEN",
-          "value": "Yen"
+          "value": "KeyY"
         },
         {
           "name": "KEY_Z",
-          "value": "Z"
+          "value": "KeyZ"
         },
         {
-          "name": "MOUSE_LEFT",
+          "name": "MOUSE_BUTTON_BACK",
+          "value": "3"
+        },
+        {
+          "name": "MOUSE_BUTTON_FORWARD",
+          "value": "4"
+        },
+        {
+          "name": "MOUSE_BUTTON_LEFT",
           "value": "0"
         },
         {
-          "name": "MOUSE_MIDDLE",
+          "name": "MOUSE_BUTTON_MIDDLE",
           "value": "2"
         },
         {
-          "name": "MOUSE_RIGHT",
+          "name": "MOUSE_BUTTON_RIGHT",
           "value": "1"
-        },
-        {
-          "name": "PAD_DPAD_DOWN",
-          "value": "DPadDown"
-        },
-        {
-          "name": "PAD_DPAD_LEFT",
-          "value": "DPadLeft"
-        },
-        {
-          "name": "PAD_DPAD_RIGHT",
-          "value": "DPadRight"
-        },
-        {
-          "name": "PAD_DPAD_UP",
-          "value": "DPadUp"
-        },
-        {
-          "name": "PAD_EAST",
-          "value": "East"
-        },
-        {
-          "name": "PAD_LEFT_THUMB",
-          "value": "LeftThumb"
-        },
-        {
-          "name": "PAD_LEFT_TRIGGER",
-          "value": "LeftTrigger"
-        },
-        {
-          "name": "PAD_LEFT_TRIGGER2",
-          "value": "LeftTrigger2"
-        },
-        {
-          "name": "PAD_MODE",
-          "value": "Mode"
-        },
-        {
-          "name": "PAD_NORTH",
-          "value": "North"
-        },
-        {
-          "name": "PAD_RIGHT_THUMB",
-          "value": "RightThumb"
-        },
-        {
-          "name": "PAD_RIGHT_TRIGGER",
-          "value": "RightTrigger"
-        },
-        {
-          "name": "PAD_RIGHT_TRIGGER2",
-          "value": "RightTrigger2"
-        },
-        {
-          "name": "PAD_SELECT",
-          "value": "Select"
-        },
-        {
-          "name": "PAD_SOUTH",
-          "value": "South"
-        },
-        {
-          "name": "PAD_START",
-          "value": "Start"
-        },
-        {
-          "name": "PAD_WEST",
-          "value": "West"
         }
       ],
       "doc": "One frame of input: keyboard, mouse, touch screen and gamepads, plus what went down or came up this frame. A headless run answers every query neutrally.",
       "docs": {
+        "action_down": "Whether the action is held down now.",
         "action_just_pressed": "Whether the action went down this frame.",
         "action_just_released": "Whether the action came up this frame.",
-        "action_pressed": "Whether the action is held down now.",
-        "action_value": "How far the action is pushed, -1 to 1; a key answers 0 or 1, a stick or `keys:A,D` the whole range.",
+        "action_value": "How far the action is pushed, -1 to 1; a key answers 0 or 1, a stick or `keys:KeyA,KeyD` the whole range.",
         "actions": "Every action `[input.actions]` declares, so a rebinding screen can list them.",
         "bind": "Rebind the action to one binding or a list of them, replacing what it had and saving to the user data directory.",
         "bindings": "What the action is bound to now, whether from the project or from the player's own rebinding.",
@@ -8422,30 +8366,30 @@
         "feed_action": "Put a value into an action for one frame without a binding, the way a `touch_button` does; the furthest from rest wins where something else feeds the same action. Takes effect on the next tick, since actions derive at the top of one.",
         "feed_key": "Press or release a `KEY_*` key as if the window had reported it: next frame's edge, and the state until the opposite feed.",
         "feed_mouse": "Move the cursor to a window-pixel position as if the window had reported it, from next frame; the delta accumulates for that frame.",
-        "feed_mouse_button": "Press or release a `MOUSE_*` button as if the window had reported it, from next frame.",
+        "feed_mouse_button": "Press or release a `MOUSE_BUTTON_*` button as if the window had reported it, from next frame.",
         "feed_scroll": "Turn the wheel as if the window had reported it, from next frame; adds to that frame's `scroll_delta`.",
         "feed_touch": "Put a finger on the screen as if the window had reported it: `phase` is `start`, `move`, `end` or `cancel`, and the position is in the same pixels as `mouse_position`.",
         "gamepad_acceleration": "The pad's acceleration in g, gravity included, so a pad at rest reads 1 on one axis. Read from PlayStation pads on desktop; zero for a pad with no accelerometer.",
-        "gamepad_axis": "How far the pad's `AXIS_*` stick or trigger is pushed, -1 to 1; zero at rest and for an absent pad.",
+        "gamepad_axis": "How far the pad's `GAMEPAD_AXIS_*` stick or trigger is pushed: a stick -1 to 1 with up and right positive, a trigger 0 to 1; zero at rest and for an absent pad.",
         "gamepad_can_rumble": "Whether the pad has motors to rumble; false for a pad that is not connected, and on a build with no force feedback.",
-        "gamepad_down": "Whether the pad's `PAD_*` button is held down right now, however many frames it has been down.",
+        "gamepad_down": "Whether the pad's `GAMEPAD_BUTTON_*` button is held down right now, however many frames it has been down.",
         "gamepad_gyro": "How fast the pad is turning, in radians per second about each axis. Read from PlayStation pads on desktop; zero for a pad with no gyroscope.",
-        "gamepad_just_pressed": "Whether the pad's `PAD_*` button went down this frame; true for that one frame only.",
-        "gamepad_just_released": "Whether the pad's `PAD_*` button came up this frame; true for that one frame only.",
+        "gamepad_just_pressed": "Whether the pad's `GAMEPAD_BUTTON_*` button went down this frame; true for that one frame only.",
+        "gamepad_just_released": "Whether the pad's `GAMEPAD_BUTTON_*` button came up this frame; true for that one frame only.",
         "gamepad_name": "The pad's name as the platform reports it, empty when no pad has that id.",
         "gamepad_rumble": "Rumble the pad, `{ strong, weak, duration }`: the two motors at 0..1 for that many seconds. Returns whether it started; a second rumble replaces the first.",
         "gamepad_stop_rumble": "Silence the pad now, rather than waiting out the rumble's duration.",
         "gamepad_touches": "Every finger on the pad's touchpad as `{ id, x, y }`, oldest first, with x and y running 0 to 1 across the surface. Read from PlayStation pads on desktop; empty for a pad with no touchpad.",
         "gamepads": "The ids of every connected pad, ordered so the list is stable from frame to frame.",
-        "is_down": "Whether the `KEY_*` key is held down right now, however many frames it has been down.",
-        "is_mouse_down": "Whether the `MOUSE_*` button is held down right now, however many frames it has been down.",
-        "just_pressed": "Whether the `KEY_*` key went down this frame; true for that one frame only.",
-        "just_released": "Whether the `KEY_*` key came up this frame; true for that one frame only.",
+        "key_down": "Whether the `KEY_*` key is held down right now, however many frames it has been down. `KEY_SHIFT`, `KEY_CONTROL`, `KEY_ALT` and `KEY_META` answer for either side.",
+        "key_just_pressed": "Whether the `KEY_*` key went down this frame; true for that one frame only.",
+        "key_just_released": "Whether the `KEY_*` key came up this frame; true for that one frame only.",
         "keyboard_height": "How much of the window the on-screen keyboard covers, in pixels from the bottom: what a form moves up by. Zero with no keyboard up, and always zero on a desktop.",
         "long_press": "Where a finger has been held still past `long_press_seconds`, as `{ x, y }`. Reported once per finger, on the frame the hold passes; empty otherwise.",
         "mouse_delta": "How far the cursor moved this frame, in pixels; movement, not a position.",
-        "mouse_just_pressed": "Whether the `MOUSE_*` button went down this frame; true for that one frame only.",
-        "mouse_just_released": "Whether the `MOUSE_*` button came up this frame; true for that one frame only.",
+        "mouse_down": "Whether the `MOUSE_BUTTON_*` button is held down right now, however many frames it has been down.",
+        "mouse_just_pressed": "Whether the `MOUSE_BUTTON_*` button went down this frame; true for that one frame only.",
+        "mouse_just_released": "Whether the `MOUSE_BUTTON_*` button came up this frame; true for that one frame only.",
         "mouse_position": "The cursor's position in window pixels, with (0, 0) at the top-left corner.",
         "pan": "Two or more fingers moving together as `{ x, y }`, the average movement since last frame in the same pixels as `mouse_position`. Zero with fewer than two down.",
         "pinch": "Two fingers moving apart or together as `{ scale, x, y }`: `scale` above 1 is apart, measured against last frame, and `x`/`y` are the point between them. Empty with fewer than two fingers down.",
@@ -8453,15 +8397,15 @@
         "scroll_delta": "How far the wheel turned this frame, as an (x, y) pair; zero when it did not turn.",
         "swipe": "A finger that travelled far enough before it lifted, as `{ x, y, speed }`: a unit direction and pixels per second. Reported on the frame it lifted and never again; empty otherwise.",
         "touches": "Every finger on the screen as `{ id, x, y }`, oldest first, in the same pixels as `mouse_position`.",
-        "touches_ended": "The ids of the fingers that lifted or were cancelled this frame.",
-        "touches_started": "The ids of the fingers that touched down this frame.",
-        "typed": "The characters typed this frame, in order: what a text field appends, where `just_pressed` says which key went down.",
+        "touches_just_ended": "The ids of the fingers that lifted or were cancelled this frame.",
+        "touches_just_started": "The ids of the fingers that touched down this frame.",
+        "typed": "The characters typed this frame, in order: what a text field appends, where `key_just_pressed` says which key went down.",
         "vibrate": "Buzz the device for that long: a phone's motor, or a page's `navigator.vibrate`. Nothing on a desktop, and never recorded, like rumble."
       },
       "functions": [
+        "action_down",
         "action_just_pressed",
         "action_just_released",
-        "action_pressed",
         "action_value",
         "actions",
         "bind",
@@ -8486,13 +8430,13 @@
         "gamepad_stop_rumble",
         "gamepad_touches",
         "gamepads",
-        "is_down",
-        "is_mouse_down",
-        "just_pressed",
-        "just_released",
+        "key_down",
+        "key_just_pressed",
+        "key_just_released",
         "keyboard_height",
         "long_press",
         "mouse_delta",
+        "mouse_down",
         "mouse_just_pressed",
         "mouse_just_released",
         "mouse_position",
@@ -8502,16 +8446,16 @@
         "scroll_delta",
         "swipe",
         "touches",
-        "touches_ended",
-        "touches_started",
+        "touches_just_ended",
+        "touches_just_started",
         "typed",
         "vibrate"
       ],
       "name": "input",
       "signatures": {
+        "action_down": "String -> bool",
         "action_just_pressed": "String -> bool",
         "action_just_released": "String -> bool",
-        "action_pressed": "String -> bool",
         "action_value": "String -> f32",
         "actions": "() -> Value",
         "bind": "(String, Value) -> ()",
@@ -8536,13 +8480,13 @@
         "gamepad_stop_rumble": "i64 -> ()",
         "gamepad_touches": "i64 -> Value",
         "gamepads": "() -> Value",
-        "is_down": "String -> bool",
-        "is_mouse_down": "usize -> bool",
-        "just_pressed": "String -> bool",
-        "just_released": "String -> bool",
+        "key_down": "String -> bool",
+        "key_just_pressed": "String -> bool",
+        "key_just_released": "String -> bool",
         "keyboard_height": "() -> Value",
         "long_press": "() -> Value",
         "mouse_delta": "() -> (f32, f32)",
+        "mouse_down": "usize -> bool",
         "mouse_just_pressed": "usize -> bool",
         "mouse_just_released": "usize -> bool",
         "mouse_position": "() -> (f32, f32)",
@@ -8552,8 +8496,8 @@
         "scroll_delta": "() -> (f32, f32)",
         "swipe": "() -> Value",
         "touches": "() -> Value",
-        "touches_ended": "() -> Value",
-        "touches_started": "() -> Value",
+        "touches_just_ended": "() -> Value",
+        "touches_just_started": "() -> Value",
         "typed": "() -> Value",
         "vibrate": "i64 -> ()"
       }

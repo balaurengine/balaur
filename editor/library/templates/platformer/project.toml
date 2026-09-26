@@ -3,8 +3,8 @@ name = "{{name}}"
 main_scene = "scenes/main.toml"
 
 [input.actions]
-move = ["keys:A,D", "axis:LeftStickX"]
-jump = ["Space", "gamepad:South"]
+move = ["keys:KeyA,KeyD", "axis:left_x"]
+jump = ["Space", "gamepad:south"]
 
 # What an export re-encodes on the way into the pack. Every one is off, so a
 # build ships the bytes you gave it; each is measured on the examples.

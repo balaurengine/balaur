@@ -248,7 +248,7 @@ fn bookmark_chips(S, k) {
             text_color: if held.is_some() { k.primary_text } else { k.text_subtle },
             tooltip: if held.is_some() { "Go to view " + key + " (⇧ stores)" } else { "⇧ click to store this view" },
         }) {
-            if input::is_down("LShift") || input::is_down("RShift") {
+            if input::key_down(input::KEY_SHIFT) {
                 let (ex, ey, ez, tx, ty, tz, _, _) = render::camera_pose();
                 S.bookmarks[key] = [ex, ey, ez, tx, ty, tz];
                 log::info("stored view " + key);

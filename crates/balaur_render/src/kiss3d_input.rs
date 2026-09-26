@@ -46,10 +46,8 @@ pub(crate) fn pump_input(app: &App, window: &Window) -> Seen {
         }
         match event.value {
             WindowEvent::Key(key, action, _) => {
-                let name = key_name(key);
-                match action {
-                    Action::Press => input.key_event(&name, true),
-                    Action::Release => input.key_event(&name, false),
+                if let Some(code) = key_code(key) {
+                    input.key_event(code, action == Action::Press);
                 }
             }
             WindowEvent::MouseButton(button, action, _) => {
@@ -115,64 +113,187 @@ pub(crate) fn pump_input(app: &App, window: &Window) -> Seen {
     seen
 }
 
-/// The name this backend reports for a key.
-///
-/// kiss3d's `Key` debug-prints as its variant name, which is where
-/// `balaur_input::KEY_NAMES` came from. If kiss3d ever renames one, the name
-/// stops matching what scripts ask for and the key silently goes dead, so say
-/// so the first time it happens.
-fn key_name(key: kiss3d::event::Key) -> String {
-    let name = format!("{key:?}");
-    if !balaur_input::is_known_key(&name) && balaur_core::logbuf::first_time("window key", "") {
-        tracing::warn!(
-            key = name,
-            "the window backend reported a key balaur_input does not know; \
-             scripts cannot match it"
-        );
-    }
-    name
+/// The W3C `KeyboardEvent.code` for a key kiss3d reports, which is the name
+/// `balaur_input` keeps. `None` for a key with no code, which no binding can
+/// name.
+fn key_code(key: kiss3d::event::Key) -> Option<&'static str> {
+    use kiss3d::event::Key;
+    Some(match key {
+        Key::Key0 => "Digit0",
+        Key::Key1 => "Digit1",
+        Key::Key2 => "Digit2",
+        Key::Key3 => "Digit3",
+        Key::Key4 => "Digit4",
+        Key::Key5 => "Digit5",
+        Key::Key6 => "Digit6",
+        Key::Key7 => "Digit7",
+        Key::Key8 => "Digit8",
+        Key::Key9 => "Digit9",
+        Key::A => "KeyA",
+        Key::B => "KeyB",
+        Key::C => "KeyC",
+        Key::D => "KeyD",
+        Key::E => "KeyE",
+        Key::F => "KeyF",
+        Key::G => "KeyG",
+        Key::H => "KeyH",
+        Key::I => "KeyI",
+        Key::J => "KeyJ",
+        Key::K => "KeyK",
+        Key::L => "KeyL",
+        Key::M => "KeyM",
+        Key::N => "KeyN",
+        Key::O => "KeyO",
+        Key::P => "KeyP",
+        Key::Q => "KeyQ",
+        Key::R => "KeyR",
+        Key::S => "KeyS",
+        Key::T => "KeyT",
+        Key::U => "KeyU",
+        Key::V => "KeyV",
+        Key::W => "KeyW",
+        Key::X => "KeyX",
+        Key::Y => "KeyY",
+        Key::Z => "KeyZ",
+        Key::Escape => "Escape",
+        Key::F1 => "F1",
+        Key::F2 => "F2",
+        Key::F3 => "F3",
+        Key::F4 => "F4",
+        Key::F5 => "F5",
+        Key::F6 => "F6",
+        Key::F7 => "F7",
+        Key::F8 => "F8",
+        Key::F9 => "F9",
+        Key::F10 => "F10",
+        Key::F11 => "F11",
+        Key::F12 => "F12",
+        Key::F13 => "F13",
+        Key::F14 => "F14",
+        Key::F15 => "F15",
+        Key::F16 => "F16",
+        Key::F17 => "F17",
+        Key::F18 => "F18",
+        Key::F19 => "F19",
+        Key::F20 => "F20",
+        Key::F21 => "F21",
+        Key::F22 => "F22",
+        Key::F23 => "F23",
+        Key::F24 => "F24",
+        Key::Snapshot => "PrintScreen",
+        Key::Scroll => "ScrollLock",
+        Key::Pause => "Pause",
+        Key::Insert => "Insert",
+        Key::Home => "Home",
+        Key::Delete => "Delete",
+        Key::End => "End",
+        Key::PageDown => "PageDown",
+        Key::PageUp => "PageUp",
+        Key::Left => "ArrowLeft",
+        Key::Up => "ArrowUp",
+        Key::Right => "ArrowRight",
+        Key::Down => "ArrowDown",
+        Key::Back => "Backspace",
+        Key::Return => "Enter",
+        Key::Space => "Space",
+        Key::Numlock => "NumLock",
+        Key::Numpad0 => "Numpad0",
+        Key::Numpad1 => "Numpad1",
+        Key::Numpad2 => "Numpad2",
+        Key::Numpad3 => "Numpad3",
+        Key::Numpad4 => "Numpad4",
+        Key::Numpad5 => "Numpad5",
+        Key::Numpad6 => "Numpad6",
+        Key::Numpad7 => "Numpad7",
+        Key::Numpad8 => "Numpad8",
+        Key::Numpad9 => "Numpad9",
+        Key::AbntC1 => "IntlRo",
+        Key::Add => "NumpadAdd",
+        Key::Apostrophe => "Quote",
+        Key::Apps => "ContextMenu",
+        Key::Backslash => "Backslash",
+        Key::Capital => "CapsLock",
+        Key::Comma => "Comma",
+        Key::Convert => "Convert",
+        Key::Decimal => "NumpadDecimal",
+        Key::Divide => "NumpadDivide",
+        Key::Equals => "Equal",
+        Key::Grave => "Backquote",
+        Key::Kana => "KanaMode",
+        Key::LAlt => "AltLeft",
+        Key::LBracket => "BracketLeft",
+        Key::LControl => "ControlLeft",
+        Key::LShift => "ShiftLeft",
+        Key::LWin => "MetaLeft",
+        Key::Mail => "LaunchMail",
+        Key::MediaSelect => "MediaSelect",
+        Key::MediaStop => "MediaStop",
+        Key::Minus => "Minus",
+        Key::Multiply => "NumpadMultiply",
+        Key::Mute => "AudioVolumeMute",
+        Key::NavigateForward => "BrowserForward",
+        Key::NavigateBackward => "BrowserBack",
+        Key::NextTrack => "MediaTrackNext",
+        Key::NoConvert => "NonConvert",
+        Key::NumpadComma => "NumpadComma",
+        Key::NumpadEnter => "NumpadEnter",
+        Key::NumpadEquals => "NumpadEqual",
+        Key::OEM102 => "IntlBackslash",
+        Key::Period => "Period",
+        Key::PlayPause => "MediaPlayPause",
+        Key::Power => "Power",
+        Key::PrevTrack => "MediaTrackPrevious",
+        Key::RAlt => "AltRight",
+        Key::RBracket => "BracketRight",
+        Key::RControl => "ControlRight",
+        Key::RShift => "ShiftRight",
+        Key::RWin => "MetaRight",
+        Key::Semicolon => "Semicolon",
+        Key::Slash => "Slash",
+        Key::Sleep => "Sleep",
+        Key::Subtract => "NumpadSubtract",
+        Key::Tab => "Tab",
+        Key::VolumeDown => "AudioVolumeDown",
+        Key::VolumeUp => "AudioVolumeUp",
+        Key::Wake => "WakeUp",
+        Key::WebHome => "BrowserHome",
+        Key::WebRefresh => "BrowserRefresh",
+        Key::WebSearch => "BrowserSearch",
+        Key::Yen => "IntlYen",
+        Key::Copy => "Copy",
+        Key::Paste => "Paste",
+        Key::Cut => "Cut",
+        _ => return None,
+    })
 }
 
 #[cfg(test)]
-mod key_name_tests {
-    use super::key_name;
+mod key_code_tests {
+    use super::key_code;
     use kiss3d::event::Key;
 
-    /// The vocabulary in `balaur_input` was copied from kiss3d's enum. Spot
-    /// check that the copy still matches for the keys games actually use — a
-    /// silent rename upstream would make them stop working.
     #[test]
-    fn common_keys_are_names_scripts_can_ask_for() {
+    fn every_code_the_backend_reports_is_a_key_scripts_can_name() {
         for key in [
             Key::Space,
             Key::Return,
-            Key::Escape,
-            Key::Tab,
-            Key::Left,
-            Key::Right,
-            Key::Up,
-            Key::Down,
             Key::A,
-            Key::Z,
-            Key::Key0,
-            Key::Key9,
+            Key::Key1,
             Key::LShift,
-            Key::LControl,
-            Key::F1,
+            Key::RWin,
+            Key::Capital,
+            Key::Apps,
+            Key::Decimal,
+            Key::OEM102,
         ] {
-            let name = key_name(key);
+            let code = key_code(key).expect("a key games use has a code");
             assert!(
-                balaur_input::is_known_key(&name),
-                "kiss3d reports {name:?}, which balaur_input does not know"
+                balaur_input::is_known_key(code),
+                "{code} is not in balaur_input's table"
             );
         }
-    }
-
-    #[test]
-    fn the_vocabulary_has_no_duplicates() {
-        let mut seen = std::collections::BTreeSet::new();
-        for name in balaur_input::KEY_NAMES {
-            assert!(seen.insert(*name), "{name} is listed twice");
-        }
+        assert_eq!(key_code(Key::A), Some("KeyA"));
+        assert_eq!(key_code(Key::Return), Some("Enter"));
+        assert_eq!(key_code(Key::Unknown), None);
     }
 }

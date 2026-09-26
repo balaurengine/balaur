@@ -34,7 +34,7 @@ pub fn state() {
 // Whether a fed button is held: the pointer is the game's then, and a gizmo
 // reading the same snapshot would drag the selection along with it.
 pub fn feeding(S) {
-    S.showcase is Object && input::is_mouse_down(input::MOUSE_LEFT)
+    S.showcase is Object && input::mouse_down(input::MOUSE_BUTTON_LEFT)
 }
 
 /// Whether a sequence is running, so the code pane leaves the popup to it.
@@ -201,11 +201,11 @@ fn point_at_selection(S) {
 }
 
 fn press(S) {
-    input::feed_mouse_button(input::MOUSE_LEFT, true);
+    input::feed_mouse_button(input::MOUSE_BUTTON_LEFT, true);
 }
 
 fn release(S) {
-    input::feed_mouse_button(input::MOUSE_LEFT, false);
+    input::feed_mouse_button(input::MOUSE_BUTTON_LEFT, false);
 }
 
 fn tap(q, frame, key) {
@@ -514,7 +514,7 @@ fn focusing(S, q) {
     act(q, 1, || shell::set_workspace(S, "script"));
     click_row(S, q, 40, "Spinner");
     click(S, q, 200, || spot(S, "focus_chip"), || shell::toggle_focus(S));
-    chord(S, q, 480, ["LShift", "LWin", "Backslash"], || shell::toggle_focus(S));
+    chord(S, q, 480, [input::KEY_LEFT_SHIFT, input::KEY_LEFT_META, input::KEY_BACKSLASH], || shell::toggle_focus(S));
 }
 
 // Scenes and nodes, `examples/hello`: the tree, the inspector following the
@@ -541,7 +541,7 @@ fn scenes(S, q) {
         feed_pointer(S, x + 30.0 * ease(p), y);
     });
     at(q, 630, || release(S));
-    chord(S, q, 700, ["LWin", "Z"], || shell::undo(S));
+    chord(S, q, 700, [input::KEY_LEFT_META, input::KEY_Z], || shell::undo(S));
 }
 
 // Scripting, `examples/hello`: a change saved while the scene runs, then a
@@ -561,7 +561,7 @@ fn scripting(S, q) {
         (x + 220.0, y)
     });
     act(q, 320, || edit_source(S, rel, "(this.speed + nudge", "(this.speed * 4.0 + nudge"));
-    chord(S, q, 400, ["LWin", "S"], || shell::save_active(S));
+    chord(S, q, 400, [input::KEY_LEFT_META, input::KEY_S], || shell::save_active(S));
     // Scrolled to first: the line the breakpoint goes on is the file's last,
     // and a mark on a line half off the pane's foot reads as nothing happening.
     click(S, q, 520, || scrolled_gutter_spot(S, rel, line_of(S, rel, "action_just_pressed"), 8),
@@ -689,10 +689,10 @@ fn input_clip(S, q) {
     click_row(S, q, 30, "Spinner");
     click(S, q, 110, || spot(S, "play"), || shell::toggle_play(S));
     tap(q, 200, "Space");
-    at(q, 260, || input::feed_key("A", true));
-    at(q, 340, || input::feed_key("A", false));
-    at(q, 370, || input::feed_key("D", true));
-    at(q, 450, || input::feed_key("D", false));
+    at(q, 260, || input::feed_key(input::KEY_A, true));
+    at(q, 340, || input::feed_key(input::KEY_A, false));
+    at(q, 370, || input::feed_key(input::KEY_D, true));
+    at(q, 450, || input::feed_key(input::KEY_D, false));
     glide(S, q, 470 - GLIDE, 470, || {
         let v = S.viewport;
         (util::f(v.x) + util::f(v.w) * 0.3, util::f(v.y) + util::f(v.h) * 0.6)
@@ -707,12 +707,12 @@ fn input_clip(S, q) {
     at(q, 545, || release(S));
     tap(q, 600, "Space");
     at(q, 650, || {
-        input::feed_key("LShift", true);
-        input::feed_key("W", true);
+        input::feed_key(input::KEY_LEFT_SHIFT, true);
+        input::feed_key(input::KEY_W, true);
     });
     at(q, 710, || {
-        input::feed_key("LShift", false);
-        input::feed_key("W", false);
+        input::feed_key(input::KEY_LEFT_SHIFT, false);
+        input::feed_key(input::KEY_W, false);
     });
 }
 
@@ -770,7 +770,7 @@ fn shaders(S, q) {
         S.doctab = "script";
     });
     act(q, 780, || edit_source(S, rel, "dist * params.rings", "dist * params.rings * 3.0"));
-    chord(S, q, 840, ["LWin", "S"], || shell::save_active(S));
+    chord(S, q, 840, [input::KEY_LEFT_META, input::KEY_S], || shell::save_active(S));
     click(S, q, 900, || spot(S, "doc_scene"), || {
         S.doctab = "scene";
     });
@@ -835,7 +835,7 @@ fn theme_editor(S, q) {
     let prefs = crate::settings::prefs_path();
     let kept = fs::read(prefs);
     act(q, 1, || shell::set_workspace(S, "scene"));
-    chord(S, q, 40, ["LWin", "K"], || shell::open_palette(S, ""));
+    chord(S, q, 40, [input::KEY_LEFT_META, input::KEY_K], || shell::open_palette(S, ""));
     over_ui(q, 70, 110, |p| {
         let word = "theme";
         let n = util::i(util::min(5.0, p * 6.0));

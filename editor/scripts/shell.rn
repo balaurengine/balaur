@@ -23,9 +23,9 @@ pub fn choose(S, i) {
 /// A click that may extend the set: ⌘ toggles one row, ⇧ takes the run
 /// between the active row and this one, and a plain click replaces the set.
 pub fn choose_click(S, i) {
-    let additive = input::is_down("LWin") || input::is_down("RWin")
-        || input::is_down("LControl") || input::is_down("RControl");
-    let ranged = input::is_down("LShift") || input::is_down("RShift");
+    let additive = input::key_down(input::KEY_META)
+        || input::key_down(input::KEY_CONTROL);
+    let ranged = input::key_down(input::KEY_SHIFT);
     if !additive && !ranged {
         choose(S, i);
         return;

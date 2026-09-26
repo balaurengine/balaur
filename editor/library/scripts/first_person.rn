@@ -88,7 +88,7 @@ pub fn fixed_update(this, dt) {
         // Nothing holds it down: a push big enough to keep the capsule on the
         // floor aims the move into it, and the controller spends whole frames
         // resolving that instead of walking.
-        this.vy = if input::is_down(input::KEY_SPACE) { this.jump } else { 0.0 };
+        this.vy = if input::key_down(input::KEY_SPACE) { this.jump } else { 0.0 };
     } else {
         this.vy -= this.gravity * dt;
     }
@@ -100,7 +100,7 @@ pub fn fixed_update(this, dt) {
 
 /// One axis from two keys, so a pair reads as -1, 0 or 1.
 fn axis(positive, negative) {
-    let up = if input::is_down(positive) { 1.0 } else { 0.0 };
-    let down = if input::is_down(negative) { 1.0 } else { 0.0 };
+    let up = if input::key_down(positive) { 1.0 } else { 0.0 };
+    let down = if input::key_down(negative) { 1.0 } else { 0.0 };
     up - down
 }
