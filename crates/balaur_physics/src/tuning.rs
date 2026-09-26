@@ -162,17 +162,20 @@ fn tuning_value(p: &IntegrationParameters) -> Value {
     map([
         (
             k::SOLVER_ITERATIONS,
-            Value::Num(p.num_solver_iterations as f64),
+            Value::Int(i64::try_from(p.num_solver_iterations).unwrap_or(i64::MAX)),
         ),
         (
             k::INTERNAL_ITERATIONS,
-            Value::Num(p.num_internal_pgs_iterations as f64),
+            Value::Int(i64::try_from(p.num_internal_pgs_iterations).unwrap_or(i64::MAX)),
         ),
         (
             k::STABILIZATION_ITERATIONS,
-            Value::Num(p.num_internal_stabilization_iterations as f64),
+            Value::Int(i64::try_from(p.num_internal_stabilization_iterations).unwrap_or(i64::MAX)),
         ),
-        (k::CCD_SUBSTEPS, Value::Num(p.max_ccd_substeps as f64)),
+        (
+            k::CCD_SUBSTEPS,
+            Value::Int(i64::try_from(p.max_ccd_substeps).unwrap_or(i64::MAX)),
+        ),
         (k::MIN_CCD_DT, Value::Num(f64::from(p.min_ccd_dt))),
         (k::LENGTH_UNIT, Value::Num(f64::from(p.length_unit))),
         (k::WARMSTART, Value::Num(f64::from(p.warmstart_coefficient))),

@@ -44,11 +44,11 @@ pub(crate) fn shared_body_schema() -> String {
         ),
         (
             k::DOMINANCE,
-            r#"{ type = "float", default = 0.0, min = -127.0, max = 127.0, description = "A body in a higher group is unpushable by a lower one; every non-dynamic body outranks them all", group = "solver" }"#,
+            r#"{ type = "int", default = 0, min = -127, max = 127, description = "A body in a higher group is unpushable by a lower one; every non-dynamic body outranks them all", group = "solver" }"#,
         ),
         (
             k::SOLVER_ITERATIONS,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "Extra solver iterations for this body alone, for the one stack that jitters", group = "solver" }"#,
+            r#"{ type = "int", default = 0, min = 0, description = "Extra solver iterations for this body alone, for the one stack that jitters", group = "solver" }"#,
         ),
         (
             k::CONTINUOUS_COLLISION,
@@ -208,10 +208,15 @@ pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Valu
     map.insert(k::LINEAR_DAMPING.into(), f(body.linear_damping()));
     map.insert(k::ANGULAR_DAMPING.into(), f(body.angular_damping()));
     map.insert(k::GRAVITY_SCALE.into(), f(body.gravity_scale()));
-    map.insert(k::DOMINANCE.into(), f(Real::from(body.dominance_group())));
+    map.insert(
+        k::DOMINANCE.into(),
+        i64::from(body.dominance_group()).into(),
+    );
     map.insert(
         k::SOLVER_ITERATIONS.into(),
-        f(body.additional_solver_iterations() as Real),
+        i64::try_from(body.additional_solver_iterations())
+            .unwrap_or(i64::MAX)
+            .into(),
     );
     map.insert(
         k::LOCK_TRANSLATION.into(),
@@ -339,7 +344,62 @@ pub(crate) fn install_body_api(m: &mut dyn Bindings<Engine>) {
 ///
 /// Split from [`install_body_api`] under `MAX_FN_LINES`; the line is between
 /// *making* a body and *pushing* one.
+/// A force for one step: the impulse it would deliver over one fixed step, so
+/// nothing is left on the body for the step after.
+fn install_step_force_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        (
+            "apply_force",
+            &[c::BODY_3D],
+            "",
+            "Push the body for the next step only; `add_constant_force` keeps pushing.",
+        ),
+        (
+            "apply_force_at_point",
+            &[c::BODY_3D],
+            "",
+            "Push at a world point for the next step only, which also turns the body.",
+        ),
+        (
+            "apply_torque",
+            &[c::BODY_3D],
+            "",
+            "Turn the body for the next step only; `add_constant_torque` keeps turning it.",
+        ),
+    ]);
+    let dt = || scalar::real(balaur_core::fixed_dt());
+    m.function(
+        "apply_force",
+        move |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                state.world.bodies[handle].apply_impulse(scalar::v3(x, y, z) * dt(), true);
+            })
+        },
+    );
+    m.function(
+        "apply_force_at_point",
+        move |eng: &Engine, (node, x, y, z, px, py, pz): (NodeId, f32, f32, f32, f32, f32, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                state.world.bodies[handle].apply_impulse_at_point(
+                    scalar::v3(x, y, z) * dt(),
+                    scalar::v3(px, py, pz),
+                    true,
+                );
+            })
+        },
+    );
+    m.function(
+        "apply_torque",
+        move |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                state.world.bodies[handle].apply_torque_impulse(scalar::v3(x, y, z) * dt(), true);
+            })
+        },
+    );
+}
+
 pub(crate) fn install_force_api(m: &mut dyn Bindings<Engine>) {
+    install_step_force_api(m);
     m.describe(&[
         (
             "add_constant_force",

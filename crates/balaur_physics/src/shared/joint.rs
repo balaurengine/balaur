@@ -76,10 +76,13 @@ macro_rules! functions {
         pub(crate) fn break_payload(state: &$State, entity: Entity) -> balaur_script::Value {
             use balaur_script::Value;
             let mut out: Vec<(String, Value)> = Vec::new();
-            let joint = state.joints.get(&entity).and_then(|reference| match reference.handle {
-                $Handle::Impulse(handle) => state.world.impulse_joints.get(handle),
-                $Handle::Multibody(_) => None,
-            });
+            let joint = state
+                .joints
+                .get(&entity)
+                .and_then(|reference| match reference.handle {
+                    $Handle::Impulse(handle) => state.world.impulse_joints.get(handle),
+                    $Handle::Multibody(_) => None,
+                });
             if let Some(joint) = joint {
                 let owner = |body| {
                     state
@@ -95,7 +98,10 @@ macro_rules! functions {
                     out.push((k::B.into(), b));
                 }
                 let force = $impulse(&joint.impulses);
-                out.push((k::FORCE.into(), Value::Num(f64::from(crate::scalar::f32_of(force)))));
+                out.push((
+                    k::FORCE.into(),
+                    Value::Num(f64::from(crate::scalar::f32_of(force))),
+                ));
             }
             Value::Map(out.into_iter().map(|(key, v)| (key.into(), v)).collect())
         }

@@ -507,7 +507,7 @@ fn sprite(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
             table: sheet,
         });
         if let Some(frame) = frames("frame") {
-            out.set("sprite", "frame", Toml::Float(frame as f64));
+            out.set("sprite", "frame", Toml::Integer(frame));
         }
     }
     // Both engines measure `offset` in texture pixels, y down.
@@ -939,16 +939,12 @@ fn particles(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
     if let Some(color) = section.field("color").and_then(colour) {
         out.set("particles", "color", color);
     }
-    // Godot's direction is a y-down vector; here it is an angle, 90 up.
+    // Godot's direction is a y-down vector; here y is up.
     if let Some([x, y]) = section.field("direction").and_then(pair) {
-        out.set(
-            "particles",
-            "angle",
-            Toml::Float(balaur_core::libm::atan2(-y, x).to_degrees()),
-        );
+        out.set("particles", "direction", floats(&[x, -y]));
     }
     if let Some(spread) = number("spread") {
-        out.set("particles", "spread", Toml::Float(spread));
+        out.set("particles", "spread_degrees", Toml::Float(spread));
     }
     if let Some([x, y]) = section.field("gravity").and_then(pair) {
         out.set(

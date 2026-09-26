@@ -29,7 +29,10 @@ with no alias and no migration, as `one way to do a thing` asks.
   text keys (`font_family`, `bitmap_font`, `text_align`, the `text2d` keys as
   `draw_text_2d` options) with `draw_text_3d` and `draw_line_3d`, and `size` as
   the whole extent on every shape, collider, soft body, sprite and probe, with a
-  capsule's `height` tip to tip.
+  capsule's `height` tip to tip; a body's `mass` as its total, layers 1 to 32,
+  the joint's `max_length`, `rest_length`, `lock_*` and `articulation`, vehicle
+  axes as `x`/`y`/`z`, one-step `apply_force`, counts as `int`, and a particle
+  `direction` with `spread_degrees`.
 - `NAMING.md` has the eight scopes, rules N18 to N23, and the picked names per
   system, from a survey of SDL3, Godot 4, Unity, Blender, GLFW, W3C, rapier and
   glTF on 2026-09-25.
@@ -41,15 +44,7 @@ with no alias and no migration, as `one way to do a thing` asks.
 | --- | --- | --- |
 | the `icons` font chain beside the widget's `icon` | one word | `theme.rs` translates between them |
 | widget `source` (image, card sheet, code language) | `image`, `sheet`, `language` | `source` is raw text in the glossary |
-| body `mass` | `mass`, the total | every engine but rapier reads it so; collider `mass` overrides |
-| every angle in degrees | radians, as `floor_max_angle` | `angle` is radians on `bone2d` and degrees on `cloner` |
-| layers numbered 0 to 31 | 1 to 32 | Godot's numbering |
-| joint `length` for a rope and a spring | `max_length`, `rest_length` | one key, two meanings |
-| joint `locked_axes`, `solver` | `lock_translation`, `lock_rotation`, `articulation` | |
-| vehicle `up_axis`, `forward_axis` as 0, 1, 2 | `x`, `y`, `z` | |
-| `add_constant_force` alone | `apply_force`, `apply_force_at_point`, `apply_torque` for one step | Godot and Unity split them |
 | widget `disabled` beside `enabled` elsewhere, `pointer_through` beside `interactive` | one polarity each | |
-| counts typed `float` (`solver_iterations`, `frame`, `resolution`, …) | `int` | |
 | node references as strings (`modifier.bone`, `animation.root_node`, …) | typed `node` | |
 
 ## 2. Script API

@@ -31,8 +31,8 @@ cannot drift from what scripts actually see.
 | [`multiplayer`](#multiplayer) | 14 | 18 | the engine |
 | [`node`](#node) | 56 | 0 | the engine |
 | [`physics`](#physics) | 14 | 0 | the engine |
-| [`physics2d`](#physics2d) | 72 | 64 | the engine |
-| [`physics3d`](#physics3d) | 94 | 77 | the engine |
+| [`physics2d`](#physics2d) | 75 | 61 | the engine |
+| [`physics3d`](#physics3d) | 97 | 72 | the engine |
 | [`platform`](#platform) | 11 | 7 | the engine |
 | [`project`](#project) | 13 | 0 | the engine |
 | [`regex`](#regex) | 6 | 0 | the engine |
@@ -297,13 +297,12 @@ cannot drift from what scripts actually see.
 
 ## `physics2d`
 
-**Functions:** `add_constant_force`, `add_constant_force_at_point`, `add_constant_torque`, `add_softbody_force`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_particle_impulse`, `apply_softbody_impulse`, `apply_softbody_impulse_at`, `apply_softbody_radial_impulse`, `apply_torque_impulse`, `attach_particle`, `closest_point`, `constant_force`, `constant_torque`, `detach_particle`, `distance`, `gravity`, `intersects`, `is_on_floor`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `next_position`, `overlap_aabb`, `overlap_point`, `overlap_shape`, `overlaps`, `pin_particle`, `predict_position`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_softbody_forces`, `set_angular_velocity`, `set_constant_force`, `set_constant_torque`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_particle_position`, `set_particle_target`, `set_particle_velocity`, `set_softbody`, `set_voxel`, `shapecast`, `sleep`, `softbody_area`, `softbody_center`, `softbody_edges`, `softbody_particles`, `softbody_position`, `softbody_rest_area`, `softbody_sleeping`, `softbody_stress`, `softbody_velocity`, `teleport`, `total_mass`, `unpin_particle`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_softbody`, `wake_up`
+**Functions:** `add_constant_force`, `add_constant_force_at_point`, `add_constant_torque`, `add_softbody_force`, `angular_velocity`, `apply_force`, `apply_force_at_point`, `apply_impulse`, `apply_impulse_at_point`, `apply_particle_impulse`, `apply_softbody_impulse`, `apply_softbody_impulse_at`, `apply_softbody_radial_impulse`, `apply_torque`, `apply_torque_impulse`, `attach_particle`, `closest_point`, `constant_force`, `constant_torque`, `detach_particle`, `distance`, `gravity`, `intersects`, `is_on_floor`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `next_position`, `overlap_aabb`, `overlap_point`, `overlap_shape`, `overlaps`, `pin_particle`, `predict_position`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_softbody_forces`, `set_angular_velocity`, `set_constant_force`, `set_constant_torque`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_particle_position`, `set_particle_target`, `set_particle_velocity`, `set_softbody`, `set_voxel`, `shapecast`, `sleep`, `softbody_area`, `softbody_center`, `softbody_edges`, `softbody_particles`, `softbody_position`, `softbody_rest_area`, `softbody_sleeping`, `softbody_stress`, `softbody_velocity`, `teleport`, `total_mass`, `unpin_particle`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_softbody`, `wake_up`
 
-**Constants** (64):
+**Constants** (61):
 
 | Name | Value |
 | --- | --- |
-| `AXIS_ANG_X` | `ang_x` |
 | `AXIS_X` | `x` |
 | `AXIS_Y` | `y` |
 | `BODY_DYNAMIC` | `dynamic` |
@@ -327,20 +326,18 @@ cannot drift from what scripts actually see.
 | `COMBINE_MULTIPLY` | `multiply` |
 | `EVENT_COLLISION` | `collision` |
 | `EVENT_CONTACT_FORCE` | `contact_force` |
+| `FLOW_BOTH` | `both` |
 
-…and 40 more.
+…and 37 more.
 
 ## `physics3d`
 
-**Functions:** `aabb`, `active_bodies`, `add_constant_force`, `add_constant_force_at_point`, `add_constant_torque`, `add_softbody_force`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_particle_impulse`, `apply_softbody_impulse`, `apply_softbody_impulse_at`, `apply_softbody_radial_impulse`, `apply_torque_impulse`, `attach_particle`, `bodies`, `closest_point`, `closest_points`, `collider_mass`, `collider_mesh`, `collider_volume`, `constant_force`, `constant_torque`, `contacts`, `detach_particle`, `distance`, `effective_dominance`, `gravity`, `handles`, `intersects`, `is_moving`, `is_on_floor`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `next_position`, `overlap_aabb`, `overlap_point`, `overlap_shape`, `overlaps`, `pin_particle`, `potential_energy`, `predict_position`, `predict_position_with_forces`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_softbody_forces`, `set_angular_velocity`, `set_brake`, `set_collider`, `set_constant_force`, `set_constant_torque`, `set_engine_force`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_particle_position`, `set_particle_target`, `set_particle_velocity`, `set_softbody`, `set_steering`, `set_voxel`, `shapecast`, `sleep`, `softbody_center`, `softbody_edges`, `softbody_particles`, `softbody_position`, `softbody_rest_volume`, `softbody_sleeping`, `softbody_stress`, `softbody_velocity`, `softbody_volume`, `solve_ik`, `swept_aabb`, `teleport`, `time_of_impact`, `total_mass`, `unpin_particle`, `vehicle_speed`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_softbody`, `wake_up`, `wheel_state`
+**Functions:** `aabb`, `active_bodies`, `add_constant_force`, `add_constant_force_at_point`, `add_constant_torque`, `add_softbody_force`, `angular_velocity`, `apply_force`, `apply_force_at_point`, `apply_impulse`, `apply_impulse_at_point`, `apply_particle_impulse`, `apply_softbody_impulse`, `apply_softbody_impulse_at`, `apply_softbody_radial_impulse`, `apply_torque`, `apply_torque_impulse`, `attach_particle`, `bodies`, `closest_point`, `closest_points`, `collider_mass`, `collider_mesh`, `collider_volume`, `constant_force`, `constant_torque`, `contacts`, `detach_particle`, `distance`, `effective_dominance`, `gravity`, `handles`, `intersects`, `is_moving`, `is_on_floor`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `next_position`, `overlap_aabb`, `overlap_point`, `overlap_shape`, `overlaps`, `pin_particle`, `potential_energy`, `predict_position`, `predict_position_with_forces`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_softbody_forces`, `set_angular_velocity`, `set_brake`, `set_collider`, `set_constant_force`, `set_constant_torque`, `set_engine_force`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_particle_position`, `set_particle_target`, `set_particle_velocity`, `set_softbody`, `set_steering`, `set_voxel`, `shapecast`, `sleep`, `softbody_center`, `softbody_edges`, `softbody_particles`, `softbody_position`, `softbody_rest_volume`, `softbody_sleeping`, `softbody_stress`, `softbody_velocity`, `softbody_volume`, `solve_ik`, `swept_aabb`, `teleport`, `time_of_impact`, `total_mass`, `unpin_particle`, `vehicle_speed`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_softbody`, `wake_up`, `wheel_state`
 
-**Constants** (77):
+**Constants** (72):
 
 | Name | Value |
 | --- | --- |
-| `AXIS_ANG_X` | `ang_x` |
-| `AXIS_ANG_Y` | `ang_y` |
-| `AXIS_ANG_Z` | `ang_z` |
 | `AXIS_X` | `x` |
 | `AXIS_Y` | `y` |
 | `AXIS_Z` | `z` |
@@ -362,8 +359,11 @@ cannot drift from what scripts actually see.
 | `COMBINE_GEOMETRIC_MEAN` | `geometric_mean` |
 | `COMBINE_MAX` | `max` |
 | `COMBINE_MIN` | `min` |
+| `COMBINE_MULTIPLY` | `multiply` |
+| `EVENT_COLLISION` | `collision` |
+| `EVENT_CONTACT_FORCE` | `contact_force` |
 
-…and 53 more.
+…and 48 more.
 
 ## `platform`
 

@@ -253,8 +253,7 @@ fn a_label_with_on_click_takes_a_pointer_click() {
     let (_dir, mut app) = app();
     let label = add_widget(
         &app,
-        &toml::toml! { kind = "label" text = "Continue" on_click = "on_go" x = 0.0 y = 0.0 }
-            .into(),
+        &toml::toml! { kind = "label" text = "Continue" on_click = "on_go" x = 0.0 y = 0.0 }.into(),
     );
     let ctx = egui::Context::default();
     settle(&app, &ctx);

@@ -122,10 +122,15 @@ pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Valu
     map.insert(k::LINEAR_DAMPING.into(), f(body.linear_damping()));
     map.insert(k::ANGULAR_DAMPING.into(), f(body.angular_damping()));
     map.insert(k::GRAVITY_SCALE.into(), f(body.gravity_scale()));
-    map.insert(k::DOMINANCE.into(), f(Real::from(body.dominance_group())));
+    map.insert(
+        k::DOMINANCE.into(),
+        i64::from(body.dominance_group()).into(),
+    );
     map.insert(
         k::SOLVER_ITERATIONS.into(),
-        f(body.additional_solver_iterations() as Real),
+        i64::try_from(body.additional_solver_iterations())
+            .unwrap_or(i64::MAX)
+            .into(),
     );
     map.insert(
         k::LOCK_TRANSLATION.into(),
@@ -411,7 +416,63 @@ pub(crate) fn install_body2d_force_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// The forces and impulses a script applies to a 2D body.
+/// A force for one step: the impulse it would deliver over one fixed step, so
+/// nothing is left on the body for the step after.
+fn install_step_force_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        (
+            "apply_force",
+            &[c::BODY_2D],
+            "",
+            "Push the body for the next step only; `add_constant_force` keeps pushing.",
+        ),
+        (
+            "apply_force_at_point",
+            &[c::BODY_2D],
+            "",
+            "Push at a world point for the next step only, which also turns the body.",
+        ),
+        (
+            "apply_torque",
+            &[c::BODY_2D],
+            "",
+            "Turn the body for the next step only; `add_constant_torque` keeps turning it.",
+        ),
+    ]);
+    let dt = || scalar::real(balaur_core::fixed_dt());
+    m.function(
+        "apply_force",
+        move |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                state.world.bodies[handle].apply_impulse(scalar::v2(x, y) * dt(), true);
+            })
+        },
+    );
+    m.function(
+        "apply_force_at_point",
+        move |eng: &Engine, (node, x, y, px, py): (NodeId, f32, f32, f32, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                state.world.bodies[handle].apply_impulse_at_point(
+                    scalar::v2(x, y) * dt(),
+                    scalar::v2(px, py),
+                    true,
+                );
+            })
+        },
+    );
+    m.function(
+        "apply_torque",
+        move |eng: &Engine, (node, torque): (NodeId, f32)| {
+            let torque = scalar::real(torque) * dt();
+            with_body(eng, entity_of(node)?, |state, handle| {
+                state.world.bodies[handle].apply_torque_impulse(torque, true);
+            })
+        },
+    );
+}
+
 fn install_body_forces(m: &mut dyn Bindings<Engine>) {
+    install_step_force_api(m);
     m.function(
         "add_constant_force",
         |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {

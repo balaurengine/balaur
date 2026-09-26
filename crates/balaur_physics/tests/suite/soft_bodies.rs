@@ -119,7 +119,7 @@ fn every_3d_layout_builds() {
     run_clean(
         r##"pub fn init(this) {
     let body = this.node.softbody3d;
-    body.set_softbody(#{ kind: physics3d::SOFT_SPHERE, radius: 0.5, subdivisions: 1.0 });
+    body.set_softbody(#{ kind: physics3d::SOFT_SPHERE, radius: 0.5, subdivisions: 1 });
     assert!(body.softbody_particles() > 0, "the sphere has no particles");
     body.set_softbody(#{ kind: physics3d::SOFT_CLOTH, cells: [3.0, 3.0, 1.0], size: [1.0, 0.0, 1.0] });
     assert_eq!(body.softbody_particles(), 16, "a 3x3 cloth is 4x4 particles");

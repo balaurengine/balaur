@@ -189,7 +189,7 @@ fn a_wheels_inputs_survive_a_snapshot() {
         &app.engine,
         chassis,
         "vehicle3d",
-        Some(&toml::from_str("forward_axis = 2.0").unwrap()),
+        Some(&toml::from_str("forward_axis = \"z\"").unwrap()),
     )
     .unwrap();
     let wheel = scene::spawn_node(&mut app.engine.world_mut(), "Wheel", chassis);

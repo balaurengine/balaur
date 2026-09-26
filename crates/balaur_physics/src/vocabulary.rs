@@ -176,11 +176,6 @@ pub(crate) mod words {
     /// Whether a motor's strength ignores mass.
     pub(crate) const MOTOR_MODELS: &[&str] = &[ACCELERATION, FORCE];
 
-    pub(crate) const IMPULSE: &str = "impulse";
-    pub(crate) const REDUCED: &str = "reduced";
-    /// Which of rapier's two joint sets holds the joint.
-    pub(crate) const JOINT_SOLVERS: &[&str] = &[IMPULSE, REDUCED];
-
     pub(crate) const ABSOLUTE: &str = "absolute";
     pub(crate) const RELATIVE: &str = "relative";
     /// Whether a character's lengths are world units or a fraction of it.
@@ -189,15 +184,11 @@ pub(crate) mod words {
     pub(crate) const X: &str = "x";
     pub(crate) const Y: &str = "y";
     pub(crate) const Z: &str = "z";
-    pub(crate) const ANG_X: &str = "ang_x";
-    pub(crate) const ANG_Y: &str = "ang_y";
-    pub(crate) const ANG_Z: &str = "ang_z";
-    /// The world axes a 3D body may lock, and the 2D pair.
+    /// A chassis's own axes, as `up_axis` and `forward_axis` name them.
+    pub(crate) const AXES: &[&str] = &[X, Y, Z];
+    /// The world axes a 3D body or generic joint may lock, and the 2D pair.
     pub(crate) const LOCK_AXES: &[&str] = &[X, Y, Z];
     pub(crate) const LOCK_AXES_2D: &[&str] = &[X, Y];
-    /// The freedoms a generic joint takes away: six in 3D, three in 2D.
-    pub(crate) const JOINT_AXES: &[&str] = &[X, Y, Z, ANG_X, ANG_Y, ANG_Z];
-    pub(crate) const JOINT_AXES_2D: &[&str] = &[X, Y, ANG_X];
 
     pub(crate) const COLLISION: &str = "collision";
     pub(crate) const CONTACT_FORCE: &str = "contact_force";
@@ -224,6 +215,7 @@ pub(crate) mod keys {
     pub(crate) const AT: &str = "at";
     pub(crate) const AXIS: &str = "axis";
     pub(crate) const AXLE: &str = "axle";
+    pub(crate) const ARTICULATION: &str = "articulation";
     pub(crate) const B: &str = "b";
     pub(crate) const BEND_DAMPING: &str = "bend_damping";
     pub(crate) const BEND_FREQUENCY: &str = "bend_frequency";
@@ -306,12 +298,10 @@ pub(crate) mod keys {
     pub(crate) const INTERNAL_ITERATIONS: &str = "internal_iterations";
     pub(crate) const IN_CONTACT: &str = "in_contact";
     pub(crate) const KIND: &str = "kind";
-    pub(crate) const LENGTH: &str = "length";
     pub(crate) const LENGTHS: &str = "lengths";
     pub(crate) const LENGTH_UNIT: &str = "length_unit";
     pub(crate) const LIMITS: &str = "limits";
     pub(crate) const LINEAR_DAMPING: &str = "linear_damping";
-    pub(crate) const LOCKED_AXES: &str = "locked_axes";
     pub(crate) const LOCK_ROTATION: &str = "lock_rotation";
     pub(crate) const LOCK_TRANSLATION: &str = "lock_translation";
     pub(crate) const MASS: &str = "mass";
@@ -323,6 +313,7 @@ pub(crate) mod keys {
     pub(crate) const MAX_DISTANCE: &str = "max_distance";
     pub(crate) const MAX_LINEAR_VELOCITY: &str = "max_linear_velocity";
     pub(crate) const MAX_TEARS_PER_STEP: &str = "max_tears_per_step";
+    pub(crate) const MAX_LENGTH: &str = "max_length";
     pub(crate) const MAX_TIME: &str = "max_time";
     pub(crate) const MESH: &str = "mesh";
     pub(crate) const METHOD: &str = "method";

@@ -694,7 +694,11 @@ fn a_node_offers_the_events_its_components_announce() {
     let Some(Value::List(offered)) = offered else {
         panic!("no list of events: {offered:?}");
     };
-    for wanted in ["pointer_click", "emitted:timeout", "emitted:visibility_changed"] {
+    for wanted in [
+        "pointer_click",
+        "emitted:timeout",
+        "emitted:visibility_changed",
+    ] {
         assert!(
             offered.contains(&Value::Str(wanted.into())),
             "`{wanted}` is not offered: {offered:?}"

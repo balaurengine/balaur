@@ -605,9 +605,14 @@ fn post_to_map(post: &Post, map: &mut toml::map::Map<String, toml::Value>) {
 /// `kind`: a component's tags are what the editor files a node under, and a
 /// tag is per type while a kind would be per node -- so one component could
 /// only ever claim one dimension for both. Splitting also drops the property
-/// that was inert either way (`look_at` on a flat camera, `zoom` on a
-/// spatial one).
+/// that was inert either way (`look_at` on a flat camera, `pixels_per_unit`
+/// on a spatial one).
 pub(crate) fn register_camera_components(reg: &mut Registry<'_>) {
+    register_camera3d(reg);
+    register_camera2d(reg);
+}
+
+fn register_camera3d(reg: &mut Registry<'_>) {
     reg.register_component(
         "camera3d",
         ComponentDef {
@@ -662,6 +667,9 @@ pub(crate) fn register_camera_components(reg: &mut Registry<'_>) {
             }),
         },
     );
+}
+
+fn register_camera2d(reg: &mut Registry<'_>) {
     reg.register_component(
         "camera2d",
         ComponentDef {

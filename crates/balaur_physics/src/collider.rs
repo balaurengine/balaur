@@ -494,7 +494,9 @@ pub(crate) fn add_collider_at(
     if let Some(body) = state.world.colliders[handle].parent()
         && crate::body::has_total_mass(&state.world.bodies[body])
     {
-        state.world.colliders[handle].set_density(0.0);
+        let world = &mut state.world;
+        world.colliders[handle].set_density(0.0);
+        world.bodies[body].recompute_mass_properties_from_colliders(&world.colliders);
     }
     state.colliders.entry(entity).or_default().push(handle);
     // The broad phase has not seen this one yet.

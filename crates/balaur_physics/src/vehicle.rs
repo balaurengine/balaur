@@ -20,7 +20,7 @@ use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
 use crate::PhysicsState3d;
-use crate::vocabulary::{self as v, component as c, keys as k, map};
+use crate::vocabulary::{self as v, component as c, keys as k, map, words as w};
 use balaur_core::fixed_dt;
 
 /// The chassis settings, held on the node like a character's.
@@ -93,8 +93,8 @@ fn drive_one(eng: &Engine, chassis: Entity) -> Result<()> {
         .get(&chassis)
         .ok_or_else(|| anyhow!("a vehicle3d needs a body3d on the same node"))?;
     let mut controller = DynamicRayCastVehicleController::new(handle);
-    controller.index_up_axis = v::f(&params, k::UP_AXIS, 1.0).clamp(0.0, 2.0) as usize;
-    controller.index_forward_axis = v::f(&params, k::FORWARD_AXIS, 2.0).clamp(0.0, 2.0) as usize;
+    controller.index_up_axis = axis_index(v::text(&params, k::UP_AXIS, w::Y));
+    controller.index_forward_axis = axis_index(v::text(&params, k::FORWARD_AXIS, w::Z));
     for (entity, wheel_params, at) in &wheels {
         let real = |key: &str, default: f32| scalar::real(v::f(wheel_params, key, default));
         let tuning = WheelTuning {
@@ -233,7 +233,7 @@ pub(crate) fn install_vehicle_api(m: &mut dyn Bindings<Engine>) {
 /// Which of the chassis's own axes points forward, as the index rapier's
 /// controller takes and `vehicle_speed` measures along.
 fn forward_axis(params: &toml::Value) -> Vector {
-    match v::f(params, k::FORWARD_AXIS, 2.0).clamp(0.0, 2.0) as usize {
+    match axis_index(v::text(params, k::FORWARD_AXIS, w::Z)) {
         0 => Vector::X,
         1 => Vector::Y,
         _ => Vector::Z,
@@ -248,7 +248,17 @@ fn with_wheel(eng: &Engine, node: NodeId, f: impl FnOnce(&mut WheelInput3d)) -> 
     Ok(())
 }
 
+/// Which of a chassis's own axes a word names.
+fn axis_index(word: &str) -> usize {
+    match word {
+        w::X => 0,
+        w::Y => 1,
+        _ => 2,
+    }
+}
+
 pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
+    let axes = v::options(w::AXES);
     reg.register_component(
         c::VEHICLE_3D,
         ComponentDef {
@@ -258,8 +268,8 @@ pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
             schema: ComponentDef::parse_schema(
                 c::VEHICLE_3D,
                 &v::schema(&[
-                    (k::UP_AXIS, r#"{ type = "float", default = 1.0, min = 0.0, max = 2.0, description = "Which of the chassis's own axes points up: 0 for x, 1 for y, 2 for z" }"#),
-                    (k::FORWARD_AXIS, r#"{ type = "float", default = 2.0, min = 0.0, max = 2.0, description = "Which of the chassis's own axes points forward" }"#),
+                    (k::UP_AXIS, &format!(r#"{{ type = "enum", default = "{}", options = [{axes}], description = "Which of the chassis's own axes points up" }}"#, w::Y)),
+                    (k::FORWARD_AXIS, &format!(r#"{{ type = "enum", default = "{}", options = [{axes}], description = "Which of the chassis's own axes points forward" }}"#, w::Z)),
                 ]),
             ),
             tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],

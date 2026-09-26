@@ -159,7 +159,7 @@ fn the_component_round_trips() {
         table.contains_key("sheet"),
         "the sheet the grid came from is kept: {table:?}"
     );
-    assert_close(table["frame"].as_float().unwrap() as f32, 3.0);
+    assert_eq!(table["frame"].as_integer(), Some(3));
 
     let reloaded = node(&app);
     components::add(&app.engine, reloaded, "sprite", Some(&saved)).unwrap();

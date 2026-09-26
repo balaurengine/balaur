@@ -85,7 +85,7 @@
     "modifier2d": "Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.",
     "modifier3d": "Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.",
     "occluder2d": "The outline the node blocks 2D light with. With no `mesh` it follows the node's `collider2d`, or else its circle, capsule, rect or sprite shape.",
-    "particles": "A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `spread` and `gravity`. The live particles are renderer state the simulation never sees.",
+    "particles": "A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `direction`, `spread_degrees` and `gravity`. The live particles are renderer state the simulation never sees.",
     "polygon": "A filled, textured 2D polygon from the `mesh` asset's points and triangles. With skin weights, the rig `skeleton` names deforms it.",
     "ragdoll": "Drives a rig's bones from the `bodies` that `physics2d.ragdoll` or `physics3d.ragdoll` built. `influence` is how much of the simulated pose the bones take, 0 to 1.",
     "reflection_probe": "A box the room around it was captured inside. A reflective surface within it mirrors that capture, aimed at the box, instead of the distant sky.",
@@ -518,12 +518,12 @@
         "type": "bool"
       },
       "dominance": {
-        "default": 0.0,
+        "default": 0,
         "description": "A body in a higher group is unpushable by a lower one; every non-dynamic body outranks them all",
         "group": "solver",
-        "max": 127.0,
-        "min": -127.0,
-        "type": "float"
+        "max": 127,
+        "min": -127,
+        "type": "int"
       },
       "enabled": {
         "default": true,
@@ -578,17 +578,17 @@
       },
       "mass": {
         "default": 0.0,
-        "description": "Extra mass on top of what the colliders' density gives; 0 leaves the body at its collider mass",
+        "description": "The body's total mass; 0 sums what its colliders weigh",
         "group": "mass",
         "min": 0.0,
         "type": "float"
       },
       "solver_iterations": {
-        "default": 0.0,
+        "default": 0,
         "description": "Extra solver iterations for this body alone, for the one stack that jitters",
         "group": "solver",
-        "min": 0.0,
-        "type": "float"
+        "min": 0,
+        "type": "int"
       },
       "speculative_distance": {
         "default": 0.0,
@@ -642,12 +642,12 @@
         "type": "bool"
       },
       "dominance": {
-        "default": 0.0,
+        "default": 0,
         "description": "A body in a higher group is unpushable by a lower one; every non-dynamic body outranks them all",
         "group": "solver",
-        "max": 127.0,
-        "min": -127.0,
-        "type": "float"
+        "max": 127,
+        "min": -127,
+        "type": "int"
       },
       "enabled": {
         "default": true,
@@ -717,17 +717,17 @@
       },
       "mass": {
         "default": 0.0,
-        "description": "Extra mass on top of what the colliders' density gives; 0 leaves the body at its collider mass",
+        "description": "The body's total mass; 0 sums what its colliders weigh",
         "group": "mass",
         "min": 0.0,
         "type": "float"
       },
       "solver_iterations": {
-        "default": 0.0,
+        "default": 0,
         "description": "Extra solver iterations for this body alone, for the one stack that jitters",
         "group": "solver",
-        "min": 0.0,
-        "type": "float"
+        "min": 0,
+        "type": "int"
       },
       "speculative_distance": {
         "default": 0.0,
@@ -1339,12 +1339,11 @@
       },
       "collision_layer": {
         "default": [
-          "0"
+          "1"
         ],
         "description": "The layers this collider is on",
         "group": "filtering",
         "options": [
-          "0",
           "1",
           "2",
           "3",
@@ -1375,7 +1374,8 @@
           "28",
           "29",
           "30",
-          "31"
+          "31",
+          "32"
         ],
         "type": "flags"
       },
@@ -1391,7 +1391,6 @@
         "description": "The layers it collides with; empty means every layer",
         "group": "filtering",
         "options": [
-          "0",
           "1",
           "2",
           "3",
@@ -1422,7 +1421,8 @@
           "28",
           "29",
           "30",
-          "31"
+          "31",
+          "32"
         ],
         "type": "flags"
       },
@@ -1554,11 +1554,11 @@
         "type": "float"
       },
       "max_convex_hulls": {
-        "default": 1024.0,
+        "default": 1024,
         "description": "The most pieces a vhacd cut may leave",
         "group": "shape",
-        "min": 1.0,
-        "type": "float"
+        "min": 1,
+        "type": "int"
       },
       "mesh": {
         "asset": "mesh",
@@ -1637,11 +1637,11 @@
         "type": "float"
       },
       "resolution": {
-        "default": 64.0,
+        "default": 64,
         "description": "How fine the voxel grid is, when method is vhacd",
         "group": "shape",
-        "min": 1.0,
-        "type": "float"
+        "min": 1,
+        "type": "int"
       },
       "restitution": {
         "default": 0.0,
@@ -1689,12 +1689,11 @@
       },
       "solver_layer": {
         "default": [
-          "0"
+          "1"
         ],
         "description": "Layers for the solver alone: a pair can be detected but not resolved",
         "group": "filtering",
         "options": [
-          "0",
           "1",
           "2",
           "3",
@@ -1725,7 +1724,8 @@
           "28",
           "29",
           "30",
-          "31"
+          "31",
+          "32"
         ],
         "type": "flags"
       },
@@ -1734,7 +1734,6 @@
         "description": "Which solver layers this one pushes against; empty means all of them",
         "group": "filtering",
         "options": [
-          "0",
           "1",
           "2",
           "3",
@@ -1765,7 +1764,8 @@
           "28",
           "29",
           "30",
-          "31"
+          "31",
+          "32"
         ],
         "type": "flags"
       },
@@ -1816,12 +1816,11 @@
       },
       "collision_layer": {
         "default": [
-          "0"
+          "1"
         ],
         "description": "The layers this collider is on",
         "group": "filtering",
         "options": [
-          "0",
           "1",
           "2",
           "3",
@@ -1852,7 +1851,8 @@
           "28",
           "29",
           "30",
-          "31"
+          "31",
+          "32"
         ],
         "type": "flags"
       },
@@ -1868,7 +1868,6 @@
         "description": "The layers it collides with; empty means every layer",
         "group": "filtering",
         "options": [
-          "0",
           "1",
           "2",
           "3",
@@ -1899,7 +1898,8 @@
           "28",
           "29",
           "30",
-          "31"
+          "31",
+          "32"
         ],
         "type": "flags"
       },
@@ -2162,12 +2162,11 @@
       },
       "solver_layer": {
         "default": [
-          "0"
+          "1"
         ],
         "description": "Layers for the solver alone: a pair can be detected but not resolved",
         "group": "filtering",
         "options": [
-          "0",
           "1",
           "2",
           "3",
@@ -2198,7 +2197,8 @@
           "28",
           "29",
           "30",
-          "31"
+          "31",
+          "32"
         ],
         "type": "flags"
       },
@@ -2207,7 +2207,6 @@
         "description": "Which solver layers this one pushes against; empty means all of them",
         "group": "filtering",
         "options": [
-          "0",
           "1",
           "2",
           "3",
@@ -2238,7 +2237,8 @@
           "28",
           "29",
           "30",
-          "31"
+          "31",
+          "32"
         ],
         "type": "flags"
       },
@@ -2414,6 +2414,11 @@
         "description": "Where the joint attaches on this node, in its own space",
         "type": "vec2"
       },
+      "articulation": {
+        "default": false,
+        "description": "Solve in reduced coordinates: the chain never drifts and can be solved for inverse kinematics, but cannot close a loop",
+        "type": "bool"
+      },
       "axis": {
         "default": [
           1.0,
@@ -2471,12 +2476,6 @@
         ],
         "type": "enum"
       },
-      "length": {
-        "default": 0.0,
-        "description": "The rope's greatest length, or the spring's rest length",
-        "min": 0.0,
-        "type": "float"
-      },
       "limits": {
         "default": [
           0.0,
@@ -2485,15 +2484,25 @@
         "description": "How far the joint may travel, as a low and a high; equal values mean no limit",
         "type": "vec2"
       },
-      "locked_axes": {
+      "lock_rotation": {
+        "default": false,
+        "description": "Stop a generic joint turning",
+        "type": "bool"
+      },
+      "lock_translation": {
         "default": [],
-        "description": "Which of the three freedoms a generic joint takes away",
+        "description": "The axes a generic joint may not slide along",
         "options": [
           "x",
-          "y",
-          "ang_x"
+          "y"
         ],
         "type": "flags"
+      },
+      "max_length": {
+        "default": 0.0,
+        "description": "The rope's greatest length",
+        "min": 0.0,
+        "type": "float"
       },
       "motor": {
         "default": "off",
@@ -2525,14 +2534,11 @@
         "description": "The speed or the position the motor drives towards",
         "type": "float"
       },
-      "solver": {
-        "default": "impulse",
-        "description": "impulse holds any arrangement, loops included; reduced never drifts and can be solved for inverse kinematics, but cannot close a loop",
-        "options": [
-          "impulse",
-          "reduced"
-        ],
-        "type": "enum"
+      "rest_length": {
+        "default": 0.0,
+        "description": "The length a spring pulls back to",
+        "min": 0.0,
+        "type": "float"
       },
       "stiffness": {
         "default": 0.0,
@@ -2550,6 +2556,11 @@
         ],
         "description": "Where the joint attaches on this node, in its own space",
         "type": "vec3"
+      },
+      "articulation": {
+        "default": false,
+        "description": "Solve in reduced coordinates: the chain never drifts and can be solved for inverse kinematics, but cannot close a loop",
+        "type": "bool"
       },
       "axis": {
         "default": [
@@ -2610,12 +2621,6 @@
         ],
         "type": "enum"
       },
-      "length": {
-        "default": 0.0,
-        "description": "The rope's greatest length, or the spring's rest length",
-        "min": 0.0,
-        "type": "float"
-      },
       "limits": {
         "default": [
           0.0,
@@ -2624,18 +2629,31 @@
         "description": "How far the joint may travel, as a low and a high; equal values mean no limit",
         "type": "vec2"
       },
-      "locked_axes": {
+      "lock_rotation": {
         "default": [],
-        "description": "Which of the six freedoms a generic joint takes away",
+        "description": "The axes a generic joint may not turn about",
         "options": [
           "x",
           "y",
-          "z",
-          "ang_x",
-          "ang_y",
-          "ang_z"
+          "z"
         ],
         "type": "flags"
+      },
+      "lock_translation": {
+        "default": [],
+        "description": "The axes a generic joint may not slide along",
+        "options": [
+          "x",
+          "y",
+          "z"
+        ],
+        "type": "flags"
+      },
+      "max_length": {
+        "default": 0.0,
+        "description": "The rope's greatest length",
+        "min": 0.0,
+        "type": "float"
       },
       "motor": {
         "default": "off",
@@ -2667,14 +2685,11 @@
         "description": "The speed or the position the motor drives towards",
         "type": "float"
       },
-      "solver": {
-        "default": "impulse",
-        "description": "impulse holds any arrangement, loops included; reduced never drifts and can be solved for inverse kinematics, but cannot close a loop",
-        "options": [
-          "impulse",
-          "reduced"
-        ],
-        "type": "enum"
+      "rest_length": {
+        "default": 0.0,
+        "description": "The length a spring pulls back to",
+        "min": 0.0,
+        "type": "float"
       },
       "stiffness": {
         "default": 0.0,
@@ -3040,11 +3055,6 @@
       }
     },
     "particles": {
-      "angle": {
-        "default": 90.0,
-        "description": "Emission direction in degrees; 90 is straight up",
-        "type": "float"
-      },
       "color": {
         "default": [
           0.8,
@@ -3064,6 +3074,14 @@
         ],
         "description": "The tint a particle fades to by the end of its life",
         "type": "color"
+      },
+      "direction": {
+        "default": [
+          0.0,
+          1.0
+        ],
+        "description": "Which way the particles leave; [0, 1] is straight up",
+        "type": "vec2"
       },
       "emitting": {
         "default": true,
@@ -3119,7 +3137,7 @@
         "min": 0.0,
         "type": "float"
       },
-      "spread": {
+      "spread_degrees": {
         "default": 30.0,
         "description": "Half-angle of the emission cone in degrees",
         "min": 0.0,
@@ -3548,12 +3566,11 @@
       },
       "collision_layer": {
         "default": [
-          "0"
+          "1"
         ],
         "description": "The layers this body is on",
         "group": "filtering",
         "options": [
-          "0",
           "1",
           "2",
           "3",
@@ -3584,7 +3601,8 @@
           "28",
           "29",
           "30",
-          "31"
+          "31",
+          "32"
         ],
         "type": "flags"
       },
@@ -3593,7 +3611,6 @@
         "description": "The layers it collides with; empty means every layer",
         "group": "filtering",
         "options": [
-          "0",
           "1",
           "2",
           "3",
@@ -3624,7 +3641,8 @@
           "28",
           "29",
           "30",
-          "31"
+          "31",
+          "32"
         ],
         "type": "flags"
       },
@@ -3803,11 +3821,11 @@
         "type": "list"
       },
       "max_tears_per_step": {
-        "default": 0.0,
+        "default": 0,
         "description": "The most edges that may tear in one step, which paces a crack; 0 is no limit",
         "group": "tearing",
-        "min": 0.0,
-        "type": "float"
+        "min": 0,
+        "type": "int"
       },
       "mesh": {
         "asset": "mesh",
@@ -3817,11 +3835,11 @@
         "type": "asset"
       },
       "min_piece": {
-        "default": 0.0,
+        "default": 0,
         "description": "The smallest piece, in elements, a tear may split off; 0 lets rapier choose",
         "group": "tearing",
-        "min": 0.0,
-        "type": "float"
+        "min": 0,
+        "type": "int"
       },
       "oriented": {
         "default": false,
@@ -3951,20 +3969,20 @@
         "type": "enum"
       },
       "solver_iterations": {
-        "default": 3.0,
+        "default": 3,
         "description": "Extra iterations inside each substep, for the same",
         "group": "particles",
-        "max": 64.0,
-        "min": 0.0,
-        "type": "float"
+        "max": 64,
+        "min": 0,
+        "type": "int"
       },
       "solver_substeps": {
-        "default": 0.0,
+        "default": 0,
         "description": "Extra solver substeps for this body and everything it touches",
         "group": "particles",
-        "max": 64.0,
-        "min": 0.0,
-        "type": "float"
+        "max": 64,
+        "min": 0,
+        "type": "int"
       },
       "tear_force": {
         "default": 0.0,
@@ -4147,12 +4165,11 @@
       },
       "collision_layer": {
         "default": [
-          "0"
+          "1"
         ],
         "description": "The layers this body is on",
         "group": "filtering",
         "options": [
-          "0",
           "1",
           "2",
           "3",
@@ -4183,7 +4200,8 @@
           "28",
           "29",
           "30",
-          "31"
+          "31",
+          "32"
         ],
         "type": "flags"
       },
@@ -4192,7 +4210,6 @@
         "description": "The layers it collides with; empty means every layer",
         "group": "filtering",
         "options": [
-          "0",
           "1",
           "2",
           "3",
@@ -4223,7 +4240,8 @@
           "28",
           "29",
           "30",
-          "31"
+          "31",
+          "32"
         ],
         "type": "flags"
       },
@@ -4402,11 +4420,11 @@
         "type": "list"
       },
       "max_tears_per_step": {
-        "default": 0.0,
+        "default": 0,
         "description": "The most edges that may tear in one step, which paces a crack; 0 is no limit",
         "group": "tearing",
-        "min": 0.0,
-        "type": "float"
+        "min": 0,
+        "type": "int"
       },
       "mesh": {
         "asset": "mesh",
@@ -4416,11 +4434,11 @@
         "type": "asset"
       },
       "min_piece": {
-        "default": 0.0,
+        "default": 0,
         "description": "The smallest piece, in elements, a tear may split off; 0 lets rapier choose",
         "group": "tearing",
-        "min": 0.0,
-        "type": "float"
+        "min": 0,
+        "type": "int"
       },
       "oriented": {
         "default": false,
@@ -4564,28 +4582,28 @@
         "type": "enum"
       },
       "solver_iterations": {
-        "default": 3.0,
+        "default": 3,
         "description": "Extra iterations inside each substep, for the same",
         "group": "particles",
-        "max": 64.0,
-        "min": 0.0,
-        "type": "float"
+        "max": 64,
+        "min": 0,
+        "type": "int"
       },
       "solver_substeps": {
-        "default": 0.0,
+        "default": 0,
         "description": "Extra solver substeps for this body and everything it touches",
         "group": "particles",
-        "max": 64.0,
-        "min": 0.0,
-        "type": "float"
+        "max": 64,
+        "min": 0,
+        "type": "int"
       },
       "subdivisions": {
-        "default": 2.0,
+        "default": 2,
         "description": "How many times a sphere's icosahedron is refined; each level quadruples the triangles",
         "group": "shape",
-        "max": 6.0,
-        "min": 0.0,
-        "type": "float"
+        "max": 6,
+        "min": 0,
+        "type": "int"
       },
       "tear_force": {
         "default": 0.0,
@@ -4777,10 +4795,10 @@
         "type": "bool"
       },
       "frame": {
-        "default": 0.0,
+        "default": 0,
         "description": "Current sheet cell, counted left-to-right then top-to-bottom",
-        "min": 0.0,
-        "type": "float"
+        "min": 0,
+        "type": "int"
       },
       "material": {
         "asset": "material",
@@ -5161,12 +5179,11 @@
     "tile_collision": {
       "collision_layer": {
         "default": [
-          "0"
+          "1"
         ],
         "description": "The layers this collider is on",
         "group": "filtering",
         "options": [
-          "0",
           "1",
           "2",
           "3",
@@ -5197,7 +5214,8 @@
           "28",
           "29",
           "30",
-          "31"
+          "31",
+          "32"
         ],
         "type": "flags"
       },
@@ -5213,7 +5231,6 @@
         "description": "The layers it collides with; empty means every layer",
         "group": "filtering",
         "options": [
-          "0",
           "1",
           "2",
           "3",
@@ -5244,7 +5261,8 @@
           "28",
           "29",
           "30",
-          "31"
+          "31",
+          "32"
         ],
         "type": "flags"
       },
@@ -5358,12 +5376,11 @@
       },
       "solver_layer": {
         "default": [
-          "0"
+          "1"
         ],
         "description": "Layers for the solver alone: a pair can be detected but not resolved",
         "group": "filtering",
         "options": [
-          "0",
           "1",
           "2",
           "3",
@@ -5394,7 +5411,8 @@
           "28",
           "29",
           "30",
-          "31"
+          "31",
+          "32"
         ],
         "type": "flags"
       },
@@ -5403,7 +5421,6 @@
         "description": "Which solver layers this one pushes against; empty means all of them",
         "group": "filtering",
         "options": [
-          "0",
           "1",
           "2",
           "3",
@@ -5434,7 +5451,8 @@
           "28",
           "29",
           "30",
-          "31"
+          "31",
+          "32"
         ],
         "type": "flags"
       }
@@ -5725,18 +5743,24 @@
     },
     "vehicle3d": {
       "forward_axis": {
-        "default": 2.0,
+        "default": "z",
         "description": "Which of the chassis's own axes points forward",
-        "max": 2.0,
-        "min": 0.0,
-        "type": "float"
+        "options": [
+          "x",
+          "y",
+          "z"
+        ],
+        "type": "enum"
       },
       "up_axis": {
-        "default": 1.0,
-        "description": "Which of the chassis's own axes points up: 0 for x, 1 for y, 2 for z",
-        "max": 2.0,
-        "min": 0.0,
-        "type": "float"
+        "default": "y",
+        "description": "Which of the chassis's own axes points up",
+        "options": [
+          "x",
+          "y",
+          "z"
+        ],
+        "type": "enum"
       }
     },
     "wheel3d": {
@@ -9447,6 +9471,12 @@
         "angular_velocity": [
           "body2d"
         ],
+        "apply_force": [
+          "body2d"
+        ],
+        "apply_force_at_point": [
+          "body2d"
+        ],
         "apply_impulse": [
           "body2d"
         ],
@@ -9464,6 +9494,9 @@
         ],
         "apply_softbody_radial_impulse": [
           "softbody2d"
+        ],
+        "apply_torque": [
+          "body2d"
         ],
         "apply_torque_impulse": [
           "body2d"
@@ -9618,10 +9651,6 @@
         "softbody2d"
       ],
       "constants": [
-        {
-          "name": "AXIS_ANG_X",
-          "value": "ang_x"
-        },
         {
           "name": "AXIS_X",
           "value": "x"
@@ -9865,14 +9894,6 @@
         {
           "name": "SOFT_VOLUMETRIC",
           "value": "volumetric"
-        },
-        {
-          "name": "SOLVER_IMPULSE",
-          "value": "impulse"
-        },
-        {
-          "name": "SOLVER_REDUCED",
-          "value": "reduced"
         }
       ],
       "doc": "The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.",
@@ -9882,12 +9903,15 @@
         "add_constant_torque": "Turn the body every step until the constant torque is set back to zero.",
         "add_softbody_force": "Push every free particle with `force` each step until `reset_softbody_forces`.",
         "angular_velocity": "How fast the body is spinning, in radians per second.",
+        "apply_force": "Push the body for the next step only; `add_constant_force` keeps pushing.",
+        "apply_force_at_point": "Push at a world point for the next step only, which also turns the body.",
         "apply_impulse": "Add an instant change in momentum, as if the body were struck.",
         "apply_impulse_at_point": "Strike the body at a world point, which spins it as well as moves it.",
         "apply_particle_impulse": "Strike one particle.",
         "apply_softbody_impulse": "Change every free particle's velocity by `impulse` at once, as a kick to the whole body.",
         "apply_softbody_impulse_at": "Strike the particles within `radius` of `point`, less the further they are; a radius of 0 strikes them all.",
         "apply_softbody_radial_impulse": "Push the particles within `radius` away from `center`, as a blast does.",
+        "apply_torque": "Turn the body for the next step only; `add_constant_torque` keeps turning it.",
         "apply_torque_impulse": "Add an instant change in angular momentum, as if the body were spun.",
         "attach_particle": "Tie one particle to a node's rigid body where it is now: the body and the particle pull on each other.",
         "closest_point": "The closest point on any collider to a world point.",
@@ -9941,7 +9965,7 @@
         "softbody_stress": "How far each edge is stretched past its rest length, as a fraction of it: what a tear is judged on.",
         "softbody_velocity": "How fast one particle is moving, in world space.",
         "teleport": "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick.",
-        "total_mass": "The body's total mass, colliders included. The `mass` property is the extra on top of them.",
+        "total_mass": "The body's total mass: its `mass` when it states one, or what its colliders weigh.",
         "unpin_particle": "Let a held particle go; it keeps the velocity it had.",
         "velocity_at_point": "How fast a world point on the body is moving, spin included.",
         "voxel": "Whether one cell of a voxel collider is filled.",
@@ -9956,12 +9980,15 @@
         "add_constant_torque",
         "add_softbody_force",
         "angular_velocity",
+        "apply_force",
+        "apply_force_at_point",
         "apply_impulse",
         "apply_impulse_at_point",
         "apply_particle_impulse",
         "apply_softbody_impulse",
         "apply_softbody_impulse_at",
         "apply_softbody_radial_impulse",
+        "apply_torque",
         "apply_torque_impulse",
         "attach_particle",
         "closest_point",
@@ -10031,12 +10058,15 @@
         "add_constant_torque": "(NodeId, f32) -> ()",
         "add_softbody_force": "(NodeId, Value) -> ()",
         "angular_velocity": "NodeId -> f32",
+        "apply_force": "(NodeId, f32, f32) -> ()",
+        "apply_force_at_point": "(NodeId, f32, f32, f32, f32) -> ()",
         "apply_impulse": "(NodeId, f32, f32) -> ()",
         "apply_impulse_at_point": "(NodeId, f32, f32, f32, f32) -> ()",
         "apply_particle_impulse": "(NodeId, i64, Value) -> ()",
         "apply_softbody_impulse": "(NodeId, Value) -> ()",
         "apply_softbody_impulse_at": "(NodeId, Value, Value, Value) -> ()",
         "apply_softbody_radial_impulse": "(NodeId, Value, Value, Value) -> ()",
+        "apply_torque": "(NodeId, f32) -> ()",
         "apply_torque_impulse": "(NodeId, f32) -> ()",
         "attach_particle": "(NodeId, i64, NodeId) -> ()",
         "closest_point": "Value -> Value",
@@ -10120,6 +10150,12 @@
         "angular_velocity": [
           "body3d"
         ],
+        "apply_force": [
+          "body3d"
+        ],
+        "apply_force_at_point": [
+          "body3d"
+        ],
         "apply_impulse": [
           "body3d"
         ],
@@ -10137,6 +10173,9 @@
         ],
         "apply_softbody_radial_impulse": [
           "softbody3d"
+        ],
+        "apply_torque": [
+          "body3d"
         ],
         "apply_torque_impulse": [
           "body3d"
@@ -10344,18 +10383,6 @@
         "wheel3d"
       ],
       "constants": [
-        {
-          "name": "AXIS_ANG_X",
-          "value": "ang_x"
-        },
-        {
-          "name": "AXIS_ANG_Y",
-          "value": "ang_y"
-        },
-        {
-          "name": "AXIS_ANG_Z",
-          "value": "ang_z"
-        },
         {
           "name": "AXIS_X",
           "value": "x"
@@ -10643,14 +10670,6 @@
         {
           "name": "SOFT_VOLUMETRIC",
           "value": "volumetric"
-        },
-        {
-          "name": "SOLVER_IMPULSE",
-          "value": "impulse"
-        },
-        {
-          "name": "SOLVER_REDUCED",
-          "value": "reduced"
         }
       ],
       "doc": "The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.",
@@ -10662,12 +10681,15 @@
         "add_constant_torque": "Turn the body every step until the constant torque is set back to zero.",
         "add_softbody_force": "Push every free particle with `force` each step until `reset_softbody_forces`.",
         "angular_velocity": "How fast the body is spinning, in radians per second about each axis.",
+        "apply_force": "Push the body for the next step only; `add_constant_force` keeps pushing.",
+        "apply_force_at_point": "Push at a world point for the next step only, which also turns the body.",
         "apply_impulse": "Add an instant change in momentum, as if the body were struck.",
         "apply_impulse_at_point": "Strike the body at a world point, which spins it as well as moves it.",
         "apply_particle_impulse": "Strike one particle.",
         "apply_softbody_impulse": "Change every free particle's velocity by `impulse` at once, as a kick to the whole body.",
         "apply_softbody_impulse_at": "Strike the particles within `radius` of `point`, less the further they are; a radius of 0 strikes them all.",
         "apply_softbody_radial_impulse": "Push the particles within `radius` away from `center`, as a blast does.",
+        "apply_torque": "Turn the body for the next step only; `add_constant_torque` keeps turning it.",
         "apply_torque_impulse": "Add an instant change in angular momentum, as if the body were spun.",
         "attach_particle": "Tie one particle to a node's rigid body where it is now: the body and the particle pull on each other.",
         "bodies": "Every node with a rigid body, sorted.",
@@ -10739,7 +10761,7 @@
         "swept_aabb": "The box the collider covers over the next step, its motion included: what the broad phase actually tests.",
         "teleport": "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick.",
         "time_of_impact": "When two moving colliders would meet, given each one's velocity: `#{ velocity_a = [..], velocity_b = [..], max = 1.0 }`. Nothing when they never do.",
-        "total_mass": "The body's total mass, colliders included. The `mass` property is the extra on top of them.",
+        "total_mass": "The body's total mass: its `mass` when it states one, or what its colliders weigh.",
         "unpin_particle": "Let a held particle go; it keeps the velocity it had.",
         "vehicle_speed": "How fast the chassis is going along its forward axis, in units per second.",
         "velocity_at_point": "How fast a world point on the body is moving, spin included.",
@@ -10758,12 +10780,15 @@
         "add_constant_torque",
         "add_softbody_force",
         "angular_velocity",
+        "apply_force",
+        "apply_force_at_point",
         "apply_impulse",
         "apply_impulse_at_point",
         "apply_particle_impulse",
         "apply_softbody_impulse",
         "apply_softbody_impulse_at",
         "apply_softbody_radial_impulse",
+        "apply_torque",
         "apply_torque_impulse",
         "attach_particle",
         "bodies",
@@ -10855,12 +10880,15 @@
         "add_constant_torque": "(NodeId, f32, f32, f32) -> ()",
         "add_softbody_force": "(NodeId, Value) -> ()",
         "angular_velocity": "NodeId -> (f32, f32, f32)",
+        "apply_force": "(NodeId, f32, f32, f32) -> ()",
+        "apply_force_at_point": "(NodeId, f32, f32, f32, f32, f32, f32) -> ()",
         "apply_impulse": "(NodeId, f32, f32, f32) -> ()",
         "apply_impulse_at_point": "(NodeId, f32, f32, f32, f32, f32, f32) -> ()",
         "apply_particle_impulse": "(NodeId, i64, Value) -> ()",
         "apply_softbody_impulse": "(NodeId, Value) -> ()",
         "apply_softbody_impulse_at": "(NodeId, Value, Value, Value) -> ()",
         "apply_softbody_radial_impulse": "(NodeId, Value, Value, Value) -> ()",
+        "apply_torque": "(NodeId, f32, f32, f32) -> ()",
         "apply_torque_impulse": "(NodeId, f32, f32, f32) -> ()",
         "attach_particle": "(NodeId, i64, NodeId) -> ()",
         "bodies": "() -> Value",

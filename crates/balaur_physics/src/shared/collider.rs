@@ -106,10 +106,18 @@ macro_rules! functions {
             let own_mass = authored(k::MASS).unwrap_or(0.0) > 0.0;
             let zeroed = collider.density() == 0.0;
             if own_mass {
-                let mass = if zeroed { authored(k::MASS).unwrap_or(0.0) as Real } else { collider.mass() };
+                let mass = if zeroed {
+                    authored(k::MASS).unwrap_or(0.0) as Real
+                } else {
+                    collider.mass()
+                };
                 map.insert(k::MASS.into(), f(mass));
             } else {
-                let density = if zeroed { authored(k::DENSITY).unwrap_or(1.0) as Real } else { collider.density() };
+                let density = if zeroed {
+                    authored(k::DENSITY).unwrap_or(1.0) as Real
+                } else {
+                    collider.density()
+                };
                 map.insert(k::MASS.into(), f(0.0));
                 map.insert(k::DENSITY.into(), f(density));
             }

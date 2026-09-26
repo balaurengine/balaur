@@ -181,7 +181,6 @@ pub(crate) mod keys {
 
     pub(crate) const A: &str = "a";
     pub(crate) const ALPHA_CUT: &str = "alpha_cut";
-    pub(crate) const ANGLE: &str = "angle";
     pub(crate) const B: &str = "b";
     pub(crate) const BILLBOARD: &str = "billboard";
     pub(crate) const ABERRATION_AMOUNT: &str = "aberration_amount";
@@ -208,6 +207,7 @@ pub(crate) mod keys {
     pub(crate) const CENTERED: &str = "centered";
     pub(crate) const CURRENT: &str = "current";
     pub(crate) const DEPTH_TEST: &str = "depth_test";
+    pub(crate) const DIRECTION: &str = "direction";
     pub(crate) const DOUBLE_SIDED: &str = "double_sided";
     pub(crate) const EMITTING: &str = "emitting";
     pub(crate) const EXPLOSIVENESS: &str = "explosiveness";
@@ -274,7 +274,7 @@ pub(crate) mod keys {
     pub(crate) const SKELETON: &str = "skeleton";
     pub(crate) const SOURCE: &str = "source";
     pub(crate) const SPEED: &str = "speed";
-    pub(crate) const SPREAD: &str = "spread";
+    pub(crate) const SPREAD_DEGREES: &str = "spread_degrees";
     pub(crate) const TEXT: &str = "text";
     pub(crate) const TEXT_KEY: &str = "text_key";
     pub(crate) const TAPER: &str = "taper";

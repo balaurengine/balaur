@@ -838,12 +838,6 @@ pub const MOTOR_MODELS: &[(&str, &str)] = &[
     ("MOTOR_MODEL_FORCE", w::FORCE),
 ];
 
-/// Which of rapier's joint sets holds a joint.
-pub const JOINT_SOLVERS: &[(&str, &str)] = &[
-    ("SOLVER_IMPULSE", w::IMPULSE),
-    ("SOLVER_REDUCED", w::REDUCED),
-];
-
 /// Whether a character's lengths are world units or a fraction of it.
 pub const LENGTH_MODES: &[(&str, &str)] = &[
     ("LENGTHS_ABSOLUTE", w::ABSOLUTE),
@@ -877,19 +871,11 @@ pub const COLLISION_PAIRS: &[(&str, &str)] = &[
     ("COLLIDE_STATIC_STATIC", w::STATIC_STATIC),
 ];
 
-/// The freedoms a body lock or a generic joint names, in 3D.
-pub const AXES: &[(&str, &str)] = &[
-    ("AXIS_X", w::X),
-    ("AXIS_Y", w::Y),
-    ("AXIS_Z", w::Z),
-    ("AXIS_ANG_X", w::ANG_X),
-    ("AXIS_ANG_Y", w::ANG_Y),
-    ("AXIS_ANG_Z", w::ANG_Z),
-];
+/// The axes a body or a generic joint locks, in 3D.
+pub const AXES: &[(&str, &str)] = &[("AXIS_X", w::X), ("AXIS_Y", w::Y), ("AXIS_Z", w::Z)];
 
-/// The same, in 2D: two translations and the one rotation there is.
-pub const AXES_2D: &[(&str, &str)] =
-    &[("AXIS_X", w::X), ("AXIS_Y", w::Y), ("AXIS_ANG_X", w::ANG_X)];
+/// The same, in 2D, where rotation is one switch.
+pub const AXES_2D: &[(&str, &str)] = &[("AXIS_X", w::X), ("AXIS_Y", w::Y)];
 
 /// How a 3D soft body's particles are laid out.
 pub const SOFT_KINDS: &[(&str, &str)] = &[
@@ -941,7 +927,6 @@ pub const CONSTANTS_3D: &[&[(&str, &str)]] = &[
     COMBINE_RULES,
     MOTOR_MODES,
     MOTOR_MODELS,
-    JOINT_SOLVERS,
     LENGTH_MODES,
     FILL_MODES,
     FIT_MODES,
@@ -962,7 +947,6 @@ pub const CONSTANTS_2D: &[&[(&str, &str)]] = &[
     COMBINE_RULES,
     MOTOR_MODES,
     MOTOR_MODELS,
-    JOINT_SOLVERS,
     LENGTH_MODES,
     EVENTS,
     COLLISION_PAIRS,

@@ -62,7 +62,9 @@ pub(crate) fn add_collider_at(
     if let Some(body) = state.world.colliders[handle].parent()
         && crate::dim2::body::has_total_mass(&state.world.bodies[body])
     {
-        state.world.colliders[handle].set_density(0.0);
+        let world = &mut state.world;
+        world.colliders[handle].set_density(0.0);
+        world.bodies[body].recompute_mass_properties_from_colliders(&world.colliders);
     }
     state.colliders.entry(entity).or_default().push(handle);
     state.queries_ready = false;
@@ -528,9 +530,9 @@ pub(crate) fn register_collider2d_component(reg: &mut Registry<'_>) {
             (k::ORIENTED, r#"{ type = "bool", default = false, description = "Treat a triangle_mesh or polyline as one-sided: the winding decides which side is solid, counter-clockwise enclosing the solid", group = "shape" }"#),
             (k::OVERLAP, r#"{ type = "float", default = 0.9, min = 0.0, max = 1.0, description = "How far a convex_decomposition piece grows through each seam it shares, so nothing wedges into one: 0 leaves the plain pieces, 1 grows flush with the face that stops it", group = "shape" }"#),
             (k::METHOD, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How a convex_decomposition is cut: exact, over the mesh's own triangles, or vhacd, which voxelises the outline", group = "shape" }}"#, w::EXACT, v::options(w::DECOMPOSITION_METHODS))),
-            (k::RESOLUTION, r#"{ type = "float", default = 64.0, min = 1.0, description = "How fine the voxel grid is, when method is vhacd", group = "shape" }"#),
+            (k::RESOLUTION, r#"{ type = "int", default = 64, min = 1, description = "How fine the voxel grid is, when method is vhacd", group = "shape" }"#),
             (k::MAX_CONCAVITY, r#"{ type = "float", default = 0.01, min = 0.0, description = "How deep a dent a vhacd piece may keep before it is cut again", group = "shape" }"#),
-            (k::MAX_CONVEX_HULLS, r#"{ type = "float", default = 1024.0, min = 1.0, description = "The most pieces a vhacd cut may leave", group = "shape" }"#),
+            (k::MAX_CONVEX_HULLS, r#"{ type = "int", default = 1024, min = 1, description = "The most pieces a vhacd cut may leave", group = "shape" }"#),
             (k::OFFSET, r#"{ type = "vec2", default = [0.0, 0.0], description = "Where the shape sits relative to the node", group = "shape" }"#),
             (k::OFFSET_ROTATION, r#"{ type = "float", default = 0.0, description = "How the shape is turned relative to the node, in radians", group = "shape" }"#),
             (k::ONE_WAY_AXIS, r#"{ type = "vec2", default = [0.0, 1.0], description = "The direction a one-way platform lets bodies through from", group = "contacts" }"#),

@@ -66,7 +66,7 @@ pub(crate) fn register_particles_component(reg: &mut Registry<'_>) {
         ComponentDef {
             events: &[],
             warnings: None,
-            doc: "A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `spread` and `gravity`. The live particles are renderer state the simulation never sees.",
+            doc: "A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `direction`, `spread_degrees` and `gravity`. The live particles are renderer state the simulation never sees.",
             schema: ComponentDef::parse_schema(
                 "particles",
                 &balaur_core::components::ComponentDef::schema(&[
@@ -74,8 +74,8 @@ pub(crate) fn register_particles_component(reg: &mut Registry<'_>) {
                     (k::RATE, r#"{ type = "float", default = 20.0, min = 0.0, description = "Particles born per second" }"#),
                     (k::LIFETIME, r#"{ type = "float", default = 1.0, min = 0.05, description = "Seconds a particle lives" }"#),
                     (k::SPEED, r#"{ type = "float", default = 2.0, min = 0.0, description = "Initial speed in world units per second" }"#),
-                    (k::ANGLE, r#"{ type = "float", default = 90.0, description = "Emission direction in degrees; 90 is straight up" }"#),
-                    (k::SPREAD, r#"{ type = "float", default = 30.0, min = 0.0, description = "Half-angle of the emission cone in degrees" }"#),
+                    (k::DIRECTION, r#"{ type = "vec2", default = [0.0, 1.0], description = "Which way the particles leave; [0, 1] is straight up" }"#),
+                    (k::SPREAD_DEGREES, r#"{ type = "float", default = 30.0, min = 0.0, description = "Half-angle of the emission cone in degrees" }"#),
                     (k::SIZE, r#"{ type = "float", default = 4.0, min = 0.5, description = "Particle size in logical pixels" }"#),
                     (k::GRAVITY, r#"{ type = "vec2", default = [0.0, -3.0], description = "Acceleration applied over a particle's life" }"#),
                     (k::COLOR, r#"{ type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#),
@@ -120,12 +120,19 @@ pub(crate) fn register_particles_component(reg: &mut Registry<'_>) {
                     ("rate", emitter.rate),
                     ("lifetime", emitter.lifetime),
                     ("speed", emitter.speed),
-                    ("angle", emitter.angle),
-                    ("spread", emitter.spread),
+                    (k::SPREAD_DEGREES, emitter.spread),
                     ("size", emitter.size),
                 ] {
                     out.insert(key.into(), toml::Value::Float(f64::from(value)));
                 }
+                let (sin, cos) = balaur_core::libm::sincosf(emitter.angle.to_radians());
+                out.insert(
+                    k::DIRECTION.into(),
+                    toml::Value::Array(vec![
+                        toml::Value::Float(f64::from(cos)),
+                        toml::Value::Float(f64::from(sin)),
+                    ]),
+                );
                 out.insert(
                     k::GRAVITY.into(),
                     toml::Value::Array(vec![
@@ -160,8 +167,8 @@ fn particles_from_params(params: &toml::Value) -> Particles {
         rate: num(k::RATE, 20.0).max(0.0),
         lifetime: num(k::LIFETIME, 1.0).max(0.05),
         speed: num(k::SPEED, 2.0).max(0.0),
-        angle: num(k::ANGLE, 90.0),
-        spread: num(k::SPREAD, 30.0).max(0.0),
+        angle: direction_degrees(params),
+        spread: num(k::SPREAD_DEGREES, 30.0).max(0.0),
         size: num(k::SIZE, 4.0).max(0.5),
         gravity: [gravity(0, 0.0), gravity(1, -3.0)],
         color: crate::color_from_params(params),
@@ -178,6 +185,25 @@ fn particles_from_params(params: &toml::Value) -> Particles {
 }
 
 /// The `color_end` property: the schema's transparent default when absent.
+/// The emission direction as an angle in degrees, 90 being up; a zero vector
+/// keeps the default.
+fn direction_degrees(params: &toml::Value) -> f32 {
+    let axis = |i: usize| {
+        params
+            .get(k::DIRECTION)
+            .and_then(toml::Value::as_array)
+            .and_then(|a| a.get(i))
+            .and_then(balaur_core::components::as_f64)
+            .map_or(0.0, |v| v as f32)
+    };
+    let (x, y) = (axis(0), axis(1));
+    if x == 0.0 && y == 0.0 {
+        90.0
+    } else {
+        balaur_core::libm::atan2f(y, x).to_degrees()
+    }
+}
+
 fn color_end_from_params(params: &toml::Value) -> [f32; 4] {
     let c = |i: usize, default: f64| {
         params

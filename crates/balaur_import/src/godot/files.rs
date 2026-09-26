@@ -1037,7 +1037,7 @@ func _process(_delta):
         let scene = read(out.path(), "scenes/extras.toml");
 
         let flipbook = &node(&scene, "Flipbook")["sprite"];
-        assert_eq!(flipbook["frame"].as_float(), Some(5.0));
+        assert_eq!(flipbook["frame"].as_integer(), Some(5));
         let sheet = inline_asset(&scene, &flipbook["sheet"]);
         assert_eq!(sheet["type"].as_str(), Some("sprite_sheet"));
         assert_eq!(sheet["columns"].as_integer(), Some(4));

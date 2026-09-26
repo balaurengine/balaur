@@ -48,7 +48,7 @@ its heading.
 
 ### `body2d`
 
-`2d` · `physics` · 17 properties · 24 methods
+`2d` · `physics` · 17 properties · 27 methods
 
 A 2D rigid body simulated by rapier in the xy plane. `kind` is `dynamic`, `static`, `kinematic` or `kinematic_velocity`; add a `collider2d` for its shape.
 
@@ -60,7 +60,7 @@ A 2D rigid body simulated by rapier in the xy plane. `kind` is `dynamic`, `stati
 <tr><td><code>can_sleep</code></td><td>bool</td><td><code>true</code></td><td>Let the body stop being simulated once it has held still</td></tr>
 <tr><td><code>center_of_mass</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Where the extra mass sits, in the node&#x27;s own space; only read when mass is set</td></tr>
 <tr><td><code>continuous_collision</code></td><td>bool</td><td><code>false</code></td><td>Sweep the body&#x27;s whole path each step so a fast one cannot pass through a wall</td></tr>
-<tr><td><code>dominance</code></td><td>float</td><td><code>0.0</code></td><td>A body in a higher group is unpushable by a lower one; every non-dynamic body outranks them all Range -127.0–127.0.</td></tr>
+<tr><td><code>dominance</code></td><td>int</td><td><code>0</code></td><td>A body in a higher group is unpushable by a lower one; every non-dynamic body outranks them all Range -127–127.</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Simulate this body at all; a disabled body keeps its state and costs nothing</td></tr>
 <tr><td><code>gravity_scale</code></td><td>float</td><td><code>1.0</code></td><td>Multiplier on world gravity for this body: 0 hangs in the air, negative floats up</td></tr>
 <tr><td><code>inertia</code></td><td>float</td><td><code>0.0</code></td><td>Resistance to spin; 0 lets rapier derive it from the mass At least 0.0.</td></tr>
@@ -68,8 +68,8 @@ A 2D rigid body simulated by rapier in the xy plane. `kind` is `dynamic`, `stati
 <tr><td><code>linear_damping</code></td><td>float</td><td><code>0.0</code></td><td>Drag on travel: how fast the body loses speed with nothing touching it At least 0.0.</td></tr>
 <tr><td><code>lock_rotation</code></td><td>bool</td><td><code>false</code></td><td>Stop the body turning; how a 2D character stays upright</td></tr>
 <tr><td><code>lock_translation</code></td><td>flags</td><td><code>[]</code></td><td>Axes the body may not move along One of <code>x</code>, <code>y</code>.</td></tr>
-<tr><td><code>mass</code></td><td>float</td><td><code>0.0</code></td><td>Extra mass on top of what the colliders&#x27; density gives; 0 leaves the body at its collider mass At least 0.0.</td></tr>
-<tr><td><code>solver_iterations</code></td><td>float</td><td><code>0.0</code></td><td>Extra solver iterations for this body alone, for the one stack that jitters At least 0.0.</td></tr>
+<tr><td><code>mass</code></td><td>float</td><td><code>0.0</code></td><td>The body&#x27;s total mass; 0 sums what its colliders weigh At least 0.0.</td></tr>
+<tr><td><code>solver_iterations</code></td><td>int</td><td><code>0</code></td><td>Extra solver iterations for this body alone, for the one stack that jitters At least 0.</td></tr>
 <tr><td><code>speculative_distance</code></td><td>float</td><td><code>0.0</code></td><td>Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies At least 0.0.</td></tr>
 <tr><td><code>time_to_sleep</code></td><td>float</td><td><code>0.5</code></td><td>Seconds of stillness before the body sleeps At least 0.0.</td></tr>
 </tbody>
@@ -84,8 +84,11 @@ On a node carrying `body2d`, as `node.body2d.<method>`:
 <tr><td><code>add_constant_force_at_point(f32, f32, f32, f32)</code></td><td>—</td><td>Push at a world point every step, which also turns the body.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>add_constant_torque(f32)</code></td><td>—</td><td>Turn the body every step until the constant torque is set back to zero.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>angular_velocity()</code></td><td><code>f32</code></td><td>How fast the body is spinning, in radians per second.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>apply_force(f32, f32)</code></td><td>—</td><td>Push the body for the next step only; `add_constant_force` keeps pushing.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>apply_force_at_point(f32, f32, f32, f32)</code></td><td>—</td><td>Push at a world point for the next step only, which also turns the body.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>apply_impulse(f32, f32)</code></td><td>—</td><td>Add an instant change in momentum, as if the body were struck.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>apply_impulse_at_point(f32, f32, f32, f32)</code></td><td>—</td><td>Strike the body at a world point, which spins it as well as moves it.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>apply_torque(f32)</code></td><td>—</td><td>Turn the body for the next step only; `add_constant_torque` keeps turning it.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>apply_torque_impulse(f32)</code></td><td>—</td><td>Add an instant change in angular momentum, as if the body were spun.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>constant_force()</code></td><td><code>(f32, f32)</code></td><td>The force every step integrates until it is set back to zero.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>constant_torque()</code></td><td><code>f32</code></td><td>The torque every step integrates until it is set back to zero.</td><td><code>physics2d</code></td></tr>
@@ -101,7 +104,7 @@ On a node carrying `body2d`, as `node.body2d.<method>`:
 <tr><td><code>set_linear_velocity(f32, f32)</code></td><td>—</td><td>Set how fast the body travels, in units per second.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>sleep()</code></td><td>—</td><td>Put the body to sleep now.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>teleport(f32, f32)</code></td><td>—</td><td>Move the body to a world position at once, clearing its velocity: what assigning the node&#x27;s position cannot do, because the step writes that back every tick.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>total_mass()</code></td><td><code>f32</code></td><td>The body&#x27;s total mass, colliders included. The `mass` property is the extra on top of them.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>total_mass()</code></td><td><code>f32</code></td><td>The body&#x27;s total mass: its `mass` when it states one, or what its colliders weigh.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>velocity_at_point(f32, f32)</code></td><td><code>(f32, f32)</code></td><td>How fast a world point on the body is moving, spin included.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>wake_up()</code></td><td>—</td><td>Wake the body, so the next step moves it.</td><td><code>physics2d</code></td></tr>
 </tbody>
@@ -209,9 +212,9 @@ The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2
 <tr><td><code>a</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>First corner, when kind is triangle or segment</td></tr>
 <tr><td><code>b</code></td><td>vec2</td><td><code>[1.0, 0.0]</code></td><td>Second corner, when kind is triangle or segment</td></tr>
 <tr><td><code>c</code></td><td>vec2</td><td><code>[0.0, 1.0]</code></td><td>Third corner, when kind is triangle</td></tr>
-<tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;0&quot;]</code></td><td>The layers this collider is on One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
+<tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers this collider is on One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_margin</code></td><td>float</td><td><code>0.0</code></td><td>A margin the solver treats as already touching; stops thin shapes tunnelling and jittering At least 0.0.</td></tr>
-<tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
+<tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>contact_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>How hard a contact must be before on_contact_force is called At least 0.0.</td></tr>
 <tr><td><code>contact_pairs</code></td><td>flags</td><td><code>[&quot;dynamic_dynamic&quot;, &quot;dynamic_kinematic&quot;, &quot;dynamic_static&quot;]</code></td><td>Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default One of <code>dynamic_dynamic</code>, <code>dynamic_kinematic</code>, <code>dynamic_static</code>, <code>kinematic_kinematic</code>, <code>kinematic_static</code>, <code>static_static</code>.</td></tr>
 <tr><td><code>density</code></td><td>float</td><td><code>1.0</code></td><td>Mass per volume, so the shape&#x27;s size sets its mass At least 0.001.</td></tr>
@@ -226,7 +229,7 @@ The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2
 <tr><td><code>kind</code></td><td>enum</td><td><code>rectangle</code></td><td>Collision shape One of <code>circle</code>, <code>rectangle</code>, <code>capsule</code>, <code>triangle</code>, <code>segment</code>, <code>world_boundary</code>, <code>triangle_mesh</code>, <code>convex_hull</code>, <code>convex_decomposition</code>, <code>polyline</code>, <code>heightfield</code>, <code>voxels</code>.</td></tr>
 <tr><td><code>mass</code></td><td>float</td><td><code>0.0</code></td><td>Mass in kilograms, overriding what density works out to; 0 keeps the density At least 0.0.</td></tr>
 <tr><td><code>max_concavity</code></td><td>float</td><td><code>0.01</code></td><td>How deep a dent a vhacd piece may keep before it is cut again At least 0.0.</td></tr>
-<tr><td><code>max_convex_hulls</code></td><td>float</td><td><code>1024.0</code></td><td>The most pieces a vhacd cut may leave At least 1.0.</td></tr>
+<tr><td><code>max_convex_hulls</code></td><td>int</td><td><code>1024</code></td><td>The most pieces a vhacd cut may leave At least 1.</td></tr>
 <tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Points and triangles for a triangle_mesh, convex_hull, convex_decomposition or polyline collider: the same asset a polygon draws</td></tr>
 <tr><td><code>method</code></td><td>enum</td><td><code>exact</code></td><td>How a convex_decomposition is cut: exact, over the mesh&#x27;s own triangles, or vhacd, which voxelises the outline One of <code>exact</code>, <code>vhacd</code>.</td></tr>
 <tr><td><code>normal</code></td><td>vec2</td><td><code>[0.0, 1.0]</code></td><td>Which way the infinite line faces, when kind is world_boundary</td></tr>
@@ -237,14 +240,14 @@ The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2
 <tr><td><code>oriented</code></td><td>bool</td><td><code>false</code></td><td>Treat a triangle_mesh or polyline as one-sided: the winding decides which side is solid, counter-clockwise enclosing the solid</td></tr>
 <tr><td><code>overlap</code></td><td>float</td><td><code>0.9</code></td><td>How far a convex_decomposition piece grows through each seam it shares, so nothing wedges into one: 0 leaves the plain pieces, 1 grows flush with the face that stops it Range 0.0–1.0.</td></tr>
 <tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Circle radius, when kind is circle or capsule At least 0.01.</td></tr>
-<tr><td><code>resolution</code></td><td>float</td><td><code>64.0</code></td><td>How fine the voxel grid is, when method is vhacd At least 1.0.</td></tr>
+<tr><td><code>resolution</code></td><td>int</td><td><code>64</code></td><td>How fine the voxel grid is, when method is vhacd At least 1.</td></tr>
 <tr><td><code>restitution</code></td><td>float</td><td><code>0.0</code></td><td>Bounciness: 0 is a dead stop, 1 a full rebound Range 0.0–1.0.</td></tr>
 <tr><td><code>restitution_combine</code></td><td>enum</td><td><code>average</code></td><td>How this surface&#x27;s bounciness combines with the other one&#x27;s One of <code>average</code>, <code>min</code>, <code>multiply</code>, <code>max</code>, <code>clamped_sum</code>, <code>geometric_mean</code>.</td></tr>
 <tr><td><code>scale</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>Width and height scale of a heightfield</td></tr>
 <tr><td><code>sensor</code></td><td>bool</td><td><code>false</code></td><td>Detects overlaps without colliding: bodies pass through and are reported</td></tr>
 <tr><td><code>size</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>Whole size along each axis, when kind is rectangle</td></tr>
-<tr><td><code>solver_layer</code></td><td>flags</td><td><code>[&quot;0&quot;]</code></td><td>Layers for the solver alone: a pair can be detected but not resolved One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
-<tr><td><code>solver_mask</code></td><td>flags</td><td><code>[]</code></td><td>Which solver layers this one pushes against; empty means all of them One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
+<tr><td><code>solver_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>Layers for the solver alone: a pair can be detected but not resolved One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
+<tr><td><code>solver_mask</code></td><td>flags</td><td><code>[]</code></td><td>Which solver layers this one pushes against; empty means all of them One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>voxels</code></td><td>asset · <code>voxels</code></td><td>—</td><td>Filled cells, when kind is voxels; a script may dig into them while the game runs</td></tr>
 <tr><td><code>weld_vertices</code></td><td>bool</td><td><code>false</code></td><td>Merge duplicate vertices and drop degenerate triangles when building a triangle_mesh</td></tr>
 </tbody>
@@ -275,7 +278,7 @@ On a node carrying `collider2d`, as `node.collider2d.<method>`:
 
 ### `joint2d`
 
-`2d` · `physics` · 18 properties · 5 methods
+`2d` · `physics` · 20 properties · 5 methods
 
 Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `rope`, `spring`, `groove` or `generic`; both ends need a `body2d` on or above the node.
 
@@ -283,6 +286,7 @@ Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>anchor</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Where the joint attaches on this node, in its own space</td></tr>
+<tr><td><code>articulation</code></td><td>bool</td><td><code>false</code></td><td>Solve in reduced coordinates: the chain never drifts and can be solved for inverse kinematics, but cannot close a loop</td></tr>
 <tr><td><code>axis</code></td><td>vec2</td><td><code>[1.0, 0.0]</code></td><td>The direction a prismatic joint slides along</td></tr>
 <tr><td><code>break_force</code></td><td>float</td><td><code>0.0</code></td><td>The pull that snaps the joint and calls on_joint_break; 0 never breaks At least 0.0.</td></tr>
 <tr><td><code>collide_connected</code></td><td>bool</td><td><code>false</code></td><td>Let the two joined bodies collide with each other</td></tr>
@@ -291,14 +295,15 @@ Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`
 <tr><td><code>damping</code></td><td>float</td><td><code>1.0</code></td><td>How quickly the motion settles, for a spring joint or a motor At least 0.0.</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Hold the two bodies together at all</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>fixed</code></td><td>How the two bodies may move relative to each other One of <code>fixed</code>, <code>hinge</code>, <code>slider</code>, <code>rope</code>, <code>spring</code>, <code>groove</code>, <code>generic</code>.</td></tr>
-<tr><td><code>length</code></td><td>float</td><td><code>0.0</code></td><td>The rope&#x27;s greatest length, or the spring&#x27;s rest length At least 0.0.</td></tr>
 <tr><td><code>limits</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>How far the joint may travel, as a low and a high; equal values mean no limit</td></tr>
-<tr><td><code>locked_axes</code></td><td>flags</td><td><code>[]</code></td><td>Which of the three freedoms a generic joint takes away One of <code>x</code>, <code>y</code>, <code>ang_x</code>.</td></tr>
+<tr><td><code>lock_rotation</code></td><td>bool</td><td><code>false</code></td><td>Stop a generic joint turning</td></tr>
+<tr><td><code>lock_translation</code></td><td>flags</td><td><code>[]</code></td><td>The axes a generic joint may not slide along One of <code>x</code>, <code>y</code>.</td></tr>
+<tr><td><code>max_length</code></td><td>float</td><td><code>0.0</code></td><td>The rope&#x27;s greatest length At least 0.0.</td></tr>
 <tr><td><code>motor</code></td><td>enum</td><td><code>off</code></td><td>Drive the joint towards a speed, towards a position, or not at all One of <code>off</code>, <code>velocity</code>, <code>position</code>.</td></tr>
 <tr><td><code>motor_max_force</code></td><td>float</td><td><code>0.0</code></td><td>The most force the motor may use; 0 means as much as it takes At least 0.0.</td></tr>
 <tr><td><code>motor_model</code></td><td>enum</td><td><code>acceleration</code></td><td>Whether the motor&#x27;s strength is felt as an acceleration, ignoring mass, or as a force One of <code>acceleration</code>, <code>force</code>.</td></tr>
 <tr><td><code>motor_target</code></td><td>float</td><td><code>0.0</code></td><td>The speed or the position the motor drives towards</td></tr>
-<tr><td><code>solver</code></td><td>enum</td><td><code>impulse</code></td><td>impulse holds any arrangement, loops included; reduced never drifts and can be solved for inverse kinematics, but cannot close a loop One of <code>impulse</code>, <code>reduced</code>.</td></tr>
+<tr><td><code>rest_length</code></td><td>float</td><td><code>0.0</code></td><td>The length a spring pulls back to At least 0.0.</td></tr>
 <tr><td><code>stiffness</code></td><td>float</td><td><code>0.0</code></td><td>Spring stiffness, for a spring joint or a position motor At least 0.0.</td></tr>
 </tbody>
 </table>
@@ -470,8 +475,8 @@ A deformable 2D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>cell_size</code></td><td>float</td><td><code>0.25</code></td><td>How big one triangle is when a volumetric body fills an outline; smaller is finer, slower and stiffer to tear At least 0.001.</td></tr>
 <tr><td><code>cells</code></td><td>vec2</td><td><code>[4.0, 4.0]</code></td><td>How many cells along each axis of a grid</td></tr>
 <tr><td><code>collides</code></td><td>bool</td><td><code>true</code></td><td>Meet the world at all; off, the body passes through everything and only its pins and ties hold it</td></tr>
-<tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;0&quot;]</code></td><td>The layers this body is on One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
-<tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
+<tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers this body is on One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
+<tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>What the body is drawn in when its node has nothing of its own to deform, as a cloth or a rope has not</td></tr>
 <tr><td><code>deformation_damping</code></td><td>float</td><td><code>0.0</code></td><td>How fast the particles are pulled towards the body&#x27;s own rigid motion, which settles a residual sway without slowing the body down Range 0.0–1000.0.</td></tr>
 <tr><td><code>dominance</code></td><td>int</td><td><code>0</code></td><td>Which body wins a contact: a higher one is never pushed by a lower one Range -127–127.</td></tr>
@@ -490,9 +495,9 @@ A deformable 2D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>linear_damping</code></td><td>float</td><td><code>0.0</code></td><td>Air friction on the particles At least 0.0.</td></tr>
 <tr><td><code>mass</code></td><td>float</td><td><code>1.0</code></td><td>What the whole body weighs, spread over its particles At least 0.0.</td></tr>
 <tr><td><code>masses</code></td><td>list of float</td><td><code>[]</code></td><td>Each particle&#x27;s own mass, by index; empty spreads `mass` over them evenly</td></tr>
-<tr><td><code>max_tears_per_step</code></td><td>float</td><td><code>0.0</code></td><td>The most edges that may tear in one step, which paces a crack; 0 is no limit At least 0.0.</td></tr>
+<tr><td><code>max_tears_per_step</code></td><td>int</td><td><code>0</code></td><td>The most edges that may tear in one step, which paces a crack; 0 is no limit At least 0.</td></tr>
 <tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Points and triangles for a polygon, triangle_mesh, polyline or volumetric body: the same asset a polygon draws</td></tr>
-<tr><td><code>min_piece</code></td><td>float</td><td><code>0.0</code></td><td>The smallest piece, in elements, a tear may split off; 0 lets rapier choose At least 0.0.</td></tr>
+<tr><td><code>min_piece</code></td><td>int</td><td><code>0</code></td><td>The smallest piece, in elements, a tear may split off; 0 lets rapier choose At least 0.</td></tr>
 <tr><td><code>oriented</code></td><td>bool</td><td><code>false</code></td><td>Treat the surface as closed and outward-facing, so its inside holds bodies in instead of pushing them out</td></tr>
 <tr><td><code>particle_count</code></td><td>int</td><td><code>16</code></td><td>How many particles a rope or the rim of a circle is made of At least 2.</td></tr>
 <tr><td><code>particle_radius</code></td><td>float</td><td><code>0.0</code></td><td>How thick the particles are; 0 takes what the layout works out At least 0.0.</td></tr>
@@ -510,8 +515,8 @@ A deformable 2D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>size</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>Whole size of the sheet, when kind is grid</td></tr>
 <tr><td><code>skin_collision</code></td><td>bool</td><td><code>false</code></td><td>Meet the world through the outline a volumetric body is drawn as, rather than its cells&#x27; boundary</td></tr>
 <tr><td><code>solver</code></td><td>enum</td><td><code>constraints</code></td><td>Which solver runs the elasticity: sequential constraints, or an implicit Euler step over the whole body One of <code>constraints</code>, <code>fem</code>.</td></tr>
-<tr><td><code>solver_iterations</code></td><td>float</td><td><code>3.0</code></td><td>Extra iterations inside each substep, for the same Range 0.0–64.0.</td></tr>
-<tr><td><code>solver_substeps</code></td><td>float</td><td><code>0.0</code></td><td>Extra solver substeps for this body and everything it touches Range 0.0–64.0.</td></tr>
+<tr><td><code>solver_iterations</code></td><td>int</td><td><code>3</code></td><td>Extra iterations inside each substep, for the same Range 0–64.</td></tr>
+<tr><td><code>solver_substeps</code></td><td>int</td><td><code>0</code></td><td>Extra solver substeps for this body and everything it touches Range 0–64.</td></tr>
 <tr><td><code>tear_force</code></td><td>float</td><td><code>0.0</code></td><td>The pull past which an edge breaks; 0 is unbreakable. Either criterion tears an edge At least 0.0.</td></tr>
 <tr><td><code>tear_resistance</code></td><td>list of record · <code>a, b, resistance</code></td><td><code>[]</code></td><td>Edges that tear sooner or later than the rest, each named by the two particles it joins: below 1 is a perforation, above 1 a seam</td></tr>
 <tr><td><code>tear_smoothing</code></td><td>float</td><td><code>0.0</code></td><td>Over how many seconds a load is averaged before it is tested, so one hard frame does not tear a body At least 0.0.</td></tr>
@@ -579,7 +584,7 @@ A textured 2D quad at the node, sized by `pixels_per_unit`. `columns` and `rows`
 <tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
 <tr><td><code>flip_x</code></td><td>bool</td><td><code>false</code></td><td>Mirror horizontally</td></tr>
 <tr><td><code>flip_y</code></td><td>bool</td><td><code>false</code></td><td>Mirror vertically</td></tr>
-<tr><td><code>frame</code></td><td>float</td><td><code>0.0</code></td><td>Current sheet cell, counted left-to-right then top-to-bottom At least 0.0.</td></tr>
+<tr><td><code>frame</code></td><td>int</td><td><code>0</code></td><td>Current sheet cell, counted left-to-right then top-to-bottom At least 0.</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty draws with the built-in one</td></tr>
 <tr><td><code>offset</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Where the image sits against the node, in texture pixels with y down; turns and scales with the node</td></tr>
 <tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>0.0</code></td><td>Texture pixels per world unit; 0 takes the texture&#x27;s own `pixels_per_unit` import setting, which is 100 unless it says At least 0.0.</td></tr>
@@ -631,9 +636,9 @@ Collision for the node's `tilemap` cells: every tile the tileset marks solid, on
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;0&quot;]</code></td><td>The layers this collider is on One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
+<tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers this collider is on One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_margin</code></td><td>float</td><td><code>0.0</code></td><td>A margin the solver treats as already touching; stops thin shapes tunnelling and jittering At least 0.0.</td></tr>
-<tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
+<tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>contact_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>How hard a contact must be before on_contact_force is called At least 0.0.</td></tr>
 <tr><td><code>contact_pairs</code></td><td>flags</td><td><code>[&quot;dynamic_dynamic&quot;, &quot;dynamic_kinematic&quot;, &quot;dynamic_static&quot;]</code></td><td>Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default One of <code>dynamic_dynamic</code>, <code>dynamic_kinematic</code>, <code>dynamic_static</code>, <code>kinematic_kinematic</code>, <code>kinematic_static</code>, <code>static_static</code>.</td></tr>
 <tr><td><code>density</code></td><td>float</td><td><code>1.0</code></td><td>Mass per volume, so the shape&#x27;s size sets its mass At least 0.001.</td></tr>
@@ -646,8 +651,8 @@ Collision for the node's `tilemap` cells: every tile the tileset marks solid, on
 <tr><td><code>restitution</code></td><td>float</td><td><code>0.0</code></td><td>Bounciness: 0 is a dead stop, 1 a full rebound Range 0.0–1.0.</td></tr>
 <tr><td><code>restitution_combine</code></td><td>enum</td><td><code>average</code></td><td>How this surface&#x27;s bounciness combines with the other one&#x27;s One of <code>average</code>, <code>min</code>, <code>multiply</code>, <code>max</code>, <code>clamped_sum</code>, <code>geometric_mean</code>.</td></tr>
 <tr><td><code>sensor</code></td><td>bool</td><td><code>false</code></td><td>Detects overlaps without colliding: bodies pass through and are reported</td></tr>
-<tr><td><code>solver_layer</code></td><td>flags</td><td><code>[&quot;0&quot;]</code></td><td>Layers for the solver alone: a pair can be detected but not resolved One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
-<tr><td><code>solver_mask</code></td><td>flags</td><td><code>[]</code></td><td>Which solver layers this one pushes against; empty means all of them One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
+<tr><td><code>solver_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>Layers for the solver alone: a pair can be detected but not resolved One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
+<tr><td><code>solver_mask</code></td><td>flags</td><td><code>[]</code></td><td>Which solver layers this one pushes against; empty means all of them One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 </tbody>
 </table>
 
@@ -771,7 +776,7 @@ On a node carrying `transform`, as `node.transform.<method>`:
 
 ### `body3d`
 
-`3d` · `physics` · 18 properties · 27 methods
+`3d` · `physics` · 18 properties · 30 methods
 
 A 3D rigid body simulated by rapier. `kind` is `dynamic`, `static`, `kinematic` or `kinematic_velocity`; add a `collider3d` for its shape.
 
@@ -783,7 +788,7 @@ A 3D rigid body simulated by rapier. `kind` is `dynamic`, `static`, `kinematic` 
 <tr><td><code>can_sleep</code></td><td>bool</td><td><code>true</code></td><td>Let the body stop being simulated once it has held still</td></tr>
 <tr><td><code>center_of_mass</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where the extra mass sits, in the node&#x27;s own space; only read when mass is set</td></tr>
 <tr><td><code>continuous_collision</code></td><td>bool</td><td><code>false</code></td><td>Sweep the body&#x27;s whole path each step so a fast one cannot pass through a wall</td></tr>
-<tr><td><code>dominance</code></td><td>float</td><td><code>0.0</code></td><td>A body in a higher group is unpushable by a lower one; every non-dynamic body outranks them all Range -127.0–127.0.</td></tr>
+<tr><td><code>dominance</code></td><td>int</td><td><code>0</code></td><td>A body in a higher group is unpushable by a lower one; every non-dynamic body outranks them all Range -127–127.</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Simulate this body at all; a disabled body keeps its state and costs nothing</td></tr>
 <tr><td><code>gravity_scale</code></td><td>float</td><td><code>1.0</code></td><td>Multiplier on world gravity for this body: 0 hangs in the air, negative floats up</td></tr>
 <tr><td><code>gyroscopic_forces</code></td><td>bool</td><td><code>false</code></td><td>Model the wobble a spinning body&#x27;s own inertia gives it, as a thrown American football has</td></tr>
@@ -792,8 +797,8 @@ A 3D rigid body simulated by rapier. `kind` is `dynamic`, `static`, `kinematic` 
 <tr><td><code>linear_damping</code></td><td>float</td><td><code>0.0</code></td><td>Drag on travel: how fast the body loses speed with nothing touching it At least 0.0.</td></tr>
 <tr><td><code>lock_rotation</code></td><td>flags</td><td><code>[]</code></td><td>World axes the body may not turn about; locking all three keeps a character upright One of <code>x</code>, <code>y</code>, <code>z</code>.</td></tr>
 <tr><td><code>lock_translation</code></td><td>flags</td><td><code>[]</code></td><td>World axes the body may not move along One of <code>x</code>, <code>y</code>, <code>z</code>.</td></tr>
-<tr><td><code>mass</code></td><td>float</td><td><code>0.0</code></td><td>Extra mass on top of what the colliders&#x27; density gives; 0 leaves the body at its collider mass At least 0.0.</td></tr>
-<tr><td><code>solver_iterations</code></td><td>float</td><td><code>0.0</code></td><td>Extra solver iterations for this body alone, for the one stack that jitters At least 0.0.</td></tr>
+<tr><td><code>mass</code></td><td>float</td><td><code>0.0</code></td><td>The body&#x27;s total mass; 0 sums what its colliders weigh At least 0.0.</td></tr>
+<tr><td><code>solver_iterations</code></td><td>int</td><td><code>0</code></td><td>Extra solver iterations for this body alone, for the one stack that jitters At least 0.</td></tr>
 <tr><td><code>speculative_distance</code></td><td>float</td><td><code>0.0</code></td><td>Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies At least 0.0.</td></tr>
 <tr><td><code>time_to_sleep</code></td><td>float</td><td><code>0.5</code></td><td>Seconds of stillness before the body sleeps At least 0.0.</td></tr>
 </tbody>
@@ -808,8 +813,11 @@ On a node carrying `body3d`, as `node.body3d.<method>`:
 <tr><td><code>add_constant_force_at_point(f32, f32, f32, f32, f32, f32)</code></td><td>—</td><td>Push at a world point every step, which also turns the body.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>add_constant_torque(f32, f32, f32)</code></td><td>—</td><td>Turn the body every step until the constant torque is set back to zero.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>angular_velocity()</code></td><td><code>(f32, f32, f32)</code></td><td>How fast the body is spinning, in radians per second about each axis.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>apply_force(f32, f32, f32)</code></td><td>—</td><td>Push the body for the next step only; `add_constant_force` keeps pushing.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>apply_force_at_point(f32, f32, f32, f32, f32, f32)</code></td><td>—</td><td>Push at a world point for the next step only, which also turns the body.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>apply_impulse(f32, f32, f32)</code></td><td>—</td><td>Add an instant change in momentum, as if the body were struck.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>apply_impulse_at_point(f32, f32, f32, f32, f32, f32)</code></td><td>—</td><td>Strike the body at a world point, which spins it as well as moves it.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>apply_torque(f32, f32, f32)</code></td><td>—</td><td>Turn the body for the next step only; `add_constant_torque` keeps turning it.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>apply_torque_impulse(f32, f32, f32)</code></td><td>—</td><td>Add an instant change in angular momentum, as if the body were spun.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>constant_force()</code></td><td><code>(f32, f32, f32)</code></td><td>The force every step integrates until it is set back to zero.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>constant_torque()</code></td><td><code>(f32, f32, f32)</code></td><td>The torque every step integrates until it is set back to zero.</td><td><code>physics3d</code></td></tr>
@@ -828,7 +836,7 @@ On a node carrying `body3d`, as `node.body3d.<method>`:
 <tr><td><code>set_linear_velocity(f32, f32, f32)</code></td><td>—</td><td>Set how fast the body travels, in units per second.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>sleep()</code></td><td>—</td><td>Put the body to sleep now.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>teleport(f32, f32, f32)</code></td><td>—</td><td>Move the body to a world position at once, clearing its velocity: what assigning the node&#x27;s position cannot do, because the step writes that back every tick.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>total_mass()</code></td><td><code>f32</code></td><td>The body&#x27;s total mass, colliders included. The `mass` property is the extra on top of them.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>total_mass()</code></td><td><code>f32</code></td><td>The body&#x27;s total mass: its `mass` when it states one, or what its colliders weigh.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>velocity_at_point(f32, f32, f32)</code></td><td><code>(f32, f32, f32)</code></td><td>How fast a world point on the body is moving, spin included.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>wake_up()</code></td><td>—</td><td>Wake the body, so the next step moves it.</td><td><code>physics3d</code></td></tr>
 </tbody>
@@ -944,9 +952,9 @@ The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3
 <tr><td><code>a</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>First corner, when kind is triangle or segment</td></tr>
 <tr><td><code>b</code></td><td>vec3</td><td><code>[1.0, 0.0, 0.0]</code></td><td>Second corner, when kind is triangle or segment</td></tr>
 <tr><td><code>c</code></td><td>vec3</td><td><code>[0.0, 1.0, 0.0]</code></td><td>Third corner, when kind is triangle</td></tr>
-<tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;0&quot;]</code></td><td>The layers this collider is on One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
+<tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers this collider is on One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_margin</code></td><td>float</td><td><code>0.0</code></td><td>A margin the solver treats as already touching; stops thin shapes tunnelling and jittering At least 0.0.</td></tr>
-<tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
+<tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>contact_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>How hard a contact must be before on_contact_force is called At least 0.0.</td></tr>
 <tr><td><code>contact_pairs</code></td><td>flags</td><td><code>[&quot;dynamic_dynamic&quot;, &quot;dynamic_kinematic&quot;, &quot;dynamic_static&quot;]</code></td><td>Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default One of <code>dynamic_dynamic</code>, <code>dynamic_kinematic</code>, <code>dynamic_static</code>, <code>kinematic_kinematic</code>, <code>kinematic_static</code>, <code>static_static</code>.</td></tr>
 <tr><td><code>density</code></td><td>float</td><td><code>1.0</code></td><td>Mass per volume, so the shape&#x27;s size sets its mass At least 0.001.</td></tr>
@@ -975,8 +983,8 @@ The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3
 <tr><td><code>scale</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Cell size and height scale of a heightfield</td></tr>
 <tr><td><code>sensor</code></td><td>bool</td><td><code>false</code></td><td>Detects overlaps without colliding: bodies pass through and are reported</td></tr>
 <tr><td><code>size</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Whole size along each axis, when kind is box</td></tr>
-<tr><td><code>solver_layer</code></td><td>flags</td><td><code>[&quot;0&quot;]</code></td><td>Layers for the solver alone: a pair can be detected but not resolved One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
-<tr><td><code>solver_mask</code></td><td>flags</td><td><code>[]</code></td><td>Which solver layers this one pushes against; empty means all of them One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
+<tr><td><code>solver_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>Layers for the solver alone: a pair can be detected but not resolved One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
+<tr><td><code>solver_mask</code></td><td>flags</td><td><code>[]</code></td><td>Which solver layers this one pushes against; empty means all of them One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>voxel_size</code></td><td>float</td><td><code>0.25</code></td><td>How big one cell is, when kind is voxelized_mesh At least 0.001.</td></tr>
 <tr><td><code>voxels</code></td><td>asset · <code>voxels</code></td><td>—</td><td>Filled cells, when kind is voxels; a script may dig into them while the game runs</td></tr>
 <tr><td><code>weld_vertices</code></td><td>bool</td><td><code>false</code></td><td>Drop duplicate vertices and degenerate triangles when building a triangle_mesh</td></tr>
@@ -1050,7 +1058,7 @@ The scene's atmosphere: `sky`, `ambient_color`, `fog_mode`, `exposure`, `tonemap
 
 ### `joint3d`
 
-`3d` · `physics` · 18 properties · 6 methods
+`3d` · `physics` · 20 properties · 6 methods
 
 Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `ball_socket`, `rope`, `spring` or `generic`; both ends need a `body3d` on or above the node.
 
@@ -1058,6 +1066,7 @@ Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>anchor</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where the joint attaches on this node, in its own space</td></tr>
+<tr><td><code>articulation</code></td><td>bool</td><td><code>false</code></td><td>Solve in reduced coordinates: the chain never drifts and can be solved for inverse kinematics, but cannot close a loop</td></tr>
 <tr><td><code>axis</code></td><td>vec3</td><td><code>[0.0, 0.0, 1.0]</code></td><td>The axis a revolute joint turns about or a prismatic one slides along</td></tr>
 <tr><td><code>break_force</code></td><td>float</td><td><code>0.0</code></td><td>The pull that snaps the joint and calls on_joint_break; 0 never breaks At least 0.0.</td></tr>
 <tr><td><code>collide_connected</code></td><td>bool</td><td><code>false</code></td><td>Let the two joined bodies collide with each other</td></tr>
@@ -1066,14 +1075,15 @@ Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`
 <tr><td><code>damping</code></td><td>float</td><td><code>1.0</code></td><td>How quickly the motion settles, for a spring joint or a motor At least 0.0.</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Hold the two bodies together at all</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>fixed</code></td><td>How the two bodies may move relative to each other One of <code>fixed</code>, <code>hinge</code>, <code>slider</code>, <code>ball_socket</code>, <code>rope</code>, <code>spring</code>, <code>generic</code>.</td></tr>
-<tr><td><code>length</code></td><td>float</td><td><code>0.0</code></td><td>The rope&#x27;s greatest length, or the spring&#x27;s rest length At least 0.0.</td></tr>
 <tr><td><code>limits</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>How far the joint may travel, as a low and a high; equal values mean no limit</td></tr>
-<tr><td><code>locked_axes</code></td><td>flags</td><td><code>[]</code></td><td>Which of the six freedoms a generic joint takes away One of <code>x</code>, <code>y</code>, <code>z</code>, <code>ang_x</code>, <code>ang_y</code>, <code>ang_z</code>.</td></tr>
+<tr><td><code>lock_rotation</code></td><td>flags</td><td><code>[]</code></td><td>The axes a generic joint may not turn about One of <code>x</code>, <code>y</code>, <code>z</code>.</td></tr>
+<tr><td><code>lock_translation</code></td><td>flags</td><td><code>[]</code></td><td>The axes a generic joint may not slide along One of <code>x</code>, <code>y</code>, <code>z</code>.</td></tr>
+<tr><td><code>max_length</code></td><td>float</td><td><code>0.0</code></td><td>The rope&#x27;s greatest length At least 0.0.</td></tr>
 <tr><td><code>motor</code></td><td>enum</td><td><code>off</code></td><td>Drive the joint towards a speed, towards a position, or not at all One of <code>off</code>, <code>velocity</code>, <code>position</code>.</td></tr>
 <tr><td><code>motor_max_force</code></td><td>float</td><td><code>0.0</code></td><td>The most force the motor may use; 0 means as much as it takes At least 0.0.</td></tr>
 <tr><td><code>motor_model</code></td><td>enum</td><td><code>acceleration</code></td><td>Whether the motor&#x27;s strength is felt as an acceleration, ignoring mass, or as a force One of <code>acceleration</code>, <code>force</code>.</td></tr>
 <tr><td><code>motor_target</code></td><td>float</td><td><code>0.0</code></td><td>The speed or the position the motor drives towards</td></tr>
-<tr><td><code>solver</code></td><td>enum</td><td><code>impulse</code></td><td>impulse holds any arrangement, loops included; reduced never drifts and can be solved for inverse kinematics, but cannot close a loop One of <code>impulse</code>, <code>reduced</code>.</td></tr>
+<tr><td><code>rest_length</code></td><td>float</td><td><code>0.0</code></td><td>The length a spring pulls back to At least 0.0.</td></tr>
 <tr><td><code>stiffness</code></td><td>float</td><td><code>0.0</code></td><td>Spring stiffness, for a spring joint or a position motor At least 0.0.</td></tr>
 </tbody>
 </table>
@@ -1239,8 +1249,8 @@ A deformable 3D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>cell_size</code></td><td>float</td><td><code>0.25</code></td><td>How big one tetrahedron is when a volumetric body fills a mesh; smaller is finer, slower and stiffer to tear At least 0.001.</td></tr>
 <tr><td><code>cells</code></td><td>vec3</td><td><code>[4.0, 4.0, 4.0]</code></td><td>How many cells along each axis, for box; a cloth reads the first two, and a cloth_tube reads them as particles around and cells along</td></tr>
 <tr><td><code>collides</code></td><td>bool</td><td><code>true</code></td><td>Meet the world at all; off, the body passes through everything and only its pins and ties hold it</td></tr>
-<tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;0&quot;]</code></td><td>The layers this body is on One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
-<tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
+<tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers this body is on One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
+<tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>What the body is drawn in when its node has nothing of its own to deform, as a cloth or a rope has not</td></tr>
 <tr><td><code>deformation_damping</code></td><td>float</td><td><code>0.0</code></td><td>How fast the particles are pulled towards the body&#x27;s own rigid motion, which settles a residual sway without slowing the body down Range 0.0–1000.0.</td></tr>
 <tr><td><code>dominance</code></td><td>int</td><td><code>0</code></td><td>Which body wins a contact: a higher one is never pushed by a lower one Range -127–127.</td></tr>
@@ -1259,9 +1269,9 @@ A deformable 3D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>linear_damping</code></td><td>float</td><td><code>0.0</code></td><td>Air friction on the particles At least 0.0.</td></tr>
 <tr><td><code>mass</code></td><td>float</td><td><code>1.0</code></td><td>What the whole body weighs, spread over its particles At least 0.0.</td></tr>
 <tr><td><code>masses</code></td><td>list of float</td><td><code>[]</code></td><td>Each particle&#x27;s own mass, by index; empty spreads `mass` over them evenly</td></tr>
-<tr><td><code>max_tears_per_step</code></td><td>float</td><td><code>0.0</code></td><td>The most edges that may tear in one step, which paces a crack; 0 is no limit At least 0.0.</td></tr>
+<tr><td><code>max_tears_per_step</code></td><td>int</td><td><code>0</code></td><td>The most edges that may tear in one step, which paces a crack; 0 is no limit At least 0.</td></tr>
 <tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Geometry for a triangle_mesh, polyline or volumetric body</td></tr>
-<tr><td><code>min_piece</code></td><td>float</td><td><code>0.0</code></td><td>The smallest piece, in elements, a tear may split off; 0 lets rapier choose At least 0.0.</td></tr>
+<tr><td><code>min_piece</code></td><td>int</td><td><code>0</code></td><td>The smallest piece, in elements, a tear may split off; 0 lets rapier choose At least 0.</td></tr>
 <tr><td><code>oriented</code></td><td>bool</td><td><code>false</code></td><td>Treat the surface as closed and outward-facing, so its inside holds bodies in instead of pushing them out</td></tr>
 <tr><td><code>particle_count</code></td><td>int</td><td><code>16</code></td><td>How many particles a rope is made of At least 2.</td></tr>
 <tr><td><code>particle_radius</code></td><td>float</td><td><code>0.0</code></td><td>How thick the particles are; 0 takes what the layout works out At least 0.0.</td></tr>
@@ -1281,9 +1291,9 @@ A deformable 3D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>skin</code></td><td>bool</td><td><code>false</code></td><td>Keep the mesh as the drawn surface and let the cells carry it, so a detail the cell size cannot resolve survives</td></tr>
 <tr><td><code>skin_collision</code></td><td>bool</td><td><code>false</code></td><td>Meet the world through the skin rather than the cells&#x27; boundary</td></tr>
 <tr><td><code>solver</code></td><td>enum</td><td><code>constraints</code></td><td>Which solver runs the elasticity: sequential constraints, or an implicit Euler step over the whole body One of <code>constraints</code>, <code>fem</code>.</td></tr>
-<tr><td><code>solver_iterations</code></td><td>float</td><td><code>3.0</code></td><td>Extra iterations inside each substep, for the same Range 0.0–64.0.</td></tr>
-<tr><td><code>solver_substeps</code></td><td>float</td><td><code>0.0</code></td><td>Extra solver substeps for this body and everything it touches Range 0.0–64.0.</td></tr>
-<tr><td><code>subdivisions</code></td><td>float</td><td><code>2.0</code></td><td>How many times a sphere&#x27;s icosahedron is refined; each level quadruples the triangles Range 0.0–6.0.</td></tr>
+<tr><td><code>solver_iterations</code></td><td>int</td><td><code>3</code></td><td>Extra iterations inside each substep, for the same Range 0–64.</td></tr>
+<tr><td><code>solver_substeps</code></td><td>int</td><td><code>0</code></td><td>Extra solver substeps for this body and everything it touches Range 0–64.</td></tr>
+<tr><td><code>subdivisions</code></td><td>int</td><td><code>2</code></td><td>How many times a sphere&#x27;s icosahedron is refined; each level quadruples the triangles Range 0–6.</td></tr>
 <tr><td><code>tear_force</code></td><td>float</td><td><code>0.0</code></td><td>The pull past which an edge breaks; 0 is unbreakable. Either criterion tears an edge At least 0.0.</td></tr>
 <tr><td><code>tear_resistance</code></td><td>list of record · <code>a, b, resistance</code></td><td><code>[]</code></td><td>Edges that tear sooner or later than the rest, each named by the two particles it joins: below 1 is a perforation, above 1 a seam</td></tr>
 <tr><td><code>tear_smoothing</code></td><td>float</td><td><code>0.0</code></td><td>Over how many seconds a load is averaged before it is tested, so one hard frame does not tear a body At least 0.0.</td></tr>
@@ -1383,8 +1393,8 @@ Makes the node's `body3d` a raycast vehicle chassis, driven by the `wheel3d` chi
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>forward_axis</code></td><td>float</td><td><code>2.0</code></td><td>Which of the chassis&#x27;s own axes points forward Range 0.0–2.0.</td></tr>
-<tr><td><code>up_axis</code></td><td>float</td><td><code>1.0</code></td><td>Which of the chassis&#x27;s own axes points up: 0 for x, 1 for y, 2 for z Range 0.0–2.0.</td></tr>
+<tr><td><code>forward_axis</code></td><td>enum</td><td><code>z</code></td><td>Which of the chassis&#x27;s own axes points forward One of <code>x</code>, <code>y</code>, <code>z</code>.</td></tr>
+<tr><td><code>up_axis</code></td><td>enum</td><td><code>y</code></td><td>Which of the chassis&#x27;s own axes points up One of <code>x</code>, <code>y</code>, <code>z</code>.</td></tr>
 </tbody>
 </table>
 
@@ -1507,14 +1517,14 @@ On a node carrying `cloner`, as `node.cloner.<method>`:
 
 `render` · 14 properties
 
-A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `spread` and `gravity`. The live particles are renderer state the simulation never sees.
+A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `direction`, `spread_degrees` and `gravity`. The live particles are renderer state the simulation never sees.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>angle</code></td><td>float</td><td><code>90.0</code></td><td>Emission direction in degrees; 90 is straight up</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
 <tr><td><code>color_end</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 0.0]</code></td><td>The tint a particle fades to by the end of its life</td></tr>
+<tr><td><code>direction</code></td><td>vec2</td><td><code>[0.0, 1.0]</code></td><td>Which way the particles leave; [0, 1] is straight up</td></tr>
 <tr><td><code>emitting</code></td><td>bool</td><td><code>true</code></td><td>Whether new particles are born; live ones finish either way</td></tr>
 <tr><td><code>explosiveness</code></td><td>float</td><td><code>0.0</code></td><td>How much of a one-shot burst is born at once; the rest is spread over the lifetime Range 0.0–1.0.</td></tr>
 <tr><td><code>gravity</code></td><td>vec2</td><td><code>[0.0, -3.0]</code></td><td>Acceleration applied over a particle&#x27;s life</td></tr>
@@ -1524,7 +1534,7 @@ A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `spread` and 
 <tr><td><code>size</code></td><td>float</td><td><code>4.0</code></td><td>Particle size in logical pixels At least 0.5.</td></tr>
 <tr><td><code>size_end</code></td><td>float</td><td><code>-1.0</code></td><td>The size a particle grows or shrinks to by the end of its life, in logical pixels; below zero keeps `size`</td></tr>
 <tr><td><code>speed</code></td><td>float</td><td><code>2.0</code></td><td>Initial speed in world units per second At least 0.0.</td></tr>
-<tr><td><code>spread</code></td><td>float</td><td><code>30.0</code></td><td>Half-angle of the emission cone in degrees At least 0.0.</td></tr>
+<tr><td><code>spread_degrees</code></td><td>float</td><td><code>30.0</code></td><td>Half-angle of the emission cone in degrees At least 0.0.</td></tr>
 <tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>An image, or a `texture` asset, each particle draws with; empty draws a flat square</td></tr>
 </tbody>
 </table>

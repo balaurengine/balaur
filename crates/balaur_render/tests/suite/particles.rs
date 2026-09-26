@@ -49,7 +49,7 @@ fn a_particles_component_round_trips_and_stays_out_of_the_simulation() {
     let app = app();
     let entity = node(&app);
     let params: toml::Value = toml::from_str(
-        "emitting = false\nrate = 5.0\nlifetime = 2.0\nspeed = 1.5\nangle = 45.0\nspread = 10.0\nsize = 2.0\ngravity = [1.0, -2.0]",
+        "emitting = false\nrate = 5.0\nlifetime = 2.0\nspeed = 1.5\ndirection = [1.0, 1.0]\nspread_degrees = 10.0\nsize = 2.0\ngravity = [1.0, -2.0]",
     )
     .expect("the emitter params are valid TOML");
     components::add(&app.engine, entity, "particles", Some(&params))
@@ -62,8 +62,7 @@ fn a_particles_component_round_trips_and_stays_out_of_the_simulation() {
         ("rate", 5.0),
         ("lifetime", 2.0),
         ("speed", 1.5),
-        ("angle", 45.0),
-        ("spread", 10.0),
+        ("spread_degrees", 10.0),
         ("size", 2.0),
     ] {
         let got = table[key].as_float().expect("a float property reads back");
@@ -72,6 +71,13 @@ fn a_particles_component_round_trips_and_stays_out_of_the_simulation() {
             "{key}: expected {expected}, got {got}"
         );
     }
+    let direction = table["direction"].as_array().expect("direction reads back");
+    let half = std::f64::consts::FRAC_1_SQRT_2;
+    assert!(
+        (direction[0].as_float().unwrap() - half).abs() < 1e-6
+            && (direction[1].as_float().unwrap() - half).abs() < 1e-6,
+        "direction reads back as the unit vector it names: {direction:?}"
+    );
     let gravity = table["gravity"]
         .as_array()
         .expect("gravity reads back as an array");

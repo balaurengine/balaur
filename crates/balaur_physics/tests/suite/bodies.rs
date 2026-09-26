@@ -54,8 +54,8 @@ fn body_properties_round_trip() {
 linear_damping = 0.25
 angular_damping = 0.5
 gravity_scale = 2.0
-dominance = 7.0
-solver_iterations = 3.0
+dominance = 7
+solver_iterations = 3
 lock_translation = ["y"]
 lock_rotation = ["x", "z"]
 continuous_collision = true
@@ -217,16 +217,36 @@ fn mass_is_the_total_and_zero_sums_the_colliders() {
         state.world.bodies[state.bodies[&e]].mass()
     };
     let sphere = 4.0 / 3.0 * std::f32::consts::PI * 0.125;
-    assert!((mass_of(&app, summed) - sphere).abs() < 1e-3, "{}", mass_of(&app, summed));
-    assert!((mass_of(&app, light) - 0.1).abs() < 1e-5, "{}", mass_of(&app, light));
-    assert!((mass_of(&app, heavy) - 100.0).abs() < 1e-3, "{}", mass_of(&app, heavy));
+    assert!(
+        (mass_of(&app, summed) - sphere).abs() < 1e-3,
+        "{}",
+        mass_of(&app, summed)
+    );
+    assert!(
+        (mass_of(&app, light) - 0.1).abs() < 1e-5,
+        "{}",
+        mass_of(&app, light)
+    );
+    assert!(
+        (mass_of(&app, heavy) - 100.0).abs() < 1e-3,
+        "{}",
+        mass_of(&app, heavy)
+    );
     let collider = components::get(&app.engine, heavy, "collider3d").unwrap();
     assert_eq!(
-        collider.get("density").and_then(balaur_core::components::as_f64),
+        collider
+            .get("density")
+            .and_then(balaur_core::components::as_f64),
         Some(1.0),
         "the collider still reports the density it was given"
     );
-    components::patch(&app.engine, heavy, "body3d", &toml::from_str("mass = 0.0").unwrap()).unwrap();
+    components::patch(
+        &app.engine,
+        heavy,
+        "body3d",
+        &toml::from_str("mass = 0.0").unwrap(),
+    )
+    .unwrap();
     app.tick(1.0 / 60.0);
     assert!(
         (mass_of(&app, heavy) - sphere).abs() < 1e-3,
@@ -373,5 +393,23 @@ center_of_mass = [0.25, 0.0]"#,
     assert!(
         back.get("gyroscopic_forces").is_none(),
         "2D cannot apply gyroscopic"
+    );
+}
+
+#[test]
+fn a_2d_body_mass_is_the_total_too() {
+    let mut app = app();
+    let e = node(&app, "Crate");
+    let body: toml::Value = toml::from_str("kind = \"dynamic\"\nmass = 3.0").unwrap();
+    components::add(&app.engine, e, "body2d", Some(&body)).unwrap();
+    let collider: toml::Value = toml::from_str("kind = \"rectangle\"\nsize = [2.0, 2.0]").unwrap();
+    components::add(&app.engine, e, "collider2d", Some(&collider)).unwrap();
+    app.tick(1.0 / 60.0);
+    let state = app.engine.resource::<PhysicsState2d>();
+    let state = state.borrow();
+    let mass = state.world.bodies[state.bodies[&e]].mass();
+    assert!(
+        (mass - 3.0).abs() < 1e-5,
+        "a 2x2 box of density 1 under mass = 3 weighs {mass}"
     );
 }

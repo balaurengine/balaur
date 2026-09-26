@@ -244,7 +244,7 @@ fn vehicle_speed_measures_along_the_chassis_forward_axis() {
         r#"
         this.node.set_component("body3d", #{ kind: "dynamic" });
         this.node.set_component("collider3d", #{ kind: "box" });
-        this.node.set_component("vehicle3d", #{ forward_axis: 0.0 });
+        this.node.set_component("vehicle3d", #{ forward_axis: physics3d::AXIS_X });
         this.node.body3d.set_linear_velocity(5.0, 0.0, 0.0);
         let along_x = this.node.vehicle3d.vehicle_speed();
         assert!(along_x > 4.9, "a car built on x reads {} along its own forward", along_x);
@@ -298,6 +298,21 @@ fn a_property_of_another_component_is_refused() {
         assert!(!ok, "`density` answered on a body3d");
         let (wrote, _) = script::attempt(|| { this.node.body3d.density = 4.0; });
         assert!(!wrote, "`density` was written on a body3d");
+        "#,
+    );
+}
+
+#[test]
+fn apply_force_pushes_for_one_step_and_leaves_no_constant_force() {
+    run_clean(
+        r#"
+        this.node.body3d.set(#{ kind: physics3d::BODY_DYNAMIC, gravity_scale: 0.0, mass: 1.0 });
+        this.node.collider3d.set(#{ kind: physics3d::SHAPE_SPHERE, radius: 0.5 });
+        this.node.body3d.apply_force(60.0, 0.0, 0.0);
+        let (vx, _, _) = this.node.body3d.linear_velocity();
+        assert!(vx > 0.9 && vx < 1.1, "one step of 60 N on 1 kg is 1 m/s at 60 Hz, got {}", vx);
+        let (fx, _, _) = this.node.body3d.constant_force();
+        assert!(fx == 0.0, "apply_force left a constant force of {}", fx);
         "#,
     );
 }

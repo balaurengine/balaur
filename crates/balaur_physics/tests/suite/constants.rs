@@ -7,9 +7,9 @@ use balaur_core::components::ComponentRegistry;
 use balaur_core::{App, AppConfig};
 use balaur_physics::{
     AXES, AXES_2D, BODY_KINDS, CELL_MODELS, COLLISION_PAIRS, COMBINE_RULES, CONSTANTS_2D,
-    CONSTANTS_3D, EVENTS, FILL_MODES, FIT_MODES, JOINT_KINDS, JOINT_KINDS_2D, JOINT_SOLVERS,
-    LENGTH_MODES, MOTOR_MODELS, MOTOR_MODES, PLASTIC_FLOWS, PhysicsPlugin, SHAPE_KINDS,
-    SHAPE_KINDS_2D, SOFT_KINDS, SOFT_KINDS_2D, SOFT_SOLVERS,
+    CONSTANTS_3D, EVENTS, FILL_MODES, FIT_MODES, JOINT_KINDS, JOINT_KINDS_2D, LENGTH_MODES,
+    MOTOR_MODELS, MOTOR_MODES, PLASTIC_FLOWS, PhysicsPlugin, SHAPE_KINDS, SHAPE_KINDS_2D,
+    SOFT_KINDS, SOFT_KINDS_2D, SOFT_SOLVERS,
 };
 
 /// The enum or flags options a registered component actually declares.
@@ -66,7 +66,6 @@ fn every_constant_table_matches_the_registered_schema() {
         ("MOTOR_MODES", MOTOR_MODES, "joint3d", "motor"),
         ("MOTOR_MODES", MOTOR_MODES, "joint2d", "motor"),
         ("MOTOR_MODELS", MOTOR_MODELS, "joint3d", "motor_model"),
-        ("JOINT_SOLVERS", JOINT_SOLVERS, "joint2d", "solver"),
         ("LENGTH_MODES", LENGTH_MODES, "character3d", "lengths"),
         ("LENGTH_MODES", LENGTH_MODES, "character2d", "lengths"),
         ("FILL_MODES", FILL_MODES, "collider3d", "fill"),
@@ -78,8 +77,8 @@ fn every_constant_table_matches_the_registered_schema() {
             "collider2d",
             "contact_pairs",
         ),
-        ("AXES", AXES, "joint3d", "locked_axes"),
-        ("AXES_2D", AXES_2D, "joint2d", "locked_axes"),
+        ("AXES", AXES, "joint3d", "lock_rotation"),
+        ("AXES_2D", AXES_2D, "joint2d", "lock_translation"),
         ("SOFT_KINDS", SOFT_KINDS, "softbody3d", "kind"),
         ("SOFT_KINDS_2D", SOFT_KINDS_2D, "softbody2d", "kind"),
         ("SOFT_SOLVERS", SOFT_SOLVERS, "softbody3d", "solver"),
