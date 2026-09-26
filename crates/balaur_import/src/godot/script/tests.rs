@@ -154,6 +154,19 @@ func _finish(button):\n\
 }
 
 #[test]
+fn a_widget_signal_connected_binds_the_shim_it_patches_through() {
+    let source = "extends Button\n\n\
+func _ready() -> void:\n\
+\tpressed.connect(_on_pressed)\n\n\
+func _on_pressed() -> void:\n\
+\tpass\n";
+    let out = convert(source, "scripts/a.gd", &Classes::default());
+    let at = out.rune.find("(gd.patch_widget)").expect("the connect patches the widget");
+    let bound = out.rune[..at].rfind("let gd = script::require(\"gd.rn\");");
+    assert!(bound.is_some(), "{}", out.rune);
+}
+
+#[test]
 fn the_system_s_dark_mode_is_the_engine_s() {
     let source = "extends Node\n\n\
 func dark() -> bool:\n\

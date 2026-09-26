@@ -135,7 +135,8 @@ impl Emitter<'_> {
         // A widget's own signal is a key on the widget: the engine calls it on
         // the first ancestor whose script has the method, as the connect meant.
         if let Some(key) = map::widget_signal(&signal) {
-            return Some(map::widget_connect(&receiver, key, handler.as_deref()));
+            let text = map::widget_connect(&receiver, key, handler.as_deref());
+            return Some(self.shimmed(text));
         }
         // Any other signal is an event on the emitting node. The engine calls
         // `on_<name>`, so the module gains one that forwards to the handler.
