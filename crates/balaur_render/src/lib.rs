@@ -48,6 +48,7 @@ pub fn take_launch_url() -> Option<String> {
 
 #[cfg(feature = "kiss3d")]
 mod morph;
+mod notifier;
 mod particles;
 pub mod pick;
 mod polygon;
@@ -88,6 +89,7 @@ pub fn viewport_size(eng: &Engine) -> (u32, u32) {
 }
 pub use light3d::{Environment, FogKind, Light3d, LightKind3d, LitLight3d, Tonemap};
 pub use mesh::MorphWeights;
+pub use notifier::ScreenNotifier2d;
 pub use particles::Particles;
 pub use polygon::PolygonMesh;
 pub use reflection::{LitProbe, ReflectionProbe};
@@ -889,6 +891,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         text_component::install_text_api(&mut *m);
         tilemap::install_tilemap_api(&mut *m);
         tilemap::install_tilemap_terrain_api(&mut *m);
+        notifier::install_notifier_api(&mut *m);
         script_api::register_window_module(reg)?;
         shape::register_shape_component(reg);
         shape::register_shape2d_component(reg);
@@ -913,11 +916,14 @@ impl balaur_plugin::Plugin for RenderPlugin {
         text_component::register_text3d_component(reg);
         tilemap::register_tilemap_component(reg);
         particles::register_particles_component(reg);
+        notifier::register_notifier_component(reg);
         reg.insert_resource(particles::Bursts::default());
         reg.add_system(Stage::FixedUpdate, particles::burst_system);
         // SceneSync, and after the core propagation system registered at
         // `App::new`: the camera follows the node's settled global pose.
         reg.add_system(Stage::SceneSync, camera::drive_camera_system);
+        // After the camera: the screen is where it settled this tick.
+        reg.add_system(Stage::SceneSync, notifier::notify_screen_system);
         // Same stage, after the camera: an outline follows the collider or
         // shape the node has settled on this tick.
         reg.add_system(Stage::SceneSync, light::resolve_occluders_system);

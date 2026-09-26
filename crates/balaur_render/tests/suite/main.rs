@@ -16,6 +16,7 @@ mod cloner;
 mod light;
 mod material;
 mod morph_weights;
+mod notifier;
 mod particles;
 mod picking;
 mod polygon;

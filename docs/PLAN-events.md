@@ -161,10 +161,11 @@ In order of how often a game needs them.
    resume and low memory on desktop and mobile, which wait on the kiss3d
    fork passing winit's lifecycle events on; the same gap means
    `on_focused_changed` never fires from a window today.
-8. **Render:** part built. A camera announces `current_changed` when it
-   becomes or stops being the one drawn from. `render.screenshot` answers
-   every listener with `screenshot_written` or `screenshot_failed`, a run
-   with no renderer included. Left: a node entering and leaving the screen.
+8. **Render:** built. A camera announces `current_changed` when it becomes
+   or stops being the one drawn from. `render.screenshot` answers every
+   listener with `screenshot_written` or `screenshot_failed`, a run with no
+   renderer included. A `screen_notifier2d` box announces `screen_enter` and
+   `screen_exit` against the current 2D camera's view.
 9. **Network:** part built. `http.cancel` drops a reply, stops a download
    writing and tells the handler `cancelled`. A websocket `closed` carries
    its close `code`, and `websocket.state` says where a connection is. A
