@@ -157,6 +157,9 @@ pub struct Style {
     /// What the widget wears while it is on, under whichever pointer table
     /// applies; its own `hover` and `active` win over the entry's.
     pub checked: Option<Rc<Style>>,
+    /// A `fold`'s arrow picture, and the frame around its open children.
+    pub arrow: Option<String>,
+    pub body: Option<Rc<Style>>,
 }
 
 impl Style {
@@ -220,6 +223,8 @@ impl Style {
             disabled: self.disabled.clone().or_else(|| base.disabled.clone()),
             focus: self.focus.clone().or_else(|| base.focus.clone()),
             checked: self.checked.clone().or_else(|| base.checked.clone()),
+            arrow: self.arrow.clone().or_else(|| base.arrow.clone()),
+            body: self.body.clone().or_else(|| base.body.clone()),
         }
     }
 
@@ -536,6 +541,15 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
             .and_then(toml::Value::as_table)
             .map(|table| Rc::new(checked_style(table, tokens, what))),
         classes: class_styles(body, tokens, what),
+        arrow: body
+            .get(k::ARROW)
+            .and_then(toml::Value::as_str)
+            .filter(|path| !path.is_empty())
+            .map(str::to_string),
+        body: body
+            .get(k::BODY)
+            .and_then(toml::Value::as_table)
+            .map(|table| Rc::new(style_of(table, tokens, what))),
     }
 }
 
@@ -689,6 +703,13 @@ fill = "bg_control"
 stroke = "border_default"
 corner_radius = 6.0
 padding_x = 10.0                 # the air either side of a cell's text
+
+[fold]                           # the header; [fold.checked] while open
+arrow = "art/folded.png"         # the header's arrow picture; the ▸ and ▾ glyphs where none
+
+[fold.body]                      # the frame around what an open fold shows
+fill = "bg_panel"
+padding = 8.0
 
 [roles.danger]                   # what a widget with role = "danger" takes
 fill = "danger_fill"

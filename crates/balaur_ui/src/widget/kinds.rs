@@ -8,11 +8,13 @@ use balaur_core::Engine;
 use egui::{Color32, Rect, Sense, Stroke, TextureId, pos2, vec2};
 
 use crate::vocabulary::words as w;
-use crate::widget::arrange::{Axis, lay_out, padding_of, record_measure, record_rect, solved_of};
+use crate::widget::arrange::{
+    Axis, Pad, lay_out, padding_of, record_measure, record_rect, solved_of, style_padding,
+};
 use crate::widget::layer::{Edit, Painting, draw_one};
 use crate::widget::measure::Measure;
 use crate::widget::node::Widget;
-use crate::widget::theme::{Pointer, WidgetState};
+use crate::widget::theme::{Pointer, Style, WidgetState};
 
 /// A ticked box with a caption. The tick lives on the widget: the click is
 /// reported like a button's and the next tick flips `checked`.
@@ -526,8 +528,8 @@ pub(crate) fn separator(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) 
 
 /// A header that shows or hides the children under it. The header is a
 /// button by another shape: clicking it reports an `Open` edit, and focus
-/// lands on it as on a button. A child marked `title_bar` is drawn in the
-/// header after the caption, and takes its own clicks first.
+/// lands on it as on a button. While open it wears its `checked` table, and
+/// what it shows sits in the theme's `body` frame.
 pub(crate) fn fold(
     ui: &mut egui::Ui,
     at: &mut Painting<'_>,
@@ -536,62 +538,22 @@ pub(crate) fn fold(
     font: &egui::FontId,
     color: Color32,
 ) {
-    let placed = &at.arena[index];
-    let (entity, open) = (placed.entity, placed.widget.open);
-    let widget = placed.widget.clone();
-    let bar: Vec<usize> = placed
-        .children
-        .iter()
-        .copied()
-        .filter(|child| in_title_bar(at.arena, index, *child))
-        .collect();
+    let widget = at.arena[index].widget.clone();
     let style = at.style_of(&widget);
-    let pad = padding_of(&widget, &style);
-    let mark = if open { "▾" } else { "▸" };
-    let label = if caption.is_empty() {
-        mark.to_owned()
-    } else {
-        format!("{mark} {caption}")
-    };
-    let galley = ui.painter().layout_no_wrap(label, font.clone(), color);
-    let sizes: Vec<egui::Vec2> = {
-        let mut measure = Measure::new(at.eng, at.arena, ui);
-        bar.iter()
-            .map(|child| measure.of(*child, &at.theme))
-            .collect()
-    };
     let room = ui.available_rect_before_wrap();
-    let tall = sizes
-        .iter()
-        .fold(galley.size().y, |most, size| most.max(size.y));
-    let strip = Rect::from_min_size(room.min, vec2(room.width(), tall));
-    // Sensed before the bar's children are drawn, so theirs sit on top.
-    let header = ui.interact(strip, ui.id().with(("fold", entity)), Sense::click());
-    if header.clicked() {
-        at.edits.push((entity, Edit::Open(!open)));
-    }
-    let text_at = pos2(strip.min.x, strip.center().y - galley.size().y / 2.0);
-    let mut across = strip.min.x + galley.size().x + ui.spacing().item_spacing.x;
-    ui.painter().galley(text_at, galley, color);
-    for (child, size) in bar.iter().zip(sizes) {
-        let rect = Rect::from_min_size(pos2(across, strip.center().y - size.y / 2.0), size);
-        in_header(ui, at, *child, rect);
-        across = rect.max.x + ui.spacing().item_spacing.x;
-    }
-    if at.focused == Some(entity) {
-        ui.painter().rect_stroke(
-            strip.expand(2.0),
-            4.0,
-            Stroke::new(2.0, color),
-            egui::StrokeKind::Outside,
-        );
-    }
+    let strip = fold_header(ui, at, index, &style, (caption, font, color), room);
     ui.advance_cursor_after_rect(strip);
-    if !open {
+    if !widget.open {
         return;
     }
     let top = strip.max.y + ui.spacing().item_spacing.y;
-    let body = Rect::from_min_max(pos2(room.min.x + pad.left, top), room.max);
+    let frame = ui.painter().add(egui::Shape::Noop);
+    let pad = style
+        .body
+        .as_deref()
+        .map_or_else(Pad::default, |body| style_padding(body, 0.0));
+    let area = Rect::from_min_max(pos2(room.min.x, top), room.max);
+    let body = pad.inside(area);
     // Solved on its own: the header is drawn here rather than authored, so
     // what is under it is a subtree of its own from the layout's side.
     let space = crate::widget::taffy::Room::scrolling(body, w::BOTH);
@@ -608,7 +570,185 @@ pub(crate) fn fold(
     let held = std::mem::replace(&mut at.rects, solved);
     lay_out(&mut inner, at, index, Axis::Column);
     at.rects = held;
-    ui.advance_cursor_after_rect(inner.min_rect());
+    let bottom = inner.min_rect().max.y + pad.bottom;
+    let used = Rect::from_min_max(area.min, pos2(room.max.x, bottom));
+    if let Some(body) = &style.body {
+        plate(ui, at.eng, frame, body, used);
+    }
+    ui.advance_cursor_after_rect(used);
+}
+
+/// A fold's header, drawn in the fold's state: its frame, its arrow, the
+/// caption and the title bar children. Answers the header's box.
+fn fold_header(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    style: &Style,
+    (caption, font, color): (&str, &egui::FontId, Color32),
+    room: Rect,
+) -> Rect {
+    let placed = &at.arena[index];
+    let (entity, open) = (placed.entity, placed.widget.open);
+    let pad = padding_of(&placed.widget, style);
+    let bar: Vec<usize> = placed
+        .children
+        .iter()
+        .copied()
+        .filter(|child| in_title_bar(at.arena, index, *child))
+        .collect();
+    let gap = ui.spacing().item_spacing.x;
+    let mark = font.size;
+    let galley = (!caption.is_empty()).then(|| {
+        ui.painter()
+            .layout_no_wrap(caption.to_owned(), font.clone(), Color32::PLACEHOLDER)
+    });
+    let words = galley.as_ref().map_or(0.0, |galley| galley.size().x + gap);
+    let sizes: Vec<egui::Vec2> = {
+        let mut measure = Measure::new(at.eng, at.arena, ui);
+        bar.iter()
+            .map(|child| measure.of(*child, &at.theme))
+            .collect()
+    };
+    let spare = room.width() - pad.left - pad.right - mark - gap - words;
+    let sizes = grown(at.arena, &bar, sizes, spare, gap);
+    let line = galley
+        .as_ref()
+        .map_or(mark, |galley| galley.size().y.max(mark));
+    let tall = sizes.iter().fold(line, |most, size| most.max(size.y));
+    let strip = Rect::from_min_size(room.min, vec2(room.width(), tall + pad.top + pad.bottom));
+    let frame = ui.painter().add(egui::Shape::Noop);
+    // Sensed before the bar's children are drawn, so theirs sit on top.
+    let header = ui.interact(strip, ui.id().with(("fold", entity)), Sense::click());
+    if header.clicked() {
+        at.edits.push((entity, Edit::Open(!open)));
+    }
+    let state = WidgetState {
+        pointer: Pointer::of(&header),
+        disabled: false,
+        focused: at.focused == Some(entity),
+        checked: open,
+    };
+    let look = style.in_states(state);
+    plate(ui, at.eng, frame, &look, strip);
+    let ink = look.text_color.unwrap_or(color);
+    let middle = strip.center().y;
+    let arrow = Rect::from_center_size(
+        pos2(strip.min.x + pad.left + mark / 2.0, middle),
+        vec2(mark, mark),
+    );
+    fold_arrow(ui, at.eng, look.arrow.as_deref(), open, arrow, (font, ink));
+    let mut across = arrow.max.x + gap;
+    if let Some(galley) = galley {
+        let height = galley.size().y;
+        ui.painter()
+            .galley(pos2(across, middle - height / 2.0), galley, ink);
+        across += words;
+    }
+    for (child, size) in bar.iter().zip(sizes) {
+        let rect = Rect::from_min_size(pos2(across, middle - size.y / 2.0), size);
+        in_header(ui, at, *child, rect);
+        across = rect.max.x + gap;
+    }
+    if state.focused && style.focus.is_none() {
+        ui.painter().rect_stroke(
+            strip.expand(2.0),
+            4.0,
+            Stroke::new(2.0, ink),
+            egui::StrokeKind::Outside,
+        );
+    }
+    strip
+}
+
+/// The theme's arrow picture, or the glyph pointing the way the fold is.
+fn fold_arrow(
+    ui: &egui::Ui,
+    eng: &Engine,
+    picture: Option<&str>,
+    open: bool,
+    rect: Rect,
+    (font, ink): (&egui::FontId, Color32),
+) {
+    let texture = picture.and_then(|path| crate::images::texture_of(eng, ui.ctx(), path).ok());
+    if let Some(texture) = texture {
+        let whole = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
+        ui.painter().image(texture.id(), rect, whole, Color32::WHITE);
+        return;
+    }
+    let mark = if open { "▾" } else { "▸" };
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        mark,
+        font.clone(),
+        ink,
+    );
+}
+
+/// A style's frame over `rect`, into the slot reserved for it before what
+/// sits on it was drawn: its nine-patch, or its fill and outline.
+fn plate(ui: &egui::Ui, eng: &Engine, slot: egui::layers::ShapeIdx, style: &Style, rect: Rect) {
+    if let Some(path) = style.image.as_ref() {
+        nine_patch_plate(ui, eng, slot, path, style.slice, rect);
+        return;
+    }
+    if style.fill.is_none() && style.stroke.is_none() {
+        return;
+    }
+    let radius = if style.round == Some(true) {
+        rect.height() / 2.0
+    } else {
+        style.radius.unwrap_or(0.0)
+    };
+    ui.painter().set(
+        slot,
+        egui::epaint::RectShape::new(
+            rect,
+            egui::CornerRadius::same(radius.clamp(0.0, 255.0) as u8),
+            style.fill.unwrap_or(Color32::TRANSPARENT),
+            style
+                .stroke
+                .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_px(), c)),
+            egui::StrokeKind::Inside,
+        ),
+    );
+}
+
+/// The title bar children's sizes, those with a `grow` sharing what the
+/// header has left after the others, as Godot's title bar expands them.
+fn grown(
+    arena: &[crate::widget::arena::Placed],
+    bar: &[usize],
+    sizes: Vec<egui::Vec2>,
+    width: f32,
+    gap: f32,
+) -> Vec<egui::Vec2> {
+    let growing: f32 = bar
+        .iter()
+        .map(|child| arena[*child].widget.grow.max(0.0))
+        .sum();
+    if growing <= 0.0 {
+        return sizes;
+    }
+    let taken: f32 = bar
+        .iter()
+        .zip(&sizes)
+        .filter(|(child, _)| arena[**child].widget.grow <= 0.0)
+        .map(|(_, size)| size.x + gap)
+        .sum();
+    let spare = (width - taken).max(0.0);
+    bar.iter()
+        .zip(sizes)
+        .map(|(child, size)| {
+            let share = arena[*child].widget.grow.max(0.0) / growing;
+            if share > 0.0 {
+                vec2(size.x.max(spare * share), size.y)
+            } else {
+                size
+            }
+        })
+        .collect()
 }
 
 /// Whether `child` is drawn in its fold's header rather than under it.

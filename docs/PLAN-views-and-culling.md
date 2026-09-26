@@ -54,9 +54,9 @@ reference says on the function.
 **Instancing is automatic.** Renderables sharing a mesh asset and a material
 draw as one call with per-instance model matrices in a storage buffer,
 grouped in the material pipeline the engine already owns. A script wanting a
-hundred thousand instances gets `multimesh`: the mesh, a count, and
-`set_instance(i, pose, color)` on the handle, which is Godot's
-`MultiMeshInstance` without the resource.
+hundred thousand instances gets Godot's `MultiMesh`: a `multimesh` asset
+drawn by `multimesh3d` or `multimesh2d`, in `docs/PLAN-multimesh.md`, which
+replaces the `cloner`.
 
 **Level of detail is the mesh asset's.** `lods = [{ source, distance }]` in
 the definition, so an imported model carries its own chain, and `balaur
@@ -78,7 +78,7 @@ mesh.
 | Picture-in-picture | Step 5: a `viewport` on an `image` widget |
 | Level of detail | Step 6: `lods` on the mesh asset, `lod_bias` on `mesh`, `range` and `range_fade` on renderables, `balaur import --lods` through `meshopt` (C bindings, the constraint) |
 | Many sprites in one call | Step 7: 2D batching by texture and material in the sync |
-| Scripted mass instancing | Step 8: `multimesh`, the scripted twin of the `cloner` component: a count and `set_instance(i, pose, color)` where the cloner has a mode and a seed |
+| Scripted mass instancing | Step 8: the `multimesh` asset, `multimesh3d` and `multimesh2d`, and `set_instance_transform(i, t)`, in `docs/PLAN-multimesh.md` |
 | Occlusion culling | Roadmap 0.9: frustum and distance first, then a software depth rasteriser. A scene big enough to ask for it is what that milestone is |
 | Render scale and sharpening | Step 4: `viewport.scale`, `sharpen` through the fork's CAS pass |
 | Stereo views for XR | The roadmap's XR item; step 4's hook is the half it reuses |
@@ -92,7 +92,7 @@ mesh.
 5. `viewport` to a texture.
 6. Level of detail and ranges.
 7. 2D batching. **Built**, and 3a says what it holds to.
-8. `multimesh`.
+8. `multimesh`, planned in `docs/PLAN-multimesh.md`.
 
 ## 3a. What 2D batching has to do
 

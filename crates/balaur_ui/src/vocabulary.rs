@@ -254,6 +254,10 @@ pub(crate) mod keys {
     pub(crate) const CURRENT_PAGE: &str = "current_page";
     pub(crate) const ALIGN_ITEMS: &str = "align_items";
     pub(crate) const ARROWS: &str = "arrows";
+    /// A `fold`'s theme: the picture its header draws for the arrow, and the
+    /// frame around what it shows while open.
+    pub(crate) const ARROW: &str = "arrow";
+    pub(crate) const BODY: &str = "body";
     pub(crate) const COLORS: &str = "colors";
     /// The theme document's asset type, the theme it is written over, its
     /// mode flag, and its table of named sizes.

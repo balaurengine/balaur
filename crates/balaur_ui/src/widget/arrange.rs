@@ -111,7 +111,12 @@ pub(crate) fn padding_of(widget: &Widget, style: &crate::widget::theme::Style) -
     if widget.padding.iter().any(|side| *side >= 0.0) {
         return Pad::of(widget.padding.map(|side| side.max(0.0)));
     }
-    let both = style.padding.unwrap_or(built_in);
+    style_padding(style, built_in)
+}
+
+/// The padding a style states, `fallback` on the sides it leaves open.
+pub(crate) fn style_padding(style: &crate::widget::theme::Style, fallback: f32) -> Pad {
+    let both = style.padding.unwrap_or(fallback);
     let across = style.padding_x.unwrap_or(both);
     let down = style.padding_y.unwrap_or(both);
     Pad::of([across, down, across, down])

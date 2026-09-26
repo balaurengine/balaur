@@ -796,7 +796,7 @@ THEME_STATES = {"hover", "active", "focus", "disabled", "checked", "touch", "poi
                 "narrow", "medium", "wide", "short", "tall"}
 # Theme keys with no widget property of the same name: each styles a part
 # of a widget that has no property of its own.
-THEME_ONLY = {"icon_fill", "padding_y", "stroke_width"}
+THEME_ONLY = {"icon_fill", "padding_y", "stroke_width", "arrow"}
 
 
 def theme_files() -> list[Path]:

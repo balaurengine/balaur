@@ -329,6 +329,50 @@ fn a_title_bar_child_is_drawn_in_its_fold_s_header_while_the_fold_is_shut() {
 }
 
 #[test]
+fn a_fold_wears_its_checked_table_while_open_and_frames_what_it_shows() {
+    let painted = |open: bool| {
+        let (dir, app) = app();
+        std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+        std::fs::write(
+            dir.path().join("themes/t.toml"),
+            "type = \"widget_theme\"\n\n[fold]\nfill = \"#102030\"\n\n[fold.checked]\nfill = \"#405060\"\n\n[fold.body]\nfill = \"#708090\"\npadding = 6.0\n",
+        )
+        .unwrap();
+        let mut params = toml::toml! { kind = "fold" text = "Sound" theme = "themes/t.toml" x = 0.0 y = 0.0 width = 200.0 };
+        params.insert("open".into(), toml::Value::Boolean(open));
+        let fold = add_widget(&app, &params.into());
+        add_child_widget(
+            &app,
+            fold,
+            "inner",
+            &toml::toml! { kind = "label" text = "Volume" }.into(),
+        );
+        let ctx = egui::Context::default();
+        settle(&app, &ctx);
+        let mut fills = Vec::new();
+        for clipped in &pass(&app, &ctx, vec![]).shapes {
+            if let egui::epaint::Shape::Rect(rect) = &clipped.shape {
+                fills.push(rect.fill);
+            }
+        }
+        fills
+    };
+    let rest = egui::Color32::from_rgb(0x10, 0x20, 0x30);
+    let checked = egui::Color32::from_rgb(0x40, 0x50, 0x60);
+    let body = egui::Color32::from_rgb(0x70, 0x80, 0x90);
+    let shut = painted(false);
+    assert!(
+        shut.contains(&rest) && !shut.contains(&checked) && !shut.contains(&body),
+        "a shut fold's header wears its own fill and frames nothing: {shut:?}"
+    );
+    let open = painted(true);
+    assert!(
+        open.contains(&checked) && open.contains(&body) && !open.contains(&rest),
+        "an open fold wears `checked` and frames its children in `body`: {open:?}"
+    );
+}
+
+#[test]
 fn a_dialog_dims_the_screen_and_keeps_clicks_from_what_is_behind() {
     let (_dir, mut app) = app();
     let behind = add_widget(

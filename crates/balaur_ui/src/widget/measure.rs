@@ -158,7 +158,9 @@ impl<'a> Measure<'a> {
             w::SEPARATOR => egui::Vec2::splat(6.0),
             w::WINDOW if !widget.open => egui::Vec2::ZERO,
             w::FOLD => {
-                let mut head = self.text(index, widget, theme) + vec2(20.0, 0.0);
+                // The arrow is a square as tall as the caption's line.
+                let text = self.text(index, widget, theme);
+                let mut head = vec2(text.x + text.y + 8.0, text.y);
                 let arena = self.arena;
                 for child in &arena[index].children {
                     if crate::widget::kinds::in_title_bar(arena, index, *child) {
@@ -166,11 +168,20 @@ impl<'a> Measure<'a> {
                         head = vec2(head.x + size.x + 8.0, head.y.max(size.y));
                     }
                 }
+                let look = crate::widget::arena::look_of(arena, index, theme);
+                let head = head + padding_of(widget, &look.style).taken();
                 if !widget.open {
                     return head;
                 }
-                let body = self.container(index, theme);
-                vec2(head.x.max(body.x), head.y + body.y)
+                let frame = look
+                    .style
+                    .body
+                    .as_deref()
+                    .map_or(egui::Vec2::ZERO, |body| {
+                        crate::widget::arrange::style_padding(body, 0.0).taken()
+                    });
+                let body = self.container(index, theme) + frame;
+                vec2(head.x.max(body.x), head.y + 8.0 + body.y)
             }
             // Drawn as a button once its rows are nodes, so measured as one; a
             // menu of strings is egui's own button, measured by its caption.
