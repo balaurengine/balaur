@@ -253,6 +253,13 @@ def gen_script_api(api, owners):
     return body
 
 
+def code_spans(text):
+    """Backtick spans as <code> and the rest escaped: a cell in an HTML table
+    renders no markdown."""
+    parts = text.split("`")
+    return "".join(f"<code>{html.escape(p)}</code>" if i % 2 else html.escape(p) for i, p in enumerate(parts))
+
+
 def component_row(prop, spec):
     """One <tr>. HTML rather than a markdown table because a cell holds
     several sentences with inline code."""
@@ -361,7 +368,7 @@ def method_row(module, function, signature, doc):
     return "<tr>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>"
 
 
-def gen_components(components, tags, docs=None, methods=None):
+def gen_components(components, tags, docs=None, methods=None, events=None):
     out = [
         "# Components\n\n",
         "Balaur has no node classes and no inheritance tree: every node is the\n"
@@ -385,6 +392,11 @@ def gen_components(components, tags, docs=None, methods=None):
         "below are the functions that declared they act on it. Every handle also\n"
         "carries `get()`, `set(table)`, `has()` and `remove()`, so a component\n"
         "with no methods of its own is still reachable that way.\n\n"
+        "**Events.** What a component announces from its node reaches the\n"
+        "node's own `on_<name>(payload)`, an `emitted:<name>` row in\n"
+        "`[[nodes.bindings.rows]]`, `events::subscribe` and\n"
+        "`task::wait(events::next(name, node))`. The collision pair keeps\n"
+        "its row spelling without the prefix.\n\n"
         "**Properties.** Every property in the tables below is also a field on\n"
         "that handle, so `node.collider3d.density = 15.0` writes one property\n"
         "and leaves the rest where they were, and `node.collider3d.density`\n"
@@ -419,6 +431,17 @@ def gen_components(components, tags, docs=None, methods=None):
                 + "<table>\n<thead><tr><th>property</th><th>type</th><th>default</th>"
                 f"<th>description</th></tr></thead>\n<tbody>\n{rows}\n</tbody>\n</table>\n\n"
             )
+            sent = (events or {}).get(name, [])
+            if sent:
+                listed = "\n".join(
+                    f"<tr><td><code>{html.escape(event)}</code></td><td>{code_spans(payload)}</td></tr>"
+                    for event, payload in sent
+                )
+                out.append(
+                    f"Announced from a node carrying `{name}`:\n\n"
+                    "<table>\n<thead><tr><th>event</th><th>payload</th></tr></thead>\n"
+                    f"<tbody>\n{listed}\n</tbody>\n</table>\n\n"
+                )
             if calls:
                 body = "\n".join(method_row(*call) for call in calls)
                 out.append(
@@ -646,6 +669,7 @@ def main():
             api.get("component_tags", {}),
             api.get("component_docs", {}),
             component_methods(api),
+            api.get("component_events", {}),
         ),
         "assets.md": gen_assets(
             api.get("asset_types", {}),

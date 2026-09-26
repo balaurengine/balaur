@@ -109,6 +109,126 @@
     "wheel3d": "One wheel of the `vehicle3d` above it; the node's position on the chassis is where its ray starts. `physics3d.set_engine_force`, `set_brake` and `set_steering` drive it.",
     "widget": "A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button sets `clicked` and calls `on_click`."
   },
+  "component_events": {
+    "animation": [
+      [
+        "animation_finished",
+        "the clip's name"
+      ]
+    ],
+    "collider2d": [
+      [
+        "collision_enter",
+        "the other collider's node"
+      ],
+      [
+        "collision_exit",
+        "the other collider's node"
+      ],
+      [
+        "contact_force",
+        "`#{ other, force, direction }`"
+      ]
+    ],
+    "collider3d": [
+      [
+        "collision_enter",
+        "the other collider's node"
+      ],
+      [
+        "collision_exit",
+        "the other collider's node"
+      ],
+      [
+        "contact_force",
+        "`#{ other, force, direction }`"
+      ]
+    ],
+    "joint2d": [
+      [
+        "joint_break",
+        "`#{ a, b, force }`"
+      ]
+    ],
+    "joint3d": [
+      [
+        "joint_break",
+        "`#{ a, b, force }`"
+      ]
+    ],
+    "softbody2d": [
+      [
+        "tear",
+        "`#{ pieces }`"
+      ]
+    ],
+    "softbody3d": [
+      [
+        "tear",
+        "`#{ pieces }`"
+      ]
+    ],
+    "state_machine": [
+      [
+        "state_started",
+        "the state entered"
+      ],
+      [
+        "state_finished",
+        "the state left"
+      ]
+    ],
+    "tile_collision": [
+      [
+        "collision_enter",
+        "the other collider's node"
+      ],
+      [
+        "collision_exit",
+        "the other collider's node"
+      ],
+      [
+        "contact_force",
+        "`#{ other, force, direction }`"
+      ]
+    ],
+    "timer": [
+      [
+        "timeout",
+        "nil"
+      ]
+    ],
+    "widget": [
+      [
+        "click",
+        "nil"
+      ],
+      [
+        "change",
+        "the new value"
+      ],
+      [
+        "submit",
+        "the text"
+      ],
+      [
+        "link",
+        "the link's target"
+      ],
+      [
+        "gutter",
+        "the line"
+      ],
+      [
+        "move",
+        "`[moved, target, side]`"
+      ],
+      [
+        "drop",
+        "the card"
+      ]
+    ]
+  },
   "component_tags": {
     "animation": [
       "animation"
@@ -6795,6 +6915,10 @@
           "value": "state_started"
         },
         {
+          "name": "EVENT_TWEEN_FINISHED",
+          "value": "tween_finished"
+        },
+        {
           "name": "INTERPOLATION_CUBIC",
           "value": "cubic"
         },
@@ -11239,7 +11363,7 @@
       "doc": "The node tree: its root, lookup by path and instancing, plus the component and preset vocabulary an editor's palette lists.",
       "docs": {
         "apply_preset": "Add every component a preset names to the node; a part that fails leaves the parts before it in place.",
-        "bindable_events": "Every event a `[[nodes.bindings.rows]]` row may answer, in the order an editor offers them.",
+        "bindable_events": "Every event a `[[nodes.bindings.rows]]` row may answer, in the order an editor offers them: the core hooks, and on a node the `emitted:` events it and its components announce.",
         "binding_actions": "Every action a binding row may do, in the order an editor offers them.",
         "component_expects": "The components a component type needs something from, for ordering or grouping its sections; nil for a name nothing registered.",
         "component_properties": "What a component's `apply` would receive for `params`: the schema's defaults with a partial table merged over them. This is how a tool compares two spellings of the same component.",
@@ -11288,7 +11412,7 @@
       "name": "scene",
       "signatures": {
         "apply_preset": "(node: node, name: string)",
-        "bindable_events": "()",
+        "bindable_events": "(node: node?)",
         "binding_actions": "()",
         "component_expects": "(name: string)",
         "component_properties": "(name: string, params: any)",

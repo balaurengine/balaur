@@ -8,7 +8,7 @@ cannot drift from what scripts actually see.
 
 | Module | Functions | Constants | Declared by |
 | --- | ---: | ---: | --- |
-| [`animation`](#animation) | 20 | 74 | the engine |
+| [`animation`](#animation) | 20 | 75 | the engine |
 | [`apple`](#apple) | 18 | 0 | the engine |
 | [`assets`](#assets) | 11 | 0 | the engine |
 | [`audio`](#audio) | 19 | 0 | the engine |
@@ -58,7 +58,7 @@ cannot drift from what scripts actually see.
 
 **Functions:** `add_clip`, `current_clip`, `current_state`, `ease_names`, `is_playing`, `is_tween_running`, `jump`, `just_finished`, `pause`, `play`, `queue`, `resume`, `seek`, `set_condition`, `stop`, `time`, `travel`, `tween`, `tween_value`, `tween_value_of`
 
-**Constants** (74):
+**Constants** (75):
 
 | Name | Value |
 | --- | --- |
@@ -87,7 +87,7 @@ cannot drift from what scripts actually see.
 | `EASE_IN_QUINT` | `in_quint` |
 | `EASE_IN_SINE` | `in_sine` |
 
-…and 50 more.
+…and 51 more.
 
 ## `apple`
 

@@ -27,6 +27,12 @@ below are the functions that declared they act on it. Every handle also
 carries `get()`, `set(table)`, `has()` and `remove()`, so a component
 with no methods of its own is still reachable that way.
 
+**Events.** What a component announces from its node reaches the
+node's own `on_<name>(payload)`, an `emitted:<name>` row in
+`[[nodes.bindings.rows]]`, `events::subscribe` and
+`task::wait(events::next(name, node))`. The collision pair keeps
+its row spelling without the prefix.
+
 **Properties.** Every property in the tables below is also a field on
 that handle, so `node.collider3d.density = 15.0` writes one property
 and leaves the rest where they were, and `node.collider3d.density`
@@ -187,7 +193,7 @@ On a node carrying `character2d`, as `node.character2d.<method>`:
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
 <tr><td><code>is_on_floor()</code></td><td><code>bool</code></td><td>Whether the last move ended with ground under the character&#x27;s feet.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>move_character(f32, f32)</code></td><td><code>Value</code></td><td>Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, grounded, sliding, collisions }`. Call it from fixed_update.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>move_character(f32, f32)</code></td><td><code>Value</code></td><td>Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, on_floor, sliding, collisions }`. Call it from fixed_update.</td><td><code>physics2d</code></td></tr>
 </tbody>
 </table>
 
@@ -244,6 +250,17 @@ The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2
 </tbody>
 </table>
 
+Announced from a node carrying `collider2d`:
+
+<table>
+<thead><tr><th>event</th><th>payload</th></tr></thead>
+<tbody>
+<tr><td><code>collision_enter</code></td><td>the other collider&#x27;s node</td></tr>
+<tr><td><code>collision_exit</code></td><td>the other collider&#x27;s node</td></tr>
+<tr><td><code>contact_force</code></td><td><code>#{ other, force, direction }</code></td></tr>
+</tbody>
+</table>
+
 On a node carrying `collider2d`, as `node.collider2d.<method>`:
 
 <table>
@@ -283,6 +300,15 @@ Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`
 <tr><td><code>motor_target</code></td><td>float</td><td><code>0.0</code></td><td>The speed or the position the motor drives towards</td></tr>
 <tr><td><code>solver</code></td><td>enum</td><td><code>impulse</code></td><td>impulse holds any arrangement, loops included; reduced never drifts and can be solved for inverse kinematics, but cannot close a loop One of <code>impulse</code>, <code>reduced</code>.</td></tr>
 <tr><td><code>stiffness</code></td><td>float</td><td><code>0.0</code></td><td>Spring stiffness, for a spring joint or a position motor At least 0.0.</td></tr>
+</tbody>
+</table>
+
+Announced from a node carrying `joint2d`:
+
+<table>
+<thead><tr><th>event</th><th>payload</th></tr></thead>
+<tbody>
+<tr><td><code>joint_break</code></td><td><code>#{ a, b, force }</code></td></tr>
 </tbody>
 </table>
 
@@ -499,6 +525,15 @@ A deformable 2D body: particles linked by elastic constraints, laid out by `kind
 </tbody>
 </table>
 
+Announced from a node carrying `softbody2d`:
+
+<table>
+<thead><tr><th>event</th><th>payload</th></tr></thead>
+<tbody>
+<tr><td><code>tear</code></td><td><code>#{ pieces }</code></td></tr>
+</tbody>
+</table>
+
 On a node carrying `softbody2d`, as `node.softbody2d.<method>`:
 
 <table>
@@ -613,6 +648,17 @@ Collision for the node's `tilemap` cells: every tile the tileset marks solid, on
 <tr><td><code>sensor</code></td><td>bool</td><td><code>false</code></td><td>Detects overlaps without colliding: bodies pass through and are reported</td></tr>
 <tr><td><code>solver_layer</code></td><td>flags</td><td><code>[&quot;0&quot;]</code></td><td>Layers for the solver alone: a pair can be detected but not resolved One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
 <tr><td><code>solver_mask</code></td><td>flags</td><td><code>[]</code></td><td>Which solver layers this one pushes against; empty means all of them One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
+</tbody>
+</table>
+
+Announced from a node carrying `tile_collision`:
+
+<table>
+<thead><tr><th>event</th><th>payload</th></tr></thead>
+<tbody>
+<tr><td><code>collision_enter</code></td><td>the other collider&#x27;s node</td></tr>
+<tr><td><code>collision_exit</code></td><td>the other collider&#x27;s node</td></tr>
+<tr><td><code>contact_force</code></td><td><code>#{ other, force, direction }</code></td></tr>
 </tbody>
 </table>
 
@@ -882,7 +928,7 @@ On a node carrying `character3d`, as `node.character3d.<method>`:
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
 <tr><td><code>is_on_floor()</code></td><td><code>bool</code></td><td>Whether the last move ended with ground under the character&#x27;s feet.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>move_character(f32, f32, f32)</code></td><td><code>Value</code></td><td>Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, grounded, sliding, collisions }`. Call it from fixed_update. It reads the world the step just wrote.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>move_character(f32, f32, f32)</code></td><td><code>Value</code></td><td>Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, on_floor, sliding, collisions }`. Call it from fixed_update. It reads the world the step just wrote.</td><td><code>physics3d</code></td></tr>
 </tbody>
 </table>
 
@@ -934,6 +980,17 @@ The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3
 <tr><td><code>voxel_size</code></td><td>float</td><td><code>0.25</code></td><td>How big one cell is, when kind is voxelized_mesh At least 0.001.</td></tr>
 <tr><td><code>voxels</code></td><td>asset · <code>voxels</code></td><td>—</td><td>Filled cells, when kind is voxels; a script may dig into them while the game runs</td></tr>
 <tr><td><code>weld_vertices</code></td><td>bool</td><td><code>false</code></td><td>Drop duplicate vertices and degenerate triangles when building a triangle_mesh</td></tr>
+</tbody>
+</table>
+
+Announced from a node carrying `collider3d`:
+
+<table>
+<thead><tr><th>event</th><th>payload</th></tr></thead>
+<tbody>
+<tr><td><code>collision_enter</code></td><td>the other collider&#x27;s node</td></tr>
+<tr><td><code>collision_exit</code></td><td>the other collider&#x27;s node</td></tr>
+<tr><td><code>contact_force</code></td><td><code>#{ other, force, direction }</code></td></tr>
 </tbody>
 </table>
 
@@ -1018,6 +1075,15 @@ Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`
 <tr><td><code>motor_target</code></td><td>float</td><td><code>0.0</code></td><td>The speed or the position the motor drives towards</td></tr>
 <tr><td><code>solver</code></td><td>enum</td><td><code>impulse</code></td><td>impulse holds any arrangement, loops included; reduced never drifts and can be solved for inverse kinematics, but cannot close a loop One of <code>impulse</code>, <code>reduced</code>.</td></tr>
 <tr><td><code>stiffness</code></td><td>float</td><td><code>0.0</code></td><td>Spring stiffness, for a spring joint or a position motor At least 0.0.</td></tr>
+</tbody>
+</table>
+
+Announced from a node carrying `joint3d`:
+
+<table>
+<thead><tr><th>event</th><th>payload</th></tr></thead>
+<tbody>
+<tr><td><code>joint_break</code></td><td><code>#{ a, b, force }</code></td></tr>
 </tbody>
 </table>
 
@@ -1233,6 +1299,15 @@ A deformable 3D body: particles linked by elastic constraints, laid out by `kind
 </tbody>
 </table>
 
+Announced from a node carrying `softbody3d`:
+
+<table>
+<thead><tr><th>event</th><th>payload</th></tr></thead>
+<tbody>
+<tr><td><code>tear</code></td><td><code>#{ pieces }</code></td></tr>
+</tbody>
+</table>
+
 On a node carrying `softbody3d`, as `node.softbody3d.<method>`:
 
 <table>
@@ -1353,7 +1428,7 @@ On a node carrying `wheel3d`, as `node.wheel3d.<method>`:
 <tr><td><code>set_brake(f32)</code></td><td>—</td><td>How hard this wheel brakes.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_engine_force(f32)</code></td><td>—</td><td>How hard this wheel drives, in newtons; negative reverses.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_steering(f32)</code></td><td>—</td><td>Turn this wheel, in radians.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>wheel_state()</code></td><td><code>Value</code></td><td>What the last step did with this wheel: `#{ rotation, suspension_force, grounded, engine_force, brake, steering }`.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>wheel_state()</code></td><td><code>Value</code></td><td>What the last step did with this wheel: `#{ rotation, suspension_force, in_contact, engine_force, brake, steering }`.</td><td><code>physics3d</code></td></tr>
 </tbody>
 </table>
 
@@ -1472,6 +1547,15 @@ Plays animation clips on the node. `library` is the clip asset, `autoplay` the c
 </tbody>
 </table>
 
+Announced from a node carrying `animation`:
+
+<table>
+<thead><tr><th>event</th><th>payload</th></tr></thead>
+<tbody>
+<tr><td><code>animation_finished</code></td><td>the clip&#x27;s name</td></tr>
+</tbody>
+</table>
+
 On a node carrying `animation`, as `node.animation.<method>`:
 
 <table>
@@ -1503,6 +1587,16 @@ Runs the `state_machine` asset in `machine` over the `player` node's clips. `aut
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether the machine is running</td></tr>
 <tr><td><code>machine</code></td><td>asset · <code>state_machine</code></td><td>—</td><td>The state machine to run</td></tr>
 <tr><td><code>player</code></td><td>string</td><td>—</td><td>Node path to the `animation` player it drives; empty means this node</td></tr>
+</tbody>
+</table>
+
+Announced from a node carrying `state_machine`:
+
+<table>
+<thead><tr><th>event</th><th>payload</th></tr></thead>
+<tbody>
+<tr><td><code>state_started</code></td><td>the state entered</td></tr>
+<tr><td><code>state_finished</code></td><td>the state left</td></tr>
 </tbody>
 </table>
 
@@ -1685,6 +1779,21 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 </tbody>
 </table>
 
+Announced from a node carrying `widget`:
+
+<table>
+<thead><tr><th>event</th><th>payload</th></tr></thead>
+<tbody>
+<tr><td><code>click</code></td><td>nil</td></tr>
+<tr><td><code>change</code></td><td>the new value</td></tr>
+<tr><td><code>submit</code></td><td>the text</td></tr>
+<tr><td><code>link</code></td><td>the link&#x27;s target</td></tr>
+<tr><td><code>gutter</code></td><td>the line</td></tr>
+<tr><td><code>move</code></td><td><code>[moved, target, side]</code></td></tr>
+<tr><td><code>drop</code></td><td>the card</td></tr>
+</tbody>
+</table>
+
 ## Other
 
 ### `bindings`
@@ -1751,6 +1860,15 @@ Counts `wait_time` seconds down and emits `timeout` from the node, which binding
 <tr><td><code>running</code></td><td>bool</td><td><code>false</code></td><td>Whether it is counting; set true to start it from `wait_time`, false to stop it</td></tr>
 <tr><td><code>time_left</code></td><td>float</td><td><code>0.0</code></td><td>Seconds until the next `timeout` Read-only: engine output the inspector shows but never writes. At least 0.0.</td></tr>
 <tr><td><code>wait_time</code></td><td>float</td><td><code>1.0</code></td><td>Seconds from starting to `timeout` At least 0.001.</td></tr>
+</tbody>
+</table>
+
+Announced from a node carrying `timer`:
+
+<table>
+<thead><tr><th>event</th><th>payload</th></tr></thead>
+<tbody>
+<tr><td><code>timeout</code></td><td>nil</td></tr>
 </tbody>
 </table>
 
