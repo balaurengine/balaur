@@ -122,10 +122,11 @@ In order of how often a game needs them.
    `finished` with the handle, from the decoded length counted on the fixed
    step, so a headless run and a replay end it on the same tick;
    `events::next("finished", node)` awaits it.
-2. **Widget pointer and focus:** hover enter and exit, press and release with
-   the button, right and double click on every widget, focus lost, and egui
-   focus copied into `UiFocus` when a field is clicked
-   (`balaur_ui/src/widget/layer.rs`, `input.rs`, `text.rs`).
+2. **Widget pointer and focus:** built. Every widget announces
+   `pointer_enter`, `pointer_exit`, `pointer_down` and `pointer_up` with the
+   button, as a world node does, and emits `double_click`, `focus` and
+   `blur`; a click into a field is focus arriving. A field still submits on
+   Enter and on a click away, and only the click away is a `blur`.
 3. **Widget commits:** drag end on slider, number field and colour picker;
    row activate and tree fold on lists; open and close on menus, dropdowns
    and dialogs; a scroll offset and a scrolled event; a window close request a

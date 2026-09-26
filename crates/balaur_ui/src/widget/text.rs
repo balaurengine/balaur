@@ -468,14 +468,30 @@ fn edit(
     if at.taking && at.focused == Some(entity) {
         response.request_focus();
     }
+    // A click into the field is focus arriving, as Tab reaching it is.
+    if response.gained_focus()
+        && let Some(focus) = at.eng.try_resource::<crate::UiFocus>()
+    {
+        focus.borrow_mut().focused = Some(entity);
+    }
     if widget.numeric {
         buffer.retain(|c| c.is_ascii_digit() || matches!(c, '-' | '.'));
     }
     if response.changed() {
         at.edits.push((entity, Edit::Text(buffer.clone())));
     }
+    // Enter and a click away both submit; only the click away is a blur.
     if response.lost_focus() {
         at.edits.push((entity, Edit::Submit(buffer.clone())));
+        if !ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+            at.edits.push((entity, Edit::Blurred));
+            if let Some(focus) = at.eng.try_resource::<crate::UiFocus>() {
+                let mut focus = focus.borrow_mut();
+                if focus.focused == Some(entity) {
+                    focus.focused = None;
+                }
+            }
+        }
     }
     state.borrow_mut().text_buffers.insert(key, buffer);
 }

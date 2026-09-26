@@ -80,14 +80,8 @@ fn under_pointer(eng: &Engine) -> Option<Entity> {
 }
 
 fn button_name(button: u8) -> Value {
-    Value::Str(
-        match button {
-            1 => "right",
-            2 => "middle",
-            _ => "left",
-        }
-        .to_string(),
-    )
+    let name = hooks::BUTTONS.get(usize::from(button)).unwrap_or(&hooks::BUTTONS[0]);
+    Value::Str((*name).to_string())
 }
 
 /// Everything the pointer did this tick.

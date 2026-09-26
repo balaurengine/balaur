@@ -43,6 +43,8 @@ pub const POINTER_UP: &str = "pointer_up";
 pub const POINTER_CLICK: &str = "pointer_click";
 pub const POINTER_DRAG: &str = "pointer_drag";
 pub const POINTER_DROP: &str = "pointer_drop";
+/// The button a pointer event names, by index: primary, secondary, middle.
+pub const BUTTONS: [&str; 3] = ["left", "right", "middle"];
 pub const KEY_DOWN: &str = "key_down";
 pub const KEY_UP: &str = "key_up";
 pub const ACTION: &str = "action";

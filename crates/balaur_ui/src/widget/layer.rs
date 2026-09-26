@@ -247,15 +247,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     let turned = turned_fold(&placed, accepted);
     // A chord is a click by another name, as an `accept` is.
     let fired = shortcuts(ctx, &placed, &shown);
-    let focused = eng
-        .try_resource::<UiFocus>()
-        .and_then(|f| f.borrow().focused);
-    // Consumed here, so a field takes the caret on the pass after the script
-    // asked and never steals it back from whatever the reader clicked next.
-    let taking = eng.try_resource::<UiFocus>().is_some_and(|f| {
-        let mut focus = f.borrow_mut();
-        std::mem::take(&mut focus.taking)
-    });
+    let (focused, taking) = focus_before(eng);
     let mut toasts = crate::widget::toast::Stack::default();
     let mut painting = Painting {
         eng,
@@ -275,6 +267,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         state: WidgetState::default(),
         context_opened: false,
         pointer: UiPointer::default(),
+        under: Vec::new(),
     };
     for root in &roots {
         let root = *root;
@@ -302,20 +295,56 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     settle_rects();
     roll_measurements();
     crate::widget::taffy::sweep(eng);
-    let edits = std::mem::take(&mut painting.edits);
+    let mut edits = std::mem::take(&mut painting.edits);
     let clicked = std::mem::take(&mut painting.clicked);
+    edits.extend(crate::widget::input::pointer_edits(
+        eng,
+        ctx,
+        &painting.under,
+    ));
     publish_pointer(eng, painting.pointer);
     // Dropped before the arena moves: `Painting` borrows it for the draw.
     drop(painting);
     keep(placed, roots, index_of, stamp);
     // After the pass, never inside it: the arena the draw walked names them.
     crate::widget::toast::clear(eng, &toasts.expired());
-    // Only on the change: a handler firing every frame focus merely *stayed*
-    // would be a different event, and not a useful one.
-    let arrived = (taking || focused != was_focused)
-        .then_some(focused)
-        .flatten();
+    let arrived = focus_moved(eng, was_focused, taking, &mut edits);
     crate::widget::input::record(eng, &clicked, edits, arrived);
+}
+
+/// Where focus rests as the draw starts, and whether it was just put there.
+/// `taking` is consumed here, so a field takes the caret on the pass after the
+/// script asked and never steals it back from whatever the reader clicked.
+fn focus_before(eng: &Engine) -> (Option<Entity>, bool) {
+    let Some(focus) = eng.try_resource::<UiFocus>() else {
+        return (None, false);
+    };
+    let mut focus = focus.borrow_mut();
+    (focus.focused, std::mem::take(&mut focus.taking))
+}
+
+/// Where focus went this pass: a blur for the widget it left, and the one it
+/// arrived at, reported only on the change. Read after the draw, which a
+/// clicked field may have moved it in.
+fn focus_moved(
+    eng: &Engine,
+    was_focused: Option<Entity>,
+    taking: bool,
+    edits: &mut Vec<(Entity, Edit)>,
+) -> Option<Entity> {
+    let focused = eng
+        .try_resource::<UiFocus>()
+        .and_then(|f| f.borrow().focused);
+    if let Some(was) = was_focused.filter(|was| Some(*was) != focused)
+        && !edits
+            .iter()
+            .any(|(e, edit)| *e == was && matches!(edit, Edit::Blurred))
+    {
+        edits.push((was, Edit::Blurred));
+    }
+    (taking || focused != was_focused)
+        .then_some(focused)
+        .flatten()
 }
 
 /// Draw one root into the area its surface gives it, and record where it
@@ -563,6 +592,8 @@ pub(crate) struct Painting<'a> {
     /// press. Children draw before the parent asks, so the innermost one
     /// under the pointer takes it.
     pub(crate) context_opened: bool,
+    /// Every widget the pointer is over this pass, outermost first.
+    pub(crate) under: Vec<Entity>,
 }
 
 impl Painting<'_> {
@@ -666,6 +697,16 @@ pub(crate) enum Edit {
     Link(String),
     /// The 1-based line a click on a `code` widget's gutter landed on.
     Gutter(i64),
+    /// The pointer came over the widget, or left it.
+    Entered,
+    Left,
+    /// A button went down or came up over the innermost widget, by name.
+    Pressed(String),
+    Released(String),
+    /// The primary button clicked twice over the innermost widget.
+    DoubleClicked,
+    /// Focus left the widget.
+    Blurred,
 }
 
 /// Draw one widget and, when it is a container, what is laid out inside it.
@@ -715,6 +756,9 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         .try_resource::<crate::UiFocus>()
         .is_some_and(|focus| focus.borrow().focused == Some(at.arena[index].entity));
     let (hovered, held) = pointer_state(ui, disabled);
+    if hovered {
+        at.under.push(at.arena[index].entity);
+    }
     let pointer = if held {
         Pointer::Held
     } else if hovered {

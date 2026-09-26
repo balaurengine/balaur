@@ -7,7 +7,7 @@
 //! at the top of the next tick, from a resource a recording carries.
 
 use balaur_core::hecs::{Entity, World};
-use balaur_core::{Engine, Stage, replay};
+use balaur_core::{Engine, Stage, hooks, replay};
 use balaur_script::Value;
 use serde::{Deserialize, Serialize};
 
@@ -37,6 +37,7 @@ pub struct WidgetInputBuffer(Option<WidgetInputSnapshot>);
 
 pub(crate) fn register(reg: &mut balaur_plugin::Registry<'_>) {
     reg.insert_resource(WidgetInputBuffer::default());
+    reg.insert_resource(Hovered::default());
     reg.insert_resource(WidgetInputSnapshot::default());
     reg.add_replay_resource::<WidgetInputSnapshot>("ui");
     // After core's replay restore, which is the first system in the stage, and
@@ -168,6 +169,65 @@ pub const MOVE_EVENT: &str = "move";
 /// What a `list` emits when a card dragged out of it is let go, with the card.
 pub const DROP_EVENT: &str = "drop";
 
+/// What a widget emits when the primary button clicks twice over it, when
+/// focus arrives at it, and when focus leaves it.
+pub const DOUBLE_CLICK_EVENT: &str = "double_click";
+pub const FOCUS_EVENT: &str = "focus";
+pub const BLUR_EVENT: &str = "blur";
+
+/// Which widgets the pointer was over at the end of the last pass.
+#[derive(Default)]
+pub(crate) struct Hovered(Vec<Entity>);
+
+/// The pointer's edits for this pass: enter and exit for every widget it
+/// came over or left, and the button presses over the innermost one.
+pub(crate) fn pointer_edits(
+    eng: &Engine,
+    ctx: &egui::Context,
+    under: &[Entity],
+) -> Vec<(Entity, Edit)> {
+    let mut out = Vec::new();
+    let was = std::mem::replace(
+        &mut eng.resource::<Hovered>().borrow_mut().0,
+        under.to_vec(),
+    );
+    out.extend(
+        under
+            .iter()
+            .filter(|e| !was.contains(e))
+            .map(|e| (*e, Edit::Entered)),
+    );
+    out.extend(
+        was.iter()
+            .filter(|e| !under.contains(e))
+            .map(|e| (*e, Edit::Left)),
+    );
+    let Some(innermost) = under.last().copied() else {
+        return out;
+    };
+    let buttons = [
+        egui::PointerButton::Primary,
+        egui::PointerButton::Secondary,
+        egui::PointerButton::Middle,
+    ];
+    ctx.input(|i| {
+        for (button, name) in buttons.into_iter().zip(balaur_core::hooks::BUTTONS) {
+            if i.pointer.button_pressed(button) {
+                out.push((innermost, Edit::Pressed(name.to_string())));
+            }
+            if i.pointer.button_released(button) {
+                out.push((innermost, Edit::Released(name.to_string())));
+            }
+        }
+        if i.pointer
+            .button_double_clicked(egui::PointerButton::Primary)
+        {
+            out.push((innermost, Edit::DoubleClicked));
+        }
+    });
+    out
+}
+
 /// Every event a widget emits from its node, with what it carries.
 pub(crate) const EVENTS: &[(&str, &str)] = &[
     (CLICK_EVENT, "nil"),
@@ -177,6 +237,9 @@ pub(crate) const EVENTS: &[(&str, &str)] = &[
     (GUTTER_EVENT, "the line"),
     (MOVE_EVENT, "`[moved, target, side]`"),
     (DROP_EVENT, "the card"),
+    (DOUBLE_CLICK_EVENT, "nil"),
+    (FOCUS_EVENT, "nil"),
+    (BLUR_EVENT, "nil"),
 ];
 
 fn apply_system(eng: &Engine, _dt: f32) {
@@ -198,8 +261,14 @@ fn apply_system(eng: &Engine, _dt: f32) {
     let mut emitted = Vec::new();
     let (mut typed, submitted) = settle_edits(eng, &edits, &mut emitted);
     let signals = settle_clicks(eng, &clicked, &submitted, &mut typed, &mut emitted);
+    // A pointer event is a core hook: its rows, and the node's own
+    // `on_pointer_*`, as a world node's. The widget's own events are emitted.
     for (entity, event, value) in emitted {
-        balaur_core::events::emit_from(eng, entity, event, value);
+        if hooks::BINDABLE.contains(&event) {
+            balaur_core::events::announce(eng, entity, event, value);
+        } else {
+            balaur_core::events::emit_from(eng, entity, event, value);
+        }
     }
     // A clicked widget's `pointer_click` rows, so a button can call any
     // node's script from the scene alone, as a world object's click can.
@@ -331,6 +400,23 @@ fn settle_one(
         // Written nowhere: a link and a gutter mark are the script's to act on.
         Edit::Link(target) => Some((LINK_EVENT, Value::Str(target.clone()), &widget.on_link)),
         Edit::Gutter(line) => Some((GUTTER_EVENT, Value::Int(*line), &widget.on_gutter)),
+        // What the pointer and focus did: events with no handler key.
+        Edit::Entered => report(emitted, entity, hooks::POINTER_ENTER, Value::Nil),
+        Edit::Left => report(emitted, entity, hooks::POINTER_EXIT, Value::Nil),
+        Edit::Pressed(button) => report(
+            emitted,
+            entity,
+            hooks::POINTER_DOWN,
+            Value::Str(button.clone()),
+        ),
+        Edit::Released(button) => report(
+            emitted,
+            entity,
+            hooks::POINTER_UP,
+            Value::Str(button.clone()),
+        ),
+        Edit::DoubleClicked => report(emitted, entity, DOUBLE_CLICK_EVENT, Value::Nil),
+        Edit::Blurred => report(emitted, entity, BLUR_EVENT, Value::Nil),
     };
     // The node emits its event whatever the widget carries, and the handler
     // is called only where one is named.
@@ -341,6 +427,17 @@ fn settle_one(
     if !handler.is_empty() {
         signals.push((entity, handler.to_string(), value));
     }
+}
+
+/// An event with no handler key, emitted as it is and answering nothing.
+fn report(
+    emitted: &mut Vec<(Entity, &'static str, Value)>,
+    entity: Entity,
+    event: &'static str,
+    value: Value,
+) -> Option<(&'static str, Value, &'static smol_str::SmolStr)> {
+    emitted.push((entity, event, value));
+    None
 }
 
 /// A row pick written onto the widget, and what it says: the whole set where
@@ -474,6 +571,7 @@ fn announce_focus(eng: &Engine, focused: Option<&WidgetKey>) {
     let Some(entity) = focused.and_then(|key| resolve(eng, key)) else {
         return;
     };
+    balaur_core::events::emit_from(eng, entity, FOCUS_EVENT, Value::Nil);
     let method = {
         let world = eng.world();
         let Ok(widget) = world.get::<&Widget>(entity) else {
