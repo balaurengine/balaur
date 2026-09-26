@@ -643,16 +643,13 @@ fn step_system(eng: &Engine, _dt: f32) {
     tuning::warn_about_quarantine(eng);
 }
 
-/// Remove the joints that gave way this step and tell each joint's node.
-///
-/// A break is an event in every way that matters, so it travels the same
-/// path: after the step, in entity order, through the node's own script.
+/// Remove the joints that gave way this step and announce each from its node,
+/// after the step and in entity order, as every other physics event is.
 fn break_joints(eng: &Engine, broken: &[balaur_core::hecs::Entity]) {
     for entity in broken {
+        let payload = joint::break_payload(&eng.resource::<PhysicsState3d>().borrow(), *entity);
         joint::remove_joint(eng, *entity);
-        if let Some(host) = eng.script_host() {
-            host.call_on(balaur_core::node_id_of(*entity), hook::ON_JOINT_BREAK, &[]);
-        }
+        balaur_core::events::announce(eng, *entity, hook::JOINT_BREAK, payload);
     }
 }
 

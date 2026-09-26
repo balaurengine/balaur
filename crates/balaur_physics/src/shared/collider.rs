@@ -100,17 +100,18 @@ macro_rules! functions {
             map.insert(k::RESTITUTION.into(), f(collider.restitution()));
             map.insert(k::FRICTION.into(), f(collider.friction()));
             // Each of `mass` and `density` is derived from the other, so
-            // reporting both would pin one on the next patch or re-save.
-            if map
-                .get(k::MASS)
-                .and_then(balaur_core::components::as_f64)
-                .unwrap_or(0.0)
-                > 0.0
-            {
-                map.insert(k::MASS.into(), f(collider.mass()));
+            // reporting both would pin one on the next patch or re-save. A
+            // density of 0 is a body's own `mass` speaking, not the author.
+            let authored = |key: &str| map.get(key).and_then(balaur_core::components::as_f64);
+            let own_mass = authored(k::MASS).unwrap_or(0.0) > 0.0;
+            let zeroed = collider.density() == 0.0;
+            if own_mass {
+                let mass = if zeroed { authored(k::MASS).unwrap_or(0.0) as Real } else { collider.mass() };
+                map.insert(k::MASS.into(), f(mass));
             } else {
+                let density = if zeroed { authored(k::DENSITY).unwrap_or(1.0) as Real } else { collider.density() };
                 map.insert(k::MASS.into(), f(0.0));
-                map.insert(k::DENSITY.into(), f(collider.density()));
+                map.insert(k::DENSITY.into(), f(density));
             }
             map.insert(k::COLLISION_MARGIN.into(), f(collider.contact_skin()));
             map.insert(

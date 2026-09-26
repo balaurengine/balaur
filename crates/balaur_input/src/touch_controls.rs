@@ -504,6 +504,7 @@ pub(crate) fn register_touch_button(reg: &mut Registry<'_>) {
     reg.register_component(
         w::TOUCH_BUTTON,
         ComponentDef {
+            events: &[],
             warnings: None,
             doc: "An on-screen button that presses an `action` while a finger is on it. `anchor` and `offset` place it inside the screen's safe area.",
             schema: ComponentDef::parse_schema(
@@ -595,6 +596,7 @@ pub(crate) fn register_touch_stick(reg: &mut Registry<'_>) {
     reg.register_component(
         w::TOUCH_STICK,
         ComponentDef {
+            events: &[],
             warnings: None,
             doc: "An on-screen stick that drives `action_x` and `action_y` from -1..1 while a thumb drags it, y positive away from the player. `anchor` and `offset` place it.",
             schema: ComponentDef::parse_schema(

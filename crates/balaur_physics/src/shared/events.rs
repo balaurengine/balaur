@@ -148,9 +148,6 @@ macro_rules! functions {
         /// The method a script implements for each event, and the arguments it
         /// gets.
         fn dispatch(eng: &Engine, event: &Event) {
-            let Some(host) = eng.script_host() else {
-                return;
-            };
             let node = |e: Entity| Value::Node(e.to_bits().get());
             match *event {
                 Event::Started(a, b) => {
@@ -162,25 +159,19 @@ macro_rules! functions {
                     balaur_core::events::announce(eng, b, hook::COLLISION_EXIT, node(a));
                 }
                 Event::Force(a, b, magnitude, direction) => {
-                    let force = Value::Num(f64::from(magnitude));
-                    let towards = Value::$towards(direction);
-                    host.call_on(
-                        balaur_core::node_id_of(a),
-                        hook::ON_CONTACT_FORCE,
-                        &[node(b), force.clone(), towards.clone()],
-                    );
-                    host.call_on(
-                        balaur_core::node_id_of(b),
-                        hook::ON_CONTACT_FORCE,
-                        &[node(a), force, towards],
-                    );
+                    let contact = |other: Entity| {
+                        crate::vocabulary::map([
+                            (k::OTHER, node(other)),
+                            (k::FORCE, Value::Num(f64::from(magnitude))),
+                            (k::DIRECTION, Value::$towards(direction)),
+                        ])
+                    };
+                    balaur_core::events::announce(eng, a, hook::CONTACT_FORCE, contact(b));
+                    balaur_core::events::announce(eng, b, hook::CONTACT_FORCE, contact(a));
                 }
                 Event::Tear(a, pieces) => {
-                    host.call_on(
-                        balaur_core::node_id_of(a),
-                        hook::ON_TEAR,
-                        &[Value::Int(i64::from(pieces))],
-                    );
+                    let tear = crate::vocabulary::map([(k::PIECES, Value::Int(i64::from(pieces)))]);
+                    balaur_core::events::announce(eng, a, hook::TEAR, tear);
                 }
             }
         }

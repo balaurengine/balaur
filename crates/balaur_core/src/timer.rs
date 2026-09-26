@@ -138,7 +138,7 @@ pub(crate) fn step_system(eng: &Engine, dt: f32) {
         }
     }
     for entity in fired {
-        crate::events::emit_from(eng, entity, TIMEOUT, Value::Nil);
+        crate::events::announce(eng, entity, TIMEOUT, Value::Nil);
     }
 }
 
@@ -146,6 +146,7 @@ pub(crate) fn register_timer_component(app: &mut App) {
     app.register_component(
         COMPONENT,
         ComponentDef {
+            events: &[(TIMEOUT, "nil")],
             warnings: None,
             doc: "Counts `wait_time` seconds down and emits `timeout` from the node, which bindings hear as `emitted:timeout`. `running` or `autostart` starts it; `one_shot` stops after one round.",
             schema: ComponentDef::parse_schema(COMPONENT, &schema()),

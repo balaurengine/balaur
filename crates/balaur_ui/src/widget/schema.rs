@@ -23,6 +23,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "widget",
         ComponentDef {
+            events: crate::widget::input::EVENTS,
             warnings: None,
             doc: "A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button sets `clicked` and calls `on_click`.",
             schema: ComponentDef::parse_schema(

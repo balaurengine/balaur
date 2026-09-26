@@ -168,6 +168,17 @@ pub const MOVE_EVENT: &str = "move";
 /// What a `list` emits when a card dragged out of it is let go, with the card.
 pub const DROP_EVENT: &str = "drop";
 
+/// Every event a widget emits from its node, with what it carries.
+pub(crate) const EVENTS: &[(&str, &str)] = &[
+    (CLICK_EVENT, "nil"),
+    (CHANGE_EVENT, "the new value"),
+    (SUBMIT_EVENT, "the text"),
+    (LINK_EVENT, "the link's target"),
+    (GUTTER_EVENT, "the line"),
+    (MOVE_EVENT, "`[moved, target, side]`"),
+    (DROP_EVENT, "the card"),
+];
+
 fn apply_system(eng: &Engine, _dt: f32) {
     // A replay keeps what `restore` just put back, and a re-simulated tick
     // keeps what its first run had; only a live tick takes the draw's report.

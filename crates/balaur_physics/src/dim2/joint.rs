@@ -325,6 +325,7 @@ pub(crate) fn register_joint2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::JOINT_2D,
         ComponentDef {
+            events: crate::vocabulary::hook::JOINT,
             warnings: None,
             doc: "Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `rope`, `spring`, `groove` or `generic`; both ends need a `body2d` on or above the node.",
             schema: ComponentDef::parse_schema(c::JOINT_2D, &schema),

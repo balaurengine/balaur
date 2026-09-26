@@ -59,6 +59,11 @@ pub(crate) fn add_collider_at(
     let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
     state.world.colliders[handle].user_data = u128::from(entity.to_bits().get());
+    if let Some(body) = state.world.colliders[handle].parent()
+        && crate::dim2::body::has_total_mass(&state.world.bodies[body])
+    {
+        state.world.colliders[handle].set_density(0.0);
+    }
     state.colliders.entry(entity).or_default().push(handle);
     state.queries_ready = false;
     Ok(())
@@ -536,6 +541,7 @@ pub(crate) fn register_collider2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::COLLIDER_2D,
         ComponentDef {
+            events: crate::vocabulary::hook::COLLIDER,
             warnings: None,
             doc: "The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2d` or the nearest body above it; without one it is static geometry.",
             schema: ComponentDef::parse_schema(c::COLLIDER_2D, &schema),

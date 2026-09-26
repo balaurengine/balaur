@@ -429,9 +429,8 @@ fn a_timer_and_a_finished_clip_drive_bindings_with_no_script() {
     for _ in 0..60 {
         app.tick(1.0 / 60.0);
     }
-    // Timeouts at a quarter, a half and three quarters of the second, each
-    // heard the frame after; the one at the full second is still in flight.
-    // The half-second clip ends once.
+    // Timeouts at a quarter, a half and three quarters of the second; the
+    // fourth falls just past the last tick. The half-second clip ends once.
     assert_eq!(score(&app), 3 + 100);
 }
 
@@ -660,4 +659,45 @@ fn a_row_and_a_clip_that_hide_a_node_announce_it() {
         app.tick(1.0 / 60.0);
     }
     assert_eq!(score(&app), 11, "the lamp once and the sign once");
+}
+
+#[test]
+fn a_node_offers_the_events_its_components_announce() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("scenes")).unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("scenes/main.toml"),
+        "[[nodes]]\nid = \"n\"\nname = \"Clock\"\nscript = { source = \"scenes/c.rn\" }\n\n[nodes.timer]\nwait_time = 1.0\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("scenes/c.rn"),
+        "pub fn offered(this) { scene::bindable_events(this.node) }\n",
+    )
+    .unwrap();
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = standard_app(config).unwrap();
+    app.load_project().unwrap();
+    app.tick(1.0 / 60.0);
+    let clock = {
+        let world = app.engine.world();
+        balaur::scene::find_node(&world, app.engine.root(), "Clock").unwrap()
+    };
+    let host = app.engine.script_host().unwrap();
+    let offered = host.call_on(balaur::node_id_of(clock), "offered", &[]);
+    let Some(Value::List(offered)) = offered else {
+        panic!("no list of events: {offered:?}");
+    };
+    for wanted in ["pointer_click", "emitted:timeout", "emitted:visibility_changed"] {
+        assert!(
+            offered.contains(&Value::Str(wanted.into())),
+            "`{wanted}` is not offered: {offered:?}"
+        );
+    }
 }

@@ -256,6 +256,8 @@ pub(crate) mod keys {
     pub(crate) const CONTACT_PAIR_COUNT: &str = "contact_pair_count";
     pub(crate) const CONTACT_RECYCLING: &str = "contact_recycling";
     pub(crate) const CONTINUOUS_COLLISION: &str = "continuous_collision";
+    /// A contact force's or a broken joint's size, in an event payload.
+    pub(crate) const FORCE: &str = "force";
     pub(crate) const DAMPING: &str = "damping";
     pub(crate) const DAMPING_COMPRESSION: &str = "damping_compression";
     pub(crate) const DAMPING_RELAXATION: &str = "damping_relaxation";
@@ -337,6 +339,7 @@ pub(crate) mod keys {
     pub(crate) const NORMAL: &str = "normal";
     pub(crate) const NORMAL_NUDGE: &str = "normal_nudge";
     pub(crate) const OFFSET: &str = "offset";
+    pub(crate) const OTHER: &str = "other";
     pub(crate) const OFFSET_ROTATION: &str = "offset_rotation";
     pub(crate) const ONE_WAY: &str = "one_way";
     pub(crate) const ONE_WAY_AXIS: &str = "one_way_axis";
@@ -347,6 +350,7 @@ pub(crate) mod keys {
     pub(crate) const OVERLAP: &str = "overlap";
     pub(crate) const PARTICLE_COUNT: &str = "particle_count";
     pub(crate) const PARTICLE_RADIUS: &str = "particle_radius";
+    pub(crate) const PIECES: &str = "pieces";
     pub(crate) const PINNED_PARTICLES: &str = "pinned_particles";
     pub(crate) const PLASTIC_CREEP: &str = "plastic_creep";
     pub(crate) const PLASTIC_MAX: &str = "plastic_max";
@@ -453,12 +457,22 @@ pub(crate) mod component {
     pub(crate) const RIGID_2D_DRAWERS: &[&str] = &["sprite", "shape2d", "text2d"];
 }
 
-/// The script methods physics calls on a node.
+/// The events physics announces from a node, each heard there as
+/// `on_<name>(payload)`.
 pub(crate) mod hook {
     pub(crate) use balaur_core::hooks::{COLLISION_ENTER, COLLISION_EXIT};
-    pub(crate) const ON_CONTACT_FORCE: &str = "on_contact_force";
-    pub(crate) const ON_JOINT_BREAK: &str = "on_joint_break";
-    pub(crate) const ON_TEAR: &str = "on_tear";
+    pub(crate) const CONTACT_FORCE: &str = "contact_force";
+    pub(crate) const JOINT_BREAK: &str = "joint_break";
+    pub(crate) const TEAR: &str = "tear";
+
+    /// What each component announces, for the Events view and the reference.
+    pub(crate) const COLLIDER: &[(&str, &str)] = &[
+        (COLLISION_ENTER, "the other collider's node"),
+        (COLLISION_EXIT, "the other collider's node"),
+        (CONTACT_FORCE, "`#{ other, force, direction }`"),
+    ];
+    pub(crate) const JOINT: &[(&str, &str)] = &[(JOINT_BREAK, "`#{ a, b, force }`")];
+    pub(crate) const SOFT_BODY: &[(&str, &str)] = &[(TEAR, "`#{ pieces }`")];
 }
 
 /// Schema text from `(key, spec)` lines: the key comes from `keys`, the spec
@@ -730,17 +744,16 @@ pub(crate) fn names<T: Copy + Into<u32>>(set: T, table: &[(&str, T)]) -> toml::V
     )
 }
 
-/// The 32 collision layers a `flags` property names, as a bit set.
+/// The 32 collision layers a `flags` property names, as a bit set. Layers
+/// count from 1, as Godot's do: layer 1 is the lowest bit.
 ///
-/// An empty membership means layer 0 and an empty filter means every layer:
+/// An empty membership means layer 1 and an empty filter means every layer:
 /// the alternative is 32 strings in every scene file that wants the default.
 pub(crate) fn layer_bits(params: &toml::Value, key: &str, empty_is_all: bool) -> u32 {
     let mut bits = 0u32;
     for name in balaur_core::components::as_flags(params.get(key)) {
-        if let Ok(layer) = name.parse::<u32>()
-            && layer < 32
-        {
-            bits |= 1 << layer;
+        if let Some(bit) = layer_bit(name.parse::<u32>().ok()) {
+            bits |= bit;
         }
     }
     if bits != 0 {
@@ -761,16 +774,21 @@ pub(crate) fn layer_names(bits: u32) -> toml::Value {
     toml::Value::Array(
         (0..32)
             .filter(|bit| bits & (1 << bit) != 0)
-            .map(|bit| toml::Value::String(bit.to_string()))
+            .map(|bit| toml::Value::String((bit + 1).to_string()))
             .collect(),
     )
+}
+
+/// The bit a layer number sets, for a number from 1 to 32.
+pub(crate) fn layer_bit(layer: Option<u32>) -> Option<u32> {
+    layer.filter(|l| (1..=32).contains(l)).map(|l| 1 << (l - 1))
 }
 
 /// The 32 collision layers, as an `options` list for a `flags` property.
 /// Numbers rather than names: a name would have to come from the project file,
 /// and no other component resolves its options at inspector time.
 pub(crate) fn layer_options() -> String {
-    (0..32)
+    (1..=32)
         .map(|i| format!("\"{i}\""))
         .collect::<Vec<_>>()
         .join(", ")

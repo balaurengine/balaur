@@ -124,6 +124,7 @@ pub(crate) fn register_light3d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "light3d",
         ComponentDef {
+            events: &[],
             warnings: None,
             doc: "A 3D light placed and aimed by the node. `kind` is `directional`, `point` or `spot`; the first `light3d` in a scene retires the engine's default key light.",
             schema: ComponentDef::parse_schema("light3d", &light_schema()),
@@ -402,6 +403,7 @@ pub(crate) fn register_environment_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "environment",
         ComponentDef {
+            events: &[],
             warnings: None,
             doc: "The scene's atmosphere: `sky`, `ambient_color`, `fog_mode`, `exposure`, `tonemap`, colour grading and the shadow budget. The last `current` one wins; per-view effects stay on `camera.post`.",
             schema: ComponentDef::parse_schema("environment", &environment_schema()),

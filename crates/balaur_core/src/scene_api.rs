@@ -14,14 +14,32 @@ use balaur_script::Value;
 use crate::engine::Engine;
 use crate::engine_api::text;
 
-/// The events a `[[nodes.bindings.rows]]` row may answer, for the Events view.
-pub(crate) fn bindable_events(_eng: &Engine, _args: &[Value]) -> Result<Value> {
-    Ok(Value::List(
-        crate::hooks::BINDABLE
-            .iter()
-            .map(|name| Value::Str((*name).to_string()))
-            .collect(),
-    ))
+/// The events a `[[nodes.bindings.rows]]` row may answer, for the Events view:
+/// the core hooks, then on a node what it and its components announce.
+pub(crate) fn bindable_events(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let mut events: Vec<String> = crate::hooks::BINDABLE
+        .iter()
+        .map(|name| (*name).to_string())
+        .collect();
+    let node = match args.first() {
+        Some(Value::Node(id)) => Some(crate::entity_of(balaur_script::NodeId(*id))?),
+        _ => None,
+    };
+    if let Some(entity) = node {
+        let mut announced = vec![crate::node_api::VISIBILITY_EVENT];
+        announced.extend(crate::components::events_on(eng, entity));
+        // A core hook's name is already listed, spelled without the prefix.
+        for name in announced {
+            if crate::hooks::BINDABLE.contains(&name) {
+                continue;
+            }
+            let row = format!("{}{name}", crate::hooks::EMITTED);
+            if !events.contains(&row) {
+                events.push(row);
+            }
+        }
+    }
+    Ok(Value::List(events.into_iter().map(Value::Str).collect()))
 }
 
 /// The actions one may do, in the order the Events view offers them.

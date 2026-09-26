@@ -334,8 +334,8 @@ fn a_rope_past_its_tear_strain_comes_apart() {
     this.before = this.node.softbody3d.softbody_particles();
 }
 
-pub fn on_tear(this, pieces) {
-    this.torn = this.torn + 1;
+pub fn on_tear(this, tear) {
+    this.torn = this.torn + tear["pieces"] - tear["pieces"] + 1;
 }
 
 pub fn fixed_update(this, dt) {

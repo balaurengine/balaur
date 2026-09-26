@@ -49,8 +49,8 @@ pub(crate) enum Effect {
 /// What a player's node emits when a clip ends, with the clip's name.
 pub const FINISHED_EVENT: &str = "animation_finished";
 
-/// The method a node's script is called with when a tween on it ends.
-const TWEEN_FINISHED_METHOD: &str = "on_tween_finished";
+/// What a node announces when a tween on it runs out, with the tween's handle.
+pub const TWEEN_FINISHED_EVENT: &str = "tween_finished";
 
 /// Re-resolve every live clip after an asset reload, keeping the playhead.
 ///
@@ -606,15 +606,12 @@ fn apply_effects(eng: &Engine, effects: &[Effect]) {
                 );
             }
             Effect::TweenFinished { entity, id } => {
-                if let Some(host) = host.as_ref() {
-                    host.call_on(
-                        balaur_core::node_id_of(*entity),
-                        TWEEN_FINISHED_METHOD,
-                        &[balaur_script::Value::Int(
-                            i64::try_from(*id).unwrap_or(i64::MAX),
-                        )],
-                    );
-                }
+                balaur_core::events::announce(
+                    eng,
+                    *entity,
+                    TWEEN_FINISHED_EVENT,
+                    balaur_script::Value::Int(i64::try_from(*id).unwrap_or(i64::MAX)),
+                );
             }
         }
     }

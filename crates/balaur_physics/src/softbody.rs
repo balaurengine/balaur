@@ -626,6 +626,7 @@ pub(crate) fn register_softbody_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::SOFTBODY_3D,
         ComponentDef {
+            events: crate::vocabulary::hook::SOFT_BODY,
             warnings: Some(Box::new(softbody_warnings)),
             doc: "A deformable 3D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. The node is drawn from the solver's positions.",
             schema: ComponentDef::parse_schema(c::SOFTBODY_3D, &schema),

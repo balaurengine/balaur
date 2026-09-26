@@ -9,6 +9,7 @@ fn app_with_marker() -> App {
     app.register_component(
         "marker",
         ComponentDef {
+            events: &[],
             warnings: None,
             doc: "",
             schema: ComponentDef::parse_schema(
@@ -503,6 +504,7 @@ fn app_with_picky() -> App {
     app.register_component(
         "picky",
         ComponentDef {
+            events: &[],
             warnings: Some(Box::new(|eng: &Engine, entity| {
                 let size = eng
                     .world()

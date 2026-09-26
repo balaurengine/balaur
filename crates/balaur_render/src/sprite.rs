@@ -83,6 +83,7 @@ pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "sprite",
         ComponentDef {
+            events: &[],
             warnings: None,
             doc: "A textured 2D quad at the node, sized by `pixels_per_unit`. `columns` and `rows`, or a `sprite_sheet` in `sheet`, cut it into frames `frame` picks.",
             schema: sprite_schema(),

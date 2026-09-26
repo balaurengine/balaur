@@ -61,6 +61,20 @@ pub(crate) fn dump_api() -> Result<()> {
         })
         .unwrap_or_default();
     api["component_tags"] = serde_json::to_value(component_tags)?;
+    // What each component announces from its node, as `(name, payload)`.
+    let component_events: std::collections::BTreeMap<String, Vec<(&'static str, &'static str)>> =
+        app.engine
+            .try_resource::<balaur::components::ComponentRegistry>()
+            .map(|registry| {
+                registry
+                    .borrow()
+                    .iter()
+                    .filter(|(_, def)| !def.events.is_empty())
+                    .map(|(name, def)| (name.to_string(), def.events.to_vec()))
+                    .collect()
+            })
+            .unwrap_or_default();
+    api["component_events"] = serde_json::to_value(component_events)?;
     let asset_types: std::collections::BTreeMap<String, serde_json::Value> = app
         .engine
         .try_resource::<balaur::assets::AssetTypeRegistry>()

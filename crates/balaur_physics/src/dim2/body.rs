@@ -81,6 +81,17 @@ pub(crate) fn write_body(body: &mut RigidBody, params: &toml::Value, world_may_s
     *body.activation_mut() = activation;
 }
 
+/// Whether the body states its own `mass`, which its colliders then do not add
+/// to.
+pub(crate) fn has_total_mass(body: &RigidBody) -> bool {
+    use crate::rapier2d::dynamics::RigidBodyAdditionalMassProps as Extra;
+    match body.mass_properties().additional_local_mprops.as_deref() {
+        Some(Extra::Mass(mass)) => *mass > 0.0,
+        Some(Extra::MassProps(props)) => props.mass() > 0.0,
+        None => false,
+    }
+}
+
 /// In 2D the angular inertia is one number, so `inertia` is a float here and
 /// a vec3 in 3D — the same property, shaped by the dimension.
 fn write_mass(body: &mut RigidBody, params: &toml::Value) {
@@ -155,10 +166,9 @@ pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Valu
     Some(toml::Value::Table(map))
 }
 
-/// The mass the author added, read back off the body.
-///
-/// `body.mass()` is the total, colliders included; writing that back as
-/// `mass` would add the colliders' weight again on every save.
+/// The mass the author stated, read back off the body: `body.mass()` is also
+/// the total when none was, and writing that back would pin the colliders'
+/// weight as the body's own.
 fn read_mass(body: &RigidBody, map: &mut toml::map::Map<String, toml::Value>) {
     use crate::rapier2d::dynamics::RigidBodyAdditionalMassProps as Extra;
     let f = |value: Real| toml::Value::Float(f64::from(value));
@@ -181,7 +191,7 @@ fn read_mass(body: &RigidBody, map: &mut toml::map::Map<String, toml::Value>) {
 pub(crate) fn install_body2d_state_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("velocity_at_point", &[c::BODY_2D], "", "How fast a world point on the body is moving, spin included."),
-        ("total_mass", &[c::BODY_2D], "", "The body's total mass, colliders included. The `mass` property is the extra on top of them."),
+        ("total_mass", &[c::BODY_2D], "", "The body's total mass: its `mass` when it states one, or what its colliders weigh."),
         ("kinetic_energy", &[c::BODY_2D], "", "The body's kinetic energy, for a rest test the solver agrees with."),
         ("teleport", &[c::BODY_2D], "", "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick."),
     ]);
@@ -510,6 +520,7 @@ pub(crate) fn register_body2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::BODY_2D,
         ComponentDef {
+            events: &[],
             warnings: Some(Box::new(body_warnings_2d)),
             doc: "A 2D rigid body simulated by rapier in the xy plane. `kind` is `dynamic`, `static`, `kinematic` or `kinematic_velocity`; add a `collider2d` for its shape.",
             schema: ComponentDef::parse_schema(c::BODY_2D, &schema),

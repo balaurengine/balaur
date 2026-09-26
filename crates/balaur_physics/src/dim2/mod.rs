@@ -196,10 +196,9 @@ fn step_system(eng: &Engine, _dt: f32) {
     softbody::write_every_solved_polygon(eng);
     events::deliver(eng, &events.0);
     for entity in &events.1 {
+        let payload = joint::break_payload(&eng.resource::<PhysicsState2d>().borrow(), *entity);
         joint::remove_joint(eng, *entity);
-        if let Some(host) = eng.script_host() {
-            host.call_on(balaur_core::node_id_of(*entity), hook::ON_JOINT_BREAK, &[]);
-        }
+        balaur_core::events::announce(eng, *entity, hook::JOINT_BREAK, payload);
     }
 }
 

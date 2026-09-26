@@ -576,6 +576,7 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "tilemap",
         ComponentDef {
+            events: &[],
             warnings: None,
             doc: "A grid of tiles from one `tileset` asset, centred on the node. `cells` holds rows of tile ids; `pixels_per_unit` is tile pixels per world unit.",
             schema: ComponentDef::parse_schema(

@@ -139,6 +139,15 @@ fn typed(S, at, key, current, placeholder, width) {
     }
 }
 
+// What a row on the selected node may answer: the core hooks, and the
+// `emitted:` events the node and its components announce.
+fn offered(S) {
+    match crate::model::live(S, S.sel) {
+        Some(found) => util::vec(scene::bindable_events(found)),
+        None => util::vec(scene::bindable_events()),
+    }
+}
+
 /// One binding: what happens, when, and what it does.
 fn row_spec(S, at, row) {
     let event = row.get("event").unwrap_or(DEFAULT_EVENT);
@@ -146,7 +155,7 @@ fn row_spec(S, at, row) {
     let target = row.get("target").unwrap_or("");
     let controls = [
         #{ kind: "label", role: "text_caption", width: 18, text: format!("{}", at + 1) },
-        pick(S, at, "event", event, util::vec(scene::bindable_events()), 150.0),
+        pick(S, at, "event", event, offered(S), 150.0),
         typed(S, at, "when", row.get("when").unwrap_or(""), "always", 130.0),
         #{ kind: "label", role: "text_caption", text: "→" },
         pick(S, at, "action", action, util::vec(scene::binding_actions()), 130.0),

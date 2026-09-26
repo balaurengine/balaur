@@ -501,6 +501,7 @@ pub(crate) fn register_joint_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::JOINT_3D,
         ComponentDef {
+            events: crate::vocabulary::hook::JOINT,
             warnings: None,
             doc: "Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `ball_socket`, `rope`, `spring` or `generic`; both ends need a `body3d` on or above the node.",
             schema: ComponentDef::parse_schema(c::JOINT_3D, &schema),

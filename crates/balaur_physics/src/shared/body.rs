@@ -70,15 +70,42 @@ macro_rules! functions {
             } else {
                 balaur_core::interpolate::disable(eng, entity);
             }
-            with_body(eng, entity, |state, handle| {
+            let rebuild = with_body(eng, entity, |state, handle| {
                 let may_sleep = state.sleeping_allowed;
                 write_body(&mut state.world.bodies[handle], params, may_sleep);
+                let rebuild = weigh_colliders(state, handle);
                 // Rapier folds additional mass in at the next step; a scene that sets
                 // `mass = 5` and a script that reads it back in the same tick would
                 // otherwise disagree.
                 let colliders = &state.world.colliders;
                 state.world.bodies[handle].recompute_mass_properties_from_colliders(colliders);
-            })
+                rebuild
+            })?;
+            for collider in rebuild {
+                if let Some(params) = get_collider_params(eng, collider) {
+                    apply_collider(eng, collider, &params)?;
+                }
+            }
+            Ok(())
+        }
+
+        /// A body with a `mass` of its own weighs exactly that, so its colliders
+        /// weigh nothing. Answers the colliders a cleared `mass` gives back their
+        /// own weight to, which only a rebuild from their params can.
+        fn weigh_colliders(state: &mut $State, handle: $Handle) -> Vec<Entity> {
+            let total = has_total_mass(&state.world.bodies[handle]);
+            let mut rebuild = Vec::new();
+            for collider in state.world.bodies[handle].colliders().to_vec() {
+                let co = &mut state.world.colliders[collider];
+                if total {
+                    co.set_density(0.0);
+                } else if co.density() == 0.0
+                    && let Some(owner) = Entity::from_bits(co.user_data as u64)
+                {
+                    rebuild.push(owner);
+                }
+            }
+            rebuild
         }
 
         /// A node's body handle, checked against rapier's arena.

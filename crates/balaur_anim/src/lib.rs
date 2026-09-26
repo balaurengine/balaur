@@ -74,7 +74,7 @@ pub use crate::player::{
     set_speed_scale, stop, time,
 };
 pub use crate::retarget::{BONE_MAP_ASSET_TYPE, BoneMap, PROFILE_ASSET_TYPE, SkeletonProfile};
-pub use crate::system::FINISHED_EVENT;
+pub use crate::system::{FINISHED_EVENT, TWEEN_FINISHED_EVENT};
 pub use crate::tween::{Tween, TweenId};
 
 pub struct AnimationPlugin {
@@ -167,6 +167,7 @@ fn register_animation_component(reg: &mut Registry<'_>) {
     reg.register_component(
         COMPONENT,
         ComponentDef {
+            events: &[(system::FINISHED_EVENT, "the clip's name")],
             warnings: None,
             doc: "Plays animation clips on the node. `library` is the clip asset, `autoplay` the clip started on load, `speed_scale` the rate; the `animation` module drives playback.",
             schema: ComponentDef::parse_schema(
@@ -198,6 +199,10 @@ fn register_machine_component(reg: &mut Registry<'_>) {
     reg.register_component(
         machine::COMPONENT,
         ComponentDef {
+            events: &[
+                (machine::STATE_STARTED_EVENT, "the state entered"),
+                (machine::STATE_FINISHED_EVENT, "the state left"),
+            ],
             warnings: None,
             doc: "Runs the `state_machine` asset in `machine` over the `player` node's clips. `auto` transitions fire when their conditions come on; `animation.travel` moves to a state.",
             schema: ComponentDef::parse_schema(

@@ -74,8 +74,8 @@ macro_rules! functions {
                         Value::Str(s) => s.parse().ok(),
                         _ => None,
                     };
-                    if let Some(layer) = layer.filter(|l| *l < 32) {
-                        bits |= 1 << layer;
+                    if let Some(bit) = crate::vocabulary::layer_bit(layer) {
+                        bits |= bit;
                     }
                 }
                 *groups = Some(InteractionGroups::new(

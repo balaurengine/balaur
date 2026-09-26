@@ -17,6 +17,7 @@ fn app_with_dial() -> App {
     app.register_component(
         "dial",
         ComponentDef {
+            events: &[],
             warnings: None,
             doc: "",
             schema: ComponentDef::parse_schema(
@@ -172,6 +173,7 @@ fn a_hex_colour_reaches_apply_expanded_through_patch_as_well_as_add() {
     app.register_component(
         "tint",
         ComponentDef {
+            events: &[],
             warnings: None,
             doc: "",
             schema: ComponentDef::parse_schema(

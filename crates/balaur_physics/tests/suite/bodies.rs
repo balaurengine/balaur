@@ -205,17 +205,33 @@ fn changing_kind_keeps_the_body() {
 
 /// Extra mass is extra: a heavier body pushes a lighter one, not the reverse.
 #[test]
-fn mass_is_additional() {
-    let app = app();
-    let light = body_with(&app, "Light", "kind = \"dynamic\"");
+fn mass_is_the_total_and_zero_sums_the_colliders() {
+    let mut app = app();
+    let summed = body_with(&app, "Summed", "kind = \"dynamic\"");
+    let light = body_with(&app, "Light", "kind = \"dynamic\"\nmass = 0.1");
     let heavy = body_with(&app, "Heavy", "kind = \"dynamic\"\nmass = 100.0");
-    let state = app.engine.resource::<PhysicsState3d>();
-    let state = state.borrow();
-    let mass_of = |e: Entity| state.world.bodies[state.bodies[&e]].mass();
+    app.tick(1.0 / 60.0);
+    let mass_of = |app: &App, e: Entity| {
+        let state = app.engine.resource::<PhysicsState3d>();
+        let state = state.borrow();
+        state.world.bodies[state.bodies[&e]].mass()
+    };
+    let sphere = 4.0 / 3.0 * std::f32::consts::PI * 0.125;
+    assert!((mass_of(&app, summed) - sphere).abs() < 1e-3, "{}", mass_of(&app, summed));
+    assert!((mass_of(&app, light) - 0.1).abs() < 1e-5, "{}", mass_of(&app, light));
+    assert!((mass_of(&app, heavy) - 100.0).abs() < 1e-3, "{}", mass_of(&app, heavy));
+    let collider = components::get(&app.engine, heavy, "collider3d").unwrap();
+    assert_eq!(
+        collider.get("density").and_then(balaur_core::components::as_f64),
+        Some(1.0),
+        "the collider still reports the density it was given"
+    );
+    components::patch(&app.engine, heavy, "body3d", &toml::from_str("mass = 0.0").unwrap()).unwrap();
+    app.tick(1.0 / 60.0);
     assert!(
-        mass_of(heavy) > mass_of(light) + 99.0,
-        "mass = 100 added {}",
-        mass_of(heavy) - mass_of(light)
+        (mass_of(&app, heavy) - sphere).abs() < 1e-3,
+        "clearing mass left the colliders weightless: {}",
+        mass_of(&app, heavy)
     );
 }
 

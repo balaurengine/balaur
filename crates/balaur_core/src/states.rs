@@ -108,6 +108,7 @@ pub(crate) fn register_states_component(app: &mut App) {
     app.register_component(
         "states",
         ComponentDef {
+            events: &[],
             warnings: None,
             doc: "Named looks for the node. Every key beside `current` and `duration` is a state holding per-component property tables; `node.states.go(\"hover\")` patches one over the node.",
             schema: ComponentDef::parse_schema("states", &schema()),

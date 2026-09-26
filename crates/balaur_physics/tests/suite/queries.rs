@@ -186,3 +186,23 @@ fn two_nodes_can_be_measured_against_each_other() {
         "#,
     );
 }
+
+#[test]
+fn layers_count_from_one_and_a_collider_is_on_layer_one_by_default() {
+    run_clean(
+        r#"
+        let on_one = physics3d::raycast(#{
+            origin: [0.0, 10.0, 0.0], direction: [0.0, -1.0, 0.0], max_distance: 100.0, filter: #{ collision_mask: [1] },
+        });
+        assert!(on_one is Object, "a ray masked to layer 1 missed a collider on the default layer");
+        let on_two = physics3d::raycast(#{
+            origin: [0.0, 10.0, 0.0], direction: [0.0, -1.0, 0.0], max_distance: 100.0, filter: #{ collision_mask: [2] },
+        });
+        assert!(!(on_two is Object), "a ray masked to layer 2 hit a collider on layer 1");
+        let zero = physics3d::raycast(#{
+            origin: [0.0, 10.0, 0.0], direction: [0.0, -1.0, 0.0], max_distance: 100.0, filter: #{ collision_mask: [0] },
+        });
+        assert!(zero is Object, "layer 0 is no layer, so the mask names none and hits all");
+        "#,
+    );
+}

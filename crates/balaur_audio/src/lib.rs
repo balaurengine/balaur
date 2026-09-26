@@ -780,6 +780,7 @@ fn register_sound_component(reg: &mut balaur_plugin::Registry<'_>) {
     reg.register_component(
         "sound",
         ComponentDef {
+            events: &[],
             warnings: None,
             doc: "A sound on the node: `file`, `volume`, `pitch` and `loop`. `autoplay` starts it on load, `audio.play_on` triggers it, and `positional` plays it from the node for the `listener`.",
             schema: ComponentDef::parse_schema(

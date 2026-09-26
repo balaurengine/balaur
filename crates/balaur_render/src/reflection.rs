@@ -95,6 +95,7 @@ pub(crate) fn register_reflection_probe_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "reflection_probe",
         ComponentDef {
+            events: &[],
             warnings: None,
             doc: "A box the room around it was captured inside. A reflective surface within it mirrors that capture, aimed at the box, instead of the distant sky.",
             schema: ComponentDef::parse_schema("reflection_probe", &probe_schema()),

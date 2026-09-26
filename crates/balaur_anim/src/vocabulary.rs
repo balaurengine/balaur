@@ -176,6 +176,7 @@ pub const EVENTS: &[(&str, &str)] = &[
     ("EVENT_ANIMATION_FINISHED", crate::system::FINISHED_EVENT),
     ("EVENT_STATE_STARTED", crate::machine::STATE_STARTED_EVENT),
     ("EVENT_STATE_FINISHED", crate::machine::STATE_FINISHED_EVENT),
+    ("EVENT_TWEEN_FINISHED", crate::system::TWEEN_FINISHED_EVENT),
 ];
 
 /// Every table above, installed on the `animation` module.

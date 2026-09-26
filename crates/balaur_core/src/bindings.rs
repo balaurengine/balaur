@@ -341,6 +341,7 @@ pub(crate) fn register_bindings_component(app: &mut App) {
     app.register_component(
         "bindings",
         ComponentDef {
+            events: &[],
             warnings: None,
             doc: "Reactions the node runs from a table: each row is an `event`, a `when` over the scene's `[variables]`, an `action`, a `target` node and a `value`.",
             // Written `[[nodes.bindings.rows]]` in a scene: a table with one

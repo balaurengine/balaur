@@ -90,7 +90,7 @@ pub(crate) fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("set_variable", &[], "(name: string, value: any)", "Write a scene variable, coerced to the type it was declared with. Every node declaring `on_variable_changed` hears about it at the end of the tick; writing the value it already holds says nothing."),
         ("variables", &[], "()", "Every declared variable as `{ name, type, value, persist }`, in name order."),
         ("switch", &[], "(path: string, options: map?)", "Replace the scene with another one at the end of this tick, so a script asking inside `update` is not freeing the tree it runs in. `fade` is seconds the renderer crosses over; reset is a switch to the same file."),
-        ("bindable_events", &[], "()", "Every event a `[[nodes.bindings.rows]]` row may answer, in the order an editor offers them."),
+        ("bindable_events", &[], "(node: node?)", "Every event a `[[nodes.bindings.rows]]` row may answer, in the order an editor offers them: the core hooks, and on a node the `emitted:` events it and its components announce."),
         ("binding_actions", &[], "()", "Every action a binding row may do, in the order an editor offers them."),
     ]);
 }

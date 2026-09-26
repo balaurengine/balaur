@@ -317,7 +317,7 @@ pub(crate) fn shared_group_schema() -> String {
         (
             k::COLLISION_LAYER,
             &format!(
-                r#"{{ type = "flags", default = ["0"], options = [{layers}], description = "The layers this body is on", group = "filtering" }}"#
+                r#"{{ type = "flags", default = ["1"], options = [{layers}], description = "The layers this body is on", group = "filtering" }}"#
             ),
         ),
         (
@@ -491,6 +491,11 @@ pub(crate) fn add_collider_at(
     // The entity behind a handle, in one lookup rather than a scan of every
     // collider the world holds: every query result and every event needs it.
     state.world.colliders[handle].user_data = u128::from(entity.to_bits().get());
+    if let Some(body) = state.world.colliders[handle].parent()
+        && crate::body::has_total_mass(&state.world.bodies[body])
+    {
+        state.world.colliders[handle].set_density(0.0);
+    }
     state.colliders.entry(entity).or_default().push(handle);
     // The broad phase has not seen this one yet.
     state.queries_ready = false;
@@ -749,7 +754,7 @@ pub(crate) fn shared_collider_schema() -> String {
         (
             k::COLLISION_LAYER,
             &format!(
-                r#"{{ type = "flags", default = ["0"], options = [{layers}], description = "The layers this collider is on", group = "filtering" }}"#
+                r#"{{ type = "flags", default = ["1"], options = [{layers}], description = "The layers this collider is on", group = "filtering" }}"#
             ),
         ),
         (
@@ -761,7 +766,7 @@ pub(crate) fn shared_collider_schema() -> String {
         (
             k::SOLVER_LAYER,
             &format!(
-                r#"{{ type = "flags", default = ["0"], options = [{layers}], description = "Layers for the solver alone: a pair can be detected but not resolved", group = "filtering" }}"#
+                r#"{{ type = "flags", default = ["1"], options = [{layers}], description = "Layers for the solver alone: a pair can be detected but not resolved", group = "filtering" }}"#
             ),
         ),
         (
@@ -833,6 +838,7 @@ pub(crate) fn register_collider_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::COLLIDER_3D,
         ComponentDef {
+            events: crate::vocabulary::hook::COLLIDER,
             warnings: None,
             doc: "The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3d` or the nearest body above it; without one it is static geometry.",
             schema: ComponentDef::parse_schema(c::COLLIDER_3D, &schema),

@@ -141,6 +141,115 @@ pub fn fixed_update(this, dt) {
     );
 }
 
+/// A hard landing tells the floor who hit it and how hard, as one map.
+#[test]
+fn a_contact_force_arrives_as_one_map() {
+    run_clean(
+        r#"[[nodes]]
+id = "n_world"
+name = "World"
+
+[[nodes]]
+id = "n_floor"
+name = "Floor"
+parent = "n_world"
+body3d = { kind = "static" }
+script = { source = "scripts/s.rn" }
+
+[nodes.collider3d]
+kind = "box"
+size = [8.0, 0.4, 8.0]
+events = ["contact_force"]
+
+[[nodes]]
+id = "n_crate"
+name = "Crate"
+parent = "n_world"
+body3d = { kind = "dynamic" }
+
+[nodes.transform]
+position = [0.0, 3.0, 0.0]
+
+[nodes.collider3d]
+kind = "sphere"
+radius = 0.5
+"#,
+        r#"pub fn init(this) { this.hits = 0; this.ticks = 0; }
+
+pub fn on_contact_force(this, contact) {
+    if contact["force"] > 0.0 && contact["other"].name() == "Crate" {
+        this.hits += 1;
+    }
+}
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    if this.ticks == 110 {
+        assert!(this.hits > 0, "the landing never reported a force from the crate");
+    }
+}
+"#,
+    );
+}
+
+/// A joint that gives way names both of its bodies and the force it broke at.
+#[test]
+fn a_breaking_joint_says_what_it_held_and_how_hard() {
+    run_clean(
+        r#"[[nodes]]
+id = "n_world"
+name = "World"
+
+[[nodes]]
+id = "n_anchor"
+name = "Anchor"
+parent = "n_world"
+body3d = { kind = "static" }
+
+[nodes.collider3d]
+kind = "sphere"
+radius = 0.2
+
+[[nodes]]
+id = "n_hanging"
+name = "Hanging"
+parent = "n_world"
+body3d = { kind = "dynamic" }
+script = { source = "scripts/s.rn" }
+
+[nodes.transform]
+position = [1.0, 0.0, 0.0]
+
+[nodes.collider3d]
+kind = "sphere"
+radius = 0.2
+
+[nodes.joint3d]
+kind = "hinge"
+connected_body = "/World/Anchor"
+axis = [0.0, 0.0, 1.0]
+anchor = [-1.0, 0.0, 0.0]
+break_force = 0.001
+"#,
+        r#"pub fn init(this) { this.broke = 0; this.ticks = 0; }
+
+pub fn on_joint_break(this, broke) {
+    let ends = [broke["a"].name(), broke["b"].name()];
+    if broke["force"] > 0.001 && ends.iter().any(|n| n == "Anchor") {
+        this.broke += 1;
+    }
+}
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    if this.ticks == 60 {
+        assert!(this.broke == 1, "the joint broke {} times with its payload", this.broke);
+    }
+}
+"#,
+    );
+}
+
 /// A body carries several joints by putting each on a bodiless child, which
 /// stands for the body above it, as a collider on a child does.
 #[test]

@@ -285,6 +285,10 @@ pub struct ComponentDef {
     /// (a `collider2d` with no `body2d` is standalone static geometry). It is
     /// here for plugins, and for the case where an error would be too strict.
     pub expects: &'static [&'static str],
+    /// The events the component announces from its node, as `(name,
+    /// payload)`: what an `emitted:<name>` row, a subscriber and the node's
+    /// own `on_<name>` hear. Read by the Events view and the reference.
+    pub events: &'static [(&'static str, &'static str)],
     /// Insert-or-update the component from a full property table.
     pub apply: ApplyFn,
     pub remove: RemoveFn,
@@ -1156,6 +1160,22 @@ pub fn schemas(eng: &Engine) -> Vec<(String, Rc<toml::Value>)> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// What the components on a node announce, by event name, in the order the
+/// registry holds the components.
+pub fn events_on(eng: &Engine, entity: Entity) -> Vec<&'static str> {
+    let Some(registry) = eng.try_resource::<ComponentRegistry>() else {
+        return Vec::new();
+    };
+    let registry = registry.borrow();
+    let bits = attached_of(eng, entity);
+    registry
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| bits.has(*i))
+        .flat_map(|(_, (_, def))| def.events.iter().map(|(name, _)| *name))
+        .collect()
 }
 
 pub fn present_on(eng: &Engine, entity: Entity) -> Vec<String> {

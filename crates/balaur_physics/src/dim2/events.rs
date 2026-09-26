@@ -11,6 +11,7 @@ use crate::rapier2d::prelude::{
     ContactPair, EventHandler, PhysicsHooks, RigidBodySet, SoftBodySet, SoftBodyTearEvent,
 };
 use crate::vocabulary::hook;
+use crate::vocabulary::keys as k;
 use balaur_core::Engine;
 use balaur_core::collections::DetHashMap;
 use balaur_core::hecs::Entity;

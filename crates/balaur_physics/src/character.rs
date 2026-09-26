@@ -248,6 +248,7 @@ pub(crate) fn register_character_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::CHARACTER_3D,
         ComponentDef {
+            events: &[],
             warnings: None,
             doc: "A 3D character controller: `physics3d.move_character` slides the node along walls and steps it up ledges. Needs a `collider3d`; a `kinematic` `body3d` lets it push bodies.",
             schema: ComponentDef::parse_schema(c::CHARACTER_3D, &schema),

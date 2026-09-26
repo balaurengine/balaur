@@ -162,6 +162,7 @@ pub(crate) fn register_cloner_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "cloner",
         ComponentDef {
+            events: &[],
             warnings: None,
             doc: "Draws the node's subtree many times; physics and scripts still see one node. `kind` is `linear`, `radial` or `grid`, or `list` for the `copies` a scene or a script places and tints one by one; `seed` and `random` scatter the copies.",
             schema: ComponentDef::parse_schema(

@@ -25,6 +25,7 @@ pub(crate) fn register_meta_component(app: &mut App) {
     app.register_component(
         COMPONENT,
         ComponentDef {
+            events: &[],
             warnings: None,
             doc: "Named values filed on the node, like Godot's `set_meta`. It has no fixed properties; every key is the author's.",
             schema: ComponentDef::parse_schema(COMPONENT, ""),
