@@ -10,7 +10,10 @@
 /docker/dist
 __pycache__/
 *.pyc
-.claude/
+# Local Claude Code state; the web session's hook and its registration are shared.
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
 node_modules/
 *.vsix
 *.profraw
