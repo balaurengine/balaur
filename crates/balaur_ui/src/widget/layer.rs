@@ -244,13 +244,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     let shown = reachable(&placed, &roots, &|name| surface_of(name).enabled);
     let stops = focus_stops(&placed, &shown);
     let accepted = advance(eng, &stops, asked);
-    // Accept on a fold turns it, as a click on its header does.
-    let turned = accepted.and_then(|entity| {
-        let fold = placed
-            .iter()
-            .find(|p| p.entity == entity && p.widget.kind == w::FOLD)?;
-        Some((entity, Edit::Open(!fold.widget.open)))
-    });
+    let turned = turned_fold(&placed, accepted);
     // A chord is a click by another name, as an `accept` is.
     let fired = shortcuts(ctx, &placed, &shown);
     let focused = eng
@@ -740,6 +734,15 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     draw_kind(ui, at, index);
     crate::widget::kinds::context_menu(ui, at, index);
     at.state = outer;
+}
+
+/// Accept on a fold turns it, as a click on its header does.
+fn turned_fold(placed: &[Placed], accepted: Option<Entity>) -> Option<(Entity, Edit)> {
+    let entity = accepted?;
+    let fold = placed
+        .iter()
+        .find(|p| p.entity == entity && p.widget.kind == w::FOLD)?;
+    Some((entity, Edit::Open(!fold.widget.open)))
 }
 
 /// A click on a widget that draws nothing clickable of its own, when its
