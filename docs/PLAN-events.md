@@ -1,5 +1,5 @@
 > **Status:** written 2026-09-26 from an audit of every crate, done by reading
-> the code. §2, §3 and §4.1 to §4.6 are built; §4.7 is next. The order is bugs
+> the code. §2, §3 and §4 are built but for §4.7's native lifecycle and §4.9's Gamend events. The order is bugs
 > first, then one delivery path, then the events the engine does not send yet.
 
 # Plan: events, and one way to hear each of them
@@ -172,8 +172,12 @@ In order of how often a game needs them.
    tab shown or hidden is `on_suspended_changed`, and `web.stop_listening`
    undoes `web.listen`. Left: the Gamend addon's 19 unnamed server events,
    `match_found` first (regenerated from the gamend repo).
-10. **The Godot import:** follows each of these: the signal map names what the
-    engine now sends and drops what it does not.
+10. **The Godot import:** built. `ENGINE_EVENTS` in the translator names the
+    engine's event for each Godot signal it sends its own way (`body_entered`
+    is `collision_enter`, `screen_exited` is `screen_exit`), for a connect, an
+    await and a scene row alike. `_notification` also hears the app pausing,
+    resuming and changing language. A signal whose values differ from the
+    event's, such as `item_activated`'s index, is left as the script's own.
 
 ## 5. Not planned
 

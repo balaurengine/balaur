@@ -939,6 +939,28 @@ fn widget_handler_key(name) {
     }
 }
 
+/// The event the engine sends for a Godot signal, where it names it its own
+/// way: the translator's `ENGINE_EVENTS`, which a test holds this copy to.
+fn engine_event(name) {
+    match name {
+        "body_entered" => "collision_enter",
+        "area_entered" => "collision_enter",
+        "body_exited" => "collision_exit",
+        "area_exited" => "collision_exit",
+        "mouse_entered" => "pointer_enter",
+        "mouse_exited" => "pointer_exit",
+        "focus_exited" => "blur",
+        "child_entered_tree" => "child_added",
+        "child_exiting_tree" => "child_removed",
+        "sleeping_state_changed" => "sleeping_changed",
+        "screen_entered" => "screen_enter",
+        "screen_exited" => "screen_exit",
+        "about_to_popup" => "opened",
+        "popup_hide" => "closed",
+        _ => name,
+    }
+}
+
 /// Where a class table keeps what `connect` gave it, by signal.
 const LISTENERS = "__listeners";
 
@@ -1403,7 +1425,7 @@ pub async fn wait_signal(owner, name) {
     if owner is balaur::Node {
         // A widget's key is `on_` and the event it emits.
         let key = widget_handler_key(name);
-        let event = if key is String { key[3..] } else { name };
+        let event = if key is String { key[3..] } else { engine_event(name) };
         let payload = task::wait(events::next(event, owner)).await;
         return payload;
     }

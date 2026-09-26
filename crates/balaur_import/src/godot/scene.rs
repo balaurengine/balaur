@@ -813,21 +813,19 @@ impl Walk<'_> {
 /// pointer crossing where one says the same thing, else the name the node
 /// emits, a widget's change and submit included.
 fn event_of(signal: &str, control: bool, handler: Option<&str>) -> String {
-    match signal {
-        "body_entered" | "area_entered" => "collision_enter".into(),
-        "body_exited" | "area_exited" => "collision_exit".into(),
-        "mouse_entered" => "pointer_enter".into(),
-        "mouse_exited" => "pointer_exit".into(),
-        "pressed" | "button_up" if control => "pointer_click".into(),
-        _ => {
-            let emitted = match handler {
-                Some(crate::godot::gdscript::ON_CHANGE) => balaur::ui::CHANGE_EVENT,
-                Some(crate::godot::gdscript::ON_SUBMIT) => balaur::ui::SUBMIT_EVENT,
-                _ => signal,
-            };
-            format!("emitted:{emitted}")
-        }
+    if control && matches!(signal, "pressed" | "button_up") {
+        return balaur::hooks::POINTER_CLICK.into();
     }
+    let emitted = match handler {
+        Some(crate::godot::gdscript::ON_CHANGE) => balaur::ui::CHANGE_EVENT,
+        Some(crate::godot::gdscript::ON_SUBMIT) => balaur::ui::SUBMIT_EVENT,
+        _ => crate::godot::gdscript::engine_event(signal),
+    };
+    // A core hook's row is spelled bare; every other event is one the node emits.
+    if balaur::hooks::BINDABLE.contains(&emitted) {
+        return emitted.into();
+    }
+    format!("{}{emitted}", balaur::hooks::EMITTED)
 }
 
 /// A scene an instance names, read far enough to know its root and its

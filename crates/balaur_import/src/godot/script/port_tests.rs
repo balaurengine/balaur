@@ -345,7 +345,7 @@ func probe() -> bool:\n\
 }
 
 #[test]
-fn a_notification_handler_hears_the_engine_s_focus_and_quit_hooks() {
+fn a_notification_handler_hears_the_engine_s_focus_suspend_locale_and_quit_hooks() {
     let source = "extends Node\n\
 func _notification(what: int) -> void:\n\
 \tif what == NOTIFICATION_APPLICATION_FOCUS_OUT:\n\
@@ -358,6 +358,10 @@ func _notification(what: int) -> void:\n\
         "(gd.same)(what, 2017)",
         "pub fn on_focused_changed(this, focused) {",
         "let what = if focused { 2016 } else { 2017 };",
+        "pub fn on_suspended_changed(this, suspended) {",
+        "let what = if suspended { 2015 } else { 2014 };",
+        "pub fn on_locale_changed(this, locale) {",
+        "let what = 2010;",
         "pub fn on_quit_requested(this) {",
         "let what = 1006;",
     ] {
@@ -404,4 +408,27 @@ func get_label() -> String:\n\
         "the getter reads the field, not itself: {}",
         out.rune
     );
+}
+
+#[test]
+fn a_signal_the_engine_names_its_own_way_is_heard_by_that_name() {
+    let source = "extends Node\n\
+func _ready():\n\
+\t$Hatch.body_entered.connect(_on_hit)\n\
+\t$Coin.screen_exited.connect(_on_gone)\n\
+func _on_hit(body):\n\
+\tprint(body)\n\
+func _on_gone():\n\
+\tprint(\"gone\")\n";
+    let out = convert(source, "scripts/deck.gd", &Classes::default());
+    assert!(!out.rune.contains("todo"), "{}", out.rune);
+    for want in [
+        "\"collision_enter\"",
+        "pub fn on_collision_enter(",
+        "\"screen_exit\"",
+        "pub fn on_screen_exit(",
+    ] {
+        assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+    }
+    assert!(!out.rune.contains("\"body_entered\""), "{}", out.rune);
 }

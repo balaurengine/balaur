@@ -84,6 +84,7 @@ pub(crate) fn global_constant(name: &str) -> Option<&'static str> {
         "NOTIFICATION_THEME_CHANGED" => "45",
         "NOTIFICATION_WM_CLOSE_REQUEST" => "1006",
         "NOTIFICATION_WM_GO_BACK_REQUEST" => "1007",
+        "NOTIFICATION_TRANSLATION_CHANGED" => "2010",
         "NOTIFICATION_APPLICATION_RESUMED" => "2014",
         "NOTIFICATION_APPLICATION_PAUSED" => "2015",
         "NOTIFICATION_APPLICATION_FOCUS_IN" => "2016",

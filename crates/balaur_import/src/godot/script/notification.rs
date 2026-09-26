@@ -1,9 +1,12 @@
 //! Godot's `_notification`, called from the engine hooks that carry the same
-//! news: the app losing or regaining focus, and the window asked to close.
+//! news: the app losing or regaining focus, going to the background or
+//! coming back, the language changing, and the window asked to close.
 
 use std::fmt::Write as _;
 
-use balaur_core::hooks::{ON_FOCUSED_CHANGED, ON_QUIT_REQUESTED};
+use balaur_core::hooks::{
+    ON_FOCUSED_CHANGED, ON_LOCALE_CHANGED, ON_QUIT_REQUESTED, ON_SUSPENDED_CHANGED,
+};
 
 use super::Function;
 use crate::godot::gdscript::SHIM_PATH;
@@ -18,8 +21,8 @@ fn number(name: &str) -> &'static str {
         .expect("every notification a hook hands over is in the constants table")
 }
 
-/// A class with a `_notification` gains `on_focused_changed` and
-/// `on_quit_requested`, each handing it Godot's number for that news.
+/// A class with a `_notification` gains a method for each engine hook that
+/// carries a notification's news, handing it Godot's number for that news.
 pub(super) fn write_notification_hooks(out: &mut String, functions: &[Function]) {
     let has = |name: &str| functions.iter().any(|f| f.name == name);
     if !has(NOTIFICATION) {
@@ -28,27 +31,53 @@ pub(super) fn write_notification_hooks(out: &mut String, functions: &[Function])
     let call = format!(
         "let _ = (script::require(\"{SHIM_PATH}\").invoke1)(this.node, \"{NOTIFICATION}\", what);"
     );
-    if !has(ON_FOCUSED_CHANGED) {
-        let (focus_in, focus_out) = (
-            number("NOTIFICATION_APPLICATION_FOCUS_IN"),
-            number("NOTIFICATION_APPLICATION_FOCUS_OUT"),
-        );
+    let either = |flag: &str, on: &str, off: &str| {
+        format!("if {flag} {{ {} }} else {{ {} }}", number(on), number(off))
+    };
+    let hooks = [
+        (
+            ON_FOCUSED_CHANGED,
+            "focused",
+            either(
+                "focused",
+                "NOTIFICATION_APPLICATION_FOCUS_IN",
+                "NOTIFICATION_APPLICATION_FOCUS_OUT",
+            ),
+        ),
+        (
+            ON_SUSPENDED_CHANGED,
+            "suspended",
+            either(
+                "suspended",
+                "NOTIFICATION_APPLICATION_PAUSED",
+                "NOTIFICATION_APPLICATION_RESUMED",
+            ),
+        ),
+        (
+            ON_LOCALE_CHANGED,
+            "locale",
+            number("NOTIFICATION_TRANSLATION_CHANGED").to_string(),
+        ),
+        (
+            ON_QUIT_REQUESTED,
+            "",
+            number("NOTIFICATION_WM_CLOSE_REQUEST").to_string(),
+        ),
+    ];
+    for (hook, takes, what) in hooks {
+        if has(hook) {
+            continue;
+        }
+        let params = if takes.is_empty() {
+            String::from("this")
+        } else {
+            format!("this, {takes}")
+        };
         let _ = write!(
             out,
-            "\n/// Godot's focus notifications, from the engine's hook.\n\
-             pub fn {ON_FOCUSED_CHANGED}(this, focused) {{\n\
-             \x20   let what = if focused {{ {focus_in} }} else {{ {focus_out} }};\n\
-             \x20   {call}\n\
-             }}\n"
-        );
-    }
-    if !has(ON_QUIT_REQUESTED) {
-        let close = number("NOTIFICATION_WM_CLOSE_REQUEST");
-        let _ = write!(
-            out,
-            "\n/// Godot's close request, from the engine's hook.\n\
-             pub fn {ON_QUIT_REQUESTED}(this) {{\n\
-             \x20   let what = {close};\n\
+            "\n/// Godot's notification for this news, from the engine's hook.\n\
+             pub fn {hook}({params}) {{\n\
+             \x20   let what = {what};\n\
              \x20   {call}\n\
              }}\n"
         );

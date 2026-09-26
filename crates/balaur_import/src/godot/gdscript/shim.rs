@@ -75,6 +75,32 @@ mod tests {
         assert_eq!(arms, table);
     }
 
+    #[test]
+    fn the_shim_hears_every_engine_event_the_translator_listens_for() {
+        let body = super::SHIM
+            .split("fn engine_event(name) {")
+            .nth(1)
+            .and_then(|rest| rest.split("_ => name,").next())
+            .expect("the shim has engine_event");
+        let mut arms: Vec<(String, String)> = body
+            .lines()
+            .filter_map(|line| {
+                let (signal, event) = line.trim().trim_end_matches(',').split_once(" => ")?;
+                Some((
+                    signal.trim_matches('"').to_string(),
+                    event.trim_matches('"').to_string(),
+                ))
+            })
+            .collect();
+        let mut table: Vec<(String, String)> = crate::godot::gdscript::map::ENGINE_EVENTS
+            .iter()
+            .map(|(signal, event)| ((*signal).to_string(), (*event).to_string()))
+            .collect();
+        arms.sort();
+        table.sort();
+        assert_eq!(arms, table);
+    }
+
     /// The records the translator writes are read by the shim under the
     /// same keys.
     #[test]

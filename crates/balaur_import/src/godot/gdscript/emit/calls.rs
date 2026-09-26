@@ -162,7 +162,7 @@ impl Emitter<'_> {
         let event = if hid {
             map::VISIBILITY_SIGNAL.to_string()
         } else {
-            signal.clone()
+            map::engine_event(&signal).to_string()
         };
         self.forwarders.insert(event.clone(), (handler, hid));
         Some(map::signal_subscribe(&receiver, &event, &closure))
