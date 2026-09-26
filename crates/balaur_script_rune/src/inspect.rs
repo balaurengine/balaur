@@ -247,11 +247,12 @@ fn finding(
 /// when the error carries no location.
 type ThrowSite = (usize, usize, String);
 
+/// Each site's throws so far. The unit is held so its address cannot be
+/// reused by a reload's new unit, whose errors must render again.
+type Throws = FxHashMap<ThrowSite, (Option<Arc<rune::Unit>>, u64)>;
+
 thread_local! {
-    /// Each site's throws so far. The unit is held so its address cannot be
-    /// reused by a reload's new unit, whose errors must render again.
-    static THROWN: RefCell<FxHashMap<ThrowSite, (Option<Arc<rune::Unit>>, u64)>> =
-        RefCell::new(FxHashMap::default());
+    static THROWN: RefCell<Throws> = RefCell::new(FxHashMap::default());
 }
 
 /// Count this throw at its site and answer how many there have been.
@@ -274,7 +275,7 @@ fn tally(key: &str, label: &str, err: &rune::runtime::VmError) -> u64 {
 }
 
 fn is_power_of_ten(mut n: u64) -> bool {
-    while n >= 10 && n % 10 == 0 {
+    while n >= 10 && n.is_multiple_of(10) {
         n /= 10;
     }
     n == 1

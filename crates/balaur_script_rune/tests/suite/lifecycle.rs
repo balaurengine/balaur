@@ -68,8 +68,10 @@ fn freeing_scripted_siblings_runs_each_on_free_in_order_and_keeps_the_rest() {
     assert_eq!(rune.number_field(nodes[1], "ticks"), Some(1.0));
     let freed: Vec<String> = balaur_core::logbuf::recent(500)
         .into_iter()
-        .filter(|e| e.message.starts_with("on_free Doomed"))
-        .map(|e| e.message)
+        .filter_map(|e| {
+            let at = e.message.find("on_free Doomed")?;
+            Some(e.message[at..].to_string())
+        })
         .collect();
     assert_eq!(
         freed,
