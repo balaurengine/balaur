@@ -374,7 +374,11 @@ fn parse_track(value: &toml::Value) -> Result<Track> {
     if discrete != 0 && discrete != keys.len() {
         bail!("a track keys both names and numbers; a property is one or the other");
     }
-    let interpolation = if discrete > 0 { Interpolation::Step } else { interpolation };
+    let interpolation = if discrete > 0 {
+        Interpolation::Step
+    } else {
+        interpolation
+    };
     Ok(Track {
         target,
         property,

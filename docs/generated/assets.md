@@ -45,30 +45,30 @@ Registered by plugins, so this list is whatever the build contains.
 Each type says where its files live, which component properties take
 it, and what a definition table holds.
 
-### `animation_clip`
+### `animation_library`
 
 Files: `animations/`. Used by: `animation.library`.
 
-A clip keys node properties over time. `loop` is `none`, `loop` or `pingpong`; each track names a `target`, a `property`, an `interp` and its `keys`.
+A library holds clips, and a clip keys node properties over time. `loop_mode` is `none`, `linear` or `pingpong`; each track names a `target`, a `property`, an `interpolation` and its `keys`.
 
 ```toml
-type = "animation_clip"
+type = "animation_library"
 
 [clips.patrol]           # one clip per file, or several, addressed as file.toml#patrol
 length = 4.0             # seconds; left out, the clip ends at its last key
-loop = "pingpong"        # none, loop or pingpong
+loop_mode = "pingpong"   # none, linear or pingpong
 
 [[clips.patrol.tracks]]
 target = ""              # node path relative to the playing node; empty is that node
 property = "position"    # rotation_euler, rotation, scale, visible, tint or <component>/<property>
-interp = "linear"        # step, linear or cubic
+interpolation = "linear" # step, linear or cubic
 keys = [
-  { t = 0.0, value = [-2.5, 0.25, -2.0] },
-  { t = 4.0, value = [-2.5, 0.25, 2.0], ease = "in_out_sine" },
+  { time = 0.0, value = [-2.5, 0.25, -2.0] },
+  { time = 4.0, value = [-2.5, 0.25, 2.0], ease = "in_out_sine" },
 ]
 
 [[clips.patrol.tracks]]  # no property: a method track, each key a call on the node's script
-keys = [{ t = 2.0, call = "on_halfway" }]
+keys = [{ time = 2.0, call = "on_halfway" }]
 ```
 
 ### `bone_map`
@@ -241,7 +241,7 @@ rect = [8, 4, 16, 28]
 
 Files: `animations/`. Used by: `state_machine.machine`.
 
-Switches an animation player between clips. `start` is the first state, `[states]` maps states to clips or to nested machines, each `[[transitions]]` entry names `from`, `to`, `fade`, `ease` or `fade_curve`, `advance`, `switch`, `condition`, `check`, `priority`, `reset` and `break_loop`. A transition to `end` stops the machine until a travel or a jump.
+Switches an animation player between clips. `start` is the first state, `[states]` maps states to clips or to nested machines, each `[[transitions]]` entry names `from`, `to`, `blend_time`, `ease` or `blend_curve`, `advance_mode`, `switch_mode`, `condition`, `check`, `priority`, `reset` and `break_loop_at_end`. A transition to `end` stops the machine until a travel or a jump.
 
 ```toml
 type = "state_machine"
@@ -257,20 +257,20 @@ states = { walk = "", run = "run_cycle" }
 [[transitions]]
 from = "idle"
 to = "move"                      # entering a nested machine enters its start
-fade = 0.2                       # seconds
-ease = "in_out_sine"             # the curve the fade follows; linear by default
-advance = "auto"                 # disabled, enabled (fires on animation.travel) or auto
-switch = "immediate"             # immediate, sync (keeps the playhead) or at_end
+blend_time = 0.2                 # seconds
+ease = "in_out_sine"             # the curve the blend follows; linear by default
+advance_mode = "auto"            # disabled, enabled (fires on animation.travel) or auto
+switch_mode = "immediate"        # immediate, sync (keeps the playhead) or at_end
 condition = "moving"             # turned on by animation.set_condition
 check = "can_move"               # a script method that has to answer true, asked each frame
 priority = 1                     # lower wins among auto transitions and on travel
 reset = true                     # false resumes where the state was last left
-break_loop = false               # true holds a looping clip's end while it fades out
+break_loop_at_end = false        # true holds a looping clip's end while it blends out
 
 [[transitions]]
 from = "move"                    # leaves from any state inside the nested machine
 to = "end"
-fade_curve = [[0.0, 0.0], [0.3, 0.8], [1.0, 1.0]]   # [u, weight] points, in place of ease
+blend_curve = [[0.0, 0.0], [0.3, 0.8], [1.0, 1.0]]   # [u, weight] points, in place of ease
 ```
 
 ### `texture`

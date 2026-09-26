@@ -46,10 +46,7 @@ fn value(app: &App, name: &str) -> f32 {
 }
 
 fn pressed(app: &App, name: &str) -> bool {
-    app.engine
-        .resource::<InputActions>()
-        .borrow()
-        .is_down(name)
+    app.engine.resource::<InputActions>().borrow().is_down(name)
 }
 
 fn just_pressed(app: &App, name: &str) -> bool {

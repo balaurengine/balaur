@@ -19,7 +19,7 @@ use balaur_core::scene::{self, Transform};
 use balaur_core::skeleton::Bone;
 use glamx::{EulerRot, Vec3, Vec4};
 
-use crate::clip::{Clip, Property, Track, LoopMode};
+use crate::clip::{Clip, LoopMode, Property, Track};
 use crate::player::{AnimationState, Fade, Playback, fixed_dt, max_substeps};
 use crate::sampler::{self, TrackValue};
 use crate::tween::{self, TweenId};
@@ -218,7 +218,8 @@ fn advance_playback(
     let (time, past_end) = sampler::clip_time(&clip, playback.time);
     // Backwards off the start ends a non-looping clip too, or a negative
     // speed would leave it playing at time zero for the rest of the session.
-    let backwards_off = playback.speed_scale < 0.0 && playback.time <= 0.0 && clip.loop_mode == LoopMode::None;
+    let backwards_off =
+        playback.speed_scale < 0.0 && playback.time <= 0.0 && clip.loop_mode == LoopMode::None;
     let finished = past_end || backwards_off;
     if finished {
         // The last pose is still written: a clip that ends holds its final

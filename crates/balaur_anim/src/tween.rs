@@ -63,7 +63,7 @@ use balaur_core::scene::{self, Transform};
 use balaur_script::Value;
 use glamx::{Quat, Vec4};
 
-use crate::clip::{Clip, Interpolation, Key, Property, Track, LoopMode};
+use crate::clip::{Clip, Interpolation, Key, LoopMode, Property, Track};
 use crate::ease::Easing;
 use crate::keys as k;
 use crate::player::{AnimationState, fixed_dt};

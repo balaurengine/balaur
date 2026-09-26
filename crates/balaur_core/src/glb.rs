@@ -1062,7 +1062,10 @@ fn clips_of(model: &Model) -> Option<toml::Value> {
                 gltf::animation::Interpolation::Step => "step",
                 _ => "linear",
             };
-            track.insert("interpolation".into(), toml::Value::String(interpolation.into()));
+            track.insert(
+                "interpolation".into(),
+                toml::Value::String(interpolation.into()),
+            );
             track.insert("keys".into(), toml::Value::Array(keys));
             tracks.push(toml::Value::Table(track));
         }
@@ -1082,7 +1085,10 @@ fn clips_of(model: &Model) -> Option<toml::Value> {
         return None;
     }
     let mut document = toml::map::Map::new();
-    document.insert("type".into(), toml::Value::String("animation_library".into()));
+    document.insert(
+        "type".into(),
+        toml::Value::String("animation_library".into()),
+    );
     document.insert("clips".into(), toml::Value::Table(clips));
     Some(toml::Value::Table(document))
 }

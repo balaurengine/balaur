@@ -69,9 +69,9 @@ use balaur_core::{Engine, Stage};
 pub use crate::bindings::install_animation_api;
 pub use crate::machine::{STATE_FINISHED_EVENT, STATE_STARTED_EVENT};
 pub use crate::player::{
-    AnimationState, LIBRARY_ASSET_TYPE, Playback, add_clip, current_clip, is_playing, just_finished,
-    pause, play, play_blended, play_from, queue, resume, seek, set_retarget, set_speed_scale, stop,
-    time,
+    AnimationState, LIBRARY_ASSET_TYPE, Playback, add_clip, current_clip, is_playing,
+    just_finished, pause, play, play_blended, play_from, queue, resume, seek, set_retarget,
+    set_speed_scale, stop, time,
 };
 pub use crate::retarget::{BONE_MAP_ASSET_TYPE, BoneMap, PROFILE_ASSET_TYPE, SkeletonProfile};
 pub use crate::system::FINISHED_EVENT;
@@ -125,9 +125,12 @@ impl balaur_plugin::Plugin for AnimationPlugin {
         reg.add_system(Stage::Update, modifier::modify_system);
         modifier::register_modifier2d_component(reg);
         modifier::register_modifier3d_component(reg);
-        reg.register_asset_type(LIBRARY_ASSET_TYPE, "animations", LIBRARY_ASSET_DOC, |value| {
-            Ok(Rc::new(clip::parse(value)?) as Rc<dyn Any>)
-        });
+        reg.register_asset_type(
+            LIBRARY_ASSET_TYPE,
+            "animations",
+            LIBRARY_ASSET_DOC,
+            |value| Ok(Rc::new(clip::parse(value)?) as Rc<dyn Any>),
+        );
         reg.register_asset_type(
             retarget::BONE_MAP_ASSET_TYPE,
             "animations",
@@ -264,7 +267,10 @@ fn animation_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let mut out = toml::map::Map::new();
     out.insert(k::LIBRARY.into(), playback.library.clone().into());
     out.insert(k::AUTOPLAY.into(), playback.autoplay.clone().into());
-    out.insert(k::SPEED_SCALE.into(), f64::from(playback.speed_scale).into());
+    out.insert(
+        k::SPEED_SCALE.into(),
+        f64::from(playback.speed_scale).into(),
+    );
     out.insert(k::ROOT_NODE.into(), playback.root_node.clone().into());
     Some(toml::Value::Table(out))
 }

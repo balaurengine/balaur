@@ -138,7 +138,8 @@ fn a_rollback_mid_crossfade_restores_every_fade_in_the_stack() {
             .len()
     };
     tick(&mut app, 10);
-    balaur_anim::player::play_blended(&app.engine, node, "hold", 0.5, Easing::LINEAR, true).unwrap();
+    balaur_anim::player::play_blended(&app.engine, node, "hold", 0.5, Easing::LINEAR, true)
+        .unwrap();
     tick(&mut app, 5);
     balaur_anim::player::play_blended(&app.engine, node, "", 0.5, Easing::LINEAR, true).unwrap();
     tick(&mut app, 2);

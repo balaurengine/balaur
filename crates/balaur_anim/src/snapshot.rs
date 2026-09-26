@@ -24,7 +24,7 @@ use glamx::{Quat, Vec3, Vec4};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::clip::{Clip, Interpolation, Key, Property, Track, LoopMode};
+use crate::clip::{Clip, Interpolation, Key, LoopMode, Property, Track};
 use crate::ease::Easing;
 use crate::machine::MachineRun;
 use crate::modifier::Jiggle;
@@ -609,7 +609,8 @@ fn clip_of(frame: &ClipFrame) -> Clip {
                     Property::parse(name).unwrap_or(Property::Call)
                 }),
                 channels: track.channels,
-                interpolation: Interpolation::parse(&track.interpolation).unwrap_or(Interpolation::Linear),
+                interpolation: Interpolation::parse(&track.interpolation)
+                    .unwrap_or(Interpolation::Linear),
                 keys: track
                     .keys
                     .iter()

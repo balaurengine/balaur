@@ -1,8 +1,8 @@
 {
   "asset_types": {
-    "animation_clip": {
+    "animation_library": {
       "directory": "animations",
-      "doc": "A clip keys node properties over time. `loop` is `none`, `loop` or `pingpong`; each track names a `target`, a `property`, an `interp` and its `keys`.\n\n```toml\ntype = \"animation_clip\"\n\n[clips.patrol]           # one clip per file, or several, addressed as file.toml#patrol\nlength = 4.0             # seconds; left out, the clip ends at its last key\nloop = \"pingpong\"        # none, loop or pingpong\n\n[[clips.patrol.tracks]]\ntarget = \"\"              # node path relative to the playing node; empty is that node\nproperty = \"position\"    # rotation_euler, rotation, scale, visible, tint or <component>/<property>\ninterp = \"linear\"        # step, linear or cubic\nkeys = [\n  { t = 0.0, value = [-2.5, 0.25, -2.0] },\n  { t = 4.0, value = [-2.5, 0.25, 2.0], ease = \"in_out_sine\" },\n]\n\n[[clips.patrol.tracks]]  # no property: a method track, each key a call on the node's script\nkeys = [{ t = 2.0, call = \"on_halfway\" }]\n```"
+      "doc": "A library holds clips, and a clip keys node properties over time. `loop_mode` is `none`, `linear` or `pingpong`; each track names a `target`, a `property`, an `interpolation` and its `keys`.\n\n```toml\ntype = \"animation_library\"\n\n[clips.patrol]           # one clip per file, or several, addressed as file.toml#patrol\nlength = 4.0             # seconds; left out, the clip ends at its last key\nloop_mode = \"pingpong\"   # none, linear or pingpong\n\n[[clips.patrol.tracks]]\ntarget = \"\"              # node path relative to the playing node; empty is that node\nproperty = \"position\"    # rotation_euler, rotation, scale, visible, tint or <component>/<property>\ninterpolation = \"linear\" # step, linear or cubic\nkeys = [\n  { time = 0.0, value = [-2.5, 0.25, -2.0] },\n  { time = 4.0, value = [-2.5, 0.25, 2.0], ease = \"in_out_sine\" },\n]\n\n[[clips.patrol.tracks]]  # no property: a method track, each key a call on the node's script\nkeys = [{ time = 2.0, call = \"on_halfway\" }]\n```"
     },
     "bone_map": {
       "directory": "animations",
@@ -38,7 +38,7 @@
     },
     "state_machine": {
       "directory": "animations",
-      "doc": "Switches an animation player between clips. `start` is the first state, `[states]` maps states to clips or to nested machines, each `[[transitions]]` entry names `from`, `to`, `fade`, `ease` or `fade_curve`, `advance`, `switch`, `condition`, `check`, `priority`, `reset` and `break_loop`. A transition to `end` stops the machine until a travel or a jump.\n\n```toml\ntype = \"state_machine\"\nstart = \"idle\"\n\n[states]                         # state = clip in the player's library; \"\" is the state's own name\nidle = \"idle\"\n\n[states.move]                    # a nested machine: its states are move/walk and move/run\nstart = \"walk\"\nstates = { walk = \"\", run = \"run_cycle\" }\n\n[[transitions]]\nfrom = \"idle\"\nto = \"move\"                      # entering a nested machine enters its start\nfade = 0.2                       # seconds\nease = \"in_out_sine\"             # the curve the fade follows; linear by default\nadvance = \"auto\"                 # disabled, enabled (fires on animation.travel) or auto\nswitch = \"immediate\"             # immediate, sync (keeps the playhead) or at_end\ncondition = \"moving\"             # turned on by animation.set_condition\ncheck = \"can_move\"               # a script method that has to answer true, asked each frame\npriority = 1                     # lower wins among auto transitions and on travel\nreset = true                     # false resumes where the state was last left\nbreak_loop = false               # true holds a looping clip's end while it fades out\n\n[[transitions]]\nfrom = \"move\"                    # leaves from any state inside the nested machine\nto = \"end\"\nfade_curve = [[0.0, 0.0], [0.3, 0.8], [1.0, 1.0]]   # [u, weight] points, in place of ease\n```"
+      "doc": "Switches an animation player between clips. `start` is the first state, `[states]` maps states to clips or to nested machines, each `[[transitions]]` entry names `from`, `to`, `blend_time`, `ease` or `blend_curve`, `advance_mode`, `switch_mode`, `condition`, `check`, `priority`, `reset` and `break_loop_at_end`. A transition to `end` stops the machine until a travel or a jump.\n\n```toml\ntype = \"state_machine\"\nstart = \"idle\"\n\n[states]                         # state = clip in the player's library; \"\" is the state's own name\nidle = \"idle\"\n\n[states.move]                    # a nested machine: its states are move/walk and move/run\nstart = \"walk\"\nstates = { walk = \"\", run = \"run_cycle\" }\n\n[[transitions]]\nfrom = \"idle\"\nto = \"move\"                      # entering a nested machine enters its start\nblend_time = 0.2                 # seconds\nease = \"in_out_sine\"             # the curve the blend follows; linear by default\nadvance_mode = \"auto\"            # disabled, enabled (fires on animation.travel) or auto\nswitch_mode = \"immediate\"        # immediate, sync (keeps the playhead) or at_end\ncondition = \"moving\"             # turned on by animation.set_condition\ncheck = \"can_move\"               # a script method that has to answer true, asked each frame\npriority = 1                     # lower wins among auto transitions and on travel\nreset = true                     # false resumes where the state was last left\nbreak_loop_at_end = false        # true holds a looping clip's end while it blends out\n\n[[transitions]]\nfrom = \"move\"                    # leaves from any state inside the nested machine\nto = \"end\"\nblend_curve = [[0.0, 0.0], [0.3, 0.8], [1.0, 1.0]]   # [u, weight] points, in place of ease\n```"
     },
     "texture": {
       "directory": "textures",
@@ -58,7 +58,7 @@
     }
   },
   "component_docs": {
-    "animation": "Plays animation clips on the node. `library` is the clip asset, `autoplay` the clip started on load, `speed` the rate; the `animation` module drives playback.",
+    "animation": "Plays animation clips on the node. `library` is the clip asset, `autoplay` the clip started on load, `speed_scale` the rate; the `animation` module drives playback.",
     "bindings": "Reactions the node runs from a table: each row is an `event`, a `when` over the scene's `[variables]`, an `action`, a `target` node and a `value`.",
     "body2d": "A 2D rigid body simulated by rapier in the xy plane. `kind` is `dynamic`, `static`, `kinematic` or `kinematic_velocity`; add a `collider2d` for its shape.",
     "body3d": "A 3D rigid body simulated by rapier. `kind` is `dynamic`, `static`, `kinematic` or `kinematic_velocity`; add a `collider3d` for its shape.",
@@ -307,17 +307,17 @@
         "type": "string"
       },
       "library": {
-        "asset": "animation_clip",
+        "asset": "animation_library",
         "default": "",
         "description": "The clip library this node plays from",
         "type": "asset"
       },
-      "root": {
+      "root_node": {
         "default": "",
         "description": "Node path the clip's tracks resolve against; empty means this node",
         "type": "string"
       },
-      "speed": {
+      "speed_scale": {
         "default": 1.0,
         "description": "Playback rate for every clip on this node",
         "type": "float"
@@ -2717,7 +2717,7 @@
         "description": "Node path to the driven bone, relative to this node; empty means this node. For a chain solver, its root",
         "type": "string"
       },
-      "chain": {
+      "chain_count": {
         "default": 0,
         "description": "How many bones the chain holds, counting the driven one; 0 walks to the deepest tip",
         "type": "int"
@@ -2732,7 +2732,7 @@
         "description": "Whether the modifier runs; off leaves the clip's pose alone",
         "type": "bool"
       },
-      "flip": {
+      "flip_bend_direction": {
         "default": false,
         "description": "Bend a two-bone chain the other way",
         "type": "bool"
@@ -2815,7 +2815,7 @@
         "description": "Node path to the driven bone, relative to this node; empty means this node. For a chain solver, its root",
         "type": "string"
       },
-      "chain": {
+      "chain_count": {
         "default": 0,
         "description": "How many bones the chain holds, counting the driven one; 0 walks to the deepest tip",
         "type": "int"
@@ -2830,7 +2830,7 @@
         "description": "Whether the modifier runs; off leaves the clip's pose alone",
         "type": "bool"
       },
-      "flip": {
+      "flip_bend_direction": {
         "default": false,
         "description": "Bend a two-bone chain the other way",
         "type": "bool"
@@ -4726,15 +4726,15 @@
       }
     },
     "state_machine": {
-      "active": {
-        "default": true,
-        "description": "Whether the machine is running",
-        "type": "bool"
-      },
       "check_node": {
         "default": "",
         "description": "Node path whose script answers the transitions' `check` methods; empty means this node",
         "type": "string"
+      },
+      "enabled": {
+        "default": true,
+        "description": "Whether the machine is running",
+        "type": "bool"
       },
       "machine": {
         "asset": "state_machine",
@@ -6548,11 +6548,14 @@
   "modules": [
     {
       "acts_on": {
-        "current": [
+        "add_clip": [
           "animation"
         ],
-        "define": [
+        "current_clip": [
           "animation"
+        ],
+        "current_state": [
+          "state_machine"
         ],
         "is_playing": [
           "animation"
@@ -6581,9 +6584,6 @@
         "set_condition": [
           "state_machine"
         ],
-        "state": [
-          "state_machine"
-        ],
         "time": [
           "animation"
         ],
@@ -6597,15 +6597,15 @@
       ],
       "constants": [
         {
-          "name": "ADVANCE_AUTO",
+          "name": "ADVANCE_MODE_AUTO",
           "value": "auto"
         },
         {
-          "name": "ADVANCE_DISABLED",
+          "name": "ADVANCE_MODE_DISABLED",
           "value": "disabled"
         },
         {
-          "name": "ADVANCE_ENABLED",
+          "name": "ADVANCE_MODE_ENABLED",
           "value": "enabled"
         },
         {
@@ -6633,10 +6633,6 @@
           "value": "in_expo"
         },
         {
-          "name": "EASE_IN_LINEAR",
-          "value": "in_linear"
-        },
-        {
           "name": "EASE_IN_OUT_BACK",
           "value": "in_out_back"
         },
@@ -6659,10 +6655,6 @@
         {
           "name": "EASE_IN_OUT_EXPO",
           "value": "in_out_expo"
-        },
-        {
-          "name": "EASE_IN_OUT_LINEAR",
-          "value": "in_out_linear"
         },
         {
           "name": "EASE_IN_OUT_QUAD",
@@ -6757,10 +6749,6 @@
           "value": "out_in_expo"
         },
         {
-          "name": "EASE_OUT_IN_LINEAR",
-          "value": "out_in_linear"
-        },
-        {
           "name": "EASE_OUT_IN_QUAD",
           "value": "out_in_quad"
         },
@@ -6779,10 +6767,6 @@
         {
           "name": "EASE_OUT_IN_SPRING",
           "value": "out_in_spring"
-        },
-        {
-          "name": "EASE_OUT_LINEAR",
-          "value": "out_linear"
         },
         {
           "name": "EASE_OUT_QUAD",
@@ -6817,20 +6801,20 @@
           "value": "state_started"
         },
         {
-          "name": "INTERP_CUBIC",
+          "name": "INTERPOLATION_CUBIC",
           "value": "cubic"
         },
         {
-          "name": "INTERP_LINEAR",
+          "name": "INTERPOLATION_LINEAR",
           "value": "linear"
         },
         {
-          "name": "INTERP_STEP",
+          "name": "INTERPOLATION_STEP",
           "value": "step"
         },
         {
-          "name": "LOOP_LOOP",
-          "value": "loop"
+          "name": "LOOP_LINEAR",
+          "value": "linear"
         },
         {
           "name": "LOOP_NONE",
@@ -6897,44 +6881,45 @@
           "value": "end"
         },
         {
-          "name": "SWITCH_AT_END",
+          "name": "SWITCH_MODE_AT_END",
           "value": "at_end"
         },
         {
-          "name": "SWITCH_IMMEDIATE",
+          "name": "SWITCH_MODE_IMMEDIATE",
           "value": "immediate"
         },
         {
-          "name": "SWITCH_SYNC",
+          "name": "SWITCH_MODE_SYNC",
           "value": "sync"
         }
       ],
       "doc": "Clip playback on a node's `animation` component: play, pause, seek and query. `tween` builds a short clip from a table of steps and returns a handle.",
       "docs": {
-        "current": "The clip playing or paused on this node, and nil once it has ended, been stopped, or never started.",
-        "define": "Give this node a clip of its own under that name, from a definition table shaped like a scene file's.",
-        "ease_names": "Every curve an `ease` takes, by name: the bare `linear`, then twelve transitions in four modes each.",
+        "add_clip": "Give this node a clip of its own under that name, from a definition table shaped like a scene file's.",
+        "current_clip": "The clip playing or paused on this node, and nil once it has ended, been stopped, or never started.",
+        "current_state": "The state the machine is in, or nil before it has entered one.",
+        "ease_names": "Every curve an `ease` takes, by name: the bare `linear`, then eleven transitions in four modes each.",
         "is_playing": "Whether a clip is advancing on this node; a paused, stopped, finished or absent one answers false.",
         "is_tween_running": "Whether a handle still names a running tween; one that finished, was stopped, or lost its node answers false. Takes a tween handle, where `is_playing` takes a node and asks about its clip.",
         "jump": "Cut the state machine to the named state on the next step, with no fade.",
         "just_finished": "The clip that ended on this node during the last step, and nil on every other frame.",
         "pause": "Hold the playhead where it is, keeping the clip current so `resume` has something to go back to.",
-        "play": "Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier), `from_start`, `fade` (seconds to blend out of the clip before), `ease` (the fade's curve, an `EASE_*` constant), and `retarget` (a `bone_map` reference, so this rig can play another rig's clips).",
+        "play": "Start the clip of that name on this node; the trailing options table takes `speed_scale` (a multiplier), `from_start`, `blend_time` (seconds to blend out of the clip before), `ease` (the blend's curve, an `EASE_*` constant), and `retarget` (a `bone_map` reference, so this rig can play another rig's clips).",
         "queue": "Play the clip of that name once the current one ends; a looping clip never ends, so a queue behind one never drains.",
         "resume": "Carry on from where `pause` left off; a stopped, finished or never-started node is left alone.",
         "seek": "Move the playhead to a number of seconds and pose the node there, even on a paused or ended clip.",
         "set_condition": "Turn on or off a condition that `auto` transitions wait on.",
-        "state": "The state the machine is in, or nil before it has entered one.",
         "stop": "End the clip on a node, or the tween a handle names, leaving the pose where it is; `resume` cannot revive it.",
         "time": "Seconds of playback since the current clip started, before wrapping; a stopped clip keeps where it stopped.",
         "travel": "Head for the named state through the cheapest chain of transitions, each costing its priority and fading as it says; a state no transition reaches is cut to directly.",
-        "tween": "Generate a clip on the node from a table of steps and run it, returning the handle `stop` and `is_tween_running` take. The table also takes `delay` in seconds, `then = <handle>` to wait for another tween, `loops` and `speed`; a step's `call` names a method or passes a function; the node's `on_tween_finished(handle)` is called when it runs out.",
+        "tween": "Generate a clip on the node from a table of steps and run it, returning the handle `stop` and `is_tween_running` take. The table also takes `delay` in seconds, `then = <handle>` to wait for another tween, `loops` and `speed_scale`; a step's `call` names a method or passes a function; the node's `on_tween_finished(handle)` is called when it runs out.",
         "tween_value": "A tween over a number, or a list of up to four, that drives no node: read it each frame with `tween_value_of` and write it wherever you like. Returns a handle `stop` takes.",
         "tween_value_of": "Where a value tween has got to, in the shape it was started with; nil once it is over."
       },
       "functions": [
-        "current",
-        "define",
+        "add_clip",
+        "current_clip",
+        "current_state",
         "ease_names",
         "is_playing",
         "is_tween_running",
@@ -6946,7 +6931,6 @@
         "resume",
         "seek",
         "set_condition",
-        "state",
         "stop",
         "time",
         "travel",
@@ -6956,8 +6940,9 @@
       ],
       "name": "animation",
       "signatures": {
-        "current": "NodeId -> Option<String>",
-        "define": "(NodeId, String, Value) -> ()",
+        "add_clip": "(NodeId, String, Value) -> ()",
+        "current_clip": "NodeId -> Option<String>",
+        "current_state": "NodeId -> Value",
         "ease_names": "() -> Value",
         "is_playing": "NodeId -> bool",
         "is_tween_running": "Value -> bool",
@@ -6969,7 +6954,6 @@
         "resume": "NodeId -> ()",
         "seek": "(NodeId, f32) -> ()",
         "set_condition": "(NodeId, String, bool) -> ()",
-        "state": "NodeId -> Value",
         "stop": "Value -> ()",
         "time": "NodeId -> f32",
         "travel": "(NodeId, String) -> ()",
@@ -10977,7 +10961,7 @@
         "texture_pixels_per_unit": "How many of an image's pixels make a world unit when a sprite says 0: its own `pixels_per_unit` import setting, else 100.",
         "texture_size": "An image's width and height in pixels, read from the file's own header.",
         "tile_data": "What the tileset says about the tile at a column and row -- its `[tiles.<id>.data]` table -- or nil where the cell is empty or the tile carries none.",
-        "trace_texture": "The outline of an image's opaque pixels, as `[x, y]` points in a node's own space, ready to be a polygon's `positions`. `opts` takes `threshold` (alpha counted as opaque, 0 to 1, default 0.5), `tolerance` (how many pixels of detail to drop, default 2), `pixels_per_unit` (default 100) and `holes` (include the loops inside the shape, default false). Counter-clockwise with y up, centred on the origin, the way a sprite at the same `pixels_per_unit` is drawn."
+        "trace_texture": "The outline of an image's opaque pixels, as `[x, y]` points in a node's own space, ready to be a polygon's `positions`. `opts` takes `threshold` (alpha counted as opaque, 0 to 1, default 0.5), `tolerance` (how many pixels of detail to drop, default 2), `pixels_per_unit` (default 100) and `holes` (every loop, largest first: each other island counter-clockwise and each hole clockwise; default false keeps the largest alone). Counter-clockwise with y up, centred on the origin, the way a sprite at the same `pixels_per_unit` is drawn."
       },
       "functions": [
         "bounds",

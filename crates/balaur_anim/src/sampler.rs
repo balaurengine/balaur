@@ -13,7 +13,7 @@
 
 use glamx::{Quat, Vec3, Vec4};
 
-use crate::clip::{Clip, Interpolation, Key, Property, Track, LoopMode};
+use crate::clip::{Clip, Interpolation, Key, LoopMode, Property, Track};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum TrackValue {

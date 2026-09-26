@@ -327,10 +327,10 @@ Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bo
 <tbody>
 <tr><td><code>angle_limit</code></td><td>float</td><td><code>0.0</code></td><td>How far a ccdik bone may turn from its rest, in radians; 0 leaves it free</td></tr>
 <tr><td><code>bone</code></td><td>string</td><td>—</td><td>Node path to the driven bone, relative to this node; empty means this node. For a chain solver, its root</td></tr>
-<tr><td><code>chain</code></td><td>int</td><td><code>0</code></td><td>How many bones the chain holds, counting the driven one; 0 walks to the deepest tip</td></tr>
+<tr><td><code>chain_count</code></td><td>int</td><td><code>0</code></td><td>How many bones the chain holds, counting the driven one; 0 walks to the deepest tip</td></tr>
 <tr><td><code>damping</code></td><td>float</td><td><code>0.75</code></td><td>How much of a jiggle bone&#x27;s speed survives a tick, 0 to 1</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether the modifier runs; off leaves the clip&#x27;s pose alone</td></tr>
-<tr><td><code>flip</code></td><td>bool</td><td><code>false</code></td><td>Bend a two-bone chain the other way</td></tr>
+<tr><td><code>flip_bend_direction</code></td><td>bool</td><td><code>false</code></td><td>Bend a two-bone chain the other way</td></tr>
 <tr><td><code>gravity</code></td><td>vec3</td><td><code>[0.0, -6.0, 0.0]</code></td><td>Pull on a jiggle bone while `use_gravity` is on</td></tr>
 <tr><td><code>iterations</code></td><td>int</td><td><code>10</code></td><td>Solver passes for fabrik and ccdik</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>look_at</code></td><td>Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), let a chain lag behind the pose (jiggle), or trail the target at an offset (follow) One of <code>look_at</code>, <code>two_bone_ik</code>, <code>fabrik</code>, <code>ccdik</code>, <code>jiggle</code>, <code>follow</code>.</td></tr>
@@ -1084,10 +1084,10 @@ Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `
 <tbody>
 <tr><td><code>angle_limit</code></td><td>float</td><td><code>0.0</code></td><td>How far a ccdik bone may turn from its rest, in radians; 0 leaves it free</td></tr>
 <tr><td><code>bone</code></td><td>string</td><td>—</td><td>Node path to the driven bone, relative to this node; empty means this node. For a chain solver, its root</td></tr>
-<tr><td><code>chain</code></td><td>int</td><td><code>0</code></td><td>How many bones the chain holds, counting the driven one; 0 walks to the deepest tip</td></tr>
+<tr><td><code>chain_count</code></td><td>int</td><td><code>0</code></td><td>How many bones the chain holds, counting the driven one; 0 walks to the deepest tip</td></tr>
 <tr><td><code>damping</code></td><td>float</td><td><code>0.75</code></td><td>How much of a jiggle bone&#x27;s speed survives a tick, 0 to 1</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether the modifier runs; off leaves the clip&#x27;s pose alone</td></tr>
-<tr><td><code>flip</code></td><td>bool</td><td><code>false</code></td><td>Bend a two-bone chain the other way</td></tr>
+<tr><td><code>flip_bend_direction</code></td><td>bool</td><td><code>false</code></td><td>Bend a two-bone chain the other way</td></tr>
 <tr><td><code>gravity</code></td><td>vec3</td><td><code>[0.0, -6.0, 0.0]</code></td><td>Pull on a jiggle bone while `use_gravity` is on</td></tr>
 <tr><td><code>iterations</code></td><td>int</td><td><code>10</code></td><td>Solver passes for fabrik and ccdik</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>look_at</code></td><td>Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), let a chain lag behind the pose (jiggle), or trail the target at an offset (follow) One of <code>look_at</code>, <code>two_bone_ik</code>, <code>fabrik</code>, <code>ccdik</code>, <code>jiggle</code>, <code>follow</code>.</td></tr>
@@ -1461,15 +1461,15 @@ A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `spread` and 
 
 `animation` · 4 properties · 10 methods
 
-Plays animation clips on the node. `library` is the clip asset, `autoplay` the clip started on load, `speed` the rate; the `animation` module drives playback.
+Plays animation clips on the node. `library` is the clip asset, `autoplay` the clip started on load, `speed_scale` the rate; the `animation` module drives playback.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>autoplay</code></td><td>string</td><td>—</td><td>Clip to start when the scene loads; empty starts nothing</td></tr>
-<tr><td><code>library</code></td><td>asset · <code>animation_clip</code></td><td>—</td><td>The clip library this node plays from</td></tr>
-<tr><td><code>root</code></td><td>string</td><td>—</td><td>Node path the clip&#x27;s tracks resolve against; empty means this node</td></tr>
-<tr><td><code>speed</code></td><td>float</td><td><code>1.0</code></td><td>Playback rate for every clip on this node</td></tr>
+<tr><td><code>library</code></td><td>asset · <code>animation_library</code></td><td>—</td><td>The clip library this node plays from</td></tr>
+<tr><td><code>root_node</code></td><td>string</td><td>—</td><td>Node path the clip&#x27;s tracks resolve against; empty means this node</td></tr>
+<tr><td><code>speed_scale</code></td><td>float</td><td><code>1.0</code></td><td>Playback rate for every clip on this node</td></tr>
 </tbody>
 </table>
 
@@ -1478,12 +1478,12 @@ On a node carrying `animation`, as `node.animation.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
-<tr><td><code>current()</code></td><td><code>Option&lt;String&gt;</code></td><td>The clip playing or paused on this node, and nil once it has ended, been stopped, or never started.</td><td><code>animation</code></td></tr>
-<tr><td><code>define(String, Value)</code></td><td>—</td><td>Give this node a clip of its own under that name, from a definition table shaped like a scene file&#x27;s.</td><td><code>animation</code></td></tr>
+<tr><td><code>add_clip(String, Value)</code></td><td>—</td><td>Give this node a clip of its own under that name, from a definition table shaped like a scene file&#x27;s.</td><td><code>animation</code></td></tr>
+<tr><td><code>current_clip()</code></td><td><code>Option&lt;String&gt;</code></td><td>The clip playing or paused on this node, and nil once it has ended, been stopped, or never started.</td><td><code>animation</code></td></tr>
 <tr><td><code>is_playing()</code></td><td><code>bool</code></td><td>Whether a clip is advancing on this node; a paused, stopped, finished or absent one answers false.</td><td><code>animation</code></td></tr>
 <tr><td><code>just_finished()</code></td><td><code>Option&lt;String&gt;</code></td><td>The clip that ended on this node during the last step, and nil on every other frame.</td><td><code>animation</code></td></tr>
 <tr><td><code>pause()</code></td><td>—</td><td>Hold the playhead where it is, keeping the clip current so `resume` has something to go back to.</td><td><code>animation</code></td></tr>
-<tr><td><code>play(String, Option&lt;Value&gt;)</code></td><td>—</td><td>Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier), `from_start`, `fade` (seconds to blend out of the clip before), `ease` (the fade&#x27;s curve, an `EASE_*` constant), and `retarget` (a `bone_map` reference, so this rig can play another rig&#x27;s clips).</td><td><code>animation</code></td></tr>
+<tr><td><code>play(String, Option&lt;Value&gt;)</code></td><td>—</td><td>Start the clip of that name on this node; the trailing options table takes `speed_scale` (a multiplier), `from_start`, `blend_time` (seconds to blend out of the clip before), `ease` (the blend&#x27;s curve, an `EASE_*` constant), and `retarget` (a `bone_map` reference, so this rig can play another rig&#x27;s clips).</td><td><code>animation</code></td></tr>
 <tr><td><code>queue(String)</code></td><td>—</td><td>Play the clip of that name once the current one ends; a looping clip never ends, so a queue behind one never drains.</td><td><code>animation</code></td></tr>
 <tr><td><code>resume()</code></td><td>—</td><td>Carry on from where `pause` left off; a stopped, finished or never-started node is left alone.</td><td><code>animation</code></td></tr>
 <tr><td><code>seek(f32)</code></td><td>—</td><td>Move the playhead to a number of seconds and pose the node there, even on a paused or ended clip.</td><td><code>animation</code></td></tr>
@@ -1500,8 +1500,8 @@ Runs the `state_machine` asset in `machine` over the `player` node's clips. `aut
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>active</code></td><td>bool</td><td><code>true</code></td><td>Whether the machine is running</td></tr>
 <tr><td><code>check_node</code></td><td>string</td><td>—</td><td>Node path whose script answers the transitions&#x27; `check` methods; empty means this node</td></tr>
+<tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether the machine is running</td></tr>
 <tr><td><code>machine</code></td><td>asset · <code>state_machine</code></td><td>—</td><td>The state machine to run</td></tr>
 <tr><td><code>player</code></td><td>string</td><td>—</td><td>Node path to the `animation` player it drives; empty means this node</td></tr>
 </tbody>
@@ -1512,9 +1512,9 @@ On a node carrying `state_machine`, as `node.state_machine.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
+<tr><td><code>current_state()</code></td><td><code>Value</code></td><td>The state the machine is in, or nil before it has entered one.</td><td><code>animation</code></td></tr>
 <tr><td><code>jump(String)</code></td><td>—</td><td>Cut the state machine to the named state on the next step, with no fade.</td><td><code>animation</code></td></tr>
 <tr><td><code>set_condition(String, bool)</code></td><td>—</td><td>Turn on or off a condition that `auto` transitions wait on.</td><td><code>animation</code></td></tr>
-<tr><td><code>state()</code></td><td><code>Value</code></td><td>The state the machine is in, or nil before it has entered one.</td><td><code>animation</code></td></tr>
 <tr><td><code>travel(String)</code></td><td>—</td><td>Head for the named state through the cheapest chain of transitions, each costing its priority and fading as it says; a state no transition reaches is cut to directly.</td><td><code>animation</code></td></tr>
 </tbody>
 </table>

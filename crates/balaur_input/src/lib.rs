@@ -19,9 +19,9 @@ pub mod actions;
 pub mod gamepad;
 pub mod gestures;
 pub mod haptics;
+mod keys;
 pub mod settings;
 pub mod touch_controls;
-mod keys;
 mod vocabulary;
 // A pad's motion and touchpad come from reading its HID reports, which a tab
 // cannot do; `GamepadState` gates the field the same way.
@@ -31,8 +31,8 @@ mod sensors;
 pub use actions::InputActions;
 pub use gamepad::{GamepadState, Motion, PAD_AXIS_NAMES, PAD_BUTTON_NAMES, PadTouch};
 pub use gestures::Gestures;
-pub use settings::InputConfig;
 pub use keys::{EITHER_SIDE, KEYS};
+pub use settings::InputConfig;
 pub use touch_controls::{TouchButton, TouchStick};
 
 const MOUSE_BUTTONS: usize = 8;
@@ -491,7 +491,6 @@ impl balaur_plugin::Plugin for InputPlugin {
 
 /// Every key code a backend can report, in the order `input.KEY_*` lists
 /// them. A headless run has no backend, so a typo in a script is caught here.
-#[must_use]
 pub fn known_keys() -> impl Iterator<Item = &'static str> {
     keys::KEYS.iter().map(|(_, code)| *code)
 }

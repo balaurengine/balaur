@@ -287,7 +287,10 @@ fn describe(section: &Section, res: &Resources<'_>, row: &mut toml::Table, out: 
     if let Some(priority) = section.field("priority").and_then(Value::as_i64) {
         row.insert(k::PRIORITY.into(), Toml::Integer(priority));
     }
-    for (godot, key) in [("reset", k::RESET), ("break_loop_at_end", k::BREAK_LOOP_AT_END)] {
+    for (godot, key) in [
+        ("reset", k::RESET),
+        ("break_loop_at_end", k::BREAK_LOOP_AT_END),
+    ] {
         if let Some(&Value::Bool(on)) = section.field(godot) {
             row.insert(key.into(), Toml::Boolean(on));
         }

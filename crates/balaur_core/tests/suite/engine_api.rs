@@ -846,5 +846,8 @@ fn the_editor_keeps_its_user_data_beside_the_games_not_among_them() {
     assert_eq!(editor, data.join("balaur-editor"));
     let game = balaur_core::engine_api::user_data_dir_named(&app.engine, "themes");
     assert_eq!(game, data.join("balaur").join("themes"));
-    assert!(!game.starts_with(&editor), "a game named themes stays out of the editor's folder");
+    assert!(
+        !game.starts_with(&editor),
+        "a game named themes stays out of the editor's folder"
+    );
 }

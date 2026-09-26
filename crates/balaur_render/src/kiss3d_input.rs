@@ -117,6 +117,13 @@ pub(crate) fn pump_input(app: &App, window: &Window) -> Seen {
 /// `balaur_input` keeps. `None` for a key with no code, which no binding can
 /// name.
 fn key_code(key: kiss3d::event::Key) -> Option<&'static str> {
+    typing_code(key)
+        .or_else(|| control_code(key))
+        .or_else(|| system_code(key))
+}
+
+/// Letters, digits, punctuation and the space bar.
+fn typing_code(key: kiss3d::event::Key) -> Option<&'static str> {
     use kiss3d::event::Key;
     Some(match key {
         Key::Key0 => "Digit0",
@@ -155,6 +162,29 @@ fn key_code(key: kiss3d::event::Key) -> Option<&'static str> {
         Key::X => "KeyX",
         Key::Y => "KeyY",
         Key::Z => "KeyZ",
+        Key::Space => "Space",
+        Key::AbntC1 => "IntlRo",
+        Key::Apostrophe => "Quote",
+        Key::Backslash => "Backslash",
+        Key::Comma => "Comma",
+        Key::Equals => "Equal",
+        Key::Grave => "Backquote",
+        Key::LBracket => "BracketLeft",
+        Key::Minus => "Minus",
+        Key::OEM102 => "IntlBackslash",
+        Key::Period => "Period",
+        Key::RBracket => "BracketRight",
+        Key::Semicolon => "Semicolon",
+        Key::Slash => "Slash",
+        Key::Yen => "IntlYen",
+        _ => return None,
+    })
+}
+
+/// Function, navigation and editing keys, and the numeric keypad.
+fn control_code(key: kiss3d::event::Key) -> Option<&'static str> {
+    use kiss3d::event::Key;
+    Some(match key {
         Key::Escape => "Escape",
         Key::F1 => "F1",
         Key::F2 => "F2",
@@ -195,7 +225,6 @@ fn key_code(key: kiss3d::event::Key) -> Option<&'static str> {
         Key::Down => "ArrowDown",
         Key::Back => "Backspace",
         Key::Return => "Enter",
-        Key::Space => "Space",
         Key::Numlock => "NumLock",
         Key::Numpad0 => "Numpad0",
         Key::Numpad1 => "Numpad1",
@@ -207,59 +236,53 @@ fn key_code(key: kiss3d::event::Key) -> Option<&'static str> {
         Key::Numpad7 => "Numpad7",
         Key::Numpad8 => "Numpad8",
         Key::Numpad9 => "Numpad9",
-        Key::AbntC1 => "IntlRo",
         Key::Add => "NumpadAdd",
-        Key::Apostrophe => "Quote",
         Key::Apps => "ContextMenu",
-        Key::Backslash => "Backslash",
         Key::Capital => "CapsLock",
-        Key::Comma => "Comma",
-        Key::Convert => "Convert",
         Key::Decimal => "NumpadDecimal",
         Key::Divide => "NumpadDivide",
-        Key::Equals => "Equal",
-        Key::Grave => "Backquote",
+        Key::Multiply => "NumpadMultiply",
+        Key::NumpadComma => "NumpadComma",
+        Key::NumpadEnter => "NumpadEnter",
+        Key::NumpadEquals => "NumpadEqual",
+        Key::Subtract => "NumpadSubtract",
+        Key::Tab => "Tab",
+        _ => return None,
+    })
+}
+
+/// Modifiers, media and browser keys, and the IME keys.
+fn system_code(key: kiss3d::event::Key) -> Option<&'static str> {
+    use kiss3d::event::Key;
+    Some(match key {
+        Key::Convert => "Convert",
         Key::Kana => "KanaMode",
         Key::LAlt => "AltLeft",
-        Key::LBracket => "BracketLeft",
         Key::LControl => "ControlLeft",
         Key::LShift => "ShiftLeft",
         Key::LWin => "MetaLeft",
         Key::Mail => "LaunchMail",
         Key::MediaSelect => "MediaSelect",
         Key::MediaStop => "MediaStop",
-        Key::Minus => "Minus",
-        Key::Multiply => "NumpadMultiply",
         Key::Mute => "AudioVolumeMute",
         Key::NavigateForward => "BrowserForward",
         Key::NavigateBackward => "BrowserBack",
         Key::NextTrack => "MediaTrackNext",
         Key::NoConvert => "NonConvert",
-        Key::NumpadComma => "NumpadComma",
-        Key::NumpadEnter => "NumpadEnter",
-        Key::NumpadEquals => "NumpadEqual",
-        Key::OEM102 => "IntlBackslash",
-        Key::Period => "Period",
         Key::PlayPause => "MediaPlayPause",
         Key::Power => "Power",
         Key::PrevTrack => "MediaTrackPrevious",
         Key::RAlt => "AltRight",
-        Key::RBracket => "BracketRight",
         Key::RControl => "ControlRight",
         Key::RShift => "ShiftRight",
         Key::RWin => "MetaRight",
-        Key::Semicolon => "Semicolon",
-        Key::Slash => "Slash",
         Key::Sleep => "Sleep",
-        Key::Subtract => "NumpadSubtract",
-        Key::Tab => "Tab",
         Key::VolumeDown => "AudioVolumeDown",
         Key::VolumeUp => "AudioVolumeUp",
         Key::Wake => "WakeUp",
         Key::WebHome => "BrowserHome",
         Key::WebRefresh => "BrowserRefresh",
         Key::WebSearch => "BrowserSearch",
-        Key::Yen => "IntlYen",
         Key::Copy => "Copy",
         Key::Paste => "Paste",
         Key::Cut => "Cut",

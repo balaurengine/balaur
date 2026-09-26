@@ -90,7 +90,10 @@ fn install_transport_api(m: &mut dyn Bindings<Engine>) {
         "play",
         |eng: &Engine, (node, name, opts): (NodeId, String, Option<Value>)| {
             let entity = entity_of(node)?;
-            if let Some(scale) = option(opts.as_ref(), k::SPEED_SCALE).as_ref().and_then(number) {
+            if let Some(scale) = option(opts.as_ref(), k::SPEED_SCALE)
+                .as_ref()
+                .and_then(number)
+            {
                 player::set_speed_scale(eng, entity, scale);
             }
             // Before the clip starts: a map that will not load should stop

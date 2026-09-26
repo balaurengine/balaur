@@ -4,8 +4,8 @@
 
 use balaur_anim::ease::Easing;
 use balaur_anim::{
-    ADVANCE_MODES, AnimationPlugin, CONSTANTS, INTERPOLATIONS, LOOP_MODES, MODIFIER_KINDS, PROPERTIES,
-    SWITCH_MODES, clip, ease_constants, machine,
+    ADVANCE_MODES, AnimationPlugin, CONSTANTS, INTERPOLATIONS, LOOP_MODES, MODIFIER_KINDS,
+    PROPERTIES, SWITCH_MODES, clip, ease_constants, machine,
 };
 use balaur_core::components::ComponentRegistry;
 use balaur_core::{App, AppConfig};
@@ -35,8 +35,9 @@ fn every_loop_mode_interp_and_property_parses_in_a_clip() {
             clip::DEFORM => "[0.0, 0.0]",
             _ => "[0.0, 0.0, 0.0]",
         };
-        let body =
-            format!("[[tracks]]\nproperty = \"{word}\"\nkeys = [{{ time = 1.0, value = {value} }}]\n");
+        let body = format!(
+            "[[tracks]]\nproperty = \"{word}\"\nkeys = [{{ time = 1.0, value = {value} }}]\n"
+        );
         assert!(
             parses_as_clip(&body).is_ok(),
             "{name}: {:?}",

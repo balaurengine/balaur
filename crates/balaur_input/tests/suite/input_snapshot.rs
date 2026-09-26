@@ -68,10 +68,7 @@ fn mouse_buttons_follow_the_same_edge_rules() {
     input.mouse_button_event(0, true);
     assert!(input.mouse_down(0));
     assert!(input.mouse_just_pressed(0));
-    assert!(
-        !input.mouse_down(1),
-        "the right button is not the left one"
-    );
+    assert!(!input.mouse_down(1), "the right button is not the left one");
 
     input.begin_frame();
     assert!(input.mouse_down(0));

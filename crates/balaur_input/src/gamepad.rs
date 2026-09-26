@@ -270,7 +270,10 @@ const AXES: &[(&str, Source)] = &[
     ("right_x", Source::Axis(gilrs::Axis::RightStickX)),
     ("right_y", Source::Axis(gilrs::Axis::RightStickY)),
     ("left_trigger", Source::Trigger(gilrs::Button::LeftTrigger2)),
-    ("right_trigger", Source::Trigger(gilrs::Button::RightTrigger2)),
+    (
+        "right_trigger",
+        Source::Trigger(gilrs::Button::RightTrigger2),
+    ),
 ];
 
 impl GamepadState {

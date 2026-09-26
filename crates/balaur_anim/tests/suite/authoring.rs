@@ -162,10 +162,10 @@ fn a_clip_promoted_to_a_file_poses_exactly_as_the_inline_one_did() {
     // What the editor's promote does: the same table, typed, on disk.
     let document: toml::Value = toml::from_str(LIBRARY).unwrap();
     let mut promoted = document.get("library").unwrap().clone();
-    promoted
-        .as_table_mut()
-        .unwrap()
-        .insert("type".into(), toml::Value::String("animation_library".into()));
+    promoted.as_table_mut().unwrap().insert(
+        "type".into(),
+        toml::Value::String("animation_library".into()),
+    );
     std::fs::create_dir_all(dir.path().join("animations")).unwrap();
     std::fs::write(
         dir.path().join("animations/box.toml"),

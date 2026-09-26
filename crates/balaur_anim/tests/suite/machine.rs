@@ -78,7 +78,10 @@ fn a_machine_enters_its_start_and_crosses_when_a_condition_comes_on() {
         ),
     );
     tick(&mut app, 10);
-    assert_eq!(machine::current_state(&app.engine, hero).as_deref(), Some("idle"));
+    assert_eq!(
+        machine::current_state(&app.engine, hero).as_deref(),
+        Some("idle")
+    );
     assert_eq!(
         balaur_anim::current_clip(&app.engine, hero).as_deref(),
         Some("idle")
@@ -87,7 +90,10 @@ fn a_machine_enters_its_start_and_crosses_when_a_condition_comes_on() {
 
     machine::set_condition(&app.engine, hero, "moving", true).unwrap();
     tick(&mut app, 15);
-    assert_eq!(machine::current_state(&app.engine, hero).as_deref(), Some("walk"));
+    assert_eq!(
+        machine::current_state(&app.engine, hero).as_deref(),
+        Some("walk")
+    );
     // A quarter of a second into a half-second fade: between the two.
     let mid = x(&app, hero);
     assert!(
@@ -107,9 +113,15 @@ fn an_at_end_transition_waits_for_the_clip_to_finish() {
             + "\n[[transitions]]\nfrom = \"jump\"\nto = \"idle\"\nadvance_mode = \"auto\"\nswitch_mode = \"at_end\"\n"),
     );
     tick(&mut app, 20);
-    assert_eq!(machine::current_state(&app.engine, hero).as_deref(), Some("jump"));
+    assert_eq!(
+        machine::current_state(&app.engine, hero).as_deref(),
+        Some("jump")
+    );
     tick(&mut app, 20);
-    assert_eq!(machine::current_state(&app.engine, hero).as_deref(), Some("idle"));
+    assert_eq!(
+        machine::current_state(&app.engine, hero).as_deref(),
+        Some("idle")
+    );
     assert_eq!(
         balaur_anim::current_clip(&app.engine, hero).as_deref(),
         Some("idle")
@@ -128,14 +140,23 @@ fn travel_passes_through_the_states_between_and_cuts_to_one_it_cannot_reach() {
     tick(&mut app, 3);
     machine::travel(&app.engine, hero, "jump").unwrap();
     tick(&mut app, 1);
-    assert_eq!(machine::current_state(&app.engine, hero).as_deref(), Some("walk"));
+    assert_eq!(
+        machine::current_state(&app.engine, hero).as_deref(),
+        Some("walk")
+    );
     tick(&mut app, 1);
-    assert_eq!(machine::current_state(&app.engine, hero).as_deref(), Some("jump"));
+    assert_eq!(
+        machine::current_state(&app.engine, hero).as_deref(),
+        Some("jump")
+    );
 
     // Nothing leads back from `jump`, so the machine cuts straight to `idle`.
     machine::travel(&app.engine, hero, "idle").unwrap();
     tick(&mut app, 1);
-    assert_eq!(machine::current_state(&app.engine, hero).as_deref(), Some("idle"));
+    assert_eq!(
+        machine::current_state(&app.engine, hero).as_deref(),
+        Some("idle")
+    );
 }
 
 #[test]
@@ -188,7 +209,10 @@ fn a_transition_that_does_not_reset_resumes_the_state_where_it_was_left() {
     tick(&mut app, 5);
     machine::travel(&app.engine, hero, "walk").unwrap();
     tick(&mut app, 1);
-    assert_eq!(machine::current_state(&app.engine, hero).as_deref(), Some("walk"));
+    assert_eq!(
+        machine::current_state(&app.engine, hero).as_deref(),
+        Some("walk")
+    );
     let resumed = balaur_anim::time(&app.engine, hero);
     assert!(
         (resumed - left_at).abs() < 0.05,
@@ -206,7 +230,10 @@ fn the_lowest_priority_auto_transition_wins() {
         ),
     );
     tick(&mut app, 2);
-    assert_eq!(machine::current_state(&app.engine, hero).as_deref(), Some("jump"));
+    assert_eq!(
+        machine::current_state(&app.engine, hero).as_deref(),
+        Some("jump")
+    );
 }
 
 #[test]
@@ -227,7 +254,10 @@ fn travel_takes_the_cheapest_chain_by_priority() {
         "two hops at 1 cost less than one at 3"
     );
     tick(&mut app, 1);
-    assert_eq!(machine::current_state(&app.engine, hero).as_deref(), Some("jump"));
+    assert_eq!(
+        machine::current_state(&app.engine, hero).as_deref(),
+        Some("jump")
+    );
 }
 
 #[test]
@@ -327,7 +357,10 @@ fn travel_on_the_frame_a_machine_is_turned_on_waits_for_it_to_load() {
     components::patch(&app.engine, hero, "state_machine", &active(true)).unwrap();
     machine::travel(&app.engine, hero, "walk").unwrap();
     tick(&mut app, 1);
-    assert_eq!(machine::current_state(&app.engine, hero).as_deref(), Some("walk"));
+    assert_eq!(
+        machine::current_state(&app.engine, hero).as_deref(),
+        Some("walk")
+    );
 }
 
 #[test]
@@ -375,7 +408,10 @@ fn reaching_end_stops_the_machine_until_a_travel() {
 
     machine::travel(&app.engine, hero, "walk").unwrap();
     tick(&mut app, 1);
-    assert_eq!(machine::current_state(&app.engine, hero).as_deref(), Some("walk"));
+    assert_eq!(
+        machine::current_state(&app.engine, hero).as_deref(),
+        Some("walk")
+    );
 }
 
 /// `move` is a machine of its own: `walk`, and `jump` on `hop`.
@@ -431,7 +467,10 @@ fn a_nested_machine_is_entered_at_its_start_and_left_from_any_state_in_it() {
     machine::set_condition(&app.engine, hero, "go", false).unwrap();
     machine::set_condition(&app.engine, hero, "stop", true).unwrap();
     tick(&mut app, 1);
-    assert_eq!(machine::current_state(&app.engine, hero).as_deref(), Some("idle"));
+    assert_eq!(
+        machine::current_state(&app.engine, hero).as_deref(),
+        Some("idle")
+    );
 
     machine::set_condition(&app.engine, hero, "stop", false).unwrap();
     machine::travel(&app.engine, hero, "move").unwrap();
@@ -455,12 +494,18 @@ fn a_check_holds_an_auto_transition_until_the_script_answers_true() {
         ),
     );
     tick(&mut app, 3);
-    assert_eq!(machine::current_state(&app.engine, hero).as_deref(), Some("idle"));
+    assert_eq!(
+        machine::current_state(&app.engine, hero).as_deref(),
+        Some("idle")
+    );
     assert!(calls.count(hero, "can_walk") > 0, "the script was asked");
 
     calls.answer("can_walk", balaur_script::Value::Bool(true));
     tick(&mut app, 1);
-    assert_eq!(machine::current_state(&app.engine, hero).as_deref(), Some("walk"));
+    assert_eq!(
+        machine::current_state(&app.engine, hero).as_deref(),
+        Some("walk")
+    );
 }
 
 #[test]
@@ -513,7 +558,9 @@ fn an_ended_machine_stays_ended_across_a_rollback() {
     let mut app = app();
     let hero = rig(
         &app,
-        &format!("{STATES}\n[[transitions]]\nfrom = \"idle\"\nto = \"end\"\nadvance_mode = \"auto\"\n"),
+        &format!(
+            "{STATES}\n[[transitions]]\nfrom = \"idle\"\nto = \"end\"\nadvance_mode = \"auto\"\n"
+        ),
     );
     tick(&mut app, 3);
     assert_eq!(machine::current_state(&app.engine, hero), None);
@@ -521,7 +568,10 @@ fn an_ended_machine_stays_ended_across_a_rollback() {
 
     machine::travel(&app.engine, hero, "walk").unwrap();
     tick(&mut app, 1);
-    assert_eq!(machine::current_state(&app.engine, hero).as_deref(), Some("walk"));
+    assert_eq!(
+        machine::current_state(&app.engine, hero).as_deref(),
+        Some("walk")
+    );
 
     balaur_core::snapshot::restore(&app.engine, &frame);
     tick(&mut app, 5);

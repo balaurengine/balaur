@@ -89,8 +89,8 @@ pub mod transform;
 pub mod transport;
 pub mod triangulate;
 pub mod variables;
-pub mod warnings;
 pub mod voxels;
+pub mod warnings;
 
 pub use app::{
     App, AppConfig, FIXED_DT, MAX_SUBSTEPS, ScriptArgs, ScriptHostFactory, ScriptSetup, Stage,

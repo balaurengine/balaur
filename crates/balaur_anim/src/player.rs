@@ -134,21 +134,22 @@ pub(crate) fn leaving(
     }
     // Held, the playhead is rebased onto the pass it is in, so clamping it
     // to the clip stops it at that pass's end.
-    let (time, speed) = if break_loop_at_end && clip.loop_mode != LoopMode::None && clip.length > 0.0 {
-        let (local, _) = crate::sampler::clip_time(&clip, playback.time);
-        let pass = libm::floorf(playback.time / clip.length) as i64;
-        let backward = clip.loop_mode == LoopMode::PingPong && pass % 2 != 0;
-        (
-            local,
-            if backward {
-                -playback.speed_scale
-            } else {
-                playback.speed_scale
-            },
-        )
-    } else {
-        (playback.time, playback.speed_scale)
-    };
+    let (time, speed) =
+        if break_loop_at_end && clip.loop_mode != LoopMode::None && clip.length > 0.0 {
+            let (local, _) = crate::sampler::clip_time(&clip, playback.time);
+            let pass = libm::floorf(playback.time / clip.length) as i64;
+            let backward = clip.loop_mode == LoopMode::PingPong && pass % 2 != 0;
+            (
+                local,
+                if backward {
+                    -playback.speed_scale
+                } else {
+                    playback.speed_scale
+                },
+            )
+        } else {
+            (playback.time, playback.speed_scale)
+        };
     Some(Fade {
         clip_name: playback.clip_name.clone(),
         clip,

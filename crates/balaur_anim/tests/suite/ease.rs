@@ -120,7 +120,11 @@ fn linear_is_one_straight_line_with_no_modes() {
     let curve = Easing::parse("linear").unwrap();
     for i in 0..=10 {
         let u = i as f32 / 10.0;
-        assert!((curve.apply(u) - u).abs() < 1e-6, "linear bends: {u} became {}", curve.apply(u));
+        assert!(
+            (curve.apply(u) - u).abs() < 1e-6,
+            "linear bends: {u} became {}",
+            curve.apply(u)
+        );
     }
     for moded in ["in_linear", "out_linear", "in_out_linear", "out_in_linear"] {
         assert!(Easing::parse(moded).is_err(), "'{moded}' still parses");

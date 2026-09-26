@@ -406,7 +406,10 @@ fn table_of(m: &Params) -> toml::Value {
                 .collect(),
         ),
     );
-    put(k::FLIP_BEND_DIRECTION, toml::Value::Boolean(m.flip_bend_direction));
+    put(
+        k::FLIP_BEND_DIRECTION,
+        toml::Value::Boolean(m.flip_bend_direction),
+    );
     put(k::ENABLED, toml::Value::Boolean(m.enabled));
     toml::Value::Table(out)
 }
@@ -710,7 +713,9 @@ fn run_one(eng: &Engine, entity: Entity, m: &Params, dim3: bool, steps: u32) {
     match (m.kind, dim3) {
         (Kind::LookAt, false) => aim_at_point_2d(&world, bone, point.truncate()),
         (Kind::LookAt, true) => aim_at_point_3d(&world, bone, point),
-        (Kind::TwoBoneIk, false) => two_bone_ik_2d(&world, bone, point.truncate(), m.flip_bend_direction),
+        (Kind::TwoBoneIk, false) => {
+            two_bone_ik_2d(&world, bone, point.truncate(), m.flip_bend_direction);
+        }
         (Kind::TwoBoneIk, true) => two_bone_ik_3d(&world, bone, point, m.flip_bend_direction),
         (Kind::Fabrik, _) => {
             let chain = chain_of(&world, bone, m.chain_count);

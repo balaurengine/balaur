@@ -261,7 +261,12 @@ fn each_tag_becomes_a_step_clip_over_its_frames() {
             .as_array()
             .unwrap()
             .iter()
-            .map(|k| (k["time"].as_float().unwrap(), k["value"].as_float().unwrap()))
+            .map(|k| {
+                (
+                    k["time"].as_float().unwrap(),
+                    k["value"].as_float().unwrap(),
+                )
+            })
             .collect()
     };
     assert_eq!(clip("walk")["loop_mode"].as_str(), Some("linear"));
@@ -270,7 +275,10 @@ fn each_tag_becomes_a_step_clip_over_its_frames() {
         clip("walk")["tracks"][0]["property"].as_str(),
         Some("sprite/frame")
     );
-    assert_eq!(clip("walk")["tracks"][0]["interpolation"].as_str(), Some("step"));
+    assert_eq!(
+        clip("walk")["tracks"][0]["interpolation"].as_str(),
+        Some("step")
+    );
     assert_eq!(keys("walk"), vec![(0.0, 0.0), (0.1, 1.0)]);
     assert_eq!(
         keys("back"),

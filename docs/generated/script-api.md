@@ -8,7 +8,7 @@ cannot drift from what scripts actually see.
 
 | Module | Functions | Constants | Declared by |
 | --- | ---: | ---: | --- |
-| [`animation`](#animation) | 20 | 78 | the engine |
+| [`animation`](#animation) | 20 | 74 | the engine |
 | [`apple`](#apple) | 18 | 0 | the engine |
 | [`assets`](#assets) | 11 | 0 | the engine |
 | [`audio`](#audio) | 19 | 0 | the engine |
@@ -56,29 +56,27 @@ cannot drift from what scripts actually see.
 
 ## `animation`
 
-**Functions:** `current`, `define`, `ease_names`, `is_playing`, `is_tween_running`, `jump`, `just_finished`, `pause`, `play`, `queue`, `resume`, `seek`, `set_condition`, `state`, `stop`, `time`, `travel`, `tween`, `tween_value`, `tween_value_of`
+**Functions:** `add_clip`, `current_clip`, `current_state`, `ease_names`, `is_playing`, `is_tween_running`, `jump`, `just_finished`, `pause`, `play`, `queue`, `resume`, `seek`, `set_condition`, `stop`, `time`, `travel`, `tween`, `tween_value`, `tween_value_of`
 
-**Constants** (78):
+**Constants** (74):
 
 | Name | Value |
 | --- | --- |
-| `ADVANCE_AUTO` | `auto` |
-| `ADVANCE_DISABLED` | `disabled` |
-| `ADVANCE_ENABLED` | `enabled` |
+| `ADVANCE_MODE_AUTO` | `auto` |
+| `ADVANCE_MODE_DISABLED` | `disabled` |
+| `ADVANCE_MODE_ENABLED` | `enabled` |
 | `EASE_IN_BACK` | `in_back` |
 | `EASE_IN_BOUNCE` | `in_bounce` |
 | `EASE_IN_CIRC` | `in_circ` |
 | `EASE_IN_CUBIC` | `in_cubic` |
 | `EASE_IN_ELASTIC` | `in_elastic` |
 | `EASE_IN_EXPO` | `in_expo` |
-| `EASE_IN_LINEAR` | `in_linear` |
 | `EASE_IN_OUT_BACK` | `in_out_back` |
 | `EASE_IN_OUT_BOUNCE` | `in_out_bounce` |
 | `EASE_IN_OUT_CIRC` | `in_out_circ` |
 | `EASE_IN_OUT_CUBIC` | `in_out_cubic` |
 | `EASE_IN_OUT_ELASTIC` | `in_out_elastic` |
 | `EASE_IN_OUT_EXPO` | `in_out_expo` |
-| `EASE_IN_OUT_LINEAR` | `in_out_linear` |
 | `EASE_IN_OUT_QUAD` | `in_out_quad` |
 | `EASE_IN_OUT_QUART` | `in_out_quart` |
 | `EASE_IN_OUT_QUINT` | `in_out_quint` |
@@ -86,8 +84,10 @@ cannot drift from what scripts actually see.
 | `EASE_IN_OUT_SPRING` | `in_out_spring` |
 | `EASE_IN_QUAD` | `in_quad` |
 | `EASE_IN_QUART` | `in_quart` |
+| `EASE_IN_QUINT` | `in_quint` |
+| `EASE_IN_SINE` | `in_sine` |
 
-…and 54 more.
+…and 50 more.
 
 ## `apple`
 
