@@ -121,3 +121,21 @@ pub fn update(this, dt) {\n    this.node.set_process(\"always\");\n    this.mode
     assert_eq!(host.text_field(node, "mode").as_deref(), Some("always"));
     assert_eq!(process::own(&app.engine.world(), node), ProcessMode::Always);
 }
+
+#[test]
+fn a_paused_script_still_hears_the_window_lose_focus() {
+    let dir = project(&[(
+        "a.rn",
+        "pub fn init(this) { this.focus = 0.0; }\n\
+         pub fn on_focused_changed(this, focused) { if !focused { this.focus += 1.0; } }\n",
+    )]);
+    let mut app = app_in(dir.path());
+    let node = attach(&app, app.engine.root(), "Listener", "a.rn");
+    app.tick(1.0 / 60.0);
+    app.engine.set_paused(true);
+    app.tick(1.0 / 60.0);
+    balaur_core::facts::update_device(&app.engine, |facts| facts.focused = false);
+    app.tick(1.0 / 60.0);
+    app.tick(1.0 / 60.0);
+    assert_eq!(field(&app, node, "focus"), Some(1.0));
+}
