@@ -74,7 +74,7 @@ fn a_current_camera_component_drives_the_camera_config() {
 fn a_2d_camera_component_drives_center_and_zoom() {
     let mut app = app();
     let cam = node_at(&app, app.engine.root(), Vec3::new(7.0, -2.0, 0.0));
-    add_camera_2d(&app, cam, "zoom = 30.0");
+    add_camera_2d(&app, cam, "pixels_per_unit = 30.0");
     {
         // Control: the boot default must differ from the node, and the boot
         // `changed` is cleared as a backend would after applying it.
@@ -213,11 +213,11 @@ fn unchanged_post_effects_do_not_reassert_themselves() {
 fn the_component_round_trips() {
     let app = app();
     let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
-    add_camera_2d(&app, cam, "current = false\nzoom = 25.0");
+    add_camera_2d(&app, cam, "current = false\npixels_per_unit = 25.0");
     let saved = components::get(&app.engine, cam, "camera2d").unwrap();
     let table = saved.as_table().unwrap();
     assert!(!table["current"].as_bool().unwrap());
-    assert!((table["zoom"].as_float().unwrap() - 25.0).abs() < 1e-6);
+    assert!((table["pixels_per_unit"].as_float().unwrap() - 25.0).abs() < 1e-6);
     // The split is what keeps this out: a flat camera has nothing to aim.
     assert!(
         !table.contains_key("look_at"),
@@ -391,19 +391,53 @@ fn every_component_reports_every_property_it_holds() {
 fn a_patch_keeps_what_was_asked_for_even_where_get_is_silent() {
     let app = app();
     let node = node_at(&app, app.engine.root(), Vec3::ZERO);
-    // A ball has no half-extents, so `shape3d` does not report the ones asked
+    // A sphere has no size, so `shape3d` does not report the one asked
     // for here: they are only in the table the scene handed over.
     let asked: toml::Value =
-        toml::from_str("kind = \"ball\"\nradius = 0.7\nhalf_extents = [2.0, 1.0, 2.0]").unwrap();
+        toml::from_str("kind = \"sphere\"\nradius = 0.7\nsize = [4.0, 2.0, 4.0]").unwrap();
     components::add(&app.engine, node, "shape3d", Some(&asked)).unwrap();
-    let becomes: toml::Value = toml::from_str("kind = \"cuboid\"").unwrap();
+    let becomes: toml::Value = toml::from_str("kind = \"box\"").unwrap();
     components::patch(&app.engine, node, "shape3d", &becomes).unwrap();
     let read = components::get(&app.engine, node, "shape3d").unwrap();
-    let half = read["half_extents"].as_array().unwrap();
-    let sizes: Vec<f64> = half.iter().map(|v| v.as_float().unwrap()).collect();
+    let size = read["size"].as_array().unwrap();
+    let sizes: Vec<f64> = size.iter().map(|v| v.as_float().unwrap()).collect();
     assert_eq!(
         sizes,
-        vec![2.0, 1.0, 2.0],
+        vec![4.0, 2.0, 4.0],
         "the patch fell back to the schema default instead of what was asked for"
     );
+}
+
+/// Every `current_changed` a camera heard over `frames` ticks, in order.
+fn current_changes(app: &mut App, camera: balaur_core::hecs::Entity, frames: u32) -> Vec<bool> {
+    let mut heard = Vec::new();
+    for _ in 0..frames {
+        app.tick(1.0 / 60.0);
+        for value in balaur_core::events::delivered_from(&app.engine, camera, "current_changed") {
+            if let balaur_script::Value::Bool(current) = value {
+                heard.push(current);
+            }
+        }
+    }
+    heard
+}
+
+#[test]
+fn a_camera_says_when_it_becomes_the_one_drawn_from_and_when_it_stops() {
+    let mut app = app();
+    let root = app.engine.root();
+    let first = node_at(&app, root, Vec3::ZERO);
+    let second = node_at(&app, root, Vec3::ZERO);
+    add_camera_2d(&app, first, "current = true");
+    add_camera_2d(&app, second, "current = false");
+    assert_eq!(current_changes(&mut app, first, 3), vec![true]);
+    add_camera_2d(&app, first, "current = false");
+    add_camera_2d(&app, second, "current = true");
+    app.tick(1.0 / 60.0);
+    let heard = |app: &App, camera| {
+        balaur_core::events::delivered_from(&app.engine, camera, "current_changed")
+    };
+    app.tick(1.0 / 60.0);
+    assert_eq!(heard(&app, first), vec![balaur_script::Value::Bool(false)]);
+    assert_eq!(heard(&app, second), vec![balaur_script::Value::Bool(true)]);
 }

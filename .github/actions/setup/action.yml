@@ -1,7 +1,7 @@
 name: Set up Balaur
 description: >-
   Install the published Balaur build this action was called at, verified
-  against the release's checksums, and seed the runtime templates a game
+  against the release's checksums, and seed the runtimes a game
   exports onto.
 
 inputs:
@@ -14,7 +14,7 @@ inputs:
     default: ""
   targets:
     description: >-
-      Space-separated targets whose runtime templates to fetch now, so a later
+      Space-separated targets whose runtimes to fetch now, so a later
       export needs no network. Empty fetches none.
     required: false
     default: ""
@@ -24,7 +24,7 @@ outputs:
     description: The release tag that was installed.
     value: ${{ steps.resolve.outputs.version }}
   install:
-    description: The directory the editor and its templates were unpacked into.
+    description: The directory the editor and its runtimes were unpacked into.
     value: ${{ steps.resolve.outputs.install }}
 
 runs:
@@ -86,24 +86,24 @@ runs:
           *) tar -xzf "$editor" ;;
         esac
         mv balaur-editor-*/* "$INSTALL/"
-        mkdir -p "$INSTALL/templates"
+        mkdir -p "$INSTALL/runtimes"
         for target in $TARGETS; do
           case "$target" in
             ios|android|web)
-              asset="balaur-template-$target.tar.gz"
+              asset="balaur-runtime-$target.tar.gz"
               fetch "$asset"
-              tar -xzf "$asset" -C "$INSTALL/templates"
+              tar -xzf "$asset" -C "$INSTALL/runtimes"
               ;;
             windows-*)
               asset="balaur-runtime-$target.exe"
               fetch "$asset"
-              mv "$asset" "$INSTALL/templates/"
+              mv "$asset" "$INSTALL/runtimes/"
               ;;
             *)
               asset="balaur-runtime-$target"
               fetch "$asset"
-              mv "$asset" "$INSTALL/templates/"
-              chmod +x "$INSTALL/templates/$asset"
+              mv "$asset" "$INSTALL/runtimes/"
+              chmod +x "$INSTALL/runtimes/$asset"
               ;;
           esac
         done
@@ -114,7 +114,7 @@ runs:
         set -euo pipefail
         chmod +x '${{ steps.resolve.outputs.install }}/balaur' 2>/dev/null || true
         echo '${{ steps.resolve.outputs.install }}' >>"$GITHUB_PATH"
-        echo "BALAUR_TEMPLATES=${{ steps.resolve.outputs.install }}/templates" >>"$GITHUB_ENV"
+        echo "BALAUR_RUNTIMES=${{ steps.resolve.outputs.install }}/runtimes" >>"$GITHUB_ENV"
 
     - shell: bash
       run: balaur --version

@@ -600,7 +600,7 @@ fn a_session_records_into_the_backend_rather_than_the_disk() {
     std::thread::spawn(|| {
         let fs = std::rc::Rc::new(balaur_core::files::MemoryFs::new());
         balaur_core::files::set_default(fs.clone());
-        let path = std::path::Path::new("/project/user_data/sessions/s.blr");
+        let path = std::path::Path::new("/project/user_data/recordings/s.blr");
 
         let mut recorder = Recorder::create(fs.clone(), path, header(), false, 0).unwrap();
         recorder

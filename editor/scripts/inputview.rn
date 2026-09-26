@@ -9,17 +9,17 @@ use crate::util;
 // The punctuation is here because a shortcut is built on it: `⇧⌘\` showed
 // its two modifiers and nothing to press with them.
 const KEYS = [
-    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
-    "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
-    "Key0", "Key1", "Key2", "Key3", "Key4", "Key5", "Key6", "Key7", "Key8", "Key9",
+    "KeyA", "KeyB", "KeyC", "KeyD", "KeyE", "KeyF", "KeyG", "KeyH", "KeyI", "KeyJ", "KeyK", "KeyL", "KeyM",
+    "KeyN", "KeyO", "KeyP", "KeyQ", "KeyR", "KeyS", "KeyT", "KeyU", "KeyV", "KeyW", "KeyX", "KeyY", "KeyZ",
+    "Digit0", "Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9",
     "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
-    "Space", "Return", "Escape", "Tab", "Back", "Delete", "Home", "End",
-    "PageUp", "PageDown", "Insert", "Left", "Right", "Up", "Down",
-    "Backslash", "Slash", "Comma", "Period", "Semicolon", "Apostrophe",
-    "LBracket", "RBracket", "Minus", "Equals", "Grave",
-    "LShift", "RShift", "LControl", "RControl", "LAlt", "RAlt", "LWin", "RWin",
+    "Space", "Enter", "Escape", "Tab", "Backspace", "Delete", "Home", "End",
+    "PageUp", "PageDown", "Insert", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown",
+    "Backslash", "Slash", "Comma", "Period", "Semicolon", "Quote",
+    "BracketLeft", "BracketRight", "Minus", "Equal", "Backquote",
+    "ShiftLeft", "ShiftRight", "ControlLeft", "ControlRight", "AltLeft", "AltRight", "MetaLeft", "MetaRight",
 ];
-const BUTTONS = ["LMB", "RMB", "MMB"];
+const BUTTONS = ["LMB", "RMB", "MMB", "Back", "Forward"];
 // How many frames a click's ripple grows for, and how wide it starts and
 // ends. A clip is taken every other frame, so 66 is a little over a second
 // of it: half that and the ring is gone before a viewer has found it.
@@ -57,30 +57,31 @@ fn holding(map, down) {
 
 fn key_label(key) {
     match key {
-        "Return" => "Enter",
-        "Back" => "Backspace",
-        "LShift" => "Shift",
-        "RShift" => "Shift",
-        "LControl" => "Ctrl",
-        "RControl" => "Ctrl",
-        "LAlt" => "Alt",
-        "RAlt" => "Alt",
-        "LWin" => "Cmd",
-        "RWin" => "Cmd",
+        "ShiftLeft" => "Shift",
+        "ShiftRight" => "Shift",
+        "ControlLeft" => "Ctrl",
+        "ControlRight" => "Ctrl",
+        "AltLeft" => "Alt",
+        "AltRight" => "Alt",
+        "MetaLeft" => "Cmd",
+        "MetaRight" => "Cmd",
         "Backslash" => "\\",
         "Slash" => "/",
         "Comma" => ",",
         "Period" => ".",
         "Semicolon" => ";",
-        "Apostrophe" => "'",
-        "LBracket" => "[",
-        "RBracket" => "]",
+        "Quote" => "'",
+        "BracketLeft" => "[",
+        "BracketRight" => "]",
         "Minus" => "-",
-        "Equals" => "=",
-        "Grave" => "`",
+        "Equal" => "=",
+        "Backquote" => "`",
         "PageUp" => "Page up",
         "PageDown" => "Page down",
-        _ => if key.starts_with("Key") { key[3..] } else { key },
+        _ => {
+            let skip = if key.starts_with("Key") { 3 } else if key.starts_with("Digit") || key.starts_with("Arrow") { 5 } else { 0 };
+            key[skip..]
+        }
     }
 }
 
@@ -97,32 +98,32 @@ pub fn draw(S) {
     // lays out none and focus mode gives the code the window, and the rect
     // left from before is stale, so in both they go by the window instead.
     let v = S.viewport;
-    let (_, sh) = ui::screen_size();
+    let (_, sh) = ui::window_size();
     let staged = !crate::manager::showing(S) && !S.focus && util::f(v.w) > 0.0;
     let vx = if staged { util::f(v.x) } else { 0.0 };
     let vy = if staged { util::f(v.y) } else { 0.0 };
     let vh = if staged { util::f(v.h) } else { sh };
     let iv = S.inputview;
     let (x, y) = pointer(S);
-    for b in 0..3 {
+    for b in 0..BUTTONS.len() {
         if input::mouse_just_pressed(b) {
             iv.ripples.push(#{ x: x, y: y, age: 0 });
         }
     }
     let down = [];
     for key in KEYS {
-        if input::is_down(key) {
+        if input::key_down(key) {
             down.push(key_label(key));
         }
     }
     for (i, name) in BUTTONS.iter().enumerate() {
-        if input::is_mouse_down(i) {
+        if input::mouse_down(i) {
             down.push(name);
         }
     }
     let pressed = [];
     for name in util::vec(input::actions()) {
-        if input::action_pressed(name) {
+        if input::action_down(name) {
             pressed.push(name);
         }
     }
@@ -132,18 +133,18 @@ pub fn draw(S) {
     iv.acts = acts_left;
     if chips.len() > 0 || actions.len() > 0 {
         ui::overlay("input-chips", #{ x: vx + 130.0, y: vy + vh - 46.0 }, || {
-            ui::horizontal(#{ height: 30 }, || {
+            ui::row(#{ height: 30 }, || {
                 for chip in chips {
-                    ui::pill(chip, #{
-                        height: 30, size: style::MD, strong: true,
-                        fill: k.accent_fill, color: k.on_accent,
+                    ui::button(chip, #{
+                        height: 30, font_size: style::MD, font_weight: 700,
+                        fill: k.primary_fill, text_color: k.text_on_primary,
                     });
                     ui::add_space(4);
                 }
                 for name in actions {
-                    ui::pill(name, #{
-                        height: 30, size: style::MD, strong: true,
-                        fill: k.sunken, stroke: k.accent, color: k.accent,
+                    ui::button(name, #{
+                        height: 30, font_size: style::MD, font_weight: 700,
+                        fill: k.bg_control, stroke: k.primary_text, text_color: k.primary_text,
                     });
                     ui::add_space(4);
                 }
@@ -160,18 +161,18 @@ pub fn draw(S) {
         let d = RIPPLE_FROM + (RIPPLE_TO - RIPPLE_FROM) * (1.0 - back * back * back);
         let left = back * back;
         ui::overlay(format!("input-wash-{}", i), #{ x: r.x - d / 2.0, y: r.y - d / 2.0 }, || {
-            ui::frame(#{ fill: alpha(k.accent, 0.30 * left), radius: d / 2.0 }, || {
-                ui::horizontal(#{ width: d, height: d }, || {});
+            ui::frame(#{ fill: alpha(k.primary_text, 0.30 * left), corner_radius: d / 2.0 }, || {
+                ui::row(#{ width: d, height: d }, || {});
             });
         });
         for band in 0..3 {
             let w = d - (band as f64) * 2.0;
-            let hue = if band == 2 { k.accent } else { k.ripple };
+            let hue = if band == 2 { k.primary_text } else { k.input_ripple };
             ui::overlay(format!("input-ripple-{}-{}", i, band), #{ x: r.x - w / 2.0, y: r.y - w / 2.0 }, || {
                 ui::frame(#{
-                    fill: "#00000000", stroke: alpha(hue, left), radius: w / 2.0,
+                    fill: "#00000000", stroke: alpha(hue, left), corner_radius: w / 2.0,
                 }, || {
-                    ui::horizontal(#{ width: w, height: w }, || {});
+                    ui::row(#{ width: w, height: w }, || {});
                 });
             });
         }
@@ -184,13 +185,13 @@ pub fn draw(S) {
     // Nothing has placed the pointer yet: a run with no mouse would otherwise
     // show one parked in the corner.
     if x > 0.0 || y > 0.0 {
-        let held = input::is_mouse_down(input::MOUSE_LEFT);
+        let held = input::mouse_down(input::MOUSE_BUTTON_LEFT);
         if held {
             ui::overlay("input-press", #{ x: x - 11.0, y: y - 11.0 }, || {
                 ui::frame(#{
-                    fill: alpha(k.accent, 0.45), stroke: k.accent, radius: 11.0,
+                    fill: alpha(k.primary_text, 0.45), stroke: k.primary_text, corner_radius: 11.0,
                 }, || {
-                    ui::horizontal(#{ width: 22.0, height: 22.0 }, || {});
+                    ui::row(#{ width: 22.0, height: 22.0 }, || {});
                 });
             });
         }

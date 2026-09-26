@@ -191,6 +191,8 @@ ws.close();
 const closed = new Promise((r) => browser.on('exit', r));
 browser.kill();
 await closed;
+// A browser killed mid-download leaves its socket open, which keeps node alive.
+server.closeAllConnections();
 server.close();
 fs.rmSync(profile, { recursive: true, force: true, maxRetries: 5 });
 if (failures.length) fail(`in a browser: ${failures.join(', ')}`);

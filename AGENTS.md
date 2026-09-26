@@ -112,6 +112,10 @@ called or indexed, and the error names a type from the line above. Bind first:
     if again { prepare(world); }
     work(world);
 
+A line opening with `-` after any block, a loop's included, **subtracts from
+it**: a bare `-1` closing a function after a `while` is `() - 1`. Write
+`return -1;`.
+
 ## Tests
 
 - A test's name is a sentence about behaviour: `freeing_a_node_frees_its_children`,
@@ -132,7 +136,7 @@ Prose in `docs/`, and the devlog posts in the website repo's `blog/`.
   or a clip. One or two sentences open it, then the bullets. A heading names
   its content, never "What landed".
 - A bullet is a plain sentence: what it is, the key or flag that turns it on,
-  the number. `fonts = "subset"` keeps the code points a project names; one
+  the number. `font_recode = "subset"` keeps the code points a project names; one
   face went from 421 KB to 29 KB. No bold lead closed by a period.
 - Describe the feature as it is. What it replaced, or how a first attempt went,
   stays out.

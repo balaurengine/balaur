@@ -65,7 +65,7 @@ impl Walk {
             .map(|p| match lookups.uids.get(p) {
                 // Godot 4.4 names the scene by its uid.
                 Some(path) => path.clone(),
-                None => p.strip_prefix("res://").unwrap_or(p).to_string(),
+                None => crate::godot::relative_path(p).to_string(),
             })
             .unwrap_or_default();
         for section in document.each("autoload") {
@@ -74,7 +74,7 @@ impl Walk {
                     continue;
                 };
                 let path = path.trim_start_matches('*');
-                let path = path.strip_prefix("res://").unwrap_or(path);
+                let path = crate::godot::relative_path(path);
                 let Some(stem) = path.strip_suffix(".gd") else {
                     continue;
                 };

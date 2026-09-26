@@ -1,6 +1,6 @@
 //! The browser entry point.
 //!
-//! `scripts/package_template.sh web` builds this binary for
+//! `scripts/package_runtime.sh web` builds this binary for
 //! `wasm32-unknown-unknown` and runs wasm-bindgen over it; the page it ships
 //! with imports `balaur.js` and calls [`start`] with the id of a `<canvas>`
 //! and the URL of a `.bpak`. The pack is fetched, decoded and booted exactly

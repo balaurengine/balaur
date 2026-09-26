@@ -6,9 +6,13 @@
 //! chosen.
 
 mod controls;
+pub(crate) mod events;
 mod globals;
+pub(crate) mod widgets;
 
+pub(crate) use events::engine_event;
 pub(crate) use globals::{global_constant, singleton_write};
+pub(crate) use widgets::{ON_CHANGE, ON_CLICK, ON_SUBMIT, widget_signal};
 
 use super::emit::{quoted, safe};
 
@@ -257,7 +261,7 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
         ("Engine", "is_debug_build") => "false".into(),
         ("Engine", "has_singleton") => "engine::has_plugin({one})".replace("{one}", &one),
         ("OS", "get_unique_id") => "engine::device_id()".into(),
-        ("OS", "is_debug_build") => "engine::platform().dev".into(),
+        ("OS", "is_debug_build") => "engine::target().dev".into(),
         // A button group is the widget's `group` name here.
         ("ButtonGroup" | "FoldableGroup", "new") => "(gd.button_group)()".into(),
         ("RandomNumberGenerator", "new") => "(gd.random_numbers)()".into(),
@@ -275,7 +279,7 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
         ("OS", "has_feature") => format!("(gd.has_feature)({one})"),
         ("OS" | "DisplayServer", "get_name") => "(gd.os_name)()".into(),
         ("DisplayServer", "window_get_size" | "screen_get_size") => "(gd.screen_size)()".into(),
-        ("OS", "get_user_data_dir") => "engine::user_data_dir()".into(),
+        ("OS", "get_user_data_dir") => "engine::user_data_directory()".into(),
         ("OS", "shell_open") => format!("engine::open_url({one})"),
         ("OS", "get_locale" | "get_locale_language") => "strings::locale()".into(),
         ("ConfigFile", "new") => "(gd.config)()".into(),
@@ -298,7 +302,9 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
         ("RectangleShape2D", "new") => "(gd.rect_shape)()".into(),
         ("FileAccess", "open") => format!("(gd.file_open)({all})"),
         ("FileAccess", "get_open_error") => "(gd.file_error)()".into(),
-        ("FileAccess", "get_modified_time") => format!("fs::mtime((gd.project_path)({one}))"),
+        ("FileAccess", "get_modified_time") => {
+            format!("fs::modified_time((gd.project_path)({one}))")
+        }
         ("FileAccess", "get_file_as_string") => {
             format!("(gd.or_text)(fs::read((gd.project_path)({one})))")
         }
@@ -312,7 +318,7 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
             format!("fs::exists({one})")
         }
         ("DirAccess", "make_dir_recursive_absolute" | "make_dir_absolute") => {
-            format!("fs::mkdir({one})")
+            format!("fs::create_directory({one})")
         }
         ("TranslationServer", "translate") => format!("strings::tr({one})"),
         ("TranslationServer", "get_locale") => "strings::locale()".into(),
@@ -321,9 +327,12 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
         ("TranslationServer", "set_locale") => format!("strings::set_locale({one})"),
         ("TranslationServer", "get_loaded_locales") => "strings::locales()".into(),
         ("ProjectSettings", "set_setting") => format!("settings::set({all})"),
-        ("Input", "is_action_pressed") => format!("input::is_action_pressed({one})"),
-        ("Input", "is_action_just_pressed") => format!("input::is_action_just_pressed({one})"),
-        ("Input", "is_key_pressed") => format!("input::is_down({one})"),
+        ("Input", "is_action_pressed") => format!("input::action_down({one})"),
+        ("Input", "is_action_just_pressed") => format!("input::action_just_pressed({one})"),
+        ("Input", "is_action_just_released") => format!("input::action_just_released({one})"),
+        ("Input", "is_key_pressed" | "is_physical_key_pressed") => {
+            format!("input::key_down({one})")
+        }
         _ => return service_call(class, name, args),
     })
 }
@@ -337,9 +346,9 @@ fn service_call(class: &str, name: &str, args: &[String]) -> Option<String> {
     let one = args.first().cloned().unwrap_or_default();
     Some(match (class, name) {
         // Godot's buttons count from one; the engine's from zero.
-        ("Input", "is_mouse_button_pressed") => format!("input::is_mouse_down({one} - 1)"),
+        ("Input", "is_mouse_button_pressed") => format!("input::mouse_down({one} - 1)"),
         ("Performance", "get_monitor") => format!("(gd.monitor)({one})"),
-        ("ResourceLoader", "exists") => format!("fs::exists((gd.project_path)({one}))"),
+        ("ResourceLoader", "exists") => format!("(gd.resource_exists)({one})"),
         ("ResourceLoader", "load") if !args.is_empty() => loaded(&args[0]),
         ("Marshalls", "base64_to_raw" | "base64_to_utf8") => {
             format!("encoding::from_base64({one})")
@@ -353,6 +362,7 @@ fn service_call(class: &str, name: &str, args: &[String]) -> Option<String> {
         // A platform has the display verbs this table carries, and no other.
         ("DisplayServer", "has_method") => {
             let known = [
+                "is_dark_mode",
                 "screen_set_keep_on",
                 "virtual_keyboard_get_height",
                 "window_get_size",
@@ -362,10 +372,13 @@ fn service_call(class: &str, name: &str, args: &[String]) -> Option<String> {
             known.to_string()
         }
         ("DisplayServer", "virtual_keyboard_get_height") => "input::keyboard_height()".into(),
+        ("DisplayServer", "is_dark_mode") => "engine::dark_mode()".into(),
         // The page answers the one question the game asks of the browser;
         // a reload and a heap probe get nothing. Decided on the literal,
         // since the shim compiles in builds that carry no `web` module.
-        ("JavaScriptBridge", "eval") if one.contains("document.hidden") => "!web::visible()".into(),
+        ("JavaScriptBridge", "eval") if one.contains("document.hidden") => {
+            "!browser::visible()".into()
+        }
         ("JavaScriptBridge", "eval") if one.contains("reload") => "()".into(),
         ("JavaScriptBridge", "eval") => "-1".into(),
         ("JavaScriptBridge", "get_interface") => "()".into(),
@@ -373,18 +386,18 @@ fn service_call(class: &str, name: &str, args: &[String]) -> Option<String> {
         // Every bus is the master bus here, as `get_bus_index` says.
         ("AudioServer", "set_bus_volume_db") if args.len() == 2 => {
             format!(
-                "audio::set_bus_volume(\"master\", (gd.db_to_linear)({}))",
+                "audio::set_bus_volume_linear(\"master\", (gd.db_to_linear)({}))",
                 args[1]
             )
         }
         ("AudioServer", "get_bus_volume_db") => {
-            "(gd.linear_to_db)(audio::bus_volume(\"master\"))".into()
+            "(gd.linear_to_db)(audio::bus_volume_linear(\"master\"))".into()
         }
         ("AudioServer", "set_bus_mute") if args.len() == 2 => format!(
-            "audio::set_bus_volume(\"master\", if {} {{ 0.0 }} else {{ 1.0 }})",
+            "audio::set_bus_volume_linear(\"master\", if {} {{ 0.0 }} else {{ 1.0 }})",
             args[1]
         ),
-        ("AudioServer", "is_bus_mute") => "(audio::bus_volume(\"master\") <= 0.0)".into(),
+        ("AudioServer", "is_bus_mute") => "(audio::bus_volume_linear(\"master\") <= 0.0)".into(),
         ("Geometry2D", "is_point_in_polygon") if args.len() == 2 => {
             format!("geometry2d::contains({}, {})", args[1], args[0])
         }
@@ -471,6 +484,10 @@ fn class_constant(class: &str, name: &str) -> Option<i64> {
         ("Control" | "CursorShape", "CURSOR_VSPLIT") => 14,
         ("Control" | "CursorShape", "CURSOR_HSPLIT") => 15,
         ("Control" | "CursorShape", "CURSOR_HELP") => 16,
+        ("Object", "CONNECT_DEFERRED") => 1,
+        ("Object", "CONNECT_PERSIST") => 2,
+        ("Object", "CONNECT_ONE_SHOT") => 4,
+        ("Object", "CONNECT_REFERENCE_COUNTED") => 8,
         ("BoxContainer" | "FlowContainer", "ALIGNMENT_BEGIN") => 0,
         ("BoxContainer" | "FlowContainer", "ALIGNMENT_CENTER") => 1,
         ("BoxContainer" | "FlowContainer", "ALIGNMENT_END") => 2,
@@ -545,16 +562,18 @@ pub(crate) fn value_type(name: &str) -> Option<&'static str> {
 /// A name used as a value: Godot's enums and singletons that have a constant
 /// counterpart here.
 pub(crate) fn constant(name: &str) -> Option<String> {
-    // A key is its name here: `KEY_A` is what `input.is_down("A")` reads.
-    if let Some(key) = name.strip_prefix("KEY_")
-        && key.len() == 1
+    // A key is the engine's constant for it, which holds the code a key hook
+    // hands over and `input::key_down` takes.
+    if let Some(key) = name
+        .strip_prefix("KEY_")
+        .and_then(crate::godot::keys::key_constant)
     {
-        return Some(quoted(key));
+        return Some(format!("input::{key}"));
     }
     Some(match name {
         "PI" => "math::PI".into(),
         "TAU" => "math::TAU".into(),
-        "INF" => "math::INF".into(),
+        "INF" => "math::INFINITY".into(),
         "NAN" => "(gd.nan)()".into(),
         _ => return None,
     })
@@ -652,7 +671,7 @@ pub(crate) fn property(receiver: &str, field: &str) -> Option<String> {
         "modulate" | "self_modulate" => format!("{receiver}.tint()"),
         "z_index" => format!("{receiver}.z_index()"),
         "name" => format!("{receiver}.name()"),
-        "rotation_degrees" => format!("math::deg((gd.rotation_of)({receiver}))"),
+        "rotation_degrees" => format!("math::to_degrees((gd.rotation_of)({receiver}))"),
         "custom_minimum_size" => format!("(gd.min_size)({receiver})"),
         "size" => format!("(gd.size_of)({receiver})"),
         "theme" => format!("(gd.theme_of)({receiver})"),
@@ -660,8 +679,12 @@ pub(crate) fn property(receiver: &str, field: &str) -> Option<String> {
         "current_scene" | "root" => "scene::root()".into(),
         "selected" => format!("(gd.option_index)({receiver})"),
         "item_count" => format!("(gd.option_count)({receiver})"),
-        "text" | "disabled" | "pressed" | "button_pressed" | "editable" | "placeholder_text"
-        | "tooltip_text" | "value" | "max_value" | "min_value" | "icon" => {
+        "disabled" => format!("!(gd.get)({receiver}.get_component(\"widget\"), \"enabled\", true)"),
+        "text" => format!("(gd.text_of)({receiver})"),
+        "icon" => format!("(gd.icon_of)({receiver})"),
+        "folded" => format!("(gd.folded)({receiver})"),
+        "pressed" | "button_pressed" | "editable" | "placeholder_text" | "tooltip_text"
+        | "value" | "max_value" | "min_value" => {
             let key = widget_key(field);
             format!("(gd.get)({receiver}.get_component(\"widget\"), \"{key}\", ())")
         }
@@ -718,7 +741,7 @@ fn loaded(arg: &str) -> String {
     let Some(literal) = arg.strip_prefix('"').and_then(|a| a.strip_suffix('"')) else {
         return format!("(gd.load)({arg})");
     };
-    let path = literal.strip_prefix("res://").unwrap_or(literal);
+    let path = crate::godot::relative_path(literal);
     if crate::godot::files::has_extension(path, "tres") {
         return format!("(gd.resource)({})", quoted(&format!("{path}.rn")));
     }
@@ -743,8 +766,6 @@ pub(crate) fn todo(what: &str) -> String {
 /// through the shim and is evaluated once.
 pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String> {
     const WIDGET: &[&str] = &[
-        "text",
-        "disabled",
         "pressed",
         "button_pressed",
         "editable",
@@ -753,10 +774,20 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
         "max_value",
         "min_value",
         "tooltip_text",
-        "icon",
     ];
     if field == "selected" {
         return Some(format!("(gd.option_select)({receiver}, {value})"));
+    }
+    if field == "text" {
+        return Some(format!("(gd.set_text)({receiver}, {value})"));
+    }
+    if field == "icon" {
+        return Some(format!("(gd.set_icon)({receiver}, {value})"));
+    }
+    if field == "disabled" {
+        return Some(format!(
+            "(gd.patch_widget)({receiver}, #{{ \"enabled\": !({value}) }})"
+        ));
     }
     // The window's content scale is the UI's global scale here.
     if field == "content_scale_factor" {
@@ -765,7 +796,7 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
     if WIDGET.contains(&field) {
         let key = widget_key(field);
         return Some(format!(
-            "{receiver}.patch_component(\"widget\", #{{ \"{key}\": {value} }})"
+            "(gd.patch_widget)({receiver}, #{{ \"{key}\": {value} }})"
         ));
     }
     if receiver != "this.node" && NODE_PROPERTIES.contains(&field) {
@@ -774,27 +805,27 @@ pub(crate) fn setter(receiver: &str, field: &str, value: &str) -> Option<String>
     Some(match field {
         "visible" => format!("{receiver}.set_visible({value})"),
         // Godot numbers its cursor shapes; the widget names its `cursor`.
-        "mouse_default_cursor_shape" => format!(
-            "{receiver}.patch_component(\"widget\", #{{ \"cursor\": (gd.cursor_word)({value}) }})"
-        ),
+        "mouse_default_cursor_shape" => {
+            format!("(gd.patch_widget)({receiver}, #{{ \"cursor\": (gd.cursor_word)({value}) }})")
+        }
         // `MOUSE_FILTER_IGNORE` is 2; the other two keep the pointer.
-        "mouse_filter" => format!(
-            "{receiver}.patch_component(\"widget\", #{{ \"pointer_through\": {value} == 2 }})"
-        ),
+        "mouse_filter" => {
+            format!("(gd.patch_widget)({receiver}, #{{ \"interactive\": {value} != 2 }})")
+        }
         "position" => format!("(gd.set_position)({receiver}, {value})"),
         "global_position" => format!("(gd.set_global_position)({receiver}, {value})"),
         "scale" => format!("(gd.set_scale)({receiver}, {value})"),
         "modulate" | "self_modulate" => format!("(gd.set_tint)({receiver}, {value})"),
         "z_index" => format!("{receiver}.set_z_index({value})"),
         "name" => format!("{receiver}.set_name({value})"),
-        "rotation_degrees" => format!("(gd.set_rotation)({receiver}, math::rad({value}))"),
+        "rotation_degrees" => format!("(gd.set_rotation)({receiver}, math::to_radians({value}))"),
         "rotation" => format!("(gd.set_rotation)({receiver}, {value})"),
         "custom_minimum_size" => format!("(gd.set_min_size)({receiver}, {value})"),
         // A control's own size is the widget panel's width and height here.
         "size" => format!("(gd.set_size)({receiver}, {value})"),
-        "button_group" => format!(
-            "{receiver}.patch_component(\"widget\", #{{ \"group\": {value}, \"toggle\": true }})"
-        ),
+        "button_group" => {
+            format!("(gd.patch_widget)({receiver}, #{{ \"group\": {value}, \"toggle\": true }})")
+        }
         _ => return None,
     })
 }
@@ -880,10 +911,10 @@ fn node_query(receiver: &str, name: &str, args: &[String]) -> Option<String> {
             format!("(gd.canvas_transform)({receiver})")
         }
         "get_child_count" => format!("{receiver}.children().len()"),
-        "has_focus" => format!("(gd.same)(ui::focused(), {receiver})"),
-        // Focus is the widget layer's to give, and a foldable's title bar is
-        // its `fold` widget's header.
-        "release_focus" | "add_title_bar_control" => "()".into(),
+        "has_focus" => format!("(gd.same)(ui::focused_widget(), {receiver})"),
+        // Focus is the widget layer's to give.
+        "release_focus" => "()".into(),
+        "add_title_bar_control" => format!("(gd.add_title_bar_control)({receiver}, {one})"),
         // The hook that handed the event over answers `true` for it.
         "accept_event" | "set_input_as_handled" => "(gd.set_input_handled)()".into(),
         // A per-node switch the hooks the translator writes read first.
@@ -988,7 +1019,7 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         "hide" | "show" => format!("{receiver}.set_visible({})", name == "show"),
         "set_visible" => format!("{receiver}.set_visible({one})"),
         "is_visible" => format!("{receiver}.visible()"),
-        "is_visible_in_tree" => format!("{receiver}.global_visible()"),
+        "is_visible_in_tree" => format!("{receiver}.visible_in_tree()"),
         "get_instance_id" => format!("{receiver}.stable_id()"),
         "is_in_group" => format!("{receiver}.has_tag({one})"),
         "add_to_group" => format!("{receiver}.add_tag({one})"),
@@ -1009,7 +1040,8 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         // `call` on a node is the engine's own verb already.
         "call" | "call_deferred" => format!("(gd.call_value)({receiver}, [{all}])"),
         // Frame ordering and drawing, which the engine states differently.
-        "is_node_ready" | "is_inside_tree" => format!("{receiver}.is_valid()"),
+        "is_node_ready" => format!("{receiver}.is_valid()"),
+        "is_inside_tree" => format!("(gd.inside_tree)({receiver})"),
         // The viewport, which Godot reached through the node and the engine
         // reports as the screen.
         "get_visible_rect" | "get_viewport_rect" => "(gd.viewport_rect)()".into(),
@@ -1024,7 +1056,7 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
         "remove_child" => format!("(gd.remove_child)({one})"),
         "get_process_delta_time" | "get_physics_process_delta_time" => "engine::delta()".into(),
         "set_pressed_no_signal" | "set_pressed" => {
-            format!("{receiver}.patch_component(\"widget\", #{{ \"checked\": {one} }})")
+            format!("(gd.patch_widget)({receiver}, #{{ \"checked\": {one} }})")
         }
         _ => return None,
     })
@@ -1032,25 +1064,28 @@ pub(crate) fn method(receiver: &str, name: &str, args: &[String]) -> Option<Stri
 
 /// `sig.emit(..)` and `sig.connect(..)`, where `sig` is a signal this class
 /// declares. The engine names a signal with a string.
-/// The widget key a built-in Godot signal is spelled by here. A clicked
-/// widget calls `on_click` on the first ancestor whose script has the method,
-/// which is what `button.pressed.connect(self._on_pressed)` meant.
-pub(crate) fn widget_signal(signal: &str) -> Option<&'static str> {
-    Some(match signal {
-        "pressed" | "button_up" => "on_click",
-        "toggled" | "value_changed" | "text_changed" | "item_selected" | "color_changed" => {
-            "on_change"
-        }
-        "text_submitted" => "on_submit",
-        _ => return None,
-    })
+/// The keys of the records the shim's `call_value` calls: another object's
+/// method, with what `bind` fixed, and a handler with how many it takes. The
+/// shim spells them too, and a test holds the two together.
+pub(crate) const BOUND_OWNER: &str = "__bound";
+pub(crate) const BOUND_METHOD: &str = "__method";
+pub(crate) const BOUND_ARGS: &str = "__args";
+pub(crate) const CALL_KEY: &str = "__call";
+pub(crate) const CALL_TAKES: &str = "__takes";
+
+/// Godot's `Callable.bind`.
+pub(crate) const BIND: &str = "bind";
+
+/// Whether the engine sends a signal itself: a widget's, or one of the rest.
+pub(crate) fn engine_signal(signal: &str) -> bool {
+    widget_signal(signal).is_some() || ENGINE_SIGNALS.contains(&signal)
 }
 
 /// Connecting one: the handler's name goes on the widget, and disconnecting
 /// takes it off again.
 pub(crate) fn widget_connect(receiver: &str, key: &str, handler: Option<&str>) -> String {
     let name = quoted(handler.unwrap_or(""));
-    format!("{receiver}.patch_component(\"widget\", #{{ \"{key}\": {name} }})")
+    format!("(gd.patch_widget)({receiver}, #{{ \"{key}\": {name} }})")
 }
 
 /// Hearing another node's signal. The engine calls the subscriber's
@@ -1085,7 +1120,7 @@ pub(crate) const MOST_ARGS: usize = 3;
 /// A node emitter is heard as an event, through the module's forwarder; a
 /// class table keeps the handler and calls it itself.
 pub(crate) fn signal_subscribe(receiver: &str, signal: &str, handler: &str) -> String {
-    if ENGINE_SIGNALS.contains(&signal) {
+    if engine_signal(signal) {
         return format!(
             "(gd.listen)(this.node, {}, {receiver}, {handler})",
             quoted(signal)
@@ -1095,7 +1130,7 @@ pub(crate) fn signal_subscribe(receiver: &str, signal: &str, handler: &str) -> S
 }
 
 pub(crate) fn signal_unsubscribe(receiver: &str, signal: &str) -> String {
-    if ENGINE_SIGNALS.contains(&signal) {
+    if engine_signal(signal) {
         return format!("(gd.unlisten)(this.node, {}, {receiver})", quoted(signal));
     }
     format!("(gd.disconnect)({receiver}, {})", quoted(signal))
@@ -1108,7 +1143,7 @@ pub(crate) fn signal_verb(signal: &str, verb: &str, args: &[String]) -> Option<S
         // event goes out too, for a scene's rows and the engine's listeners.
         "emit" => format!("(gd.emit_now)(this.node, {name}, [{}])", args.join(", ")),
         "connect" if !args.is_empty() => format!("(gd.connect)(this.node, {name}, {})", args[0]),
-        "connect" => format!("events::subscribe(this.node, {name}, this.node)"),
+        "connect" => format!("events::listen(this.node, {name}, this.node)"),
         "disconnect" => format!("(gd.disconnect)(this.node, {name})"),
         "is_connected" => format!("(gd.is_connected)(this.node, {name})"),
         "get_connections" => format!("/* connections of {} */ []", safe(signal)),
@@ -1116,8 +1151,8 @@ pub(crate) fn signal_verb(signal: &str, verb: &str, args: &[String]) -> Option<S
     })
 }
 
-/// Signals the engine itself sends, heard as events; a script's own are
-/// called as they are emitted.
+/// Signals the engine itself sends besides a widget's, heard as events; a
+/// script's own are called as they are emitted.
 /// Godot's "it went away", which the engine reports as the visibility event.
 pub(crate) const HIDDEN_SIGNAL: &str = "hidden";
 
@@ -1126,20 +1161,20 @@ pub(crate) const VISIBILITY_SIGNAL: &str = "visibility_changed";
 
 pub(crate) const ENGINE_SIGNALS: &[&str] = &[
     "timeout",
+    "child_entered_tree",
+    "child_exiting_tree",
+    "renamed",
+    "sleeping_state_changed",
+    "about_to_popup",
+    "popup_hide",
+    "animation_started",
     "animation_finished",
     "finished",
     "body_entered",
     "body_exited",
     "area_entered",
     "area_exited",
-    "pressed",
-    "button_up",
     "button_down",
-    "toggled",
-    "value_changed",
-    "text_changed",
-    "text_submitted",
-    "item_selected",
     "visibility_changed",
     "resized",
     "tree_entered",
@@ -1148,7 +1183,6 @@ pub(crate) const ENGINE_SIGNALS: &[&str] = &[
     "ready",
     "mouse_entered",
     "mouse_exited",
-    "focus_entered",
     "focus_exited",
     "gui_input",
     "input_event",

@@ -1,24 +1,43 @@
 
 use crate::icons;
 
-pub fn personas() {
+/// The id each workspace is known by; `workspaces` lists them in order.
+pub const WORKSPACE_SCENE = "scene";
+pub const WORKSPACE_SCRIPT = "script";
+pub const WORKSPACE_ANIMATION = "animation";
+pub const WORKSPACE_PHYSICS = "physics";
+pub const WORKSPACE_UI = "ui";
+
+/// The viewport chips by key; `chips` says which workspace shows each and
+/// what it starts as.
+pub const CHIP_PROJECTION = "proj";
+pub const CHIP_SNAP = "snap";
+pub const CHIP_GUIDES = "guides";
+pub const CHIP_LIGHTS = "lights";
+pub const CHIP_PATH = "path";
+pub const CHIP_COLLIDERS = "colliders";
+pub const CHIP_SLEEP = "sleep";
+pub const CHIP_SAFE = "safe";
+pub const CHIP_RESOLUTION = "res";
+
+pub fn workspaces() {
     [
-        #{ id: "scene", name: "Scene", icon: icons::persona("scene") },
-        #{ id: "script", name: "Script", icon: icons::persona("script") },
-        #{ id: "anim", name: "Animate", icon: icons::persona("anim") },
-        #{ id: "phys", name: "Physics", icon: icons::persona("phys") },
-        #{ id: "ui", name: "Interface", icon: icons::persona("ui") },
+        #{ id: WORKSPACE_SCENE, name: "Scene", icon: icons::workspace(WORKSPACE_SCENE) },
+        #{ id: WORKSPACE_SCRIPT, name: "Script", icon: icons::workspace(WORKSPACE_SCRIPT) },
+        #{ id: WORKSPACE_ANIMATION, name: "Animation", icon: icons::workspace(WORKSPACE_ANIMATION) },
+        #{ id: WORKSPACE_PHYSICS, name: "Physics", icon: icons::workspace(WORKSPACE_PHYSICS) },
+        #{ id: WORKSPACE_UI, name: "UI", icon: icons::workspace(WORKSPACE_UI) },
     ]
 }
 
-/// The panels a persona opens, per dock, and which of them it brings
-/// forward. A persona says what to have open, not what may be opened: the
+/// The panels a workspace opens, per dock, and which of them it brings
+/// forward. A workspace says what to have open, not what may be opened: the
 /// logo menu adds and the tab marks close whatever the work needs after that.
-pub fn persona_docks(id) {
+pub fn workspace_docks(id) {
     match id {
         "script" => docks(["scene", "outline"], ["output", "problems", "docs", "debugger"], ["inspector"]),
-        "anim" => docks(["scene", "outline"], ["timeline", "statemachine", "output", "library"], ["inspector"]),
-        "phys" => docks(["scene"], ["output", "problems", "profiler"], ["inspector"]),
+        "animation" => docks(["scene", "outline"], ["timeline", "statemachine", "output", "library"], ["inspector"]),
+        "physics" => docks(["scene"], ["output", "problems", "profiler"], ["inspector"]),
         "ui" => docks(["scene", "outline"], ["output", "problems", "assets"], ["inspector", "import"]),
         _ => docks(["scene", "outline"], ["output", "problems", "assets"], ["inspector", "import"]),
     }
@@ -32,8 +51,8 @@ fn docks(left, bottom, right) {
     }
 }
 
-pub fn persona_name(id) {
-    for p in personas() {
+pub fn workspace_name(id) {
+    for p in workspaces() {
         if p.id == id {
             return p.name;
         }
@@ -41,23 +60,23 @@ pub fn persona_name(id) {
     id
 }
 
-/// What the inspector keeps per persona: the component tags it shows, the
+/// What the inspector keeps per workspace: the component tags it shows, the
 /// components it names outright, and the hand-written sections beside them.
 ///
-/// Tags rather than names, so a plugin's component joins the persona it
+/// Tags rather than names, so a plugin's component joins the workspace it
 /// declared a tag for without the editor knowing it exists. `transform` is
 /// named because it carries only `2d`/`3d`, which every physics and animation
 /// component carries too.
-pub fn persona_inspector(id) {
+pub fn workspace_inspector(id) {
     match id {
         "script" => #{ tags: [], named: [], sections: ["script", "events"] },
-        "anim" => #{
+        "animation" => #{
             tags: ["animation"], named: ["transform"],
             sections: ["skeleton", "polygon", "animation"],
         },
-        "phys" => #{ tags: ["physics"], named: [], sections: ["physics"] },
+        "physics" => #{ tags: ["physics"], named: [], sections: ["physics"] },
         "ui" => #{ tags: ["ui"], named: [], sections: ["interface"] },
-        // Scene is what a scene is built of, and the one persona that also
+        // Scene is what a scene is built of, and the one workspace that also
         // shows the script a node carries: a scene file holds it.
         _ => #{
             tags: ["render", "interaction", "audio"], named: ["transform"],
@@ -68,11 +87,11 @@ pub fn persona_inspector(id) {
 
 // Only tools something reads: a button that sets `S.tool` and is then ignored
 // advertises an editor that does not exist. Re-add each on its `gizmo` handler.
-pub fn tools(persona) {
-    match persona {
+pub fn tools(workspace) {
+    match workspace {
         "scene" => ["select", "move", "rotate", "scale", "pen", "tiles", "zoom"],
-        "anim" => ["select", "move", "bone", "polygon", "key", "zoom"],
-        "phys" => ["select", "move", "polygon", "zoom"],
+        "animation" => ["select", "move", "bone", "polygon", "key", "zoom"],
+        "physics" => ["select", "move", "polygon", "zoom"],
         "ui" => ["select", "move", "zoom"],
         _ => [],
     }
@@ -85,7 +104,7 @@ pub fn tool_name(tool) {
         "rotate" => "Rotate",
         "scale" => "Scale",
         "zoom" => "Zoom",
-        "key" => "Key frame",
+        "key" => "Keyframe",
         "bone" => "Rig bone",
         "polygon" => "Polygon",
         "pen" => "Pen",
@@ -98,14 +117,31 @@ pub fn tool_icon(tool) {
     icons::tool(tool)
 }
 
-// Viewport overlay chips per persona: `[key, label, default_on]`. A chip with
+// Viewport overlay chips per workspace: `[key, label, default_on]`. A chip with
 // no third entry is engine-backed: `shell::chip_value` reads it live each frame.
-pub fn chips(persona) {
-    match persona {
-        "scene" => [["proj", "3D · Perspective", true], ["snap", "Snap 8 px", false], ["guides", "Guides", false], ["lights", "Lights", true]],
-        "anim" => [["path", "Motion path", true], ["snap", "Snap 8 px", false]],
-        "phys" => [["colliders", "Show colliders", true], ["sleep", "Sleep bodies"]],
-        "ui" => [["safe", "Safe area", true], ["res", "1920 × 1080", false]],
+pub fn chips(workspace) {
+    match workspace {
+        "scene" => [[CHIP_PROJECTION, "3D · Perspective", true], [CHIP_SNAP, "Snap 8 px", false], [CHIP_GUIDES, "Guides", false], [CHIP_LIGHTS, "Lights", true]],
+        "animation" => [[CHIP_PATH, "Motion path", true], [CHIP_SNAP, "Snap 8 px", false]],
+        "physics" => [[CHIP_COLLIDERS, "Show colliders", true], [CHIP_SLEEP, "Sleep bodies"]],
+        "ui" => [[CHIP_SAFE, "Safe area", true], [CHIP_RESOLUTION, "1920 × 1080", false]],
         _ => [],
     }
+}
+
+/// Whether a chip is on in a workspace: what its chip holds, or what `chips`
+/// starts it as before the chip is first drawn.
+pub fn chip_on(S, workspace, key) {
+    if let Some(state) = S.chip_state.get(workspace) {
+        if let Some(on) = state.get(key) {
+            return on == true;
+        }
+    }
+    for c in chips(workspace) {
+        if c[0] == key {
+            let on = c.len() > 2 && c[2] == true;
+            return on;
+        }
+    }
+    false
 }

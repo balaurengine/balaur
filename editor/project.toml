@@ -6,6 +6,11 @@ main_scene = "scenes/main.toml"
 splash = "assets/balaur-logo.png"
 splash_seconds = 0.0
 
+# The editor sits still between edits, so it draws a frame only when input,
+# a log line, a changed file or a scheduled repaint asks for one.
+[window]
+low_processor = true
+
 # The editor holds itself to its own checker: a warning here is a failure,
 # not a line in the output someone might read.
 [check]
@@ -14,6 +19,6 @@ strict = true
 # `layout.rn`'s own floors, not a phone's and a tablet's: what asks
 # `ui::width_class` in here, a plugin's dock among it, gets the shell's answer.
 [ui]
-narrow_below = 532
-wide_from = 712
-short_below = 321
+narrow_below_pixels = 532
+wide_from_pixels = 712
+short_below_pixels = 321

@@ -1,6 +1,6 @@
 name: Build the Balaur engine
 description: >-
-  Build the editor and the runtime templates from the checkout this action
+  Build the editor and the runtimes from the checkout this action
   stands in, with whichever cargo features the game needs — the way to get an
   engine the published build does not offer.
 
@@ -26,12 +26,12 @@ inputs:
     required: false
     default: ""
   web-features:
-    description: Cargo features for the web template, replacing its default.
+    description: Cargo features for the web runtime, replacing its default.
     required: false
     default: ""
   threads:
     description: >-
-      Build the web template with wasm atomics and a shared memory. The module
+      Build the web runtime with wasm atomics and a shared memory. The module
       a browser gets is a different one, loadable only on a cross-origin
       isolated page, so this produces a template beside the plain one rather
       than replacing it. Needs a nightly toolchain, which this action installs.
@@ -41,7 +41,7 @@ inputs:
     description: >-
       Names a second build of the same platform, so several can be uploaded
       side by side: `2d`, `server` or `threads` become
-      `balaur-template-web-2d` and so on. Empty is the platform's own build,
+      `balaur-runtime-web-2d` and so on. Empty is the platform's own build,
       the one a release ships.
     required: false
     default: ""
@@ -76,7 +76,7 @@ runs:
           echo 'artifact=balaur-${{ inputs.target }}' >>"$GITHUB_OUTPUT"
         elif [ -n '${{ inputs.platform }}' ]; then
           variant='${{ inputs.variant }}'
-          echo "artifact=balaur-template-${{ inputs.platform }}${variant:+-$variant}" >>"$GITHUB_OUTPUT"
+          echo "artifact=balaur-runtime-${{ inputs.platform }}${variant:+-$variant}" >>"$GITHUB_OUTPUT"
         else
           echo '::error::build-engine needs either a target or a platform'
           exit 1
@@ -133,7 +133,7 @@ runs:
           } >>"$GITHUB_ENV"
         done
       env:
-        # The manifest's minSdkVersion in scripts/package_template.sh; a
+        # The manifest's minSdkVersion in scripts/package_runtime.sh; a
         # library built for a newer API would not load on a device it names.
         API: "26"
 
@@ -176,7 +176,7 @@ runs:
         if [ -n '${{ inputs.target }}' ]; then
           ./scripts/package.sh '${{ inputs.target }}'
         else
-          ./scripts/package_template.sh '${{ inputs.platform }}'
+          ./scripts/package_runtime.sh '${{ inputs.platform }}'
         fi
 
     - if: inputs.upload == 'true'

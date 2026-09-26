@@ -1,0 +1,524 @@
+//! Per-node playback: what a node is playing, where it is, and what happens
+//! next.
+//!
+//! Everything here is a read or a write of one [`Playback`] in
+//! [`AnimationState`]. The clip itself is shared and immutable — two nodes
+//! playing one asset have one `Rc<Clip>` between them — so the playhead, the
+//! speed, the queue and the clips a script defined at run time all live here
+//! rather than on the asset.
+
+use anyhow::{Context, Result, anyhow, bail};
+use balaur_core::Engine;
+use balaur_core::assets;
+use balaur_core::collections::DetHashMap;
+use balaur_core::hecs::Entity;
+
+use crate::clip::{Clip, LoopMode};
+use crate::ease::{Easing, Points};
+use crate::tween::{Tween, TweenId};
+
+/// The simulation tick animation advances on, and the ceiling on catch-up
+/// steps: both are core's, so animation falls behind exactly as physics does.
+pub(crate) use balaur_core::{fixed_dt, max_substeps};
+
+/// The asset type name every clip is parsed through, and the one this crate
+/// registers.
+pub const LIBRARY_ASSET_TYPE: &str = "animation_library";
+
+/// What one node is playing, and where it is.
+///
+/// Separate from the clip because the clip is shared: two nodes playing one
+/// asset have one `Rc<Clip>` between them and a `Playback` each.
+pub struct Playback {
+    /// The asset reference the `library` property named.
+    pub library: String,
+    /// The clip to start when the scene loads, as authored. Empty means none.
+    pub autoplay: String,
+    /// The entry currently playing, or empty when the library reference is
+    /// itself the clip.
+    pub clip_name: String,
+    /// The clip being sampled, held so reloading the asset cannot pull it out
+    /// from under a frame in progress.
+    pub clip: Option<std::rc::Rc<Clip>>,
+    /// Seconds of playback, before wrapping. Advanced by the fixed step.
+    pub time: f32,
+    pub speed_scale: f32,
+    /// Whether the playhead is advancing.
+    pub playing: bool,
+    /// A clip is current but held. `stop` clears both; `pause` moves from one
+    /// to the other, which is what lets `resume` know there is something to
+    /// go back to.
+    pub paused: bool,
+    /// Node path a track's `target` resolves against; empty is this node.
+    pub root_node: String,
+    /// What to play when the current clip ends, in the order it was asked
+    /// for. A looping clip never ends, so it never drains — the same as
+    /// Godot's queue.
+    pub queue: Vec<String>,
+    /// Clips this node was given at run time by `animation.add_clip`, as asset
+    /// references the cache already holds. Insertion-ordered, because a name
+    /// lookup that iterates must not depend on a hasher's seed.
+    pub defined: DetHashMap<String, String>,
+    /// The clip that ended during the last step, readable for exactly one
+    /// frame. Cleared at the top of every advance, which is after the script
+    /// tick that could read it.
+    pub finished: String,
+    /// The bone map this node plays other rigs' clips through, and the
+    /// reference it was loaded from so a snapshot can find it again. `None`
+    /// plays every track exactly as it was authored.
+    pub retarget: Option<crate::retarget::Retarget>,
+    pub(crate) retarget_reference: String,
+    /// The clips crossfades are leaving, oldest first, each still advancing
+    /// and blended out; a fade started mid-fade stacks rather than cuts.
+    pub fades: Vec<Fade>,
+    /// The clip left and the clip begun since the system last announced it;
+    /// the first is empty when nothing was playing.
+    pub(crate) began: Option<(String, String)>,
+}
+
+/// The outgoing half of a crossfade.
+#[derive(Clone)]
+pub struct Fade {
+    pub clip_name: String,
+    pub clip: std::rc::Rc<Clip>,
+    /// Its playhead, which keeps moving while it fades.
+    pub time: f32,
+    pub speed: f32,
+    /// Seconds of the fade gone, and how many it lasts.
+    pub elapsed: f32,
+    pub duration: f32,
+    /// The curve the fade's weight follows.
+    pub ease: Easing,
+    /// A drawn curve that takes the place of `ease`: Godot's `xfade_curve`.
+    pub curve: Option<Points>,
+    /// A looping clip holds its last frame rather than wrapping while it
+    /// fades: Godot's `break_loop_at_end`.
+    pub break_loop_at_end: bool,
+}
+
+impl Fade {
+    /// How far the fade has gone, `0` to `1`, on its curve.
+    #[must_use]
+    pub fn weight(&self) -> f32 {
+        if self.duration <= 0.0 {
+            return 1.0;
+        }
+        let u = (self.elapsed / self.duration).clamp(0.0, 1.0);
+        match &self.curve {
+            Some(curve) => curve.apply(u),
+            None => self.ease.apply(u),
+        }
+    }
+
+    /// Where in its clip the outgoing half is sampled. A held one stops at
+    /// the end of the pass it was on rather than wrapping.
+    #[must_use]
+    pub fn local_time(&self) -> f32 {
+        if self.break_loop_at_end {
+            self.time.clamp(0.0, self.clip.length)
+        } else {
+            crate::sampler::clip_time(&self.clip, self.time).0
+        }
+    }
+}
+
+/// The clip `playback` is on, as the outgoing half of a `duration`-second
+/// fade; `None` for no fade or nothing current.
+pub(crate) fn leaving(
+    playback: &Playback,
+    duration: f32,
+    ease: Easing,
+    curve: Option<Points>,
+    break_loop_at_end: bool,
+) -> Option<Fade> {
+    let clip = playback.clip.clone()?;
+    if duration <= 0.0 || !playback.active() {
+        return None;
+    }
+    // Held, the playhead is rebased onto the pass it is in, so clamping it
+    // to the clip stops it at that pass's end.
+    let (time, speed) =
+        if break_loop_at_end && clip.loop_mode != LoopMode::None && clip.length > 0.0 {
+            let (local, _) = crate::sampler::clip_time(&clip, playback.time);
+            let pass = libm::floorf(playback.time / clip.length) as i64;
+            let backward = clip.loop_mode == LoopMode::PingPong && pass % 2 != 0;
+            (
+                local,
+                if backward {
+                    -playback.speed_scale
+                } else {
+                    playback.speed_scale
+                },
+            )
+        } else {
+            (playback.time, playback.speed_scale)
+        };
+    Some(Fade {
+        clip_name: playback.clip_name.clone(),
+        clip,
+        time,
+        speed,
+        elapsed: 0.0,
+        duration,
+        ease,
+        curve,
+        break_loop_at_end,
+    })
+}
+
+impl Default for Playback {
+    fn default() -> Self {
+        Self {
+            library: String::new(),
+            autoplay: String::new(),
+            clip_name: String::new(),
+            clip: None,
+            time: 0.0,
+            speed_scale: 1.0,
+            playing: false,
+            paused: false,
+            root_node: String::new(),
+            queue: Vec::new(),
+            defined: DetHashMap::default(),
+            finished: String::new(),
+            retarget: None,
+            retarget_reference: String::new(),
+            fades: Vec::new(),
+            began: None,
+        }
+    }
+}
+
+impl Playback {
+    /// Whether a clip is current — playing or held by `pause`.
+    ///
+    /// Not the same question as [`crate::is_playing`], which asks whether the
+    /// playhead is moving.
+    #[must_use]
+    pub const fn active(&self) -> bool {
+        self.playing || self.paused
+    }
+
+    /// The reference a clip name resolves to for this node.
+    ///
+    /// A name a script defined wins over the library, so `define` genuinely
+    /// replaces a clip rather than sitting beside one that shadows it. An
+    /// empty name is the library reference itself, which is what a
+    /// single-clip file, an `[[assets]]` block and an inline definition each
+    /// are.
+    #[must_use]
+    pub fn reference(&self, clip_name: &str) -> String {
+        if let Some(defined) = self.defined.get(clip_name) {
+            return defined.clone();
+        }
+        if clip_name.is_empty() {
+            self.library.clone()
+        } else {
+            format!("{}#{clip_name}", self.library)
+        }
+    }
+}
+
+/// Every node's playback and every running tween, plus the fixed-step
+/// accumulator: state this plugin owns outright, in the shape `PhysicsState3d`
+/// established.
+#[derive(Default)]
+pub struct AnimationState {
+    /// Insertion-ordered with an unseeded hasher: the order nodes are
+    /// advanced in must be the same on every run and platform (see
+    /// `balaur_core::collections`).
+    pub players: DetHashMap<Entity, Playback>,
+    /// Running tweens, keyed by the handle the caller was given. Ordered for
+    /// the same reason `players` is: two tweens driving one property must
+    /// land in the same order every run.
+    pub tweens: DetHashMap<TweenId, Tween>,
+    /// The last handle given out. Counts up and never reuses, so a handle
+    /// held past the end of its tween names nothing rather than something
+    /// else.
+    pub(crate) next_tween: TweenId,
+    pub(crate) accumulator: f32,
+    /// Every jiggle chain's dynamic points, keyed by the node carrying the
+    /// modifier. Ordered like `players`, and for the same reason.
+    pub(crate) jiggle: DetHashMap<Entity, crate::modifier::Jiggle>,
+    /// The jiggle springs' own fixed-step residual. Separate from
+    /// `accumulator` because the modifier system runs after the playhead has
+    /// already spent that one.
+    pub(crate) jiggle_accumulator: f32,
+    /// The [`Engine::step_restarts`] both accumulators were last emptied at.
+    pub(crate) step_restarts: u64,
+    /// The asset generation these players' clips were resolved at. When the
+    /// cache moves past it — a file saved in dev mode, an editor writing a
+    /// clip — every live playback re-resolves and keeps its playhead.
+    pub(crate) asset_generation: u64,
+    /// Every node running a state machine, keyed by that node. Ordered like
+    /// `players`, and for the same reason.
+    pub machines: DetHashMap<Entity, crate::machine::MachineRun>,
+}
+
+impl AnimationState {
+    /// Drop both fixed-step remainders when the app dropped its own: a session
+    /// starting, or a replay of one. Left alone, a replay in a process that ran
+    /// before it takes a different number of steps than its recording did.
+    pub(crate) fn honour_step_restart(&mut self, eng: &Engine) {
+        let restarts = eng.step_restarts();
+        if restarts != self.step_restarts {
+            self.step_restarts = restarts;
+            self.accumulator = 0.0;
+            self.jiggle_accumulator = 0.0;
+        }
+    }
+}
+
+/// Run `f` over one node's playback, or answer `None` when it has none.
+fn with_playback<T>(eng: &Engine, entity: Entity, f: impl FnOnce(&mut Playback) -> T) -> Option<T> {
+    let state = eng.try_resource::<AnimationState>()?;
+    let mut state = state.borrow_mut();
+    state.players.get_mut(&entity).map(f)
+}
+
+/// Read one node's playback without holding the borrow open.
+fn read<T>(eng: &Engine, entity: Entity, f: impl FnOnce(&Playback) -> T) -> Option<T> {
+    let state = eng.try_resource::<AnimationState>()?;
+    let state = state.borrow();
+    state.players.get(&entity).map(f)
+}
+
+/// Start `clip_name` on `entity`, from the beginning.
+///
+/// # Errors
+/// If the node has no `animation` component, or the clip cannot be loaded —
+/// the message carries the reference that was asked for.
+pub fn play(eng: &Engine, entity: Entity, clip_name: &str) -> Result<()> {
+    play_from(eng, entity, clip_name, true)
+}
+
+/// [`play`], with the option of picking the current clip back up where it was.
+///
+/// `from_start = false` is Godot's behaviour when `play` names the clip that
+/// is already current: the playhead stays, which is what makes calling `play`
+/// every frame from a state machine not a stutter.
+///
+/// # Errors
+/// As [`play`].
+pub fn play_from(eng: &Engine, entity: Entity, clip_name: &str, from_start: bool) -> Result<()> {
+    play_blended(eng, entity, clip_name, 0.0, Easing::LINEAR, from_start)
+}
+
+/// [`play_from`], fading out of whatever is current over `blend_time` seconds on
+/// the `ease` curve rather than cutting to the new clip: both are sampled and
+/// blended until the fade has run. A fade of zero is a cut, and drops any
+/// fade still running.
+///
+/// # Errors
+/// As [`play`].
+pub fn play_blended(
+    eng: &Engine,
+    entity: Entity,
+    clip_name: &str,
+    blend_time: f32,
+    ease: Easing,
+    from_start: bool,
+) -> Result<()> {
+    let state = eng.resource::<AnimationState>();
+    let (reference, addressable, same, outgoing, left) = {
+        let state = state.borrow();
+        let playback = state
+            .players
+            .get(&entity)
+            .ok_or_else(|| anyhow!("this node has no `animation` component to play a clip on"))?;
+        let same = playback.active() && playback.clip_name == clip_name;
+        (
+            playback.reference(clip_name),
+            playback.defined.contains_key(clip_name) || !playback.library.trim().is_empty(),
+            same,
+            leaving(playback, blend_time, ease, None, false).filter(|_| !same),
+            if playback.active() {
+                playback.clip_name.clone()
+            } else {
+                String::new()
+            },
+        )
+    };
+    if !addressable {
+        bail!(
+            "the `animation` component names no `library` and no clip called '{clip_name}' was \
+             defined on this node, so there is nothing to play"
+        );
+    }
+    let clip = assets::load_typed::<Clip>(eng, &reference)
+        .with_context(|| format!("playing animation '{reference}'"))?;
+    if let Some(playback) = state.borrow_mut().players.get_mut(&entity) {
+        playback.clip_name = clip_name.to_string();
+        playback.clip = Some(clip);
+        if from_start || !same {
+            playback.time = 0.0;
+            playback.began = Some((left, clip_name.to_string()));
+        }
+        playback.playing = true;
+        playback.paused = false;
+        match outgoing {
+            Some(outgoing) => playback.fades.push(outgoing),
+            None if blend_time <= 0.0 => playback.fades.clear(),
+            None => {}
+        }
+    }
+    Ok(())
+}
+
+/// Play every clip on this node through a bone map, so a rig can run clips
+/// authored for another one.
+///
+/// The reference is loaded now rather than at the next step, so a map that
+/// will not parse is an error where the caller can see it. An empty
+/// reference takes the map off again.
+///
+/// # Errors
+/// When the reference names no `bone_map`, or the profile it names will not
+/// load.
+pub fn set_retarget(eng: &Engine, entity: Entity, reference: &str) -> Result<()> {
+    let retarget = if reference.trim().is_empty() {
+        None
+    } else {
+        let map = assets::load_typed::<crate::retarget::BoneMap>(eng, reference)
+            .with_context(|| format!("retargeting through '{reference}'"))?;
+        let profile = if map.profile.trim().is_empty() {
+            std::rc::Rc::new(crate::retarget::SkeletonProfile::humanoid())
+        } else {
+            assets::load_typed::<crate::retarget::SkeletonProfile>(eng, &map.profile)
+                .with_context(|| format!("the profile '{}' a bone map names", map.profile))?
+        };
+        Some(crate::retarget::Retarget { map, profile })
+    };
+    with_playback(eng, entity, |playback| {
+        playback.retarget.clone_from(&retarget);
+        playback.retarget_reference = reference.to_string();
+    })
+    .ok_or_else(|| anyhow!("this node has no `animation` component to retarget"))
+}
+
+/// Play `clip_name` once the current clip ends, after anything already queued.
+///
+/// A looping clip never ends, so a queue behind one never drains — the same
+/// as Godot's, and the same reason.
+pub fn queue(eng: &Engine, entity: Entity, clip_name: &str) {
+    with_playback(eng, entity, |playback| {
+        playback.queue.push(clip_name.to_string());
+    });
+}
+
+/// Stop playback, leaving the pose where it is. A no-op on a node that is not
+/// playing.
+///
+/// The clip stops being current, so `current_clip` answers nothing afterwards and
+/// `resume` has nothing to go back to — that is what separates this from
+/// [`pause`].
+pub fn stop(eng: &Engine, entity: Entity) {
+    with_playback(eng, entity, |playback| {
+        playback.playing = false;
+        playback.paused = false;
+        playback.queue.clear();
+        playback.fades.clear();
+    });
+}
+
+/// Hold the playhead where it is, keeping the clip current.
+pub fn pause(eng: &Engine, entity: Entity) {
+    with_playback(eng, entity, |playback| {
+        if playback.playing {
+            playback.playing = false;
+            playback.paused = true;
+        }
+    });
+}
+
+/// Carry on from where [`pause`] left off. A no-op on anything else.
+pub fn resume(eng: &Engine, entity: Entity) {
+    with_playback(eng, entity, |playback| {
+        if playback.paused {
+            playback.paused = false;
+            playback.playing = true;
+        }
+    });
+}
+
+/// Scale playback: 2.0 is twice as fast, a negative speed runs the clip
+/// backwards. Also what the component's `speed_scale` property writes.
+pub fn set_speed_scale(eng: &Engine, entity: Entity, speed_scale: f32) {
+    with_playback(eng, entity, |playback| {
+        playback.speed_scale = speed_scale;
+    });
+}
+
+/// Move the playhead to `time` seconds of playback, and pose the node there.
+///
+/// Posing immediately is what makes a seek visible on a clip that is not
+/// advancing — a paused one being scrubbed in an editor timeline, or one that
+/// has already ended. A playing clip is posed again by its next fixed step,
+/// from the same playhead, so the two agree.
+///
+/// Nothing between the old playhead and the new one is treated as passed: a
+/// seek must not fire the method keys it skipped over, and posing travels no
+/// span.
+pub fn seek(eng: &Engine, entity: Entity, time: f32) {
+    with_playback(eng, entity, |playback| {
+        playback.time = time;
+    });
+    crate::system::pose_now(eng, entity);
+}
+
+/// The clip playing or held on `entity`, or `None` once it has ended or been
+/// stopped.
+#[must_use]
+pub fn current_clip(eng: &Engine, entity: Entity) -> Option<String> {
+    read(eng, entity, |playback| {
+        playback.active().then(|| playback.clip_name.clone())
+    })
+    .flatten()
+}
+
+/// Seconds of playback since the current clip started, before wrapping.
+#[must_use]
+pub fn time(eng: &Engine, entity: Entity) -> f32 {
+    read(eng, entity, |playback| playback.time).unwrap_or_default()
+}
+
+/// Whether `entity` has a clip advancing. A paused node answers false.
+#[must_use]
+pub fn is_playing(eng: &Engine, entity: Entity) -> bool {
+    read(eng, entity, |playback| playback.playing).unwrap_or(false)
+}
+
+/// The clip that ended on `entity` during the last step, for that one frame.
+///
+/// The other half of `on_animation_finished`: a script that would rather poll
+/// than define a method reads this, and it answers for exactly as long as the
+/// method call would have been in flight.
+#[must_use]
+pub fn just_finished(eng: &Engine, entity: Entity) -> Option<String> {
+    read(eng, entity, |playback| playback.finished.clone()).filter(|name| !name.is_empty())
+}
+
+/// Give `entity` a clip of its own under `clip_name`, from a definition
+/// table.
+///
+/// The definition goes into the asset cache keyed by its content, so two
+/// nodes defining the same clip share one parsed object and defining the same
+/// clip twice costs one entry rather than two.
+///
+/// # Errors
+/// If the table is not a clip the `animation_library` parser accepts.
+pub fn add_clip(eng: &Engine, entity: Entity, clip_name: &str, body: toml::Value) -> Result<()> {
+    let reference = assets::define_inline(eng, LIBRARY_ASSET_TYPE, body)
+        .with_context(|| format!("adding animation clip '{clip_name}'"))?
+        .to_string();
+    // Parse it now rather than at the first `play`, so a malformed definition
+    // is an error where it was written.
+    assets::load_typed::<Clip>(eng, &reference)
+        .with_context(|| format!("adding animation clip '{clip_name}'"))?;
+    with_playback(eng, entity, |playback| {
+        playback
+            .defined
+            .insert(clip_name.to_string(), reference.clone());
+    })
+    .ok_or_else(|| anyhow!("this node has no `animation` component to add a clip to"))
+}

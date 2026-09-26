@@ -70,9 +70,9 @@ pub mod keys {
     /// Seconds into a looping sound its repeats start from, past an intro.
     pub const LOOP_OFFSET: &str = "loop_offset";
     /// A sound's own gain, multiplied into every play of it.
-    pub const VOLUME: &str = "volume";
-    /// The family a face joins: `ui`, `heading`, `mono` or `icons`.
-    pub const FAMILY: &str = "family";
+    pub const VOLUME_LINEAR: &str = "volume_linear";
+    /// The family a face joins: `ui`, `heading`, `mono` or `icon`.
+    pub const FONT_FAMILY: &str = "font_family";
     /// A face's vertical nudge, as a fraction of its size.
     pub const Y_OFFSET: &str = "y_offset";
     /// Snap a face's outlines to the pixel grid; off for a smooth face.
@@ -86,9 +86,9 @@ pub mod keys {
     /// simpler copy takes over; each further one takes over at twice it.
     pub const LOD_DISTANCE: &str = "lod_distance";
     /// Mix a sound to one channel at export.
-    pub const MONO: &str = "mono";
+    pub const FORCE_MONO: &str = "force_mono";
     /// The highest sample rate a sound ships at, in Hz; 0 keeps its own.
-    pub const MAX_RATE: &str = "max_rate";
+    pub const MAX_RATE_HZ: &str = "max_rate_hz";
     /// Smooth a face's glyph edges; off draws every pixel on or off.
     pub const ANTIALIAS: &str = "antialias";
 }
@@ -103,20 +103,20 @@ pub mod words {
     pub const MIRROR: &str = "mirror";
     /// The edge texel held, which is what a sprite wants.
     pub const CLAMP: &str = "clamp";
-    /// `recode = "keep"`: ship this file's own bytes whatever the export's
+    /// `recode = "original"`: ship this file's own bytes whatever the export's
     /// mode is.
-    pub const KEEP: &str = "keep";
+    pub const ORIGINAL: &str = "original";
     /// `recode` for a picture: lossless WebP, or a 256-colour palette.
     pub const WEBP: &str = "webp";
-    pub const QUANTISED: &str = "quantised";
+    pub const QUANTIZED: &str = "quantized";
     /// `recode` for a sound: lossless FLAC, or lossy Ogg Vorbis.
     pub const FLAC: &str = "flac";
     pub const VORBIS: &str = "vorbis";
-    /// The font families `family` names.
+    /// The font families `font_family` names.
     pub const UI: &str = "ui";
     pub const HEADING: &str = "heading";
     pub const MONO: &str = "mono";
-    pub const ICONS: &str = "icons";
+    pub const ICON: &str = "icon";
 }
 
 /// Which kind a file belongs to, by extension, or `None` for a file no

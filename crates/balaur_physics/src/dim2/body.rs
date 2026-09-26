@@ -63,9 +63,9 @@ pub(crate) fn write_body(body: &mut RigidBody, params: &toml::Value, world_may_s
     body.set_dominance_group(v::f(params, k::DOMINANCE, 0.0).clamp(-127.0, 127.0) as i8);
     body.set_additional_solver_iterations(v::f(params, k::SOLVER_ITERATIONS, 0.0).max(0.0) as usize);
     body.set_locked_axes(locked_axes(params), true);
-    body.enable_ccd(v::boolean(params, k::CCD, false));
-    body.set_soft_ccd_prediction(scalar::real(v::f(params, k::SOFT_CCD, 0.0)));
-    body.set_allow_fast_rotation(v::boolean(params, k::FAST_ROTATION, false));
+    body.enable_ccd(v::boolean(params, k::CONTINUOUS_COLLISION, false));
+    body.set_soft_ccd_prediction(scalar::real(v::f(params, k::SPECULATIVE_DISTANCE, 0.0)));
+    body.set_allow_fast_rotation(v::boolean(params, k::ALLOW_FAST_ROTATION, false));
     body.set_enabled(v::boolean(params, k::ENABLED, true));
     write_mass(body, params);
     let may_sleep = world_may_sleep && v::boolean(params, k::CAN_SLEEP, true);
@@ -75,10 +75,21 @@ pub(crate) fn write_body(body: &mut RigidBody, params: &toml::Value, world_may_s
         body.wake_up(true);
         RigidBodyActivation::cannot_sleep()
     };
-    // A body that cannot sleep keeps its `sleep_time` anyway: the negative
+    // A body that cannot sleep keeps its `time_to_sleep` anyway: the negative
     // thresholds are what hold it awake, so the number survives a re-save.
-    activation.time_until_sleep = scalar::real(v::f(params, k::SLEEP_TIME, 0.5).max(0.0));
+    activation.time_until_sleep = scalar::real(v::f(params, k::TIME_TO_SLEEP, 0.5).max(0.0));
     *body.activation_mut() = activation;
+}
+
+/// Whether the body states its own `mass`, which its colliders then do not add
+/// to.
+pub(crate) fn has_total_mass(body: &RigidBody) -> bool {
+    use crate::rapier2d::dynamics::RigidBodyAdditionalMassProps as Extra;
+    match body.mass_properties().additional_local_mprops.as_deref() {
+        Some(Extra::Mass(mass)) => *mass > 0.0,
+        Some(Extra::MassProps(props)) => props.mass() > 0.0,
+        None => false,
+    }
 }
 
 /// In 2D the angular inertia is one number, so `inertia` is a float here and
@@ -111,10 +122,15 @@ pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Valu
     map.insert(k::LINEAR_DAMPING.into(), f(body.linear_damping()));
     map.insert(k::ANGULAR_DAMPING.into(), f(body.angular_damping()));
     map.insert(k::GRAVITY_SCALE.into(), f(body.gravity_scale()));
-    map.insert(k::DOMINANCE.into(), f(Real::from(body.dominance_group())));
+    map.insert(
+        k::DOMINANCE.into(),
+        i64::from(body.dominance_group()).into(),
+    );
     map.insert(
         k::SOLVER_ITERATIONS.into(),
-        f(body.additional_solver_iterations() as Real),
+        i64::try_from(body.additional_solver_iterations())
+            .unwrap_or(i64::MAX)
+            .into(),
     );
     map.insert(
         k::LOCK_TRANSLATION.into(),
@@ -133,10 +149,13 @@ pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Valu
         k::LOCK_ROTATION.into(),
         axes.contains(LockedAxes::ROTATION_LOCKED).into(),
     );
-    map.insert(k::CCD.into(), body.is_ccd_enabled().into());
-    map.insert(k::SOFT_CCD.into(), f(body.soft_ccd_prediction()));
+    map.insert(k::CONTINUOUS_COLLISION.into(), body.is_ccd_enabled().into());
     map.insert(
-        k::FAST_ROTATION.into(),
+        k::SPECULATIVE_DISTANCE.into(),
+        f(body.soft_ccd_prediction()),
+    );
+    map.insert(
+        k::ALLOW_FAST_ROTATION.into(),
         body.is_fast_rotation_allowed().into(),
     );
     map.insert(k::ENABLED.into(), body.is_enabled().into());
@@ -144,15 +163,17 @@ pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Valu
         k::CAN_SLEEP.into(),
         (body.activation().normalized_linear_threshold >= 0.0).into(),
     );
-    map.insert(k::SLEEP_TIME.into(), f(body.activation().time_until_sleep));
+    map.insert(
+        k::TIME_TO_SLEEP.into(),
+        f(body.activation().time_until_sleep),
+    );
     read_mass(body, &mut map);
     Some(toml::Value::Table(map))
 }
 
-/// The mass the author added, read back off the body.
-///
-/// `body.mass()` is the total, colliders included; writing that back as
-/// `mass` would add the colliders' weight again on every save.
+/// The mass the author stated, read back off the body: `body.mass()` is also
+/// the total when none was, and writing that back would pin the colliders'
+/// weight as the body's own.
 fn read_mass(body: &RigidBody, map: &mut toml::map::Map<String, toml::Value>) {
     use crate::rapier2d::dynamics::RigidBodyAdditionalMassProps as Extra;
     let f = |value: Real| toml::Value::Float(f64::from(value));
@@ -175,8 +196,11 @@ fn read_mass(body: &RigidBody, map: &mut toml::map::Map<String, toml::Value>) {
 pub(crate) fn install_body2d_state_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("velocity_at_point", &[c::BODY_2D], "", "How fast a world point on the body is moving, spin included."),
-        ("total_mass", &[c::BODY_2D], "", "The body's total mass, colliders included. The `mass` property is the extra on top of them."),
+        ("total_mass", &[c::BODY_2D], "", "The body's total mass: its `mass` when it states one, or what its colliders weigh."),
         ("kinetic_energy", &[c::BODY_2D], "", "The body's kinetic energy, for a rest test the solver agrees with."),
+        ("potential_energy", &[c::BODY_2D], "", "The body's gravitational potential energy over one step."),
+        ("is_moving", &[c::BODY_2D], "", "Whether the body is awake and actually going somewhere."),
+        ("effective_dominance", &[c::BODY_2D], "", "The dominance rapier will use for this body: its own group, or the rank every non-dynamic body outranks with."),
         ("teleport", &[c::BODY_2D], "", "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick."),
     ]);
     m.function(
@@ -193,6 +217,20 @@ pub(crate) fn install_body2d_state_api(m: &mut dyn Bindings<Engine>) {
     });
     m.function("kinetic_energy", |eng: &Engine, node: NodeId| {
         read_body(eng, entity_of(node)?, RigidBody::kinetic_energy)
+    });
+    m.function("potential_energy", |eng: &Engine, node: NodeId| {
+        let gravity = eng.resource::<PhysicsState2d>().borrow().world.gravity;
+        read_body(eng, entity_of(node)?, |body| {
+            body.gravitational_potential_energy(scalar::real(balaur_core::fixed_dt()), gravity)
+        })
+    });
+    m.function("is_moving", |eng: &Engine, node: NodeId| {
+        read_body(eng, entity_of(node)?, |body| -> bool { body.is_moving() })
+    });
+    m.function("effective_dominance", |eng: &Engine, node: NodeId| {
+        read_body(eng, entity_of(node)?, |body| {
+            f32::from(body.effective_dominance_group())
+        })
     });
     m.function(
         "teleport",
@@ -328,46 +366,46 @@ pub(crate) fn install_body2d_force_api(m: &mut dyn Bindings<Engine>) {
             "Add an instant change in angular momentum, as if the body were spun.",
         ),
         (
-            "add_force",
+            "add_constant_force",
             &[c::BODY_2D],
             "",
-            "Push the body until the force is reset; unlike an impulse this is spread over time.",
+            "Push the body every step until the constant force is set back to zero; unlike an impulse this is spread over time.",
         ),
         (
-            "add_force_at_point",
+            "add_constant_force_at_point",
             &[c::BODY_2D],
             "",
-            "Push at a world point, which also turns the body.",
+            "Push at a world point every step, which also turns the body.",
         ),
         (
-            "add_torque",
+            "add_constant_torque",
             &[c::BODY_2D],
             "",
-            "Turn the body until the torque is reset.",
+            "Turn the body every step until the constant torque is set back to zero.",
         ),
         (
-            "reset_forces",
+            "set_constant_force",
             &[c::BODY_2D],
             "",
-            "Drop every force added since the last step.",
+            "Replace the constant force with this one; zero stops the push.",
         ),
         (
-            "reset_torques",
+            "set_constant_torque",
             &[c::BODY_2D],
             "",
-            "Drop every torque added since the last step.",
+            "Replace the constant torque with this one; zero stops the turn.",
         ),
         (
-            "user_force",
+            "constant_force",
             &[c::BODY_2D],
             "",
-            "The force the next step will integrate.",
+            "The force every step integrates until it is set back to zero.",
         ),
         (
-            "user_torque",
+            "constant_torque",
             &[c::BODY_2D],
             "",
-            "The torque the next step will integrate.",
+            "The torque every step integrates until it is set back to zero.",
         ),
     ]);
     m.function(
@@ -395,9 +433,65 @@ pub(crate) fn install_body2d_force_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// The forces and impulses a script applies to a 2D body.
-fn install_body_forces(m: &mut dyn Bindings<Engine>) {
+/// A force for one step: the impulse it would deliver over one fixed step, so
+/// nothing is left on the body for the step after.
+fn install_step_force_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        (
+            "apply_force",
+            &[c::BODY_2D],
+            "",
+            "Push the body for the next step only; `add_constant_force` keeps pushing.",
+        ),
+        (
+            "apply_force_at_point",
+            &[c::BODY_2D],
+            "",
+            "Push at a world point for the next step only, which also turns the body.",
+        ),
+        (
+            "apply_torque",
+            &[c::BODY_2D],
+            "",
+            "Turn the body for the next step only; `add_constant_torque` keeps turning it.",
+        ),
+    ]);
+    let dt = || scalar::real(balaur_core::fixed_dt());
     m.function(
-        "add_force",
+        "apply_force",
+        move |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                state.world.bodies[handle].apply_impulse(scalar::v2(x, y) * dt(), true);
+            })
+        },
+    );
+    m.function(
+        "apply_force_at_point",
+        move |eng: &Engine, (node, x, y, px, py): (NodeId, f32, f32, f32, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                state.world.bodies[handle].apply_impulse_at_point(
+                    scalar::v2(x, y) * dt(),
+                    scalar::v2(px, py),
+                    true,
+                );
+            })
+        },
+    );
+    m.function(
+        "apply_torque",
+        move |eng: &Engine, (node, torque): (NodeId, f32)| {
+            let torque = scalar::real(torque) * dt();
+            with_body(eng, entity_of(node)?, |state, handle| {
+                state.world.bodies[handle].apply_torque_impulse(torque, true);
+            })
+        },
+    );
+}
+
+fn install_body_forces(m: &mut dyn Bindings<Engine>) {
+    install_step_force_api(m);
+    m.function(
+        "add_constant_force",
         |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].add_force(scalar::v2(x, y), true);
@@ -405,7 +499,7 @@ fn install_body_forces(m: &mut dyn Bindings<Engine>) {
         },
     );
     m.function(
-        "add_force_at_point",
+        "add_constant_force_at_point",
         |eng: &Engine, (node, x, y, px, py): (NodeId, f32, f32, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].add_force_at_point(
@@ -417,7 +511,7 @@ fn install_body_forces(m: &mut dyn Bindings<Engine>) {
         },
     );
     m.function(
-        "add_torque",
+        "add_constant_torque",
         |eng: &Engine, (node, torque): (NodeId, f32)| {
             let torque = scalar::real(torque);
             with_body(eng, entity_of(node)?, |state, handle| {
@@ -432,25 +526,56 @@ fn install_body_forces(m: &mut dyn Bindings<Engine>) {
 /// Split from [`install_body2d_force_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_body2d_force_reader_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[]);
-    m.function("reset_forces", |eng: &Engine, node: NodeId| {
-        with_body(eng, entity_of(node)?, |state, handle| {
-            state.world.bodies[handle].reset_forces(true);
-        })
-    });
-    m.function("reset_torques", |eng: &Engine, node: NodeId| {
-        with_body(eng, entity_of(node)?, |state, handle| {
-            state.world.bodies[handle].reset_torques(true);
-        })
-    });
-    m.function("user_force", |eng: &Engine, node: NodeId| {
+    m.function(
+        "set_constant_force",
+        |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                let body = &mut state.world.bodies[handle];
+                body.reset_forces(true);
+                body.add_force(scalar::v2(x, y), true);
+            })
+        },
+    );
+    m.function(
+        "set_constant_torque",
+        |eng: &Engine, (node, torque): (NodeId, f32)| {
+            let torque = scalar::real(torque);
+            with_body(eng, entity_of(node)?, |state, handle| {
+                let body = &mut state.world.bodies[handle];
+                body.reset_torques(true);
+                body.add_torque(torque, true);
+            })
+        },
+    );
+    m.function("constant_force", |eng: &Engine, node: NodeId| {
         read_body(eng, entity_of(node)?, |body| {
             let f = body.user_force();
             (f.x, f.y)
         })
     });
-    m.function("user_torque", |eng: &Engine, node: NodeId| {
+    m.function("constant_torque", |eng: &Engine, node: NodeId| {
         read_body(eng, entity_of(node)?, RigidBody::user_torque)
     });
+}
+
+/// A dynamic body that nothing collides with: no collider on the node or
+/// under it, so it falls through everything.
+fn body_warnings_2d(eng: &Engine, entity: Entity) -> Vec<balaur_core::warnings::Warning> {
+    let state = eng.resource::<PhysicsState2d>();
+    let state = state.borrow();
+    let body = state
+        .bodies
+        .get(&entity)
+        .and_then(|&handle| state.world.bodies.get(handle));
+    match body {
+        Some(body) if body.is_dynamic() && body.colliders().is_empty() => {
+            vec![balaur_core::warnings::Warning::whole(format!(
+                "nothing collides with it: add a {} to the node or a child, or it falls through everything",
+                c::COLLIDER_2D
+            ))]
+        }
+        _ => Vec::new(),
+    }
 }
 
 /// The `body2d` key. Like `body3d`, backed by no component type: it writes
@@ -473,6 +598,8 @@ pub(crate) fn register_body2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::BODY_2D,
         ComponentDef {
+            events: crate::vocabulary::hook::BODY,
+            warnings: Some(Box::new(body_warnings_2d)),
             doc: "A 2D rigid body simulated by rapier in the xy plane. `kind` is `dynamic`, `static`, `kinematic` or `kinematic_velocity`; add a `collider2d` for its shape.",
             schema: ComponentDef::parse_schema(c::BODY_2D, &schema),
             tags: &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],

@@ -22,7 +22,7 @@ use crate::bus::{self, Buses};
 use crate::vocabulary::keys as k;
 use crate::{AudioState, MIN_PITCH};
 
-/// Metres per second. A game whose unit is not a metre tunes `doppler` per
+/// Metres per second. A game whose unit is not a metre tunes `doppler_level` per
 /// sound rather than this.
 pub const SPEED_OF_SOUND: f32 = 343.0;
 
@@ -93,7 +93,7 @@ pub struct Emitter {
     /// How much the closing speed bends the pitch: 0 is off, 1 physical.
     pub doppler: f32,
     /// The sound's own pitch, which the doppler multiplier is applied to.
-    /// `play` fills it in from the cue.
+    /// `play` fills it in from the playback.
     pub pitch: f32,
     /// Measured from how far the emitter moved between frames.
     pub velocity: Vec3,
@@ -305,6 +305,8 @@ pub(crate) fn register_listener_component(reg: &mut balaur_plugin::Registry<'_>)
     reg.register_component(
         "listener",
         ComponentDef {
+            events: &[],
+            warnings: None,
             doc: "The point positional sounds are heard from: distance sets volume, offset across its right sets pan. The last `current` listener wins; without one, sounds play flat.",
             schema: ComponentDef::parse_schema(
                 "listener",

@@ -12,6 +12,9 @@ use crate::App;
 use crate::collections::DetHashMap;
 use anyhow::{Result, anyhow, bail};
 
+mod solved;
+pub use solved::{SolvedMesh, SolvedPolygon};
+
 /// One triangulated mesh, indexed.
 ///
 /// `normals` and `uvs` are optional because a backend can compute normals
@@ -91,7 +94,7 @@ pub const INFLUENCES_PER_VERTEX: usize = 4;
 ///
 /// Written on a node by a clip's `polygon/deform` track and read by whatever
 /// draws that node, which is why the type is here rather than in either of
-/// them: `balaur_anim` may not depend on `balaur_render`, and the offsets are
+/// them: `balaur_animation` may not depend on `balaur_render`, and the offsets are
 /// per-frame output, not something a scene file carries. A node with no
 /// deform track never gets one.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -120,34 +123,6 @@ impl Deform {
     pub fn is_rest(&self) -> bool {
         self.offsets.iter().all(|&v| v == 0.0)
     }
-}
-
-/// The vertex positions a solver produced this step, in the node's own space.
-///
-/// Written on a node by the physics plugin's soft bodies and read by whatever
-/// draws it, so a deformable body is another source of vertex positions for
-/// the path a skin already goes down. Positions rather than offsets: a soft
-/// body's particles *are* the geometry, and subtracting a rest mesh to add it
-/// back would be two passes over the vertices for nothing.
-///
-/// `topology` is bumped whenever the triangles change and not just the
-/// positions, which is what a tear does; a renderer holding an uploaded mesh
-/// rebuilds it when the number it last saw is not this one.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct SolvedMesh {
-    pub positions: Vec<[f32; 3]>,
-    /// Triangles, as indices into `positions`.
-    pub indices: Vec<[u32; 3]>,
-    pub topology: u32,
-}
-
-/// The same in 2D, whose renderer draws a polygon rather than a mesh.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct SolvedPolygon {
-    pub positions: Vec<[f32; 2]>,
-    /// Triangles, as indices into `positions`.
-    pub indices: Vec<[u32; 3]>,
-    pub topology: u32,
 }
 
 /// The `kind` a mesh definition names to be built out of a shaped string.

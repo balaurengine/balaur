@@ -40,7 +40,7 @@ shipping something that feels broken next to Rune.
 
 **3. Size.**
 
-A .NET runtime is tens of megabytes. The engine's web template is measured in
+A .NET runtime is tens of megabytes. The engine's web runtime is measured in
 single-digit megabytes brotli and that number is on the comparison page.
 NativeAOT trims it, at the cost of the reflection that makes scripting
 pleasant, and complicates hot reload further.

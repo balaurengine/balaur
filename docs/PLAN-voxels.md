@@ -11,7 +11,7 @@
 Built:
 
 - The **`voxels` asset** (`crates/balaur_core/src/voxels.rs`): a cell `size`
-  and a list of filled `cells`, signed and unbounded, in `terrain/`.
+  and a list of filled `cells`, signed and unbounded, in `voxels/`.
 - **`collider3d` with `kind = "voxels"`** over `ColliderBuilder::voxels`
   (`crates/balaur_physics/src/collider.rs:109`), and `kind =
   "voxelized_mesh"` with a `FillMode`, so a model becomes destructible
@@ -74,7 +74,7 @@ with by construction.
 | A block per cell | Step 1: `cells = [[x, y, z, block]]`, block optional and defaulting to 1; `[blocks.<id>]` in a `voxel_set` |
 | What a block is | Step 1: `[blocks.<id>]` with `name`, `texture` per face (`all`, `top`, `bottom`, `side`, or six), `material`, `solid`, `transparent`, `collision = "full" \| "none"`, `[blocks.<id>.data]` |
 | Drawing a grid | Step 2: a `voxels` component — `voxel_set`, `cells`, `size`, `material` — meshed per chunk |
-| Grids too big for TOML | Step 3: `cells = "terrain/cave.bvox"`, 32³ chunks, palette plus run-length |
+| Grids too big for TOML | Step 3: `cells = "voxels/cave.bvox"`, 32³ chunks, palette plus run-length |
 | Editing from a script | Step 4: `set_voxel(x, y, z, block)`, `voxel(x, y, z)`, `fill_box`, `fill_sphere` on the component handle; the collider follows in the same frame |
 | Painting in the editor | Step 5: the Voxels tool (§4) |
 | Ambient occlusion | Step 2: the four-neighbour corner darkening, baked into `colors` on the chunk mesh |
@@ -112,7 +112,7 @@ are for any mesh.
 
 ## 4. The editor
 
-A **Voxels tool** in the Scene persona's rail, and a **Blocks** dock beside
+A **Voxels tool** in the Scene workspace's rail, and a **Blocks** dock beside
 the Tiles one — the same palette pattern, swatches drawn from each block's
 texture.
 
@@ -152,7 +152,7 @@ with the block list, its per-face textures, its flags and its data table.
 ## 5. Import and export
 
 - `balaur import model.vox` — `dot_vox` (5.x) reads MagicaVoxel: models,
-  their palette and per-material properties. Writes `terrain/<name>.bvox`, a
+  their palette and per-material properties. Writes `voxels/<name>.bvox`, a
   `voxel_set` from the palette, and a scene naming both. Its 256-colour
   palette and per-model size cap are the format's, and the importer says so
   when a file exceeds them.

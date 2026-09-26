@@ -125,9 +125,9 @@ fn serve(stream: TcpStream) -> Result<Accepted> {
     let (commands, command_rx) = channel();
     let (event_tx, events) = channel();
     std::thread::spawn(move || {
-        let _ = event_tx.send(SocketEvent::Open { socket: 0 });
+        balaur_core::replay::report(&event_tx, SocketEvent::Open { socket: 0 });
         let event = frames::run(0, connection, None, &command_rx, &event_tx);
-        let _ = event_tx.send(event);
+        balaur_core::replay::report(&event_tx, event);
     });
     Ok(Accepted { commands, events })
 }

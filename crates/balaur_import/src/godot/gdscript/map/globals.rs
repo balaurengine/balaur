@@ -9,18 +9,18 @@ pub(super) fn arithmetic(name: &str, all: &str, one: &str) -> Option<String> {
             format!("math::{name}({one})")
         }
         "atan2" => format!("math::atan2({all})"),
-        "deg_to_rad" => format!("math::rad({one})"),
-        "rad_to_deg" => format!("math::deg({one})"),
+        "deg_to_rad" => format!("math::to_radians({one})"),
+        "rad_to_deg" => format!("math::to_degrees({one})"),
         "lerp" | "lerpf" => format!("(gd.lerp)({all})"),
         "sign" | "signf" | "signi" => format!("(gd.sign)({one})"),
         "snapped" | "snappedf" | "snappedi" => format!("(gd.snapped)({all})"),
         "fmod" | "fposmod" => format!("(gd.fmod)({all})"),
         "posmod" => format!("(gd.posmod)({all})"),
         "move_toward" => format!("(gd.move_toward)({all})"),
-        "randf" => "rng::random()".into(),
-        "randi" => "rng::int(0, 2147483647)".into(),
-        "randi_range" => format!("rng::int({all})"),
-        "randf_range" => format!("rng::range({all})"),
+        "randf" => "random::float()".into(),
+        "randi" => "random::int(0, 2147483647)".into(),
+        "randi_range" => format!("random::int({all})"),
+        "randf_range" => format!("random::range({all})"),
         "randomize" => "()".into(),
         _ => return None,
     })
@@ -49,7 +49,7 @@ pub(crate) fn global_constant(name: &str) -> Option<&'static str> {
         "MOUSE_BUTTON_WHEEL_DOWN" => "5",
         "OK" => "0",
         "FAILED" => "1",
-        // No JavaScript bridge: `web::visible` and `on_dark_mode` answer what
+        // No JavaScript bridge: `browser::visible` and `on_dark_mode_changed` answer what
         // its probes read, so a script finds it absent.
         "JavaScriptBridge" => "()",
         // `typeof` answers the shim's type names, so its constants are those.
@@ -75,6 +75,20 @@ pub(crate) fn global_constant(name: &str) -> Option<&'static str> {
         "SIZE_EXPAND_FILL" => "3",
         "SIZE_SHRINK_CENTER" => "4",
         "SIZE_SHRINK_END" => "8",
+        // Godot's own numbers: `_notification` compares `what` against them,
+        // and the hooks that call it hand the same ones over.
+        "NOTIFICATION_ENTER_TREE" => "10",
+        "NOTIFICATION_EXIT_TREE" => "11",
+        "NOTIFICATION_READY" => "13",
+        "NOTIFICATION_RESIZED" => "40",
+        "NOTIFICATION_THEME_CHANGED" => "45",
+        "NOTIFICATION_WM_CLOSE_REQUEST" => "1006",
+        "NOTIFICATION_WM_GO_BACK_REQUEST" => "1007",
+        "NOTIFICATION_TRANSLATION_CHANGED" => "2010",
+        "NOTIFICATION_APPLICATION_RESUMED" => "2014",
+        "NOTIFICATION_APPLICATION_PAUSED" => "2015",
+        "NOTIFICATION_APPLICATION_FOCUS_IN" => "2016",
+        "NOTIFICATION_APPLICATION_FOCUS_OUT" => "2017",
         _ => return None,
     })
 }

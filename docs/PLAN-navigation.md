@@ -71,7 +71,7 @@ pipeline — regions, contours, polygons — as a Rust port in core, taking
 | Links: jumps, ladders, doors | Step 6: `navlink` with `end`, `bidirectional`, `cost`, `layers` |
 | Layers and several regions | Step 6: `layers` on a region and `mask` on an agent; regions merge at bake, a region disables at run time |
 | A grid instead of a mesh | Step 7: `find_path_grid` over a `tilemap`'s collision through the `pathfinding` crate; 4- or 8-connected |
-| Seeing it | Step 8: the navmesh and every agent's path in the Physics persona through `debug_lines`; a Bake button |
+| Seeing it | Step 8: the navmesh and every agent's path in the Physics workspace through `debug_lines`; a Bake button |
 | Crowd formations, flocking, steering behaviours | **Not planned**; a script over `agent.velocity()` |
 | Godot's NavigationServer as an API | **Not planned**; components and two modules are the shape every other subsystem has |
 

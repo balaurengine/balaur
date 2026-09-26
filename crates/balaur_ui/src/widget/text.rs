@@ -22,8 +22,8 @@ pub(crate) fn text_request<'a>(
 ) -> balaur_text::RequestRef<'a> {
     balaur_text::RequestRef {
         text: caption,
-        // The face the caller already resolved, so a role's `size` and
-        // `strong` reach the shaper the way they reach egui's own text.
+        // The face the caller already resolved, so a role's `font_size` and
+        // `font_weight` reach the shaper the way they reach egui's own text.
         size: font.size,
         weight: weight_of(style, widget).clamp(100.0, 900.0) as u16,
         italic: widget.font_style == w::ITALIC,
@@ -96,7 +96,6 @@ pub(crate) fn shaped_label(
         crate::widget::theme::text_align_of(style, widget).to_owned(),
         widget.selectable,
     );
-    let on_link = widget.on_link.clone();
     let room = ui.available_width();
     // A wrapping block takes the room; a truncating line takes its column, so
     // the shaper knows where to cut. Neither is the other.
@@ -147,11 +146,11 @@ pub(crate) fn shaped_label(
     if selectable {
         selecting(ui, &response, &shaped, origin, entity);
     }
-    // A link wears the theme's own `link` colour where it names one, and
-    // egui's otherwise, so a `[url]` never reads as plain text.
+    // A link wears the theme's primary ink where it has one, and egui's
+    // otherwise, so a `[url]` never reads as plain text.
     let linked = (!shaped.links.is_empty()).then(|| {
         at.theme
-            .token("link")
+            .token(crate::vocabulary::tokens::PRIMARY_TEXT)
             .unwrap_or(ui.visuals().hyperlink_color)
     });
     balaur_text::paint(
@@ -176,7 +175,7 @@ pub(crate) fn shaped_label(
             );
         }
     }
-    spans(ui, at, &response, &shaped, (origin, entity, &on_link));
+    spans(ui, at, &response, &shaped, (origin, entity));
     ui.set_clip_rect(held);
     true
 }
@@ -358,9 +357,9 @@ fn spans(
     at: &mut Painting<'_>,
     response: &egui::Response,
     shaped: &balaur_text::Shaped,
-    what: (egui::Pos2, balaur_core::hecs::Entity, &str),
+    what: (egui::Pos2, balaur_core::hecs::Entity),
 ) {
-    let (origin, entity, on_link) = what;
+    let (origin, entity) = what;
     let Some(pos) = response.hover_pos() else {
         return;
     };
@@ -380,7 +379,9 @@ fn spans(
         return;
     };
     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-    if response.clicked() && !on_link.is_empty() {
+    // Emitted whether or not `on_link` names a handler: a row or a
+    // subscriber may be the one listening.
+    if response.clicked() {
         at.edits.push((entity, Edit::Link(target.clone())));
     }
 }
@@ -398,7 +399,7 @@ pub(crate) fn field(
     edit(ui, at, index, font, color, false);
 }
 
-/// A `field` that keeps its newlines: Godot's `TextEdit`. `height` sizes it,
+/// A `text_field` that keeps its newlines: Godot's `TextEdit`. `height` sizes it,
 /// and everything a single line reads is read here too.
 pub(crate) fn text_area(
     ui: &mut egui::Ui,
@@ -467,14 +468,30 @@ fn edit(
     if at.taking && at.focused == Some(entity) {
         response.request_focus();
     }
+    // A click into the field is focus arriving, as Tab reaching it is.
+    if response.gained_focus()
+        && let Some(focus) = at.eng.try_resource::<crate::UiFocus>()
+    {
+        focus.borrow_mut().focused = Some(entity);
+    }
     if widget.numeric {
         buffer.retain(|c| c.is_ascii_digit() || matches!(c, '-' | '.'));
     }
     if response.changed() {
         at.edits.push((entity, Edit::Text(buffer.clone())));
     }
+    // Enter and a click away both submit; only the click away is a blur.
     if response.lost_focus() {
         at.edits.push((entity, Edit::Submit(buffer.clone())));
+        if !ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+            at.edits.push((entity, Edit::Blurred));
+            if let Some(focus) = at.eng.try_resource::<crate::UiFocus>() {
+                let mut focus = focus.borrow_mut();
+                if focus.focused == Some(entity) {
+                    focus.focused = None;
+                }
+            }
+        }
     }
     state.borrow_mut().text_buffers.insert(key, buffer);
 }

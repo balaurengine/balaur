@@ -24,7 +24,7 @@ pub fn state() {
 }
 
 pub fn register() {
-    #{ docks: [#{ id: "gamend", name: "Gamend", tall: true, draw: draw }] }
+    #{ panels: [#{ id: "gamend", title: "Gamend", tall: true, draw: draw }] }
 }
 
 fn core_tabs() {
@@ -101,9 +101,9 @@ pub fn draw(S, k, host) {
     if gamend::connection()["url"] == "" {
         gamend::configure(());
     }
-    let strip = S.kit.strip;
+    let strip = S.kit.put_bar;
     let pages = S.kit.pages;
-    let rows = S.kit.rows;
+    let rows = S.kit.put_rows;
     strip(S, host, "head", header(S, me));
     let names = [];
     for feature in features() {
@@ -137,7 +137,7 @@ fn page(S, me, tab) {
 
 /// A row of chips and verbs, which the head and several pages are made of.
 fn verbs(controls) {
-    #{ full: true, height: 26, slot_role: "verb_row", controls: controls }
+    #{ full: true, height: 26, slot_role: "layout_actions", controls: controls }
 }
 
 /// A line of prose, in the role its news deserves.
@@ -150,7 +150,7 @@ fn note(text, role) {
 fn chip(text, on, tip, act) {
     #{
         kind: "button", text: text, tooltip: tip,
-        role: if on { "chip_on" } else { "chip" },
+        role: "chip", checked: on,
         on: |_| { act(); },
     }
 }
@@ -158,7 +158,7 @@ fn chip(text, on, tip, act) {
 /// The two servers, the links, and who is signed in over what. The head is a
 /// `flow`, so these wrap rather than measuring the width themselves.
 fn header(S, me) {
-    let target = gamend::target();
+    let target = gamend::server();
     let link = gamend::connection();
     let url = link["url"];
     let out = [];
@@ -182,8 +182,8 @@ fn header(S, me) {
 /// Talk to the other of the project's servers from now on, remembered for
 /// this person only.
 fn pick(S, me, name) {
-    settings::set("gamend/target", name);
-    let commit = S.kit.save_prefs;
+    settings::set("gamend/server", name);
+    let commit = S.kit.save_editor_settings;
     commit(S);
     gamend::configure(());
     forget(me, "");
@@ -205,19 +205,19 @@ fn status(link) {
     // of its own is one the row cannot wrap around.
     #{
         kind: "label",
-        role: if user is String { "answer_yes" } else { "answer_no" },
+        role: if user is String { "text_code_success" } else { "text_code_quiet" },
         text: format!("{}  ·  {}", who, sockets),
     }
 }
 
 fn overview(S, me, out) {
-    let section = S.kit.section;
-    let field = S.kit.field;
-    let target = gamend::target();
+    let section = S.kit.heading_row;
+    let field = S.kit.field_row;
+    let target = gamend::server();
     let link = gamend::connection();
     out.push(section("Server"));
     out.push(field(S, "url", link["url"], #{ copy: true }));
-    out.push(field(S, "target", target["name"], #{}));
+    out.push(field(S, "server", target["name"], #{}));
     let plugin = if target["plugin"] == "" { "none: set [gamend] plugin" } else { target["plugin"] };
     out.push(field(S, "hook plugin", plugin, #{}));
     out.push(field(S, "health", brief(fetch(me, "health", "/api/v1/health")), #{}));
@@ -242,8 +242,8 @@ fn user(S, me, out) {
         signed_out(S, me, out);
         return;
     }
-    let section = S.kit.section;
-    let field = S.kit.field;
+    let section = S.kit.heading_row;
+    let field = S.kit.field_row;
     out.push(section("Session"));
     out.push(field(S, "user id", session["user_id"], #{ copy: true }));
     out.push(field(S, "username", session["username"], #{}));
@@ -263,7 +263,7 @@ fn user(S, me, out) {
 }
 
 fn signed_out(S, me, out) {
-    let empty = S.kit.empty;
+    let empty = S.kit.empty_row;
     out.push(empty("not signed in"));
     out.push(verbs([chip("Sign in with this device", false, "", || {
         forget(me, "login");
@@ -279,14 +279,14 @@ fn signed_out(S, me, out) {
     let asked = me.requests.get("login").unwrap_or(());
     let reply = if login is Tuple && asked is i64 { gamend::reply(asked) } else { login };
     if !(reply is Tuple) {
-        out.push(note(brief(reply), "meta"));
+        out.push(note(brief(reply), "text_caption"));
     }
     let saved = saved_session();
     if !(saved is Object) {
         return;
     }
-    let section = S.kit.section;
-    let field = S.kit.field;
+    let section = S.kit.heading_row;
+    let field = S.kit.field_row;
     out.push(section("Saved session, from an earlier run"));
     for key in saved.keys() {
         // A token is masked here as on a live session: a screenshot of the
@@ -304,8 +304,8 @@ fn signed_out(S, me, out) {
 }
 
 fn lobby(S, me, out) {
-    let section = S.kit.section;
-    let empty = S.kit.empty;
+    let section = S.kit.heading_row;
+    let empty = S.kit.empty_row;
     let ids = [];
     for socket in gamend::connection()["sockets"] {
         for topic in socket["topics"] {
@@ -328,8 +328,8 @@ fn lobby(S, me, out) {
 }
 
 fn data(S, me, out) {
-    let section = S.kit.section;
-    let files = S.kit.files;
+    let section = S.kit.heading_row;
+    let files = S.kit.file_rows;
     out.push(section("On this device"));
     for spec in files(S, "gamend-data", #{ only: [SESSION_SLOT + ".toml", PREFS_SLOT + ".toml"] }) {
         out.push(spec);
@@ -337,7 +337,7 @@ fn data(S, me, out) {
     out.push(section("On the server, key-value"));
     out.push(verbs([
         #{
-            kind: "field", role: "form_field", width: 220, placeholder: "a key",
+            kind: "text_field", role: "input_form", width: 220, placeholder: "a key",
             text: me.kv_key,
             on: |typed| { me.kv_key = typed; },
             on_submit: |typed| {
@@ -354,10 +354,10 @@ fn data(S, me, out) {
     out.push(section("Rows the game keeps"));
     let rows = game_rows(me);
     if rows.len() == 0 {
-        out.push(note("none: the rows a playing game subscribed to with `register_kv` show here", "meta"));
+        out.push(note("none: the rows a playing game subscribed to with `register_kv` show here", "text_caption"));
         return;
     }
-    let tree = S.kit.tree;
+    let tree = S.kit.tree_rows;
     let (specs, _, _) = tree(S, "gamend:rows", rows, #{});
     for spec in specs {
         out.push(spec);
@@ -443,7 +443,7 @@ fn activity(S, me, out) {
     out.push(verbs(chips));
     let rows = gamend::activity();
     if rows.len() == 0 {
-        let empty = S.kit.empty;
+        let empty = S.kit.empty_row;
         out.push(empty("no calls yet"));
     }
     let n = 0;
@@ -485,11 +485,11 @@ fn activity_row(S, me, row, n, out) {
     let took = if ms is f64 { format!("{} ms", ms as i64) } else { "" };
     let mark = if open { "▾" } else { "▸" };
     let role = if failed(row) {
-        "error_note"
+        "note_danger"
     } else if row["kind"] == "message" {
-        "answer_no"
+        "text_code_quiet"
     } else {
-        "meta"
+        "text_caption"
     };
     out.push(verbs([
         chip(format!("{} {}", mark, row["kind"]), false, "", || { me.open[key] = !open; }),
@@ -501,7 +501,7 @@ fn activity_row(S, me, row, n, out) {
     if !open {
         return;
     }
-    let tree = S.kit.tree;
+    let tree = S.kit.tree_rows;
     let (specs, _, _) = tree(S, "gamend:" + key, #{ args: row["args"], reply: row["reply"] }, #{});
     for spec in specs {
         out.push(spec);
@@ -509,8 +509,8 @@ fn activity_row(S, me, row, n, out) {
 }
 
 fn logs(S, out) {
-    let section = S.kit.section;
-    let field = S.kit.field;
+    let section = S.kit.heading_row;
+    let field = S.kit.field_row;
     out.push(section("This run"));
     let path = log::file();
     if path is String {
@@ -522,7 +522,7 @@ fn logs(S, out) {
     out.push(section("Shipping to Gamend"));
     let report = sink_report();
     if !(report is Object) {
-        out.push(note("not shipping: put addons/gamend/log_sink.rn on a node that lives as long as the game", "meta"));
+        out.push(note("not shipping: put addons/gamend/log_sink.rn on a node that lives as long as the game", "text_caption"));
         return;
     }
     for name in ["shipping", "floor", "run", "pending", "last flush", "accepted", "dropped"] {
@@ -546,7 +546,7 @@ fn sink_report() {
 }
 
 fn feature_tab(S, me, name, out) {
-    let section = S.kit.section;
+    let section = S.kit.heading_row;
     let feature = #{ name: name, id: "", views: [] };
     for found in features() {
         if found.name == name {
@@ -554,12 +554,12 @@ fn feature_tab(S, me, name, out) {
         }
     }
     if !(gamend::session() is Object) {
-        out.push(note("not signed in: most of these are the player's own, so sign in on the User tab", "meta"));
+        out.push(note("not signed in: most of these are the player's own, so sign in on the User tab", "text_caption"));
     }
     let row = [];
     if feature.id != "" {
         row.push(#{
-            kind: "field", role: "form_field", width: 220, placeholder: feature.id,
+            kind: "text_field", role: "input_form", width: 220, placeholder: feature.id,
             text: me.ids.get(name).unwrap_or(""),
             on: |typed| { me.ids[name] = typed; },
         });
@@ -572,7 +572,7 @@ fn feature_tab(S, me, name, out) {
         let path = view[1];
         out.push(section(format!("{} · GET {}", label, path)));
         if path.contains("{id}") && id == "" {
-            out.push(note(format!("needs a {}", feature.id), "meta"));
+            out.push(note(format!("needs a {}", feature.id), "text_caption"));
             continue;
         }
         let key = format!("{}/{}/{}", name, label, id);
@@ -631,25 +631,25 @@ fn forget(me, prefix) {
 /// A reply drawn: a structure when it came back, a line when it did not.
 fn show(S, key, reply, out) {
     if reply is Tuple {
-        out.push(note("loading…", "meta"));
+        out.push(note("loading…", "text_caption"));
         return;
     }
     if reply["kind"] == "error" {
-        out.push(note(reply["error"], "error_note"));
+        out.push(note(reply["error"], "note_danger"));
         return;
     }
     let status = reply.get("status").unwrap_or(0);
     let body = reply.get("body").unwrap_or(());
     if status >= 400 {
-        out.push(note(format!("{}: {}", status, short(body)), "error_note"));
+        out.push(note(format!("{}: {}", status, short(body)), "note_danger"));
         return;
     }
     let shown = if body is Object && body.contains_key("data") { body["data"] } else { body };
     if shown is Tuple {
-        out.push(note(format!("{}: empty", status), "meta"));
+        out.push(note(format!("{}: empty", status), "text_caption"));
         return;
     }
-    let tree = S.kit.tree;
+    let tree = S.kit.tree_rows;
     let (specs, _, _) = tree(S, "gamend:" + key, shown, #{});
     for spec in specs {
         out.push(spec);

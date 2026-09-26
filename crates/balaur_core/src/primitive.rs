@@ -21,8 +21,8 @@ use glamx::Vec2;
 
 /// The kind each primitive answers to, in a scene, a schema and a script.
 pub mod words {
-    pub const BALL: &str = "ball";
-    pub const CUBOID: &str = "cuboid";
+    pub const SPHERE: &str = "sphere";
+    pub const BOX: &str = "box";
     pub const CAPSULE: &str = "capsule";
     pub const CYLINDER: &str = "cylinder";
     pub const CONE: &str = "cone";
@@ -33,16 +33,16 @@ pub mod words {
     pub const TUBE: &str = "tube";
     /// The 3D primitives, in the order an inspector offers them.
     pub const SOLIDS: &[&str] = &[
-        BALL, CUBOID, CAPSULE, CYLINDER, CONE, PLANE, TORUS, PYRAMID, PRISM, TUBE,
+        SPHERE, BOX, CAPSULE, CYLINDER, CONE, PLANE, TORUS, PYRAMID, PRISM, TUBE,
     ];
 
     pub const CIRCLE: &str = "circle";
-    pub const RECT: &str = "rect";
+    pub const RECTANGLE: &str = "rectangle";
     pub const ELLIPSE: &str = "ellipse";
     pub const STAR: &str = "star";
     pub const NGON: &str = "ngon";
-    /// The 2D primitives. A circle is not a ball and a rect is not a cuboid.
-    pub const FLATS: &[&str] = &[CIRCLE, RECT, CAPSULE, ELLIPSE, STAR, NGON];
+    /// The 2D primitives.
+    pub const FLATS: &[&str] = &[CIRCLE, RECTANGLE, CAPSULE, ELLIPSE, STAR, NGON];
 }
 
 /// Every key a primitive reads, spelled once so a schema line, a scene file
@@ -51,7 +51,7 @@ pub mod keys {
     pub const KIND: &str = "kind";
     pub const RADIUS: &str = "radius";
     pub const HEIGHT: &str = "height";
-    pub const HALF_EXTENTS: &str = "half_extents";
+    pub const SIZE: &str = "size";
     pub const TUBE_RADIUS: &str = "tube_radius";
     pub const INNER_RADIUS: &str = "inner_radius";
     pub const CORNER_RADIUS: &str = "corner_radius";
@@ -67,6 +67,9 @@ pub const DEFAULT_SEGMENTS: u32 = 32;
 pub const DEFAULT_RINGS: u32 = 16;
 pub const DEFAULT_SIDES: u32 = 4;
 pub const DEFAULT_POINTS: u32 = 5;
+
+/// A column's height when none is given, tip to tip for a capsule: Godot's.
+pub const DEFAULT_HEIGHT: f32 = 2.0;
 
 /// The smallest a dimension may be. A zero-radius ball is not a point, it is
 /// a mesh with no triangles and a collider rapier refuses.
@@ -89,7 +92,7 @@ pub enum Solid {
         segments: u32,
     },
     /// A cylinder with hemispherical caps, principal axis on y. `height` is
-    /// the cylindrical part, so the whole thing is `height + 2 * radius` tall.
+    /// the cylindrical part here; a scene's `height` runs tip to tip.
     Capsule {
         radius: f32,
         height: f32,
@@ -220,8 +223,8 @@ impl Solid {
     #[must_use]
     pub const fn kind(&self) -> &'static str {
         match self {
-            Self::Ball { .. } => words::BALL,
-            Self::Cuboid { .. } => words::CUBOID,
+            Self::Ball { .. } => words::SPHERE,
+            Self::Cuboid { .. } => words::BOX,
             Self::Capsule { .. } => words::CAPSULE,
             Self::Cylinder { .. } => words::CYLINDER,
             Self::Cone { .. } => words::CONE,
@@ -314,8 +317,8 @@ pub enum Flat {
         corner_radius: f32,
         segments: u32,
     },
-    /// The straight part is `height`; the caps add `radius` at each end, the
-    /// same meaning the `collider2d` capsule gives them.
+    /// The straight part is `height`; a scene's `height` runs tip to tip, as
+    /// the `collider2d` capsule's does.
     Capsule {
         radius: f32,
         height: f32,
@@ -397,7 +400,7 @@ impl Flat {
         match self {
             Self::Circle { .. } => words::CIRCLE,
             Self::Ellipse { .. } => words::ELLIPSE,
-            Self::Rect { .. } => words::RECT,
+            Self::Rect { .. } => words::RECTANGLE,
             Self::Capsule { .. } => words::CAPSULE,
             Self::Star { .. } => words::STAR,
             Self::Ngon { .. } => words::NGON,

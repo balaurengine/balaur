@@ -35,24 +35,25 @@ pub mod mesh;
 /// It lives in the window layer because UIKit hands it to the application
 /// delegate before the engine boots, and nothing else is awake that early.
 /// `None` on every other platform, and on the second ask.
-#[cfg(all(feature = "kiss3d", target_os = "ios"))]
+#[cfg(all(feature = "window", target_os = "ios"))]
 pub fn take_launch_url() -> Option<String> {
     kiss3d::window::take_launch_url()
 }
 
 /// The URL the app was launched with. Only iOS delivers one this way.
-#[cfg(not(all(feature = "kiss3d", target_os = "ios")))]
+#[cfg(not(all(feature = "window", target_os = "ios")))]
 pub fn take_launch_url() -> Option<String> {
     None
 }
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod morph;
+mod notifier;
 mod particles;
 pub mod pick;
 mod polygon;
 pub mod preview;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod probe;
 pub mod reflection;
 mod script_api;
@@ -61,14 +62,14 @@ mod shape;
 mod sheet;
 mod sprite;
 pub mod stats;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod sync_2d;
 mod text_component;
 mod texture;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod tile_quad;
 mod tilemap;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod tilemap_mesh;
 mod vocabulary;
 pub mod world_text;
@@ -88,53 +89,54 @@ pub fn viewport_size(eng: &Engine) -> (u32, u32) {
 }
 pub use light3d::{Environment, FogKind, Light3d, LightKind3d, LitLight3d, Tonemap};
 pub use mesh::MorphWeights;
+pub use notifier::ScreenNotifier2d;
 pub use particles::Particles;
 pub use polygon::PolygonMesh;
 pub use reflection::{LitProbe, ReflectionProbe};
 pub use sheet::{SPRITE_SHEET_ASSET_TYPE, SheetFrame, SheetSlice, SheetTag, SpriteSheet};
 pub use tilemap::{TILESET_ASSET_TYPE, TileSet, Tilemap};
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod app_icon;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
+mod appearance;
+#[cfg(feature = "window")]
 mod bind_layout;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod debug_lines;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod device;
-#[cfg(feature = "kiss3d")]
+#[cfg(all(feature = "window", target_os = "android"))]
+pub use appearance::keep_android_app;
+#[cfg(feature = "window")]
 mod frame_group;
-#[cfg(all(
-    feature = "kiss3d",
-    target_family = "wasm",
-    not(target_os = "emscripten")
-))]
+#[cfg(all(feature = "window", target_family = "wasm"))]
 mod hidden_tab;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub mod kiss3d_backend;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod kiss3d_camera;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod kiss3d_input;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod light_map;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod lods;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod material_cache;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod pipeline;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod post_material;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod shader_material;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod shader_material_3d;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod skinned_2d;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod skinned_3d;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod touch_draw;
 
 /// Ask a rendering backend to save one frame as a PNG once `after_frame`
@@ -146,11 +148,32 @@ mod touch_draw;
 /// can insert one directly. Served by the windowed backend and by the
 /// offscreen one — a screenshot needs a GPU, not a window. It is *not* served
 /// by a headless run, which builds no renderer at all; see
-/// [`warn_if_unserved`], which is why asking for one there says so instead of
-/// exiting cleanly with no file.
+/// [`unserved_screenshot_system`], which is why asking for one there says so
+/// instead of exiting cleanly with no file.
 pub struct ScreenshotRequest {
     pub path: std::path::PathBuf,
     pub after_frame: u64,
+}
+
+/// What a screenshot announces to anyone listening once its file is written,
+/// with the path.
+pub const SCREENSHOT_WRITTEN_EVENT: &str = "screenshot_written";
+/// What it announces when no file came of it, `#{ path, error }`.
+pub const SCREENSHOT_FAILED_EVENT: &str = "screenshot_failed";
+
+/// Tell every listener a screenshot could not be written.
+pub(crate) fn screenshot_failed(eng: &Engine, path: &std::path::Path, error: String) {
+    let payload = balaur_script::Value::Map(vec![
+        (
+            vocabulary::keys::PATH.into(),
+            balaur_script::Value::text(path.display().to_string()),
+        ),
+        (
+            vocabulary::keys::ERROR.into(),
+            balaur_script::Value::Str(error),
+        ),
+    ]);
+    balaur_core::events::emit(eng, SCREENSHOT_FAILED_EVENT, payload);
 }
 
 /// What `render.screenshot` does for a script, for a caller holding a path.
@@ -161,22 +184,24 @@ pub fn request_screenshot(eng: &balaur_core::Engine, path: std::path::PathBuf) {
     });
 }
 
-/// Complain about a screenshot nobody could take.
-///
-/// A request that no backend consumes used to leave no file, no message and a
-/// zero exit code, which reads exactly like success to a script. Called by the
-/// headless runner once the frame budget is spent — the one path where a
-/// `render.screenshot` call can go unanswered.
-pub fn warn_if_unserved(eng: &Engine) {
+/// Answer a screenshot nobody can take, at the end of the frame it was asked
+/// in: a backend claims the frame before the first one runs, so a request
+/// still here with none is one no file will come of.
+fn unserved_screenshot_system(eng: &Engine, _dt: f32) {
+    if eng.try_resource::<WindowedBackend>().is_some() {
+        return;
+    }
     let Some(request) = eng.try_resource::<ScreenshotRequest>() else {
         return;
     };
     let path = request.borrow().path.clone();
+    eng.remove_resource::<ScreenshotRequest>();
     tracing::error!(
         "no screenshot written to {}: this run has no renderer. Use --offscreen \
          (or a windowed build) — a screenshot needs a GPU, not a window.",
         path.display()
     );
+    screenshot_failed(eng, &path, "this run has no renderer".to_string());
 }
 
 /// Inserted by a windowed backend at startup to claim the debug-line
@@ -205,7 +230,7 @@ type DrawLineArgs = (
 /// them too and a producer must not depend on the renderer. Published API.
 pub use balaur_core::debug_lines::{DebugLine2d, DebugLine3d};
 pub use balaur_core::debug_lines::{DebugLineBuffer2d, DebugLineBuffer3d};
-pub use draw_2d::{Draw2d, DrawBuffer2d};
+pub use draw_2d::{Draw2d, DrawBuffer2d, Drawn2d};
 
 pub struct WindowedBackend;
 
@@ -312,17 +337,20 @@ impl Shape2d {
 /// half of that conversion: at the default, a 100px image is one unit across.
 pub const DEFAULT_PIXELS_PER_UNIT: f32 = 100.0;
 
+/// A stroke's width in pixels when a draw verb is given none.
+pub(crate) const DEFAULT_LINE_WIDTH: f32 = 1.0;
+
 /// Whether the system is in dark mode, asked of the platform rather than of
 /// the frame's facts: the shell publishes it before a project loads, so a
 /// script's `init` can theme itself. A build with no window backend has
 /// nothing to ask and says false.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 #[must_use]
 pub fn dark_mode() -> bool {
-    device::dark_mode()
+    appearance::is_dark()
 }
 
-#[cfg(not(feature = "kiss3d"))]
+#[cfg(not(feature = "window"))]
 #[must_use]
 pub const fn dark_mode() -> bool {
     false
@@ -557,15 +585,15 @@ pub(crate) fn set_lighting(eng: &Engine, entity: Entity, shadows: bool, layers: 
     }
 }
 
-/// The `shadows` and `layers` keys a 3D renderable component offers, applied
-/// to whatever renderable the node just gained.
+/// The `cast_shadow` and `light_layers` keys a 3D renderable component
+/// offers, applied to whatever renderable the node just gained.
 pub(crate) fn lighting_from_params(eng: &Engine, entity: Entity, params: &toml::Value) {
     let shadows = params
-        .get("shadows")
+        .get(crate::vocabulary::keys::CAST_SHADOW)
         .and_then(toml::Value::as_bool)
         .unwrap_or(true);
     let layers = params
-        .get("layers")
+        .get(crate::vocabulary::keys::LIGHT_LAYERS)
         .and_then(balaur_core::components::as_f64)
         .map_or(u32::MAX, |v| v as i64 as u32);
     set_lighting(eng, entity, shadows, layers);
@@ -831,6 +859,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         reg.insert_resource(DrawBuffer2d::default());
         reg.insert_resource(world_text::TextDrawBuffer::default());
         reg.insert_resource(CameraConfig2d::default());
+        reg.insert_resource(camera::CurrentCameras::default());
         reg.insert_resource(PostConfig::default());
         reg.insert_resource(ViewportSnapshot2d::default());
         reg.insert_resource(ViewportSnapshot3d::default());
@@ -862,6 +891,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         text_component::install_text_api(&mut *m);
         tilemap::install_tilemap_api(&mut *m);
         tilemap::install_tilemap_terrain_api(&mut *m);
+        notifier::install_notifier_api(&mut *m);
         script_api::register_window_module(reg)?;
         shape::register_shape_component(reg);
         shape::register_shape2d_component(reg);
@@ -886,9 +916,14 @@ impl balaur_plugin::Plugin for RenderPlugin {
         text_component::register_text3d_component(reg);
         tilemap::register_tilemap_component(reg);
         particles::register_particles_component(reg);
+        notifier::register_notifier_component(reg);
+        reg.insert_resource(particles::Bursts::default());
+        reg.add_system(Stage::FixedUpdate, particles::burst_system);
         // SceneSync, and after the core propagation system registered at
         // `App::new`: the camera follows the node's settled global pose.
         reg.add_system(Stage::SceneSync, camera::drive_camera_system);
+        // After the camera: the screen is where it settled this tick.
+        reg.add_system(Stage::SceneSync, notifier::notify_screen_system);
         // Same stage, after the camera: an outline follows the collider or
         // shape the node has settled on this tick.
         reg.add_system(Stage::SceneSync, light::resolve_occluders_system);
@@ -898,6 +933,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         // After the booleans: a cloner may multiply their result too.
         reg.add_system(Stage::SceneSync, cloner::resolve_cloners_system);
         reg.add_system(Stage::Render, clear_debug_lines_system);
+        reg.add_system(Stage::Last, unserved_screenshot_system);
 
         Ok(())
     }
@@ -951,7 +987,7 @@ fn register_render_presets(reg: &mut Registry<'_>) -> Result<()> {
                 balaur_core::components::tag::DIM_2D,
                 balaur_core::components::tag::RENDER,
             ],
-            &[("shape2d", Some("kind = \"rect\""))],
+            &[("shape2d", Some("kind = \"rectangle\""))],
         )?,
     );
     reg.register_preset(

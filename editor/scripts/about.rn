@@ -31,26 +31,26 @@ pub fn draw(S) {
 /// where to read more.
 fn specs(S) {
     let mine = util::obj(release::installed());
-    let out = [#{ full: true, height: 56, slot_role: "verb_row", controls: [
-        #{ kind: "panel", role: "logo_plate", controls: [
-            #{ kind: "image", source: crate::manager::LOGO, width: 44 },
+    let out = [#{ full: true, height: 56, slot_role: "layout_actions", controls: [
+        #{ kind: "panel", role: "sheet_logo", controls: [
+            #{ kind: "image", image: crate::manager::LOGO, width: 44 },
         ] },
-        #{ kind: "column", role: "about_name", controls: [
-            #{ kind: "label", role: "title", text: "Balaur " + mine.version },
-            #{ kind: "label", role: "meta", text: crate::manager::build_line(mine) },
+        #{ kind: "column", role: "layout_about", controls: [
+            #{ kind: "label", role: "text_title", text: "Balaur " + mine.version },
+            #{ kind: "label", role: "text_caption", text: crate::manager::build_line(mine) },
         ] },
     ] }];
     fact(out, "Version", mine.version);
     fact(out, "Build", if mine.source == true { "from a checkout" } else { mine.id });
     fact(out, "Channel", if mine.channel == "" { "none" } else { mine.channel });
-    fact(out, "Platform", engine::platform().os);
-    fact(out, "Licence", "MIT");
+    fact(out, "Platform", engine::target().os);
+    fact(out, "License", "MIT");
     // A tab runs the build the page served it, so it has no line to follow.
     // Drawn, because the check and the install are the start screen's own.
     if !crate::manager::in_tab() {
         out.push(#{ full: true, height: 72, draw: "draw_about_update" });
     }
-    out.push(#{ full: true, height: 30, slot_role: "verb_row", controls: [
+    out.push(#{ full: true, height: 30, slot_role: "layout_actions", controls: [
         link("balaurengine.org", SITE),
         link("Source", SOURCE),
     ] });
@@ -60,7 +60,7 @@ fn specs(S) {
 // One label and its value, the value in the monospace a build id reads in.
 fn fact(out, name, value) {
     out.push(#{ label: name, height: 22, controls: [#{
-        kind: "label", role: "mono", grow: 1, text: value,
+        kind: "label", role: "text_code", grow: 1, text: value,
     }] });
 }
 
@@ -85,31 +85,31 @@ fn update(S, k, w, h, mine) {
     // A source build follows no line; the nightly is what it is nearest to.
     let line = if mine.channel == "" { "nightly" } else { mine.channel };
     let newest = crate::manager::newest_on(S, line);
-    ui::horizontal(#{ height: h, width: w }, || {
+    ui::row(#{ height: h, width: w }, || {
         let fresh = newest.get("order").unwrap_or("") == "newer";
         ui::label(line + ": " + crate::manager::standing(S, line), style::mono_sm(
-            if fresh { k.get("ok").unwrap_or(k.sage) } else { k.faint }));
-        ui::right(|| {
+            if fresh { k.success_text } else { k.text_subtle }));
+        ui::align_right(|| {
             // Up to date already says it; only a release to move to gets a press.
             if newest.get("id").unwrap_or("") != "" && newest.get("order").unwrap_or("") != "same" {
                 crate::manager::row_press(S, k, h, newest, mine);
                 ui::add_space(8);
             }
             let word = if S.manager.reading { "Checking" } else { "Check" };
-            if ui::pill(word, #{
-                height: h, size: style::SM, radius: 8, padding_x: 12,
-                fill: k.sunken, color: k.dim,
+            if ui::button(word, #{
+                height: h, font_size: style::SM, corner_radius: 8, padding_x: 12,
+                fill: k.bg_control, text_color: k.text_muted,
             }) {
                 crate::manager::check(S);
             }
         });
     });
     if mine.held != "" {
-        ui::label(mine.held, util::merge(style::mono_sm(k.faint), #{ wrap: true, width: w }));
+        ui::label(mine.held, util::merge(style::mono_sm(k.text_subtle), #{ wrap: true, width: w }));
     }
     let said = if S.manager.failed != "" { S.manager.failed } else { S.manager.note };
     if said != "" {
-        let tone = if S.manager.failed != "" { k.get("warn").unwrap_or(k.accent) } else { k.faint };
+        let tone = if S.manager.failed != "" { k.warning_text } else { k.text_subtle };
         ui::label(said, util::merge(style::mono_sm(tone), #{ wrap: true, width: w }));
     }
     if crate::manager::installing(S) {

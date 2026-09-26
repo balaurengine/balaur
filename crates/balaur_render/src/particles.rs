@@ -4,7 +4,9 @@
 //! component holds emitter settings only; live particles, and the random
 //! stream that scatters them, live backend-side — each emitter owns a PCG
 //! seeded from its entity bits, so the engine's `rng` stream is untouched and
-//! a headless run ticks bit-identically to a windowed one.
+//! a headless run ticks bit-identically to a windowed one. The one thing an
+//! emitter tells a script, a one-shot burst's `finished`, is timed from its
+//! settings on the fixed step for the same reason, never from live particles.
 
 use crate::vocabulary::keys as k;
 use anyhow::{Result, anyhow};
@@ -47,6 +49,56 @@ pub struct Particles {
     pub explosiveness: f32,
 }
 
+/// What a one-shot emitter announces once its burst has had time to die out.
+pub(crate) const FINISHED_EVENT: &str = "finished";
+
+/// How long each one-shot burst has been going; `None` once it has
+/// announced, until `emitting` falls and re-arms it.
+#[derive(Default)]
+pub(crate) struct Bursts(balaur_core::collections::DetHashMap<Entity, Option<f32>>);
+
+/// Announce `finished` for each one-shot burst whose last particle is due to
+/// have died: the last is born `lifetime * (1 - explosiveness)` in, and lives
+/// `lifetime`.
+pub(crate) fn burst_system(eng: &Engine, _dt: f32) {
+    let finished = {
+        let world = eng.world();
+        let paused = balaur_core::process::pause(eng);
+        let bursts = eng.resource::<Bursts>();
+        let mut bursts = bursts.borrow_mut();
+        let mut live = balaur_core::collections::DetHashMap::default();
+        let mut finished = Vec::new();
+        for (entity, emitter) in &mut world.query::<(Entity, &Particles)>() {
+            if !(emitter.one_shot && emitter.emitting) {
+                continue;
+            }
+            let next = match bursts.0.get(&entity).copied() {
+                None => Some(0.0),
+                Some(None) => None,
+                Some(Some(elapsed)) if balaur_core::process::ticks(&world, entity, paused) => {
+                    Some(elapsed + balaur_core::fixed_dt())
+                }
+                Some(held) => held,
+            };
+            let due = emitter.lifetime * (2.0 - emitter.explosiveness);
+            let next = next.filter(|&elapsed| {
+                let over = elapsed + f32::EPSILON >= due;
+                if over {
+                    finished.push(entity);
+                }
+                !over
+            });
+            live.insert(entity, next);
+        }
+        bursts.0 = live;
+        finished.sort_by_key(|entity| entity.to_bits());
+        finished
+    };
+    for entity in finished {
+        balaur_core::events::announce(eng, entity, FINISHED_EVENT, balaur_script::Value::Nil);
+    }
+}
+
 fn set_particles(eng: &Engine, entity: Entity, next: Particles) -> Result<()> {
     let mut world = eng.world_mut();
     if let Ok(mut emitter) = world.get::<&mut Particles>(entity) {
@@ -64,7 +116,9 @@ pub(crate) fn register_particles_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "particles",
         ComponentDef {
-            doc: "A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `spread` and `gravity`. The live particles are renderer state the simulation never sees.",
+            events: &[(FINISHED_EVENT, "nil, once a one-shot burst has died out")],
+            warnings: None,
+            doc: "A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `direction`, `spread_degrees` and `gravity`. The live particles are renderer state the simulation never sees.",
             schema: ComponentDef::parse_schema(
                 "particles",
                 &balaur_core::components::ComponentDef::schema(&[
@@ -72,8 +126,8 @@ pub(crate) fn register_particles_component(reg: &mut Registry<'_>) {
                     (k::RATE, r#"{ type = "float", default = 20.0, min = 0.0, description = "Particles born per second" }"#),
                     (k::LIFETIME, r#"{ type = "float", default = 1.0, min = 0.05, description = "Seconds a particle lives" }"#),
                     (k::SPEED, r#"{ type = "float", default = 2.0, min = 0.0, description = "Initial speed in world units per second" }"#),
-                    (k::ANGLE, r#"{ type = "float", default = 90.0, description = "Emission direction in degrees; 90 is straight up" }"#),
-                    (k::SPREAD, r#"{ type = "float", default = 30.0, min = 0.0, description = "Half-angle of the emission cone in degrees" }"#),
+                    (k::DIRECTION, r#"{ type = "vec2", default = [0.0, 1.0], description = "Which way the particles leave; [0, 1] is straight up" }"#),
+                    (k::SPREAD_DEGREES, r#"{ type = "float", default = 30.0, min = 0.0, description = "Half-angle of the emission cone in degrees" }"#),
                     (k::SIZE, r#"{ type = "float", default = 4.0, min = 0.5, description = "Particle size in logical pixels" }"#),
                     (k::GRAVITY, r#"{ type = "vec2", default = [0.0, -3.0], description = "Acceleration applied over a particle's life" }"#),
                     (k::COLOR, r#"{ type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#),
@@ -118,12 +172,19 @@ pub(crate) fn register_particles_component(reg: &mut Registry<'_>) {
                     ("rate", emitter.rate),
                     ("lifetime", emitter.lifetime),
                     ("speed", emitter.speed),
-                    ("angle", emitter.angle),
-                    ("spread", emitter.spread),
+                    (k::SPREAD_DEGREES, emitter.spread),
                     ("size", emitter.size),
                 ] {
                     out.insert(key.into(), toml::Value::Float(f64::from(value)));
                 }
+                let (sin, cos) = balaur_core::libm::sincosf(emitter.angle.to_radians());
+                out.insert(
+                    k::DIRECTION.into(),
+                    toml::Value::Array(vec![
+                        toml::Value::Float(f64::from(cos)),
+                        toml::Value::Float(f64::from(sin)),
+                    ]),
+                );
                 out.insert(
                     k::GRAVITY.into(),
                     toml::Value::Array(vec![
@@ -158,8 +219,8 @@ fn particles_from_params(params: &toml::Value) -> Particles {
         rate: num(k::RATE, 20.0).max(0.0),
         lifetime: num(k::LIFETIME, 1.0).max(0.05),
         speed: num(k::SPEED, 2.0).max(0.0),
-        angle: num(k::ANGLE, 90.0),
-        spread: num(k::SPREAD, 30.0).max(0.0),
+        angle: direction_degrees(params),
+        spread: num(k::SPREAD_DEGREES, 30.0).max(0.0),
         size: num(k::SIZE, 4.0).max(0.5),
         gravity: [gravity(0, 0.0), gravity(1, -3.0)],
         color: crate::color_from_params(params),
@@ -176,6 +237,25 @@ fn particles_from_params(params: &toml::Value) -> Particles {
 }
 
 /// The `color_end` property: the schema's transparent default when absent.
+/// The emission direction as an angle in degrees, 90 being up; a zero vector
+/// keeps the default.
+fn direction_degrees(params: &toml::Value) -> f32 {
+    let axis = |i: usize| {
+        params
+            .get(k::DIRECTION)
+            .and_then(toml::Value::as_array)
+            .and_then(|a| a.get(i))
+            .and_then(balaur_core::components::as_f64)
+            .map_or(0.0, |v| v as f32)
+    };
+    let (x, y) = (axis(0), axis(1));
+    if x == 0.0 && y == 0.0 {
+        90.0
+    } else {
+        balaur_core::libm::atan2f(y, x).to_degrees()
+    }
+}
+
 fn color_end_from_params(params: &toml::Value) -> [f32; 4] {
     let c = |i: usize, default: f64| {
         params
@@ -189,7 +269,7 @@ fn color_end_from_params(params: &toml::Value) -> [f32; 4] {
 }
 
 /// One emitter's backend state: its own random stream, never the engine's.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) struct EmitterSlot {
     rng: balaur_core::rng::Pcg32,
     particles: Vec<Particle>,
@@ -205,7 +285,7 @@ pub(crate) struct EmitterSlot {
     remaining: f32,
 }
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 struct Particle {
     position: [f32; 2],
     velocity: [f32; 2],
@@ -217,7 +297,7 @@ struct Particle {
 /// Step every emitter by the frame's dt and draw its particles as 2D points
 /// (`draw_point_2d`, the cheapest primitive the backend has), sized in
 /// logical pixels like the 2D camera zoom.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn sync_particles(
     app: &balaur_core::App,
     window: &kiss3d::window::Window,
@@ -301,7 +381,7 @@ pub(crate) fn sync_particles(
     });
 }
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn blend(a: [f32; 4], b: [f32; 4], t: f32) -> [f32; 4] {
     [
         a[0] + (b[0] - a[0]) * t,
@@ -311,7 +391,7 @@ fn blend(a: [f32; 4], b: [f32; 4], t: f32) -> [f32; 4] {
     ]
 }
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn step_emitter(slot: &mut EmitterSlot, emitter: &Particles, origin: [f32; 2], dt: f32) {
     for particle in &mut slot.particles {
         particle.age += dt;

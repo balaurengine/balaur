@@ -17,12 +17,14 @@ fn app_with_dial() -> App {
     app.register_component(
         "dial",
         ComponentDef {
+            events: &[],
+            warnings: None,
             doc: "",
             schema: ComponentDef::parse_schema(
                 "dial",
                 r#"kind = { type = "enum", default = "round", options = ["round", "square"] }
 radius = { type = "float", default = 0.5 }
-half_extents = { type = "vec3", default = [0.5, 0.5, 0.5] }
+size = { type = "vec3", default = [1.0, 1.0, 1.0] }
 label = { type = "string", default = "none" }"#,
             ),
             tags: &[],
@@ -47,7 +49,7 @@ label = { type = "string", default = "none" }"#,
                 let square = kind.as_str() == Some("square");
                 out.insert("kind".into(), kind);
                 out.insert("label".into(), dial.0.get("label")?.clone());
-                let carried = if square { "half_extents" } else { "radius" };
+                let carried = if square { "size" } else { "radius" };
                 out.insert(carried.into(), dial.0.get(carried)?.clone());
                 Some(toml::Value::Table(out))
             }),
@@ -81,7 +83,7 @@ fn patch_writes_one_property_and_leaves_the_others_where_they_were() {
         "dial",
         Some(&table(
             r#"kind = "square"
-half_extents = [2.0, 3.0, 4.0]
+size = [4.0, 6.0, 8.0]
 label = "gauge""#,
         )),
     )
@@ -91,8 +93,8 @@ label = "gauge""#,
 
     assert_eq!(read(&app, entity, "radius"), toml::Value::Float(1.25));
     assert_eq!(
-        read(&app, entity, "half_extents"),
-        table("v = [2.0, 3.0, 4.0]").get("v").unwrap().clone(),
+        read(&app, entity, "size"),
+        table("v = [4.0, 6.0, 8.0]").get("v").unwrap().clone(),
         "patching one property put another back to its default"
     );
     assert_eq!(
@@ -106,7 +108,7 @@ fn add_rewrites_the_whole_component_where_patch_does_not() {
     let app = app_with_dial();
     let entity = spawn(&app);
     let set = r#"kind = "square"
-half_extents = [2.0, 3.0, 4.0]"#;
+size = [4.0, 6.0, 8.0]"#;
     components::add(&app.engine, entity, "dial", Some(&table(set))).unwrap();
 
     components::add(&app.engine, entity, "dial", Some(&table("radius = 1.25"))).unwrap();
@@ -171,6 +173,8 @@ fn a_hex_colour_reaches_apply_expanded_through_patch_as_well_as_add() {
     app.register_component(
         "tint",
         ComponentDef {
+            events: &[],
+            warnings: None,
             doc: "",
             schema: ComponentDef::parse_schema(
                 "tint",
@@ -197,5 +201,48 @@ fn a_hex_colour_reaches_apply_expanded_through_patch_as_well_as_add() {
     assert_eq!(
         read(&app, entity, "rgba"),
         table("v = [1.0, 0.0, 0.0, 1.0]").get("v").unwrap().clone()
+    );
+}
+
+/// Mark the dial as it stands, where `get` cannot see: a later `apply`
+/// replaces the dial, and the mark with it.
+fn stamp(app: &App, entity: hecs::Entity) {
+    let world = app.engine.world();
+    let mut dial = world.get::<&mut Dial>(entity).unwrap();
+    dial.0
+        .as_table_mut()
+        .unwrap()
+        .insert("stamp".into(), toml::Value::Boolean(true));
+}
+
+fn stamped(app: &App, entity: hecs::Entity) -> bool {
+    let world = app.engine.world();
+    world.get::<&Dial>(entity).unwrap().0.get("stamp").is_some()
+}
+
+#[test]
+fn a_patch_of_what_the_component_already_holds_does_not_apply_it_again() {
+    let app = app_with_dial();
+    let entity = spawn(&app);
+    components::add(
+        &app.engine,
+        entity,
+        "dial",
+        Some(&table(r#"label = "gauge""#)),
+    )
+    .unwrap();
+    stamp(&app, entity);
+
+    components::patch(&app.engine, entity, "dial", &table(r#"label = "gauge""#)).unwrap();
+    assert!(
+        stamped(&app, entity),
+        "an unchanged value rebuilt the component"
+    );
+
+    components::patch(&app.engine, entity, "dial", &table(r#"label = "meter""#)).unwrap();
+    assert!(!stamped(&app, entity), "a changed value was not applied");
+    assert_eq!(
+        read(&app, entity, "label"),
+        toml::Value::String("meter".into())
     );
 }

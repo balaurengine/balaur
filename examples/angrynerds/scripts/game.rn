@@ -135,7 +135,7 @@ fn finish(this, message) {
 }
 
 pub fn update(this, dt) {
-    if input::just_pressed("R") {
+    if input::key_just_pressed(input::KEY_R) {
         restart(this);
         return;
     }
@@ -148,7 +148,7 @@ pub fn update(this, dt) {
 
     // Slingshot: grab the parked bird, pull, release to launch.
     if !this.launched {
-        if input::mouse_just_pressed(input::MOUSE_LEFT) {
+        if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
             let d = math::sqrt((mx - b.x) * (mx - b.x) + (my - b.y) * (my - b.y));
             if d < 1.4 {
                 this.aiming = true;
@@ -163,7 +163,7 @@ pub fn update(this, dt) {
                 dy = dy / len * MAX_PULL;
             }
             this.bird.transform.position = [ANCHOR_X + dx, ANCHOR_Y + dy, 0.0];
-            if input::mouse_just_released(input::MOUSE_LEFT) {
+            if input::mouse_just_released(input::MOUSE_BUTTON_LEFT) {
                 this.aiming = false;
                 let p = this.bird.transform.position;
                 let ix = (ANCHOR_X - p.x) * POWER;

@@ -87,7 +87,7 @@ replicate = { authority = "owner", components = ["transform", "body2d"], mode = 
 
 Change detection is a generation counter per `(entity, component)` written by
 `components::patch`; the delta is the changed properties since the observer's
-last acked tick, quantised off the schema's declared ranges. RPCs address a
+last acked tick, quantized off the schema's declared ranges. RPCs address a
 node by `StableId`, never by path.
 
 Replication's prediction and reconciliation reuse rollback's snapshot ring,
@@ -143,7 +143,7 @@ than a line in the replication step.
 | Clock offset and jitter estimate | Step 10 |
 | Lag compensation by server rewind | Step 11 |
 | Interest management | Step 12 |
-| Delta encoding against an acked baseline, quantised off the schema | Step 9 |
+| Delta encoding against an acked baseline, quantized off the schema | Step 9 |
 | Join in progress from a baseline snapshot | Step 9 |
 | Per-node restore of physics state, so a correction rewinds one body and not the world | Step 10; the rapier snapshot saves and restores a whole world, and reconciliation needs one body's |
 | Server-ordered inputs, late join and spectators under lockstep, reconnect, host migration | `docs/PLAN-multiplayer.md` steps 3, 4 and 6 |
@@ -168,10 +168,9 @@ Every protocol a multiplayer engine could sit on, and where each stands here.
 
 Two constraints shape the browser half:
 
-- The emscripten build is thread-free and has no wasm-bindgen, so
-  `web-transport-wasm` (web-sys) does not apply. The browser transport is a C
-  shim over the browser API, the way the emscripten shim wraps fetch and
-  websockets today.
+- `web_sys::WebTransport` sits behind `web_sys_unstable_apis`, a rustflag
+  over the whole build, so the browser transport is a hand-written
+  wasm-bindgen binding in `balaur_webtransport/src/browser.rs`.
 - A browser accepts a self-signed certificate through
   `serverCertificateHashes` only while it is valid for at most two weeks.
   Enough for local play and CI; a shipped server needs a real certificate.

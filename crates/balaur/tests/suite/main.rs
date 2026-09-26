@@ -4,6 +4,7 @@
 //! one binary per crate links it once, and nextest still gives each test
 //! its own process.
 
+mod app_events;
 mod components;
 mod dap;
 mod digest_cover;
@@ -14,6 +15,8 @@ mod fixed_update;
 mod interactivity;
 mod presets;
 mod replay;
+mod screenshot_events;
 mod script_check;
 mod script_tooling;
 mod touch_replay;
+mod tree_events;

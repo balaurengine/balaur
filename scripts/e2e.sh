@@ -107,7 +107,7 @@ render_step() { # render_step <label> <balaur args...>
 UNRESOLVED='did not resolve in the mirror'
 
 # What a state that ran leaves in the log. See the check at the end of edit_step.
-RAN='selftest ok|\[script\] .*skip|\[script\] showcase '
+RAN='selftest ok|script: .*skip|script: showcase '
 
 # The render and editor steps, off where a runner finishes neither: both want
 # a device, and the Windows runner exits 122 on each. Not a platform check --
@@ -177,17 +177,17 @@ editor_states() {
 
   # The centre's layout: with no document open the viewport must fill it.
   printf '  layout ... '
-  edit_step "$name: layout" "$ex" layoutdemo
+  edit_step "$name: layout" "$ex" test:layout
   printf 'ok\n'
 
   # The node picker: what it groups a type under, and that a pick builds one.
   printf '  picker ... '
-  edit_step "$name: picker" "$ex" pickerdemo
+  edit_step "$name: picker" "$ex" test:picker
   printf 'ok\n'
 
   # The Tiles tool builds its own map, so it needs nothing from the project.
   printf '  tiles ...  '
-  edit_step "$name: tiles" "$ex" tilesdemo
+  edit_step "$name: tiles" "$ex" test:tiles
   printf 'ok\n'
 
   # The showcase seam: a scripted sequence feeds input and drives the
@@ -199,56 +199,59 @@ editor_states() {
   # The editor plugin seam, from editor/plugins/counter.rn: a dock tab, a
   # window, a palette command, an inspector section and this state itself.
   printf '  plugin ... '
-  edit_step "$name: plugin" "$ex" counterdemo
+  edit_step "$name: plugin" "$ex" test:plugin_docks
   printf 'ok\n'
 
   # Copy and paste, which the shell drives from a clipboard event no headless
   # run can raise, and the Assets dock's three filesystem verbs.
   printf '  clip ...   '
-  edit_step "$name: clipboard" "$ex" clipdemo
-  edit_step "$name: script paths" "$ex" scriptdemo
+  edit_step "$name: clipboard" "$ex" test:clipboard
+  edit_step "$name: script paths" "$ex" test:script_paths
   printf 'ok\n'
 
   # The profiler's data path: every stage named, the frame covering them.
   printf '  timings ...'
-  edit_step "$name: timings" "$ex" timingsdemo
+  edit_step "$name: timings" "$ex" test:timings
   printf 'ok\n'
   printf '  session ...'
-  edit_step "$name: session" "$ex" sessiondemo
+  edit_step "$name: session" "$ex" test:recordings
   printf 'ok\n'
 
   # The theme switch, both ways: light and back to dark.
   printf '  theme ...  '
-  edit_step "$name: theme" "$ex" themedemo
+  edit_step "$name: theme" "$ex" test:theme_switch
   printf 'ok\n'
 
   # The theme window: a duplicate edited, saved as a diff and deleted, and a
   # sheet and the palette shut from outside their dialog.
   printf '  themes ... '
-  edit_step "$name: theme window" "$ex" themeeditdemo
-  edit_step "$name: sheet close" "$ex" sheetclosedemo
-  edit_step "$name: settings" "$ex" settingsdemo
+  edit_step "$name: theme window" "$ex" test:theme_editing
+  edit_step "$name: sheet close" "$ex" test:sheet_close
+  edit_step "$name: settings" "$ex" test:settings
   printf 'ok\n'
 
   # Drag-in, one case per extension, and the file a drop copies in.
   printf '  drop ...   '
-  edit_step "$name: drag-in" "$ex" dropdemo
+  edit_step "$name: drag-in" "$ex" test:drop
   printf 'ok\n'
 
   # The Events view: a row added and undone, and the Rune it writes.
   printf '  events ... '
-  edit_step "$name: events" "$ex" eventsdemo
+  edit_step "$name: events" "$ex" test:events
   printf 'ok\n'
 
   # The library: a material copied in and pointed at the selection.
   printf '  library ...'
-  edit_step "$name: library" "$ex" librarydemo
-  edit_step "$name: rows" "$ex" rowsdemo
+  edit_step "$name: library" "$ex" test:library
+  edit_step "$name: rows" "$ex" test:rows
+  edit_step "$name: pool" "$ex" test:pool
+  edit_step "$name: camera document" "$ex" test:camera_document
+  edit_step "$name: warnings" "$ex" test:warnings
   printf 'ok\n'
 
   # The Pen: anchors, a handle, the loop closed, and the asset it writes.
   printf '  pen ...    '
-  edit_step "$name: pen" "$ex" pendemo
+  edit_step "$name: pen" "$ex" test:pen
   printf 'ok\n'
 }
 
@@ -323,77 +326,79 @@ for ex in examples/*/; do
   # The editor's own assertions, which log an ERROR on failure and so fail
   # the run above. Mutation coverage: edit alone only ever checks frame 0.
   printf '  undo ...   '
-  edit_step "$name: undo" "$ex" undodemo
+  edit_step "$name: undo" "$ex" test:undo
   printf 'ok\n'
 
 
 
   # Renaming, which nothing in the shell could do before.
   printf '  rename ... '
-  edit_step "$name: rename" "$ex" renamedemo
+  edit_step "$name: rename" "$ex" test:rename
   printf 'ok\n'
 
   # Import: a dropped model's files, the scene it writes, and that the mesh
   # inside that scene names a file in this project rather than the editor's.
   printf '  import ... '
-  edit_copy "$name: import" "$ex" jobdemo
+  edit_copy "$name: import" "$ex" test:import_job
   printf 'ok\n'
 
   # Focus: the shell folds round the code and comes back to what it was.
   printf '  focus ...  '
-  edit_step "$name: focus" "$ex" focusdemo
+  edit_step "$name: focus" "$ex" test:focus
   printf 'ok\n'
 
   # Rigging: grow a bone, round-trip the rest pose, key it by path, undo.
   # A scene with no bones skips itself and says so.
   printf '  rig ...    '
-  edit_step "$name: rig" "$ex" rigdemo
+  edit_step "$name: rig" "$ex" test:rig
   printf 'ok\n'
 
   # The Polygon tool: trace, sync bones, paint, draw a polygon, undo.
   printf '  poly ...   '
-  edit_step "$name: polygon" "$ex" polydemo
-  edit_step "$name: weights" "$ex" weightdemo
-  edit_step "$name: bone map" "$ex" bonemapdemo
-  edit_step "$name: physical bones" "$ex" ragdolldemo
+  edit_step "$name: polygon" "$ex" test:polygons
+  edit_step "$name: weights" "$ex" test:weights
+  edit_step "$name: bone map" "$ex" test:bone_map
+  edit_step "$name: physical bones" "$ex" test:ragdoll
   printf 'ok\n'
 
   # The Physics panel's rows: what each action writes. Where its pills land
   # needs a drawn frame, so that is `uiaudit.sh`'s.
   printf '  phys ...   '
-  edit_step "$name: physics panel" "$ex" physdemo
+  edit_step "$name: physics panel" "$ex" test:physics
+  edit_step "$name: soft body recipes" "$ex" test:recipes
+  edit_step "$name: change type" "$ex" test:change_types
   printf 'ok\n'
 
 
 
   printf '  assets ... '
-  edit_step "$name: assets" "$ex" assetdemo
+  edit_step "$name: assets" "$ex" test:assets
   printf 'ok\n'
 
   # Picking, aimed by hand: the ray a real click uses comes from the window,
   # which a headless run does not have.
   printf '  pick ...   '
-  edit_step "$name: picking" "$ex" pickdemo
+  edit_step "$name: picking" "$ex" test:picking
   printf 'ok\n'
 
   # Exported script properties: the defaults a script declares, an override
   # written onto one node, and the sparseness that drops it again.
   printf '  props ...  '
-  edit_step "$name: props" "$ex" propsdemo
-  edit_step "$name: composites" "$ex" listdemo
+  edit_step "$name: props" "$ex" test:script_props
+  edit_step "$name: composites" "$ex" test:composite_props
   printf 'ok\n'
 
   # Prefabs: an instance's rows are in the tree, an edit inside one becomes an
   # override, and the file never gains a row it does not own.
   printf '  inst ...   '
-  edit_step "$name: instances" "$ex" instancedemo
+  edit_step "$name: instances" "$ex" test:instances
   printf 'ok\n'
 
   # Session recording: play records, stop closes the file, the recording plays
   # back into a rebuilt scene, and closing hands the editor back.
   # Placing a prefab from the editor, and undoing it.
   printf '  place ...  '
-  edit_step "$name: placing" "$ex" placedemo
+  edit_step "$name: placing" "$ex" test:placing
   printf 'ok\n'
 
 
@@ -402,7 +407,7 @@ for ex in examples/*/; do
   # The selection set: extending it, aligning two nodes, undoing that,
   # grouping, and the lock and hide that skip the gizmo.
   printf '  select ... '
-  edit_step "$name: selection" "$ex" seldemo
+  edit_step "$name: selection" "$ex" test:selection
   printf 'ok\n'
 
 

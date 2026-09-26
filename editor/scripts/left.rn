@@ -1,6 +1,7 @@
-// Left column (262 px): node tree + per-persona secondary panel.
+// Left column (262 px): node tree + per-workspace secondary panel.
 
 use crate::anim;
+use crate::defs;
 use crate::icons;
 use crate::model;
 use crate::shell;
@@ -61,11 +62,11 @@ fn row(icon, name, meta, key, run) {
     #{ icon: icon, name: name, meta: meta, key: key, run: run }
 }
 
-// Per-persona secondary contents, from real project data where it exists.
+// Per-workspace secondary contents, from real project data where it exists.
 // Returns the section title and its rows; drawing is the caller's, so the
 // tree above can size itself to what this actually holds.
 fn secondary_content(S) {
-    if S.persona == "script" {
+    if S.workspace == defs::WORKSPACE_SCRIPT {
         let rows = [];
         for f in model::list(S, "scripts") {
             if !f.is_dir && f.name.ends_with(".rn") {
@@ -82,7 +83,7 @@ fn secondary_content(S) {
         }
         // `return`: a bare tuple after an `if` block parses as a call on the block's value.
         return ("Rune modules", rows);
-    } else if S.persona == "phys" {
+    } else if S.workspace == defs::WORKSPACE_PHYSICS {
         // A 2D scene carries `body2d`/`collider2d`; reading `body` alone left
         // this panel empty for every 2D project.
         let rows = [];
@@ -103,7 +104,7 @@ fn secondary_content(S) {
             rows.push(row("▣", "no bodies or colliders", "", "", || {}));
         }
         return ("Collision", rows);
-    } else if S.persona == "anim" {
+    } else if S.workspace == defs::WORKSPACE_ANIMATION {
         let rows = [];
         for (i, node) in S.doc.iter().enumerate() {
             if anim::component(node).is_some() {
@@ -121,7 +122,7 @@ fn secondary_content(S) {
             rows.push(row("◷", format!("no clips — {} Key in Timeline", icons::ui("add")), "", "", || {}));
         }
         return ("Clips", rows);
-    } else if S.persona == "ui" {
+    } else if S.workspace == defs::WORKSPACE_UI {
         // Two ways a node puts something on screen: a `widget` component in the
         // scene, or a script with a `draw_ui` hook. Listing only the second
         // said "no UI scripts" over a viewport full of widgets.
@@ -138,7 +139,7 @@ fn secondary_content(S) {
         if rows.len() == 0 {
             rows.push(row("▤", "no widgets or draw_ui scripts", "", "", || {}));
         }
-        return ("Interface", rows);
+        return ("Widgets", rows);
     } else {
         let rows = [];
         for f in model::list(S, "scenes") {
@@ -155,7 +156,7 @@ fn secondary_content(S) {
     }
 }
 
-/// The tab name the persona's secondary list gets.
+/// The tab name the workspace's secondary list gets.
 pub fn outline_title(S) {
     let (title, _) = secondary_content(S);
     title
@@ -164,9 +165,9 @@ pub fn outline_title(S) {
 /// The Scene tab's one control, drawn in the dock's tab row.
 pub fn tree_tools(S, k) {
     ui::add_space(6);
-    if ui::pill(icons::ui("add"), #{
-        role: "icon_button", min_width: 24,
-        fill: k.accent_soft, color: k.accent,
+    if ui::button(icons::ui("add"), #{
+        role: "icon_action", min_width: 24,
+        fill: k.primary_bg, text_color: k.primary_text,
         tooltip: "Add child node",
     }) {
         crate::newnode::open(S);
@@ -176,7 +177,7 @@ pub fn tree_tools(S, k) {
 // Facets the tree filters by, each a component tag the engine already
 // carries, so a plugin's component joins the chips it declared tags for.
 fn facets() {
-    [["3d", "3D"], ["2d", "2D"], ["physics", "Physics"], ["render", "Draws"], ["ui", "Interface"]]
+    [["3d", "3D"], ["2d", "2D"], ["physics", "Physics"], ["render", "Rendering"], ["ui", "UI"]]
 }
 
 /// Whether a node has any component carrying `tag`, which is what a facet
@@ -215,10 +216,10 @@ fn facet_picker(S, k, chips) {
             current = chip[1];
         }
     }
-    ui::horizontal(#{ height: 24 }, || {
+    ui::row(#{ height: 24 }, || {
         ui::add_space(2);
         let (pick, changed) = ui::dropdown("tree-facet", current, names,
-            #{ width: S.layout.left.w - 40.0, size: style::SM, color: k.dim });
+            #{ width: S.layout.left.w - 40.0, font_size: style::SM, text_color: k.text_muted });
         if changed {
             S.tree_facet = "";
             for chip in chips {
@@ -238,22 +239,61 @@ pub fn tree_body(S, k) {
     ui::add_space(4);
     let filtering = query != "" || S.tree_facet != "";
     let rows = if filtering { filtered_rows(S, query) } else { open_rows(S) };
+    // What the rows came from, so the row strings are built once for it.
+    let rows_key = if filtering {
+        format!("{}\u{1f}{}\u{1f}{}", S.doc_rev, query, S.tree_facet)
+    } else {
+        S.tree_cache["key"]
+    };
     if filtering && rows.len() == 0 {
-        hide_tree();
+        hide_tree(S);
         ui::add_space(8);
         crate::search::nothing(k, if query != "" { query } else { S.tree_facet });
         return;
     }
-    show_tree(S, k, rows);
+    show_tree(S, k, rows, rows_key);
 }
 
 // The outliner's rows on the `tree` node beside this hatch. One string a row:
 // a tab a level, then the icon and the name either side of a unit separator.
-fn show_tree(S, k, rows) {
+fn show_tree(S, k, rows, rows_key) {
     let found = scene::get_node(TREE_NODE);
     if util::is_nil(found) {
         return;
     }
+    // The rows' strings follow from the rows, the document, the warnings, the
+    // selection and the theme; a frame that moved none of them reuses them.
+    let key = [rows_key, S.doc_rev, S.lint.warned, S.sels.clone(), k];
+    let built = S.tree_items;
+    let same = built.get("key") == Some(key);
+    if !same {
+        built = tree_items(S, k, rows);
+        built.key = key;
+        S.tree_items = built;
+    }
+    let items = built.items;
+    // `text` is the pick channel and nothing else: the node writes the row a
+    // click landed on, this reads it once and clears it. Held instead, a
+    // selection made anywhere else would be undone by the stale row here.
+    let picked = found.get_component("widget", "text");
+    // Nothing to clear and nothing new: the node already holds all of it.
+    if same && picked == "" {
+        return;
+    }
+    for (n, item) in items.iter().enumerate() {
+        if item == picked && rows[n].index != S.sel {
+            crate::shell::choose_click(S, rows[n].index);
+        }
+    }
+    // A patch of what this owns: a frame that changed none of it writes nothing.
+    found.patch_component("widget", #{
+        options: items, row_height: TREE_ROW, visible: true, multi_select: true,
+        selection: built.chosen, text: "",
+    });
+}
+
+// Each row's string, and the strings of the selected rows.
+fn tree_items(S, k, rows) {
     let items = [];
     for row in rows {
         let node = S.doc[row.index];
@@ -267,34 +307,19 @@ fn show_tree(S, k, rows) {
         // The type's own colour on the row, which is what a mark alone
         // cannot say: 2D, 3D, UI and physics each read at a glance. The id is
         // the row's key: two nodes may share a name, never a row.
-        line += util::cells([mark, node.name, "", k.get(token).unwrap_or(k.text), node.id]);
+        let note = if crate::lint::warned(S, node.id).len() > 0 { "⚠" } else { "" };
+        line += util::cells([mark, node.name, note, k.get(token).unwrap_or(k.text_default), node.id]);
         items.push(line);
     }
-    let params = util::obj(found.get_component("widget"));
-    // `text` is the pick channel and nothing else: the node writes the row a
-    // click landed on, this reads it once and clears it. Held instead, a
-    // selection made anywhere else would be undone by the stale row here.
-    let picked = params["text"];
-    for (n, item) in items.iter().enumerate() {
-        if item == picked && rows[n].index != S.sel {
-            crate::shell::choose_click(S, rows[n].index);
-        }
-    }
     // Every selected node lit, not only the active one: the document holds a
-    // set, and `multi` is what draws one.
+    // set, and `multi_select` is what draws one.
     let chosen = [];
     for (n, row) in rows.iter().enumerate() {
         if crate::selection::contains(S, row.index) {
             chosen.push(items[n]);
         }
     }
-    params["options"] = items;
-    params["row_height"] = TREE_ROW;
-    params["visible"] = true;
-    params["multi"] = true;
-    params["selection"] = chosen;
-    params["text"] = "";
-    found.set_component("widget", params);
+    #{ items: items, chosen: chosen }
 }
 
 /// Where the tree drew the row for document index `i`, in design px; `None`
@@ -310,7 +335,7 @@ pub fn row_spot(S, i) {
         return None;
     }
     let n = selected_row(open_rows(S), i) as f64;
-    Some((box.x + box.w * 0.4, box.y + (n + 0.5) * TREE_ROW))
+    Some((box.x + box.width * 0.4, box.y + (n + 0.5) * TREE_ROW))
 }
 
 // Which drawn row is the selection, so the node can mark it.
@@ -324,14 +349,10 @@ fn selected_row(rows, sel) {
 }
 
 // Hidden while another panel is up, so its rows do not outlive the tree.
-pub fn hide_tree() {
-    let found = scene::get_node(TREE_NODE);
-    if util::is_nil(found) {
-        return;
-    }
-    let params = util::obj(found.get_component("widget"));
-    params["visible"] = false;
-    found.set_component("widget", params);
+pub fn hide_tree(S) {
+    util::hide(TREE_NODE);
+    // The rows go back on when it shows again, which a kept cache would skip.
+    S.tree_items = #{};
 }
 
 // Every node the query and the facet chip both allow, as a flat walk. One
@@ -362,35 +383,28 @@ pub fn outline_body(S, k) {
     for row in rows {
         items.push(util::cells([row.icon, row.name, row.meta, "", row.key]));
     }
-    let params = util::obj(found.get_component("widget"));
-    params["options"] = items;
-    params["visible"] = true;
-    found.set_component("widget", params);
     // The pick is the row's own action, looked up by the string the node
     // reports rather than held as a closure on the node.
-    let picked = params["text"];
+    let picked = found.get_component("widget", "text");
+    found.patch_component("widget", #{ options: items, visible: true });
     for (n, item) in items.iter().enumerate() {
         if item == picked {
             (rows[n].run)();
-            params["text"] = "";
-            found.set_component("widget", params);
+            found.patch_component("widget", #{ text: "" });
         }
     }
 }
 
 // Hidden while another panel is up, the way the tree is.
 pub fn hide_outline() {
-    let found = scene::get_node(OUTLINE_NODE);
-    if util::is_nil(found) {
-        return;
-    }
-    let params = util::obj(found.get_component("widget"));
-    params["visible"] = false;
-    found.set_component("widget", params);
+    util::hide(OUTLINE_NODE);
 }
 
 /// Open the rename sheet on the selected node, with its name ready to replace.
 pub fn rename_open(S) {
+    if !crate::model::has_selection(S) {
+        return;
+    }
     S.renaming = true;
     S.rename_text = S.doc[S.sel].name;
 }
@@ -426,13 +440,13 @@ pub fn rename_draw(S) {
         return;
     }
     crate::pool::sync(S, host, [#{ full: true, height: row_h, controls: [#{
-        kind: "button", role: "row_action_accent", grow: 1, text: "Rename",
+        kind: "button", role: "action_form_primary", grow: 1, text: "Rename",
         on: |_| { apply_rename(S); },
     }] }], 0.0, false);
 }
 
 fn node_mark(S) {
-    let found = S.doc.get(S.sel);
+    let found = crate::model::selected_row(S);
     match found {
         Some(node) => {
             let (mark, _) = model::node_icon(node);

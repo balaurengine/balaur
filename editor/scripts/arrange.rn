@@ -31,8 +31,8 @@ pub fn align(S, axis, mode) {
         log::info("align needs two or more nodes");
         return;
     }
-    let lo = math::INF;
-    let hi = -math::INF;
+    let lo = math::INFINITY;
+    let hi = -math::INFINITY;
     let sum = 0.0;
     for i in rows {
         let v = world_of(S, i)[axis];
@@ -104,7 +104,7 @@ pub fn group(S) {
     }
     for i in rows {
         if model::is_instanced(S.doc[i]) {
-            log::warn("cannot group inside an instance; open its prefab to change its structure");
+            log::warn("cannot group inside a prefab; open it to change its structure");
             return;
         }
     }
@@ -157,7 +157,7 @@ pub fn ungroup(S) {
     let i = S.sel;
     let node = S.doc[i];
     if model::is_instanced(node) {
-        log::warn("cannot ungroup inside an instance");
+        log::warn("cannot ungroup inside a prefab");
         return;
     }
     let id = node.get("id").unwrap_or("");

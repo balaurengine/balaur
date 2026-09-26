@@ -34,7 +34,7 @@
 
    Threading *is* a feature, `balaur_physics/parallel`, because a browser is
    the one target that cannot always take it: rayon blocks on `Atomics.wait`,
-   which needs the shared memory the threaded web template alone is built with.
+   which needs the shared memory the threaded web runtime alone is built with.
    Native builds have it on by default and nothing has to ask. The count is one
    less than `available_parallelism` reports, capped at eight; `[physics]
    threads` and `physics.set_threads` from a script's `init` override it, and

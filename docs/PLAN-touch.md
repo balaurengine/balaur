@@ -10,7 +10,7 @@
 
 Raw touch was built and recorded. Everything above it was not.
 
-- **`input.touches()`, `touches_started()`, `touches_ended()`**: id, x and y
+- **`input.touches()`, `touches_just_started()`, `touches_just_ended()`**: id, x and y
   per finger, oldest first, fed from kiss3d's `WindowEvent::Touch` and
   serialized into the replay snapshot.
 - **`input.keyboard_height()`**: in the snapshot, bound, documented. The
@@ -146,8 +146,8 @@ decision, not an oversight.
 | Pinch | Have: `input.pinch()` as `{ scale, x, y }`, from the two oldest fingers, against last frame |
 | Two-finger pan | Have: `input.pan()` as `{ x, y }`, the average movement of every finger down |
 | Swipe | Have: `input.swipe()` as `{ x, y, speed }` on the frame the finger lifts, past `swipe_pixels` |
-| Long press | Have: `input.long_press()` as `{ x, y }`, once per finger, past `long_press_seconds` and inside `long_press_slop` |
-| Gesture thresholds | Have: `swipe_pixels`, `long_press_seconds` and `long_press_slop` in `[input]`, read into `InputConfig` |
+| Long press | Have: `input.long_press()` as `{ x, y }`, once per finger, past `long_press_seconds` and inside `long_press_slop_pixels` |
+| Gesture thresholds | Have: `swipe_pixels`, `long_press_seconds` and `long_press_slop_pixels` in `[input]`, read into `InputConfig` |
 | Rotate | Not planned. Nothing has asked, and two angles are a line of script |
 | A touch button | Have: the `touch_button` component: the `action` it feeds, a `shape` of `rect` or `circle`, `visibility`, and two colours. The finger that pressed it keeps it when it slides off |
 | A touch stick | Have: the `touch_stick` component: `action_x` and `action_y`, `radius`, `deadzone` rescaled so the first live reading is near zero, `recenter`, `visibility`. Y is positive away from the player, as `axis:LeftStickY` is |
@@ -166,7 +166,7 @@ decision, not an oversight.
 | Raising the keyboard for a `field` | Have, from before this plan: the backend shows the system keyboard while egui holds keyboard focus, through the fork's `set_keyboard_visible` |
 | Mouse as a touch on the web | Have: a page reports both, and the emulation covers the rest |
 | An example | Have: `examples/hello` carries a stick on `spin` and a button on `reverse`, with the mouse standing in for a finger |
-| A phone's vibration | Have: `input.vibrate(milliseconds)` |
+| A phone's vibration | Have: `input.vibrate(seconds)` |
 | A gesture the widget layer consumes | Not planned. A gesture is read from the snapshot by whoever wants it; only pointer and keyboard are claimed |
 
 ## 4. Steps
@@ -219,7 +219,7 @@ the navigation bar both at the bottom and at the side.
 2. **Whether `emulate_mouse_from_touch` should default on.** Godot's does, and
    it is why its Control set works on a phone at all. Ours would do the same
    for the existing kinds, and would also mean a game reading
-   `input.is_mouse_down()` sees fingers it never asked for.
+   `input.mouse_down()` sees fingers it never asked for.
 3. **What a swipe reports while it is still running.** A finger that has
    travelled far enough is a swipe when it lifts and a drag until then, and
    different scenes want different halves.

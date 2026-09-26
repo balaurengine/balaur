@@ -2,36 +2,36 @@
 
 # Features and the web build
 
-The cargo features of `balaur_cli`, the binary every runtime template is built
+The cargo features of `balaur_cli`, the binary every runtime is built
 from, and what each adds to a `wasm32-unknown-unknown` build. A feature's native
 dependencies are gated off that target, so `http` or `websocket` costs a browser
 build only the plugin's own code; the two that matter there are `audio` and
 `window`.
 
-The web template (`scripts/package_template.sh web`) is built with
-`--no-default-features --features audio,http,websocket,webtransport,gamend,multiplayer,web,window` and links 398 crates.
-Override the set with `WEB_FEATURES=... scripts/package_template.sh web`.
+The web runtime (`scripts/package_runtime.sh web`) is built with
+`--no-default-features --features audio,http,websocket,webtransport,gamend,multiplayer,browser,window` and links 398 crates.
+Override the set with `WEB_FEATURES=... scripts/package_runtime.sh web`.
 
-`WEB_THREADS=1` builds the second template, which adds `parallel` to that
+`WEB_THREADS=1` builds the second runtime, which adds `parallel` to that
 set: rapier's solver threads on rayon, which needs the shared memory and
 atomics only that build has.
 
-| Feature | Default | Web template | What it is | Adds to a web build |
+| Feature | Default | Web runtime | What it is | Adds to a web build |
 | --- | --- | --- | --- | --- |
 | `apple` | off | off | `apple.*` for scripts, and Game Center and iCloud under `platform.*`. Off, a build drops GameKit and the objc2 bindings to it. `platform.*` is always there; with no store behind it every call answers `unsupported`. | `balaur_apple` |
 | `audio` | on | on | Sound. Off, a build drops rodio, cpal and the platform audio stack. | `cpal`, `rodio`, `symphonia`, `balaur_audio`, `dasp_sample`, `encoding_rs`, … (19 crates) |
+| `browser` | on | on | `browser.*` for scripts: the page a browser build runs in. Always compiles; off the web every call answers nil. | `balaur_browser` |
 | `extensions` | off | off | Load extensions from a project's extensions/ directory at run time. | `libloading` |
 | `gamend` | on | on | `gamend.*` for scripts: the Gamend backend (auth, REST, realtime, hooks). | `balaur_gamend` |
 | `http` | on | on | `http.*` for scripts. Off, a build drops ureq and its TLS stack. | `balaur_http` |
-| `import` | on | off | `balaur import`, `import.*` for the editor and SVGs read in place. The web game template leaves it off: a game reads what an import and export wrote. | `arrayref`, `aseprite-loader`, `balaur_import`, `data-url`, `float-cmp`, `imagesize`, … (24 crates) |
+| `import` | on | off | `balaur import`, `import.*` for the editor and SVGs read in place. The web game runtime leaves it off: a game reads what an import and export wrote. | `arrayref`, `aseprite-loader`, `balaur_import`, `data-url`, `float-cmp`, `imagesize`, … (24 crates) |
 | `multiplayer` | on | on | `multiplayer.*` for scripts: host, join and play a rollback match over whichever of `websocket` and `webtransport` the build has. | `balaur_multiplayer` |
-| `parallel` | on | off | rapier's solver on rayon. Native builds want it; a browser can only take it with shared memory and atomics, which is the threaded web template alone. | nothing |
-| `web` | on | on | `web.*` for scripts: the page a browser build runs in. Always compiles; off the web every call answers nil. | `balaur_web` |
+| `parallel` | on | off | rapier's solver on rayon. Native builds want it; a browser can only take it with shared memory and atomics, which is the threaded web runtime alone. | nothing |
 | `websocket` | on | on | `websocket.*` for scripts, and the websocket `Transport`. Off, a build drops tungstenite, rustls and the frame codec. | `balaur_websocket` |
 | `webtransport` | on | on | The WebTransport `Transport`, over QUIC: the transport rollback and replication are meant to run on. Off, a build drops quinn, its runtime and the certificate machinery, which is most of what a networked build costs. | `balaur_webtransport` |
 | `window` | off | on | Windowed rendering (kiss3d/wgpu). | `egui-wgpu`, `exr`, `glow`, `kiss3d`, `wgpu`, `winit`, … (58 crates) |
 
-## What the web template resolves
+## What the web runtime resolves
 
 The features on in the dependencies that weigh most. A feature named here is
 enabled; whether it links code on the web is up to that crate's own target
@@ -43,7 +43,7 @@ gates (`winit`'s X11 is on and compiles nothing in a browser).
 | `wgpu` | 30.0.1 | `dx12`, `fragile-send-sync-non-atomic-wasm`, `gles`, `metal`, `parking_lot`, `std`, `vulkan`, `web`, `web-sys`, `webgl`, `webgpu`, `wgpu-core`, `wgsl` |
 | `image` | 0.25.10 | `avif`, `bmp`, `dds`, `default-formats`, `exr`, `ff`, `gif`, `hdr`, `ico`, `jpeg`, `png`, `pnm`, `qoi`, `tga`, `tiff`, `webp` |
 | `rodio` | 0.22.2 | `cpal`, `flac`, `mp3`, `mp4`, `playback`, `symphonia`, `symphonia-aac`, `symphonia-flac`, `symphonia-isomp4`, `symphonia-mp3`, `symphonia-ogg`, `symphonia-pcm`, `symphonia-vorbis`, `symphonia-wav`, `vorbis`, `wasm-bindgen`, `wav` |
-| `rapier3d` | 0.36.0 | `alloc`, `debug-render`, `dim3`, `enhanced-determinism`, `f32`, `serde-serialize`, `std` |
+| `rapier3d` | 0.36.0 | `alloc`, `debug-render`, `dim3`, `enhanced-determinism`, `f32`, `fem`, `serde-serialize`, `std` |
 | `parry3d` | 0.31.1 | `alloc`, `dim3`, `downcast-rs`, `ena`, `enhanced-determinism`, `f32`, `hashbrown`, `indexmap`, `required-features`, `rstar`, `serde`, `serde-serialize`, `serde_arrays`, `slab`, `smallvec`, `spade`, `std` |
 | `cosmic-text` | 0.19.0 | `shape-run-cache`, `std`, `swash`, `sys-locale` |
 | `wesl` | 0.5.0 | `eval` |

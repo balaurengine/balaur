@@ -228,7 +228,7 @@ pub struct Appearance {
     pub z_index: i32,
     /// Add `z_index` to the parent's rather than replacing it, so moving a
     /// subtree between layers keeps the order inside it.
-    pub z_relative: bool,
+    pub z_as_relative: bool,
     /// The material this node and every descendant naming none draw with.
     /// [`MaterialId::NONE`] takes the parent's.
     pub material: MaterialId,
@@ -240,7 +240,7 @@ impl Appearance {
             visible: true,
             tint: Vec4::ONE,
             z_index: 0,
-            z_relative: true,
+            z_as_relative: true,
             material: MaterialId::NONE,
         }
     }
@@ -320,7 +320,7 @@ impl GlobalAppearance {
         Self {
             visible: self.visible && local.visible,
             tint: self.tint * local.tint,
-            z_index: if local.z_relative {
+            z_index: if local.z_as_relative {
                 self.z_index.saturating_add(local.z_index)
             } else {
                 local.z_index
@@ -704,9 +704,15 @@ fn child_named(world: &World, parent: Entity, name: &str) -> Option<Entity> {
 }
 
 /// Resolve a `A/B/C` path relative to `from` by matching child names; `.`
-/// is the node itself and `..` climbs to the parent, as a Godot NodePath does.
+/// is the node itself, `..` climbs to the parent, and a leading `/` starts
+/// from the top of the tree, as a Godot NodePath does.
 pub fn find_node(world: &World, from: Entity, path: &str) -> Option<Entity> {
     let mut current = from;
+    if path.starts_with('/') {
+        while let Ok(parent) = world.get::<&Parent>(current).map(|p| p.0) {
+            current = parent;
+        }
+    }
     for segment in path.split('/').filter(|s| !s.is_empty() && *s != ".") {
         if segment == ".." {
             current = world.get::<&Parent>(current).ok()?.0;
@@ -770,6 +776,16 @@ pub fn propagate_transforms(world: &mut World, root: Entity) {
 /// caller with no frame to place wants.
 pub fn propagate_transforms_at(world: &mut World, root: Entity, alpha: f32) {
     let blending = alpha < 1.0;
+    // One lookup per node for all six, with no borrow flag to take: six
+    // `world.get` calls were most of the pass.
+    let mut view = world.view_mut::<(
+        Option<&crate::interpolate::Interpolation>,
+        Option<&Transform>,
+        Option<&mut GlobalTransform>,
+        Option<&Appearance>,
+        Option<&mut GlobalAppearance>,
+        Option<&Children>,
+    )>();
     PROPAGATE_STACK.with_borrow_mut(|stack| {
         stack.clear();
         stack.push((
@@ -778,29 +794,27 @@ pub fn propagate_transforms_at(world: &mut World, root: Entity, alpha: f32) {
             GlobalAppearance::identity(),
         ));
         while let Some((entity, parent_global, parent_appearance)) = stack.pop() {
-            let drawn = blending
-                .then(|| world.get::<&crate::interpolate::Interpolation>(entity).ok())
-                .flatten()
-                .map(|kept| kept.pose(alpha));
-            let global = match (drawn, world.get::<&Transform>(entity)) {
-                (Some(local), _) => parent_global.mul(&local),
-                (None, Ok(local)) => parent_global.mul(&local),
-                (None, Err(_)) => parent_global,
+            let Some((kept, local, global_slot, look, look_slot, children)) = view.get_mut(entity)
+            else {
+                continue;
             };
-            if let Ok(mut slot) = world.get::<&mut GlobalTransform>(entity) {
+            let drawn = kept.filter(|_| blending).map(|kept| kept.pose(alpha));
+            let global = match (drawn, local) {
+                (Some(local), _) => parent_global.mul(&local),
+                (None, Some(local)) => parent_global.mul(local),
+                (None, None) => parent_global,
+            };
+            if let Some(slot) = global_slot {
                 *slot = global;
             }
-            let appearance = match world.get::<&Appearance>(entity) {
-                Ok(local) => parent_appearance.mul(*local),
-                Err(_) => parent_appearance,
-            };
-            if let Ok(mut slot) = world.get::<&mut GlobalAppearance>(entity) {
+            let appearance = look.map_or(parent_appearance, |local| parent_appearance.mul(*local));
+            if let Some(slot) = look_slot {
                 if slot.visible != appearance.visible || slot.tint != appearance.tint {
                     APPEARANCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 }
                 *slot = appearance;
             }
-            if let Ok(children) = world.get::<&Children>(entity) {
+            if let Some(children) = children {
                 // Reversed, so popping visits siblings in the order they are
                 // listed. A subtree's answer does not depend on it; a log does.
                 stack.extend(children.0.iter().rev().map(|&c| (c, global, appearance)));
@@ -918,6 +932,21 @@ fn sheared_local(parent: &GlobalTransform, child: &GlobalTransform, z: f32) -> T
     }
 }
 
+/// Whether `entity` is `ancestor` or sits somewhere beneath it.
+#[must_use]
+pub fn is_under(world: &World, entity: Entity, ancestor: Entity) -> bool {
+    let mut current = entity;
+    loop {
+        if current == ancestor {
+            return true;
+        }
+        match world.get::<&Parent>(current) {
+            Ok(parent) => current = parent.0,
+            Err(_) => return false,
+        }
+    }
+}
+
 /// Collect a subtree in despawn order (children before parents is not
 /// required by hecs, but callers also use this to tear down script
 /// instances and plugin state).
@@ -955,6 +984,28 @@ pub fn is_within(world: &World, entity: Entity, root: Entity) -> bool {
             None => return false,
         }
     }
+}
+
+/// Show or hide a node, announcing `visibility_changed` when its own flag
+/// flips. Every run-time writer of the flag goes through here; false when the
+/// node is gone.
+pub fn set_visible(eng: &Engine, entity: Entity, on: bool) -> bool {
+    let was = {
+        let world = eng.world();
+        let Ok(mut appearance) = world.get::<&mut Appearance>(entity) else {
+            return false;
+        };
+        std::mem::replace(&mut appearance.visible, on)
+    };
+    if was != on {
+        crate::events::announce(
+            eng,
+            entity,
+            crate::node_api::VISIBILITY_EVENT,
+            balaur_script::Value::Bool(on),
+        );
+    }
+    true
 }
 
 /// Free a node the way a running engine must: detach every script instance
@@ -995,10 +1046,13 @@ pub fn free_nodes(eng: &Engine, entities: &[Entity]) {
             collect_subtree_into(&world, entity, &mut subtree);
         }
     }
+    // A node queued beside its own ancestor is in both subtrees, and a second
+    // remove pass finds its `Attached` already gone.
+    let mut once = crate::collections::DetHashSet::default();
+    subtree.retain(|e| once.insert(*e));
     if let Some(host) = eng.script_host() {
-        for &e in &subtree {
-            host.detach(crate::node_id_of(e));
-        }
+        let nodes: Vec<_> = subtree.iter().map(|&e| crate::node_id_of(e)).collect();
+        host.detach_all(&nodes);
     }
     for &e in &subtree {
         crate::components::remove_present(eng, e);
@@ -1041,6 +1095,60 @@ pub fn free_nodes(eng: &Engine, entities: &[Entity]) {
     }
     for e in subtree {
         let _ = world.despawn(e);
+    }
+}
+
+/// How many children `parent` holds.
+#[must_use]
+pub fn child_count(world: &World, parent: Entity) -> usize {
+    world.get::<&Children>(parent).map_or(0, |c| c.0.len())
+}
+
+/// Announce `child_added` from `parent` for each child past its first
+/// `before`, which is where a spawn appends.
+pub fn announce_added_since(eng: &Engine, parent: Entity, before: usize) {
+    let added: Vec<Entity> = eng.world().get::<&Children>(parent).map_or_else(
+        |_| Vec::new(),
+        |c| c.0.iter().skip(before).copied().collect(),
+    );
+    for child in added {
+        let child = balaur_script::Value::Node(crate::node_id_of(child).0);
+        crate::events::announce(eng, parent, crate::node_api::CHILD_ADDED_EVENT, child);
+    }
+}
+
+/// Announce `child_removed` from the parent of each node about to be freed,
+/// while the node can still be read. A parent going in the same batch is
+/// told nothing.
+pub fn announce_leaving(eng: &Engine, entities: &[Entity]) {
+    let doomed: crate::collections::DetHashSet<Entity> = entities.iter().copied().collect();
+    let mut told = Vec::new();
+    {
+        let world = eng.world();
+        let mut survives = crate::collections::DetHashMap::<Entity, bool>::default();
+        let mut once = crate::collections::DetHashSet::default();
+        for &entity in entities {
+            let Ok(parent) = world.get::<&Parent>(entity).map(|p| p.0) else {
+                continue;
+            };
+            let kept = *survives.entry(parent).or_insert_with(|| {
+                let mut at = Some(parent);
+                while let Some(node) = at {
+                    if doomed.contains(&node) {
+                        return false;
+                    }
+                    at = world.get::<&Parent>(node).ok().map(|p| p.0);
+                }
+                true
+            });
+            if kept && once.insert(entity) {
+                told.push((parent, entity));
+            }
+        }
+    }
+    for (parent, child) in told {
+        let child = balaur_script::Value::Node(crate::node_id_of(child).0);
+        crate::events::announce(eng, parent, crate::node_api::CHILD_REMOVED_EVENT, child);
     }
 }
 

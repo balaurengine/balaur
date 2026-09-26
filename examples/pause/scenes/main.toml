@@ -32,13 +32,13 @@ parent = "n_scene"
 position = [0.0, -2.6, 0.0]
 
 [nodes.collider2d]
-half_extents = [6.0, 0.3]
-kind = "rect"
+size = [12.0, 0.6]
+kind = "rectangle"
 
 [nodes.shape2d]
 color = "#3c4753"
-half_extents = [6.0, 0.3]
-kind = "rect"
+size = [12.0, 0.6]
+kind = "rectangle"
 
 [[nodes]]
 body2d = { kind = "static" }
@@ -50,13 +50,13 @@ parent = "n_scene"
 position = [-4.2, -0.3, 0.0]
 
 [nodes.collider2d]
-half_extents = [0.3, 2.6]
-kind = "rect"
+size = [0.6, 5.2]
+kind = "rectangle"
 
 [nodes.shape2d]
 color = "#3c4753"
-half_extents = [0.3, 2.6]
-kind = "rect"
+size = [0.6, 5.2]
+kind = "rectangle"
 
 [[nodes]]
 body2d = { kind = "static" }
@@ -68,10 +68,10 @@ parent = "n_scene"
 position = [4.2, -0.3, 0.0]
 
 [nodes.collider2d]
-half_extents = [0.3, 2.6]
-kind = "rect"
+size = [0.6, 5.2]
+kind = "rectangle"
 
 [nodes.shape2d]
 color = "#3c4753"
-half_extents = [0.3, 2.6]
-kind = "rect"
+size = [0.6, 5.2]
+kind = "rectangle"

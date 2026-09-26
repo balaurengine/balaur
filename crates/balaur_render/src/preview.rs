@@ -69,7 +69,7 @@ pub struct Preview {
 /// A rewrite that cannot be made — a line declaring nothing, a value with no
 /// written type — leaves the shader alone and says why once, because a
 /// caret moving through a file passes over such lines constantly.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn requested(eng: &balaur_core::Engine, shader: &str, source: String) -> String {
     let Some(request) = eng.try_resource::<crate::PreviewRequest>() else {
         return source;

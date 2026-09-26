@@ -74,7 +74,7 @@ fn polygon_schema() -> String {
         ),
         (
             k::SKELETON,
-            r#"{ type = "string", default = "", description = "Node path to the rig root, relative to this node; empty means this node" }"#,
+            r#"{ type = "node", default = "", description = "The rig root; empty means this node" }"#,
         ),
         (
             k::COLOR,
@@ -86,9 +86,12 @@ fn polygon_schema() -> String {
 /// The `polygon` component: writes `Shape2d::Polygon` and a [`PolygonMesh`]
 /// into `Renderable2d`.
 pub(crate) fn register_polygon_component(reg: &mut Registry<'_>) {
+    reg.add_system(balaur_core::Stage::SceneSync, resolve_solved_2d_system);
     reg.register_component(
         "polygon",
         ComponentDef {
+            events: &[],
+            warnings: None,
             doc: "A filled, textured 2D polygon from the `mesh` asset's points and triangles. With skin weights, the rig `skeleton` names deforms it.",
             schema: ComponentDef::parse_schema("polygon", &polygon_schema()),
             tags: &[words::ORTHOGRAPHIC, "render", "animation"],
@@ -183,8 +186,11 @@ fn texture_size(eng: &Engine, texture: &str) -> Result<(u32, u32)> {
 
 fn polygon_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let world = eng.world();
-    // A `boolean2d` draws its result as a polygon too; that one is its own.
-    if world.get::<&crate::boolean::Boolean2d>(entity).is_ok() {
+    // A `boolean2d` draws its result as a polygon too, and so does a soft
+    // body a generator laid out; neither is a `polygon` the author added.
+    if world.get::<&crate::boolean::Boolean2d>(entity).is_ok()
+        || world.get::<&SolverDrawn2d>(entity).is_ok()
+    {
         return None;
     }
     let renderable = world.get::<&Renderable2d>(entity).ok()?;
@@ -208,4 +214,73 @@ fn polygon_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     );
     map.insert(k::COLOR.into(), color_to_toml(renderable.color));
     Some(toml::Value::Table(map))
+}
+
+/// On a node drawn from a 2D solver's cells, with the topology it was built
+/// at: a soft body a generator laid out has no polygon of its own to deform.
+struct SolverDrawn2d(u32);
+
+/// Give a 2D soft body with nothing of its own to draw a polygon of its cells,
+/// rebuilt when the topology changes and dropped once the body is.
+///
+/// Only the topology: `skinned_2d::write_deform` moves the vertices every
+/// frame, and a new polygon per step would rebuild the node every frame.
+fn resolve_solved_2d_system(eng: &Engine, _dt: f32) {
+    let mut wanted: Vec<(Entity, PolygonMesh, u32)> = Vec::new();
+    let mut tinted: Vec<(Entity, [f32; 4])> = Vec::new();
+    {
+        let world = eng.world();
+        for (entity, solved) in &mut world.query::<(Entity, &balaur_core::mesh::SolvedPolygon)>() {
+            if solved.positions.is_empty() || solved.indices.is_empty() {
+                continue;
+            }
+            let drawn = world.get::<&SolverDrawn2d>(entity).ok().map(|d| d.0);
+            // A node that draws something of its own is the solver's to deform.
+            if drawn.is_none() && world.get::<&Renderable2d>(entity).is_ok() {
+                continue;
+            }
+            tinted.push((entity, solved.color));
+            if drawn == Some(solved.topology) {
+                continue;
+            }
+            wanted.push((entity, cells_of(solved), solved.topology));
+        }
+    }
+    for (entity, mesh, topology) in wanted {
+        let _ = set_polygon(eng, entity, Arc::new(mesh));
+        let _ = eng.world_mut().insert_one(entity, SolverDrawn2d(topology));
+    }
+    for (entity, color) in tinted {
+        if let Ok(mut drawn) = eng.world_mut().get::<&mut Renderable2d>(entity) {
+            drawn.color = color;
+        }
+    }
+    let mut world = eng.world_mut();
+    let gone: Vec<Entity> = world
+        .query::<Entity>()
+        .with::<&SolverDrawn2d>()
+        .without::<&balaur_core::mesh::SolvedPolygon>()
+        .iter()
+        .collect();
+    for entity in gone {
+        let _ = world.remove_one::<SolverDrawn2d>(entity);
+        let _ = world.remove_one::<Renderable2d>(entity);
+    }
+}
+
+fn cells_of(solved: &balaur_core::mesh::SolvedPolygon) -> PolygonMesh {
+    PolygonMesh {
+        mesh: String::new(),
+        texture: String::new(),
+        skeleton: String::new(),
+        pixels_per_unit: crate::DEFAULT_PIXELS_PER_UNIT,
+        positions: solved
+            .positions
+            .iter()
+            .map(|p| Vec2::from_array(*p))
+            .collect(),
+        indices: solved.indices.clone(),
+        uvs: vec![Vec2::ZERO; solved.positions.len()],
+        skin: None,
+    }
 }

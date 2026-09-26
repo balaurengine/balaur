@@ -33,12 +33,12 @@ crate::shared::query::functions!(
 
 /// The ray an options table describes.
 fn ray_of(opts: &Opts<'_>) -> (Ray, Real, bool) {
-    let from = opts.vec3(k::FROM, [0.0; 3]);
-    let dir = opts.vec3(k::DIR, [0.0, -1.0, 0.0]);
+    let from = opts.vec3(k::ORIGIN, [0.0; 3]);
+    let dir = opts.vec3(k::DIRECTION, [0.0, -1.0, 0.0]);
     (
         Ray::new(scalar::v3a(from), scalar::v3a(dir)),
-        scalar::real(opts.f32(k::MAX, 1000.0)),
-        opts.boolean(k::SOLID, true),
+        scalar::real(opts.f32(k::MAX_DISTANCE, 1000.0)),
+        opts.boolean(k::HIT_FROM_INSIDE, true),
     )
 }
 
@@ -183,10 +183,10 @@ pub(crate) fn install_shapecast_api(m: &mut dyn Bindings<Engine>) {
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
         let builder = crate::collider::collider_builder(eng, &params)?;
-        let from = scalar::v3a(opts.vec3(k::FROM, [0.0; 3]));
-        let dir = scalar::v3a(opts.vec3(k::DIR, [0.0, -1.0, 0.0]));
+        let from = scalar::v3a(opts.vec3(k::ORIGIN, [0.0; 3]));
+        let dir = scalar::v3a(opts.vec3(k::DIRECTION, [0.0, -1.0, 0.0]));
         let options = ShapeCastOptions {
-            max_time_of_impact: scalar::real(opts.f32(k::MAX, 1000.0)),
+            max_time_of_impact: scalar::real(opts.f32(k::MAX_DISTANCE, 1000.0)),
             stop_at_penetration: opts.boolean(k::STOP_AT_PENETRATION, true),
             ..ShapeCastOptions::default()
         };
@@ -221,12 +221,12 @@ pub(crate) fn install_shapecast_api(m: &mut dyn Bindings<Engine>) {
 /// Split from [`install_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("nearest_point", &[], "(opts: table)", "The closest point on any collider to a world point."),
-        ("point_hits", &[], "(opts: table)", "Every collider containing a world point."),
-        ("shape_hits", &[], "(opts: table)", "Every collider a shape overlaps where it stands: an explosion's reach, a melee arc."),
-        ("box_hits", &[], "(opts: table)", "Every collider whose bounds meet an axis-aligned box; cheaper and looser than shape_hits."),
+        ("closest_point", &[], "(opts: table)", "The closest point on any collider to a world point."),
+        ("overlap_point", &[], "(opts: table)", "Every collider containing a world point."),
+        ("overlap_shape", &[], "(opts: table)", "Every collider a shape overlaps where it stands: an explosion's reach, a melee arc."),
+        ("overlap_aabb", &[], "(opts: table)", "Every collider whose bounds meet an axis-aligned box; cheaper and looser than shape_hits."),
     ]);
-    m.function("nearest_point", |eng: &Engine, opts: Value| {
+    m.function("closest_point", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let point = scalar::v3a(opts.vec3(k::POINT, [0.0; 3]));
@@ -239,8 +239,8 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
             .query_pipeline_with_filter(filter)
             .project_point(
                 point,
-                scalar::real(opts.f32(k::MAX, 1000.0)),
-                opts.boolean(k::SOLID, true),
+                scalar::real(opts.f32(k::MAX_DISTANCE, 1000.0)),
+                opts.boolean(k::HIT_FROM_INSIDE, true),
             );
         let Some((handle, projection)) = found else {
             return Ok(Value::Nil);
@@ -256,7 +256,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
             ("distance", Value::Num(f64::from((p - point).length()))),
         ]))
     });
-    m.function("point_hits", |eng: &Engine, opts: Value| {
+    m.function("overlap_point", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let point = scalar::v3a(opts.vec3(k::POINT, [0.0; 3]));
@@ -272,7 +272,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
             .collect();
         node_list(&mut hits, &eng.world())
     });
-    m.function("shape_hits", |eng: &Engine, opts: Value| {
+    m.function("overlap_shape", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
@@ -290,7 +290,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
             .collect();
         node_list(&mut hits, &eng.world())
     });
-    m.function("box_hits", |eng: &Engine, opts: Value| {
+    m.function("overlap_aabb", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let min = scalar::v3a(opts.vec3(k::MIN, [0.0; 3]));
@@ -371,7 +371,7 @@ pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
                 scalar::v3a(opts.vec3(k::VELOCITY_B, [0.0; 3])),
             );
             let options = ShapeCastOptions {
-                max_time_of_impact: scalar::real(opts.f32(k::MAX, 1.0)),
+                max_time_of_impact: scalar::real(opts.f32(k::MAX_TIME, 1.0)),
                 stop_at_penetration: opts.boolean(k::STOP_AT_PENETRATION, true),
                 ..ShapeCastOptions::default()
             };

@@ -1,0 +1,16 @@
+# Balaur's light half: six source colours, and every other token derived
+# from them. The roles and sizes every half shares are in `../roles.toml`.
+type = "widget_theme"
+
+[colors]
+background = "#ebe9e3"
+foreground = "#14181d"
+primary = "#3271a9"
+secondary = "#3a665f"
+warning = "#7a5400"
+danger = "#a4392b"
+# Cool sheets on the warm ground, which no rule derives from one background.
+bg_panel = "#f1f3f6"
+bg_control = "#dadfe5"
+bg_control_hover = "#ffffff"
+border_default = "#c5ccd4"

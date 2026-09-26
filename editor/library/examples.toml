@@ -34,6 +34,9 @@ note = "Convex decomposition of a concave shape"
 [cloth]
 note = "Two soft-body sheets, one of them torn through"
 
+[jelly]
+note = "2D soft bodies: a grid, a disk, a star, an arch and a rope"
+
 [pause]
 note = "Pause, process modes and the time scale"
 

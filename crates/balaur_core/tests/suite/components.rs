@@ -9,6 +9,8 @@ fn app_with_marker() -> App {
     app.register_component(
         "marker",
         ComponentDef {
+            events: &[],
+            warnings: None,
             doc: "",
             schema: ComponentDef::parse_schema(
                 "marker",
@@ -494,4 +496,110 @@ fn a_record_field_the_scene_left_out_is_filled_in() {
     assert_eq!(merged["wave"]["hp"].as_integer(), Some(9), "{merged}");
     assert_eq!(merged["wave"]["name"].as_str(), Some("grunt"), "{merged}");
     assert_eq!(merged["waves"][0]["hp"].as_integer(), Some(1), "{merged}");
+}
+
+/// A component that refuses a negative `size`, and warns about a large one.
+fn app_with_picky() -> App {
+    let mut app = App::new(AppConfig::bare(".")).unwrap();
+    app.register_component(
+        "picky",
+        ComponentDef {
+            events: &[],
+            warnings: Some(Box::new(|eng: &Engine, entity| {
+                let size = eng
+                    .world()
+                    .get::<&Marker>(entity)
+                    .ok()
+                    .and_then(|m| m.0.get("size").and_then(toml::Value::as_float))
+                    .unwrap_or(0.0);
+                if size > 10.0 {
+                    vec![balaur_core::warnings::Warning::on(
+                        "size",
+                        "that is a big one",
+                    )]
+                } else {
+                    Vec::new()
+                }
+            })),
+            doc: "",
+            schema: ComponentDef::parse_schema(
+                "picky",
+                r#"label = { type = "string", default = "none" }
+size = { type = "float", default = 1.0 }"#,
+            ),
+            tags: &[],
+            expects: &[],
+            apply: Box::new(|eng: &Engine, entity, params| {
+                if params
+                    .get("size")
+                    .and_then(toml::Value::as_float)
+                    .unwrap_or(0.0)
+                    < 0.0
+                {
+                    anyhow::bail!("a size below zero has nothing to draw");
+                }
+                eng.world_mut()
+                    .insert_one(entity, Marker(params.clone()))
+                    .map_err(|_| anyhow::anyhow!("dead node"))?;
+                Ok(())
+            }),
+            remove: Box::new(|eng: &Engine, entity| {
+                let _ = eng.world_mut().remove_one::<Marker>(entity);
+                Ok(())
+            }),
+            get: Box::new(|eng: &Engine, entity| {
+                eng.world().get::<&Marker>(entity).ok().map(|m| m.0.clone())
+            }),
+        },
+    );
+    app
+}
+
+fn picky(size: f64) -> toml::Value {
+    toml::from_str(&format!("label = \"a\"\nsize = {size:?}")).unwrap()
+}
+
+#[test]
+fn a_refused_write_is_a_warning_on_the_property_it_changed() {
+    let app = app_with_picky();
+    let e = spawn(&app);
+    components::add(&app.engine, e, "picky", Some(&picky(2.0))).unwrap();
+    assert!(components::add(&app.engine, e, "picky", Some(&picky(-1.0))).is_err());
+    let found = balaur_core::warnings::warnings(&app.engine, e);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].component, "picky");
+    assert_eq!(found[0].warning.property.as_deref(), Some("size"));
+    assert!(found[0].warning.message.contains("below zero"), "{found:?}");
+}
+
+#[test]
+fn a_write_that_lands_clears_the_refusal() {
+    let app = app_with_picky();
+    let e = spawn(&app);
+    let _ = components::add(&app.engine, e, "picky", Some(&picky(-1.0)));
+    assert_eq!(balaur_core::warnings::warnings(&app.engine, e).len(), 1);
+    components::add(&app.engine, e, "picky", Some(&picky(3.0))).unwrap();
+    assert!(balaur_core::warnings::warnings(&app.engine, e).is_empty());
+}
+
+#[test]
+fn freeing_a_node_forgets_its_refusals() {
+    let app = app_with_picky();
+    let e = spawn(&app);
+    let _ = components::add(&app.engine, e, "picky", Some(&picky(-1.0)));
+    components::remove_present(&app.engine, e);
+    assert!(balaur_core::warnings::warnings(&app.engine, e).is_empty());
+}
+
+#[test]
+fn a_component_reports_its_own_warnings() {
+    let app = app_with_picky();
+    let e = spawn(&app);
+    components::add(&app.engine, e, "picky", Some(&picky(20.0))).unwrap();
+    let found = balaur_core::warnings::warnings(&app.engine, e);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(
+        found[0].warning,
+        balaur_core::warnings::Warning::on("size", "that is a big one")
+    );
 }

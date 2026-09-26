@@ -26,7 +26,7 @@ use crate::{Renderable2d, Renderable3d};
 pub struct Clones(pub Vec<Placed>);
 
 /// Whether a node's cloner lists no copies, so the node draws nothing.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn emptied(world: &balaur_core::hecs::World, entity: Entity) -> bool {
     world
         .get::<&Clones>(entity)
@@ -106,7 +106,7 @@ fn copy_to_table(copy: &Clone3d) -> toml::Value {
 /// The cloner a params table describes.
 fn cloner_from_params(params: &toml::Value) -> Result<Cloner> {
     let word = params
-        .get(ck::MODE)
+        .get(ck::KIND)
         .and_then(toml::Value::as_str)
         .unwrap_or(cw::LINEAR);
     let mode = Mode::from_word(word).ok_or_else(|| anyhow!("unknown cloner mode '{word}'"))?;
@@ -117,7 +117,7 @@ fn cloner_from_params(params: &toml::Value) -> Result<Cloner> {
         counts: counts.map(|n| n.max(1.0) as u32),
         step: Vec3::from_array(triple(params, ck::STEP, [1.0, 0.0, 0.0])),
         radius: number(params, ck::RADIUS, 2.0),
-        angle: number(params, ck::ANGLE, 0.0),
+        angle: number(params, ck::ANGLE_DEGREES, 0.0),
         seed: number(params, ck::SEED, 0.0).max(0.0) as u64,
         random: number(params, ck::RANDOM, 0.0).clamp(0.0, 1.0),
         copies: params
@@ -134,7 +134,7 @@ fn cloner_to_params(cloner: &Cloner) -> toml::Value {
     let integer = |v: u32| toml::Value::Integer(i64::from(v));
     let mut map = toml::map::Map::new();
     map.insert(
-        ck::MODE.into(),
+        ck::KIND.into(),
         toml::Value::String(cloner.mode.word().into()),
     );
     map.insert(ck::COUNT.into(), integer(cloner.count));
@@ -147,7 +147,7 @@ fn cloner_to_params(cloner: &Cloner) -> toml::Value {
         toml::Value::Array(cloner.step.to_array().iter().map(|v| float(*v)).collect()),
     );
     map.insert(ck::RADIUS.into(), float(cloner.radius));
-    map.insert(ck::ANGLE.into(), float(cloner.angle));
+    map.insert(ck::ANGLE_DEGREES.into(), float(cloner.angle));
     map.insert(ck::SEED.into(), integer(cloner.seed as u32));
     map.insert(ck::RANDOM.into(), float(cloner.random));
     map.insert(
@@ -162,19 +162,21 @@ pub(crate) fn register_cloner_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "cloner",
         ComponentDef {
-            doc: "Draws the node's subtree many times; physics and scripts still see one node. `mode` is `linear`, `radial` or `grid`, or `list` for the `copies` a scene or a script places and tints one by one; `seed` and `random` scatter the copies.",
+            events: &[],
+            warnings: None,
+            doc: "Draws the node's subtree many times; physics and scripts still see one node. `kind` is `linear`, `radial` or `grid`, or `list` for the `copies` a scene or a script places and tints one by one; `seed` and `random` scatter the copies.",
             schema: ComponentDef::parse_schema(
                 "cloner",
                 &ComponentDef::schema(&[
-                    (ck::MODE, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How the copies are laid out" }}"#, cw::LINEAR, crate::vocabulary::options(cw::MODES))),
-                    (ck::COUNT, r#"{ type = "int", default = 4, min = 1, description = "How many copies, when mode is linear or radial" }"#),
-                    (ck::COUNTS, r#"{ type = "vec3", default = [3, 1, 3], description = "How many along each axis, when mode is grid" }"#),
-                    (ck::STEP, r#"{ type = "vec3", default = [1.0, 0.0, 0.0], description = "The gap between copies, when mode is linear or grid" }"#),
-                    (ck::RADIUS, r#"{ type = "float", default = 2.0, description = "How far out the ring sits, when mode is radial" }"#),
-                    (ck::ANGLE, r#"{ type = "float", default = 0.0, description = "Degrees between copies on a ring; zero closes the ring evenly" }"#),
+                    (ck::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How the copies are laid out" }}"#, cw::LINEAR, crate::vocabulary::options(cw::KINDS))),
+                    (ck::COUNT, r#"{ type = "int", default = 4, min = 1, description = "How many copies, when kind is linear or radial" }"#),
+                    (ck::COUNTS, r#"{ type = "vec3", default = [3, 1, 3], description = "How many along each axis, when kind is grid" }"#),
+                    (ck::STEP, r#"{ type = "vec3", default = [1.0, 0.0, 0.0], description = "The gap between copies, when kind is linear or grid" }"#),
+                    (ck::RADIUS, r#"{ type = "float", default = 2.0, description = "How far out the ring sits, when kind is radial" }"#),
+                    (ck::ANGLE_DEGREES, r#"{ type = "float", default = 0.0, description = "Degrees between copies on a ring; zero closes the ring evenly" }"#),
                     (ck::SEED, r#"{ type = "int", default = 0, min = 0, description = "The seed the scatter runs off; zero scatters nothing" }"#),
                     (ck::RANDOM, r#"{ type = "float", default = 0.0, min = 0.0, max = 1.0, description = "How far a copy may wander in position, turn and size" }"#),
-                    (ck::COPIES, r#"{ type = "list", of = { type = "record", fields = { position = { type = "vec3", default = [0.0, 0.0, 0.0] }, rotation_euler = { type = "vec3", default = [0.0, 0.0, 0.0] }, scale = { type = "vec3", default = [1.0, 1.0, 1.0] }, tint = { type = "color", default = [1.0, 1.0, 1.0, 1.0] } } }, default = [], description = "The copies, when mode is list: each placed in the node's own space with the transform component's keys, and tinted over the node's colour. An empty list draws nothing" }"#),
+                    (ck::COPIES, r#"{ type = "list", of = { type = "record", fields = { position = { type = "vec3", default = [0.0, 0.0, 0.0] }, rotation_euler = { type = "vec3", default = [0.0, 0.0, 0.0] }, scale = { type = "vec3", default = [1.0, 1.0, 1.0] }, tint = { type = "color", default = [1.0, 1.0, 1.0, 1.0] } } }, default = [], description = "The copies, when kind is list: each placed in the node's own space with the transform component's keys, and tinted over the node's colour. An empty list draws nothing" }"#),
                 ]),
             ),
             tags: &["render"],

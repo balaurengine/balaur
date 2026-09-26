@@ -37,20 +37,11 @@ mod backend {
     pub(crate) fn pump() {}
 }
 
-#[cfg(all(target_family = "wasm", target_os = "emscripten"))]
-mod emscripten;
-
-/// The browser backend: emscripten websockets, no threads.
-#[cfg(all(target_family = "wasm", target_os = "emscripten"))]
-mod backend {
-    pub(crate) use crate::emscripten::{pump, spawn_socket};
-}
-
-/// The browser outside emscripten: the WebSocket API through web-sys.
-#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+/// The browser: the WebSocket API through web-sys.
+#[cfg(target_family = "wasm")]
 mod browser;
 
-#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+#[cfg(target_family = "wasm")]
 mod backend {
     pub(crate) use crate::browser::{pump, spawn_socket};
 }
@@ -131,8 +122,12 @@ pub(crate) enum SocketEvent {
         socket: u64,
         bytes: Vec<u8>,
     },
+    /// `code` is the close frame's status (RFC 6455 §7.4): 1000 for a
+    /// normal close, 1005 when the frame named none, 1006 when there was no
+    /// frame at all.
     Closed {
         socket: u64,
+        code: u16,
         reason: String,
     },
     Failed {
@@ -149,6 +144,9 @@ pub struct WebsocketState {
     io: ExternalIo<SocketEvent>,
     sockets: DetHashMap<u64, Sender<SocketCommand>>,
     handlers: DetHashMap<u64, Handler>,
+    /// Where each connection is, from the events a replay reproduces rather
+    /// than from the worker channels a replay never opens.
+    status: DetHashMap<u64, &'static str>,
 }
 
 impl WebsocketState {
@@ -166,6 +164,7 @@ impl WebsocketState {
         if let Some(handler) = handler {
             self.handlers.insert(id, handler);
         }
+        self.status.insert(id, state::CONNECTING);
         balaur_core::replay::event(
             eng,
             "websocket.connect",
@@ -201,9 +200,19 @@ impl WebsocketState {
     /// Ask the connection to close. The `closed` event still arrives through
     /// the snapshot once the handshake finishes.
     pub fn close(&mut self, socket: u64) -> bool {
+        if let Some(status) = self.status.get_mut(&socket) {
+            *status = state::CLOSING;
+        }
         self.sockets
             .get(&socket)
             .is_some_and(|commands| commands.send(SocketCommand::Close).is_ok())
+    }
+
+    /// Where the connection is: one of [`state`]'s words, `closed` for an id
+    /// that names nothing.
+    #[must_use]
+    pub fn state(&self, socket: u64) -> &'static str {
+        self.status.get(&socket).copied().unwrap_or(state::CLOSED)
     }
 }
 
@@ -228,6 +237,9 @@ fn pump_websocket_system(eng: &Engine, _: f32) {
     // here; the native one is a no-op.
     backend::pump();
     let mut dispatches: Vec<(Handler, Value)> = Vec::new();
+    // The connection's id, woken once it opens or fails, for a script that
+    // awaits `connect` rather than handling `open`.
+    let mut settled: Vec<(u64, Value)> = Vec::new();
     {
         let state = eng.resource::<WebsocketState>();
         let snapshot = eng.resource::<WebsocketSnapshot>();
@@ -240,14 +252,28 @@ fn pump_websocket_system(eng: &Engine, _: f32) {
             let handler = match &event {
                 SocketEvent::Closed { socket, .. } | SocketEvent::Failed { socket, .. } => {
                     state.sockets.shift_remove(socket);
+                    state.status.shift_remove(socket);
                     state.handlers.shift_remove(socket)
                 }
-                SocketEvent::Open { socket }
-                | SocketEvent::Message { socket, .. }
-                | SocketEvent::Binary { socket, .. } => state.handlers.get(socket).cloned(),
+                SocketEvent::Open { socket } => {
+                    if let Some(status) = state.status.get_mut(socket) {
+                        *status = self::state::OPEN;
+                    }
+                    state.handlers.get(socket).cloned()
+                }
+                SocketEvent::Message { socket, .. } | SocketEvent::Binary { socket, .. } => {
+                    state.handlers.get(socket).cloned()
+                }
+            };
+            let opened = match &event {
+                SocketEvent::Open { socket } | SocketEvent::Failed { socket, .. } => Some(*socket),
+                _ => None,
             };
             let value = event_value(event);
             snapshot.events.push(value.clone());
+            if let Some(socket) = opened {
+                settled.push((socket, value.clone()));
+            }
             if let Some(handler) = handler {
                 dispatches.push((handler, value));
             }
@@ -257,44 +283,71 @@ fn pump_websocket_system(eng: &Engine, _: f32) {
         for (handler, value) in dispatches {
             host.call_on(handler.node, &handler.method, std::slice::from_ref(&value));
         }
+        for (socket, value) in settled {
+            host.wake(socket, &value);
+        }
     }
+}
+
+/// The `kind` each event map carries, and the `EVENT_*` constants of it.
+pub mod kind {
+    pub const OPEN: &str = "open";
+    pub const MESSAGE: &str = "message";
+    pub const BINARY: &str = "binary";
+    pub const CLOSED: &str = "closed";
+    pub const ERROR: &str = balaur_core::handler::ERROR;
+    pub const ALL: &[&str] = &[OPEN, MESSAGE, BINARY, CLOSED, ERROR];
+}
+
+/// Where a connection is, as `websocket.state` answers.
+pub mod state {
+    pub const CONNECTING: &str = "connecting";
+    pub const OPEN: &str = "open";
+    pub const CLOSING: &str = "closing";
+    pub const CLOSED: &str = "closed";
+    pub const ALL: &[&str] = &[CONNECTING, OPEN, CLOSING, CLOSED];
 }
 
 fn event_value(event: SocketEvent) -> Value {
     let pairs = match event {
         SocketEvent::Open { socket } => vec![
             ("socket".into(), id_value(socket)),
-            ("kind".into(), Value::Str("open".into())),
+            ("kind".into(), Value::Str(kind::OPEN.into())),
         ],
         SocketEvent::Message { socket, text } => vec![
             ("socket".into(), id_value(socket)),
-            ("kind".into(), Value::Str("message".into())),
+            ("kind".into(), Value::Str(kind::MESSAGE.into())),
             ("text".into(), Value::Str(text)),
         ],
         SocketEvent::Binary { socket, bytes } => vec![
             ("socket".into(), id_value(socket)),
-            ("kind".into(), Value::Str("binary".into())),
+            ("kind".into(), Value::Str(kind::BINARY.into())),
             ("bytes".into(), Value::Bytes(bytes)),
         ],
-        SocketEvent::Closed { socket, reason } => vec![
+        SocketEvent::Closed {
+            socket,
+            code,
+            reason,
+        } => vec![
             ("socket".into(), id_value(socket)),
-            ("kind".into(), Value::Str("closed".into())),
+            ("kind".into(), Value::Str(kind::CLOSED.into())),
+            ("code".into(), Value::Int(i64::from(code))),
             ("reason".into(), Value::Str(reason)),
         ],
         SocketEvent::Failed { socket, reason } => vec![
             ("socket".into(), id_value(socket)),
-            ("kind".into(), Value::Str("error".into())),
+            ("kind".into(), Value::Str(kind::ERROR.into())),
             ("reason".into(), Value::Str(reason)),
         ],
     };
     Value::Map(pairs)
 }
 
-pub struct WebsocketPlugin {
+pub struct WebSocketPlugin {
     manifest: balaur_plugin::Manifest,
 }
 
-impl Default for WebsocketPlugin {
+impl Default for WebSocketPlugin {
     fn default() -> Self {
         Self {
             manifest: balaur_plugin::Manifest::new("websocket", env!("CARGO_PKG_VERSION")),
@@ -302,7 +355,7 @@ impl Default for WebsocketPlugin {
     }
 }
 
-impl balaur_plugin::Plugin for WebsocketPlugin {
+impl balaur_plugin::Plugin for WebSocketPlugin {
     fn manifest(&self) -> &balaur_plugin::Manifest {
         &self.manifest
     }
@@ -362,13 +415,21 @@ fn socket_options_of(opts: Option<&Value>, config: &WebsocketConfig) -> Result<S
 /// frame arrives as `Value::Str`, a binary one as `Value::Bytes`.
 fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "A long-lived socket for text or binary frames. Events reach the node's `on_websocket_event` (or `on_event`) as a map with `socket` and `kind`: `open`, `message`, `binary`, `closed` or `error`.",
+        "A long-lived socket for text or binary frames. Events reach the node's `on_websocket_event` (or `on_event`) as a map with `socket` and `kind`: `open`, `message`, `binary`, `closed` or `error`, each an `EVENT_*` constant.",
     );
+    balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[
-        ("connect", &[], "", "Open a connection and return the id `send` and `close` take; options are `on_event`, `compression` and `headers`."),
+        ("connect", &[], "", "Open a connection and return the id `send` and `close` take, which `task.wait` resumes on with the `open` or `error` event; options are `on_event`, `compression` and `headers`."),
         ("send", &[], "", "Queue a frame on the connection, text for a string and binary for bytes; false when it is already gone."),
-        ("close", &[], "", "Ask the connection to close, which still delivers a `closed` event; false when it was already gone."),
+        ("close", &[], "", "Ask the connection to close, which still delivers a `closed` event with its `code`; false when it was already gone."),
+        ("state", &[], "", "Where the connection is: `connecting`, `open`, `closing` or `closed`, each a `STATE_*` constant."),
     ]);
+    for word in state::ALL {
+        m.constant(
+            &format!("STATE_{}", word.to_uppercase()),
+            Value::Str((*word).to_string()),
+        );
+    }
     m.function(
         "connect",
         |eng: &Engine, (node, url, opts): (Value, String, Option<Value>)| {
@@ -399,5 +460,10 @@ fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
         let state = eng.resource::<WebsocketState>();
         let closed = u64::try_from(socket).is_ok_and(|id| state.borrow_mut().close(id));
         Ok(Value::Bool(closed))
+    });
+    m.function("state", |eng: &Engine, socket: i64| {
+        let state = eng.resource::<WebsocketState>();
+        let word = u64::try_from(socket).map_or(state::CLOSED, |id| state.borrow().state(id));
+        Ok(Value::Str(word.to_string()))
     });
 }

@@ -25,6 +25,8 @@ fn register_pair(app: &mut App) {
     app.register_component(
         "lonely",
         ComponentDef {
+            events: &[],
+            warnings: None,
             doc: "",
             schema: ComponentDef::parse_schema(
                 "lonely",
@@ -51,6 +53,8 @@ fn register_pair(app: &mut App) {
     app.register_component(
         "partner",
         ComponentDef {
+            events: &[],
+            warnings: None,
             doc: "",
             schema: ComponentDef::parse_schema(
                 "partner",
@@ -115,7 +119,7 @@ fn a_project_preset_is_parsed_from_toml() {
 description = "A patrolling enemy"
 tags = ["2d"]
 components = [
-  { component = "shape2d", kind = "rect" },
+  { component = "shape2d", kind = "rectangle" },
   { component = "color" },
 ]
 "#;
@@ -128,7 +132,7 @@ components = [
     // The discriminant is stripped; what is left is the component's own table.
     let params = def.parts[0].params.as_ref().unwrap();
     assert!(params.get("component").is_none());
-    assert_eq!(params["kind"].as_str().unwrap(), "rect");
+    assert_eq!(params["kind"].as_str().unwrap(), "rectangle");
     assert!(def.parts[1].params.is_none(), "no properties means none");
 }
 

@@ -8,10 +8,18 @@ use super::{Classes, Function, gdscript, safe, shim_binding};
 /// The `init` hook a class with no `_ready` still needs, when it has
 /// defaults to set or a `_init` to run: nothing else would call them, and a
 /// member read before its default is set is an error at run time.
-pub(super) fn write_default_init(out: &mut String, functions: &[Function], scened: bool) -> bool {
+pub(super) fn write_default_init(
+    out: &mut String,
+    functions: &[Function],
+    scened: bool,
+    context: &gdscript::Context,
+) -> bool {
+    let data = &context.data_exports;
     // The plain members are the engine's to set; what is left for `init` is
-    // the half that waits for the scene, and a Godot `_init`.
-    if !(scened || constructs(functions)) || functions.iter().any(|f| f.name == "_ready") {
+    // the half that waits for the scene, a Godot `_init`, and the exports
+    // the scene filed in `meta`.
+    let needed = scened || constructs(functions) || !data.is_empty();
+    if !needed || functions.iter().any(|f| f.name == "_ready") {
         return false;
     }
     let set = if scened {
@@ -20,12 +28,28 @@ pub(super) fn write_default_init(out: &mut String, functions: &[Function], scene
         ""
     };
     let init = if constructs(functions) {
-        init_call(functions)
+        init_call(functions, context.scene_exports)
     } else {
-        ""
+        String::new()
     };
-    let _ = write!(out, "\npub fn init(this) {{\n{set}{init}}}\n");
+    let reads = data_reads(data);
+    let _ = write!(out, "\npub fn init(this) {{\n{set}{init}{reads}}}\n");
     true
+}
+
+/// `init`'s reads of the exports the scene filed in the node's `meta`, each
+/// back as the Godot value it was, or the member's default where the scene
+/// set none.
+pub(super) fn data_reads(data: &[String]) -> String {
+    let mut out = String::new();
+    for name in data {
+        let field = safe(name);
+        let _ = writeln!(
+            out,
+            "    this.{field} = (script::require(\"gd.rn\").export_value)(this.node, \"{name}\", this.{field});"
+        );
+    }
+    out
 }
 
 /// Whether the class has a `_init` taking nothing, which Godot ran when the
@@ -36,17 +60,24 @@ pub(super) fn constructs(functions: &[Function]) -> bool {
     })
 }
 
-/// The call that runs `_init` with every parameter at its default.
-pub(super) fn init_call(functions: &[Function]) -> &'static str {
+/// The call that runs `_init` with every parameter at its default. What the
+/// scene set in `exports()` is put back after it, as Godot set it after.
+pub(super) fn init_call(functions: &[Function], scene_exports: bool) -> String {
     let takes = functions
         .iter()
         .find(|f| f.name == "_init" && !f.overridden)
         .is_some_and(|f| !f.params.is_empty());
-    if takes {
+    let call = if takes {
         "    _init__0(this);\n"
     } else {
         "    _init(this);\n"
+    };
+    if !scene_exports {
+        return call.to_string();
     }
+    format!(
+        "    let scene_set = (script::require(\"gd.rn\").scene_exports)(this, exports());\n{call}    (script::require(\"gd.rn\").keep_exports)(this, scene_set);\n"
+    )
 }
 
 /// The Godot class a script's chain of `extends` ends at: `RefCounted` for

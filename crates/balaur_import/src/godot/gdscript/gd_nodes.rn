@@ -1,19 +1,19 @@
 /// Godot's viewport rectangle. The engine reports the screen as a pair, and
 /// the visible rect always starts at the origin.
 pub fn viewport_rect() {
-    let (w, h) = ui::screen_size();
+    let (w, h) = ui::window_size();
     rect(0.0, 0.0, w, h)
 }
 
 pub fn screen_size() {
-    let (w, h) = ui::screen_size();
+    let (w, h) = ui::window_size();
     return vec2(w, h);
 }
 
 /// `OS.has_feature(name)`. The engine reports where it runs as a table, not
 /// as Godot's flat list of feature tags.
 pub fn has_feature(name) {
-    let here = engine::platform();
+    let here = engine::target();
     if name == "editor" {
         return here.editor;
     }
@@ -30,7 +30,7 @@ pub fn has_feature(name) {
 }
 
 pub fn os_name() {
-    return engine::platform().os;
+    return engine::target().os;
 }
 
 /// Godot's `ConfigFile`: sections of keys, read from and written to a `save`
@@ -175,6 +175,70 @@ pub fn set_meta(node, key, value) {
     script::store(slot, if kept { () } else { value });
 }
 
+/// Godot's value for an export the scene filed in the node's `meta`, or
+/// `fallback` where the scene set none.
+pub fn export_value(node, name, fallback) {
+    if !(node is balaur::Node) || !node.has_component(META) {
+        return fallback;
+    }
+    let filed = get(get(node.get_component(META), EXPORTS_META, #{}), name, ());
+    if is_nil(filed) {
+        return fallback;
+    }
+    godot_value(filed)
+}
+
+const EXPORTS_META = "__exports";
+const META = "meta";
+const GODOT_TAG = "__godot";
+
+/// A filed value back as Godot's: a tagged vector, rectangle or colour as
+/// that type, and a list or a table with every value inside it turned back.
+fn godot_value(value) {
+    if value is Vec {
+        let out = [];
+        for item in value {
+            out.push(godot_value(item));
+        }
+        return out;
+    }
+    if !(value is Object) {
+        return value;
+    }
+    if value.contains_key(GODOT_TAG) {
+        return tagged_value(value[GODOT_TAG], get(value, "v", []));
+    }
+    let out = #{};
+    for (key, item) in value {
+        out[key] = godot_value(item);
+    }
+    out
+}
+
+fn tagged_value(tag, v) {
+    if tag == "Vector2" {
+        return vec2(float(v[0]), float(v[1]));
+    }
+    if tag == "Vector3" {
+        return vec3(float(v[0]), float(v[1]), float(v[2]));
+    }
+    if tag == "Rect2" {
+        return rect(v[0], v[1], v[2], v[3]);
+    }
+    if tag == "Color" {
+        let alpha = if v.len() > 3 { v[3] } else { 1.0 };
+        return color(v[0], v[1], v[2], alpha);
+    }
+    if tag == "Vector2Array" {
+        let out = [];
+        for p in v {
+            out.push(vec2(float(p[0]), float(p[1])));
+        }
+        return out;
+    }
+    return ();
+}
+
 pub fn get_meta(node, key, fallback) {
     let held = script::stored(`meta:${node.stable_id()}:${key}`);
     if !is_nil(held) {
@@ -222,7 +286,7 @@ pub fn field(owner, name) {
             return known;
         }
         if name == TREE_ACTIVE && owner.has_component(STATE_MACHINE) {
-            return owner.state_machine.get()[TREE_ACTIVE];
+            return owner.state_machine.get()[MACHINE_ENABLED];
         }
         return ();
     }
@@ -320,12 +384,30 @@ pub fn instantiate(path) {
 /// Where a node `new()` made waits to be added: hidden, under the root.
 fn detached() {
     let root = scene::root();
-    let held = root.get_node("__detached");
+    let held = root.get_node(DETACHED);
     if is_nil(held) {
-        held = root.add_child("__detached");
+        held = root.add_child(DETACHED);
         held.set_visible(false);
     }
     held
+}
+
+const DETACHED = "__detached";
+
+/// Godot's `is_inside_tree()`: a live node the scene reaches, not one made by
+/// `new()` or `instantiate()` and still waiting to be added.
+pub fn inside_tree(node) {
+    if !(node is balaur::Node) || !node.is_valid() {
+        return false;
+    }
+    let at = node;
+    while at is balaur::Node {
+        if at.name() == DETACHED {
+            return false;
+        }
+        at = at.parent();
+    }
+    true
 }
 
 /// Godot's `add_child(node)`: a node made elsewhere moves under `parent`; a
@@ -337,7 +419,7 @@ pub fn add_child(parent, child) {
         return child;
     }
     if child is balaur::Node {
-        child.set_parent(parent);
+        move_keeping_local(child, parent);
         if child.has_tag(REMOVED) {
             child.remove_tag(REMOVED);
             child.set_visible(true);
@@ -346,6 +428,56 @@ pub fn add_child(parent, child) {
     }
     parent.add_child(child)
 }
+
+/// The exports the scene set, as the instance holds them before Godot's
+/// `_init` runs: those that differ from the default `exports()` declares.
+pub fn scene_exports(this, specs) {
+    let kept = #{};
+    for (name, spec) in specs {
+        let fallback = if spec is Object && spec.contains_key("type") { spec["default"] } else { spec };
+        if let Some(value) = this.get(name) {
+            if !same(value, fallback) {
+                kept[name] = value;
+            }
+        }
+    }
+    kept
+}
+
+/// The scene's exports back over what `_init` wrote.
+pub fn keep_exports(this, kept) {
+    for (name, value) in kept {
+        this[name] = value;
+    }
+}
+
+/// A Control property written to its widget. A node with none, such as a
+/// label in the world, has nothing to take it: a patch would make one.
+pub fn patch_widget(node, patch) {
+    if node is balaur::Node && node.has_component("widget") {
+        node.patch_component("widget", patch);
+    }
+}
+
+/// A FoldableContainer's title bar control: a child of the `fold`, drawn in
+/// its header beside the arrow.
+pub fn add_title_bar_control(fold, control) {
+    add_child(fold, control);
+    if control is balaur::Node && control.has_component("widget") {
+        let patch = #{};
+        patch[TITLE_BAR] = true;
+        control.patch_component("widget", patch);
+    }
+}
+
+const TITLE_BAR = "title_bar";
+
+/// A FoldableContainer's `folded`: its `fold` widget shut.
+pub fn folded(node) {
+    node is balaur::Node && node.has_component("widget") && !get(node.get_component("widget"), FOLD_OPEN, true)
+}
+
+const FOLD_OPEN = "open";
 
 /// A Control's `custom_minimum_size`, which is the widget's `min_width` and
 /// `min_height` here.
@@ -364,8 +496,8 @@ pub fn combined_min_size(node) {
         return floor;
     }
     let drawn = ui::widget_rect(node);
-    if drawn is Object && drawn.contains_key("w") {
-        return vec2(math::max(floor.x, float(drawn["w"])), math::max(floor.y, float(drawn["h"])));
+    if drawn is Object && drawn.contains_key("width") {
+        return vec2(math::max(floor.x, float(drawn["width"])), math::max(floor.y, float(drawn["height"])));
     }
     floor
 }
@@ -400,7 +532,7 @@ pub fn project_path(path) {
         return path[6..];
     }
     if path.starts_with("user://") {
-        return engine::user_data_dir() + "/" + path[7..];
+        return engine::user_data_directory() + "/" + path[7..];
     }
     path
 }
@@ -417,10 +549,10 @@ pub fn button_group() {
 /// seeded generator, which is what keeps a replay the same.
 pub fn random_numbers() {
     #{
-        "randf": || rng::random(),
-        "randf_range": |low, high| rng::range(float(low), float(high)),
-        "randi": || rng::int(0, 2147483647),
-        "randi_range": |low, high| rng::int(low, high),
+        "randf": || random::float(),
+        "randf_range": |low, high| random::range(float(low), float(high)),
+        "randi": || random::int(0, 2147483647),
+        "randi_range": |low, high| random::int(low, high),
         "randomize": || (),
     }
 }
@@ -700,7 +832,7 @@ pub fn tween_property(t, target, path, to, seconds) {
     } else if track == "zoom" && target is balaur::Node && target.has_component("camera2d") {
         // A camera's zoom is one number here, scaled as `set_node_property`'s.
         let zoom = if want is Vec { want[0] } else { want };
-        track = "camera2d/zoom";
+        track = "camera2d/pixels_per_unit";
         want = float(zoom) * PIXELS;
     }
     let step = #{ "property": track, "to": want, "duration": float(seconds), "ease": easing(t) };
@@ -765,17 +897,24 @@ pub fn tween_running(t) {
 }
 
 /// Godot's `get_window()`: its content scale is the UI's global scale, and
-/// its size the screen in design pixels.
+/// its size the window's own pixels.
 pub fn window() {
-    let (w, h) = ui::screen_size();
-    #{ "content_scale_factor": ui::scale(), "size": vec2(w, h) }
+    #{ "content_scale_factor": ui::scale(), "size": window_pixels() }
+}
+
+/// The window in its own pixels, which Godot's root viewport and window
+/// measure in: the design size times the UI's scale.
+fn window_pixels() {
+    let (w, h) = ui::window_size();
+    let by = ui::scale();
+    vec2(w * by, h * by)
 }
 
 /// Hearing another node's event. A `from` that is not a node is nothing to
 /// subscribe to, and saying so beats an error inside the engine.
 pub fn listen(node, name, from, handler) {
     if from is balaur::Node {
-        events::subscribe(node, name, from);
+        events::listen(node, name, from);
         return ();
     }
     if from is Object && !is_nil(handler) {
@@ -856,11 +995,23 @@ pub fn emit_now(emitter, name, args) {
 /// waits under the root, hidden, until it is added again or freed.
 pub fn remove_child(child) {
     if child is balaur::Node && child.is_valid() && !child.has_tag(REMOVED) {
-        child.set_parent(scene::root());
+        move_keeping_local(child, scene::root());
         child.add_tag(REMOVED);
         child.set_visible(false);
     }
 }
+
+/// A node moved under `parent` as Godot moves one: its own transform is
+/// kept, where the engine's `set_parent` keeps where it is in the world.
+fn move_keeping_local(child, parent) {
+    let local = if child.has_component(TRANSFORM) { child.get_component(TRANSFORM) } else { () };
+    child.set_parent(parent);
+    if local is Object {
+        child.patch_component(TRANSFORM, local);
+    }
+}
+
+const TRANSFORM = "transform";
 
 /// Marks a node `remove_child` hid, so adding it back shows it again.
 const REMOVED = "__removed";
@@ -893,17 +1044,46 @@ pub fn emit_engine(emitter, name, args) {
     emit_obj(emitter, name, args)
 }
 
-/// The widget key holding the handler for a Godot control signal.
+/// The widget key holding the handler for a Godot control signal: the
+/// translator's `WIDGET_SIGNALS`, which a test holds this copy to.
 fn widget_handler_key(name) {
     match name {
         "pressed" => "on_click",
         "button_up" => "on_click",
         "toggled" => "on_change",
-        "text_changed" => "on_change",
         "value_changed" => "on_change",
+        "text_changed" => "on_change",
         "item_selected" => "on_change",
+        "color_changed" => "on_change",
+        "tab_changed" => "on_change",
+        "tab_selected" => "on_change",
+        "folding_changed" => "on_change",
+        "close_requested" => "on_change",
         "text_submitted" => "on_submit",
+        "focus_entered" => "on_focus",
         _ => (),
+    }
+}
+
+/// The event the engine sends for a Godot signal, where it names it its own
+/// way: the translator's `ENGINE_EVENTS`, which a test holds this copy to.
+fn engine_event(name) {
+    match name {
+        "body_entered" => "collision_enter",
+        "area_entered" => "collision_enter",
+        "body_exited" => "collision_exit",
+        "area_exited" => "collision_exit",
+        "mouse_entered" => "pointer_enter",
+        "mouse_exited" => "pointer_exit",
+        "focus_exited" => "blur",
+        "child_entered_tree" => "child_added",
+        "child_exiting_tree" => "child_removed",
+        "sleeping_state_changed" => "sleeping_changed",
+        "screen_entered" => "screen_enter",
+        "screen_exited" => "screen_exit",
+        "about_to_popup" => "opened",
+        "popup_hide" => "closed",
+        _ => name,
     }
 }
 
@@ -913,6 +1093,7 @@ const LISTENERS = "__listeners";
 /// A Godot `Callable` over a class table: the object and the method name.
 const BOUND_OWNER = "__bound";
 const BOUND_METHOD = "__method";
+const BOUND_ARGS = "__args";
 const CALL_KEY = "__call";
 const CALL_TAKES = "__takes";
 
@@ -928,7 +1109,7 @@ pub fn emit_obj(owner, name, args) {
 
 pub fn unlisten(node, name, from) {
     if from is balaur::Node {
-        events::unsubscribe(node, name, from);
+        events::stop_listening(node, name, from);
     }
 }
 
@@ -939,8 +1120,8 @@ pub fn size_of(node) {
         return vec_of(field(node, "size"));
     }
     let drawn = ui::widget_rect(node);
-    if drawn is Object && drawn.contains_key("w") {
-        return vec2(float(drawn["w"]), float(drawn["h"]));
+    if drawn is Object && drawn.contains_key("width") {
+        return vec2(float(drawn["width"]), float(drawn["height"]));
     }
     vec2(0.0, 0.0)
 }
@@ -957,10 +1138,14 @@ fn node_property(node, name) {
         "global_position" => global_position_of(node),
         "scale" => vec_of(node.transform.scale),
         "rotation" => rotation_of(node),
-        "rotation_degrees" => math::deg(rotation_of(node)),
+        "rotation_degrees" => math::to_degrees(rotation_of(node)),
+        "size" if node.stable_id() == scene::root().stable_id() => window_pixels(),
         "size" => size_of(node),
         "visible" => node.visible(),
         "modulate" => node.tint(),
+        "points" if is_line(node) => line_points(node),
+        "width" if is_line(node) => float(node.get_component(SHAPE2D)["width"]) * PIXELS,
+        "default_color" if is_line(node) => node.get_component(SHAPE2D)["color"],
         "self_modulate" => node.tint(),
         "z_index" => node.z_index(),
         "name" => node.name(),
@@ -970,11 +1155,16 @@ fn node_property(node, name) {
         // Kept beside the node: the engine has no fold groups, and a material
         // a script built is a record it never draws with.
         "foldable_group" => get_meta(node, "foldable_group", ()),
+        "folded" if node.has_component("widget") => folded(node),
         "material" => get_meta(node, "material", ()),
         "multimesh" => get_meta(node, "multimesh", ()),
-        "speed_scale" if node.has_component("animation") => float(get(node.get_component("animation"), "speed", 1.0)),
+        "speed_scale" if node.has_component("animation") => float(get(node.get_component("animation"), SPEED_SCALE, 1.0)),
+        "amount" if node.has_component(PARTICLES) => particle_amount(node),
+        "lifetime" if node.has_component(PARTICLES) => get(node.get_component(PARTICLES), name, ()),
+        "emitting" if node.has_component(PARTICLES) => get(node.get_component(PARTICLES), name, ()),
+        "one_shot" if node.has_component(PARTICLES) => get(node.get_component(PARTICLES), name, ()),
         "current_animation" if node.has_component("animation") => {
-            let current = node.animation.current();
+            let current = node.animation.current_clip();
             if is_nil(current) { "" } else { current }
         }
         _ => (),
@@ -1031,6 +1221,9 @@ pub fn theme_font_size(node, name) {
 /// Godot's `add_theme_*_override`: the widget key that carries the item, or
 /// nothing where the widget has none.
 pub fn theme_override(node, group, name, value) {
+    if node is balaur::Node && node.has_component(TEXT2D) {
+        return world_text_override(node, group, name, value);
+    }
     if !(node is balaur::Node) || !node.has_component("widget") {
         return ();
     }
@@ -1055,6 +1248,20 @@ pub fn theme_override(node, group, name, value) {
     node.patch_component("widget", patch);
 }
 
+/// A label in the world takes a theme override on its `text2d`.
+fn world_text_override(node, group, name, value) {
+    let key = match (group, name) {
+        ("colors", "font_color") => "color",
+        ("colors", "font_outline_color") => "outline_color",
+        ("font_sizes", "font_size") => "font_size",
+        ("constants", "outline_size") => "outline_size",
+        _ => return (),
+    };
+    let patch = #{};
+    patch[key] = if group == "colors" { color_list(value) } else { float(value) };
+    node.patch_component(TEXT2D, patch);
+}
+
 /// A copy of a node and everything under it, placed under `parent`: each
 /// component's table patched onto a fresh node of the same name.
 pub fn clone_node(node, parent) {
@@ -1077,7 +1284,7 @@ fn camera_zoom(node) {
     if !node.has_component("camera2d") {
         return ();
     }
-    let zoom = float(get(node.get_component("camera2d"), "zoom", PIXELS)) / PIXELS;
+    let zoom = float(get(node.get_component("camera2d"), "pixels_per_unit", PIXELS)) / PIXELS;
     vec2(zoom, zoom)
 }
 
@@ -1092,7 +1299,7 @@ fn set_node_property(node, name, value) {
     } else if name == "rotation" {
         set_rotation(node, value);
     } else if name == "rotation_degrees" {
-        set_rotation(node, math::rad(value));
+        set_rotation(node, math::to_radians(value));
     } else if name == "visible" {
         node.set_visible(value);
     } else if name == "modulate" || name == "self_modulate" {
@@ -1104,11 +1311,29 @@ fn set_node_property(node, name, value) {
     } else if name == "selected" && node.has_component("widget") {
         option_select(node, value);
     } else if name == "zoom" && node.has_component("camera2d") {
-        node.patch_component("camera2d", #{ "zoom": float(value.x) * PIXELS });
+        node.patch_component("camera2d", #{ "pixels_per_unit": float(value.x) * PIXELS });
+    } else if name == "folded" && node.has_component("widget") {
+        let patch = #{};
+        patch[FOLD_OPEN] = !value;
+        node.patch_component("widget", patch);
     } else if name == "foldable_group" || name == "material" {
         set_meta(node, name, value);
+    } else if name == "points" && is_line(node) {
+        set_line_points(node, value);
+    } else if (name == "width" || name == "default_color") && is_line(node) {
+        let patch = #{};
+        if name == "width" {
+            patch["width"] = float(value) / PIXELS;
+        } else {
+            patch["color"] = value;
+        }
+        node.patch_component(SHAPE2D, patch);
     } else if name == "speed_scale" && node.has_component("animation") {
-        node.patch_component("animation", #{ "speed": float(value) });
+        let patch = #{};
+        patch[SPEED_SCALE] = float(value);
+        node.patch_component("animation", patch);
+    } else if node.has_component(PARTICLES) && ["amount", "lifetime", "emitting", "one_shot"].iter().any(|n| n == name) {
+        set_particles(node, name, value);
     } else if name == "multimesh" && value is Object && value.contains_key("__multimesh") {
         multimesh_attach(value, node);
         set_meta(node, name, value);
@@ -1120,13 +1345,45 @@ fn set_node_property(node, name, value) {
     true
 }
 
+const PARTICLES = "particles";
+/// The animation playback rate, as `animation` spells it.
+const SPEED_SCALE = "speed_scale";
+const RATE = "rate";
+const LIFETIME = "lifetime";
+
+/// Godot's particle count: the engine's `rate` over one `lifetime`.
+fn particle_amount(node) {
+    let particles = node.get_component(PARTICLES);
+    let born = float(particles[RATE]) * float(particles[LIFETIME]);
+    return int(math::round(born));
+}
+
+/// A particle property written in Godot's terms: a count is a rate over the
+/// lifetime, and a new lifetime keeps the count. The engine holds a lifetime
+/// above zero, so neither division needs a guard.
+fn set_particles(node, name, value) {
+    let particles = node.get_component(PARTICLES);
+    let lifetime = float(particles[LIFETIME]);
+    let patch = #{};
+    if name == "amount" {
+        patch[RATE] = float(value) / lifetime;
+    } else if name == LIFETIME {
+        let count = float(particles[RATE]) * lifetime;
+        patch[LIFETIME] = float(value);
+        patch[RATE] = count / float(value);
+    } else {
+        patch[name] = value;
+    }
+    node.patch_component(PARTICLES, patch);
+}
+
 /// The `collider2d` keys a shape record describes, in units.
 fn collider_of(shape) {
     if shape["__shape"] == "circle" {
         return #{ "kind": "circle", "radius": float(shape["radius"]) / PIXELS };
     }
     let size = vec_of(shape["size"]);
-    #{ "kind": "rect", "half_extents": [size.x / PIXELS / 2.0, size.y / PIXELS / 2.0] }
+    #{ "kind": "rectangle", "size": [size.x / PIXELS, size.y / PIXELS] }
 }
 
 /// The method a call with `count` arguments reaches: `name__1` stands in
@@ -1266,14 +1523,55 @@ pub fn load(path) {
     if rest.ends_with(".csv") {
         return csv_resource(rest);
     }
-    if rest.ends_with(".tscn") {
-        // Bound first: a template straight after `return` is not an
-        // expression Rune's parser will take.
-        let stem = rest[..rest.len() - 5];
-        let out = `${stem}.toml`;
-        return out;
+    if rest.ends_with(SCENE_SUFFIX) {
+        return converted_scene(rest);
+    }
+    if rest.ends_with(SVG_SUFFIX) {
+        return raster_of(rest);
     }
     rest
+}
+
+const SCENE_SUFFIX = ".tscn";
+const SVG_SUFFIX = ".svg";
+
+/// The picture the import wrote beside an SVG, which Godot drew from the
+/// raster it kept; the SVG itself where there is none.
+fn raster_of(path) {
+    let stem = path[..path.len() - SVG_SUFFIX.len()];
+    for extension in ["webp", "png"] {
+        let raster = `${stem}.${extension}`;
+        if fs::exists(raster) {
+            return raster;
+        }
+    }
+    return path;
+}
+
+/// The scene the import wrote for a Godot scene path: the `.toml` beside it.
+fn converted_scene(path) {
+    let stem = path[..path.len() - SCENE_SUFFIX.len()];
+    // Bound first: a template straight after `return` does not parse.
+    let scene = `${stem}.toml`;
+    return scene;
+}
+
+/// Godot's `ResourceLoader.exists`: whether the file the import wrote for a
+/// resource is there, a scene's `.toml` or a resource's module.
+pub fn resource_exists(path) {
+    if !(path is String) {
+        return false;
+    }
+    let rest = project_path(path);
+    if rest.ends_with(SCENE_SUFFIX) {
+        return fs::exists(converted_scene(rest));
+    }
+    if rest.ends_with(".tres") {
+        let module = `${rest}.rn`;
+        let found = fs::exists(module) || fs::exists(rest);
+        return found;
+    }
+    fs::exists(rest)
 }
 
 /// `create_timer(t)`: its `timeout` is what a script awaits or connects.
@@ -1290,14 +1588,9 @@ pub async fn wait_signal(owner, name) {
         return ();
     }
     if owner is balaur::Node {
-        let event = name;
-        if name == "pressed" || name == "button_up" {
-            event = "click";
-        } else if ["toggled", "value_changed", "text_changed", "item_selected"].iter().any(|n| n == name) {
-            event = "change";
-        } else if name == "text_submitted" {
-            event = "submit";
-        }
+        // A widget's key is `on_` and the event it emits.
+        let key = widget_handler_key(name);
+        let event = if key is String { key[3..] } else { engine_event(name) };
         let payload = task::wait(events::next(event, owner)).await;
         return payload;
     }
@@ -1387,6 +1680,12 @@ fn node_method(node, name, args) {
             return out;
         }
     }
+    if is_line(node) {
+        let out = line_method(node, name, args);
+        if out != NOT_A_LINE_VERB {
+            return out;
+        }
+    }
     if name == "to_global" {
         return global_transform(node) * vec_of(a0);
     }
@@ -1420,9 +1719,12 @@ fn node_method(node, name, args) {
         return node.get_node(a0);
     }
     if name == "is_visible_in_tree" {
-        return node.global_visible();
+        return node.visible_in_tree();
     }
-    if name == "is_inside_tree" || name == "is_node_ready" {
+    if name == "is_inside_tree" {
+        return inside_tree(node);
+    }
+    if name == "is_node_ready" {
         return node.is_valid();
     }
     if name == "queue_free" {
@@ -1506,7 +1808,9 @@ fn player_method(node, name, args) {
     let player = node.animation;
     if name == "play" && count > 0 && a0 != "" {
         let speed = if count > 2 { float(args[2]) } else { 1.0 };
-        player.play(a0, #{ "speed": speed, "from_start": true });
+        let options = #{ "from_start": true };
+        options[SPEED_SCALE] = speed;
+        player.play(a0, options);
         return ();
     }
     if name == "play" || name == "resume" {
@@ -1539,7 +1843,7 @@ fn player_method(node, name, args) {
         return has_clip(node, a0);
     }
     if name == "get_current_animation" || name == "get_assigned_animation" {
-        let current = player.current();
+        let current = player.current_clip();
         let name = if is_nil(current) { "" } else { current };
         return name;
     }
@@ -1547,6 +1851,100 @@ fn player_method(node, name, args) {
 }
 
 const NOT_A_PLAYER_VERB = "__not_a_player_verb";
+
+const SHAPE2D = "shape2d";
+const POLYLINE = "polyline";
+
+/// Whether a node is a Godot `Line2D`, which converts to a `shape2d` polyline.
+fn is_line(node) {
+    node.has_component(SHAPE2D) && get(node.get_component(SHAPE2D), "kind", "") == POLYLINE
+}
+
+/// A `Line2D`'s points in Godot's pixels, y down: the anchors of the `path2d`
+/// the polyline strokes, every third control point.
+fn line_points(node) {
+    let out = [];
+    let reference = get(node.get_component(SHAPE2D), "mesh", "");
+    if !(reference is String) || reference == "" {
+        return out;
+    }
+    let (ok, path) = script::attempt(|| assets::load(reference));
+    if !ok {
+        return out;
+    }
+    let controls = get(path, "points", []);
+    let at = 0;
+    while at < controls.len() {
+        let p = controls[at];
+        out.push(vec2(float(p[0]) * PIXELS, -float(p[1]) * PIXELS));
+        at += if controls.len() == 2 { 1 } else { 3 };
+    }
+    return out;
+}
+
+/// Godot's points written back as a `path2d` of straight segments, in units
+/// with y up; fewer than two draw nothing.
+fn set_line_points(node, points) {
+    let anchors = [];
+    for p in points {
+        let at = vec_of(p);
+        anchors.push([at.x / PIXELS, -at.y / PIXELS]);
+    }
+    if anchors.len() < 2 {
+        node.patch_component(SHAPE2D, #{ "mesh": "" });
+        return;
+    }
+    let controls = [anchors[0]];
+    let index = 1;
+    while index < anchors.len() {
+        controls.push(anchors[index - 1]);
+        controls.push(anchors[index]);
+        controls.push(anchors[index]);
+        index += 1;
+    }
+    node.patch_component(SHAPE2D, #{ "mesh": #{ "type": "path2d", "points": controls } });
+}
+
+/// Godot's `Line2D` point verbs over the polyline's points, or
+/// `NOT_A_LINE_VERB` for any other name.
+fn line_method(node, name, args) {
+    let count = args.len();
+    let a0 = if count > 0 { args[0] } else { () };
+    let points = line_points(node);
+    if name == "get_point_count" {
+        return points.len();
+    }
+    if name == "get_point_position" {
+        return points[int(a0)];
+    }
+    if name == "clear_points" {
+        set_line_points(node, []);
+        return ();
+    }
+    if name == "add_point" {
+        let at = if count > 1 { int(args[1]) } else { -1 };
+        if at < 0 || at >= points.len() {
+            points.push(vec_of(a0));
+        } else {
+            points.insert(at, vec_of(a0));
+        }
+        set_line_points(node, points);
+        return ();
+    }
+    if name == "set_point_position" {
+        points[int(a0)] = vec_of(args[1]);
+        set_line_points(node, points);
+        return ();
+    }
+    if name == "remove_point" {
+        points.remove(int(a0));
+        set_line_points(node, points);
+        return ();
+    }
+    NOT_A_LINE_VERB
+}
+
+const NOT_A_LINE_VERB = "__not_a_line_verb";
 
 /// Whether the node's clip library holds a clip of that name.
 fn has_clip(node, name) {
@@ -1563,6 +1961,45 @@ fn option_items(node) {
     let items = get(node.get_component("widget"), "options", ());
     if items is Vec { items } else { [] }
 }
+
+/// A button's `icon`: the picture its widget draws, nil for none.
+pub fn icon_of(node) {
+    let image = get(node.get_component("widget"), WIDGET_IMAGE, "");
+    if image == "" { () } else { image }
+}
+
+/// `icon = texture`: the picture the widget draws before its caption, or
+/// none for nil.
+pub fn set_icon(node, texture) {
+    let image = if texture is String { texture } else { "" };
+    let patch = #{};
+    patch[WIDGET_IMAGE] = image;
+    node.patch_component("widget", patch);
+}
+
+const WIDGET_IMAGE = "image";
+
+/// A caption: a world label's `text2d`, or the widget's.
+pub fn text_of(node) {
+    if node is balaur::Node && node.has_component(TEXT2D) {
+        return get(node.get_component(TEXT2D), "text", "");
+    }
+    if node is balaur::Node {
+        return get(node.get_component("widget"), "text", ());
+    }
+    field(node, "text")
+}
+
+/// `text = value` on a world label or a widget.
+pub fn set_text(node, value) {
+    if !(node is balaur::Node) {
+        return set_field(node, "text", value);
+    }
+    let component = if node.has_component(TEXT2D) { TEXT2D } else { "widget" };
+    node.patch_component(component, #{ "text": value });
+}
+
+const TEXT2D = "text2d";
 
 /// `item_count`.
 pub fn option_count(node) {
@@ -1583,7 +2020,7 @@ pub fn option_index(node) {
         }
         index += 1;
     }
-    -1
+    return -1;
 }
 
 /// `selected = i` and `select(i)`.
@@ -1610,7 +2047,7 @@ fn path_parts(path) {
 /// A control's rect where the layer last drew it, relative to `origin`'s.
 fn drawn_rect(node, origin) {
     let drawn = ui::widget_rect(node);
-    if !(drawn is Object && drawn.contains_key("w")) {
+    if !(drawn is Object && drawn.contains_key("width")) {
         return rect(0.0, 0.0, 0.0, 0.0);
     }
     let x = float(drawn["x"]);
@@ -1622,7 +2059,7 @@ fn drawn_rect(node, origin) {
             y -= float(base["y"]);
         }
     }
-    rect(x, y, float(drawn["w"]), float(drawn["h"]))
+    rect(x, y, float(drawn["width"]), float(drawn["height"]))
 }
 
 /// Godot's `Array` methods that are not collection verbs of the shim's own.
@@ -1684,12 +2121,12 @@ fn array_method(list, name, args) {
         if list.len() == 0 {
             return ();
         }
-        return list[rng::int(0, list.len() as i64 - 1)];
+        return list[random::int(0, list.len() as i64 - 1)];
     }
     if name == "shuffle" {
         let at = list.len() as i64 - 1;
         while at > 0 {
-            let other = rng::int(0, at);
+            let other = random::int(0, at);
             let held = list[at];
             list[at] = list[other];
             list[other] = held;
@@ -1827,6 +2264,8 @@ fn native(owner, name, args) {
             "angle_to_point" => (a0 - owner).to_angle(),
             "rotated" => owner.rotate_angle(float(a0)),
             "abs" => owner.abs(),
+            "max" => owner.max(a0),
+            "min" => owner.min(a0),
             "floor" => owner.floor(),
             "ceil" => owner.ceil(),
             "round" => owner.round(),
@@ -2060,7 +2499,15 @@ pub fn call_value(target, args) {
         return spread(target[CALL_KEY], fitted);
     }
     if target is Object && target.contains_key(BOUND_OWNER) {
-        return invoke_many(target[BOUND_OWNER], target[BOUND_METHOD], args);
+        // What `bind` fixed comes after what the signal carried, as in Godot.
+        let all = [];
+        for item in args {
+            all.push(item);
+        }
+        for item in get(target, BOUND_ARGS, []) {
+            all.push(item);
+        }
+        return invoke_many(target[BOUND_OWNER], target[BOUND_METHOD], all);
     }
     if is_nil(target) || args.len() == 0 {
         return ();
@@ -2272,7 +2719,9 @@ pub fn set_field(owner, name, value) {
             return ();
         }
         if name == TREE_ACTIVE && owner.has_component(STATE_MACHINE) {
-            return owner.state_machine.patch(#{ "active": value });
+            let patch = #{};
+            patch[MACHINE_ENABLED] = value;
+            return owner.state_machine.patch(patch);
         }
         return ();
     }
@@ -2484,21 +2933,39 @@ fn typed_code() {
     }
 }
 
-/// A key hook's event: Godot's `InputEventKey`. A key is named as the
-/// engine names it, which `KEY_*` spells the same way.
+/// A modifier as Godot codes it, one code for either side; any other key as
+/// the engine names it, which a translated `KEY_*` holds too.
+fn godot_key(key) {
+    if key == input::KEY_LEFT_SHIFT || key == input::KEY_RIGHT_SHIFT {
+        return input::KEY_SHIFT;
+    }
+    if key == input::KEY_LEFT_CONTROL || key == input::KEY_RIGHT_CONTROL {
+        return input::KEY_CONTROL;
+    }
+    if key == input::KEY_LEFT_ALT || key == input::KEY_RIGHT_ALT {
+        return input::KEY_ALT;
+    }
+    if key == input::KEY_LEFT_META || key == input::KEY_RIGHT_META {
+        return input::KEY_META;
+    }
+    return key;
+}
+
+/// A key hook's event: Godot's `InputEventKey`.
 pub fn key_event(key, pressed) {
+    let code = godot_key(key);
     let event = #{
         "__event": "InputEventKey",
-        "keycode": key,
-        "physical_keycode": key,
-        "key_label": key,
+        "keycode": code,
+        "physical_keycode": code,
+        "key_label": code,
         "pressed": pressed,
         "echo": false,
         "unicode": typed_code(),
-        "shift_pressed": false,
-        "ctrl_pressed": false,
-        "alt_pressed": false,
-        "meta_pressed": false,
+        "shift_pressed": input::key_down(input::KEY_SHIFT),
+        "ctrl_pressed": input::key_down(input::KEY_CONTROL),
+        "alt_pressed": input::key_down(input::KEY_ALT),
+        "meta_pressed": input::key_down(input::KEY_META),
     };
     event_verbs(event);
     return event;

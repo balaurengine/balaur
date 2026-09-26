@@ -6,9 +6,10 @@
 use balaur_core::components::ComponentRegistry;
 use balaur_core::{App, AppConfig};
 use balaur_physics::{
-    AXES, AXES_2D, BODY_KINDS, COLLISION_PAIRS, COMBINE_RULES, CONSTANTS_2D, CONSTANTS_3D, EVENTS,
-    FILL_MODES, FIT_MODES, JOINT_KINDS, JOINT_KINDS_2D, JOINT_SOLVERS, LENGTH_MODES, MOTOR_MODELS,
-    MOTOR_MODES, PhysicsPlugin, SHAPE_KINDS, SHAPE_KINDS_2D,
+    AXES, AXES_2D, BODY_KINDS, CELL_MODELS, COLLISION_PAIRS, COMBINE_RULES, CONSTANTS_2D,
+    CONSTANTS_3D, EVENTS, FILL_MODES, FIT_MODES, JOINT_KINDS, JOINT_KINDS_2D, LENGTH_MODES,
+    MOTOR_MODELS, MOTOR_MODES, PLASTIC_FLOWS, PhysicsPlugin, SHAPE_KINDS, SHAPE_KINDS_2D,
+    SOFT_KINDS, SOFT_KINDS_2D, SOFT_SOLVERS,
 };
 
 /// The enum or flags options a registered component actually declares.
@@ -65,7 +66,6 @@ fn every_constant_table_matches_the_registered_schema() {
         ("MOTOR_MODES", MOTOR_MODES, "joint3d", "motor"),
         ("MOTOR_MODES", MOTOR_MODES, "joint2d", "motor"),
         ("MOTOR_MODELS", MOTOR_MODELS, "joint3d", "motor_model"),
-        ("JOINT_SOLVERS", JOINT_SOLVERS, "joint2d", "solver"),
         ("LENGTH_MODES", LENGTH_MODES, "character3d", "lengths"),
         ("LENGTH_MODES", LENGTH_MODES, "character2d", "lengths"),
         ("FILL_MODES", FILL_MODES, "collider3d", "fill"),
@@ -75,10 +75,21 @@ fn every_constant_table_matches_the_registered_schema() {
             "COLLISION_PAIRS",
             COLLISION_PAIRS,
             "collider2d",
-            "active_collisions",
+            "contact_pairs",
         ),
-        ("AXES", AXES, "joint3d", "locked_axes"),
-        ("AXES_2D", AXES_2D, "joint2d", "locked_axes"),
+        ("AXES", AXES, "joint3d", "lock_rotation"),
+        ("AXES_2D", AXES_2D, "joint2d", "lock_translation"),
+        ("SOFT_KINDS", SOFT_KINDS, "softbody3d", "kind"),
+        ("SOFT_KINDS_2D", SOFT_KINDS_2D, "softbody2d", "kind"),
+        ("SOFT_SOLVERS", SOFT_SOLVERS, "softbody3d", "solver"),
+        ("SOFT_SOLVERS", SOFT_SOLVERS, "softbody2d", "solver"),
+        ("CELL_MODELS", CELL_MODELS, "softbody3d", "cell_model"),
+        (
+            "PLASTIC_FLOWS",
+            PLASTIC_FLOWS,
+            "softbody2d",
+            "edge_plastic_flow",
+        ),
     ];
     for (table_name, table, component, field) in tables {
         let declared: Vec<&str> = table.iter().map(|(_, v)| *v).collect();
@@ -108,7 +119,7 @@ fn every_constant_is_screaming_snake_and_unique_in_its_world() {
 
 /// A name both worlds spell means the same thing in each: `SHAPE_CAPSULE` is
 /// a capsule in 2D and 3D alike, and a name that is not, such as
-/// `SHAPE_BALL`, exists in one world only.
+/// `SHAPE_SPHERE`, exists in one world only.
 #[test]
 fn a_name_the_two_worlds_share_has_one_meaning() {
     let three: std::collections::BTreeMap<&str, &str> = CONSTANTS_3D

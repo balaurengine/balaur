@@ -71,6 +71,41 @@ macro_rules! functions {
 
         /// `joints` in the order both runs of a session agree on. A joint on a node
         /// with no id is refused, loudly: nothing could order it the same way twice.
+        /// What a joint giving way says: the body at each end and the
+        /// force it broke at, read before the joint is removed.
+        pub(crate) fn break_payload(state: &$State, entity: Entity) -> balaur_script::Value {
+            use balaur_script::Value;
+            let mut out: Vec<(String, Value)> = Vec::new();
+            let joint = state
+                .joints
+                .get(&entity)
+                .and_then(|reference| match reference.handle {
+                    $Handle::Impulse(handle) => state.world.impulse_joints.get(handle),
+                    $Handle::Multibody(_) => None,
+                });
+            if let Some(joint) = joint {
+                let owner = |body| {
+                    state
+                        .bodies
+                        .iter()
+                        .find(|(_, handle)| **handle == body)
+                        .map(|(e, _)| Value::Node(e.to_bits().get()))
+                };
+                if let Some(a) = owner(joint.body1()) {
+                    out.push((k::A.into(), a));
+                }
+                if let Some(b) = owner(joint.body2()) {
+                    out.push((k::B.into(), b));
+                }
+                let force = $impulse(&joint.impulses);
+                out.push((
+                    k::FORCE.into(),
+                    Value::Num(f64::from(crate::scalar::f32_of(force))),
+                ));
+            }
+            Value::Map(out.into_iter().map(|(key, v)| (key.into(), v)).collect())
+        }
+
         fn in_id_order(
             world: &balaur_core::hecs::World,
             joints: Vec<Entity>,
@@ -129,7 +164,7 @@ macro_rules! functions {
                         .and_then(toml::Value::as_str)
                         .map(str::to_string)
                 })
-                .unwrap_or_else(|| crate::vocabulary::words::REVOLUTE.to_string());
+                .unwrap_or_else(|| crate::vocabulary::words::HINGE.to_string());
             let state = eng.resource::<$State>();
             let mut state = state.borrow_mut();
             match state.joints.get(&entity).map(|j| j.handle) {

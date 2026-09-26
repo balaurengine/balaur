@@ -4,7 +4,7 @@
 name = "Studio"
 
 [nodes.environment]
-ambient = "#1c2026"
+ambient_color = "#1c2026"
 tonemap = "neutral"
 exposure = 1.0
 
@@ -20,9 +20,9 @@ rotation_euler = [-0.7854, 0.69813, 0]
 kind = "spot"
 color = "#fff4e6"
 intensity = 8
-radius = 40
-inner = 25
-outer = 50
+range = 40
+inner_angle_degrees = 25
+outer_angle_degrees = 50
 
 [[nodes]]
 name = "Fill"
@@ -36,8 +36,8 @@ rotation_euler = [-0.43633, -0.87266, 0]
 kind = "point"
 color = "#dce8ff"
 intensity = 2.5
-radius = 25
-shadows = false
+range = 25
+shadow_enabled = false
 
 [[nodes]]
 name = "Rim"
@@ -51,4 +51,4 @@ rotation_euler = [-0.43633, 3.14159, 0]
 kind = "directional"
 color = "#ffffff"
 intensity = 2
-shadows = false
+shadow_enabled = false

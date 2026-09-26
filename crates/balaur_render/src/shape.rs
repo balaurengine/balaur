@@ -17,15 +17,18 @@ use crate::{
 
 pub(crate) fn install_shape_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("set_ball", &["shape3d"], "", "Draw the node as a sphere of the given radius in world units, replacing any other 3D shape."),
-        ("set_cuboid", &["shape3d"], "", "Draw the node as a box from its three half-extents, in world units, replacing any other 3D shape."),
-        ("set_rect", &["shape2d"], "", "Draw the node as a rectangle from its two half-extents, in world units, replacing any other 2D shape."),
+        ("set_sphere", &["shape3d"], "", "Draw the node as a sphere of the given radius in world units, replacing any other 3D shape."),
+        ("set_box", &["shape3d"], "", "Draw the node as a box from its three half-extents, in world units, replacing any other 3D shape."),
+        ("set_rectangle", &["shape2d"], "", "Draw the node as a rectangle from its two half-extents, in world units, replacing any other 2D shape."),
     ]);
-    m.function("set_ball", |eng: &Engine, (node, radius): (NodeId, f32)| {
-        set_shape(eng, entity_of(node)?, Shape3d::Solid(Solid::ball(radius)))
-    });
     m.function(
-        "set_cuboid",
+        "set_sphere",
+        |eng: &Engine, (node, radius): (NodeId, f32)| {
+            set_shape(eng, entity_of(node)?, Shape3d::Solid(Solid::ball(radius)))
+        },
+    );
+    m.function(
+        "set_box",
         |eng: &Engine, (node, hx, hy, hz): (NodeId, f32, f32, f32)| {
             set_shape(
                 eng,
@@ -35,7 +38,7 @@ pub(crate) fn install_shape_api(m: &mut dyn Bindings<Engine>) {
         },
     );
     m.function(
-        "set_rect",
+        "set_rectangle",
         |eng: &Engine, (node, hx, hy): (NodeId, f32, f32)| {
             set_shape2d(eng, entity_of(node)?, Shape2d::Flat(Flat::rect(hx, hy)))
         },
@@ -61,24 +64,26 @@ pub(crate) fn register_shape_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "shape3d",
         ComponentDef {
-            doc: "An untextured 3D primitive at the node, tinted by `color`. `kind` is `ball`, `cuboid`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`.",
+            events: &[],
+            warnings: None,
+            doc: "An untextured 3D primitive at the node, tinted by `color`. `kind` is `sphere`, `box`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`.",
             schema: ComponentDef::parse_schema(
                 "shape3d",
                 &balaur_core::components::ComponentDef::schema(&[
-                    (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Rendered 3D shape" }}"#, words::CUBOID, options(words::SHAPES))),
-                    (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Radius, for every kind but cuboid, plane and pyramid" }"#),
-                    (k::HEIGHT, r#"{ type = "float", default = 1.0, min = 0.01, description = "Length along y, for capsule, cylinder, cone, prism and tube" }"#),
-                    (k::HALF_EXTENTS, r#"{ type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes, when kind is cuboid, plane or pyramid" }"#),
+                    (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Rendered 3D shape" }}"#, words::BOX, options(words::SHAPES))),
+                    (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Radius, for every kind but box, plane and pyramid" }"#),
+                    (k::HEIGHT, r#"{ type = "float", default = 2.0, min = 0.01, description = "Length along y, tip to tip, for capsule, cylinder, cone, prism and tube" }"#),
+                    (k::SIZE, r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Whole size along each axis, when kind is box, plane or pyramid" }"#),
                     (k::TUBE_RADIUS, r#"{ type = "float", default = 0.2, min = 0.01, description = "Thickness of the ring, when kind is torus" }"#),
                     (k::INNER_RADIUS, r#"{ type = "float", default = 0.25, min = 0.01, description = "Radius of the hole, when kind is tube" }"#),
-                    (k::CORNER_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "How far the edges are rounded off, when kind is cuboid; zero is a square edge" }"#),
+                    (k::CORNER_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "How far the edges are rounded off, when kind is box; zero is a square edge" }"#),
                     (k::SEGMENTS, r#"{ type = "int", default = 32, min = 3, description = "Cuts around the axis, or across a plane" }"#),
                     (k::RINGS, r#"{ type = "int", default = 16, min = 3, description = "Cuts along the axis, for ball, capsule and torus" }"#),
                     (k::SIDES, r#"{ type = "int", default = 4, min = 3, description = "Flat faces, when kind is pyramid or prism" }"#),
                     (k::COLOR, r#"{ type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#),
                     (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
-                    (k::SHADOWS, r#"{ type = "bool", default = true, description = "Whether this casts a shadow from the lights that cast" }"#),
-                    (k::LAYERS, r#"{ type = "int", default = -1, description = "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer" }"#),
+                    (k::CAST_SHADOW, r#"{ type = "bool", default = true, description = "Whether this casts a shadow from the lights that cast" }"#),
+                    (k::LIGHT_LAYERS, r#"{ type = "int", default = -1, description = "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer" }"#),
                 ]),
             ),
             tags: &[words::PERSPECTIVE, "render"],
@@ -111,9 +116,9 @@ pub(crate) fn register_shape_component(reg: &mut Registry<'_>) {
                         "material".into(),
                         toml::Value::String(renderable.material.clone()),
                     );
-                    map.insert(k::SHADOWS.into(), toml::Value::Boolean(renderable.shadows));
+                    map.insert(k::CAST_SHADOW.into(), toml::Value::Boolean(renderable.shadows));
                     map.insert(
-                        k::LAYERS.into(),
+                        k::LIGHT_LAYERS.into(),
                         toml::Value::Integer(i64::from(renderable.layers.cast_signed())),
                     );
                 }
@@ -210,13 +215,15 @@ pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "shape2d",
         ComponentDef {
-            doc: "An untextured 2D primitive at the node. `kind` is `circle`, `rect`, `capsule`, `ellipse`, `star`, `ngon` or `polyline`; a `polyline` follows a `mesh` or `path2d` asset.",
+            events: &[],
+            warnings: None,
+            doc: "An untextured 2D primitive at the node. `kind` is `circle`, `rectangle`, `capsule`, `ellipse`, `star`, `ngon` or `polyline`; a `polyline` follows a `mesh` or `path2d` asset.",
             schema: ComponentDef::parse_schema(
                 "shape2d",
                 &balaur_core::components::ComponentDef::schema(&[
-                    (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Rendered 2D shape" }}"#, words::RECT, options(&words::shapes_2d()))),
+                    (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Rendered 2D shape" }}"#, words::RECTANGLE, options(&words::shapes_2d()))),
                     (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Radius, when kind is circle, capsule, star or ngon" }"#),
-                    (k::HEIGHT, r#"{ type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, when kind is capsule" }"#),
+                    (k::HEIGHT, r#"{ type = "float", default = 2.0, min = 0.01, description = "Length along y, tip to tip, when kind is capsule" }"#),
                     (k::MESH, r#"{ type = "asset", asset = "mesh", default = "", description = "Where a polyline's points come from: a `mesh` asset's vertices, or a `path2d` asset, which is sampled into points and so draws as a stroked curve" }"#),
                     (k::WIDTH, r#"{ type = "float", default = 0.02, min = 0.001, description = "Line thickness in world units, when kind is polyline" }"#),
                     (k::CLOSED, r#"{ type = "bool", default = false, description = "Join the last point back to the first, making a polygon outline" }"#),
@@ -227,9 +234,9 @@ pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
                     (k::GRADIENT, r#"{ type = "color", default = [0.0, 0.0, 0.0, 0.0], description = "The colour a polyline fades to at its far end, from `color` at its start; a zero alpha means no gradient" }"#),
                     (k::GRADIENT_STEPS, &format!(r#"{{ type = "int", default = {}, min = 1, description = "How many colours a polyline's gradient steps through along its length" }}"#, stroke::GRADIENT_STEPS)),
                     (k::TEXTURE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "An image, or a `texture` asset, drawn along a polyline, repeating once per world unit of its length" }}"#, balaur_core::texture_asset::TEXTURE_ASSET_TYPE)),
-                    (k::HALF_EXTENTS, r#"{ type = "vec2", default = [0.5, 0.5], description = "Half-sizes, when kind is rect or ellipse" }"#),
+                    (k::SIZE, r#"{ type = "vec2", default = [1.0, 1.0], description = "Whole size along each axis, when kind is rectangle or ellipse" }"#),
                     (k::INNER_RADIUS, r#"{ type = "float", default = 0.2, min = 0.01, description = "How far the notches between a star's tips reach" }"#),
-                    (k::CORNER_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "How far the corners are rounded off, when kind is rect; zero is a square corner" }"#),
+                    (k::CORNER_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "How far the corners are rounded off, when kind is rectangle; zero is a square corner" }"#),
                     (k::POINTS, r#"{ type = "int", default = 5, min = 3, description = "Tips, when kind is star" }"#),
                     (k::SIDES, r#"{ type = "int", default = 4, min = 3, description = "Sides, when kind is ngon" }"#),
                     (k::SEGMENTS, r#"{ type = "int", default = 32, min = 3, description = "Cuts around a circle, an ellipse, a rounded corner, or a polyline's round joins and caps" }"#),

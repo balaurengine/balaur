@@ -1,7 +1,7 @@
 # GitHub Actions for a Balaur game
 
 A game's repository pins one version — the engine's — and gets the engine, its
-runtime templates and the actions that know its flags from the same tag.
+runtimes and the actions that know its flags from the same tag.
 
 | `uses:` | Produces |
 | --- | --- |
@@ -69,13 +69,13 @@ base64 -w0 release.jks                  # Linux
 | `linux-x64`, `linux-arm64` | nothing; a Linux download is verified by its provenance attestation | any |
 | `windows-x64`, `windows-arm64` | `windows-certificate` and its password, or an Azure Trusted Signing metadata JSON for a cloud HSM | any; a non-Windows runner signs through `osslsigncode` |
 | `macos-universal` | `macos-certificate`, `macos-identity`, and the three `notary-*` inputs to notarize | macOS |
-| `ios` | `macos-certificate` holding the Apple Distribution `.p12`, `ios-identity`, `ios-profile`; `ipa: true` for TestFlight | macOS |
+| `ios` | `macos-certificate` holding the Apple Distribution `.p12`, `ios-identity`, `ios-provisioning-profile`; `ipa: true` for TestFlight | macOS |
 | `android` | `android-keystore`, `android-key` and the passwords; without them it is signed with Android's debug identity and ships nowhere. `bundletool` as well for the AAB Play takes, which the SDK does not carry | any with the SDK and a JDK |
 | `web` | nothing; a browser trusts the origin | any |
 
 Identities, team ids and keystore aliases are not secrets and may live in the
-project's `[export]` table, so a click in the editor and a run on a runner sign
-the same way. The passwords never do.
+project's `[apple]`, `[android]` and `[windows]` tables, so a click in the
+editor and a run on a runner sign the same way. The passwords never do.
 
 ## Provenance
 
@@ -110,8 +110,8 @@ macOS. For a different set — a smaller web build, or one without networking:
 ```
 
 `build-engine` stands in a checkout of *this* repository and produces the same
-`balaur-editor-*`, `balaur-runtime-*` and `balaur-template-*` files a release
-holds, so a later `export-game` uses them by pointing `BALAUR_TEMPLATES` at
+`balaur-editor-*`, `balaur-runtime-*` and `balaur-runtime-*` files a release
+holds, so a later `export-game` uses them by pointing `BALAUR_RUNTIMES` at
 where they landed. `docs/generated/features.md` says what each feature costs.
 
 ## What a run costs

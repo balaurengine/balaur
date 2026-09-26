@@ -6,7 +6,7 @@
 //! hit-tested in the tick is as reproducible as a key.
 
 use balaur::input::{InputSnapshot, TouchPhase};
-use balaur::{App, AppConfig, FIXED_DT, digest, replay, standard_app};
+use balaur::{App, AppConfig, DEFAULT_FIXED_DT, digest, replay, standard_app};
 
 const SCRIPT: &str = "pub fn fixed_update(this, dt) {
     this.node.transform.translate(input::action_value(\"move_x\") * dt, 0.0, 0.0);
@@ -89,7 +89,7 @@ fn record(dir: &std::path::Path) -> Vec<(serde_json::Map<String, serde_json::Val
                 _ => {}
             }
         }
-        app.tick(FIXED_DT);
+        app.tick(DEFAULT_FIXED_DT);
         frames.push((replay::capture(&app.engine), digest::digest(&app.engine).0));
     }
     assert!(
@@ -115,7 +115,7 @@ fn a_replayed_touch_session_reproduces_every_tick_digest() {
     let mut app = booted(dir.path());
     for (tick, (sources, digest)) in recorded.iter().enumerate() {
         replay::restore(&app.engine, sources);
-        app.tick(FIXED_DT);
+        app.tick(DEFAULT_FIXED_DT);
         assert_eq!(
             digest::digest(&app.engine).0,
             *digest,
@@ -133,7 +133,7 @@ fn nobody_touching_the_stick_leaves_the_runner_still() {
     project(dir.path());
     let mut app = booted(dir.path());
     for _ in 0..30 {
-        app.tick(FIXED_DT);
+        app.tick(DEFAULT_FIXED_DT);
     }
     assert!(walked(&app).abs() < 1e-9);
 }
@@ -151,7 +151,7 @@ const VERBS: &str = "pub fn update(this, dt) {
     input::feed_action(\"reached\", 1.0);
 }
 pub fn fixed_update(this, dt) {
-    if input::action_pressed(\"jump\") { this.node.transform.translate(dt, 0.0, 0.0); }
+    if input::action_down(\"jump\") { this.node.transform.translate(dt, 0.0, 0.0); }
 }
 ";
 
@@ -162,7 +162,7 @@ fn a_script_can_feed_a_finger_and_an_action() {
     std::fs::write(dir.path().join("scripts").join("s.rn"), VERBS).unwrap();
     let mut app = booted(dir.path());
     for _ in 0..30 {
-        app.tick(FIXED_DT);
+        app.tick(DEFAULT_FIXED_DT);
     }
     assert!(walked(&app) > 0.0, "a fed action presses like a bound one");
     // Fed after every gesture read: a read that threw would stop short of it,
@@ -193,17 +193,14 @@ fn a_host_can_declare_another_projects_input_config() {
     )]));
     balaur::input::actions::declare_manifest(&app.engine, &hosted)
         .expect("a hosted project's input declares");
-    app.tick(FIXED_DT);
+    app.tick(DEFAULT_FIXED_DT);
     {
         let input = app.engine.resource::<InputSnapshot>();
         let mut input = input.borrow_mut();
         input.begin_frame();
         input.touch_event(1, 300.0, 200.0, TouchPhase::Start);
     }
-    app.tick(FIXED_DT);
+    app.tick(DEFAULT_FIXED_DT);
     let input = app.engine.resource::<InputSnapshot>();
-    assert!(
-        !input.borrow().is_mouse_down(0),
-        "the finger stayed a finger"
-    );
+    assert!(!input.borrow().mouse_down(0), "the finger stayed a finger");
 }

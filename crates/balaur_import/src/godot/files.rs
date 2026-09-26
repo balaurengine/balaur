@@ -528,6 +528,29 @@ centered = false
 texture = ExtResource("2_hull")
 material = SubResource("Glow")
 
+[node name="Flipbook" type="Sprite2D" parent="."]
+texture = ExtResource("2_hull")
+hframes = 4
+vframes = 2
+frame = 5
+
+[node name="Route" type="Line2D" parent="."]
+points = PackedVector2Array(0, 0, 100, 200, 300, 0)
+width = 10.0
+
+[node name="RegionLabel" type="Label" parent="."]
+offset_left = 100.0
+offset_top = 200.0
+offset_right = 300.0
+offset_bottom = 260.0
+theme = ExtResource("3_theme")
+theme_type_variation = &"HeaderLarge"
+theme_override_font_sizes/font_size = 28
+text = "ALBA"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
 [node name="Tree" type="AnimationTree" parent="."]
 libraries/ = SubResource("Lib")
 tree_root = SubResource("Machine")
@@ -582,6 +605,8 @@ Button/styles/focus = SubResource("Green")
 ButtonGreen/base_type = &"Button"
 ButtonGreen/styles/normal = SubResource("Green")
 PanelContainer/styles/panel = SubResource("Plain")
+HeaderLarge/base_type = &"Label"
+HeaderLarge/colors/font_color = Color(0.5, 0.25, 0.375, 1)
 "#;
 
     const SCRIPT: &str = "extends Node2D\n\n@export var speed := 2.0\nvar hidden := 1\n";
@@ -747,13 +772,13 @@ func _process(_delta):
         let go = node(&scene, "Go");
         assert_eq!(go["widget"]["cursor"].as_str(), Some("hand"));
         assert_eq!(
-            go["widget"].get("pointer_through"),
+            go["widget"].get("interactive"),
             None,
             "STOP keeps the pointer"
         );
         assert_eq!(
-            node(&scene, "Bars")["widget"]["pointer_through"].as_bool(),
-            Some(true),
+            node(&scene, "Bars")["widget"]["interactive"].as_bool(),
+            Some(false),
             "IGNORE lets it through"
         );
     }
@@ -785,8 +810,8 @@ func _process(_delta):
         assert_eq!(ship["tags"][0].as_str(), Some("boats"));
 
         let shape = node(&scene, "Shape");
-        assert_eq!(shape["collider2d"]["kind"].as_str(), Some("rect"));
-        assert_eq!(floats(&shape["collider2d"]["half_extents"]), vec![0.2, 0.1]);
+        assert_eq!(shape["collider2d"]["kind"].as_str(), Some("rectangle"));
+        assert_eq!(floats(&shape["collider2d"]["size"]), vec![0.4, 0.2]);
         assert_eq!(
             shape["collider2d"]["sensor"].as_bool(),
             Some(true),
@@ -794,7 +819,7 @@ func _process(_delta):
         );
         assert_eq!(shape["collider2d"]["events"][0].as_str(), Some("collision"));
         let row = &shape["bindings"]["rows"][0];
-        assert_eq!(row["event"].as_str(), Some("collision_start"));
+        assert_eq!(row["event"].as_str(), Some("collision_enter"));
         assert_eq!(row["action"].as_str(), Some("call"));
         assert_eq!(
             row["target"].as_str(),
@@ -852,7 +877,7 @@ func _process(_delta):
         assert_eq!(player["animation"]["autoplay"].as_str(), Some("fade"));
         let clips = read(out.path(), library);
         let fade = &clips["clips"]["fade"];
-        assert_eq!(fade["loop"].as_str(), Some("loop"));
+        assert_eq!(fade["loop_mode"].as_str(), Some("linear"));
         let tracks = fade["tracks"].as_array().unwrap();
         assert_eq!(tracks[0]["property"].as_str(), Some("tint"));
         assert_eq!(tracks[0]["target"].as_str(), Some("Ship"));
@@ -948,11 +973,11 @@ func _process(_delta):
         assert_eq!(machine["start"].as_str(), Some("idle"));
         let go = &machine["transitions"][0];
         assert_eq!(go["condition"].as_str(), Some("moving"));
-        assert_eq!(go["advance"].as_str(), Some("auto"));
-        assert_eq!(go["fade"].as_float(), Some(0.2));
+        assert_eq!(go["advance_mode"].as_str(), Some("auto"));
+        assert_eq!(go["blend_time"].as_float(), Some(0.2));
         assert_eq!(go["reset"].as_bool(), Some(false));
         assert_eq!(go["priority"].as_integer(), Some(3));
-        assert_eq!(go["break_loop"].as_bool(), Some(true));
+        assert_eq!(go["break_loop_at_end"].as_bool(), Some(true));
         assert!(
             tree["animation"]["library"].as_str().is_some(),
             "the tree plays its own clips"
@@ -993,16 +1018,83 @@ func _process(_delta):
         let project = read(out.path(), "project.toml");
         assert_eq!(project["ui"]["theme"].as_str(), Some("themes/game.toml"));
         let theme = read(out.path(), "themes/game.toml");
-        assert_eq!(theme["button"]["radius"].as_float(), Some(16.0));
-        assert_eq!(theme["button"]["size"].as_float(), Some(40.0));
+        assert_eq!(theme["button"]["corner_radius"].as_float(), Some(16.0));
+        assert_eq!(theme["button"]["font_size"].as_float(), Some(40.0));
         assert_eq!(
-            theme["button"]["disabled"]["color"].as_str(),
+            theme["button"]["disabled"]["text_color"].as_str(),
             Some("#808080ff"),
             "a disabled state carries its font colour"
         );
         assert!(theme["button"]["disabled"]["fill"].as_str().is_some());
         assert!(theme["button"]["focus"]["fill"].as_str().is_some());
         assert!(theme["roles"]["ButtonGreen"]["fill"].as_str().is_some());
+    }
+
+    /// A scene's `[[assets]]` entry that a `#id` reference names.
+    fn inline_asset<'a>(scene: &'a toml::Value, reference: &toml::Value) -> &'a toml::Value {
+        let id = reference
+            .as_str()
+            .and_then(|r| r.strip_prefix('#'))
+            .expect("an inline reference");
+        scene["assets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|a| a["id"].as_str() == Some(id))
+            .expect("the asset is in the scene")
+    }
+
+    #[test]
+    fn a_sprite_grid_is_a_sheet_and_a_line_strokes_a_path() {
+        let godot = godot();
+        let out = tempfile::tempdir().unwrap();
+        import_project(&godot.path().join("project.godot"), out.path()).unwrap();
+        let scene = read(out.path(), "scenes/extras.toml");
+
+        let flipbook = &node(&scene, "Flipbook")["sprite"];
+        assert_eq!(flipbook["frame"].as_integer(), Some(5));
+        let sheet = inline_asset(&scene, &flipbook["sheet"]);
+        assert_eq!(sheet["type"].as_str(), Some("sprite_sheet"));
+        assert_eq!(sheet["columns"].as_integer(), Some(4));
+        assert_eq!(sheet["rows"].as_integer(), Some(2));
+        assert_eq!(sheet["texture"], flipbook["texture"]);
+
+        let route = &node(&scene, "Route")["shape2d"];
+        assert_eq!(route["kind"].as_str(), Some("polyline"));
+        let path = inline_asset(&scene, &route["mesh"]);
+        assert_eq!(path["type"].as_str(), Some("path2d"));
+        let controls = path["points"].as_array().unwrap();
+        assert_eq!(controls.len(), 7, "three anchors, two straight segments");
+        assert_eq!(
+            floats(&controls[3]),
+            vec![1.0, -2.0],
+            "y flips and pixels become units"
+        );
+    }
+
+    /// A `Label` under a `Node2D` is text in the world, which the camera
+    /// moves and zooms: a `text2d` at its box's centre, in its role's colour.
+    #[test]
+    fn a_label_in_the_world_is_world_text() {
+        let godot = godot();
+        let out = tempfile::tempdir().unwrap();
+        import_project(&godot.path().join("project.godot"), out.path()).unwrap();
+        let scene = read(out.path(), "scenes/extras.toml");
+        let label = node(&scene, "RegionLabel");
+        assert!(
+            label.get("widget").is_none(),
+            "no widget on the screen: {label:?}"
+        );
+        let text = &label["text2d"];
+        assert_eq!(text["text"].as_str(), Some("ALBA"));
+        assert_eq!(text["font_size"].as_float(), Some(28.0));
+        assert_eq!(text["text_align"].as_str(), Some("center"));
+        assert_eq!(text["max_width"].as_float(), Some(200.0));
+        assert_eq!(text["color"].as_str(), Some("#804060ff"));
+        assert_eq!(
+            floats(&label["transform"]["position"]),
+            vec![2.0, -2.3, 0.0]
+        );
     }
 
     /// A Godot instance node is its prefab's root, and so is the node here:
@@ -1100,7 +1192,7 @@ func _process(_delta):
             app.tick(1.0 / 60.0);
         }
         assert_eq!(
-            balaur::animation::machine::state(&app.engine, tree).as_deref(),
+            balaur::animation::machine::current_state(&app.engine, tree).as_deref(),
             Some("walk"),
             "the converted script turned the tree on and travelled"
         );

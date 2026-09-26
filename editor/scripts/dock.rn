@@ -2,6 +2,7 @@
 // Timeline / Debugger.
 
 use crate::anim;
+use crate::defs;
 use crate::icons;
 use crate::model;
 use crate::session;
@@ -85,14 +86,14 @@ fn cost_hint(S, room) {
 pub fn profiler_tools(S, k) {
     let on = S.get("script_profiling").unwrap_or(false);
     ui::add_space(6);
-    if ui::pill("scripts", #{
-        height: 24, size: style::SM, strong: true,
+    if ui::button("scripts", #{
+        height: 24, font_size: style::SM, font_weight: 700,
         tooltip: "Count what each script costs, in VM instructions",
-        fill: if on { k.accent } else { k.sunken },
-        color: if on { k.sunken } else { k.dim },
+        fill: if on { k.primary_text } else { k.bg_control },
+        text_color: if on { k.bg_control } else { k.text_muted },
     }) {
         S.script_profiling = !on;
-        engine::profile_scripts(!on);
+        engine::set_script_profiling(!on);
     }
 }
 
@@ -103,22 +104,23 @@ pub fn output_tools(S, k, room) {
         return;
     }
     ui::add_space(6);
-    if ui::pill("clear", #{
-        height: 24, size: style::SM, strong: true, tooltip: "Empty the log buffer",
-        fill: k.sunken, color: k.dim,
+    if ui::button("clear", #{
+        height: 24, font_size: style::SM, font_weight: 700, tooltip: "Empty the log buffer",
+        fill: k.bg_control, text_color: k.text_muted,
     }) {
         log::clear();
+        S.log_cache = ();
     }
     if room < 200.0 {
         return;
     }
     for level in ["error", "warn", "all"] {
         let active = S.log_level == level;
-        if ui::pill(level, #{
-            height: 24, size: style::SM, strong: true,
+        if ui::button(level, #{
+            height: 24, font_size: style::SM, font_weight: 700,
             tooltip: format!("Show {} and above", level),
-            fill: if active { k.accent_soft } else { k.sunken },
-            color: if active { k.accent } else { k.dim },
+            fill: if active { k.primary_bg } else { k.bg_control },
+            text_color: if active { k.primary_text } else { k.text_muted },
         }) {
             S.log_level = level;
         }
@@ -128,8 +130,8 @@ pub fn output_tools(S, k, room) {
         S.log_query = "";
     } else {
         let (query, _, _) = ui::text_field("log-search", "Search", #{
-            size: style::SM, font: ui::FONT_MONO, width: 130, height: 24,
-            fill: k.sunken, stroke: k.line, color: k.text,
+            font_size: style::SM, font_family: ui::FONT_MONO, width: 130, height: 24,
+            fill: k.bg_control, stroke: k.border_default, text_color: k.text_default,
         });
         S.log_query = query;
     }
@@ -157,18 +159,17 @@ fn floor_of(level) {
 // Filtering lowercases every message, so it is redone only when the log, the
 // level or the filter has actually moved.
 fn filtered(S) {
-    // The buffer holds 500; asking for 60 threw away most of the session.
-    let entries = util::vec(log::recent(500));
-    let newest = if entries.len() > 0 {
-        format!("{}{}", util::f(entries[entries.len() - 1].time), entries[entries.len() - 1].message)
-    } else {
-        ""
-    };
-    let mark = format!("{}|{}|{}|{}", entries.len(), newest, S.log_level, S.log_query);
+    // `since` hands back only what was logged after the cursor, so a frame
+    // that logged nothing costs one call rather than the whole buffer.
+    let news = log::since(S.log_cursor);
+    S.log_cursor = news.cursor;
+    let mark = format!("{}|{}", S.log_level, S.log_query);
     let cache = S.log_cache;
-    if cache is Object && cache.mark == mark {
+    if cache is Object && cache.mark == mark && news.entries.len() == 0 && news.missed == 0 {
         return cache;
     }
+    // The buffer holds 500; asking for 60 threw away most of the session.
+    let entries = util::vec(log::recent(500));
     let floor = floor_of(S.log_level);
     let query = S.log_query.to_lowercase();
     let rows = [];
@@ -194,7 +195,13 @@ const LOG_NODE = "Editor/Shell/Body/Centre/Bottom/BottomLog";
 
 // Put `items` on the node and show it. A row is icon, label, note and colour,
 // separated by U+001F, which is what a `list` row splits on.
-pub fn show_log(items) {
+pub fn show_log(S, items) {
+    // Written when it differs from what the node was last given: the Output
+    // dock asks every frame, and five hundred rows are a large patch.
+    if S.log_items == items {
+        return;
+    }
+    S.log_items = items;
     util::fill(LOG_NODE, #{ options: items, visible: true });
 }
 
@@ -204,8 +211,10 @@ fn taken_log() {
 }
 
 // Hidden while a panel that is not a list is up.
-pub fn hide_log() {
+pub fn hide_log(S) {
     util::hide(LOG_NODE);
+    // What it held goes back on when it shows again.
+    S.log_items = ();
 }
 
 // The bottom dock's column of pooled rows, which a panel whose rows are nodes
@@ -271,26 +280,13 @@ pub fn taken_table() {
 
 pub fn output(S, k) {
     let shown = filtered(S);
-    let items = [];
-    for entry in shown.rows {
-        let tint = k.dim;
-        let marker = " ";
-        if entry.level == "error" {
-            tint = k.danger;
-            marker = "\u{d7}";
-        } else if entry.level == "warn" {
-            tint = k.warn;
-            marker = "!";
-        } else if entry.tag == "env" {
-            tint = k.sage;
-        }
-        let tag = if entry.tag.len() > 9 { entry.tag[..9] } else { entry.tag };
-        let line = marker + "\u{1f}";
-        line += format!("{:6.1}s  {}  {}", util::f(entry.time), tag, entry.message);
-        line += "\u{1f}\u{1f}" + tint;
-        items.push(line);
+    // The lines are made once for the rows the filter kept, and again only for
+    // new ones or a new theme.
+    if shown.get("theme") != Some(k) {
+        shown.items = log_lines(shown.rows, k);
+        shown.theme = k;
     }
-    show_log(items);
+    show_log(S, shown.items);
     if shown.rows.len() == 0 {
         style::empty(k, if shown.hidden > 0 {
             format!("{} entries hidden by the filter", shown.hidden)
@@ -300,22 +296,46 @@ pub fn output(S, k) {
     }
 }
 
+// One `list` row a log entry: its mark, the time, tag and message, its ink.
+fn log_lines(rows, k) {
+    let items = [];
+    for entry in rows {
+        let tint = k.text_muted;
+        let marker = " ";
+        if entry.level == "error" {
+            tint = k.danger_text;
+            marker = "\u{d7}";
+        } else if entry.level == "warn" {
+            tint = k.warning_text;
+            marker = "!";
+        } else if entry.tag == "env" {
+            tint = k.secondary_text;
+        }
+        let tag = if entry.tag.len() > 9 { entry.tag[..9] } else { entry.tag };
+        let line = marker + "\u{1f}";
+        line += format!("{:6.1}s  {}  {}", util::f(entry.time), tag, entry.message);
+        line += "\u{1f}\u{1f}" + tint;
+        items.push(line);
+    }
+    items
+}
+
 // Icon and ink by extension, so a directory of assets reads at a glance. The
 // tile is one fill for every card; only the mark is typed.
 fn asset_look(name, is_dir) {
     if is_dir {
-        return (crate::icons::panel("assets"), "dim");
+        return (crate::icons::panel("assets"), "text_muted");
     }
     if name.ends_with(".rn") {
-        return (crate::icons::ui("scriptfile"), "sage");
+        return (crate::icons::ui("scriptfile"), "secondary_text");
     }
     if name.ends_with(".toml") {
-        return (crate::icons::panel("scene"), "accent");
+        return (crate::icons::panel("scene"), "primary_text");
     }
     if crate::importer::kind_of(name) == "texture" {
-        return (crate::icons::persona("ui"), "accent");
+        return (crate::icons::workspace(defs::WORKSPACE_UI), "primary_text");
     }
-    return (crate::icons::ui("dot"), "faint");
+    return (crate::icons::ui("dot"), "text_subtle");
 }
 
 // Opening a file means the thing the editor can actually do with it: jump to
@@ -330,7 +350,7 @@ fn open_asset(S, rel) {
     for (i, node) in S.doc.iter().enumerate() {
         if model::script_rel(node) == Some(rel) {
             shell::choose(S, i);
-            shell::set_persona(S, "script");
+            shell::set_workspace(S, defs::WORKSPACE_SCRIPT);
             return;
         }
     }
@@ -349,7 +369,7 @@ fn parent_dir(dir) {
 /// The Assets dock's own state, hung on `S.assets`. `sel` is the card acted
 /// on by rename and delete; `renaming` swaps the breadcrumb for a field.
 pub fn assets_state() {
-    #{ dir: "", sel: "", renaming: false }
+    #{ dir: "", sel: "", renaming: false, cards: #{} }
 }
 
 // New folder, rename and delete: what a file browser is for, and what this
@@ -361,7 +381,7 @@ fn asset_verbs(S, k) {
     [
         #{
             kind: "button", text: icons::panel("import") + if importing { " cancel" } else { " import" },
-            role: if importing { "chrome_verb_on" } else { "chrome_verb" },
+            role: "action_dock", checked: importing,
             tooltip: if importing { "Stop the import after the file it is writing" }
                 else { "Bring in a model, a sprite or a level" },
             on: |_| {
@@ -375,13 +395,13 @@ fn asset_verbs(S, k) {
             },
         },
         #{
-            kind: "button", role: "chrome_verb", text: icons::ui("add") + " folder",
+            kind: "button", role: "action_dock", text: icons::ui("add") + " folder",
             tooltip: "Make a folder here",
             on: |_| { new_folder(S); },
         },
         #{
             kind: "button", text: "rename",
-            role: if chosen { "chrome_verb" } else { "chrome_verb_off" },
+            role: if chosen { "action_dock" } else { "action_dock_quiet" },
             tooltip: if chosen { "Rename the selected item" } else { "Select an item first" },
             on: |_| {
                 if chosen {
@@ -391,7 +411,7 @@ fn asset_verbs(S, k) {
         },
         #{
             kind: "button", text: "delete",
-            role: if chosen { "chrome_verb_danger" } else { "chrome_verb_off" },
+            role: if chosen { "action_dock_danger" } else { "action_dock_quiet" },
             tooltip: if chosen { "Delete the selected item" } else { "Select an item first" },
             on: |_| {
                 if chosen {
@@ -414,7 +434,7 @@ pub fn new_folder(S) {
         name = format!("{}-{}", base, n);
         n += 1;
     }
-    fs::mkdir(asset_path(S, name));
+    fs::create_directory(asset_path(S, name));
     model::forget(S, None);
     S.assets.sel = name;
     log::info(format!("made res://{}", name));
@@ -471,21 +491,21 @@ fn assets_chrome(S, k, dir, count) {
     let out = [];
     if dir != "" {
         out.push(#{
-            kind: "button", role: "chrome_verb", text: "↑", tooltip: "Up one folder",
+            kind: "button", role: "action_dock", text: "↑", tooltip: "Up one folder",
             on: |_| { S.assets.dir = parent_dir(dir); },
         });
     }
     if S.assets.renaming {
         out.push(#{
-            kind: "field", role: "chrome_field", width: 180,
+            kind: "text_field", role: "input_dock", width: 180,
             text: util::last_segment(S.assets.sel), placeholder: "new name",
             on_submit: |name| { rename_asset(S, name); },
         });
     } else {
-        out.push(#{ kind: "label", role: "meta", text: format!("res://{}", dir) });
+        out.push(#{ kind: "label", role: "text_caption", text: format!("res://{}", dir) });
     }
     out.push(#{ kind: "row", grow: 1 });
-    out.push(#{ kind: "label", role: "meta", text: format!("{} items", count) });
+    out.push(#{ kind: "label", role: "text_caption", text: format!("{} items", count) });
     for verb in asset_verbs(S, k) {
         out.push(verb);
     }
@@ -505,11 +525,16 @@ fn show_cards(S, k, dir, files) {
         paths.push(rel);
     }
     let chosen = "";
+    let cards = #{};
     for (n, rel) in paths.iter().enumerate() {
         if rel == S.assets.sel {
             chosen = items[n];
         }
+        if !files[n].is_dir {
+            cards[items[n]] = rel;
+        }
     }
+    S.assets.cards = cards;
     util::fill(CARDS_NODE, #{
         options: items, visible: true, columns: 6, text: chosen,
     });
@@ -539,6 +564,20 @@ fn show_cards(S, k, dir, files) {
     }
 }
 
+/// A card dragged out of the Assets dock and let go: over the viewport, the
+/// file is placed where the pointer is; anywhere else, nothing happens.
+pub fn drop_card(S, card) {
+    let rel = match S.assets.get("cards").unwrap_or(#{}).get(card) {
+        Some(rel) => rel,
+        None => return false,
+    };
+    let (x, y) = input::mouse_position();
+    if !crate::viewport::owns_pointer(S, x / S.ui_scale, y / S.ui_scale) {
+        return false;
+    }
+    crate::dropin::place_file(S, rel)
+}
+
 // Keyframe timeline over the engine's clip (scripts/anim.rn is the adapter):
 // scrubbing seeks the engine's player, so the viewport shows the engine's pose.
 pub fn timeline(S, k) {
@@ -547,18 +586,18 @@ pub fn timeline(S, k) {
     let def = match anim::definition(S) {
         Some(def) => def,
         None => {
-            ui::horizontal(#{ height: 30 }, || {
+            ui::row(#{ height: 30 }, || {
                 ui::add_space(12);
                 let missing = if anim::component(node).is_none() {
                     node.name + " has no clip"
                 } else {
                     format!("{}: clip '{}' is not in its library", node.name, anim::clip_name(node))
                 };
-                ui::label(missing, style::mono_lg(k.faint));
+                ui::label(missing, style::mono_lg(k.text_subtle));
                 ui::add_space(12);
-                if ui::pill(icons::ui("add") + " Create clip", #{
-                    height: 24, size: style::MD, strong: true,
-                    fill: k.accent_fill, color: k.on_accent,
+                if ui::button(icons::ui("add") + " Create clip", #{
+                    height: 24, font_size: style::MD, font_weight: 700,
+                    fill: k.primary_fill, text_color: k.text_on_primary,
                 }) {
                     anim::ensure_clip(S);
                 }
@@ -575,25 +614,25 @@ pub fn timeline(S, k) {
 
     // The ruler carries the scale the lanes are read against: a rule per tick
     // straight down through them, and the playhead over the top.
-    ui::horizontal(#{ height: 24 }, || {
+    ui::row(#{ height: 24 }, || {
         ui::add_space(8);
-        ui::horizontal(#{ height: 24, width: name_w }, || {
-            if ui::pill(icons::ui("add") + " Key", #{
-                role: "chip_on", tooltip: "Insert keyframe at playhead (or press K)",
+        ui::row(#{ height: 24, width: name_w }, || {
+            if ui::button(icons::ui("add") + " Key", #{
+                role: "chip", checked: true, tooltip: "Insert keyframe at playhead (or press K)",
             }) {
                 anim::add_key(S, S.anim.time);
             }
-            if ui::pill("− Key", #{ role: "chip", tooltip: "Delete keyframe at playhead" }) {
+            if ui::button("− Key", #{ role: "chip", tooltip: "Delete keyframe at playhead" }) {
                 anim::delete_key_at(S, S.anim.time);
             }
         });
-        ui::right(|| {
+        ui::align_right(|| {
             ui::add_space(8);
-            ui::label(format!("{:.2} / {:.2} s", S.anim.time, length), style::mono_sm(k.faint));
+            ui::label(format!("{:.2} / {:.2} s", S.anim.time, length), style::mono_sm(k.text_subtle));
         });
     });
     let step = tick_step(length);
-    ui::horizontal(#{ height: 20 }, || {
+    ui::row(#{ height: 20 }, || {
         ui::add_space(8.0 + lane_x);
         let t = 0.0;
         let cursor = 0.0;
@@ -602,46 +641,46 @@ pub fn timeline(S, k) {
             if x - cursor > 0.0 {
                 ui::add_space(x - cursor);
             }
-            ui::label(format!("{:.2}", t), style::mono_sm(k.faint));
+            ui::label(format!("{:.2}", t), style::mono_sm(k.text_subtle));
             cursor = x + 26.0;
             t += step;
         }
     });
     // Rules and playhead, drawn from the sheet's corner so they cross lanes.
-    let top = ui::cursor_y();
+    let top = ui::layout_y();
     let t = 0.0;
     while t <= length + 1e-4 {
         let x = 8.0 + lane_x + (t / length) * lane_w;
-        ui::rect_stroke(x, top, 0.6, lanes_h, #{ color: k.line, width: 1.0 });
+        ui::rect_stroke(x, top, 0.6, lanes_h, #{ stroke: k.border_default, stroke_width: 1.0 });
         t += step;
     }
     let head_x = 8.0 + lane_x + (S.anim.time / util::max(length, 1e-4)) * lane_w;
-    ui::rect_stroke(head_x, top - 6.0, 0.6, lanes_h + 6.0, #{ color: k.accent, width: 1.5 });
+    ui::rect_stroke(head_x, top - 6.0, 0.6, lanes_h + 6.0, #{ stroke: k.primary_text, stroke_width: 1.5 });
 
     ui::scroll("timeline-tracks", #{ max_height: util::min(lanes_h, S.layout.body_h - 60.0) }, || {
         for (index, track) in tracks.iter().enumerate() {
             let label = anim::track_label(track);
-            let color = if index % 2 == 0 { k.accent } else { k.sage };
-            ui::horizontal(#{ height: LANE_H }, || {
+            let color = if index % 2 == 0 { k.primary_text } else { k.secondary_text };
+            ui::row(#{ height: LANE_H }, || {
                 ui::add_space(8);
-                ui::horizontal(#{ height: LANE_H, width: name_w }, || {
+                ui::row(#{ height: LANE_H, width: name_w }, || {
                     ui::dot(color, 6);
                     ui::add_space(6);
-                    ui::label(label, style::mono_sm(k.text));
+                    ui::label(label, style::mono_sm(k.text_default));
                 });
                 ui::add_space(14);
                 let cursor = 0.0;
                 for key in util::vec(track.get("keys").unwrap_or([])) {
-                    let t = util::f(key.get("t").unwrap_or(0.0));
+                    let t = util::f(key.get("time").unwrap_or(0.0));
                     let x = util::max(0.0, (t / length) * lane_w - 5.0);
                     if x - cursor > 0.0 {
                         ui::add_space(x - cursor);
                         cursor = x;
                     }
                     let before = t <= S.anim.time + 1e-4;
-                    if ui::pill("", #{
-                        height: 11, min_width: 11, radius: 10,
-                        fill: if before { color } else { k.bg },
+                    if ui::button("", #{
+                        height: 11, min_width: 11, corner_radius: 10,
+                        fill: if before { color } else { k.bg_app },
                         stroke: color,
                         tooltip: format!("{:.2} s", t),
                     }) {
@@ -653,10 +692,10 @@ pub fn timeline(S, k) {
         }
     });
     // The scrubber sits under the lanes, spanning exactly the lane column.
-    ui::horizontal(#{ height: 20 }, || {
+    ui::row(#{ height: 20 }, || {
         ui::add_space(8.0 + lane_x);
         let (t, scrubbed) = ui::slider(S.anim.time, 0.0, length, #{
-            width: lane_w, rail: k.sunken, fill: k.accent, knob: k.bg,
+            width: lane_w, rail: k.bg_control, fill: k.primary_text, knob: k.bg_app,
         });
         if scrubbed {
             anim::seek(S, t);
@@ -697,11 +736,11 @@ fn value_text(v) {
 // the stepping executor, so it is opt-in and says so.
 fn break_on_error_pill(k) {
     let on = debugger::break_on_error();
-    if ui::pill("break on error", #{
-        height: 20, size: style::SM, strong: true,
+    if ui::button("break on error", #{
+        height: 20, font_size: style::SM, font_weight: 700,
         tooltip: "Stop at the line a script throws on, instead of logging it",
-        fill: if on { k.accent_fill } else { k.sunken },
-        color: if on { k.on_accent } else { k.faint },
+        fill: if on { k.primary_fill } else { k.bg_control },
+        text_color: if on { k.text_on_primary } else { k.text_subtle },
     }) {
         debugger::set_break_on_error(!on);
     }
@@ -710,12 +749,12 @@ fn break_on_error_pill(k) {
 pub fn debugger_view(S, k) {
     let p = S.debug.paused;
     if !(p is Object) {
-        ui::horizontal(#{ height: 30 }, || {
+        ui::row(#{ height: 30 }, || {
             ui::add_space(8);
             // Nothing stops on the click: the next line a script runs is where.
-            if S.playing && ui::pill("⏸ Pause", #{
-                height: 24, size: style::MD, strong: true, tooltip: "F6",
-                fill: k.accent_soft, color: k.accent,
+            if S.playing && ui::button("⏸ Pause", #{
+                height: 24, font_size: style::MD, font_weight: 700, tooltip: "F6",
+                fill: k.primary_bg, text_color: k.primary_text,
             }) {
                 debugger::request_break();
             }
@@ -725,15 +764,15 @@ pub fn debugger_view(S, k) {
             } else {
                 "set breakpoints in the script gutter, then run the scene"
             };
-            ui::label(hint, style::mono(k.faint));
-            ui::right(|| {
+            ui::label(hint, style::mono(k.text_subtle));
+            ui::align_right(|| {
                 ui::add_space(8);
                 break_on_error_pill(k);
             });
         });
         return;
     }
-    ui::horizontal(#{ height: 30 }, || {
+    ui::row(#{ height: 30 }, || {
         ui::add_space(8);
         let steps = [
             ["▶ Continue", debugger::CONTINUE, "F5"],
@@ -742,21 +781,21 @@ pub fn debugger_view(S, k) {
             [icons::ui("step-out") + " Out", debugger::STEP_OUT, "⇧F11"],
         ];
         for step in steps {
-            if ui::pill(step[0], #{
-                height: 24, size: style::MD, strong: true, tooltip: step[2],
-                fill: k.accent_soft, color: k.accent,
+            if ui::button(step[0], #{
+                height: 24, font_size: style::MD, font_weight: 700, tooltip: step[2],
+                fill: k.primary_bg, text_color: k.primary_text,
             }) {
                 shell::resume(S, step[1]);
             }
         }
         ui::add_space(12);
-        ui::label(format!("{} · {}:{}", p.reason, S.debug.paused_rel, p.line), style::mono(k.dim));
+        ui::label(format!("{} · {}:{}", p.reason, S.debug.paused_rel, p.line), style::mono(k.text_muted));
         let threw = p.get("message").unwrap_or("");
         if threw != "" {
             ui::add_space(8);
-            ui::label(threw, style::mono(k.accent));
+            ui::label(threw, style::mono(k.primary_text));
         }
-        ui::right(|| {
+        ui::align_right(|| {
             ui::add_space(8);
             break_on_error_pill(k);
         });
@@ -772,10 +811,10 @@ fn show_frames(S, k, p) {
     for (i, frame) in p.frames.iter().enumerate() {
         let site = format!("{}:{}", shell::script_rel(S, frame.path), frame.line);
         // A recursion stacks frames that read alike; the depth keeps them apart.
-        items.push(util::cells([icons::ui("step-into"), frame["function"], site, k.text, format!("{}", i)]));
+        items.push(util::cells([icons::ui("step-into"), frame["function"], site, k.text_default, format!("{}", i)]));
         owners.push(i);
         for name in util::keys_sorted(frame.locals) {
-            items.push("\t" + util::cells(["", name, value_text(frame.locals[name]), k.dim, format!("{}/{}", i, name)]));
+            items.push("\t" + util::cells(["", name, value_text(frame.locals[name]), k.text_muted, format!("{}/{}", i, name)]));
             owners.push(i);
         }
     }
@@ -814,15 +853,15 @@ pub fn problems(S, k) {
         let at = if f.line > 0 { format!("{}:{}", f.file, f.line) } else { f.file };
         let line = if bad { "\u{d7}" } else { "!" };
         line += "\u{1f}" + format!("{}  {}", at, f.message);
-        line += "\u{1f}\u{1f}" + if bad { k.danger } else { k.warn };
+        line += "\u{1f}\u{1f}" + if bad { k.danger_text } else { k.warning_text };
         items.push(line);
     }
     if rows.len() == 0 {
-        hide_log();
+        hide_log(S);
         style::empty(k, if S.lint.at < 0.0 { "not checked yet" } else { "no problems" });
         return;
     }
-    show_log(items);
+    show_log(S, items);
     // The pick is the row, so the click opens the file it names.
     let picked = taken_log();
     for (n, item) in items.iter().enumerate() {
@@ -838,7 +877,7 @@ fn open_at(S, f) {
     for (i, node) in S.doc.iter().enumerate() {
         if model::script_rel(node) == Some(f.file) {
             shell::choose(S, i);
-            shell::set_persona(S, "script");
+            shell::set_workspace(S, defs::WORKSPACE_SCRIPT);
             return;
         }
     }
@@ -850,32 +889,32 @@ fn open_at(S, f) {
 // clicking the ruler seeks — backwards by rebuilding and running to it again.
 pub fn session_view(S, k) {
     ui::add_space(4);
-    let split = replay::diverged();
+    let split = replay::divergence_tick();
     let first = S.session.first;
     let last = S.session.last;
     let span = util::max(1.0, util::f(last - first));
     let name_w = 120.0;
     let lane_w = util::max(120.0, ui::available_width() - name_w - 60.0);
 
-    ui::horizontal(#{ height: 24 }, || {
+    ui::row(#{ height: 24 }, || {
         ui::add_space(8);
-        ui::horizontal(#{ height: 24, width: name_w - 12.0 }, || {
+        ui::row(#{ height: 24, width: name_w - 12.0 }, || {
             let playing = replay::state() == replay::STATE_PLAYING;
-            if ui::pill(if playing { "⏸ Pause" } else { "▶ Play" }, #{
-                height: 24, size: style::SM, strong: true,
-                fill: k.accent_soft, color: k.accent,
+            if ui::button(if playing { "⏸ Pause" } else { "▶ Play" }, #{
+                height: 24, font_size: style::SM, font_weight: 700,
+                fill: k.primary_bg, text_color: k.primary_text,
             }) {
                 session::toggle_pause(S);
             }
-            if ui::pill("⇥", #{
-                height: 24, size: style::SM, strong: true, tooltip: "One recorded tick forward",
-                fill: k.sunken, color: k.dim,
+            if ui::button("⇥", #{
+                height: 24, font_size: style::SM, font_weight: 700, tooltip: "One recorded tick forward",
+                fill: k.bg_control, text_color: k.text_muted,
             }) {
                 session::step(S);
             }
-            if ui::pill("■", #{
-                height: 24, size: style::SM, strong: true, tooltip: "Back to the edited scene",
-                fill: k.sunken, color: k.dim,
+            if ui::button("■", #{
+                height: 24, font_size: style::SM, font_weight: 700, tooltip: "Back to the edited scene",
+                fill: k.bg_control, text_color: k.text_muted,
             }) {
                 session::close(S);
                 return;
@@ -886,32 +925,32 @@ pub fn session_view(S, k) {
         let at = util::max(0.0, util::f(replay::position()) - util::f(first));
         let (t, scrubbed) = ui::slider(at, 0.0, span, #{
             width: lane_w,
-            rail: k.sunken, fill: k.accent_fill, knob: k.bg,
+            rail: k.bg_control, fill: k.primary_fill, knob: k.bg_app,
         });
         if scrubbed {
             session::seek(S, first + util::i(t));
         }
         ui::add_space(6);
-        ui::label(format!("{} / {}", replay::position(), last), style::mono_sm(k.faint));
+        ui::label(format!("{} / {}", replay::position(), last), style::mono_sm(k.text_subtle));
     });
 
     // A divergence is information, not a failure: the replay ran, and this is
     // the tick at which it stopped reproducing what was recorded.
     if split is Object {
-        ui::horizontal(#{ height: 20 }, || {
+        ui::row(#{ height: 20 }, || {
             ui::add_space(8);
             ui::label(format!("parted from the recording at tick {}", split.tick),
-                style::mono_sm(k.accent));
+                style::mono_sm(k.primary_text));
         });
     }
 
     ui::scroll("session-lanes", (), || {
         ui::spacing(4, 2);
         for lane in S.session.lanes {
-            ui::horizontal(#{ height: 20 }, || {
+            ui::row(#{ height: 20 }, || {
                 ui::add_space(8);
-                ui::horizontal(#{ height: 20, width: name_w - 12.0 }, || {
-                    ui::label(lane.name, style::mono_sm(k.dim));
+                ui::row(#{ height: 20, width: name_w - 12.0 }, || {
+                    ui::label(lane.name, style::mono_sm(k.text_muted));
                 });
                 lane_marks(S, k, lane, first, span, lane_w);
             });
@@ -935,13 +974,13 @@ fn lane_marks(S, k, lane, first, span, lane_w) {
     }
     let w = lane_w / util::f(slots);
     for (i, hit) in hits.iter().enumerate() {
-        ui::horizontal(#{ height: 20, width: w }, || {
+        ui::row(#{ height: 20, width: w }, || {
             if hit is Object {
                 let behind = hit.tick <= replay::position();
-                if ui::pill("", #{
+                if ui::button("", #{
                     height: 8, min_width: util::max(4.0, w - 2.0),
                     tooltip: format!("{}: {}", hit.tick, hit.label),
-                    fill: if behind { k.accent } else { k.line }, color: k.dim,
+                    fill: if behind { k.primary_text } else { k.border_default }, text_color: k.text_muted,
                 }) {
                     session::seek(S, hit.tick);
                 }
@@ -960,11 +999,11 @@ fn detail(S, k) {
     }
     ui::add_space(6);
     for e in rows {
-        ui::horizontal(#{ height: 20 }, || {
+        ui::row(#{ height: 20 }, || {
             ui::add_space(8);
-            ui::label(format!("{}", e.tick), style::mono_sm(k.faint));
-            ui::label(e.kind, style::mono_sm(k.dim));
-            ui::label(e.label, style::mono_sm(k.text));
+            ui::label(format!("{}", e.tick), style::mono_sm(k.text_subtle));
+            ui::label(e.kind, style::mono_sm(k.text_muted));
+            ui::label(e.label, style::mono_sm(k.text_default));
         });
     }
 }
@@ -982,10 +1021,10 @@ pub fn session_list(S, k) {
     }
     let on = S.session.verify;
     crate::docks::chrome_rows(S, [[
-        #{ kind: "label", role: "meta", grow: 1, text: "sessions are recorded on every play" },
+        #{ kind: "label", role: "text_caption", grow: 1, text: "every play is recorded" },
         #{
             kind: "button", text: "verify",
-            role: if on { "chip_on" } else { "chip" },
+            role: "chip", checked: on,
             tooltip: "Hash the world every tick, so a replay can name where it parted",
             on: |_| { S.session.verify = !on; },
         },
@@ -994,14 +1033,14 @@ pub fn session_list(S, k) {
     let specs = [];
     if rows.len() == 0 {
         specs.push(#{ full: true, height: 0, controls: [#{
-            kind: "label", role: "meta", grow: 1, wrap: true,
-            text: "no sessions yet — press Play",
+            kind: "label", role: "text_caption", grow: 1, wrap: true,
+            text: "no recordings yet — press Play",
         }] });
     }
     for entry in rows {
         // Bound afresh: a closure made in a loop captures the binding.
         let r = entry;
-        specs.push(#{ full: true, height: 24, slot_role: "verb_row", controls: session_row(S, r) });
+        specs.push(#{ full: true, height: 24, slot_role: "layout_actions", controls: session_row(S, r) });
     }
     crate::pool::sync(S, rows_host(S), specs, 0.0, false);
 }
@@ -1011,36 +1050,36 @@ pub fn session_list(S, k) {
 fn session_row(S, r) {
     let out = [
         #{
-            kind: "button", role: "row_action_accent", text: "▶",
-            tooltip: "Replay this session",
+            kind: "button", role: "action_form_primary", text: "▶",
+            tooltip: "Replay this recording",
             on: |_| { session::open(S, r.name); },
         },
-        #{ kind: "label", role: "mono", text: if r.started == "" { r.name } else { r.started } },
+        #{ kind: "label", role: "text_code", text: if r.started == "" { r.name } else { r.started } },
         #{
-            kind: "label", role: "meta",
+            kind: "label", role: "text_caption",
             text: format!("{} ticks · {:.1}s", r.ticks, r.seconds),
         },
     ];
     // How it ended, and whether its code has moved on since.
     if r.reason != "stop" {
-        out.push(#{ kind: "label", role: "error_note", text: r.reason });
+        out.push(#{ kind: "label", role: "note_danger", text: r.reason });
     }
     if r.stale {
-        out.push(#{ kind: "label", role: "warn_note", text: "scripts changed" });
+        out.push(#{ kind: "label", role: "note_warning", text: "scripts changed" });
     }
     out.push(#{ kind: "row", grow: 1 });
     out.push(#{
-        kind: "button", role: "row_action", text: "delete",
+        kind: "button", role: "action_form", text: "delete",
         on: |_| { session::remove(S, r.name); },
     });
     out.push(#{
-        kind: "button", role: "row_action", text: "export",
+        kind: "button", role: "action_form", text: "copy to project",
         tooltip: "Copy into the project, for a bug report or `balaur replay`",
         on: |_| { session::export(S, r.name); },
     });
     if !r.name.starts_with("kept-") {
         out.push(#{
-            kind: "button", role: "row_action", text: "keep",
+            kind: "button", role: "action_form", text: "keep",
             tooltip: "Never prune this one",
             on: |_| { session::keep(S, r.name); },
         });
@@ -1084,8 +1123,9 @@ pub fn profiler(S, k) {
     show_table(["what", "cost>", "share of a frame"], ["2", "1", "2"], items);
 }
 
-/// What each script cost the last frame, dearest first, against the dearest
-/// of them rather than against the budget: the unit is instructions.
+/// What each script and each of the dearest functions cost the last frame,
+/// dearest first, against the dearest of them rather than against the budget:
+/// the unit is instructions.
 ///
 /// Instructions rather than milliseconds: the same frame runs the same
 /// instructions on every machine, so a number that moved is a change in what
@@ -1097,11 +1137,28 @@ fn script_rows(items, k) {
         let count = util::f(row.instructions);
         let share = if worst > 0.0 { util::clamp(count / worst, 0.0, 1.0) } else { 0.0 };
         items.push(util::cells([
-            row.path, format!("{} instr", row.instructions), bar(share), k.sage,
+            row.path, format!("{} instr", row.instructions), bar(share), k.secondary_text,
         ]));
     }
-    engine::profile_scripts(true);
+    // Each function's own instructions under its file's rows: the VM's count,
+    // so a `draw` callback and a closure the pool calls are in it too.
+    let functions = engine::function_costs();
+    let top = if functions.is_empty() { 0.0 } else { util::f(functions[0].instructions) };
+    let n = 0;
+    while n < functions.len() && n < FUNCTION_ROWS {
+        let row = functions[n];
+        let count = util::f(row.instructions);
+        let share = if top > 0.0 { util::clamp(count / top, 0.0, 1.0) } else { 0.0 };
+        items.push(util::cells([
+            row.function, format!("{} instr · {} calls", row.instructions, row.calls), bar(share), k.text_muted,
+        ]));
+        n += 1;
+    }
+    engine::set_script_profiling(true);
 }
+
+/// How many of the dearest functions the Profiler lists under the scripts.
+const FUNCTION_ROWS = 12;
 
 /// A share as blocks, which reads at a glance where a number has to be read.
 /// Twelve cells, so one is about eight percent: twenty overran the Cost
@@ -1143,11 +1200,11 @@ fn by_cost(table) {
 fn cost_rows(items, k, table, kind) {
     for row in by_cost(table) {
         let tint = if row.ms > BUDGET_MS * 0.5 {
-            k.accent
+            k.primary_text
         } else if kind == "span" {
-            k.sage
+            k.secondary_text
         } else {
-            k.dim
+            k.text_muted
         };
         items.push(util::cells([
             row.name, fixed(row.ms, 3) + " ms", bar(row.ms / BUDGET_MS), tint,
@@ -1213,7 +1270,7 @@ pub fn cost(S, k) {
             bytes(util::f(row.texture_bytes)),
             if copies > 1 { format!("x{}", copies) } else { "" },
             bar(share),
-            k.dim,
+            k.text_muted,
         ]));
     }
     show_table(

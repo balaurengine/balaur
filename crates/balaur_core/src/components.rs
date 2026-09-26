@@ -42,7 +42,7 @@
 //!                           decision to put it away by default)
 //!
 //! `type` declares a property's datatype; `kind` is a property *name*, the one
-//! reserved for a tagged union's discriminant (`shape.kind = "ball"`), so a
+//! reserved for a tagged union's discriminant (`shape.kind = "sphere"`), so a
 //! discriminant reads `kind = { type = "enum", options = [...] }`.
 //! `ComponentDef::parse_schema` enforces all of that and panics on a schema
 //! that departs from it.
@@ -93,12 +93,15 @@ use smol_str::SmolStr;
 use crate::engine::Engine;
 
 mod attached;
+mod authored;
 mod property;
 mod schema;
 
 use attached::mark;
 pub(crate) use attached::mark_present;
 pub use attached::{Attached, MAX_COMPONENTS, TRANSFORM_BIT, attached_of};
+pub use authored::Authored;
+use authored::{asked_for_at, forget, record_at, record_one};
 pub(crate) use property::resolve_property_hooks;
 pub use property::{
     PropertyReaders, PropertyWriteFn, PropertyWriters, answers_alone, answers_property, property,
@@ -233,13 +236,8 @@ pub fn as_node(eng: &Engine, from: Entity, value: Option<&toml::Value>) -> Optio
     if path.trim().is_empty() {
         return None;
     }
-    // A leading `/` walks from the scene root, as it does in Godot; the
-    // editor's node picker writes that form because it is the one spelling
+    // The editor's node picker writes the `/` form: it is the one spelling
     // that does not change when the node carrying it moves.
-    let (from, path) = match path.strip_prefix('/') {
-        Some(rest) => (eng.root(), rest),
-        None => (from, path),
-    };
     crate::scene::find_node(&eng.world(), from, path)
 }
 
@@ -249,6 +247,9 @@ pub type ApplyFn = Box<dyn Fn(&Engine, Entity, &toml::Value) -> Result<()>>;
 pub type RemoveFn = Box<dyn Fn(&Engine, Entity) -> Result<()>>;
 /// Read a component's property table, or `None` when the entity lacks it.
 pub type GetFn = Box<dyn Fn(&Engine, Entity) -> Option<toml::Value>>;
+/// What a component says is off about it on this node, beyond whether its
+/// last write was accepted (see [`crate::warnings`]).
+pub type WarningsFn = Option<Box<dyn Fn(&Engine, Entity) -> Vec<crate::warnings::Warning>>>;
 /// Read one of a component's properties, for a component that can answer
 /// without building its whole table. `None` means "ask the whole table",
 /// which is also the answer for a property the component does not hold.
@@ -279,6 +280,10 @@ pub struct ComponentDef {
     /// (a `collider2d` with no `body2d` is standalone static geometry). It is
     /// here for plugins, and for the case where an error would be too strict.
     pub expects: &'static [&'static str],
+    /// The events the component announces from its node, as `(name,
+    /// payload)`: what an `emitted:<name>` row, a subscriber and the node's
+    /// own `on_<name>` hear. Read by the Events view and the reference.
+    pub events: &'static [(&'static str, &'static str)],
     /// Insert-or-update the component from a full property table.
     pub apply: ApplyFn,
     pub remove: RemoveFn,
@@ -288,6 +293,8 @@ pub struct ComponentDef {
     /// and defaults whatever it omits. Values the component derives are the
     /// exception, and must be left out for the same reason.
     pub get: GetFn,
+    /// What is off about the component on a node, for the editor to show.
+    pub warnings: WarningsFn,
 }
 
 pub mod tag {
@@ -521,54 +528,6 @@ impl<'a> IntoIterator for &'a ComponentRegistry {
     fn into_iter(self) -> Self::IntoIter {
         self.defs.iter()
     }
-}
-
-/// What a scene or a script asked of each component, by node and definition.
-///
-/// A component's live state is its own Rust struct, and `get` is the only way
-/// back to a table. [`patch`] builds on this rather than on `get` alone, so a
-/// `get` that does not mention a property cannot have it reset.
-#[derive(Default)]
-pub struct Authored(pub crate::collections::DetHashMap<(Entity, usize), toml::Value>);
-
-/// Merge what is being asked for into what was asked before, for the
-/// definition at `index`.
-fn record_at(eng: &Engine, entity: Entity, index: usize, params: Option<&toml::Value>, over: bool) {
-    let Some(authored) = eng.try_resource::<Authored>() else {
-        return;
-    };
-    let mut authored = authored.borrow_mut();
-    let slot = authored
-        .0
-        .entry((entity, index))
-        .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
-    if over {
-        *slot = toml::Value::Table(toml::map::Map::new());
-    }
-    let (Some(slot), Some(asked)) = (slot.as_table_mut(), params.and_then(toml::Value::as_table))
-    else {
-        return;
-    };
-    for (key, value) in asked {
-        slot.insert(key.clone(), value.clone());
-    }
-}
-
-/// What was asked of this component before now, if anything.
-fn asked_for_at(eng: &Engine, entity: Entity, index: usize) -> Option<toml::Value> {
-    let authored = eng.try_resource::<Authored>()?;
-    let asked = authored.borrow().0.get(&(entity, index)).cloned();
-    drop(authored);
-    asked
-}
-
-/// Forget what was asked of one component on one node.
-fn forget(eng: &Engine, entity: Entity, name: &str) {
-    let (Some(authored), Some(index)) = (eng.try_resource::<Authored>(), index_of(eng, name))
-    else {
-        return;
-    };
-    authored.borrow_mut().0.swap_remove(&(entity, index));
 }
 
 /// A registered component's position in the registry, which is its key above.
@@ -906,7 +865,25 @@ pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> 
         has_asset,
         has_record,
     } = resolve(eng, name)?;
+    // A write of what the component already holds changes nothing, and a
+    // script setting a value every frame would otherwise rebuild it every frame.
+    // The component's own reader answers that without building its table.
+    if let Some(asked) = params.as_table()
+        && attached_of(eng, entity).has(index)
+        && property::holds_already(eng, entity, index, asked)
+    {
+        unchanged(eng, entity, index, name, params);
+        return Ok(());
+    }
     let current = get_at(eng, entity, index);
+    if let (Some(toml::Value::Table(held)), Some(asked)) = (&current, params.as_table())
+        && asked
+            .iter()
+            .all(|(key, value)| held.get(key) == Some(value))
+    {
+        unchanged(eng, entity, index, name, params);
+        return Ok(());
+    }
     // The component's own table is the base, taken rather than copied: what
     // `get` leaves out is filled from the request, then from the defaults.
     let mut out = match current {
@@ -948,6 +925,13 @@ pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> 
     apply_at(eng, entity, index, name, &full)?;
     record_at(eng, entity, index, Some(params), false);
     Ok(())
+}
+
+/// What a [`patch`] that changed nothing still owes: the refusal it answers
+/// cleared, and the request filed for a save.
+fn unchanged(eng: &Engine, entity: Entity, index: usize, name: &str, params: &toml::Value) {
+    crate::warnings::accepted(eng, entity, name);
+    record_at(eng, entity, index, Some(params), false);
 }
 
 /// Whether a name is a registered component, as opposed to some other scene
@@ -1027,8 +1011,13 @@ fn apply_at(
         let (_, def) = registry
             .at(index)
             .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
-        (def.apply)(eng, entity, full).with_context(|| format!("applying component '{name}'"))?;
+        if let Err(why) = (def.apply)(eng, entity, full) {
+            let held = (def.get)(eng, entity);
+            crate::warnings::refused(eng, entity, name, held.as_ref(), full, &why);
+            return Err(why.context(format!("applying component '{name}'")));
+        }
     }
+    crate::warnings::accepted(eng, entity, name);
     mark(eng, entity, index, true);
     Ok(())
 }
@@ -1058,6 +1047,7 @@ pub fn remove(eng: &Engine, entity: Entity, name: &str) -> Result<()> {
     };
     mark(eng, entity, index, false);
     forget(eng, entity, name);
+    crate::warnings::accepted(eng, entity, name);
     Ok(())
 }
 
@@ -1067,11 +1057,16 @@ pub fn remove(eng: &Engine, entity: Entity, name: &str) -> Result<()> {
 /// Reads [`Attached`] rather than asking every definition, so a node that
 /// was never given a component costs one lookup.
 pub fn remove_present(eng: &Engine, entity: Entity) {
+    crate::warnings::forget(eng, entity);
     let owed = attached_of(eng, entity);
     let bits = owed.hooked;
     #[cfg(debug_assertions)]
     let bits = bits | untracked(eng, entity, owed.present);
-    let _ = eng.world_mut().remove_one::<Attached>(entity);
+    // Cleared in place: removing the component moves the node to another
+    // archetype, a copy of everything it holds just before it is despawned.
+    if let Ok(mut held) = eng.world().get::<&mut Attached>(entity) {
+        *held = Attached::default();
+    }
     if bits == 0 {
         return;
     }
@@ -1160,6 +1155,22 @@ pub fn schemas(eng: &Engine) -> Vec<(String, Rc<toml::Value>)> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// What the components on a node announce, by event name, in the order the
+/// registry holds the components.
+pub fn events_on(eng: &Engine, entity: Entity) -> Vec<&'static str> {
+    let Some(registry) = eng.try_resource::<ComponentRegistry>() else {
+        return Vec::new();
+    };
+    let registry = registry.borrow();
+    let bits = attached_of(eng, entity);
+    registry
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| bits.has(*i))
+        .flat_map(|(_, (_, def))| def.events.iter().map(|(name, _)| *name))
+        .collect()
 }
 
 pub fn present_on(eng: &Engine, entity: Entity) -> Vec<String> {

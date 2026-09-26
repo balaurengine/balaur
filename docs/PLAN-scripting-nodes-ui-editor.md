@@ -75,21 +75,21 @@ sorts the rows the way settings already do. `#[export]`
 
 Status: **done** — a spec table beside the bare default, validated against the schema vocabulary and sorted by `order`.
 
-### 1.3 `hot_reload` is never dispatched
+### 1.3 `on_hot_reload` is never dispatched
 
-**Now.** `ARCHITECTURE.md:137` and `:252` name a `hot_reload` hook for
+**Now.** `ARCHITECTURE.md:137` and `:252` name a `on_hot_reload` hook for
 migrating state shapes, and `editor/scripts/editor.rn:355` defines one, but
 `RuneHost::reload` (`crates/balaur_script_rune/src/lib.rs:797-824`) swaps the
 unit, refreshes the required module, and calls nothing. No instance has ever
 been told its code changed.
 
-**Shape.** After a reload lands, call `hot_reload(this)` on every instance of
+**Shape.** After a reload lands, call `on_hot_reload(this)` on every instance of
 that key through `invoke`, in instance order, reporting a throw the way
 `on_free` does. Add `a_reload_calls_hot_reload_on_every_instance` beside
 `a_reload_keeps_instance_state` in `tests/backend.rs`. The editor's stub,
 which re-applies the theme, is the first use.
 
-Status: **done** — `reload` calls `hot_reload` on every instance of the file.
+Status: **done** — `reload` calls `on_hot_reload` on every instance of the file.
 
 ### 1.4 Public functions are read line by line
 
@@ -160,7 +160,7 @@ something to whoever cares: a player dying has to know every listener by
 path.
 
 **Shape.** An `events` module declared once in core, in the frame-scoped
-style everything else uses. `events.subscribe(node, name)` records the pair
+style everything else uses. `events.listen(node, name)` records the pair
 in a `DetHashMap`; `events.emit(name, payload)` appends to the tick's queue;
 a core system at the top of `Stage::Update` calls `on_<name>(payload)` on
 each subscriber in subscription order, skips freed nodes, and clears the
@@ -292,7 +292,7 @@ Status: **partly done** — the mirror resolves by stable id through `scene.node
 
 | What | Where | Shape |
 |---|---|---|
-| In the Interface persona the axis pill and the zoom pill draw over the HUD's bottom labels: the HUD surface is the whole stage rect, and the pills sit inside it | `editor/scripts/center.rn:206-234`, `editor.rn:207-209` | inset the widget surface by the HUD band, or draw the pills in the tab row |
+| In the Interface workspace the axis pill and the zoom pill draw over the HUD's bottom labels: the HUD surface is the whole stage rect, and the pills sit inside it | `editor/scripts/center.rn:206-234`, `editor.rn:207-209` | inset the widget surface by the HUD band, or draw the pills in the tab row |
 | D7 and D17 in `docs/EDITOR-SCREENS.md` are fixed in code (`dock.rn:14-41` hint table, `:132-138` padded columns) but still listed open; D10, D14 and D15 still stand | `docs/EDITOR-SCREENS.md` §8 | mark them, and re-capture |
 
 Status: open.
@@ -303,7 +303,7 @@ Status: open.
 |---|---|---|
 | `docs/generated/script-api.md` and `api.json` list the settings module as `pages`, `project_toml`, `editor_toml`; the working tree has `all`, `define`, `load`, `to_toml`. The docs job on CI diffs these | `docs/generated/` | `scripts/gen_docs.py` before that commit |
 | The determinism table says object iteration order is the hash map's and an ordered map is planned; the fork now hashes with XxHash64 at a fixed seed (`7be8013`, "Deterministic hashing") and `object_iteration_order_does_not_move_between_runs` pins the order | `ARCHITECTURE.md`, "Determinism" table | say so: stable across runs and platforms, not insertion order |
-| `hot_reload` is documented and not dispatched | `ARCHITECTURE.md:137`, `:252` | §1.3, or strike the two sentences |
+| `on_hot_reload` is documented and not dispatched | `ARCHITECTURE.md:137`, `:252` | §1.3, or strike the two sentences |
 | No lint reads Rune; the `a \|\| b` bug cost four defects | `scripts/house_lints.py` | a `.rn` pass for `= <local> \|\|` and `&&`, and for `if let Some(x) = x` |
 
 Status: open.
@@ -321,7 +321,7 @@ Status: open.
 
 | Phase | What | Why here |
 |---|---|---|
-| 1 | §1.1 patch verb, §1.3 `hot_reload`, §1.5 tick and `has_method` | a day each, and the footguns scripts hit today |
+| 1 | §1.1 patch verb, §1.3 `on_hot_reload`, §1.5 tick and `has_method` | a day each, and the footguns scripts hit today |
 | 2 | §4.1 the save keeps the document whole | data loss |
 | 3 | §1.2 exports as spec tables | the inspector gains pickers, and it fixes what `#[export]` would lower to |
 | 4 | §3.1 focus opt in, §3.2 wrap and `image`, §3.3 margins | a game's HUD |

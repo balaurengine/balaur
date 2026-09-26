@@ -13,7 +13,7 @@ balaur_cfg.workspace = true
 default = []
 # The windowed kiss3d/wgpu backend. Off by default so headless tools, tests,
 # and servers build without a graphics stack.
-kiss3d = ["dep:kiss3d", "dep:pollster", "dep:balaur_input", "dep:balaur_text", "dep:balaur_ui", "dep:egui", "dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation", "dep:bytemuck"]
+window = ["dep:kiss3d", "dep:pollster", "dep:balaur_input", "dep:balaur_text", "dep:balaur_ui", "dep:egui", "dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation", "dep:objc2-ui-kit", "dep:windows-sys", "dep:libloading", "dep:bytemuck"]
 # `balaur import file.aseprite`: reads the editor's own format. A tool's
 # dependency, so a game build carries none of it.
 aseprite = ["dep:aseprite-loader"]
@@ -50,16 +50,27 @@ wesl = { version = "0.5", features = ["eval"] }
 
 # A hidden tab gets no animation frames, so the simulation is stepped on a
 # timer there instead; the page's clock and visibility come from web-sys.
-[target.'cfg(all(target_family = "wasm", not(target_os = "emscripten")))'.dependencies]
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4"
-js-sys = "0.3"
-web-sys = { version = "0.3", features = ["CssStyleDeclaration", "Document", "Element", "MediaQueryList", "Navigator", "VisualViewport", "Window"] }
+[target.'cfg(target_family = "wasm")'.dependencies]
+wasm-bindgen = "0.2.129"
+wasm-bindgen-futures = "0.4.79"
+js-sys = "0.3.106"
+web-sys = { version = "0.3.106", features = ["CssStyleDeclaration", "Document", "Element", "MediaQueryList", "Navigator", "VisualViewport", "Window"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = { version = "0.6", optional = true }
 objc2-app-kit = { version = "0.3", features = ["NSAppearance", "NSApplication", "NSImage", "NSResponder"], optional = true }
 objc2-foundation = { version = "0.3", optional = true }
+
+# Dark mode, asked of each system its own way: `appearance.rs`.
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2-foundation = { version = "0.3", optional = true }
+objc2-ui-kit = { version = "0.3", features = ["UIInterface", "UIResponder", "UIScreen", "UITraitCollection", "UIView"], optional = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Registry"], optional = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libloading = { version = "0.8", optional = true }
 
 [dev-dependencies]
 balaur.workspace = true

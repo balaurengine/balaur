@@ -24,6 +24,7 @@ use crate::file_api::{
     fs_copy, fs_exists, fs_list, fs_mkdir, fs_mtime, fs_read, fs_remove, fs_rename, fs_write,
     json_encode, json_parse, toml_encode, toml_parse, toml_patch,
 };
+use crate::profile_api::{function_costs, script_costs, set_script_profiling};
 use crate::regex_api::{
     regex_escape, regex_matches, regex_replace, regex_search, regex_search_all, regex_split,
 };
@@ -105,7 +106,7 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "engine",
-        name: "user_data_dir",
+        name: "user_data_directory",
         call: user_data_dir,
     },
     EngineOp {
@@ -120,7 +121,7 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "engine",
-        name: "platform",
+        name: "target",
         call: platform,
     },
     EngineOp {
@@ -205,8 +206,8 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "scene",
-        name: "unmet_expectations",
-        call: unmet_expectations,
+        name: "warnings",
+        call: warnings,
     },
     EngineOp {
         module: "scene",
@@ -255,13 +256,18 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "engine",
-        name: "profile_scripts",
-        call: profile_scripts,
+        name: "set_script_profiling",
+        call: set_script_profiling,
     },
     EngineOp {
         module: "engine",
         name: "script_costs",
         call: script_costs,
+    },
+    EngineOp {
+        module: "engine",
+        name: "function_costs",
+        call: function_costs,
     },
     EngineOp {
         module: "save",
@@ -290,12 +296,12 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "save",
-        name: "folder",
+        name: "directory",
         call: save_folder,
     },
     EngineOp {
         module: "engine",
-        name: "user_data_dir_of",
+        name: "user_data_directory_of",
         call: user_data_dir_of_project,
     },
     EngineOp {
@@ -469,27 +475,27 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         call: log_file,
     },
     EngineOp {
-        module: "rng",
+        module: "random",
         name: "seed",
         call: rng_seed,
     },
     EngineOp {
-        module: "rng",
-        name: "random",
+        module: "random",
+        name: "float",
         call: rng_random,
     },
     EngineOp {
-        module: "rng",
+        module: "random",
         name: "range",
         call: rng_range,
     },
     EngineOp {
-        module: "rng",
+        module: "random",
         name: "int",
         call: rng_int,
     },
     EngineOp {
-        module: "rng",
+        module: "random",
         name: "uuid",
         call: rng_uuid,
     },
@@ -540,7 +546,7 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "fs",
-        name: "mkdir",
+        name: "create_directory",
         call: fs_mkdir,
     },
     EngineOp {
@@ -555,7 +561,7 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "fs",
-        name: "mtime",
+        name: "modified_time",
         call: fs_mtime,
     },
     EngineOp {
@@ -660,7 +666,7 @@ fn document(module: &str, m: &mut dyn balaur_script::Bindings<Engine>) {
         "save" => crate::engine_docs::document_save(m),
         "strings" => crate::engine_docs::document_strings(m),
         "regex" => crate::engine_docs::document_regex(m),
-        "rng" => crate::engine_docs::document_rng(m),
+        "random" => crate::engine_docs::document_random(m),
         "fs" => crate::engine_docs::document_fs(m),
         "toml" => crate::engine_docs::document_toml(m),
         "json" => crate::engine_docs::document_json(m),
@@ -785,7 +791,17 @@ pub fn user_data_dir_of(eng: &Engine) -> std::path::PathBuf {
     user_data_dir_named(eng, &name)
 }
 
-/// The user data directory a project named `name` has, made or not.
+/// The manifest name the editor's own project carries. Its per-user folder
+/// sits beside the games' rather than among them, so no game's name can
+/// reach the editor's settings, themes or project list.
+pub const EDITOR_NAME: &str = "balaur-editor";
+
+/// The folder every game's per-user folder sits in, under the platform's data
+/// directory.
+const GAMES_DIR: &str = "balaur";
+
+/// The user data directory a project named `name` has, made or not:
+/// `<data>/balaur/<name>` for a game and `<data>/balaur-editor` for the editor.
 pub fn user_data_dir_named(eng: &Engine, name: &str) -> std::path::PathBuf {
     let name = if name.is_empty() { "project" } else { name };
     // A manifest name is free text; keep only what every filesystem accepts.
@@ -799,16 +815,16 @@ pub fn user_data_dir_named(eng: &Engine, name: &str) -> std::path::PathBuf {
             }
         })
         .collect();
-    let base = dirs::data_dir().map_or_else(
-        || {
-            eng.resource::<crate::project::ProjectRoot>()
-                .borrow()
-                .0
-                .join("user_data")
-        },
-        |dir| dir.join("balaur"),
-    );
-    base.join(name)
+    match dirs::data_dir() {
+        Some(dir) if name == EDITOR_NAME => dir.join(EDITOR_NAME),
+        Some(dir) => dir.join(GAMES_DIR).join(name),
+        None => eng
+            .resource::<crate::project::ProjectRoot>()
+            .borrow()
+            .0
+            .join("user_data")
+            .join(name),
+    }
 }
 
 fn reload_script(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -874,7 +890,9 @@ fn instantiate(eng: &Engine, args: &[Value]) -> Result<Value> {
             .any(|(k, v)| k == "scripts" && matches!(v, Value::Bool(false))),
         _ => true,
     };
+    let before = scene::child_count(&eng.world(), base);
     crate::project::instantiate_scene(eng, text(args, 0)?, base, attach)?;
+    scene::announce_added_since(eng, base, before);
     Ok(Value::Nil)
 }
 
@@ -919,8 +937,8 @@ fn component_tags(eng: &Engine, args: &[Value]) -> Result<Value> {
 }
 
 /// What a component declares it needs something from, for a tool ordering or
-/// grouping its sections. `unmet_expectations` answers the same question about
-/// one node; this answers it about the type.
+/// grouping its sections. `warnings` says whether one node meets it; this
+/// answers it about the type.
 fn component_expects(eng: &Engine, args: &[Value]) -> Result<Value> {
     let registry = eng.resource::<crate::components::ComponentRegistry>();
     let registry = registry.borrow();
@@ -948,27 +966,35 @@ fn preset_info(eng: &Engine, args: &[Value]) -> Result<Value> {
     let name = text(args, 0)?;
     let registry = eng.resource::<crate::presets::PresetRegistry>();
     let registry = registry.borrow();
-    Ok(registry.0.get(name).map_or(Value::Nil, |def| {
-        Value::Map(vec![
-            (
-                "description".to_string(),
-                Value::Str(def.description.clone()),
+    let Some(def) = registry.0.get(name) else {
+        return Ok(Value::Nil);
+    };
+    let mut parts = Vec::new();
+    for part in &def.parts {
+        let params = part.params.as_ref().map(crate::node_api::from_toml);
+        let params = params.transpose()?.unwrap_or(Value::Map(Vec::new()));
+        parts.push((part.component.clone(), params));
+    }
+    Ok(Value::Map(vec![
+        (
+            "description".to_string(),
+            Value::Str(def.description.clone()),
+        ),
+        (
+            "tags".to_string(),
+            Value::List(def.tags.iter().cloned().map(Value::text).collect()),
+        ),
+        (
+            "components".to_string(),
+            Value::List(
+                def.parts
+                    .iter()
+                    .map(|p| Value::Str(p.component.clone()))
+                    .collect(),
             ),
-            (
-                "tags".to_string(),
-                Value::List(def.tags.iter().cloned().map(Value::text).collect()),
-            ),
-            (
-                "components".to_string(),
-                Value::List(
-                    def.parts
-                        .iter()
-                        .map(|p| Value::Str(p.component.clone()))
-                        .collect(),
-                ),
-            ),
-        ])
-    }))
+        ),
+        ("parts".to_string(), Value::Map(parts)),
+    ]))
 }
 
 fn apply_preset(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -977,21 +1003,19 @@ fn apply_preset(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
-/// Components on this node whose expectations nothing satisfies, as a list of
-/// `{ component, expects }`. Advisory: the editor warns, nothing blocks.
-fn unmet_expectations(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let entity =
-        optional_node(args, 0)?.ok_or_else(|| anyhow!("unmet_expectations needs a node"))?;
+/// What is off about this node, as a list of `{ component, property, message }`
+/// with `property` nil for the component as a whole. Advisory: nothing blocks.
+fn warnings(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let entity = optional_node(args, 0)?.ok_or_else(|| anyhow!("warnings needs a node"))?;
     Ok(Value::List(
-        crate::presets::unmet_expectations(eng, entity)
+        crate::warnings::warnings(eng, entity)
             .into_iter()
-            .map(|(component, expects)| {
+            .map(|found| {
+                let property = found.warning.property.map_or(Value::Nil, Value::Str);
                 Value::Map(vec![
-                    ("component".to_string(), Value::Str(component)),
-                    (
-                        "expects".to_string(),
-                        Value::List(expects.into_iter().map(Value::text).collect()),
-                    ),
+                    ("component".to_string(), Value::Str(found.component)),
+                    ("property".to_string(), property),
+                    ("message".to_string(), Value::Str(found.warning.message)),
                 ])
             })
             .collect(),
@@ -1023,7 +1047,12 @@ fn strings_locale(eng: &Engine, _: &[Value]) -> Result<Value> {
 }
 
 fn strings_set_locale(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let was = crate::strings::locale(eng);
     crate::strings::set_locale(eng, text(args, 0)?);
+    let now = crate::strings::locale(eng);
+    if now != was {
+        crate::facts::notice(eng, crate::hooks::ON_LOCALE_CHANGED, Value::Str(now));
+    }
     Ok(Value::Nil)
 }
 
@@ -1087,42 +1116,6 @@ fn save_version(eng: &Engine, _: &[Value]) -> Result<Value> {
 /// branch the simulation on wall time, which no two machines agree about.
 fn timings(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(crate::timings::table(eng))
-}
-
-/// `engine.profile_scripts(on)`: start or stop counting what each script
-/// costs. Turning it on clears the tally.
-fn profile_scripts(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let on = matches!(args.first(), Some(Value::Bool(true)));
-    if let Some(host) = eng.script_host() {
-        host.set_profiling(on);
-    }
-    Ok(Value::Nil)
-}
-
-/// `engine.script_costs()`: what each script has cost since profiling
-/// started, dearest first.
-///
-/// Counted in instructions, not seconds: the same run executes the same
-/// instructions on every machine, so a number that moved is a real change.
-fn script_costs(eng: &Engine, _: &[Value]) -> Result<Value> {
-    let rows = eng
-        .script_host()
-        .map(|h| h.script_costs())
-        .unwrap_or_default();
-    Ok(Value::List(
-        rows.into_iter()
-            .map(|(path, calls, instructions)| {
-                Value::Map(vec![
-                    ("path".to_string(), Value::Str(path)),
-                    ("calls".to_string(), Value::Int(calls.cast_signed())),
-                    (
-                        "instructions".to_string(),
-                        Value::Int(instructions.cast_signed()),
-                    ),
-                ])
-            })
-            .collect(),
-    ))
 }
 
 /// The whole property table a scene key's value stands for.

@@ -117,7 +117,7 @@ pub fn component_write(S) {
 pub fn rename(S) {
     let was = S.doc[S.sel].name;
     crate::left::rename_open(S);
-    check(S.renaming, "the rename sheet opens");
+    check(S.renaming, "the rename dialog opens");
     check(S.rename_text == was, format!("it starts from the node's name ({})", S.rename_text));
 
     model::rename_selected(S, "Renamed");
@@ -433,13 +433,13 @@ pub fn weighting(S) {
     weights::auto(S);
     let after_auto = column(S, 0);
     check(after_auto > 0.0, format!("auto weights by distance ({:.2})", after_auto));
-    weights::normalise(S);
+    weights::normalize(S);
     let per_vertex = 0.0;
     for bone in polygon::bones(S) {
         per_vertex += util::f(util::vec(bone.get("weights").unwrap_or([])).get(0).unwrap_or(0.0));
     }
     check(util::abs(per_vertex - 1.0) < 1e-3,
-        format!("normalise makes one vertex's weights sum to one ({:.4})", per_vertex));
+        format!("normalize makes one vertex's weights sum to one ({:.4})", per_vertex));
     // Smoothing is an average, so it cannot push a weight outside the range
     // its neighbours already span.
     weights::smooth(S);
@@ -601,6 +601,23 @@ pub fn camera_check_step(S) {
         return;
     }
     d.stage = 1;
+    // The 3D gizmo hands the backend's camera its buttons; in 2D the editor
+    // pans and zooms by itself, so there is no hand-over to check.
+    if !S.mode2d {
+        backend_buttons(S);
+    }
+    // The wheel the editor drives itself, fed into the snapshot it reads: the
+    // backend's camera never sees a mouse event in the editor. A fed event
+    // lands next frame, and the pose it moves is published the one after.
+    let stage = S.layout.stage;
+    let (_, _, _, _, _, _, _, dpi) = render::camera_pose();
+    let (cx, cy) = (stage.x + stage.w / 2.0, stage.y + stage.h / 2.0);
+    input::feed_mouse(cx * S.ui_scale * dpi, cy * S.ui_scale * dpi);
+    d.was = closeness(S);
+    input::feed_scroll(0.0, flick(crate::viewport::dolly_step()));
+}
+
+fn backend_buttons(S) {
     let tool = S.tool;
     S.tool = "move";
     crate::selection::clear(S);
@@ -613,16 +630,17 @@ pub fn camera_check_step(S) {
         check(!render::camera_input(), "and takes them once a gizmo is drawn");
     }
     S.tool = tool;
-    // The wheel the editor drives itself, fed into the snapshot it reads: the
-    // backend's camera never sees a mouse event in the editor. A fed event
-    // lands next frame, and the pose it moves is published the one after.
-    let stage = S.layout.stage;
-    let (_, _, _, tx, ty, tz, _, dpi) = render::camera_pose();
-    let (cx, cy) = (stage.x + stage.w / 2.0, stage.y + stage.h / 2.0);
-    input::feed_mouse(cx * S.ui_scale * dpi, cy * S.ui_scale * dpi);
-    let (ex, ey, ez, _, _, _, _, _) = render::camera_pose();
-    d.was = reach(ex, ey, ez, tx, ty, tz);
-    input::feed_scroll(0.0, flick(crate::viewport::dolly_step()));
+}
+
+// A number that grows as the camera closes in: the 2D zoom, or one over how
+// far the 3D eye stands from what it looks at.
+fn closeness(S) {
+    if S.mode2d {
+        let (_, _, zoom) = render::camera_2d();
+        return zoom;
+    }
+    let (ex, ey, ez, tx, ty, tz, _, _) = render::camera_pose();
+    1.0 / util::max(reach(ex, ey, ez, tx, ty, tz), EPSILON)
 }
 
 // The wheel this platform reports for a comfortable flick: enough to take a
@@ -636,6 +654,9 @@ fn flick(step) {
     n
 }
 
+// What a distance is floored at before it divides.
+const EPSILON = 0.0000001;
+
 // How far the eye stands from what it looks at.
 fn reach(ex, ey, ez, tx, ty, tz) {
     let (ax, ay, az) = (ex - tx, ey - ty, ez - tz);
@@ -644,11 +665,10 @@ fn reach(ex, ey, ez, tx, ty, tz) {
 
 fn camera_dollied(S, d) {
     S.camera_check = ();
-    let (ex, ey, ez, tx, ty, tz, _, _) = render::camera_pose();
-    let now = reach(ex, ey, ez, tx, ty, tz);
+    let now = closeness(S);
     // Bounded, not just inward: a flick that swallows the whole distance is
     // the zoom being orders of magnitude too strong, which reads as a teleport.
-    let took = d.was / util::max(now, 0.0001);
+    let took = now / util::max(d.was, EPSILON);
     check(took > 1.005 && took < 1.1, format!("and dollies the camera in gently ({} to {})", d.was, now));
     log::info("selftest camera: done");
 }
@@ -688,7 +708,7 @@ fn viewport_owns(S, stage) {
         crate::viewport::owns_pointer(S, mid_x, mid_y),
         "the middle of the stage is the viewport's to click",
     );
-    // A dock is not, whichever one the persona opened.
+    // A dock is not, whichever one the workspace opened.
     let right = S.layout.right;
     if right.w > 0.0 {
         check(
@@ -752,21 +772,20 @@ pub fn reloaded(S) {
         old[key] = value;
     }
     old.remove("tool");
-    old.remove("persona");
+    old.remove("workspace");
     let added = crate::backfill(old);
     check(added.len() == 2, format!("reload fills in what the old state lacked ({:?})", added));
-    check(old.contains_key("tool") && old.contains_key("persona"), "and the fields are readable after it");
-    check(old.persona == S.persona || old.persona == "scene", "at a fresh value rather than nothing");
+    check(old.contains_key("tool") && old.contains_key("workspace"), "and the fields are readable after it");
+    check(old.workspace == S.workspace || old.workspace == crate::defs::WORKSPACE_SCENE, "at a fresh value rather than nothing");
     log::info("selftest reload: done");
 }
 
-/// Every component a node carries is reachable from some persona.
+/// Every component a node carries is reachable from some workspace.
 ///
-/// The inspector shows a component when a persona names it or shares one of
-/// its tags. One that carries no tag any persona asks for cannot be drawn in
-/// any persona, so its properties are unreachable however the node is picked.
+/// The inspector shows a component when a workspace names it or shares one of
+/// its tags. One that carries no tag any workspace asks for cannot be drawn in
+/// any workspace, so its properties are unreachable however the node is picked.
 pub fn component_reach(S) {
-    let personas = ["scene", "script", "anim", "phys", "ui"];
     let seen = #{};
     let orphans = [];
     for i in 0..S.doc.len() {
@@ -782,8 +801,8 @@ pub fn component_reach(S) {
             seen[name] = true;
             let tags = util::vec(scene::component_tags(name));
             let reached = false;
-            for id in personas {
-                let wants = crate::defs::persona_inspector(id);
+            for p in crate::defs::workspaces() {
+                let wants = crate::defs::workspace_inspector(p.id);
                 if util::contains(wants.named, name) {
                     reached = true;
                 }
@@ -799,12 +818,12 @@ pub fn component_reach(S) {
         }
     }
     check(seen.len() > 0, format!("the scene's nodes carry {} kinds of component", seen.len()));
-    check(orphans.is_empty(), format!("every one of them reaches a persona ({:?})", orphans));
+    check(orphans.is_empty(), format!("every one of them reaches a workspace ({:?})", orphans));
     log::info("selftest reach: done");
 }
 
 pub fn deselected(S) {
-    S.reselect = #{ waited: 0, stage: 0, row: 0, had: 0, drawn: 0 };
+    S.reselect = #{ waited: 0, stage: 0, row: 0, had: 0, drawn: 0, workspace: "", tool: "" };
 }
 
 /// Clearing the selection leaves the panels a blank node, and picking the same
@@ -849,14 +868,20 @@ pub fn reselect_step(S) {
         d.drawn = crate::inspector::drawn_rows();
         check(d.drawn > 0, format!("the panel draws {} rows for the selected node", d.drawn));
         deselect_checks(S, d.had);
+        d.workspace = S.workspace;
+        d.tool = S.tool;
         d.stage = 2;
         d.waited = 0;
         return;
     }
     if d.stage == 2 {
-        if d.waited < SETTLE {
+        if d.waited < no_selection_tools().len() {
+            no_selection_frame(S, d);
             return;
         }
+        shell::set_workspace(S, d.workspace);
+        shell::set_tool(S, d.tool);
+        add_with_nothing_selected(S);
         crate::selection::only(S, d.row);
         d.stage = 3;
         d.waited = 0;
@@ -884,7 +909,7 @@ pub fn reselect_step(S) {
 // Frames to let the pooled form stop moving before a reading is taken.
 const SETTLE = 8;
 
-// A node the persona has nothing for draws a reason, not a blank panel: an
+// A node the workspace has nothing for draws a reason, not a blank panel: an
 // empty inspector is otherwise indistinguishable from components gone missing.
 fn check_empty_says_why(S) {
     for i in 0..S.doc.len() {
@@ -908,7 +933,7 @@ pub fn empty_note_step(S) {
     }
     S.empty_note = ();
     let drawn = crate::inspector::drawn_rows();
-    check(drawn > 0, format!("a node with no section for this persona says so ({} rows)", drawn));
+    check(drawn > 0, format!("a node with no section for this workspace says so ({} rows)", drawn));
     log::info("selftest note: done");
 }
 
@@ -923,12 +948,61 @@ fn deselect_checks(S, had) {
         "the panels read a blank node rather than indexing past the document",
     );
     check(mirror_resolves(S), format!("the scene still resolves ({} rows were selected)", before));
+    // Every verb on "the selected node", with none: each returns rather than
+    // indexing row -1, which threw and left a Cmd+S unsaved.
+    let rows = S.doc.len();
+    model::rename_selected(S, "Renamed");
+    model::duplicate_selected(S);
+    model::delete_selected(S);
+    model::open_prefab(S);
+    crate::left::rename_open(S);
+    shell::attach_script(S);
+    shell::detach_script(S);
+    shell::set_script_path(S, "scripts/nothing_selected.rn");
+    shell::goto_definition(S);
+    shell::format_active(S);
+    crate::statemachine::create(S);
+    check(S.doc.len() == rows && !S.renaming && S.sel < 0,
+        "and every verb on the selection leaves the document and the selection alone");
+}
+
+// Every tool any workspace offers, each drawn with nothing selected.
+fn no_selection_tools() {
+    let tools = [];
+    for p in crate::defs::workspaces() {
+        for tool in crate::defs::tools(p.id) {
+            if !util::contains(tools, tool) {
+                tools.push(tool);
+            }
+        }
+    }
+    tools
+}
+
+// One workspace and tool pair a frame.
+fn no_selection_frame(S, d) {
+    let workspaces = crate::defs::workspaces();
+    let tools = no_selection_tools();
+    let i = d.waited % tools.len();
+    shell::set_workspace(S, workspaces[i % workspaces.len()].id);
+    shell::set_tool(S, tools[i]);
+}
+
+// A node added with nothing selected goes under the root, and is taken out
+// again so the reselected row still lists what it did.
+fn add_with_nothing_selected(S) {
+    let rows = S.doc.len();
+    model::add_child(S, None);
+    check(S.doc.len() == rows + 1 && S.doc[rows].parent == S.doc[0].id,
+        "a node added with nothing selected goes under the root");
+    crate::selection::only(S, rows);
+    model::delete_selected(S);
 }
 
 // How many components the inspector would list for the active row.
 fn listed_components(S) {
-    let wants = crate::defs::persona_inspector(S.persona);
-    crate::inspector::persona_components(S, wants).len()
+    let wants = crate::defs::workspace_inspector(S.workspace);
+    crate::inspector::workspace_components(S, wants).len()
 }
 
 /// Where the Physics panel's pills really land.
@@ -944,7 +1018,7 @@ fn listed_components(S) {
 /// So: every pill the panel offers is measured, and has to be wide enough to
 /// hit, inside the sheet, and clear of the pill beside it.
 pub fn physics_clicks(S) {
-    shell::set_persona(S, "phys");
+    shell::set_workspace(S, crate::defs::WORKSPACE_PHYSICS);
     S.phys_click = #{ waited: 0 };
 }
 
@@ -956,7 +1030,7 @@ fn pill_box(S, pill) {
         return ();
     }
     let r = ui::widget_rect(row);
-    if util::is_nil(r) || r.w <= 0.0 {
+    if util::is_nil(r) || r.width <= 0.0 {
         return ();
     }
     // The row's horizontal starts at its left edge and is `full` wide, so a
@@ -1014,7 +1088,7 @@ fn physics_pills_fit(S) {
         }
         // Past the row's own right edge is a pill the wrap had no room for:
         // it is drawn clipped, and a click on where it looks to be misses.
-        if box.right > box.row.x + box.row.w + 0.5 {
+        if box.right > box.row.x + box.row.width + 0.5 {
             over.push(box.id);
         }
     }
@@ -1072,13 +1146,13 @@ pub fn physics_panel(S) {
     let collider = if two_d { "collider2d" } else { "collider3d" };
     let soft = if two_d { "softbody2d" } else { "softbody3d" };
 
-    // The persona shows what carries the engine's `physics` tag, which is the
+    // The workspace shows what carries the engine's `physics` tag, which is the
     // check the old hard-coded list of names failed.
     model::add_component(S, collider);
-    let wants = crate::defs::persona_inspector("phys");
-    let shown = crate::inspector::persona_components(S, wants);
+    let wants = crate::defs::workspace_inspector(crate::defs::WORKSPACE_PHYSICS);
+    let shown = crate::inspector::workspace_components(S, wants);
     check(crate::util::contains(shown, collider),
-        format!("the Physics persona shows {}", collider));
+        format!("the Physics workspace shows {}", collider));
 
     // A shape action writes the mesh and the kind together, in one undo.
     let source = if two_d {
@@ -1106,10 +1180,35 @@ pub fn physics_panel(S) {
     check(schema.contains_key("young_modulus") && schema.contains_key("tear_strain"),
         "the soft body's mechanical rows are in its schema");
     check(mirror_resolves(S), "the scene resolves with a soft body on it");
+    each_from_its_own_mesh(S, two_d, collider);
 
     undo_all(S);
     check(mirror_resolves(S), "the undone scene resolves");
     log::info("selftest physics panel: done");
+}
+
+// Two meshed nodes turned into colliders at once: each is built from its own
+// mesh, not the active row's.
+fn each_from_its_own_mesh(S, two_d, collider) {
+    let meshed = [];
+    for i in 0..S.doc.len() {
+        if crate::physics::drawn_mesh(S.doc[i], two_d).is_some() {
+            meshed.push(i);
+        }
+    }
+    if meshed.len() < 2 {
+        log::info("selftest physics panel: one meshed node, the selection not checked");
+        return;
+    }
+    let pair = [meshed[0], meshed[1]];
+    crate::selection::set(S, pair);
+    let hull = if two_d { physics2d::SHAPE_CONVEX_HULL } else { physics3d::SHAPE_CONVEX_HULL };
+    crate::physics::make_collider(S, two_d, #{ kind: hull });
+    for i in pair {
+        let wrote = util::obj(S.doc[i].get(collider).unwrap_or(#{})).get("mesh");
+        let own = crate::physics::drawn_mesh(S.doc[i], two_d);
+        check(wrote == own, format!("'{}' is built from its own mesh ({:?})", S.doc[i].name, wrote));
+    }
 }
 
 /// The bone map dock: the humanoid guessed against a rig's own names, and
@@ -1623,7 +1722,7 @@ fn found_in(S, rel, severity) {
     out
 }
 
-/// `--state lintdemo`: a broken buffer is found at the line it broke on, and
+/// `--state test:lint`: a broken buffer is found at the line it broke on, and
 /// a good one leaves nothing behind. The buffer, not the file — a check is
 /// about what is on screen, and the test must not write a broken script out.
 pub fn linting(S) {
@@ -1664,7 +1763,7 @@ pub fn linting(S) {
     log::info("selftest lint: done");
 }
 
-/// `--state tooldemo`: what the caret is offered, what is under it, and what a
+/// `--state test:tools`: what the caret is offered, what is under it, and what a
 /// rename would rewrite. The buffer, not the file: a tool answers about what
 /// is on screen, and the test must not write over a script.
 pub fn tooling(S) {
@@ -1788,10 +1887,10 @@ pub fn instances(S) {
 
     // Structure is the prefab's.
     let before = S.doc.len();
-    expect_warning("cannot add a node inside an instance");
+    expect_warning("cannot add a node inside a prefab");
     model::add_child(S, None);
     check(S.doc.len() == before, "adding a node inside an instance is refused");
-    expect_warning("cannot delete a node inside an instance");
+    expect_warning("cannot delete a node inside a prefab");
     model::delete_selected(S);
     check(S.doc.len() == before, "deleting a node inside an instance is refused");
 
@@ -1842,7 +1941,7 @@ pub fn script_paths(S) {
     check(model::script_rel(S.doc[i]) == Some(moved), "a changed name moves the script");
     check(fs::exists(root + moved) && !fs::exists(root + fresh), "and the file with it");
     shell::detach_script(S);
-    check(!S.doc[i].contains_key("script"), "remove takes the script off the node");
+    check(!S.doc[i].contains_key("script"), "detach takes the script off the node");
     check(fs::exists(root + moved), "and leaves the file");
     check(!S.script_open, "and closes the script tab");
     shell::undo(S);
@@ -1881,7 +1980,7 @@ const CHECK_AT = 28;
 /// leaves in the list, and the row forgotten again. Writes under the editor's
 /// own data directory, which is the one place it owns on every machine.
 pub fn manager_screen(S) {
-    let home = engine::user_data_dir() + "/selftest-project";
+    let home = engine::user_data_directory() + "/selftest-project";
     let made = util::obj(project::create(home, "empty"));
     let failed = made.get("error");
     if let Some(why) = failed {
@@ -1916,7 +2015,7 @@ const GODOT_SCENE = "[gd_scene format=3]\n\n[node name=\"Root\" type=\"Node2D\"]
 // Import project: the button's own half, with a hand-off in place of the open
 // that would quit this process. The files land over the frames that follow.
 fn converting_a_project(S) {
-    let home = engine::user_data_dir();
+    let home = engine::user_data_directory();
     // Where new projects land. The screen sets this from the preferences; a
     // run editing a project never opened the screen, so it is empty here.
     S.manager.parent = home;
@@ -2006,7 +2105,7 @@ fn versions_half(S) {
     let asked = S.manager.asked;
     S.manager.asked = true;
     crate::about::open(S);
-    check(crate::window::showing(S, "about"), "the About sheet opens");
+    check(crate::window::showing(S, "about"), "the About dialog opens");
     crate::window::hide(S);
     S.manager.asked = asked;
 
@@ -2038,7 +2137,7 @@ fn example_projects(S) {
         }
     };
     check(one.get("note").unwrap_or("") != "", format!("and each says what it is ({})", one.note));
-    let into = engine::user_data_dir() + "/selftest-copies";
+    let into = engine::user_data_directory() + "/selftest-copies";
     let made = util::obj(project::copy_example("hello", into));
     let failed = made.get("error");
     if let Some(why) = failed {
@@ -2111,7 +2210,7 @@ fn span(x, y, z) {
 }
 
 // The centre must be showing the viewport when no document is open: a stray
-// split used to leave a collapsed code pane over it in every persona.
+// split used to leave a collapsed code pane over it in every workspace.
 pub fn layout(S) {
     S.layout_demo = 0;
 }
@@ -2147,6 +2246,7 @@ pub fn layout_step(S) {
     // control: a floor grew the box and left the glyph and its bar behind.
     check_touch_targets(S);
     check_dock_tools(S);
+    check_active_tabs(S);
     check(covered(S, crate::layout::sheets(S)), "and the middle of every sheet does not");
     // The gutter is a `padding`, which the component keeps as four sides
     // whatever the scene spelled; reading all four back placed the shell at 0.
@@ -2160,8 +2260,8 @@ pub fn layout_step(S) {
     // A root keeps the box it was handed on a pass that is not a fresh one:
     // restyled with none, it sized itself from its content instead.
     let body = ui::widget_rect(scene::get_node("Editor/Shell/Body"));
-    check(!util::is_nil(body) && body.h > S.screen_h * 0.5,
-        format!("the shell's body grew into the room left over ({})", body.h));
+    check(!util::is_nil(body) && body.height > S.screen_h * 0.5,
+        format!("the shell's body grew into the room left over ({})", body.height));
     // A window too small for three columns folds its docks and shows one
     // sheet at a time, so the desktop's invariants are asked of a desktop.
     if crate::docks::one_at_a_time(S) {
@@ -2230,10 +2330,10 @@ fn check_touch_targets(S) {
             boxes.push(ui::widget_rect(kid));
         }
         for r in boxes {
-            if util::is_nil(r) || r.h <= 0.0 {
+            if util::is_nil(r) || r.height <= 0.0 {
                 continue;
             }
-            let points = r.h * S.ui_scale;
+            let points = r.height * S.ui_scale;
             if points < smallest {
                 smallest = points;
                 where = path;
@@ -2263,9 +2363,27 @@ fn check_dock_tools(S) {
         // Zero is the tools giving way to the tabs, which is what a dock too
         // narrow for both does. What this catches is the state between: a
         // hatch a pixel or two wide, drawing what the row then clips.
-        check(box.w == 0.0 || (box.w > 20.0 && box.h > 12.0),
+        check(box.width == 0.0 || (box.width > 20.0 && box.height > 12.0),
             format!("the {} dock's tools have room to draw ({} × {})",
-                side, box.w as i64, box.h as i64));
+                side, box.width as i64, box.height as i64));
+    }
+}
+
+// A narrow dock lists what its row cannot hold under "+N"; the active tab is
+// never one of them, so the panel showing always has its tab in view.
+fn check_active_tabs(S) {
+    for side in ["left", "bottom", "right"] {
+        if crate::docks::folded(S, side) {
+            continue;
+        }
+        if let Some((tab, strip)) = crate::docks::active_tab_box(S, side) {
+            check(tab.x >= strip.x - 0.5 && tab.x + tab.width <= strip.x + strip.width + 0.5,
+                format!("the {} dock's active tab is inside its row ({} to {} in {} to {})", side,
+                    tab.x as i64, (tab.x + tab.width) as i64, strip.x as i64,
+                    (strip.x + strip.width) as i64));
+        } else {
+            check(false, format!("the {} dock's active tab has a box", side));
+        }
     }
 }
 
@@ -2302,46 +2420,46 @@ pub fn font_sheet(S) {
     let k = S.theme;
     let r = S.layout.stage;
     ui::overlay("fontsheet", #{
-        x: r.x, y: r.y, w: r.w, h: r.h,
-        fill: k.panel, stroke: k.line, radius: 11, padding_x: 16, padding_y: 12,
+        x: r.x, y: r.y, width: r.w, height: r.h,
+        fill: k.bg_panel, stroke: k.border_default, corner_radius: 11, padding_x: 16, padding_y: 12,
     }, || {
         ui::label("FONT COVERAGE  ·  --state fontdemo", style::heading(k));
         ui::add_space(10);
         ui::label("SCRIPTS", style::heading(k));
         ui::add_space(6);
         for (name, sample) in scripts() {
-            ui::horizontal(#{ height: 24 }, || {
-                ui::horizontal(#{ height: 24, width: 92 }, || {
-                    ui::label(name, style::mono_sm(k.faint));
+            ui::row(#{ height: 24 }, || {
+                ui::row(#{ height: 24, width: 92 }, || {
+                    ui::label(name, style::mono_sm(k.text_subtle));
                 });
-                ui::label(sample, #{ size: style::XL, color: k.text });
+                ui::label(sample, #{ font_size: style::XL, text_color: k.text_default });
             });
         }
         ui::add_space(10);
         ui::label("FACES", style::heading(k));
         ui::add_space(6);
-        ui::label("heading  Source Sans 3 Semibold", #{ size: style::XL, font: ui::FONT_HEADING, color: k.text });
-        ui::label("ui  Source Sans 3 Regular", #{ size: style::LG, color: k.text });
-        ui::label("mono  JetBrains Mono  0O1lI  ⌘⌥⇧⌃", style::mono(k.text));
+        ui::label("heading  Source Sans 3 Semibold", #{ font_size: style::XL, font_family: ui::FONT_HEADING, text_color: k.text_default });
+        ui::label("ui  Source Sans 3 Regular", #{ font_size: style::LG, text_color: k.text_default });
+        ui::label("mono  JetBrains Mono  0O1lI  ⌘⌥⇧⌃", style::mono(k.text_default));
         ui::add_space(10);
         ui::label("ICONS", style::heading(k));
         ui::add_space(6);
-        ui::horizontal(#{ height: 24 }, || {
+        ui::row(#{ height: 24 }, || {
             ui::spacing(8, 0);
             for id in ["select", "move", "rotate", "scale", "zoom", "key", "bone", "polygon"] {
-                ui::label(crate::icons::tool(id), #{ size: style::XL, color: k.text });
+                ui::label(crate::icons::tool(id), #{ font_size: style::XL, text_color: k.text_default });
             }
-            for id in ["scene", "script", "anim", "phys", "ui"] {
-                ui::label(crate::icons::persona(id), #{ size: style::XL, color: k.accent });
+            for p in crate::defs::workspaces() {
+                ui::label(crate::icons::workspace(p.id), #{ font_size: style::XL, text_color: k.primary_text });
             }
         });
-        ui::horizontal(#{ height: 24 }, || {
+        ui::row(#{ height: 24 }, || {
             ui::spacing(8, 0);
-            for id in ["output", "problems", "assets", "timeline", "debugger", "session", "profiler"] {
-                ui::label(crate::icons::panel(id), #{ size: style::XL, color: k.text });
+            for id in ["output", "problems", "assets", "timeline", "debugger", "recordings", "profiler"] {
+                ui::label(crate::icons::panel(id), #{ font_size: style::XL, text_color: k.text_default });
             }
-            for id in ["add", "close", "minimise", "search", "dark", "play", "pause", "stop", "instance", "split"] {
-                ui::label(crate::icons::ui(id), #{ size: style::XL, color: k.sage });
+            for id in ["add", "close", "minimize", "search", "dark", "play", "pause", "stop", "instance", "split"] {
+                ui::label(crate::icons::ui(id), #{ font_size: style::XL, text_color: k.secondary_text });
             }
         });
     });
@@ -2368,7 +2486,7 @@ pub fn sessions(S) {
     // rather than merely running.
     S.session.verify = true;
     shell::toggle_play(S);
-    check(S.session.recording != "", "play starts recording the session");
+    check(S.session.recording != "", "play starts a recording");
     check(S.playing, "and the scene is running");
 }
 
@@ -2390,7 +2508,7 @@ fn stop_and_check(S, d) {
     check(S.session.recording == "", "stop closes the recording");
     check(util::is_nil(replay::recording()), "and the engine has none open");
     let rows = crate::session::listing(S);
-    if !check(rows.len() > 0, "the session it wrote is on disk") {
+    if !check(rows.len() > 0, "the recording it wrote is on disk") {
         S.session.demo = ();
         return;
     }
@@ -2417,7 +2535,7 @@ fn open_and_check(S, d) {
     check(replay::state() == replay::STATE_PLAYING, "and starts playing");
     check(S.playing, "the scene runs while it plays");
     let span = util::obj(replay::length());
-    check(span.get("frames").unwrap_or(0) > 0, "the session has frames");
+    check(span.get("frames").unwrap_or(0) > 0, "the recording has frames");
     check(S.session.lanes.len() > 0, "the dock has lanes to draw");
     d.was = replay::position();
 }
@@ -2426,25 +2544,25 @@ fn open_and_check(S, d) {
 // scene back and lets the engine run again.
 fn replayed_and_check(S, d) {
     check(replay::position() > d.was, "playing walks the recording forward");
-    check(replay::state() == replay::STATE_PAUSED, "a spent session parks");
-    let split = replay::diverged();
+    check(replay::state() == replay::STATE_PAUSED, "a spent recording parks");
+    let split = replay::divergence_tick();
     let where_ = if util::is_nil(split) { "" } else { format!(" (tick {})", split.tick) };
     check(util::is_nil(split), format!("and reproduced what was recorded{}", where_));
     crate::session::close(S);
     exported_and_check(S, d);
-    check(!crate::session::loaded(S), "closing unloads the session");
+    check(!crate::session::loaded(S), "closing unloads the recording");
     check(!S.playing, "and puts the edited scene back");
     // A self-test that leaves files behind fills the ring it is testing.
     fs::remove(crate::session::dir(S) + "/" + d.file);
     S.session.demo = ();
-    log::info("selftest session: done");
+    log::info("selftest recordings: done");
 }
 
 // Export puts a copy where a bug report or `balaur replay` can reach it.
 fn exported_and_check(S, d) {
     crate::session::export(S, d.file);
     let out = S.game_root + "/" + d.file;
-    check(fs::exists(out), "export copies the session into the project");
+    check(fs::exists(out), "copy to project puts the recording in the project");
     fs::remove(out);
 }
 
@@ -2518,7 +2636,7 @@ pub fn placing(S) {
 
     // A scene that instanced itself would recurse; the verb refuses.
     let held = S.doc.len();
-    expect_warning("a scene cannot instance itself");
+    expect_warning("a scene cannot instantiate itself");
     model::instance_scene(S, S.scene_rel);
     check(S.doc.len() == held, "a scene refuses to instance itself");
 
@@ -2531,13 +2649,13 @@ pub fn placing(S) {
 // The theme switch, both ways. One way was all it ever managed: a `dark`
 // parameter shadowed `theme::dark()`, so asking for the dark theme back
 // called a bool and the editor stayed light for the rest of the session.
-/// `--state counterdemo`: the editor's half of the plugin seam. Registering a
+/// `--state test:plugin_docks`: the editor's half of the plugin seam. Registering a
 /// dock has to put a tab somewhere, or nothing can ever bring the panel up.
 pub fn plugin_docks(S) {
-    if !check(S.registry.docks.len() > 0, "a plugin registered a dock") {
+    if !check(S.registry.panels.len() > 0, "a plugin registered a panel") {
         return;
     }
-    for entry in S.registry.docks {
+    for entry in S.registry.panels {
         let side = crate::docks::side_of(S, entry.id);
         if !check(side.is_some(), format!("the {} dock has a tab", entry.id)) {
             continue;
@@ -2607,7 +2725,7 @@ pub fn plugin_step(S) {
     fs::remove(crate::kit::game_data(S) + "/" + PROBE_FILE);
 }
 
-/// `--state palettedemo`: the palette opens on a query, its matches are rows
+/// `--state test:palette`: the palette opens on a query, its matches are rows
 /// on the scene, and the query survives the frames after it is set.
 pub fn palette_screen(S) {
     crate::shell::open_palette(S, "physics");
@@ -2634,19 +2752,20 @@ pub fn palette_step(S) {
     for row in host.children() {
         if row.get_component("widget", "visible") == true {
             let slot = row.get_node("H").get_node("C").get_node("C0");
-            shown.push(slot.get_component("widget", "role"));
+            shown.push(slot.get_component("widget", "checked") == true);
         }
     }
     check(shown.len() > 1, format!("the query narrowed the list to its matches ({})", shown.len()));
-    check(shown.len() > 0 && shown[0] == "picker_row_on",
-        format!("the first match wears the held look, which is what Enter runs ({:?})", shown));
+    let held = shown.iter().filter(|on| on).count();
+    check(shown.len() > 0 && shown[0] && held == 1,
+        format!("the first match alone wears the held look, which is what Enter runs ({:?})", shown));
     let box = ui::widget_rect(scene::get_node("Editor/Picker"));
-    check(!util::is_nil(box) && box.h > 100.0,
+    check(!util::is_nil(box) && box.height > 100.0,
         format!("the picker is as tall as the matches it holds ({:?})", box));
     crate::shell::close_palette(S);
 }
 
-/// `--state paneldemo`: every row of the mark's menu opens the panel it names
+/// `--state test:panels`: every row of the mark's menu opens the panel it names
 /// and closes it again. A panel something else reopens on the same frame, or
 /// one no dock will take, reads as a row that does nothing.
 pub fn menu_panels(S) {
@@ -2666,7 +2785,7 @@ pub fn menu_panels(S) {
     log::info("selftest menu panels: done");
 }
 
-/// `--state focusdemo`: focus folds the shell round the code, and leaving it
+/// `--state test:focus`: focus folds the shell round the code, and leaving it
 /// puts back exactly the layout it folded.
 pub fn focusing(S) {
     if !shell::select_scripted(S) {
@@ -2717,7 +2836,7 @@ pub fn focusing(S) {
     log::info("selftest focus: done");
 }
 
-/// `--state settingsdemo`: the settings screen's search field and the query it
+/// `--state test:settings`: the settings screen's search field and the query it
 /// filters by are one thing, which they stopped being for a frame; then a
 /// value written on the screen is round-tripped through the file.
 pub fn settings_screen(S) {
@@ -2741,14 +2860,14 @@ pub fn settings_step(S) {
         // The sheet is a `dialog` node stating its own size: hugging, its bar
         // measures and its body is left with nothing.
         let body = ui::widget_rect(scene::get_node("Editor/Sheet/SheetBody"));
-        check(!util::is_nil(body) && body.h > 100.0,
+        check(!util::is_nil(body) && body.height > 100.0,
             format!("the sheet's body has the room its frame states ({:?})", body));
         // Typed rather than set: the field's text is what a key press
         // changes, and the list has to follow it.
         let field = scene::get_node("Editor/Sheet/SheetBody/SheetSplit/SheetSide/SheetSideRows/C0");
-        if check(!util::is_nil(field) && field.get_component("widget", "kind") == "field",
+        if check(!util::is_nil(field) && field.get_component("widget", "kind") == "text_field",
             "the sidebar's first control is the search field") {
-            field.patch_component("widget", #{ text: "scale" });
+            ui::edit(field, "scale");
         }
         return;
     }
@@ -2768,7 +2887,7 @@ pub fn settings_step(S) {
 // A value written on the screen reaches the editor's preferences file and
 // comes back out of it. The file is put back as it was found.
 fn settings_round_trip(S) {
-    let path = "editor/sessions/keep";
+    let path = "editor/recordings/keep";
     let kept = fs::read(crate::settings::prefs_path());
     let was = settings::get(path);
     let before = if was is Tuple { 10 } else { util::i(was) };
@@ -2782,7 +2901,7 @@ fn settings_round_trip(S) {
     let text = fs::read(crate::settings::prefs_path());
     if check(text is String, "the preferences file was written") {
         check(text.contains("keep"), "and names the setting that changed");
-        settings::load(text);
+        settings::merge_toml(text);
         check(util::i(settings::get(path)) == want,
             format!("a re-read of the file agrees ({})", settings::get(path)));
     }
@@ -2799,24 +2918,75 @@ fn settings_round_trip(S) {
 
 pub fn theme_switch(S) {
     theme::set_dark(S, true);
-    check(S.theme.dark == true, "the editor wears the dark theme");
+    check(S.theme.dark == true, "the editor uses the dark theme");
     let dark_sheet = scene::get_node("Editor/Sheet").get_component("widget", "theme");
     theme::set_dark(S, false);
     check(S.theme.dark == false, "the switch reaches the light theme");
-    check(S.theme.bg != "", "and the light theme loaded its colours");
+    check(S.theme.bg_app != "", "and the light theme loaded its colors");
     // The sheet, the palette and the start screen are roots of their own, not
     // under the shell, and each has to wear the switch too.
     for path in ["Editor/Shell", "Editor/Manager", "Editor/Picker", "Editor/Sheet"] {
         let now = scene::get_node(path).get_component("widget", "theme");
         check(now is String && now.starts_with("#!") && now != dark_sheet,
-            format!("{} wears the light theme ({:?})", path, now));
+            format!("{} uses the light theme ({:?})", path, now));
     }
     theme::set_dark(S, true);
     check(S.theme.dark == true, "and switches back to the dark one");
+    follow_the_system(S);
+    bundled_pairs(S);
     log::info("selftest theme: done");
 }
 
-/// `--state themeeditdemo`: a bundled theme is read-only, a duplicate is the
+// Under `mode = "system"` the half follows what the system says, and a mode
+// of its own holds whatever the system says. The setting is put back.
+fn follow_the_system(S) {
+    let mode = settings::get(theme::MODE_SETTING);
+    let pinned = S.theme_half;
+    S.theme_half = "";
+    settings::set(theme::MODE_SETTING, "system");
+    theme::follow(S, false);
+    check(S.theme.half == "light" && !S.theme.dark, "under system, a light system wears the light half");
+    theme::follow(S, true);
+    check(S.theme.half == "dark" && S.theme.dark, "and a dark one the dark half");
+    settings::set(theme::MODE_SETTING, "light");
+    theme::follow(S, true);
+    check(S.theme.half == "light", "a light mode holds whatever the system says");
+    settings::set(theme::MODE_SETTING, mode);
+    S.theme_half = pinned;
+    theme::follow(S, engine::dark_mode());
+}
+
+// Every bundled pair is a folder with both halves, and the list the setting
+// offers is the list the editor ships.
+fn bundled_pairs(S) {
+    let folders = [];
+    for entry in util::vec(fs::list("themes")) {
+        if entry.is_dir {
+            folders.push(entry.name);
+        }
+    }
+    folders.sort();
+    let listed = theme::BUNDLED.iter().collect::<Vec>();
+    listed.sort();
+    check(format!("{:?}", folders) == format!("{:?}", listed),
+        format!("the bundled folders are the bundled list ({:?} vs {:?})", folders, listed));
+    let options = [];
+    for def in settings::all() {
+        if def.path == theme::SETTING {
+            options = util::vec(util::obj(def.spec).get("options").unwrap_or([]));
+        }
+    }
+    options.sort();
+    check(format!("{:?}", options) == format!("{:?}", listed),
+        format!("and the setting offers the same ({:?})", options));
+    for name in theme::BUNDLED {
+        for half in theme::HALVES {
+            check(theme::read(name, half) is Object, format!("{} has its {} half", name, half));
+        }
+    }
+}
+
+/// `--state test:theme_editing`: a bundled theme is read-only, a duplicate is the
 /// person's to edit, an edit is worn at once and saved as only what differs,
 /// and deleting it goes back to its base. The preferences file is put back.
 pub fn theme_editing(S) {
@@ -2824,37 +2994,40 @@ pub fn theme_editing(S) {
     S.themewin.test = #{ kept: fs::read(prefs), name: "" };
     theme::set_dark(S, true);
     crate::themewin::open(S);
-    check(crate::window::showing(S, "theme"), "the theme window opens");
+    check(crate::window::showing(S, "theme"), "the Theme dialog opens");
     check(!crate::themewin::editable(S), "a bundled theme is read-only");
-    let before = S.theme.accent;
-    crate::themewin::edit(S, ["colors"], "accent", "#ff0000");
-    check(S.theme.accent == before, "and an edit to it changes nothing");
+    let before = S.theme.primary_text;
+    crate::themewin::edit(S, ["colors"], "primary_text", "#ff0000");
+    check(S.theme.primary_text == before, "and an edit to it changes nothing");
     let name = crate::themewin::duplicate(S);
     S.themewin.test.name = name;
-    let path = theme::path_of(name);
+    let path = theme::path_of(name, S.theme.half);
     check(fs::exists(path), format!("duplicating writes {}", path));
     check(S.theme.name == name && crate::themewin::editable(S), "and the copy is worn and editable");
-    check(theme::names().iter().any(|n| n == name), "and listed beside the bundled two");
-    crate::themewin::edit(S, ["colors"], "accent", "#ff0000");
-    check(S.theme.accent == "#ff0000", "an edited token is worn at once");
+    check(theme::names().iter().any(|n| n == name), "and listed beside the bundled ones");
+    crate::themewin::edit(S, ["colors"], "primary", "#e0a868");
+    check(S.theme.primary_fill == "#e0a868", "a source color is used at once");
+    check(S.theme.primary_text != before, format!("and moves what derives from it ({})", S.theme.primary_text));
+    crate::themewin::edit(S, ["colors"], "primary_text", "#ff0000");
+    check(S.theme.primary_text == "#ff0000", "a stated token wins over its rule");
     let sheet = scene::get_node("Editor/Sheet").get_component("widget", "theme");
-    check(sheet is String && sheet.starts_with("#!"), "and the sheet's node wears it inline");
-    crate::themewin::edit(S, ["roles", "tab"], "size", 13);
+    check(sheet is String && sheet.starts_with("#!"), "and the dialog's node carries it embedded");
+    crate::themewin::edit(S, ["roles", "tab"], "font_size", 13);
     crate::themewin::save(S);
     let text = fs::read(path);
-    check(text is String && text.contains("accent") && text.contains("base = \"dark\""),
+    check(text is String && text.contains("primary_text") && text.contains("base = \"balaur\""),
         format!("saving writes the edit under its base: {:?}", text));
-    check(text is String && !text.contains("panel ="), "and nothing it leaves to that base");
+    check(text is String && !text.contains("background ="), "and nothing it leaves to that base");
     theme::reload(S);
-    check(S.theme.accent == "#ff0000", "the saved theme reads back");
-    check(S.theme.roles.tab.size == 13, "with the role key it changed");
-    check(S.theme.roles.tab.color == "faint", "and the keys its base holds");
+    check(S.theme.primary_text == "#ff0000", "the saved theme reads back");
+    check(S.theme.roles.tab.font_size == 13, "with the role key it changed");
+    check(S.theme.roles.tab.text_color == "text_subtle", "and the keys its base holds");
     check(S.themewin.pairs.len() > 50, format!("every role's contrast is measured ({})", S.themewin.pairs.len()));
     crate::themewin::show_role(S, "tab", "");
     S.themewin.demo = 0;
 }
 
-/// `--state sheetclosedemo`: a sheet and the palette shut when their `dialog`
+/// `--state test:sheet_close`: a sheet and the palette shut when their `dialog`
 /// is shut from outside, as egui does on Escape or a click on the dim. The
 /// close is put on the node the way the input settle puts it, between frames.
 pub fn sheet_closing(S) {
@@ -2902,8 +3075,8 @@ pub fn theme_edit_step(S) {
     check(roles.iter().any(|r| r == "tab"), format!("the Controls page draws the tab role as itself ({})", roles.len()));
     let name = S.themewin.test.name;
     crate::themewin::remove(S);
-    check(!fs::exists(theme::path_of(name)), "deleting removes the file");
-    check(S.theme.name == "dark", "and the editor goes back to the base");
+    check(!fs::exists(theme::folder_of(name)), "deleting removes the folder");
+    check(S.theme.name == theme::DEFAULT, "and the editor goes back to the base");
     let kept = S.themewin.test.kept;
     let prefs = crate::settings::prefs_path();
     if kept is String {
@@ -3047,6 +3220,18 @@ pub fn dropping(S) {
     dropin::take(S, source);
     check(fs::exists(root + "art/selftest-drop_2.png"), "a second drop of one name is numbered, not overwritten");
 
+    // A card dragged out of the Assets dock names the file where it lies.
+    let cards = util::obj(scene::get_node(crate::dock::CARDS_NODE).get_component("widget"));
+    let handler = cards.get("on_drop").unwrap_or("");
+    check(cards.get("draggable") == Some(true) && handler != "" && scene::get_node("Editor").has_method(handler),
+        format!("the Assets panel's cards hand a drop to a method the editor declares ({})", handler));
+    dropin::place_file(S, "art/selftest-drop.png");
+    let placed = S.doc[S.doc.len() - 1];
+    let drawn = util::obj(placed.get("sprite").unwrap_or(placed.get("mesh").unwrap_or(#{}))).get("texture");
+    check(S.doc.len() == was + 3 && drawn == Some("art/selftest-drop.png") && !fs::exists(root + "art/selftest-drop_3.png"),
+        format!("a file placed from the Assets panel is named where it lies ({:?})", drawn));
+    shell::undo(S);
+
     shell::undo(S);
     shell::undo(S);
     check(S.doc.len() == was, "undo takes both back");
@@ -3085,6 +3270,20 @@ pub fn dropping(S) {
 }
 
 
+// Where the converted script is checked as if it were saved.
+const CONVERTED = "scripts/converted.rn";
+
+// What the script check calls an error in `text`, by message.
+fn errors_in(text) {
+    let out = [];
+    for found in util::vec(script::check(CONVERTED, text)) {
+        if found.severity == "error" {
+            out.push(found.message);
+        }
+    }
+    out
+}
+
 /// The Events view authors rows and writes the script they are equivalent to.
 pub fn eventviews(S) {
     let target = None;
@@ -3112,15 +3311,28 @@ pub fn eventviews(S) {
     let written = events::as_script(S);
     check(written.contains("pub fn on_pointer_click(this, button)"),
         "the script it writes declares the hook the rows answer");
-    check(written.contains(".states.go(\"open\")"),
+    check(written.contains(".states.set_state(\"open\")"),
         "a state row becomes the call that goes to it");
     check(written.contains("scene::variable(\"score\")"),
         "a `when` becomes the read that fetches the variable");
+    check(!written.contains("this.get_node") && !written.contains("this.queue_free"),
+        "a row's call goes through the node, not the script's own table");
+    let problems = errors_in(written);
+    check(problems.is_empty(), format!("and the script it writes compiles: {:?}", problems));
+    let own = events::script_of([#{ event: events::EMITTED + "died", action: "free" }]);
+    check(own.contains("pub fn on_died(this, payload)")
+        && own.contains("events::listen(this.node, \"died\", this.node)"),
+        format!("a row on the node's own event hears it by subscribing: {}", own));
+    let own_problems = errors_in(own);
+    check(own_problems.is_empty(), format!("and compiles: {:?}", own_problems));
+    // The control: the name the old conversion wrote is one the check refuses.
+    let refused = errors_in("pub fn on_emitted:died(this) {}\n");
+    check(!refused.is_empty(), "the check does refuse a name with a colon in it");
 
     let known = util::vec(scene::bindable_events());
     check(util::contains(known, "pointer_click"), "the engine names the events");
     let verbs = util::vec(scene::binding_actions());
-    check(util::contains(verbs, "state") && util::contains(verbs, "set_variable"),
+    check(util::contains(verbs, "set_state") && util::contains(verbs, "set_variable"),
         "and the actions");
     check(mirror_resolves(S), "the mirror still resolves");
     // Left on the tab, so the shot this state takes is of the rows and the
@@ -3155,7 +3367,7 @@ pub fn events_step(S) {
     check(shown > events::rows(S).len(),
         format!("every binding is a row, and the headings under them ({})", shown));
     let box = ui::widget_rect(host);
-    check(!util::is_nil(box) && box.w > 200.0,
+    check(!util::is_nil(box) && box.width > 200.0,
         format!("the rows have the width the document area gives them ({:?})", box));
 }
 
@@ -3257,7 +3469,7 @@ pub fn import_step(S) {
             waited_for_import(S);
             return;
         }
-        check(import::running() == 0, "a finished import lets go of its place");
+        check(import::running_count() == 0, "a finished import lets go of its place");
         check(crate::dropin::in_flight(S) == 0, "and nothing is in flight");
         check(job.name == "column.glb", "the list says which file");
         check(job.over == "imported", format!("and how it ended ({})", job.over));
@@ -3297,7 +3509,7 @@ pub fn import_step(S) {
         waited_for_import(S);
         return;
     }
-    check(import::running() == 0, "a stopped import lets go of its place");
+    check(import::running_count() == 0, "a stopped import lets go of its place");
     let landed = fs::exists(S.game_root + "/models/column.glb");
     check(job.over == "stopped" || job.over == "imported",
         format!("it ends stopped or, on a thread already done, imported ({})", job.over));
@@ -3321,6 +3533,260 @@ fn waited_for_import(S) {
     if S.import_waited > 300 {
         S.import_demo = -1;
         check(false, "the import ended within 300 frames");
+    }
+}
+
+/// Editing a game camera writes what the author set, not the `current =
+/// false` the editor holds every game camera at while it looks.
+pub fn camera_document(S) {
+    let row = S.doc.len();
+    model::add_child(S, None);
+    crate::selection::only(S, row);
+    model::add_component(S, model::CAMERA_3D);
+    model::hold_game_cameras(S, false);
+    model::set_component_prop(S, model::CAMERA_3D, "bloom_intensity", 0.5);
+    let written = util::obj(S.doc[row].get(model::CAMERA_3D).unwrap_or(#{}));
+    check(written.get("bloom_intensity").is_some(), "the camera edit reached the document");
+    check(written.get(model::CAMERA_CURRENT).unwrap_or(true) == true,
+        format!("and the document keeps the camera current ({:?})", written.get(model::CAMERA_CURRENT)));
+    // An edit to `current` itself is the author's, and the editor keeps looking.
+    model::set_component_prop(S, model::CAMERA_3D, model::CAMERA_CURRENT, false);
+    let written = util::obj(S.doc[row].get(model::CAMERA_3D).unwrap_or(#{}));
+    check(written.get(model::CAMERA_CURRENT) == Some(false), "turning the camera off is written");
+    model::set_component_prop(S, model::CAMERA_3D, model::CAMERA_CURRENT, true);
+    let written = util::obj(S.doc[row].get(model::CAMERA_3D).unwrap_or(#{}));
+    check(written.get(model::CAMERA_CURRENT) == Some(true), "and so is turning it back on");
+    let live = model::live(S, row).unwrap();
+    check(live.get_component(model::CAMERA_3D, model::CAMERA_CURRENT) == false, "while the editor still looks through its own");
+    model::delete_selected(S);
+    log::info("selftest camera document: done");
+}
+
+/// A node made a soft body from what it draws, in one undo step: a sprite is
+/// traced into a textured polygon the cells bend, a shape becomes the
+/// generator that matches it, and undo puts the node back.
+pub fn soft_recipes(S) {
+    let sprite_row = None;
+    let shape_row = None;
+    for i in 0..S.doc.len() {
+        let source = crate::recipes::soft_body_source(S, i);
+        if source == Some("sprite") && sprite_row.is_none() {
+            sprite_row = Some(i);
+        }
+        if source == Some("shape") && shape_row.is_none() {
+            shape_row = Some(i);
+        }
+    }
+    if sprite_row.is_none() && shape_row.is_none() {
+        log::info("selftest recipes: nothing here to make a soft body of, skipped");
+        return;
+    }
+    if let Some(row) = sprite_row {
+        check(crate::recipes::soft_body(S, row), "a sprite becomes a soft body");
+        let node = S.doc[row];
+        check(!node.contains_key("sprite") && node.contains_key("polygon") && node.contains_key("softbody2d"),
+            "drawn by a polygon of the image, bent by a soft body");
+        let drawn = util::vec(node.polygon.mesh.positions).len();
+        let built = util::vec(node.softbody2d.mesh.positions).len();
+        check(drawn >= 3 && drawn == built,
+            format!("the body is built from the outline the polygon draws ({} of {})", built, drawn));
+        let bad = [];
+        for warning in util::vec(scene::warnings(model::live(S, row).unwrap())) {
+            bad.push(warning.message);
+        }
+        check(bad.is_empty(), format!("and the node has nothing to warn about ({:?})", bad));
+        undo_all(S);
+        check(S.doc[row].contains_key("sprite") && !S.doc[row].contains_key("softbody2d"),
+            "undo puts the sprite back");
+    }
+    if let Some(row) = shape_row {
+        let two_d = S.doc[row].contains_key("shape2d");
+        check(crate::recipes::soft_body(S, row), "a shape becomes a soft body");
+        let body = if two_d { "softbody2d" } else { "softbody3d" };
+        let shape = if two_d { "shape2d" } else { "shape3d" };
+        check(S.doc[row].contains_key(body) && !S.doc[row].contains_key(shape),
+            format!("the {} became a {} of its size", shape, body));
+        check(model::live(S, row).unwrap().has_component(body), "and the live node has it");
+        undo_all(S);
+    }
+    log::info("selftest recipes: done");
+}
+
+/// Changing a node's type keeps what it draws: a sprite made a rigid body
+/// gets a collider of its outline, a body made static keeps its collider, a
+/// shape made a polygon keeps its outline, and each is one undo step. A soft
+/// body added from the picker asks what to build it from first.
+pub fn change_types(S) {
+    let sprite_row = None;
+    let shape_row = None;
+    for i in 0..S.doc.len() {
+        let node = S.doc[i];
+        if node.contains_key("sprite") && crate::recipes::soft_body_source(S, i) == Some("sprite") && sprite_row.is_none() {
+            sprite_row = Some(i);
+        }
+        if node.contains_key("shape2d") && !node.contains_key("body2d") && shape_row.is_none() {
+            shape_row = Some(i);
+        }
+    }
+    // Every node lists what it can become without throwing, whatever it holds.
+    let listed = 0;
+    for i in 0..S.doc.len() {
+        listed += crate::recipes::targets(S, i).len();
+    }
+    check(listed > 0, format!("every node lists what it can become ({} targets)", listed));
+    if sprite_row.is_none() && shape_row.is_none() {
+        log::info("selftest change type: nothing 2D here to change, skipped");
+        return;
+    }
+    if let Some(row) = sprite_row {
+        crate::selection::only(S, row);
+        let offered = [];
+        for target in crate::recipes::targets(S, row) {
+            offered.push(target.name);
+        }
+        check(util::contains(offered, "rigid_body2d") && !util::contains(offered, "rigid_body3d"),
+            format!("a sprite is offered the 2D types and not the 3D ones ({:?})", offered));
+        check(crate::recipes::change_type(S, row, "rigid_body2d"), "a sprite becomes a rigid body");
+        let node = S.doc[row];
+        check(node.contains_key("sprite") && node.contains_key("body2d"), "and keeps drawing its sprite");
+        let collider = util::obj(node.get("collider2d").unwrap_or(#{}));
+        check(collider.get("kind") == Some(physics2d::SHAPE_CONVEX_DECOMPOSITION) && collider.get("mesh").is_some(),
+            format!("its collider is cut from the sprite's outline ({:?})", collider.get("kind")));
+        check(model::live(S, row).unwrap().has_component("collider2d"), "and the live node collides");
+        let bad = [];
+        for warning in util::vec(scene::warnings(model::live(S, row).unwrap())) {
+            bad.push(warning.message);
+        }
+        check(bad.is_empty(), format!("with nothing to warn about ({:?})", bad));
+        check(crate::recipes::change_type(S, row, "static_body2d"), "a rigid body becomes a static one");
+        let body = util::obj(S.doc[row].get("body2d").unwrap_or(#{}));
+        check(body.get("kind") == Some(physics2d::BODY_STATIC)
+            && util::obj(S.doc[row].collider2d).get("kind") == Some(physics2d::SHAPE_CONVEX_DECOMPOSITION),
+            "and keeps the collider it had");
+        undo_all(S);
+        check(!S.doc[row].contains_key("body2d") && !S.doc[row].contains_key("collider2d"),
+            "undo takes both changes back");
+        // The picker's own path: a soft body over a node that draws a sprite
+        // is built from it without asking.
+        newnode::open_change(S);
+        check(S.newnode && S.newnode_change, "Change type opens the picker");
+        let soft = ();
+        for row_of in newnode::catalogue(S) {
+            if row_of.name == "soft_body2d" {
+                soft = row_of;
+            }
+        }
+        check(soft is Object, "and offers a soft body");
+        if soft is Object {
+            newnode::place(S, soft);
+            check(!S.newnode && S.doc[row].contains_key("softbody2d") && !S.doc[row].contains_key("sprite"),
+                "which is built from the sprite and closes the picker");
+        }
+        undo_all(S);
+    }
+    if let Some(row) = shape_row {
+        check(crate::recipes::change_type(S, row, "polygon2d"), "a shape becomes a polygon");
+        let points = util::vec(util::obj(util::obj(S.doc[row].get("polygon").unwrap_or(#{})).get("mesh").unwrap_or(#{})).get("positions").unwrap_or([]));
+        check(points.len() >= 4 && !S.doc[row].contains_key("shape2d"),
+            format!("of the shape's outline ({} points)", points.len()));
+        undo_all(S);
+    }
+    let before = S.doc.len();
+    crate::selection::only(S, 0);
+    newnode::open(S);
+    let soft = ();
+    for row_of in newnode::catalogue(S) {
+        if row_of.name == "soft_body2d" {
+            soft = row_of;
+        }
+    }
+    if soft is Object {
+        newnode::place(S, soft);
+        check(S.newnode && S.newnode_soft == "2d", "a new soft body asks what to build it from");
+        let sources = newnode::catalogue(S);
+        check(sources.len() >= 2 && sources[0].label == "Rectangle", format!("a shape first ({} sources)", sources.len()));
+        newnode::place_source(S, sources[1]);
+        check(S.doc.len() == before + 1 && S.doc[S.sel].contains_key("softbody2d") && !S.newnode,
+            "and builds it from the one picked");
+        shell::undo(S);
+        check(S.doc.len() == before, "which one undo takes back");
+    }
+    log::info("selftest change type: done");
+}
+
+/// What the engine says is off reaches the editor: a mark on the tree's row,
+/// and a refused write that leaves the document as it was and names the
+/// property it was refused on, rather than throwing out of the inspector.
+pub fn warning_marks(S) {
+    let row = S.doc.len();
+    model::add_child(S, None);
+    crate::selection::only(S, row);
+    model::add_component(S, "body2d");
+    S.lint.warned_rev = -1;
+    crate::lint::node_warnings(S);
+    let id = S.doc[row].id;
+    check(crate::lint::warned(S, id).len() > 0,
+        format!("a body nothing collides with marks its row ({:?})", crate::lint::warned(S, id)));
+    model::add_component(S, "softbody2d");
+    let before = util::obj(S.doc[row].get("softbody2d").unwrap_or(#{})).get("cells");
+    model::set_component_prop(S, "softbody2d", "cells", [5000.0, 5000.0]);
+    let after = util::obj(S.doc[row].get("softbody2d").unwrap_or(#{})).get("cells");
+    check(after == before, format!("a refused write leaves the document as it was ({:?})", after));
+    let named = [];
+    for warning in util::vec(scene::warnings(model::live(S, row).unwrap())) {
+        if !util::is_nil(warning.property) {
+            named.push(warning.property);
+        }
+    }
+    check(util::contains(named, "cells"), format!("and the warning names the property ({:?})", named));
+    model::delete_selected(S);
+    log::info("selftest warnings: done");
+}
+
+// The row the pool check builds its strip in, under the shell's root.
+const POOL_HOST = "Editor";
+const POOL_CHECK = "PoolCheck";
+
+/// A pooled slot that turns from one kind of control into another holds the
+/// old control's value for a pass, and that value is not the reader's edit.
+///
+/// A dropdown's slot spent a frame as a colour row's label, and coming back it
+/// reported the label's `0.20 0.22 0.26 1.00` as a pick: a script by that name.
+pub fn pool_kinds(S) {
+    let root = scene::get_node(POOL_HOST);
+    if util::is_nil(root) {
+        log::info("selftest pool: no shell in this run, skipped");
+        return;
+    }
+    root.add_child(POOL_CHECK).set_component("widget", #{ kind: ui::WIDGET_ROW });
+    S.pool_check = #{ stage: 0, heard: [] };
+}
+
+// One strip a pass, as the inspector does: the host made above resolves by
+// path from the next one.
+pub fn pool_check_step(S) {
+    let d = S.pool_check;
+    if !(d is Object) {
+        return;
+    }
+    let path = POOL_HOST + "/" + POOL_CHECK;
+    let heard = d.heard;
+    let pick = #{ kind: "dropdown", text: "pick", options: ["a", "b"], on: |v| { heard.push(v); } };
+    let stage = d.stage;
+    d.stage = stage + 1;
+    if stage == 0 || stage == 2 || stage == 4 {
+        crate::pool::strip(S, path, [pick]);
+    } else if stage == 1 {
+        crate::pool::strip(S, path, [#{ kind: "label", text: "0.20 0.22 0.26 1.00" }]);
+    } else if stage == 3 {
+        check(heard.is_empty(), format!("a slot that changed kind reports nothing ({:?})", heard));
+        // The control: a pick on a slot that stayed a dropdown still reaches `on`.
+        ui::edit(scene::get_node(path + "/C0"), "b");
+    } else {
+        S.pool_check = ();
+        check(heard.len() == 1 && heard[0] == "b", format!("and a pick on a dropdown is heard ({:?})", heard));
+        scene::get_node(path).queue_free();
+        log::info("selftest pool: done");
     }
 }
 
@@ -3403,7 +3869,7 @@ fn rows_menu(widget) {
 fn rows_drawn(S, widget, rows) {
     check(rows.len() == S.doc.len(),
         format!("the outliner draws one row a node ({} of {})", rows.len(), S.doc.len()));
-    check(widget["multi"] == true, "its tree holds many rows at once");
+    check(widget["multi_select"] == true, "its tree holds many rows at once");
     let lit = util::vec(widget.get("selection").unwrap_or([]));
     check(lit.len() == selection::count(S),
         format!("every selected node is lit ({} of {})", lit.len(), selection::count(S)));
@@ -3523,7 +3989,7 @@ pub fn librarydemo(S) {
     }
     let unknown = 0;
     let absent = 0;
-    let manifest = toml::parse(fs::read("library/manifest.toml"));
+    let manifest = toml::parse(fs::read("library/catalog.toml"));
     let listed = util::vec(util::obj(manifest).get("entries").unwrap_or([]));
     for entry in listed {
         let e = util::obj(entry);

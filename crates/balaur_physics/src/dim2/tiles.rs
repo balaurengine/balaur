@@ -34,6 +34,8 @@ pub(crate) fn register_tile_collision_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::TILE_COLLISION,
         ComponentDef {
+            events: crate::vocabulary::hook::COLLIDER,
+            warnings: None,
             doc: "Collision for the node's `tilemap` cells: every tile the tileset marks solid, one shape per behaviour, with the material keys a `collider2d` takes.",
             schema: ComponentDef::parse_schema(c::TILE_COLLISION, &schema),
             tags: &[
@@ -109,7 +111,11 @@ fn clear(eng: &Engine, entity: Entity) {
         return;
     };
     for handle in &ours {
-        state.world.remove_collider(*handle);
+        if let Some(removed) = state.world.remove_collider(*handle) {
+            let body = removed.parent().and_then(|b| state.world.bodies.get(b));
+            let owner = crate::shared::events::Owner::of(entity, body.map(|b| b.user_data));
+            state.gone.insert(*handle, owner);
+        }
     }
     if let Some(handles) = state.colliders.get_mut(&entity) {
         handles.retain(|handle| !ours.contains(handle));

@@ -12,6 +12,10 @@ use crate::util;
 // reading's own air, so the pair match across the foot of the stage.
 const PAD_X = 6.0;
 const PAD_Y = 3.0;
+// The "+N" list that stands for the tabs a narrow dock has no room for.
+const MORE_W = 48.0;
+// What the fold and the head's padding leave the tabs of a dock's width.
+const HEAD_END = 44.0;
 
 /// A side dock's handle is the tool rail's tile: an icon button on a sheet,
 /// with the rail's own inset, so the two sit in one column at one size.
@@ -25,23 +29,23 @@ pub fn sides() {
 }
 
 pub fn state() {
-    crate::defs::persona_docks("scene")
+    crate::defs::workspace_docks("scene")
 }
 
-/// Swap the open panels for the ones a persona works with. What is open is
-/// the persona's; what may be opened is not, so a panel closed here comes
-/// back from the logo menu without changing persona.
-pub fn apply_persona(S, id) {
-    let want = crate::defs::persona_docks(id);
+/// Swap the open panels for the ones a workspace works with. What is open is
+/// the workspace's; what may be opened is not, so a panel closed here comes
+/// back from the logo menu without changing workspace.
+pub fn apply_workspace(S, id) {
+    let want = crate::defs::workspace_docks(id);
     for side in sides() {
-        // A dock the reader folded away stays folded: the persona says which
+        // A dock the reader folded away stays folded: the workspace says which
         // panels, not whether the sheet is up.
         want[side].shut = S.docks[side].shut;
     }
     S.docks = want;
-    // A plugin's dock is in no persona's set: it was adopted when the plugin
-    // loaded, and a persona must not unregister it.
-    for entry in S.registry.docks {
+    // A plugin's dock is in no workspace's set: it was adopted when the plugin
+    // loaded, and a workspace must not unregister it.
+    for entry in S.registry.panels {
         adopt(S, entry.id);
     }
 }
@@ -113,10 +117,10 @@ pub fn home(id) {
 /// A plugin's dock joins the table so it moves like everything else.
 ///
 /// Built once a frame: the tab row, the minimised rail and `bottom_tall` all
-/// ask, and the outline's own name re-reads every script in the Script persona.
+/// ask, and the outline's own name re-reads every script in the Script workspace.
 pub fn panels(S) {
     let cache = S.panels;
-    if cache is Object && cache.at == S.frame && cache.persona == S.persona {
+    if cache is Object && cache.at == S.frame && cache.workspace == S.workspace {
         return cache.table;
     }
     let table = #{
@@ -130,7 +134,7 @@ pub fn panels(S) {
         "docs": #{ name: "Docs", icon: icons::panel("docs"), tall: true },
         "timeline": #{ name: "Timeline", icon: icons::panel("timeline"), tall: true },
         "debugger": #{ name: "Debugger", icon: icons::panel("debugger"), tall: true },
-        "session": #{ name: "Session", icon: icons::panel("session"), tall: true, chrome: true },
+        "recordings": #{ name: "Recordings", icon: icons::panel("recordings"), tall: true, chrome: true },
         "profiler": #{ name: "Profiler", icon: icons::panel("profiler"), tall: true },
         "cost": #{ name: "Cost", icon: icons::panel("cost"), tall: true },
         "library": #{ name: "Library", icon: icons::panel("library"), tall: false, chrome: true },
@@ -139,10 +143,11 @@ pub fn panels(S) {
         "bonemap": #{ name: "Bone map", icon: icons::panel("bonemap"), tall: true },
         "statemachine": #{ name: "State machine", icon: icons::panel("statemachine"), tall: true, chrome: true },
     };
-    for entry in S.registry.docks {
-        table[entry.id] = #{ name: entry.name, icon: icons::panel(entry.id), tall: entry.tall };
+    for entry in S.registry.panels {
+        let icon = if entry.icon == "" { icons::panel(entry.id) } else { entry.icon };
+        table[entry.id] = #{ name: entry.title, icon: icon, tall: entry.tall };
     }
-    S.panels = #{ at: S.frame, persona: S.persona, table: table };
+    S.panels = #{ at: S.frame, workspace: S.workspace, table: table };
     table
 }
 
@@ -195,9 +200,12 @@ pub fn name(S, id) {
 
 /// Which dock holds `id`, or `None` when a plugin has been unloaded.
 pub fn side_of(S, id) {
+    // A plain loop: a closure a tab was most of what the tab rows cost.
     for side in sides() {
-        if S.docks[side].tabs.iter().any(|t| t == id) {
-            return Some(side);
+        for tab in S.docks[side].tabs {
+            if tab == id {
+                return Some(side);
+            }
         }
     }
     None
@@ -264,10 +272,11 @@ const RIGHT_FOOT_NODE = "Editor/Shell/Body/Right/RightSheet/RightFoot";
 pub fn right_foot(S) {
     let d = S.docks.right;
     if d.shut || d.active != "inspector" {
-        crate::pool::hide(RIGHT_FOOT_NODE);
+        crate::pool::hide(S, RIGHT_FOOT_NODE);
         return;
     }
-    crate::pool::strip(S, RIGHT_FOOT_NODE, inspector::foot_controls(S));
+    let chosen = S.sel >= 0 && S.sel < S.doc.len();
+    crate::pool::strip_when(S, RIGHT_FOOT_NODE, [chosen], || inspector::foot_controls(S));
 }
 
 fn body(S, k, id) {
@@ -288,10 +297,10 @@ fn body(S, k, id) {
         "library" => crate::library::panel(S, k),
         "tiles" => crate::tiles::palette(S, k),
         "statemachine" => crate::statemachine::body(S, k),
-        "session" => dock::session_list(S, k),
+        "recordings" => dock::session_list(S, k),
 
 
-        _ => match crate::plugins::dock(S, id) {
+        _ => match crate::plugins::panel(S, id) {
             Some(entry) => {
                 let draw = entry.draw;
                 // The node the editor made for this dock, not a `ui` handle:
@@ -311,7 +320,7 @@ fn body(S, k, id) {
 fn canvas_views() {
     #{
         timeline: "BottomTimeline",
-        session: "BottomSession",
+        recordings: "BottomRecordings",
         weights: "BottomWeights",
         bonemap: "BottomBonemap",
     }
@@ -325,7 +334,7 @@ fn canvas_on(S, d, id) {
     if d.shut || d.active != id {
         return false;
     }
-    if id == "session" {
+    if id == "recordings" {
         // Bound first: `return crate::…` does not parse.
         let loaded = crate::session::loaded(S);
         return loaded;
@@ -361,7 +370,7 @@ fn sync_canvas(S, d) {
 pub fn chrome_rows(S, rows) {
     let groups = [];
     for row in rows {
-        groups.push(#{ kind: "row", role: "dock_chrome_row", gap: 6, align: "center", controls: row });
+        groups.push(#{ kind: "row", role: "toolbar_dock", gap: 6, align_items: "center", controls: row });
     }
     crate::pool::strip(S, BOTTOM + "BottomChrome", groups);
 }
@@ -384,7 +393,7 @@ fn owns_a_node(S, side, d) {
     }
     // Every plugin dock has one: the editor makes it a subtree rather than
     // lending it the hatch.
-    if crate::plugins::dock(S, d.active).is_some() {
+    if crate::plugins::panel(S, d.active).is_some() {
         return true;
     }
     for entry in node_owners()[side] {
@@ -404,7 +413,7 @@ fn node_owners() {
             #{ hide: "table", panels: ["cost", "profiler", "library"] },
             #{ hide: "cards", panels: ["assets", "library", "tiles"] },
             #{ hide: "stack", panels: ["debugger"] },
-            #{ hide: "rows", panels: ["statemachine", "session"] },
+            #{ hide: "rows", panels: ["statemachine", "recordings"] },
         ],
         left: [
             #{ hide: "tree", panels: ["scene"] },
@@ -416,9 +425,9 @@ fn node_owners() {
     }
 }
 
-fn hide_node(which) {
+fn hide_node(S, which) {
     if which == "log" {
-        dock::hide_log();
+        dock::hide_log(S);
     } else if which == "table" {
         dock::hide_table();
     } else if which == "cards" {
@@ -428,11 +437,11 @@ fn hide_node(which) {
     } else if which == "rows" {
         dock::hide_rows();
     } else if which == "tree" {
-        left::hide_tree();
+        left::hide_tree(S);
     } else if which == "outline" {
         left::hide_outline();
     } else if which == "form" {
-        inspector::hide_form();
+        inspector::hide_form(S);
     }
 }
 
@@ -449,7 +458,7 @@ fn hide_unused(S, side, d) {
             }
         }
         if d.shut || !wanted {
-            hide_node(entry.hide);
+            hide_node(S, entry.hide);
         }
     }
 }
@@ -588,7 +597,7 @@ pub fn plugin_host(S, side, id) {
 /// node keeps drawing until it is told not to.
 fn hide_plugin_hosts(S, side, active) {
     let any = false;
-    for entry in S.registry.docks {
+    for entry in S.registry.panels {
         if entry.id == active {
             any = true;
             continue;
@@ -629,6 +638,27 @@ fn tail_of(side) {
 /// The box the panel's own tools were given, in design pixels, or `None`
 /// before the row has drawn. The self-test reads it: a hatch with no box is
 /// a dock whose tools are there and invisible.
+/// The active tab's box and the strip it scrolls in, or `None` before the
+/// row has drawn. A tab past the strip's end is a panel showing with no tab.
+pub fn active_tab_box(S, side) {
+    let at = 0;
+    for (i, id) in shown_tabs(S, side).iter().enumerate() {
+        if id == S.docks[side].active {
+            at = i;
+        }
+    }
+    let tab = scene::get_node(format!("{}/C{}", head_of(side), at));
+    let strip = scene::get_node(head_stem(side) + "Tabs");
+    if crate::util::is_nil(tab) || crate::util::is_nil(strip) {
+        return None;
+    }
+    let (tab, strip) = (ui::widget_rect(tab), ui::widget_rect(strip));
+    if crate::util::is_nil(tab) || crate::util::is_nil(strip) {
+        return None;
+    }
+    Some((tab, strip))
+}
+
 pub fn tools_box(side) {
     let found = scene::get_node(tail_of(side) + "/C0");
     if crate::util::is_nil(found) {
@@ -642,8 +672,16 @@ pub fn tools_box(side) {
 }
 
 fn tab_row(S, k, side, d) {
-    crate::pool::strip(S, head_of(side), tab_controls(S, k, side, d));
-    crate::pool::strip(S, tail_of(side), tail_controls(S, side));
+    // What the two strips are built from: the dock, its tabs' names, the
+    // Problems count its label carries, and the room the row has.
+    let names = [];
+    for id in d.tabs {
+        names.push(panel(S, id).name);
+    }
+    let (errors, warnings) = crate::lint::counts(S);
+    let key = [format!("{:?}", d), names, errors + warnings, tab_h(S), S.layout[side].w];
+    crate::pool::strip_when(S, head_of(side), key, || tab_controls(S, k, side, d));
+    crate::pool::strip_when(S, tail_of(side), key, || tail_controls(S, side));
 }
 
 /// The panel's own controls and the fold, in that order: where they have
@@ -658,8 +696,8 @@ fn tail_controls(S, side) {
         },
         #{
             kind: "button", height: tab_h(S), width: tab_h(S), padding_x: 0,
-            text: "", icon: icons::ui(shut_icon(side)), role: "icon_button",
-            tooltip: "Minimise",
+            text: "", icon: icons::ui(shut_icon(side)), role: "icon_action",
+            tooltip: "Minimize",
             on: |_| { S.docks[side].shut = true; },
         },
     ]
@@ -670,42 +708,120 @@ fn tail_controls(S, side) {
 fn tab_controls(S, k, side, d) {
     let h = tab_h(S);
     let out = [];
+    let shown = shown_tabs(S, side);
 
-    for id in d.tabs {
+    for id in shown {
         let held = id;
         let p = panel(S, held);
         let active = d.active == held;
-        let label = p.name;
-        if held == "problems" {
-            let (errors, warnings) = crate::lint::counts(S);
-            if errors + warnings > 0 {
-                label += format!(" {}", errors + warnings);
-            }
-        }
+        let label = tab_label(S, held);
         // One tile: the row carries the fill and the corners, and the two
         // halves inside it paint nothing, so the pair reads as one control.
         let inner = [];
         inner.push(#{
-            kind: "button", height: h, text: label, padding_x: 6, radius: 4, fill: "none",
-            role: if active { "tab_on" } else { "tab" },
+            kind: "button", height: h, text: label, padding_x: 6, corner_radius: 4, fill: "none",
+            role: "tab", checked: active,
             on: |_| { S.docks[side].active = held; },
         });
         // Its own role, so the half of the tile under the pointer is the half
         // that lights up: a mark that looked the same either way was aimed at
         // and missed, and the click landed on the name beside it.
         inner.push(#{
-            kind: "button", height: h, width: 22, text: "", radius: 4, role: "tab_close",
+            kind: "button", height: h, width: 22, text: "", corner_radius: 4, role: "icon_action_tab",
             icon: icons::ui("close"),
             tooltip: format!("Close {}", p.name),
             on: |_| { close(S, held); },
         });
         inner.push(#{ kind: "row", width: 3 });
         out.push(#{
-            height: h, radius: 5, controls: inner, align: "center",
-            fill: if active { "accent_soft" } else { "none" },
+            height: h, corner_radius: 4, controls: inner, align_items: "center",
+            fill: if active { "primary_bg" } else { "none" },
+        });
+    }
+    let hidden = [];
+    for id in d.tabs {
+        if !has(shown, id) {
+            hidden.push(panel(S, id).name);
+        }
+    }
+    if hidden.len() > 0 {
+        out.push(#{
+            kind: "dropdown", role: "choice", height: h, width: MORE_W,
+            text: format!("+{}", hidden.len()), options: hidden, tooltip: "More tabs",
+            on: |picked| { show_named(S, side, picked); },
         });
     }
     out
+}
+
+/// The tabs a dock's row has room for, the active one always among them: the
+/// leading run that fits, slid along until it reaches the active tab.
+pub fn shown_tabs(S, side) {
+    let d = S.docks[side];
+    let room = S.layout[side].w - HEAD_END;
+    if tabs_width(S, side) <= room {
+        return d.tabs;
+    }
+    // The list's box and the gap before it.
+    let room = room - MORE_W - 4.0;
+    let widths = [];
+    let end = 0;
+    let used = 0.0;
+    let fits = true;
+    for (i, id) in d.tabs.iter().enumerate() {
+        let w = tab_width(S, id);
+        widths.push(w);
+        used += w;
+        if used <= room && fits {
+            end = i;
+        } else {
+            fits = false;
+        }
+        if id == d.active && i > end {
+            end = i;
+        }
+    }
+    let start = end;
+    let used = widths[end];
+    while start > 0 && used + widths[start - 1] <= room {
+        start -= 1;
+        used += widths[start];
+    }
+    let out = [];
+    for i in start..=end {
+        out.push(d.tabs[i]);
+    }
+    out
+}
+
+fn has(list, id) {
+    for x in list {
+        if x == id {
+            return true;
+        }
+    }
+    false
+}
+
+// A pick from the "+N" list, which lists names: the panel it names comes forward.
+fn show_named(S, side, name) {
+    for id in S.docks[side].tabs {
+        if panel(S, id).name == name {
+            S.docks[side].active = id;
+        }
+    }
+}
+
+// What a tab reads: its name, and the count Problems carries.
+fn tab_label(S, id) {
+    let label = panel(S, id).name;
+    if id == "problems" {
+        let (errors, warnings) = crate::lint::counts(S);
+        if errors + warnings > 0 {
+            label += format!(" {}", errors + warnings);
+        }
+    }
+    label
 }
 
 /// The panel's own controls, in the slot beside its dock's tabs.
@@ -729,25 +845,34 @@ fn tools_room(S, side) {
         return 0.0;
     }
     let width = S.layout[side].w;
-    let free = width - 60.0 - tabs_width(S, d.active);
+    let free = width - 60.0 - tabs_width(S, side);
+    // A sliver draws nothing a panel can use and clips what it tries.
+    if free < 24.0 {
+        return 0.0;
+    }
     crate::util::clamp(free, 0.0, width * 0.5)
 }
 
 /// Stop drawing a dock's tab strip, for a dock that is folded or empty.
-fn hide_tabs(side) {
-    util::hide(head_of(side));
+fn hide_tabs(S, side) {
+    crate::pool::hide(S, head_of(side));
+    S.pool_keys.remove(tail_of(side));
 }
 
 // How wide the tab row's own tiles are, from the names: a flat width per tab
 // ran the hint over the row as soon as `Bone map` joined.
-fn tabs_width(S, id) {
+fn tabs_width(S, side) {
     let total = 0.0;
-    for tab in S.docks[side_for(S, id)].tabs {
-        // 11 px, semibold: about 7 px a character, plus the pill's padding,
-        // the close mark and the gap to the next one.
-        total += 34.0 + 7.0 * util::f(panel(S, tab).name.len());
+    for tab in S.docks[side].tabs {
+        total += tab_width(S, tab);
     }
     total
+}
+
+fn tab_width(S, id) {
+    // 11 px, semibold: under 6 px a character, plus the pill's padding, the
+    // close mark and the gap to the next one, measured at 52 px.
+    52.0 + 6.0 * util::f(tab_label(S, id).len())
 }
 
 // The controls that belong to the panel showing, in the tab row's one slot.
@@ -770,14 +895,7 @@ fn tools(S, k, id, room) {
     let hint = dock::hint(S, id, room);
     if hint != "" {
         ui::add_space(6);
-        ui::label(hint, style::mono_sm(k.faint));
-    }
-}
-
-fn side_for(S, id) {
-    match side_of(S, id) {
-        Some(side) => side,
-        None => "bottom",
+        ui::label(hint, style::mono_sm(k.text_subtle));
     }
 }
 
@@ -820,7 +938,7 @@ pub fn draw_bottom_body(S, k) {
     let d = S.docks.bottom;
     hide_unused(S, "bottom", d);
     if d.tabs.len() == 0 || d.shut {
-        hide_tabs("bottom");
+        hide_tabs(S, "bottom");
         return;
     }
     tab_row(S, k, "bottom", d);
@@ -849,7 +967,7 @@ fn scrolls_itself(S, id) {
     if id == "output" || id == "docs" || id == "bonemap" || id == "statemachine" {
         return true;
     }
-    crate::plugins::dock(S, id).is_some()
+    crate::plugins::panel(S, id).is_some()
 }
 
 /// The strip along the foot of the bottom dock: what is playing, and the
@@ -862,7 +980,7 @@ pub fn draw_body(S, k, side) {
     let d = S.docks[side];
     hide_unused(S, side, d);
     if d.tabs.len() == 0 || d.shut {
-        hide_tabs(side);
+        hide_tabs(S, side);
         return;
     }
     tab_row(S, k, side, d);
@@ -934,9 +1052,9 @@ pub fn fold_foot(S, k) {
         return;
     }
     let step = crate::center::hud_step(S);
-    if ui::pill(icons::ui(open_icon("bottom")), #{
-        height: step + 2.0 * PAD_Y, min_width: step + 2.0 * PAD_X, size: style::LG,
-        padding_x: 0, radius: 8, fill: k.panel, color: k.dim,
+    if ui::button(icons::ui(open_icon("bottom")), #{
+        height: step + 2.0 * PAD_Y, min_width: step + 2.0 * PAD_X, font_size: style::LG,
+        padding_x: 0, corner_radius: 8, fill: k.bg_panel, text_color: k.text_muted,
         tooltip: "Open the dock",
     }) {
         S.docks.bottom.shut = false;
@@ -954,7 +1072,7 @@ fn handle_tile(S, k, side, x, y) {
     let box = #{ x: x, y: y, w: tile(S), h: tile(S) };
     style::sheet(k, "fold-" + side, box, m.pad, m.pad, || {
         if ui::circle_button(icons::ui(open_icon(side)), #{
-            role: "tool", d: m.d, tooltip: format!("Open the {}", p.name.to_lowercase()),
+            role: "icon_action", diameter: m.d, tooltip: format!("Open the {}", p.name.to_lowercase()),
         }) {
             unfold(S, side);
         }

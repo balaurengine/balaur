@@ -38,6 +38,7 @@ mod pen;
 mod physics;
 mod plugins;
 mod polygon;
+mod recipes;
 mod pool;
 mod refactor;
 mod rig;
@@ -67,13 +68,13 @@ const FORM_BY = 30;
 
 /// Every field the editor keeps, at its starting value.
 ///
-/// A function rather than a literal in `init` so `hot_reload` can fill in
+/// A function rather than a literal in `init` so `on_hot_reload` can fill in
 /// whatever a running session predates: reload hands the old object to the
 /// new code, and a field only the new code knows about is otherwise absent,
 /// which errors on every frame that reads it.
 pub fn fresh_state() {
     let S = #{
-        persona: "scene",
+        workspace: "scene",
         tool: "select",
         doctab: "scene",
         // A shader opened from a material; empty means the code pane shows
@@ -100,6 +101,10 @@ pub fn fresh_state() {
         picker_focused: false,
         newnode: false,
         newnode_query: "",
+        // The picker lists what the selection can become, or, once a soft
+        // body is picked, what to build it from ("2d" or "3d").
+        newnode_change: false,
+        newnode_soft: "",
         renaming: false,
         rename_text: "",
         chip_state: #{},
@@ -136,11 +141,24 @@ pub fn fresh_state() {
         // settled shell rather than on the frame it was still bootstrapping.
         layout_seen: -1.0,
         // The inspector's rows, described each frame and made by `pool.rn`.
-        form: [], form_draws: [], form_cursor: 0, pool: #{},
-        // Bumped whenever `S.doc` is replaced, so the outliner can keep a
-        // flattened tree across frames instead of rebuilding one each pass.
+        form: [], form_draws: [], form_cursor: 0,
+        // What each pooled host was last filled for; see `pool::strip_when`.
+        pool_keys: #{},
+        // Bumped by every edit to `S.doc`: `history::record` before a recorded
+        // one, `model::record_override` after the rest. A cache keyed on it
+        // skips work a frame that edited nothing would otherwise repeat.
         doc_rev: 0,
+        // What `model::settle_revision` last settled on, and the document a
+        // self-test run's `model::check_revision` saw last frame.
+        doc_settled: 0, doc_seen: #{ text: "", rev: -1 },
+        inspect_warned: #{},
         tree_cache: #{},
+        // The outliner's row strings and what they were built for.
+        tree_items: #{},
+        // `model::is_2d`'s answer, and the frame and document it was for.
+        is_2d_at: [], is_2d_was: false,
+        // The 3D light and camera marks, and what they were drawn for.
+        overlay3d: #{ key: [], lines: [] },
         // The selection set; `S.sel` is its head. Locks are editor state
         // keyed by node id, and isolate hides everything outside the set.
         sels: [0],
@@ -211,12 +229,16 @@ pub fn fresh_state() {
         log_query: "",
         // Per-frame and per-session caches, built on first use.
         log_cache: (),
+        // Where `log::since` left off, and the rows the log node was last given.
+        log_cursor: 0, log_items: (),
         panels: (),
         palette_cache: (),
         newnode_cache: (),
         brand: (),
         mirror: (),
         theme: theme::dark(),
+        // The half a start-up state pinned for the run, or "" to follow the mode.
+        theme_half: "",
         gizmo: gizmo::state(),
         complete: complete::state(),
         docs: docs::state(),
@@ -229,6 +251,7 @@ pub fn fresh_state() {
         phys_pills: [],
         viewport_check: (),
         camera_check: (),
+        pool_check: (),
         reselect: (),
         empty_note: (),
         // The row the inspector last rebound, so a row that cannot resolve is
@@ -275,7 +298,7 @@ pub fn init(this) {
     this.S = S;
 
     model::load(S);
-    ui::set_loading(0.3, "");
+    ui::set_load_progress(0.3, "");
     plugins::load(S);
     // Exports and imports run off the frame and report back here as they go.
     export::listen(this.node, #{});
@@ -286,7 +309,7 @@ pub fn init(this) {
     settings::load_files(S);
     theme::apply(S);
     chrome::set_app_icon();
-    S.touchscreen = engine::platform().touchscreen;
+    S.touchscreen = engine::target().touchscreen;
     shell::set_ui_scale(S, shell::scale_for_screen(S));
     // The shell redraws when something asks, not every frame: on the web the
     // pass is most of the frame, and nothing in it moves untouched.
@@ -295,26 +318,29 @@ pub fn init(this) {
     shell::apply_camera(S);
     log::info(format!("editing {} ({} nodes)", S.game_name, S.doc.len()));
 
-    // Optional start-up states, comma-separated (persona id, "palette",
-    // "light", "play", "select:<node>", "shot=<png path>"), applied in order.
+    // Optional start-up states, comma-separated (workspace id, "palette",
+    // "light", "play", "select:<node>", "shot:<png path>"), applied in order.
     // Applied on the first frame, after the screen's class has folded the docks.
     S.start_states = engine::args().get(1).unwrap_or("");
 }
 
-
+// The system turned dark or light; the theme follows under `mode = "system"`.
+pub fn on_dark_mode_changed(this, dark) {
+    theme::follow(this.S, dark);
+}
 
 // Every export reports here: started, done or failed, one call per step.
-pub fn on_export(this, e) {
+pub fn on_export_event(this, e) {
     exporter::report(this.S, e);
 }
 
 // A release check or install reports here, for the start screen and About.
-pub fn on_release(this, e) {
+pub fn on_release_event(this, e) {
     manager::heard(this.S, e);
 }
 
 // Every import reports here: what is coming, each file, then the end.
-pub fn on_import(this, e) {
+pub fn on_import_event(this, e) {
     let S = this.S;
     // The start screen's conversion is its own; every other import is a drop's.
     if manager::owns(S, e) {
@@ -332,6 +358,10 @@ pub fn update(this, dt) {
         S.fps = (if S.fps == 0.0 { now } else { S.fps }) * 0.9 + now * 0.1;
     }
     S.frame += 1;
+    model::settle_revision(S);
+    if S.start_states != "" {
+        model::check_revision(S);
+    }
     shell::release_world(S);
     // The splash holds until the shell stops moving: every box is read back a
     // pass after it was written, so the sizes correct themselves for several.
@@ -340,9 +370,9 @@ pub fn update(this, dt) {
         let ready = S.frame >= 3 && S.refs.len() == S.doc.len() && layout::settled(S);
         if ready || S.frame >= FORM_BY {
             S.formed = true;
-            ui::loaded();
+            ui::finish_loading();
         } else {
-            ui::set_loading(util::clamp(0.4 + 0.06 * util::f(S.frame), 0.0, 0.95), "");
+            ui::set_load_progress(util::clamp(0.4 + 0.06 * util::f(S.frame), 0.0, 0.95), "");
         }
     }
     let shot_some = S.shot;
@@ -368,7 +398,7 @@ pub fn update(this, dt) {
         ui::request_repaint();
         return;
     }
-    let paused = debugger::paused();
+    let paused = debugger::stop_location();
     if paused is Object && !(S.debug.paused is Object) {
         shell::on_pause(S, paused);
     }
@@ -390,6 +420,7 @@ pub fn update(this, dt) {
     // A sweep is a compile per script, so it waits for typing to stop; the
     // mirror has to be resolved first, since the scene half reads live nodes.
     lint::idle(S);
+    lint::node_warnings(S);
     dropin::update(S);
     let is2d = model::is_2d(S);
     if is2d != S.mode2d {
@@ -439,6 +470,9 @@ pub fn update(this, dt) {
     if S.camera_check is Object {
         selftest::camera_check_step(S);
     }
+    if S.pool_check is Object {
+        selftest::pool_check_step(S);
+    }
     if S.settings.demo >= 0 {
         selftest::settings_step(S);
     }
@@ -475,19 +509,19 @@ pub fn update(this, dt) {
     }
     anim::update(S);
     // Scene-tree UI widgets draw during play (and for preview in the Interface
-    // persona), clipped to the viewport — and only while there is one, or the
+    // workspace), clipped to the viewport — and only while there is one, or the
     // rect is the stale one a document is now filling.
     let rect = gizmo::viewport_rect(S);
-    let widgets_on = (S.playing || S.persona == "ui") && S.viewport_live;
+    let widgets_on = (S.playing || S.workspace == defs::WORKSPACE_UI) && S.viewport_live;
     // Inset by the strip the axis and zoom pills own, so a bottom-anchored
     // HUD label sits above the editor's chrome instead of under it.
     let band = if widgets_on { center::hud_h(S) + 6.0 } else { 0.0 };
     ui::set_widget_layer(widgets_on, rect.x, rect.y, rect.w, util::max(0.0, rect.h - band));
     // The window, never `S.screen_w`: that is the shell's own solved rect, and
     // a surface taken from it shrinks the shell it sizes, frame by frame.
-    let (surface_w, surface_h) = ui::screen_size();
+    let (surface_w, surface_h) = ui::window_size();
     ui::set_widget_surface("shell", true, 0.0, 0.0, surface_w, surface_h);
-    if S.tool == "key" && S.persona == "anim" && input::mouse_just_pressed(input::MOUSE_LEFT) {
+    if S.tool == "key" && S.workspace == defs::WORKSPACE_ANIMATION && input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
         anim::add_key(S, S.anim.time);
     }
     gizmo::draw(S);
@@ -499,30 +533,30 @@ pub fn update(this, dt) {
     polygon::draw(S);
     pen::draw(S);
     tiles::draw(S);
-    let chips = util::obj(S.chip_state.get(S.persona).unwrap_or(#{}));
-    if S.persona == "scene" && chips.get("guides").unwrap_or(false) {
+    if S.workspace == defs::WORKSPACE_SCENE && defs::chip_on(S, S.workspace, defs::CHIP_GUIDES) {
         overlays::guides(S);
     }
-    if S.mode2d && chips.get("lights").unwrap_or(S.persona == "scene") {
+    if S.mode2d && defs::chip_on(S, S.workspace, defs::CHIP_LIGHTS) {
         overlays::lights2d(S);
     }
-    if S.persona == "anim" && chips.get("path").unwrap_or(true) {
+    if S.workspace == defs::WORKSPACE_ANIMATION && defs::chip_on(S, S.workspace, defs::CHIP_PATH) {
         overlays::motion_path(S);
     }
-    if !S.mode2d && chips.get("lights").unwrap_or(S.persona == "scene") {
+    if !S.mode2d && defs::chip_on(S, S.workspace, defs::CHIP_LIGHTS) {
         overlays::lights3d(S);
     }
-    if S.persona == "phys" && chips.get("colliders").unwrap_or(true) {
+    if S.workspace == defs::WORKSPACE_PHYSICS && defs::chip_on(S, S.workspace, defs::CHIP_COLLIDERS) {
         if S.mode2d {
             overlays::colliders2d(S);
         } else {
             overlays::colliders(S);
         }
     }
-    // What moves without input asks for the next pass; the rest waits for one.
-    // A folding dock, a gizmo drag and an import counting up all move the
-    // picture while the pointer holds still, so all three are listed.
-    let telling = !S.jobs.is_empty();
+    // What moves without input asks for the next frame; under `[window]
+    // low_processor` nothing else draws one. The splash, a queued import and
+    // a `--state` run count frames, so they ask too.
+    let telling = !S.jobs.is_empty() || !S.import_queue.is_empty() || !S.formed
+        || S.start_states != "";
     if S.playing || S.showcase is Object || session::scrubbing(S) || S.capture is Object
         || S.session.demo is Object || S.layout_demo >= 0 || S.settings.demo >= 0 || S.themewin.demo >= 0 || S.window.demo >= 0
         || S.rows_demo >= 0 || S.machine.demo >= 0 || S.plugin_demo >= 0
@@ -555,14 +589,14 @@ pub fn draw_ui(this) {
     let S = this.S;
     // egui hands a paste to the frame it arrived on: this is the only place
     // it can be read, so ⌘V anywhere in the shell pastes a copied node.
-    let pasted = ui::clipboard();
+    let pasted = ui::pasted_text();
     if pasted != "" {
         model::paste_nodes(S, pasted);
     }
     // The room the shell has, which the engine solved: the window less what
     // a notch covers. Read back a pass late, as every other rect here is;
     // the window stands in until it has drawn once.
-    let (sw, sh) = ui::screen_size();
+    let (sw, sh) = ui::window_size();
     let (rw, rh) = crate::layout::shell_room(S);
     S.screen_w = if rw > 0.0 { rw } else { sw };
     S.screen_h = if rh > 0.0 { rh } else { sh };
@@ -641,10 +675,9 @@ pub fn draw_ui(this) {
         if S.playing && !(S.debug.paused is Object) && ui::shortcut("f6") {
             debugger::request_break();
         }
-        let personas = ["scene", "script", "anim", "phys", "ui"];
-        for (i, id) in personas.iter().enumerate() {
+        for (i, p) in defs::workspaces().iter().enumerate() {
             if ui::shortcut(format!("alt+{}", i + 1)) {
-                shell::set_persona(S, id);
+                shell::set_workspace(S, p.id);
             }
         }
         if ui::shortcut("shift+a") {
@@ -658,7 +691,7 @@ pub fn draw_ui(this) {
         }
         // ⌘V is read from the paste event above; the clipboard cannot be read
         // on demand, so only the copy half is a chord.
-        if ui::shortcut("cmd+c") {
+        if ui::shortcut("cmd+c") && model::has_selection(S) {
             ui::set_clipboard(model::copy_selected(S));
         }
         // Gated with the rest, so typing in the code editor keeps egui's own
@@ -693,7 +726,7 @@ pub fn draw_ui(this) {
         if ui::shortcut("slash") {
             arrange::toggle_isolate(S);
         }
-        if S.persona == "anim" && ui::shortcut("k") {
+        if S.workspace == defs::WORKSPACE_ANIMATION && ui::shortcut("k") {
             anim::add_key(S, S.anim.time);
         }
         if !completing && ui::shortcut("escape") {
@@ -726,7 +759,7 @@ pub fn draw_ui(this) {
     center::draw(S);
     // Every dock is nodes now: the scene lays them out, paints them, and calls
     // `draw_dock_*` to fill them.
-    plugins::draw_windows(S, S.theme);
+    plugins::draw_dialogs(S, S.theme);
     if S.show_input {
         inputview::draw(S);
     }
@@ -788,7 +821,7 @@ pub fn draw_view_timeline(this) {
     dock::timeline(this.S, this.S.theme);
 }
 
-pub fn draw_view_session(this) {
+pub fn draw_view_recordings(this) {
     dock::session_view(this.S, this.S.theme);
 }
 
@@ -844,6 +877,15 @@ pub fn tree_add_child(this) {
     newnode::open(this.S);
 }
 
+// A card dragged out of the Assets dock, let go wherever the pointer is.
+pub fn assets_dropped(this, card) {
+    crate::dock::drop_card(this.S, card);
+}
+
+pub fn tree_change_type(this) {
+    newnode::open_change(this.S);
+}
+
 pub fn tree_move_up(this) {
     model::move_sibling(this.S, -1);
 }
@@ -891,7 +933,7 @@ pub fn backfill(S) {
     added
 }
 
-pub fn hot_reload(this) {
+pub fn on_hot_reload(this) {
     let S = this.S;
     let added = backfill(S);
     if !added.is_empty() {

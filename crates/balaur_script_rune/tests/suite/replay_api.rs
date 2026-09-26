@@ -148,7 +148,7 @@ pub fn unload(this) {
 }
 
 pub fn name(this) {
-    replay::session_name()
+    replay::recording_name()
 }
 "#;
 
@@ -281,7 +281,7 @@ fn marks_answer_for_a_source_the_engine_does_not_know() {
 /// The name a new session takes has to be usable as a file name everywhere,
 /// which rules out the colons a readable timestamp has.
 #[test]
-fn a_session_name_is_a_file_name() {
+fn a_recording_name_is_a_file_name() {
     let dir = project(&[("r.rn", RECORDER)]);
     let app = app_in(dir.path());
     let node = attach(&app, "Recorder", "r.rn");
@@ -352,7 +352,7 @@ pub fn play(this) {
 }
 
 pub fn diverged(this) {
-    let d = replay::diverged();
+    let d = replay::divergence_tick();
     if d is Object { format!("tick {}", d.tick) } else { "" }
 }
 "#;

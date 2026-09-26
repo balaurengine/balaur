@@ -13,7 +13,7 @@ shopt -s nullglob
 assets=(
   "$dist"/balaur-editor-*
   "$dist"/balaur-runtime-*
-  "$dist"/balaur-template-*
+  "$dist"/balaur-runtime-*
   "$dist"/balaur-example-*
   "$dist"/balaur_bg.wasm
   "$dist"/balaur.js
@@ -88,8 +88,8 @@ notes=$(
   cat <<'EOF'
 - `balaur-editor-macos-universal.dmg` — `Balaur.app`, signed and notarized
 - `balaur-editor-<platform>` — the editor, as an archive
-- `balaur-runtime-<platform>` — one desktop runtime template
-- `balaur-template-ios` / `-android` / `-web.tar.gz` — mobile and web templates
+- `balaur-runtime-<platform>` — one desktop runtime
+- `balaur-runtime-ios` / `-android` / `-web.tar.gz` — mobile and web runtimes
 - `balaur-example-debug.apk` — an example game, debug-signed
 - `balaur_bg.wasm` / `balaur.js` — the web runtime, loose
 - `balaur-play.tar.gz` — the web runtime with the editor and the examples

@@ -1,7 +1,8 @@
-// The editor's verbs on its state `S`: selection, personas, play, the
+// The editor's verbs on its state `S`: selection, workspaces, play, the
 // palette, breakpoints, the pause, and the start-up states.
 
 use crate::anim;
+use crate::defs;
 use crate::history;
 use crate::model;
 use crate::theme;
@@ -23,9 +24,9 @@ pub fn choose(S, i) {
 /// A click that may extend the set: ⌘ toggles one row, ⇧ takes the run
 /// between the active row and this one, and a plain click replaces the set.
 pub fn choose_click(S, i) {
-    let additive = input::is_down("LWin") || input::is_down("RWin")
-        || input::is_down("LControl") || input::is_down("RControl");
-    let ranged = input::is_down("LShift") || input::is_down("RShift");
+    let additive = input::key_down(input::KEY_META)
+        || input::key_down(input::KEY_CONTROL);
+    let ranged = input::key_down(input::KEY_SHIFT);
     if !additive && !ranged {
         choose(S, i);
         return;
@@ -69,17 +70,17 @@ pub fn redo(S) {
     step(S, "redo", history::redo(S));
 }
 
-pub fn set_persona(S, id) {
-    S.persona = id;
+pub fn set_workspace(S, id) {
+    S.workspace = id;
     S.tool = "select";
     if id == "script" {
         open_doc(S, "script");
     } else {
         S.doctab = "scene";
     }
-    // A persona is a set of open panels and nothing more: what it opens can
+    // A workspace is a set of open panels and nothing more: what it opens can
     // be closed again from a tab, and what it leaves out opened from the menu.
-    crate::docks::apply_persona(S, id);
+    crate::docks::apply_workspace(S, id);
 }
 
 /// Show a document tab, opening it when it was closed.
@@ -295,8 +296,8 @@ pub fn stop_play(S) {
 }
 
 // Viewport chip side effects (chips themselves live in center.rn).
-pub fn on_chip(S, persona, key, value) {
-    if persona == "phys" && key == "sleep" {
+pub fn on_chip(S, workspace, key, value) {
+    if workspace == defs::WORKSPACE_PHYSICS && key == defs::CHIP_SLEEP {
         physics::set_sleeping_allowed(value);
     }
 }
@@ -304,8 +305,8 @@ pub fn on_chip(S, persona, key, value) {
 // The other half of the pair: chips that command the engine read their
 // state back from it, so nothing is mirrored in `S.chip_state`. `None` for a
 // chip the editor owns outright.
-pub fn chip_value(S, persona, key) {
-    if persona == "phys" && key == "sleep" {
+pub fn chip_value(S, workspace, key) {
+    if workspace == defs::WORKSPACE_PHYSICS && key == defs::CHIP_SLEEP {
         return Some(physics::sleeping_allowed());
     }
     None
@@ -369,7 +370,7 @@ pub fn on_pause(S, p) {
             break;
         }
     }
-    set_persona(S, "script");
+    set_workspace(S, defs::WORKSPACE_SCRIPT);
     crate::docks::show(S, "debugger");
     log::info(format!("paused at {}:{} ({})", S.debug.paused_rel, p.line, p.reason));
 }
@@ -377,6 +378,9 @@ pub fn on_pause(S, p) {
 const SCRIPT_TEMPLATE = "pub fn init(this) {\n}\n\npub fn update(this, dt) {\n}\n";
 
 pub fn attach_script(S) {
+    if !crate::model::has_selection(S) {
+        return;
+    }
     let node = S.doc[S.sel];
     if node.contains_key("script") {
         return;
@@ -398,6 +402,9 @@ pub fn script_files(S) {
 
 /// Take the script off the selected node. The file stays.
 pub fn detach_script(S) {
+    if !crate::model::has_selection(S) {
+        return;
+    }
     let node = S.doc[S.sel];
     let rel = match model::script_rel(node) {
         Some(rel) => rel,
@@ -413,6 +420,9 @@ pub fn detach_script(S) {
 /// as it is; a name nothing is at moves the current file there, or starts a
 /// new one when the node had none.
 pub fn set_script_path(S, path) {
+    if !crate::model::has_selection(S) {
+        return;
+    }
     let node = S.doc[S.sel];
     let rel = path.trim();
     if rel == "" {
@@ -465,7 +475,7 @@ fn make_parent(S, rel) {
     parts.pop();
     let dir = S.game_root + "/" + util::join(parts, "/");
     if !fs::exists(dir) {
-        fs::mkdir(dir);
+        fs::create_directory(dir);
     }
 }
 
@@ -526,7 +536,7 @@ pub fn toggle_shader_preview(S, rel, line) {
 /// project opens that file at its line; engine API has no file, so the Docs
 /// dock shows its module instead.
 pub fn goto_definition(S) {
-    let node = S.doc[S.sel];
+    let node = model::selected_node(S);
     if !node.contains_key("script") {
         return;
     }
@@ -563,7 +573,7 @@ pub fn open_script_at(S, rel, line) {
     for (i, node) in S.doc.iter().enumerate() {
         if model::script_rel(node) == Some(rel) {
             crate::selection::only(S, i);
-            set_persona(S, "script");
+            set_workspace(S, defs::WORKSPACE_SCRIPT);
             S.doctab = "script";
             S.preview_line = line;
             return;
@@ -578,7 +588,7 @@ pub fn format_active(S) {
     if S.shader_rel != "" && S.doctab == "script" {
         return;
     }
-    let node = S.doc[S.sel];
+    let node = model::selected_node(S);
     if !node.contains_key("script") {
         return;
     }
@@ -599,7 +609,7 @@ pub fn format_active(S) {
     S.script_dirty[abs] = true;
     // The widget keeps its own copy per id, so the pane would redraw the old
     // text until the next keystroke without this.
-    ui::set_text(("edit:" + abs), formatted);
+    ui::set_field_text(("edit:" + abs), formatted);
     log::info("formatted " + rel);
 }
 
@@ -617,8 +627,8 @@ pub fn save_active(S) {
         }
         return;
     }
-    let node = S.doc[S.sel];
-    let in_script = (S.persona == "script" || S.doctab == "script") && node.contains_key("script");
+    let node = model::selected_node(S);
+    let in_script = (S.workspace == defs::WORKSPACE_SCRIPT || S.doctab == "script") && node.contains_key("script");
     if in_script {
         let rel = model::script_rel(node).unwrap_or("");
         let abs = S.game_root + "/" + rel;
@@ -699,13 +709,14 @@ fn states() {
     #{
         "palette": state_palette,
         "newnode": crate::newnode::open,
-        "pickerdemo": crate::selftest::node_picker,
-        "renamedemo": crate::selftest::rename,
+        "test:picker": crate::selftest::node_picker,
+        "test:rename": crate::selftest::rename,
         "light": state_light,
+        "dark": state_dark,
         "play": state_play,
         "input": state_input,
-        "animdemo": state_animdemo,
-        "layoutdemo": crate::selftest::layout,
+        "pose": state_animdemo,
+        "test:layout": crate::selftest::layout,
         "manager": crate::manager::open,
         "examples": crate::manager::open_examples,
         "about": crate::about::open,
@@ -713,57 +724,62 @@ fn states() {
         "engine": crate::manager::open_versions,
         "newproject": crate::manager::open_new,
         "versions": crate::manager::open_versions,
-        "managerdemo": crate::selftest::manager_screen,
-        "gesturedemo": crate::selftest::gestures,
-        "fontdemo": state_fontdemo,
-        "menudemo": state_menudemo,
-        "undodemo": crate::selftest::undo,
-        "breakdemo": break_demo,
-        "rigdemo": crate::selftest::rigging,
-        "polydemo": crate::selftest::polygons,
-        "weightdemo": crate::selftest::weighting,
-        "bonemapdemo": crate::selftest::bonemap_panel,
-        "machinedemo": crate::statemachine::selftest,
-        "ragdolldemo": crate::selftest::physical_bones,
-        "physdemo": crate::selftest::physics_panel,
-        "physclickdemo": crate::selftest::physics_clicks,
-        "deselectdemo": crate::selftest::deselected,
-        "reloaddemo": crate::selftest::reloaded,
-        "reachdemo": crate::selftest::component_reach,
-        "viewportdemo": crate::selftest::viewport_clicks,
-        "camerademo": crate::selftest::camera_keeps_pointer,
-        "tilesdemo": crate::selftest::tiles_tool,
-        "clipdemo": crate::selftest::clipboard,
-        "assetdemo": crate::selftest::assets,
-        "importdemo": crate::selftest::imports,
-        "pickdemo": crate::selftest::picking,
-        "propsdemo": crate::selftest::script_props,
-        "listdemo": crate::selftest::composite_props,
-        "scriptdemo": crate::selftest::script_paths,
-        "instancedemo": crate::selftest::instances,
-        "timingsdemo": crate::selftest::timings,
-        "placedemo": crate::selftest::placing,
-        "lintdemo": crate::selftest::linting,
-        "tooldemo": crate::selftest::tooling,
-        "sessiondemo": crate::selftest::sessions,
-        "themedemo": crate::selftest::theme_switch,
-        "themeeditdemo": crate::selftest::theme_editing,
-        "sheetclosedemo": crate::selftest::sheet_closing,
-        "settingsdemo": crate::selftest::settings_screen,
-        "paneldemo": crate::selftest::menu_panels,
-        "palettedemo": crate::selftest::palette_screen,
-        "focusdemo": crate::selftest::focusing,
+        "test:manager": crate::selftest::manager_screen,
+        "test:gestures": crate::selftest::gestures,
+        "font_sheet": state_fontdemo,
+        "menu": state_menudemo,
+        "test:undo": crate::selftest::undo,
+        "breakpoint": break_demo,
+        "test:rig": crate::selftest::rigging,
+        "test:polygons": crate::selftest::polygons,
+        "test:weights": crate::selftest::weighting,
+        "test:bone_map": crate::selftest::bonemap_panel,
+        "test:state_machine": crate::statemachine::selftest,
+        "test:ragdoll": crate::selftest::physical_bones,
+        "test:physics": crate::selftest::physics_panel,
+        "test:physics_clicks": crate::selftest::physics_clicks,
+        "test:deselect": crate::selftest::deselected,
+        "test:reload": crate::selftest::reloaded,
+        "test:component_reach": crate::selftest::component_reach,
+        "test:viewport_clicks": crate::selftest::viewport_clicks,
+        "test:camera": crate::selftest::camera_keeps_pointer,
+        "test:tiles": crate::selftest::tiles_tool,
+        "test:clipboard": crate::selftest::clipboard,
+        "test:assets": crate::selftest::assets,
+        "test:imports": crate::selftest::imports,
+        "test:picking": crate::selftest::picking,
+        "test:script_props": crate::selftest::script_props,
+        "test:composite_props": crate::selftest::composite_props,
+        "test:script_paths": crate::selftest::script_paths,
+        "test:instances": crate::selftest::instances,
+        "test:timings": crate::selftest::timings,
+        "test:placing": crate::selftest::placing,
+        "test:lint": crate::selftest::linting,
+        "test:tools": crate::selftest::tooling,
+        "test:recordings": crate::selftest::sessions,
+        "test:theme_switch": crate::selftest::theme_switch,
+        "test:theme_editing": crate::selftest::theme_editing,
+        "test:sheet_close": crate::selftest::sheet_closing,
+        "test:settings": crate::selftest::settings_screen,
+        "test:panels": crate::selftest::menu_panels,
+        "test:palette": crate::selftest::palette_screen,
+        "test:focus": crate::selftest::focusing,
         "focus": state_focus,
-        "seldemo": crate::selftest::selecting,
-        "dropdemo": crate::selftest::dropping,
-        "eventsdemo": crate::selftest::eventviews,
-        "librarydemo": crate::selftest::librarydemo,
-        "rowsdemo": crate::selftest::row_views,
-        "jobdemo": crate::selftest::importing,
-        "pendemo": crate::selftest::pendemo,
+        "test:selection": crate::selftest::selecting,
+        "test:drop": crate::selftest::dropping,
+        "test:events": crate::selftest::eventviews,
+        "test:library": crate::selftest::librarydemo,
+        "test:rows": crate::selftest::row_views,
+        "test:pool": crate::selftest::pool_kinds,
+        "test:camera_document": crate::selftest::camera_document,
+        "test:warnings": crate::selftest::warning_marks,
+        "test:recipes": crate::selftest::soft_recipes,
+        "test:change_types": crate::selftest::change_types,
+        "test:import_job": crate::selftest::importing,
+        "test:pen": crate::selftest::pendemo,
         // The editor's half of the plugin seam; `counter.rn` registers the
         // plugin's half under the same name and both run.
-        "counterdemo": crate::selftest::plugin_docks,
+        "test:plugin_docks": crate::selftest::plugin_docks,
         "settings": crate::settings::open,
         "export": crate::exporter::open,
     }
@@ -773,13 +789,13 @@ fn states() {
 fn prefixed_states() {
     [
         ("find:", state_find),
-        ("settings?", state_settings_search),
+        ("settings_search:", state_settings_search),
         ("settings:", state_settings),
         ("theme:", state_theme),
         ("wear:", state_wear),
         ("override:", state_override),
-        ("shot=", state_shot),
-        ("frames=", state_frames),
+        ("shot:", state_shot),
+        ("frames:", state_frames),
         ("show:", state_show),
         ("tool:", state_tool),
         ("tiles:", state_tiles),
@@ -842,7 +858,7 @@ fn state_find(S, query) {
     S.search["tree"] = query;
 }
 
-// One start-up state, mirroring the design prototype's startPersona prop. A
+// One start-up state, mirroring the design prototype's startWorkspace prop. A
 // plugin may extend a built-in state rather than replace it, so both run.
 pub fn apply_start_state(S, start) {
     for (prefix, run) in prefixed_states() {
@@ -866,8 +882,13 @@ pub fn apply_start_state(S, start) {
         }
         None => (),
     }
-    if !ran && start != "" {
-        state_persona(S, start);
+    if ran || start == "" {
+        return;
+    }
+    if crate::defs::workspaces().iter().any(|w| w.id == start) {
+        state_workspace(S, start);
+    } else {
+        log::error(format!("--state names '{}', which is no state", start));
     }
 }
 
@@ -895,7 +916,7 @@ fn state_frames(S, spec) {
     let dir = parts[0];
     let from = if parts.len() > 1 { parts[1].parse::<i64>().unwrap_or(30) } else { 30 };
     let every = if parts.len() > 2 { util::max(parts[2].parse::<i64>().unwrap_or(2), 1) } else { 2 };
-    // No `fs::mkdir` here: the directory is the caller's, outside every root
+    // No `fs::create_directory` here: the directory is the caller's, outside every root
     // `fs` may reach, and the screenshot makes it on the way past.
     S.capture = #{ dir: dir, from: from, every: every, n: 0 };
 }
@@ -1020,7 +1041,7 @@ fn state_imports(S, list) {
 // `convert:<folder>`: the start screen converting a project as Import project
 // does, into the editor's own data folder and left off the recent list.
 fn state_convert(S, folder) {
-    S.manager.parent = engine::user_data_dir();
+    S.manager.parent = engine::user_data_directory();
     // A showcase presses Import project itself, so the folder waits for the
     // frame its pointer reaches the button.
     if crate::showcase::driving(S) {
@@ -1067,6 +1088,10 @@ fn state_light(S) {
     theme::set_dark(S, false);
 }
 
+fn state_dark(S) {
+    theme::set_dark(S, true);
+}
+
 fn state_play(S) {
     toggle_play(S);
 }
@@ -1090,7 +1115,7 @@ fn state_animdemo(S) {
             let found_some = found;
             if let Some(found) = found_some {
                 found.transform.position = [2.5, 2.5, 0.0];
-                found.transform.rotation_euler = [0.0, math::rad(180.0), 0.0];
+                found.transform.rotation_euler = [0.0, math::to_radians(180.0), 0.0];
                 anim::add_key(S, 1.0);
                 found.transform.position = [2.5, 0.5, 0.0];
                 anim::add_key(S, 2.0);
@@ -1098,13 +1123,13 @@ fn state_animdemo(S) {
             }
         }
     }
-    set_persona(S, "anim");
+    set_workspace(S, defs::WORKSPACE_ANIMATION);
 }
 
-// A bare name is a persona; the script persona also picks a scripted node so
+// A bare name is a workspace; the script workspace also picks a scripted node so
 // the centre pane has something to show.
-fn state_persona(S, name) {
-    set_persona(S, name);
+fn state_workspace(S, name) {
+    set_workspace(S, name);
     if name == "script" {
         for (i, node) in S.doc.iter().enumerate() {
             if node.contains_key("script") {

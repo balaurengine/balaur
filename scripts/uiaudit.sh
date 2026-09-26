@@ -27,7 +27,7 @@ shot() { # shot <name> <project> <state>
   printf '%-24s ' "$1"
   rm -f "$out/$1.png"
   "$BALAUR_BIN" edit "$2" --editor "$editor" --offscreen --frames 110 \
-    --state "$3,shot=$out/$1.png" >"$out/$1.log" 2>&1
+    --state "$3,shot:$out/$1.png" >"$out/$1.log" 2>&1
   if [ -f "$out/$1.png" ]; then echo ok; else echo FAILED; failed+=("$1"); fi
 }
 
@@ -43,7 +43,7 @@ sized() {
   printf '%-24s ' "$1"
   rm -f "$out/$1.png"
   "$BALAUR_BIN" edit "$2" --editor "$editor" --offscreen --frames 110 \
-    --size "$3" ${5:-} --state "$4,shot=$out/$1.png" >"$out/$1.log" 2>&1
+    --size "$3" ${5:-} --state "$4,shot:$out/$1.png" >"$out/$1.log" 2>&1
   if [ -f "$out/$1.png" ]; then echo ok; else echo FAILED; failed+=("$1"); fi
 }
 
@@ -54,7 +54,7 @@ check_layout() {
   printf '%-24s ' layout
   local out
   out=$("$BALAUR_BIN" edit examples/hello --editor "$editor" --offscreen --frames 40 \
-      --state layoutdemo 2>&1)
+      --state test:layout 2>&1)
   # A run that checked nothing is a failure. Grepping only for "FAILED" let
   # the demo report "skipped, nothing drew this run" and still pass, which is
   # how nine invariants went quiet without the audit noticing.
@@ -75,7 +75,7 @@ check_pills() {
   printf '%-24s ' pills
   local out
   out=$("$BALAUR_BIN" edit examples/hello --editor "$editor" --offscreen --frames 60 \
-      --state physclickdemo 2>&1)
+      --state test:physics_clicks 2>&1)
   if echo "$out" | grep -q "selftest FAILED"; then
     echo FAILED; failed+=(pills)
   elif ! echo "$out" | grep -q "selftest ok"; then
@@ -93,7 +93,7 @@ check_deselect() {
   printf '%-24s ' deselect
   local out
   out=$("$BALAUR_BIN" edit examples/hello --editor "$editor" --offscreen --frames 90 \
-      --state deselectdemo 2>&1)
+      --state test:deselect 2>&1)
   if echo "$out" | grep -qE "selftest FAILED|ERROR"; then
     echo FAILED; failed+=(deselect)
   # The round trip runs over several frames, so a run that stopped early has
@@ -113,7 +113,7 @@ check_viewport() {
   printf '%-24s ' viewport
   local out
   out=$("$BALAUR_BIN" edit examples/hello --editor "$editor" --offscreen --frames 60 \
-      --state viewportdemo 2>&1)
+      --state test:viewport_clicks 2>&1)
   if echo "$out" | grep -qE "selftest FAILED|ERROR"; then
     echo FAILED; failed+=(viewport)
   elif ! echo "$out" | grep -q "selftest ok"; then
@@ -131,7 +131,7 @@ check_reload() {
   printf '%-24s ' reload
   local out
   out=$("$BALAUR_BIN" edit examples/hello --editor "$editor" --offscreen --frames 40 \
-      --state reloaddemo 2>&1)
+      --state test:reload 2>&1)
   if echo "$out" | grep -qE "selftest FAILED|ERROR"; then
     echo FAILED; failed+=(reload)
   elif ! echo "$out" | grep -q "selftest ok"; then
@@ -142,58 +142,60 @@ check_reload() {
 }
 check_reload
 
-# The camera keeps its buttons unless something is actually there to press.
-check_camera() {
+# The camera keeps its buttons unless something is actually there to press,
+# and the wheel zooms it gently, in a 3D scene and a 2D one.
+check_camera() { # check_camera <example>
   [ ${#only[@]} -eq 0 ] || return 0
-  printf '%-24s ' camera
+  printf '%-24s ' "camera $1"
   local out
-  out=$("$BALAUR_BIN" edit examples/hello --editor "$editor" --offscreen --frames 60 \
-      --state camerademo 2>&1)
+  out=$("$BALAUR_BIN" edit "examples/$1" --editor "$editor" --offscreen --frames 60 \
+      --state test:camera 2>&1)
   if echo "$out" | grep -qE "selftest FAILED|ERROR"; then
-    echo FAILED; failed+=(camera)
-  elif ! echo "$out" | grep -q "selftest ok"; then
-    echo "FAILED (checked nothing)"; failed+=(camera)
+    echo FAILED; failed+=("camera $1")
+  elif ! echo "$out" | grep -q "selftest camera: done"; then
+    echo "FAILED (checked nothing)"; failed+=("camera $1")
   else
     echo ok
   fi
 }
-check_camera
+check_camera hello
+check_camera angrynerds
 
 shot 01-scene-3d        examples/hello      "scene,select:Spinner"
 shot 02-scene-2d        examples/angrynerds "scene,select:Bird,zoom:45"
 shot 03-script          examples/hello      "script,select:Spinner"
-shot 04-animate         examples/rig        "animdemo"
-shot 05-physics         examples/angrynerds "phys,select:Bird"
+shot 04-animate         examples/rig        "pose"
+shot 05-physics         examples/angrynerds "physics,select:Bird"
 shot 06-interface       examples/angrynerds "ui,play"
 shot 07-palette         examples/hello      "scene,palette"
 shot 08-light           examples/hello      "scene,select:Spinner,light"
 shot 09-playing         examples/angrynerds "scene,play"
 shot 10-dock-problems   examples/hello      "scene,dock:problems"
 shot 11-dock-assets     examples/hello      "scene,dock:assets"
-shot 12-dock-debugger   examples/hello      "breakdemo"
-shot 13-dock-session    examples/angrynerds "scene,dock:session"
+shot 12-dock-debugger   examples/hello      "breakpoint"
+shot 13-dock-recordings examples/angrynerds "scene,dock:recordings"
 shot 14-dock-profiler   examples/hello      "scene,play,dock:profiler"
-shot 15-dock-timeline   examples/rig        "animdemo,dock:timeline"
+shot 15-dock-timeline   examples/rig        "pose,dock:timeline"
 shot 16-events-tab      examples/hello      "script,select:Spinner,tab:events"
 shot 17-split           examples/hello      "script,select:Spinner,tab:split"
 shot 18-input-overlay   examples/hello      "scene,play,input"
-shot 19-plugin-window   examples/hello      "scene,counterdemo"
-shot 20-tool-polygon    examples/angrynerds "phys,select:Bird,tool:polygon"
-shot 21-tool-rig        examples/rig        "anim,tool:bone"
+shot 19-plugin-window   examples/hello      "scene,test:plugin_docks"
+shot 20-tool-polygon    examples/angrynerds "physics,select:Bird,tool:polygon"
+shot 21-tool-rig        examples/rig        "animation,tool:bone"
 shot 22-shaders         examples/shaders    "scene"
 shot 23-scene-rig3d     examples/rig3d      "scene"
 shot 24-light-script    examples/hello      "script,select:Spinner,light"
 shot 25-assets-light    examples/hello      "scene,dock:assets,light"
-shot 28-fonts          examples/hello      "scene,fontdemo"
+shot 28-fonts          examples/hello      "scene,font_sheet"
 shot 31-dock-cost       examples/objects    "scene,dock:cost,zoom:55"
 shot 32-dock-library    examples/objects    "scene,select:Torus,dock:library,zoom:55"
 shot 33-events-authored examples/hello      "scene,select:Ball,tab:events"
 shot 34-light3d         examples/hello      "scene,select:KeyLight"
 shot 35-tool-pen        examples/angrynerds "scene,select:Bird,tool:pen,zoom:45"
-shot 36-menu            examples/hello      "scene,select:Spinner,menudemo"
+shot 36-menu            examples/hello      "scene,select:Spinner,menu"
 shot 37-focus           examples/hello      "script,select:Spinner,focus"
 shot 42-theme           examples/hello      "scene,theme:controls:chip"
-shot 43-theme-light     examples/hello      "scene,light,theme:colours"
+shot 43-theme-light     examples/hello      "scene,light,theme:colors"
 # A small window has few design pixels, which is where the sheets used to
 # stack in the corner. Two scales stand in for it.
 shot 29-narrow          examples/angrynerds "scene,select:Bird,scale:1.8"

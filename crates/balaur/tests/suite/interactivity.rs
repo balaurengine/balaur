@@ -184,7 +184,7 @@ value = 1
 [[nodes.bindings.rows]]
 event = "pointer_click"
 when = "score >= 3"
-action = "state"
+action = "set_state"
 target = "../Door"
 value = "open"
 
@@ -194,7 +194,7 @@ name = "Door"
 parent = "n_scene"
 
 [nodes.shape3d]
-kind = "cuboid"
+kind = "box"
 color = [0.45, 0.32, 0.17, 1]
 
 [nodes.states]
@@ -261,13 +261,13 @@ fn a_state_leaves_what_it_does_not_name_alone() {
     let door = node(&app, "Door");
     let before = balaur_core::components::get(&app.engine, door, "shape3d").unwrap();
     let kind = before.get("kind").and_then(toml::Value::as_str).unwrap();
-    assert_eq!(kind, "cuboid");
+    assert_eq!(kind, "box");
 
     balaur_core::states::go(&app.engine, door, "open").unwrap();
     let after = balaur_core::components::get(&app.engine, door, "shape3d").unwrap();
     assert_eq!(
         after.get("kind").and_then(toml::Value::as_str),
-        Some("cuboid"),
+        Some("box"),
         "the state said nothing about the shape's kind"
     );
     let green = after
@@ -332,7 +332,7 @@ pub fn on_variable_changed(this, name, value) {
     // One frame, so the dispatch at the end of the tick runs.
     app.tick(0.016);
 
-    let rune = balaur::rune::rune_of(&app.engine);
+    let rune = balaur::script_rune::rune_of(&app.engine);
     assert_eq!(
         rune.number_field(ball, "seen"),
         Some(1.0),
@@ -353,7 +353,7 @@ fn every_deferred_action_has_a_runner() {
         // The six core runs itself; the rest are filled at load.
         let own = matches!(
             action,
-            bindings::Action::State
+            bindings::Action::SetState
                 | bindings::Action::SetVariable
                 | bindings::Action::AddVariable
                 | bindings::Action::Free
@@ -364,7 +364,7 @@ fn every_deferred_action_has_a_runner() {
             continue;
         }
         // Audio is a cargo feature, so its runner is only in a build with it.
-        if matches!(action, bindings::Action::Sound) && cfg!(not(feature = "audio")) {
+        if matches!(action, bindings::Action::PlaySound) && cfg!(not(feature = "audio")) {
             continue;
         }
         assert!(
@@ -414,7 +414,7 @@ autoplay = "rise"
 length = 0.5
 [[nodes.animation.library.clips.rise.tracks]]
 property = "position"
-keys = [ { t = 0.0, value = [0, 0, 0] }, { t = 0.5, value = [0, 1, 0] } ]
+keys = [ { time = 0.0, value = [0, 0, 0] }, { time = 0.5, value = [0, 1, 0] } ]
 
 [[nodes.bindings.rows]]
 event = "emitted:animation_finished"
@@ -429,8 +429,279 @@ fn a_timer_and_a_finished_clip_drive_bindings_with_no_script() {
     for _ in 0..60 {
         app.tick(1.0 / 60.0);
     }
-    // Timeouts at a quarter, a half and three quarters of the second, each
-    // heard the frame after; the one at the full second is still in flight.
-    // The half-second clip ends once.
+    // Timeouts at a quarter, a half and three quarters of the second; the
+    // fourth falls just past the last tick. The half-second clip ends once.
     assert_eq!(score(&app), 3 + 100);
+}
+
+/// A sensor with a crate resting in it, a row on each end of the contact,
+/// and a door whose state answers the score changing.
+const CONTACT: &str = r#"
+[variables]
+score = { type = "int", value = 0 }
+opened = { type = "bool", value = false }
+
+[[nodes]]
+id = "n_scene"
+name = "Scene"
+
+[[nodes]]
+id = "n_zone"
+name = "Zone"
+parent = "n_scene"
+
+[nodes.collider3d]
+kind = "box"
+size = [4.0, 4.0, 4.0]
+sensor = true
+events = ["collision"]
+
+[[nodes.bindings.rows]]
+event = "collision_enter"
+action = "add_variable"
+target = "score"
+value = 1
+
+[[nodes.bindings.rows]]
+event = "collision_exit"
+action = "add_variable"
+target = "score"
+value = 10
+
+[[nodes]]
+id = "n_crate"
+name = "Crate"
+parent = "n_scene"
+body3d = { kind = "dynamic", gravity_scale = 0.0 }
+
+[nodes.collider3d]
+kind = "sphere"
+radius = 0.5
+
+[[nodes]]
+id = "n_door"
+name = "Door"
+parent = "n_scene"
+
+[[nodes.bindings.rows]]
+event = "variable_changed"
+action = "set_state"
+value = "open"
+
+[[nodes.bindings.rows]]
+event = "state_changed"
+action = "set_variable"
+target = "opened"
+value = true
+
+[nodes.states]
+current = "shut"
+
+[nodes.states.shut]
+transform = { position = [0, 0, 0] }
+
+[nodes.states.open]
+transform = { position = [0, 1, 0] }
+"#;
+
+#[test]
+fn collision_rows_run_with_no_script_and_a_freed_node_still_ends_its_contact() {
+    let (_dir, mut app) = app_from(CONTACT);
+    for _ in 0..10 {
+        app.tick(1.0 / 60.0);
+    }
+    assert_eq!(score(&app), 1, "the crate starts inside the zone");
+    balaur_core::scene::free_node(&app.engine, node(&app, "Crate"));
+    for _ in 0..5 {
+        app.tick(1.0 / 60.0);
+    }
+    assert_eq!(score(&app), 11, "freeing the crate ends its contact");
+}
+
+#[test]
+fn variable_and_state_rows_run_with_no_script() {
+    let (_dir, mut app) = app_from(CONTACT);
+    for _ in 0..10 {
+        app.tick(1.0 / 60.0);
+    }
+    let door = node(&app, "Door");
+    assert_eq!(state_of(&app, door), "open", "the score changing opened it");
+    let variables = app.engine.resource::<Variables>();
+    let opened = variables.borrow().get("opened").cloned();
+    assert_eq!(
+        opened,
+        Some(Value::Bool(true)),
+        "and the state change was heard"
+    );
+}
+
+/// A clip whose node's script also subscribes to its own event.
+const ONCE: &str = r#"
+[variables]
+score = { type = "int", value = 0 }
+
+[[nodes]]
+id = "n_scene"
+name = "Scene"
+
+[[nodes]]
+id = "n_wave"
+name = "Wave"
+parent = "n_scene"
+script = { source = "scenes/wave.rn" }
+
+[nodes.transform]
+position = [0, 0, 0]
+
+[nodes.animation]
+autoplay = "rise"
+
+[nodes.animation.library.clips.rise]
+length = 0.2
+[[nodes.animation.library.clips.rise.tracks]]
+property = "position"
+keys = [ { time = 0.0, value = [0, 0, 0] }, { time = 0.2, value = [0, 1, 0] } ]
+"#;
+
+#[test]
+fn a_finished_clip_calls_its_own_node_once_when_the_node_also_subscribes() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("scenes")).unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("scenes/main.toml"), ONCE).unwrap();
+    std::fs::write(
+        dir.path().join("scenes/wave.rn"),
+        "pub fn init(this) { events::listen(this.node, \"animation_finished\", this.node); }\n\
+         pub fn on_animation_finished(this, clip) {\n\
+         \x20   scene::set_variable(\"score\", scene::variable(\"score\") + 1);\n\
+         }\n",
+    )
+    .unwrap();
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = standard_app(config).unwrap();
+    app.load_project().unwrap();
+    for _ in 0..40 {
+        app.tick(1.0 / 60.0);
+    }
+    assert_eq!(score(&app), 1);
+}
+
+/// A lamp hidden by a row on another node, and a sign hidden by its own clip,
+/// each with a row that answers its `visibility_changed`.
+const SHOWN: &str = r#"
+[variables]
+score = { type = "int", value = 0 }
+dark = { type = "bool", value = false }
+
+[[nodes]]
+id = "n_scene"
+name = "Scene"
+
+[[nodes]]
+id = "n_switch"
+name = "Switch"
+parent = "n_scene"
+
+[[nodes.bindings.rows]]
+event = "variable_changed"
+action = "visible"
+target = "../Lamp"
+value = false
+
+[[nodes]]
+id = "n_lamp"
+name = "Lamp"
+parent = "n_scene"
+
+[[nodes.bindings.rows]]
+event = "emitted:visibility_changed"
+action = "add_variable"
+target = "score"
+value = 1
+
+[[nodes]]
+id = "n_sign"
+name = "Sign"
+parent = "n_scene"
+
+[nodes.animation]
+autoplay = "blink"
+
+[nodes.animation.library.clips.blink]
+length = 0.2
+[[nodes.animation.library.clips.blink.tracks]]
+property = "visible"
+keys = [ { time = 0.0, value = 1.0 }, { time = 0.1, value = 0.0 } ]
+
+[[nodes.bindings.rows]]
+event = "emitted:visibility_changed"
+action = "add_variable"
+target = "score"
+value = 10
+"#;
+
+#[test]
+fn a_row_and_a_clip_that_hide_a_node_announce_it() {
+    let (_dir, mut app) = app_from(SHOWN);
+    {
+        let variables = app.engine.resource::<Variables>();
+        variables
+            .borrow_mut()
+            .set("dark", &Value::Bool(true))
+            .unwrap();
+    }
+    for _ in 0..30 {
+        app.tick(1.0 / 60.0);
+    }
+    assert_eq!(score(&app), 11, "the lamp once and the sign once");
+}
+
+#[test]
+fn a_node_offers_the_events_its_components_announce() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("scenes")).unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("scenes/main.toml"),
+        "[[nodes]]\nid = \"n\"\nname = \"Clock\"\nscript = { source = \"scenes/c.rn\" }\n\n[nodes.timer]\nwait_time = 1.0\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("scenes/c.rn"),
+        "pub fn offered(this) { scene::bindable_events(this.node) }\n",
+    )
+    .unwrap();
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = standard_app(config).unwrap();
+    app.load_project().unwrap();
+    app.tick(1.0 / 60.0);
+    let clock = {
+        let world = app.engine.world();
+        balaur::scene::find_node(&world, app.engine.root(), "Clock").unwrap()
+    };
+    let host = app.engine.script_host().unwrap();
+    let offered = host.call_on(balaur::node_id_of(clock), "offered", &[]);
+    let Some(Value::List(offered)) = offered else {
+        panic!("no list of events: {offered:?}");
+    };
+    for wanted in [
+        "pointer_click",
+        "emitted:timeout",
+        "emitted:visibility_changed",
+    ] {
+        assert!(
+            offered.contains(&Value::Str(wanted.into())),
+            "`{wanted}` is not offered: {offered:?}"
+        );
+    }
 }

@@ -143,9 +143,9 @@ pub(crate) fn draw_image(eng: &Engine, path: &str, opts: &Opts) -> anyhow::Resul
         let texture = texture_of(eng, &ui.ctx().clone(), path)?;
         let (uv, drawn) = image_uv(native_size(eng, path, &texture), opts);
         let size = image_size(drawn, opts);
-        let radius = opts.px(k::RADIUS, DEFAULT_RADIUS);
+        let radius = opts.px(k::CORNER_RADIUS, DEFAULT_RADIUS);
         let padding = opts.px(k::PADDING, 0.0);
-        if let Some(bg) = opts.opt_color(k::BG) {
+        if let Some(bg) = opts.opt_color(k::FILL) {
             // Backing plate (e.g. white circle behind a logo) with padding.
             let total = size + vec2(padding * 2.0, padding * 2.0);
             let (rect, _) = ui.allocate_exact_size(total, Sense::hover());
@@ -193,7 +193,7 @@ pub(crate) fn image_button(eng: &Engine, path: &str, opts: &Opts) -> anyhow::Res
         let padding = opts.px(k::PADDING, 2.0);
         let total = size + vec2(padding * 2.0, padding * 2.0);
         let (rect, response) = ui.allocate_exact_size(total, Sense::click());
-        let corner = pill_radius(opts.px(k::RADIUS, DEFAULT_RADIUS) * 2.0);
+        let corner = pill_radius(opts.px(k::CORNER_RADIUS, DEFAULT_RADIUS) * 2.0);
         let selected = opts.boolean(k::SELECTED, false);
         if let Some(fill) = opts.opt_color(k::FILL) {
             ui.painter().rect_filled(rect, corner, fill);
@@ -209,7 +209,7 @@ pub(crate) fn image_button(eng: &Engine, path: &str, opts: &Opts) -> anyhow::Res
         let border = if selected {
             opts.opt_color(k::STROKE)
         } else if response.hovered() {
-            opts.opt_color(k::HOVER_FILL)
+            opts.in_state(true, false).opt_color(k::STROKE)
         } else {
             None
         };

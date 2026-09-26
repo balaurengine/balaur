@@ -38,7 +38,7 @@ parent = "sheet"
 kind = "row"
 height = 30
 gap = 10
-align = "center"
+align_items = "center"
 
 [[nodes]]
 id = "title"
@@ -98,7 +98,7 @@ kind = "row"
 # No `grow`: the sheet hugs, so there is no leftover to divide and the row
 # takes what its two columns measure.
 gap = 14
-align = "start"
+align_items = "start"
 
 [[nodes]]
 id = "left"
@@ -135,7 +135,7 @@ parent = "left"
 kind = "row"
 height = 24
 gap = 12
-align = "center"
+align_items = "center"
 
 [[nodes]]
 id = "t_title"
@@ -161,7 +161,7 @@ parent = "type_row"
 [nodes.widget]
 kind = "label"
 text = "mono"
-font = "mono"
+font_family = "mono"
 
 [[nodes]]
 id = "t_caption"
@@ -187,7 +187,7 @@ id = "f_field"
 name = "FField"
 parent = "left"
 [nodes.widget]
-kind = "field"
+kind = "text_field"
 text = "a line the reader types into"
 placeholder = "field"
 height = 26
@@ -218,7 +218,7 @@ parent = "left"
 kind = "row"
 height = 26
 gap = 6
-align = "center"
+align_items = "center"
 
 [[nodes]]
 id = "b_plain"
@@ -253,7 +253,7 @@ parent = "b_row"
 [nodes.widget]
 kind = "button"
 text = "disabled"
-disabled = true
+enabled = false
 tooltip = "A disabled control keeps its tooltip, which is where it says why"
 
 [[nodes]]
@@ -264,14 +264,14 @@ parent = "left"
 kind = "row"
 height = 26
 gap = 8
-align = "center"
+align_items = "center"
 
 [[nodes]]
 id = "c_check"
 name = "CCheck"
 parent = "c_row"
 [nodes.widget]
-kind = "check"
+kind = "checkbox"
 text = "check"
 checked = true
 
@@ -289,7 +289,7 @@ id = "c_drag"
 name = "CDrag"
 parent = "c_row"
 [nodes.widget]
-kind = "drag_value"
+kind = "number_field"
 value = 1.5
 step = 0.05
 placeholder = "x"
@@ -300,8 +300,8 @@ id = "c_color"
 name = "CColor"
 parent = "c_row"
 [nodes.widget]
-kind = "color"
-color = [0.44, 0.64, 0.85, 1.0]
+kind = "color_picker"
+picked_color = [0.44, 0.64, 0.85, 1.0]
 width = 38
 
 [[nodes]]
@@ -312,7 +312,7 @@ parent = "left"
 kind = "row"
 height = 24
 gap = 10
-align = "center"
+align_items = "center"
 
 [[nodes]]
 id = "s_slider"
@@ -330,7 +330,7 @@ id = "s_progress"
 name = "SProgress"
 parent = "s_row"
 [nodes.widget]
-kind = "progress"
+kind = "progress_bar"
 value = 0.42
 text = "42%"
 grow = 1
@@ -349,8 +349,8 @@ id = "pages"
 name = "Pages"
 parent = "right"
 [nodes.widget]
-kind = "tab"
-active = "Cards"
+kind = "tabs"
+current_page = "Cards"
 height = 232
 gap = 8
 
@@ -375,7 +375,7 @@ parent = "pages"
 text = "Outline"
 kind = "tree"
 height = 196
-font = "mono"
+font_family = "mono"
 
 [[nodes]]
 id = "table"
@@ -385,7 +385,7 @@ parent = "pages"
 text = "Table"
 kind = "table"
 height = 196
-font = "mono"
+font_family = "mono"
 # The column names, and with them how many columns the table has.
 titles = ["name", "kind", "size"]
 
@@ -577,7 +577,7 @@ x = 0
 y = 0
 width = 12
 height = 12
-radius = 6
+corner_radius = 6
 fill = "#00000000"
 visible = false
 
@@ -589,7 +589,7 @@ name = "Cursor"
 parent = "n_screen"
 [nodes.widget]
 kind = "image"
-source = "assets/cursor.png"
+image = "assets/cursor.png"
 anchor = "top_left"
 x = 0
 y = 0

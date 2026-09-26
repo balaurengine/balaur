@@ -5,7 +5,7 @@ use balaur::{App, AppConfig, standard_app};
 
 fn project(dir: &std::path::Path, language: Option<&str>, script: (&str, &str)) {
     std::fs::create_dir_all(dir.join("scripts")).unwrap();
-    let lang = language.map_or(String::new(), |l| format!("language = \"{l}\"\n"));
+    let lang = language.map_or(String::new(), |l| format!("script_language = \"{l}\"\n"));
     std::fs::write(
         dir.join("project.toml"),
         format!("[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n{lang}"),
@@ -39,7 +39,7 @@ fn a_project_without_a_language_runs_on_rune() {
     let host = app.engine.script_host().expect("a backend was installed");
     assert!(
         host.as_any()
-            .downcast_ref::<balaur::rune::RuneHost>()
+            .downcast_ref::<balaur::script_rune::RuneHost>()
             .is_some()
     );
     assert_eq!(
@@ -58,7 +58,7 @@ fn language_rune_runs_on_rune() {
     let host = app.engine.script_host().unwrap();
     assert!(
         host.as_any()
-            .downcast_ref::<balaur::rune::RuneHost>()
+            .downcast_ref::<balaur::script_rune::RuneHost>()
             .is_some()
     );
     assert_eq!(host.instance_count(), 1);
@@ -128,7 +128,7 @@ fn a_module_the_project_turns_off_does_not_load() {
 #[test]
 fn a_table_in_plugins_leaves_the_module_on() {
     let dir = tempfile::tempdir().unwrap();
-    project_asking(dir.path(), "http = { timeout = 5 }");
+    project_asking(dir.path(), "http = { timeout_seconds = 5 }");
 
     assert!(booted(dir.path()).unwrap().contains(&"http".to_string()));
 }
@@ -304,7 +304,7 @@ fn a_rune_project_that_calls_the_engine_can_be_exported() {
         (
             "s.rn",
             "pub fn init(this) {\n\
-             \x20   if input::just_pressed(input::KEY_SPACE) {\n\
+             \x20   if input::key_just_pressed(input::KEY_SPACE) {\n\
              \x20       this.ran = true;\n\
              \x20   }\n\
              }\n",
@@ -354,7 +354,7 @@ fn a_script_can_attach_another_script_and_read_it_back() {
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
 
-    let rune = balaur::rune::rune_of(&app.engine);
+    let rune = balaur::script_rune::rune_of(&app.engine);
     let root = root_node(&app);
     let kid = {
         let world = app.engine.world();
@@ -389,7 +389,7 @@ fn reload_script_picks_up_a_rewritten_file() {
 
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
-    let rune = balaur::rune::rune_of(&app.engine);
+    let rune = balaur::script_rune::rune_of(&app.engine);
     let root = root_node(&app);
     assert_eq!(rune.number_field(root, "version"), Some(1.0));
 
@@ -433,7 +433,7 @@ fn mouse_position_is_readable_without_a_window() {
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
     assert_eq!(
-        balaur::rune::rune_of(&app.engine).number_field(root_node(&app), "done"),
+        balaur::script_rune::rune_of(&app.engine).number_field(root_node(&app), "done"),
         Some(1.0),
         "the script did not run to its end"
     );

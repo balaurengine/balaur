@@ -73,7 +73,7 @@ impl GlyphMesher {
             let shared: Arc<Vec<u8>> = Arc::clone(&face.bytes);
             let data: Arc<dyn AsRef<[u8]> + Send + Sync> = shared;
             let loaded = db.load_font_source(fontdb::Source::Binary(data));
-            if face.chain == "icons" {
+            if face.chain == "icon" {
                 continue;
             }
             let family = loaded

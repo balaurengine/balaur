@@ -22,7 +22,7 @@ fn sprite_schema() -> std::rc::Rc<toml::Value> {
             ),
             (
                 k::FRAME,
-                r#"{ type = "float", default = 0.0, min = 0.0, description = "Current sheet cell, counted left-to-right then top-to-bottom" }"#,
+                r#"{ type = "int", default = 0, min = 0, description = "Current sheet cell, counted left-to-right then top-to-bottom" }"#,
             ),
             (
                 k::FLIP_X,
@@ -45,8 +45,8 @@ fn sprite_schema() -> std::rc::Rc<toml::Value> {
                 r#"{ type = "bool", default = true, description = "Centre the image on the node; off puts its top-left corner there" }"#,
             ),
             (
-                k::HALF_EXTENTS,
-                r#"{ type = "vec2", default = [0.0, 0.0], description = "Size override in world units; [0, 0] sizes from the texture" }"#,
+                k::SIZE,
+                r#"{ type = "vec2", default = [0.0, 0.0], description = "Whole size in world units; [0, 0] sizes from the texture" }"#,
             ),
             (
                 k::SHEET,
@@ -79,100 +79,109 @@ fn sprite_schema() -> std::rc::Rc<toml::Value> {
 }
 
 /// The `sprite` component: a textured 2D quad.
+/// Every `sprite` property onto the node.
+fn apply_sprite(
+    eng: &balaur_core::Engine,
+    entity: balaur_core::hecs::Entity,
+    params: &toml::Value,
+) -> anyhow::Result<()> {
+    let num = |key: &str| balaur_core::components::prop_f64(params, key);
+    let mut texture = params
+        .get(k::TEXTURE)
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+    let frame = num(k::FRAME) as u32;
+    let sheet_asset = params
+        .get(k::SHEET)
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    let (atlas, grid) = atlas_frame(eng, &sheet_asset, frame, &mut texture)?;
+    let sheet_texture = !sheet_asset.is_empty() && texture_was_empty(params);
+    // A sheet that states a `columns` x `rows` cut is drawn as
+    // that grid; one that lists frames gives a rect per frame.
+    let sheet = grid.map(|[columns, rows]| SpriteSheet2d { columns, rows });
+    let he = |i: usize| {
+        params
+            .get(k::SIZE)
+            .and_then(|v| v.as_array())
+            .and_then(|a| a.get(i))
+            .and_then(balaur_core::components::as_f64)
+            .unwrap_or(0.0) as f32
+            / 2.0
+    };
+    // An absent (or zero) size means "size it from the image".
+    let explicit = (he(0) > 0.0 && he(1) > 0.0).then(|| (he(0), he(1)));
+    let pair = |key: &str, i: usize| {
+        params
+            .get(key)
+            .and_then(|v| v.as_array())
+            .and_then(|a| a.get(i))
+            .and_then(balaur_core::components::as_f64)
+            .unwrap_or(0.0) as f32
+    };
+    let (rw, rh) = (pair(k::REGION_SIZE, 0), pair(k::REGION_SIZE, 1));
+    let region = atlas.or_else(|| {
+        (rw > 0.0 && rh > 0.0).then(|| {
+            [
+                pair(k::REGION_ORIGIN, 0).max(0.0).round() as u32,
+                pair(k::REGION_ORIGIN, 1).max(0.0).round() as u32,
+                rw.round() as u32,
+                rh.round() as u32,
+            ]
+        })
+    });
+    let own_ppu = num(k::PIXELS_PER_UNIT) as f32;
+    let per = if own_ppu > 0.0 {
+        own_ppu
+    } else {
+        crate::texture::pixels_per_unit(eng, &texture)
+    };
+    let offset = [pair(k::OFFSET, 0), pair(k::OFFSET, 1)];
+    set_sprite(
+        eng,
+        entity,
+        SpriteTexture {
+            path: texture,
+            sheet,
+            frame,
+            flip_x: params.get(k::FLIP_X).and_then(toml::Value::as_bool) == Some(true),
+            flip_y: params.get(k::FLIP_Y).and_then(toml::Value::as_bool) == Some(true),
+            region,
+            sheet_asset,
+            sheet_texture,
+            offset,
+            centered: params.get(k::CENTERED).and_then(toml::Value::as_bool) != Some(false),
+            shift: [offset[0] / per, -offset[1] / per],
+            own_pixels_per_unit: own_ppu,
+        },
+        explicit,
+        per,
+    )?;
+    crate::set_color(eng, entity, crate::color_from_params(params))?;
+    crate::material::set_material_2d(
+        eng,
+        entity,
+        params
+            .get("material")
+            .and_then(toml::Value::as_str)
+            .unwrap_or_default(),
+    )
+}
+
 pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "sprite",
         ComponentDef {
+            events: &[],
+            warnings: None,
             doc: "A textured 2D quad at the node, sized by `pixels_per_unit`. `columns` and `rows`, or a `sprite_sheet` in `sheet`, cut it into frames `frame` picks.",
             schema: sprite_schema(),
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
-            apply: Box::new(|eng, entity, params| {
-                let num = |key: &str| balaur_core::components::prop_f64(params, key);
-                let mut texture = params
-                    .get(k::TEXTURE)
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_default()
-                    .to_string();
-                let frame = num(k::FRAME) as u32;
-                let sheet_asset = params
-                    .get(k::SHEET)
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_default()
-                    .trim()
-                    .to_string();
-                let (atlas, grid) = atlas_frame(eng, &sheet_asset, frame, &mut texture)?;
-                let sheet_texture =
-                    !sheet_asset.is_empty() && texture_was_empty(params);
-                // A sheet that states a `columns` x `rows` cut is drawn as
-                // that grid; one that lists frames gives a rect per frame.
-                let sheet = grid.map(|[columns, rows]| SpriteSheet2d { columns, rows });
-                let he = |i: usize| {
-                    params
-                        .get(k::HALF_EXTENTS)
-                        .and_then(|v| v.as_array())
-                        .and_then(|a| a.get(i))
-                        .and_then(balaur_core::components::as_f64)
-                        .unwrap_or(0.0) as f32
-                };
-                // Absent (or zero) half-extents mean "size it from the image".
-                let explicit = (he(0) > 0.0 && he(1) > 0.0).then(|| (he(0), he(1)));
-                let pair = |key: &str, i: usize| {
-                    params
-                        .get(key)
-                        .and_then(|v| v.as_array())
-                        .and_then(|a| a.get(i))
-                        .and_then(balaur_core::components::as_f64)
-                        .unwrap_or(0.0) as f32
-                };
-                let (rw, rh) = (pair(k::REGION_SIZE, 0), pair(k::REGION_SIZE, 1));
-                let region = atlas.or_else(|| {
-                    (rw > 0.0 && rh > 0.0).then(|| {
-                        [
-                            pair(k::REGION_ORIGIN, 0).max(0.0).round() as u32,
-                            pair(k::REGION_ORIGIN, 1).max(0.0).round() as u32,
-                            rw.round() as u32,
-                            rh.round() as u32,
-                        ]
-                    })
-                });
-                let own_ppu = num(k::PIXELS_PER_UNIT) as f32;
-                let per = if own_ppu > 0.0 {
-                    own_ppu
-                } else {
-                    crate::texture::pixels_per_unit(eng, &texture)
-                };
-                let offset = [pair(k::OFFSET, 0), pair(k::OFFSET, 1)];
-                set_sprite(
-                    eng,
-                    entity,
-                    SpriteTexture {
-                        path: texture,
-                        sheet,
-                        frame,
-                        flip_x: params.get(k::FLIP_X).and_then(toml::Value::as_bool) == Some(true),
-                        flip_y: params.get(k::FLIP_Y).and_then(toml::Value::as_bool) == Some(true),
-                        region,
-                        sheet_asset,
-                        sheet_texture,
-                        offset,
-                        centered: params.get(k::CENTERED).and_then(toml::Value::as_bool) != Some(false),
-                        shift: [offset[0] / per, -offset[1] / per],
-                        own_pixels_per_unit: own_ppu,
-                    },
-                    explicit,
-                    per,
-                )?;
-                crate::set_color(eng, entity, crate::color_from_params(params))?;
-                crate::material::set_material_2d(
-                    eng,
-                    entity,
-                    params
-                        .get("material")
-                        .and_then(toml::Value::as_str)
-                        .unwrap_or_default(),
-                )
-            }),
+            apply: Box::new(apply_sprite),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
                 let _ = world.remove_one::<Renderable2d>(entity);
@@ -240,7 +249,10 @@ fn read_sprite(
             toml::Value::String(sprite.sheet_asset.clone()),
         );
     }
-    map.insert(k::FRAME.into(), toml::Value::Float(f64::from(sprite.frame)));
+    map.insert(
+        k::FRAME.into(),
+        toml::Value::Integer(i64::from(sprite.frame)),
+    );
     map.insert(k::FLIP_X.into(), toml::Value::Boolean(sprite.flip_x));
     map.insert(
         k::OFFSET.into(),
@@ -268,10 +280,10 @@ fn read_sprite(
     // read the component back.
     if renderable.sized {
         map.insert(
-            k::HALF_EXTENTS.into(),
+            k::SIZE.into(),
             toml::Value::Array(vec![
-                toml::Value::Float(f64::from(hx)),
-                toml::Value::Float(f64::from(hy)),
+                toml::Value::Float(f64::from(hx * 2.0)),
+                toml::Value::Float(f64::from(hy * 2.0)),
             ]),
         );
     }

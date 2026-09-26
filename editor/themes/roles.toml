@@ -1,0 +1,946 @@
+# The editor's look, shared by the dark and the light theme: the roles a
+# `ui::*` call or a node names, the kind tables, and the sizes. Colours are
+# tokens the two theme files derive from their sources.
+type = "widget_theme"
+
+# The editor is denser than a game: every size derives from these two.
+[sizes]
+font_size = 12
+control_height = 24
+
+[panel]
+fill = "bg_panel"
+corner_radius = "radius_large"
+padding = 8
+
+[row]
+corner_radius = "radius_large"
+
+[column]
+corner_radius = "radius_large"
+
+# Text. A call site names one of these and says nothing else about type.
+[roles.text_body]
+text_color = "text_default"
+
+[roles.text_caption]
+font_family = "mono"
+font_size = "font_size_small"
+text_color = "text_subtle"
+
+[roles.text_caption_primary]
+font_family = "mono"
+font_size = "font_size_small"
+text_color = "primary_text"
+
+[roles.text_caret_section]
+font_size = "font_size_small"
+text_color = "text_subtle"
+text_align = "end"
+width = 16
+
+[roles.text_caret_subsection]
+font_size = "font_size_small"
+text_color = "text_subtle"
+text_align = "end"
+width = 28
+
+[roles.text_code]
+font_family = "mono"
+text_color = "text_default"
+
+[roles.text_code_quiet]
+font_family = "mono"
+text_color = "text_subtle"
+
+[roles.text_code_secondary]
+font_family = "mono"
+text_color = "secondary_text"
+padding_x = 7
+
+[roles.text_code_success]
+font_family = "mono"
+text_color = "success_text"
+
+[roles.text_heading]
+font_family = "heading"
+font_size = "font_size_small"
+font_weight = 700
+text_color = "text_muted"
+
+[roles.text_heading_menu]
+font_size = "font_size_small"
+text_color = "text_subtle"
+height = 18
+
+[roles.text_hint]
+font_size = "font_size_small"
+text_color = "text_subtle"
+
+[roles.text_label]
+text_color = "text_muted"
+
+[roles.text_mark_picker]
+font_size = 18
+text_color = "primary_text"
+
+[roles.text_mark_primary]
+font_family = "mono"
+font_size = "font_size_large"
+text_color = "primary_text"
+
+[roles.text_mark_secondary]
+font_family = "mono"
+font_size = "font_size_large"
+text_color = "secondary_text"
+
+[roles.text_note]
+font_family = "mono"
+font_size = "font_size_small"
+text_color = "text_muted"
+padding_x = 7
+
+[roles.text_title]
+font_family = "heading"
+font_size = "font_size_title"
+font_weight = 700
+text_color = "text_default"
+
+[roles.text_title_dialog]
+font_family = "mono"
+font_size = "font_size_large"
+text_color = "text_default"
+
+# Actions: a button with a verb on it, by where it sits and what it does.
+[roles.action]
+font_weight = 700
+text_color = "primary_text"
+fill = "bg_control"
+corner_radius = "radius_small"
+height = 28
+
+[roles.action.hover]
+text_color = "text_default"
+fill = "bg_control_hover"
+
+[roles.action.active]
+fill = "primary_bg"
+
+[roles.action_brand]
+font_family = "heading"
+font_size = "font_size_title"
+font_weight = 700
+text_color = "text_default"
+icon_fill = "brand_plate"
+fill = "bg_control"
+corner_radius = "radius"
+height = 26
+padding_x = 3
+
+[roles.action_brand.hover]
+fill = "bg_control_hover"
+
+[roles.action_brand.touch]
+height = "control_height_touch"
+
+[roles.action_dock]
+font_size = "font_size_small"
+font_weight = 700
+text_color = "text_muted"
+fill = "bg_control"
+corner_radius = "radius_small"
+height = "control_height_small"
+
+[roles.action_dock.hover]
+text_color = "text_default"
+fill = "bg_control_hover"
+
+[roles.action_dock.checked]
+text_color = "primary_text"
+
+[roles.action_dock.checked.hover]
+
+[roles.action_dock.touch]
+height = 29
+
+[roles.action_dock_danger]
+font_size = "font_size_small"
+font_weight = 700
+text_color = "danger_text"
+fill = "bg_control"
+corner_radius = "radius_small"
+height = "control_height_small"
+
+[roles.action_dock_danger.touch]
+height = 29
+
+[roles.action_dock_quiet]
+font_size = "font_size_small"
+font_weight = 700
+text_color = "text_subtle"
+fill = "bg_control"
+corner_radius = "radius_small"
+height = "control_height_small"
+
+[roles.action_dock_quiet.touch]
+height = 29
+
+[roles.action_dock_secondary]
+font_size = "font_size_small"
+font_weight = 700
+text_color = "secondary_text"
+fill = "secondary_bg"
+corner_radius = "radius_small"
+height = "control_height_small"
+
+[roles.action_dock_secondary.touch]
+height = 29
+
+[roles.action_form]
+font_weight = 700
+text_color = "text_muted"
+fill = "bg_control"
+corner_radius = "radius_small"
+height = "control_height_small"
+
+[roles.action_form.hover]
+text_color = "text_default"
+fill = "bg_control_hover"
+
+[roles.action_form.checked]
+text_color = "primary_text"
+fill = "primary_bg"
+
+[roles.action_form.checked.hover]
+text_color = "text_default"
+
+[roles.action_form_danger]
+font_weight = 700
+text_color = "danger_text"
+fill = "bg_control"
+corner_radius = "radius_small"
+height = "control_height_small"
+
+[roles.action_form_danger.hover]
+text_color = "text_default"
+fill = "bg_control_hover"
+
+[roles.action_form_primary]
+font_weight = 700
+text_color = "primary_text"
+fill = "primary_bg"
+corner_radius = "radius_small"
+height = "control_height_small"
+
+[roles.action_form_primary.hover]
+text_color = "text_default"
+fill = "bg_control_hover"
+
+[roles.action_form_secondary]
+font_weight = 700
+text_color = "secondary_text"
+fill = "secondary_bg"
+corner_radius = "radius_small"
+height = "control_height_small"
+
+[roles.action_form_secondary.hover]
+text_color = "text_default"
+fill = "bg_control_hover"
+
+[roles.action_manager]
+font_size = "font_size_small"
+text_color = "text_muted"
+fill = "bg_panel"
+corner_radius = "radius_large"
+height = 28
+padding_x = 12
+
+[roles.action_manager.hover]
+text_color = "text_default"
+fill = "bg_control_hover"
+
+[roles.action_note]
+font_size = "font_size_small"
+text_color = "text_default"
+text_align = "start"
+fill = "bg_control"
+corner_radius = "radius_small"
+height = "control_height"
+
+[roles.action_note.touch]
+height = "control_height_touch"
+
+[roles.action_prefab]
+font_size = "font_size_small"
+font_weight = 700
+text_color = "text_muted"
+fill = "bg_panel"
+corner_radius = "radius_small"
+height = "control_height_small"
+
+[roles.action_prefab.touch]
+height = 29
+
+[roles.action_primary]
+font_weight = 700
+text_color = "primary_text"
+fill = "primary_bg"
+corner_radius = "radius_small"
+height = "control_height_large"
+
+[roles.action_primary.hover]
+text_color = "text_on_primary"
+fill = "primary_text"
+
+[roles.action_section]
+font_family = "heading"
+font_size = "font_size_small"
+font_weight = 700
+text_color = "text_muted"
+text_align = "start"
+corner_radius = "radius_small"
+height = "control_height_small"
+
+[roles.action_section.touch]
+height = 29
+
+[roles.action_subsection]
+font_family = "mono"
+font_size = "font_size_small"
+text_color = "text_muted"
+text_align = "start"
+fill = "bg_control"
+corner_radius = "radius_small"
+height = "control_height_small"
+
+[roles.action_subsection.touch]
+height = 29
+
+[roles.action_tree]
+width = 170
+height = "control_height"
+
+# Actions that are one glyph.
+[roles.icon_action]
+font_size = "font_size_large"
+text_color = "text_muted"
+corner_radius = "radius"
+width = 26
+height = 26
+padding_x = 0
+
+[roles.icon_action.hover]
+text_color = "text_default"
+fill = "bg_control_hover"
+
+[roles.icon_action.checked]
+text_color = "primary_text"
+fill = "primary_bg"
+
+[roles.icon_action.checked.hover]
+text_color = "text_default"
+
+[roles.icon_action.touch]
+width = "control_height_touch"
+height = "control_height_touch"
+
+[roles.icon_action_dialog]
+text_color = "text_muted"
+fill = "bg_control"
+corner_radius = "radius_large"
+height = "control_height"
+
+[roles.icon_action_dialog.hover]
+text_color = "text_default"
+fill = "bg_control_hover"
+
+[roles.icon_action_dialog.touch]
+height = "control_height_touch"
+
+[roles.icon_action_form]
+font_size = "font_size_small"
+font_weight = 700
+text_color = "text_muted"
+fill = "bg_control"
+corner_radius = "radius_small"
+width = 22
+height = "control_height_small"
+
+[roles.icon_action_form.hover]
+text_color = "text_default"
+fill = "bg_control_hover"
+
+[roles.icon_action_form.touch]
+height = 29
+
+[roles.icon_action_form_secondary]
+text_color = "secondary_text"
+fill = "secondary_bg"
+corner_radius = "radius_small"
+width = 22
+height = "control_height"
+
+[roles.icon_action_form_secondary.hover]
+text_color = "text_default"
+fill = "bg_control_hover"
+
+[roles.icon_action_form_secondary.touch]
+width = 30
+height = "control_height_touch"
+
+[roles.icon_action_primary]
+font_size = "font_size_large"
+text_color = "text_muted"
+fill = "bg_control"
+corner_radius = "radius"
+width = 26
+height = 26
+
+[roles.icon_action_primary.hover]
+text_color = "text_default"
+fill = "bg_control_hover"
+
+[roles.icon_action_primary.checked]
+text_color = "text_on_primary"
+fill = "primary_fill"
+
+[roles.icon_action_primary.checked.hover]
+fill = "primary_text"
+
+[roles.icon_action_primary.touch]
+width = "control_height_touch"
+height = "control_height_touch"
+
+[roles.icon_action_tab]
+font_size = "font_size_title"
+text_color = "text_subtle"
+corner_radius = "radius_small"
+height = 22
+padding_x = 0
+
+[roles.icon_action_tab.hover]
+text_color = "text_default"
+fill = "bg_control_hover"
+
+[roles.icon_action_tab.touch]
+height = "control_height_touch"
+
+# Chips and tabs: a small toggle, on while `checked`.
+[roles.chip]
+font_size = "font_size_small"
+font_weight = 700
+text_color = "text_muted"
+fill = "bg_control"
+corner_radius = "radius"
+height = 22
+padding_x = 8
+
+[roles.chip.hover]
+text_color = "text_default"
+fill = "bg_control_hover"
+
+[roles.chip.checked]
+text_color = "primary_text"
+fill = "primary_bg"
+
+[roles.chip.checked.hover]
+text_color = "text_default"
+
+[roles.chip_flag]
+font_size = "font_size_small"
+text_color = "text_muted"
+fill = "bg_control"
+corner_radius = "radius_small"
+height = "control_height_small"
+
+[roles.chip_flag.checked]
+text_color = "text_on_primary"
+fill = "primary_fill"
+
+[roles.chip_flag.touch]
+height = 29
+
+[roles.chip_quiet]
+font_size = "font_size_small"
+font_weight = 700
+text_color = "text_subtle"
+corner_radius = "radius"
+height = 22
+
+[roles.chip_quiet.hover]
+text_color = "text_muted"
+
+[roles.chip_quiet.checked]
+text_color = "text_muted"
+
+[roles.chip_quiet.checked.hover]
+text_color = "text_default"
+
+[roles.tab]
+font_weight = 700
+text_color = "text_subtle"
+corner_radius = "radius_small"
+height = 22
+padding_x = 7
+
+[roles.tab.hover]
+text_color = "text_muted"
+
+[roles.tab.checked]
+text_color = "primary_text"
+fill = "primary_bg"
+
+[roles.tab.checked.hover]
+text_color = "text_default"
+
+[roles.tab_manager]
+text_color = "text_muted"
+corner_radius = "radius_large"
+height = "control_height_large"
+padding_x = 16
+
+[roles.tab_manager.hover]
+text_color = "text_default"
+fill = "bg_panel"
+
+[roles.tab_manager.checked]
+text_color = "primary_text"
+fill = "primary_bg"
+
+[roles.tab_manager.checked.hover]
+
+[roles.tab_manager.touch]
+height = "control_height_touch"
+
+[roles.tab_workspace]
+text_color = "text_subtle"
+corner_radius = "radius_small"
+height = 26
+padding_x = 8
+
+[roles.tab_workspace.hover]
+text_color = "text_muted"
+fill = "bg_control_hover"
+
+[roles.tab_workspace.checked]
+text_color = "primary_text"
+fill = "primary_bg"
+
+[roles.tab_workspace.checked.hover]
+text_color = "text_default"
+
+# Rows a list, a menu or a picker is made of.
+[roles.item]
+font_family = "mono"
+text_color = "text_default"
+text_align = "start"
+corner_radius = "radius_small"
+height = 23
+
+[roles.item.hover]
+fill = "bg_control_hover"
+
+[roles.item.checked]
+text_color = "text_on_primary"
+fill = "primary_fill"
+
+[roles.item.checked.hover]
+fill = "primary_text"
+
+[roles.item_bar]
+font_family = "mono"
+font_size = "font_size_small"
+text_color = "text_muted"
+fill = "bg_control"
+corner_radius = "radius_large"
+
+[roles.item_bar.hover]
+text_color = "text_default"
+fill = "bg_control_hover"
+
+[roles.item_bone]
+font_size = "font_size_small"
+font_weight = 700
+text_color = "text_default"
+text_align = "start"
+fill = "bg_control"
+corner_radius = "radius_small"
+height = "control_height"
+
+[roles.item_bone.hover]
+fill = "bg_control_hover"
+
+[roles.item_bone.checked]
+text_color = "primary_text"
+fill = "primary_bg"
+
+[roles.item_bone.checked.hover]
+
+[roles.item_bone.touch]
+height = "control_height_touch"
+
+[roles.item_list]
+text_color = "text_default"
+text_align = "start"
+fill = "bg_control"
+corner_radius = "radius_small"
+height = 25
+
+[roles.item_list.hover]
+fill = "bg_control_hover"
+
+[roles.item_list.checked]
+text_color = "primary_text"
+fill = "primary_bg"
+
+[roles.item_list.checked.hover]
+
+[roles.item_menu]
+text_color = "text_default"
+text_align = "start"
+corner_radius = "radius_small"
+height = 22
+
+[roles.item_menu.hover]
+fill = "bg_control_hover"
+
+[roles.item_menu_quiet]
+text_color = "text_subtle"
+text_align = "start"
+corner_radius = "radius_small"
+height = 22
+
+[roles.item_menu_quiet.hover]
+text_color = "text_muted"
+fill = "bg_control_hover"
+
+[roles.item_picker]
+font_size = "font_size_large"
+text_color = "text_default"
+text_align = "start"
+icon_color = "primary_text"
+corner_radius = "radius"
+height = "control_height_large"
+
+[roles.item_picker.hover]
+fill = "bg_control"
+
+[roles.item_picker.checked]
+fill = "bg_control"
+
+[roles.item_picker.checked.hover]
+
+[roles.item_sidebar]
+text_color = "text_muted"
+text_align = "start"
+fill = "bg_panel"
+corner_radius = "radius_large"
+height = "control_height"
+
+[roles.item_sidebar.hover]
+text_color = "text_default"
+fill = "bg_control_hover"
+
+[roles.item_sidebar.checked]
+text_color = "text_default"
+fill = "bg_control"
+
+[roles.item_sidebar.checked.hover]
+
+[roles.item_sidebar.touch]
+height = "control_height_touch"
+
+# Inputs: fields, dropdowns and switches.
+[roles.choice]
+font_size = "font_size_small"
+text_color = "text_default"
+fill = "bg_control"
+corner_radius = "radius_small"
+height = "control_height_small"
+
+[roles.choice.touch]
+height = 29
+
+[roles.choice_form]
+text_color = "text_default"
+fill = "bg_control"
+corner_radius = "radius_small"
+height = "control_height"
+
+[roles.choice_form.touch]
+height = "control_height_touch"
+
+[roles.input]
+font_family = "mono"
+text_color = "text_default"
+fill = "bg_control"
+corner_radius = "radius_small"
+height = 22
+
+[roles.input.hover]
+stroke = "border_default"
+
+[roles.input_dock]
+font_family = "mono"
+font_size = "font_size_small"
+text_color = "text_default"
+fill = "bg_control"
+stroke = "border_default"
+corner_radius = "radius_small"
+height = 22
+
+[roles.input_dock.touch]
+height = 31
+
+[roles.input_form]
+font_family = "mono"
+text_color = "text_default"
+fill = "bg_control"
+stroke = "border_default"
+corner_radius = "radius_small"
+height = "control_height"
+
+[roles.input_form.touch]
+height = "control_height_touch"
+
+[roles.input_number]
+text_color = "text_default"
+fill = "bg_control"
+stroke = "border_default"
+corner_radius = "radius_small"
+height = "control_height"
+
+[roles.input_number.touch]
+height = "control_height_touch"
+
+[roles.input_path]
+font_family = "mono"
+text_color = "secondary_text"
+fill = "bg_control"
+stroke = "border_default"
+corner_radius = "radius_small"
+height = "control_height"
+
+[roles.input_path.touch]
+height = "control_height_touch"
+
+[roles.input_picker]
+font_size = 15
+text_color = "text_default"
+fill = "bg_control"
+corner_radius = "radius"
+height = "control_height_large"
+
+[roles.switch_form]
+text_color = "text_muted"
+fill = "bg_control"
+height = 18
+
+[roles.switch_form.checked]
+text_color = "text_on_primary"
+fill = "primary_fill"
+
+[roles.switch_form.touch]
+height = "control_height"
+
+# Notes: a line that says something is wrong, or what to do.
+[roles.note_danger]
+font_family = "mono"
+font_size = "font_size_small"
+text_color = "danger_text"
+
+[roles.note_primary]
+font_size = "font_size_small"
+text_color = "primary_text"
+text_align = "start"
+icon_color = "primary_text"
+fill = "primary_bg"
+corner_radius = "radius_small"
+height = "control_height"
+
+[roles.note_primary.touch]
+height = "control_height_touch"
+
+[roles.note_warning]
+font_size = "font_size_small"
+text_color = "warning_text"
+
+# Sheets: a filled box that holds other things.
+[roles.sheet]
+fill = "bg_panel"
+corner_radius = "radius_large"
+
+[roles.sheet_dialog]
+fill = "bg_panel"
+stroke = "border_default"
+corner_radius = "radius_large"
+padding = 18
+gap = 10
+
+[roles.sheet_doc]
+fill = "bg_app"
+stroke = "border_default"
+corner_radius = "radius_large"
+padding_x = 20
+padding_y = 14
+gap = 6
+
+[roles.sheet_hook]
+fill = "bg_control"
+corner_radius = "full"
+height = 28
+padding_x = 11
+gap = 6
+
+[roles.sheet_logo]
+fill = "brand_plate"
+corner_radius = "full"
+padding = 5
+
+[roles.sheet_manager]
+fill = "bg_app"
+padding = 14
+gap = 10
+
+[roles.sheet_note]
+fill = "bg_control"
+corner_radius = "full"
+height = "control_height"
+padding = 4
+
+[roles.sheet_note.touch]
+height = "control_height_touch"
+
+[roles.sheet_picker]
+fill = "bg_panel"
+stroke = "border_default"
+corner_radius = "radius_large"
+padding = 12
+gap = 8
+
+[roles.sheet_prefab]
+fill = "secondary_bg"
+stroke = "secondary_text"
+corner_radius = "full"
+height = "control_height"
+padding = 4
+
+[roles.sheet_prefab.touch]
+height = "control_height_touch"
+
+# Headers and toolbars: the strips along the top of a box.
+[roles.header_dialog]
+height = "control_height_large"
+gap = 8
+
+[roles.header_doc]
+gap = 6
+
+[roles.header_dock]
+height = "control_height"
+gap = 3
+
+[roles.header_dock.touch]
+height = "control_height_touch"
+
+[roles.header_manager]
+width = 620
+height = 34
+gap = 10
+
+[roles.header_picker]
+height = "control_height_large"
+gap = 6
+
+[roles.header_plugin]
+gap = 6
+
+[roles.header_toolbar]
+height = 26
+
+[roles.header_toolbar.touch]
+height = "control_height_touch"
+
+[roles.toolbar_dock]
+height = 26
+gap = 6
+
+[roles.toolbar_dock.touch]
+height = "control_height_touch"
+
+[roles.toolbar_manager]
+width = 620
+height = "control_height_large"
+gap = 6
+
+[roles.toolbar_manager.touch]
+height = "control_height_touch"
+
+# Lists and layout: the air between things, and nothing else.
+[roles.layout_about]
+gap = 2
+
+[roles.layout_actions]
+gap = 6
+
+[roles.layout_cells]
+gap = 1
+
+[roles.layout_dialog]
+gap = 20
+
+[roles.layout_dock]
+gap = 3
+
+[roles.layout_manager]
+width = 620
+
+[roles.layout_mark]
+width = 26
+height = 26
+
+[roles.layout_plugin]
+padding_x = 10
+padding_y = 6
+gap = 4
+
+[roles.layout_section]
+gap = 4
+
+[roles.layout_shader]
+gap = 4
+
+[roles.layout_shell]
+padding = 14
+gap = 12
+
+[roles.layout_sidebar]
+width = 190
+
+[roles.layout_split]
+gap = 12
+
+[roles.layout_subsection]
+gap = 4
+
+[roles.layout_toolbar]
+padding_x = 12
+padding_y = 2
+gap = 2
+
+[roles.list_doc]
+gap = 3
+
+[roles.list_dock]
+padding_x = 8
+padding_y = 4
+gap = 2
+
+[roles.list_picker]
+gap = 2
+
+[roles.list_plugin]
+gap = 2
+
+[roles.list_sidebar]
+gap = 2

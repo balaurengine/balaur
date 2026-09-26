@@ -106,7 +106,7 @@ pub(super) fn write_input_hooks(out: &mut String, functions: &[Function]) {
 /// widget names a forwarder, which finds the handlers by the widget's node.
 pub(super) fn write_widget_forwarders(out: &mut String, keys: &std::collections::BTreeSet<String>) {
     for key in keys {
-        let (params, args) = if key == "on_click" {
+        let (params, args) = if key == crate::godot::gdscript::ON_CLICK {
             ("this, node", "[]")
         } else {
             ("this, value, node", "[value]")

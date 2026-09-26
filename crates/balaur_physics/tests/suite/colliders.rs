@@ -22,17 +22,17 @@ fn collider_material_round_trips() {
     let root = app.engine.root();
     let e = child_of(&app, root, "Box");
     let params: toml::Value = toml::from_str(
-        r#"kind = "cuboid"
+        r#"kind = "box"
 friction = 0.9
 restitution = 0.25
 friction_combine = "max"
 restitution_combine = "min"
-contact_skin = 0.02
+collision_margin = 0.02
 mass = 4.0
-layers = ["1", "3"]
-mask = ["2"]
+collision_layer = ["1", "3"]
+collision_mask = ["2"]
 events = ["collision"]
-active_collisions = ["dynamic_dynamic", "static_static"]"#,
+contact_pairs = ["dynamic_dynamic", "static_static"]"#,
     )
     .unwrap();
     components::add(&app.engine, e, "collider3d", Some(&params)).unwrap();
@@ -51,13 +51,10 @@ active_collisions = ["dynamic_dynamic", "static_static"]"#,
     };
     assert_eq!(text("friction_combine"), "max");
     assert_eq!(text("restitution_combine"), "min");
-    assert_eq!(flags("layers"), ["1", "3"]);
-    assert_eq!(flags("mask"), ["2"]);
+    assert_eq!(flags("collision_layer"), ["1", "3"]);
+    assert_eq!(flags("collision_mask"), ["2"]);
     assert_eq!(flags("events"), ["collision"]);
-    assert_eq!(
-        flags("active_collisions"),
-        ["dynamic_dynamic", "static_static"]
-    );
+    assert_eq!(flags("contact_pairs"), ["dynamic_dynamic", "static_static"]);
     assert!(
         (back
             .get("mass")
@@ -76,7 +73,7 @@ fn a_density_a_patch_writes_reaches_the_collider() {
     let app = app();
     let root = app.engine.root();
     let e = child_of(&app, root, "Box");
-    let params: toml::Value = toml::from_str("kind = \"cuboid\"\ndensity = 1.0").unwrap();
+    let params: toml::Value = toml::from_str("kind = \"box\"\ndensity = 1.0").unwrap();
     components::add(&app.engine, e, "collider3d", Some(&params)).unwrap();
     let read = |key: &str| {
         components::get(&app.engine, e, "collider3d")
@@ -133,7 +130,7 @@ fn a_child_collider_joins_the_body_above_it() {
         &app.engine,
         feet,
         "collider3d",
-        Some(&toml::from_str("kind = \"ball\"\nradius = 0.5").unwrap()),
+        Some(&toml::from_str("kind = \"sphere\"\nradius = 0.5").unwrap()),
     )
     .unwrap();
     let state = app.engine.resource::<PhysicsState3d>();
@@ -170,7 +167,7 @@ fn an_offset_moves_the_shape_and_not_the_node() {
         &app.engine,
         e,
         "collider3d",
-        Some(&toml::from_str("kind = \"ball\"\noffset = [0.0, 1.0, 0.0]").unwrap()),
+        Some(&toml::from_str("kind = \"sphere\"\noffset = [0.0, 1.0, 0.0]").unwrap()),
     )
     .unwrap();
     let state = app.engine.resource::<PhysicsState3d>();
@@ -186,14 +183,14 @@ fn every_declared_shape_builds() {
     let app = app();
     let root = app.engine.root();
     for kind in [
-        "ball",
-        "cuboid",
+        "sphere",
+        "box",
         "capsule",
         "cylinder",
         "cone",
         "triangle",
         "segment",
-        "halfspace",
+        "world_boundary",
     ] {
         let e = child_of(&app, root, kind);
         let params: toml::Value = toml::from_str(&format!("kind = \"{kind}\"")).unwrap();
@@ -218,14 +215,14 @@ fn a_border_rounds_a_cuboid() {
         &app.engine,
         e,
         "collider3d",
-        Some(&toml::from_str("kind = \"cuboid\"\nborder = 0.1").unwrap()),
+        Some(&toml::from_str("kind = \"box\"\nedge_radius = 0.1").unwrap()),
     )
     .unwrap();
     let back = components::get(&app.engine, e, "collider3d").unwrap();
-    assert_eq!(back.get("kind").unwrap().as_str(), Some("cuboid"));
+    assert_eq!(back.get("kind").unwrap().as_str(), Some("box"));
     assert!(
         (back
-            .get("border")
+            .get("edge_radius")
             .and_then(balaur_core::components::as_f64)
             .unwrap()
             - 0.1)
@@ -241,11 +238,11 @@ fn every_declared_2d_shape_builds() {
     let root = app.engine.root();
     for kind in [
         "circle",
-        "rect",
+        "rectangle",
         "capsule",
         "triangle",
         "segment",
-        "halfspace",
+        "world_boundary",
     ] {
         let e = child_of(&app, root, kind);
         let params: toml::Value = toml::from_str(&format!("kind = \"{kind}\"")).unwrap();
@@ -263,8 +260,8 @@ fn a_2d_collider_round_trips_through_get() {
     let root = app.engine.root();
     let e = child_of(&app, root, "Platform");
     let params: toml::Value = toml::from_str(
-        r#"kind = "rect"
-half_extents = [2.0, 0.25]
+        r#"kind = "rectangle"
+size = [4.0, 0.5]
 offset = [0.5, -1.0]
 offset_rotation = 0.75
 one_way = true
@@ -279,7 +276,7 @@ friction = 0.9"#,
             .and_then(balaur_core::components::as_f64)
             .unwrap_or_default()
     };
-    assert_eq!(back.get("kind").unwrap().as_str(), Some("rect"));
+    assert_eq!(back.get("kind").unwrap().as_str(), Some("rectangle"));
     assert_eq!(back.get("one_way").unwrap().as_bool(), Some(true));
     assert!((f("offset_rotation") - 0.75).abs() < 1e-6);
     assert!((f("friction") - 0.9).abs() < 1e-6);
@@ -300,7 +297,8 @@ fn a_2d_one_way_collider_carries_its_axis_into_the_world() {
         e,
         "collider2d",
         Some(
-            &toml::from_str("kind = \"rect\"\none_way = true\none_way_axis = [0.0, 1.0]").unwrap(),
+            &toml::from_str("kind = \"rectangle\"\none_way = true\none_way_axis = [0.0, 1.0]")
+                .unwrap(),
         ),
     )
     .unwrap();

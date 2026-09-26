@@ -254,23 +254,31 @@ fn the_sheet_names_every_frame_tag_and_slice() {
 fn each_tag_becomes_a_step_clip_over_its_frames() {
     let imported = import(&[]);
     let clips: toml::Value = toml::from_str(imported.clips.as_deref().unwrap()).unwrap();
-    assert_eq!(clips["type"].as_str(), Some("animation_clip"));
+    assert_eq!(clips["type"].as_str(), Some("animation_library"));
     let clip = |name: &str| clips["clips"][name].clone();
     let keys = |name: &str| -> Vec<(f64, f64)> {
         clip(name)["tracks"][0]["keys"]
             .as_array()
             .unwrap()
             .iter()
-            .map(|k| (k["t"].as_float().unwrap(), k["value"].as_float().unwrap()))
+            .map(|k| {
+                (
+                    k["time"].as_float().unwrap(),
+                    k["value"].as_float().unwrap(),
+                )
+            })
             .collect()
     };
-    assert_eq!(clip("walk")["loop"].as_str(), Some("loop"));
+    assert_eq!(clip("walk")["loop_mode"].as_str(), Some("linear"));
     assert!((clip("walk")["length"].as_float().unwrap() - 0.3).abs() < 1e-9);
     assert_eq!(
         clip("walk")["tracks"][0]["property"].as_str(),
         Some("sprite/frame")
     );
-    assert_eq!(clip("walk")["tracks"][0]["interp"].as_str(), Some("step"));
+    assert_eq!(
+        clip("walk")["tracks"][0]["interpolation"].as_str(),
+        Some("step")
+    );
     assert_eq!(keys("walk"), vec![(0.0, 0.0), (0.1, 1.0)]);
     assert_eq!(
         keys("back"),
@@ -278,5 +286,5 @@ fn each_tag_becomes_a_step_clip_over_its_frames() {
         "reverse plays the last frame first"
     );
     assert!((clip("back")["length"].as_float().unwrap() - 0.5).abs() < 1e-9);
-    assert_eq!(clip("bounce")["loop"].as_str(), Some("pingpong"));
+    assert_eq!(clip("bounce")["loop_mode"].as_str(), Some("pingpong"));
 }

@@ -2,6 +2,7 @@
 // corners scale, axis rings rotate), hover tints deep blue. All hit-testing is
 // screen-space Rune over the camera pose the backend publishes.
 
+use crate::defs;
 use crate::gizmo2d;
 use crate::history;
 use crate::model;
@@ -12,10 +13,9 @@ use crate::viewport;
 
 /// The gizmo's own state, hung on `S.gizmo`.
 pub fn state() {
-    // `key` is what the hover test last answered to; see `hover_key`.
-    // `marquee` is the box-select drag: the design-px point it started at,
-    // and where the pointer is now.
-    #{ hover: None, drag: None, in_viewport: false, key: [], marquee: None }
+    // `key` and `drawn` are what the hover and the line list were last built
+    // for; `marquee` is the box-select drag, from its first point to the pointer.
+    #{ hover: None, drag: None, in_viewport: false, key: [], marquee: None, drawn: [], lines: [] }
 }
 
 // What the hover answers to: the pointer, the camera and the gizmo's own box.
@@ -37,21 +37,6 @@ fn hover_key(S, cam, geo, mx, my) {
         None => out.push(0.0),
     }
     out
-}
-
-// Element-wise: an array compares by identity in Rune, not by value.
-fn same_key(a, b) {
-    if a.len() != b.len() {
-        return false;
-    }
-    let i = 0;
-    while i < a.len() {
-        if a[i] != b[i] {
-            return false;
-        }
-        i += 1;
-    }
-    true
 }
 
 // center + basis-space offset -> world point.
@@ -150,16 +135,16 @@ fn half_extents(node) {
     let shape_some = shape;
     if let Some(shape) = shape_some {
         if shape is Object {
-            if shape.contains_key("radius") && shape.get("kind") == Some(render::SHAPE_BALL) {
+            if shape.contains_key("radius") && shape.get("kind") == Some(render::SHAPE_SPHERE) {
                 let r = util::f(shape.radius);
                 hx = r;
                 hy = r;
                 hz = r;
-            } else if let Some(he) = shape.get("half_extents") {
-                let he = util::vec3(he, [0.5, 0.5, 0.5]);
-                hx = he[0];
-                hy = he[1];
-                hz = he[2];
+            } else if let Some(size) = shape.get("size") {
+                let size = util::vec3(size, [1.0, 1.0, 1.0]);
+                hx = size[0] / 2.0;
+                hy = size[1] / 2.0;
+                hz = size[2] / 2.0;
             }
         }
     }
@@ -170,7 +155,7 @@ fn half_extents(node) {
 }
 
 // The world half-extents of one row, before the handle padding. The engine's
-// own bounds first: an authored `half_extents` says nothing about a mesh, and
+// own bounds first: an authored `size` says nothing about a mesh, and
 // nothing about a body a solver deforms.
 pub fn extents_at(S, i) {
     let found = match model::live(S, i) {
@@ -198,8 +183,8 @@ pub fn extents_at(S, i) {
 // An axis-aligned box around the whole set, so the gizmo over many nodes sits
 // where a designer would draw one frame.
 fn set_geometry(S) {
-    let lo = [math::INF, math::INF, math::INF];
-    let hi = [-math::INF, -math::INF, -math::INF];
+    let lo = [math::INFINITY, math::INFINITY, math::INFINITY];
+    let hi = [-math::INFINITY, -math::INFINITY, -math::INFINITY];
     let any = false;
     for i in crate::selection::all(S) {
         let found = extents_at(S, i);
@@ -465,14 +450,16 @@ fn hit_test(S, cam, geo, mx, my) {
 // steadyum's 6px stroke, 30% thinner per taste.
 const W = 4.2;
 
-fn line(a, b, color, width, on_top) {
-    render::draw_line(a[0], a[1], a[2], b[0], b[1], b[2], color[0], color[1], color[2], width, false, on_top);
+// One segment onto `out`, in `render::draw_lines`' eleven numbers.
+fn line(out, a, b, color, width, on_top) {
+    let top = if on_top { 1.0 } else { 0.0 };
+    out.extend([a[0], a[1], a[2], b[0], b[1], b[2], color[0], color[1], color[2], width, top]);
 }
 
 // Corner marker in steadyum's open-bracket style: of the mini-cube's 12
 // edges, draw only those with at least one outward face (faces whose sign
 // matches the handle's corner sign), leaving an open bracket.
-fn draw_handle_marker(geo, signs, half, color) {
+fn draw_handle_marker(out, geo, signs, half, color) {
     // Corner offset in the box's local frame.
     let base = [signs[0] * geo.he[0], signs[1] * geo.he[1], signs[2] * geo.he[2]];
     for axis in 0..3 {
@@ -491,6 +478,7 @@ fn draw_handle_marker(geo, signs, half, color) {
                     a[c_axis] = a[c_axis] + c_sign * half;
                     b[c_axis] = b[c_axis] + c_sign * half;
                     line(
+                        out,
                         local_point(geo, a[0], a[1], a[2]),
                         local_point(geo, b[0], b[1], b[2]),
                         color,
@@ -525,10 +513,18 @@ pub fn draw(S) {
         Some(geo) => geo,
         None => return,
     };
-    if S.persona == "script" {
+    if S.workspace == defs::WORKSPACE_SCRIPT {
         return;
     }
     let hot = viewport::hot_part(S);
+    // The lines follow from the box, the hot part and the two colours, and
+    // none of them moves while the pointer is still: replay the list.
+    let key = drawn_key(geo, hot);
+    if key == S.gizmo.drawn {
+        render::draw_lines(S.gizmo.lines);
+        return;
+    }
+    let out = [];
     let he = geo.he;
     let hot_face = if hot_is(hot, "face") { hot } else { None };
     // The 12 box edges, in the node's rotated frame. An edge bounds the
@@ -553,6 +549,7 @@ pub fn draw(S) {
                     o[c_axis] = sc2 * he[c_axis];
                 }
                 line(
+                    out,
                     local_point(geo, a_off[0], a_off[1], a_off[2]),
                     local_point(geo, b_off[0], b_off[1], b_off[2]),
                     color,
@@ -567,7 +564,7 @@ pub fn draw(S) {
             Some(part) => part.kind == "handle" && part.index == i,
             None => false,
         };
-        draw_handle_marker(geo, corner.signs, geo.marker, if hot_handle { viewport::hover_color() } else { viewport::orange() });
+        draw_handle_marker(out, geo, corner.signs, geo.marker, if hot_handle { viewport::hover_color() } else { viewport::orange() });
     }
     // Face-center scale rectangles (drag = scale along the face normal).
     for (i, face) in faces(geo).iter().enumerate() {
@@ -578,7 +575,7 @@ pub fn draw(S) {
         let color = if hot_rect { viewport::hover_color() } else { viewport::orange() };
         let pts = face_rect_points(geo, face);
         for j in 0..4 {
-            line(pts[j], pts[(j + 1) % 4], color, W, false);
+            line(out, pts[j], pts[(j + 1) % 4], color, W, false);
         }
     }
     for axis in 0..3 {
@@ -590,10 +587,37 @@ pub fn draw(S) {
         let prev = ring_point(geo, axis, 0.0);
         for t in 1..49 {
             let next = ring_point(geo, axis, (t as f64) / 48.0);
-            line(prev, next, color, W, true);
+            line(out, prev, next, color, W, true);
             prev = next;
         }
     }
+    render::draw_lines(out);
+    S.gizmo.drawn = key;
+    S.gizmo.lines = out;
+}
+
+// What the drawn lines follow from, as plain values so `==` compares them.
+fn drawn_key(geo, hot) {
+    let out = [];
+    for v in geo.center { out.push(v); }
+    for v in geo.he { out.push(v); }
+    for row in geo.basis {
+        for v in row { out.push(v); }
+    }
+    out.push(geo.ring);
+    out.push(geo.marker);
+    for v in viewport::orange() { out.push(v); }
+    for v in viewport::hover_color() { out.push(v); }
+    match hot {
+        Some(part) => {
+            out.push(part.kind);
+            out.push(part.get("index").unwrap_or(-1));
+            out.push(part.get("axis").unwrap_or(-1));
+            out.push(part.get("sign").unwrap_or(0.0));
+        }
+        None => out.push(""),
+    }
+    out
 }
 
 // Screen direction (design px per world unit) of a world direction at a point.
@@ -619,10 +643,10 @@ fn rows_in_box(S, cam, x0, y0, x1, y1) {
         let found = extents_at(S, i);
         let found_some = found;
         if let Some((c, he)) = found_some {
-            let bx0 = math::INF;
-            let by0 = math::INF;
-            let bx1 = -math::INF;
-            let by1 = -math::INF;
+            let bx0 = math::INFINITY;
+            let by0 = math::INFINITY;
+            let bx1 = -math::INFINITY;
+            let by1 = -math::INFINITY;
             let seen = false;
             for sx in [-1.0, 1.0] {
                 for sy in [-1.0, 1.0] {
@@ -662,8 +686,8 @@ pub fn draw_marquee(S, k) {
     if w < 2.0 && h < 2.0 {
         return;
     }
-    ui::overlay("vp-marquee", #{ x: x, y: y, w: w, h: h }, || {
-        ui::rect_stroke(0.0, 0.0, w, h, #{ color: k.accent, width: 1.0, dashed: true });
+    ui::overlay("vp-marquee", #{ x: x, y: y, width: w, height: h }, || {
+        ui::rect_stroke(0.0, 0.0, w, h, #{ stroke: k.primary_text, stroke_width: 1.0, dashed: true });
     });
 }
 
@@ -770,7 +794,7 @@ pub fn update(S) {
         S.gizmo.drag = None;
         render::set_camera_input(false);
         S.rig.hover = if over_viewport { rig::pick_3d(S, mx, my, on_screen) } else { None };
-        if over_viewport && input::mouse_just_pressed(input::MOUSE_LEFT) {
+        if over_viewport && input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
             match S.rig.hover {
                 Some(hover) => shell::choose(S, hover),
                 None => {
@@ -786,11 +810,11 @@ pub fn update(S) {
         // Re-test only when something the answer depends on moved. A click is
         // always let through: it acts on the hover rather than changing it.
         let key = hover_key(S, cam, geo, mx, my);
-        let pressed = input::mouse_just_pressed(input::MOUSE_LEFT);
-        if pressed || !same_key(key, S.gizmo.key) {
+        let pressed = input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT);
+        if pressed || key != S.gizmo.key {
             S.gizmo.key = key;
             S.gizmo.hover = match geo {
-                Some(geo) => if over_viewport && S.persona != "script" { hit_test(S, cam, geo, mx, my) } else { None },
+                Some(geo) => if over_viewport && S.workspace != defs::WORKSPACE_SCRIPT { hit_test(S, cam, geo, mx, my) } else { None },
                 None => None,
             };
         }
@@ -806,7 +830,7 @@ pub fn update(S) {
     let busy = viewport::manipulates(S.tool, false) && geo.is_some();
     render::set_camera_input(!busy && S.gizmo.hover.is_none() && S.gizmo.drag.is_none());
 
-    if input::mouse_just_pressed(input::MOUSE_LEFT) && over_viewport {
+    if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) && over_viewport {
         let hovered = match (S.gizmo.hover, geo) {
             (Some(part), Some(geo)) => Some((part, geo)),
             _ => None,
@@ -824,8 +848,8 @@ pub fn update(S) {
                 S.gizmo.in_viewport = true;
                 if S.tool == "select" {
                     // Rigging: a bone's thin octahedron loses to any origin
-                    // near it, so in the Animate persona bones are tried first.
-                    let bone = if S.persona == "anim" { rig::pick_3d(S, mx, my, on_screen) } else { None };
+                    // near it, so in the Animation workspace bones are tried first.
+                    let bone = if S.workspace == defs::WORKSPACE_ANIMATION { rig::pick_3d(S, mx, my, on_screen) } else { None };
                     let bone_some = bone;
                     if let Some(bone) = bone_some {
                         shell::choose(S, bone);
@@ -861,7 +885,7 @@ pub fn update(S) {
         m.x1 = mx;
         m.y1 = my;
         render::set_camera_input(false);
-        if !input::is_mouse_down(input::MOUSE_LEFT) {
+        if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
             S.gizmo.marquee = None;
             S.gizmo.in_viewport = false;
             if util::abs(m.x1 - m.x0) > 3.0 || util::abs(m.y1 - m.y0) > 3.0 {
@@ -880,7 +904,7 @@ pub fn update(S) {
         return;
     }
 
-    if !input::is_mouse_down(input::MOUSE_LEFT) {
+    if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
         S.gizmo.drag = None;
         S.gizmo.in_viewport = false;
     }
@@ -900,7 +924,7 @@ pub fn update(S) {
     };
     if S.tool == "move" {
         let delta = [0.0, 0.0, 0.0];
-        if input::is_down("LShift") || input::is_down("RShift") {
+        if input::key_down(input::KEY_SHIFT) {
             delta[1] = -dy * cam.wpp;
         } else {
             let (flat, _) = util::vnorm([cam.forward[0], 0.0, cam.forward[2]]);

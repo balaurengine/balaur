@@ -42,6 +42,16 @@ struct Listener {
     seq: u64,
 }
 
+/// One event waiting for the pump.
+struct Queued {
+    name: SmolStr,
+    from: Option<Entity>,
+    payload: Value,
+    /// Sent by [`announce`], which already ran the emitter's rows and its own
+    /// hook, so the pump skips both.
+    announced: bool,
+}
+
 /// Who hears what, what is waiting, and what the last pump handed over.
 #[derive(Default)]
 pub struct EventState {
@@ -54,7 +64,7 @@ pub struct EventState {
     /// Handed out in subscription order and never reused.
     next_seq: u64,
     /// Emitted since the last pump, in emission order.
-    queued: Vec<(SmolStr, Option<Entity>, Value)>,
+    queued: Vec<Queued>,
     /// What the last pump delivered, with the emitter each came from, until
     /// the next one replaces it. This is what `delivered` reads, so asking
     /// and being called see the same frame.
@@ -116,7 +126,61 @@ pub fn emit_from(eng: &Engine, from: Entity, name: &str, payload: Value) {
 
 fn queue(eng: &Engine, name: &str, from: Option<Entity>, payload: Value) {
     let state = eng.resource::<EventState>();
-    state.borrow_mut().queued.push((name.into(), from, payload));
+    state.borrow_mut().queued.push(Queued {
+        name: name.into(),
+        from,
+        payload,
+        announced: false,
+    });
+}
+
+/// An engine event on a node, heard every way at once: the node's rows and
+/// its own `on_<name>(payload)` now, its subscribers and awaiters at the next
+/// pump.
+///
+/// A name in [`crate::hooks::BINDABLE`] runs the rows spelled with that name;
+/// any other runs the `emitted:<name>` rows. Rows run before the hook, as they
+/// do for a pointer event, so the script sees the world the rows left.
+pub fn announce(eng: &Engine, entity: Entity, name: &str, payload: Value) {
+    // Most nodes carry no rows, and spelling the row's event costs an allocation.
+    if eng
+        .world()
+        .get::<&crate::bindings::Bindings>(entity)
+        .is_ok()
+    {
+        crate::bindings::fire(
+            eng,
+            entity,
+            &row_event(name),
+            std::slice::from_ref(&payload),
+        );
+    }
+    if let Some(host) = eng.script_host() {
+        host.call_on(
+            crate::node_id_of(entity),
+            &crate::hooks::hook_of(name),
+            std::slice::from_ref(&payload),
+        );
+    }
+    // A bare engine, with no event system installed, has nobody to queue for.
+    let Some(state) = eng.try_resource::<EventState>() else {
+        return;
+    };
+    state.borrow_mut().queued.push(Queued {
+        name: name.into(),
+        from: Some(entity),
+        payload,
+        announced: true,
+    });
+}
+
+/// The binding event a row answers `name` with.
+fn row_event(name: &str) -> String {
+    if crate::hooks::BINDABLE.contains(&name) {
+        name.to_string()
+    } else {
+        format!("{}{name}", crate::hooks::EMITTED)
+    }
 }
 
 /// What the last pump delivered under `name`, whoever emitted it, in
@@ -160,18 +224,27 @@ pub(crate) fn pump_system(eng: &Engine, _dt: f32) {
         return;
     }
     // The emitter's own `emitted:<name>` rows first, the way a node's
-    // bindings run before its script: they need no script to be heard.
-    for (name, from, payload) in &queued {
-        if let Some(from) = from {
-            let event = format!("{}{name}", crate::hooks::EMITTED);
-            crate::bindings::fire(eng, *from, &event, std::slice::from_ref(payload));
+    // bindings run before its script: they need no script to be heard. A
+    // core hook's name keeps its one spelling, so it has no `emitted:` rows.
+    for event in &queued {
+        if let Some(from) = event.from
+            && !event.announced
+            && !crate::hooks::BINDABLE.contains(&event.name.as_str())
+        {
+            let row = format!("{}{}", crate::hooks::EMITTED, event.name);
+            crate::bindings::fire(eng, from, &row, std::slice::from_ref(&event.payload));
         }
     }
-    let Some(host) = eng.script_host() else {
-        return;
-    };
+    // Recorded with no script host too, so `delivered` answers a tool the same.
+    let host = eng.script_host();
     sweep(eng);
-    for (name, from, payload) in queued {
+    for Queued {
+        name,
+        from,
+        payload,
+        announced,
+    } in queued
+    {
         let listeners = {
             let state = eng.resource::<EventState>();
             let state = state.borrow();
@@ -197,22 +270,29 @@ pub(crate) fn pump_system(eng: &Engine, _dt: f32) {
                     (None, None) => break,
                     _ => any.next(),
                 };
-                if let Some(listener) = next {
+                // An announced event already called the emitter's own hook.
+                if let Some(listener) = next
+                    && !(announced && Some(listener.entity) == from)
+                {
                     merged.push(listener.entity);
                 }
             }
             merged
         };
         let method = format!("on_{name}");
-        for entity in listeners {
-            host.call_on(
-                crate::node_id_of(entity),
-                &method,
-                std::slice::from_ref(&payload),
-            );
+        if let Some(host) = &host {
+            for entity in listeners {
+                host.call_on(
+                    crate::node_id_of(entity),
+                    &method,
+                    std::slice::from_ref(&payload),
+                );
+            }
         }
         // Every task parked on this event resumes with it, once.
-        let woken: Vec<u64> = {
+        let woken: Vec<u64> = if host.is_none() {
+            Vec::new()
+        } else {
             let state = eng.resource::<EventState>();
             let mut state = state.borrow_mut();
             let mut woken = Vec::new();
@@ -225,8 +305,10 @@ pub(crate) fn pump_system(eng: &Engine, _dt: f32) {
             });
             woken
         };
-        for token in woken {
-            host.wake(token, &payload);
+        if let Some(host) = &host {
+            for token in woken {
+                host.wake(token, &payload);
+            }
         }
         let state = eng.resource::<EventState>();
         state
@@ -262,26 +344,26 @@ fn sweep(eng: &Engine) {
 /// where every other core module is declared.
 pub fn install_events_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Named events between scripts. A node subscribes to a name and hears it as its `on_<name>` method; `node.emit` and `events.emit` send one.",
+        "Named events between scripts. A node listens for a name and hears it as its `on_<name>` method; `node.emit` and `events.emit` send one.",
     );
     m.describe(&[
         (
-            "subscribe",
+            "listen",
             &[],
             "(node: node, name: string, from: node?)",
-            "Hear an event on this node, as its script's `on_<name>(payload)`. Pass the node whose events to hear, or leave it out for every emitter. Subscribing twice is once.",
+            "Hear an event on this node, as its script's `on_<name>(payload)`. Pass the node whose events to hear, or leave it out for every emitter. Listening twice is once.",
         ),
         (
-            "unsubscribe",
+            "stop_listening",
             &[],
             "(node: node, name: string, from: node?)",
-            "Stop hearing an event on this node, `from` being the emitter it was subscribed with. Not an error when it was never subscribed.",
+            "Stop hearing an event on this node, `from` being the emitter it listened with. Not an error when it never listened.",
         ),
         (
             "emit",
             &[],
             "(name: string, payload: any?)",
-            "Queue an event from no particular node, delivered at the top of the next frame's update to whoever subscribed to the name from anyone.",
+            "Queue an event from no particular node, delivered at the top of the next frame's update to whoever listens for the name from anyone.",
         ),
         (
             "emitted",
@@ -303,7 +385,7 @@ pub fn install_events_api(m: &mut dyn Bindings<Engine>) {
         ),
     ]);
     m.function(
-        "subscribe",
+        "listen",
         |eng: &Engine, (node, name, from): (NodeId, String, Option<NodeId>)| {
             let from = from.map(crate::entity_of).transpose()?;
             subscribe(eng, crate::entity_of(node)?, &name, from);
@@ -311,7 +393,7 @@ pub fn install_events_api(m: &mut dyn Bindings<Engine>) {
         },
     );
     m.function(
-        "unsubscribe",
+        "stop_listening",
         |eng: &Engine, (node, name, from): (NodeId, String, Option<NodeId>)| {
             let from = from.map(crate::entity_of).transpose()?;
             unsubscribe(eng, crate::entity_of(node)?, &name, from);

@@ -323,13 +323,13 @@ pub fn parse_terrains(value: &toml::Value) -> Result<Vec<Terrain>> {
                 .get("value")
                 .and_then(toml::Value::as_integer)
                 .map_or(index as u32 + 1, |value| value as u32);
-            let mode = match table.get("mode").and_then(toml::Value::as_str) {
+            let mode = match table.get("kind").and_then(toml::Value::as_str) {
                 None | Some("rules") => Mode::Rules,
                 Some("sides") => Mode::Sides,
                 Some("corners") => Mode::Corners,
                 Some("corners_and_sides") => Mode::CornersAndSides,
                 Some("quarters") => Mode::Quarters,
-                Some(other) => bail!("terrain '{name}': '{other}' is not a mode"),
+                Some(other) => bail!("terrain '{name}': '{other}' is not a kind"),
             };
             let first_tile = table
                 .get("first_tile")

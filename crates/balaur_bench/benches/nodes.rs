@@ -216,7 +216,7 @@ fn rune_side(c: &mut Criterion) {
         ),
         (
             "get_node",
-            "pub fn init(this) { this.paths = []; let nodes = [this.node]; let names = [\"\"]; for i in 0..1000 { let at = rng::int(0, (nodes.len() - 1) as i64); let name = format!(\"n{}\", i); nodes.push(nodes[at].add_child(name)); let above = names[at]; let path = if above == \"\" { name } else { format!(\"{}/{}\", above, name) }; names.push(path); this.paths.push(path); } }\npub fn update(this, dt) { for path in this.paths { this.node.get_node(path); } }",
+            "pub fn init(this) { this.paths = []; let nodes = [this.node]; let names = [\"\"]; for i in 0..1000 { let at = random::int(0, (nodes.len() - 1) as i64); let name = format!(\"n{}\", i); nodes.push(nodes[at].add_child(name)); let above = names[at]; let path = if above == \"\" { name } else { format!(\"{}/{}\", above, name) }; names.push(path); this.paths.push(path); } }\npub fn update(this, dt) { for path in this.paths { this.node.get_node(path); } }",
         ),
     ];
     for (name, body) in bodies {

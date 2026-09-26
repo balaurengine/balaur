@@ -11,8 +11,8 @@ parent = "Table"
 position = [0, 0.74, 0]
 
 [nodes.shape3d]
-kind = "cuboid"
-half_extents = [0.7, 0.03, 0.45]
+kind = "box"
+size = [1.4, 0.06, 0.9]
 corner_radius = 0.02
 color = "#8a6a48"
 

@@ -135,7 +135,8 @@ impl Emitter<'_> {
         // A widget's own signal is a key on the widget: the engine calls it on
         // the first ancestor whose script has the method, as the connect meant.
         if let Some(key) = map::widget_signal(&signal) {
-            return Some(map::widget_connect(&receiver, key, handler.as_deref()));
+            let text = map::widget_connect(&receiver, key, handler.as_deref());
+            return Some(self.shimmed(text));
         }
         // Any other signal is an event on the emitting node. The engine calls
         // `on_<name>`, so the module gains one that forwards to the handler.
@@ -162,7 +163,7 @@ impl Emitter<'_> {
         let event = if hid {
             map::VISIBILITY_SIGNAL.to_string()
         } else {
-            signal.clone()
+            map::engine_event(&signal).to_string()
         };
         self.forwarders.insert(event.clone(), (handler, hid));
         Some(map::signal_subscribe(&receiver, &event, &closure))
@@ -180,7 +181,11 @@ impl Emitter<'_> {
     pub(super) fn connect_handler(&mut self, handler: &Expr) -> Option<String> {
         let (text, takes) = self.callable_parts(handler)?;
         Some(match takes {
-            Some(takes) => format!("#{{ \"__call\": {text}, \"__takes\": {takes} }}"),
+            Some(takes) => format!(
+                "#{{ {}: {text}, {}: {takes} }}",
+                quoted(map::CALL_KEY),
+                quoted(map::CALL_TAKES)
+            ),
             None => text,
         })
     }
@@ -193,7 +198,7 @@ impl Emitter<'_> {
         }
         let (target, bound) = match handler {
             Expr::Call(callee, bound) => match &**callee {
-                Expr::Field(target, verb) if verb == "bind" => (&**target, bound.as_slice()),
+                Expr::Field(target, verb) if verb == map::BIND => (&**target, bound.as_slice()),
                 _ => return None,
             },
             other => (other, &[][..]),

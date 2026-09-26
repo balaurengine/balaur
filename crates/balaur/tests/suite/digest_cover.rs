@@ -28,7 +28,7 @@ position = [0.0, 4.0, 0.0]
 [nodes.body3d]
 kind = "dynamic"
 [nodes.collider3d]
-kind = "ball"
+kind = "sphere"
 radius = 0.5
 
 [[nodes]]
@@ -45,7 +45,7 @@ id = "n_shape"
 name = "Shape"
 parent = "n_root"
 [nodes.shape3d]
-kind = "cuboid"
+kind = "box"
 [nodes.material]
 name = ""
 

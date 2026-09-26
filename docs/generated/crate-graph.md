@@ -9,10 +9,11 @@ depends on a backend, which is what keeps it language-free.
 graph TD
   balaur[balaur]
   balaur_android[balaur_android]
-  balaur_anim[balaur_anim]
+  balaur_animation[balaur_animation]
   balaur_apple[balaur_apple]
   balaur_audio[balaur_audio]
   balaur_bench[balaur_bench]
+  balaur_browser[balaur_browser]
   balaur_cfg[balaur_cfg]
   balaur_cli[balaur_cli]
   balaur_core[balaur_core]
@@ -31,12 +32,12 @@ graph TD
   balaur_testkit[balaur_testkit]
   balaur_text[balaur_text]
   balaur_ui[balaur_ui]
-  balaur_web[balaur_web]
   balaur_websocket[balaur_websocket]
   balaur_webtransport[balaur_webtransport]
-  balaur --> balaur_anim
+  balaur --> balaur_animation
   balaur --> balaur_apple
   balaur --> balaur_audio
+  balaur --> balaur_browser
   balaur --> balaur_core
   balaur --> balaur_gamend
   balaur --> balaur_http
@@ -49,13 +50,12 @@ graph TD
   balaur --> balaur_script
   balaur --> balaur_script_rune
   balaur --> balaur_ui
-  balaur --> balaur_web
   balaur --> balaur_websocket
   balaur --> balaur_webtransport
   balaur_android --> balaur
-  balaur_anim --> balaur_core
-  balaur_anim --> balaur_plugin
-  balaur_anim --> balaur_script
+  balaur_animation --> balaur_core
+  balaur_animation --> balaur_plugin
+  balaur_animation --> balaur_script
   balaur_apple --> balaur_core
   balaur_apple --> balaur_platform
   balaur_apple --> balaur_plugin
@@ -68,6 +68,9 @@ graph TD
   balaur_bench --> balaur_script
   balaur_bench --> balaur_script_rune
   balaur_bench --> balaur_ui
+  balaur_browser --> balaur_core
+  balaur_browser --> balaur_plugin
+  balaur_browser --> balaur_script
   balaur_cli --> balaur
   balaur_cli --> balaur_core
   balaur_cli --> balaur_export
@@ -121,9 +124,6 @@ graph TD
   balaur_ui --> balaur_plugin
   balaur_ui --> balaur_script
   balaur_ui --> balaur_text
-  balaur_web --> balaur_core
-  balaur_web --> balaur_plugin
-  balaur_web --> balaur_script
   balaur_websocket --> balaur_core
   balaur_websocket --> balaur_plugin
   balaur_websocket --> balaur_script

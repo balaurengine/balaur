@@ -24,9 +24,9 @@ Built, and not built for this:
 | --- | --- |
 | A web export: a shell page, `balaur.js`, `balaur_bg.wasm`, the pack fetched beside them, a project's own `web/index.html` honoured | `balaur_export::bundle`, `crates/balaur_export/src/web/index.html` |
 | The module booted on a canvas, and the editor too | `balaur::boot_pack_on_canvas`, `boot_editor_on_canvas`, `crates/balaur_cli/src/web.rs` |
-| A page bridge, recorded and replayable: `post_message`, `listen`, `messages`, `visible`, `location`, `user_agent` | `balaur_web` |
+| A page bridge, recorded and replayable: `post_message`, `listen`, `messages`, `visible`, `location`, `user_agent` | `balaur_browser` |
 | The site's loader and player, one stamped set of glue, module and packs | `../balaur-website/src/play.ts`, `src/components/Player` |
-| The template built per push with a chosen feature set, its size measured raw, gzip and brotli | `scripts/package_template.sh web`, `WEB_FEATURES`, `docs/generated/features.md`, the site's `play-size.json` |
+| The template built per push with a chosen feature set, its size measured raw, gzip and brotli | `scripts/package_runtime.sh web`, `WEB_FEATURES`, `docs/generated/features.md`, the site's `play-size.json` |
 | Packs with sources or compiled, both running on the 32-bit runtime | `balaur export --keep-sources` |
 | A nightly bundle the site pulls | `scripts/package_play.sh`, `balaur-play.tar.gz` |
 | Screenshots from any GPU run; frames to a video through ffmpeg | `render.screenshot`, `scripts/showcase.sh` |
@@ -55,10 +55,10 @@ Missing:
 
 **One protocol, defined once, in the engine.** The page API is a set of
 message kinds over the bridge that already exists, handled in Rust in
-`balaur_web` so a game needs no script to be driven: `variable.set`,
+`balaur_browser` so a game needs no script to be driven: `variable.set`,
 `variable.get`, `event.emit`, `node.patch`, `scene.switch`, `screenshot`, and
 the reverse `variable.changed`, `event`, `ready`, `error`. Every kind is a
-`web.*` call a script could make, and every inbound message lands at
+`browser.*` call a script could make, and every inbound message lands at
 `Stage::First` and is recorded, so a session driven from a page replays.
 What the page may do is declared, not assumed: `[embed] allow =
 ["variables", "events"]` in `project.toml`, with `nodes` off by default,
@@ -88,7 +88,7 @@ is.
 
 **An iframe is the same protocol across a frame.** A hosted URL from
 `docs/PLAN-deploy.md` embeds in Notion, Webflow, Framer and an `<iframe>`
-anywhere; `postMessage` to the frame reaches `on_web_message` today, and the
+anywhere; `postMessage` to the frame reaches `on_browser_event` today, and the
 protocol above is what it carries.
 
 **The module fits the game.** The template is built in CI as variants over
@@ -120,7 +120,7 @@ boolean or a text mesh leaves the engine.
 
 | Piece | Decision |
 | --- | --- |
-| The protocol, `[embed] allow` | Step 1, `balaur_web` |
+| The protocol, `[embed] allow` | Step 1, `balaur_browser` |
 | `@balaurengine/runtime` | Step 2, published from the engine's release job beside `balaur-play.tar.gz` |
 | `<balaur-viewer>` | Step 2, in the runtime package |
 | `@balaurengine/react` | Step 3 |

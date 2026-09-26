@@ -50,7 +50,7 @@ impl LocaleConfig {
                 .unwrap_or(or)
         };
         Self {
-            default: read("locale/default", fallback.default),
+            default: read("locale/initial", fallback.default),
             fallback: read("locale/fallback", fallback.fallback),
         }
     }

@@ -65,7 +65,7 @@ heights = [0, 0, 0, 0, -1, 0, 0, 0, 0]
 pub(crate) fn register_heightfield_asset(app: &mut App) {
     app.register_asset_type(
         HEIGHTFIELD_ASSET_TYPE,
-        "terrain",
+        "heightfields",
         HEIGHTFIELD_ASSET_DOC,
         |value| Ok(std::rc::Rc::new(parse_definition(value)?) as std::rc::Rc<dyn std::any::Any>),
     );

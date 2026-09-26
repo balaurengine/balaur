@@ -24,7 +24,7 @@ step() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 
 step "stage Balaur.app"
 rm -rf "$app"
-mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/templates" "$app/Contents/Resources/include"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/runtimes" "$app/Contents/Resources/include"
 cp "$bin" "$app/Contents/MacOS/balaur"
 chmod +x "$app/Contents/MacOS/balaur"
 # Data lives in Resources, not beside the executable: codesign seals
@@ -33,7 +33,7 @@ cp -R editor "$app/Contents/Resources/editor"
 cp -R examples "$app/Contents/Resources/examples"
 cp README.md LICENSE "$app/Contents/Resources/"
 cp crates/balaur_plugin/include/balaur_extension.h "$app/Contents/Resources/include/"
-cp "$bin" "$app/Contents/Resources/templates/balaur-runtime-macos-universal"
+cp "$bin" "$app/Contents/Resources/runtimes/balaur-runtime-macos-universal"
 
 # The same image the editor sets as its dock icon at run time, so the one in
 # the Finder and the one in the dock cannot disagree.
@@ -112,7 +112,7 @@ if [ -n "$identity" ]; then
   # build for the absence of. Rune is an interpreter, so no JIT entitlement.
   codesign --force --sign "$identity" --options runtime --timestamp \
     ${from[@]+"${from[@]}"} \
-    "$app/Contents/Resources/templates/balaur-runtime-macos-universal"
+    "$app/Contents/Resources/runtimes/balaur-runtime-macos-universal"
   codesign --force --sign "$identity" --options runtime --timestamp \
     ${from[@]+"${from[@]}"} "$app"
   codesign --verify --strict --deep --verbose=2 "$app"

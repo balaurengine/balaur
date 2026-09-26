@@ -18,8 +18,8 @@ voice never enters the simulation.
 | Have | Where |
 | --- | --- |
 | Output on every target through rodio 0.22 over cpal, WebAudio on wasm | `balaur_audio`, `rodio` with `wasm-bindgen` on wasm |
-| Buses with volumes, and a `master` they mix into | `balaur_audio::bus`, `audio::buses`, `bus_volume` |
-| Positional sound from a listener node: pan and distance gain per emitter, moved per frame | `balaur_audio::spatial`, `emitter_position`, `set_listener`, `pan`, `distance_gain` |
+| Buses with volumes, and a `master` they mix into | `balaur_audio::bus`, `audio::buses`, `bus_volume_linear` |
+| Positional sound from a listener node: pan and distance gain per emitter, moved per frame | `balaur_audio::spatial`, `emitter_position`, `set_listener_position`, `pan`, `distance_gain` |
 | Unreliable datagrams on the match's link, with a size the link reports | `Transport::send_datagram`, `max_datagram` |
 | The roster: who is in the match and which slot is local | `docs/PLAN-multiplayer.md` step 1 |
 | A server-side WebRTC peer on Gamend that could carry an audio track | `GamendWeb.WebRTCPeer` over `ex_webrtc` |
@@ -51,7 +51,7 @@ Missing:
 stats, voice is heard and never simulated: no tick reads it, no digest hashes
 it, no snapshot restores it, and a `.blr` does not carry it. A script may ask
 who is speaking for a UI indicator, which is a frame-scoped answer like
-`input::just_pressed`. The pipeline runs on the audio thread and a worker,
+`input::key_just_pressed`. The pipeline runs on the audio thread and a worker,
 and the only thing the tick does is hand the roster to it.
 
 **The pipeline.** Mono at 48 kHz in 20 ms frames, which is 960 samples and

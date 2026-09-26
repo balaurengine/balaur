@@ -1,22 +1,22 @@
-//! Edge semantics: `just_pressed` is true for exactly one frame, `is_down`
+//! Edge semantics: `key_just_pressed` is true for exactly one frame, `key_down`
 //! for as long as the key is held. Getting this wrong makes a game feel
 //! broken in ways that are hard to trace back.
 
-use balaur_input::{InputSnapshot, KEY_NAMES, MOUSE_BUTTON_CONSTANTS};
+use balaur_input::{InputSnapshot, KEYS, MOUSE_BUTTON_CONSTANTS};
 
 #[test]
 fn a_press_is_just_pressed_for_one_frame_only() {
     let mut input = InputSnapshot::default();
     input.key_event("Space", true);
-    assert!(input.just_pressed("Space"));
-    assert!(input.is_down("Space"));
+    assert!(input.key_just_pressed("Space"));
+    assert!(input.key_down("Space"));
 
     input.begin_frame();
     assert!(
-        !input.just_pressed("Space"),
+        !input.key_just_pressed("Space"),
         "still just-pressed a frame later"
     );
-    assert!(input.is_down("Space"), "the key is still held");
+    assert!(input.key_down("Space"), "the key is still held");
 }
 
 #[test]
@@ -25,56 +25,53 @@ fn a_release_is_just_released_for_one_frame_only() {
     input.key_event("Space", true);
     input.begin_frame();
     input.key_event("Space", false);
-    assert!(input.just_released("Space"));
-    assert!(!input.is_down("Space"));
+    assert!(input.key_just_released("Space"));
+    assert!(!input.key_down("Space"));
 
     input.begin_frame();
-    assert!(!input.just_released("Space"));
+    assert!(!input.key_just_released("Space"));
 }
 
 #[test]
 fn holding_a_key_does_not_re_fire() {
     let mut input = InputSnapshot::default();
-    input.key_event("A", true);
+    input.key_event("KeyA", true);
     for frame in 0..5 {
         input.begin_frame();
-        input.key_event("A", true); // the OS repeats while held
-        assert!(!input.just_pressed("A"), "re-fired on frame {frame}");
-        assert!(input.is_down("A"));
+        input.key_event("KeyA", true); // the OS repeats while held
+        assert!(!input.key_just_pressed("KeyA"), "re-fired on frame {frame}");
+        assert!(input.key_down("KeyA"));
     }
 }
 
 #[test]
 fn keys_are_independent() {
     let mut input = InputSnapshot::default();
-    input.key_event("A", true);
-    input.key_event("B", true);
+    input.key_event("KeyA", true);
+    input.key_event("KeyB", true);
     input.begin_frame();
-    input.key_event("A", false);
-    assert!(!input.is_down("A"));
-    assert!(input.is_down("B"));
+    input.key_event("KeyA", false);
+    assert!(!input.key_down("KeyA"));
+    assert!(input.key_down("KeyB"));
 }
 
 #[test]
 fn an_unknown_key_is_simply_not_down() {
     let input = InputSnapshot::default();
-    assert!(!input.is_down("Spcae"));
-    assert!(!input.just_pressed(""));
+    assert!(!input.key_down("Spcae"));
+    assert!(!input.key_just_pressed(""));
 }
 
 #[test]
 fn mouse_buttons_follow_the_same_edge_rules() {
     let mut input = InputSnapshot::default();
     input.mouse_button_event(0, true);
-    assert!(input.is_mouse_down(0));
+    assert!(input.mouse_down(0));
     assert!(input.mouse_just_pressed(0));
-    assert!(
-        !input.is_mouse_down(1),
-        "the right button is not the left one"
-    );
+    assert!(!input.mouse_down(1), "the right button is not the left one");
 
     input.begin_frame();
-    assert!(input.is_mouse_down(0));
+    assert!(input.mouse_down(0));
     assert!(!input.mouse_just_pressed(0));
 }
 
@@ -90,7 +87,7 @@ fn a_released_mouse_button_reports_one_frame_of_release() {
     input.begin_frame();
     input.mouse_button_event(0, false);
     assert!(input.mouse_just_released(0));
-    assert!(!input.is_mouse_down(0));
+    assert!(!input.mouse_down(0));
 
     input.begin_frame();
     assert!(!input.mouse_just_released(0), "the edge did not reset");
@@ -101,7 +98,7 @@ fn a_released_mouse_button_reports_one_frame_of_release() {
 fn an_out_of_range_button_does_not_panic() {
     let mut input = InputSnapshot::default();
     input.mouse_button_event(999, true);
-    assert!(!input.is_mouse_down(999));
+    assert!(!input.mouse_down(999));
 }
 
 #[test]
@@ -125,7 +122,7 @@ fn the_mouse_constants_address_real_buttons() {
         let i = usize::try_from(*index).unwrap();
         input.mouse_button_event(i, true);
         assert!(
-            input.is_mouse_down(i),
+            input.mouse_down(i),
             "{name} does not address a tracked button"
         );
         input.mouse_button_event(i, false);
@@ -135,9 +132,9 @@ fn the_mouse_constants_address_real_buttons() {
 #[test]
 fn every_named_key_can_actually_be_pressed() {
     let mut input = InputSnapshot::default();
-    for key in KEY_NAMES {
+    for (_, key) in KEYS {
         input.key_event(key, true);
-        assert!(input.is_down(key), "{key} is named but does not register");
+        assert!(input.key_down(key), "{key} is named but does not register");
         input.key_event(key, false);
     }
 }

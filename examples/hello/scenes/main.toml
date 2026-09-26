@@ -33,12 +33,12 @@ parent = "n_world"
 position = [0, -1, 0]
 
 [nodes.collider3d]
-half_extents = [10, 0.5, 10]
-kind = "cuboid"
+size = [20, 1.0, 20]
+kind = "box"
 
 [nodes.shape3d]
-half_extents = [10, 0.5, 10]
-kind = "cuboid"
+size = [20, 1.0, 20]
+kind = "box"
 color = [0.3, 0.55, 0.3, 1]
 
 [[nodes]]
@@ -51,7 +51,7 @@ script = { source = "scripts/ball.rn" }
 position = [0, 6, 0]
 
 [nodes.shape3d]
-kind = "ball"
+kind = "sphere"
 radius = 0.5
 color = [0.9, 0.9, 0.9, 1]
 
@@ -65,7 +65,7 @@ value = 1
 [[nodes.bindings.rows]]
 event = "pointer_click"
 when = "score >= 3"
-action = "state"
+action = "set_state"
 target = "../Door"
 value = "open"
 
@@ -84,8 +84,8 @@ source = "scripts/spinner.rn"
 speed = 3.5
 
 [nodes.shape3d]
-half_extents = [0.5, 0.5, 0.5]
-kind = "cuboid"
+size = [1.0, 1.0, 1.0]
+kind = "box"
 color = [0.2, 0.4, 0.9, 1]
 
 [[nodes]]
@@ -103,12 +103,12 @@ autoplay = "patrol"
 library = "animations/platform.toml"
 
 [nodes.collider3d]
-half_extents = [1, 0.25, 1]
-kind = "cuboid"
+size = [2, 0.5, 2]
+kind = "box"
 
 [nodes.shape3d]
-half_extents = [1, 0.25, 1]
-kind = "cuboid"
+size = [2, 0.5, 2]
+kind = "box"
 color = [0.55, 0.35, 0.8, 1]
 
 # Two instances of one prefab. The second overrides a node inside it, which
@@ -150,7 +150,7 @@ rotation_euler = [1.5708, 0, 0]
 source = "#ring"
 
 [nodes.collider3d]
-kind = "trimesh"
+kind = "triangle_mesh"
 mesh = "#ring"
 
 # Interactivity with no script in the project: clicking the ball counts, and
@@ -165,8 +165,8 @@ parent = "n_world"
 position = [-4.5, 0.75, 0]
 
 [nodes.shape3d]
-kind = "cuboid"
-half_extents = [0.15, 1.25, 1.1]
+kind = "box"
+size = [0.3, 2.5, 2.2]
 color = [0.45, 0.32, 0.17, 1]
 
 [nodes.states]
@@ -194,9 +194,9 @@ rotation_euler = [-0.87266, 0.69813, 0]
 kind = "spot"
 color = "#fff2e0"
 intensity = 6
-radius = 30
-inner = 25
-outer = 45
+range = 30
+inner_angle_degrees = 25
+outer_angle_degrees = 45
 
 [[nodes]]
 id = "n_env"
@@ -204,10 +204,10 @@ name = "Environment"
 parent = "n_main"
 
 [nodes.environment]
-ambient = "#20242a"
+ambient_color = "#20242a"
 tonemap = "neutral"
 exposure = 1.1
-fog = "exponential"
+fog_mode = "exponential"
 fog_color = "#9fb4c8"
 fog_density = 0.012
 

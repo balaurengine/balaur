@@ -65,7 +65,12 @@ macro_rules! functions {
             let mut state = state.borrow_mut();
             if let Some(handles) = state.colliders.swap_remove(&entity) {
                 for handle in handles {
-                    state.world.remove_collider(handle);
+                    if let Some(removed) = state.world.remove_collider(handle) {
+                        let body = removed.parent().and_then(|b| state.world.bodies.get(b));
+                        let owner =
+                            crate::shared::events::Owner::of(entity, body.map(|b| b.user_data));
+                        state.gone.insert(handle, owner);
+                    }
                 }
                 state.collider_params.swap_remove(&entity);
                 state.queries_ready = false;
@@ -99,19 +104,28 @@ macro_rules! functions {
             map.insert(k::RESTITUTION.into(), f(collider.restitution()));
             map.insert(k::FRICTION.into(), f(collider.friction()));
             // Each of `mass` and `density` is derived from the other, so
-            // reporting both would pin one on the next patch or re-save.
-            if map
-                .get(k::MASS)
-                .and_then(balaur_core::components::as_f64)
-                .unwrap_or(0.0)
-                > 0.0
-            {
-                map.insert(k::MASS.into(), f(collider.mass()));
+            // reporting both would pin one on the next patch or re-save. A
+            // density of 0 is a body's own `mass` speaking, not the author.
+            let authored = |key: &str| map.get(key).and_then(balaur_core::components::as_f64);
+            let own_mass = authored(k::MASS).unwrap_or(0.0) > 0.0;
+            let zeroed = collider.density() == 0.0;
+            if own_mass {
+                let mass = if zeroed {
+                    authored(k::MASS).unwrap_or(0.0) as Real
+                } else {
+                    collider.mass()
+                };
+                map.insert(k::MASS.into(), f(mass));
             } else {
+                let density = if zeroed {
+                    authored(k::DENSITY).unwrap_or(1.0) as Real
+                } else {
+                    collider.density()
+                };
                 map.insert(k::MASS.into(), f(0.0));
-                map.insert(k::DENSITY.into(), f(collider.density()));
+                map.insert(k::DENSITY.into(), f(density));
             }
-            map.insert(k::CONTACT_SKIN.into(), f(collider.contact_skin()));
+            map.insert(k::COLLISION_MARGIN.into(), f(collider.contact_skin()));
             map.insert(
                 k::CONTACT_FORCE_THRESHOLD.into(),
                 f(collider.contact_force_event_threshold()),
@@ -127,11 +141,17 @@ macro_rules! functions {
                 combine_name(collider.restitution_combine_rule()).into(),
             );
             let groups = collider.collision_groups();
-            map.insert(k::LAYERS.into(), v::layer_names(groups.memberships.bits()));
-            map.insert(k::MASK.into(), v::layer_names(groups.filter.bits()));
+            map.insert(
+                k::COLLISION_LAYER.into(),
+                v::layer_names(groups.memberships.bits()),
+            );
+            map.insert(
+                k::COLLISION_MASK.into(),
+                v::layer_names(groups.filter.bits()),
+            );
             let solver = collider.solver_groups();
             map.insert(
-                k::SOLVER_LAYERS.into(),
+                k::SOLVER_LAYER.into(),
                 v::layer_names(solver.memberships.bits()),
             );
             map.insert(k::SOLVER_MASK.into(), v::layer_names(solver.filter.bits()));
@@ -140,7 +160,7 @@ macro_rules! functions {
                 v::names(collider.active_events().bits(), &v::flags::events()),
             );
             map.insert(
-                k::ACTIVE_COLLISIONS.into(),
+                k::CONTACT_PAIRS.into(),
                 v::names(
                     collider.active_collision_types().bits(),
                     &v::flags::collision_types(),

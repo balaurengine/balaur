@@ -94,11 +94,11 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
         ("listen", &[], "(node: node, options: map)", LISTEN_DOC),
         ("start", &[], "(target: string, options: map)", "Export the edited project for one target. The bytes go to the page to download rather than into the project. Answers false while a recording plays."),
         ("output", &[], "(target: string)", "The file name an export for this target produces."),
-        ("running", &[], "()", "How many exports are in flight."),
+        ("running_count", &[], "()", "How many exports are in flight."),
         ("preview", &[], "(path: string, target: string)", PREVIEW_DOC),
     ]);
     m.function("targets", |_: &Engine, ()| Ok(targets()));
-    install_listen::<ExportState, ExportEvent>(m, "on_export");
+    install_listen::<ExportState, ExportEvent>(m, "on_export_event");
     m.function(
         "start",
         |eng: &Engine, (target, opts): (String, Option<Value>)| {
@@ -115,7 +115,7 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
             _ => format!("{name}.bpak"),
         }))
     });
-    m.function("running", |_: &Engine, ()| {
+    m.function("running_count", |_: &Engine, ()| {
         Ok(i64::try_from(RUNNING.with(std::cell::Cell::get)).unwrap_or(i64::MAX))
     });
     m.function(

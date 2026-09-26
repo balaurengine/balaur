@@ -143,3 +143,44 @@ fn a_packed_host_attaches_a_script_the_pack_does_not_hold() {
         Some(&balaur_script::Value::Int(7)),
     );
 }
+
+/// A shipped game reads its own data files through `fs`, from the pack: the
+/// directory it was built from is gone, and the one it runs in is empty.
+#[test]
+fn a_packed_game_reads_finds_and_lists_its_data_files() {
+    let dir = project();
+    std::fs::write(
+        dir.path().join("s.rn"),
+        "pub fn init(this) {\n\
+         \x20   this.text = fs::read(\"data/levels.json\");\n\
+         \x20   let found = fs::exists(\"data/levels.json\") && fs::exists(\"data\");\n\
+         \x20   this.found = found;\n\
+         \x20   this.listed = fs::list(\"data\").len();\n\
+         }\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.path().join("data")).unwrap();
+    std::fs::write(dir.path().join("data/levels.json"), "{\"first\": 1}").unwrap();
+    let pack = pack_of(dir.path());
+    drop(dir);
+
+    let elsewhere = tempfile::tempdir().unwrap();
+    let app = app_in(elsewhere.path(), Some(pack));
+    let host = app.engine.script_host().unwrap();
+    let root = app.engine.root();
+    let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "n", root);
+    host.attach(balaur_core::node_id_of(node), "s.rn").unwrap();
+
+    let saved = host.save_state();
+    let (_, state) = saved.first().expect("one instance");
+    let balaur_script::Value::Map(fields) = state else {
+        panic!("expected a map, got {state:?}");
+    };
+    let get = |name: &str| fields.iter().find(|(k, _)| k == name).map(|(_, v)| v);
+    assert_eq!(
+        get("text"),
+        Some(&balaur_script::Value::Str("{\"first\": 1}".into()))
+    );
+    assert_eq!(get("found"), Some(&balaur_script::Value::Bool(true)));
+    assert_eq!(get("listed"), Some(&balaur_script::Value::Int(1)));
+}

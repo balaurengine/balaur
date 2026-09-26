@@ -12,11 +12,11 @@ use balaur_script::{Bindings, BindingsExt};
 
 pub use balaur_core::tiles::{TILESET_ASSET_TYPE, TileSet};
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) use crate::tilemap_mesh::{TilemapSlot, sync_tilemaps};
 
 /// What a definition table holds, for the generated reference.
-const TILESET_ASSET_DOC: &str = r#"An image cut into equal tiles for `tilemap`: `texture`, `tile_size` in pixels and `columns` per row. `[tiles.<id>]` gives a tile `collision`; `[[terrains]]` auto-tiles by `mode`.
+const TILESET_ASSET_DOC: &str = r#"An image cut into equal tiles for `tilemap`: `texture`, `tile_size` in pixels and `columns` per row. `[tiles.<id>]` gives a tile `collision`; `[[terrains]]` auto-tiles by `kind`.
 
 ```toml
 type = "tileset"
@@ -36,7 +36,7 @@ one_way = true                   # a platform a body passes through from below
 [[terrains]]                     # paints by value and picks the tiles
 name = "grass"
 value = 1
-mode = "quarters"                # rules, sides, corners, corners_and_sides or quarters
+kind = "quarters"                # rules, sides, corners, corners_and_sides or quarters
 first_tile = 16
 # quarters = [fill, horizontal edge, vertical edge, outer corner, inner corner] tile ids, when they do not follow first_tile
 ```"#;
@@ -576,6 +576,8 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "tilemap",
         ComponentDef {
+            events: &[],
+            warnings: None,
             doc: "A grid of tiles from one `tileset` asset, centred on the node. `cells` holds rows of tile ids; `pixels_per_unit` is tile pixels per world unit.",
             schema: ComponentDef::parse_schema(
                 "tilemap",

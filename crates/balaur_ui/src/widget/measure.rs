@@ -123,18 +123,18 @@ impl<'a> Measure<'a> {
             w::LABEL => self.text(index, widget, theme),
             // Room for a dozen wide letters: what a field takes before a
             // container or a `width` says otherwise.
-            w::FIELD => {
+            w::TEXT_FIELD => {
                 let line = self.galley(index, "MMMMMMMMMMMM", widget, theme);
                 line + self.padding
             }
-            w::TAB => {
+            w::TABS => {
                 let strip = self.strip(index, theme);
                 let pages = self.widest_child(index, theme);
                 let gap = widget.gap;
                 vec2(strip.x.max(pages.x), strip.y + gap + pages.y)
             }
             // A box the height of the text, then the caption.
-            w::CHECK => {
+            w::CHECKBOX => {
                 let text = self.text(index, widget, theme);
                 let line = widget.font_size;
                 vec2(text.x + line + self.padding.x, text.y.max(line))
@@ -154,16 +154,30 @@ impl<'a> Measure<'a> {
                 }
                 widest + self.padding + vec2(20.0, 0.0)
             }
-            w::SLIDER | w::PROGRESS => vec2(160.0, widget.font_size + self.padding.y),
+            w::SLIDER | w::PROGRESS_BAR => vec2(160.0, widget.font_size + self.padding.y),
             w::SEPARATOR => egui::Vec2::splat(6.0),
             w::WINDOW if !widget.open => egui::Vec2::ZERO,
             w::FOLD => {
-                let head = self.text(index, widget, theme) + vec2(20.0, 0.0);
+                // The arrow is a square as tall as the caption's line.
+                let text = self.text(index, widget, theme);
+                let mut head = vec2(text.x + text.y + 8.0, text.y);
+                let arena = self.arena;
+                for child in &arena[index].children {
+                    if crate::widget::kinds::in_title_bar(arena, index, *child) {
+                        let size = self.of(*child, theme);
+                        head = vec2(head.x + size.x + 8.0, head.y.max(size.y));
+                    }
+                }
+                let look = crate::widget::arena::look_of(arena, index, theme);
+                let head = head + padding_of(widget, &look.style).taken();
                 if !widget.open {
                     return head;
                 }
-                let body = self.container(index, theme);
-                vec2(head.x.max(body.x), head.y + body.y)
+                let frame = look.style.body.as_deref().map_or(egui::Vec2::ZERO, |body| {
+                    crate::widget::arrange::style_padding(body, 0.0).taken()
+                });
+                let body = self.container(index, theme) + frame;
+                vec2(head.x.max(body.x), head.y + 8.0 + body.y)
             }
             // Drawn as a button once its rows are nodes, so measured as one; a
             // menu of strings is egui's own button, measured by its caption.
@@ -202,6 +216,9 @@ impl<'a> Measure<'a> {
         let mut across: f32 = 0.0;
         let mut drawn = 0usize;
         for child in &children {
+            if crate::widget::kinds::in_title_bar(self.arena, index, *child) {
+                continue;
+            }
             let size = self.of(*child, theme);
             if size == egui::Vec2::ZERO {
                 continue;

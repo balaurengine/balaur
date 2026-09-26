@@ -177,6 +177,8 @@ pub(crate) fn register_transform_component(app: &mut App) {
     app.register_component(
         COMPONENT,
         ComponentDef {
+            events: &[],
+            warnings: None,
             doc: "The node's `position`, `rotation_euler`, `scale` and `skew` in its parent's space. A node without one sits at its parent.",
             schema: ComponentDef::parse_schema(COMPONENT, &schema()),
             tags: &["2d", "3d"],

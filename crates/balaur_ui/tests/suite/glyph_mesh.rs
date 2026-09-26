@@ -12,7 +12,7 @@ fn app_with_a_font() -> (tempfile::TempDir, App) {
     app_with_a_scene("")
 }
 
-/// The editor's own `fonts/`: four faces, and `icons-` sorts before `ui-`.
+/// The editor's own `fonts/`: four faces, and `icon-` sorts before `ui-`.
 /// A word that names no font must still land on the text face.
 fn app_with_every_editor_font() -> (tempfile::TempDir, App) {
     let dir = tempfile::tempdir().unwrap();
@@ -211,7 +211,7 @@ mesh = { source = "#title" }
     assert!(max[0] - min[0] > 0.4, "two letters are wider than that");
 }
 
-/// The editor loads an icon face beside its text faces, and `icons-` sorts
+/// The editor loads an icon face beside its text faces, and `icon-` sorts
 /// first. Naming no font asked the database for its default family, which
 /// answered with the icon face: every word filled to nothing.
 #[test]

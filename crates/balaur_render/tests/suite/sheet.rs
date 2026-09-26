@@ -69,7 +69,7 @@ fn a_sheet_frame_sizes_the_quad_and_picks_its_region() {
         &app.engine,
         entity,
         "sprite",
-        Some(&sprite_table("frame = 1.0")),
+        Some(&sprite_table("frame = 1")),
     )
     .unwrap();
     let (hx, hy) = half_extents(&app, entity);
@@ -91,15 +91,16 @@ fn a_frame_past_the_end_draws_the_last_one() {
         &app.engine,
         entity,
         "sprite",
-        Some(&sprite_table("frame = 9.0")),
+        Some(&sprite_table("frame = 9")),
     )
     .unwrap();
     let (hx, _) = half_extents(&app, entity);
     assert_close(hx, 0.75);
     let saved = components::get(&app.engine, entity, "sprite").unwrap();
-    assert!(
-        (saved["frame"].as_float().unwrap() - 9.0).abs() < f64::EPSILON,
-        "the frame reads back as written"
+    assert_eq!(
+        saved["frame"].as_integer(),
+        Some(9),
+        "the frame reads back as written, a whole number"
     );
 }
 
@@ -111,7 +112,7 @@ fn a_sprite_reports_its_sheet_and_not_the_region_it_derived() {
         &app.engine,
         entity,
         "sprite",
-        Some(&sprite_table("frame = 0.0")),
+        Some(&sprite_table("frame = 0")),
     )
     .unwrap();
     let saved = components::get(&app.engine, entity, "sprite").unwrap();
@@ -130,7 +131,7 @@ fn a_sprite_reports_its_sheet_and_not_the_region_it_derived() {
         "a derived region is not authored"
     );
     // Keying the frame through `patch`, as a clip does, moves the region.
-    let key: toml::Value = toml::from_str("frame = 1.0").unwrap();
+    let key: toml::Value = toml::from_str("frame = 1").unwrap();
     components::patch(&app.engine, entity, "sprite", &key).unwrap();
     let (hx, _) = half_extents(&app, entity);
     assert_close(hx, 0.75);
@@ -145,7 +146,7 @@ fn a_texture_named_beside_the_sheet_wins_and_reads_back() {
         entity,
         "sprite",
         Some(&sprite_table(&format!(
-            "frame = 0.0\ntexture = \"{FIXTURE}\""
+            "frame = 0\ntexture = \"{FIXTURE}\""
         ))),
     )
     .unwrap();
@@ -158,7 +159,7 @@ fn a_sheet_that_does_not_parse_names_the_frame() {
     let app = app();
     let entity = node(&app);
     let table: toml::Value = toml::from_str(&format!(
-        "frame = 0.0\n[sheet]\ntexture = \"{FIXTURE}\"\nframes = [{{ rect = [0, 0, 0, 0] }}]\n"
+        "frame = 0\n[sheet]\ntexture = \"{FIXTURE}\"\nframes = [{{ rect = [0, 0, 0, 0] }}]\n"
     ))
     .unwrap();
     let error = format!(

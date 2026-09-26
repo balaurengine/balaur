@@ -27,7 +27,7 @@ pub enum Stage {
     Update,
     /// The simulation: script `fixed_update(dt)`, then the physics step.
     ///
-    /// Runs zero or more times per frame, always at [`FIXED_DT`], driven by
+    /// Runs zero or more times per frame, always at [`DEFAULT_FIXED_DT`], driven by
     /// one accumulator the app owns. A system here must never read the
     /// frame's measured time — that is what makes the tick reproducible.
     FixedUpdate,
@@ -45,23 +45,23 @@ const STAGE_COUNT: usize = 8;
 
 /// The simulation's tick rate. One declaration, because two independently
 /// written 60ths of a second are equal today and a desync the day one moves.
-pub const TICK_HZ: u32 = 60;
+pub const DEFAULT_TICK_HZ: u32 = 60;
 
 /// The fixed simulation step. Physics, animation and `App::set_fixed_dt` all
 /// take their step from here.
-pub const FIXED_DT: f32 = 1.0 / TICK_HZ as f32;
+pub const DEFAULT_FIXED_DT: f32 = 1.0 / DEFAULT_TICK_HZ as f32;
 
 /// How far behind a frame may fall before time is dropped rather than caught
-/// up on, at [`TICK_HZ`]. Without it a stalled frame spends its recovery in a
+/// up on, at [`DEFAULT_TICK_HZ`]. Without it a stalled frame spends its recovery in a
 /// spiral of catch-up steps.
 pub const MAX_SUBSTEPS: u32 = 4;
 
 thread_local! {
-    /// The rate this run ticks at: `[time] tick_hz`, or [`TICK_HZ`] until a
+    /// The rate this run ticks at: `[time] tick_hz`, or [`DEFAULT_TICK_HZ`] until a
     /// project says otherwise. Per thread rather than global because a test
     /// binary runs many apps at once, each with its own project.
     static TICK: std::cell::Cell<(u32, f32)> =
-        const { std::cell::Cell::new((TICK_HZ, FIXED_DT)) };
+        const { std::cell::Cell::new((DEFAULT_TICK_HZ, DEFAULT_FIXED_DT)) };
 }
 
 /// How many fixed steps a second this run takes.
@@ -71,7 +71,7 @@ pub fn tick_hz() -> u32 {
 }
 
 /// The fixed step this run takes, in seconds. What every subsystem counting
-/// simulation time reads instead of [`FIXED_DT`], which is only the default.
+/// simulation time reads instead of [`DEFAULT_FIXED_DT`], which is only the default.
 #[must_use]
 pub fn fixed_dt() -> f32 {
     TICK.with(|t| t.get().1)
@@ -81,7 +81,7 @@ pub fn fixed_dt() -> f32 {
 /// whatever the tick, so a faster tick does not cap a frame sooner.
 #[must_use]
 pub fn max_substeps() -> u32 {
-    (MAX_SUBSTEPS * tick_hz() / TICK_HZ).max(1)
+    (MAX_SUBSTEPS * tick_hz() / DEFAULT_TICK_HZ).max(1)
 }
 
 /// Set the rate this run ticks at. For [`App`] reading `[time] tick_hz` and
@@ -206,6 +206,7 @@ pub struct App {
 fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     eng.insert_resource(SceneKeyRegistry::default());
     eng.insert_resource(crate::components::ComponentRegistry::default());
+    eng.insert_resource(crate::warnings::Refusals::default());
     eng.insert_resource(crate::components::Authored::default());
     eng.insert_resource(crate::plugins::PluginRegistry::default());
     eng.insert_resource(crate::presets::PresetRegistry::default());
@@ -217,7 +218,7 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     // Before any setting is read, since the tags in force decide which
     // `[override.<tag>]` a read answers from.
     eng.insert_resource(crate::tags::Tags::current());
-    // A pack's manifest is here already, and `application/assets` decides
+    // A pack's manifest is here already, and `application/asset_source` decides
     // how its files are served, so it is read before the files exist.
     if let Some(pack) = config.pack.as_ref()
         && crate::settings::load(eng, &pack.manifest).is_ok()
@@ -231,7 +232,7 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
             Some(pack) => crate::project::ProjectFiles::packed(
                 config.project_root.clone(),
                 pack.assets.clone(),
-                crate::settings::stated(eng, "application/assets")
+                crate::settings::stated(eng, "application/asset_source")
                     .and_then(|v| v.try_into().ok())
                     .unwrap_or_default(),
             )
@@ -368,7 +369,7 @@ impl App {
         };
         // A test binary builds many apps on one thread, and the rate is that
         // thread's: each starts at the default until its project moves it.
-        set_tick_hz(TICK_HZ);
+        set_tick_hz(DEFAULT_TICK_HZ);
         register_core_content(&mut app);
         crate::snapshot::build_core_sources(&mut app);
         crate::netsession::build_session_source(&mut app);
@@ -446,6 +447,7 @@ impl App {
                 }
             }
             if !freed.is_empty() {
+                scene::announce_leaving(eng, &freed);
                 scene::free_nodes(eng, &freed);
             }
         });
@@ -481,7 +483,7 @@ impl App {
     /// different simulation. Off by default — a variable step is smoother
     /// for a single-player game that never records or networks anything.
     /// The step one [`App::tick`] is worth: `set_fixed_dt` where a game set
-    /// one, [`FIXED_DT`] otherwise.
+    /// one, [`DEFAULT_FIXED_DT`] otherwise.
     ///
     /// A rollback session drives at exactly this, so the substep accumulator
     /// is back at zero every time it captures.
@@ -797,7 +799,7 @@ impl App {
             clippy::cast_sign_loss,
             reason = "a rate from a setting bounded at 1..=480"
         )]
-        set_tick_hz(hz.map_or(TICK_HZ, |n| n as u32));
+        set_tick_hz(hz.map_or(DEFAULT_TICK_HZ, |n| n as u32));
         crate::interpolate::apply_setting(&self.engine);
     }
 
@@ -974,7 +976,7 @@ impl App {
         crate::logbuf::flush_file();
     }
 
-    /// Drain the accumulator into whole [`FIXED_DT`] steps.
+    /// Drain the accumulator into whole [`DEFAULT_FIXED_DT`] steps.
     ///
     /// One accumulator for the whole simulation, so scripts and physics take
     /// the same number of steps in the same order every frame. Time past

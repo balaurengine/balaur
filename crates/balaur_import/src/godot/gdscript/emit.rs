@@ -11,6 +11,7 @@ use std::fmt::Write as _;
 
 use super::ast::{Expr, MatchArm, Stmt};
 use super::map;
+use super::{GETTER, SETTER};
 
 mod calls;
 mod ops;
@@ -68,10 +69,18 @@ pub(crate) struct Context {
     /// Whether the class is a `RefCounted` or a `Resource` rather than a
     /// node: its `new()` is a table, and `self` is that table.
     pub object_class: bool,
+    /// Exports whose values no script prop holds: the scene files them in
+    /// the node's `meta`, and `init` reads them back as Godot's types.
+    pub data_exports: Vec<String>,
+    /// Whether a node class writes an `exports()`, which `init` keeps across `_init`.
+    pub scene_exports: bool,
     /// Properties with a `get` or a `set`: a read or a write of one outside
     /// its own accessor calls `__get_<name>` or `__set_<name>`.
     pub getters: BTreeSet<String>,
     pub setters: BTreeSet<String>,
+    /// The function `get = f` or `set = f` names, to its property: inside
+    /// it the property is read and written where it is kept.
+    pub named_accessors: BTreeMap<String, String>,
     /// Members typed or valued `bool`, and methods declared `-> bool`: a
     /// test of one needs no truthiness check.
     pub bools: BTreeSet<String>,
@@ -572,7 +581,7 @@ impl<'a> Emitter<'a> {
             && self.context.static_vars.contains_key(name)
             && !self.in_accessor_of(name)
         {
-            return format!("__get_{name}()");
+            return format!("{GETTER}{name}()");
         }
         if let Some(fallback) = self.context.static_vars.get(name).cloned() {
             self.uses_shim = true;
@@ -676,27 +685,64 @@ impl<'a> Emitter<'a> {
         if let Expr::Field(object, name) = arg
             && !matches!(**object, Expr::SelfRef)
             && !self.context.signals.contains(name)
+            && !matches!(&**object, Expr::Name(class) if map::static_value(class, name).is_some())
         {
-            let owner = self.expression(object);
-            return format!(
-                "#{{ \"__bound\": {owner}, \"__method\": {} }}",
-                quoted(name)
-            );
+            return self.bound_record(object, name, &[]);
+        }
+        // `other.method.bind(a)`: the same record, carrying what `bind` fixed.
+        if let Expr::Call(callee, bound) = arg
+            && let Expr::Field(target, verb) = &**callee
+            && verb == map::BIND
+            && let Expr::Field(object, name) = &**target
+            && !matches!(**object, Expr::SelfRef)
+            && !self.context.signals.contains(name)
+        {
+            return self.bound_record(object, name, bound);
         }
         self.connect_handler(arg)
             .unwrap_or_else(|| self.expression(arg))
     }
 
+    /// Another object's method as a value, with what `bind` fixed: the
+    /// record the shim's `call_value` calls.
+    fn bound_record(&mut self, object: &Expr, name: &str, fixed: &[Expr]) -> String {
+        let owner = self.expression(object);
+        let mut record = format!(
+            "#{{ {}: {owner}, {}: {}",
+            quoted(map::BOUND_OWNER),
+            quoted(map::BOUND_METHOD),
+            quoted(name)
+        );
+        if !fixed.is_empty() {
+            let values: Vec<String> = fixed.iter().map(|value| self.expression(value)).collect();
+            let _ = write!(
+                record,
+                ", {}: [{}]",
+                quoted(map::BOUND_ARGS),
+                values.join(", ")
+            );
+        }
+        record.push_str(" }");
+        record
+    }
+
     /// A member read: its getter, outside the property's own accessors.
     fn member_read(&self, name: &str) -> String {
         if self.context.getters.contains(name) && !self.in_accessor_of(name) {
-            return format!("__get_{name}(this)");
+            return format!("{GETTER}{name}(this)");
         }
         format!("this.{}", safe(name))
     }
 
     fn in_accessor_of(&self, name: &str) -> bool {
-        self.enclosing == format!("__get_{name}") || self.enclosing == format!("__set_{name}")
+        self.enclosing == format!("{GETTER}{name}")
+            || self.enclosing == format!("{SETTER}{name}")
+            || self
+                .context
+                .named_accessors
+                .get(&self.enclosing)
+                .map(String::as_str)
+                == Some(name)
     }
 
     fn field(&mut self, object: &Expr, field: &str) -> String {
@@ -832,7 +878,7 @@ impl<'a> Emitter<'a> {
         let Expr::Field(object, verb) = callee else {
             return self.signal_by_name(callee, args);
         };
-        if verb == "bind" {
+        if verb == map::BIND {
             return self.callable(&Expr::Call(Box::new(callee.clone()), args.to_vec()));
         }
         if (verb == "call" || verb == "call_deferred")

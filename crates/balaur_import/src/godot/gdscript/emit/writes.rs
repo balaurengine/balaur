@@ -5,6 +5,7 @@ use std::fmt::Write as _;
 
 use super::{Emitter, discardable, map, quoted, replace_root, safe, tree_parameter};
 use crate::godot::gdscript::ast::Expr;
+use crate::godot::gdscript::{GETTER, SETTER};
 
 impl Emitter<'_> {
     pub(super) fn assignment(
@@ -109,9 +110,9 @@ impl Emitter<'_> {
             let text = if op == "=" {
                 text
             } else {
-                format!("__get_{name}() {} ({text})", op.trim_end_matches('='))
+                format!("{GETTER}{name}() {} ({text})", op.trim_end_matches('='))
             };
-            let _ = writeln!(out, "{pad}__set_{name}({text});");
+            let _ = writeln!(out, "{pad}{SETTER}{name}({text});");
             return Some(out);
         }
         if self.context.setters.contains(name)
@@ -125,7 +126,7 @@ impl Emitter<'_> {
                 let read = self.member_read(name);
                 format!("{read} {} ({text})", op.trim_end_matches('='))
             };
-            let _ = writeln!(out, "{pad}__set_{name}(this, {text});");
+            let _ = writeln!(out, "{pad}{SETTER}{name}(this, {text});");
             return Some(out);
         }
         // A member with a getter and no setter is written where it is kept:

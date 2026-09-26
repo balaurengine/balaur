@@ -43,20 +43,27 @@ the first two is a variant of one before it.
 `softbody2d` and `softbody3d`: a deformable body of particles linked by elastic
 constraints. **Done**, on rapier 0.36.
 
-- **Laid out by `kind`.** Generators (`cuboid`, `sphere`, `cloth`, `cloth_tube`,
-  `rope` in 3D; `grid`, `disk`, `rope` in 2D) or a mesh (`trimesh` for a
-  surface, `volumetric` for the approximate tetrahedrization of a closed mesh,
-  `polygon` and `polyline` in 2D).
-- **Made of what the material rows say.** A spring frequency and damping ratio
-  per constraint family, a cell model (`volume`, `corotational`, `neo_hookean`)
-  with a Young modulus and a Poisson ratio, plasticity on the cells and on the
-  edges, and volume preservation.
-- **Drawn from the solver.** The body's collision mesh goes onto the node as a
-  `SolvedMesh` each fixed step; in 2D a `SolvedPolygon` outranks a deform track
-  on the polygon's own vertices.
-- **In the snapshot and the digest from the first commit.** Rapier's
-  `PhysicsWorld` carries the `SoftBodySet`, and the digest hashes every
-  particle's velocity and the body's topology version.
+- `kind` lays the particles out: generators (`cuboid`, `sphere`, `cloth`,
+  `cloth_tube`, `rope` in 3D; `grid`, `disk`, `rope` in 2D) or a mesh
+  (`trimesh` for a surface, `volumetric` for the approximate tetrahedrization
+  of a closed mesh, `polygon` and `polyline` in 2D).
+- The material rows set a spring frequency and damping ratio per constraint
+  family, a cell model (`volume`, `corotational`, `neo_hookean`) with a Young
+  modulus and a Poisson ratio, plasticity on the cells and on the edges, and
+  volume preservation. `solver = "fem"` runs the elasticity as rapier's
+  implicit step.
+- The body's collision mesh goes onto the node as a `SolvedMesh` each fixed
+  step. In 2D a `SolvedPolygon` outranks a deform track on the polygon's own
+  vertices. A 2D body hands over its skin, its cells, its outline filled or
+  its segments as a ribbon, so every layout draws; `color` tints one with no
+  polygon of its own.
+- Rapier's `PhysicsWorld` carries the `SoftBodySet` in the snapshot, and the
+  digest hashes every particle's velocity and the body's topology version.
+- The editor makes one from what a node draws, in one undo step
+  (`editor/scripts/recipes.rn`): a sprite is traced into a textured polygon
+  the cells bend, a shape becomes its generator, a mesh is filled. The
+  outliner's Change type, the Physics panel's Make row and the new-node
+  picker all reach it.
 
 ### Cloth and rope
 
@@ -101,11 +108,12 @@ a yield stress. **Needs:** the fluid solver, plus a granular model.
 3. Fluids in 2D with an emitter component and point rendering; then 3D.
 4. Gases as a fluid with buoyancy, drawn from a density field.
 5. Granular materials as a fluid variant.
-6. Editor: **done for soft bodies** — the Physics persona shows every
+6. Editor: **done for soft bodies** — the Physics workspace shows every
    physics-tagged component, and one click turns a mesh into a filled, skinned
    or surface soft body. Gizmos for emitters and volumes are still to come.
 7. Something to look at: **built**. `examples/cloth` drapes one sheet over a
    block, and drops a ball through a second, pinned sheet with a `tear_strain`.
+   `examples/jelly` drops one 2D body of each layout.
 
 ## Open questions
 

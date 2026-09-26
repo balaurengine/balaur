@@ -19,7 +19,7 @@ plugin = { type = "string", default = "", order = 3, help = "The server plugin a
 "#;
 
 const EDITOR_SCHEMA: &str = r#"
-target = { type = "enum", default = "production", options = ["production", "local"], order = 4, help = "Which of the project's two servers a game played from this editor talks to. Kept in the editor's own file, so it never ships." }
+server = { type = "enum", default = "production", options = ["production", "local"], order = 4, help = "Which of the project's two servers a game played from this editor talks to. Kept in the editor's own file, so it never ships." }
 "#;
 
 /// The two names a target goes by.
@@ -47,12 +47,12 @@ fn text(eng: &Engine, key: &str) -> String {
 }
 
 /// The server a `configure()` with no URL points at: the local one when the
-/// editor's target says so, the project's own otherwise.
+/// editor's server setting says so, the project's own otherwise.
 pub(crate) fn url(eng: &Engine) -> String {
     let production = Some(text(eng, "url"))
         .filter(|url| !url.is_empty())
         .unwrap_or_else(|| DEFAULT_URL.to_string());
-    if text(eng, "target") == LOCAL {
+    if text(eng, "server") == LOCAL {
         let local = text(eng, "local_url");
         if !local.is_empty() {
             return local;
@@ -61,9 +61,9 @@ pub(crate) fn url(eng: &Engine) -> String {
     production
 }
 
-/// `gamend.target()`: both servers, which one is picked, and the plugin.
+/// `gamend.server()`: both servers, which one is picked, and the plugin.
 pub(crate) fn value(eng: &Engine) -> Value {
-    let picked = if text(eng, "target") == LOCAL {
+    let picked = if text(eng, "server") == LOCAL {
         LOCAL
     } else {
         PRODUCTION

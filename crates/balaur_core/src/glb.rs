@@ -680,7 +680,7 @@ pub struct GlbImport {
     /// on every joint, one `mesh` node per material, and a `material` asset
     /// carrying each one's factors and maps.
     pub scene: toml::Value,
-    /// An `animation_clip` library with one entry per animation, or `None`.
+    /// An `animation_library` with one entry per animation, or `None`.
     pub clips: Option<toml::Value>,
     /// Files to write beside the model under `models/`: the `.bin` a
     /// `.gltf` names, every texture its materials name, and a sidecar per
@@ -1045,7 +1045,7 @@ fn clips_of(model: &Model) -> Option<toml::Value> {
                 .zip(&values)
                 .map(|(t, v)| {
                     let mut key = toml::map::Map::new();
-                    key.insert("t".into(), toml::Value::Float(f64::from(*t)));
+                    key.insert("time".into(), toml::Value::Float(f64::from(*t)));
                     key.insert("value".into(), floats(v.iter().copied()));
                     toml::Value::Table(key)
                 })
@@ -1058,11 +1058,14 @@ fn clips_of(model: &Model) -> Option<toml::Value> {
             let target = model.path(usize::MAX, channel.target().node().index());
             track.insert("target".into(), toml::Value::String(target));
             track.insert("property".into(), toml::Value::String(property.into()));
-            let interp = match channel.sampler().interpolation() {
+            let interpolation = match channel.sampler().interpolation() {
                 gltf::animation::Interpolation::Step => "step",
                 _ => "linear",
             };
-            track.insert("interp".into(), toml::Value::String(interp.into()));
+            track.insert(
+                "interpolation".into(),
+                toml::Value::String(interpolation.into()),
+            );
             track.insert("keys".into(), toml::Value::Array(keys));
             tracks.push(toml::Value::Table(track));
         }
@@ -1074,7 +1077,7 @@ fn clips_of(model: &Model) -> Option<toml::Value> {
             "length".into(),
             toml::Value::Float(f64::from(length.max(0.001))),
         );
-        clip.insert("loop".into(), toml::Value::String("loop".into()));
+        clip.insert("loop_mode".into(), toml::Value::String("linear".into()));
         clip.insert("tracks".into(), toml::Value::Array(tracks));
         clips.insert(name, toml::Value::Table(clip));
     }
@@ -1082,7 +1085,10 @@ fn clips_of(model: &Model) -> Option<toml::Value> {
         return None;
     }
     let mut document = toml::map::Map::new();
-    document.insert("type".into(), toml::Value::String("animation_clip".into()));
+    document.insert(
+        "type".into(),
+        toml::Value::String("animation_library".into()),
+    );
     document.insert("clips".into(), toml::Value::Table(clips));
     Some(toml::Value::Table(document))
 }

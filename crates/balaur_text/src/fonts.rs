@@ -45,12 +45,12 @@ const SYSTEM_FACES: &[&str] = &[
 /// guess put every new face in the UI chain and nothing said so.
 fn chain_of(stem: &str) -> &'static str {
     let lower = stem.to_lowercase();
-    for prefix in ["heading", "ui", "mono", "icons"] {
+    for prefix in ["heading", "ui", "mono", "icon"] {
         if lower.starts_with(&format!("{prefix}-")) {
             return match prefix {
                 "heading" => "heading",
                 "mono" => "mono",
-                "icons" => "icons",
+                "icon" => "icon",
                 _ => "ui",
             };
         }
@@ -69,7 +69,7 @@ fn chain_of(stem: &str) -> &'static str {
 #[derive(Clone)]
 pub struct FontFace {
     pub name: String,
-    /// `heading`, `ui`, `mono`, `icons`, or `system` for an OS face.
+    /// `heading`, `ui`, `mono`, `icon`, or `system` for an OS face.
     pub chain: &'static str,
     pub bytes: std::sync::Arc<Vec<u8>>,
     /// What the face's import settings adjust when the UI draws it.
@@ -114,14 +114,14 @@ impl FaceTweak {
     }
 }
 
-/// The chain a face's `family` names, or `None` for a word that names none.
+/// The chain a face's `font_family` names, or `None` for a word that names none.
 fn family_of(settings: &toml::Table) -> Option<&'static str> {
     use balaur_core::import::{keys, word, words};
-    match word(settings, keys::FAMILY, "") {
+    match word(settings, keys::FONT_FAMILY, "") {
         words::UI => Some("ui"),
         words::HEADING => Some("heading"),
         words::MONO => Some("mono"),
-        words::ICONS => Some("icons"),
+        words::ICON => Some("icon"),
         _ => None,
     }
 }

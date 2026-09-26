@@ -102,7 +102,7 @@ out, in order of cost:
 - **Author it.** Containers divide explicit sizes and leftovers only; a leaf
   that must hug its content states a size. Covers the whole editor shell.
 - **Measure last frame.** Draw, record what was used, use it next frame. The
-  persona bar already does this (`layout.rn`'s `bar_fit`) and settles in one
+  workspace bar already does this (`layout.rn`'s `bar_fit`) and settles in one
   frame with no visible flicker.
 - **A real measure pass.** A binding over egui's text galley so a node can be
   asked its minimum before anything draws. The correct answer, and the only
@@ -312,7 +312,7 @@ engine's `tab` has no notion of, and the dock bodies are immediate-mode
 lose features to gain a shared name.
 
 **Verified against the editor it replaced**: all 30 audit screens, every
-published rect identical to a tenth of a pixel, and `layoutdemo`'s nine
+published rect identical to a tenth of a pixel, and `test:layout`'s nine
 invariants pass.
 
 Three real bugs came out of holding it to that standard:
@@ -326,14 +326,14 @@ Three real bugs came out of holding it to that standard:
   pass answers 0 for an empty box, and only what cannot be measured ahead — a
   script's rect, a scroll's contents — asks for the leftover. A zero-size box
   takes no seam either, which is what a hidden tool rail needs.
-- **The persona bar measured itself against a sheet that had no height yet**
+- **The workspace bar measured itself against a sheet that had no height yet**
   and overshot by exactly the width of the transport controls. It now waits
   for a sheet with both.
 
 The cost is one frame: the widget layer draws after `draw_ui`, so a rect read
 back is the previous frame's. Rects are published at the end of the draw
 rather than the start of the next one, which is the smaller of the two lags
-available, and `layoutdemo` waits for a shell rather than for a frame number.
+available, and `test:layout` waits for a shell rather than for a frame number.
 
 ## 6. What this does not change
 

@@ -15,7 +15,7 @@ pub fn grid2d(S) {
     if half_w > 200.0 || half_h > 200.0 {
         return;
     }
-    let minor = util::rgb(k.grid);
+    let minor = util::rgb(k.grid_minor);
     let major = util::rgb(k.grid_major);
     let x0 = math::floor(cx - half_w) as i64;
     let x1 = math::ceil(cx + half_w) as i64;
@@ -40,21 +40,21 @@ pub fn guides(S) {
     };
     let p = found.transform.global_position();
     let k = S.theme;
-    let a = util::rgb(k.accent);
-    let s = util::rgb(k.sage);
+    let a = util::rgb(k.axis_x);
+    let s = util::rgb(k.axis_y);
     if model::is_2d(S) {
         render::draw_line_2d(p.x - 4.0, p.y, p.x + 4.0, p.y, a[0], a[1], a[2], 1.0);
         render::draw_line_2d(p.x, p.y - 4.0, p.x, p.y + 4.0, s[0], s[1], s[2], 1.0);
         return;
     }
-    let d = util::rgb(k.dim);
-    render::draw_line(p.x - 4.0, p.y, p.z, p.x + 4.0, p.y, p.z, a[0], a[1], a[2], 1.0);
-    render::draw_line(p.x, p.y - 4.0, p.z, p.x, p.y + 4.0, p.z, s[0], s[1], s[2], 1.0);
-    render::draw_line(p.x, p.y, p.z - 4.0, p.x, p.y, p.z + 4.0, d[0], d[1], d[2], 1.0);
+    let d = util::rgb(k.axis_z);
+    render::draw_line_3d(p.x - 4.0, p.y, p.z, p.x + 4.0, p.y, p.z, a[0], a[1], a[2], 1.0);
+    render::draw_line_3d(p.x, p.y - 4.0, p.z, p.x, p.y + 4.0, p.z, s[0], s[1], s[2], 1.0);
+    render::draw_line_3d(p.x, p.y, p.z - 4.0, p.x, p.y, p.z + 4.0, d[0], d[1], d[2], 1.0);
 }
 
 // The selected clip's position keys, joined in order, with a marker on each
-// (Motion path chip, anim persona).
+// (Motion path chip, anim workspace).
 pub fn motion_path(S) {
     let def = match anim::definition(S) {
         Some(def) => def,
@@ -74,7 +74,7 @@ pub fn motion_path(S) {
         return;
     }
     let k = S.theme;
-    let c = util::rgb(k.accent);
+    let c = util::rgb(k.primary_text);
     let is2d = model::is_2d(S);
     let previous = None;
     for key in keys {
@@ -86,7 +86,7 @@ pub fn motion_path(S) {
             if is2d {
                 render::draw_line_2d(prev[0], prev[1], x, y, c[0], c[1], c[2], 1.0);
             } else {
-                render::draw_line(prev[0], prev[1], prev[2], x, y, z, c[0], c[1], c[2], 1.0);
+                render::draw_line_3d(prev[0], prev[1], prev[2], x, y, z, c[0], c[1], c[2], 1.0);
             }
         }
         let d = 0.15;
@@ -94,8 +94,8 @@ pub fn motion_path(S) {
             render::draw_line_2d(x - d, y, x + d, y, c[0], c[1], c[2], 2.0);
             render::draw_line_2d(x, y - d, x, y + d, c[0], c[1], c[2], 2.0);
         } else {
-            render::draw_line(x - d, y, z, x + d, y, z, c[0], c[1], c[2], 2.0);
-            render::draw_line(x, y - d, z, x, y + d, z, c[0], c[1], c[2], 2.0);
+            render::draw_line_3d(x - d, y, z, x + d, y, z, c[0], c[1], c[2], 2.0);
+            render::draw_line_3d(x, y - d, z, x, y + d, z, c[0], c[1], c[2], 2.0);
         }
         previous = Some([x, y, z]);
     }
@@ -103,7 +103,7 @@ pub fn motion_path(S) {
 
 pub fn colliders2d(S) {
     let k = S.theme;
-    let c = util::rgb(k.sage);
+    let c = util::rgb(k.node_physics);
     for (i, node) in S.doc.iter().enumerate() {
         let collider = match node.get("collider2d") {
             Some(collider) => if collider is Object { collider } else { continue },
@@ -130,9 +130,9 @@ pub fn colliders2d(S) {
                 py = ny;
             }
         } else {
-            let he = util::vec2(collider.get("half_extents").unwrap_or(()), [0.5, 0.5]);
-            let hx = he[0] * s.x;
-            let hy = he[1] * s.y;
+            let size = util::vec2(collider.get("size").unwrap_or(()), [1.0, 1.0]);
+            let hx = size[0] / 2.0 * s.x;
+            let hy = size[1] / 2.0 * s.y;
             let (x1, y1) = pt(-hx, -hy);
             let (x2, y2) = pt(hx, -hy);
             let (x3, y3) = pt(hx, hy);
@@ -214,7 +214,7 @@ fn light_gizmo(found, light) {
 // derived one (from `collider2d`, or the node's shape) draws too.
 fn occluder_outline(S, found) {
     let k = S.theme;
-    let c = util::rgb(k.accent);
+    let c = util::rgb(k.primary_text);
     // Flat x, y pairs, already closed when the occluder is.
     let flat = found.occluder2d.outline();
     let count = flat.len() / 2;
@@ -229,7 +229,7 @@ fn occluder_outline(S, found) {
 
 pub fn colliders(S) {
     let k = S.theme;
-    let c = util::rgb(k.sage);
+    let c = util::rgb(k.node_physics);
     for (i, node) in S.doc.iter().enumerate() {
         let collider = match node.get("collider3d") {
             Some(collider) => if collider is Object { collider } else { continue },
@@ -249,33 +249,33 @@ pub fn colliders(S) {
             hx = r;
             hy = r;
             hz = r;
-        } else if let Some(he) = collider.get("half_extents") {
-            let he = util::vec3(he, [0.5, 0.5, 0.5]);
-            hx = he[0];
-            hy = he[1];
-            hz = he[2];
+        } else if let Some(size) = collider.get("size") {
+            let size = util::vec3(size, [1.0, 1.0, 1.0]);
+            hx = size[0] / 2.0;
+            hy = size[1] / 2.0;
+            hz = size[2] / 2.0;
         }
         let xs = [p.x - hx, p.x + hx];
         let ys = [p.y - hy, p.y + hy];
         let zs = [p.z - hz, p.z + hz];
         for yy in ys {
             for zz in zs {
-                render::draw_line(xs[0], yy, zz, xs[1], yy, zz, c[0], c[1], c[2], 1.0);
+                render::draw_line_3d(xs[0], yy, zz, xs[1], yy, zz, c[0], c[1], c[2], 1.0);
             }
         }
         for xx in xs {
             for zz in zs {
-                render::draw_line(xx, ys[0], zz, xx, ys[1], zz, c[0], c[1], c[2], 1.0);
+                render::draw_line_3d(xx, ys[0], zz, xx, ys[1], zz, c[0], c[1], c[2], 1.0);
             }
         }
         for xx in xs {
             for yy in ys {
-                render::draw_line(xx, yy, zs[0], xx, yy, zs[1], c[0], c[1], c[2], 1.0);
+                render::draw_line_3d(xx, yy, zs[0], xx, yy, zs[1], c[0], c[1], c[2], 1.0);
             }
         }
         // Center of mass.
-        render::draw_line(p.x - 0.15, p.y, p.z, p.x + 0.15, p.y, p.z, c[0], c[1], c[2], 3.0);
-        render::draw_line(p.x, p.y - 0.15, p.z, p.x, p.y + 0.15, p.z, c[0], c[1], c[2], 3.0);
+        render::draw_line_3d(p.x - 0.15, p.y, p.z, p.x + 0.15, p.y, p.z, c[0], c[1], c[2], 3.0);
+        render::draw_line_3d(p.x, p.y - 0.15, p.z, p.x, p.y + 0.15, p.z, c[0], c[1], c[2], 3.0);
     }
 }
 
@@ -289,19 +289,20 @@ fn forward_of(found) {
     [-b[2][0], -b[2][1], -b[2][2]]
 }
 
-fn line3(a, b, c, width) {
-    render::draw_line(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2], width);
+// One segment onto `out`, in `render::draw_lines`' eleven numbers.
+fn line3(out, a, b, c, width) {
+    out.extend([a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2], width, 0.0]);
 }
 
 /// A ring of `radius` about `center` in the plane spanned by `u` and `v`.
-fn ring3(center, u, v, radius, c, width) {
+fn ring3(out, center, u, v, radius, c, width) {
     let prev = util::vadd(center, util::vscale(u, radius));
     for t in 1..25 {
         let a = (t as f64) / 24.0 * math::PI * 2.0;
         let next = util::vadd(center, util::vadd(
             util::vscale(u, math::cos(a) * radius),
             util::vscale(v, math::sin(a) * radius)));
-        line3(prev, next, c, width);
+        line3(out, prev, next, c, width);
         prev = next;
     }
 }
@@ -319,25 +320,58 @@ fn across(dir) {
 /// frustum for a camera. Nothing here draws for the game.
 pub fn lights3d(S) {
     let k = S.theme;
+    // The lines follow from each light's and camera's pose, its table and
+    // whether it is selected; a frame where none moved replays the list.
+    let key = [k.primary_text, k.text_muted];
+    let marked = [];
     for (i, node) in S.doc.iter().enumerate() {
         let found = match model::live(S, i) {
             Some(found) => found,
             None => continue,
         };
-        let light_some = node.get("light3d");
-        if let Some(light) = light_some {
-            if light is Object {
-                light3d_gizmo(found, light, crate::selection::contains(S, i), k);
-            }
+        let light = match node.get("light3d") {
+            Some(light) => if light is Object { Some(light) } else { None },
+            None => None,
+        };
+        let camera = node.get("camera3d").is_some();
+        if light.is_none() && !camera {
+            continue;
         }
-        if node.get("camera3d").is_some() {
-            camera_gizmo(S, found, crate::selection::contains(S, i), k);
+        let selected = crate::selection::contains(S, i);
+        key.push(i);
+        key.push(selected);
+        key.extend(util::xyz(found.transform.global_position()));
+        key.extend(util::xyz(found.transform.global_rotation_euler()));
+        if let Some(table) = light {
+            // By value: an edit writes into the same table, which compares
+            // equal to itself.
+            key.push(format!("{:?}", table));
+        }
+        if camera {
+            key.push(found.get_component("camera3d", "fov"));
+        }
+        marked.push((found, light, camera, selected));
+    }
+    if key == S.overlay3d.key {
+        render::draw_lines(S.overlay3d.lines);
+        return;
+    }
+    let out = [];
+    for (found, light, camera, selected) in marked {
+        if let Some(table) = light {
+            light3d_gizmo(out, found, table, selected, k);
+        }
+        if camera {
+            camera_gizmo(out, S, found, selected, k);
         }
     }
+    render::draw_lines(out);
+    S.overlay3d.key = key;
+    S.overlay3d.lines = out;
 }
 
-fn light3d_gizmo(found, light, selected, k) {
-    let c = if selected { util::rgb(k.accent) } else { component_rgb(light.get("color").unwrap_or(()), [1.0, 0.9, 0.7]) };
+fn light3d_gizmo(out, found, light, selected, k) {
+    let c = if selected { util::rgb(k.primary_text) } else { component_rgb(light.get("color").unwrap_or(()), [1.0, 0.9, 0.7]) };
     let p = util::xyz(found.transform.global_position());
     let dir = forward_of(found);
     let kind = light.get("kind").unwrap_or(render::LIGHT_DIRECTIONAL);
@@ -346,7 +380,7 @@ fn light3d_gizmo(found, light, selected, k) {
     for axis in 0..3 {
         let step = [0.0, 0.0, 0.0];
         step[axis] = 0.18;
-        line3(util::vsub(p, step), util::vadd(p, step), c, width + 1.0);
+        line3(out, util::vsub(p, step), util::vadd(p, step), c, width + 1.0);
     }
     if kind == render::LIGHT_DIRECTIONAL {
         // A sun: parallel rays through the node, so its aim reads at a glance.
@@ -354,7 +388,7 @@ fn light3d_gizmo(found, light, selected, k) {
         for step in [-1.0, 0.0, 1.0] {
             for other in [-1.0, 0.0, 1.0] {
                 let base = util::vadd(p, util::vadd(util::vscale(u, step * 0.35), util::vscale(v, other * 0.35)));
-                line3(base, util::vadd(base, util::vscale(dir, 1.2)), c, width);
+                line3(out, base, util::vadd(base, util::vscale(dir, 1.2)), c, width);
             }
         }
         return;
@@ -370,28 +404,28 @@ fn light3d_gizmo(found, light, selected, k) {
         let tip = util::vadd(p, util::vscale(dir, reach));
         for angle in [inner, outer] {
             let r = reach * math::tan(angle);
-            ring3(tip, u, v, r, c, width);
+            ring3(out, tip, u, v, r, c, width);
             for step in [0.0, math::PI / 2.0, math::PI, math::PI * 1.5] {
                 let edge = util::vadd(tip, util::vadd(
                     util::vscale(u, math::cos(step) * r),
                     util::vscale(v, math::sin(step) * r)));
-                line3(p, edge, c, width);
+                line3(out, p, edge, c, width);
             }
         }
         return;
     }
     // A point light: its reach as three rings, the way a sphere is drawn.
-    ring3(p, [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], radius, c, width);
-    ring3(p, [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], radius, c, width);
-    ring3(p, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], radius, c, width);
+    ring3(out, p, [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], radius, c, width);
+    ring3(out, p, [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], radius, c, width);
+    ring3(out, p, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], radius, c, width);
 }
 
 /// A camera's frustum, out to a length that fits a viewport rather than to its
 /// far plane, which is usually past the whole scene.
 const FRUSTUM_REACH = 4.0;
 
-fn camera_gizmo(S, found, selected, k) {
-    let c = if selected { util::rgb(k.accent) } else { util::rgb(k.dim) };
+fn camera_gizmo(out, S, found, selected, k) {
+    let c = if selected { util::rgb(k.primary_text) } else { util::rgb(k.text_muted) };
     let width = if selected { 2.0 } else { 1.0 };
     let p = util::xyz(found.transform.global_position());
     let dir = forward_of(found);
@@ -407,10 +441,10 @@ fn camera_gizmo(S, found, selected, k) {
             util::vscale(v, signs[1] * half))));
     }
     for n in 0..4 {
-        line3(p, corners[n], c, width);
-        line3(corners[n], corners[(n + 1) % 4], c, width);
+        line3(out, p, corners[n], c, width);
+        line3(out, corners[n], corners[(n + 1) % 4], c, width);
     }
     // Which way is up, so a rolled camera reads as rolled.
     let top = util::vscale(util::vadd(corners[2], corners[3]), 0.5);
-    line3(top, util::vadd(top, util::vscale(v, half * 0.4)), c, width);
+    line3(out, top, util::vadd(top, util::vscale(v, half * 0.4)), c, width);
 }

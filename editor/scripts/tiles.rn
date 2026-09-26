@@ -37,7 +37,7 @@ pub fn mode_name(id) {
 
 /// The terrains the tile set names, for the brush to choose between.
 pub fn terrains(S) {
-    let comp = match component(S.doc[S.sel]) {
+    let comp = match component(model::selected_node(S)) {
         Some(comp) => comp,
         None => return [],
     };
@@ -177,6 +177,9 @@ fn write_block(S, x, y, rows, label) {
 /// Paint a terrain value and let the engine's own rules pick the tiles, then
 /// take the cells it resolved back into the document.
 pub fn paint_terrain(S, x, y, value) {
+    if !crate::model::has_selection(S) {
+        return;
+    }
     let found = match model::live(S, S.sel) {
         Some(found) => found,
         None => return false,
@@ -237,7 +240,7 @@ fn file_backed(comp) {
 /// engine reads by absolute path because the editor's own project root is not
 /// the game's.
 pub fn tileset(S) {
-    let comp = match component(S.doc[S.sel]) {
+    let comp = match component(model::selected_node(S)) {
         Some(comp) => comp,
         None => return None,
     };
@@ -336,16 +339,16 @@ pub fn tile_count(S) {
 }
 
 fn pixels_per_unit(S) {
-    match component(S.doc[S.sel]) {
-        Some(comp) => util::max(util::f(comp.get("pixels_per_unit").unwrap_or(100.0)), 0.01),
-        None => 100.0,
+    match component(model::selected_node(S)) {
+        Some(comp) => util::max(util::f(comp.get("pixels_per_unit").unwrap_or(util::DEFAULT_PIXELS_PER_UNIT)), 0.01),
+        None => util::DEFAULT_PIXELS_PER_UNIT,
     }
 }
 
 /// The grid as rows of tile ids, whichever form the document wrote. Empty is
 /// -1, the same spelling `cells` takes as a list.
 pub fn grid(S) {
-    let comp = match component(S.doc[S.sel]) {
+    let comp = match component(model::selected_node(S)) {
         Some(comp) => comp,
         None => return [],
     };
@@ -429,7 +432,7 @@ pub fn cell_at(S, f, wx, wy) {
 
 /// The coordinate of the map's first stored cell.
 pub fn origin(S) {
-    let comp = match component(S.doc[S.sel]) {
+    let comp = match component(model::selected_node(S)) {
         Some(comp) => comp,
         None => return (0, 0),
     };
@@ -462,6 +465,9 @@ fn apply(S) {
 /// and only when something actually changes: clicking a cell that already
 /// holds the tile must not cost an undo step.
 pub fn write_cells(S, cells, tile, label, key) {
+    if !crate::model::has_selection(S) {
+        return;
+    }
     let comp = match component(S.doc[S.sel]) {
         Some(comp) => comp,
         None => return false,
@@ -571,6 +577,9 @@ pub fn fill_rect(S, from, to, tile) {
 /// in it: what a layer is. Duplicating is what gives it the parent, the
 /// transform and a name nothing else has.
 pub fn add_layer(S) {
+    if !crate::model::has_selection(S) {
+        return;
+    }
     if !editable(S) {
         log::warn("select a tilemap to add a layer beside it");
         return false;
@@ -590,7 +599,7 @@ pub fn layers(S) {
     if !editable(S) {
         return [];
     }
-    let parent = S.doc[S.sel].get("parent").unwrap_or("");
+    let parent = model::selected_node(S).get("parent").unwrap_or("");
     let out = [];
     for (i, node) in S.doc.iter().enumerate() {
         if component(node).is_some() && node.get("parent").unwrap_or("") == parent {
@@ -624,8 +633,8 @@ pub fn update(S, over_viewport, mx, my) {
     };
     let (x, y) = cell_at(S, f, mx, my);
     S.tiles.hover = if over_viewport { Some((x, y)) } else { None };
-    let left = input::is_mouse_down(input::MOUSE_LEFT);
-    let right = input::is_mouse_down(input::MOUSE_RIGHT);
+    let left = input::mouse_down(input::MOUSE_BUTTON_LEFT);
+    let right = input::mouse_down(input::MOUSE_BUTTON_RIGHT);
     if !left && !right {
         // A rectangle is drawn on release, from the cell the drag began in.
         let anchor_some = S.tiles.anchor;
@@ -719,8 +728,8 @@ pub fn draw(S) {
         None => return,
     };
     let k = S.theme;
-    let faint = util::rgb(k.faint);
-    let accent = util::rgb(k.accent);
+    let faint = util::rgb(k.text_subtle);
+    let accent = util::rgb(k.primary_text);
     let w = viewport::world_per_px(S);
     // The grid is a guide, not the drawing: one pixel wide, and skipped
     // entirely when a cell is too small on screen to aim at.
@@ -770,7 +779,7 @@ pub fn draw(S) {
 /// The tile set behind the map, as a file to write back to: an inline
 /// definition is edited on the node instead, and has no file of its own.
 fn tileset_file(S) {
-    let comp = match component(S.doc[S.sel]) {
+    let comp = match component(model::selected_node(S)) {
         Some(comp) => comp,
         None => return None,
     };
@@ -845,7 +854,7 @@ fn set_rows(S, out) {
     let one_way = tile.get("one_way").unwrap_or(false) == true;
     let occluder = tile.get("occluder").unwrap_or(false) == true;
     out.push([
-        #{ kind: "label", role: "meta", text: format!("tile {}", S.tiles.tile) },
+        #{ kind: "label", role: "text_caption", text: format!("tile {}", S.tiles.tile) },
         flag_chip(S, "Solid", solid, "collision", if solid { () } else { "full" }),
         flag_chip(S, "One-way", one_way, "one_way", if one_way { () } else { true }),
         flag_chip(S, "Blocks light", occluder, "occluder", if occluder { () } else { true }),
@@ -854,7 +863,7 @@ fn set_rows(S, out) {
     if named.len() == 0 {
         return;
     }
-    let row = [#{ kind: "label", role: "meta", text: "terrain" }];
+    let row = [#{ kind: "label", role: "text_caption", text: "terrain" }];
     for entry in named {
         // Bound afresh: a closure made in a loop captures the binding.
         let name = entry.name;
@@ -874,7 +883,7 @@ fn flag_chip(S, text, on, key, value) {
 fn chip(text, on, act) {
     #{
         kind: "button", text: text,
-        role: if on { "chip_on" } else { "chip" },
+        role: "chip", checked: on,
         on: |_| { act(); },
     }
 }
@@ -923,7 +932,7 @@ pub fn palette(S, k) {
 }
 
 fn note(text) {
-    #{ kind: "label", role: "meta", text: text }
+    #{ kind: "label", role: "text_caption", text: text }
 }
 
 // The row every mode is on: the tools, the two verbs, and which tile is held.
@@ -945,7 +954,7 @@ fn mode_row(S, out) {
 // How many cells the stamp lays down, across and down.
 fn stamp_row(S, out) {
     let (wide, tall) = S.tiles.stamp;
-    let row = [#{ kind: "label", role: "meta", text: "block" }];
+    let row = [#{ kind: "label", role: "text_caption", text: "block" }];
     for n in [1, 2, 3, 4] {
         // Bound afresh: a closure made in a loop captures the binding.
         let size = n;
@@ -975,7 +984,7 @@ fn terrain_row(S, out) {
 
 // Which layer of the map is being painted, where the node has more than one.
 fn layer_row(S, found, out) {
-    let row = [#{ kind: "label", role: "meta", text: "layers" }];
+    let row = [#{ kind: "label", role: "text_caption", text: "layers" }];
     for layer in found {
         // Bound afresh: a closure made in a loop captures the binding.
         let index = layer.index;
@@ -996,14 +1005,14 @@ fn show_swatches(S, k, set, count) {
             format!("{},{},{},{}", r[0], r[1], r[2], r[3]),
             format!("{}", tile),
             format!("tile {}", tile),
-            k.dim,
+            k.text_muted,
         ));
         tile += 1;
     }
     let chosen = if S.tiles.tile < items.len() { items[S.tiles.tile] } else { "" };
     util::fill(crate::dock::CARDS_NODE, #{
         options: items, visible: true, columns: 8, text: chosen,
-        source: util::engine_path(S, set.texture),
+        sheet: util::engine_path(S, set.texture),
     });
     let picked = util::prop(crate::dock::CARDS_NODE, "text");
     for (n, item) in items.iter().enumerate() {

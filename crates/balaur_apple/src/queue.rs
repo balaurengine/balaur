@@ -35,7 +35,7 @@ pub(crate) fn push_apple(event: AppleEvent) {
 pub(crate) fn drain_store(report: &Sender<PlatformEvent>) {
     if let Ok(mut queue) = STORE.lock() {
         for event in queue.drain(..) {
-            let _ = report.send(event);
+            balaur_core::replay::report(report, event);
         }
     }
 }
@@ -43,7 +43,7 @@ pub(crate) fn drain_store(report: &Sender<PlatformEvent>) {
 pub(crate) fn drain_apple(report: &Sender<AppleEvent>) {
     if let Ok(mut queue) = APPLE.lock() {
         for event in queue.drain(..) {
-            let _ = report.send(event);
+            balaur_core::replay::report(report, event);
         }
     }
 }

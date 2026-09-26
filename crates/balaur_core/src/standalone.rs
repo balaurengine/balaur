@@ -17,7 +17,7 @@
 //!
 //! A signature can never cover appended bytes (codesign rewrites the file and
 //! fails strict validation), so a *signed* macOS game is a `.app` bundle with
-//! the pack in Contents/Resources — `balaur export --app`. Authenticode is the
+//! the pack in Contents/Resources — `balaur export --bundle app`. Authenticode is the
 //! exception: it appends its own certificate table after the pack and records
 //! where, so a signed Windows game is read at the end of what it signed.
 

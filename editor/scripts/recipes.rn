@@ -1,0 +1,775 @@
+// Turning a node into another kind of node: what it draws becomes what the
+// new kind is built from, in one undo step. A soft body made from a sprite
+// traces the image's opaque outline and bends a polygon textured with it.
+
+use crate::history;
+use crate::model;
+use crate::util;
+
+// The keys a recipe reads off the components it converts.
+const TEXTURE = "texture";
+const PIXELS_PER_UNIT = "pixels_per_unit";
+const SIZE = "size";
+const RADIUS = "radius";
+const COLOR = "color";
+const MESH = "mesh";
+
+// What a soft body replaces on a node: the rigid body and its shape.
+const RIGID_2D = ["body2d", "collider2d", "character2d"];
+const RIGID_3D = ["body3d", "collider3d", "character3d"];
+
+// Components a node holds one of at a time: what it draws, and what body it
+// is. A new type replaces what the node holds from each group it fills.
+const GROUPS = [
+    ["sprite", "shape2d", "polygon", "text2d", "tilemap"],
+    ["mesh", "shape3d", "text3d"],
+    ["body2d", "softbody2d", "character2d"],
+    ["body3d", "softbody3d", "character3d", "vehicle3d"],
+];
+
+// Properties that mean the same on every member of a group, carried from the
+// component a new type replaces when the new one has them.
+const CARRIED = ["color", "texture", "material"];
+
+// The presets a recipe builds better than their plain parts would.
+const SOFT_2D = "soft_body2d";
+const SOFT_3D = "soft_body3d";
+const POLYGON_2D = "polygon2d";
+const DIM_2D = "2d";
+const DIM_3D = "3d";
+const UI = "ui";
+
+/// What `soft_body` would build from on row `i`, as a word for a menu, or
+/// `None` when the node draws nothing a soft body can be made of.
+pub fn soft_body_source(S, i) {
+    let node = S.doc[i];
+    let usable = if node.contains_key("sprite") {
+        sprite_convertible(node.sprite)
+    } else if node.contains_key("shape2d") {
+        shape2d_kind(node.shape2d).is_some()
+    } else if node.contains_key("shape3d") && mesh_source(node).is_none() {
+        shape3d_kind(node.shape3d).is_some()
+    } else {
+        true
+    };
+    if !usable {
+        return None;
+    }
+    let word = if node.contains_key("sprite") {
+        "sprite"
+    } else if node.contains_key("polygon") {
+        "polygon"
+    } else if node.contains_key("shape2d") || node.contains_key("shape3d") && mesh_source(node).is_none() {
+        "shape"
+    } else if mesh_source(node).is_some() {
+        "mesh"
+    } else {
+        ""
+    };
+    if word == "" { None } else { Some(word) }
+}
+
+/// Make row `i` a soft body built from what it draws, in one undo step;
+/// `false`, with a log line saying why, when it draws nothing to build from.
+pub fn soft_body(S, i) {
+    let parts = match soft_parts(S, i) {
+        Some(parts) => parts,
+        None => return false,
+    };
+    history::record(S, "make soft body", None);
+    make_soft(S, i, parts)
+}
+
+// What `soft_body` puts on row `i`, or `None`, said in the log, when the node
+// draws nothing to build one from.
+fn soft_parts(S, i) {
+    if soft_body_source(S, i).is_none() {
+        log::warn(format!("{} draws nothing a soft body can be made of: give it a sprite, a polygon, a shape or a mesh", S.doc[i].name));
+        return None;
+    }
+    let node = S.doc[i];
+    if is_2d_source(node) { soft_parts_2d(S, node) } else { soft_parts_3d(node) }
+}
+
+// The soft body half of `soft_body`, with the history step the caller's.
+fn make_soft(S, i, parts) {
+    let node = S.doc[i];
+    let source = soft_body_source(S, i).unwrap_or("shape");
+    replace(node, if is_2d_source(node) { RIGID_2D } else { RIGID_3D }, parts);
+    model::build_mirror(S);
+    crate::selection::only(S, i);
+    log::info(format!("{} is a soft body now, made from its {}", node.name, source));
+    true
+}
+
+fn is_2d_source(node) {
+    node.contains_key("sprite") || node.contains_key("polygon") || node.contains_key("shape2d")
+}
+
+/// What row `i` can be changed to: every preset of its kind (2D, 3D or UI)
+/// but the one it already is, each with the line saying what the change
+/// makes of it. A node of no kind yet can be any.
+pub fn targets(S, i) {
+    let node = S.doc[i];
+    let facet = facet(node);
+    let live_some = model::live(S, i);
+    let out = [];
+    for name in scene::presets() {
+        let info = scene::preset_info(name);
+        if !(info is Object) {
+            continue;
+        }
+        let tags = util::vec(info.tags);
+        if facet != "" && !util::contains(tags, facet) {
+            continue;
+        }
+        if let Some(found) = live_some {
+            if already(found, info) {
+                continue;
+            }
+        }
+        let note = match recipe_note(S, i, name) {
+            Some(note) => note,
+            None => info.description,
+        };
+        out.push(#{ name: name, note: note, tags: tags });
+    }
+    out
+}
+
+/// Make row `i` the preset `name` in one undo step. What it drew carries over
+/// where the new type can use it: a sprite becomes the soft body's outline,
+/// and a new collider is fitted to it.
+pub fn change_type(S, i, name) {
+    let node = S.doc[i];
+    if (name == SOFT_2D || name == SOFT_3D) && soft_body_source(S, i).is_some() {
+        return soft_body(S, i);
+    }
+    if name == POLYGON_2D && outline_2d(S, node, false).is_some() {
+        return to_polygon(S, i);
+    }
+    let info = scene::preset_info(name);
+    if !(info is Object) {
+        log::warn(format!("no preset named {}", name));
+        return false;
+    }
+    history::record(S, "change to " + name, None);
+    let fresh = [];
+    for (component, _) in info.parts.iter() {
+        if !node.contains_key(component) {
+            fresh.push(component);
+        }
+    }
+    switch(node, info.parts);
+    for component in fresh {
+        fit_collider(S, node, component, info.parts);
+    }
+    model::build_mirror(S);
+    crate::selection::only(S, i);
+    log::info(format!("{} is a {} now", node.name, name));
+    true
+}
+
+// Put a preset's parts on a node: a part it has is patched, one it lacks is
+// added, and each group a part fills gives up what else the node held of it.
+fn switch(node, parts) {
+    for (component, params) in parts.iter() {
+        let own = util::obj(node.get(component).unwrap_or(#{}));
+        let accepts = util::obj(scene::component_properties(component));
+        for group in GROUPS {
+            if !util::contains(group, component) {
+                continue;
+            }
+            for other in group {
+                if other == component || !node.contains_key(other) {
+                    continue;
+                }
+                let held = util::obj(node[other]);
+                for key in CARRIED {
+                    let value_some = held.get(key);
+                    if let Some(value) = value_some {
+                        if accepts.contains_key(key) && !own.contains_key(key) {
+                            own[key] = value;
+                        }
+                    }
+                }
+                node.remove(other);
+            }
+        }
+        for (key, value) in util::obj(params).iter() {
+            own[key] = value;
+        }
+        node[component] = own;
+    }
+    // A soft body collides as its own particles; a rigid shape beside it
+    // would be a second body in the same place.
+    if parts.contains_key("softbody2d") {
+        node.remove("collider2d");
+    }
+    if parts.contains_key("softbody3d") {
+        node.remove("collider3d");
+    }
+}
+
+// A collider the change added, shaped to what the node draws rather than the
+// unit square a bare one is.
+fn fit_collider(S, node, component, parts) {
+    let two_d = component == "collider2d";
+    if !two_d && component != "collider3d" {
+        return;
+    }
+    let fitted = if two_d { fitted_2d(S, node) } else { fitted_3d(node, parts) };
+    if let Some(shape) = fitted {
+        let own = util::obj(node[component]);
+        for (key, value) in shape.iter() {
+            own[key] = value;
+        }
+        node[component] = own;
+    }
+}
+
+fn fitted_2d(S, node) {
+    if node.contains_key("shape2d") {
+        let shape = node.shape2d;
+        if shape2d_kind(shape) == Some(render::SHAPE_CIRCLE) {
+            return Some(#{ kind: physics2d::SHAPE_CIRCLE, radius: shape.get(RADIUS).unwrap_or(0.5) });
+        }
+        return Some(#{ kind: physics2d::SHAPE_RECTANGLE, size: shape.get(SIZE).unwrap_or([1.0, 1.0]) });
+    }
+    let outline = outline_2d(S, node, true);
+    if let Some(mesh) = outline {
+        return Some(#{ kind: physics2d::SHAPE_CONVEX_DECOMPOSITION, mesh: mesh });
+    }
+    None
+}
+
+fn fitted_3d(node, parts) {
+    let static_body = util::obj(parts.get("body3d").unwrap_or(#{})).get("kind") == Some(physics3d::BODY_STATIC);
+    let source_some = mesh_source(node);
+    if let Some(source) = source_some {
+        let kind = if static_body { physics3d::SHAPE_TRIANGLE_MESH } else { physics3d::SHAPE_CONVEX_HULL };
+        return Some(#{ kind: kind, mesh: source });
+    }
+    if !node.contains_key("shape3d") {
+        return None;
+    }
+    let shape = node.shape3d;
+    if shape3d_kind(shape) == Some(render::SHAPE_SPHERE) {
+        return Some(#{ kind: physics3d::SHAPE_SPHERE, radius: shape.get(RADIUS).unwrap_or(0.5) });
+    }
+    Some(#{ kind: physics3d::SHAPE_BOX, size: shape.get(SIZE).unwrap_or([1.0, 1.0, 1.0]) })
+}
+
+// The outline a 2D node draws, as a mesh a polygon or a collider takes: its
+// polygon's own, its sprite's traced, or its shape's corners. `trace` false
+// only says whether there is one, without tracing an image to find out.
+fn outline_2d(S, node, trace) {
+    if node.contains_key("polygon") {
+        let mesh = node.polygon.get(MESH).unwrap_or("");
+        if mesh is Object || mesh is String && mesh != "" {
+            return Some(mesh);
+        }
+    }
+    if node.contains_key("sprite") && sprite_convertible(node.sprite) {
+        if !trace {
+            return Some(#{});
+        }
+        let mesh = match sprite_polygon(S, node.sprite) {
+            Some(polygon) => Some(polygon.mesh),
+            None => None,
+        };
+        return mesh;
+    }
+    if node.contains_key("shape2d") && shape2d_kind(node.shape2d).is_some() {
+        return Some(#{ positions: shape_points(node.shape2d) });
+    }
+    None
+}
+
+// A rect's corners or a circle's rim, counter-clockwise with y up.
+fn shape_points(shape) {
+    if shape2d_kind(shape) == Some(render::SHAPE_CIRCLE) {
+        let radius = shape.get(RADIUS).unwrap_or(0.5);
+        let points = [];
+        for step in 0..RIM_POINTS {
+            let angle = util::f(step) / util::f(RIM_POINTS) * 2.0 * math::PI;
+            points.push([radius * math::cos(angle), radius * math::sin(angle)]);
+        }
+        return points;
+    }
+    let size = shape.get(SIZE).unwrap_or([1.0, 1.0]);
+    let half = [size[0] / 2.0, size[1] / 2.0];
+    [[0.0 - half[0], 0.0 - half[1]], [half[0], 0.0 - half[1]], [half[0], half[1]], [0.0 - half[0], half[1]]]
+}
+
+// Enough for a circle to read as round at the size a node is drawn.
+const RIM_POINTS = 32;
+
+// A sprite or a shape made a polygon of the same outline, in one undo step.
+fn to_polygon(S, i) {
+    let node = S.doc[i];
+    if node.contains_key("sprite") {
+        return sprite_to_polygon(S, i);
+    }
+    let shape = node.shape2d;
+    history::record(S, "make polygon", None);
+    let polygon = #{ mesh: #{ positions: shape_points(shape) } };
+    polygon.color = shape.get(COLOR).unwrap_or([0.8, 0.8, 0.8, 1.0]);
+    node.remove("shape2d");
+    node.polygon = polygon;
+    model::build_mirror(S);
+    crate::selection::only(S, i);
+    true
+}
+
+// A preset whose every part the node holds as the preset sets it.
+fn already(found, info) {
+    for (component, params) in info.parts.iter() {
+        if !found.has_component(component) {
+            return false;
+        }
+        let held = util::obj(found.get_component(component));
+        for (key, value) in util::obj(params).iter() {
+            let had = held.get(key);
+            if had.is_none() || !same(had.unwrap(), value) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+// Equal, with an integer and a float of one value alike: a preset spells
+// `pinned_particles = [0]` where the component reads back `[0.0]`.
+fn same(a, b) {
+    if (a is i64 || a is f64) && (b is i64 || b is f64) {
+        return util::f(a) == util::f(b);
+    }
+    if a is Vec && b is Vec {
+        if a.len() != b.len() {
+            return false;
+        }
+        for i in 0..a.len() {
+            if !same(a[i], b[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+    if a is String && b is String || a is bool && b is bool {
+        return a == b;
+    }
+    false
+}
+
+// "ui", "2d" or "3d" from the components a node holds, "" for one holding
+// none, which any type fits.
+fn facet(node) {
+    for key in node.keys() {
+        let tags = scene::component_tags(key);
+        if !(tags is Vec) {
+            continue;
+        }
+        if util::contains(tags, UI) {
+            return UI;
+        }
+        let flat = util::contains(tags, DIM_2D);
+        let deep = util::contains(tags, DIM_3D);
+        if flat && !deep {
+            return DIM_2D;
+        }
+        if deep && !flat {
+            return DIM_3D;
+        }
+    }
+    ""
+}
+
+// What a recipe makes of row `i` as preset `name`, for the picker's line; `None`
+// where the preset's own description says it.
+fn recipe_note(S, i, name) {
+    let node = S.doc[i];
+    if name == SOFT_2D || name == SOFT_3D {
+        let source_some = soft_body_source(S, i);
+        if let Some(source) = source_some {
+            return Some(format!("bent from its {}, which it keeps drawing", source));
+        }
+        return None;
+    }
+    if name == POLYGON_2D && outline_2d(S, node, false).is_some() {
+        return Some("the same outline as a polygon a rig or a soft body can bend");
+    }
+    let info = scene::preset_info(name);
+    let collider = info.parts.contains_key("collider2d") && !node.contains_key("collider2d")
+        || info.parts.contains_key("collider3d") && !node.contains_key("collider3d");
+    let drawn = outline_2d(S, node, false).is_some() || mesh_source(node).is_some() || node.contains_key("shape3d");
+    if collider && drawn {
+        return Some(format!("{}, its collider fitted to what it draws", info.description));
+    }
+    None
+}
+
+/// What a new soft body can be made from: a shape, or any image (2D) or
+/// model (3D) in the project, as `{ label, note, name, parts }` rows.
+pub fn soft_sources(S, two_d) {
+    let out = [];
+    if two_d {
+        out.push(source_row("Rectangle", "a block of cells", "Jelly", #{ shape2d: #{ kind: render::SHAPE_RECTANGLE } }));
+        out.push(source_row("Circle", "a ring of particles holding its area", "Blob",
+            #{ shape2d: #{ kind: render::SHAPE_CIRCLE, radius: 0.5 } }));
+        for rel in project_files(S, |rel| crate::dropin::kind_of(rel) == "image") {
+            out.push(source_row(rel, "traced to its opaque outline", crate::dropin::stem_of(rel),
+                #{ sprite: #{ texture: rel } }));
+        }
+    } else {
+        out.push(source_row("Box", "a block of cells", "Jelly", #{ shape3d: #{ kind: render::SHAPE_BOX } }));
+        out.push(source_row("Sphere", "a ball of cells", "Blob", #{ shape3d: #{ kind: render::SHAPE_SPHERE, radius: 0.5 } }));
+        out.push(source_row("Plane", "a sheet of cloth", "Cloth",
+            #{ shape3d: #{ kind: render::SHAPE_PLANE, size: [2.0, 0.0, 2.0] } }));
+        for rel in project_files(S, |rel| is_model(rel)) {
+            out.push(source_row(rel, "filled with cells that carry it as a skin", crate::dropin::stem_of(rel),
+                #{ mesh: #{ source: #{ source: rel } } }));
+        }
+    }
+    out
+}
+
+fn source_row(label, note, name, parts) {
+    #{ label: label, note: note, name: name, parts: parts }
+}
+
+/// Add a child soft body made from one of `soft_sources`, in one undo step.
+pub fn add_soft_body(S, source) {
+    let before = S.doc.len();
+    model::add_child(S, None);
+    if S.doc.len() == before {
+        return false;
+    }
+    S.doc[S.sel].name = model::unique_name(S.doc, source.name);
+    fill_soft(S, S.sel, source)
+}
+
+/// Rebuild row `i` as a soft body made from one of `soft_sources`, in one
+/// undo step: what it drew gives way to the source.
+pub fn give_soft_body(S, i, source) {
+    history::record(S, "make soft body", None);
+    fill_soft(S, i, source)
+}
+
+fn fill_soft(S, i, source) {
+    switch(S.doc[i], util::deep(source.parts));
+    let parts = match soft_parts(S, i) {
+        Some(parts) => parts,
+        None => {
+            model::build_mirror(S);
+            return false;
+        }
+    };
+    make_soft(S, i, parts)
+}
+
+/// "2d" or "3d" for a preset that makes a soft body a recipe builds, else "".
+pub fn soft_dimension(name) {
+    if name == SOFT_2D {
+        DIM_2D
+    } else if name == SOFT_3D {
+        DIM_3D
+    } else {
+        ""
+    }
+}
+
+// Model files a mesh can be read from.
+const MODELS = [".glb", ".gltf", ".obj"];
+
+pub fn is_model(rel) {
+    let lower = rel.to_lowercase();
+    MODELS.iter().any(|extension| lower.ends_with(extension))
+}
+
+// Directories a project keeps no source art in.
+const SKIPPED = ["target", "export", "build"];
+// Far enough for `art/characters/hero/idle.png`, and a bound on a big tree.
+const MAX_DEPTH = 4;
+const MAX_FILES = 200;
+
+// Project-relative paths of the files `wanted` keeps, breadth first.
+fn project_files(S, wanted) {
+    let out = [];
+    let dirs = [""];
+    let depth = 0;
+    while !dirs.is_empty() && depth <= MAX_DEPTH && out.len() < MAX_FILES {
+        let next = [];
+        for dir in dirs {
+            for entry in model::list(S, dir) {
+                let rel = if dir == "" { entry.name } else { dir + "/" + entry.name };
+                if entry.is_dir {
+                    if !util::contains(SKIPPED, entry.name) {
+                        next.push(rel);
+                    }
+                } else if wanted(rel) && out.len() < MAX_FILES {
+                    out.push(rel);
+                }
+            }
+        }
+        dirs = next;
+        depth += 1;
+    }
+    out
+}
+
+/// Make a sprite on row `i` a polygon textured with the same image and cut
+/// to its opaque outline, in one undo step.
+pub fn sprite_to_polygon(S, i) {
+    let node = S.doc[i];
+    if !node.contains_key("sprite") {
+        return false;
+    }
+    let polygon = match sprite_polygon(S, node.sprite) {
+        Some(polygon) => polygon,
+        None => return false,
+    };
+    history::record(S, "trace sprite", None);
+    replace(node, [], #{ polygon: polygon });
+    node.remove("sprite");
+    model::build_mirror(S);
+    crate::selection::only(S, i);
+    true
+}
+
+// Take `gone` off the node and put `parts` on it; a part named `-key` takes
+// that key off too.
+fn replace(node, gone, parts) {
+    for key in gone {
+        node.remove(key);
+    }
+    for (key, value) in parts.iter() {
+        if key.starts_with("-") {
+            node.remove(key[1..]);
+        } else {
+            node[key] = value;
+        }
+    }
+}
+
+// What a 2D node becomes: its own polygon kept and bent by cells, a sprite
+// traced into one, or a shape turned into the generator that matches it.
+fn soft_parts_2d(S, node) {
+    if node.contains_key("sprite") {
+        let polygon = match sprite_polygon(S, node.sprite) {
+            Some(polygon) => polygon,
+            None => return None,
+        };
+        return Some(#{
+            "-sprite": true,
+            softbody2d: #{
+                kind: physics2d::SOFT_VOLUMETRIC,
+                mesh: util::deep(polygon.mesh),
+                cell_size: cell_size(polygon.mesh.positions),
+            },
+            polygon: polygon,
+        });
+    }
+    if node.contains_key("polygon") {
+        let mesh = node.polygon.get(MESH).unwrap_or("");
+        if mesh is String && mesh == "" {
+            log::warn(format!("{}'s polygon has no mesh yet: trace or draw it first", node.name));
+            return None;
+        }
+        let body = #{ kind: physics2d::SOFT_VOLUMETRIC, mesh: util::copy(mesh) };
+        if mesh is Object {
+            body.cell_size = cell_size(util::vec(mesh.get("positions").unwrap_or([])));
+        }
+        return Some(#{ softbody2d: body });
+    }
+    let shape = node.shape2d;
+    let color = shape.get(COLOR).unwrap_or([0.8, 0.8, 0.8, 1.0]);
+    let kind = shape2d_kind(shape);
+    if kind == Some(render::SHAPE_RECTANGLE) {
+        let size = shape.get(SIZE).unwrap_or([1.0, 1.0]);
+        return Some(#{ "-shape2d": true, softbody2d: #{
+            kind: physics2d::SOFT_GRID, size: size, cells: cells_2d(size), color: color,
+        } });
+    }
+    let radius = shape.get(RADIUS).unwrap_or(0.5);
+    Some(#{ "-shape2d": true, softbody2d: #{
+        kind: physics2d::SOFT_CIRCLE, radius: radius, particle_count: 32, color: color,
+    } })
+}
+
+// What a 3D node becomes: a mesh the cells carry as a skin, or a shape turned
+// into the generator that matches it.
+fn soft_parts_3d(node) {
+    let source_some = mesh_source(node);
+    if let Some(source) = source_some {
+        return Some(#{ softbody3d: #{ kind: physics3d::SOFT_VOLUMETRIC, mesh: source, skin: true } });
+    }
+    let shape = node.shape3d;
+    let color = shape.get(COLOR).unwrap_or([0.8, 0.8, 0.8, 1.0]);
+    let kind = shape3d_kind(shape);
+    if kind == Some(render::SHAPE_SPHERE) {
+        return Some(#{ "-shape3d": true, softbody3d: #{
+            kind: physics3d::SOFT_SPHERE, radius: shape.get(RADIUS).unwrap_or(0.5), color: color,
+        } });
+    }
+    let size = shape.get(SIZE).unwrap_or([1.0, 1.0, 1.0]);
+    if kind == Some(render::SHAPE_PLANE) {
+        return Some(#{ "-shape3d": true, softbody3d: #{
+            kind: physics3d::SOFT_CLOTH, size: [size[0], 0.0, size[2]],
+            cells: [12.0, 12.0, 1.0], color: color,
+        } });
+    }
+    Some(#{ "-shape3d": true, softbody3d: #{
+        kind: physics3d::SOFT_BOX, size: size, cells: [4.0, 4.0, 4.0], color: color,
+    } })
+}
+
+// A sprite drawn from one whole image converts; one cut from a sheet or a
+// region is a frame of an image, which a trace of the whole would not match.
+fn sprite_convertible(sprite) {
+    sprite.get(TEXTURE).unwrap_or("") != ""
+        && sprite.get("sheet").unwrap_or("") == ""
+        && sprite.get("region_size").is_none()
+}
+
+// The polygon a sprite becomes: the image's opaque outline, traced at the
+// scale the sprite is drawn at, carrying its texture and colour.
+fn sprite_polygon(S, sprite) {
+    if !sprite_convertible(sprite) {
+        log::warn("only a sprite drawing one whole image can be traced, not a sheet's frame or a region");
+        return None;
+    }
+    let texture = sprite.get(TEXTURE).unwrap();
+    let ppu = drawn_scale(S, sprite, texture);
+    // Every loop, so an image of two shapes gives both; `islands` drops the holes.
+    let opts = #{ pixels_per_unit: ppu, threshold: 0.5, tolerance: 2.0, holes: true };
+    let (ok, out) = script::attempt(|| render::trace_texture(S.game_root + "/" + texture, opts));
+    if !ok {
+        log::warn(format!("tracing {}: {:?}", texture, out));
+        return None;
+    }
+    let mesh = islands(sprite, util::vec(out));
+    if mesh.indices.is_empty() {
+        log::warn(format!("{} has no opaque pixels to trace", texture));
+        return None;
+    }
+    Some(#{
+        mesh: mesh,
+        texture: texture,
+        pixels_per_unit: ppu,
+        color: sprite.get(COLOR).unwrap_or([1.0, 1.0, 1.0, 1.0]),
+    })
+}
+
+// Every opaque island of an image as one mesh: each traced outline placed
+// where the sprite draws it and cut into triangles, so an image of two
+// shapes stays two shapes.
+fn islands(sprite, loops) {
+    let positions = [];
+    let indices = [];
+    for found in loops {
+        let raw = [];
+        for p in util::vec(found) {
+            raw.push([p.x, p.y]);
+        }
+        // Traced counter-clockwise, a hole runs the other way.
+        if raw.len() < 3 || geometry2d::is_clockwise(raw) {
+            continue;
+        }
+        let points = placed(sprite, util::vec(found));
+        let (ok, triangles) = script::attempt(|| geometry2d::triangulate(points));
+        if !ok {
+            continue;
+        }
+        let base = positions.len();
+        for triangle in util::vec(triangles) {
+            indices.push([triangle[0] + base, triangle[1] + base, triangle[2] + base]);
+        }
+        for point in points {
+            positions.push(point);
+        }
+    }
+    #{ positions: positions, indices: indices }
+}
+
+// The pixels a world unit holds where the sprite is drawn: its own setting, a
+// size it was stretched to, or the texture's import setting.
+fn drawn_scale(S, sprite, texture) {
+    let own = sprite.get(PIXELS_PER_UNIT).unwrap_or(0.0);
+    let size = sprite.get(SIZE);
+    let size_some = size;
+    if let Some(size) = size_some {
+        let (w, _) = render::texture_size(S.game_root + "/" + texture);
+        if size[0] > 0.0 {
+            let stretched = util::f(w) / size[0];
+            return stretched;
+        }
+    }
+    if own > 0.0 { own } else { render::texture_pixels_per_unit(S.game_root + "/" + texture) }
+}
+
+// A traced outline where the sprite puts its image: flipped as it is, and
+// moved by its offset and by a corner anchor when it is not centred.
+fn placed(sprite, points) {
+    let flip_x = sprite.get("flip_x").unwrap_or(false);
+    let flip_y = sprite.get("flip_y").unwrap_or(false);
+    let offset = sprite.get("offset").unwrap_or([0.0, 0.0]);
+    let out = [];
+    for p in points {
+        let x = if flip_x { 0.0 - p.x } else { p.x };
+        let y = if flip_y { 0.0 - p.y } else { p.y };
+        out.push([x + offset[0], y + offset[1]]);
+    }
+    // A flip reverses the outline's winding, which a fill reads as inside out.
+    if flip_x != flip_y {
+        out.reverse();
+    }
+    out
+}
+
+// A cell about a tenth of the shape's widest side: fine enough to bend, and
+// coarse enough to stay well under the particle cap.
+fn cell_size(points) {
+    let low = [1000000.0, 1000000.0];
+    let high = [-1000000.0, -1000000.0];
+    for p in points {
+        low = [util::min(low[0], p[0]), util::min(low[1], p[1])];
+        high = [util::max(high[0], p[0]), util::max(high[1], p[1])];
+    }
+    let widest = util::max(high[0] - low[0], high[1] - low[1]);
+    util::clamp(widest / 10.0, 0.02, 1.0)
+}
+
+fn cells_2d(size) {
+    let longest = util::max(size[0], size[1]);
+    let per_unit = 8.0 / util::max(longest, 0.01);
+    [util::max(2.0, math::round(size[0] * per_unit)), util::max(2.0, math::round(size[1] * per_unit))]
+}
+
+fn shape2d_kind(shape) {
+    let kind = shape.get("kind").unwrap_or(render::SHAPE_RECTANGLE);
+    if kind == render::SHAPE_RECTANGLE || kind == render::SHAPE_CIRCLE {
+        Some(kind)
+    } else {
+        None
+    }
+}
+
+fn shape3d_kind(shape) {
+    let kind = shape.get("kind").unwrap_or(render::SHAPE_BOX);
+    if kind == render::SHAPE_BOX || kind == render::SHAPE_SPHERE || kind == render::SHAPE_PLANE {
+        Some(kind)
+    } else {
+        None
+    }
+}
+
+// The mesh asset a 3D node draws, when it draws one from a file.
+fn mesh_source(node) {
+    let found = node.get(MESH);
+    let source = match found {
+        Some(mesh) => if mesh is Object { mesh.get("source").unwrap_or("") } else { mesh },
+        None => "",
+    };
+    if source is Object || source is String && source != "" { Some(source) } else { None }
+}

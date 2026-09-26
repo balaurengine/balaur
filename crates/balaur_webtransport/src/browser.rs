@@ -9,9 +9,7 @@
 //! **Why a hand-written shim.** `web_sys::WebTransport` exists but sits
 //! behind `#[cfg(web_sys_unstable_apis)]`, which is a global rustflag over
 //! the whole build and an API that may change without a semver bump. So the
-//! binding is written here instead — the same thing
-//! `balaur_websocket/shim/emscripten_websocket.c` does for emscripten, in
-//! the language this target speaks.
+//! binding is written here instead.
 //!
 //! **No worker thread.** Browser I/O is already asynchronous on the main
 //! thread: the read loops run as promises, push into the channel a native

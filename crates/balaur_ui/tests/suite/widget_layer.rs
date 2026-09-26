@@ -382,7 +382,7 @@ fn draw_ui_sees_the_rects_from_its_own_frame() {
     let script = "pub fn init(this) {\n    this.seen = 0.0;\n}\n\
                   pub fn draw_ui(this) {\n\
                   \x20   let r = ui::widget_rect(scene::get_node(\"Sheet\"));\n\
-                  \x20   if r is Object { this.seen = r.w; }\n}\n";
+                  \x20   if r is Object { this.seen = r.width; }\n}\n";
     let (_dir, app) = app_with_script(script);
     let watcher =
         balaur::scene::spawn_node(&mut app.engine.world_mut(), "Watcher", app.engine.root());
@@ -408,7 +408,7 @@ fn draw_ui_sees_the_rects_from_its_own_frame() {
     // first that draws, and `draw_ui` should already have the rect.
     pass(&app, &ctx, vec![]);
     pass(&app, &ctx, vec![]);
-    let seen = balaur::rune::rune_of(&app.engine).number_field(watcher, "seen");
+    let seen = balaur::script_rune::rune_of(&app.engine).number_field(watcher, "seen");
     assert_eq!(
         seen,
         Some(200.0),
@@ -681,7 +681,7 @@ fn a_tab_shows_the_page_it_names_and_only_that_one() {
         let (_dir, app) = app();
         let tabs = add_widget(
             &app,
-            &toml::toml! { kind = "tab" x = 0.0 y = 0.0 width = 300.0 height = 200.0 active = active }
+            &toml::toml! { kind = "tabs" x = 0.0 y = 0.0 width = 300.0 height = 200.0 current_page = active }
                 .into(),
         );
         for label in ["First", "Second"] {
@@ -731,7 +731,7 @@ fn a_handle_is_only_a_grab_where_a_neighbour_states_a_size() {
     let (_dir, mut app) = app();
     let row = add_widget(
         &app,
-        &toml::toml! { kind = "row" x = 0.0 y = 0.0 width = 400.0 height = 100.0 gap = 8.0 handle = 8.0 }
+        &toml::toml! { kind = "row" x = 0.0 y = 0.0 width = 400.0 height = 100.0 gap = 8.0 splitter_width = 8.0 }
             .into(),
     );
     let fixed = add_child_widget(
@@ -788,7 +788,7 @@ fn a_seam_asks_the_pointer_to_look_like_a_resize() {
     let (_dir, app) = app();
     let row = add_widget(
         &app,
-        &toml::toml! { kind = "row" x = 0.0 y = 0.0 width = 400.0 height = 100.0 gap = 8.0 handle = 8.0 }
+        &toml::toml! { kind = "row" x = 0.0 y = 0.0 width = 400.0 height = 100.0 gap = 8.0 splitter_width = 8.0 }
             .into(),
     );
     add_child_widget(
@@ -923,11 +923,11 @@ fn a_panels_own_padding_applies() {
 /// Two pages showing the same text are told apart by their node names, which
 /// is what the schema says `active` holds.
 #[test]
-fn clicking_a_tab_writes_the_pages_node_name() {
+fn clicking_a_tab_writes_the_pages_node_name_and_says_so() {
     let (_dir, mut app) = app();
     let tabs = add_widget(
         &app,
-        &toml::toml! { kind = "tab" x = 0.0 y = 0.0 width = 300.0 height = 200.0 }.into(),
+        &toml::toml! { kind = "tabs" x = 0.0 y = 0.0 width = 300.0 height = 200.0 }.into(),
     );
     for name in ["first", "second"] {
         add_child_widget(
@@ -959,11 +959,19 @@ fn clicking_a_tab_writes_the_pages_node_name() {
     pass(&app, &ctx, press(target, false));
     consume_input(&mut app);
     let active = balaur::components::get(&app.engine, tabs, "widget")
-        .and_then(|w| w.get("active").and_then(|v| v.as_str().map(str::to_owned)))
+        .and_then(|w| {
+            w.get("current_page")
+                .and_then(|v| v.as_str().map(str::to_owned))
+        })
         .expect("the tab reports its active page");
     assert_eq!(
         active, "second",
         "a tab click wrote the page's label, not its node name"
+    );
+    assert_eq!(
+        balaur_core::events::delivered_from(&app.engine, tabs, balaur_ui::CHANGE_EVENT),
+        vec![balaur_script::Value::Str("second".into())],
+        "the page change is the tab's `change`, carrying the page's name"
     );
 }
 
@@ -977,7 +985,7 @@ fn a_script_reads_a_widget_rect_no_more_than_one_frame_late() {
     let script = "pub fn draw_ui(this) {\n    \
         let r = ui::widget_rect(this.node);\n    \
         if r is Object {\n        \
-        render::set_camera_2d(r.w, 0.0, 60.0);\n    \
+        render::set_camera_2d(r.width, 0.0, 60.0);\n    \
         }\n}\n";
     let (_dir, app) = app_with_script(script);
     let owner = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Owner", app.engine.root());
@@ -1070,7 +1078,7 @@ fn a_label_is_drawn_as_shaped_glyphs_not_egui_text() {
 #[test]
 fn typing_into_a_field_lands_on_its_text_the_next_tick() {
     let (_dir, mut app) = app();
-    let params = toml::toml! { kind = "field" text = "" x = 0.0 y = 0.0 width = 200.0 };
+    let params = toml::toml! { kind = "text_field" text = "" x = 0.0 y = 0.0 width = 200.0 };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     pass(&app, &ctx, vec![]);

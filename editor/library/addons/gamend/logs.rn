@@ -73,7 +73,7 @@ pub fn setup(url) {
 /// A game played inside the editor shares its process, its log and its log
 /// file, none of which are the game's to send.
 fn in_editor() {
-    let host = engine::platform();
+    let host = engine::target();
     let editor = host.get("editor").unwrap_or(false);
     editor is bool && editor
 }
@@ -84,7 +84,7 @@ pub fn server_url() {
     if url is String && url != "" {
         return url;
     }
-    gamend::target()["url"]
+    gamend::server()["url"]
 }
 
 /// One frame: ask for the policy until it comes, read the new lines, and
@@ -219,7 +219,7 @@ pub fn headers(sink) {
 fn ask_policy(sink, node) {
     sink.retry_in = RETRY;
     let url = sink.url + POLICY_PATH;
-    let opts = #{ headers: headers(sink), timeout: 10.0 };
+    let opts = #{ headers: headers(sink), timeout_seconds: 10.0 };
     let (ok, id) = script::attempt(|| http::request(node, url, opts));
     if ok {
         sink.policy = id;
@@ -336,8 +336,8 @@ fn rank(level) {
     2
 }
 
-/// A line as the server takes it. A script's `[script] …` line is filed under
-/// `script`, the bracket's word, rather than the engine module that logged it.
+/// A line as the server takes it, filed under its tag: `script` for a script's
+/// own line, or a leading `[word]` where a line names one.
 fn record_of(entry, now, lobby) {
     let (category, text) = bracketed(format!("{}", entry["message"]), entry["tag"]);
     let message = text;
@@ -421,7 +421,7 @@ fn trim(sink) {
 fn send(sink, node, records) {
     let body = json::encode(#{ "session": session_payload(sink), "entries": rendered(records) });
     let url = sink.url + INGEST_PATH;
-    let opts = #{ method: "POST", headers: headers(sink), body: body, timeout: 15.0 };
+    let opts = #{ method: "POST", headers: headers(sink), body: body, timeout_seconds: 15.0 };
     script::attempt(|| http::request(node, url, opts))
 }
 
@@ -452,7 +452,7 @@ fn session_payload(sink) {
     if sink.registered {
         return #{ "client_session_id": sink.run };
     }
-    let host = engine::platform();
+    let host = engine::target();
     let os = host.get("os").unwrap_or("unknown");
     let web = host.get("web").unwrap_or(false);
     let platform = if web { "web" } else { os };

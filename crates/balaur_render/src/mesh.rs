@@ -83,16 +83,18 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
     reg.register_component(
         MESH_ASSET_TYPE,
         balaur_core::components::ComponentDef {
+            events: &[],
+            warnings: None,
             doc: "3D geometry from the `mesh` asset in `source`, drawn at the node. With a skin, the rig `skeleton` names deforms it.",
             schema: balaur_core::components::ComponentDef::parse_schema(
                 MESH_ASSET_TYPE,
                 &balaur_core::components::ComponentDef::schema(&[
                     (k::SOURCE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The mesh asset this node draws" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
-                    (k::SKELETON, r#"{ type = "string", default = "", description = "Node path to the rig a skinned mesh deforms with, relative to this node; empty means this node" }"#),
+                    (k::SKELETON, r#"{ type = "node", default = "", description = "The rig a skinned mesh deforms with; empty means this node" }"#),
                     (k::TEXTURE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset; empty draws the colour alone" }}"#, balaur_core::texture_asset::TEXTURE_ASSET_TYPE)),
                     (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
-                    (k::SHADOWS, r#"{ type = "bool", default = true, description = "Whether this casts a shadow from the lights that cast" }"#),
-                    (k::LAYERS, r#"{ type = "int", default = -1, description = "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer" }"#),
+                    (k::CAST_SHADOW, r#"{ type = "bool", default = true, description = "Whether this casts a shadow from the lights that cast" }"#),
+                    (k::LIGHT_LAYERS, r#"{ type = "int", default = -1, description = "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer" }"#),
                 ]),
             ),
             tags: &[words::PERSPECTIVE, "render"],
@@ -142,9 +144,9 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                     "material".into(),
                     toml::Value::String(renderable.material.clone()),
                 );
-                map.insert(k::SHADOWS.into(), toml::Value::Boolean(renderable.shadows));
+                map.insert(k::CAST_SHADOW.into(), toml::Value::Boolean(renderable.shadows));
                 map.insert(
-                    k::LAYERS.into(),
+                    k::LIGHT_LAYERS.into(),
                     toml::Value::Integer(i64::from(renderable.layers.cast_signed())),
                 );
                 // One key per shape the mesh can blend towards, so a clip
@@ -174,18 +176,22 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
 /// those itself, so a version bump per step would rebuild the node every
 /// frame instead of rewriting its buffers.
 pub(crate) fn resolve_solved_system(eng: &Engine, _dt: f32) {
-    let mut wanted: Vec<(Entity, MeshData, u32)> = Vec::new();
-    let mut moved: Vec<(Entity, Option<Bounds3d>)> = Vec::new();
+    let mut wanted: Vec<(Entity, MeshData, u32, [f32; 4])> = Vec::new();
+    let mut moved: Vec<(Entity, Option<Bounds3d>, [f32; 4])> = Vec::new();
+    let mut drawn: Vec<Entity> = Vec::new();
     {
         let world = eng.world();
         for (entity, solved) in &mut world.query::<(Entity, &SolvedMesh)>() {
             if solved.positions.is_empty() || solved.indices.is_empty() {
                 continue;
             }
+            if world.get::<&SolverDrawn>(entity).is_err() {
+                drawn.push(entity);
+            }
             // Every step, not only on a tear: a body that deformed covers
             // different ground, and the box a click is picked against and the
             // one the editor draws around it are both this.
-            moved.push((entity, bounds_of(&solved.positions)));
+            moved.push((entity, bounds_of(&solved.positions), solved.color));
             // A node that draws something of its own keeps drawing it; the
             // solver deforms that instead of replacing it.
             if let Ok(renderable) = world.get::<&Renderable3d>(entity)
@@ -199,21 +205,50 @@ pub(crate) fn resolve_solved_system(eng: &Engine, _dt: f32) {
             {
                 continue;
             }
-            wanted.push((entity, mesh_of(solved), solved.topology));
+            wanted.push((entity, mesh_of(solved), solved.topology, solved.color));
         }
     }
     {
         let world = eng.world();
-        for (entity, bounds) in moved {
+        for (entity, bounds, color) in moved {
             if let Ok(mut renderable) = world.get::<&mut Renderable3d>(entity) {
                 renderable.bounds = bounds;
+                if is_ours(&renderable) {
+                    renderable.color = color;
+                }
             }
         }
     }
-    for (entity, mesh, topology) in wanted {
-        install(eng, entity, mesh, topology);
+    for (entity, mesh, topology, color) in wanted {
+        install(eng, entity, mesh, topology, color);
+    }
+    let mut world = eng.world_mut();
+    for entity in drawn {
+        let _ = world.insert_one(entity, SolverDrawn);
+    }
+    let gone: Vec<Entity> = world
+        .query::<Entity>()
+        .with::<&SolverDrawn>()
+        .without::<&SolvedMesh>()
+        .iter()
+        .collect();
+    for entity in gone {
+        let _ = world.remove_one::<SolverDrawn>(entity);
+        let ours = world
+            .get::<&Renderable3d>(entity)
+            .is_ok_and(|r| is_ours(&r));
+        if ours {
+            let _ = world.remove_one::<Renderable3d>(entity);
+        } else if let Ok(mut renderable) = world.get::<&mut Renderable3d>(entity) {
+            // The backend's node still holds the last deformed vertices.
+            renderable.version = renderable.version.wrapping_add(1);
+        }
     }
 }
+
+/// On a node the solver drew, so the draw can be undone once the soft body
+/// is removed and its `SolvedMesh` goes with it.
+struct SolverDrawn;
 
 /// The box a set of positions covers, in the node's own space.
 fn bounds_of(positions: &[[f32; 3]]) -> Option<Bounds3d> {
@@ -245,7 +280,7 @@ fn mesh_of(solved: &SolvedMesh) -> MeshData {
     }
 }
 
-fn install(eng: &Engine, entity: Entity, mesh: MeshData, topology: u32) {
+fn install(eng: &Engine, entity: Entity, mesh: MeshData, topology: u32, color: [f32; 4]) {
     let bounds = bounds_of(&mesh.positions);
     let built = Some(std::sync::Arc::new(mesh));
     let mut world = eng.world_mut();
@@ -257,6 +292,7 @@ fn install(eng: &Engine, entity: Entity, mesh: MeshData, topology: u32) {
         renderable.built = built;
         renderable.bounds = bounds;
         renderable.version = version;
+        renderable.color = color;
         return;
     }
     let _ = world.insert_one(
@@ -264,7 +300,7 @@ fn install(eng: &Engine, entity: Entity, mesh: MeshData, topology: u32) {
         Renderable3d {
             shape: Shape3d::Built,
             bounds,
-            color: [0.8, 0.8, 0.8, 1.0],
+            color,
             mesh: None,
             built,
             skeleton: String::new(),

@@ -7,12 +7,12 @@
 //! light layers -- belongs to the object and so belongs in the key.
 
 #![cfg_attr(
-    not(feature = "kiss3d"),
+    not(feature = "window"),
     allow(dead_code, reason = "the grouping is the backend's, and the tests'")
 )]
 
 // Only the grouping names an entity, and that is the backend's half.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 use balaur_core::hecs::Entity;
 use balaur_core::scene::GlobalTransform;
 use glamx::{Mat3, Vec3};
@@ -126,7 +126,7 @@ mod tests {
 }
 
 /// A group of nodes drawing through one object, and who is in it.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) struct Group3d {
     key: BatchKey3d,
     node: kiss3d::scene::SceneNode3d,
@@ -136,7 +136,7 @@ pub(crate) struct Group3d {
 
 /// Every group this frame. A group is addressed by the entity that sorts
 /// first in it, which is an entity no slot is kept for.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 #[derive(Default)]
 pub(crate) struct Batches3d {
     groups: Vec<Group3d>,
@@ -145,7 +145,7 @@ pub(crate) struct Batches3d {
     refused: Vec<BatchKey3d>,
 }
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 impl Batches3d {
     fn clear(&mut self) {
         for group in &mut self.groups {
@@ -165,7 +165,7 @@ impl Batches3d {
 ///
 /// The objects are built again only when the grouping itself moved, so a
 /// frame that draws the same groups writes instances and nothing else.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn cut_groups(
     app: &balaur_core::App,
     scene: &mut kiss3d::scene::SceneNode3d,
@@ -232,7 +232,7 @@ pub(crate) fn cut_groups(
 }
 
 /// The material a node effectively draws with: its own, or an ancestor's.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn material_of(
     world: &balaur_core::hecs::World,
     entity: Entity,
@@ -248,7 +248,7 @@ fn material_of(
 
 /// Build the one object a group draws through, or `None` where the geometry
 /// it names cannot be drawn as instances after all.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn build_group(
     app: &balaur_core::App,
     scene: &mut kiss3d::scene::SceneNode3d,
@@ -292,7 +292,7 @@ fn build_group(
 }
 
 /// One member's pose and tint, as the instance its group draws it through.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn write_instance(
     world: &balaur_core::hecs::World,
     entity: Entity,
@@ -328,7 +328,7 @@ pub(crate) fn write_instance(
 }
 
 /// Hand each group the instances its members wrote.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn flush(batches: &mut Batches3d) {
     for group in &mut batches.groups {
         let instances = std::mem::take(&mut group.pending);

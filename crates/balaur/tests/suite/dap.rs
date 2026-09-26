@@ -6,7 +6,7 @@ use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::time::Duration;
 
-use balaur::{App, AppConfig, FIXED_DT, dap, standard_app};
+use balaur::{App, AppConfig, DEFAULT_FIXED_DT, dap, standard_app};
 use serde_json::{Value as Json, json};
 
 /// Line 4 has no code on it, so a breakpoint asked for there lands on 5.
@@ -95,7 +95,7 @@ impl Client {
 
     /// Let both sides move: one frame for the adapter, one read for us.
     fn drive(&mut self, app: &mut App) {
-        app.tick(FIXED_DT);
+        app.tick(DEFAULT_FIXED_DT);
         let mut chunk = [0u8; 4096];
         if let Ok(read) = self.stream.read(&mut chunk) {
             self.buffer.extend_from_slice(&chunk[..read]);
@@ -421,6 +421,6 @@ fn disconnecting_leaves_the_game_running_with_no_breakpoints_left() {
             .is_empty(),
         "a debugger that walks away leaves nothing behind"
     );
-    app.tick(FIXED_DT);
+    app.tick(DEFAULT_FIXED_DT);
     assert_eq!(app.engine.frozen_root(), None, "and it stays let go");
 }

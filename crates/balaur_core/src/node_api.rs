@@ -96,7 +96,7 @@ pub const NODE_OPS: &[NodeOp] = &[
         call: patch_component,
     },
     NodeOp {
-        name: "go",
+        name: "set_state",
         call: go_to_state,
     },
     NodeOp {
@@ -169,8 +169,8 @@ pub const NODE_OPS: &[NodeOp] = &[
         call: set_visible,
     },
     NodeOp {
-        name: "global_visible",
-        call: global_visible,
+        name: "visible_in_tree",
+        call: visible_in_tree,
     },
     NodeOp {
         name: "tint",
@@ -181,8 +181,8 @@ pub const NODE_OPS: &[NodeOp] = &[
         call: set_tint,
     },
     NodeOp {
-        name: "global_tint",
-        call: global_tint,
+        name: "effective_tint",
+        call: effective_tint,
     },
     NodeOp {
         name: "material",
@@ -193,8 +193,8 @@ pub const NODE_OPS: &[NodeOp] = &[
         call: set_material,
     },
     NodeOp {
-        name: "global_material",
-        call: global_material,
+        name: "effective_material",
+        call: effective_material,
     },
     NodeOp {
         name: "z_index",
@@ -205,8 +205,8 @@ pub const NODE_OPS: &[NodeOp] = &[
         call: set_z_index,
     },
     NodeOp {
-        name: "global_z_index",
-        call: global_z_index,
+        name: "effective_z_index",
+        call: effective_z_index,
     },
     NodeOp {
         name: crate::process::KEY,
@@ -267,7 +267,7 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("global_position", &["transform"], "()", "The node's position in world space, as of the last transform sync."),
         ("global_rotation_euler", &["transform"], "()", "The node's world rotation as euler angles in radians, as of the last transform sync."),
         ("global_scale", &["transform"], "()", "The node's scale in world space, as of the last transform sync."),
-        ("get_node", &[], "(path: string)", "The node at an `A/B/C` path relative to this one, `..` climbing to the parent; nil when nothing matches."),
+        ("get_node", &[], "(path: string)", "The node at an `A/B/C` path relative to this one, `..` climbing to the parent and a leading `/` starting from the root; nil when nothing matches."),
         ("add_child", &[], "(name: string)", "Create a named child node under this one and return it."),
         ("parent", &[], "()", "The node's parent, nil at the root."),
         ("children", &[], "()", "The node's direct children, an empty list when it has none."),
@@ -275,7 +275,7 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("sibling_index", &[], "()", "Where the node sits among its parent's children, counting from zero; 0 at the root."),
         ("set_sibling_index", &[], "(index: int)", "Move the node to that place among its siblings, clamped to the end. Order is draw order in a `row` or a `column`, and tree order in the digest."),
         ("set_component", &[], "(component: string, params: any?)", "Give the node the named component, built from the given table over the component's schema defaults. Every property the table leaves out goes back to its default; `patch_component` is the one that changes a property and leaves the rest."),
-        ("go", &["states"], "(state: string)", "Put the node in one of its `states`: the state's table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone."),
+        ("set_state", &["states"], "(state: string)", "Put the node in one of its `states`: the state's table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone."),
         ("state", &["states"], "()", "The state the node is in, or \"\" for the pose the scene gave it."),
         ("patch_component", &[], "(component: string, params: table)", "Change the properties the table names and leave the rest of the component where they were. On a node without the component this adds it, the schema defaults being what it currently holds."),
         ("remove_component", &[], "(component: string)", "Take the named component off the node."),
@@ -295,16 +295,16 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("queue_free", &[], "()", "Destroy the node and its subtree at the end of the frame."),
         ("visible", &[], "(node)", "Whether the node itself is set to draw; an ancestor may still hide it."),
         ("set_visible", &[], "(node, on: bool)", "Show or hide the node and everything under it, emitting `visibility_changed` with the new value when the flag moves. Physics is untouched: a hidden collider still collides."),
-        ("global_visible", &[], "(node)", "What the renderer sees: false when the node or any ancestor is hidden."),
+        ("visible_in_tree", &[], "(node)", "What the renderer sees: false when the node or any ancestor is hidden."),
         ("tint", &[], "(node)", "The node's own tint as r, g, b, a channel floats; an ancestor's multiplies into it on the way to the screen."),
         ("set_tint", &[], "(node, r: float, g: float, b: float, a: float?)", "Multiply a colour into everything the node and its subtree draw, alpha included, one meaning untinted. A renderable's own `color` is the node's alone; this is the one that inherits."),
-        ("global_tint", &[], "(node)", "What the renderer multiplies by: this node's tint with every ancestor's folded in."),
+        ("effective_tint", &[], "(node)", "What the renderer multiplies by: this node's tint with every ancestor's folded in."),
         ("material", &[], "(node)", "The `material` asset the node names itself, empty when it takes its parent's."),
         ("set_material", &[], "(node, material: string)", "Draw the node and every descendant naming none with a `material` asset; empty goes back to the parent's."),
-        ("global_material", &[], "(node)", "The material the node draws with: its own, or the nearest ancestor's. Empty is the built-in one."),
+        ("effective_material", &[], "(node)", "The material the node draws with: its own, or the nearest ancestor's. Empty is the built-in one."),
         ("z_index", &[], "(node)", "The node's own draw layer, added to its parent's unless set absolute."),
-        ("set_z_index", &[], "(node, z: int, relative: bool)", "Put the node and its subtree on a draw layer: higher draws later. Relative by default, adding to the parent's layer; false makes it absolute."),
-        ("global_z_index", &[], "(node)", "The layer the node actually draws on, with every ancestor's added in."),
+        ("set_z_index", &[], "(node, z: int, options: map?)", "Put the node and its subtree on a draw layer: higher draws later. It adds to the parent's layer unless `z_as_relative = false` makes it absolute."),
+        ("effective_z_index", &[], "(node)", "The layer the node actually draws on, with every ancestor's added in."),
         (crate::process::KEY, &[], "(node)", "When this node ticks: \"inherit\", \"pausable\", \"when_paused\", \"always\" or \"disabled\". \"inherit\" is the default and takes the nearest ancestor's answer."),
         ("set_process", &[], "(node, mode: string)", "Set when the node and its subtree tick. \"always\" runs through a pause, which is what a pause menu is; \"when_paused\" runs only while paused; \"disabled\" never runs; \"inherit\" goes back to the parent's. Physics is one world and is held whole by a pause whatever this says."),
         ("ticking", &[], "(node)", "Whether the node ticks this frame, its process mode and the game's pause together."),
@@ -393,10 +393,8 @@ fn visible(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn set_visible(eng: &Engine, args: &[Value]) -> Result<Value> {
     let on = flag(args, 1)?;
-    let e = node(args)?;
-    let was = with_appearance(eng, e, |a| std::mem::replace(&mut a.visible, on))?;
-    if was != on {
-        crate::events::emit_from(eng, e, VISIBILITY_EVENT, Value::Bool(on));
+    if !crate::scene::set_visible(eng, node(args)?, on) {
+        bail!("node is dead");
     }
     Ok(Value::Nil)
 }
@@ -404,9 +402,34 @@ fn set_visible(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// What a node emits when its own `visible` flips, carrying the new value.
 /// An ancestor hiding it does not: the flag this reports is the node's own.
 pub const VISIBILITY_EVENT: &str = "visibility_changed";
+/// What a parent announces when a node is added under it, carrying the child.
+pub const CHILD_ADDED_EVENT: &str = "child_added";
+/// What a parent announces as a child leaves it, freed or moved: a freed
+/// child is still readable in the parent's own hook, gone by the next pump.
+pub const CHILD_REMOVED_EVENT: &str = "child_removed";
+/// What a node announces when its name changes, carrying the name it had.
+pub const RENAMED_EVENT: &str = "renamed";
+/// What a node announces when it moves under another parent, carrying the
+/// parent it left.
+pub const REPARENTED_EVENT: &str = "reparented";
+
+/// What every node announces, whatever its components, with its payload.
+pub const NODE_EVENTS: &[(&str, &str)] = &[
+    (VISIBILITY_EVENT, "its own `visible`, now"),
+    (CHILD_ADDED_EVENT, "the child"),
+    (
+        CHILD_REMOVED_EVENT,
+        "the child; freed, it is still readable in this node's own hook",
+    ),
+    (RENAMED_EVENT, "the name it had; `name()` says the new one"),
+    (
+        REPARENTED_EVENT,
+        "the parent it left; `parent()` says the new one",
+    ),
+];
 
 /// What the renderer sees: false when any ancestor is hidden.
-fn global_visible(eng: &Engine, args: &[Value]) -> Result<Value> {
+fn visible_in_tree(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     let world = eng.world();
     Ok(Value::Bool(scene::composed_appearance(&world, e).visible))
@@ -469,7 +492,7 @@ fn set_tint(eng: &Engine, args: &[Value]) -> Result<Value> {
 }
 
 /// What the renderer sees: every ancestor's tint multiplied into this one's.
-fn global_tint(eng: &Engine, args: &[Value]) -> Result<Value> {
+fn effective_tint(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     let world = eng.world();
     Ok(Value::Color(
@@ -490,7 +513,7 @@ fn set_material(eng: &Engine, args: &[Value]) -> Result<Value> {
 }
 
 /// What the renderer draws with: the nearest material from the node up.
-fn global_material(eng: &Engine, args: &[Value]) -> Result<Value> {
+fn effective_material(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     let world = eng.world();
     Ok(Value::Str(
@@ -505,22 +528,23 @@ fn z_index(eng: &Engine, args: &[Value]) -> Result<Value> {
     with_appearance(eng, node(args)?, |a| Value::Int(i64::from(a.z_index)))
 }
 
-/// `set_z_index(node, z)` adds to the parent's; a third argument of false
-/// makes it absolute.
+/// `set_z_index(node, z)` adds to the parent's; `z_as_relative = false` in
+/// the options makes it absolute.
 fn set_z_index(eng: &Engine, args: &[Value]) -> Result<Value> {
     let z = integer(args, 1)?;
-    let relative = match args.get(2) {
+    let relative = match crate::handler::opt(args.get(2), "z_as_relative") {
         Some(Value::Bool(b)) => *b,
-        _ => true,
+        Some(other) => bail!("`z_as_relative` should be a bool, got {other:?}"),
+        None => true,
     };
     with_appearance(eng, node(args)?, |a| {
         a.z_index = z;
-        a.z_relative = relative;
+        a.z_as_relative = relative;
     })?;
     Ok(Value::Nil)
 }
 
-fn global_z_index(eng: &Engine, args: &[Value]) -> Result<Value> {
+fn effective_z_index(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     let world = eng.world();
     Ok(Value::Int(i64::from(
@@ -619,7 +643,14 @@ fn name(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn set_name(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
-    scene::rename(&eng.world(), e, text(args, 1)?);
+    let name = text(args, 1)?;
+    let Ok(was) = eng.world().get::<&Name>(e).map(|n| n.0.clone()) else {
+        bail!("node is dead");
+    };
+    scene::rename(&eng.world(), e, name);
+    if was != name {
+        crate::events::announce(eng, e, RENAMED_EVENT, Value::Str(was));
+    }
     Ok(Value::Nil)
 }
 
@@ -638,7 +669,7 @@ fn translate(eng: &Engine, args: &[Value]) -> Result<Value> {
 ///
 /// Radians are the engine's unit and stay the default; degrees are what a
 /// person authors, so the pair exists rather than every caller carrying its
-/// own `math.deg` conversion the way the editor's inspector used to.
+/// own `math.to_degrees` conversion the way the editor's inspector used to.
 fn global<R>(eng: &Engine, args: &[Value], f: impl FnOnce(&GlobalTransform) -> R) -> Result<R> {
     let e = node(args)?;
     let world = eng.world();
@@ -684,7 +715,9 @@ fn add_child(eng: &Engine, args: &[Value]) -> Result<Value> {
         format!("added {name}"),
         Some(serde_json::json!({ "name": name })),
     );
-    Ok(Value::Node(crate::node_id_of(child).0))
+    let made = Value::Node(crate::node_id_of(child).0);
+    crate::events::announce(eng, e, CHILD_ADDED_EVENT, made.clone());
+    Ok(made)
 }
 
 fn parent(eng: &Engine, args: &[Value]) -> Result<Value> {
@@ -704,7 +737,18 @@ fn set_parent(eng: &Engine, args: &[Value]) -> Result<Value> {
         Some(Value::Node(id)) => crate::entity_of(balaur_script::NodeId(*id))?,
         other => return Err(anyhow!("argument 1 should be a node, got {other:?}")),
     };
+    let left = eng.world().get::<&Parent>(e).ok().map(|p| p.0);
     scene::reparent(&mut eng.world_mut(), e, parent)?;
+    if left == Some(parent) {
+        return Ok(Value::Nil);
+    }
+    let moved = Value::Node(crate::node_id_of(e).0);
+    let left = left.map_or(Value::Nil, |old| {
+        crate::events::announce(eng, old, CHILD_REMOVED_EVENT, moved.clone());
+        Value::Node(crate::node_id_of(old).0)
+    });
+    crate::events::announce(eng, parent, CHILD_ADDED_EVENT, moved);
+    crate::events::announce(eng, e, REPARENTED_EVENT, left);
     Ok(Value::Nil)
 }
 
@@ -814,7 +858,7 @@ fn patch_component(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
-/// `node.go(state)` — put the node in one of its `states`.
+/// `node.states.set_state(state)` — put the node in one of its `states`.
 fn go_to_state(eng: &Engine, args: &[Value]) -> Result<Value> {
     crate::states::go(eng, node(args)?, text(args, 1)?)?;
     Ok(Value::Nil)

@@ -68,7 +68,7 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
 - `FixedUpdate` drains one app-owned accumulator in whole `fixed_dt()` steps: 0
   in a fast frame, up to `max_substeps()` in a slow one. One accumulator, not one
   per plugin — per-plugin ones made the step count depend on wall-clock jitter.
-  `FIXED_DT` is the default rate, and `[time] tick_hz` is what moves it.
+  `DEFAULT_FIXED_DT` is the default rate, and `[time] tick_hz` is what moves it.
 - Order inside a stage is registration order, and core registers the script
   callback first, so `fixed_update` runs before that frame's physics step.
 - A debugger's freeze stops the whole stage. A game's own pause does not: the
@@ -101,9 +101,9 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
   subscription is a node plus a method name: `ScriptHost::call_on(node, method,
   args)`. Persistent callbacks would need an id space with explicit release.
 - Most events also ship a polling twin (`animation.just_finished(node)`,
-  `input.just_pressed(key)`): an event is a frame-scoped
+  `input.key_just_pressed(key)`): an event is a frame-scoped
   snapshot.
-- `events.subscribe(node, name)` / `events.emit(name, payload)` deliver
+- `events.listen(node, name)` / `events.emit(name, payload)` deliver
   `on_<name>(payload)` at the top of the next `Update`, in emission then
   subscription order. The frame of delay keeps a handler from freeing the node
   being ticked. Not recorded — a replay re-runs the script, which emits again.
@@ -119,7 +119,7 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
 
 ### Model
 
-- Lifecycle: `init`, `update(dt)`, `fixed_update(dt)`, `on_free`, `hot_reload`.
+- Lifecycle: `init`, `update(dt)`, `fixed_update(dt)`, `on_free`, `on_hot_reload`.
   One instance per attached node, with `node` on it.
 - Free functions take the instance first (`pub fn update(this, dt)`) and mutate
   it in place. `mod name;` pulls in `name.rn` beside the file — disk in a dev
@@ -172,7 +172,7 @@ the node's own, and the root's children become the node's.
 - `overrides` is keyed by path from the instance node and holds scene keys,
   including `script.props`.
 - **An override patches, it does not replace** (`components::patch`) — through
-  `add`, overriding a collider's `half_extents` would reset its `kind`.
+  `add`, overriding a collider's `size` would reset its `kind`.
 - Every `StableId` inside an instance is prefixed by the instance's id
   (`n_crate_b/n_lid`) and nests. That is what a replay prints and what
   replication will address.
@@ -193,7 +193,7 @@ the node's own, and the root's children become the node's.
   compile error keeps the previous unit running, reported once.
 - Rune compiles to an immutable unit, so the new unit replaces the old,
   instances keep their state, and the next call resolves against new code.
-  Save-to-live latency is the watcher's, a few milliseconds. `hot_reload`
+  Save-to-live latency is the watcher's, a few milliseconds. `on_hot_reload`
   migrates state shapes.
 - Content reloads through the same watcher, sorted by extension exactly as
   `Pack::build` does. A `.toml` asset was parsed, so the cache forgets it; a
@@ -248,7 +248,7 @@ and remove hooks.
 - Two verbs: `set_component` merges over schema defaults (whole component),
   `components::patch` merges over the component's own `get` (leaves the rest).
   Animation and the inspector need the second — patching `collider3d/radius` with the
-  first would reset `half_extents`.
+  first would reset `size`.
 - `meta` is the one component with no schema, so every key on it is the
   author's: values filed on a node for whoever holds the node rather than for
   its own script (Godot's `set_meta`). A scene writes `[nodes.meta]`, a script
@@ -371,7 +371,7 @@ content is `asset`.
   `scale` and a model's `scale` do set sizes, and every build reads them alike.
 - Every reader of a picture goes through `balaur_core::pixels`: a raster
   decoded, an SVG rasterized, then `bleed` and `flip_green` applied. An export
-  writes an SVG's raster under its own name, so a game template has no
+  writes an SVG's raster under its own name, so a game runtime has no
   rasterizer.
 - A texture property is asset-typed, `asset = "texture"`: a plain image path
   resolves as `{ source = <path> }`, so the asset layer reads no file, and a
@@ -383,7 +383,7 @@ content is `asset`.
 
 ### Animation
 
-`balaur_anim` is a plugin: clips, state machines, retargeting and modifiers —
+`balaur_animation` is a plugin: clips, state machines, retargeting and modifiers —
 four asset types, four components, one script module, two systems in `Update`. It depends on core and no other plugin crate — a test reads
 its `Cargo.toml` and fails if one appears.
 
@@ -589,11 +589,11 @@ at load; every other packed run builds no compiler and no watcher.
 - `balaur::boot_pack(include_bytes!(...))` makes a self-contained binary. It is
   pure interpretation, so it ships where JIT is banned, iOS included. CI
   cross-compiles to iOS, Android and wasm on every push to main.
-- The web target is wasm-bindgen's, not emscripten's: kiss3d declares its web
-  dependencies there and wgpu reaches WebGPU through `web-sys`. Audio plays
-  through cpal's WebAudio host, its device opened on the first `UserActivation`
-  rather than at startup, since a browser refuses to start audio before a
-  gesture. `balaur_webtransport` has a browser backend, but no plugin registers
+- The web target is `wasm32-unknown-unknown` with wasm-bindgen: kiss3d declares
+  its web dependencies there and wgpu reaches WebGPU through `web-sys`. Audio
+  plays through cpal's WebAudio host, its device opened on the first
+  `UserActivation` rather than at startup, since a browser refuses to start
+  audio before a gesture. `balaur_webtransport` has a browser backend, but no plugin registers
   it and nothing outside its own tests opens a link, so it stays out of the
   default web feature set.
 - A pack is written in sorted key order, so two exports of one source tree give
@@ -613,8 +613,8 @@ at load; every other packed run builds no compiler and no watcher.
   the CLI reads its own executable (`core::standalone`): a pack means it is a game
   and argv is never read. One binary is the editor, the CLI and every game's
   runtime.
-- Templates resolve from `BALAUR_TEMPLATES`, then `templates/` beside the
-  executable, then `<data dir>/balaur/templates/<build id>`. A missing desktop
+- Runtimes resolve from `BALAUR_RUNTIMES`, then `runtimes/` beside the
+  executable, then `<data dir>/balaur/runtimes/<build id>`. A missing desktop
   template is offered for download from the release this build came from and
   verified against its `SHA256SUMS` — pinned exactly, because a pack must only
   meet the runtime its compiler shipped with. The prompt needs a terminal or
@@ -630,7 +630,7 @@ at load; every other packed run builds no compiler and no watcher.
   macOS), and `--notarize` staples Apple's ticket.
 - The exporter sets the execute bits on its output: a template from a zip or an
   artifact store has lost them.
-- Rune resolves `input::just_pressed` at compile time, so `balaur::build_pack`
+- Rune resolves `input::key_just_pressed` at compile time, so `balaur::build_pack`
   boots the app the game would boot and compiles through its host. A bare
   `rune::Context` rejects every script that touches the engine.
 
@@ -730,24 +730,24 @@ write. It walks widgets in scene order and wraps.
 
 ## Audio
 
-**Buses** form a tree (`[audio.buses] ui = { volume = 1.0, parent = "sfx" }`).
+**Buses** form a tree (`[audio.buses] ui = { volume_linear = 1.0, parent = "sfx" }`).
 
 - A sound's gain is its own volume times every bus to the root. `master` exists
   whether declared or not.
-- `set_bus_volume` re-applies to what is already sounding — the difference
+- `set_bus_volume_linear` re-applies to what is already sounding — the difference
   between a mixer and a default; a handle remembers its bus and starting volume.
 - An undeclared bus is unity, not silence, so a typo stays audible and findable.
   A parent cycle is cut and reported.
 
-**Events** are named sounds in `audio/events.toml`. A script says
-`audio.play_event("hit")`; which file, level and bus is the sound designer's.
+**Cues** are named sounds in `audio/cues.toml`. A script says
+`audio.play_cue("hit")`; which file, level and bus is the sound designer's.
 **Variations are taken in turn, not at random** — a rotation must not repeat,
 and the engine RNG would put what a player hears into the simulation's stream.
 Where the rotation got to is presentation: not snapshotted, not digested.
 
 **Positional.** A `listener` node is the ears: distance sets volume, offset
 across its right sets pan. A sound is placed by its `sound` component or per
-call; `audio.set_listener` covers a game whose ears are not a node.
+call; `audio.set_listener_position` covers a game whose ears are not a node.
 
 - Attenuation is inverse-distance, full inside `min_distance`, halving per
   doubling, cut at `max_distance`. Pan is equal-power amplitude computed with
@@ -809,7 +809,7 @@ things are shared.
   none every call still answers.
 - **Delivery is the engine's usual one**: an id out, the answer across a
   channel, `ExternalIo` landing it at `Stage::First` of a later tick — recorded,
-  replayable with no store present, dispatched to `on_platform` and to whoever
+  replayable with no store present, dispatched to `on_platform_event` and to whoever
   awaits the id.
 - **A write waits for its tick to settle.** A rollback cannot take an
   achievement back, so an outward call is held until its tick leaves the
@@ -1159,7 +1159,7 @@ overlay, dark and light token sets.
   player, so what is previewed is what ships. The clip lives inline
   (`[nodes.animation.library]`) or in `animations/<node>.toml`; **Save as file**
   and **Make inline** are exact inverses because both hold byte-identical
-  documents. Preview goes through `animation.define`, so the engine's parser
+  documents. Preview goes through `animation.add_clip`, so the engine's parser
   reads the table before it is written.
 - The clip belongs to the *player* — the selection or its nearest ancestor
   carrying `animation` — so keying a bone writes a track on the character's
@@ -1191,15 +1191,15 @@ frame is all a replay needs.
 
 ```toml
 [input.actions]
-jump = ["Space", "gamepad:South"]
-move_x = ["keys:A,D", "axis:LeftStickX"]
+jump = ["Space", "gamepad:south"]
+move_x = ["keys:KeyA,KeyD", "axis:left_x"]
 fire = ["mouse:left"]
 ```
 
-- Five binding forms: a key name, `mouse:left`, `gamepad:South`,
-  `axis:LeftStickX` (`+`/`-` for one direction), `keys:A,D` (two keys as one
-  axis, first negative).
-- Scripts read `action_value` (-1..1), `action_pressed`, `action_just_pressed`,
+- Five binding forms: a key's W3C code, `mouse:left`, `gamepad:south`,
+  `axis:left_x` (`+`/`-` for one direction), `keys:KeyA,KeyD` (two keys as
+  one axis, first negative).
+- Scripts read `action_value` (-1..1), `action_down`, `action_just_pressed`,
   `action_just_released`. Every binding contributes and the action takes the
   value furthest from rest, so one action serves a key, a stick and a d-pad. An
   axis has a deadzone, counts as pressed past half throw, and takes its edges
@@ -1211,7 +1211,7 @@ fire = ["mouse:left"]
   who rebinds after recording would otherwise replay with a different action
   firing. `App::add_replay_setup` is that seam, and a recording made before a
   plugin declared its setup still plays.
-- `input.bind` saves every rebinding to `input.toml` in the user data directory;
+- `input.bind` saves every rebinding to `bindings.toml` in the user data directory;
   `reset_bindings` goes back to the project's. An undeclared action reads 0 and
   warns once.
 
@@ -1318,5 +1318,11 @@ caller's business — once the level loaded, or after the hit lands. The
   Headless says so rather than leaving no file and a zero exit code.
 - The mode is a launch decision (`--headless`, `--offscreen`); nothing at
   runtime can promote a headless run.
+- `[window] low_processor` lets a windowed run skip the frames nothing asked
+  for. The loop blocks in kiss3d's `Window::wait_events` until input, a
+  `balaur_core::wake`, or a repaint egui or `ui.request_repaint` scheduled.
+  A worker thread reports with `replay::report`, which wakes it; a browser tab
+  checks every 16 ms instead. The editor runs this way, so an idle editor runs
+  no script and draws nothing.
 - Rendering stays a pure observer in every mode — that is what lets the three
   agree bit for bit.

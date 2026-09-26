@@ -36,14 +36,14 @@ pub fn editable(S) {
 
 // Watch for the second click of a pair over the selected text node.
 pub fn update(S) {
-    if S.textedit.node >= 0 || !input::mouse_just_pressed(input::MOUSE_LEFT) {
+    if S.textedit.node >= 0 || !input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
         return;
     }
     let (mx, my) = input::mouse_position();
     let scale = util::max(S.ui_scale, 0.01);
     let x = mx / scale;
     let y = my / scale;
-    let now = engine::time();
+    let now = engine::unix_time();
     let quick = now - S.textedit.at < GAP;
     let near = util::abs(x - S.textedit.x) < SLOP && util::abs(y - S.textedit.y) < SLOP;
     S.textedit.at = now;

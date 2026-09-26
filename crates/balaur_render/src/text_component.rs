@@ -15,25 +15,6 @@ use crate::vocabulary::keys as k;
 use crate::vocabulary::words;
 use crate::world_text::{Align, TextRenderable, TextStyle};
 
-/// The alignment words a scene and a script both spell.
-pub(crate) const ALIGNMENTS: &[&str] = &["start", "center", "end"];
-
-fn align_of(word: &str) -> Align {
-    match word {
-        "center" => Align::Center,
-        "end" => Align::End,
-        _ => Align::Start,
-    }
-}
-
-fn align_word(align: Align) -> &'static str {
-    match align {
-        Align::Start => "start",
-        Align::Center => "center",
-        Align::End => "end",
-    }
-}
-
 /// Write the component, keeping the version so the backend rebuilds.
 pub(crate) fn set_text(eng: &Engine, entity: Entity, mut next: TextRenderable) -> Result<()> {
     let world = eng.world_mut();
@@ -56,16 +37,16 @@ fn shared_schema() -> Vec<(&'static str, String)> {
         (k::TEXT_KEY, r#"{ type = "string", default = "", description = "A key in the project's strings, re-read every frame so a language change shows at once" }"#.into()),
         (k::FONT_SIZE, r#"{ type = "float", default = 32.0, min = 1.0, description = "Height in font pixels, before pixels_per_unit sizes it in the world" }"#.into()),
         (k::FONT_WEIGHT, r#"{ type = "int", default = 400, min = 100, max = 900, description = "Stroke weight, 400 regular and 700 bold" }"#.into()),
-        (k::FONT_STYLE, r#"{ type = "enum", default = "normal", options = ["normal", "italic"], description = "Upright or italic" }"#.into()),
+        (k::FONT_STYLE, format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Upright or italic" }}"#, words::NORMAL, crate::vocabulary::options(words::FONT_STYLES))),
         (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#.into()),
-        (k::ALIGN, format!(r#"{{ type = "enum", default = "center", options = [{}], description = "Where the block sits across the node's origin" }}"#, crate::vocabulary::options(ALIGNMENTS))),
+        (k::TEXT_ALIGN, format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where the block sits across the node's origin" }}"#, words::CENTER, crate::vocabulary::options(words::TEXT_ALIGNS))),
         (k::MAX_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Font pixels the lines wrap at; zero runs the text on one line" }"#.into()),
         (k::MARKUP, r#"{ type = "bool", default = false, description = "Read the text as markup: bold, italic, colour, alignment, wave and inline images" }"#.into()),
         (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Font pixels to one world unit, sizing the block the way a sprite is sized" }"#.into()),
         (k::LINE_HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "Baseline to baseline as a multiple of the size; zero takes the default" }"#.into()),
         (k::LETTER_SPACING, r#"{ type = "float", default = 0.0, description = "Extra space between glyphs, in font pixels" }"#.into()),
-        (k::FAMILY, r#"{ type = "enum", default = "ui", options = ["ui", "heading", "mono", "icons"], description = "Which of the project's font chains to shape with" }"#.into()),
-        (k::FONT, r#"{ type = "string", default = "", description = "A project-relative AngelCode .fnt naming a bitmap face; empty shapes with the project's vector fonts" }"#.into()),
+        (k::FONT_FAMILY, r#"{ type = "enum", default = "ui", options = ["ui", "heading", "mono", "icon"], description = "Which of the project's font chains to shape with" }"#.into()),
+        (k::BITMAP_FONT, r#"{ type = "string", default = "", description = "A project-relative AngelCode .fnt naming a bitmap face; empty shapes with the project's vector fonts" }"#.into()),
         (k::OUTLINE_SIZE, r#"{ type = "float", default = 0.0, min = 0.0, description = "Font pixels the outline reaches around the glyphs; zero draws none" }"#.into()),
         (k::OUTLINE_COLOR, r#"{ type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "The outline's colour" }"#.into()),
         (k::SHADOW_OFFSET_X, r#"{ type = "float", default = 0.0, description = "Font pixels the shadow is moved along x; zero with y draws none" }"#.into()),
@@ -116,13 +97,13 @@ fn from_params(params: &toml::Value, in_3d: bool) -> TextRenderable {
         style: TextStyle {
             size: number(k::FONT_SIZE, 32.0).max(1.0),
             weight: number(k::FONT_WEIGHT, 400.0) as u16,
-            italic: text(k::FONT_STYLE) == "italic",
+            italic: text(k::FONT_STYLE) == words::ITALIC,
             color: crate::color_from_params(params),
-            align: align_of(&text(k::ALIGN)),
+            align: Align::of(&text(k::TEXT_ALIGN)),
             markup: flag(k::MARKUP, false),
             max_width: (max_width > 0.0).then_some(max_width),
-            font: text(k::FONT),
-            family: text(k::FAMILY),
+            font: text(k::BITMAP_FONT),
+            family: text(k::FONT_FAMILY),
             line_height: number(k::LINE_HEIGHT, 0.0).max(0.0),
             letter_spacing: number(k::LETTER_SPACING, 0.0),
             alpha_cut: number(k::ALPHA_CUT, 0.0).clamp(0.0, 1.0),
@@ -164,25 +145,28 @@ fn to_params(text: &TextRenderable) -> toml::Value {
         k::FONT_STYLE,
         toml::Value::String(
             if text.style.italic {
-                "italic"
+                words::ITALIC
             } else {
-                "normal"
+                words::NORMAL
             }
             .into(),
         ),
     );
     put(k::COLOR, crate::color_to_toml(text.style.color));
     put(
-        k::ALIGN,
-        toml::Value::String(align_word(text.style.align).into()),
+        k::TEXT_ALIGN,
+        toml::Value::String(text.style.align.word().into()),
     );
     put(
         k::MAX_WIDTH,
         toml::Value::Float(f64::from(text.style.max_width.unwrap_or(0.0))),
     );
     put(k::MARKUP, toml::Value::Boolean(text.style.markup));
-    put(k::FONT, toml::Value::String(text.style.font.clone()));
-    put(k::FAMILY, toml::Value::String(text.style.family.clone()));
+    put(k::BITMAP_FONT, toml::Value::String(text.style.font.clone()));
+    put(
+        k::FONT_FAMILY,
+        toml::Value::String(text.style.family.clone()),
+    );
     put(
         k::LINE_HEIGHT,
         toml::Value::Float(f64::from(text.style.line_height)),
@@ -238,6 +222,8 @@ pub(crate) fn register_text2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "text2d",
         ComponentDef {
+            events: &[],
+            warnings: None,
             doc: "A block of `text` drawn in the 2D pass, `pixels_per_unit` font pixels per world unit.",
             schema: ComponentDef::parse_schema(
                 "text2d",
@@ -273,6 +259,8 @@ pub(crate) fn register_text3d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "text3d",
         ComponentDef {
+            events: &[],
+            warnings: None,
             doc: "A block of `text` drawn in the 3D pass on a quad, `pixels_per_unit` font pixels per world unit; `billboard` turns it to the camera.",
             schema: ComponentDef::parse_schema(
                 "text3d",
@@ -304,7 +292,7 @@ pub(crate) fn install_text_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// One node's mesh and what it was built from.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) struct TextSlot {
     /// One node per layer: shadow, outline, then the text itself.
     two_d: Vec<kiss3d::scene::SceneNode2d>,
@@ -319,7 +307,7 @@ pub(crate) struct TextSlot {
     shaped: String,
 }
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 impl TextSlot {
     /// Drop every node this slot made.
     fn detach(&mut self) {
@@ -337,7 +325,7 @@ impl TextSlot {
 /// Rebuilt when the component's version moves, when a `text_key` resolves to
 /// something new, or when the atlas has grown under it and the old UVs point
 /// at glyphs that are no longer there.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn sync_text(
     app: &balaur_core::App,
     scene_2d: &mut kiss3d::scene::SceneNode2d,
@@ -436,7 +424,7 @@ pub(crate) fn sync_text(
 
 /// Put every live block where its node is, and drop the ones whose node has
 /// gone. Split from the rebuild above: one walks what changed, this walks all.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn place(
     app: &balaur_core::App,
     slots: &mut std::collections::HashMap<Entity, TextSlot>,
@@ -478,6 +466,7 @@ fn place(
         for node in &mut slot.two_d {
             node.set_position(glamx::Vec2::new(global.position.x, global.position.y));
             node.set_rotation(angle);
+            node.set_local_scale(global.scale.x, global.scale.y);
             node.set_visible(visible);
             node.set_color(tint);
         }
@@ -490,6 +479,7 @@ fn place(
         };
         for node in &mut slot.three_d {
             node.set_position(global.position);
+            node.set_local_scale(global.scale.x, global.scale.y, global.scale.z);
             node.set_visible(visible);
             node.set_rotation(turned);
             node.set_color(tint);
@@ -500,7 +490,7 @@ fn place(
 
 /// The rotation that turns a quad's +z along `towards`, keeping its up as
 /// close to the world's as it can — what a billboard needs.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn facing(towards: glamx::Vec3) -> glamx::Quat {
     let forward = towards.normalize_or_zero();
     if forward.length_squared() < 0.5 {
@@ -517,18 +507,25 @@ fn facing(towards: glamx::Vec3) -> glamx::Quat {
     glamx::Quat::from_mat3(&glamx::Mat3::from_cols(right, up, forward))
 }
 
+/// One em in world units: the font size over `pixels_per_unit`, grown or
+/// shrunk by the node's own scale and every ancestor's.
+#[cfg(feature = "window")]
+fn em_in_world(size: f32, pixels_per_unit: f32, scale: glamx::Vec3) -> f32 {
+    size / pixels_per_unit.max(0.01) * scale.x.abs().max(scale.y.abs())
+}
+
 /// The size a block's glyphs should be rasterised at: how many pixels one em
 /// covers on screen, in buckets so a moving camera re-shapes rarely.
 ///
 /// Falls back to the asked size when nothing has published a camera yet.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn raster_size(
     app: &balaur_core::App,
     text: &TextRenderable,
     global: &balaur_core::GlobalTransform,
     viewport_height: f32,
 ) -> f32 {
-    let em_world = text.style.size / text.pixels_per_unit.max(0.01);
+    let em_world = em_in_world(text.style.size, text.pixels_per_unit, global.scale);
     let per_unit = if text.in_3d {
         let Some(snapshot) = app.engine.try_resource::<crate::ViewportSnapshot3d>() else {
             return balaur_text::bucket(text.style.size);
@@ -548,4 +545,17 @@ fn raster_size(
         snapshot.borrow().zoom.max(0.01)
     };
     balaur_text::bucket((em_world * per_unit).clamp(1.0, 512.0))
+}
+
+#[cfg(all(test, feature = "window"))]
+mod tests {
+    /// Text under a scaled parent is that much larger or smaller, as a
+    /// sprite is, whichever axis is flipped.
+    #[test]
+    fn a_scaled_node_s_em_is_scaled_with_it() {
+        let em = |x, y| super::em_in_world(280.0, 100.0, glamx::Vec3::new(x, y, 1.0));
+        assert!((em(1.0, 1.0) - 2.8).abs() < 1e-5);
+        assert!((em(0.118, 0.118) - 0.3304).abs() < 1e-4);
+        assert!((em(-2.0, 1.0) - 5.6).abs() < 1e-5);
+    }
 }

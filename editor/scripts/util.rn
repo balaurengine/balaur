@@ -133,6 +133,9 @@ pub fn vec2(v, fallback) {
     }
 }
 
+/// Texture pixels to one world unit when a component names none.
+pub const DEFAULT_PIXELS_PER_UNIT = 100.0;
+
 /// A live node's `Vec3` as the `[x, y, z]` the draw and document code uses.
 pub fn xyz(v) {
     [v.x, v.y, v.z]
@@ -215,9 +218,9 @@ pub fn match_case(sample, text) {
 }
 
 /// Words a schema key spells lowercase that a label spells in capitals.
-const ACRONYMS = ["ccd", "fov", "hdr", "id", "ik", "lod", "rgb", "rgba", "srgb", "ui", "uv"];
+const ACRONYMS = ["fov", "hdr", "id", "ik", "lod", "rgb", "rgba", "srgb", "ui", "uv"];
 
-/// A schema key as a row label: `half_extents` reads "Half extents". The key
+/// A schema key as a row label: `edge_radius` reads "Edge radius". The key
 /// itself is untouched, so a label never becomes the name of anything.
 pub fn prop_label(prop) {
     if prop == "" {

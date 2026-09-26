@@ -78,14 +78,12 @@ pub fn go(eng: &Engine, entity: Entity, name: &str) -> Result<()> {
             states.current = name.to_string();
         }
     }
+    let args = [Value::Str(was), Value::Str(name.to_string())];
+    crate::bindings::fire(eng, entity, hooks::STATE_CHANGED, &args);
     if let Some(host) = eng.script_host() {
         let node = crate::node_id_of(entity);
         if host.has_method(node, hooks::ON_STATE_CHANGED) {
-            host.call_on(
-                node,
-                hooks::ON_STATE_CHANGED,
-                &[Value::Str(was), Value::Str(name.to_string())],
-            );
+            host.call_on(node, hooks::ON_STATE_CHANGED, &args);
         }
     }
     Ok(())
@@ -110,7 +108,9 @@ pub(crate) fn register_states_component(app: &mut App) {
     app.register_component(
         "states",
         ComponentDef {
-            doc: "Named looks for the node. Every key beside `current` and `duration` is a state holding per-component property tables; `node.states.go(\"hover\")` patches one over the node.",
+            events: &[],
+            warnings: None,
+            doc: "Named looks for the node. Every key beside `current` and `duration` is a state holding per-component property tables; `node.states.set_state(\"hover\")` patches one over the node.",
             schema: ComponentDef::parse_schema("states", &schema()),
             tags: &["interaction"],
             expects: &[],

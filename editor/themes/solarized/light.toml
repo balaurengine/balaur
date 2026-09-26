@@ -1,0 +1,19 @@
+# Solarized light, text in base01: MIT, Copyright (c) 2011 Ethan Schoonover.
+# From github.com/altercation/solarized.
+type = "widget_theme"
+
+[colors]
+background = "#eee8d5"
+bg_panel = "#fdf6e3"
+bg_control = "#eee8d5"
+foreground = "#556b72"  # #586e75, walked to AA
+primary = "#268bd2"
+secondary = "#2aa198"
+success = "#859900"
+warning = "#b58900"
+danger = "#dc322f"
+syntax_keyword = "#5e7000"  # #859900, walked to AA
+syntax_string = "#00756d"  # #2aa198, walked to AA
+syntax_number = "#00756d"  # #2aa198, walked to AA
+syntax_type = "#8b6000"  # #b58900, walked to AA
+syntax_comment = "#5e6b6b"  # #93a1a1, walked to AA

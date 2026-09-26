@@ -1,0 +1,305 @@
+//! The page a browser build runs in, as a Balaur plugin: `browser.*` for scripts.
+//!
+//! A page is outside the simulation, so it is reached the way a socket is.
+//! Facts about it (the tab's visibility, the user agent, the location) are
+//! read once per tick at [`Stage::First`], recorded, and answered from the
+//! recording on replay. A message from the parent frame arrives the same
+//! way, dispatched to `on_browser_event` on the nodes that asked. Posting a
+//! message is an effect on the world and goes out through [`ExternalIo`],
+//! which never fires while a recording plays.
+//!
+//! Named verbs rather than `eval`: an arbitrary string run now, returning
+//! anything, is both a determinism hole and a security one. A vendor SDK
+//! that speaks `postMessage` is a Rune `mod` over `post_message` and
+//! `on_browser_event`; the engine carries the bridge, not the protocol.
+//!
+//! Off the web every query answers nil, `visible` answers true and
+//! `post_message` answers false, so a script written for a page still runs
+//! on a desktop.
+
+use anyhow::{Result, anyhow};
+use balaur_core::engine_api::{from_json, to_json};
+use balaur_core::replay::ExternalIo;
+use balaur_core::{Engine, Stage};
+use balaur_script::{Bindings, BindingsExt, NodeId, Value};
+use serde::{Deserialize, Serialize};
+use serde_json::Value as Json;
+
+#[cfg(target_family = "wasm")]
+mod browser;
+
+/// What the page reports, recorded as it arrives.
+#[derive(Clone, Serialize, Deserialize)]
+pub(crate) enum WebEvent {
+    Message { payload: Json },
+    Visibility { visible: bool },
+}
+
+/// What never changes for the life of the page, read once at load.
+#[derive(Clone, Default, Serialize, Deserialize)]
+pub struct PageFacts {
+    pub user_agent: Option<String>,
+    pub location: Option<String>,
+    pub hardware_concurrency: Option<u32>,
+}
+
+/// Where messages go: `on_browser_event` on one node's script.
+#[derive(Clone)]
+pub struct Handler {
+    pub node: NodeId,
+    pub method: String,
+}
+
+/// The channel the page reports on, who listens, and what it last said.
+pub struct BrowserState {
+    io: ExternalIo<WebEvent>,
+    listeners: Vec<Handler>,
+    facts: PageFacts,
+    visible: bool,
+}
+
+impl BrowserState {
+    /// Whether the tab is in front of the player, as of this tick.
+    #[must_use]
+    pub const fn visible(&self) -> bool {
+        self.visible
+    }
+
+    #[must_use]
+    pub const fn facts(&self) -> &PageFacts {
+        &self.facts
+    }
+}
+
+impl Default for BrowserState {
+    fn default() -> Self {
+        Self {
+            io: ExternalIo::default(),
+            listeners: Vec::new(),
+            facts: PageFacts::default(),
+            visible: true,
+        }
+    }
+}
+
+/// This tick's messages, as the values handlers received.
+#[derive(Default)]
+pub struct BrowserSnapshot {
+    pub messages: Vec<Value>,
+}
+
+/// The facts and the visibility, alongside the channel's arrivals, so a
+/// replay on a desktop answers `browser.user_agent` as the browser did.
+#[derive(Serialize, Deserialize)]
+struct Captured {
+    io: Json,
+    facts: PageFacts,
+    visible: bool,
+}
+
+fn capture_browser(eng: &Engine) -> Json {
+    let state = eng.resource::<BrowserState>();
+    let state = state.borrow();
+    serde_json::to_value(Captured {
+        io: state.io.capture(),
+        facts: state.facts.clone(),
+        visible: state.visible,
+    })
+    .unwrap_or(Json::Null)
+}
+
+fn restore_browser(eng: &Engine, value: &Json) {
+    let Ok(captured) = Captured::deserialize(value) else {
+        return;
+    };
+    let state = eng.resource::<BrowserState>();
+    let mut state = state.borrow_mut();
+    state.io.restore(&captured.io);
+    state.facts = captured.facts;
+    state.visible = captured.visible;
+}
+
+/// Drain the page's reports, record them, then dispatch, in arrival
+/// order, after the borrows are released so a handler may post back.
+fn pump_web_system(eng: &Engine, _: f32) {
+    let mut dispatches: Vec<(Handler, Value)> = Vec::new();
+    {
+        let state = eng.resource::<BrowserState>();
+        let snapshot = eng.resource::<BrowserSnapshot>();
+        let mut state = state.borrow_mut();
+        let mut snapshot = snapshot.borrow_mut();
+        snapshot.messages.clear();
+        for event in state.io.drain() {
+            match event {
+                WebEvent::Message { payload } => {
+                    let value = from_json(&payload).unwrap_or(Value::Nil);
+                    snapshot.messages.push(value.clone());
+                    for listener in &state.listeners {
+                        dispatches.push((listener.clone(), value.clone()));
+                    }
+                }
+                WebEvent::Visibility { visible } => {
+                    state.visible = visible;
+                    // A hidden tab is a game in the background, as a phone app is.
+                    balaur_core::facts::update_device(eng, |device| device.suspended = !visible);
+                }
+            }
+        }
+    }
+    if let Some(host) = eng.script_host() {
+        for (handler, value) in dispatches {
+            host.call_on(handler.node, &handler.method, std::slice::from_ref(&value));
+        }
+    }
+}
+
+/// Send `payload` to the page that embeds this one. Answers whether it was
+/// sent: false off the web, and false while a recording plays.
+pub fn post_message(eng: &Engine, payload: &Value) -> Result<bool> {
+    let json = to_json(payload)?;
+    if !backend::SUPPORTED {
+        return Ok(false);
+    }
+    let state = eng.resource::<BrowserState>();
+    let state = state.borrow();
+    Ok(state.io.start(eng, |_| backend::post_message(&json)))
+}
+
+fn opt<'a>(opts: Option<&'a Value>, key: &str) -> Option<&'a Value> {
+    match opts? {
+        Value::Map(entries) => entries.iter().find(|(k, _)| k == key).map(|(_, v)| v),
+        _ => None,
+    }
+}
+
+fn install_web_api(m: &mut dyn Bindings<Engine>) {
+    m.module_doc(
+        "The page a browser build runs in; off the web every query answers nil. A parent-frame message reaches `on_browser_event` on every node that called `listen`.",
+    );
+    m.describe(&[
+        ("listen", &[], "(node: node, options: map)", "Have the node's `on_browser_event(payload)`, or the `on_event` method the options name, called for every message the parent frame posts."),
+        ("stop_listening", &[], "(node: node)", "Stop the node hearing the parent frame's messages. Not an error when it never listened."),
+        ("messages", &[], "()", "Every message the parent frame posted this tick, for a script that would rather ask than declare a method."),
+        ("post_message", &[], "(payload: map)", "Post a value to the page that embeds this one. False off the web, and false while a recording plays."),
+        ("visible", &[], "()", "Whether the tab is in front of the player; true off the web."),
+        ("user_agent", &[], "()", "The browser's user agent string, or nil off the web."),
+        ("location", &[], "()", "The page's URL, or nil off the web."),
+        ("hardware_concurrency", &[], "()", "How many threads the browser reports, or nil off the web."),
+    ]);
+    m.function(
+        "listen",
+        |eng: &Engine, (node, opts): (NodeId, Option<Value>)| {
+            let method = match opt(opts.as_ref(), "on_event") {
+                Some(Value::Str(name)) => name.clone(),
+                Some(other) => {
+                    return Err(anyhow!("`on_event` should be a method name, got {other:?}"));
+                }
+                None => "on_browser_event".to_string(),
+            };
+            eng.resource::<BrowserState>()
+                .borrow_mut()
+                .listeners
+                .push(Handler {
+                    node,
+                    method: method.clone(),
+                });
+            Ok(())
+        },
+    );
+    m.function("stop_listening", |eng: &Engine, node: NodeId| {
+        eng.resource::<BrowserState>()
+            .borrow_mut()
+            .listeners
+            .retain(|listener| listener.node != node);
+        Ok(())
+    });
+    m.function("messages", |eng: &Engine, ()| {
+        Ok(Value::List(
+            eng.resource::<BrowserSnapshot>().borrow().messages.clone(),
+        ))
+    });
+    m.function("post_message", |eng: &Engine, payload: Value| {
+        post_message(eng, &payload)
+    });
+    m.function("visible", |eng: &Engine, ()| {
+        Ok(eng.resource::<BrowserState>().borrow().visible)
+    });
+    m.function("user_agent", |eng: &Engine, ()| {
+        Ok(fact(eng, |f| f.user_agent.clone().map(Value::text)))
+    });
+    m.function("location", |eng: &Engine, ()| {
+        Ok(fact(eng, |f| f.location.clone().map(Value::text)))
+    });
+    m.function("hardware_concurrency", |eng: &Engine, ()| {
+        Ok(fact(eng, |f| {
+            f.hardware_concurrency.map(|n| Value::Int(i64::from(n)))
+        }))
+    });
+}
+
+fn fact(eng: &Engine, read: impl FnOnce(&PageFacts) -> Option<Value>) -> Value {
+    read(&eng.resource::<BrowserState>().borrow().facts).unwrap_or(Value::Nil)
+}
+
+pub struct BrowserPlugin {
+    manifest: balaur_plugin::Manifest,
+}
+
+impl Default for BrowserPlugin {
+    fn default() -> Self {
+        Self {
+            manifest: balaur_plugin::Manifest::new("browser", env!("CARGO_PKG_VERSION")),
+        }
+    }
+}
+
+impl balaur_plugin::Plugin for BrowserPlugin {
+    fn manifest(&self) -> &balaur_plugin::Manifest {
+        &self.manifest
+    }
+
+    fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
+        let state = BrowserState {
+            facts: backend::facts(),
+            visible: backend::visible(),
+            ..BrowserState::default()
+        };
+        // Through `start`, so a replay registers nothing and the recording
+        // supplies the page's reports instead.
+        state
+            .io
+            .start(reg.engine(), |report| backend::listen(report.clone()));
+        reg.insert_resource(state);
+        reg.insert_resource(BrowserSnapshot::default());
+        reg.add_system(Stage::First, pump_web_system);
+        reg.add_replay_source("browser", capture_browser, restore_browser);
+        let mut m = reg.script_module("browser")?;
+        install_web_api(&mut *m);
+        Ok(())
+    }
+}
+
+#[cfg(target_family = "wasm")]
+use browser as backend;
+
+/// Off the web: no page, so nothing to report and nowhere to post.
+#[cfg(not(target_family = "wasm"))]
+mod backend {
+    use std::sync::mpsc::Sender;
+
+    use super::{PageFacts, WebEvent};
+
+    pub(crate) const SUPPORTED: bool = false;
+
+    pub(crate) fn facts() -> PageFacts {
+        PageFacts::default()
+    }
+
+    pub(crate) const fn visible() -> bool {
+        true
+    }
+
+    pub(crate) fn listen(_: Sender<WebEvent>) {}
+
+    pub(crate) fn post_message(_: &serde_json::Value) {}
+}

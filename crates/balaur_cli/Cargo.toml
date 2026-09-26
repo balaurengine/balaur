@@ -14,8 +14,8 @@ name = "balaur"
 path = "src/main.rs"
 
 [features]
-default = ["audio", "http", "websocket", "webtransport", "gamend", "multiplayer", "web", "parallel", "import"]
-# rapier's solver on rayon. The plain web template leaves it off: rayon blocks
+default = ["audio", "http", "websocket", "webtransport", "gamend", "multiplayer", "browser", "parallel", "import"]
+# rapier's solver on rayon. The plain web runtime leaves it off: rayon blocks
 # on `Atomics.wait`, which a browser refuses without shared memory.
 parallel = ["balaur/parallel"]
 # Build with a real window (kiss3d/wgpu). Without it, runs are headless.
@@ -25,7 +25,7 @@ audio = ["balaur/audio"]
 # Load extensions from a project's extensions/ directory.
 extensions = ["balaur/extensions"]
 # `balaur import`, `import.*` for the editor and SVGs read in place. The web
-# game template leaves it off: a game reads what an import and export wrote.
+# game runtime leaves it off: a game reads what an import and export wrote.
 import = ["dep:balaur_import", "balaur/svg"]
 # `http.*` for scripts. Off, the build drops ureq and its TLS stack.
 http = ["balaur/http"]
@@ -37,9 +37,9 @@ webtransport = ["balaur/webtransport"]
 gamend = ["balaur/gamend"]
 # `multiplayer.*` for scripts: host, join and play a rollback match.
 multiplayer = ["balaur/multiplayer"]
-# `web.*` for scripts: the page a browser build runs in. Native builds answer
+# `browser.*` for scripts: the page a browser build runs in. Native builds answer
 # nil, so a script written for the web still runs on a desktop.
-web = ["balaur/web"]
+browser = ["balaur/browser"]
 # `apple.*` for scripts, and Game Center and iCloud under `platform.*`. The
 # Apple templates ship with it on, because a template is prebuilt and a game
 # cannot add a framework to one it was handed.
@@ -92,10 +92,10 @@ wasm-bindgen-rayon = { version = "1.3", default-features = false, features = ["n
 # The browser entry point (src/web.rs): a fetch for the pack, the canvas to
 # draw on, and panics reported on the console instead of as `unreachable`.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4"
-js-sys = "0.3"
-web-sys = { version = "0.3", features = [
+wasm-bindgen = "0.2.129"
+wasm-bindgen-futures = "0.4.79"
+js-sys = "0.3.106"
+web-sys = { version = "0.3.106", features = [
     "Window",
     # The start screen opens a project by loading the page again with its id
     # kept beside it (src/project_web.rs).

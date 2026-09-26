@@ -63,16 +63,17 @@ being built, marked `done`, never back in the shipped one.
 | **Semantic tokens, inlay hints and code actions** — colouring from the compiler, inferred types shown inline, and a quick fix on a diagnostic, held until the gaps in completion are known. | 0.3 | no plan |
 | **Focused script editing** — the code pane takes the whole window beside its hooks list, with the docks folded away and put back as they were. | 0.2 done | [PLAN-editor-redesign.md#57-focus-for-a-script](PLAN-editor-redesign.md#57-focus-for-a-script) |
 | **Project manager** — the screen the editor starts on: recent projects, new from a template, open a folder, Godot import. | 0.2 done | [PLAN-project-manager.md](PLAN-project-manager.md) |
-| **Editor themes** — themes a person owns beside the two bundled, a copy that states only what it changes, and a window that edits every role. | 0.2 done | [PLAN-editor-themes.md](PLAN-editor-themes.md) |
+| **Editor themes** — seven source colours and four sizes derive every token; a person's copy states only what changes, and a window edits every role. | 0.2 done | [PLAN-editor-themes.md](PLAN-editor-themes.md) |
+| **Theme pairs that follow the system** — Solarized, Gruvbox, Catppuccin and seven more bundled, each a dark and a light half, worn as the system says by default. | 0.2 done | [PLAN-editor-themes.md](PLAN-editor-themes.md#steps) |
 | **An import that does not stop the editor** — a job that writes a few files a frame, a list of what is importing, and an Import button. | 0.2 done | [PLAN-import-jobs.md](PLAN-import-jobs.md) |
 | **The User data dock** — the files a game keeps for its player, saves and prefs among them, opened as trees and edited in place. | 0.2 done | [PLAN-gamend.md#2b-the-gamend-dock-the-server-target-and-logs](PLAN-gamend.md#2b-the-gamend-dock-the-server-target-and-logs) |
 | **Curve editor and onion skin** — tangent handles on keys, and ghosted neighbouring frames in the timeline. | 0.3 | [PLAN-editor.md#curve-editor-and-onion-skin](PLAN-editor.md#curve-editor-and-onion-skin) |
-| **Selection, alignment and a library** — multi-select, align and distribute, gizmos, a Pen tool, a material panel, an Events view, a Cost dock, and `editor/library`. | 0.1 done | no plan |
+| **Selection, alignment and a library** — multi-select, align and distribute, gizmos, a Pen tool, a material panel, a Bindings view, a Cost panel, and `editor/library`. | 0.1 done | no plan |
 | **The Physics panel** — every physics component on one panel, and a mesh turned into a hull, convex pieces, voxels or a soft body in one click. | 0.2 done | no plan |
 | **Multiplayer dock and Play as two** — a second instance of the game started from the editor, with each link and its stats in a dock. | 0.4 | [PLAN-multiplayer.md#3-steps](PLAN-multiplayer.md#3-steps) |
 | **The editor in a browser** — a project kept on Gamend rather than only in the browser, and native targets exported from a tab. | 0.6 | [PLAN-web-editor.md](PLAN-web-editor.md) |
 | **A green `main`** — the same outputs on every machine, a bad file an error rather than a crash, and documents that match the code. | (0.2) | [PLAN-hardening.md](PLAN-hardening.md) |
-| **What the editor's frame costs** — the docks rebuild every row every frame, so the shell costs more than a 60 Hz budget; a list draws only what is visible. | (0.2) | [PLAN-editor-performance.md](PLAN-editor-performance.md) |
+| **What the editor's frame costs** — the shell restates only what changed, and `[window] low_processor` draws no frame while nothing moves. | (0.2) | [PLAN-editor-performance.md](PLAN-editor-performance.md) |
 | **Node conversions** — reparent, make scene root, save a branch as a scene, fit a collider to what is drawn, and bake a boolean. | (0.2) | [PLAN-node-conversions.md](PLAN-node-conversions.md) |
 | **The editor on a tablet and a phone** — the docks fold away on a small screen and open one at a time, and every control clears a finger. | 0.8 | [PLAN-responsive.md](PLAN-responsive.md) |
 | **More than one window** — a second OS window: a dock torn off the editor, or a game on a second display. | 1.0 | no plan |
@@ -84,6 +85,7 @@ being built, marked `done`, never back in the shipped one.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
+| **Names settled** — one name per concept across the script API, scene files, themes, settings, the CLI and the editor, held by lints. | 0.3 | [PLAN-naming.md](PLAN-naming.md) |
 | **Rune scripting** — one deterministic language with a `math` module, component handles on nodes, hot reload, a debugger over DAP, and a self-documenting API. | 0.1 done | no plan |
 | **A second scripting language** — Luau, C# or mimas beside Rune, over the same `balaur_script` seam, held to the same determinism bar. | 0.7 | [PLAN-second-language.md](PLAN-second-language.md) |
 | **Scenes, assets and packs** — prefabs with per-path overrides, `id://` references that survive a rename, import settings beside each file, and sha256-verified binary packs. | 0.1 done | no plan |
@@ -111,8 +113,8 @@ being built, marked `done`, never back in the shipped one.
 | **Rapier in 2D and 3D** — bodies, joints, character controllers, the query pipeline, collision events, ray-cast vehicles, and every collider shape including editable voxels. | 0.1 done | no plan |
 | **Concave 2D colliders** — a concave polygon cut into overlapping convex pieces, so nothing wedges into a seam, and imported Godot collision polygons keep their shape. | 0.2 done | [PLAN-convex-decomposition.md](PLAN-convex-decomposition.md) |
 | **Rigs and animation** — 2D and 3D skeletons with five modifiers each, GPU skinning, deform and morph tracks, retargeting through a `bone_map`, ragdolls, tweens, crossfades and state machines. | 0.1 done | no plan |
-| **Soft bodies** — `softbody2d` and `softbody3d`: particles and elastic cells from a mesh or a generator, with plasticity, drawn from the solver. | 0.7 done | [PLAN-physics.md#soft-bodies](PLAN-physics.md#soft-bodies) |
-| **Cloth and rope** — `cloth`, `cloth_tube` and `rope` layouts of a soft body, held in place by the particle indices `pinned` names. | 0.7 done | [PLAN-physics.md#cloth-and-rope](PLAN-physics.md#cloth-and-rope) |
+| **Soft bodies** — `softbody2d` and `softbody3d`: particles and elastic cells from a mesh, a traced sprite or a generator, with plasticity, drawn from the solver. | 0.7 done | [PLAN-physics.md#soft-bodies](PLAN-physics.md#soft-bodies) |
+| **Cloth and rope** — `cloth`, `cloth_tube` and `rope` layouts of a soft body, held in place by the particle indices `pinned_particles` names. | 0.7 done | [PLAN-physics.md#cloth-and-rope](PLAN-physics.md#cloth-and-rope) |
 | **Tearing** — `tear_strain` and `tear_force` on a soft body: past either, its elements break mid-step, and the node's `on_tear` runs. | 0.9 done | [PLAN-physics.md#tearing](PLAN-physics.md#tearing) |
 | **Falling sand** — a 2D cellular grid of sand, water, lava and fire, in a `balaur_cells` plugin on the fixed step and in the digest. | 0.9 | no plan |
 | **Fluids** — `fluid2d` and `fluid3d`: particles with a rest density and a viscosity, with emitters and drains, drawn as points before a surface. | 0.9 | [PLAN-physics.md#fluids](PLAN-physics.md#fluids) |
@@ -128,8 +130,9 @@ being built, marked `done`, never back in the shipped one.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
-| **Interactivity without a script** — hooks, states, scene variables and the binding rows the Events view authors over them, so a scene reacts with no `.rn` beside it. | 0.1 done | no plan |
+| **Interactivity without a script** — hooks, states, scene variables and the binding rows the Bindings view authors over them, so a scene reacts with no `.rn` beside it. | 0.1 done | no plan |
 | **An event a script can finish** — a hook that answers `true` stops the broadcast, and a press reaches the node under the pointer and then every other node. | 0.2 done | [PLAN-interactivity.md](PLAN-interactivity.md) |
+| **One way to hear every event** — `events::announce` reaches hooks, rows, listeners and awaits alike, for physics, animation, widgets, the tree, the app and the network. | 0.2 | [PLAN-events.md](PLAN-events.md) |
 | **Navigation** — a `navmesh` asset, paths over it, and `agent2d` and `agent3d` with avoidance, all on the fixed step and in the digest. | 0.5 | [PLAN-navigation.md](PLAN-navigation.md) |
 | **Voice in a match** — capture, Opus, a jitter buffer, push-to-talk, echo cancellation and positional voice, never entering the simulation or the digest. | 0.5 | [PLAN-voice.md](PLAN-voice.md) |
 | **Motion and haptics beyond one pad** — Switch Pro and Joy-Con gyro, sensor calibration, adaptive triggers, waveform haptics, device motion, and pads on iOS and Android. | 0.8 | [PLAN-input.md](PLAN-input.md) |
@@ -149,6 +152,7 @@ being built, marked `done`, never back in the shipped one.
 | **Text a game can edit** — a `text_area`, a `code` kind with the editor's gutter, a `drag_value` with arrows and units, labels a drag selects, and `[url]` and `[hint]` marks. | 0.2 done | [PLAN-widgets.md#text](PLAN-widgets.md#text) |
 | **Theme states and icons** — `disabled` and `focus` tables in a `widget_theme`, and the icons a check, a spin box, a tab and a slider draw. | 0.3 | [PLAN-polyglot-port.md](PLAN-polyglot-port.md) |
 | **Pointer shape and pass-through** — a widget's `cursor` names the pointer over it, and `pointer_through` keeps `ui.wants_pointer()` false there. | 0.2 done | [PLAN-polyglot-port.md](PLAN-polyglot-port.md) |
+| **Dark mode on every platform** — `dark_mode()` and `on_dark_mode_changed` answer on Windows, Linux, iOS and Android, as on macOS and in a browser. | 0.2 done | [PLAN-editor-themes.md](PLAN-editor-themes.md#steps) |
 | **Aspect and camera containers** — an `aspect` box that holds a ratio, and a camera's texture drawn as a widget the layout sizes. | 0.3 | [PLAN-widgets.md#containers](PLAN-widgets.md#containers) |
 | **A graph canvas** — a `graph` kind of nodes, ports and links a drag connects, with pan and zoom, under both the Rune graph and the shader graph. | 0.5 | [PLAN-widgets.md#containers](PLAN-widgets.md#containers) |
 | **Pickers, and drag and drop** — a colour wheel and a file chooser as widget kinds, with a payload one widget offers and another takes. | 0.5 | [PLAN-widgets.md#pickers-and-drag](PLAN-widgets.md#pickers-and-drag) |
@@ -168,7 +172,7 @@ can do today, in the batches it would be built in.
 | **The 3D look** — image-based lighting and SSAO bound, glTF keeping its factors and maps, glass, mirrors, probes, finishing passes and layer stacks. | 0.2 done | [PLAN-3d-rendering.md](PLAN-3d-rendering.md) |
 | **A rendered still** — the fork's path tracer behind the editor's Export sheet, with a sample count and a denoise toggle. | 0.3 | [PLAN-3d-rendering.md](PLAN-3d-rendering.md) |
 | **Decals and volumetric fog** — a `decal` component projected onto the depth buffer, and fog a light throws shafts through. | 0.4 | [PLAN-3d-rendering.md](PLAN-3d-rendering.md) |
-| **Immediate shapes in the draw order** — `z` and a texture `region` on `render.draw_*_2d`, so a script's own drawing sits among the sprites rather than over them. | 0.3 | [PLAN-polyglot-port.md](PLAN-polyglot-port.md) |
+| **Immediate shapes in the draw order** — `z_index` and a texture region on `render.draw_*_2d` put a script's drawing among the sprites, over its own index. | 0.3 done | [PLAN-polyglot-port.md](PLAN-polyglot-port.md) |
 | **Lit normal-mapped sprites** — 2D lights and shadows are built, and the normal map is what is left. | 0.3 | [PLAN-rendering.md](PLAN-rendering.md) |
 | **Particles in 3D** — `particles3d`, and in both dimensions: emission shapes, attractors, colliders, trails, sub-emitters, lit particles and a compute stepper. | 0.3 | [PLAN-particles.md](PLAN-particles.md) |
 | **2D batching** — `balaur_render` draws the sprites and shapes that share a texture and a material in one call rather than one each. | 0.2 done | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
@@ -235,6 +239,7 @@ waits for its tick to settle.
 | Item | Milestone | Plan |
 | --- | :-: | --- |
 | **Export, the web and the CLI** — `balaur export` for native and web with a size report, `balaur test`, a browser editor over IndexedDB, and a benchmark suite. | 0.1 done | no plan |
+| **App icons** — an `[export]` icon written as each platform wants it, with the dark and tinted forms iOS, macOS and Android read. | 0.3 | [PLAN-editor-themes.md](PLAN-editor-themes.md#steps) |
 | **A splash while a game loads** — a picture over the first frames on every target, held past its seconds while a script reports what it is loading. | 0.2 done | no plan |
 | **The shell a phone has** — opening a link works on every desktop and in a browser tab, and on neither phone, which each want a call of their own. | 0.8 | [PLAN-mobile-export.md](PLAN-mobile-export.md) |
 | **One-click deploy** — a game on a URL or on a phone from one command or one button. | 0.6 | [PLAN-deploy.md](PLAN-deploy.md) |

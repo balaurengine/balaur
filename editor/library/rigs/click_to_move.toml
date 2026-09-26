@@ -10,9 +10,9 @@ script = { source = "scripts/click_to_move.rn" }
 position = [0, 1, 0]
 
 [nodes.character3d]
-snap_to_ground = 0.3
+floor_snap_length = 0.3
 
 [nodes.collider3d]
 kind = "capsule"
 radius = 0.35
-height = 1.2
+height = 1.9

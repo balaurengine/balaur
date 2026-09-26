@@ -22,7 +22,7 @@ thread_local! {
     /// Where each widget was drawn, for a script that has to place something
     /// against it — the editor's own chrome reads its shell back this way.
     static PLACED: RefCell<FxHashMap<u64, egui::Rect>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
-    /// Where a `tab` page's own button in the strip was drawn, keyed by the
+    /// Where a `tabs` page's own button in the strip was drawn, keyed by the
     /// page: the strip is painted inline and has no node to ask.
     static TAB_HEADS: RefCell<FxHashMap<u64, egui::Rect>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
     static PLACING: RefCell<FxHashMap<u64, egui::Rect>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
@@ -103,15 +103,23 @@ pub(crate) fn settle_rects() {
 ///
 /// One rule, wherever a container is measured or drawn: the widget's own
 /// `padding` where it states one — one number for every side, or four for
-/// left, top, right and bottom — else the theme's entry for its kind, else
-/// the built-in: 8 for a panel, which is the frame it has always drawn, and
-/// nothing for a box that only lays out.
+/// left, top, right and bottom — else the theme's for its role or kind, where
+/// `padding_x` and `padding_y` win over `padding` on their axis, else the
+/// built-in: 8 for a panel, and nothing for a box that only lays out.
 pub(crate) fn padding_of(widget: &Widget, style: &crate::widget::theme::Style) -> Pad {
     let built_in = if widget.kind == w::PANEL { 8.0 } else { 0.0 };
     if widget.padding.iter().any(|side| *side >= 0.0) {
         return Pad::of(widget.padding.map(|side| side.max(0.0)));
     }
-    Pad::all(style.padding.unwrap_or(built_in))
+    style_padding(style, built_in)
+}
+
+/// The padding a style states, `fallback` on the sides it leaves open.
+pub(crate) fn style_padding(style: &crate::widget::theme::Style, fallback: f32) -> Pad {
+    let both = style.padding.unwrap_or(fallback);
+    let across = style.padding_x.unwrap_or(both);
+    let down = style.padding_y.unwrap_or(both);
+    Pad::of([across, down, across, down])
 }
 
 /// The space inside a container's edge, per side.
@@ -124,15 +132,6 @@ pub(crate) struct Pad {
 }
 
 impl Pad {
-    pub(crate) const fn all(side: f32) -> Self {
-        Self {
-            left: side,
-            top: side,
-            right: side,
-            bottom: side,
-        }
-    }
-
     const fn of([left, top, right, bottom]: [f32; 4]) -> Self {
         Self {
             left,
@@ -251,7 +250,7 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         if let Some(offset) = dragged {
             area = area.scroll_offset(offset);
         }
-        area.show(ui, |ui| {
+        let shown = area.show(ui, |ui| {
             // Solved on its own, with the scroll's axis free: the contents
             // take what they measure and the bar makes up the difference.
             let room = crate::widget::taffy::Room::scrolling(
@@ -271,6 +270,17 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             lay_out(ui, at, index, Axis::Column);
             at.rects = held;
         });
+        // Reported when it moves, against where the last pass left it.
+        let offset = shown.state.offset;
+        let last = egui::Id::new(("balaur-scrolled", entity));
+        if ui
+            .data(|d| d.get_temp::<egui::Vec2>(last))
+            .is_some_and(|was| was != offset)
+        {
+            at.edits
+                .push((entity, Edit::Scrolled([offset.x, offset.y])));
+        }
+        ui.data_mut(|d| d.insert_temp(last, offset));
         // The frame, and the area above it, learn the box the child took;
         // a child ui reports nothing to its parent on its own.
         let used = pad.around(inner_ui.min_rect());

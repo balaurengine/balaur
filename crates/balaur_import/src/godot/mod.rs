@@ -8,15 +8,31 @@
 //! Binary `.scn` and `.res` are not read. A Godot project can always be
 //! resaved as text, and a second decoder would be a second grammar.
 
+/// Godot's scheme for a path inside the project.
+pub(crate) const RES: &str = "res://";
+
+/// A Godot `res://` path as the project-relative one the import writes; any
+/// other path as it is.
+pub(crate) fn relative_path(path: &str) -> &str {
+    path.strip_prefix(RES).unwrap_or(path)
+}
+
 pub(crate) mod anim;
 #[cfg(test)]
 #[path = "tests/autoload.rs"]
 mod autoload_tests;
 pub(crate) mod controls;
+#[cfg(test)]
+#[path = "tests/data_exports.rs"]
+mod data_export_tests;
 pub(crate) mod exports;
 pub(crate) mod files;
 pub(crate) mod gdscript;
+#[cfg(test)]
+#[path = "tests/init_order.rs"]
+mod init_order_tests;
 pub(crate) mod io;
+pub(crate) mod keys;
 pub(crate) mod machine;
 pub(crate) mod material;
 pub(crate) mod nodes;
@@ -32,6 +48,10 @@ pub(crate) mod textures;
 pub(crate) mod theme;
 pub(crate) mod tiles;
 pub(crate) mod walk;
+#[cfg(test)]
+#[path = "tests/widget_signals.rs"]
+mod widget_signal_tests;
+pub(crate) mod world_label;
 
 use std::collections::BTreeMap;
 
@@ -317,7 +337,12 @@ impl<'a> Scanner<'a> {
             if self.done() || self.peek() == Some('[') {
                 return Ok(fields);
             }
-            let key = self.key();
+            // A config file quotes a key with a space in it.
+            let key = if self.peek() == Some('"') {
+                self.string()?
+            } else {
+                self.key()
+            };
             if key.is_empty() {
                 bail!(
                     "line {}: expected a `key = value` or a [section]",
@@ -348,12 +373,13 @@ impl<'a> Scanner<'a> {
     }
 
     /// A field's key: a word, plus the `:` a TileSet's atlas coordinates
-    /// carry (`0:0/0/terrain`). Only keys take it, since a value never does.
+    /// carry (`0:0/0/terrain`) and the `@` an export preset's image scale
+    /// does (`custom_image@2x`). Only keys take them; a value never does.
     fn key(&mut self) -> String {
         let mut key = self.word();
-        while self.peek() == Some(':') {
+        while let Some(joint @ (':' | '@')) = self.peek() {
             self.at += 1;
-            key.push(':');
+            key.push(joint);
             key.push_str(&self.word());
         }
         key
@@ -646,6 +672,28 @@ blurb = "one
 lucky = true
 missing = null
 "#;
+
+    /// `export_presets.cfg` quotes a platform with a space in it, and names an
+    /// image scale with an `@`.
+    #[test]
+    fn a_quoted_key_and_an_image_scale_key_read_as_their_text() {
+        let document = parse(
+            "[runnable_presets]\n\nWeb=\"Web\"\n\"Windows Desktop\"=\"Windows Desktop x86_64\"\nstoryboard/custom_image@2x=\"\"\n",
+        )
+        .expect("a quoted key parses");
+        let presets = document.first("runnable_presets").expect("the section");
+        assert_eq!(
+            presets.field("Windows Desktop").and_then(Value::as_str),
+            Some("Windows Desktop x86_64")
+        );
+        assert_eq!(presets.field("Web").and_then(Value::as_str), Some("Web"));
+        assert_eq!(
+            presets
+                .field("storyboard/custom_image@2x")
+                .and_then(Value::as_str),
+            Some("")
+        );
+    }
 
     #[test]
     fn every_shape_the_format_has_reads_back() {

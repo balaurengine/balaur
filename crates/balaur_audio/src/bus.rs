@@ -167,7 +167,7 @@ fn declared(eng: &Engine) -> BTreeMap<String, Bus> {
     #[derive(serde::Deserialize)]
     struct Declared {
         #[serde(default = "one")]
-        volume: f32,
+        volume_linear: f32,
         #[serde(default)]
         parent: String,
     }
@@ -190,7 +190,7 @@ fn declared(eng: &Engine) -> BTreeMap<String, Bus> {
             (
                 name,
                 Bus {
-                    volume: one.volume.max(0.0),
+                    volume: one.volume_linear.max(0.0),
                     parent: one.parent,
                 },
             )

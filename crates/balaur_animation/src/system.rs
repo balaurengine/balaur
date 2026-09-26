@@ -1,0 +1,763 @@
+//! The fixed-step system: advance every playing node, write the pose, and
+//! deliver what the step passed over.
+//!
+//! `dt` only ever feeds the accumulator; what the simulation sees is
+//! [`fixed_dt`], every time, so the same inputs give the same transforms on
+//! every machine no matter how the frames fell.
+//!
+//! Two things happen strictly *after* the animation state and the world are
+//! released. A component's `apply` hook may take the world mutably
+//! (`render`'s does), and a script handler may play, stop, spawn or free
+//! anything — including the node it was called on. So a step records what it
+//! wants done and the frame does it once every borrow is gone, the same shape
+//! `balaur_ui` uses to settle its clicks.
+
+use balaur_core::Engine;
+use balaur_core::components;
+use balaur_core::hecs::{Entity, World};
+use balaur_core::scene::{self, Transform};
+use balaur_core::skeleton::Bone;
+use glamx::{EulerRot, Vec3, Vec4};
+
+use crate::clip::{Clip, LoopMode, Property, Track};
+use crate::player::{AnimationState, Fade, Playback, fixed_dt, max_substeps};
+use crate::sampler::{self, TrackValue};
+use crate::tween::{self, TweenId};
+use crate::words as w;
+
+/// Something a step wants done once the borrows are gone.
+pub(crate) enum Effect {
+    /// Write one property of one component, leaving the rest of it alone.
+    Patch {
+        entity: Entity,
+        component: String,
+        property: String,
+        value: toml::Value,
+    },
+    /// Call a method on a node's script instance, with the key's arguments.
+    Call {
+        entity: Entity,
+        method: String,
+        args: Vec<balaur_script::Value>,
+    },
+    /// Call a function a tween step was handed, which the host keeps.
+    Invoke { id: u64 },
+    /// Tell a node's script the tween it holds a handle to has run out.
+    TweenFinished { entity: Entity, id: TweenId },
+    /// Tell a node a tween on it went round again, and how many times it has.
+    TweenLooped {
+        entity: Entity,
+        id: TweenId,
+        played: u32,
+    },
+    /// Tell a node one step of a tween on it is over.
+    TweenStep {
+        entity: Entity,
+        id: TweenId,
+        step: usize,
+    },
+    /// Tell a player's node its looping clip went round an end.
+    Looped { entity: Entity, clip: String },
+    /// Put a `polygon/deform` track's offsets on the node it deforms.
+    Deform { entity: Entity, offsets: Vec<f32> },
+    /// Tell a node a `visible` track just flipped it.
+    Shown { entity: Entity, visible: bool },
+}
+
+/// What a player's node emits when a clip ends, with the clip's name.
+pub const FINISHED_EVENT: &str = "animation_finished";
+/// What it emits when a clip starts from its beginning, with the clip's name.
+pub const STARTED_EVENT: &str = "animation_started";
+/// What it emits when a clip takes over from another, `#{ from, to }`.
+pub const CHANGED_EVENT: &str = "animation_changed";
+/// What it emits each time a looping clip goes round an end.
+pub const LOOPED_EVENT: &str = "animation_looped";
+/// What a node announces when a tween on it starts another loop,
+/// `#{ tween, played }`.
+pub const TWEEN_LOOPED_EVENT: &str = "tween_looped";
+/// What a node announces when one step of a tween on it is over,
+/// `#{ tween, step }`.
+pub const TWEEN_STEP_EVENT: &str = "tween_step";
+
+/// What a node announces when a tween on it runs out, with the tween's handle.
+pub const TWEEN_FINISHED_EVENT: &str = "tween_finished";
+
+/// Re-resolve every live clip after an asset reload, keeping the playhead.
+///
+/// A `Playback` holds an `Rc<Clip>`, so a reload cannot pull a clip out from
+/// under a frame in progress — which is exactly why it would otherwise keep
+/// playing the old one forever. Saving a clip in the editor, or on disk in dev
+/// mode, should be visible the next frame the way saving a script is.
+///
+/// Costs one integer compare on a frame where nothing was reloaded.
+fn refresh_reloaded_clips(eng: &Engine) {
+    let Some(state) = eng.try_resource::<AnimationState>() else {
+        return;
+    };
+    let generation = balaur_core::assets::generation(eng);
+    let references: Vec<(Entity, String)> = {
+        let state = state.borrow();
+        if state.asset_generation == generation {
+            return;
+        }
+        state
+            .players
+            .iter()
+            .filter(|(_, playback)| playback.active())
+            .map(|(&entity, playback)| (entity, playback.reference(&playback.clip_name)))
+            .collect()
+    };
+    // Loading takes the asset cache's borrow and may parse, so it happens
+    // outside the animation state's.
+    let reloaded: Vec<(Entity, Option<std::rc::Rc<Clip>>)> = references
+        .into_iter()
+        .map(|(entity, reference)| {
+            let clip = balaur_core::assets::load_typed::<Clip>(eng, &reference).ok();
+            if clip.is_none() {
+                tracing::warn!("'{reference}' no longer loads; keeping the clip already playing");
+            }
+            (entity, clip)
+        })
+        .collect();
+    let mut state = state.borrow_mut();
+    for (entity, clip) in reloaded {
+        // A clip that stopped loading keeps the copy it is playing: a
+        // half-saved file must not blank the scene mid-frame.
+        if let (Some(playback), Some(clip)) = (state.players.get_mut(&entity), clip) {
+            playback.time = playback.time.min(clip.length);
+            playback.clip = Some(clip);
+        }
+    }
+    state.asset_generation = generation;
+}
+
+/// Advance every playing node by whole fixed steps.
+pub(crate) fn advance_system(eng: &Engine, dt: f32) {
+    // A held game does not animate, and time spent held is dropped rather
+    // than owed — what `App::run_fixed_steps` does with the simulation's own.
+    if eng.frozen_root().is_some() {
+        eng.resource::<AnimationState>().borrow_mut().accumulator = 0.0;
+        return;
+    }
+    let mut effects = Vec::new();
+    let mut ended: Vec<Entity> = Vec::new();
+    let mut moved = Vec::new();
+    refresh_reloaded_clips(eng);
+    crate::machine::prepare(eng);
+    crate::machine::evaluate_checks(eng);
+    {
+        let state = eng.resource::<AnimationState>();
+        let mut state = state.borrow_mut();
+        let state = &mut *state;
+        state.honour_step_restart(eng);
+        let world = eng.world();
+        // `Playback` and `Tween` live here, not on the entity, so this is the
+        // first place a `queue_free`d node's leftovers can be dropped.
+        state.players.retain(|&entity, _| world.contains(entity));
+        state.machines.retain(|&entity, _| world.contains(entity));
+        state
+            .tweens
+            .retain(|_, tween| world.contains(tween.node) && (tween.running || !tween.value));
+        // A frame's worth of `just_finished` expires here: the script tick
+        // that could read it has already run.
+        for playback in state.players.values_mut() {
+            playback.finished.clear();
+        }
+        let step = fixed_dt();
+        let paused = balaur_core::process::pause(eng);
+        state.accumulator = (state.accumulator + dt).min(step * max_substeps() as f32);
+        while state.accumulator >= step {
+            let mut ended_now = Vec::new();
+            for (&entity, playback) in &mut state.players {
+                if !balaur_core::process::ticks(&world, entity, paused) {
+                    continue;
+                }
+                if advance_playback(&world, entity, playback, &mut effects) {
+                    ended_now.push(entity);
+                }
+            }
+            crate::machine::step(
+                &world,
+                &mut state.machines,
+                &mut state.players,
+                &ended_now,
+                paused,
+                &mut moved,
+            );
+            ended.extend(ended_now);
+            // Tweens come after the players, so a tween is what lands on a
+            // property both of them drive. One waiting on another sits out
+            // the step; the step after that tween is gone, it begins.
+            let waiting: Vec<TweenId> = state
+                .tweens
+                .iter()
+                .filter(|(_, tween)| tween.after.is_some_and(|on| state.tweens.contains_key(&on)))
+                .map(|(&id, _)| id)
+                .collect();
+            let mut done: Vec<TweenId> = Vec::new();
+            for (&id, tween) in &mut state.tweens {
+                if waiting.contains(&id) || !balaur_core::process::ticks(&world, tween.node, paused)
+                {
+                    continue;
+                }
+                if let Err(why) = tween::begin(eng, tween) {
+                    tracing::warn!("a tween that waited its turn no longer builds: {why:#}");
+                    done.push(id);
+                    continue;
+                }
+                if tween::advance(&world, id, tween, &mut effects) {
+                    if tween.played > 0 {
+                        effects.push(Effect::TweenFinished {
+                            entity: tween.node,
+                            id,
+                        });
+                    }
+                    done.push(id);
+                }
+            }
+            for id in done {
+                state.tweens.shift_remove(&id);
+            }
+            state.accumulator -= step;
+        }
+    }
+    apply_effects(eng, &effects);
+    // After the effects, so a tween's last call runs before it is let go.
+    tween::release_unheld(eng);
+    settle_ended(eng, &ended);
+    crate::machine::announce(eng, &moved);
+    announce_began(eng);
+}
+
+/// Tell each player's node which clip it began since the last frame, and
+/// which it left for it, after the clip that ended is announced.
+fn announce_began(eng: &Engine) {
+    let began: Vec<(Entity, String, String)> = {
+        let state = eng.resource::<AnimationState>();
+        let mut state = state.borrow_mut();
+        state
+            .players
+            .iter_mut()
+            .filter_map(|(&entity, playback)| {
+                let (from, to) = playback.began.take()?;
+                Some((entity, from, to))
+            })
+            .collect()
+    };
+    for (entity, from, to) in began {
+        if !from.is_empty() && from != to {
+            let change = balaur_script::Value::Map(vec![
+                (
+                    crate::keys::FROM.to_string(),
+                    balaur_script::Value::Str(from),
+                ),
+                (
+                    crate::keys::TO.to_string(),
+                    balaur_script::Value::Str(to.clone()),
+                ),
+            ]);
+            balaur_core::events::announce(eng, entity, CHANGED_EVENT, change);
+        }
+        let clip = balaur_script::Value::Str(to);
+        balaur_core::events::announce(eng, entity, STARTED_EVENT, clip);
+    }
+}
+
+/// One fixed step of one node. Answers whether the clip ended on this step.
+fn advance_playback(
+    world: &World,
+    entity: Entity,
+    playback: &mut Playback,
+    effects: &mut Vec<Effect>,
+) -> bool {
+    if !playback.playing {
+        return false;
+    }
+    let Some(clip) = playback.clip.clone() else {
+        playback.playing = false;
+        return false;
+    };
+    let was = playback.time;
+    playback.time += fixed_dt() * playback.speed_scale;
+    let (time, past_end) = sampler::clip_time(&clip, playback.time);
+    if clip.loop_mode != LoopMode::None
+        && clip.length > 0.0
+        && sampler::pass_of(was, clip.length) != sampler::pass_of(playback.time, clip.length)
+    {
+        effects.push(Effect::Looped {
+            entity,
+            clip: playback.clip_name.clone(),
+        });
+    }
+    // Backwards off the start ends a non-looping clip too, or a negative
+    // speed would leave it playing at time zero for the rest of the session.
+    let backwards_off =
+        playback.speed_scale < 0.0 && playback.time <= 0.0 && clip.loop_mode == LoopMode::None;
+    let finished = past_end || backwards_off;
+    if finished {
+        // The last pose is still written: a clip that ends holds its final
+        // key rather than snapping back to wherever the node was.
+        playback.playing = false;
+        playback.paused = false;
+        playback.finished = playback.clip_name.clone();
+    }
+    let pose = sampler::sample(&clip, time);
+    if playback.fades.is_empty() {
+        write_pose(
+            world,
+            entity,
+            &playback.root_node,
+            playback.retarget.as_ref(),
+            clip.tracks.iter().zip(pose),
+            effects,
+        );
+    } else {
+        for fade in &mut playback.fades {
+            fade.elapsed += fixed_dt();
+            fade.time += fixed_dt() * fade.speed;
+        }
+        let fades = &playback.fades;
+        let sample_fade = |fade: &Fade| sampler::sample(&fade.clip, fade.local_time());
+        let mut mix = sampler::mix_of(&fades[0].clip, sample_fade(&fades[0]));
+        for pair in fades.windows(2) {
+            sampler::blend(
+                &mut mix,
+                &pair[1].clip,
+                sample_fade(&pair[1]),
+                pair[0].weight(),
+            );
+        }
+        let last = fades.len() - 1;
+        sampler::blend(&mut mix, &clip, pose, fades[last].weight());
+        write_pose(
+            world,
+            entity,
+            &playback.root_node,
+            playback.retarget.as_ref(),
+            mix,
+            effects,
+        );
+        // A fade that has run hides everything older than it, and a clip
+        // that ended holds the pose it ended on, so nothing is left to blend.
+        if finished {
+            playback.fades.clear();
+        } else if let Some(done) = fades.iter().rposition(|fade| fade.elapsed >= fade.duration) {
+            playback.fades.drain(..=done);
+        }
+    }
+    collect_calls(
+        world,
+        entity,
+        &playback.root_node,
+        &clip,
+        was,
+        playback.time,
+        effects,
+    );
+    finished
+}
+
+/// Pose one node at its playhead, without advancing anything.
+///
+/// What a `seek` shows. The fixed step is the only thing that moves time, so
+/// this changes nothing a later step would compute differently: the pose is a
+/// pure function of the clip and the playhead, and no method key counts as
+/// passed because no span was travelled.
+pub(crate) fn pose_now(eng: &Engine, entity: Entity) {
+    let mut effects = Vec::new();
+    {
+        let state = eng.resource::<AnimationState>();
+        let state = state.borrow();
+        let Some(playback) = state.players.get(&entity) else {
+            return;
+        };
+        let Some(clip) = playback.clip.as_ref() else {
+            return;
+        };
+        let (time, _) = sampler::clip_time(clip, playback.time);
+        let pose = sampler::sample(clip, time);
+        let world = eng.world();
+        write_pose(
+            &world,
+            entity,
+            &playback.root_node,
+            playback.retarget.as_ref(),
+            clip.tracks.iter().zip(pose),
+            &mut effects,
+        );
+    }
+    apply_effects(eng, &effects);
+}
+
+/// Write one sampled pose into the scene tree.
+///
+/// Targets are resolved every step rather than cached: a track may name a node
+/// that is spawned, freed or reparented while the clip is running, and a
+/// missing one is skipped rather than fatal.
+pub(crate) fn write_pose<'a>(
+    world: &World,
+    entity: Entity,
+    root: &str,
+    retarget: Option<&crate::retarget::Retarget>,
+    tracks: impl IntoIterator<Item = (&'a Track, TrackValue)>,
+    effects: &mut Vec<Effect>,
+) {
+    // Taken by value: a deform track's offsets are as long as the mesh, and
+    // moving them into the effect is one copy fewer every step.
+    for (track, value) in tracks {
+        // The track's own name is the canonical one a bone map is keyed by;
+        // what it drives on this rig is whatever the map says, and the track
+        // is left alone when the map says nothing.
+        let path = retarget
+            .and_then(|r| r.path(&track.target))
+            .unwrap_or(&track.target);
+        let Some(target) = target_of(world, entity, root, path) else {
+            continue;
+        };
+        // On the node rather than in a table: it is as long as the mesh, and
+        // deferred because this walk holds the world shared.
+        if let TrackValue::Deform(offsets) = value {
+            effects.push(Effect::Deform {
+                entity: target,
+                offsets,
+            });
+            continue;
+        }
+        if let TrackValue::Discrete(raw) = value {
+            if let Property::Component {
+                component,
+                property,
+            } = &track.property
+            {
+                effects.push(Effect::Patch {
+                    entity: target,
+                    component: component.clone(),
+                    property: property.clone(),
+                    value: raw,
+                });
+            }
+            continue;
+        }
+        if let TrackValue::Property { value, channels } = value {
+            let Property::Component {
+                component,
+                property,
+            } = &track.property
+            else {
+                continue;
+            };
+            effects.push(Effect::Patch {
+                entity: target,
+                component: component.clone(),
+                property: property.clone(),
+                value: numbers(value, channels),
+            });
+            continue;
+        }
+        // On `Appearance`, which every node carries, so these are written
+        // before the transform below is asked for and a bare grouping node
+        // fades and hides like any other.
+        if matches!(value, TrackValue::Visible(_) | TrackValue::Tint(_)) {
+            if let Ok(mut appearance) = world.get::<&mut balaur_core::scene::Appearance>(target) {
+                match value {
+                    // The flag is written here; its event waits for the borrow.
+                    TrackValue::Visible(on) if appearance.visible != on => {
+                        appearance.visible = on;
+                        effects.push(Effect::Shown {
+                            entity: target,
+                            visible: on,
+                        });
+                    }
+                    TrackValue::Tint(tint) => appearance.tint = tint,
+                    _ => {}
+                }
+            }
+            continue;
+        }
+        let Ok(mut transform) = world.get::<&mut Transform>(target) else {
+            // A node its scene gave no transform still moves when a clip says
+            // so: the patch adds the component, as a component track's does,
+            // and the next frame takes the write above.
+            if let Some((property, value)) = transform_patch(&value) {
+                effects.push(Effect::Patch {
+                    entity: target,
+                    component: balaur_core::transform::COMPONENT.to_string(),
+                    property,
+                    value,
+                });
+            }
+            continue;
+        };
+        // Rests are read once per track and only while retargeting: a clip
+        // played on the rig it was authored for pays nothing for this.
+        let rest = retarget.and(world.get::<&Bone>(target).ok());
+        match value {
+            TrackValue::Position(position) => {
+                transform.position = match retarget {
+                    Some(r) => r.position(&track.target, rest.as_deref(), position),
+                    None => position,
+                };
+            }
+            TrackValue::Rotation(rotation) => {
+                transform.rotation = match retarget {
+                    Some(r) => r.rotation(&track.target, rest.as_deref(), rotation),
+                    None => rotation,
+                };
+            }
+            TrackValue::Scale(scale) => transform.scale = scale,
+            // The appearance ones were written above, not on the transform.
+            TrackValue::Visible(_)
+            | TrackValue::Tint(_)
+            | TrackValue::Discrete(_)
+            | TrackValue::Property { .. }
+            | TrackValue::None
+            | TrackValue::Deform(_) => {}
+        }
+    }
+}
+
+/// Every method key this step passed over, in track order.
+///
+/// A key fires once per pass over its time — including the pass a looping
+/// clip makes when it wraps, which is two spans in one step — and never for
+/// the stretch a `seek` jumped, because a seek moves the playhead without a
+/// step ever running over what it skipped.
+pub(crate) fn collect_calls(
+    world: &World,
+    entity: Entity,
+    root: &str,
+    clip: &Clip,
+    was: f32,
+    now: f32,
+    effects: &mut Vec<Effect>,
+) {
+    let spans = sampler::spans(clip, was, now);
+    if spans.is_empty() {
+        return;
+    }
+    for track in &clip.tracks {
+        if track.property != Property::Call {
+            continue;
+        }
+        let Some(target) = target_of(world, entity, root, &track.target) else {
+            continue;
+        };
+        for key in &track.keys {
+            if !spans.iter().any(|&span| sampler::passes(span, key.time)) {
+                continue;
+            }
+            if let Some(method) = key.call.as_ref() {
+                effects.push(Effect::Call {
+                    entity: target,
+                    method: method.clone(),
+                    args: key.args.clone(),
+                });
+            } else if let Some(id) = key.function {
+                effects.push(Effect::Invoke { id });
+            }
+        }
+    }
+}
+
+/// The node a track's `target` names, resolved against the player's `root`.
+fn target_of(world: &World, entity: Entity, root: &str, target: &str) -> Option<Entity> {
+    let base = if root.is_empty() {
+        Some(entity)
+    } else {
+        scene::find_node(world, entity, root)
+    };
+    let root = base.or_else(|| {
+        tracing::debug!(root, "animation root path names no node");
+        None
+    })?;
+    if target.is_empty() {
+        return Some(root);
+    }
+    scene::find_node(world, root, target).or_else(|| {
+        tracing::debug!(target, "animation track targets no node");
+        None
+    })
+}
+
+/// A sampled component value as the property table `patch` takes.
+///
+/// One channel is a number and the rest are a list, which is how a component
+/// schema spells `radius = 0.5` against `rgba = [1, 0, 0, 1]`.
+/// One transform track as a `transform` property and its value, for the node
+/// that has no `Transform` to write into yet.
+fn transform_patch(value: &TrackValue) -> Option<(String, toml::Value)> {
+    let vector = |v: Vec3| numbers(v.extend(0.0), 3);
+    match value {
+        TrackValue::Position(position) => Some((w::POSITION.to_string(), vector(*position))),
+        TrackValue::Scale(scale) => Some((w::SCALE.to_string(), vector(*scale))),
+        TrackValue::Rotation(rotation) => {
+            let (yaw, pitch, roll) = rotation.to_euler(EulerRot::ZYX);
+            Some((
+                w::ROTATION_EULER.to_string(),
+                vector(Vec3::new(roll, pitch, yaw)),
+            ))
+        }
+        // Not transform properties: visibility and tint are written on the
+        // appearance, which every node has, so they never reach this patch.
+        TrackValue::Visible(_)
+        | TrackValue::Tint(_)
+        | TrackValue::Discrete(_)
+        | TrackValue::Property { .. }
+        | TrackValue::None
+        | TrackValue::Deform(_) => None,
+    }
+}
+
+fn numbers(value: Vec4, channels: usize) -> toml::Value {
+    if channels == 1 {
+        return toml::Value::Float(f64::from(value.x));
+    }
+    toml::Value::Array(
+        value
+            .to_array()
+            .into_iter()
+            .take(channels)
+            .map(|n| toml::Value::Float(f64::from(n)))
+            .collect(),
+    )
+}
+
+/// Do what the steps asked for, now that nothing is borrowed.
+fn apply_effects(eng: &Engine, effects: &[Effect]) {
+    let host = eng.script_host();
+    for effect in effects {
+        match effect {
+            Effect::Patch {
+                entity,
+                component,
+                property,
+                value,
+            } => {
+                // One property per track per tick, so this takes the
+                // component's own single-property path where it has one.
+                if let Err(why) = components::set_property(eng, *entity, component, property, value)
+                {
+                    tracing::debug!(
+                        component = component.as_str(),
+                        property = property.as_str(),
+                        "animation track: {why:#}"
+                    );
+                }
+            }
+            Effect::Call {
+                entity,
+                method,
+                args,
+            } => {
+                if let Some(host) = host.as_ref() {
+                    host.call_on(balaur_core::node_id_of(*entity), method, args);
+                }
+            }
+            Effect::Invoke { id } => {
+                if let Some(host) = host.as_ref()
+                    && let Err(why) = host.invoke(balaur_script::CallbackId(*id), &[])
+                {
+                    tracing::warn!("a tween's function failed: {why:#}");
+                }
+            }
+            Effect::Deform { entity, offsets } => {
+                // Written into the offsets already there where there are any:
+                // a deform track runs every frame, and this is a vector as
+                // long as the mesh.
+                if let Ok(mut deform) = eng.world().get::<&mut balaur_core::mesh::Deform>(*entity) {
+                    deform.offsets.clear();
+                    deform.offsets.extend_from_slice(offsets);
+                    continue;
+                }
+                let _ = eng.world_mut().insert_one(
+                    *entity,
+                    balaur_core::mesh::Deform {
+                        offsets: offsets.clone(),
+                    },
+                );
+            }
+            Effect::Shown { entity, visible } => {
+                balaur_core::events::announce(
+                    eng,
+                    *entity,
+                    balaur_core::node_api::VISIBILITY_EVENT,
+                    balaur_script::Value::Bool(*visible),
+                );
+            }
+            Effect::TweenFinished { entity, id } => {
+                balaur_core::events::announce(eng, *entity, TWEEN_FINISHED_EVENT, handle(*id));
+            }
+            Effect::TweenLooped { entity, id, played } => {
+                let payload = balaur_script::Value::Map(vec![
+                    (crate::keys::TWEEN.to_string(), handle(*id)),
+                    (
+                        crate::keys::PLAYED.to_string(),
+                        balaur_script::Value::Int(i64::from(*played)),
+                    ),
+                ]);
+                balaur_core::events::announce(eng, *entity, TWEEN_LOOPED_EVENT, payload);
+            }
+            Effect::TweenStep { entity, id, step } => {
+                let payload = balaur_script::Value::Map(vec![
+                    (crate::keys::TWEEN.to_string(), handle(*id)),
+                    (
+                        crate::keys::STEP.to_string(),
+                        balaur_script::Value::Int(i64::try_from(*step).unwrap_or(i64::MAX)),
+                    ),
+                ]);
+                balaur_core::events::announce(eng, *entity, TWEEN_STEP_EVENT, payload);
+            }
+            Effect::Looped { entity, clip } => {
+                let clip = balaur_script::Value::Str(clip.clone());
+                balaur_core::events::announce(eng, *entity, LOOPED_EVENT, clip);
+            }
+        }
+    }
+}
+
+/// A tween's handle as a script holds it.
+fn handle(id: TweenId) -> balaur_script::Value {
+    balaur_script::Value::Int(i64::try_from(id).unwrap_or(i64::MAX))
+}
+
+/// Start whatever was queued behind a clip that just ended, then tell its
+/// script.
+///
+/// The signal goes out after the queue moves on, so a handler asking
+/// `animation.current(node)` sees what is playing now rather than what just
+/// stopped. The clip that ended is the handler's argument —
+/// `animation.just_finished(node)` still answers for this frame, for a script
+/// that would rather poll than declare a method.
+fn settle_ended(eng: &Engine, ended: &[Entity]) {
+    for &entity in ended {
+        let next = {
+            let state = eng.resource::<AnimationState>();
+            let mut state = state.borrow_mut();
+            state
+                .players
+                .get_mut(&entity)
+                .filter(|playback| !playback.queue.is_empty())
+                .map(|playback| playback.queue.remove(0))
+        };
+        if let Some(name) = next
+            && let Err(why) = crate::play(eng, entity, &name)
+        {
+            tracing::warn!("queued animation '{name}': {why:#}");
+        }
+        let finished = {
+            let state = eng.resource::<AnimationState>();
+            let state = state.borrow();
+            state
+                .players
+                .get(&entity)
+                .map(|playback| playback.finished.clone())
+                .unwrap_or_default()
+        };
+        balaur_core::events::announce(
+            eng,
+            entity,
+            FINISHED_EVENT,
+            balaur_script::Value::Str(finished),
+        );
+    }
+}

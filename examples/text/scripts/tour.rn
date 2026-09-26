@@ -27,7 +27,7 @@ pub fn update(this, dt) {
     }
 
     // The immediate calls need no node: a label for one frame, over the floor.
-    render::draw_text(0.0, -4.4, 0.0, "drawn for one frame, from a script", #{
-        size: 32.0, color: [0.55, 0.58, 0.68], align: "center", pixels_per_unit: 110.0,
+    render::draw_text_3d(0.0, -4.4, 0.0, "drawn for one frame, from a script", #{
+        font_size: 32.0, color: [0.55, 0.58, 0.68], text_align: "center", pixels_per_unit: 110.0,
     });
 }

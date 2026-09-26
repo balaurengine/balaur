@@ -14,139 +14,11 @@ use crate::widget::arrange::{
     Axis, contain, hold_to, lay_out, padding_of, record_measure, record_rect, roll_measurements,
     scroller, settle_rects, solved_of, tabs,
 };
-use crate::widget::node::{Move, Surface, UiFocus, UiPointer, Widget, WidgetLayerConfig};
+use crate::widget::focus::{
+    advance, focus_before, focus_moved, focus_stops, keyboard_move, reachable, shortcuts,
+};
+use crate::widget::node::{Surface, UiFocus, UiPointer, Widget, WidgetLayerConfig};
 use crate::widget::theme::{Pointer, Style, WidgetState, WidgetTheme, face, styled, theme_of};
-
-/// Whether focus can land on this widget.
-///
-/// Derived rather than declared: focus exists to activate something, so a
-/// widget with nothing to activate is never a stop on the way to one. The
-/// `focusable` flag can only take a candidate out, never put one in.
-fn takes_focus(widget: &Widget) -> bool {
-    widget.visible
-        && widget.focusable
-        && (matches!(
-            widget.kind.as_str(),
-            // A line being typed into is where focus lands as much as a
-            // button is: Tab reaches it, and a script may put the caret there.
-            w::BUTTON | w::CHECK | w::FOLD | w::FIELD | w::TEXT_AREA
-        ) || !widget.on_click.is_empty())
-}
-
-/// What the keyboard asked this frame, if the game has not asked already.
-///
-/// egui is where the widget layer's input comes from — clicks arrive that way
-/// — so keys do too, and no dependency on the input plugin is needed for a
-/// menu to work with a keyboard. A gamepad reaches focus through
-/// `ui.focus_next()` and friends, wired to actions by whoever assembles the
-/// plugins, which is the crate that knows about both.
-fn keyboard_move(ctx: &egui::Context) -> Option<Move> {
-    use egui::Key;
-    ctx.input(|i| {
-        let shifted_tab = i.key_pressed(Key::Tab) && i.modifiers.shift;
-        if i.key_pressed(Key::ArrowUp) || i.key_pressed(Key::ArrowLeft) || shifted_tab {
-            return Some(Move::Previous);
-        }
-        if i.key_pressed(Key::ArrowDown)
-            || i.key_pressed(Key::ArrowRight)
-            || i.key_pressed(Key::Tab)
-        {
-            return Some(Move::Next);
-        }
-        if i.key_pressed(Key::Enter) || i.key_pressed(Key::Space) {
-            return Some(Move::Accept);
-        }
-        None
-    })
-}
-
-/// Every widget the scene is showing, in the order the draw reaches them.
-///
-/// Walked from the roots rather than read off the arena: a button under a
-/// hidden panel or on a surface the host turned off is never drawn, and an
-/// `accept` on it would fire an `on_click` nobody could have seen to ask for.
-fn reachable(placed: &[Placed], roots: &[usize], on: &dyn Fn(&str) -> bool) -> Vec<usize> {
-    let mut stops = Vec::new();
-    let mut stack: Vec<usize> = roots
-        .iter()
-        .rev()
-        .copied()
-        .filter(|&root| on(&placed[root].widget.layer))
-        .collect();
-    while let Some(index) = stack.pop() {
-        let one = &placed[index];
-        if !one.widget.visible {
-            continue;
-        }
-        stops.push(index);
-        // Reversed, so the stack pops them in declaration order.
-        stack.extend(one.children.iter().rev().copied());
-    }
-    stops
-}
-
-/// Where focus may land, of those.
-fn focus_stops(placed: &[Placed], shown: &[usize]) -> Vec<Entity> {
-    shown
-        .iter()
-        .filter(|&&index| takes_focus(&placed[index].widget))
-        .map(|&index| placed[index].entity)
-        .collect()
-}
-
-/// The widgets whose `shortcut` landed this frame.
-///
-/// Consumed, so the chord a menu row owns does not also reach a script
-/// polling for it. A row of a shut menu answers: that is what a shortcut is
-/// for, and the menu never has to be opened to reach the command.
-fn shortcuts(ctx: &egui::Context, placed: &[Placed], shown: &[usize]) -> Vec<Entity> {
-    shown
-        .iter()
-        .filter_map(|&index| {
-            let widget = &placed[index].widget;
-            if widget.disabled {
-                return None;
-            }
-            let (modifiers, key) = crate::immediate::chord(&widget.shortcut)?;
-            ctx.input_mut(|input| input.consume_key(modifiers, key))
-                .then_some(placed[index].entity)
-        })
-        .collect()
-}
-
-/// Move focus, or say which widget an `accept` activated.
-///
-/// Order is the order the widgets are drawn in, which is the order the scene
-/// declares them — so focus walks a menu the way the tree reads.
-fn advance(eng: &Engine, stops: &[Entity], asked: Option<Move>) -> Option<Entity> {
-    let focus = eng.try_resource::<UiFocus>()?;
-    let mut focus = focus.borrow_mut();
-    // A focused widget that was hidden, freed or made unfocusable is no
-    // longer a place focus can be.
-    if focus.focused.is_some_and(|e| !stops.contains(&e)) {
-        focus.focused = None;
-    }
-    let asked = focus.pending.take().or(asked)?;
-    if stops.is_empty() {
-        return None;
-    }
-    let at = focus
-        .focused
-        .and_then(|e| stops.iter().position(|s| *s == e));
-    match asked {
-        Move::Accept => return focus.focused,
-        // Wraps, because a menu is a ring: past the last entry is the first.
-        Move::Next => {
-            let next = at.map_or(0, |i| (i + 1) % stops.len());
-            focus.focused = Some(stops[next]);
-        }
-        Move::Previous => {
-            let previous = at.map_or(stops.len() - 1, |i| (i + stops.len() - 1) % stops.len());
-            focus.focused = Some(stops[previous]);
-        }
-    }
-    None
-}
 
 /// `area` less the part the on-screen keyboard covers. The keyboard is
 /// measured in the window's pixels, which are this pass's units.
@@ -244,17 +116,10 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     let shown = reachable(&placed, &roots, &|name| surface_of(name).enabled);
     let stops = focus_stops(&placed, &shown);
     let accepted = advance(eng, &stops, asked);
+    let turned = turned_fold(&placed, accepted);
     // A chord is a click by another name, as an `accept` is.
     let fired = shortcuts(ctx, &placed, &shown);
-    let focused = eng
-        .try_resource::<UiFocus>()
-        .and_then(|f| f.borrow().focused);
-    // Consumed here, so a field takes the caret on the pass after the script
-    // asked and never steals it back from whatever the reader clicked next.
-    let taking = eng.try_resource::<UiFocus>().is_some_and(|f| {
-        let mut focus = f.borrow_mut();
-        std::mem::take(&mut focus.taking)
-    });
+    let (focused, taking) = focus_before(eng);
     let mut toasts = crate::widget::toast::Stack::default();
     let mut painting = Painting {
         eng,
@@ -264,7 +129,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         theme: theme_root(eng),
         assigned: egui::Vec2::ZERO,
         bounds: egui::Vec2::ZERO,
-        edits: Vec::new(),
+        edits: turned.into_iter().collect(),
         rects: crate::widget::taffy::Rects::default(),
         fresh,
         touched,
@@ -274,6 +139,8 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         state: WidgetState::default(),
         context_opened: false,
         pointer: UiPointer::default(),
+        under: Vec::new(),
+        shown: Vec::new(),
     };
     for root in &roots {
         let root = *root;
@@ -301,19 +168,16 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     settle_rects();
     roll_measurements();
     crate::widget::taffy::sweep(eng);
-    let edits = std::mem::take(&mut painting.edits);
+    let mut edits = std::mem::take(&mut painting.edits);
     let clicked = std::mem::take(&mut painting.clicked);
+    edits.extend(crate::widget::input::pass_edits(eng, ctx, &painting));
     publish_pointer(eng, painting.pointer);
     // Dropped before the arena moves: `Painting` borrows it for the draw.
     drop(painting);
     keep(placed, roots, index_of, stamp);
     // After the pass, never inside it: the arena the draw walked names them.
     crate::widget::toast::clear(eng, &toasts.expired());
-    // Only on the change: a handler firing every frame focus merely *stayed*
-    // would be a different event, and not a useful one.
-    let arrived = (taking || focused != was_focused)
-        .then_some(focused)
-        .flatten();
+    let arrived = focus_moved(eng, was_focused, taking, &mut edits);
     crate::widget::input::record(eng, &clicked, edits, arrived);
 }
 
@@ -335,6 +199,9 @@ fn draw_root(
     let modal = widget.kind == w::DIALOG;
     if modal && !widget.open {
         return;
+    }
+    if modal {
+        painting.shown.push(entity);
     }
     let area = if widget.safe_area.iter().any(|on| *on) {
         inside_safe_area(eng, area, widget.safe_area)
@@ -562,6 +429,10 @@ pub(crate) struct Painting<'a> {
     /// press. Children draw before the parent asks, so the innermost one
     /// under the pointer takes it.
     pub(crate) context_opened: bool,
+    /// Every widget the pointer is over this pass, outermost first.
+    pub(crate) under: Vec<Entity>,
+    /// Every widget whose popup, dialog or window is up this pass.
+    pub(crate) shown: Vec<Entity>,
 }
 
 impl Painting<'_> {
@@ -615,7 +486,8 @@ impl Painting<'_> {
         let plain = style.hover.is_none()
             && style.active.is_none()
             && style.disabled.is_none()
-            && style.focus.is_none();
+            && style.focus.is_none()
+            && style.checked.is_none();
         if !self.state.any() || plain {
             return style;
         }
@@ -654,6 +526,8 @@ pub(crate) enum Edit {
     /// A row dragged over another: the row moved, the row it landed on, and
     /// whether it went before it, after it, or into it.
     Dropped(String, String, String),
+    /// A card a drag carried out of its `list` and let go there.
+    Carried(String),
     /// A swatch's colour.
     Color([f32; 4]),
     /// A window's title bar dragged, in design pixels.
@@ -662,6 +536,31 @@ pub(crate) enum Edit {
     Link(String),
     /// The 1-based line a click on a `code` widget's gutter landed on.
     Gutter(i64),
+    /// The pointer came over the widget, or left it.
+    Entered,
+    Left,
+    /// A button went down or came up over the innermost widget, by name.
+    Pressed(String),
+    Released(String),
+    /// The primary button clicked twice over the innermost widget.
+    DoubleClicked,
+    /// Focus left the widget.
+    Blurred,
+    /// A slider's, number field's or colour picker's value, once the drag or
+    /// the typing that changed it is over.
+    Committed(f32),
+    ColorCommitted([f32; 4]),
+    /// A row double-clicked in a `list`, `tree` or `table`.
+    Activated(String),
+    /// A tree row's caret clicked: the row, and whether it is open now.
+    Folded(String, bool),
+    /// A popup, dialog or window the widget holds came up, or went away.
+    Opened,
+    Closed,
+    /// Where a `scroll` is scrolled to now.
+    Scrolled([f32; 2]),
+    /// A `window`'s close button was pressed.
+    CloseRequested,
 }
 
 /// Draw one widget and, when it is a container, what is laid out inside it.
@@ -711,6 +610,9 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         .try_resource::<crate::UiFocus>()
         .is_some_and(|focus| focus.borrow().focused == Some(at.arena[index].entity));
     let (hovered, held) = pointer_state(ui, disabled);
+    if hovered {
+        at.under.push(at.arena[index].entity);
+    }
     let pointer = if held {
         Pointer::Held
     } else if hovered {
@@ -722,12 +624,53 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         pointer,
         disabled,
         focused,
+        checked: at.arena[index].widget.checked,
     };
     let outer = std::mem::replace(&mut at.state, state);
     crate::widget::kinds::context_sensor(ui, at, index);
+    click_sensor(ui, at, index);
     draw_kind(ui, at, index);
     crate::widget::kinds::context_menu(ui, at, index);
     at.state = outer;
+}
+
+/// Accept on a fold turns it, as a click on its header does.
+fn turned_fold(placed: &[Placed], accepted: Option<Entity>) -> Option<(Entity, Edit)> {
+    let entity = accepted?;
+    let fold = placed
+        .iter()
+        .find(|p| p.entity == entity && p.widget.kind == w::FOLD)?;
+    Some((entity, Edit::Open(!fold.widget.open)))
+}
+
+/// A click on a widget that draws nothing clickable of its own, when its
+/// `on_click` names a handler. Sensed before the kind draws, so a child
+/// drawn inside it still takes its own clicks first.
+fn click_sensor(ui: &egui::Ui, at: &mut Painting<'_>, index: usize) {
+    let placed = &at.arena[index];
+    let widget = &placed.widget;
+    let passive = matches!(
+        widget.kind.as_str(),
+        w::LABEL
+            | w::PANEL
+            | w::ROW
+            | w::COLUMN
+            | w::GRID
+            | w::STACK
+            | w::FLOW
+            | w::SCROLL
+            | w::PROGRESS_BAR
+    );
+    if !passive || widget.on_click.is_empty() || widget.disabled {
+        return;
+    }
+    let id = egui::Id::new(("balaur-click", placed.entity));
+    if ui
+        .interact(ui.max_rect(), id, egui::Sense::click())
+        .clicked()
+    {
+        at.clicked.push(placed.entity);
+    }
 }
 
 /// Whether the pointer is over the box this widget was given, and whether it
@@ -757,15 +700,15 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         }
         // A line the player types into. The text lives on the widget; the
         // draw only reports what was typed, and the next tick writes it.
-        w::FIELD => crate::widget::text::field(ui, at, index, &font, color),
+        w::TEXT_FIELD => crate::widget::text::field(ui, at, index, &font, color),
         w::TEXT_AREA => crate::widget::text::text_area(ui, at, index, &font, color),
         // A dialog is a panel drawn over a dimmed screen; the dimming is the
         // root draw's, so here it is the panel.
         w::PANEL | w::DIALOG | w::TOAST => panel(ui, at, index, &caption, &font, color),
         w::WINDOW => crate::widget::window::window(ui, at, index, &caption, &font, color),
-        w::CHECK => crate::widget::kinds::check(ui, at, index, &caption, &font, color),
+        w::CHECKBOX => crate::widget::kinds::check(ui, at, index, &caption, &font, color),
         w::SWITCH => crate::widget::kinds::switch(ui, at, index),
-        w::COLOR => crate::widget::kinds::color(ui, at, index),
+        w::COLOR_PICKER => crate::widget::kinds::color(ui, at, index),
         w::DROPDOWN => crate::widget::kinds::dropdown(ui, at, index, &font, color),
         w::MENU => crate::widget::kinds::menu(ui, at, index, &caption, &font, color),
         w::LIST => crate::widget::rows::list(ui, at, index, &font, color),
@@ -775,8 +718,8 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         // call has always had.
         w::CODE => crate::widget::kinds::code(ui, at, index),
         w::SLIDER => crate::widget::kinds::slider(ui, at, index),
-        w::DRAG_VALUE => crate::widget::kinds::drag_value(ui, at, index, &font, color),
-        w::PROGRESS => crate::widget::kinds::progress(ui, at, index, &caption, &font, color),
+        w::NUMBER_FIELD => crate::widget::kinds::drag_value(ui, at, index, &font, color),
+        w::PROGRESS_BAR => crate::widget::kinds::progress(ui, at, index, &caption, &font, color),
         w::SEPARATOR => crate::widget::kinds::separator(ui, at, index),
         w::GRID => crate::widget::kinds::grid(ui, at, index),
         w::STACK => crate::widget::kinds::stack(ui, at, index),
@@ -790,7 +733,7 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         w::SCROLL => scroller(ui, at, index),
         // One child at a time, with a strip of the rest above it. The strip is
         // drawn here rather than authored, so adding a page is adding a node.
-        w::TAB => tabs(ui, at, index),
+        w::TABS => tabs(ui, at, index),
         // The rect a script fills. The node owns the placement, the script
         // owns everything inside it, and neither has to know the other.
         w::DRAW => {
@@ -806,7 +749,7 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             let rect = egui::Rect::from_min_size(room.min, size);
             let entity = placed.entity;
             let target = widget.draw.clone();
-            // A row's body sits on the row's centre line, where `ui::right`
+            // A row's body sits on the row's centre line, where `ui::align_right`
             // puts its own run: a field and the dropdown after it are one line.
             let layout = *ui.layout();
             let layout = if layout.is_horizontal() {

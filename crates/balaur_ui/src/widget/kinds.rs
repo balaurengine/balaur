@@ -8,10 +8,13 @@ use balaur_core::Engine;
 use egui::{Color32, Rect, Sense, Stroke, TextureId, pos2, vec2};
 
 use crate::vocabulary::words as w;
-use crate::widget::arrange::{Axis, lay_out, padding_of, record_measure, record_rect, solved_of};
+use crate::widget::arrange::{
+    Axis, Pad, lay_out, padding_of, record_measure, record_rect, solved_of, style_padding,
+};
 use crate::widget::layer::{Edit, Painting, draw_one};
 use crate::widget::measure::Measure;
 use crate::widget::node::Widget;
+use crate::widget::theme::{Pointer, Style, WidgetState};
 
 /// A ticked box with a caption. The tick lives on the widget: the click is
 /// reported like a button's and the next tick flips `checked`.
@@ -43,9 +46,8 @@ pub(crate) fn check(
 
 /// An on/off switch: a track the theme fills and a knob at one end of it.
 ///
-/// `checked` is what it holds, so a role dresses the two states as a button's
-/// are dressed: `[roles.x]` while it is off and `[roles.x.active]` while it is
-/// on, because a checked widget wears the held look.
+/// `checked` is what it holds: `[roles.x]` dresses it off and
+/// `[roles.x.checked]` on, the held look standing in where a theme has none.
 pub(crate) fn switch(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let (entity, on) = {
         let placed = &at.arena[index];
@@ -57,7 +59,10 @@ pub(crate) fn switch(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     if response.clicked() {
         at.clicked.push(entity);
     }
-    let dressed = look.style.in_state(response.hovered() || on, on);
+    let dressed = look.style.in_states(WidgetState {
+        pointer: Pointer::of(&response),
+        ..at.state
+    });
     let track = dressed.fill.unwrap_or(Color32::TRANSPARENT);
     let knob = dressed
         .text_color
@@ -94,14 +99,20 @@ pub(crate) fn dropdown(
     if want.x > 0.0 {
         combo = combo.width(want.x);
     }
-    combo.show_ui(ui, |ui| {
-        for option in &widget.options {
-            let label = egui::RichText::new(option.as_str())
-                .font(font.clone())
-                .color(color);
-            ui.selectable_value(&mut chosen, option.clone(), label);
-        }
-    });
+    let up = combo
+        .show_ui(ui, |ui| {
+            for option in &widget.options {
+                let label = egui::RichText::new(option.as_str())
+                    .font(font.clone())
+                    .color(color);
+                ui.selectable_value(&mut chosen, option.clone(), label);
+            }
+        })
+        .inner
+        .is_some();
+    if up {
+        at.shown.push(entity);
+    }
     if chosen != widget.text {
         at.edits.push((entity, Edit::Choice(chosen.to_string())));
     }
@@ -129,6 +140,10 @@ pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let response = ui.add(slider);
     if response.changed() {
         at.edits.push((placed.entity, Edit::Value(value)));
+    }
+    // A drag lets go, or a key moved it with no drag at all.
+    if response.drag_stopped() || (response.changed() && !response.dragged()) {
+        at.edits.push((placed.entity, Edit::Committed(value)));
     }
 }
 
@@ -183,7 +198,7 @@ fn warn_code(err: &anyhow::Error) {
     tracing::warn!("code widget: {err:#}");
 }
 
-/// How much of a `drag_value`'s box its two arrows take, gap included.
+/// How much of a `number_field`'s box its two arrows take, gap included.
 const ARROWS: f32 = 18.0;
 
 /// A button that drops a list of items: Godot's `MenuButton`, and the same
@@ -211,11 +226,17 @@ pub(crate) fn menu(
     // strings cannot.
     if !placed.children.is_empty() {
         let response = crate::widget::button::button(ui, at, index, caption, font, color);
-        if inner {
+        let up = if inner {
             egui::containers::menu::SubMenu::new()
-                .show(ui, &response, |ui| popup_rows(ui, at, index));
+                .show(ui, &response, |ui| popup_rows(ui, at, index))
+                .is_some()
         } else {
-            dropped(&response, &placement, ui, showing).show(|ui| popup_rows(ui, at, index));
+            dropped(&response, &placement, ui, showing)
+                .show(|ui| popup_rows(ui, at, index))
+                .is_some()
+        };
+        if up {
+            at.shown.push(entity);
         }
         return;
     }
@@ -236,10 +257,17 @@ pub(crate) fn menu(
             }
         }
     };
-    if inner {
-        egui::containers::menu::SubMenu::new().show(ui, &response, rows);
+    let up = if inner {
+        egui::containers::menu::SubMenu::new()
+            .show(ui, &response, rows)
+            .is_some()
     } else {
-        dropped(&response, &placement, ui, showing).show(rows);
+        dropped(&response, &placement, ui, showing)
+            .show(rows)
+            .is_some()
+    };
+    if up {
+        at.shown.push(entity);
     }
     if let Some(choice) = picked {
         at.edits.push((entity, Edit::Choice(choice)));
@@ -324,7 +352,7 @@ pub(crate) fn popup_rows(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize)
 }
 
 /// A swatch that opens a picker: Godot's `ColorPickerButton`. The colour is
-/// the widget's own `color`, not the ink its caption is drawn in.
+/// the widget's own `picked_color`, not the ink its caption is drawn in.
 pub(crate) fn color(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let placed = &at.arena[index];
     let widget = &placed.widget;
@@ -336,15 +364,26 @@ pub(crate) fn color(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     if want.x > 0.0 {
         ui.spacing_mut().interact_size.x = want.x;
     }
-    if egui::color_picker::color_edit_button_srgba(
+    let changed = egui::color_picker::color_edit_button_srgba(
         ui,
         &mut srgba,
         egui::color_picker::Alpha::OnlyBlend,
     )
-    .changed()
-    {
-        let unit = srgba.to_srgba_unmultiplied().map(|c| f32::from(c) / 255.0);
+    .changed();
+    let unit = srgba.to_srgba_unmultiplied().map(|c| f32::from(c) / 255.0);
+    if changed {
         at.edits.push((entity, Edit::Color(unit)));
+    }
+    // The picker's drag happens in its popup, so the release is watched for
+    // here: a colour committed once the button that was changing it lets go.
+    let dragging = egui::Id::new(("balaur-color-drag", entity));
+    let (down, released) = ui.input(|i| (i.pointer.any_down(), i.pointer.any_released()));
+    let was = ui.data(|d| d.get_temp::<bool>(dragging).unwrap_or(false));
+    if changed && down {
+        ui.data_mut(|d| d.insert_temp(dragging, true));
+    } else if (was && released) || (changed && !down) {
+        ui.data_mut(|d| d.insert_temp(dragging, false));
+        at.edits.push((entity, Edit::ColorCommitted(unit)));
     }
 }
 
@@ -436,8 +475,13 @@ pub(crate) fn drag_value(
             moved
         };
         at.edits.push((placed.entity, Edit::Value(value)));
+        at.edits.push((placed.entity, Edit::Committed(value)));
     } else if response.inner.changed() {
         at.edits.push((placed.entity, Edit::Value(value)));
+    }
+    // A drag lets go, or the number typed in is left.
+    if response.inner.drag_stopped() || response.inner.lost_focus() {
+        at.edits.push((placed.entity, Edit::Committed(value)));
     }
 }
 
@@ -484,7 +528,8 @@ pub(crate) fn separator(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) 
 
 /// A header that shows or hides the children under it. The header is a
 /// button by another shape: clicking it reports an `Open` edit, and focus
-/// lands on it as on a button.
+/// lands on it as on a button. While open it wears its `checked` table, and
+/// what it shows sits in the theme's `body` frame.
 pub(crate) fn fold(
     ui: &mut egui::Ui,
     at: &mut Painting<'_>,
@@ -493,32 +538,22 @@ pub(crate) fn fold(
     font: &egui::FontId,
     color: Color32,
 ) {
-    let placed = &at.arena[index];
-    let (entity, open) = (placed.entity, placed.widget.open);
-    let widget = placed.widget.clone();
+    let widget = at.arena[index].widget.clone();
     let style = at.style_of(&widget);
-    let pad = padding_of(&widget, &style);
-    let mark = if open { "▾" } else { "▸" };
-    let text = egui::RichText::new(format!("{mark} {caption}"))
-        .font(font.clone())
-        .color(color);
-    let header = ui.add(egui::Label::new(text).sense(Sense::click()));
-    if header.clicked() {
-        at.edits.push((entity, Edit::Open(!open)));
-    }
-    if at.focused == Some(entity) {
-        ui.painter().rect_stroke(
-            header.rect.expand(2.0),
-            4.0,
-            Stroke::new(2.0, color),
-            egui::StrokeKind::Outside,
-        );
-    }
-    if !open {
+    let room = ui.available_rect_before_wrap();
+    let strip = fold_header(ui, at, index, &style, (caption, font, color), room);
+    ui.advance_cursor_after_rect(strip);
+    if !widget.open {
         return;
     }
-    let room = ui.available_rect_before_wrap();
-    let body = Rect::from_min_max(pos2(room.min.x + pad.left, room.min.y), room.max);
+    let top = strip.max.y + ui.spacing().item_spacing.y;
+    let frame = ui.painter().add(egui::Shape::Noop);
+    let pad = style
+        .body
+        .as_deref()
+        .map_or_else(Pad::default, |body| style_padding(body, 0.0));
+    let area = Rect::from_min_max(pos2(room.min.x, top), room.max);
+    let body = pad.inside(area);
     // Solved on its own: the header is drawn here rather than authored, so
     // what is under it is a subtree of its own from the layout's side.
     let space = crate::widget::taffy::Room::scrolling(body, w::BOTH);
@@ -535,7 +570,217 @@ pub(crate) fn fold(
     let held = std::mem::replace(&mut at.rects, solved);
     lay_out(&mut inner, at, index, Axis::Column);
     at.rects = held;
-    ui.advance_cursor_after_rect(inner.min_rect());
+    let bottom = inner.min_rect().max.y + pad.bottom;
+    let used = Rect::from_min_max(area.min, pos2(room.max.x, bottom));
+    if let Some(body) = &style.body {
+        plate(ui, at.eng, frame, body, used);
+    }
+    ui.advance_cursor_after_rect(used);
+}
+
+/// A fold's header, drawn in the fold's state: its frame, its arrow, the
+/// caption and the title bar children. Answers the header's box.
+fn fold_header(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    style: &Style,
+    (caption, font, color): (&str, &egui::FontId, Color32),
+    room: Rect,
+) -> Rect {
+    let placed = &at.arena[index];
+    let (entity, open) = (placed.entity, placed.widget.open);
+    let pad = padding_of(&placed.widget, style);
+    let bar: Vec<usize> = placed
+        .children
+        .iter()
+        .copied()
+        .filter(|child| in_title_bar(at.arena, index, *child))
+        .collect();
+    let gap = ui.spacing().item_spacing.x;
+    let mark = font.size;
+    let galley = (!caption.is_empty()).then(|| {
+        ui.painter()
+            .layout_no_wrap(caption.to_owned(), font.clone(), Color32::PLACEHOLDER)
+    });
+    let words = galley.as_ref().map_or(0.0, |galley| galley.size().x + gap);
+    let sizes: Vec<egui::Vec2> = {
+        let mut measure = Measure::new(at.eng, at.arena, ui);
+        bar.iter()
+            .map(|child| measure.of(*child, &at.theme))
+            .collect()
+    };
+    let spare = room.width() - pad.left - pad.right - mark - gap - words;
+    let sizes = grown(at.arena, &bar, sizes, spare, gap);
+    let line = galley
+        .as_ref()
+        .map_or(mark, |galley| galley.size().y.max(mark));
+    let tall = sizes.iter().fold(line, |most, size| most.max(size.y));
+    let strip = Rect::from_min_size(room.min, vec2(room.width(), tall + pad.top + pad.bottom));
+    let frame = ui.painter().add(egui::Shape::Noop);
+    // Sensed before the bar's children are drawn, so theirs sit on top.
+    let header = ui.interact(strip, ui.id().with(("fold", entity)), Sense::click());
+    if header.clicked() {
+        at.edits.push((entity, Edit::Open(!open)));
+    }
+    let state = WidgetState {
+        pointer: Pointer::of(&header),
+        disabled: false,
+        focused: at.focused == Some(entity),
+        checked: open,
+    };
+    let look = style.in_states(state);
+    plate(ui, at.eng, frame, &look, strip);
+    let ink = look.text_color.unwrap_or(color);
+    let middle = strip.center().y;
+    let arrow = Rect::from_center_size(
+        pos2(strip.min.x + pad.left + mark / 2.0, middle),
+        vec2(mark, mark),
+    );
+    fold_arrow(ui, at.eng, look.arrow.as_deref(), open, arrow, (font, ink));
+    let mut across = arrow.max.x + gap;
+    if let Some(galley) = galley {
+        let height = galley.size().y;
+        ui.painter()
+            .galley(pos2(across, middle - height / 2.0), galley, ink);
+        across += words;
+    }
+    for (child, size) in bar.iter().zip(sizes) {
+        let rect = Rect::from_min_size(pos2(across, middle - size.y / 2.0), size);
+        in_header(ui, at, *child, rect);
+        across = rect.max.x + gap;
+    }
+    if state.focused && style.focus.is_none() {
+        ui.painter().rect_stroke(
+            strip.expand(2.0),
+            4.0,
+            Stroke::new(2.0, ink),
+            egui::StrokeKind::Outside,
+        );
+    }
+    strip
+}
+
+/// The theme's arrow picture, or the glyph pointing the way the fold is.
+fn fold_arrow(
+    ui: &egui::Ui,
+    eng: &Engine,
+    picture: Option<&str>,
+    open: bool,
+    rect: Rect,
+    (font, ink): (&egui::FontId, Color32),
+) {
+    let texture = picture.and_then(|path| crate::images::texture_of(eng, ui.ctx(), path).ok());
+    if let Some(texture) = texture {
+        let whole = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
+        ui.painter()
+            .image(texture.id(), rect, whole, Color32::WHITE);
+        return;
+    }
+    let mark = if open { "▾" } else { "▸" };
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        mark,
+        font.clone(),
+        ink,
+    );
+}
+
+/// A style's frame over `rect`, into the slot reserved for it before what
+/// sits on it was drawn: its nine-patch, or its fill and outline.
+fn plate(ui: &egui::Ui, eng: &Engine, slot: egui::layers::ShapeIdx, style: &Style, rect: Rect) {
+    if let Some(path) = style.image.as_ref() {
+        nine_patch_plate(ui, eng, slot, path, style.slice, rect);
+        return;
+    }
+    if style.fill.is_none() && style.stroke.is_none() {
+        return;
+    }
+    let radius = if style.round == Some(true) {
+        rect.height() / 2.0
+    } else {
+        style.radius.unwrap_or(0.0)
+    };
+    ui.painter().set(
+        slot,
+        egui::epaint::RectShape::new(
+            rect,
+            egui::CornerRadius::same(radius.clamp(0.0, 255.0) as u8),
+            style.fill.unwrap_or(Color32::TRANSPARENT),
+            style
+                .stroke
+                .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_px(), c)),
+            egui::StrokeKind::Inside,
+        ),
+    );
+}
+
+/// The title bar children's sizes, those with a `grow` sharing what the
+/// header has left after the others, as Godot's title bar expands them.
+fn grown(
+    arena: &[crate::widget::arena::Placed],
+    bar: &[usize],
+    sizes: Vec<egui::Vec2>,
+    width: f32,
+    gap: f32,
+) -> Vec<egui::Vec2> {
+    let growing: f32 = bar
+        .iter()
+        .map(|child| arena[*child].widget.grow.max(0.0))
+        .sum();
+    if growing <= 0.0 {
+        return sizes;
+    }
+    let taken: f32 = bar
+        .iter()
+        .zip(&sizes)
+        .filter(|(child, _)| arena[**child].widget.grow <= 0.0)
+        .map(|(_, size)| size.x + gap)
+        .sum();
+    let left = (width - taken).max(0.0);
+    bar.iter()
+        .zip(sizes)
+        .map(|(child, size)| {
+            let share = arena[*child].widget.grow.max(0.0) / growing;
+            if share > 0.0 {
+                vec2(size.x.max(left * share), size.y)
+            } else {
+                size
+            }
+        })
+        .collect()
+}
+
+/// Whether `child` is drawn in its fold's header rather than under it.
+pub(crate) fn in_title_bar(
+    arena: &[crate::widget::arena::Placed],
+    parent: usize,
+    child: usize,
+) -> bool {
+    arena[parent].widget.kind == w::FOLD && arena[child].widget.title_bar
+}
+
+/// One title bar child in the box the header gave it, and what it lays out.
+fn in_header(ui: &mut egui::Ui, at: &mut Painting<'_>, child: usize, rect: Rect) {
+    let entity = at.arena[child].entity;
+    record_rect(entity, rect);
+    let solved = crate::widget::taffy::solve_subtree(
+        at.eng,
+        at.arena,
+        child,
+        ui,
+        &at.theme,
+        &crate::widget::taffy::Room::fixed(rect),
+        at.deep(child),
+    );
+    let held = std::mem::replace(&mut at.rects, solved);
+    let restore = std::mem::replace(&mut at.assigned, rect.size());
+    let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(rect));
+    draw_one(&mut inner, at, child);
+    record_measure(entity, inner.min_rect().size());
+    at.assigned = restore;
+    at.rects = held;
 }
 
 /// How many across a `grid` puts its children: what it states, or the two
@@ -908,4 +1153,5 @@ pub(crate) fn context_menu(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usiz
         .open_memory(pressed.then_some(egui::SetOpenCommand::Bool(true)))
         .show(|ui| popup_rows(ui, at, menu));
     at.theme = outer;
+    at.shown.push(at.arena[menu].entity);
 }

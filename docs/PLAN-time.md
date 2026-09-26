@@ -16,7 +16,7 @@
   nodes the pause holds — scripts, animation players, tweens, state machines,
   the `timer` component — so an `always` subtree ticks inside a held game.
   Physics is one world and is held whole, as Godot's is.
-- `on_paused(bool)` reaches every script, the ones the pause just stopped
+- `on_paused_changed(bool)` reaches every script, the ones the pause just stopped
   included: `ScriptHost::announce` is `call_all_with` without the pause filter.
 - `engine.set_time_scale(s)` multiplies measured frame time before it is owed,
   and the substep cap scales with it so fast forward is not silently capped.
@@ -31,11 +31,11 @@
   clear it; a rollback clears it with the transforms it restores.
 - `[time] tick_hz` replaces the constant. `balaur_core::fixed_dt()` is what
   every subsystem reads, a recording's header carries the rate, and
-  `MAX_SUBSTEPS` scales with it. `FIXED_DT` is the default, not the rate.
+  `MAX_SUBSTEPS` scales with it. `DEFAULT_FIXED_DT` is the default, not the rate.
 
 ## 1. Where the tree was before this
 
-- One accumulator drains into whole `FIXED_DT` steps at `TICK_HZ = 60`, at
+- One accumulator drains into whole `DEFAULT_FIXED_DT` steps at `DEFAULT_TICK_HZ = 60`, at
   most `MAX_SUBSTEPS = 4` per frame; time past that is dropped
   (`crates/balaur_core/src/app.rs:781-800`).
 - A debugger pause holds the simulation for a subtree: `Engine::frozen_root`
@@ -70,7 +70,7 @@ an `always` node, as Godot's does.
 
 **A pause is not recorded.** The script that paused runs again on replay and
 pauses again; nothing about it enters the input trace. A pause from outside
-the simulation — the OS suspending the app — arrives as `on_focus_changed`
+the simulation — the OS suspending the app — arrives as `on_focused_changed`
 already, and what a game does with it is a script's.
 
 **Time scale feeds the accumulator.** `engine.set_time_scale(s)` multiplies
@@ -107,7 +107,7 @@ game has a reason.
 
 | Need | Decision |
 | --- | --- |
-| Pause the game, keep the menu alive | Step 1: `engine.set_paused`, `engine.paused`, `process` on a node, `on_paused(bool)` on every script |
+| Pause the game, keep the menu alive | Step 1: `engine.set_paused`, `engine.paused`, `process` on a node, `on_paused_changed(bool)` on every script |
 | A node that never ticks | Step 1: `process = "disabled"` |
 | Slow motion, fast forward | Step 2: `engine.set_time_scale`, `engine.time_scale`; `engine.time` keeps counting scaled time, `engine.unix_time` does not |
 | A hitch that should not run four steps at once | Have: `MAX_SUBSTEPS` drops the time; step 2 scales the cap with the time scale so fast forward is not silently capped |

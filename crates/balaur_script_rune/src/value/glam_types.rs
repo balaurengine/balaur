@@ -53,7 +53,32 @@ macro_rules! vector {
                 Self { $($f: g.$f),+ }
             }
         }
+
+        impl $name {
+            /// Each lane into a map's hash, so a vector keys a map.
+            fn hash_lanes(&self, hasher: &mut rune::runtime::Hasher) {
+                $( std::hash::Hasher::write_u64(hasher, Lane::bits(self.$f)); )+
+            }
+        }
     };
+}
+
+/// A lane as the bits a hash takes. Zero and negative zero are equal, so
+/// they hash alike.
+trait Lane {
+    fn bits(self) -> u64;
+}
+
+impl Lane for f64 {
+    fn bits(self) -> u64 {
+        if self == 0.0 { 0 } else { self.to_bits() }
+    }
+}
+
+impl Lane for i64 {
+    fn bits(self) -> u64 {
+        self.cast_unsigned()
+    }
 }
 
 vector!(Vec2, DVec2, f64, [x, y]);
@@ -326,6 +351,21 @@ pub(crate) fn install(m: &mut rune::Module) -> Result<(), rune::ContextError> {
     float_ops!(m, Vec4, DVec4);
     int_ops!(m, IVec2, I64Vec2);
     int_ops!(m, IVec3, I64Vec3);
+    m.associated_function(&P::HASH, |v: &Vec2, h: &mut rune::runtime::Hasher| {
+        v.hash_lanes(h);
+    })?;
+    m.associated_function(&P::HASH, |v: &Vec3, h: &mut rune::runtime::Hasher| {
+        v.hash_lanes(h);
+    })?;
+    m.associated_function(&P::HASH, |v: &Vec4, h: &mut rune::runtime::Hasher| {
+        v.hash_lanes(h);
+    })?;
+    m.associated_function(&P::HASH, |v: &IVec2, h: &mut rune::runtime::Hasher| {
+        v.hash_lanes(h);
+    })?;
+    m.associated_function(&P::HASH, |v: &IVec3, h: &mut rune::runtime::Hasher| {
+        v.hash_lanes(h);
+    })?;
     m.associated_function(&P::MUL, |q: &Quat, o: rune::Value| vm(quat_mul(q, &o)))?;
     m.associated_function(&P::ADD, |a: &Quat, b: &Quat| Quat::of(a.g() + b.g()))?;
     m.associated_function(&P::SUB, |a: &Quat, b: &Quat| Quat::of(a.g() - b.g()))?;

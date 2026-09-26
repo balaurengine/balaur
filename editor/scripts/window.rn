@@ -19,7 +19,7 @@ const PAD_X = 18.0;
 /// A sheet's own box. The floor is what a form needs and the screen is what
 /// there is: on a phone the second wins, less the margin around it.
 pub fn size(S) {
-    let screen = ui::screen_size();
+    let screen = ui::window_size();
     let room = util::max(screen[0] - 2.0 * MARGIN, 240.0);
     let tall = util::max(screen[1] - 2.0 * MARGIN, 200.0);
     #{
@@ -95,11 +95,11 @@ pub fn sheet(S, id, title, actions, body) {
 /// The bar across a sheet: its name, the verbs it carries, and the close.
 fn bar_controls(S, title) {
     [
-        #{ kind: "label", role: "sheet_title", text: title },
+        #{ kind: "label", role: "text_title_dialog", text: title },
         #{ kind: "row", grow: 1 },
         #{ kind: "draw", draw: "draw_sheet_actions", width: 120 },
         #{
-            kind: "button", role: "sheet_close", text: "Close",
+            kind: "button", role: "icon_action_dialog", text: "Close",
             on: |_| { hide(S); },
         },
     ]
@@ -151,7 +151,7 @@ pub fn picker_shut(S) {
 /// `query` itself and what to do with an edit (`on`) and an Enter
 /// (`on_submit`), the `width` it would like, and how tall its rows are.
 pub fn picker(S, opts) {
-    let screen = ui::screen_size();
+    let screen = ui::window_size();
     // One width, taken from the screen: a phone is narrower than what a
     // laptop gets, and every column inside is measured off what is left.
     let width = util::min(util::f(opts.width), util::max(screen[0] - 32.0, 240.0));
@@ -163,9 +163,9 @@ pub fn picker(S, opts) {
     }
     util::fill(PICKER, #{ open: true, width: width });
     crate::pool::strip(S, PICKER + "/PickerHead", [
-        #{ kind: "label", role: "picker_mark", text: opts.mark },
+        #{ kind: "label", role: "text_mark_picker", text: opts.mark },
         #{
-            kind: "field", role: "picker_field", grow: 1,
+            kind: "text_field", role: "input_picker", grow: 1,
             text: opts.query, placeholder: opts.placeholder,
             on: opts.on, on_submit: opts.on_submit,
         },

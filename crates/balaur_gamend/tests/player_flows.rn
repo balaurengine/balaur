@@ -98,7 +98,8 @@ async fn lobby(this, steps, me) {
     let made = data(call(steps, "create", || gamend::lobbies::create_lobby((), #{ "title": title, "max_users": 4, "metadata": #{ "mode": "duel" } })).await);
     let id = field(made, "id");
     this.socket = gamend::connect(this.node);
-    check(steps, "socket_open", heard(this, "open").await);
+    let opened = task::wait(this.socket).await;
+    check(steps, "socket_open", same(field(opened, "kind"), "open"));
     let joined = task::wait(gamend::join(this.socket, `lobby:${id}`)).await;
     check(steps, "channel_joined", same(field(joined, "status"), "ok"));
     let got = data(call(steps, "get", || gamend::lobbies::get_lobby((), id)).await);

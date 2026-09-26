@@ -27,7 +27,7 @@ pub fn plugin() {
     if name is String && name != "" {
         return name;
     }
-    return gamend::target()["plugin"];
+    return gamend::server()["plugin"];
 }
 
 /// Open a session from a device id. The reply reaches `node`'s handler as

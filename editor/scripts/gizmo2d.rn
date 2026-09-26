@@ -2,6 +2,7 @@
 // outside the local AABB (opposite corner/edge anchored, Shift = uniform),
 // the interior translates, a center disc rotates about z; all 2D world space.
 
+use crate::defs;
 use crate::history;
 use crate::model;
 use crate::polygon;
@@ -73,15 +74,20 @@ pub fn node_half_extents(node) {
     if !(shape is Object) {
         return None;
     }
-    if shape.get("kind") == Some(render::SHAPE_CIRCLE) {
+    let kind = shape.get("kind");
+    if kind == Some(render::SHAPE_CIRCLE) {
         let r = util::f(shape.get("radius").unwrap_or(0.5));
         return Some((r, r));
     }
-    let he = util::vec2(shape.get("half_extents").unwrap_or(()), [0.5, 0.5]);
-    Some((he[0], he[1]))
+    if kind == Some(render::SHAPE_CAPSULE) {
+        let r = util::f(shape.get("radius").unwrap_or(0.5));
+        return Some((r, util::f(shape.get("height").unwrap_or(2.0)) / 2.0));
+    }
+    let size = util::vec2(shape.get("size").unwrap_or(()), [1.0, 1.0]);
+    Some((size[0] / 2.0, size[1] / 2.0))
 }
 
-// Handle center in box-local coordinates (steadyum: signs * half_extents
+// Handle center in box-local coordinates (steadyum: signs * half extents
 // plus the normalized outward offset).
 fn handle_local(geo, signs) {
     let nx = signs[0];
@@ -112,8 +118,8 @@ pub fn extents_at(S, i) {
 // An axis-aligned frame around the whole set: a set has no one rotation to
 // align to, so the frame does not turn with any node in it.
 fn set_geometry(S) {
-    let lo = [math::INF, math::INF];
-    let hi = [-math::INF, -math::INF];
+    let lo = [math::INFINITY, math::INFINITY];
+    let hi = [-math::INFINITY, -math::INFINITY];
     let any = false;
     for i in crate::selection::all(S) {
         let found = extents_at(S, i);
@@ -249,7 +255,7 @@ pub fn draw(S) {
         Some(geo) => geo,
         None => return,
     };
-    if S.persona == "script" {
+    if S.workspace == defs::WORKSPACE_SCRIPT {
         return;
     }
     let hot = viewport::hot_part(S);
@@ -346,7 +352,7 @@ fn apply_drag(S, mx, my) {
                 }
             }
         }
-        if input::is_down("LShift") || input::is_down("RShift") {
+        if input::key_down(input::KEY_SHIFT) {
             let dominant = 1.0;
             for i in 0..2 {
                 if d.part.signs[i] != 0.0 && util::abs(factors[i] - 1.0) > util::abs(dominant - 1.0) {
@@ -402,14 +408,14 @@ fn rows_in_box(S, x0, y0, x1, y1) {
 // proximity fallback for shapeless nodes.
 fn pick(S, mx, my) {
     // Rigging: a bone's thin diamond loses to any shape around it, so in the
-    // Animate persona bones are tried first.
-    if S.persona == "anim" {
+    // Animation workspace bones are tried first.
+    if S.workspace == defs::WORKSPACE_ANIMATION {
         if let Some(bone) = rig::pick(S, mx, my) {
             return Some(bone);
         }
     }
     let best = None;
-    let best_area = math::INF;
+    let best_area = math::INFINITY;
     for (i, node) in S.doc.iter().enumerate() {
         if crate::selection::is_locked(S, i) {
             continue;
@@ -486,14 +492,14 @@ pub fn update(S, vp) {
 
     if S.gizmo.drag.is_none() {
         S.gizmo.hover = match geo {
-            Some(geo) => if over_viewport && S.persona != "script" { hit_test(S, geo, mx, my) } else { None },
+            Some(geo) => if over_viewport && S.workspace != defs::WORKSPACE_SCRIPT { hit_test(S, geo, mx, my) } else { None },
             None => None,
         };
     }
 
     render::set_camera_input(!viewport::manipulates(S.tool, true) && S.gizmo.hover.is_none() && S.gizmo.drag.is_none());
 
-    if input::mouse_just_pressed(input::MOUSE_LEFT) && over_viewport {
+    if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) && over_viewport {
         let hovered = match (S.gizmo.hover, geo) {
             (Some(part), Some(geo)) => Some((part, geo)),
             _ => None,
@@ -529,7 +535,7 @@ pub fn update(S, vp) {
         m.wx1 = mx;
         m.wy1 = my;
         render::set_camera_input(false);
-        if !input::is_mouse_down(input::MOUSE_LEFT) {
+        if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
             S.gizmo.marquee = None;
             S.gizmo.in_viewport = false;
             if util::abs(m.x1 - m.x0) > 3.0 || util::abs(m.y1 - m.y0) > 3.0 {
@@ -542,7 +548,7 @@ pub fn update(S, vp) {
         }
         return;
     }
-    if !input::is_mouse_down(input::MOUSE_LEFT) {
+    if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
         S.gizmo.drag = None;
         S.gizmo.in_viewport = false;
     }

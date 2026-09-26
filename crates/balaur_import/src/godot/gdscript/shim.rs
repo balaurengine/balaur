@@ -47,6 +47,77 @@ mod tests {
         assert!(missing.is_empty(), "the shim defines none of {missing:?}");
     }
 
+    /// The shim's `widget_handler_key` is a copy of `WIDGET_SIGNALS`, since
+    /// Rune cannot read the Rust table; this keeps the two the same.
+    #[test]
+    fn the_shim_hears_every_widget_signal_the_translator_does() {
+        let body = super::SHIM
+            .split("fn widget_handler_key(name) {")
+            .nth(1)
+            .and_then(|rest| rest.split("_ => (),").next())
+            .expect("the shim has widget_handler_key");
+        let mut arms: Vec<(String, String)> = body
+            .lines()
+            .filter_map(|line| {
+                let (signal, key) = line.trim().trim_end_matches(',').split_once(" => ")?;
+                Some((
+                    signal.trim_matches('"').to_string(),
+                    key.trim_matches('"').to_string(),
+                ))
+            })
+            .collect();
+        let mut table: Vec<(String, String)> = crate::godot::gdscript::map::widgets::WIDGET_SIGNALS
+            .iter()
+            .map(|(signal, key)| ((*signal).to_string(), (*key).to_string()))
+            .collect();
+        arms.sort();
+        table.sort();
+        assert_eq!(arms, table);
+    }
+
+    #[test]
+    fn the_shim_hears_every_engine_event_the_translator_listens_for() {
+        let body = super::SHIM
+            .split("fn engine_event(name) {")
+            .nth(1)
+            .and_then(|rest| rest.split("_ => name,").next())
+            .expect("the shim has engine_event");
+        let mut arms: Vec<(String, String)> = body
+            .lines()
+            .filter_map(|line| {
+                let (signal, event) = line.trim().trim_end_matches(',').split_once(" => ")?;
+                Some((
+                    signal.trim_matches('"').to_string(),
+                    event.trim_matches('"').to_string(),
+                ))
+            })
+            .collect();
+        let mut table: Vec<(String, String)> = crate::godot::gdscript::map::events::ENGINE_EVENTS
+            .iter()
+            .map(|(signal, event)| ((*signal).to_string(), (*event).to_string()))
+            .collect();
+        arms.sort();
+        table.sort();
+        assert_eq!(arms, table);
+    }
+
+    /// The records the translator writes are read by the shim under the
+    /// same keys.
+    #[test]
+    fn the_shim_reads_the_record_keys_the_translator_writes() {
+        use crate::godot::gdscript::map;
+        for (name, key) in [
+            ("BOUND_OWNER", map::BOUND_OWNER),
+            ("BOUND_METHOD", map::BOUND_METHOD),
+            ("BOUND_ARGS", map::BOUND_ARGS),
+            ("CALL_KEY", map::CALL_KEY),
+            ("CALL_TAKES", map::CALL_TAKES),
+        ] {
+            let line = format!("const {name} = \"{key}\";");
+            assert!(super::SHIM.contains(&line), "the shim has no `{line}`");
+        }
+    }
+
     /// The shim is Rune text inside Rust: nothing but running it says it
     /// still compiles, and every converted script requires it.
     #[test]
@@ -68,8 +139,10 @@ mod tests {
              \x20   let gd = script::require(\"gd.rn\");\n\
              \x20   let v = (gd.vec2)(1.0, 2.0) + (gd.neg)((gd.vec2)(0.5, 0.5));\n\
              \x20   let waited = (gd.invoke_async1)(#{ \"f\": async |x| x + 1 }, \"f\", 1).await;\n\
+             \x20   let wider = (gd.invoke1)((gd.vec2)(1.0, 5.0), \"max\", (gd.vec2)(3.0, 2.0));\n\
              \x20   if (gd.field)(v, \"x\") == 0.5 && (gd.color_of)(\"ff0000\").r == 1.0 && waited == 2\n\
-             \x20       && (gd.find)(\"a=b\", \"=\") == 1 && (gd.size)([1, 2]) - 3 == -1 {\n\
+             \x20       && (gd.find)(\"a=b\", \"=\") == 1 && (gd.size)([1, 2]) - 3 == -1\n\
+             \x20       && (gd.field)(wider, \"x\") == 3.0 && (gd.field)(wider, \"y\") == 5.0 {\n\
              \x20       this.node.set_visible(false);\n\
              \x20   }\n\
              }\n",
@@ -104,14 +177,14 @@ mod tests {
         put(
             "animations/steal.toml",
             &[
-                "type = \"animation_clip\"",
+                "type = \"animation_library\"",
                 "[clips.start]",
                 "length = 2.0",
                 "[[clips.start.tracks]]",
                 "target = \"\"",
                 "property = \"position\"",
-                "interp = \"linear\"",
-                "keys = [{ t = 0.0, value = [0.0, 0.0, 0.0] }, { t = 2.0, value = [1.0, 0.0, 0.0] }]",
+                "interpolation = \"linear\"",
+                "keys = [{ time = 0.0, value = [0.0, 0.0, 0.0] }, { time = 2.0, value = [1.0, 0.0, 0.0] }]",
                 "",
             ]
             .join("\n"),
@@ -222,6 +295,742 @@ mod tests {
                 .unwrap()
                 .visible,
             "the probe hid itself only if copy 1 sits at x 3, scaled 2, half see-through"
+        );
+    }
+
+    /// A node's `_draw` lands on the node's own draw layer, and a texture
+    /// region is the part of the picture drawn.
+    #[test]
+    fn a_node_s_drawing_sits_on_its_layer_and_a_region_cuts_its_picture() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            "[[nodes]]\nid = \"probe\"\nname = \"Probe\"\nz_index = 3\nscript = { source = \"probe.rn\" }\n",
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn _draw(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    (gd.draw_circle)(this.node, (gd.vec2)(0.0, 0.0), 4.0, (), (), (), ());",
+                "    (gd.draw_texture_rect_region)(this.node, \"sheet.png\", (gd.rect)(0.0, 0.0, 8.0, 8.0), (gd.rect)(16.0, 0.0, 16.0, 8.0), (), (), ());",
+                "}",
+                "pub fn init(this) {",
+                "    (script::require(\"gd.rn\").draw_frame)(this.node);",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        let shapes = app
+            .engine
+            .resource::<balaur::render::DrawBuffer2d>()
+            .borrow()
+            .shapes
+            .clone();
+        let layers: Vec<Option<i32>> = shapes.iter().map(|d| d.z_index).collect();
+        assert_eq!(layers, [Some(3), Some(3)], "{shapes:?}");
+        assert!(
+            matches!(
+                &shapes[1].shape,
+                balaur::render::Draw2d::Texture {
+                    region: Some([16.0, 0.0, 16.0, 8.0]),
+                    ..
+                }
+            ),
+            "{shapes:?}"
+        );
+    }
+
+    #[test]
+    fn a_hidden_node_draws_nothing_of_its_draw() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            "[[nodes]]\nid = \"probe\"\nname = \"Probe\"\nscript = { source = \"probe.rn\" }\n",
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn _draw(this) {",
+                "    (script::require(\"gd.rn\").draw_circle)(this.node, (script::require(\"gd.rn\").vec2)(0.0, 0.0), 4.0, (), (), (), ());",
+                "}",
+                "pub fn init(this) {",
+                "    (script::require(\"gd.rn\").draw_frame)(this.node);",
+                "    this.node.set_visible(false);",
+                "    (script::require(\"gd.rn\").draw_frame)(this.node);",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        let shapes = app
+            .engine
+            .resource::<balaur::render::DrawBuffer2d>()
+            .borrow()
+            .shapes
+            .len();
+        assert_eq!(shapes, 1, "one circle while shown, none once hidden");
+    }
+
+    /// A particle count is the engine's rate over one lifetime, both ways,
+    /// and a dropdown showing none of its items answers index -1.
+    #[test]
+    fn a_particle_amount_is_its_rate_over_a_lifetime_and_an_unlisted_pick_is_minus_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            &[
+                "[[nodes]]",
+                "id = \"probe\"",
+                "name = \"Probe\"",
+                "script = { source = \"probe.rn\" }",
+                "particles = { rate = 20.0, lifetime = 2.0 }",
+                "",
+                "[[nodes]]",
+                "id = \"pick\"",
+                "name = \"Pick\"",
+                "parent = \"probe\"",
+                "widget = { kind = \"dropdown\", options = [\"en\", \"ro\"], text = \"fr\" }",
+                "",
+            ]
+            .join("\n"),
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let before = (gd.field)(this.node, \"amount\");",
+                "    (gd.set_field)(this.node, \"amount\", 10);",
+                "    let rate = this.node.get_component(\"particles\")[\"rate\"];",
+                "    let pick = (gd.option_index)(this.node.get_node(\"Pick\"));",
+                "    if before == 40 && rate == 5.0 && pick == -1 {",
+                "        this.node.set_visible(false);",
+                "    }",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert!(
+            !world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .visible,
+            "the probe hid itself only if amount read 40, wrote a rate of 5, and the pick read -1"
+        );
+    }
+
+    /// A method bound with arguments takes the signal's values first and
+    /// what `bind` fixed after them, as Godot's `Callable.bind` does.
+    #[test]
+    fn a_bound_method_takes_the_signal_s_values_then_the_bound_ones() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            "[[nodes]]\nid = \"probe\"\nname = \"Probe\"\nscript = { source = \"probe.rn\" }\n",
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn take(this, first, second) {",
+                "    if first == 1 && second == 2 {",
+                "        this.node.set_visible(false);",
+                "    }",
+                "}",
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let bound = #{ \"__bound\": this.node, \"__method\": \"take\", \"__args\": [2] };",
+                "    (gd.call_value)(bound, [1]);",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert!(
+            !world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .visible,
+            "the probe hid itself only if take heard 1 then 2"
+        );
+    }
+
+    /// Godot's root viewport is the window: its `size` is the window's, which
+    /// a game divides to pick its UI scale.
+    #[test]
+    fn the_root_viewport_s_size_is_the_window_s() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n\n[window]\nwidth = 840\nheight = 1920\n",
+        );
+        put(
+            "main.toml",
+            "[[nodes]]\nid = \"probe\"\nname = \"Probe\"\nscript = { source = \"probe.rn\" }\n",
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let size = (gd.field)(scene::root(), \"size\");",
+                "    if (gd.field)(size, \"x\") == 840.0 && (gd.field)(size, \"y\") == 1920.0 {",
+                "        this.node.set_visible(false);",
+                "    }",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert!(
+            !world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .visible,
+            "the probe hid itself only if the root viewport measured 840 by 1920"
+        );
+    }
+
+    /// A scene a script names by its Godot path exists when the scene the
+    /// import wrote does, so a path built at run time finds it.
+    #[test]
+    fn a_godot_scene_path_exists_when_its_converted_scene_does() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            "[[nodes]]\nid = \"probe\"\nname = \"Probe\"\nscript = { source = \"probe.rn\" }\n",
+        );
+        put("ro.toml", "[[nodes]]\nid = \"ro\"\nname = \"Ro\"\n");
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let found = (gd.resource_exists)(`res://${\"ro\"}.tscn`);",
+                "    let missing = (gd.resource_exists)(\"res://hu.tscn\");",
+                "    if found && !missing {",
+                "        this.node.set_visible(false);",
+                "    }",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert!(
+            !world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .visible,
+            "the probe hid itself only if ro.tscn was found as ro.toml and hu.tscn was not"
+        );
+    }
+
+    /// A `Line2D` is a `shape2d` polyline: its point verbs read and write the
+    /// polyline's points in Godot's pixels, y down.
+    #[test]
+    fn a_line_s_point_verbs_edit_the_polyline() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            &[
+                "[[nodes]]",
+                "id = \"probe\"",
+                "name = \"Probe\"",
+                "script = { source = \"probe.rn\" }",
+                "",
+                "[[nodes]]",
+                "id = \"route\"",
+                "name = \"Route\"",
+                "parent = \"probe\"",
+                "shape2d = { kind = \"polyline\", width = 0.1, mesh = { type = \"path2d\", points = [[0.0, 0.0], [1.0, -2.0]] } }",
+                "",
+            ]
+            .join("\n"),
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let line = this.node.get_node(\"Route\");",
+                "    let before = (gd.invoke)(line, \"get_point_count\");",
+                "    (gd.invoke1)(line, \"add_point\", (gd.vec2)(300.0, 0.0));",
+                "    let second = (gd.invoke1)(line, \"get_point_position\", 1);",
+                "    let width = (gd.field)(line, \"width\");",
+                "    let after = (gd.size)((gd.field)(line, \"points\"));",
+                "    if before == 2 && after == 3 && second.x == 100.0 && second.y == 200.0 && width > 9.999 && width < 10.001 {",
+                "        this.node.set_visible(false);",
+                "    }",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert!(
+            !world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .visible,
+            "the probe hid itself only if the line counted, grew and read back in pixels"
+        );
+    }
+
+    /// A node made from a packed scene waits outside the tree until it is
+    /// added, so `is_inside_tree` is false until then.
+    #[test]
+    fn an_instantiated_scene_is_inside_the_tree_only_once_added() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            "[[nodes]]\nid = \"probe\"\nname = \"Probe\"\nscript = { source = \"probe.rn\" }\n",
+        );
+        put("part.toml", "[[nodes]]\nid = \"part\"\nname = \"Part\"\n");
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let made = (gd.instantiate)((gd.load)(\"res://part.tscn\"));",
+                "    let before = (gd.inside_tree)(made);",
+                "    let _ = (gd.add_child)(this.node, made);",
+                "    let after = (gd.inside_tree)(made);",
+                "    if made.is_valid() && !before && after {",
+                "        this.node.set_visible(false);",
+                "    }",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert!(
+            !world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .visible,
+            "the probe hid itself only if the part was outside the tree, then inside"
+        );
+    }
+
+    /// A label in the world keeps its caption and theme on `text2d`, and a
+    /// Control property written to it makes no widget.
+    #[test]
+    fn a_world_label_s_text_is_its_text2d() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            &[
+                "[[nodes]]",
+                "id = \"probe\"",
+                "name = \"Probe\"",
+                "script = { source = \"probe.rn\" }",
+                "",
+                "[[nodes]]",
+                "id = \"region\"",
+                "name = \"Region\"",
+                "parent = \"probe\"",
+                "text2d = { text = \"ALBA\" }",
+                "",
+                "[[nodes]]",
+                "id = \"caption\"",
+                "name = \"Caption\"",
+                "parent = \"probe\"",
+                "widget = { kind = \"label\", text = \"Hi\" }",
+                "",
+            ]
+            .join("\n"),
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let region = this.node.get_node(\"Region\");",
+                "    let caption = this.node.get_node(\"Caption\");",
+                "    let before = (gd.text_of)(region);",
+                "    (gd.set_text)(region, \"CLUJ\");",
+                "    (gd.set_text)(caption, \"Bye\");",
+                "    (gd.patch_widget)(region, #{ \"interactive\": false });",
+                "    (gd.theme_override)(region, \"font_sizes\", \"font_size\", 30);",
+                "    let moved = region.get_component(\"text2d\")[\"text\"];",
+                "    let size = region.get_component(\"text2d\")[\"font_size\"];",
+                "    if before == \"ALBA\" && moved == \"CLUJ\" && size == 30.0 && (gd.text_of)(caption) == \"Bye\" && !region.has_component(\"widget\") {",
+                "        this.node.set_visible(false);",
+                "    }",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert!(
+            !world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .visible,
+            "the probe hid itself only if the world label's text moved on its text2d"
+        );
+    }
+
+    /// `add_child` and `remove_child` keep a node's own transform, as
+    /// Godot's do, under a parent that is moved and scaled.
+    #[test]
+    fn adding_a_child_keeps_its_own_transform() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            &[
+                "[[nodes]]",
+                "id = \"probe\"",
+                "name = \"Probe\"",
+                "script = { source = \"probe.rn\" }",
+                "",
+                "[[nodes]]",
+                "id = \"water\"",
+                "name = \"Water\"",
+                "parent = \"probe\"",
+                "transform = { position = [5.0, 0.0, 0.0], scale = [0.5, 0.5, 1.0] }",
+                "",
+            ]
+            .join("\n"),
+        );
+        put(
+            "part.toml",
+            "[[nodes]]\nid = \"part\"\nname = \"Part\"\ntransform = { position = [1.0, 2.0, 0.0] }\n",
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let water = this.node.get_node(\"Water\");",
+                "    let part = (gd.instantiate)((gd.load)(\"res://part.tscn\"));",
+                "    let _ = (gd.add_child)(water, part);",
+                "    (gd.remove_child)(part);",
+                "    let _ = (gd.add_child)(water, part);",
+                "    let t = part.get_component(\"transform\");",
+                "    if t[\"position\"][0] == 1.0 && t[\"position\"][1] == 2.0 && t[\"scale\"][0] == 1.0 {",
+                "        this.node.set_visible(false);",
+                "    }",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert!(
+            !world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .visible,
+            "the probe hid itself only if the part kept its own position and scale"
+        );
+    }
+
+    /// An export the scene filed in `meta` comes back as Godot's types: a
+    /// rectangle with its methods, and a vector inside a dictionary.
+    #[test]
+    fn a_filed_export_reads_back_as_godot_values() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            &[
+                "[[nodes]]",
+                "id = \"probe\"",
+                "name = \"Probe\"",
+                "script = { source = \"probe.rn\" }",
+                "",
+                "[nodes.meta.__exports]",
+                "bounds = { __godot = \"Rect2\", v = [16.0, 13.0, 166.0, 115.0] }",
+                "cities = [{ id = \"b\", pos = { __godot = \"Vector2\", v = [120.0, 88.0] } }]",
+                "",
+            ]
+            .join("\n"),
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let bounds = (gd.export_value)(this.node, \"bounds\", ());",
+                "    let cities = (gd.export_value)(this.node, \"cities\", []);",
+                "    let unset = (gd.export_value)(this.node, \"regions\", 7);",
+                "    let centre = (gd.invoke)(bounds, \"get_center\");",
+                "    let pos = (gd.get)(cities[0], \"pos\", ());",
+                "    if centre.x == 99.0 && pos.y == 88.0 && unset == 7 {",
+                "        this.node.set_visible(false);",
+                "    }",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert!(
+            !world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .visible,
+            "the probe hid itself only if the filed rect, vector and fallback read back"
+        );
+    }
+
+    /// A button's `icon` is the picture its widget draws, and an SVG loads
+    /// as the raster the import wrote beside it.
+    #[test]
+    fn a_button_icon_is_its_widget_s_picture_and_an_svg_its_raster() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            &[
+                "[[nodes]]",
+                "id = \"probe\"",
+                "name = \"Probe\"",
+                "script = { source = \"probe.rn\" }",
+                "widget = { kind = \"button\" }",
+                "",
+            ]
+            .join("\n"),
+        );
+        put("close.webp", "not really an image");
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let before = (gd.icon_of)(this.node);",
+                "    (gd.set_icon)(this.node, (gd.load)(\"res://close.svg\"));",
+                "    let image = this.node.get_component(\"widget\")[\"image\"];",
+                "    let glyph = (gd.get)(this.node.get_component(\"widget\"), \"icon\", \"\");",
+                "    if (gd.same)(before, ()) && image == \"close.webp\" && glyph == \"\" {",
+                "        this.node.set_z_index(3);",
+                "    }",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert_eq!(
+            world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .z_index,
+            3,
+            "the probe marked itself only if the icon became the widget's picture, as a raster"
+        );
+    }
+
+    /// A foldable's title bar control becomes a child of its `fold` marked
+    /// `title_bar`, and `folded` is the fold shut.
+    #[test]
+    fn a_title_bar_control_joins_its_fold_and_folded_shuts_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            &[
+                "[[nodes]]",
+                "id = \"root\"",
+                "name = \"Root\"",
+                "",
+                "[[nodes]]",
+                "id = \"fold\"",
+                "name = \"Fold\"",
+                "parent = \"root\"",
+                "script = { source = \"probe.rn\" }",
+                "widget = { kind = \"fold\" }",
+                "",
+                "[[nodes]]",
+                "id = \"tab\"",
+                "name = \"Tab\"",
+                "parent = \"root\"",
+                "widget = { kind = \"button\", text = \"Audio\" }",
+                "",
+            ]
+            .join("\n"),
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let tab = scene::node_by_id(\"tab\");",
+                "    let open_before = !(gd.folded)(this.node);",
+                "    (gd.add_title_bar_control)(this.node, tab);",
+                "    (gd.set_field)(this.node, \"folded\", true);",
+                "    let barred = tab.get_component(\"widget\")[\"title_bar\"];",
+                "    let shut = !this.node.get_component(\"widget\")[\"open\"];",
+                "    if open_before && barred && shut && (gd.same)(tab.parent(), this.node) && (gd.field)(this.node, \"folded\") {",
+                "        this.node.set_z_index(3);",
+                "    }",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let fold = balaur_core::scene::find_node(&world, app.engine.root(), "Root/Fold").unwrap();
+        assert_eq!(
+            world
+                .get::<&balaur_core::scene::Appearance>(fold)
+                .unwrap()
+                .z_index,
+            3,
+            "the probe marked itself only if the tab joined the fold's title bar and `folded` shut it"
         );
     }
 }

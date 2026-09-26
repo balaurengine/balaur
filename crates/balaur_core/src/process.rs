@@ -174,7 +174,7 @@ pub fn ticking(eng: &Engine, entity: Entity) -> bool {
 
 /// Tell every script the game paused or resumed, once per change.
 ///
-/// Announced to instances the pause itself holds: `on_paused(true)` is how a
+/// Announced to instances the pause itself holds: `on_paused_changed(true)` is how a
 /// script learns it has stopped, so filtering it by the pause would be the
 /// one hook nobody ever receives.
 pub(crate) fn announce_pause_system(eng: &Engine, _: f32) {
@@ -183,7 +183,7 @@ pub(crate) fn announce_pause_system(eng: &Engine, _: f32) {
     };
     if let Some(host) = eng.script_host() {
         host.announce(
-            crate::hooks::ON_PAUSED,
+            crate::hooks::ON_PAUSED_CHANGED,
             &[balaur_script::Value::Bool(paused)],
         );
     }

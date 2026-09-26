@@ -62,9 +62,9 @@ fn mixed_pile() {
             let at = world::lattice(i, [1.0, 1.0, 1.0], 28, 28, [-13.5, 0.6, -13.5], 0.05);
             let node = world::body(w, at, pile_shape(i % 4));
             node.transform.rotation_euler = [
-                rng::range(-3.14159, 3.14159),
-                rng::range(-3.14159, 3.14159),
-                rng::range(-3.14159, 3.14159),
+                random::range(-3.14159, 3.14159),
+                random::range(-3.14159, 3.14159),
+                random::range(-3.14159, 3.14159),
             ];
         }),
     ])
@@ -72,11 +72,12 @@ fn mixed_pile() {
 
 fn pile_shape(kind) {
     if kind == 0 {
-        box3(rng::range(0.25, 0.45), rng::range(0.25, 0.45), rng::range(0.25, 0.45))
+        box3(random::range(0.25, 0.45), random::range(0.25, 0.45), random::range(0.25, 0.45))
     } else if kind == 1 {
-        #{ kind: "ball", radius: rng::range(0.25, 0.45) }
+        #{ kind: "sphere", radius: random::range(0.25, 0.45) }
     } else if kind == 2 {
-        #{ kind: "capsule", radius: rng::range(0.2, 0.32), height: rng::range(0.9, 1.4) }
+        let radius = random::range(0.2, 0.32);
+        #{ kind: "capsule", radius: radius, height: random::range(0.9, 1.4) + 2.0 * radius }
     } else {
         // One size rather than a random one: a hull is built from a mesh
         // asset, and the collider has no scale to vary it with.
@@ -109,7 +110,7 @@ fn joint_grid() {
                 box3(0.5 * ((COLS as f64) * PITCH + 4.0), 0.25, 0.5));
         }),
         ("place", |w, i| {
-            world::body(w, lattice_at(i), #{ kind: "ball", radius: 0.25 });
+            world::body(w, lattice_at(i), #{ kind: "sphere", radius: 0.25 });
         }),
         ("link", |w, i| {
             let col = i % COLS;
@@ -171,8 +172,8 @@ fn smash() {
         ("after", |w| {
             let ox = -0.5 * ((SMASH_COLUMNS - 1) as f64) * BOX;
             let shot = world::body(w, [ox - 30.0, (SMASH_ROWS as f64) * BOX * 0.5, 0.0],
-                #{ kind: "ball", radius: 1.6 });
-            shot.patch_component("body3d", #{ mass: 800.0, gravity_scale: 0.0, ccd: true });
+                #{ kind: "sphere", radius: 1.6 });
+            shot.patch_component("body3d", #{ mass: 800.0, gravity_scale: 0.0, continuous_collision: true });
             shot.body3d.set_linear_velocity(120.0, 0.0, 0.0);
         }),
         ("extra", |w| { spread(w) }),
@@ -240,16 +241,16 @@ fn query_storm() {
         ("place", |w, i| {
             if i < STATICS {
                 let node = world::fixed(w, scatter(),
-                    box3(rng::range(0.4, 1.2), rng::range(0.4, 1.2), rng::range(0.4, 1.2)));
+                    box3(random::range(0.4, 1.2), random::range(0.4, 1.2), random::range(0.4, 1.2)));
                 node.transform.rotation_euler = [
-                    rng::range(-3.14159, 3.14159),
-                    rng::range(-3.14159, 3.14159),
-                    rng::range(-3.14159, 3.14159),
+                    random::range(-3.14159, 3.14159),
+                    random::range(-3.14159, 3.14159),
+                    random::range(-3.14159, 3.14159),
                 ];
             } else {
-                let node = world::body(w, scatter(), #{ kind: "ball", radius: rng::range(0.3, 0.8) });
+                let node = world::body(w, scatter(), #{ kind: "sphere", radius: random::range(0.3, 0.8) });
                 node.patch_component("body3d", #{ gravity_scale: 0.0 });
-                node.body3d.set_linear_velocity(rng::range(-2.0, 2.0), rng::range(-2.0, 2.0), rng::range(-2.0, 2.0));
+                node.body3d.set_linear_velocity(random::range(-2.0, 2.0), random::range(-2.0, 2.0), random::range(-2.0, 2.0));
             }
         }),
         ("step", |w, tick| { storm(w, tick); }),
@@ -258,7 +259,7 @@ fn query_storm() {
 }
 
 fn scatter() {
-    [rng::range(-FIELD, FIELD), rng::range(-FIELD, FIELD), rng::range(-FIELD, FIELD)]
+    [random::range(-FIELD, FIELD), random::range(-FIELD, FIELD), random::range(-FIELD, FIELD)]
 }
 
 fn storm(w, tick) {
@@ -276,14 +277,14 @@ fn storm(w, tick) {
         let a = phase * 1.7 + 6.28318 * (i as f64) / (CASTS as f64);
         let from = [math::cos(a) * FIELD, math::sin(a) * FIELD * 0.4, math::sin(a) * FIELD];
         let hit = physics3d::shapecast(#{
-            shape: #{ kind: "ball", radius: 0.8 },
+            shape: #{ kind: "sphere", radius: 0.8 },
             from: from, dir: [-from[0], -from[1], -from[2]], max: 2.0,
         });
         count(w, !(hit is Tuple));
     }
     for i in 0..POINTS {
         let a = phase * 2.3 + 6.28318 * (i as f64) / (POINTS as f64);
-        let hits = physics3d::point_hits(#{
+        let hits = physics3d::overlap_point(#{
             point: [math::cos(a) * FIELD * 0.6, math::sin(a * 1.3) * FIELD * 0.4, math::sin(a) * FIELD * 0.6],
         });
         count(w, !hits.is_empty());
@@ -329,6 +330,7 @@ fn drop_at(i) {
     ]
 }
 
+/// A box from its half extents, which is how every case here measures one.
 fn box3(x, y, z) {
-    #{ kind: "cuboid", half_extents: [x, y, z] }
+    #{ kind: "box", size: [x * 2.0, y * 2.0, z * 2.0] }
 }

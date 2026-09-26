@@ -1,4 +1,4 @@
-// The Animate persona's adapter between the scene document and the engine's
+// The Animation workspace's adapter between the scene document and the engine's
 // `assets` / `animation` modules: scrubbing seeks the engine, nothing here
 // samples. The clip belongs to the player (`player`), keyed by node path.
 
@@ -11,9 +11,9 @@ pub fn state() {
     #{ time: 0.0, rebind: false }
 }
 
-// The asset type `balaur_anim` registers, written into the document so a
+// The asset type `balaur_animation` registers, written into the document so a
 // promoted file declares what it is.
-const CLIP_TYPE = "animation_clip";
+const CLIP_TYPE = "animation_library";
 // The group a library document holds its named clips under. The engine finds
 // an entry one level down whatever the group is called; the editor has to
 // pick one to write.
@@ -259,13 +259,13 @@ fn component_params(S, comp, library) {
     #{
         library: library,
         autoplay: comp.get("autoplay").unwrap_or(""),
-        speed: comp.get("speed").unwrap_or(1.0),
-        root: comp.get("root").unwrap_or(""),
+        speed_scale: comp.get("speed_scale").unwrap_or(1.0),
+        root_node: comp.get("root_node").unwrap_or(""),
     }
 }
 
 // Put the edited clip in front of the engine and hold it at the playhead:
-// `animation::define` hands over the editor's in-memory table, edits included.
+// `animation::add_clip` hands over the editor's in-memory table, edits included.
 pub fn arm(S) {
     let (node, found, player_i) = player(S);
     let comp = match component(node) {
@@ -299,7 +299,7 @@ pub fn arm(S) {
         None => return,
     };
     let name = clip_name(node);
-    let (ok, why) = script::attempt(|| found.animation.define(name, def));
+    let (ok, why) = script::attempt(|| found.animation.add_clip(name, def));
     if !ok {
         log::warn(format!("clip '{}' on {}: {:?}", name, node.name, why));
         return;
@@ -339,10 +339,10 @@ pub fn ensure_clip(S) {
     history::record(S, "create clip", None);
     let name = node.name.to_lowercase();
     let clips = #{};
-    clips[name] = #{ length: 2.0, "loop": animation::LOOP_LOOP };
+    clips[name] = #{ length: 2.0, loop_mode: animation::LOOP_LINEAR };
     let library = #{ "type": CLIP_TYPE };
     library[GROUP] = clips;
-    node.animation = #{ library: library, autoplay: name, speed: 1.0, root: "" };
+    node.animation = #{ library: library, autoplay: name, speed_scale: 1.0, root_node: "" };
     S.clip = None;
     arm(S);
     log::info(format!("created clip '{}' on {}", name, node.name));
@@ -355,7 +355,7 @@ fn track_for(def, property, target) {
             return track;
         }
     }
-    let track = #{ property: property, interp: animation::INTERP_LINEAR, keys: [] };
+    let track = #{ property: property, interpolation: animation::INTERPOLATION_LINEAR, keys: [] };
     if target != "" {
         track.target = target;
     }
@@ -367,14 +367,14 @@ fn track_for(def, property, target) {
 }
 
 fn put_key(track, t, value) {
-    let key = #{ t: t, value: value };
+    let key = #{ time: t, value: value };
     if !(track.get("keys").unwrap_or(()) is Vec) {
         track.keys = [];
     }
     // By index: a write while iterating the keys would be a write into a
     // borrowed vector.
     for i in 0..track.keys.len() {
-        let kt = util::f(track.keys[i].get("t").unwrap_or(0.0));
+        let kt = util::f(track.keys[i].get("time").unwrap_or(0.0));
         if util::abs(kt - t) < SAME_TIME {
             track.keys[i] = key;
             return;
@@ -458,7 +458,7 @@ pub fn delete_key_at(S, t) {
     for track in tracks(def) {
         let keys = [];
         for key in util::vec(track.get("keys").unwrap_or([])) {
-            let kt = util::f(key.get("t").unwrap_or(0.0));
+            let kt = util::f(key.get("time").unwrap_or(0.0));
             if track.get("target").unwrap_or("") != target || util::abs(kt - t) >= 0.05 {
                 keys.push(key);
             }
@@ -522,15 +522,15 @@ pub fn make_inline(S) {
     let comp = component(node);
     let rel = library_path(node);
     if comp.is_none() || rel.is_none() {
-        log::warn("this clip is already inline");
+        log::warn("this clip is already embedded");
         return;
     }
     let comp = comp.unwrap();
     let rel = rel.unwrap();
-    history::record(S, "make clip inline", None);
+    history::record(S, "embed clip", None);
     let (ok, copy) = script::attempt(|| assets::duplicate(util::engine_path(S, rel)));
     if !ok || !(copy is Object) {
-        log::warn(format!("cannot inline {}: {:?}", rel, copy));
+        log::warn(format!("cannot embed {}: {:?}", rel, copy));
         return;
     }
     // A reference to one entry brings back that entry alone, so it is wrapped
@@ -548,7 +548,7 @@ pub fn make_inline(S) {
     comp.library = copy;
     S.clip = None;
     arm(S);
-    log::info(format!("clip is now inline on {}", node.name));
+    log::info(format!("clip is now embedded in {}", node.name));
 }
 
 // Write an external clip back to its file. An inline clip is saved with the

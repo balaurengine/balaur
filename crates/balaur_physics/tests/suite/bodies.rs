@@ -38,7 +38,7 @@ fn body_with(app: &App, name: &str, params: &str) -> Entity {
 fn with_body_params(app: &App, e: Entity, params: &str) -> Entity {
     let params: toml::Value = toml::from_str(params).unwrap();
     components::add(&app.engine, e, "body3d", Some(&params)).unwrap();
-    let collider: toml::Value = toml::from_str("kind = \"ball\"\nradius = 0.5").unwrap();
+    let collider: toml::Value = toml::from_str("kind = \"sphere\"\nradius = 0.5").unwrap();
     components::add(&app.engine, e, "collider3d", Some(&collider)).unwrap();
     e
 }
@@ -54,14 +54,14 @@ fn body_properties_round_trip() {
 linear_damping = 0.25
 angular_damping = 0.5
 gravity_scale = 2.0
-dominance = 7.0
-solver_iterations = 3.0
+dominance = 7
+solver_iterations = 3
 lock_translation = ["y"]
 lock_rotation = ["x", "z"]
-ccd = true
-soft_ccd = 0.75
-fast_rotation = true
-sleep_time = 1.5"#,
+continuous_collision = true
+speculative_distance = 0.75
+allow_fast_rotation = true
+time_to_sleep = 1.5"#,
     );
     let back = components::get(&app.engine, e, "body3d").expect("body3d reports itself");
     let f = |key: &str| {
@@ -81,9 +81,9 @@ sleep_time = 1.5"#,
     assert!((f("gravity_scale") - 2.0).abs() < 1e-6);
     assert!((f("dominance") - 7.0).abs() < 1e-6);
     assert!((f("solver_iterations") - 3.0).abs() < 1e-6);
-    assert!((f("soft_ccd") - 0.75).abs() < 1e-6);
-    assert!((f("sleep_time") - 1.5).abs() < 1e-6);
-    assert!(b("ccd") && b("fast_rotation") && b("enabled"));
+    assert!((f("speculative_distance") - 0.75).abs() < 1e-6);
+    assert!((f("time_to_sleep") - 1.5).abs() < 1e-6);
+    assert!(b("continuous_collision") && b("allow_fast_rotation") && b("enabled"));
     assert_eq!(flags("lock_translation"), ["y"]);
     assert_eq!(flags("lock_rotation"), ["x", "z"]);
 }
@@ -96,12 +96,12 @@ fn sleep_time_survives_a_body_that_cannot_sleep() {
     let e = body_with(
         &app,
         "Awake",
-        "kind = \"dynamic\"\ncan_sleep = false\nsleep_time = 1.5",
+        "kind = \"dynamic\"\ncan_sleep = false\ntime_to_sleep = 1.5",
     );
     let read = |app: &App| {
         components::get(&app.engine, e, "body3d")
             .and_then(|b| {
-                b.get("sleep_time")
+                b.get("time_to_sleep")
                     .and_then(balaur_core::components::as_f64)
             })
             .unwrap_or_default()
@@ -205,17 +205,53 @@ fn changing_kind_keeps_the_body() {
 
 /// Extra mass is extra: a heavier body pushes a lighter one, not the reverse.
 #[test]
-fn mass_is_additional() {
-    let app = app();
-    let light = body_with(&app, "Light", "kind = \"dynamic\"");
+fn mass_is_the_total_and_zero_sums_the_colliders() {
+    let mut app = app();
+    let summed = body_with(&app, "Summed", "kind = \"dynamic\"");
+    let light = body_with(&app, "Light", "kind = \"dynamic\"\nmass = 0.1");
     let heavy = body_with(&app, "Heavy", "kind = \"dynamic\"\nmass = 100.0");
-    let state = app.engine.resource::<PhysicsState3d>();
-    let state = state.borrow();
-    let mass_of = |e: Entity| state.world.bodies[state.bodies[&e]].mass();
+    app.tick(1.0 / 60.0);
+    let mass_of = |app: &App, e: Entity| {
+        let state = app.engine.resource::<PhysicsState3d>();
+        let state = state.borrow();
+        state.world.bodies[state.bodies[&e]].mass()
+    };
+    let sphere = 4.0 / 3.0 * std::f32::consts::PI * 0.125;
     assert!(
-        mass_of(heavy) > mass_of(light) + 99.0,
-        "mass = 100 added {}",
-        mass_of(heavy) - mass_of(light)
+        (mass_of(&app, summed) - sphere).abs() < 1e-3,
+        "{}",
+        mass_of(&app, summed)
+    );
+    assert!(
+        (mass_of(&app, light) - 0.1).abs() < 1e-5,
+        "{}",
+        mass_of(&app, light)
+    );
+    assert!(
+        (mass_of(&app, heavy) - 100.0).abs() < 1e-3,
+        "{}",
+        mass_of(&app, heavy)
+    );
+    let collider = components::get(&app.engine, heavy, "collider3d").unwrap();
+    assert_eq!(
+        collider
+            .get("density")
+            .and_then(balaur_core::components::as_f64),
+        Some(1.0),
+        "the collider still reports the density it was given"
+    );
+    components::patch(
+        &app.engine,
+        heavy,
+        "body3d",
+        &toml::from_str("mass = 0.0").unwrap(),
+    )
+    .unwrap();
+    app.tick(1.0 / 60.0);
+    assert!(
+        (mass_of(&app, heavy) - sphere).abs() < 1e-3,
+        "clearing mass left the colliders weightless: {}",
+        mass_of(&app, heavy)
     );
 }
 
@@ -235,7 +271,7 @@ fn can_sleep_false_keeps_a_body_awake() {
         &app.engine,
         ground,
         "collider3d",
-        Some(&toml::from_str("kind = \"cuboid\"\nhalf_extents = [10.0, 0.5, 10.0]").unwrap()),
+        Some(&toml::from_str("kind = \"box\"\nsize = [20.0, 1.0, 20.0]").unwrap()),
     )
     .unwrap();
     // Apart, because sleeping is decided per island: two bodies that touch
@@ -305,7 +341,7 @@ fn a_body_reports_the_mass_properties_it_was_given() {
 mass = 5.0
 inertia = [1.0, 2.0, 3.0]
 center_of_mass = [0.0, 0.5, 0.0]
-gyroscopic = true"#,
+gyroscopic_forces = true"#,
     );
     let back = components::get(&app.engine, e, "body3d").expect("body3d reports itself");
     let f = |key: &str| {
@@ -318,7 +354,7 @@ gyroscopic = true"#,
         "mass came back as {}",
         f("mass")
     );
-    assert_eq!(back.get("gyroscopic").unwrap().as_bool(), Some(true));
+    assert_eq!(back.get("gyroscopic_forces").unwrap().as_bool(), Some(true));
     let inertia = back.get("inertia").unwrap().as_array().unwrap();
     assert!((inertia[1].as_float().unwrap() - 2.0).abs() < 1e-5);
     let com = back.get("center_of_mass").unwrap().as_array().unwrap();
@@ -355,7 +391,25 @@ center_of_mass = [0.25, 0.0]"#,
     let com = back.get("center_of_mass").unwrap().as_array().unwrap();
     assert!((com[0].as_float().unwrap() - 0.25).abs() < 1e-5);
     assert!(
-        back.get("gyroscopic").is_none(),
+        back.get("gyroscopic_forces").is_none(),
         "2D cannot apply gyroscopic"
+    );
+}
+
+#[test]
+fn a_2d_body_mass_is_the_total_too() {
+    let mut app = app();
+    let e = node(&app, "Crate");
+    let body: toml::Value = toml::from_str("kind = \"dynamic\"\nmass = 3.0").unwrap();
+    components::add(&app.engine, e, "body2d", Some(&body)).unwrap();
+    let collider: toml::Value = toml::from_str("kind = \"rectangle\"\nsize = [2.0, 2.0]").unwrap();
+    components::add(&app.engine, e, "collider2d", Some(&collider)).unwrap();
+    app.tick(1.0 / 60.0);
+    let state = app.engine.resource::<PhysicsState2d>();
+    let state = state.borrow();
+    let mass = state.world.bodies[state.bodies[&e]].mass();
+    assert!(
+        (mass - 3.0).abs() < 1e-5,
+        "a 2x2 box of density 1 under mass = 3 weighs {mass}"
     );
 }

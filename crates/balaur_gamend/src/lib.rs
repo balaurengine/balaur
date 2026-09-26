@@ -40,9 +40,8 @@ use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 use serde_json::Value as Json;
 
 mod activity;
-#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+#[cfg(target_family = "wasm")]
 mod browser;
-#[cfg(not(target_os = "emscripten"))]
 mod channels;
 pub mod client;
 mod inspect;
@@ -58,78 +57,13 @@ mod backend {
     pub(crate) fn pump() {}
 }
 
-#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+#[cfg(target_family = "wasm")]
 mod backend {
     pub(crate) use crate::browser::{SharedClient, pump, spawn_login, spawn_rest, spawn_socket};
 }
 
-/// The emscripten stub: no networking stack compiles there, so every
-/// operation resolves to an error event and scripts keep running.
-#[cfg(all(target_family = "wasm", target_os = "emscripten"))]
-mod backend {
-    use std::sync::mpsc::{Receiver, Sender};
-
-    use crate::{GamendEvent, SocketCommand};
-
-    #[derive(Clone, Default)]
-    pub(crate) struct SharedClient;
-
-    impl SharedClient {
-        pub(crate) fn new(_base_url: &str) -> Self {
-            Self
-        }
-
-        pub(crate) fn session(&self) -> Option<crate::client::Session> {
-            None
-        }
-
-        pub(crate) fn set_session(&self, _session: Option<crate::client::Session>) {}
-    }
-
-    pub(crate) fn pump() {}
-
-    fn refuse(events: &Sender<GamendEvent>, request: u64) {
-        let _ = events.send(GamendEvent::Failed {
-            request,
-            message: "no network backend compiles for wasm".into(),
-        });
-    }
-
-    pub(crate) fn spawn_login(
-        _client: &SharedClient,
-        request: u64,
-        _credentials: crate::LoginCredentials,
-        events: &Sender<GamendEvent>,
-    ) {
-        refuse(events, request);
-    }
-
-    pub(crate) fn spawn_rest(
-        _client: &SharedClient,
-        request: u64,
-        _method: String,
-        _path: String,
-        _body: Option<serde_json::Value>,
-        events: &Sender<GamendEvent>,
-    ) {
-        refuse(events, request);
-    }
-
-    pub(crate) fn spawn_socket(
-        _client: &SharedClient,
-        socket: u64,
-        _commands: Receiver<SocketCommand>,
-        events: &Sender<GamendEvent>,
-    ) {
-        let _ = events.send(GamendEvent::SocketError {
-            socket,
-            reason: "no network backend compiles for wasm".into(),
-        });
-    }
-}
-
-/// Login input, mirrored from [`client::auth::Credentials`] so the wasm
-/// stub compiles without the wire layer.
+/// Login input, as a script spells it; converts into
+/// [`client::auth::Credentials`].
 pub enum LoginCredentials {
     EmailPassword {
         email: String,
@@ -528,13 +462,20 @@ fn pump_gamend_system(eng: &Engine, _: f32) {
                 | GamendEvent::Replied { request, .. } => {
                     (state.request_handlers.shift_remove(request), Some(*request))
                 }
-                GamendEvent::SocketClosed { socket, .. }
-                | GamendEvent::SocketError { socket, .. } => {
+                GamendEvent::SocketClosed { socket, .. } => {
                     state.sockets.shift_remove(socket);
                     (state.socket_handlers.shift_remove(socket), None)
                 }
-                GamendEvent::SocketOpen { socket }
-                | GamendEvent::SocketMessage { socket, .. }
+                // The connection's id settles on the first of these, for a
+                // script that awaits `connect`; a later one wakes nothing.
+                GamendEvent::SocketError { socket, .. } => {
+                    state.sockets.shift_remove(socket);
+                    (state.socket_handlers.shift_remove(socket), Some(*socket))
+                }
+                GamendEvent::SocketOpen { socket } => {
+                    (state.socket_handlers.get(socket).cloned(), Some(*socket))
+                }
+                GamendEvent::SocketMessage { socket, .. }
                 | GamendEvent::SocketReconnecting { socket, .. }
                 | GamendEvent::SocketReopened { socket, .. } => {
                     (state.socket_handlers.get(socket).cloned(), None)
@@ -562,6 +503,30 @@ fn pump_gamend_system(eng: &Engine, _: f32) {
     }
 }
 
+/// The `kind` each event map carries, and the `EVENT_*` constants of it.
+pub mod kind {
+    pub const LOGIN: &str = "login";
+    pub const REST: &str = "rest";
+    pub const REPLY: &str = "reply";
+    pub const OPEN: &str = "open";
+    pub const MESSAGE: &str = "message";
+    pub const CLOSED: &str = "closed";
+    pub const RECONNECTING: &str = "reconnecting";
+    pub const REOPENED: &str = "reopened";
+    pub const ERROR: &str = balaur_core::handler::ERROR;
+    pub const ALL: &[&str] = &[
+        LOGIN,
+        REST,
+        REPLY,
+        OPEN,
+        MESSAGE,
+        CLOSED,
+        RECONNECTING,
+        REOPENED,
+        ERROR,
+    ];
+}
+
 fn event_value(event: GamendEvent) -> Value {
     let json_or_nil = |v: &Json| from_json(v).unwrap_or(Value::Nil);
     let pairs = match event {
@@ -572,7 +537,7 @@ fn event_value(event: GamendEvent) -> Value {
             display_name,
         } => vec![
             ("request".into(), int(request)),
-            ("kind".into(), Value::Str("login".into())),
+            ("kind".into(), Value::Str(kind::LOGIN.into())),
             ("user_id".into(), Value::Str(user_id)),
             ("username".into(), Value::Str(username)),
             ("display_name".into(), Value::Str(display_name)),
@@ -583,13 +548,13 @@ fn event_value(event: GamendEvent) -> Value {
             body,
         } => vec![
             ("request".into(), int(request)),
-            ("kind".into(), Value::Str("rest".into())),
+            ("kind".into(), Value::Str(kind::REST.into())),
             ("status".into(), Value::Int(i64::from(status))),
             ("body".into(), json_or_nil(&body)),
         ],
         GamendEvent::Failed { request, message } => vec![
             ("request".into(), int(request)),
-            ("kind".into(), Value::Str("error".into())),
+            ("kind".into(), Value::Str(kind::ERROR.into())),
             ("error".into(), Value::Str(message)),
         ],
         GamendEvent::Replied {
@@ -598,13 +563,13 @@ fn event_value(event: GamendEvent) -> Value {
             response,
         } => vec![
             ("request".into(), int(request)),
-            ("kind".into(), Value::Str("reply".into())),
+            ("kind".into(), Value::Str(kind::REPLY.into())),
             ("status".into(), Value::Str(status)),
             ("response".into(), json_or_nil(&response)),
         ],
         GamendEvent::SocketOpen { socket } => vec![
             ("socket".into(), int(socket)),
-            ("kind".into(), Value::Str("open".into())),
+            ("kind".into(), Value::Str(kind::OPEN.into())),
         ],
         GamendEvent::SocketMessage {
             socket,
@@ -613,19 +578,19 @@ fn event_value(event: GamendEvent) -> Value {
             payload,
         } => vec![
             ("socket".into(), int(socket)),
-            ("kind".into(), Value::Str("message".into())),
+            ("kind".into(), Value::Str(kind::MESSAGE.into())),
             ("topic".into(), Value::Str(topic)),
             ("event".into(), Value::Str(event)),
             ("payload".into(), json_or_nil(&payload)),
         ],
         GamendEvent::SocketClosed { socket, reason } => vec![
             ("socket".into(), int(socket)),
-            ("kind".into(), Value::Str("closed".into())),
+            ("kind".into(), Value::Str(kind::CLOSED.into())),
             ("reason".into(), Value::Str(reason)),
         ],
         GamendEvent::SocketError { socket, reason } => vec![
             ("socket".into(), int(socket)),
-            ("kind".into(), Value::Str("error".into())),
+            ("kind".into(), Value::Str(kind::ERROR.into())),
             ("reason".into(), Value::Str(reason)),
         ],
         GamendEvent::SocketReconnecting {
@@ -635,14 +600,14 @@ fn event_value(event: GamendEvent) -> Value {
             wait,
         } => vec![
             ("socket".into(), int(socket)),
-            ("kind".into(), Value::Str("reconnecting".into())),
+            ("kind".into(), Value::Str(kind::RECONNECTING.into())),
             ("attempt".into(), Value::Int(i64::from(attempt))),
             ("reason".into(), Value::Str(reason)),
             ("wait".into(), Value::Num(wait)),
         ],
         GamendEvent::SocketReopened { socket, lost } => vec![
             ("socket".into(), int(socket)),
-            ("kind".into(), Value::Str("reopened".into())),
+            ("kind".into(), Value::Str(kind::REOPENED.into())),
             (
                 "lost".into(),
                 Value::List(lost.into_iter().map(Value::text).collect()),
@@ -760,14 +725,15 @@ fn json_of(value: Option<&Value>) -> Result<Json> {
 /// connect call's handler method (default `on_gamend_event`).
 fn install_gamend_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "The Gamend backend: session, REST API and realtime socket. Each call returns an id to await; the result also reaches the node's `on_gamend_event` (or `on_event`) as a `kind` map.",
+        "The Gamend backend: session, REST API and realtime socket. Each call returns an id to await; the result also reaches the node's `on_gamend_event` (or `on_event`) as a map whose `kind` is an `EVENT_*` constant.",
     );
+    balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[
         ("configure", &[], "(url: string?)", "Point the plugin at a server and answer its url; with none, the one `[gamend]` names for this run (see `target`). Every other call errors until this one runs."),
         ("login", &[], "", "Open a session from a `device_id`, or an `email` and `password`, and return the id its `login` result answers."),
         ("register", &[], "(node: node?, account: map)", "Make an account from an `email` and a `password` (and a `username`, generated when left out) and open its session, as `login` does; its result is a `login` one. The server mails the address its confirmation link."),
         ("rest", &[], "", "Call a path on the configured server over HTTP; the result carries the `status` and the decoded `body`."),
-        ("connect", &[], "", "Open the realtime socket and return the id `join`, `push`, `leave`, `call_hook` and `close` take. A dropped connection comes back on its own: the handler hears `reconnecting` before each try, then `reopened` once its topics are joined again, or `error` when it gives up."),
+        ("connect", &[], "", "Open the realtime socket and return the id `join`, `push`, `leave`, `call_hook` and `close` take, which `task.wait` resumes on with the `open` or `error` event. A dropped connection comes back on its own: the handler hears `reconnecting` before each try, then `reopened` once its topics are joined again, or `error` when it gives up."),
     ]);
     // `gamend.configure(url)` — where the server lives. Everything else
     // errors until this is called.

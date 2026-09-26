@@ -3,13 +3,13 @@
 // played here writes lands in the same folder as the game run on its own.
 
 pub fn register() {
-    #{ docks: [#{ id: "userdata", name: "User data", tall: true, draw: draw }] }
+    #{ panels: [#{ id: "userdata", title: "User data", tall: true, draw: draw }] }
 }
 
 pub fn draw(S, k, host) {
     // A save written while the editor watches should show without a click.
     ui::request_repaint();
-    let files = S.kit.files;
-    let rows = S.kit.rows;
+    let files = S.kit.file_rows;
+    let rows = S.kit.put_rows;
     rows(S, host, "body", files(S, "userdata", #{}));
 }

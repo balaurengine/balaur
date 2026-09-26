@@ -2,6 +2,7 @@
 // project templates.
 // Placing one copies its files in and then does what dropping them would.
 
+use crate::defs;
 use crate::dock;
 use crate::dropin;
 use crate::icons;
@@ -33,7 +34,7 @@ fn catalogue(S) {
     if held is Object {
         return held;
     }
-    let text = fs::read(ROOT + "/manifest.toml");
+    let text = fs::read(ROOT + "/catalog.toml");
     if !(text is String) {
         log::warn("no library manifest at " + ROOT);
         S.library.catalogue = #{ entries: [], templates: [] };
@@ -72,7 +73,7 @@ fn install(S, rel) {
         ""
     };
     if dir != "" {
-        fs::mkdir(S.game_root + "/" + dir);
+        fs::create_directory(S.game_root + "/" + dir);
     }
     let target = free_name(S, rel);
     fs::copy(from, S.game_root + "/" + target);
@@ -100,7 +101,7 @@ fn install_tree(S, rel) {
 
 /// Every file under `from`, into `to`, directories included.
 fn copy_tree(from, to) {
-    fs::mkdir(to);
+    fs::create_directory(to);
     for f in util::vec(fs::list(from)) {
         if f.is_dir {
             copy_tree(from + "/" + f.name, to + "/" + f.name);
@@ -163,6 +164,9 @@ pub fn place(S, entry) {
 /// Point the selected node's 3D shape at a library material, which is what a
 /// designer means by dropping one onto something.
 pub fn apply_material(S, entry) {
+    if !crate::model::has_selection(S) {
+        return;
+    }
     for needed in util::vec(entry.get("needs").unwrap_or([])) {
         install(S, needed);
     }
@@ -186,7 +190,7 @@ pub fn apply_material(S, entry) {
 /// A mark per kind, so a card says what it places before its name is read.
 fn kind_icon(kind) {
     if kind == "material" {
-        return icons::persona("ui");
+        return icons::workspace(defs::WORKSPACE_UI);
     }
     if kind == "sky" {
         return icons::ui("viewmode");
@@ -195,7 +199,7 @@ fn kind_icon(kind) {
         return icons::panel("bonemap");
     }
     if kind == "addon" {
-        return icons::persona("script");
+        return icons::workspace(defs::WORKSPACE_SCRIPT);
     }
     return icons::panel("scene");
 }
@@ -209,7 +213,7 @@ pub fn panel(S, k) {
         let id = chip[0];
         chips.push(#{
             kind: "button", text: chip[1],
-            role: if S.library.kind == id { "chip_on" } else { "chip" },
+            role: "chip", checked: S.library.kind == id,
             on: |_| { S.library.kind = id; },
         });
     }
@@ -240,7 +244,7 @@ fn show_cards(S, k, shown) {
     let items = [];
     for entry in shown {
         items.push(util::row(kind_icon(entry.kind), entry.name,
-            entry.get("note").unwrap_or(""), k.text));
+            entry.get("note").unwrap_or(""), k.text_default));
     }
     util::fill(dock::CARDS_NODE, #{
         options: items, visible: true, columns: 5, text: "",
@@ -270,9 +274,9 @@ fn templates(S, k, known) {
         return;
     }
     ui::add_space(2);
-    ui::horizontal(#{ height: 18 }, || {
+    ui::row(#{ height: 18 }, || {
         ui::add_space(8);
-        ui::label("a row is copied as the command that makes it", style::mono_sm(k.faint));
+        ui::label("a row is copied as the command that makes it", style::mono_sm(k.text_subtle));
     });
     let items = [];
     let commands = [];

@@ -47,7 +47,7 @@ pub(crate) fn scene_path(godot: &str) -> String {
 }
 
 /// A script's path in the converted project: the same tree, `.rn`.
-fn script_path(godot: &str) -> String {
+pub(crate) fn script_path(godot: &str) -> String {
     match godot.strip_suffix(".gd") {
         Some(stem) => format!("{stem}.rn"),
         None => godot.to_string(),
@@ -62,10 +62,20 @@ enum Slot {
     Override { instance: usize, path: String },
 }
 
-/// What a widget emits by name when its value changes and when a field is
-/// submitted; `balaur_ui`'s `CHANGE_EVENT` and `SUBMIT_EVENT`.
-const CHANGE_EVENT: &str = "change";
-const SUBMIT_EVENT: &str = "submit";
+/// Exports no prop holds, filed in the node's `meta` under `EXPORTS_META`
+/// beside whatever metadata the scene gave it.
+fn file_data(table: &mut toml::Table, data: toml::Table) {
+    let meta = table
+        .entry("meta")
+        .or_insert_with(|| Toml::Table(toml::Table::new()));
+    if let Toml::Table(meta) = meta {
+        meta.insert(EXPORTS_META.into(), Toml::Table(data));
+    }
+}
+
+/// The `meta` key a node's data exports are filed under, which the shim's
+/// `export_value` reads.
+pub(crate) const EXPORTS_META: &str = "__exports";
 
 /// Godot signals of its own classes that nothing here emits; a row answering
 /// one waits on a script that does.
@@ -73,8 +83,6 @@ const UNSENT: &[&str] = &[
     "gui_input",
     "visibility_changed",
     "text_change_rejected",
-    "tab_changed",
-    "tab_selected",
     "draw",
     "resized",
     "ready",
@@ -428,7 +436,7 @@ impl Walk<'_> {
                 .push(format!("`{path}`: an inline script is not converted"));
             return;
         };
-        let props = self.script_props(section, path, &godot);
+        let (props, data) = self.script_props(section, path, &godot);
         let mut script = toml::Table::new();
         script.insert("source".into(), Toml::String(script_path(&godot)));
         if !props.is_empty() {
@@ -449,6 +457,9 @@ impl Walk<'_> {
         };
         if let Some(table) = table {
             table.insert("script".into(), Toml::Table(script));
+            if !data.is_empty() {
+                file_data(table, data);
+            }
         }
     }
 
@@ -458,7 +469,12 @@ impl Walk<'_> {
         let Some(godot) = godot.filter(|_| section.field("script").is_none()) else {
             return;
         };
-        let props = self.script_props(section, path, &godot);
+        let (props, data) = self.script_props(section, path, &godot);
+        if !data.is_empty() {
+            self.notes.push(format!(
+                "`{path}`: the data exports an instance line sets are dropped"
+            ));
+        }
         if props.is_empty() {
             return;
         }
@@ -470,10 +486,16 @@ impl Walk<'_> {
     }
 
     /// The values `section` gives the exports of the Godot script `godot`.
-    fn script_props(&mut self, section: &Section, path: &str, godot: &str) -> toml::Table {
+    fn script_props(
+        &mut self,
+        section: &Section,
+        path: &str,
+        godot: &str,
+    ) -> (toml::Table, toml::Table) {
         let source = crate::godot::io::text(&self.res.root.join(godot)).unwrap_or_default();
         let exports = crate::godot::exports::exports(&source, &self.res.project.classes);
         let mut props = toml::Table::new();
+        let mut data = toml::Table::new();
         let res = &self.res;
         let path_of = |v: &Value| res.path(v).map(scene_path);
         for (key, value) in &section.fields {
@@ -481,10 +503,15 @@ impl Walk<'_> {
                 continue;
             };
             let Some(kind) = export.kind else {
-                self.notes.push(format!(
-                    "`{path}`: export `{key}` is a {}, which a scene prop cannot hold; dropped",
-                    export.hint
-                ));
+                match crate::godot::exports::tagged(value).filter(|_| export.data) {
+                    Some(value) => {
+                        data.insert(key.clone(), value);
+                    }
+                    None => self.notes.push(format!(
+                        "`{path}`: export `{key}` is a {}, which a scene prop cannot hold; dropped",
+                        export.hint
+                    )),
+                }
                 continue;
             };
             match crate::godot::exports::scene_value(kind, value, &path_of) {
@@ -497,7 +524,7 @@ impl Walk<'_> {
                 )),
             }
         }
-        props
+        (props, data)
     }
 
     /// A signal connection as the handler key a widget names, or a binding
@@ -536,14 +563,7 @@ impl Walk<'_> {
         // A widget handler runs on the widget's node or the nearest scripted
         // ancestor, so it can say a connection to either and nothing else.
         let upward = to.is_empty() || from == to || from.starts_with(&format!("{to}/"));
-        let handler = match signal {
-            "pressed" | "button_up" => Some("on_click"),
-            "toggled" | "text_changed" | "value_changed" | "item_selected" | "folding_changed"
-            | "close_requested" => Some("on_change"),
-            "text_submitted" => Some("on_submit"),
-            "focus_entered" => Some("on_focus"),
-            _ => None,
-        };
+        let handler = crate::godot::gdscript::widget_signal(signal);
         if control
             && upward
             && let Some(handler) = handler
@@ -680,8 +700,8 @@ impl Walk<'_> {
             .entry("animation")
             .or_insert_with(|| Toml::Table(toml::Table::new()));
         if let Toml::Table(animation) = animation {
-            animation.insert("library".into(), Toml::String(file));
-            animation.insert("root".into(), Toml::String(root));
+            animation.insert(ak::LIBRARY.into(), Toml::String(file));
+            animation.insert(ak::ROOT_NODE.into(), Toml::String(root));
             if let Some(clip) = autoplay.filter(|c| !c.is_empty()) {
                 if clips.names.contains(&clip) {
                     animation.insert("autoplay".into(), Toml::String(clip));
@@ -758,7 +778,7 @@ impl Walk<'_> {
         let mut component = toml::Table::new();
         component.insert(ak::MACHINE.into(), Toml::String(file));
         component.insert(ak::PLAYER.into(), Toml::String(player));
-        component.insert(ak::ACTIVE.into(), Toml::Boolean(active));
+        component.insert(ak::ENABLED.into(), Toml::Boolean(active));
         if !machine.checks.is_empty() {
             component.insert(ak::CHECK_NODE.into(), Toml::String(check_node));
         }
@@ -827,21 +847,19 @@ impl Walk<'_> {
 /// pointer crossing where one says the same thing, else the name the node
 /// emits, a widget's change and submit included.
 fn event_of(signal: &str, control: bool, handler: Option<&str>) -> String {
-    match signal {
-        "body_entered" | "area_entered" => "collision_start".into(),
-        "body_exited" | "area_exited" => "collision_stop".into(),
-        "mouse_entered" => "pointer_enter".into(),
-        "mouse_exited" => "pointer_exit".into(),
-        "pressed" | "button_up" if control => "pointer_click".into(),
-        _ => {
-            let emitted = match handler {
-                Some("on_change") => CHANGE_EVENT,
-                Some("on_submit") => SUBMIT_EVENT,
-                _ => signal,
-            };
-            format!("emitted:{emitted}")
-        }
+    if control && matches!(signal, "pressed" | "button_up") {
+        return balaur::hooks::POINTER_CLICK.into();
     }
+    let emitted = match handler {
+        Some(crate::godot::gdscript::ON_CHANGE) => balaur::ui::CHANGE_EVENT,
+        Some(crate::godot::gdscript::ON_SUBMIT) => balaur::ui::SUBMIT_EVENT,
+        _ => crate::godot::gdscript::engine_event(signal),
+    };
+    // A core hook's row is spelled bare; every other event is one the node emits.
+    if balaur::hooks::BINDABLE.contains(&emitted) {
+        return emitted.into();
+    }
+    format!("{}{emitted}", balaur::hooks::EMITTED)
 }
 
 /// A scene an instance names, read far enough to know its root and its

@@ -39,7 +39,7 @@ macro_rules! write_parameters {
         )
         .max(0.0) as usize;
         p.max_ccd_substeps = f(k::CCD_SUBSTEPS, p.max_ccd_substeps as _).max(0.0) as usize;
-        p.min_ccd_dt = f(k::MIN_CCD_DT, p.min_ccd_dt);
+        p.min_ccd_dt = f(k::MIN_CCD_SECONDS, p.min_ccd_dt);
         // The one knob a 2D game in pixels cannot do without: every tolerance
         // in the solver is scaled by it, and at 64 pixels per metre the
         // defaults are sixty-four times too loose.
@@ -59,11 +59,13 @@ macro_rules! write_parameters {
             f(k::PREDICTION_DISTANCE, p.normalized_prediction_distance);
         p.normalized_max_linear_velocity =
             f(k::MAX_LINEAR_VELOCITY, p.normalized_max_linear_velocity);
-        p.contact_softness.natural_frequency =
-            f(k::CONTACT_FREQUENCY, p.contact_softness.natural_frequency);
+        p.contact_softness.natural_frequency = f(
+            k::CONTACT_FREQUENCY_HZ,
+            p.contact_softness.natural_frequency,
+        );
         p.contact_softness.damping_ratio = f(k::CONTACT_DAMPING, p.contact_softness.damping_ratio);
         p.static_contact_softness.natural_frequency = f(
-            k::STATIC_CONTACT_FREQUENCY,
+            k::STATIC_CONTACT_FREQUENCY_HZ,
             p.static_contact_softness.natural_frequency,
         );
         p.static_contact_softness.damping_ratio = f(
@@ -162,18 +164,21 @@ fn tuning_value(p: &IntegrationParameters) -> Value {
     map([
         (
             k::SOLVER_ITERATIONS,
-            Value::Num(p.num_solver_iterations as f64),
+            Value::Int(i64::try_from(p.num_solver_iterations).unwrap_or(i64::MAX)),
         ),
         (
             k::INTERNAL_ITERATIONS,
-            Value::Num(p.num_internal_pgs_iterations as f64),
+            Value::Int(i64::try_from(p.num_internal_pgs_iterations).unwrap_or(i64::MAX)),
         ),
         (
             k::STABILIZATION_ITERATIONS,
-            Value::Num(p.num_internal_stabilization_iterations as f64),
+            Value::Int(i64::try_from(p.num_internal_stabilization_iterations).unwrap_or(i64::MAX)),
         ),
-        (k::CCD_SUBSTEPS, Value::Num(p.max_ccd_substeps as f64)),
-        (k::MIN_CCD_DT, Value::Num(f64::from(p.min_ccd_dt))),
+        (
+            k::CCD_SUBSTEPS,
+            Value::Int(i64::try_from(p.max_ccd_substeps).unwrap_or(i64::MAX)),
+        ),
+        (k::MIN_CCD_SECONDS, Value::Num(f64::from(p.min_ccd_dt))),
         (k::LENGTH_UNIT, Value::Num(f64::from(p.length_unit))),
         (k::WARMSTART, Value::Num(f64::from(p.warmstart_coefficient))),
         (k::WARMSTART_JOINTS, Value::Bool(p.warmstart_joints)),
@@ -200,7 +205,7 @@ fn tuning_value(p: &IntegrationParameters) -> Value {
             Value::Num(f64::from(p.normalized_max_linear_velocity)),
         ),
         (
-            k::CONTACT_FREQUENCY,
+            k::CONTACT_FREQUENCY_HZ,
             Value::Num(f64::from(p.contact_softness.natural_frequency)),
         ),
         (
@@ -208,7 +213,7 @@ fn tuning_value(p: &IntegrationParameters) -> Value {
             Value::Num(f64::from(p.contact_softness.damping_ratio)),
         ),
         (
-            k::STATIC_CONTACT_FREQUENCY,
+            k::STATIC_CONTACT_FREQUENCY_HZ,
             Value::Num(f64::from(p.static_contact_softness.natural_frequency)),
         ),
         (
@@ -297,7 +302,7 @@ pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
                 Value::Num(counters.cd.narrow_phase_time.time_ms()),
             ),
             (
-                k::CONTACT_PAIRS,
+                k::CONTACT_PAIR_COUNT,
                 Value::Num(counters.cd.ncontact_pairs as f64),
             ),
         ]))

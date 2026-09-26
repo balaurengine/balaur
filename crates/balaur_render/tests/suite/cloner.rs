@@ -29,7 +29,7 @@ fn cube(app: &App, parent: Entity, name: &str) -> Entity {
         app,
         entity,
         "shape3d",
-        "kind = \"cuboid\"\nhalf_extents = [0.5, 0.5, 0.5]",
+        "kind = \"box\"\nsize = [1.0, 1.0, 1.0]",
     );
     entity
 }
@@ -54,7 +54,7 @@ fn a_cloner_gives_its_child_a_pose_per_copy() {
         &app,
         owner,
         "cloner",
-        "mode = \"linear\"\ncount = 4\nstep = [2.0, 0.0, 0.0]",
+        "kind = \"linear\"\ncount = 4\nstep = [2.0, 0.0, 0.0]",
     );
     let child = cube(&app, owner, "Post");
     app.tick(1.0 / 60.0);
@@ -78,7 +78,7 @@ fn every_drawn_node_under_a_cloner_is_multiplied() {
         &app,
         owner,
         "cloner",
-        "mode = \"linear\"\ncount = 3\nstep = [1.0, 0.0, 0.0]",
+        "kind = \"linear\"\ncount = 3\nstep = [1.0, 0.0, 0.0]",
     );
     let trunk = cube(&app, owner, "Trunk");
     let branch = cube(&app, trunk, "Branch");
@@ -111,7 +111,7 @@ fn turning_the_cloner_turns_the_arrangement() {
         &app,
         owner,
         "cloner",
-        "mode = \"linear\"\ncount = 2\nstep = [2.0, 0.0, 0.0]",
+        "kind = \"linear\"\ncount = 2\nstep = [2.0, 0.0, 0.0]",
     );
     let child = cube(&app, owner, "Post");
     {
@@ -138,7 +138,7 @@ fn a_grid_cloner_lays_its_child_out_in_a_box() {
         &app,
         owner,
         "cloner",
-        "mode = \"grid\"\ncounts = [4, 1, 3]\nstep = [1.5, 0.0, 2.0]",
+        "kind = \"grid\"\ncounts = [4, 1, 3]\nstep = [1.5, 0.0, 2.0]",
     );
     let child = cube(&app, owner, "Post");
     app.tick(1.0 / 60.0);
@@ -154,7 +154,7 @@ fn a_node_stops_being_cloned_when_the_cloner_goes() {
     let (_dir, mut app) = app();
     let root = app.engine.root();
     let owner = node(&app, "Row", root);
-    add(&app, owner, "cloner", "mode = \"linear\"\ncount = 3");
+    add(&app, owner, "cloner", "kind = \"linear\"\ncount = 3");
     let child = cube(&app, owner, "Post");
     app.tick(1.0 / 60.0);
     assert_eq!(placements(&app, child).len(), 3);
@@ -176,11 +176,11 @@ fn a_cloner_reads_back_as_it_was_written() {
         &app,
         owner,
         "cloner",
-        "mode = \"radial\"\ncount = 6\nradius = 3.5\nseed = 9\nrandom = 0.25",
+        "kind = \"radial\"\ncount = 6\nradius = 3.5\nseed = 9\nrandom = 0.25",
     );
     let back = components::get(&app.engine, owner, "cloner").expect("it reads back");
     assert_eq!(
-        back.get("mode").and_then(toml::Value::as_str),
+        back.get("kind").and_then(toml::Value::as_str),
         Some("radial")
     );
     assert_eq!(back.get("count").and_then(toml::Value::as_integer), Some(6));
@@ -192,7 +192,7 @@ fn an_unknown_mode_is_refused_rather_than_guessed() {
     let (_dir, app) = app();
     let root = app.engine.root();
     let owner = node(&app, "Row", root);
-    let params: toml::Value = toml::from_str("mode = \"sprinkle\"").unwrap();
+    let params: toml::Value = toml::from_str("kind = \"sprinkle\"").unwrap();
     assert!(components::add(&app.engine, owner, "cloner", Some(&params)).is_err());
 }
 
@@ -208,7 +208,7 @@ fn a_thousand_copies_are_one_list() {
         &app,
         owner,
         "cloner",
-        "mode = \"grid\"\ncounts = [10, 10, 10]\nstep = [1.0, 1.0, 1.0]",
+        "kind = \"grid\"\ncounts = [10, 10, 10]\nstep = [1.0, 1.0, 1.0]",
     );
     let child = cube(&app, owner, "One");
     app.tick(1.0 / 60.0);
@@ -227,7 +227,7 @@ fn a_listed_cloner_draws_each_copy_where_and_in_the_tint_it_lists() {
         &app,
         owner,
         "cloner",
-        "mode = \"list\"\ncopies = [\n  { position = [1.0, 0.0, 0.0] },\n  { position = [0.0, 3.0, 0.0], scale = [2.0, 2.0, 1.0], tint = \"#ff000080\" },\n]",
+        "kind = \"list\"\ncopies = [\n  { position = [1.0, 0.0, 0.0] },\n  { position = [0.0, 3.0, 0.0], scale = [2.0, 2.0, 1.0], tint = \"#ff000080\" },\n]",
     );
     let child = cube(&app, owner, "Ring");
     app.tick(1.0 / 60.0);
@@ -251,7 +251,7 @@ fn an_empty_list_draws_no_copy() {
     let (_dir, mut app) = app();
     let root = app.engine.root();
     let owner = node(&app, "Waves", root);
-    add(&app, owner, "cloner", "mode = \"list\"");
+    add(&app, owner, "cloner", "kind = \"list\"");
     let child = cube(&app, owner, "Ring");
     app.tick(1.0 / 60.0);
     assert!(placements(&app, child).is_empty());
@@ -266,7 +266,7 @@ fn a_listed_cloner_reads_back_its_copies() {
         &app,
         owner,
         "cloner",
-        "mode = \"list\"\ncopies = [{ position = [1.0, 2.0, 0.0], tint = [0.5, 0.5, 0.5, 1.0] }]",
+        "kind = \"list\"\ncopies = [{ position = [1.0, 2.0, 0.0], tint = [0.5, 0.5, 0.5, 1.0] }]",
     );
     let back = components::get(&app.engine, owner, "cloner").unwrap();
     let copies = back["copies"].as_array().unwrap();

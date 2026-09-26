@@ -149,8 +149,8 @@ fn density_and_mass_still_say_what_it_weighs() {
 fn the_other_ways_to_cut_it_build() {
     for extra in [
         "method = \"vhacd\"",
-        "method = \"vhacd\"\nresolution = 32.0\nmax_pieces = 8.0",
-        "border = 0.02",
+        "method = \"vhacd\"\nresolution = 32.0\nmax_convex_hulls = 8.0",
+        "edge_radius = 0.02",
     ] {
         let app = table_app(extra);
         let state = app.engine.resource::<PhysicsState2d>();
@@ -254,8 +254,8 @@ kind = "dynamic"
 gravity_scale = 0.0
 
 [nodes.collider2d]
-kind = "rect"
-half_extents = [0.6, 0.02]
+kind = "rectangle"
+size = [1.2, 0.04]
 "##
         ),
     )

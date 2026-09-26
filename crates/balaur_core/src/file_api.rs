@@ -103,8 +103,32 @@ fn real_path(fs: &dyn FileBackend, path: &Path) -> PathBuf {
     fs.canonicalize(path)
 }
 
+/// The project files of a game run from a pack, for a project-relative path:
+/// its data files are there, and the backend holds only what it wrote. The
+/// pack answers first, so a file in the working directory cannot stand in.
+fn packed_files(
+    eng: &Engine,
+    path: &str,
+) -> Option<std::rc::Rc<std::cell::RefCell<crate::project::ProjectFiles>>> {
+    if files::rooted(Path::new(path)) {
+        return None;
+    }
+    let project = eng.try_resource::<crate::project::ProjectFiles>()?;
+    let from_pack = project.borrow().from_pack();
+    from_pack.then_some(project)
+}
+
 pub(crate) fn fs_read(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let path = resolve(eng, text(args, 0)?)?;
+    let named = text(args, 0)?;
+    if let Some(project) = packed_files(eng, named) {
+        let project = project.borrow();
+        if project.packs(named)
+            && let Ok(bytes) = project.read(named)
+        {
+            return Ok(String::from_utf8(bytes).map_or(Value::Nil, Value::text));
+        }
+    }
+    let path = resolve(eng, named)?;
     Ok(files::backend(eng)
         .read(&path)
         .ok()
@@ -123,7 +147,11 @@ pub(crate) fn fs_write(eng: &Engine, args: &[Value]) -> Result<Value> {
 }
 
 pub(crate) fn fs_exists(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let path = resolve(eng, text(args, 0)?)?;
+    let named = text(args, 0)?;
+    if packed_files(eng, named).is_some_and(|project| project.borrow().packs(named)) {
+        return Ok(Value::Bool(true));
+    }
+    let path = resolve(eng, named)?;
     Ok(Value::Bool(files::backend(eng).exists(&path)))
 }
 
@@ -173,14 +201,19 @@ pub(crate) fn fs_mtime(eng: &Engine, args: &[Value]) -> Result<Value> {
 }
 
 pub(crate) fn fs_list(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let path = resolve(eng, text(args, 0)?)?;
+    let dir = text(args, 0)?;
+    let path = resolve(eng, dir)?;
     let mut names: Vec<(String, bool)> = files::backend(eng)
         .list(&path)
         .into_iter()
         .filter(|(name, _)| !name.starts_with('.'))
         .collect();
+    if let Some(project) = packed_files(eng, dir) {
+        names.extend(project.borrow().packed_children(dir));
+    }
     // Sorted for stable UI and reproducible tooling runs.
     names.sort();
+    names.dedup();
     Ok(Value::List(
         names
             .into_iter()

@@ -104,7 +104,7 @@ pub(crate) fn resources_of<'a>(
             .cloned();
         let by_path = section
             .attr_str("path")
-            .map(|p| p.strip_prefix("res://").unwrap_or(p).to_string());
+            .map(|p| crate::godot::relative_path(p).to_string());
         let Some(path) = by_uid.or(by_path) else {
             continue;
         };
@@ -279,6 +279,10 @@ pub(crate) fn map(class: &str, section: &Section, parent: &str, res: &Resources<
         world_rect(section, res, &mut out);
         return out;
     }
+    if crate::godot::world_label::is_world_label(class, parent) {
+        crate::godot::world_label::world_label(class, section, parent, res, &mut out);
+        return out;
+    }
     match family(class) {
         Family::Node2d => transform(section, &mut out),
         Family::Control => {
@@ -372,7 +376,8 @@ fn node_keys(section: &Section, out: &mut Mapped) {
         out.keys.insert("z_index".into(), Toml::Integer(z));
     }
     if section.field("z_as_relative") == Some(&Value::Bool(false)) {
-        out.keys.insert("z_relative".into(), Toml::Boolean(false));
+        out.keys
+            .insert("z_as_relative".into(), Toml::Boolean(false));
     }
     metadata(section, out);
 }
@@ -416,13 +421,13 @@ fn world_rect(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
         "position",
         floats(&[x / PIXELS_PER_UNIT, -y / PIXELS_PER_UNIT, 0.0]),
     );
-    out.set("shape2d", "kind", Toml::String("rect".into()));
+    out.set("shape2d", "kind", Toml::String("rectangle".into()));
     out.set(
         "shape2d",
-        "half_extents",
+        "size",
         floats(&[
-            width.abs() / 2.0 / PIXELS_PER_UNIT,
-            height.abs() / 2.0 / PIXELS_PER_UNIT,
+            width.abs() / PIXELS_PER_UNIT,
+            height.abs() / PIXELS_PER_UNIT,
         ]),
     );
     if let Some(color) = section.field("color").and_then(colour) {
@@ -460,10 +465,12 @@ fn transform(section: &Section, out: &mut Mapped) {
 
 fn sprite(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
     out.touch("sprite");
-    let texture = section.field("texture").and_then(|t| res.path(t));
-    if let Some(path) = texture {
-        let texture = image_path(path, res, out);
-        out.set("sprite", "texture", Toml::String(texture));
+    let texture = section
+        .field("texture")
+        .and_then(|t| res.path(t))
+        .map(|path| image_path(path, res, out));
+    if let Some(texture) = &texture {
+        out.set("sprite", "texture", Toml::String(texture.clone()));
     }
     if let Some(color) = section.field("self_modulate").and_then(colour) {
         out.set("sprite", "color", color);
@@ -485,17 +492,27 @@ fn sprite(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
         out.set("sprite", "region_origin", floats(&[x, y]));
         out.set("sprite", "region_size", floats(&[w, h]));
     }
+    // `hframes` x `vframes` is a grid `sprite_sheet` over the same image.
     let frames = |key: &str| section.field(key).and_then(Value::as_i64);
-    let (columns, rows) = (frames("hframes"), frames("vframes"));
-    if columns.unwrap_or(1) > 1 || rows.unwrap_or(1) > 1 {
-        out.set(
-            "sprite",
-            "columns",
-            Toml::Float(columns.unwrap_or(1) as f64),
-        );
-        out.set("sprite", "rows", Toml::Float(rows.unwrap_or(1) as f64));
+    let (columns, rows) = (
+        frames("hframes").unwrap_or(1),
+        frames("vframes").unwrap_or(1),
+    );
+    if let Some(texture) = texture
+        && (columns > 1 || rows > 1)
+    {
+        let mut sheet = toml::Table::new();
+        sheet.insert("type".into(), Toml::String("sprite_sheet".into()));
+        sheet.insert("texture".into(), Toml::String(texture));
+        sheet.insert("columns".into(), Toml::Integer(columns));
+        sheet.insert("rows".into(), Toml::Integer(rows));
+        out.assets.push(Asset {
+            component: "sprite",
+            key: "sheet",
+            table: sheet,
+        });
         if let Some(frame) = frames("frame") {
-            out.set("sprite", "frame", Toml::Float(frame as f64));
+            out.set("sprite", "frame", Toml::Integer(frame));
         }
     }
     // Both engines measure `offset` in texture pixels, y down.
@@ -653,14 +670,20 @@ fn skin(section: &Section, vertices: usize) -> Option<Toml> {
 
 fn line(section: &Section, out: &mut Mapped) {
     out.set("shape2d", "kind", Toml::String("polyline".into()));
-    let points: Vec<Toml> = section
+    let anchors: Vec<[f64; 2]> = section
         .field("points")
         .map(points_of)
         .unwrap_or_default()
         .iter()
-        .map(|[x, y]| floats(&[x / PIXELS_PER_UNIT, -y / PIXELS_PER_UNIT]))
+        .map(|[x, y]| [x / PIXELS_PER_UNIT, -y / PIXELS_PER_UNIT])
         .collect();
-    out.set("shape2d", "points", Toml::Array(points));
+    if let Some(path) = straight_path(&anchors) {
+        out.assets.push(Asset {
+            component: "shape2d",
+            key: "mesh",
+            table: path,
+        });
+    }
     let width = section
         .field("width")
         .and_then(Value::as_f64)
@@ -675,6 +698,22 @@ fn line(section: &Section, out: &mut Mapped) {
     if section.field("gradient").is_some() {
         out.note("Line2D gradient: set `shape2d.gradient` to its end colour by hand");
     }
+}
+
+/// A `path2d` through `anchors` in straight segments: each segment's handles
+/// sit on its own ends. `None` for fewer than two points, which draw nothing.
+pub(crate) fn straight_path(anchors: &[[f64; 2]]) -> Option<toml::Table> {
+    let (first, rest) = anchors.split_first().filter(|(_, rest)| !rest.is_empty())?;
+    let mut points = vec![floats(first)];
+    let mut from = first;
+    for to in rest {
+        points.extend([floats(from), floats(to), floats(to)]);
+        from = to;
+    }
+    let mut path = toml::Table::new();
+    path.insert("type".into(), Toml::String("path2d".into()));
+    path.insert("points".into(), Toml::Array(points));
+    Some(path)
 }
 
 fn bone(section: &Section, out: &mut Mapped) {
@@ -720,7 +759,11 @@ fn camera(section: &Section, out: &mut Mapped) {
         .field("zoom")
         .and_then(pair)
         .map_or(1.0, |[zoom, _]| zoom);
-    out.set("camera2d", "zoom", Toml::Float(zoom * PIXELS_PER_UNIT));
+    out.set(
+        "camera2d",
+        "pixels_per_unit",
+        Toml::Float(zoom * PIXELS_PER_UNIT),
+    );
     if section.field("enabled") == Some(&Value::Bool(false)) {
         out.set("camera2d", "current", Toml::Boolean(false));
     }
@@ -747,11 +790,11 @@ fn collision_shape(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
     match shape.attr_str("type").unwrap_or_default() {
         "RectangleShape2D" => {
             let [w, h] = shape.field("size").and_then(pair).unwrap_or([20.0, 20.0]);
-            out.set("collider2d", "kind", Toml::String("rect".into()));
+            out.set("collider2d", "kind", Toml::String("rectangle".into()));
             out.set(
                 "collider2d",
-                "half_extents",
-                floats(&[w / 2.0 / PIXELS_PER_UNIT, h / 2.0 / PIXELS_PER_UNIT]),
+                "size",
+                floats(&[w / PIXELS_PER_UNIT, h / PIXELS_PER_UNIT]),
             );
         }
         "CircleShape2D" => {
@@ -791,7 +834,7 @@ fn collision_shape(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
             );
         }
         "WorldBoundaryShape2D" => {
-            out.set("collider2d", "kind", Toml::String("halfspace".into()));
+            out.set("collider2d", "kind", Toml::String("world_boundary".into()));
         }
         "ConvexPolygonShape2D" => {
             let points = shape.field("points").map(points_of).unwrap_or_default();
@@ -901,16 +944,12 @@ fn particles(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
     if let Some(color) = section.field("color").and_then(colour) {
         out.set("particles", "color", color);
     }
-    // Godot's direction is a y-down vector; here it is an angle, 90 up.
+    // Godot's direction is a y-down vector; here y is up.
     if let Some([x, y]) = section.field("direction").and_then(pair) {
-        out.set(
-            "particles",
-            "angle",
-            Toml::Float(balaur_core::libm::atan2(-y, x).to_degrees()),
-        );
+        out.set("particles", "direction", floats(&[x, -y]));
     }
     if let Some(spread) = number("spread") {
-        out.set("particles", "spread", Toml::Float(spread));
+        out.set("particles", "spread_degrees", Toml::Float(spread));
     }
     if let Some([x, y]) = section.field("gravity").and_then(pair) {
         out.set(
@@ -954,12 +993,12 @@ fn sound(class: &str, section: &Section, res: &Resources<'_>, out: &mut Mapped) 
     if let Some(db) = section.field("volume_db").and_then(Value::as_f64) {
         out.set(
             "sound",
-            "volume",
+            "volume_linear",
             Toml::Float(balaur_core::libm::pow(10.0, db / 20.0)),
         );
     }
     if let Some(pitch) = section.field("pitch_scale").and_then(Value::as_f64) {
-        out.set("sound", "pitch", Toml::Float(pitch));
+        out.set("sound", "pitch_scale", Toml::Float(pitch));
     }
     if let Some(bus) = section.field("bus").and_then(Value::as_str) {
         out.set("sound", "bus", Toml::String(bus.to_string()));
@@ -985,7 +1024,7 @@ fn light(class: &str, section: &Section, out: &mut Mapped) {
         out.set("light2d", "intensity", Toml::Float(energy));
     }
     if let Some(Value::Bool(on)) = section.field("shadow_enabled") {
-        out.set("light2d", "shadows", Toml::Boolean(*on));
+        out.set("light2d", "shadow_enabled", Toml::Boolean(*on));
     }
     if class == "PointLight2D" {
         out.note(

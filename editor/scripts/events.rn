@@ -16,7 +16,7 @@ pub fn state() {
 /// `[[nodes.bindings.rows]]`, and one the editor has saved spells them under
 /// `rows`; both are the same list.
 pub fn rows(S) {
-    let node = match S.doc.get(S.sel) {
+    let node = match crate::model::selected_row(S) {
         Some(node) => node,
         None => return [],
     };
@@ -28,6 +28,9 @@ pub fn rows(S) {
 }
 
 fn write(S, rows, label) {
+    if !crate::model::has_selection(S) {
+        return;
+    }
     history::record(S, label, None);
     let node = S.doc[S.sel];
     if rows.len() == 0 {
@@ -46,9 +49,13 @@ fn editable(S) {
     util::deep(rows(S))
 }
 
+// The event a new row answers to, and the prefix a hook's name carries.
+const DEFAULT_EVENT = "pointer_click";
+const HOOK_PREFIX = "on_";
+
 pub fn add_row(S) {
     let rows = editable(S);
-    rows.push(#{ event: "pointer_click", action: "state", target: "", value: "" });
+    rows.push(#{ event: DEFAULT_EVENT, action: "set_state", target: "", value: "" });
     write(S, rows, "add binding");
 }
 
@@ -113,7 +120,7 @@ fn targets_a_variable(action) {
 // A dropdown over one of a row's fields.
 fn pick(S, at, key, current, choices, width) {
     #{
-        kind: "dropdown", role: "form_pick", width: width,
+        kind: "dropdown", role: "choice_form", width: width,
         text: current, options: choices,
         on: |picked| { set_field(S, at, key, picked); },
     }
@@ -122,7 +129,7 @@ fn pick(S, at, key, current, choices, width) {
 // A field over one of a row's fields, written on Enter rather than per key.
 fn typed(S, at, key, current, placeholder, width) {
     #{
-        kind: "field", role: "form_field", width: width,
+        kind: "text_field", role: "input_form", width: width,
         text: current, placeholder: placeholder,
         on_submit: |text| {
             if text != current {
@@ -132,16 +139,25 @@ fn typed(S, at, key, current, placeholder, width) {
     }
 }
 
+// What a row on the selected node may answer: the core hooks, and the
+// `emitted:` events the node and its components announce.
+fn offered(S) {
+    match crate::model::live(S, S.sel) {
+        Some(found) => util::vec(scene::bindable_events(found)),
+        None => util::vec(scene::bindable_events()),
+    }
+}
+
 /// One binding: what happens, when, and what it does.
 fn row_spec(S, at, row) {
-    let event = row.get("event").unwrap_or("pointer_click");
-    let action = row.get("action").unwrap_or("state");
+    let event = row.get("event").unwrap_or(DEFAULT_EVENT);
+    let action = row.get("action").unwrap_or("set_state");
     let target = row.get("target").unwrap_or("");
     let controls = [
-        #{ kind: "label", role: "meta", width: 18, text: format!("{}", at + 1) },
-        pick(S, at, "event", event, util::vec(scene::bindable_events()), 150.0),
+        #{ kind: "label", role: "text_caption", width: 18, text: format!("{}", at + 1) },
+        pick(S, at, "event", event, offered(S), 150.0),
         typed(S, at, "when", row.get("when").unwrap_or(""), "always", 130.0),
-        #{ kind: "label", role: "meta", text: "→" },
+        #{ kind: "label", role: "text_caption", text: "→" },
         pick(S, at, "action", action, util::vec(scene::binding_actions()), 130.0),
     ];
     if targets_a_variable(action) {
@@ -149,7 +165,7 @@ fn row_spec(S, at, row) {
             variable_names(S), 120.0));
     } else {
         controls.push(#{
-            kind: "dropdown", role: "form_pick", width: 140,
+            kind: "dropdown", role: "choice_form", width: 140,
             text: if target == "" { "(this node)" } else { target },
             options: target_paths(S),
             on: |picked| {
@@ -163,25 +179,50 @@ fn row_spec(S, at, row) {
         tooltip: "Remove this binding",
         on: |_| { remove_row(S, at); },
     });
-    #{ full: true, height: ROW_H, slot_role: "verb_row", controls: controls }
+    #{ full: true, height: ROW_H, slot_role: "layout_actions", controls: controls }
 }
 
 /// The Rune a row is equivalent to, which is what "Convert to script" writes.
 ///
 /// One arm per action, spelling the call the interpreter makes, so a scene
 /// that outgrows the table graduates without a rewrite.
+// The prefix an event row carries for what its own node emits by name.
+pub const EMITTED = "emitted:";
+
 pub fn as_script(S) {
+    script_of(rows(S))
+}
+
+/// The same, for any list of rows.
+pub fn script_of(rows) {
     let byhook = #{};
-    for row in rows(S) {
-        let hook = "on_" + row.get("event").unwrap_or("pointer_click");
+    // An `emitted:<name>` row hears the node's own event, which a script only
+    // hears once it subscribes to it.
+    let heard = [];
+    for row in rows {
+        let event = row.get("event").unwrap_or(DEFAULT_EVENT);
+        let own = event.starts_with(EMITTED);
+        let name = if own { event[EMITTED.len()..] } else { event };
+        if own && !heard.iter().any(|h| h == name) {
+            heard.push(name);
+        }
+        let hook = HOOK_PREFIX + name;
         if !byhook.contains_key(hook) {
             byhook[hook] = [];
         }
         byhook[hook].push(row);
     }
     let out = "// Written from this node's event bindings.\n";
+    if heard.len() > 0 {
+        out += "\npub fn init(this) {\n";
+        for name in heard {
+            out += format!("    events::listen(this.node, \"{}\", this.node);\n", name);
+        }
+        out += "}\n";
+    }
     for hook in util::keys_sorted(byhook) {
-        out += format!("\npub fn {}(this{}) {{\n", hook, hook_args(hook));
+        let args = if heard.iter().any(|h| HOOK_PREFIX + h == hook) { ", payload" } else { hook_args(hook) };
+        out += format!("\npub fn {}(this{}) {{\n", hook, args);
         for row in byhook[hook] {
             out += "    " + guarded(row) + "\n";
         }
@@ -206,8 +247,8 @@ fn hook_args(hook) {
         "on_resize" => ", width, height",
         "on_variable_changed" => ", name, value",
         "on_state_changed" => ", from, to",
-        "on_collision_start" => ", other",
-        "on_collision_stop" => ", other",
+        "on_collision_enter" => ", other",
+        "on_collision_exit" => ", other",
         _ => "",
     }
 }
@@ -247,19 +288,20 @@ fn rune_clause(clause) {
 }
 
 fn as_call(row) {
-    let action = row.get("action").unwrap_or("state");
+    let action = row.get("action").unwrap_or("set_state");
     let target = row.get("target").unwrap_or("");
     let value = as_text(row.get("value"));
-    let node = if target == "" { "this" } else { format!("this.get_node(\"{}\")", target) };
+    // `this` is the script's own table; the node it runs on is `this.node`.
+    let node = if target == "" { "this.node" } else { format!("this.node.get_node(\"{}\")", target) };
     match action {
-        "state" => format!("{}.states.go(\"{}\");", node, value),
+        "set_state" => format!("{}.states.set_state(\"{}\");", node, value),
         "set_variable" => format!("scene::set_variable(\"{}\", {});", target, literal(value)),
         "add_variable" => format!(
             "scene::set_variable(\"{}\", scene::variable(\"{}\") + {});",
             target, target, literal(value)),
         "play" => format!("{}.animation.play(\"{}\");", node, value),
-        "sound" => format!("{}.sound.play();", node),
-        "spawn" => format!("scene::instantiate(fs::read(\"{}\"), {});", value, node),
+        "play_sound" => format!("{}.sound.play();", node),
+        "instantiate" => format!("scene::instantiate(fs::read(\"{}\"), {});", value, node),
         "free" => format!("{}.queue_free();", node),
         "switch" => format!("scene::switch(\"{}\", #{{}});", value),
         "open_url" => format!("engine::open_url(\"{}\");", value),
@@ -290,6 +332,9 @@ fn literal(value) {
 /// open it. The rows stay: deleting them is the author's call, once they have
 /// read what was written.
 pub fn convert_to_script(S) {
+    if !crate::model::has_selection(S) {
+        return;
+    }
     if rows(S).len() == 0 {
         log::info("this node has no bindings to convert");
         return;
@@ -323,16 +368,16 @@ pub fn rows_host() {
 /// The document tab: the selected node's rows, and the variables they read.
 pub fn view(S, k) {
     util::fill(PANEL, #{ visible: true });
-    let node = S.doc[S.sel];
+    let node = model::selected_node(S);
     crate::pool::strip(S, PANEL + "/DocHead", [
-        #{ kind: "label", role: "heading", grow: 1,
+        #{ kind: "label", role: "text_heading", grow: 1,
             text: format!("EVENT BINDINGS · {}", node.name) },
         #{
-            kind: "button", role: "row_action_sage", text: "‹›  Convert to script",
+            kind: "button", role: "action_form_secondary", text: "‹›  Convert to script",
             on: |_| { convert_to_script(S); },
         },
         #{
-            kind: "button", role: "row_action_accent", text: icons::ui("add") + "  Add row",
+            kind: "button", role: "action_form_primary", text: icons::ui("add") + "  Add row",
             on: |_| { add_row(S); },
         },
     ]);
@@ -351,13 +396,13 @@ pub fn view(S, k) {
 
 fn note(text) {
     #{ full: true, height: 0, controls: [#{
-        kind: "label", role: "meta", grow: 1, wrap: true, text: text,
+        kind: "label", role: "text_caption", grow: 1, wrap: true, text: text,
     }] }
 }
 
 fn head(text) {
     #{ full: true, height: 26, controls: [#{
-        kind: "label", role: "heading", grow: 1, text: text.to_uppercase(),
+        kind: "label", role: "text_heading", grow: 1, text: text.to_uppercase(),
     }] }
 }
 
@@ -371,11 +416,11 @@ fn variable_specs(S, out) {
         return;
     }
     for entry in declared {
-        out.push(#{ full: true, height: 24, slot_role: "verb_row", controls: [
-            #{ kind: "label", role: "mono", text: entry.name },
-            #{ kind: "label", role: "meta", text: entry["type"] },
+        out.push(#{ full: true, height: 24, slot_role: "layout_actions", controls: [
+            #{ kind: "label", role: "text_code", text: entry.name },
+            #{ kind: "label", role: "text_caption", text: entry["type"] },
             #{ kind: "row", grow: 1 },
-            #{ kind: "label", role: "answer_yes", text: format!("{}", entry.value) },
+            #{ kind: "label", role: "text_code_success", text: format!("{}", entry.value) },
         ] });
     }
 }
@@ -383,7 +428,7 @@ fn variable_specs(S, out) {
 /// The hooks the node's own script declares, which is what this view used to
 /// be and is still worth showing beside the rows.
 fn hook_specs(S, out) {
-    let node = S.doc[S.sel];
+    let node = model::selected_node(S);
     let script_some = model::script_rel(node);
     let script = match script_some {
         Some(script) => script,
@@ -393,14 +438,14 @@ fn hook_specs(S, out) {
     for hook in model::hooks(S, script) {
         let lifecycle = hook.name == "init" || hook.name == "update";
         out.push(#{ full: true, height: 28, controls: [#{
-            kind: "row", role: "hook_pill", controls: [
+            kind: "row", role: "sheet_hook", controls: [
                 #{
                     kind: "label", text: "•",
-                    role: if lifecycle { "hook_dot_life" } else { "hook_dot" },
+                    role: if lifecycle { "text_mark_primary" } else { "text_mark_secondary" },
                 },
-                #{ kind: "label", role: "mono", text: format!("{}.{}()", node.name, hook.name) },
+                #{ kind: "label", role: "text_code", text: format!("{}.{}()", node.name, hook.name) },
                 #{ kind: "row", grow: 1 },
-                #{ kind: "label", role: "meta", text: format!("{}:{}", script, hook.line) },
+                #{ kind: "label", role: "text_caption", text: format!("{}:{}", script, hook.line) },
             ],
         }] });
     }

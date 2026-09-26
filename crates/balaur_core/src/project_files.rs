@@ -8,12 +8,13 @@ use serde::Deserialize;
 
 use crate::engine::Engine;
 
-/// Where a project is allowed to read its bytes from, set by `assets` in
-/// `project.toml`. The default is deliberately the strict one: a shipped game
+/// Where a project is allowed to read its bytes from, set by
+/// `application/asset_source` in `project.toml`. The default is deliberately
+/// the strict one: a shipped game
 /// that quietly falls back to the working directory runs on the machine that
 /// built it and nowhere else.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum AssetSource {
     /// The pack only. A miss is an error naming the file.
     #[default]
@@ -22,7 +23,6 @@ pub enum AssetSource {
     Files,
     /// The pack first, then the directory — loose DLC, mods, or an override
     /// folder shipped beside the executable.
-    #[serde(rename = "embedded+files")]
     EmbeddedThenFiles,
 }
 
@@ -238,9 +238,43 @@ impl ProjectFiles {
         }
         Err(anyhow!(
             "no asset '{path}' in the pack. It ships only what `balaur export` \
-             collected; set `assets = \"embedded+files\"` in project.toml to also \
+             collected; set `asset_source = \"embedded_then_files\"` under \
+             `[application]` in project.toml to also \
              read files beside the game."
         ))
+    }
+
+    /// Whether the pack holds a project-relative path, as a file or as a
+    /// directory above one.
+    #[must_use]
+    pub fn packs(&self, path: &str) -> bool {
+        let key = path.trim_end_matches('/');
+        let below = format!("{key}/");
+        self.packed.contains_key(key) || self.packed.keys().any(|k| k.starts_with(&below))
+    }
+
+    /// The names directly under a project-relative directory in the pack,
+    /// each with whether it is a directory.
+    #[must_use]
+    pub fn packed_children(&self, dir: &str) -> Vec<(String, bool)> {
+        let dir = dir.trim_end_matches('/');
+        let prefix = if dir.is_empty() || dir == "." {
+            String::new()
+        } else {
+            format!("{dir}/")
+        };
+        let mut out: Vec<(String, bool)> = self
+            .packed
+            .keys()
+            .filter_map(|key| key.strip_prefix(&prefix))
+            .map(|rest| match rest.split_once('/') {
+                Some((name, _)) => (name.to_string(), true),
+                None => (rest.to_string(), false),
+            })
+            .collect();
+        out.sort();
+        out.dedup();
+        out
     }
 
     /// Project-relative paths directly under `dir`, from the pack and from

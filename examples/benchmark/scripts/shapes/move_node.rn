@@ -8,5 +8,5 @@ pub fn init(this) {
 pub fn update(this, dt) {
     this.t += dt;
     let at = this.home;
-    this.node.transform.position = [at[0], at[1] + math::sin(this.t) * 4.0, at[2]];
+    this.node.transform.position = balaur::Vec3::new(at.x, at.y + math::sin(this.t) * 4.0, at.z);
 }

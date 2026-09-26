@@ -24,11 +24,11 @@ tungstenite.workspace = true
 
 # The browser: Fetch and the WebSocket API through web-sys, driving the same
 # protocol code from callbacks, with a pump per tick instead of a thread.
-[target.'cfg(all(target_family = "wasm", not(target_os = "emscripten")))'.dependencies]
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4"
-js-sys = "0.3"
-web-sys = { version = "0.3", features = [
+[target.'cfg(target_family = "wasm")'.dependencies]
+wasm-bindgen = "0.2.129"
+wasm-bindgen-futures = "0.4.79"
+js-sys = "0.3.106"
+web-sys = { version = "0.3.106", features = [
     "AbortSignal",
     "BinaryType",
     "CloseEvent",

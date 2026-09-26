@@ -1,5 +1,5 @@
-//! The two things that reach a game through the application delegate and no
-//! other way: the push token, and a URL the game was opened with.
+//! What reaches a game through the application delegate and no other way:
+//! the push token, a push's payload, and a URL the game was opened with.
 //!
 //! winit owns the real delegate, so this stands in front of it — answering
 //! the selectors it knows and forwarding the rest, which is what
@@ -14,8 +14,9 @@
 
 use std::fmt::Write;
 
+use block2::DynBlock;
 use objc2::rc::Retained;
-use objc2::runtime::{AnyObject, NSObject, NSObjectProtocol, Sel};
+use objc2::runtime::{AnyClass, AnyObject, NSObject, NSObjectProtocol, Sel};
 use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, Message, define_class, msg_send};
 use objc2_foundation::{NSArray, NSData, NSError, NSURL};
 
@@ -32,11 +33,13 @@ pub(crate) fn deliver_launch_url(url: String) {
 }
 
 /// Ask the OS for a push token. The token itself arrives at the delegate,
-/// which is why this installs one.
+/// which is why this installs one; a push shown while the game is in front
+/// arrives at the notification centre's, so that one goes up too.
 pub(crate) fn request_push_token() -> bool {
     if !install() {
         return false;
     }
+    crate::notify::watch_taps();
     let Some(app) = shared_application() else {
         return false;
     };
@@ -137,6 +140,26 @@ define_class!(
             self.forward_token_failure(app, error);
         }
 
+        /// iOS: a push that reached the app itself, a silent one included.
+        /// Answered here alone: the system waits on exactly one call of `done`.
+        #[unsafe(method(application:didReceiveRemoteNotification:fetchCompletionHandler:))]
+        fn remote(
+            &self,
+            _app: *mut AnyObject,
+            info: *mut AnyObject,
+            done: &DynBlock<dyn Fn(usize)>,
+        ) {
+            crate::queue::push_apple(AppleEvent::PushReceived { data: json_of(info) });
+            // UIBackgroundFetchResultNewData.
+            done.call((0,));
+        }
+
+        /// macOS: the same arrival, with nothing to answer.
+        #[unsafe(method(application:didReceiveRemoteNotification:))]
+        fn remote_on_mac(&self, _app: *mut AnyObject, info: *mut AnyObject) {
+            crate::queue::push_apple(AppleEvent::PushReceived { data: json_of(info) });
+        }
+
         /// iOS: a URL the game was asked to open. True says it was handled,
         /// and the other delegate's answer is kept when it has one.
         #[unsafe(method(application:openURL:options:))]
@@ -223,6 +246,29 @@ impl Proxy {
                 let _: () = msg_send![self.original(), application: app, openURLs: urls];
             }
         }
+    }
+}
+
+/// A Foundation dictionary as the JSON a script reads: what a push or a
+/// notification carries in `userInfo`. Null for anything JSON cannot say.
+pub(crate) fn json_of(object: *mut AnyObject) -> serde_json::Value {
+    let (Some(object), Some(json)) = (
+        unsafe { object.as_ref() },
+        AnyClass::get(c"NSJSONSerialization"),
+    ) else {
+        return serde_json::Value::Null;
+    };
+    unsafe {
+        let valid: bool = msg_send![json, isValidJSONObject: object];
+        if !valid {
+            return serde_json::Value::Null;
+        }
+        let none: *mut *mut NSError = std::ptr::null_mut();
+        let data: *mut NSData =
+            msg_send![json, dataWithJSONObject: object, options: 0usize, error: none];
+        data.as_ref()
+            .and_then(|data| serde_json::from_slice(&data.to_vec()).ok())
+            .unwrap_or(serde_json::Value::Null)
     }
 }
 

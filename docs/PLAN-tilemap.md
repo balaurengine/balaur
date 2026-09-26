@@ -359,7 +359,7 @@ Drop the ignore the day `tiled` moves to `quick-xml` 0.41, or the day the
 3. Terrains, rules, templates, transforms, hashed variation, `set_terrain`.
 4. Custom data, animated tiles, occluding tiles.
 5. The Tiles dock's remaining brushes and the terrain brush, each asserted by
-   `tilesdemo`.
+   `test:tiles`.
 6. The tileset document tab.
 7. Quarter-tile sheets. *Built 2026-09-07.*
 8. Isometric and hexagonal layouts, and the hex rule widget.
@@ -372,7 +372,7 @@ of tiles keeps its speed across every seam and never stops on one — the
 ghost-collision test, and the reason the collider is parry's voxel shape and
 not a row of cuboids — that a rule set resolves a corner, that the
 same seed and the same cells resolve identically twice and on every OS, and
-that a map's digest does not move. `tilesdemo` paints and asserts `cells`;
+that a map's digest does not move. `test:tiles` paints and asserts `cells`;
 each new brush adds a stroke to it, and the rule editor gets a `--state`
 self-test that fills a template and asserts the resolved grid. CI cannot
 prove a brush feels right; the showcase clip is where a person checks.

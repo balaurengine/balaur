@@ -73,6 +73,9 @@ pub(crate) struct Export {
     pub default: String,
     /// The GDScript text of its value, for a kind `exports()` cannot hold.
     pub value: Option<String>,
+    /// A value type no prop holds, a `Rect2`, a `Dictionary` or an `Array` of
+    /// them: the scene files it in the node's `meta` for `init` to read.
+    pub data: bool,
 }
 
 impl Export {
@@ -132,7 +135,7 @@ fn extended(source: &str, classes: &Classes) -> Option<String> {
     let line = source.lines().find(|l| l.starts_with("extends "))?;
     let target = line["extends ".len()..].trim();
     if let Some(path) = target.strip_prefix('"').and_then(|t| t.split('"').next()) {
-        return Some(path.strip_prefix("res://").unwrap_or(path).to_string());
+        return Some(crate::godot::relative_path(path).to_string());
     }
     let name: String = target
         .chars()
@@ -143,6 +146,7 @@ fn extended(source: &str, classes: &Classes) -> Option<String> {
 
 /// The `@export`s one file declares itself.
 fn own(source: &str, classes: &Classes) -> Vec<Export> {
+    let aliases = script_aliases(source);
     let mut out = Vec::new();
     let mut pending = false;
     for line in source.lines() {
@@ -154,7 +158,7 @@ fn own(source: &str, classes: &Classes) -> Vec<Export> {
         if !exporting && !pending {
             continue;
         }
-        match parse(line, classes) {
+        match parse(line, classes, &aliases) {
             Some(export) => {
                 out.push(export);
                 pending = false;
@@ -166,8 +170,17 @@ fn own(source: &str, classes: &Classes) -> Vec<Export> {
     out
 }
 
+/// A file's `const Name := preload("res://x.gd")`, each name to the script's
+/// project path: an export typed by one is a node of that script.
+fn script_aliases(source: &str) -> BTreeMap<String, String> {
+    source
+        .lines()
+        .filter_map(crate::godot::script::preloaded_script_file)
+        .collect()
+}
+
 /// `@export var name: Type = value`.
-fn parse(line: &str, classes: &Classes) -> Option<Export> {
+fn parse(line: &str, classes: &Classes, aliases: &BTreeMap<String, String>) -> Option<Export> {
     let at = line.find("var ")?;
     let rest = &line[at + 4..];
     let name: String = rest
@@ -203,7 +216,14 @@ fn parse(line: &str, classes: &Classes) -> Option<Export> {
     } else {
         // A hint the index does not know, `const Profile := preload(..)`
         // standing for a class, still says what it holds by its default.
-        kind_of_hint(&hint, classes).or_else(|| value.and_then(kind_of_constructor))
+        // A preloaded node script is a node; any other keeps its default.
+        let node_script = aliases
+            .get(&hint)
+            .and_then(|script| kind_of_hint(script, classes))
+            .filter(|kind| *kind == Kind::Node);
+        node_script
+            .or_else(|| kind_of_hint(&hint, classes))
+            .or_else(|| value.and_then(kind_of_constructor))
     };
     let default = match (kind, written) {
         (Some(Kind::Float), Some(n)) if !n.contains(['.', 'e', 'E']) => format!("{n}.0"),
@@ -213,14 +233,108 @@ fn parse(line: &str, classes: &Classes) -> Option<Export> {
         (Some(kind), None) => zero(kind).to_string(),
         (None, _) => String::new(),
     };
+    let data = kind.is_none() && (is_data_hint(&hint) || value.is_some_and(is_data_value));
     Some(Export {
         name,
         hint,
         kind,
         default,
         value: value.map(str::to_string),
+        data,
     })
 }
+
+/// Whether a GDScript type is plain data a scene can write out: the value
+/// types no prop has, and the collections of them.
+fn is_data_hint(hint: &str) -> bool {
+    matches!(
+        hint,
+        "Rect2" | "Rect2i" | "Dictionary" | "Array" | "Transform2D"
+    ) || hint.starts_with("Array[")
+        || hint.starts_with("Dictionary[")
+        || hint.starts_with("Packed")
+}
+
+/// Whether an untyped export's default says it is plain data: `:= Rect2()`,
+/// `:= {}` or `:= []`.
+fn is_data_value(value: &str) -> bool {
+    let value = value.trim();
+    [
+        "Rect2(",
+        "Rect2i(",
+        "Transform2D(",
+        "Packed",
+        "Array",
+        "Dictionary",
+        "{",
+        "[",
+    ]
+    .iter()
+    .any(|start| value.starts_with(start))
+}
+
+/// A Godot value as TOML the shim's `export_value` turns back into it: plain
+/// values as they are, a vector, a rectangle or a colour tagged with its
+/// type, since TOML would read one as a list of numbers. `None` for what no
+/// scene can file, a resource or an object.
+pub(crate) fn tagged(value: &Value) -> Option<Toml> {
+    let tag = |ty: &str, numbers: Vec<Toml>| {
+        let mut table = toml::Table::new();
+        table.insert(GODOT_TAG.into(), Toml::String(ty.into()));
+        table.insert("v".into(), Toml::Array(numbers));
+        Toml::Table(table)
+    };
+    let floats = |args: &[Value]| -> Option<Vec<Toml>> {
+        args.iter().map(|a| a.as_f64().map(Toml::Float)).collect()
+    };
+    Some(match value {
+        Value::Null => tag("Nil", Vec::new()),
+        Value::Bool(b) => Toml::Boolean(*b),
+        Value::Int(i) => Toml::Integer(*i),
+        Value::Float(f) => Toml::Float(*f),
+        Value::Str(text) | Value::Name(text) => Toml::String(text.clone()),
+        Value::Array(items) => Toml::Array(items.iter().map(tagged).collect::<Option<_>>()?),
+        Value::Dict(pairs) => {
+            let mut table = toml::Table::new();
+            for (key, item) in pairs {
+                let key = match key {
+                    Value::Str(k) | Value::Name(k) => k.clone(),
+                    Value::Int(i) => i.to_string(),
+                    _ => return None,
+                };
+                table.insert(key, tagged(item)?);
+            }
+            Toml::Table(table)
+        }
+        Value::Call { name, args } => match name.as_str() {
+            "Vector2" | "Vector2i" => tag("Vector2", floats(args)?),
+            "Vector3" | "Vector3i" => tag("Vector3", floats(args)?),
+            "Rect2" | "Rect2i" => tag("Rect2", floats(args)?),
+            "Color" => tag("Color", floats(args)?),
+            "PackedVector2Array" => {
+                let flat = floats(args)?;
+                tag(
+                    "Vector2Array",
+                    flat.chunks(2).map(|p| Toml::Array(p.to_vec())).collect(),
+                )
+            }
+            "PackedFloat32Array" | "PackedFloat64Array" | "PackedInt32Array"
+            | "PackedInt64Array" | "PackedStringArray" | "PackedByteArray" => {
+                Toml::Array(args.iter().map(tagged).collect::<Option<_>>()?)
+            }
+            "NodePath" | "StringName" => tagged(args.first()?)?,
+            // `Array[Dictionary]([...])`: a typed array's one argument.
+            typed if typed.starts_with("Array") || typed.starts_with("Dictionary") => {
+                tagged(args.first()?)?
+            }
+            _ => return None,
+        },
+        Value::Object { .. } => return None,
+    })
+}
+
+/// The key a tagged value names its Godot type under.
+pub(crate) const GODOT_TAG: &str = "__godot";
 
 /// Whether a resource path names a GDScript file.
 pub(crate) fn is_script(path: &str) -> bool {
@@ -323,7 +437,7 @@ fn extends_target(source: &str) -> Option<String> {
     let line = source.lines().find(|l| l.starts_with("extends "))?;
     let target = line["extends ".len()..].trim();
     if let Some(path) = target.strip_prefix('"').and_then(|t| t.split('"').next()) {
-        return Some(path.strip_prefix("res://").unwrap_or(path).to_string());
+        return Some(crate::godot::relative_path(path).to_string());
     }
     let name: String = target
         .chars()
@@ -815,6 +929,39 @@ mod tests {
         assert_eq!(
             names,
             vec!["close_button=\"\"", "title=\"mine\"", "flag=true"]
+        );
+    }
+
+    /// `const Layer := preload("res://layer.gd")` standing for a class: an
+    /// export typed by it holds a node of that script.
+    #[test]
+    fn an_export_typed_by_a_preloaded_script_constant_is_a_node() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("layer.gd"), "extends Control\n").unwrap();
+        let classes = super::class_index(dir.path(), &["layer.gd".to_string()]);
+        let found = exports(
+            "extends Node\nconst Layer := preload(\"res://layer.gd\")\n@export var layer: Layer\n",
+            &classes,
+        );
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].kind, Some(Kind::Node), "{:?}", found[0].kind);
+    }
+
+    /// A preloaded resource script is no node: the export keeps what it had,
+    /// so its default still comes from the member's own.
+    #[test]
+    fn an_export_typed_by_a_preloaded_resource_script_is_no_node() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("profile.gd"), "extends Resource\n").unwrap();
+        let classes = super::class_index(dir.path(), &["profile.gd".to_string()]);
+        let found = exports(
+            "extends Node\nconst Profile := preload(\"res://profile.gd\")\n@export var profile: Profile = DEFAULT\n",
+            &classes,
+        );
+        assert!(
+            found.iter().all(|e| e.kind != Some(Kind::Node)),
+            "{:?}",
+            found.iter().map(|e| e.kind).collect::<Vec<_>>()
         );
     }
 

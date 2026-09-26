@@ -3,11 +3,11 @@
 > **Status:** Stage is standing (2026-09-03). Phases 1–2 are done — `layout.rn`
 > owns every rect, `viewport::owns_pointer` inverts the hit test, every panel
 > draws through `ui::overlay` as a sheet over a full-bleed scene, and
-> `layoutdemo` asserts nine invariants including that no two sheets overlap.
+> `test:layout` asserts nine invariants including that no two sheets overlap.
 > §5.1, §5.2, §5.3 and the plugin-window half of §5.5 came with it, and the
 > three panels are now one dock model (`docks.rn`). Phase 3 has started: the
 > radius ladder and the inspector grid are done. §5.7 is done too:
-> `shell::toggle_focus`, the chip beside Split, `⇧⌘\`, and `focusdemo`. What is
+> `shell::toggle_focus`, the chip beside Split, `⇧⌘\`, and `test:focus`. What is
 > left is below.
 >
 > Written 2026-09-03 against the screen catalogue in
@@ -109,7 +109,7 @@ to its status strip.
 
 ### 5.7 Focus, for a script
 
-The Script persona leaves the code about half the window: the tree's 236 px
+The Script workspace leaves the code about half the window: the tree's 236 px
 and the inspector's 288 px take their columns, the hooks list another 172,
 and the bottom dock 174 of the height, of which the status strip keeps 24.
 Every one of those already folds (§5.6), so a focus mode is not machinery —
@@ -134,12 +134,12 @@ document owns the centre.
 | Entering with nothing open | The verb opens the selected node's script. A selection with none greys the chip out and says so in its tooltip, rather than folding the shell around an empty pane |
 | The status strip | Goes with the dock. The bottom dock folds away whole today, not to its strip, so the save state is read from the dot on the document tab |
 | Opening a panel while focused | Clears `S.focus_was` rather than fighting it. `⌘K`, a diagnostic's gutter click and the dock tabs all set `shut = false`, and a restore must not shut a panel that was deliberately asked for |
-| The top bar | Stays: the document tabs and the persona bar are how the code is left again |
+| The top bar | Stays: the document tabs and the workspace bar are how the code is left again |
 | OS full screen | Not this verb. `window.set_fullscreen` is the game's, and a borderless editor loses the tabs |
 | Persisting it | Nowhere, like isolate and lock |
-| A focus layout per persona | Not planned. A persona already says what to have open; this is that answer minus everything |
+| A focus layout per workspace | Not planned. A workspace already says what to have open; this is that answer minus everything |
 
-`focusdemo` is the `--state` that proves it: open a script, focus, assert the
+`test:focus` is the `--state` that proves it: open a script, focus, assert the
 three docks are shut and the code pane holds the work area, unfocus, assert
 the rects came back. It joins `scripts/uiaudit.sh` and
 [EDITOR-SCREENS.md](EDITOR-SCREENS.md) like every other surface.
@@ -152,8 +152,8 @@ panel declaration each. Neither is decided; both default to the arrangement
 
 | Switch | Default | Other setting |
 |---|---|---|
-| Personas | a floating bar at the top centre | a floating rail down the left gutter, carrying personas and tools together |
-| Document tabs | in the top bar, beside the personas (since 2026-09-05) | a 38 px icon column beside the tool rail; the filename moves to the status pill |
+| Workspaces | a floating bar at the top centre | a floating rail down the left gutter, carrying workspaces and tools together |
+| Document tabs | in the top bar, beside the workspaces (since 2026-09-05) | a 38 px icon column beside the tool rail; the filename moves to the status pill |
 
 Both are `S.layout` inputs, so the one rect authority covers them for free.
 
@@ -163,7 +163,7 @@ Both are `S.layout` inputs, so the one rect authority covers them for free.
 check, not a chore: commit a golden set under `docs/screens/` at half
 resolution and fail on a pixel delta over a threshold. The editor is
 deterministic offscreen and the examples are fixed, so this is stable. The
-`layoutdemo` assertions run in the e2e suite already, where a number is
+`test:layout` assertions run in the e2e suite already, where a number is
 cheaper than a picture.
 
 Under Stage this matters more than it did, not less: the class of bug the
@@ -182,7 +182,7 @@ The numbering is the original plan's; phases 1 and 2 are done.
 
 ## 9. Not in scope
 
-- New personas, docks or windows. The shell is feature-complete for the
+- New workspaces, docks or windows. The shell is feature-complete for the
   screens it has.
 - The 3D viewport's contents — grid, gizmo geometry, collider overlays. That
   is `render` work, not shell work.

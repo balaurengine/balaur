@@ -10,7 +10,7 @@
 //!
 //! Scene files declare the node tree; behavior lives in scripts. Keys the
 //! core does not know are dispatched to plugin-registered handlers, so a
-//! plugin can teach scenes new keys (e.g. `shape = "ball"`).
+//! plugin can teach scenes new keys (e.g. `shape = "sphere"`).
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -143,6 +143,8 @@ pub struct WindowSettings {
     /// it take one path.
     pub mode: WindowMode,
     pub orientation: Orientation,
+    /// Run a frame only when something asks for one, and sleep between.
+    pub low_processor: bool,
 }
 
 impl Default for WindowSettings {
@@ -154,6 +156,7 @@ impl Default for WindowSettings {
             vsync: true,
             mode: WindowMode::Windowed,
             orientation: Orientation::Any,
+            low_processor: false,
         }
     }
 }
@@ -170,6 +173,7 @@ impl WindowSettings {
             vsync: setting_bool(eng, "window/vsync", fallback.vsync),
             mode: WindowMode::parse(&setting_string(eng, "window/mode")).unwrap_or(fallback.mode),
             orientation: Orientation::parse(&setting_string(eng, "window/orientation")),
+            low_processor: setting_bool(eng, "window/low_processor", fallback.low_processor),
         }
     }
 }
@@ -259,9 +263,17 @@ impl UiSettings {
             scale: setting_f32(eng, "ui/scale", fallback.scale),
             system_text_size: setting_bool(eng, "ui/system_text_size", fallback.system_text_size),
             classes: crate::facts::ClassLines {
-                narrow_below: setting_f32(eng, "ui/narrow_below", fallback.classes.narrow_below),
-                wide_from: setting_f32(eng, "ui/wide_from", fallback.classes.wide_from),
-                short_below: setting_f32(eng, "ui/short_below", fallback.classes.short_below),
+                narrow_below: setting_f32(
+                    eng,
+                    "ui/narrow_below_pixels",
+                    fallback.classes.narrow_below,
+                ),
+                wide_from: setting_f32(eng, "ui/wide_from_pixels", fallback.classes.wide_from),
+                short_below: setting_f32(
+                    eng,
+                    "ui/short_below_pixels",
+                    fallback.classes.short_below,
+                ),
             },
         }
     }
@@ -326,7 +338,7 @@ struct RawManifest {
 struct Application {
     name: String,
     main_scene: String,
-    #[serde(default = "default_language")]
+    #[serde(default = "default_language", rename = "script_language")]
     language: String,
 }
 
@@ -411,7 +423,7 @@ pub(crate) struct SceneNode {
     tint: Option<toml::Value>,
     z_index: Option<i32>,
     /// False makes `z_index` absolute rather than added to the parent's.
-    z_relative: Option<bool>,
+    z_as_relative: Option<bool>,
     /// When this node and its subtree tick: `pausable`, `always`,
     /// `when_paused`, `disabled`, or `inherit` to take the parent's.
     process: Option<String>,
@@ -797,8 +809,8 @@ fn apply_own_keys(
         if let Some(z) = node.z_index {
             appearance.z_index = z;
         }
-        if let Some(on) = node.z_relative {
-            appearance.z_relative = on;
+        if let Some(on) = node.z_as_relative {
+            appearance.z_as_relative = on;
         }
     }
     apply_process(eng, entity, node.process.as_deref(), &node.name)?;
@@ -817,9 +829,17 @@ fn apply_own_keys(
         eng.world_mut().insert_one(entity, tags)?;
     }
     for (key, handler) in handlers {
-        if let Some(value) = node.extra.get(key) {
-            handler(eng, entity, value)
-                .with_context(|| format!("scene key '{key}' on node '{}'", node.name))?;
+        let Some(value) = node.extra.get(key) else {
+            continue;
+        };
+        if let Err(why) = handler(eng, entity, value) {
+            // A component it refuses leaves the node without it, and says why
+            // on the node, rather than failing the whole scene over one value.
+            if crate::components::is_registered(eng, key) {
+                tracing::error!(node = %node.name, component = %key, "{why:#}");
+                continue;
+            }
+            return Err(why.context(format!("scene key '{key}' on node '{}'", node.name)));
         }
     }
     for key in node.extra.keys() {
@@ -978,7 +998,7 @@ const NODE_KEYS: [&str; 7] = [
     "visible",
     "tint",
     "z_index",
-    "z_relative",
+    "z_as_relative",
     crate::process::KEY,
     crate::interpolate::KEY,
     "tags",
@@ -998,8 +1018,8 @@ fn apply_node_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
     if let Some(z) = table.get("z_index").and_then(toml::Value::as_integer) {
         appearance.z_index = z as i32;
     }
-    if let Some(on) = table.get("z_relative").and_then(toml::Value::as_bool) {
-        appearance.z_relative = on;
+    if let Some(on) = table.get("z_as_relative").and_then(toml::Value::as_bool) {
+        appearance.z_as_relative = on;
     }
     drop(appearance);
     drop(world);
@@ -1057,9 +1077,8 @@ fn resolve_parent(
     let world = eng.world();
     let from_root = scene_root.and_then(|(name, entity)| {
         let rest = node.parent.strip_prefix(name)?;
-        (rest.is_empty() || rest.starts_with('/'))
-            .then(|| scene::find_node(&world, entity, rest))
-            .flatten()
+        let below = rest.strip_prefix('/').or(rest.is_empty().then_some(""));
+        below.and_then(|below| scene::find_node(&world, entity, below))
     });
     from_root
         .or_else(|| scene::find_node(&world, root, &node.parent))

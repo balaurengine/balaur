@@ -1,9 +1,9 @@
 //! What the step tells a script: collisions, contact forces, and the three
 //! questions rapier asks mid-step.
 //!
-//! Everything here is opt-in per collider (`events` and `hooks` on
-//! `collider3d`), because rapier reports nothing by default and a game that
-//! wants nothing should pay nothing.
+//! Everything here is opt-in per collider or soft body (`events` and `hooks`
+//! on `collider3d`, `events` on `softbody3d`), because rapier reports nothing
+//! by default and a game that wants nothing should pay nothing.
 //!
 //! **When.** Events are drained inside the fixed step, immediately after
 //! `world.step()` and before the next `fixed_update` — so an impulse a handler
@@ -20,8 +20,11 @@ use crate::rapier3d::prelude::{
     ColliderHandle, ColliderSet, CollisionEvent, ContactForceEvent, ContactModificationContext,
     ContactPair, EventHandler, PhysicsHooks, RigidBodySet, SoftBodySet, SoftBodyTearEvent,
 };
+use crate::shared::events::Owner;
 use crate::vocabulary::hook;
+use crate::vocabulary::keys as k;
 use balaur_core::Engine;
+use balaur_core::collections::DetHashMap;
 use balaur_core::hecs::Entity;
 use balaur_script::Value;
 use std::sync::Mutex;

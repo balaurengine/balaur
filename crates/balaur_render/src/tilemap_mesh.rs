@@ -11,10 +11,10 @@ use crate::tilemap::{TileSet, Tilemap, grid_of};
 ///
 /// A map is one mesh node per chunk, so writing a cell rebuilds the buffer
 /// around it rather than the whole level: a paint stroke costs its stroke.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 const CHUNK: i32 = 32;
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) struct TilemapSlot {
     /// The map's own node. Every chunk is a child of it, so the map is posed
     /// once however many chunks it happens to be made of, and the draw order
@@ -33,7 +33,7 @@ pub(crate) struct TilemapSlot {
 }
 
 /// One block of the map's mesh, and what its cells were when it was built.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 struct Chunk {
     node: kiss3d::scene::SceneNode2d,
     digest: u64,
@@ -44,7 +44,7 @@ struct Chunk {
 /// Each map is one mesh node (kiss3d's own `Tilemap`, a quad per non-empty
 /// cell with the same anti-bleed UV inset `sync_sprite_uvs` uses), built once
 /// per component application and re-posed each frame.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn sync_tilemaps(
     app: &balaur_core::App,
     scene: &mut kiss3d::scene::SceneNode2d,
@@ -149,7 +149,7 @@ pub(crate) fn sync_tilemaps(
 ///
 /// The map's own node is not touched: chunks come and go under it, so a map
 /// keeps its place in the scene however it is edited.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn rebuild_chunks(
     app: &balaur_core::App,
     slot: &mut TilemapSlot,
@@ -199,7 +199,7 @@ fn rebuild_chunks(
 ///
 /// The digest carries the cell size and the animation frame too, so a map
 /// that was rescaled or a tile that turned over rebuilds like an edit.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn chunks_of(
     grid: &balaur_core::tiles::TileGrid,
     set: &TileSet,
@@ -248,7 +248,7 @@ fn chunks_of(
 /// One cell as the mesh builder wants it: where it is, what it draws with,
 /// and the tile each corner takes its picture from when the terrain is
 /// drawn in quarters.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 struct Cell {
     column: i32,
     row: i32,
@@ -258,7 +258,7 @@ struct Cell {
 }
 
 /// One more number folded into a digest.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn mix(hash: u64, value: u64) -> u64 {
     (hash ^ value).wrapping_mul(0x0100_0000_01b3)
 }
@@ -268,7 +268,7 @@ fn mix(hash: u64, value: u64) -> u64 {
 /// Built here rather than by the fork's uniform sheet, which has no gutter to
 /// skip and no way to turn a cell: a quad per filled cell, placed by the
 /// grid's own maths so the map is anchored on its node.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn build_chunk_node(
     tileset: &TileSet,
     grid: &balaur_core::tiles::TileGrid,
@@ -319,7 +319,7 @@ fn build_chunk_node(
 }
 
 /// The frame an animated tile is showing; a still tile is itself.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn animated(set: &TileSet, id: u32, seconds: f32) -> u32 {
     set.tile(id)
         .and_then(|tile| tile.animation.as_ref())
@@ -328,7 +328,7 @@ fn animated(set: &TileSet, id: u32, seconds: f32) -> u32 {
 
 /// Which frame every animated tile in a set is on, as one number: the mesh is
 /// rebuilt when it moves, and not otherwise.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn animation_frame(set: &TileSet, seconds: f32) -> i64 {
     set.tiles
         .values()

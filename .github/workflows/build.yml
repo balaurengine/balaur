@@ -102,8 +102,8 @@ jobs:
           build-deps: ${{ matrix.container && 'false' || 'true' }}
           attest: ${{ github.event_name == 'push' }}
 
-  # Runtime templates for the non-desktop platforms, packaged as the shape
-  # each OS starts (scripts/package_template.sh). Web is wasm-bindgen on
+  # Runtimes for the non-desktop platforms, packaged as the shape
+  # each OS starts (scripts/package_runtime.sh). Web is wasm-bindgen on
   # wasm32-unknown-unknown, the target kiss3d and wgpu support in a browser.
   build-platforms:
     permissions:
@@ -123,7 +123,7 @@ jobs:
           - platform: android
             host: ubuntu-latest
           # The template a release ships. Its feature list is the default in
-          # scripts/package_template.sh, named there and nowhere else so the
+          # scripts/package_runtime.sh, named there and nowhere else so the
           # two cannot drift.
           - platform: web
             host: ubuntu-latest
@@ -143,7 +143,7 @@ jobs:
             host: ubuntu-latest
             variant: editor
             label: editor
-            web-features: audio,http,websocket,webtransport,gamend,multiplayer,web,window,import
+            web-features: audio,http,websocket,webtransport,gamend,multiplayer,browser,window,import
     steps:
       - uses: actions/checkout@v7
       # The action carries the NDK and wasm-bindgen setup each platform needs,
@@ -190,7 +190,7 @@ jobs:
           sudo apt-get install -y libasound2-dev libudev-dev
       - uses: actions/download-artifact@v8
         with:
-          name: balaur-template-${{ matrix.platform }}
+          name: balaur-runtime-${{ matrix.platform }}
           path: dist
       - uses: Swatinem/rust-cache@v2
         with:
@@ -229,19 +229,19 @@ jobs:
           path: dist
       - uses: actions/download-artifact@v8
         with:
-          name: balaur-template-web
+          name: balaur-runtime-web
           path: dist
       # Laid out the way the editor download is, so the exporter finds its
-      # templates beside the binary and nothing has to be fetched.
+      # runtimes beside the binary and nothing has to be fetched.
       - name: Put this run's engine on PATH
         run: |
           set -euo pipefail
           tar -xzf dist/balaur-editor-linux-x64.tar.gz -C dist
           install=$PWD/dist/balaur-editor-linux-x64
-          mkdir -p "$install/templates"
-          tar -xzf dist/balaur-template-web.tar.gz -C "$install/templates"
-          cp dist/balaur-runtime-linux-x64 "$install/templates/"
-          chmod +x "$install/balaur" "$install/templates/balaur-runtime-linux-x64"
+          mkdir -p "$install/runtimes"
+          tar -xzf dist/balaur-runtime-web.tar.gz -C "$install/runtimes"
+          cp dist/balaur-runtime-linux-x64 "$install/runtimes/"
+          chmod +x "$install/balaur" "$install/runtimes/balaur-runtime-linux-x64"
           echo "$install" >>"$GITHUB_PATH"
       - uses: ./.github/actions/export-game
         with:
@@ -251,7 +251,7 @@ jobs:
           attest: ${{ github.event_name == 'push' }}
 
   # The web build as the one download a site refreshes: the glue and module
-  # from the web template, plus the editor's project and the examples packed
+  # from the web runtime, plus the editor's project and the examples packed
   # with the linux editor binary (scripts/package_play.sh).
   bundle-web:
     name: bundle web
@@ -283,19 +283,19 @@ jobs:
           path: dist
       - uses: actions/download-artifact@v8
         with:
-          name: balaur-template-web-editor
+          name: balaur-runtime-web-editor
           path: dist/editor-module
       # The editor's module is unpacked from its template archive: the bundle
       # ships the glue and the wasm beside the packs, not the tarball.
       - name: Unpack the editor's module
         run: |
           set -euo pipefail
-          tar -xzf dist/editor-module/balaur-template-web-editor.tar.gz \
+          tar -xzf dist/editor-module/balaur-runtime-web-editor.tar.gz \
             -C dist/editor-module
           # A copy, not a move: the artifact carries the staged `snippets/`
           # too, and `mv` refuses a directory that is already there.
-          cp -R dist/editor-module/balaur-template-web-editor/. dist/editor-module/
-          rm -rf dist/editor-module/balaur-template-web-editor
+          cp -R dist/editor-module/balaur-runtime-web-editor/. dist/editor-module/
+          rm -rf dist/editor-module/balaur-runtime-web-editor
           ls dist/editor-module/balaur.js dist/editor-module/balaur_bg.wasm
       - name: Pack the web bundle
         env:

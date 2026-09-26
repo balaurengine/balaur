@@ -19,7 +19,7 @@ const W = 1.6;
 /// The `path2d` reference the selected node strokes, or "" when it strokes
 /// none. A polyline names it where a mesh-backed one names a mesh.
 pub fn reference(S) {
-    let node = S.doc.get(S.sel);
+    let node = crate::model::selected_row(S);
     let node = match node {
         Some(node) => node,
         None => return "",
@@ -104,7 +104,7 @@ fn save(S) {
 }
 
 fn component_key(S) {
-    let node = S.doc.get(S.sel);
+    let node = crate::model::selected_row(S);
     match node {
         Some(node) => if node.contains_key("shape2d") { Some("shape2d") } else { None },
         None => None,
@@ -326,8 +326,8 @@ pub fn update(S, over_viewport, mx, my) {
         None => return,
     };
     S.pen.hover = if over_viewport { pick(S, path, f, mx, my) } else { None };
-    let broken = input::is_down("LAlt") || input::is_down("RAlt");
-    if over_viewport && input::mouse_just_pressed(input::MOUSE_LEFT) {
+    let broken = input::key_down(input::KEY_ALT);
+    if over_viewport && input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
         let hit_some = S.pen.hover;
         match hit_some {
             Some(hit) => {
@@ -348,7 +348,7 @@ pub fn update(S, over_viewport, mx, my) {
             }
         }
     }
-    if over_viewport && input::mouse_just_pressed(input::MOUSE_RIGHT) {
+    if over_viewport && input::mouse_just_pressed(input::MOUSE_BUTTON_RIGHT) {
         let hit_some = S.pen.hover;
         if let Some(hit) = hit_some {
             if hit[1] {
@@ -356,7 +356,7 @@ pub fn update(S, over_viewport, mx, my) {
             }
         }
     }
-    if !input::is_mouse_down(input::MOUSE_LEFT) {
+    if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
         if S.pen.drag.is_some() {
             history::commit(S);
         }
@@ -390,8 +390,8 @@ pub fn draw(S) {
         None => return,
     };
     let k = S.theme;
-    let accent = util::rgb(k.accent);
-    let dim = util::rgb(k.dim);
+    let accent = util::rgb(k.primary_text);
+    let dim = util::rgb(k.text_muted);
     let mark = MARK_PX * viewport::world_per_px(S);
     let hover = S.pen.hover;
     for i in 0..path.points.len() {

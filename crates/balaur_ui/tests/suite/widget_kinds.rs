@@ -9,7 +9,7 @@ use egui::pos2;
 #[test]
 fn a_check_flips_on_click_and_reads_back() {
     let (_dir, mut app) = app();
-    let params = toml::toml! { kind = "check" text = "Music" x = 0.0 y = 0.0 };
+    let params = toml::toml! { kind = "checkbox" text = "Music" x = 0.0 y = 0.0 };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -61,7 +61,7 @@ fn a_slider_click_writes_where_it_landed() {
 fn a_drag_value_shows_its_number_and_takes_a_drag() {
     let (_dir, mut app) = app();
     let params =
-        toml::toml! { kind = "drag_value" x = 0.0 y = 0.0 width = 90.0 value = 2.0 step = 1.0 };
+        toml::toml! { kind = "number_field" x = 0.0 y = 0.0 width = 90.0 value = 2.0 step = 1.0 };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -107,13 +107,14 @@ fn a_text_area_keeps_the_newlines_a_field_would_drop() {
 #[test]
 fn a_color_swatch_keeps_what_the_scene_gave_it() {
     let (_dir, mut app) = app();
-    let params = toml::toml! { kind = "color" x = 0.0 y = 0.0 color = [1.0, 0.0, 0.0, 1.0] };
+    let params =
+        toml::toml! { kind = "color_picker" x = 0.0 y = 0.0 picked_color = [1.0, 0.0, 0.0, 1.0] };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     pass(&app, &ctx, vec![]);
     consume_input(&mut app);
-    let held = property(&app, entity, "color");
+    let held = property(&app, entity, "picked_color");
     let red = held
         .as_array()
         .and_then(|a| a.first())
@@ -128,7 +129,8 @@ fn a_color_swatch_keeps_what_the_scene_gave_it() {
 #[test]
 fn a_color_swatch_paints_its_floats_as_srgb() {
     let (_dir, app) = app();
-    let params = toml::toml! { kind = "color" x = 0.0 y = 0.0 color = [0.5, 0.5, 0.5, 1.0] };
+    let params =
+        toml::toml! { kind = "color_picker" x = 0.0 y = 0.0 picked_color = [0.5, 0.5, 0.5, 1.0] };
     add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -244,6 +246,24 @@ fn a_flow_wraps_when_the_row_is_full() {
     );
 }
 
+/// A label that names `on_click` is clicked by the pointer, not only by
+/// focus and accept.
+#[test]
+fn a_label_with_on_click_takes_a_pointer_click() {
+    let (_dir, mut app) = app();
+    let label = add_widget(
+        &app,
+        &toml::toml! { kind = "label" text = "Continue" on_click = "on_go" x = 0.0 y = 0.0 }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let rect = balaur_ui::widget_rect(label).expect("the label drew");
+    pass(&app, &ctx, press(rect.center(), true));
+    pass(&app, &ctx, press(rect.center(), false));
+    consume_input(&mut app);
+    assert!(clicked(&app, label));
+}
+
 #[test]
 fn a_fold_hides_its_children_until_its_header_is_clicked() {
     let (_dir, mut app) = app();
@@ -272,6 +292,83 @@ fn a_fold_hides_its_children_until_its_header_is_clicked() {
     assert!(
         balaur_ui::widget_rect(inner).is_some(),
         "an open fold shows its child"
+    );
+}
+
+#[test]
+fn a_title_bar_child_is_drawn_in_its_fold_s_header_while_the_fold_is_shut() {
+    let (_dir, app) = app();
+    let fold = add_widget(
+        &app,
+        &toml::toml! { kind = "fold" open = false x = 0.0 y = 0.0 }.into(),
+    );
+    let title = add_child_widget(
+        &app,
+        fold,
+        "title",
+        &toml::toml! { kind = "label" text = "Audio" title_bar = true }.into(),
+    );
+    let inner = add_child_widget(
+        &app,
+        fold,
+        "inner",
+        &toml::toml! { kind = "label" text = "hidden line" }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let rect = balaur_ui::widget_rect(title).expect("the title bar child drew");
+    let fold_rect = root_rect(&ctx, fold);
+    assert!(
+        rect.min.x > fold_rect.min.x && (rect.center().y - fold_rect.center().y).abs() < 2.0,
+        "the child sits after the arrow, on the header's line: {rect:?} in {fold_rect:?}"
+    );
+    assert!(
+        balaur_ui::widget_rect(inner).is_none(),
+        "a closed fold drew its body"
+    );
+}
+
+#[test]
+fn a_fold_wears_its_checked_table_while_open_and_frames_what_it_shows() {
+    let painted = |open: bool| {
+        let (dir, app) = app();
+        std::fs::create_dir_all(dir.path().join("themes")).unwrap();
+        std::fs::write(
+            dir.path().join("themes/t.toml"),
+            "type = \"widget_theme\"\n\n[fold]\nfill = \"#102030\"\n\n[fold.checked]\nfill = \"#405060\"\n\n[fold.body]\nfill = \"#708090\"\npadding = 6.0\n",
+        )
+        .unwrap();
+        let mut params = toml::toml! { kind = "fold" text = "Sound" theme = "themes/t.toml" x = 0.0 y = 0.0 width = 200.0 };
+        params.insert("open".into(), toml::Value::Boolean(open));
+        let fold = add_widget(&app, &params.into());
+        add_child_widget(
+            &app,
+            fold,
+            "inner",
+            &toml::toml! { kind = "label" text = "Volume" }.into(),
+        );
+        let ctx = egui::Context::default();
+        settle(&app, &ctx);
+        let mut fills = Vec::new();
+        for clipped in &pass(&app, &ctx, vec![]).shapes {
+            if let egui::epaint::Shape::Rect(rect) = &clipped.shape {
+                fills.push(rect.fill);
+            }
+        }
+        fills
+    };
+    let rest = egui::Color32::from_rgb(0x10, 0x20, 0x30);
+    let checked = egui::Color32::from_rgb(0x40, 0x50, 0x60);
+    let body = egui::Color32::from_rgb(0x70, 0x80, 0x90);
+    let shut = painted(false);
+    assert!(
+        shut.contains(&rest) && !shut.contains(&checked) && !shut.contains(&body),
+        "a shut fold's header wears its own fill and frames nothing: {shut:?}"
+    );
+    let open = painted(true);
+    assert!(
+        open.contains(&checked) && open.contains(&body) && !open.contains(&rest),
+        "an open fold wears `checked` and frames its children in `body`: {open:?}"
     );
 }
 
@@ -343,7 +440,7 @@ fn a_sliced_image_keeps_its_corners_at_their_own_size() {
     picture.save(dir.path().join("frame.png")).unwrap();
     let entity = add_widget(
         &app,
-        &toml::toml! { kind = "image" source = "frame.png" slice = [2.0, 2.0, 2.0, 2.0] width = 100.0 height = 50.0 x = 0.0 y = 0.0 }
+        &toml::toml! { kind = "image" image = "frame.png" slice = [2.0, 2.0, 2.0, 2.0] width = 100.0 height = 50.0 x = 0.0 y = 0.0 }
             .into(),
     );
     let ctx = egui::Context::default();
@@ -375,7 +472,7 @@ fn a_scroll_deadzone_lets_a_short_drag_click_and_a_long_one_scroll() {
     let (_dir, mut app) = app();
     let holder = add_widget(
         &app,
-        &toml::toml! { kind = "scroll" deadzone = 30.0 x = 0.0 y = 0.0 width = 200.0 height = 100.0 gap = 0.0 }
+        &toml::toml! { kind = "scroll" scroll_deadzone = 30.0 x = 0.0 y = 0.0 width = 200.0 height = 100.0 gap = 0.0 }
             .into(),
     );
     let first = add_child_widget(
@@ -436,12 +533,12 @@ fn face_theme(dir: &std::path::Path) {
     std::fs::create_dir_all(dir.join("themes")).unwrap();
     std::fs::write(
         dir.join("themes/face.toml"),
-        "type = \"widget_theme\"\n\n[roles.row]\nalign = \"left\"\n\n[roles.mark]\nplate = \"#ffffff\"\n",
+        "type = \"widget_theme\"\n\n[roles.row]\ntext_align = \"start\"\n\n[roles.mark]\nicon_fill = \"#ffffff\"\n",
     )
     .unwrap();
 }
 
-/// A role's `align = "left"` reaches a node button. It reached script pills
+/// A role's `text_align = "start"` reaches a node button. It reached script pills
 /// only, so a node `row` drew its caption in the middle of the row.
 /// A widget inside a `scroll` keeps the theme its ancestor named. A scroll
 /// is solved as a tree of its own, and measuring a leaf in it resolved only
@@ -454,7 +551,7 @@ fn a_widget_under_a_scroll_keeps_its_ancestor_s_theme() {
     std::fs::create_dir_all(dir.path().join("themes")).unwrap();
     std::fs::write(
         dir.path().join("themes/ink.toml"),
-        "type = \"widget_theme\"\n\n[colors]\nmark = \"#5b6670\"\n\n[roles.transport]\nd = 26\ncolor = \"mark\"\n",
+        "type = \"widget_theme\"\n\n[colors]\nmark = \"#5b6670\"\n\n[roles.transport]\nwidth = 26\nheight = 26\ntext_color = \"mark\"\n",
     )
     .unwrap();
     let icon = "\u{e1dc}";
@@ -587,7 +684,7 @@ fn a_picture_sits_on_its_role_s_plate() {
     );
     let pictured = add_widget(
         &app,
-        &toml::toml! { kind = "button" text = "B" source = "mark.png" role = "mark" theme = "themes/face.toml" x = 0.0 y = 100.0 }
+        &toml::toml! { kind = "button" text = "B" image = "mark.png" role = "mark" theme = "themes/face.toml" x = 0.0 y = 100.0 }
             .into(),
     );
     let ctx = egui::Context::default();
@@ -655,9 +752,9 @@ fn a_picture_with_a_fit_takes_the_box_it_was_given() {
         &app,
         &toml::toml! { kind = "row" width = 400.0 height = 80.0 }.into(),
     );
-    let params = toml::toml! { kind = "image" source = "wide.png" fit = "contain" width = 40.0 };
+    let params = toml::toml! { kind = "image" image = "wide.png" fit = "contain" width = 40.0 };
     let fitted = add_child_widget(&app, row, "Fitted", &params.into());
-    let own = toml::toml! { kind = "image" source = "wide.png" };
+    let own = toml::toml! { kind = "image" image = "wide.png" };
     let native = add_child_widget(&app, row, "Native", &own.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);

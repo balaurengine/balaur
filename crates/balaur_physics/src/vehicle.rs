@@ -20,7 +20,7 @@ use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
 use crate::PhysicsState3d;
-use crate::vocabulary::{self as v, component as c, keys as k, map};
+use crate::vocabulary::{self as v, component as c, keys as k, map, words as w};
 use balaur_core::fixed_dt;
 
 /// The chassis settings, held on the node like a character's.
@@ -93,20 +93,24 @@ fn drive_one(eng: &Engine, chassis: Entity) -> Result<()> {
         .get(&chassis)
         .ok_or_else(|| anyhow!("a vehicle3d needs a body3d on the same node"))?;
     let mut controller = DynamicRayCastVehicleController::new(handle);
-    controller.index_up_axis = v::f(&params, k::UP_AXIS, 1.0).clamp(0.0, 2.0) as usize;
-    controller.index_forward_axis = v::f(&params, k::FORWARD_AXIS, 2.0).clamp(0.0, 2.0) as usize;
+    controller.index_up_axis = axis_index(v::text(&params, k::UP_AXIS, w::Y));
+    controller.index_forward_axis = axis_index(v::text(&params, k::FORWARD_AXIS, w::Z));
     for (entity, wheel_params, at) in &wheels {
         let real = |key: &str, default: f32| scalar::real(v::f(wheel_params, key, default));
         let tuning = WheelTuning {
-            suspension_stiffness: real(k::STIFFNESS, 30.0),
-            suspension_compression: real(k::COMPRESSION, 0.82),
-            suspension_damping: real(k::DAMPING, 0.88),
-            max_suspension_travel: real(k::MAX_TRAVEL, 5.0),
+            suspension_stiffness: real(k::SUSPENSION_STIFFNESS, 30.0),
+            suspension_compression: real(k::DAMPING_COMPRESSION, 0.82),
+            suspension_damping: real(k::DAMPING_RELAXATION, 0.88),
+            max_suspension_travel: real(k::SUSPENSION_TRAVEL, 5.0),
             side_friction_stiffness: real(k::SIDE_FRICTION, 1.0),
             friction_slip: real(k::FRICTION_SLIP, 10.5),
-            max_suspension_force: real(k::MAX_FORCE, 6000.0),
+            max_suspension_force: real(k::SUSPENSION_MAX_FORCE, 6000.0),
         };
-        let direction = scalar::v3a(v::vec3(wheel_params, k::DIRECTION, [0.0, -1.0, 0.0]));
+        let direction = scalar::v3a(v::vec3(
+            wheel_params,
+            k::SUSPENSION_DIRECTION,
+            [0.0, -1.0, 0.0],
+        ));
         let axle = scalar::v3a(v::vec3(wheel_params, k::AXLE, [-1.0, 0.0, 0.0]));
         let wheel = controller.add_wheel(
             scalar::v3(at.x, at.y, at.z),
@@ -163,7 +167,7 @@ pub(crate) fn install_vehicle_api(m: &mut dyn Bindings<Engine>) {
         ("set_engine_force", &[c::WHEEL_3D], "", "How hard this wheel drives, in newtons; negative reverses."),
         ("set_brake", &[c::WHEEL_3D], "", "How hard this wheel brakes."),
         ("set_steering", &[c::WHEEL_3D], "", "Turn this wheel, in radians."),
-        ("wheel_state", &[c::WHEEL_3D], "", "What the last step did with this wheel: `#{ rotation, suspension_force, grounded, engine_force, brake, steering }`."),
+        ("wheel_state", &[c::WHEEL_3D], "", "What the last step did with this wheel: `#{ rotation, suspension_force, in_contact, engine_force, brake, steering }`."),
         ("vehicle_speed", &[c::VEHICLE_3D], "", "How fast the chassis is going along its forward axis, in units per second."),
     ]);
     m.function(
@@ -194,7 +198,7 @@ pub(crate) fn install_vehicle_api(m: &mut dyn Bindings<Engine>) {
                 k::SUSPENSION_FORCE,
                 Value::Num(f64::from(input.suspension_force)),
             ),
-            (k::GROUNDED, Value::Bool(input.grounded)),
+            (k::IN_CONTACT, Value::Bool(input.grounded)),
             (k::ENGINE_FORCE, Value::Num(f64::from(input.engine_force))),
             (k::BRAKE, Value::Num(f64::from(input.brake))),
             (k::STEERING, Value::Num(f64::from(input.steering))),
@@ -229,7 +233,7 @@ pub(crate) fn install_vehicle_api(m: &mut dyn Bindings<Engine>) {
 /// Which of the chassis's own axes points forward, as the index rapier's
 /// controller takes and `vehicle_speed` measures along.
 fn forward_axis(params: &toml::Value) -> Vector {
-    match v::f(params, k::FORWARD_AXIS, 2.0).clamp(0.0, 2.0) as usize {
+    match axis_index(v::text(params, k::FORWARD_AXIS, w::Z)) {
         0 => Vector::X,
         1 => Vector::Y,
         _ => Vector::Z,
@@ -244,16 +248,28 @@ fn with_wheel(eng: &Engine, node: NodeId, f: impl FnOnce(&mut WheelInput3d)) -> 
     Ok(())
 }
 
+/// Which of a chassis's own axes a word names.
+fn axis_index(word: &str) -> usize {
+    match word {
+        w::X => 0,
+        w::Y => 1,
+        _ => 2,
+    }
+}
+
 pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
+    let axes = v::options(w::AXES);
     reg.register_component(
         c::VEHICLE_3D,
         ComponentDef {
+            events: &[],
+            warnings: None,
             doc: "Makes the node's `body3d` a raycast vehicle chassis, driven by the `wheel3d` children under it. `forward_axis` and `up_axis` orient it.",
             schema: ComponentDef::parse_schema(
                 c::VEHICLE_3D,
                 &v::schema(&[
-                    (k::UP_AXIS, r#"{ type = "float", default = 1.0, min = 0.0, max = 2.0, description = "Which of the chassis's own axes points up: 0 for x, 1 for y, 2 for z" }"#),
-                    (k::FORWARD_AXIS, r#"{ type = "float", default = 2.0, min = 0.0, max = 2.0, description = "Which of the chassis's own axes points forward" }"#),
+                    (k::UP_AXIS, &format!(r#"{{ type = "enum", default = "{}", options = [{axes}], description = "Which of the chassis's own axes points up" }}"#, w::Y)),
+                    (k::FORWARD_AXIS, &format!(r#"{{ type = "enum", default = "{}", options = [{axes}], description = "Which of the chassis's own axes points forward" }}"#, w::Z)),
                 ]),
             ),
             tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
@@ -276,21 +292,23 @@ pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
     reg.register_component(
         c::WHEEL_3D,
         ComponentDef {
+            events: &[],
+            warnings: None,
             doc: "One wheel of the `vehicle3d` above it; the node's position on the chassis is where its ray starts. `physics3d.set_engine_force`, `set_brake` and `set_steering` drive it.",
             schema: ComponentDef::parse_schema(
                 c::WHEEL_3D,
                 &v::schema(&[
                     (k::RADIUS, r#"{ type = "float", default = 0.4, min = 0.01, description = "The wheel's radius, which is how far off the ground it holds the ray's end" }"#),
                     (k::REST_LENGTH, r#"{ type = "float", default = 0.3, min = 0.0, description = "How long the suspension is with no weight on it" }"#),
-                    (k::DIRECTION, r#"{ type = "vec3", default = [0.0, -1.0, 0.0], description = "Which way the suspension pushes, in the chassis's own space: down" }"#),
+                    (k::SUSPENSION_DIRECTION, r#"{ type = "vec3", default = [0.0, -1.0, 0.0], description = "Which way the suspension pushes, in the chassis's own space: down" }"#),
                     (k::AXLE, r#"{ type = "vec3", default = [-1.0, 0.0, 0.0], description = "The axle the wheel turns about, in the chassis's own space" }"#),
-                    (k::STIFFNESS, r#"{ type = "float", default = 30.0, min = 0.0, description = "Spring stiffness: higher is a stiffer, twitchier car" }"#),
-                    (k::COMPRESSION, r#"{ type = "float", default = 0.82, min = 0.0, description = "Damping while the suspension is being squashed" }"#),
-                    (k::DAMPING, r#"{ type = "float", default = 0.88, min = 0.0, description = "Damping while the suspension is coming back" }"#),
-                    (k::MAX_TRAVEL, r#"{ type = "float", default = 5.0, min = 0.0, description = "How far the suspension may move in total" }"#),
+                    (k::SUSPENSION_STIFFNESS, r#"{ type = "float", default = 30.0, min = 0.0, description = "Spring stiffness: higher is a stiffer, twitchier car" }"#),
+                    (k::DAMPING_COMPRESSION, r#"{ type = "float", default = 0.82, min = 0.0, description = "Damping while the suspension is being squashed" }"#),
+                    (k::DAMPING_RELAXATION, r#"{ type = "float", default = 0.88, min = 0.0, description = "Damping while the suspension is coming back" }"#),
+                    (k::SUSPENSION_TRAVEL, r#"{ type = "float", default = 5.0, min = 0.0, description = "How far the suspension may move in total" }"#),
                     (k::FRICTION_SLIP, r#"{ type = "float", default = 10.5, min = 0.0, description = "Grip along the wheel's rolling direction; lower slides more" }"#),
                     (k::SIDE_FRICTION, r#"{ type = "float", default = 1.0, min = 0.0, description = "Grip sideways: what stops the car sliding out of a corner" }"#),
-                    (k::MAX_FORCE, r#"{ type = "float", default = 6000.0, min = 0.0, description = "The most force this suspension may push the chassis with" }"#),
+                    (k::SUSPENSION_MAX_FORCE, r#"{ type = "float", default = 6000.0, min = 0.0, description = "The most force this suspension may push the chassis with" }"#),
                 ]),
             ),
             tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],

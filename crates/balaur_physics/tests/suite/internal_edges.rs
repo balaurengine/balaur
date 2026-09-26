@@ -126,7 +126,7 @@ fn a_heightfield_fixes_its_internal_edges_unless_it_is_told_not_to() {
 
 #[test]
 fn a_2d_trimesh_fixes_its_internal_edges_as_the_3d_one_does() {
-    let app = run(&mesh_scene_2d("trimesh", ""), "", 1);
+    let app = run(&mesh_scene_2d("triangle_mesh", ""), "", 1);
     let handle = only_collider_2d(&app);
     let state = app.engine.resource::<PhysicsState2d>();
     let state = state.borrow();
@@ -187,8 +187,8 @@ parent = "n_level"
 position = [0.0, 0.0, 0.0]
 
 [nodes.collider2d]
-kind = "rect"
-half_extents = [4.0, 0.1]
+kind = "rectangle"
+size = [8.0, 0.2]
 one_way = true
 
 [[nodes]]
@@ -232,8 +232,8 @@ parent = "n_level"
 position = [10.0, 0.0, 0.0]
 
 [nodes.collider2d]
-kind = "rect"
-half_extents = [4.0, 0.1]
+kind = "rectangle"
+size = [8.0, 0.2]
 one_way = true
 "#;
 

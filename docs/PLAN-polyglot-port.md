@@ -161,11 +161,11 @@ arms; these names still fall to `gd.todo`:
 | Godot | Sites | Engine |
 | --- | --: | --- |
 | `Performance.get_monitor` | 19 | `engine.timings`, `render.stats` |
-| `JavaScriptBridge.eval`, `get_interface` | 13 | `web.visible`, `web.location`; the heap probes answer nothing |
+| `JavaScriptBridge.eval`, `get_interface` | 13 | `browser.visible`, `browser.location`; the heap probes answer nothing |
 | `FileAccess.open`, `get_sha256`, `get_file_as_bytes`; `DirAccess.rename_absolute`, `remove_absolute` | 14 | `fs`, `hash` |
 | physics ray and point queries, `get_world_2d` | 15 | `physics2d.raycast`, `point_hits` |
 | `WebSocketPeer` | 10 | `websocket` |
-| `AudioServer.set_bus_volume_db`, `set_bus_mute` | 10 | `audio.set_bus_volume` |
+| `AudioServer.set_bus_volume_db`, `set_bus_mute` | 10 | `audio.set_bus_volume_linear` |
 | `get_viewport_transform`, `get_global_transform_with_canvas`, `to_local` | 16 | `render.camera_2d`, `transform` |
 | `Geometry2D` | 6 | `geometry2d` |
 | `HTTPRequest` | 4 | `http` |
@@ -263,9 +263,11 @@ Three rules belong to the importer rather than the translator:
    with a `_draw` draws it every frame from `update`, and thirteen verbs go
    through the shim, which runs each point through the node's transform and
    the one `draw_set_transform` set, cuts a concave polygon into triangles,
-   and flips Godot's arc angles. The two options on the engine's verbs are
-   not built: a script's drawing sits over the scene, and a texture region
-   draws as the whole picture.
+   and flips Godot's arc angles. Done 2026-09-25: every verb takes a
+   trailing table, whose `z_index` hangs the shape under one holder node per
+   index that the 2D order places after that index's nodes, and a texture
+   takes `region_origin` and `region_size`. The shim draws a node's `_draw`
+   on its `effective_z_index`, under the next index rather than over the scene.
 6. **Importer rules**: the `FoamTrail` sprites, export types, autoloads.
    Done 2026-09-24: a `ColorRect` with a material under a `Node2D` is a
    `shape2d` rectangle carrying it, 34 notes to 1; an export typed by a class
@@ -292,8 +294,12 @@ Three rules belong to the importer rather than the translator:
    (`matches`, `search`, `search_all`, `replace`, `split`, `escape`), which
    the shim's `RegEx` record calls; `Image.new()` + `load` as the texture's
    path. Not built, in balaur terms: `focus_neighbor_*` (the engine moves
-   focus itself), the app lifecycle notifications (the roadmap's "Suspend
-   and resume"), and `tab_changed`. A `MultiMesh` is the node's `cloner`
+   focus itself), and `NOTIFICATION_APPLICATION_PAUSED` and `_RESUMED`
+   (the roadmap's "Suspend and resume"). Focus in and out and the close
+   request reach `_notification` through `on_focused_changed` and
+   `on_quit_requested` since 2026-09-25. A page picked on a `tab` is its `change` since
+   2026-09-25, carrying the page's name, which `tab_changed` connects to;
+   a Godot handler that reads the index gets the name instead. A `MultiMesh` is the node's `cloner`
    in `mode = "list"` over one `polygon` child carrying the mesh, each
    instance a copy `set_copy` places and tints: one draw per wave layer.
    The cloner draws its copies in 2D since then, polygons included. `t.x = v`
@@ -323,6 +329,17 @@ Three rules belong to the importer rather than the translator:
    country maps as binary `.scn` (`RSCC`), which the importer does not
    read.
 10. **Web export**, `web_smoke`, the size report, the `web` mappings.
+    Done 2026-09-25: the pack is 139.0 MB and boots in headless Chrome,
+    drawing within 90 s with no warning or error. Scenes are 30.9 MB,
+    scripts 8.2 MB and assets 99.9 MB, of which PNG 47.6, CSV 35.6, fonts
+    9.7 and JSON 4.5. On the way: a packed game's `fs` reads its own files
+    from the pack, a pack carries `json` and `csv`, and `application/ignore`
+    takes what every Godot export preset leaves out, which cut the pack
+    from 186.9 MB. A window leaves fullscreen only when in it, a script
+    replacing a prefab's is the instance's own, `JavaScriptBridge` reads as
+    absent, and a method bound with arguments is a record. The report
+    lists 4 131 files, 42.3 MB, that nothing names; a script may build
+    their paths at run time, so none is stripped.
 11. **Pictures against Godot's**, and what they show fixed.
 12. **A device.** iOS and Android signed and run once hardware is on the
     desk.

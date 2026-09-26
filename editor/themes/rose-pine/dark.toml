@@ -1,0 +1,19 @@
+# Rosé Pine: MIT, Copyright (c) 2023 Rosé Pine.
+# From github.com/rose-pine/neovim, lua/rose-pine/palette.lua.
+type = "widget_theme"
+
+[colors]
+background = "#191724"
+bg_panel = "#1f1d2e"
+bg_control = "#26233a"
+foreground = "#e0def4"
+primary = "#ebbcba"
+secondary = "#c4a7e7"
+success = "#95b1ac"
+warning = "#f6c177"
+danger = "#eb6f92"
+syntax_keyword = "#5395b1"  # #31748f, walked to AA
+syntax_string = "#f6c177"
+syntax_number = "#f6c177"
+syntax_type = "#9ccfd8"
+syntax_comment = "#908caa"

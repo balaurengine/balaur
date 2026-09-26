@@ -7,7 +7,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use balaur_core::{App, AppConfig, FIXED_DT, MAX_SUBSTEPS, Stage};
+use balaur_core::{App, AppConfig, DEFAULT_FIXED_DT, MAX_SUBSTEPS, Stage};
 
 fn app() -> App {
     App::new(AppConfig::bare(".")).unwrap()
@@ -25,18 +25,18 @@ fn recording_app() -> (App, Rc<RefCell<Vec<f32>>>) {
 #[test]
 fn a_frame_of_exactly_one_step_runs_the_stage_once() {
     let (mut app, seen) = recording_app();
-    app.tick(FIXED_DT);
-    assert_eq!(*seen.borrow(), vec![FIXED_DT]);
+    app.tick(DEFAULT_FIXED_DT);
+    assert_eq!(*seen.borrow(), vec![DEFAULT_FIXED_DT]);
 }
 
 #[test]
 fn a_long_frame_runs_several_steps_all_at_the_fixed_dt() {
     let (mut app, seen) = recording_app();
-    app.tick(FIXED_DT * 3.0);
+    app.tick(DEFAULT_FIXED_DT * 3.0);
     let seen = seen.borrow();
     assert_eq!(seen.len(), 3, "three steps' worth of time is three steps");
     assert!(
-        seen.iter().all(|&dt| dt == FIXED_DT),
+        seen.iter().all(|&dt| dt == DEFAULT_FIXED_DT),
         "a fixed step that varies is not a fixed step: {seen:?}"
     );
 }
@@ -44,9 +44,9 @@ fn a_long_frame_runs_several_steps_all_at_the_fixed_dt() {
 #[test]
 fn a_short_frame_runs_no_steps_and_carries_the_remainder() {
     let (mut app, seen) = recording_app();
-    app.tick(FIXED_DT * 0.5);
+    app.tick(DEFAULT_FIXED_DT * 0.5);
     assert!(seen.borrow().is_empty(), "half a step is not a step");
-    app.tick(FIXED_DT * 0.5);
+    app.tick(DEFAULT_FIXED_DT * 0.5);
     assert_eq!(
         seen.borrow().len(),
         1,
@@ -57,7 +57,7 @@ fn a_short_frame_runs_no_steps_and_carries_the_remainder() {
 #[test]
 fn time_past_the_substep_cap_is_dropped_rather_than_caught_up_on() {
     let (mut app, seen) = recording_app();
-    app.tick(FIXED_DT * 100.0);
+    app.tick(DEFAULT_FIXED_DT * 100.0);
     assert_eq!(seen.borrow().len(), MAX_SUBSTEPS as usize);
 }
 
@@ -85,6 +85,6 @@ fn the_fixed_stage_runs_after_update_and_before_post_update() {
         let sink = Rc::clone(&order);
         app.add_system(stage, move |_, _| sink.borrow_mut().push(label));
     }
-    app.tick(FIXED_DT);
+    app.tick(DEFAULT_FIXED_DT);
     assert_eq!(*order.borrow(), vec!["update", "fixed", "post"]);
 }

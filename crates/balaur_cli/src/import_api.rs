@@ -220,7 +220,7 @@ fn install_import_api(m: &mut dyn Bindings<Engine>) {
             "Import one file into the edited project, or into `project` when one is named, a few files per frame, reporting each to whatever `listen` named. Answers false while a recording plays. A model and a sprite are read first and then written a slice at a time, and a Godot project is walked a few files at a time; a level walks its own folder and takes one long slice, which says so in `files`.",
         ),
         (
-            "running",
+            "running_count",
             &[],
             "()",
             "How many imports are in flight.",
@@ -264,7 +264,7 @@ fn install_import_api(m: &mut dyn Bindings<Engine>) {
             .store(true, Ordering::Relaxed);
         Ok(Value::Nil)
     });
-    m.function("running", |eng: &Engine, ()| {
+    m.function("running_count", |eng: &Engine, ()| {
         let running = eng
             .resource::<ImportState>()
             .borrow()
@@ -272,11 +272,11 @@ fn install_import_api(m: &mut dyn Bindings<Engine>) {
             .load(Ordering::Relaxed);
         Ok(count(running))
     });
-    install_listen::<ImportState, ImportEvent>(m, "on_import");
+    install_listen::<ImportState, ImportEvent>(m, "on_import_event");
 }
 
 /// What `listen` is documented as.
-const LISTEN_DOC: &str = "Have the node's `on_import(event)`, or the `on_event` method the options name, called as an import starts, writes each file, finishes or fails.";
+const LISTEN_DOC: &str = "Have the node's `on_import_event(event)`, or the `on_event` method the options name, called as an import starts, writes each file, finishes or fails.";
 
 /// Ask for a file and import it. A desktop dialog answers with a path, so
 /// this is the picker and `start`; a tab's chooser answers on an event, so
@@ -510,7 +510,7 @@ impl ImportJob {
         // Let go first: on a thread, the tick may read the count as soon as
         // the end arrives. Counted up once when the job was made.
         self.running.fetch_sub(1, Ordering::Relaxed);
-        let _ = self.report.send(event);
+        balaur_core::replay::report(&self.report, event);
         self.state = JobState::Over;
         Progress::Done
     }
@@ -538,7 +538,10 @@ impl ImportJob {
             return match balaur_import::ProjectWalk::begin(file, &self.project) {
                 Ok(walk) => {
                     let files = walk.files();
-                    let _ = self.report.send(ImportEvent::Started { source, files });
+                    balaur_core::replay::report(
+                        &self.report,
+                        ImportEvent::Started { source, files },
+                    );
                     self.state = JobState::Walking {
                         walk: Box::new(walk),
                         done: 0,
@@ -555,10 +558,13 @@ impl ImportJob {
         if !balaur_import::slices(&name) {
             // A level and a Godot project walk their own folder, so there is
             // nothing to plan and this is the one long slice.
-            let _ = self.report.send(ImportEvent::Started {
-                source: source.clone(),
-                files: 0,
-            });
+            balaur_core::replay::report(
+                &self.report,
+                ImportEvent::Started {
+                    source: source.clone(),
+                    files: 0,
+                },
+            );
             let Source::Beside(file) = &self.source else {
                 return self.over(ImportEvent::Failed {
                     source,
@@ -612,7 +618,7 @@ impl ImportJob {
         match planned {
             Ok(plan) => {
                 let files = plan.outputs();
-                let _ = self.report.send(ImportEvent::Started { source, files });
+                balaur_core::replay::report(&self.report, ImportEvent::Started { source, files });
                 self.state = JobState::Writing {
                     plan,
                     sink: balaur_import::ProjectSink::new(&self.project),
@@ -677,12 +683,15 @@ impl ImportJob {
                 match plan.write_next(&mut sink, &side) {
                     Ok(progress) => {
                         done += 1;
-                        let _ = self.report.send(ImportEvent::Wrote {
-                            source: source.clone(),
-                            path,
-                            done,
-                            files,
-                        });
+                        balaur_core::replay::report(
+                            &self.report,
+                            ImportEvent::Wrote {
+                                source: source.clone(),
+                                path,
+                                done,
+                                files,
+                            },
+                        );
                         if progress == Progress::Done {
                             break;
                         }
@@ -740,12 +749,15 @@ impl ImportJob {
             match walk.read_next() {
                 Ok(_) => {
                     done += 1;
-                    let _ = self.report.send(ImportEvent::Wrote {
-                        source: source.clone(),
-                        path,
-                        done,
-                        files,
-                    });
+                    balaur_core::replay::report(
+                        &self.report,
+                        ImportEvent::Wrote {
+                            source: source.clone(),
+                            path,
+                            done,
+                            files,
+                        },
+                    );
                 }
                 Err(why) => {
                     return self.over(ImportEvent::Failed {

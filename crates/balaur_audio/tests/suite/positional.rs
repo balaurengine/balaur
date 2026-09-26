@@ -6,7 +6,7 @@
 use std::path::Path;
 
 use balaur_audio::spatial::{self, Emitter, ListenerPose};
-use balaur_audio::{AudioPlugin, AudioState, Cue};
+use balaur_audio::{AudioPlugin, AudioState, Playback};
 use balaur_core::glamx::Vec3;
 use balaur_core::hecs::Entity;
 use balaur_core::{App, AppConfig, Transform, components, scene};
@@ -329,11 +329,11 @@ fn a_cue_can_be_played_at_a_point_with_no_node_behind_it() {
     let app = app_in(dir.path());
     let state = app.engine.resource::<AudioState>();
     state.borrow_mut().set_listener(Vec3::ZERO);
-    let handle = state.borrow_mut().play_cue(
+    let handle = state.borrow_mut().play_with(
         Vec::new(),
-        Cue {
+        Playback {
             emitter: Some(Emitter::new(Vec3::new(80.0, 0.0, 0.0), 1.0, 50.0, 0.0)),
-            ..Cue::default()
+            ..Playback::default()
         },
     );
     assert_eq!(

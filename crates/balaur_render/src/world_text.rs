@@ -7,6 +7,8 @@
 
 use balaur_core::Engine;
 
+use crate::vocabulary::{keys as k, words as w};
+
 /// Where a block sits relative to the point it was drawn at.
 ///
 /// Its own enum rather than the shaper's: the buffer and its bindings are in
@@ -16,6 +18,25 @@ pub enum Align {
     Start,
     Center,
     End,
+}
+
+impl Align {
+    /// The alignment a scene or a script names; anything else starts.
+    pub(crate) fn of(word: &str) -> Self {
+        match word {
+            w::CENTER => Self::Center,
+            w::END => Self::End,
+            _ => Self::Start,
+        }
+    }
+
+    pub(crate) fn word(self) -> &'static str {
+        match self {
+            Self::Start => w::START,
+            Self::Center => w::CENTER,
+            Self::End => w::END,
+        }
+    }
 }
 
 /// An outline around the glyphs and a shadow behind them.
@@ -52,17 +73,17 @@ pub struct TextStyle {
     pub color: [f32; 4],
     pub align: Align,
     pub markup: bool,
-    /// The width lines break at, in the same pixels as `size`.
+    /// The width lines break at, in the same pixels as `font_size`.
     pub max_width: Option<f32>,
     pub decoration: Decoration,
     /// A project-relative `.fnt` naming a bitmap face; empty shapes with the
     /// project's vector fonts.
     pub font: String,
-    /// Which named chain to shape with — `heading`, `ui`, `mono` or `icons`.
+    /// Which named chain to shape with — `heading`, `ui`, `mono` or `icon`.
     pub family: String,
     /// Baseline to baseline, as a multiple of the size; zero takes the default.
     pub line_height: f32,
-    /// Extra space between glyphs, in the same pixels as `size`.
+    /// Extra space between glyphs, in the same pixels as `font_size`.
     pub letter_spacing: f32,
     /// 3D only: discard a pixel this transparent rather than blending it, so
     /// text can be depth-sorted with the scene instead of over it.
@@ -169,6 +190,8 @@ pub struct TextDraw {
     pub pixels_per_unit: f32,
     /// Whether the 3D pass draws it, facing the camera.
     pub in_3d: bool,
+    /// Its place among the 2D nodes; over everything when `None`.
+    pub z_index: Option<i32>,
 }
 
 /// What scripts drew this frame; the backend drains it as it draws.
@@ -191,30 +214,34 @@ pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<Tex
     };
     for (key, value) in &entries {
         match key.as_str() {
-            "size" => style.size = number(value).unwrap_or(style.size),
-            "weight" => style.weight = number(value).unwrap_or(400.0) as u16,
-            "italic" => style.italic = matches!(value, Value::Bool(true)),
-            "markup" => style.markup = matches!(value, Value::Bool(true)),
-            "max_width" => style.max_width = number(value),
-            "font" => {
+            k::FONT_SIZE => style.size = number(value).unwrap_or(style.size),
+            k::FONT_WEIGHT => {
+                style.weight = number(value).map_or(style.weight, |weight| weight as u16);
+            }
+            k::FONT_STYLE => style.italic = matches!(value, Value::Str(word) if word == w::ITALIC),
+            k::MARKUP => style.markup = matches!(value, Value::Bool(true)),
+            k::MAX_WIDTH => style.max_width = number(value),
+            k::BITMAP_FONT => {
                 if let Value::Str(path) = value {
                     style.font.clone_from(path);
                 }
             }
-            "family" => {
+            k::FONT_FAMILY => {
                 if let Value::Str(chain) = value {
                     style.family.clone_from(chain);
                 }
             }
-            "line_height" => style.line_height = number(value).unwrap_or(0.0).max(0.0),
-            "letter_spacing" => style.letter_spacing = number(value).unwrap_or(0.0),
-            "alpha_cut" => style.alpha_cut = number(value).unwrap_or(0.0).clamp(0.0, 1.0),
-            "outline_size" => {
+            k::LINE_HEIGHT => style.line_height = number(value).unwrap_or(0.0).max(0.0),
+            k::LETTER_SPACING => style.letter_spacing = number(value).unwrap_or(0.0),
+            k::ALPHA_CUT => style.alpha_cut = number(value).unwrap_or(0.0).clamp(0.0, 1.0),
+            k::OUTLINE_SIZE => {
                 style.decoration.outline_size = number(value).unwrap_or(0.0).max(0.0);
             }
-            "outline_color" => style.decoration.outline_color = crate::draw_2d::color_of(value)?,
-            "shadow_color" => style.decoration.shadow_color = crate::draw_2d::color_of(value)?,
-            "shadow_offset" => {
+            k::OUTLINE_COLOR => {
+                style.decoration.outline_color = crate::draw_2d::color_of(value)?;
+            }
+            k::SHADOW_COLOR => style.decoration.shadow_color = crate::draw_2d::color_of(value)?,
+            k::SHADOW_OFFSET => {
                 if let Value::List(items) = value
                     && items.len() >= 2
                 {
@@ -224,11 +251,10 @@ pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<Tex
                     ];
                 }
             }
-            "color" => style.color = crate::draw_2d::color_of(value)?,
-            "align" => {
+            k::COLOR => style.color = crate::draw_2d::color_of(value)?,
+            k::TEXT_ALIGN => {
                 style.align = match value {
-                    Value::Str(word) if word == "center" => Align::Center,
-                    Value::Str(word) if word == "end" => Align::End,
+                    Value::Str(word) => Align::of(word),
                     _ => Align::Start,
                 }
             }
@@ -238,12 +264,12 @@ pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<Tex
     Ok(style)
 }
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) use backend::{
     atlas_texture, bucket_ratio, layers, mesh_2d, mesh_3d, request_of, shape, shape_at,
 };
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod backend {
     use std::cell::RefCell;
     use std::rc::Rc;
@@ -399,7 +425,7 @@ mod backend {
         state.borrow_mut().add_bitmap_font(path, &descriptor, &page)
     }
 
-    /// Where a shaped block's top-left corner sits so `align` lands the block
+    /// Where a shaped block's top-left corner sits so `text_align` lands the block
     /// around the anchor, and the y flip the world needs: the shaper places
     /// glyphs down the screen, the world counts up.
     fn origin(shaped: &Shaped, align: super::Align) -> Vec2 {
@@ -586,7 +612,7 @@ mod backend {
 /// only, never the machine's, so every platform answers the same. A bitmap
 /// face is measured from its own descriptor, which is as fixed.
 pub fn measure(eng: &Engine, text: &str, style: &TextStyle) -> anyhow::Result<[f32; 2]> {
-    #[cfg(feature = "kiss3d")]
+    #[cfg(feature = "window")]
     {
         let state = balaur_text::shaper(eng);
         if !style.font.is_empty() {
@@ -597,7 +623,7 @@ pub fn measure(eng: &Engine, text: &str, style: &TextStyle) -> anyhow::Result<[f
         let size = state.borrow_mut().measure(&request);
         Ok([size.x, size.y])
     }
-    #[cfg(not(feature = "kiss3d"))]
+    #[cfg(not(feature = "window"))]
     {
         let _ = (eng, text, style);
         Err(anyhow::anyhow!(
@@ -608,13 +634,13 @@ pub fn measure(eng: &Engine, text: &str, style: &TextStyle) -> anyhow::Result<[f
 
 /// How far in front of the layer behind it each layer sits. Small enough to
 /// read as one block, large enough for the depth buffer to tell them apart.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn depth_of(layer: usize) -> f32 {
     layer as f32 * 0.001
 }
 
 /// Report a face that will not load once, not once a frame.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn report_once(err: &anyhow::Error) {
     let message = format!("{err:#}");
     if balaur_core::logbuf::first_time("world text", &message) {
@@ -625,7 +651,7 @@ pub(crate) fn report_once(err: &anyhow::Error) {
 /// Everything the backend keeps for text between frames: the nodes the
 /// immediate calls made, and one slot per node carrying a `text2d` or
 /// `text3d`.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 #[derive(Default)]
 pub(crate) struct Frame {
     transients: Transients,
@@ -634,20 +660,21 @@ pub(crate) struct Frame {
 
 /// Draw this frame's text: the nodes that carry it, then the calls that asked
 /// for it. Both come from the same atlas, uploaded once for the pair.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn draw(
     app: &balaur_core::App,
     scene_2d: &mut kiss3d::scene::SceneNode2d,
     scene_3d: &mut kiss3d::scene::SceneNode3d,
+    placed: &crate::draw_2d::Layers2d,
     frame: &mut Frame,
     viewport_height: f32,
 ) {
     crate::text_component::sync_text(app, scene_2d, scene_3d, &mut frame.slots, viewport_height);
-    flush(app, scene_2d, scene_3d, &mut frame.transients);
+    flush(app, scene_2d, scene_3d, placed, &mut frame.transients);
 }
 
 /// The nodes one frame's text made, dropped when the next frame draws.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 #[derive(Default)]
 pub(crate) struct Transients {
     two_d: Vec<kiss3d::scene::SceneNode2d>,
@@ -655,11 +682,12 @@ pub(crate) struct Transients {
 }
 
 /// Draw everything scripts asked for this frame, as nodes that live one frame.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn flush(
     app: &balaur_core::App,
     scene_2d: &mut kiss3d::scene::SceneNode2d,
     scene_3d: &mut kiss3d::scene::SceneNode3d,
+    placed: &crate::draw_2d::Layers2d,
     transients: &mut Transients,
 ) {
     use kiss3d::color::Color;
@@ -720,7 +748,8 @@ pub(crate) fn flush(
                 let Some(mesh) = mesh_2d(&block, scale, item.style.align, &shifts, &picks) else {
                     continue;
                 };
-                let mut node = scene_2d.add_mesh(mesh, glamx::Vec2::ONE);
+                let (mut parent, _) = placed.parent_of(item.z_index, scene_2d);
+                let mut node = parent.add_mesh(mesh, glamx::Vec2::ONE);
                 node.set_texture(texture.clone());
                 node.set_position(glamx::Vec2::new(item.at[0], item.at[1]));
                 node.set_color(Color::new(r, g, b, a));

@@ -10,7 +10,7 @@ authors.workspace = true
 balaur_cfg.workspace = true
 
 [features]
-# SVG textures rasterized at their `scale`. Off in a game template: an export
+# SVG textures rasterized at their `scale`. Off in a game runtime: an export
 # has already written the raster into the pack.
 svg = ["dep:resvg"]
 
@@ -32,7 +32,7 @@ balaur_script.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 tracing-log.workspace = true
-# Platform-standard user-data locations for `engine.user_data_dir`.
+# Platform-standard user-data locations for `engine.user_data_directory`.
 dirs = "7"
 sha2.workspace = true
 # Bone rest poses go through sin/cos once per bone; the platform libm differs
@@ -74,12 +74,12 @@ workspace = true
 web-time = "1"
 # The console, for the log lines a browser has no stderr for, and the window,
 # which is what opens a URL in a tab.
-web-sys = { version = "0.3", features = ["console", "Window"] }
+web-sys = { version = "0.3.106", features = ["console", "Window"] }
 
-# The browser outside emscripten, which keeps process ids: the one salt an
-# install id can draw there, since `std::process::id` panics on that target.
-[target.'cfg(all(target_family = "wasm", not(target_os = "emscripten")))'.dependencies]
-js-sys = "0.3"
+# The page's random numbers: the one salt an install id can draw in a browser,
+# since `std::process::id` panics on that target.
+[target.'cfg(target_family = "wasm")'.dependencies]
+js-sys = "0.3.106"
 
 # The shared-memory web build's workers, for `task::compute`: the pool the page
 # starts through `wasm-bindgen-rayon`, since `std::thread` cannot spawn there.

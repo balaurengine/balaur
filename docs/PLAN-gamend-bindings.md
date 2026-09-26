@@ -72,7 +72,7 @@ Balaur:
   handler over the stack.
 - `editor/library/` holds what the Library dock offers a project —
   materials, models, rigs, scenes, scripts, shaders, skies, templates — each
-  an entry in `manifest.toml` with a `kind`, a `file` and a card line.
+  an entry in `catalog.toml` with a `kind`, a `file` and a card line.
   `balaur new <path> --template <id>` copies a template. Nothing there is a
   directory a project adds to itself; that is the one new kind this needs.
 - The GDScript translator (`docs/PLAN-gdscript.md`) converts the game, and
@@ -166,7 +166,7 @@ reading the same table instead of carrying the dispatch in code is Gamend's
 own roadmap item, not this plan's.
 
 **Copied into balaur as a library addon.** `editor/library/addons/gamend/`
-is the checked-in copy, one `manifest.toml` entry of a new `kind = "addon"`
+is the checked-in copy, one `catalog.toml` entry of a new `kind = "addon"`
 whose `file` is a directory. `scripts/sync_gamend.sh` refreshes it from a
 Gamend checkout beside this one or from the addon artifact Gamend's CI
 publishes, the way the website's `sync-docs.sh` refreshes from this
@@ -233,7 +233,7 @@ by where the file lives, not by who does it.
   `mix dev.start`: a device login, a hook through `rpc_call`, a KV key
   subscribed and its `kv_updated` decoded.
 - **3. The library copy (balaur) — built.** `editor/library/addons/gamend/`, the
-  `addon` kind in `manifest.toml` and the dock, `balaur new --addon`,
+  `addon` kind in `catalog.toml` and the dock, `balaur new --addon`,
   `scripts/sync_gamend.sh`. Ends with: a new project from any template plus
   the addon passes `balaur check`, and a test in `crates/balaur_gamend/tests`
   boots it against gamend.org and calls the addon's own functions (a query,

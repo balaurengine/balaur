@@ -64,7 +64,7 @@ fn a_light_is_collected_where_the_scene_tree_puts_it() {
     place(&app, rig, Vec3::new(3.0, 1.0, 0.0), Quat::IDENTITY);
     let lamp = scene::spawn_node(&mut app.engine.world_mut(), "Lamp", rig);
     place(&app, lamp, Vec3::new(0.0, 2.0, 0.0), Quat::IDENTITY);
-    add(&app, lamp, "light2d", "radius = 4.0\nintensity = 2.0");
+    add(&app, lamp, "light2d", "range = 4.0\nintensity = 2.0");
     app.tick(1.0 / 60.0);
     let world = app.engine.world();
     let collected = lights(&world, app.engine.root());
@@ -78,7 +78,7 @@ fn a_light_is_collected_where_the_scene_tree_puts_it() {
 fn a_scene_with_no_light2d_collects_nothing() {
     let mut app = app();
     let bare = node(&app);
-    add(&app, bare, "shape2d", "kind = \"rect\"");
+    add(&app, bare, "shape2d", "kind = \"rectangle\"");
     app.tick(1.0 / 60.0);
     let world = app.engine.world();
     assert!(lights(&world, app.engine.root()).is_empty());
@@ -114,7 +114,7 @@ fn an_occluder_defaults_to_the_nodes_collider_outline() {
         &app,
         wall,
         "collider2d",
-        "kind = \"rect\"\nhalf_extents = [2.0, 0.5]",
+        "kind = \"rectangle\"\nsize = [4.0, 1.0]",
     );
     add(&app, wall, "occluder2d", "");
     app.tick(1.0 / 60.0);
@@ -165,7 +165,7 @@ fn an_occluder_falls_back_to_the_nodes_2d_shape() {
         &app,
         crate_node,
         "shape2d",
-        "kind = \"rect\"\nhalf_extents = [1.0, 1.0]",
+        "kind = \"rectangle\"\nsize = [2.0, 2.0]",
     );
     add(&app, crate_node, "occluder2d", "");
     app.tick(1.0 / 60.0);
@@ -186,7 +186,7 @@ fn a_closed_occluder_edge_list_wraps_around() {
         &app,
         crate_node,
         "shape2d",
-        "kind = \"rect\"\nhalf_extents = [1.0, 1.0]",
+        "kind = \"rectangle\"\nsize = [2.0, 2.0]",
     );
     add(&app, crate_node, "occluder2d", "");
     app.tick(1.0 / 60.0);
@@ -224,7 +224,7 @@ fn an_outline_comes_back_in_world_space_and_closed() {
         &app,
         crate_node,
         "shape2d",
-        "kind = \"rect\"\nhalf_extents = [1.0, 1.0]",
+        "kind = \"rectangle\"\nsize = [2.0, 2.0]",
     );
     add(&app, crate_node, "occluder2d", "");
     app.tick(1.0 / 60.0);
@@ -244,7 +244,7 @@ fn an_outline_comes_back_in_world_space_and_closed() {
 fn a_node_without_an_occluder_has_no_outline() {
     let mut app = app();
     let bare = node(&app);
-    add(&app, bare, "shape2d", "kind = \"rect\"");
+    add(&app, bare, "shape2d", "kind = \"rectangle\"");
     app.tick(1.0 / 60.0);
     let world = app.engine.world();
     assert!(outline(&world, bare).is_empty());
@@ -312,7 +312,7 @@ fn an_edge_through_the_light_casts_no_infinity() {
 fn the_cameras_ambient_reaches_the_2d_config() {
     let mut app = app();
     let cam = node(&app);
-    add(&app, cam, "camera2d", "ambient = \"#402010\"");
+    add(&app, cam, "camera2d", "ambient_color = \"#402010\"");
     let before = app.engine.resource::<CameraConfig2d>().borrow().ambient;
     assert!(
         before.iter().all(|c| c.abs() < 1e-6),
@@ -333,13 +333,13 @@ fn the_components_round_trip() {
         &app,
         lamp,
         "light2d",
-        "kind = \"directional\"\ncolor = \"#ffd28a\"\nradius = 6.0\nintensity = 1.2\nshadows = false",
+        "kind = \"directional\"\ncolor = \"#ffd28a\"\nrange = 6.0\nintensity = 1.2\nshadow_enabled = false",
     );
     let saved = components::get(&app.engine, lamp, "light2d").unwrap();
     let table = saved.as_table().unwrap();
     assert_eq!(table["kind"].as_str().unwrap(), "directional");
     assert!((table["intensity"].as_float().unwrap() - 1.2).abs() < 1e-6);
-    assert!(!table["shadows"].as_bool().unwrap());
+    assert!(!table["shadow_enabled"].as_bool().unwrap());
 
     add(&app, lamp, "occluder2d", "closed = false");
     let saved = components::get(&app.engine, lamp, "occluder2d").unwrap();
@@ -348,9 +348,16 @@ fn the_components_round_trip() {
     assert_eq!(table["mesh"].as_str().unwrap(), "");
 
     let cam = node(&app);
-    add(&app, cam, "camera2d", "ambient = [0.1, 0.2, 0.3, 1.0]");
+    add(
+        &app,
+        cam,
+        "camera2d",
+        "ambient_color = [0.1, 0.2, 0.3, 1.0]",
+    );
     let saved = components::get(&app.engine, cam, "camera2d").unwrap();
-    let ambient = saved.as_table().unwrap()["ambient"].as_array().unwrap();
+    let ambient = saved.as_table().unwrap()["ambient_color"]
+        .as_array()
+        .unwrap();
     assert!((ambient[1].as_float().unwrap() - 0.2).abs() < 1e-6);
 }
 

@@ -3,7 +3,7 @@
 //!
 //! One provider, two fronts. `balaur lsp` renders the answers as LSP JSON and
 //! the editor's `script` module renders them as Rune objects, so a popup in
-//! the Script persona and a popup in VS Code say the same thing.
+//! the Script workspace and a popup in VS Code say the same thing.
 //!
 //! Nothing here runs during a frame. Rune offers no incremental parse, so
 //! what completes is decided from the text around the caret by [`classify`],

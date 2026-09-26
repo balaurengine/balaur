@@ -1,0 +1,19 @@
+# Catppuccin Latte: MIT, Copyright (c) 2021 Catppuccin.
+# From github.com/catppuccin/palette, palette.json v1.8.0.
+type = "widget_theme"
+
+[colors]
+background = "#e6e9ef"
+bg_panel = "#eff1f5"
+bg_control = "#ccd0da"
+foreground = "#4c4f69"
+primary = "#1e66f5"
+secondary = "#179299"
+success = "#40a02b"
+warning = "#df8e1d"
+danger = "#d20f39"
+syntax_keyword = "#771dda"  # #8839ef, walked to AA
+syntax_string = "#006900"  # #40a02b, walked to AA
+syntax_number = "#b30e00"  # #fe640b, walked to AA
+syntax_type = "#8f4300"  # #df8e1d, walked to AA
+syntax_comment = "#56586b"  # #7c7f93, walked to AA

@@ -314,7 +314,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [jni-sys](https://github.com/jni-rs/jni-sys) | 0.4.1 | `MIT OR Apache-2.0` |
 | [jni-sys-macros](https://github.com/jni-rs/jni-sys) | 0.4.1 | `MIT OR Apache-2.0` |
 | [jobserver](https://github.com/rust-lang/jobserver-rs) | 0.1.35 | `MIT OR Apache-2.0` |
-| [js-sys](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys) | 0.3.105 | `MIT OR Apache-2.0` |
+| [js-sys](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys) | 0.3.106 | `MIT OR Apache-2.0` |
 | [khronos-egl](https://github.com/timothee-haudebourg/khronos-egl) | 6.0.0 | `MIT OR Apache-2.0` |
 | [khronos_api](https://github.com/brendanzab/gl-rs/) | 3.1.0 | `Apache-2.0` |
 | [kio](https://github.com/moq-dev/moq) | 0.5.9 | `MIT OR Apache-2.0` |
@@ -502,7 +502,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [quote](https://github.com/dtolnay/quote) | 1.0.47 | `MIT OR Apache-2.0` |
 | [r-efi](https://github.com/r-efi/r-efi) | 5.3.0 | `MIT OR Apache-2.0 OR LGPL-2.1-or-later` |
 | [r-efi](https://github.com/r-efi/r-efi) | 6.0.0 | `MIT OR Apache-2.0 OR LGPL-2.1-or-later` |
-| [rand](https://github.com/rust-random/rand) | 0.10.2 | `MIT OR Apache-2.0` |
+| [rand](https://github.com/rust-random/rand) | 0.10.3 | `MIT OR Apache-2.0` |
 | [rand](https://github.com/rust-random/rand) | 0.9.5 | `MIT OR Apache-2.0` |
 | [rand_chacha](https://github.com/rust-random/rand) | 0.9.0 | `MIT OR Apache-2.0` |
 | [rand_core](https://github.com/rust-random/rand_core) | 0.10.1 | `MIT OR Apache-2.0` |
@@ -602,7 +602,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [skrifa](https://github.com/googlefonts/fontations) | 0.44.0 | `MIT OR Apache-2.0` |
 | [slab](https://github.com/tokio-rs/slab) | 0.4.12 | `MIT` |
 | [slotmap](https://github.com/orlp/slotmap) | 1.1.1 | `Zlib` |
-| [smallvec](https://github.com/servo/rust-smallvec) | 1.16.1 | `MIT OR Apache-2.0` |
+| [smallvec](https://github.com/servo/rust-smallvec) | 1.16.2 | `MIT OR Apache-2.0` |
 | [smithay-client-toolkit](https://github.com/smithay/client-toolkit) | 0.19.2 | `MIT` |
 | [smol_str](https://github.com/rust-analyzer/smol_str) | 0.2.2 | `MIT OR Apache-2.0` |
 | [smol_str](https://github.com/rust-lang/rust-analyzer/tree/master/lib/smol_str) | 0.3.6 | `MIT OR Apache-2.0` |
@@ -715,12 +715,12 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [walkdir](https://github.com/BurntSushi/walkdir) | 2.5.0 | `Unlicense OR MIT` |
 | [wasi](https://github.com/bytecodealliance/wasi) | 0.11.1+wasi-snapshot-preview1 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` |
 | [wasip2](https://github.com/bytecodealliance/wasi-rs) | 1.0.4+wasi-0.2.12 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` |
-| [wasm-bindgen](https://github.com/wasm-bindgen/wasm-bindgen) | 0.2.128 | `MIT OR Apache-2.0` |
-| [wasm-bindgen-futures](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/futures) | 0.4.78 | `MIT OR Apache-2.0` |
-| [wasm-bindgen-macro](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/macro) | 0.2.128 | `MIT OR Apache-2.0` |
-| [wasm-bindgen-macro-support](https://github.com/wasm-bindgen/wasm-bindgen/tree/main/crates/macro-support) | 0.2.128 | `MIT OR Apache-2.0` |
+| [wasm-bindgen](https://github.com/wasm-bindgen/wasm-bindgen) | 0.2.129 | `MIT OR Apache-2.0` |
+| [wasm-bindgen-futures](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/futures) | 0.4.79 | `MIT OR Apache-2.0` |
+| [wasm-bindgen-macro](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/macro) | 0.2.129 | `MIT OR Apache-2.0` |
+| [wasm-bindgen-macro-support](https://github.com/wasm-bindgen/wasm-bindgen/tree/main/crates/macro-support) | 0.2.129 | `MIT OR Apache-2.0` |
 | [wasm-bindgen-rayon](https://github.com/RReverser/wasm-bindgen-rayon) | 1.3.0 | `Apache-2.0` |
-| [wasm-bindgen-shared](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/shared) | 0.2.128 | `MIT OR Apache-2.0` |
+| [wasm-bindgen-shared](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/shared) | 0.2.129 | `MIT OR Apache-2.0` |
 | [wasm_sync](https://github.com/DouglasDwyer/wasm_sync) | 0.1.2 | `MIT OR Apache-2.0` |
 | [wayland-backend](https://github.com/smithay/wayland-rs) | 0.3.17 | `MIT` |
 | [wayland-client](https://github.com/smithay/wayland-rs) | 0.31.15 | `MIT` |
@@ -731,7 +731,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [wayland-protocols-wlr](https://github.com/smithay/wayland-rs) | 0.3.12 | `MIT` |
 | [wayland-scanner](https://github.com/smithay/wayland-rs) | 0.31.11 | `MIT` |
 | [wayland-sys](https://github.com/smithay/wayland-rs) | 0.31.11 | `MIT` |
-| [web-sys](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/web-sys) | 0.3.105 | `MIT OR Apache-2.0` |
+| [web-sys](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/web-sys) | 0.3.106 | `MIT OR Apache-2.0` |
 | [web-time](https://github.com/daxpedda/web-time) | 1.1.0 | `MIT OR Apache-2.0` |
 | [web-transport-proto](https://github.com/moq-dev/web-transport) | 0.6.2 | `MIT OR Apache-2.0` |
 | [web-transport-quinn](https://github.com/moq-dev/web-transport) | 0.12.1 | `MIT OR Apache-2.0` |
@@ -850,7 +850,7 @@ reproduced from a crate that does ship it: accesskit, aotuv_lancer_vorbis_sys, a
 <details>
 <summary>Which packages carry this exact file</summary>
 
-ahash 0.8.12, aligned 0.4.3, arbitrary 1.4.2, arrayvec 0.7.8, as-slice 0.2.1, asn1-rs 0.7.2, asn1-rs-derive 0.6.0, atomic-waker 1.1.2, autocfg 1.5.1, base64 0.13.1, base64 0.21.7, base64 0.22.1, base64 0.23.1, bitflags 1.3.2, bitflags 2.13.2, bitstream-io 4.10.0, bumpalo 3.20.3, cc 1.4.7, cfg-if 1.0.5, concurrent-queue 2.5.0, core-foundation 0.10.1, core-foundation 0.9.4, core-foundation-sys 0.8.7, core-graphics 0.23.2, core-graphics-types 0.1.3, core_detect 1.0.0, coreaudio-rs 0.14.2, critical-section 1.2.0, crossbeam-channel 0.5.17, crossbeam-deque 0.8.8, crossbeam-epoch 0.9.21, crossbeam-utils 0.8.23, data-url 0.3.2, der-parser 10.0.0, displaydoc 0.2.7, either 1.18.0, ena 0.14.4, equivalent 1.0.2, errno 0.3.14, euclid 0.22.14, fastrand 2.5.0, filetime 0.2.29, find-msvc-tools 0.1.13, flate2 1.1.10, fnv 1.0.7, form_urlencoded 1.2.2, gethostname 1.1.0, gif 0.14.2, glob 0.3.4, glow 0.17.0, gltf 1.4.1, gltf-derive 1.4.1, gltf-json 1.4.1, hash32 0.3.1, hashbrown 0.16.1, hashbrown 0.17.1, heapless 0.8.0, heck 0.5.0, hermit-abi 0.5.3, httparse 1.10.1, idna 1.1.0, idna_adapter 1.2.2, indexmap 2.14.2, itertools 0.14.0, itertools 0.15.0, jni 0.21.1, jobserver 0.1.35, js-sys 0.3.105, khronos-egl 6.0.0, lalrpop-util 0.23.1, lazy_static 1.5.0, libfuzzer-sys 0.4.13, linux-raw-sys 0.12.1, linux-raw-sys 0.4.15, lock_api 0.4.14, log 0.4.34, matrixmultiply 0.3.11, num 0.4.3, num-bigint 0.4.8, num-complex 0.4.6, num-derive 0.4.2, num-derive 0.5.1, num-integer 0.1.47, num-iter 0.1.46, num-rational 0.4.2, num-traits 0.2.19, num_cpus 1.17.0, oid-registry 0.8.1, once_cell 1.21.4, openssl-probe 0.2.1, parking_lot 0.12.5, parking_lot_core 0.9.12, percent-encoding 2.3.2, pkg-config 0.3.34, plain 0.2.3, png 0.18.1, polling 3.11.0, pollster 0.4.0, pollster 1.0.1, primal-check 0.3.4, rawpointer 0.2.1, rayon 1.12.0, rayon-core 1.13.0, regex-automata 0.4.18, regex-lite 0.1.9, regex-syntax 0.8.11, renderdoc-sys 1.1.0, robust 1.2.0, roxmltree 0.21.1, rtrb 0.3.5, rustc-hash 1.1.0, rustc_version 0.4.1, rusticata-macros 4.1.0, rustix 0.38.44, rustix 1.1.5, rustls 0.23.45, rustls-native-certs 0.8.4, scoped-tls 1.0.1, scopeguard 1.2.0, security-framework 3.7.0, security-framework-sys 2.17.0, sfv 0.15.0, simd_cesu8 1.2.0, simplecss 0.2.2, smallvec 1.16.1, smol_str 0.2.2, smol_str 0.3.6, socket2 0.6.5, stable_deref_trait 1.2.1, svgtypes 0.16.1, swash 0.2.10, tar 0.4.46, tempfile 3.27.0, thread_local 1.1.10, ttf-parser 0.15.2, ttf-parser 0.25.1, tungstenite 0.30.0, unicode-bidi 0.3.18, unicode-segmentation 1.13.3, unicode-width 0.1.14, unicode-width 0.2.2, unicode-xid 0.2.6, url 2.5.8, uuid 1.26.1, version_check 0.9.5, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.4+wasi-0.2.12, wasm-bindgen 0.2.128, wasm-bindgen-futures 0.4.78, wasm-bindgen-macro 0.2.128, wasm-bindgen-macro-support 0.2.128, wasm-bindgen-shared 0.2.128, web-sys 0.3.105, weezl 0.1.12, wit-bindgen 0.57.1, x509-parser 0.18.1, xattr 1.6.1, yasna 0.6.0, yazi 0.2.1, zeno 0.3.3
+ahash 0.8.12, aligned 0.4.3, arbitrary 1.4.2, arrayvec 0.7.8, as-slice 0.2.1, asn1-rs 0.7.2, asn1-rs-derive 0.6.0, atomic-waker 1.1.2, autocfg 1.5.1, base64 0.13.1, base64 0.21.7, base64 0.22.1, base64 0.23.1, bitflags 1.3.2, bitflags 2.13.2, bitstream-io 4.10.0, bumpalo 3.20.3, cc 1.4.7, cfg-if 1.0.5, concurrent-queue 2.5.0, core-foundation 0.10.1, core-foundation 0.9.4, core-foundation-sys 0.8.7, core-graphics 0.23.2, core-graphics-types 0.1.3, core_detect 1.0.0, coreaudio-rs 0.14.2, critical-section 1.2.0, crossbeam-channel 0.5.17, crossbeam-deque 0.8.8, crossbeam-epoch 0.9.21, crossbeam-utils 0.8.23, data-url 0.3.2, der-parser 10.0.0, displaydoc 0.2.7, either 1.18.0, ena 0.14.4, equivalent 1.0.2, errno 0.3.14, euclid 0.22.14, fastrand 2.5.0, filetime 0.2.29, find-msvc-tools 0.1.13, flate2 1.1.10, fnv 1.0.7, form_urlencoded 1.2.2, gethostname 1.1.0, gif 0.14.2, glob 0.3.4, glow 0.17.0, gltf 1.4.1, gltf-derive 1.4.1, gltf-json 1.4.1, hash32 0.3.1, hashbrown 0.16.1, hashbrown 0.17.1, heapless 0.8.0, heck 0.5.0, hermit-abi 0.5.3, httparse 1.10.1, idna 1.1.0, idna_adapter 1.2.2, indexmap 2.14.2, itertools 0.14.0, itertools 0.15.0, jni 0.21.1, jobserver 0.1.35, js-sys 0.3.106, khronos-egl 6.0.0, lalrpop-util 0.23.1, lazy_static 1.5.0, libfuzzer-sys 0.4.13, linux-raw-sys 0.12.1, linux-raw-sys 0.4.15, lock_api 0.4.14, log 0.4.34, matrixmultiply 0.3.11, num 0.4.3, num-bigint 0.4.8, num-complex 0.4.6, num-derive 0.4.2, num-derive 0.5.1, num-integer 0.1.47, num-iter 0.1.46, num-rational 0.4.2, num-traits 0.2.19, num_cpus 1.17.0, oid-registry 0.8.1, once_cell 1.21.4, openssl-probe 0.2.1, parking_lot 0.12.5, parking_lot_core 0.9.12, percent-encoding 2.3.2, pkg-config 0.3.34, plain 0.2.3, png 0.18.1, polling 3.11.0, pollster 0.4.0, pollster 1.0.1, primal-check 0.3.4, rawpointer 0.2.1, rayon 1.12.0, rayon-core 1.13.0, regex-automata 0.4.18, regex-lite 0.1.9, regex-syntax 0.8.11, renderdoc-sys 1.1.0, robust 1.2.0, roxmltree 0.21.1, rtrb 0.3.5, rustc-hash 1.1.0, rustc_version 0.4.1, rusticata-macros 4.1.0, rustix 0.38.44, rustix 1.1.5, rustls 0.23.45, rustls-native-certs 0.8.4, scoped-tls 1.0.1, scopeguard 1.2.0, security-framework 3.7.0, security-framework-sys 2.17.0, sfv 0.15.0, simd_cesu8 1.2.0, simplecss 0.2.2, smallvec 1.16.2, smol_str 0.2.2, smol_str 0.3.6, socket2 0.6.5, stable_deref_trait 1.2.1, svgtypes 0.16.1, swash 0.2.10, tar 0.4.46, tempfile 3.27.0, thread_local 1.1.10, ttf-parser 0.15.2, ttf-parser 0.25.1, tungstenite 0.30.0, unicode-bidi 0.3.18, unicode-segmentation 1.13.3, unicode-width 0.1.14, unicode-width 0.2.2, unicode-xid 0.2.6, url 2.5.8, uuid 1.26.1, version_check 0.9.5, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.4+wasi-0.2.12, wasm-bindgen 0.2.129, wasm-bindgen-futures 0.4.79, wasm-bindgen-macro 0.2.129, wasm-bindgen-macro-support 0.2.129, wasm-bindgen-shared 0.2.129, web-sys 0.3.106, weezl 0.1.12, wit-bindgen 0.57.1, x509-parser 0.18.1, xattr 1.6.1, yasna 0.6.0, yazi 0.2.1, zeno 0.3.3
 
 </details>
 
@@ -2485,7 +2485,7 @@ DEALINGS IN THE SOFTWARE.
 <details>
 <summary>Which packages carry this exact file</summary>
 
-cc 1.4.7, cfg-if 1.0.5, filetime 0.2.29, find-msvc-tools 0.1.13, jobserver 0.1.35, js-sys 0.3.105, openssl-probe 0.2.1, pkg-config 0.3.34, scoped-tls 1.0.1, socket2 0.6.5, wasm-bindgen 0.2.128, wasm-bindgen-futures 0.4.78, wasm-bindgen-macro 0.2.128, wasm-bindgen-macro-support 0.2.128, wasm-bindgen-shared 0.2.128, web-sys 0.3.105
+cc 1.4.7, cfg-if 1.0.5, filetime 0.2.29, find-msvc-tools 0.1.13, jobserver 0.1.35, js-sys 0.3.106, openssl-probe 0.2.1, pkg-config 0.3.34, scoped-tls 1.0.1, socket2 0.6.5, wasm-bindgen 0.2.129, wasm-bindgen-futures 0.4.79, wasm-bindgen-macro 0.2.129, wasm-bindgen-macro-support 0.2.129, wasm-bindgen-shared 0.2.129, web-sys 0.3.106
 
 </details>
 
@@ -3825,7 +3825,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 <details>
 <summary>Which packages carry this exact file</summary>
 
-rand 0.10.2, rand 0.9.5, rand_chacha 0.9.0, rand_core 0.9.5, rand_distr 0.6.0, rand_pcg 0.10.2
+rand 0.10.3, rand 0.9.5, rand_chacha 0.9.0, rand_core 0.9.5, rand_distr 0.6.0, rand_pcg 0.10.2
 
 </details>
 
@@ -4567,7 +4567,7 @@ DEALINGS IN THE SOFTWARE.
 <details>
 <summary>Which packages carry this exact file</summary>
 
-rand 0.10.2, rand 0.9.5, rand_chacha 0.9.0, rand_core 0.9.5
+rand 0.10.3, rand 0.9.5, rand_chacha 0.9.0, rand_core 0.9.5
 
 </details>
 
@@ -6284,7 +6284,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 <details>
 <summary>Which packages carry this exact file</summary>
 
-rand 0.10.2, rand 0.9.5, rand_chacha 0.9.0
+rand 0.10.3, rand 0.9.5, rand_chacha 0.9.0
 
 </details>
 
@@ -22761,7 +22761,7 @@ the following restrictions:
 <details>
 <summary>Which packages carry this exact file</summary>
 
-smallvec 1.16.1
+smallvec 1.16.2
 
 </details>
 

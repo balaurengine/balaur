@@ -85,3 +85,32 @@ pub fn on_websocket_event(this, e) {{
     );
     run_until(&source, &["rune-binary 4", "rune-binary-closed"]);
 }
+
+/// `connect`'s id resumes a waiting script with the `open` event, and with
+/// the `error` event when nothing listens.
+#[test]
+fn a_rune_script_awaits_connect_until_it_opens_or_fails() {
+    if !e2e_enabled() {
+        return;
+    }
+    let echo = serve_echo();
+    let nothing = {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        format!("ws://{}", listener.local_addr().unwrap())
+    };
+    let source = format!(
+        r#"
+pub async fn init(this) {{
+    let socket = websocket::connect(this.node, "{echo}");
+    let opened = task::wait(socket).await;
+    log::info(`rune-awaited ${{opened["kind"]}}`);
+    websocket::close(socket);
+    let refused = task::wait(websocket::connect(this.node, "{nothing}")).await;
+    log::info(`rune-refused ${{refused["kind"]}}`);
+}}
+
+pub fn on_websocket_event(this, e) {{}}
+"#
+    );
+    run_until(&source, &["rune-awaited open", "rune-refused error"]);
+}

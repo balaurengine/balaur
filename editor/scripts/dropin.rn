@@ -122,13 +122,16 @@ fn drop_image(S, path) {
         Some(rel) => rel,
         None => return false,
     };
+    place_image(S, rel, stem_of(path))
+}
+
+fn place_image(S, rel, name) {
     history::record(S, "drop " + rel, None);
-    let name = stem_of(path);
     if model::is_2d(S) {
         place(S, name, #{ sprite: #{ texture: rel } });
     } else {
         place(S, name, #{
-            shape3d: #{ kind: render::SHAPE_CUBOID, half_extents: [0.5, 0.001, 0.5] },
+            shape3d: #{ kind: render::SHAPE_BOX, size: [1.0, 0.002, 1.0] },
             mesh: #{ texture: rel },
         });
     }
@@ -143,7 +146,7 @@ fn drop_shader(S, path) {
     };
     let name = stem_of(path);
     let material = format!("materials/{}.toml", name);
-    fs::mkdir(S.game_root + "/materials");
+    fs::create_directory(S.game_root + "/materials");
     fs::write(S.game_root + "/" + material, toml::encode(#{
         type: "material",
         shader: rel,
@@ -256,7 +259,7 @@ pub fn sweep(S) {
             last = job.at;
         }
     }
-    if engine::time() - last > KEPT_FOR {
+    if engine::unix_time() - last > KEPT_FOR {
         S.jobs = #{};
     }
 }
@@ -279,7 +282,7 @@ fn ended(S, source, over) {
     let job = S.jobs.get(source)
         .unwrap_or(#{ name: file_name(source), done: 0, files: 0, over: "", at: 0.0 });
     job.over = over;
-    job.at = engine::time();
+    job.at = engine::unix_time();
     S.jobs[source] = job;
 }
 
@@ -347,6 +350,33 @@ pub fn update(S) {
     for path in dropped {
         take(S, path);
     }
+}
+
+/// Place a file already in the project where the pointer is, as a drag out
+/// of the Assets dock does: an image, a model, a scene or a sky.
+pub fn place_file(S, rel) {
+    let kind = kind_of(rel);
+    let placed = if kind == "image" {
+        place_image(S, rel, stem_of(rel))
+    } else if kind == "sky" {
+        name_sky(S, rel, "drop sky")
+    } else if kind == "scene" {
+        model::instance_scene(S, rel);
+        false
+    } else if crate::recipes::is_model(rel) && !model::is_2d(S) {
+        history::record(S, "drop " + rel, None);
+        place(S, stem_of(rel), #{ mesh: #{ source: #{ source: rel } } });
+        true
+    } else {
+        log::warn(format!("{} is not a thing to place in the scene", file_name(rel)));
+        false
+    };
+    if placed {
+        model::build_mirror(S);
+        selection::only(S, S.doc.len() - 1);
+        history::commit(S);
+    }
+    placed
 }
 
 /// Handle one dropped file. Public so a test can drive it with no window.

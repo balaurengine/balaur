@@ -28,7 +28,7 @@ pub struct InputConfig {
     pub long_press_seconds: f32,
     /// How far a held finger may wander and still be holding, in design
     /// pixels.
-    pub long_press_slop: f32,
+    pub long_press_slop_pixels: f32,
     loaded: bool,
 }
 
@@ -39,7 +39,7 @@ impl Default for InputConfig {
             emulate_touch_from_mouse: false,
             swipe_pixels: SWIPE_PIXELS,
             long_press_seconds: LONG_PRESS_SECONDS,
-            long_press_slop: LONG_PRESS_SLOP,
+            long_press_slop_pixels: LONG_PRESS_SLOP,
             loaded: false,
         }
     }
@@ -84,7 +84,7 @@ struct InputTable {
     emulate_touch_from_mouse: Option<bool>,
     swipe_pixels: Option<f32>,
     long_press_seconds: Option<f32>,
-    long_press_slop: Option<f32>,
+    long_press_slop_pixels: Option<f32>,
 }
 
 impl InputTable {
@@ -102,7 +102,10 @@ impl InputTable {
                 .long_press_seconds
                 .unwrap_or(out.long_press_seconds)
                 .max(0.0),
-            long_press_slop: self.long_press_slop.unwrap_or(out.long_press_slop).max(0.0),
+            long_press_slop_pixels: self
+                .long_press_slop_pixels
+                .unwrap_or(out.long_press_slop_pixels)
+                .max(0.0),
             loaded: false,
         }
     }
@@ -133,7 +136,7 @@ emulate_mouse_from_touch = { type = "bool", default = true, order = 1, help = "A
 emulate_touch_from_mouse = { type = "bool", default = false, order = 2, help = "The mouse also reports a finger, so touch code runs on a desktop. Off by default: a game reading both would see one press twice." }
 swipe_pixels = { type = "float", default = 48.0, min = 0.0, max = 1000.0, order = 3, help = "How far a finger travels before a lift counts as a swipe, in design pixels." }
 long_press_seconds = { type = "float", default = 0.5, min = 0.0, max = 10.0, order = 4, help = "How long a finger holds before it counts as a long press." }
-long_press_slop = { type = "float", default = 24.0, min = 0.0, max = 1000.0, order = 5, help = "How far a held finger may wander and still be holding, in design pixels." }
+long_press_slop_pixels = { type = "float", default = 24.0, min = 0.0, max = 1000.0, order = 5, help = "How far a held finger may wander and still be holding, in design pixels." }
 "#,
         ),
     );

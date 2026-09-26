@@ -37,14 +37,14 @@ impl Ink {
         let named = |key: &str, built_in: Color32| theme.token(key).unwrap_or(built_in);
         let weak = ui.visuals().weak_text_color();
         Self {
-            on: named(k::ROW_ON, ui.visuals().selection.bg_fill),
-            on_color: named(k::ROW_ON_COLOR, ui.visuals().selection.stroke.color),
+            on: named(k::ROW_SELECTED, ui.visuals().selection.bg_fill),
+            on_color: named(k::ROW_SELECTED_TEXT, ui.visuals().selection.stroke.color),
             hover: named(k::ROW_HOVER, crate::immediate::wash(ui, false)),
             active: named(k::ROW_ACTIVE, crate::immediate::wash(ui, true)),
             stripe: named(k::ROW_STRIPE, ui.visuals().faint_bg_color),
-            head: named(k::ROW_HEAD, ui.visuals().faint_bg_color),
-            rule: named(k::ROW_RULE, weak.gamma_multiply(0.5)),
-            guide: named(k::ROW_GUIDE, weak.gamma_multiply(0.55)),
+            head: named(k::TABLE_HEADER, ui.visuals().faint_bg_color),
+            rule: named(k::TABLE_RULE, weak.gamma_multiply(0.5)),
+            guide: named(k::TREE_GUIDE, weak.gamma_multiply(0.55)),
         }
     }
 
@@ -188,8 +188,8 @@ fn rows(
     let (anchor, multi) = (widget.text.to_string(), widget.multi);
     let id = egui::Id::new(("balaur-list", entity));
     let depth_of = |item: &String| depth(item, indent);
-    // Folded branches are the tree's own business, so a script hands over the
-    // whole outline and never hears about a caret.
+    // Folded branches are the tree's own business: a script hands over the
+    // whole outline and only hears a caret as a `fold` event.
     let shut: BTreeSet<String> = ui.data(|d| d.get_temp(id).unwrap_or_default());
     let open_rows = open_walk(&items, &shut, &depth_of);
     // Where each open row's branch still continues, so a guide is drawn only
@@ -198,25 +198,12 @@ fn rows(
     let mut picked = None;
     let mut aimed = None;
     let mut toggled = None;
+    let mut activated = None;
     // The row a drag has hold of, and where the pass found it would land.
     let held_row: Dragging = ui.data(|d| d.get_temp(id.with("drag")).unwrap_or_default());
     let mut landing = None;
     let mut took = None;
-    // Both ways: a row wider than the list is a log line or a long node
-    // name, and a bar to reach the end of it is better than the end being
-    // painted over whatever sits beside the list.
-    let mut area = egui::ScrollArea::both()
-        .id_salt(id)
-        .auto_shrink([false, false]);
-    // The box the layout gave it, both ways: a width stated and not applied
-    // is a list that draws past whatever sits beside it.
-    if want.x > 0.0 {
-        area = area.max_width(want.x);
-    }
-    if want.y > 0.0 {
-        area = area.max_height(want.y);
-    }
-    area.show_rows(ui, row_h, open_rows.len(), |ui, range| {
+    list_area(id, want).show_rows(ui, row_h, open_rows.len(), |ui, range| {
         for slot in range {
             let Some(&i) = open_rows.get(slot) else {
                 continue;
@@ -245,6 +232,9 @@ fn rows(
             if hit.folded {
                 toggled = Some(item.clone());
             }
+            if hit.activated {
+                activated = Some(item.clone());
+            }
             if hit.picked {
                 picked = Some(i);
             }
@@ -270,7 +260,12 @@ fn rows(
         };
         settle_drag(ui, at, &drag);
     }
-    settle_folds(ui, id, shut, toggled);
+    if let Some((row, open)) = settle_folds(ui, id, shut, toggled) {
+        at.edits.push((entity, Edit::Folded(row, open)));
+    }
+    if let Some(row) = activated {
+        at.edits.push((entity, Edit::Activated(row)));
+    }
     // A row already picked keeps the set it is in: aiming at one of several
     // picked rows is how a menu is opened over all of them.
     let aimed = aimed.filter(|&row| !picked_rows.contains(&items[row]));
@@ -363,17 +358,40 @@ pub(super) fn strings_of(widget: &Widget) -> Vec<String> {
         .collect()
 }
 
+/// The scroll area a list draws in, held to the box the layout gave it.
+fn list_area(id: egui::Id, want: egui::Vec2) -> egui::ScrollArea {
+    // Both ways: a row wider than the list is a log line or a long node
+    // name, and a bar to reach it beats the end painted over its neighbour.
+    let mut area = egui::ScrollArea::both()
+        .id_salt(id)
+        .auto_shrink([false, false]);
+    // A width stated and not applied is a list drawn past what sits beside it.
+    if want.x > 0.0 {
+        area = area.max_width(want.x);
+    }
+    if want.y > 0.0 {
+        area = area.max_height(want.y);
+    }
+    area
+}
+
 /// A fold a caret was clicked on, written down under the widget's own id: a
-/// script hands over the whole outline and never hears about a caret.
-fn settle_folds(ui: &egui::Ui, id: egui::Id, shut: BTreeSet<String>, toggled: Option<String>) {
-    let Some(item) = toggled else {
-        return;
-    };
+/// script hands over the whole outline and hears a `fold` event, never
+/// keeping the set itself. Answers the row and whether it is open now.
+fn settle_folds(
+    ui: &egui::Ui,
+    id: egui::Id,
+    shut: BTreeSet<String>,
+    toggled: Option<String>,
+) -> Option<(String, bool)> {
+    let item = toggled?;
     let mut next = shut;
-    if !next.remove(&item) {
-        next.insert(item);
+    let open = next.remove(&item);
+    if !open {
+        next.insert(item.clone());
     }
     ui.data_mut(|d| d.insert_temp(id, next));
+    Some((item, open))
 }
 
 /// Where a dragged row would land: on the row it is over, or in the gap
@@ -469,6 +487,8 @@ struct Hit {
     /// Whether the pointer is on the caret rather than the row, so the row
     /// still lights up while the branch is being aimed at.
     folded_hovered: bool,
+    /// Whether the row was double-clicked, which activates it.
+    activated: bool,
 }
 
 /// Draw one row: the guides down its indent, its caret, its icon field, its
@@ -486,6 +506,7 @@ fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
         aimed: false,
         folded: false,
         folded_hovered: false,
+        activated: false,
     };
     let step = r.row_h;
     // A view that reorders senses a drag as well as a click; one that does
@@ -579,6 +600,7 @@ fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
     }
     hit.picked = response.clicked();
     hit.aimed = response.secondary_clicked();
+    hit.activated = response.double_clicked();
     if r.drag.is_some() {
         let (took, landing) = dragged(ui, r, rect, &response);
         hit.took = took;
@@ -791,18 +813,32 @@ struct Card<'a> {
     on: bool,
     /// The sheet and the pixels its regions are counted in.
     sheet: Option<(&'a egui::TextureHandle, egui::Vec2)>,
+    /// Whether a drag picks the card up, as `draggable` asks.
+    carried: bool,
 }
 
-/// One card: the icon over the label, in a box the caller sized. Answers
-/// whether it was clicked, and whether a secondary click aimed at it.
+/// What a pass saw of one card: a click, a secondary click, a drag starting.
+#[derive(Default)]
+struct CardHit {
+    clicked: bool,
+    aimed: bool,
+    took: bool,
+}
+
+/// One card: the icon over the label, in a box the caller sized.
 ///
 /// The same U+001F fields a row splits on, so a view moves between the two
 /// modes by setting `columns` and changing nothing else.
-fn card(ui: &mut egui::Ui, item: &str, c: &Card<'_>) -> (bool, bool) {
+fn card(ui: &mut egui::Ui, item: &str, c: &Card<'_>) -> CardHit {
     let (size, font) = (c.size, c.font);
     let (icon, label, trailing, tint) = fields(item);
     let color = tint.unwrap_or(c.color);
-    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+    let sense = if c.carried {
+        Sense::click_and_drag()
+    } else {
+        Sense::click()
+    };
+    let (rect, response) = ui.allocate_exact_size(size, sense);
     let fill = if c.on {
         c.ink.on
     } else if response.hovered() {
@@ -814,7 +850,7 @@ fn card(ui: &mut egui::Ui, item: &str, c: &Card<'_>) -> (bool, bool) {
     ui.painter()
         .rect_filled(rect, egui::CornerRadius::same(5), fill);
     let mut head = rect.top() + 6.0;
-    // A list that names a `source` reads the icon field as `x,y,w,h` in that
+    // A list that names a `sheet` reads the icon field as `x,y,w,h` in that
     // picture's own pixels, which is how an atlas picker shows its tiles.
     let region = sheet.and_then(|(_, native)| region_uv(native, icon));
     if let (Some((sheet, _)), Some(uv)) = (sheet, region) {
@@ -852,7 +888,61 @@ fn card(ui: &mut egui::Ui, item: &str, c: &Card<'_>) -> (bool, bool) {
         color,
     );
     crate::widget::theme::tip(&response, trailing);
-    (response.clicked(), response.secondary_clicked())
+    CardHit {
+        clicked: response.clicked(),
+        aimed: response.secondary_clicked(),
+        took: response.drag_started(),
+    }
+}
+
+/// A card a drag carried out of its list: drawn under the pointer while the
+/// button is down, and reported where it is let go outside the list. The
+/// list moves nothing itself; what a drop means is the script's.
+fn carry(ui: &egui::Ui, at: &mut Painting<'_>, drag: &Carry<'_>) {
+    let key = drag.id.with("carry");
+    if let Some(card) = drag.took.clone() {
+        ui.data_mut(|d| d.insert_temp(key, Dragging { row: card }));
+        return;
+    }
+    let held: Dragging = ui.data(|d| d.get_temp(key).unwrap_or_default());
+    if held.row.is_empty() {
+        return;
+    }
+    let pointer = ui.ctx().pointer_latest_pos();
+    if ui.ctx().input(|i| i.pointer.any_down()) {
+        if let Some(pos) = pointer {
+            ghost(ui, &held.row, pos, drag, &Ink::of(ui, &at.theme));
+        }
+        return;
+    }
+    ui.data_mut(|d| d.insert_temp(key, Dragging::default()));
+    if pointer.is_some_and(|pos| !drag.view.contains(pos)) {
+        at.edits.push((drag.entity, Edit::Carried(held.row)));
+    }
+}
+
+/// A drag out of a list as one pass saw it: the list, the card a drag picked
+/// up this pass, the box the list drew in, and the face its label is set in.
+struct Carry<'a> {
+    id: egui::Id,
+    entity: balaur_core::hecs::Entity,
+    took: Option<String>,
+    view: Rect,
+    font: &'a egui::FontId,
+    color: Color32,
+}
+
+/// The carried card's label, beside the pointer and over everything.
+fn ghost(ui: &egui::Ui, item: &str, pointer: egui::Pos2, drag: &Carry<'_>, ink: &Ink) {
+    let (_, label, _, tint) = fields(item);
+    let color = tint.unwrap_or(drag.color);
+    let layer = egui::LayerId::new(egui::Order::Tooltip, drag.id.with("ghost"));
+    let over = ui.ctx().layer_painter(layer);
+    let text = over.layout_no_wrap(label.to_owned(), drag.font.clone(), color);
+    let rect = Rect::from_min_size(pointer + egui::vec2(14.0, 10.0), text.size()).expand(5.0);
+    over.rect_filled(rect, egui::CornerRadius::same(5), ink.on);
+    over.galley(rect.min + egui::vec2(5.0, 5.0), text, color);
+    ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
 }
 
 /// A row's `x,y,w,h` in the sheet's own pixels, as egui's unit coordinates.
@@ -883,6 +973,36 @@ fn region_uv(native: egui::Vec2, field: &str) -> Option<Rect> {
     ))
 }
 
+/// One card's box: an equal share of the room across `columns`, and as tall
+/// as `row_height`, which is the pitch of a row. Without one a card is a
+/// little shorter than it is wide, the icon taking the square and the label
+/// sitting under it.
+fn card_size(widget: &Widget, room: f32, gap: f32, columns: usize) -> egui::Vec2 {
+    let side = ((room - gap * (columns as f32 - 1.0)) / columns as f32).max(24.0);
+    let tall = if widget.row_height > 0.0 {
+        widget.row_height
+    } else {
+        side * 0.86
+    };
+    egui::vec2(side, tall)
+}
+
+/// The picture a list's `sheet` names, which its cards' icons are cut from,
+/// with the pixels its regions are counted in.
+fn card_sheet(
+    ui: &egui::Ui,
+    at: &Painting<'_>,
+    widget: &Widget,
+) -> Option<(egui::TextureHandle, egui::Vec2)> {
+    (!widget.source.is_empty())
+        .then(|| crate::images::texture_of(at.eng, &ui.ctx().clone(), &widget.source).ok())
+        .flatten()
+        .map(|texture| {
+            let native = crate::images::native_size(at.eng, &widget.source, &texture);
+            (texture, native)
+        })
+}
+
 /// The cards, wrapped into rows of `columns` and scrolled a row at a time.
 fn cards(
     ui: &mut egui::Ui,
@@ -911,28 +1031,15 @@ fn cards(
     } else {
         ui.available_width()
     };
-    let side = ((room - gap * (columns as f32 - 1.0)) / columns as f32).max(24.0);
-    // `row_height` is the pitch of a row, so for a card it is the card's own
-    // height; without one a card is a little shorter than it is wide, the
-    // icon taking the square and the label sitting under it.
-    let tall = if widget.row_height > 0.0 {
-        widget.row_height
-    } else {
-        side * 0.86
-    };
-    let cell = egui::vec2(side, tall);
+    let cell = card_size(&widget, room, gap, columns);
     let lines = items.len().div_ceil(columns);
-    let sheet = (!widget.source.is_empty())
-        .then(|| crate::images::texture_of(at.eng, &ui.ctx().clone(), &widget.source).ok())
-        .flatten()
-        .map(|texture| {
-            let native = crate::images::native_size(at.eng, &widget.source, &texture);
-            (texture, native)
-        });
+    let sheet = card_sheet(ui, at, &widget);
     let mut picked = None;
     let mut aimed = None;
+    let mut took = None;
+    let id = egui::Id::new(("balaur-cards", entity));
     let mut area = egui::ScrollArea::vertical()
-        .id_salt(egui::Id::new(("balaur-cards", entity)))
+        .id_salt(id)
         .auto_shrink([false, false]);
     if want.x > 0.0 {
         area = area.max_width(want.x);
@@ -940,7 +1047,7 @@ fn cards(
     if want.y > 0.0 {
         area = area.max_height(want.y);
     }
-    area.show_rows(ui, cell.y + gap, lines, |ui, range| {
+    let shown = area.show_rows(ui, cell.y + gap, lines, |ui, range| {
         for line in range {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing = egui::vec2(gap, gap);
@@ -957,18 +1064,33 @@ fn cards(
                         ink: &ink,
                         on,
                         sheet: sheet.as_ref().map(|(texture, native)| (texture, *native)),
+                        carried: widget.draggable,
                     };
                     let hit = card(ui, item, &face);
-                    if hit.0 {
+                    if hit.clicked {
                         picked = Some(at);
                     }
-                    if hit.1 {
+                    if hit.aimed {
                         aimed = Some(at);
+                    }
+                    if hit.took {
+                        took = Some(item.clone());
                     }
                 }
             });
         }
     });
+    if widget.draggable {
+        let drag = Carry {
+            id,
+            entity,
+            took,
+            view: shown.inner_rect,
+            font,
+            color,
+        };
+        carry(ui, at, &drag);
+    }
     let aimed = aimed.filter(|&card| !picked_rows.contains(&items[card]));
     let held = ui.input(|i| i.modifiers);
     if let Some((hit, mods, click)) = landed(picked, aimed, held) {

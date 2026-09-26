@@ -2,105 +2,100 @@
 # each widget kind, and the roles a node names instead of spelling a look.
 type = "widget_theme"
 
+# Four sources. Every other token a table names, from `bg_panel` to
+# `primary_bg`, is derived from them, and stating one overrides its rule.
 [colors]
-ink = "#0e1116"
-sheet = "#161b23"
-sunken = "#0a0d12"
-line = "#232b36"
-text = "#e6e9ee"
-dim = "#98a3ae"
-faint = "#69737f"
-accent = "#6fa4d8"
-accent_soft = "#1a2c40"
-on_accent = "#f6f8fb"
-warm = "#d5814e"
+background = "#0e1116"
+foreground = "#e6e9ee"
+primary = "#6fa4d8"
+warning = "#d5814e"
 
 [panel]
-fill = "sheet"
-radius = 10
+fill = "bg_panel"
+corner_radius = "radius_large"
 padding = 12
 
 [button]
-fill = "sunken"
-color = "dim"
-radius = 6
+fill = "bg_control"
+text_color = "text_muted"
+corner_radius = "radius"
 padding_x = 10
-size = 13
+font_size = 13
 
 [button.hover]
-fill = "line"
-color = "text"
+fill = "bg_control_hover"
+text_color = "text_default"
 
 [button.active]
-fill = "accent_soft"
-color = "accent"
+fill = "primary_bg"
+text_color = "primary_text"
 
-[field]
-fill = "sunken"
-color = "text"
-radius = 6
+[text_field]
+fill = "bg_control"
+text_color = "text_default"
+corner_radius = "radius"
 
 [list]
-fill = "sunken"
-radius = 8
+fill = "bg_control"
+corner_radius = "radius_large"
 
 [tree]
-fill = "sunken"
-radius = 8
+fill = "bg_control"
+corner_radius = "radius_large"
 
 [table]
-fill = "sunken"
-radius = 8
+fill = "bg_control"
+corner_radius = "radius_large"
 padding_x = 10
 
 [roles.title]
-font = "heading"
-size = 22
-strong = true
-color = "text"
+font_family = "heading"
+font_size = 22
+font_weight = 700
+text_color = "text_default"
 
 [roles.caption]
-font = "mono"
-size = 12
-color = "faint"
+font_family = "mono"
+font_size = 12
+text_color = "text_subtle"
 
 [roles.primary]
-fill = "accent"
-color = "on_accent"
-strong = true
+fill = "primary_fill"
+text_color = "text_on_primary"
+font_weight = 700
 
 [roles.primary.hover]
-fill = "warm"
+fill = "warning_fill"
 
 # A group heading: the one role a whole section wears.
 [roles.group]
-font = "heading"
-size = 11
-strong = true
-color = "faint"
+font_family = "heading"
+font_size = 11
+font_weight = 700
+text_color = "text_subtle"
 
 [roles.chip]
-fill = "sunken"
-color = "dim"
-size = 12
-radius = 12
+fill = "bg_control"
+text_color = "text_muted"
+font_size = 12
+corner_radius = "full"
 padding_x = 12
 
 # The number is egui's widget; the theme reaches it the way it reaches a
 # field, so a spin box beside a button is dressed like the button.
-[drag_value]
-fill = "sunken"
-color = "text"
-stroke = "line"
-radius = 6
+[number_field]
+fill = "bg_control"
+text_color = "text_default"
+stroke = "border_default"
+corner_radius = "radius"
 
-[drag_value.hover]
-fill = "line"
+[number_field.hover]
+fill = "bg_control_hover"
 
 # A toast is read over the screen, so it sits on a raised plate with the
-# accent down its outline rather than on the sheet's own fill.
+# primary ink down its outline rather than on the sheet's own fill.
 [toast]
-fill = "line"
-color = "text"
-stroke = "accent"
-radius = 10
+fill = "bg_control_hover"
+text_color = "text_default"
+stroke = "primary_text"
+corner_radius = "radius_large"

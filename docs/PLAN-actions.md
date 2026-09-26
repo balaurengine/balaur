@@ -24,7 +24,7 @@
 Three things a developer meets the day a game is ready for someone else:
 the file has to be signed or the OS refuses it, the export has to run on a
 machine that is not theirs, and the editor has to have a button. Today one
-target signs (`--app --sign` on macOS), nothing is reusable from a game's
+target signs (`--bundle app --sign` on macOS), nothing is reusable from a game's
 repository, and the editor's only "export" copies a replay session.
 
 ## 0. Where the tree is today
@@ -35,7 +35,7 @@ Built, and load-bearing here:
 | --- | --- |
 | Eight export targets: `linux-x64`, `linux-arm64`, `macos-universal`, `windows-x64`, `windows-arm64` as one fused executable each; a macOS `.app` with `--app`; an iOS `.app`; an Android APK layout; a web directory with a shell page | `crates/balaur_export`, `bundle.rs::{Bundle, export_macos_app, export_bundle}` |
 | A macOS `.app` signed as it is exported, ad-hoc or with `--sign <identity>`, its entitlements written from `[apple] capabilities` | `bundle.rs::codesign`, `apple.rs::write_entitlements` |
-| An Android layout assembled and signed, when the SDK is on the machine | `balaur export --apk`, `crates/balaur_export/src/android.rs` (`aapt2`, `zipalign`, `apksigner`) |
+| An Android layout assembled and signed, when the SDK is on the machine | `balaur export --bundle apk`, `crates/balaur_export/src/android.rs` (`aapt2`, `zipalign`, `apksigner`) |
 | Templates fetched from the release this build came from, verified against `SHA256SUMS`, cached per user per build id; `--download` and `--no-download` so a runner never prompts | `crates/balaur_cli/src/templates.rs`, `version.rs` |
 | Export as a library with the network stack, the prompt and the cache left to the caller, so an editor can link it | `balaur_export::{Options, ObtainTemplate, default_roots}` |
 | The engine's CI: four reusable workflows behind one entry point; `package.sh` builds, stages, exports a game onto the template it just built and *runs* it; `export_check.sh` proves the iOS, Android and web bundle shapes; `draft_release.sh` drafts `nightly` and `v*` | `.github/workflows/{runner,build,lint,test,docs}.yml`, `scripts/` |
@@ -92,7 +92,7 @@ step or a shell script beside it. A bug in a signed build has to be
 reproducible by exporting it by hand, which is only true while there is
 exactly one place that signs — the rule `docs/PLAN-deploy.md` holds for
 uploading, held for signing. So `assemble_apk.sh` moves into the exporter
-as `--apk`, and an action's whole job is to put credentials where the tools
+as `--bundle apk`, and an action's whole job is to put credentials where the tools
 look and call the command.
 
 **Name a thing by what comes out of it.** `balaur-export` and
@@ -105,7 +105,7 @@ organisation name already says whose they are:
 | --- | --- | --- |
 | `balaurengine/balaur/.github/actions/setup@v0.2.0` | Downloads the published build named by the ref it was called at (`github.action_ref`), verifies it against `SHA256SUMS`, puts `balaur` on `PATH`, seeds the template cache for `targets`, and caches all of it by build id | nothing |
 | `balaurengine/balaur/.github/actions/export-game@v0.2.0` | `balaur export` once per entry in `targets`, with the signing flags built from its credential inputs; uploads `game-<target>` artifacts and attests them | a `balaur` on `PATH`, from `setup` or `build-engine` |
-| `balaurengine/balaur/.github/actions/build-engine@v0.2.0` | Builds the engine from the checkout it stands in with `features` and `targets`, through `scripts/package.sh` and `package_template.sh`, and uploads the same `balaur-editor-*`, `balaur-runtime-*` and `balaur-template-*` names a release holds | a checkout of this repo or a fork, a Rust toolchain |
+| `balaurengine/balaur/.github/actions/build-engine@v0.2.0` | Builds the engine from the checkout it stands in with `features` and `targets`, through `scripts/package.sh` and `package_runtime.sh`, and uploads the same `balaur-editor-*`, `balaur-runtime-*` and `balaur-runtime-*` names a release holds | a checkout of this repo or a fork, a Rust toolchain |
 
 They live in this repository, not in three of their own, because the
 version that matters is the engine's: a game pins `@v0.2.0` once and gets
@@ -126,7 +126,7 @@ arrives as an action input, the action writes it where the platform's own
 tool looks (a temporary keychain, `~/.android/`, the provisioning profiles
 directory) and passes the *name* to `balaur export`. The exporter reads
 passwords and API keys from the environment only (`BALAUR_SIGN_*`,
-`BALAUR_NOTARY_*`, `BALAUR_KEYSTORE_PASSWORD`), never from `project.toml`
+`BALAUR_APPLE_NOTARY_*`, `BALAUR_ANDROID_KEYSTORE_PASSWORD`), never from `project.toml`
 and never from a flag that would land in a shell history. Identity names,
 team ids, keystore paths and bundle ids are not secrets, and an `[export]`
 table in `project.toml` may hold them so a click in the editor and a run
@@ -136,12 +136,12 @@ on a runner agree:
 [export]
 output = "export"                 # <project>/export/<target>/, ignored by git
 macos_identity = "Developer ID Application: Studio (AB12CD34EF)"
-notarize = true                   # BALAUR_NOTARY_KEY_ID / _ISSUER_ID / _KEY
+notarize = true                   # BALAUR_APPLE_NOTARY_KEY_ID / _ISSUER_ID / _KEY
 ios_identity = "Apple Distribution: Studio (AB12CD34EF)"
 ios_profile = "signing/game.mobileprovision"
-android_keystore = "signing/release.jks"   # BALAUR_KEYSTORE_PASSWORD, _KEY_PASSWORD
+android_keystore = "signing/release.jks"   # BALAUR_ANDROID_KEYSTORE_PASSWORD, _KEY_PASSWORD
 android_key = "game"
-windows_certificate = "signing/game.pfx"   # BALAUR_SIGN_PASSWORD; or Trusted Signing
+windows_certificate = "signing/game.pfx"   # BALAUR_WINDOWS_CERTIFICATE_PASSWORD; or Trusted Signing
 ```
 
 **Every artifact gets provenance, signed or not.**
@@ -157,7 +157,7 @@ module over `balaur_export`, registered by `balaur_cli` when it boots the
 editor — so the download stays in the one crate that has the network
 stack, and `Options::obtain` is the editor asking through a modal rather
 than a terminal prompt. The export runs through `ExternalIo::start` and
-reports on a tick, `on_export` with `kind` one of `started`, `progress`,
+reports on a tick, `on_export_event` with `kind` one of `started`, `progress`,
 `done`, `failed`, exactly the shape `docs/PLAN-deploy.md` gives an upload,
 so the sheet draws a bar from its own script and the palette's Export
 command is one call. `docs/PLAN-editor.md` §4's `engine::export(root)`
@@ -176,11 +176,11 @@ Every place a game from this engine could be asked to prove who made it.
 
 | Target | Today | Decision |
 | --- | --- | --- |
-| macOS game, `.app` | Ad-hoc or `--sign`; no hardened runtime, no timestamp, no notarization | Step 3: `--options runtime --timestamp` always; `--notarize` runs `xcrun notarytool submit --wait` with an App Store Connect API key from `BALAUR_NOTARY_*` and `xcrun stapler staple`. Distribution outside the App Store is Developer ID + notarization; the Mac App Store is `Apple Distribution` + a `.pkg` from `productbuild`, a `--pkg` flag in step 8 |
+| macOS game, `.app` | Ad-hoc or `--sign`; no hardened runtime, no timestamp, no notarization | Step 3: `--options runtime --timestamp` always; `--notarize` runs `xcrun notarytool submit --wait` with an App Store Connect API key from `BALAUR_APPLE_NOTARY_*` and `xcrun stapler staple`. Distribution outside the App Store is Developer ID + notarization; the Mac App Store is `Apple Distribution` + a `.pkg` from `productbuild`, a `--bundle pkg` flag in step 8 |
 | macOS game, flat fused binary | Cannot be signed; the docs say so | **Not planned** to change: appending is what a signature cannot cover. `--app` is the answer, and the editor's macOS row defaults to it |
-| iOS `.app` | Unsigned; entitlements written beside it | Step 4: `--sign <identity>` and `--profile <path>` copy the profile to `embedded.mobileprovision`, sign with the entitlements, and `--ipa` zips `Payload/<Game>.app` for TestFlight (`docs/PLAN-deploy.md` step 5) |
-| Android APK | A layout; `assemble_apk.sh` debug-signs it outside the exporter | Step 4: `--apk` assembles when `ANDROID_HOME` has build-tools, with `[export] android_keystore` or the debug key when there is none; the script is deleted. An `.aab` for Play is `bundletool build-bundle`, `docs/PLAN-google.md` step 1 |
-| Windows game, fused `.exe` | Unsigned; the trailer would be hidden by a signature | Step 5: `standalone::extract` learns to look before the PE certificate table when one is present (`IMAGE_DIRECTORY_ENTRY_SECURITY`); then `--sign` runs `signtool sign /fd sha256 /tr <rfc3161> /td sha256` on Windows and `osslsigncode` elsewhere, with `[export] windows_certificate` or Azure Trusted Signing (`/dlib`) when the certificate is in a cloud HSM — since 2023 an OV certificate's key cannot be a `.pfx` in a secret |
+| iOS `.app` | Unsigned; entitlements written beside it | Step 4: `--sign <identity>` and `--provisioning-profile <path>` copy the profile to `embedded.mobileprovision`, sign with the entitlements, and `--bundle ipa` zips `Payload/<Game>.app` for TestFlight (`docs/PLAN-deploy.md` step 5) |
+| Android APK | A layout; `assemble_apk.sh` debug-signs it outside the exporter | Step 4: `--bundle apk` assembles when `ANDROID_HOME` has build-tools, with `[android] keystore` or the debug key when there is none; the script is deleted. An `.aab` for Play is `bundletool build-bundle`, `docs/PLAN-google.md` step 1 |
+| Windows game, fused `.exe` | Unsigned; the trailer would be hidden by a signature | Step 5: `standalone::extract` learns to look before the PE certificate table when one is present (`IMAGE_DIRECTORY_ENTRY_SECURITY`); then `--sign` runs `signtool sign /fd sha256 /tr <rfc3161> /td sha256` on Windows and `osslsigncode` elsewhere, with `[windows] certificate` or Azure Trusted Signing (`/dlib`) when the certificate is in a cloud HSM — since 2023 an OV certificate's key cannot be a `.pfx` in a secret |
 | Linux game | Unsigned | **Not planned** beyond provenance: no desktop Linux checks a signature. An AppImage is `docs/PLAN-release.md` phase 2's shape, and `gh attestation verify` is the proof of origin |
 | Web | Unsigned | **Not planned**: a browser trusts the origin, and that is `docs/PLAN-deploy.md`'s |
 | The editor and runtime downloads | Unsigned on every platform | `docs/PLAN-release.md` phases 1 and 2, run through the same `sign` and `notarize` code in `package.sh` behind the maintainers' secrets, skipped when the secrets are absent (a fork, a pull request). Notarization takes a `.zip`, not a `.tar.gz`, so the macOS editor archive changes shape |
@@ -194,7 +194,7 @@ Every place a game from this engine could be asked to prove who made it.
 | --- | --- | --- |
 | A verb | none | Step 6: `Export game…` in the palette, `⌘E`, opening the sheet |
 | The sheet | none | Step 6: one row per target; each says *installed*, *download* (this build's release has it), *source build* (no release to fetch from; `--template` or `build-engine`), or *needs macOS* / *needs the Android SDK*; a Sign column showing the `[export]` identity and whether its credential is in the environment; an Export button per row and one for all checked |
-| Progress | none | Step 6: a bar from `on_export` events, the log in the Output dock, `failed` opening it |
+| Progress | none | Step 6: a bar from `on_export_event` events, the log in the Output dock, `failed` opening it |
 | Where the result goes | the working directory, or `-o` | Step 6: `[export] output`, default `export/<target>/`, and `balaur new` writes a `.gitignore` with `export/` in it |
 | Opening the folder | no host function | Step 6: `engine.reveal(path)` through the `opener` crate (`opener::reveal`), and `engine.open_url(url)` beside it since it is the same crate; both are effects, never recorded, like rumble |
 | Template download | CLI prompt only | Step 6: `Options::obtain` bound to a modal ("download balaur-runtime-windows-x64 (41 MB) from v0.2.0?"), into the same cache, verified the same way |
@@ -206,7 +206,7 @@ Every place a game from this engine could be asked to prove who made it.
 
 1. **Extensions in the shipped templates**, decided one way or the other
    (§6 question 4); it blocks only the last row of §2. If on: `--features window,extensions` in `package.sh`
-   and `package_template.sh`, and a smoke test that loads
+   and `package_runtime.sh`, and a smoke test that loads
    `examples/extension_c_counter`. If off: the header leaves the editor
    download and the docs say `build-engine`.
 2. **Provenance and the web check.** `actions/attest-build-provenance` on
@@ -217,15 +217,15 @@ Every place a game from this engine could be asked to prove who made it.
 3. **macOS done properly.** Hardened runtime and timestamp in `codesign`;
    `--notarize` and stapling; frameworks signed before the bundle. Ends
    with: a `.app` a stranger's Mac opens without a dialog.
-4. **Mobile identities.** `--sign` and `--profile` for iOS, `--ipa`;
-   `--apk` with a release keystore for Android, `assemble_apk.sh` deleted.
-   Ends with: `balaur export --target ios --sign … --profile … --ipa` is
+4. **Mobile identities.** `--sign` and `--provisioning-profile` for iOS, `--bundle ipa`;
+   `--bundle apk` with a release keystore for Android, `assemble_apk.sh` deleted.
+   Ends with: `balaur export --target ios --sign … --provisioning-profile … --bundle ipa` is
    the whole path to a TestFlight upload, and the Android output installs
    with the developer's own key.
 5. **Windows.** `extract` reads past a certificate table; `--sign` through
    `signtool` or `osslsigncode`. Ends with: a fused `.exe` SmartScreen does
    not warn about, once the certificate has reputation.
-6. **The Export sheet.** The `export` script module, `on_export`, the
+6. **The Export sheet.** The `export` script module, `on_export_event`, the
    palette verb, the sheet, `engine.reveal`, `[export]`, the `.gitignore`.
    Ends with: a game exported for every installed target from one sheet,
    the folder open in Finder at the end.
@@ -249,7 +249,7 @@ Every place a game from this engine could be asked to prove who made it.
 
    Ends with: a game repository with a twelve-line workflow that produces a
    signed build per platform on every tag.
-8. **The Mac App Store shape.** `--pkg` over `productbuild`, with
+8. **The Mac App Store shape.** `--bundle pkg` over `productbuild`, with
    `Apple Distribution` and the sandbox entitlement. Last because nothing
    has asked, and `docs/PLAN-deploy.md` says a store submission is not a
    verb.

@@ -34,7 +34,7 @@ pub(crate) fn run(paths: &[PathBuf], check: bool) -> Result<()> {
         .unwrap_or_else(|| PathBuf::from("."));
     let mut app = balaur::standard_app(AppConfig::export(&root))?;
     app.load_project().ok();
-    let host = balaur::rune::rune_of(&app.engine);
+    let host = balaur::script_rune::rune_of(&app.engine);
     let mut changed = 0;
     for file in &files {
         let source =

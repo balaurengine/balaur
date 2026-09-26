@@ -24,7 +24,7 @@ parent = "Tree"
 position = [0.12, 2.0, -0.08]
 
 [nodes.shape3d]
-kind = "ball"
+kind = "sphere"
 radius = 0.78
 color = "#3f6b3a"
 
@@ -36,6 +36,6 @@ parent = "Tree"
 position = [-0.1, 2.62, 0.06]
 
 [nodes.shape3d]
-kind = "ball"
+kind = "sphere"
 radius = 0.56
 color = "#4b7d42"

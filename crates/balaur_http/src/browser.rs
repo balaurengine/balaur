@@ -1,11 +1,9 @@
-//! The browser HTTP backend outside emscripten: the Fetch API through web-sys.
+//! The browser HTTP backend: the Fetch API through web-sys.
 //!
-//! Same delivery contract as the emscripten backend next door, and for the
-//! same reason: browser I/O is already asynchronous on the main thread, so
-//! there is no worker thread. A promise settles between frames, feeds the
-//! channel the native worker feeds, and the pump drains it at `Stage::First`
-//! — which is what keeps a response landing on a tick boundary and inside
-//! the recording.
+//! Browser I/O is already asynchronous on the main thread, so there is no
+//! worker thread. A promise settles between frames, feeds the channel the
+//! native worker feeds, and the pump drains it at `Stage::First` — which is
+//! what keeps a response landing on a tick boundary and inside the recording.
 //!
 //! The browser owns the transport, so TLS, redirects and HTTP/2 or /3
 //! negotiation are its problem, not this crate's.
@@ -21,7 +19,12 @@ use crate::{HttpCall, HttpEvent};
 /// The default when a call names no timeout, matching `HttpConfig`.
 const DEFAULT_TIMEOUT: f64 = 10.0;
 
-pub(crate) fn spawn_request(call: HttpCall, events: Sender<HttpEvent>) {
+/// A cancel here only drops the reply: the engine never delivers it.
+pub(crate) fn spawn_request(
+    call: HttpCall,
+    events: Sender<HttpEvent>,
+    _cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+) {
     let request = call.id;
     spawn_local(async move {
         let event = match send(call, &events).await {

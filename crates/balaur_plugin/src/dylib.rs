@@ -7,9 +7,9 @@
 
 use crate::Fingerprint;
 
-#[cfg(feature = "dylib")]
+#[cfg(feature = "extensions")]
 pub(crate) const TAG_SYMBOL: &[u8] = b"balaur_plugin_abi";
-#[cfg(feature = "dylib")]
+#[cfg(feature = "extensions")]
 pub(crate) const CREATE_SYMBOL: &[u8] = b"balaur_plugin_create";
 const FIELD: usize = 48;
 

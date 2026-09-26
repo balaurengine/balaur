@@ -37,7 +37,7 @@ cells = [[0, 0, 0], [0, 1, 0], [0, 2, 0]]   # signed coordinates
 ```"#;
 
 pub(crate) fn register_voxels_asset(app: &mut App) {
-    app.register_asset_type(VOXELS_ASSET_TYPE, "terrain", VOXELS_ASSET_DOC, |value| {
+    app.register_asset_type(VOXELS_ASSET_TYPE, "voxels", VOXELS_ASSET_DOC, |value| {
         Ok(std::rc::Rc::new(parse_definition(value)?) as std::rc::Rc<dyn std::any::Any>)
     });
 }

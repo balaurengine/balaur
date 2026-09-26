@@ -38,7 +38,7 @@ parent = "LampPost"
 position = [0, 3.06, 0]
 
 [nodes.shape3d]
-kind = "ball"
+kind = "sphere"
 radius = 0.16
 color = "#ffe9b8"
 
@@ -50,4 +50,4 @@ parent = "Head"
 kind = "point"
 color = "#ffe1a8"
 intensity = 6
-radius = 12
+range = 12

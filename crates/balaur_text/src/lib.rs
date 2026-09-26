@@ -69,7 +69,7 @@ pub struct Request {
     /// A `font` asset naming a bitmap face; empty shapes with the project's
     /// vector chain.
     pub font: String,
-    /// Which named chain to shape with — `heading`, `ui`, `mono` or `icons`.
+    /// Which named chain to shape with — `heading`, `ui`, `mono` or `icon`.
     /// Empty takes `ui`, which is what a label has always used.
     pub family: String,
     /// Baseline to baseline, as a multiple of the size; zero takes the

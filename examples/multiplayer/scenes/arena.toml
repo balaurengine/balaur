@@ -17,8 +17,8 @@ parent = "n_arena"
 position = [-2.0, 0.0, 0.0]
 
 [nodes.shape2d]
-kind = "rect"
-half_extents = [0.4, 0.4]
+kind = "rectangle"
+size = [0.8, 0.8]
 corner_radius = 0.1
 color = "#e0653f"
 
@@ -31,8 +31,8 @@ parent = "n_arena"
 position = [2.0, 0.0, 0.0]
 
 [nodes.shape2d]
-kind = "rect"
-half_extents = [0.4, 0.4]
+kind = "rectangle"
+size = [0.8, 0.8]
 corner_radius = 0.1
 color = "#4a8fd4"
 

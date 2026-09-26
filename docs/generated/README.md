@@ -10,5 +10,6 @@ drift. Do not edit these by hand.
 - [components.md](components.md)
 - [crate-graph.md](crate-graph.md)
 - [features.md](features.md)
+- [hooks.md](hooks.md)
 - [script-api.md](script-api.md)
 - [script-types.md](script-types.md)

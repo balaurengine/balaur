@@ -27,7 +27,7 @@ with `rustfmt` and `clippy`, so every machine runs one linter version.
 - `cargo fmt --all --check`.
 - `cargo clippy --workspace --all-targets -- -D warnings`
 - Once for `window`, `extensions`, `apple`
-- Once for `wasm32-unknown-unknown`
+- Twice for `wasm32-unknown-unknown`: the web runtime's features, and the defaults
 - `examples/extension_greeter`, deliberately outside the workspace: the only
   thing proving an extension builds without the engine's build tree.
 
@@ -53,6 +53,8 @@ only.
 | `rune-short-circuit`, `rune-rebound-let` | two Rune shapes that compile and then misbehave (`AGENTS.md`) |
 | `std-fs`, `is-absolute` | `std::fs` and `Path::is_absolute` in engine crates, which the web build has no disk for; `files::backend` and `files::rooted` are the substitutes |
 | `hover-only-control` | an editor control shown only while hovered, which a finger cannot reach |
+| `setting-unit` | a setting or option that measures time, rate or distance and names no unit (`NAMING.md` N21) |
+| `theme-token`, `theme-key` | a colour token that names a hue or a family suffix outside the set, and a theme key that is no widget property (N18, N19) |
 
 ## Comments
 
@@ -122,7 +124,7 @@ A change that alters a recorded digest has to say why.
 About 2,040 `#[test]` functions across 22 crates, 159 integration files, on all
 three desktop platforms. Beyond `cargo test --workspace`:
 
-- `cargo test -p balaur_plugin --features dylib` and `-p balaur --features
+- `cargo test -p balaur_plugin --features extensions` and `-p balaur --features
   extensions` — the dlopen path, the cdylib, and loading one at run time.
 - `cargo build -p balaur_cli --no-default-features`, plus core and physics
   tested without them: nothing else exercises a subsystem switched off.
@@ -178,6 +180,8 @@ render steps cover what drawing reports. What a screen looks like is
   metadata and a booted engine, and fails on any diff.
 - `api_lints.py` requires a doc line on every script module, function,
   component and asset type.
+- `api_lints.py` `hook-name`: a hook the engine tells starts with `on_`, and
+  one told a flag's new value ends in `_changed` (N22).
 - `scripts/prose_lints.py` fails a roadmap row over one sentence or 25 words,
   and every hand-written `.md` on the mechanical half of the `avoid-ai-writing`
   skill. Sentence length, filler and em dashes are reported on

@@ -3,8 +3,8 @@
 //! the same keys with the same defaults.
 
 use super::{
-    DEFAULT_POINTS, DEFAULT_RINGS, DEFAULT_SEGMENTS, DEFAULT_SIDES, Flat, MIN_EXTENT, Solid, keys,
-    words,
+    DEFAULT_HEIGHT, DEFAULT_POINTS, DEFAULT_RINGS, DEFAULT_SEGMENTS, DEFAULT_SIDES, Flat,
+    MIN_EXTENT, Solid, keys, words,
 };
 use anyhow::{Result, anyhow};
 use toml::Value;
@@ -37,15 +37,20 @@ fn count(params: &Value, key: &str, fallback: u32) -> u32 {
         .max(3)
 }
 
-/// One component of a `half_extents` array.
+/// Half of one component of a `size` array, which is the whole extent.
 fn half(params: &Value, index: usize) -> f32 {
     params
-        .get(keys::HALF_EXTENTS)
+        .get(keys::SIZE)
         .and_then(Value::as_array)
         .and_then(|a| a.get(index))
         .and_then(crate::components::as_f64)
-        .map_or(0.5, |v| v as f32)
+        .map_or(0.5, |v| v as f32 / 2.0)
         .max(MIN_EXTENT)
+}
+
+/// A capsule's `height` runs tip to tip; the mesh wants the straight part.
+fn straight(params: &Value, radius: f32) -> f32 {
+    (extent(params, keys::HEIGHT, DEFAULT_HEIGHT) - 2.0 * radius).max(0.0)
 }
 
 fn float(value: f32) -> Value {
@@ -56,8 +61,9 @@ fn integer(value: u32) -> Value {
     Value::Integer(i64::from(value))
 }
 
+/// A `size` from half extents.
 fn extents(values: [f32; 3]) -> Value {
-    Value::Array(values.into_iter().map(float).collect())
+    Value::Array(values.into_iter().map(|v| float(v * 2.0)).collect())
 }
 
 impl Solid {
@@ -69,19 +75,19 @@ impl Solid {
         let kind = params
             .get(keys::KIND)
             .and_then(Value::as_str)
-            .unwrap_or(words::CUBOID);
+            .unwrap_or(words::BOX);
         let radius = extent(params, keys::RADIUS, 0.5);
-        let height = extent(params, keys::HEIGHT, 1.0);
+        let height = extent(params, keys::HEIGHT, DEFAULT_HEIGHT);
         let segments = count(params, keys::SEGMENTS, DEFAULT_SEGMENTS);
         let rings = count(params, keys::RINGS, DEFAULT_RINGS);
         let sides = count(params, keys::SIDES, DEFAULT_SIDES);
         Ok(match kind {
-            words::BALL => Self::Ball {
+            words::SPHERE => Self::Ball {
                 radius,
                 segments,
                 rings,
             },
-            words::CUBOID => Self::Cuboid {
+            words::BOX => Self::Cuboid {
                 hx: half(params, 0),
                 hy: half(params, 1),
                 hz: half(params, 2),
@@ -90,7 +96,7 @@ impl Solid {
             },
             words::CAPSULE => Self::Capsule {
                 radius,
-                height,
+                height: straight(params, radius),
                 segments,
                 rings,
             },
@@ -163,7 +169,7 @@ impl Solid {
                 corner_radius,
                 segments,
             } => {
-                put(keys::HALF_EXTENTS, extents([hx, hy, hz]));
+                put(keys::SIZE, extents([hx, hy, hz]));
                 put(keys::CORNER_RADIUS, float(corner_radius));
                 put(keys::SEGMENTS, integer(segments));
             }
@@ -174,7 +180,7 @@ impl Solid {
                 rings,
             } => {
                 put(keys::RADIUS, float(radius));
-                put(keys::HEIGHT, float(height));
+                put(keys::HEIGHT, float(2.0f32.mul_add(radius, height)));
                 put(keys::SEGMENTS, integer(segments));
                 put(keys::RINGS, integer(rings));
             }
@@ -193,7 +199,7 @@ impl Solid {
                 put(keys::SEGMENTS, integer(segments));
             }
             Self::Plane { hx, hz, segments } => {
-                put(keys::HALF_EXTENTS, extents([hx, 0.0, hz]));
+                put(keys::SIZE, extents([hx, 0.0, hz]));
                 put(keys::SEGMENTS, integer(segments));
             }
             Self::Torus {
@@ -208,7 +214,7 @@ impl Solid {
                 put(keys::RINGS, integer(rings));
             }
             Self::Pyramid { hx, hy, hz, sides } => {
-                put(keys::HALF_EXTENTS, extents([hx, hy, hz]));
+                put(keys::SIZE, extents([hx, hy, hz]));
                 put(keys::SIDES, integer(sides));
             }
             Self::Prism {
@@ -245,7 +251,7 @@ impl Flat {
         let kind = params
             .get(keys::KIND)
             .and_then(Value::as_str)
-            .unwrap_or(words::RECT);
+            .unwrap_or(words::RECTANGLE);
         let radius = extent(params, keys::RADIUS, 0.5);
         let segments = count(params, keys::SEGMENTS, DEFAULT_SEGMENTS);
         Ok(match kind {
@@ -255,7 +261,7 @@ impl Flat {
                 hy: half(params, 1),
                 segments,
             },
-            words::RECT => Self::Rect {
+            words::RECTANGLE => Self::Rect {
                 hx: half(params, 0),
                 hy: half(params, 1),
                 corner_radius: optional(params, keys::CORNER_RADIUS, 0.0),
@@ -263,7 +269,7 @@ impl Flat {
             },
             words::CAPSULE => Self::Capsule {
                 radius,
-                height: extent(params, keys::HEIGHT, 1.0),
+                height: straight(params, radius),
                 segments,
             },
             words::STAR => Self::Star {
@@ -287,14 +293,14 @@ impl Flat {
         let mut put = |key: &str, value: Value| {
             map.insert(key.into(), value);
         };
-        let pair = |hx: f32, hy: f32| Value::Array(vec![float(hx), float(hy)]);
+        let pair = |hx: f32, hy: f32| Value::Array(vec![float(hx * 2.0), float(hy * 2.0)]);
         match self {
             Self::Circle { radius, segments } => {
                 put(keys::RADIUS, float(radius));
                 put(keys::SEGMENTS, integer(segments));
             }
             Self::Ellipse { hx, hy, segments } => {
-                put(keys::HALF_EXTENTS, pair(hx, hy));
+                put(keys::SIZE, pair(hx, hy));
                 put(keys::SEGMENTS, integer(segments));
             }
             Self::Rect {
@@ -303,7 +309,7 @@ impl Flat {
                 corner_radius,
                 segments,
             } => {
-                put(keys::HALF_EXTENTS, pair(hx, hy));
+                put(keys::SIZE, pair(hx, hy));
                 put(keys::CORNER_RADIUS, float(corner_radius));
                 put(keys::SEGMENTS, integer(segments));
             }
@@ -313,7 +319,7 @@ impl Flat {
                 segments,
             } => {
                 put(keys::RADIUS, float(radius));
-                put(keys::HEIGHT, float(height));
+                put(keys::HEIGHT, float(2.0f32.mul_add(radius, height)));
                 put(keys::SEGMENTS, integer(segments));
             }
             Self::Star {

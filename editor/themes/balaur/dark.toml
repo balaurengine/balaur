@@ -1,0 +1,11 @@
+# Balaur's dark half: six source colours, and every other token derived
+# from them. The roles and sizes every half shares are in `../roles.toml`.
+type = "widget_theme"
+
+[colors]
+background = "#151f2a"
+foreground = "#e6e9ee"
+primary = "#4287cc"
+secondary = "#8fb8b0"
+warning = "#e0b04a"
+danger = "#e37b7b"

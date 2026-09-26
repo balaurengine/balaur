@@ -14,7 +14,7 @@ pub fn init(this) {
 }
 
 pub fn update(this, dt) {
-    if !input::mouse_just_pressed(input::MOUSE_LEFT) {
+    if !input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
         return;
     }
     let (ox, oy, oz, dx, dy, dz) = render::mouse_ray();
@@ -34,7 +34,7 @@ pub fn update(this, dt) {
 }
 
 pub fn fixed_update(this, dt) {
-    if this.node.character3d.is_grounded() {
+    if this.node.character3d.is_on_floor() {
         this.vy = 0.0;
     } else {
         this.vy -= this.gravity * dt;

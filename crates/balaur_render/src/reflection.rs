@@ -22,7 +22,7 @@ use glamx::Vec3;
 use crate::vocabulary::{keys as k, words};
 
 /// The `reflection_probe` component's authored state. The node's position
-/// places the box; `half_extents` is in world units and does not follow the
+/// places the box; `size` is in world units and does not follow the
 /// node's scale, the way a `light3d`'s radius does not.
 pub struct ReflectionProbe {
     pub half_extents: Vec3,
@@ -30,7 +30,7 @@ pub struct ReflectionProbe {
     /// crossing it fades back to the sky rather than jumping.
     pub falloff: f32,
     pub intensity: f32,
-    /// Turn about y, in degrees, matching `environment.sky_rotation`.
+    /// Turn about y, in degrees, matching `environment.sky_rotation_degrees`.
     pub rotation: f32,
     /// A baked equirectangular image, project-relative. Empty captures the
     /// scene from the probe's own position instead.
@@ -82,10 +82,10 @@ pub fn probes(world: &World, root: Entity) -> Vec<LitProbe> {
 }
 
 fn probe_schema() -> String {
-    r#"half_extents = { type = "vec3", default = [5.0, 5.0, 5.0], min = 0.0, description = "Half the box this probe speaks for, in world units, centred on the node" }
+    r#"size = { type = "vec3", default = [10.0, 10.0, 10.0], min = 0.0, description = "The box this probe speaks for, in world units, centred on the node" }
 falloff = { type = "float", default = 0.5, min = 0.0, description = "How wide the soft edge at the box's face is; a surface crossing it fades back to the sky" }
 intensity = { type = "float", default = 1.0, min = 0.0, description = "Brightness of what the probe reflects" }
-rotation = { type = "float", default = 0.0, description = "Turn of the captured map about y, in degrees" }
+image_rotation_degrees = { type = "float", default = 0.0, description = "Turn of the captured map about y, in degrees" }
 image = { type = "string", default = "", description = "Baked equirectangular image, project-relative. Empty captures the scene from the node's own position" }"#
         .to_string()
 }
@@ -95,6 +95,8 @@ pub(crate) fn register_reflection_probe_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "reflection_probe",
         ComponentDef {
+            events: &[],
+            warnings: None,
             doc: "A box the room around it was captured inside. A reflective surface within it mirrors that capture, aimed at the box, instead of the distant sky.",
             schema: ComponentDef::parse_schema("reflection_probe", &probe_schema()),
             tags: &[words::PERSPECTIVE, "render"],
@@ -105,17 +107,18 @@ pub(crate) fn register_reflection_probe_component(reg: &mut Registry<'_>) {
                 };
                 let extent = |i: usize, default: f32| {
                     params
-                        .get(k::HALF_EXTENTS)
+                        .get(k::SIZE)
                         .and_then(toml::Value::as_array)
                         .and_then(|a| a.get(i))
                         .and_then(as_f64)
                         .unwrap_or(f64::from(default)) as f32
+                        / 2.0
                 };
                 let next = ReflectionProbe {
-                    half_extents: Vec3::new(extent(0, 5.0), extent(1, 5.0), extent(2, 5.0)),
+                    half_extents: Vec3::new(extent(0, 10.0), extent(1, 10.0), extent(2, 10.0)),
                     falloff: num(k::FALLOFF, 0.5),
                     intensity: num(k::INTENSITY, 1.0),
-                    rotation: num(k::ROTATION, 0.0),
+                    rotation: num(k::IMAGE_ROTATION_DEGREES, 0.0),
                     image: prop_str(params, k::IMAGE).to_string(),
                 };
                 let mut world = eng.world_mut();
@@ -136,13 +139,13 @@ pub(crate) fn register_reflection_probe_component(reg: &mut Registry<'_>) {
                 let probe = world.get::<&ReflectionProbe>(entity).ok()?;
                 let mut map = toml::map::Map::new();
                 map.insert(
-                    k::HALF_EXTENTS.into(),
+                    k::SIZE.into(),
                     toml::Value::Array(
                         probe
                             .half_extents
                             .to_array()
                             .iter()
-                            .map(|v| toml::Value::Float(f64::from(*v)))
+                            .map(|v| toml::Value::Float(f64::from(*v * 2.0)))
                             .collect(),
                     ),
                 );
@@ -155,7 +158,7 @@ pub(crate) fn register_reflection_probe_component(reg: &mut Registry<'_>) {
                     toml::Value::Float(f64::from(probe.intensity)),
                 );
                 map.insert(
-                    k::ROTATION.into(),
+                    k::IMAGE_ROTATION_DEGREES.into(),
                     toml::Value::Float(f64::from(probe.rotation)),
                 );
                 map.insert(k::IMAGE.into(), toml::Value::String(probe.image.clone()));
@@ -170,7 +173,7 @@ pub(crate) fn register_reflection_probe_component(reg: &mut Registry<'_>) {
 /// A probe is registered once and captured once: the array it lives in is
 /// allocated up front, and a capture renders the whole scene six times, which
 /// is not something a frame should repeat.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 #[derive(Default)]
 pub(crate) struct ProbeSlots {
     /// What [`probes`] last resolved to, so nothing is re-registered until a
@@ -182,7 +185,7 @@ pub(crate) struct ProbeSlots {
     registered: usize,
 }
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 impl ProbeSlots {
     /// Register this scene's probes with the window, capturing the ones that
     /// name no baked image.
@@ -245,7 +248,7 @@ impl ProbeSlots {
 
 /// A baked probe map, read out of the project the way a sky is: through the
 /// project reader, so a packed game carries it inside the pack.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn baked(app: &balaur_core::App, path: &str) -> anyhow::Result<image::DynamicImage> {
     let files = app.engine.resource::<balaur_core::project::ProjectFiles>();
     let bytes = files.borrow().read(path)?;

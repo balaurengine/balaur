@@ -29,6 +29,8 @@ use balaur_core::{DetHashMap, Engine, Stage};
 use balaur_platform::{Call, PlatformBackend, PlatformEvent};
 use balaur_script::{Bindings, BindingsExt, Value};
 
+#[cfg(test)]
+mod arrival_tests;
 #[cfg(target_vendor = "apple")]
 mod arrivals;
 #[cfg(target_vendor = "apple")]
@@ -48,7 +50,8 @@ mod ui;
 #[cfg(target_vendor = "apple")]
 mod backend {
     pub(crate) use crate::arrivals::{request_push_token, watch_urls};
-    pub(crate) use crate::gamekit::{apple_call, authenticated, platform_call};
+    pub(crate) use crate::gamekit::{apple_call, authenticated, platform_call, watch_invites};
+    pub(crate) use crate::icloud::watch_changes as watch_cloud;
     pub(crate) use crate::notify::cancel as cancel_notification;
     pub(crate) use crate::ui::access_point;
 
@@ -95,6 +98,14 @@ mod backend {
     }
 
     pub(crate) const fn watch_urls() -> bool {
+        false
+    }
+
+    pub(crate) const fn watch_invites() -> bool {
+        false
+    }
+
+    pub(crate) const fn watch_cloud() -> bool {
         false
     }
 
@@ -234,9 +245,36 @@ pub enum AppleEvent {
         request: u64,
         id: String,
     },
-    /// A notification was tapped. Unsolicited, like everything below it.
+    /// A notification was tapped, with what its sender put in it.
+    /// Unsolicited, like everything below it.
     NotificationOpened {
         id: String,
+        data: serde_json::Value,
+    },
+    /// A notification arrived while the game was in front, and was shown.
+    NotificationReceived {
+        id: String,
+        title: String,
+        body: String,
+        data: serde_json::Value,
+    },
+    /// A push reached the app itself, a silent one included: its payload.
+    PushReceived {
+        data: serde_json::Value,
+    },
+    /// The player accepted a Game Center invite, from `player`.
+    InviteAccepted {
+        player: String,
+        name: String,
+    },
+    /// The player asked Game Center to start a match with these players.
+    MatchRequested {
+        players: Vec<String>,
+    },
+    /// Another device changed the iCloud key-value store: why, and which keys.
+    CloudChanged {
+        reason: String,
+        keys: Vec<String>,
     },
     /// The device's push token, as the hex a push server takes.
     PushToken {
@@ -273,6 +311,11 @@ impl AppleEvent {
             | Self::Unsupported { request, .. } => *request,
             // Nobody asked for these, so they carry the id no call is given.
             Self::NotificationOpened { .. }
+            | Self::NotificationReceived { .. }
+            | Self::PushReceived { .. }
+            | Self::InviteAccepted { .. }
+            | Self::MatchRequested { .. }
+            | Self::CloudChanged { .. }
             | Self::PushToken { .. }
             | Self::PushFailed { .. }
             | Self::Url { .. } => 0,
@@ -384,6 +427,63 @@ fn pump_apple_system(eng: &Engine, _: f32) {
     balaur_core::handler::dispatch(eng, dispatches);
 }
 
+/// The `kind` each event map carries, and the `EVENT_*` constants of it.
+/// The StoreKit kinds come from the Swift shim, which spells the same words.
+pub mod kind {
+    pub const IDENTITY: &str = "identity";
+    pub const SIGNED_IN: &str = "signed_in";
+    pub const CREDENTIAL_STATE: &str = "credential_state";
+    pub const DASHBOARD_CLOSED: &str = "dashboard_closed";
+    pub const NOTIFICATIONS: &str = "notifications";
+    pub const SCHEDULED: &str = "scheduled";
+    pub const NOTIFICATION_OPENED: &str = "notification_opened";
+    pub const NOTIFICATION_RECEIVED: &str = "notification_received";
+    pub const PUSH_RECEIVED: &str = "push_received";
+    pub const INVITE_ACCEPTED: &str = "invite_accepted";
+    pub const MATCH_REQUESTED: &str = "match_requested";
+    pub const CLOUD_CHANGED: &str = "cloud_changed";
+    pub const PUSH_TOKEN: &str = "push_token";
+    pub const PUSH_FAILED: &str = "push_failed";
+    pub const URL: &str = "url";
+    pub const UNSUPPORTED: &str = "unsupported";
+    pub const PRODUCTS: &str = "products";
+    pub const PURCHASED: &str = "purchased";
+    pub const CANCELLED: &str = "cancelled";
+    pub const PENDING: &str = "pending";
+    pub const ENTITLEMENTS: &str = "entitlements";
+    pub const RESTORED: &str = "restored";
+    pub const FINISHED: &str = "finished";
+    pub const TRANSACTION: &str = "transaction";
+    pub const ERROR: &str = balaur_core::handler::ERROR;
+    pub const ALL: &[&str] = &[
+        IDENTITY,
+        SIGNED_IN,
+        CREDENTIAL_STATE,
+        DASHBOARD_CLOSED,
+        NOTIFICATIONS,
+        SCHEDULED,
+        NOTIFICATION_OPENED,
+        NOTIFICATION_RECEIVED,
+        PUSH_RECEIVED,
+        INVITE_ACCEPTED,
+        MATCH_REQUESTED,
+        CLOUD_CHANGED,
+        PUSH_TOKEN,
+        PUSH_FAILED,
+        URL,
+        UNSUPPORTED,
+        PRODUCTS,
+        PURCHASED,
+        CANCELLED,
+        PENDING,
+        ENTITLEMENTS,
+        RESTORED,
+        FINISHED,
+        TRANSACTION,
+        ERROR,
+    ];
+}
+
 fn event_value(event: AppleEvent) -> Value {
     let mut pairs = vec![("request".into(), id_value(event.request()))];
     match event {
@@ -395,7 +495,7 @@ fn event_value(event: AppleEvent) -> Value {
             timestamp,
             ..
         } => {
-            pairs.push(("kind".into(), Value::Str("identity".into())));
+            pairs.push(("kind".into(), Value::Str(kind::IDENTITY.into())));
             pairs.push(("player".into(), Value::Str(player)));
             pairs.push(("url".into(), Value::Str(url)));
             pairs.push(("signature".into(), Value::Str(signature)));
@@ -413,7 +513,7 @@ fn event_value(event: AppleEvent) -> Value {
             email,
             ..
         } => {
-            pairs.push(("kind".into(), Value::Str("signed_in".into())));
+            pairs.push(("kind".into(), Value::Str(kind::SIGNED_IN.into())));
             pairs.push(("user".into(), Value::Str(user)));
             pairs.push(("name".into(), Value::Str(name)));
             pairs.push(("token".into(), Value::Str(token)));
@@ -421,34 +521,40 @@ fn event_value(event: AppleEvent) -> Value {
             pairs.push(("email".into(), Value::Str(email)));
         }
         AppleEvent::CredentialState { state, .. } => {
-            pairs.push(("kind".into(), Value::Str("credential_state".into())));
+            pairs.push(("kind".into(), Value::Str(kind::CREDENTIAL_STATE.into())));
             pairs.push(("state".into(), Value::Str(state)));
         }
         AppleEvent::DashboardClosed { .. } => {
-            pairs.push(("kind".into(), Value::Str("dashboard_closed".into())));
+            pairs.push(("kind".into(), Value::Str(kind::DASHBOARD_CLOSED.into())));
         }
         AppleEvent::Notifications { allowed, .. } => {
-            pairs.push(("kind".into(), Value::Str("notifications".into())));
+            pairs.push(("kind".into(), Value::Str(kind::NOTIFICATIONS.into())));
             pairs.push(("allowed".into(), Value::Bool(allowed)));
         }
         AppleEvent::Scheduled { id, .. } => {
-            pairs.push(("kind".into(), Value::Str("scheduled".into())));
+            pairs.push(("kind".into(), Value::Str(kind::SCHEDULED.into())));
             pairs.push(("id".into(), Value::Str(id)));
         }
-        AppleEvent::NotificationOpened { id } => {
-            pairs.push(("kind".into(), Value::Str("notification_opened".into())));
+        AppleEvent::NotificationOpened { id, data } => {
+            pairs.push(("kind".into(), Value::Str(kind::NOTIFICATION_OPENED.into())));
             pairs.push(("id".into(), Value::Str(id)));
+            pairs.push(("data".into(), from_json(&data).unwrap_or(Value::Nil)));
         }
+        arrival @ (AppleEvent::NotificationReceived { .. }
+        | AppleEvent::PushReceived { .. }
+        | AppleEvent::InviteAccepted { .. }
+        | AppleEvent::MatchRequested { .. }
+        | AppleEvent::CloudChanged { .. }) => arrived(arrival, &mut pairs),
         AppleEvent::PushToken { token } => {
-            pairs.push(("kind".into(), Value::Str("push_token".into())));
+            pairs.push(("kind".into(), Value::Str(kind::PUSH_TOKEN.into())));
             pairs.push(("token".into(), Value::Str(token)));
         }
         AppleEvent::PushFailed { message } => {
-            pairs.push(("kind".into(), Value::Str("push_failed".into())));
+            pairs.push(("kind".into(), Value::Str(kind::PUSH_FAILED.into())));
             pairs.push(("error".into(), Value::Str(message)));
         }
         AppleEvent::Url { url } => {
-            pairs.push(("kind".into(), Value::Str("url".into())));
+            pairs.push(("kind".into(), Value::Str(kind::URL.into())));
             pairs.push(("url".into(), Value::Str(url)));
         }
         // StoreKit's own shape, unflattened: the `kind` is already in there.
@@ -458,11 +564,11 @@ fn event_value(event: AppleEvent) -> Value {
             }
         }
         AppleEvent::Failed { message, .. } => {
-            pairs.push(("kind".into(), Value::Str("failed".into())));
+            pairs.push(("kind".into(), Value::Str(kind::ERROR.into())));
             pairs.push(("error".into(), Value::Str(message)));
         }
         AppleEvent::Unsupported { call, .. } => {
-            pairs.push(("kind".into(), Value::Str("unsupported".into())));
+            pairs.push(("kind".into(), Value::Str(kind::UNSUPPORTED.into())));
             pairs.push(("call".into(), Value::Str(call)));
         }
     }
@@ -528,8 +634,9 @@ fn restore(eng: &Engine, value: &serde_json::Value) {
 /// has it.
 fn install_apple_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer on a later tick as a `kind` map, to the node's `on_apple` or the awaited id.",
+        "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer on a later tick as a map whose `kind` is an `EVENT_*` constant, to the node's `on_apple_event` or the awaited id.",
     );
+    balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[
         (
             "available",
@@ -646,15 +753,58 @@ fn install_screens_api(m: &mut dyn Bindings<Engine>) {
     );
 }
 
+/// What a notification, a push, an invite or an iCloud change carries.
+/// Split from [`event_value`] under `MAX_FN_LINES`.
+fn arrived(event: AppleEvent, pairs: &mut Vec<(String, Value)>) {
+    match event {
+        AppleEvent::NotificationReceived {
+            id,
+            title,
+            body,
+            data,
+        } => {
+            pairs.push((
+                "kind".into(),
+                Value::Str(kind::NOTIFICATION_RECEIVED.into()),
+            ));
+            pairs.push(("id".into(), Value::Str(id)));
+            pairs.push(("title".into(), Value::Str(title)));
+            pairs.push(("body".into(), Value::Str(body)));
+            pairs.push(("data".into(), from_json(&data).unwrap_or(Value::Nil)));
+        }
+        AppleEvent::PushReceived { data } => {
+            pairs.push(("kind".into(), Value::Str(kind::PUSH_RECEIVED.into())));
+            pairs.push(("data".into(), from_json(&data).unwrap_or(Value::Nil)));
+        }
+        AppleEvent::InviteAccepted { player, name } => {
+            pairs.push(("kind".into(), Value::Str(kind::INVITE_ACCEPTED.into())));
+            pairs.push(("player".into(), Value::Str(player)));
+            pairs.push(("name".into(), Value::Str(name)));
+        }
+        AppleEvent::MatchRequested { players } => {
+            pairs.push(("kind".into(), Value::Str(kind::MATCH_REQUESTED.into())));
+            let players = players.into_iter().map(Value::Str).collect();
+            pairs.push(("players".into(), Value::List(players)));
+        }
+        AppleEvent::CloudChanged { reason, keys } => {
+            pairs.push(("kind".into(), Value::Str(kind::CLOUD_CHANGED.into())));
+            pairs.push(("reason".into(), Value::Str(reason)));
+            let keys = keys.into_iter().map(Value::Str).collect();
+            pairs.push(("keys".into(), Value::List(keys)));
+        }
+        _ => {}
+    }
+}
+
 /// Notifications, push and URLs: everything that arrives rather than
 /// answers.
 fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         (
-            "watch",
+            "listen",
             &[],
             "",
-            "Subscribe a node's method to everything that arrives unasked: a notification tapped, a URL opened, a push token, a transaction that landed elsewhere.",
+            "Subscribe a node's method to everything that arrives unasked: a notification tapped or shown in front, a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere.",
         ),
         (
             "request_notifications",
@@ -678,20 +828,17 @@ fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
             "register_for_push",
             &[],
             "",
-            "Ask the OS for a push token. It arrives at everything watching, not at the caller, because the OS hands it over whenever it likes.",
-        ),
-        (
-            "watch_urls",
-            &[],
-            "",
-            "Hear about URLs the game is asked to open while it runs. A URL the game was launched with arrives before the engine boots and is not one of them.",
+            "Ask the OS for a push token. It arrives at everything listening, not at the caller, because the OS hands it over whenever it likes.",
         ),
     ]);
     m.function(
-        "watch",
+        "listen",
         |eng: &Engine, (node, opts): (Value, Option<Value>)| {
-            let Some(handler) = handler_of(&node, opts.as_ref(), "on_apple", "on_apple")? else {
-                return Err(anyhow!("watching takes a node whose method hears about it"));
+            let Some(handler) = handler_of(&node, opts.as_ref(), "on_event", "on_apple_event")?
+            else {
+                return Err(anyhow!(
+                    "listening takes a node whose method hears about it"
+                ));
             };
             eng.resource::<AppleState>().borrow_mut().watch(handler);
             Ok(Value::Bool(true))
@@ -762,8 +909,39 @@ fn install_device_arrivals_api(m: &mut dyn Bindings<Engine>) {
     m.function("register_for_push", |_: &Engine, ()| {
         Ok(Value::Bool(backend::request_push_token()))
     });
-    m.function("watch_urls", |_: &Engine, ()| {
+    install_listen_for_api(m);
+}
+
+/// The arrivals a game has to ask to hear, each installing what hears it.
+fn install_listen_for_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        (
+            "listen_for_urls",
+            &[],
+            "",
+            "Hear about URLs the game is asked to open while it runs. A URL the game was launched with arrives before the engine boots and is not one of them.",
+        ),
+        (
+            "listen_for_invites",
+            &[],
+            "",
+            "Hear about Game Center invites the player accepts, as `invite_accepted` with the sender's `player` id and `name`, and matches they ask for, as `match_requested` with the `players`.",
+        ),
+        (
+            "listen_for_cloud_changes",
+            &[],
+            "",
+            "Hear about another device changing the iCloud key-value store, as `cloud_changed` with the `reason` and the `keys` it touched.",
+        ),
+    ]);
+    m.function("listen_for_urls", |_: &Engine, ()| {
         Ok(Value::Bool(backend::watch_urls()))
+    });
+    m.function("listen_for_invites", |_: &Engine, ()| {
+        Ok(Value::Bool(backend::watch_invites()))
+    });
+    m.function("listen_for_cloud_changes", |_: &Engine, ()| {
+        Ok(Value::Bool(backend::watch_cloud()))
     });
 }
 
@@ -951,7 +1129,7 @@ fn corner_of(name: &str) -> Result<isize> {
 }
 
 /// The node-or-options first argument both calls take: with a node the answer
-/// reaches its `on_apple` method, without one the returned id is awaited.
+/// reaches its `on_apple_event` method, without one the returned id is awaited.
 fn start_call(
     eng: &Engine,
     node: Option<Value>,
@@ -959,7 +1137,7 @@ fn start_call(
     call: AppleCall,
 ) -> Result<Value> {
     let node = node.unwrap_or(Value::Nil);
-    let handler = handler_of(&node, opts, "on_apple", "on_apple")?;
+    let handler = handler_of(&node, opts, "on_event", "on_apple_event")?;
     let id = eng.next_token();
     // A notification the script did not name is named after the call, so two
     // runs of the same session schedule the same identifier.

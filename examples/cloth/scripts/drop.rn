@@ -1,4 +1,4 @@
-// Labels over the two rocks, and the pictures the manual takes. The physics
+// Labels over the two sheets, and the pictures the manual takes. The physics
 // is the scene's; nothing here moves anything.
 
 const INK = [0.93, 0.94, 0.96, 1.0];
@@ -14,8 +14,8 @@ pub fn init(this) {
 }
 
 fn label(x, y, text, size, color) {
-    render::draw_text(x, y, 0.0, text, #{
-        size: size, color: color, align: "center", pixels_per_unit: 120.0,
+    render::draw_text_3d(x, y, 0.0, text, #{
+        font_size: size, color: color, text_align: "center", pixels_per_unit: 120.0,
     });
 }
 

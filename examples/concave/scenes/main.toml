@@ -68,13 +68,13 @@ body2d = { kind = "dynamic", gravity_scale = 0.0 }
 position = [-2.35, 0.42, 0.0]
 
 [nodes.shape2d]
-kind = "rect"
-half_extents = [0.6, 0.02]
+kind = "rectangle"
+size = [1.2, 0.04]
 color = [0.93, 0.84, 0.55, 1.0]
 
 [nodes.collider2d]
-kind = "rect"
-half_extents = [0.6, 0.02]
+kind = "rectangle"
+size = [1.2, 0.04]
 
 [[nodes]]
 id = "n_beam_grown"
@@ -86,10 +86,10 @@ body2d = { kind = "dynamic", gravity_scale = 0.0 }
 position = [0.85, 0.42, 0.0]
 
 [nodes.shape2d]
-kind = "rect"
-half_extents = [0.6, 0.02]
+kind = "rectangle"
+size = [1.2, 0.04]
 color = [0.93, 0.84, 0.55, 1.0]
 
 [nodes.collider2d]
-kind = "rect"
-half_extents = [0.6, 0.02]
+kind = "rectangle"
+size = [1.2, 0.04]

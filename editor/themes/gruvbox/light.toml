@@ -1,0 +1,19 @@
+# Gruvbox light, medium: MIT, by Pavel Pertsev (morhetz).
+# From github.com/morhetz/gruvbox, colors/gruvbox.vim.
+type = "widget_theme"
+
+[colors]
+background = "#ebdbb2"
+bg_panel = "#fbf1c7"
+bg_control = "#d5c4a1"
+foreground = "#3c3836"
+primary = "#076678"
+secondary = "#427b58"
+success = "#79740e"
+warning = "#b57614"
+danger = "#9d0006"
+syntax_keyword = "#9d0006"
+syntax_string = "#5a5400"  # #79740e, walked to AA
+syntax_number = "#843567"  # #8f3f71, walked to AA
+syntax_type = "#7e4300"  # #b57614, walked to AA
+syntax_comment = "#5d5042"  # #928374, walked to AA

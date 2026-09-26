@@ -8,38 +8,39 @@ cannot drift from what scripts actually see.
 
 | Module | Functions | Constants | Declared by |
 | --- | ---: | ---: | --- |
-| [`animation`](#animation) | 20 | 78 | the engine |
-| [`apple`](#apple) | 18 | 0 | the engine |
+| [`animation`](#animation) | 20 | 80 | the engine |
+| [`apple`](#apple) | 20 | 25 | the engine |
 | [`assets`](#assets) | 11 | 0 | the engine |
-| [`audio`](#audio) | 19 | 0 | the engine |
+| [`audio`](#audio) | 19 | 1 | the engine |
+| [`browser`](#browser) | 8 | 0 | the engine |
 | [`debugger`](#debugger) | 9 | 4 | the engine |
 | [`encoding`](#encoding) | 2 | 0 | the engine |
-| [`engine`](#engine) | 27 | 0 | the engine |
+| [`engine`](#engine) | 28 | 0 | the engine |
 | [`events`](#events) | 6 | 0 | the engine |
 | [`export`](#export) | 6 | 0 | the engine |
 | [`fs`](#fs) | 9 | 0 | the engine |
-| [`gamend`](#gamend) | 19 | 0 | the engine |
+| [`gamend`](#gamend) | 19 | 9 | the engine |
 | [`geometry2d`](#geometry2d) | 10 | 0 | the engine |
 | [`geometry3d`](#geometry3d) | 6 | 0 | the engine |
 | [`hash`](#hash) | 2 | 0 | the engine |
-| [`http`](#http) | 1 | 0 | the engine |
+| [`http`](#http) | 2 | 5 | the engine |
 | [`import`](#import) | 7 | 0 | the engine |
-| [`input`](#input) | 47 | 190 | the engine |
+| [`input`](#input) | 47 | 176 | the engine |
 | [`json`](#json) | 2 | 0 | the engine |
 | [`log`](#log) | 7 | 0 | the engine |
 | [`math`](#math) | 24 | 3 | the engine |
 | [`multiplayer`](#multiplayer) | 14 | 18 | the engine |
 | [`node`](#node) | 56 | 0 | the engine |
 | [`physics`](#physics) | 14 | 0 | the engine |
-| [`physics2d`](#physics2d) | 55 | 49 | the engine |
-| [`physics3d`](#physics3d) | 77 | 62 | the engine |
-| [`platform`](#platform) | 11 | 0 | the engine |
+| [`physics2d`](#physics2d) | 81 | 61 | the engine |
+| [`physics3d`](#physics3d) | 97 | 72 | the engine |
+| [`platform`](#platform) | 11 | 7 | the engine |
 | [`project`](#project) | 13 | 0 | the engine |
+| [`random`](#random) | 5 | 0 | the engine |
 | [`regex`](#regex) | 6 | 0 | the engine |
 | [`release`](#release) | 5 | 0 | the engine |
-| [`render`](#render) | 54 | 31 | the engine |
+| [`render`](#render) | 56 | 36 | the engine |
 | [`replay`](#replay) | 17 | 4 | the engine |
-| [`rng`](#rng) | 5 | 0 | the engine |
 | [`rollback`](#rollback) | 2 | 0 | the engine |
 | [`save`](#save) | 6 | 0 | the engine |
 | [`scene`](#scene) | 22 | 0 | the engine |
@@ -49,36 +50,33 @@ cannot drift from what scripts actually see.
 | [`strings`](#strings) | 6 | 0 | the engine |
 | [`task`](#task) | 3 | 0 | the engine |
 | [`toml`](#toml) | 3 | 0 | the engine |
-| [`ui`](#ui) | 68 | 66 | the engine |
-| [`web`](#web) | 7 | 0 | the engine |
-| [`websocket`](#websocket) | 3 | 0 | the engine |
+| [`ui`](#ui) | 72 | 65 | the engine |
+| [`websocket`](#websocket) | 4 | 9 | the engine |
 | [`window`](#window) | 8 | 0 | the engine |
 
 ## `animation`
 
-**Functions:** `current`, `define`, `ease_names`, `is_playing`, `is_tween_running`, `jump`, `just_finished`, `pause`, `play`, `queue`, `resume`, `seek`, `set_condition`, `state`, `stop`, `time`, `travel`, `tween`, `tween_value`, `tween_value_of`
+**Functions:** `add_clip`, `current_clip`, `current_state`, `ease_names`, `is_playing`, `is_tween_running`, `jump`, `just_finished`, `pause`, `play`, `queue`, `resume`, `seek`, `set_condition`, `stop`, `time`, `travel`, `tween`, `tween_value`, `tween_value_of`
 
-**Constants** (78):
+**Constants** (80):
 
 | Name | Value |
 | --- | --- |
-| `ADVANCE_AUTO` | `auto` |
-| `ADVANCE_DISABLED` | `disabled` |
-| `ADVANCE_ENABLED` | `enabled` |
+| `ADVANCE_MODE_AUTO` | `auto` |
+| `ADVANCE_MODE_DISABLED` | `disabled` |
+| `ADVANCE_MODE_ENABLED` | `enabled` |
 | `EASE_IN_BACK` | `in_back` |
 | `EASE_IN_BOUNCE` | `in_bounce` |
 | `EASE_IN_CIRC` | `in_circ` |
 | `EASE_IN_CUBIC` | `in_cubic` |
 | `EASE_IN_ELASTIC` | `in_elastic` |
 | `EASE_IN_EXPO` | `in_expo` |
-| `EASE_IN_LINEAR` | `in_linear` |
 | `EASE_IN_OUT_BACK` | `in_out_back` |
 | `EASE_IN_OUT_BOUNCE` | `in_out_bounce` |
 | `EASE_IN_OUT_CIRC` | `in_out_circ` |
 | `EASE_IN_OUT_CUBIC` | `in_out_cubic` |
 | `EASE_IN_OUT_ELASTIC` | `in_out_elastic` |
 | `EASE_IN_OUT_EXPO` | `in_out_expo` |
-| `EASE_IN_OUT_LINEAR` | `in_out_linear` |
 | `EASE_IN_OUT_QUAD` | `in_out_quad` |
 | `EASE_IN_OUT_QUART` | `in_out_quart` |
 | `EASE_IN_OUT_QUINT` | `in_out_quint` |
@@ -86,12 +84,45 @@ cannot drift from what scripts actually see.
 | `EASE_IN_OUT_SPRING` | `in_out_spring` |
 | `EASE_IN_QUAD` | `in_quad` |
 | `EASE_IN_QUART` | `in_quart` |
+| `EASE_IN_QUINT` | `in_quint` |
+| `EASE_IN_SINE` | `in_sine` |
 
-…and 54 more.
+…and 56 more.
 
 ## `apple`
 
-**Functions:** `access_point`, `authenticated`, `available`, `cancel_notification`, `credential_state`, `entitlements`, `finish_purchase`, `identity`, `notify`, `products`, `purchase`, `register_for_push`, `request_notifications`, `restore_purchases`, `show_dashboard`, `sign_in`, `watch`, `watch_urls`
+**Functions:** `access_point`, `authenticated`, `available`, `cancel_notification`, `credential_state`, `entitlements`, `finish_purchase`, `identity`, `listen`, `listen_for_cloud_changes`, `listen_for_invites`, `listen_for_urls`, `notify`, `products`, `purchase`, `register_for_push`, `request_notifications`, `restore_purchases`, `show_dashboard`, `sign_in`
+
+**Constants** (25):
+
+| Name | Value |
+| --- | --- |
+| `EVENT_CANCELLED` | `cancelled` |
+| `EVENT_CLOUD_CHANGED` | `cloud_changed` |
+| `EVENT_CREDENTIAL_STATE` | `credential_state` |
+| `EVENT_DASHBOARD_CLOSED` | `dashboard_closed` |
+| `EVENT_ENTITLEMENTS` | `entitlements` |
+| `EVENT_ERROR` | `error` |
+| `EVENT_FINISHED` | `finished` |
+| `EVENT_IDENTITY` | `identity` |
+| `EVENT_INVITE_ACCEPTED` | `invite_accepted` |
+| `EVENT_MATCH_REQUESTED` | `match_requested` |
+| `EVENT_NOTIFICATIONS` | `notifications` |
+| `EVENT_NOTIFICATION_OPENED` | `notification_opened` |
+| `EVENT_NOTIFICATION_RECEIVED` | `notification_received` |
+| `EVENT_PENDING` | `pending` |
+| `EVENT_PRODUCTS` | `products` |
+| `EVENT_PURCHASED` | `purchased` |
+| `EVENT_PUSH_FAILED` | `push_failed` |
+| `EVENT_PUSH_RECEIVED` | `push_received` |
+| `EVENT_PUSH_TOKEN` | `push_token` |
+| `EVENT_RESTORED` | `restored` |
+| `EVENT_SCHEDULED` | `scheduled` |
+| `EVENT_SIGNED_IN` | `signed_in` |
+| `EVENT_TRANSACTION` | `transaction` |
+| `EVENT_UNSUPPORTED` | `unsupported` |
+
+…and 1 more.
 
 ## `assets`
 
@@ -99,11 +130,21 @@ cannot drift from what scripts actually see.
 
 ## `audio`
 
-**Functions:** `bus_volume`, `buses`, `distance_gain`, `emitter_position`, `events`, `is_playing`, `listener`, `pan`, `play`, `play_event`, `ready`, `set_bus_volume`, `set_emitter_position`, `set_listener`, `set_pitch`, `set_volume`, `stop`, `stop_all`, `stop_playback`
+**Functions:** `bus_volume_linear`, `buses`, `cues`, `device_ready`, `distance_gain`, `emitter_position`, `is_playing`, `listener_position`, `pan`, `play`, `play_cue`, `set_bus_volume_linear`, `set_emitter_position`, `set_listener_position`, `set_pitch_scale`, `set_volume_linear`, `stop`, `stop_all`, `stop_playback`
+
+**Constants** (1):
+
+| Name | Value |
+| --- | --- |
+| `EVENT_FINISHED` | `finished` |
+
+## `browser`
+
+**Functions:** `hardware_concurrency`, `listen`, `location`, `messages`, `post_message`, `stop_listening`, `user_agent`, `visible`
 
 ## `debugger`
 
-**Functions:** `break_on_error`, `breakpoints`, `paused`, `request_break`, `resume`, `scope`, `set_break_on_error`, `set_breakpoints`, `set_scope`
+**Functions:** `break_on_error`, `breakpoints`, `request_break`, `resume`, `scope`, `set_break_on_error`, `set_breakpoints`, `set_scope`, `stop_location`
 
 **Constants** (4):
 
@@ -120,23 +161,37 @@ cannot drift from what scripts actually see.
 
 ## `engine`
 
-**Functions:** `args`, `dark_mode`, `delta`, `device_id`, `environment`, `focused`, `has_plugin`, `open_url`, `paused`, `platform`, `plugin_version`, `plugins`, `profile_scripts`, `quit`, `reload_script`, `reveal`, `script_costs`, `set_paused`, `set_time_scale`, `tick`, `tick_hz`, `time`, `time_scale`, `timings`, `unix_time`, `user_data_dir`, `user_data_dir_of`
+**Functions:** `args`, `dark_mode`, `delta`, `device_id`, `environment`, `focused`, `function_costs`, `has_plugin`, `open_url`, `paused`, `plugin_version`, `plugins`, `quit`, `reload_script`, `reveal`, `script_costs`, `set_paused`, `set_script_profiling`, `set_time_scale`, `target`, `tick`, `tick_hz`, `time`, `time_scale`, `timings`, `unix_time`, `user_data_directory`, `user_data_directory_of`
 
 ## `events`
 
-**Functions:** `emit`, `emitted`, `emitted_from`, `next`, `subscribe`, `unsubscribe`
+**Functions:** `emit`, `emitted`, `emitted_from`, `listen`, `next`, `stop_listening`
 
 ## `export`
 
-**Functions:** `listen`, `output`, `preview`, `running`, `start`, `targets`
+**Functions:** `listen`, `output`, `preview`, `running_count`, `start`, `targets`
 
 ## `fs`
 
-**Functions:** `copy`, `exists`, `list`, `mkdir`, `mtime`, `read`, `remove`, `rename`, `write`
+**Functions:** `copy`, `create_directory`, `exists`, `list`, `modified_time`, `read`, `remove`, `rename`, `write`
 
 ## `gamend`
 
-**Functions:** `activity`, `call_hook`, `clear_activity`, `close`, `configure`, `connect`, `connection`, `interrupt`, `join`, `leave`, `login`, `push`, `register`, `reply`, `rest`, `restore`, `run_id`, `session`, `target`
+**Functions:** `activity`, `call_hook`, `clear_activity`, `close`, `configure`, `connect`, `connection`, `interrupt`, `join`, `leave`, `login`, `push`, `register`, `reply`, `rest`, `restore`, `run_id`, `server`, `session`
+
+**Constants** (9):
+
+| Name | Value |
+| --- | --- |
+| `EVENT_CLOSED` | `closed` |
+| `EVENT_ERROR` | `error` |
+| `EVENT_LOGIN` | `login` |
+| `EVENT_MESSAGE` | `message` |
+| `EVENT_OPEN` | `open` |
+| `EVENT_RECONNECTING` | `reconnecting` |
+| `EVENT_REOPENED` | `reopened` |
+| `EVENT_REPLY` | `reply` |
+| `EVENT_REST` | `rest` |
 
 ## `geometry2d`
 
@@ -152,46 +207,56 @@ cannot drift from what scripts actually see.
 
 ## `http`
 
-**Functions:** `request`
+**Functions:** `cancel`, `request`
 
-## `import`
-
-**Functions:** `cancel`, `choose`, `file`, `handles`, `listen`, `running`, `start`
-
-## `input`
-
-**Functions:** `action_just_pressed`, `action_just_released`, `action_pressed`, `action_value`, `actions`, `bind`, `bindings`, `composing`, `dropped_files`, `feed_action`, `feed_key`, `feed_mouse`, `feed_mouse_button`, `feed_scroll`, `feed_touch`, `gamepad_acceleration`, `gamepad_axis`, `gamepad_can_rumble`, `gamepad_down`, `gamepad_gyro`, `gamepad_just_pressed`, `gamepad_just_released`, `gamepad_name`, `gamepad_rumble`, `gamepad_stop_rumble`, `gamepad_touches`, `gamepads`, `is_down`, `is_mouse_down`, `just_pressed`, `just_released`, `keyboard_height`, `long_press`, `mouse_delta`, `mouse_just_pressed`, `mouse_just_released`, `mouse_position`, `pan`, `pinch`, `reset_bindings`, `scroll_delta`, `swipe`, `touches`, `touches_ended`, `touches_started`, `typed`, `vibrate`
-
-**Constants** (190):
+**Constants** (5):
 
 | Name | Value |
 | --- | --- |
-| `AXIS_DPAD_X` | `DPadX` |
-| `AXIS_DPAD_Y` | `DPadY` |
-| `AXIS_LEFT_STICK_X` | `LeftStickX` |
-| `AXIS_LEFT_STICK_Y` | `LeftStickY` |
-| `AXIS_LEFT_Z` | `LeftZ` |
-| `AXIS_RIGHT_STICK_X` | `RightStickX` |
-| `AXIS_RIGHT_STICK_Y` | `RightStickY` |
-| `AXIS_RIGHT_Z` | `RightZ` |
-| `KEY_0` | `Key0` |
-| `KEY_1` | `Key1` |
-| `KEY_2` | `Key2` |
-| `KEY_3` | `Key3` |
-| `KEY_4` | `Key4` |
-| `KEY_5` | `Key5` |
-| `KEY_6` | `Key6` |
-| `KEY_7` | `Key7` |
-| `KEY_8` | `Key8` |
-| `KEY_9` | `Key9` |
-| `KEY_A` | `A` |
-| `KEY_ABNT_C1` | `AbntC1` |
-| `KEY_ABNT_C2` | `AbntC2` |
-| `KEY_ADD` | `Add` |
-| `KEY_APOSTROPHE` | `Apostrophe` |
-| `KEY_APPS` | `Apps` |
+| `EVENT_CANCELLED` | `cancelled` |
+| `EVENT_ERROR` | `error` |
+| `EVENT_PROGRESS` | `progress` |
+| `EVENT_RESPONSE` | `response` |
+| `EVENT_UPLOAD` | `upload` |
 
-…and 166 more.
+## `import`
+
+**Functions:** `cancel`, `choose`, `file`, `handles`, `listen`, `running_count`, `start`
+
+## `input`
+
+**Functions:** `action_down`, `action_just_pressed`, `action_just_released`, `action_value`, `actions`, `bind`, `bindings`, `composing`, `dropped_files`, `feed_action`, `feed_key`, `feed_mouse`, `feed_mouse_button`, `feed_scroll`, `feed_touch`, `gamepad_acceleration`, `gamepad_axis`, `gamepad_can_rumble`, `gamepad_down`, `gamepad_gyro`, `gamepad_just_pressed`, `gamepad_just_released`, `gamepad_name`, `gamepad_rumble`, `gamepad_stop_rumble`, `gamepad_touches`, `gamepads`, `key_down`, `key_just_pressed`, `key_just_released`, `keyboard_height`, `long_press`, `mouse_delta`, `mouse_down`, `mouse_just_pressed`, `mouse_just_released`, `mouse_position`, `pan`, `pinch`, `reset_bindings`, `scroll_delta`, `swipe`, `touches`, `touches_just_ended`, `touches_just_started`, `typed`, `vibrate`
+
+**Constants** (176):
+
+| Name | Value |
+| --- | --- |
+| `GAMEPAD_AXIS_LEFT_TRIGGER` | `left_trigger` |
+| `GAMEPAD_AXIS_LEFT_X` | `left_x` |
+| `GAMEPAD_AXIS_LEFT_Y` | `left_y` |
+| `GAMEPAD_AXIS_RIGHT_TRIGGER` | `right_trigger` |
+| `GAMEPAD_AXIS_RIGHT_X` | `right_x` |
+| `GAMEPAD_AXIS_RIGHT_Y` | `right_y` |
+| `GAMEPAD_BUTTON_BACK` | `back` |
+| `GAMEPAD_BUTTON_DPAD_DOWN` | `dpad_down` |
+| `GAMEPAD_BUTTON_DPAD_LEFT` | `dpad_left` |
+| `GAMEPAD_BUTTON_DPAD_RIGHT` | `dpad_right` |
+| `GAMEPAD_BUTTON_DPAD_UP` | `dpad_up` |
+| `GAMEPAD_BUTTON_EAST` | `east` |
+| `GAMEPAD_BUTTON_GUIDE` | `guide` |
+| `GAMEPAD_BUTTON_LEFT_SHOULDER` | `left_shoulder` |
+| `GAMEPAD_BUTTON_LEFT_STICK` | `left_stick` |
+| `GAMEPAD_BUTTON_LEFT_TRIGGER` | `left_trigger` |
+| `GAMEPAD_BUTTON_NORTH` | `north` |
+| `GAMEPAD_BUTTON_RIGHT_SHOULDER` | `right_shoulder` |
+| `GAMEPAD_BUTTON_RIGHT_STICK` | `right_stick` |
+| `GAMEPAD_BUTTON_RIGHT_TRIGGER` | `right_trigger` |
+| `GAMEPAD_BUTTON_SOUTH` | `south` |
+| `GAMEPAD_BUTTON_START` | `start` |
+| `GAMEPAD_BUTTON_WEST` | `west` |
+| `KEY_0` | `Digit0` |
+
+…and 152 more.
 
 ## `json`
 
@@ -203,19 +268,19 @@ cannot drift from what scripts actually see.
 
 ## `math`
 
-**Functions:** `abs`, `acos`, `asin`, `atan`, `atan2`, `ceil`, `clamp`, `cos`, `cosh`, `deg`, `exp`, `floor`, `log`, `log10`, `max`, `min`, `pow`, `rad`, `round`, `sin`, `sinh`, `sqrt`, `tan`, `tanh`
+**Functions:** `abs`, `acos`, `asin`, `atan`, `atan2`, `ceil`, `clamp`, `cos`, `cosh`, `exp`, `floor`, `log`, `log10`, `max`, `min`, `pow`, `round`, `sin`, `sinh`, `sqrt`, `tan`, `tanh`, `to_degrees`, `to_radians`
 
 **Constants** (3):
 
 | Name | Value |
 | --- | --- |
-| `INF` | `inf` |
+| `INFINITY` | `inf` |
 | `PI` | `3.141592653589793` |
 | `TAU` | `6.283185307179586` |
 
 ## `multiplayer`
 
-**Functions:** `add_bot`, `host`, `join`, `leave`, `local_player`, `players`, `role`, `set_input`, `set_input_for`, `settled`, `start`, `state`, `stats`, `tick`
+**Functions:** `add_bot`, `host`, `join`, `leave`, `local_player`, `players`, `role`, `set_input`, `set_input_for`, `settled_tick`, `start`, `state`, `stats`, `tick`
 
 **Constants** (18):
 
@@ -224,7 +289,7 @@ cannot drift from what scripts actually see.
 | `EVENT_CLOSED` | `closed` |
 | `EVENT_CONNECTED` | `connected` |
 | `EVENT_DESYNC` | `desync` |
-| `EVENT_FAILED` | `failed` |
+| `EVENT_ERROR` | `error` |
 | `EVENT_JOINED` | `joined` |
 | `EVENT_LEFT` | `left` |
 | `EVENT_STARTED` | `started` |
@@ -242,27 +307,29 @@ cannot drift from what scripts actually see.
 
 ## `node`
 
-**Functions:** `add_child`, `add_tag`, `attach_script`, `call`, `call_async`, `children`, `component_names`, `descendants`, `detach_script`, `emit`, `get_component`, `get_node`, `global_material`, `global_position`, `global_rotation_euler`, `global_scale`, `global_tint`, `global_visible`, `global_z_index`, `go`, `has_component`, `has_method`, `has_tag`, `interpolate`, `is_valid`, `material`, `name`, `parent`, `patch_component`, `path`, `process`, `queue_free`, `remove_component`, `remove_tag`, `reset_interpolation`, `script_field`, `script_path`, `set_component`, `set_interpolate`, `set_material`, `set_name`, `set_parent`, `set_process`, `set_sibling_index`, `set_tint`, `set_visible`, `set_z_index`, `sibling_index`, `stable_id`, `state`, `tags`, `ticking`, `tint`, `translate`, `visible`, `z_index`
+**Functions:** `add_child`, `add_tag`, `attach_script`, `call`, `call_async`, `children`, `component_names`, `descendants`, `detach_script`, `effective_material`, `effective_tint`, `effective_z_index`, `emit`, `get_component`, `get_node`, `global_position`, `global_rotation_euler`, `global_scale`, `has_component`, `has_method`, `has_tag`, `interpolate`, `is_valid`, `material`, `name`, `parent`, `patch_component`, `path`, `process`, `queue_free`, `remove_component`, `remove_tag`, `reset_interpolation`, `script_field`, `script_path`, `set_component`, `set_interpolate`, `set_material`, `set_name`, `set_parent`, `set_process`, `set_sibling_index`, `set_state`, `set_tint`, `set_visible`, `set_z_index`, `sibling_index`, `stable_id`, `state`, `tags`, `ticking`, `tint`, `translate`, `visible`, `visible_in_tree`, `z_index`
 
 ## `physics`
 
-**Functions:** `clear`, `counters`, `debug_draw`, `is_paused`, `quarantined`, `ragdoll_blend`, `set_debug_draw`, `set_paused`, `set_sleeping_allowed`, `set_threads`, `set_tuning`, `sleeping_allowed`, `threads`, `tuning`
+**Functions:** `clear`, `counters`, `debug_draw`, `is_paused`, `quarantined`, `set_debug_draw`, `set_paused`, `set_ragdoll_influence`, `set_sleeping_allowed`, `set_threads`, `set_tuning`, `sleeping_allowed`, `threads`, `tuning`
 
 ## `physics2d`
 
-**Functions:** `add_force`, `add_force_at_point`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_torque_impulse`, `box_hits`, `distance`, `gravity`, `intersects`, `is_grounded`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `pin_particle`, `point_hits`, `predict_position`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_torques`, `set_angular_velocity`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_softbody`, `set_voxel`, `shape_hits`, `shapecast`, `sleep`, `softbody_area`, `softbody_center`, `softbody_particles`, `softbody_position`, `softbody_rest_area`, `teleport`, `total_mass`, `user_force`, `user_torque`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_up`
+**Functions:** `active_bodies`, `add_constant_force`, `add_constant_force_at_point`, `add_constant_torque`, `add_softbody_force`, `angular_velocity`, `apply_force`, `apply_force_at_point`, `apply_impulse`, `apply_impulse_at_point`, `apply_particle_impulse`, `apply_softbody_impulse`, `apply_softbody_impulse_at`, `apply_softbody_radial_impulse`, `apply_torque`, `apply_torque_impulse`, `attach_particle`, `bodies`, `closest_point`, `constant_force`, `constant_torque`, `contacts`, `detach_particle`, `distance`, `effective_dominance`, `gravity`, `intersects`, `is_moving`, `is_on_floor`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `next_position`, `overlap_aabb`, `overlap_point`, `overlap_shape`, `overlaps`, `pin_particle`, `potential_energy`, `predict_position`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_softbody_forces`, `set_angular_velocity`, `set_constant_force`, `set_constant_torque`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_particle_position`, `set_particle_target`, `set_particle_velocity`, `set_softbody`, `set_voxel`, `shapecast`, `sleep`, `softbody_area`, `softbody_center`, `softbody_edges`, `softbody_particles`, `softbody_position`, `softbody_rest_area`, `softbody_sleeping`, `softbody_stress`, `softbody_velocity`, `teleport`, `total_mass`, `unpin_particle`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_softbody`, `wake_up`
 
-**Constants** (49):
+**Constants** (61):
 
 | Name | Value |
 | --- | --- |
-| `AXIS_ANG_X` | `ang_x` |
 | `AXIS_X` | `x` |
 | `AXIS_Y` | `y` |
 | `BODY_DYNAMIC` | `dynamic` |
 | `BODY_KINEMATIC` | `kinematic` |
 | `BODY_KINEMATIC_VELOCITY` | `kinematic_velocity` |
 | `BODY_STATIC` | `static` |
+| `CELL_COROTATIONAL` | `corotational` |
+| `CELL_NEO_HOOKEAN` | `neo_hookean` |
+| `CELL_VOLUME` | `volume` |
 | `COLLIDE_DYNAMIC_DYNAMIC` | `dynamic_dynamic` |
 | `COLLIDE_DYNAMIC_KINEMATIC` | `dynamic_kinematic` |
 | `COLLIDE_DYNAMIC_STATIC` | `dynamic_static` |
@@ -277,23 +344,18 @@ cannot drift from what scripts actually see.
 | `COMBINE_MULTIPLY` | `multiply` |
 | `EVENT_COLLISION` | `collision` |
 | `EVENT_CONTACT_FORCE` | `contact_force` |
-| `JOINT_FIXED` | `fixed` |
-| `JOINT_GENERIC` | `generic` |
-| `JOINT_PIN_SLOT` | `pin_slot` |
+| `FLOW_BOTH` | `both` |
 
-…and 25 more.
+…and 37 more.
 
 ## `physics3d`
 
-**Functions:** `aabb`, `active_bodies`, `add_force`, `add_force_at_point`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_torque_impulse`, `bodies`, `box_hits`, `closest_points`, `collider_mass`, `collider_mesh`, `collider_volume`, `contacts`, `distance`, `effective_dominance`, `gravity`, `handles`, `intersects`, `is_grounded`, `is_moving`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `pin_particle`, `point_hits`, `potential_energy`, `predict_position`, `predict_position_with_forces`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_torques`, `set_angular_velocity`, `set_brake`, `set_collider`, `set_engine_force`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_softbody`, `set_steering`, `set_voxel`, `shape_hits`, `shapecast`, `sleep`, `softbody_center`, `softbody_particles`, `softbody_position`, `softbody_rest_volume`, `softbody_volume`, `solve_ik`, `swept_aabb`, `teleport`, `time_of_impact`, `total_mass`, `user_force`, `user_torque`, `vehicle_speed`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_up`, `wheel_state`
+**Functions:** `aabb`, `active_bodies`, `add_constant_force`, `add_constant_force_at_point`, `add_constant_torque`, `add_softbody_force`, `angular_velocity`, `apply_force`, `apply_force_at_point`, `apply_impulse`, `apply_impulse_at_point`, `apply_particle_impulse`, `apply_softbody_impulse`, `apply_softbody_impulse_at`, `apply_softbody_radial_impulse`, `apply_torque`, `apply_torque_impulse`, `attach_particle`, `bodies`, `closest_point`, `closest_points`, `collider_mass`, `collider_mesh`, `collider_volume`, `constant_force`, `constant_torque`, `contacts`, `detach_particle`, `distance`, `effective_dominance`, `gravity`, `handles`, `intersects`, `is_moving`, `is_on_floor`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `next_position`, `overlap_aabb`, `overlap_point`, `overlap_shape`, `overlaps`, `pin_particle`, `potential_energy`, `predict_position`, `predict_position_with_forces`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_softbody_forces`, `set_angular_velocity`, `set_brake`, `set_collider`, `set_constant_force`, `set_constant_torque`, `set_engine_force`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_particle_position`, `set_particle_target`, `set_particle_velocity`, `set_softbody`, `set_steering`, `set_voxel`, `shapecast`, `sleep`, `softbody_center`, `softbody_edges`, `softbody_particles`, `softbody_position`, `softbody_rest_volume`, `softbody_sleeping`, `softbody_stress`, `softbody_velocity`, `softbody_volume`, `solve_ik`, `swept_aabb`, `teleport`, `time_of_impact`, `total_mass`, `unpin_particle`, `vehicle_speed`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_softbody`, `wake_up`, `wheel_state`
 
-**Constants** (62):
+**Constants** (72):
 
 | Name | Value |
 | --- | --- |
-| `AXIS_ANG_X` | `ang_x` |
-| `AXIS_ANG_Y` | `ang_y` |
-| `AXIS_ANG_Z` | `ang_z` |
 | `AXIS_X` | `x` |
 | `AXIS_Y` | `y` |
 | `AXIS_Z` | `z` |
@@ -301,6 +363,9 @@ cannot drift from what scripts actually see.
 | `BODY_KINEMATIC` | `kinematic` |
 | `BODY_KINEMATIC_VELOCITY` | `kinematic_velocity` |
 | `BODY_STATIC` | `static` |
+| `CELL_COROTATIONAL` | `corotational` |
+| `CELL_NEO_HOOKEAN` | `neo_hookean` |
+| `CELL_VOLUME` | `volume` |
 | `COLLIDE_DYNAMIC_DYNAMIC` | `dynamic_dynamic` |
 | `COLLIDE_DYNAMIC_KINEMATIC` | `dynamic_kinematic` |
 | `COLLIDE_DYNAMIC_STATIC` | `dynamic_static` |
@@ -316,15 +381,31 @@ cannot drift from what scripts actually see.
 | `EVENT_COLLISION` | `collision` |
 | `EVENT_CONTACT_FORCE` | `contact_force` |
 
-…and 38 more.
+…and 48 more.
 
 ## `platform`
 
 **Functions:** `backend`, `cloud_read`, `cloud_write`, `player`, `progress`, `scores`, `set_presence`, `sign_in`, `signed_in`, `submit_score`, `unlock`
 
+**Constants** (7):
+
+| Name | Value |
+| --- | --- |
+| `EVENT_DONE` | `done` |
+| `EVENT_ERROR` | `error` |
+| `EVENT_READ` | `read` |
+| `EVENT_SCORES` | `scores` |
+| `EVENT_SIGNED_IN` | `signed_in` |
+| `EVENT_SIGNED_OUT` | `signed_out` |
+| `EVENT_UNSUPPORTED` | `unsupported` |
+
 ## `project`
 
-**Functions:** `copy_example`, `create`, `data_dir`, `examples`, `forget`, `home`, `in_tab`, `open`, `pick_folder`, `recent`, `templates`, `use_data`, `version`
+**Functions:** `copy_example`, `create`, `editor_data_directory`, `examples`, `forget`, `home`, `in_tab`, `open`, `pick_directory`, `recent`, `templates`, `use_data`, `version`
+
+## `random`
+
+**Functions:** `float`, `int`, `range`, `seed`, `uuid`
 
 ## `regex`
 
@@ -336,12 +417,15 @@ cannot drift from what scripts actually see.
 
 ## `render`
 
-**Functions:** `bounds`, `built_mesh`, `camera_2d`, `camera_input`, `camera_matrix`, `camera_pose`, `cell`, `channel`, `channels`, `check_material`, `clones`, `draw_arc_2d`, `draw_box`, `draw_capsule`, `draw_circle_2d`, `draw_line`, `draw_line_2d`, `draw_lines`, `draw_polygon_2d`, `draw_polyline_2d`, `draw_rect_2d`, `draw_sphere`, `draw_text`, `draw_text_2d`, `draw_texture_2d`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `pick_ray_at`, `screenshot`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_cell`, `set_channel`, `set_copy`, `set_cuboid`, `set_grid`, `set_grid_colors`, `set_rect`, `set_shader_preview`, `set_shader_probe`, `set_terrain`, `shader_probe`, `stats`, `terrain`, `text_size`, `texture_size`, `tile_data`, `trace_texture`
+**Functions:** `bounds`, `built_mesh`, `camera_2d`, `camera_input`, `camera_matrix`, `camera_pose`, `cell`, `check_material`, `clones`, `debug_view`, `debug_views`, `draw_arc_2d`, `draw_box`, `draw_capsule`, `draw_circle_2d`, `draw_line_2d`, `draw_line_3d`, `draw_lines`, `draw_polygon_2d`, `draw_polyline_2d`, `draw_rect_2d`, `draw_sphere`, `draw_text_2d`, `draw_text_3d`, `draw_texture_2d`, `is_on_screen`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `pick_ray_at`, `screenshot`, `set_background`, `set_box`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_cell`, `set_copy`, `set_debug_view`, `set_grid`, `set_grid_colors`, `set_rectangle`, `set_shader_preview`, `set_shader_probe`, `set_sphere`, `set_terrain`, `shader_probe`, `stats`, `terrain`, `text_size`, `texture_pixels_per_unit`, `texture_size`, `tile_data`, `trace_texture`
 
-**Constants** (31):
+**Constants** (36):
 
 | Name | Value |
 | --- | --- |
+| `ALIGN_CENTER` | `center` |
+| `ALIGN_END` | `end` |
+| `ALIGN_START` | `start` |
 | `ALPHA_BLEND` | `blend` |
 | `ALPHA_MASK` | `mask` |
 | `ALPHA_OPAQUE` | `opaque` |
@@ -349,29 +433,26 @@ cannot drift from what scripts actually see.
 | `FOG_EXPONENTIAL_SQUARED` | `exponential_squared` |
 | `FOG_LINEAR` | `linear` |
 | `FOG_NONE` | `none` |
+| `FONT_ITALIC` | `italic` |
+| `FONT_NORMAL` | `normal` |
 | `LIGHT_DIRECTIONAL` | `directional` |
 | `LIGHT_POINT` | `point` |
 | `LIGHT_SPOT` | `spot` |
-| `SHAPE_BALL` | `ball` |
+| `SHAPE_BOX` | `box` |
 | `SHAPE_CAPSULE` | `capsule` |
 | `SHAPE_CIRCLE` | `circle` |
 | `SHAPE_CONE` | `cone` |
-| `SHAPE_CUBOID` | `cuboid` |
 | `SHAPE_CYLINDER` | `cylinder` |
 | `SHAPE_ELLIPSE` | `ellipse` |
 | `SHAPE_NGON` | `ngon` |
 | `SHAPE_PLANE` | `plane` |
 | `SHAPE_POLYLINE` | `polyline` |
-| `SHAPE_PRISM` | `prism` |
-| `SHAPE_PYRAMID` | `pyramid` |
-| `SHAPE_RECT` | `rect` |
-| `SHAPE_STAR` | `star` |
 
-…and 7 more.
+…and 12 more.
 
 ## `replay`
 
-**Functions:** `diverged`, `events`, `header`, `info`, `length`, `load`, `marks`, `pause`, `play`, `position`, `record`, `recording`, `seek`, `session_name`, `state`, `stop`, `unload`
+**Functions:** `divergence_tick`, `events`, `header`, `info`, `length`, `load`, `marks`, `pause`, `play`, `position`, `record`, `recording`, `recording_name`, `seek`, `state`, `stop`, `unload`
 
 **Constants** (4):
 
@@ -382,21 +463,17 @@ cannot drift from what scripts actually see.
 | `STATE_SEEKING` | `seeking` |
 | `STATE_STOPPED` | `stopped` |
 
-## `rng`
-
-**Functions:** `int`, `random`, `range`, `seed`, `uuid`
-
 ## `rollback`
 
 **Functions:** `input`, `is_resimulating`
 
 ## `save`
 
-**Functions:** `folder`, `read`, `remove`, `slots`, `version`, `write`
+**Functions:** `directory`, `read`, `remove`, `slots`, `version`, `write`
 
 ## `scene`
 
-**Functions:** `apply_preset`, `bindable_events`, `binding_actions`, `component_expects`, `component_properties`, `component_schema`, `component_tags`, `component_types`, `get_node`, `instantiate`, `node_by_id`, `preset_info`, `presets`, `root`, `set_variable`, `source`, `switch`, `tagged`, `unmet_expectations`, `variable`, `variables`, `with_component`
+**Functions:** `apply_preset`, `bindable_events`, `binding_actions`, `component_expects`, `component_properties`, `component_schema`, `component_tags`, `component_types`, `get_node`, `instantiate`, `node_by_id`, `preset_info`, `presets`, `root`, `set_variable`, `source`, `switch`, `tagged`, `variable`, `variables`, `warnings`, `with_component`
 
 ## `script`
 
@@ -404,7 +481,7 @@ cannot drift from what scripts actually see.
 
 ## `settings`
 
-**Functions:** `all`, `base`, `clear`, `define`, `get`, `known_tags`, `load`, `overrides`, `set`, `tags`, `to_toml`
+**Functions:** `all`, `base`, `clear`, `define`, `get`, `known_tags`, `merge_toml`, `overrides`, `set`, `tags`, `to_toml`
 
 ## `skeleton`
 
@@ -424,15 +501,14 @@ cannot drift from what scripts actually see.
 
 ## `ui`
 
-**Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bar`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `click`, `clipboard`, `code_editor`, `code_line`, `color`, `contrast`, `contrast_pairs`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `height_class`, `horizontal`, `image`, `image_button`, `label`, `left_panel`, `list`, `loaded`, `menu_item`, `modal`, `overlay`, `pill`, `pill_rect`, `rect_stroke`, `request_repaint`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_keyboard_focus`, `set_lazy`, `set_loading`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `tab_rect`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `wants_pointer`, `widget_rect`, `width_class`, `window`
+**Functions:** `activate_focused`, `add_space`, `align_right`, `available_height`, `available_width`, `bottom_panel`, `button`, `button_rect`, `central_panel`, `central_rect`, `circle_button`, `click`, `code_editor`, `code_line`, `color_picker`, `column`, `complete_theme`, `contrast`, `contrast_pairs`, `dialog`, `dot`, `dropdown`, `edit`, `fill_rows`, `fill_strip`, `finish_loading`, `focus_next`, `focus_previous`, `focused_widget`, `frame`, `height_class`, `image`, `image_button`, `label`, `layout_y`, `left_panel`, `list`, `menu_item`, `number_field`, `overlay`, `pasted_text`, `progress_bar`, `rect_stroke`, `request_repaint`, `right_panel`, `row`, `scale`, `scroll`, `separator`, `set_clipboard`, `set_field_text`, `set_focus`, `set_keyboard_navigation`, `set_lazy`, `set_load_progress`, `set_scale`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `switch`, `tab_rect`, `text_field`, `top_panel`, `wants_keyboard`, `wants_pointer`, `widget_rect`, `width_class`, `window`, `window_size`
 
-**Constants** (66):
+**Constants** (65):
 
 | Name | Value |
 | --- | --- |
 | `ALIGN_CENTER` | `center` |
 | `ALIGN_END` | `end` |
-| `ALIGN_LEFT` | `left` |
 | `ALIGN_START` | `start` |
 | `ANCHOR_BOTTOM_LEFT` | `bottom_left` |
 | `ANCHOR_BOTTOM_RIGHT` | `bottom_right` |
@@ -454,16 +530,27 @@ cannot drift from what scripts actually see.
 | `FONT_MONO` | `mono` |
 | `FONT_STYLE_ITALIC` | `italic` |
 | `FONT_STYLE_NORMAL` | `normal` |
+| `HEIGHT_SHORT` | `short` |
 
-…and 42 more.
-
-## `web`
-
-**Functions:** `hardware_concurrency`, `listen`, `location`, `messages`, `post_message`, `user_agent`, `visible`
+…and 41 more.
 
 ## `websocket`
 
-**Functions:** `close`, `connect`, `send`
+**Functions:** `close`, `connect`, `send`, `state`
+
+**Constants** (9):
+
+| Name | Value |
+| --- | --- |
+| `EVENT_BINARY` | `binary` |
+| `EVENT_CLOSED` | `closed` |
+| `EVENT_ERROR` | `error` |
+| `EVENT_MESSAGE` | `message` |
+| `EVENT_OPEN` | `open` |
+| `STATE_CLOSED` | `closed` |
+| `STATE_CLOSING` | `closing` |
+| `STATE_CONNECTING` | `connecting` |
+| `STATE_OPEN` | `open` |
 
 ## `window`
 

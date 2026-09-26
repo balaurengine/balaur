@@ -25,6 +25,16 @@ impl RuneHost {
     /// future owns, and its instructions land wherever it is resumed.
     pub fn set_profiling(&self, on: bool) {
         self.state.borrow_mut().profile = on.then(HashMap::new);
+        rune::runtime::profile::set_profiling(on);
+    }
+
+    /// What each function has cost since profiling started, dearest first:
+    /// the VM's own count, so a `draw` callback and a pool's `on` are in it.
+    pub fn function_costs(&self) -> Vec<rune::runtime::profile::FunctionCost> {
+        if !self.profiling() {
+            return Vec::new();
+        }
+        rune::runtime::profile::snapshot()
     }
 
     pub fn profiling(&self) -> bool {

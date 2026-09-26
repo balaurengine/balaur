@@ -4,7 +4,7 @@
 > `max-page-size=16384`, and the `[android]` table now carries the application
 > id, label, version and SDK floors that the exporter writes into the staged
 > manifest. CI reads each back — the alignment off the ELF in
-> `package_template.sh`, the ABIs and the rewritten package out of the export
+> `package_runtime.sh`, the ABIs and the rewritten package out of the export
 > in `export_check.sh`. The AAB is what is left of step 1.
 >
 > Written down on 2026-09-03 so the order was decided before the first line:
@@ -30,12 +30,12 @@ Built, and not built for this:
 
 | Have | Where |
 | --- | --- |
-| An APK out of `balaur export --target android --apk`, assembled and signed | `crates/balaur_export/src/{bundle,android}.rs` |
+| An APK out of `balaur export --target android --bundle apk`, assembled and signed | `crates/balaur_export/src/{bundle,android}.rs` |
 | A NativeActivity entry point holding the `AndroidApp` handle | `crates/balaur_android` |
 | The pack as an APK asset, read through the asset manager | `android_main`, `PACK_ASSET` |
 | An application id, label, version and SDK floors the game owns | `[android]` in `project.toml`, `AndroidConfig::manifest` |
-| All four ABIs in the template, and `[android] abis` to pick from them | `scripts/package_template.sh`, `android::{Abi, AndroidConfig}` |
-| 16 KB aligned 64-bit libraries, read back off the ELF | `.cargo/config.toml`, `scripts/package_template.sh` |
+| All four ABIs in the template, and `[android] abis` to pick from them | `scripts/package_runtime.sh`, `android::{Abi, AndroidConfig}` |
+| 16 KB aligned 64-bit libraries, read back off the ELF | `.cargo/config.toml`, `scripts/package_runtime.sh` |
 | Work off the frame landing on a tick boundary, recorded and replayable | `ExternalIo`, `Stage::First`, `balaur_core::handler` |
 | A server with login, REST and hooks to verify a token against | `balaur_gamend` |
 | A save file, atomic, versioned, in the user data directory | `balaur_core::save` |
@@ -44,7 +44,7 @@ Missing, and each one blocks everything below it:
 
 - **A dex.** `AndroidManifest.xml` declares `android:hasCode="false"` and the
   APK carries no `classes.dex`. Every API in this plan is Java or Kotlin.
-- **A dependency resolver.** `--apk` is `aapt2 link`, `zip`,
+- **A dependency resolver.** `--bundle apk` is `aapt2 link`, `zip`,
   `zipalign` and `apksigner` over a hand-written manifest. Play services ship
   as AARs on Google's Maven repository, with transitive dependencies,
   manifest fragments to merge and resources to compile.
@@ -94,10 +94,10 @@ largest blast radius, and there is no way around it: resolving
 `com.google.android.gms:play-services-games-v2` by hand means resolving its
 transitive graph by hand, merging manifest fragments by hand, and running
 `d8` and `aapt2` over the result — which is Gradle, written badly. So
-`scripts/package_template.sh android` gains a Gradle project whose only
+`scripts/package_runtime.sh android` gains a Gradle project whose only
 Kotlin/Java is the shim, whose native library is the one cargo already
 builds, and whose output is both an APK (installable, what CI checks) and an
-AAB (uploadable). `--apk` stays for the no-Google path: a
+AAB (uploadable). `--bundle apk` stays for the no-Google path: a
 game that declares no Play capabilities exports through the existing
 aapt2 route and carries no dex at all.
 
@@ -110,7 +110,7 @@ An AAB takes a JAR signature, a PKCS#7 block this tree has no crate for, and
 avoidable: `apksigner` is `exec java -jar`, so every Android export has
 needed one since the first APK.
 
-Once a JVM is a given, `bundletool` costs nothing beyond the jar. So `--aab`
+Once a JVM is a given, `bundletool` costs nothing beyond the jar. So `--bundle aab`
 runs aapt2, packs the base module with the `zip` crate that already packs the
 APK, and hands it to `bundletool build-bundle` and `jarsigner`. The only code
 of ours that knows the format is which two files aapt2's output maps onto.
@@ -118,7 +118,7 @@ of ours that knows the format is which two files aapt2's output maps onto.
 **No toolchain of our own.** The SDK is found, never shipped: `Sdk::find`
 reads `ANDROID_HOME` the way Google's own tools do, and the license does not
 let this repo redistribute the SDK anyway. `bundletool.jar` is the one thing
-the SDK does not carry, so `[export] bundletool` or `BALAUR_BUNDLETOOL` names
+the SDK does not carry, so `[android] bundletool` or `BALAUR_ANDROID_BUNDLETOOL` names
 it and the error says where to get it. Vendoring a JDK and an SDK would add
 hundreds of megabytes and a license flow to a download that is one binary.
 
@@ -152,7 +152,7 @@ than in the build. So the exporter clamps: below the template's floor is an
 error that names the floor, and a game that wants lower rebuilds the template
 against a lower NDK level.
 
-The same trap is already live on Apple, where `[apple] min_os` is free text
+The same trap is already live on Apple, where `[apple] min_ios` is free text
 and the template is built at `IPHONEOS_DEPLOYMENT_TARGET=15.0`. One check
 serves both, and `docs/PLAN-apple.md` should grow the matching line.
 
@@ -262,7 +262,7 @@ canned-event replay, which is the part that protects the simulation.
 
 ## 5. Open questions
 
-1. **Does the Gradle template replace `--apk` or sit beside it?**
+1. **Does the Gradle template replace `--bundle apk` or sit beside it?**
    Beside it is written above, because a game with no Play capabilities
    should not need a JDK to export. The cost is two Android paths to keep
    working, and CI has to build both.

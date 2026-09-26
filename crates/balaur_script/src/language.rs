@@ -68,6 +68,13 @@ pub trait ScriptHost<C: ?Sized> {
     /// Detach and run `on_free`. Not an error for a node without a script.
     fn detach(&self, node: NodeId);
 
+    /// [`Self::detach`] for every node a frame frees, in that order.
+    fn detach_all(&self, nodes: &[NodeId]) {
+        for &node in nodes {
+            self.detach(node);
+        }
+    }
+
     /// Per-frame tick of every live instance, at the measured frame time.
     /// Presentation: anything a dropped or doubled frame may safely skip.
     fn update(&self, dt: f32);
@@ -173,7 +180,7 @@ pub trait ScriptHost<C: ?Sized> {
     fn call_all_with(&self, method: &str, args: &[Value]);
 
     /// As [`ScriptHost::call_all_with`], reaching the instances a pause is
-    /// holding as well: `on_paused(true)` is how a script learns it stopped,
+    /// holding as well: `on_paused_changed(true)` is how a script learns it stopped,
     /// so the pause must not filter it. A debugger's freeze still stops it.
     fn announce(&self, method: &str, args: &[Value]) {
         self.call_all_with(method, args);
@@ -243,6 +250,13 @@ pub trait ScriptHost<C: ?Sized> {
     /// simulation execute the same instructions, so a number that moved is a
     /// real change in what a script does and not noise from the machine.
     fn script_costs(&self) -> Vec<(String, u64, u64)> {
+        Vec::new()
+    }
+
+    /// What each function has cost since profiling started, dearest first,
+    /// as `(function, calls, instructions)`. A function's own instructions,
+    /// not its callees', and the callbacks a native function makes count too.
+    fn function_costs(&self) -> Vec<(String, u64, u64)> {
         Vec::new()
     }
 

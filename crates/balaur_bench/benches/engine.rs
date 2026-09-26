@@ -12,14 +12,14 @@ const EMPTY: &str = "local S = {}\nfunction S:init() end\nreturn S\n";
 /// One looping track on the node itself, so the sampler runs and the write
 /// lands without a rig to resolve first.
 const CLIP: &str = r#"
-type = "animation_clip"
+type = "animation_library"
 
 [clips.spin]
 length = 2.0
-loop = "loop"
+loop_mode = "linear"
 
 [[clips.spin.tracks]]
-interp = "linear"
+interpolation = "linear"
 property = "position"
 target = ""
 

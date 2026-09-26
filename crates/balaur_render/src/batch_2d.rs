@@ -8,7 +8,7 @@
 //! A run is contiguous in the draw order, so what covers what does not move.
 
 #![cfg_attr(
-    not(feature = "kiss3d"),
+    not(feature = "window"),
     allow(dead_code, reason = "the run cutting is the backend's, and the tests'")
 )]
 

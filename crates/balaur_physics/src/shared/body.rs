@@ -28,7 +28,10 @@ macro_rules! functions {
 
         pub(crate) fn add_body(eng: &Engine, entity: Entity, kind: &str) -> Result<()> {
             let pose = $node_pose(eng, entity)?;
-            let builder = $Builder::new(body_type(kind)?).pose(pose);
+            // The node rides in `user_data`, so a collision can name the body too.
+            let builder = $Builder::new(body_type(kind)?)
+                .pose(pose)
+                .user_data(u128::from(entity.to_bits().get()));
             let state = eng.resource::<$State>();
             let mut state = state.borrow_mut();
             let builder = if state.sleeping_allowed {
@@ -70,15 +73,42 @@ macro_rules! functions {
             } else {
                 balaur_core::interpolate::disable(eng, entity);
             }
-            with_body(eng, entity, |state, handle| {
+            let rebuild = with_body(eng, entity, |state, handle| {
                 let may_sleep = state.sleeping_allowed;
                 write_body(&mut state.world.bodies[handle], params, may_sleep);
+                let rebuild = weigh_colliders(state, handle);
                 // Rapier folds additional mass in at the next step; a scene that sets
                 // `mass = 5` and a script that reads it back in the same tick would
                 // otherwise disagree.
                 let colliders = &state.world.colliders;
                 state.world.bodies[handle].recompute_mass_properties_from_colliders(colliders);
-            })
+                rebuild
+            })?;
+            for collider in rebuild {
+                if let Some(params) = get_collider_params(eng, collider) {
+                    apply_collider(eng, collider, &params)?;
+                }
+            }
+            Ok(())
+        }
+
+        /// A body with a `mass` of its own weighs exactly that, so its colliders
+        /// weigh nothing. Answers the colliders a cleared `mass` gives back their
+        /// own weight to, which only a rebuild from their params can.
+        fn weigh_colliders(state: &mut $State, handle: $Handle) -> Vec<Entity> {
+            let total = has_total_mass(&state.world.bodies[handle]);
+            let mut rebuild = Vec::new();
+            for collider in state.world.bodies[handle].colliders().to_vec() {
+                let co = &mut state.world.colliders[collider];
+                if total {
+                    co.set_density(0.0);
+                } else if co.density() == 0.0
+                    && let Some(owner) = Entity::from_bits(co.user_data as u64)
+                {
+                    rebuild.push(owner);
+                }
+            }
+            rebuild
         }
 
         /// A node's body handle, checked against rapier's arena.
@@ -126,6 +156,20 @@ macro_rules! functions {
             // Attached colliders die with the body inside rapier.
             state.colliders.swap_remove(&entity);
             if let Some(handle) = state.bodies.swap_remove(&entity) {
+                let state = &mut *state;
+                if let Some(body) = state.world.bodies.get(handle) {
+                    for &collider in body.colliders() {
+                        let owner = state.world.colliders.get(collider);
+                        let owner = owner.and_then(|c| Entity::from_bits(c.user_data as u64));
+                        // The body's node lives on, so it hears the contacts end too.
+                        if let Some(owner) = owner {
+                            let body = Some(u128::from(entity.to_bits().get()));
+                            state
+                                .gone
+                                .insert(collider, crate::shared::events::Owner::of(owner, body));
+                        }
+                    }
+                }
                 state.world.remove_body(handle);
             }
         }

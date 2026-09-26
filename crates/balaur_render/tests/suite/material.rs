@@ -170,7 +170,7 @@ fn a_shape3d_remembers_the_material_it_names() {
     let dir = project();
     let app = app(dir.path());
     let entity = node(&app);
-    let table = toml::from_str("kind = \"ball\"\nmaterial = \"materials/lit.toml\"").unwrap();
+    let table = toml::from_str("kind = \"sphere\"\nmaterial = \"materials/lit.toml\"").unwrap();
     components::add(&app.engine, entity, "shape3d", Some(&table)).unwrap();
 
     let world = app.engine.world();
@@ -185,7 +185,7 @@ fn the_component_writes_the_material_back() {
     let dir = project();
     let app = app(dir.path());
     let entity = node(&app);
-    let table = toml::from_str("kind = \"ball\"\nmaterial = \"materials/lit.toml\"").unwrap();
+    let table = toml::from_str("kind = \"sphere\"\nmaterial = \"materials/lit.toml\"").unwrap();
     components::add(&app.engine, entity, "shape3d", Some(&table)).unwrap();
 
     let read = components::get(&app.engine, entity, "shape3d").unwrap();

@@ -5,8 +5,8 @@ main_scene = "scenes/main.toml"
 # Actions a script asks for by name. Every binding form the engine knows is
 # here: a key, a gamepad button, a key pair read as an axis, and a stick.
 [input.actions]
-reverse = ["Space", "gamepad:South"]
-spin = ["keys:A,D", "axis:LeftStickX"]
+reverse = ["Space", "gamepad:south"]
+spin = ["keys:KeyA,KeyD", "axis:left_x"]
 
 # The mouse stands in for a finger, so the on-screen stick and button in the
 # scene work on a desktop too. A phone game leaves this off.
@@ -16,5 +16,5 @@ emulate_touch_from_mouse = true
 # The language a run starts in, and where a key it lacks is looked for next.
 # `strings.set_locale("ro")` switches at run time.
 [locale]
-default = "en"
+initial = "en"
 fallback = "en"

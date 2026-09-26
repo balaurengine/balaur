@@ -1,0 +1,19 @@
+# Kanagawa Lotus: MIT, Copyright (c) 2021 Tommaso Laurenzi.
+# From github.com/rebelot/kanagawa.nvim, lua/kanagawa/colors.lua.
+type = "widget_theme"
+
+[colors]
+background = "#d5cea3"
+bg_panel = "#f2ecbc"
+bg_control = "#e4d794"
+foreground = "#545464"
+primary = "#4d699b"
+secondary = "#6693bf"
+success = "#6f894e"
+warning = "#e98a00"
+danger = "#e82424"
+syntax_keyword = "#624c83"
+syntax_string = "#465e24"  # #6f894e, walked to AA
+syntax_number = "#8d3958"  # #b35b79, walked to AA
+syntax_type = "#3c5d57"  # #597b75, walked to AA
+syntax_comment = "#57574e"  # #8a8980, walked to AA

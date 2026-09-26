@@ -6,7 +6,7 @@
 //! rustc, on cargo, or on the engine's build tree. Anything that can emit a
 //! shared library and a C call can do what this file does -- Odin and Zig
 //! included.
-#![cfg(feature = "dylib")]
+#![cfg(feature = "extensions")]
 
 use std::path::{Path, PathBuf};
 

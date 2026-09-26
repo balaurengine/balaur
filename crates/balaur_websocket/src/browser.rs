@@ -1,10 +1,8 @@
-//! The browser websocket backend outside emscripten: the `WebSocket` API
-//! through web-sys.
+//! The browser websocket backend: the `WebSocket` API through web-sys.
 //!
-//! The same shape as the emscripten backend next door — a registry of live
-//! sockets, callbacks that push events, and a `pump` that flushes queued
-//! sends once per tick — but with closures instead of C callbacks, so no
-//! raw pointer outlives anything and there is no `unsafe` here at all.
+//! A registry of live sockets, callbacks that push events, and a `pump` that
+//! flushes queued sends once per tick. The callbacks are closures, so no raw
+//! pointer outlives anything and there is no `unsafe` here at all.
 //!
 //! **Two options a browser will not honour.** `SocketOptions::headers` cannot
 //! be set: the WebSocket constructor takes a url and subprotocols, and the
@@ -103,13 +101,18 @@ pub(crate) fn spawn_socket(
         let events = events.clone();
         let finished = Rc::clone(&finished);
         Closure::wrap(Box::new(move |event: JsValue| {
-            let reason = event
-                .dyn_ref::<CloseEvent>()
+            let close = event.dyn_ref::<CloseEvent>();
+            let code = close.map_or(1006, CloseEvent::code);
+            let reason = close
                 .map(CloseEvent::reason)
                 .filter(|r| !r.is_empty())
                 .unwrap_or_else(|| String::from("closed"));
             finished.set(true);
-            let _ = events.send(SocketEvent::Closed { socket, reason });
+            let _ = events.send(SocketEvent::Closed {
+                socket,
+                code,
+                reason,
+            });
         }) as Box<dyn FnMut(JsValue)>)
     };
     ws.set_onclose(Some(closed.as_ref().unchecked_ref()));

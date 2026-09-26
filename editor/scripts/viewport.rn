@@ -2,6 +2,7 @@
 // selection palette, the world-per-pixel scale, and the three questions a
 // tool asks about the current drag.
 
+use crate::defs;
 use crate::history;
 use crate::layout;
 use crate::model;
@@ -84,8 +85,8 @@ pub fn mouse_camera(S) {
         return false;
     }
     let (_, wheel) = input::scroll_delta();
-    let orbiting = input::is_mouse_down(input::MOUSE_MIDDLE);
-    let panning = input::is_mouse_down(input::MOUSE_RIGHT);
+    let orbiting = input::mouse_down(input::MOUSE_BUTTON_MIDDLE);
+    let panning = input::mouse_down(input::MOUSE_BUTTON_RIGHT);
     if wheel == 0.0 && !orbiting && !panning {
         return false;
     }
@@ -114,7 +115,7 @@ const ORBIT_PER_PX = 0.005;
 /// differs by two orders of magnitude; these are the backend camera's own
 /// numbers, so the editor dollies at the speed the engine does.
 pub fn dolly_step() {
-    if engine::platform().os == "macos" { 1.0001 } else { 1.01 }
+    if engine::target().os == "macos" { 1.0001 } else { 1.01 }
 }
 
 fn mouse_camera_3d(S, wheel, orbiting, panning, dx, dy) {
@@ -231,10 +232,7 @@ pub fn world_per_px(S) {
 
 /// Whether the Snap chip is on.
 pub fn snapping(S) {
-    match S.chip_state.get("scene") {
-        Some(chips) => chips.get("snap").unwrap_or(false) == true,
-        None => false,
-    }
+    defs::chip_on(S, defs::WORKSPACE_SCENE, defs::CHIP_SNAP)
 }
 
 /// The gizmo part under the pointer: the dragged one wins over the hovered.

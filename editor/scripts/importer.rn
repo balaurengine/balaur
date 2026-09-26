@@ -22,40 +22,40 @@ const ROWS = #{
         #{ key: "anisotropy", kind: "count", options: ["1", "2", "4", "8", "16"], fallback: 1,
            help: "samples per fetch on a surface seen edge-on; needs a linear filter" },
         #{ key: "premultiply", kind: "bool", fallback: false,
-           help: "colour scaled by alpha at upload, so a soft edge blends without a dark fringe" },
+           help: "color scaled by alpha at upload, so a soft edge blends without a dark fringe" },
         #{ key: "srgb", kind: "bool", fallback: true,
-           help: "off for a normal map or a mask, which carry data rather than colour" },
+           help: "off for a normal map or a mask, which carry data rather than color" },
         #{ key: "bleed", kind: "bool", fallback: true,
-           help: "the edge colour spread under transparent texels, so a linear filter reads no fringe" },
+           help: "the edge color spread under transparent texels, so a linear filter reads no fringe" },
         #{ key: "normal_map", kind: "bool", fallback: false,
-           help: "a normal map: data rather than colour, so srgb is off unless set" },
+           help: "a normal map: data rather than color, so srgb is off unless set" },
         #{ key: "flip_green", kind: "bool", fallback: false,
            help: "invert green, for a normal map baked the way DirectX reads one" },
         #{ key: "pixels_per_unit", kind: "number", fallback: 100.0, step: 1.0,
            help: "texture pixels to one world unit, for a sprite whose own is 0" },
         #{ key: "scale", kind: "number", fallback: 1.0, step: 0.25, only: "svg",
            help: "pixels per SVG unit; the raster a sprite measures" },
-        #{ key: "recode", kind: "enum", options: ["keep", "webp", "quantised"], fallback: "export",
+        #{ key: "recode", kind: "enum", options: ["original", "webp", "quantized"], fallback: "export",
            help: "how an export re-encodes this file, over [export] images" },
         #{ key: "quality", kind: "number", fallback: 80.0, step: 5.0, whole: true,
-           help: "the palette's 0 to 100 quality when this file is quantised" },
+           help: "the palette's 0 to 100 quality when this file is quantized" },
     ],
     audio: [
-        #{ key: "volume", kind: "number", fallback: 1.0, step: 0.05,
+        #{ key: "volume_linear", kind: "number", fallback: 1.0, step: 0.05,
            help: "the file's own level, multiplied into every play of it" },
         #{ key: "loop", kind: "bool", fallback: false,
            help: "loop wherever it is played" },
         #{ key: "loop_offset", kind: "number", fallback: 0.0, step: 0.1,
            help: "seconds in that each repeat starts from, past an intro" },
-        #{ key: "mono", kind: "bool", fallback: false,
+        #{ key: "force_mono", kind: "bool", fallback: false,
            help: "mixed to one channel at export; a WAV only" },
-        #{ key: "max_rate", kind: "count", options: ["0", "11025", "22050", "32000", "44100", "48000"], fallback: 0,
+        #{ key: "max_rate_hz", kind: "count", options: ["0", "11025", "22050", "32000", "44100", "48000"], fallback: 0,
            help: "the highest sample rate a WAV ships at, in Hz; 0 keeps its own" },
-        #{ key: "recode", kind: "enum", options: ["keep", "flac", "vorbis"], fallback: "export",
+        #{ key: "recode", kind: "enum", options: ["original", "flac", "vorbis"], fallback: "export",
            help: "how an export re-encodes this file, over [export] audio" },
     ],
     font: [
-        #{ key: "family", kind: "enum", options: ["ui", "heading", "mono", "icons"], fallback: "name",
+        #{ key: "font_family", kind: "enum", options: ["ui", "heading", "mono", "icon"], fallback: "name",
            help: "the family this face joins; by default its file name's prefix decides" },
         #{ key: "scale", kind: "number", fallback: 1.0, step: 0.05,
            help: "how large the UI draws its glyphs, without moving the layout" },
@@ -68,7 +68,7 @@ const ROWS = #{
     ],
     model: [
         #{ key: "scale", kind: "number", fallback: 1.0, step: 0.01,
-           help: "the model's units to the scene's: 0.01 for a file modelled in centimetres" },
+           help: "the model's units to the scene's: 0.01 for a file modeled in centimeters" },
         #{ key: "lods", kind: "count", options: ["0", "1", "2", "3", "4", "5", "6"], fallback: 0,
            help: "simpler copies built at load, each half the triangles of the one before" },
         #{ key: "lod_distance", kind: "number", fallback: 20.0, step: 1.0,
@@ -245,13 +245,13 @@ fn row(S, k, rel, kind, spec) {
     let whole = spec.get("whole").unwrap_or(false);
     let control = if spec.kind == "number" {
         #{
-            kind: "drag_value", grow: 1, tooltip: spec.help, arrows: true,
+            kind: "number_field", grow: 1, tooltip: spec.help, arrows: true,
             value: shown, step: spec.step,
             on: |v| { write(S, rel, key, if whole { math::round(v) as i64 } else { v }); },
         }
     } else if spec.kind == "bool" {
         #{
-            kind: "check", text: "", tooltip: spec.help,
+            kind: "checkbox", text: "", tooltip: spec.help,
             checked: effective == true,
             on: |on| { write(S, rel, key, on); },
         }
@@ -273,12 +273,12 @@ fn row(S, k, rel, kind, spec) {
     // What the value is following, or the way back to following it.
     let note = if has_own {
         #{
-            kind: "button", text: "clear", role: "chip", width: 52,
+            kind: "button", text: "reset", role: "chip", width: 52,
             tooltip: "Drop this key and follow the project again",
             on: |_| { write(S, rel, key, ()); },
         }
     } else {
-        #{ kind: "label", text: source, role: "meta", width: 52 }
+        #{ kind: "label", text: source, role: "text_caption", width: 52 }
     };
     crate::inspector::form_row(S, key, [control, note]);
 }
@@ -370,18 +370,18 @@ pub fn panel(S, k) {
     let specs = specs_for(S);
     if specs.len() == 0 {
         let why = if rel == "" { "select a file in Assets" } else { "nothing to import for this file" };
-        crate::inspector::hide_form();
+        crate::inspector::hide_form(S);
         style::empty(k, why);
         return;
     }
     let kind = kind_for(S, rel);
     let image = image_of(S, rel);
     ui::add_space(6);
-    ui::horizontal(#{ height: 24 }, || {
+    ui::row(#{ height: 24 }, || {
         ui::add_space(10);
-        ui::label(util::last_segment(rel), #{ size: style::MD, strong: true, color: k.text });
+        ui::label(util::last_segment(rel), #{ font_size: style::MD, font_weight: 700, text_color: k.text_default });
     });
-    ui::horizontal(#{ height: 20 }, || {
+    ui::row(#{ height: 20 }, || {
         ui::add_space(10);
         let from = if image != rel {
             "reads " + image
@@ -390,7 +390,7 @@ pub fn panel(S, k) {
         } else {
             "no settings file yet"
         };
-        ui::label(format!("{}  ·  {}", kind, from), style::mono_sm(k.faint));
+        ui::label(format!("{}  ·  {}", kind, from), style::mono_sm(k.text_subtle));
     });
     // The same pool the inspector fills: one form under the right sheet, and
     // whichever panel is up describes its rows.
@@ -400,7 +400,7 @@ pub fn panel(S, k) {
     }
     if kind == "texture" || kind == "audio" {
         for pair in shipped(S, image) {
-            crate::inspector::form_row(S, pair[0], [#{ kind: "label", text: pair[1], tooltip: pair[2], role: "meta", grow: 1 }]);
+            crate::inspector::form_row(S, pair[0], [#{ kind: "label", text: pair[1], tooltip: pair[2], role: "text_caption", grow: 1 }]);
         }
     }
     crate::inspector::close_pool(S);

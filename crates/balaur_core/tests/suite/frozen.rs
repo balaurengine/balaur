@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use balaur_core::scene::{is_within, spawn_node};
-use balaur_core::{App, AppConfig, FIXED_DT, Stage};
+use balaur_core::{App, AppConfig, DEFAULT_FIXED_DT, Stage};
 
 fn app() -> App {
     App::new(AppConfig::bare(".")).unwrap()
@@ -18,11 +18,11 @@ fn no_fixed_step_runs_while_frozen_and_the_missed_time_is_not_owed() {
     app.add_system(Stage::FixedUpdate, move |_, _| *counter.borrow_mut() += 1);
 
     app.engine.set_frozen(true);
-    app.tick(FIXED_DT * 3.0);
+    app.tick(DEFAULT_FIXED_DT * 3.0);
     assert_eq!(*steps.borrow(), 0);
 
     app.engine.set_frozen(false);
-    app.tick(FIXED_DT);
+    app.tick(DEFAULT_FIXED_DT);
     assert_eq!(
         *steps.borrow(),
         1,

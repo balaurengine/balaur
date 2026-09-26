@@ -26,8 +26,8 @@ pub(crate) fn dump_api() -> Result<()> {
     #[cfg(not(target_family = "wasm"))]
     balaur_plugin::load_all(&mut app, &mut crate::own_modules(&dir))?;
     app.load_project()?;
-    let host = balaur::rune::rune_of(&app.engine);
-    let mut api: serde_json::Value = serde_json::from_str(&balaur::rune::api_json(&host)?)?;
+    let host = balaur::script_rune::rune_of(&app.engine);
+    let mut api: serde_json::Value = serde_json::from_str(&balaur::script_rune::api_json(&host)?)?;
     // Component schemas ride along, so docs and tools read one probe.
     let components: std::collections::BTreeMap<String, serde_json::Value> =
         balaur::components::schemas(&app.engine)
@@ -61,6 +61,23 @@ pub(crate) fn dump_api() -> Result<()> {
         })
         .unwrap_or_default();
     api["component_tags"] = serde_json::to_value(component_tags)?;
+    // What each component announces from its node, as `(name, payload)`.
+    let component_events: std::collections::BTreeMap<String, Vec<(&'static str, &'static str)>> =
+        app.engine
+            .try_resource::<balaur::components::ComponentRegistry>()
+            .map(|registry| {
+                registry
+                    .borrow()
+                    .iter()
+                    .filter(|(_, def)| !def.events.is_empty())
+                    .map(|(name, def)| (name.to_string(), def.events.to_vec()))
+                    .collect()
+            })
+            .unwrap_or_default();
+    api["component_events"] = serde_json::to_value(component_events)?;
+    // Every method the engine calls on a script by name.
+    api["hooks"] = serde_json::to_value(balaur::hooks::REFERENCE)?;
+    api["node_events"] = serde_json::to_value(balaur::node_api::NODE_EVENTS)?;
     let asset_types: std::collections::BTreeMap<String, serde_json::Value> = app
         .engine
         .try_resource::<balaur::assets::AssetTypeRegistry>()

@@ -4,7 +4,7 @@
 //! The verb is `balaur_export`, the same library the command line drives, so
 //! a game exported from the sheet and a game exported by hand take one path.
 //! What lives here is what the library deliberately does not hold: the
-//! per-user template cache, the release a download comes from, and the answer
+//! per-user runtime cache, the release a download comes from, and the answer
 //! to "may this one be fetched", which is a person's to give.
 //!
 //! An export takes seconds to minutes, so it runs on a thread and reports
@@ -22,7 +22,7 @@ use crate::export_shared::{ExportCore, ExportEvent, LISTEN_DOC, PREVIEW_DOC};
 use crate::jobs::{install_listen, pump};
 
 /// The project being edited plus what only a desktop install has: the
-/// per-user template cache the roots are read from.
+/// per-user runtime cache the roots are read from.
 pub(crate) struct ExportState(ExportCore);
 
 impl AsMut<ExportCore> for ExportState {
@@ -33,7 +33,7 @@ impl AsMut<ExportCore> for ExportState {
 
 impl ExportState {
     fn roots() -> Vec<PathBuf> {
-        balaur_export::default_roots(crate::templates::cache_dir())
+        balaur_export::default_roots(crate::runtimes::cache_dir())
     }
 }
 
@@ -73,18 +73,18 @@ impl balaur_plugin::Plugin for ExportPlugin {
 
 fn install_export_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Exports the project being edited. `targets` lists what this install can build; `start` runs one off the frame and reports to `on_export`.",
+        "Exports the project being edited. `targets` lists what this install can build; `start` runs one off the frame and reports to `on_export_event`.",
     );
     m.describe(&[
-        ("targets", &[], "()", "Every target, each `{ name, bundle, installed, fetchable, note }`: whether its runtime template is already here, whether a missing one could be fetched, and what a signed build of it would also need."),
+        ("targets", &[], "()", "Every target, each `{ name, bundle, installed, fetchable, note }`: whether its runtime is already here, whether a missing one could be fetched, and what a signed build of it would also need."),
         ("listen", &[], "(node: node, options: map)", LISTEN_DOC),
         ("start", &[], "(target: string, options: map)", "Export the edited project for one target, on a thread. `download` allows fetching a missing template, `sign` names an identity, `output` overrides where it lands. Answers false while a recording plays."),
         ("output", &[], "(target: string)", "Where an export for this target will be written, as the project's `[export] output` decides."),
-        ("running", &[], "()", "How many exports are in flight."),
+        ("running_count", &[], "()", "How many exports are in flight."),
         ("preview", &[], "(path: string, target: string)", PREVIEW_DOC),
     ]);
     m.function("targets", |_: &Engine, ()| Ok(targets()));
-    install_listen::<ExportState, ExportEvent>(m, "on_export");
+    install_listen::<ExportState, ExportEvent>(m, "on_export_event");
     m.function(
         "start",
         |eng: &Engine, (target, opts): (String, Option<Value>)| {
@@ -103,7 +103,7 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
                 .into_owned(),
         ))
     });
-    m.function("running", |_: &Engine, ()| {
+    m.function("running_count", |_: &Engine, ()| {
         Ok(i64::try_from(RUNNING.load(std::sync::atomic::Ordering::Relaxed)).unwrap_or(i64::MAX))
     });
     m.function(
@@ -125,7 +125,7 @@ fn targets() -> Value {
     let rows = balaur_export::TARGETS
         .iter()
         .map(|name| {
-            let installed = balaur_export::template_installed(name, &roots);
+            let installed = balaur_export::runtime_installed(name, &roots);
             Value::Map(vec![
                 ("name".into(), Value::Str((*name).into())),
                 ("bundle".into(), Value::Bool(is_bundle(name))),
@@ -179,9 +179,12 @@ fn start(eng: &Engine, target: &str, opts: Option<&Value>) -> bool {
         let report = report.clone();
         RUNNING.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         std::thread::spawn(move || {
-            let _ = report.send(ExportEvent::Started {
-                target: target.clone(),
-            });
+            balaur_core::replay::report(
+                &report,
+                ExportEvent::Started {
+                    target: target.clone(),
+                },
+            );
             let event = match run_export(&project, &target, download, sign, output) {
                 Ok(path) => ExportEvent::Done {
                     target,
@@ -192,7 +195,7 @@ fn start(eng: &Engine, target: &str, opts: Option<&Value>) -> bool {
                     message: format!("{err:#}"),
                 },
             };
-            let _ = report.send(event);
+            balaur_core::replay::report(&report, event);
             RUNNING.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
         });
     })
@@ -208,7 +211,7 @@ fn run_export(
     sign: Option<String>,
     output: Option<PathBuf>,
 ) -> Result<PathBuf> {
-    let fetch = move |wanted: &str| crate::templates::obtain(wanted, true);
+    let fetch = move |wanted: &str| crate::runtimes::obtain(wanted, true);
     let config = balaur_export::ExportConfig::load(project, Some(target))?;
     let name = project
         .file_name()
@@ -230,7 +233,7 @@ fn run_export(
         output,
         target: Some(target.to_string()),
         sign,
-        template_roots: balaur_export::default_roots(crate::templates::cache_dir()),
+        runtime_roots: balaur_export::default_roots(crate::runtimes::cache_dir()),
         obtain: if download { Some(&fetch) } else { None },
         ..balaur_export::Options::default()
     })?;

@@ -24,17 +24,21 @@ fn push_text(
     opts: Option<Value>,
     in_3d: bool,
 ) -> anyhow::Result<()> {
-    let pixels_per_unit = match &opts {
-        Some(Value::Map(entries)) => entries
-            .iter()
-            .find(|(key, _)| key == "pixels_per_unit")
-            .and_then(|(_, value)| match value {
-                Value::Num(n) => Some(*n as f32),
-                Value::Int(n) => Some(*n as f32),
-                _ => None,
-            }),
+    let number = |name: &str| match &opts {
+        Some(Value::Map(entries)) => {
+            entries
+                .iter()
+                .find(|(key, _)| key == name)
+                .and_then(|(_, value)| match value {
+                    Value::Num(n) => Some(*n as f32),
+                    Value::Int(n) => Some(*n as f32),
+                    _ => None,
+                })
+        }
         _ => None,
     };
+    let pixels_per_unit = number(crate::vocabulary::keys::PIXELS_PER_UNIT);
+    let z_index = number(crate::vocabulary::keys::Z_INDEX).map(|z| z as i32);
     let style = crate::world_text::style_of(opts)?;
     let buffer = eng.resource::<crate::world_text::TextDrawBuffer>();
     buffer.borrow_mut().items.push(crate::world_text::TextDraw {
@@ -43,6 +47,7 @@ fn push_text(
         style,
         pixels_per_unit: pixels_per_unit.unwrap_or(DEFAULT_PIXELS_PER_UNIT).max(1.0),
         in_3d,
+        z_index,
     });
     Ok(())
 }
@@ -233,10 +238,8 @@ fn install_screenshot_api(m: &mut dyn Bindings<Engine>) {
         "screenshot",
         &[],
         "",
-        "Save the next rendered frame as a PNG at a project-relative path; a run with no renderer says so.",
+        "Save the next rendered frame as a PNG at a project-relative path. `screenshot_written` goes to every listener with the path once it is on disk, and `screenshot_failed` with `#{ path, error }` when it cannot be, a run with no renderer included.",
     )]);
-    // PNG on the next rendered frame; a run with no renderer says so. Fire
-    // and forget — the log line naming the file is the completion signal.
     m.function("screenshot", |eng: &Engine, path: String| {
         let full = resolve_project_path(eng, &path);
         eng.insert_resource(ScreenshotRequest {
@@ -421,14 +424,14 @@ pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
         ("set_background", &[], "", "Set the colour the viewport is cleared to behind everything drawn, as r, g, b channel floats."),
         ("set_grid", &[], "", "Turn the ground grid on or off, and optionally set its step in world units, major-line interval and extent."),
         ("set_grid_colors", &[], "", "Set the ground grid's minor line colour then its major line colour, as r, g, b channel floats."),
-        ("draw_line", &[], "", "Draw one 3D world-space line for this frame; the width is in pixels unless perspective scales it with distance."),
-        ("draw_line_2d", &[], "", "Draw one 2D world-space line for this frame; width is in pixels."),
+        ("draw_line_3d", &[], "", "Draw one 3D world-space line for this frame; the width is in pixels unless perspective scales it with distance."),
+        ("draw_line_2d", &[], "", "Draw one 2D world-space line for this frame; width is in pixels, and `opts.z_index` places it among the nodes of that index."),
         ("draw_lines", &[], "(flat)", "Draw many 3D lines in one call: eleven numbers a segment, being both ends, an rgb, a width and an on-top flag."),
         ("draw_box", &[], "(x: float, y: float, z: float, hx: float, hy: float, hz: float, color: color)", "Draw a wireframe box centred at a point, from its three half-extents in world units, for this frame."),
         ("draw_sphere", &[], "(x: float, y: float, z: float, radius: float, color: color)", "Draw a wireframe sphere centred at a point, as three rings in world units, for this frame."),
         ("draw_capsule", &[], "(x: float, y: float, z: float, radius: float, height: float, color: color)", "Draw a wireframe capsule centred at a point, `height` being the straight part along y, for this frame."),
-        ("draw_text_2d", &[], "(x: float, y: float, text: string, opts: table)", "Draw a line of text in 2D world space for this frame, shaped by the engine's fonts. `opts` takes `size`, `weight`, `italic`, `color`, `align`, `markup`, `max_width` and `pixels_per_unit`."),
-        ("draw_text", &[], "(x: float, y: float, z: float, text: string, opts: table)", "The same in 3D world space, on a quad that faces the camera. `pixels_per_unit` sizes it, so text a metre away reads the same whatever the font size."),
+        ("draw_text_2d", &[], "(x: float, y: float, text: string, opts: table)", "Draw a line of text in 2D world space for this frame, shaped by the engine's fonts. `opts` takes the `text2d` keys (`font_size`, `font_weight`, `font_style`, `color`, `text_align`, `markup`, `max_width`, `font_family`, `bitmap_font`, …), `pixels_per_unit` and `z_index`."),
+        ("draw_text_3d", &[], "(x: float, y: float, z: float, text: string, opts: table)", "The same in 3D world space, on a quad that faces the camera. `pixels_per_unit` sizes it, so text a metre away reads the same whatever the font size."),
         ("text_size", &[], "(text: string, opts: table)", "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face — so a headless run and a windowed one answer the same. A width is presentation: writing one into state puts presentation in the digest."),
     ]);
     // No reader by design (N8): the `ClearColorConfig` entry already holds
@@ -485,7 +488,7 @@ pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
     // One line for one frame, world space. Width is in pixels; pass
     // perspective = true for distance-scaled width (gizmos want false).
     m.function(
-        "draw_line",
+        "draw_line_3d",
         |eng: &Engine,
          (x1, y1, z1, x2, y2, z2, r, g, b, width, perspective, on_top): DrawLineArgs| {
             let lines = eng.resource::<DebugLineBuffer3d>();
@@ -493,7 +496,7 @@ pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
                 [x1, y1, z1],
                 [x2, y2, z2],
                 [r, g, b],
-                width.unwrap_or(1.0),
+                width.unwrap_or(crate::DEFAULT_LINE_WIDTH),
                 perspective.unwrap_or(false),
                 on_top.unwrap_or(false),
             ));
@@ -515,7 +518,7 @@ fn install_text_api(m: &mut dyn Bindings<Engine>) {
         },
     );
     m.function(
-        "draw_text",
+        "draw_text_3d",
         |eng: &Engine, (x, y, z, text, opts): (f32, f32, f32, String, Option<Value>)| {
             push_text(eng, [x, y, z], text, opts, true)
         },
@@ -531,19 +534,42 @@ fn install_text_api(m: &mut dyn Bindings<Engine>) {
     // One 2D world-space line for one frame; width in pixels.
     m.function(
         "draw_line_2d",
-        |eng,
-         (x1, y1, x2, y2, r, g, b, width): (f32, f32, f32, f32, f32, f32, f32, Option<f32>)| {
+        |eng, (x1, y1, x2, y2, r, g, b, width, opts): LineArgs2d| {
+            let options = crate::draw_2d::options_of(opts, false)?;
+            if options.z_index.is_some() {
+                let line = crate::draw_2d::Draw2d::Polyline {
+                    points: vec![[x1, y1], [x2, y2]],
+                    width: width.unwrap_or(crate::DEFAULT_LINE_WIDTH),
+                    color: [r, g, b, 1.0],
+                };
+                crate::draw_2d::push_at(eng, line, options.z_index);
+                return Ok(());
+            }
             let lines = eng.resource::<DebugLineBuffer2d>();
             lines.borrow_mut().lines.push((
                 [x1, y1],
                 [x2, y2],
                 [r, g, b],
-                width.unwrap_or(1.0),
+                width.unwrap_or(crate::DEFAULT_LINE_WIDTH),
             ));
             Ok(())
         },
     );
 }
+
+/// `draw_line_2d`'s arguments: both ends, the colour's channels, the width in
+/// pixels and options.
+type LineArgs2d = (
+    f32,
+    f32,
+    f32,
+    f32,
+    f32,
+    f32,
+    f32,
+    Option<f32>,
+    Option<Value>,
+);
 
 /// The 3D immediate primitives, split from [`install_backdrop_api`] under
 /// `MAX_FN_LINES`: a box, a sphere and a capsule as wireframes, the shapes
@@ -656,19 +682,30 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
             "An image's width and height in pixels, read from the file's own header.",
         ),
         (
+            "texture_pixels_per_unit",
+            &[],
+            "(path: string) -> float",
+            "How many of an image's pixels make a world unit when a sprite says 0: its own \
+             `pixels_per_unit` import setting, else 100.",
+        ),
+        (
             "trace_texture",
             &[],
             "(path: string, opts: table) -> list",
             "The outline of an image's opaque pixels, as `[x, y]` points in a node's own space, \
              ready to be a polygon's `positions`. `opts` takes `threshold` (alpha counted as \
              opaque, 0 to 1, default 0.5), `tolerance` (how many pixels of detail to drop, \
-             default 2), `pixels_per_unit` (default 100) and `holes` (include the loops inside \
-             the shape, default false). Counter-clockwise with y up, centred on the origin, the \
-             way a sprite at the same `pixels_per_unit` is drawn.",
+             default 2), `pixels_per_unit` (default 100) and `holes` (every loop, largest first: \
+             each other island counter-clockwise and each hole clockwise; default false keeps \
+             the largest alone). Counter-clockwise with y up, centred on the origin, the way a \
+             sprite at the same `pixels_per_unit` is drawn.",
         ),
     ]);
     m.function("texture_size", |eng: &Engine, path: String| {
         crate::texture::size_of(eng, &path)
+    });
+    m.function("texture_pixels_per_unit", |eng: &Engine, path: String| {
+        Ok(crate::texture::pixels_per_unit(eng, &path))
     });
     m.function(
         "trace_texture",
@@ -705,9 +742,11 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
                     .into_iter()
                     .take(keep)
                     .map(|outline| {
+                        // `local`'s y flip turns a traced outline clockwise; reversed, an
+                        // outline winds counter-clockwise and a hole clockwise.
                         let simplified =
                             balaur_core::geometry2d::simplify(&outline, opts.tolerance);
-                        Value::List(simplified.into_iter().map(local).collect())
+                        Value::List(simplified.into_iter().rev().map(local).collect())
                     })
                     .collect(),
             ))

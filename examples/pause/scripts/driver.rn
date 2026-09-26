@@ -41,13 +41,13 @@ fn drop_box(parent, n) {
     // Light gravity, so the fall is long enough to pause in the middle of.
     box.set_component("body2d", #{ kind: "dynamic", gravity_scale: 0.35 });
     box.set_component("collider2d", #{
-        kind: "rect",
-        half_extents: [0.34, 0.34],
+        kind: "rectangle",
+        size: [0.68, 0.68],
         restitution: 0.3,
     });
     box.set_component("shape2d", #{
-        kind: "rect",
-        half_extents: [0.34, 0.34],
+        kind: "rectangle",
+        size: [0.68, 0.68],
         corner_radius: 0.08,
         color: tint(n),
     });
@@ -64,7 +64,7 @@ fn tint(n) {
 }
 
 fn label(x, y, text, size, color) {
-    render::draw_text_2d(x, y, text, #{ size: size, color: color, align: "center" });
+    render::draw_text_2d(x, y, text, #{ font_size: size, color: color, text_align: "center" });
 }
 
 // A square that turns every frame, paused or not: what an `always` subtree

@@ -2,6 +2,7 @@
 // polygons over interior points, place its UVs over the texture, and paint
 // bone weights. Every edit lands in the node's inline `mesh` table.
 
+use crate::defs;
 use crate::style;
 use crate::history;
 use crate::model;
@@ -30,7 +31,7 @@ const SIDE_PAIRS = [["left", "right"], ["_l_", "_r_"], ["l_", "r_"], ["_l", "_r"
 // The modes the selection offers. An `occluder2d` is an outline and nothing
 // else: it has no triangles to draw, no texture to lay UVs over, and no rig.
 pub fn modes(S) {
-    if target(S.doc[S.sel]) == Some("occluder2d") {
+    if target(crate::model::selected_node(S)) == Some("occluder2d") {
         return ["points"];
     }
     // An explicit return: a block followed by `[` parses as an index.
@@ -68,13 +69,13 @@ pub fn component(node) {
 }
 
 pub fn occluding(S) {
-    target(S.doc[S.sel]) == Some("occluder2d")
+    target(crate::model::selected_node(S)) == Some("occluder2d")
 }
 
 // The inline mesh table under edit, or `None`: a mesh that is a file
 // reference is edited by making it inline first (the inspector's asset row).
 pub fn mesh(S) {
-    match component(S.doc[S.sel]) {
+    match component(crate::model::selected_node(S)) {
         Some(comp) => match comp.get("mesh") {
             Some(mesh) => if mesh is Object { Some(mesh) } else { None },
             None => None,
@@ -84,7 +85,7 @@ pub fn mesh(S) {
 }
 
 pub fn editable(S) {
-    match component(S.doc[S.sel]) {
+    match component(crate::model::selected_node(S)) {
         Some(comp) => match comp.get("mesh") {
             Some(mesh) => mesh is Object || mesh == "",
             None => true,
@@ -143,7 +144,7 @@ fn point(p) {
 
 // Texture pixel size for the selection, cached per path.
 fn texture_size(S) {
-    let comp = match component(S.doc[S.sel]) {
+    let comp = match component(crate::model::selected_node(S)) {
         Some(comp) => comp,
         None => return None,
     };
@@ -169,9 +170,9 @@ fn texture_size(S) {
 }
 
 fn pixels_per_unit(S) {
-    match component(S.doc[S.sel]) {
-        Some(comp) => util::f(comp.get("pixels_per_unit").unwrap_or(100.0)),
-        None => 100.0,
+    match component(crate::model::selected_node(S)) {
+        Some(comp) => util::f(comp.get("pixels_per_unit").unwrap_or(util::DEFAULT_PIXELS_PER_UNIT)),
+        None => util::DEFAULT_PIXELS_PER_UNIT,
     }
 }
 
@@ -218,7 +219,7 @@ fn ensure_mesh(S) {
         return Some(mesh);
     }
     if !editable(S) {
-        log::warn("this polygon's mesh is a file; make it inline to edit it here");
+        log::warn("this polygon's mesh is a file; embed it to edit it here");
         return None;
     }
     let comp = component(S.doc[S.sel]).unwrap();
@@ -623,7 +624,7 @@ pub fn mirror(S, axis) {
         None => return,
     };
     if !editable(S) {
-        log::warn("this polygon's mesh is a file; make it inline to mirror it");
+        log::warn("this polygon's mesh is a file; embed it to mirror it");
         return;
     }
     let at = picked(S);
@@ -728,7 +729,7 @@ pub fn trace(S) {
         return;
     }
     if !editable(S) {
-        log::warn("this polygon's mesh is a file; make it inline to trace into it");
+        log::warn("this polygon's mesh is a file; embed it to trace into it");
         return;
     }
     let opts = #{
@@ -774,7 +775,7 @@ pub fn trace(S) {
 
 // Whether a vertex drag is deforming rather than reshaping.
 pub fn deforming(S) {
-    S.persona == "anim" && S.clip is Object && mesh(S).is_some()
+    S.workspace == defs::WORKSPACE_ANIMATION && S.clip is Object && mesh(S).is_some()
 }
 
 // The offsets, grown to the mesh and zero where they have not been set.
@@ -896,8 +897,8 @@ pub fn draw(S) {
         None => return,
     };
     let k = S.theme;
-    let accent = util::rgb(k.accent);
-    let sage = util::rgb(k.sage);
+    let accent = util::rgb(k.primary_text);
+    let sage = util::rgb(k.secondary_text);
     let mode = S.polygon.mode;
     let points = world_points(S, mesh, f, mode == "uv");
     let outline = outline_count(mesh);
@@ -1017,7 +1018,7 @@ pub fn cancel(S) {
 }
 
 fn alt_down() {
-    input::is_down("LAlt") || input::is_down("RAlt")
+    input::key_down(input::KEY_ALT)
 }
 
 pub fn update(S, over_viewport, mx, my) {
@@ -1030,7 +1031,7 @@ pub fn update(S, over_viewport, mx, my) {
         Some(mesh) => mesh,
         None => {
             S.polygon.hover = None;
-            if over_viewport && input::mouse_just_pressed(input::MOUSE_LEFT) && mode == "points" {
+            if over_viewport && input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) && mode == "points" {
                 add_vertex(S, mx, my, alt_down());
             }
             return;
@@ -1038,7 +1039,7 @@ pub fn update(S, over_viewport, mx, my) {
     };
     let hover = if over_viewport { pick(S, mesh, f, mx, my, mode == "uv") } else { None };
     S.polygon.hover = hover;
-    if !input::is_mouse_down(input::MOUSE_LEFT) {
+    if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
         S.polygon.drag = None;
     }
     if let Some(drag) = S.polygon.drag {
@@ -1053,7 +1054,7 @@ pub fn update(S, over_viewport, mx, my) {
         return;
     }
     if mode == "points" {
-        if input::mouse_just_pressed(input::MOUSE_LEFT) {
+        if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
             match hover {
                 Some(hover) => {
                     S.polygon.drag = Some(hover);
@@ -1062,14 +1063,14 @@ pub fn update(S, over_viewport, mx, my) {
                     add_vertex(S, mx, my, alt_down());
                 }
             }
-        } else if input::mouse_just_pressed(input::MOUSE_RIGHT) {
+        } else if input::mouse_just_pressed(input::MOUSE_BUTTON_RIGHT) {
             let hover_some = hover;
             if let Some(hover) = hover_some {
                 remove_vertex(S, hover);
             }
         }
     } else if mode == "polygons" {
-        if input::mouse_just_pressed(input::MOUSE_LEFT) {
+        if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
             let hover_some = hover;
             if let Some(hover) = hover_some {
                 let ring = S.polygon.chain.unwrap_or([]);
@@ -1081,20 +1082,20 @@ pub fn update(S, over_viewport, mx, my) {
                     S.polygon.chain = Some(ring);
                 }
             }
-        } else if input::mouse_just_pressed(input::MOUSE_RIGHT) {
+        } else if input::mouse_just_pressed(input::MOUSE_BUTTON_RIGHT) {
             S.polygon.chain = None;
         }
     } else if mode == "uv" {
-        if input::mouse_just_pressed(input::MOUSE_LEFT) {
+        if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
             let hover_some = hover;
             if let Some(hover) = hover_some {
                 S.polygon.drag = Some(hover);
             }
         }
     } else if mode == "weights" {
-        let sign = if input::is_mouse_down(input::MOUSE_LEFT) {
+        let sign = if input::mouse_down(input::MOUSE_BUTTON_LEFT) {
             1.0
-        } else if input::is_mouse_down(input::MOUSE_RIGHT) {
+        } else if input::mouse_down(input::MOUSE_BUTTON_RIGHT) {
             -1.0
         } else {
             0.0
@@ -1115,11 +1116,11 @@ pub fn mode_chips(S, k) {
     let mode = S.polygon.mode;
     for id in modes(S) {
         let on = mode == id;
-        if ui::pill(mode_name(id), #{
-            height: 24, size: style::SM, strong: true,
-            fill: if on { k.accent_soft } else { k.panel },
-            stroke: k.line,
-            color: if on { k.accent } else { k.dim },
+        if ui::button(mode_name(id), #{
+            height: 24, font_size: style::SM, font_weight: 700,
+            fill: if on { k.primary_bg } else { k.bg_panel },
+            stroke: k.border_default,
+            text_color: if on { k.primary_text } else { k.text_muted },
         }) {
             set_mode(S, id);
         }

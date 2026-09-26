@@ -91,5 +91,5 @@ position = [0.0, 0.0, 0.0]
 
 [nodes.shape3d]
 kind = "plane"
-half_extents = [4.0, 0.0, 4.0]
+size = [8.0, 0.0, 8.0]
 color = [0.3, 0.42, 0.3, 1.0]

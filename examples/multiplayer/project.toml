@@ -11,5 +11,5 @@ address = "127.0.0.1:7777"
 players = 2
 
 [input.actions]
-move_x = ["keys:Left,Right", "keys:A,D", "axis:LeftStickX"]
-move_y = ["keys:Down,Up", "keys:S,W", "axis:LeftStickY"]
+move_x = ["keys:ArrowLeft,ArrowRight", "keys:KeyA,KeyD", "axis:left_x"]
+move_y = ["keys:ArrowDown,ArrowUp", "keys:KeyS,KeyW", "axis:left_y"]

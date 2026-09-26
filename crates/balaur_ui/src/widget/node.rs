@@ -57,10 +57,10 @@ pub struct Widget {
     pub on_link: SmolStr,
     /// Whether a drag over this label selects its text.
     pub selectable: bool,
-    /// Units drawn after a `drag_value`'s number, as `placeholder` is drawn
+    /// Units drawn after a `number_field`'s number, as `placeholder` is drawn
     /// before it.
     pub suffix: SmolStr,
-    /// Whether a `drag_value` draws a step up and a step down beside itself.
+    /// Whether a `number_field` draws a step up and a step down beside itself.
     pub arrows: bool,
     /// The 1-based lines a `code` widget dots in its gutter, and the ones a
     /// checker flagged: an error is underlined red, a warning amber.
@@ -76,7 +76,7 @@ pub struct Widget {
     /// Method called with the 1-based line a click on the gutter landed on.
     pub on_gutter: SmolStr,
     pub clicked: bool,
-    /// True for the one frame a `field` was submitted, as `clicked` is for the
+    /// True for the one frame a `text_field` was submitted, as `clicked` is for the
     /// frame a button was pressed.
     pub submitted: bool,
     /// Space inside a container's edge, in design pixels.
@@ -119,7 +119,7 @@ pub struct Widget {
     /// How wide a grab the seams between this container's children get, in
     /// design pixels; 0 leaves them fixed.
     pub handle: f32,
-    /// Which child a `tab` shows, by node name; empty shows the first.
+    /// Which child a `tabs` shows, by node name; empty shows the first.
     pub active: SmolStr,
     /// The drawing surface a *root* widget belongs to; empty is the default
     /// one. Ignored on a child, which is placed by its parent.
@@ -160,20 +160,20 @@ pub struct Widget {
     pub font_weight: f32,
     /// `normal` or `italic`.
     pub font_style: SmolStr,
-    /// What a `field` shows while empty.
+    /// What a `text_field` shows while empty.
     pub placeholder: SmolStr,
-    /// The most characters a `field` takes; 0 is no limit.
+    /// The most characters a `text_field` takes; 0 is no limit.
     pub max_length: f32,
-    /// Draw a `field`'s text as dots.
+    /// Draw a `text_field`'s text as dots.
     pub secret: bool,
-    /// Keep a `field` to digits, a sign and a point.
+    /// Keep a `text_field` to digits, a sign and a point.
     pub numeric: bool,
     /// Method on this node's script, called with the text after every edit.
     pub on_change: SmolStr,
     /// Method on this node's script, called with the text on Enter or when
     /// focus leaves the field.
     pub on_submit: SmolStr,
-    /// What a `color` swatch holds, as `[r, g, b, a]` in 0..=1. Separate from
+    /// What a `color_picker` holds, as `[r, g, b, a]` in 0..=1. Separate from
     /// `text_color`, which is the ink a widget draws its caption in.
     pub color: [f32; 4],
     /// The pitch of a `list` or `tree` row, in design pixels; 0 takes the
@@ -182,15 +182,15 @@ pub struct Widget {
     /// Which of the theme's families the widget draws in: `ui`, `mono`,
     /// `heading` or `icon`.
     pub font: SmolStr,
-    /// Whether a `check` is ticked, or a `toggle` button held down.
+    /// Whether a `checkbox` is ticked, or a `toggle` button held down.
     pub checked: bool,
     /// A `button` a click holds down and the next releases, as a check ticks.
     pub toggle: bool,
-    /// The name a `check` shares with the checks it is exclusive with: ticking
+    /// The name a `checkbox` shares with the checks it is exclusive with: ticking
     /// one unticks the rest, and a ticked one clicked again stays ticked.
     /// Empty leaves the check on its own, flipping with every click.
     pub group: SmolStr,
-    /// Where a `slider` or `progress` stands, between `min` and `max`.
+    /// Where a `slider` or `progress_bar` stands, between `min` and `max`.
     pub value: f32,
     pub min: f32,
     pub max: f32,
@@ -224,10 +224,19 @@ pub struct Widget {
     /// Method called with the row moved, the row it landed on, and whether it
     /// went `before` it, `after` it or `into` it.
     pub on_move: SmolStr,
+    /// Whether a drag carries a card of a `list` out of it.
+    pub draggable: bool,
+    /// Whether a `window`'s close button shuts it, or only asks.
+    pub hide_on_close: bool,
+    /// Method called with the card let go outside the list.
+    pub on_drop: SmolStr,
     /// How many children a `grid` puts on each row.
     pub columns: u32,
     /// Whether a `fold` shows its children.
     pub open: bool,
+    /// A `fold`'s child drawn in the fold's header after its arrow and
+    /// caption, rather than under it.
+    pub title_bar: bool,
     /// Left, top, right and bottom margins a `fill` root keeps from its
     /// surface, in design pixels.
     pub inset: [f32; 4],
@@ -287,7 +296,7 @@ pub(crate) fn lays_out(kind: &str) -> bool {
             | w::STACK
             | w::PANEL
             | w::SCROLL
-            | w::TAB
+            | w::TABS
             | w::GRID
             | w::FLOW
             | w::FOLD
@@ -307,7 +316,7 @@ pub struct WidgetLayerConfig {
     /// Off by default: a game that moves with the arrows and jumps with Space
     /// would otherwise click its own HUD button. `standard_app` turns it on
     /// for a project that declares the `ui_*` actions, and a script asks for
-    /// it with `ui.set_keyboard_focus`.
+    /// it with `ui.set_keyboard_navigation`.
     pub keyboard: bool,
     /// Design-px rect (x, y, w, h); None = whole screen.
     pub rect: Option<[f32; 4]>,

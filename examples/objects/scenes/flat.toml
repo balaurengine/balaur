@@ -10,7 +10,7 @@ name = "Camera2D"
 parent = "n_layer2d"
 
 [nodes.camera2d]
-zoom = 60.0
+pixels_per_unit = 60.0
 
 [[nodes]]
 id = "n_flat"
@@ -28,7 +28,7 @@ position = [-7, 2.6, 0]
 
 [nodes.shape2d]
 kind = "ellipse"
-half_extents = [1.7, 1.05]
+size = [3.4, 2.1]
 color = [0.85, 0.6, 0.2, 1]
 
 [[nodes]]
@@ -71,7 +71,7 @@ position = [7, 2.6, 0]
 [nodes.shape2d]
 kind = "capsule"
 radius = 0.7
-half_extents = [0.7, 1.2]
+height = 2.4
 color = [0.8, 0.45, 0.5, 1]
 
 [[nodes]]
@@ -83,7 +83,7 @@ parent = "n_flat"
 position = [-6, -2.6, 0]
 
 [nodes.boolean2d]
-op = "union"
+operation = "union"
 
 [[nodes]]
 id = "n_union2d_a"
@@ -91,8 +91,8 @@ name = "A"
 parent = "n_union2d"
 
 [nodes.shape2d]
-kind = "rect"
-half_extents = [1.3, 1.3]
+kind = "rectangle"
+size = [2.6, 2.6]
 
 [[nodes]]
 id = "n_union2d_b"
@@ -115,7 +115,7 @@ parent = "n_flat"
 position = [0, -2.6, 0]
 
 [nodes.boolean2d]
-op = "difference"
+operation = "difference"
 
 [[nodes]]
 id = "n_difference2d_a"
@@ -123,8 +123,8 @@ name = "A"
 parent = "n_difference2d"
 
 [nodes.shape2d]
-kind = "rect"
-half_extents = [1.3, 1.3]
+kind = "rectangle"
+size = [2.6, 2.6]
 
 [[nodes]]
 id = "n_difference2d_b"
@@ -147,7 +147,7 @@ parent = "n_flat"
 position = [6, -2.6, 0]
 
 [nodes.boolean2d]
-op = "intersection"
+operation = "intersection"
 
 [[nodes]]
 id = "n_intersection2d_a"
@@ -155,8 +155,8 @@ name = "A"
 parent = "n_intersection2d"
 
 [nodes.shape2d]
-kind = "rect"
-half_extents = [1.3, 1.3]
+kind = "rectangle"
+size = [2.6, 2.6]
 
 [[nodes]]
 id = "n_intersection2d_b"

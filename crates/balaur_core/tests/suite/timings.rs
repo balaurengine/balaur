@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use balaur_core::timings::{TimingLog, Timings};
-use balaur_core::{App, AppConfig, Engine, FIXED_DT, Stage};
+use balaur_core::{App, AppConfig, DEFAULT_FIXED_DT, Engine, Stage};
 
 fn app() -> App {
     App::new(AppConfig::bare(".")).unwrap()
@@ -37,7 +37,7 @@ fn spans(app: &App) -> Vec<(String, f64)> {
 fn a_tick_publishes_the_frame_it_just_ran() {
     let mut app = app();
     assert_eq!(last(&app).frame, Duration::ZERO, "nothing ran yet");
-    app.tick(FIXED_DT);
+    app.tick(DEFAULT_FIXED_DT);
     assert!(last(&app).frame > Duration::ZERO, "the frame took no time");
 }
 
@@ -46,9 +46,9 @@ fn a_tick_publishes_the_frame_it_just_ran() {
 #[test]
 fn fixed_steps_counts_what_the_accumulator_drained() {
     let mut app = app();
-    app.tick(FIXED_DT / 4.0);
+    app.tick(DEFAULT_FIXED_DT / 4.0);
     assert_eq!(last(&app).fixed_steps, 0, "a short frame steps nothing");
-    app.tick(FIXED_DT * 2.5);
+    app.tick(DEFAULT_FIXED_DT * 2.5);
     assert_eq!(last(&app).fixed_steps, 2);
 }
 
@@ -58,7 +58,7 @@ fn a_measured_span_is_filed_under_its_name() {
     app.add_system(Stage::Update, |eng: &Engine, _| {
         balaur_core::timings::measure(eng, "test/work", || std::hint::black_box(0));
     });
-    app.tick(FIXED_DT);
+    app.tick(DEFAULT_FIXED_DT);
     let spans = spans(&app);
     assert!(
         spans.iter().any(|(name, _)| name == "test/work"),
@@ -76,7 +76,7 @@ fn a_recorded_span_is_filed_with_the_next_frame() {
         spans(&app).is_empty(),
         "the frame it belongs to has not ended"
     );
-    app.tick(FIXED_DT);
+    app.tick(DEFAULT_FIXED_DT);
     let spans = spans(&app);
     let (_, seconds) = spans
         .iter()
@@ -92,8 +92,8 @@ fn the_frame_period_the_loop_measured_outlives_a_publish() {
     let mut app = app();
     assert_eq!(last(&app).wall, Duration::ZERO, "no loop has measured one");
     balaur_core::timings::note_wall(&app.engine, Duration::from_millis(33));
-    app.tick(FIXED_DT);
-    app.tick(FIXED_DT);
+    app.tick(DEFAULT_FIXED_DT);
+    app.tick(DEFAULT_FIXED_DT);
     assert_eq!(last(&app).wall, Duration::from_millis(33));
 }
 
@@ -111,7 +111,7 @@ fn spans_sharing_a_name_are_summed_for_the_reader() {
     app.add_system(Stage::FixedUpdate, |eng: &Engine, _| {
         balaur_core::timings::measure(eng, "test/step", || std::hint::black_box(0));
     });
-    app.tick(FIXED_DT * 2.5);
+    app.tick(DEFAULT_FIXED_DT * 2.5);
     assert_eq!(last(&app).fixed_steps, 2);
     assert_eq!(counted(&app, "test/step"), 2, "measured once per step");
     assert_eq!(
@@ -129,14 +129,14 @@ fn last_frames_spans_replace_rather_than_accumulate() {
     app.add_system(Stage::Update, |eng: &Engine, _| {
         balaur_core::timings::measure(eng, "test/work", || std::hint::black_box(0));
     });
-    app.tick(FIXED_DT);
-    app.tick(FIXED_DT);
+    app.tick(DEFAULT_FIXED_DT);
+    app.tick(DEFAULT_FIXED_DT);
     assert_eq!(counted(&app, "test/work"), 1, "one frame's worth, not two");
 }
 
 #[test]
 fn a_share_is_measured_against_one_sixty_hertz_frame() {
-    let half = Duration::from_secs_f32(FIXED_DT / 2.0);
+    let half = Duration::from_secs_f32(DEFAULT_FIXED_DT / 2.0);
     assert!((Timings::share(half) - 0.5).abs() < 1e-6);
 }
 
@@ -151,7 +151,7 @@ fn the_report_names_every_stage_and_the_frame() {
     let mut app = app();
     let mut log = TimingLog::default();
     for _ in 0..3 {
-        app.tick(FIXED_DT);
+        app.tick(DEFAULT_FIXED_DT);
         log.observe(&last(&app));
     }
     let report = log.report();

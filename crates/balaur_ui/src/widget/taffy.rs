@@ -81,7 +81,7 @@ fn owns_children(kind: &str) -> bool {
     lays_out(kind)
         && !matches!(
             kind,
-            w::TAB | w::SCROLL | w::GRID | w::FLOW | w::FOLD | w::MENU | w::STACK
+            w::TABS | w::SCROLL | w::GRID | w::FLOW | w::FOLD | w::MENU | w::STACK
         )
 }
 
@@ -99,7 +99,7 @@ fn align_of(word: &str) -> AlignItems {
         w::END => AlignItems::END,
         // Stretch, not Start: a child across the container's direction fills
         // it unless the author asked for something else, which is the rule
-        // every scene written before `align` was laid out under.
+        // every scene written before `align_items` was laid out under.
         _ => AlignItems::STRETCH,
     }
 }
@@ -134,7 +134,7 @@ fn floor_or_none(px: f32) -> LengthPercentageAuto {
 /// One widget's `taffy::Style`.
 ///
 /// Every property the widget layer had before is one field here: `grow` is
-/// `flex_grow`, `gap` is `gap`, `padding` is `padding`, `align` is
+/// `flex_grow`, `gap` is `gap`, `padding` is `padding`, `align_items` is
 /// `align_items`, `justify` is `justify_content`, `columns` is how many a
 /// `flow` puts on a line, and a hidden widget is `Display::None`.
 /// Everything [`style_of`] and the `fills` override read, hashed into one
@@ -557,7 +557,12 @@ fn sync(
     };
     // A kind that places its own children is a leaf in the tree its parent
     // was solved in, so the subtree solved from it here starts with none.
-    let bare = is_root && held.tree.child_count(node) != placed.children.len();
+    let laid = placed
+        .children
+        .iter()
+        .filter(|child| !crate::widget::kinds::in_title_bar(arena, index, **child))
+        .count();
+    let bare = is_root && held.tree.child_count(node) != laid;
     if !deep && !bare {
         // The children taffy holds are the ones this arena put there, and the
         // leaf sizes with them: nothing below this node can have moved.
@@ -569,6 +574,7 @@ fn sync(
         placed
             .children
             .iter()
+            .filter(|child| !crate::widget::kinds::in_title_bar(arena, index, **child))
             .map(|child| {
                 sync(
                     held,

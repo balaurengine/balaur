@@ -107,14 +107,14 @@ fn light_schema() -> String {
     let kinds = crate::vocabulary::options(words::LIGHT_KINDS_3D);
     let default = words::DIRECTIONAL;
     format!(
-        r#"kind = {{ type = "enum", default = "{default}", options = [{kinds}], description = "A point light fades to nothing at `radius`, a directional one lights the whole scene, a spot one throws a cone the node aims" }}
+        r#"kind = {{ type = "enum", default = "{default}", options = [{kinds}], description = "A point light fades to nothing at `range`, a directional one lights the whole scene, a spot one throws a cone the node aims" }}
 color = {{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Light colour, as channel floats or #rrggbb / #rrggbbaa" }}
 intensity = {{ type = "float", default = 3.0, min = 0.0, description = "Brightness multiplier; over 1 blows past white" }}
-radius = {{ type = "float", default = 30.0, min = 0.0, description = "How far a point or spot light reaches, in world units" }}
-inner = {{ type = "float", default = 20.0, min = 0.0, max = 179.0, description = "Half-angle of a spot light's full-brightness cone, in degrees" }}
-outer = {{ type = "float", default = 35.0, min = 0.0, max = 179.0, description = "Half-angle a spot light fades to nothing at, in degrees" }}
-shadows = {{ type = "bool", default = true, description = "Whether this light casts shadows from the nodes that say they cast" }}
-layers = {{ type = "int", default = -1, description = "Light-layer bitmask; a node is lit when its own `layers` share a bit with these. -1 is every layer" }}"#
+range = {{ type = "float", default = 30.0, min = 0.0, description = "How far a point or spot light reaches, in world units" }}
+inner_angle_degrees = {{ type = "float", default = 20.0, min = 0.0, max = 179.0, description = "Half-angle of a spot light's full-brightness cone, in degrees" }}
+outer_angle_degrees = {{ type = "float", default = 35.0, min = 0.0, max = 179.0, description = "Half-angle a spot light fades to nothing at, in degrees" }}
+shadow_enabled = {{ type = "bool", default = true, description = "Whether this light casts shadows from the nodes that say they cast" }}
+light_layers = {{ type = "int", default = -1, description = "Light-layer bitmask; a node is lit when its own `light_layers` share a bit with these. -1 is every layer" }}"#
     )
 }
 
@@ -124,6 +124,8 @@ pub(crate) fn register_light3d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "light3d",
         ComponentDef {
+            events: &[],
+            warnings: None,
             doc: "A 3D light placed and aimed by the node. `kind` is `directional`, `point` or `spot`; the first `light3d` in a scene retires the engine's default key light.",
             schema: ComponentDef::parse_schema("light3d", &light_schema()),
             tags: &[words::PERSPECTIVE, "render"],
@@ -139,7 +141,7 @@ pub(crate) fn register_light3d_component(reg: &mut Registry<'_>) {
                     params.get(key).and_then(as_f64).unwrap_or(default) as f32
                 };
                 let layers = params
-                    .get(k::LAYERS)
+                    .get(k::LIGHT_LAYERS)
                     .and_then(as_f64)
                     .map_or(u32::MAX, |v| v as i64 as u32);
                 set_light(
@@ -149,10 +151,10 @@ pub(crate) fn register_light3d_component(reg: &mut Registry<'_>) {
                         kind,
                         color: color_from_params(params),
                         intensity: num(k::INTENSITY, 3.0).max(0.0),
-                        radius: num(k::RADIUS, 30.0).max(0.0),
-                        inner: num(k::INNER, 20.0),
-                        outer: num(k::OUTER, 35.0),
-                        shadows: prop_bool(params, k::SHADOWS),
+                        radius: num(k::RANGE, 30.0).max(0.0),
+                        inner: num(k::INNER_ANGLE_DEGREES, 20.0),
+                        outer: num(k::OUTER_ANGLE_DEGREES, 35.0),
+                        shadows: prop_bool(params, k::SHADOW_ENABLED),
                         layers,
                     },
                 )
@@ -176,12 +178,12 @@ pub(crate) fn register_light3d_component(reg: &mut Registry<'_>) {
                     k::INTENSITY.into(),
                     toml::Value::Float(f64::from(light.intensity)),
                 );
-                map.insert(k::RADIUS.into(), toml::Value::Float(f64::from(light.radius)));
-                map.insert(k::INNER.into(), toml::Value::Float(f64::from(light.inner)));
-                map.insert(k::OUTER.into(), toml::Value::Float(f64::from(light.outer)));
-                map.insert(k::SHADOWS.into(), toml::Value::Boolean(light.shadows));
+                map.insert(k::RANGE.into(), toml::Value::Float(f64::from(light.radius)));
+                map.insert(k::INNER_ANGLE_DEGREES.into(), toml::Value::Float(f64::from(light.inner)));
+                map.insert(k::OUTER_ANGLE_DEGREES.into(), toml::Value::Float(f64::from(light.outer)));
+                map.insert(k::SHADOW_ENABLED.into(), toml::Value::Boolean(light.shadows));
                 map.insert(
-                    k::LAYERS.into(),
+                    k::LIGHT_LAYERS.into(),
                     toml::Value::Integer(i64::from(light.layers.cast_signed())),
                 );
                 Some(toml::Value::Table(map))
@@ -305,10 +307,10 @@ fn environment_schema() -> String {
         r#"current = {{ type = "bool", default = true, description = "Whether this is the environment the scene draws under; the last current one in tree order wins" }}
 sky = {{ type = "string", default = "", description = "Equirectangular image, project-relative: .hdr, .exr or .png. It draws behind the scene and lights it. Empty is no sky" }}
 sky_intensity = {{ type = "float", default = 1.0, min = 0.0, description = "Brightness of the sky, and of the light it casts" }}
-sky_rotation = {{ type = "float", default = 0.0, description = "Turn of the sky about y, in degrees" }}
-show_sky = {{ type = "bool", default = true, description = "False turns the sky off entirely: it stops drawing and stops lighting. The renderer has one dial for both" }}
-ambient = {{ type = "color", default = [0.125, 0.14, 0.157, 1.0], description = "Light every surface gets whatever the lights do" }}
-fog = {{ type = "enum", default = "{none}", options = [{fogs}], description = "How fog thickens with distance" }}
+sky_rotation_degrees = {{ type = "float", default = 0.0, description = "Turn of the sky about y, in degrees" }}
+sky_enabled = {{ type = "bool", default = true, description = "False turns the sky off entirely: it stops drawing and stops lighting. The renderer has one dial for both" }}
+ambient_color = {{ type = "color", default = [0.125, 0.14, 0.157, 1.0], description = "Light every surface gets whatever the lights do" }}
+fog_mode = {{ type = "enum", default = "{none}", options = [{fogs}], description = "How fog thickens with distance" }}
 fog_color = {{ type = "color", default = [0.624, 0.706, 0.784, 1.0], description = "What distance fades toward" }}
 fog_density = {{ type = "float", default = 0.02, min = 0.0, description = "Thickness, for exponential fog" }}
 fog_start = {{ type = "float", default = 10.0, min = 0.0, description = "Where linear fog begins, in world units" }}
@@ -319,7 +321,7 @@ tonemap = {{ type = "enum", default = "{neutral}", options = [{tonemaps}], descr
 saturation = {{ type = "float", default = 1.0, min = 0.0, description = "Colour multiplier around luminance; zero is grey" }}
 contrast = {{ type = "float", default = 1.0, min = 0.0, description = "Contrast around mid grey" }}
 gamma = {{ type = "float", default = 1.0, min = 0.01, description = "Gamma applied in linear space" }}
-shadows = {{ type = "bool", default = true, description = "Whether any light casts shadows at all" }}
+shadow_enabled = {{ type = "bool", default = true, description = "Whether any light casts shadows at all" }}
 shadow_resolution = {{ type = "int", default = 2048, min = 256, description = "Side of the shadow map, in texels" }}
 shadow_softness = {{ type = "float", default = 1.0, min = 0.0, description = "How far a shadow's edge is blurred" }}
 shadow_distance = {{ type = "float", default = 60.0, min = 0.0, description = "How far from the camera shadows are drawn" }}"#,
@@ -352,11 +354,11 @@ fn environment_from_params(params: &toml::Value) -> Result<Environment> {
             .unwrap_or_default()
             .to_string(),
         sky_intensity: num(k::SKY_INTENSITY, base.sky_intensity).max(0.0),
-        sky_rotation: num(k::SKY_ROTATION, base.sky_rotation),
-        show_sky: flag(k::SHOW_SKY, true),
-        ambient: crate::color_from_key(params, k::AMBIENT, base.ambient),
+        sky_rotation: num(k::SKY_ROTATION_DEGREES, base.sky_rotation),
+        show_sky: flag(k::SKY_ENABLED, true),
+        ambient: crate::color_from_key(params, k::AMBIENT_COLOR, base.ambient),
         fog: match params
-            .get(k::FOG)
+            .get(k::FOG_MODE)
             .and_then(toml::Value::as_str)
             .unwrap_or(words::NONE)
         {
@@ -387,7 +389,7 @@ fn environment_from_params(params: &toml::Value) -> Result<Environment> {
         saturation: num(k::SATURATION, base.saturation).max(0.0),
         contrast: num(k::CONTRAST, base.contrast).max(0.0),
         gamma: num(k::GAMMA, base.gamma).max(0.01),
-        shadows: flag(k::SHADOWS, true),
+        shadows: flag(k::SHADOW_ENABLED, true),
         shadow_resolution: num(k::SHADOW_RESOLUTION, 2048.0) as u32,
         shadow_softness: num(k::SHADOW_SOFTNESS, base.shadow_softness).max(0.0),
         shadow_distance: num(k::SHADOW_DISTANCE, base.shadow_distance).max(0.0),
@@ -401,7 +403,9 @@ pub(crate) fn register_environment_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "environment",
         ComponentDef {
-            doc: "The scene's atmosphere: `sky`, `ambient`, `fog`, `exposure`, `tonemap`, colour grading and the shadow budget. The last `current` one wins; per-view effects stay on `camera.post`.",
+            events: &[],
+            warnings: None,
+            doc: "The scene's atmosphere: `sky`, `ambient_color`, `fog_mode`, `exposure`, `tonemap`, colour grading and the shadow budget. The last `current` one wins; per-view effects stay on `camera.post`.",
             schema: ComponentDef::parse_schema("environment", &environment_schema()),
             tags: &[words::PERSPECTIVE, "render"],
             expects: &[],
@@ -444,10 +448,10 @@ pub(crate) fn register_environment_component(reg: &mut Registry<'_>) {
                 put(k::CURRENT, toml::Value::Boolean(env.current));
                 put(k::SKY, toml::Value::String(env.sky.clone()));
                 put(k::SKY_INTENSITY, float(env.sky_intensity));
-                put(k::SKY_ROTATION, float(env.sky_rotation));
-                put(k::SHOW_SKY, toml::Value::Boolean(env.show_sky));
-                put(k::AMBIENT, color_to_toml(env.ambient));
-                put(k::FOG, toml::Value::String(fog.into()));
+                put(k::SKY_ROTATION_DEGREES, float(env.sky_rotation));
+                put(k::SKY_ENABLED, toml::Value::Boolean(env.show_sky));
+                put(k::AMBIENT_COLOR, color_to_toml(env.ambient));
+                put(k::FOG_MODE, toml::Value::String(fog.into()));
                 put(k::FOG_COLOR, color_to_toml(env.fog_color));
                 put(k::FOG_DENSITY, float(env.fog_density));
                 put(k::FOG_START, float(env.fog_start));
@@ -458,7 +462,7 @@ pub(crate) fn register_environment_component(reg: &mut Registry<'_>) {
                 put(k::SATURATION, float(env.saturation));
                 put(k::CONTRAST, float(env.contrast));
                 put(k::GAMMA, float(env.gamma));
-                put(k::SHADOWS, toml::Value::Boolean(env.shadows));
+                put(k::SHADOW_ENABLED, toml::Value::Boolean(env.shadows));
                 put(
                     k::SHADOW_RESOLUTION,
                     toml::Value::Integer(i64::from(env.shadow_resolution)),
@@ -472,7 +476,7 @@ pub(crate) fn register_environment_component(reg: &mut Registry<'_>) {
 }
 
 /// The kiss3d light one resolved `light3d` becomes.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn as_kiss3d(light: &LitLight3d) -> kiss3d::light::Light {
     use kiss3d::light::{Light, LightType};
     let light_type = match light.kind {
@@ -500,7 +504,7 @@ fn as_kiss3d(light: &LitLight3d) -> kiss3d::light::Light {
 
 /// One kiss3d node per authored light, kept between frames the way the mesh
 /// slots are: a light rebuilt every frame would restart its shadow map.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 #[derive(Default)]
 pub(crate) struct LightSlots {
     nodes: Vec<kiss3d::scene::SceneNode3d>,
@@ -508,7 +512,7 @@ pub(crate) struct LightSlots {
     sun: Option<kiss3d::scene::SceneNode3d>,
 }
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 impl LightSlots {
     /// Remember the backend's default sun, so the first authored light can
     /// retire it and a scene that removes its lights gets it back.
@@ -547,7 +551,7 @@ impl LightSlots {
 
 /// Push the scene's `environment` onto the window: sky, ambient, fog, the HDR
 /// film and the shadow budget. A scene with none leaves every one alone.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn sync_environment(
     app: &balaur_core::App,
     window: &mut kiss3d::window::Window,
@@ -608,7 +612,7 @@ pub(crate) fn sync_environment(
 /// Load the sky when the file named changed, and re-aim it whenever the
 /// orientation did. Decoding an `.hdr` is megabytes of work, so it happens
 /// once per name rather than once per frame.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn sync_sky(
     app: &balaur_core::App,
     window: &mut kiss3d::window::Window,

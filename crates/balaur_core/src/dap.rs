@@ -199,6 +199,7 @@ fn read_messages(stream: TcpStream, requests: &Sender<Json>) {
                 if requests.send(message).is_err() {
                     return;
                 }
+                crate::wake::wake();
             }
             Err(err) => tracing::warn!("debug adapter: unreadable message: {err}"),
         }

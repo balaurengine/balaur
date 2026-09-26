@@ -51,6 +51,19 @@ fn a_path_finds_a_descendant_and_missing_ones_are_none() {
 }
 
 #[test]
+fn a_leading_slash_starts_from_the_top_of_the_tree() {
+    let (engine, a, b, c) = tree();
+    let world = engine.world();
+    assert_eq!(find_node(&world, c, "/A/B"), Some(b));
+    assert_eq!(find_node(&world, a, "/A/B/C"), Some(c));
+    assert_eq!(
+        find_node(&world, c, "A"),
+        None,
+        "without the slash it is relative"
+    );
+}
+
+#[test]
 fn a_node_path_round_trips_through_find() {
     let (engine, _, _, c) = tree();
     let world = engine.world();
@@ -299,7 +312,7 @@ fn a_relative_z_index_adds_to_its_parents_and_an_absolute_one_does_not() {
         world.get::<&mut scene::Appearance>(b).unwrap().z_index = 5;
         let mut leaf = world.get::<&mut scene::Appearance>(c).unwrap();
         leaf.z_index = 2;
-        leaf.z_relative = false;
+        leaf.z_as_relative = false;
     }
     propagate_transforms(&mut engine.world_mut(), engine.root());
     let world = engine.world();

@@ -1,7 +1,7 @@
 > **Status:** built on 2026-09-15, three tabs. `balaur` with no project opens
 > the screen, a double-clicked bundle lands there too, `project.*` and
 > `release.*` are the modules behind it, the palette reaches it from inside a
-> project, and `--state managerdemo` checks all of it. What is left is §8.
+> project, and `--state test:manager` checks all of it. What is left is §8.
 
 # Plan: project manager
 
@@ -29,9 +29,9 @@ widgets in the editor's own window, so it hot reloads and runs on the web.
   `list_projects`, `open_project`, `delete_project`, `import_project_pack`,
   `import_project_files`, `download_project`, and the website's
   `src/pages/editor.tsx` draws the list. Native has none of it.
-- Editor preferences persist at `project::data_dir() + "/editor.toml"`
+- Editor preferences persist at `project::editor_data_directory() + "/editor.toml"`
   (`editor/scripts/settings.rn`), which is `<data dir>/balaur/`, beside
-  `projects.toml` and `sessions/<project name>/`.
+  `projects.toml` and `recordings/<project name>/`.
 - No folder picker: `ui` has `modal` and `window`. `rfd` is already in the
   tree as a dependency of kiss3d.
 - Start-up states (`--state`, `shell::apply_start_state`) already switch the
@@ -48,13 +48,13 @@ widgets in the editor's own window, so it hot reloads and runs on the web.
    `import` (`crates/balaur_cli/src/project_api.rs`, loaded in `edit_project`
    and `own_modules`):
    - `project::recent()`: rows of `{ path, name, opened, exists }`, from
-     `projects.toml` in `project::data_dir()`, newest first, capped at 20.
+     `projects.toml` in `project::editor_data_directory()`, newest first, capped at 20.
      A missing path stays in the list with `exists = false` until forgotten.
    - `project::create(path, template)`: `new_project::create`, then the row.
    - `project::open(path)`: checks `project.toml` is there, writes the row,
      spawns `<current_exe> edit <path>` and quits. On the web it is
      `web_store`'s `open_project` instead, no spawn.
-   - `project::forget(path)`, and `project::pick_folder()`, which answers on a
+   - `project::forget(path)`, and `project::pick_directory()`, which answers on a
      later tick as `on_pick_folder(path)` through `rfd`, native only.
    - Godot import is `project::create(path, "empty")` followed by
      `import::file(project_godot)`, which already handles `project.godot`.
@@ -141,7 +141,7 @@ engine opens a project is the same decision as which project to open.
 
 - **`release.*`** answers what this build is (`installed`) and what lines exist
   (`channels`). `check` reads the feed and `install` replaces the install, each
-  on a thread that reports to `on_release` through `crate::jobs`. The frame
+  on a thread that reports to `on_release_event` through `crate::jobs`. The frame
   never waits on GitHub. Both run `balaur update`'s own code, so a button and a
   flag cannot drift.
 - **Every row is ordered against this build.** `order` is `newer`, `older` or

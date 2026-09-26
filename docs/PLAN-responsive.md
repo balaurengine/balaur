@@ -132,8 +132,8 @@ Seven rules.
 | Class | Words | Line, in design pixels | Read from |
 | --- | --- | --- | --- |
 | Input | `touch`, `pointer` | `platform.touchscreen`, with `emulate_touch_from_mouse` counting | `Tags::current`; an export for `ios` or `android` carries `touch`, one for the web decides at run time |
-| Width | `narrow`, `medium`, `wide` | `[ui] narrow_below`, default 600; `[ui] wide_from`, default 840 | the layer's surface width over `ui_scale` |
-| Height | `short`, `tall` | `[ui] short_below`, default 480 | the layer's surface height over `ui_scale` |
+| Width | `narrow`, `medium`, `wide` | `[ui] narrow_below_pixels`, default 600; `[ui] wide_from_pixels`, default 840 | the layer's surface width over `ui_scale` |
+| Height | `short`, `tall` | `[ui] short_below_pixels`, default 480 | the layer's surface height over `ui_scale` |
 
 **Fixed words, moved lines.** The words are the engine's, constants in
 `crates/balaur_ui` exposed to scripts as `ui::NARROW` and its siblings through
@@ -256,7 +256,7 @@ decision.
 | --- | --- |
 | Knowing a finger may arrive | Have: `platform.touchscreen`. Planned: the `touch` tag in `Tags::ALL` and `Tags::current`, derived from the fact; `Tags::for_target` carries it for `ios` and `android` |
 | The screen's room | Planned: `ui.width_class()` and `ui.height_class()`, words from `DeviceFacts`, with `ui::NARROW`, `ui::MEDIUM`, `ui::WIDE`, `ui::SHORT`, `ui::TALL` as script constants |
-| The lines | Planned: `[ui] narrow_below`, `wide_from` and `short_below`, defaults 600, 840 and 480, overridable per tag |
+| The lines | Planned: `[ui] narrow_below_pixels`, `wide_from_pixels` and `short_below_pixels`, defaults 600, 840 and 480, overridable per tag |
 | A project's own class words | Not planned: the words are the contract a theme, a scene and an addon share. A fourth line is a script reading `ui.screen_size()` |
 | A game played in the editor | Planned: its class from the layer's rect and its own `[ui]` lines, declared by the editor at play |
 | A widget that changes by class | Have: a table per class word on the `widget` component, any declared key but `kind`, resolved each frame in the declared order |
@@ -277,7 +277,7 @@ decision.
 | A headless run | Have: `screen_size` is zero. Planned: zero reads `wide` and `tall` |
 | A test feeding a size | Planned: `touch(pos, phase)` beside `press` in the widget suite's support, and a screen rect the test chooses |
 | Rendering at a phone's size | Planned: `--size WxH` on `balaur edit` and `balaur run` offscreen, replacing the constant; `--touch` setting the fact for the run |
-| A simulator build | Planned: `aarch64-apple-ios-sim` beside `aarch64-apple-ios` in `scripts/package_template.sh`, as `--target ios-sim` |
+| A simulator build | Planned: `aarch64-apple-ios-sim` beside `aarch64-apple-ios` in `scripts/package_runtime.sh`, as `--target ios-sim` |
 | The editor on a tablet | Planned: the `touch` and `medium` rows of §2's table |
 | The editor on a phone | Planned: the `narrow` and `short` rows, as step 7 |
 | A palette row per shortcut | Planned: an audit that fails the selftest for a `ui::shortcut` no `palette.rn` row names |
@@ -565,7 +565,7 @@ meant for a cursor.
 
 The screens after §11 were judged by eye and the eye was wrong about which
 controls disagreed, so the shell's own rects were printed instead. Three
-numbers came out of one bar: the persona tabs were 26 tall, the transport 30,
+numbers came out of one bar: the workspace tabs were 26 tall, the transport 30,
 and the theme toggle 26 wide against the transport's 38.
 
 None of it was the touch work. The bar has always drawn its tabs at
@@ -869,7 +869,7 @@ looks at, a drag slides both across it, and the 2D camera gets the same pair
 as a zoom and a centre. The slide is measured in world units per design
 pixel at the target's depth, so the ground stays under the finger. While it
 holds the camera the gizmo does not see the frame and the backend's own
-mouse orbit stands off. `--state gesturedemo` feeds the two fingers and
+mouse orbit stands off. `--state test:gestures` feeds the two fingers and
 checks both, a frame apart, because a fed finger is read by the next tick and
 acted on later in that frame.
 
@@ -898,7 +898,7 @@ and its editors take what the sheet leaves.
 **`hide_taller` exists**, the fourth line, with the same test as the other
 three.
 
-**The simulator template builds.** `scripts/package_template.sh ios-sim`
+**The simulator template builds.** `scripts/package_runtime.sh ios-sim`
 takes the host's own architecture, since that is what a simulator runs, and
 writes the same unsigned bundle under its own name. What it cannot answer is
 whether the editor is usable on a phone in the hand, which is the check the

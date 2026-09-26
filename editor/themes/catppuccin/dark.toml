@@ -1,0 +1,19 @@
+# Catppuccin Mocha: MIT, Copyright (c) 2021 Catppuccin.
+# From github.com/catppuccin/palette, palette.json v1.8.0.
+type = "widget_theme"
+
+[colors]
+background = "#181825"
+bg_panel = "#1e1e2e"
+bg_control = "#313244"
+foreground = "#cdd6f4"
+primary = "#89b4fa"
+secondary = "#94e2d5"
+success = "#a6e3a1"
+warning = "#f9e2af"
+danger = "#f38ba8"
+syntax_keyword = "#cba6f7"
+syntax_string = "#a6e3a1"
+syntax_number = "#fab387"
+syntax_type = "#f9e2af"
+syntax_comment = "#959bb4"  # #9399b2, walked to AA

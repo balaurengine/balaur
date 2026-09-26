@@ -45,7 +45,7 @@ fn n(count: i64) -> Vec<(String, Value)> {
 #[test]
 fn a_key_answers_in_the_locale_in_force() {
     let dir = project(
-        "\n[locale]\ndefault = \"ro\"\nfallback = \"en\"\n",
+        "\n[locale]\ninitial = \"ro\"\nfallback = \"en\"\n",
         &[("en.toml", EN), ("ro.toml", RO)],
     );
     let app = app_in(dir.path());
@@ -59,7 +59,7 @@ fn a_key_answers_in_the_locale_in_force() {
 #[test]
 fn a_key_the_locale_lacks_falls_back() {
     let dir = project(
-        "\n[locale]\ndefault = \"ro\"\nfallback = \"en\"\n",
+        "\n[locale]\ninitial = \"ro\"\nfallback = \"en\"\n",
         &[("en.toml", EN), ("ro.toml", RO)],
     );
     let app = app_in(dir.path());
@@ -119,7 +119,7 @@ fn english_counts_one_and_the_rest() {
 #[test]
 fn romanian_counts_one_few_and_the_rest() {
     let dir = project(
-        "\n[locale]\ndefault = \"ro\"\n",
+        "\n[locale]\ninitial = \"ro\"\n",
         &[("en.toml", EN), ("ro.toml", RO)],
     );
     let app = app_in(dir.path());
@@ -142,7 +142,7 @@ fn romanian_counts_one_few_and_the_rest() {
 #[test]
 fn a_missing_plural_form_falls_to_other() {
     let dir = project(
-        "\n[locale]\ndefault = \"ro\"\n",
+        "\n[locale]\ninitial = \"ro\"\n",
         &[("ro.toml", "\"x\" = { one = \"unu\", other = \"multe\" }\n")],
     );
     let app = app_in(dir.path());
@@ -158,7 +158,7 @@ fn a_missing_plural_form_falls_to_other() {
 /// is empty rather than fatal.
 #[test]
 fn a_locale_with_no_file_is_empty_not_an_error() {
-    let dir = project("\n[locale]\ndefault = \"de\"\n", &[("en.toml", EN)]);
+    let dir = project("\n[locale]\ninitial = \"de\"\n", &[("en.toml", EN)]);
     let app = app_in(dir.path());
     assert_eq!(
         strings::tr(&app.engine, "menu.play", &[]),
@@ -178,7 +178,7 @@ fn locales_lists_the_files_the_project_ships() {
 /// `en-GB` is English for the purpose of counting.
 #[test]
 fn a_region_does_not_change_the_language_that_counts() {
-    let dir = project("\n[locale]\ndefault = \"en-GB\"\n", &[("en-GB.toml", EN)]);
+    let dir = project("\n[locale]\ninitial = \"en-GB\"\n", &[("en-GB.toml", EN)]);
     let app = app_in(dir.path());
     assert_eq!(strings::tr(&app.engine, "menu.items", &n(1)), "1 item");
     assert_eq!(strings::tr(&app.engine, "menu.items", &n(2)), "2 items");

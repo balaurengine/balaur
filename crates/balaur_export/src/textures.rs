@@ -28,14 +28,14 @@ pub(crate) struct Shipped {
 ///
 /// An SVG always becomes a raster. A raster is capped at `max_size` pixels on
 /// its longer side, except pixel art, a bitmap font's page and a file whose
-/// `recode` is `keep`: each of those has a pixel something counts.
+/// `recode` is `original`: each of those has a pixel something counts.
 pub(crate) fn ship(
     bytes: &[u8],
     settings: &toml::Table,
     max_size: u32,
     font_page: bool,
 ) -> Result<Option<Shipped>> {
-    let kept = word(settings, keys::RECODE, "") == words::KEEP;
+    let kept = word(settings, keys::RECODE, "") == words::ORIGINAL;
     let capped = max_size > 0 && !kept && !font_page && !texture::is_pixel_art(settings);
     let cap = if capped { max_size } else { 0 };
     if balaur::pixels::is_svg(bytes) {
@@ -186,7 +186,7 @@ mod tests {
         let nearest = table("filter = \"nearest\"");
         assert!(ship(&source, &nearest, 100, false).unwrap().is_none());
         assert!(ship(&source, &table(""), 100, true).unwrap().is_none());
-        let kept = table("recode = \"keep\"");
+        let kept = table("recode = \"original\"");
         assert!(ship(&source, &kept, 100, false).unwrap().is_none());
     }
 

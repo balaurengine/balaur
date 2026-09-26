@@ -1,0 +1,19 @@
+# Everforest dark, medium: MIT, Copyright (c) 2019 sainnhe.
+# From github.com/sainnhe/everforest, autoload/everforest.vim.
+type = "widget_theme"
+
+[colors]
+background = "#232a2e"
+bg_panel = "#2d353b"
+bg_control = "#343f44"
+foreground = "#d3c6aa"
+primary = "#7fbbb3"
+secondary = "#83c092"
+success = "#a7c080"
+warning = "#dbbc7f"
+danger = "#e67e80"
+syntax_keyword = "#f48a8c"  # #e67e80, walked to AA
+syntax_string = "#a7c080"
+syntax_number = "#d699b6"
+syntax_type = "#dbbc7f"
+syntax_comment = "#9daba1"  # #859289, walked to AA

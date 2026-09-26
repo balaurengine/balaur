@@ -20,6 +20,7 @@ pub mod csg;
 pub mod dap;
 pub mod debug_lines;
 pub mod debugger_api;
+mod profile_api;
 mod regex_api;
 // Opening a URL is a shell's job and a tab is one; revealing a folder is a
 // desktop's alone, so only that half is gated, inside.
@@ -90,10 +91,12 @@ pub mod transport;
 pub mod triangulate;
 pub mod variables;
 pub mod voxels;
+pub mod wake;
+pub mod warnings;
 
 pub use app::{
-    App, AppConfig, FIXED_DT, MAX_SUBSTEPS, ScriptArgs, ScriptHostFactory, ScriptSetup, Stage,
-    TICK_HZ, fixed_dt, max_substeps, set_tick_hz, tick_hz,
+    App, AppConfig, DEFAULT_FIXED_DT, DEFAULT_TICK_HZ, MAX_SUBSTEPS, ScriptArgs, ScriptHostFactory,
+    ScriptSetup, Stage, fixed_dt, max_substeps, set_tick_hz, tick_hz,
 };
 pub use assets::{AssetRef, AssetState, AssetTypeRegistry};
 pub use collections::{DetHashMap, DetHashSet};
@@ -113,7 +116,7 @@ pub use scene::{
     Appearance, Children, GlobalAppearance, GlobalTransform, Name, Parent, ScriptAttachment,
     Transform,
 };
-pub use snapshot::{Snapshot, SnapshotRegistry, SnapshotRing};
+pub use snapshot::{Checkpoint, CheckpointRing, SnapshotRegistry};
 pub use transport::{Delivery, Faults, Faulty, LinkState, Received, Transport};
 
 /// Inserted by a windowed backend on the first key, button or touch: the

@@ -19,21 +19,16 @@ use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::PhysicsState3d;
-use crate::rapier3d::prelude::{ColliderBuilder, SoftBodyBuilder, SoftBodyHandle};
+use crate::rapier3d::prelude::{ColliderBuilder, SoftBodyBuilder, SoftBodyHandle, SoftBodySolver};
 use crate::scalar::{self, Real, Vector};
+use crate::shared::softbody::{self as cap, Family};
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
-
-/// How many particles a generator is allowed to make.
-///
-/// A `cells` of a thousand per axis is a billion particles and a frozen
-/// editor, and the number comes from a text field anyone can type into.
-const MAX_PARTICLES: usize = 200_000;
 
 /// The shape rows: how a body's particles and elements are laid out, and the
 /// numbers each layout reads.
 fn shape_schema() -> String {
     let kinds = v::options(w::SOFT_KINDS);
-    let default = w::SOFT_CUBOID;
+    let default = w::BOX;
     v::schema(&[
         (
             k::KIND,
@@ -42,16 +37,12 @@ fn shape_schema() -> String {
             ),
         ),
         (
-            k::HALF_EXTENTS,
-            r#"{ type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the block, when kind is cuboid", group = "shape" }"#,
-        ),
-        (
             k::CELLS,
-            r#"{ type = "vec3", default = [4.0, 4.0, 4.0], description = "How many cells along each axis, for cuboid; a cloth reads the first two, and a cloth_tube reads them as particles around and cells along", group = "shape" }"#,
+            r#"{ type = "vec3", default = [4.0, 4.0, 4.0], description = "How many cells along each axis, for box; a cloth reads the first two, and a cloth_tube reads them as particles around and cells along", group = "shape" }"#,
         ),
         (
             k::SIZE,
-            r#"{ type = "vec3", default = [1.0, 0.0, 1.0], description = "The two edges a cloth is spanned over, as the sheet's extent along x and z", group = "shape" }"#,
+            r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Whole size along each axis: a box's block, or a cloth's sheet along x and z", group = "shape" }"#,
         ),
         (
             k::RADIUS,
@@ -59,7 +50,19 @@ fn shape_schema() -> String {
         ),
         (
             k::SUBDIVISIONS,
-            r#"{ type = "float", default = 2.0, min = 0.0, max = 6.0, description = "How many times a sphere's icosahedron is refined; each level quadruples the triangles", group = "shape" }"#,
+            r#"{ type = "int", default = 2, min = 0, max = 6, description = "How many times a sphere's icosahedron is refined; each level quadruples the triangles", group = "shape" }"#,
+        ),
+        (
+            k::WARP_FREQUENCY,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "A cloth's stiffness along its first axis, in hertz, as woven cloth is stiffer along the warp; 0 takes edge_frequency", group = "shape" }"#,
+        ),
+        (
+            k::WEFT_FREQUENCY,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "The same across it, along the weft; 0 takes edge_frequency", group = "shape" }"#,
+        ),
+        (
+            k::SHEAR_FREQUENCY,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "A cloth's resistance to being skewed; 0 takes edge_frequency", group = "shape" }"#,
         ),
         (
             k::A,
@@ -70,8 +73,12 @@ fn shape_schema() -> String {
             r#"{ type = "vec3", default = [0.0, -1.0, 0.0], description = "Where a rope ends, relative to the node", group = "shape" }"#,
         ),
         (
-            k::PARTICLES,
-            r#"{ type = "float", default = 16.0, min = 2.0, description = "How many particles a rope or a disk is made of", group = "shape" }"#,
+            k::PARTICLE_COUNT,
+            &format!(
+                r#"{{ type = "int", default = {}, min = {}, description = "How many particles a rope is made of", group = "shape" }}"#,
+                cap::DEFAULT_PARTICLES as i64,
+                cap::MIN_CHAIN_PARTICLES as i64
+            ),
         ),
         (
             k::AXIS,
@@ -80,7 +87,7 @@ fn shape_schema() -> String {
         (
             k::MESH,
             &format!(
-                r#"{{ type = "asset", asset = "{}", default = "", description = "Geometry for a trimesh, polyline or volumetric body", group = "shape" }}"#,
+                r#"{{ type = "asset", asset = "{}", default = "", description = "Geometry for a triangle_mesh, polyline or volumetric body", group = "shape" }}"#,
                 balaur_core::mesh::MESH_ASSET_TYPE
             ),
         ),
@@ -137,27 +144,29 @@ pub(crate) fn shared_softbody_schema() -> String {
             (k::TEAR_FORCE, r#"{ type = "float", default = 0.0, min = 0.0, description = "The pull past which an edge breaks; 0 is unbreakable. Either criterion tears an edge", group = "tearing" }"#),
             (k::TEAR_SMOOTHING, r#"{ type = "float", default = 0.0, min = 0.0, description = "Over how many seconds a load is averaged before it is tested, so one hard frame does not tear a body", group = "tearing" }"#),
             (k::INTERIOR_STRENGTH, r#"{ type = "float", default = 1.0, min = 1.0, description = "How many times tougher an undamaged inside element is than a surface one, so cracks start at the surface and run inward", group = "tearing" }"#),
-            (k::MAX_TEARS, r#"{ type = "float", default = 0.0, min = 0.0, description = "The most edges that may tear in one step, which paces a crack; 0 is no limit", group = "tearing" }"#),
-            (k::MIN_PIECE, r#"{ type = "float", default = 0.0, min = 0.0, description = "The smallest piece, in elements, a tear may split off; 0 lets rapier choose", group = "tearing" }"#),
-            (k::VOLUME_PRESERVATION, r#"{ type = "bool", default = false, description = "Hold the volume each closed piece of the body encloses", group = "volume" }"#),
+            (k::MAX_TEARS_PER_STEP, r#"{ type = "int", default = 0, min = 0, description = "The most edges that may tear in one step, which paces a crack; 0 is no limit", group = "tearing" }"#),
+            (k::MIN_PIECE, r#"{ type = "int", default = 0, min = 0, description = "The smallest piece, in elements, a tear may split off; 0 lets rapier choose", group = "tearing" }"#),
+            (k::VOLUME_PRESERVATION, r#"{ type = "bool", default = true, description = "Hold the volume each closed piece of the body encloses; an open sheet or a rope encloses none, and a hoop without it caves in", group = "volume" }"#),
             (k::VOLUME_FACTOR, r#"{ type = "float", default = 1.0, min = 0.0, description = "What that volume is held at, as a multiple of the rest volume; above 1 inflates the body", group = "volume" }"#),
             (k::SHAPE_MATCHING, r#"{ type = "bool", default = false, description = "Pull the body back towards the shape it was built in, which is what keeps a jelly a jelly", group = "volume" }"#),
             (k::TENSION_ONLY, r#"{ type = "bool", default = false, description = "Let the edges resist stretching only, so the body folds freely and never pushes itself open", group = "volume" }"#),
             (k::MASS, r#"{ type = "float", default = 1.0, min = 0.0, description = "What the whole body weighs, spread over its particles", group = "particles" }"#),
-            (k::PINNED, r#"{ type = "list", of = { type = "int" }, default = [], description = "The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from", group = "particles" }"#),
+            (k::PINNED_PARTICLES, r#"{ type = "list", of = { type = "int" }, default = [], description = "The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from", group = "particles" }"#),
             (k::PARTICLE_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "How thick the particles are; 0 takes what the layout works out", group = "particles" }"#),
-            (k::SELF_CONTACTS, r#"{ type = "bool", default = false, description = "Let the body's own surface collide with itself, which stops a cloth passing through its own fold", group = "particles" }"#),
+            (k::SELF_COLLISION, r#"{ type = "bool", default = false, description = "Let the body's own surface collide with itself, which stops a cloth passing through its own fold", group = "particles" }"#),
             (k::ORIENTED, r#"{ type = "bool", default = false, description = "Treat the surface as closed and outward-facing, so its inside holds bodies in instead of pushing them out", group = "particles" }"#),
             (k::LINEAR_DAMPING, r#"{ type = "float", default = 0.0, min = 0.0, description = "Air friction on the particles", group = "particles" }"#),
             (k::GRAVITY_SCALE, r#"{ type = "float", default = 1.0, description = "How much gravity pulls on the particles", group = "particles" }"#),
-            (k::SOLVER_ITERATIONS, r#"{ type = "float", default = 0.0, min = 0.0, max = 64.0, description = "Extra solver substeps for this body and everything it touches", group = "particles" }"#),
-            (k::PGS_ITERATIONS, r#"{ type = "float", default = 3.0, min = 0.0, max = 64.0, description = "Extra iterations inside each substep, for the same", group = "particles" }"#),
+            (k::SOLVER_SUBSTEPS, r#"{ type = "int", default = 0, min = 0, max = 64, description = "Extra solver substeps for this body and everything it touches", group = "particles" }"#),
+            (k::SOLVER_ITERATIONS, r#"{ type = "int", default = 3, min = 0, max = 64, description = "Extra iterations inside each substep, for the same", group = "particles" }"#),
             (k::CAN_SLEEP, r#"{ type = "bool", default = true, description = "Let the body stop being simulated once it settles", group = "particles" }"#),
             (k::DOMINANCE, r#"{ type = "int", default = 0, min = -127, max = 127, description = "Which body wins a contact: a higher one is never pushed by a lower one", group = "particles" }"#),
+            (k::COLOR, &format!(r#"{{ type = "color", default = {:?}, description = "What the body is drawn in when its node has nothing of its own to deform, as a cloth or a rope has not", group = "surface" }}"#, cap::DEFAULT_COLOR)),
             (k::FRICTION, r#"{ type = "float", default = 0.5, min = 0.0, description = "Surface friction of the body's collider; 0 is ice", group = "surface" }"#),
             (k::RESTITUTION, r#"{ type = "float", default = 0.0, min = 0.0, max = 1.0, description = "Bounciness of the body's collider", group = "surface" }"#),
         ]),
         crate::collider::shared_group_schema(),
+        crate::collider::shared_event_schema(),
     ]
     .join("\n")
 }
@@ -176,24 +185,43 @@ fn surface_collider(params: &toml::Value) -> ColliderBuilder {
     let builder = ColliderBuilder::ball(1.0)
         .friction(scalar::real(v::f(params, k::FRICTION, 0.5)))
         .restitution(scalar::real(v::f(params, k::RESTITUTION, 0.0)));
-    crate::collider::with_groups(builder, params)
+    crate::collider::with_events(crate::collider::with_groups(builder, params), params)
 }
 
 /// The rows every layout shares, applied after the generator has laid the
+/// Which solver runs the elasticity.
+fn solver_of(params: &toml::Value) -> SoftBodySolver {
+    if v::text(params, k::SOLVER, w::CONSTRAINTS) == w::FEM {
+        SoftBodySolver::Fem
+    } else {
+        SoftBodySolver::Constraints
+    }
+}
+
+cap::patch_in_place!(
+    patch_body,
+    crate::rapier3d::pipeline::PhysicsWorld,
+    SoftBodyHandle,
+    read_material,
+    solver_of
+);
+
 /// particles out.
-fn with_settings(mut builder: SoftBodyBuilder, params: &toml::Value) -> SoftBodyBuilder {
+fn with_settings(mut builder: SoftBodyBuilder, params: &toml::Value) -> Result<SoftBodyBuilder> {
     builder = builder
         .material(read_material(params))
         .cell_model(read_cell_model(params))
-        .volume_preservation(v::boolean(params, k::VOLUME_PRESERVATION, false))
+        .volume_preservation(v::boolean(params, k::VOLUME_PRESERVATION, true))
         .volume_factor(scalar::real(v::f(params, k::VOLUME_FACTOR, 1.0)))
         .shape_matching(v::boolean(params, k::SHAPE_MATCHING, false))
-        .self_contacts(v::boolean(params, k::SELF_CONTACTS, false))
+        .self_contacts(v::boolean(params, k::SELF_COLLISION, false))
         .linear_damping(scalar::real(v::f(params, k::LINEAR_DAMPING, 0.0)))
         .gravity_scale(scalar::real(v::f(params, k::GRAVITY_SCALE, 1.0)))
-        .additional_solver_iterations(v::f(params, k::SOLVER_ITERATIONS, 0.0).max(0.0) as usize)
-        .additional_pgs_iterations(v::f(params, k::PGS_ITERATIONS, 3.0).max(0.0) as usize)
+        .additional_solver_iterations(v::f(params, k::SOLVER_SUBSTEPS, 0.0).max(0.0) as usize)
+        .additional_pgs_iterations(v::f(params, k::SOLVER_ITERATIONS, 3.0).max(0.0) as usize)
         .can_sleep(v::boolean(params, k::CAN_SLEEP, true))
+        .solver(solver_of(params))
+        .skin_collision(v::boolean(params, k::SKIN_COLLISION, false))
         .surface_collider(surface_collider(params));
     let mass = v::f(params, k::MASS, 1.0);
     if mass > 0.0 {
@@ -209,12 +237,37 @@ fn with_settings(mut builder: SoftBodyBuilder, params: &toml::Value) -> SoftBody
     if v::boolean(params, k::TENSION_ONLY, false) {
         builder = builder.tension_only();
     }
-    builder = builder.pinned_particles(v::indices(params, k::PINNED));
+    builder = builder.pinned_particles(v::indices(params, k::PINNED_PARTICLES));
     let settings = crate::rapier3d::prelude::SoftBodyParticleSettings {
         dominance_group: v::f(params, k::DOMINANCE, 0.0).clamp(-127.0, 127.0) as i8,
         ..builder.particle_settings
     };
-    builder.particle_settings(settings)
+    builder = builder.particle_settings(settings);
+    let rows = cap::edge_rows(
+        params,
+        builder.positions.len(),
+        &builder.edges,
+        &builder.bend_edges,
+    )?;
+    // After `mass`, which spreads one total over the particles evenly.
+    if !rows.masses.is_empty() {
+        builder = builder.masses(rows.masses.iter().map(|m| scalar::real(*m)).collect());
+    }
+    if !rows.tear.is_empty() {
+        builder =
+            builder.edge_tear_resistance(rows.tear.iter().map(|(i, r)| (*i, scalar::real(*r))));
+    }
+    for (edge, frequency, damping) in rows.springs {
+        let spring = crate::rapier3d::prelude::SpringCoefficients::new(
+            scalar::real(frequency),
+            scalar::real(damping),
+        );
+        builder.edge_softness.push((edge, spring));
+    }
+    if !v::boolean(params, k::COLLIDES, true) {
+        builder = builder.no_surface_collider();
+    }
+    Ok(builder)
 }
 
 /// The mesh a layout is built out of, in world space.
@@ -250,17 +303,28 @@ fn build_layout(
     let local = |key: &str, default: [f32; 3]| pose * scalar::v3a(v::vec3(params, key, default));
     let along =
         |key: &str, default: [f32; 3]| pose.rotation * scalar::v3a(v::vec3(params, key, default));
-    let count = |key: &str, default: f32| v::f(params, key, default).max(2.0) as usize;
     let cells = v::vec3(params, k::CELLS, [4.0, 4.0, 4.0]);
+    let axis = |i: usize| cap::particles_along(cells[i]);
+    let ring = |around: f32| f64::from(around.max(cap::MIN_RING_PARTICLES)).floor();
+    cap::refuse_past_cap(
+        match kind {
+            w::BOX => axis(0) * axis(1) * axis(2),
+            w::CLOTH => axis(0) * axis(1),
+            w::CLOTH_TUBE => ring(cells[0]) * axis(1),
+            w::ROPE_SOFT => cap::particle_count(params, cap::MIN_CHAIN_PARTICLES),
+            _ => 0.0,
+        },
+        kind,
+    )?;
     let builder = match kind {
         // Rapier counts the particles along an axis; the schema counts the
         // cells between them, which is the number an author means.
-        w::SOFT_CUBOID => SoftBodyBuilder::cuboid(
+        w::BOX => SoftBodyBuilder::cuboid(
             at,
-            scalar::v3a(v::vec3(params, k::HALF_EXTENTS, [0.5, 0.5, 0.5])),
-            cells[0].max(1.0) as usize + 1,
-            cells[1].max(1.0) as usize + 1,
-            cells[2].max(1.0) as usize + 1,
+            scalar::v3a(v::vec3(params, k::SIZE, [1.0, 1.0, 1.0])) / 2.0,
+            axis(0) as usize,
+            axis(1) as usize,
+            axis(2) as usize,
         ),
         w::SPHERE => SoftBodyBuilder::sphere(
             at,
@@ -268,23 +332,36 @@ fn build_layout(
             v::f(params, k::SUBDIVISIONS, 2.0).clamp(0.0, 6.0) as usize,
         ),
         w::CLOTH => {
-            let (nu, nv) = (
-                cells[0].max(1.0) as usize + 1,
-                cells[1].max(1.0) as usize + 1,
-            );
-            let size = v::vec3(params, k::SIZE, [1.0, 0.0, 1.0]);
+            let (nu, nv) = (axis(0) as usize, axis(1) as usize);
+            let size = v::vec3(params, k::SIZE, [1.0, 1.0, 1.0]);
             // The sheet is spanned from a corner, so the node's own position
             // is its middle like every other layout's.
             let du = pose.rotation * scalar::v3(size[0], 0.0, 0.0);
             let dv = pose.rotation * scalar::v3(0.0, 0.0, size[2]);
             let origin = at - (du + dv) * 0.5;
-            let mut built = SoftBodyBuilder::cloth(
-                origin,
-                du / (nu.max(2) - 1) as Real,
-                dv / (nv.max(2) - 1) as Real,
-                nu,
-                nv,
-            );
+            let (step_u, step_v) = (du / (nu.max(2) - 1) as Real, dv / (nv.max(2) - 1) as Real);
+            let woven = [k::WARP_FREQUENCY, k::WEFT_FREQUENCY, k::SHEAR_FREQUENCY]
+                .map(|key| v::f(params, key, 0.0));
+            let mut built = if woven.iter().any(|f| *f > 0.0) {
+                let edge = v::f(params, k::EDGE_FREQUENCY, 30.0);
+                let damping = scalar::real(v::f(params, k::EDGE_DAMPING, 1.0));
+                let spring = |f: f32| {
+                    let hz = if f > 0.0 { f } else { edge };
+                    crate::rapier3d::prelude::SpringCoefficients::new(scalar::real(hz), damping)
+                };
+                SoftBodyBuilder::cloth_anisotropic(
+                    origin,
+                    step_u,
+                    step_v,
+                    nu,
+                    nv,
+                    spring(woven[0]),
+                    spring(woven[1]),
+                    spring(woven[2]),
+                )
+            } else {
+                SoftBodyBuilder::cloth(origin, step_u, step_v, nu, nv)
+            };
             // Spanned +x then +z, rapier winds the sheet's front underneath
             // it (`du x dv` is -y); a flat cloth is looked at from above.
             for triangle in &mut built.surface {
@@ -297,19 +374,20 @@ fn build_layout(
             along(k::AXIS, [0.0, 1.0, 0.0]),
             scalar::real(v::f(params, k::RADIUS, 0.5)),
             scalar::real(v::f(params, k::RADIUS, 0.5)),
-            cells[0].max(3.0) as usize,
-            cells[1].max(1.0) as usize + 1,
+            ring(cells[0]) as usize,
+            axis(1) as usize,
         ),
         w::ROPE_SOFT => SoftBodyBuilder::rope(
             local(k::A, [0.0, 0.0, 0.0]),
             local(k::B, [0.0, -1.0, 0.0]),
-            count(k::PARTICLES, 16.0),
+            cap::particle_count(params, cap::MIN_CHAIN_PARTICLES) as usize,
         ),
         // The approximate tetrahedrization: the mesh is covered with cells of
         // `cell_size` and the body is those cells.
         w::VOLUMETRIC => {
             let (points, indices) = source_mesh(eng, params, pose)?;
             let size = scalar::real(v::f(params, k::CELL_SIZE, 0.25));
+            cap::refuse_past_cap(cap::grid_particles(&extents(&points), size), kind)?;
             let built = if v::boolean(params, k::SKIN, false) {
                 SoftBodyBuilder::volumetric_skinned(&points, &indices, size)
             } else {
@@ -319,26 +397,49 @@ fn build_layout(
                 anyhow!("that mesh encloses nothing at a cell size of {size}: it has to be closed, and big enough to hold a cell")
             })?
         }
-        w::SURFACE_MESH => {
+        w::TRIANGLE_MESH => {
             let (points, indices) = source_mesh(eng, params, pose)?;
             SoftBodyBuilder::trimesh(points, indices)
                 .ok_or_else(|| anyhow!("that mesh has no triangles to make a soft surface of"))?
         }
         other => return Err(anyhow!("unknown soft-body kind '{other}'")),
     };
-    let particles = builder.positions.len();
-    if particles > MAX_PARTICLES {
-        return Err(anyhow!(
-            "that would be {particles} particles, past the {MAX_PARTICLES} a body may have: use fewer cells, or a larger cell size"
-        ));
-    }
-    Ok(with_settings(builder, params))
+    cap::refuse_past_cap(builder.positions.len() as f64, kind)?;
+    with_settings(builder, params)
 }
+
+/// How wide the points spread along each axis.
+fn extents(points: &[Vector]) -> [f32; 3] {
+    let mut low = [f32::INFINITY; 3];
+    let mut high = [f32::NEG_INFINITY; 3];
+    for point in points {
+        for (axis, value) in scalar::a3(*point).into_iter().enumerate() {
+            low[axis] = low[axis].min(value);
+            high[axis] = high[axis].max(value);
+        }
+    }
+    [0, 1, 2].map(|axis| (high[axis] - low[axis]).max(0.0))
+}
+
+cap::stamp_colliders!(
+    stamp_colliders,
+    crate::rapier3d::pipeline::PhysicsWorld,
+    SoftBodyHandle
+);
 
 /// Build the node's soft body, replacing whatever it had.
 pub(crate) fn apply_softbody(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
+    if patched(eng, entity, params) {
+        return Ok(());
+    }
+    build_softbody(eng, entity, params)
+}
+
+/// Build the node's soft body from rest, replacing whatever it had: what a
+/// script's `set_softbody` asks for even when nothing changed.
+fn build_softbody(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
     let pose = crate::node_pose(eng, entity)?;
-    let kind = v::text(params, k::KIND, w::SOFT_CUBOID).to_string();
+    let kind = v::text(params, k::KIND, w::BOX).to_string();
     let builder =
         build_layout(eng, params, pose, &kind)?.user_data(u128::from(entity.to_bits().get()));
     remove_softbody(eng, entity);
@@ -353,11 +454,32 @@ pub(crate) fn apply_softbody(eng: &Engine, entity: Entity, params: &toml::Value)
         );
         state.soft_bodies.insert(entity, handle);
         state.soft_params.insert(entity, params.clone());
+        stamp_colliders(&mut state.world, handle, entity);
     }
     // The node draws from the solver, so it has geometry to draw before the
     // first step rather than a frame of nothing.
     write_solved_mesh(eng, entity);
     Ok(())
+}
+
+/// Take a write the live body can take as it stands; `false` when it has to
+/// be built again.
+fn patched(eng: &Engine, entity: Entity, params: &toml::Value) -> bool {
+    let state = eng.resource::<PhysicsState3d>();
+    let mut state = state.borrow_mut();
+    let state = &mut *state;
+    let (Some(built), Some(&handle)) = (
+        state.soft_params.get(&entity),
+        state.soft_bodies.get(&entity),
+    ) else {
+        return false;
+    };
+    if !cap::only_in_place(built, params) || state.world.soft_bodies.get(handle).is_none() {
+        return false;
+    }
+    patch_body(&mut state.world, handle, params);
+    state.soft_params.insert(entity, params.clone());
+    true
 }
 
 pub(crate) fn remove_softbody(eng: &Engine, entity: Entity) {
@@ -369,14 +491,16 @@ pub(crate) fn remove_softbody(eng: &Engine, entity: Entity) {
         return;
     };
     let world = &mut state.world;
-    world.soft_bodies.remove(
-        handle,
-        &mut world.islands,
-        &mut world.bodies,
-        &mut world.colliders,
-        &mut world.impulse_joints,
-        &mut world.multibody_joints,
-    );
+    for piece in world.soft_bodies.family(handle) {
+        world.soft_bodies.remove(
+            piece,
+            &mut world.islands,
+            &mut world.bodies,
+            &mut world.colliders,
+            &mut world.impulse_joints,
+            &mut world.multibody_joints,
+        );
+    }
 }
 
 /// What the component reads back: what was authored, under the few numbers
@@ -391,10 +515,14 @@ pub(crate) fn get_softbody_params(eng: &Engine, entity: Entity) -> Option<toml::
         return None;
     };
     let number = |value: Real| toml::Value::Float(f64::from(scalar::f32_of(value)));
-    // Not the mass: the solver's is the particles' sum, which rounds off what
-    // was asked for and would drift the component on every round trip.
-    table.insert(k::PARTICLE_RADIUS.into(), number(body.particle_radius()));
+    // Not the mass, whose sum over the particles rounds off what was asked
+    // for, nor the radius, whose 0 means "worked out from the layout".
     table.insert(k::VOLUME_FACTOR.into(), number(body.volume_factor()));
+    let solver = match body.solver() {
+        SoftBodySolver::Fem => w::FEM,
+        SoftBodySolver::Constraints => w::CONSTRAINTS,
+    };
+    table.insert(k::SOLVER.into(), toml::Value::String(solver.into()));
     table.insert(
         k::VOLUME_PRESERVATION.into(),
         toml::Value::Boolean(body.volume_preservation_enabled()),
@@ -416,49 +544,63 @@ pub(crate) fn write_solved_mesh(eng: &Engine, entity: Entity) {
         return;
     };
     let inverse = pose.inverse();
-    let (positions, indices, topology) = {
+    let (positions, indices, color) = {
         let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
         let Some(&handle) = state.soft_bodies.get(&entity) else {
             return;
         };
-        let Some(body) = state.world.soft_bodies.get(handle) else {
-            return;
-        };
-        match body.collision_mesh() {
-            Some(mesh) => (
-                mesh.vertex_positions(body)
-                    .map(|p| scalar::a3(inverse * p))
-                    .collect::<Vec<_>>(),
-                mesh.indices().to_vec(),
-                mesh.topology_version(),
-            ),
-            // A body with no collider still draws: its boundary is what a
-            // generator laid out, and the particles are its vertices.
-            None => (
-                body.particle_positions()
-                    .map(|p| scalar::a3(inverse * p))
-                    .collect(),
-                body.boundary().to_vec(),
-                body.topology_version(),
-            ),
+        let color = drawn_color(state.soft_params.get(&entity));
+        let mut positions: Vec<[f32; 3]> = Vec::new();
+        let mut indices: Vec<[u32; 3]> = Vec::new();
+        // The body and whatever tore off it, drawn as one mesh.
+        for piece in state.world.soft_bodies.family(handle) {
+            let Some(body) = state.world.soft_bodies.get(piece) else {
+                continue;
+            };
+            let offset = positions.len() as u32;
+            if let Some(mesh) = body.collision_mesh() {
+                positions.extend(mesh.vertex_positions(body).map(|p| scalar::a3(inverse * p)));
+                indices.extend(mesh.indices().iter().map(|t| t.map(|i| shifted(i, offset))));
+            } else {
+                // A body with no collider still draws: its boundary is what a
+                // generator laid out, and the particles are its vertices.
+                positions.extend(body.particle_positions().map(|p| scalar::a3(inverse * p)));
+                let boundary = body.boundary().iter();
+                indices.extend(boundary.map(|t| t.map(|i| shifted(i, offset))));
+            }
         }
+        if positions.is_empty() {
+            return;
+        }
+        (positions, indices, color)
     };
     let mut world = eng.world_mut();
     if let Ok(mut solved) = world.get::<&mut balaur_core::mesh::SolvedMesh>(entity) {
-        solved.positions = positions;
-        solved.indices = indices;
-        solved.topology = topology;
+        solved.update(positions, indices);
+        solved.color = color;
         return;
     }
-    let _ = world.insert_one(
-        entity,
-        balaur_core::mesh::SolvedMesh {
-            positions,
-            indices,
-            topology,
-        },
-    );
+    let mut solved = balaur_core::mesh::SolvedMesh::default();
+    solved.update(positions, indices);
+    solved.color = color;
+    let _ = world.insert_one(entity, solved);
+}
+
+// A wire pads its segments to triangles with `u32::MAX`, which stays itself.
+fn shifted(index: u32, offset: u32) -> u32 {
+    if index == u32::MAX {
+        index
+    } else {
+        index + offset
+    }
+}
+
+/// The colour a body draws in when its node has nothing of its own.
+pub(crate) fn drawn_color(params: Option<&toml::Value>) -> [f32; 4] {
+    params.map_or(cap::DEFAULT_COLOR, |params| {
+        v::color(params, k::COLOR, cap::DEFAULT_COLOR)
+    })
 }
 
 /// Hand every soft body's positions over, which is what the step does once
@@ -466,7 +608,13 @@ pub(crate) fn write_solved_mesh(eng: &Engine, entity: Entity) {
 pub(crate) fn write_every_solved_mesh(eng: &Engine) {
     let entities: Vec<Entity> = {
         let state = eng.resource::<PhysicsState3d>();
-        let state = state.borrow();
+        let mut state = state.borrow_mut();
+        let state = &mut *state;
+        // A tear makes pieces with colliders of their own, which need the
+        // node as much as the body they came off.
+        for (&entity, &handle) in &state.soft_bodies {
+            stamp_colliders(&mut state.world, handle, entity);
+        }
         state.soft_bodies.keys().copied().collect()
     };
     for entity in entities {
@@ -475,10 +623,12 @@ pub(crate) fn write_every_solved_mesh(eng: &Engine) {
 }
 
 pub(crate) fn register_softbody_component(reg: &mut Registry<'_>) {
-    let schema = [shape_schema(), shared_softbody_schema()].join("\n");
+    let schema = [shape_schema(), shared_softbody_schema(), cap::edge_schema()].join("\n");
     reg.register_component(
         c::SOFTBODY_3D,
         ComponentDef {
+            events: crate::vocabulary::hook::SOFT_BODY,
+            warnings: Some(Box::new(softbody_warnings)),
             doc: "A deformable 3D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. The node is drawn from the solver's positions.",
             schema: ComponentDef::parse_schema(c::SOFTBODY_3D, &schema),
             tags: &[
@@ -489,6 +639,9 @@ pub(crate) fn register_softbody_component(reg: &mut Registry<'_>) {
             apply: Box::new(apply_softbody),
             remove: Box::new(|eng, entity| {
                 remove_softbody(eng, entity);
+                let _ = eng
+                    .world_mut()
+                    .remove_one::<balaur_core::mesh::SolvedMesh>(entity);
                 Ok(())
             }),
             get: Box::new(get_softbody_params),
@@ -496,7 +649,42 @@ pub(crate) fn register_softbody_component(reg: &mut Registry<'_>) {
     );
 }
 
-/// What a script may ask a soft body, and the two things it may do to one.
+/// What is off about a soft body that built: a particle radius worked out so
+/// large that the body hovers.
+fn softbody_warnings(eng: &Engine, entity: Entity) -> Vec<balaur_core::warnings::Warning> {
+    let state = eng.resource::<PhysicsState3d>();
+    let state = state.borrow();
+    let authored = state
+        .soft_params
+        .get(&entity)
+        .map_or(0.0, |params| v::f(params, k::PARTICLE_RADIUS, 0.0));
+    let body = state
+        .soft_bodies
+        .get(&entity)
+        .and_then(|&handle| state.world.soft_bodies.get(handle));
+    let Some(body) = body.filter(|_| authored <= 0.0) else {
+        return Vec::new();
+    };
+    let points: Vec<Vector> = body.particle_positions().collect();
+    let widest = extents(&points).into_iter().fold(0.0, f32::max);
+    cap::hovering(scalar::f32_of(body.particle_radius()), widest)
+        .into_iter()
+        .collect()
+}
+
+cap::runtime_api!(
+    install = install_runtime,
+    state = PhysicsState3d,
+    handle = SoftBodyHandle,
+    component = c::SOFTBODY_3D,
+    dims = 3,
+    vector = scalar::v3a,
+    value = balaur_script::Value::Vec3,
+    array = scalar::a3
+);
+
+/// What a script may ask a soft body and do to it; the calls on particles,
+/// forces and edges are `install_runtime`.
 pub(crate) fn install_softbody_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("set_softbody", &[c::SOFTBODY_3D], "", "Build the node's soft body from a `softbody3d` table: `kind`, the shape rows, and the material rows."),
@@ -505,13 +693,12 @@ pub(crate) fn install_softbody_api(m: &mut dyn Bindings<Engine>) {
         ("softbody_volume", &[c::SOFTBODY_3D], "", "How much space the body encloses right now, against `softbody_rest_volume` for how far it is squeezed."),
         ("softbody_rest_volume", &[c::SOFTBODY_3D], "", "How much it encloses at rest."),
         ("softbody_center", &[c::SOFTBODY_3D], "", "The body's centre of mass, which is where it is when a deformable body has no one position."),
-        ("pin_particle", &[c::SOFTBODY_3D], "", "Hold one particle where it is, which is how a cloth hangs from a hook."),
     ]);
     m.function(
         "set_softbody",
         |eng: &Engine, (node, params): (NodeId, balaur_script::Value)| {
             let params = balaur_core::node_api::to_toml(&params)?;
-            apply_softbody(eng, entity_of(node)?, &params)
+            build_softbody(eng, entity_of(node)?, &params)
         },
     );
     m.function("softbody_particles", |eng: &Engine, node: NodeId| {
@@ -546,31 +733,8 @@ pub(crate) fn install_softbody_api(m: &mut dyn Bindings<Engine>) {
             )))
         })
     });
-    m.function(
-        "pin_particle",
-        |eng: &Engine, (node, index): (NodeId, i64)| {
-            let entity = entity_of(node)?;
-            let state = eng.resource::<PhysicsState3d>();
-            let mut state = state.borrow_mut();
-            let state = &mut *state;
-            let handle = *state
-                .soft_bodies
-                .get(&entity)
-                .ok_or_else(|| anyhow!("node has no soft body"))?;
-            let body = state
-                .world
-                .soft_bodies
-                .get_mut(handle)
-                .ok_or_else(|| anyhow!("node has no soft body"))?;
-            let index = usize::try_from(index)
-                .ok()
-                .filter(|i| *i < body.num_particles())
-                .ok_or_else(|| anyhow!("this body has no particle {index}"))?;
-            let at = body.particle_position(index);
-            body.set_particle_kinematic_target(index, at);
-            Ok(())
-        },
-    );
+
+    install_runtime(m);
 }
 
 fn with_softbody<T>(

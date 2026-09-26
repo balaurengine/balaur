@@ -8,10 +8,10 @@ const UPRIGHT = 3.4;
 pub fn init(this) {
     this.at = 0.0;
     this.limp = false;
-    // A blend of zero: the bodies simulate from the first frame, so the pose
+    // An influence of zero: the bodies simulate from the first frame, so the pose
     // is one they fell into. `limits` keeps a collapse a body, not a bag.
     physics2d::ragdoll(this.node, #{
-        blend: 0.0, thickness: 0.22, friction: 0.9, limits: [-0.7, 0.7],
+        influence: 0.0, thickness: 0.22, friction: 0.9, limits: [-0.7, 0.7],
     });
 }
 
@@ -29,7 +29,7 @@ pub fn update(this, dt) {
         animation::tween(this.node, #{
             "steps": [
                 #{
-                    "property": "ragdoll/blend",
+                    "property": "ragdoll/influence",
                     "to": if limp { 1.0 } else { 0.0 },
                     "duration": if limp { 0.25 } else { 0.9 },
                     "ease": animation::EASE_IN_OUT_SINE,

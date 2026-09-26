@@ -96,6 +96,7 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
     }
     let mut getters = BTreeSet::new();
     let mut setters = BTreeSet::new();
+    let mut named_accessors = BTreeMap::new();
     for level in &inherited {
         let found = members::accessors(level);
         for function in split_functions(&found.text) {
@@ -105,6 +106,7 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
         }
         getters.extend(found.getters);
         setters.extend(found.setters);
+        named_accessors.extend(found.named);
     }
     let fitted = forwarders(&functions);
     functions.extend(fitted);
@@ -117,6 +119,14 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
     let mut context = context(source, path, classes, &functions, &mut notes);
     context.getters = getters;
     context.setters = setters;
+    context.named_accessors = named_accessors;
+    if !context.object_class {
+        context.data_exports = crate::godot::exports::exports(source, classes)
+            .into_iter()
+            .filter(|e| e.kind.is_none() && e.data)
+            .map(|e| e.name)
+            .collect();
+    }
     let documentation: Vec<String> = source
         .lines()
         .take_while(|line| !line.starts_with("func ") && !line.starts_with("static func "))
@@ -140,6 +150,7 @@ pub(crate) fn convert(source: &str, path: &str, classes: &Classes) -> Converted 
             export.name, export.hint
         ));
     }
+    context.scene_exports = !entries.is_empty() && !context.object_class;
     if !entries.is_empty() {
         let _ = write!(
             out,
@@ -675,7 +686,7 @@ fn extended(source: &str, classes: &Classes) -> Option<String> {
     let line = source.lines().find(|l| l.starts_with("extends "))?;
     let target = line["extends ".len()..].trim();
     if let Some(path) = target.strip_prefix('"').and_then(|t| t.split('"').next()) {
-        return Some(path.strip_prefix("res://").unwrap_or(path).to_string());
+        return Some(crate::godot::relative_path(path).to_string());
     }
     let name: String = target
         .chars()
@@ -701,6 +712,13 @@ struct Declarations {
 
 /// `const Name = preload("res://a/b.gd")`: the name and the module it loads.
 fn preloaded_script(line: &str) -> Option<(String, String)> {
+    let (name, file) = preloaded_script_file(line)?;
+    Some((name, crate::godot::scene::script_path(&file)))
+}
+
+/// `const Name = preload("res://a/b.gd")`, or `load(..)`: the name and the
+/// script's project path.
+pub(crate) fn preloaded_script_file(line: &str) -> Option<(String, String)> {
     let rest = line.strip_prefix("const ")?;
     let name = name_of(rest);
     let value = assigned(rest)?;
@@ -709,9 +727,8 @@ fn preloaded_script(line: &str) -> Option<(String, String)> {
         .strip_prefix("preload(")
         .or_else(|| value.trim().strip_prefix("load("))?;
     let path = inner.trim().strip_prefix('"')?.split('"').next()?;
-    let path = path.strip_prefix("res://").unwrap_or(path);
-    let module = path.strip_suffix(".gd")?;
-    Some((name, format!("{module}.rn")))
+    let path = crate::godot::relative_path(path);
+    crate::godot::exports::is_script(path).then(|| (name, path.to_string()))
 }
 
 /// A file's `static var`s, each with the GDScript text of its default.
@@ -845,7 +862,7 @@ fn write_functions(
     if static_init {
         out.push_str(&static_init_guard(&context.static_prefix));
     }
-    if write_default_init(out, functions, scened) {
+    if write_default_init(out, functions, scened, context) {
         seen.push("init".to_string());
     }
     for function in functions {
@@ -935,6 +952,7 @@ fn write_functions(
     write_widget_forwarders(out, &widget_keys);
     write_input_hooks(out, functions);
     write_draw_hook(out, functions);
+    notification::write_notification_hooks(out, functions);
 }
 
 /// What a function does before its own body: an int parameter truncated,
@@ -962,7 +980,10 @@ fn write_prologue(
         out.push_str("    scene_defaults(this);\n");
     }
     if name == "init" && constructs(functions) {
-        out.push_str(init_call(functions));
+        out.push_str(&init_call(functions, context.scene_exports));
+    }
+    if name == "init" {
+        out.push_str(&class::data_reads(&context.data_exports));
     }
     // Godot's `set_process` switched the hook off; here it sets a flag,
     // and the hook reads it.
@@ -1159,6 +1180,7 @@ mod draw;
 mod inner;
 mod input;
 mod members;
+mod notification;
 #[cfg(test)]
 mod port_tests;
 #[cfg(test)]

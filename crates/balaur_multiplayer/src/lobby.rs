@@ -4,7 +4,7 @@
 use anyhow::{Result, bail};
 use balaur_core::Engine;
 use balaur_core::rollback::PlayerId;
-use balaur_core::snapshot::Snapshot;
+use balaur_core::snapshot::Checkpoint;
 use balaur_core::time::Instant;
 use balaur_core::transport::{LinkState, Transport};
 use balaur_script::Value;
@@ -49,7 +49,7 @@ pub(crate) struct Starting {
     pub scene: String,
     pub depth: usize,
     /// The host's world, for a joiner to restore; `None` on the host.
-    pub snapshot: Option<Snapshot>,
+    pub snapshot: Option<Checkpoint>,
 }
 
 /// Listen, and take slot 0. Answers what a joiner needs.
@@ -379,8 +379,8 @@ fn heard(state: &mut MultiplayerState, control: Control) -> bool {
             };
             state.roster = roster;
             let snapshot = match snapshot {
-                serde_json::Value::Object(map) => Snapshot(map),
-                _ => Snapshot::default(),
+                serde_json::Value::Object(map) => Checkpoint(map),
+                _ => Checkpoint::default(),
             };
             state.phase = Phase::Starting(Starting {
                 links: vec![(0, joiner.link)],

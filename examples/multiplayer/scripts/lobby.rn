@@ -45,7 +45,7 @@ pub fn on_multiplayer_event(this, e) {
         say(this, `${name} joined; starting.`);
     } else if kind == multiplayer::EVENT_CONNECTED && this.joining {
         say(this, "In the lobby; waiting for the host to start.");
-    } else if kind == multiplayer::EVENT_FAILED && this.joining {
+    } else if kind == multiplayer::EVENT_ERROR && this.joining {
         let reason = e["reason"];
         say(this, `No host yet (${reason}); trying again.`);
         this.retry_in = RETRY_FRAMES;

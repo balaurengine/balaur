@@ -25,14 +25,14 @@ use crate::PhysicsState3d;
 use crate::vocabulary::{self as v, component as c, keys as k, map, words as w};
 use balaur_core::fixed_dt;
 
-/// The schema both dimensions share. `up` is the one property whose shape
+/// The schema both dimensions share. `up_direction` is the one property whose shape
 /// differs, so each adds its own.
 pub(crate) fn shared_character_schema() -> String {
     let modes = v::options(w::LENGTH_MODES);
     let absolute = w::ABSOLUTE;
     v::schema(&[
         (
-            k::OFFSET,
+            k::SAFE_MARGIN,
             r#"{ type = "float", default = 0.01, min = 0.0, description = "A gap kept between the character and everything else, so the solver never has to push it out of a wall" }"#,
         ),
         (
@@ -40,27 +40,27 @@ pub(crate) fn shared_character_schema() -> String {
             r#"{ type = "bool", default = true, description = "Slide along what is in the way instead of stopping dead against it" }"#,
         ),
         (
-            k::AUTOSTEP,
+            k::STEP_HEIGHT,
             r#"{ type = "float", default = 0.3, min = 0.0, description = "The tallest step the character climbs without jumping; 0 turns stepping off" }"#,
         ),
         (
-            k::AUTOSTEP_MIN_WIDTH,
+            k::STEP_MIN_WIDTH,
             r#"{ type = "float", default = 0.2, min = 0.0, description = "How much clear ground a step needs on top before it may be climbed" }"#,
         ),
         (
-            k::AUTOSTEP_DYNAMIC,
+            k::STEP_ON_DYNAMIC,
             r#"{ type = "bool", default = false, description = "Climb onto dynamic bodies too, not only static and kinematic ones" }"#,
         ),
         (
-            k::MAX_CLIMB_ANGLE,
-            r#"{ type = "float", default = 45.0, min = 0.0, max = 90.0, description = "The steepest slope the character may walk up, in degrees" }"#,
+            k::FLOOR_MAX_ANGLE,
+            r#"{ type = "float", default = 0.7853982, min = 0.0, max = 1.5707964, unit = "degrees", description = "The steepest slope the character may walk up, in radians" }"#,
         ),
         (
             k::MIN_SLIDE_ANGLE,
-            r#"{ type = "float", default = 30.0, min = 0.0, max = 90.0, description = "The shallowest slope the character slides back down, in degrees" }"#,
+            r#"{ type = "float", default = 0.5235988, min = 0.0, max = 1.5707964, unit = "degrees", description = "The shallowest slope the character slides back down, in radians" }"#,
         ),
         (
-            k::SNAP_TO_GROUND,
+            k::FLOOR_SNAP_LENGTH,
             r#"{ type = "float", default = 0.2, min = 0.0, description = "How far below its feet the character looks for ground to stay stuck to over a crest; 0 turns snapping off" }"#,
         ),
         (
@@ -100,7 +100,11 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector) 
             .map_err(|_| anyhow!("node has no character3d"))?;
         character.0.clone()
     };
-    let up = scalar::v3a(crate::vocabulary::vec3(&params, k::UP, [0.0, 1.0, 0.0]));
+    let up = scalar::v3a(crate::vocabulary::vec3(
+        &params,
+        k::UP_DIRECTION,
+        [0.0, 1.0, 0.0],
+    ));
     let up = if up.length_squared() < 1.0e-12 {
         Vector::Y
     } else {
@@ -166,7 +170,7 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector) 
         (k::X, Value::Num(f64::from(movement.translation.x))),
         (k::Y, Value::Num(f64::from(movement.translation.y))),
         (k::Z, Value::Num(f64::from(movement.translation.z))),
-        (k::GROUNDED, Value::Bool(movement.grounded)),
+        (k::ON_FLOOR, Value::Bool(movement.grounded)),
         (k::SLIDING, Value::Bool(movement.is_sliding_down_slope)),
         (k::COLLISIONS, collision_list(eng, &collisions)),
     ]))
@@ -204,8 +208,8 @@ fn apply_movement(eng: &Engine, entity: Entity, translation: Vector) {
 
 pub(crate) fn install_character_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("move_character", &[c::CHARACTER_3D], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, grounded, sliding, collisions }`. Call it from fixed_update. It reads the world the step just wrote."),
-        ("is_grounded", &[c::CHARACTER_3D], "", "Whether the last move ended with ground under the character's feet."),
+        ("move_character", &[c::CHARACTER_3D], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, on_floor, sliding, collisions }`. Call it from fixed_update. It reads the world the step just wrote."),
+        ("is_on_floor", &[c::CHARACTER_3D], "", "Whether the last move ended with ground under the character's feet."),
     ]);
     m.function(
         "move_character",
@@ -215,7 +219,7 @@ pub(crate) fn install_character_api(m: &mut dyn Bindings<Engine>) {
     );
     // A reader, not a move: sweeping a zero translation would still snap to
     // ground, write the transform and push bodies, so asking would simulate.
-    m.function("is_grounded", |eng: &Engine, node: NodeId| {
+    m.function("is_on_floor", |eng: &Engine, node: NodeId| {
         let entity = entity_of(node)?;
         let state = eng.resource::<PhysicsState3d>();
         let grounded = state.borrow().grounded.get(&entity).copied();
@@ -236,7 +240,7 @@ pub(crate) fn register_character_component(reg: &mut Registry<'_>) {
     let shared = shared_character_schema();
     let schema = [
         v::schema(&[
-            (k::UP, r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Which way is up for this character: the axis it stands along and measures slopes against" }"#),
+            (k::UP_DIRECTION, r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Which way is up for this character: the axis it stands along and measures slopes against" }"#),
         ]),
         shared,
     ]
@@ -244,6 +248,8 @@ pub(crate) fn register_character_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::CHARACTER_3D,
         ComponentDef {
+            events: &[],
+            warnings: None,
             doc: "A 3D character controller: `physics3d.move_character` slides the node along walls and steps it up ledges. Needs a `collider3d`; a `kinematic` `body3d` lets it push bodies.",
             schema: ComponentDef::parse_schema(c::CHARACTER_3D, &schema),
             tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],

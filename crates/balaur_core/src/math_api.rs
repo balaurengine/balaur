@@ -128,12 +128,12 @@ pub const MATH_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "math",
-        name: "rad",
+        name: "to_radians",
         call: rad,
     },
     EngineOp {
         module: "math",
-        name: "deg",
+        name: "to_degrees",
         call: deg,
     },
 ];
@@ -166,15 +166,15 @@ pub fn install_math_api(m: &mut dyn Bindings<Engine>) {
         ("min", &[], "(a: float, b: float)", "The smaller of two numbers."),
         ("max", &[], "(a: float, b: float)", "The larger of two numbers."),
         ("clamp", &[], "(x: float, low: float, high: float)", "The first argument held inside the range given by the second (low) and third (high)."),
-        ("rad", &[], "(degrees: float)", "Degrees converted to radians."),
-        ("deg", &[], "(radians: float)", "Radians converted to degrees."),
+        ("to_radians", &[], "(degrees: float)", "Degrees converted to radians."),
+        ("to_degrees", &[], "(radians: float)", "Radians converted to degrees."),
     ]);
     for d in MATH_OPS {
         m.function_raw(d.name, Box::new(d.call));
     }
     m.constant("PI", Value::Num(std::f64::consts::PI));
     m.constant("TAU", Value::Num(std::f64::consts::TAU));
-    m.constant("INF", Value::Num(f64::INFINITY));
+    m.constant("INFINITY", Value::Num(f64::INFINITY));
 }
 
 macro_rules! unary {

@@ -24,6 +24,8 @@ fn def(app: &App, name: &str) -> components::ComponentDef {
     let registry = registry.borrow();
     let d = registry.def(name).unwrap_or_else(|| panic!("no `{name}`"));
     components::ComponentDef {
+        events: &[],
+        warnings: None,
         doc: "",
         schema: d.schema.clone(),
         tags: d.tags,
@@ -166,6 +168,10 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
             assert!(!(info is Tuple), "no info for rigid_body2d");
             assert!(info.components.len() == 2, "rigid_body2d adds two components");
             assert!(info.description != "", "a preset needs a description");
+            // Each part's own properties, which is what makes the preset mean
+            // something: a rigid body is a dynamic one.
+            assert!(info.parts.body2d.kind == "dynamic", "the body part carries its kind");
+            assert!(info.parts.collider2d.len() == 0, "a part with no properties is an empty table");
 
             // Applying one puts the components on the node, and nothing records
             // that a preset was used.
@@ -176,7 +182,7 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
             assert!(has(present, "collider2d"), "collider2d not applied");
             assert!(n.get_component("body2d").kind == "dynamic", "wrong body kind");
 
-            assert!(scene::unmet_expectations(n).len() == 0, "nothing should warn here");
+            assert!(scene::warnings(n).len() == 0, "nothing should warn here");
             this.done = 1;
         }
         "#,
@@ -194,7 +200,7 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
         .attach(balaur::node_id_of(entity), "scripts/t.rn")
         .unwrap();
     assert_eq!(
-        balaur::rune::rune_of(&app.engine).number_field(entity, "done"),
+        balaur::script_rune::rune_of(&app.engine).number_field(entity, "done"),
         Some(1.0),
         "the script did not run to its end: {:#?}",
         balaur::logbuf::recent(10)

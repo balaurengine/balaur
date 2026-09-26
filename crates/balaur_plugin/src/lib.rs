@@ -6,7 +6,7 @@
 
 pub mod capi;
 mod dylib;
-#[cfg(feature = "dylib")]
+#[cfg(feature = "extensions")]
 mod loader;
 mod manifest;
 mod registry;
@@ -16,7 +16,7 @@ pub use capi::{
     BalaurSlice, BalaurStr, BalaurValue, CExtension, host_api,
 };
 pub use dylib::{AbiTag, library_suffix};
-#[cfg(feature = "dylib")]
+#[cfg(feature = "extensions")]
 pub use loader::{Extension, load_extension, load_extensions_in, refuse_mismatch};
 pub use manifest::{ENGINE_VERSION, Fingerprint, Manifest, REGISTRY_ABI};
 pub use registry::Registry;

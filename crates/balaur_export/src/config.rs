@@ -1,11 +1,11 @@
-//! The `[export]` table: where a game's builds go, and which identity signs
-//! each one.
+//! The `[export]` table: where a game's builds go and how their assets are
+//! re-encoded; and `[windows]`, which identity signs a Windows build.
 //!
-//! An identity name, a team, a keystore path and a certificate path are not
-//! secrets — they belong in the project, so a click in the editor and a run on
-//! a runner sign the same way. The passwords and API keys behind them are read
-//! from the environment and never from here, because `project.toml` is a file
-//! that gets committed.
+//! An identity name, a keystore path and a certificate path are not secrets —
+//! they belong in the project, in the table of the platform they sign for, so
+//! a click in the editor and a run on a runner sign the same way. The
+//! passwords and API keys behind them are read from the environment and never
+//! from here, because `project.toml` is a file that gets committed.
 
 use std::path::{Path, PathBuf};
 
@@ -19,69 +19,50 @@ pub const DEFAULT_OUTPUT: &str = "export";
 /// ```toml
 /// [export]
 /// output = "export"
-/// macos_identity = "Developer ID Application: Studio (AB12CD34EF)"
-/// notarize = true
+/// image_recode = "webp"
 /// ```
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ExportConfig {
     /// A project-relative directory; each target gets a subdirectory of it.
     pub output: String,
-    /// `Developer ID Application: …` for a download, `Apple Distribution: …`
-    /// for the Mac App Store.
-    pub macos_identity: String,
-    /// Submit to Apple's notary service after signing, and staple the ticket.
-    pub notarize: bool,
-    pub ios_identity: String,
-    /// A project-relative `.mobileprovision`, copied into the bundle.
-    pub ios_profile: String,
-    /// A project-relative keystore, or empty for Android's debug identity.
-    pub android_keystore: String,
-    pub android_key: String,
-    /// Where `bundletool.jar` is. Empty looks at BALAUR_BUNDLETOOL and then
-    /// beside the SDK; Google ships it on its own, not in the SDK.
-    pub bundletool: String,
-    /// A project-relative `.pfx`, or an Azure Trusted Signing metadata file
-    /// when the key lives in a cloud HSM rather than in a file.
-    pub windows_certificate: String,
-    pub windows_timestamp_url: String,
-    /// Drop an asset no scene, script or keep-glob names. Off by default:
+    /// Drop an asset no scene, script or `include` glob names. Off by default:
     /// a script may compute a path this cannot see, and losing an asset is
     /// worse than shipping one.
     pub strip: bool,
-    /// Globs an export keeps whatever else it decides, for the paths a
+    /// Globs an export includes whatever else it decides, for the paths a
     /// script builds at run time.
-    pub keep: Vec<String>,
-    /// `keep`, `webp` or `quantised`: how an image is re-encoded on the way
-    /// into the pack. Every mode keeps the size; `quantised` is the one that
-    /// does not keep the pixels.
-    pub images: crate::recode::ImageMode,
-    /// imagequant's 0-100 quality target, which `images = "quantised"` reads
-    /// and every other mode ignores.
-    pub images_quality: u8,
+    pub include: Vec<String>,
+    /// `original`, `webp` or `quantized`: how an image is re-encoded on the
+    /// way into the pack. Every mode keeps the size; `quantized` is the one
+    /// that does not keep the pixels.
+    pub image_recode: crate::recode::ImageMode,
+    /// imagequant's 0-100 quality target, which `image_recode = "quantized"`
+    /// reads and every other mode ignores.
+    pub image_quality: u8,
     /// The longest side an image ships at, in pixels; 0 ships every one at
     /// its own size. Per target through `[override.<tag>.export]`.
     pub max_size: u32,
-    /// `keep` or `subset`: whether a font is cut down to the characters the
-    /// project's scenes and scripts name.
-    pub fonts: crate::recode::FontMode,
+    /// `original` or `subset`: whether a font is cut down to the characters
+    /// the project's scenes and scripts name.
+    pub font_recode: crate::recode::FontMode,
     /// Code points a subset font keeps beyond the ones found in the project,
     /// as `first-last` hex ranges (`"0020-00FF"`), for text from a server or
     /// typed by a player.
     pub font_ranges: Vec<String>,
-    /// Faces that ship whole however `fonts` is set, as globs: the one a
+    /// Faces that ship whole however `font_recode` is set, as globs: the one a
     /// text field or a line from a server draws with cannot be subset to the
     /// characters this project happens to contain.
-    pub font_keep: Vec<String>,
+    pub font_original: Vec<String>,
     /// Names this build answers to besides its platform's: `demo`, `store`.
     /// Written into the pack as `[build] tags`, so `[override.demo]` and
     /// `hero.demo.png` work the way `[override.android]` does.
     pub tags: Vec<String>,
-    /// `keep`, `flac` or `vorbis`: how uncompressed audio is re-encoded.
+    /// `original`, `flac` or `vorbis`: how uncompressed audio is re-encoded.
     /// `flac` keeps every sample; `vorbis` does not.
-    pub audio: crate::recode::AudioMode,
-    /// libvorbis's -0.1 to 1.0 quality, which `audio = "vorbis"` reads and
-    /// every other mode ignores.
+    pub audio_recode: crate::recode::AudioMode,
+    /// libvorbis's -0.1 to 1.0 quality, which `audio_recode = "vorbis"`
+    /// reads and every other mode ignores.
     pub audio_quality: f32,
 }
 
@@ -89,26 +70,16 @@ impl Default for ExportConfig {
     fn default() -> Self {
         Self {
             output: String::new(),
-            macos_identity: String::new(),
-            notarize: false,
-            ios_identity: String::new(),
-            ios_profile: String::new(),
-            android_keystore: String::new(),
-            android_key: String::new(),
-            bundletool: String::new(),
-            windows_certificate: String::new(),
-            // DigiCert's, which is what signtool's own documentation uses.
-            windows_timestamp_url: "http://timestamp.digicert.com".into(),
             strip: false,
-            keep: Vec::new(),
+            include: Vec::new(),
             tags: Vec::new(),
-            images: crate::recode::ImageMode::Keep,
-            images_quality: crate::recode::DEFAULT_IMAGES_QUALITY,
+            image_recode: crate::recode::ImageMode::Original,
+            image_quality: crate::recode::DEFAULT_IMAGE_QUALITY,
             max_size: 0,
-            fonts: crate::recode::FontMode::Keep,
+            font_recode: crate::recode::FontMode::Original,
             font_ranges: Vec::new(),
-            font_keep: Vec::new(),
-            audio: crate::recode::AudioMode::Keep,
+            font_original: Vec::new(),
+            audio_recode: crate::recode::AudioMode::Original,
             audio_quality: crate::recode::DEFAULT_AUDIO_QUALITY,
         }
     }
@@ -189,6 +160,37 @@ pub(crate) fn table_of<T: serde::de::DeserializeOwned + Default>(
     })
 }
 
+/// The `[windows]` table: what signs a Windows build.
+///
+/// ```toml
+/// [windows]
+/// certificate = "signing/game.pfx"
+/// ```
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub(crate) struct WindowsConfig {
+    /// A project-relative `.pfx`, or an Azure Trusted Signing metadata file
+    /// when the key lives in a cloud HSM rather than in a file.
+    pub certificate: String,
+    pub timestamp_url: String,
+}
+
+impl Default for WindowsConfig {
+    fn default() -> Self {
+        Self {
+            certificate: String::new(),
+            // DigiCert's, which is what signtool's own documentation uses.
+            timestamp_url: "http://timestamp.digicert.com".into(),
+        }
+    }
+}
+
+impl WindowsConfig {
+    pub(crate) fn from_manifest(manifest: &toml::Table, project: &Path) -> Result<Self> {
+        table_of(manifest, "windows", project)
+    }
+}
+
 impl ExportConfig {
     /// The `[export]` table of a project as `target` resolves it, or the
     /// defaults when there is none.
@@ -240,7 +242,7 @@ mod tests {
     fn every_mode_the_editor_offers_can_be_read_back() {
         let schema: toml::Value =
             toml::from_str(crate::settings::EXPORT_SCHEMA).expect("the schema is TOML");
-        for key in ["images", "fonts", "audio"] {
+        for key in ["image_recode", "font_recode", "audio_recode"] {
             let options = schema[key]["options"]
                 .as_array()
                 .expect("an enum lists its options");
@@ -276,7 +278,7 @@ mod tests {
         std::fs::write(
             dir.path().join("project.toml"),
             "[export]\noutput = \"builds\"\n\n\
-             [override.mobile.export]\nimages = \"quantised\"\n\n\
+             [override.mobile.export]\nimage_recode = \"quantized\"\n\n\
              [window]\norientation = \"portrait\"\n\n\
              [override.desktop.window]\norientation = \"any\"\n",
         )
@@ -284,8 +286,8 @@ mod tests {
 
         let desktop = ExportConfig::load(dir.path(), Some("linux-x64")).unwrap();
         let phone = ExportConfig::load(dir.path(), Some("android")).unwrap();
-        assert_eq!(desktop.images, crate::recode::ImageMode::Keep);
-        assert_eq!(phone.images, crate::recode::ImageMode::Quantised);
+        assert_eq!(desktop.image_recode, crate::recode::ImageMode::Original);
+        assert_eq!(phone.image_recode, crate::recode::ImageMode::Quantized);
         assert_eq!(
             phone.output, "builds",
             "what no override touched still lands"
@@ -301,14 +303,27 @@ mod tests {
     }
 
     #[test]
+    fn a_windows_signature_is_read_from_its_own_table() {
+        let manifest: toml::Table =
+            toml::from_str("[windows]\ncertificate = \"signing/game.pfx\"\n").unwrap();
+        let windows = super::WindowsConfig::from_manifest(&manifest, Path::new(".")).unwrap();
+        assert_eq!(windows.certificate, "signing/game.pfx");
+        assert_eq!(windows.timestamp_url, "http://timestamp.digicert.com");
+        let moved: toml::Table =
+            toml::from_str("[export]\nwindows_certificate = \"signing/game.pfx\"\n").unwrap();
+        assert!(
+            ExportConfig::from_manifest(&moved, Path::new(".")).is_err(),
+            "a signing key under [export] is refused, not ignored"
+        );
+    }
+
+    #[test]
     fn a_project_with_no_table_gets_the_defaults() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("project.toml"), "name = \"game\"\n").unwrap();
         let config = ExportConfig::load(dir.path(), None).unwrap();
         assert!(config.output.is_empty(), "no table exports where it stands");
         assert_eq!(config.output_for(dir.path(), "linux-x64", "game"), None);
-        assert!(!config.notarize);
-        assert!(config.macos_identity.is_empty());
     }
 
     #[test]
@@ -316,16 +331,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(
             dir.path().join("project.toml"),
-            "[export]\noutput = \"builds\"\nnotarize = true\n\
-             macos_identity = \"Developer ID Application: Studio\"\n\
-             ios_profile = \"signing/game.mobileprovision\"\n",
+            "[export]\noutput = \"builds\"\n",
         )
         .unwrap();
 
         let config = ExportConfig::load(dir.path(), None).unwrap();
 
-        assert!(config.notarize);
-        assert_eq!(config.macos_identity, "Developer ID Application: Studio");
         assert_eq!(
             config.output_for(dir.path(), "windows-x64", "game.exe"),
             Some(
@@ -336,7 +347,7 @@ mod tests {
             )
         );
         assert_eq!(
-            ExportConfig::beside(dir.path(), &config.ios_profile),
+            ExportConfig::beside(dir.path(), "signing/game.mobileprovision"),
             Some(dir.path().join("signing/game.mobileprovision"))
         );
         assert_eq!(ExportConfig::beside(dir.path(), ""), None);
@@ -349,7 +360,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(
             dir.path().join("project.toml"),
-            "[export]\nmacos_identiy = \"typo\"\n",
+            "[export]\noutptu = \"typo\"\n",
         )
         .unwrap();
         let err = ExportConfig::load(dir.path(), None)

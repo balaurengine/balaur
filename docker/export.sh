@@ -44,17 +44,17 @@ set -- export . --target "$BALAUR_TARGET"
 
 if [ -d /cache ]; then
   version="${BALAUR_VERSION:-latest}"
-  template="/cache/runtimes/balaur/${version}/${BALAUR_TARGET}"
+  runtime="/cache/runtimes/balaur/${version}/${BALAUR_TARGET}"
 
-  [ -e "$template" ] || fail "no runtime template at ${template}"
+  [ -e "$runtime" ] || fail "no runtime at ${runtime}"
 
   # --no-download because a mounted /cache is a promise that everything needed
   # is already here; a sandbox with no network would otherwise hang trying.
-  set -- "$@" --template "$template" --no-download
-  log "==> template ${template}"
+  set -- "$@" --runtime "$runtime" --no-download
+  log "==> runtime ${runtime}"
 else
   set -- "$@" --download
-  log "==> template will be downloaded"
+  log "==> runtime will be downloaded"
 fi
 
 # The last packaging step, where the platform has one. Both come out unsigned;

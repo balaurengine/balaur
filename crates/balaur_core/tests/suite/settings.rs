@@ -19,11 +19,11 @@ fn core_defines_settings_in_both_scopes() {
     let all = all.borrow();
     let paths: Vec<&str> = all.0.iter().map(|d| d.path.as_str()).collect();
     assert!(paths.contains(&"application/name"));
-    assert!(paths.contains(&"multiplayer/faults"));
+    assert!(paths.contains(&"multiplayer/simulate_faults"));
     let faults = all
         .0
         .iter()
-        .find(|d| d.path == "multiplayer/faults")
+        .find(|d| d.path == "multiplayer/simulate_faults")
         .unwrap();
     assert_eq!(
         faults.scope,
@@ -31,7 +31,7 @@ fn core_defines_settings_in_both_scopes() {
         "fault injection is a developer's tool, not something a game ships"
     );
     assert_eq!(faults.category(), "multiplayer");
-    assert_eq!(faults.label(), "faults");
+    assert_eq!(faults.label(), "simulate_faults");
 }
 
 /// A path nests: `editor/appearance/theme` is `[editor.appearance] theme`.
@@ -60,16 +60,16 @@ fn a_nested_path_reads_and_writes_where_it_says() {
 fn a_setting_falls_back_to_its_schema_default() {
     let app = app();
     assert_eq!(
-        settings::get(&app.engine, "multiplayer/faults"),
+        settings::get(&app.engine, "multiplayer/simulate_faults"),
         Some(toml::Value::Boolean(false))
     );
     settings::set(
         &app.engine,
-        "multiplayer/faults",
+        "multiplayer/simulate_faults",
         toml::Value::Boolean(true),
     );
     assert_eq!(
-        settings::get(&app.engine, "multiplayer/faults"),
+        settings::get(&app.engine, "multiplayer/simulate_faults"),
         Some(toml::Value::Boolean(true))
     );
 }
@@ -126,7 +126,7 @@ fn an_editor_setting_stays_out_of_the_manifest() {
     let app = app();
     settings::set(
         &app.engine,
-        "multiplayer/faults",
+        "multiplayer/simulate_faults",
         toml::Value::Boolean(true),
     );
     let written = settings::to_toml(
@@ -179,10 +179,14 @@ fn the_multiplayer_page_produces_the_faults_it_describes() {
     );
     settings::set(
         &app.engine,
-        "multiplayer/faults",
+        "multiplayer/simulate_faults",
         toml::Value::Boolean(true),
     );
-    settings::set(&app.engine, "multiplayer/delay", toml::Value::Float(9.0));
+    settings::set(
+        &app.engine,
+        "multiplayer/delay_ticks",
+        toml::Value::Float(9.0),
+    );
     let faults = settings::faults(&app.engine).expect("turned on");
     assert_eq!(faults.delay, 9);
 }
@@ -354,7 +358,7 @@ fn a_table_folds_each_override_on_key_by_key() {
 /// else does.
 #[test]
 fn a_pack_answers_to_the_tags_its_export_wrote() {
-    let manifest = "[application]\nname = \"g\"\nmain_scene = \"main.toml\"\nassets = \"embedded\"\n\n\
+    let manifest = "[application]\nname = \"g\"\nmain_scene = \"main.toml\"\nasset_source = \"embedded\"\n\n\
                     [build]\ntags = [\"demo\"]\n\n[override.demo.window]\nvsync = false\n";
     let mut pack = balaur_core::Pack {
         manifest: manifest.to_string(),
@@ -379,7 +383,7 @@ fn a_pack_answers_to_the_tags_its_export_wrote() {
     assert_eq!(
         files.borrow().source(),
         balaur_core::project::AssetSource::Embedded,
-        "application/assets is read through the registry before the files exist"
+        "application/asset_source is read through the registry before the files exist"
     );
 }
 
@@ -423,4 +427,19 @@ fn a_demo_pack_opens_the_demo_s_scene() {
     let mut app = App::new(AppConfig::packed(pack)).unwrap();
     app.load_project().unwrap();
     assert_eq!(app.manifest().unwrap().main_scene, "demo.toml");
+}
+
+/// Every value the settings screen offers for the asset source is one the
+/// boot reader parses: an offered value it rejects fell back to `embedded`
+/// without a word.
+#[test]
+fn every_offered_asset_source_is_one_the_boot_reader_accepts() {
+    let app = app();
+    let def = settings::def(&app.engine, "application/asset_source").expect("defined");
+    let options = def.spec["options"].as_array().expect("an enum").clone();
+    assert_eq!(options.len(), 3, "files, embedded and the two together");
+    for option in options {
+        let parsed: Result<balaur_core::project::AssetSource, _> = option.clone().try_into();
+        assert!(parsed.is_ok(), "{option} is offered and not accepted");
+    }
 }

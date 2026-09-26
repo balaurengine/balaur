@@ -8,15 +8,15 @@ name = "Crate"
 body3d = { kind = "dynamic" }
 
 [nodes.collider3d]
-half_extents = [0.35, 0.35, 0.35]
-kind = "cuboid"
+size = [0.7, 0.7, 0.7]
+kind = "box"
 
 # The tint is a property of the shape; an instance overrides it with
 # `[nodes.overrides.Lid.shape3d] color = [...]`, which patches that
 # one property and leaves the rest of the shape as the prefab has it.
 [nodes.shape3d]
-half_extents = [0.35, 0.35, 0.35]
-kind = "cuboid"
+size = [0.7, 0.7, 0.7]
+kind = "box"
 color = [0.72, 0.52, 0.28, 1]
 
 [[nodes]]
@@ -28,6 +28,6 @@ parent = "n_crate"
 position = [0, 0.4, 0]
 
 [nodes.shape3d]
-half_extents = [0.37, 0.05, 0.37]
-kind = "cuboid"
+size = [0.74, 0.1, 0.74]
+kind = "box"
 color = [0.45, 0.32, 0.17, 1]

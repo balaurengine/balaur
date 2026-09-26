@@ -59,7 +59,7 @@ pub fn modes(S) {
     // into `document` too, which is the pitfall AGENTS.md names.
     let open = document || split;
     S.doc_open = open;
-    let has_tools = defs::tools(S.persona).len() > 0;
+    let has_tools = defs::tools(S.workspace).len() > 0;
     // Each shows where its own minimum fits in the room the docks leave: a
     // rail wants its column and a stage worth pointing at beside it, and the
     // chip and foot strips want the stage taller than the two of them.
@@ -86,21 +86,21 @@ pub fn modes(S) {
 pub fn rail_metrics(S) {
     // The theme's tool tile, so a folded dock's handle is the same control on
     // the same sheet; the pad a pixel wider than the gap, clear of the corner.
-    let d = style::role_px(S, "tool", "d", 26.0);
+    let d = style::role_px(S, "icon_action", "height", 26.0);
     if S.compact {
         return #{ d: d, gap: 3.0, pad: 6.0 };
     }
     #{ d: d, gap: 4.0, pad: 8.0 }
 }
 
-/// The marks the rail carries: the persona's tools, then the one that folds
+/// The marks the rail carries: the workspace's tools, then the one that folds
 /// them away. Folded, only the one that brings them back.
 pub fn rail_marks(S) {
     if S.rail_shut {
         return ["restore"];
     }
     let marks = [];
-    for tool in defs::tools(S.persona) {
+    for tool in defs::tools(S.workspace) {
         marks.push(tool);
     }
     marks.push("collapse");
@@ -138,10 +138,10 @@ fn rail(S, k) {
         columns.push(column);
     }
     style::sheet(k, "rail", S.layout.rail, g.pad, g.pad, || {
-        ui::horizontal(#{ tight: true }, || {
+        ui::row(#{ tight: true }, || {
             ui::spacing(g.gap, 0);
             for marks in columns {
-                ui::vertical(|| {
+                ui::column(|| {
                     ui::spacing(0, g.gap);
                     for mark in marks {
                         rail_mark(S, k, mark, g.d);
@@ -155,7 +155,7 @@ fn rail(S, k) {
 fn rail_mark(S, k, mark, d) {
     if mark == "restore" {
         if ui::circle_button(icons::ui("restore"), #{
-            role: "tool", d: d, tooltip: "Show the tools",
+            role: "icon_action", diameter: d, tooltip: "Show the tools",
         }) {
             S.rail_shut = false;
         }
@@ -163,7 +163,7 @@ fn rail_mark(S, k, mark, d) {
     }
     if mark == "collapse" {
         if ui::circle_button(icons::ui("collapse"), #{
-            role: "tool", d: d, size: style::MD, tooltip: "Hide the tools",
+            role: "icon_action", diameter: d, font_size: style::MD, tooltip: "Hide the tools",
         }) {
             S.rail_shut = true;
         }
@@ -171,7 +171,7 @@ fn rail_mark(S, k, mark, d) {
     }
     let active = S.tool == mark;
     if ui::circle_button(defs::tool_icon(mark), #{
-        role: if active { "tool_on" } else { "tool" }, d: d,
+        role: "icon_action", checked: active, diameter: d,
         tooltip: defs::tool_name(mark),
     }) {
         crate::shell::set_tool(S, mark);
@@ -179,13 +179,13 @@ fn rail_mark(S, k, mark, d) {
 }
 
 fn chip(S, k, key, label, default_on, near) {
-    if !S.chip_state.contains_key(S.persona) {
-        S.chip_state[S.persona] = #{};
+    if !S.chip_state.contains_key(S.workspace) {
+        S.chip_state[S.workspace] = #{};
     }
-    let state = S.chip_state[S.persona];
+    let state = S.chip_state[S.workspace];
     // Engine-backed chips (no declared default, see defs::chips) read their
     // value back from the engine every frame; the rest live in `chip_state`.
-    let live = shell::chip_value(S, S.persona, key);
+    let live = shell::chip_value(S, S.workspace, key);
     if live.is_none() && !state.contains_key(key) {
         state[key] = default_on.unwrap_or(false);
     }
@@ -193,18 +193,12 @@ fn chip(S, k, key, label, default_on, near) {
         Some(live) => live,
         None => state.get(key).unwrap_or(false),
     };
-    let role = if on {
-        if near { "chip_on" } else { "chip_on_quiet" }
-    } else if near {
-        "chip"
-    } else {
-        "chip_quiet"
-    };
-    if ui::pill(label, #{ role: role }) {
+    let role = if near { "chip" } else { "chip_quiet" };
+    if ui::button(label, #{ role: role, checked: on }) {
         if live.is_none() {
             state[key] = !on;
         }
-        shell::on_chip(S, S.persona, key, !on);
+        shell::on_chip(S, S.workspace, key, !on);
     }
 }
 
@@ -212,29 +206,29 @@ fn chip(S, k, key, label, default_on, near) {
 // channel of it. The channels come from the engine, so a plugin's is here too.
 fn view_modes() {
     let out = [["", "Shaded"]];
-    for name in render::channels() {
+    for name in render::debug_views() {
         out.push([name, crate::util::match_case("A", name)]);
     }
     out
 }
 
 /// The view-mode chip: shaded, or one channel drawn instead. Never a game
-/// feature; `render.set_channel` is the same call the palette makes.
+/// feature; `render.set_debug_view` is the same call the palette makes.
 fn view_chip(S, k) {
-    let current = render::channel();
+    let current = render::debug_view();
     let label = "Shaded";
     for mode in view_modes() {
         if mode[0] == current {
             label = mode[1];
         }
     }
-    ui::pill(icons::ui("viewmode") + "  " + label, #{
-        role: if current == "" { "chip" } else { "chip_on" },
+    ui::button(icons::ui("viewmode") + "  " + label, #{
+        role: "chip", checked: !(current == ""),
         menu: || {
             for mode in view_modes() {
                 let name = mode[0];
-                if ui::menu_item(mode[1], #{ color: if name == current { k.accent } else { k.text } }) {
-                    render::set_channel(name);
+                if ui::menu_item(mode[1], #{ text_color: if name == current { k.primary_text } else { k.text_default } }) {
+                    render::set_debug_view(name);
                 }
             }
         },
@@ -248,13 +242,13 @@ fn bookmark_chips(S, k) {
     for slot in 1..5 {
         let key = format!("{}", slot);
         let held = S.bookmarks.get(key);
-        if ui::pill(key, #{
-            height: 20, size: style::SM, min_width: 20, radius: 4,
-            fill: if held.is_some() { k.accent_soft } else { k.sunken },
-            color: if held.is_some() { k.accent } else { k.faint },
+        if ui::button(key, #{
+            height: 20, font_size: style::SM, min_width: 20, corner_radius: 4,
+            fill: if held.is_some() { k.primary_bg } else { k.bg_control },
+            text_color: if held.is_some() { k.primary_text } else { k.text_subtle },
             tooltip: if held.is_some() { "Go to view " + key + " (⇧ stores)" } else { "⇧ click to store this view" },
         }) {
-            if input::is_down("LShift") || input::is_down("RShift") {
+            if input::key_down(input::KEY_SHIFT) {
                 let (ex, ey, ez, tx, ty, tz, _, _) = render::camera_pose();
                 S.bookmarks[key] = [ex, ey, ez, tx, ty, tz];
                 log::info("stored view " + key);
@@ -282,13 +276,12 @@ fn viewport(S, k) {
         return;
     }
     // Interface overlays: the safe-area inset and the 16:9 frame.
-    let chips_ui = util::obj(S.chip_state.get(S.persona).unwrap_or(#{}));
-    if S.persona == "ui" {
-        ui::overlay("vp-frames", #{ x: vp.x, y: vp.y, w: vp.w, h: vp.h }, || {
-            if chips_ui.get("safe").unwrap_or(true) {
-                ui::rect_stroke(34.0, 34.0, vp.w - 68.0, vp.h - 68.0, #{ color: k.accent_fill, dashed: true });
+    if S.workspace == defs::WORKSPACE_UI {
+        ui::overlay("vp-frames", #{ x: vp.x, y: vp.y, width: vp.w, height: vp.h }, || {
+            if defs::chip_on(S, defs::WORKSPACE_UI, defs::CHIP_SAFE) {
+                ui::rect_stroke(34.0, 34.0, vp.w - 68.0, vp.h - 68.0, #{ stroke: k.primary_fill, dashed: true });
             }
-            if chips_ui.get("res").unwrap_or(false) {
+            if defs::chip_on(S, defs::WORKSPACE_UI, defs::CHIP_RESOLUTION) {
                 let target = 16.0 / 9.0;
                 let w = vp.w;
                 let h = vp.w / target;
@@ -296,7 +289,7 @@ fn viewport(S, k) {
                     h = vp.h;
                     w = vp.h * target;
                 }
-                ui::rect_stroke((vp.w - w) / 2.0, (vp.h - h) / 2.0, w, h, #{ color: k.line, dashed: true });
+                ui::rect_stroke((vp.w - w) / 2.0, (vp.h - h) / 2.0, w, h, #{ stroke: k.border_default, dashed: true });
             }
         });
     }
@@ -309,7 +302,7 @@ fn viewport(S, k) {
     // The scene is the document: the chips step back until the pointer comes
     // for them, the way a canvas tool's context bar does.
     let near = chips_wanted(S, vp);
-    // Sized, so the row is clipped to the scene: unsized, a persona with one
+    // Sized, so the row is clipped to the scene: unsized, a workspace with one
     // chip too many painted its last over the inspector beside it.
     // Clear of the folded left dock's handle, which shares this row.
     if !S.stage_chrome {
@@ -318,15 +311,15 @@ fn viewport(S, k) {
     let inset = crate::docks::fold_inset(S);
     let hud = hud_h(S);
     S.layout.chips = #{ x: vp.x + inset, y: vp.y, w: vp.w - inset, h: hud };
-    ui::overlay("vp-chips", #{ x: vp.x + inset, y: vp.y, w: vp.w - inset, h: hud }, || {
-        // Drags sideways rather than truncating: a persona with one chip too
+    ui::overlay("vp-chips", #{ x: vp.x + inset, y: vp.y, width: vp.w - inset, height: hud }, || {
+        // Drags sideways rather than truncating: a workspace with one chip too
         // many used to paint its last over whatever sat beside the scene.
         ui::scroll("vp-chips", #{ axis: "horizontal", max_height: hud }, || {
-        ui::horizontal(#{ height: hud }, || {
+        ui::row(#{ height: hud }, || {
             ui::spacing(6, 0);
-            for c in defs::chips(S.persona) {
+            for c in defs::chips(S.workspace) {
                 let label = c[1];
-                if c[0] == "proj" && S.mode2d {
+                if c[0] == defs::CHIP_PROJECTION && S.mode2d {
                     label = "2D · Orthographic";
                 }
                 chip(S, k, c[0], label, if c.len() > 2 { Some(c[2]) } else { None }, near);
@@ -337,7 +330,7 @@ fn viewport(S, k) {
                 ui::add_space(8);
                 polygon::mode_chips(S, k);
             }
-            if S.persona == "scene" {
+            if S.workspace == defs::WORKSPACE_SCENE {
                 ui::add_space(8);
                 view_chip(S, k);
                 // The camera slots are the first thing a small window drops:
@@ -356,38 +349,38 @@ fn viewport(S, k) {
     let foot_w = vp.x + vp.w - foot_x;
     S.layout.hud = #{ x: foot_x, y: vp.y + vp.h - hud_h(S), w: foot_w, h: hud_h(S) };
     ui::overlay("vp-hud", #{
-        x: foot_x, y: vp.y + vp.h - hud_h(S), w: foot_w, h: hud_h(S),
+        x: foot_x, y: vp.y + vp.h - hud_h(S), width: foot_w, height: hud_h(S),
     }, || {
-        ui::horizontal(#{ height: hud_h(S) }, || {
-            ui::frame(#{ fill: k.panel, radius: 8, padding_x: 10, padding_y: 3 }, || {
-                ui::horizontal(#{ height: hud_step(S), tight: true }, || {
-                    ui::label("x →", style::mono_sm(k.accent));
+        ui::row(#{ height: hud_h(S) }, || {
+            ui::frame(#{ fill: k.bg_panel, corner_radius: 8, padding_x: 10, padding_y: 3 }, || {
+                ui::row(#{ height: hud_step(S), tight: true }, || {
+                    ui::label("x →", style::mono_sm(k.axis_x));
                     ui::add_space(6);
-                    ui::label("y ↑", style::mono_sm(k.sage));
+                    ui::label("y ↑", style::mono_sm(k.axis_y));
                     ui::add_space(6);
-                    ui::label("z ↓", style::mono_sm(k.dim));
+                    ui::label("z ↓", style::mono_sm(k.text_muted));
                 });
             });
-            ui::right(|| {
+            ui::align_right(|| {
                 // First in a right-aligned row is right-most, so the dock's
                 // handle lands after the reading rather than before it.
                 crate::docks::fold_foot(S, k);
                 let text = format!("{} %", S.zoom as i64);
-                ui::frame(#{ fill: k.panel, radius: 8, padding_x: 6, padding_y: 3 }, || {
+                ui::frame(#{ fill: k.bg_panel, corner_radius: 8, padding_x: 6, padding_y: 3 }, || {
                     // A width, not `tight`: a hugging row measures zero here
                     // and `ui::right` then pushes it off the stage's edge. It
                     // is the reading's own width, so no gap trails the plus.
                     let step = hud_step(S);
-                    ui::horizontal(#{
+                    ui::row(#{
                         height: step,
                         width: 2.0 * step + 10.0 + 6.6 * util::f(text.len()),
                     }, || {
                         ui::spacing(2, 0);
-                        if ui::pill("−", #{ height: step, size: style::MD, min_width: step, color: k.dim }) {
+                        if ui::button("−", #{ height: step, font_size: style::MD, min_width: step, text_color: k.text_muted }) {
                             shell::set_zoom(S, S.zoom - 25.0);
                         }
-                        ui::label(text, style::mono_sm(k.text));
-                        if ui::pill(icons::ui("add"), #{ height: step, size: style::MD, min_width: step, color: k.dim }) {
+                        ui::label(text, style::mono_sm(k.text_default));
+                        if ui::button(icons::ui("add"), #{ height: step, font_size: style::MD, min_width: step, text_color: k.text_muted }) {
                             shell::set_zoom(S, S.zoom + 25.0);
                         }
                     });
@@ -405,8 +398,8 @@ fn document_sheet(S, k, id) {
         return;
     }
     ui::overlay(id, #{
-        x: r.x, y: r.y, w: r.w, h: r.h,
-        fill: k.sunken, stroke: k.line, radius: 11,
+        x: r.x, y: r.y, width: r.w, height: r.h,
+        fill: k.bg_control, stroke: k.border_default, corner_radius: 11,
     }, || code_pane(S, k));
 }
 
@@ -423,7 +416,7 @@ fn hooks_sheet(S, k) {
         }
         if S.script_dirty.contains_key(S.game_root + "/" + rel) {
             ui::add_space(8);
-            ui::label("● unsaved · ⌘S", util::merge(style::mono(k.accent), #{ size: style::SM }));
+            ui::label("● unsaved · ⌘S", util::merge(style::mono(k.primary_text), #{ font_size: style::SM }));
         }
     });
 }
@@ -486,10 +479,7 @@ fn code_pane(S, k) {
         ui::add_space(12);
         let stopped_here = !shading && S.debug.paused is Object && S.debug.paused_rel == rel;
         let (text, changed, hit, caret) = ui::code_editor("edit:" + path, src, #{
-            size: style::MD, gutter_width: 34, gutter_color: k.faint,
-            k_key: k.k_key, k_str: k.k_str, k_num: k.k_num,
-            k_com: k.k_com, k_fn: k.k_fn, k_type: k.k_type,
-            k_punc: k.k_punc,
+            font_size: style::MD, gutter_width: 34,
             language: if shading { "wesl" } else { "rune" },
             breakpoints: if shading {
                 if S.preview_line > 0 { [S.preview_line] } else { [] }
@@ -498,9 +488,9 @@ fn code_pane(S, k) {
             },
             problems: lint::lines(S, rel, "error"),
             warnings: lint::lines(S, rel, "warning"),
-            problem_color: k.danger, warning_color: k.warn,
+            problem_color: k.danger_text, warning_color: k.warning_text,
             current_line: if stopped_here { S.debug.paused.line } else { () },
-            breakpoint_color: k.accent, current_fill: k.accent_soft,
+            breakpoint_color: k.primary_text, current_fill: k.primary_bg,
         });
         S.script_buffers[path] = text;
         if changed {

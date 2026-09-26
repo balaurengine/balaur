@@ -201,7 +201,7 @@ fn sample_load(this, t, stages, spans) {
     for row in costs {
         total = total + row.instructions;
     }
-    engine::profile_scripts(true);
+    engine::set_script_profiling(true);
     push(this, "instructions", total as f64);
 }
 
@@ -251,7 +251,7 @@ fn advance(this) {
         if this.count > 0 && is_load(c) {
             c.count = this.count;
         }
-        rng::seed(this.case.seed);
+        random::seed(this.case.seed);
         tune(this, c);
         frame_view(dimensions_of(c), c.get("view"));
         this.world = world::new(this.node, dimensions_of(c), this.draw);
@@ -264,7 +264,7 @@ fn advance(this) {
             this.build_ms = 0.0;
         } else {
             if is_load(c) {
-                engine::profile_scripts(true);
+                engine::set_script_profiling(true);
             }
             // Bound first: a `}` followed by `(` calls the block's value.
             let setup = c.setup;
@@ -411,7 +411,7 @@ fn physics_result(this, c) {
         physics_ms: summary(this, "physics_ms"),
         script_ms: summary(this, "script_ms"),
         frame_ms: summary(this, "frame_ms"),
-        platform: engine::platform(),
+        platform: engine::target(),
     }
 }
 
@@ -438,7 +438,7 @@ fn load_result(this, c) {
         render_gpu_ms: summary(this, "render_gpu_ms"),
         instructions: summary(this, "instructions"),
         extra_metrics: (c.extra)(this.world),
-        platform: engine::platform(),
+        platform: engine::target(),
     }
 }
 
@@ -452,7 +452,7 @@ fn node_result(this, c) {
         stages: c.stages,
         build_ms: this.build_ms,
         loop_ms: summary(this, "loop_ms"),
-        platform: engine::platform(),
+        platform: engine::target(),
     }
 }
 
@@ -541,18 +541,18 @@ fn draw_menu(this) {
     // stays on screen beside its own numbers.
     ui::left_panel("bench", #{ width: 360.0 }, || {
         ui::add_space(10.0);
-        ui::label("Balaur benchmarks", #{ role: "heading" });
-        ui::label(this.status, #{ role: "meta" });
+        ui::label("Balaur benchmarks", #{ role: "text_heading" });
+        ui::label(this.status, #{ role: "text_caption" });
         ui::add_space(6.0);
-        ui::horizontal(#{}, || {
-            let (on, _) = ui::toggle(this.draw, ());
+        ui::row(#{}, || {
+            let (on, _) = ui::switch(this.draw, ());
             this.draw = on;
             ui::label("Draw the shapes", ());
         });
         ui::add_space(8.0);
         ui::scroll("cases", (), || {
             for entry in this.cases {
-                if ui::pill(entry.key, #{ align: "left", min_width: 220.0 }) {
+                if ui::button(entry.key, #{ text_align: "start", min_width: 220.0 }) {
                     this.queue.push(entry);
                     if this.state == "idle" {
                         start_next(this);
@@ -561,7 +561,7 @@ fn draw_menu(this) {
             }
             ui::separator(());
             for row in this.results {
-                ui::label(line_of(row), #{ role: "mono", wrap: false });
+                ui::label(line_of(row), #{ role: "text_code", wrap: false });
             }
         });
     });

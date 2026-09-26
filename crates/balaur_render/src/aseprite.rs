@@ -1,6 +1,6 @@
 //! `balaur import file.aseprite`: the sprite editor's own file as an atlas
 //! page, a `sprite_sheet` naming every frame, tag and slice on it, and one
-//! `animation_clip` per tag keying `sprite/frame`.
+//! `animation_library` entry per tag keying `sprite/frame`.
 //!
 //! Frames are packed at the canvas size, row by row, so a rectangle never
 //! crosses a page and a slice drawn on the canvas is a slice on the frame.
@@ -241,20 +241,20 @@ fn sequence(
     repeat: Option<u16>,
 ) -> (Vec<u32>, &'static str) {
     let forward: Vec<u32> = (from..=to).collect();
-    let (run, wrap) = match direction {
-        AnimationDirection::Reverse => (forward.iter().rev().copied().collect(), "loop"),
+    let (run, loop_mode) = match direction {
+        AnimationDirection::Reverse => (forward.iter().rev().copied().collect(), "linear"),
         AnimationDirection::PingPong => (forward, "pingpong"),
         AnimationDirection::PingPongReverse => {
             (forward.iter().rev().copied().collect(), "pingpong")
         }
-        AnimationDirection::Forward | AnimationDirection::Unknown(_) => (forward, "loop"),
+        AnimationDirection::Forward | AnimationDirection::Unknown(_) => (forward, "linear"),
     };
     let Some(times) = repeat.filter(|n| *n > 0) else {
-        return (run, wrap);
+        return (run, loop_mode);
     };
     // A counted play is unrolled and stops: the clip format loops for ever
     // or not at all.
-    let cycle: Vec<u32> = if wrap == "pingpong" && run.len() > 2 {
+    let cycle: Vec<u32> = if loop_mode == "pingpong" && run.len() > 2 {
         run.iter()
             .chain(run[1..run.len() - 1].iter().rev())
             .copied()
@@ -274,35 +274,35 @@ fn clips_toml(file: &AsepriteFile<'_>, stem: &str, packed: &[Packed]) -> Option<
         if packed.len() < 2 {
             return None;
         }
-        vec![(stem.to_string(), (0..=last).collect(), "loop")]
+        vec![(stem.to_string(), (0..=last).collect(), "linear")]
     } else {
         file.tags()
             .iter()
             .map(|tag| {
-                let (frames, wrap) = sequence(
+                let (frames, loop_mode) = sequence(
                     u32::from(*tag.range.start()).min(last),
                     u32::from(*tag.range.end()).min(last),
                     tag.direction,
                     tag.repeat,
                 );
-                (tag.name.clone(), frames, wrap)
+                (tag.name.clone(), frames, loop_mode)
             })
             .collect()
     };
     let mut out = format!(
         "# Imported from {stem}.aseprite by `balaur import`: one clip per tag, keying `sprite/frame`.\n\
-         type = \"animation_clip\"\n"
+         type = \"animation_library\"\n"
     );
-    for (name, frames, wrap) in tags {
+    for (name, frames, loop_mode) in tags {
         let mut at = 0;
         let mut keys = String::new();
         for frame in &frames {
-            let _ = writeln!(keys, "  {{ t = {}, value = {frame}.0 }},", seconds(at));
+            let _ = writeln!(keys, "  {{ time = {}, value = {frame}.0 }},", seconds(at));
             at += packed[*frame as usize].milliseconds;
         }
         let _ = write!(
             out,
-            "\n[clips.{name}]\nlength = {}\nloop = \"{wrap}\"\n\n[[clips.{name}.tracks]]\nproperty = \"sprite/frame\"\ninterp = \"step\"\nkeys = [\n{keys}]\n",
+            "\n[clips.{name}]\nlength = {}\nloop_mode = \"{loop_mode}\"\n\n[[clips.{name}.tracks]]\nproperty = \"sprite/frame\"\ninterpolation = \"step\"\nkeys = [\n{keys}]\n",
             seconds(at.max(1)),
             name = key(&name)
         );
@@ -333,11 +333,11 @@ mod tests {
     fn a_tag_plays_in_its_direction_and_a_counted_one_unrolls() {
         assert_eq!(
             sequence(1, 3, AnimationDirection::Forward, None),
-            (vec![1, 2, 3], "loop")
+            (vec![1, 2, 3], "linear")
         );
         assert_eq!(
             sequence(1, 3, AnimationDirection::Reverse, None),
-            (vec![3, 2, 1], "loop")
+            (vec![3, 2, 1], "linear")
         );
         assert_eq!(
             sequence(1, 3, AnimationDirection::PingPong, None),

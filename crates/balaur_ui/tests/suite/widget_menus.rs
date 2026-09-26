@@ -28,9 +28,14 @@ fn a_menu_reports_the_item_that_was_picked() {
     pass(&app, &ctx, press(item, false));
     consume_input(&mut app);
     assert_eq!(
+        balaur_core::events::delivered_from(&app.engine, entity, balaur_ui::CHANGE_EVENT),
+        vec![balaur_script::Value::Str("Save".into())],
+        "the pick is the menu's `change`"
+    );
+    assert_eq!(
         property(&app, entity, "text"),
-        toml::Value::String("Save".into()),
-        "the pick lands on the widget"
+        toml::Value::String("File".into()),
+        "and the caption stays the menu's"
     );
 }
 

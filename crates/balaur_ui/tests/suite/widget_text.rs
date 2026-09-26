@@ -49,6 +49,29 @@ fn a_url_span_calls_on_link_with_its_target() {
     );
 }
 
+/// A link a label names no handler for still says what was clicked, so a
+/// row or a subscriber can be the one that follows it.
+#[test]
+fn a_url_span_emits_its_target_with_no_handler_named() {
+    let (_dir, mut app) = app();
+    let label = toml::toml! {
+        kind = "label" markup = true x = 10.0 y = 10.0
+        text = "read the [url=docs/ui]manual[/url] first"
+    };
+    let entity = add_widget(&app, &label.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let rect = balaur_ui::widget_rect(entity).expect("the label drew");
+    let at = pos2(rect.min.x + rect.width() * 0.55, rect.center().y);
+    pass(&app, &ctx, press(at, true));
+    pass(&app, &ctx, press(at, false));
+    consume_input(&mut app);
+    assert_eq!(
+        balaur_core::events::delivered_from(&app.engine, entity, balaur_ui::LINK_EVENT),
+        vec![balaur_script::Value::Str("docs/ui".into())]
+    );
+}
+
 /// A click away from the link leaves the handler alone: the span is what was
 /// clicked, not the label around it.
 #[test]
@@ -164,7 +187,7 @@ fn a_drag_over_a_selectable_label_selects_and_copies() {
 fn a_drag_value_steps_from_its_arrows_and_wears_its_suffix() {
     let (_dir, mut app) = app();
     let params = toml::toml! {
-        kind = "drag_value" value = 11.0 min = 0.0 max = 12.0 step = 1.0
+        kind = "number_field" value = 11.0 min = 0.0 max = 12.0 step = 1.0
         arrows = true placeholder = "W" suffix = "px" x = 10.0 y = 10.0
     };
     let entity = add_widget(&app, &params.into());

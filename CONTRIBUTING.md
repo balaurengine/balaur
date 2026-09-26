@@ -55,7 +55,7 @@ times, so read yours rather than this.
 | `cargo check -p <crate>` | n/a | seconds | that crate and what depends on it |
 | `cargo check --workspace` | a full build | 23 s | fingerprinting 400 crates |
 | `scripts/precommit.sh --files` | 7 s | 7 s | rustfmt, then five Python passes |
-| `scripts/precommit.sh --lints` | a full build | 6 s | six clippy shapes on macOS, five elsewhere, a target tree each |
+| `scripts/precommit.sh --lints` | a full build | 6 s | seven clippy shapes on macOS, six elsewhere, a target tree each |
 | `scripts/precommit.sh` | a full build | 48 m | every test, one process each |
 | `scripts/precommit.sh --e2e` | a full build | 48 m plus the pipeline | every example project, every editor state each |
 | `scripts/e2e.sh target/e2e hello` | n/a | 8 m | one project through run, export, play, edit and render |

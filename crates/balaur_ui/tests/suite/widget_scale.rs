@@ -29,7 +29,7 @@ fn heights(scale: f32) -> (f32, f32) {
         &app,
         row,
         "n",
-        &toml::toml! { kind = "drag_value" value = 1.0 }.into(),
+        &toml::toml! { kind = "number_field" value = 1.0 }.into(),
     );
     let ctx = egui::Context::default();
     set_scale(&app, &ctx, scale);

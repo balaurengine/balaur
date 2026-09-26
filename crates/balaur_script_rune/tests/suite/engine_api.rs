@@ -39,6 +39,8 @@ fn marker_component(app: &mut App) {
     app.register_component(
         "marker",
         ComponentDef {
+            events: &[],
+            warnings: None,
             doc: "Two numbers, for testing that a patch leaves one alone.",
             tags: &["test"],
             expects: &[],
@@ -219,7 +221,7 @@ fn an_event_reaches_its_subscribers_on_the_next_frame() {
             "ear.rn",
             "pub fn init(this) {\n\
              \x20   this.heard = 0.0;\n\
-             \x20   events::subscribe(this.node, \"died\");\n\
+             \x20   events::listen(this.node, \"died\");\n\
              }\n\
              pub fn on_died(this, payload) { this.heard = this.heard + payload; }\n",
         ),
@@ -298,7 +300,7 @@ fn a_subscription_that_names_an_emitter_hears_only_that_one() {
             "scoped.rn",
             "pub fn init(this) {\n\
              \x20   this.heard = 0.0;\n\
-             \x20   events::subscribe(this.node, \"hit\", this.node.get_node(\"../A\"));\n\
+             \x20   events::listen(this.node, \"hit\", this.node.get_node(\"../A\"));\n\
              }\n\
              pub fn on_hit(this, payload) { this.heard = this.heard + payload; }\n",
         ),
@@ -306,7 +308,7 @@ fn a_subscription_that_names_an_emitter_hears_only_that_one() {
             "any.rn",
             "pub fn init(this) {\n\
              \x20   this.heard = 0.0;\n\
-             \x20   events::subscribe(this.node, \"hit\");\n\
+             \x20   events::listen(this.node, \"hit\");\n\
              }\n\
              pub fn on_hit(this, payload) { this.heard = this.heard + payload; }\n",
         ),
@@ -348,7 +350,7 @@ fn an_unscoped_emit_skips_a_subscription_that_named_an_emitter() {
             "scoped.rn",
             "pub fn init(this) {\n\
              \x20   this.heard = 0.0;\n\
-             \x20   events::subscribe(this.node, \"hit\", this.node.get_node(\"../A\"));\n\
+             \x20   events::listen(this.node, \"hit\", this.node.get_node(\"../A\"));\n\
              }\n\
              pub fn on_hit(this, payload) { this.heard = this.heard + payload; }\n",
         ),
@@ -356,7 +358,7 @@ fn an_unscoped_emit_skips_a_subscription_that_named_an_emitter() {
             "any.rn",
             "pub fn init(this) {\n\
              \x20   this.heard = 0.0;\n\
-             \x20   events::subscribe(this.node, \"hit\");\n\
+             \x20   events::listen(this.node, \"hit\");\n\
              }\n\
              pub fn on_hit(this, payload) { this.heard = this.heard + payload; }\n",
         ),
@@ -394,7 +396,7 @@ fn subscription_order_holds_across_scoped_and_unscoped() {
             "first.rn",
             "pub fn init(this) {\n\
              \x20   this.at = 0.0;\n\
-             \x20   events::subscribe(this.node, \"hit\");\n\
+             \x20   events::listen(this.node, \"hit\");\n\
              }\n\
              pub fn on_hit(this, payload) {\n\
              \x20   this.at = this.node.get_node(\"../Counter\").call(\"bump\");\n\
@@ -404,7 +406,7 @@ fn subscription_order_holds_across_scoped_and_unscoped() {
             "second.rn",
             "pub fn init(this) {\n\
              \x20   this.at = 0.0;\n\
-             \x20   events::subscribe(this.node, \"hit\", this.node.get_node(\"../A\"));\n\
+             \x20   events::listen(this.node, \"hit\", this.node.get_node(\"../A\"));\n\
              }\n\
              pub fn on_hit(this, payload) {\n\
              \x20   this.at = this.node.get_node(\"../Counter\").call(\"bump\");\n\
@@ -473,7 +475,7 @@ fn emitted_from_reports_only_that_emitters_payloads() {
     );
 }
 
-/// A reloaded script keeps its instance state, and `hot_reload` is where a
+/// A reloaded script keeps its instance state, and `on_hot_reload` is where a
 /// script whose field shapes moved brings them forward.
 #[test]
 fn a_reload_calls_hot_reload_on_every_instance() {
@@ -495,7 +497,7 @@ fn a_reload_calls_hot_reload_on_every_instance() {
         dir.path().join("live.rn"),
         "pub fn init(this) { this.n = 1.0; }\n\
          pub fn update(this, dt) {}\n\
-         pub fn hot_reload(this) { this.n = this.n + 10.0; }\n",
+         pub fn on_hot_reload(this) { this.n = this.n + 10.0; }\n",
     )
     .unwrap();
     app.engine.script_host().unwrap().reload("live.rn").unwrap();
@@ -551,7 +553,7 @@ fn hiding_a_node_tells_whoever_is_listening() {
         "pub fn init(this) {\n\
          \x20   this.hidings = 0.0;\n\
          \x20   this.showings = 0.0;\n\
-         \x20   events::subscribe(this.node, \"visibility_changed\", this.node);\n\
+         \x20   events::listen(this.node, \"visibility_changed\", this.node);\n\
          }\n\
          pub fn on_visibility_changed(this, payload) {\n\
          \x20   if payload { this.showings = this.showings + 1.0; } else { this.hidings = this.hidings + 1.0; }\n\

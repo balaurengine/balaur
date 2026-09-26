@@ -3,6 +3,7 @@
 
 use anyhow::anyhow;
 use balaur_core::components::ComponentDef;
+use balaur_core::hecs::{self, Entity};
 use balaur_core::{Engine, GlobalTransform};
 use balaur_plugin::Registry;
 
@@ -317,15 +318,13 @@ impl Default for Post {
 /// camera never re-asserts itself, which leaves `changed` alone and keeps the
 /// backend's interactive orbit/pan controls live between moves.
 pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
-    let (spatial, flat, post) = {
+    let (spatial, flat, post, winners) = {
         let world = eng.world();
         let mut spatial = None;
         let mut flat = None;
         let mut post = None;
-        // One walk over the tree, both components read at each node: which
-        // current camera came last has to be answered across the two, and a
-        // query apiece would answer it within one.
-        for entity in balaur_core::scene::collect_subtree(&world, eng.root()) {
+        let mut winners = (None, None);
+        for entity in current_cameras(&world, eng.root()) {
             let Ok(global) = world.get::<&GlobalTransform>(entity) else {
                 continue;
             };
@@ -334,6 +333,7 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
             {
                 post = Some(cam.post.clone());
                 spatial = Some((global.position, cam.look_at));
+                winners.0 = Some(entity);
             }
             if let Ok(cam) = world.get::<&Camera2d>(entity)
                 && cam.current
@@ -344,10 +344,12 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
                     cam.zoom,
                     cam.ambient,
                 ));
+                winners.1 = Some(entity);
             }
         }
-        (spatial, flat, post)
+        (spatial, flat, post, winners)
     };
+    announce_current(eng, winners);
     if let Some(post) = post {
         drive_post(eng, &post);
     }
@@ -376,6 +378,72 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
             config.zoom = zoom;
             config.changed = true;
         }
+    }
+}
+
+/// What a camera announces when it becomes the one drawn from, `true`, and
+/// when another takes over, `false`.
+pub(crate) const CURRENT_CHANGED_EVENT: &str = "current_changed";
+
+/// The 3D and the 2D camera drawn from last frame.
+#[derive(Default)]
+pub(crate) struct CurrentCameras {
+    spatial: Option<Entity>,
+    flat: Option<Entity>,
+}
+
+/// Tell a camera it became the one drawn from, and the one it took over from
+/// that it stopped being, per dimension.
+fn announce_current(eng: &Engine, (spatial, flat): (Option<Entity>, Option<Entity>)) {
+    let changes: Vec<(Entity, bool)> = {
+        let held = eng.resource::<CurrentCameras>();
+        let mut held = held.borrow_mut();
+        let held = &mut *held;
+        let mut changes = Vec::new();
+        for (was, now) in [(&mut held.spatial, spatial), (&mut held.flat, flat)] {
+            if *was != now {
+                changes.extend(was.map(|entity| (entity, false)));
+                changes.extend(now.map(|entity| (entity, true)));
+                *was = now;
+            }
+        }
+        changes
+    };
+    for (entity, current) in changes {
+        if eng.world().contains(entity) {
+            let payload = balaur_script::Value::Bool(current);
+            balaur_core::events::announce(eng, entity, CURRENT_CHANGED_EVENT, payload);
+        }
+    }
+}
+
+/// Every current camera in the tree, in tree order: the last one wins, and
+/// which came last is answered across both kinds.
+///
+/// Queried rather than walked, since a frame has a camera or two and the tree
+/// has thousands of nodes; the walk runs only when two cameras need ordering.
+fn current_cameras(world: &hecs::World, root: Entity) -> Vec<Entity> {
+    let mut current: Vec<Entity> = world
+        .query::<(Entity, &Camera3d)>()
+        .iter()
+        .filter(|(_, cam)| cam.current)
+        .map(|(e, _)| e)
+        .collect();
+    current.extend(
+        world
+            .query::<(Entity, &Camera2d)>()
+            .iter()
+            .filter(|(_, cam)| cam.current)
+            .map(|(e, _)| e),
+    );
+    match current.len() {
+        0 => current,
+        1 if balaur_core::scene::is_under(world, current[0], root) => current,
+        1 => Vec::new(),
+        _ => balaur_core::scene::collect_subtree(world, root)
+            .into_iter()
+            .filter(|e| current.contains(e))
+            .collect(),
     }
 }
 
@@ -474,13 +542,13 @@ fn camera3d_from_params(params: &toml::Value) -> Camera3d {
 /// The authored 2D camera a full property table describes.
 fn camera2d_from_params(params: &toml::Value) -> Camera2d {
     let zoom = params
-        .get(k::ZOOM)
+        .get(k::PIXELS_PER_UNIT)
         .and_then(balaur_core::components::as_f64)
         .unwrap_or(60.0) as f32;
     Camera2d {
         post: post_from_params(params),
         current: balaur_core::components::prop_bool(params, k::CURRENT),
-        ambient: color_from_params_named(params, k::AMBIENT),
+        ambient: color_from_params_named(params, k::AMBIENT_COLOR),
         zoom: zoom.max(MIN_ZOOM_2D),
     }
 }
@@ -577,12 +645,19 @@ fn post_to_map(post: &Post, map: &mut toml::map::Map<String, toml::Value>) {
 /// `kind`: a component's tags are what the editor files a node under, and a
 /// tag is per type while a kind would be per node -- so one component could
 /// only ever claim one dimension for both. Splitting also drops the property
-/// that was inert either way (`look_at` on a flat camera, `zoom` on a
-/// spatial one).
+/// that was inert either way (`look_at` on a flat camera, `pixels_per_unit`
+/// on a spatial one).
 pub(crate) fn register_camera_components(reg: &mut Registry<'_>) {
+    register_camera3d(reg);
+    register_camera2d(reg);
+}
+
+fn register_camera3d(reg: &mut Registry<'_>) {
     reg.register_component(
         "camera3d",
         ComponentDef {
+            events: &[(CURRENT_CHANGED_EVENT, "whether it is the camera drawn from now")],
+            warnings: None,
             doc: "The perspective camera the scene is drawn from. `look_at` aims it, and the last `current` camera wins.",
             schema: ComponentDef::parse_schema(
                 "camera3d",
@@ -632,16 +707,21 @@ pub(crate) fn register_camera_components(reg: &mut Registry<'_>) {
             }),
         },
     );
+}
+
+fn register_camera2d(reg: &mut Registry<'_>) {
     reg.register_component(
         "camera2d",
         ComponentDef {
-            doc: "The orthographic camera a flat scene is drawn from. `zoom` scales it, `ambient` lights every 2D surface, and the last `current` camera wins.",
+            events: &[(CURRENT_CHANGED_EVENT, "whether it is the camera drawn from now")],
+            warnings: None,
+            doc: "The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it, `ambient_color` lights every 2D surface, and the last `current` camera wins.",
             schema: ComponentDef::parse_schema(
                 "camera2d",
                 &[
                     balaur_core::components::ComponentDef::schema(&[
-                        (k::ZOOM, r#"{ type = "float", default = 60.0, min = 0.01, description = "Zoom in logical pixels per world unit" }"#),
-                        (k::AMBIENT, r#"{ type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "Light every 2D surface gets before any `light2d`" }"#),
+                        (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 60.0, min = 0.01, description = "Zoom in logical pixels per world unit" }"#),
+                        (k::AMBIENT_COLOR, r#"{ type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "Light every 2D surface gets before any `light2d`" }"#),
                     ]),
                     post_schema(),
                 ]
@@ -670,8 +750,8 @@ pub(crate) fn register_camera_components(reg: &mut Registry<'_>) {
                 let camera = world.get::<&Camera2d>(entity).ok()?;
                 let mut map = toml::map::Map::new();
                 map.insert(k::CURRENT.into(), toml::Value::Boolean(camera.current));
-                map.insert(k::ZOOM.into(), toml::Value::Float(f64::from(camera.zoom)));
-                map.insert(k::AMBIENT.into(), color_to_toml(camera.ambient));
+                map.insert(k::PIXELS_PER_UNIT.into(), toml::Value::Float(f64::from(camera.zoom)));
+                map.insert(k::AMBIENT_COLOR.into(), color_to_toml(camera.ambient));
                 post_to_map(&camera.post, &mut map);
                 Some(toml::Value::Table(map))
             }),

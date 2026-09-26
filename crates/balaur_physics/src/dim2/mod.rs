@@ -43,6 +43,10 @@ pub struct PhysicsState2d {
     pub world: PhysicsWorld2,
     pub bodies: DetHashMap<Entity, RigidBodyHandle2>,
     pub colliders: DetHashMap<Entity, Vec<ColliderHandle2>>,
+    /// Removed colliders by owner until the next step, as in 3D.
+    pub(crate) gone: DetHashMap<ColliderHandle2, crate::shared::events::Owner>,
+    /// Asleep after the last step, as in 3D.
+    pub(crate) asleep: balaur_core::collections::DetHashSet<Entity>,
     /// Whether the broad phase's tree matches the colliders, as in 3D.
     pub queries_ready: bool,
     /// Joints per entity, as in the 3D world.
@@ -61,7 +65,7 @@ pub struct PhysicsState2d {
     pub(crate) tile_colliders: DetHashMap<Entity, Vec<ColliderHandle2>>,
     pub joint_params: DetHashMap<Entity, toml::Value>,
     /// What the last `move_character` found under each character's feet, as
-    /// in 3D, so `is_grounded` reads rather than moves.
+    /// in 3D, so `is_on_floor` reads rather than moves.
     pub grounded: DetHashMap<Entity, bool>,
     pub paused: bool,
     /// Mirrors `PhysicsState3d::sleeping_allowed`; `physics.set_sleeping_allowed`
@@ -82,6 +86,8 @@ impl PhysicsState2d {
             world,
             bodies: DetHashMap::default(),
             colliders: DetHashMap::default(),
+            gone: DetHashMap::default(),
+            asleep: balaur_core::collections::DetHashSet::default(),
             queries_ready: false,
             joints: DetHashMap::default(),
             soft_bodies: DetHashMap::default(),
@@ -167,7 +173,7 @@ fn step_system(eng: &Engine, _dt: f32) {
         // The step rebuilds the broad phase itself, as in 3D; without this a
         // query after a collider was added rebuilds it a second time.
         state.queries_ready = true;
-        let collector = events::Collector::default();
+        let collector = events::Collector::after(std::mem::take(&mut state.gone));
         balaur_core::timings::measure(eng, "physics2d/step", || {
             state.world.step_with_events(&events::Hooks, &collector);
         });
@@ -186,18 +192,22 @@ fn step_system(eng: &Engine, _dt: f32) {
                 t.rotation = Quat::from_rotation_z(scalar::f32_of(body.rotation().angle()));
             }
         }
-        (collector.take(), joint::broken(state, &world))
+        (
+            collector.take(),
+            joint::broken(state, &world),
+            sleep_changes(state),
+        )
     };
     // Before the events, as in 3D: a tear handler reads the torn body's own
     // geometry, not the one it had before the tear.
     softbody::write_every_solved_polygon(eng);
     events::deliver(eng, &events.0);
     for entity in &events.1 {
+        let payload = joint::break_payload(&eng.resource::<PhysicsState2d>().borrow(), *entity);
         joint::remove_joint(eng, *entity);
-        if let Some(host) = eng.script_host() {
-            host.call_on(balaur_core::node_id_of(*entity), hook::ON_JOINT_BREAK, &[]);
-        }
+        balaur_core::events::announce(eng, *entity, hook::JOINT_BREAK, payload);
     }
+    announce_sleep(eng, &events.2);
 }
 
 pub fn clear(eng: &Engine) {
@@ -223,6 +233,7 @@ pub fn clear(eng: &Engine) {
     state.tile_colliders.clear();
     state.joint_params.clear();
     state.grounded.clear();
+    state.asleep.clear();
 }
 
 pub fn set_paused(eng: &Engine, paused: bool) {
@@ -267,6 +278,7 @@ pub fn build(reg: &mut Registry<'_>) -> Result<()> {
         query::install_physics2d_volume_query_api(&mut *m);
         query::install_physics2d_shape_query_api(&mut *m);
         query::install_physics2d_pair_query_api(&mut *m);
+        query::install_physics2d_world_list_api(&mut *m);
         joint::install_joint2d_api(&mut *m);
         softbody::install_softbody_api_2d(&mut *m);
         character::install_character2d_api(&mut *m);
@@ -470,17 +482,20 @@ fn build_physics2d_digest(reg: &mut Registry<'_>) {
         // deformable body has no one velocity, and a tear is a divergence
         // nothing else would report.
         for (&entity, &handle) in &state.soft_bodies {
-            let Some(body) = state.world.soft_bodies.get(handle) else {
-                continue;
-            };
+            // What tore off is the node's body as much as what it kept.
             let mut h = Hasher::new();
-            h.write(&body.topology_version().to_le_bytes());
-            for v in body.particle_velocities() {
-                for value in [v.x, v.y] {
-                    h.write_f64(f64::from(value));
+            for piece in crate::shared::softbody::Family::family(&state.world.soft_bodies, handle) {
+                let Some(body) = state.world.soft_bodies.get(piece) else {
+                    continue;
+                };
+                h.write(&body.topology_version().to_le_bytes());
+                for v in body.particle_velocities() {
+                    for value in [v.x, v.y] {
+                        h.write_f64(f64::from(value));
+                    }
                 }
+                h.write(&[u8::from(body.is_sleeping())]);
             }
-            h.write(&[u8::from(body.is_sleeping())]);
             out.push(Entry {
                 label: format!("{}/soft", node_label(&world, entity)),
                 digest: h.finish(),

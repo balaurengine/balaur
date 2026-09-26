@@ -11,11 +11,12 @@ pub(crate) fn document_engine(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.describe(&[
         ("time", &[], "()", "Seconds of engine time since the app started, accumulated as a float."),
         ("timings", &[], "()", "What the last frame cost, in seconds: `{ frame, fixed_steps, stages, spans }`. Presentation only: branching a `fixed_update` on wall time desyncs, and nothing records it."),
-        ("profile_scripts", &[], "(on)", "Start or stop counting what each script costs. Turning it on clears the tally."),
-        ("script_costs", &[], "()", "What each script has cost since `profile_scripts(true)`, dearest first: a list of `{ path, calls, instructions }`. Instructions, not seconds, so the number is the same on every machine."),
+        ("set_script_profiling", &[], "(on)", "Start or stop counting what each script costs. Turning it on clears the tally."),
+        ("script_costs", &[], "()", "What each script has cost since `set_script_profiling(true)`, dearest first: a list of `{ path, calls, instructions }`. Instructions, not seconds, so the number is the same on every machine."),
+        ("function_costs", &[], "()", "What each function has cost since `set_script_profiling(true)`, dearest first: a list of `{ function, calls, instructions }`, a function's own instructions without its callees'. A `draw` callback and a closure a native call runs are in it."),
         ("delta", &[], "()", "Seconds the frame in progress covers, the same number a system is handed."),
         ("tick", &[], "()", "Which frame this is, counted whole: what simulation code branches on instead of `time`."),
-        ("set_paused", &[], "(on: bool)", "Pause or resume the game. Every node whose `process` mode is `pausable` stops ticking, physics holds both worlds, and the frame loop keeps drawing; an `always` subtree is what a pause menu runs in. Every script's `on_paused(bool)` follows, the ones the pause just stopped included."),
+        ("set_paused", &[], "(on: bool)", "Pause or resume the game. Every node whose `process` mode is `pausable` stops ticking, physics holds both worlds, and the frame loop keeps drawing; an `always` subtree is what a pause menu runs in. Every script's `on_paused_changed(bool)` follows, the ones the pause just stopped included."),
         ("paused", &[], "()", "Whether the game is paused."),
         ("set_time_scale", &[], "(scale: float)", "Multiply wall-clock time before the simulation is owed it: 0.5 is slow motion, 2.0 fast forward, each still whole fixed steps. Zero stops time without stopping a single node. A replay and a networked session drive by tick and ignore it."),
         ("time_scale", &[], "()", "What time is being multiplied by; 1.0 is real time."),
@@ -24,18 +25,18 @@ pub(crate) fn document_engine(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("args", &[], "()", "The command-line arguments the app was started with, empty when it was given none."),
         ("environment", &[], "(name: string) -> string?", "An environment variable's value, nil when it is unset. Nil on the web, which has none. Outside the simulation, like `args`: a replay does not record it."),
         ("reload_script", &[], "(key: string)", "Recompile one script by its project-relative key, for a tool editing files outside the watched root."),
-        ("user_data_dir", &[], "()", "A writable per-user directory for saves and settings, created on first call and named after the project."),
-        ("user_data_dir_of", &[], "(project: string)", "The user data directory a project of that name has, not created: where a tool finds another game's saves and logs."),
+        ("user_data_directory", &[], "()", "A writable per-user directory for saves and settings, created on first call and named after the project."),
+        ("user_data_directory_of", &[], "(project: string)", "The user data directory a project of that name has, not created: where a tool finds another game's saves and logs."),
         ("open_url", &[], "(url: string)", "Open an http, https or mailto URL in whatever the player browses with: an opener on a desktop, a new tab on the web. Not on iOS or Android yet, where it reports that it has no opener. An effect on the world outside the game: never recorded, and it does nothing while a recording plays."),
         ("reveal", &[], "(path: string)", "Show a file or directory in the system file manager, selected where the platform can. Desktops only: neither a browser tab nor a phone has a file manager to ask. Never recorded, like `open_url`."),
         ("plugins", &[], "()", "Every plugin this build loaded, named, in load order."),
         ("has_plugin", &[], "(name: string)", "Whether one plugin loaded, so a game shipped without `http` can say so rather than call into a module that is not there."),
         ("plugin_version", &[], "(name: string)", "The version of one loaded plugin, or nil when it did not load."),
-        ("platform", &[], "()", "Where this runs: `{ os, web, mobile, touchscreen, editor, dev }`, `dev` being a run from the sources rather than an exported pack. Recorded in a session's header, so a replay on another machine answers as the original did."),
+        ("target", &[], "()", "Where this runs: `{ os, web, mobile, touchscreen, editor, dev }`, `dev` being a run from the sources rather than an exported pack. Recorded in a session's header, so a replay on another machine answers as the original did."),
         ("device_id", &[], "()", "One id per install, made on first use and kept in the user directory: what a device login sends. Recorded with the session."),
         ("unix_time", &[], "()", "The wall clock at the top of this tick, in seconds since 1970. Read once per frame and recorded, so a replay sees the time the recording saw."),
-        ("focused", &[], "()", "Whether the window is in front of the player this tick; every script's `on_focus_changed(bool)` is called when it changes. True with no window."),
-        ("dark_mode", &[], "()", "Whether the system is in dark mode this tick; every script's `on_dark_mode(bool)` is called when it changes. False where nothing says."),
+        ("focused", &[], "()", "Whether the window is in front of the player this tick; every script's `on_focused_changed(bool)` is called when it changes. True with no window."),
+        ("dark_mode", &[], "()", "Whether the system is in dark mode this tick; every script's `on_dark_mode_changed(bool)` is called when it changes. False where nothing says."),
     ]);
 }
 
@@ -83,14 +84,14 @@ pub(crate) fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("component_schema", &[], "(name: string)", "A component type's property schema as a table; nil for a name nothing registered."),
         ("component_properties", &[], "(name: string, params: any)", "What a component's `apply` would receive for `params`: the schema's defaults with a partial table merged over them. This is how a tool compares two spellings of the same component."),
         ("presets", &[], "()", "The names of every registered preset."),
-        ("preset_info", &[], "(name: string)", "A preset's description, tags and the components it adds; nil for a name nothing registered."),
+        ("preset_info", &[], "(name: string)", "A preset's `description`, `tags`, the `components` it adds, and `parts`: each component's own properties by name. Nil for a name nothing registered."),
         ("apply_preset", &[], "(node: node, name: string)", "Add every component a preset names to the node; a part that fails leaves the parts before it in place."),
-        ("unmet_expectations", &[], "(node: node)", "Components on the node whose expectations nothing satisfies, as `{ component, expects }`; advisory only."),
+        ("warnings", &[], "(node: node)", "What is off about the node, as `{ component, property, message }`: a component missing one it expects, a write its component refused, and what a component says of itself. `property` is nil for the whole component; advisory only."),
         ("variable", &[], "(name: string)", "A scene variable's value, or nil for a name nothing declared. A scene declares them under `[variables]`."),
         ("set_variable", &[], "(name: string, value: any)", "Write a scene variable, coerced to the type it was declared with. Every node declaring `on_variable_changed` hears about it at the end of the tick; writing the value it already holds says nothing."),
         ("variables", &[], "()", "Every declared variable as `{ name, type, value, persist }`, in name order."),
         ("switch", &[], "(path: string, options: map?)", "Replace the scene with another one at the end of this tick, so a script asking inside `update` is not freeing the tree it runs in. `fade` is seconds the renderer crosses over; reset is a switch to the same file."),
-        ("bindable_events", &[], "()", "Every event a `[[nodes.bindings.rows]]` row may answer, in the order an editor offers them."),
+        ("bindable_events", &[], "(node: node?)", "Every event a `[[nodes.bindings.rows]]` row may answer, in the order an editor offers them: the core hooks, and on a node the `emitted:` events it and its components announce."),
         ("binding_actions", &[], "()", "Every action a binding row may do, in the order an editor offers them."),
     ]);
 }
@@ -163,7 +164,7 @@ pub(crate) fn document_save(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("slots", &[], "()", "Every slot that has been written, in name order."),
         ("remove", &[], "(slot: string)", "Delete a slot. Not an error when it was not there."),
         ("version", &[], "()", "The save version this build writes, from `[save] version`."),
-        ("folder", &[], "()", "The directory slots are kept in, not created until something is written."),
+        ("directory", &[], "()", "The directory slots are kept in, not created until something is written."),
     ]);
 }
 
@@ -182,13 +183,13 @@ pub(crate) fn document_log(m: &mut dyn balaur_script::Bindings<Engine>) {
     ]);
 }
 
-pub(crate) fn document_rng(m: &mut dyn balaur_script::Bindings<Engine>) {
+pub(crate) fn document_random(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.module_doc(
         "The engine's one deterministic PCG32 stream: the same seed draws the same numbers on every platform, and a replay reproduces every draw.",
     );
     m.describe(&[
         ("seed", &[], "(seed: int)", "Restart the deterministic engine stream at the given seed, so every draw after it repeats."),
-        ("random", &[], "()", "A float from the deterministic engine stream, uniform in `[0, 1)`."),
+        ("float", &[], "()", "A float from the deterministic engine stream, uniform in `[0, 1)`."),
         ("uuid", &[], "()", "A version-4 UUID drawn from the deterministic engine stream, so a replay makes the same ids; not for anything that must be unique across machines."),
         ("range", &[], "(low: float, high: float)", "A float from the deterministic engine stream, uniform in `[low, high)`: the two arguments."),
         ("int", &[], "(low: int, high: int)", "A whole number from the deterministic engine stream, uniform in `[low, high]`, both ends included."),
@@ -205,10 +206,10 @@ pub(crate) fn document_fs(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("exists", &[], "(path: string)", "Whether a project-relative path has anything at it, file or directory."),
         ("list", &[], "(path: string)", "A directory's entries as `{ name, is_dir }`, sorted, dotfiles skipped; empty for a directory that is not there."),
         ("remove", &[], "(path: string)", "Delete a project-relative file, or a directory and everything under it; false when there was nothing there."),
-        ("mkdir", &[], "(path: string)", "Create a project-relative directory and every parent it needs."),
+        ("create_directory", &[], "(path: string)", "Create a project-relative directory and every parent it needs."),
         ("rename", &[], "(from: string, to: string)", "Move a project-relative file or directory, creating the destination's parent first."),
         ("copy", &[], "(from: string, to: string)", "Copy a file byte for byte, creating the destination's parent first. What `read` and `write` cannot do for an image or a model."),
-        ("mtime", &[], "(path: string)", "When a file last changed, in seconds since the Unix epoch; nil for one that is not there."),
+        ("modified_time", &[], "(path: string)", "When a file last changed, in seconds since the Unix epoch; nil for one that is not there."),
     ]);
 }
 

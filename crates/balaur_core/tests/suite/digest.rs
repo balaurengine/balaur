@@ -116,6 +116,8 @@ fn app_with_dial() -> App {
     app.register_component(
         "dial",
         balaur_core::components::ComponentDef {
+            events: &[],
+            warnings: None,
             doc: "",
             schema: balaur_core::components::ComponentDef::parse_schema(
                 "dial",

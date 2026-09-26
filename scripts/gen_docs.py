@@ -113,12 +113,12 @@ WEB_HEAVY = ["egui", "wgpu", "image", "rodio", "rapier3d", "parry3d", "cosmic-te
 NOTABLE = ["kiss3d", "wgpu", "naga", "winit", "egui-wgpu", "glow", "image", "exr", "rodio", "cpal", "symphonia", "quinn"]
 
 
-def web_template_features():
-    """The feature set scripts/package_template.sh builds the web template with."""
-    text = (ROOT / "scripts" / "package_template.sh").read_text()
+def web_runtime_features():
+    """The feature set scripts/package_runtime.sh builds the web runtime with."""
+    text = (ROOT / "scripts" / "package_runtime.sh").read_text()
     m = re.search(r"WEB_FEATURES:-([a-z0-9_,]+)", text)
     if not m:
-        raise SystemExit("scripts/package_template.sh no longer names WEB_FEATURES")
+        raise SystemExit("scripts/package_runtime.sh no longer names WEB_FEATURES")
     return m.group(1).split(",")
 
 
@@ -171,7 +171,7 @@ def mdx_safe(text):
 
 
 def gen_features(crates):
-    template = web_template_features()
+    template = web_runtime_features()
     cli = crates["balaur_cli"]
     docs = feature_docs(crates["balaur"]["manifest"])
     docs.update({k: v for k, v in feature_docs(cli["manifest"]).items() if k not in docs})
@@ -185,18 +185,18 @@ def gen_features(crates):
             lambda n: web_crates([m for m in names if m != n]), names)))
     body = (
         "# Features and the web build\n\n"
-        "The cargo features of `balaur_cli`, the binary every runtime template is built\n"
+        "The cargo features of `balaur_cli`, the binary every runtime is built\n"
         f"from, and what each adds to a `{WEB_TARGET}` build. A feature's native\n"
         "dependencies are gated off that target, so `http` or `websocket` costs a browser\n"
         "build only the plugin's own code; the two that matter there are `audio` and\n"
         "`window`.\n\n"
-        f"The web template (`scripts/package_template.sh web`) is built with\n"
+        f"The web runtime (`scripts/package_runtime.sh web`) is built with\n"
         f"`--no-default-features --features {','.join(template)}` and links {len(linked)} crates.\n"
-        "Override the set with `WEB_FEATURES=... scripts/package_template.sh web`.\n\n"
-        "`WEB_THREADS=1` builds the second template, which adds `parallel` to that\n"
+        "Override the set with `WEB_FEATURES=... scripts/package_runtime.sh web`.\n\n"
+        "`WEB_THREADS=1` builds the second runtime, which adds `parallel` to that\n"
         "set: rapier's solver threads on rayon, which needs the shared memory and\n"
         "atomics only that build has.\n\n"
-        "| Feature | Default | Web template | What it is | Adds to a web build |\n"
+        "| Feature | Default | Web runtime | What it is | Adds to a web build |\n"
         "| --- | --- | --- | --- | --- |\n"
     )
     for name in names:
@@ -208,7 +208,7 @@ def gen_features(crates):
             f"| {mdx_safe(docs.get(name, ''))} | {shown or 'nothing'} |\n"
         )
     body += (
-        "\n## What the web template resolves\n\n"
+        "\n## What the web runtime resolves\n\n"
         "The features on in the dependencies that weigh most. A feature named here is\n"
         "enabled; whether it links code on the web is up to that crate's own target\n"
         "gates (`winit`'s X11 is on and compiles nothing in a browser).\n\n"
@@ -220,7 +220,7 @@ def gen_features(crates):
             lambda c: resolved_features(template, c, linked[c]), heavy)))
     for crate in WEB_HEAVY:
         if crate not in linked:
-            body += f"| `{crate}` | — | not in the template |\n"
+            body += f"| `{crate}` | — | not in the runtime |\n"
             continue
         on = resolved[crate]
         body += f"| `{crate}` | {linked[crate]} | {', '.join(f'`{f}`' for f in on) or 'none'} |\n"
@@ -251,6 +251,13 @@ def gen_script_api(api, owners):
                 body += f"\n…and {len(m['constants']) - len(shown)} more.\n"
             body += "\n"
     return body
+
+
+def code_spans(text):
+    """Backtick spans as <code> and the rest escaped: a cell in an HTML table
+    renders no markdown."""
+    parts = text.split("`")
+    return "".join(f"<code>{html.escape(p)}</code>" if i % 2 else html.escape(p) for i, p in enumerate(parts))
 
 
 def component_row(prop, spec):
@@ -335,10 +342,16 @@ def component_methods(api):
 
 
 def bound_signature(signature):
-    """The signature as the handle takes it: the node is already bound."""
+    """The signature as the handle takes it: the node is already bound.
+
+    A binding of one argument spells it bare, `NodeId -> f32`, with no
+    parentheses to strip.
+    """
     for prefix, rest in (("(NodeId, ", "("), ("(NodeId)", "()")):
         if signature.startswith(prefix):
             return rest + signature[len(prefix) :]
+    if signature == "NodeId" or signature.startswith("NodeId -> "):
+        return "()" + signature[len("NodeId") :]
     return signature
 
 
@@ -355,7 +368,7 @@ def method_row(module, function, signature, doc):
     return "<tr>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>"
 
 
-def gen_components(components, tags, docs=None, methods=None):
+def gen_components(components, tags, docs=None, methods=None, events=None):
     out = [
         "# Components\n\n",
         "Balaur has no node classes and no inheritance tree: every node is the\n"
@@ -379,6 +392,11 @@ def gen_components(components, tags, docs=None, methods=None):
         "below are the functions that declared they act on it. Every handle also\n"
         "carries `get()`, `set(table)`, `has()` and `remove()`, so a component\n"
         "with no methods of its own is still reachable that way.\n\n"
+        "**Events.** What a component announces from its node reaches the\n"
+        "node's own `on_<name>(payload)`, an `emitted:<name>` row in\n"
+        "`[[nodes.bindings.rows]]`, `events::listen` and\n"
+        "`task::wait(events::next(name, node))`. The collision pair keeps\n"
+        "its row spelling without the prefix.\n\n"
         "**Properties.** Every property in the tables below is also a field on\n"
         "that handle, so `node.collider3d.density = 15.0` writes one property\n"
         "and leaves the rest where they were, and `node.collider3d.density`\n"
@@ -413,6 +431,17 @@ def gen_components(components, tags, docs=None, methods=None):
                 + "<table>\n<thead><tr><th>property</th><th>type</th><th>default</th>"
                 f"<th>description</th></tr></thead>\n<tbody>\n{rows}\n</tbody>\n</table>\n\n"
             )
+            sent = (events or {}).get(name, [])
+            if sent:
+                listed = "\n".join(
+                    f"<tr><td><code>{html.escape(event)}</code></td><td>{code_spans(payload)}</td></tr>"
+                    for event, payload in sent
+                )
+                out.append(
+                    f"Announced from a node carrying `{name}`:\n\n"
+                    "<table>\n<thead><tr><th>event</th><th>payload</th></tr></thead>\n"
+                    f"<tbody>\n{listed}\n</tbody>\n</table>\n\n"
+                )
             if calls:
                 body = "\n".join(method_row(*call) for call in calls)
                 out.append(
@@ -524,8 +553,8 @@ def gen_assets(asset_types, functions, components):
         "| `scale` | a number | `1` | Pixels per unit when an SVG is rasterized. A raster ignores it. |\n"
         "| `pixels_per_unit` | a number | `100` | Texture pixels to one world unit, for a sprite whose own `pixels_per_unit` is `0`. |\n"
         "| `size` | `[width, height]` | the file's own | The pixels the image was drawn at, when a smaller copy shipped in its place. Written by an export that folds a variant or caps it at `max_size`; a sprite, a sheet and a tile measure by it. |\n"
-        "| `recode` | `keep`, `webp`, `quantised` | `[export] images` | How an export re-encodes this file alone. `keep` also exempts it from `max_size`. |\n"
-        "| `quality` | `0` to `100` | `[export] images_quality` | The palette's quality when this file is quantised. |\n\n"
+        "| `recode` | `original`, `webp`, `quantized` | `[export] image_recode` | How an export re-encodes this file alone. `original` also exempts it from `max_size`. |\n"
+        "| `quality` | `0` to `100` | `[export] image_quality` | The palette's quality when this file is quantized. |\n\n"
         "A value nothing knows reads as the default rather than refusing the\n"
         "texture, because a settings file is written by hand. `anisotropy`\n"
         "above `1` is dropped with a warning when a filter is `nearest`, which\n"
@@ -534,17 +563,17 @@ def gen_assets(asset_types, functions, components):
         "straight. The UI draws a picture with the same filter and wrap.\n\n"
         "### Audio keys\n\n"
         "| Key | Values | Default | What it does |\n| --- | --- | --- | --- |\n"
-        "| `volume` | a number | `1` | The file's own level, multiplied into every play of it. A handle's volume of `1` is this level. |\n"
+        "| `volume_linear` | a number | `1` | The file's own level, multiplied into every play of it. A handle's volume of `1` is this level. |\n"
         "| `loop` | `true`, `false` | `false` | Loop the file wherever it is played, whatever the caller asked. |\n"
         "| `loop_offset` | seconds | `0` | Where each repeat starts, so an intro plays once. |\n"
-        "| `mono` | `true`, `false` | `false` | Mix a WAV to one channel at export. |\n"
-        "| `max_rate` | Hz | `0` | The highest sample rate a WAV ships at, resampled at export; `0` keeps its own. |\n"
-        "| `recode` | `keep`, `flac`, `vorbis` | `[export] audio` | How an export re-encodes this file alone. |\n"
+        "| `force_mono` | `true`, `false` | `false` | Mix a WAV to one channel at export. |\n"
+        "| `max_rate_hz` | Hz | `0` | The highest sample rate a WAV ships at, resampled at export; `0` keeps its own. |\n"
+        "| `recode` | `original`, `flac`, `vorbis` | `[export] audio_recode` | How an export re-encodes this file alone. |\n"
         "| `quality` | `-0.1` to `1` | `[export] audio_quality` | libvorbis's quality when this file is re-encoded as Vorbis. |\n\n"
         "### Font keys\n\n"
         "A project's own faces under `fonts/` read these; the UI applies them.\n\n"
         "| Key | Values | Default | What it does |\n| --- | --- | --- | --- |\n"
-        "| `family` | `ui`, `heading`, `mono`, `icons` | the file name's prefix | The family this face joins. |\n"
+        "| `family` | `ui`, `heading`, `mono`, `icon` | the file name's prefix | The family this face joins. |\n"
         "| `scale` | a number | `1` | How large its glyphs are drawn, without moving the layout. |\n"
         "| `y_offset` | a fraction of the size | `0` | A nudge down, for a face that sits high in its line. |\n"
         "| `hinting` | `true`, `false` | the UI's own | Snap outlines to the pixel grid. |\n"
@@ -575,7 +604,7 @@ def gen_assets(asset_types, functions, components):
         "Set it per target under `[override.<tag>.export]`, so a phone ships a\n"
         "smaller art set than a desktop. A capped image records its original\n"
         "`size`, so a sprite keeps its extent. Pixel art, a bitmap font's page\n"
-        "and a file with `recode = \"keep\"` are never capped.\n\n"
+        "and a file with `recode = \"original\"` are never capped.\n\n"
         "A file beside its variant, `hero.png` and `hero.web.png`, ships\n"
         "whichever the target answers to under the first name. `balaur shrink`\n"
         "writes such copies.\n\n"
@@ -599,6 +628,34 @@ def gen_assets(asset_types, functions, components):
         "entry is caught rather than handed on.\n"
     )
     return "".join(out)
+
+
+def gen_hooks(api):
+    """Every method the engine calls on a script by name, from the table in
+    `balaur_core::hooks`."""
+    rows = "\n".join(
+        f"<tr><td><code>{html.escape(name)}{html.escape(args)}</code></td><td>{code_spans(doc)}</td></tr>"
+        for name, args, doc in api.get("hooks", [])
+    )
+    events = "\n".join(
+        f"<tr><td><code>{html.escape(name)}</code></td><td>{code_spans(payload)}</td></tr>"
+        for name, payload in api.get("node_events", [])
+    )
+    return (
+        "# Hooks\n\n"
+        "The methods the engine calls on a node's script by name. Each takes the\n"
+        "instance first, `pub fn update(this, dt)`, and a script declares only the\n"
+        "ones it wants. What a component announces is listed with the component in\n"
+        "[components.md](./components.md).\n\n"
+        "<table>\n<thead><tr><th>hook</th><th>when</th></tr></thead>\n"
+        f"<tbody>\n{rows}\n</tbody>\n</table>\n\n"
+        "## Every node\n\n"
+        "Every node announces these, whatever its components: its own script hears\n"
+        "`on_<event>(this, payload)`, a scene row answers `emitted:<event>`, and\n"
+        "`events::listen` hears it at the next pump.\n\n"
+        "<table>\n<thead><tr><th>event</th><th>payload</th></tr></thead>\n"
+        f"<tbody>\n{events}\n</tbody>\n</table>\n"
+    )
 
 
 def gen_script_types(api):
@@ -635,11 +692,13 @@ def main():
         "crate-graph.md": gen_graph(crates),
         "script-api.md": gen_script_api(api, owners),
         "script-types.md": gen_script_types(api),
+        "hooks.md": gen_hooks(api),
         "components.md": gen_components(
             api.get("components", {}),
             api.get("component_tags", {}),
             api.get("component_docs", {}),
             component_methods(api),
+            api.get("component_events", {}),
         ),
         "assets.md": gen_assets(
             api.get("asset_types", {}),

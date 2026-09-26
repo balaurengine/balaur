@@ -106,7 +106,7 @@ pub(crate) fn shipped_size_of(eng: &crate::Engine, reference: &str) -> Result<(u
 /// packed game has no times to read, and its textures are uploaded once.
 /// The settings ride in the name too, so changing one image's filter
 /// re-uploads that image and leaves every other one alone.
-#[cfg(any(feature = "kiss3d", test))]
+#[cfg(any(feature = "window", test))]
 pub(crate) fn upload_name(path: &str, stamp: Option<f64>, settings: &str) -> String {
     let mut name = match stamp {
         Some(seconds) => format!("{path}#{:x}", seconds.to_bits()),
@@ -125,7 +125,7 @@ pub(crate) fn upload_name(path: &str, stamp: Option<f64>, settings: &str) -> Str
 /// The same image straight is a different upload, so a mesh and a sprite
 /// naming one premultiplied file each get their own rather than sharing
 /// whichever was drawn first.
-#[cfg(any(feature = "kiss3d", test))]
+#[cfg(any(feature = "window", test))]
 pub(crate) fn upload_stamp(settings: &str, premultiply: bool) -> String {
     if premultiply {
         return settings.to_string();
@@ -133,7 +133,7 @@ pub(crate) fn upload_stamp(settings: &str, premultiply: bool) -> String {
     format!("{settings}s")
 }
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod windowed {
     use std::sync::Arc;
 
@@ -279,7 +279,7 @@ mod windowed {
     }
 }
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) use windowed::{PREMULTIPLY_DROPPED, attach_texture_2d, attach_texture_3d, upload};
 
 #[cfg(test)]

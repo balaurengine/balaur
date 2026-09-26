@@ -49,7 +49,7 @@ balaur_plugin = { path = "crates/balaur_plugin", version = "0.2.0" }
 balaur_script = { path = "crates/balaur_script", version = "0.2.0" }
 balaur_script_rune = { path = "crates/balaur_script_rune", version = "0.2.0" }
 balaur_physics = { path = "crates/balaur_physics", version = "0.2.0", default-features = false }
-balaur_anim = { path = "crates/balaur_anim", version = "0.2.0" }
+balaur_animation = { path = "crates/balaur_animation", version = "0.2.0" }
 balaur_render = { path = "crates/balaur_render", version = "0.2.0" }
 balaur_audio = { path = "crates/balaur_audio", version = "0.2.0" }
 balaur_input = { path = "crates/balaur_input", version = "0.2.0" }
@@ -58,7 +58,7 @@ balaur_websocket = { path = "crates/balaur_websocket", version = "0.2.0" }
 balaur_webtransport = { path = "crates/balaur_webtransport", version = "0.2.0" }
 balaur_gamend = { path = "crates/balaur_gamend", version = "0.2.0" }
 balaur_multiplayer = { path = "crates/balaur_multiplayer", version = "0.2.0", default-features = false }
-balaur_web = { path = "crates/balaur_web", version = "0.2.0" }
+balaur_browser = { path = "crates/balaur_browser", version = "0.2.0" }
 balaur_platform = { path = "crates/balaur_platform", version = "0.2.0" }
 balaur_apple = { path = "crates/balaur_apple", version = "0.2.0" }
 balaur_import = { path = "crates/balaur_import", version = "0.2.0" }
@@ -76,8 +76,8 @@ notify = "8"
 # `parallel` is added per target in balaur_physics: it threads the solver on
 # rayon, which no wasm build can block on. rapier compiles that pipeline only
 # without `unsync-callbacks`, so the hooks in balaur_physics hold no `Engine`.
-rapier3d = { version = "0.36", features = ["enhanced-determinism", "serde-serialize", "debug-render"] }
-rapier2d = { version = "0.36", features = ["enhanced-determinism", "serde-serialize", "debug-render"] }
+rapier3d = { version = "0.36", features = ["enhanced-determinism", "serde-serialize", "debug-render", "fem"] }
+rapier2d = { version = "0.36", features = ["enhanced-determinism", "serde-serialize", "debug-render", "fem"] }
 serde = { version = "1", features = ["derive"] }
 bincode = { version = "2", features = ["serde"] }
 serde_json = "1"
@@ -86,7 +86,7 @@ anyhow = "1"
 # `serde` so the deterministic collections inside a recorded snapshot
 # serialize in their insertion order, which is the order that matters.
 indexmap = { version = "2", features = ["serde"] }
-smallvec = "1"
+smallvec = "1.16.2"
 smol_str = "0.3"
 egui = "0.36"
 # The widget tree's layout: retained flexbox, so rects are decided before

@@ -14,16 +14,16 @@ BUNDLETOOL=1.18.3
 dist=$(mkdir -p "${DIST:-dist}" && cd "${DIST:-dist}" && pwd)
 work="$dist/export-$platform"
 rm -rf "$work"
-mkdir -p "$work/templates"
+mkdir -p "$work/runtimes"
 
 step() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 fail() { printf '::error::%s\n' "$1"; exit 1; }
 
 step "unpack the template"
-archive="$dist/balaur-template-$platform.tar.gz"
+archive="$dist/balaur-runtime-$platform.tar.gz"
 [ -f "$archive" ] || fail "no $archive — did the template build upload it?"
-tar -xzf "$archive" -C "$work/templates"
-ls "$work/templates"
+tar -xzf "$archive" -C "$work/runtimes"
+ls "$work/runtimes"
 
 step "build the exporter"
 # Headless: exporting compiles scripts and copies files, and never opens a
@@ -40,20 +40,20 @@ if [ "$platform" = ios ]; then
 
 [apple]
 bundle_id = "org.balaur.example"
-team = "AB12CD34EF"
-min_os = "15.0"
-capabilities = ["applesignin", "game-center", "icloud-kv", "in-app-purchase"]
+team_id = "AB12CD34EF"
+min_ios = "15.0"
+capabilities = ["sign-in-with-apple", "game-center", "icloud-kv", "in-app-purchase"]
 
 [apple.plist]
 ITSAppUsesNonExemptEncryption = false
 TOML
 fi
-# `--apk` and `--aab` on Android: the exporter assembles and signs both, so a
+# `--bundle apk` and `--bundle aab` on Android: the exporter assembles and signs both, so a
 # game built in the editor and one built here take the same path. A string,
 # not an array: `"${empty[@]}"` is unbound under `set -u` on bash 3.2.
 apk=""
 if [ "$platform" = android ]; then
-  apk="--apk --aab"
+  apk="--bundle apk --bundle aab"
   # Google ships bundletool apart from the SDK, so the runner has no copy.
   # Pinned by hash: the AAB this proves is the one that jar produces.
   step "bundletool"
@@ -63,10 +63,10 @@ if [ "$platform" = android ]; then
     https://github.com/google/bundletool/releases/download/$BUNDLETOOL/bundletool-all-$BUNDLETOOL.jar
   got=$(shasum -a 256 "$jar" | cut -d' ' -f1)
   [ "$got" = "$want" ] || fail "bundletool.jar is $got, not the pinned $want"
-  export BALAUR_BUNDLETOOL="$jar"
+  export BALAUR_ANDROID_BUNDLETOOL="$jar"
 fi
 # shellcheck disable=SC2086
-(cd "$work" && BALAUR_TEMPLATES="$work/templates" \
+(cd "$work" && BALAUR_RUNTIMES="$work/runtimes" \
   "$balaur" export project --target "$platform" $apk)
 
 case $platform in
@@ -118,7 +118,7 @@ android)
   grep -q 'package="org.balaur.project"' "$layout/AndroidManifest.xml" ||
     fail "the manifest still names the template, not the game"
   apk="$work/project-android.apk"
-  [ -f "$apk" ] || fail "--apk assembled nothing at $apk"
+  [ -f "$apk" ] || fail "--bundle apk assembled nothing at $apk"
   # The pack has to survive zipping, or the game launches to nothing.
   unzip -l "$apk" | grep -q 'assets/game.bpak' ||
     fail "the assembled APK does not contain assets/game.bpak"
@@ -133,8 +133,8 @@ android)
   # The AAB is what Play takes, and the half an APK cannot prove: bundletool
   # has to accept it, and splitting it has to give one APK per ABI.
   aab="$work/project-android.aab"
-  [ -f "$aab" ] || fail "--aab bundled nothing at $aab"
-  java -jar "$BALAUR_BUNDLETOOL" build-apks --bundle="$aab" \
+  [ -f "$aab" ] || fail "--bundle aab bundled nothing at $aab"
+  java -jar "$BALAUR_ANDROID_BUNDLETOOL" build-apks --bundle="$aab" \
     --output="$work/split.apks" --overwrite ||
     fail "bundletool would not split the AAB"
   for abi in arm64_v8a armeabi_v7a x86 x86_64; do

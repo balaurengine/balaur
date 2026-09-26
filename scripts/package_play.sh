@@ -11,8 +11,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 dist=$(mkdir -p "${DIST:-dist}" && cd "${DIST:-dist}" && pwd)
 
-# The game template's features plus the importers, which is the difference.
-EDITOR_WEB_FEATURES=${EDITOR_WEB_FEATURES:-audio,http,websocket,webtransport,gamend,multiplayer,web,window,import}
+# The game runtime's features plus the importers, which is the difference.
+EDITOR_WEB_FEATURES=${EDITOR_WEB_FEATURES:-audio,http,websocket,webtransport,gamend,multiplayer,browser,window,import}
 
 step() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 fail() { printf '::error::%s\n' "$1"; exit 1; }
@@ -36,13 +36,13 @@ fi
 [ -x "$balaur" ] || fail "$balaur is not executable"
 "$balaur" --version
 
-# Its own module, not the game template's: the editor imports, a game does not.
+# Its own module, not the game runtime's: the editor imports, a game does not.
 step "the editor's web module"
 module=${EDITOR_MODULE:-}
 if [ -z "$module" ]; then
   module="$dist/editor-module"
   DIST="$module" WEB_FEATURES="$EDITOR_WEB_FEATURES" WEB_VARIANT=editor \
-    ./scripts/package_template.sh web
+    ./scripts/package_runtime.sh web
 fi
 for f in balaur.js balaur_bg.wasm; do
   [ -s "$module/$f" ] || fail "no $module/$f — set EDITOR_MODULE to a directory holding one, or let this build it"
@@ -67,7 +67,7 @@ done
 [ ${#packs[@]} -gt 1 ] || fail "only ${#packs[@]} project(s) packed; the examples were not found"
 cp "$module/balaur.js" "$module/balaur_bg.wasm" "$out/"
 # wasm-bindgen emits `inline_js` beside the glue and balaur.js imports it by
-# relative path, so it travels with them -- as package_template.sh already
+# relative path, so it travels with them -- as package_runtime.sh already
 # does. Without it the module 404s and every pack draws a flat canvas.
 extra=()
 if [ -d "$module/snippets" ]; then

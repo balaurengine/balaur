@@ -45,30 +45,30 @@ Registered by plugins, so this list is whatever the build contains.
 Each type says where its files live, which component properties take
 it, and what a definition table holds.
 
-### `animation_clip`
+### `animation_library`
 
 Files: `animations/`. Used by: `animation.library`.
 
-A clip keys node properties over time. `loop` is `none`, `loop` or `pingpong`; each track names a `target`, a `property`, an `interp` and its `keys`.
+A library holds clips, and a clip keys node properties over time. `loop_mode` is `none`, `linear` or `pingpong`; each track names a `target`, a `property`, an `interpolation` and its `keys`.
 
 ```toml
-type = "animation_clip"
+type = "animation_library"
 
 [clips.patrol]           # one clip per file, or several, addressed as file.toml#patrol
 length = 4.0             # seconds; left out, the clip ends at its last key
-loop = "pingpong"        # none, loop or pingpong
+loop_mode = "pingpong"   # none, linear or pingpong
 
 [[clips.patrol.tracks]]
 target = ""              # node path relative to the playing node; empty is that node
 property = "position"    # rotation_euler, rotation, scale, visible, tint or <component>/<property>
-interp = "linear"        # step, linear or cubic
+interpolation = "linear" # step, linear or cubic
 keys = [
-  { t = 0.0, value = [-2.5, 0.25, -2.0] },
-  { t = 4.0, value = [-2.5, 0.25, 2.0], ease = "in_out_sine" },
+  { time = 0.0, value = [-2.5, 0.25, -2.0] },
+  { time = 4.0, value = [-2.5, 0.25, 2.0], ease = "in_out_sine" },
 ]
 
 [[clips.patrol.tracks]]  # no property: a method track, each key a call on the node's script
-keys = [{ t = 2.0, call = "on_halfway" }]
+keys = [{ time = 2.0, call = "on_halfway" }]
 ```
 
 ### `bone_map`
@@ -90,7 +90,7 @@ Head = "Armature/Hips/Spine/Neck/Head"
 
 ### `heightfield`
 
-Files: `terrain/`. Used by: `collider2d.heightfield`, `collider3d.heightfield`.
+Files: `heightfields/`. Used by: `collider2d.heightfield`, `collider3d.heightfield`.
 
 A grid of heights for terrain: `rows` by `columns` samples in `heights`, row-major, one value per grid point.
 
@@ -241,7 +241,7 @@ rect = [8, 4, 16, 28]
 
 Files: `animations/`. Used by: `state_machine.machine`.
 
-Switches an animation player between clips. `start` is the first state, `[states]` maps states to clips or to nested machines, each `[[transitions]]` entry names `from`, `to`, `fade`, `ease` or `fade_curve`, `advance`, `switch`, `condition`, `check`, `priority`, `reset` and `break_loop`. A transition to `end` stops the machine until a travel or a jump.
+Switches an animation player between clips. `start` is the first state, `[states]` maps states to clips or to nested machines, each `[[transitions]]` entry names `from`, `to`, `blend_time`, `ease` or `blend_curve`, `advance_mode`, `switch_mode`, `condition`, `check`, `priority`, `reset` and `break_loop_at_end`. A transition to `end` stops the machine until a travel or a jump.
 
 ```toml
 type = "state_machine"
@@ -257,20 +257,20 @@ states = { walk = "", run = "run_cycle" }
 [[transitions]]
 from = "idle"
 to = "move"                      # entering a nested machine enters its start
-fade = 0.2                       # seconds
-ease = "in_out_sine"             # the curve the fade follows; linear by default
-advance = "auto"                 # disabled, enabled (fires on animation.travel) or auto
-switch = "immediate"             # immediate, sync (keeps the playhead) or at_end
+blend_time = 0.2                 # seconds
+ease = "in_out_sine"             # the curve the blend follows; linear by default
+advance_mode = "auto"            # disabled, enabled (fires on animation.travel) or auto
+switch_mode = "immediate"        # immediate, sync (keeps the playhead) or at_end
 condition = "moving"             # turned on by animation.set_condition
 check = "can_move"               # a script method that has to answer true, asked each frame
 priority = 1                     # lower wins among auto transitions and on travel
 reset = true                     # false resumes where the state was last left
-break_loop = false               # true holds a looping clip's end while it fades out
+break_loop_at_end = false        # true holds a looping clip's end while it blends out
 
 [[transitions]]
 from = "move"                    # leaves from any state inside the nested machine
 to = "end"
-fade_curve = [[0.0, 0.0], [0.3, 0.8], [1.0, 1.0]]   # [u, weight] points, in place of ease
+blend_curve = [[0.0, 0.0], [0.3, 0.8], [1.0, 1.0]]   # [u, weight] points, in place of ease
 ```
 
 ### `texture`
@@ -290,7 +290,7 @@ pixels_per_unit = 32
 
 Files: `tilesets/`. Used by: `tilemap.tileset`.
 
-An image cut into equal tiles for `tilemap`: `texture`, `tile_size` in pixels and `columns` per row. `[tiles.<id>]` gives a tile `collision`; `[[terrains]]` auto-tiles by `mode`.
+An image cut into equal tiles for `tilemap`: `texture`, `tile_size` in pixels and `columns` per row. `[tiles.<id>]` gives a tile `collision`; `[[terrains]]` auto-tiles by `kind`.
 
 ```toml
 type = "tileset"
@@ -310,14 +310,14 @@ one_way = true                   # a platform a body passes through from below
 [[terrains]]                     # paints by value and picks the tiles
 name = "grass"
 value = 1
-mode = "quarters"                # rules, sides, corners, corners_and_sides or quarters
+kind = "quarters"                # rules, sides, corners, corners_and_sides or quarters
 first_tile = 16
 # quarters = [fill, horizontal edge, vertical edge, outer corner, inner corner] tile ids, when they do not follow first_tile
 ```
 
 ### `voxels`
 
-Files: `terrain/`. Used by: `collider2d.voxels`, `collider3d.voxels`.
+Files: `voxels/`. Used by: `collider2d.voxels`, `collider3d.voxels`.
 
 A voxel grid for a collider: `size` is one cell in world units, `cells` the filled coordinates. `physics3d.set_voxel` adds or removes a cell.
 
@@ -333,52 +333,66 @@ cells = [[0, 0, 0], [0, 1, 0], [0, 2, 0]]   # signed coordinates
 
 Files: `themes/`. Used by: `widget.theme`.
 
-How each widget kind is drawn, one table per kind. `[colors]` names shared fills and `[roles.<name>]` is a look a widget picks with `role`.
+How each widget kind is drawn, one table per kind. `[colors]` and `[sizes]` hold the tokens every table may name, and `[roles.<name>]` is a look a widget picks with `role`. Seven source colours and four sizes derive every other token; a token the file states wins.
 
 ```toml
 type = "widget_theme"            # a widget takes the theme of the nearest ancestor naming one
 
-[colors]                         # named fills the rest of the file may use
-ink = "#1b1b1b"
-sky = "#3aa0ff"
-link = "#3aa0ff"                 # what a `[url]` span in markup text is drawn in
-row_on = "#2f6fb0"               # a picked row of a `list`, `tree` or `table`
-row_on_color = "#ffffff"         # and the ink on it
-row_hover = "#ffffff12"          # what a row takes under the pointer; `row_press` while held
+[colors]                         # the sources; bg_panel, text_muted, primary_fill, ... derive from them
+background = "#151f2a"           # dark or light follows from it; `dark = true` overrides
+foreground = "#e6e9ee"
+primary = "#4287cc"              # also secondary, success, warning, danger
+contrast = 0.05                  # how far apart the surfaces step
+row_selected = "#2f6fb0"         # a picked row of a `list`, `tree` or `table`
+row_selected_text = "#ffffff"    # and the ink on it
+row_hover = "#ffffff12"          # what a row takes under the pointer; `row_active` while held
 row_stripe = "#ffffff08"         # a table's every other row; "#00000000" hides it
-row_head = "#ffffff08"           # its header's plate
-row_rule = "#00000000"           # the lines down its columns, hidden here
-row_guide = "#8a8a8a8c"          # the lines down a tree's indent
+table_header = "#ffffff08"       # a table's header plate
+table_rule = "#00000000"         # the lines down its columns, hidden here
+tree_guide = "#8a8a8a8c"         # the lines down a tree's indent
+
+[sizes]                          # font_size, radius, control_height, stroke_width; the rest derive
+font_size = 16                   # font_size_small, font_size_large and font_size_title follow
+radius = 6                       # radius_small and radius_large follow
 
 [button]                         # one table per kind: [panel], [row], ...; a kind left out keeps the built-in look
-fill = "sky"
-stroke = "ink"
+fill = "primary_fill"
+stroke = "border_default"
 stroke_width = 1.0
-radius = 6.0
+corner_radius = "radius_large"   # a number, a size's name, or "full" for a pill
 padding = 8.0
 gap = 4.0
-size = 14.0
-color = "ink"                    # text colour
-icon_color = "ink"
-font = "ui"
-strong = true
+font_size = "font_size_large"
+text_color = "text_on_primary"
+icon_color = "text_on_primary"
+font_family = "ui"               # ui, heading, mono or icon
+font_weight = 700
+text_align = "center"            # start, center or end
 
-[button.hover]                   # the look under the pointer; [button.active] while pressed,
-                                 # [button.disabled] while off, [button.focus] with keyboard focus
-fill = "#5cb4ff"
+[button.hover]                   # under the pointer; [button.active] while held, [button.focus] with
+                                 # keyboard focus, [button.disabled] while off, [button.checked] while on
+fill = "primary_fill_hover"
 
 [panel]
 image = "art/panel.png"          # a nine-patch, sliced in its own pixels
 slice = [8, 8, 8, 8]             # left, top, right, bottom
 
 [table]                          # a row view is dressed like any other kind
-fill = "ink"
-stroke = "sky"
-radius = 6.0
+fill = "bg_control"
+stroke = "border_default"
+corner_radius = 6.0
 padding_x = 10.0                 # the air either side of a cell's text
 
+[fold]                           # the header; [fold.checked] while open
+arrow = "art/folded.png"         # the header's arrow picture; the ▸ and ▾ glyphs where none
+
+[fold.body]                      # the frame around what an open fold shows
+fill = "bg_panel"
+padding = 8.0
+
 [roles.danger]                   # what a widget with role = "danger" takes
-fill = "#d33a3a"
+fill = "danger_fill"
+text_color = "text_on_danger"
 ```
 
 
@@ -431,8 +445,8 @@ SVG is not drawn; convert it to paths.
 | `scale` | a number | `1` | Pixels per unit when an SVG is rasterized. A raster ignores it. |
 | `pixels_per_unit` | a number | `100` | Texture pixels to one world unit, for a sprite whose own `pixels_per_unit` is `0`. |
 | `size` | `[width, height]` | the file's own | The pixels the image was drawn at, when a smaller copy shipped in its place. Written by an export that folds a variant or caps it at `max_size`; a sprite, a sheet and a tile measure by it. |
-| `recode` | `keep`, `webp`, `quantised` | `[export] images` | How an export re-encodes this file alone. `keep` also exempts it from `max_size`. |
-| `quality` | `0` to `100` | `[export] images_quality` | The palette's quality when this file is quantised. |
+| `recode` | `original`, `webp`, `quantized` | `[export] image_recode` | How an export re-encodes this file alone. `original` also exempts it from `max_size`. |
+| `quality` | `0` to `100` | `[export] image_quality` | The palette's quality when this file is quantized. |
 
 A value nothing knows reads as the default rather than refusing the
 texture, because a settings file is written by hand. `anisotropy`
@@ -445,12 +459,12 @@ straight. The UI draws a picture with the same filter and wrap.
 
 | Key | Values | Default | What it does |
 | --- | --- | --- | --- |
-| `volume` | a number | `1` | The file's own level, multiplied into every play of it. A handle's volume of `1` is this level. |
+| `volume_linear` | a number | `1` | The file's own level, multiplied into every play of it. A handle's volume of `1` is this level. |
 | `loop` | `true`, `false` | `false` | Loop the file wherever it is played, whatever the caller asked. |
 | `loop_offset` | seconds | `0` | Where each repeat starts, so an intro plays once. |
-| `mono` | `true`, `false` | `false` | Mix a WAV to one channel at export. |
-| `max_rate` | Hz | `0` | The highest sample rate a WAV ships at, resampled at export; `0` keeps its own. |
-| `recode` | `keep`, `flac`, `vorbis` | `[export] audio` | How an export re-encodes this file alone. |
+| `force_mono` | `true`, `false` | `false` | Mix a WAV to one channel at export. |
+| `max_rate_hz` | Hz | `0` | The highest sample rate a WAV ships at, resampled at export; `0` keeps its own. |
+| `recode` | `original`, `flac`, `vorbis` | `[export] audio_recode` | How an export re-encodes this file alone. |
 | `quality` | `-0.1` to `1` | `[export] audio_quality` | libvorbis's quality when this file is re-encoded as Vorbis. |
 
 ### Font keys
@@ -459,7 +473,7 @@ A project's own faces under `fonts/` read these; the UI applies them.
 
 | Key | Values | Default | What it does |
 | --- | --- | --- | --- |
-| `family` | `ui`, `heading`, `mono`, `icons` | the file name's prefix | The family this face joins. |
+| `family` | `ui`, `heading`, `mono`, `icon` | the file name's prefix | The family this face joins. |
 | `scale` | a number | `1` | How large its glyphs are drawn, without moving the layout. |
 | `y_offset` | a fraction of the size | `0` | A nudge down, for a face that sits high in its line. |
 | `hinting` | `true`, `false` | the UI's own | Snap outlines to the pixel grid. |
@@ -500,7 +514,7 @@ decides a cap or a re-encode from the image's own sidecar.
 Set it per target under `[override.<tag>.export]`, so a phone ships a
 smaller art set than a desktop. A capped image records its original
 `size`, so a sprite keeps its extent. Pixel art, a bitmap font's page
-and a file with `recode = "keep"` are never capped.
+and a file with `recode = "original"` are never capped.
 
 A file beside its variant, `hero.png` and `hero.web.png`, ships
 whichever the target answers to under the first name. `balaur shrink`

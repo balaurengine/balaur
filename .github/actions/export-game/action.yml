@@ -58,7 +58,7 @@ inputs:
       The iOS signing identity, e.g. "Apple Distribution: Studio".
     required: false
     default: ""
-  ios-profile:
+  ios-provisioning-profile:
     description: Base64 of the `.mobileprovision` to embed.
     required: false
     default: ""
@@ -121,7 +121,7 @@ runs:
         MACOS_CERTIFICATE: ${{ inputs.macos-certificate }}
         MACOS_CERTIFICATE_PASSWORD: ${{ inputs.macos-certificate-password }}
         NOTARY_KEY: ${{ inputs.notary-key }}
-        IOS_PROFILE: ${{ inputs.ios-profile }}
+        IOS_PROFILE: ${{ inputs.ios-provisioning-profile }}
         ANDROID_KEYSTORE: ${{ inputs.android-keystore }}
         WINDOWS_CERTIFICATE: ${{ inputs.windows-certificate }}
       run: |
@@ -163,36 +163,36 @@ runs:
         IOS_IDENTITY: ${{ inputs.ios-identity }}
         IPA: ${{ inputs.ipa }}
         ANDROID_KEY: ${{ inputs.android-key }}
-        BALAUR_NOTARY_KEY_ID: ${{ inputs.notary-key-id }}
-        BALAUR_NOTARY_ISSUER_ID: ${{ inputs.notary-issuer }}
-        BALAUR_KEYSTORE_PASSWORD: ${{ inputs.android-keystore-password }}
-        BALAUR_KEY_PASSWORD: ${{ inputs.android-key-password }}
-        BALAUR_SIGN_PASSWORD: ${{ inputs.windows-certificate-password }}
-        BALAUR_BUNDLETOOL: ${{ inputs.bundletool }}
+        BALAUR_APPLE_NOTARY_KEY_ID: ${{ inputs.notary-key-id }}
+        BALAUR_APPLE_NOTARY_ISSUER_ID: ${{ inputs.notary-issuer }}
+        BALAUR_ANDROID_KEYSTORE_PASSWORD: ${{ inputs.android-keystore-password }}
+        BALAUR_ANDROID_KEY_PASSWORD: ${{ inputs.android-key-password }}
+        BALAUR_WINDOWS_CERTIFICATE_PASSWORD: ${{ inputs.windows-certificate-password }}
+        BALAUR_ANDROID_BUNDLETOOL: ${{ inputs.bundletool }}
       run: |
         set -euo pipefail
-        export BALAUR_NOTARY_KEY="$SECRETS/notary.p8"
+        export BALAUR_APPLE_NOTARY_KEY="$SECRETS/notary.p8"
         fetch=--no-download
         [ "$DOWNLOAD" = true ] && fetch=--download
         for target in $TARGETS; do
           flags=()
           case "$target" in
             macos-universal)
-              flags+=(--app)
+              flags+=(--bundle app)
               [ -n "$MACOS_IDENTITY" ] && flags+=(--sign "$MACOS_IDENTITY")
               [ "$NOTARIZE" = true ] && flags+=(--notarize)
               ;;
             ios)
               [ -n "$IOS_IDENTITY" ] && flags+=(--sign "$IOS_IDENTITY")
               [ -f "$SECRETS/game.mobileprovision" ] &&
-                flags+=(--profile "$SECRETS/game.mobileprovision")
-              [ "$IPA" = true ] && flags+=(--ipa)
+                flags+=(--provisioning-profile "$SECRETS/game.mobileprovision")
+              [ "$IPA" = true ] && flags+=(--bundle ipa)
               ;;
             android)
-              flags+=(--apk)
+              flags+=(--bundle apk)
               # Play takes the bundle, every other store takes the APK, so a
               # run that has bundletool builds both.
-              [ -n "$BALAUR_BUNDLETOOL" ] && flags+=(--aab)
+              [ -n "$BALAUR_ANDROID_BUNDLETOOL" ] && flags+=(--bundle aab)
               ;;
             windows-x64 | windows-arm64)
               [ -f "$SECRETS/certificate.pfx" ] && flags+=(--sign "$SECRETS/certificate.pfx")

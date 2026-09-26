@@ -8,7 +8,7 @@
 //! }
 //! ```
 
-pub use balaur_anim::AnimationPlugin;
+pub use balaur_animation::AnimationPlugin;
 pub use balaur_core::*;
 pub use balaur_input::InputPlugin;
 pub use balaur_physics::PhysicsPlugin;
@@ -16,12 +16,12 @@ pub use balaur_platform::PlatformPlugin;
 pub use balaur_render::RenderPlugin;
 pub use balaur_ui::UiPlugin;
 
-pub use balaur_anim as animation;
+pub use balaur_animation as animation;
 pub use balaur_input as input;
 pub use balaur_physics as physics;
 pub use balaur_platform as platform;
 pub use balaur_render as render;
-pub use balaur_script_rune as rune;
+pub use balaur_script_rune as script_rune;
 pub use balaur_ui as ui;
 
 // A `Transport` a project names at run time, not a plugin: nothing to load.
@@ -69,8 +69,8 @@ modules! {
     gamend = "gamend" => balaur_gamend::GamendPlugin,
     http = "http" => balaur_http::HttpPlugin,
     multiplayer = "multiplayer" => balaur_multiplayer::MultiplayerPlugin,
-    web = "web" => balaur_web::WebPlugin,
-    websocket = "websocket" => balaur_websocket::WebsocketPlugin,
+    browser = "browser" => balaur_browser::BrowserPlugin,
+    websocket = "websocket" => balaur_websocket::WebSocketPlugin,
 }
 
 /// The project's manifest, read the way `standard_app` needs it: before the
@@ -99,7 +99,7 @@ fn backend_for(config: &AppConfig) -> Result<balaur_core::ScriptHostFactory> {
     match language.as_str() {
         "rune" => Ok(balaur_script_rune::factory()),
         other => Err(anyhow::anyhow!(
-            "project.toml asks for language \"{other}\"; this build has rune"
+            "project.toml asks for script_language \"{other}\"; this build has rune"
         )),
     }
 }
@@ -311,7 +311,8 @@ fn refuse_absent(app: &App, asked: &Selection) -> Result<()> {
         return Ok(());
     }
     bail!(
-        "project.toml asks for `{}`, which nothing registered: this build has          no such module (try --features {}) and no extension declares it",
+        "{} asks for `{}`, which nothing registered: this build has no such plugin (build with --features {}) and no extension provides it",
+        balaur_core::project::MANIFEST,
         missing.join("`, `"),
         missing.join(","),
     )
@@ -418,7 +419,6 @@ pub fn run(mut app: App, title: &str) -> Result<()> {
     {
         let _ = title;
         app.run();
-        balaur_render::warn_if_unserved(&app.engine);
         balaur_core::logbuf::flush_file();
         Ok(())
     }
@@ -426,7 +426,7 @@ pub fn run(mut app: App, title: &str) -> Result<()> {
 
 /// The project's `[log]` table: whether a run keeps a log file, and how many.
 const LOG_SCHEMA: &str = r#"
-file = { type = "bool", default = true, order = 1, help = "Write each run's log to logs/run.log in the user data directory, so a crash leaves its last lines behind." }
+to_file = { type = "bool", default = true, order = 1, help = "Write each run's log to logs/run.log in the user data directory, so a crash leaves its last lines behind." }
 keep = { type = "int", default = 5, min = 0, max = 50, order = 2, help = "How many earlier runs' logs stay beside it, as run.1.log and on." }
 "#;
 
@@ -437,7 +437,7 @@ keep = { type = "int", default = 5, min = 0, max = 50, order = 2, help = "How ma
 pub fn keep_log(app: &App) {
     let eng = &app.engine;
     let setting = |key: &str| balaur_core::settings::get(eng, &format!("log/{key}"));
-    if !setting("file").and_then(|v| v.as_bool()).unwrap_or(true) {
+    if !setting("to_file").and_then(|v| v.as_bool()).unwrap_or(true) {
         return;
     }
     let keep = setting("keep")

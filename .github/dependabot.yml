@@ -1,25 +1,25 @@
 version: 2
+# One pull request a week for every ecosystem below. Pairs that must move
+# together (rapier with parry, i_triangle with i_overlay) always share it.
+multi-ecosystem-groups:
+  dependencies:
+    schedule: { interval: weekly }
 updates:
   - package-ecosystem: cargo
     directory: /
-    schedule: { interval: weekly }
-    open-pull-requests-limit: 10
+    patterns: ["*"]
+    multi-ecosystem-group: dependencies
+    # Raise the requirement in Cargo.toml, not only the version Cargo.lock holds.
+    versioning-strategy: increase
     ignore:
       # bincode 3.0.0 is a `compile_error!` tombstone: the project stopped at 2.
       - dependency-name: bincode
         versions: [">= 3"]
-    # A crate lands in the first group it matches. Each pair moves together:
-    # rapier pins its parry, and i_triangle pins its i_overlay.
-    groups:
-      physics:
-        patterns: [rapier*, parry*]
-      polygons:
-        patterns: [i_overlay, i_triangle]
-      patch-and-minor:
-        update-types: [minor, patch]
   - package-ecosystem: github-actions
     directories: [/, /.github/actions/*]
-    schedule: { interval: weekly }
+    patterns: ["*"]
+    multi-ecosystem-group: dependencies
   - package-ecosystem: npm
     directory: /editors/code
-    schedule: { interval: weekly }
+    patterns: ["*"]
+    multi-ecosystem-group: dependencies

@@ -62,6 +62,13 @@ pub struct PhysicsState3d {
     pub bodies: DetHashMap<Entity, RigidBodyHandle>,
     /// Colliders per entity (attached to the entity's body, or standalone).
     pub colliders: DetHashMap<Entity, Vec<ColliderHandle>>,
+    /// Colliders removed since the last step, by the node that owned them.
+    /// Rapier reports the contacts they ended during the next step, when
+    /// their handles resolve to nothing.
+    pub(crate) gone: DetHashMap<ColliderHandle, crate::shared::events::Owner>,
+    /// The bodies and soft bodies asleep after the last step, so the next
+    /// one can say which fell asleep or woke.
+    pub(crate) asleep: balaur_core::collections::DetHashSet<Entity>,
     /// Joints per entity. Which of rapier's two sets a joint lives in is
     /// decided when it is made and never changes.
     pub joints: DetHashMap<Entity, joint::JointRef3d>,
@@ -86,7 +93,7 @@ pub struct PhysicsState3d {
     /// step (see [`vehicle`]).
     pub wheel_inputs: DetHashMap<Entity, vehicle::WheelInput3d>,
     /// What the last `move_character` found under each character's feet, so
-    /// `is_grounded` can answer without sweeping the shape again.
+    /// `is_on_floor` can answer without sweeping the shape again.
     pub grounded: DetHashMap<Entity, bool>,
     /// Whether the broad phase's tree matches the colliders.
     ///
@@ -111,6 +118,8 @@ impl PhysicsState3d {
             world: PhysicsWorld::default(),
             bodies: DetHashMap::default(),
             colliders: DetHashMap::default(),
+            gone: DetHashMap::default(),
+            asleep: balaur_core::collections::DetHashSet::default(),
             joints: DetHashMap::default(),
             soft_bodies: DetHashMap::default(),
             soft_params: DetHashMap::default(),
@@ -161,14 +170,14 @@ max_corrective_velocity = { type = "float", default = 3.0, min = 0.0, max = 1000
 prediction_distance = { type = "float", default = 0.02, min = 0.0, max = 1.0, help = "How far ahead contacts are predicted." }
 internal_iterations = { type = "float", default = 1.0, min = 0.0, max = 64.0, help = "Projected Gauss-Seidel iterations inside one solver iteration." }
 stabilization_iterations = { type = "float", default = 1.0, min = 0.0, max = 64.0, help = "Iterations spent pushing overlapping bodies apart rather than solving velocities." }
-min_ccd_dt = { type = "float", default = 0.000167, min = 0.0, max = 1.0, help = "The smallest substep continuous collision detection will take." }
+min_ccd_seconds = { type = "float", default = 0.000167, min = 0.0, max = 1.0, help = "The smallest substep continuous collision detection will take." }
 warmstart = { type = "float", default = 1.0, min = 0.0, max = 1.0, help = "How much of the last step's impulses the solver starts from." }
 warmstart_joints = { type = "bool", default = false, help = "Warm-start joints as well as contacts." }
 friction_in_bias_pass = { type = "bool", default = false, help = "Solve friction in the bias pass, which is stabler at the cost of a little drift." }
 max_linear_velocity = { type = "float", default = 400.0, min = 0.0, max = 100000.0, help = "A cap on how fast a body may travel, in length units per second." }
-contact_frequency = { type = "float", default = 30.0, min = 0.0, max = 1000.0, help = "The frequency of the spring a contact is solved as, in hertz." }
+contact_frequency_hz = { type = "float", default = 30.0, min = 0.0, max = 1000.0, help = "The frequency of the spring a contact is solved as, in hertz." }
 contact_damping = { type = "float", default = 10.0, min = 0.0, max = 1000.0, help = "The damping ratio of that spring." }
-static_contact_frequency = { type = "float", default = 60.0, min = 0.0, max = 1000000.0, help = "The same, for a contact with a body that never moves." }
+static_contact_frequency_hz = { type = "float", default = 60.0, min = 0.0, max = 1000000.0, help = "The same, for a contact with a body that never moves." }
 static_contact_damping = { type = "float", default = 10.0, min = 0.0, max = 1000.0, help = "The damping ratio of a static contact." }
 threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", help = "How many threads the solver may take. 0 is one less than the machine reports, capped at eight; a script's own set_threads outranks this." }
 "#,
@@ -298,17 +307,20 @@ fn build_physics_digest(reg: &mut Registry<'_>) {
             if scope.as_ref().is_some_and(|s| !s.contains(&entity)) {
                 continue;
             }
-            let Some(body) = state.world.soft_bodies.get(handle) else {
-                continue;
-            };
+            // What tore off is the node's body as much as what it kept.
             let mut h = Hasher::new();
-            h.write(&body.topology_version().to_le_bytes());
-            for v in body.particle_velocities() {
-                for value in [v.x, v.y, v.z] {
-                    h.write_f64(f64::from(value));
+            for piece in crate::shared::softbody::Family::family(&state.world.soft_bodies, handle) {
+                let Some(body) = state.world.soft_bodies.get(piece) else {
+                    continue;
+                };
+                h.write(&body.topology_version().to_le_bytes());
+                for v in body.particle_velocities() {
+                    for value in [v.x, v.y, v.z] {
+                        h.write_f64(f64::from(value));
+                    }
                 }
+                h.write(&[u8::from(body.is_sleeping())]);
             }
-            h.write(&[u8::from(body.is_sleeping())]);
             out.push(Entry {
                 label: format!("{}/soft", node_label(&world, entity)),
                 digest: h.finish(),
@@ -515,7 +527,7 @@ fn register_physics_presets(reg: &mut Registry<'_>) -> Result<()> {
             ],
             &[(
                 c::SOFTBODY_3D,
-                Some("kind = \"cuboid\"\ncell_model = \"corotational\"\nshape_matching = true"),
+                Some("kind = \"box\"\ncell_model = \"corotational\"\nshape_matching = true"),
             )],
         )?,
     );
@@ -602,7 +614,7 @@ fn step_system(eng: &Engine, _dt: f32) {
         state.world.integration_parameters.dt = scalar::real(fixed_dt());
         // The step rebuilds the broad phase itself.
         state.queries_ready = true;
-        let collector = events::Collector::default();
+        let collector = events::Collector::after(std::mem::take(&mut state.gone));
         // A span of its own, so a profiler tells rapier's step from what the
         // engine wraps around it.
         balaur_core::timings::measure(eng, "physics3d/step", || {
@@ -621,7 +633,11 @@ fn step_system(eng: &Engine, _dt: f32) {
                 t.rotation = scalar::quat_of(*body.rotation());
             }
         }
-        (collector.take(), joint::broken(state, &world))
+        (
+            collector.take(),
+            joint::broken(state, &world),
+            sleep_changes(state),
+        )
     };
     // Before the events: a tear handler that reads the torn body's geometry
     // should be given this step's, not the one it had before the tear.
@@ -630,21 +646,19 @@ fn step_system(eng: &Engine, _dt: f32) {
     // script code and may move the body it was just told about.
     events::deliver(eng, &events.0);
     break_joints(eng, &events.1);
+    announce_sleep(eng, &events.2);
     // Rapier disables a body whose pose went non-finite rather than letting
     // the world become NaN. A game that never asks still deserves to be told.
     tuning::warn_about_quarantine(eng);
 }
 
-/// Remove the joints that gave way this step and tell both ends.
-///
-/// A break is an event in every way that matters, so it travels the same
-/// path: after the step, in entity order, through the node's own script.
+/// Remove the joints that gave way this step and announce each from its node,
+/// after the step and in entity order, as every other physics event is.
 fn break_joints(eng: &Engine, broken: &[balaur_core::hecs::Entity]) {
     for entity in broken {
+        let payload = joint::break_payload(&eng.resource::<PhysicsState3d>().borrow(), *entity);
         joint::remove_joint(eng, *entity);
-        if let Some(host) = eng.script_host() {
-            host.call_on(balaur_core::node_id_of(*entity), hook::ON_JOINT_BREAK, &[]);
-        }
+        balaur_core::events::announce(eng, *entity, hook::JOINT_BREAK, payload);
     }
 }
 
@@ -740,6 +754,7 @@ pub fn clear(eng: &Engine) {
     state.joint_params.clear();
     state.wheel_inputs.clear();
     state.grounded.clear();
+    state.asleep.clear();
 }
 
 /// Body kinds the 3D and 2D worlds both accept, so a script writes
@@ -754,15 +769,15 @@ pub const BODY_KINDS: &[(&str, &str)] = &[
 
 /// Collider shapes for the 3D world, in the schema's order.
 pub const SHAPE_KINDS: &[(&str, &str)] = &[
-    ("SHAPE_BALL", w::BALL),
-    ("SHAPE_CUBOID", w::CUBOID),
+    ("SHAPE_SPHERE", w::SPHERE),
+    ("SHAPE_BOX", w::BOX),
     ("SHAPE_CAPSULE", w::CAPSULE),
     ("SHAPE_CYLINDER", w::CYLINDER),
     ("SHAPE_CONE", w::CONE),
     ("SHAPE_TRIANGLE", w::TRIANGLE),
     ("SHAPE_SEGMENT", w::SEGMENT),
-    ("SHAPE_HALFSPACE", w::HALFSPACE),
-    ("SHAPE_TRIMESH", w::TRIMESH),
+    ("SHAPE_WORLD_BOUNDARY", w::WORLD_BOUNDARY),
+    ("SHAPE_TRIANGLE_MESH", w::TRIANGLE_MESH),
     ("SHAPE_CONVEX_HULL", w::CONVEX_HULL),
     ("SHAPE_CONVEX_DECOMPOSITION", w::CONVEX_DECOMPOSITION),
     ("SHAPE_POLYLINE", w::POLYLINE),
@@ -775,12 +790,12 @@ pub const SHAPE_KINDS: &[(&str, &str)] = &[
 /// Collider shapes for the 2D world.
 pub const SHAPE_KINDS_2D: &[(&str, &str)] = &[
     ("SHAPE_CIRCLE", w::CIRCLE),
-    ("SHAPE_RECT", w::RECT),
+    ("SHAPE_RECTANGLE", w::RECTANGLE),
     ("SHAPE_CAPSULE", w::CAPSULE),
     ("SHAPE_TRIANGLE", w::TRIANGLE),
     ("SHAPE_SEGMENT", w::SEGMENT),
-    ("SHAPE_HALFSPACE", w::HALFSPACE),
-    ("SHAPE_TRIMESH", w::TRIMESH),
+    ("SHAPE_WORLD_BOUNDARY", w::WORLD_BOUNDARY),
+    ("SHAPE_TRIANGLE_MESH", w::TRIANGLE_MESH),
     ("SHAPE_CONVEX_HULL", w::CONVEX_HULL),
     ("SHAPE_CONVEX_DECOMPOSITION", w::CONVEX_DECOMPOSITION),
     ("SHAPE_POLYLINE", w::POLYLINE),
@@ -791,9 +806,9 @@ pub const SHAPE_KINDS_2D: &[(&str, &str)] = &[
 /// Joint kinds for the 3D world.
 pub const JOINT_KINDS: &[(&str, &str)] = &[
     ("JOINT_FIXED", w::FIXED),
-    ("JOINT_REVOLUTE", w::REVOLUTE),
-    ("JOINT_PRISMATIC", w::PRISMATIC),
-    ("JOINT_SPHERICAL", w::SPHERICAL),
+    ("JOINT_HINGE", w::HINGE),
+    ("JOINT_SLIDER", w::SLIDER),
+    ("JOINT_BALL_SOCKET", w::BALL_SOCKET),
     ("JOINT_ROPE", w::ROPE),
     ("JOINT_SPRING", w::SPRING),
     ("JOINT_GENERIC", w::GENERIC),
@@ -802,11 +817,11 @@ pub const JOINT_KINDS: &[(&str, &str)] = &[
 /// Joint kinds for the 2D world.
 pub const JOINT_KINDS_2D: &[(&str, &str)] = &[
     ("JOINT_FIXED", w::FIXED),
-    ("JOINT_REVOLUTE", w::REVOLUTE),
-    ("JOINT_PRISMATIC", w::PRISMATIC),
+    ("JOINT_HINGE", w::HINGE),
+    ("JOINT_SLIDER", w::SLIDER),
     ("JOINT_ROPE", w::ROPE),
     ("JOINT_SPRING", w::SPRING),
-    ("JOINT_PIN_SLOT", w::PIN_SLOT),
+    ("JOINT_GROOVE", w::GROOVE),
     ("JOINT_GENERIC", w::GENERIC),
 ];
 
@@ -831,12 +846,6 @@ pub const MOTOR_MODES: &[(&str, &str)] = &[
 pub const MOTOR_MODELS: &[(&str, &str)] = &[
     ("MOTOR_MODEL_ACCELERATION", w::ACCELERATION),
     ("MOTOR_MODEL_FORCE", w::FORCE),
-];
-
-/// Which of rapier's joint sets holds a joint.
-pub const JOINT_SOLVERS: &[(&str, &str)] = &[
-    ("SOLVER_IMPULSE", w::IMPULSE),
-    ("SOLVER_REDUCED", w::REDUCED),
 ];
 
 /// Whether a character's lengths are world units or a fraction of it.
@@ -872,19 +881,53 @@ pub const COLLISION_PAIRS: &[(&str, &str)] = &[
     ("COLLIDE_STATIC_STATIC", w::STATIC_STATIC),
 ];
 
-/// The freedoms a body lock or a generic joint names, in 3D.
-pub const AXES: &[(&str, &str)] = &[
-    ("AXIS_X", w::X),
-    ("AXIS_Y", w::Y),
-    ("AXIS_Z", w::Z),
-    ("AXIS_ANG_X", w::ANG_X),
-    ("AXIS_ANG_Y", w::ANG_Y),
-    ("AXIS_ANG_Z", w::ANG_Z),
+/// The axes a body or a generic joint locks, in 3D.
+pub const AXES: &[(&str, &str)] = &[("AXIS_X", w::X), ("AXIS_Y", w::Y), ("AXIS_Z", w::Z)];
+
+/// The same, in 2D, where rotation is one switch.
+pub const AXES_2D: &[(&str, &str)] = &[("AXIS_X", w::X), ("AXIS_Y", w::Y)];
+
+/// How a 3D soft body's particles are laid out.
+pub const SOFT_KINDS: &[(&str, &str)] = &[
+    ("SOFT_BOX", w::BOX),
+    ("SOFT_SPHERE", w::SPHERE),
+    ("SOFT_CLOTH", w::CLOTH),
+    ("SOFT_CLOTH_TUBE", w::CLOTH_TUBE),
+    ("SOFT_ROPE", w::ROPE_SOFT),
+    ("SOFT_VOLUMETRIC", w::VOLUMETRIC),
+    ("SOFT_TRIANGLE_MESH", w::TRIANGLE_MESH),
 ];
 
-/// The same, in 2D: two translations and the one rotation there is.
-pub const AXES_2D: &[(&str, &str)] =
-    &[("AXIS_X", w::X), ("AXIS_Y", w::Y), ("AXIS_ANG_X", w::ANG_X)];
+/// The same, for a 2D soft body.
+pub const SOFT_KINDS_2D: &[(&str, &str)] = &[
+    ("SOFT_GRID", w::GRID),
+    ("SOFT_CIRCLE", w::CIRCLE),
+    ("SOFT_POLYGON", w::SOFT_POLYGON),
+    ("SOFT_ROPE", w::ROPE_SOFT),
+    ("SOFT_VOLUMETRIC", w::VOLUMETRIC),
+    ("SOFT_TRIANGLE_MESH", w::TRIANGLE_MESH),
+    ("SOFT_POLYLINE", w::POLYLINE),
+];
+
+/// Which of rapier's solvers simulates a soft body's elasticity.
+pub const SOFT_SOLVERS: &[(&str, &str)] = &[
+    ("SOFT_SOLVER_CONSTRAINTS", w::CONSTRAINTS),
+    ("SOFT_SOLVER_FEM", w::FEM),
+];
+
+/// What a soft body's cells resist with.
+pub const CELL_MODELS: &[(&str, &str)] = &[
+    ("CELL_VOLUME", w::VOLUME),
+    ("CELL_COROTATIONAL", w::COROTATIONAL),
+    ("CELL_NEO_HOOKEAN", w::NEO_HOOKEAN),
+];
+
+/// Whether a soft body's edge sets under a squeeze, a stretch, or both.
+pub const PLASTIC_FLOWS: &[(&str, &str)] = &[
+    ("FLOW_BOTH", w::BOTH),
+    ("FLOW_COMPRESSION", w::COMPRESSION_FLOW),
+    ("FLOW_TENSION", w::TENSION),
+];
 
 /// Every table `physics3d` spells as constants.
 pub const CONSTANTS_3D: &[&[(&str, &str)]] = &[
@@ -894,13 +937,16 @@ pub const CONSTANTS_3D: &[&[(&str, &str)]] = &[
     COMBINE_RULES,
     MOTOR_MODES,
     MOTOR_MODELS,
-    JOINT_SOLVERS,
     LENGTH_MODES,
     FILL_MODES,
     FIT_MODES,
     EVENTS,
     COLLISION_PAIRS,
     AXES,
+    SOFT_KINDS,
+    SOFT_SOLVERS,
+    CELL_MODELS,
+    PLASTIC_FLOWS,
 ];
 
 /// Every table `physics2d` spells as constants.
@@ -911,11 +957,14 @@ pub const CONSTANTS_2D: &[&[(&str, &str)]] = &[
     COMBINE_RULES,
     MOTOR_MODES,
     MOTOR_MODELS,
-    JOINT_SOLVERS,
     LENGTH_MODES,
     EVENTS,
     COLLISION_PAIRS,
     AXES_2D,
+    SOFT_KINDS_2D,
+    SOFT_SOLVERS,
+    CELL_MODELS,
+    PLASTIC_FLOWS,
 ];
 
 pub(crate) fn install_constants(m: &mut dyn Bindings<Engine>, tables: &[&[(&str, &str)]]) {

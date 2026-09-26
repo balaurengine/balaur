@@ -82,9 +82,9 @@ fn the_rng_is_reproducible_from_a_seed() {
     let dir = tempfile::tempdir().unwrap();
     let app = app_in(dir.path());
     let draw = |n: usize| {
-        call(&app.engine, "rng", "seed", &[Value::Int(7)]).unwrap();
+        call(&app.engine, "random", "seed", &[Value::Int(7)]).unwrap();
         (0..n)
-            .map(|_| call(&app.engine, "rng", "random", &[]).unwrap())
+            .map(|_| call(&app.engine, "random", "float", &[]).unwrap())
             .collect::<Vec<_>>()
     };
     assert_eq!(draw(5), draw(5));
@@ -94,11 +94,15 @@ fn the_rng_is_reproducible_from_a_seed() {
 fn rng_int_stays_inside_its_range() {
     let dir = tempfile::tempdir().unwrap();
     let app = app_in(dir.path());
-    call(&app.engine, "rng", "seed", &[Value::Int(1)]).unwrap();
+    call(&app.engine, "random", "seed", &[Value::Int(1)]).unwrap();
     for _ in 0..200 {
-        let Value::Int(v) =
-            call(&app.engine, "rng", "int", &[Value::Int(1), Value::Int(6)]).unwrap()
-        else {
+        let Value::Int(v) = call(
+            &app.engine,
+            "random",
+            "int",
+            &[Value::Int(1), Value::Int(6)],
+        )
+        .unwrap() else {
             panic!("int should return an integer");
         };
         assert!((1..=6).contains(&v), "{v} is outside 1..=6");
@@ -327,7 +331,7 @@ fn a_file_can_be_made_moved_and_deleted() {
     let eng = &app.engine;
     let s = |t: &str| Value::Str(t.into());
 
-    call(eng, "fs", "mkdir", &[s("sprites/enemies")]).unwrap();
+    call(eng, "fs", "create_directory", &[s("sprites/enemies")]).unwrap();
     assert!(dir.path().join("sprites/enemies").is_dir());
 
     call(
@@ -384,11 +388,11 @@ fn a_files_modification_time_is_readable_and_absent_for_one_that_is_not_there() 
     let s = |t: &str| Value::Str(t.into());
 
     assert_eq!(
-        call(eng, "fs", "mtime", &[s("nothing.toml")]).unwrap(),
+        call(eng, "fs", "modified_time", &[s("nothing.toml")]).unwrap(),
         Value::Nil
     );
     call(eng, "fs", "write", &[s("thing.toml"), s("a = 1\n")]).unwrap();
-    let Value::Num(at) = call(eng, "fs", "mtime", &[s("thing.toml")]).unwrap() else {
+    let Value::Num(at) = call(eng, "fs", "modified_time", &[s("thing.toml")]).unwrap() else {
         panic!("a written file has a modification time");
     };
     assert!(at > 1_700_000_000.0, "seconds since the epoch, got {at}");
@@ -554,8 +558,8 @@ fn fs_reaches_a_second_root_the_host_declared() {
 fn a_uuid_from_the_engine_stream_is_well_formed_and_repeats_from_a_seed() {
     let dir = tempfile::tempdir().unwrap();
     let app = app_in(dir.path());
-    call(&app.engine, "rng", "seed", &[Value::Int(9)]).unwrap();
-    let Value::Str(first) = call(&app.engine, "rng", "uuid", &[]).unwrap() else {
+    call(&app.engine, "random", "seed", &[Value::Int(9)]).unwrap();
+    let Value::Str(first) = call(&app.engine, "random", "uuid", &[]).unwrap() else {
         panic!("a string")
     };
     assert_eq!(first.len(), 36);
@@ -564,9 +568,9 @@ fn a_uuid_from_the_engine_stream_is_well_formed_and_repeats_from_a_seed() {
         matches!(&first[19..20], "8" | "9" | "a" | "b"),
         "variant: {first}"
     );
-    call(&app.engine, "rng", "seed", &[Value::Int(9)]).unwrap();
+    call(&app.engine, "random", "seed", &[Value::Int(9)]).unwrap();
     assert_eq!(
-        call(&app.engine, "rng", "uuid", &[]).unwrap(),
+        call(&app.engine, "random", "uuid", &[]).unwrap(),
         Value::Str(first)
     );
 }
@@ -620,7 +624,7 @@ fn base64_round_trips_bytes_and_sha256_matches_the_known_vector() {
 fn the_platform_and_device_id_are_stable_facts() {
     let dir = tempfile::tempdir().unwrap();
     let app = app_in(dir.path());
-    let Value::Map(facts) = call(&app.engine, "engine", "platform", &[]).unwrap() else {
+    let Value::Map(facts) = call(&app.engine, "engine", "target", &[]).unwrap() else {
         panic!("a map")
     };
     let keys: Vec<&str> = facts.iter().map(|(k, _)| k.as_str()).collect();
@@ -750,7 +754,7 @@ fn a_run_from_a_pack_is_not_a_dev_run() {
             std::collections::BTreeMap::new(),
             balaur_core::project::AssetSource::Embedded,
         ));
-    let Value::Map(facts) = call(&app.engine, "engine", "platform", &[]).unwrap() else {
+    let Value::Map(facts) = call(&app.engine, "engine", "target", &[]).unwrap() else {
         panic!("a map")
     };
     let dev = facts
@@ -829,5 +833,25 @@ fn an_unset_environment_variable_reads_as_nil() {
     assert!(
         matches!(read("PATH"), Value::Str(_)),
         "PATH is set wherever tests run"
+    );
+}
+
+#[test]
+fn the_editor_keeps_its_user_data_beside_the_games_not_among_them() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    let Some(data) = dirs::data_dir() else {
+        return;
+    };
+    let editor = balaur_core::engine_api::user_data_dir_named(
+        &app.engine,
+        balaur_core::engine_api::EDITOR_NAME,
+    );
+    assert_eq!(editor, data.join("balaur-editor"));
+    let game = balaur_core::engine_api::user_data_dir_named(&app.engine, "themes");
+    assert_eq!(game, data.join("balaur").join("themes"));
+    assert!(
+        !game.starts_with(&editor),
+        "a game named themes stays out of the editor's folder"
     );
 }

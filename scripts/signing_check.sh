@@ -142,7 +142,7 @@ else
 
   step "export, signed"
   game=$work/game.exe
-  BALAUR_SIGN_PASSWORD=$password "$balaur" export "$project" --target "$target" \
+  BALAUR_WINDOWS_CERTIFICATE_PASSWORD=$password "$balaur" export "$project" --target "$target" \
     -o "$game" --sign "$(cygpath -w "$work/identity.pfx")" --no-download
 
   step "what signtool says"

@@ -18,7 +18,7 @@ main_scene = "main.toml"
 
 [input.actions]
 jump = ["Space"]
-move_x = ["keys:A,D"]
+move_x = ["keys:KeyA,KeyD"]
 "#;
 
 /// A booted app with a screen to place controls against: a 1000 x 600 window
@@ -78,7 +78,7 @@ fn a_finger_moves_the_mouse_by_default() {
         let input = app.engine.resource::<InputSnapshot>();
         let input = input.borrow();
         assert_eq!(input.mouse_pos(), (300.0, 200.0));
-        assert!(input.is_mouse_down(0), "a finger down is the button down");
+        assert!(input.mouse_down(0), "a finger down is the button down");
         assert!(input.mouse_just_pressed(0), "and the edge fires once");
     }
     frame(&mut app, finger(1, 320.0, 200.0, Move));
@@ -89,7 +89,7 @@ fn a_finger_moves_the_mouse_by_default() {
     frame(&mut app, finger(1, 320.0, 200.0, End));
     let input = app.engine.resource::<InputSnapshot>();
     let input = input.borrow();
-    assert!(!input.is_mouse_down(0));
+    assert!(!input.mouse_down(0));
     assert!(input.mouse_just_released(0));
 }
 
@@ -120,7 +120,7 @@ fn a_cancelled_finger_releases_the_button() {
         !app.engine
             .resource::<InputSnapshot>()
             .borrow()
-            .is_mouse_down(0)
+            .mouse_down(0)
     );
 }
 
@@ -173,7 +173,7 @@ fn the_two_conversions_do_not_loop() {
     let input = app.engine.resource::<InputSnapshot>();
     let input = input.borrow();
     assert_eq!(input.touches().len(), 1, "the real finger, and no echo");
-    assert!(input.is_mouse_down(0));
+    assert!(input.mouse_down(0));
 }
 
 /// A project may turn the default off, for a game that reads both and would
@@ -187,7 +187,7 @@ fn emulation_can_be_turned_off() {
         !app.engine
             .resource::<InputSnapshot>()
             .borrow()
-            .is_mouse_down(0)
+            .mouse_down(0)
     );
 }
 
@@ -339,7 +339,7 @@ fn a_stick_pushes_its_actions() {
 }
 
 /// Screen y counts down and a stick does not: a thumb pushed away from the
-/// player reads positive, the way `axis:LeftStickY` does.
+/// player reads positive, the way `axis:left_y` does.
 #[test]
 fn a_stick_reads_up_as_positive() {
     let (_dir, mut app) = app(MANIFEST);
@@ -433,10 +433,10 @@ fn a_stick_ignores_a_finger_outside_it() {
 fn a_stick_and_a_key_pair_share_an_action() {
     let (_dir, mut app) = app(MANIFEST);
     control(&app, "Move", "touch_stick", STICK);
-    frame(&mut app, |input| input.key_event("D", true));
+    frame(&mut app, |input| input.key_event("KeyD", true));
     assert!((value(&app, "move_x") - 1.0).abs() < 1e-6, "the key alone");
     frame(&mut app, |input| {
-        input.key_event("D", false);
+        input.key_event("KeyD", false);
         input.touch_event(1, 150.0, 450.0, Start);
     });
     frame(&mut app, finger(1, 100.0, 450.0, Move));

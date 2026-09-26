@@ -31,8 +31,8 @@ fn plugin_components_roundtrip_through_the_registry() {
             // set_component adds with defaults when the node lacks the
             // component, and merges when it has it; there is no add_component.
             n.set_component("body3d");
-            n.set_component("collider3d", #{ kind: "ball", radius: 0.7 });
-            n.set_component("shape3d", #{ kind: "ball", radius: 0.7 });
+            n.set_component("collider3d", #{ kind: "sphere", radius: 0.7 });
+            n.set_component("shape3d", #{ kind: "sphere", radius: 0.7 });
             n.set_component("widget", #{ text: "hi" });
 
             let body = n.get_component("body3d");
@@ -75,7 +75,7 @@ fn run_script(dir: &std::path::Path, app: &balaur::App, source: &str) {
         .attach(balaur::node_id_of(node), "scripts/t.rn")
         .unwrap();
     assert_eq!(
-        balaur::rune::rune_of(&app.engine).number_field(node, "done"),
+        balaur::script_rune::rune_of(&app.engine).number_field(node, "done"),
         Some(1.0),
         "the script did not run to its end: {:#?}",
         balaur::logbuf::recent(10)
@@ -157,7 +157,7 @@ fn a_hex_string_is_a_colour_wherever_a_colour_is_taken() {
     // A renderable's `color` property, written as the hex a scene uses.
     let e = spawn(&app, "Red");
     let params = toml::Value::Table(toml::toml! {
-        kind = "ball"
+        kind = "sphere"
         color = "#ff0000"
     });
     balaur::components::add(&app.engine, e, "shape3d", Some(&params)).unwrap();
@@ -301,8 +301,8 @@ fn an_inline_asset_is_the_type_its_table_declares() {
 /// declared, and must still be genuinely absent. An entry that stops being
 /// true fails rather than quietly covering for a real gap.
 const CONDITIONAL: &[(&str, &[&str])] = &[
-    // A shape reports the geometry of the `kind` it is: a box has
-    // `half_extents`, a sphere a `radius`, and neither carries the other's.
+    // A shape reports the geometry of the `kind` it is: a box has a
+    // `size`, a sphere a `radius`, and neither carries the other's.
     (
         "shape2d",
         &[
@@ -336,10 +336,7 @@ const CONDITIONAL: &[(&str, &[&str])] = &[
     ),
     // A sprite cut from a sheet reports the sheet; one drawing a whole image
     // has no cut to report.
-    (
-        "sprite",
-        &["half_extents", "region_origin", "region_size", "sheet"],
-    ),
+    ("sprite", &["region_origin", "region_size", "sheet", "size"]),
     // A map reports what was painted only once something has been.
     ("tilemap", &["flags", "seed", "terrain"]),
 ];
@@ -441,7 +438,7 @@ fn a_keyed_read_answers_one_property() {
         pub fn init(this) {
             let n = scene::root().add_child("Keyed");
             n.set_component("widget", #{ text: "hi", kind: "button" });
-            n.set_component("collider3d", #{ kind: "ball", radius: 0.7 });
+            n.set_component("collider3d", #{ kind: "sphere", radius: 0.7 });
 
             assert!(n.get_component("widget", "text") == "hi", "widget text");
             assert!(n.get_component("widget", "kind") == "button", "widget kind");
@@ -450,7 +447,7 @@ fn a_keyed_read_answers_one_property() {
             assert!(n.get_component("widget", "value") == table.value, "same as the table");
 
             // No fast path: the table is read and indexed.
-            assert!(n.get_component("collider3d", "kind") == "ball", "collider kind");
+            assert!(n.get_component("collider3d", "kind") == "sphere", "collider kind");
 
             assert!(n.get_component("widget", "no_such_property") == (), "unknown property");
             assert!(n.get_component("body3d", "kind") == (), "component the node lacks");

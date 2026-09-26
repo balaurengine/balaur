@@ -36,9 +36,13 @@ mod project_tests;
 // that opens one, which is a page reload rather than a second process.
 #[cfg(target_family = "wasm")]
 mod project_web;
-mod templates;
+mod runtimes;
 mod update;
 mod version;
+// IndexedDB behind a tab's files. No window needed: `project_web` forgets
+// through it in every wasm build.
+#[cfg(target_family = "wasm")]
+mod web_store;
 
 #[derive(Parser)]
 #[command(name = "balaur", version = version::long(), about = "The Balaur game engine")]
@@ -99,7 +103,7 @@ enum Command {
         /// share of a 60 Hz frame. What a budget is set against.
         #[arg(long)]
         timings: bool,
-        /// Record the session — every tick's input and digest — to a file
+        /// Record the run — every tick's input and digest — to a file
         /// `balaur replay` can play back.
         #[arg(long, value_name = "PATH")]
         record: Option<PathBuf>,
@@ -121,25 +125,25 @@ enum Command {
     /// Export the project as a pack: every script checked, scenes and
     /// manifest bundled.
     ///
-    /// With `--target` or `--template` the pack is carried inside a runtime
+    /// With `--target` or `--runtime` the pack is carried inside a runtime
     /// binary instead, producing a game the player can just run.
     Export {
         #[arg(default_value = ".")]
         path: PathBuf,
         #[arg(short, long)]
         output: Option<PathBuf>,
-        /// Platform to build a standalone game for, naming a template in the
-        /// templates directory (e.g. `linux-x64`, `macos-universal`,
+        /// Platform to build a standalone game for, naming a runtime in the
+        /// runtimes directory (e.g. `linux-x64`, `macos-universal`,
         /// `windows-x64`, `windows-arm64`).
         #[arg(long)]
         target: Option<String>,
-        /// Runtime template to append to, bypassing template lookup.
+        /// Runtime to append to, bypassing lookup.
         #[arg(long)]
-        template: Option<PathBuf>,
-        /// Download a missing runtime template without asking.
+        runtime: Option<PathBuf>,
+        /// Download a missing runtime without asking.
         #[arg(long, conflicts_with = "no_download")]
         download: bool,
-        /// Never download a missing runtime template; fail instead.
+        /// Never download a missing runtime; fail instead.
         #[arg(long)]
         no_download: bool,
         /// Keep script sources in the pack instead of bytecode. A pack for a
@@ -147,42 +151,32 @@ enum Command {
         /// web build — needs this until the bytecode format is portable.
         #[arg(long)]
         keep_sources: bool,
-        /// Produce a macOS `.app` bundle instead of a flat executable — the
-        /// shape that can be code-signed.
-        #[arg(long)]
-        app: bool,
-        /// Sign with this identity, overriding `[export]`: a certificate name
-        /// on Apple platforms, a certificate file on Windows. On macOS it
-        /// implies `--app`, since a flat binary cannot be signed.
+        /// A package to make beside the export, repeatable: `app` (a macOS
+        /// bundle, the shape that can be code-signed), `pkg` (for the Mac App
+        /// Store), `ipa` (for App Store Connect), `apk` (installable, signed
+        /// with `[android] keystore` or Android's debug identity) or `aab`
+        /// (for Play; needs a JDK and `bundletool.jar`).
+        #[arg(long, value_enum)]
+        bundle: Vec<BundleKind>,
+        /// Sign with this identity, overriding the platform's table: a
+        /// certificate name on Apple platforms, a certificate file on
+        /// Windows. On macOS it implies `--bundle app`, since a flat binary
+        /// cannot be signed.
         #[arg(long)]
         sign: Option<String>,
         /// Submit the signed macOS bundle to Apple's notary service and
-        /// staple the ticket. Reads BALAUR_NOTARY_KEY, _KEY_ID and _ISSUER_ID.
+        /// staple the ticket. Reads BALAUR_APPLE_NOTARY_KEY, _KEY_ID and
+        /// _ISSUER_ID.
         #[arg(long)]
         notarize: bool,
         /// The `.mobileprovision` an iOS build is signed against.
         #[arg(long, value_name = "FILE")]
-        profile: Option<PathBuf>,
-        /// Wrap the iOS `.app` as the `.ipa` App Store Connect takes.
-        #[arg(long)]
-        ipa: bool,
-        /// Assemble the Android layout into an installable APK. Needs the
-        /// SDK's build-tools; signs with `[export] android_keystore`, or with
-        /// Android's debug identity when the project names none.
-        #[arg(long)]
-        apk: bool,
-        /// Also build the AAB Play takes for a new app. Needs the SDK, a JDK
-        /// and `bundletool.jar`, which Google ships apart from the SDK.
-        #[arg(long)]
-        aab: bool,
-        /// Wrap the macOS `.app` as the `.pkg` the Mac App Store takes.
-        #[arg(long)]
-        pkg: bool,
+        provisioning_profile: Option<PathBuf>,
         /// Print what the export would weigh and write nothing. Every script
         /// is still compiled, because a size nobody can produce is not a
         /// measurement.
         #[arg(long)]
-        report: bool,
+        dry_run: bool,
     },
     /// Serve diagnostics over the Language Server Protocol on stdin/stdout,
     /// for an editor outside Balaur. The same checks `balaur check` runs.
@@ -229,7 +223,7 @@ enum Command {
     /// Open a project in the balaur editor (the editor itself is a balaur
     /// project; see the `editor/` directory).
     Edit(EditOpts),
-    /// Play back a session recorded with `run --record`.
+    /// Play back a recording made with `run --record`.
     ///
     /// The recording carries its project and every tick's input, so this
     /// needs nothing else. With `--verify` it also re-checks each tick's
@@ -279,9 +273,9 @@ enum Command {
     /// size the original was drawn at so a sprite over it stays that size.
     /// Pixel art, sampled nearest, is left alone.
     Shrink {
-        /// The project to write into.
-        #[arg(long, default_value = ".")]
-        project: PathBuf,
+        /// The project whose images to shrink.
+        #[arg(default_value = ".")]
+        path: PathBuf,
         /// The target the copy is for: `web`, `mobile`, `android`, `ios`.
         #[arg(long, default_value = "web")]
         tag: String,
@@ -313,8 +307,6 @@ enum Command {
 mod web;
 #[cfg(all(target_arch = "wasm32", feature = "window"))]
 mod web_export;
-#[cfg(all(target_arch = "wasm32", feature = "window"))]
-mod web_store;
 
 // Rayon's pool, built from Web Workers because `std::thread` spawns none on
 // this target. The page awaits `initThreadPool` before `start`; only the
@@ -460,36 +452,28 @@ fn dispatch(command: Command) -> Result<()> {
             path,
             output,
             target,
-            template,
+            runtime,
             download,
             no_download,
             keep_sources,
-            app,
+            bundle,
             sign,
             notarize,
-            profile,
-            ipa,
-            apk,
-            aab,
-            pkg,
-            report,
+            provisioning_profile,
+            dry_run,
         } => export_game(&ExportArgs {
             path,
             output,
             target,
-            template,
+            runtime,
             download,
             no_download,
             keep_sources,
-            app,
+            bundle,
             sign,
             notarize,
-            profile,
-            ipa,
-            apk,
-            aab,
-            pkg,
-            report,
+            provisioning_profile,
+            dry_run,
         }),
         Command::Check { path, strict } => check::project(&path, strict),
         Command::Test {
@@ -577,9 +561,10 @@ pub(crate) struct UpdateOpts {
     /// Release channel to follow: alpha, beta, rc, stable or nightly.
     #[arg(long)]
     channel: Option<String>,
-    /// One exact release tag, rather than whatever a channel holds now.
+    /// One exact release, by its version tag, rather than whatever a
+    /// channel holds now.
     #[arg(long, conflicts_with = "channel")]
-    tag: Option<String>,
+    version: Option<String>,
     /// Only report whether an update exists.
     #[arg(long)]
     check: bool,
@@ -607,8 +592,8 @@ struct EditOpts {
     /// editor without one popping up.
     #[arg(long)]
     offscreen: bool,
-    /// Start-up state for the editor scripts (persona id, "palette",
-    /// "light", "play"), mirroring the design prototype's startPersona.
+    /// Start-up state for the editor scripts (workspace id, "palette",
+    /// "light", "play"), mirroring the design prototype's startWorkspace.
     #[arg(long)]
     state: Option<String>,
     /// The offscreen framebuffer, as `WIDTHxHEIGHT` in physical pixels.
@@ -1039,19 +1024,25 @@ struct ExportArgs {
     path: PathBuf,
     output: Option<PathBuf>,
     target: Option<String>,
-    template: Option<PathBuf>,
+    runtime: Option<PathBuf>,
     download: bool,
     no_download: bool,
     keep_sources: bool,
-    app: bool,
+    bundle: Vec<BundleKind>,
     sign: Option<String>,
     notarize: bool,
-    profile: Option<PathBuf>,
-    ipa: bool,
-    apk: bool,
-    aab: bool,
-    pkg: bool,
-    report: bool,
+    provisioning_profile: Option<PathBuf>,
+    dry_run: bool,
+}
+
+/// A package `export --bundle` makes beside the export.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+enum BundleKind {
+    App,
+    Pkg,
+    Ipa,
+    Apk,
+    Aab,
 }
 
 /// The two policies balaur_export deliberately does not hold: where the
@@ -1059,7 +1050,7 @@ struct ExportArgs {
 /// template may be fetched.
 fn export_game(args: &ExportArgs) -> Result<()> {
     let download = args.download;
-    let fetch = move |wanted: &str| templates::obtain(wanted, download);
+    let fetch = move |wanted: &str| runtimes::obtain(wanted, download);
     #[cfg(not(target_family = "wasm"))]
     let modules = {
         let project = args.path.clone();
@@ -1073,18 +1064,18 @@ fn export_game(args: &ExportArgs) -> Result<()> {
         path: args.path.clone(),
         output: args.output.clone(),
         target: args.target.clone(),
-        template: args.template.clone(),
-        app: args.app,
+        runtime: args.runtime.clone(),
+        app: args.bundle.contains(&BundleKind::App),
         keep_sources: args.keep_sources,
         sign: args.sign.clone(),
         notarize: args.notarize,
-        profile: args.profile.clone(),
-        ipa: args.ipa,
-        apk: args.apk,
-        aab: args.aab,
-        pkg: args.pkg,
-        report_only: args.report,
-        template_roots: balaur_export::default_roots(templates::cache_dir()),
+        provisioning_profile: args.provisioning_profile.clone(),
+        ipa: args.bundle.contains(&BundleKind::Ipa),
+        apk: args.bundle.contains(&BundleKind::Apk),
+        aab: args.bundle.contains(&BundleKind::Aab),
+        pkg: args.bundle.contains(&BundleKind::Pkg),
+        dry_run: args.dry_run,
+        runtime_roots: balaur_export::default_roots(runtimes::cache_dir()),
         plugins,
         obtain: if args.no_download { None } else { Some(&fetch) },
     })

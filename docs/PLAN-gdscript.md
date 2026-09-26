@@ -182,7 +182,7 @@ first pass covers what the port has already proven by hand:
 
 | Godot | Engine |
 | --- | --- |
-| `sig.connect(f)` | `events::subscribe` |
+| `sig.connect(f)` | `events::listen` |
 | `sig.emit(a)` | `node.emit` / `events::emit` |
 | `add_child`, `get_parent`, `get_children`, `queue_free` | the same names on the node handle |
 | `$Path`, `get_node("P")`, `%Unique` | `node::get_node` |

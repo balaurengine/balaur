@@ -16,8 +16,7 @@ anyhow.workspace = true
 tracing.workspace = true
 toml.workspace = true
 
-# No websocket stack compiles for wasm; those get the browser backend or,
-# outside emscripten, a stub whose every connect resolves to an error event.
+# No websocket stack compiles for wasm; the browser backend takes over there.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 tungstenite.workspace = true
 # The worker speaks frames itself so `permessage-deflate` can set the bit
@@ -25,26 +24,22 @@ tungstenite.workspace = true
 # compression and masking.
 httparse = "1"
 flate2 = "1"
-rand = "0.10"
+rand = "0.10.3"
 rustls = { version = "0.23", default-features = false, features = ["std", "ring"] }
 webpki-roots = "1"
 
-# Compiles the emscripten websocket shim for web builds only; see build.rs.
-# The browser outside emscripten: the WebSocket API through web-sys. No
-# threads — the browser fires callbacks and `pump` flushes sends per tick.
-[target.'cfg(all(target_family = "wasm", not(target_os = "emscripten")))'.dependencies]
-wasm-bindgen = "0.2"
-js-sys = "0.3"
-web-sys = { version = "0.3", features = [
+# The browser: the WebSocket API through web-sys. No threads — the browser
+# fires callbacks and `pump` flushes sends per tick.
+[target.'cfg(target_family = "wasm")'.dependencies]
+wasm-bindgen = "0.2.129"
+js-sys = "0.3.106"
+web-sys = { version = "0.3.106", features = [
     "BinaryType",
     "CloseEvent",
     "ErrorEvent",
     "MessageEvent",
     "WebSocket",
 ] }
-
-[build-dependencies]
-cc = "1"
 
 [dev-dependencies]
 balaur_testkit.workspace = true

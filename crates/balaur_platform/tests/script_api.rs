@@ -19,7 +19,7 @@ pub async fn init(this) {
     let store = platform::backend();
     let r = task::wait(platform::sign_in()).await;
     log::info(`platform-await ${store} ${r["kind"]}`);
-    this.request = platform::unlock(this.node, "first_blood", #{ on_platform: "on_store" });
+    this.request = platform::unlock(this.node, "first_blood", #{ on_event: "on_store" });
 }
 
 pub fn on_store(this, e) {

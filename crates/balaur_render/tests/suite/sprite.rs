@@ -83,10 +83,10 @@ fn a_sheet_is_sized_to_one_frame() {
 }
 
 #[test]
-fn explicit_half_extents_win_over_the_image() {
+fn an_explicit_size_wins_over_the_image() {
     let app = app();
     let entity = node(&app);
-    apply(&app, entity, "half_extents = [3.0, 7.0]\n");
+    apply(&app, entity, "size = [6.0, 14.0]\n");
     let (hx, hy) = half_extents(&app, entity);
     assert_close(hx, 3.0);
     assert_close(hy, 7.0);
@@ -134,7 +134,7 @@ fn changing_the_texture_forces_a_rebuild() {
         .get::<&Renderable2d>(entity)
         .unwrap()
         .version;
-    let table = sprite_table("half_extents = [9.0, 9.0]\n");
+    let table = sprite_table("size = [18.0, 18.0]\n");
     components::add(&app.engine, entity, "sprite", Some(&table)).unwrap();
     assert!(
         app.engine
@@ -159,7 +159,7 @@ fn the_component_round_trips() {
         table.contains_key("sheet"),
         "the sheet the grid came from is kept: {table:?}"
     );
-    assert_close(table["frame"].as_float().unwrap() as f32, 3.0);
+    assert_eq!(table["frame"].as_integer(), Some(3));
 
     let reloaded = node(&app);
     components::add(&app.engine, reloaded, "sprite", Some(&saved)).unwrap();
@@ -247,11 +247,11 @@ fn patching_the_sheet_fields_resizes_a_derived_sprite() {
     let app = app();
     let entity = node(&app);
     apply(&app, entity, "");
-    // The read is what used to write a resolved `half_extents` into the
+    // The read is what used to write a resolved `size` into the
     // component, which `patch` then overlaid as an explicit size.
     let read_back = components::get(&app.engine, entity, "sprite").unwrap();
     assert!(
-        read_back.get("half_extents").is_none(),
+        read_back.get("size").is_none(),
         "a derived size must not be reported as the author's: {read_back:?}"
     );
     let (before, _) = half_extents(&app, entity);
@@ -269,10 +269,10 @@ fn patching_the_sheet_fields_resizes_a_derived_sprite() {
 fn patching_a_sheet_field_leaves_an_authored_size_alone() {
     let app = app();
     let entity = node(&app);
-    apply(&app, entity, "half_extents = [3.0, 7.0]\n");
+    apply(&app, entity, "size = [6.0, 14.0]\n");
     let read_back = components::get(&app.engine, entity, "sprite").unwrap();
     assert!(
-        read_back.get("half_extents").is_some(),
+        read_back.get("size").is_some(),
         "an authored size has to round-trip: {read_back:?}"
     );
     let patch: toml::Value = toml::from_str("pixels_per_unit = 50.0").unwrap();

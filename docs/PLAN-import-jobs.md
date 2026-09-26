@@ -9,11 +9,11 @@
 >
 > `import.start` runs an import a few files per frame and reports each to
 > whatever `import.listen` named,
-> `import.running` counts what is in flight, and `import.file` stays as the one
+> `import.running_count` counts what is in flight, and `import.file` stays as the one
 > call a command and a test want. A drop starts a job, the status strip says
 > what is in flight, `chrome::toast` lists the batch with a bar under it, and a
 > failure opens the Output dock.
-> `jobdemo` drops a real `.glb` and asserts all of it across frames. Of step
+> `test:import_job` drops a real `.glb` and asserts all of it across frames. Of step
 > 5's own half:
 > `plan_bytes` answers a `Plan` that has written nothing, and
 > `Plan::write_next` writes one file and says whether any are left, so a
@@ -99,7 +99,7 @@ the progress event wants, so one design serves both.
 
 The half `ExternalIo` does not cover is how the work leaves the tick, written
 out per subsystem per target as a `mod backend` exposing one name:
-`balaur_http` in three (`request.rs`, `browser.rs`, `emscripten.rs`),
+`balaur_http` in two (`request.rs`, `browser.rs`),
 `balaur_gamend` in two, `balaur_webtransport` in two, and export in two.
 
 **One type, and only for the work that is the same work.** `task::step` is
@@ -126,8 +126,8 @@ matters is the one `ARCHITECTURE.md` names -- a channel outside `ExternalIo`
 
 ### 2.1 Three verbs, one event
 
-`import::start(path, options)`, `import::running()` and `import::listen(node)`,
-named and shaped as the export trio is. One event, `on_import`:
+`import::start(path, options)`, `import::running_count()` and `import::listen(node)`,
+named and shaped as the export trio is. One event, `on_import_event`:
 
 | kind | carries |
 | --- | --- |
@@ -219,10 +219,10 @@ this.
 
 The web editor and an exported game are one module today:
 `scripts/package_play.sh` copies `balaur.js` and `balaur_bg.wasm` out of
-`package_template.sh web` and ships them beside `editor.bpak` and a pack per
+`package_runtime.sh web` and ships them beside `editor.bpak` and a pack per
 example. The `import` cargo feature on `balaur_cli` is what splits them, and
 is built: on by default and in every native build, which is where the command
-lives, and off in `package_template.sh web`, so a game a reader downloads
+lives, and off in `package_runtime.sh web`, so a game a reader downloads
 carries no importer. `balaur import` and `balaur shrink` exist only with it.
 
 **The importers do compile for a browser**, which was the open question:
@@ -239,7 +239,7 @@ The second module is built. `package_play.sh` takes `EDITOR_MODULE` when a
 build already made one and builds its own otherwise, and `build-platforms`
 grew a third web entry -- `variant: editor`, the plain set plus `import` --
 which `bundle web` downloads and points at. `WEB_VARIANT` carries the name
-through `package_template.sh`, so the tarball matches the artifact the way
+through `package_runtime.sh`, so the tarball matches the artifact the way
 `-threads` already did.
 
 Run here, not only planned: the editor's module is **21.43 MB raw, 5.81 MB
@@ -326,11 +326,11 @@ rather than itself.
 
    `import::cancel` stops what is in flight at the end of the file it is
    writing, which every job reads at the top of its next slice. What was
-   written stays: the files are the output, not a transaction. `jobdemo`
+   written stays: the files are the output, not a transaction. `test:import_job`
    cancels before the first slice, where the count is deterministic.
 
    What a script sees of a count is an integer, not a float. `Value::Num` for
-   `files` and `done` made `import::running() == 1` a type error in Rune and
+   `files` and `done` made `import::running_count() == 1` a type error in Rune and
    printed "3.0 files"; both went away with `Value::Int`.
 7. **The buttons.** Import project is built and the lists are one list.
 
@@ -340,7 +340,7 @@ rather than itself.
    The start screen shows the count, a bar and a stop under its header, and
    refuses to open anything while it runs, because opening quits the process.
    `convert` takes what to do once the files are written: the button opens the
-   project, and `managerdemo` asserts on what landed instead. The button no
+   project, and `test:manager` asserts on what landed instead. The button no
    longer says Godot: `MANIFESTS` is the list it looks for, and a second engine
    is a line there.
 
@@ -443,7 +443,7 @@ as `k`. Every control now names its shape or is given a neutral one.
   view of imports alone is a view built twice.
 - **No thread, task or job handed to a script.** A script runs inside the
   fixed step and its digest has to match on every machine, so what it gets is
-  the event: `on_import`, as `on_response` and `on_export` already are. The
+  the event: `on_import_event`, as `on_response` and `on_export_event` already are. The
   verbs a script calls start work and ask how much is in flight, and that is
   the whole of the surface.
 - **No `on_files_dropped` hook.** Hooks address a node and a window's drop
@@ -453,7 +453,7 @@ as `k`. Every control now names its shape or is given a neutral one.
   shared memory. A shared-memory build of it plans on a worker, but a worker
   cannot reach the tab's filesystem, so writing and walking a folder stay
   under the tick there too.
-- **No importer in the game template.** A game reads what an import wrote; it
+- **No importer in the game runtime.** A game reads what an import wrote; it
   never imports. The feature stays off there however cheap it turns out to be.
 - **No import over a project's own files.** A drop copies into the project
   first, which is what `dropin::copy_in` already does. An importer that reads

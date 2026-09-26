@@ -15,7 +15,7 @@ pub(crate) fn raster(root: &Path, relative: &str) -> Option<(Vec<u8>, &'static s
     let import = crate::godot::io::text(&root.join(format!("{relative}.import"))).ok()?;
     let document = crate::godot::parse(&import).ok()?;
     let imported = document.first("remap")?.field("path")?.as_str()?;
-    let file = imported.strip_prefix("res://").unwrap_or(imported);
+    let file = crate::godot::relative_path(imported);
     let bytes = crate::godot::io::bytes(&root.join(file)).ok()?;
     embedded(&bytes)
 }

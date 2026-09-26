@@ -44,8 +44,8 @@ pub fn update(this, dt) {
     // past them the world rolls over.
     this.pitch = math::clamp(this.pitch - dy * this.sensitivity, -89.0, 89.0);
     let eye = this.node.transform.position;
-    let yaw = math::rad(this.yaw);
-    let pitch = math::rad(this.pitch);
+    let yaw = math::to_radians(this.yaw);
+    let pitch = math::to_radians(this.pitch);
     // A 3D camera is aimed by `camera.look_at`, never by the node's rotation,
     // so looking around is moving the point it looks at.
     let flat = math::cos(pitch) * FAR;
@@ -84,11 +84,11 @@ pub fn fixed_update(this, dt) {
     let (sin, cos) = (math::sin(yaw), math::cos(yaw));
     let x = (sideways * cos - forward * sin) * this.speed * dt;
     let z = (-sideways * sin - forward * cos) * this.speed * dt;
-    if this.node.character3d.is_grounded() {
+    if this.node.character3d.is_on_floor() {
         // Nothing holds it down: a push big enough to keep the capsule on the
         // floor aims the move into it, and the controller spends whole frames
         // resolving that instead of walking.
-        this.vy = if input::is_down(input::KEY_SPACE) { this.jump } else { 0.0 };
+        this.vy = if input::key_down(input::KEY_SPACE) { this.jump } else { 0.0 };
     } else {
         this.vy -= this.gravity * dt;
     }
@@ -100,7 +100,7 @@ pub fn fixed_update(this, dt) {
 
 /// One axis from two keys, so a pair reads as -1, 0 or 1.
 fn axis(positive, negative) {
-    let up = if input::is_down(positive) { 1.0 } else { 0.0 };
-    let down = if input::is_down(negative) { 1.0 } else { 0.0 };
+    let up = if input::key_down(positive) { 1.0 } else { 0.0 };
+    let down = if input::key_down(negative) { 1.0 } else { 0.0 };
     up - down
 }

@@ -11,7 +11,7 @@
 //! so anything outliving that call is named and looked up later.
 
 use anyhow::{Result, anyhow};
-use balaur_script::{NodeId, Value};
+use balaur_script::{Bindings, NodeId, Value};
 
 use crate::Engine;
 
@@ -99,4 +99,19 @@ pub fn dispatch(eng: &Engine, dispatches: Vec<(Vec<Handler>, u64, Value)>) {
 #[must_use]
 pub fn id_value(id: u64) -> Value {
     Value::Int(i64::try_from(id).unwrap_or(i64::MAX))
+}
+
+/// The `kind` an event map carries when the work failed, the same in every
+/// protocol: what a script compares against `EVENT_ERROR`.
+pub const ERROR: &str = "error";
+
+/// A module's event kinds as `EVENT_<KIND>` constants, so a script compares
+/// `e["kind"] == websocket::EVENT_OPEN` rather than spelling the word.
+pub fn install_event_kinds<E>(m: &mut dyn Bindings<E>, kinds: &[&str]) {
+    for kind in kinds {
+        m.constant(
+            &format!("EVENT_{}", kind.to_uppercase()),
+            Value::Str((*kind).to_string()),
+        );
+    }
 }

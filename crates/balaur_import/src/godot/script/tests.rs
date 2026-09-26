@@ -142,6 +142,46 @@ func _done():\n\
 }
 
 #[test]
+fn a_connect_flag_named_on_object_is_its_number() {
+    let source = "extends Node\n\n\
+func go(button):\n\
+\tbutton.ready.connect(_finish.bind(button), Object.CONNECT_ONE_SHOT)\n\n\
+func _finish(button):\n\
+\tpass\n";
+    let out = convert(source, "scripts/a.gd", &Classes::default());
+    assert!(!out.rune.contains("todo"), "{}", out.rune);
+    assert!(out.rune.contains(", 4)"), "{}", out.rune);
+}
+
+#[test]
+fn a_widget_signal_connected_binds_the_shim_it_patches_through() {
+    let source = "extends Button\n\n\
+func _ready() -> void:\n\
+\tpressed.connect(_on_pressed)\n\n\
+func _on_pressed() -> void:\n\
+\tpass\n";
+    let out = convert(source, "scripts/a.gd", &Classes::default());
+    let at = out
+        .rune
+        .find("(gd.patch_widget)")
+        .expect("the connect patches the widget");
+    let bound = out.rune[..at].rfind("let gd = script::require(\"gd.rn\");");
+    assert!(bound.is_some(), "{}", out.rune);
+}
+
+#[test]
+fn the_system_s_dark_mode_is_the_engine_s() {
+    let source = "extends Node\n\n\
+func dark() -> bool:\n\
+\tif DisplayServer.has_method(\"is_dark_mode\"):\n\
+\t\treturn DisplayServer.is_dark_mode()\n\
+\treturn false\n";
+    let out = convert(source, "scripts/a.gd", &Classes::default());
+    assert!(out.rune.contains("if (gd.truthy)(true) {"), "{}", out.rune);
+    assert!(out.rune.contains("engine::dark_mode()"), "{}", out.rune);
+}
+
+#[test]
 fn the_window_scale_and_a_debug_build_have_engine_answers() {
     let source = "extends Node\n\n\
 func grow():\n\
@@ -149,7 +189,7 @@ func grow():\n\
 \treturn OS.is_debug_build()\n";
     let out = convert(source, "scripts/a.gd", &Classes::default());
     assert!(out.rune.contains("ui::set_scale(2.0)"), "{}", out.rune);
-    assert!(out.rune.contains("engine::platform().dev"), "{}", out.rune);
+    assert!(out.rune.contains("engine::target().dev"), "{}", out.rune);
 }
 
 #[test]
@@ -402,7 +442,7 @@ fn visible_in_tree_asks_the_ancestors_too() {
 func shown(box):\n\
 \treturn box.is_visible_in_tree()\n";
     let out = convert(source, "scripts/a.gd", &Classes::default());
-    assert!(out.rune.contains("box.global_visible()"), "{}", out.rune);
+    assert!(out.rune.contains("box.visible_in_tree()"), "{}", out.rune);
 }
 
 #[test]
@@ -913,7 +953,7 @@ func _ready():\n\
     let out = convert(source, "scripts/entry.gd", &Classes::default());
     assert!(
         out.rune
-            .contains("patch_component(\"widget\", #{ \"cursor\": (gd.cursor_word)(2) })"),
+            .contains("(gd.patch_widget)(this.name_label, #{ \"cursor\": (gd.cursor_word)(2) })"),
         "{}",
         out.rune
     );
@@ -938,7 +978,7 @@ func _ready():\n\
     let out = convert(source, "scripts/veil.gd", &Classes::default());
     assert!(
         out.rune
-            .contains("patch_component(\"widget\", #{ \"pointer_through\": 2 == 2 })"),
+            .contains("(gd.patch_widget)(this.node, #{ \"interactive\": 2 != 2 })"),
         "{}",
         out.rune
     );

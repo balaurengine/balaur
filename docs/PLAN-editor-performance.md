@@ -6,7 +6,8 @@
 >
 > Sections 5 to 7 ask a different question, on `examples/hello`: what the frame
 > costs outside the docks. The instrument in §7 is built and the allocation
-> fixes §5 names have landed; nothing else in this plan has.
+> fixes §5 names have landed; nothing else in this plan has. §6h's engine
+> fixes landed 2026-09-26 with ratios only, taken under load.
 
 # Plan: what the editor's frame costs
 
@@ -47,8 +48,8 @@ the open tree as an array and draws none of it.
 | the flattened tree cached | **2.8 to 3.9 ms** | **17.1 to 23.1 ms** |
 
 Seven to nine times quicker at 2000 nodes. The cache is keyed on a `doc_rev`
-bumped wherever `S.doc` is replaced, plus the two lengths, so a fold or an edit
-rebuilds and a still frame does not. The docks now sit 1.7 to 2.9 ms over the
+every edit bumps (§6j), plus the two lengths, so a fold or an edit rebuilds and
+a still frame does not. The docks now sit 1.7 to 2.9 ms over the
 shut baseline of 1.06 ms, against 25.2 ms before.
 
 Read the spread, not the middle: two runs of the same command differ by up to
@@ -152,7 +153,7 @@ In this order, measuring after each:
 
 ## 4. What this costs to ship
 
-`balaur_ui` is in the game runtime, not only the editor, and a web template is
+`balaur_ui` is in the game runtime, not only the editor, and a web runtime is
 prebuilt, so a crate the editor links is carried by every exported game. The
 web module is 20.4 MB today. Measure each addition against
 `docs/generated/features.md` before taking it, and split the template only when
@@ -444,9 +445,167 @@ Where the rest of it sits, on `examples/hello` before this landed: the chrome
 with every dock shut was 5.8 ms of the 12.3, the inspector 2.7, the Output
 dock 2.4 and the outliner 1.5.
 
+## 6h. Work a frame did that changed nothing
+
+**Built 2026-09-26.** Sampled with `sample` on `examples/benchmark`'s script
+shapes, 2000 nodes each, and on the editor. Every figure here was taken with
+the load average between 50 and 100, so only the ratio within an interleaved
+pair holds. Re-run them on an idle machine and put the numbers here.
+
+- `propagate_transforms` made six `world.get` calls a node. One `view_mut`
+  lookup now reads all six: `propagate_transforms/1000` went from 1.34 ms to
+  243 µs.
+- The camera system collected every node in the tree each frame to find the
+  current camera. It queries the two camera components now and walks the tree
+  only when two cameras are current. With the change above, `scene_sync` on a
+  2000-node shape case went from 4.3–6.3 ms to 0.3–0.8 ms.
+- `components::patch` of values the component already holds returns before
+  rebuilding it. The component's own reader answers first, and the whole table
+  only when it cannot. The `component_read` shape went from 68 to 26 ms.
+- A script throwing in `update` rendered its diagnostic on every throw, about
+  26 µs each. The first throw at an instruction renders; the rest are counted
+  and said at 10, 100 and 1000.
+- A freed node had `Attached` removed, a move to another archetype just before
+  the despawn; it is cleared in place. Scripts detach in one pass over the
+  instances. Deleting 50,000 children went from 103–351 ms to 76–103 ms.
+
+The editor's own script is the other half of its frame. `hello` now costs
+144,085 instructions a frame against §5's 71,436, so the shell's work doubled
+since 2026-09-21, and nothing above touches it. §6i found where.
+
+## 6i. Where the shell's script went
+
+**Measured 2026-09-26**, in instructions, which load does not move. §7's
+counter charges only the lifecycle calls, so a `draw` callback and a pool
+callback were never in it. A build of the rune fork with an
+instruction-pointer histogram, `RUNE_PROFILE_IPS`, attributed every executed
+instruction to its function. That build is a measurement over a `paths`
+override and is not committed.
+
+Steady state on `examples/hello`:
+
+| | instructions a frame |
+| --- | ---: |
+| before | 186,662 |
+| the pool in Rust | 51,845 |
+| the 3D light and camera marks cached | 43,269 |
+
+Before, `util::copy` and `util::merge` were 48.6k at 235 calls each, the pool
+28.6k and the gizmo 59k. The gizmo had not grown since §5's 53k. The pool is
+what doubled the shell: every control's table was merged over `SHAPELESS`,
+merged again and compared, in Rune, on every pass.
+
+- The pool is `ui::fill_strip` and `ui::fill_rows` in
+  `crates/balaur_ui/src/widget/pool.rs`, writing through the node operations
+  a script calls. The 80 editor states e2e runs pass on `angrynerds` and
+  `hello`, and a screenshot of each matches the Rune pool's but for the
+  Output dock's timestamps.
+- The gizmo keeps its line list against the box, the hot part and the two
+  colours, and replays it with one `render::draw_lines`. The 3D overlays do
+  the same, keyed on each light's and camera's pose, its table by value and
+  the selection.
+
+The `ui` pass, three interleaved pairs of 1000 frames under load 23 to 108,
+went from 88 ms to between 35 and 69 ms, and `scripts/update` from 16 to
+between 5 and 11 ms. Only the ratio holds.
+
+What is left of the 43k: `docks` 8.0k, rebuilding its tabs and panels every
+pass; `model` 5.8k, most of it `is_2d` scanning the document three times a
+frame, which grows with the document; `util` 5.0k, `icons` 3.5k, `layout`
+3.1k, `left` 2.6k, `dock::output` 2.4k and `center` 2.2k. The shell still
+states every strip on every pass, and stating it only when something changed
+is the next step.
+
+A second pass took it to 39,715: the outliner and the outline list patch the
+keys they own instead of reading the widget whole and setting it back, which
+rebuilt both every frame; `model::is_2d` scans once a frame; `docks::side_of`
+loops rather than calling a closure a tab; the gizmo and the overlays compare
+their keys with `==`, which in the fork compares by value.
+
+Two things the count does not say, both timed on 100,000 calls. A `const`
+table looked up is six times slower than the `match` it would replace,
+because the table is built again on every access, so `icons.rn` stays a
+`match`. A plain loop costs more instructions than `iter().any` with a
+closure and runs in 0.76 s against 1.23.
+
+`--timings` names each `draw` target now. On `hello`, under load 84, the
+three dock bodies are 1.1 to 1.4 ms each of a 9.5 ms `ui` pass, and the frame
+is 13 ms wall where the same load gave 118 before §6i. Each body restates
+its nodes every pass. Skipping that needs a document revision every edit
+bumps; `S.doc` is written in place from eight files today, and a cache keyed
+on `doc_rev` alone misses a rename or a component added.
+
+## 6j. A revision every edit bumps
+
+**Built 2026-09-26.** `doc_rev` is bumped by every edit to `S.doc` now:
+`history::record` before a recorded one, a drag's continuing steps included;
+undo and redo; and `model::record_override`, which every unrecorded writer
+ends in. The frame after a bump bumps once more, in `model::settle_revision`,
+because a cache built between an edit's bump and its write holds the old
+document under the new number.
+
+A self-test run checks it. `model::check_revision` compares the document's
+text frame to frame and warns when it changed while `doc_rev` did not, and a
+warning fails e2e. A rename planted without a bump trips it; the 80 states run
+clean.
+
+- The outliner keeps its row strings and selection until the rows, the
+  document, the warnings, the selection or the theme move, and writes nothing
+  to its node on a frame where none did.
+- Output remakes its lines only when `log::since` returns a new one, or the
+  filter or the theme changes, and every writer of the log node skips a list
+  equal to the last one it wrote.
+- Min of four interleaved pairs under load 36 to 62: left dock 3.36 to
+  2.46 ms, right 2.92 to 2.49, bottom 3.10 to 2.88, `ui` 25.5 to 22.4.
+
+The tab strips are what is left of a dock's script. Built once and handed
+over every frame, they cost what building them did, so the time is the pool's
+conversion and compare. A pool that kept its callbacks and heard its controls
+itself would let a strip skip the call. §6k is that pool.
+
+## 6k. The pool hears its controls
+
+**Built 2026-09-26.** The pool keeps each control's `on` and `on_submit`
+itself, and `apply_system` calls them from the clicks and changes the frame
+settled. A strip whose inputs did not move is not stated again.
+
+- `pool::strip_when(S, host, key, build)` and `pool::sync_when` fill a host
+  only when `key` moved. The key holds what the controls are built from.
+- A self-test run fills anyway and warns when the controls changed under a
+  key that did not, so a key missing an input fails e2e. The 80 states run
+  clean on `hello` and `angrynerds`.
+- `ui::edit(node, value)` changes a widget as the reader would. A script's own
+  write is not an edit and reaches no `on`, so a self-test types with it.
+- Keyed so far: the menu, the top bar, the status bar, each dock's tab strips,
+  and the inspector's foot and form.
+- On `hello` offscreen, where the UI pass runs every frame, a frame is 32,048
+  instructions with the keys ignored and 20,508 with them.
+
+## 6l. An idle editor draws nothing
+
+**Built 2026-09-26.** With the UI lazy, the windowed loop still ran every
+frame: the editor's `update`, the scene's render and the shell re-presented,
+at the display's rate. `[window] low_processor`, which the editor turns on,
+lets the loop sleep until something asks for a frame.
+
+- The loop blocks in kiss3d's `Window::wait_events` until input, a
+  `balaur_core::wake`, or the soonest repaint that egui or
+  `ui.request_repaint(#{ after })` scheduled.
+- A worker thread reports with `replay::report`, which wakes the loop. A log
+  line, the script watcher, the debug adapter and the dock icon's thread wake
+  it too.
+- The editor asks for a frame while it assembles, imports, plays, folds a dock
+  or runs a `--state`. Its debounces read `engine::unix_time`, because engine
+  time moves at most 0.1 s across an idle gap.
+- On `hello`, windowed and untouched, sampled by `top` over 5 s: 80 to 100% of
+  a core with it off, 0.0% with it on.
+
+A frame the pointer draws still runs every poll in `update`: the gizmo, the
+hotkeys, the overlays' lines. Those move onto hooks and nodes next.
+
 ## 7. The instrument
 
-`engine.profile_scripts(on)` and `engine.script_costs()` count VM instructions
+`engine.set_script_profiling(on)` and `engine.script_costs()` count VM instructions
 per script, and the Profiler dock has a `scripts` toggle that turns them on.
 Instructions rather than milliseconds, so two runs of the same frame report the
 same number and a change in the reading is a change in what a script does.
@@ -458,8 +617,11 @@ quarter of the pixels it is 2.6 ms, so the frame's floor is fill rather than
 anything the scene holds.
 
 The editor compiles as one Rune unit, so the count is the whole shell rather
-than a figure per file. Ablation is what localises it, as §5 did: stub one call,
-re-run, take the difference.
+than a figure per file. `engine.function_costs()` is what localises it now:
+the rune fork counts every instruction the VM runs by the function holding it,
+so a `draw` callback and a closure the pool calls are rows of their own, and
+the Profiler lists the twelve dearest under the scripts. Before it, ablation
+did, as §5 shows: stub one call, re-run, take the difference.
 
 ## 8. What was measured and left alone
 
@@ -490,7 +652,7 @@ not price them again.
    are on `table`, and the outliner's search view draws on the same `tree`
    node the unfiltered walk does, so no view of the document emits a row at a
    time any more. What still does draws controls per row rather than rows.
-   `rowsdemo` is the self-test state that reads the outliner's node back.
+   `test:rows` is the self-test state that reads the outliner's node back.
 4. The gizmo and overlay line lists cached against their inputs, and the
    tessellation cache in the fork. Neither waits on the kinds above.
 
