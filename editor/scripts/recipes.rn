@@ -9,7 +9,7 @@ use crate::util;
 // The keys a recipe reads off the components it converts.
 const TEXTURE = "texture";
 const PIXELS_PER_UNIT = "pixels_per_unit";
-const HALF_EXTENTS = "half_extents";
+const SIZE = "size";
 const RADIUS = "radius";
 const COLOR = "color";
 const MESH = "mesh";
@@ -234,7 +234,7 @@ fn fitted_2d(S, node) {
         if shape2d_kind(shape) == Some(render::SHAPE_CIRCLE) {
             return Some(#{ kind: physics2d::SHAPE_CIRCLE, radius: shape.get(RADIUS).unwrap_or(0.5) });
         }
-        return Some(#{ kind: physics2d::SHAPE_RECTANGLE, half_extents: shape.get(HALF_EXTENTS).unwrap_or([0.5, 0.5]) });
+        return Some(#{ kind: physics2d::SHAPE_RECTANGLE, size: shape.get(SIZE).unwrap_or([1.0, 1.0]) });
     }
     let outline = outline_2d(S, node, true);
     if let Some(mesh) = outline {
@@ -257,7 +257,7 @@ fn fitted_3d(node, parts) {
     if shape3d_kind(shape) == Some(render::SHAPE_SPHERE) {
         return Some(#{ kind: physics3d::SHAPE_SPHERE, radius: shape.get(RADIUS).unwrap_or(0.5) });
     }
-    Some(#{ kind: physics3d::SHAPE_BOX, half_extents: shape.get(HALF_EXTENTS).unwrap_or([0.5, 0.5, 0.5]) })
+    Some(#{ kind: physics3d::SHAPE_BOX, size: shape.get(SIZE).unwrap_or([1.0, 1.0, 1.0]) })
 }
 
 // The outline a 2D node draws, as a mesh a polygon or a collider takes: its
@@ -297,7 +297,8 @@ fn shape_points(shape) {
         }
         return points;
     }
-    let half = shape.get(HALF_EXTENTS).unwrap_or([0.5, 0.5]);
+    let size = shape.get(SIZE).unwrap_or([1.0, 1.0]);
+    let half = [size[0] / 2.0, size[1] / 2.0];
     [[0.0 - half[0], 0.0 - half[1]], [half[0], 0.0 - half[1]], [half[0], half[1]], [0.0 - half[0], half[1]]]
 }
 
@@ -424,7 +425,7 @@ pub fn soft_sources(S, two_d) {
         out.push(source_row("Box", "a block of cells", "Jelly", #{ shape3d: #{ kind: render::SHAPE_BOX } }));
         out.push(source_row("Sphere", "a ball of cells", "Blob", #{ shape3d: #{ kind: render::SHAPE_SPHERE, radius: 0.5 } }));
         out.push(source_row("Plane", "a sheet of cloth", "Cloth",
-            #{ shape3d: #{ kind: render::SHAPE_PLANE, half_extents: [1.0, 0.0, 1.0] } }));
+            #{ shape3d: #{ kind: render::SHAPE_PLANE, size: [2.0, 0.0, 2.0] } }));
         for rel in project_files(S, |rel| is_model(rel)) {
             out.push(source_row(rel, "filled with cells that carry it as a skin", crate::dropin::stem_of(rel),
                 #{ mesh: #{ source: #{ source: rel } } }));
@@ -585,9 +586,9 @@ fn soft_parts_2d(S, node) {
     let color = shape.get(COLOR).unwrap_or([0.8, 0.8, 0.8, 1.0]);
     let kind = shape2d_kind(shape);
     if kind == Some(render::SHAPE_RECTANGLE) {
-        let half = shape.get(HALF_EXTENTS).unwrap_or([0.5, 0.5]);
+        let size = shape.get(SIZE).unwrap_or([1.0, 1.0]);
         return Some(#{ "-shape2d": true, softbody2d: #{
-            kind: physics2d::SOFT_GRID, half_extents: half, cells: cells_2d(half), color: color,
+            kind: physics2d::SOFT_GRID, size: size, cells: cells_2d(size), color: color,
         } });
     }
     let radius = shape.get(RADIUS).unwrap_or(0.5);
@@ -611,15 +612,15 @@ fn soft_parts_3d(node) {
             kind: physics3d::SOFT_SPHERE, radius: shape.get(RADIUS).unwrap_or(0.5), color: color,
         } });
     }
-    let half = shape.get(HALF_EXTENTS).unwrap_or([0.5, 0.5, 0.5]);
+    let size = shape.get(SIZE).unwrap_or([1.0, 1.0, 1.0]);
     if kind == Some(render::SHAPE_PLANE) {
         return Some(#{ "-shape3d": true, softbody3d: #{
-            kind: physics3d::SOFT_CLOTH, size: [half[0] * 2.0, 0.0, half[2] * 2.0],
+            kind: physics3d::SOFT_CLOTH, size: [size[0], 0.0, size[2]],
             cells: [12.0, 12.0, 1.0], color: color,
         } });
     }
     Some(#{ "-shape3d": true, softbody3d: #{
-        kind: physics3d::SOFT_BOX, half_extents: half, cells: [4.0, 4.0, 4.0], color: color,
+        kind: physics3d::SOFT_BOX, size: size, cells: [4.0, 4.0, 4.0], color: color,
     } })
 }
 
@@ -695,12 +696,12 @@ fn islands(sprite, loops) {
 // size it was stretched to, or the texture's import setting.
 fn drawn_scale(S, sprite, texture) {
     let own = sprite.get(PIXELS_PER_UNIT).unwrap_or(0.0);
-    let half = sprite.get(HALF_EXTENTS);
-    let half_some = half;
-    if let Some(half) = half_some {
+    let size = sprite.get(SIZE);
+    let size_some = size;
+    if let Some(size) = size_some {
         let (w, _) = render::texture_size(S.game_root + "/" + texture);
-        if half[0] > 0.0 {
-            let stretched = util::f(w) / (half[0] * 2.0);
+        if size[0] > 0.0 {
+            let stretched = util::f(w) / size[0];
             return stretched;
         }
     }
@@ -739,10 +740,10 @@ fn cell_size(points) {
     util::clamp(widest / 10.0, 0.02, 1.0)
 }
 
-fn cells_2d(half) {
-    let longest = util::max(half[0], half[1]);
+fn cells_2d(size) {
+    let longest = util::max(size[0], size[1]);
     let per_unit = 8.0 / util::max(longest, 0.01);
-    [util::max(2.0, math::round(half[0] * per_unit)), util::max(2.0, math::round(half[1] * per_unit))]
+    [util::max(2.0, math::round(size[0] * per_unit)), util::max(2.0, math::round(size[1] * per_unit))]
 }
 
 fn shape2d_kind(shape) {

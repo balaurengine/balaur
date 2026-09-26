@@ -98,7 +98,7 @@ fn animating_one_property_leaves_the_rest_of_its_component_alone() {
         entity,
         "shape3d",
         r#"kind = "box"
-half_extents = [2.0, 3.0, 4.0]"#,
+size = [4.0, 6.0, 8.0]"#,
     );
     set(
         &app,
@@ -118,9 +118,9 @@ keys = [ { time = 0.0, value = 0.5 }, { time = 1.0, value = 2.0 } ]
     tick(&mut app, 30);
 
     assert_eq!(
-        numbers(&property(&app, entity, "shape3d", "half_extents")),
-        vec![2.0, 3.0, 4.0],
-        "writing `radius` through the registry put `half_extents` back to its \
+        numbers(&property(&app, entity, "shape3d", "size")),
+        vec![4.0, 6.0, 8.0],
+        "writing `radius` through the registry put `size` back to its \
          schema default — which is what `components::patch` exists to prevent"
     );
 }

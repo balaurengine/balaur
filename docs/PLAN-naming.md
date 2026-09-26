@@ -27,7 +27,9 @@ with no alias and no migration, as `one way to do a thing` asks.
   `sky_rotation_degrees`, `pixels_per_unit`, `operation`, cloner and terrain
   `kind`, cloner `angle_degrees`, the probe's `image_rotation_degrees`), and the
   text keys (`font_family`, `bitmap_font`, `text_align`, the `text2d` keys as
-  `draw_text_2d` options) with `draw_text_3d` and `draw_line_3d`.
+  `draw_text_2d` options) with `draw_text_3d` and `draw_line_3d`, and `size` as
+  the whole extent on every shape, collider, soft body, sprite and probe, with a
+  capsule's `height` tip to tip.
 - `NAMING.md` has the eight scopes, rules N18 to N23, and the picked names per
   system, from a survey of SDL3, Godot 4, Unity, Blender, GLFW, W3C, rapier and
   glTF on 2026-09-25.
@@ -41,8 +43,6 @@ with no alias and no migration, as `one way to do a thing` asks.
 | widget `source` (image, card sheet, code language) | `image`, `sheet`, `language` | `source` is raw text in the glossary |
 | body `mass` | `mass`, the total | every engine but rapier reads it so; collider `mass` overrides |
 | every angle in degrees | radians, as `floor_max_angle` | `angle` is radians on `bone2d` and degrees on `cloner` |
-| collider and softbody `half_extents` | `size`, full extents | Godot and Unity; softbody3d's `size` already means a cloth's span |
-| capsule `height`, the straight part | tip to tip | Godot and Unity; the importer copies Godot's today |
 | layers numbered 0 to 31 | 1 to 32 | Godot's numbering |
 | joint `length` for a rope and a spring | `max_length`, `rest_length` | one key, two meanings |
 | joint `locked_axes`, `solver` | `lock_translation`, `lock_rotation`, `articulation` | |

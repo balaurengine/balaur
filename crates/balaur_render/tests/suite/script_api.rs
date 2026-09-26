@@ -72,12 +72,12 @@ fn shapes_can_be_set_from_a_script_in_both_dimensions() {
     run_clean(
         r#"
         this.node.shape3d.set(#{ kind: "sphere", radius: 0.5 });
-        this.node.shape3d.set(#{ kind: "box", half_extents: [1.0, 2.0, 3.0] });
+        this.node.shape3d.set(#{ kind: "box", size: [2.0, 4.0, 6.0] });
         let kind = this.node.shape3d.kind;
         assert!(kind == "box", "the last shape set should win, got {}", kind);
 
         this.node.shape2d.set(#{ kind: "circle", radius: 0.25 });
-        this.node.shape2d.set(#{ kind: "rectangle", half_extents: [1.0, 2.0] });
+        this.node.shape2d.set(#{ kind: "rectangle", size: [2.0, 4.0] });
         let kind_2d = this.node.shape2d.kind;
         assert!(kind_2d == "rectangle", "the last 2D shape set should win, got {}", kind_2d);
         "#,

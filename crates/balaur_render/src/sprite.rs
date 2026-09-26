@@ -45,8 +45,8 @@ fn sprite_schema() -> std::rc::Rc<toml::Value> {
                 r#"{ type = "bool", default = true, description = "Centre the image on the node; off puts its top-left corner there" }"#,
             ),
             (
-                k::HALF_EXTENTS,
-                r#"{ type = "vec2", default = [0.0, 0.0], description = "Size override in world units; [0, 0] sizes from the texture" }"#,
+                k::SIZE,
+                r#"{ type = "vec2", default = [0.0, 0.0], description = "Whole size in world units; [0, 0] sizes from the texture" }"#,
             ),
             (
                 k::SHEET,
@@ -110,13 +110,14 @@ pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
                 let sheet = grid.map(|[columns, rows]| SpriteSheet2d { columns, rows });
                 let he = |i: usize| {
                     params
-                        .get(k::HALF_EXTENTS)
+                        .get(k::SIZE)
                         .and_then(|v| v.as_array())
                         .and_then(|a| a.get(i))
                         .and_then(balaur_core::components::as_f64)
                         .unwrap_or(0.0) as f32
+                        / 2.0
                 };
-                // Absent (or zero) half-extents mean "size it from the image".
+                // An absent (or zero) size means "size it from the image".
                 let explicit = (he(0) > 0.0 && he(1) > 0.0).then(|| (he(0), he(1)));
                 let pair = |key: &str, i: usize| {
                     params
@@ -269,10 +270,10 @@ fn read_sprite(
     // read the component back.
     if renderable.sized {
         map.insert(
-            k::HALF_EXTENTS.into(),
+            k::SIZE.into(),
             toml::Value::Array(vec![
-                toml::Value::Float(f64::from(hx)),
-                toml::Value::Float(f64::from(hy)),
+                toml::Value::Float(f64::from(hx * 2.0)),
+                toml::Value::Float(f64::from(hy * 2.0)),
             ]),
         );
     }

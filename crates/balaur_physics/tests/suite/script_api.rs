@@ -55,7 +55,7 @@ fn colliders_can_be_added_in_every_shape_the_api_offers() {
         r"
         this.node.body3d.set(#{ kind: physics3d::BODY_DYNAMIC });
         this.node.collider3d.set(#{ kind: physics3d::SHAPE_SPHERE, radius: 0.5 });
-        this.node.collider3d.set(#{ kind: physics3d::SHAPE_BOX, half_extents: [0.5, 0.5, 0.5] });
+        this.node.collider3d.set(#{ kind: physics3d::SHAPE_BOX, size: [1.0, 1.0, 1.0] });
         ",
     );
 }

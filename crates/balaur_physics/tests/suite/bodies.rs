@@ -235,7 +235,7 @@ fn can_sleep_false_keeps_a_body_awake() {
         &app.engine,
         ground,
         "collider3d",
-        Some(&toml::from_str("kind = \"box\"\nhalf_extents = [10.0, 0.5, 10.0]").unwrap()),
+        Some(&toml::from_str("kind = \"box\"\nsize = [20.0, 1.0, 20.0]").unwrap()),
     )
     .unwrap();
     // Apart, because sleeping is decided per island: two bodies that touch

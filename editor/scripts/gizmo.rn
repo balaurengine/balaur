@@ -156,11 +156,11 @@ fn half_extents(node) {
                 hx = r;
                 hy = r;
                 hz = r;
-            } else if let Some(he) = shape.get("half_extents") {
-                let he = util::vec3(he, [0.5, 0.5, 0.5]);
-                hx = he[0];
-                hy = he[1];
-                hz = he[2];
+            } else if let Some(size) = shape.get("size") {
+                let size = util::vec3(size, [1.0, 1.0, 1.0]);
+                hx = size[0] / 2.0;
+                hy = size[1] / 2.0;
+                hz = size[2] / 2.0;
             }
         }
     }
@@ -171,7 +171,7 @@ fn half_extents(node) {
 }
 
 // The world half-extents of one row, before the handle padding. The engine's
-// own bounds first: an authored `half_extents` says nothing about a mesh, and
+// own bounds first: an authored `size` says nothing about a mesh, and
 // nothing about a body a solver deforms.
 pub fn extents_at(S, i) {
     let found = match model::live(S, i) {

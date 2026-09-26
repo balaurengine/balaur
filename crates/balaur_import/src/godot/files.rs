@@ -796,7 +796,7 @@ func _process(_delta):
 
         let shape = node(&scene, "Shape");
         assert_eq!(shape["collider2d"]["kind"].as_str(), Some("rectangle"));
-        assert_eq!(floats(&shape["collider2d"]["half_extents"]), vec![0.2, 0.1]);
+        assert_eq!(floats(&shape["collider2d"]["size"]), vec![0.4, 0.2]);
         assert_eq!(
             shape["collider2d"]["sensor"].as_bool(),
             Some(true),

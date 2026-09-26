@@ -291,7 +291,6 @@ pub(crate) mod keys {
     pub(crate) const FRICTION_SLIP: &str = "friction_slip";
     pub(crate) const GRAVITY_SCALE: &str = "gravity_scale";
     pub(crate) const GYROSCOPIC_FORCES: &str = "gyroscopic_forces";
-    pub(crate) const HALF_EXTENTS: &str = "half_extents";
     pub(crate) const HEIGHT: &str = "height";
     pub(crate) const HEIGHTFIELD: &str = "heightfield";
     pub(crate) const HIT_FROM_INSIDE: &str = "hit_from_inside";

@@ -17,17 +17,15 @@ position = [0, 0, 0]
 [nodes.shape2d]
 kind = "capsule"
 radius = 0.4
-height = 1.2
+height = 2.0
 color = "#e8c37a"
 
 [nodes.character2d]
-height = 1.2
-radius = 0.4
 
 [nodes.collider2d]
 kind = "capsule"
 radius = 0.4
-height = 1.2
+height = 2.0
 
 [[nodes]]
 id = "rig_platformer_camera"

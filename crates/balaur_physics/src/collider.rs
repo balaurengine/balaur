@@ -187,11 +187,12 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
     };
     let he = |i: usize| -> Real {
         params
-            .get(k::HALF_EXTENTS)
+            .get(k::SIZE)
             .and_then(|v| v.as_array())
             .and_then(|a| a.get(i))
             .and_then(balaur_core::components::as_f64)
-            .unwrap_or(0.5) as Real
+            .unwrap_or(1.0) as Real
+            / 2.0
     };
     let point = |key: &str, fallback: [f32; 3]| {
         let read = |i: usize| {
@@ -209,9 +210,10 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
         )
     };
     let radius = scalar::real(f(k::RADIUS, 0.5)).max(0.01);
-    // rapier measures these from the centre; `height` is the whole straight
-    // part, matching what the `shape` component means by it.
-    let half_height = (scalar::real(f(k::HEIGHT, 1.0)).max(0.01)) / 2.0;
+    // rapier measures these from the centre. `height` runs tip to tip, so a
+    // capsule's segment is what the two caps leave of it.
+    let half_height = (scalar::real(f(k::HEIGHT, 2.0)).max(0.01)) / 2.0;
+    let half_segment = (half_height - radius).max(0.0);
     // A rounded shape is a shape plus a border radius, not nine more kinds.
     // Ball and capsule are already round, so they ignore it.
     let border = scalar::real(f(k::EDGE_RADIUS, 0.0)).max(0.0);
@@ -222,7 +224,7 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
             ColliderBuilder::round_cuboid(he(0).max(0.01), he(1).max(0.01), he(2).max(0.01), border)
         }
         w::BOX => ColliderBuilder::cuboid(he(0).max(0.01), he(1).max(0.01), he(2).max(0.01)),
-        w::CAPSULE => ColliderBuilder::capsule_y(half_height, radius),
+        w::CAPSULE => ColliderBuilder::capsule_y(half_segment, radius),
         w::CYLINDER if rounded => ColliderBuilder::round_cylinder(half_height, radius, border),
         w::CYLINDER => ColliderBuilder::cylinder(half_height, radius),
         w::CONE if rounded => ColliderBuilder::round_cone(half_height, radius, border),
@@ -540,16 +542,15 @@ fn collider_shape_params(
     }
     if let Some(cuboid) = shape.as_cuboid() {
         map.insert(k::KIND.into(), w::BOX.into());
-        let he = cuboid.half_extents;
-        map.insert(k::HALF_EXTENTS.into(), vec3(he.x, he.y, he.z));
+        let he = cuboid.half_extents * 2.0;
+        map.insert(k::SIZE.into(), vec3(he.x, he.y, he.z));
         return Some(map);
     }
     if let Some(capsule) = shape.as_capsule() {
         map.insert(k::KIND.into(), w::CAPSULE.into());
         map.insert(k::RADIUS.into(), f(capsule.radius));
-        // `height` is the straight part: the segment, caps excluded.
         let straight = (capsule.segment.b - capsule.segment.a).length();
-        map.insert(k::HEIGHT.into(), f(straight));
+        map.insert(k::HEIGHT.into(), f(straight + 2.0 * capsule.radius));
         return Some(map);
     }
     if let Some(cylinder) = shape.as_cylinder() {
@@ -586,9 +587,9 @@ fn collider_shape_params(
     // The rounded shapes report the shape they wrap plus the border that
     // rounded it, which is exactly how the schema spells them.
     if let Some(round) = shape.as_round_cuboid() {
-        let he = round.inner_shape.half_extents;
+        let he = round.inner_shape.half_extents * 2.0;
         map.insert(k::KIND.into(), w::BOX.into());
-        map.insert(k::HALF_EXTENTS.into(), vec3(he.x, he.y, he.z));
+        map.insert(k::SIZE.into(), vec3(he.x, he.y, he.z));
         map.insert(k::EDGE_RADIUS.into(), f(round.border_radius));
         return Some(map);
     }
@@ -805,8 +806,8 @@ pub(crate) fn register_collider_component(reg: &mut Registry<'_>) {
         v::schema(&[
             (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{shapes}], description = "Collision shape" }}"#)),
             (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Radius, for ball, capsule, cylinder and cone" }"#),
-            (k::HEIGHT, r#"{ type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, for capsule, cylinder and cone" }"#),
-            (k::HALF_EXTENTS, r#"{ type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the box, when kind is box" }"#),
+            (k::HEIGHT, r#"{ type = "float", default = 2.0, min = 0.01, description = "Length along y, tip to tip, for capsule, cylinder and cone" }"#),
+            (k::SIZE, r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Whole size along each axis, when kind is box" }"#),
             (k::EDGE_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "Rounds a box, cylinder, cone or triangle by this radius; a rounded shape slides over seams instead of catching on them", group = "shape" }"#),
             (k::A, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "First corner, when kind is triangle or segment", group = "shape" }"#),
             (k::B, r#"{ type = "vec3", default = [1.0, 0.0, 0.0], description = "Second corner, when kind is triangle or segment", group = "shape" }"#),
@@ -851,7 +852,7 @@ pub(crate) fn register_collider_component(reg: &mut Registry<'_>) {
 /// asking where it is.
 pub(crate) fn install_collider_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("set_collider", &[c::COLLIDER_3D], "", "Replace the node's collider from a `collider3d` table: `kind`, `radius`, `half_extents`, `friction`, and the rest of the component's own vocabulary."),
+        ("set_collider", &[c::COLLIDER_3D], "", "Replace the node's collider from a `collider3d` table: `kind`, `radius`, `size`, `friction`, and the rest of the component's own vocabulary."),
     ]);
     m.function(
         "set_collider",

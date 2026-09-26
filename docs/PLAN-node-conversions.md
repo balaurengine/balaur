@@ -191,7 +191,7 @@ flipbook sprite is not one polygon and converting it would quietly freeze it
 on the current frame. The rule is a `log::warn` naming the property, and no
 edit — the same shape `model::refuse_structure:876` already uses for an
 edit inside an instance. `texture`, `pixels_per_unit`, `color` and
-`half_extents` carry across; everything else stops the conversion.
+`size` carry across; everything else stops the conversion.
 
 **The anchor for correctness is that nothing moves.**
 `PolygonMesh::default_uv` maps the texture centred on the node's origin at

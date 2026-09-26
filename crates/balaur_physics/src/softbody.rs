@@ -37,16 +37,12 @@ fn shape_schema() -> String {
             ),
         ),
         (
-            k::HALF_EXTENTS,
-            r#"{ type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the block, when kind is box", group = "shape" }"#,
-        ),
-        (
             k::CELLS,
             r#"{ type = "vec3", default = [4.0, 4.0, 4.0], description = "How many cells along each axis, for box; a cloth reads the first two, and a cloth_tube reads them as particles around and cells along", group = "shape" }"#,
         ),
         (
             k::SIZE,
-            r#"{ type = "vec3", default = [1.0, 0.0, 1.0], description = "The two edges a cloth is spanned over, as the sheet's extent along x and z", group = "shape" }"#,
+            r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Whole size along each axis: a box's block, or a cloth's sheet along x and z", group = "shape" }"#,
         ),
         (
             k::RADIUS,
@@ -324,7 +320,7 @@ fn build_layout(
         // cells between them, which is the number an author means.
         w::BOX => SoftBodyBuilder::cuboid(
             at,
-            scalar::v3a(v::vec3(params, k::HALF_EXTENTS, [0.5, 0.5, 0.5])),
+            scalar::v3a(v::vec3(params, k::SIZE, [1.0, 1.0, 1.0])) / 2.0,
             axis(0) as usize,
             axis(1) as usize,
             axis(2) as usize,
@@ -336,7 +332,7 @@ fn build_layout(
         ),
         w::CLOTH => {
             let (nu, nv) = (axis(0) as usize, axis(1) as usize);
-            let size = v::vec3(params, k::SIZE, [1.0, 0.0, 1.0]);
+            let size = v::vec3(params, k::SIZE, [1.0, 1.0, 1.0]);
             // The sheet is spanned from a corner, so the node's own position
             // is its middle like every other layout's.
             let du = pose.rotation * scalar::v3(size[0], 0.0, 0.0);

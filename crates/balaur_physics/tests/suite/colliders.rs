@@ -261,7 +261,7 @@ fn a_2d_collider_round_trips_through_get() {
     let e = child_of(&app, root, "Platform");
     let params: toml::Value = toml::from_str(
         r#"kind = "rectangle"
-half_extents = [2.0, 0.25]
+size = [4.0, 0.5]
 offset = [0.5, -1.0]
 offset_rotation = 0.75
 one_way = true

@@ -76,7 +76,8 @@ fn pile_shape(kind) {
     } else if kind == 1 {
         #{ kind: "sphere", radius: rng::range(0.25, 0.45) }
     } else if kind == 2 {
-        #{ kind: "capsule", radius: rng::range(0.2, 0.32), height: rng::range(0.9, 1.4) }
+        let radius = rng::range(0.2, 0.32);
+        #{ kind: "capsule", radius: radius, height: rng::range(0.9, 1.4) + 2.0 * radius }
     } else {
         // One size rather than a random one: a hull is built from a mesh
         // asset, and the collider has no scale to vary it with.
@@ -329,6 +330,7 @@ fn drop_at(i) {
     ]
 }
 
+/// A box from its half extents, which is how every case here measures one.
 fn box3(x, y, z) {
-    #{ kind: "box", half_extents: [x, y, z] }
+    #{ kind: "box", size: [x * 2.0, y * 2.0, z * 2.0] }
 }

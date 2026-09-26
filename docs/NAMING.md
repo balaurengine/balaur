@@ -377,7 +377,7 @@ Every angle a scene stores in degrees carries `_degrees`; radians are the defaul
 
 | Concept | Balaur name | Follows |
 | --- | --- | --- |
-| Sprite image | `texture`, `centered`, `sheet`, `half_extents` | Godot |
+| Sprite image | `texture`, `centered`, `sheet`, `size` | Godot |
 | Sprite mirror | `flip_x`, `flip_y` | Unity, Bevy |
 | Sprite offset | `offset_pixels` | Godot |
 | Sprite sub-rectangle | `region_position`, `region_size` | Godot |

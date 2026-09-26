@@ -391,19 +391,19 @@ fn every_component_reports_every_property_it_holds() {
 fn a_patch_keeps_what_was_asked_for_even_where_get_is_silent() {
     let app = app();
     let node = node_at(&app, app.engine.root(), Vec3::ZERO);
-    // A ball has no half-extents, so `shape3d` does not report the ones asked
+    // A sphere has no size, so `shape3d` does not report the one asked
     // for here: they are only in the table the scene handed over.
     let asked: toml::Value =
-        toml::from_str("kind = \"sphere\"\nradius = 0.7\nhalf_extents = [2.0, 1.0, 2.0]").unwrap();
+        toml::from_str("kind = \"sphere\"\nradius = 0.7\nsize = [4.0, 2.0, 4.0]").unwrap();
     components::add(&app.engine, node, "shape3d", Some(&asked)).unwrap();
     let becomes: toml::Value = toml::from_str("kind = \"box\"").unwrap();
     components::patch(&app.engine, node, "shape3d", &becomes).unwrap();
     let read = components::get(&app.engine, node, "shape3d").unwrap();
-    let half = read["half_extents"].as_array().unwrap();
-    let sizes: Vec<f64> = half.iter().map(|v| v.as_float().unwrap()).collect();
+    let size = read["size"].as_array().unwrap();
+    let sizes: Vec<f64> = size.iter().map(|v| v.as_float().unwrap()).collect();
     assert_eq!(
         sizes,
-        vec![2.0, 1.0, 2.0],
+        vec![4.0, 2.0, 4.0],
         "the patch fell back to the schema default instead of what was asked for"
     );
 }

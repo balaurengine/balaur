@@ -218,9 +218,9 @@ pub fn match_case(sample, text) {
 }
 
 /// Words a schema key spells lowercase that a label spells in capitals.
-const ACRONYMS = ["ccd", "fov", "hdr", "id", "ik", "lod", "rgb", "rgba", "srgb", "ui", "uv"];
+const ACRONYMS = ["fov", "hdr", "id", "ik", "lod", "rgb", "rgba", "srgb", "ui", "uv"];
 
-/// A schema key as a row label: `half_extents` reads "Half extents". The key
+/// A schema key as a row label: `edge_radius` reads "Edge radius". The key
 /// itself is untouched, so a label never becomes the name of anything.
 pub fn prop_label(prop) {
     if prop == "" {

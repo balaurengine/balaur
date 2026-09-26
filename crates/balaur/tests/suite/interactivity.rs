@@ -529,7 +529,11 @@ fn variable_and_state_rows_run_with_no_script() {
     assert_eq!(state_of(&app, door), "open", "the score changing opened it");
     let variables = app.engine.resource::<Variables>();
     let opened = variables.borrow().get("opened").cloned();
-    assert_eq!(opened, Some(Value::Bool(true)), "and the state change was heard");
+    assert_eq!(
+        opened,
+        Some(Value::Bool(true)),
+        "and the state change was heard"
+    );
 }
 
 /// A clip whose node's script also subscribes to its own event.
@@ -586,4 +590,74 @@ fn a_finished_clip_calls_its_own_node_once_when_the_node_also_subscribes() {
         app.tick(1.0 / 60.0);
     }
     assert_eq!(score(&app), 1);
+}
+
+/// A lamp hidden by a row on another node, and a sign hidden by its own clip,
+/// each with a row that answers its `visibility_changed`.
+const SHOWN: &str = r#"
+[variables]
+score = { type = "int", value = 0 }
+dark = { type = "bool", value = false }
+
+[[nodes]]
+id = "n_scene"
+name = "Scene"
+
+[[nodes]]
+id = "n_switch"
+name = "Switch"
+parent = "n_scene"
+
+[[nodes.bindings.rows]]
+event = "variable_changed"
+action = "visible"
+target = "../Lamp"
+value = false
+
+[[nodes]]
+id = "n_lamp"
+name = "Lamp"
+parent = "n_scene"
+
+[[nodes.bindings.rows]]
+event = "emitted:visibility_changed"
+action = "add_variable"
+target = "score"
+value = 1
+
+[[nodes]]
+id = "n_sign"
+name = "Sign"
+parent = "n_scene"
+
+[nodes.animation]
+autoplay = "blink"
+
+[nodes.animation.library.clips.blink]
+length = 0.2
+[[nodes.animation.library.clips.blink.tracks]]
+property = "visible"
+keys = [ { time = 0.0, value = 1.0 }, { time = 0.1, value = 0.0 } ]
+
+[[nodes.bindings.rows]]
+event = "emitted:visibility_changed"
+action = "add_variable"
+target = "score"
+value = 10
+"#;
+
+#[test]
+fn a_row_and_a_clip_that_hide_a_node_announce_it() {
+    let (_dir, mut app) = app_from(SHOWN);
+    {
+        let variables = app.engine.resource::<Variables>();
+        variables
+            .borrow_mut()
+            .set("dark", &Value::Bool(true))
+            .unwrap();
+    }
+    for _ in 0..30 {
+        app.tick(1.0 / 60.0);
+    }
+    assert_eq!(score(&app), 11, "the lamp once and the sign once");
 }

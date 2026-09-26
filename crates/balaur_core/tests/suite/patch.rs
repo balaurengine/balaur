@@ -23,7 +23,7 @@ fn app_with_dial() -> App {
                 "dial",
                 r#"kind = { type = "enum", default = "round", options = ["round", "square"] }
 radius = { type = "float", default = 0.5 }
-half_extents = { type = "vec3", default = [0.5, 0.5, 0.5] }
+size = { type = "vec3", default = [1.0, 1.0, 1.0] }
 label = { type = "string", default = "none" }"#,
             ),
             tags: &[],
@@ -48,7 +48,7 @@ label = { type = "string", default = "none" }"#,
                 let square = kind.as_str() == Some("square");
                 out.insert("kind".into(), kind);
                 out.insert("label".into(), dial.0.get("label")?.clone());
-                let carried = if square { "half_extents" } else { "radius" };
+                let carried = if square { "size" } else { "radius" };
                 out.insert(carried.into(), dial.0.get(carried)?.clone());
                 Some(toml::Value::Table(out))
             }),
@@ -82,7 +82,7 @@ fn patch_writes_one_property_and_leaves_the_others_where_they_were() {
         "dial",
         Some(&table(
             r#"kind = "square"
-half_extents = [2.0, 3.0, 4.0]
+size = [4.0, 6.0, 8.0]
 label = "gauge""#,
         )),
     )
@@ -92,8 +92,8 @@ label = "gauge""#,
 
     assert_eq!(read(&app, entity, "radius"), toml::Value::Float(1.25));
     assert_eq!(
-        read(&app, entity, "half_extents"),
-        table("v = [2.0, 3.0, 4.0]").get("v").unwrap().clone(),
+        read(&app, entity, "size"),
+        table("v = [4.0, 6.0, 8.0]").get("v").unwrap().clone(),
         "patching one property put another back to its default"
     );
     assert_eq!(
@@ -107,7 +107,7 @@ fn add_rewrites_the_whole_component_where_patch_does_not() {
     let app = app_with_dial();
     let entity = spawn(&app);
     let set = r#"kind = "square"
-half_extents = [2.0, 3.0, 4.0]"#;
+size = [4.0, 6.0, 8.0]"#;
     components::add(&app.engine, entity, "dial", Some(&table(set))).unwrap();
 
     components::add(&app.engine, entity, "dial", Some(&table("radius = 1.25"))).unwrap();

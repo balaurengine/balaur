@@ -301,8 +301,8 @@ fn an_inline_asset_is_the_type_its_table_declares() {
 /// declared, and must still be genuinely absent. An entry that stops being
 /// true fails rather than quietly covering for a real gap.
 const CONDITIONAL: &[(&str, &[&str])] = &[
-    // A shape reports the geometry of the `kind` it is: a box has
-    // `half_extents`, a sphere a `radius`, and neither carries the other's.
+    // A shape reports the geometry of the `kind` it is: a box has a
+    // `size`, a sphere a `radius`, and neither carries the other's.
     (
         "shape2d",
         &[
@@ -336,10 +336,7 @@ const CONDITIONAL: &[(&str, &[&str])] = &[
     ),
     // A sprite cut from a sheet reports the sheet; one drawing a whole image
     // has no cut to report.
-    (
-        "sprite",
-        &["half_extents", "region_origin", "region_size", "sheet"],
-    ),
+    ("sprite", &["region_origin", "region_size", "sheet", "size"]),
     // A map reports what was painted only once something has been.
     ("tilemap", &["flags", "seed", "terrain"]),
 ];

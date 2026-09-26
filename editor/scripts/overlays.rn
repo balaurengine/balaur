@@ -130,9 +130,9 @@ pub fn colliders2d(S) {
                 py = ny;
             }
         } else {
-            let he = util::vec2(collider.get("half_extents").unwrap_or(()), [0.5, 0.5]);
-            let hx = he[0] * s.x;
-            let hy = he[1] * s.y;
+            let size = util::vec2(collider.get("size").unwrap_or(()), [1.0, 1.0]);
+            let hx = size[0] / 2.0 * s.x;
+            let hy = size[1] / 2.0 * s.y;
             let (x1, y1) = pt(-hx, -hy);
             let (x2, y2) = pt(hx, -hy);
             let (x3, y3) = pt(hx, hy);
@@ -249,11 +249,11 @@ pub fn colliders(S) {
             hx = r;
             hy = r;
             hz = r;
-        } else if let Some(he) = collider.get("half_extents") {
-            let he = util::vec3(he, [0.5, 0.5, 0.5]);
-            hx = he[0];
-            hy = he[1];
-            hz = he[2];
+        } else if let Some(size) = collider.get("size") {
+            let size = util::vec3(size, [1.0, 1.0, 1.0]);
+            hx = size[0] / 2.0;
+            hy = size[1] / 2.0;
+            hz = size[2] / 2.0;
         }
         let xs = [p.x - hx, p.x + hx];
         let ys = [p.y - hy, p.y + hy];

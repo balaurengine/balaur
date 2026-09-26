@@ -29,7 +29,7 @@ fn cube(app: &App, parent: Entity, name: &str) -> Entity {
         app,
         entity,
         "shape3d",
-        "kind = \"box\"\nhalf_extents = [0.5, 0.5, 0.5]",
+        "kind = \"box\"\nsize = [1.0, 1.0, 1.0]",
     );
     entity
 }

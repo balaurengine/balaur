@@ -50,7 +50,7 @@ fn a_probe_resolves_to_the_box_its_node_sits_in() {
         &app,
         entity,
         "reflection_probe",
-        "half_extents = [6.0, 3.0, 4.0]\nfalloff = 0.75\nintensity = 0.8\nimage_rotation_degrees = 90.0",
+        "size = [12.0, 6.0, 8.0]\nfalloff = 0.75\nintensity = 0.8\nimage_rotation_degrees = 90.0",
     );
     place(&app, entity, Vec3::new(2.0, 1.0, -3.0));
     settle(&mut app);
@@ -103,7 +103,7 @@ fn a_probe_with_no_size_is_widened_to_something_a_ray_can_meet() {
         &app,
         entity,
         "reflection_probe",
-        "half_extents = [0.0, 0.0, 0.0]\nfalloff = 0.0",
+        "size = [0.0, 0.0, 0.0]\nfalloff = 0.0",
     );
     settle(&mut app);
 
@@ -228,7 +228,7 @@ fn the_frame_counts_every_triangle_it_draws() {
         &app,
         entity,
         "shape3d",
-        "kind = \"box\"\nhalf_extents = [1.0, 1.0, 1.0]",
+        "kind = \"box\"\nsize = [2.0, 2.0, 2.0]",
     );
     settle(&mut app);
 

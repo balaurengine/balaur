@@ -33,7 +33,7 @@ position = [0.0, -0.95, 0.0]
 
 [nodes.shape3d]
 kind = "plane"
-half_extents = [8.0, 0.0, 8.0]
+size = [16.0, 0.0, 16.0]
 segments = 8
 color = [0.20, 0.22, 0.26, 1.0]
 
@@ -41,7 +41,7 @@ color = [0.20, 0.22, 0.26, 1.0]
 # it rather than falling out of the scene.
 [nodes.collider3d]
 kind = "box"
-half_extents = [8.0, 0.1, 8.0]
+size = [16.0, 0.2, 16.0]
 offset = [0.0, -0.1, 0.0]
 
 [[nodes]]
@@ -55,12 +55,12 @@ position = [-1.5, -0.55, 0.0]
 
 [nodes.shape3d]
 kind = "box"
-half_extents = [0.5, 0.4, 0.5]
+size = [1.0, 0.8, 1.0]
 color = [0.34, 0.36, 0.40, 1.0]
 
 [nodes.collider3d]
 kind = "box"
-half_extents = [0.5, 0.4, 0.5]
+size = [1.0, 0.8, 1.0]
 friction = 0.9
 
 [[nodes]]

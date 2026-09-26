@@ -434,13 +434,15 @@ fn collider_outline(eng: &Engine, entity: Entity) -> Option<Vec<Vec2>> {
     match params.get(k::KIND).and_then(toml::Value::as_str)? {
         words::CIRCLE => Some(Flat::circle(num(k::RADIUS, 0.5)).outline()),
         words::RECTANGLE => {
-            let he = point(k::HALF_EXTENTS);
-            Some(Flat::rect(he.x, he.y).outline())
+            let size = point(k::SIZE);
+            Some(Flat::rect(size.x / 2.0, size.y / 2.0).outline())
         }
         words::CAPSULE => Some(
             Flat::Capsule {
                 radius: num(k::RADIUS, 0.5),
-                height: num(k::HEIGHT, 1.0),
+                height: 2.0f32
+                    .mul_add(-num(k::RADIUS, 0.5), num(k::HEIGHT, 2.0))
+                    .max(0.0),
                 segments: balaur_core::primitive::DEFAULT_SEGMENTS,
             }
             .outline(),

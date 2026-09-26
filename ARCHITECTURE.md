@@ -172,7 +172,7 @@ the node's own, and the root's children become the node's.
 - `overrides` is keyed by path from the instance node and holds scene keys,
   including `script.props`.
 - **An override patches, it does not replace** (`components::patch`) — through
-  `add`, overriding a collider's `half_extents` would reset its `kind`.
+  `add`, overriding a collider's `size` would reset its `kind`.
 - Every `StableId` inside an instance is prefixed by the instance's id
   (`n_crate_b/n_lid`) and nests. That is what a replay prints and what
   replication will address.
@@ -248,7 +248,7 @@ and remove hooks.
 - Two verbs: `set_component` merges over schema defaults (whole component),
   `components::patch` merges over the component's own `get` (leaves the rest).
   Animation and the inspector need the second — patching `collider3d/radius` with the
-  first would reset `half_extents`.
+  first would reset `size`.
 - `meta` is the one component with no schema, so every key on it is the
   author's: values filed on a node for whoever holds the node rather than for
   its own script (Godot's `set_meta`). A scene writes `[nodes.meta]`, a script

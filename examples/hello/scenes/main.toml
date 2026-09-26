@@ -33,11 +33,11 @@ parent = "n_world"
 position = [0, -1, 0]
 
 [nodes.collider3d]
-half_extents = [10, 0.5, 10]
+size = [20, 1.0, 20]
 kind = "box"
 
 [nodes.shape3d]
-half_extents = [10, 0.5, 10]
+size = [20, 1.0, 20]
 kind = "box"
 color = [0.3, 0.55, 0.3, 1]
 
@@ -84,7 +84,7 @@ source = "scripts/spinner.rn"
 speed = 3.5
 
 [nodes.shape3d]
-half_extents = [0.5, 0.5, 0.5]
+size = [1.0, 1.0, 1.0]
 kind = "box"
 color = [0.2, 0.4, 0.9, 1]
 
@@ -103,11 +103,11 @@ autoplay = "patrol"
 library = "animations/platform.toml"
 
 [nodes.collider3d]
-half_extents = [1, 0.25, 1]
+size = [2, 0.5, 2]
 kind = "box"
 
 [nodes.shape3d]
-half_extents = [1, 0.25, 1]
+size = [2, 0.5, 2]
 kind = "box"
 color = [0.55, 0.35, 0.8, 1]
 
@@ -166,7 +166,7 @@ position = [-4.5, 0.75, 0]
 
 [nodes.shape3d]
 kind = "box"
-half_extents = [0.15, 1.25, 1.1]
+size = [0.3, 2.5, 2.2]
 color = [0.45, 0.32, 0.17, 1]
 
 [nodes.states]

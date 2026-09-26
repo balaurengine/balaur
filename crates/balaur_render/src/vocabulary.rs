@@ -221,7 +221,6 @@ pub(crate) mod keys {
     pub(crate) const GRADIENT: &str = "gradient";
     pub(crate) const GRADIENT_STEPS: &str = "gradient_steps";
     pub(crate) const GRAVITY: &str = "gravity";
-    pub(crate) const HALF_EXTENTS: &str = p::HALF_EXTENTS;
     pub(crate) const HEIGHT: &str = p::HEIGHT;
     pub(crate) const IMAGE: &str = "image";
     pub(crate) const INTENSITY: &str = "intensity";

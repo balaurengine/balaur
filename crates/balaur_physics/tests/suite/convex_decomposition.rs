@@ -255,7 +255,7 @@ gravity_scale = 0.0
 
 [nodes.collider2d]
 kind = "rectangle"
-half_extents = [0.6, 0.02]
+size = [1.2, 0.04]
 "##
         ),
     )

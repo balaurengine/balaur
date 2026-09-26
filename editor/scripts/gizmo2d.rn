@@ -74,15 +74,20 @@ pub fn node_half_extents(node) {
     if !(shape is Object) {
         return None;
     }
-    if shape.get("kind") == Some(render::SHAPE_CIRCLE) {
+    let kind = shape.get("kind");
+    if kind == Some(render::SHAPE_CIRCLE) {
         let r = util::f(shape.get("radius").unwrap_or(0.5));
         return Some((r, r));
     }
-    let he = util::vec2(shape.get("half_extents").unwrap_or(()), [0.5, 0.5]);
-    Some((he[0], he[1]))
+    if kind == Some(render::SHAPE_CAPSULE) {
+        let r = util::f(shape.get("radius").unwrap_or(0.5));
+        return Some((r, util::f(shape.get("height").unwrap_or(2.0)) / 2.0));
+    }
+    let size = util::vec2(shape.get("size").unwrap_or(()), [1.0, 1.0]);
+    Some((size[0] / 2.0, size[1] / 2.0))
 }
 
-// Handle center in box-local coordinates (steadyum: signs * half_extents
+// Handle center in box-local coordinates (steadyum: signs * half extents
 // plus the normalized outward offset).
 fn handle_local(geo, signs) {
     let nx = signs[0];

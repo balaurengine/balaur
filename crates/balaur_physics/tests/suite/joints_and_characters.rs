@@ -56,7 +56,7 @@ script = { source = "scripts/s.rn" }
 
 [nodes.collider3d]
 kind = "box"
-half_extents = [2.0, 2.0, 2.0]
+size = [4.0, 4.0, 4.0]
 sensor = true
 events = ["collision"]
 
@@ -327,7 +327,7 @@ position = [2.0, 0.0, 0.0]
 
 [nodes.collider3d]
 kind = "box"
-half_extents = [0.5, 4.0, 8.0]
+size = [1.0, 8.0, 16.0]
 
 [[nodes]]
 id = "n_player"
@@ -465,7 +465,7 @@ position = [0.0, -1.0, 0.0]
 
 [nodes.collider3d]
 kind = "box"
-half_extents = [8.0, 0.5, 8.0]
+size = [16.0, 1.0, 16.0]
 
 [[nodes]]
 id = "n_player"
@@ -526,7 +526,7 @@ rotation_euler = [0.0, 0.0, 1.5707963]
 
 [nodes.collider2d]
 kind = "rectangle"
-half_extents = [1.0, 0.05]
+size = [2.0, 0.1]
 
 [nodes.character2d]
 floor_snap_length = 0.0
@@ -568,7 +568,7 @@ position = [0.0, -10.0, 0.0]
 
 [nodes.collider3d]
 kind = "box"
-half_extents = [8.0, 0.5, 8.0]
+size = [16.0, 1.0, 16.0]
 
 [[nodes]]
 id = "n_faller"

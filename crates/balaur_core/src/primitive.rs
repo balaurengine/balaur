@@ -51,7 +51,7 @@ pub mod keys {
     pub const KIND: &str = "kind";
     pub const RADIUS: &str = "radius";
     pub const HEIGHT: &str = "height";
-    pub const HALF_EXTENTS: &str = "half_extents";
+    pub const SIZE: &str = "size";
     pub const TUBE_RADIUS: &str = "tube_radius";
     pub const INNER_RADIUS: &str = "inner_radius";
     pub const CORNER_RADIUS: &str = "corner_radius";
@@ -67,6 +67,9 @@ pub const DEFAULT_SEGMENTS: u32 = 32;
 pub const DEFAULT_RINGS: u32 = 16;
 pub const DEFAULT_SIDES: u32 = 4;
 pub const DEFAULT_POINTS: u32 = 5;
+
+/// A column's height when none is given, tip to tip for a capsule: Godot's.
+pub const DEFAULT_HEIGHT: f32 = 2.0;
 
 /// The smallest a dimension may be. A zero-radius ball is not a point, it is
 /// a mesh with no triangles and a collider rapier refuses.
@@ -89,7 +92,7 @@ pub enum Solid {
         segments: u32,
     },
     /// A cylinder with hemispherical caps, principal axis on y. `height` is
-    /// the cylindrical part, so the whole thing is `height + 2 * radius` tall.
+    /// the cylindrical part here; a scene's `height` runs tip to tip.
     Capsule {
         radius: f32,
         height: f32,
@@ -314,8 +317,8 @@ pub enum Flat {
         corner_radius: f32,
         segments: u32,
     },
-    /// The straight part is `height`; the caps add `radius` at each end, the
-    /// same meaning the `collider2d` capsule gives them.
+    /// The straight part is `height`; a scene's `height` runs tip to tip, as
+    /// the `collider2d` capsule's does.
     Capsule {
         radius: f32,
         height: f32,

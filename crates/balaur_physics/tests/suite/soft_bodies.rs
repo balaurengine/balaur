@@ -588,7 +588,7 @@ fn a_disk_keeps_its_area_when_it_lands() {
         r#"pub fn init(this) {
     let floor = this.node.add_child("Floor");
     floor.set_component("transform", #{ position: [0.0, -0.8, 0.0] });
-    floor.set_component("collider2d", #{ kind: physics2d::SHAPE_RECTANGLE, half_extents: [5.0, 0.2] });
+    floor.set_component("collider2d", #{ kind: physics2d::SHAPE_RECTANGLE, size: [10.0, 0.4] });
     let blob = this.node.get_node("Blob2d").softbody2d;
     blob.set_softbody(#{ kind: physics2d::SOFT_CIRCLE, radius: 0.5, particle_count: 24 });
     this.before = blob.softbody_area();
@@ -673,7 +673,7 @@ fn a_2d_polygon_body_keeps_a_vertex_inside_its_outline() {
         r##"pub fn init(this) {
     let floor = this.node.add_child("Floor");
     floor.set_component("transform", #{ position: [0.0, -0.8, 0.0] });
-    floor.set_component("collider2d", #{ kind: physics2d::SHAPE_RECTANGLE, half_extents: [5.0, 0.2] });
+    floor.set_component("collider2d", #{ kind: physics2d::SHAPE_RECTANGLE, size: [10.0, 0.4] });
     this.node.get_node("Blob2d").softbody2d.set_softbody(#{ kind: physics2d::SOFT_POLYGON, mesh: "#hub", particle_radius: 0.05 });
 }
 "##,

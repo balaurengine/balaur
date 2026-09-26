@@ -419,10 +419,10 @@ fn world_rect(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
     out.set("shape2d", "kind", Toml::String("rectangle".into()));
     out.set(
         "shape2d",
-        "half_extents",
+        "size",
         floats(&[
-            width.abs() / 2.0 / PIXELS_PER_UNIT,
-            height.abs() / 2.0 / PIXELS_PER_UNIT,
+            width.abs() / PIXELS_PER_UNIT,
+            height.abs() / PIXELS_PER_UNIT,
         ]),
     );
     if let Some(color) = section.field("color").and_then(colour) {
@@ -788,8 +788,8 @@ fn collision_shape(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
             out.set("collider2d", "kind", Toml::String("rectangle".into()));
             out.set(
                 "collider2d",
-                "half_extents",
-                floats(&[w / 2.0 / PIXELS_PER_UNIT, h / 2.0 / PIXELS_PER_UNIT]),
+                "size",
+                floats(&[w / PIXELS_PER_UNIT, h / PIXELS_PER_UNIT]),
             );
         }
         "CircleShape2D" => {

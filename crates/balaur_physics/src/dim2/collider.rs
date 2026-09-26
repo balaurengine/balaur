@@ -69,9 +69,10 @@ pub(crate) fn add_collider_at(
 pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder2> {
     let kind = v::text(params, k::KIND, w::RECTANGLE);
     let radius = scalar::real(v::f(params, k::RADIUS, 0.5)).max(0.01);
-    // `height` is the straight part, caps excluded, as it is in 3D.
-    let half_height = scalar::real(v::f(params, k::HEIGHT, 1.0).max(0.01)) / 2.0;
-    let he = |i: usize| scalar::real(v::axis(params, k::HALF_EXTENTS, i, 0.5)).max(0.01);
+    // `height` runs tip to tip, as in 3D; the segment is what the caps leave.
+    let half_segment =
+        (scalar::real(v::f(params, k::HEIGHT, 2.0).max(0.01)) / 2.0 - radius).max(0.0);
+    let he = |i: usize| scalar::real(v::axis(params, k::SIZE, i, 1.0) / 2.0).max(0.01);
     let point = |key: &str, fallback: [f32; 2]| scalar::v2a(v::vec2(params, key, fallback));
     let border = scalar::real(v::f(params, k::EDGE_RADIUS, 0.0)).max(0.0);
     let rounded = border > 0.0;
@@ -80,7 +81,7 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
         w::CIRCLE => ColliderBuilder2::ball(radius),
         w::RECTANGLE if rounded => ColliderBuilder2::round_cuboid(he(0), he(1), border),
         w::RECTANGLE => ColliderBuilder2::cuboid(he(0), he(1)),
-        w::CAPSULE => ColliderBuilder2::capsule_y(half_height, radius),
+        w::CAPSULE => ColliderBuilder2::capsule_y(half_segment, radius),
         w::TRIANGLE if rounded => ColliderBuilder2::round_triangle(
             point(k::A, [0.0, 0.0]),
             point(k::B, [1.0, 0.0]),
@@ -436,19 +437,19 @@ fn shape_params(collider: &Collider) -> Option<toml::map::Map<String, toml::Valu
         map.insert(k::KIND.into(), w::CAPSULE.into());
         map.insert(k::RADIUS.into(), f(capsule.radius));
         let straight = (capsule.segment.b - capsule.segment.a).length();
-        map.insert(k::HEIGHT.into(), f(straight));
+        map.insert(k::HEIGHT.into(), f(straight + 2.0 * capsule.radius));
         return Some(map);
     }
     if let Some(cuboid) = shape.as_cuboid() {
         map.insert(k::KIND.into(), w::RECTANGLE.into());
-        let he = cuboid.half_extents;
-        map.insert(k::HALF_EXTENTS.into(), vec2(he.x, he.y));
+        let he = cuboid.half_extents * 2.0;
+        map.insert(k::SIZE.into(), vec2(he.x, he.y));
         return Some(map);
     }
     if let Some(round) = shape.as_round_cuboid() {
         map.insert(k::KIND.into(), w::RECTANGLE.into());
-        let he = round.inner_shape.half_extents;
-        map.insert(k::HALF_EXTENTS.into(), vec2(he.x, he.y));
+        let he = round.inner_shape.half_extents * 2.0;
+        map.insert(k::SIZE.into(), vec2(he.x, he.y));
         map.insert(k::EDGE_RADIUS.into(), f(round.border_radius));
         return Some(map);
     }
@@ -506,8 +507,8 @@ pub(crate) fn register_collider2d_component(reg: &mut Registry<'_>) {
         v::schema(&[
             (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{shapes}], description = "Collision shape" }}"#)),
             (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Circle radius, when kind is circle or capsule" }"#),
-            (k::HEIGHT, r#"{ type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, when kind is capsule" }"#),
-            (k::HALF_EXTENTS, r#"{ type = "vec2", default = [0.5, 0.5], description = "Half-sizes of the rectangle, when kind is rectangle" }"#),
+            (k::HEIGHT, r#"{ type = "float", default = 2.0, min = 0.01, description = "Length along y, tip to tip, when kind is capsule" }"#),
+            (k::SIZE, r#"{ type = "vec2", default = [1.0, 1.0], description = "Whole size along each axis, when kind is rectangle" }"#),
             (k::EDGE_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "Rounds a rect or triangle by this radius, so it slides over seams instead of catching on them", group = "shape" }"#),
             (k::A, r#"{ type = "vec2", default = [0.0, 0.0], description = "First corner, when kind is triangle or segment", group = "shape" }"#),
             (k::B, r#"{ type = "vec2", default = [1.0, 0.0], description = "Second corner, when kind is triangle or segment", group = "shape" }"#),

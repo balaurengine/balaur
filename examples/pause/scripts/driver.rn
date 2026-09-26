@@ -42,12 +42,12 @@ fn drop_box(parent, n) {
     box.set_component("body2d", #{ kind: "dynamic", gravity_scale: 0.35 });
     box.set_component("collider2d", #{
         kind: "rectangle",
-        half_extents: [0.34, 0.34],
+        size: [0.68, 0.68],
         restitution: 0.3,
     });
     box.set_component("shape2d", #{
         kind: "rectangle",
-        half_extents: [0.34, 0.34],
+        size: [0.68, 0.68],
         corner_radius: 0.08,
         color: tint(n),
     });

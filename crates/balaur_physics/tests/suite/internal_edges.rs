@@ -188,7 +188,7 @@ position = [0.0, 0.0, 0.0]
 
 [nodes.collider2d]
 kind = "rectangle"
-half_extents = [4.0, 0.1]
+size = [8.0, 0.2]
 one_way = true
 
 [[nodes]]
@@ -233,7 +233,7 @@ position = [10.0, 0.0, 0.0]
 
 [nodes.collider2d]
 kind = "rectangle"
-half_extents = [4.0, 0.1]
+size = [8.0, 0.2]
 one_way = true
 "#;
 

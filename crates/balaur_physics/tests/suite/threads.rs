@@ -25,7 +25,7 @@ fn resting_ball_at(app: &App, x: f32) -> Entity {
         &app.engine,
         ground,
         "collider3d",
-        Some(&toml::from_str("kind = \"box\"\nhalf_extents = [50.0, 0.5, 50.0]").unwrap()),
+        Some(&toml::from_str("kind = \"box\"\nsize = [100.0, 1.0, 100.0]").unwrap()),
     )
     .unwrap();
 

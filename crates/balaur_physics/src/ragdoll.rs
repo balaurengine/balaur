@@ -304,14 +304,8 @@ fn spawn_body(
         k::RADIUS.into(),
         toml::Value::Float(f64::from(length * recipe.thickness)),
     );
-    // The capsule's height is the straight part between its two caps, so a
-    // bone's own length minus what the caps already cover.
-    shape.insert(
-        k::HEIGHT.into(),
-        toml::Value::Float(f64::from(
-            (length - 2.0 * length * recipe.thickness).max(0.0),
-        )),
-    );
+    // Tip to tip, the capsule is as long as the bone.
+    shape.insert(k::HEIGHT.into(), toml::Value::Float(f64::from(length)));
     shape.insert(
         k::DENSITY.into(),
         toml::Value::Float(f64::from(recipe.density)),

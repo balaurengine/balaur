@@ -1387,17 +1387,9 @@
         ],
         "type": "enum"
       },
-      "half_extents": {
-        "default": [
-          0.5,
-          0.5
-        ],
-        "description": "Half-sizes of the rectangle, when kind is rectangle",
-        "type": "vec2"
-      },
       "height": {
-        "default": 1.0,
-        "description": "Length along y of the straight part, when kind is capsule",
+        "default": 2.0,
+        "description": "Length along y, tip to tip, when kind is capsule",
         "min": 0.01,
         "type": "float"
       },
@@ -1566,6 +1558,14 @@
         "default": false,
         "description": "Detects overlaps without colliding: bodies pass through and are reported",
         "type": "bool"
+      },
+      "size": {
+        "default": [
+          1.0,
+          1.0
+        ],
+        "description": "Whole size along each axis, when kind is rectangle",
+        "type": "vec2"
       },
       "solver_layer": {
         "default": [
@@ -1886,18 +1886,9 @@
         ],
         "type": "enum"
       },
-      "half_extents": {
-        "default": [
-          0.5,
-          0.5,
-          0.5
-        ],
-        "description": "Half-sizes of the box, when kind is box",
-        "type": "vec3"
-      },
       "height": {
-        "default": 1.0,
-        "description": "Length along y of the straight part, for capsule, cylinder and cone",
+        "default": 2.0,
+        "description": "Length along y, tip to tip, for capsule, cylinder and cone",
         "min": 0.01,
         "type": "float"
       },
@@ -2039,6 +2030,15 @@
         "default": false,
         "description": "Detects overlaps without colliding: bodies pass through and are reported",
         "type": "bool"
+      },
+      "size": {
+        "default": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "description": "Whole size along each axis, when kind is box",
+        "type": "vec3"
       },
       "solver_layer": {
         "default": [
@@ -3068,16 +3068,6 @@
         "min": 0.0,
         "type": "float"
       },
-      "half_extents": {
-        "default": [
-          5.0,
-          5.0,
-          5.0
-        ],
-        "description": "Half the box this probe speaks for, in world units, centred on the node",
-        "min": 0.0,
-        "type": "vec3"
-      },
       "image": {
         "default": "",
         "description": "Baked equirectangular image, project-relative. Empty captures the scene from the node's own position",
@@ -3093,6 +3083,16 @@
         "description": "Brightness of what the probe reflects",
         "min": 0.0,
         "type": "float"
+      },
+      "size": {
+        "default": [
+          10.0,
+          10.0,
+          10.0
+        ],
+        "description": "The box this probe speaks for, in world units, centred on the node",
+        "min": 0.0,
+        "type": "vec3"
       }
     },
     "shape2d": {
@@ -3143,17 +3143,9 @@
         "min": 1,
         "type": "int"
       },
-      "half_extents": {
-        "default": [
-          0.5,
-          0.5
-        ],
-        "description": "Half-sizes, when kind is rectangle or ellipse",
-        "type": "vec2"
-      },
       "height": {
-        "default": 1.0,
-        "description": "Length along y of the straight part, when kind is capsule",
+        "default": 2.0,
+        "description": "Length along y, tip to tip, when kind is capsule",
         "min": 0.01,
         "type": "float"
       },
@@ -3229,6 +3221,14 @@
         "min": 3,
         "type": "int"
       },
+      "size": {
+        "default": [
+          1.0,
+          1.0
+        ],
+        "description": "Whole size along each axis, when kind is rectangle or ellipse",
+        "type": "vec2"
+      },
       "taper": {
         "default": [
           1.0,
@@ -3272,18 +3272,9 @@
         "min": 0.0,
         "type": "float"
       },
-      "half_extents": {
-        "default": [
-          0.5,
-          0.5,
-          0.5
-        ],
-        "description": "Half-sizes, when kind is box, plane or pyramid",
-        "type": "vec3"
-      },
       "height": {
-        "default": 1.0,
-        "description": "Length along y, for capsule, cylinder, cone, prism and tube",
+        "default": 2.0,
+        "description": "Length along y, tip to tip, for capsule, cylinder, cone, prism and tube",
         "min": 0.01,
         "type": "float"
       },
@@ -3344,6 +3335,15 @@
         "description": "Flat faces, when kind is pyramid or prism",
         "min": 3,
         "type": "int"
+      },
+      "size": {
+        "default": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "description": "Whole size along each axis, when kind is box, plane or pyramid",
+        "type": "vec3"
       },
       "tube_radius": {
         "default": 0.2,
@@ -3637,15 +3637,6 @@
         "group": "particles",
         "type": "float"
       },
-      "half_extents": {
-        "default": [
-          0.5,
-          0.5
-        ],
-        "description": "Half-sizes of the sheet, when kind is grid",
-        "group": "shape",
-        "type": "vec2"
-      },
       "interior_strength": {
         "default": 1.0,
         "description": "How many times tougher an undamaged inside element is than a surface one, so cracks start at the surface and run inward",
@@ -3813,6 +3804,15 @@
         "max": 10000.0,
         "min": 0.0,
         "type": "float"
+      },
+      "size": {
+        "default": [
+          1.0,
+          1.0
+        ],
+        "description": "Whole size of the sheet, when kind is grid",
+        "group": "shape",
+        "type": "vec2"
       },
       "skin_collision": {
         "default": false,
@@ -4236,16 +4236,6 @@
         "group": "particles",
         "type": "float"
       },
-      "half_extents": {
-        "default": [
-          0.5,
-          0.5,
-          0.5
-        ],
-        "description": "Half-sizes of the block, when kind is box",
-        "group": "shape",
-        "type": "vec3"
-      },
       "interior_strength": {
         "default": 1.0,
         "description": "How many times tougher an undamaged inside element is than a surface one, so cracks start at the surface and run inward",
@@ -4424,10 +4414,10 @@
       "size": {
         "default": [
           1.0,
-          0.0,
+          1.0,
           1.0
         ],
-        "description": "The two edges a cloth is spanned over, as the sheet's extent along x and z",
+        "description": "Whole size along each axis: a box's block, or a cloth's sheet along x and z",
         "group": "shape",
         "type": "vec3"
       },
@@ -4672,14 +4662,6 @@
         "min": 0.0,
         "type": "float"
       },
-      "half_extents": {
-        "default": [
-          0.0,
-          0.0
-        ],
-        "description": "Size override in world units; [0, 0] sizes from the texture",
-        "type": "vec2"
-      },
       "material": {
         "asset": "material",
         "default": "",
@@ -4721,6 +4703,14 @@
         "default": "",
         "description": "A sprite_sheet whose frames `frame` indexes; its texture is drawn unless `texture` names another, and it wins over `columns`, `rows` and the region",
         "type": "asset"
+      },
+      "size": {
+        "default": [
+          0.0,
+          0.0
+        ],
+        "description": "Whole size in world units; [0, 0] sizes from the texture",
+        "type": "vec2"
       },
       "texture": {
         "asset": "texture",
@@ -10324,7 +10314,7 @@
         "reset_softbody_forces": "Take back every force `add_softbody_force` gave the body.",
         "set_angular_velocity": "Set how fast the body spins, in radians per second about each axis.",
         "set_brake": "How hard this wheel brakes.",
-        "set_collider": "Replace the node's collider from a `collider3d` table: `kind`, `radius`, `half_extents`, `friction`, and the rest of the component's own vocabulary.",
+        "set_collider": "Replace the node's collider from a `collider3d` table: `kind`, `radius`, `size`, `friction`, and the rest of the component's own vocabulary.",
         "set_constant_force": "Replace the constant force with this one; zero stops the push.",
         "set_constant_torque": "Replace the constant torque with this one; zero stops the turn.",
         "set_engine_force": "How hard this wheel drives, in newtons; negative reverses.",

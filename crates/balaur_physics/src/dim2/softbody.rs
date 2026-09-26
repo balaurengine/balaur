@@ -49,8 +49,8 @@ fn shape_schema() -> String {
             ),
         ),
         (
-            k::HALF_EXTENTS,
-            r#"{ type = "vec2", default = [0.5, 0.5], description = "Half-sizes of the sheet, when kind is grid", group = "shape" }"#,
+            k::SIZE,
+            r#"{ type = "vec2", default = [1.0, 1.0], description = "Whole size of the sheet, when kind is grid", group = "shape" }"#,
         ),
         (
             k::CELLS,
@@ -175,7 +175,7 @@ fn build_layout(
         // between them.
         w::GRID => SoftBodyBuilder2::grid(
             at,
-            scalar::v2a(v::vec2(params, k::HALF_EXTENTS, [0.5, 0.5])),
+            scalar::v2a(v::vec2(params, k::SIZE, [1.0, 1.0])) / 2.0,
             axis(0) as usize,
             axis(1) as usize,
         ),

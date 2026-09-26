@@ -29,7 +29,7 @@ id = "n_ground"
 name = "Ground"
 parent = "n_world"
 body3d = { kind = "static" }
-collider3d = { kind = "box", half_extents = [10.0, 0.5, 10.0] }
+collider3d = { kind = "box", size = [20.0, 1.0, 20.0] }
 
 [nodes.transform]
 position = [0.0, -1.0, 0.0]
@@ -110,7 +110,7 @@ fn simulation_is_bitwise_reproducible() {
 }
 
 /// The 2D world holds itself to the same standard. Integer literals in the
-/// scene (`half_extents = [10, 1]`) must parse as floats too.
+/// scene (`size = [20, 2]`) must parse as floats too.
 fn write_project_2d(root: &std::path::Path) {
     std::fs::create_dir_all(root.join("scenes")).unwrap();
     std::fs::write(
@@ -130,7 +130,7 @@ id = "n_ground"
 name = "Ground"
 parent = "n_world"
 body2d = { kind = "static" }
-collider2d = { kind = "rectangle", half_extents = [10, 1] }
+collider2d = { kind = "rectangle", size = [20, 2] }
 
 [nodes.transform]
 position = [0.0, -1.0, 0.0]
@@ -150,7 +150,7 @@ id = "n_boxb"
 name = "BoxB"
 parent = "n_world"
 body2d = { kind = "dynamic" }
-collider2d = { kind = "rectangle", half_extents = [0.5, 0.3] }
+collider2d = { kind = "rectangle", size = [1.0, 0.6] }
 
 [nodes.transform]
 position = [-0.1, 7.0, 0.0]

@@ -1195,7 +1195,7 @@ fn collider_of(shape) {
         return #{ "kind": "circle", "radius": float(shape["radius"]) / PIXELS };
     }
     let size = vec_of(shape["size"]);
-    #{ "kind": "rectangle", "half_extents": [size.x / PIXELS / 2.0, size.y / PIXELS / 2.0] }
+    #{ "kind": "rectangle", "size": [size.x / PIXELS, size.y / PIXELS] }
 }
 
 /// The method a call with `count` arguments reaches: `name__1` stands in

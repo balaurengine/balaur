@@ -173,7 +173,7 @@ const PALETTE = [
 /// A shape table without the collider-only keys the renderer would reject.
 fn copy(shape) {
     let out = #{};
-    for key in ["kind", "radius", "height", "half_extents"] {
+    for key in ["kind", "radius", "height", "size"] {
         let found = shape.get(key);
         if let Some(value) = found {
             out.insert(key, value);

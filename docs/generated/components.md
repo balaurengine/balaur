@@ -215,8 +215,7 @@ The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2
 <tr><td><code>fix_internal_edges</code></td><td>bool</td><td><code>true</code></td><td>Take neighbouring triangles into account for a triangle_mesh&#x27;s contacts, so a body does not catch on the seam between two of them</td></tr>
 <tr><td><code>friction</code></td><td>float</td><td><code>0.5</code></td><td>Surface friction; 0 is ice At least 0.0.</td></tr>
 <tr><td><code>friction_combine</code></td><td>enum</td><td><code>average</code></td><td>How this surface&#x27;s friction combines with the other one&#x27;s One of <code>average</code>, <code>min</code>, <code>multiply</code>, <code>max</code>, <code>clamped_sum</code>, <code>geometric_mean</code>.</td></tr>
-<tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td>Half-sizes of the rectangle, when kind is rectangle</td></tr>
-<tr><td><code>height</code></td><td>float</td><td><code>1.0</code></td><td>Length along y of the straight part, when kind is capsule At least 0.01.</td></tr>
+<tr><td><code>height</code></td><td>float</td><td><code>2.0</code></td><td>Length along y, tip to tip, when kind is capsule At least 0.01.</td></tr>
 <tr><td><code>heightfield</code></td><td>asset · <code>heightfield</code></td><td>—</td><td>A row of heights, when kind is heightfield: a side-scroller&#x27;s ground</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>rectangle</code></td><td>Collision shape One of <code>circle</code>, <code>rectangle</code>, <code>capsule</code>, <code>triangle</code>, <code>segment</code>, <code>world_boundary</code>, <code>triangle_mesh</code>, <code>convex_hull</code>, <code>convex_decomposition</code>, <code>polyline</code>, <code>heightfield</code>, <code>voxels</code>.</td></tr>
 <tr><td><code>mass</code></td><td>float</td><td><code>0.0</code></td><td>Mass in kilograms, overriding what density works out to; 0 keeps the density At least 0.0.</td></tr>
@@ -237,6 +236,7 @@ The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2
 <tr><td><code>restitution_combine</code></td><td>enum</td><td><code>average</code></td><td>How this surface&#x27;s bounciness combines with the other one&#x27;s One of <code>average</code>, <code>min</code>, <code>multiply</code>, <code>max</code>, <code>clamped_sum</code>, <code>geometric_mean</code>.</td></tr>
 <tr><td><code>scale</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>Width and height scale of a heightfield</td></tr>
 <tr><td><code>sensor</code></td><td>bool</td><td><code>false</code></td><td>Detects overlaps without colliding: bodies pass through and are reported</td></tr>
+<tr><td><code>size</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>Whole size along each axis, when kind is rectangle</td></tr>
 <tr><td><code>solver_layer</code></td><td>flags</td><td><code>[&quot;0&quot;]</code></td><td>Layers for the solver alone: a pair can be detected but not resolved One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
 <tr><td><code>solver_mask</code></td><td>flags</td><td><code>[]</code></td><td>Which solver layers this one pushes against; empty means all of them One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
 <tr><td><code>voxels</code></td><td>asset · <code>voxels</code></td><td>—</td><td>Filled cells, when kind is voxels; a script may dig into them while the game runs</td></tr>
@@ -399,8 +399,7 @@ An untextured 2D primitive at the node. `kind` is `circle`, `rectangle`, `capsul
 <tr><td><code>corner_radius</code></td><td>float</td><td><code>0.0</code></td><td>How far the corners are rounded off, when kind is rectangle; zero is a square corner At least 0.0.</td></tr>
 <tr><td><code>gradient</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The colour a polyline fades to at its far end, from `color` at its start; a zero alpha means no gradient</td></tr>
 <tr><td><code>gradient_steps</code></td><td>int</td><td><code>32</code></td><td>How many colours a polyline&#x27;s gradient steps through along its length At least 1.</td></tr>
-<tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td>Half-sizes, when kind is rectangle or ellipse</td></tr>
-<tr><td><code>height</code></td><td>float</td><td><code>1.0</code></td><td>Length along y of the straight part, when kind is capsule At least 0.01.</td></tr>
+<tr><td><code>height</code></td><td>float</td><td><code>2.0</code></td><td>Length along y, tip to tip, when kind is capsule At least 0.01.</td></tr>
 <tr><td><code>inner_radius</code></td><td>float</td><td><code>0.2</code></td><td>How far the notches between a star&#x27;s tips reach At least 0.01.</td></tr>
 <tr><td><code>join</code></td><td>enum</td><td><code>round</code></td><td>How a polyline&#x27;s segments meet One of <code>round</code>, <code>miter</code>, <code>bevel</code>.</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>rectangle</code></td><td>Rendered 2D shape One of <code>circle</code>, <code>rectangle</code>, <code>capsule</code>, <code>ellipse</code>, <code>star</code>, <code>ngon</code>, <code>polyline</code>.</td></tr>
@@ -411,6 +410,7 @@ An untextured 2D primitive at the node. `kind` is `circle`, `rectangle`, `capsul
 <tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, when kind is circle, capsule, star or ngon At least 0.01.</td></tr>
 <tr><td><code>segments</code></td><td>int</td><td><code>32</code></td><td>Cuts around a circle, an ellipse, a rounded corner, or a polyline&#x27;s round joins and caps At least 3.</td></tr>
 <tr><td><code>sides</code></td><td>int</td><td><code>4</code></td><td>Sides, when kind is ngon At least 3.</td></tr>
+<tr><td><code>size</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>Whole size along each axis, when kind is rectangle or ellipse</td></tr>
 <tr><td><code>taper</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>Multipliers on `width` at a polyline&#x27;s start and end, blended along it; anything but [1, 1] draws round joins and caps</td></tr>
 <tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>An image, or a `texture` asset, drawn along a polyline, repeating once per world unit of its length</td></tr>
 <tr><td><code>width</code></td><td>float</td><td><code>0.02</code></td><td>Line thickness in world units, when kind is polyline At least 0.001.</td></tr>
@@ -459,7 +459,6 @@ A deformable 2D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>elastic_damping</code></td><td>float</td><td><code>1.0</code></td><td>Damping ratio of the elastic cells Range 0.0–100.0.</td></tr>
 <tr><td><code>friction</code></td><td>float</td><td><code>0.5</code></td><td>Surface friction of the body&#x27;s collider; 0 is ice At least 0.0.</td></tr>
 <tr><td><code>gravity_scale</code></td><td>float</td><td><code>1.0</code></td><td>How much gravity pulls on the particles</td></tr>
-<tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td>Half-sizes of the sheet, when kind is grid</td></tr>
 <tr><td><code>interior_strength</code></td><td>float</td><td><code>1.0</code></td><td>How many times tougher an undamaged inside element is than a surface one, so cracks start at the surface and run inward At least 1.0.</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>grid</code></td><td>How the body&#x27;s particles and elements are laid out One of <code>grid</code>, <code>circle</code>, <code>polygon</code>, <code>rope</code>, <code>volumetric</code>, <code>triangle_mesh</code>, <code>polyline</code>.</td></tr>
 <tr><td><code>linear_damping</code></td><td>float</td><td><code>0.0</code></td><td>Air friction on the particles At least 0.0.</td></tr>
@@ -482,6 +481,7 @@ A deformable 2D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>shape_matching</code></td><td>bool</td><td><code>false</code></td><td>Pull the body back towards the shape it was built in, which is what keeps a jelly a jelly</td></tr>
 <tr><td><code>shape_matching_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of the shape-matching constraints Range 0.0–100.0.</td></tr>
 <tr><td><code>shape_matching_frequency</code></td><td>float</td><td><code>10.0</code></td><td>The same for shape matching, which pulls the body back towards the shape it was built in Range 0.0–10000.0.</td></tr>
+<tr><td><code>size</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>Whole size of the sheet, when kind is grid</td></tr>
 <tr><td><code>skin_collision</code></td><td>bool</td><td><code>false</code></td><td>Meet the world through the outline a volumetric body is drawn as, rather than its cells&#x27; boundary</td></tr>
 <tr><td><code>solver</code></td><td>enum</td><td><code>constraints</code></td><td>Which solver runs the elasticity: sequential constraints, or an implicit Euler step over the whole body One of <code>constraints</code>, <code>fem</code>.</td></tr>
 <tr><td><code>solver_iterations</code></td><td>float</td><td><code>3.0</code></td><td>Extra iterations inside each substep, for the same Range 0.0–64.0.</td></tr>
@@ -545,13 +545,13 @@ A textured 2D quad at the node, sized by `pixels_per_unit`. `columns` and `rows`
 <tr><td><code>flip_x</code></td><td>bool</td><td><code>false</code></td><td>Mirror horizontally</td></tr>
 <tr><td><code>flip_y</code></td><td>bool</td><td><code>false</code></td><td>Mirror vertically</td></tr>
 <tr><td><code>frame</code></td><td>float</td><td><code>0.0</code></td><td>Current sheet cell, counted left-to-right then top-to-bottom At least 0.0.</td></tr>
-<tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Size override in world units; [0, 0] sizes from the texture</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty draws with the built-in one</td></tr>
 <tr><td><code>offset</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Where the image sits against the node, in texture pixels with y down; turns and scales with the node</td></tr>
 <tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>0.0</code></td><td>Texture pixels per world unit; 0 takes the texture&#x27;s own `pixels_per_unit` import setting, which is 100 unless it says At least 0.0.</td></tr>
 <tr><td><code>region_origin</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Top-left corner of the atlas cell to draw, in texture pixels; used with `region_size`</td></tr>
 <tr><td><code>region_size</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Size of the atlas cell to draw, in texture pixels; [0, 0] draws the whole image and sizes the quad from the cell</td></tr>
 <tr><td><code>sheet</code></td><td>asset · <code>sprite_sheet</code></td><td>—</td><td>A sprite_sheet whose frames `frame` indexes; its texture is drawn unless `texture` names another, and it wins over `columns`, `rows` and the region</td></tr>
+<tr><td><code>size</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Whole size in world units; [0, 0] sizes from the texture</td></tr>
 <tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>Image file, project-relative, or a `texture` asset that reads it with settings of its own; required</td></tr>
 </tbody>
 </table>
@@ -912,8 +912,7 @@ The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3
 <tr><td><code>fix_internal_edges</code></td><td>bool</td><td><code>true</code></td><td>Smooth the seams between a triangle_mesh&#x27;s triangles, so a character does not catch on flat ground</td></tr>
 <tr><td><code>friction</code></td><td>float</td><td><code>0.5</code></td><td>Surface friction; 0 is ice At least 0.0.</td></tr>
 <tr><td><code>friction_combine</code></td><td>enum</td><td><code>average</code></td><td>How this surface&#x27;s friction combines with the other one&#x27;s One of <code>average</code>, <code>min</code>, <code>multiply</code>, <code>max</code>, <code>clamped_sum</code>, <code>geometric_mean</code>.</td></tr>
-<tr><td><code>half_extents</code></td><td>vec3</td><td><code>[0.5, 0.5, 0.5]</code></td><td>Half-sizes of the box, when kind is box</td></tr>
-<tr><td><code>height</code></td><td>float</td><td><code>1.0</code></td><td>Length along y of the straight part, for capsule, cylinder and cone At least 0.01.</td></tr>
+<tr><td><code>height</code></td><td>float</td><td><code>2.0</code></td><td>Length along y, tip to tip, for capsule, cylinder and cone At least 0.01.</td></tr>
 <tr><td><code>heightfield</code></td><td>asset · <code>heightfield</code></td><td>—</td><td>Terrain grid, when kind is heightfield</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>box</code></td><td>Collision shape One of <code>sphere</code>, <code>box</code>, <code>capsule</code>, <code>cylinder</code>, <code>cone</code>, <code>triangle</code>, <code>segment</code>, <code>world_boundary</code>, <code>triangle_mesh</code>, <code>convex_hull</code>, <code>convex_decomposition</code>, <code>polyline</code>, <code>heightfield</code>, <code>voxels</code>, <code>voxelized_mesh</code>, <code>fit</code>.</td></tr>
 <tr><td><code>mass</code></td><td>float</td><td><code>0.0</code></td><td>Mass in kilograms, overriding what density works out to; 0 keeps the density At least 0.0.</td></tr>
@@ -929,6 +928,7 @@ The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3
 <tr><td><code>restitution_combine</code></td><td>enum</td><td><code>average</code></td><td>How this surface&#x27;s bounciness combines with the other one&#x27;s One of <code>average</code>, <code>min</code>, <code>multiply</code>, <code>max</code>, <code>clamped_sum</code>, <code>geometric_mean</code>.</td></tr>
 <tr><td><code>scale</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Cell size and height scale of a heightfield</td></tr>
 <tr><td><code>sensor</code></td><td>bool</td><td><code>false</code></td><td>Detects overlaps without colliding: bodies pass through and are reported</td></tr>
+<tr><td><code>size</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Whole size along each axis, when kind is box</td></tr>
 <tr><td><code>solver_layer</code></td><td>flags</td><td><code>[&quot;0&quot;]</code></td><td>Layers for the solver alone: a pair can be detected but not resolved One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
 <tr><td><code>solver_mask</code></td><td>flags</td><td><code>[]</code></td><td>Which solver layers this one pushes against; empty means all of them One of <code>0</code>, <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>.</td></tr>
 <tr><td><code>voxel_size</code></td><td>float</td><td><code>0.25</code></td><td>How big one cell is, when kind is voxelized_mesh At least 0.001.</td></tr>
@@ -950,7 +950,7 @@ On a node carrying `collider3d`, as `node.collider3d.<method>`:
 <tr><td><code>handles()</code></td><td><code>Value</code></td><td>The rapier handles behind this node, its body and its colliders, as `#{ body, colliders }` of index and generation pairs. For matching a log line against rapier&#x27;s own output.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>max_contact_impulse()</code></td><td><code>f32</code></td><td>The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>overlaps()</code></td><td><code>Vec&lt;NodeId&gt;</code></td><td>The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>set_collider(Value)</code></td><td>—</td><td>Replace the node&#x27;s collider from a `collider3d` table: `kind`, `radius`, `half_extents`, `friction`, and the rest of the component&#x27;s own vocabulary.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_collider(Value)</code></td><td>—</td><td>Replace the node&#x27;s collider from a `collider3d` table: `kind`, `radius`, `size`, `friction`, and the rest of the component&#x27;s own vocabulary.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_voxel(i32, i32, i32, bool)</code></td><td>—</td><td>Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>swept_aabb()</code></td><td><code>(f32, f32, f32, f32, f32, f32)</code></td><td>The box the collider covers over the next step, its motion included: what the broad phase actually tests.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>voxel(i32, i32, i32)</code></td><td><code>bool</code></td><td>Whether one cell of a voxel collider is filled.</td><td><code>physics3d</code></td></tr>
@@ -1111,10 +1111,10 @@ A box the room around it was captured inside. A reflective surface within it mir
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>falloff</code></td><td>float</td><td><code>0.5</code></td><td>How wide the soft edge at the box&#x27;s face is; a surface crossing it fades back to the sky At least 0.0.</td></tr>
-<tr><td><code>half_extents</code></td><td>vec3</td><td><code>[5.0, 5.0, 5.0]</code></td><td>Half the box this probe speaks for, in world units, centred on the node At least 0.0.</td></tr>
 <tr><td><code>image</code></td><td>string</td><td>—</td><td>Baked equirectangular image, project-relative. Empty captures the scene from the node&#x27;s own position</td></tr>
 <tr><td><code>image_rotation_degrees</code></td><td>float</td><td><code>0.0</code></td><td>Turn of the captured map about y, in degrees</td></tr>
 <tr><td><code>intensity</code></td><td>float</td><td><code>1.0</code></td><td>Brightness of what the probe reflects At least 0.0.</td></tr>
+<tr><td><code>size</code></td><td>vec3</td><td><code>[10.0, 10.0, 10.0]</code></td><td>The box this probe speaks for, in world units, centred on the node At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -1130,8 +1130,7 @@ An untextured 3D primitive at the node, tinted by `color`. `kind` is `sphere`, `
 <tr><td><code>cast_shadow</code></td><td>bool</td><td><code>true</code></td><td>Whether this casts a shadow from the lights that cast</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
 <tr><td><code>corner_radius</code></td><td>float</td><td><code>0.0</code></td><td>How far the edges are rounded off, when kind is box; zero is a square edge At least 0.0.</td></tr>
-<tr><td><code>half_extents</code></td><td>vec3</td><td><code>[0.5, 0.5, 0.5]</code></td><td>Half-sizes, when kind is box, plane or pyramid</td></tr>
-<tr><td><code>height</code></td><td>float</td><td><code>1.0</code></td><td>Length along y, for capsule, cylinder, cone, prism and tube At least 0.01.</td></tr>
+<tr><td><code>height</code></td><td>float</td><td><code>2.0</code></td><td>Length along y, tip to tip, for capsule, cylinder, cone, prism and tube At least 0.01.</td></tr>
 <tr><td><code>inner_radius</code></td><td>float</td><td><code>0.25</code></td><td>Radius of the hole, when kind is tube At least 0.01.</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>box</code></td><td>Rendered 3D shape One of <code>sphere</code>, <code>box</code>, <code>capsule</code>, <code>cylinder</code>, <code>cone</code>, <code>plane</code>, <code>torus</code>, <code>pyramid</code>, <code>prism</code>, <code>tube</code>.</td></tr>
 <tr><td><code>light_layers</code></td><td>int</td><td><code>-1</code></td><td>Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer</td></tr>
@@ -1140,6 +1139,7 @@ An untextured 3D primitive at the node, tinted by `color`. `kind` is `sphere`, `
 <tr><td><code>rings</code></td><td>int</td><td><code>16</code></td><td>Cuts along the axis, for ball, capsule and torus At least 3.</td></tr>
 <tr><td><code>segments</code></td><td>int</td><td><code>32</code></td><td>Cuts around the axis, or across a plane At least 3.</td></tr>
 <tr><td><code>sides</code></td><td>int</td><td><code>4</code></td><td>Flat faces, when kind is pyramid or prism At least 3.</td></tr>
+<tr><td><code>size</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Whole size along each axis, when kind is box, plane or pyramid</td></tr>
 <tr><td><code>tube_radius</code></td><td>float</td><td><code>0.2</code></td><td>Thickness of the ring, when kind is torus At least 0.01.</td></tr>
 </tbody>
 </table>
@@ -1156,7 +1156,7 @@ On a node carrying `shape3d`, as `node.shape3d.<method>`:
 
 ### `softbody3d`
 
-`3d` · `physics` · 68 properties · 24 methods
+`3d` · `physics` · 67 properties · 24 methods
 
 A deformable 3D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. The node is drawn from the solver's positions.
 
@@ -1188,7 +1188,6 @@ A deformable 3D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>elastic_damping</code></td><td>float</td><td><code>1.0</code></td><td>Damping ratio of the elastic cells Range 0.0–100.0.</td></tr>
 <tr><td><code>friction</code></td><td>float</td><td><code>0.5</code></td><td>Surface friction of the body&#x27;s collider; 0 is ice At least 0.0.</td></tr>
 <tr><td><code>gravity_scale</code></td><td>float</td><td><code>1.0</code></td><td>How much gravity pulls on the particles</td></tr>
-<tr><td><code>half_extents</code></td><td>vec3</td><td><code>[0.5, 0.5, 0.5]</code></td><td>Half-sizes of the block, when kind is box</td></tr>
 <tr><td><code>interior_strength</code></td><td>float</td><td><code>1.0</code></td><td>How many times tougher an undamaged inside element is than a surface one, so cracks start at the surface and run inward At least 1.0.</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>box</code></td><td>How the body&#x27;s particles and elements are laid out One of <code>box</code>, <code>sphere</code>, <code>cloth</code>, <code>cloth_tube</code>, <code>rope</code>, <code>volumetric</code>, <code>triangle_mesh</code>.</td></tr>
 <tr><td><code>linear_damping</code></td><td>float</td><td><code>0.0</code></td><td>Air friction on the particles At least 0.0.</td></tr>
@@ -1212,7 +1211,7 @@ A deformable 3D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>shape_matching_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of the shape-matching constraints Range 0.0–100.0.</td></tr>
 <tr><td><code>shape_matching_frequency</code></td><td>float</td><td><code>10.0</code></td><td>The same for shape matching, which pulls the body back towards the shape it was built in Range 0.0–10000.0.</td></tr>
 <tr><td><code>shear_frequency</code></td><td>float</td><td><code>0.0</code></td><td>A cloth&#x27;s resistance to being skewed; 0 takes edge_frequency At least 0.0.</td></tr>
-<tr><td><code>size</code></td><td>vec3</td><td><code>[1.0, 0.0, 1.0]</code></td><td>The two edges a cloth is spanned over, as the sheet&#x27;s extent along x and z</td></tr>
+<tr><td><code>size</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Whole size along each axis: a box&#x27;s block, or a cloth&#x27;s sheet along x and z</td></tr>
 <tr><td><code>skin</code></td><td>bool</td><td><code>false</code></td><td>Keep the mesh as the drawn surface and let the cells carry it, so a detail the cell size cannot resolve survives</td></tr>
 <tr><td><code>skin_collision</code></td><td>bool</td><td><code>false</code></td><td>Meet the world through the skin rather than the cells&#x27; boundary</td></tr>
 <tr><td><code>solver</code></td><td>enum</td><td><code>constraints</code></td><td>Which solver runs the elasticity: sequential constraints, or an implicit Euler step over the whole body One of <code>constraints</code>, <code>fem</code>.</td></tr>

@@ -290,7 +290,7 @@ pub(crate) fn install_body_api(m: &mut dyn Bindings<Engine>) {
         ),
     ]);
     // Takes the `collider3d` component's own table (`kind`, `radius`,
-    // `half_extents`, `restitution`, `friction`, `density`), so one
+    // `size`, `restitution`, `friction`, `density`), so one
     // vocabulary covers scripts and scene files, as `physics2d` does.
     m.function(
         "apply_impulse",

@@ -114,7 +114,7 @@ fn an_occluder_defaults_to_the_nodes_collider_outline() {
         &app,
         wall,
         "collider2d",
-        "kind = \"rectangle\"\nhalf_extents = [2.0, 0.5]",
+        "kind = \"rectangle\"\nsize = [4.0, 1.0]",
     );
     add(&app, wall, "occluder2d", "");
     app.tick(1.0 / 60.0);
@@ -165,7 +165,7 @@ fn an_occluder_falls_back_to_the_nodes_2d_shape() {
         &app,
         crate_node,
         "shape2d",
-        "kind = \"rectangle\"\nhalf_extents = [1.0, 1.0]",
+        "kind = \"rectangle\"\nsize = [2.0, 2.0]",
     );
     add(&app, crate_node, "occluder2d", "");
     app.tick(1.0 / 60.0);
@@ -186,7 +186,7 @@ fn a_closed_occluder_edge_list_wraps_around() {
         &app,
         crate_node,
         "shape2d",
-        "kind = \"rectangle\"\nhalf_extents = [1.0, 1.0]",
+        "kind = \"rectangle\"\nsize = [2.0, 2.0]",
     );
     add(&app, crate_node, "occluder2d", "");
     app.tick(1.0 / 60.0);
@@ -224,7 +224,7 @@ fn an_outline_comes_back_in_world_space_and_closed() {
         &app,
         crate_node,
         "shape2d",
-        "kind = \"rectangle\"\nhalf_extents = [1.0, 1.0]",
+        "kind = \"rectangle\"\nsize = [2.0, 2.0]",
     );
     add(&app, crate_node, "occluder2d", "");
     app.tick(1.0 / 60.0);

@@ -22,7 +22,7 @@ use glamx::Vec3;
 use crate::vocabulary::{keys as k, words};
 
 /// The `reflection_probe` component's authored state. The node's position
-/// places the box; `half_extents` is in world units and does not follow the
+/// places the box; `size` is in world units and does not follow the
 /// node's scale, the way a `light3d`'s radius does not.
 pub struct ReflectionProbe {
     pub half_extents: Vec3,
@@ -82,7 +82,7 @@ pub fn probes(world: &World, root: Entity) -> Vec<LitProbe> {
 }
 
 fn probe_schema() -> String {
-    r#"half_extents = { type = "vec3", default = [5.0, 5.0, 5.0], min = 0.0, description = "Half the box this probe speaks for, in world units, centred on the node" }
+    r#"size = { type = "vec3", default = [10.0, 10.0, 10.0], min = 0.0, description = "The box this probe speaks for, in world units, centred on the node" }
 falloff = { type = "float", default = 0.5, min = 0.0, description = "How wide the soft edge at the box's face is; a surface crossing it fades back to the sky" }
 intensity = { type = "float", default = 1.0, min = 0.0, description = "Brightness of what the probe reflects" }
 image_rotation_degrees = { type = "float", default = 0.0, description = "Turn of the captured map about y, in degrees" }
@@ -106,14 +106,15 @@ pub(crate) fn register_reflection_probe_component(reg: &mut Registry<'_>) {
                 };
                 let extent = |i: usize, default: f32| {
                     params
-                        .get(k::HALF_EXTENTS)
+                        .get(k::SIZE)
                         .and_then(toml::Value::as_array)
                         .and_then(|a| a.get(i))
                         .and_then(as_f64)
                         .unwrap_or(f64::from(default)) as f32
+                        / 2.0
                 };
                 let next = ReflectionProbe {
-                    half_extents: Vec3::new(extent(0, 5.0), extent(1, 5.0), extent(2, 5.0)),
+                    half_extents: Vec3::new(extent(0, 10.0), extent(1, 10.0), extent(2, 10.0)),
                     falloff: num(k::FALLOFF, 0.5),
                     intensity: num(k::INTENSITY, 1.0),
                     rotation: num(k::IMAGE_ROTATION_DEGREES, 0.0),
@@ -137,13 +138,13 @@ pub(crate) fn register_reflection_probe_component(reg: &mut Registry<'_>) {
                 let probe = world.get::<&ReflectionProbe>(entity).ok()?;
                 let mut map = toml::map::Map::new();
                 map.insert(
-                    k::HALF_EXTENTS.into(),
+                    k::SIZE.into(),
                     toml::Value::Array(
                         probe
                             .half_extents
                             .to_array()
                             .iter()
-                            .map(|v| toml::Value::Float(f64::from(*v)))
+                            .map(|v| toml::Value::Float(f64::from(*v * 2.0)))
                             .collect(),
                     ),
                 );

@@ -88,7 +88,8 @@ fn pile_shape(kind) {
     } else if kind == 1 {
         #{ kind: "circle", radius: rng::range(7.0, 13.0) }
     } else if kind == 2 {
-        #{ kind: "capsule", radius: rng::range(6.0, 10.0), height: rng::range(22.0, 34.0) }
+        let radius = rng::range(6.0, 10.0);
+        #{ kind: "capsule", radius: radius, height: rng::range(22.0, 34.0) + 2.0 * radius }
     } else {
         // A fixed pentagon rather than a sized one: a hull comes from a mesh
         // asset, and the collider has no scale to vary it with.
@@ -298,7 +299,6 @@ fn drop_at(i) {
     ]
 }
 
-/// Godot's `rect` takes a whole size; a `collider2d` takes half-extents.
 fn rect(w, h) {
-    #{ kind: "rectangle", half_extents: [w * 0.5, h * 0.5] }
+    #{ kind: "rectangle", size: [w, h] }
 }

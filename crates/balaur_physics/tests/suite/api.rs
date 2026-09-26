@@ -157,7 +157,7 @@ fn a_3d_collider_takes_friction_restitution_and_density() {
     let mut app = app();
     let root = app.engine.root();
     let ground = scene::spawn_node(&mut app.engine.world_mut(), "Ground", root);
-    let flat: toml::Value = toml::from_str("kind = \"box\"\nhalf_extents = [10.0, 0.5, 10.0]")
+    let flat: toml::Value = toml::from_str("kind = \"box\"\nsize = [20.0, 1.0, 20.0]")
         .expect("literal collider params parse");
     components::add(&app.engine, ground, "collider3d", Some(&flat)).unwrap();
 
@@ -214,7 +214,7 @@ fn a_sensor_reports_overlap_without_collision_response() {
     let root = app.engine.root();
     let sensor = scene::spawn_node(&mut app.engine.world_mut(), "Sensor", root);
     let gate: toml::Value =
-        toml::from_str("kind = \"rectangle\"\nhalf_extents = [2.0, 0.5]\nsensor = true")
+        toml::from_str("kind = \"rectangle\"\nsize = [4.0, 1.0]\nsensor = true")
             .expect("literal collider params parse");
     components::add(&app.engine, sensor, "collider2d", Some(&gate)).unwrap();
 
