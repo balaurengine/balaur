@@ -1,4 +1,4 @@
-#![cfg(feature = "dylib")]
+#![cfg(feature = "extensions")]
 
 use std::path::{Path, PathBuf};
 

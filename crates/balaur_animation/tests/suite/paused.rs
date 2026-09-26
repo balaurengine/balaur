@@ -1,6 +1,6 @@
 //! A paused game holds what is playing, unless the node says otherwise.
 
-use balaur_anim::AnimationPlugin;
+use balaur_animation::AnimationPlugin;
 use balaur_core::hecs::Entity;
 use balaur_core::process::{self, ProcessMode};
 use balaur_core::scene::{self, Transform};

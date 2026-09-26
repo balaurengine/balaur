@@ -109,7 +109,7 @@ fn the_log_file_starts_with_what_came_before_it_and_keeps_the_last_run() {
     let text = std::fs::read_to_string(&path).expect("the file reads");
     assert!(text.contains("logged before the file opened"), "{text}");
     assert!(
-        text.contains("warn  observability: logged after it opened code=7"),
+        text.contains("warn  suite: logged after it opened code=7"),
         "{text}"
     );
 

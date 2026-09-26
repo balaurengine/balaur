@@ -269,7 +269,7 @@ fn color_end_from_params(params: &toml::Value) -> [f32; 4] {
 }
 
 /// One emitter's backend state: its own random stream, never the engine's.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) struct EmitterSlot {
     rng: balaur_core::rng::Pcg32,
     particles: Vec<Particle>,
@@ -285,7 +285,7 @@ pub(crate) struct EmitterSlot {
     remaining: f32,
 }
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 struct Particle {
     position: [f32; 2],
     velocity: [f32; 2],
@@ -297,7 +297,7 @@ struct Particle {
 /// Step every emitter by the frame's dt and draw its particles as 2D points
 /// (`draw_point_2d`, the cheapest primitive the backend has), sized in
 /// logical pixels like the 2D camera zoom.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn sync_particles(
     app: &balaur_core::App,
     window: &kiss3d::window::Window,
@@ -381,7 +381,7 @@ pub(crate) fn sync_particles(
     });
 }
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn blend(a: [f32; 4], b: [f32; 4], t: f32) -> [f32; 4] {
     [
         a[0] + (b[0] - a[0]) * t,
@@ -391,7 +391,7 @@ fn blend(a: [f32; 4], b: [f32; 4], t: f32) -> [f32; 4] {
     ]
 }
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn step_emitter(slot: &mut EmitterSlot, emitter: &Particles, origin: [f32; 2], dt: f32) {
     for particle in &mut slot.particles {
         particle.age += dt;

@@ -3,7 +3,7 @@
 //! The split only means something if the two callbacks disagree about time,
 //! so these tick a deliberately ragged frame and assert they diverge.
 
-use balaur::{App, AppConfig, FIXED_DT, standard_app};
+use balaur::{App, AppConfig, DEFAULT_FIXED_DT, standard_app};
 
 /// Both callbacks walk the node along an axis by the dt they were handed:
 /// x accumulates fixed time, z accumulates measured time.
@@ -49,15 +49,15 @@ fn fixed_update_ignores_the_frame_time_that_update_follows() {
     let mut app = booted(dir.path());
 
     // One ragged frame worth exactly three fixed steps.
-    app.tick(FIXED_DT * 3.0);
+    app.tick(DEFAULT_FIXED_DT * 3.0);
     let (fixed, measured) = walked(&app);
 
     assert!(
-        (fixed - FIXED_DT * 3.0).abs() < 1e-6,
+        (fixed - DEFAULT_FIXED_DT * 3.0).abs() < 1e-6,
         "fixed_update should have walked three whole steps, got {fixed}"
     );
     assert!(
-        (measured - FIXED_DT * 3.0).abs() < 1e-6,
+        (measured - DEFAULT_FIXED_DT * 3.0).abs() < 1e-6,
         "update should have walked the frame once, got {measured}"
     );
 }
@@ -68,7 +68,7 @@ fn a_frame_shorter_than_a_step_ticks_update_but_not_fixed_update() {
     project(dir.path());
     let mut app = booted(dir.path());
 
-    app.tick(FIXED_DT * 0.5);
+    app.tick(DEFAULT_FIXED_DT * 0.5);
     let (fixed, measured) = walked(&app);
     assert!(fixed.abs() < 1e-9, "half a step is not a step");
     assert!(
@@ -77,10 +77,10 @@ fn a_frame_shorter_than_a_step_ticks_update_but_not_fixed_update() {
     );
 
     // The dropped half is owed, not lost.
-    app.tick(FIXED_DT * 0.5);
+    app.tick(DEFAULT_FIXED_DT * 0.5);
     let (fixed, _) = walked(&app);
     assert!(
-        (fixed - FIXED_DT).abs() < 1e-6,
+        (fixed - DEFAULT_FIXED_DT).abs() < 1e-6,
         "the two halves owe one whole step, got {fixed}"
     );
 }

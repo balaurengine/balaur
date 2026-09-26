@@ -200,7 +200,7 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
         .attach(balaur::node_id_of(entity), "scripts/t.rn")
         .unwrap();
     assert_eq!(
-        balaur::rune::rune_of(&app.engine).number_field(entity, "done"),
+        balaur::script_rune::rune_of(&app.engine).number_field(entity, "done"),
         Some(1.0),
         "the script did not run to its end: {:#?}",
         balaur::logbuf::recent(10)

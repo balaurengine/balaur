@@ -292,7 +292,7 @@ pub(crate) fn install_text_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// One node's mesh and what it was built from.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) struct TextSlot {
     /// One node per layer: shadow, outline, then the text itself.
     two_d: Vec<kiss3d::scene::SceneNode2d>,
@@ -307,7 +307,7 @@ pub(crate) struct TextSlot {
     shaped: String,
 }
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 impl TextSlot {
     /// Drop every node this slot made.
     fn detach(&mut self) {
@@ -325,7 +325,7 @@ impl TextSlot {
 /// Rebuilt when the component's version moves, when a `text_key` resolves to
 /// something new, or when the atlas has grown under it and the old UVs point
 /// at glyphs that are no longer there.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn sync_text(
     app: &balaur_core::App,
     scene_2d: &mut kiss3d::scene::SceneNode2d,
@@ -424,7 +424,7 @@ pub(crate) fn sync_text(
 
 /// Put every live block where its node is, and drop the ones whose node has
 /// gone. Split from the rebuild above: one walks what changed, this walks all.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn place(
     app: &balaur_core::App,
     slots: &mut std::collections::HashMap<Entity, TextSlot>,
@@ -490,7 +490,7 @@ fn place(
 
 /// The rotation that turns a quad's +z along `towards`, keeping its up as
 /// close to the world's as it can — what a billboard needs.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn facing(towards: glamx::Vec3) -> glamx::Quat {
     let forward = towards.normalize_or_zero();
     if forward.length_squared() < 0.5 {
@@ -509,7 +509,7 @@ fn facing(towards: glamx::Vec3) -> glamx::Quat {
 
 /// One em in world units: the font size over `pixels_per_unit`, grown or
 /// shrunk by the node's own scale and every ancestor's.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn em_in_world(size: f32, pixels_per_unit: f32, scale: glamx::Vec3) -> f32 {
     size / pixels_per_unit.max(0.01) * scale.x.abs().max(scale.y.abs())
 }
@@ -518,7 +518,7 @@ fn em_in_world(size: f32, pixels_per_unit: f32, scale: glamx::Vec3) -> f32 {
 /// covers on screen, in buckets so a moving camera re-shapes rarely.
 ///
 /// Falls back to the asked size when nothing has published a camera yet.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn raster_size(
     app: &balaur_core::App,
     text: &TextRenderable,
@@ -547,7 +547,7 @@ fn raster_size(
     balaur_text::bucket((em_world * per_unit).clamp(1.0, 512.0))
 }
 
-#[cfg(all(test, feature = "kiss3d"))]
+#[cfg(all(test, feature = "window"))]
 mod tests {
     /// Text under a scaled parent is that much larger or smaller, as a
     /// sprite is, whichever axis is flipped.

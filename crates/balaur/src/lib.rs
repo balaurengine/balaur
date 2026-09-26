@@ -8,7 +8,7 @@
 //! }
 //! ```
 
-pub use balaur_anim::AnimationPlugin;
+pub use balaur_animation::AnimationPlugin;
 pub use balaur_core::*;
 pub use balaur_input::InputPlugin;
 pub use balaur_physics::PhysicsPlugin;
@@ -16,12 +16,12 @@ pub use balaur_platform::PlatformPlugin;
 pub use balaur_render::RenderPlugin;
 pub use balaur_ui::UiPlugin;
 
-pub use balaur_anim as animation;
+pub use balaur_animation as animation;
 pub use balaur_input as input;
 pub use balaur_physics as physics;
 pub use balaur_platform as platform;
 pub use balaur_render as render;
-pub use balaur_script_rune as rune;
+pub use balaur_script_rune as script_rune;
 pub use balaur_ui as ui;
 
 // A `Transport` a project names at run time, not a plugin: nothing to load.

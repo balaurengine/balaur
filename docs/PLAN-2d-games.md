@@ -33,7 +33,7 @@ Built, and load-bearing for a 2D game:
 | --- | --- |
 | Scene tree, prefabs with `overrides`, stable ids, TOML scenes | `balaur_core::scene`, `ARCHITECTURE.md` "Prefabs" |
 | `sprite` with sheets, flip and tint; `polygon` GPU-skinned from a `mesh` with a `skin`; `bone2d`; the `skeleton` module | `crates/balaur_render/src/{sprite,polygon}.rs`, `crates/balaur_core/src/skeleton.rs` |
-| Animation clips with property and method tracks, `play`/`queue`/`seek`, negative `speed` for backwards, 12 easing curves × 4 modes, `animation.tween` and `tween_to` | `crates/balaur_anim`, `player.rs:249` |
+| Animation clips with property and method tracks, `play`/`queue`/`seek`, negative `speed` for backwards, 12 easing curves × 4 modes, `animation.tween` and `tween_to` | `crates/balaur_animation`, `player.rs:249` |
 | Rapier 2D: every body kind, sensors with `overlaps`, joints, `character2d`, the query pipeline, 32 layers, one-way platforms | `crates/balaur_physics/src/dim2`, `docs/PLAN-rapier.md` |
 | `tilemap` over a `tileset` atlas; `particles`; `shape2d` polyline with `width`, `closed` and `material`; `light2d` and `occluder2d` | `crates/balaur_render/src/{tilemap,particles,shape,light}.rs` |
 | `material` assets in WESL on `sprite`, `shape2d`, `polygon`, with a vertex stage that displaces, `time()`, hot reload and sourcemapped errors | `crates/balaur_render/src/shaders/sprite.wesl`, `docs/PLAN-shaders.md` phases 1–8 |
@@ -369,7 +369,7 @@ in the game; "not planned" is a deliberate no.
 | Need | Decision |
 | --- | --- |
 | Areas, bodies, shapes, joints, a character controller, raycasts | Have |
-| A tick rate other than 60 | Have as a script's own clock over the fixed step; §5 asks whether `FIXED_DT` becomes a setting |
+| A tick rate other than 60 | Have as a script's own clock over the fixed step; §5 asks whether `DEFAULT_FIXED_DT` becomes a setting |
 | Soft bodies, navigation | `docs/PLAN-physics.md`; the roadmap's "Navigation" |
 | A concave dynamic body: a table, a wedge | 0.2, `docs/PLAN-convex-decomposition.md`: `collider2d` kind `convex_decomposition`, exact pieces grown across their seams. Until then several `convex_hull` colliders drawn by hand |
 
@@ -472,7 +472,7 @@ every platform plan says; the last is a person.
    question is whether a second, non-propagating tint is then worth a
    property, or whether the node's own `color` becomes the propagating one.
 6. **A tick rate as a setting.** The engine steps at 60 and a game that
-   wants 30 runs its own clock in script over it. `FIXED_DT` as a project
+   wants 30 runs its own clock in script over it. `DEFAULT_FIXED_DT` as a project
    setting is small; every determinism check, recording and rollback
    assumes 60. Leave it until a game's own clock proves insufficient.
 7. **`i_overlay` determinism.** Answered: the crate works in fixed-point

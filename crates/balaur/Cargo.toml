@@ -12,11 +12,11 @@ default = ["audio", "http", "websocket", "webtransport", "gamend", "multiplayer"
 # with shared memory and atomics, which is the threaded web runtime alone.
 parallel = ["balaur_physics/parallel"]
 # Windowed rendering (kiss3d/wgpu).
-window = ["balaur_render/kiss3d"]
+window = ["balaur_render/window"]
 # Sound. Off, a build drops rodio, cpal and the platform audio stack.
 audio = ["dep:balaur_audio"]
 # Load extensions from a project's extensions/ directory at run time.
-extensions = ["balaur_plugin/dylib"]
+extensions = ["balaur_plugin/extensions"]
 # `http.*` for scripts. Off, a build drops ureq and its TLS stack.
 http = ["dep:balaur_http"]
 # `websocket.*` for scripts, and the websocket `Transport`. Off, a build drops
@@ -48,7 +48,7 @@ balaur_plugin.workspace = true
 balaur_script.workspace = true
 balaur_script_rune.workspace = true
 balaur_physics = { workspace = true, default-features = false }
-balaur_anim.workspace = true
+balaur_animation.workspace = true
 balaur_render.workspace = true
 balaur_audio = { workspace = true, optional = true }
 balaur_input.workspace = true

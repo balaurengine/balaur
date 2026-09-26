@@ -6,7 +6,7 @@
 //! `tests/fixtures/animations/hero.toml`, which is a real library file read
 //! off disk exactly as a shipped game reads one.
 
-use balaur_anim::{AnimationPlugin, AnimationState};
+use balaur_animation::{AnimationPlugin, AnimationState};
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
 use balaur_core::{App, AppConfig, components, project};
@@ -69,7 +69,7 @@ fn a_clip_drives_a_nodes_position_over_time() {
         0.0f32.to_bits(),
         "a clip moved a node before playing"
     );
-    balaur_anim::play(&app.engine, entity, "").unwrap();
+    balaur_animation::play(&app.engine, entity, "").unwrap();
 
     tick(&mut app, 30);
     assert!(
@@ -85,7 +85,7 @@ fn a_clip_drives_a_nodes_position_over_time() {
 fn a_looping_clip_wraps_back_to_the_start() {
     let mut app = app();
     let entity = animated(&app, "Box", &rise("linear"));
-    balaur_anim::play(&app.engine, entity, "").unwrap();
+    balaur_animation::play(&app.engine, entity, "").unwrap();
     // 1.25 seconds into a one second clip: a quarter of the way through the
     // second pass.
     tick(&mut app, 75);
@@ -94,14 +94,14 @@ fn a_looping_clip_wraps_back_to_the_start() {
         "a looping clip did not loop_mode: {}",
         height(&app, entity)
     );
-    assert!(balaur_anim::is_playing(&app.engine, entity));
+    assert!(balaur_animation::is_playing(&app.engine, entity));
 }
 
 #[test]
 fn a_pingpong_clip_reverses_at_the_end() {
     let mut app = app();
     let entity = animated(&app, "Box", &rise("pingpong"));
-    balaur_anim::play(&app.engine, entity, "").unwrap();
+    balaur_animation::play(&app.engine, entity, "").unwrap();
     // The same 1.25 seconds, played backwards from the end instead of
     // restarting: three quarters up rather than one quarter.
     tick(&mut app, 75);
@@ -110,21 +110,21 @@ fn a_pingpong_clip_reverses_at_the_end() {
         "a pingpong clip did not reverse: {}",
         height(&app, entity)
     );
-    assert!(balaur_anim::is_playing(&app.engine, entity));
+    assert!(balaur_animation::is_playing(&app.engine, entity));
 }
 
 #[test]
 fn a_clip_that_does_not_loop_holds_its_last_key_and_stops() {
     let mut app = app();
     let entity = animated(&app, "Box", &rise("none"));
-    balaur_anim::play(&app.engine, entity, "").unwrap();
+    balaur_animation::play(&app.engine, entity, "").unwrap();
     tick(&mut app, 120);
     assert!(
         (height(&app, entity) - 10.0).abs() < 1e-4,
         "the last key was not held"
     );
     assert!(
-        !balaur_anim::is_playing(&app.engine, entity),
+        !balaur_animation::is_playing(&app.engine, entity),
         "a clip that ran off its end is still playing"
     );
 }
@@ -197,7 +197,7 @@ keys = [
 ]
 "#,
     );
-    balaur_anim::play(&app.engine, entity, "").unwrap();
+    balaur_animation::play(&app.engine, entity, "").unwrap();
     tick(&mut app, 30);
 
     let facing = transform(&app, entity).rotation * Vec3::X;
@@ -227,7 +227,7 @@ keys = [
 "#,
     );
     let arm = scene::spawn_node(&mut app.engine.world_mut(), "Arm", entity);
-    balaur_anim::play(&app.engine, entity, "").unwrap();
+    balaur_animation::play(&app.engine, entity, "").unwrap();
     tick(&mut app, 30);
 
     assert!(
@@ -246,7 +246,7 @@ fn the_speed_property_scales_playback() {
     let mut app = app();
     let params = format!("speed_scale = 2.0\n{}", rise("none"));
     let entity = animated(&app, "Box", &params);
-    balaur_anim::play(&app.engine, entity, "").unwrap();
+    balaur_animation::play(&app.engine, entity, "").unwrap();
     // Quarter of a second at double speed is half the clip.
     tick(&mut app, 15);
     assert!(
@@ -261,14 +261,14 @@ fn a_library_file_addresses_its_clips_by_name() {
     let mut app = app();
     let entity = animated(&app, "Hero", "library = \"animations/hero.toml\"");
 
-    balaur_anim::play(&app.engine, entity, "idle").unwrap();
+    balaur_animation::play(&app.engine, entity, "idle").unwrap();
     tick(&mut app, 30);
     assert!(
         (height(&app, entity) - 5.0).abs() < 0.05,
         "clip 'idle' did not play"
     );
 
-    balaur_anim::play(&app.engine, entity, "spin").unwrap();
+    balaur_animation::play(&app.engine, entity, "spin").unwrap();
     tick(&mut app, 30);
     let turned = transform(&app, entity).rotation * Vec3::X;
     assert!(
@@ -281,7 +281,7 @@ fn a_library_file_addresses_its_clips_by_name() {
 fn a_clip_the_library_does_not_have_fails_with_the_reference_it_asked_for() {
     let app = app();
     let entity = animated(&app, "Hero", "library = \"animations/hero.toml\"");
-    let err = balaur_anim::play(&app.engine, entity, "sprint").unwrap_err();
+    let err = balaur_animation::play(&app.engine, entity, "sprint").unwrap_err();
     assert!(
         format!("{err:#}").contains("animations/hero.toml#sprint"),
         "unhelpful: {err:#}"
@@ -292,7 +292,7 @@ fn a_clip_the_library_does_not_have_fails_with_the_reference_it_asked_for() {
 fn removing_the_component_stops_the_node_being_animated() {
     let mut app = app();
     let entity = animated(&app, "Box", &rise("linear"));
-    balaur_anim::play(&app.engine, entity, "").unwrap();
+    balaur_animation::play(&app.engine, entity, "").unwrap();
     tick(&mut app, 30);
     let stopped_at = height(&app, entity);
 
@@ -377,7 +377,7 @@ keys = [
 ]
 "#,
         );
-        balaur_anim::play(&app.engine, entity, "").unwrap();
+        balaur_animation::play(&app.engine, entity, "").unwrap();
         for frame in 0..97 {
             // A deliberately ragged frame time: the accumulator is what makes
             // the simulation identical anyway.
@@ -401,19 +401,19 @@ keys = [
 fn a_non_looping_clip_run_backwards_finishes_at_the_start() {
     let mut app = app();
     let entity = animated(&app, "Box", &rise("none"));
-    balaur_anim::play(&app.engine, entity, "").unwrap();
-    balaur_anim::seek(&app.engine, entity, 1.0);
-    balaur_anim::set_speed_scale(&app.engine, entity, -1.0);
+    balaur_animation::play(&app.engine, entity, "").unwrap();
+    balaur_animation::seek(&app.engine, entity, 1.0);
+    balaur_animation::set_speed_scale(&app.engine, entity, -1.0);
 
     tick(&mut app, 30);
     assert!(
-        balaur_anim::is_playing(&app.engine, entity),
+        balaur_animation::is_playing(&app.engine, entity),
         "half a second back is still inside the clip"
     );
 
     tick(&mut app, 40);
     assert!(
-        !balaur_anim::is_playing(&app.engine, entity),
+        !balaur_animation::is_playing(&app.engine, entity),
         "running off the start ends a clip, or a negative speed plays forever"
     );
     assert!(height(&app, entity).abs() < 1e-5);
@@ -423,12 +423,12 @@ fn a_non_looping_clip_run_backwards_finishes_at_the_start() {
 fn a_clip_run_backwards_names_itself_as_the_one_that_finished() {
     let mut app = app();
     let entity = animated(&app, "Box", "library = \"animations/hero.toml\"\n");
-    balaur_anim::play(&app.engine, entity, "spin").unwrap();
-    balaur_anim::seek(&app.engine, entity, 0.1);
-    balaur_anim::set_speed_scale(&app.engine, entity, -1.0);
+    balaur_animation::play(&app.engine, entity, "spin").unwrap();
+    balaur_animation::seek(&app.engine, entity, 0.1);
+    balaur_animation::set_speed_scale(&app.engine, entity, -1.0);
     tick(&mut app, 7);
     assert_eq!(
-        balaur_anim::just_finished(&app.engine, entity).as_deref(),
+        balaur_animation::just_finished(&app.engine, entity).as_deref(),
         Some("spin")
     );
 }

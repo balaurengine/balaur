@@ -34,7 +34,7 @@ cargo llvm-cov nextest \
 # Extensions are off by default, so the C ABI and the dlopen path compiled
 # above without a line of either running: their tests are behind the flag.
 # `--no-report` implies `--no-clean`; cargo-llvm-cov refuses the pair.
-cargo llvm-cov nextest -p balaur_plugin --features dylib \
+cargo llvm-cov nextest -p balaur_plugin --features extensions \
   --no-fail-fast --no-report || status=$?
 cargo llvm-cov nextest -p balaur --features extensions \
   --no-fail-fast --no-report || status=$?

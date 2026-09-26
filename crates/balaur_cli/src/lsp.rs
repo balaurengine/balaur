@@ -28,7 +28,7 @@ fn serve(project_root: &Path) -> Result<()> {
         .canonicalize()
         .unwrap_or_else(|_| project_root.to_path_buf());
     let app = balaur::standard_app(balaur::AppConfig::export(&root))?;
-    let host = balaur::rune::rune_of(&app.engine);
+    let host = balaur::script_rune::rune_of(&app.engine);
     let mut server = Server {
         root,
         host,
@@ -85,7 +85,7 @@ fn write_message(writer: &mut impl Write, message: &Json) -> Result<()> {
 
 struct Server {
     root: PathBuf,
-    host: balaur::rune::RuneHost,
+    host: balaur::script_rune::RuneHost,
     /// URIs a `publishDiagnostics` has gone out for, so one that stops having
     /// findings is cleared rather than left showing the last ones.
     published: BTreeSet<String>,
@@ -238,7 +238,7 @@ impl Server {
                     .collect())
             }),
             "textDocument/references" => self.at(params, |host, key, source, line, column| {
-                let offset = balaur::rune::offset_of(source, line, column);
+                let offset = balaur::script_rune::offset_of(source, line, column);
                 let name = word_at(source, offset);
                 if name.is_empty() {
                     return Ok(Vec::new());
@@ -265,7 +265,7 @@ impl Server {
     fn at<T>(
         &self,
         params: &Json,
-        f: impl FnOnce(&balaur::rune::RuneHost, &str, &str, usize, usize) -> Result<Vec<T>>,
+        f: impl FnOnce(&balaur::script_rune::RuneHost, &str, &str, usize, usize) -> Result<Vec<T>>,
     ) -> Json
     where
         T: Into<Json>,
@@ -286,7 +286,7 @@ impl Server {
     fn one(
         &self,
         params: &Json,
-        f: impl FnOnce(&balaur::rune::RuneHost, &str, &str, usize, usize) -> Result<Option<Json>>,
+        f: impl FnOnce(&balaur::script_rune::RuneHost, &str, &str, usize, usize) -> Result<Option<Json>>,
     ) -> Json {
         let Some((rel, source, line, column)) = self.locate(params) else {
             return Json::Null;
@@ -311,7 +311,7 @@ impl Server {
         let Some(to) = params["newName"].as_str() else {
             return Json::Null;
         };
-        let from = word_at(&source, balaur::rune::offset_of(&source, line, column));
+        let from = word_at(&source, balaur::script_rune::offset_of(&source, line, column));
         if from.is_empty() {
             return Json::Null;
         }
@@ -378,7 +378,7 @@ impl Server {
     fn whole<T>(
         &self,
         params: &Json,
-        f: impl FnOnce(&balaur::rune::RuneHost, &str, &str) -> Result<Vec<T>>,
+        f: impl FnOnce(&balaur::script_rune::RuneHost, &str, &str) -> Result<Vec<T>>,
     ) -> Json
     where
         T: Into<Json>,
@@ -508,9 +508,9 @@ impl Server {
     }
 }
 
-/// A [`Completion`](balaur::rune::Completion) as an LSP completion item. The
+/// A [`Completion`](balaur::script_rune::Completion) as an LSP completion item. The
 /// doc line is the reference's, so a popup says what the manual says.
-fn completion(one: &balaur::rune::Completion) -> Json {
+fn completion(one: &balaur::script_rune::Completion) -> Json {
     json!({
         "label": one.label,
         "kind": one.kind.lsp(),
@@ -522,7 +522,7 @@ fn completion(one: &balaur::rune::Completion) -> Json {
 
 /// A hover as the markdown a client renders: the name in code, then the
 /// signature, then the reference's own doc line.
-fn markdown(one: &balaur::rune::Hover) -> String {
+fn markdown(one: &balaur::script_rune::Hover) -> String {
     let mut out = format!("```rune\n{}{}\n```", one.title, one.detail);
     if !one.doc.is_empty() {
         out.push_str("\n\n");
@@ -533,8 +533,8 @@ fn markdown(one: &balaur::rune::Hover) -> String {
 
 /// The LSP `SymbolKind` for what a script declares: a function, or a property
 /// its `exports()` returned.
-fn symbol_kind(kind: balaur::rune::Kind) -> u8 {
-    if kind == balaur::rune::Kind::Function {
+fn symbol_kind(kind: balaur::script_rune::Kind) -> u8 {
+    if kind == balaur::script_rune::Kind::Function {
         12
     } else {
         7
@@ -573,10 +573,10 @@ fn notification(uri: &str, diagnostics: &[Json]) -> Json {
     })
 }
 
-/// A [`Finding`](balaur::rune::Finding) as an LSP diagnostic. LSP counts
+/// A [`Finding`](balaur::script_rune::Finding) as an LSP diagnostic. LSP counts
 /// lines and characters from zero and Rune counts from one; a finding with no
 /// span (line 0) is about the file, and lands on its first line.
-fn diagnostic(one: &balaur::rune::Finding) -> Json {
+fn diagnostic(one: &balaur::script_rune::Finding) -> Json {
     let start = position(one.line, one.column);
     let end = position(one.end_line.max(one.line), one.end_column.max(one.column));
     json!({

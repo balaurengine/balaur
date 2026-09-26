@@ -4,9 +4,9 @@
 //! parsing is `(document) -> clip`, and both being reachable with no engine at
 //! all is what a blend tree will later be built on.
 
-use balaur_anim::clip::{self, Interpolation, LoopMode, Property};
-use balaur_anim::ease::Easing;
-use balaur_anim::sampler::{self, TrackValue};
+use balaur_animation::clip::{self, Interpolation, LoopMode, Property};
+use balaur_animation::ease::Easing;
+use balaur_animation::sampler::{self, TrackValue};
 use std::f32::consts::FRAC_PI_2;
 
 use glamx::{EulerRot, Quat, Vec3};

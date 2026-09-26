@@ -2,7 +2,7 @@
 //! against its own digest chain.
 
 use balaur::input::InputSnapshot;
-use balaur::{App, AppConfig, FIXED_DT, digest, replay, standard_app};
+use balaur::{App, AppConfig, DEFAULT_FIXED_DT, digest, replay, standard_app};
 
 const SCRIPT: &str = "pub fn fixed_update(this, dt) {
     if input::key_down(input::KEY_SPACE) { this.node.transform.translate(dt, 0.0, 0.0); }
@@ -53,7 +53,7 @@ fn record(dir: &std::path::Path) -> Vec<(serde_json::Map<String, serde_json::Val
                 input.key_event("Space", false);
             }
         }
-        app.tick(FIXED_DT);
+        app.tick(DEFAULT_FIXED_DT);
         frames.push((replay::capture(&app.engine), digest::digest(&app.engine).0));
     }
     assert!(
@@ -72,7 +72,7 @@ fn a_replayed_session_reproduces_every_tick_digest() {
     let mut app = booted(dir.path());
     for (tick, (sources, digest)) in recorded.iter().enumerate() {
         replay::restore(&app.engine, sources);
-        app.tick(FIXED_DT);
+        app.tick(DEFAULT_FIXED_DT);
         assert_eq!(
             digest::digest(&app.engine).0,
             *digest,
@@ -92,7 +92,7 @@ fn replaying_without_the_recorded_input_diverges() {
 
     let mut app = booted(dir.path());
     for _ in &recorded {
-        app.tick(FIXED_DT);
+        app.tick(DEFAULT_FIXED_DT);
     }
     assert!(
         walked(&app).abs() < 1e-9,

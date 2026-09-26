@@ -155,7 +155,7 @@ features_stream() {
 shapes_stream() {
   side_env
   local bad=0
-  step 'dylib plugin tests' shape exttest test -p balaur_plugin --features dylib || bad=1
+  step 'extension plugin tests' shape exttest test -p balaur_plugin --features extensions || bad=1
   step 'extension tests' shape exttest test -p balaur --features extensions || bad=1
   # `balaur import file.aseprite` is behind a feature, so its tests are not in
   # the default run: without this the whole module compiles for nobody.

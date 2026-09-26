@@ -256,7 +256,7 @@ fn fill_action_runners(app: &balaur_core::App) {
         eng,
         Action::Play,
         Rc::new(|eng: &Engine, entity, value: &Value| {
-            balaur_anim::play(eng, entity, &text_of(value))
+            balaur_animation::play(eng, entity, &text_of(value))
         }),
     );
     // Only in a build with audio. A binding naming `sound` in one without it

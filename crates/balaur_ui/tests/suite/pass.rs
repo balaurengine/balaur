@@ -149,7 +149,7 @@ fn draw_clean(body: &str) {
 fn field(app: &App, name: &str) -> Option<f64> {
     let root = balaur_core::scene::find_node(&app.engine.world(), app.engine.root(), "Root")
         .expect("the scene has a Root node");
-    balaur::rune::rune_of(&app.engine).number_field(root, name)
+    balaur::script_rune::rune_of(&app.engine).number_field(root, name)
 }
 
 #[test]
@@ -504,7 +504,7 @@ fn pass_names(app: &App) -> Vec<String> {
 fn a_second_pass_in_one_frame_is_filed_as_a_rerun() {
     let (_dir, mut app, ctx, _) = draw_with(r#"ui::central_panel(#{}, || { ui::label("x"); });"#);
     // Publish the passes the helper ran, so the table below holds this frame.
-    app.tick(balaur_core::FIXED_DT);
+    app.tick(balaur_core::DEFAULT_FIXED_DT);
     // What the windowed loop calls once a frame, which is what starts one.
     balaur_ui::wants_pass(&app.engine, &ctx, true, false);
     for _ in 0..2 {
@@ -514,7 +514,7 @@ fn a_second_pass_in_one_frame_is_filed_as_a_rerun() {
         out.textures_delta.clear();
     }
     // The spans of a frame are published when it ends, never mid-frame.
-    app.tick(balaur_core::FIXED_DT);
+    app.tick(balaur_core::DEFAULT_FIXED_DT);
     assert_eq!(pass_names(&app), ["ui", "ui rerun"]);
 }
 

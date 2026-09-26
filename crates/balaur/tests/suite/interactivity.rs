@@ -332,7 +332,7 @@ pub fn on_variable_changed(this, name, value) {
     // One frame, so the dispatch at the end of the tick runs.
     app.tick(0.016);
 
-    let rune = balaur::rune::rune_of(&app.engine);
+    let rune = balaur::script_rune::rune_of(&app.engine);
     assert_eq!(
         rune.number_field(ball, "seen"),
         Some(1.0),

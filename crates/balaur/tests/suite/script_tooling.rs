@@ -4,7 +4,7 @@
 //! formatting has to be idempotent and a rename has to be refused when the new
 //! name is not an identifier.
 
-use balaur::rune::RuneHost;
+use balaur::script_rune::RuneHost;
 use balaur::{App, AppConfig, standard_app};
 
 const SCRIPT: &str = "\
@@ -52,7 +52,7 @@ fn host() -> (tempfile::TempDir, App) {
 }
 
 fn rune(app: &App) -> RuneHost {
-    balaur::rune::rune_of(&app.engine)
+    balaur::script_rune::rune_of(&app.engine)
 }
 
 /// The completions for a probe line appended to the script, with the caret at
@@ -269,7 +269,7 @@ fn every_documented_function_hovers_to_its_doc_line() {
     let (_dir, app) = host();
     let host = rune(&app);
     let api: serde_json::Value =
-        serde_json::from_str(&balaur::rune::api_json(&host).unwrap()).unwrap();
+        serde_json::from_str(&balaur::script_rune::api_json(&host).unwrap()).unwrap();
     let mut checked = 0;
     let mut missing = Vec::new();
     for module in api["modules"].as_array().unwrap() {
@@ -332,7 +332,7 @@ fn every_module_completes_from_a_bare_prefix() {
     let (_dir, app) = host();
     let rune = rune(&app);
     let api: serde_json::Value =
-        serde_json::from_str(&balaur::rune::api_json(&rune).unwrap()).unwrap();
+        serde_json::from_str(&balaur::script_rune::api_json(&rune).unwrap()).unwrap();
     for module in api["modules"].as_array().unwrap() {
         let name = module["name"].as_str().unwrap();
         let found = complete_after(&rune, name);

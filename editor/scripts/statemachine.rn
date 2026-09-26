@@ -6,7 +6,7 @@ use crate::history;
 use crate::model;
 use crate::util;
 
-// The component and the asset type `balaur_anim` registers, and the keys the
+// The component and the asset type `balaur_animation` registers, and the keys the
 // component and the machine document spell.
 const COMPONENT = "state_machine";
 const MACHINE_TYPE = "state_machine";

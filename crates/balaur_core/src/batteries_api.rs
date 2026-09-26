@@ -94,17 +94,17 @@ pub(crate) fn assets_directory(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// line lands in the same stream, and the same `logbuf`, as an engine one --
 /// which is what makes `log.recent` able to show both.
 pub(crate) fn log_info(_: &Engine, args: &[Value]) -> Result<Value> {
-    tracing::info!("[script] {}", text(args, 0)?);
+    tracing::info!(target: "script", "{}", text(args, 0)?);
     Ok(Value::Nil)
 }
 
 pub(crate) fn log_warn(_: &Engine, args: &[Value]) -> Result<Value> {
-    tracing::warn!("[script] {}", text(args, 0)?);
+    tracing::warn!(target: "script", "{}", text(args, 0)?);
     Ok(Value::Nil)
 }
 
 pub(crate) fn log_error(_: &Engine, args: &[Value]) -> Result<Value> {
-    tracing::error!("[script] {}", text(args, 0)?);
+    tracing::error!(target: "script", "{}", text(args, 0)?);
     Ok(Value::Nil)
 }
 

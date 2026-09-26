@@ -61,6 +61,12 @@ with no alias and no migration, as `one way to do a thing` asks.
   The editor's words follow one glossary (panel, dialog, binding, prefab,
   embed, detach, reset, reveal, use, keyframe), node types are Godot 4 class
   names, the plugin kit's verbs say what they build, and the UI spells US.
+  The crates are `balaur_animation` and `balaur::script_rune`, the features
+  `window` and `extensions` in every crate, the rollback's world a
+  `Checkpoint`, the tick constants `DEFAULT_*`, and a log line's tag the crate
+  without `balaur_` or `script`.
+- Left in section 1: `web` → `browser` and `WebSocketPlugin`, both inside the
+  networking crates another change is reworking now; they follow it.
 - `NAMING.md` has the eight scopes, rules N18 to N23, and the picked names per
   system, from a survey of SDL3, Godot 4, Unity, Blender, GLFW, W3C, rapier and
   glTF on 2026-09-25.
@@ -70,15 +76,8 @@ with no alias and no migration, as `one way to do a thing` asks.
 
 | Now | New | Why |
 | --- | --- | --- |
-| `balaur_anim` | `balaur_animation` | every other crate is `balaur_<plugin name>` |
 | feature and crate `web`, module `web.*` | `browser` | reads as a build target and as the head of `websocket` |
-| features `window` → `kiss3d`, `extensions` → `dylib` | one name each, not the backend's | N14 |
-| `balaur::rune` | `balaur::script_rune` | reads as the `rune` crate |
-| `Snapshot`, `SnapshotRing` (rollback) | `Checkpoint`, `CheckpointRing` | D3 reserves `*Snapshot` |
 | `WebsocketPlugin` | `WebSocketPlugin` | C-CASE |
-| `FIXED_DT`, `TICK_HZ` | `DEFAULT_FIXED_DT`, `DEFAULT_TICK_HZ` | they are only defaults |
-| log tags `batteries [script]`, `kiss3d_ba…` | `script`, and the crate name without `balaur_` | what the Output panel shows |
-| "plugin", "module", "extension" in one error | plugin (Rust), extension (a dylib), addon (a Rune library), module (a script namespace) | |
 
 ## Bugs the audit found
 

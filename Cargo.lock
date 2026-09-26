@@ -438,7 +438,7 @@ name = "balaur"
 version = "0.2.0"
 dependencies = [
  "anyhow",
- "balaur_anim",
+ "balaur_animation",
  "balaur_apple",
  "balaur_audio",
  "balaur_core",
@@ -472,7 +472,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "balaur_anim"
+name = "balaur_animation"
 version = "0.2.0"
 dependencies = [
  "anyhow",

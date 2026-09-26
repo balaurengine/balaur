@@ -264,12 +264,12 @@ pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<Tex
     Ok(style)
 }
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) use backend::{
     atlas_texture, bucket_ratio, layers, mesh_2d, mesh_3d, request_of, shape, shape_at,
 };
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod backend {
     use std::cell::RefCell;
     use std::rc::Rc;
@@ -612,7 +612,7 @@ mod backend {
 /// only, never the machine's, so every platform answers the same. A bitmap
 /// face is measured from its own descriptor, which is as fixed.
 pub fn measure(eng: &Engine, text: &str, style: &TextStyle) -> anyhow::Result<[f32; 2]> {
-    #[cfg(feature = "kiss3d")]
+    #[cfg(feature = "window")]
     {
         let state = balaur_text::shaper(eng);
         if !style.font.is_empty() {
@@ -623,7 +623,7 @@ pub fn measure(eng: &Engine, text: &str, style: &TextStyle) -> anyhow::Result<[f
         let size = state.borrow_mut().measure(&request);
         Ok([size.x, size.y])
     }
-    #[cfg(not(feature = "kiss3d"))]
+    #[cfg(not(feature = "window"))]
     {
         let _ = (eng, text, style);
         Err(anyhow::anyhow!(
@@ -634,13 +634,13 @@ pub fn measure(eng: &Engine, text: &str, style: &TextStyle) -> anyhow::Result<[f
 
 /// How far in front of the layer behind it each layer sits. Small enough to
 /// read as one block, large enough for the depth buffer to tell them apart.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn depth_of(layer: usize) -> f32 {
     layer as f32 * 0.001
 }
 
 /// Report a face that will not load once, not once a frame.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn report_once(err: &anyhow::Error) {
     let message = format!("{err:#}");
     if balaur_core::logbuf::first_time("world text", &message) {
@@ -651,7 +651,7 @@ pub(crate) fn report_once(err: &anyhow::Error) {
 /// Everything the backend keeps for text between frames: the nodes the
 /// immediate calls made, and one slot per node carrying a `text2d` or
 /// `text3d`.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 #[derive(Default)]
 pub(crate) struct Frame {
     transients: Transients,
@@ -660,7 +660,7 @@ pub(crate) struct Frame {
 
 /// Draw this frame's text: the nodes that carry it, then the calls that asked
 /// for it. Both come from the same atlas, uploaded once for the pair.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn draw(
     app: &balaur_core::App,
     scene_2d: &mut kiss3d::scene::SceneNode2d,
@@ -674,7 +674,7 @@ pub(crate) fn draw(
 }
 
 /// The nodes one frame's text made, dropped when the next frame draws.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 #[derive(Default)]
 pub(crate) struct Transients {
     two_d: Vec<kiss3d::scene::SceneNode2d>,
@@ -682,7 +682,7 @@ pub(crate) struct Transients {
 }
 
 /// Draw everything scripts asked for this frame, as nodes that live one frame.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn flush(
     app: &balaur_core::App,
     scene_2d: &mut kiss3d::scene::SceneNode2d,

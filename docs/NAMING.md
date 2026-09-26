@@ -547,6 +547,11 @@ Every string is sentence case, and a button is a verb.
 | Command search | Command palette | Godot, VS Code |
 | Settings | Settings…, with Editor settings and Project settings pages | Godot |
 | Rust, dylib and Rune additions | plugin, extension, addon in `addons/` | Godot, Blender |
+| A crate | `balaur_<plugin name>`: `balaur_animation`, `balaur_physics`; the facade re-exports each under its crate name without `balaur_`, `balaur::script_rune` | none |
+| A cargo feature | one name for a concept in every crate, never the backend's: `window`, `extensions` | N14 |
+| A default beside a setting | `DEFAULT_TICK_HZ`, `DEFAULT_FIXED_DT` | none |
+| A rollback's saved world | `Checkpoint`, `CheckpointRing`; `*Snapshot` is D3's | none |
+| A log line's tag | the crate without `balaur_`, or `script` for a script's own line | none |
 | A scene used as a template | prefab; the verb is instantiate | Unity, Godot |
 | Running | Run project, Run scene, Stop | Godot |
 | A play run on disk | recording, replay, the Recordings panel, `.blr` | Unreal |

@@ -71,7 +71,7 @@ fn trace(root: &std::path::Path, frames: u32) -> Vec<Digest> {
     let mut app = boot(root);
     (0..frames)
         .map(|_| {
-            app.tick(balaur_core::FIXED_DT);
+            app.tick(balaur_core::DEFAULT_FIXED_DT);
             digest::digest(&app.engine)
         })
         .collect()
@@ -80,7 +80,7 @@ fn trace(root: &std::path::Path, frames: u32) -> Vec<Digest> {
 fn simulate(root: &std::path::Path, frames: u32) -> Vec<[u32; 3]> {
     let mut app = boot(root);
     for _ in 0..frames {
-        app.tick(balaur_core::FIXED_DT);
+        app.tick(balaur_core::DEFAULT_FIXED_DT);
     }
     // Collect exact float bits of every node position, in tree order.
     let engine = app.engine.clone();
@@ -207,7 +207,7 @@ fn a_divergence_report_names_the_node_and_the_slice() {
     write_project(dir.path());
     let mut app = boot(dir.path());
     for _ in 0..30 {
-        app.tick(balaur_core::FIXED_DT);
+        app.tick(balaur_core::DEFAULT_FIXED_DT);
     }
     let before = digest::entries(&app.engine);
 

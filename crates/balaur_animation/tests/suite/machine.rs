@@ -2,7 +2,7 @@
 //! clip's end, travel through the states between, and the fade each
 //! transition asks for.
 
-use balaur_anim::{AnimationPlugin, machine};
+use balaur_animation::{AnimationPlugin, machine};
 use balaur_core::hecs::Entity;
 use balaur_core::{App, AppConfig, assets, components, scene};
 
@@ -40,9 +40,9 @@ fn rig(app: &App, machine: &str) -> Entity {
     let root = eng.root();
     let entity = scene::spawn_node(&mut eng.world_mut(), "Hero", root);
     components::add(eng, entity, "animation", None).unwrap();
-    balaur_anim::add_clip(eng, entity, "idle", hold(0.0, 1.0, "linear")).unwrap();
-    balaur_anim::add_clip(eng, entity, "walk", hold(1.0, 1.0, "linear")).unwrap();
-    balaur_anim::add_clip(eng, entity, "jump", hold(2.0, 0.5, "none")).unwrap();
+    balaur_animation::add_clip(eng, entity, "idle", hold(0.0, 1.0, "linear")).unwrap();
+    balaur_animation::add_clip(eng, entity, "walk", hold(1.0, 1.0, "linear")).unwrap();
+    balaur_animation::add_clip(eng, entity, "jump", hold(2.0, 0.5, "none")).unwrap();
     let body: toml::Value = toml::from_str(machine).unwrap();
     let reference = assets::define_inline(eng, machine::MACHINE_ASSET_TYPE, body).unwrap();
     let params = toml::Value::Table(toml::map::Map::from_iter([(
@@ -83,7 +83,7 @@ fn a_machine_enters_its_start_and_crosses_when_a_condition_comes_on() {
         Some("idle")
     );
     assert_eq!(
-        balaur_anim::current_clip(&app.engine, hero).as_deref(),
+        balaur_animation::current_clip(&app.engine, hero).as_deref(),
         Some("idle")
     );
     assert!(x(&app, hero).abs() < 1e-4);
@@ -123,7 +123,7 @@ fn an_at_end_transition_waits_for_the_clip_to_finish() {
         Some("idle")
     );
     assert_eq!(
-        balaur_anim::current_clip(&app.engine, hero).as_deref(),
+        balaur_animation::current_clip(&app.engine, hero).as_deref(),
         Some("idle")
     );
 }
@@ -187,7 +187,7 @@ fn ramp(length: f64, loop_mode: &str) -> toml::Value {
 /// [`rig`], with `walk` swapped for a clip of the test's own.
 fn rig_walking(app: &App, walk: toml::Value, machine: &str) -> Entity {
     let hero = rig(app, machine);
-    balaur_anim::add_clip(&app.engine, hero, "walk", walk).unwrap();
+    balaur_animation::add_clip(&app.engine, hero, "walk", walk).unwrap();
     hero
 }
 
@@ -204,7 +204,7 @@ fn a_transition_that_does_not_reset_resumes_the_state_where_it_was_left() {
     tick(&mut app, 2);
     machine::travel(&app.engine, hero, "walk").unwrap();
     tick(&mut app, 31);
-    let left_at = balaur_anim::time(&app.engine, hero);
+    let left_at = balaur_animation::time(&app.engine, hero);
     machine::travel(&app.engine, hero, "idle").unwrap();
     tick(&mut app, 5);
     machine::travel(&app.engine, hero, "walk").unwrap();
@@ -213,7 +213,7 @@ fn a_transition_that_does_not_reset_resumes_the_state_where_it_was_left() {
         machine::current_state(&app.engine, hero).as_deref(),
         Some("walk")
     );
-    let resumed = balaur_anim::time(&app.engine, hero);
+    let resumed = balaur_animation::time(&app.engine, hero);
     assert!(
         (resumed - left_at).abs() < 0.05,
         "`walk` picks up near {left_at}, not from the start: {resumed}"
@@ -299,7 +299,7 @@ fn break_loop_holds_a_looping_clip_at_its_end_while_it_fades_out() {
                 "{STATES}\n[[transitions]]\nfrom = \"idle\"\nto = \"walk\"\nblend_time = 1.0\nbreak_loop_at_end = {break_loop}\n"
             ),
         );
-        balaur_anim::add_clip(&app.engine, hero, "idle", ramp(0.5, "linear")).unwrap();
+        balaur_animation::add_clip(&app.engine, hero, "idle", ramp(0.5, "linear")).unwrap();
         tick(&mut app, 16);
         machine::travel(&app.engine, hero, "walk").unwrap();
         tick(&mut app, 31);
@@ -401,7 +401,7 @@ fn reaching_end_stops_the_machine_until_a_travel() {
     tick(&mut app, 1);
     assert_eq!(machine::current_state(&app.engine, hero), None);
     assert!(
-        !balaur_anim::is_playing(&app.engine, hero),
+        !balaur_animation::is_playing(&app.engine, hero),
         "the clip holds"
     );
     tick(&mut app, 10);
@@ -459,7 +459,7 @@ fn a_nested_machine_is_entered_at_its_start_and_left_from_any_state_in_it() {
         Some("move/walk")
     );
     assert_eq!(
-        balaur_anim::current_clip(&app.engine, hero).as_deref(),
+        balaur_animation::current_clip(&app.engine, hero).as_deref(),
         Some("walk"),
         "a nested state plays the clip of its own name"
     );

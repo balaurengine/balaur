@@ -289,13 +289,13 @@ fn install_outline_api(m: &mut dyn Bindings<Engine>) {
 /// the scene's draw order; what is drawn at that index hangs under it. A
 /// holder stays once made: kiss3d's `detach` swaps the last child into the
 /// gap, so taking one out of the middle would scramble the order.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 #[derive(Default)]
 pub(crate) struct Layers2d {
     holders: std::collections::BTreeMap<i32, kiss3d::scene::SceneNode2d>,
 }
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 impl Layers2d {
     /// A holder for every index this frame's shapes and text name.
     pub(crate) fn want(&mut self, app: &balaur_core::App) {
@@ -340,7 +340,7 @@ impl Layers2d {
 }
 
 /// Draw and forget: last frame's nodes go, this frame's are made.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn flush(
     app: &balaur_core::App,
     window: &mut kiss3d::window::Window,
@@ -372,7 +372,7 @@ pub(crate) fn flush(
 
 /// One shape as a node under `parent`, or as the window's lines. `placed`
 /// is the world units to a pixel when the shape sits in the draw order.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn draw_one(
     app: &balaur_core::App,
     window: &mut kiss3d::window::Window,
@@ -457,7 +457,7 @@ fn draw_one(
 
 /// A stroke over everything is the window's line pass, in pixels; one placed
 /// among the nodes is a mesh, `placed` world units to the pixel.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn stroke(
     window: &mut kiss3d::window::Window,
     parent: &mut kiss3d::scene::SceneNode2d,
@@ -500,7 +500,7 @@ fn stroke(
 
 /// An arc as a chain of points, one every few degrees; deterministic
 /// trigonometry so a screenshot matches across machines.
-#[cfg(any(feature = "kiss3d", test))]
+#[cfg(any(feature = "window", test))]
 pub(crate) fn arc_points(center: [f32; 2], radius: f32, from: f32, to: f32) -> Vec<[f32; 2]> {
     let sweep = to - from;
     let steps = ((sweep.abs().to_degrees() / 5.0).ceil() as usize).clamp(1, 360);

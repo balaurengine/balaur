@@ -75,7 +75,7 @@ fn run_script(dir: &std::path::Path, app: &balaur::App, source: &str) {
         .attach(balaur::node_id_of(node), "scripts/t.rn")
         .unwrap();
     assert_eq!(
-        balaur::rune::rune_of(&app.engine).number_field(node, "done"),
+        balaur::script_rune::rune_of(&app.engine).number_field(node, "done"),
         Some(1.0),
         "the script did not run to its end: {:#?}",
         balaur::logbuf::recent(10)

@@ -76,7 +76,7 @@ Each is a wrong result today, not a missing feature.
    rapier reports the stop after the handle left the set, and the `let-else`
    in `shared/events.rs` drops it. A sensor keeps holding a freed node.
 3. **Animation and state machine handlers can run twice.** Both call the hook
-   and emit (`balaur_anim/src/system.rs:644`, `machine.rs:676`); a script
+   and emit (`balaur_animation/src/system.rs:644`, `machine.rs:676`); a script
    that also subscribes to its own node runs the handler again a frame later.
 4. **Paused scripts miss the window.** Focus, dark mode and quit use
    `call_all`, which skips paused scripts (`balaur_core/src/facts.rs:368`,

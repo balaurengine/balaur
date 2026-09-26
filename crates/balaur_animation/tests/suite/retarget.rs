@@ -6,8 +6,8 @@
 //! target and corrects the key against the rest it was authored at. Both are
 //! asserted headlessly, on the document, with no renderer in sight.
 
-use balaur_anim::AnimationPlugin;
-use balaur_anim::clip;
+use balaur_animation::AnimationPlugin;
+use balaur_animation::clip;
 use balaur_core::hecs::Entity;
 use balaur_core::mesh::Deform;
 use balaur_core::scene::Transform;
@@ -47,9 +47,9 @@ keys = [
         clip.tracks[0].channels, 6,
         "three vertices, two numbers each"
     );
-    let half = balaur_anim::sampler::sample(&clip, 0.5);
+    let half = balaur_animation::sampler::sample(&clip, 0.5);
     match &half[0] {
-        balaur_anim::sampler::TrackValue::Deform(offsets) => {
+        balaur_animation::sampler::TrackValue::Deform(offsets) => {
             assert_eq!(offsets.len(), 6);
             assert!((offsets[0] - 0.5).abs() < 1e-5, "{offsets:?}");
             assert!((offsets[5] - 3.0).abs() < 1e-5, "{offsets:?}");
@@ -97,8 +97,8 @@ keys = [
 "#,
     )
     .unwrap();
-    balaur_anim::add_clip(&app.engine, node, "wave", def).unwrap();
-    balaur_anim::play(&app.engine, node, "wave").unwrap();
+    balaur_animation::add_clip(&app.engine, node, "wave", def).unwrap();
+    balaur_animation::play(&app.engine, node, "wave").unwrap();
 
     // One tick in, the track is barely off its first key: the component is
     // there and every offset is still near zero.
@@ -166,10 +166,10 @@ keys = [ { time = 0.0, value = [0.0, 0.0, 0.0] } ]
 "#,
     )
     .unwrap();
-    balaur_anim::add_clip(&app.engine, rig, "idle", def).unwrap();
+    balaur_animation::add_clip(&app.engine, rig, "idle", def).unwrap();
 
     // Without a map the track names no node and the bone keeps its rest.
-    balaur_anim::play(&app.engine, rig, "idle").unwrap();
+    balaur_animation::play(&app.engine, rig, "idle").unwrap();
     app.tick(1.0 / 60.0);
     let angle = angle_about_z(app.engine.world().get::<&Transform>(hips).unwrap().rotation);
     assert!(
@@ -177,8 +177,8 @@ keys = [ { time = 0.0, value = [0.0, 0.0, 0.0] } ]
         "unmapped, the bone sat at {angle}"
     );
 
-    balaur_anim::set_retarget(&app.engine, rig, "maps/hero.toml").unwrap();
-    balaur_anim::play(&app.engine, rig, "idle").unwrap();
+    balaur_animation::set_retarget(&app.engine, rig, "maps/hero.toml").unwrap();
+    balaur_animation::play(&app.engine, rig, "idle").unwrap();
     app.tick(1.0 / 60.0);
     // The key is the profile's rest — no turn at all — so on a rig resting at
     // 0.75 the bone lands at 0.75, not at zero.
@@ -199,8 +199,8 @@ keys = [ { time = 0.0, value = [0.0, 0.0, 0.5] } ]
 "#,
     )
     .unwrap();
-    balaur_anim::add_clip(&app.engine, rig, "turn", turned).unwrap();
-    balaur_anim::play(&app.engine, rig, "turn").unwrap();
+    balaur_animation::add_clip(&app.engine, rig, "turn", turned).unwrap();
+    balaur_animation::play(&app.engine, rig, "turn").unwrap();
     app.tick(1.0 / 60.0);
     let angle = angle_about_z(app.engine.world().get::<&Transform>(hips).unwrap().rotation);
     assert!(
@@ -216,21 +216,21 @@ fn a_map_that_will_not_load_is_an_error_where_the_caller_can_see_it() {
     let (rig, _) = rig(&app, 0.0);
     let params: toml::Value = toml::from_str("autoplay = \"\"").unwrap();
     components::add(&app.engine, rig, "animation", Some(&params)).unwrap();
-    let why = balaur_anim::set_retarget(&app.engine, rig, "maps/nothing.toml").unwrap_err();
+    let why = balaur_animation::set_retarget(&app.engine, rig, "maps/nothing.toml").unwrap_err();
     assert!(format!("{why:#}").contains("maps/nothing.toml"), "{why:#}");
     // And taking it off again is not an error, whatever went before.
-    balaur_anim::set_retarget(&app.engine, rig, "").unwrap();
+    balaur_animation::set_retarget(&app.engine, rig, "").unwrap();
 }
 
 #[test]
 fn the_built_in_humanoid_is_what_a_map_naming_no_profile_uses() {
-    let map = balaur_anim::retarget::parse_map(
+    let map = balaur_animation::retarget::parse_map(
         &toml::from_str::<toml::Value>("[bones]\nHips = \"pelvis\"").unwrap(),
     )
     .unwrap();
     assert!(map.profile.is_empty());
     assert_eq!(map.bones.get("Hips").map(String::as_str), Some("pelvis"));
-    let profile = balaur_anim::SkeletonProfile::humanoid();
+    let profile = balaur_animation::SkeletonProfile::humanoid();
     assert!(profile.bones.iter().any(|b| b.name == "Hips"));
     assert!(profile.bones.iter().any(|b| b.name == "RightToes"));
 }
@@ -254,8 +254,8 @@ keys = [ { time = 0.0, value = [0.0, 0.0] }, { time = 1.0, value = [8.0, 0.0] } 
 "#,
     )
     .unwrap();
-    balaur_anim::add_clip(&app.engine, node, "both", def).unwrap();
-    balaur_anim::play(&app.engine, node, "both").unwrap();
+    balaur_animation::add_clip(&app.engine, node, "both", def).unwrap();
+    balaur_animation::play(&app.engine, node, "both").unwrap();
     for _ in 0..30 {
         app.tick(1.0 / 60.0);
     }
@@ -272,7 +272,7 @@ keys = [ { time = 0.0, value = [0.0, 0.0] }, { time = 1.0, value = [8.0, 0.0] } 
 /// The rest-pose helpers directly, which is where the retarget arithmetic is.
 #[test]
 fn a_position_key_is_scaled_by_how_much_longer_this_rigs_bone_rests() {
-    use balaur_anim::retarget::{BoneMap, ProfileBone, Retarget, SkeletonProfile};
+    use balaur_animation::retarget::{BoneMap, ProfileBone, Retarget, SkeletonProfile};
     use balaur_core::skeleton::Bone;
     let profile = SkeletonProfile {
         bones: vec![ProfileBone {

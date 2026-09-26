@@ -88,7 +88,7 @@ fn a_project_extension_is_loaded_and_reachable_from_a_script() {
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
 
-    let said = balaur::rune::rune_of(&app.engine).text_field(root_node(&app), "said");
+    let said = balaur::script_rune::rune_of(&app.engine).text_field(root_node(&app), "said");
     assert_eq!(
         said.as_deref(),
         Some("hello, world"),
@@ -115,7 +115,7 @@ fn an_extension_survives_many_frames() {
     for _ in 0..60 {
         app.tick(1.0 / 60.0);
     }
-    let count = balaur::rune::rune_of(&app.engine).number_field(root_node(&app), "count");
+    let count = balaur::script_rune::rune_of(&app.engine).number_field(root_node(&app), "count");
     assert_eq!(
         count,
         Some(1.0),
@@ -135,7 +135,7 @@ fn play_own_pack() {
     let config = AppConfig::packed(balaur::Pack::decode(&pack).unwrap());
     let mut app = standard_app(config).unwrap();
     app.load_project().unwrap();
-    let said = balaur::rune::rune_of(&app.engine).text_field(root_node(&app), "said");
+    let said = balaur::script_rune::rune_of(&app.engine).text_field(root_node(&app), "said");
     assert_eq!(said.as_deref(), Some("hello, world"));
 }
 

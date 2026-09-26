@@ -94,7 +94,7 @@ pub const INFLUENCES_PER_VERTEX: usize = 4;
 ///
 /// Written on a node by a clip's `polygon/deform` track and read by whatever
 /// draws that node, which is why the type is here rather than in either of
-/// them: `balaur_anim` may not depend on `balaur_render`, and the offsets are
+/// them: `balaur_animation` may not depend on `balaur_render`, and the offsets are
 /// per-frame output, not something a scene file carries. A node with no
 /// deform track never gets one.
 #[derive(Clone, Debug, Default, PartialEq)]

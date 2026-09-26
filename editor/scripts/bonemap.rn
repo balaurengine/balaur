@@ -10,7 +10,7 @@ use crate::util;
 const NAME_W = 128.0;
 const PICK_W = 190.0;
 
-// The canonical humanoid, in the spelling `balaur_anim::retarget::HUMANOID`
+// The canonical humanoid, in the spelling `balaur_animation::retarget::HUMANOID`
 // uses. One list, because a map written against another one would not load.
 const HUMANOID = [
     "Root", "Hips", "Spine", "Chest", "UpperChest", "Neck", "Head",

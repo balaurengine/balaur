@@ -154,7 +154,7 @@ Every step above is built.
 - **No resolution at export for settings.** Baking is a second code path for
   `balaur run` and the editor's Play button, and it puts a target the editor
   cannot preview inside the file it is editing.
-- **No per-platform tick rate.** `TICK_HZ` is one declaration on purpose, the
+- **No per-platform tick rate.** `DEFAULT_TICK_HZ` is one declaration on purpose, the
   replay header does not record it, and lockstep between a phone and a desktop
   would desync by construction. Per-platform frame *pacing* is a different
   key and is fine. If the simulation step ever moves, the header records it

@@ -33,7 +33,7 @@ use balaur_script::Value;
 use crate::app::App;
 use crate::digest::{self, Digest};
 use crate::engine::Engine;
-use crate::snapshot::{self, SnapshotRing};
+use crate::snapshot::{self, CheckpointRing};
 
 /// Which player an input belongs to.
 pub type PlayerId = u32;
@@ -118,7 +118,7 @@ pub struct Session {
     players: Vec<PlayerId>,
     /// The tick [`Session::advance`] will run next.
     next: u64,
-    ring: SnapshotRing,
+    ring: CheckpointRing,
     /// Inputs that actually arrived.
     arrived: BTreeMap<(u64, PlayerId), Input>,
     /// Inputs a tick was simulated with, real or predicted. A late input
@@ -150,7 +150,7 @@ impl Session {
         Self {
             players: players.to_vec(),
             next: 1,
-            ring: SnapshotRing::new(depth),
+            ring: CheckpointRing::new(depth),
             arrived: BTreeMap::new(),
             used: BTreeMap::new(),
             dirty: None,

@@ -68,7 +68,7 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
 - `FixedUpdate` drains one app-owned accumulator in whole `fixed_dt()` steps: 0
   in a fast frame, up to `max_substeps()` in a slow one. One accumulator, not one
   per plugin — per-plugin ones made the step count depend on wall-clock jitter.
-  `FIXED_DT` is the default rate, and `[time] tick_hz` is what moves it.
+  `DEFAULT_FIXED_DT` is the default rate, and `[time] tick_hz` is what moves it.
 - Order inside a stage is registration order, and core registers the script
   callback first, so `fixed_update` runs before that frame's physics step.
 - A debugger's freeze stops the whole stage. A game's own pause does not: the
@@ -383,7 +383,7 @@ content is `asset`.
 
 ### Animation
 
-`balaur_anim` is a plugin: clips, state machines, retargeting and modifiers —
+`balaur_animation` is a plugin: clips, state machines, retargeting and modifiers —
 four asset types, four components, one script module, two systems in `Update`. It depends on core and no other plugin crate — a test reads
 its `Cargo.toml` and fails if one appears.
 

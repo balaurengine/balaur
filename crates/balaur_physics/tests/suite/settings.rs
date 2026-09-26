@@ -29,7 +29,7 @@ fn length_unit_for(tags: Tags) -> f32 {
     balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
     app.load_project().unwrap();
     app.engine.insert_resource(tags);
-    app.tick(balaur_core::FIXED_DT);
+    app.tick(balaur_core::DEFAULT_FIXED_DT);
     let state = app.engine.resource::<PhysicsState3d>();
     state.borrow().world.integration_parameters.length_unit
 }

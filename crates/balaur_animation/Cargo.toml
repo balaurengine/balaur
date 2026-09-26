@@ -1,5 +1,5 @@
 [package]
-name = "balaur_anim"
+name = "balaur_animation"
 description = "Balaur animation plugin: clips, sampling and fixed-step playback"
 version.workspace = true
 edition.workspace = true

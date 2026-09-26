@@ -40,9 +40,9 @@ pub struct SnapshotRegistry(pub Vec<(String, SaveFn, LoadFn)>);
 
 /// One moment of the simulation, keyed by source name.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct Snapshot(pub serde_json::Map<String, serde_json::Value>);
+pub struct Checkpoint(pub serde_json::Map<String, serde_json::Value>);
 
-impl Snapshot {
+impl Checkpoint {
     pub fn encode(&self) -> Result<Vec<u8>> {
         serde_json::to_vec(self).context("encoding a snapshot")
     }
@@ -53,21 +53,21 @@ impl Snapshot {
 }
 
 /// Ask every registered source for its state.
-pub fn capture(eng: &Engine) -> Snapshot {
+pub fn capture(eng: &Engine) -> Checkpoint {
     let mut out = serde_json::Map::new();
     if let Some(sources) = eng.try_resource::<SnapshotRegistry>() {
         for (name, save, _) in &sources.borrow().0 {
             out.insert(name.clone(), save(eng));
         }
     }
-    Snapshot(out)
+    Checkpoint(out)
 }
 
 /// Put every registered source back the way it was.
 ///
 /// A source missing from the snapshot is left alone, so a snapshot taken
 /// before a plugin was added still restores what it does cover.
-pub fn restore(eng: &Engine, snapshot: &Snapshot) {
+pub fn restore(eng: &Engine, snapshot: &Checkpoint) {
     if let Some(sources) = eng.try_resource::<SnapshotRegistry>() {
         for (name, _, load) in &sources.borrow().0 {
             if let Some(value) = snapshot.0.get(name) {
@@ -81,12 +81,12 @@ pub fn restore(eng: &Engine, snapshot: &Snapshot) {
 ///
 /// What rollback keeps: the last N ticks, so a late input for any of them
 /// can be answered by restoring and re-simulating.
-pub struct SnapshotRing {
-    frames: std::collections::VecDeque<(u64, Snapshot)>,
+pub struct CheckpointRing {
+    frames: std::collections::VecDeque<(u64, Checkpoint)>,
     capacity: usize,
 }
 
-impl SnapshotRing {
+impl CheckpointRing {
     #[must_use]
     pub fn new(capacity: usize) -> Self {
         Self {
@@ -101,7 +101,7 @@ impl SnapshotRing {
     /// ring, and appending them again would fill it with duplicates, so a
     /// ring of thirty-two would hold far fewer than thirty-two distinct
     /// ticks and drop the oldest long before it had to.
-    pub fn push(&mut self, tick: u64, snapshot: Snapshot) {
+    pub fn push(&mut self, tick: u64, snapshot: Checkpoint) {
         if let Some(slot) = self.frames.iter_mut().find(|(at, _)| *at == tick) {
             slot.1 = snapshot;
             return;
@@ -114,7 +114,7 @@ impl SnapshotRing {
 
     /// The state at `tick`, if it is still in the window.
     #[must_use]
-    pub fn get(&self, tick: u64) -> Option<&Snapshot> {
+    pub fn get(&self, tick: u64) -> Option<&Checkpoint> {
         self.frames
             .iter()
             .find(|(at, _)| *at == tick)

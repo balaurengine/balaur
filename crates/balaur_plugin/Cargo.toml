@@ -9,7 +9,7 @@ authors.workspace = true
 [features]
 default = []
 # Load extensions from shared libraries at run time.
-dylib = ["dep:libloading"]
+extensions = ["dep:libloading"]
 
 [dependencies]
 serde.workspace = true

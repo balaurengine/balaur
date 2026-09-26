@@ -7,7 +7,7 @@
 //! be read, and tested, on its own.
 
 #![cfg_attr(
-    not(feature = "kiss3d"),
+    not(feature = "window"),
     allow(dead_code, reason = "the arithmetic is the backend's, and the tests'")
 )]
 
@@ -69,7 +69,7 @@ pub(crate) fn split_2d(here: Mat4, placed: Mat4, angle: f32) -> Option<(Mat2, Ve
 }
 
 /// A 2D node's copies, as the instances its object draws them through.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn instances_2d(
     clones: &crate::Clones,
     global: &GlobalTransform,
@@ -92,7 +92,7 @@ pub(crate) fn instances_2d(
 }
 
 /// Put a node's copies on it, as the instance data the shader reads.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn set_instances_3d(
     node: &mut kiss3d::scene::SceneNode3d,
     clones: Option<&crate::Clones>,

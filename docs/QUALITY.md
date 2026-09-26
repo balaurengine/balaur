@@ -122,7 +122,7 @@ A change that alters a recorded digest has to say why.
 About 2,040 `#[test]` functions across 22 crates, 159 integration files, on all
 three desktop platforms. Beyond `cargo test --workspace`:
 
-- `cargo test -p balaur_plugin --features dylib` and `-p balaur --features
+- `cargo test -p balaur_plugin --features extensions` and `-p balaur --features
   extensions` — the dlopen path, the cdylib, and loading one at run time.
 - `cargo build -p balaur_cli --no-default-features`, plus core and physics
   tested without them: nothing else exercises a subsystem switched off.

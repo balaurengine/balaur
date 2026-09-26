@@ -5,7 +5,7 @@
 //! behaviour it depends on is pinned here instead — headless, from Rust, with
 //! no editor in the picture.
 
-use balaur_anim::{AnimationPlugin, AnimationState};
+use balaur_animation::{AnimationPlugin, AnimationState};
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
 use balaur_core::{App, AppConfig, assets, components, project};
@@ -62,16 +62,16 @@ fn tick(app: &mut App, frames: u32) {
 fn a_scrub_poses_a_paused_clip_where_the_playhead_lands() {
     let app = app();
     let entity = animated(&app, "Box", LIBRARY);
-    balaur_anim::play(&app.engine, entity, "rise").unwrap();
-    balaur_anim::pause(&app.engine, entity);
+    balaur_animation::play(&app.engine, entity, "rise").unwrap();
+    balaur_animation::pause(&app.engine, entity);
 
-    balaur_anim::seek(&app.engine, entity, 0.25);
+    balaur_animation::seek(&app.engine, entity, 0.25);
     assert!(
         (height(&app, entity) - 2.5).abs() < 1e-4,
         "a scrub did not pose the node: {}",
         height(&app, entity)
     );
-    balaur_anim::seek(&app.engine, entity, 0.75);
+    balaur_animation::seek(&app.engine, entity, 0.75);
     assert!((height(&app, entity) - 7.5).abs() < 1e-4);
 }
 
@@ -79,9 +79,9 @@ fn a_scrub_poses_a_paused_clip_where_the_playhead_lands() {
 fn a_scrub_moves_nothing_but_the_playhead() {
     let mut app = app();
     let entity = animated(&app, "Box", LIBRARY);
-    balaur_anim::play(&app.engine, entity, "rise").unwrap();
-    balaur_anim::pause(&app.engine, entity);
-    balaur_anim::seek(&app.engine, entity, 0.5);
+    balaur_animation::play(&app.engine, entity, "rise").unwrap();
+    balaur_animation::pause(&app.engine, entity);
+    balaur_animation::seek(&app.engine, entity, 0.5);
     let posed = height(&app, entity);
 
     tick(&mut app, 30);
@@ -90,9 +90,9 @@ fn a_scrub_moves_nothing_but_the_playhead() {
         posed.to_bits(),
         "a paused clip advanced after a scrub"
     );
-    assert!(!balaur_anim::is_playing(&app.engine, entity));
+    assert!(!balaur_animation::is_playing(&app.engine, entity));
     assert_eq!(
-        balaur_anim::current_clip(&app.engine, entity).as_deref(),
+        balaur_animation::current_clip(&app.engine, entity).as_deref(),
         Some("rise"),
         "a scrub lost the clip it was scrubbing"
     );
@@ -145,7 +145,7 @@ parent = "Scene"
         "one unresolvable clip took the whole scene down"
     );
     let entity = scene::find_node(&app.engine.world(), root, "Scene/Box").unwrap();
-    assert!(balaur_anim::current_clip(&app.engine, entity).is_none());
+    assert!(balaur_animation::current_clip(&app.engine, entity).is_none());
 }
 
 /// "Save as file" writes the definition the editor was already previewing.
@@ -155,9 +155,9 @@ fn a_clip_promoted_to_a_file_poses_exactly_as_the_inline_one_did() {
     let dir = tempfile::tempdir().unwrap();
     let mut app = app_in(dir.path());
     let inline = animated(&app, "Inline", LIBRARY);
-    balaur_anim::play(&app.engine, inline, "rise").unwrap();
-    balaur_anim::pause(&app.engine, inline);
-    balaur_anim::seek(&app.engine, inline, 0.4);
+    balaur_animation::play(&app.engine, inline, "rise").unwrap();
+    balaur_animation::pause(&app.engine, inline);
+    balaur_animation::seek(&app.engine, inline, 0.4);
 
     // What the editor's promote does: the same table, typed, on disk.
     let document: toml::Value = toml::from_str(LIBRARY).unwrap();
@@ -175,9 +175,9 @@ fn a_clip_promoted_to_a_file_poses_exactly_as_the_inline_one_did() {
     assets::reload(&app.engine, "animations/box.toml").unwrap();
 
     let external = animated(&app, "External", "library = \"animations/box.toml\"");
-    balaur_anim::play(&app.engine, external, "rise").unwrap();
-    balaur_anim::pause(&app.engine, external);
-    balaur_anim::seek(&app.engine, external, 0.4);
+    balaur_animation::play(&app.engine, external, "rise").unwrap();
+    balaur_animation::pause(&app.engine, external);
+    balaur_animation::seek(&app.engine, external, 0.4);
     assert_eq!(
         height(&app, external).to_bits(),
         height(&app, inline).to_bits(),
@@ -185,7 +185,7 @@ fn a_clip_promoted_to_a_file_poses_exactly_as_the_inline_one_did() {
     );
 
     // And it still plays: promotion is a move, not a copy that goes stale.
-    balaur_anim::play(&app.engine, external, "rise").unwrap();
+    balaur_animation::play(&app.engine, external, "rise").unwrap();
     tick(&mut app, 30);
     assert!((height(&app, external) - 5.0).abs() < 0.05);
 }
@@ -226,7 +226,7 @@ tracks = [
     project::instantiate_scene(&app.engine, &encoded, root, false).unwrap();
     let entity = scene::find_node(&app.engine.world(), root, "Box").unwrap();
     assert_eq!(
-        balaur_anim::current_clip(&app.engine, entity).as_deref(),
+        balaur_animation::current_clip(&app.engine, entity).as_deref(),
         Some("rise"),
         "an encoded-and-reparsed inline clip did not come back"
     );

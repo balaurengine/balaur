@@ -46,7 +46,7 @@ pub struct ProbeReading {
 }
 
 /// The pixel a preview is asked about, or `None` when nobody asked.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn probe_at(eng: &Engine) -> Option<[f32; 2]> {
     eng.try_resource::<ProbeRequest>()
         .map(|request| request.borrow().at)
@@ -56,7 +56,7 @@ pub(crate) fn probe_at(eng: &Engine) -> Option<[f32; 2]> {
 ///
 /// `None` clears it: a pixel that drew nothing has no value, and leaving the
 /// last one standing would report a number for empty space.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn publish_probe(eng: &Engine, value: Option<[f32; 4]>) {
     match value {
         Some(value) => eng.insert_resource(ProbeReading { value }),
@@ -65,7 +65,7 @@ pub(crate) fn publish_probe(eng: &Engine, value: Option<[f32; 4]>) {
 }
 
 /// Which channel a backend is drawing, or empty for the scene as it is.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn channel_view(eng: &Engine) -> String {
     eng.try_resource::<ChannelView>()
         .map_or_else(String::new, |view| view.borrow().channel.clone())

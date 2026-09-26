@@ -336,8 +336,8 @@ fn rank(level) {
     2
 }
 
-/// A line as the server takes it. A script's `[script] …` line is filed under
-/// `script`, the bracket's word, rather than the engine module that logged it.
+/// A line as the server takes it, filed under its tag: `script` for a script's
+/// own line, or a leading `[word]` where a line names one.
 fn record_of(entry, now, lobby) {
     let (category, text) = bracketed(format!("{}", entry["message"]), entry["tag"]);
     let message = text;

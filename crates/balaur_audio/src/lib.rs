@@ -194,7 +194,7 @@ mod backend {
 const MIN_PITCH: f32 = 0.01;
 
 /// One node's `sound` component, the shape `Playback` established in
-/// `balaur_anim`: the sink is shared machinery, the intent lives here.
+/// `balaur_animation`: the sink is shared machinery, the intent lives here.
 pub struct Sound {
     /// Audio file, project-relative. Empty plays nothing.
     pub file: String,

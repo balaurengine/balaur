@@ -7,7 +7,7 @@
 //! `powf` route to the platform's libm and differ between operating systems —
 //! so "the same bits" is the assertion that matters most here.
 
-use balaur_anim::ease::{self, Easing, Mode, Transition};
+use balaur_animation::ease::{self, Easing, Mode, Transition};
 
 /// Every curve, sampled at eleven points across its segment.
 fn samples(curve: Easing) -> Vec<f32> {

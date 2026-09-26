@@ -2,7 +2,7 @@
 //! names a bone by path turns the bone, and the joint palette a skin would
 //! deform by follows.
 
-use balaur_anim::AnimationPlugin;
+use balaur_animation::AnimationPlugin;
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
 use balaur_core::skeleton::{angle_about_z, joint_matrices_2d};
@@ -73,7 +73,7 @@ fn palette(app: &App, skin: Entity, rig: Entity, hip: Entity, thigh: Entity) -> 
 fn run(frames: u32) -> (Vec<[u32; 9]>, f32) {
     let mut app = app();
     let (rig, hip, thigh, skin) = rigged(&app);
-    balaur_anim::play(&app.engine, rig, "").unwrap();
+    balaur_animation::play(&app.engine, rig, "").unwrap();
     for _ in 0..frames {
         app.tick(1.0 / 60.0);
     }

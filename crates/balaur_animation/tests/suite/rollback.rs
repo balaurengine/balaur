@@ -5,8 +5,8 @@
 //! re-simulation animate from the wrong time, and every body it pushes
 //! diverges from there.
 
-use balaur_anim::ease::Easing;
-use balaur_anim::{AnimationPlugin, AnimationState};
+use balaur_animation::ease::Easing;
+use balaur_animation::{AnimationPlugin, AnimationState};
 use balaur_core::components::StableId;
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
@@ -54,8 +54,8 @@ fn animated(app: &App, id: &str, params: &str) -> Entity {
 /// `animated`, whose player sits at zero until something plays it.
 fn playing(app: &App, id: &str, params: &str) -> Entity {
     let entity = animated(app, id, params);
-    balaur_anim::play(&app.engine, entity, "").unwrap();
-    assert!(balaur_anim::is_playing(&app.engine, entity));
+    balaur_animation::play(&app.engine, entity, "").unwrap();
+    assert!(balaur_animation::is_playing(&app.engine, entity));
     entity
 }
 
@@ -79,19 +79,19 @@ fn a_rollback_across_a_playing_clip_restores_the_playhead() {
     let mut app = app();
     let node = playing(&app, "n_platform", &rise("linear"));
     tick(&mut app, 10);
-    let at = balaur_anim::time(&app.engine, node);
+    let at = balaur_animation::time(&app.engine, node);
     let frame = snapshot::capture(&app.engine);
 
     tick(&mut app, 20);
     assert_ne!(
-        balaur_anim::time(&app.engine, node).to_bits(),
+        balaur_animation::time(&app.engine, node).to_bits(),
         at.to_bits(),
         "twenty more steps have to move the playhead, or the test proves nothing"
     );
 
     snapshot::restore(&app.engine, &frame);
-    assert_eq!(balaur_anim::time(&app.engine, node).to_bits(), at.to_bits());
-    assert!(balaur_anim::is_playing(&app.engine, node));
+    assert_eq!(balaur_animation::time(&app.engine, node).to_bits(), at.to_bits());
+    assert!(balaur_animation::is_playing(&app.engine, node));
 }
 
 #[test]
@@ -131,17 +131,17 @@ fn a_rollback_mid_crossfade_restores_every_fade_in_the_stack() {
         "#,
     )
     .unwrap();
-    balaur_anim::add_clip(&app.engine, node, "hold", hold).unwrap();
+    balaur_animation::add_clip(&app.engine, node, "hold", hold).unwrap();
     let fades = |app: &App| {
         app.engine.resource::<AnimationState>().borrow().players[&node]
             .fades
             .len()
     };
     tick(&mut app, 10);
-    balaur_anim::player::play_blended(&app.engine, node, "hold", 0.5, Easing::LINEAR, true)
+    balaur_animation::player::play_blended(&app.engine, node, "hold", 0.5, Easing::LINEAR, true)
         .unwrap();
     tick(&mut app, 5);
-    balaur_anim::player::play_blended(&app.engine, node, "", 0.5, Easing::LINEAR, true).unwrap();
+    balaur_animation::player::play_blended(&app.engine, node, "", 0.5, Easing::LINEAR, true).unwrap();
     tick(&mut app, 2);
     assert_eq!(fades(&app), 2);
     let frame = snapshot::capture(&app.engine);
@@ -162,7 +162,7 @@ fn a_paused_player_digests_differently_from_a_playing_one() {
     let playing = digest::digest(&app.engine);
     let pose = height(&app, node).to_bits();
 
-    balaur_anim::pause(&app.engine, node);
+    balaur_animation::pause(&app.engine, node);
 
     assert_eq!(
         height(&app, node).to_bits(),
@@ -178,7 +178,7 @@ fn a_stopped_clip_and_a_played_one_at_the_same_pose_digest_differently() {
     let node = playing(&app, "n_platform", &rise("linear"));
     tick(&mut app, 10);
     let before = digest::entries(&app.engine);
-    balaur_anim::stop(&app.engine, node);
+    balaur_animation::stop(&app.engine, node);
     let after = digest::entries(&app.engine);
 
     // A source labels its own rows, so the player's read `animation/<id>/…`
@@ -215,18 +215,18 @@ fn a_tween_that_finished_after_the_snapshot_comes_back_with_it() {
     let node = animated(&app, "n_platform", "library = \"\"\n");
     let to = toml::Value::Array(vec![0.0.into(), 4.0.into(), 0.0.into()]);
     let tween =
-        balaur_anim::tween::start_to(&app.engine, node, "position", &to, 0.2, None).unwrap();
+        balaur_animation::tween::start_to(&app.engine, node, "position", &to, 0.2, None).unwrap();
     tick(&mut app, 2);
     let frame = snapshot::capture(&app.engine);
 
     tick(&mut app, 30);
     assert!(
-        !balaur_anim::tween::is_running(&app.engine, tween),
+        !balaur_animation::tween::is_running(&app.engine, tween),
         "thirty steps outlast a tween of a fifth of a second"
     );
 
     snapshot::restore(&app.engine, &frame);
-    assert!(balaur_anim::tween::is_running(&app.engine, tween));
+    assert!(balaur_animation::tween::is_running(&app.engine, tween));
     tick(&mut app, 30);
     assert!(
         (height(&app, node) - 4.0).abs() < 1e-5,
@@ -243,7 +243,7 @@ fn a_player_on_a_node_the_snapshot_never_saw_is_dropped_by_the_restore() {
 
     let second = playing(&app, "n_second", &rise("linear"));
     tick(&mut app, 5);
-    assert!(balaur_anim::is_playing(&app.engine, second));
+    assert!(balaur_animation::is_playing(&app.engine, second));
 
     snapshot::restore(&app.engine, &frame);
     let state = app.engine.resource::<AnimationState>();

@@ -12,7 +12,7 @@ use balaur_script::{Bindings, BindingsExt};
 
 pub use balaur_core::tiles::{TILESET_ASSET_TYPE, TileSet};
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) use crate::tilemap_mesh::{TilemapSlot, sync_tilemaps};
 
 /// What a definition table holds, for the generated reference.

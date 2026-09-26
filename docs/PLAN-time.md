@@ -31,11 +31,11 @@
   clear it; a rollback clears it with the transforms it restores.
 - `[time] tick_hz` replaces the constant. `balaur_core::fixed_dt()` is what
   every subsystem reads, a recording's header carries the rate, and
-  `MAX_SUBSTEPS` scales with it. `FIXED_DT` is the default, not the rate.
+  `MAX_SUBSTEPS` scales with it. `DEFAULT_FIXED_DT` is the default, not the rate.
 
 ## 1. Where the tree was before this
 
-- One accumulator drains into whole `FIXED_DT` steps at `TICK_HZ = 60`, at
+- One accumulator drains into whole `DEFAULT_FIXED_DT` steps at `DEFAULT_TICK_HZ = 60`, at
   most `MAX_SUBSTEPS = 4` per frame; time past that is dropped
   (`crates/balaur_core/src/app.rs:781-800`).
 - A debugger pause holds the simulation for a subtree: `Engine::frozen_root`

@@ -11,7 +11,7 @@ pub fn state() {
     #{ time: 0.0, rebind: false }
 }
 
-// The asset type `balaur_anim` registers, written into the document so a
+// The asset type `balaur_animation` registers, written into the document so a
 // promoted file declares what it is.
 const CLIP_TYPE = "animation_library";
 // The group a library document holds its named clips under. The engine finds

@@ -5,7 +5,7 @@
 
 use balaur_core::Engine;
 use balaur_core::components::{self, ComponentDef};
-use balaur_core::snapshot::{self, SnapshotRing};
+use balaur_core::snapshot::{self, CheckpointRing};
 use balaur_core::{App, AppConfig, Transform, digest};
 
 fn app() -> App {
@@ -79,7 +79,7 @@ fn a_snapshot_round_trips_through_bytes() {
     let bytes = snapshot::capture(&app.engine).encode().unwrap();
 
     move_to(&app, a, 99.0);
-    let decoded = snapshot::Snapshot::decode(&bytes).unwrap();
+    let decoded = snapshot::Checkpoint::decode(&bytes).unwrap();
     snapshot::restore(&app.engine, &decoded);
     assert_eq!(digest::digest(&app.engine), before);
 }
@@ -165,7 +165,7 @@ fn a_rolled_back_spawn_mints_the_id_it_minted_before() {
 #[test]
 fn pushing_a_tick_twice_replaces_it_rather_than_filling_the_ring() {
     let app = app();
-    let mut ring = SnapshotRing::new(4);
+    let mut ring = CheckpointRing::new(4);
     for tick in 1..=3 {
         ring.push(tick, snapshot::capture(&app.engine));
     }
@@ -179,7 +179,7 @@ fn pushing_a_tick_twice_replaces_it_rather_than_filling_the_ring() {
 #[test]
 fn the_ring_keeps_the_newest_and_forgets_the_oldest() {
     let app = app();
-    let mut ring = SnapshotRing::new(2);
+    let mut ring = CheckpointRing::new(2);
     assert!(ring.is_empty());
     for tick in 1..=3 {
         ring.push(tick, snapshot::capture(&app.engine));

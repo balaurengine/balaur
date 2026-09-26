@@ -173,7 +173,7 @@ pub(crate) fn register_reflection_probe_component(reg: &mut Registry<'_>) {
 /// A probe is registered once and captured once: the array it lives in is
 /// allocated up front, and a capture renders the whole scene six times, which
 /// is not something a frame should repeat.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 #[derive(Default)]
 pub(crate) struct ProbeSlots {
     /// What [`probes`] last resolved to, so nothing is re-registered until a
@@ -185,7 +185,7 @@ pub(crate) struct ProbeSlots {
     registered: usize,
 }
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 impl ProbeSlots {
     /// Register this scene's probes with the window, capturing the ones that
     /// name no baked image.
@@ -248,7 +248,7 @@ impl ProbeSlots {
 
 /// A baked probe map, read out of the project the way a sky is: through the
 /// project reader, so a packed game carries it inside the pack.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn baked(app: &balaur_core::App, path: &str) -> anyhow::Result<image::DynamicImage> {
     let files = app.engine.resource::<balaur_core::project::ProjectFiles>();
     let bytes = files.borrow().read(path)?;

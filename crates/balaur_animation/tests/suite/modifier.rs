@@ -1,7 +1,7 @@
 //! Rig modifiers: a bone that looks at a node, and a two-bone chain whose
 //! tip reaches one.
 
-use balaur_anim::AnimationPlugin;
+use balaur_animation::AnimationPlugin;
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, GlobalTransform, Transform};
 use balaur_core::skeleton::angle_about_z;

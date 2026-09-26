@@ -76,8 +76,8 @@ are dictionary data and translation sources.
 | `SpriteFrames` | The `sprite_sheet` asset | `docs/generated/assets.md` |
 | `Polygon2D` skinned by `Skeleton2D` | `polygon.skeleton` over `bone2d` | `polygon.rs`, `skeleton.rs` |
 | `PackedScene` instance and its overrides | `instance` and `overrides."Path".component` | `examples/hello/scenes/main.toml` |
-| `AnimationPlayer` value tracks | `animation_library` tracks, `component/property` | `crates/balaur_anim/src/clip.rs:85` |
-| `Tween` | `animation.tween`, `tween_to`, `tween_value` | `crates/balaur_anim/src/tween.rs` |
+| `AnimationPlayer` value tracks | `animation_library` tracks, `component/property` | `crates/balaur_animation/src/clip.rs:85` |
+| `Tween` | `animation.tween`, `tween_to`, `tween_value` | `crates/balaur_animation/src/tween.rs` |
 | `signal` and `.connect` | `events.emit` and `events.listen` | script API `events` |
 | `TranslationServer.tr` | `strings.tr` over `strings/<locale>.toml` | script API `strings` |
 | Input map | `[input.actions]` in `project.toml` | `examples/hello/project.toml` |

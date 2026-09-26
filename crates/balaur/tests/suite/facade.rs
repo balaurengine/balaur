@@ -39,7 +39,7 @@ fn a_project_without_a_language_runs_on_rune() {
     let host = app.engine.script_host().expect("a backend was installed");
     assert!(
         host.as_any()
-            .downcast_ref::<balaur::rune::RuneHost>()
+            .downcast_ref::<balaur::script_rune::RuneHost>()
             .is_some()
     );
     assert_eq!(
@@ -58,7 +58,7 @@ fn language_rune_runs_on_rune() {
     let host = app.engine.script_host().unwrap();
     assert!(
         host.as_any()
-            .downcast_ref::<balaur::rune::RuneHost>()
+            .downcast_ref::<balaur::script_rune::RuneHost>()
             .is_some()
     );
     assert_eq!(host.instance_count(), 1);
@@ -354,7 +354,7 @@ fn a_script_can_attach_another_script_and_read_it_back() {
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
 
-    let rune = balaur::rune::rune_of(&app.engine);
+    let rune = balaur::script_rune::rune_of(&app.engine);
     let root = root_node(&app);
     let kid = {
         let world = app.engine.world();
@@ -389,7 +389,7 @@ fn reload_script_picks_up_a_rewritten_file() {
 
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
-    let rune = balaur::rune::rune_of(&app.engine);
+    let rune = balaur::script_rune::rune_of(&app.engine);
     let root = root_node(&app);
     assert_eq!(rune.number_field(root, "version"), Some(1.0));
 
@@ -433,7 +433,7 @@ fn mouse_position_is_readable_without_a_window() {
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
     assert_eq!(
-        balaur::rune::rune_of(&app.engine).number_field(root_node(&app), "done"),
+        balaur::script_rune::rune_of(&app.engine).number_field(root_node(&app), "done"),
         Some(1.0),
         "the script did not run to its end"
     );

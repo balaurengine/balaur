@@ -6,7 +6,7 @@
 //! same way a rollback snapshot would read it, so no backend accessor is
 //! needed to see what the module told it.
 
-use balaur_anim::AnimationPlugin;
+use balaur_animation::AnimationPlugin;
 use balaur_core::hecs::Entity;
 use balaur_core::{App, AppConfig, node_id_of, scene};
 use balaur_script::Value;
@@ -69,7 +69,7 @@ fn project(script: (&str, &str)) -> tempfile::TempDir {
 
 fn app_in(dir: &std::path::Path) -> App {
     let mut app = App::new(AppConfig {
-        script_backend: Some(balaur::rune::factory()),
+        script_backend: Some(balaur::script_rune::factory()),
         ..AppConfig::bare(dir.to_path_buf())
     })
     .unwrap();
@@ -143,11 +143,11 @@ fn a_script_plays_a_clip_and_hears_it_finish() {
 
     tick(&mut app, 15);
     assert!(
-        balaur_anim::is_playing(&app.engine, entity),
+        balaur_animation::is_playing(&app.engine, entity),
         "the script's `animation::play` did not start anything"
     );
     assert_eq!(
-        balaur_anim::current_clip(&app.engine, entity).as_deref(),
+        balaur_animation::current_clip(&app.engine, entity).as_deref(),
         Some("hop")
     );
     let quarter = height(&app, entity);
@@ -160,13 +160,13 @@ fn a_script_plays_a_clip_and_hears_it_finish() {
     // answers by playing `wave`.
     tick(&mut app, 30);
     assert_eq!(
-        balaur_anim::current_clip(&app.engine, entity).as_deref(),
+        balaur_animation::current_clip(&app.engine, entity).as_deref(),
         Some("wave"),
         "`on_animation_finished` did not reach the script with the name of the \
          clip that ended"
     );
     assert!(
-        balaur_anim::is_playing(&app.engine, entity),
+        balaur_animation::is_playing(&app.engine, entity),
         "the clip the handler started is not running"
     );
 }
@@ -211,7 +211,7 @@ pub fn update(this, dt) {
     );
     assert_eq!(field(&app, entity, "playing"), Value::Bool(false));
     assert_eq!(
-        balaur_anim::current_clip(&app.engine, entity),
+        balaur_animation::current_clip(&app.engine, entity),
         None,
         "what the script read back and what Rust reads back must agree"
     );
@@ -240,7 +240,7 @@ pub fn init(this) {
 
     tick(&mut app, 30);
     assert_eq!(
-        balaur_anim::current_clip(&app.engine, entity).as_deref(),
+        balaur_animation::current_clip(&app.engine, entity).as_deref(),
         Some("hurt"),
         "a definition table written in a script did not reach the asset layer"
     );
@@ -267,12 +267,12 @@ pub fn init(this) {
 
     tick(&mut app, 10);
     assert_eq!(
-        balaur_anim::current_clip(&app.engine, entity).as_deref(),
+        balaur_animation::current_clip(&app.engine, entity).as_deref(),
         Some("hop")
     );
     tick(&mut app, 40);
     assert_eq!(
-        balaur_anim::current_clip(&app.engine, entity).as_deref(),
+        balaur_animation::current_clip(&app.engine, entity).as_deref(),
         Some("wave")
     );
 }
@@ -302,11 +302,11 @@ pub fn update(this, dt) {
     tick(&mut app, 20);
 
     assert!(
-        balaur_anim::is_playing(&app.engine, entity),
+        balaur_animation::is_playing(&app.engine, entity),
         "`resume` did not undo `pause`"
     );
     assert_eq!(
-        balaur_anim::current_clip(&app.engine, entity).as_deref(),
+        balaur_animation::current_clip(&app.engine, entity).as_deref(),
         Some("wave")
     );
 }
@@ -329,8 +329,8 @@ pub fn update(this, dt) {
 
     tick(&mut app, 20);
 
-    assert!(!balaur_anim::is_playing(&app.engine, entity));
-    assert_eq!(balaur_anim::current_clip(&app.engine, entity), None);
+    assert!(!balaur_animation::is_playing(&app.engine, entity));
+    assert_eq!(balaur_animation::current_clip(&app.engine, entity), None);
 }
 
 /// A tween written the way a game would write one: a data table, no builder
@@ -380,7 +380,7 @@ fn a_script_tweens_a_node_and_hears_the_call_at_the_end() {
         "`on_landed` did not reach the script and start the second tween: {}",
         height(&app, entity)
     );
-    let state = app.engine.resource::<balaur_anim::AnimationState>();
+    let state = app.engine.resource::<balaur_animation::AnimationState>();
     assert!(
         state.borrow().tweens.is_empty(),
         "a finished tween was left behind"
@@ -415,7 +415,7 @@ fn a_script_reads_a_tween_handle_back_and_stops_by_it() {
         stopped.to_bits(),
         "the tween kept going after being stopped by handle"
     );
-    assert!(!balaur_anim::tween::is_running(&app.engine, handle));
+    assert!(!balaur_animation::tween::is_running(&app.engine, handle));
 }
 
 #[test]
@@ -513,13 +513,13 @@ fn a_script_names_curves_and_modes_through_the_module_constants() {
     let entity = hero(&app, "constants.rn");
     tick(&mut app, 2);
 
-    let state = app.engine.resource::<balaur_anim::AnimationState>();
+    let state = app.engine.resource::<balaur_animation::AnimationState>();
     let state = state.borrow();
     let playback = &state.players[&entity];
     assert_eq!(playback.clip_name, "swing");
     assert_eq!(
         playback.clip.as_ref().unwrap().loop_mode,
-        balaur_anim::clip::LoopMode::PingPong
+        balaur_animation::clip::LoopMode::PingPong
     );
     assert_eq!(playback.fades.len(), 1, "`wave` is fading out");
     assert_eq!(playback.fades[0].ease.name(), "in_quad");

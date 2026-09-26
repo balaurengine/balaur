@@ -29,7 +29,8 @@ pub struct LogEntry {
     pub time: f64,
     /// "info", "warn", "error", "debug", "trace".
     pub level: String,
-    /// Last segment of the event target, used as the tag column.
+    /// The crate that logged it without `balaur_`, or `script` for a
+    /// script's own line: the tag column.
     pub tag: String,
     pub message: String,
     /// Structured fields other than `message`, in declaration order.
@@ -99,12 +100,8 @@ impl<S: Subscriber> Layer<S> for CaptureLayer {
         let mut visitor = FieldVisitor::default();
         event.record(&mut visitor);
         let meta = event.metadata();
-        let tag = meta
-            .target()
-            .rsplit("::")
-            .next()
-            .unwrap_or("log")
-            .to_string();
+        let first = meta.target().split("::").next().unwrap_or("log");
+        let tag = first.strip_prefix("balaur_").unwrap_or(first).to_string();
 
         let mut guard = lock_buffer();
         if let Some(buffer) = guard.as_mut() {

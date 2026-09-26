@@ -9,7 +9,7 @@ depends on a backend, which is what keeps it language-free.
 graph TD
   balaur[balaur]
   balaur_android[balaur_android]
-  balaur_anim[balaur_anim]
+  balaur_animation[balaur_animation]
   balaur_apple[balaur_apple]
   balaur_audio[balaur_audio]
   balaur_bench[balaur_bench]
@@ -34,7 +34,7 @@ graph TD
   balaur_web[balaur_web]
   balaur_websocket[balaur_websocket]
   balaur_webtransport[balaur_webtransport]
-  balaur --> balaur_anim
+  balaur --> balaur_animation
   balaur --> balaur_apple
   balaur --> balaur_audio
   balaur --> balaur_core
@@ -53,9 +53,9 @@ graph TD
   balaur --> balaur_websocket
   balaur --> balaur_webtransport
   balaur_android --> balaur
-  balaur_anim --> balaur_core
-  balaur_anim --> balaur_plugin
-  balaur_anim --> balaur_script
+  balaur_animation --> balaur_core
+  balaur_animation --> balaur_plugin
+  balaur_animation --> balaur_script
   balaur_apple --> balaur_core
   balaur_apple --> balaur_platform
   balaur_apple --> balaur_plugin

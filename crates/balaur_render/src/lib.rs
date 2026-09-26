@@ -35,25 +35,25 @@ pub mod mesh;
 /// It lives in the window layer because UIKit hands it to the application
 /// delegate before the engine boots, and nothing else is awake that early.
 /// `None` on every other platform, and on the second ask.
-#[cfg(all(feature = "kiss3d", target_os = "ios"))]
+#[cfg(all(feature = "window", target_os = "ios"))]
 pub fn take_launch_url() -> Option<String> {
     kiss3d::window::take_launch_url()
 }
 
 /// The URL the app was launched with. Only iOS delivers one this way.
-#[cfg(not(all(feature = "kiss3d", target_os = "ios")))]
+#[cfg(not(all(feature = "window", target_os = "ios")))]
 pub fn take_launch_url() -> Option<String> {
     None
 }
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod morph;
 mod notifier;
 mod particles;
 pub mod pick;
 mod polygon;
 pub mod preview;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod probe;
 pub mod reflection;
 mod script_api;
@@ -62,14 +62,14 @@ mod shape;
 mod sheet;
 mod sprite;
 pub mod stats;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod sync_2d;
 mod text_component;
 mod texture;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod tile_quad;
 mod tilemap;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod tilemap_mesh;
 mod vocabulary;
 pub mod world_text;
@@ -96,43 +96,43 @@ pub use reflection::{LitProbe, ReflectionProbe};
 pub use sheet::{SPRITE_SHEET_ASSET_TYPE, SheetFrame, SheetSlice, SheetTag, SpriteSheet};
 pub use tilemap::{TILESET_ASSET_TYPE, TileSet, Tilemap};
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod app_icon;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod bind_layout;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod debug_lines;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod device;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod frame_group;
-#[cfg(all(feature = "kiss3d", target_family = "wasm"))]
+#[cfg(all(feature = "window", target_family = "wasm"))]
 mod hidden_tab;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub mod kiss3d_backend;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod kiss3d_camera;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod kiss3d_input;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod light_map;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod lods;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod material_cache;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod pipeline;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod post_material;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod shader_material;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod shader_material_3d;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod skinned_2d;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod skinned_3d;
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 mod touch_draw;
 
 /// Ask a rendering backend to save one frame as a PNG once `after_frame`
@@ -340,13 +340,13 @@ pub(crate) const DEFAULT_LINE_WIDTH: f32 = 1.0;
 /// the frame's facts: the shell publishes it before a project loads, so a
 /// script's `init` can theme itself. A build with no window backend has
 /// nothing to ask and says false.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 #[must_use]
 pub fn dark_mode() -> bool {
     device::dark_mode()
 }
 
-#[cfg(not(feature = "kiss3d"))]
+#[cfg(not(feature = "window"))]
 #[must_use]
 pub const fn dark_mode() -> bool {
     false

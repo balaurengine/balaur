@@ -2,8 +2,8 @@
 //! word a script can name as `animation::…` is one a clip, a state machine or
 //! a modifier actually reads.
 
-use balaur_anim::ease::Easing;
-use balaur_anim::{
+use balaur_animation::ease::Easing;
+use balaur_animation::{
     ADVANCE_MODES, AnimationPlugin, CONSTANTS, INTERPOLATIONS, LOOP_MODES, MODIFIER_KINDS,
     PROPERTIES, SWITCH_MODES, clip, ease_constants, machine,
 };
@@ -61,7 +61,7 @@ fn every_advance_and_switch_mode_parses_in_a_machine() {
 #[test]
 fn every_ease_constant_names_a_curve_by_its_own_name() {
     let constants = ease_constants();
-    assert_eq!(constants.len(), balaur_anim::ease::names().len());
+    assert_eq!(constants.len(), balaur_animation::ease::names().len());
     for (name, word) in constants {
         let curve = Easing::parse(word).unwrap();
         assert_eq!(format!("EASE_{}", curve.name().to_ascii_uppercase()), name);

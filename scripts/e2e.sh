@@ -107,7 +107,7 @@ render_step() { # render_step <label> <balaur args...>
 UNRESOLVED='did not resolve in the mirror'
 
 # What a state that ran leaves in the log. See the check at the end of edit_step.
-RAN='selftest ok|\[script\] .*skip|\[script\] showcase '
+RAN='selftest ok|script: .*skip|script: showcase '
 
 # The render and editor steps, off where a runner finishes neither: both want
 # a device, and the Windows runner exits 122 on each. Not a platform check --

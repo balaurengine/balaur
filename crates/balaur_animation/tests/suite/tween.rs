@@ -7,7 +7,7 @@
 //! worth of expectations — the curves themselves are `tests/ease.rs`.
 
 use crate::common::Calls;
-use balaur_anim::{AnimationPlugin, AnimationState, tween};
+use balaur_animation::{AnimationPlugin, AnimationState, tween};
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
 use balaur_core::{App, AppConfig, components};
@@ -727,7 +727,7 @@ fn a_tween_rotates_from_the_rotation_the_node_already_had() {
         .world_mut()
         .get::<&mut Transform>(entity)
         .unwrap()
-        .rotation = balaur_anim::sampler::quat_from_euler(Vec3::new(0.0, 0.3, 0.0));
+        .rotation = balaur_animation::sampler::quat_from_euler(Vec3::new(0.0, 0.3, 0.0));
     start(
         &app,
         entity,
@@ -739,7 +739,7 @@ duration = 0.5
 "#,
     );
     tick(&mut app, 31);
-    let angles = balaur_anim::sampler::euler_from_quat(transform(&app, entity).rotation);
+    let angles = balaur_animation::sampler::euler_from_quat(transform(&app, entity).rotation);
     near(
         angles.y,
         0.7,
@@ -755,8 +755,8 @@ fn a_by_step_on_a_quaternion_rotation_composes_the_turn() {
         .world_mut()
         .get::<&mut Transform>(entity)
         .unwrap()
-        .rotation = balaur_anim::sampler::quat_from_euler(Vec3::new(0.0, 0.0, 0.5));
-    let quarter = balaur_anim::sampler::quat_from_euler(Vec3::new(0.0, 0.0, FRAC_PI_2));
+        .rotation = balaur_animation::sampler::quat_from_euler(Vec3::new(0.0, 0.0, 0.5));
+    let quarter = balaur_animation::sampler::quat_from_euler(Vec3::new(0.0, 0.0, FRAC_PI_2));
     start(
         &app,
         entity,
@@ -771,7 +771,7 @@ duration = 0.5
         ),
     );
     tick(&mut app, 31);
-    let angles = balaur_anim::sampler::euler_from_quat(transform(&app, entity).rotation);
+    let angles = balaur_animation::sampler::euler_from_quat(transform(&app, entity).rotation);
     near(
         angles.z,
         0.5 + FRAC_PI_2,
@@ -796,10 +796,10 @@ duration = 0.5
 "#,
     );
     tick(&mut app, 15);
-    let half_way = balaur_anim::sampler::euler_from_quat(transform(&app, entity).rotation);
+    let half_way = balaur_animation::sampler::euler_from_quat(transform(&app, entity).rotation);
     near(half_way.z, 0.0, "the two ends are the same rotation");
     tick(&mut app, 16);
-    let angles = balaur_anim::sampler::euler_from_quat(transform(&app, entity).rotation);
+    let angles = balaur_animation::sampler::euler_from_quat(transform(&app, entity).rotation);
     near(angles.z, 0.0, "and so is the end");
 }
 
@@ -1029,7 +1029,7 @@ fn a_call_step_runs_a_function_the_script_passed() {
     .unwrap();
     std::fs::write(dir.path().join("mover.rn"), MOVER).unwrap();
     let mut app = App::new(AppConfig {
-        script_backend: Some(balaur::rune::factory()),
+        script_backend: Some(balaur::script_rune::factory()),
         ..AppConfig::bare(dir.path().to_path_buf())
     })
     .unwrap();

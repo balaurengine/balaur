@@ -99,7 +99,7 @@ jobs:
       - name: Extension tests
         shell: bash
         run: |
-          cargo test -p balaur_plugin --features dylib
+          cargo test -p balaur_plugin --features extensions
           cargo test -p balaur --features extensions
       # A build with a subsystem switched off is the point of having features;
       # nothing else builds or runs one.

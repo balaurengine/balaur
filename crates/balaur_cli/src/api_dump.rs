@@ -26,8 +26,8 @@ pub(crate) fn dump_api() -> Result<()> {
     #[cfg(not(target_family = "wasm"))]
     balaur_plugin::load_all(&mut app, &mut crate::own_modules(&dir))?;
     app.load_project()?;
-    let host = balaur::rune::rune_of(&app.engine);
-    let mut api: serde_json::Value = serde_json::from_str(&balaur::rune::api_json(&host)?)?;
+    let host = balaur::script_rune::rune_of(&app.engine);
+    let mut api: serde_json::Value = serde_json::from_str(&balaur::script_rune::api_json(&host)?)?;
     // Component schemas ride along, so docs and tools read one probe.
     let components: std::collections::BTreeMap<String, serde_json::Value> =
         balaur::components::schemas(&app.engine)

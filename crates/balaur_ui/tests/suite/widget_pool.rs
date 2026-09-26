@@ -47,7 +47,7 @@ fn prop(app: &App, node: Entity, key: &str) -> Option<toml::Value> {
 fn number(app: &App, name: &str) -> Option<f64> {
     let root = balaur_core::scene::find_node(&app.engine.world(), app.engine.root(), "Root")
         .expect("the scene has a Root node");
-    balaur::rune::rune_of(&app.engine).number_field(root, name)
+    balaur::script_rune::rune_of(&app.engine).number_field(root, name)
 }
 
 #[test]

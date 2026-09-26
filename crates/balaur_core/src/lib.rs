@@ -94,8 +94,8 @@ pub mod voxels;
 pub mod warnings;
 
 pub use app::{
-    App, AppConfig, FIXED_DT, MAX_SUBSTEPS, ScriptArgs, ScriptHostFactory, ScriptSetup, Stage,
-    TICK_HZ, fixed_dt, max_substeps, set_tick_hz, tick_hz,
+    App, AppConfig, DEFAULT_FIXED_DT, MAX_SUBSTEPS, ScriptArgs, ScriptHostFactory, ScriptSetup, Stage,
+    DEFAULT_TICK_HZ, fixed_dt, max_substeps, set_tick_hz, tick_hz,
 };
 pub use assets::{AssetRef, AssetState, AssetTypeRegistry};
 pub use collections::{DetHashMap, DetHashSet};
@@ -115,7 +115,7 @@ pub use scene::{
     Appearance, Children, GlobalAppearance, GlobalTransform, Name, Parent, ScriptAttachment,
     Transform,
 };
-pub use snapshot::{Snapshot, SnapshotRegistry, SnapshotRing};
+pub use snapshot::{Checkpoint, SnapshotRegistry, CheckpointRing};
 pub use transport::{Delivery, Faults, Faulty, LinkState, Received, Transport};
 
 /// Inserted by a windowed backend on the first key, button or touch: the

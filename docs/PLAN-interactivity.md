@@ -24,11 +24,11 @@ Built, and not built for this:
 
 | Have | Where |
 | --- | --- |
-| Hooks dispatched to a node's script: collisions, contact force, joint break, tween and animation finished, focus, `on_click` on widgets, web and network messages | `balaur_physics`, `balaur_anim`, `balaur_ui`, `balaur_web`, `balaur_http` |
+| Hooks dispatched to a node's script: collisions, contact force, joint break, tween and animation finished, focus, `on_click` on widgets, web and network messages | `balaur_physics`, `balaur_animation`, `balaur_ui`, `balaur_web`, `balaur_http` |
 | An event bus: `emit`, `subscribe`, `emitted`, `on_event` | `events` |
 | Headless picking: the ray through the mouse, the nearest node it meets | `render.mouse_ray`, `render.pick_ray`, `pick.rs`; `render.mouse_world_2d` for 2D |
 | Point and shape queries in both physics worlds; sensors that fire `on_collision_start` | `physics2d`, `physics3d`, `collider*.sensor` |
-| Tweens with easing, delay, chaining; clips with method tracks; `tween_to` on component paths | `animation`, `balaur_anim` |
+| Tweens with easing, delay, chaining; clips with method tracks; `tween_to` on component paths | `animation`, `balaur_animation` |
 | A patch verb on components, and prefab overrides addressing `<component>/<property>` | `node.patch_component`, prefabs |
 | Input actions with rebinding, gamepads, touch, scroll | `input` |
 | Persisted settings and save slots | `settings`, `save` |
@@ -102,7 +102,7 @@ rotation_euler = [0, 90, 0]
 ```
 
 `node.states.set_state("open")` and `node.states.set_state("open", #{ duration: 1.0 })`
-tween every path through the sampler `balaur_anim` already has, so the
+tween every path through the sampler `balaur_animation` already has, so the
 twelve easings are the same twelve; `current` is data, in the snapshot and
 the digest, so a rollback puts a door back mid-swing. `on_state_changed(this,
 name)` fires at the end. The base is whatever the node was authored as,

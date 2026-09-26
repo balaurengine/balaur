@@ -476,7 +476,7 @@ pub(crate) fn register_environment_component(reg: &mut Registry<'_>) {
 }
 
 /// The kiss3d light one resolved `light3d` becomes.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn as_kiss3d(light: &LitLight3d) -> kiss3d::light::Light {
     use kiss3d::light::{Light, LightType};
     let light_type = match light.kind {
@@ -504,7 +504,7 @@ fn as_kiss3d(light: &LitLight3d) -> kiss3d::light::Light {
 
 /// One kiss3d node per authored light, kept between frames the way the mesh
 /// slots are: a light rebuilt every frame would restart its shadow map.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 #[derive(Default)]
 pub(crate) struct LightSlots {
     nodes: Vec<kiss3d::scene::SceneNode3d>,
@@ -512,7 +512,7 @@ pub(crate) struct LightSlots {
     sun: Option<kiss3d::scene::SceneNode3d>,
 }
 
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 impl LightSlots {
     /// Remember the backend's default sun, so the first authored light can
     /// retire it and a scene that removes its lights gets it back.
@@ -551,7 +551,7 @@ impl LightSlots {
 
 /// Push the scene's `environment` onto the window: sky, ambient, fog, the HDR
 /// film and the shadow budget. A scene with none leaves every one alone.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn sync_environment(
     app: &balaur_core::App,
     window: &mut kiss3d::window::Window,
@@ -612,7 +612,7 @@ pub(crate) fn sync_environment(
 /// Load the sky when the file named changed, and re-aim it whenever the
 /// orientation did. Decoding an `.hdr` is megabytes of work, so it happens
 /// once per name rather than once per frame.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 fn sync_sky(
     app: &balaur_core::App,
     window: &mut kiss3d::window::Window,

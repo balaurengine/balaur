@@ -26,7 +26,7 @@ use crate::{Renderable2d, Renderable3d};
 pub struct Clones(pub Vec<Placed>);
 
 /// Whether a node's cloner lists no copies, so the node draws nothing.
-#[cfg(feature = "kiss3d")]
+#[cfg(feature = "window")]
 pub(crate) fn emptied(world: &balaur_core::hecs::World, entity: Entity) -> bool {
     world
         .get::<&Clones>(entity)

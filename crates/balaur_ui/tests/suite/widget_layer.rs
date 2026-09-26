@@ -408,7 +408,7 @@ fn draw_ui_sees_the_rects_from_its_own_frame() {
     // first that draws, and `draw_ui` should already have the rect.
     pass(&app, &ctx, vec![]);
     pass(&app, &ctx, vec![]);
-    let seen = balaur::rune::rune_of(&app.engine).number_field(watcher, "seen");
+    let seen = balaur::script_rune::rune_of(&app.engine).number_field(watcher, "seen");
     assert_eq!(
         seen,
         Some(200.0),

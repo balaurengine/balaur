@@ -226,7 +226,7 @@ over.
    `[target.wasm32-unknown-unknown.dependencies]` (wasm-bindgen, web-sys,
    `HtmlCanvasElement`, the pointer and key events) and already carries a
    canvas backend in `src/window/wgpu_canvas.rs`; wgpu reaches WebGPU only
-   through web-sys. `cargo check -p balaur_render --features kiss3d --target
+   through web-sys. `cargo check -p balaur_render --features window --target
    wasm32-unknown-unknown` passes with wgpu 30, naga, glow and egui 0.36 all
    resolving. The cost is the synchronous filesystem §1 leans on: OPFS sync
    access handles exist only inside a worker, so the engine runs in one, and
