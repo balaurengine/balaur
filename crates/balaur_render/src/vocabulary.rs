@@ -256,6 +256,7 @@ pub(crate) mod keys {
     pub(crate) const OUTLINE_COLOR: &str = "outline_color";
     pub(crate) const OUTLINE_SIZE: &str = "outline_size";
     pub(crate) const PIXELS_PER_UNIT: &str = "pixels_per_unit";
+    pub(crate) const PLATE: &str = "plate";
     pub(crate) const POST: &str = "post";
     pub(crate) const RADIUS: &str = p::RADIUS;
     pub(crate) const RATE: &str = "rate";

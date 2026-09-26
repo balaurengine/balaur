@@ -224,6 +224,17 @@ impl AndroidConfig {
     }
 }
 
+/// The manifest with the application naming the icon the exporter wrote
+/// under `res/`.
+pub(crate) fn name_icon(xml: &str) -> String {
+    set_or_add_attr(
+        xml,
+        "<application",
+        "android:icon",
+        crate::icon::ANDROID_ICON,
+    )
+}
+
 /// One attribute on the element `opening` names, added when the template does
 /// not carry it.
 ///
@@ -402,6 +413,7 @@ pub(crate) fn assemble(
     std::fs::create_dir_all(&work)?;
 
     let linked = work.join("linked.apk");
+    let resources = compile_resources(&sdk, layout, &work)?;
     run(
         Command::new(sdk.program("aapt2")?)
             .arg("link")
@@ -410,7 +422,8 @@ pub(crate) fn assemble(
             .arg("--manifest")
             .arg(layout.join("AndroidManifest.xml"))
             .arg("-I")
-            .arg(&sdk.platform_jar),
+            .arg(&sdk.platform_jar)
+            .args(&resources),
         "aapt2 link",
     )?;
 
@@ -500,6 +513,7 @@ pub(crate) fn bundle(
     // --proto-format is the whole reason this needs no protobuf of its own:
     // aapt2 encodes the manifest and the resource table the way a bundle reads.
     let linked = work.join("proto.apk");
+    let resources = compile_resources(&sdk, layout, &work)?;
     run(
         Command::new(sdk.program("aapt2")?)
             .arg("link")
@@ -509,7 +523,8 @@ pub(crate) fn bundle(
             .arg("--manifest")
             .arg(layout.join("AndroidManifest.xml"))
             .arg("-I")
-            .arg(&sdk.platform_jar),
+            .arg(&sdk.platform_jar)
+            .args(&resources),
         "aapt2 link --proto-format",
     )?;
 
@@ -544,8 +559,29 @@ pub(crate) fn bundle(
     Ok(aab)
 }
 
+/// The layout's `res/`, compiled into the archive `aapt2 link` takes beside the
+/// manifest: nothing for a layout with no resources, as a game with no icon is.
+fn compile_resources(sdk: &Sdk, layout: &Path, work: &Path) -> Result<Vec<PathBuf>> {
+    let res = layout.join("res");
+    if !res.is_dir() {
+        return Ok(Vec::new());
+    }
+    let compiled = work.join("res.zip");
+    run(
+        Command::new(sdk.program("aapt2")?)
+            .arg("compile")
+            .arg("--dir")
+            .arg(&res)
+            .arg("-o")
+            .arg(&compiled),
+        "aapt2 compile",
+    )?;
+    Ok(vec![compiled])
+}
+
 /// The base module a bundle is made of: aapt2's protobuf manifest and resource
-/// table at the names bundletool reads, and the payload under its own roots.
+/// table at the names bundletool reads, the compiled resources under `res/`,
+/// and the payload under its own roots.
 fn write_module(module: &Path, linked: &Path, layout: &Path) -> Result<()> {
     let mut zip = zip::ZipWriter::new(std::fs::File::create(module)?);
     let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default()
@@ -564,6 +600,18 @@ fn write_module(module: &Path, linked: &Path, layout: &Path) -> Result<()> {
         let mut body = Vec::new();
         std::io::Read::read_to_end(&mut entry, &mut body)?;
         zip.start_file(to, options)?;
+        zip.write_all(&body)?;
+    }
+    let resources: Vec<String> = linked
+        .file_names()
+        .filter(|name| name.starts_with("res/"))
+        .map(str::to_string)
+        .collect();
+    for name in resources {
+        let mut entry = linked.by_name(&name)?;
+        let mut body = Vec::new();
+        std::io::Read::read_to_end(&mut entry, &mut body)?;
+        zip.start_file(&name, options)?;
         zip.write_all(&body)?;
     }
     for (name, path) in payload_files(layout) {
@@ -887,6 +935,7 @@ mod tests {
             for (name, body) in [
                 ("AndroidManifest.xml", &b"proto"[..]),
                 ("resources.pb", &b"table"[..]),
+                ("res/mipmap-anydpi-v26/icon.xml", &b"adaptive"[..]),
             ] {
                 zip.start_file(name, options).unwrap();
                 std::io::Write::write_all(&mut zip, body).unwrap();
@@ -911,8 +960,20 @@ mod tests {
                 "assets/game.bpak",
                 "lib/arm64-v8a/libmain.so",
                 "manifest/AndroidManifest.xml",
+                "res/mipmap-anydpi-v26/icon.xml",
                 "resources.pb",
             ]
+        );
+    }
+
+    #[test]
+    fn a_game_with_an_icon_names_it_on_its_application() {
+        let xml = super::name_icon(TEMPLATE);
+        assert!(xml.contains(r#"android:icon="@mipmap/icon""#), "{xml}");
+        assert_eq!(
+            super::name_icon(&xml),
+            xml,
+            "naming it twice changes nothing"
         );
     }
 

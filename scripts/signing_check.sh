@@ -64,6 +64,8 @@ bundle_identity() { # bundle_identity <out>
 step "a project to sign"
 project=$work/project
 "$balaur" new "$project" >/dev/null
+# With an icon, so what is signed is a runtime whose resources the export rewrote.
+"$(dirname "$0")/with_icon.sh" "$project"
 
 # A signed game has to still find the pack behind its own signature: on
 # Windows the certificate table lands after it, and this is the only check

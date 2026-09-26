@@ -20,6 +20,7 @@ mod apple;
 mod bundle;
 mod config;
 mod extensions;
+mod icon;
 pub mod preview;
 pub mod recode;
 pub mod settings;
@@ -86,6 +87,27 @@ pub struct Options<'a> {
     /// release to fetch from and somewhere to ask the user, and none of the
     /// three belongs in here.
     pub obtain: Option<&'a ObtainRuntime>,
+}
+
+/// A file a web bundle carries beside its page: its name, and its bytes.
+pub type WebFile = (String, Vec<u8>);
+
+/// A web bundle's page with its placeholders filled, and the icon files it
+/// links, for a caller that packs them itself: the editor's export in a tab.
+///
+/// # Errors
+/// If `project.toml` does not parse, or an icon it names does not read.
+pub fn web_page(project: &Path, shell: &str, title: &str) -> Result<(String, Vec<WebFile>)> {
+    let manifest = config::manifest_for(project, Some("web"))?;
+    let icons = icon::Icons::load(project, &manifest)?;
+    let page = icon::web_page(
+        shell,
+        title,
+        balaur::standalone::BUNDLED_PACK,
+        icons.as_ref(),
+    );
+    let files = icons.map(|i| i.web_files(title)).unwrap_or_default();
+    Ok((page, files))
 }
 
 /// Fetch the runtime for one target, however the caller wants to: the CLI
@@ -207,6 +229,12 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     let android = android::AndroidConfig::from_manifest(&manifest, &opts.path)?;
     let config = ExportConfig::from_manifest(&manifest, &opts.path)?;
     let windows_signing = config::WindowsConfig::from_manifest(&manifest, &opts.path)?;
+    // Only a game a runtime carries has an icon; a bare pack skips decoding them.
+    let icons = if target.is_some() || opts.runtime.is_some() {
+        icon::Icons::load(&opts.path, &manifest)?
+    } else {
+        None
+    };
     fold_variants(&mut pack, &opts.path, target)?;
     bake_tags(&mut pack, &config.tags)?;
     let summary = size::prepare_for(&mut pack, &config, &manifest)?;
@@ -237,6 +265,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
             &apple,
             &android,
             &shell,
+            icons.as_ref(),
         )?;
         return finish_bundle(kind, &written, opts, &apple, &android, &name);
     }
@@ -273,6 +302,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
             identity,
             &apple,
             &opts.path,
+            icons.as_ref(),
         )?;
         if opts.notarize || apple.notarize {
             sign::notarize(&app)?;
@@ -291,10 +321,15 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         &name,
         runtime,
         target,
+        icons.as_ref(),
     )
 }
 
 /// A `.bpak`, or the pack fused onto the flat executable a desktop runs.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "what to write, and what each desktop adds, as `export_bundle` takes them"
+)]
 fn export_desktop(
     opts: &Options<'_>,
     config: &ExportConfig,
@@ -303,6 +338,7 @@ fn export_desktop(
     name: &str,
     runtime: Option<PathBuf>,
     target: Option<&str>,
+    icons: Option<&icon::Icons>,
 ) -> Result<()> {
     let Some(runtime) = runtime else {
         let output = opts
@@ -339,8 +375,19 @@ fn export_desktop(
     if let Some(dir) = output.parent().filter(|d| !d.as_os_str().is_empty()) {
         std::fs::create_dir_all(dir)?;
     }
-    let game = balaur::standalone::build(&bytes, &pack.encode());
+    let base = match icons {
+        Some(icons) if windows => std::borrow::Cow::Owned(icons.exe_with_icon(&bytes)?),
+        _ => std::borrow::Cow::Borrowed(bytes.as_slice()),
+    };
+    let game = balaur::standalone::build(&base, &pack.encode());
     balaur::standalone::write_executable(&output, &game, &runtime)?;
+    let linux = target.map_or_else(
+        || runtime.to_string_lossy().contains("linux"),
+        |t| t.starts_with("linux"),
+    );
+    if let Some(icons) = icons.filter(|_| linux) {
+        icons.write_linux(&output, name)?;
+    }
     tracing::info!(
         "exported {} scripts, {} scenes onto {} -> {}",
         pack.scripts.len(),

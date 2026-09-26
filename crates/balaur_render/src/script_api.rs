@@ -265,7 +265,7 @@ pub(crate) fn register_window_module(reg: &mut Registry<'_>) -> anyhow::Result<(
 /// The OS window and the display it sits on.
 fn install_window_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("set_app_icon", &[], "", "Set the application icon (the dock or taskbar one) from a PNG in the project, named by its path."),
+        ("set_app_icon", &[], "(path: string, opts: table)", "Set the application icon, the dock or taskbar one, from a PNG or an SVG in the project. `opts.plate` colours the disc a macOS dock icon sits on, white by default. Replaces `[application] icon` for the run."),
         ("set_fullscreen", &[], "", "Put the window into borderless fullscreen on the current monitor, or back into a window."),
         ("set_window_mode", &[], "(mode: string)", "`windowed`, `maximized`, `fullscreen` (borderless) or `exclusive` (the monitor's largest video mode): the same choice as `[window] mode`."),
         ("set_cursor_grab", &[], "", "Confine the cursor to the window, for FPS-style mouse look."),
@@ -276,18 +276,25 @@ fn install_window_api(m: &mut dyn Bindings<Engine>) {
     ]);
     // OS application icon (dock icon on macOS) from a PNG in the project.
     // No reader by design: add `app_icon` when a caller needs it back.
-    m.function("set_app_icon", |eng: &Engine, path: String| {
-        let bytes = eng
-            .resource::<balaur_core::project::ProjectFiles>()
-            .borrow()
-            .read(&path)?;
-        eng.insert_resource(AppIconConfig {
-            bytes,
-            name: path,
-            changed: true,
-        });
-        Ok(())
-    });
+    m.function(
+        "set_app_icon",
+        |eng: &Engine, (path, opts): (String, Option<Value>)| {
+            let plate = plate_of(opts)?;
+            let bytes = eng
+                .resource::<balaur_core::project::ProjectFiles>()
+                .borrow()
+                .read(&path)?;
+            eng.insert_resource(AppIconConfig {
+                bytes,
+                name: path,
+                plate,
+                changed: true,
+            });
+            #[cfg(feature = "window")]
+            eng.remove_resource::<crate::app_icon::SettingsIconState>();
+            Ok(())
+        },
+    );
     // Borderless fullscreen on the current monitor. No readers by design
     // (N8): `WindowConfig` already holds what a backend last applied.
     m.function("set_fullscreen", |eng: &Engine, fullscreen: bool| {
@@ -358,6 +365,30 @@ fn install_window_api(m: &mut dyn Bindings<Engine>) {
     reason = "one registration per call, and they belong beside the lines"
 )]
 /// The rgb an immediate 3D shape draws in; white when the call named none.
+/// `set_app_icon`'s options: the plate a macOS dock icon sits on.
+fn plate_of(opts: Option<Value>) -> anyhow::Result<[u8; 4]> {
+    let entries = match opts {
+        None | Some(Value::Nil) => return Ok(crate::config::WHITE_PLATE),
+        Some(Value::Map(entries)) => entries,
+        Some(other) => anyhow::bail!("set_app_icon's options are a table, got {other:?}"),
+    };
+    let mut plate = crate::config::WHITE_PLATE;
+    for (key, value) in &entries {
+        match key.as_str() {
+            crate::vocabulary::keys::PLATE => {
+                let [r, g, b, a] = crate::draw_2d::color_of(value)?;
+                let byte = |c: f32| (c.clamp(0.0, 1.0) * 255.0).round() as u8;
+                plate = [byte(r), byte(g), byte(b), byte(a)];
+            }
+            other => anyhow::bail!(
+                "set_app_icon takes {}, not '{other}'",
+                crate::vocabulary::keys::PLATE
+            ),
+        }
+    }
+    Ok(plate)
+}
+
 fn line_rgb(color: Option<&Value>) -> anyhow::Result<[f32; 3]> {
     let Some(value) = color else {
         return Ok([1.0, 1.0, 1.0]);

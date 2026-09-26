@@ -61,6 +61,15 @@ pub(crate) fn convert(
             writeln!(out, "splash = {}", quote(&path))?;
         }
     }
+    if let Some(icon) = get("application", "config/icon")
+        .as_ref()
+        .and_then(Value::as_str)
+    {
+        let path = resolve(icon, uids, &mut notes);
+        if !path.is_empty() {
+            writeln!(out, "icon = {}", quote(&path))?;
+        }
+    }
 
     if !ignore.is_empty() {
         let patterns: Vec<String> = ignore.iter().map(|p| quote(p)).collect();
@@ -472,6 +481,7 @@ mod tests {
 
 config/name="Pirates"
 run/main_scene="res://scenes/world.tscn"
+config/icon="res://icon.svg"
 
 [autoload]
 
@@ -524,6 +534,7 @@ locale/translations=PackedStringArray("res://lang/en.en.translation", "res://lan
             Some("scenes/world.toml"),
             "a `.tscn` reference becomes the `.toml` beside it"
         );
+        assert_eq!(doc["application"]["icon"].as_str(), Some("icon.svg"));
         assert_eq!(doc["window"]["width"].as_integer(), Some(840));
         assert_eq!(doc["locale"]["initial"].as_str(), Some("en"));
         let actions = &doc["input"]["actions"];

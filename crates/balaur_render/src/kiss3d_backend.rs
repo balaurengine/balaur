@@ -227,7 +227,7 @@ impl Frontend {
             &mut self.camera_2d,
             &self.camera_buttons,
         );
-        crate::app_icon::apply_app_icon(app, self.on_screen, self.frame);
+        crate::app_icon::apply_app_icon(app, window, self.on_screen, self.frame);
         apply_window_config(app, window);
         publish_camera(app, &self.camera, window);
         publish_camera_2d(app, &self.camera_2d, window);

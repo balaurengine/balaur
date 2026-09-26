@@ -240,7 +240,7 @@ waits for its tick to settle.
 | Item | Milestone | Plan |
 | --- | :-: | --- |
 | **Export, the web and the CLI** — `balaur export` for native and web with a size report, `balaur test`, a browser editor over IndexedDB, and a benchmark suite. | 0.1 done | no plan |
-| **App icons** — an `[export]` icon written as each platform wants it, with the dark and tinted forms iOS, macOS and Android read. | 0.3 | [PLAN-editor-themes.md](PLAN-editor-themes.md#steps) |
+| **App icons** — `[application] icon` written as each platform wants it, with the dark and tinted forms iOS, Android and browsers read. | 0.3 done | [PLAN-editor-themes.md](PLAN-editor-themes.md#app-icons) |
 | **A splash while a game loads** — a picture over the first frames on every target, held past its seconds while a script reports what it is loading. | 0.2 done | no plan |
 | **The shell a phone has** — opening a link works on every desktop and in a browser tab, and on neither phone, which each want a call of their own. | 0.8 | [PLAN-mobile-export.md](PLAN-mobile-export.md) |
 | **One-click deploy** — a game on a URL or on a phone from one command or one button. | 0.6 | [PLAN-deploy.md](PLAN-deploy.md) |

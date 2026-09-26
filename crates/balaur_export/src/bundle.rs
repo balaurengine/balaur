@@ -10,6 +10,7 @@ use anyhow::{Context, Result};
 
 use crate::android::AndroidConfig;
 use crate::apple::{AppleConfig, Platform};
+use crate::icon::Icons;
 use crate::roots_for_message;
 
 /// A platform whose game is a directory the OS launches, not a file it runs.
@@ -53,7 +54,7 @@ impl Bundle {
 }
 
 /// The page a web export ships, unless the project has `web/index.html` of
-/// its own. `{{title}}` and `{{pack}}` are filled in.
+/// its own. `{{title}}`, `{{pack}}` and `{{icons}}` are filled in.
 const WEB_SHELL: &str = include_str!("web/index.html");
 
 /// The shell for a project: its own, or the built-in one.
@@ -102,6 +103,7 @@ pub(crate) fn export_bundle(
     apple: &AppleConfig,
     android: &AndroidConfig,
     shell: &str,
+    icons: Option<&Icons>,
 ) -> Result<PathBuf> {
     if kind == Bundle::Ios {
         apple.check(Platform::Ios)?;
@@ -128,8 +130,12 @@ pub(crate) fn export_bundle(
         let path = output.join("AndroidManifest.xml");
         let staged = std::fs::read_to_string(&path)
             .with_context(|| format!("reading {}", path.display()))?;
-        std::fs::write(&path, android.manifest(&staged, name)?)
-            .with_context(|| format!("writing {}", path.display()))?;
+        let mut xml = android.manifest(&staged, name)?;
+        if let Some(icons) = icons {
+            icons.write_android(&output)?;
+            xml = crate::android::name_icon(&xml);
+        }
+        std::fs::write(&path, xml).with_context(|| format!("writing {}", path.display()))?;
     }
     let pack_path = match kind {
         Bundle::Ios | Bundle::Web => output.join(balaur::standalone::BUNDLED_PACK),
@@ -141,11 +147,13 @@ pub(crate) fn export_bundle(
     };
     std::fs::write(&pack_path, pack).with_context(|| format!("writing {}", pack_path.display()))?;
     if kind == Bundle::Web {
-        let page = shell
-            .replace("{{title}}", name)
-            .replace("{{pack}}", balaur::standalone::BUNDLED_PACK);
+        let page = crate::icon::web_page(shell, name, balaur::standalone::BUNDLED_PACK, icons);
         let index = output.join("index.html");
         std::fs::write(&index, page).with_context(|| format!("writing {}", index.display()))?;
+        for (file, bytes) in icons.map(|i| i.web_files(name)).unwrap_or_default() {
+            let path = output.join(&file);
+            std::fs::write(&path, bytes).with_context(|| format!("writing {}", path.display()))?;
+        }
         tracing::info!(
             "exported for the web -> {} (serve the directory; the page fetches the pack beside it)",
             output.display()
@@ -155,8 +163,15 @@ pub(crate) fn export_bundle(
     if kind == Bundle::Ios {
         let plist = output.join("Info.plist");
         let executable = runtime_executable(&plist).unwrap_or_else(|| "Balaur".to_string());
-        std::fs::write(&plist, apple.info_plist(Platform::Ios, &executable, name))
-            .with_context(|| format!("writing {}", plist.display()))?;
+        let icon_keys = match icons {
+            Some(icons) => icons.write_ios(&output, &apple.min_ios)?,
+            None => String::new(),
+        };
+        std::fs::write(
+            &plist,
+            apple.info_plist(Platform::Ios, &executable, name, &icon_keys),
+        )
+        .with_context(|| format!("writing {}", plist.display()))?;
         if let Some(path) = apple.write_entitlements(&output, name)? {
             tracing::info!(
                 "entitlements -> {} (codesign --entitlements {} --sign <identity> {})",
@@ -215,6 +230,10 @@ pub(crate) fn copy_dir(from: &Path, to: &Path) -> Result<()> {
 /// pack a resource beside it (`standalone::own_pack` looks there inside a
 /// bundle), the extensions in `Contents/PlugIns`, and `codesign` run over
 /// the result.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "what to write, and what a Mac adds, as `export_bundle` takes them"
+)]
 pub(crate) fn export_macos_app(
     runtime: &Path,
     pack: &[u8],
@@ -223,6 +242,7 @@ pub(crate) fn export_macos_app(
     sign: Option<&str>,
     apple: &AppleConfig,
     project: &Path,
+    icons: Option<&Icons>,
 ) -> Result<PathBuf> {
     apple.check(Platform::Macos)?;
     let app = output.unwrap_or_else(|| PathBuf::from(format!("{name}.app")));
@@ -246,9 +266,13 @@ pub(crate) fn export_macos_app(
     // Before codesign, which signs nested code first and seals it into the bundle.
     crate::extensions::ship_for(project, &bytes, &executable)?;
     std::fs::write(resources.join(balaur::standalone::BUNDLED_PACK), pack)?;
+    let icon_keys = match icons {
+        Some(icons) => icons.write_macos(&app, &apple.min_macos)?,
+        None => String::new(),
+    };
     std::fs::write(
         app.join("Contents").join("Info.plist"),
-        apple.info_plist(Platform::Macos, name, name),
+        apple.info_plist(Platform::Macos, name, name, &icon_keys),
     )?;
     let entitlements = apple.write_entitlements(&app, name)?;
     crate::sign::codesign(&app, sign, entitlements.as_deref(), true)?;
@@ -336,6 +360,7 @@ mod tests {
             &AppleConfig::default(),
             &AndroidConfig::default(),
             WEB_SHELL,
+            None,
         )
         .unwrap();
 

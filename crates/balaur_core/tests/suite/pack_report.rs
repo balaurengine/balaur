@@ -67,6 +67,15 @@ fn a_path_in_a_script_literal_counts_as_a_reference() {
     assert!(pack.unreferenced(&[]).is_empty());
 }
 
+/// The window shows the icon while the game runs, from the pack.
+#[test]
+fn a_picture_the_manifest_names_survives_a_strip() {
+    let mut pack = two_textures();
+    pack.manifest = "[application]\nname = \"p\"\nicon = \"art/spare.png\"\n".to_string();
+    assert!(pack.strip(&[]).is_empty());
+    assert!(pack.assets.contains_key("art/spare.png"));
+}
+
 #[test]
 fn a_script_that_is_bytecode_leaves_the_walk_alone() {
     let mut pack = two_textures();

@@ -285,7 +285,14 @@ impl AppleConfig {
     ///
     /// `executable` is the binary's file name inside the bundle, which on iOS
     /// is still the template's; `name` is the game's.
-    pub(crate) fn info_plist(&self, platform: Platform, executable: &str, name: &str) -> String {
+    /// `icon_keys` are the lines the icon writer answered, already plist.
+    pub(crate) fn info_plist(
+        &self,
+        platform: Platform,
+        executable: &str,
+        name: &str,
+        icon_keys: &str,
+    ) -> String {
         let display = if self.display_name.is_empty() {
             name
         } else {
@@ -317,6 +324,7 @@ impl AppleConfig {
                 }
             }
         }
+        body.push_str(icon_keys);
         for (k, v) in &self.plist {
             let _ = write!(body, "  <key>{}</key>", escape(k));
             body.push_str(&plist_value(v, 1));
@@ -454,7 +462,7 @@ mod tests {
             orientation: balaur::project::Orientation::Portrait,
             ..AppleConfig::default()
         };
-        let text = held.info_plist(Platform::Ios, "Balaur", "Tide");
+        let text = held.info_plist(Platform::Ios, "Balaur", "Tide", "");
         assert!(
             text.contains("<key>UISupportedInterfaceOrientations</key>"),
             "{text}"
@@ -462,7 +470,7 @@ mod tests {
         assert!(text.contains("UIInterfaceOrientationPortrait"), "{text}");
         assert!(!text.contains("LandscapeLeft"), "{text}");
 
-        let none = AppleConfig::default().info_plist(Platform::Ios, "Balaur", "Tide");
+        let none = AppleConfig::default().info_plist(Platform::Ios, "Balaur", "Tide", "");
         assert!(!none.contains("UISupportedInterfaceOrientations"), "{none}");
 
         let named = AppleConfig {
@@ -472,7 +480,7 @@ mod tests {
                  UISupportedInterfaceOrientations = [\"UIInterfaceOrientationLandscapeLeft\"]\n",
             )
         };
-        let text = named.info_plist(Platform::Ios, "Balaur", "Tide");
+        let text = named.info_plist(Platform::Ios, "Balaur", "Tide", "");
         assert!(text.contains("LandscapeLeft"), "{text}");
         assert!(!text.contains("UIInterfaceOrientationPortrait"), "{text}");
     }
@@ -558,7 +566,7 @@ mod tests {
              [apple.plist]\nITSAppUsesNonExemptEncryption = false\n\
              UISupportedInterfaceOrientations = [\"UIInterfaceOrientationLandscapeLeft\"]\n",
         );
-        let text = config.info_plist(Platform::Ios, "Balaur", "game");
+        let text = config.info_plist(Platform::Ios, "Balaur", "game", "");
         assert!(text.contains("<key>CFBundleIdentifier</key><string>com.studio.game</string>"));
         assert!(text.contains("<key>CFBundleDisplayName</key><string>My Game</string>"));
         assert!(text.contains("<key>CFBundleShortVersionString</key><string>2.1</string>"));
@@ -570,7 +578,7 @@ mod tests {
     #[test]
     fn a_macos_plist_declares_its_own_minimum_and_no_iphone_keys() {
         let config = config("[apple]\nbundle_id = \"com.studio.game\"\nmin_macos = \"13.0\"\n");
-        let text = config.info_plist(Platform::Macos, "game", "game");
+        let text = config.info_plist(Platform::Macos, "game", "game", "");
         assert!(text.contains("<key>LSMinimumSystemVersion</key><string>13.0</string>"));
         assert!(!text.contains("LSRequiresIPhoneOS"), "{text}");
     }

@@ -179,6 +179,30 @@ fn a_missing_app_icon_does_not_take_the_frame_down() {
     );
 }
 
+/// Any file reads here: the picture is decoded when a window hands it over.
+#[test]
+fn an_app_icon_keeps_the_plate_a_script_names() {
+    let (app, errors) =
+        run(r#"window::set_app_icon("project.toml", #{ plate: [0.1, 0.2, 0.3] });"#);
+    assert!(errors.is_empty(), "{errors:#?}");
+    let icon = app.engine.resource::<balaur_render::AppIconConfig>();
+    assert_eq!(icon.borrow().plate, [26, 51, 77, 255]);
+    let (app, _) = run(r#"window::set_app_icon("project.toml");"#);
+    let icon = app.engine.resource::<balaur_render::AppIconConfig>();
+    assert_eq!(icon.borrow().plate, balaur_render::WHITE_PLATE);
+}
+
+#[test]
+fn an_app_icon_option_it_does_not_know_is_refused_by_name() {
+    let (_app, errors) = run(r#"window::set_app_icon("project.toml", #{ tint: 1 });"#);
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.contains("plate") && e.contains("tint")),
+        "{errors:#?}"
+    );
+}
+
 /// A node with no renderable answers with an empty kind rather than unit.
 ///
 #[test]

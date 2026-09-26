@@ -367,6 +367,10 @@ impl Pack {
     /// Every path the pack's own files name, with any `#entry` cut off.
     fn references(&self) -> BTreeSet<String> {
         let mut out = BTreeSet::new();
+        // `[application] splash` and `icon` name files no scene or script does.
+        if let Ok(value) = toml::from_str::<toml::Value>(&self.manifest) {
+            collect_toml_strings(&value, &mut out);
+        }
         for (key, text) in &self.scenes {
             // The id index maps every id to its path, so its values would name
             // every indexed asset; it answers `id://` below and nothing else.

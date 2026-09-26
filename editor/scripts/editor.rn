@@ -313,7 +313,7 @@ pub fn init(this) {
     // and until this ran they only took effect once Settings was opened.
     settings::load_files(S);
     theme::apply(S);
-    chrome::set_app_icon();
+    chrome::set_app_icon(engine::dark_mode());
     S.touchscreen = engine::target().touchscreen;
     shell::set_ui_scale(S, shell::scale_for_screen(S));
     // The shell redraws when something asks, not every frame: on the web the
@@ -332,6 +332,7 @@ pub fn init(this) {
 // The system turned dark or light; the theme follows under `mode = "system"`.
 pub fn on_dark_mode_changed(this, dark) {
     theme::follow(this.S, dark);
+    chrome::set_app_icon(dark);
 }
 
 // Every export reports here: started, done or failed, one call per step.

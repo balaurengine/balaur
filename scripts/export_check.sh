@@ -33,6 +33,7 @@ balaur=$PWD/target/release/balaur
 
 step "export a game"
 "$balaur" new "$work/project" >/dev/null
+./scripts/with_icon.sh "$work/project"
 # The capabilities an Apple game declares are export-side, so the check needs a
 # project that declares some. See docs/PLAN-apple.md.
 if [ "$platform" = ios ]; then
@@ -89,6 +90,10 @@ ios)
     fail "Info.plist does not carry the project's own bundle identifier"
   grep -q 'ITSAppUsesNonExemptEncryption' "$app/Info.plist" ||
     fail "Info.plist dropped the keys the project declared"
+  # A Mac with Xcode compiles an asset catalog; anywhere else the icon is loose.
+  [ -f "$app/Assets.car" ] || [ -f "$app/AppIcon60x60@2x.png" ] ||
+    fail "the .app carries no icon"
+  grep -q 'CFBundleIcons' "$app/Info.plist" || fail "Info.plist names no icon"
   ent="$work/project.entitlements"
   [ -f "$ent" ] || fail "no entitlements file beside the .app"
   for key in com.apple.developer.applesignin com.apple.developer.game-center \
@@ -117,6 +122,9 @@ android)
   done
   grep -q 'package="org.balaur.project"' "$layout/AndroidManifest.xml" ||
     fail "the manifest still names the template, not the game"
+  grep -q 'android:icon="@mipmap/icon"' "$layout/AndroidManifest.xml" ||
+    fail "the manifest names no icon"
+  [ -f "$layout/res/mipmap-anydpi-v26/icon.xml" ] || fail "the layout has no adaptive icon"
   apk="$work/project-android.apk"
   [ -f "$apk" ] || fail "--bundle apk assembled nothing at $apk"
   # The pack has to survive zipping, or the game launches to nothing.
@@ -128,6 +136,8 @@ android)
     unzip -l "$apk" | grep -q "lib/$abi/libmain.so" ||
       fail "the assembled APK carries no $abi library"
   done
+  unzip -l "$apk" | grep -q 'res/mipmap-anydpi-v26/icon.xml' ||
+    fail "the assembled APK carries no adaptive icon"
   cp "$apk" "$dist/balaur-example-debug.apk"
 
   # The AAB is what Play takes, and the half an APK cannot prove: bundletool
@@ -156,6 +166,10 @@ web)
     fail "the page does not fetch the pack beside it"
   grep -q 'balaur.js' "$out/index.html" ||
     fail "the page does not load the wasm glue beside it"
+  for f in icon.png icon-dark.png manifest.webmanifest; do
+    [ -s "$out/$f" ] || fail "the web export has no $f"
+  done
+  grep -q 'rel="icon"' "$out/index.html" || fail "the page links no favicon"
   printf '\nexported %s\n' "$out"
   (cd "$work" && tar -czf "$dist/balaur-example-web.tar.gz" "project-web")
   ;;

@@ -9,7 +9,7 @@ build only the plugin's own code; the two that matter there are `audio` and
 `window`.
 
 The web runtime (`scripts/package_runtime.sh web`) is built with
-`--no-default-features --features audio,http,websocket,webtransport,gamend,multiplayer,browser,window` and links 398 crates.
+`--no-default-features --features audio,http,websocket,webtransport,gamend,multiplayer,browser,window` and links 400 crates.
 Override the set with `WEB_FEATURES=... scripts/package_runtime.sh web`.
 
 `WEB_THREADS=1` builds the second runtime, which adds `parallel` to that

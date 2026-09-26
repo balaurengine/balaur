@@ -591,6 +591,9 @@ asset_source = { type = "enum", default = "files", options = ["files", "embedded
 splash = { type = "string", default = "", order = 5, applies = "restart", help = "A project-relative picture shown over the first frames, on every target. Empty shows none." }
 splash_seconds = { type = "float", default = 1.5, min = 0.0, max = 60.0, order = 6, applies = "restart", help = "How long the splash stays, in seconds of engine time, and the least it stays when a script is reporting a load through `ui.set_load_progress`." }
 ignore = { type = "list", of = { type = "string" }, default = [], order = 7, applies = "restart", help = "Project paths that are not the game's, as globs: `art/wip/**`, `**/*.blend1`. The asset index skips them and a pack leaves them out." }
+icon = { type = "string", default = "", order = 8, applies = "restart", help = "A project-relative square picture, a PNG or an SVG, that every export writes as that platform's app icon, and the window shows while the game runs. 1024 pixels is what a store asks for." }
+icon_dark = { type = "string", default = "", order = 9, applies = "restart", help = "The icon's form for a dark system: the dark appearance on iOS and macOS, the favicon a dark browser shows, and the window icon while `dark_mode()` is true." }
+icon_monochrome = { type = "string", default = "", order = 10, applies = "restart", help = "A single-colour form, white on transparency, that iOS and macOS tint and Android 13 draws in the themed launcher." }
 "#,
         ),
     );

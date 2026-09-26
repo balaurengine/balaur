@@ -32,6 +32,9 @@ rubato = "5"
 # libimagequant is pure Rust from 4 on, so a browser tab quantises too; its
 # `threads` default is rayon, which builds for wasm but cannot spawn there.
 imagequant = { version = "4", default-features = false }
+# The icon written into a Windows runtime's resources, which Explorer and the
+# taskbar read. Pure Rust, so it runs wherever the exporter does.
+editpe = { version = "0.2", default-features = false, features = ["std"] }
 
 # HarfBuzz's subsetter and libvorbis are C builds: a browser tab exports too,
 # and neither compiles for wasm. Off there, an export keeps its whole faces

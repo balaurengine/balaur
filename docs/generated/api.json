@@ -12998,7 +12998,7 @@
       "docs": {
         "refresh_rate": "Frames per second the display refreshes at, as measured over the last frames; 60 with no window.",
         "safe_area": "The display's insets in pixels, `{ left, top, right, bottom }`: what a notch or a home bar covers, read once per frame and recorded. Zero on a desktop.",
-        "set_app_icon": "Set the application icon (the dock or taskbar one) from a PNG in the project, named by its path.",
+        "set_app_icon": "Set the application icon, the dock or taskbar one, from a PNG or an SVG in the project. `opts.plate` colours the disc a macOS dock icon sits on, white by default. Replaces `[application] icon` for the run.",
         "set_cursor_grab": "Confine the cursor to the window, for FPS-style mouse look.",
         "set_cursor_hidden": "Hide or show the mouse cursor over the window.",
         "set_fullscreen": "Put the window into borderless fullscreen on the current monitor, or back into a window.",
@@ -13019,7 +13019,7 @@
       "signatures": {
         "refresh_rate": "() -> f64",
         "safe_area": "() -> Value",
-        "set_app_icon": "String -> ()",
+        "set_app_icon": "(String, Option<Value>) -> ()",
         "set_cursor_grab": "bool -> ()",
         "set_cursor_hidden": "bool -> ()",
         "set_fullscreen": "bool -> ()",

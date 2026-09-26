@@ -27,6 +27,8 @@ const PLAY_SIZE = 11.0;
 const STEP_SIZE = 16.0;
 const CMD_W = 118.0;
 const CMD_W_COMPACT = 26.0;
+// The dock plate under the dark mark: the mark's own dark ink, #14181d.
+const DARK_PLATE = [0.078, 0.094, 0.114];
 // One document tab, as the showcase's pointer estimates it.
 const TAB_W = 104.0;
 // The bar's own row, a step shorter in a small window.
@@ -48,13 +50,22 @@ fn icon_w(S) {
 }
 
 // Here rather than in editor.rn, whose own `window` module hides the engine's.
-pub fn set_app_icon() {
-    window::set_app_icon("assets/balaur-logo.png");
+// A dark system gets the light-inked mark on a dark plate.
+pub fn set_app_icon(dark) {
+    if dark {
+        window::set_app_icon("assets/balaur-logo-dark.png", #{ plate: DARK_PLATE });
+    } else {
+        window::set_app_icon("assets/balaur-logo.png");
+    }
 }
 
 // The edited project's mark, when it ships one, else balaur's. A project
 // that brought its own logo gets its own name beside it too.
 fn brand_logo(S) {
+    let named = declared_icon(S);
+    if named != "" && fs::exists(S.game_root + "/" + named) {
+        return S.game_root + "/" + named;
+    }
     for rel in ["icon.png", "assets/icon.png", "assets/logo.png"] {
         if fs::exists(S.game_root + "/" + rel) {
             return S.game_root + "/" + rel;
@@ -63,7 +74,18 @@ fn brand_logo(S) {
     ""
 }
 
-// Answered once per session: whether the project ships a mark is three disk
+// `[application] icon`, or "" for a project that names none.
+fn declared_icon(S) {
+    let (ok, manifest) = script::attempt(|| toml::parse(fs::read(S.game_root + "/project.toml")));
+    let icon = if ok && manifest is Object {
+        util::obj(manifest.get("application").unwrap_or(#{})).get("icon").unwrap_or("")
+    } else {
+        ""
+    };
+    if icon is String { icon } else { "" }
+}
+
+// Answered once per session: whether the project ships a mark is up to five disk
 // reads, and the bar asked for them on every frame it drew.
 fn brand(S) {
     let found = S.brand;

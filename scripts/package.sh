@@ -82,6 +82,8 @@ step "smoke: export a game with the template and run it"
 smoke="$dist/.smoke"
 rm -rf "$smoke"
 "$bundle/balaur$exe" new "$smoke/project" >/dev/null
+# With an icon, so a Windows game runs with the resources the export rewrote.
+./scripts/with_icon.sh "$smoke/project"
 "$bundle/balaur$exe" export "$smoke/project" --target "$target" -o "$smoke/game$exe" >/dev/null
 [ -f "$smoke/game$exe" ] || { printf '::error::export produced no game\n'; exit 1; }
 out=$(BALAUR_FRAMES=60 "$smoke/game$exe" 2>&1) || {

@@ -1,3 +1,6 @@
 [application]
 name = "shaders"
 main_scene = "scenes/main.toml"
+icon = "art/logo.png"
+icon_dark = "art/logo-dark.png"
+icon_monochrome = "art/logo-monochrome.png"

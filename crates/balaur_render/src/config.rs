@@ -7,8 +7,13 @@ pub struct AppIconConfig {
     pub bytes: Vec<u8>,
     /// What the script asked for, kept for the log line.
     pub name: String,
+    /// The disc a macOS dock icon is composited on.
+    pub plate: [u8; 4],
     pub changed: bool,
 }
+
+/// The plate a dock icon sits on unless a script names another.
+pub const WHITE_PLATE: [u8; 4] = [255, 255, 255, 255];
 
 /// Fullscreen and cursor state scripts asked for, applied by windowed
 /// backends when changed. Headless runs hold the values and touch nothing,

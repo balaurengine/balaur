@@ -72,7 +72,9 @@ its own, which was right, and then hands it to AppKit on the main thread, which
 cost 70 ms of an editor boot. Two things changed in
 `crates/balaur_render/src/kiss3d_backend.rs`: an offscreen run never hands one
 over, since it has no dock entry, and a windowed one waits until the third
-frame, so the shell is up before the desktop is told what to draw.
+frame, so the shell is up before the desktop is told what to draw. Windows and
+X11 get the window icon the same way, from `[application] icon` when no script
+names one (`PLAN-editor-themes.md`, "App icons").
 
 ## 3. What the renderer builds before it draws
 

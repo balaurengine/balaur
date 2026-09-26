@@ -1,6 +1,7 @@
 > **Status:** the Theme window and user themes built on 2026-09-25; pairs,
-> the mode, the bundled schemes and dark mode on every platform on
-> 2026-09-26. App icons are what is left, under "Steps".
+> the mode, the bundled schemes, dark mode on every platform and app icons
+> on 2026-09-26. Nothing is left under "Steps"; "Not done" says what is not
+> planned.
 
 # Plan: editor themes
 
@@ -82,20 +83,54 @@ row has an Edit button, the mark menu has Theme, and the palette has
   Delete and a name field that renames the folder. Save writes only what the
   worn half states beyond its base.
 
+## App icons
+
+`crates/balaur_export/src/icon.rs`. `[application] icon` names a square PNG or
+SVG, read at 1024 pixels; `icon_dark` and `icon_monochrome` name the forms a
+platform shows in a dark or a tinted theme. A picture that is not square is
+refused with its size.
+
+- **Windows.** An `.ico` of six sizes, 16 to 256, written into the runtime's
+  resources with `editpe` before the pack is fused and the file is signed.
+- **Linux.** `<game>.png` at 512 and a `<game>.desktop` entry beside the
+  executable, for a packager to install.
+- **macOS.** `AppIcon.icns` and `CFBundleIconFile` in the `.app`. On a Mac
+  with Xcode, `actool` also compiles an asset catalog carrying the dark and
+  tinted appearances; no Mac has shown whether macOS 26 draws them from one,
+  and the `.icns` stands whatever `actool` says. A flat fused binary carries
+  no icon.
+- **iOS.** On a Mac with Xcode, an asset catalog with the dark and tinted
+  appearances, which is what the App Store takes. Elsewhere, the loose
+  `AppIcon60x60@2x.png` files and the plist keys a device install reads.
+- **Android.** `mipmap-*` at five densities, and an adaptive icon: the
+  picture inset to the 66 dp safe zone over its own corner colour, with a
+  monochrome layer when one is named. `aapt2 compile` feeds both the APK and
+  the AAB, and the manifest names `@mipmap/icon`.
+- **The web.** `icon.png`, `icon-192.png`, `apple-touch-icon.png`, a favicon
+  under `media="(prefers-color-scheme: dark)"`, and a `manifest.webmanifest`
+  listing the monochrome form under its own purpose. A shell page states
+  `{{icons}}`, or the links go before its `</head>`.
+- **While the game runs.** The window takes `icon`, or `icon_dark` while
+  `dark_mode()` is true, on its third frame and again when the system turns.
+  Windows and X11 show it; Wayland ignores a window icon. Inside a macOS
+  `.app` the bundle's own icon stays. `window::set_app_icon(path, opts)`
+  replaces it for the run, and `opts.plate` colours the disc a macOS dock
+  icon sits on.
+- **The editor.** Its dock icon is the dark-inked mark on a white plate, and
+  the light-inked one on a `#14181d` plate while the system is dark. The bar
+  shows the edited project's `icon` as its mark.
+- **Godot.** `application/config/icon` imports as `icon`.
+
+`scripts/with_icon.sh` gives a new project all three forms. Through it,
+`scripts/export_check.sh` checks each is where iOS, Android and the web read
+it, with `actool` on the Mac that checks iOS; `scripts/package.sh` exports
+onto every desktop runtime and runs the game, Windows x64 and ARM64 included;
+and `scripts/signing_check.sh` signs that Windows executable with `signtool`
+and runs it. Nothing installs an export on a device.
+
 ## Steps
 
-1. **App icons, with a dark form.** An export writes no icon today; the
-   editor's own `.app` gets one from `scripts/macos_bundle.sh`. First an
-   `[export]` icon for every target: an `.icns` on macOS, an asset catalog on
-   iOS, `mipmap-*` on Android, a PNG and a `.desktop` entry on Linux, the
-   favicon and manifest icons on the web, and on Windows an `.ico` in the
-   executable's resources, which means rewriting a prebuilt runtime. Then a
-   dark and a single-colour form where a platform reads them: the asset
-   catalog's dark and tinted appearances on iOS 18 and macOS 26, the
-   monochrome layer of Android 13's adaptive icon, and a favicon under
-   `media="(prefers-color-scheme: dark)"`. Windows and Linux have no dark app
-   icon. The editor's dock icon takes the dark image while `dark_mode()` is
-   true.
+None left.
 
 ## Not done
 

@@ -4,7 +4,7 @@
 
 Balaur's own source is licensed MIT (see [LICENSE](LICENSE)). A built
 engine, editor or exported game is a combined work that also contains the
-774 packages listed here, some under licences that are not MIT.
+776 packages listed here, some under licences that are not MIT.
 Ship this file with any binary you distribute.
 
 Two consequences worth stating plainly:
@@ -22,7 +22,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 
 | Licence | Packages |
 | --- | --- |
-| `MIT OR Apache-2.0` | 410 |
+| `MIT OR Apache-2.0` | 411 |
 | `MIT` | 146 |
 | `Apache-2.0 OR MIT` | 51 |
 | `Apache-2.0` | 27 |
@@ -34,7 +34,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | `Unlicense OR MIT` | 8 |
 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` | 7 |
 | `ISC` | 6 |
-| `BSD-2-Clause` | 4 |
+| `BSD-2-Clause` | 5 |
 | `CDLA-Permissive-2.0` | 3 |
 | `Zlib` | 3 |
 | `Apache-2.0 OR ISC OR MIT` | 2 |
@@ -178,6 +178,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [dasp_sample](https://github.com/rustaudio/sample.git) | 0.11.0 | `MIT OR Apache-2.0` |
 | [data-encoding](https://github.com/ia0/data-encoding) | 2.11.1 | `MIT` |
 | [data-url](https://github.com/servo/rust-url) | 0.3.2 | `MIT OR Apache-2.0` |
+| [debug-ignore](https://github.com/sunshowers-code/debug-ignore) | 1.0.5 | `MIT OR Apache-2.0` |
 | [der-parser](https://github.com/rusticata/der-parser.git) | 10.0.0 | `MIT OR Apache-2.0` |
 | [deranged](https://github.com/jhpratt/deranged) | 0.5.8 | `MIT OR Apache-2.0` |
 | [derive_more](https://github.com/JelteF/derive_more) | 2.1.1 | `MIT` |
@@ -195,6 +196,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [downcast-rs](https://github.com/marcianx/downcast-rs) | 2.0.2 | `MIT OR Apache-2.0` |
 | [dpi](https://github.com/rust-windowing/winit) | 0.1.2 | `Apache-2.0 AND MIT` |
 | [ecolor](https://github.com/emilk/egui) | 0.36.2 | `MIT OR Apache-2.0` |
+| [editpe](https://github.com/Systemcluster/editpe) | 0.2.4 | `BSD-2-Clause` |
 | [egui](https://github.com/emilk/egui) | 0.36.2 | `MIT OR Apache-2.0` |
 | [egui-wgpu](https://github.com/emilk/egui/tree/main/crates/egui-wgpu) | 0.36.2 | `MIT OR Apache-2.0` |
 | [either](https://github.com/rayon-rs/either) | 1.18.0 | `MIT OR Apache-2.0` |
@@ -845,12 +847,12 @@ SPDX expression in the table above is the whole of what their authors
 granted; where it names a licence, that licence's text appears below,
 reproduced from a crate that does ship it: accesskit, aotuv_lancer_vorbis_sys, asn1-rs-impl, block2, codespan-reporting, crc-catalog, dasp_sample, dispatch, dispatch2, ecolor, egui, egui-wgpu, emath, epaint, epaint_default_fonts, gilrs, gilrs-core, gl_generator, harfrust, i_key_sort, i_overlay, i_triangle, jni, jni-macros, jni-sys-macros, khronos_api, kio, kiss3d-macro, musli, musli-core, musli-macros, ndk, ndk-context, ndk-sys, objc-sys, objc2, objc2-app-kit, objc2-audio-toolbox, objc2-authentication-services, objc2-avf-audio, objc2-cloud-kit, objc2-contacts, objc2-core-audio, objc2-core-audio-types, objc2-core-data, objc2-core-foundation, objc2-core-graphics, objc2-core-image, objc2-core-location, objc2-core-text, objc2-core-video, objc2-encode, objc2-foundation, objc2-game-kit, objc2-io-kit, objc2-io-surface, objc2-link-presentation, objc2-metal, objc2-quartz-core, objc2-symbols, objc2-ui-kit, objc2-uniform-type-identifiers, objc2-user-notifications, ogg_next_sys, parry2d, parry3d, profiling, profiling-procmacros, pulp-wasm-simd-flag, r-efi, rapier2d, rapier3d, realfft, rstar, rune, rune-alloc, rune-alloc-macros, rune-core, rune-macros, rune-tracing, rune-tracing-macros, rustls-platform-verifier-android, simd_helpers, spirv, symphonia, symphonia-bundle-flac, symphonia-bundle-mp3, symphonia-codec-aac, symphonia-codec-pcm, symphonia-codec-vorbis, symphonia-core, symphonia-format-isomp4, symphonia-format-ogg, symphonia-format-riff, symphonia-metadata, symphonia-utils-xiph, syntree, taffy, tokrepr, tokrepr-derive, valuable, vorbis_rs, wasm_sync, web-transport-proto, web-transport-quinn, web-transport-trait, wesl, wesl-core, wesl-macros, wesl-quote, wgsl-parse, wgsl-types, zune-inflate.
 
-### LICENSE-APACHE — 160 packages
+### LICENSE-APACHE — 161 packages
 
 <details>
 <summary>Which packages carry this exact file</summary>
 
-ahash 0.8.12, aligned 0.4.3, arbitrary 1.4.2, arrayvec 0.7.8, as-slice 0.2.1, asn1-rs 0.7.2, asn1-rs-derive 0.6.0, atomic-waker 1.1.2, autocfg 1.5.1, base64 0.13.1, base64 0.21.7, base64 0.22.1, base64 0.23.1, bitflags 1.3.2, bitflags 2.13.2, bitstream-io 4.10.0, bumpalo 3.20.3, cc 1.4.7, cfg-if 1.0.5, concurrent-queue 2.5.0, core-foundation 0.10.1, core-foundation 0.9.4, core-foundation-sys 0.8.7, core-graphics 0.23.2, core-graphics-types 0.1.3, core_detect 1.0.0, coreaudio-rs 0.14.2, critical-section 1.2.0, crossbeam-channel 0.5.17, crossbeam-deque 0.8.8, crossbeam-epoch 0.9.21, crossbeam-utils 0.8.23, data-url 0.3.2, der-parser 10.0.0, displaydoc 0.2.7, either 1.18.0, ena 0.14.4, equivalent 1.0.2, errno 0.3.14, euclid 0.22.14, fastrand 2.5.0, filetime 0.2.29, find-msvc-tools 0.1.13, flate2 1.1.10, fnv 1.0.7, form_urlencoded 1.2.2, gethostname 1.1.0, gif 0.14.2, glob 0.3.4, glow 0.17.0, gltf 1.4.1, gltf-derive 1.4.1, gltf-json 1.4.1, hash32 0.3.1, hashbrown 0.16.1, hashbrown 0.17.1, heapless 0.8.0, heck 0.5.0, hermit-abi 0.5.3, httparse 1.10.1, idna 1.1.0, idna_adapter 1.2.2, indexmap 2.14.2, itertools 0.14.0, itertools 0.15.0, jni 0.21.1, jobserver 0.1.35, js-sys 0.3.106, khronos-egl 6.0.0, lalrpop-util 0.23.1, lazy_static 1.5.0, libfuzzer-sys 0.4.13, linux-raw-sys 0.12.1, linux-raw-sys 0.4.15, lock_api 0.4.14, log 0.4.34, matrixmultiply 0.3.11, num 0.4.3, num-bigint 0.4.8, num-complex 0.4.6, num-derive 0.4.2, num-derive 0.5.1, num-integer 0.1.47, num-iter 0.1.46, num-rational 0.4.2, num-traits 0.2.19, num_cpus 1.17.0, oid-registry 0.8.1, once_cell 1.21.4, openssl-probe 0.2.1, parking_lot 0.12.5, parking_lot_core 0.9.12, percent-encoding 2.3.2, pkg-config 0.3.34, plain 0.2.3, png 0.18.1, polling 3.11.0, pollster 0.4.0, pollster 1.0.1, primal-check 0.3.4, rawpointer 0.2.1, rayon 1.12.0, rayon-core 1.13.0, regex-automata 0.4.18, regex-lite 0.1.9, regex-syntax 0.8.11, renderdoc-sys 1.1.0, robust 1.2.0, roxmltree 0.21.1, rtrb 0.3.5, rustc-hash 1.1.0, rustc_version 0.4.1, rusticata-macros 4.1.0, rustix 0.38.44, rustix 1.1.5, rustls 0.23.45, rustls-native-certs 0.8.4, scoped-tls 1.0.1, scopeguard 1.2.0, security-framework 3.7.0, security-framework-sys 2.17.0, sfv 0.15.0, simd_cesu8 1.2.0, simplecss 0.2.2, smallvec 1.16.2, smol_str 0.2.2, smol_str 0.3.6, socket2 0.6.5, stable_deref_trait 1.2.1, svgtypes 0.16.1, swash 0.2.10, tar 0.4.46, tempfile 3.27.0, thread_local 1.1.10, ttf-parser 0.15.2, ttf-parser 0.25.1, tungstenite 0.30.0, unicode-bidi 0.3.18, unicode-segmentation 1.13.3, unicode-width 0.1.14, unicode-width 0.2.2, unicode-xid 0.2.6, url 2.5.8, uuid 1.26.1, version_check 0.9.5, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.4+wasi-0.2.12, wasm-bindgen 0.2.129, wasm-bindgen-futures 0.4.79, wasm-bindgen-macro 0.2.129, wasm-bindgen-macro-support 0.2.129, wasm-bindgen-shared 0.2.129, web-sys 0.3.106, weezl 0.1.12, wit-bindgen 0.57.1, x509-parser 0.18.1, xattr 1.6.1, yasna 0.6.0, yazi 0.2.1, zeno 0.3.3
+ahash 0.8.12, aligned 0.4.3, arbitrary 1.4.2, arrayvec 0.7.8, as-slice 0.2.1, asn1-rs 0.7.2, asn1-rs-derive 0.6.0, atomic-waker 1.1.2, autocfg 1.5.1, base64 0.13.1, base64 0.21.7, base64 0.22.1, base64 0.23.1, bitflags 1.3.2, bitflags 2.13.2, bitstream-io 4.10.0, bumpalo 3.20.3, cc 1.4.7, cfg-if 1.0.5, concurrent-queue 2.5.0, core-foundation 0.10.1, core-foundation 0.9.4, core-foundation-sys 0.8.7, core-graphics 0.23.2, core-graphics-types 0.1.3, core_detect 1.0.0, coreaudio-rs 0.14.2, critical-section 1.2.0, crossbeam-channel 0.5.17, crossbeam-deque 0.8.8, crossbeam-epoch 0.9.21, crossbeam-utils 0.8.23, data-url 0.3.2, debug-ignore 1.0.5, der-parser 10.0.0, displaydoc 0.2.7, either 1.18.0, ena 0.14.4, equivalent 1.0.2, errno 0.3.14, euclid 0.22.14, fastrand 2.5.0, filetime 0.2.29, find-msvc-tools 0.1.13, flate2 1.1.10, fnv 1.0.7, form_urlencoded 1.2.2, gethostname 1.1.0, gif 0.14.2, glob 0.3.4, glow 0.17.0, gltf 1.4.1, gltf-derive 1.4.1, gltf-json 1.4.1, hash32 0.3.1, hashbrown 0.16.1, hashbrown 0.17.1, heapless 0.8.0, heck 0.5.0, hermit-abi 0.5.3, httparse 1.10.1, idna 1.1.0, idna_adapter 1.2.2, indexmap 2.14.2, itertools 0.14.0, itertools 0.15.0, jni 0.21.1, jobserver 0.1.35, js-sys 0.3.106, khronos-egl 6.0.0, lalrpop-util 0.23.1, lazy_static 1.5.0, libfuzzer-sys 0.4.13, linux-raw-sys 0.12.1, linux-raw-sys 0.4.15, lock_api 0.4.14, log 0.4.34, matrixmultiply 0.3.11, num 0.4.3, num-bigint 0.4.8, num-complex 0.4.6, num-derive 0.4.2, num-derive 0.5.1, num-integer 0.1.47, num-iter 0.1.46, num-rational 0.4.2, num-traits 0.2.19, num_cpus 1.17.0, oid-registry 0.8.1, once_cell 1.21.4, openssl-probe 0.2.1, parking_lot 0.12.5, parking_lot_core 0.9.12, percent-encoding 2.3.2, pkg-config 0.3.34, plain 0.2.3, png 0.18.1, polling 3.11.0, pollster 0.4.0, pollster 1.0.1, primal-check 0.3.4, rawpointer 0.2.1, rayon 1.12.0, rayon-core 1.13.0, regex-automata 0.4.18, regex-lite 0.1.9, regex-syntax 0.8.11, renderdoc-sys 1.1.0, robust 1.2.0, roxmltree 0.21.1, rtrb 0.3.5, rustc-hash 1.1.0, rustc_version 0.4.1, rusticata-macros 4.1.0, rustix 0.38.44, rustix 1.1.5, rustls 0.23.45, rustls-native-certs 0.8.4, scoped-tls 1.0.1, scopeguard 1.2.0, security-framework 3.7.0, security-framework-sys 2.17.0, sfv 0.15.0, simd_cesu8 1.2.0, simplecss 0.2.2, smallvec 1.16.2, smol_str 0.2.2, smol_str 0.3.6, socket2 0.6.5, stable_deref_trait 1.2.1, svgtypes 0.16.1, swash 0.2.10, tar 0.4.46, tempfile 3.27.0, thread_local 1.1.10, ttf-parser 0.15.2, ttf-parser 0.25.1, tungstenite 0.30.0, unicode-bidi 0.3.18, unicode-segmentation 1.13.3, unicode-width 0.1.14, unicode-width 0.2.2, unicode-xid 0.2.6, url 2.5.8, uuid 1.26.1, version_check 0.9.5, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.4+wasi-0.2.12, wasm-bindgen 0.2.129, wasm-bindgen-futures 0.4.79, wasm-bindgen-macro 0.2.129, wasm-bindgen-macro-support 0.2.129, wasm-bindgen-shared 0.2.129, web-sys 0.3.106, weezl 0.1.12, wit-bindgen 0.57.1, x509-parser 0.18.1, xattr 1.6.1, yasna 0.6.0, yazi 0.2.1, zeno 0.3.3
 
 </details>
 
@@ -1058,12 +1060,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-### LICENSE-MIT — 73 packages
+### LICENSE-MIT — 74 packages
 
 <details>
 <summary>Which packages carry this exact file</summary>
 
-adler2 2.0.1, allocator-api2 0.2.21, anyhow 1.0.104, atomic-waker 1.1.2, borsh 1.8.1, concurrent-queue 2.5.0, displaydoc 0.2.7, fastrand 2.5.0, glam 0.30.10, glam 0.31.1, glam 0.32.1, glam 0.33.7, glamx 0.3.1, glow 0.17.0, hermit-abi 0.5.3, itoa 1.0.18, khronos-egl 6.0.0, lexical 7.0.5, lexical-core 1.0.6, lexical-parse-float 1.0.6, lexical-parse-integer 1.0.6, lexical-util 1.0.7, lexical-write-float 1.0.6, lexical-write-integer 1.0.6, linux-raw-sys 0.12.1, linux-raw-sys 0.4.15, minimal-lexical 0.2.1, num_enum 0.7.6, num_enum_derive 0.7.6, once_cell 1.21.4, oneshot 0.2.1, paste 1.0.15, pastey 0.1.1, pin-project 1.1.13, pin-project-internal 1.1.13, pin-project-lite 0.2.17, polling 3.11.0, portable-atomic 1.15.0, portable-atomic-util 0.2.8, proc-macro-crate 3.5.0, proc-macro2 1.0.107, quote 1.0.47, ref-cast 1.0.27, ref-cast-impl 1.0.27, rtrb 0.3.5, rustc-hash 1.1.0, rustc-hash 2.1.3, rustix 0.38.44, rustix 1.1.5, rustversion 1.0.23, semver 1.0.28, seq-macro 0.3.6, serde 1.0.229, serde_core 1.0.229, serde_derive 1.0.229, serde_json 1.0.151, simd_cesu8 1.2.0, smol_str 0.2.2, smol_str 0.3.6, syn 2.0.119, syn 3.0.6, thiserror 1.0.69, thiserror 2.0.20, thiserror-impl 1.0.69, thiserror-impl 2.0.20, typed-path 0.12.3, unicode-ident 1.0.26, utf8-zero 0.8.1, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.4+wasi-0.2.12, wit-bindgen 0.57.1, x11-dl 2.21.0, zmij 1.0.23
+adler2 2.0.1, allocator-api2 0.2.21, anyhow 1.0.104, atomic-waker 1.1.2, borsh 1.8.1, concurrent-queue 2.5.0, debug-ignore 1.0.5, displaydoc 0.2.7, fastrand 2.5.0, glam 0.30.10, glam 0.31.1, glam 0.32.1, glam 0.33.7, glamx 0.3.1, glow 0.17.0, hermit-abi 0.5.3, itoa 1.0.18, khronos-egl 6.0.0, lexical 7.0.5, lexical-core 1.0.6, lexical-parse-float 1.0.6, lexical-parse-integer 1.0.6, lexical-util 1.0.7, lexical-write-float 1.0.6, lexical-write-integer 1.0.6, linux-raw-sys 0.12.1, linux-raw-sys 0.4.15, minimal-lexical 0.2.1, num_enum 0.7.6, num_enum_derive 0.7.6, once_cell 1.21.4, oneshot 0.2.1, paste 1.0.15, pastey 0.1.1, pin-project 1.1.13, pin-project-internal 1.1.13, pin-project-lite 0.2.17, polling 3.11.0, portable-atomic 1.15.0, portable-atomic-util 0.2.8, proc-macro-crate 3.5.0, proc-macro2 1.0.107, quote 1.0.47, ref-cast 1.0.27, ref-cast-impl 1.0.27, rtrb 0.3.5, rustc-hash 1.1.0, rustc-hash 2.1.3, rustix 0.38.44, rustix 1.1.5, rustversion 1.0.23, semver 1.0.28, seq-macro 0.3.6, serde 1.0.229, serde_core 1.0.229, serde_derive 1.0.229, serde_json 1.0.151, simd_cesu8 1.2.0, smol_str 0.2.2, smol_str 0.3.6, syn 2.0.119, syn 3.0.6, thiserror 1.0.69, thiserror 2.0.20, thiserror-impl 1.0.69, thiserror-impl 2.0.20, typed-path 0.12.3, unicode-ident 1.0.26, utf8-zero 0.8.1, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.4+wasi-0.2.12, wit-bindgen 0.57.1, x11-dl 2.21.0, zmij 1.0.23
 
 </details>
 
@@ -13902,6 +13904,38 @@ Copyright © 2017-2018 Arm Limited
 and labelled as such in comments in the individual source files. All
 have been licensed under extremely permissive terms.
 ------------------------------------------------------------------------------
+```
+
+### LICENSE — 1 package
+
+<details>
+<summary>Which packages carry this exact file</summary>
+
+editpe 0.2.4
+
+</details>
+
+```
+Copyright (c) 2020 Christian Sdunek <me@systemcluster.me> and the editpe contributors
+
+Redistribution and use in source and binary forms, with or without modification, are permitted
+provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this list of conditions
+and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice, this list of
+conditions and the following disclaimer in the documentation and/or other materials provided with
+the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
+IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
+OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
 ### COPYRIGHT — 1 package
