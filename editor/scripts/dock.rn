@@ -1104,8 +1104,9 @@ pub fn profiler(S, k) {
     show_table(["what", "cost>", "share of a frame"], ["2", "1", "2"], items);
 }
 
-/// What each script cost the last frame, dearest first, against the dearest
-/// of them rather than against the budget: the unit is instructions.
+/// What each script and each of the dearest functions cost the last frame,
+/// dearest first, against the dearest of them rather than against the budget:
+/// the unit is instructions.
 ///
 /// Instructions rather than milliseconds: the same frame runs the same
 /// instructions on every machine, so a number that moved is a change in what
@@ -1120,8 +1121,25 @@ fn script_rows(items, k) {
             row.path, format!("{} instr", row.instructions), bar(share), k.secondary_text,
         ]));
     }
+    // Each function's own instructions under its file's rows: the VM's count,
+    // so a `draw` callback and a closure the pool calls are in it too.
+    let functions = engine::function_costs();
+    let top = if functions.is_empty() { 0.0 } else { util::f(functions[0].instructions) };
+    let n = 0;
+    while n < functions.len() && n < FUNCTION_ROWS {
+        let row = functions[n];
+        let count = util::f(row.instructions);
+        let share = if top > 0.0 { util::clamp(count / top, 0.0, 1.0) } else { 0.0 };
+        items.push(util::cells([
+            row.function, format!("{} instr · {} calls", row.instructions, row.calls), bar(share), k.text_muted,
+        ]));
+        n += 1;
+    }
     engine::profile_scripts(true);
 }
+
+/// How many of the dearest functions the Profiler lists under the scripts.
+const FUNCTION_ROWS = 12;
 
 /// A share as blocks, which reads at a glance where a number has to be read.
 /// Twelve cells, so one is about eight percent: twenty overran the Cost

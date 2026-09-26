@@ -15,6 +15,7 @@ mod mounts;
 mod packed;
 mod pause;
 mod pow;
+mod profiling;
 mod props;
 mod replay_api;
 mod rollback;

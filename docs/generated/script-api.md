@@ -14,7 +14,7 @@ cannot drift from what scripts actually see.
 | [`audio`](#audio) | 19 | 0 | the engine |
 | [`debugger`](#debugger) | 9 | 4 | the engine |
 | [`encoding`](#encoding) | 2 | 0 | the engine |
-| [`engine`](#engine) | 27 | 0 | the engine |
+| [`engine`](#engine) | 28 | 0 | the engine |
 | [`events`](#events) | 6 | 0 | the engine |
 | [`export`](#export) | 6 | 0 | the engine |
 | [`fs`](#fs) | 9 | 0 | the engine |
@@ -120,7 +120,7 @@ cannot drift from what scripts actually see.
 
 ## `engine`
 
-**Functions:** `args`, `dark_mode`, `delta`, `device_id`, `environment`, `focused`, `has_plugin`, `open_url`, `paused`, `platform`, `plugin_version`, `plugins`, `profile_scripts`, `quit`, `reload_script`, `reveal`, `script_costs`, `set_paused`, `set_time_scale`, `tick`, `tick_hz`, `time`, `time_scale`, `timings`, `unix_time`, `user_data_dir`, `user_data_dir_of`
+**Functions:** `args`, `dark_mode`, `delta`, `device_id`, `environment`, `focused`, `function_costs`, `has_plugin`, `open_url`, `paused`, `platform`, `plugin_version`, `plugins`, `profile_scripts`, `quit`, `reload_script`, `reveal`, `script_costs`, `set_paused`, `set_time_scale`, `tick`, `tick_hz`, `time`, `time_scale`, `timings`, `unix_time`, `user_data_dir`, `user_data_dir_of`
 
 ## `events`
 

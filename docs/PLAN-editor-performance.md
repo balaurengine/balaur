@@ -530,8 +530,11 @@ quarter of the pixels it is 2.6 ms, so the frame's floor is fill rather than
 anything the scene holds.
 
 The editor compiles as one Rune unit, so the count is the whole shell rather
-than a figure per file. Ablation is what localises it, as §5 did: stub one call,
-re-run, take the difference.
+than a figure per file. `engine.function_costs()` is what localises it now:
+the rune fork counts every instruction the VM runs by the function holding it,
+so a `draw` callback and a closure the pool calls are rows of their own, and
+the Profiler lists the twelve dearest under the scripts. Before it, ablation
+did, as §5 shows: stub one call, re-run, take the difference.
 
 ## 8. What was measured and left alone
 

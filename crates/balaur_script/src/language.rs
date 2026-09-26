@@ -253,6 +253,13 @@ pub trait ScriptHost<C: ?Sized> {
         Vec::new()
     }
 
+    /// What each function has cost since profiling started, dearest first,
+    /// as `(function, calls, instructions)`. A function's own instructions,
+    /// not its callees', and the callbacks a native function makes count too.
+    fn function_costs(&self) -> Vec<(String, u64, u64)> {
+        Vec::new()
+    }
+
     /// Stop at the instruction that threw, rather than logging and moving
     /// on. Off by default: it puts every call through the stepping executor.
     fn set_break_on_error(&self, on: bool) {

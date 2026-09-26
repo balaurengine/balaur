@@ -24,6 +24,7 @@ use crate::file_api::{
     fs_copy, fs_exists, fs_list, fs_mkdir, fs_mtime, fs_read, fs_remove, fs_rename, fs_write,
     json_encode, json_parse, toml_encode, toml_parse, toml_patch,
 };
+use crate::profile_api::{function_costs, profile_scripts, script_costs};
 use crate::regex_api::{
     regex_escape, regex_matches, regex_replace, regex_search, regex_search_all, regex_split,
 };
@@ -262,6 +263,11 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         module: "engine",
         name: "script_costs",
         call: script_costs,
+    },
+    EngineOp {
+        module: "engine",
+        name: "function_costs",
+        call: function_costs,
     },
     EngineOp {
         module: "save",
@@ -1103,42 +1109,6 @@ fn save_version(eng: &Engine, _: &[Value]) -> Result<Value> {
 /// branch the simulation on wall time, which no two machines agree about.
 fn timings(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(crate::timings::table(eng))
-}
-
-/// `engine.profile_scripts(on)`: start or stop counting what each script
-/// costs. Turning it on clears the tally.
-fn profile_scripts(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let on = matches!(args.first(), Some(Value::Bool(true)));
-    if let Some(host) = eng.script_host() {
-        host.set_profiling(on);
-    }
-    Ok(Value::Nil)
-}
-
-/// `engine.script_costs()`: what each script has cost since profiling
-/// started, dearest first.
-///
-/// Counted in instructions, not seconds: the same run executes the same
-/// instructions on every machine, so a number that moved is a real change.
-fn script_costs(eng: &Engine, _: &[Value]) -> Result<Value> {
-    let rows = eng
-        .script_host()
-        .map(|h| h.script_costs())
-        .unwrap_or_default();
-    Ok(Value::List(
-        rows.into_iter()
-            .map(|(path, calls, instructions)| {
-                Value::Map(vec![
-                    ("path".to_string(), Value::Str(path)),
-                    ("calls".to_string(), Value::Int(calls.cast_signed())),
-                    (
-                        "instructions".to_string(),
-                        Value::Int(instructions.cast_signed()),
-                    ),
-                ])
-            })
-            .collect(),
-    ))
 }
 
 /// The whole property table a scene key's value stands for.

@@ -1079,6 +1079,13 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
             .collect()
     }
 
+    fn function_costs(&self) -> Vec<(String, u64, u64)> {
+        RuneHost::function_costs(self)
+            .into_iter()
+            .map(|cost| (cost.path, cost.calls, cost.instructions))
+            .collect()
+    }
+
     fn invoke(
         &self,
         callback: balaur_script::CallbackId,
