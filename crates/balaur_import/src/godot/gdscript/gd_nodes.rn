@@ -977,6 +977,9 @@ fn node_property(node, name) {
         "size" => size_of(node),
         "visible" => node.visible(),
         "modulate" => node.tint(),
+        "points" if is_line(node) => line_points(node),
+        "width" if is_line(node) => float(node.get_component(SHAPE2D)["width"]) * PIXELS,
+        "default_color" if is_line(node) => node.get_component(SHAPE2D)["color"],
         "self_modulate" => node.tint(),
         "z_index" => node.z_index(),
         "name" => node.name(),
@@ -1127,6 +1130,16 @@ fn set_node_property(node, name, value) {
         node.patch_component("camera2d", #{ "zoom": float(value.x) * PIXELS });
     } else if name == "foldable_group" || name == "material" {
         set_meta(node, name, value);
+    } else if name == "points" && is_line(node) {
+        set_line_points(node, value);
+    } else if (name == "width" || name == "default_color") && is_line(node) {
+        let patch = #{};
+        if name == "width" {
+            patch["width"] = float(value) / PIXELS;
+        } else {
+            patch["color"] = value;
+        }
+        node.patch_component(SHAPE2D, patch);
     } else if name == "speed_scale" && node.has_component("animation") {
         let patch = #{};
         patch[SPEED_SCALE] = float(value);
@@ -1462,6 +1475,12 @@ fn node_method(node, name, args) {
             return out;
         }
     }
+    if is_line(node) {
+        let out = line_method(node, name, args);
+        if out != NOT_A_LINE_VERB {
+            return out;
+        }
+    }
     if name == "to_global" {
         return global_transform(node) * vec_of(a0);
     }
@@ -1624,6 +1643,100 @@ fn player_method(node, name, args) {
 }
 
 const NOT_A_PLAYER_VERB = "__not_a_player_verb";
+
+const SHAPE2D = "shape2d";
+const POLYLINE = "polyline";
+
+/// Whether a node is a Godot `Line2D`, which converts to a `shape2d` polyline.
+fn is_line(node) {
+    node.has_component(SHAPE2D) && get(node.get_component(SHAPE2D), "kind", "") == POLYLINE
+}
+
+/// A `Line2D`'s points in Godot's pixels, y down: the anchors of the `path2d`
+/// the polyline strokes, every third control point.
+fn line_points(node) {
+    let out = [];
+    let reference = get(node.get_component(SHAPE2D), "mesh", "");
+    if !(reference is String) || reference == "" {
+        return out;
+    }
+    let (ok, path) = script::attempt(|| assets::load(reference));
+    if !ok {
+        return out;
+    }
+    let controls = get(path, "points", []);
+    let at = 0;
+    while at < controls.len() {
+        let p = controls[at];
+        out.push(vec2(float(p[0]) * PIXELS, -float(p[1]) * PIXELS));
+        at += if controls.len() == 2 { 1 } else { 3 };
+    }
+    return out;
+}
+
+/// Godot's points written back as a `path2d` of straight segments, in units
+/// with y up; fewer than two draw nothing.
+fn set_line_points(node, points) {
+    let anchors = [];
+    for p in points {
+        let at = vec_of(p);
+        anchors.push([at.x / PIXELS, -at.y / PIXELS]);
+    }
+    if anchors.len() < 2 {
+        node.patch_component(SHAPE2D, #{ "mesh": "" });
+        return;
+    }
+    let controls = [anchors[0]];
+    let index = 1;
+    while index < anchors.len() {
+        controls.push(anchors[index - 1]);
+        controls.push(anchors[index]);
+        controls.push(anchors[index]);
+        index += 1;
+    }
+    node.patch_component(SHAPE2D, #{ "mesh": #{ "type": "path2d", "points": controls } });
+}
+
+/// Godot's `Line2D` point verbs over the polyline's points, or
+/// `NOT_A_LINE_VERB` for any other name.
+fn line_method(node, name, args) {
+    let count = args.len();
+    let a0 = if count > 0 { args[0] } else { () };
+    let points = line_points(node);
+    if name == "get_point_count" {
+        return points.len();
+    }
+    if name == "get_point_position" {
+        return points[int(a0)];
+    }
+    if name == "clear_points" {
+        set_line_points(node, []);
+        return ();
+    }
+    if name == "add_point" {
+        let at = if count > 1 { int(args[1]) } else { -1 };
+        if at < 0 || at >= points.len() {
+            points.push(vec_of(a0));
+        } else {
+            points.insert(at, vec_of(a0));
+        }
+        set_line_points(node, points);
+        return ();
+    }
+    if name == "set_point_position" {
+        points[int(a0)] = vec_of(args[1]);
+        set_line_points(node, points);
+        return ();
+    }
+    if name == "remove_point" {
+        points.remove(int(a0));
+        set_line_points(node, points);
+        return ();
+    }
+    NOT_A_LINE_VERB
+}
+
+const NOT_A_LINE_VERB = "__not_a_line_verb";
 
 /// Whether the node's clip library holds a clip of that name.
 fn has_clip(node, name) {

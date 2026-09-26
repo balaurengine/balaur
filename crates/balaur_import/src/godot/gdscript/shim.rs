@@ -527,4 +527,67 @@ mod tests {
             "the probe hid itself only if ro.tscn was found as ro.toml and hu.tscn was not"
         );
     }
+
+    /// A `Line2D` is a `shape2d` polyline: its point verbs read and write the
+    /// polyline's points in Godot's pixels, y down.
+    #[test]
+    fn a_line_s_point_verbs_edit_the_polyline() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            &[
+                "[[nodes]]",
+                "id = \"probe\"",
+                "name = \"Probe\"",
+                "script = { source = \"probe.rn\" }",
+                "",
+                "[[nodes]]",
+                "id = \"route\"",
+                "name = \"Route\"",
+                "parent = \"probe\"",
+                "shape2d = { kind = \"polyline\", width = 0.1, mesh = { type = \"path2d\", points = [[0.0, 0.0], [1.0, -2.0]] } }",
+                "",
+            ]
+            .join("\n"),
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            &[
+                "pub fn init(this) {",
+                "    let gd = script::require(\"gd.rn\");",
+                "    let line = this.node.get_node(\"Route\");",
+                "    let before = (gd.invoke)(line, \"get_point_count\");",
+                "    (gd.invoke1)(line, \"add_point\", (gd.vec2)(300.0, 0.0));",
+                "    let second = (gd.invoke1)(line, \"get_point_position\", 1);",
+                "    let width = (gd.field)(line, \"width\");",
+                "    let after = (gd.size)((gd.field)(line, \"points\"));",
+                "    if before == 2 && after == 3 && second.x == 100.0 && second.y == 200.0 && width > 9.999 && width < 10.001 {",
+                "        this.node.set_visible(false);",
+                "    }",
+                "}",
+                "",
+            ]
+            .join("\n"),
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert!(
+            !world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .visible,
+            "the probe hid itself only if the line counted, grew and read back in pixels"
+        );
+    }
 }

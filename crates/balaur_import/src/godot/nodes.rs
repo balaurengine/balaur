@@ -665,14 +665,20 @@ fn skin(section: &Section, vertices: usize) -> Option<Toml> {
 
 fn line(section: &Section, out: &mut Mapped) {
     out.set("shape2d", "kind", Toml::String("polyline".into()));
-    let points: Vec<Toml> = section
+    let anchors: Vec<[f64; 2]> = section
         .field("points")
         .map(points_of)
         .unwrap_or_default()
         .iter()
-        .map(|[x, y]| floats(&[x / PIXELS_PER_UNIT, -y / PIXELS_PER_UNIT]))
+        .map(|[x, y]| [x / PIXELS_PER_UNIT, -y / PIXELS_PER_UNIT])
         .collect();
-    out.set("shape2d", "points", Toml::Array(points));
+    if let Some(path) = straight_path(&anchors) {
+        out.assets.push(Asset {
+            component: "shape2d",
+            key: "mesh",
+            table: path,
+        });
+    }
     let width = section
         .field("width")
         .and_then(Value::as_f64)
@@ -687,6 +693,22 @@ fn line(section: &Section, out: &mut Mapped) {
     if section.field("gradient").is_some() {
         out.note("Line2D gradient: set `shape2d.gradient` to its end colour by hand");
     }
+}
+
+/// A `path2d` through `anchors` in straight segments: each segment's handles
+/// sit on its own ends. `None` for fewer than two points, which draw nothing.
+pub(crate) fn straight_path(anchors: &[[f64; 2]]) -> Option<toml::Table> {
+    let (first, rest) = anchors.split_first().filter(|(_, rest)| !rest.is_empty())?;
+    let mut points = vec![floats(first)];
+    let mut from = first;
+    for to in rest {
+        points.extend([floats(from), floats(to), floats(to)]);
+        from = to;
+    }
+    let mut path = toml::Table::new();
+    path.insert("type".into(), Toml::String("path2d".into()));
+    path.insert("points".into(), Toml::Array(points));
+    Some(path)
 }
 
 fn bone(section: &Section, out: &mut Mapped) {

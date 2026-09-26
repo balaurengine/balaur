@@ -534,6 +534,10 @@ hframes = 4
 vframes = 2
 frame = 5
 
+[node name="Route" type="Line2D" parent="."]
+points = PackedVector2Array(0, 0, 100, 200, 300, 0)
+width = 10.0
+
 [node name="Tree" type="AnimationTree" parent="."]
 libraries/ = SubResource("Lib")
 tree_root = SubResource("Machine")
@@ -946,20 +950,6 @@ func _process(_delta):
         );
         assert!(out.path().join("shaders/glow.wesl").is_file());
 
-        let flipbook = &node(&scene, "Flipbook")["sprite"];
-        assert_eq!(flipbook["frame"].as_float(), Some(5.0));
-        let reference = flipbook["sheet"].as_str().expect("the grid is a sheet");
-        let sheet = scene["assets"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|a| Some(a["id"].as_str().unwrap()) == reference.strip_prefix('#'))
-            .expect("the sheet is an inline asset");
-        assert_eq!(sheet["type"].as_str(), Some("sprite_sheet"));
-        assert_eq!(sheet["columns"].as_integer(), Some(4));
-        assert_eq!(sheet["rows"].as_integer(), Some(2));
-        assert_eq!(sheet["texture"], flipbook["texture"]);
-
         let tree = node(&scene, "Tree");
         let machine = read(
             out.path(),
@@ -1023,6 +1013,48 @@ func _process(_delta):
         assert!(theme["button"]["disabled"]["fill"].as_str().is_some());
         assert!(theme["button"]["focus"]["fill"].as_str().is_some());
         assert!(theme["roles"]["ButtonGreen"]["fill"].as_str().is_some());
+    }
+
+    /// A scene's `[[assets]]` entry that a `#id` reference names.
+    fn inline_asset<'a>(scene: &'a toml::Value, reference: &toml::Value) -> &'a toml::Value {
+        let id = reference
+            .as_str()
+            .and_then(|r| r.strip_prefix('#'))
+            .expect("an inline reference");
+        scene["assets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|a| a["id"].as_str() == Some(id))
+            .expect("the asset is in the scene")
+    }
+
+    #[test]
+    fn a_sprite_grid_is_a_sheet_and_a_line_strokes_a_path() {
+        let godot = godot();
+        let out = tempfile::tempdir().unwrap();
+        import_project(&godot.path().join("project.godot"), out.path()).unwrap();
+        let scene = read(out.path(), "scenes/extras.toml");
+
+        let flipbook = &node(&scene, "Flipbook")["sprite"];
+        assert_eq!(flipbook["frame"].as_float(), Some(5.0));
+        let sheet = inline_asset(&scene, &flipbook["sheet"]);
+        assert_eq!(sheet["type"].as_str(), Some("sprite_sheet"));
+        assert_eq!(sheet["columns"].as_integer(), Some(4));
+        assert_eq!(sheet["rows"].as_integer(), Some(2));
+        assert_eq!(sheet["texture"], flipbook["texture"]);
+
+        let route = &node(&scene, "Route")["shape2d"];
+        assert_eq!(route["kind"].as_str(), Some("polyline"));
+        let path = inline_asset(&scene, &route["mesh"]);
+        assert_eq!(path["type"].as_str(), Some("path2d"));
+        let controls = path["points"].as_array().unwrap();
+        assert_eq!(controls.len(), 7, "three anchors, two straight segments");
+        assert_eq!(
+            floats(&controls[3]),
+            vec![1.0, -2.0],
+            "y flips and pixels become units"
+        );
     }
 
     /// A Godot instance node is its prefab's root, and so is the node here:
