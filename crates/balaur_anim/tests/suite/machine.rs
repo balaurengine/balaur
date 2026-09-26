@@ -328,12 +328,17 @@ fn the_machine_says_which_state_it_left_and_which_it_entered() {
             "{STATES}\n[[transitions]]\nfrom = \"idle\"\nto = \"walk\"\nadvance_mode = \"auto\"\ncondition = \"moving\"\n"
         ),
     );
+    // The clips the states play announce too; this is about the states.
+    let states = || -> Vec<String> {
+        let order = calls.order(hero).into_iter();
+        order.filter(|m| m.starts_with("on_state_")).collect()
+    };
     tick(&mut app, 2);
-    assert_eq!(calls.order(hero), ["on_state_started"]);
+    assert_eq!(states(), ["on_state_started"]);
     machine::set_condition(&app.engine, hero, "moving", true).unwrap();
     tick(&mut app, 1);
     assert_eq!(
-        calls.order(hero),
+        states(),
         ["on_state_started", "on_state_finished", "on_state_started"]
     );
     let text = |s: &str| Some(vec![balaur_script::Value::Str(s.to_string())]);

@@ -74,7 +74,10 @@ pub use crate::player::{
     set_speed_scale, stop, time,
 };
 pub use crate::retarget::{BONE_MAP_ASSET_TYPE, BoneMap, PROFILE_ASSET_TYPE, SkeletonProfile};
-pub use crate::system::{FINISHED_EVENT, TWEEN_FINISHED_EVENT};
+pub use crate::system::{
+    CHANGED_EVENT, FINISHED_EVENT, LOOPED_EVENT, STARTED_EVENT, TWEEN_FINISHED_EVENT,
+    TWEEN_LOOPED_EVENT, TWEEN_STEP_EVENT,
+};
 pub use crate::tween::{Tween, TweenId};
 
 pub struct AnimationPlugin {
@@ -167,7 +170,12 @@ fn register_animation_component(reg: &mut Registry<'_>) {
     reg.register_component(
         COMPONENT,
         ComponentDef {
-            events: &[(system::FINISHED_EVENT, "the clip's name")],
+            events: &[
+                (system::STARTED_EVENT, "the clip's name"),
+                (system::CHANGED_EVENT, "`#{ from, to }`, the clips' names"),
+                (system::LOOPED_EVENT, "the clip's name"),
+                (system::FINISHED_EVENT, "the clip's name"),
+            ],
             warnings: None,
             doc: "Plays animation clips on the node. `library` is the clip asset, `autoplay` the clip started on load, `speed_scale` the rate; the `animation` module drives playback.",
             schema: ComponentDef::parse_schema(

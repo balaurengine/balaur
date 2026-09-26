@@ -118,6 +118,7 @@ struct TweenFrame {
     pending: Option<String>,
     value: bool,
     clip: ClipFrame,
+    step_ends: Vec<f32>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -254,6 +255,7 @@ fn capture(eng: &Engine) -> Value {
                 pending: tween.pending.clone(),
                 value: tween.value,
                 clip: clip_frame(&tween.clip),
+                step_ends: tween.step_ends.clone(),
             })
             .collect(),
         jiggle: state
@@ -313,6 +315,34 @@ fn fade_frame(fade: &crate::player::Fade) -> FadeFrame {
     }
 }
 
+/// The tweens a frame held, on the nodes that still answer to their ids.
+fn tweens_of(eng: &Engine, frames: Vec<TweenFrame>) -> Vec<(TweenId, Tween)> {
+    let world = eng.world();
+    let root = eng.root();
+    frames
+        .into_iter()
+        .filter_map(|tween| {
+            let node = entity_of(&world, root, &tween.id, tween.entity)?;
+            Some((
+                tween.handle,
+                Tween {
+                    node,
+                    clip: std::rc::Rc::new(clip_of(&tween.clip)),
+                    time: tween.time,
+                    speed: tween.speed,
+                    running: tween.running,
+                    loops: tween.loops,
+                    played: tween.played,
+                    after: tween.after,
+                    pending: tween.pending,
+                    value: tween.value,
+                    step_ends: tween.step_ends,
+                },
+            ))
+        })
+        .collect()
+}
+
 fn restore(eng: &Engine, value: &Value) {
     let frame: AnimationFrame = match AnimationFrame::deserialize(value) {
         Ok(frame) => frame,
@@ -349,32 +379,7 @@ fn restore(eng: &Engine, value: &Value) {
         .iter()
         .map(|(_, player)| map_for(eng, &player.retarget))
         .collect();
-    let tweens: Vec<(TweenId, Tween)> = {
-        let world = eng.world();
-        let root = eng.root();
-        frame
-            .tweens
-            .into_iter()
-            .filter_map(|tween| {
-                let node = entity_of(&world, root, &tween.id, tween.entity)?;
-                Some((
-                    tween.handle,
-                    Tween {
-                        node,
-                        clip: std::rc::Rc::new(clip_of(&tween.clip)),
-                        time: tween.time,
-                        speed: tween.speed,
-                        running: tween.running,
-                        loops: tween.loops,
-                        played: tween.played,
-                        after: tween.after,
-                        pending: tween.pending,
-                        value: tween.value,
-                    },
-                ))
-            })
-            .collect()
-    };
+    let tweens = tweens_of(eng, frame.tweens);
     let jiggle: Vec<(Entity, Jiggle)> = {
         let world = eng.world();
         let root = eng.root();
@@ -625,6 +630,7 @@ fn clip_of(frame: &ClipFrame) -> Clip {
                             .and_then(|name| Easing::parse(name).ok()),
                         wide: Vec::new(),
                         discrete: None,
+                        args: Vec::new(),
                     })
                     .collect(),
             })

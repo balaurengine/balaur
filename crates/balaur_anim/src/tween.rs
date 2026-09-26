@@ -117,6 +117,8 @@ pub struct Tween {
     pub pending: Option<String>,
     /// Drives no node: a script reads it with [`value_of`].
     pub value: bool,
+    /// When each of the `steps` is over, in the order they were written.
+    pub step_ends: Vec<f32>,
 }
 
 /// Build a tween on `node` from a specification table and start it.
@@ -141,7 +143,7 @@ pub fn start(eng: &Engine, node: Entity, spec: &toml::Value) -> Result<TweenId> 
     if !speed.is_finite() || speed <= 0.0 {
         bail!("`speed` scales a tween's own duration, so it has to be a positive number");
     }
-    let clip = build(eng, node, spec)?;
+    let (clip, step_ends) = build(eng, node, spec)?;
     let after = after_of(spec)?;
     let state = eng.resource::<AnimationState>();
     let mut state = state.borrow_mut();
@@ -164,6 +166,7 @@ pub fn start(eng: &Engine, node: Entity, spec: &toml::Value) -> Result<TweenId> 
             after,
             pending,
             value: false,
+            step_ends,
         },
     );
     Ok(id)
@@ -224,6 +227,7 @@ pub fn start_value(
             after: None,
             pending: None,
             value: true,
+            step_ends: Vec::new(),
         },
     );
     Ok(id)
@@ -273,7 +277,9 @@ pub(crate) fn begin(eng: &Engine, tween: &mut Tween) -> Result<()> {
         return Ok(());
     };
     let spec: toml::Value = toml::from_str(&text)?;
-    tween.clip = Rc::new(build(eng, tween.node, &spec)?);
+    let (clip, step_ends) = build(eng, tween.node, &spec)?;
+    tween.clip = Rc::new(clip);
+    tween.step_ends = step_ends;
     Ok(())
 }
 
@@ -468,7 +474,12 @@ fn loops_of(spec: &toml::Value) -> Result<u32> {
 
 /// One fixed step of one tween. Answers whether it is finished and should be
 /// forgotten.
-pub(crate) fn advance(world: &World, tween: &mut Tween, effects: &mut Vec<Effect>) -> bool {
+pub(crate) fn advance(
+    world: &World,
+    id: TweenId,
+    tween: &mut Tween,
+    effects: &mut Vec<Effect>,
+) -> bool {
     // A value tween over is kept until the next tick, so a script reading
     // it each frame sees where it landed; the tick's start lets it go.
     if !tween.running {
@@ -492,12 +503,20 @@ pub(crate) fn advance(world: &World, tween: &mut Tween, effects: &mut Vec<Effect
         );
         crate::system::collect_calls(world, tween.node, "", &clip, was, tween.time, effects);
     }
+    for (step, &end) in tween.step_ends.iter().enumerate() {
+        if was < end && end <= tween.time {
+            let entity = tween.node;
+            effects.push(Effect::TweenStep { entity, id, step });
+        }
+    }
     if !over {
         return false;
     }
     tween.played += 1;
     if tween.loops == 0 || tween.played < tween.loops {
         tween.time = 0.0;
+        let (entity, played) = (tween.node, tween.played);
+        effects.push(Effect::TweenLooped { entity, id, played });
         return false;
     }
     tween.running = false;
@@ -514,9 +533,12 @@ struct Builder<'a> {
     chain: f32,
     /// When the group being built started, which is what `parallel` joins.
     group: f32,
+    /// When each step placed so far is over.
+    ends: Vec<f32>,
 }
 
-fn build(eng: &Engine, node: Entity, spec: &toml::Value) -> Result<Clip> {
+/// The clip a specification's steps add up to, and when each step is over.
+fn build(eng: &Engine, node: Entity, spec: &toml::Value) -> Result<(Clip, Vec<f32>)> {
     let steps = spec
         .get(k::STEPS)
         .and_then(toml::Value::as_array)
@@ -531,6 +553,7 @@ fn build(eng: &Engine, node: Entity, spec: &toml::Value) -> Result<Clip> {
         tracks: Vec::new(),
         chain: delay,
         group: delay,
+        ends: Vec::new(),
     };
     for (index, step) in steps.iter().enumerate() {
         builder
@@ -540,7 +563,7 @@ fn build(eng: &Engine, node: Entity, spec: &toml::Value) -> Result<Clip> {
     for track in &mut builder.tracks {
         track.keys.sort_by(|a, b| a.time.total_cmp(&b.time));
     }
-    Ok(Clip {
+    let clip = Clip {
         // A tween of nothing but callbacks has no duration of its own, and
         // still has to live long enough for one step to deliver them.
         length: if builder.chain > 0.0 {
@@ -552,7 +575,8 @@ fn build(eng: &Engine, node: Entity, spec: &toml::Value) -> Result<Clip> {
         // looping clip would never end and never be cleaned up.
         loop_mode: LoopMode::None,
         tracks: builder.tracks,
-    })
+    };
+    Ok((clip, builder.ends))
 }
 
 impl Builder<'_> {
@@ -598,6 +622,8 @@ impl Builder<'_> {
             bail!("a step lasts a number of seconds, and cannot last fewer than none");
         }
         self.chain = self.chain.max(start + duration);
+        // Past the head, as a call key is: a step over at zero ends on the first tick.
+        self.ends.push((start + duration).max(CALL_AT_HEAD));
         Ok(())
     }
 
@@ -619,6 +645,7 @@ impl Builder<'_> {
             ease: None,
             wide: Vec::new(),
             discrete: None,
+            args: Vec::new(),
         });
         Ok(())
     }
@@ -777,6 +804,7 @@ fn push_segment(
             ease: None,
             wide: Vec::new(),
             discrete: None,
+            args: Vec::new(),
         });
     }
     track.keys.push(Key {
@@ -787,6 +815,7 @@ fn push_segment(
         ease: None,
         wide: Vec::new(),
         discrete: None,
+        args: Vec::new(),
     });
     track.keys.push(Key {
         time: start + duration,
@@ -796,6 +825,7 @@ fn push_segment(
         ease,
         wide: Vec::new(),
         discrete: None,
+        args: Vec::new(),
     });
 }
 

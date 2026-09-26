@@ -71,6 +71,9 @@ pub struct Playback {
     /// The clips crossfades are leaving, oldest first, each still advancing
     /// and blended out; a fade started mid-fade stacks rather than cuts.
     pub fades: Vec<Fade>,
+    /// The clip left and the clip begun since the system last announced it;
+    /// the first is empty when nothing was playing.
+    pub(crate) began: Option<(String, String)>,
 }
 
 /// The outgoing half of a crossfade.
@@ -181,6 +184,7 @@ impl Default for Playback {
             retarget: None,
             retarget_reference: String::new(),
             fades: Vec::new(),
+            began: None,
         }
     }
 }
@@ -316,7 +320,7 @@ pub fn play_blended(
     from_start: bool,
 ) -> Result<()> {
     let state = eng.resource::<AnimationState>();
-    let (reference, addressable, same, outgoing) = {
+    let (reference, addressable, same, outgoing, left) = {
         let state = state.borrow();
         let playback = state
             .players
@@ -328,6 +332,11 @@ pub fn play_blended(
             playback.defined.contains_key(clip_name) || !playback.library.trim().is_empty(),
             same,
             leaving(playback, blend_time, ease, None, false).filter(|_| !same),
+            if playback.active() {
+                playback.clip_name.clone()
+            } else {
+                String::new()
+            },
         )
     };
     if !addressable {
@@ -343,6 +352,7 @@ pub fn play_blended(
         playback.clip = Some(clip);
         if from_start || !same {
             playback.time = 0.0;
+            playback.began = Some((left, clip_name.to_string()));
         }
         playback.playing = true;
         playback.paused = false;

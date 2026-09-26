@@ -21,7 +21,7 @@
 //! ]                             # `ease` shapes the segment into its key
 //!
 //! [[tracks]]                    # a method track: no property, keys that call
-//! keys = [ { time = 0.8, call = "on_footstep" } ]
+//! keys = [ { time = 0.8, call = "on_footstep", args = ["left"] } ]
 //! ```
 //!
 //! A library file is the same document with named entries (`[clips.idle]`),
@@ -256,6 +256,8 @@ pub struct Key {
     /// widget's `role`, a check's `checked`. Held rather than blended, since
     /// there is nothing between two names, and written as it was authored.
     pub discrete: Option<toml::Value>,
+    /// What a method key hands the method, in order. Empty on every value key.
+    pub args: Vec<balaur_script::Value>,
 }
 
 /// One property of one node over time — or, with no property, one list of
@@ -436,6 +438,14 @@ fn parse_key(
                 )
             })?
             .to_string();
+        let args = match value.get(k::ARGS) {
+            Some(toml::Value::Array(args)) => args
+                .iter()
+                .map(balaur_core::node_api::from_toml)
+                .collect::<Result<Vec<_>>>()?,
+            Some(other) => bail!("`args` is {}, not a list", other.type_str()),
+            None => Vec::new(),
+        };
         return Ok(Key {
             time,
             value: Vec4::ZERO,
@@ -444,6 +454,7 @@ fn parse_key(
             ease,
             wide: Vec::new(),
             discrete: None,
+            args,
         });
     }
     if value.get(k::CALL).is_some() {
@@ -459,6 +470,7 @@ fn parse_key(
             ease,
             wide,
             discrete: None,
+            args: Vec::new(),
         });
     }
     // A component's string or bool property keys its own value, which no
@@ -474,6 +486,7 @@ fn parse_key(
             ease,
             wide: Vec::new(),
             discrete: Some(raw.clone()),
+            args: Vec::new(),
         });
     }
     Ok(Key {
@@ -484,6 +497,7 @@ fn parse_key(
         ease,
         wide: Vec::new(),
         discrete: None,
+        args: Vec::new(),
     })
 }
 

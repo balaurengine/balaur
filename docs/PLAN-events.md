@@ -1,5 +1,5 @@
 > **Status:** written 2026-09-26 from an audit of every crate, done by reading
-> the code. §2, §3 and §4.1 to §4.5 are built; §4.6 is next. The order is bugs
+> the code. §2, §3 and §4.1 to §4.6 are built; §4.7 is next. The order is bugs
 > first, then one delivery path, then the events the engine does not send yet.
 
 # Plan: events, and one way to hear each of them
@@ -79,7 +79,7 @@ Each is a wrong result today, not a missing feature.
    that also subscribes to its own node runs the handler again a frame later.
 4. **Paused scripts miss the window.** Focus, dark mode and quit use
    `call_all`, which skips paused scripts (`balaur_core/src/facts.rs:368`,
-   `balaur_render/src/kiss3d_input.rs:109`); `on_paused` already uses
+   `balaur_render/src/kiss3d_input.rs:109`); `on_paused_changed` already uses
    `announce`.
 5. **Two awaits never return.** `websocket.connect` and `gamend` `connect`
    return an id that nothing wakes (`balaur_websocket/src/lib.rs:226`,
@@ -145,8 +145,13 @@ In order of how often a game needs them.
    torn edges. A joint break names both ends and the force. 2D gained
    `is_moving`, `contacts`, `bodies`, `active_bodies`, `potential_energy` and
    `effective_dominance`.
-6. **Animation:** clip started, changed and looped; tween loop and step;
-   method-track keys with arguments; one-shot particles finished.
+6. **Animation:** built. A player announces `animation_started`,
+   `animation_changed` with `#{ from, to }` and `animation_looped`, whether
+   `play` or a state machine started the clip. A tween announces
+   `tween_looped` with `#{ tween, played }` and `tween_step` with
+   `#{ tween, step }`. A method key hands its `args` to the method. A
+   one-shot `particles` burst announces `finished`, timed from its settings
+   on the fixed step so a headless run hears it too.
 7. **The app and input:** suspend and resume, low memory, orientation and
    safe area; right and middle mouse buttons; action released; gamepad
    connected and disconnected; settings and language changed.

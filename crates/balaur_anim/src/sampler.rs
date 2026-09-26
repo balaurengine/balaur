@@ -154,7 +154,7 @@ pub fn spans(clip: &Clip, from: f32, to: f32) -> Vec<(f32, f32)> {
 
 /// Which pass over the clip `elapsed` falls in. Negative for time before the
 /// start, which a negative speed reaches.
-fn pass_of(elapsed: f32, length: f32) -> i32 {
+pub(crate) fn pass_of(elapsed: f32, length: f32) -> i32 {
     (elapsed / length).floor() as i32
 }
 

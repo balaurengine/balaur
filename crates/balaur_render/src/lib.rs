@@ -889,6 +889,8 @@ impl balaur_plugin::Plugin for RenderPlugin {
         text_component::register_text3d_component(reg);
         tilemap::register_tilemap_component(reg);
         particles::register_particles_component(reg);
+        reg.insert_resource(particles::Bursts::default());
+        reg.add_system(Stage::FixedUpdate, particles::burst_system);
         // SceneSync, and after the core propagation system registered at
         // `App::new`: the camera follows the node's settled global pose.
         reg.add_system(Stage::SceneSync, camera::drive_camera_system);

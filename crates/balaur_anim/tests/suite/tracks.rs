@@ -709,3 +709,96 @@ keys = [ { time = 0.0, value = "calm" }, { time = 0.5, value = 3.0 } ]
     let why = format!("{why:#}");
     assert!(why.contains("names and numbers"), "{why}");
 }
+
+#[test]
+fn a_method_key_hands_its_args_to_the_method() {
+    let (mut app, calls) = app_recording_calls();
+    let entity = spawn(&app, "Walker");
+    set(
+        &app,
+        entity,
+        "animation",
+        r#"
+[library]
+length = 1.0
+
+[[library.tracks]]
+keys = [ { time = 0.5, call = "on_footstep", args = ["left", 2] } ]
+"#,
+    );
+    balaur_anim::play(&app.engine, entity, "").unwrap();
+
+    tick(&mut app, 40);
+
+    assert_eq!(
+        calls.args(entity, "on_footstep"),
+        Some(vec![
+            balaur_script::Value::Str("left".into()),
+            balaur_script::Value::Int(2)
+        ])
+    );
+}
+
+#[test]
+fn a_looping_clip_says_it_started_once_and_each_time_it_goes_round() {
+    let (mut app, calls) = app_recording_calls();
+    let entity = spawn(&app, "Spinner");
+    set(
+        &app,
+        entity,
+        "animation",
+        r#"
+[library]
+length = 0.5
+loop_mode = "linear"
+
+[[library.tracks]]
+property = "position"
+keys = [ { time = 0.0, value = [0.0, 0.0, 0.0] }, { time = 0.5, value = [0.0, 1.0, 0.0] } ]
+"#,
+    );
+    balaur_anim::play(&app.engine, entity, "").unwrap();
+
+    // 70 steps is 1.17 seconds: round the end at 0.5 and at 1.0.
+    tick(&mut app, 70);
+
+    assert_eq!(calls.count(entity, "on_animation_started"), 1);
+    assert_eq!(calls.count(entity, "on_animation_looped"), 2);
+    assert_eq!(calls.count(entity, "on_animation_finished"), 0);
+}
+
+#[test]
+fn playing_another_clip_says_which_one_it_left() {
+    let (mut app, calls) = app_recording_calls();
+    let entity = spawn(&app, "Dancer");
+    set(
+        &app,
+        entity,
+        "animation",
+        r#"
+[library.clips.walk]
+length = 1.0
+loop_mode = "linear"
+tracks = [ { property = "position", keys = [ { time = 0.0, value = [0.0, 0.0, 0.0] } ] } ]
+
+[library.clips.run]
+length = 1.0
+loop_mode = "linear"
+tracks = [ { property = "position", keys = [ { time = 0.0, value = [0.0, 1.0, 0.0] } ] } ]
+"#,
+    );
+    balaur_anim::play(&app.engine, entity, "walk").unwrap();
+    tick(&mut app, 5);
+    balaur_anim::play(&app.engine, entity, "run").unwrap();
+    tick(&mut app, 5);
+
+    assert_eq!(calls.count(entity, "on_animation_started"), 2);
+    let changed = calls.args(entity, "on_animation_changed");
+    assert_eq!(
+        changed,
+        Some(vec![balaur_script::Value::Map(vec![
+            ("from".into(), balaur_script::Value::Str("walk".into())),
+            ("to".into(), balaur_script::Value::Str("run".into())),
+        ])])
+    );
+}

@@ -403,8 +403,13 @@ duration = 0.5
 
     tick(&mut app, 12);
     assert_eq!(calls.count(entity, "on_landed"), 1, "the call is late");
+    let steps_called: Vec<String> = calls
+        .order(entity)
+        .into_iter()
+        .filter(|m| !m.starts_with("on_tween_"))
+        .collect();
     assert_eq!(
-        calls.order(entity),
+        steps_called,
         vec!["on_started".to_string(), "on_landed".to_string()],
         "the calls came out of order"
     );
@@ -1067,5 +1072,50 @@ fn a_tween_moves_a_node_that_never_had_a_transform() {
     assert!(
         height(&app, entity) > 9.0,
         "the tween started from the identity and arrived"
+    );
+}
+
+#[test]
+fn a_tween_says_when_each_step_ends_and_each_round_begins() {
+    let mut app = app();
+    let calls = std::rc::Rc::new(Calls::default());
+    app.engine.set_script_host(calls.clone());
+    let entity = spawn(&app, "Box");
+    let id = start(
+        &app,
+        entity,
+        r#"
+loops = 3
+
+[[steps]]
+property = "position"
+to = [0.0, 1.0, 0.0]
+duration = 0.2
+
+[[steps]]
+property = "position"
+to = [0.0, 2.0, 0.0]
+duration = 0.2
+"#,
+    );
+    tick(&mut app, 24 * 3 + 6);
+    assert_eq!(
+        calls.count(entity, "on_tween_step"),
+        6,
+        "two steps, three rounds"
+    );
+    assert_eq!(
+        calls.count(entity, "on_tween_looped"),
+        2,
+        "the second and the third round"
+    );
+    assert_eq!(calls.count(entity, "on_tween_finished"), 1);
+    let handle = balaur_script::Value::Int(i64::try_from(id).unwrap());
+    assert_eq!(
+        calls.args(entity, "on_tween_looped"),
+        Some(vec![balaur_script::Value::Map(vec![
+            ("tween".into(), handle),
+            ("played".into(), balaur_script::Value::Int(1)),
+        ])])
     );
 }

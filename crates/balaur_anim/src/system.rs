@@ -34,12 +34,30 @@ pub(crate) enum Effect {
         property: String,
         value: toml::Value,
     },
-    /// Call a method on a node's script instance.
-    Call { entity: Entity, method: String },
+    /// Call a method on a node's script instance, with the key's arguments.
+    Call {
+        entity: Entity,
+        method: String,
+        args: Vec<balaur_script::Value>,
+    },
     /// Call a function a tween step was handed, which the host keeps.
     Invoke { id: u64 },
     /// Tell a node's script the tween it holds a handle to has run out.
     TweenFinished { entity: Entity, id: TweenId },
+    /// Tell a node a tween on it went round again, and how many times it has.
+    TweenLooped {
+        entity: Entity,
+        id: TweenId,
+        played: u32,
+    },
+    /// Tell a node one step of a tween on it is over.
+    TweenStep {
+        entity: Entity,
+        id: TweenId,
+        step: usize,
+    },
+    /// Tell a player's node its looping clip went round an end.
+    Looped { entity: Entity, clip: String },
     /// Put a `polygon/deform` track's offsets on the node it deforms.
     Deform { entity: Entity, offsets: Vec<f32> },
     /// Tell a node a `visible` track just flipped it.
@@ -48,6 +66,18 @@ pub(crate) enum Effect {
 
 /// What a player's node emits when a clip ends, with the clip's name.
 pub const FINISHED_EVENT: &str = "animation_finished";
+/// What it emits when a clip starts from its beginning, with the clip's name.
+pub const STARTED_EVENT: &str = "animation_started";
+/// What it emits when a clip takes over from another, `#{ from, to }`.
+pub const CHANGED_EVENT: &str = "animation_changed";
+/// What it emits each time a looping clip goes round an end.
+pub const LOOPED_EVENT: &str = "animation_looped";
+/// What a node announces when a tween on it starts another loop,
+/// `#{ tween, played }`.
+pub const TWEEN_LOOPED_EVENT: &str = "tween_looped";
+/// What a node announces when one step of a tween on it is over,
+/// `#{ tween, step }`.
+pub const TWEEN_STEP_EVENT: &str = "tween_step";
 
 /// What a node announces when a tween on it runs out, with the tween's handle.
 pub const TWEEN_FINISHED_EVENT: &str = "tween_finished";
@@ -175,7 +205,7 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
                     done.push(id);
                     continue;
                 }
-                if tween::advance(&world, tween, &mut effects) {
+                if tween::advance(&world, id, tween, &mut effects) {
                     if tween.played > 0 {
                         effects.push(Effect::TweenFinished {
                             entity: tween.node,
@@ -196,6 +226,41 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
     tween::release_unheld(eng);
     settle_ended(eng, &ended);
     crate::machine::announce(eng, &moved);
+    announce_began(eng);
+}
+
+/// Tell each player's node which clip it began since the last frame, and
+/// which it left for it, after the clip that ended is announced.
+fn announce_began(eng: &Engine) {
+    let began: Vec<(Entity, String, String)> = {
+        let state = eng.resource::<AnimationState>();
+        let mut state = state.borrow_mut();
+        state
+            .players
+            .iter_mut()
+            .filter_map(|(&entity, playback)| {
+                let (from, to) = playback.began.take()?;
+                Some((entity, from, to))
+            })
+            .collect()
+    };
+    for (entity, from, to) in began {
+        if !from.is_empty() && from != to {
+            let change = balaur_script::Value::Map(vec![
+                (
+                    crate::keys::FROM.to_string(),
+                    balaur_script::Value::Str(from),
+                ),
+                (
+                    crate::keys::TO.to_string(),
+                    balaur_script::Value::Str(to.clone()),
+                ),
+            ]);
+            balaur_core::events::announce(eng, entity, CHANGED_EVENT, change);
+        }
+        let clip = balaur_script::Value::Str(to);
+        balaur_core::events::announce(eng, entity, STARTED_EVENT, clip);
+    }
 }
 
 /// One fixed step of one node. Answers whether the clip ended on this step.
@@ -215,6 +280,15 @@ fn advance_playback(
     let was = playback.time;
     playback.time += fixed_dt() * playback.speed_scale;
     let (time, past_end) = sampler::clip_time(&clip, playback.time);
+    if clip.loop_mode != LoopMode::None
+        && clip.length > 0.0
+        && sampler::pass_of(was, clip.length) != sampler::pass_of(playback.time, clip.length)
+    {
+        effects.push(Effect::Looped {
+            entity,
+            clip: playback.clip_name.clone(),
+        });
+    }
     // Backwards off the start ends a non-looping clip too, or a negative
     // speed would leave it playing at time zero for the rest of the session.
     let backwards_off =
@@ -476,6 +550,7 @@ pub(crate) fn collect_calls(
                 effects.push(Effect::Call {
                     entity: target,
                     method: method.clone(),
+                    args: key.args.clone(),
                 });
             } else if let Some(id) = key.function {
                 effects.push(Effect::Invoke { id });
@@ -569,9 +644,13 @@ fn apply_effects(eng: &Engine, effects: &[Effect]) {
                     );
                 }
             }
-            Effect::Call { entity, method } => {
+            Effect::Call {
+                entity,
+                method,
+                args,
+            } => {
                 if let Some(host) = host.as_ref() {
-                    host.call_on(balaur_core::node_id_of(*entity), method, &[]);
+                    host.call_on(balaur_core::node_id_of(*entity), method, args);
                 }
             }
             Effect::Invoke { id } => {
@@ -606,15 +685,39 @@ fn apply_effects(eng: &Engine, effects: &[Effect]) {
                 );
             }
             Effect::TweenFinished { entity, id } => {
-                balaur_core::events::announce(
-                    eng,
-                    *entity,
-                    TWEEN_FINISHED_EVENT,
-                    balaur_script::Value::Int(i64::try_from(*id).unwrap_or(i64::MAX)),
-                );
+                balaur_core::events::announce(eng, *entity, TWEEN_FINISHED_EVENT, handle(*id));
+            }
+            Effect::TweenLooped { entity, id, played } => {
+                let payload = balaur_script::Value::Map(vec![
+                    (crate::keys::TWEEN.to_string(), handle(*id)),
+                    (
+                        crate::keys::PLAYED.to_string(),
+                        balaur_script::Value::Int(i64::from(*played)),
+                    ),
+                ]);
+                balaur_core::events::announce(eng, *entity, TWEEN_LOOPED_EVENT, payload);
+            }
+            Effect::TweenStep { entity, id, step } => {
+                let payload = balaur_script::Value::Map(vec![
+                    (crate::keys::TWEEN.to_string(), handle(*id)),
+                    (
+                        crate::keys::STEP.to_string(),
+                        balaur_script::Value::Int(i64::try_from(*step).unwrap_or(i64::MAX)),
+                    ),
+                ]);
+                balaur_core::events::announce(eng, *entity, TWEEN_STEP_EVENT, payload);
+            }
+            Effect::Looped { entity, clip } => {
+                let clip = balaur_script::Value::Str(clip.clone());
+                balaur_core::events::announce(eng, *entity, LOOPED_EVENT, clip);
             }
         }
     }
+}
+
+/// A tween's handle as a script holds it.
+fn handle(id: TweenId) -> balaur_script::Value {
+    balaur_script::Value::Int(i64::try_from(id).unwrap_or(i64::MAX))
 }
 
 /// Start whatever was queued behind a clip that just ended, then tell its

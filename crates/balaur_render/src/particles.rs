@@ -4,7 +4,9 @@
 //! component holds emitter settings only; live particles, and the random
 //! stream that scatters them, live backend-side — each emitter owns a PCG
 //! seeded from its entity bits, so the engine's `rng` stream is untouched and
-//! a headless run ticks bit-identically to a windowed one.
+//! a headless run ticks bit-identically to a windowed one. The one thing an
+//! emitter tells a script, a one-shot burst's `finished`, is timed from its
+//! settings on the fixed step for the same reason, never from live particles.
 
 use crate::vocabulary::keys as k;
 use anyhow::{Result, anyhow};
@@ -47,6 +49,56 @@ pub struct Particles {
     pub explosiveness: f32,
 }
 
+/// What a one-shot emitter announces once its burst has had time to die out.
+pub(crate) const FINISHED_EVENT: &str = "finished";
+
+/// How long each one-shot burst has been going; `None` once it has
+/// announced, until `emitting` falls and re-arms it.
+#[derive(Default)]
+pub(crate) struct Bursts(balaur_core::collections::DetHashMap<Entity, Option<f32>>);
+
+/// Announce `finished` for each one-shot burst whose last particle is due to
+/// have died: the last is born `lifetime * (1 - explosiveness)` in, and lives
+/// `lifetime`.
+pub(crate) fn burst_system(eng: &Engine, _dt: f32) {
+    let finished = {
+        let world = eng.world();
+        let paused = balaur_core::process::pause(eng);
+        let bursts = eng.resource::<Bursts>();
+        let mut bursts = bursts.borrow_mut();
+        let mut live = balaur_core::collections::DetHashMap::default();
+        let mut finished = Vec::new();
+        for (entity, emitter) in &mut world.query::<(Entity, &Particles)>() {
+            if !(emitter.one_shot && emitter.emitting) {
+                continue;
+            }
+            let next = match bursts.0.get(&entity).copied() {
+                None => Some(0.0),
+                Some(None) => None,
+                Some(Some(elapsed)) if balaur_core::process::ticks(&world, entity, paused) => {
+                    Some(elapsed + balaur_core::fixed_dt())
+                }
+                Some(held) => held,
+            };
+            let due = emitter.lifetime * (2.0 - emitter.explosiveness);
+            let next = next.filter(|&elapsed| {
+                let over = elapsed + f32::EPSILON >= due;
+                if over {
+                    finished.push(entity);
+                }
+                !over
+            });
+            live.insert(entity, next);
+        }
+        bursts.0 = live;
+        finished.sort_by_key(|entity| entity.to_bits());
+        finished
+    };
+    for entity in finished {
+        balaur_core::events::announce(eng, entity, FINISHED_EVENT, balaur_script::Value::Nil);
+    }
+}
+
 fn set_particles(eng: &Engine, entity: Entity, next: Particles) -> Result<()> {
     let mut world = eng.world_mut();
     if let Ok(mut emitter) = world.get::<&mut Particles>(entity) {
@@ -64,7 +116,7 @@ pub(crate) fn register_particles_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "particles",
         ComponentDef {
-            events: &[],
+            events: &[(FINISHED_EVENT, "nil, once a one-shot burst has died out")],
             warnings: None,
             doc: "A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `direction`, `spread_degrees` and `gravity`. The live particles are renderer state the simulation never sees.",
             schema: ComponentDef::parse_schema(

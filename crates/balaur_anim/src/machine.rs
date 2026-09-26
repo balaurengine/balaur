@@ -711,7 +711,13 @@ fn enter(run: &mut MachineRun, machine: &Machine, playback: &mut Playback, to: &
         entry.curve,
         entry.break_loop,
     );
+    let left = if playback.active() {
+        playback.clip_name.clone()
+    } else {
+        String::new()
+    };
     playback.clip_name = machine.clip_of(to).to_string();
+    playback.began = Some((left, playback.clip_name.clone()));
     playback.clip = Some(clip);
     if !entry.sync {
         playback.time = match run.times.get(to) {

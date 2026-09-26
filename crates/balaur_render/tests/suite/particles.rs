@@ -112,3 +112,28 @@ fn a_burst_and_a_ramp_round_trip() {
     assert!((end[1].as_float().unwrap() - 0.5).abs() < 1e-6);
     assert!(end[3].as_float().unwrap().abs() < 1e-6);
 }
+
+#[test]
+fn a_one_shot_burst_says_finished_once_its_last_particle_is_due_to_die() {
+    let mut app = app();
+    let entity = node(&app);
+    let params: toml::Value =
+        toml::from_str("one_shot = true\nexplosiveness = 1.0\nlifetime = 0.5\nrate = 10.0")
+            .expect("the emitter params are valid TOML");
+    components::add(&app.engine, entity, "particles", Some(&params))
+        .expect("a valid emitter applies");
+    let mut heard = Vec::new();
+    for frame in 0..60 {
+        app.tick(1.0 / 60.0);
+        if !balaur_core::events::delivered_from(&app.engine, entity, "finished").is_empty() {
+            heard.push(frame);
+        }
+    }
+    // All born at once and half a second to live: over on the 30th step,
+    // heard at the pump on the next frame.
+    assert_eq!(heard.len(), 1, "finished once, not every frame: {heard:?}");
+    assert!(
+        (29..=32).contains(&heard[0]),
+        "heard half a second in: {heard:?}"
+    );
+}

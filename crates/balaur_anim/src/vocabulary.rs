@@ -18,6 +18,8 @@ pub mod keys {
     pub const BREAK_LOOP_AT_END: &str = "break_loop_at_end";
     pub const BY: &str = "by";
     pub const CALL: &str = "call";
+    /// What a method key hands the method it calls.
+    pub const ARGS: &str = "args";
     pub const CHAIN_COUNT: &str = "chain_count";
     pub const CHECK: &str = "check";
     pub const CHECK_NODE: &str = "check_node";
@@ -59,6 +61,11 @@ pub mod keys {
     pub const START: &str = "start";
     pub const STATES: &str = "states";
     pub const STEPS: &str = "steps";
+    /// A tween step's index, and a tween's handle, in a tween event's payload.
+    pub const STEP: &str = "step";
+    pub const TWEEN: &str = "tween";
+    /// How many times a tween has run through, in a `tween_looped` payload.
+    pub const PLAYED: &str = "played";
     pub const STIFFNESS: &str = "stiffness";
     pub const SWITCH_MODE: &str = "switch_mode";
     pub const TARGET: &str = "target";
@@ -173,10 +180,15 @@ pub const MODIFIER_KINDS: &[(&str, &str)] = &[
 
 /// The events a player and a machine emit from their node.
 pub const EVENTS: &[(&str, &str)] = &[
+    ("EVENT_ANIMATION_STARTED", crate::system::STARTED_EVENT),
+    ("EVENT_ANIMATION_CHANGED", crate::system::CHANGED_EVENT),
+    ("EVENT_ANIMATION_LOOPED", crate::system::LOOPED_EVENT),
     ("EVENT_ANIMATION_FINISHED", crate::system::FINISHED_EVENT),
     ("EVENT_STATE_STARTED", crate::machine::STATE_STARTED_EVENT),
     ("EVENT_STATE_FINISHED", crate::machine::STATE_FINISHED_EVENT),
     ("EVENT_TWEEN_FINISHED", crate::system::TWEEN_FINISHED_EVENT),
+    ("EVENT_TWEEN_LOOPED", crate::system::TWEEN_LOOPED_EVENT),
+    ("EVENT_TWEEN_STEP", crate::system::TWEEN_STEP_EVENT),
 ];
 
 /// Every table above, installed on the `animation` module.
