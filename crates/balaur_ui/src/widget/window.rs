@@ -24,6 +24,7 @@ pub(crate) fn window(
     if !widget.open {
         return;
     }
+    at.shown.push(entity);
     let style = at.style_of(&widget);
     let pad = padding_of(&widget, &style);
     let box_size = solved_of(&widget, &at.style_of(&widget), at.assigned);
@@ -50,7 +51,10 @@ pub(crate) fn window(
         at.edits.push((entity, Edit::Moved([moved.x, moved.y])));
     }
     if close.clicked() {
-        at.edits.push((entity, Edit::Open(false)));
+        at.edits.push((entity, Edit::CloseRequested));
+        if widget.hide_on_close {
+            at.edits.push((entity, Edit::Open(false)));
+        }
     }
     let held = std::mem::replace(&mut at.bounds, min);
     lay_out(&mut inner, at, index, Axis::Column);

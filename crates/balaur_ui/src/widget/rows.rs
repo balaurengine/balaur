@@ -188,8 +188,8 @@ fn rows(
     let (anchor, multi) = (widget.text.to_string(), widget.multi);
     let id = egui::Id::new(("balaur-list", entity));
     let depth_of = |item: &String| depth(item, indent);
-    // Folded branches are the tree's own business, so a script hands over the
-    // whole outline and never hears about a caret.
+    // Folded branches are the tree's own business: a script hands over the
+    // whole outline and only hears a caret as a `fold` event.
     let shut: BTreeSet<String> = ui.data(|d| d.get_temp(id).unwrap_or_default());
     let open_rows = open_walk(&items, &shut, &depth_of);
     // Where each open row's branch still continues, so a guide is drawn only
@@ -198,25 +198,12 @@ fn rows(
     let mut picked = None;
     let mut aimed = None;
     let mut toggled = None;
+    let mut activated = None;
     // The row a drag has hold of, and where the pass found it would land.
     let held_row: Dragging = ui.data(|d| d.get_temp(id.with("drag")).unwrap_or_default());
     let mut landing = None;
     let mut took = None;
-    // Both ways: a row wider than the list is a log line or a long node
-    // name, and a bar to reach the end of it is better than the end being
-    // painted over whatever sits beside the list.
-    let mut area = egui::ScrollArea::both()
-        .id_salt(id)
-        .auto_shrink([false, false]);
-    // The box the layout gave it, both ways: a width stated and not applied
-    // is a list that draws past whatever sits beside it.
-    if want.x > 0.0 {
-        area = area.max_width(want.x);
-    }
-    if want.y > 0.0 {
-        area = area.max_height(want.y);
-    }
-    area.show_rows(ui, row_h, open_rows.len(), |ui, range| {
+    list_area(id, want).show_rows(ui, row_h, open_rows.len(), |ui, range| {
         for slot in range {
             let Some(&i) = open_rows.get(slot) else {
                 continue;
@@ -245,6 +232,9 @@ fn rows(
             if hit.folded {
                 toggled = Some(item.clone());
             }
+            if hit.activated {
+                activated = Some(item.clone());
+            }
             if hit.picked {
                 picked = Some(i);
             }
@@ -270,7 +260,12 @@ fn rows(
         };
         settle_drag(ui, at, &drag);
     }
-    settle_folds(ui, id, shut, toggled);
+    if let Some((row, open)) = settle_folds(ui, id, shut, toggled) {
+        at.edits.push((entity, Edit::Folded(row, open)));
+    }
+    if let Some(row) = activated {
+        at.edits.push((entity, Edit::Activated(row)));
+    }
     // A row already picked keeps the set it is in: aiming at one of several
     // picked rows is how a menu is opened over all of them.
     let aimed = aimed.filter(|&row| !picked_rows.contains(&items[row]));
@@ -363,17 +358,40 @@ pub(super) fn strings_of(widget: &Widget) -> Vec<String> {
         .collect()
 }
 
+/// The scroll area a list draws in, held to the box the layout gave it.
+fn list_area(id: egui::Id, want: egui::Vec2) -> egui::ScrollArea {
+    // Both ways: a row wider than the list is a log line or a long node
+    // name, and a bar to reach it beats the end painted over its neighbour.
+    let mut area = egui::ScrollArea::both()
+        .id_salt(id)
+        .auto_shrink([false, false]);
+    // A width stated and not applied is a list drawn past what sits beside it.
+    if want.x > 0.0 {
+        area = area.max_width(want.x);
+    }
+    if want.y > 0.0 {
+        area = area.max_height(want.y);
+    }
+    area
+}
+
 /// A fold a caret was clicked on, written down under the widget's own id: a
-/// script hands over the whole outline and never hears about a caret.
-fn settle_folds(ui: &egui::Ui, id: egui::Id, shut: BTreeSet<String>, toggled: Option<String>) {
-    let Some(item) = toggled else {
-        return;
-    };
+/// script hands over the whole outline and hears a `fold` event, never
+/// keeping the set itself. Answers the row and whether it is open now.
+fn settle_folds(
+    ui: &egui::Ui,
+    id: egui::Id,
+    shut: BTreeSet<String>,
+    toggled: Option<String>,
+) -> Option<(String, bool)> {
+    let item = toggled?;
     let mut next = shut;
-    if !next.remove(&item) {
-        next.insert(item);
+    let open = next.remove(&item);
+    if !open {
+        next.insert(item.clone());
     }
     ui.data_mut(|d| d.insert_temp(id, next));
+    Some((item, open))
 }
 
 /// Where a dragged row would land: on the row it is over, or in the gap
@@ -469,6 +487,8 @@ struct Hit {
     /// Whether the pointer is on the caret rather than the row, so the row
     /// still lights up while the branch is being aimed at.
     folded_hovered: bool,
+    /// Whether the row was double-clicked, which activates it.
+    activated: bool,
 }
 
 /// Draw one row: the guides down its indent, its caret, its icon field, its
@@ -486,6 +506,7 @@ fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
         aimed: false,
         folded: false,
         folded_hovered: false,
+        activated: false,
     };
     let step = r.row_h;
     // A view that reorders senses a drag as well as a click; one that does
@@ -579,6 +600,7 @@ fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
     }
     hit.picked = response.clicked();
     hit.aimed = response.secondary_clicked();
+    hit.activated = response.double_clicked();
     if r.drag.is_some() {
         let (took, landing) = dragged(ui, r, rect, &response);
         hit.took = took;

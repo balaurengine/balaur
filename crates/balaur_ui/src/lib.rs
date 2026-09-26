@@ -38,9 +38,10 @@ pub use loading::Loading;
 pub use pacing::{Pacing, honour_lazy, pointer_is_dragging_elsewhere, wants_pass};
 pub use theme::ThemeTokens;
 pub use widget::input::{
-    BLUR_EVENT, CHANGE_EVENT, CLICK_EVENT, DOUBLE_CLICK_EVENT, DROP_EVENT, FOCUS_EVENT,
-    GUTTER_EVENT, LINK_EVENT, MOVE_EVENT, SUBMIT_EVENT, WidgetInputBuffer, WidgetInputSnapshot,
-    click, submit,
+    ACTIVATE_EVENT, BLUR_EVENT, CHANGE_EVENT, CLICK_EVENT, CLOSE_REQUEST_EVENT, CLOSED_EVENT,
+    COMMIT_EVENT, DOUBLE_CLICK_EVENT, DROP_EVENT, FOCUS_EVENT, FOLD_EVENT, GUTTER_EVENT,
+    LINK_EVENT, MOVE_EVENT, OPENED_EVENT, SCROLLED_EVENT, SUBMIT_EVENT, WidgetInputBuffer,
+    WidgetInputSnapshot, click, submit,
 };
 pub use widget::node::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
 pub use widget::theme::WidgetTheme;

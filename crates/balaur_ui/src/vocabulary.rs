@@ -361,6 +361,8 @@ pub(crate) mod keys {
     pub(crate) const REGION: &str = "region";
     pub(crate) const RESIZABLE: &str = "resizable";
     pub(crate) const ROLE: &str = "role";
+    /// The row a `fold` event names.
+    pub(crate) const ROW: &str = "row";
     pub(crate) const SCRIM: &str = "scrim";
     pub(crate) const ROW_HEIGHT: &str = "row_height";
     pub(crate) const TITLES: &str = "titles";
@@ -372,6 +374,7 @@ pub(crate) mod keys {
     pub(crate) const REORDERABLE: &str = "reorderable";
     pub(crate) const ON_MOVE: &str = "on_move";
     pub(crate) const DRAGGABLE: &str = "draggable";
+    pub(crate) const HIDE_ON_CLOSE: &str = "hide_on_close";
     pub(crate) const ON_DROP: &str = "on_drop";
     /// The `[colors]` a `list`, `tree` or `table` paints its parts with.
     pub(crate) const ROW_SELECTED: &str = "row_selected";

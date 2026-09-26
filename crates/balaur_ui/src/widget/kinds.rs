@@ -97,14 +97,20 @@ pub(crate) fn dropdown(
     if want.x > 0.0 {
         combo = combo.width(want.x);
     }
-    combo.show_ui(ui, |ui| {
-        for option in &widget.options {
-            let label = egui::RichText::new(option.as_str())
-                .font(font.clone())
-                .color(color);
-            ui.selectable_value(&mut chosen, option.clone(), label);
-        }
-    });
+    let up = combo
+        .show_ui(ui, |ui| {
+            for option in &widget.options {
+                let label = egui::RichText::new(option.as_str())
+                    .font(font.clone())
+                    .color(color);
+                ui.selectable_value(&mut chosen, option.clone(), label);
+            }
+        })
+        .inner
+        .is_some();
+    if up {
+        at.shown.push(entity);
+    }
     if chosen != widget.text {
         at.edits.push((entity, Edit::Choice(chosen.to_string())));
     }
@@ -132,6 +138,10 @@ pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let response = ui.add(slider);
     if response.changed() {
         at.edits.push((placed.entity, Edit::Value(value)));
+    }
+    // A drag lets go, or a key moved it with no drag at all.
+    if response.drag_stopped() || (response.changed() && !response.dragged()) {
+        at.edits.push((placed.entity, Edit::Committed(value)));
     }
 }
 
@@ -214,11 +224,17 @@ pub(crate) fn menu(
     // strings cannot.
     if !placed.children.is_empty() {
         let response = crate::widget::button::button(ui, at, index, caption, font, color);
-        if inner {
+        let up = if inner {
             egui::containers::menu::SubMenu::new()
-                .show(ui, &response, |ui| popup_rows(ui, at, index));
+                .show(ui, &response, |ui| popup_rows(ui, at, index))
+                .is_some()
         } else {
-            dropped(&response, &placement, ui, showing).show(|ui| popup_rows(ui, at, index));
+            dropped(&response, &placement, ui, showing)
+                .show(|ui| popup_rows(ui, at, index))
+                .is_some()
+        };
+        if up {
+            at.shown.push(entity);
         }
         return;
     }
@@ -239,10 +255,17 @@ pub(crate) fn menu(
             }
         }
     };
-    if inner {
-        egui::containers::menu::SubMenu::new().show(ui, &response, rows);
+    let up = if inner {
+        egui::containers::menu::SubMenu::new()
+            .show(ui, &response, rows)
+            .is_some()
     } else {
-        dropped(&response, &placement, ui, showing).show(rows);
+        dropped(&response, &placement, ui, showing)
+            .show(rows)
+            .is_some()
+    };
+    if up {
+        at.shown.push(entity);
     }
     if let Some(choice) = picked {
         at.edits.push((entity, Edit::Choice(choice)));
@@ -339,15 +362,26 @@ pub(crate) fn color(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     if want.x > 0.0 {
         ui.spacing_mut().interact_size.x = want.x;
     }
-    if egui::color_picker::color_edit_button_srgba(
+    let changed = egui::color_picker::color_edit_button_srgba(
         ui,
         &mut srgba,
         egui::color_picker::Alpha::OnlyBlend,
     )
-    .changed()
-    {
-        let unit = srgba.to_srgba_unmultiplied().map(|c| f32::from(c) / 255.0);
+    .changed();
+    let unit = srgba.to_srgba_unmultiplied().map(|c| f32::from(c) / 255.0);
+    if changed {
         at.edits.push((entity, Edit::Color(unit)));
+    }
+    // The picker's drag happens in its popup, so the release is watched for
+    // here: a colour committed once the button that was changing it lets go.
+    let dragging = egui::Id::new(("balaur-color-drag", entity));
+    let (down, released) = ui.input(|i| (i.pointer.any_down(), i.pointer.any_released()));
+    let was = ui.data(|d| d.get_temp::<bool>(dragging).unwrap_or(false));
+    if changed && down {
+        ui.data_mut(|d| d.insert_temp(dragging, true));
+    } else if (was && released) || (changed && !down) {
+        ui.data_mut(|d| d.insert_temp(dragging, false));
+        at.edits.push((entity, Edit::ColorCommitted(unit)));
     }
 }
 
@@ -439,8 +473,13 @@ pub(crate) fn drag_value(
             moved
         };
         at.edits.push((placed.entity, Edit::Value(value)));
+        at.edits.push((placed.entity, Edit::Committed(value)));
     } else if response.inner.changed() {
         at.edits.push((placed.entity, Edit::Value(value)));
+    }
+    // A drag lets go, or the number typed in is left.
+    if response.inner.drag_stopped() || response.inner.lost_focus() {
+        at.edits.push((placed.entity, Edit::Committed(value)));
     }
 }
 
@@ -911,4 +950,5 @@ pub(crate) fn context_menu(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usiz
         .open_memory(pressed.then_some(egui::SetOpenCommand::Bool(true)))
         .show(|ui| popup_rows(ui, at, menu));
     at.theme = outer;
+    at.shown.push(at.arena[menu].entity);
 }

@@ -11,6 +11,7 @@ use balaur_core::{Engine, Stage, hooks, replay};
 use balaur_script::Value;
 use serde::{Deserialize, Serialize};
 
+use crate::vocabulary::keys as k;
 use crate::vocabulary::words as w;
 use crate::widget::layer::Edit;
 use crate::widget::node::Widget;
@@ -38,6 +39,7 @@ pub struct WidgetInputBuffer(Option<WidgetInputSnapshot>);
 pub(crate) fn register(reg: &mut balaur_plugin::Registry<'_>) {
     reg.insert_resource(WidgetInputBuffer::default());
     reg.insert_resource(Hovered::default());
+    reg.insert_resource(Shown::default());
     reg.insert_resource(WidgetInputSnapshot::default());
     reg.add_replay_resource::<WidgetInputSnapshot>("ui");
     // After core's replay restore, which is the first system in the stage, and
@@ -175,17 +177,56 @@ pub const DOUBLE_CLICK_EVENT: &str = "double_click";
 pub const FOCUS_EVENT: &str = "focus";
 pub const BLUR_EVENT: &str = "blur";
 
+/// What a widget emits once a drag or a typed number that changed its value
+/// is over, when a row is double-clicked, and when a tree row folds.
+pub const COMMIT_EVENT: &str = "commit";
+pub const ACTIVATE_EVENT: &str = "activate";
+pub const FOLD_EVENT: &str = "fold";
+/// What a widget emits when its popup, dialog or window comes up and goes
+/// away, and when its `scroll` moves.
+pub const OPENED_EVENT: &str = "opened";
+pub const CLOSED_EVENT: &str = "closed";
+pub const SCROLLED_EVENT: &str = "scrolled";
+/// What a `window` emits when its close button is pressed, before it shuts
+/// or, with `hide_on_close` off, instead of shutting.
+pub const CLOSE_REQUEST_EVENT: &str = "close_request";
+
 /// Which widgets the pointer was over at the end of the last pass.
 #[derive(Default)]
 pub(crate) struct Hovered(Vec<Entity>);
 
-/// The pointer's edits for this pass: enter and exit for every widget it
-/// came over or left, and the button presses over the innermost one.
-pub(crate) fn pointer_edits(
+/// Which widgets had a popup, a dialog or a window up at the end of the last
+/// pass.
+#[derive(Default)]
+pub(crate) struct Shown(Vec<Entity>);
+
+/// What the pass saw over its whole length: the pointer's edits, and each
+/// popup, dialog and window that came up or went away.
+pub(crate) fn pass_edits(
     eng: &Engine,
     ctx: &egui::Context,
-    under: &[Entity],
+    painting: &crate::widget::layer::Painting<'_>,
 ) -> Vec<(Entity, Edit)> {
+    let mut out = pointer_edits(eng, ctx, &painting.under);
+    let shown = &painting.shown;
+    let was = std::mem::replace(&mut eng.resource::<Shown>().borrow_mut().0, shown.clone());
+    out.extend(
+        shown
+            .iter()
+            .filter(|e| !was.contains(e))
+            .map(|e| (*e, Edit::Opened)),
+    );
+    out.extend(
+        was.iter()
+            .filter(|e| !shown.contains(e))
+            .map(|e| (*e, Edit::Closed)),
+    );
+    out
+}
+
+/// The pointer's edits for this pass: enter and exit for every widget it
+/// came over or left, and the button presses over the innermost one.
+fn pointer_edits(eng: &Engine, ctx: &egui::Context, under: &[Entity]) -> Vec<(Entity, Edit)> {
     let mut out = Vec::new();
     let was = std::mem::replace(
         &mut eng.resource::<Hovered>().borrow_mut().0,
@@ -240,6 +281,16 @@ pub(crate) const EVENTS: &[(&str, &str)] = &[
     (DOUBLE_CLICK_EVENT, "nil"),
     (FOCUS_EVENT, "nil"),
     (BLUR_EVENT, "nil"),
+    (
+        COMMIT_EVENT,
+        "the value, once the drag or the typing is over",
+    ),
+    (ACTIVATE_EVENT, "the row double-clicked"),
+    (FOLD_EVENT, "`#{ row, open }`"),
+    (OPENED_EVENT, "nil"),
+    (CLOSED_EVENT, "nil"),
+    (SCROLLED_EVENT, "the offset, `[x, y]`"),
+    (CLOSE_REQUEST_EVENT, "nil"),
 ];
 
 fn apply_system(eng: &Engine, _dt: f32) {
@@ -400,23 +451,23 @@ fn settle_one(
         // Written nowhere: a link and a gutter mark are the script's to act on.
         Edit::Link(target) => Some((LINK_EVENT, Value::Str(target.clone()), &widget.on_link)),
         Edit::Gutter(line) => Some((GUTTER_EVENT, Value::Int(*line), &widget.on_gutter)),
-        // What the pointer and focus did: events with no handler key.
-        Edit::Entered => report(emitted, entity, hooks::POINTER_ENTER, Value::Nil),
-        Edit::Left => report(emitted, entity, hooks::POINTER_EXIT, Value::Nil),
-        Edit::Pressed(button) => report(
-            emitted,
-            entity,
-            hooks::POINTER_DOWN,
-            Value::Str(button.clone()),
-        ),
-        Edit::Released(button) => report(
-            emitted,
-            entity,
-            hooks::POINTER_UP,
-            Value::Str(button.clone()),
-        ),
-        Edit::DoubleClicked => report(emitted, entity, DOUBLE_CLICK_EVENT, Value::Nil),
-        Edit::Blurred => report(emitted, entity, BLUR_EVENT, Value::Nil),
+        Edit::Entered
+        | Edit::Left
+        | Edit::Pressed(_)
+        | Edit::Released(_)
+        | Edit::DoubleClicked
+        | Edit::Blurred
+        | Edit::Committed(_)
+        | Edit::ColorCommitted(_)
+        | Edit::Activated(_)
+        | Edit::Folded(..)
+        | Edit::Opened
+        | Edit::Closed
+        | Edit::Scrolled(_)
+        | Edit::CloseRequested => {
+            emitted.extend(heard(edit).map(|(event, value)| (entity, event, value)));
+            None
+        }
     };
     // The node emits its event whatever the widget carries, and the handler
     // is called only where one is named.
@@ -429,15 +480,33 @@ fn settle_one(
     }
 }
 
-/// An event with no handler key, emitted as it is and answering nothing.
-fn report(
-    emitted: &mut Vec<(Entity, &'static str, Value)>,
-    entity: Entity,
-    event: &'static str,
-    value: Value,
-) -> Option<(&'static str, Value, &'static smol_str::SmolStr)> {
-    emitted.push((entity, event, value));
-    None
+/// What the pointer, focus or a finished gesture did: an event with no
+/// handler key, emitted as it is.
+fn heard(edit: &Edit) -> Option<(&'static str, Value)> {
+    let said = match edit {
+        Edit::Entered => (hooks::POINTER_ENTER, Value::Nil),
+        Edit::Left => (hooks::POINTER_EXIT, Value::Nil),
+        Edit::Pressed(button) => (hooks::POINTER_DOWN, Value::Str(button.clone())),
+        Edit::Released(button) => (hooks::POINTER_UP, Value::Str(button.clone())),
+        Edit::DoubleClicked => (DOUBLE_CLICK_EVENT, Value::Nil),
+        Edit::Blurred => (BLUR_EVENT, Value::Nil),
+        Edit::Committed(value) => (COMMIT_EVENT, Value::Num(f64::from(*value))),
+        Edit::ColorCommitted(rgba) => (COMMIT_EVENT, Value::Color(*rgba)),
+        Edit::Activated(row) => (ACTIVATE_EVENT, Value::Str(row.clone())),
+        Edit::Folded(row, open) => {
+            let said = vec![
+                (k::ROW.into(), Value::Str(row.clone())),
+                (k::OPEN.into(), Value::Bool(*open)),
+            ];
+            (FOLD_EVENT, Value::Map(said))
+        }
+        Edit::Opened => (OPENED_EVENT, Value::Nil),
+        Edit::Closed => (CLOSED_EVENT, Value::Nil),
+        Edit::Scrolled(offset) => (SCROLLED_EVENT, Value::Vec2(*offset)),
+        Edit::CloseRequested => (CLOSE_REQUEST_EVENT, Value::Nil),
+        _ => return None,
+    };
+    Some(said)
 }
 
 /// A row pick written onto the widget, and what it says: the whole set where

@@ -118,6 +118,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::REORDERABLE, r#"{ type = "bool", default = false, description = "Let a drag move a row of a `list` or a `tree`. The kind moves nothing itself: it draws where the row would land and calls `on_move`, and the rows are the script's to reorder", group = "events" }"#),
                     (k::ON_MOVE, r#"{ type = "string", default = "", description = "Script method called when a dragged row is dropped, with the row moved, the row it landed on, and `before`, `after` or `into`, on this node or the nearest ancestor whose script declares it", group = "events" }"#),
                     (k::DRAGGABLE, r#"{ type = "bool", default = false, description = "Let a drag carry a card of a `list` with `columns` out of it, drawn under the pointer; `on_drop` says where it was let go", group = "events" }"#),
+                    (k::HIDE_ON_CLOSE, r#"{ type = "bool", default = true, description = "Whether a `window`'s close button shuts it; off, the button only emits `close_request` and the script decides", group = "events" }"#),
                     (k::ON_DROP, r#"{ type = "string", default = "", description = "Script method called with the card a drag let go outside the list, on this node or the nearest ancestor whose script declares it; the pointer is where it landed", group = "events" }"#),
                     (k::OPEN, r#"{ type = "bool", default = true, description = "Whether a `fold` shows its children; its header flips it and calls `on_change` with the new state", group = "events" }"#),
                     (k::INSET, r#"{ type = "vec4", default = [0.0, 0.0, 0.0, 0.0], description = "Left, top, right and bottom margins a root with `anchor = \"fill\"` keeps from its surface, in design pixels", group = "placement" }"#),
@@ -400,6 +401,10 @@ fn reach_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>)
     );
     map.insert(k::ARROWS.into(), toml::Value::Boolean(widget.arrows));
     map.insert(k::DRAGGABLE.into(), toml::Value::Boolean(widget.draggable));
+    map.insert(
+        k::HIDE_ON_CLOSE.into(),
+        toml::Value::Boolean(widget.hide_on_close),
+    );
     map.insert(
         k::ON_DROP.into(),
         toml::Value::String(widget.on_drop.to_string()),
@@ -848,6 +853,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         reorderable: false,
         on_move: smol_str::SmolStr::default(),
         draggable: false,
+        hide_on_close: true,
         on_drop: smol_str::SmolStr::default(),
         columns: 2,
         open: true,
@@ -937,6 +943,7 @@ fn read_controls(widget: &mut Widget, params: &toml::Value) {
     widget.reorderable = b(k::REORDERABLE);
     widget.on_move = r.str(k::ON_MOVE);
     widget.draggable = b(k::DRAGGABLE);
+    widget.hide_on_close = b(k::HIDE_ON_CLOSE);
     widget.on_drop = r.str(k::ON_DROP);
     widget.columns = f(k::COLUMNS).max(0.0) as u32;
     widget.open = b(k::OPEN);

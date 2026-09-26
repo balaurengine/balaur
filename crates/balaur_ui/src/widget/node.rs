@@ -226,6 +226,8 @@ pub struct Widget {
     pub on_move: SmolStr,
     /// Whether a drag carries a card of a `list` out of it.
     pub draggable: bool,
+    /// Whether a `window`'s close button shuts it, or only asks.
+    pub hide_on_close: bool,
     /// Method called with the card let go outside the list.
     pub on_drop: SmolStr,
     /// How many children a `grid` puts on each row.

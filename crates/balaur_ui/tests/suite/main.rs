@@ -13,6 +13,7 @@ mod pass;
 mod splash;
 mod widget_anchor;
 mod widget_code;
+mod widget_events;
 mod widget_focus;
 mod widget_kinds;
 mod widget_layer;

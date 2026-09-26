@@ -268,6 +268,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         context_opened: false,
         pointer: UiPointer::default(),
         under: Vec::new(),
+        shown: Vec::new(),
     };
     for root in &roots {
         let root = *root;
@@ -297,11 +298,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     crate::widget::taffy::sweep(eng);
     let mut edits = std::mem::take(&mut painting.edits);
     let clicked = std::mem::take(&mut painting.clicked);
-    edits.extend(crate::widget::input::pointer_edits(
-        eng,
-        ctx,
-        &painting.under,
-    ));
+    edits.extend(crate::widget::input::pass_edits(eng, ctx, &painting));
     publish_pointer(eng, painting.pointer);
     // Dropped before the arena moves: `Painting` borrows it for the draw.
     drop(painting);
@@ -365,6 +362,9 @@ fn draw_root(
     let modal = widget.kind == w::DIALOG;
     if modal && !widget.open {
         return;
+    }
+    if modal {
+        painting.shown.push(entity);
     }
     let area = if widget.safe_area.iter().any(|on| *on) {
         inside_safe_area(eng, area, widget.safe_area)
@@ -594,6 +594,8 @@ pub(crate) struct Painting<'a> {
     pub(crate) context_opened: bool,
     /// Every widget the pointer is over this pass, outermost first.
     pub(crate) under: Vec<Entity>,
+    /// Every widget whose popup, dialog or window is up this pass.
+    pub(crate) shown: Vec<Entity>,
 }
 
 impl Painting<'_> {
@@ -707,6 +709,21 @@ pub(crate) enum Edit {
     DoubleClicked,
     /// Focus left the widget.
     Blurred,
+    /// A slider's, number field's or colour picker's value, once the drag or
+    /// the typing that changed it is over.
+    Committed(f32),
+    ColorCommitted([f32; 4]),
+    /// A row double-clicked in a `list`, `tree` or `table`.
+    Activated(String),
+    /// A tree row's caret clicked: the row, and whether it is open now.
+    Folded(String, bool),
+    /// A popup, dialog or window the widget holds came up, or went away.
+    Opened,
+    Closed,
+    /// Where a `scroll` is scrolled to now.
+    Scrolled([f32; 2]),
+    /// A `window`'s close button was pressed.
+    CloseRequested,
 }
 
 /// Draw one widget and, when it is a container, what is laid out inside it.

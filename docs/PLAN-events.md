@@ -1,6 +1,6 @@
 > **Status:** written 2026-09-26 from an audit of every crate, done by reading
-> the code. §2 and §3 are built; §4 is next. The order is bugs first, then one
-> delivery path, then the events the engine does not send yet.
+> the code. §2, §3 and §4.1 to §4.3 are built; §4.4 is next. The order is bugs
+> first, then one delivery path, then the events the engine does not send yet.
 
 # Plan: events, and one way to hear each of them
 
@@ -127,10 +127,12 @@ In order of how often a game needs them.
    button, as a world node does, and emits `double_click`, `focus` and
    `blur`; a click into a field is focus arriving. A field still submits on
    Enter and on a click away, and only the click away is a `blur`.
-3. **Widget commits:** drag end on slider, number field and colour picker;
-   row activate and tree fold on lists; open and close on menus, dropdowns
-   and dialogs; a scroll offset and a scrolled event; a window close request a
-   script may refuse; Enter apart from blur on a text field.
+3. **Widget commits:** built. A slider, number field and colour picker emit
+   `commit` once a drag or an edit ends. A double-clicked row emits
+   `activate`, and a tree caret emits `fold` with the row and whether it is
+   open. Menus, dropdowns and dialogs emit `opened` and `closed`; a scroll
+   emits `scrolled` with its offset. A window's cross emits `close_request`,
+   and with `hide_on_close = false` it only asks.
 4. **The tree:** `child_added`, `child_removed`, `renamed` and `reparented`
    from the parent (`balaur_core/src/scene.rs`).
 5. **Physics:** sleep and wake on bodies and soft bodies; a soft body's own
