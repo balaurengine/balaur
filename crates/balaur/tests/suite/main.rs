@@ -4,6 +4,7 @@
 //! one binary per crate links it once, and nextest still gives each test
 //! its own process.
 
+mod app_events;
 mod components;
 mod dap;
 mod digest_cover;

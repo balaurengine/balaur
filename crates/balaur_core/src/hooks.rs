@@ -22,6 +22,20 @@ pub const ON_DARK_MODE_CHANGED: &str = "on_dark_mode_changed";
 /// Called on every script, a paused one too, when the window is asked to
 /// close, before it does.
 pub const ON_QUIT_REQUESTED: &str = "on_quit_requested";
+/// Called on every script, a paused one too, when the game goes to the
+/// background or comes back: a browser tab hidden or shown.
+pub const ON_SUSPENDED_CHANGED: &str = "on_suspended_changed";
+/// Called on every script when the screen's safe area moves.
+pub const ON_SAFE_AREA_CHANGED: &str = "on_safe_area_changed";
+/// Called on every script when the screen turns between portrait and landscape.
+pub const ON_ORIENTATION_CHANGED: &str = "on_orientation_changed";
+/// Called on every script when a gamepad is plugged in or goes away.
+pub const ON_GAMEPAD_CONNECTED: &str = "on_gamepad_connected";
+pub const ON_GAMEPAD_DISCONNECTED: &str = "on_gamepad_disconnected";
+/// Called on every script the frame after a script set a setting.
+pub const ON_SETTING_CHANGED: &str = "on_setting_changed";
+/// Called on every script the frame after the language changed.
+pub const ON_LOCALE_CHANGED: &str = "on_locale_changed";
 
 /// What a script's instance is called with over its life, by name.
 pub const INIT: &str = "init";
@@ -48,6 +62,7 @@ pub const BUTTONS: [&str; 3] = ["left", "right", "middle"];
 pub const KEY_DOWN: &str = "key_down";
 pub const KEY_UP: &str = "key_up";
 pub const ACTION: &str = "action";
+pub const ACTION_RELEASED: &str = "action_released";
 pub const SCROLL: &str = "scroll";
 pub const RESIZE: &str = "resize";
 /// A collider starting and stopping to touch another, which physics sends.
@@ -67,6 +82,7 @@ pub const BINDABLE: &[&str] = &[
     KEY_DOWN,
     KEY_UP,
     ACTION,
+    ACTION_RELEASED,
     SCROLL,
     RESIZE,
     VARIABLE_CHANGED,
@@ -92,8 +108,9 @@ pub fn is_bindable(event: &str) -> bool {
 
 /// The hook one bindable event name is dispatched as.
 #[must_use]
-pub fn hook_of(event: &str) -> String {
-    format!("on_{event}")
+pub fn hook_of(event: &str) -> smol_str::SmolStr {
+    // Inline for any name under 21 bytes: an event costs no allocation to spell.
+    smol_str::format_smolstr!("on_{event}")
 }
 
 /// Every method the engine calls on a script by name, its arguments after
@@ -120,6 +137,7 @@ pub const REFERENCE: &[(&str, &str, &str)] = &[
     ("on_key_down", "(key)", "A key went down; every node hears it, the last child first, until one answers `true`."),
     ("on_key_up", "(key)", "A key came up, reaching nodes as `on_key_down` does."),
     ("on_action", "(name)", "A declared input action was pressed, reaching nodes as `on_key_down` does."),
+    ("on_action_released", "(name)", "A declared input action was let go, reaching nodes as `on_key_down` does."),
     ("on_scroll", "(dx, dy)", "The wheel turned, over the node or, over nothing, to every node."),
     ("on_resize", "(width, height)", "The window changed size, told to every node."),
     (ON_VARIABLE_CHANGED, "(name, value)", "A scene variable changed, told to every node at the end of the frame."),
@@ -128,4 +146,11 @@ pub const REFERENCE: &[(&str, &str, &str)] = &[
     (ON_FOCUSED_CHANGED, "(focused)", "The window came to the front or left it, told to every script."),
     (ON_DARK_MODE_CHANGED, "(dark)", "The system switched dark mode, told to every script."),
     (ON_QUIT_REQUESTED, "()", "The window was asked to close; every script hears it, then the app goes."),
+    (ON_SUSPENDED_CHANGED, "(suspended)", "The game went to the background or came back, a hidden browser tab included; told to every script."),
+    (ON_SAFE_AREA_CHANGED, "(insets)", "The screen's safe area moved, as `[left, top, right, bottom]` in pixels; told to every script."),
+    (ON_ORIENTATION_CHANGED, "(orientation)", "The screen turned, to `portrait` or `landscape`; told to every script."),
+    (ON_GAMEPAD_CONNECTED, "(pad)", "A gamepad was plugged in, with the id `input` names it by; told to every script."),
+    (ON_GAMEPAD_DISCONNECTED, "(pad)", "A gamepad went away, with its id; told to every script."),
+    (ON_SETTING_CHANGED, "(change)", "A script set a setting, `#{ path, value }`; every script hears it the next frame."),
+    (ON_LOCALE_CHANGED, "(locale)", "The language changed; every script hears it the next frame."),
 ];

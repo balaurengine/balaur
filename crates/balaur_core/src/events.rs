@@ -142,12 +142,19 @@ fn queue(eng: &Engine, name: &str, from: Option<Entity>, payload: Value) {
 /// any other runs the `emitted:<name>` rows. Rows run before the hook, as they
 /// do for a pointer event, so the script sees the world the rows left.
 pub fn announce(eng: &Engine, entity: Entity, name: &str, payload: Value) {
-    crate::bindings::fire(
-        eng,
-        entity,
-        &row_event(name),
-        std::slice::from_ref(&payload),
-    );
+    // Most nodes carry no rows, and spelling the row's event costs an allocation.
+    if eng
+        .world()
+        .get::<&crate::bindings::Bindings>(entity)
+        .is_ok()
+    {
+        crate::bindings::fire(
+            eng,
+            entity,
+            &row_event(name),
+            std::slice::from_ref(&payload),
+        );
+    }
     if let Some(host) = eng.script_host() {
         host.call_on(
             crate::node_id_of(entity),

@@ -17,9 +17,10 @@ use balaur_script::Value;
 #[derive(Default)]
 pub(crate) struct Pointer {
     over: Option<Entity>,
-    /// The node the press landed on, so a release over it is a click and a
-    /// release elsewhere is a drop.
-    pressed: Option<Entity>,
+    /// The node each button's press landed on, so a release over it is a
+    /// click and a left release elsewhere is a drop.
+    pressed: [Option<Entity>; hooks::BUTTONS.len()],
+    /// Whether the left button moved while held: a drag, not a click.
     dragging: bool,
     /// The window as it was, so a resize is dispatched once per change.
     size: (u32, u32),
@@ -79,11 +80,45 @@ fn under_pointer(eng: &Engine) -> Option<Entity> {
     balaur_render::pick_under_pointer(eng)
 }
 
-fn button_name(button: u8) -> Value {
-    let name = hooks::BUTTONS
-        .get(usize::from(button))
-        .unwrap_or(&hooks::BUTTONS[0]);
+fn button_name(button: usize) -> Value {
+    let name = hooks::BUTTONS.get(button).unwrap_or(&hooks::BUTTONS[0]);
     Value::Str((*name).to_string())
+}
+
+/// A button went down: the node under the pointer answers first, and every
+/// other node hears it unless it was handled, as a panel closes on a click
+/// outside it.
+fn press(eng: &Engine, state: &mut Pointer, button: usize, over: Option<Entity>) {
+    state.pressed[button] = over;
+    if button == 0 {
+        state.dragging = false;
+    }
+    let args = [button_name(button)];
+    let taken = over.is_some_and(|node| dispatch(eng, node, hooks::POINTER_DOWN, &args));
+    if !taken {
+        broadcast(eng, hooks::POINTER_DOWN, &args, over);
+    }
+}
+
+/// A button came up: a click on the node it went down on, and for the left
+/// button, a drop on another.
+fn release(eng: &Engine, state: &mut Pointer, button: usize, over: Option<Entity>) {
+    let args = [button_name(button)];
+    let pressed = state.pressed[button].take();
+    let taken = pressed.is_some_and(|node| dispatch(eng, node, hooks::POINTER_UP, &args));
+    if !taken {
+        broadcast(eng, hooks::POINTER_UP, &args, pressed);
+    }
+    let dragged = button == 0 && std::mem::take(&mut state.dragging);
+    let Some(node) = pressed else {
+        return;
+    };
+    if over == Some(node) && !dragged {
+        dispatch(eng, node, hooks::POINTER_CLICK, &args);
+    } else if let Some(landed) = over.filter(|_| button == 0) {
+        let from = [Value::Node(node_id_of(node).0)];
+        dispatch(eng, landed, hooks::POINTER_DROP, &from);
+    }
 }
 
 /// Everything the pointer did this tick.
@@ -91,14 +126,15 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
     let Some(input) = eng.try_resource::<balaur_input::InputSnapshot>() else {
         return;
     };
-    let (pressed, released, delta, scroll) = {
+    let (buttons, delta, scroll) = {
         let input = input.borrow();
-        (
-            input.mouse_just_pressed(0),
-            input.mouse_just_released(0),
-            input.mouse_delta(),
-            input.scroll_delta(),
-        )
+        let buttons: [(bool, bool); hooks::BUTTONS.len()] = std::array::from_fn(|button| {
+            (
+                input.mouse_just_pressed(button),
+                input.mouse_just_released(button),
+            )
+        });
+        (buttons, input.mouse_delta(), input.scroll_delta())
     };
     let over = under_pointer(eng);
     if over != state.over {
@@ -110,20 +146,14 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
         }
         state.over = over;
     }
-    // The node under the pointer answers first, and every other node hears
-    // the press unless it was handled: a panel closes on a click outside it.
-    if pressed {
-        state.pressed = over;
-        state.dragging = false;
-        let args = [button_name(0)];
-        let taken = over.is_some_and(|node| dispatch(eng, node, hooks::POINTER_DOWN, &args));
-        if !taken {
-            broadcast(eng, hooks::POINTER_DOWN, &args, over);
+    for (button, (pressed, _)) in buttons.into_iter().enumerate() {
+        if pressed {
+            press(eng, state, button, over);
         }
     }
-    if state.pressed.is_some() && (delta.0 != 0.0 || delta.1 != 0.0) {
+    if state.pressed[0].is_some() && (delta.0 != 0.0 || delta.1 != 0.0) {
         state.dragging = true;
-        if let Some(node) = state.pressed {
+        if let Some(node) = state.pressed[0] {
             dispatch(
                 eng,
                 node,
@@ -135,30 +165,10 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
             );
         }
     }
-    if released {
-        let args = [button_name(0)];
-        let taken = state
-            .pressed
-            .is_some_and(|node| dispatch(eng, node, hooks::POINTER_UP, &args));
-        if !taken {
-            broadcast(eng, hooks::POINTER_UP, &args, state.pressed);
+    for (button, (_, released)) in buttons.into_iter().enumerate() {
+        if released {
+            release(eng, state, button, over);
         }
-        if let Some(node) = state.pressed {
-            // A press and a release on one node is a click; a release over
-            // another node is a drop on that one, which is what a drag ends as.
-            if over == Some(node) && !state.dragging {
-                dispatch(eng, node, hooks::POINTER_CLICK, &[button_name(0)]);
-            } else if let Some(landed) = over {
-                dispatch(
-                    eng,
-                    landed,
-                    hooks::POINTER_DROP,
-                    &[Value::Node(node_id_of(node).0)],
-                );
-            }
-        }
-        state.pressed = None;
-        state.dragging = false;
     }
     if scroll.1 != 0.0 || scroll.0 != 0.0 {
         let args = [
@@ -202,16 +212,22 @@ fn input_system(eng: &Engine, state: &mut Pointer) {
         broadcast(eng, hooks::KEY_UP, &[Value::text(key)], None);
     }
     if let Some(actions) = eng.try_resource::<balaur_input::InputActions>() {
-        let fired: Vec<String> = {
+        let (fired, let_go): (Vec<String>, Vec<String>) = {
             let actions = actions.borrow();
-            actions
-                .names()
-                .into_iter()
-                .filter(|name| actions.just_pressed(name))
-                .collect()
+            let names = actions.names();
+            let when = |test: &dyn Fn(&str) -> bool| -> Vec<String> {
+                names.iter().filter(|name| test(name)).cloned().collect()
+            };
+            (
+                when(&|name| actions.just_pressed(name)),
+                when(&|name| actions.just_released(name)),
+            )
         };
         for name in fired {
             broadcast(eng, hooks::ACTION, &[Value::text(name)], None);
+        }
+        for name in let_go {
+            broadcast(eng, hooks::ACTION_RELEASED, &[Value::text(name)], None);
         }
     }
     let size = balaur_render::viewport_size(eng);

@@ -152,19 +152,25 @@ In order of how often a game needs them.
    `#{ tween, step }`. A method key hands its `args` to the method. A
    one-shot `particles` burst announces `finished`, timed from its settings
    on the fixed step so a headless run hears it too.
-7. **The app and input:** suspend and resume, low memory, orientation and
-   safe area; right and middle mouse buttons; action released; gamepad
-   connected and disconnected; settings and language changed.
+7. **The app and input:** part built. Right and middle buttons reach a
+   world node as the left does, and `on_action_released` answers an action
+   let go. Every script hears `on_suspended_changed` (a hidden browser tab),
+   `on_safe_area_changed`, `on_orientation_changed`, `on_gamepad_connected`
+   and `on_gamepad_disconnected`. The frame after a script changes one, it
+   hears `on_setting_changed` and `on_locale_changed`. Left: suspend,
+   resume and low memory on desktop and mobile, which wait on the kiss3d
+   fork passing winit's lifecycle events on; the same gap means
+   `on_focused_changed` never fires from a window today.
 8. **Render:** part built. A camera announces `current_changed` when it
    becomes or stops being the one drawn from. `render.screenshot` answers
    every listener with `screenshot_written` or `screenshot_failed`, a run
    with no renderer included. Left: a node entering and leaving the screen.
 9. **Network:** part built. `http.cancel` drops a reply, stops a download
    writing and tells the handler `cancelled`. A websocket `closed` carries
-   its close `code`, and `websocket.state` says where a connection is. Left:
-   the Gamend addon's 19 unnamed server events, `match_found` first
-   (regenerated from the gamend repo); `web.visible` changes and
-   `web.unlisten`.
+   its close `code`, and `websocket.state` says where a connection is. A
+   tab shown or hidden is `on_suspended_changed`, and `web.stop_listening`
+   undoes `web.listen`. Left: the Gamend addon's 19 unnamed server events,
+   `match_found` first (regenerated from the gamend repo).
 10. **The Godot import:** follows each of these: the signal map names what the
     engine now sends and drops what it does not.
 

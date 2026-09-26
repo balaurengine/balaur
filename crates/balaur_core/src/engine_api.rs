@@ -1047,7 +1047,12 @@ fn strings_locale(eng: &Engine, _: &[Value]) -> Result<Value> {
 }
 
 fn strings_set_locale(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let was = crate::strings::locale(eng);
     crate::strings::set_locale(eng, text(args, 0)?);
+    let now = crate::strings::locale(eng);
+    if now != was {
+        crate::facts::notice(eng, crate::hooks::ON_LOCALE_CHANGED, Value::Str(now));
+    }
     Ok(Value::Nil)
 }
 

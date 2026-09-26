@@ -408,6 +408,32 @@ impl InputSnapshot {
     }
 }
 
+/// The pads there last frame, so a pad arriving or leaving is told once.
+#[derive(Default)]
+struct SeenPads(Vec<i64>);
+
+/// Tell every script which pads were plugged in or went away since the last
+/// frame, from the snapshot a replay restores as readily as a poll fills.
+fn announce_pads_system(eng: &Engine, _: f32) {
+    let now: Vec<i64> = eng
+        .resource::<GamepadState>()
+        .borrow()
+        .pads()
+        .iter()
+        .map(|pad| pad.id)
+        .collect();
+    let seen = eng.resource::<SeenPads>();
+    let was = std::mem::replace(&mut seen.borrow_mut().0, now.clone());
+    for id in now.iter().filter(|id| !was.contains(id)) {
+        let pad = balaur_script::Value::Int(*id);
+        balaur_core::facts::notice(eng, balaur_core::hooks::ON_GAMEPAD_CONNECTED, pad);
+    }
+    for id in was.iter().filter(|id| !now.contains(id)) {
+        let pad = balaur_script::Value::Int(*id);
+        balaur_core::facts::notice(eng, balaur_core::hooks::ON_GAMEPAD_DISCONNECTED, pad);
+    }
+}
+
 pub struct InputPlugin {
     manifest: balaur_plugin::Manifest,
 }
@@ -462,6 +488,8 @@ impl balaur_plugin::Plugin for InputPlugin {
             }
             eng.resource::<GamepadState>().borrow_mut().poll();
         });
+        reg.insert_resource(SeenPads::default());
+        reg.add_system(Stage::First, announce_pads_system);
         // Emulation, gestures and controls, in that order, after the restore
         // and before the actions they feed.
         reg.add_system(Stage::First, |eng, dt| {

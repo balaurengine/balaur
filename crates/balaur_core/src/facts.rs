@@ -203,7 +203,15 @@ pub struct DeviceFacts {
     /// while nothing is playing.
     #[serde(default)]
     pub game_area: Option<[f32; 4]>,
+    /// Whether the game is in the background: a hidden browser tab. False
+    /// where the platform does not say.
+    #[serde(default)]
+    pub suspended: bool,
 }
+
+/// Which way a screen is held, as `on_orientation_changed` names it.
+pub const PORTRAIT: &str = "portrait";
+pub const LANDSCAPE: &str = "landscape";
 
 /// A screen with less width than a phone held upright.
 pub const NARROW: &str = "narrow";
@@ -288,6 +296,7 @@ impl Default for DeviceFacts {
             text_scale: 1.0,
             keyboard_height: 0.0,
             game_area: None,
+            suspended: false,
         }
     }
 }
@@ -324,6 +333,25 @@ impl DeviceFacts {
 pub struct Device {
     pub now: DeviceFacts,
     pub was: DeviceFacts,
+    /// Hooks for every script, queued by [`notice`] for the next frame.
+    notices: Vec<(&'static str, balaur_script::Value)>,
+}
+
+/// Tell every script `hook(payload)` at the top of the next frame, beside
+/// the device's own changes: a change a script made, heard outside its call.
+pub fn notice(eng: &Engine, hook: &'static str, payload: balaur_script::Value) {
+    if let Some(device) = eng.try_resource::<Device>() {
+        device.borrow_mut().notices.push((hook, payload));
+    }
+}
+
+/// Which way a screen is held, or nothing for one with no size.
+fn orientation(facts: &DeviceFacts) -> Option<&'static str> {
+    let [width, height] = facts.screen_size;
+    if width <= 0.0 || height <= 0.0 {
+        return None;
+    }
+    Some(if height > width { PORTRAIT } else { LANDSCAPE })
 }
 
 /// The device facts as of this tick.
@@ -344,36 +372,45 @@ pub fn update_device(eng: &Engine, change: impl FnOnce(&mut DeviceFacts)) {
     }
 }
 
-/// Tell every script what changed since the last tick: `on_focused_changed`
-/// and `on_dark_mode_changed`, each with the new state.
+/// Tell every script what changed since the last tick, each hook with the
+/// new state, then what [`notice`] queued.
 pub(crate) fn announce_device_system(eng: &Engine, _: f32) {
+    use crate::hooks as h;
+    use balaur_script::Value;
     let Some(device) = eng.try_resource::<Device>() else {
         return;
     };
-    let (focus, dark) = {
+    let said = {
         let mut device = device.borrow_mut();
-        let Device { now, was } = &mut *device;
-        let focus = (now.focused != was.focused).then_some(now.focused);
-        let dark = (now.dark_mode != was.dark_mode).then_some(now.dark_mode);
+        let Device { now, was, notices } = &mut *device;
+        let mut said: Vec<(&'static str, Value)> = Vec::new();
+        if now.focused != was.focused {
+            said.push((h::ON_FOCUSED_CHANGED, Value::Bool(now.focused)));
+        }
+        if now.dark_mode != was.dark_mode {
+            said.push((h::ON_DARK_MODE_CHANGED, Value::Bool(now.dark_mode)));
+        }
+        if now.suspended != was.suspended {
+            said.push((h::ON_SUSPENDED_CHANGED, Value::Bool(now.suspended)));
+        }
+        if now.safe_area.map(f32::to_bits) != was.safe_area.map(f32::to_bits) {
+            let insets = now.safe_area.map(|inset| Value::Num(f64::from(inset)));
+            said.push((h::ON_SAFE_AREA_CHANGED, Value::List(insets.to_vec())));
+        }
+        // A first size is the screen appearing, not turning.
+        if let (Some(before), Some(after)) = (orientation(was), orientation(now))
+            && before != after
+        {
+            said.push((h::ON_ORIENTATION_CHANGED, Value::text(after)));
+        }
+        said.append(notices);
         *was = now.clone();
-        (focus, dark)
+        said
     };
-    if focus.is_none() && dark.is_none() {
-        return;
-    }
     let Some(host) = eng.script_host() else {
         return;
     };
-    if let Some(focused) = focus {
-        host.announce(
-            crate::hooks::ON_FOCUSED_CHANGED,
-            &[balaur_script::Value::Bool(focused)],
-        );
-    }
-    if let Some(dark) = dark {
-        host.announce(
-            crate::hooks::ON_DARK_MODE_CHANGED,
-            &[balaur_script::Value::Bool(dark)],
-        );
+    for (hook, payload) in said {
+        host.announce(hook, std::slice::from_ref(&payload));
     }
 }

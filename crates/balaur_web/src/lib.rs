@@ -138,7 +138,11 @@ fn pump_web_system(eng: &Engine, _: f32) {
                         dispatches.push((listener.clone(), value.clone()));
                     }
                 }
-                WebEvent::Visibility { visible } => state.visible = visible,
+                WebEvent::Visibility { visible } => {
+                    state.visible = visible;
+                    // A hidden tab is a game in the background, as a phone app is.
+                    balaur_core::facts::update_device(eng, |device| device.suspended = !visible);
+                }
             }
         }
     }
@@ -174,6 +178,7 @@ fn install_web_api(m: &mut dyn Bindings<Engine>) {
     );
     m.describe(&[
         ("listen", &[], "(node: node, options: map)", "Have the node's `on_web_event(payload)`, or the `on_event` method the options name, called for every message the parent frame posts."),
+        ("stop_listening", &[], "(node: node)", "Stop the node hearing the parent frame's messages. Not an error when it never listened."),
         ("messages", &[], "()", "Every message the parent frame posted this tick, for a script that would rather ask than declare a method."),
         ("post_message", &[], "(payload: map)", "Post a value to the page that embeds this one. False off the web, and false while a recording plays."),
         ("visible", &[], "()", "Whether the tab is in front of the player; true off the web."),
@@ -201,6 +206,13 @@ fn install_web_api(m: &mut dyn Bindings<Engine>) {
             Ok(())
         },
     );
+    m.function("stop_listening", |eng: &Engine, node: NodeId| {
+        eng.resource::<WebState>()
+            .borrow_mut()
+            .listeners
+            .retain(|listener| listener.node != node);
+        Ok(())
+    });
     m.function("messages", |eng: &Engine, ()| {
         Ok(Value::List(
             eng.resource::<WebSnapshot>().borrow().messages.clone(),

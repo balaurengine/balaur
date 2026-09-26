@@ -70,6 +70,11 @@ pub fn install_settings_api(m: &mut dyn Bindings<Engine>) {
     install_override_api(m);
     m.function("set", |eng: &Engine, (path, value): (String, Value)| {
         settings::set(eng, &path, to_toml(&value)?);
+        let change = Value::Map(vec![
+            ("path".into(), Value::text(path)),
+            ("value".into(), value),
+        ]);
+        crate::facts::notice(eng, crate::hooks::ON_SETTING_CHANGED, change);
         Ok(Value::Nil)
     });
     m.function("define", |eng: &Engine, (path, spec): (String, Value)| {
