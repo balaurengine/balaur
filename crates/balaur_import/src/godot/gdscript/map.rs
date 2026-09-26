@@ -324,7 +324,9 @@ pub(crate) fn static_call(class: &str, name: &str, args: &[String]) -> Option<St
         ("Input", "is_action_pressed") => format!("input::action_down({one})"),
         ("Input", "is_action_just_pressed") => format!("input::action_just_pressed({one})"),
         ("Input", "is_action_just_released") => format!("input::action_just_released({one})"),
-        ("Input", "is_key_pressed" | "is_physical_key_pressed") => format!("input::key_down({one})"),
+        ("Input", "is_key_pressed" | "is_physical_key_pressed") => {
+            format!("input::key_down({one})")
+        }
         _ => return service_call(class, name, args),
     })
 }

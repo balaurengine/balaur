@@ -21,42 +21,42 @@ const NAMED: &[(&str, i64, &str)] = &[
     ("BACKSLASH", 92, "KEY_BACKSLASH"),
     ("BRACKETRIGHT", 93, "KEY_RIGHT_BRACKET"),
     ("QUOTELEFT", 96, "KEY_BACKQUOTE"),
-    ("ESCAPE", SPECIAL | 1, "KEY_ESCAPE"),
-    ("TAB", SPECIAL | 2, "KEY_TAB"),
-    ("BACKSPACE", SPECIAL | 4, "KEY_BACKSPACE"),
-    ("ENTER", SPECIAL | 5, "KEY_ENTER"),
-    ("KP_ENTER", SPECIAL | 6, "KEY_NUMPAD_ENTER"),
-    ("INSERT", SPECIAL | 7, "KEY_INSERT"),
-    ("DELETE", SPECIAL | 8, "KEY_DELETE"),
-    ("PAUSE", SPECIAL | 9, "KEY_PAUSE"),
-    ("PRINT", SPECIAL | 10, "KEY_PRINT_SCREEN"),
-    ("HOME", SPECIAL | 13, "KEY_HOME"),
-    ("END", SPECIAL | 14, "KEY_END"),
-    ("LEFT", SPECIAL | 15, "KEY_LEFT"),
-    ("UP", SPECIAL | 16, "KEY_UP"),
-    ("RIGHT", SPECIAL | 17, "KEY_RIGHT"),
-    ("DOWN", SPECIAL | 18, "KEY_DOWN"),
-    ("PAGEUP", SPECIAL | 19, "KEY_PAGE_UP"),
-    ("PAGEDOWN", SPECIAL | 20, "KEY_PAGE_DOWN"),
-    ("SHIFT", SPECIAL | 21, "KEY_SHIFT"),
-    ("CTRL", SPECIAL | 22, "KEY_CONTROL"),
-    ("META", SPECIAL | 23, "KEY_META"),
-    ("ALT", SPECIAL | 24, "KEY_ALT"),
-    ("CAPSLOCK", SPECIAL | 25, "KEY_CAPS_LOCK"),
-    ("NUMLOCK", SPECIAL | 26, "KEY_NUM_LOCK"),
-    ("SCROLLLOCK", SPECIAL | 27, "KEY_SCROLL_LOCK"),
-    ("MENU", SPECIAL | 66, "KEY_CONTEXT_MENU"),
-    ("KP_MULTIPLY", SPECIAL | 129, "KEY_NUMPAD_MULTIPLY"),
-    ("KP_DIVIDE", SPECIAL | 130, "KEY_NUMPAD_DIVIDE"),
-    ("KP_SUBTRACT", SPECIAL | 131, "KEY_NUMPAD_SUBTRACT"),
-    ("KP_PERIOD", SPECIAL | 132, "KEY_NUMPAD_PERIOD"),
-    ("KP_ADD", SPECIAL | 133, "KEY_NUMPAD_ADD"),
+    ("ESCAPE", SPECIAL + 1, "KEY_ESCAPE"),
+    ("TAB", SPECIAL + 2, "KEY_TAB"),
+    ("BACKSPACE", SPECIAL + 4, "KEY_BACKSPACE"),
+    ("ENTER", SPECIAL + 5, "KEY_ENTER"),
+    ("KP_ENTER", SPECIAL + 6, "KEY_NUMPAD_ENTER"),
+    ("INSERT", SPECIAL + 7, "KEY_INSERT"),
+    ("DELETE", SPECIAL + 8, "KEY_DELETE"),
+    ("PAUSE", SPECIAL + 9, "KEY_PAUSE"),
+    ("PRINT", SPECIAL + 10, "KEY_PRINT_SCREEN"),
+    ("HOME", SPECIAL + 13, "KEY_HOME"),
+    ("END", SPECIAL + 14, "KEY_END"),
+    ("LEFT", SPECIAL + 15, "KEY_LEFT"),
+    ("UP", SPECIAL + 16, "KEY_UP"),
+    ("RIGHT", SPECIAL + 17, "KEY_RIGHT"),
+    ("DOWN", SPECIAL + 18, "KEY_DOWN"),
+    ("PAGEUP", SPECIAL + 19, "KEY_PAGE_UP"),
+    ("PAGEDOWN", SPECIAL + 20, "KEY_PAGE_DOWN"),
+    ("SHIFT", SPECIAL + 21, "KEY_SHIFT"),
+    ("CTRL", SPECIAL + 22, "KEY_CONTROL"),
+    ("META", SPECIAL + 23, "KEY_META"),
+    ("ALT", SPECIAL + 24, "KEY_ALT"),
+    ("CAPSLOCK", SPECIAL + 25, "KEY_CAPS_LOCK"),
+    ("NUMLOCK", SPECIAL + 26, "KEY_NUM_LOCK"),
+    ("SCROLLLOCK", SPECIAL + 27, "KEY_SCROLL_LOCK"),
+    ("MENU", SPECIAL + 66, "KEY_CONTEXT_MENU"),
+    ("KP_MULTIPLY", SPECIAL + 129, "KEY_NUMPAD_MULTIPLY"),
+    ("KP_DIVIDE", SPECIAL + 130, "KEY_NUMPAD_DIVIDE"),
+    ("KP_SUBTRACT", SPECIAL + 131, "KEY_NUMPAD_SUBTRACT"),
+    ("KP_PERIOD", SPECIAL + 132, "KEY_NUMPAD_PERIOD"),
+    ("KP_ADD", SPECIAL + 133, "KEY_NUMPAD_ADD"),
 ];
 
 /// Godot's `F1`: the function keys run on from it.
-const F1: i64 = SPECIAL | 28;
+const F1: i64 = SPECIAL + 28;
 /// Godot's `KP_0`: the keypad digits run on from it.
-const KP_0: i64 = SPECIAL | 134;
+const KP_0: i64 = SPECIAL + 134;
 
 /// A balaur key constant by name, as the static the engine keeps.
 fn constant(name: &str) -> Option<&'static str> {
@@ -135,7 +135,10 @@ pub(crate) fn pad_button(index: i64) -> Option<&'static str> {
         14 => "dpad_right",
         _ => return None,
     };
-    PAD_BUTTON_NAMES.iter().copied().find(|known| *known == name)
+    PAD_BUTTON_NAMES
+        .iter()
+        .copied()
+        .find(|known| *known == name)
 }
 
 /// Godot's `JoyAxis` as balaur's gamepad axis.
@@ -177,7 +180,11 @@ mod tests {
     fn every_named_godot_key_is_a_balaur_key() {
         for (godot, code, balaur) in NAMED {
             assert_eq!(key_constant(godot), Some(*balaur), "KEY_{godot}");
-            assert_eq!(key_code_constant(*code), Some(*balaur), "code of KEY_{godot}");
+            assert_eq!(
+                key_code_constant(*code),
+                Some(*balaur),
+                "code of KEY_{godot}"
+            );
         }
     }
 
@@ -186,10 +193,17 @@ mod tests {
         assert_eq!(key_code_constant(65).and_then(key_value), Some("KeyA"));
         assert_eq!(key_code_constant(49).and_then(key_value), Some("Digit1"));
         assert_eq!(key_code_constant(F1 + 2).and_then(key_value), Some("F3"));
-        assert_eq!(key_code_constant(KP_0 + 5).and_then(key_value), Some("Numpad5"));
+        assert_eq!(
+            key_code_constant(KP_0 + 5).and_then(key_value),
+            Some("Numpad5")
+        );
         assert_eq!(key_constant("KP_5"), Some("KEY_NUMPAD_5"));
         assert_eq!(key_constant("META").and_then(key_value), Some("Meta"));
-        assert_eq!(key_constant("PREFIX"), None, "a script's own KEY_ constant is not a key");
+        assert_eq!(
+            key_constant("PREFIX"),
+            None,
+            "a script's own KEY_ constant is not a key"
+        );
     }
 
     #[test]

@@ -1616,7 +1616,7 @@ fn player_method(node, name, args) {
         return has_clip(node, a0);
     }
     if name == "get_current_animation" || name == "get_assigned_animation" {
-        let current = player.current();
+        let current = player.current_clip();
         let name = if is_nil(current) { "" } else { current };
         return name;
     }
