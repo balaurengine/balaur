@@ -200,9 +200,9 @@ fn draw_bone_3d(g, color) {
     ];
     for (i, w) in waist.iter().enumerate() {
         let n = waist[(i + 1) % 4];
-        render::draw_line(g.origin[0], g.origin[1], g.origin[2], w[0], w[1], w[2], color[0], color[1], color[2], W);
-        render::draw_line(w[0], w[1], w[2], g.tip[0], g.tip[1], g.tip[2], color[0], color[1], color[2], W);
-        render::draw_line(w[0], w[1], w[2], n[0], n[1], n[2], color[0], color[1], color[2], W);
+        render::draw_line_3d(g.origin[0], g.origin[1], g.origin[2], w[0], w[1], w[2], color[0], color[1], color[2], W);
+        render::draw_line_3d(w[0], w[1], w[2], g.tip[0], g.tip[1], g.tip[2], color[0], color[1], color[2], W);
+        render::draw_line_3d(w[0], w[1], w[2], n[0], n[1], n[2], color[0], color[1], color[2], W);
     }
 }
 
@@ -344,7 +344,7 @@ fn line_at(S, a, b, color, width) {
     if S.mode2d {
         render::draw_line_2d(a[0], a[1], b[0], b[1], color[0], color[1], color[2], width);
     } else {
-        render::draw_line(a[0], a[1], a[2], b[0], b[1], b[2], color[0], color[1], color[2], width);
+        render::draw_line_3d(a[0], a[1], a[2], b[0], b[1], b[2], color[0], color[1], color[2], width);
     }
 }
 
@@ -539,12 +539,12 @@ fn label_bone(S, i, node, g, color) {
         return;
     }
     let opts = #{
-        size: 28.0, color: color, align: "center", pixels_per_unit: LABEL_PPU,
+        font_size: 28.0, color: color, text_align: "center", pixels_per_unit: LABEL_PPU,
     };
     if S.mode2d {
         render::draw_text_2d(g.origin[0], g.origin[1] + LABEL_LIFT, node.name, opts);
     } else {
-        render::draw_text(g.origin[0], g.origin[1] + LABEL_LIFT, g.origin[2], node.name, opts);
+        render::draw_text_3d(g.origin[0], g.origin[1] + LABEL_LIFT, g.origin[2], node.name, opts);
     }
 }
 

@@ -72,7 +72,7 @@ pub mod keys {
     /// A sound's own gain, multiplied into every play of it.
     pub const VOLUME: &str = "volume";
     /// The family a face joins: `ui`, `heading`, `mono` or `icons`.
-    pub const FAMILY: &str = "family";
+    pub const FONT_FAMILY: &str = "font_family";
     /// A face's vertical nudge, as a fraction of its size.
     pub const Y_OFFSET: &str = "y_offset";
     /// Snap a face's outlines to the pixel grid; off for a smooth face.

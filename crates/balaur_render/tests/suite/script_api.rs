@@ -160,7 +160,7 @@ fn the_grid_background_and_camera_input_are_settable() {
 fn debug_lines_can_be_drawn_in_both_dimensions() {
     run_clean(
         r"
-        render::draw_line(0, 0, 0, 1, 1, 1, 1.0, 0.0, 0.0);
+        render::draw_line_3d(0, 0, 0, 1, 1, 1, 1.0, 0.0, 0.0);
         render::draw_line_2d(0, 0, 1, 1, 1.0, 0.0, 0.0, 2.0);
         ",
     );

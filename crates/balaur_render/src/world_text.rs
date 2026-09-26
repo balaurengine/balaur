@@ -73,7 +73,7 @@ pub struct TextStyle {
     pub color: [f32; 4],
     pub align: Align,
     pub markup: bool,
-    /// The width lines break at, in the same pixels as `size`.
+    /// The width lines break at, in the same pixels as `font_size`.
     pub max_width: Option<f32>,
     pub decoration: Decoration,
     /// A project-relative `.fnt` naming a bitmap face; empty shapes with the
@@ -83,7 +83,7 @@ pub struct TextStyle {
     pub family: String,
     /// Baseline to baseline, as a multiple of the size; zero takes the default.
     pub line_height: f32,
-    /// Extra space between glyphs, in the same pixels as `size`.
+    /// Extra space between glyphs, in the same pixels as `font_size`.
     pub letter_spacing: f32,
     /// 3D only: discard a pixel this transparent rather than blending it, so
     /// text can be depth-sorted with the scene instead of over it.
@@ -214,19 +214,19 @@ pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<Tex
     };
     for (key, value) in &entries {
         match key.as_str() {
-            k::SIZE => style.size = number(value).unwrap_or(style.size),
-            k::WEIGHT => {
+            k::FONT_SIZE => style.size = number(value).unwrap_or(style.size),
+            k::FONT_WEIGHT => {
                 style.weight = number(value).map_or(style.weight, |weight| weight as u16);
             }
-            k::ITALIC => style.italic = matches!(value, Value::Bool(true)),
+            k::FONT_STYLE => style.italic = matches!(value, Value::Str(word) if word == w::ITALIC),
             k::MARKUP => style.markup = matches!(value, Value::Bool(true)),
             k::MAX_WIDTH => style.max_width = number(value),
-            k::FONT => {
+            k::BITMAP_FONT => {
                 if let Value::Str(path) = value {
                     style.font.clone_from(path);
                 }
             }
-            k::FAMILY => {
+            k::FONT_FAMILY => {
                 if let Value::Str(chain) = value {
                     style.family.clone_from(chain);
                 }
@@ -252,7 +252,7 @@ pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<Tex
                 }
             }
             k::COLOR => style.color = crate::draw_2d::color_of(value)?,
-            k::ALIGN => {
+            k::TEXT_ALIGN => {
                 style.align = match value {
                     Value::Str(word) => Align::of(word),
                     _ => Align::Start,
@@ -425,7 +425,7 @@ mod backend {
         state.borrow_mut().add_bitmap_font(path, &descriptor, &page)
     }
 
-    /// Where a shaped block's top-left corner sits so `align` lands the block
+    /// Where a shaped block's top-left corner sits so `text_align` lands the block
     /// around the anchor, and the y flip the world needs: the shaper places
     /// glyphs down the screen, the world counts up.
     fn origin(shaped: &Shaped, align: super::Align) -> Vec2 {

@@ -157,9 +157,11 @@ pub(crate) mod keys {
     /// A primitive's keys are the mesher's, so a schema line here and the
     /// reader there cannot drift apart.
     pub(crate) const AMBIENT_COLOR: &str = "ambient_color";
+    pub(crate) const BITMAP_FONT: &str = "bitmap_font";
     pub(crate) const CAST_SHADOW: &str = "cast_shadow";
     pub(crate) const CORNER_RADIUS: &str = p::CORNER_RADIUS;
     pub(crate) const FOG_MODE: &str = "fog_mode";
+    pub(crate) const FONT_FAMILY: &str = "font_family";
     pub(crate) const IMAGE_ROTATION_DEGREES: &str = "image_rotation_degrees";
     pub(crate) const INNER_ANGLE_DEGREES: &str = "inner_angle_degrees";
     pub(crate) const INNER_RADIUS: &str = p::INNER_RADIUS;
@@ -174,10 +176,10 @@ pub(crate) mod keys {
     pub(crate) const SIDES: &str = p::SIDES;
     pub(crate) const SKY_ENABLED: &str = "sky_enabled";
     pub(crate) const SKY_ROTATION_DEGREES: &str = "sky_rotation_degrees";
+    pub(crate) const TEXT_ALIGN: &str = "text_align";
     pub(crate) const TUBE_RADIUS: &str = p::TUBE_RADIUS;
 
     pub(crate) const A: &str = "a";
-    pub(crate) const ALIGN: &str = "align";
     pub(crate) const ALPHA_CUT: &str = "alpha_cut";
     pub(crate) const ANGLE: &str = "angle";
     pub(crate) const B: &str = "b";
@@ -210,10 +212,8 @@ pub(crate) mod keys {
     pub(crate) const EMITTING: &str = "emitting";
     pub(crate) const EXPLOSIVENESS: &str = "explosiveness";
     pub(crate) const FALLOFF: &str = "falloff";
-    pub(crate) const FAMILY: &str = "family";
     pub(crate) const FLIP_X: &str = "flip_x";
     pub(crate) const FLIP_Y: &str = "flip_y";
-    pub(crate) const FONT: &str = "font";
     pub(crate) const FONT_SIZE: &str = "font_size";
     pub(crate) const FONT_STYLE: &str = "font_style";
     pub(crate) const FONT_WEIGHT: &str = "font_weight";
@@ -226,7 +226,6 @@ pub(crate) mod keys {
     pub(crate) const IMAGE: &str = "image";
     pub(crate) const INTENSITY: &str = "intensity";
     /// A `draw_text` option; `text2d` spells it `font_style`.
-    pub(crate) const ITALIC: &str = "italic";
     pub(crate) const MIRROR: &str = "mirror";
     pub(crate) const JOIN: &str = "join";
     pub(crate) const KIND: &str = p::KIND;
@@ -283,7 +282,6 @@ pub(crate) mod keys {
     pub(crate) const TEXTURE: &str = "texture";
     pub(crate) const TILESET: &str = "tileset";
     /// A `draw_text` option; `text2d` spells it `font_weight`.
-    pub(crate) const WEIGHT: &str = "weight";
     pub(crate) const WIDTH: &str = "width";
 }
 

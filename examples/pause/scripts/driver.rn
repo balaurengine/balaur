@@ -64,7 +64,7 @@ fn tint(n) {
 }
 
 fn label(x, y, text, size, color) {
-    render::draw_text_2d(x, y, text, #{ size: size, color: color, align: "center" });
+    render::draw_text_2d(x, y, text, #{ font_size: size, color: color, text_align: "center" });
 }
 
 // A square that turns every frame, paused or not: what an `always` subtree

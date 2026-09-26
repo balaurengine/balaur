@@ -39,14 +39,14 @@ fn shared_schema() -> Vec<(&'static str, String)> {
         (k::FONT_WEIGHT, r#"{ type = "int", default = 400, min = 100, max = 900, description = "Stroke weight, 400 regular and 700 bold" }"#.into()),
         (k::FONT_STYLE, format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Upright or italic" }}"#, words::NORMAL, crate::vocabulary::options(words::FONT_STYLES))),
         (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#.into()),
-        (k::ALIGN, format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where the block sits across the node's origin" }}"#, words::CENTER, crate::vocabulary::options(words::TEXT_ALIGNS))),
+        (k::TEXT_ALIGN, format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where the block sits across the node's origin" }}"#, words::CENTER, crate::vocabulary::options(words::TEXT_ALIGNS))),
         (k::MAX_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Font pixels the lines wrap at; zero runs the text on one line" }"#.into()),
         (k::MARKUP, r#"{ type = "bool", default = false, description = "Read the text as markup: bold, italic, colour, alignment, wave and inline images" }"#.into()),
         (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Font pixels to one world unit, sizing the block the way a sprite is sized" }"#.into()),
         (k::LINE_HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "Baseline to baseline as a multiple of the size; zero takes the default" }"#.into()),
         (k::LETTER_SPACING, r#"{ type = "float", default = 0.0, description = "Extra space between glyphs, in font pixels" }"#.into()),
-        (k::FAMILY, r#"{ type = "enum", default = "ui", options = ["ui", "heading", "mono", "icons"], description = "Which of the project's font chains to shape with" }"#.into()),
-        (k::FONT, r#"{ type = "string", default = "", description = "A project-relative AngelCode .fnt naming a bitmap face; empty shapes with the project's vector fonts" }"#.into()),
+        (k::FONT_FAMILY, r#"{ type = "enum", default = "ui", options = ["ui", "heading", "mono", "icons"], description = "Which of the project's font chains to shape with" }"#.into()),
+        (k::BITMAP_FONT, r#"{ type = "string", default = "", description = "A project-relative AngelCode .fnt naming a bitmap face; empty shapes with the project's vector fonts" }"#.into()),
         (k::OUTLINE_SIZE, r#"{ type = "float", default = 0.0, min = 0.0, description = "Font pixels the outline reaches around the glyphs; zero draws none" }"#.into()),
         (k::OUTLINE_COLOR, r#"{ type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "The outline's colour" }"#.into()),
         (k::SHADOW_OFFSET_X, r#"{ type = "float", default = 0.0, description = "Font pixels the shadow is moved along x; zero with y draws none" }"#.into()),
@@ -99,11 +99,11 @@ fn from_params(params: &toml::Value, in_3d: bool) -> TextRenderable {
             weight: number(k::FONT_WEIGHT, 400.0) as u16,
             italic: text(k::FONT_STYLE) == words::ITALIC,
             color: crate::color_from_params(params),
-            align: Align::of(&text(k::ALIGN)),
+            align: Align::of(&text(k::TEXT_ALIGN)),
             markup: flag(k::MARKUP, false),
             max_width: (max_width > 0.0).then_some(max_width),
-            font: text(k::FONT),
-            family: text(k::FAMILY),
+            font: text(k::BITMAP_FONT),
+            family: text(k::FONT_FAMILY),
             line_height: number(k::LINE_HEIGHT, 0.0).max(0.0),
             letter_spacing: number(k::LETTER_SPACING, 0.0),
             alpha_cut: number(k::ALPHA_CUT, 0.0).clamp(0.0, 1.0),
@@ -154,7 +154,7 @@ fn to_params(text: &TextRenderable) -> toml::Value {
     );
     put(k::COLOR, crate::color_to_toml(text.style.color));
     put(
-        k::ALIGN,
+        k::TEXT_ALIGN,
         toml::Value::String(text.style.align.word().into()),
     );
     put(
@@ -162,8 +162,11 @@ fn to_params(text: &TextRenderable) -> toml::Value {
         toml::Value::Float(f64::from(text.style.max_width.unwrap_or(0.0))),
     );
     put(k::MARKUP, toml::Value::Boolean(text.style.markup));
-    put(k::FONT, toml::Value::String(text.style.font.clone()));
-    put(k::FAMILY, toml::Value::String(text.style.family.clone()));
+    put(k::BITMAP_FONT, toml::Value::String(text.style.font.clone()));
+    put(
+        k::FONT_FAMILY,
+        toml::Value::String(text.style.family.clone()),
+    );
     put(
         k::LINE_HEIGHT,
         toml::Value::Float(f64::from(text.style.line_height)),

@@ -114,10 +114,10 @@ impl FaceTweak {
     }
 }
 
-/// The chain a face's `family` names, or `None` for a word that names none.
+/// The chain a face's `font_family` names, or `None` for a word that names none.
 fn family_of(settings: &toml::Table) -> Option<&'static str> {
     use balaur_core::import::{keys, word, words};
-    match word(settings, keys::FAMILY, "") {
+    match word(settings, keys::FONT_FAMILY, "") {
         words::UI => Some("ui"),
         words::HEADING => Some("heading"),
         words::MONO => Some("mono"),

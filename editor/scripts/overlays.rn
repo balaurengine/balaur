@@ -48,9 +48,9 @@ pub fn guides(S) {
         return;
     }
     let d = util::rgb(k.axis_z);
-    render::draw_line(p.x - 4.0, p.y, p.z, p.x + 4.0, p.y, p.z, a[0], a[1], a[2], 1.0);
-    render::draw_line(p.x, p.y - 4.0, p.z, p.x, p.y + 4.0, p.z, s[0], s[1], s[2], 1.0);
-    render::draw_line(p.x, p.y, p.z - 4.0, p.x, p.y, p.z + 4.0, d[0], d[1], d[2], 1.0);
+    render::draw_line_3d(p.x - 4.0, p.y, p.z, p.x + 4.0, p.y, p.z, a[0], a[1], a[2], 1.0);
+    render::draw_line_3d(p.x, p.y - 4.0, p.z, p.x, p.y + 4.0, p.z, s[0], s[1], s[2], 1.0);
+    render::draw_line_3d(p.x, p.y, p.z - 4.0, p.x, p.y, p.z + 4.0, d[0], d[1], d[2], 1.0);
 }
 
 // The selected clip's position keys, joined in order, with a marker on each
@@ -86,7 +86,7 @@ pub fn motion_path(S) {
             if is2d {
                 render::draw_line_2d(prev[0], prev[1], x, y, c[0], c[1], c[2], 1.0);
             } else {
-                render::draw_line(prev[0], prev[1], prev[2], x, y, z, c[0], c[1], c[2], 1.0);
+                render::draw_line_3d(prev[0], prev[1], prev[2], x, y, z, c[0], c[1], c[2], 1.0);
             }
         }
         let d = 0.15;
@@ -94,8 +94,8 @@ pub fn motion_path(S) {
             render::draw_line_2d(x - d, y, x + d, y, c[0], c[1], c[2], 2.0);
             render::draw_line_2d(x, y - d, x, y + d, c[0], c[1], c[2], 2.0);
         } else {
-            render::draw_line(x - d, y, z, x + d, y, z, c[0], c[1], c[2], 2.0);
-            render::draw_line(x, y - d, z, x, y + d, z, c[0], c[1], c[2], 2.0);
+            render::draw_line_3d(x - d, y, z, x + d, y, z, c[0], c[1], c[2], 2.0);
+            render::draw_line_3d(x, y - d, z, x, y + d, z, c[0], c[1], c[2], 2.0);
         }
         previous = Some([x, y, z]);
     }
@@ -260,22 +260,22 @@ pub fn colliders(S) {
         let zs = [p.z - hz, p.z + hz];
         for yy in ys {
             for zz in zs {
-                render::draw_line(xs[0], yy, zz, xs[1], yy, zz, c[0], c[1], c[2], 1.0);
+                render::draw_line_3d(xs[0], yy, zz, xs[1], yy, zz, c[0], c[1], c[2], 1.0);
             }
         }
         for xx in xs {
             for zz in zs {
-                render::draw_line(xx, ys[0], zz, xx, ys[1], zz, c[0], c[1], c[2], 1.0);
+                render::draw_line_3d(xx, ys[0], zz, xx, ys[1], zz, c[0], c[1], c[2], 1.0);
             }
         }
         for xx in xs {
             for yy in ys {
-                render::draw_line(xx, yy, zs[0], xx, yy, zs[1], c[0], c[1], c[2], 1.0);
+                render::draw_line_3d(xx, yy, zs[0], xx, yy, zs[1], c[0], c[1], c[2], 1.0);
             }
         }
         // Center of mass.
-        render::draw_line(p.x - 0.15, p.y, p.z, p.x + 0.15, p.y, p.z, c[0], c[1], c[2], 3.0);
-        render::draw_line(p.x, p.y - 0.15, p.z, p.x, p.y + 0.15, p.z, c[0], c[1], c[2], 3.0);
+        render::draw_line_3d(p.x - 0.15, p.y, p.z, p.x + 0.15, p.y, p.z, c[0], c[1], c[2], 3.0);
+        render::draw_line_3d(p.x, p.y - 0.15, p.z, p.x, p.y + 0.15, p.z, c[0], c[1], c[2], 3.0);
     }
 }
 
@@ -290,7 +290,7 @@ fn forward_of(found) {
 }
 
 fn line3(a, b, c, width) {
-    render::draw_line(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2], width);
+    render::draw_line_3d(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2], width);
 }
 
 /// A ring of `radius` about `center` in the plane spanned by `u` and `v`.

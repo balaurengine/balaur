@@ -25,7 +25,9 @@ with no alias and no migration, as `one way to do a thing` asks.
   and the render keys (`light_layers`, `cast_shadow`, `shadow_enabled`, `range`,
   the spot's `*_angle_degrees`, `ambient_color`, `fog_mode`, `sky_enabled`,
   `sky_rotation_degrees`, `pixels_per_unit`, `operation`, cloner and terrain
-  `kind`, cloner `angle_degrees`, the probe's `image_rotation_degrees`).
+  `kind`, cloner `angle_degrees`, the probe's `image_rotation_degrees`), and the
+  text keys (`font_family`, `bitmap_font`, `text_align`, the `text2d` keys as
+  `draw_text_2d` options) with `draw_text_3d` and `draw_line_3d`.
 - `NAMING.md` has the eight scopes, rules N18 to N23, and the picked names per
   system, from a survey of SDL3, Godot 4, Unity, Blender, GLFW, W3C, rapier and
   glTF on 2026-09-25.
@@ -35,8 +37,7 @@ with no alias and no migration, as `one way to do a thing` asks.
 
 | Now | New | Why |
 | --- | --- | --- |
-| text `family`, sidecar `family` | `font_family`; text `font` → `bitmap_font` | the widget already says `font_family`; `icons` and `icon` translated in `theme.rs` |
-| text `align` | `text_align` | the widget's name for it |
+| the `icons` font chain beside the widget's `icon` | one word | `theme.rs` translates between them |
 | widget `source` (image, card sheet, code language) | `image`, `sheet`, `language` | `source` is raw text in the glossary |
 | body `mass` | `mass`, the total | every engine but rapier reads it so; collider `mass` overrides |
 | every angle in degrees | radians, as `floor_max_angle` | `angle` is radians on `bone2d` and degrees on `cloner` |
@@ -56,7 +57,6 @@ with no alias and no migration, as `one way to do a thing` asks.
 | Now | New | Why |
 | --- | --- | --- |
 | `node.global_tint`, `global_visible`, `global_material`, `global_z_index` | `tint_in_tree`, `visible_in_tree`, `material_in_tree`, `z_index_in_tree` | `global_` means world space on `global_position`; Godot says `is_visible_in_tree` |
-| `render.draw_line`, `draw_text` | `draw_line_3d`, `draw_text_3d` | D5, beside `_2d` |
 | `debugger.paused()` (a location) | `stop_location` | `engine.paused()` is a bool |
 | `export.running()`, `import.running()` (counts) | `running_count` | |
 | `multiplayer.settled()`, `replay.diverged()` (ticks) | `settled_tick`, `divergence_tick` | |

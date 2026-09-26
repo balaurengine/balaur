@@ -37,10 +37,10 @@ fn word(text: &toml::Value, key: &str) -> Option<String> {
 #[test]
 fn a_text_block_written_with_render_constants_reads_back_their_words() {
     let text = text_after(
-        r#"this.node.set_component("text2d", #{ text: "hi", align: render::ALIGN_END, font_style: render::FONT_ITALIC });"#,
+        r#"this.node.set_component("text2d", #{ text: "hi", text_align: render::ALIGN_END, font_style: render::FONT_ITALIC });"#,
     )
     .expect("the script wrote a text2d");
-    assert_eq!(word(&text, "align").as_deref(), Some("end"));
+    assert_eq!(word(&text, "text_align").as_deref(), Some("end"));
     assert_eq!(word(&text, "font_style").as_deref(), Some("italic"));
 }
 
@@ -48,6 +48,6 @@ fn a_text_block_written_with_render_constants_reads_back_their_words() {
 fn a_text_block_that_names_no_alignment_is_centred_and_upright() {
     let text = text_after(r#"this.node.set_component("text2d", #{ text: "hi" });"#)
         .expect("the script wrote a text2d");
-    assert_eq!(word(&text, "align").as_deref(), Some("center"));
+    assert_eq!(word(&text, "text_align").as_deref(), Some("center"));
     assert_eq!(word(&text, "font_style").as_deref(), Some("normal"));
 }

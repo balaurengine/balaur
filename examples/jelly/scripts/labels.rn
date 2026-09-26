@@ -33,7 +33,7 @@ pub fn init(this) {
 }
 
 fn label(x, y, text, size, color) {
-    render::draw_text_2d(x, y, text, #{ size: size, color: color, align: render::ALIGN_CENTER });
+    render::draw_text_2d(x, y, text, #{ font_size: size, color: color, text_align: render::ALIGN_CENTER });
 }
 
 pub fn update(this, dt) {

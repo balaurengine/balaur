@@ -467,7 +467,7 @@ fn hit_test(S, cam, geo, mx, my) {
 const W = 4.2;
 
 fn line(a, b, color, width, on_top) {
-    render::draw_line(a[0], a[1], a[2], b[0], b[1], b[2], color[0], color[1], color[2], width, false, on_top);
+    render::draw_line_3d(a[0], a[1], a[2], b[0], b[1], b[2], color[0], color[1], color[2], width, false, on_top);
 }
 
 // Corner marker in steadyum's open-bracket style: of the mini-cube's 12

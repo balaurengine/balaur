@@ -1497,7 +1497,7 @@ fn draw_entry(node, verb, a, place) {
         let opts = #{ "color": draw_color(a[3]) };
         opts[Z_INDEX] = place[Z_INDEX];
         if !is_nil(a[2]) {
-            opts["size"] = a[2];
+            opts["font_size"] = a[2];
         }
         render::draw_text_2d(at[0], at[1], str(a[1]), opts);
     }

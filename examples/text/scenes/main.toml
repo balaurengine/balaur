@@ -17,7 +17,7 @@ position = [0.0, 3.2, 0.0]
 
 [nodes.text3d]
 text = "Text in the world"
-family = "heading"
+font_family = "heading"
 font_size = 96
 color = [0.96, 0.87, 0.62, 1.0]
 pixels_per_unit = 110
@@ -101,7 +101,7 @@ position = [0.0, -2.1, 0.0]
 
 [nodes.text3d]
 text = "A block wraps at the width it is given, and the lines sit where the shaper put them."
-family = "mono"
+font_family = "mono"
 font_size = 34
 max_width = 620
 line_height = 1.35
