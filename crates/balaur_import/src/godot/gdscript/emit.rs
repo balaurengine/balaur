@@ -72,8 +72,7 @@ pub(crate) struct Context {
     /// Exports whose values no script prop holds: the scene files them in
     /// the node's `meta`, and `init` reads them back as Godot's types.
     pub data_exports: Vec<String>,
-    /// Whether the node class writes an `exports()`: `init` keeps what the
-    /// scene set in it across `_init`, which Godot ran before the scene's.
+    /// Whether a node class writes an `exports()`, which `init` keeps across `_init`.
     pub scene_exports: bool,
     /// Properties with a `get` or a `set`: a read or a write of one outside
     /// its own accessor calls `__get_<name>` or `__set_<name>`.
@@ -686,6 +685,7 @@ impl<'a> Emitter<'a> {
         if let Expr::Field(object, name) = arg
             && !matches!(**object, Expr::SelfRef)
             && !self.context.signals.contains(name)
+            && !matches!(&**object, Expr::Name(class) if map::static_value(class, name).is_some())
         {
             return self.bound_record(object, name, &[]);
         }

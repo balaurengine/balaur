@@ -142,6 +142,18 @@ func _done():\n\
 }
 
 #[test]
+fn a_connect_flag_named_on_object_is_its_number() {
+    let source = "extends Node\n\n\
+func go(button):\n\
+\tbutton.ready.connect(_finish.bind(button), Object.CONNECT_ONE_SHOT)\n\n\
+func _finish(button):\n\
+\tpass\n";
+    let out = convert(source, "scripts/a.gd", &Classes::default());
+    assert!(!out.rune.contains("todo"), "{}", out.rune);
+    assert!(out.rune.contains(", 4)"), "{}", out.rune);
+}
+
+#[test]
 fn the_window_scale_and_a_debug_build_have_engine_answers() {
     let source = "extends Node\n\n\
 func grow():\n\
