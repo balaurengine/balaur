@@ -1021,7 +1021,7 @@ pub fn session_list(S, k) {
     }
     let on = S.session.verify;
     crate::docks::chrome_rows(S, [[
-        #{ kind: "label", role: "text_caption", grow: 1, text: "sessions are recorded on every play" },
+        #{ kind: "label", role: "text_caption", grow: 1, text: "every play is recorded" },
         #{
             kind: "button", text: "verify",
             role: "chip", checked: on,
@@ -1034,7 +1034,7 @@ pub fn session_list(S, k) {
     if rows.len() == 0 {
         specs.push(#{ full: true, height: 0, controls: [#{
             kind: "label", role: "text_caption", grow: 1, wrap: true,
-            text: "no sessions yet — press Play",
+            text: "no recordings yet — press Play",
         }] });
     }
     for entry in rows {
@@ -1051,7 +1051,7 @@ fn session_row(S, r) {
     let out = [
         #{
             kind: "button", role: "action_form_primary", text: "▶",
-            tooltip: "Replay this session",
+            tooltip: "Replay this recording",
             on: |_| { session::open(S, r.name); },
         },
         #{ kind: "label", role: "text_code", text: if r.started == "" { r.name } else { r.started } },

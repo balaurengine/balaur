@@ -99,7 +99,7 @@ enum Command {
         /// share of a 60 Hz frame. What a budget is set against.
         #[arg(long)]
         timings: bool,
-        /// Record the session — every tick's input and digest — to a file
+        /// Record the run — every tick's input and digest — to a file
         /// `balaur replay` can play back.
         #[arg(long, value_name = "PATH")]
         record: Option<PathBuf>,
@@ -219,7 +219,7 @@ enum Command {
     /// Open a project in the balaur editor (the editor itself is a balaur
     /// project; see the `editor/` directory).
     Edit(EditOpts),
-    /// Play back a session recorded with `run --record`.
+    /// Play back a recording made with `run --record`.
     ///
     /// The recording carries its project and every tick's input, so this
     /// needs nothing else. With `--verify` it also re-checks each tick's

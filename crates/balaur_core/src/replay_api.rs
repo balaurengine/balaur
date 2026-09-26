@@ -1,4 +1,4 @@
-//! The `replay` script module: record a session, play one back, and read
+//! The `replay` script module: record a run, play one back, and read
 //! what happened in it.
 //!
 //! Declared once through the seam like `debugger_api`, so the editor's
@@ -99,8 +99,8 @@ pub const REPLAY_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "replay",
-        name: "session_name",
-        call: session_name,
+        name: "recording_name",
+        call: recording_name,
     },
 ];
 
@@ -111,23 +111,23 @@ pub fn install_replay_api(m: &mut dyn Bindings<Engine>) {
         "Records what a running game is fed and plays it back. A recording holds each tick's input, network arrivals and events; `balaur run --record` writes one.",
     );
     m.describe(&[
-        ("record", &[], "(path: string, options: any?)", "Start recording into a file; call it before the code whose session it records runs."),
+        ("record", &[], "(path: string, options: any?)", "Start recording into a file; call it before the code it records runs."),
         ("stop", &[], "(reason: string?)", "Close the recording, naming why it ended, and return the file it wrote."),
         ("recording", &[], "()", "The file being recorded into, or nil."),
-        ("load", &[], "(path: string)", "Read a session and put it in front of the engine, paused before its first tick."),
-        ("unload", &[], "()", "Drop the loaded session and let the game run live again."),
-        ("play", &[], "()", "Run the loaded session, one recorded tick per frame."),
+        ("load", &[], "(path: string)", "Read a recording and put it in front of the engine, paused before its first tick."),
+        ("unload", &[], "()", "Drop the loaded recording and let the game run live again."),
+        ("play", &[], "()", "Run the loaded recording, one recorded tick per frame."),
         ("pause", &[], "()", "Stop between ticks, holding the simulation still while the frame loop keeps drawing."),
         ("seek", &[], "(tick: int)", "Run recorded ticks until playback reaches the given tick; forward only."),
         ("state", &[], "()", "What playback is doing: `STATE_STOPPED`, `STATE_PLAYING`, `STATE_PAUSED` or `STATE_SEEKING`."),
         ("position", &[], "()", "The tick playback has reached."),
-        ("length", &[], "()", "The loaded session's frame count and the ticks it spans, or nil."),
-        ("header", &[], "()", "The loaded session's project, start time, script fingerprint and how it ended."),
-        ("info", &[], "(path: string)", "The same summary for a session file on disk, without loading it."),
+        ("length", &[], "()", "The loaded recording's frame count and the ticks it spans, or nil."),
+        ("header", &[], "()", "The loaded recording's project, start time, script fingerprint and how it ended."),
+        ("info", &[], "(path: string)", "The same summary for a recording on disk, without loading it."),
         ("events", &[], "(from: int, to: int)", "The events recorded between two ticks, each with its tick, kind, label and data."),
         ("marks", &[], "(source: string, key: string?)", "The ticks at which one replay source held a non-empty list under a key, and what it held."),
         ("divergence_tick", &[], "()", "The first tick whose replay did not reproduce the recorded digest, or nil."),
-        ("session_name", &[], "()", "A file-safe name for a session starting now, so a list of them sorts by when they ran."),
+        ("recording_name", &[], "()", "A file-safe name for a recording starting now, so a list of them sorts by when they ran."),
     ]);
     for d in REPLAY_OPS {
         m.function_raw(d.name, Box::new(d.call));
@@ -225,7 +225,7 @@ fn play(eng: &Engine, _: &[Value]) -> Result<Value> {
     let player = eng.resource::<ReplayPlayer>();
     let mut player = player.borrow_mut();
     if player.session.is_none() {
-        return Err(anyhow!("no session is loaded"));
+        return Err(anyhow!("no recording is loaded"));
     }
     if player.remaining() > 0 {
         player.state = PlayState::Playing;
@@ -383,7 +383,7 @@ fn diverged(eng: &Engine, _: &[Value]) -> Result<Value> {
 
 /// A file name for a session starting now: the header's timestamp with the
 /// characters a Windows path refuses taken out, so it still sorts by time.
-fn session_name(_: &Engine, _: &[Value]) -> Result<Value> {
+fn recording_name(_: &Engine, _: &[Value]) -> Result<Value> {
     Ok(Value::Str(
         replay::timestamp().replace(':', "-").replace(' ', "_"),
     ))

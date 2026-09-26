@@ -117,7 +117,7 @@ The Rust types keep their names: `NetSession`, `rollback::Session` and
 
 | Name | Why not |
 | --- | --- |
-| `session` | Means a recording in the editor (the Session dock, `editor/scripts/session.rn`, `editor/sessions/keep`) and a login in the Gamend addon (`save_session`, `restore_session`) |
+| `session` | A login in the Gamend addon (`save_session`, `restore_session`); a play run on disk is a recording |
 | `netcode` | Names the technique, not the match |
 | `net` | Beside `http` and `websocket` it reads as a socket library |
 | `room` | Photon's word; a second name for what Gamend calls a lobby |

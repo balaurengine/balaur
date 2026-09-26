@@ -130,7 +130,7 @@ pub fn panels(S) {
         "docs": #{ name: "Docs", icon: icons::panel("docs"), tall: true },
         "timeline": #{ name: "Timeline", icon: icons::panel("timeline"), tall: true },
         "debugger": #{ name: "Debugger", icon: icons::panel("debugger"), tall: true },
-        "session": #{ name: "Session", icon: icons::panel("session"), tall: true, chrome: true },
+        "recordings": #{ name: "Recordings", icon: icons::panel("recordings"), tall: true, chrome: true },
         "profiler": #{ name: "Profiler", icon: icons::panel("profiler"), tall: true },
         "cost": #{ name: "Cost", icon: icons::panel("cost"), tall: true },
         "library": #{ name: "Library", icon: icons::panel("library"), tall: false, chrome: true },
@@ -293,7 +293,7 @@ fn body(S, k, id) {
         "library" => crate::library::panel(S, k),
         "tiles" => crate::tiles::palette(S, k),
         "statemachine" => crate::statemachine::body(S, k),
-        "session" => dock::session_list(S, k),
+        "recordings" => dock::session_list(S, k),
 
 
         _ => match crate::plugins::panel(S, id) {
@@ -316,7 +316,7 @@ fn body(S, k, id) {
 fn canvas_views() {
     #{
         timeline: "BottomTimeline",
-        session: "BottomSession",
+        recordings: "BottomRecordings",
         weights: "BottomWeights",
         bonemap: "BottomBonemap",
     }
@@ -330,7 +330,7 @@ fn canvas_on(S, d, id) {
     if d.shut || d.active != id {
         return false;
     }
-    if id == "session" {
+    if id == "recordings" {
         // Bound first: `return crate::…` does not parse.
         let loaded = crate::session::loaded(S);
         return loaded;
@@ -409,7 +409,7 @@ fn node_owners() {
             #{ hide: "table", panels: ["cost", "profiler", "library"] },
             #{ hide: "cards", panels: ["assets", "library", "tiles"] },
             #{ hide: "stack", panels: ["debugger"] },
-            #{ hide: "rows", panels: ["statemachine", "session"] },
+            #{ hide: "rows", panels: ["statemachine", "recordings"] },
         ],
         left: [
             #{ hide: "tree", panels: ["scene"] },
@@ -743,6 +743,10 @@ fn tools_room(S, side) {
     }
     let width = S.layout[side].w;
     let free = width - 60.0 - tabs_width(S, d.active);
+    // A sliver draws nothing a panel can use and clips what it tries.
+    if free < 24.0 {
+        return 0.0;
+    }
     crate::util::clamp(free, 0.0, width * 0.5)
 }
 
@@ -758,8 +762,8 @@ fn tabs_width(S, id) {
     let total = 0.0;
     for tab in S.docks[side_for(S, id)].tabs {
         // 11 px, semibold: about 7 px a character, plus the pill's padding,
-        // the close mark and the gap to the next one.
-        total += 34.0 + 7.0 * util::f(panel(S, tab).name.len());
+        // the close mark and the gap to the next one, measured at 56 px.
+        total += 56.0 + 7.0 * util::f(panel(S, tab).name.len());
     }
     total
 }

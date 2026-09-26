@@ -112,7 +112,7 @@ pub fn define(eng: &Engine, def: SettingDef) {
 /// Define a group at once: every key in `schema` becomes `<prefix>/<key>`.
 ///
 /// A key may itself contain slashes, so one block can declare
-/// `appearance/theme` and `sessions/keep` under the same prefix.
+/// `appearance/theme` and `recordings/keep` under the same prefix.
 pub fn define_group(eng: &Engine, prefix: &str, scope: Scope, schema: &toml::Value) {
     let Some(table) = schema.as_table() else {
         return;
@@ -652,12 +652,12 @@ compact = { type = "bool", default = false, order = 3, help = "Drop labels the i
     );
     define_group(
         eng,
-        "editor/sessions",
+        "editor/recordings",
         Scope::Editor,
         &parse(
-            "settings.editor.sessions",
+            "settings.editor.recordings",
             r#"
-keep = { type = "int", default = 10, min = 1, max = 200, order = 10, help = "How many recorded play sessions are kept per game before the oldest is pruned." }
+keep = { type = "int", default = 10, min = 1, max = 200, order = 10, help = "How many recordings are kept per game before the oldest is pruned." }
 verify = { type = "bool", default = false, order = 11, help = "Hash the world every tick while recording, so a replay can say where it parted. Costs a walk of every node per frame." }
 "#,
         ),

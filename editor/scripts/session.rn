@@ -9,7 +9,7 @@ use crate::util;
 // How many sessions are kept per game before the oldest is pruned; a kept
 // one is renamed out of the ring. Set on the settings screen.
 fn ring_size() {
-    let n = settings::get("editor/sessions/keep");
+    let n = settings::get("editor/recordings/keep");
     if n is Tuple { 10 } else { crate::util::f(n) as i64 }
 }
 
@@ -40,7 +40,7 @@ pub fn state() {
 // Where this game's sessions live: in the per-user folder, one per project
 // name, so nothing lands in the project or its version control.
 pub fn dir(S) {
-    project::editor_data_directory() + "/sessions/" + S.game_name
+    project::editor_data_directory() + "/recordings/" + S.game_name
 }
 
 // A fingerprint of the scripts the session is about to run, so a replay can
@@ -62,14 +62,14 @@ pub fn fingerprint(S) {
 // game's scripts attach: an `init` that opens a socket has to be inside the
 // recording, and one that takes an await token has to take the recorded id.
 pub fn start(S) {
-    let path = dir(S) + "/" + replay::session_name() + ".blr";
+    let path = dir(S) + "/" + replay::recording_name() + ".blr";
     let opts = #{ scripts: fingerprint(S), digest: S.session.verify };
     let (ok, why) = script::attempt(|| replay::record(path, opts));
     if ok {
         S.session.recording = path;
         S.session.listed_at = -1.0;
     } else {
-        log::warn(format!("not recording this session: {}", why));
+        log::warn(format!("not recording this run: {}", why));
         S.session.recording = "";
     }
 }
@@ -235,7 +235,7 @@ pub fn open(S, name) {
     // the recording's is a different world from tick one.
     model::hold_game_cameras(S, true);
     S.playing = true;
-    crate::docks::show(S, "session");
+    crate::docks::show(S, "recordings");
     // Released on the replay's first frame, as play released the recording's.
     S.release_at = S.frame + 1;
     replay::play();

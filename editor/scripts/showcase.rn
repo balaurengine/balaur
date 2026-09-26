@@ -246,7 +246,7 @@ fn spot(S, name) {
         "play" => chrome::transport_spot(S, 0),
         "stop" => chrome::transport_spot(S, 2),
         // The newest recording's play button in the session list.
-        "session" => (bottom.x + 21.0, bottom.y + 94.0),
+        "recordings" => (bottom.x + 21.0, bottom.y + 94.0),
         "key" => (bottom.x + 32.0, bottom.y + 68.0),
         "bone_tool" => tool_spot(S, "bone"),
         "doc_scene" => chrome::doc_spot(S, "scene"),
@@ -724,20 +724,20 @@ fn determinism(S, q) {
         shell::set_workspace(S, defs::WORKSPACE_SCENE);
         shell::set_zoom(S, 45.0);
         S.session.verify = true;
-        crate::docks::show(S, "session");
+        crate::docks::show(S, "recordings");
     });
     click_row(S, q, 40, "Bird");
     click(S, q, 120, || spot(S, "play"), || {
         shell::toggle_play(S);
-        crate::docks::show(S, "session");
+        crate::docks::show(S, "recordings");
     });
     act(q, 130, || fit_level(S));
     fling(S, q, 200);
     click(S, q, 520, || spot(S, "stop"), || {
         shell::stop_play(S);
-        crate::docks::show(S, "session");
+        crate::docks::show(S, "recordings");
     });
-    click(S, q, 640, || spot(S, "session"), || open_newest(S));
+    click(S, q, 640, || spot(S, "recordings"), || open_newest(S));
     act(q, 650, || fit_level(S));
 }
 

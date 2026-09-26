@@ -291,7 +291,7 @@ fn file_of(host: &RuneHost, key: &str) -> PathBuf {
     let mut hasher = Hasher::new();
     hasher.write_str(&root.to_string_lossy());
     hasher.write_str(key);
-    let dir = balaur_core::engine_api::user_data_dir_of(&host.engine).join("units");
+    let dir = balaur_core::engine_api::user_data_dir_of(&host.engine).join("script_cache");
     dir.join(format!("{}.unit", hasher.finish()))
 }
 

@@ -84,7 +84,7 @@ pub fn server_url() {
     if url is String && url != "" {
         return url;
     }
-    gamend::target()["url"]
+    gamend::server()["url"]
 }
 
 /// One frame: ask for the policy until it comes, read the new lines, and

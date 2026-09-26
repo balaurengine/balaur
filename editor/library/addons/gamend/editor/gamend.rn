@@ -158,7 +158,7 @@ fn chip(text, on, tip, act) {
 /// The two servers, the links, and who is signed in over what. The head is a
 /// `flow`, so these wrap rather than measuring the width themselves.
 fn header(S, me) {
-    let target = gamend::target();
+    let target = gamend::server();
     let link = gamend::connection();
     let url = link["url"];
     let out = [];
@@ -182,7 +182,7 @@ fn header(S, me) {
 /// Talk to the other of the project's servers from now on, remembered for
 /// this person only.
 fn pick(S, me, name) {
-    settings::set("gamend/target", name);
+    settings::set("gamend/server", name);
     let commit = S.kit.save_prefs;
     commit(S);
     gamend::configure(());
@@ -213,11 +213,11 @@ fn status(link) {
 fn overview(S, me, out) {
     let section = S.kit.section;
     let field = S.kit.field;
-    let target = gamend::target();
+    let target = gamend::server();
     let link = gamend::connection();
     out.push(section("Server"));
     out.push(field(S, "url", link["url"], #{ copy: true }));
-    out.push(field(S, "target", target["name"], #{}));
+    out.push(field(S, "server", target["name"], #{}));
     let plugin = if target["plugin"] == "" { "none: set [gamend] plugin" } else { target["plugin"] };
     out.push(field(S, "hook plugin", plugin, #{}));
     out.push(field(S, "health", brief(fetch(me, "health", "/api/v1/health")), #{}));

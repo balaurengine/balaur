@@ -73,7 +73,7 @@ pub fn component(name) {
         return (panel("tiles"), "node_2d");
     }
     if name == "audio" || name == "audio_player" {
-        return (panel("session"), "node_default");
+        return (panel("recordings"), "node_default");
     }
     if name == "bindings" || name == "events" {
         return (ui("events"), "node_default");
@@ -95,7 +95,7 @@ pub fn panel(id) {
         "docs" => "\u{e02f}",
         "timeline" => "\u{e792}",
         "debugger" => "\u{e5f4}",
-        "session" => "\u{e3ee}",
+        "recordings" => "\u{e3ee}",
         "profiler" => "\u{e150}",
         "tiles" => "\u{e464}",
         "weights" => "\u{e3ec}",

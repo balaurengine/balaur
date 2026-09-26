@@ -430,7 +430,7 @@ fn load(eng: &Engine) -> BTreeMap<String, Vec<Binding>> {
 
 /// Where a player's rebindings live: beside their saves, not in the project.
 fn bindings_path(eng: &Engine) -> PathBuf {
-    balaur_core::engine_api::user_data_dir_of(eng).join("input.toml")
+    balaur_core::engine_api::user_data_dir_of(eng).join("bindings.toml")
 }
 
 fn apply_saved_rebindings(eng: &Engine, actions: &mut InputActions) {

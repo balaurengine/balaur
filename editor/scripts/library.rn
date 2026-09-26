@@ -34,7 +34,7 @@ fn catalogue(S) {
     if held is Object {
         return held;
     }
-    let text = fs::read(ROOT + "/manifest.toml");
+    let text = fs::read(ROOT + "/catalog.toml");
     if !(text is String) {
         log::warn("no library manifest at " + ROOT);
         S.library.catalogue = #{ entries: [], templates: [] };

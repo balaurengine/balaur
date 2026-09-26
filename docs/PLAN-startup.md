@@ -43,7 +43,7 @@ what a 113-line project costs, because a pack ships the compiled unit.
 ## 1. The units a run already compiled
 
 **Built.** `crates/balaur_script_rune/src/cache.rs` keeps every unit a dev run
-compiles, under `units/` in the project's user data directory, one file a
+compiles, under `script_cache/` in the project's user data directory, one file a
 script. A boot reads it back instead of compiling when nothing it was built
 from has moved.
 

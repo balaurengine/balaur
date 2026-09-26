@@ -1211,7 +1211,7 @@ fire = ["mouse:left"]
   who rebinds after recording would otherwise replay with a different action
   firing. `App::add_replay_setup` is that seam, and a recording made before a
   plugin declared its setup still plays.
-- `input.bind` saves every rebinding to `input.toml` in the user data directory;
+- `input.bind` saves every rebinding to `bindings.toml` in the user data directory;
   `reset_bindings` goes back to the project's. An undeclared action reads 0 and
   warns once.
 

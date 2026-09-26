@@ -813,7 +813,7 @@ pub fn draw_view_timeline(this) {
     dock::timeline(this.S, this.S.theme);
 }
 
-pub fn draw_view_session(this) {
+pub fn draw_view_recordings(this) {
     dock::session_view(this.S, this.S.theme);
 }
 

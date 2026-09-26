@@ -8141,8 +8141,8 @@
         "rest": "Call a path on the configured server over HTTP; the result carries the `status` and the decoded `body`.",
         "restore": "Sign in from a session a previous run kept, as `session` answers it, without asking the server; nil signs out here. False when there is no server to sign in to, or the map carries no `access_token`.",
         "run_id": "This run's id: every call sends it as `x-gamend-session` and the socket as `client_session`, so the server files a run's lines together. The log shipper names its run with it.",
-        "session": "The signed-in session as `{ user_id, username, display_name, access_token, refresh_token, expires_in, expires_at }`, `expires_at` read from the token itself; nil when nobody is signed in.",
-        "target": "The server a `configure()` with no URL uses: `{ name, url, production, local, plugin }` from `[gamend]`, `name` being `production` or `local`."
+        "server": "The server a `configure()` with no URL uses: `{ name, url, production, local, plugin }` from `[gamend]`, `name` being `production` or `local`.",
+        "session": "The signed-in session as `{ user_id, username, display_name, access_token, refresh_token, expires_in, expires_at }`, `expires_at` read from the token itself; nil when nobody is signed in."
       },
       "functions": [
         "activity",
@@ -8162,8 +8162,8 @@
         "rest",
         "restore",
         "run_id",
-        "session",
-        "target"
+        "server",
+        "session"
       ],
       "name": "gamend",
       "signatures": {
@@ -8184,8 +8184,8 @@
         "rest": "(Value, String, String, Option<Value>) -> Value",
         "restore": "Option<Value> -> Value",
         "run_id": "() -> Value",
-        "session": "() -> Value",
-        "target": "() -> Value"
+        "server": "() -> Value",
+        "session": "() -> Value"
       }
     },
     {
@@ -11914,21 +11914,21 @@
       "docs": {
         "divergence_tick": "The first tick whose replay did not reproduce the recorded digest, or nil.",
         "events": "The events recorded between two ticks, each with its tick, kind, label and data.",
-        "header": "The loaded session's project, start time, script fingerprint and how it ended.",
-        "info": "The same summary for a session file on disk, without loading it.",
-        "length": "The loaded session's frame count and the ticks it spans, or nil.",
-        "load": "Read a session and put it in front of the engine, paused before its first tick.",
+        "header": "The loaded recording's project, start time, script fingerprint and how it ended.",
+        "info": "The same summary for a recording on disk, without loading it.",
+        "length": "The loaded recording's frame count and the ticks it spans, or nil.",
+        "load": "Read a recording and put it in front of the engine, paused before its first tick.",
         "marks": "The ticks at which one replay source held a non-empty list under a key, and what it held.",
         "pause": "Stop between ticks, holding the simulation still while the frame loop keeps drawing.",
-        "play": "Run the loaded session, one recorded tick per frame.",
+        "play": "Run the loaded recording, one recorded tick per frame.",
         "position": "The tick playback has reached.",
-        "record": "Start recording into a file; call it before the code whose session it records runs.",
+        "record": "Start recording into a file; call it before the code it records runs.",
         "recording": "The file being recorded into, or nil.",
+        "recording_name": "A file-safe name for a recording starting now, so a list of them sorts by when they ran.",
         "seek": "Run recorded ticks until playback reaches the given tick; forward only.",
-        "session_name": "A file-safe name for a session starting now, so a list of them sorts by when they ran.",
         "state": "What playback is doing: `STATE_STOPPED`, `STATE_PLAYING`, `STATE_PAUSED` or `STATE_SEEKING`.",
         "stop": "Close the recording, naming why it ended, and return the file it wrote.",
-        "unload": "Drop the loaded session and let the game run live again."
+        "unload": "Drop the loaded recording and let the game run live again."
       },
       "functions": [
         "divergence_tick",
@@ -11943,8 +11943,8 @@
         "position",
         "record",
         "recording",
+        "recording_name",
         "seek",
-        "session_name",
         "state",
         "stop",
         "unload"
@@ -11963,8 +11963,8 @@
         "position": "()",
         "record": "(path: string, options: any?)",
         "recording": "()",
+        "recording_name": "()",
         "seek": "(tick: int)",
-        "session_name": "()",
         "state": "()",
         "stop": "(reason: string?)",
         "unload": "()"

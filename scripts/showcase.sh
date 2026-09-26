@@ -437,7 +437,7 @@ clip physics_collapse  examples/angrynerds 700  "show:physics"
 clip input_overlay     examples/hello      800  "show:input"
 # Its own recording should be the only row in the list it shows, and every
 # angrynerds take before it recorded one too.
-wanted determinism_replay && rm -rf "$data/sessions/angrynerds"
+wanted determinism_replay && rm -rf "$data/recordings/angrynerds"
 clip determinism_replay examples/angrynerds 1120 "show:determinism"
 clip shader_preview    examples/shaders    1160 "show:shaders"
 clip script_focus      examples/hello      640  "show:focus"

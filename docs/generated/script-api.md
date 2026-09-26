@@ -167,7 +167,7 @@ cannot drift from what scripts actually see.
 
 ## `gamend`
 
-**Functions:** `activity`, `call_hook`, `clear_activity`, `close`, `configure`, `connect`, `connection`, `interrupt`, `join`, `leave`, `login`, `push`, `register`, `reply`, `rest`, `restore`, `run_id`, `session`, `target`
+**Functions:** `activity`, `call_hook`, `clear_activity`, `close`, `configure`, `connect`, `connection`, `interrupt`, `join`, `leave`, `login`, `push`, `register`, `reply`, `rest`, `restore`, `run_id`, `server`, `session`
 
 **Constants** (9):
 
@@ -441,7 +441,7 @@ cannot drift from what scripts actually see.
 
 ## `replay`
 
-**Functions:** `divergence_tick`, `events`, `header`, `info`, `length`, `load`, `marks`, `pause`, `play`, `position`, `record`, `recording`, `seek`, `session_name`, `state`, `stop`, `unload`
+**Functions:** `divergence_tick`, `events`, `header`, `info`, `length`, `load`, `marks`, `pause`, `play`, `position`, `record`, `recording`, `recording_name`, `seek`, `state`, `stop`, `unload`
 
 **Constants** (4):
 

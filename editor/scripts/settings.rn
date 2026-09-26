@@ -506,7 +506,7 @@ pub fn apply(S) {
     if compact is bool {
         S.settings.compact = compact;
     }
-    let verify = settings::get("editor/sessions/verify");
+    let verify = settings::get("editor/recordings/verify");
     if verify is bool {
         S.session.verify = verify;
     }

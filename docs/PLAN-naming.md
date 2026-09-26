@@ -52,6 +52,10 @@ with no alias and no migration, as `one way to do a thing` asks.
   A prebuilt player is a runtime (`--runtime`, `balaur-runtime-*`,
   `runtimes/`, `BALAUR_RUNTIMES`), `update` takes `--version`, and `shrink`
   takes the project it acts on as its argument.
+  A play run on disk is a recording (`recordings/`, `editor/recordings/*`,
+  the Recordings panel, `replay.recording_name`); a player's rebindings are
+  `bindings.toml`, compiled scripts `script_cache/`, the library's list
+  `catalog.toml`, and Gamend's choice of server `gamend/server`.
 - `NAMING.md` has the eight scopes, rules N18 to N23, and the picked names per
   system, from a survey of SDL3, Godot 4, Unity, Blender, GLFW, W3C, rapier and
   glTF on 2026-09-25.
@@ -61,12 +65,7 @@ with no alias and no migration, as `one way to do a thing` asks.
 
 | Now | New | Why |
 | --- | --- | --- |
-| `gamend/target` | `gamend/server` | |
-| `run --record`, `.blr`, `sessions/`, `editor/sessions/*`, the Session panel | "recording": `recordings/`, `editor/recordings/*`, the Recordings panel | four names; `session` is also a Gamend login |
-| `input.toml`, `bindings_path` | `bindings.toml` | |
-| `units/` | `script_cache/` | Rune's word for compiled scripts |
 | `--state` self-tests `*demo`, poses `fontdemo`, separators `:`, `=` and `?` | `test:<name>`, plain nouns for poses, `:` only; an unknown state is an error | one suffix meant two things; e2e translates the names |
-| `editor/library/manifest.toml` | `catalog.toml` | `manifest` means `project.toml` |
 
 ## 2. The editor's words
 

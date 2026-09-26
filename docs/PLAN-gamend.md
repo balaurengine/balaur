@@ -204,7 +204,7 @@ stands.
 | Typed realtime events per channel: user, lobby, lobbies, party, group, groups, signaling; `kv:subscribe` | Step E1 |
 | Lobby to match glue: the address and token off `lobby_updated` into `multiplayer::join`, in the game's script; a host-run match that needs no server as the fallback | Step E2 |
 | A Gamend dock in the editor: a header with the server target, Overview, User, Lobby, Data, Activity and Logs sub-tabs, and a tab per server feature | Built (E3), designed in §2b |
-| The server target: `gamend/url`, `local_url`, `plugin` for the project and `gamend/target` for the person | Built (E3c) |
+| The server target: `gamend/url`, `local_url`, `plugin` for the project and `gamend/server` for the person | Built (E3c) |
 | Player prefs kept locally, `prefs.rn`, seen and edited from the dock and the editor's User data dock | Built (E3d) |
 | A log cursor, a log file that survives a crash, and batched shipping to Gamend | Built (E4) |
 | The wasm stub replaced by the Fetch and WebSocket client | `docs/PLAN-web-editor.md` step 4 |
@@ -295,9 +295,9 @@ declares, so it is on the settings screen like any other:
 | `gamend/url` | project | `https://gamend.org` | The server a shipped game talks to: `https://polyglotpirates.com` for that game |
 | `gamend/local_url` | project | `http://localhost:4000` | A developer's own `mix dev.start` |
 | `gamend/plugin` | project | empty | The server plugin hooks are called in |
-| `gamend/target` | editor | `production` | `production` or `local`: the person's choice, kept in the editor's own file so it can never ship |
+| `gamend/server` | editor | `production` | `production` or `local`: the person's choice, kept in the editor's own file so it can never ship |
 
-`client.rn`'s `configure()` with no argument reads them. `gamend/target`
+`client.rn`'s `configure()` with no argument reads them. `gamend/server`
 is the header's two chips. An exported game has no editor file, so it can
 only ever read `gamend/url`. `configure(url)` with an argument still wins,
 for a game that picks its server at run time.

@@ -31,7 +31,7 @@ widgets in the editor's own window, so it hot reloads and runs on the web.
   `src/pages/editor.tsx` draws the list. Native has none of it.
 - Editor preferences persist at `project::editor_data_directory() + "/editor.toml"`
   (`editor/scripts/settings.rn`), which is `<data dir>/balaur/`, beside
-  `projects.toml` and `sessions/<project name>/`.
+  `projects.toml` and `recordings/<project name>/`.
 - No folder picker: `ui` has `modal` and `window`. `rfd` is already in the
   tree as a dependency of kiss3d.
 - Start-up states (`--state`, `shell::apply_start_state`) already switch the

@@ -667,12 +667,12 @@ visible = false
 grow = 1
 
 [[nodes]]
-id = "bottom_session"
-name = "BottomSession"
+id = "bottom_recordings"
+name = "BottomRecordings"
 parent = "bottom"
 [nodes.widget]
 kind = "draw"
-draw = "draw_view_session"
+draw = "draw_view_recordings"
 visible = false
 grow = 1
 

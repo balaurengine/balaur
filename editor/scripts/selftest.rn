@@ -2436,7 +2436,7 @@ pub fn font_sheet(S) {
         });
         ui::row(#{ height: 24 }, || {
             ui::spacing(8, 0);
-            for id in ["output", "problems", "assets", "timeline", "debugger", "session", "profiler"] {
+            for id in ["output", "problems", "assets", "timeline", "debugger", "recordings", "profiler"] {
                 ui::label(crate::icons::panel(id), #{ font_size: style::XL, text_color: k.text_default });
             }
             for id in ["add", "close", "minimise", "search", "dark", "play", "pause", "stop", "instance", "split"] {
@@ -2868,7 +2868,7 @@ pub fn settings_step(S) {
 // A value written on the screen reaches the editor's preferences file and
 // comes back out of it. The file is put back as it was found.
 fn settings_round_trip(S) {
-    let path = "editor/sessions/keep";
+    let path = "editor/recordings/keep";
     let kept = fs::read(crate::settings::prefs_path());
     let was = settings::get(path);
     let before = if was is Tuple { 10 } else { util::i(was) };
@@ -3919,7 +3919,7 @@ pub fn librarydemo(S) {
     }
     let unknown = 0;
     let absent = 0;
-    let manifest = toml::parse(fs::read("library/manifest.toml"));
+    let manifest = toml::parse(fs::read("library/catalog.toml"));
     let listed = util::vec(util::obj(manifest).get("entries").unwrap_or([]));
     for entry in listed {
         let e = util::obj(entry);

@@ -562,6 +562,8 @@ A game and the editor keep separate per-user folders, so no game's name reaches 
 | A game's per-user folder | `<data>/balaur/<name>/` | Godot |
 | Key bindings | `bindings.toml` | none |
 | Compiled scripts | `script_cache/` | none |
+| The library's list of what it holds | `editor/library/catalog.toml` | none |
+| Which Gamend server a run talks to | `gamend/server`, `gamend.server()` | none |
 | Terrain data folders | `heightfields/`, `voxels/` | none |
 
 A command is a verb, a long flag is kebab-case, and an environment variable spells its settings path.

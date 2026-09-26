@@ -17,7 +17,7 @@ pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
         ("restore", &[], "(session: map?)", "Sign in from a session a previous run kept, as `session` answers it, without asking the server; nil signs out here. False when there is no server to sign in to, or the map carries no `access_token`."),
         ("reply", &[], "(request: int)", "What a call answered, as its event map, once it has; nil while it waits. The newest sixty-four are kept, so a drawing loop can issue a call and read it back on a later frame."),
         ("clear_activity", &[], "()", "Forget the calls and messages `activity` holds."),
-        ("target", &[], "()", "The server a `configure()` with no URL uses: `{ name, url, production, local, plugin }` from `[gamend]`, `name` being `production` or `local`."),
+        ("server", &[], "()", "The server a `configure()` with no URL uses: `{ name, url, production, local, plugin }` from `[gamend]`, `name` being `production` or `local`."),
         ("run_id", &[], "()", "This run's id: every call sends it as `x-gamend-session` and the socket as `client_session`, so the server files a run's lines together. The log shipper names its run with it."),
     ]);
     m.function("activity", |eng: &Engine, (): ()| {
@@ -48,7 +48,7 @@ pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
         eng.resource::<GamendState>().borrow_mut().activity.clear();
         Ok(Value::Nil)
     });
-    m.function("target", |eng: &Engine, (): ()| {
+    m.function("server", |eng: &Engine, (): ()| {
         Ok(crate::target::value(eng))
     });
     m.function("run_id", |_: &Engine, (): ()| {
