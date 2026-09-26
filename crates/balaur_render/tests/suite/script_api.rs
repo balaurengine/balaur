@@ -309,3 +309,74 @@ fn a_texture_s_pixels_per_unit_is_its_import_setting_or_the_default() {
         "{errors:#?}"
     );
 }
+
+/// Every loop of an image with `holes`: each island winds counter-clockwise
+/// with y up, the way a polygon's outline does, and each hole the other way.
+#[test]
+fn a_traced_island_winds_counter_clockwise_and_a_hole_clockwise() {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    std::fs::create_dir_all(root.join("art")).unwrap();
+    std::fs::create_dir_all(root.join("scripts")).unwrap();
+    // A block, and a ring beside it: two islands and one hole.
+    let image = image::RgbaImage::from_fn(24, 10, |x, y| {
+        let block = (1..5).contains(&x) && (2..6).contains(&y);
+        let ring = (9..21).contains(&x) && (1..9).contains(&y);
+        let hole = (12..18).contains(&x) && (3..7).contains(&y);
+        let alpha = if block || (ring && !hole) { 255 } else { 0 };
+        image::Rgba([255, 255, 255, alpha])
+    });
+    image.save(root.join("art/shapes.png")).unwrap();
+    std::fs::write(
+        root.join("project.toml"),
+        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("main.toml"),
+        "[[nodes]]\nid = \"n\"\nname = \"N\"\nscript = { source = \"scripts/s.rn\" }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("scripts/s.rn"),
+        r#"fn windings(loops) {
+    let out = [];
+    for found in loops {
+        let points = [];
+        for p in found {
+            points.push([p.x, p.y]);
+        }
+        out.push(if geometry2d::is_clockwise(points) { "cw" } else { "ccw" });
+    }
+    out
+}
+
+pub fn init(this) {
+    let all = windings(render::trace_texture("art/shapes.png", #{ tolerance: 0.0, holes: true }));
+    let largest = windings(render::trace_texture("art/shapes.png", #{ tolerance: 0.0 }));
+    log::error(`checked: ${all.len()} ${largest.len()} ${largest[0]}`);
+    log::error(`ccw ${all.iter().filter(|w| w == "ccw").count()} cw ${all.iter().filter(|w| w == "cw").count()}`);
+}
+"#,
+    )
+    .unwrap();
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
+    let mut app = standard_app(AppConfig::dev(root.to_string_lossy().as_ref())).unwrap();
+    app.load_project().unwrap();
+    app.tick(1.0 / 60.0);
+    let errors: Vec<String> = balaur_core::logbuf::recent(50)
+        .into_iter()
+        .filter(|e| e.level.eq_ignore_ascii_case("error"))
+        .map(|e| e.message)
+        .collect();
+    assert!(
+        errors.len() == 2
+            && errors[0].contains("checked: 3 1 ccw")
+            && errors[1].contains("ccw 2 cw 1"),
+        "{errors:#?}"
+    );
+}

@@ -640,7 +640,8 @@ fn sprite_polygon(S, sprite) {
     }
     let texture = sprite.get(TEXTURE).unwrap();
     let ppu = drawn_scale(S, sprite, texture);
-    let opts = #{ pixels_per_unit: ppu, threshold: 0.5, tolerance: 2.0 };
+    // Every loop, so an image of two shapes gives both; `islands` drops the holes.
+    let opts = #{ pixels_per_unit: ppu, threshold: 0.5, tolerance: 2.0, holes: true };
     let (ok, out) = script::attempt(|| render::trace_texture(S.game_root + "/" + texture, opts));
     if !ok {
         log::warn(format!("tracing {}: {:?}", texture, out));
@@ -666,10 +667,15 @@ fn islands(sprite, loops) {
     let positions = [];
     let indices = [];
     for found in loops {
-        let points = placed(sprite, util::vec(found));
-        if points.len() < 3 {
+        let raw = [];
+        for p in util::vec(found) {
+            raw.push([p.x, p.y]);
+        }
+        // Traced counter-clockwise, a hole runs the other way.
+        if raw.len() < 3 || geometry2d::is_clockwise(raw) {
             continue;
         }
+        let points = placed(sprite, util::vec(found));
         let (ok, triangles) = script::attempt(|| geometry2d::triangulate(points));
         if !ok {
             continue;

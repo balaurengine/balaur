@@ -697,9 +697,10 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
             "The outline of an image's opaque pixels, as `[x, y]` points in a node's own space, \
              ready to be a polygon's `positions`. `opts` takes `threshold` (alpha counted as \
              opaque, 0 to 1, default 0.5), `tolerance` (how many pixels of detail to drop, \
-             default 2), `pixels_per_unit` (default 100) and `holes` (include the loops inside \
-             the shape, default false). Counter-clockwise with y up, centred on the origin, the \
-             way a sprite at the same `pixels_per_unit` is drawn.",
+             default 2), `pixels_per_unit` (default 100) and `holes` (every loop, largest first: \
+             each other island counter-clockwise and each hole clockwise; default false keeps \
+             the largest alone). Counter-clockwise with y up, centred on the origin, the way a \
+             sprite at the same `pixels_per_unit` is drawn.",
         ),
     ]);
     m.function("texture_size", |eng: &Engine, path: String| {
@@ -743,9 +744,11 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
                     .into_iter()
                     .take(keep)
                     .map(|outline| {
+                        // `local`'s y flip turns a traced outline clockwise; reversed, an
+                        // outline winds counter-clockwise and a hole clockwise.
                         let simplified =
                             balaur_core::geometry2d::simplify(&outline, opts.tolerance);
-                        Value::List(simplified.into_iter().map(local).collect())
+                        Value::List(simplified.into_iter().rev().map(local).collect())
                     })
                     .collect(),
             ))
