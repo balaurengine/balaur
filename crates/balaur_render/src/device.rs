@@ -82,6 +82,13 @@ pub(crate) fn set_focused(app: &App, focused: bool) {
     balaur_core::facts::update_device(&app.engine, |facts| facts.focused = focused);
 }
 
+/// The system warned it is short of memory.
+pub(crate) fn warn_low_memory(app: &App) {
+    balaur_core::facts::update_device(&app.engine, |facts| {
+        facts.memory_warnings = facts.memory_warnings.saturating_add(1);
+    });
+}
+
 /// A window out of sight or an app in the background, as the backend says.
 pub(crate) fn set_suspended(app: &App, suspended: bool) {
     balaur_core::facts::update_device(&app.engine, |facts| facts.suspended = suspended);

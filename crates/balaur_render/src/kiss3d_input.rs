@@ -76,6 +76,7 @@ pub(crate) fn pump_input(app: &App, window: &Window) -> Seen {
             }
             WindowEvent::Focus(focused) => crate::device::set_focused(app, focused),
             WindowEvent::Iconify(hidden) => crate::device::set_suspended(app, hidden),
+            WindowEvent::LowMemory => crate::device::warn_low_memory(app),
             WindowEvent::Close => closing = true,
             _ => {}
         }

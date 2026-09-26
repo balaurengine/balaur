@@ -97,7 +97,8 @@ fn the_device_s_changes_reach_every_script() {
     let script = format!(
         "{TELL}pub fn on_suspended_changed(this, suspended) {{ tell(`suspended ${{suspended}}`); }}\n\
          pub fn on_safe_area_changed(this, insets) {{ tell(`insets ${{insets[1]}}`); }}\n\
-         pub fn on_orientation_changed(this, way) {{ tell(way); }}\n"
+         pub fn on_orientation_changed(this, way) {{ tell(way); }}\n\
+         pub fn on_low_memory(this) {{ tell(\"low memory\"); }}\n"
     );
     let (_dir, mut app) = app_with(&script);
     balaur_core::facts::update_device(&app.engine, |device| device.screen_size = [800.0, 600.0]);
@@ -107,9 +108,10 @@ fn the_device_s_changes_reach_every_script() {
         device.suspended = true;
         device.safe_area = [0.0, 47.0, 0.0, 34.0];
         device.screen_size = [600.0, 800.0];
+        device.memory_warnings += 1;
     });
     app.tick(1.0 / 60.0);
-    assert_eq!(said(&app), "suspended true;insets 47.0;portrait;");
+    assert_eq!(said(&app), "suspended true;low memory;insets 47.0;portrait;");
 }
 
 #[test]

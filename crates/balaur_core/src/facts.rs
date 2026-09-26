@@ -207,6 +207,10 @@ pub struct DeviceFacts {
     /// out of sight, an app sent back. False where the platform does not say.
     #[serde(default)]
     pub suspended: bool,
+    /// How many times the system has warned it is short of memory, so a
+    /// replay hears each warning on the frame the run did.
+    #[serde(default)]
+    pub memory_warnings: u32,
 }
 
 /// Which way a screen is held, as `on_orientation_changed` names it.
@@ -297,6 +301,7 @@ impl Default for DeviceFacts {
             keyboard_height: 0.0,
             game_area: None,
             suspended: false,
+            memory_warnings: 0,
         }
     }
 }
@@ -393,6 +398,9 @@ pub(crate) fn announce_device_system(eng: &Engine, _: f32) {
         if now.suspended != was.suspended {
             said.push((h::ON_SUSPENDED_CHANGED, Value::Bool(now.suspended)));
         }
+        if now.memory_warnings > was.memory_warnings {
+            said.push((h::ON_LOW_MEMORY, Value::Nil));
+        }
         if now.safe_area.map(f32::to_bits) != was.safe_area.map(f32::to_bits) {
             let insets = now.safe_area.map(|inset| Value::Num(f64::from(inset)));
             said.push((h::ON_SAFE_AREA_CHANGED, Value::List(insets.to_vec())));
@@ -411,6 +419,12 @@ pub(crate) fn announce_device_system(eng: &Engine, _: f32) {
         return;
     };
     for (hook, payload) in said {
-        host.announce(hook, std::slice::from_ref(&payload));
+        // A hook with nothing to say takes no argument, as `on_quit_requested` does.
+        let args = if payload == Value::Nil {
+            &[][..]
+        } else {
+            std::slice::from_ref(&payload)
+        };
+        host.announce(hook, args);
     }
 }

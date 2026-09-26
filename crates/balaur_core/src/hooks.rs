@@ -26,6 +26,9 @@ pub const ON_QUIT_REQUESTED: &str = "on_quit_requested";
 /// background or comes back: a browser tab hidden, a window minimised or
 /// covered, an Android activity sent back.
 pub const ON_SUSPENDED_CHANGED: &str = "on_suspended_changed";
+/// Called on every script, a paused one too, when the system is short of
+/// memory: what can be rebuilt is worth freeing.
+pub const ON_LOW_MEMORY: &str = "on_low_memory";
 /// Called on every script when the screen's safe area moves.
 pub const ON_SAFE_AREA_CHANGED: &str = "on_safe_area_changed";
 /// Called on every script when the screen turns between portrait and landscape.
@@ -148,6 +151,7 @@ pub const REFERENCE: &[(&str, &str, &str)] = &[
     (ON_DARK_MODE_CHANGED, "(dark)", "The system switched dark mode, told to every script."),
     (ON_QUIT_REQUESTED, "()", "The window was asked to close; every script hears it, then the app goes."),
     (ON_SUSPENDED_CHANGED, "(suspended)", "The game went to the background or came back: a hidden tab, a minimised or covered window, an app sent back; told to every script."),
+    (ON_LOW_MEMORY, "()", "The system is short of memory, on iOS and Android; told to every script."),
     (ON_SAFE_AREA_CHANGED, "(insets)", "The screen's safe area moved, as `[left, top, right, bottom]` in pixels; told to every script."),
     (ON_ORIENTATION_CHANGED, "(orientation)", "The screen turned, to `portrait` or `landscape`; told to every script."),
     (ON_GAMEPAD_CONNECTED, "(pad)", "A gamepad was plugged in, with the id `input` names it by; told to every script."),
