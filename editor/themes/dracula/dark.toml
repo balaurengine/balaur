@@ -1,0 +1,19 @@
+# Dracula: MIT, Copyright (c) 2023 Dracula Theme.
+# From draculatheme.com/spec.
+type = "widget_theme"
+
+[colors]
+background = "#21222c"
+bg_panel = "#282a36"
+bg_control = "#44475a"
+foreground = "#f8f8f2"
+primary = "#bd93f9"
+secondary = "#8be9fd"
+success = "#50fa7b"
+warning = "#ffb86c"
+danger = "#ff5555"
+syntax_keyword = "#ff91de"  # #ff79c6, walked to AA
+syntax_string = "#f1fa8c"
+syntax_number = "#ffb86c"
+syntax_type = "#8be9fd"
+syntax_comment = "#a3b5ec"  # #6272a4, walked to AA

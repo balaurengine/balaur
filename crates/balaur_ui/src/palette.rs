@@ -244,11 +244,28 @@ impl Work {
         polar(l, chroma_of.min(INK_CHROMA), hue_radians)
     }
 
+    /// `fill` at its own hue, taken away from `ink` until `ink` reads at AA
+    /// on it and on its hover: a mid-tone brand colour carries no text as is.
+    fn carrying(&self, fill: Lab, ink: Lab) -> Lab {
+        let fg = self.at(t::FOREGROUND);
+        let step = if ink.l > fill.l { -0.01 } else { 0.01 };
+        let mut at = fill;
+        while (0.0..=1.0).contains(&at.l) {
+            let hover = mix(at, fg, FILL_HOVER_MIX);
+            if contrast(ink, at) >= AA && contrast(ink, hover) >= AA {
+                return at;
+            }
+            at.l += step;
+        }
+        fill
+    }
+
     /// `x`, walked towards the foreground until it reads at AA on every
-    /// surface text lands on.
+    /// surface text lands on, a hovered control among them.
     fn legible(&self, x: Lab) -> Lab {
         let fg = self.at(t::FOREGROUND);
-        let grounds = [t::BG_APP, t::BG_PANEL, t::BG_CONTROL].map(|g| self.at(g));
+        let grounds =
+            [t::BG_APP, t::BG_PANEL, t::BG_CONTROL, t::BG_CONTROL_HOVER].map(|g| self.at(g));
         let mut mix_by = 0.0;
         loop {
             let candidate = mix(x, fg, mix_by);
@@ -310,12 +327,19 @@ fn derive_colors(stated: &Table, stated_dark: Option<bool>) -> (Table, bool) {
     for (family, degrees) in FAMILY_HUES {
         work.put(family, polar(family_l, INK_CHROMA, degrees.to_radians()));
     }
-    let fg = work.at(t::FOREGROUND);
     let bg = work.at(t::BACKGROUND);
     work.put(t::BG_APP, bg);
     work.put(t::BG_PANEL, work.lift(bg, PANEL_STEPS));
     work.put(t::BG_CONTROL, work.lift(bg, CONTROL_STEPS));
-    work.put(t::BG_CONTROL_HOVER, work.lift(bg, CONTROL_HOVER_STEPS));
+    // From the control as stated, so a theme naming its own control keeps
+    // the hover a step above it, and never so far that the text stops reading.
+    let control = work.at(t::BG_CONTROL);
+    let fg = work.at(t::FOREGROUND);
+    let mut steps = CONTROL_HOVER_STEPS - CONTROL_STEPS;
+    while steps > 0.0 && contrast(fg, work.lift(control, steps)) < AA {
+        steps -= 0.25;
+    }
+    work.put(t::BG_CONTROL_HOVER, work.lift(control, steps.max(0.0)));
     let panel = work.at(t::BG_PANEL);
     work.put(t::BORDER_DEFAULT, mix(panel, fg, BORDER_MIX));
     work.put(t::TEXT_DEFAULT, fg);
@@ -325,20 +349,33 @@ fn derive_colors(stated: &Table, stated_dark: Option<bool>) -> (Table, bool) {
     let near_black = polar(ON_DARK.0, ON_DARK.1, hue(bg));
     for (family, _) in FAMILY_HUES {
         let own = work.at(family);
-        work.put(&t::of(family, t::FILL), own);
-        let fill = work.at(&t::of(family, t::FILL));
-        work.put(&t::of(family, t::FILL_HOVER), mix(fill, fg, FILL_HOVER_MIX));
         work.put(
             &t::of(family, t::TEXT),
             work.legible(work.ink(hue(own), chroma(own))),
         );
-        work.put(&t::of(family, t::BG), mix(panel, own, TINT_MIX));
-        let on = if contrast(near_white, fill) >= contrast(near_black, fill) {
-            near_white
-        } else {
-            near_black
+        // The ink on the fill is also the ink on the family text a hovered
+        // primary action fills with, so that is where it is picked.
+        let text = work.at(&t::of(family, t::TEXT));
+        let on = match (contrast(near_white, text) >= AA, contrast(near_black, text) >= AA) {
+            (true, false) => near_white,
+            (false, true) => near_black,
+            _ if contrast(near_white, own) >= contrast(near_black, own) => near_white,
+            _ => near_black,
         };
         work.put(&t::on(family), on);
+        let on = work.at(&t::on(family));
+        work.put(&t::of(family, t::FILL), work.carrying(own, on));
+        let fill = work.at(&t::of(family, t::FILL));
+        work.put(&t::of(family, t::FILL_HOVER), mix(fill, fg, FILL_HOVER_MIX));
+        // A tint light enough that the text and the family's own ink still
+        // read on it.
+        let mut tint = TINT_MIX;
+        while tint > 0.0
+            && (contrast(fg, mix(panel, own, tint)) < AA || contrast(text, mix(panel, own, tint)) < AA)
+        {
+            tint -= 0.01;
+        }
+        work.put(&t::of(family, t::BG), mix(panel, own, tint.max(0.0)));
     }
     work.put(t::GRID_MINOR, mix(bg, fg, GRID_MINOR_MIX));
     work.put(t::GRID_MAJOR, mix(bg, fg, GRID_MAJOR_MIX));
@@ -439,7 +476,7 @@ mod tests {
                 .collect();
             assert!(inks.len() > 20, "the inks were derived: {inks:?}");
             for ink in inks {
-                for ground in ["bg_app", "bg_panel", "bg_control"] {
+                for ground in ["bg_app", "bg_panel", "bg_control", "bg_control_hover"] {
                     let r = ratio(
                         crate::theme::parse_hex(done[ink.as_str()].as_str().unwrap()).unwrap(),
                         crate::theme::parse_hex(done[ground].as_str().unwrap()).unwrap(),
@@ -455,6 +492,46 @@ mod tests {
         let done = colors("[colors]\nbackground = \"#151f2a\"\nbg_panel = \"#000000\"\n");
         assert_eq!(done["bg_panel"].as_str(), Some("#000000"));
         assert!(done.contains_key("text_muted"));
+    }
+
+    fn reads(done: &toml::Table, ink: &str, ground: &str) -> f64 {
+        ratio(
+            crate::theme::parse_hex(done[ink].as_str().unwrap()).unwrap(),
+            crate::theme::parse_hex(done[ground].as_str().unwrap()).unwrap(),
+        )
+    }
+
+    #[test]
+    fn a_mid_tone_brand_colour_is_deepened_until_its_ink_reads() {
+        let done = colors("[colors]\nbackground = \"#fafafa\"\nprimary = \"#4078f2\"\n");
+        for fill in ["primary_fill", "primary_fill_hover", "primary_text"] {
+            let r = reads(&done, "text_on_primary", fill);
+            assert!(r >= AA, "text_on_primary on {fill} is {r:.2}");
+        }
+        assert_ne!(done["primary_fill"].as_str(), Some("#4078f2"));
+    }
+
+    #[test]
+    fn a_stated_control_keeps_a_hover_the_text_reads_on() {
+        let done = colors(
+            "[colors]\nbackground = \"#21252b\"\nbg_control = \"#3e4451\"\nforeground = \"#abb2bf\"\n",
+        );
+        assert_ne!(done["bg_control_hover"], done["bg_control"], "the hover still shows");
+        for ink in ["text_default", "text_muted", "text_subtle"] {
+            let r = reads(&done, ink, "bg_control_hover");
+            assert!(r >= AA, "{ink} on the hover is {r:.2}");
+        }
+    }
+
+    #[test]
+    fn a_tint_stays_light_enough_for_the_text_on_it() {
+        let done = colors(
+            "[colors]\nbackground = \"#002b36\"\nbg_panel = \"#073642\"\nforeground = \"#93a1a1\"\nprimary = \"#268bd2\"\n",
+        );
+        for ink in ["text_default", "primary_text"] {
+            let r = reads(&done, ink, "primary_bg");
+            assert!(r >= AA, "{ink} on primary_bg is {r:.2}");
+        }
     }
 
     #[test]

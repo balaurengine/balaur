@@ -568,6 +568,8 @@ Every string is sentence case, and a button is a verb.
 | Back to the default, or a list emptied | reset; clear | none |
 | Show in the file manager | reveal | Apple |
 | Take a theme | use | none |
+| A theme | a pair: one folder of `dark.toml` and `light.toml`, named by `editor/appearance/theme` | none |
+| Which half is worn | `editor/appearance/mode`: `system`, `dark` or `light` | Windows |
 | A key on a track | keyframe; the verb is key | Blender, Godot |
 | A node's type in the tree and the Inspector | its Godot 4 class: `RigidBody3D`, `AnimatableBody3D`, `CharacterBody3D`, `Sprite2D`, `Camera2D`, `TileMapLayer`, `AudioStreamPlayer`, `MeshInstance3D`, `Control` | Godot |
 | A button for a Godot command | the command as its caption: create physical skeleton, sync bones to polygon | Godot |

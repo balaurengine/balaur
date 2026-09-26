@@ -1,7 +1,8 @@
-//! The editor's two themes read at WCAG AA: every role's ink on its own fill,
-//! and every token a script paints text with, on every sheet it can land on.
+//! Both halves of every bundled editor theme read at WCAG AA: every role's ink
+//! on its own fill, and every token a script paints text with, on every sheet
+//! it can land on.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use balaur_ui::contrast::{AA, color_of, pairs, ratio};
 use balaur_ui::palette::complete;
@@ -35,10 +36,28 @@ const INKS: &[&str] = &[
 /// its own ink.
 const SHEETS: &[&str] = &["bg_app", "bg_panel", "bg_control"];
 
+const HALVES: [&str; 2] = ["dark", "light"];
+
+fn themes_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../editor/themes")
+}
+
+/// `roles`, or a half as `<pair>/<half>`.
 fn file(name: &str) -> toml::Table {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../editor/themes");
-    let text = std::fs::read_to_string(dir.join(format!("{name}.toml"))).unwrap();
+    let text = std::fs::read_to_string(themes_dir().join(format!("{name}.toml"))).unwrap();
     text.parse::<toml::Table>().unwrap()
+}
+
+/// Every bundled pair: each folder under `editor/themes`.
+fn pairs_bundled() -> Vec<String> {
+    let mut out: Vec<String> = std::fs::read_dir(themes_dir())
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().is_dir())
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect();
+    out.sort();
+    out
 }
 
 /// `over` written onto `base`, table by table, as the editor's `theme::merge`.
@@ -57,19 +76,20 @@ fn merge(base: &toml::Table, over: &toml::Table) -> toml::Table {
     out
 }
 
-/// Each bundled theme as the editor wears it: the shared roles under its
+/// Each bundled half as the editor wears it: the shared roles under its
 /// colours, with every token derived.
-fn themes() -> Vec<(&'static str, toml::Value)> {
+fn themes() -> Vec<(String, toml::Value)> {
     let roles = file("roles");
-    ["dark", "light"]
-        .into_iter()
-        .map(|name| {
-            (
-                name,
-                complete(&toml::Value::Table(merge(&roles, &file(name)))),
-            )
-        })
-        .collect()
+    let mut out = Vec::new();
+    for pair in pairs_bundled() {
+        for half in HALVES {
+            let name = format!("{pair}/{half}");
+            let doc = complete(&toml::Value::Table(merge(&roles, &file(&name))));
+            out.push((name, doc));
+        }
+    }
+    assert!(out.len() >= 2, "the pairs were read: {}", out.len());
+    out
 }
 
 fn contrast(colors: &toml::Table, a: &str, b: &str) -> f64 {
@@ -81,6 +101,7 @@ fn contrast(colors: &toml::Table, a: &str, b: &str) -> f64 {
 
 #[test]
 fn every_editor_theme_role_reads_at_aa_contrast() {
+    let mut failing = Vec::new();
     for (theme, doc) in themes() {
         let found = pairs(&doc, "bg_panel");
         assert!(
@@ -88,25 +109,26 @@ fn every_editor_theme_role_reads_at_aa_contrast() {
             "{theme}: the roles were read: {}",
             found.len()
         );
-        let failing: Vec<String> = found
-            .iter()
-            .filter(|pair| pair.ratio < pair.need)
-            .map(|pair| {
-                format!(
-                    "{theme} {}: {} on {} is {:.2}:1, needs {}",
-                    pair.role, pair.ink, pair.fill, pair.ratio, pair.need
-                )
-            })
-            .collect();
-        assert!(failing.is_empty(), "{}", failing.join("\n"));
+        failing.extend(
+            found
+                .iter()
+                .filter(|pair| pair.ratio < pair.need)
+                .map(|pair| {
+                    format!(
+                        "{theme} {}: {} on {} is {:.2}:1, needs {}",
+                        pair.role, pair.ink, pair.fill, pair.ratio, pair.need
+                    )
+                }),
+        );
     }
+    assert!(failing.is_empty(), "{}", failing.join("\n"));
 }
 
 #[test]
 fn every_text_token_reads_at_aa_on_every_sheet() {
+    let mut failing = Vec::new();
     for (theme, doc) in themes() {
         let colors = doc["colors"].as_table().unwrap();
-        let mut failing = Vec::new();
         for ink in INKS {
             for sheet in SHEETS {
                 let ratio = contrast(colors, ink, sheet);
@@ -121,16 +143,18 @@ fn every_text_token_reads_at_aa_on_every_sheet() {
                 failing.push(format!("{theme} text_on_primary on {fill} is {ratio:.2}:1"));
             }
         }
-        assert!(failing.is_empty(), "{}", failing.join("\n"));
     }
+    assert!(failing.is_empty(), "{}", failing.join("\n"));
 }
 
 #[test]
 fn a_bundled_theme_states_colours_and_the_roles_file_states_none() {
-    for name in ["dark", "light"] {
-        let doc = file(name);
-        let keys: Vec<&String> = doc.keys().collect();
-        assert_eq!(keys, ["colors", "type"], "{name} states only its colours");
+    for pair in pairs_bundled() {
+        for half in HALVES {
+            let doc = file(&format!("{pair}/{half}"));
+            let keys: Vec<&String> = doc.keys().collect();
+            assert_eq!(keys, ["colors", "type"], "{pair}/{half} states only its colours");
+        }
     }
     assert!(
         !file("roles").contains_key("colors"),

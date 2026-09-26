@@ -1,5 +1,5 @@
-# The editor's light theme: six source colours, and every other token derived
-# from them. The roles and sizes both themes share are in `roles.toml`.
+# Balaur's light half: six source colours, and every other token derived
+# from them. The roles and sizes every half shares are in `../roles.toml`.
 type = "widget_theme"
 
 [colors]

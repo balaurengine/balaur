@@ -1,13 +1,20 @@
-// Finds a theme, bundled or the person's own, fills it in from its base, and
-// hands the document to both readers. The look itself lives in the files.
+// Finds a theme, a folder of a dark and a light half, fills the worn half in
+// from its base, and hands it to both readers. The look lives in the files.
 
 use crate::util;
 
-/// The two themes the editor ships, which every other one is based on.
-pub const BUNDLED = ["dark", "light"];
-/// The roles, kinds and sizes both bundled themes wear under their colours.
+/// The pairs the editor ships, which every other one is based on. The same
+/// list is the setting's `options`, and the self-test holds the two together.
+pub const BUNDLED = [
+    "balaur", "atom-one", "catppuccin", "dracula", "everforest", "github", "gruvbox", "kanagawa", "rose-pine", "solarized", "tokyo-night",
+];
+pub const DEFAULT = "balaur";
+pub const HALVES = ["dark", "light"];
+/// The roles, kinds and sizes every bundled half wears under its colours.
 const ROLES = "themes/roles.toml";
 pub const SETTING = "editor/appearance/theme";
+/// `system`, `dark` or `light`: which half of the pair is worn.
+pub const MODE_SETTING = "editor/appearance/mode";
 
 /// The root nodes that dress their subtree with the theme: the shell, the
 /// start screen, the palette and the one sheet.
@@ -22,35 +29,35 @@ pub fn is_bundled(name) {
     BUNDLED.iter().any(|b| b == name)
 }
 
-/// A theme's file: bundled ones beside the editor, the rest in `user_dir()`.
-pub fn path_of(name) {
+/// A pair's folder: bundled ones beside the editor, the rest in `user_dir()`.
+pub fn folder_of(name) {
     if is_bundled(name) {
-        "themes/" + name + ".toml"
+        "themes/" + name
     } else {
-        user_dir() + "/" + name + ".toml"
+        user_dir() + "/" + name
     }
 }
 
-/// Every theme there is to pick: the bundled two, then the person's, by name.
+/// One half's file.
+pub fn path_of(name, half) {
+    folder_of(name) + "/" + half + ".toml"
+}
+
+/// Every pair there is to pick: the bundled ones, then the person's, by name.
 pub fn names() {
     let out = BUNDLED.iter().collect::<Vec>();
     for entry in util::vec(fs::list(user_dir())) {
-        let file = entry.name;
-        if entry.is_dir || !file.ends_with(".toml") {
-            continue;
-        }
-        let name = file[..file.len() - 5];
-        if !is_bundled(name) {
-            out.push(name);
+        if entry.is_dir && !is_bundled(entry.name) {
+            out.push(entry.name);
         }
     }
     out
 }
 
-/// The document one file holds, unmerged, or nothing when it is missing or
+/// The document one half holds, unmerged, or nothing when it is missing or
 /// does not parse.
-pub fn read(name) {
-    read_at(path_of(name))
+pub fn read(name, half) {
+    read_at(path_of(name, half))
 }
 
 fn read_at(path) {
@@ -62,11 +69,11 @@ fn read_at(path) {
     if ok && doc is Object { doc } else { () }
 }
 
-/// A bundled theme as the editor wears it before anyone's edits: the shared
+/// A bundled half as the editor wears it before anyone's edits: the shared
 /// roles under its colours.
-pub fn bundled(name) {
+pub fn bundled(name, half) {
     let roles = util::obj(read_at(ROLES));
-    merge(roles, util::obj(read(name)))
+    merge(roles, util::obj(read(name, half)))
 }
 
 /// `over` written onto `base`, table by table: a key `over` names wins, and a
@@ -113,34 +120,45 @@ pub fn same(a, b) {
     format!("{:?}", a) == format!("{:?}", b)
 }
 
-/// The base a document is filled in from: what it names, or dark.
+/// The bundled pair a document is filled in from: what it names, or balaur.
 pub fn base_of(doc) {
-    let named = util::obj(doc).get("base").unwrap_or("dark");
-    if named is String && is_bundled(named) { named } else { "dark" }
+    let named = util::obj(doc).get("base").unwrap_or(DEFAULT);
+    if named is String && is_bundled(named) { named } else { DEFAULT }
 }
 
-/// A theme by name, filled in from its base. A name that no longer resolves
-/// answers the dark theme, said once.
-pub fn resolve(name) {
-    let own = read(name);
-    if !(own is Object) {
-        if name != "dark" {
-            log::warn(format!("theme '{}' is not at {}; using dark", name, path_of(name)));
-        }
-        return #{ name: "dark", doc: bundled("dark") };
+/// What a person's half states, or, for a half the folder lacks, only the
+/// base the other half names: the missing half is the base's.
+pub fn own_half(name, half) {
+    let own = read(name, half);
+    if own is Object {
+        return own;
     }
+    let other = read(name, if half == "dark" { "light" } else { "dark" });
+    #{ base: base_of(other) }
+}
+
+/// One half of a pair, filled in from its base. A pair that no longer
+/// resolves answers balaur's, said once.
+pub fn resolve(name, half) {
     if is_bundled(name) {
-        return #{ name: name, doc: bundled(name) };
+        return #{ name: name, doc: bundled(name, half) };
     }
-    #{ name: name, doc: merge(bundled(base_of(own)), own) }
+    if !fs::exists(folder_of(name)) {
+        log::warn(format!("theme '{}' is not at {}; using {}", name, folder_of(name), DEFAULT));
+        return #{ name: DEFAULT, doc: bundled(DEFAULT, half) };
+    }
+    let own = own_half(name, half);
+    #{ name: name, doc: merge(bundled(base_of(own), half), own) }
 }
 
 /// A document with every token worked out, flattened for a script's
-/// `k.<token>` lookup, keeping the document, its sizes and its name beside.
-pub fn flat(name, doc) {
+/// `k.<token>` lookup, keeping the document, its sizes, its pair and its half
+/// beside.
+pub fn flat(name, half, doc) {
     let done = ui::complete_theme(doc);
     let t = #{
-        dark: done.dark, roles: doc.roles, colors: done.colors, sizes: done.sizes, name: name, doc: doc,
+        dark: done.dark, roles: doc.roles, colors: done.colors, sizes: done.sizes, name: name,
+        half: half, doc: doc,
     };
     for (key, value) in done.colors {
         t[key] = value;
@@ -148,13 +166,25 @@ pub fn flat(name, doc) {
     t
 }
 
-pub fn load(name) {
-    let found = resolve(name);
-    flat(found.name, found.doc)
+pub fn load(name, half) {
+    let found = resolve(name, half);
+    flat(found.name, half, found.doc)
 }
 
 pub fn dark() {
-    load("dark")
+    load(DEFAULT, "dark")
+}
+
+/// The half to wear: a start-up state's, else the mode's, else the system's.
+pub fn half_for(S, system_dark) {
+    if S.theme_half != "" {
+        return S.theme_half;
+    }
+    let mode = settings::get(MODE_SETTING);
+    if mode == "dark" || mode == "light" {
+        return mode;
+    }
+    if system_dark { "dark" } else { "light" }
 }
 
 // Push the active theme into egui, the widget nodes and the 3D viewport.
@@ -176,40 +206,51 @@ pub fn apply(S) {
     render::set_grid_colors(mr, mg, mb, jr, jg, jb);
 }
 
-/// Wear the named theme. The same name again is a no-op, so an unrelated
-/// setting written while a theme is being edited does not throw the edit away.
+/// Wear the named pair, in the half the mode and the system pick. The same
+/// pair and half again is a no-op, so an unrelated setting written while a
+/// theme is being edited does not throw the edit away.
 pub fn use_named(S, name) {
-    if S.theme.name == name {
+    wear_half(S, name, half_for(S, engine::dark_mode()));
+}
+
+fn wear_half(S, name, half) {
+    if S.theme.name == name && S.theme.half == half {
         return;
     }
-    S.theme = load(name);
+    S.theme = load(name, half);
     apply(S);
 }
 
-/// Read the worn theme from disk again, dropping an edit nobody saved.
+/// The system turned dark or light: the worn pair follows under `system`.
+pub fn follow(S, system_dark) {
+    wear_half(S, S.theme.name, half_for(S, system_dark));
+}
+
+/// Read the worn half from disk again, dropping an edit nobody saved.
 pub fn reload(S) {
-    S.theme = load(S.theme.name);
+    S.theme = load(S.theme.name, S.theme.half);
     apply(S);
 }
 
 /// Wear a document that is not on disk yet: the theme window's live edit.
 pub fn wear(S, name, doc) {
-    S.theme = flat(name, doc);
+    S.theme = flat(name, S.theme.half, doc);
     apply(S);
 }
 
-// `on` rather than `dark`: a parameter of that name shadows `dark()` here,
-// and Rune would call the bool instead of the theme loader. For a start-up
-// state or a self-test: the person's setting is left as it was.
+// `on`, not `dark`: that name would shadow `dark()` and Rune would call the
+// bool. Pins the half for the run and leaves the person's setting alone.
 pub fn set_dark(S, on) {
-    use_named(S, if on { "dark" } else { "light" });
+    S.theme_half = if on { "dark" } else { "light" };
+    wear_half(S, S.theme.name, S.theme_half);
 }
 
-/// The person flipping between the bundled two: remembered, so the settings
-/// screen shows it and the next start opens in it.
+/// The person flipping to the other half: remembered as the mode, so the
+/// settings screen shows it and the next start opens in it.
 pub fn toggle(S) {
-    let name = if S.theme.dark { "light" } else { "dark" };
-    settings::set(SETTING, name);
+    let half = if S.theme.half == "dark" { "light" } else { "dark" };
+    settings::set(MODE_SETTING, half);
     crate::settings::commit_prefs(S);
-    use_named(S, name);
+    S.theme_half = "";
+    wear_half(S, S.theme.name, half);
 }

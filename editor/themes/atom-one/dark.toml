@@ -1,0 +1,19 @@
+# One Dark: MIT, Copyright (c) 2016 GitHub Inc..
+# From github.com/atom/atom, packages/one-*-syntax and one-*-ui.
+type = "widget_theme"
+
+[colors]
+background = "#21252b"
+bg_panel = "#282c34"
+bg_control = "#3e4451"
+foreground = "#abb2bf"
+primary = "#61afef"
+secondary = "#56b6c2"
+success = "#98c379"
+warning = "#e5c07b"
+danger = "#e06c75"
+syntax_keyword = "#e293fa"  # #c678dd, walked to AA
+syntax_string = "#98c379"
+syntax_number = "#dda571"  # #d19a66, walked to AA
+syntax_type = "#e5c07b"
+syntax_comment = "#a9b1bf"  # #5c6370, walked to AA

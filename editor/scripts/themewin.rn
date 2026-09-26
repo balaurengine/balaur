@@ -73,7 +73,7 @@ pub fn editable(S) {
 
 fn load_own(S) {
     let name = S.theme.name;
-    let own = if theme::is_bundled(name) { () } else { theme::read(name) };
+    let own = if theme::is_bundled(name) { () } else { theme::own_half(name, S.theme.half) };
     S.themewin.own = own;
     S.themewin.dirty = false;
     let pairs = ui::contrast_pairs(S.theme.doc, GROUND);
@@ -268,7 +268,7 @@ fn head_specs(S) {
     if mine {
         controls.push(#{
             kind: "button", role: "action_form_danger", text: "Delete",
-            tooltip: "Remove this theme's file and go back to its base",
+            tooltip: "Remove this theme's folder and go back to its base",
             on: |_| { remove(S); },
         });
     }
@@ -276,13 +276,14 @@ fn head_specs(S) {
     if mine {
         out.push(#{ label: "name", height: h, controls: [#{
             kind: "text_field", role: "input_form", grow: 1, text: name,
-            tooltip: "Enter renames the file",
+            tooltip: "Enter renames the folder",
             on_submit: |text| { rename(S, text); },
         }] });
     }
     let tail = if S.themewin.dirty { "  ·  unsaved" } else { "" };
     out.push(note_spec(if mine {
-        format!("themes/{}.toml in the editor's data folder  ·  states only what differs from {}{}", name, theme::base_of(own), tail)
+        format!("themes/{}/{}.toml in the editor's data folder  ·  states only what differs from {}{}",
+            name, S.theme.half, theme::base_of(own), tail)
     } else {
         "Bundled with the editor, so it is read-only. Duplicate it to change a color or a role."
     }));
@@ -687,7 +688,7 @@ fn changed(S) {
     S.themewin.dirty = true;
     S.themewin.said = "";
     let own = S.themewin.own;
-    let doc = theme::merge(theme::bundled(theme::base_of(own)), own);
+    let doc = theme::merge(theme::bundled(theme::base_of(own), S.theme.half), own);
     theme::wear(S, S.theme.name, doc);
     let pairs = ui::contrast_pairs(doc, GROUND);
     S.themewin.pairs = pairs;
@@ -711,24 +712,24 @@ pub fn choose(S, name) {
     S.themewin.said = "";
 }
 
-/// Write the person's theme: only what differs from its base, under the base
-/// it names.
+/// Write the worn half of the person's theme: only what differs from the same
+/// half of its base, under the base it names.
 pub fn save(S) {
     let own = S.themewin.own;
     if util::is_nil(own) {
         return;
     }
+    let half = S.theme.half;
     let base_name = theme::base_of(own);
-    let base = theme::bundled(base_name);
+    let base = theme::bundled(base_name, half);
     let out = theme::diff(base, theme::merge(base, own));
     out["type"] = "widget_theme";
     out["base"] = base_name;
-    let path = theme::path_of(S.theme.name);
-    fs::create_directory(theme::user_dir());
-    fs::write(path, toml::encode(out));
+    fs::create_directory(theme::folder_of(S.theme.name));
+    fs::write(theme::path_of(S.theme.name, half), toml::encode(out));
     S.themewin.own = out;
     S.themewin.dirty = false;
-    S.themewin.said = "Saved themes/" + S.theme.name + ".toml";
+    S.themewin.said = format!("Saved themes/{}/{}.toml", S.theme.name, half);
 }
 
 fn revert(S) {
@@ -737,7 +738,7 @@ fn revert(S) {
     S.themewin.said = "";
 }
 
-/// A name for a copy nobody has used: `dark-custom`, then `dark-custom-2`.
+/// A name for a copy nobody has used: `balaur-custom`, then `balaur-custom-2`.
 fn fresh_name(from) {
     let stem = if theme::is_bundled(from) { from + "-custom" } else { from + "-copy" };
     let taken = theme::names();
@@ -751,14 +752,22 @@ fn fresh_name(from) {
 }
 
 /// Copy the worn theme into the themes folder and wear the copy. A bundled one
-/// becomes a file naming it as its base and nothing else.
+/// becomes a folder whose worn half names it as its base and nothing else.
 pub fn duplicate(S) {
     let from = S.theme.name;
     let name = fresh_name(from);
-    let copy = if theme::is_bundled(from) { #{ base: from } } else { util::obj(theme::read(from)) };
-    copy["type"] = "widget_theme";
-    fs::create_directory(theme::user_dir());
-    fs::write(theme::path_of(name), toml::encode(copy));
+    fs::create_directory(theme::folder_of(name));
+    for half in theme::HALVES {
+        let copy = if theme::is_bundled(from) {
+            if half == S.theme.half { #{ base: from } } else { () }
+        } else {
+            theme::read(from, half)
+        };
+        if copy is Object {
+            copy["type"] = "widget_theme";
+            fs::write(theme::path_of(name, half), toml::encode(copy));
+        }
+    }
     choose(S, name);
     S.themewin.said = "Duplicated " + from + " as " + name;
     name
@@ -769,24 +778,24 @@ fn rename(S, text) {
     let name = text.trim();
     let bad = name == "" || name.contains("/") || name.contains(".");
     if bad || theme::is_bundled(name) || theme::names().iter().any(|x| x == name) {
-        S.themewin.said = format!("'{}' is not a name a new theme file can take", text);
+        S.themewin.said = format!("'{}' is not a name a new theme folder can take", text);
         return;
     }
     if S.themewin.dirty {
         save(S);
     }
-    fs::rename(theme::path_of(old), theme::path_of(name));
+    fs::rename(theme::folder_of(old), theme::folder_of(name));
     choose(S, name);
     S.themewin.said = "Renamed " + old + " to " + name;
 }
 
-/// Remove the worn theme's file and go back to its base.
+/// Remove the worn theme's folder, both halves, and go back to its base.
 pub fn remove(S) {
     let own = S.themewin.own;
     if util::is_nil(own) {
         return;
     }
     let back = theme::base_of(own);
-    fs::remove(theme::path_of(S.theme.name));
+    fs::remove(theme::folder_of(S.theme.name));
     choose(S, back);
 }

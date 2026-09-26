@@ -64,6 +64,7 @@ being built, marked `done`, never back in the shipped one.
 | **Focused script editing** — the code pane takes the whole window beside its hooks list, with the docks folded away and put back as they were. | 0.2 done | [PLAN-editor-redesign.md#57-focus-for-a-script](PLAN-editor-redesign.md#57-focus-for-a-script) |
 | **Project manager** — the screen the editor starts on: recent projects, new from a template, open a folder, Godot import. | 0.2 done | [PLAN-project-manager.md](PLAN-project-manager.md) |
 | **Editor themes** — seven source colours and four sizes derive every token; a person's copy states only what changes, and a window edits every role. | 0.2 done | [PLAN-editor-themes.md](PLAN-editor-themes.md) |
+| **Theme pairs that follow the system** — Solarized, Gruvbox, Catppuccin and seven more bundled, each a dark and a light half, worn as the system says by default. | 0.2 done | [PLAN-editor-themes.md](PLAN-editor-themes.md#steps) |
 | **An import that does not stop the editor** — a job that writes a few files a frame, a list of what is importing, and an Import button. | 0.2 done | [PLAN-import-jobs.md](PLAN-import-jobs.md) |
 | **The User data dock** — the files a game keeps for its player, saves and prefs among them, opened as trees and edited in place. | 0.2 done | [PLAN-gamend.md#2b-the-gamend-dock-the-server-target-and-logs](PLAN-gamend.md#2b-the-gamend-dock-the-server-target-and-logs) |
 | **Curve editor and onion skin** — tangent handles on keys, and ghosted neighbouring frames in the timeline. | 0.3 | [PLAN-editor.md#curve-editor-and-onion-skin](PLAN-editor.md#curve-editor-and-onion-skin) |
@@ -151,6 +152,7 @@ being built, marked `done`, never back in the shipped one.
 | **Text a game can edit** — a `text_area`, a `code` kind with the editor's gutter, a `drag_value` with arrows and units, labels a drag selects, and `[url]` and `[hint]` marks. | 0.2 done | [PLAN-widgets.md#text](PLAN-widgets.md#text) |
 | **Theme states and icons** — `disabled` and `focus` tables in a `widget_theme`, and the icons a check, a spin box, a tab and a slider draw. | 0.3 | [PLAN-polyglot-port.md](PLAN-polyglot-port.md) |
 | **Pointer shape and pass-through** — a widget's `cursor` names the pointer over it, and `pointer_through` keeps `ui.wants_pointer()` false there. | 0.2 done | [PLAN-polyglot-port.md](PLAN-polyglot-port.md) |
+| **Dark mode on every platform** — `dark_mode()` and `on_dark_mode_changed` answer on Windows, Linux, iOS and Android, as on macOS and in a browser. | 0.2 done | [PLAN-editor-themes.md](PLAN-editor-themes.md#steps) |
 | **Aspect and camera containers** — an `aspect` box that holds a ratio, and a camera's texture drawn as a widget the layout sizes. | 0.3 | [PLAN-widgets.md#containers](PLAN-widgets.md#containers) |
 | **A graph canvas** — a `graph` kind of nodes, ports and links a drag connects, with pan and zoom, under both the Rune graph and the shader graph. | 0.5 | [PLAN-widgets.md#containers](PLAN-widgets.md#containers) |
 | **Pickers, and drag and drop** — a colour wheel and a file chooser as widget kinds, with a payload one widget offers and another takes. | 0.5 | [PLAN-widgets.md#pickers-and-drag](PLAN-widgets.md#pickers-and-drag) |
@@ -237,6 +239,7 @@ waits for its tick to settle.
 | Item | Milestone | Plan |
 | --- | :-: | --- |
 | **Export, the web and the CLI** — `balaur export` for native and web with a size report, `balaur test`, a browser editor over IndexedDB, and a benchmark suite. | 0.1 done | no plan |
+| **App icons** — an `[export]` icon written as each platform wants it, with the dark and tinted forms iOS, macOS and Android read. | 0.3 | [PLAN-editor-themes.md](PLAN-editor-themes.md#steps) |
 | **A splash while a game loads** — a picture over the first frames on every target, held past its seconds while a script reports what it is loading. | 0.2 done | no plan |
 | **The shell a phone has** — opening a link works on every desktop and in a browser tab, and on neither phone, which each want a call of their own. | 0.8 | [PLAN-mobile-export.md](PLAN-mobile-export.md) |
 | **One-click deploy** — a game on a URL or on a phone from one command or one button. | 0.6 | [PLAN-deploy.md](PLAN-deploy.md) |

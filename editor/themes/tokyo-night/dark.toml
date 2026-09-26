@@ -1,0 +1,19 @@
+# Tokyo Night: Apache-2.0, by Folke Lemaitre.
+# From github.com/folke/tokyonight.nvim, extras/lua.
+type = "widget_theme"
+
+[colors]
+background = "#16161e"
+bg_panel = "#1a1b26"
+bg_control = "#292e42"
+foreground = "#c0caf5"
+primary = "#7aa2f7"
+secondary = "#7dcfff"
+success = "#9ece6a"
+warning = "#e0af68"
+danger = "#db4b4b"
+syntax_keyword = "#a685e2"  # #9d7cd8, walked to AA
+syntax_string = "#9ece6a"
+syntax_number = "#ff9e64"
+syntax_type = "#2ac3de"
+syntax_comment = "#8a94c2"  # #565f89, walked to AA

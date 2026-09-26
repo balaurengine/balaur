@@ -25,7 +25,7 @@ impl Probe {
             self.intervals.push_back(dt);
         }
         let refresh_rate = self.refresh_rate();
-        let dark_mode = dark_mode();
+        let dark_mode = crate::appearance::is_dark();
         let safe_area = safe_area(window);
         let keyboard = keyboard_height(window);
         let text_scale = window.text_scale().max(f32::EPSILON);
@@ -102,36 +102,6 @@ pub(crate) fn keep_awake(on: bool) {
     tracing::debug!(on, "keep awake: nothing to ask on this platform");
 }
 
-#[cfg(target_os = "macos")]
-pub(crate) fn dark_mode() -> bool {
-    // The system setting first: an offscreen run has no application to ask,
-    // and one that has not opened a window yet answers with the default
-    // light appearance whatever the desktop is set to.
-    use objc2_app_kit::NSApplication;
-    use objc2_foundation::{MainThreadMarker, NSString, NSUserDefaults};
-    let defaults = NSUserDefaults::standardUserDefaults();
-    let style = defaults.stringForKey(&NSString::from_str("AppleInterfaceStyle"));
-    if let Some(style) = style {
-        return style.to_string().contains("Dark");
-    }
-    let Some(mtm) = MainThreadMarker::new() else {
-        return false;
-    };
-    let app = NSApplication::sharedApplication(mtm);
-    let name = app.effectiveAppearance().name();
-    name.to_string().contains("Dark")
-}
-
-#[cfg(target_family = "wasm")]
-pub(crate) fn dark_mode() -> bool {
-    web::dark_mode()
-}
-
-#[cfg(not(any(target_os = "macos", target_family = "wasm")))]
-pub(crate) fn dark_mode() -> bool {
-    false
-}
-
 /// What the on-screen keyboard covers: the part of the window the visual
 /// viewport no longer reaches. A window asks kiss3d, which asks UIKit or the
 /// Android activity and answers zero on a desktop.
@@ -172,12 +142,6 @@ fn safe_area(window: &kiss3d::window::Window) -> [f32; 4] {
 #[cfg(target_family = "wasm")]
 mod web {
     use wasm_bindgen::JsValue;
-
-    pub(super) fn dark_mode() -> bool {
-        web_sys::window()
-            .and_then(|w| w.match_media("(prefers-color-scheme: dark)").ok().flatten())
-            .is_some_and(|list| list.matches())
-    }
 
     /// The shell's `--balaur-safe-*` variables carry `env(safe-area-inset-*)`
     /// where a script can read them; a page without them answers zero.

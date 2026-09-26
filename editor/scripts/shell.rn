@@ -712,6 +712,7 @@ fn states() {
         "test:picker": crate::selftest::node_picker,
         "test:rename": crate::selftest::rename,
         "light": state_light,
+        "dark": state_dark,
         "play": state_play,
         "input": state_input,
         "pose": state_animdemo,
@@ -1085,6 +1086,10 @@ fn state_palette_query(S, query) {
 
 fn state_light(S) {
     theme::set_dark(S, false);
+}
+
+fn state_dark(S) {
+    theme::set_dark(S, true);
 }
 
 fn state_play(S) {

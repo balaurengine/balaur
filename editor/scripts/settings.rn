@@ -415,7 +415,7 @@ fn editor_control(S, def, path) {
         };
     }
     if datatype == "enum" {
-        // The theme's choices are files, so they are listed, not declared.
+        // The person's own themes are folders, so the list is read, not declared.
         let named = path == crate::theme::SETTING;
         return #{
             kind: "dropdown", role: "choice_form", grow: 1,

@@ -105,6 +105,10 @@ mod debug_lines;
 #[cfg(feature = "window")]
 mod device;
 #[cfg(feature = "window")]
+mod appearance;
+#[cfg(all(feature = "window", target_os = "android"))]
+pub use appearance::keep_android_app;
+#[cfg(feature = "window")]
 mod frame_group;
 #[cfg(all(feature = "window", target_family = "wasm"))]
 mod hidden_tab;
@@ -343,7 +347,7 @@ pub(crate) const DEFAULT_LINE_WIDTH: f32 = 1.0;
 #[cfg(feature = "window")]
 #[must_use]
 pub fn dark_mode() -> bool {
-    device::dark_mode()
+    appearance::is_dark()
 }
 
 #[cfg(not(feature = "window"))]

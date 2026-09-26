@@ -25,6 +25,7 @@ fn android_main(app: AndroidApp) {
     // Read the pack before handing the handle over: `init_android` takes the
     // `AndroidApp` by value, and the asset manager comes off it.
     let assets = app.asset_manager();
+    balaur::render::keep_android_app(&app);
     kiss3d::window::init_android(app);
 
     let Some(mut asset) = assets.open(PACK_ASSET) else {

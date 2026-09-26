@@ -1,0 +1,19 @@
+# One Light: MIT, Copyright (c) 2016 GitHub Inc..
+# From github.com/atom/atom, packages/one-*-syntax and one-*-ui.
+type = "widget_theme"
+
+[colors]
+background = "#eaeaeb"
+bg_panel = "#fafafa"
+bg_control = "#e5e5e6"
+foreground = "#383a42"
+primary = "#4078f2"
+secondary = "#0184bc"
+success = "#50a14f"
+warning = "#cb7701"
+danger = "#e45649"
+syntax_keyword = "#a626a4"
+syntax_string = "#227624"  # #50a14f, walked to AA
+syntax_number = "#9d5300"  # #b76b01, walked to AA
+syntax_type = "#a05000"  # #cb7701, walked to AA
+syntax_comment = "#65666b"  # #a0a1a7, walked to AA

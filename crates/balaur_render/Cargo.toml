@@ -13,7 +13,7 @@ balaur_cfg.workspace = true
 default = []
 # The windowed kiss3d/wgpu backend. Off by default so headless tools, tests,
 # and servers build without a graphics stack.
-window = ["dep:kiss3d", "dep:pollster", "dep:balaur_input", "dep:balaur_text", "dep:balaur_ui", "dep:egui", "dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation", "dep:bytemuck"]
+window = ["dep:kiss3d", "dep:pollster", "dep:balaur_input", "dep:balaur_text", "dep:balaur_ui", "dep:egui", "dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation", "dep:objc2-ui-kit", "dep:windows-sys", "dep:libloading", "dep:bytemuck"]
 # `balaur import file.aseprite`: reads the editor's own format. A tool's
 # dependency, so a game build carries none of it.
 aseprite = ["dep:aseprite-loader"]
@@ -60,6 +60,17 @@ web-sys = { version = "0.3.106", features = ["CssStyleDeclaration", "Document", 
 objc2 = { version = "0.6", optional = true }
 objc2-app-kit = { version = "0.3", features = ["NSAppearance", "NSApplication", "NSImage", "NSResponder"], optional = true }
 objc2-foundation = { version = "0.3", optional = true }
+
+# Dark mode, asked of each system its own way: `appearance.rs`.
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2-foundation = { version = "0.3", optional = true }
+objc2-ui-kit = { version = "0.3", features = ["UIInterface", "UIResponder", "UIScreen", "UITraitCollection", "UIView"], optional = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Registry"], optional = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libloading = { version = "0.8", optional = true }
 
 [dev-dependencies]
 balaur.workspace = true

@@ -1,0 +1,19 @@
+# Alucard: MIT, Copyright (c) 2023 Dracula Theme.
+# From draculatheme.com/spec.
+type = "widget_theme"
+
+[colors]
+background = "#ceccc0"
+bg_panel = "#fffbeb"
+bg_control = "#cfcfde"
+foreground = "#1f1f1f"
+primary = "#644ac9"
+secondary = "#036a96"
+success = "#14710a"
+warning = "#a34d14"
+danger = "#cb3a2a"
+syntax_keyword = "#a3144d"
+syntax_string = "#6a5400"  # #846e15, walked to AA
+syntax_number = "#913d00"  # #a34d14, walked to AA
+syntax_type = "#005b87"  # #036a96, walked to AA
+syntax_comment = "#5c573c"  # #6c664b, walked to AA

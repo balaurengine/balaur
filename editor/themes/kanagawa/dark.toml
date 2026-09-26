@@ -1,0 +1,19 @@
+# Kanagawa Wave: MIT, Copyright (c) 2021 Tommaso Laurenzi.
+# From github.com/rebelot/kanagawa.nvim, lua/kanagawa/colors.lua.
+type = "widget_theme"
+
+[colors]
+background = "#16161d"
+bg_panel = "#1f1f28"
+bg_control = "#363646"
+foreground = "#dcd7ba"
+primary = "#7e9cd8"
+secondary = "#7fb4ca"
+success = "#98bb6c"
+warning = "#ff9e3b"
+danger = "#e82424"
+syntax_keyword = "#ac96d0"  # #957fb8, walked to AA
+syntax_string = "#98bb6c"
+syntax_number = "#dc87a2"  # #d27e99, walked to AA
+syntax_type = "#7caaa1"  # #7aa89f, walked to AA
+syntax_comment = "#a2a198"  # #727169, walked to AA

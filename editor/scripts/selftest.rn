@@ -2932,7 +2932,58 @@ pub fn theme_switch(S) {
     }
     theme::set_dark(S, true);
     check(S.theme.dark == true, "and switches back to the dark one");
+    follow_the_system(S);
+    bundled_pairs(S);
     log::info("selftest theme: done");
+}
+
+// Under `mode = "system"` the half follows what the system says, and a mode
+// of its own holds whatever the system says. The setting is put back.
+fn follow_the_system(S) {
+    let mode = settings::get(theme::MODE_SETTING);
+    let pinned = S.theme_half;
+    S.theme_half = "";
+    settings::set(theme::MODE_SETTING, "system");
+    theme::follow(S, false);
+    check(S.theme.half == "light" && !S.theme.dark, "under system, a light system wears the light half");
+    theme::follow(S, true);
+    check(S.theme.half == "dark" && S.theme.dark, "and a dark one the dark half");
+    settings::set(theme::MODE_SETTING, "light");
+    theme::follow(S, true);
+    check(S.theme.half == "light", "a light mode holds whatever the system says");
+    settings::set(theme::MODE_SETTING, mode);
+    S.theme_half = pinned;
+    theme::follow(S, engine::dark_mode());
+}
+
+// Every bundled pair is a folder with both halves, and the list the setting
+// offers is the list the editor ships.
+fn bundled_pairs(S) {
+    let folders = [];
+    for entry in util::vec(fs::list("themes")) {
+        if entry.is_dir {
+            folders.push(entry.name);
+        }
+    }
+    folders.sort();
+    let listed = theme::BUNDLED.iter().collect::<Vec>();
+    listed.sort();
+    check(format!("{:?}", folders) == format!("{:?}", listed),
+        format!("the bundled folders are the bundled list ({:?} vs {:?})", folders, listed));
+    let options = [];
+    for def in settings::all() {
+        if def.path == theme::SETTING {
+            options = util::vec(util::obj(def.spec).get("options").unwrap_or([]));
+        }
+    }
+    options.sort();
+    check(format!("{:?}", options) == format!("{:?}", listed),
+        format!("and the setting offers the same ({:?})", options));
+    for name in theme::BUNDLED {
+        for half in theme::HALVES {
+            check(theme::read(name, half) is Object, format!("{} has its {} half", name, half));
+        }
+    }
 }
 
 /// `--state test:theme_editing`: a bundled theme is read-only, a duplicate is the
@@ -2950,10 +3001,10 @@ pub fn theme_editing(S) {
     check(S.theme.primary_text == before, "and an edit to it changes nothing");
     let name = crate::themewin::duplicate(S);
     S.themewin.test.name = name;
-    let path = theme::path_of(name);
+    let path = theme::path_of(name, S.theme.half);
     check(fs::exists(path), format!("duplicating writes {}", path));
     check(S.theme.name == name && crate::themewin::editable(S), "and the copy is worn and editable");
-    check(theme::names().iter().any(|n| n == name), "and listed beside the bundled two");
+    check(theme::names().iter().any(|n| n == name), "and listed beside the bundled ones");
     crate::themewin::edit(S, ["colors"], "primary", "#e0a868");
     check(S.theme.primary_fill == "#e0a868", "a source color is used at once");
     check(S.theme.primary_text != before, format!("and moves what derives from it ({})", S.theme.primary_text));
@@ -2964,7 +3015,7 @@ pub fn theme_editing(S) {
     crate::themewin::edit(S, ["roles", "tab"], "font_size", 13);
     crate::themewin::save(S);
     let text = fs::read(path);
-    check(text is String && text.contains("primary_text") && text.contains("base = \"dark\""),
+    check(text is String && text.contains("primary_text") && text.contains("base = \"balaur\""),
         format!("saving writes the edit under its base: {:?}", text));
     check(text is String && !text.contains("background ="), "and nothing it leaves to that base");
     theme::reload(S);
@@ -3024,8 +3075,8 @@ pub fn theme_edit_step(S) {
     check(roles.iter().any(|r| r == "tab"), format!("the Controls page draws the tab role as itself ({})", roles.len()));
     let name = S.themewin.test.name;
     crate::themewin::remove(S);
-    check(!fs::exists(theme::path_of(name)), "deleting removes the file");
-    check(S.theme.name == "dark", "and the editor goes back to the base");
+    check(!fs::exists(theme::folder_of(name)), "deleting removes the folder");
+    check(S.theme.name == theme::DEFAULT, "and the editor goes back to the base");
     let kept = S.themewin.test.kept;
     let prefs = crate::settings::prefs_path();
     if kept is String {

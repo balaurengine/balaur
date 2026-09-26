@@ -1,0 +1,19 @@
+# GitHub Light Default: MIT, Copyright (c) 2020 Primer.
+# From github.com/primer/github-vscode-theme 6.3.5.
+type = "widget_theme"
+
+[colors]
+background = "#f6f8fa"
+bg_panel = "#ffffff"
+bg_control = "#ebecf0"
+foreground = "#1f2328"
+primary = "#0969da"
+secondary = "#1b7c83"
+success = "#1a7f37"
+warning = "#9a6700"
+danger = "#cf222e"
+syntax_keyword = "#cf222e"
+syntax_string = "#0a3069"
+syntax_number = "#0550ae"
+syntax_type = "#953800"
+syntax_comment = "#636b75"  # #6e7781, walked to AA

@@ -266,7 +266,7 @@ in the game; "not planned" is a deliberate no.
 | Nine-patch images | Have: `image` and `slice = [left, top, right, bottom]` on a `widget_theme` entry and `slice` on the `image` kind |
 | A widget that fills its parent minus a margin | Have: `anchor = "fill"` with `inset`; four fractional anchors **not planned** |
 | Per-node theme overrides | Have: a node's own properties override its theme |
-| Runtime theme switch and dark mode | Have: `engine.dark_mode()`, recorded, `on_dark_mode_changed(bool)` on change (macOS and the page answer; other desktops say false); a game ships two `widget_theme` assets and swaps `theme` on the root, as the editor does |
+| Runtime theme switch and dark mode | Have: `engine.dark_mode()`, recorded, `on_dark_mode_changed(bool)` on change (macOS, Windows, Linux, iOS, Android and the page answer); a game ships two `widget_theme` assets and swaps `theme` on the root, as the editor does |
 | The display's safe area | Have: `window.safe_area()`, recorded; the page reads `env(safe-area-inset-*)` through the shell's CSS variables, iOS reads UIKit's `safeAreaInsets` through the fork's `Window::safe_area`, a desktop answers zero. Android is `docs/PLAN-google.md`'s |
 | Focus, neighbours, focus visuals off on pointer input | Have `focusable`, `ui.focus_*`; explicit neighbours **not planned** — the arrangement order is the neighbour order |
 | A drag threshold before a scroll view scrolls, so a tap on a child lands | Have: `deadzone` on `scroll`, in design pixels; 0 scrolls at once, so a touch scene sets 32 |

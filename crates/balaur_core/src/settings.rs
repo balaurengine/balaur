@@ -644,9 +644,10 @@ loss = { type = "float", default = 0.05, min = 0.0, max = 1.0, order = 4, help =
         &parse(
             "settings.editor.appearance",
             r#"
-theme = { type = "enum", default = "dark", options = ["dark", "light"], order = 1, help = "Which chrome the editor wears: dark, light, or a theme in the per-user themes folder, which Settings lists by name." }
-ui_scale = { type = "float", default = 1.25, min = 0.75, max = 2.5, order = 2, applies = "restart", help = "How large the editor's own text and controls are drawn." }
-compact = { type = "bool", default = false, order = 3, help = "Drop labels the icon already says, for a narrow window." }
+theme = { type = "enum", default = "balaur", options = ["balaur", "atom-one", "catppuccin", "dracula", "everforest", "github", "gruvbox", "kanagawa", "rose-pine", "solarized", "tokyo-night"], order = 1, help = "Which theme the editor wears: a bundled one, or a folder in the per-user themes folder, which Settings lists by name. Each has a dark and a light half." }
+mode = { type = "enum", default = "system", options = ["system", "dark", "light"], order = 2, help = "Which half of the theme the editor wears: the one the system is in, or always dark or always light." }
+ui_scale = { type = "float", default = 1.25, min = 0.75, max = 2.5, order = 3, applies = "restart", help = "How large the editor's own text and controls are drawn." }
+compact = { type = "bool", default = false, order = 4, help = "Drop labels the icon already says, for a narrow window." }
 "#,
         ),
     );

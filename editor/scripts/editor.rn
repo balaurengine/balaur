@@ -237,6 +237,8 @@ pub fn fresh_state() {
         brand: (),
         mirror: (),
         theme: theme::dark(),
+        // The half a start-up state pinned for the run, or "" to follow the mode.
+        theme_half: "",
         gizmo: gizmo::state(),
         complete: complete::state(),
         docs: docs::state(),
@@ -320,6 +322,11 @@ pub fn init(this) {
     // "light", "play", "select:<node>", "shot:<png path>"), applied in order.
     // Applied on the first frame, after the screen's class has folded the docks.
     S.start_states = engine::args().get(1).unwrap_or("");
+}
+
+// The system turned dark or light; the theme follows under `mode = "system"`.
+pub fn on_dark_mode_changed(this, dark) {
+    theme::follow(this.S, dark);
 }
 
 // Every export reports here: started, done or failed, one call per step.
