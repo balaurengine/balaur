@@ -317,35 +317,58 @@ pub fn fresh_id(doc, name) {
 }
 
 pub fn node_type(node) {
-    let kind = body_kind(node);
-    let kind2d = body2d_kind(node);
-    if kind == Some(physics3d::BODY_DYNAMIC) {
-        "RigidBody3D"
-    } else if kind == Some(physics3d::BODY_STATIC) {
-        "StaticBody3D"
-    } else if kind == Some(physics3d::BODY_KINEMATIC) {
-        "KinematicBody3D"
-    } else if kind2d == Some(physics2d::BODY_DYNAMIC) {
-        "RigidBody2D"
-    } else if kind2d == Some(physics2d::BODY_STATIC) {
-        "StaticBody2D"
-    } else if kind2d == Some(physics2d::BODY_KINEMATIC) {
-        "KinematicBody2D"
-    } else if node.contains_key("widget") {
-        "Widget"
-    } else if node.contains_key("bone2d") {
-        "Bone2D"
-    } else if node.contains_key("bone3d") {
-        "Bone3D"
-    } else if node.contains_key("polygon") {
-        "Polygon2D"
-    } else if node.contains_key("shape3d") {
-        "MeshInstance3D"
-    } else if node.contains_key("shape2d") {
-        "MeshInstance2D"
-    } else {
-        "Node"
+    // A controller is what a character is, whatever body it moves.
+    if node.contains_key("character3d") {
+        return "CharacterBody3D";
     }
+    if node.contains_key("character2d") {
+        return "CharacterBody2D";
+    }
+    let kind = body_kind(node);
+    if kind == Some(physics3d::BODY_DYNAMIC) {
+        return "RigidBody3D";
+    }
+    if kind == Some(physics3d::BODY_STATIC) {
+        return "StaticBody3D";
+    }
+    if kind.is_some() {
+        return "AnimatableBody3D";
+    }
+    let kind2d = body2d_kind(node);
+    if kind2d == Some(physics2d::BODY_DYNAMIC) {
+        return "RigidBody2D";
+    }
+    if kind2d == Some(physics2d::BODY_STATIC) {
+        return "StaticBody2D";
+    }
+    if kind2d.is_some() {
+        return "AnimatableBody2D";
+    }
+    for (component, name) in display_types() {
+        if node.contains_key(component) {
+            return name;
+        }
+    }
+    "Node"
+}
+
+// The Godot 4 class a node's first component reads as, in the order a node
+// carrying several is named by.
+fn display_types() {
+    [
+        ("widget", "Control"),
+        ("bone2d", "Bone2D"),
+        ("bone3d", "Bone3D"),
+        ("polygon", "Polygon2D"),
+        ("mesh", "MeshInstance3D"),
+        ("shape3d", "MeshInstance3D"),
+        ("shape2d", "MeshInstance2D"),
+        ("sprite", "Sprite2D"),
+        ("tilemap", "TileMapLayer"),
+        ("camera2d", "Camera2D"),
+        ("camera3d", "Camera3D"),
+        ("sound", "AudioStreamPlayer"),
+    ]
 }
 
 fn kind_of(body) {
@@ -1246,7 +1269,7 @@ fn refuse_structure(S, what) {
     if !is_instanced(S.doc[S.sel]) {
         return false;
     }
-    log::warn("cannot " + what + " inside an instance; open " + prefab_of(S, S.doc[S.sel]) + " to change its structure");
+    log::warn("cannot " + what + " inside a prefab; open " + prefab_of(S, S.doc[S.sel]) + " to change its structure");
     true
 }
 
@@ -1277,11 +1300,11 @@ pub fn scene_files(S) {
 // `instance`: it keeps its own name and transform and the prefab's roots
 // become its children, the shape `expand_instances` mirrors.
 pub fn instance_scene(S, rel) {
-    if refuse_structure(S, "instance a scene") {
+    if refuse_structure(S, "instantiate a scene") {
         return;
     }
     if rel == S.scene_rel {
-        log::warn("a scene cannot instance itself");
+        log::warn("a scene cannot instantiate itself");
         return;
     }
     history::record(S, "instance " + rel, None);

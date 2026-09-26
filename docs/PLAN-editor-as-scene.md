@@ -472,8 +472,8 @@ place, so the verbs stay on `S.kit` and take the host:
 
     // Called each frame with the node the editor made for this dock.
     pub fn dock(S, k, host) {
-        let strip = S.kit.strip;
-        let rows = S.kit.rows;
+        let strip = S.kit.put_bar;
+        let rows = S.kit.put_rows;
         strip(S, host, "head", [
             #{ kind: "button", role: "chip", text: "Reload", on: |_| { … } },
         ]);

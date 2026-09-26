@@ -261,7 +261,7 @@ fn offer(S) {
         #{ kind: "label", role: "text_caption", text: "no state machine on this node" },
         #{
             kind: "button", role: "action_form_secondary", text: "add state machine",
-            tooltip: "Give the node an inline `state_machine` over its own player",
+            tooltip: "Give the node an embedded `state_machine` over its own player",
             on: |_| { create(S); },
         },
     ];

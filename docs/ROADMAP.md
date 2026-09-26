@@ -67,7 +67,7 @@ being built, marked `done`, never back in the shipped one.
 | **An import that does not stop the editor** — a job that writes a few files a frame, a list of what is importing, and an Import button. | 0.2 done | [PLAN-import-jobs.md](PLAN-import-jobs.md) |
 | **The User data dock** — the files a game keeps for its player, saves and prefs among them, opened as trees and edited in place. | 0.2 done | [PLAN-gamend.md#2b-the-gamend-dock-the-server-target-and-logs](PLAN-gamend.md#2b-the-gamend-dock-the-server-target-and-logs) |
 | **Curve editor and onion skin** — tangent handles on keys, and ghosted neighbouring frames in the timeline. | 0.3 | [PLAN-editor.md#curve-editor-and-onion-skin](PLAN-editor.md#curve-editor-and-onion-skin) |
-| **Selection, alignment and a library** — multi-select, align and distribute, gizmos, a Pen tool, a material panel, an Events view, a Cost dock, and `editor/library`. | 0.1 done | no plan |
+| **Selection, alignment and a library** — multi-select, align and distribute, gizmos, a Pen tool, a material panel, a Bindings view, a Cost panel, and `editor/library`. | 0.1 done | no plan |
 | **The Physics panel** — every physics component on one panel, and a mesh turned into a hull, convex pieces, voxels or a soft body in one click. | 0.2 done | no plan |
 | **Multiplayer dock and Play as two** — a second instance of the game started from the editor, with each link and its stats in a dock. | 0.4 | [PLAN-multiplayer.md#3-steps](PLAN-multiplayer.md#3-steps) |
 | **The editor in a browser** — a project kept on Gamend rather than only in the browser, and native targets exported from a tab. | 0.6 | [PLAN-web-editor.md](PLAN-web-editor.md) |
@@ -129,7 +129,7 @@ being built, marked `done`, never back in the shipped one.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
-| **Interactivity without a script** — hooks, states, scene variables and the binding rows the Events view authors over them, so a scene reacts with no `.rn` beside it. | 0.1 done | no plan |
+| **Interactivity without a script** — hooks, states, scene variables and the binding rows the Bindings view authors over them, so a scene reacts with no `.rn` beside it. | 0.1 done | no plan |
 | **An event a script can finish** — a hook that answers `true` stops the broadcast, and a press reaches the node under the pointer and then every other node. | 0.2 done | [PLAN-interactivity.md](PLAN-interactivity.md) |
 | **One way to hear every event** — `events::announce` reaches hooks, rows, listeners and awaits alike, for physics, animation, widgets, the tree, the app and the network. | 0.2 | [PLAN-events.md](PLAN-events.md) |
 | **Navigation** — a `navmesh` asset, paths over it, and `agent2d` and `agent3d` with avoidance, all on the fixed step and in the digest. | 0.5 | [PLAN-navigation.md](PLAN-navigation.md) |

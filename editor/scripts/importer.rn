@@ -68,7 +68,7 @@ const ROWS = #{
     ],
     model: [
         #{ key: "scale", kind: "number", fallback: 1.0, step: 0.01,
-           help: "the model's units to the scene's: 0.01 for a file modelled in centimetres" },
+           help: "the model's units to the scene's: 0.01 for a file modeled in centimeters" },
         #{ key: "lods", kind: "count", options: ["0", "1", "2", "3", "4", "5", "6"], fallback: 0,
            help: "simpler copies built at load, each half the triangles of the one before" },
         #{ key: "lod_distance", kind: "number", fallback: 20.0, step: 1.0,
@@ -273,7 +273,7 @@ fn row(S, k, rel, kind, spec) {
     // What the value is following, or the way back to following it.
     let note = if has_own {
         #{
-            kind: "button", text: "clear", role: "chip", width: 52,
+            kind: "button", text: "reset", role: "chip", width: 52,
             tooltip: "Drop this key and follow the project again",
             on: |_| { write(S, rel, key, ()); },
         }

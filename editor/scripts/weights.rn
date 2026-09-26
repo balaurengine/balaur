@@ -52,7 +52,7 @@ fn set_weight(bone, at, value) {
 // edit in this dock takes.
 fn edit(S, label, body) {
     if !polygon::editable(S) {
-        log::warn("this polygon's mesh is a file; make it inline to edit its weights");
+        log::warn("this polygon's mesh is a file; embed it to edit its weights");
         return;
     }
     crate::history::record(S, label, None);
@@ -102,12 +102,12 @@ pub fn unbind(S) {
 // Normalise: scale each listed vertex's weights so they sum to one. The
 // engine renormalises at load anyway; doing it here is what makes the numbers
 // on screen the numbers that will be used.
-pub fn normalise(S) {
+pub fn normalize(S) {
     let t = match table(S) {
         Some(t) => t,
         None => return,
     };
-    edit(S, "normalise weights", || {
+    edit(S, "normalize weights", || {
         for at in t.at {
             let total = 0.0;
             for bone in t.bones {
@@ -286,7 +286,7 @@ fn verbs(S, k, t) {
         for (label, tip) in [
             ("bind", "Give every listed vertex all of its weight to the bone picked in the inspector"),
             ("unbind", "Take the listed vertices off every bone"),
-            ("normalise", "Scale each listed vertex's weights so they sum to one"),
+            ("normalize", "Scale each listed vertex's weights so they sum to one"),
             ("auto", "Weight by distance to each bone's segment"),
             ("smooth", "Average each listed vertex with the ones sharing an edge"),
         ] {
@@ -297,7 +297,7 @@ fn verbs(S, k, t) {
                 match label {
                     "bind" => bind(S),
                     "unbind" => unbind(S),
-                    "normalise" => normalise(S),
+                    "normalize" => normalize(S),
                     "auto" => auto(S),
                     "smooth" => smooth(S),
                     _ => (),

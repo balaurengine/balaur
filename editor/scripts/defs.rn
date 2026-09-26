@@ -104,7 +104,7 @@ pub fn tool_name(tool) {
         "rotate" => "Rotate",
         "scale" => "Scale",
         "zoom" => "Zoom",
-        "key" => "Key frame",
+        "key" => "Keyframe",
         "bone" => "Rig bone",
         "polygon" => "Polygon",
         "pen" => "Pen",

@@ -117,7 +117,7 @@ pub fn component_write(S) {
 pub fn rename(S) {
     let was = S.doc[S.sel].name;
     crate::left::rename_open(S);
-    check(S.renaming, "the rename sheet opens");
+    check(S.renaming, "the rename dialog opens");
     check(S.rename_text == was, format!("it starts from the node's name ({})", S.rename_text));
 
     model::rename_selected(S, "Renamed");
@@ -433,13 +433,13 @@ pub fn weighting(S) {
     weights::auto(S);
     let after_auto = column(S, 0);
     check(after_auto > 0.0, format!("auto weights by distance ({:.2})", after_auto));
-    weights::normalise(S);
+    weights::normalize(S);
     let per_vertex = 0.0;
     for bone in polygon::bones(S) {
         per_vertex += util::f(util::vec(bone.get("weights").unwrap_or([])).get(0).unwrap_or(0.0));
     }
     check(util::abs(per_vertex - 1.0) < 1e-3,
-        format!("normalise makes one vertex's weights sum to one ({:.4})", per_vertex));
+        format!("normalize makes one vertex's weights sum to one ({:.4})", per_vertex));
     // Smoothing is an average, so it cannot push a weight outside the range
     // its neighbours already span.
     weights::smooth(S);
@@ -1887,10 +1887,10 @@ pub fn instances(S) {
 
     // Structure is the prefab's.
     let before = S.doc.len();
-    expect_warning("cannot add a node inside an instance");
+    expect_warning("cannot add a node inside a prefab");
     model::add_child(S, None);
     check(S.doc.len() == before, "adding a node inside an instance is refused");
-    expect_warning("cannot delete a node inside an instance");
+    expect_warning("cannot delete a node inside a prefab");
     model::delete_selected(S);
     check(S.doc.len() == before, "deleting a node inside an instance is refused");
 
@@ -1941,7 +1941,7 @@ pub fn script_paths(S) {
     check(model::script_rel(S.doc[i]) == Some(moved), "a changed name moves the script");
     check(fs::exists(root + moved) && !fs::exists(root + fresh), "and the file with it");
     shell::detach_script(S);
-    check(!S.doc[i].contains_key("script"), "remove takes the script off the node");
+    check(!S.doc[i].contains_key("script"), "detach takes the script off the node");
     check(fs::exists(root + moved), "and leaves the file");
     check(!S.script_open, "and closes the script tab");
     shell::undo(S);
@@ -2105,7 +2105,7 @@ fn versions_half(S) {
     let asked = S.manager.asked;
     S.manager.asked = true;
     crate::about::open(S);
-    check(crate::window::showing(S, "about"), "the About sheet opens");
+    check(crate::window::showing(S, "about"), "the About dialog opens");
     crate::window::hide(S);
     S.manager.asked = asked;
 
@@ -2439,7 +2439,7 @@ pub fn font_sheet(S) {
             for id in ["output", "problems", "assets", "timeline", "debugger", "recordings", "profiler"] {
                 ui::label(crate::icons::panel(id), #{ font_size: style::XL, text_color: k.text_default });
             }
-            for id in ["add", "close", "minimise", "search", "dark", "play", "pause", "stop", "instance", "split"] {
+            for id in ["add", "close", "minimize", "search", "dark", "play", "pause", "stop", "instance", "split"] {
                 ui::label(crate::icons::ui(id), #{ font_size: style::XL, text_color: k.secondary_text });
             }
         });
@@ -2467,7 +2467,7 @@ pub fn sessions(S) {
     // rather than merely running.
     S.session.verify = true;
     shell::toggle_play(S);
-    check(S.session.recording != "", "play starts recording the session");
+    check(S.session.recording != "", "play starts a recording");
     check(S.playing, "and the scene is running");
 }
 
@@ -2489,7 +2489,7 @@ fn stop_and_check(S, d) {
     check(S.session.recording == "", "stop closes the recording");
     check(util::is_nil(replay::recording()), "and the engine has none open");
     let rows = crate::session::listing(S);
-    if !check(rows.len() > 0, "the session it wrote is on disk") {
+    if !check(rows.len() > 0, "the recording it wrote is on disk") {
         S.session.demo = ();
         return;
     }
@@ -2516,7 +2516,7 @@ fn open_and_check(S, d) {
     check(replay::state() == replay::STATE_PLAYING, "and starts playing");
     check(S.playing, "the scene runs while it plays");
     let span = util::obj(replay::length());
-    check(span.get("frames").unwrap_or(0) > 0, "the session has frames");
+    check(span.get("frames").unwrap_or(0) > 0, "the recording has frames");
     check(S.session.lanes.len() > 0, "the dock has lanes to draw");
     d.was = replay::position();
 }
@@ -2525,25 +2525,25 @@ fn open_and_check(S, d) {
 // scene back and lets the engine run again.
 fn replayed_and_check(S, d) {
     check(replay::position() > d.was, "playing walks the recording forward");
-    check(replay::state() == replay::STATE_PAUSED, "a spent session parks");
+    check(replay::state() == replay::STATE_PAUSED, "a spent recording parks");
     let split = replay::divergence_tick();
     let where_ = if util::is_nil(split) { "" } else { format!(" (tick {})", split.tick) };
     check(util::is_nil(split), format!("and reproduced what was recorded{}", where_));
     crate::session::close(S);
     exported_and_check(S, d);
-    check(!crate::session::loaded(S), "closing unloads the session");
+    check(!crate::session::loaded(S), "closing unloads the recording");
     check(!S.playing, "and puts the edited scene back");
     // A self-test that leaves files behind fills the ring it is testing.
     fs::remove(crate::session::dir(S) + "/" + d.file);
     S.session.demo = ();
-    log::info("selftest session: done");
+    log::info("selftest recordings: done");
 }
 
 // Export puts a copy where a bug report or `balaur replay` can reach it.
 fn exported_and_check(S, d) {
     crate::session::export(S, d.file);
     let out = S.game_root + "/" + d.file;
-    check(fs::exists(out), "export copies the session into the project");
+    check(fs::exists(out), "copy to project puts the recording in the project");
     fs::remove(out);
 }
 
@@ -2617,7 +2617,7 @@ pub fn placing(S) {
 
     // A scene that instanced itself would recurse; the verb refuses.
     let held = S.doc.len();
-    expect_warning("a scene cannot instance itself");
+    expect_warning("a scene cannot instantiate itself");
     model::instance_scene(S, S.scene_rel);
     check(S.doc.len() == held, "a scene refuses to instance itself");
 
@@ -2899,17 +2899,17 @@ fn settings_round_trip(S) {
 
 pub fn theme_switch(S) {
     theme::set_dark(S, true);
-    check(S.theme.dark == true, "the editor wears the dark theme");
+    check(S.theme.dark == true, "the editor uses the dark theme");
     let dark_sheet = scene::get_node("Editor/Sheet").get_component("widget", "theme");
     theme::set_dark(S, false);
     check(S.theme.dark == false, "the switch reaches the light theme");
-    check(S.theme.bg_app != "", "and the light theme loaded its colours");
+    check(S.theme.bg_app != "", "and the light theme loaded its colors");
     // The sheet, the palette and the start screen are roots of their own, not
     // under the shell, and each has to wear the switch too.
     for path in ["Editor/Shell", "Editor/Manager", "Editor/Picker", "Editor/Sheet"] {
         let now = scene::get_node(path).get_component("widget", "theme");
         check(now is String && now.starts_with("#!") && now != dark_sheet,
-            format!("{} wears the light theme ({:?})", path, now));
+            format!("{} uses the light theme ({:?})", path, now));
     }
     theme::set_dark(S, true);
     check(S.theme.dark == true, "and switches back to the dark one");
@@ -2924,7 +2924,7 @@ pub fn theme_editing(S) {
     S.themewin.test = #{ kept: fs::read(prefs), name: "" };
     theme::set_dark(S, true);
     crate::themewin::open(S);
-    check(crate::window::showing(S, "theme"), "the theme window opens");
+    check(crate::window::showing(S, "theme"), "the Theme dialog opens");
     check(!crate::themewin::editable(S), "a bundled theme is read-only");
     let before = S.theme.primary_text;
     crate::themewin::edit(S, ["colors"], "primary_text", "#ff0000");
@@ -2936,12 +2936,12 @@ pub fn theme_editing(S) {
     check(S.theme.name == name && crate::themewin::editable(S), "and the copy is worn and editable");
     check(theme::names().iter().any(|n| n == name), "and listed beside the bundled two");
     crate::themewin::edit(S, ["colors"], "primary", "#e0a868");
-    check(S.theme.primary_fill == "#e0a868", "a source colour is worn at once");
+    check(S.theme.primary_fill == "#e0a868", "a source color is used at once");
     check(S.theme.primary_text != before, format!("and moves what derives from it ({})", S.theme.primary_text));
     crate::themewin::edit(S, ["colors"], "primary_text", "#ff0000");
     check(S.theme.primary_text == "#ff0000", "a stated token wins over its rule");
     let sheet = scene::get_node("Editor/Sheet").get_component("widget", "theme");
-    check(sheet is String && sheet.starts_with("#!"), "and the sheet's node wears it inline");
+    check(sheet is String && sheet.starts_with("#!"), "and the dialog's node carries it embedded");
     crate::themewin::edit(S, ["roles", "tab"], "font_size", 13);
     crate::themewin::save(S);
     let text = fs::read(path);
@@ -3154,12 +3154,12 @@ pub fn dropping(S) {
     let cards = util::obj(scene::get_node(crate::dock::CARDS_NODE).get_component("widget"));
     let handler = cards.get("on_drop").unwrap_or("");
     check(cards.get("draggable") == Some(true) && handler != "" && scene::get_node("Editor").has_method(handler),
-        format!("the Assets dock's cards hand a drop to a method the editor declares ({})", handler));
+        format!("the Assets panel's cards hand a drop to a method the editor declares ({})", handler));
     dropin::place_file(S, "art/selftest-drop.png");
     let placed = S.doc[S.doc.len() - 1];
     let drawn = util::obj(placed.get("sprite").unwrap_or(placed.get("mesh").unwrap_or(#{}))).get("texture");
     check(S.doc.len() == was + 3 && drawn == Some("art/selftest-drop.png") && !fs::exists(root + "art/selftest-drop_3.png"),
-        format!("a file placed from the Assets dock is named where it lies ({:?})", drawn));
+        format!("a file placed from the Assets panel is named where it lies ({:?})", drawn));
     shell::undo(S);
 
     shell::undo(S);

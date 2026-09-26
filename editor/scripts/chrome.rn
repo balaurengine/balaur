@@ -300,7 +300,7 @@ fn doc_controls(S, k, h) {
         }
     }
     if S.events_open {
-        for entry in doc_tab(S, "events", icons::ui("events"), "events", true, h) {
+        for entry in doc_tab(S, "events", icons::ui("events"), "bindings", true, h) {
             out.push(entry);
         }
     }

@@ -38,15 +38,15 @@ pub fn count(S) {
 /// stored functions, so each is bound to a local and called. A verb answers a
 /// row; `rows` is what puts the rows on the node.
 pub fn panel(S, k, host) {
-    let section = S.kit.section;
-    let rows = S.kit.rows;
+    let section = S.kit.heading_row;
+    let rows = S.kit.put_rows;
     let specs = [section("Scripted nodes")];
     let shown = S.plugins.counter.shown;
     if shown < 0 {
-        let empty = S.kit.empty;
+        let empty = S.kit.empty_row;
         specs.push(empty("run “Count scripted nodes” from the palette"));
     } else {
-        let field = S.kit.field;
+        let field = S.kit.field_row;
         specs.push(field(S, "nodes", format!("{}", shown), #{ copy: true }));
     }
     rows(S, host, "body", specs);

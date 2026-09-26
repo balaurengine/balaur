@@ -263,7 +263,7 @@ fn instance_note(S, k) {
             },
             #{
                 kind: "button", role: "action_prefab", text: "open",
-                tooltip: "Edit the prefab itself, for every instance of it",
+                tooltip: "Open the prefab; an edit there reaches every copy of it",
                 on: |_| { model::open_prefab(S); },
             },
         ],
@@ -279,12 +279,12 @@ fn instance_source_row(S, k, node) {
     if !node.contains_key("instance") {
         return;
     }
-    push(S, #{ label: "Instance", height: row_h(S), controls: [#{
+    push(S, #{ label: "Prefab", height: row_h(S), controls: [#{
         role: "sheet_prefab", grow: 1, controls: [
             #{ kind: "label", role: "text_code_secondary", grow: 1, truncate: true, text: node.instance },
             #{
                 kind: "button", role: "action_prefab", text: "open",
-                tooltip: "Edit the prefab itself, for every instance of it",
+                tooltip: "Open the prefab; an edit there reaches every copy of it",
                 on: |_| { model::open_prefab(S); },
             },
         ],
@@ -320,7 +320,7 @@ fn script_section(S, k, title) {
                 on: |_| { shell::set_workspace(S, defs::WORKSPACE_SCRIPT); },
             },
             #{
-                kind: "button", role: "action_form_danger", text: "remove",
+                kind: "button", role: "action_form_danger", text: "detach",
                 tooltip: "Detach the script from this node; the file stays",
                 on: |_| { shell::detach_script(S); },
             },
@@ -384,10 +384,10 @@ fn clip_source_row(S, k, node) {
     let inline = path.is_none();
     // The clip's file: a library path is longer than the row, so it is cut.
     push(S, #{ label: "Source", height: row_h(S), slot_role: "layout_actions", controls: [
-        #{ kind: "label", role: "text_code_quiet", grow: 1, truncate: true, text: path.unwrap_or("— inline —") },
+        #{ kind: "label", role: "text_code_quiet", grow: 1, truncate: true, text: path.unwrap_or("— embedded —") },
         #{
             kind: "button", role: "action_dock_secondary",
-            text: if inline { "save as file" } else { "make inline" },
+            text: if inline { "save to file" } else { "embed" },
             tooltip: if inline {
                 "Write this clip to animations/ and reference it"
             } else {
@@ -461,12 +461,12 @@ fn skeleton_section(S, k) {
     let built = node.contains_key("ragdoll");
     let ragdoll = [#{
         kind: "button", role: "action_form_secondary",
-        text: if built { "rebuild" } else { "physical bones" },
-        tooltip: "Create Physical Skeleton: a body and a capsule per bone, hinged to its parent's, driven back onto the rig by the ragdoll component's blend",
+        text: if built { "rebuild physical skeleton" } else { "create physical skeleton" },
+        tooltip: "A body and a capsule per bone, hinged to its parent's, driven back onto the rig by the ragdoll component's influence",
         on: |_| { rig::physical_bones(S); },
     }];
     if built {
-        ragdoll.push(#{ kind: "label", role: "text_caption", grow: 1, text_align: "end", text: "blend below" });
+        ragdoll.push(#{ kind: "label", role: "text_caption", grow: 1, text_align: "end", text: "influence below" });
     }
     verb_row(S, "Ragdoll", ragdoll);
 }
@@ -495,7 +495,7 @@ fn polygon_section(S, k) {
                 text: if polygon::editable(S) {
                     "empty — trace it with the Polygon tool"
                 } else {
-                    "a file; make it inline to edit"
+                    "a file; embed it to edit"
                 },
             }] });
             return;
@@ -519,7 +519,7 @@ fn polygon_section(S, k) {
     }];
     if drawn > 0 {
         polygons.push(#{
-            kind: "button", role: "action_form", text: "clear",
+            kind: "button", role: "action_form", text: "reset",
             tooltip: "Back to filling the outline automatically",
             on: |_| { polygon::clear_polygons(S); },
         });
@@ -564,7 +564,7 @@ fn polygon_section(S, k) {
                 on: |_| { polygon::key_deform(S); },
             },
             #{
-                kind: "button", role: "action_form", text: "clear",
+                kind: "button", role: "action_form", text: "reset",
                 tooltip: "Put every vertex back on its authored position",
                 on: |_| { polygon::clear_deform(S); },
             },
@@ -576,8 +576,8 @@ fn polygon_section(S, k) {
         ]);
     }
     verb_row(S, "Bones", [#{
-        kind: "button", role: "action_form_secondary", text: "sync to rig",
-        tooltip: "Sync Bones to Polygon: list the rig's bones, keeping weights already painted",
+        kind: "button", role: "action_form_secondary", text: "sync bones to polygon",
+        tooltip: "List the rig's bones on the polygon, keeping weights already painted",
         on: |_| { polygon::sync_bones(S); },
     }]);
     for (n, bone) in polygon::bones(S).iter().enumerate() {
@@ -682,7 +682,7 @@ fn promote_asset(S, at, asset_type, dir, reference) {
     let node = S.doc[S.sel];
     let (ok, definition) = script::attempt(|| assets::load(reference));
     if !ok || !(definition is Object) {
-        log::warn(format!("cannot read the inline {}: {:?}", asset_type, definition));
+        log::warn(format!("cannot read the embedded {}: {:?}", asset_type, definition));
         return;
     }
     definition["type"] = asset_type;
@@ -702,11 +702,11 @@ fn promote_asset(S, at, asset_type, dir, reference) {
 fn inline_asset(S, at, reference) {
     let (ok, copy) = script::attempt(|| assets::duplicate(S.game_root + "/" + reference));
     if !ok || !(copy is Object) {
-        log::warn(format!("cannot inline {}: {:?}", reference, copy));
+        log::warn(format!("cannot embed {}: {:?}", reference, copy));
         return;
     }
     write_at(S, at, copy);
-    log::info(format!("{} is now inline on {}", reference, S.doc[S.sel].name));
+    log::info(format!("{} is now embedded in {}", reference, S.doc[S.sel].name));
 }
 
 fn as_text(value) {
@@ -1270,7 +1270,7 @@ fn edit_asset(S, k, at, spec, value) {
     let inline = reference.starts_with("#!");
     let dir = if asset_type != "" { assets::directory(asset_type) } else { "" };
     let controls = [if inline {
-        #{ kind: "label", role: "text_code_quiet", grow: 1, text: "— inline —" }
+        #{ kind: "label", role: "text_code_quiet", grow: 1, text: "— embedded —" }
     } else {
         #{
             kind: "text_field", grow: 1, text: reference, placeholder: placeholder,
@@ -1280,7 +1280,7 @@ fn edit_asset(S, k, at, spec, value) {
     if dir != "" {
         controls.push(#{
             kind: "button", role: "action_dock_secondary",
-            text: if inline { "save as file" } else { "make inline" },
+            text: if inline { "save to file" } else { "embed" },
             tooltip: if inline {
                 format!("Write this {} to {}/ and reference it", asset_type, dir)
             } else {
@@ -1601,7 +1601,7 @@ fn bindings_note(S, k) {
     section(S, k, "BINDINGS");
     push(S, #{ full: true, height: row_h(S) + 2.0, controls: [#{
         kind: "button", role: "action_note", grow: 1,
-        text: format!("{} row(s) · open the Events view", crate::events::rows(S).len()),
+        text: format!("{} row(s) · open the Bindings view", crate::events::rows(S).len()),
         icon: icons::ui("events"),
         on: |_| { shell::open_doc(S, "events"); },
     }] });
@@ -1842,7 +1842,7 @@ fn empty_note(S, k, carried, query) {
 
 fn events_section(S, k) {
     let node = model::selected_node(S);
-    if !section(S, k, "Events") {
+    if !section(S, k, "Bindings") {
         return;
     }
     let script = match model::script_rel(node) {

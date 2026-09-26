@@ -522,15 +522,15 @@ pub fn make_inline(S) {
     let comp = component(node);
     let rel = library_path(node);
     if comp.is_none() || rel.is_none() {
-        log::warn("this clip is already inline");
+        log::warn("this clip is already embedded");
         return;
     }
     let comp = comp.unwrap();
     let rel = rel.unwrap();
-    history::record(S, "make clip inline", None);
+    history::record(S, "embed clip", None);
     let (ok, copy) = script::attempt(|| assets::duplicate(util::engine_path(S, rel)));
     if !ok || !(copy is Object) {
-        log::warn(format!("cannot inline {}: {:?}", rel, copy));
+        log::warn(format!("cannot embed {}: {:?}", rel, copy));
         return;
     }
     // A reference to one entry brings back that entry alone, so it is wrapped
@@ -548,7 +548,7 @@ pub fn make_inline(S) {
     comp.library = copy;
     S.clip = None;
     arm(S);
-    log::info(format!("clip is now inline on {}", node.name));
+    log::info(format!("clip is now embedded in {}", node.name));
 }
 
 // Write an external clip back to its file. An inline clip is saved with the

@@ -219,7 +219,7 @@ fn ensure_mesh(S) {
         return Some(mesh);
     }
     if !editable(S) {
-        log::warn("this polygon's mesh is a file; make it inline to edit it here");
+        log::warn("this polygon's mesh is a file; embed it to edit it here");
         return None;
     }
     let comp = component(S.doc[S.sel]).unwrap();
@@ -624,7 +624,7 @@ pub fn mirror(S, axis) {
         None => return,
     };
     if !editable(S) {
-        log::warn("this polygon's mesh is a file; make it inline to mirror it");
+        log::warn("this polygon's mesh is a file; embed it to mirror it");
         return;
     }
     let at = picked(S);
@@ -729,7 +729,7 @@ pub fn trace(S) {
         return;
     }
     if !editable(S) {
-        log::warn("this polygon's mesh is a file; make it inline to trace into it");
+        log::warn("this polygon's mesh is a file; embed it to trace into it");
         return;
     }
     let opts = #{

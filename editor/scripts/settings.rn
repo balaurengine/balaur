@@ -324,7 +324,7 @@ fn form_specs(S, k) {
         if path == crate::theme::SETTING {
             controls.push(#{
                 kind: "button", role: "action_form_primary", text: "Edit…",
-                tooltip: "Open the theme window",
+                tooltip: "Open the Theme dialog",
                 on: |_| { crate::themewin::open(S); },
             });
         }
@@ -349,7 +349,7 @@ fn form_specs(S, k) {
                     editor_control(S, def, at),
                     #{
                         kind: "button", role: "chip_quiet", text: "×",
-                        tooltip: "Clear this override",
+                        tooltip: "Reset this override",
                         on: |_| {
                             settings::clear(at);
                             S.settings.dirty = true;

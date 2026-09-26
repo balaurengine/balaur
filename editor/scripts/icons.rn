@@ -121,7 +121,7 @@ pub fn ui(name) {
         "settings" => "\u{e270}",
         "about" => "\u{e2ce}",
         "export" => "\u{eaf0}",
-        "minimise" => "\u{e32a}",
+        "minimize" => "\u{e32a}",
         "open" => "\u{e13c}",
         "shut" => "\u{e136}",
         "caret-open" => "\u{e136}",

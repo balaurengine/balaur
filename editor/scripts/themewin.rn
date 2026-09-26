@@ -240,7 +240,7 @@ fn head_specs(S) {
         #{
             kind: "dropdown", role: "choice_form", width: 180,
             text: name, options: theme::names(),
-            tooltip: "The theme the editor wears",
+            tooltip: "The theme the editor uses",
             on: |picked| { choose(S, picked); },
         },
     ];
@@ -255,7 +255,7 @@ fn head_specs(S) {
     controls.push(#{ kind: "row", grow: 1 });
     controls.push(#{
         kind: "button", role: "action_form_primary", text: "Duplicate",
-        tooltip: "Copy this theme into your themes folder and wear the copy",
+        tooltip: "Copy this theme into your themes folder and use the copy",
         on: |_| { duplicate(S); },
     });
     if mine && S.themewin.dirty {
@@ -476,7 +476,7 @@ fn state_chips(S, t) {
             kind: "button",
             role: if there || on { "chip" } else { "chip_quiet" }, checked: on,
             text: if there { word } else { "+ " + word },
-            tooltip: if there { "Edit the table this state wears" } else { "Nothing stated for this state yet" },
+            tooltip: if there { "Edit the table this state uses" } else { "Nothing stated for this state yet" },
             on: |_| { S.themewin.table = word; },
         });
     }

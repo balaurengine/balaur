@@ -130,7 +130,7 @@ Recorded so each stops being cited as precedent for the next.
 | `Flat` / `Solid` | A word-pair that already says which dimension it is, in one file. Suffixing `Solid` alone would orphan `Flat` and make the pair read less consistently, not more |
 | `PostPass::Material` beside `Material3d` | A screen-space post pass is not a surface material and carries no dimension; the 3D asset took the suffix, which is what separates them (N1) |
 | The editor's `S` and `k` | 1054 sites threaded as a consistent pair through every draw function, in hot-reloaded code with no compiler behind it. Documented at the top of `editor/scripts/editor.rn` instead |
-| The editor's display types (`RigidBody3D`, `MeshInstance2D`, …) | A deliberate affordance for Godot refugees; renaming five of nine would mix vocabularies in one inspector header |
+| The editor's display types (`RigidBody3D`, `MeshInstance2D`, …) | Godot 4's class names throughout, a deliberate affordance for Godot users; one table, `model::display_types` |
 | `scale`, four times over | `node.transform.scale`, `ui.scale()`, `ViewportSnapshot3d.scale_factor` and the 2D camera's `zoom` are four scopes, not one. N1 bans a word meaning two things in one scope |
 | `node.add_child` vs `scene.instantiate` | Not synonyms: one empty node against a whole scene file |
 
@@ -553,6 +553,17 @@ Every string is sentence case, and a button is a verb.
 | Building a game | Export…; the prebuilt player is a runtime | Godot |
 | Per-file import options | the Import panel, import settings | Unity |
 | A command that opens a dialog | a trailing `…` | Apple |
+| An event row on a node | binding, the Bindings view | Unreal |
+| An asset kept on the node, or in a file of its own | embed; save to file | none |
+| A script on a node | attach, detach | Unity |
+| Back to the default, or a list emptied | reset; clear | none |
+| Show in the file manager | reveal | Apple |
+| Take a theme | use | none |
+| A key on a track | keyframe; the verb is key | Blender, Godot |
+| A node's type in the tree and the Inspector | its Godot 4 class: `RigidBody3D`, `AnimatableBody3D`, `CharacterBody3D`, `Sprite2D`, `Camera2D`, `TileMapLayer`, `AudioStreamPlayer`, `MeshInstance3D`, `Control` | Godot |
+| A button for a Godot command | the command as its caption: create physical skeleton, sync bones to polygon | Godot |
+| The kit a plugin dock fills with | `put_rows`, `put_bar`, `field_row`, `heading_row`, `empty_row`, `tree_rows`, `file_rows`, `area_node`, `user_data_directory`, `save_editor_settings` | none |
+| Spelling in the UI | US, as the API spells it: color, center, minimize, license | none |
 
 A game and the editor keep separate per-user folders, so no game's name reaches the editor's files.
 

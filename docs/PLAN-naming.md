@@ -58,51 +58,15 @@ with no alias and no migration, as `one way to do a thing` asks.
   `catalog.toml`, and Gamend's choice of server `gamend/server`.
   A self-test state is `test:<name>`, a pose a plain noun, `:` the one
   separator, and a state nothing knows is an error.
+  The editor's words follow one glossary (panel, dialog, binding, prefab,
+  embed, detach, reset, reveal, use, keyframe), node types are Godot 4 class
+  names, the plugin kit's verbs say what they build, and the UI spells US.
 - `NAMING.md` has the eight scopes, rules N18 to N23, and the picked names per
   system, from a survey of SDL3, Godot 4, Unity, Blender, GLFW, W3C, rapier and
   glTF on 2026-09-25.
 - What follows is left. Line numbers in the findings are from that day's tree.
 
-## 1. The editor's words
-
-One glossary, and every string follows it. Casing is sentence case, a button
-is a verb, and capitals in headings come from the theme.
-
-| Term | Means | Replaces |
-| --- | --- | --- |
-| workspace | Scene, Script, Animation, Physics, UI | "Animate", "Interface" |
-| panel | one tab, and the plugin key `panels` | "dock" for a tab |
-| dock | the left, right or bottom area holding panels | |
-| dialog | Settings, Export, Theme, About, New project | sheet, window |
-| window | the OS window only | |
-| recording, replay | a play run on disk, playing it back | session |
-| binding | an event row, in the Bindings view | events, event binding |
-| instantiate, prefab | the verb, the scene used as a template | "Instance", "Edit the prefab itself" |
-| embed, save to file | an asset on the node, one in its own file | make inline |
-| attach, detach | a script on a node | remove |
-| reset, clear | back to the default, empty a list | "clear" for both |
-| export | build a game, nothing else | the recording's "export" |
-| reveal | show in the file manager | "Open folder" in the exporter |
-| use | wear a theme | wear |
-| keyframe | the noun; the verb is key | "Key frame" |
-
-- **One node, four names.** `rigid_body3d` (preset), `RigidBody3D` (display
-  type), `body3d` (component, shown as "BODY3D"), "Body". The palette and the
-  picker show the display type; a preset key uses its component's spelling.
-- **Display types, one table.** Godot 4 names throughout: `AnimatableBody3D`
-  for today's `KinematicBody3D`, `CharacterBody3D`, `Sprite2D`,
-  `Camera2D`/`3D`, `TileMapLayer`, `AudioStreamPlayer`, `MeshInstance3D` for
-  `mesh`, `Control` for `widget`. `NAMING.md`'s exemption says "five of nine";
-  there are 13, and it is updated with the table.
-- **Kit functions.** Writers `put_rows`, `put_bar`; builders `field_row`,
-  `heading_row`, `empty_row`, `tree_rows`, `file_rows`; queries `area_node`,
-  `user_data_dir`; the action `save_editor_settings`.
-- **Buttons named for Godot commands only in their tooltips** ("physical
-  bones", "sync to rig") take the command as the caption.
-- **US spelling** in the UI: `color`, `center`, `minimize`, as the API spells
-  them.
-
-## 2. Crates, features and the Rust facade
+## 1. Crates, features and the Rust facade
 
 | Now | New | Why |
 | --- | --- | --- |
@@ -129,8 +93,7 @@ These are defects, not names, and each is fixed on its own:
 ## Steps
 
 1. The bugs above, each with its test.
-2. The editor's words (section 1), with the manual.
-3. Crates and the facade (section 2).
-4. A lint for each of N18, N19, N21 and N22 where one can be written: tokens
+2. Crates and the facade (section 1).
+3. A lint for each of N18, N19, N21 and N22 where one can be written: tokens
    from the theme files, units from the settings registry, hooks from the hook
    list.

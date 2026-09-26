@@ -21,19 +21,19 @@ const INDENT = "  ";
 /// `script::shared` keeps its function for the life of the run.
 pub fn make() {
     #{
-        strip: script::shared(host_strip),
-        rows: script::shared(host_rows),
-        node: script::shared(host_node),
+        put_bar: script::shared(host_strip),
+        put_rows: script::shared(host_rows),
+        area_node: script::shared(host_node),
         tabs: script::shared(tabs),
         pages: script::shared(pages),
-        tree: script::shared(tree),
-        field: script::shared(field),
-        section: script::shared(section),
-        empty: script::shared(empty),
-        files: script::shared(files),
-        save_prefs: script::shared(save_prefs),
+        tree_rows: script::shared(tree),
+        field_row: script::shared(field),
+        heading_row: script::shared(section),
+        empty_row: script::shared(empty),
+        file_rows: script::shared(files),
+        save_editor_settings: script::shared(save_prefs),
         short_path: script::shared(short_path),
-        game_data: script::shared(game_data),
+        user_data_directory: script::shared(game_data),
     }
 }
 

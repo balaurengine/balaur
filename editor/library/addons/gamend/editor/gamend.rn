@@ -101,9 +101,9 @@ pub fn draw(S, k, host) {
     if gamend::connection()["url"] == "" {
         gamend::configure(());
     }
-    let strip = S.kit.strip;
+    let strip = S.kit.put_bar;
     let pages = S.kit.pages;
-    let rows = S.kit.rows;
+    let rows = S.kit.put_rows;
     strip(S, host, "head", header(S, me));
     let names = [];
     for feature in features() {
@@ -183,7 +183,7 @@ fn header(S, me) {
 /// this person only.
 fn pick(S, me, name) {
     settings::set("gamend/server", name);
-    let commit = S.kit.save_prefs;
+    let commit = S.kit.save_editor_settings;
     commit(S);
     gamend::configure(());
     forget(me, "");
@@ -211,8 +211,8 @@ fn status(link) {
 }
 
 fn overview(S, me, out) {
-    let section = S.kit.section;
-    let field = S.kit.field;
+    let section = S.kit.heading_row;
+    let field = S.kit.field_row;
     let target = gamend::server();
     let link = gamend::connection();
     out.push(section("Server"));
@@ -242,8 +242,8 @@ fn user(S, me, out) {
         signed_out(S, me, out);
         return;
     }
-    let section = S.kit.section;
-    let field = S.kit.field;
+    let section = S.kit.heading_row;
+    let field = S.kit.field_row;
     out.push(section("Session"));
     out.push(field(S, "user id", session["user_id"], #{ copy: true }));
     out.push(field(S, "username", session["username"], #{}));
@@ -263,7 +263,7 @@ fn user(S, me, out) {
 }
 
 fn signed_out(S, me, out) {
-    let empty = S.kit.empty;
+    let empty = S.kit.empty_row;
     out.push(empty("not signed in"));
     out.push(verbs([chip("Sign in with this device", false, "", || {
         forget(me, "login");
@@ -285,8 +285,8 @@ fn signed_out(S, me, out) {
     if !(saved is Object) {
         return;
     }
-    let section = S.kit.section;
-    let field = S.kit.field;
+    let section = S.kit.heading_row;
+    let field = S.kit.field_row;
     out.push(section("Saved session, from an earlier run"));
     for key in saved.keys() {
         // A token is masked here as on a live session: a screenshot of the
@@ -304,8 +304,8 @@ fn signed_out(S, me, out) {
 }
 
 fn lobby(S, me, out) {
-    let section = S.kit.section;
-    let empty = S.kit.empty;
+    let section = S.kit.heading_row;
+    let empty = S.kit.empty_row;
     let ids = [];
     for socket in gamend::connection()["sockets"] {
         for topic in socket["topics"] {
@@ -328,8 +328,8 @@ fn lobby(S, me, out) {
 }
 
 fn data(S, me, out) {
-    let section = S.kit.section;
-    let files = S.kit.files;
+    let section = S.kit.heading_row;
+    let files = S.kit.file_rows;
     out.push(section("On this device"));
     for spec in files(S, "gamend-data", #{ only: [SESSION_SLOT + ".toml", PREFS_SLOT + ".toml"] }) {
         out.push(spec);
@@ -357,7 +357,7 @@ fn data(S, me, out) {
         out.push(note("none: the rows a playing game subscribed to with `register_kv` show here", "text_caption"));
         return;
     }
-    let tree = S.kit.tree;
+    let tree = S.kit.tree_rows;
     let (specs, _, _) = tree(S, "gamend:rows", rows, #{});
     for spec in specs {
         out.push(spec);
@@ -443,7 +443,7 @@ fn activity(S, me, out) {
     out.push(verbs(chips));
     let rows = gamend::activity();
     if rows.len() == 0 {
-        let empty = S.kit.empty;
+        let empty = S.kit.empty_row;
         out.push(empty("no calls yet"));
     }
     let n = 0;
@@ -501,7 +501,7 @@ fn activity_row(S, me, row, n, out) {
     if !open {
         return;
     }
-    let tree = S.kit.tree;
+    let tree = S.kit.tree_rows;
     let (specs, _, _) = tree(S, "gamend:" + key, #{ args: row["args"], reply: row["reply"] }, #{});
     for spec in specs {
         out.push(spec);
@@ -509,8 +509,8 @@ fn activity_row(S, me, row, n, out) {
 }
 
 fn logs(S, out) {
-    let section = S.kit.section;
-    let field = S.kit.field;
+    let section = S.kit.heading_row;
+    let field = S.kit.field_row;
     out.push(section("This run"));
     let path = log::file();
     if path is String {
@@ -546,7 +546,7 @@ fn sink_report() {
 }
 
 fn feature_tab(S, me, name, out) {
-    let section = S.kit.section;
+    let section = S.kit.heading_row;
     let feature = #{ name: name, id: "", views: [] };
     for found in features() {
         if found.name == name {
@@ -649,7 +649,7 @@ fn show(S, key, reply, out) {
         out.push(note(format!("{}: empty", status), "text_caption"));
         return;
     }
-    let tree = S.kit.tree;
+    let tree = S.kit.tree_rows;
     let (specs, _, _) = tree(S, "gamend:" + key, shown, #{});
     for spec in specs {
         out.push(spec);

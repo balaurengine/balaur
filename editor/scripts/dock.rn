@@ -1073,7 +1073,7 @@ fn session_row(S, r) {
         on: |_| { session::remove(S, r.name); },
     });
     out.push(#{
-        kind: "button", role: "action_form", text: "export",
+        kind: "button", role: "action_form", text: "copy to project",
         tooltip: "Copy into the project, for a bug report or `balaur replay`",
         on: |_| { session::export(S, r.name); },
     });

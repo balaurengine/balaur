@@ -96,7 +96,7 @@ fn folder_button(S, k) {
     if S.exporter.landed == "" {
         return;
     }
-    if ui::button("Open folder", #{
+    if ui::button("Reveal", #{
         height: 24, font_size: style::MD, corner_radius: 8, tooltip: "Show the last export in the file manager",
         fill: k.bg_control, text_color: k.text_muted,
     }) {

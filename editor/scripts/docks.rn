@@ -672,7 +672,7 @@ fn tail_controls(S, side) {
         #{
             kind: "button", height: tab_h(S), width: tab_h(S), padding_x: 0,
             text: "", icon: icons::ui(shut_icon(side)), role: "icon_action",
-            tooltip: "Minimise",
+            tooltip: "Minimize",
             on: |_| { S.docks[side].shut = true; },
         },
     ]
