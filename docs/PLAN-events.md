@@ -161,9 +161,9 @@ In order of how often a game needs them.
    hears `on_setting_changed` and `on_locale_changed`. A window minimised
    or covered, and an Android activity sent back, is suspended too, and
    focus reaches `on_focused_changed`, once the kiss3d fork's commit
-   `3fcc9a8e`, which sends both, is pushed and the lock bumped. Left: low
-   memory everywhere and suspend on iOS, which kiss3d's application
-   handlers do not take yet.
+   `3fcc9a8e`, which sends both, is pushed and the lock bumped. The fork's
+   `5498f396` adds `WindowEvent::LowMemory` and iOS suspend; the engine's
+   `on_low_memory` follows the same push.
 8. **Render:** built. A camera announces `current_changed` when it becomes
    or stops being the one drawn from. `render.screenshot` answers every
    listener with `screenshot_written` or `screenshot_failed`, a run with no
@@ -172,6 +172,7 @@ In order of how often a game needs them.
 9. **Network:** built. `http.cancel` drops a reply, stops a download
    writing and tells the handler `cancelled`. A websocket `closed` carries
    its close `code`, and `websocket.state` says where a connection is. A
+   request body over 256 KB reports going out as `kind` `upload`, natively. A
    tab shown or hidden is `on_suspended_changed`, and `web.stop_listening`
    undoes `web.listen`. The Gamend addon names every event the server
    pushes: `gamend::events::user::MATCH_FOUND`, the tournament and webrtc
@@ -185,9 +186,8 @@ In order of how often a game needs them.
 
 ## 5. Not planned
 
-- **Upload progress:** an `http` body is a string sent in one write, so
-  there is nothing between none sent and all of it; a file upload would
-  bring it.
+- **Upload progress in a browser:** `fetch` reports no upload, so a web
+  build hears only the reply.
 
 - **Apple arrivals** (a notification in front, a remote push payload, Game
   Center invites, iCloud changes): each needs Swift in `balaur_apple` and a
