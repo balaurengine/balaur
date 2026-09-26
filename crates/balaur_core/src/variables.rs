@@ -49,6 +49,7 @@ impl VarType {
         match self {
             Self::Bool => Value::Bool(match value {
                 Value::Bool(b) => *b,
+                Value::Int(i) => *i != 0,
                 Value::Num(n) => *n != 0.0,
                 Value::Str(s) => !s.is_empty(),
                 _ => false,
@@ -58,6 +59,7 @@ impl VarType {
             Self::Text => Value::Str(match value {
                 Value::Str(s) => s.clone(),
                 Value::Bool(b) => b.to_string(),
+                Value::Int(i) => i.to_string(),
                 Value::Num(n) => format!("{n}"),
                 _ => String::new(),
             }),
@@ -70,6 +72,7 @@ impl VarType {
 pub fn as_num(value: &Value) -> f64 {
     match value {
         Value::Num(n) => *n,
+        Value::Int(i) => *i as f64,
         Value::Bool(true) => 1.0,
         Value::Str(s) => s.parse().unwrap_or(0.0),
         _ => 0.0,
@@ -257,6 +260,19 @@ mod tests {
 
         variables.declare("open", VarType::Bool, &Value::Num(1.0), false);
         assert_eq!(variables.get("open"), Some(&Value::Bool(true)));
+    }
+
+    /// A script's whole number arrives as an `Int`, not a `Num`.
+    #[test]
+    fn a_whole_number_from_a_script_is_written_as_itself() {
+        let mut variables = Variables::default();
+        variables.declare("lives", VarType::Int, &Value::Num(0.0), false);
+        variables.set("lives", &Value::Int(7)).unwrap();
+        assert_eq!(variables.get("lives"), Some(&Value::Num(7.0)));
+        variables.declare("open", VarType::Bool, &Value::Int(1), false);
+        assert_eq!(variables.get("open"), Some(&Value::Bool(true)));
+        variables.declare("label", VarType::Text, &Value::Int(3), false);
+        assert_eq!(variables.get("label"), Some(&Value::Str("3".into())));
     }
 
     /// Writing the value already held is not a change, so a script setting
