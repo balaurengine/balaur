@@ -86,7 +86,7 @@ impl EventKind {
     pub const fn name(self) -> &'static str {
         match self {
             Self::Connected => "connected",
-            Self::Failed => "failed",
+            Self::Failed => balaur_core::handler::ERROR,
             Self::Joined => "joined",
             Self::Left => "left",
             Self::Started => "started",

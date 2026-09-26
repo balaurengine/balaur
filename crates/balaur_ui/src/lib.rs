@@ -396,7 +396,7 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
     // `Foreground` — so what is on top does not depend on which ran first.
     widget::layer::draw(eng, ctx);
     if let Some(host) = eng.script_host() {
-        host.call_all("draw_ui");
+        host.call_all(balaur_core::hooks::DRAW_UI);
     }
     // Over everything, scripts' overlays included, for as long as it lasts.
     splash::draw(eng, ctx);

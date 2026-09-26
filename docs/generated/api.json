@@ -6659,6 +6659,143 @@
       }
     }
   },
+  "hooks": [
+    [
+      "init",
+      "()",
+      "Once, when the script is attached and its scene has loaded."
+    ],
+    [
+      "update",
+      "(dt)",
+      "Every frame, with the seconds since the last; not while paused."
+    ],
+    [
+      "fixed_update",
+      "(dt)",
+      "Every fixed step, with the step's length; not while paused."
+    ],
+    [
+      "draw_ui",
+      "()",
+      "Every UI pass, for immediate `ui::*` calls."
+    ],
+    [
+      "on_free",
+      "()",
+      "Once, as the node is freed or its script detached."
+    ],
+    [
+      "hot_reload",
+      "()",
+      "After the script's file changed and it was rebuilt, with its state kept."
+    ],
+    [
+      "defaults",
+      "()",
+      "When the instance is made, before the scene's properties land."
+    ],
+    [
+      "save_state",
+      "()",
+      "When a rollback or a save snapshots the world; answers the state to keep."
+    ],
+    [
+      "load_state",
+      "(state)",
+      "When a rollback or a load puts that state back."
+    ],
+    [
+      "on_pointer_enter",
+      "()",
+      "The pointer came over the node."
+    ],
+    [
+      "on_pointer_exit",
+      "()",
+      "The pointer left the node."
+    ],
+    [
+      "on_pointer_down",
+      "(button)",
+      "A button went down over the node, then over every other node unless one answers `true`."
+    ],
+    [
+      "on_pointer_up",
+      "(button)",
+      "A button came up, reaching nodes as `on_pointer_down` does."
+    ],
+    [
+      "on_pointer_click",
+      "(button)",
+      "A press and release over the same node."
+    ],
+    [
+      "on_pointer_drag",
+      "(dx, dy)",
+      "The pointer moved with a button held, having pressed on the node."
+    ],
+    [
+      "on_pointer_drop",
+      "(node)",
+      "A drag ended over this node, from the node given."
+    ],
+    [
+      "on_key_down",
+      "(key)",
+      "A key went down; every node hears it, the last child first, until one answers `true`."
+    ],
+    [
+      "on_key_up",
+      "(key)",
+      "A key came up, reaching nodes as `on_key_down` does."
+    ],
+    [
+      "on_action",
+      "(name)",
+      "A declared input action was pressed, reaching nodes as `on_key_down` does."
+    ],
+    [
+      "on_scroll",
+      "(dx, dy)",
+      "The wheel turned, over the node or, over nothing, to every node."
+    ],
+    [
+      "on_resize",
+      "(width, height)",
+      "The window changed size, told to every node."
+    ],
+    [
+      "on_variable_changed",
+      "(name, value)",
+      "A scene variable changed, told to every node at the end of the frame."
+    ],
+    [
+      "on_state_changed",
+      "(was, now)",
+      "The node's `states` moved to another state."
+    ],
+    [
+      "on_paused",
+      "(paused)",
+      "The game paused or resumed, told to every script, a paused one too."
+    ],
+    [
+      "on_focus_changed",
+      "(focused)",
+      "The window came to the front or left it, told to every script."
+    ],
+    [
+      "on_dark_mode",
+      "(dark)",
+      "The system switched dark mode, told to every script."
+    ],
+    [
+      "on_quit_requested",
+      "()",
+      "The window was asked to close; every script hears it, then the app goes."
+    ]
+  ],
   "modules": [
     {
       "acts_on": {
@@ -7083,8 +7220,89 @@
     {
       "acts_on": {},
       "components": [],
-      "constants": [],
-      "doc": "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer on a later tick as a `kind` map, to the node's `on_apple` or the awaited id.",
+      "constants": [
+        {
+          "name": "EVENT_CANCELLED",
+          "value": "cancelled"
+        },
+        {
+          "name": "EVENT_CREDENTIAL_STATE",
+          "value": "credential_state"
+        },
+        {
+          "name": "EVENT_DASHBOARD_CLOSED",
+          "value": "dashboard_closed"
+        },
+        {
+          "name": "EVENT_ENTITLEMENTS",
+          "value": "entitlements"
+        },
+        {
+          "name": "EVENT_ERROR",
+          "value": "error"
+        },
+        {
+          "name": "EVENT_FINISHED",
+          "value": "finished"
+        },
+        {
+          "name": "EVENT_IDENTITY",
+          "value": "identity"
+        },
+        {
+          "name": "EVENT_NOTIFICATIONS",
+          "value": "notifications"
+        },
+        {
+          "name": "EVENT_NOTIFICATION_OPENED",
+          "value": "notification_opened"
+        },
+        {
+          "name": "EVENT_PENDING",
+          "value": "pending"
+        },
+        {
+          "name": "EVENT_PRODUCTS",
+          "value": "products"
+        },
+        {
+          "name": "EVENT_PURCHASED",
+          "value": "purchased"
+        },
+        {
+          "name": "EVENT_PUSH_FAILED",
+          "value": "push_failed"
+        },
+        {
+          "name": "EVENT_PUSH_TOKEN",
+          "value": "push_token"
+        },
+        {
+          "name": "EVENT_RESTORED",
+          "value": "restored"
+        },
+        {
+          "name": "EVENT_SCHEDULED",
+          "value": "scheduled"
+        },
+        {
+          "name": "EVENT_SIGNED_IN",
+          "value": "signed_in"
+        },
+        {
+          "name": "EVENT_TRANSACTION",
+          "value": "transaction"
+        },
+        {
+          "name": "EVENT_UNSUPPORTED",
+          "value": "unsupported"
+        },
+        {
+          "name": "EVENT_URL",
+          "value": "url"
+        }
+      ],
+      "doc": "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer on a later tick as a map whose `kind` is an `EVENT_*` constant, to the node's `on_apple` or the awaited id.",
       "docs": {
         "access_point": "Show or hide Game Center's floating access point, and answer whether it is showing; `location` is a corner: top_leading, top_trailing, bottom_leading or bottom_trailing.",
         "authenticated": "Whether Game Center has a signed-in player right now.",
@@ -7550,15 +7768,52 @@
     {
       "acts_on": {},
       "components": [],
-      "constants": [],
-      "doc": "The Gamend backend: session, REST API and realtime socket. Each call returns an id to await; the result also reaches the node's `on_gamend_event` (or `on_event`) as a `kind` map.",
+      "constants": [
+        {
+          "name": "EVENT_CLOSED",
+          "value": "closed"
+        },
+        {
+          "name": "EVENT_ERROR",
+          "value": "error"
+        },
+        {
+          "name": "EVENT_LOGIN",
+          "value": "login"
+        },
+        {
+          "name": "EVENT_MESSAGE",
+          "value": "message"
+        },
+        {
+          "name": "EVENT_OPEN",
+          "value": "open"
+        },
+        {
+          "name": "EVENT_RECONNECTING",
+          "value": "reconnecting"
+        },
+        {
+          "name": "EVENT_REOPENED",
+          "value": "reopened"
+        },
+        {
+          "name": "EVENT_REPLY",
+          "value": "reply"
+        },
+        {
+          "name": "EVENT_REST",
+          "value": "rest"
+        }
+      ],
+      "doc": "The Gamend backend: session, REST API and realtime socket. Each call returns an id to await; the result also reaches the node's `on_gamend_event` (or `on_event`) as a map whose `kind` is an `EVENT_*` constant.",
       "docs": {
         "activity": "The last calls and socket messages, newest first, as `{ seq, request, kind, what, status, ms, args, reply }`, `seq` counting every row ever kept; `ms` is nil while a call waits, and only the newest fifty keep `args` and `reply`. An observer: never simulate from it.",
         "call_hook": "Call a server plugin's function over the socket; the reply's `response` holds `data` or `error`.",
         "clear_activity": "Forget the calls and messages `activity` holds.",
         "close": "Shut the socket down; false when the connection was already gone.",
         "configure": "Point the plugin at a server and answer its url; with none, the one `[gamend]` names for this run (see `target`). Every other call errors until this one runs.",
-        "connect": "Open the realtime socket and return the id `join`, `push`, `leave`, `call_hook` and `close` take. A dropped connection comes back on its own: the handler hears `reconnecting` before each try, then `reopened` once its topics are joined again, or `error` when it gives up.",
+        "connect": "Open the realtime socket and return the id `join`, `push`, `leave`, `call_hook` and `close` take, which `task.wait` resumes on with the `open` or `error` event. A dropped connection comes back on its own: the handler hears `reconnecting` before each try, then `reopened` once its topics are joined again, or `error` when it gives up.",
         "connection": "The configured `url`, who is signed in (`user_id`, `username`), and each socket as `{ socket, open, topics, reason }`.",
         "interrupt": "Cut the connection as a network failure would, to try a game's reconnect path: the socket reports `reconnecting`, then `reopened`. False when it is already gone.",
         "join": "Subscribe the socket to a topic and return the id the server's `reply` answers.",
@@ -7713,8 +7968,21 @@
     {
       "acts_on": {},
       "components": [],
-      "constants": [],
-      "doc": "HTTP requests off the frame: `method`, `headers`, `body`, `timeout` and `save_to` options. The reply reaches `on_response` with `status`, `headers` and `body` or `error`; `save_to` downloads report to `on_progress`.",
+      "constants": [
+        {
+          "name": "EVENT_ERROR",
+          "value": "error"
+        },
+        {
+          "name": "EVENT_PROGRESS",
+          "value": "progress"
+        },
+        {
+          "name": "EVENT_RESPONSE",
+          "value": "response"
+        }
+      ],
+      "doc": "HTTP requests off the frame: `method`, `headers`, `body`, `timeout` and `save_to` options. The reply reaches `on_response` as a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; `save_to` downloads report to `on_progress` with `kind` `progress`. Each kind is an `EVENT_*` constant.",
       "docs": {
         "request": "Start an HTTP request and return the id its reply carries, to await or to match inside the handler. With `save_to` the body is written under the user directory and the reply says where in `path`."
       },
@@ -8787,8 +9055,8 @@
           "value": "desync"
         },
         {
-          "name": "EVENT_FAILED",
-          "value": "failed"
+          "name": "EVENT_ERROR",
+          "value": "error"
         },
         {
           "name": "EVENT_JOINED",
@@ -10679,8 +10947,37 @@
     {
       "acts_on": {},
       "components": [],
-      "constants": [],
-      "doc": "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers later on `on_platform` with a map whose `kind` is `signed_in`, `done`, `scores`, `read`, `failed` or `unsupported`.",
+      "constants": [
+        {
+          "name": "EVENT_DONE",
+          "value": "done"
+        },
+        {
+          "name": "EVENT_ERROR",
+          "value": "error"
+        },
+        {
+          "name": "EVENT_READ",
+          "value": "read"
+        },
+        {
+          "name": "EVENT_SCORES",
+          "value": "scores"
+        },
+        {
+          "name": "EVENT_SIGNED_IN",
+          "value": "signed_in"
+        },
+        {
+          "name": "EVENT_SIGNED_OUT",
+          "value": "signed_out"
+        },
+        {
+          "name": "EVENT_UNSUPPORTED",
+          "value": "unsupported"
+        }
+      ],
+      "doc": "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers later on `on_platform` with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `error` or `unsupported`, each an `EVENT_*` constant.",
       "docs": {
         "backend": "The name of the loaded store, or \"none\".",
         "cloud_read": "Read a value the store syncs between the player's devices.",
@@ -12175,11 +12472,32 @@
     {
       "acts_on": {},
       "components": [],
-      "constants": [],
-      "doc": "A long-lived socket for text or binary frames. Events reach the node's `on_websocket_event` (or `on_event`) as a map with `socket` and `kind`: `open`, `message`, `binary`, `closed` or `error`.",
+      "constants": [
+        {
+          "name": "EVENT_BINARY",
+          "value": "binary"
+        },
+        {
+          "name": "EVENT_CLOSED",
+          "value": "closed"
+        },
+        {
+          "name": "EVENT_ERROR",
+          "value": "error"
+        },
+        {
+          "name": "EVENT_MESSAGE",
+          "value": "message"
+        },
+        {
+          "name": "EVENT_OPEN",
+          "value": "open"
+        }
+      ],
+      "doc": "A long-lived socket for text or binary frames. Events reach the node's `on_websocket_event` (or `on_event`) as a map with `socket` and `kind`: `open`, `message`, `binary`, `closed` or `error`, each an `EVENT_*` constant.",
       "docs": {
         "close": "Ask the connection to close, which still delivers a `closed` event; false when it was already gone.",
-        "connect": "Open a connection and return the id `send` and `close` take; options are `on_event`, `compression` and `headers`.",
+        "connect": "Open a connection and return the id `send` and `close` take, which `task.wait` resumes on with the `open` or `error` event; options are `on_event`, `compression` and `headers`.",
         "send": "Queue a frame on the connection, text for a string and binary for bytes; false when it is already gone."
       },
       "functions": [

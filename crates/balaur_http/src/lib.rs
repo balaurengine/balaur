@@ -265,6 +265,14 @@ fn pump_http_system(eng: &Engine, _: f32) {
     }
 }
 
+/// The `kind` each event map carries, and the `EVENT_*` constants of it.
+pub mod kind {
+    pub const RESPONSE: &str = "response";
+    pub const PROGRESS: &str = "progress";
+    pub const ERROR: &str = balaur_core::handler::ERROR;
+    pub const ALL: &[&str] = &[RESPONSE, PROGRESS, ERROR];
+}
+
 fn event_value(event: HttpEvent) -> Value {
     let pairs = match event {
         HttpEvent::Response {
@@ -275,6 +283,7 @@ fn event_value(event: HttpEvent) -> Value {
             saved,
         } => {
             let mut pairs = vec![
+                ("kind".into(), Value::Str(kind::RESPONSE.into())),
                 ("request".into(), id_value(request)),
                 ("status".into(), Value::Int(i64::from(status))),
                 (
@@ -298,6 +307,7 @@ fn event_value(event: HttpEvent) -> Value {
             received,
             total,
         } => vec![
+            ("kind".into(), Value::Str(kind::PROGRESS.into())),
             ("request".into(), id_value(request)),
             (
                 "received".into(),
@@ -311,6 +321,7 @@ fn event_value(event: HttpEvent) -> Value {
             ),
         ],
         HttpEvent::Error { request, message } => vec![
+            ("kind".into(), Value::Str(kind::ERROR.into())),
             ("request".into(), id_value(request)),
             ("error".into(), Value::Str(message)),
         ],
@@ -425,8 +436,9 @@ fn save_path_of(eng: &Engine, opts: Option<&Value>) -> Result<Option<std::path::
 /// `http.*`. Declared against the neutral seam, so it works on any backend.
 fn install_http_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "HTTP requests off the frame: `method`, `headers`, `body`, `timeout` and `save_to` options. The reply reaches `on_response` with `status`, `headers` and `body` or `error`; `save_to` downloads report to `on_progress`.",
+        "HTTP requests off the frame: `method`, `headers`, `body`, `timeout` and `save_to` options. The reply reaches `on_response` as a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; `save_to` downloads report to `on_progress` with `kind` `progress`. Each kind is an `EVENT_*` constant.",
     );
+    balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[
         ("request", &[], "", "Start an HTTP request and return the id its reply carries, to await or to match inside the handler. With `save_to` the body is written under the user directory and the reply says where in `path`."),
     ]);

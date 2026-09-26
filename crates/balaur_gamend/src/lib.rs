@@ -569,6 +569,30 @@ fn pump_gamend_system(eng: &Engine, _: f32) {
     }
 }
 
+/// The `kind` each event map carries, and the `EVENT_*` constants of it.
+pub mod kind {
+    pub const LOGIN: &str = "login";
+    pub const REST: &str = "rest";
+    pub const REPLY: &str = "reply";
+    pub const OPEN: &str = "open";
+    pub const MESSAGE: &str = "message";
+    pub const CLOSED: &str = "closed";
+    pub const RECONNECTING: &str = "reconnecting";
+    pub const REOPENED: &str = "reopened";
+    pub const ERROR: &str = balaur_core::handler::ERROR;
+    pub const ALL: &[&str] = &[
+        LOGIN,
+        REST,
+        REPLY,
+        OPEN,
+        MESSAGE,
+        CLOSED,
+        RECONNECTING,
+        REOPENED,
+        ERROR,
+    ];
+}
+
 fn event_value(event: GamendEvent) -> Value {
     let json_or_nil = |v: &Json| from_json(v).unwrap_or(Value::Nil);
     let pairs = match event {
@@ -579,7 +603,7 @@ fn event_value(event: GamendEvent) -> Value {
             display_name,
         } => vec![
             ("request".into(), int(request)),
-            ("kind".into(), Value::Str("login".into())),
+            ("kind".into(), Value::Str(kind::LOGIN.into())),
             ("user_id".into(), Value::Str(user_id)),
             ("username".into(), Value::Str(username)),
             ("display_name".into(), Value::Str(display_name)),
@@ -590,13 +614,13 @@ fn event_value(event: GamendEvent) -> Value {
             body,
         } => vec![
             ("request".into(), int(request)),
-            ("kind".into(), Value::Str("rest".into())),
+            ("kind".into(), Value::Str(kind::REST.into())),
             ("status".into(), Value::Int(i64::from(status))),
             ("body".into(), json_or_nil(&body)),
         ],
         GamendEvent::Failed { request, message } => vec![
             ("request".into(), int(request)),
-            ("kind".into(), Value::Str("error".into())),
+            ("kind".into(), Value::Str(kind::ERROR.into())),
             ("error".into(), Value::Str(message)),
         ],
         GamendEvent::Replied {
@@ -605,13 +629,13 @@ fn event_value(event: GamendEvent) -> Value {
             response,
         } => vec![
             ("request".into(), int(request)),
-            ("kind".into(), Value::Str("reply".into())),
+            ("kind".into(), Value::Str(kind::REPLY.into())),
             ("status".into(), Value::Str(status)),
             ("response".into(), json_or_nil(&response)),
         ],
         GamendEvent::SocketOpen { socket } => vec![
             ("socket".into(), int(socket)),
-            ("kind".into(), Value::Str("open".into())),
+            ("kind".into(), Value::Str(kind::OPEN.into())),
         ],
         GamendEvent::SocketMessage {
             socket,
@@ -620,19 +644,19 @@ fn event_value(event: GamendEvent) -> Value {
             payload,
         } => vec![
             ("socket".into(), int(socket)),
-            ("kind".into(), Value::Str("message".into())),
+            ("kind".into(), Value::Str(kind::MESSAGE.into())),
             ("topic".into(), Value::Str(topic)),
             ("event".into(), Value::Str(event)),
             ("payload".into(), json_or_nil(&payload)),
         ],
         GamendEvent::SocketClosed { socket, reason } => vec![
             ("socket".into(), int(socket)),
-            ("kind".into(), Value::Str("closed".into())),
+            ("kind".into(), Value::Str(kind::CLOSED.into())),
             ("reason".into(), Value::Str(reason)),
         ],
         GamendEvent::SocketError { socket, reason } => vec![
             ("socket".into(), int(socket)),
-            ("kind".into(), Value::Str("error".into())),
+            ("kind".into(), Value::Str(kind::ERROR.into())),
             ("reason".into(), Value::Str(reason)),
         ],
         GamendEvent::SocketReconnecting {
@@ -642,14 +666,14 @@ fn event_value(event: GamendEvent) -> Value {
             wait,
         } => vec![
             ("socket".into(), int(socket)),
-            ("kind".into(), Value::Str("reconnecting".into())),
+            ("kind".into(), Value::Str(kind::RECONNECTING.into())),
             ("attempt".into(), Value::Int(i64::from(attempt))),
             ("reason".into(), Value::Str(reason)),
             ("wait".into(), Value::Num(wait)),
         ],
         GamendEvent::SocketReopened { socket, lost } => vec![
             ("socket".into(), int(socket)),
-            ("kind".into(), Value::Str("reopened".into())),
+            ("kind".into(), Value::Str(kind::REOPENED.into())),
             (
                 "lost".into(),
                 Value::List(lost.into_iter().map(Value::text).collect()),
@@ -767,8 +791,9 @@ fn json_of(value: Option<&Value>) -> Result<Json> {
 /// connect call's handler method (default `on_gamend_event`).
 fn install_gamend_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "The Gamend backend: session, REST API and realtime socket. Each call returns an id to await; the result also reaches the node's `on_gamend_event` (or `on_event`) as a `kind` map.",
+        "The Gamend backend: session, REST API and realtime socket. Each call returns an id to await; the result also reaches the node's `on_gamend_event` (or `on_event`) as a map whose `kind` is an `EVENT_*` constant.",
     );
+    balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[
         ("configure", &[], "(url: string?)", "Point the plugin at a server and answer its url; with none, the one `[gamend]` names for this run (see `target`). Every other call errors until this one runs."),
         ("login", &[], "", "Open a session from a `device_id`, or an `email` and `password`, and return the id its `login` result answers."),

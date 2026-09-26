@@ -18,10 +18,10 @@ impl RuneHost {
             self.drop_pause(&paused);
         }
         if let Some(inst) = inst
-            && let Some(on_free) = self.method(&inst.key, "on_free")
+            && let Some(on_free) = self.method(&inst.key, balaur_core::hooks::ON_FREE)
             && let Err(err) = on_free.call::<()>((inst.state,)).into_result()
         {
-            self.report(&inst.key, "on_free", &err);
+            self.report(&inst.key, balaur_core::hooks::ON_FREE, &err);
         }
     }
 
@@ -58,10 +58,10 @@ impl RuneHost {
         }
         for entity in entities {
             if let Some(inst) = gone.remove(entity)
-                && let Some(on_free) = self.method(&inst.key, "on_free")
+                && let Some(on_free) = self.method(&inst.key, balaur_core::hooks::ON_FREE)
                 && let Err(err) = on_free.call::<()>((inst.state,)).into_result()
             {
-                self.report(&inst.key, "on_free", &err);
+                self.report(&inst.key, balaur_core::hooks::ON_FREE, &err);
             }
         }
     }

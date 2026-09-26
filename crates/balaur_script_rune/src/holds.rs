@@ -31,7 +31,7 @@ impl RuneHost {
                 .filter(|i| *i.key == *key)
                 .and_then(|i| i.state.try_clone().ok());
             if let Some(state) = live {
-                self.invoke(entity, &key, "init", (state,), true, None);
+                self.invoke(entity, &key, balaur_core::hooks::INIT, (state,), true, None);
             }
         }
     }

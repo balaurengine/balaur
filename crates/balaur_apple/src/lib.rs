@@ -384,6 +384,53 @@ fn pump_apple_system(eng: &Engine, _: f32) {
     balaur_core::handler::dispatch(eng, dispatches);
 }
 
+/// The `kind` each event map carries, and the `EVENT_*` constants of it.
+/// The StoreKit kinds come from the Swift shim, which spells the same words.
+pub mod kind {
+    pub const IDENTITY: &str = "identity";
+    pub const SIGNED_IN: &str = "signed_in";
+    pub const CREDENTIAL_STATE: &str = "credential_state";
+    pub const DASHBOARD_CLOSED: &str = "dashboard_closed";
+    pub const NOTIFICATIONS: &str = "notifications";
+    pub const SCHEDULED: &str = "scheduled";
+    pub const NOTIFICATION_OPENED: &str = "notification_opened";
+    pub const PUSH_TOKEN: &str = "push_token";
+    pub const PUSH_FAILED: &str = "push_failed";
+    pub const URL: &str = "url";
+    pub const UNSUPPORTED: &str = "unsupported";
+    pub const PRODUCTS: &str = "products";
+    pub const PURCHASED: &str = "purchased";
+    pub const CANCELLED: &str = "cancelled";
+    pub const PENDING: &str = "pending";
+    pub const ENTITLEMENTS: &str = "entitlements";
+    pub const RESTORED: &str = "restored";
+    pub const FINISHED: &str = "finished";
+    pub const TRANSACTION: &str = "transaction";
+    pub const ERROR: &str = balaur_core::handler::ERROR;
+    pub const ALL: &[&str] = &[
+        IDENTITY,
+        SIGNED_IN,
+        CREDENTIAL_STATE,
+        DASHBOARD_CLOSED,
+        NOTIFICATIONS,
+        SCHEDULED,
+        NOTIFICATION_OPENED,
+        PUSH_TOKEN,
+        PUSH_FAILED,
+        URL,
+        UNSUPPORTED,
+        PRODUCTS,
+        PURCHASED,
+        CANCELLED,
+        PENDING,
+        ENTITLEMENTS,
+        RESTORED,
+        FINISHED,
+        TRANSACTION,
+        ERROR,
+    ];
+}
+
 fn event_value(event: AppleEvent) -> Value {
     let mut pairs = vec![("request".into(), id_value(event.request()))];
     match event {
@@ -395,7 +442,7 @@ fn event_value(event: AppleEvent) -> Value {
             timestamp,
             ..
         } => {
-            pairs.push(("kind".into(), Value::Str("identity".into())));
+            pairs.push(("kind".into(), Value::Str(kind::IDENTITY.into())));
             pairs.push(("player".into(), Value::Str(player)));
             pairs.push(("url".into(), Value::Str(url)));
             pairs.push(("signature".into(), Value::Str(signature)));
@@ -413,7 +460,7 @@ fn event_value(event: AppleEvent) -> Value {
             email,
             ..
         } => {
-            pairs.push(("kind".into(), Value::Str("signed_in".into())));
+            pairs.push(("kind".into(), Value::Str(kind::SIGNED_IN.into())));
             pairs.push(("user".into(), Value::Str(user)));
             pairs.push(("name".into(), Value::Str(name)));
             pairs.push(("token".into(), Value::Str(token)));
@@ -421,34 +468,34 @@ fn event_value(event: AppleEvent) -> Value {
             pairs.push(("email".into(), Value::Str(email)));
         }
         AppleEvent::CredentialState { state, .. } => {
-            pairs.push(("kind".into(), Value::Str("credential_state".into())));
+            pairs.push(("kind".into(), Value::Str(kind::CREDENTIAL_STATE.into())));
             pairs.push(("state".into(), Value::Str(state)));
         }
         AppleEvent::DashboardClosed { .. } => {
-            pairs.push(("kind".into(), Value::Str("dashboard_closed".into())));
+            pairs.push(("kind".into(), Value::Str(kind::DASHBOARD_CLOSED.into())));
         }
         AppleEvent::Notifications { allowed, .. } => {
-            pairs.push(("kind".into(), Value::Str("notifications".into())));
+            pairs.push(("kind".into(), Value::Str(kind::NOTIFICATIONS.into())));
             pairs.push(("allowed".into(), Value::Bool(allowed)));
         }
         AppleEvent::Scheduled { id, .. } => {
-            pairs.push(("kind".into(), Value::Str("scheduled".into())));
+            pairs.push(("kind".into(), Value::Str(kind::SCHEDULED.into())));
             pairs.push(("id".into(), Value::Str(id)));
         }
         AppleEvent::NotificationOpened { id } => {
-            pairs.push(("kind".into(), Value::Str("notification_opened".into())));
+            pairs.push(("kind".into(), Value::Str(kind::NOTIFICATION_OPENED.into())));
             pairs.push(("id".into(), Value::Str(id)));
         }
         AppleEvent::PushToken { token } => {
-            pairs.push(("kind".into(), Value::Str("push_token".into())));
+            pairs.push(("kind".into(), Value::Str(kind::PUSH_TOKEN.into())));
             pairs.push(("token".into(), Value::Str(token)));
         }
         AppleEvent::PushFailed { message } => {
-            pairs.push(("kind".into(), Value::Str("push_failed".into())));
+            pairs.push(("kind".into(), Value::Str(kind::PUSH_FAILED.into())));
             pairs.push(("error".into(), Value::Str(message)));
         }
         AppleEvent::Url { url } => {
-            pairs.push(("kind".into(), Value::Str("url".into())));
+            pairs.push(("kind".into(), Value::Str(kind::URL.into())));
             pairs.push(("url".into(), Value::Str(url)));
         }
         // StoreKit's own shape, unflattened: the `kind` is already in there.
@@ -458,11 +505,11 @@ fn event_value(event: AppleEvent) -> Value {
             }
         }
         AppleEvent::Failed { message, .. } => {
-            pairs.push(("kind".into(), Value::Str("failed".into())));
+            pairs.push(("kind".into(), Value::Str(kind::ERROR.into())));
             pairs.push(("error".into(), Value::Str(message)));
         }
         AppleEvent::Unsupported { call, .. } => {
-            pairs.push(("kind".into(), Value::Str("unsupported".into())));
+            pairs.push(("kind".into(), Value::Str(kind::UNSUPPORTED.into())));
             pairs.push(("call".into(), Value::Str(call)));
         }
     }
@@ -528,8 +575,9 @@ fn restore(eng: &Engine, value: &serde_json::Value) {
 /// has it.
 fn install_apple_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer on a later tick as a `kind` map, to the node's `on_apple` or the awaited id.",
+        "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer on a later tick as a map whose `kind` is an `EVENT_*` constant, to the node's `on_apple` or the awaited id.",
     );
+    balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[
         (
             "available",

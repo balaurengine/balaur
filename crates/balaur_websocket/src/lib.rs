@@ -273,30 +273,40 @@ fn pump_websocket_system(eng: &Engine, _: f32) {
     }
 }
 
+/// The `kind` each event map carries, and the `EVENT_*` constants of it.
+pub mod kind {
+    pub const OPEN: &str = "open";
+    pub const MESSAGE: &str = "message";
+    pub const BINARY: &str = "binary";
+    pub const CLOSED: &str = "closed";
+    pub const ERROR: &str = balaur_core::handler::ERROR;
+    pub const ALL: &[&str] = &[OPEN, MESSAGE, BINARY, CLOSED, ERROR];
+}
+
 fn event_value(event: SocketEvent) -> Value {
     let pairs = match event {
         SocketEvent::Open { socket } => vec![
             ("socket".into(), id_value(socket)),
-            ("kind".into(), Value::Str("open".into())),
+            ("kind".into(), Value::Str(kind::OPEN.into())),
         ],
         SocketEvent::Message { socket, text } => vec![
             ("socket".into(), id_value(socket)),
-            ("kind".into(), Value::Str("message".into())),
+            ("kind".into(), Value::Str(kind::MESSAGE.into())),
             ("text".into(), Value::Str(text)),
         ],
         SocketEvent::Binary { socket, bytes } => vec![
             ("socket".into(), id_value(socket)),
-            ("kind".into(), Value::Str("binary".into())),
+            ("kind".into(), Value::Str(kind::BINARY.into())),
             ("bytes".into(), Value::Bytes(bytes)),
         ],
         SocketEvent::Closed { socket, reason } => vec![
             ("socket".into(), id_value(socket)),
-            ("kind".into(), Value::Str("closed".into())),
+            ("kind".into(), Value::Str(kind::CLOSED.into())),
             ("reason".into(), Value::Str(reason)),
         ],
         SocketEvent::Failed { socket, reason } => vec![
             ("socket".into(), id_value(socket)),
-            ("kind".into(), Value::Str("error".into())),
+            ("kind".into(), Value::Str(kind::ERROR.into())),
             ("reason".into(), Value::Str(reason)),
         ],
     };
@@ -375,8 +385,9 @@ fn socket_options_of(opts: Option<&Value>, config: &WebsocketConfig) -> Result<S
 /// frame arrives as `Value::Str`, a binary one as `Value::Bytes`.
 fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "A long-lived socket for text or binary frames. Events reach the node's `on_websocket_event` (or `on_event`) as a map with `socket` and `kind`: `open`, `message`, `binary`, `closed` or `error`.",
+        "A long-lived socket for text or binary frames. Events reach the node's `on_websocket_event` (or `on_event`) as a map with `socket` and `kind`: `open`, `message`, `binary`, `closed` or `error`, each an `EVENT_*` constant.",
     );
+    balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[
         ("connect", &[], "", "Open a connection and return the id `send` and `close` take, which `task.wait` resumes on with the `open` or `error` event; options are `on_event`, `compression` and `headers`."),
         ("send", &[], "", "Queue a frame on the connection, text for a string and binary for bytes; false when it is already gone."),

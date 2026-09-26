@@ -9,7 +9,7 @@ cannot drift from what scripts actually see.
 | Module | Functions | Constants | Declared by |
 | --- | ---: | ---: | --- |
 | [`animation`](#animation) | 20 | 75 | the engine |
-| [`apple`](#apple) | 18 | 0 | the engine |
+| [`apple`](#apple) | 18 | 20 | the engine |
 | [`assets`](#assets) | 11 | 0 | the engine |
 | [`audio`](#audio) | 19 | 0 | the engine |
 | [`debugger`](#debugger) | 9 | 4 | the engine |
@@ -18,11 +18,11 @@ cannot drift from what scripts actually see.
 | [`events`](#events) | 6 | 0 | the engine |
 | [`export`](#export) | 6 | 0 | the engine |
 | [`fs`](#fs) | 9 | 0 | the engine |
-| [`gamend`](#gamend) | 19 | 0 | the engine |
+| [`gamend`](#gamend) | 19 | 9 | the engine |
 | [`geometry2d`](#geometry2d) | 10 | 0 | the engine |
 | [`geometry3d`](#geometry3d) | 6 | 0 | the engine |
 | [`hash`](#hash) | 2 | 0 | the engine |
-| [`http`](#http) | 1 | 0 | the engine |
+| [`http`](#http) | 1 | 3 | the engine |
 | [`import`](#import) | 7 | 0 | the engine |
 | [`input`](#input) | 47 | 176 | the engine |
 | [`json`](#json) | 2 | 0 | the engine |
@@ -33,7 +33,7 @@ cannot drift from what scripts actually see.
 | [`physics`](#physics) | 14 | 0 | the engine |
 | [`physics2d`](#physics2d) | 72 | 64 | the engine |
 | [`physics3d`](#physics3d) | 94 | 77 | the engine |
-| [`platform`](#platform) | 11 | 0 | the engine |
+| [`platform`](#platform) | 11 | 7 | the engine |
 | [`project`](#project) | 13 | 0 | the engine |
 | [`regex`](#regex) | 6 | 0 | the engine |
 | [`release`](#release) | 5 | 0 | the engine |
@@ -51,7 +51,7 @@ cannot drift from what scripts actually see.
 | [`toml`](#toml) | 3 | 0 | the engine |
 | [`ui`](#ui) | 71 | 65 | the engine |
 | [`web`](#web) | 7 | 0 | the engine |
-| [`websocket`](#websocket) | 3 | 0 | the engine |
+| [`websocket`](#websocket) | 3 | 5 | the engine |
 | [`window`](#window) | 8 | 0 | the engine |
 
 ## `animation`
@@ -92,6 +92,31 @@ cannot drift from what scripts actually see.
 ## `apple`
 
 **Functions:** `access_point`, `authenticated`, `available`, `cancel_notification`, `credential_state`, `entitlements`, `finish_purchase`, `identity`, `notify`, `products`, `purchase`, `register_for_push`, `request_notifications`, `restore_purchases`, `show_dashboard`, `sign_in`, `watch`, `watch_urls`
+
+**Constants** (20):
+
+| Name | Value |
+| --- | --- |
+| `EVENT_CANCELLED` | `cancelled` |
+| `EVENT_CREDENTIAL_STATE` | `credential_state` |
+| `EVENT_DASHBOARD_CLOSED` | `dashboard_closed` |
+| `EVENT_ENTITLEMENTS` | `entitlements` |
+| `EVENT_ERROR` | `error` |
+| `EVENT_FINISHED` | `finished` |
+| `EVENT_IDENTITY` | `identity` |
+| `EVENT_NOTIFICATIONS` | `notifications` |
+| `EVENT_NOTIFICATION_OPENED` | `notification_opened` |
+| `EVENT_PENDING` | `pending` |
+| `EVENT_PRODUCTS` | `products` |
+| `EVENT_PURCHASED` | `purchased` |
+| `EVENT_PUSH_FAILED` | `push_failed` |
+| `EVENT_PUSH_TOKEN` | `push_token` |
+| `EVENT_RESTORED` | `restored` |
+| `EVENT_SCHEDULED` | `scheduled` |
+| `EVENT_SIGNED_IN` | `signed_in` |
+| `EVENT_TRANSACTION` | `transaction` |
+| `EVENT_UNSUPPORTED` | `unsupported` |
+| `EVENT_URL` | `url` |
 
 ## `assets`
 
@@ -138,6 +163,20 @@ cannot drift from what scripts actually see.
 
 **Functions:** `activity`, `call_hook`, `clear_activity`, `close`, `configure`, `connect`, `connection`, `interrupt`, `join`, `leave`, `login`, `push`, `register`, `reply`, `rest`, `restore`, `run_id`, `session`, `target`
 
+**Constants** (9):
+
+| Name | Value |
+| --- | --- |
+| `EVENT_CLOSED` | `closed` |
+| `EVENT_ERROR` | `error` |
+| `EVENT_LOGIN` | `login` |
+| `EVENT_MESSAGE` | `message` |
+| `EVENT_OPEN` | `open` |
+| `EVENT_RECONNECTING` | `reconnecting` |
+| `EVENT_REOPENED` | `reopened` |
+| `EVENT_REPLY` | `reply` |
+| `EVENT_REST` | `rest` |
+
 ## `geometry2d`
 
 **Functions:** `area`, `contains`, `convex_decomposition`, `convex_hull`, `difference`, `intersection`, `is_clockwise`, `segments_intersect`, `triangulate`, `union`
@@ -153,6 +192,14 @@ cannot drift from what scripts actually see.
 ## `http`
 
 **Functions:** `request`
+
+**Constants** (3):
+
+| Name | Value |
+| --- | --- |
+| `EVENT_ERROR` | `error` |
+| `EVENT_PROGRESS` | `progress` |
+| `EVENT_RESPONSE` | `response` |
 
 ## `import`
 
@@ -224,7 +271,7 @@ cannot drift from what scripts actually see.
 | `EVENT_CLOSED` | `closed` |
 | `EVENT_CONNECTED` | `connected` |
 | `EVENT_DESYNC` | `desync` |
-| `EVENT_FAILED` | `failed` |
+| `EVENT_ERROR` | `error` |
 | `EVENT_JOINED` | `joined` |
 | `EVENT_LEFT` | `left` |
 | `EVENT_STARTED` | `started` |
@@ -321,6 +368,18 @@ cannot drift from what scripts actually see.
 ## `platform`
 
 **Functions:** `backend`, `cloud_read`, `cloud_write`, `player`, `progress`, `scores`, `set_presence`, `sign_in`, `signed_in`, `submit_score`, `unlock`
+
+**Constants** (7):
+
+| Name | Value |
+| --- | --- |
+| `EVENT_DONE` | `done` |
+| `EVENT_ERROR` | `error` |
+| `EVENT_READ` | `read` |
+| `EVENT_SCORES` | `scores` |
+| `EVENT_SIGNED_IN` | `signed_in` |
+| `EVENT_SIGNED_OUT` | `signed_out` |
+| `EVENT_UNSUPPORTED` | `unsupported` |
 
 ## `project`
 
@@ -464,6 +523,16 @@ cannot drift from what scripts actually see.
 ## `websocket`
 
 **Functions:** `close`, `connect`, `send`
+
+**Constants** (5):
+
+| Name | Value |
+| --- | --- |
+| `EVENT_BINARY` | `binary` |
+| `EVENT_CLOSED` | `closed` |
+| `EVENT_ERROR` | `error` |
+| `EVENT_MESSAGE` | `message` |
+| `EVENT_OPEN` | `open` |
 
 ## `window`
 

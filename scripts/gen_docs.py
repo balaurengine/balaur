@@ -630,6 +630,24 @@ def gen_assets(asset_types, functions, components):
     return "".join(out)
 
 
+def gen_hooks(api):
+    """Every method the engine calls on a script by name, from the table in
+    `balaur_core::hooks`."""
+    rows = "\n".join(
+        f"<tr><td><code>{html.escape(name)}{html.escape(args)}</code></td><td>{code_spans(doc)}</td></tr>"
+        for name, args, doc in api.get("hooks", [])
+    )
+    return (
+        "# Hooks\n\n"
+        "The methods the engine calls on a node's script by name. Each takes the\n"
+        "instance first, `pub fn update(this, dt)`, and a script declares only the\n"
+        "ones it wants. What a component announces is listed with the component in\n"
+        "[components.md](./components.md).\n\n"
+        "<table>\n<thead><tr><th>hook</th><th>when</th></tr></thead>\n"
+        f"<tbody>\n{rows}\n</tbody>\n</table>\n"
+    )
+
+
 def gen_script_types(api):
     body = (
         "# Script value types\n\nThe maths types a script holds as values: `balaur::Vec2` and the rest,\n"
@@ -664,6 +682,7 @@ def main():
         "crate-graph.md": gen_graph(crates),
         "script-api.md": gen_script_api(api, owners),
         "script-types.md": gen_script_types(api),
+        "hooks.md": gen_hooks(api),
         "components.md": gen_components(
             api.get("components", {}),
             api.get("component_tags", {}),

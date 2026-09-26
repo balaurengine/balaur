@@ -19,7 +19,7 @@
 //! }
 //!
 //! pub fn on_platform(this, e) {
-//!     if e["kind"] == "unsupported" { log::info("no store here"); }
+//!     if e["kind"] == platform::EVENT_UNSUPPORTED { log::info("no store here"); }
 //! }
 //! ```
 //!
@@ -421,24 +421,36 @@ fn player_value(player: &Player) -> Value {
     ])
 }
 
+/// The `kind` each event map carries, and the `EVENT_*` constants of it.
+pub mod kind {
+    pub const SIGNED_IN: &str = "signed_in";
+    pub const SIGNED_OUT: &str = "signed_out";
+    pub const DONE: &str = "done";
+    pub const SCORES: &str = "scores";
+    pub const READ: &str = "read";
+    pub const UNSUPPORTED: &str = "unsupported";
+    pub const ERROR: &str = balaur_core::handler::ERROR;
+    pub const ALL: &[&str] = &[SIGNED_IN, SIGNED_OUT, DONE, SCORES, READ, UNSUPPORTED, ERROR];
+}
+
 fn event_value(event: PlatformEvent) -> Value {
     let mut pairs = vec![("request".into(), id_value(event.request()))];
     match event {
         PlatformEvent::SignedIn { player, .. } => {
-            pairs.push(("kind".into(), Value::Str("signed_in".into())));
+            pairs.push(("kind".into(), Value::Str(kind::SIGNED_IN.into())));
             pairs.push(("player".into(), player_value(&player)));
             pairs.push(("id".into(), Value::Str(player.id)));
             pairs.push(("alias".into(), Value::Str(player.alias)));
         }
         PlatformEvent::SignedOut { .. } => {
-            pairs.push(("kind".into(), Value::Str("signed_out".into())));
+            pairs.push(("kind".into(), Value::Str(kind::SIGNED_OUT.into())));
         }
         PlatformEvent::Done { call, .. } => {
-            pairs.push(("kind".into(), Value::Str("done".into())));
+            pairs.push(("kind".into(), Value::Str(kind::DONE.into())));
             pairs.push(("call".into(), Value::Str(call)));
         }
         PlatformEvent::Scores { board, entries, .. } => {
-            pairs.push(("kind".into(), Value::Str("scores".into())));
+            pairs.push(("kind".into(), Value::Str(kind::SCORES.into())));
             pairs.push(("board".into(), Value::Str(board)));
             pairs.push((
                 "entries".into(),
@@ -458,16 +470,16 @@ fn event_value(event: PlatformEvent) -> Value {
             ));
         }
         PlatformEvent::Read { key, value, .. } => {
-            pairs.push(("kind".into(), Value::Str("read".into())));
+            pairs.push(("kind".into(), Value::Str(kind::READ.into())));
             pairs.push(("key".into(), Value::Str(key)));
             pairs.push(("value".into(), value.map_or(Value::Nil, Value::text)));
         }
         PlatformEvent::Failed { message, .. } => {
-            pairs.push(("kind".into(), Value::Str("failed".into())));
+            pairs.push(("kind".into(), Value::Str(kind::ERROR.into())));
             pairs.push(("error".into(), Value::Str(message)));
         }
         PlatformEvent::Unsupported { call, .. } => {
-            pairs.push(("kind".into(), Value::Str("unsupported".into())));
+            pairs.push(("kind".into(), Value::Str(kind::UNSUPPORTED.into())));
             pairs.push(("call".into(), Value::Str(call)));
         }
     }
@@ -590,8 +602,9 @@ fn start_call(eng: &Engine, node: &Value, opts: Option<&Value>, call: Call) -> R
 /// with a store, without one, and inside a replay.
 fn install_platform_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers later on `on_platform` with a map whose `kind` is `signed_in`, `done`, `scores`, `read`, `failed` or `unsupported`.",
+        "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers later on `on_platform` with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `error` or `unsupported`, each an `EVENT_*` constant.",
     );
+    balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[
         (
             "backend",

@@ -1,7 +1,6 @@
 > **Status:** written 2026-09-26 from an audit of every crate, done by reading
-> the code; the bugs in §2 were re-read before they were written down. Nothing
-> in §2-§4 is built yet. The order is bugs first, then one delivery path, then
-> the events the engine does not send yet.
+> the code. §2 and §3 are built; §4 is next. The order is bugs first, then one
+> delivery path, then the events the engine does not send yet.
 
 # Plan: events, and one way to hear each of them
 
@@ -86,14 +85,13 @@ Each is a wrong result today, not a missing feature.
    return an id that nothing wakes (`balaur_websocket/src/lib.rs:226`,
    `balaur_gamend/src/lib.rs:536`).
 6. **Widget events that need a handler first.** A markup link emits only when
-   `on_link` is set, an image senses clicks only with `on_click`, and a label
-   or panel with `on_click` ignores the pointer (`balaur_ui/src/widget/text.rs:383`,
-   `layer.rs:856`, `layer.rs:1054`). A flat menu pick overwrites its caption
+   `on_link` is set, and a label or panel with `on_click` ignores the pointer
+   (`balaur_ui/src/widget/text.rs:383`, `layer.rs:856`). A flat menu pick overwrites its caption
    (`input.rs:290`). Accept on a focused `fold` does not flip it
    (`kinds.rs:509`).
-7. **`visibility_changed` from one writer in four.** Only `node.set_visible`
-   emits it; the binding `visible` action, the animation `visible` track and
-   a scene patch write the flag silently.
+7. **`visibility_changed` from one writer in three.** Only `node.set_visible`
+   emits it; the binding `visible` action and the animation `visible` track
+   write the flag silently.
 8. **Docs that name the wrong key.** `move_character` says `grounded` for
    `on_floor`, `wheel_state` says `grounded` for `in_contact`, and the joint
    break doc says both ends hear it while only the joint's node does.
@@ -106,11 +104,13 @@ Each is a wrong result today, not a missing feature.
    the Events view, `scene.bindable_events(node)`, `gen_docs.py` and
    `api.json` reading it.
 3. Every engine event through `announce`: collisions, contact force, joint
-   break, tear, tween, animation, state machine, timer, visibility, widgets.
-   Contact force and tear move to one map payload.
+   break, tear, tween, animation, state machine, timer, visibility. Contact
+   force, joint break and tear carry one map. Widgets keep their handler keys
+   (`on_click = "method"`) and emit `click`, `change` and the rest, since the
+   key names the method and a second call to it would run it twice.
 4. The network modules: an `EVENT_*` constant per `kind` in every crate, a
-   `kind` on every event map (http and web have none), and `error` as the one
-   failure kind.
+   `kind` on every http event, and `error` as the one failure kind. A web
+   message stays the payload the parent frame posted.
 5. A generated hooks page: every hook the engine calls, with its arguments
    and whether answering `true` stops it, from `balaur_core/src/hooks.rs`.
 

@@ -22,7 +22,7 @@ private func send(_ request: UInt64, _ payload: [String: Any]) {
 }
 
 private func fail(_ request: UInt64, _ message: String) {
-    send(request, ["kind": "failed", "error": message])
+    send(request, ["kind": "error", "error": message])
 }
 
 private func describe(_ product: Product) -> [String: Any] {

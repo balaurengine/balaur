@@ -120,7 +120,7 @@ const VM_POOL: usize = 4;
 /// The function a script declares to say what its members start as. The host
 /// calls it when the instance is made, so a sibling's `init` reading this
 /// script's state finds what it was declared with.
-const DEFAULTS: &str = "defaults";
+const DEFAULTS: &str = balaur_core::hooks::DEFAULTS;
 
 use crate::script::{Instance, Method, Script};
 
@@ -588,7 +588,7 @@ impl RuneHost {
             .map_err(|_| anyhow!("cannot attach script to a dead node"))?;
         // A script that simulates on the fixed step moves its node between
         // frames, which is exactly what drawing between steps is for.
-        if self.resolve(&key, "fixed_update").is_some() {
+        if self.resolve(&key, balaur_core::hooks::FIXED_UPDATE).is_some() {
             balaur_core::interpolate::enable(&self.engine, entity);
         }
         {
@@ -598,16 +598,16 @@ impl RuneHost {
                 return Ok(());
             }
         }
-        self.invoke(entity, &key, "init", (state,), true, None);
+        self.invoke(entity, &key, balaur_core::hooks::INIT, (state,), true, None);
         Ok(())
     }
 
     pub fn update(&self, dt: f32) {
-        self.tick_lifecycle("update", dt);
+        self.tick_lifecycle(balaur_core::hooks::UPDATE, dt);
     }
 
     pub fn fixed_update(&self, dt: f32) {
-        self.tick_lifecycle("fixed_update", dt);
+        self.tick_lifecycle(balaur_core::hooks::FIXED_UPDATE, dt);
     }
 
     /// Call `method(dt)` on every live instance that defines it.
@@ -630,14 +630,14 @@ impl RuneHost {
         let mut out = Vec::with_capacity(batch.len());
         for (entity, key, state) in batch {
             let node = balaur_core::node_id_of(entity);
-            if let Some(f) = self.method(&key, "save_state") {
+            if let Some(f) = self.method(&key, balaur_core::hooks::SAVE_STATE) {
                 match f.call::<rune::Value>((state,)).into_result() {
                     Ok(value) => {
                         if let Some(plain) = value::to_plain(&value) {
                             out.push((node, plain));
                         }
                     }
-                    Err(err) => self.report(&key, "save_state", &err),
+                    Err(err) => self.report(&key, balaur_core::hooks::SAVE_STATE, &err),
                 }
                 continue;
             }
@@ -674,11 +674,11 @@ impl RuneHost {
             else {
                 continue;
             };
-            if let Some(f) = self.method(&key, "load_state") {
+            if let Some(f) = self.method(&key, balaur_core::hooks::LOAD_STATE) {
                 match value::from_neutral(value) {
                     Ok(arg) => {
                         if let Err(err) = f.call::<rune::Value>((state, arg)).into_result() {
-                            self.report(&key, "load_state", &err);
+                            self.report(&key, balaur_core::hooks::LOAD_STATE, &err);
                         }
                     }
                     Err(err) => tracing::error!("[{key}] load_state: {err}"),
@@ -780,7 +780,7 @@ impl RuneHost {
             .filter_map(|(e, i)| Some((*e, i.state.try_clone().ok()?)))
             .collect();
         for (entity, state) in batch {
-            self.invoke(entity, key, "hot_reload", (state,), false, None);
+            self.invoke(entity, key, balaur_core::hooks::HOT_RELOAD, (state,), false, None);
         }
     }
 

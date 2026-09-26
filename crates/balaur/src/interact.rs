@@ -107,10 +107,10 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
     let over = under_pointer(eng);
     if over != state.over {
         if let Some(was) = state.over {
-            dispatch(eng, was, "pointer_exit", &[]);
+            dispatch(eng, was, hooks::POINTER_EXIT, &[]);
         }
         if let Some(now) = over {
-            dispatch(eng, now, "pointer_enter", &[]);
+            dispatch(eng, now, hooks::POINTER_ENTER, &[]);
         }
         state.over = over;
     }
@@ -120,9 +120,9 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
         state.pressed = over;
         state.dragging = false;
         let args = [button_name(0)];
-        let taken = over.is_some_and(|node| dispatch(eng, node, "pointer_down", &args));
+        let taken = over.is_some_and(|node| dispatch(eng, node, hooks::POINTER_DOWN, &args));
         if !taken {
-            broadcast(eng, "pointer_down", &args, over);
+            broadcast(eng, hooks::POINTER_DOWN, &args, over);
         }
     }
     if state.pressed.is_some() && (delta.0 != 0.0 || delta.1 != 0.0) {
@@ -131,7 +131,7 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
             dispatch(
                 eng,
                 node,
-                "pointer_drag",
+                hooks::POINTER_DRAG,
                 &[
                     Value::Num(f64::from(delta.0)),
                     Value::Num(f64::from(delta.1)),
@@ -143,20 +143,20 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
         let args = [button_name(0)];
         let taken = state
             .pressed
-            .is_some_and(|node| dispatch(eng, node, "pointer_up", &args));
+            .is_some_and(|node| dispatch(eng, node, hooks::POINTER_UP, &args));
         if !taken {
-            broadcast(eng, "pointer_up", &args, state.pressed);
+            broadcast(eng, hooks::POINTER_UP, &args, state.pressed);
         }
         if let Some(node) = state.pressed {
             // A press and a release on one node is a click; a release over
             // another node is a drop on that one, which is what a drag ends as.
             if over == Some(node) && !state.dragging {
-                dispatch(eng, node, "pointer_click", &[button_name(0)]);
+                dispatch(eng, node, hooks::POINTER_CLICK, &[button_name(0)]);
             } else if let Some(landed) = over {
                 dispatch(
                     eng,
                     landed,
-                    "pointer_drop",
+                    hooks::POINTER_DROP,
                     &[Value::Node(node_id_of(node).0)],
                 );
             }
@@ -171,9 +171,9 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
         ];
         match over {
             Some(node) => {
-                dispatch(eng, node, "scroll", &args);
+                dispatch(eng, node, hooks::SCROLL, &args);
             }
-            None => broadcast(eng, "scroll", &args, None),
+            None => broadcast(eng, hooks::SCROLL, &args, None),
         }
     }
 }
@@ -200,10 +200,10 @@ fn input_system(eng: &Engine, state: &mut Pointer) {
         )
     };
     for key in down {
-        broadcast(eng, "key_down", &[Value::text(key)], None);
+        broadcast(eng, hooks::KEY_DOWN, &[Value::text(key)], None);
     }
     for key in up {
-        broadcast(eng, "key_up", &[Value::text(key)], None);
+        broadcast(eng, hooks::KEY_UP, &[Value::text(key)], None);
     }
     if let Some(actions) = eng.try_resource::<balaur_input::InputActions>() {
         let fired: Vec<String> = {
@@ -215,14 +215,14 @@ fn input_system(eng: &Engine, state: &mut Pointer) {
                 .collect()
         };
         for name in fired {
-            broadcast(eng, "action", &[Value::text(name)], None);
+            broadcast(eng, hooks::ACTION, &[Value::text(name)], None);
         }
     }
     let size = balaur_render::viewport_size(eng);
     if size != state.size && state.size != (0, 0) {
         broadcast(
             eng,
-            "resize",
+            hooks::RESIZE,
             &[Value::Num(f64::from(size.0)), Value::Num(f64::from(size.1))],
             None,
         );
