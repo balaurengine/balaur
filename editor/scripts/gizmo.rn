@@ -154,9 +154,9 @@ fn half_extents(node) {
     he
 }
 
-// The world half-extents of one row, before the handle padding. The engine's
-// own bounds first: an authored `size` says nothing about a mesh, and
-// nothing about a body a solver deforms.
+// One row's box before the handle padding: its world centre, its half-extents
+// along its own axes, and those axes. The engine's own bounds first: an
+// authored `size` says nothing about a mesh, nor a body a solver deforms.
 pub fn extents_at(S, i) {
     let found = match model::live(S, i) {
         Some(found) => found,
@@ -164,20 +164,38 @@ pub fn extents_at(S, i) {
     };
     let s = found.transform.global_scale();
     let at = util::xyz(found.transform.global_position());
+    let basis = util::basis_from_euler(util::xyz(found.transform.global_rotation_euler()));
     let drawn = render::bounds(found);
     if drawn is Vec && drawn.len() == 2 {
         // Vec3 values, read by field: `util::vec3` parses a list and answers
         // its default for one of these, which sized every box to nothing.
         let c = drawn[0];
         let he = drawn[1];
-        // The box is in the node's own space, so its centre rides the node's.
-        return Some((
-            [at[0] + c.x * s.x, at[1] + c.y * s.y, at[2] + c.z * s.z],
-            [he.x * s.x, he.y * s.y, he.z * s.z],
-        ));
+        // The box is in the node's own space, so its centre turns with it.
+        let off = [c.x * s.x, c.y * s.y, c.z * s.z];
+        let centre = util::vadd(at, along(basis, off));
+        return Some((centre, [he.x * s.x, he.y * s.y, he.z * s.z], basis));
     }
     let he = half_extents(S.doc[i]);
-    Some((at, [he[0] * s.x, he[1] * s.y, he[2] * s.z]))
+    Some((at, [he[0] * s.x, he[1] * s.y, he[2] * s.z], basis))
+}
+
+// A vector in a basis's own axes, put into the world's.
+fn along(basis, v) {
+    let out = [0.0, 0.0, 0.0];
+    for axis in 0..3 {
+        out[axis] = basis[0][axis] * v[0] + basis[1][axis] * v[1] + basis[2][axis] * v[2];
+    }
+    out
+}
+
+// The world axis-aligned half-extents of a box turned by `basis`.
+fn world_half(he, basis) {
+    let out = [0.0, 0.0, 0.0];
+    for axis in 0..3 {
+        out[axis] = util::abs(basis[0][axis]) * he[0] + util::abs(basis[1][axis]) * he[1] + util::abs(basis[2][axis]) * he[2];
+    }
+    out
 }
 
 // An axis-aligned box around the whole set, so the gizmo over many nodes sits
@@ -189,8 +207,9 @@ fn set_geometry(S) {
     for i in crate::selection::all(S) {
         let found = extents_at(S, i);
         let found_some = found;
-        if let Some((c, he)) = found_some {
+        if let Some((c, he, basis)) = found_some {
             any = true;
+            let he = world_half(he, basis);
             for axis in 0..3 {
                 lo[axis] = util::min(lo[axis], c[axis] - he[axis]);
                 hi[axis] = util::max(hi[axis], c[axis] + he[axis]);
@@ -217,14 +236,10 @@ fn set_geometry(S) {
 }
 
 fn geometry_at(S, i) {
-    let found = match model::live(S, i) {
-        Some(found) => found,
-        None => return None,
-    };
     // The same source the multi-selection box and box-select read, so one
     // node's frame and a set's agree about what a node covers.
-    let (c, he) = match extents_at(S, i) {
-        Some(pair) => pair,
+    let (c, he, basis) = match extents_at(S, i) {
+        Some(found) => found,
         None => return None,
     };
     let hx = he[0] + 0.06;
@@ -236,10 +251,9 @@ fn geometry_at(S, i) {
     let (ex, ey, ez, _, _, _, _, _) = render::camera_pose();
     let dist = math::sqrt((c[0] - ex) * (c[0] - ex) + (c[1] - ey) * (c[1] - ey) + (c[2] - ez) * (c[2] - ez));
     let marker = 0.6 * dist * 0.0144;
-    let r = found.transform.global_rotation_euler();
     Some(#{
         center: c,
-        basis: util::basis_from_euler(util::xyz(r)),
+        basis: basis,
         he: [hx, hy, hz],
         // The rotation ball tracks the selection but never grows past a
         // fraction of the camera distance (or shrinks below pickability).
@@ -642,7 +656,7 @@ fn rows_in_box(S, cam, x0, y0, x1, y1) {
         }
         let found = extents_at(S, i);
         let found_some = found;
-        if let Some((c, he)) = found_some {
+        if let Some((c, he, basis)) = found_some {
             let bx0 = math::INFINITY;
             let by0 = math::INFINITY;
             let bx1 = -math::INFINITY;
@@ -651,7 +665,7 @@ fn rows_in_box(S, cam, x0, y0, x1, y1) {
             for sx in [-1.0, 1.0] {
                 for sy in [-1.0, 1.0] {
                     for sz in [-1.0, 1.0] {
-                        let corner = [c[0] + sx * he[0], c[1] + sy * he[1], c[2] + sz * he[2]];
+                        let corner = util::vadd(c, along(basis, [sx * he[0], sy * he[1], sz * he[2]]));
                         let at = project(cam, corner);
                         let at_some = at;
                         if let Some((px, py)) = at_some {

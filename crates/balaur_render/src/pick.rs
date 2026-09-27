@@ -313,7 +313,7 @@ fn under_pointer_2d(eng: &Engine) -> Option<hecs::Entity> {
 
 /// A 2D renderable's half extents, or `None` for a shape with no box —
 /// a polyline and a polygon carry their points in a mesh asset.
-fn half_extents_2d(renderable: &crate::Renderable2d) -> Option<(f32, f32)> {
+pub(crate) fn half_extents_2d(renderable: &crate::Renderable2d) -> Option<(f32, f32)> {
     match renderable.shape {
         crate::Shape2d::Sprite { hx, hy } => Some((hx, hy)),
         crate::Shape2d::Flat(flat) => {

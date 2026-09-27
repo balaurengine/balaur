@@ -11811,7 +11811,7 @@
       ],
       "doc": "What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the backdrop, debug lines and screenshots. `window` holds the window itself.",
       "docs": {
-        "bounds": "The box the node's geometry covers in its own space, as a centre xyz and half-extents xyz; nil for a node that draws nothing. A solver's body reports where it is now, not where it was built.",
+        "bounds": "The box the node's geometry covers in its own space, as a centre xyz and half-extents xyz, with a z of zero for a 2D node; nil for a node that draws nothing. A solver's body reports where it is now, not where it was built.",
         "buffer": "Every instance as one flat list of floats in Godot's `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data.",
         "built_mesh": "The triangles the node's boolean settled on, as `#{ positions, indices }` ready to be written out as a `mesh` asset; nil when the node draws no built geometry.",
         "camera_2d": "The 2D camera this frame: centre xy and zoom in logical pixels per world unit; all zeros with no window.",

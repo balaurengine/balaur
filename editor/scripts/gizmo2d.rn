@@ -87,6 +87,17 @@ pub fn node_half_extents(node) {
     Some((size[0] / 2.0, size[1] / 2.0))
 }
 
+// What a row covers before its scale: the box the engine draws first, so a
+// sprite is picked over its image, then the shape or collider the row names.
+fn half_extents_of(node, found) {
+    let drawn = render::bounds(found);
+    if drawn is Vec && drawn.len() == 2 {
+        let he = drawn[1];
+        return Some((he.x, he.y));
+    }
+    node_half_extents(node)
+}
+
 // Handle center in box-local coordinates (steadyum: signs * half extents
 // plus the normalized outward offset).
 fn handle_local(geo, signs) {
@@ -98,21 +109,23 @@ fn handle_local(geo, signs) {
     (signs[0] * geo.he[0] + nx * out, signs[1] * geo.he[1] + ny * out)
 }
 
-// The world centre and half extents of one row, which the gizmo and box
-// select both need.
+// The world centre and axis-aligned half extents of one row, turned with it,
+// which the set's frame and box select both need.
 pub fn extents_at(S, i) {
     let found = match model::live(S, i) {
         Some(found) => found,
         None => return None,
     };
-    let node = S.doc[i];
-    let (hx, hy) = match node_half_extents(node) {
+    let (hx, hy) = match half_extents_of(S.doc[i], found) {
         Some(he) => he,
         None => (0.6, 0.6),
     };
     let s = found.transform.global_scale();
     let p = found.transform.global_position();
-    Some(([p.x, p.y], [hx * s.x, hy * s.y]))
+    let (hx, hy) = (hx * s.x, hy * s.y);
+    let angle = found.transform.global_rotation_euler().z;
+    let (ca, sa) = (util::abs(math::cos(angle)), util::abs(math::sin(angle)));
+    Some(([p.x, p.y], [ca * hx + sa * hy, sa * hx + ca * hy]))
 }
 
 // An axis-aligned frame around the whole set: a set has no one rotation to
@@ -161,7 +174,7 @@ fn geometry(S) {
         None => return None,
     };
     let p = found.transform.global_position();
-    let (hx, hy) = match node_half_extents(node) {
+    let (hx, hy) = match half_extents_of(node, found) {
         Some(he) => he,
         None => (0.6, 0.6),
     };
@@ -404,8 +417,31 @@ fn rows_in_box(S, x0, y0, x1, y1) {
     out
 }
 
-// Click-select: the smallest 2D shape containing the point, with a
-// proximity fallback for shapeless nodes.
+/// How much of the world row `i` covers, when it covers the world point at
+/// all: its box scaled and turned as the node is. `None` for a miss, and for a
+/// node that draws nothing, which the tree selects.
+pub fn covering(S, i, mx, my) {
+    let found = match model::live(S, i) {
+        Some(found) => found,
+        None => return None,
+    };
+    let (hx, hy) = match half_extents_of(S.doc[i], found) {
+        Some(he) => he,
+        None => return None,
+    };
+    let s = found.transform.global_scale();
+    let (hx, hy) = (hx * s.x, hy * s.y);
+    let p = found.transform.global_position();
+    let angle = found.transform.global_rotation_euler().z;
+    let (lx, ly) = to_local(#{ center: [p.x, p.y], angle: angle }, mx, my);
+    if util::abs(lx) <= util::abs(hx) && util::abs(ly) <= util::abs(hy) {
+        Some(util::abs(hx * hy))
+    } else {
+        None
+    }
+}
+
+// Click-select: the smallest 2D shape containing the point.
 fn pick(S, mx, my) {
     // Rigging: a bone's thin diamond loses to any shape around it, so in the
     // Animation workspace bones are tried first.
@@ -416,41 +452,15 @@ fn pick(S, mx, my) {
     }
     let best = None;
     let best_area = math::INFINITY;
-    for (i, node) in S.doc.iter().enumerate() {
+    for i in 0..S.doc.len() {
         if crate::selection::is_locked(S, i) {
             continue;
         }
-        if let Some(found) = model::live(S, i) {
-            if let Some((hx, hy)) = node_half_extents(node) {
-                let s = found.transform.global_scale();
-                hx = hx * s.x;
-                hy = hy * s.y;
-                let p = found.transform.global_position();
-                let angle = found.transform.global_rotation_euler().z;
-                let (lx, ly) = to_local(#{ center: [p.x, p.y], angle: angle }, mx, my);
-                if util::abs(lx) <= hx && util::abs(ly) <= hy {
-                    let area = hx * hy;
-                    if area < best_area {
-                        best = Some(i);
-                        best_area = area;
-                    }
-                }
-            }
-        }
-    }
-    if best.is_some() {
-        return best;
-    }
-    // Fallback: nearest node origin within 40 design px.
-    let wpp = viewport::world_per_px(S);
-    let best_d = 40.0 * wpp;
-    for i in 0..S.doc.len() {
-        if let Some(found) = model::live(S, i) {
-            let p = found.transform.global_position();
-            let dist = math::sqrt((p.x - mx) * (p.x - mx) + (p.y - my) * (p.y - my));
-            if dist < best_d {
+        let area_some = covering(S, i, mx, my);
+        if let Some(area) = area_some {
+            if area < best_area {
                 best = Some(i);
-                best_d = dist;
+                best_area = area;
             }
         }
     }

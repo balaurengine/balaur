@@ -254,6 +254,7 @@ pub fn fresh_state() {
         phys_pills: [],
         viewport_check: (),
         camera_check: (),
+        pick_check: (),
         pool_check: (),
         reselect: (),
         empty_note: (),
@@ -474,6 +475,9 @@ pub fn update(this, dt) {
     }
     if S.reselect is Object {
         selftest::reselect_step(S);
+    }
+    if S.pick_check is Object {
+        selftest::pick_check_step(S);
     }
     if S.camera_check is Object {
         selftest::camera_check_step(S);

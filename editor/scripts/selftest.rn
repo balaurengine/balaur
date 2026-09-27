@@ -1575,6 +1575,7 @@ pub fn imports(S) {
 /// without a window, which is why `render::pick_ray` takes the ray: a
 /// headless run can still aim one and say what it met.
 pub fn picking(S) {
+    S.pick_check = #{ stage: 0, sprite: (), turned: () };
     let target = None;
     for i in 0..S.doc.len() {
         if let Some(found) = model::live(S, i) {
@@ -1625,6 +1626,98 @@ pub fn picking(S) {
     let aside = render::pick_ray(p.x + 10000.0, p.y, p.z + 200.0, 0.0, 0.0, -1.0);
     check(util::is_nil(aside), "a ray beside the scene picks nothing");
     log::info("selftest picking: done");
+}
+
+/// A sprite, which has no shape row, is picked over what it draws and grows
+/// with its scale; a box whose centre sits off its node's origin turns about
+/// that origin. A transform reaches the node's global one a frame after it is
+/// set, so the checks come two frames after the edits.
+pub fn pick_check_step(S) {
+    let d = S.pick_check;
+    d.stage = d.stage + 1;
+    if d.stage == 1 {
+        d.sprite = scale_a_sprite(S);
+        d.turned = turn_a_box(S);
+    } else if d.stage == 3 {
+        S.pick_check = ();
+        sprite_scaled(S, d.sprite);
+        box_turned(S, d.turned);
+    }
+}
+
+fn scale_a_sprite(S) {
+    for i in 0..S.doc.len() {
+        let found_some = model::live(S, i);
+        let found = match found_some {
+            Some(found) => found,
+            None => continue,
+        };
+        let drawn = render::bounds(found);
+        if !S.doc[i].contains_key("sprite") || !(drawn is Vec) || drawn.len() != 2 {
+            continue;
+        }
+        let s = found.transform.scale;
+        let p = found.transform.global_position();
+        let wide = util::abs(found.transform.global_scale().x);
+        let angle = found.transform.global_rotation_euler().z;
+        // Twice its drawn half-width out along its own x: past its edge now,
+        // and inside once it is three times as wide.
+        let out = 2.0 * drawn[1].x * wide;
+        let at = [p.x + math::cos(angle) * out, p.y + math::sin(angle) * out];
+        check(crate::gizmo2d::covering(S, i, p.x, p.y).is_some(), format!("a click on the sprite '{}' lands on it", S.doc[i].name));
+        check(crate::gizmo2d::covering(S, i, at[0], at[1]).is_none(), "and one past its drawn edge misses it");
+        model::set_transform(S, i, #{ scale: [s.x * 3.0, s.y, s.z] });
+        return #{ index: i, at: at, scale: [s.x, s.y, s.z] };
+    }
+    log::info("selftest picking: no sprite in this scene, its pick not checked");
+    ()
+}
+
+fn sprite_scaled(S, d) {
+    if !(d is Object) {
+        return;
+    }
+    check(crate::gizmo2d::covering(S, d.index, d.at[0], d.at[1]).is_some(), "until it is three times as wide");
+    model::set_transform(S, d.index, #{ scale: d.scale });
+}
+
+fn turn_a_box(S) {
+    for i in 0..S.doc.len() {
+        let found_some = model::live(S, i);
+        let found = match found_some {
+            Some(found) => found,
+            None => continue,
+        };
+        let drawn = render::bounds(found);
+        let r = found.transform.global_rotation_euler();
+        let square = util::abs(r.x) + util::abs(r.y) + util::abs(r.z) < 0.0001;
+        if !(drawn is Vec) || drawn.len() != 2 || !square || util::abs(drawn[0].y) < 0.01 {
+            continue;
+        }
+        let c = drawn[0];
+        let s = found.transform.global_scale();
+        let at = found.transform.global_position();
+        let held = util::xyz(found.transform.rotation_euler);
+        // Half over about x: the box's offset flips in y and z.
+        model::set_transform(S, i, #{ rotation_euler: [math::PI, 0.0, 0.0] });
+        return #{
+            index: i, held: held,
+            want: [at.x + c.x * s.x, at.y - c.y * s.y, at.z - c.z * s.z],
+        };
+    }
+    log::info("selftest picking: no box sits off its node's origin, its turn not checked");
+    ()
+}
+
+fn box_turned(S, d) {
+    if !(d is Object) {
+        return;
+    }
+    let (centre, _, _) = crate::gizmo::extents_at(S, d.index).unwrap();
+    let w = d.want;
+    let off = util::abs(centre[0] - w[0]) + util::abs(centre[1] - w[1]) + util::abs(centre[2] - w[2]);
+    check(off < 0.001, format!("'{}' turned half over carries its box's centre with it ({:?}, not {:?})", S.doc[d.index].name, centre, w));
+    model::set_transform(S, d.index, #{ rotation_euler: d.held });
 }
 
 // A pick landing on a child resolves to the row that owns it. Tried on a row

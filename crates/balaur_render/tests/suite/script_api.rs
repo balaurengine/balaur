@@ -144,6 +144,27 @@ fn the_2d_camera_reports_its_centre_and_zoom() {
 }
 
 #[test]
+fn bounds_reports_the_box_a_2d_shape_draws() {
+    let (_app, errors, lines) = run_logged(
+        r#"
+        let none = render::bounds(this.node);
+        assert!(none == (), "a node that draws nothing has no bounds, got {:?}", none);
+        this.node.shape2d.set(#{ kind: "rectangle", size: [2.0, 4.0] });
+        let found = render::bounds(this.node);
+        assert!(found is Vec && found.len() == 2, "a 2D shape has bounds, got {:?}", found);
+        let half = found[1];
+        assert!(half.x == 1.0 && half.y == 2.0 && half.z == 0.0, "half the size it draws, got {:?}", half);
+        log::info("bounds read");
+        "#,
+    );
+    assert!(errors.is_empty(), "the script logged errors: {errors:#?}");
+    assert!(
+        lines.iter().any(|l| l == "bounds read"),
+        "the script never reached its checks: {lines:#?}"
+    );
+}
+
+#[test]
 fn the_grid_background_and_camera_input_are_settable() {
     run_clean(
         r"

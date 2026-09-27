@@ -61,7 +61,7 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
         ("camera_input", &[], "()", "Whether the backend's own mouse camera controls are allowed. Scroll zoom is never inhibited; this is the orbit and pan buttons."),
         ("camera_matrix", &[], "", "The camera's projection*view matrix this frame, 16 numbers column-major; all zeros with no window."),
         ("camera_pose", &[], "", "The camera the renderer actually used: eye xyz, target xyz, vertical fov in radians, HiDPI scale."),
-        ("bounds", &[], "(node: node)", "The box the node's geometry covers in its own space, as a centre xyz and half-extents xyz; nil for a node that draws nothing. A solver's body reports where it is now, not where it was built."),
+        ("bounds", &[], "(node: node)", "The box the node's geometry covers in its own space, as a centre xyz and half-extents xyz, with a z of zero for a 2D node; nil for a node that draws nothing. A solver's body reports where it is now, not where it was built."),
     ]);
     // Writes `CameraConfig3d`; not an accessor pair with `render.camera_pose`,
     // which reads what the renderer actually did with the request.
@@ -111,20 +111,25 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
             cam.scale_factor,
         ))
     });
-    // What a node covers, which an authored size cannot say for a mesh or for
-    // a body a solver deforms.
+    // What a node covers, which an authored size cannot say for a mesh, a
+    // body a solver deforms, or a sprite sized by its image.
     m.function("bounds", |eng: &Engine, node: balaur_script::NodeId| {
         let entity = balaur_core::entity_of(node)?;
         let world = eng.world();
-        let Ok(renderable) = world.get::<&crate::Renderable3d>(entity) else {
-            return Ok(balaur_script::Value::Nil);
+        let found = match world.get::<&crate::Renderable3d>(entity) {
+            Ok(renderable) => renderable.bounds.map(|b| (b.centre, b.half)),
+            Err(_) => world
+                .get::<&crate::Renderable2d>(entity)
+                .ok()
+                .and_then(|renderable| crate::pick::half_extents_2d(&renderable))
+                .map(|(hx, hy)| (glamx::Vec3::ZERO, glamx::Vec3::new(hx, hy, 0.0))),
         };
-        let Some(bounds) = renderable.bounds else {
+        let Some((centre, half)) = found else {
             return Ok(balaur_script::Value::Nil);
         };
         Ok(balaur_script::Value::List(vec![
-            balaur_script::Value::Vec3(bounds.centre.to_array()),
-            balaur_script::Value::Vec3(bounds.half.to_array()),
+            balaur_script::Value::Vec3(centre.to_array()),
+            balaur_script::Value::Vec3(half.to_array()),
         ]))
     });
     install_pick_api(m);
