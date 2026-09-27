@@ -13,7 +13,6 @@ shopt -s nullglob
 assets=(
   "$dist"/balaur-editor-*
   "$dist"/balaur-runtime-*
-  "$dist"/balaur-runtime-*
   "$dist"/balaur-example-*
   "$dist"/balaur_bg.wasm
   "$dist"/balaur.js
