@@ -130,3 +130,35 @@ fn a_reader_s_click_reaches_on_and_a_script_s_write_does_not() {
         "and the pool writes only what its own spec changed"
     );
 }
+
+/// The editor hides its inspector's form with a plain write when nothing is
+/// selected, and selecting the same node a third time drew an empty panel.
+#[test]
+fn a_host_a_script_hid_shows_again_every_time_it_is_filled() {
+    let (_dir, mut app) = app_with(
+        "pub fn init(this) { this.frames = 0.0; }\n\
+         pub fn update(this, dt) {\n\
+             this.frames += 1.0;\n\
+             if this.frames % 2.0 == 0.0 {\n\
+                 scene::get_node(\"Root/Bar\").patch_component(\"widget\", #{ visible: false });\n\
+             } else {\n\
+                 ui::fill_rows(\"Root/Bar\", [#{ label: \"a\", controls: [#{ kind: \"label\", text: \"x\" }] }], 40.0, false);\n\
+             }\n\
+         }\n",
+    );
+    for frame in 1..=7 {
+        app.tick(1.0 / 60.0);
+        let shown = frame % 2 == 1;
+        assert_eq!(
+            prop(&app, bar(&app), "visible"),
+            Some(toml::Value::Boolean(shown)),
+            "frame {frame}: {}",
+            if shown {
+                "filled, so shown"
+            } else {
+                "hidden by the script"
+            }
+        );
+    }
+    assert_eq!(number(&app, "frames"), Some(7.0));
+}

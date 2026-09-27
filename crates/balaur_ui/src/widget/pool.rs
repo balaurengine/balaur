@@ -537,7 +537,15 @@ fn open<'a>(eng: &'a Engine, ops: Ops, path: &str) -> Result<Option<(Pool<'a>, V
         host: id,
         changed: std::cell::Cell::new(false),
     };
-    pool.patched("host", &host, &table(&[(k::VISIBLE, Value::Bool(true))]))?;
+    // Read off the host rather than the memo: a script hides a whole pool
+    // with a plain write, which the memo never hears.
+    if pool.widget(&host, k::VISIBLE) == Value::Bool(false) {
+        pool.write(
+            ops.patch,
+            &host,
+            as_value(&table(&[(k::VISIBLE, Value::Bool(true))])),
+        )?;
+    }
     Ok(Some((pool, host)))
 }
 
