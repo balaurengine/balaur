@@ -2,12 +2,11 @@
 # Regenerate every image and clip the site's manual shows, into the checkout
 # of forge that serves balaurengine.org. The editor is driven offscreen by
 # `--state`: `shot:` takes one PNG, `show:<name>` runs a scripted sequence and
-# `frames=` captures it every other frame; ffmpeg turns a frame directory into
-# a .webm and an .mp4 with the first frame as poster.
-# Needs a GPU and ffmpeg.
+# `frames=` captures it every other frame; ffmpeg turns the frame directory
+# into a .webm and an .mp4 with the first frame as poster. Needs a GPU and ffmpeg.
 #   scripts/showcase.sh [--milestone 0.2] [forge-dir] [name...]
-# Then `mix forge.site.images` in forge writes the WebP each page shows and the
-# clips' posters.
+# Then `mix forge.site.images` in forge writes the WebP each page shows and
+# the clips' posters.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

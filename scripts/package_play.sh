@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 # The web build as one download for a page: the editor's own module, its
 # project and the example games, packed with the editor binary. One archive,
-# so the site's /editor and /examples refresh as a unit (forge fetches it with
-# `mix forge.site.play` when its image is built).
+# so the site's /editor and /examples refresh as a unit (forge fetches it
+# with `mix forge.site.play` when its image is built).
 #
 # Usage: package_play.sh [balaur-binary]
-#   The binary defaults to BALAUR, then target/release/balaur, then CI's
-#   editor artifact; it must be current, since exporting compiles the
-#   editor's scripts. EDITOR_MODULE holds a built module; without one, built.
+#   Defaults to BALAUR, then target/release/balaur, then CI's editor artifact.
+#   EDITOR_MODULE names a built module directory; without one, this builds it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 dist=$(mkdir -p "${DIST:-dist}" && cd "${DIST:-dist}" && pwd)
