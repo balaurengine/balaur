@@ -13,7 +13,7 @@ edit this one.
 | [CONTRIBUTING.md](CONTRIBUTING.md) | what a pull request is held to, and what each check costs |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | how the engine fits together, and every decision |
 | [docs/NAMING.md](docs/NAMING.md) | the naming rules; wins over every other doc |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | what each version holds; the website's roadmap page is built from it |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | what each version holds; the site's roadmap page is built from it |
 | [docs/PLAN-*.md](docs/) | one plan per subsystem: what is left, in order |
 | [docs/QUALITY.md](docs/QUALITY.md) | every check CI runs, and what enforces it |
 | [docs/DETERMINISM.md](docs/DETERMINISM.md) | keeping a game reproducible; record, replay, finding a desync |
@@ -25,7 +25,7 @@ edit this one.
 | [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) | every bundled package's licence; `scripts/third_party_notices.py` writes it |
 | [editors/code/README.md](editors/code/README.md) | the VS Code extension over `balaur lsp` |
 | [editor/library/addons/gamend/README.md](editor/library/addons/gamend/README.md) | the generated Gamend SDK addon |
-| [balaur-website](https://github.com/balaurengine/balaur-website) | balaurengine.org: manual, devlog, roadmap page; checked out at `../balaur-website`, with its own `AGENTS.md` |
+| [forge](https://github.com/balaurengine/forge) | serves balaurengine.org: the manual and devlog under `content/`, pictures and clips under `priv/static/`; checked out at `../forge`, with its own `AGENTS.md` |
 
 ## How to work
 
@@ -57,8 +57,11 @@ These land in the same commit as the code:
 - **`docs/generated/`** when the script API moved: `python3 scripts/gen_docs.py`.
 - **`THIRD-PARTY-NOTICES.md`** when `Cargo.lock` moved:
   `python3 scripts/third_party_notices.py`.
-- **A devlog post** in the website repo's `blog/` when a user can see the
-  change. One post per feature, with a picture or a clip.
+- **A devlog post** in forge's `content/blog/` when a user can see the
+  change. One post per feature, with a picture or a clip under
+  `priv/static/img/blog/`. When `docs/generated/`, `docs/ROADMAP.md` or
+  `docs/BENCHMARKS.md` moved, `mix forge.site.sync` in `../forge` copies them
+  over and rebuilds the reference and the roadmap page.
 
 ## Vocabulary
 
@@ -130,7 +133,7 @@ it**: a bare `-1` closing a function after a `while` is `() - 1`. Write
 
 ## Writing
 
-Prose in `docs/`, and the devlog posts in the website repo's `blog/`.
+Prose in `docs/`, and the devlog posts in forge's `content/blog/`.
 
 - A devlog post is one feature, titled plainly ("Save games"), with a picture
   or a clip. One or two sentences open it, then the bullets. A heading names
@@ -150,7 +153,7 @@ Prose in `docs/`, and the devlog posts in the website repo's `blog/`.
   Never a prose splice.
 - Link the clip or the screenshot where one exists.
 
-The limits are numbers. The website's `scripts/lint-prose.mjs` fails a post
+The limits are numbers. Forge's `mix forge.site.lint_prose` fails a post
 over 300 words of prose, 35 words in a sentence, 60 in a paragraph or 4
 paragraphs outside bullets, and a manual page over 35 in a sentence or 90 in a
 paragraph. Here, `scripts/prose_lints.py` fails a roadmap row over one
@@ -164,12 +167,12 @@ a line before committing it, for the half a regex cannot judge.
 A roadmap row says what the thing is, at the level somebody using the engine
 reads. Never a date, a plan's phase number, a CI job or a defect id.
 
-The row is also the card on the website's roadmap page, which is generated from
-this file. The site's generator only warns, so `scripts/prose_lints.py` is what
-holds a row to one sentence and 25 words. Everything the sentence cannot hold
-goes where a reader can follow it: what is not planned and why into the
-`PLAN-*.md` the row links to, and what shipped into the devlog post the site
-pairs with a built row.
+The row is also the card on the site's roadmap page, which forge's
+`mix forge.site.roadmap` generates from this file. That generator only warns,
+so `scripts/prose_lints.py` is what holds a row to one sentence and 25
+words. Everything the sentence cannot hold goes where a reader can follow it:
+what is not planned and why into the `PLAN-*.md` the row links to, and what
+shipped into the devlog post the site pairs with a built row.
 
 ## Checks
 

@@ -56,7 +56,8 @@ HEADLINE = [
 SUITE_REPO = "https://github.com/Ughuuu/benchmarks-repo"
 SUITE_POST = "https://godot.rapier.rs/blog/v0-35-0"
 SUITE_DOCS = "https://godot.rapier.rs/docs/documentation/performance"
-# Where the site keeps the pictures the report points at, under static/.
+# Where the site keeps the pictures the report points at, under forge's
+# priv/static/.
 IMAGES = "img/benchmarks"
 
 
@@ -439,8 +440,8 @@ def main():
     ap.add_argument("--godot-results", help="the benchmarks-repo results/ directory")
     ap.add_argument("--godot-nodes", help="a godot-benchmarks results JSON")
     ap.add_argument("--out", default=str(REPORT))
-    ap.add_argument("--site", default=str(ROOT.parent / "balaur-website"),
-                    help="the website checkout; pictures land in its static/")
+    ap.add_argument("--site", default=str(ROOT.parent / "forge"),
+                    help="the forge checkout that serves the site; pictures land in its priv/static/")
     ap.add_argument("--shots", action="store_true",
                     help="also take one screenshot per physics case, offscreen")
     ap.add_argument("--no-run", action="store_true", help="report from results.json")
@@ -474,7 +475,7 @@ def main():
     if not results:
         print("nothing ran", file=sys.stderr)
         return 1
-    shots = Path(args.site).expanduser() / "static" / IMAGES
+    shots = Path(args.site).expanduser() / "priv" / "static" / IMAGES
     if args.shots:
         shots.mkdir(parents=True, exist_ok=True)
         for key in [k for k in results if not k.startswith("nodes/")]:

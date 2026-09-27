@@ -6,9 +6,9 @@ Two rule sets, on two scopes.
 **House rules**, reported on `docs/ROADMAP.md` and failed nowhere (`ERRORS`
 is empty): a sentence is under 35 words, no filler, and an em dash is
 typography only at the lead of a list item or a roadmap row, never a splice in
-prose. The rule is the website's (balaur-website scripts/lint-prose.mjs).
+prose. The rule is the site's (forge's `mix forge.site.lint_prose`).
 
-**Roadmap rows**, on `docs/ROADMAP.md`: the website draws each row as a card,
+**Roadmap rows**, on `docs/ROADMAP.md`: the site draws each row as a card,
 so a row is one sentence and at most 25 words. Its generator warns rather than
 failing, so this is the gate.
 

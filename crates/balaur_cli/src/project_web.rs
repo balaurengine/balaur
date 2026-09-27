@@ -29,7 +29,7 @@ thread_local! {
 }
 
 /// Where the screen leaves the project it picked, for the page that loads
-/// next. The page's own half of this is `src/play.ts` in the website.
+/// next. The page's own half of this is `assets/js/host_hooks.js` in forge.
 const ASKED: &str = "balaur-open-project";
 
 /// Take the rows [`crate::web_store::list`] answered, newest first.

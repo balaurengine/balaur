@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# Regenerate every image and clip the website's manual shows. The editor is
-# driven offscreen by `--state`: `shot:` takes one PNG, `show:<name>` runs a
-# scripted sequence and `frames=` captures it every other frame; ffmpeg turns
-# a frame directory into a .webm and an .mp4 with the first frame as poster.
+# Regenerate every image and clip the site's manual shows, into the checkout
+# of forge that serves balaurengine.org. The editor is driven offscreen by
+# `--state`: `shot:` takes one PNG, `show:<name>` runs a scripted sequence and
+# `frames=` captures it every other frame; ffmpeg turns a frame directory into
+# a .webm and an .mp4 with the first frame as poster.
 # Needs a GPU and ffmpeg.
-#   scripts/showcase.sh [--milestone 0.2] [website-dir] [name...]
+#   scripts/showcase.sh [--milestone 0.2] [forge-dir] [name...]
+# Then `mix forge.site.images` in forge writes the WebP each page shows and the
+# clips' posters.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -87,11 +90,11 @@ while [ $# -gt 0 ]; do
     *) break ;;
   esac
 done
-site=${1:-../balaur-website}
+site=${1:-../forge}
 shift || true
 only=("$@")
-img="$site/static/img/manual"
-vid="$site/static/video"
+img="$site/priv/static/img/manual"
+vid="$site/priv/static/video"
 work=target/showcase
 mkdir -p "$img" "$vid" "$work"
 # Where the editor keeps its own files. `convert:` reads a folder from here,
@@ -428,7 +431,7 @@ import_shot editor_import examples/angrynerds "scene,select:Bird,dock:assets" \
 shot sprite_inspector  examples/shaders    "scene,select:Logo"
 shot export_sheet      examples/angrynerds "scene,export"
 shot extensions_greeter examples/extension_greeter "scene"
-# Stills for the website's examples page.
+# Stills for the site's examples page.
 shot example_rig3d      examples/rig3d      "scene"
 shot example_c_counter  examples/extension_c_counter "scene"
 

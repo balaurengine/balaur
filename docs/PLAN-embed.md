@@ -25,7 +25,7 @@ Built, and not built for this:
 | A web export: a shell page, `balaur.js`, `balaur_bg.wasm`, the pack fetched beside them, a project's own `web/index.html` honoured | `balaur_export::bundle`, `crates/balaur_export/src/web/index.html` |
 | The module booted on a canvas, and the editor too | `balaur::boot_pack_on_canvas`, `boot_editor_on_canvas`, `crates/balaur_cli/src/web.rs` |
 | A page bridge, recorded and replayable: `post_message`, `listen`, `messages`, `visible`, `location`, `user_agent` | `balaur_browser` |
-| The site's loader and player, one stamped set of glue, module and packs | `../balaur-website/src/play.ts`, `src/components/Player` |
+| The site's loader and player, one stamped set of glue, module and packs | `../forge/assets/js/host_hooks.js` (`BalaurPlayer`), `lib/forge/site/play.ex` |
 | The template built per push with a chosen feature set, its size measured raw, gzip and brotli | `scripts/package_runtime.sh web`, `WEB_FEATURES`, `docs/generated/features.md`, the site's `play-size.json` |
 | Packs with sources or compiled, both running on the 32-bit runtime | `balaur export --keep-sources` |
 | A nightly bundle the site pulls | `scripts/package_play.sh`, `balaur-play.tar.gz` |

@@ -30,7 +30,7 @@ Built, and not built for this:
 | Scripts and assets reloaded when the file changes, in a game and in the editor | `App::watch`, asset generations |
 | Every editor command as a script, and named states for its tests | `palette.rn`, `selftest.rn`, `--state` |
 | Component schemas, presets and tags a caller can enumerate | `scene.component_schema`, `presets`, `component_tags` |
-| `llms.txt` on the site | `../balaur-website/static/llms.txt` |
+| `llms.txt` on the site | `../forge/lib/forge/llms_controller.ex` |
 
 Missing:
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # The web build as one download for a page: the editor's own module, its
 # project and the example games, packed with the editor binary. One archive,
-# so balaur-website's /editor and /examples refresh as a unit.
+# so the site's /editor and /examples refresh as a unit (forge fetches it with
+# `mix forge.site.play` when its image is built).
 #
 # Usage: package_play.sh [balaur-binary]
 #   The binary defaults to BALAUR, then target/release/balaur, then CI's

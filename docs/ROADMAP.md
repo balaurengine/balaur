@@ -34,9 +34,9 @@ to a milestone pushes the month out rather than crowding it. The gaps widen
 with distance, three months to 0.3 and six across 0.8 and 0.9, which carry
 consoles, XR and light that bounces.
 
-**This file is the source for the website's
-[roadmap page](https://balaurengine.org/docs/roadmap)**: its
-`scripts/gen-roadmap.mjs` reads the table above for the tabs and the tables
+**This file is the source for the site's
+[roadmap page](https://balaurengine.org/docs/roadmap)**: forge's
+`mix forge.site.roadmap` reads the table above for the tabs and the tables
 below for the groups, titles, milestones, plans and the text on each card. So
 keep the shape — one row per item, `**Title** — one line`, a milestone from the
 table above, and a link to a plan or `no plan` — and keep a title stable once

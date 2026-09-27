@@ -28,54 +28,47 @@ and published by `scripts/draft_release.sh`.
    Publishing is what puts the assets behind a fetchable URL; a draft's are not
    reachable without a token. It also fires `channel.yml`, which points that
    line's rolling tag at the release.
-7. **Rebuild the website**, which does not happen on its own. See below.
+7. **Deploy the site** if `/play` and `/editor` should run what was just
+   published. The Download and Releases pages follow by themselves. See below.
 
 The tag has to match `Cargo.toml`: `draft_release.sh` fails when it does not,
 and the version is compiled into each binary. For the same reason `nightly`
 cannot be retagged as a version, only built from its own tag.
 
-## The website
+## The site
+
+balaurengine.org is served by Forge (`../forge`, with its own `AGENTS.md`);
+the manual, the devlog and the pictures live there, not in this repository.
 
 The pictures come first. `scripts/showcase.sh --milestone <version>` retakes
 what the milestone being cut changed and nothing else, so 0.1's screenshots
 are not rendered again for 0.2:
 
 ```sh
-scripts/showcase.sh --milestone 0.2 ../balaur-website
+scripts/showcase.sh --milestone 0.2 ../forge
+cd ../forge && mix forge.site.images
 ```
 
-Every take is filed under a milestone in that script, which
-`scripts/house_lints.py` holds it to, and the website's
-`scripts/lint-media.mjs` fails on a picture no page shows.
+The script writes PNGs and clips under forge's `priv/static/`; the pages show
+the WebP beside each PNG and a poster per clip, which `mix forge.site.images`
+writes, and both are committed there. Every take is filed under a milestone in
+that script, which `scripts/house_lints.py` holds it to, and forge's
+`mix forge.site.lint_media` fails on a picture no page shows.
 
-The Download and Releases pages are built from GitHub, once, at deploy time:
-`scripts/gen-releases.mjs` in `balaur-website` writes `src/data/releases.json`
-and the answer ships inside the page. Nothing is fetched by the reader's
-browser, so **a release that is published is still invisible until the site is
-rebuilt.**
+When `docs/generated/`, `docs/ROADMAP.md` or `docs/BENCHMARKS.md` moved,
+`mix forge.site.sync` in `../forge` copies them over and regenerates the
+reference and the roadmap page.
 
-A nightly rebuilds the site by itself: `build.yml`'s "Tell the website" step
-posts an `engine-nightly` dispatch, but only `if: github.ref ==
-'refs/heads/main'`. A `v*` tag does not match that, so after publishing a
-version, run the deploy by hand:
+The Download and Releases pages read GitHub while the site runs
+(`Forge.Site.Releases`), cached for ten minutes, so **a published release shows
+up by itself within ten minutes**. A draft has no fetchable assets and does not
+appear.
 
-```sh
-gh workflow run deploy.yml --repo balaurengine/balaur-website
-```
-
-or Actions → Deploy → Run workflow in that repository. Run it **after** pressing
-publish in step 6, never before: a draft has no fetchable assets, so an earlier
-build writes an empty release into the page and looks exactly like a failure.
-
-To stop doing this by hand, dispatch on `release: published` rather than on the
-tag push — the tag build only *drafts* the release, so a dispatch at tag time
-would rebuild the site before there is anything to see:
-
-```yaml
-on:
-  release:
-    types: [published]
-```
+`/play` and `/editor` are different: the engine's web build
+(`balaur-play.tar.gz`) is fetched when forge's image is built, so the site runs
+the engine it was last deployed with. Nothing in this repository tells the site
+about a nightly. Deploy forge (`./bin/deploy` on its host) to pick up the newest
+one; `ENGINE_TAG` in its `.env` pins a version instead.
 
 ## Prereleases and `latest`
 
@@ -83,7 +76,7 @@ on:
 prerelease flag, `/releases/latest` answers 404, and two things follow from
 that:
 
-- The website cannot ask for `latest`. It takes the newest entry from the full
+- The site cannot ask for `latest`. It takes the newest entry from the full
   release list instead, and reads each release's `prerelease` flag to decide
   whether to call the channel "Pre-alpha" or "Stable" (fixed 2026-09-10; before
   that the Download page said "no numbered release yet" with v0.1.0 published

@@ -169,7 +169,7 @@ own roadmap item, not this plan's.
 is the checked-in copy, one `catalog.toml` entry of a new `kind = "addon"`
 whose `file` is a directory. `scripts/sync_gamend.sh` refreshes it from a
 Gamend checkout beside this one or from the addon artifact Gamend's CI
-publishes, the way the website's `sync-docs.sh` refreshes from this
+publishes, the way forge's `mix forge.site.sync` refreshes from this
 repository's `docs/generated`. The Library dock's card for an addon copies
 the directory into the open project; `balaur new --addon gamend` does the
 same for a new one. The engine's own tests exercise the copy against a
