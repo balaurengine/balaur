@@ -818,6 +818,10 @@ fn run_project(opts: &RunOpts) -> Result<()> {
             }
             if count >= frames {
                 eng.request_quit();
+            } else {
+                // A budget is frames to draw: under `[window] low_processor`
+                // nothing else asks for them, and the run would never end.
+                balaur_core::wake::wake();
             }
         });
     }
@@ -991,6 +995,10 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
             count += 1;
             if count >= frames {
                 eng.request_quit();
+            } else {
+                // The editor sleeps under `[window] low_processor`; the budget
+                // asks for each frame it counts.
+                balaur_core::wake::wake();
             }
         });
     }
