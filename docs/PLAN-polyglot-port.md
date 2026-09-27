@@ -376,11 +376,9 @@ step 4 is what ship steering, the map and every popup's escape wait on.
 
 ## 4. Open questions
 
-1. **A widget over the world.** The 2D picker takes the smallest shape
-   under the pointer and knows nothing of widgets (`pick.rs`), so a click on
-   a button over the map reaches the map too. Whether `wants_pointer`
-   should hold the pointer hooks back, or a game guards its own, is decided
-   by the first scenario that hits it.
+1. **A widget over the world.** Answered: the engine holds the pointer
+   hooks back. A press on a button over the map is the UI's, and the map's
+   nodes hear nothing of it ([PLAN-widgets.md](PLAN-widgets.md) §0).
 2. **The shadow bake.** Whether `cutout_shadow_2d`'s viewport bake is worth
    the wait on "More than one view", or the port ships the polygon pass.
 3. **The theme's roles.** 12 of the theme's types are the game's own

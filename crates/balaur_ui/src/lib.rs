@@ -25,6 +25,7 @@ mod immediate;
 mod loading;
 mod pacing;
 pub mod palette;
+mod routing;
 mod splash;
 mod theme;
 mod vocabulary;
@@ -38,6 +39,7 @@ pub use loading::Loading;
 pub use pacing::{
     NextFrame, Pacing, honour_lazy, next_frame, pointer_is_dragging_elsewhere, wants_pass,
 };
+pub use routing::{pointer_is_ui, takes_point};
 pub use theme::ThemeTokens;
 pub use widget::input::{
     ACTIVATE_EVENT, BLUR_EVENT, CHANGE_EVENT, CLICK_EVENT, CLOSE_REQUEST_EVENT, CLOSED_EVENT,
@@ -285,7 +287,8 @@ impl balaur_plugin::Plugin for UiPlugin {
         reg.insert_resource(WidgetLayerConfig::default());
         reg.insert_resource(widget::pool::PoolState::default());
         reg.insert_resource(UiFocus::default());
-        reg.insert_resource(crate::widget::node::UiPointer::default());
+        reg.insert_resource(routing::UiHits::default());
+        reg.insert_resource(routing::PointerRoute::default());
         balaur_text::glyph::install(reg);
         reg.register_asset_type(
             widget::theme::ASSET_TYPE,
@@ -396,6 +399,7 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
     widget::theme::set_pass_classes(&widget::arena::begin_classes(eng));
     apply_long_press(eng, ctx);
     bridge::enter_pass(ctx, roles);
+    routing::pass_begins(eng);
     // Painting order is egui's `Order` — widgets are `Middle`, an overlay is
     // `Foreground` — so what is on top does not depend on which ran first.
     widget::layer::draw(eng, ctx);
@@ -404,6 +408,7 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
     }
     // Over everything, scripts' overlays included, for as long as it lasts.
     splash::draw(eng, ctx);
+    routing::pass_drew(eng, ctx);
     bridge::leave_pass();
     pacing::mark_pass(eng);
     state.borrow_mut().font_atlas = Some(FontAtlas::of(ctx));

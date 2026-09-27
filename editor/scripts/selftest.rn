@@ -773,7 +773,7 @@ fn camera_dollied(S, d) {
 /// `false` over the stage makes the canvas dead: no picking, no gizmo, and a
 /// camera drag that re-anchors whenever the answer flickers.
 pub fn viewport_clicks(S) {
-    S.viewport_check = #{ waited: 0 };
+    S.viewport_check = #{ waited: 0, stage: 0 };
 }
 
 pub fn viewport_click_step(S) {
@@ -791,8 +791,28 @@ pub fn viewport_click_step(S) {
         }
         return;
     }
-    S.viewport_check = ();
-    viewport_owns(S, stage);
+    // The palette is a dialog, and a dialog takes the pointer from the pass
+    // that draws it: opened, it is checked two frames on.
+    d.stage = d.stage + 1;
+    let mid_x = stage.x + stage.w / 2.0;
+    let mid_y = stage.y + stage.h / 2.0;
+    if d.stage == 1 {
+        viewport_owns(S, stage);
+        crate::shell::open_palette(S, "");
+    } else if d.stage == 3 {
+        check(
+            !crate::viewport::owns_pointer(S, mid_x, mid_y),
+            "nor is the stage while the command palette is over it",
+        );
+        crate::shell::close_palette(S);
+    } else if d.stage == 5 {
+        S.viewport_check = ();
+        check(
+            crate::viewport::owns_pointer(S, mid_x, mid_y),
+            "and it is the viewport's again once the palette closes",
+        );
+        log::info("selftest viewport clicks: done");
+    }
 }
 
 fn viewport_owns(S, stage) {
@@ -825,19 +845,16 @@ fn viewport_owns(S, stage) {
             "nor is the reading row along its foot",
         );
     }
-    // An overlay covers the stage rather than sitting beside it, so while one
-    // is up the stage underneath is not the viewport's either.
-    crate::shell::open_palette(S, "");
-    check(
-        !crate::viewport::owns_pointer(S, mid_x, mid_y),
-        "nor is the stage while the command palette is over it",
-    );
-    S.palette = false;
-    check(
-        crate::viewport::owns_pointer(S, mid_x, mid_y),
-        "and it is the viewport's again once the palette closes",
-    );
-    log::info("selftest viewport clicks: done");
+    // The seam beside a dock is a handle: a drag there resizes the dock,
+    // and a press there selects nothing in the world.
+    let left = S.layout.left;
+    if left.w > 0.0 {
+        let seam = left.x + left.w + S.layout.gap / 2.0;
+        check(
+            !crate::viewport::owns_pointer(S, seam, left.y + left.h / 2.0),
+            "nor is the seam between the left dock and the stage",
+        );
+    }
 }
 
 /// Nothing selected, which a click on empty space in the viewport leaves.

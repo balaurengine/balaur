@@ -136,7 +136,10 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
         });
         (buttons, input.mouse_delta(), input.scroll_delta())
     };
-    let over = under_pointer(eng);
+    // The UI first: what a dialog, a popup, a window or a widget took never
+    // reaches a node under it, and a press keeps its answer until it is up.
+    let ui = balaur_ui::pointer_is_ui(eng);
+    let over = if ui { None } else { under_pointer(eng) };
     if over != state.over {
         if let Some(was) = state.over {
             dispatch(eng, was, hooks::POINTER_EXIT, &[]);
@@ -147,7 +150,7 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
         state.over = over;
     }
     for (button, (pressed, _)) in buttons.into_iter().enumerate() {
-        if pressed {
+        if pressed && !ui {
             press(eng, state, button, over);
         }
     }
@@ -166,11 +169,11 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
         }
     }
     for (button, (_, released)) in buttons.into_iter().enumerate() {
-        if released {
+        if released && !ui {
             release(eng, state, button, over);
         }
     }
-    if scroll.1 != 0.0 || scroll.0 != 0.0 {
+    if !ui && (scroll.1 != 0.0 || scroll.0 != 0.0) {
         let args = [
             Value::Num(f64::from(scroll.0)),
             Value::Num(f64::from(scroll.1)),

@@ -8,6 +8,7 @@ authors.workspace = true
 
 [dependencies]
 balaur_core.workspace = true
+balaur_input.workspace = true
 balaur_plugin.workspace = true
 balaur_text.workspace = true
 egui.workspace = true

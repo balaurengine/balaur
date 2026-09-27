@@ -132,7 +132,7 @@ pub fn draw(S) {
     let (actions, acts_left) = holding(iv.acts, pressed);
     iv.acts = acts_left;
     if chips.len() > 0 || actions.len() > 0 {
-        ui::overlay("input-chips", #{ x: vx + 130.0, y: vy + vh - 46.0 }, || {
+        ui::overlay("input-chips", #{ x: vx + 130.0, y: vy + vh - 46.0, interactive: false }, || {
             ui::row(#{ height: 30 }, || {
                 for chip in chips {
                     ui::button(chip, #{
@@ -160,7 +160,7 @@ pub fn draw(S) {
         let back = 1.0 - p;
         let d = RIPPLE_FROM + (RIPPLE_TO - RIPPLE_FROM) * (1.0 - back * back * back);
         let left = back * back;
-        ui::overlay(format!("input-wash-{}", i), #{ x: r.x - d / 2.0, y: r.y - d / 2.0 }, || {
+        ui::overlay(format!("input-wash-{}", i), #{ x: r.x - d / 2.0, y: r.y - d / 2.0, interactive: false }, || {
             ui::frame(#{ fill: alpha(k.primary_text, 0.30 * left), corner_radius: d / 2.0 }, || {
                 ui::row(#{ width: d, height: d }, || {});
             });
@@ -168,7 +168,7 @@ pub fn draw(S) {
         for band in 0..3 {
             let w = d - (band as f64) * 2.0;
             let hue = if band == 2 { k.primary_text } else { k.input_ripple };
-            ui::overlay(format!("input-ripple-{}-{}", i, band), #{ x: r.x - w / 2.0, y: r.y - w / 2.0 }, || {
+            ui::overlay(format!("input-ripple-{}-{}", i, band), #{ x: r.x - w / 2.0, y: r.y - w / 2.0, interactive: false }, || {
                 ui::frame(#{
                     fill: "#00000000", stroke: alpha(hue, left), corner_radius: w / 2.0,
                 }, || {
@@ -187,7 +187,7 @@ pub fn draw(S) {
     if x > 0.0 || y > 0.0 {
         let held = input::mouse_down(input::MOUSE_BUTTON_LEFT);
         if held {
-            ui::overlay("input-press", #{ x: x - 11.0, y: y - 11.0 }, || {
+            ui::overlay("input-press", #{ x: x - 11.0, y: y - 11.0, interactive: false }, || {
                 ui::frame(#{
                     fill: alpha(k.primary_text, 0.45), stroke: k.primary_text, corner_radius: 11.0,
                 }, || {
@@ -195,7 +195,7 @@ pub fn draw(S) {
                 });
             });
         }
-        ui::overlay("input-pointer", #{ x: x, y: y }, || {
+        ui::overlay("input-pointer", #{ x: x, y: y, interactive: false }, || {
             ui::image("assets/cursor.png", #{ width: CURSOR, height: CURSOR });
         });
     }

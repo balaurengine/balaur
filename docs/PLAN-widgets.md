@@ -43,6 +43,12 @@ What the tree already stands on, and the 2026-09-07 plan missed:
   `handle` on a row is a split; `group` on a `check` is the radio row; an
   `image` naming `on_click` is a picture button; `source` on a `button` is
   its picture; `window` drags by its bar and closes by its cross.
+- **The UI comes before the world.** A press is routed once, from the top:
+  an open dialog, a popup or window, a widget not marked
+  `interactive = false` or a seam `splitter_width` makes, and the world
+  last. The answer holds until the button is up; the world's pointer hooks
+  hear only what reached it, and `ui::wants_pointer` and
+  `ui::takes_pointer_at` read it from any script (`routing.rs`).
 
 ## 1. What is missing, in five batches
 

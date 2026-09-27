@@ -4,7 +4,6 @@
 
 use crate::defs;
 use crate::history;
-use crate::layout;
 use crate::model;
 use crate::shell;
 use crate::util;
@@ -266,15 +265,9 @@ pub fn hot_part(S) {
     }
 }
 
-/// Whether a click at this point is the viewport's to act on.
-///
-/// The dock rects, plus the overlays that cover the stage rather than sit
-/// beside it. Not `ui::wants_pointer`: that answer is only available inside
-/// the draw pass, and a tool reading it here would be reading the frame
-/// before -- which swallows a press and re-anchors a drag mid-way.
+/// Whether a click at this point, in design px, is the viewport's to act on:
+/// whatever the UI does not take, from an open dialog down to the seams
+/// between the docks. The shell's own boxes let the pointer through.
 pub fn owns_pointer(S, x, y) {
-    if S.palette || S.newnode {
-        return false;
-    }
-    !layout::over_sheet(S, x, y)
+    !ui::takes_pointer_at(x, y)
 }

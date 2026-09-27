@@ -121,6 +121,7 @@ graph TD
   balaur_text --> balaur_core
   balaur_text --> balaur_plugin
   balaur_ui --> balaur_core
+  balaur_ui --> balaur_input
   balaur_ui --> balaur_plugin
   balaur_ui --> balaur_script
   balaur_ui --> balaur_text

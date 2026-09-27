@@ -355,24 +355,6 @@ impl Default for WidgetLayerConfig {
     }
 }
 
-/// What the widget layer found under the pointer this frame, for
-/// `ui.wants_pointer()`: whether it is over any widget, and whether one of
-/// those takes the pointer rather than letting it through.
-#[derive(Clone, Copy, Debug, Default)]
-pub(crate) struct UiPointer {
-    pub(crate) over: bool,
-    pub(crate) claimed: bool,
-}
-
-impl UiPointer {
-    /// Whether the UI wants the pointer: egui's own answer, unless every
-    /// widget under the pointer lets it through to the scene.
-    #[must_use]
-    pub(crate) fn wants(self, egui_wants: bool) -> bool {
-        egui_wants && (!self.over || self.claimed)
-    }
-}
-
 /// Which widget the keyboard and the pad are pointing at.
 ///
 /// One per screen, because that is what focus means: the thing an `accept`

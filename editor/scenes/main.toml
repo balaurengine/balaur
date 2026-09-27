@@ -13,6 +13,7 @@ name = "Shell"
 parent = "n_editor"
 [nodes.widget]
 kind = "column"
+interactive = false
 layer = "shell"
 # What a notch or a home bar covers is not the shell's to draw in. Anchored
 # `fill`, the engine sizes and places it, insets and all; nothing patches it.
@@ -92,6 +93,7 @@ name = "Body"
 parent = "shell"
 [nodes.widget]
 kind = "row"
+interactive = false
 grow = 1
 gap = 12
 splitter_width = 12
@@ -323,6 +325,7 @@ name = "Centre"
 parent = "body"
 [nodes.widget]
 kind = "column"
+interactive = false
 grow = 1
 gap = 12
 splitter_width = 12
@@ -335,6 +338,7 @@ name = "UpperRow"
 parent = "centre"
 [nodes.widget]
 kind = "row"
+interactive = false
 grow = 1
 gap = 12
 
@@ -489,6 +493,7 @@ name = "Stack"
 parent = "upper_row"
 [nodes.widget]
 kind = "column"
+interactive = false
 grow = 1
 gap = 12
 
@@ -498,6 +503,7 @@ name = "Upper"
 parent = "stack"
 [nodes.widget]
 kind = "row"
+interactive = false
 grow = 1
 gap = 12
 
@@ -727,6 +733,7 @@ name = "Work"
 parent = "upper"
 [nodes.widget]
 kind = "column"
+interactive = false
 grow = 1
 gap = 6
 
@@ -736,6 +743,7 @@ name = "Canvas"
 parent = "work"
 [nodes.widget]
 kind = "row"
+interactive = false
 grow = 1
 gap = 12
 
@@ -747,6 +755,7 @@ name = "Stage"
 parent = "canvas"
 [nodes.widget]
 kind = "row"
+interactive = false
 grow = 1
 
 # A document tab whose rows are nodes fills this, over the whole stage: the

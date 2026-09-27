@@ -388,6 +388,21 @@ impl InputSnapshot {
             .unwrap_or(false)
     }
 
+    /// Whether any mouse button went down this frame.
+    pub fn any_mouse_just_pressed(&self) -> bool {
+        self.mouse_just_pressed.contains(&true)
+    }
+
+    /// Whether any mouse button is held.
+    pub fn any_mouse_down(&self) -> bool {
+        self.mouse_down.contains(&true)
+    }
+
+    /// Whether any mouse button came up this frame.
+    pub fn any_mouse_just_released(&self) -> bool {
+        self.mouse_just_released.contains(&true)
+    }
+
     /// Movement since the last frame, not an absolute position.
     pub const fn mouse_delta(&self) -> (f32, f32) {
         self.mouse_delta

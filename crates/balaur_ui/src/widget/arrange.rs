@@ -598,6 +598,7 @@ fn drag_seam(
     } else {
         return;
     };
+    at.take_pointer(ui.clip_rect().intersect(seam));
     let handle = ui.interact(
         seam,
         egui::Id::new(("balaur-seam", at.arena[target].entity, slot)),

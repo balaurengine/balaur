@@ -700,7 +700,7 @@ pub fn draw_marquee(S, k) {
     if w < 2.0 && h < 2.0 {
         return;
     }
-    ui::overlay("vp-marquee", #{ x: x, y: y, width: w, height: h }, || {
+    ui::overlay("vp-marquee", #{ x: x, y: y, width: w, height: h, interactive: false }, || {
         ui::rect_stroke(0.0, 0.0, w, h, #{ stroke: k.primary_text, stroke_width: 1.0, dashed: true });
     });
 }

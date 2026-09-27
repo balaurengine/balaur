@@ -277,7 +277,7 @@ fn viewport(S, k) {
     }
     // Interface overlays: the safe-area inset and the 16:9 frame.
     if S.workspace == defs::WORKSPACE_UI {
-        ui::overlay("vp-frames", #{ x: vp.x, y: vp.y, width: vp.w, height: vp.h }, || {
+        ui::overlay("vp-frames", #{ x: vp.x, y: vp.y, width: vp.w, height: vp.h, interactive: false }, || {
             if defs::chip_on(S, defs::WORKSPACE_UI, defs::CHIP_SAFE) {
                 ui::rect_stroke(34.0, 34.0, vp.w - 68.0, vp.h - 68.0, #{ stroke: k.primary_fill, dashed: true });
             }

@@ -17,7 +17,7 @@ use crate::widget::arrange::{
 use crate::widget::focus::{
     advance, focus_before, focus_moved, focus_stops, keyboard_move, reachable, shortcuts,
 };
-use crate::widget::node::{Surface, UiFocus, UiPointer, Widget, WidgetLayerConfig};
+use crate::widget::node::{Surface, UiFocus, Widget, WidgetLayerConfig};
 use crate::widget::theme::{Pointer, Style, WidgetState, WidgetTheme, face, styled, theme_of};
 
 /// `area` less the part the on-screen keyboard covers. The keyboard is
@@ -57,13 +57,6 @@ fn inside_safe_area(eng: &Engine, area: egui::Rect, edges: [bool; 4]) -> egui::R
         egui::pos2(screen[0] - right, screen[1] - bottom),
     );
     area.intersect(safe)
-}
-
-/// What this pass found under the pointer, for `ui.wants_pointer()`.
-fn publish_pointer(eng: &Engine, found: UiPointer) {
-    if let Some(pointer) = eng.try_resource::<UiPointer>() {
-        *pointer.borrow_mut() = found;
-    }
 }
 
 /// Draw every widget entity. Runs inside the frame's egui pass, after the
@@ -138,7 +131,8 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         clicked: accepted.into_iter().chain(fired).collect(),
         state: WidgetState::default(),
         context_opened: false,
-        pointer: UiPointer::default(),
+        hits: Vec::new(),
+        root_layers: Vec::new(),
         under: Vec::new(),
         shown: Vec::new(),
     };
@@ -171,7 +165,11 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     let mut edits = std::mem::take(&mut painting.edits);
     let clicked = std::mem::take(&mut painting.clicked);
     edits.extend(crate::widget::input::pass_edits(eng, ctx, &painting));
-    publish_pointer(eng, painting.pointer);
+    crate::routing::widgets_drew(
+        eng,
+        std::mem::take(&mut painting.hits),
+        std::mem::take(&mut painting.root_layers),
+    );
     // Dropped before the arena moves: `Painting` borrows it for the draw.
     drop(painting);
     keep(placed, roots, index_of, stamp);
@@ -194,6 +192,7 @@ fn draw_root(
     let (eng, placed) = (painting.eng, painting.arena);
     let entity = placed[root].entity;
     let widget = &placed[root].widget;
+    let hits = painting.hits.len();
     // A dialog is shut by the scene, by Escape or by a click on the dim
     // behind it; shut, it is not drawn and nothing is kept out.
     let modal = widget.kind == w::DIALOG;
@@ -227,6 +226,10 @@ fn draw_root(
     } else {
         (align.anchor_size(pos, assigned).min, Align2::LEFT_TOP)
     };
+    painting.root_layers.push(egui::LayerId::new(
+        order,
+        egui::Id::new(("balaur-widget", entity)),
+    ));
     let mut root_area = egui::Area::new(egui::Id::new(("balaur-widget", entity)))
         .order(order)
         .pivot(align)
@@ -276,6 +279,10 @@ fn draw_root(
         .memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
         .unwrap_or(shown.rect);
     record_rect(entity, drawn);
+    // A toast is read, not used: nothing in it takes the pointer.
+    if widget.kind == w::TOAST {
+        painting.hits.truncate(hits);
+    }
 }
 
 /// Where everything in one root goes, decided before a pixel is drawn.
@@ -410,8 +417,11 @@ pub(crate) struct Painting<'a> {
     pub(crate) bounds: egui::Vec2,
     pub(crate) clicked: Vec<Entity>,
     pub(crate) edits: Vec<(Entity, Edit)>,
-    /// What this pass found under the pointer, published for `wants_pointer`.
-    pub(crate) pointer: UiPointer,
+    /// Where this pass drew what takes the pointer: every widget that does
+    /// not let it through and every seam, clipped to what shows.
+    pub(crate) hits: Vec<egui::Rect>,
+    /// The egui layer each root drew on, whose points `hits` answers for.
+    pub(crate) root_layers: Vec<egui::LayerId>,
     /// Where the layout pass put every widget in the subtree being drawn.
     pub(crate) rects: crate::widget::taffy::Rects,
     /// Whether the arena was rebuilt this pass. False means the tree taffy
@@ -436,6 +446,14 @@ pub(crate) struct Painting<'a> {
 }
 
 impl Painting<'_> {
+    /// Note that `rect` takes the pointer: a widget that does not let it
+    /// through, or a seam. A rect scrolled or clipped out of sight takes none.
+    pub(crate) fn take_pointer(&mut self, rect: egui::Rect) {
+        if rect.is_positive() {
+            self.hits.push(rect);
+        }
+    }
+
     /// Whether a subtree has to be walked again rather than taken as taffy
     /// already holds it: because the whole arena was rebuilt, or because one
     /// of this pass's writes landed inside this subtree. A kind that places
@@ -806,14 +824,15 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     under_pointer(ui, at, &cursor, through);
 }
 
-/// What the pointer meets over the widget just drawn: the widget's `cursor`
-/// shape, and whether it takes the pointer or lets it through.
+/// What the pointer meets over the widget just drawn: whether it takes the
+/// pointer or lets it through, and the widget's `cursor` shape.
 fn under_pointer(ui: &egui::Ui, at: &mut Painting<'_>, cursor: &str, through: bool) {
+    if !through {
+        at.take_pointer(ui.clip_rect().intersect(ui.min_rect()));
+    }
     if !ui.rect_contains_pointer(ui.min_rect()) {
         return;
     }
-    at.pointer.over = true;
-    at.pointer.claimed |= !through;
     if let Some(icon) = pointer_icon(cursor) {
         ui.ctx().set_cursor_icon(icon);
     }
@@ -1049,23 +1068,6 @@ fn warn_once(source: &str, err: &anyhow::Error) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn the_ui_wants_the_pointer_unless_every_widget_under_it_lets_it_through() {
-        let nothing = UiPointer::default();
-        assert!(nothing.wants(true), "an egui panel with no widget under it");
-        assert!(!nothing.wants(false));
-        let through = UiPointer {
-            over: true,
-            claimed: false,
-        };
-        assert!(!through.wants(true), "only pass-through widgets under it");
-        let taken = UiPointer {
-            over: true,
-            claimed: true,
-        };
-        assert!(taken.wants(true), "a button inside a pass-through root");
-    }
 
     #[test]
     fn every_cursor_word_names_a_pointer_and_no_word_names_none() {

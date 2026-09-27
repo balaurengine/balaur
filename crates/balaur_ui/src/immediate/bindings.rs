@@ -83,6 +83,7 @@ pub(crate) fn install_panels(m: &mut dyn Bindings<Engine>) {
                         let shown = panel.show(parent, |ui| {
                             result = scoped(eng, ui, cb);
                         });
+                        crate::routing::chrome_drew(eng, None, Some(shown.response.rect));
                         result.map(|()| f64::from(shown.response.rect.$span()))
                     })
                 },
@@ -128,6 +129,8 @@ fn install_overlay(m: &mut dyn Bindings<Engine>) {
                 let pad_x = opts.px(k::PADDING_X, 0.0);
                 let pad_y = opts.px(k::PADDING_Y, 0.0);
                 let sized = w > 0.0 && h > 0.0;
+                let takes = opts.boolean(k::INTERACTIVE, true);
+                let layer = egui::LayerId::new(egui::Order::Foreground, egui::Id::new(&id));
                 let area = egui::Area::new(egui::Id::new(id))
                     .order(egui::Order::Foreground)
                     .fixed_pos(pos2(x, y))
@@ -140,9 +143,9 @@ fn install_overlay(m: &mut dyn Bindings<Engine>) {
                     .fade_in(false)
                     // An area is a layer over what is behind it, so one that
                     // is only read has to hand its clicks back.
-                    .interactable(opts.boolean(k::INTERACTIVE, true));
+                    .interactable(takes);
                 let box_rect = egui::Rect::from_min_size(pos2(x, y), vec2(w, h));
-                area.show(ctx, |ui| {
+                let shown = area.show(ctx, |ui| {
                     let mut frame = egui::Frame::new()
                         .inner_margin(egui::Margin::symmetric(pad_x as i8, pad_y as i8))
                         .corner_radius(pill_radius(opts.px(k::CORNER_RADIUS, 0.0) * 2.0));
@@ -175,6 +178,7 @@ fn install_overlay(m: &mut dyn Bindings<Engine>) {
                     });
                     ui.advance_cursor_after_rect(box_rect);
                 });
+                crate::routing::chrome_drew(eng, Some(layer), takes.then_some(shown.response.rect));
                 result
             })
         },
@@ -856,7 +860,8 @@ pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
         ("pasted_text", &[], "", "The text pasted this frame, empty otherwise: the platform clipboard is not readable on demand."),
         ("color_picker", &[], "", "Draw a color picker over `value`, an `[r, g, b, a]` of unit floats; returns the colour and whether it changed."),
         ("wants_keyboard", &[], "", "Whether a UI widget holds keyboard focus, so the game should leave this frame's key presses alone."),
-        ("wants_pointer", &[], "", "Whether a UI widget took this frame's pointer or finger, so the game should leave it alone: what stops a tap on a HUD button also firing the shot behind it. False without a window."),
+        ("wants_pointer", &[], "", "Whether the UI has the pointer or finger, so the game should leave it alone: what stops a tap on a HUD button also firing the shot behind it. A press is routed once, from the top: an open dialog, then a popup or window, then a widget that is not `interactive = false` or a seam between boxes, and the world last; it keeps that answer until the button comes up. Answers outside `draw_ui` too; false without a window."),
+        ("takes_pointer_at", &[], "(x: number, y: number)", "Whether the UI would take a press at this point, in design pixels, by the same layers as `wants_pointer`: what an editor asks of a point it is about to act on."),
     ]);
     // Queries return design pixels, which egui's zoom makes the unit of the
     // whole pass, so scripts compute layout in one consistent unit.
@@ -960,11 +965,13 @@ fn install_clipboard_and_color(m: &mut dyn Bindings<Engine>) {
         with_ctx(|ctx| Ok(ctx.egui_wants_keyboard_input()))
     });
     m.function("wants_pointer", |eng: &Engine, ()| {
-        let found = eng
-            .try_resource::<crate::widget::node::UiPointer>()
-            .map(|p| *p.borrow())
-            .unwrap_or_default();
-        with_ctx(|ctx| Ok(found.wants(ctx.egui_wants_pointer_input())))
+        Ok(crate::routing::pointer_is_ui(eng))
+    });
+    m.function("takes_pointer_at", |eng: &Engine, (x, y): (f64, f64)| {
+        Ok(crate::routing::takes_point(
+            eng,
+            egui::pos2(x as f32, y as f32),
+        ))
     });
 }
 

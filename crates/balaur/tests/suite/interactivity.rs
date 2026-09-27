@@ -161,6 +161,62 @@ fn a_press_over_nothing_reaches_every_node() {
     );
 }
 
+/// One UI pass over the app's widgets, as a window's frame would run it.
+fn ui_pass(app: &balaur::App, ctx: &egui::Context) {
+    ctx.begin_pass(egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::pos2(0.0, 0.0),
+            egui::vec2(640.0, 480.0),
+        )),
+        ..Default::default()
+    });
+    balaur_ui::run_pass(&app.engine, ctx);
+    ctx.end_pass().textures_delta.clear();
+}
+
+fn press_at(app: &mut balaur::App, at: egui::Pos2, down: bool) {
+    {
+        let input = app.engine.resource::<balaur::input::InputSnapshot>();
+        let mut input = input.borrow_mut();
+        input.begin_frame();
+        input.set_mouse_pos(at.x, at.y);
+        input.mouse_button_event(0, down);
+    }
+    app.tick(1.0 / 60.0);
+}
+
+/// The UI comes first: a press on a button reaches no node, and one beside
+/// it reaches every node as it did before the button was there.
+#[test]
+fn a_press_on_a_widget_reaches_no_node() {
+    let (_dir, mut app) = app_with_scripts(
+        HEARERS,
+        &[("scripts/a.rn", A_HEARS), ("scripts/b.rn", B_HEARS)],
+    );
+    let button = {
+        let root = app.engine.root();
+        let node = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Go", root);
+        let params: toml::Value =
+            toml::toml! { kind = "button" text = "Go" x = 0.0 y = 0.0 }.into();
+        balaur::components::add(&app.engine, node, "widget", Some(&params)).unwrap();
+        node
+    };
+    let ctx = egui::Context::default();
+    for _ in 0..3 {
+        ui_pass(&app, &ctx);
+    }
+    app.tick(1.0 / 60.0);
+    let on = balaur_ui::widget_rect(button)
+        .expect("the button drew")
+        .center();
+    press_at(&mut app, on, true);
+    press_at(&mut app, on, false);
+    app.tick(1.0 / 60.0);
+    assert_eq!(hits(&app), 0, "the button took the press");
+    press_at(&mut app, egui::pos2(600.0, 400.0), true);
+    assert_eq!(hits(&app), 20, "beside it, both nodes heard the press");
+}
+
 /// The door scene, spelled as `examples/hello` spells it.
 const DOOR: &str = r#"
 [variables]
