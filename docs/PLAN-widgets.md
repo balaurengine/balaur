@@ -129,6 +129,11 @@ its body by `ScrollArea::show_rows` as the other two do, rather than by the
   the script's; `egui_dnd` stays unnecessary for the same reason. It is not
   the drag and drop batch's `drop`: this one never leaves the widget, and that
   one is a payload from anywhere to anywhere.
+- **Marks at a row's right.** A sixth field on a `list` or `tree` row holds
+  its marks, each `name=glyph` from the icon face and joined on U+001E, drawn
+  in from the right edge in the widget's ink. `on_mark` hears `#{ row, mark }`
+  for the one clicked, and the click picks no row. The outliner's eye and lock
+  are two of them.
 - **One row or many, read the same way.** `selection` carries what the widget
   holds whether it holds one row or several, so nothing reading it back
   branches on `multi`; `text` is the row last clicked, which is where a shift

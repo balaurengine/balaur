@@ -731,6 +731,7 @@ fn states() {
         "menu": state_menudemo,
         "test:undo": crate::selftest::undo,
         "test:populate": crate::selftest::populate,
+        "test:marks": crate::selftest::tree_marks,
         "breakpoint": break_demo,
         "test:rig": crate::selftest::rigging,
         "test:polygons": crate::selftest::polygons,

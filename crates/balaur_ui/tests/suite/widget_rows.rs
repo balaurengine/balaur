@@ -934,3 +934,99 @@ fn a_table_puts_every_cell_where_its_text_align_says() {
         "and centred sits between the two"
     );
 }
+
+/// A tree whose rows carry an `eye` and a `lock` mark, owned by a script that
+/// writes down every `mark` it hears.
+fn marked_tree() -> (
+    tempfile::TempDir,
+    balaur_core::App,
+    balaur_core::hecs::Entity,
+    balaur_core::hecs::Entity,
+) {
+    let script = "pub fn init(this) {\n    this.said = \"\";\n}\n\
+                  pub fn on_mark(this, what) {\n    this.said = `${what.row}|${what.mark}`;\n}\n\
+                  pub fn said(this) {\n    this.said\n}\n";
+    let (dir, app) = app_with_script(script);
+    let root = app.engine.root();
+    let owner = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Owner", root);
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur::node_id_of(owner), "scripts/paint.rn")
+        .unwrap();
+    let rows = add_child_widget(
+        &app,
+        owner,
+        "Rows",
+        &toml::toml! {
+            kind = "tree" x = 0.0 y = 0.0 width = 200.0 height = 200.0
+            row_height = 20.0 on_mark = "on_mark"
+            options = ["\u{1f}One\u{1f}\u{1f}\u{1f}one\u{1f}eye=E\u{1e}lock=L", "\u{1f}Two\u{1f}\u{1f}\u{1f}two\u{1f}eye=E"]
+        }
+        .into(),
+    );
+    (dir, app, owner, rows)
+}
+
+/// The last mark named is the rightmost, and a click on it reports the row
+/// and its name without picking the row.
+#[test]
+fn a_click_on_a_rows_mark_reports_it_and_picks_nothing() {
+    let (_dir, mut app, owner, rows) = marked_tree();
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let drawn = texts(&pass(&app, &ctx, vec![]));
+    let lock = drawn
+        .iter()
+        .find(|(t, _)| t == "L")
+        .expect("the lock mark is drawn")
+        .1;
+    let eyes: Vec<egui::Pos2> = drawn
+        .iter()
+        .filter(|(t, _)| t == "E")
+        .map(|(_, p)| *p)
+        .collect();
+    assert_eq!(eyes.len(), 2, "each row draws its own eye");
+    assert!(
+        lock.x > eyes[0].x,
+        "the lock, named last, sits right of the eye"
+    );
+    let before = property(&app, rows, "text");
+    pass(&app, &ctx, press(lock, true));
+    pass(&app, &ctx, press(lock, false));
+    consume_input(&mut app);
+    let host = app.engine.script_host().unwrap();
+    match host.call_on(balaur::node_id_of(owner), "said", &[]) {
+        Some(balaur_script::Value::Str(said)) => {
+            assert!(
+                said.ends_with("one\u{1f}eye=E\u{1e}lock=L|lock"),
+                "{said:?}"
+            );
+        }
+        other => panic!("the script answered {other:?}"),
+    }
+    assert_eq!(
+        property(&app, rows, "text"),
+        before,
+        "a mark's click picks no row"
+    );
+}
+
+/// The rest of the row is still the row's: a click beside the marks picks it.
+#[test]
+fn a_click_on_a_marked_row_away_from_its_marks_still_picks_it() {
+    let (_dir, mut app, _owner, rows) = marked_tree();
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let two = texts(&pass(&app, &ctx, vec![]))
+        .into_iter()
+        .find(|(t, _)| t == "Two")
+        .expect("the row is drawn")
+        .1;
+    pass(&app, &ctx, press(two, true));
+    pass(&app, &ctx, press(two, false));
+    consume_input(&mut app);
+    let picked = property(&app, rows, "text");
+    assert!(
+        picked.as_str().is_some_and(|row| row.contains("Two")),
+        "{picked:?}"
+    );
+}

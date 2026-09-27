@@ -921,6 +921,11 @@ pub fn tree_rename(this) {
     left::rename_open(this.S);
 }
 
+// The eye or the lock at the right of an outliner row.
+pub fn tree_mark(this, e) {
+    left::mark_clicked(this.S, e.row, e.mark);
+}
+
 pub fn tree_delete(this) {
     model::delete_selected(this.S);
 }

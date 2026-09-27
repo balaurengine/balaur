@@ -209,6 +209,10 @@ pub const MOVE_EVENT: &str = "move";
 /// What a `list` emits when a card dragged out of it is let go, with the card.
 pub const DROP_EVENT: &str = "drop";
 
+/// What a `list` or `tree` emits when a mark on a row is clicked, with the row
+/// and the mark's name.
+pub const MARK_EVENT: &str = "mark";
+
 /// What a widget emits when the primary button clicks twice over it, when
 /// focus arrives at it, and when focus leaves it.
 pub const DOUBLE_CLICK_EVENT: &str = "double_click";
@@ -316,6 +320,7 @@ pub(crate) const EVENTS: &[(&str, &str)] = &[
     (GUTTER_EVENT, "the line"),
     (MOVE_EVENT, "`[moved, target, side]`"),
     (DROP_EVENT, "the card"),
+    (MARK_EVENT, "`#{ row, mark }`"),
     (DOUBLE_CLICK_EVENT, "nil"),
     (FOCUS_EVENT, "nil"),
     (BLUR_EVENT, "nil"),
@@ -490,6 +495,7 @@ fn settle_one(
             Some((MOVE_EVENT, Value::List(said), &widget.on_move))
         }
         Edit::Carried(card) => Some((DROP_EVENT, Value::Str(card.clone()), &widget.on_drop)),
+        Edit::Marked(row, mark) => Some((MARK_EVENT, marked(row, mark), &widget.on_mark)),
         // Written nowhere: a link and a gutter mark are the script's to act on.
         Edit::Link(target) => Some((LINK_EVENT, Value::Str(target.clone()), &widget.on_link)),
         Edit::Gutter(line) => Some((GUTTER_EVENT, Value::Int(*line), &widget.on_gutter)),
@@ -549,6 +555,14 @@ fn heard(edit: &Edit) -> Option<(&'static str, Value)> {
         _ => return None,
     };
     Some(said)
+}
+
+/// What a `mark` event carries: the row, and the name of the mark on it.
+fn marked(row: &str, mark: &str) -> Value {
+    Value::Map(vec![
+        (k::ROW.into(), Value::Str(row.to_owned())),
+        (k::MARK.into(), Value::Str(mark.to_owned())),
+    ])
 }
 
 /// A row pick written onto the widget, and what it says: the whole set where

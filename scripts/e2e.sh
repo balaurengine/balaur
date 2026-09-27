@@ -362,6 +362,11 @@ for ex in examples/*/; do
   edit_step "$name: populate" "$ex" test:populate
   printf 'ok\n'
 
+  # The outliner's eye and lock on the last node, acting on it alone.
+  printf '  marks ...  '
+  edit_step "$name: marks" "$ex" test:marks
+  printf 'ok\n'
+
   # The Polygon tool: trace, sync bones, paint, draw a polygon, undo.
   printf '  poly ...   '
   edit_step "$name: polygon" "$ex" test:polygons

@@ -73,7 +73,9 @@ already does; ungroup is the reverse. Align and distribute are six commands
 over world positions along one axis, in the palette and a toolbar. Hide,
 lock and isolate are editor state on the mirror: hidden writes `visible`,
 locked is a set the gizmos and box select skip, isolate hides everything not
-selected until toggled.
+selected until toggled. The outliner shows both on the row: an eye on every
+node, open or closed, and a lock at the right of a locked one. A click on
+either acts on that node alone and leaves the selection as it was.
 
 **The outliner filters with the search everyone else uses.** A field at the
 top of the tree using `search.rn`, plus a component filter chip — cameras,

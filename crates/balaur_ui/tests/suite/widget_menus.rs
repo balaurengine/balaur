@@ -472,3 +472,41 @@ fn a_menu_row_fires_from_its_shortcut_with_the_menu_shut() {
         "the row drew no shortcut: {drawn:?}"
     );
 }
+
+/// The outliner's case: a `tree` naming a hidden menu opens it over the row a
+/// right click lands on, as a button naming one does.
+#[test]
+fn a_secondary_click_on_a_tree_row_opens_the_named_menu() {
+    let (_dir, app) = app();
+    let tree = toml::toml! {
+        kind = "tree" x = 10.0 y = 10.0 width = 200.0 height = 200.0
+        row_height = 18.0 options = ["One", "\tTwo", "Three"] context = "cm"
+    };
+    add_widget(&app, &tree.into());
+    let menu = toml::toml! { kind = "menu" text = "Hidden" visible = false x = 300.0 y = 300.0 };
+    let menu = add_child_widget(&app, app.engine.root(), "cm", &menu.into());
+    let row = toml::toml! { kind = "button" text = "Delete" width = 173.0 height = 22.0 };
+    add_child_widget(&app, menu, "R0", &row.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let two = texts(&pass(&app, &ctx, vec![]))
+        .into_iter()
+        .find(|(t, _)| t == "Two")
+        .expect("the row is drawn")
+        .1;
+    pass(
+        &app,
+        &ctx,
+        press_with(two, egui::PointerButton::Secondary, true),
+    );
+    pass(
+        &app,
+        &ctx,
+        press_with(two, egui::PointerButton::Secondary, false),
+    );
+    let after = pass(&app, &ctx, vec![]);
+    assert!(
+        rows_drawn(&after, 173.0).is_some(),
+        "a right click on a tree row opened no menu"
+    );
+}

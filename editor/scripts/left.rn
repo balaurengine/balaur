@@ -15,6 +15,9 @@ const OUTLINE_NODE = "Editor/Shell/Body/Left/LeftSheet/LeftOutline";
 // The pitch the `tree` node draws at. Stated rather than measured: the node
 // takes it as `row_height`, so `row_spot` and the rows cannot drift apart.
 const TREE_ROW = 23.0;
+// The names the tree reports a row's marks by.
+const MARK_EYE = "eye";
+const MARK_LOCK = "lock";
 
 // Rebuilt only when the document or a fold changed; both loops below are
 // linear in the document, which the drawing no longer is.
@@ -263,7 +266,7 @@ fn show_tree(S, k, rows, rows_key) {
     }
     // The rows' strings follow from the rows, the document, the warnings, the
     // selection and the theme; a frame that moved none of them reuses them.
-    let key = [rows_key, S.doc_rev, S.lint.warned, S.sels.clone(), k];
+    let key = [rows_key, S.doc_rev, S.lint.warned, S.sels.clone(), k, lock_key(S)];
     let built = S.tree_items;
     let same = built.get("key") == Some(key);
     if !same {
@@ -308,7 +311,8 @@ fn tree_items(S, k, rows) {
         // cannot say: 2D, 3D, UI and physics each read at a glance. The id is
         // the row's key: two nodes may share a name, never a row.
         let note = if crate::lint::warned(S, node.id).len() > 0 { "⚠" } else { "" };
-        line += util::cells([mark, node.name, note, k.get(token).unwrap_or(k.text_default), node.id]);
+        let tint = k.get(token).unwrap_or(k.text_default);
+        line += util::cells([mark, node.name, note, tint, node.id, row_marks(S, row.index)]);
         items.push(line);
     }
     // Every selected node lit, not only the active one: the document holds a
@@ -320,6 +324,43 @@ fn tree_items(S, k, rows) {
         }
     }
     #{ items: items, chosen: chosen }
+}
+
+/// The eye on every row, open or closed, and the lock only on a locked one,
+/// rightmost: the tree draws them and reports a click as `tree_mark`.
+pub fn row_marks(S, i) {
+    let eye = if crate::arrange::is_hidden(S, i) { "eye-closed" } else { "visible" };
+    let marks = format!("{}={}", MARK_EYE, icons::ui(eye));
+    if crate::selection::is_locked(S, i) {
+        marks += "\u{1e}" + format!("{}={}", MARK_LOCK, icons::ui("lock"));
+    }
+    marks
+}
+
+// Locks are editor state, not the document, so `doc_rev` never says one moved.
+fn lock_key(S) {
+    let ids = [];
+    for (id, _) in S.locks {
+        ids.push(id);
+    }
+    ids.sort();
+    ids
+}
+
+/// A mark clicked on a tree row: the eye shows or hides that node, the lock
+/// unlocks it. The row stays as it was picked, or not.
+pub fn mark_clicked(S, row, mark) {
+    let parts = row.split('\u{1f}').collect::<Vec>();
+    let id = parts.get(4).unwrap_or("");
+    let i = match model::index_of_id(S.doc, id) {
+        Some(i) => i,
+        None => return,
+    };
+    if mark == MARK_EYE {
+        crate::arrange::toggle_hidden_of(S, [i]);
+    } else if mark == MARK_LOCK {
+        crate::arrange::toggle_locked_of(S, [i]);
+    }
 }
 
 /// Where the tree drew the row for document index `i`, in design px; `None`

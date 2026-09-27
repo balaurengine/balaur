@@ -107,7 +107,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::PICKED_COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "What a `color_picker` holds; `on_change` hears the new one", group = "paint" }"#),
                     (k::ROW_HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "The pitch of a `list` or `tree` row, in design pixels; 0 takes the font's own line height", group = "layout" }"#),
                     (k::FONT_FAMILY, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Which of the theme's families the widget draws in", group = "type" }}"#, w::UI, v::options(w::WIDGET_FONTS))),
-                    (k::OPTIONS, r#"{ type = "list", of = { type = "string" }, default = [], description = "The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note, an `#rrggbb` for that row and a key that is never drawn, which two rows with the same label need to stay two rows, and a `table` row splits on the same into one cell a column. `on_change` hears every pick", group = "value" }"#),
+                    (k::OPTIONS, r#"{ type = "list", of = { type = "string" }, default = [], description = "The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note, an `#rrggbb` for that row, a key that is never drawn, which two rows with the same label need to stay two rows, and marks, each `name=glyph` from the icon face and joined on U+001E, drawn at the right and reported by `on_mark`; and a `table` row splits on the same into one cell a column. `on_change` hears every pick", group = "value" }"#),
                     (k::COLUMNS, r#"{ type = "int", default = 0, min = 0, description = "How many children a `grid` puts on each row, and how many cards a `list` flows into; 0 is the kind's own, which is two for a grid and one line a row for a list. A `table`'s columns are its `titles`", group = "layout" }"#),
                     (k::SELECTION, r#"{ type = "list", of = { type = "string" }, default = [], description = "The rows a `list`, `tree` or `table` has picked, one of them where it holds one. `text` is the last row clicked, which is where a shift range measures from; `on_change` hears the whole list where the widget holds many, and the row where it holds one", group = "value" }"#),
                     (k::MULTI_SELECT, r#"{ type = "bool", default = false, description = "Let a `list`, `tree` or `table` hold more than one row: the platform's command key toggles a row and shift takes the run from the last one clicked", group = "value" }"#),
@@ -119,6 +119,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::REVERSE, r#"{ type = "bool", default = false, description = "Take a `table`'s rows the other way round: the `sort` descending, or the order they were given bottom to top where none is named", group = "value" }"#),
                     (k::REORDERABLE, r#"{ type = "bool", default = false, description = "Let a drag move a row of a `list` or a `tree`. The kind moves nothing itself: it draws where the row would land and calls `on_move`, and the rows are the script's to reorder", group = "events" }"#),
                     (k::ON_MOVE, r#"{ type = "string", default = "", description = "Script method called when a dragged row is dropped, with the row moved, the row it landed on, and `before`, `after` or `into`, on this node or the nearest ancestor whose script declares it", group = "events" }"#),
+                    (k::ON_MARK, r#"{ type = "string", default = "", description = "Script method called with `#{ row, mark }` when a mark at the right of a `list` or `tree` row is clicked, on this node or the nearest ancestor whose script declares it. The click picks nothing", group = "events" }"#),
                     (k::DRAGGABLE, r#"{ type = "bool", default = false, description = "Let a drag carry a card of a `list` with `columns` out of it, drawn under the pointer; `on_drop` says where it was let go", group = "events" }"#),
                     (k::HIDE_ON_CLOSE, r#"{ type = "bool", default = true, description = "Whether a `window`'s close button shuts it; off, the button only emits `close_request` and the script decides", group = "events" }"#),
                     (k::ON_DROP, r#"{ type = "string", default = "", description = "Script method called with the card a drag let go outside the list, on this node or the nearest ancestor whose script declares it; the pointer is where it landed", group = "events" }"#),
@@ -608,10 +609,9 @@ fn controls_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Valu
         k::REORDERABLE.into(),
         toml::Value::Boolean(widget.reorderable),
     );
-    map.insert(
-        k::ON_MOVE.into(),
-        toml::Value::String(widget.on_move.to_string()),
-    );
+    for (key, handler) in [(k::ON_MOVE, &widget.on_move), (k::ON_MARK, &widget.on_mark)] {
+        map.insert(key.into(), toml::Value::String(handler.to_string()));
+    }
     map.insert(k::OPEN.into(), toml::Value::Boolean(widget.open));
     map.insert(k::TITLE_BAR.into(), toml::Value::Boolean(widget.title_bar));
     map.insert(k::INSET.into(), four(widget.inset));
@@ -882,6 +882,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         reverse: false,
         reorderable: false,
         on_move: smol_str::SmolStr::default(),
+        on_mark: s(k::ON_MARK),
         draggable: false,
         hide_on_close: true,
         on_drop: smol_str::SmolStr::default(),
@@ -900,10 +901,17 @@ fn widget_from(params: &toml::Value) -> Widget {
         authored: None,
     };
     read_controls(&mut widget, params);
-    if class_tables(params).next().is_some() {
-        widget.authored = Some(std::sync::Arc::new(params.clone()));
-    }
+    widget.authored = authored(params);
     widget
+}
+
+/// The table as the scene wrote it, kept only where a class table can
+/// override it later.
+fn authored(params: &toml::Value) -> Option<std::sync::Arc<toml::Value>> {
+    class_tables(params)
+        .next()
+        .is_some()
+        .then(|| std::sync::Arc::new(params.clone()))
 }
 
 /// Every class table this widget carries, in the order an override applies:

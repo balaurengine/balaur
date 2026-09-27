@@ -176,6 +176,8 @@ kind = "tree"
 grow = 1
 # A right click or a long press picks the row it lands on and opens these.
 context = "tree_menu"
+# The eye and the lock a row draws at its right.
+on_mark = "tree_mark"
 
 [nodes.widget.touch]
 row_height = 33

@@ -4158,6 +4158,33 @@ fn instance_count(S) {
     }
 }
 
+/// The outliner's eye and lock: a click on either acts on that row's node
+/// alone and leaves the selection where it was.
+pub fn tree_marks(S) {
+    if S.doc.len() < 2 {
+        log::info("selftest marks: one node is too few to aim past the selection, skipped");
+        return;
+    }
+    shell::choose(S, 0);
+    let i = S.doc.len() - 1;
+    let node = S.doc[i];
+    let row = crate::util::cells(["", node.name, "", "", node.id, crate::left::row_marks(S, i)]);
+    let shown = !arrange::is_hidden(S, i);
+    crate::left::mark_clicked(S, row, "eye");
+    check(arrange::is_hidden(S, i) == shown, format!("the eye hides {}", node.name));
+    check(crate::left::row_marks(S, i).contains(crate::icons::ui("eye-closed")), "and its row shows the eye closed");
+    check(S.sel == 0, "a mark picks nothing");
+    shell::undo(S);
+    check(arrange::is_hidden(S, i) != shown, "undo shows it again");
+
+    crate::selection::set_locked(S, i, true);
+    check(crate::left::row_marks(S, i).contains(crate::icons::ui("lock")), "a locked row shows the lock");
+    crate::left::mark_clicked(S, row, "lock");
+    check(!crate::selection::is_locked(S, i), "the lock unlocks it");
+    check(!crate::left::row_marks(S, i).contains(crate::icons::ui("lock")), "and the lock goes");
+    log::info("selftest marks: done");
+}
+
 /// Populate: a grid, then a surface, written into the selected multimesh's
 /// asset, each one undo step. A scene with no multimesh skips itself.
 pub fn populate(S) {

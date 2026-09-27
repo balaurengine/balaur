@@ -377,6 +377,9 @@ pub(crate) mod keys {
     pub(crate) const REVERSE: &str = "reverse";
     pub(crate) const REORDERABLE: &str = "reorderable";
     pub(crate) const ON_MOVE: &str = "on_move";
+    pub(crate) const ON_MARK: &str = "on_mark";
+    /// The mark a `mark` event names, beside its `row`.
+    pub(crate) const MARK: &str = "mark";
     pub(crate) const DRAGGABLE: &str = "draggable";
     pub(crate) const HIDE_ON_CLOSE: &str = "hide_on_close";
     pub(crate) const ON_DROP: &str = "on_drop";

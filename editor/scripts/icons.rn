@@ -155,6 +155,7 @@ pub fn ui(name) {
         "unlock" => "\u{e306}",
         "visible" => "\u{e220}",
         "hidden" => "\u{e224}",
+        "eye-closed" => "\u{e222}",
         "align-left" => "\u{e50e}",
         "align-right" => "\u{e510}",
         "align-center-h" => "\u{e50c}",

@@ -224,6 +224,8 @@ pub struct Widget {
     /// Method called with the row moved, the row it landed on, and whether it
     /// went `before` it, `after` it or `into` it.
     pub on_move: SmolStr,
+    /// Method called with the row and the name of the mark clicked on it.
+    pub on_mark: SmolStr,
     /// Whether a drag carries a card of a `list` out of it.
     pub draggable: bool,
     /// Whether a `window`'s close button shuts it, or only asks.

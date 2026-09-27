@@ -195,14 +195,9 @@ fn rows(
     // Where each open row's branch still continues, so a guide is drawn only
     // down a level that has another row below this one.
     let trails = branches(&items, &open_rows, &depth_of);
-    let mut picked = None;
-    let mut aimed = None;
-    let mut toggled = None;
-    let mut activated = None;
-    // The row a drag has hold of, and where the pass found it would land.
+    let mut seen = Seen::default();
+    // The row a drag has hold of; `seen` has where the pass found it would land.
     let held_row: Dragging = ui.data(|d| d.get_temp(id.with("drag")).unwrap_or_default());
-    let mut landing = None;
-    let mut took = None;
     list_area(id, want).show_rows(ui, row_h, open_rows.len(), |ui, range| {
         for slot in range {
             let Some(&i) = open_rows.get(slot) else {
@@ -229,24 +224,7 @@ fn rows(
                     drag: widget.reorderable.then_some(held_row.row.as_str()),
                 },
             );
-            if hit.folded {
-                toggled = Some(item.clone());
-            }
-            if hit.activated {
-                activated = Some(item.clone());
-            }
-            if hit.picked {
-                picked = Some(i);
-            }
-            if hit.aimed {
-                aimed = Some(i);
-            }
-            if let Some(took_row) = hit.took {
-                took = Some(took_row);
-            }
-            if let Some(side) = hit.landing {
-                landing = Some((i, side));
-            }
+            seen.absorb(i, item, hit);
         }
     });
     if widget.reorderable {
@@ -255,20 +233,23 @@ fn rows(
             entity,
             items: &items,
             held: &held_row,
-            took,
-            landing,
+            took: seen.took,
+            landing: seen.landing,
         };
         settle_drag(ui, at, &drag);
     }
-    if let Some((row, open)) = settle_folds(ui, id, shut, toggled) {
+    if let Some((row, open)) = settle_folds(ui, id, shut, seen.toggled) {
         at.edits.push((entity, Edit::Folded(row, open)));
     }
-    if let Some(row) = activated {
+    if let Some(row) = seen.activated {
         at.edits.push((entity, Edit::Activated(row)));
+    }
+    if let Some((row, mark)) = seen.marked {
+        at.edits.push((entity, Edit::Marked(row, mark)));
     }
     // A row already picked keeps the set it is in: aiming at one of several
     // picked rows is how a menu is opened over all of them.
-    let aimed = aimed.filter(|&row| !picked_rows.contains(&items[row]));
+    let aimed = seen.aimed.filter(|&row| !picked_rows.contains(&items[row]));
     settle_pick(
         at,
         entity,
@@ -280,7 +261,7 @@ fn rows(
             anchor: &anchor,
             multi,
         },
-        landed(picked, aimed, ui.input(|i| i.modifiers)),
+        landed(seen.picked, aimed, ui.input(|i| i.modifiers)),
     );
 }
 
@@ -468,6 +449,45 @@ struct Row<'a> {
     drag: Option<&'a str>,
 }
 
+/// What one pass over the rows found: the row each kind of press landed on.
+#[derive(Default)]
+struct Seen {
+    picked: Option<usize>,
+    aimed: Option<usize>,
+    toggled: Option<String>,
+    activated: Option<String>,
+    /// The row a mark was clicked on, and the mark's name.
+    marked: Option<(String, String)>,
+    took: Option<String>,
+    landing: Option<(usize, Side)>,
+}
+
+impl Seen {
+    fn absorb(&mut self, i: usize, item: &str, hit: Hit) {
+        if hit.folded {
+            self.toggled = Some(item.to_owned());
+        }
+        if hit.activated {
+            self.activated = Some(item.to_owned());
+        }
+        if let Some(mark) = hit.marked {
+            self.marked = Some((item.to_owned(), mark));
+        }
+        if hit.picked {
+            self.picked = Some(i);
+        }
+        if hit.aimed {
+            self.aimed = Some(i);
+        }
+        if let Some(row) = hit.took {
+            self.took = Some(row);
+        }
+        if let Some(side) = hit.landing {
+            self.landing = Some((i, side));
+        }
+    }
+}
+
 /// What a click on a row meant. One flag a button and a part, which is what
 /// the caller answers for separately.
 #[allow(
@@ -489,6 +509,8 @@ struct Hit {
     folded_hovered: bool,
     /// Whether the row was double-clicked, which activates it.
     activated: bool,
+    /// The name of the mark a click landed on, which picks nothing.
+    marked: Option<String>,
 }
 
 /// Draw one row: the guides down its indent, its caret, its icon field, its
@@ -507,6 +529,7 @@ fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
         folded: false,
         folded_hovered: false,
         activated: false,
+        marked: None,
     };
     let step = r.row_h;
     // A view that reorders senses a drag as well as a click; one that does
@@ -545,7 +568,9 @@ fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
     if r.parent || r.indent {
         at += step;
     }
-    let over = response.hovered() || hit.folded_hovered;
+    let marks = crate::widget::marks::sense(ui, r.item, r.slot, rect);
+    let mark_hovered = marks.iter().any(|(_, _, sensed)| sensed.hovered());
+    let over = response.hovered() || hit.folded_hovered || mark_hovered;
     let held = response.is_pointer_button_down_on();
     let lit = if chosen {
         Some(r.ink.on)
@@ -589,15 +614,7 @@ fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
         r.font.clone(),
         ink,
     );
-    if !trailing.is_empty() {
-        ui.painter().text(
-            pos2(rect.max.x - step * 0.3, rect.center().y),
-            egui::Align2::RIGHT_CENTER,
-            trailing,
-            r.font.clone(),
-            ink,
-        );
-    }
+    hit.marked = draw_right(ui, r, rect, &marks, (trailing, ink));
     hit.picked = response.clicked();
     hit.aimed = response.secondary_clicked();
     hit.activated = response.double_clicked();
@@ -607,6 +624,33 @@ fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
         hit.landing = landing;
     }
     hit
+}
+
+/// Paint what a row trails on the right: its marks, and its note left of
+/// them. Answers the name of the mark clicked.
+fn draw_right(
+    ui: &egui::Ui,
+    r: &Row<'_>,
+    rect: Rect,
+    marks: &[crate::widget::marks::Mark<'_>],
+    (trailing, ink): (&str, Color32),
+) -> Option<String> {
+    if !trailing.is_empty() {
+        ui.painter().text(
+            pos2(
+                rect.max.x - r.row_h * (marks.len() as f32 + 0.3),
+                rect.center().y,
+            ),
+            egui::Align2::RIGHT_CENTER,
+            trailing,
+            r.font.clone(),
+            ink,
+        );
+    }
+    // The widget's own ink rather than the row's tint: a mark is a control,
+    // the same on every row, where the tint says what the row is.
+    let mark_ink = if r.chosen { r.ink.on_color } else { r.color };
+    crate::widget::marks::draw(ui, marks, r.font.size, (mark_ink, r.ink))
 }
 
 /// What a drag over this row means: the row it picked up, and where the row
