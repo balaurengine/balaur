@@ -241,6 +241,8 @@ pub fn fresh_state() {
         // The half a start-up state pinned for the run, or "" to follow the mode.
         theme_half: "",
         gizmo: gizmo::state(),
+        // The mouse button a camera drag begun on the stage holds, or -1.
+        camera_drag: -1,
         complete: complete::state(),
         docs: docs::state(),
         refactor: refactor::state(),
@@ -501,14 +503,16 @@ pub fn update(this, dt) {
         selftest::palette_step(S);
     }
     showcase::step(S);
+    // The editor drives the camera itself, so the backend's own drag never
+    // gets a button: it would pan from where it last saw the cursor, a drag
+    // ago. Every frame, since a game in play may have asked for them.
+    render::set_camera_input(false);
     // A replay or a showcase feeds the pointer into the snapshot the viewport
     // tools read, so a drag would follow the feed rather than the mouse.
     if !session::scrubbing(S) && !showcase::feeding(S) {
         // The camera's own frames: two fingers on the stage, or the mouse
         // buttons and wheel the editor drives itself. A gizmo never sees one.
-        if viewport::camera_gesture(S) || viewport::mouse_camera(S) {
-            render::set_camera_input(false);
-        } else {
+        if !viewport::camera_gesture(S) && !viewport::mouse_camera(S) {
             gizmo::update(S);
         }
         textedit::update(S);

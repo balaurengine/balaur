@@ -468,12 +468,10 @@ pub fn update(S, vp) {
     pmy = pmy / (dpi * S.ui_scale);
     let over_viewport = viewport::owns_pointer(S, pmx, pmy);
 
-    // The Rig bone, Polygon and Tiles tools own the click: no gizmo hover, no
-    // camera drag.
+    // The Rig bone, Polygon and Tiles tools own the click: no gizmo hover.
     if S.tool == "bone" || S.tool == "polygon" || S.tool == "tiles" || S.tool == "pen" {
         S.gizmo.hover = None;
         S.gizmo.drag = None;
-        render::set_camera_input(false);
         if S.tool == "bone" {
             rig::update(S, over_viewport, mx, my);
         } else if S.tool == "polygon" {
@@ -496,8 +494,6 @@ pub fn update(S, vp) {
             None => None,
         };
     }
-
-    render::set_camera_input(!viewport::manipulates(S.tool, true) && S.gizmo.hover.is_none() && S.gizmo.drag.is_none());
 
     if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) && over_viewport {
         let hovered = match (S.gizmo.hover, geo) {
@@ -534,7 +530,6 @@ pub fn update(S, vp) {
         m.y1 = pmy;
         m.wx1 = mx;
         m.wy1 = my;
-        render::set_camera_input(false);
         if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
             S.gizmo.marquee = None;
             S.gizmo.in_viewport = false;

@@ -395,6 +395,12 @@ for ex in examples/*/; do
   edit_step "$name: picking" "$ex" test:picking
   printf 'ok\n'
 
+  # The mouse camera: the wheel, a right-drag that keeps the ground under the
+  # pointer off the stage too, and one begun over a dock that moves nothing.
+  printf '  camera ... '
+  edit_step "$name: camera" "$ex" test:camera
+  printf 'ok\n'
+
   # Exported script properties: the defaults a script declares, an override
   # written onto one node, and the sparseness that drops it again.
   printf '  props ...  '

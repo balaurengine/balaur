@@ -568,14 +568,14 @@ pub fn physical_bones(S) {
     log::info("selftest physical bones: done");
 }
 
-/// A manipulation tool leaves the camera alone when there is no gizmo.
+/// The mouse camera the editor drives, whatever tool is picked.
 ///
-/// The camera's buttons are unbound ahead of a press, because the binding is
-/// what decides who receives it. That was keyed on the tool alone, so picking
-/// Move killed orbit and pan over the whole stage even with nothing selected
-/// and no handle to press.
+/// The wheel dollies it, and a right-drag begun on the stage keeps the ground
+/// under the pointer until the button comes up, off the stage included; one
+/// begun over a dock moves nothing. The backend's own camera never holds a
+/// button: it would pan from where it last saw the cursor, a drag ago.
 pub fn camera_keeps_pointer(S) {
-    S.camera_check = #{ waited: 0, stage: 0, was: 0.0 };
+    S.camera_check = #{ waited: 0, stage: 0, was: 0.0, drag: () };
 }
 
 pub fn camera_check_step(S) {
@@ -600,15 +600,14 @@ pub fn camera_check_step(S) {
         camera_dollied(S, d);
         return;
     }
-    d.stage = 1;
-    // The 3D gizmo hands the backend's camera its buttons; in 2D the editor
-    // pans and zooms by itself, so there is no hand-over to check.
-    if !S.mode2d {
-        backend_buttons(S);
+    if d.stage >= 3 {
+        camera_drag_step(S, d);
+        return;
     }
-    // The wheel the editor drives itself, fed into the snapshot it reads: the
-    // backend's camera never sees a mouse event in the editor. A fed event
-    // lands next frame, and the pose it moves is published the one after.
+    d.stage = 1;
+    check(!render::camera_input(), "the backend's camera holds no button in the editor");
+    // The wheel the editor drives itself, fed into the snapshot it reads. A
+    // fed event lands next frame, and the pose it moves is published the one after.
     let stage = S.layout.stage;
     let (_, _, _, _, _, _, _, dpi) = render::camera_pose();
     let (cx, cy) = (stage.x + stage.w / 2.0, stage.y + stage.h / 2.0);
@@ -617,19 +616,115 @@ pub fn camera_check_step(S) {
     input::feed_scroll(0.0, flick(crate::viewport::dolly_step()));
 }
 
-fn backend_buttons(S) {
-    let tool = S.tool;
-    S.tool = "move";
-    crate::selection::clear(S);
-    crate::gizmo::update(S);
-    check(render::camera_input(), "a manipulation tool with nothing selected leaves the camera its buttons");
-    // With something selected there is a gizmo to press, so it takes them.
-    if S.doc.len() > 1 {
-        shell::choose(S, 1);
-        crate::gizmo::update(S);
-        check(!render::camera_input(), "and takes them once a gizmo is drawn");
+// A right-drag fed a frame at a time: where the pointer lands, the press, the
+// move, the release, and the frame the pose it set is published in.
+fn camera_drag_step(S, d) {
+    let (_, _, _, _, _, _, _, dpi) = render::camera_pose();
+    let px = S.ui_scale * dpi;
+    let right = input::MOUSE_BUTTON_RIGHT;
+    let step = d.stage - 3;
+    let drag = d.drag;
+    if step == 0 {
+        // From inside the stage to past its right edge, under the Move tool:
+        // a gizmo on screen once took the camera's buttons away.
+        let st = S.layout.stage;
+        let from = [st.x + st.w * 0.7, st.y + st.h * 0.6];
+        let to = [util::min(st.x + st.w + 24.0, S.screen_w - 2.0), from[1] - 12.0];
+        d.drag = #{ from: from, to: to, tool: S.tool, world: (), at: None };
+        S.tool = "move";
+        input::feed_mouse(from[0] * px, from[1] * px);
+    } else if step == 1 {
+        drag.world = looked_at(S);
+        drag.at = drawn_at(S, drag.world);
+        input::feed_mouse_button(right, true);
+    } else if step == 2 {
+        input::feed_mouse(drag.to[0] * px, drag.to[1] * px);
+    } else if step == 3 {
+        input::feed_mouse_button(right, false);
+    } else if step == 4 {
+        camera_dragged(S, drag);
+        // A press over a dock, dragged onto the middle of the stage.
+        let dock = dock_point(S);
+        if dock.is_none() {
+            camera_drag_done(S, drag);
+            return;
+        }
+        let (x, y) = dock.unwrap();
+        drag.world = looked_at(S);
+        input::feed_mouse(x * px, y * px);
+    } else if step == 5 {
+        input::feed_mouse_button(right, true);
+    } else if step == 6 {
+        let st = S.layout.stage;
+        input::feed_mouse((st.x + st.w / 2.0) * px, (st.y + st.h / 2.0) * px);
+    } else if step == 7 {
+        input::feed_mouse_button(right, false);
+    } else {
+        let now = looked_at(S);
+        let moved = util::abs(now[0] - drag.world[0]) + util::abs(now[1] - drag.world[1]) + util::abs(now[2] - drag.world[2]);
+        check(moved < 0.0001, format!("a right-drag begun over a dock moves no camera (by {})", moved));
+        camera_drag_done(S, drag);
+        return;
     }
-    S.tool = tool;
+    d.stage = d.stage + 1;
+}
+
+fn camera_dragged(S, drag) {
+    let at = drag.at;
+    let now = drawn_at(S, drag.world);
+    if at.is_none() || now.is_none() {
+        check(false, "the camera's target draws on screen before and after a drag");
+        return;
+    }
+    let (x0, y0) = at.unwrap();
+    let (x1, y1) = now.unwrap();
+    let (gx, gy) = (x1 - x0, y1 - y0);
+    let (wx, wy) = (drag.to[0] - drag.from[0], drag.to[1] - drag.from[1]);
+    let off = math::sqrt((gx - wx) * (gx - wx) + (gy - wy) * (gy - wy));
+    check(off < 1.5, format!("a right-drag keeps the ground under the pointer, off the stage too ({}, {} for {}, {})", gx, gy, wx, wy));
+    check(!render::camera_input(), "and the backend's camera never took the button");
+}
+
+fn camera_drag_done(S, drag) {
+    S.tool = drag.tool;
+    S.camera_check = ();
+    log::info("selftest camera: done");
+}
+
+// The middle of the first dock on screen that the viewport does not own.
+fn dock_point(S) {
+    for r in crate::layout::sheets(S) {
+        let (x, y) = (r.x + r.w / 2.0, r.y + r.h / 2.0);
+        if r.w > 0.0 && r.h > 0.0 && !crate::viewport::owns_pointer(S, x, y) {
+            return Some((x, y));
+        }
+    }
+    None
+}
+
+// The world point the camera looks at, which a pan carries with the pointer.
+fn looked_at(S) {
+    if S.mode2d {
+        let (cx, cy, _) = render::camera_2d();
+        return [cx, cy, 0.0];
+    }
+    let (_, _, _, tx, ty, tz, _, _) = render::camera_pose();
+    [tx, ty, tz]
+}
+
+// Where a world point draws, in design px: through the renderer's own matrix
+// in 3D; in 2D from the centre and zoom, relative to the centre.
+fn drawn_at(S, p) {
+    if S.mode2d {
+        let (cx, cy, zoom) = render::camera_2d();
+        let k = zoom / S.ui_scale;
+        return Some(((p[0] - cx) * k, (cy - p[1]) * k));
+    }
+    let cam = #{
+        m: util::vec(render::camera_matrix()),
+        rect: #{ x: 0.0, y: 0.0, w: S.screen_w, h: S.screen_h },
+    };
+    crate::gizmo::project(cam, p)
 }
 
 // A number that grows as the camera closes in: the 2D zoom, or one over how
@@ -664,13 +759,12 @@ fn reach(ex, ey, ez, tx, ty, tz) {
 }
 
 fn camera_dollied(S, d) {
-    S.camera_check = ();
+    d.stage = 3;
     let now = closeness(S);
     // Bounded, not just inward: a flick that swallows the whole distance is
     // the zoom being orders of magnitude too strong, which reads as a teleport.
     let took = now / util::max(d.was, EPSILON);
     check(took > 1.005 && took < 1.1, format!("and dollies the camera in gently ({} to {})", d.was, now));
-    log::info("selftest camera: done");
 }
 
 /// The viewport still takes a click in the middle of the stage.

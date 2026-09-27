@@ -142,8 +142,8 @@ check_reload() {
 }
 check_reload
 
-# The camera keeps its buttons unless something is actually there to press,
-# and the wheel zooms it gently, in a 3D scene and a 2D one.
+# The mouse camera the editor drives: the wheel zooms it gently and a
+# right-drag keeps the ground under the pointer, in a 3D scene and a 2D one.
 check_camera() { # check_camera <example>
   [ ${#only[@]} -eq 0 ] || return 0
   printf '%-24s ' "camera $1"

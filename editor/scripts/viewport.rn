@@ -75,22 +75,27 @@ pub fn camera_gesture(S) {
 /// the camera.
 ///
 /// The editor drives this itself rather than leaving it to the backend. The
-/// shell is one window-filling widget area, so egui claims the pointer
-/// everywhere in the editor and the backend's camera is never handed a mouse
-/// event: its cursor memory goes stale (the next drag jumps) and the wheel
-/// never reaches it at all.
+/// shell is one window-filling widget area, so egui claims a hovering pointer
+/// everywhere in the editor and hands the backend's camera only drags: its
+/// cursor memory is a drag old, and the wheel never reaches it at all.
 pub fn mouse_camera(S) {
+    // `mouse_position` counts physical pixels, `dpi` of them to a logical one.
+    let (_, _, _, _, _, _, _, dpi) = render::camera_pose();
+    let dpi = util::max(dpi, 0.01);
     let (mx, my) = input::mouse_position();
-    if !owns_pointer(S, mx / S.ui_scale, my / S.ui_scale) {
-        return false;
-    }
+    let over = owns_pointer(S, mx / dpi / S.ui_scale, my / dpi / S.ui_scale);
+    let button = camera_drag(S, over);
     let (_, wheel) = input::scroll_delta();
-    let orbiting = input::mouse_down(input::MOUSE_BUTTON_MIDDLE);
-    let panning = input::mouse_down(input::MOUSE_BUTTON_RIGHT);
+    let wheel = if over { wheel } else { 0.0 };
+    let orbiting = button == input::MOUSE_BUTTON_MIDDLE;
+    let panning = button == input::MOUSE_BUTTON_RIGHT;
     if wheel == 0.0 && !orbiting && !panning {
         return false;
     }
-    let (dx, dy) = input::mouse_delta();
+    let (rx, ry) = input::mouse_delta();
+    // A pan keeps the ground under the pointer, so it moves by the logical
+    // pixel the stage is laid out in; an orbit turns by the physical one.
+    let (dx, dy) = if panning { (rx / dpi, ry / dpi) } else { (rx, ry) };
     if S.mode2d {
         let (cx, cy, zoom) = render::camera_2d();
         let held = util::max(zoom, 0.01);
@@ -104,6 +109,23 @@ pub fn mouse_camera(S) {
     }
     mouse_camera_3d(S, wheel, orbiting, panning, dx, dy);
     true
+}
+
+/// The button a camera drag holds, or -1. A drag is the camera's from a press
+/// on the stage until that button comes up, wherever the pointer goes in
+/// between; one pressed over a dock never is.
+fn camera_drag(S, over) {
+    if S.camera_drag >= 0 && !input::mouse_down(S.camera_drag) {
+        S.camera_drag = -1;
+    }
+    if S.camera_drag < 0 && over {
+        for button in [input::MOUSE_BUTTON_RIGHT, input::MOUSE_BUTTON_MIDDLE] {
+            if input::mouse_just_pressed(button) {
+                S.camera_drag = button;
+            }
+        }
+    }
+    S.camera_drag
 }
 
 // How far a pixel of drag turns the camera: the backend camera's own step, so
@@ -153,7 +175,8 @@ fn mouse_camera_3d(S, wheel, orbiting, panning, dx, dy) {
 }
 
 // Screen right and up in world units, scaled to the world a design pixel
-// covers at the target's depth: six numbers, right then up.
+// covers at the target's depth: six numbers, right then up. The scene draws
+// across the whole window under the docks, so the window's height is the fov's.
 fn slide_axes(S, u, dist, fov) {
     let (ux, uy, uz) = (u[0], u[1], u[2]);
     let right = [uz, 0.0, 0.0 - ux];
@@ -164,7 +187,7 @@ fn slide_axes(S, u, dist, fov) {
         uz * right[0] - ux * right[2],
         ux * right[1] - uy * right[0],
     ];
-    let tall = util::max(S.layout.stage.h, 1.0);
+    let tall = util::max(S.screen_h, 1.0);
     let per_px = 2.0 * dist * math::tan(util::max(fov, 0.01) / 2.0) / tall;
     let step = per_px / util::max(S.ui_scale, 0.01);
     let out = [
@@ -204,9 +227,9 @@ fn orbit_3d(S, scale, dx, dy) {
         uz * right[0] - ux * right[2],
         ux * right[1] - uy * right[0],
     ];
-    // The world a design pixel covers at the target's depth: the same
-    // distance under the finger as the ground it started on.
-    let tall = util::max(S.layout.stage.h, 1.0);
+    // The world a design pixel covers at the target's depth, over the whole
+    // window the scene draws across: the finger keeps the ground it started on.
+    let tall = util::max(S.screen_h, 1.0);
     let per_px = 2.0 * want * math::tan(util::max(fov, 0.01) / 2.0) / tall;
     let step = per_px / util::max(S.ui_scale, 0.01);
     let slide = |i| (0.0 - dx) * right[i] * step + dy * up[i] * step;
@@ -241,13 +264,6 @@ pub fn hot_part(S) {
         Some(drag) => Some(drag.part),
         None => S.gizmo.hover,
     }
-}
-
-/// Tools that drive the gizmo rather than the camera. The 2D viewport adds
-/// the two tools that exist only there.
-pub fn manipulates(tool, mode2d) {
-    let core = tool == "move" || tool == "rotate" || tool == "scale" || tool == "zoom";
-    core || (mode2d && (tool == "bone" || tool == "polygon" || tool == "pen"))
 }
 
 /// Whether a click at this point is the viewport's to act on.
