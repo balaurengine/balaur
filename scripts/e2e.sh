@@ -138,8 +138,11 @@ edit_step() { # edit_step <label> <project> [state]
     fail "$label: the editor could not resolve every node of the scene"
   fi
   # A state that logs nothing ran nothing, and logged no error either: a check
-  # passing, a skip saying why, or a showcase saying what it plays.
-  if [ -n "$state" ] && ! grep -qE "$RAN" <<<"$out"; then
+  # passing, a skip saying why, or a showcase saying what it plays. Uncoloured
+  # first: the log paints `script` and its colon apart, so no skip matched.
+  local plain
+  plain=$(sed $'s/\x1b\\[[0-9;]*m//g' <<<"$out")
+  if [ -n "$state" ] && ! grep -qE "$RAN" <<<"$plain"; then
     printf '%s\n' "$out" | tail -10
     fail "$label: the state ran nothing, so it asserted nothing"
   fi

@@ -30,6 +30,7 @@ pub(crate) enum Platform {
 #[serde(rename_all = "kebab-case")]
 pub(crate) enum Capability {
     /// Sign in with Apple: `com.apple.developer.applesignin`.
+    #[serde(rename = "sign-in-with-apple")]
     Applesignin,
     /// Game Center: `com.apple.developer.game-center`.
     GameCenter,
@@ -546,7 +547,7 @@ mod tests {
         let config = config(
             "[apple]\nbundle_id = \"com.studio.game\"\nteam_id = \"AB12CD34EF\"\n\
              min_ios = \"15.0\"\n\
-             capabilities = [\"applesignin\", \"game-center\", \"icloud-kv\"]\n",
+             capabilities = [\"sign-in-with-apple\", \"game-center\", \"icloud-kv\"]\n",
         );
         config.check(Platform::Ios).expect("a complete table");
         let text = config.entitlements().expect("three capabilities");
@@ -608,5 +609,23 @@ mod tests {
     #[test]
     fn a_capability_is_spelled_the_way_the_entitlement_is() {
         assert_eq!(Capability::GameCenter.name(), "game-center");
+    }
+
+    /// The name a message prints is the one a project writes: the settings
+    /// screen offers these, and a spelling that did not read back would be
+    /// refused at export.
+    #[test]
+    fn every_capability_reads_back_from_the_name_it_prints() {
+        for capability in [
+            Capability::Applesignin,
+            Capability::GameCenter,
+            Capability::IcloudKv,
+            Capability::InAppPurchase,
+        ] {
+            let text = format!("capabilities = [\"{}\"]", capability.name());
+            let read: toml::Table = toml::from_str(&text).unwrap();
+            let parsed: Vec<Capability> = read["capabilities"].clone().try_into().unwrap();
+            assert_eq!(parsed, [capability]);
+        }
     }
 }
