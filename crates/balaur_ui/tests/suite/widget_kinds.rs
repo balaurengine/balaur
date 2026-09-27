@@ -84,6 +84,38 @@ fn a_drag_value_shows_its_number_and_takes_a_drag() {
 }
 
 #[test]
+fn a_number_outside_its_range_stays_until_the_reader_moves_it() {
+    let (_dir, mut app) = app();
+    let params = toml::toml! { kind = "number_field" x = 0.0 y = 0.0 width = 90.0 value = -24.0 min = 0.0 max = 100.0 step = 1.0 };
+    let entity = add_widget(&app, &params.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    for _ in 0..3 {
+        pass(&app, &ctx, vec![]);
+        consume_input(&mut app);
+    }
+    assert_eq!(
+        balaur_core::components::as_f64(&property(&app, entity, "value")),
+        Some(-24.0),
+        "nobody touched it, so nothing clamped it"
+    );
+    let at = pos2(40.0, 10.0);
+    pass(&app, &ctx, press(at, true));
+    pass(
+        &app,
+        &ctx,
+        vec![egui::Event::PointerMoved(pos2(at.x + 40.0, at.y))],
+    );
+    pass(&app, &ctx, press(pos2(at.x + 40.0, at.y), false));
+    consume_input(&mut app);
+    let value = balaur_core::components::as_f64(&property(&app, entity, "value")).unwrap();
+    assert!(
+        (0.0..=100.0).contains(&value),
+        "a drag lands inside the range: {value}"
+    );
+}
+
+#[test]
 fn a_text_area_keeps_the_newlines_a_field_would_drop() {
     let (_dir, mut app) = app();
     let params = toml::toml! { kind = "text_area" x = 0.0 y = 0.0 width = 200.0 height = 80.0 text = "one\ntwo" };

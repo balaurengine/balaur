@@ -393,6 +393,9 @@ pub(crate) fn color(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
 /// `min` and `max` are the slider's, and so default to 0 and 1. A position or
 /// a scale is neither, and most of what an inspector shows runs free, so that
 /// default pair reads here as no bounds at all: any other pair binds.
+///
+/// A range binds what the reader drags, types or steps to. A number outside
+/// it is shown as the scene holds it, never clamped and reported as an edit.
 pub(crate) fn drag_value(
     ui: &mut egui::Ui,
     at: &mut Painting<'_>,
@@ -414,7 +417,9 @@ pub(crate) fn drag_value(
     }
     let bounded = widget.max > widget.min && (widget.min, widget.max) != (0.0, 1.0);
     if bounded {
-        drag = drag.range(widget.min..=widget.max);
+        drag = drag
+            .range(widget.min..=widget.max)
+            .clamp_existing_to_range(false);
     }
     if widget.step > 0.0 {
         drag = drag.speed(widget.step);

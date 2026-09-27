@@ -162,3 +162,67 @@ fn a_host_a_script_hid_shows_again_every_time_it_is_filled() {
     }
     assert_eq!(number(&app, "frames"), Some(7.0));
 }
+
+/// A reused slot wears only what its new control states. The range an
+/// earlier control left on it clamped the next one's number to 0.
+#[test]
+fn a_control_keeps_nothing_the_last_one_in_its_slot_stated() {
+    let (_dir, mut app) = app_with(
+        "pub fn init(this) {\n\
+             this.frames = 0.0; this.edits = 0.0;\n\
+             scene::get_node(\"Root/Bar\").patch_component(\"widget\", #{ kind: \"column\", anchor: \"fill\" });\n\
+         }\n\
+         pub fn update(this, dt) {\n\
+             this.frames += 1.0;\n\
+             let control = if this.frames < 3.0 {\n\
+                 #{ kind: \"number_field\", grow: 1, value: 0.5, min: 0.01, max: 2.0, placeholder: \"px\", on: |v| { this.edits += 1.0; } }\n\
+             } else {\n\
+                 #{ kind: \"number_field\", grow: 1, value: -24.0, on: |v| { this.edits += 1.0; } }\n\
+             };\n\
+             ui::fill_rows(\"Root/Bar\", [#{ label: \"x\", controls: [control] }], 40.0, false);\n\
+         }\n",
+    );
+    let ctx = egui::Context::default();
+    for _ in 0..6 {
+        app.tick(1.0 / 60.0);
+        crate::support::pass(&app, &ctx, vec![]);
+    }
+    app.tick(1.0 / 60.0);
+    let field = number_fields(&app);
+    assert_eq!(field.len(), 1, "one number in the row");
+    assert!(
+        balaur_ui::widget_rect(field[0]).is_some_and(|r| r.width() > 0.0),
+        "the number was drawn"
+    );
+    assert_eq!(
+        prop(&app, field[0], "value"),
+        Some(toml::Value::Float(-24.0))
+    );
+    assert_eq!(
+        prop(&app, field[0], "max"),
+        Some(toml::Value::Float(1.0)),
+        "the range went with the control that stated it"
+    );
+    assert_eq!(
+        prop(&app, field[0], "placeholder"),
+        Some(toml::Value::String(String::new())),
+        "and so did its letter"
+    );
+    assert_eq!(number(&app, "edits"), Some(0.0), "nobody edited the number");
+}
+
+/// Every `number_field` under the bar, however deep the rows put it.
+fn number_fields(app: &App) -> Vec<Entity> {
+    let world = app.engine.world();
+    let mut out = Vec::new();
+    let mut stack = vec![bar(app)];
+    while let Some(node) = stack.pop() {
+        if let Ok(kids) = world.get::<&balaur_core::scene::Children>(node) {
+            stack.extend(kids.0.iter().copied());
+        }
+        if prop(app, node, "kind") == Some(toml::Value::String("number_field".into())) {
+            out.push(node);
+        }
+    }
+    out
+}

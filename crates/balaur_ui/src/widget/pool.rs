@@ -23,7 +23,7 @@ use balaur_core::Engine;
 use balaur_core::engine_api::ENGINE_OPS;
 use balaur_core::node_api::NODE_OPS;
 use balaur_script::{Bindings, BindingsExt, CallbackHost as _, CallbackId, ScriptHost, Value};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::vocabulary::{keys as k, pool as p, words as w};
 
@@ -47,6 +47,9 @@ pub(crate) struct PoolState {
 #[derive(Default)]
 struct HostMemo {
     written: FxHashMap<String, Value>,
+    /// The keys each slot was written with since it was last set whole: what
+    /// a patch would leave on it.
+    worn: FxHashMap<String, FxHashSet<String>>,
 }
 
 /// A control's callbacks, kept past the fill that passed them, and where its
@@ -251,16 +254,12 @@ impl Pool<'_> {
     fn patched(&self, key: &str, node: &Value, spec: &Spec) -> Result<()> {
         let mark = format!("{key}#");
         let value = as_value(spec);
-        let before = self.with_memo(|memo| memo.written.get(&mark).map(|held| *held == value));
-        match before {
-            Some(true) => return Ok(()),
-            // An edit's forgetting is not a new spec: only a write over one.
-            Some(false) => self.changed.set(true),
-            None => (),
+        if !self.noted(&mark, &value) {
+            return Ok(());
         }
-        self.with_memo(|memo| memo.written.insert(mark, value.clone()));
-        // A patch keeps every key the new table leaves out, so a slot that
-        // changes kind or role would wear the last one's. Setting drops them.
+        // A patch keeps every key the new table leaves out, so a slot would
+        // wear whatever its last control stated: a kind, a role, a range that
+        // clamps the next number. Setting drops them.
         let swapped = match spec.get(k::KIND) {
             Some(kind) => {
                 *kind != self.widget(node, k::KIND)
@@ -272,17 +271,42 @@ impl Pool<'_> {
             }
             None => false,
         };
-        let op = if swapped {
-            self.ops.set
-        } else {
-            self.ops.patch
-        };
+        let whole = self.with_memo(|memo| {
+            let worn = memo.worn.entry(mark).or_default();
+            let whole = swapped || worn.iter().any(|key| !spec.contains_key(key));
+            if whole {
+                worn.clear();
+            }
+            worn.extend(spec.keys().cloned());
+            whole
+        });
+        let op = if whole { self.ops.set } else { self.ops.patch };
         self.write(op, node, value)
     }
 
+    /// Whether `value` differs from what `mark` was last written with, noted
+    /// as written when it does.
+    fn noted(&self, mark: &str, value: &Value) -> bool {
+        let before = self.with_memo(|memo| memo.written.get(mark).map(|held| held == value));
+        match before {
+            Some(true) => return false,
+            // An edit's forgetting is not a new spec: only a write over one.
+            Some(false) => self.changed.set(true),
+            None => (),
+        }
+        self.with_memo(|memo| memo.written.insert(mark.to_string(), value.clone()));
+        true
+    }
+
+    /// A spare slot hears nothing and is hidden. It keeps what it is: the
+    /// fill that shows it again decides what its new control drops.
     fn hidden(&self, key: &str, node: &Value) -> Result<()> {
         self.deaf(node);
-        self.patched(key, node, &table(&[(k::VISIBLE, Value::Bool(false))]))
+        let value = as_value(&table(&[(k::VISIBLE, Value::Bool(false))]));
+        if !self.noted(&format!("{key}#"), &value) {
+            return Ok(());
+        }
+        self.write(self.ops.patch, node, value)
     }
 
     /// One control: who hears it, then what the spec wants it to hold.
