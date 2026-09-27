@@ -109,13 +109,15 @@ jobs:
           cargo build -p balaur_cli --no-default-features
           cargo test -p balaur_core -p balaur_physics --no-default-features
       # examples/ are Balaur projects, not cargo examples; scripts/e2e.sh says
-      # why all five modes are needed. Windows is on trial: render and the
-      # editor exited 122 there, and the step after this reads the real code.
+      # why all five modes are needed. Windows keeps check/run/export/play:
+      # render and the editor exit 0x87A under lavapipe, logging nothing.
       - name: E2E — run, export, play, edit and render every example project
         shell: bash
+        env:
+          BALAUR_E2E_GPU: ${{ runner.os == 'Windows' && '0' || '1' }}
         run: ./scripts/e2e.sh
-      # If the E2E died on Windows it did so with exit 122 and nothing on
-      # stderr. bash keeps 8 bits of a Windows exit code; this keeps all 32.
+      # The two steps E2E skips on Windows, run for their exit code alone:
+      # bash keeps 8 bits of a Windows exit code, 122; this keeps all 32.
       - name: Windows — the real exit code, and the engine's own log
         if: runner.os == 'Windows' && !cancelled()
         continue-on-error: true
