@@ -426,7 +426,9 @@ pub fn compute(S) {
     // The column the rail is in, not the whole centre: the dock below takes
     // its share of the centre, and a rail measured against that overran it.
     let column = if r.railslot.h > 0.0 { r.railslot.h } else { r.centre.h };
-    m.rail_room = util::max(120.0, column);
+    // Less the folded dock's handle above it and the HUD strip under its foot.
+    let hud = if S.stage_chrome && !S.chrome_off { crate::center::hud_h(S) } else { 0.0 };
+    m.rail_room = util::max(120.0, column - crate::docks::rail_top_h(S) - hud);
     // What a dock panel may scroll: its share of the sheet, less the tab row
     // and the status strip at the foot.
     m.body_h = util::max(0.0, r.dockbody.h - crate::docks::row_h(S));
