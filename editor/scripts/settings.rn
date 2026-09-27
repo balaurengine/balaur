@@ -79,10 +79,13 @@ pub fn prefs_path() {
 // Categories in definition order, project first: a game author looks for what
 // ships far more often than for what does not.
 fn categories() {
+    let all = settings::all();
     let seen = [];
+    let known = #{};
     for scope in ["project", "editor"] {
-        for def in settings::all() {
-            if def.scope == scope && !seen.iter().any(|c| c == def.category) {
+        for def in all {
+            if def.scope == scope && !known.contains_key(def.category) {
+                known[def.category] = true;
                 seen.push(def.category);
             }
         }
@@ -90,19 +93,20 @@ fn categories() {
     seen
 }
 
-// A category with anything that ships is a project one; its editor-only
-// rows follow under their own heading.
-fn scope_of(category) {
-    let found = #{ any: false };
+// Where each category is listed: one with anything that ships is a project
+// one, and its editor-only rows follow under their own heading.
+fn scopes() {
+    let out = #{};
     for def in settings::all() {
-        if def.category == category {
-            if def.scope == "project" {
-                return "project";
-            }
-            found.any = true;
+        if def.scope == "project" || !out.contains_key(def.category) {
+            out[def.category] = def.scope;
         }
     }
-    if found.any { "editor" } else { "project" }
+    out
+}
+
+fn scope_of(category) {
+    scopes().get(category).unwrap_or("project")
 }
 
 fn current(S) {
@@ -120,10 +124,11 @@ fn current(S) {
 // everything in the chosen category.
 fn showing(S) {
     let query = query(S).to_lowercase();
+    let at = current(S);
     let rows = [];
     for def in settings::all() {
         let matches = if query == "" {
-            def.category == current(S)
+            def.category == at
         } else {
             // The path and the help both, so "packet" finds `multiplayer/loss`
             // by its sentence when its name does not say it.
@@ -205,15 +210,25 @@ pub fn draw(S) {
     if util::is_nil(hosts) {
         return;
     }
+    // Built again only when what the rows show moved: every definition and
+    // value is behind `settings::revision`.
+    let key = [
+        settings::revision(), query(S), S.settings.at, S.settings.target,
+        stacked, S.touchscreen,
+    ];
     // Narrow, the categories go above the rows rather than beside them: a
     // sidebar and a column of settings leave neither enough room.
-    crate::pool::strip(S, hosts.side + "/SheetSideRows", if stacked { [] } else { side_controls(S, k) });
+    crate::pool::strip_when(S, hosts.side_rows, key, || {
+        if stacked { [] } else { side_controls(S, k) }
+    });
     util::fill(hosts.side, #{ visible: !stacked });
-    let specs = form_specs(S, k);
-    if stacked {
-        specs.insert(0, picker_spec(S));
-    }
-    crate::pool::sync(S, hosts.form, specs, label_w(S), stacked);
+    crate::pool::sync_when(S, hosts.form, key, label_w(S), stacked, || {
+        let specs = form_specs(S, k);
+        if stacked {
+            specs.insert(0, picker_spec(S));
+        }
+        specs
+    });
 }
 
 
@@ -253,10 +268,12 @@ fn save_button(S, k) {
 fn side_controls(S, k) {
     let out = [crate::search::control(S, FIELD, "Search", SIDEBAR_W)];
     let scope = "";
+    let at = current(S);
+    let scopes = scopes();
     for name in categories() {
         // Bound afresh: a closure made in a loop captures the binding.
         let category = name;
-        let here = scope_of(category);
+        let here = scopes.get(category).unwrap_or("project");
         if here != scope {
             scope = here;
             out.push(#{
@@ -264,7 +281,7 @@ fn side_controls(S, k) {
                 text: if scope == "project" { "PROJECT" } else { "THIS EDITOR" },
             });
         }
-        let on = query(S) == "" && category == current(S);
+        let on = query(S) == "" && category == at;
         out.push(#{
             kind: "button", text: category,
             role: "item_sidebar", checked: on,

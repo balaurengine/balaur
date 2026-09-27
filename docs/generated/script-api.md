@@ -45,7 +45,7 @@ cannot drift from what scripts actually see.
 | [`save`](#save) | 6 | 0 | the engine |
 | [`scene`](#scene) | 22 | 0 | the engine |
 | [`script`](#script) | 19 | 0 | the engine |
-| [`settings`](#settings) | 11 | 0 | the engine |
+| [`settings`](#settings) | 12 | 0 | the engine |
 | [`skeleton`](#skeleton) | 3 | 0 | the engine |
 | [`strings`](#strings) | 6 | 0 | the engine |
 | [`task`](#task) | 3 | 0 | the engine |
@@ -481,7 +481,7 @@ cannot drift from what scripts actually see.
 
 ## `settings`
 
-**Functions:** `all`, `base`, `clear`, `define`, `get`, `known_tags`, `merge_toml`, `overrides`, `set`, `tags`, `to_toml`
+**Functions:** `all`, `base`, `clear`, `define`, `get`, `known_tags`, `merge_toml`, `overrides`, `revision`, `set`, `tags`, `to_toml`
 
 ## `skeleton`
 

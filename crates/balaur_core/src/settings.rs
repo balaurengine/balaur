@@ -96,6 +96,24 @@ pub struct SettingsRegistry(pub Vec<SettingDef>);
 #[derive(Default)]
 pub struct SettingsValues(pub toml::value::Table);
 
+/// How many times a setting was defined, set, cleared or loaded.
+#[derive(Default)]
+pub struct SettingsRevision(pub u64);
+
+fn moved(eng: &Engine) {
+    if let Some(revision) = eng.try_resource::<SettingsRevision>() {
+        revision.borrow_mut().0 += 1;
+    }
+}
+
+/// A count that moves with every change to what is defined or held, so a
+/// screen listing settings rebuilds its rows when it moves, not every frame.
+#[must_use]
+pub fn revision(eng: &Engine) -> u64 {
+    eng.try_resource::<SettingsRevision>()
+        .map_or(0, |revision| revision.borrow().0)
+}
+
 pub fn define(eng: &Engine, def: SettingDef) {
     if let Some(registry) = eng.try_resource::<SettingsRegistry>() {
         let mut registry = registry.borrow_mut();
@@ -107,6 +125,7 @@ pub fn define(eng: &Engine, def: SettingDef) {
             registry.0.push(def);
         }
     }
+    moved(eng);
 }
 
 /// Define a group at once: every key in `schema` becomes `<prefix>/<key>`.
@@ -243,8 +262,8 @@ pub fn set(eng: &Engine, path: &str, value: toml::Value) {
     let Some((tables, key)) = split(path) else {
         return;
     };
-    let mut values = values.borrow_mut();
-    table_at(&mut values.0, &tables).insert(key.to_string(), value);
+    table_at(&mut values.borrow_mut().0, &tables).insert(key.to_string(), value);
+    moved(eng);
 }
 
 /// The table `tables` names under `root`, made on the way down; a value
@@ -272,6 +291,7 @@ pub fn load(eng: &Engine, text: &str) -> Result<()> {
     if let Some(values) = eng.try_resource::<SettingsValues>() {
         merge(&mut values.borrow_mut().0, parsed);
     }
+    moved(eng);
     Ok(())
 }
 
@@ -426,8 +446,8 @@ pub fn clear(eng: &Engine, path: &str) {
     let Some((tables, key)) = split(path) else {
         return;
     };
-    let mut values = values.borrow_mut();
-    table_at(&mut values.0, &tables).remove(key);
+    table_at(&mut values.borrow_mut().0, &tables).remove(key);
+    moved(eng);
 }
 
 /// The text one scope's settings would write, starting from `existing` so

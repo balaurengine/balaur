@@ -115,6 +115,12 @@ pub fn sheet_form(S, id, title, actions) {
     if !showing(S, id) {
         return ();
     }
+    // Every sheet fills the same hosts, so what another one drew last is not
+    // this one's: a fill keyed on its inputs writes its own rows again.
+    if S.window.drawn != id {
+        S.pool_keys.remove(SIDE_ROWS);
+        S.pool_keys.remove(FORM);
+    }
     if shut_outside(S, id) {
         hide(S);
         return ();
@@ -127,12 +133,13 @@ pub fn sheet_form(S, id, title, actions) {
     util::fill(SHEET + "/SheetBody/SheetSplit", #{ visible: true });
     // Shut by the asking: a screen with no sidebar leaves it alone, and one
     // that fills it shows it. Hidden, the rows beside it take the whole sheet.
-    util::hide(SHEET + "/SheetBody/SheetSplit/SheetSide");
-    #{
-        side: SHEET + "/SheetBody/SheetSplit/SheetSide",
-        form: SHEET + "/SheetBody/SheetSplit/SheetScroll/SheetForm",
-    }
+    util::hide(SIDE);
+    #{ side: SIDE, side_rows: SIDE_ROWS, form: FORM }
 }
+
+const SIDE = "Editor/Sheet/SheetBody/SheetSplit/SheetSide";
+const SIDE_ROWS = "Editor/Sheet/SheetBody/SheetSplit/SheetSide/SheetSideRows";
+const FORM = "Editor/Sheet/SheetBody/SheetSplit/SheetScroll/SheetForm";
 
 // A query and what it matches, over everything: the command palette and the
 // node picker take turns on it, since only one of them is ever up.

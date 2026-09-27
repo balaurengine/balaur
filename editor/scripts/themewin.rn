@@ -87,7 +87,7 @@ pub fn draw(S) {
     if util::is_nil(hosts) {
         return;
     }
-    crate::pool::strip(S, hosts.side + "/SheetSideRows", if stacked { [] } else { side_controls(S) });
+    crate::pool::strip(S, hosts.side_rows, if stacked { [] } else { side_controls(S) });
     util::fill(hosts.side, #{ visible: !stacked });
     let specs = form_specs(S);
     if stacked {

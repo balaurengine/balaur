@@ -12319,6 +12319,7 @@
         "known_tags": "Every tag a project may write an override for: the engine's, then the project's own from `[export] tags`.",
         "merge_toml": "Read values out of a TOML text, folding them onto what is already loaded.",
         "overrides": "The tags this project holds an override for at `path`, in tag order.",
+        "revision": "A count that moves whenever a setting is defined, set, cleared or loaded: a screen listing settings rebuilds its rows when it moves, not every frame.",
         "set": "Change one setting, in memory. Whether it takes effect now or on the next run is the setting's own business; `all` reports it as `applies`.",
         "tags": "The names this run answers to, broad to narrow: the kind of machine, the operating system, the architecture, the build.",
         "to_toml": "The text one scope would write, starting from `existing` so anything no setting describes survives. Scope is \"project\" or \"editor\"."
@@ -12332,6 +12333,7 @@
         "known_tags",
         "merge_toml",
         "overrides",
+        "revision",
         "set",
         "tags",
         "to_toml"
@@ -12346,6 +12348,7 @@
         "known_tags": "() -> Value",
         "merge_toml": "String -> Value",
         "overrides": "String -> Value",
+        "revision": "() -> Value",
         "set": "(String, Value) -> Value",
         "tags": "() -> Value",
         "to_toml": "(String, String) -> Value"

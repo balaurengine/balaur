@@ -57,6 +57,38 @@ fn a_nested_path_reads_and_writes_where_it_says() {
 }
 
 #[test]
+fn the_revision_moves_with_every_change_and_holds_still_between() {
+    let app = app();
+    let eng = &app.engine;
+    let at = |before: &mut u64| {
+        let now = settings::revision(eng);
+        let moved = now != *before;
+        *before = now;
+        moved
+    };
+    let mut seen = settings::revision(eng);
+    assert!(!at(&mut seen), "reading moves nothing");
+    settings::set(eng, "physics/gravity", toml::Value::Float(-3.0));
+    assert!(at(&mut seen), "a set moves it");
+    settings::clear(eng, "physics/gravity");
+    assert!(at(&mut seen), "a clear moves it");
+    settings::load(eng, "[physics]\ngravity = -5.0\n").unwrap();
+    assert!(at(&mut seen), "a load moves it");
+    settings::define(
+        eng,
+        SettingDef {
+            path: "game/lives".into(),
+            scope: Scope::Project,
+            spec: toml::toml! { type = "int" default = 3 }.into(),
+        },
+    );
+    assert!(at(&mut seen), "a definition moves it");
+    let _ = settings::get(eng, "game/lives");
+    let _ = settings::to_toml(eng, Scope::Project, "").unwrap();
+    assert!(!at(&mut seen), "and reading or writing the text does not");
+}
+
+#[test]
 fn a_setting_falls_back_to_its_schema_default() {
     let app = app();
     assert_eq!(
