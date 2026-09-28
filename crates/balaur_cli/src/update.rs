@@ -294,9 +294,9 @@ mod imp {
         let exe = std::env::current_exe().ok()?;
         let install = exe.parent()?;
         // The archive has the layout of a plain download, not a bundle's, and
-        // the ticket stapled to the .dmg covers what it would replace.
+        // the ticket stapled to the app covers what it would replace.
         if install.ends_with("Contents/MacOS") {
-            return Some("Balaur.app updates by downloading the new .dmg, not in place".into());
+            return Some("Balaur.app updates by downloading the new app, not in place".into());
         }
         // A release unpacked over cargo's output buries what the build wrote.
         // No path: the line lands in screenshots, and the folder is the reader's.
@@ -310,7 +310,7 @@ mod imp {
         None
     }
 
-    /// Where a held macOS bundle gets a release instead: its .dmg. Empty
+    /// Where a held macOS bundle gets a release instead: its zipped app. Empty
     /// anywhere an install replaces itself.
     pub(crate) fn download_url(tag: &str) -> String {
         let bundled = std::env::current_exe()
@@ -318,7 +318,7 @@ mod imp {
             .and_then(|exe| exe.parent().map(|dir| dir.ends_with("Contents/MacOS")))
             .unwrap_or(false);
         if bundled {
-            format!("{RELEASE_BASE}/download/{tag}/balaur-editor-macos-universal.dmg")
+            format!("{RELEASE_BASE}/download/{tag}/balaur-editor-macos-universal.zip")
         } else {
             String::new()
         }

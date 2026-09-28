@@ -130,10 +130,10 @@ balaur update --channel stable    # back to the stable line
 ```
 
 Two installs are refused rather than replaced: `Balaur.app`, whose notarised
-ticket belongs to the .dmg it shipped in, and a cargo target directory, which
-is a build tree a release would bury. The editor's Engine tab and About sheet
-are the same code. They say which it is before offering a press, and a bundle
-gets the release's .dmg instead.
+ticket is stapled to the bundle it shipped as, and a cargo target directory,
+which is a build tree a release would bury. The editor's Engine tab and About
+sheet are the same code. They say which it is before offering a press, and a
+bundle gets the release's zipped app instead.
 
 Discovery reuses what `nightly` already does rather than asking the API: each
 channel has a rolling tag pointed at the newest release on that line, so an

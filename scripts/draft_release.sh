@@ -85,7 +85,7 @@ fi
 
 notes=$(
   cat <<'EOF'
-- `balaur-editor-macos-universal.dmg` — `Balaur.app`, signed and notarized
+- `balaur-editor-macos-universal.zip` — `Balaur.app`, signed and notarized
 - `balaur-editor-<platform>` — the editor, as an archive
 - `balaur-runtime-<platform>` — one desktop runtime
 - `balaur-runtime-ios` / `-android` / `-web.tar.gz` — mobile and web runtimes

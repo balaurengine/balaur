@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Wrap the macOS build as Balaur.app inside a signed, notarized .dmg.
+# Wrap the macOS build as Balaur.app, signed and notarized, zipped to download.
 #
-# A ticket staples to a .app, .dmg or .pkg and never to a tarball, so the .dmg
-# is the download that opens offline without a warning. Signs when
-# MACOS_CERTIFICATE_BASE64 is set, notarizes when APPLE_ID is too, and with
-# neither builds the same shape unsigned, as a fork's pull request does.
+# The ticket staples to the .app itself, so it opens offline without a warning;
+# the zip is only how a folder travels, and Finder and Safari unpack it. Signs
+# when MACOS_CERTIFICATE_BASE64 is set, notarizes when APPLE_ID is too, and
+# with neither builds the same shape unsigned, as a fork's pull request does.
 #
 # Usage: macos_bundle.sh <dist-dir> <universal-binary>
 set -euo pipefail
@@ -15,7 +15,7 @@ bin=${2:?usage: macos_bundle.sh <dist-dir> <binary>}
 [ "$(uname -s)" = Darwin ] || { printf '::error::macos_bundle.sh needs macOS\n'; exit 1; }
 
 app="$dist/Balaur.app"
-dmg="$dist/balaur-editor-macos-universal.dmg"
+zip="$dist/balaur-editor-macos-universal.zip"
 identity=${MACOS_SIGN_IDENTITY:-}
 keychain=
 version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
@@ -35,14 +35,14 @@ cp README.md LICENSE "$app/Contents/Resources/"
 cp crates/balaur_plugin/include/balaur_extension.h "$app/Contents/Resources/include/"
 cp "$bin" "$app/Contents/Resources/runtimes/balaur-runtime-macos-universal"
 
-# The same image the editor sets as its dock icon at run time, so the one in
-# the Finder and the one in the dock cannot disagree.
+# The mark on the dark plate the running dock draws (scripts/app_icon.py), so
+# the Finder and the dock show one icon.
 iconset=$dist/.Balaur.iconset
 rm -rf "$iconset" && mkdir -p "$iconset"
 for size in 16 32 128 256 512; do
-  sips -z "$size" "$size" editor/assets/balaur-logo.png \
+  sips -z "$size" "$size" editor/assets/balaur-app-icon.png \
     --out "$iconset/icon_${size}x${size}.png" >/dev/null
-  sips -z "$((size * 2))" "$((size * 2))" editor/assets/balaur-logo.png \
+  sips -z "$((size * 2))" "$((size * 2))" editor/assets/balaur-app-icon.png \
     --out "$iconset/icon_${size}x${size}@2x.png" >/dev/null
 done
 iconutil -c icns "$iconset" -o "$app/Contents/Resources/Balaur.icns"
@@ -120,36 +120,35 @@ else
   printf 'no identity: Balaur.app is unsigned\n'
 fi
 
-step "build the disk image"
-staging=$dist/.dmg
-rm -rf "$staging" "$dmg" && mkdir -p "$staging"
-cp -R "$app" "$staging/"
-ln -s /Applications "$staging/Applications"
-hdiutil create -volname Balaur -srcfolder "$staging" -ov -format UDZO "$dmg" >/dev/null
-rm -rf "$staging"
+# ditto rather than zip: it keeps the bundle's symlinks, extended attributes and
+# signature, where zip would break the seal.
+pack() {
+  rm -f "$zip"
+  ditto -c -k --keepParent "$app" "$zip"
+}
 
-if [ -n "$identity" ]; then
-  codesign --force --sign "$identity" --timestamp ${from[@]+"${from[@]}"} "$dmg"
-fi
+step "zip Balaur.app"
+pack
 
 if [ -n "$identity" ] && [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_APP_PASSWORD:-}" ]; then
   step "notarize"
-  printf 'submitting %s — Apple decides how long this takes\n' "$dmg"
-  xcrun notarytool submit "$dmg" \
+  printf 'submitting %s — Apple decides how long this takes\n' "$zip"
+  xcrun notarytool submit "$zip" \
     --apple-id "$APPLE_ID" \
     --password "$APPLE_APP_PASSWORD" \
     --team-id "${APPLE_TEAM_ID:?notarizing needs APPLE_TEAM_ID}" \
     --wait --timeout 45m
-  xcrun stapler staple "$dmg"
+  # A zip holds no ticket, so it goes on the app and the app is zipped again.
+  xcrun stapler staple "$app"
+  pack
   # What Gatekeeper itself says, which is the only claim that matters here.
-  spctl --assess --type open --context context:primary-signature -v "$dmg"
+  spctl --assess --type execute -v "$app"
 else
   printf 'not notarized: the download will warn on first launch\n'
 fi
 
-# The disk image is the artifact; the bundle inside it was the staging for it,
-# and uploading both would double a 100MB download.
+# The zip is the artifact; the bundle was the staging for it.
 rm -rf "$app"
 
 step "done"
-ls -l "$dmg"
+ls -l "$zip"

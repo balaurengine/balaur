@@ -757,8 +757,8 @@ fn release_list(S, k, col, tall, mine) {
 }
 
 /// What a release row offers: nothing on the one installed or while another
-/// installs, the .dmg where this install cannot replace itself, and otherwise
-/// the install, named for which way it goes.
+/// installs, the zipped app where this install cannot replace itself, and
+/// otherwise the install, named for which way it goes.
 pub fn row_press(S, k, h, row, mine) {
     if row.get("current").unwrap_or(false) == true {
         ui::label("installed", style::mono_sm(k.text_subtle));
