@@ -131,8 +131,8 @@ else
 fi
 rm -rf "$bundle"
 
-# The Mac download people click is a bundle in a disk image, because that is
-# the only shape a notarization ticket staples to. The tarball stays for CI.
+# The Mac download people click is Balaur.app, zipped, because a bundle is what
+# a notarization ticket staples to. The tarball stays for CI and self-update.
 if [ "$target" = macos-universal ]; then
   ./scripts/macos_bundle.sh "$dist" "$bin"
 fi

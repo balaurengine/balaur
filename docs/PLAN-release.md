@@ -6,7 +6,7 @@
 > Download and Releases pages read the release list (2026-09-10).
 >
 > **Signing runs in CI and has shipped a release.** The `v0.1.0` build on
-> 2026-09-09 signed and notarized the macOS `.dmg` (`status: Accepted`, the
+> 2026-09-09 signed and notarized the macOS build (`status: Accepted`, the
 > ticket stapled) and signed the Windows x64 and arm64 editors through Trusted
 > Signing, with `signing_check.sh` proving the export path on every target
 > first. What is left in this plan is the Linux AppImage and Windows signing
@@ -20,11 +20,12 @@ What "released" means here: a download per platform from the website that
 opens without a warning and updates itself.
 
 1. **macOS.** Built and shipped. `scripts/macos_bundle.sh` stages
-   `Balaur.app`, signs it with the Developer ID a secret carries, wraps it in
-   a `.dmg`, notarizes and staples that. A tarball cannot hold a ticket and
-   an unstapled build still asks Apple on first launch, which is why the
-   `.dmg` is the download and the tarball stays beside it. The Hardened Runtime is on; Rune is an
-   interpreter, so no JIT entitlement is needed.
+   `Balaur.app`, signs it with the Developer ID a secret carries, notarizes
+   it, staples the ticket to the app and zips it with `ditto`. A tarball
+   cannot hold a ticket and an unstapled build still asks Apple on first
+   launch, which is why the zipped app is the download and the tarball stays
+   beside it. The Hardened Runtime is on; Rune is an interpreter, so no JIT
+   entitlement is needed.
 2. **Windows.** Built and shipped. `scripts/windows_sign.sh` signs the editor
    and both copies of the runtime template before the zip is made, through
    Artifact Signing or a `.pfx`, and signs nothing when neither is configured. An OV certificate's key cannot be a file since 2023, so

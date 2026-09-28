@@ -131,7 +131,7 @@ screen, so the second build is three tabs of one centred column.
   whether it is current; `Follow` picks the channel; the list under it is that
   channel's releases, newest first, with the installed one marked. Each row's
   press says which way it goes: `Install` or `Downgrade`, or `Download` for the
-  .dmg where the install is a macOS bundle. The feed is one read when the tab
+  zipped app where the install is a macOS bundle. The feed is one read when the tab
   opens, plus one `VERSION` read for the nightly, the only rolling tag listed.
 
 ## 7b. The engine's own versions
@@ -152,7 +152,7 @@ engine opens a project is the same decision as which project to open.
   `--allow-downgrade`, which is the difference between typing a flag and
   pressing a row.
 - **An install that cannot replace itself says so first.** `installed().held`
-  names why: a macOS bundle, whose rows offer the release's .dmg instead, or a
+  names why: a macOS bundle, whose rows offer the release's zipped app instead, or a
   cargo target directory, which offers nothing.
 - **An install shows its bytes.** `downloading` reports each megabyte, then
   `unpacking`, then `installed`. Opening a project waits for it, because
