@@ -508,6 +508,26 @@ fn play_pack(pack: &Path, frames: Option<u64>) -> Result<()> {
     balaur::run(app, &title)
 }
 
+/// A frame budget as a quit-after-N system, so it works the same in every
+/// loop: windowed, offscreen, or headless. `shot` is asked for a frame before
+/// the quit, so the backend has one more frame to render and write it.
+fn add_frame_budget(app: &mut App, frames: u64, shot: Option<PathBuf>) {
+    let mut count = 0u64;
+    app.add_system(balaur::Stage::Last, move |eng, _| {
+        count += 1;
+        if let Some(path) = shot.as_ref().filter(|_| count + 1 == frames) {
+            balaur::render::request_screenshot(eng, path.clone());
+        }
+        if count >= frames {
+            eng.request_quit();
+        } else {
+            // A budget is frames to draw: under `[window] low_processor`
+            // nothing else asks for them, and the run would never end.
+            balaur_core::wake::wake();
+        }
+    });
+}
+
 /// Frames a standalone game should run before quitting, from `BALAUR_FRAMES`.
 fn frame_budget() -> Option<u64> {
     std::env::var("BALAUR_FRAMES").ok()?.parse().ok()
@@ -587,6 +607,10 @@ struct EditOpts {
     /// Stop after N frames (smoke tests).
     #[arg(long)]
     frames: Option<u64>,
+    /// Save a PNG of the editor on the frame before `--frames` ends it, once
+    /// every start-up state has had the run to settle.
+    #[arg(long, value_name = "PATH", requires = "frames")]
+    shot: Option<PathBuf>,
     /// Render the editor to a hidden window: real GPU, no OS window.
     /// What a visual CI job wants, and the only way to capture the
     /// editor without one popping up.
@@ -803,27 +827,8 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         exit_with(engine.exit_code());
         return Ok(());
     }
-    // Windowed, offscreen, or the headless fallback when built without the
-    // window feature: a frame budget becomes a quit-after-N system, so it
-    // works the same in every loop.
     if let Some(frames) = frames {
-        let mut count = 0u64;
-        // The picture is asked for a frame before the quit, so the backend
-        // has one more frame to render and write it.
-        let shot = shot.clone();
-        app.add_system(balaur::Stage::Last, move |eng, _| {
-            count += 1;
-            if let Some(path) = shot.as_ref().filter(|_| count + 1 == frames) {
-                balaur::render::request_screenshot(eng, path.clone());
-            }
-            if count >= frames {
-                eng.request_quit();
-            } else {
-                // A budget is frames to draw: under `[window] low_processor`
-                // nothing else asks for them, and the run would never end.
-                balaur_core::wake::wake();
-            }
-        });
+        add_frame_budget(&mut app, frames, shot.clone());
     }
     let ran = if display == Display::Offscreen {
         // The game's own window size, so a shot is framed as a player sees it:
@@ -911,6 +916,7 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
         path,
         editor,
         frames,
+        shot,
         offscreen,
         state,
         size,
@@ -990,17 +996,7 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
         declare_game_input(&app, &game);
     }
     if let Some(frames) = *frames {
-        let mut count = 0u64;
-        app.add_system(balaur::Stage::Last, move |eng, _| {
-            count += 1;
-            if count >= frames {
-                eng.request_quit();
-            } else {
-                // The editor sleeps under `[window] low_processor`; the budget
-                // asks for each frame it counts.
-                balaur_core::wake::wake();
-            }
-        });
+        add_frame_budget(&mut app, frames, shot.clone());
     }
     // With no window nothing calls the shell's `draw_ui`: a pass on no screen
     // does, so a headless editor is the one a window shows.

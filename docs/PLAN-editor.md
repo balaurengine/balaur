@@ -14,18 +14,13 @@ ARCHITECTURE.md and the website roadmap already use.
 
 ## 2. What the language would do better
 
-**Async for sequences that span frames.** Four places hold a state machine
+**Async for sequences that span frames.** Three places hold a state machine
 in `S` to do something "next frame" or "after N frames": `anim_rebind`,
-`shot` at frame 60, `breakpoint`'s alternation, `polygon::idle`'s backdrop.
+`breakpoint`'s alternation, `polygon::idle`'s backdrop.
 Each is a flag, a check in `update`, and a reset. As `pub async fn` they
 read as what they are:
 
 ```rune
-pub async fn shot(this, path) {
-    task::frames(60).await;
-    render::screenshot(path);
-}
-
 pub async fn break_demo(this) {
     loop {
         let p = task::paused().await;

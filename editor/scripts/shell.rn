@@ -798,7 +798,6 @@ fn prefixed_states() {
         ("theme:", state_theme),
         ("wear:", state_wear),
         ("override:", state_override),
-        ("shot:", state_shot),
         ("frames:", state_frames),
         ("show:", state_show),
         ("tool:", state_tool),
@@ -896,17 +895,11 @@ pub fn apply_start_state(S, start) {
     }
 }
 
-// Screenshot the shell once the first frames have laid it out, for a visual
-// check of an editor state a headless run cannot show.
-fn state_shot(S, path) {
-    S.shot = Some(path);
-}
-
 /// `view:<panel>` brings one panel up and reports the rect it was drawn in,
 /// so a design pass can cut it out of the shot and look at it on its own.
 ///
 /// The rect is logged rather than cropped here: the renderer saves whole
-/// frames, and one line a run is all a script needs to cut them up.
+/// frames, and the last line a run logs is all a script needs to cut them up.
 fn state_view(S, id) {
     crate::docks::show(S, id);
     S.view_shot = id;
@@ -1032,14 +1025,12 @@ fn state_import(S, path) {
     crate::dropin::take(S, path);
 }
 
-// `imports:<path>;<path>`: several imports, one a frame from `IMPORTS_FROM`,
-// so a picture taken at frame 60 has the list of all of them.
-const IMPORTS_FROM = 57;
-
+// `imports:<path>;<path>`: several imports, one a frame once the shell has
+// formed, so a picture has the list of all of them.
 fn state_imports(S, list) {
     crate::docks::show(S, "assets");
     S.import_queue = list.split(';').collect::<Vec>();
-    S.import_from = IMPORTS_FROM;
+    S.import_drip = true;
 }
 
 // `convert:<folder>`: the start screen converting a project as Import project

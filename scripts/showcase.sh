@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Regenerate every image and clip the site's manual shows, into the checkout
-# of forge that serves balaurengine.org. The editor is driven offscreen by
-# `--state`: `shot:` takes one PNG, `show:<name>` runs a scripted sequence and
-# `frames=` captures it every other frame; ffmpeg turns the frame directory
-# into a .webm and an .mp4 with the first frame as poster. Needs a GPU and ffmpeg.
+# of forge that serves balaurengine.org. The editor runs offscreen: `--shot`
+# takes one PNG on the budget's last frame, `show:<name>` runs a scripted
+# sequence and `frames=` captures it every other frame; ffmpeg turns the frame
+# directory into a .webm and an .mp4 with the first frame as poster. Needs a GPU and ffmpeg.
 #   scripts/showcase.sh [--milestone 0.2] [forge-dir] [name...]
 # Then `mix forge.site.images` in forge writes the WebP each page shows and
 # the clips' posters.
@@ -149,7 +149,7 @@ shot() { # shot <name> <project> <state>
   wanted "$1" || return 0
   printf '%-22s image  ' "$1"
   rm -f "$work/$1.png"
-  balaur edit "$2" --offscreen --frames 100 --state "$3,shot:$PWD/$work/$1.png" >"$work/$1.log" 2>&1 || true
+  balaur edit "$2" --offscreen --frames 100 --state "$3" --shot "$PWD/$work/$1.png" >"$work/$1.log" 2>&1 || true
   reset_examples
   [ -f "$work/$1.png" ] || { failed "$1"; return 0; }
   cp "$work/$1.png" "$img/$1.png"
@@ -340,8 +340,8 @@ shot editor_overview   examples/angrynerds "scene,select:Bird,dock:output,zoom:4
 # take needs one to boot; the state puts the manager over it either way.
 shot project_manager   examples/hello      "manager"
 shot project_examples  examples/hello      "examples"
-# These two read the release feed, and the shot is frame 60: on a slow
-# connection the picture says `checking`, so look before publishing it.
+# These two read the release feed, and the shot is the budget's last frame:
+# on a slow connection the picture says `checking`, so look before publishing.
 shot engine_versions   examples/hello      "versions"
 shot about_balaur      examples/hello      "about"
 # A screen made only of widget nodes: the card grid, the controls and the

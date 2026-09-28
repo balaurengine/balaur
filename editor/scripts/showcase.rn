@@ -487,7 +487,7 @@ fn importing(S, q) {
         shell::set_workspace(S, defs::WORKSPACE_SCENE);
         crate::docks::show(S, "assets");
         // The queue's own drip is off; the pointer takes one file per beat.
-        S.import_from = 1000000;
+        S.import_drip = false;
     });
     drop_file(S, q, 70, 0.34, 0.44);
     drop_file(S, q, 190, 0.56, 0.34);

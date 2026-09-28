@@ -27,7 +27,7 @@ shot() { # shot <name> <project> <state>
   printf '%-24s ' "$1"
   rm -f "$out/$1.png"
   "$BALAUR_BIN" edit "$2" --editor "$editor" --offscreen --frames 110 \
-    --state "$3,shot:$out/$1.png" >"$out/$1.log" 2>&1
+    --state "$3" --shot "$out/$1.png" >"$out/$1.log" 2>&1
   if [ -f "$out/$1.png" ]; then echo ok; else echo FAILED; failed+=("$1"); fi
 }
 
@@ -43,7 +43,7 @@ sized() {
   printf '%-24s ' "$1"
   rm -f "$out/$1.png"
   "$BALAUR_BIN" edit "$2" --editor "$editor" --offscreen --frames 110 \
-    --size "$3" ${5:-} --state "$4,shot:$out/$1.png" >"$out/$1.log" 2>&1
+    --size "$3" ${5:-} --state "$4" --shot "$out/$1.png" >"$out/$1.log" 2>&1
   if [ -f "$out/$1.png" ]; then echo ok; else echo FAILED; failed+=("$1"); fi
 }
 

@@ -133,8 +133,8 @@ pub fn fresh_state() {
         opened: #{},
         script_dirty: #{},
         collapsed: #{},
-        // The panel `view:<id>` asked for, reported once the shot is taken.
-        view_shot: "",
+        // The panel `view:<id>` asked for, and the rect last logged for it.
+        view_shot: "", view_logged: "",
         // Where the code pane is asked to scroll to, in design px; below zero
         // leaves it where the reader left it, and one frame is all it takes.
         code_scroll: -1.0,
@@ -188,7 +188,6 @@ pub fn fresh_state() {
         gesture_demo: -1,
         gesture_from: [],
         frame: 0,
-        shot: None,
         // `frames=<dir>`: a PNG every `every` frames from `from`, numbered.
         capture: (),
         show_input: false,
@@ -285,7 +284,7 @@ pub fn fresh_state() {
         jobs: #{},
         // What `imports:` still has to start, and the frame it starts on.
         import_queue: [],
-        import_from: 0,
+        import_drip: false,
         session: session::state(),
         settings: settings::state(),
         themewin: themewin::state(),
@@ -329,7 +328,7 @@ pub fn init(this) {
     log::info(format!("editing {} ({} nodes)", S.game_name, S.doc.len()));
 
     // Optional start-up states, comma-separated (workspace id, "palette",
-    // "light", "play", "select:<node>", "shot:<png path>"), applied in order.
+    // "light", "play", "select:<node>"), applied in order.
     // Applied on the first frame, after the screen's class has folded the docks.
     S.start_states = engine::args().get(1).unwrap_or("");
 }
@@ -386,13 +385,6 @@ pub fn update(this, dt) {
             ui::set_load_progress(util::clamp(0.4 + 0.06 * util::f(S.frame), 0.0, 0.95), "");
         }
     }
-    let shot_some = S.shot;
-    if let Some(shot) = shot_some {
-        if S.frame == 60 {
-            render::screenshot(shot);
-            report_view(S);
-        }
-    }
     // Above the start screen's own return: a clip of a project converting is
     // taken on that screen, and it has no other frame to be caught on.
     let cap = S.capture;
@@ -406,8 +398,8 @@ pub fn update(this, dt) {
     let (surface_w, surface_h) = ui::window_size();
     ui::set_widget_surface("shell", true, 0.0, 0.0, surface_w, surface_h);
     // The start screen has no scene to step, no selection to follow and no
-    // gizmo to drag: what it needs from a frame is the shot, the states and
-    // the showcase, whose sequence turns this screen's own pages.
+    // gizmo to drag: what it needs from a frame is the states and the
+    // showcase, whose sequence turns this screen's own pages.
     if manager::showing(S) {
         showcase::step(S);
         apply_start_states(S);
@@ -415,7 +407,7 @@ pub fn update(this, dt) {
             selftest::start_screen_step(S);
         }
         // An install or a conversion reports as events, which wake the loop.
-        let moving = !S.formed || S.showcase is Object || S.capture is Object || shot_pending(S);
+        let moving = !S.formed || S.showcase is Object || S.capture is Object;
         if moving {
             ui::request_repaint();
         }
@@ -470,8 +462,9 @@ pub fn update(this, dt) {
     if S.convert_demo is Object {
         selftest::convert_step(S);
     }
-    // One queued import a frame, so a shot catches several at once.
-    if !S.import_queue.is_empty() && S.frame >= S.import_from {
+    // One queued import a frame once the shell has formed, so a shot catches
+    // several at once.
+    if S.import_drip && S.formed && !S.import_queue.is_empty() {
         let next = S.import_queue.remove(0);
         dropin::take(S, next);
     }
@@ -577,10 +570,9 @@ pub fn update(this, dt) {
         }
     }
     // What moves without input asks for the next frame; under `[window]
-    // low_processor` nothing else draws one. The splash, a queued import and
-    // a `shot:` count frames, so they ask too.
-    let telling = !S.jobs.is_empty() || !S.import_queue.is_empty() || !S.formed
-        || shot_pending(S);
+    // low_processor` nothing else draws one. The splash and a queued import
+    // count frames, so they ask too.
+    let telling = !S.jobs.is_empty() || !S.import_queue.is_empty() || !S.formed;
     if S.playing || S.showcase is Object || session::scrubbing(S) || S.capture is Object
         || S.session.demo is Object || S.layout_demo >= 0 || S.settings.demo >= 0 || S.themewin.demo >= 0 || S.window.demo >= 0
         || S.rows_demo >= 0 || S.machine.demo >= 0 || S.plugin_demo >= 0
@@ -593,12 +585,6 @@ pub fn update(this, dt) {
     if let Some(_) = S.debug.demo {
         ui::request_repaint();
     }
-}
-
-// A `shot:` start state waits for frame 60, which an idle window never draws
-// by itself; a `--frames` budget asks for its own frames.
-fn shot_pending(S) {
-    S.shot.is_some() && S.frame < 60
 }
 
 // The `--state` list, applied once. Read here rather than at `init`, because
@@ -782,6 +768,7 @@ pub fn draw_ui(this) {
     // Nothing below computes a rect of its own.
     center::modes(S);
     layout::compute(S);
+    report_view(S);
     // After the layout: the strip drops columns as the dock narrows, so it
     // cannot be filled until the dock's width is known.
     chrome::top_bar(S);
@@ -835,7 +822,8 @@ pub fn draw_dock_right(this) {
 // One hatch per painting view, so the scene names each rather than four of
 // them sharing the dock's body.
 /// Where the panel `view:<id>` asked for was drawn, in device pixels, so a
-/// design pass can cut it out of the shot.
+/// design pass can cut it out of the shot. Logged each time it moves: the
+/// last line a run logs is the rect `--shot` saw.
 fn report_view(S) {
     if S.view_shot == "" {
         return;
@@ -846,8 +834,12 @@ fn report_view(S) {
     };
     let r = S.layout[side];
     let f = S.ui_scale;
-    log::info(format!("viewrect {} {} {} {} {}", S.view_shot,
-        r.x * f, r.y * f, r.w * f, r.h * f));
+    let line = format!("viewrect {} {} {} {} {}", S.view_shot,
+        r.x * f, r.y * f, r.w * f, r.h * f);
+    if line != S.view_logged {
+        S.view_logged = line;
+        log::info(line);
+    }
 }
 
 pub fn draw_view_timeline(this) {
