@@ -162,6 +162,7 @@ pub fn fresh_state() {
         overlay3d: #{ key: [], lines: [] },
         // The selection set; `S.sel` is its head. Locks are editor state
         // keyed by node id, and isolate hides everything outside the set.
+        sel: 0,
         sels: [0],
         locks: #{},
         // The outliner's component facet: "" is every node.
@@ -258,6 +259,7 @@ pub fn fresh_state() {
         pool_check: (),
         reselect: (),
         empty_note: (),
+        start_check: (),
         // The row the inspector last rebound, so a row that cannot resolve is
         // retried once rather than on every frame it is selected.
         rebound: -1,
@@ -398,13 +400,25 @@ pub fn update(this, dt) {
         render::screenshot(format!("{}/{}.png", cap.dir, padded(cap.n)));
         cap.n = cap.n + 1;
     }
+    // The window, never `S.screen_w`: that is the shell's own solved rect, and
+    // a surface taken from it shrinks the shell it sizes. The start screen is
+    // a root on this surface too, so it is sized before that screen returns.
+    let (surface_w, surface_h) = ui::window_size();
+    ui::set_widget_surface("shell", true, 0.0, 0.0, surface_w, surface_h);
     // The start screen has no scene to step, no selection to follow and no
     // gizmo to drag: what it needs from a frame is the shot, the states and
     // the showcase, whose sequence turns this screen's own pages.
     if manager::showing(S) {
         showcase::step(S);
         apply_start_states(S);
-        ui::request_repaint();
+        if S.start_check is Object {
+            selftest::start_screen_step(S);
+        }
+        // An install or a conversion reports as events, which wake the loop.
+        let moving = !S.formed || S.showcase is Object || S.capture is Object || shot_pending(S);
+        if moving {
+            ui::request_repaint();
+        }
         return;
     }
     let paused = debugger::stop_location();
@@ -531,10 +545,6 @@ pub fn update(this, dt) {
     // HUD label sits above the editor's chrome instead of under it.
     let band = if widgets_on { center::hud_h(S) + 6.0 } else { 0.0 };
     ui::set_widget_layer(widgets_on, rect.x, rect.y, rect.w, util::max(0.0, rect.h - band));
-    // The window, never `S.screen_w`: that is the shell's own solved rect, and
-    // a surface taken from it shrinks the shell it sizes, frame by frame.
-    let (surface_w, surface_h) = ui::window_size();
-    ui::set_widget_surface("shell", true, 0.0, 0.0, surface_w, surface_h);
     if S.tool == "key" && S.workspace == defs::WORKSPACE_ANIMATION && input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
         anim::add_key(S, S.anim.time);
     }
@@ -568,9 +578,9 @@ pub fn update(this, dt) {
     }
     // What moves without input asks for the next frame; under `[window]
     // low_processor` nothing else draws one. The splash, a queued import and
-    // a `--state` run count frames, so they ask too.
+    // a `shot:` count frames, so they ask too.
     let telling = !S.jobs.is_empty() || !S.import_queue.is_empty() || !S.formed
-        || S.start_states != "";
+        || shot_pending(S);
     if S.playing || S.showcase is Object || session::scrubbing(S) || S.capture is Object
         || S.session.demo is Object || S.layout_demo >= 0 || S.settings.demo >= 0 || S.themewin.demo >= 0 || S.window.demo >= 0
         || S.rows_demo >= 0 || S.machine.demo >= 0 || S.plugin_demo >= 0
@@ -583,6 +593,12 @@ pub fn update(this, dt) {
     if let Some(_) = S.debug.demo {
         ui::request_repaint();
     }
+}
+
+// A `shot:` start state waits for frame 60, which an idle window never draws
+// by itself; a `--frames` budget asks for its own frames.
+fn shot_pending(S) {
+    S.shot.is_some() && S.frame < 60
 }
 
 // The `--state` list, applied once. Read here rather than at `init`, because
@@ -754,12 +770,14 @@ pub fn draw_ui(this) {
     // The start screen has the window to itself: no project is open, so there
     // is no scene to draw behind it and no dock to put over it.
     if manager::showing(S) {
+        manager::cover(S, true);
         manager::draw(S, S.theme);
         if S.show_input {
             inputview::draw(S);
         }
         return;
     }
+    manager::cover(S, false);
     // Stage: decide what is showing, size every sheet once, then draw them.
     // Nothing below computes a rect of its own.
     center::modes(S);

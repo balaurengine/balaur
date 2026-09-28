@@ -1020,6 +1020,28 @@ pub fn reselect_step(S) {
 // Frames to let the pooled form stop moving before a reading is taken.
 const SETTLE = 8;
 
+/// A launch with no project: the start screen has the window, and the shell
+/// under it is hidden rather than drawing a project that is not open.
+pub fn start_screen(S) {
+    S.start_check = #{ waited: 0 };
+}
+
+pub fn start_screen_step(S) {
+    let d = S.start_check;
+    d.waited = d.waited + 1;
+    if d.waited < SETTLE {
+        return;
+    }
+    S.start_check = ();
+    check(S.game_root == "" && crate::manager::showing(S), "a launch with no project is the start screen");
+    let head = ui::widget_rect(scene::get_node("Editor/Manager/ManagerHead"));
+    check(!util::is_nil(head) && head.width > 0.0, format!("and its head is drawn ({:?})", head));
+    let shell = scene::get_node("Editor/Shell");
+    check(!util::is_nil(shell) && shell.get_component("widget", "visible") == false,
+        "the shell under it is hidden");
+    log::info("selftest start screen: done");
+}
+
 // A node the workspace has nothing for draws a reason, not a blank panel: an
 // empty inspector is otherwise indistinguishable from components gone missing.
 fn check_empty_says_why(S) {

@@ -11,6 +11,8 @@ use crate::util;
 pub fn state() {
     #{
         on: false,
+        // Whether the shell under the screen is hidden; see `cover`.
+        covering: false,
         tab: "projects",
         recent: [],
         read: false,
@@ -58,6 +60,8 @@ const NEW_SHEET = "manager-new";
 // The editor's own mark, which the top bar draws too. A project of its own
 // is not open yet, so every row wears this one.
 pub const LOGO = "assets/balaur-logo.png";
+// Light ink, for a mark set straight on a dark theme's ground.
+const LOGO_DARK = "assets/balaur-logo-dark.png";
 // The mark is dark ink on nothing, drawn for a light ground: the top bar sets
 // it on a light badge, and so does every other place that shows it.
 const MB = 1048576;
@@ -187,6 +191,7 @@ fn refresh(S) {
 }
 
 const GROUND = "Editor/Manager";
+const SHELL = "Editor/Shell";
 const HEAD_NODE = GROUND + "/ManagerHead";
 const TABS_NODE = GROUND + "/ManagerTabs";
 
@@ -210,6 +215,15 @@ pub fn draw(S, k) {
     }
 }
 
+/// Hide the shell while the screen is up and show it again after: under the
+/// screen its docks would still draw a project that is not open.
+pub fn cover(S, up) {
+    if S.manager.covering != up {
+        S.manager.covering = up;
+        util::fill(SHELL, #{ visible: !up });
+    }
+}
+
 /// The page under the tabs, in the hatch the scene keeps for it.
 pub fn draw_body(S, k) {
     if !S.manager.on {
@@ -230,8 +244,9 @@ pub fn draw_body(S, k) {
 
 /// The head strip: the mark, the name, the version, and the way back.
 fn head_controls(S, k) {
+    let ink = if k.dark { LOGO_DARK } else { LOGO };
     let out = [
-        #{ kind: "image", role: "layout_mark", image: LOGO },
+        #{ kind: "image", role: "layout_mark", image: ink },
         #{ kind: "label", role: "text_title", text: "Balaur" },
         #{ kind: "label", role: "text_caption", text: project::version() },
         #{ kind: "row", grow: 1 },

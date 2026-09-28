@@ -3,7 +3,7 @@ name = "balaur-editor"
 main_scene = "scenes/main.toml"
 # Over the shell while it assembles: the first frames place the docks, fill
 # the tree and settle the layout, and this is what shows instead of that.
-splash = "assets/balaur-logo.png"
+splash = "assets/balaur-logo-dark.png"
 splash_seconds = 0.0
 
 # The editor sits still between edits, so it draws a frame only when input,

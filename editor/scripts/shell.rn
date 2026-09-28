@@ -726,6 +726,7 @@ fn states() {
         "newproject": crate::manager::open_new,
         "versions": crate::manager::open_versions,
         "test:manager": crate::selftest::manager_screen,
+        "test:start_screen": crate::selftest::start_screen,
         "test:gestures": crate::selftest::gestures,
         "font_sheet": state_fontdemo,
         "menu": state_menudemo,

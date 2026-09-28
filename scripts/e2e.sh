@@ -178,6 +178,12 @@ editor_states() {
   name=$(basename "${ex%/}")
   printf '\n== editor states (on %s)\n' "$name"
 
+  # A folder with no manifest opens the start screen, over a hidden shell.
+  printf '  start ... '
+  mkdir -p "$out_dir/no-project"
+  edit_step "start screen" "$out_dir/no-project" test:start_screen
+  printf 'ok\n'
+
   # The centre's layout: with no document open the viewport must fill it.
   printf '  layout ... '
   edit_step "$name: layout" "$ex" test:layout
