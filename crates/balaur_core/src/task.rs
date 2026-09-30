@@ -68,17 +68,28 @@ pub fn park(work: impl Stepped + 'static) {
 
 /// Run `work` off the tick, a slice at a time.
 ///
-/// On a desktop it takes a thread of its own and runs to completion there,
-/// which is why it is `Send` here and not on the web. In a browser there is no
-/// thread to take, so this is [`park`] and the pump advances it.
+/// On a desktop it runs to completion on the stepped-work pool, a thread per
+/// core, which is why it is `Send` here and not on the web; more jobs than
+/// cores wait their turn. In a browser there is no thread to take, so this
+/// is [`park`] and the pump advances it.
 #[cfg(not(target_family = "wasm"))]
 pub fn step(work: impl Stepped + Send + 'static) {
+    static STEPPED: std::sync::OnceLock<Pool> = std::sync::OnceLock::new();
     let mut work = work;
     RUNNING.fetch_add(1, Ordering::Relaxed);
-    std::thread::spawn(move || {
-        while work.step() == Progress::More {}
-        RUNNING.fetch_sub(1, Ordering::Relaxed);
-    });
+    STEPPED.get_or_init(|| Pool::new("balaur-step")).submit(
+        move || {
+            while work.step() == Progress::More {}
+            RUNNING.fetch_sub(1, Ordering::Relaxed);
+        },
+        cores(),
+    );
+}
+
+/// How many threads a pool of CPU work takes: one a core.
+#[cfg(not(target_family = "wasm"))]
+fn cores() -> usize {
+    std::thread::available_parallelism().map_or(1, std::num::NonZero::get)
 }
 
 /// Run `work` off the tick, a slice at a time. See the native twin.
@@ -93,9 +104,11 @@ pub fn step(work: impl Stepped + 'static) {
 
 /// Run `work` where it cannot hold up a frame, answering on the channel.
 ///
-/// For work that touches no file: a parse or an encode. A desktop gives it a
-/// thread and a tab built with shared memory a worker from the page's pool; a
-/// tab without one runs it here, so the answer is waiting on return.
+/// For work that touches no file: a parse or an encode. A desktop gives it the
+/// compute pool, a thread per core, apart from stepped work so a job waiting
+/// on an answer never holds the thread that would compute it. A tab built
+/// with shared memory gives it a worker from the page's pool; a tab without
+/// one runs it here, so the answer is waiting on return.
 pub fn compute<T: Send + 'static>(
     work: impl FnOnce() -> T + Send + 'static,
 ) -> std::sync::mpsc::Receiver<T> {
@@ -106,7 +119,12 @@ pub fn compute<T: Send + 'static>(
         crate::wake::wake();
     };
     #[cfg(not(target_family = "wasm"))]
-    std::thread::spawn(run);
+    {
+        static COMPUTE: std::sync::OnceLock<Pool> = std::sync::OnceLock::new();
+        COMPUTE
+            .get_or_init(|| Pool::new("balaur-compute"))
+            .submit(run, cores());
+    }
     #[cfg(all(target_family = "wasm", target_feature = "atomics"))]
     rayon::spawn(run);
     #[cfg(all(target_family = "wasm", not(target_feature = "atomics")))]
@@ -144,4 +162,128 @@ pub fn advance_parked_system(_: &Engine, _: f32) {
 #[must_use]
 pub fn running() -> usize {
     RUNNING.load(Ordering::Relaxed)
+}
+
+/// Threads taking work off one queue, first in first out.
+///
+/// Up to `limit` jobs run at once, the limit a submit names, and the rest
+/// wait their turn. A worker sleeps while the queue is empty. Dropping the
+/// pool drops what still waits, and each worker ends once its current job
+/// does.
+#[cfg(not(target_family = "wasm"))]
+pub struct Pool {
+    shared: std::sync::Arc<Shared>,
+    name: String,
+}
+
+#[cfg(not(target_family = "wasm"))]
+type Job = Box<dyn FnOnce() + Send>;
+
+#[cfg(not(target_family = "wasm"))]
+#[derive(Default)]
+struct Queue {
+    waiting: std::collections::VecDeque<Job>,
+    workers: usize,
+    idle: usize,
+    closed: bool,
+}
+
+#[cfg(not(target_family = "wasm"))]
+#[derive(Default)]
+struct Shared {
+    queue: std::sync::Mutex<Queue>,
+    /// Signalled when a job is queued, and when the pool closes.
+    queued: std::sync::Condvar,
+}
+
+#[cfg(not(target_family = "wasm"))]
+impl Shared {
+    fn lock(&self) -> std::sync::MutexGuard<'_, Queue> {
+        self.queue
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
+impl Pool {
+    /// An empty pool; its threads, named `name` and a number, start as work
+    /// arrives.
+    #[must_use]
+    pub fn new(name: &str) -> Self {
+        Self {
+            shared: std::sync::Arc::default(),
+            name: name.to_string(),
+        }
+    }
+
+    /// Queue `job`. A worker takes it at once while fewer than `limit` are
+    /// busy; otherwise it waits behind the jobs queued before it.
+    pub fn submit(&self, job: impl FnOnce() + Send + 'static, limit: usize) {
+        let spawn = {
+            let mut queue = self.shared.lock();
+            queue.waiting.push_back(Box::new(job));
+            let spawn = queue.idle == 0 && queue.workers < limit.max(1);
+            if spawn {
+                queue.workers += 1;
+            }
+            spawn.then_some(queue.workers)
+        };
+        if let Some(number) = spawn {
+            let shared = std::sync::Arc::clone(&self.shared);
+            let started = std::thread::Builder::new()
+                .name(format!("{}-{number}", self.name))
+                .spawn(move || work(&shared));
+            if let Err(err) = started {
+                self.shared.lock().workers -= 1;
+                tracing::warn!(%err, pool = %self.name, "no thread for the pool");
+            }
+        }
+        self.shared.queued.notify_one();
+    }
+
+    /// Jobs queued and not yet taken by a worker.
+    #[must_use]
+    pub fn waiting(&self) -> usize {
+        self.shared.lock().waiting.len()
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
+impl Drop for Pool {
+    fn drop(&mut self) {
+        let mut queue = self.shared.lock();
+        queue.closed = true;
+        queue.waiting.clear();
+        drop(queue);
+        self.shared.queued.notify_all();
+    }
+}
+
+/// One worker: take the next job, run it, and sleep when there is none.
+#[cfg(not(target_family = "wasm"))]
+fn work(shared: &Shared) {
+    let mut queue = shared.lock();
+    loop {
+        if queue.closed {
+            queue.workers -= 1;
+            return;
+        }
+        if let Some(job) = queue.waiting.pop_front() {
+            drop(queue);
+            // A job that panics is its own failure: the worker lives on, so
+            // the pool keeps every thread it counts.
+            if std::panic::catch_unwind(std::panic::AssertUnwindSafe(job)).is_err() {
+                tracing::error!("a pooled job panicked");
+            }
+            queue = shared.lock();
+            continue;
+        }
+        queue.idle += 1;
+        queue = shared
+            .queued
+            .wait(queue)
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        queue.idle -= 1;
+    }
 }

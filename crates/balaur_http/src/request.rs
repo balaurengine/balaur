@@ -2,52 +2,32 @@
 //! one agent that keeps connections alive, reporting back over the channel.
 //!
 //! A project runs `[http] max_parallel` requests at once and the rest wait
-//! their turn, first in first out. An idle worker sleeps until a request is
-//! queued; the pool's threads end with the engine that owns it.
+//! their turn, first in first out, on a `balaur_core::task::Pool`: an idle
+//! worker sleeps until a request is queued, and the threads end with the
+//! engine that owns them.
 
-use std::collections::VecDeque;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use anyhow::{Result, anyhow};
 
 use crate::{HttpCall, HttpEvent};
 
-/// One request waiting for a worker: everything it needs travels with it, so
-/// the worker owns its work outright and the frame loop never waits on it.
+/// One request: everything it needs travels with it, so the worker owns its
+/// work outright and the frame loop never waits on it.
 struct Job {
     call: HttpCall,
     events: Sender<HttpEvent>,
     cancel: Arc<AtomicBool>,
 }
 
-#[derive(Default)]
-struct Queue {
-    waiting: VecDeque<Job>,
-    workers: usize,
-    idle: usize,
-    closed: bool,
-}
-
-struct Shared {
-    queue: Mutex<Queue>,
-    /// Signalled when a request is queued, and when the pool closes.
-    queued: Condvar,
-    /// One agent for every request, so a connection is reused while alive.
-    agent: ureq::Agent,
-}
-
-impl Shared {
-    fn lock(&self) -> MutexGuard<'_, Queue> {
-        self.queue.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-}
-
-/// The engine's requests and the threads that run them.
+/// The engine's requests, the threads that run them, and the agent they
+/// share, so a connection is reused while it is alive.
 pub(crate) struct Pool {
-    shared: Arc<Shared>,
+    tasks: balaur_core::task::Pool,
+    agent: ureq::Agent,
 }
 
 impl Pool {
@@ -59,11 +39,8 @@ impl Pool {
             .build()
             .into();
         Self {
-            shared: Arc::new(Shared {
-                queue: Mutex::new(Queue::default()),
-                queued: Condvar::new(),
-                agent,
-            }),
+            tasks: balaur_core::task::Pool::new("balaur-http"),
+            agent,
         }
     }
 
@@ -76,59 +53,13 @@ impl Pool {
         cancel: Arc<AtomicBool>,
         parallel: usize,
     ) {
-        let spawn = {
-            let mut queue = self.shared.lock();
-            queue.waiting.push_back(Job {
-                call,
-                events,
-                cancel,
-            });
-            let spawn = queue.idle == 0 && queue.workers < parallel.max(1);
-            if spawn {
-                queue.workers += 1;
-            }
-            spawn
+        let agent = self.agent.clone();
+        let job = Job {
+            call,
+            events,
+            cancel,
         };
-        if spawn {
-            let shared = Arc::clone(&self.shared);
-            std::thread::spawn(move || work(&shared));
-        }
-        self.shared.queued.notify_one();
-    }
-}
-
-/// The engine is gone: what still waits is dropped, and each worker ends
-/// once its current request does.
-impl Drop for Pool {
-    fn drop(&mut self) {
-        let mut queue = self.shared.lock();
-        queue.closed = true;
-        queue.waiting.clear();
-        drop(queue);
-        self.shared.queued.notify_all();
-    }
-}
-
-/// One worker: take the next request, run it, and sleep when there is none.
-fn work(shared: &Shared) {
-    let mut queue = shared.lock();
-    loop {
-        if queue.closed {
-            queue.workers -= 1;
-            return;
-        }
-        if let Some(job) = queue.waiting.pop_front() {
-            drop(queue);
-            run(&shared.agent, &job);
-            queue = shared.lock();
-            continue;
-        }
-        queue.idle += 1;
-        queue = shared
-            .queued
-            .wait(queue)
-            .unwrap_or_else(PoisonError::into_inner);
-        queue.idle -= 1;
+        self.tasks.submit(move || run(&agent, &job), parallel);
     }
 }
 

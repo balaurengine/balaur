@@ -79,9 +79,12 @@ the network.
    waits never goes out. Gamend's REST calls, which its client runs one at a
    time, go to one worker per client in the order they were made. Ends with:
    requests past `max_parallel` wait their turn and every one answers.
-5. **A task pool.** `compute` runs on a pool the size of the machine's
-   cores; `step` gets a small pool of its own, since its jobs are long.
-   Ends with: no call in `task` starts a thread of its own.
+5. **A task pool, built.** `balaur_core::task::Pool` is a queue with up to
+   a limit of workers that sleep while it is empty; a job that panics costs
+   no worker. `compute` and `step` each run on one a thread per core, apart,
+   so a job waiting on an answer never holds the thread that computes it,
+   and the HTTP pool is one too. Ends with: no call in `task` starts a
+   thread of its own.
 6. **The rest.** DAP waits on its request channel with a deadline, Linux
    dark mode listens for the portal's `SettingChanged` signal, and a dropped
    listener stops its thread. Ends with: the table in section 0 is empty.
