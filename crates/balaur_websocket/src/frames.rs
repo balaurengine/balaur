@@ -2,17 +2,19 @@
 //!
 //! tungstenite does the upgrade request and the frame codec; the protocol
 //! loop lives here because `permessage-deflate` (RFC 7692) sets a reserved
-//! bit that tungstenite's own `WebSocket` refuses to read. The thread
-//! alternates between draining the engine's outbound commands and a `read`
-//! with a short timeout, so a single blocking socket serves both directions
-//! without an async runtime. Worst-case send latency is one read timeout,
-//! well under a frame's budget for game traffic.
+//! bit that tungstenite's own `WebSocket` refuses to read. The upgrade is a
+//! blocking exchange; after it the socket turns non-blocking and the thread
+//! sleeps in its `mio::Poll` until the socket is ready or the engine queues a
+//! command, so a send leaves at once and an idle link costs no wakeups.
 
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::time::Duration;
+
+use balaur_core::wake::Worker;
+use mio::{Events, Interest, Token};
 
 use anyhow::{Context, Result, anyhow, bail};
 use flate2::{Compress, Compression, Decompress, FlushCompress, FlushDecompress};
@@ -26,7 +28,14 @@ use tungstenite::stream::{MaybeTlsStream, Mode};
 
 use crate::{SocketCommand, SocketEvent, SocketOptions};
 
-type Socket = FrameSocket<MaybeTlsStream<TcpStream>>;
+type Socket = FrameSocket<MaybeTlsStream<mio::net::TcpStream>>;
+
+/// The one source a connection's poll watches besides its queue.
+const SOCKET: Token = Token(0);
+
+/// How long a close waits for the peer's close frame before giving up on it
+/// (RFC 6455 §7.1.1 leaves the wait to the endpoint).
+const CLOSE_GRACE: Duration = Duration::from_secs(5);
 
 /// A message past this many bytes is a protocol failure, not game traffic.
 const MAX_MESSAGE: usize = 64 * 1024 * 1024;
@@ -38,7 +47,7 @@ pub(crate) fn spawn_socket(
     socket: u64,
     url: String,
     options: SocketOptions,
-    commands: Receiver<SocketCommand>,
+    worker: Worker<SocketCommand>,
     events: &Sender<SocketEvent>,
 ) {
     let events = events.clone();
@@ -59,7 +68,7 @@ pub(crate) fn spawn_socket(
             }
         };
         balaur_core::replay::report(&events, SocketEvent::Open { socket });
-        let event = run(socket, connection, deflate, &commands, &events);
+        let event = run(socket, connection, deflate, worker, &events);
         balaur_core::replay::report(&events, event);
     });
 }
@@ -105,9 +114,33 @@ fn open(url: &str, options: &SocketOptions) -> Result<(Socket, Option<Deflate>)>
     let (head, tail) = read_head(&mut stream)?;
     let negotiated = verify(&head, &key, options.compression)?;
     Ok((
-        FrameSocket::from_partially_read(stream, tail),
+        FrameSocket::from_partially_read(nonblocking(stream)?, tail),
         negotiated.map(Deflate::new),
     ))
+}
+
+/// The upgraded stream, handed to the poll: non-blocking from here on. The
+/// TLS session moves over whole, with whatever it had already decrypted.
+pub(crate) fn nonblocking(
+    stream: MaybeTlsStream<TcpStream>,
+) -> std::io::Result<MaybeTlsStream<mio::net::TcpStream>> {
+    let socket = |tcp: TcpStream| -> std::io::Result<mio::net::TcpStream> {
+        tcp.set_nonblocking(true)?;
+        Ok(mio::net::TcpStream::from_std(tcp))
+    };
+    match stream {
+        MaybeTlsStream::Plain(tcp) => Ok(MaybeTlsStream::Plain(socket(tcp)?)),
+        MaybeTlsStream::Rustls(tls) => {
+            let rustls::StreamOwned { conn, sock } = tls;
+            Ok(MaybeTlsStream::Rustls(rustls::StreamOwned::new(
+                conn,
+                socket(sock)?,
+            )))
+        }
+        _ => Err(std::io::Error::other(
+            "a stream kind this worker does not run",
+        )),
+    }
 }
 
 fn tls(
@@ -351,47 +384,136 @@ impl Inbox {
 }
 
 /// Serve one open connection until it ends, returning the closing event.
+///
+/// Each pass sends what the engine queued, pushes out anything a full socket
+/// held back, and reads until the socket has nothing, then sleeps. mio wakes
+/// a source once per change, so a pass that stopped short would sleep
+/// through data already there.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "how long a close has waited for the peer; never a simulation input"
+)]
 pub(crate) fn run(
     socket: u64,
     mut connection: Socket,
     mut deflate: Option<Deflate>,
-    commands: &Receiver<SocketCommand>,
+    mut worker: Worker<SocketCommand>,
     events: &Sender<SocketEvent>,
 ) -> SocketEvent {
     let failed = |reason: String| SocketEvent::Failed { socket, reason };
-    if let Err(err) = read_timeout(&connection) {
-        return failed(format!("no read timeout: {err}"));
+    if let Err(err) = register(&worker, connection.get_mut()) {
+        return failed(format!("the socket would not register: {err}"));
     }
+    let mut ready = Events::with_capacity(8);
     let mut inbox = Inbox::default();
     let mut closing = false;
+    let mut closed_at = None;
     loop {
-        if let Err(err) = drain_commands(&mut connection, &mut deflate, &mut closing, commands) {
+        if let Err(err) = drain_commands(
+            &mut connection,
+            &mut deflate,
+            &mut closing,
+            &worker.commands,
+        ) {
             return failed(format!("{err:#}"));
         }
+        if let Err(err) = pending_ok(connection.flush()) {
+            return failed(err.to_string());
+        }
+        let reading = Reading {
+            socket,
+            inbox: &mut inbox,
+            deflate: &mut deflate,
+            closing,
+            events,
+        };
+        if let Some(event) = read_all(&mut connection, reading) {
+            return event;
+        }
+        let wait = if closing {
+            let since = *closed_at.get_or_insert_with(std::time::Instant::now);
+            match CLOSE_GRACE.checked_sub(since.elapsed()) {
+                Some(left) => Some(left),
+                None => {
+                    return SocketEvent::Closed {
+                        socket,
+                        code: ABNORMAL,
+                        reason: String::from("the peer never answered the close"),
+                    };
+                }
+            }
+        } else {
+            None
+        };
+        if let Err(err) = worker.poll.poll(&mut ready, wait)
+            && err.kind() != std::io::ErrorKind::Interrupted
+        {
+            return failed(format!("waiting on the socket: {err}"));
+        }
+    }
+}
+
+/// Watch the TCP socket under the TLS session, if there is one.
+fn register(
+    worker: &Worker<SocketCommand>,
+    stream: &mut MaybeTlsStream<mio::net::TcpStream>,
+) -> std::io::Result<()> {
+    let tcp = match stream {
+        MaybeTlsStream::Plain(tcp) => tcp,
+        MaybeTlsStream::Rustls(tls) => &mut tls.sock,
+        _ => {
+            return Err(std::io::Error::other(
+                "a stream kind this worker does not run",
+            ));
+        }
+    };
+    worker
+        .poll
+        .registry()
+        .register(tcp, SOCKET, Interest::READABLE | Interest::WRITABLE)
+}
+
+/// What handling a frame needs besides the socket.
+struct Reading<'a> {
+    socket: u64,
+    inbox: &'a mut Inbox,
+    deflate: &'a mut Option<Deflate>,
+    closing: bool,
+    events: &'a Sender<SocketEvent>,
+}
+
+/// Every frame the socket holds now; `Some` when the connection ended.
+fn read_all(connection: &mut Socket, reading: Reading<'_>) -> Option<SocketEvent> {
+    let Reading {
+        socket,
+        inbox,
+        deflate,
+        closing,
+        events,
+    } = reading;
+    let failed = |reason: String| Some(SocketEvent::Failed { socket, reason });
+    loop {
         match connection.read(Some(MAX_MESSAGE)) {
-            Ok(Some(frame)) => match handle(
-                socket,
-                &mut connection,
-                &frame,
-                &mut inbox,
-                &mut deflate,
-                closing,
-                events,
-            ) {
-                Ok(None) => {}
-                Ok(Some(event)) => return event,
-                Err(err) => return failed(format!("{err:#}")),
-            },
-            // End of stream: a server that hung up after (or without) a
-            // close frame.
+            Ok(Some(frame)) => {
+                match handle(socket, connection, &frame, inbox, deflate, closing, events) {
+                    Ok(None) => {}
+                    Ok(Some(event)) => return Some(event),
+                    Err(err) => return failed(format!("{err:#}")),
+                }
+            }
+            // End of stream: a peer that hung up after (or without) a close
+            // frame.
             Ok(None) => {
-                return SocketEvent::Closed {
+                return Some(SocketEvent::Closed {
                     socket,
                     code: ABNORMAL,
                     reason: String::new(),
-                };
+                });
             }
-            Err(tungstenite::Error::Io(err)) if idle(&err) => {}
+            Err(tungstenite::Error::Io(err)) if err.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(tungstenite::Error::Io(err)) if err.kind() == std::io::ErrorKind::WouldBlock => {
+                return None;
+            }
             Err(err) => return failed(err.to_string()),
         }
     }
@@ -491,17 +613,6 @@ fn close_status(payload: &[u8]) -> (u16, String) {
     (u16::from_be_bytes([high, low]), reason)
 }
 
-/// A read timeout on the raw stream is what turns the blocking read into the
-/// poll half of the loop.
-fn read_timeout(connection: &Socket) -> std::io::Result<()> {
-    let timeout = Some(Duration::from_millis(30));
-    match connection.get_ref() {
-        MaybeTlsStream::Plain(stream) => stream.set_read_timeout(timeout),
-        MaybeTlsStream::Rustls(stream) => stream.get_ref().set_read_timeout(timeout),
-        _ => Ok(()),
-    }
-}
-
 fn drain_commands(
     connection: &mut Socket,
     deflate: &mut Option<Deflate>,
@@ -558,23 +669,24 @@ fn send_message(
     Ok(())
 }
 
-/// Every client frame is masked (RFC 6455 §5.3); the codec applies it.
+/// Every client frame is masked (RFC 6455 §5.3); the codec applies it. A
+/// full socket keeps the frame queued in the codec, and the next pass after
+/// the socket turns writable sends it.
 #[allow(
     clippy::disallowed_methods,
     reason = "the mask must be unpredictable per RFC 6455; it never reaches simulation"
 )]
 fn send(connection: &mut Socket, mut frame: Frame) -> tungstenite::Result<()> {
     frame.header_mut().mask = Some(rand::random());
-    connection.send(frame)
+    pending_ok(connection.send(frame))
 }
 
-/// A timed-out read is the loop breathing, not a failure. Which error kind
-/// the OS reports for `SO_RCVTIMEO` differs by platform.
-fn idle(err: &std::io::Error) -> bool {
-    matches!(
-        err.kind(),
-        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
-    )
+/// A write the socket could not take yet is queued, not failed.
+fn pending_ok(result: tungstenite::Result<()>) -> tungstenite::Result<()> {
+    match result {
+        Err(tungstenite::Error::Io(err)) if err.kind() == std::io::ErrorKind::WouldBlock => Ok(()),
+        other => other,
+    }
 }
 
 #[cfg(test)]

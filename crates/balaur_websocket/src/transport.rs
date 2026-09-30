@@ -12,12 +12,13 @@
 //! saying which it was. A peer that is not this transport will not understand
 //! them, which is fine: both ends of a session run this code.
 
-use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::mpsc::{Receiver, channel};
 
 use anyhow::{Result, bail};
 use balaur_core::Engine;
 use balaur_core::replay;
 use balaur_core::transport::{Delivery, LinkState, Received, Transport};
+use balaur_core::wake::Commands;
 
 use crate::{SocketCommand, SocketEvent, SocketOptions, backend};
 
@@ -38,7 +39,7 @@ const MAX_DATAGRAM: usize = 60 * 1024;
 /// session cannot tell which end it is holding.
 pub struct WebsocketTransport {
     events: Receiver<SocketEvent>,
-    commands: Option<Sender<SocketCommand>>,
+    commands: Option<Commands<SocketCommand>>,
     state: LinkState,
 }
 
@@ -53,21 +54,27 @@ impl WebsocketTransport {
     /// intended outcome, since neither should be talking to anyone.
     #[must_use]
     pub fn connect(eng: &Engine, url: &str, options: SocketOptions) -> Self {
-        let (commands, command_rx) = channel();
         let (event_tx, events) = channel();
+        let mut link = Self {
+            events,
+            commands: None,
+            state: LinkState::Connecting,
+        };
         // Same rule `ExternalIo::start` enforces, asked directly because a
         // transport owns its channel rather than borrowing one.
-        let started = !replay::suppressed(eng);
-        if started {
-            // The worker's socket id routes events inside `WebsocketState`; a
-            // transport owns its channel, so there is nothing to route.
-            backend::spawn_socket(0, url.to_string(), options, command_rx, &event_tx);
+        if replay::suppressed(eng) {
+            return link;
         }
-        Self {
-            events,
-            commands: started.then_some(commands),
-            state: LinkState::Connecting,
+        match backend::queue() {
+            Ok((commands, worker)) => {
+                // The worker's socket id routes events inside `WebsocketState`;
+                // a transport owns its channel, so there is nothing to route.
+                backend::spawn_socket(0, url.to_string(), options, worker, &event_tx);
+                link.commands = Some(commands);
+            }
+            Err(err) => link.state = LinkState::Closed(format!("no worker for the link: {err}")),
         }
+        link
     }
 
     /// The peer side of a link a listener accepted.
@@ -90,7 +97,7 @@ impl WebsocketTransport {
         let mut framed = Vec::with_capacity(bytes.len() + 1);
         framed.push(tag);
         framed.extend_from_slice(bytes);
-        if commands.send(SocketCommand::SendBytes(framed)).is_err() {
+        if !commands.send(SocketCommand::SendBytes(framed)) {
             self.state = LinkState::Closed(String::from("the worker is gone"));
             bail!("the link closed while sending");
         }

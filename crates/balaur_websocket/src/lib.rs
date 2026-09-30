@@ -14,11 +14,10 @@
 //! immediately, and handlers run at [`Stage::First`] of a later tick, in
 //! arrival order, never from an I/O thread.
 
-use std::sync::mpsc::{Sender, channel};
-
 use anyhow::{Result, anyhow, bail};
 use balaur_core::handler::{Handler, handler_of, headers_of, id_value, opt};
 use balaur_core::replay::ExternalIo;
+use balaur_core::wake::Commands;
 use balaur_core::{DetHashMap, Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, Value};
 
@@ -28,13 +27,23 @@ mod frames;
 pub mod listener;
 pub mod transport;
 
-/// The native backend: a thread per connection.
+/// The native backend: a thread per connection, asleep until its socket or
+/// its queue wakes it.
 #[cfg(not(target_family = "wasm"))]
 mod backend {
+    use crate::SocketCommand;
     pub(crate) use crate::frames::spawn_socket;
 
     /// Threads deliver on their own; nothing to flush per tick.
     pub(crate) fn pump() {}
+
+    /// A connection's queue: a send wakes its thread.
+    pub(crate) fn queue() -> std::io::Result<(
+        balaur_core::wake::Commands<SocketCommand>,
+        balaur_core::wake::Worker<SocketCommand>,
+    )> {
+        balaur_core::wake::worker()
+    }
 }
 
 /// The browser: the WebSocket API through web-sys.
@@ -43,7 +52,20 @@ mod browser;
 
 #[cfg(target_family = "wasm")]
 mod backend {
+    use crate::SocketCommand;
     pub(crate) use crate::browser::{pump, spawn_socket};
+
+    /// A connection's queue, which `pump` drains each tick.
+    #[allow(
+        clippy::unnecessary_wraps,
+        reason = "the native backend's queue can fail; one signature for both"
+    )]
+    pub(crate) fn queue() -> std::io::Result<(
+        balaur_core::wake::Commands<SocketCommand>,
+        std::sync::mpsc::Receiver<SocketCommand>,
+    )> {
+        Ok(balaur_core::wake::queue())
+    }
 }
 
 /// How one `websocket.connect` opens its connection.
@@ -142,7 +164,7 @@ pub struct WebsocketState {
     /// The worker channel, this tick's arrivals, and the rule that a replay
     /// never reaches the network — all three live in here.
     io: ExternalIo<SocketEvent>,
-    sockets: DetHashMap<u64, Sender<SocketCommand>>,
+    sockets: DetHashMap<u64, Commands<SocketCommand>>,
     handlers: DetHashMap<u64, Handler>,
     /// Where each connection is, from the events a replay reproduces rather
     /// than from the worker channels a replay never opens.
@@ -171,11 +193,21 @@ impl WebsocketState {
             format!("connect {url}"),
             Some(serde_json::json!({ "id": id, "url": url })),
         );
-        let (commands, receiver) = channel();
-        let started = self.io.start(eng, |report| {
-            backend::spawn_socket(id, url.to_string(), options, receiver, report);
+        let mut queued = None;
+        self.io.start(eng, |report| match backend::queue() {
+            Ok((commands, worker)) => {
+                backend::spawn_socket(id, url.to_string(), options, worker, report);
+                queued = Some(commands);
+            }
+            Err(err) => balaur_core::replay::report(
+                report,
+                SocketEvent::Failed {
+                    socket: id,
+                    reason: format!("no worker for the connection: {err}"),
+                },
+            ),
         });
-        if started {
+        if let Some(commands) = queued {
             self.sockets.insert(id, commands);
         }
     }
@@ -194,7 +226,7 @@ impl WebsocketState {
     fn send_command(&mut self, socket: u64, command: SocketCommand) -> bool {
         self.sockets
             .get(&socket)
-            .is_some_and(|commands| commands.send(command).is_ok())
+            .is_some_and(|commands| commands.send(command))
     }
 
     /// Ask the connection to close. The `closed` event still arrives through
@@ -205,7 +237,7 @@ impl WebsocketState {
         }
         self.sockets
             .get(&socket)
-            .is_some_and(|commands| commands.send(SocketCommand::Close).is_ok())
+            .is_some_and(|commands| commands.send(SocketCommand::Close))
     }
 
     /// Where the connection is: one of [`state`]'s words, `closed` for an id

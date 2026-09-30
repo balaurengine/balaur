@@ -19,6 +19,8 @@ toml.workspace = true
 # No websocket stack compiles for wasm; the browser backend takes over there.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 tungstenite.workspace = true
+# The socket each connection's thread sleeps on, and the listener's.
+mio.workspace = true
 # The worker speaks frames itself so `permessage-deflate` can set the bit
 # tungstenite's message API refuses; these are its handshake, TLS,
 # compression and masking.

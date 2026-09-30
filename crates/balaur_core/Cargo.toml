@@ -69,6 +69,10 @@ tempfile = "3"
 [lints]
 workspace = true
 
+# `wake::worker`: the poll an I/O thread sleeps in, and the waker its queue fires.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+mio.workspace = true
+
 # The browser has no `std::time::Instant`; `web_time` reads `performance.now()`.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-time = "1"

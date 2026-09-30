@@ -115,7 +115,8 @@ fn state(app: &App) -> std::rc::Rc<std::cell::RefCell<MultiplayerState>> {
     app.engine.resource::<MultiplayerState>()
 }
 
-/// Frame both apps until `done` says so, or fail after a while.
+/// Frame both apps until `done` says so, or fail after a while, saying where
+/// each machine stood.
 #[allow(
     clippy::disallowed_methods,
     reason = "a test's timeout, not simulation"
@@ -123,12 +124,65 @@ fn state(app: &App) -> std::rc::Rc<std::cell::RefCell<MultiplayerState>> {
 fn run(apps: &mut [&mut App], what: &str, done: impl Fn(&[&mut App]) -> bool) {
     let deadline = Instant::now() + Duration::from_secs(30);
     while !done(apps) {
-        assert!(Instant::now() < deadline, "timed out waiting until {what}");
+        assert!(
+            Instant::now() < deadline,
+            "timed out waiting until {what}\n{}",
+            standing(apps)
+        );
         for app in apps.iter_mut() {
             app.advance(1.0 / 60.0);
         }
         std::thread::sleep(Duration::from_millis(2));
     }
+}
+
+/// Each machine's state, tick and links, then the engine's last log lines.
+fn standing(apps: &[&mut App]) -> String {
+    let mut lines = Vec::new();
+    for (at, app) in apps.iter().enumerate() {
+        let state = state(app);
+        let state = state.borrow();
+        let peers = state.session().map_or_else(
+            || String::from("no session"),
+            |net| {
+                (0..net.link_states().len())
+                    .map(|link| {
+                        format!(
+                            "{:?}, silent {:?}s",
+                            net.link_states()[link],
+                            net.silent_for(link)
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            },
+        );
+        let tick = state.session().map_or(0, balaur::NetSession::tick);
+        lines.push(format!(
+            "machine {at}: {} at tick {tick}, lead {:?}: {peers}",
+            state.state().name(),
+            state.session().map(balaur::NetSession::lead)
+        ));
+    }
+    let told = balaur::logbuf::recent(200)
+        .into_iter()
+        .filter(|entry| matches!(entry.level.as_str(), "info" | "warn" | "error"));
+    for entry in told {
+        let fields: Vec<String> = entry
+            .fields
+            .iter()
+            .filter(|(key, _)| !key.starts_with("log."))
+            .map(|(key, value)| format!("{key}={value}"))
+            .collect();
+        lines.push(format!(
+            "{} {}: {} {}",
+            entry.level,
+            entry.tag,
+            entry.message,
+            fields.join(" ")
+        ));
+    }
+    lines.join("\n")
 }
 
 fn tick(app: &App) -> u64 {
