@@ -33,10 +33,10 @@ use balaur_script::{Bindings, BindingsExt, Value};
 #[cfg(not(target_family = "wasm"))]
 mod request;
 
-/// The native backend: a thread per request.
+/// The native backend: a pool of worker threads over one agent.
 #[cfg(not(target_family = "wasm"))]
 mod backend {
-    pub(crate) use crate::request::spawn_request;
+    pub(crate) use crate::request::Pool;
 
     /// Threads deliver on their own; nothing to flush per tick.
     pub(crate) fn pump() {}
@@ -48,7 +48,31 @@ mod browser;
 
 #[cfg(target_family = "wasm")]
 mod backend {
-    pub(crate) use crate::browser::{pump, spawn_request};
+    pub(crate) use crate::browser::pump;
+
+    /// The browser limits a page's connections itself, so every request is
+    /// handed to fetch at once.
+    pub(crate) struct Pool;
+
+    impl Pool {
+        pub(crate) const fn new() -> Self {
+            Self
+        }
+
+        #[allow(
+            clippy::unused_self,
+            reason = "the native pool's signature, which queues"
+        )]
+        pub(crate) fn submit(
+            &self,
+            call: crate::HttpCall,
+            events: std::sync::mpsc::Sender<crate::HttpEvent>,
+            cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+            _parallel: usize,
+        ) {
+            crate::browser::spawn_request(call, events, cancel);
+        }
+    }
 }
 
 /// One `http.request`, on its way to a worker thread.
@@ -58,7 +82,7 @@ pub struct HttpCall {
     pub url: String,
     pub headers: Vec<(String, String)>,
     pub body: Option<String>,
-    /// Seconds for the whole request; `None` takes the 10 second default.
+    /// Seconds for the whole request; `None` takes the project default.
     pub timeout: Option<f64>,
     /// Write a 2xx body here instead of handing it back, streamed as it
     /// arrives with a progress event per chunk. Absolute: the script API
@@ -71,19 +95,30 @@ pub struct HttpCall {
 /// ```toml
 /// [http]
 /// timeout_seconds = 10.0   # when a request names none
+/// max_parallel = 6         # requests running at once; the rest queue
 /// ```
 ///
-/// A call's own options override these.
+/// A call's own options override the timeout.
 #[derive(Clone, Debug)]
 pub struct HttpConfig {
     pub timeout: f64,
+    /// Six: what a browser opens to one host.
+    pub max_parallel: usize,
 }
 
 impl Default for HttpConfig {
     fn default() -> Self {
-        Self { timeout: 10.0 }
+        Self {
+            timeout: 10.0,
+            max_parallel: 6,
+        }
     }
 }
+
+/// The seconds a request may take, as a call or the project names them.
+const TIMEOUT_SECONDS: std::ops::RangeInclusive<f64> = 0.1..=600.0;
+/// How many requests may run at once.
+const MAX_PARALLEL: std::ops::RangeInclusive<i64> = 1..=64;
 
 impl HttpConfig {
     /// `[http]` as this run resolves it, or the defaults.
@@ -99,6 +134,11 @@ impl HttpConfig {
                 .as_ref()
                 .and_then(balaur_core::components::as_f64)
                 .unwrap_or(fallback.timeout),
+            max_parallel: balaur_core::settings::get(eng, "http/max_parallel")
+                .as_ref()
+                .and_then(balaur_plugin::toml::Value::as_integer)
+                .and_then(|n| usize::try_from(n).ok())
+                .unwrap_or(fallback.max_parallel),
         }
     }
 }
@@ -159,6 +199,8 @@ pub struct HttpState {
     cancelled: balaur_core::collections::DetHashSet<u64>,
     /// Cancelled since the last pump, told to their handlers there.
     cancelled_now: Vec<u64>,
+    /// The workers, started with the first request.
+    pool: Option<backend::Pool>,
 }
 
 impl HttpState {
@@ -199,8 +241,15 @@ impl HttpState {
         );
         let cancel = std::sync::Arc::<std::sync::atomic::AtomicBool>::default();
         self.in_flight.insert(id, cancel.clone());
+        let parallel = HttpConfig::from_settings(eng).max_parallel;
+        let pool = &mut self.pool;
         self.io.start(eng, |report| {
-            backend::spawn_request(call, report.clone(), cancel);
+            pool.get_or_insert_with(backend::Pool::new).submit(
+                call,
+                report.clone(),
+                cancel,
+                parallel,
+            );
         });
     }
 
@@ -410,9 +459,18 @@ impl balaur_plugin::Plugin for HttpPlugin {
             balaur_core::settings::Scope::Project,
             &balaur_core::ComponentDef::parse_schema(
                 "settings.http",
-                r#"
-timeout_seconds = { type = "float", default = 10.0, min = 0.1, max = 600.0, help = "Seconds for a whole request, when the call names none." }
+                &format!(
+                    r#"
+timeout_seconds = {{ type = "float", default = {timeout:?}, min = {low:?}, max = {high:?}, help = "Seconds for a whole request, when the call names none." }}
+max_parallel = {{ type = "int", default = {parallel}, min = {fewest}, max = {most}, help = "Requests running at once; the rest wait their turn." }}
 "#,
+                    timeout = HttpConfig::default().timeout,
+                    low = TIMEOUT_SECONDS.start(),
+                    high = TIMEOUT_SECONDS.end(),
+                    parallel = HttpConfig::default().max_parallel,
+                    fewest = MAX_PARALLEL.start(),
+                    most = MAX_PARALLEL.end(),
+                ),
             ),
         );
         let mut m = reg.script_module("http")?;
@@ -448,8 +506,20 @@ fn call_of(url: &str, opts: Option<&Value>) -> Result<HttpCall> {
         Some(Value::Num(n)) => Some(*n),
         #[allow(clippy::cast_precision_loss, reason = "a timeout in seconds")]
         Some(Value::Int(n)) => Some(*n as f64),
-        _ => None,
+        Some(other) => {
+            return Err(anyhow!(
+                "timeout_seconds should be a number of seconds, got {other:?}"
+            ));
+        }
+        None => None,
     };
+    if let Some(seconds) = timeout.filter(|seconds| !TIMEOUT_SECONDS.contains(seconds)) {
+        return Err(anyhow!(
+            "timeout_seconds should be between {} and {}, got {seconds}",
+            TIMEOUT_SECONDS.start(),
+            TIMEOUT_SECONDS.end()
+        ));
+    }
     Ok(HttpCall {
         id: 0,
         method,
@@ -533,4 +603,36 @@ fn install_http_api(m: &mut dyn Bindings<Engine>) {
             Ok(id_value(id))
         },
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn timed(seconds: Value) -> Value {
+        Value::Map(vec![("timeout_seconds".into(), seconds)])
+    }
+
+    #[test]
+    fn a_timeout_outside_the_project_range_is_refused() {
+        for seconds in [0.0, -1.0, 601.0, f64::INFINITY, f64::NAN] {
+            let refused = call_of("http://localhost", Some(&timed(Value::Num(seconds))));
+            assert!(
+                refused.is_err_and(|err| err.to_string().contains("between 0.1 and 600")),
+                "{seconds} seconds was taken"
+            );
+        }
+    }
+
+    #[test]
+    fn a_timeout_that_is_not_a_number_is_refused() {
+        let refused = call_of("http://localhost", Some(&timed(Value::Str("soon".into()))));
+        assert!(refused.is_err_and(|err| err.to_string().contains("number of seconds")));
+    }
+
+    #[test]
+    fn a_whole_number_of_seconds_is_a_timeout() {
+        let call = call_of("http://localhost", Some(&timed(Value::Int(5)))).unwrap();
+        assert_eq!(call.timeout, Some(5.0));
+    }
 }

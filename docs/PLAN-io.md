@@ -73,10 +73,12 @@ the network.
    server stops accepting, answers a newcomer with 503 while its links still
    run, and ends its thread with the last of them. Ends with: the
    WebTransport suite passes with no timed wakeup.
-4. **An HTTP pool.** One shared `ureq::Agent`, so connections are kept alive
-   and reused, and `[http] max_parallel` workers take requests from a queue.
-   A cancel reaches a queued request too. Ends with: a thousand queued
-   requests run on `max_parallel` threads and every one answers.
+4. **An HTTP pool, built.** One `ureq::Agent` per engine, so connections are
+   kept alive and reused, and `[http] max_parallel` workers, six unless the
+   project says, take requests from a queue. A request cancelled while it
+   waits never goes out. Gamend's REST calls, which its client runs one at a
+   time, go to one worker per client in the order they were made. Ends with:
+   requests past `max_parallel` wait their turn and every one answers.
 5. **A task pool.** `compute` runs on a pool the size of the machine's
    cores; `step` gets a small pool of its own, since its jobs are long.
    Ends with: no call in `task` starts a thread of its own.
