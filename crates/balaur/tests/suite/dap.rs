@@ -328,6 +328,22 @@ fn a_client_sets_a_breakpoint_then_reads_and_walks_the_stopped_game() {
 }
 
 #[test]
+#[allow(clippy::disallowed_methods, reason = "a test's clock")]
+fn waiting_for_a_client_that_never_comes_gives_up_at_the_deadline() {
+    let dir = tempfile::tempdir().unwrap();
+    project(dir.path());
+    let mut app = app_in(dir.path());
+    let server = dap::serve(&mut app, 0).unwrap();
+    let patience = Duration::from_millis(200);
+    let started = std::time::Instant::now();
+    let waited = server.wait_for_attach(patience);
+    let took = started.elapsed();
+    assert!(waited.is_err_and(|err| err.to_string().contains("no debugger attached")));
+    assert!(took >= patience, "it waited the whole time: {took:?}");
+    assert!(took < patience * 10, "and gave up then: {took:?}");
+}
+
+#[test]
 fn waiting_for_a_client_catches_a_breakpoint_in_init() {
     let dir = tempfile::tempdir().unwrap();
     project(dir.path());

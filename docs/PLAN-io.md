@@ -85,9 +85,11 @@ the network.
    so a job waiting on an answer never holds the thread that computes it,
    and the HTTP pool is one too. Ends with: no call in `task` starts a
    thread of its own.
-6. **The rest.** DAP waits on its request channel with a deadline, Linux
-   dark mode listens for the portal's `SettingChanged` signal, and a dropped
-   listener stops its thread. Ends with: the table in section 0 is empty.
+6. **The rest, built.** DAP waits on its request channel with a deadline,
+   Linux dark mode sleeps on the bus until the portal's `SettingChanged`
+   signal and wakes the loop when the mode flips, and a dropped listener
+   stops its thread (steps 1 and 3). Ends with: every row of section 0 is
+   fixed.
 7. **Keep it that way.** `clippy.toml` disallows `thread::sleep`,
    `set_read_timeout` and `tokio::time::sleep`, so a frame cap or a real
    deadline says why in an `allow` with a reason. Ends with: clippy passes

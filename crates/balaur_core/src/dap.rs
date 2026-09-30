@@ -124,12 +124,21 @@ impl Server {
     )]
     pub fn wait_for_attach(&self, timeout: Duration) -> Result<()> {
         let deadline = Instant::now() + timeout;
-        while Instant::now() < deadline {
-            self.session.borrow_mut().pump(&self.engine);
-            if self.session.borrow().configured {
+        let mut session = self.session.borrow_mut();
+        loop {
+            session.pump(&self.engine);
+            if session.configured {
                 return Ok(());
             }
-            std::thread::sleep(Duration::from_millis(10));
+            // Asleep until the client's next request, the only thing that
+            // can finish configuring it, or until the deadline.
+            let Some(left) = deadline.checked_duration_since(Instant::now()) else {
+                break;
+            };
+            match session.inbox.recv_timeout(left) {
+                Ok(message) => session.dispatch(&self.engine, &message),
+                Err(_) => break,
+            }
         }
         anyhow::bail!("no debugger attached on {} within {timeout:?}", self.addr)
     }

@@ -112,17 +112,21 @@ pub(crate) const fn is_dark() -> bool {
 
 /// The XDG desktop portal's `org.freedesktop.appearance` `color-scheme`, over
 /// the system's own `libdbus`, loaded when first asked as SDL and Godot do:
-/// a desktop without it, or without a portal, answers light.
+/// a desktop without it, or without a portal, answers light. A thread reads it
+/// once, then sleeps on the bus until the portal says a setting changed.
 #[cfg(target_os = "linux")]
 mod portal {
     use std::ffi::{c_char, c_int, c_void};
     use std::sync::Once;
     use std::sync::atomic::{AtomicBool, Ordering};
-    use std::time::Duration;
 
-    /// How often the thread asks again: the portal's change signal would need
-    /// a dispatch loop, and a mode flipped by hand is not a frame-rate event.
-    const EVERY: Duration = Duration::from_secs(2);
+    /// The portal's settings interface, and the signal it sends on a change.
+    const SETTINGS: &std::ffi::CStr = c"org.freedesktop.portal.Settings";
+    const CHANGED: &std::ffi::CStr = c"SettingChanged";
+    /// Only the appearance namespace's changes reach the thread.
+    const MATCH: &std::ffi::CStr = c"type='signal',interface='org.freedesktop.portal.Settings',member='SettingChanged',arg0='org.freedesktop.appearance'";
+    /// `dbus_connection_read_write`'s wait for "until something arrives".
+    const FOREVER: c_int = -1;
     /// `1` is "prefer dark", `2` "prefer light", `0` no preference.
     const PREFER_DARK: u32 = 1;
     const TIMEOUT_MS: c_int = 500;
@@ -150,12 +154,25 @@ mod portal {
         let Some(bus) = Bus::open() else {
             return;
         };
-        loop {
-            match bus.color_scheme() {
-                Some(scheme) => DARK.store(scheme == PREFER_DARK, Ordering::Relaxed),
-                None => return,
+        let Some(scheme) = bus.color_scheme() else {
+            return;
+        };
+        DARK.store(scheme == PREFER_DARK, Ordering::Relaxed);
+        if !bus.listen() {
+            tracing::debug!(
+                "dark mode: the portal's changes cannot be heard; keeping the first answer"
+            );
+            return;
+        }
+        while bus.changed() {
+            let Some(scheme) = bus.color_scheme() else {
+                return;
+            };
+            let dark = scheme == PREFER_DARK;
+            // A sleeping loop repaints in the new mode.
+            if DARK.swap(dark, Ordering::Relaxed) != dark {
+                balaur_core::wake::wake();
             }
-            std::thread::sleep(EVERY);
         }
     }
 
@@ -201,6 +218,11 @@ mod portal {
     type Recurse = unsafe extern "C" fn(*mut Iter, *mut Iter);
     type GetBasic = unsafe extern "C" fn(*mut Iter, *mut c_void);
     type Unref = unsafe extern "C" fn(*mut c_void);
+    type AddMatch = unsafe extern "C" fn(*mut c_void, *const c_char, *mut Error);
+    type ReadWrite = unsafe extern "C" fn(*mut c_void, c_int) -> u32;
+    type PopMessage = unsafe extern "C" fn(*mut c_void) -> *mut c_void;
+    type IsSignal = unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> u32;
+    type ErrorIsSet = unsafe extern "C" fn(*const Error) -> u32;
 
     struct Bus {
         _lib: libloading::Library,
@@ -216,6 +238,11 @@ mod portal {
         recurse: Recurse,
         get_basic: GetBasic,
         unref: Unref,
+        add_match: AddMatch,
+        read_write: ReadWrite,
+        pop_message: PopMessage,
+        is_signal: IsSignal,
+        error_is_set: ErrorIsSet,
     }
 
     impl Bus {
@@ -242,6 +269,11 @@ mod portal {
                     recurse: *lib.get(b"dbus_message_iter_recurse\0").ok()?,
                     get_basic: *lib.get(b"dbus_message_iter_get_basic\0").ok()?,
                     unref: *lib.get(b"dbus_message_unref\0").ok()?,
+                    add_match: *lib.get(b"dbus_bus_add_match\0").ok()?,
+                    read_write: *lib.get(b"dbus_connection_read_write\0").ok()?,
+                    pop_message: *lib.get(b"dbus_connection_pop_message\0").ok()?,
+                    is_signal: *lib.get(b"dbus_message_is_signal\0").ok()?,
+                    error_is_set: *lib.get(b"dbus_error_is_set\0").ok()?,
                     _lib: lib,
                 };
                 let mut error = bus.error();
@@ -270,6 +302,47 @@ mod portal {
             error
         }
 
+        /// Ask the bus for the portal's appearance changes. False when it
+        /// refused the match.
+        fn listen(&self) -> bool {
+            let mut error = self.error();
+            // SAFETY: the connection is live, the rule outlives the call, and
+            // `error` is a `DBusError` this function owns.
+            unsafe {
+                (self.add_match)(self.connection, MATCH.as_ptr(), &raw mut error);
+                let refused = (self.error_is_set)(&raw const error) != 0;
+                (self.error_free)(&raw mut error);
+                !refused
+            }
+        }
+
+        /// Sleep until the portal says an appearance setting changed. False
+        /// when the bus went away.
+        fn changed(&self) -> bool {
+            // SAFETY: the connection is live; each message popped is libdbus's
+            // until it is unreferenced here.
+            unsafe {
+                loop {
+                    if (self.read_write)(self.connection, FOREVER) == 0 {
+                        return false;
+                    }
+                    let mut heard = false;
+                    loop {
+                        let message = (self.pop_message)(self.connection);
+                        if message.is_null() {
+                            break;
+                        }
+                        heard |=
+                            (self.is_signal)(message, SETTINGS.as_ptr(), CHANGED.as_ptr()) != 0;
+                        (self.unref)(message);
+                    }
+                    if heard {
+                        return true;
+                    }
+                }
+            }
+        }
+
         /// `Settings.ReadOne("org.freedesktop.appearance", "color-scheme")`,
         /// or `None` when the portal does not answer it.
         fn color_scheme(&self) -> Option<u32> {
@@ -280,7 +353,7 @@ mod portal {
                 let call = (self.new_call)(
                     c"org.freedesktop.portal.Desktop".as_ptr(),
                     c"/org/freedesktop/portal/desktop".as_ptr(),
-                    c"org.freedesktop.portal.Settings".as_ptr(),
+                    SETTINGS.as_ptr(),
                     c"ReadOne".as_ptr(),
                 );
                 if call.is_null() {
