@@ -87,10 +87,28 @@ jobs:
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: taiki-e/install-action@nextest
+      # The local Gamend on port 4000 the live suites talk to. Its CLI has no
+      # Windows build, so Windows skips them.
+      - name: Start a Gamend server
+        id: gamend
+        if: runner.os != 'Windows'
+        uses: appsinacup/gamend/actions/setup-gamend@main
+        with:
+          env: |
+            GAMEND_CLIENT_LOGS_ENABLED=true
+            GAMEND_RATELIMIT_AUTH_LIMIT=60
+            GAMEND_RATELIMIT_GENERAL_LIMIT=1200
+      # Every demo set at its default size; the action's `seed` runs only with arguments.
+      - name: Seed it
+        if: runner.os != 'Windows'
+        working-directory: ${{ steps.gamend.outputs.project }}
+        run: gamend demo.seed
       # A process per test, run in parallel, rather than one binary at a time.
       # nextest has no doctest runner, so those stay with cargo.
       - name: Unit and integration tests
         shell: bash
+        env:
+          BALAUR_E2E_GAMEND: ${{ runner.os == 'Windows' && '0' || '1' }}
         run: |
           cargo nextest run --workspace --no-fail-fast
           cargo test --workspace --doc
@@ -243,6 +261,18 @@ jobs:
       # rust-toolchain.toml pins only rustfmt and clippy.
       - name: llvm-tools
         run: rustup component add llvm-tools-preview
+      # The test job's server, so the live suites count here too.
+      - name: Start a Gamend server
+        id: gamend
+        uses: appsinacup/gamend/actions/setup-gamend@main
+        with:
+          env: |
+            GAMEND_CLIENT_LOGS_ENABLED=true
+            GAMEND_RATELIMIT_AUTH_LIMIT=60
+            GAMEND_RATELIMIT_GENERAL_LIMIT=1200
+      - name: Seed it
+        working-directory: ${{ steps.gamend.outputs.project }}
+        run: gamend demo.seed
       - name: Measure
         run: ./scripts/coverage.sh
       # Per crate, in the run summary, because one workspace percentage is

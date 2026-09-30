@@ -132,7 +132,9 @@ three desktop platforms. Beyond `cargo test --workspace`:
   `precommit.sh` runs it and `test.yml` does not.
 - `scripts/e2e_tests.sh` — suites where a full app boots over real sockets
   (`balaur_http`, `balaur_websocket`, `balaur_gamend`, `balaur_platform`), gated
-  on `BALAUR_E2E` so a local `cargo test` stays fast.
+  on `BALAUR_E2E` so a local `cargo test` stays fast. The Gamend ones talk
+  to a local Gamend on port 4000 (`GAMEND_URL` overrides): CI starts one with
+  Gamend's `setup-gamend` action, and locally `gamend daemon` serves one.
 
 ## End to end, over every example
 

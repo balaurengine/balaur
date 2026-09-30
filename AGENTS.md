@@ -130,6 +130,11 @@ it**: a bare `-1` closing a function after a `while` is `() - 1`. Write
   times them badly. `scripts/bench.py --compare` reports what moved.
 - The suites that boot an app over real sockets gate on `BALAUR_E2E`, so a
   plain `cargo test` stays fast. `scripts/e2e_tests.sh` runs them.
+- The Gamend suites talk to a local Gamend on port 4000, or to `GAMEND_URL`;
+  `BALAUR_E2E_GAMEND=0` skips them. Never gamend.org: it is a live site, and
+  a ten-second stall there failed four tests on main. `gamend starter`,
+  `gamend daemon` and `gamend demo.seed` start one; CI runs the same through
+  Gamend's `setup-gamend` action.
 
 ## Writing
 

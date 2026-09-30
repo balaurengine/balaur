@@ -24,11 +24,20 @@ pub fn e2e_enabled() -> bool {
     false
 }
 
-/// The Gamend server the live suites talk to: `GAMEND_URL`, or gamend.org.
-/// Never a stand-in: a test that passes against one proves the stand-in.
+/// The Gamend server a live suite talks to on an e2e run: `GAMEND_URL`, or a
+/// local one on port 4000, never a public one. `None` skips the suite, as
+/// `BALAUR_E2E_GAMEND=0` asks where no server runs. Never a stand-in: a test
+/// that passes against one proves the stand-in.
 #[must_use]
-pub fn gamend_url() -> String {
-    std::env::var("GAMEND_URL").unwrap_or_else(|_| String::from("https://gamend.org"))
+pub fn gamend_url() -> Option<String> {
+    if !e2e_enabled() {
+        return None;
+    }
+    if std::env::var_os("BALAUR_E2E_GAMEND").is_some_and(|run| run == "0") {
+        eprintln!("skipped: Gamend suite (BALAUR_E2E_GAMEND=0)");
+        return None;
+    }
+    Some(std::env::var("GAMEND_URL").unwrap_or_else(|_| String::from("http://localhost:4000")))
 }
 
 /// The log buffer is global and tests run in parallel, so one test's lines

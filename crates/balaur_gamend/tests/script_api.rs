@@ -1,11 +1,11 @@
 //! The gamend bindings called the way a game calls them: from a script,
-//! through `balaur::standard_app`, against a real Gamend server
-//! (`GAMEND_URL`, or gamend.org).
+//! through `balaur::standard_app`, against a real Gamend server: the local one
+//! on port 4000, or `GAMEND_URL`.
 //!
 //! All of it runs with the e2e suite. A test that signs in registers its own
 //! account by device and deletes it through the SDK before it ends.
 
-use balaur_testkit::{e2e_enabled, gamend_url, run_until_with, run_until_within};
+use balaur_testkit::{gamend_url, run_until_with, run_until_within};
 
 /// The SDK addon `editor/library/addons/gamend` holds, as a game carries it.
 fn gamend_addon() -> Vec<(String, String)> {
@@ -27,10 +27,9 @@ fn gamend_addon() -> Vec<(String, String)> {
 
 #[test]
 fn the_sdk_addon_reads_the_public_api_of_the_server() {
-    if !e2e_enabled() {
+    let Some(url) = gamend_url() else {
         return;
-    }
-    let url = gamend_url();
+    };
     let files = gamend_addon();
     let borrowed: Vec<(&str, &str)> = files
         .iter()
@@ -64,10 +63,9 @@ pub async fn init(this) {{
 
 #[test]
 fn a_script_signs_in_connects_calls_a_hook_and_deletes_its_account() {
-    if !e2e_enabled() {
+    let Some(url) = gamend_url() else {
         return;
-    }
-    let url = gamend_url();
+    };
     let device = device_id();
     let files = gamend_addon();
     let borrowed: Vec<(&str, &str)> = files
@@ -78,7 +76,7 @@ fn a_script_signs_in_connects_calls_a_hook_and_deletes_its_account() {
         r#"
 pub async fn init(this) {{
     gamend::configure("{url}");
-    // gamend.org takes ten sign-ins a minute from one address.
+    // A stock Gamend takes ten sign-ins a minute from one address.
     let login = task::wait(gamend::login((), #{{ device_id: "{device}" }})).await;
     while login.contains_key("error") && login["error"].contains("(429)") {{
         let until = engine::unix_time() + 15.0;

@@ -2,6 +2,7 @@
 # The cargo-level e2e suites: a full app boots over real sockets. CI runs
 # these on every push; locally a plain `cargo test` skips them (they gate on
 # BALAUR_E2E) so iteration stays fast — run this script when you want them.
+# The Gamend suite needs a Gamend on port 4000 (`gamend daemon`), or GAMEND_URL.
 #
 # The example-project pipeline (run/export/play/edit) is scripts/e2e.sh.
 set -euo pipefail

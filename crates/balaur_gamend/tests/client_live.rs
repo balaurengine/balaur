@@ -1,11 +1,11 @@
-//! The whole client against a real Gamend server: `GAMEND_URL`, or gamend.org.
+//! The whole client against a real Gamend server: the local one on port 4000,
+//! or `GAMEND_URL`.
 //!
 //! Part of the e2e suite. Each test registers its own account by device and
-//! deletes it before it ends. A local `mix dev.start` is
-//! `GAMEND_URL=http://localhost:4000`.
+//! deletes it before it ends.
 
 use balaur_gamend::client::{Client, Credentials, Session, Socket, SocketEvent, auth};
-use balaur_testkit::{e2e_enabled, gamend_url};
+use balaur_testkit::gamend_url;
 use serde_json::json;
 
 #[allow(
@@ -44,7 +44,7 @@ fn wait_for<T>(
     panic!("timed out waiting for a socket event");
 }
 
-/// Retry while the server answers 429: gamend.org takes ten sign-ins a
+/// Retry while the server answers 429: a stock Gamend takes ten sign-ins a
 /// minute from one address.
 fn patiently<T>(mut attempt: impl FnMut() -> anyhow::Result<T>) -> T {
     for _ in 0..6 {
@@ -70,10 +70,9 @@ fn sign_in(server: &str, device: &str) -> (Client, Session) {
 
 #[test]
 fn login_me_refresh_and_realtime_against_a_live_server() {
-    if !e2e_enabled() {
+    let Some(server) = gamend_url() else {
         return;
-    }
-    let server = gamend_url();
+    };
     let mut client = Client::new(&server);
 
     let health = client.call("GET", "/api/v1/health", None).unwrap();
@@ -174,10 +173,9 @@ fn login_me_refresh_and_realtime_against_a_live_server() {
 
 #[test]
 fn a_device_registers_signs_in_again_and_deletes_its_account() {
-    if !e2e_enabled() {
+    let Some(server) = gamend_url() else {
         return;
-    }
-    let server = gamend_url();
+    };
     let device = device_id();
 
     // A device the server has not seen registers a new account; the same

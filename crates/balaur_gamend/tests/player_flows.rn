@@ -286,10 +286,11 @@ async fn catalog(steps, me) {
 
     let open = data(call(steps, "tournaments", || gamend::tournaments::list_tournaments((), #{ "state": "registration" })).await);
     let cup = field(first_with(open, "", ""), "id");
-    call(steps, "cup", || gamend::tournaments::get_tournament((), cup)).await;
     let entry = data(call(steps, "enter", || gamend::tournaments::join_tournament((), cup)).await);
-    let entries = data(call(steps, "entries", || gamend::tournaments::tournament_entries((), cup, #{})).await);
-    check(steps, "entered", has(entries, "id", field(entry, "id")) && same(field(entry, "leader_id"), me));
+    call(steps, "entries", || gamend::tournaments::tournament_entries((), cup, #{})).await;
+    // `my_entry`, not the entries list: that pages oldest first, behind the seeded entries.
+    let joined = data(call(steps, "cup", || gamend::tournaments::get_tournament((), cup)).await);
+    check(steps, "entered", same(field(field(joined, "my_entry"), "id"), field(entry, "id")) && same(field(entry, "leader_id"), me));
     call(steps, "my_match", || gamend::tournaments::tournament_my_match((), cup)).await;
     call(steps, "standings", || gamend::tournaments::tournament_standings((), cup)).await;
     call(steps, "withdraw", || gamend::tournaments::leave_tournament((), cup)).await;

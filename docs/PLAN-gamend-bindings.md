@@ -173,7 +173,7 @@ publishes, the way forge's `mix forge.site.sync` refreshes from this
 repository's `docs/generated`. The Library dock's card for an addon copies
 the directory into the open project; `balaur new --addon gamend` does the
 same for a new one. The engine's own tests exercise the copy against a
-real server, gamend.org by default (`crates/balaur_gamend/tests`).
+real server, a local Gamend on port 4000 (`crates/balaur_gamend/tests`).
 
 **Copied into a game as `addons/gamend/`.** Polyglot Pirates' port lists
 `/addons/gamend/` in `port/ported.txt` so `port/reimport.sh` never
@@ -236,7 +236,7 @@ by where the file lives, not by who does it.
   `addon` kind in `catalog.toml` and the dock, `balaur new --addon`,
   `scripts/sync_gamend.sh`. Ends with: a new project from any template plus
   the addon passes `balaur check`, and a test in `crates/balaur_gamend/tests`
-  boots it against gamend.org and calls the addon's own functions (a query,
+  boots it against a real Gamend and calls the addon's own functions (a query,
   a path parameter) and one decoded event rather than `rest`.
 - **4. The port.** `/addons/gamend/` in `ported.txt` and
   `port/sync_gamend.sh` are done: the SDK is copied in rather than
@@ -302,7 +302,7 @@ by where the file lives, not by who does it.
   engine, fails the build when the addon does not compile. The live flow of
   step 2 runs against `mix dev.start` in the same job, which is the check on
   `events.json`: a server event the table does not name fails it.
-- Balaur: the step 3 test against gamend.org in the e2e suite: the public
+- Balaur: the step 3 test against a real Gamend in the e2e suite: the public
   API, and a script that registers by device, calls a hook and deletes its
   account through the SDK. `scripts/sync_gamend.sh --check` in precommit,
   so the library copy and the version it names never drift.

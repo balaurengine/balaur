@@ -1,4 +1,4 @@
-//! What a player does on a live Gamend server (`GAMEND_URL`, or gamend.org):
+//! What a player does on a live Gamend server (port 4000, or `GAMEND_URL`):
 //! each flow in `player_flows.rn` calls the SDK addon the way a game does, and
 //! a second player signed in here answers over plain HTTP.
 //!
@@ -9,7 +9,7 @@
 use std::time::Duration;
 
 use balaur_gamend::client::{Client, Credentials, Session, auth};
-use balaur_testkit::{e2e_enabled, gamend_url, run_until_within};
+use balaur_testkit::{gamend_url, run_until_within};
 use serde_json::json;
 
 const FLOWS: &str = include_str!("player_flows.rn");
@@ -44,8 +44,8 @@ fn tag() -> String {
     format!("t{}{}", std::process::id() % 1000, nanos % 1_000_000_000)
 }
 
-/// Sign in by device, waiting out the server's limit on sign-ins: gamend.org
-/// takes ten a minute from one address.
+/// Sign in by device, waiting out the server's limit on sign-ins: a stock
+/// Gamend takes ten a minute from one address.
 fn sign_in(client: &mut Client, device: &str) -> anyhow::Result<Session> {
     let credentials = Credentials::Device {
         device_id: device.to_string(),
@@ -88,7 +88,9 @@ impl Drop for Leftovers {
 /// Run one flow and hold its report to `steps`, each `name=status` or a
 /// check's `name=yes`.
 fn run_flow(flow: &str, with_b: bool, steps: &[&str]) {
-    let server = gamend_url();
+    let Some(server) = gamend_url() else {
+        return;
+    };
     let tag = tag();
     let device = format!("balaur-flow-{tag}");
     let mut leftovers = Leftovers {
@@ -135,9 +137,6 @@ fn run_flow(flow: &str, with_b: bool, steps: &[&str]) {
 
 #[test]
 fn a_player_renames_links_a_device_sets_a_password_and_deletes_the_account() {
-    if !e2e_enabled() {
-        return;
-    }
     run_flow(
         "profile",
         false,
@@ -170,9 +169,6 @@ fn a_player_renames_links_a_device_sets_a_password_and_deletes_the_account() {
 
 #[test]
 fn a_host_runs_a_lobby_with_chat_a_ready_check_and_moderation() {
-    if !e2e_enabled() {
-        return;
-    }
     run_flow(
         "lobby",
         true,
@@ -233,9 +229,6 @@ fn a_host_runs_a_lobby_with_chat_a_ready_check_and_moderation() {
 
 #[test]
 fn two_players_befriend_party_up_and_share_groups() {
-    if !e2e_enabled() {
-        return;
-    }
     run_flow(
         "social",
         true,
@@ -318,9 +311,6 @@ fn two_players_befriend_party_up_and_share_groups() {
 
 #[test]
 fn a_player_reads_the_economy_quests_boards_and_enters_a_tournament() {
-    if !e2e_enabled() {
-        return;
-    }
     run_flow(
         "catalog",
         false,
@@ -354,9 +344,9 @@ fn a_player_reads_the_economy_quests_boards_and_enters_a_tournament() {
             "around_me=200",
             "resolve=200",
             "tournaments=200",
-            "cup=200",
             "enter=200",
             "entries=200",
+            "cup=200",
             "entered=yes",
             "my_match=404",
             "standings=200",
@@ -376,9 +366,6 @@ fn a_player_reads_the_economy_quests_boards_and_enters_a_tournament() {
 
 #[test]
 fn a_dropped_socket_comes_back_rejoins_its_lobby_and_routes_what_follows() {
-    if !e2e_enabled() {
-        return;
-    }
     run_flow(
         "realtime",
         false,
@@ -403,9 +390,6 @@ fn a_dropped_socket_comes_back_rejoins_its_lobby_and_routes_what_follows() {
 
 #[test]
 fn a_kicked_player_forgets_the_closed_channel_and_a_reconnect_does_not_join_it() {
-    if !e2e_enabled() {
-        return;
-    }
     run_flow(
         "kicked",
         true,

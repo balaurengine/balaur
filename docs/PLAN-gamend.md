@@ -49,7 +49,7 @@ The engine:
 | --- | --- |
 | `gamend::configure`, `login`, `rest`, `connect`, `join`, `push`, `leave`, `call_hook`, `close`: nine calls, all delivered once per tick and replayable | `crates/balaur_gamend/src/lib.rs` |
 | Phoenix Channels V2 over the websocket, Fetch and WebSocket in the browser | `client/phoenix.rs`, `browser.rs` |
-| Tests against a real server, `GAMEND_URL` or gamend.org, in the e2e suite: the public API, and accounts that register by device, sign in again, open the socket and delete themselves | `crates/balaur_gamend/tests` |
+| Tests against a local Gamend on port 4000, or `GAMEND_URL`, in the e2e suite: the public API, and accounts that register by device, sign in again, open the socket and delete themselves | `crates/balaur_gamend/tests` |
 | A token the server refuses heals: a call refreshes on its 401 and runs again, and a socket renews a stale token before it connects. A refused refresh answers the 401 | `client/rest.rs`, `worker.rs`, `browser.rs` |
 | Player flows through the SDK addon, with a second player answering over HTTP: profile, lobby with chat and a ready check, friends, notifications, parties, groups, economy, quests, leaderboards, a tournament entry, push tokens | `tests/player_flows.rs`, `player_flows.rn` |
 | The plans that already hand Gamend a job: Steam and Google sign-in verification, purchase verification, web hosting of a game | `docs/PLAN-steam.md` step 2, `docs/PLAN-google.md` steps 2, 5, 6, `docs/PLAN-deploy.md` step 3 |
@@ -393,15 +393,21 @@ no server dependency and can start now.
   the server crashes (`phx_error`) is joined again the same way, and one it
   closes on purpose (`phx_close`, a kicked player's lobby) is forgotten, so
   a reconnect does not join it as a spectator (`channels.rs`).
+- **E6. A server of the run's own.** The live suites talk to a local Gamend
+  on port 4000 unless `GAMEND_URL` names another. CI's Linux, macOS and
+  coverage jobs start it with Gamend's `setup-gamend` action and fill it with
+  `gamend demo.seed`, whose leaderboard and open tournament the economy flow
+  reads. Windows, where the Gamend CLI does not run, skips them with
+  `BALAUR_E2E_GAMEND=0`. Ends with: no CI job reaches a public server.
 
 ## 4. What CI can prove
 
 Engine: `crates/balaur_gamend/tests` talks to a real server, never a
-stand-in: `GAMEND_URL`, or gamend.org, in the e2e suite. A test that signs
-in registers its own account by device and deletes it before it ends
-(`DELETE /api/v1/me`, with `current_password` once it has one). gamend.org
-takes ten sign-ins and 240 calls a minute from one address, so a test waits
-out a 429 and tries again. E2's test
+stand-in: a local Gamend on port 4000, or `GAMEND_URL`, in the e2e suite.
+A test that signs in registers its own account by device and deletes it
+before it ends (`DELETE /api/v1/me`, with `current_password` once it has
+one). A stock Gamend takes ten sign-ins and 240 calls a minute from one
+address, so a test waits out a 429 and tries again. E2's test
 spawns a real `balaur run --server`. Gamend: its own suite
 (`lobbies_test.exs`, `matchmaking_test.exs`, `signaling_test.exs`) plus one
 that spawns a stub `balaur` script printing a port and a hash. What neither
