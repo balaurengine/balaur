@@ -152,6 +152,35 @@ fn an_unreachable_websocket_reports_an_error_event() {
     }
     let event = wait_for(&mut app, |snapshot| socket_event(snapshot, "error"));
     assert!(matches!(field(&event, "reason"), Some(Value::Str(_))));
+    assert!(
+        field(&event, "status").is_none(),
+        "no server answered, so there is no status"
+    );
+}
+
+#[test]
+fn a_refused_websocket_reports_the_http_status_in_its_error_event() {
+    use std::io::{Read, Write};
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("ws://{}", listener.local_addr().unwrap());
+    std::thread::spawn(move || {
+        if let Ok((mut stream, _)) = listener.accept() {
+            let mut request = [0u8; 4096];
+            let _ = stream.read(&mut request);
+            let _ = stream.write_all(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n");
+        }
+    });
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app_with_websocket(dir.path());
+    {
+        let state = app.engine.resource::<WebsocketState>();
+        let id = app.engine.next_token();
+        state
+            .borrow_mut()
+            .connect(&app.engine, id, &url, SocketOptions::default(), None);
+    }
+    let event = wait_for(&mut app, |snapshot| socket_event(snapshot, "error"));
+    assert_eq!(field(&event, "status"), Some(&Value::Int(403)));
 }
 
 /// Raw deflate with a sync flush, tail stripped — one side of RFC 7692.

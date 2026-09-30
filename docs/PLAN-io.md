@@ -45,9 +45,9 @@ stalling on the Windows runner.
   woken thread reads until the socket has nothing, and treats `WouldBlock`
   as nothing yet. A send that meets a full socket stays in tungstenite's
   buffer and goes on the next writable wakeup.
-- **Deadlines are timeouts on the one wait.** A heartbeat or a reconnect
-  back-off is the `Poll`'s timeout, so the thread wakes for the deadline or
-  for an event, whichever comes first.
+- **Deadlines wake the loop.** A heartbeat or a reconnect back-off stepped
+  once a tick asks `balaur_core::wake::at` for a wakeup when it falls due;
+  one timer thread sleeps until the earliest of them.
 - **tokio where tokio already runs.** WebTransport's tasks take the engine's
   commands through `tokio::sync::mpsc::unbounded_channel`, whose `send` is
   synchronous and whose `recv` sleeps.
@@ -64,10 +64,11 @@ the network.
    and waker; the 30 ms read timeout goes. The match test reports each side's
    state, tick and log when it times out. Ends with: every websocket suite
    and the multiplayer match tests pass, and an idle link takes no wakeups.
-2. **Gamend on `balaur_websocket`.** Gamend's own socket code goes; the
-   worker speaks Phoenix over a `balaur_websocket` connection and waits for
-   the next event, command, heartbeat or back-off. Ends with: the Gamend
-   suites pass against a local server, and `phoenix.rs` has no socket.
+2. **Gamend on `balaur_websocket`, built.** Gamend's own socket code is gone:
+   `realtime.rs` speaks Phoenix over a `balaur_websocket` `Connection` on
+   every platform, stepped once a tick, and one implementation replaces the
+   native thread and the browser's copy. Ends with: the Gamend suites pass
+   against a local server, and `phoenix.rs` has no socket.
 3. **WebTransport on tokio's queue.** `COMMAND_POLL` goes. Ends with: the
    WebTransport suite passes with no timed wakeup.
 4. **An HTTP pool.** One shared `ureq::Agent`, so connections are kept alive

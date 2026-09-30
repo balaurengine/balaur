@@ -2,9 +2,8 @@
 //!
 //! [`Protocol`] is the wire logic with no socket in it: refs, joins, the
 //! heartbeat and frame decoding, fed text and a clock by whoever owns the
-//! connection. [`Socket`] is that protocol over a blocking tungstenite
-//! websocket, for the native worker thread; the browser backend drives the
-//! same [`Protocol`] from `WebSocket` callbacks.
+//! connection. `crate::realtime` runs it over a `balaur_websocket`
+//! connection, on every platform.
 //!
 //! Client→server frames are always JSON text — Gamend sends binary only when
 //! a connection asks for protobuf, which this client does not.
@@ -127,6 +126,12 @@ impl Protocol {
         Ok((reference, frame))
     }
 
+    /// When the next heartbeat falls due, on the clock `heartbeat` is fed.
+    #[must_use]
+    pub fn heartbeat_due(&self) -> f64 {
+        self.last_heartbeat + HEARTBEAT_EVERY_SECONDS
+    }
+
     /// A heartbeat frame when one is due, or nothing.
     ///
     /// # Errors
@@ -187,149 +192,17 @@ impl Protocol {
     }
 }
 
-#[cfg(not(target_family = "wasm"))]
-pub use blocking::Socket;
-
-/// The protocol over a blocking websocket, polled from a worker thread.
-#[cfg(not(target_family = "wasm"))]
-mod blocking {
-    use std::net::TcpStream;
-    use std::time::{Duration, Instant};
-
-    use anyhow::{Context as _, Result};
-    use serde_json::Value;
-    use tungstenite::stream::MaybeTlsStream;
-    use tungstenite::{Message, WebSocket};
-
-    use super::{Protocol, SocketEvent};
-
-    pub struct Socket {
-        connection: WebSocket<MaybeTlsStream<TcpStream>>,
-        protocol: Protocol,
-        started: Instant,
-    }
-
-    impl Socket {
-        /// Connect and complete the websocket handshake. `url` must be the
-        /// full endpoint with query parameters, e.g.
-        /// `wss://gamend.org/socket/websocket?token=...&vsn=2.0.0`.
-        #[allow(
-            clippy::disallowed_methods,
-            reason = "connection keep-alive, not simulation"
-        )]
-        pub fn connect(url: &str) -> Result<Self> {
-            let (connection, _) = tungstenite::connect(url).context("websocket handshake")?;
-            let mut socket = Self {
-                connection,
-                protocol: Protocol::new(0.0),
-                started: Instant::now(),
-            };
-            socket.set_read_timeout(Duration::from_millis(25))?;
-            Ok(socket)
-        }
-
-        /// The read timeout is what turns the blocking read into polling.
-        fn set_read_timeout(&mut self, timeout: Duration) -> Result<()> {
-            match self.connection.get_ref() {
-                MaybeTlsStream::Plain(stream) => stream.set_read_timeout(Some(timeout))?,
-                MaybeTlsStream::Rustls(stream) => {
-                    stream.get_ref().set_read_timeout(Some(timeout))?;
-                }
-                _ => {}
-            }
-            Ok(())
-        }
-
-        #[allow(
-            clippy::disallowed_methods,
-            reason = "connection keep-alive, not simulation"
-        )]
-        fn now(&self) -> f64 {
-            self.started.elapsed().as_secs_f64()
-        }
-
-        fn send_text(&mut self, frame: String) -> Result<()> {
-            self.connection
-                .send(Message::Text(frame.into()))
-                .context("websocket send")
-        }
-
-        /// Join a topic; the server's verdict arrives as a
-        /// [`SocketEvent::Reply`] carrying the returned ref.
-        pub fn join(&mut self, topic: &str, payload: &Value) -> Result<String> {
-            let (reference, frame) = self.protocol.join(topic, payload);
-            self.send_text(frame)?;
-            Ok(reference)
-        }
-
-        /// Leave a topic. The reply, like every reply, comes through `poll`.
-        pub fn leave(&mut self, topic: &str) -> Result<String> {
-            let (reference, frame) = self.protocol.leave(topic)?;
-            self.send_text(frame)?;
-            Ok(reference)
-        }
-
-        /// Push an event to a joined topic, returning the ref its reply will
-        /// carry.
-        pub fn push(&mut self, topic: &str, event: &str, payload: &Value) -> Result<String> {
-            let (reference, frame) = self.protocol.push(topic, event, payload)?;
-            self.send_text(frame)?;
-            Ok(reference)
-        }
-
-        /// Drain arrived frames and keep the heartbeat alive. Blocks at most
-        /// one read timeout when the socket is quiet. An `Err` means the
-        /// connection is unusable; `SocketEvent::Closed` in the batch means
-        /// it ended.
-        pub fn poll(&mut self) -> Result<Vec<SocketEvent>> {
-            if let Some(frame) = self.protocol.heartbeat(self.now())? {
-                self.send_text(frame)?;
-            }
-            let mut events = Vec::new();
-            loop {
-                match self.connection.read() {
-                    Ok(Message::Text(text)) => {
-                        if let Some(event) = self.protocol.decode(text.as_str())? {
-                            events.push(event);
-                        }
-                    }
-                    Ok(Message::Binary(_)) => {
-                        tracing::warn!("binary frame on a JSON connection; dropped");
-                    }
-                    Ok(Message::Close(frame)) => {
-                        events.push(SocketEvent::Closed {
-                            reason: frame.map(|f| f.reason.to_string()).unwrap_or_default(),
-                        });
-                        return Ok(events);
-                    }
-                    Ok(_) => {}
-                    Err(tungstenite::Error::Io(err)) if idle(&err) => return Ok(events),
-                    Err(
-                        tungstenite::Error::ConnectionClosed | tungstenite::Error::AlreadyClosed,
-                    ) => {
-                        events.push(SocketEvent::Closed {
-                            reason: String::new(),
-                        });
-                        return Ok(events);
-                    }
-                    Err(err) => return Err(err.into()),
-                }
-            }
-        }
-    }
-
-    /// A timed-out read is the poll breathing, not a failure.
-    fn idle(err: &std::io::Error) -> bool {
-        matches!(
-            err.kind(),
-            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
-        )
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_heartbeat_falls_due_thirty_seconds_after_the_last_one() {
+        let mut protocol = Protocol::new(5.0);
+        assert!((protocol.heartbeat_due() - 35.0).abs() < f64::EPSILON);
+        protocol.heartbeat(35.0).unwrap().unwrap();
+        assert!((protocol.heartbeat_due() - 65.0).abs() < f64::EPSILON);
+    }
 
     #[test]
     fn a_join_frame_carries_its_own_ref_as_join_ref() {

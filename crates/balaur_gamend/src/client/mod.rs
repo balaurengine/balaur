@@ -58,7 +58,5 @@ fn salt() -> u64 {
 }
 
 pub use auth::{Credentials, Session};
-#[cfg(not(target_family = "wasm"))]
-pub use phoenix::Socket;
 pub use phoenix::{Protocol, SocketEvent};
 pub use rest::Client;

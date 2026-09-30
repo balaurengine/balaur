@@ -45,21 +45,21 @@ mod browser;
 mod channels;
 pub mod client;
 mod inspect;
+mod realtime;
 mod target;
 #[cfg(not(target_family = "wasm"))]
 mod worker;
 
+/// REST and token renewal: a worker thread each on native, a Fetch promise
+/// in the browser. The realtime socket is `realtime` on both.
 #[cfg(not(target_family = "wasm"))]
 mod backend {
-    pub(crate) use crate::worker::{SharedClient, spawn_login, spawn_rest, spawn_socket};
-
-    /// Nothing to pump: the worker threads deliver on their own.
-    pub(crate) fn pump() {}
+    pub(crate) use crate::worker::{SharedClient, spawn_login, spawn_renew, spawn_rest};
 }
 
 #[cfg(target_family = "wasm")]
 mod backend {
-    pub(crate) use crate::browser::{SharedClient, pump, spawn_login, spawn_rest, spawn_socket};
+    pub(crate) use crate::browser::{SharedClient, spawn_login, spawn_renew, spawn_rest};
 }
 
 /// Login input, as a script spells it; converts into
@@ -234,6 +234,8 @@ pub struct GamendState {
     /// never reaches the server — all three live in here.
     io: ExternalIo<GamendEvent>,
     sockets: DetHashMap<u64, Sender<SocketCommand>>,
+    /// The realtime sockets, stepped once a tick.
+    live: Vec<realtime::LiveSocket>,
     request_handlers: DetHashMap<u64, Handler>,
     socket_handlers: DetHashMap<u64, Handler>,
     /// Recent calls and sockets, for a dock to show.
@@ -313,10 +315,21 @@ impl GamendState {
         self.activity
             .started(socket, None, "connect", String::from("realtime"), None);
         let (commands, receiver) = channel();
-        let started = self.io.start(eng, |report| {
-            backend::spawn_socket(&client, socket, receiver, report);
+        let mut opened = None;
+        self.io.start(eng, |report| {
+            match realtime::LiveSocket::new(&client, socket, receiver, report) {
+                Ok(live) => opened = Some(live),
+                Err(err) => balaur_core::replay::report(
+                    report,
+                    GamendEvent::SocketError {
+                        socket,
+                        reason: err.to_string(),
+                    },
+                ),
+            }
         });
-        if started {
+        if let Some(live) = opened {
+            self.live.push(live);
             self.sockets.insert(socket, commands);
         }
         Ok(())
@@ -443,9 +456,10 @@ fn restore_gamend(eng: &Engine, value: &serde_json::Value) {
 }
 
 fn pump_gamend_system(eng: &Engine, _: f32) {
-    // A backend with no delivery threads (the browser) drives its sockets
-    // here; the native one is a no-op.
-    backend::pump();
+    // The realtime sockets first, so what they heard lands this tick.
+    let mut live = std::mem::take(&mut eng.resource::<GamendState>().borrow_mut().live);
+    realtime::pump(eng, &mut live);
+    eng.resource::<GamendState>().borrow_mut().live = live;
     let mut dispatches: Vec<(Option<Handler>, Option<u64>, Value)> = Vec::new();
     {
         let state = eng.resource::<GamendState>();

@@ -48,9 +48,9 @@ The engine:
 | Have | Where |
 | --- | --- |
 | `gamend::configure`, `login`, `rest`, `connect`, `join`, `push`, `leave`, `call_hook`, `close`: nine calls, all delivered once per tick and replayable | `crates/balaur_gamend/src/lib.rs` |
-| Phoenix Channels V2 over the websocket, Fetch and WebSocket in the browser | `client/phoenix.rs`, `browser.rs` |
+| Phoenix Channels V2 over a `balaur_websocket` connection on every platform, stepped once a tick; Fetch for REST in the browser | `client/phoenix.rs`, `realtime.rs`, `browser.rs` |
 | Tests against a local Gamend on port 4000, or `GAMEND_URL`, in the e2e suite: the public API, and accounts that register by device, sign in again, open the socket and delete themselves | `crates/balaur_gamend/tests` |
-| A token the server refuses heals: a call refreshes on its 401 and runs again, and a socket renews a stale token before it connects. A refused refresh answers the 401 | `client/rest.rs`, `worker.rs`, `browser.rs` |
+| A token the server refuses heals: a call refreshes on its 401 and runs again, and a socket renews a stale token before it connects. A refused refresh answers the 401 | `client/rest.rs`, `worker.rs`, `browser.rs`, `realtime.rs` |
 | Player flows through the SDK addon, with a second player answering over HTTP: profile, lobby with chat and a ready check, friends, notifications, parties, groups, economy, quests, leaderboards, a tournament entry, push tokens | `tests/player_flows.rs`, `player_flows.rn` |
 | The plans that already hand Gamend a job: Steam and Google sign-in verification, purchase verification, web hosting of a game | `docs/PLAN-steam.md` step 2, `docs/PLAN-google.md` steps 2, 5, 6, `docs/PLAN-deploy.md` step 3 |
 
@@ -380,7 +380,7 @@ no server dependency and can start now.
   its lobby land in `client_sessions`.
 - **E5, built. A connection that survives.** A socket dropped without
   `close` backs off 1, 2, 4 seconds and on to 30, over eight tries, in
-  `worker.rs` and `browser.rs` alike. Each try renews a stale token and
+  `realtime.rs` on every platform. Each try renews a stale token and
   joins again the user topic and every topic the game joined. The handler
   hears `reconnecting` before each try, then `reopened` with the topics the
   server refused, or `error` once it gives up. A call made while it waits

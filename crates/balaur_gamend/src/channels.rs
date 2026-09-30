@@ -65,6 +65,11 @@ impl Rejoins {
         }
     }
 
+    /// When the soonest waiting join falls due, if one is waiting.
+    pub(crate) fn next_due(&self) -> Option<f64> {
+        self.due.iter().map(|due| due.at).reduce(f64::min)
+    }
+
     /// The joins due by `now`, off the wait list.
     pub(crate) fn take_due(&mut self, now: f64) -> Vec<Rejoin> {
         let (ready, waiting): (Vec<Due>, Vec<Due>) = std::mem::take(&mut self.due)
@@ -115,6 +120,21 @@ mod tests {
 
     fn lobby() -> Vec<(String, Json)> {
         vec![(String::from("lobby:7"), json!({ "password": "x" }))]
+    }
+
+    #[test]
+    fn the_soonest_waiting_rejoin_is_when_the_socket_next_wakes() {
+        let mut rejoins = Rejoins::default();
+        assert_eq!(rejoins.next_due(), None, "nothing waiting, nothing due");
+        let mut topics = vec![
+            (String::from("lobby:7"), json!({})),
+            (String::from("lobby:8"), json!({})),
+        ];
+        rejoins.heard("phx_error", "lobby:8", "user:1", &mut topics, 20.0);
+        rejoins.heard("phx_error", "lobby:7", "user:1", &mut topics, 10.0);
+        assert_eq!(rejoins.next_due(), Some(11.0));
+        rejoins.take_due(11.0);
+        assert_eq!(rejoins.next_due(), Some(21.0));
     }
 
     #[test]

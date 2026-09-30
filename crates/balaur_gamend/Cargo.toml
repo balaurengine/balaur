@@ -17,10 +17,13 @@ tracing.workspace = true
 # A token's own expiry, read from its claims; core's version.
 base64 = "0.23"
 
-# The blocking transports, for the worker threads a native build runs.
+# The realtime socket, on every platform: the same connection a script's
+# `websocket` module opens.
+balaur_websocket.workspace = true
+
+# The blocking REST client, for the worker threads a native build runs.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 ureq.workspace = true
-tungstenite.workspace = true
 
 # The browser: Fetch and the WebSocket API through web-sys, driving the same
 # protocol code from callbacks, with a pump per tick instead of a thread.
@@ -45,7 +48,6 @@ web-sys = { version = "0.3.106", features = [
 [dev-dependencies]
 balaur_testkit.workspace = true
 tempfile = "3"
-tungstenite.workspace = true
 balaur = { workspace = true, features = ["gamend", "http"] }
 
 [lints]

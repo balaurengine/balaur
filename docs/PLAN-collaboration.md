@@ -21,7 +21,7 @@ Built, and not built for this:
 
 | Have | Where |
 | --- | --- |
-| Accounts, REST, realtime channels and hooks, on native and in the browser | `balaur_gamend`, the Phoenix client, `crates/balaur_gamend/src/browser.rs` |
+| Accounts, REST, realtime channels and hooks, on native and in the browser | `balaur_gamend`, the Phoenix client over `balaur_websocket`, `crates/balaur_gamend/src/realtime.rs` |
 | The browser editor with the project mirrored in the tab and restored on refresh | `crates/balaur_cli/src/web_fs.rs::StorageFs` |
 | Undo with labels, and a dirty flag per file | `editor/scripts/history.rn` |
 | Selection highlights and gizmos drawn over the mirror | `highlight.rn`, `gizmo.rn` |

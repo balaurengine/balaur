@@ -73,7 +73,10 @@ impl Accepting for balaur_websocket::listener::WebsocketListener {
     fn accept(&mut self) -> Vec<Box<dyn Transport>> {
         Self::accept(self)
             .into_iter()
-            .map(|link| Box::new(link) as Box<dyn Transport>)
+            .map(|link| {
+                Box::new(balaur_websocket::transport::WebsocketTransport::from(link))
+                    as Box<dyn Transport>
+            })
             .collect()
     }
 }

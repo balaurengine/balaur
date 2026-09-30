@@ -84,6 +84,7 @@ graph TD
   balaur_gamend --> balaur_core
   balaur_gamend --> balaur_plugin
   balaur_gamend --> balaur_script
+  balaur_gamend --> balaur_websocket
   balaur_http --> balaur_core
   balaur_http --> balaur_plugin
   balaur_http --> balaur_script

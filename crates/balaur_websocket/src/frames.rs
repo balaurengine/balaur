@@ -62,6 +62,7 @@ pub(crate) fn spawn_socket(
                     SocketEvent::Failed {
                         socket,
                         reason: format!("{err:#}"),
+                        status: err.downcast_ref::<Refused>().map(|refused| refused.0),
                     },
                 );
                 return;
@@ -179,6 +180,23 @@ fn read_head(stream: &mut impl Read) -> Result<(Vec<u8>, Vec<u8>)> {
     }
 }
 
+/// An upgrade the server answered with something other than 101: a 401 is
+/// how a server refuses a stale token.
+#[derive(Debug)]
+struct Refused(u16);
+
+impl std::fmt::Display for Refused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "the server answered {} instead of switching protocols",
+            self.0
+        )
+    }
+}
+
+impl std::error::Error for Refused {}
+
 /// Check the upgrade and read back what the server agreed to.
 fn verify(head: &[u8], key: &str, offered_deflate: bool) -> Result<Option<DeflateParams>> {
     let mut headers = [httparse::EMPTY_HEADER; 64];
@@ -188,7 +206,7 @@ fn verify(head: &[u8], key: &str, offered_deflate: bool) -> Result<Option<Deflat
         .context("parsing the handshake response")?;
     let code = response.code.unwrap_or(0);
     if code != 101 {
-        bail!("the server answered {code} instead of switching protocols");
+        return Err(Refused(code).into());
     }
     let header = |name: &str| -> Vec<String> {
         response
@@ -400,7 +418,11 @@ pub(crate) fn run(
     mut worker: Worker<SocketCommand>,
     events: &Sender<SocketEvent>,
 ) -> SocketEvent {
-    let failed = |reason: String| SocketEvent::Failed { socket, reason };
+    let failed = |reason: String| SocketEvent::Failed {
+        socket,
+        reason,
+        status: None,
+    };
     if let Err(err) = register(&worker, connection.get_mut()) {
         return failed(format!("the socket would not register: {err}"));
     }
@@ -491,7 +513,13 @@ fn read_all(connection: &mut Socket, reading: Reading<'_>) -> Option<SocketEvent
         closing,
         events,
     } = reading;
-    let failed = |reason: String| Some(SocketEvent::Failed { socket, reason });
+    let failed = |reason: String| {
+        Some(SocketEvent::Failed {
+            socket,
+            reason,
+            status: None,
+        })
+    };
     loop {
         match connection.read(Some(MAX_MESSAGE)) {
             Ok(Some(frame)) => {

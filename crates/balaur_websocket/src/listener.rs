@@ -3,8 +3,9 @@
 //! Every socket until now was outbound, so two engines could not meet without
 //! a server between them. A [`WebsocketListener`] binds a port, does the
 //! server side of the upgrade on a worker thread, and hands back a
-//! [`WebsocketTransport`] per peer — the same type the client side produces,
-//! so a session cannot tell which end it is on.
+//! [`Connection`] per peer — the same type the client side produces, so a
+//! caller cannot tell which end it is on. A session wraps each in a
+//! [`crate::transport::WebsocketTransport`].
 //!
 //! The accepting thread sleeps in a `mio::Poll` until a peer knocks or the
 //! listener is dropped; each peer's upgrade runs on that peer's own thread,
@@ -27,8 +28,8 @@ use tungstenite::handshake::derive_accept_key;
 use tungstenite::protocol::frame::FrameSocket;
 use tungstenite::stream::MaybeTlsStream;
 
+use crate::connection::Connection;
 use crate::frames;
-use crate::transport::WebsocketTransport;
 use crate::{SocketCommand, SocketEvent};
 
 /// A bound port, accepting peers until it is dropped.
@@ -85,7 +86,7 @@ impl WebsocketListener {
         self.addr
     }
 
-    /// A url a [`WebsocketTransport`] can connect to.
+    /// A url a [`Connection`] can dial.
     #[must_use]
     pub fn url(&self) -> String {
         format!("ws://{}", self.addr)
@@ -95,11 +96,11 @@ impl WebsocketListener {
     ///
     /// Polled like everything else, so an accept lands between ticks rather
     /// than in the middle of one.
-    pub fn accept(&mut self) -> Vec<WebsocketTransport> {
+    pub fn accept(&mut self) -> Vec<Connection> {
         let mut out = Vec::new();
         loop {
             match self.arrivals.try_recv() {
-                Ok(accepted) => out.push(WebsocketTransport::from_accepted(accepted)),
+                Ok(accepted) => out.push(Connection::from_accepted(accepted)),
                 Err(TryRecvError::Empty | TryRecvError::Disconnected) => return out,
             }
         }

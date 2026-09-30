@@ -91,7 +91,7 @@ fn connect(guest_bias: f32) -> Pair {
     let mut accepted = None;
     for _ in 0..1000 {
         if let Some(peer) = listener.accept().into_iter().next() {
-            accepted = Some(peer);
+            accepted = Some(WebsocketTransport::from(peer));
             break;
         }
         let _ = dialled.receive();

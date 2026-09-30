@@ -19,8 +19,9 @@ audio = ["dep:balaur_audio"]
 extensions = ["balaur_plugin/extensions"]
 # `http.*` for scripts. Off, a build drops ureq and its TLS stack.
 http = ["dep:balaur_http"]
-# `websocket.*` for scripts, and the websocket `Transport`. Off, a build drops
-# tungstenite, rustls and the frame codec.
+# `websocket.*` for scripts, and the websocket `Transport`. Off, a build
+# without `gamend` drops tungstenite, rustls and the frame codec; Gamend's
+# realtime socket runs on them.
 websocket = ["dep:balaur_websocket", "balaur_multiplayer?/websocket"]
 # The WebTransport `Transport`, over QUIC: the transport rollback and
 # replication are meant to run on. Off, a build drops quinn, its runtime and

@@ -57,6 +57,7 @@ pub(crate) fn spawn_socket(
             let _ = events.send(SocketEvent::Failed {
                 socket,
                 reason: describe(&error),
+                status: None,
             });
             return;
         }
@@ -90,6 +91,7 @@ pub(crate) fn spawn_socket(
                 events.send(SocketEvent::Failed {
                     socket,
                     reason: String::from("a frame arrived in a form this backend cannot read"),
+                    status: None,
                 })
             };
             let _ = sent;
@@ -129,7 +131,11 @@ pub(crate) fn spawn_socket(
                 .filter(|m| !m.is_empty())
                 .unwrap_or_else(|| String::from("the connection failed"));
             finished.set(true);
-            let _ = events.send(SocketEvent::Failed { socket, reason });
+            let _ = events.send(SocketEvent::Failed {
+                socket,
+                reason,
+                status: None,
+            });
         }) as Box<dyn FnMut(JsValue)>)
     };
     ws.set_onerror(Some(failed.as_ref().unchecked_ref()));

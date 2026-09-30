@@ -21,6 +21,7 @@ use balaur_core::wake::Commands;
 use balaur_core::{DetHashMap, Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, Value};
 
+pub mod connection;
 #[cfg(not(target_family = "wasm"))]
 mod frames;
 #[cfg(not(target_family = "wasm"))]
@@ -152,9 +153,13 @@ pub(crate) enum SocketEvent {
         code: u16,
         reason: String,
     },
+    /// `status` is the HTTP answer that refused the upgrade, where the
+    /// platform can see it.
     Failed {
         socket: u64,
         reason: String,
+        #[serde(default)]
+        status: Option<u16>,
     },
 }
 
@@ -204,6 +209,7 @@ impl WebsocketState {
                 SocketEvent::Failed {
                     socket: id,
                     reason: format!("no worker for the connection: {err}"),
+                    status: None,
                 },
             ),
         });
@@ -366,11 +372,21 @@ fn event_value(event: SocketEvent) -> Value {
             ("code".into(), Value::Int(i64::from(code))),
             ("reason".into(), Value::Str(reason)),
         ],
-        SocketEvent::Failed { socket, reason } => vec![
-            ("socket".into(), id_value(socket)),
-            ("kind".into(), Value::Str(kind::ERROR.into())),
-            ("reason".into(), Value::Str(reason)),
-        ],
+        SocketEvent::Failed {
+            socket,
+            reason,
+            status,
+        } => {
+            let mut pairs = vec![
+                ("socket".into(), id_value(socket)),
+                ("kind".into(), Value::Str(kind::ERROR.into())),
+                ("reason".into(), Value::Str(reason)),
+            ];
+            if let Some(status) = status {
+                pairs.push(("status".into(), Value::Int(i64::from(status))));
+            }
+            pairs
+        }
     };
     Value::Map(pairs)
 }
@@ -447,7 +463,7 @@ fn socket_options_of(opts: Option<&Value>, config: &WebsocketConfig) -> Result<S
 /// frame arrives as `Value::Str`, a binary one as `Value::Bytes`.
 fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "A long-lived socket for text or binary frames. Events reach the node's `on_websocket_event` (or `on_event`) as a map with `socket` and `kind`: `open`, `message`, `binary`, `closed` or `error`, each an `EVENT_*` constant.",
+        "A long-lived socket for text or binary frames. Events reach the node's `on_websocket_event` (or `on_event`) as a map with `socket` and `kind`: `open`, `message`, `binary`, `closed` or `error`, each an `EVENT_*` constant. An `error` carries its `reason`, and the HTTP `status` when a server refused the upgrade.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[

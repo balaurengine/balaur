@@ -35,6 +35,96 @@ pub fn wake() {
     }
 }
 
+/// Wake the sleeping loop at `when`, for work due then that nothing else
+/// would wake it for: a heartbeat, a reconnect back-off. A browser tab keeps
+/// its frames coming, so there it does nothing.
+pub fn at(when: crate::time::Instant) {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        static TIMER: std::sync::OnceLock<Timer> = std::sync::OnceLock::new();
+        TIMER.get_or_init(|| Timer::start(wake)).schedule(when);
+    }
+    #[cfg(target_family = "wasm")]
+    let _ = when;
+}
+
+/// A thread asleep until the earliest deadline it holds, which then calls
+/// `due`. One for the process, so any number of deadlines costs one thread.
+#[cfg(not(target_family = "wasm"))]
+struct Timer {
+    shared: std::sync::Arc<(
+        Mutex<std::collections::BTreeSet<std::time::Instant>>,
+        std::sync::Condvar,
+    )>,
+}
+
+#[cfg(not(target_family = "wasm"))]
+impl Timer {
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "a deadline to wake the loop at; never a simulation input"
+    )]
+    fn start(due: impl Fn() + Send + 'static) -> Self {
+        let shared = std::sync::Arc::new((
+            Mutex::new(std::collections::BTreeSet::<std::time::Instant>::new()),
+            std::sync::Condvar::new(),
+        ));
+        let theirs = std::sync::Arc::clone(&shared);
+        let spawned = std::thread::Builder::new()
+            .name("balaur-wake-timer".into())
+            .spawn(move || {
+                let (deadlines, changed) = &*theirs;
+                let mut held = deadlines
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                loop {
+                    let now = std::time::Instant::now();
+                    let passed = held.first().is_some_and(|first| *first <= now);
+                    if passed {
+                        held.retain(|deadline| *deadline > now);
+                        drop(held);
+                        due();
+                        held = deadlines
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
+                        continue;
+                    }
+                    held = match held.first() {
+                        Some(first) => {
+                            let left = first.saturating_duration_since(now);
+                            changed
+                                .wait_timeout(held, left)
+                                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                                .0
+                        }
+                        None => changed
+                            .wait(held)
+                            .unwrap_or_else(std::sync::PoisonError::into_inner),
+                    };
+                }
+            });
+        if let Err(err) = spawned {
+            tracing::warn!(%err, "no timer thread: deadlines will wait for other wakes");
+        }
+        Self { shared }
+    }
+
+    fn schedule(&self, when: std::time::Instant) {
+        let (deadlines, changed) = &*self.shared;
+        let earliest = {
+            let mut held = deadlines
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let earliest = held.first().is_none_or(|first| when < *first);
+            held.insert(when);
+            earliest
+        };
+        if earliest {
+            changed.notify_one();
+        }
+    }
+}
+
 /// Whether anything called [`wake`] since the last call, clearing it.
 pub fn take() -> bool {
     WOKEN.swap(false, Ordering::AcqRel)
@@ -123,7 +213,9 @@ pub fn worker<T>() -> std::io::Result<(Commands<T>, Worker<T>)> {
     ))
 }
 
-#[cfg(all(test, not(target_family = "wasm")))]
+// The native half only: a worker and a timer are threads.
+#[cfg(test)]
+#[cfg(not(target_family = "wasm"))]
 mod tests {
     use super::*;
 
@@ -138,6 +230,46 @@ mod tests {
         });
         assert!(commands.send(7));
         assert_eq!(sleeper.join().unwrap(), (true, Some(7)));
+    }
+
+    #[test]
+    #[allow(clippy::disallowed_methods, reason = "a test's deadlines")]
+    fn a_timer_fires_its_deadlines_earliest_first() {
+        let (fired, heard) = channel();
+        let timer = Timer::start(move || {
+            let _ = fired.send(std::time::Instant::now());
+        });
+        let start = std::time::Instant::now();
+        let late = start + std::time::Duration::from_millis(80);
+        let soon = start + std::time::Duration::from_millis(20);
+        timer.schedule(late);
+        timer.schedule(soon);
+        let wait = std::time::Duration::from_secs(5);
+        let first = heard.recv_timeout(wait).unwrap();
+        let second = heard.recv_timeout(wait).unwrap();
+        assert!(
+            first >= soon && first < late,
+            "the earlier deadline fired first"
+        );
+        assert!(second >= late, "then the later one");
+    }
+
+    #[test]
+    #[allow(clippy::disallowed_methods, reason = "a test's deadlines")]
+    fn a_deadline_already_past_fires_at_once() {
+        let (fired, heard) = channel();
+        let timer = Timer::start(move || {
+            let _ = fired.send(());
+        });
+        let past = std::time::Instant::now()
+            .checked_sub(std::time::Duration::from_secs(1))
+            .unwrap();
+        timer.schedule(past);
+        assert!(
+            heard
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .is_ok()
+        );
     }
 
     #[test]

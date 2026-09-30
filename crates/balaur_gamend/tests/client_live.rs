@@ -4,8 +4,11 @@
 //! Part of the e2e suite. Each test registers its own account by device and
 //! deletes it before it ends.
 
-use balaur_gamend::client::{Client, Credentials, Session, Socket, SocketEvent, auth};
+use balaur_core::{App, AppConfig};
+use balaur_gamend::client::{Client, Credentials, Protocol, Session, SocketEvent, auth};
 use balaur_testkit::gamend_url;
+use balaur_websocket::SocketOptions;
+use balaur_websocket::connection::{Arrival, Connection};
 use serde_json::json;
 
 #[allow(
@@ -24,10 +27,52 @@ fn device_id() -> String {
     )
 }
 
+/// The Phoenix protocol over the websocket connection the engine uses, driven
+/// by hand.
+struct Wire {
+    connection: Connection,
+    protocol: Protocol,
+}
+
+impl Wire {
+    fn open(app: &App, url: &str) -> Self {
+        let mut connection = Connection::connect(&app.engine, url, SocketOptions::default());
+        for _ in 0..200 {
+            if connection.receive().contains(&Arrival::Opened) {
+                return Self {
+                    connection,
+                    protocol: Protocol::new(0.0),
+                };
+            }
+            std::thread::sleep(std::time::Duration::from_millis(25));
+        }
+        panic!("the socket never opened: {:?}", connection.state());
+    }
+
+    fn send(&mut self, (reference, frame): (String, String)) -> String {
+        self.connection.send_text(&frame).unwrap();
+        reference
+    }
+
+    fn poll(&mut self) -> Vec<SocketEvent> {
+        self.connection
+            .receive()
+            .into_iter()
+            .filter_map(|arrival| match arrival {
+                Arrival::Text(text) => self.protocol.decode(&text).unwrap(),
+                Arrival::Closed { reason, .. } | Arrival::Failed { reason, .. } => {
+                    panic!("the socket ended: {reason}")
+                }
+                Arrival::Opened | Arrival::Binary(_) => None,
+            })
+            .collect()
+    }
+}
+
 /// Poll until `pick` matches. Unmatched events stay in `backlog`, because a
 /// reply and a follow-up push often arrive in one batch.
 fn wait_for<T>(
-    socket: &mut Socket,
+    wire: &mut Wire,
     backlog: &mut Vec<SocketEvent>,
     mut pick: impl FnMut(&SocketEvent) -> Option<T>,
 ) -> T {
@@ -39,7 +84,8 @@ fn wait_for<T>(
                 return found;
             }
         }
-        backlog.extend(socket.poll().unwrap());
+        backlog.extend(wire.poll());
+        std::thread::sleep(std::time::Duration::from_millis(25));
     }
     panic!("timed out waiting for a socket event");
 }
@@ -103,10 +149,12 @@ fn login_me_refresh_and_realtime_against_a_live_server() {
         server.replacen("http", "ws", 1),
         session.access_token
     );
-    let mut socket = Socket::connect(&ws).unwrap();
+    let app = App::new(AppConfig::bare(".")).unwrap();
+    let mut socket = Wire::open(&app, &ws);
     let mut backlog = Vec::new();
     let topic = format!("user:{}", session.user_id);
-    let join_ref = socket.join(&topic, &json!({})).unwrap();
+    let join = socket.protocol.join(&topic, &json!({}));
+    let join_ref = socket.send(join);
     let status = wait_for(&mut socket, &mut backlog, |event| match event {
         SocketEvent::Reply {
             reference, status, ..
@@ -124,13 +172,15 @@ fn login_me_refresh_and_realtime_against_a_live_server() {
 
     // call_hook round-trips even with no plugin installed: the error reply
     // proves the request/reply path.
-    let hook_ref = socket
+    let hook = socket
+        .protocol
         .push(
             &topic,
             "call_hook",
             &json!({"plugin": "sdk_probe", "fn": "echo", "args": ["hi"]}),
         )
         .unwrap();
+    let hook_ref = socket.send(hook);
     let (status, response) = wait_for(&mut socket, &mut backlog, |event| match event {
         SocketEvent::Reply {
             reference,
@@ -146,9 +196,10 @@ fn login_me_refresh_and_realtime_against_a_live_server() {
     );
 
     // A joined-but-wrong user topic is refused, not ignored.
-    let bad_ref = socket
-        .join("user:00000000-0000-7000-8000-000000000000", &json!({}))
-        .unwrap();
+    let bad = socket
+        .protocol
+        .join("user:00000000-0000-7000-8000-000000000000", &json!({}));
+    let bad_ref = socket.send(bad);
     let status = wait_for(&mut socket, &mut backlog, |event| match event {
         SocketEvent::Reply {
             reference, status, ..
@@ -158,7 +209,8 @@ fn login_me_refresh_and_realtime_against_a_live_server() {
     assert_eq!(status, "error");
 
     // Leaving the own topic is acknowledged like a join.
-    let leave_ref = socket.leave(&topic).unwrap();
+    let leave = socket.protocol.leave(&topic).unwrap();
+    let leave_ref = socket.send(leave);
     let status = wait_for(&mut socket, &mut backlog, |event| match event {
         SocketEvent::Reply {
             reference, status, ..

@@ -142,7 +142,7 @@ the web.
 | Fonts (`editor/fonts`) | Step 3, fetched beside the wasm rather than read off a disk |
 | `http` | Have. `crates/balaur_http/src/browser.rs` is the Fetch API through web-sys |
 | `websocket` | Have. `crates/balaur_websocket/src/browser.rs` is the WebSocket API through web-sys |
-| `gamend` | Have. `crates/balaur_gamend/src/browser.rs` drives the same protocol code over Fetch and the WebSocket API |
+| `gamend` | Have. `crates/balaur_gamend/src/browser.rs` is REST over Fetch; the realtime socket is `realtime.rs` over `balaur_websocket`'s browser backend |
 | WebTransport | `docs/PLAN-networking.md`. The browser has it natively and `crates/balaur_webtransport` is where it lands |
 | Audio | Step 6, and it is `balaur_audio`'s wasm stub plus the browser's autoplay rule: no sound until the player clicks something. A gesture the editor already has |
 | `save`, and the user data directory | Step 2, onto the same backend. A save in a tab is OPFS |

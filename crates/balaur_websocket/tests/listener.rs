@@ -24,7 +24,7 @@ fn open_pair(
     let mut server = None;
     for _ in 0..400 {
         if let Some(p) = listener.accept().into_iter().next() {
-            server = Some(p);
+            server = Some(WebsocketTransport::from(p));
             break;
         }
         let _ = client.receive();

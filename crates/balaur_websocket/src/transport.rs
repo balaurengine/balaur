@@ -12,15 +12,12 @@
 //! saying which it was. A peer that is not this transport will not understand
 //! them, which is fine: both ends of a session run this code.
 
-use std::sync::mpsc::{Receiver, channel};
-
 use anyhow::{Result, bail};
 use balaur_core::Engine;
-use balaur_core::replay;
 use balaur_core::transport::{Delivery, LinkState, Received, Transport};
-use balaur_core::wake::Commands;
 
-use crate::{SocketCommand, SocketEvent, SocketOptions, backend};
+use crate::SocketOptions;
+use crate::connection::{Arrival, Connection};
 
 /// The first byte of every frame, saying which promise the payload was sent
 /// under. A tag rather than two websockets, because one connection is one
@@ -34,74 +31,41 @@ const MAX_DATAGRAM: usize = 60 * 1024;
 
 /// One link to one peer, over one websocket.
 ///
-/// The same type on both ends: [`WebsocketTransport::connect`] dials out and
-/// a [`crate::listener::WebsocketListener`] hands back the other side, so a
-/// session cannot tell which end it is holding.
+/// The same type on both ends: [`WebsocketTransport::connect`] dials out, and
+/// the connection a [`crate::listener::WebsocketListener`] accepts becomes one
+/// through `From`, so a session cannot tell which end it is holding.
 pub struct WebsocketTransport {
-    events: Receiver<SocketEvent>,
-    commands: Option<Commands<SocketCommand>>,
-    state: LinkState,
+    connection: Connection,
 }
 
 impl WebsocketTransport {
     /// Open a link to `url`.
     ///
     /// Returns immediately; the handshake runs on a worker thread and
-    /// [`Transport::state`] answers `Connecting` until it lands. Goes through
-    /// [`ExternalIo::start`](balaur_core::replay::ExternalIo::start), so a
-    /// replay or a re-simulated tick opens no
-    /// socket at all and the link stays `Connecting` forever — which is the
-    /// intended outcome, since neither should be talking to anyone.
+    /// [`Transport::state`] answers `Connecting` until it lands. A replay or
+    /// a re-simulated tick opens no socket at all and the link stays
+    /// `Connecting` forever — which is the intended outcome, since neither
+    /// should be talking to anyone.
     #[must_use]
     pub fn connect(eng: &Engine, url: &str, options: SocketOptions) -> Self {
-        let (event_tx, events) = channel();
-        let mut link = Self {
-            events,
-            commands: None,
-            state: LinkState::Connecting,
-        };
-        // Same rule `ExternalIo::start` enforces, asked directly because a
-        // transport owns its channel rather than borrowing one.
-        if replay::suppressed(eng) {
-            return link;
-        }
-        match backend::queue() {
-            Ok((commands, worker)) => {
-                // The worker's socket id routes events inside `WebsocketState`;
-                // a transport owns its channel, so there is nothing to route.
-                backend::spawn_socket(0, url.to_string(), options, worker, &event_tx);
-                link.commands = Some(commands);
-            }
-            Err(err) => link.state = LinkState::Closed(format!("no worker for the link: {err}")),
-        }
-        link
-    }
-
-    /// The peer side of a link a listener accepted.
-    #[cfg(not(target_family = "wasm"))]
-    pub(crate) fn from_accepted(accepted: crate::listener::Accepted) -> Self {
         Self {
-            events: accepted.events,
-            commands: Some(accepted.commands),
-            state: LinkState::Connecting,
+            connection: Connection::connect(eng, url, options),
         }
     }
 
     fn send_tagged(&mut self, tag: u8, bytes: &[u8]) -> Result<()> {
-        if self.state != LinkState::Open {
-            bail!("the link is {:?}, not open", self.state);
-        }
-        let Some(commands) = &self.commands else {
-            bail!("the link has no worker");
-        };
         let mut framed = Vec::with_capacity(bytes.len() + 1);
         framed.push(tag);
         framed.extend_from_slice(bytes);
-        if !commands.send(SocketCommand::SendBytes(framed)) {
-            self.state = LinkState::Closed(String::from("the worker is gone"));
-            bail!("the link closed while sending");
-        }
-        Ok(())
+        self.connection.send_bytes(framed)
+    }
+}
+
+/// A session's link over a connection either end made: a dialled one, or one
+/// a [`crate::listener::WebsocketListener`] accepted.
+impl From<Connection> for WebsocketTransport {
+    fn from(connection: Connection) -> Self {
+        Self { connection }
     }
 }
 
@@ -122,14 +86,9 @@ impl Transport for WebsocketTransport {
 
     fn receive(&mut self) -> Vec<Received> {
         let mut out = Vec::new();
-        let mut arrivals = Vec::new();
-        while let Ok(event) = self.events.try_recv() {
-            arrivals.push(event);
-        }
-        for event in arrivals {
-            match event {
-                SocketEvent::Open { .. } => self.state = LinkState::Open,
-                SocketEvent::Binary { bytes, .. } => {
+        for arrival in self.connection.receive() {
+            match arrival {
+                Arrival::Binary(bytes) => {
                     // A frame with no tag is a peer that is not this
                     // transport; dropping it beats guessing which half it is.
                     let Some((&tag, payload)) = bytes.split_first() else {
@@ -150,12 +109,8 @@ impl Transport for WebsocketTransport {
                 }
                 // Text frames are what a hand-written server or a browser
                 // console sends; this protocol is binary.
-                SocketEvent::Message { .. } => {
-                    tracing::warn!("a text frame arrived on a transport link");
-                }
-                SocketEvent::Closed { reason, .. } | SocketEvent::Failed { reason, .. } => {
-                    self.state = LinkState::Closed(reason);
-                }
+                Arrival::Text(_) => tracing::warn!("a text frame arrived on a transport link"),
+                Arrival::Opened | Arrival::Closed { .. } | Arrival::Failed { .. } => {}
             }
         }
         out
@@ -166,12 +121,10 @@ impl Transport for WebsocketTransport {
     }
 
     fn state(&self) -> LinkState {
-        self.state.clone()
+        self.connection.state()
     }
 
     fn close(&mut self) {
-        if let Some(commands) = &self.commands {
-            let _ = commands.send(SocketCommand::Close);
-        }
+        self.connection.close();
     }
 }
