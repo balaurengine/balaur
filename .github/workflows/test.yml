@@ -112,6 +112,11 @@ jobs:
         run: |
           cargo nextest run --workspace --no-fail-fast
           cargo test --workspace --doc
+      # A 500 from the server says only that something raised; its log says what.
+      - name: The Gamend server's log, when the tests failed
+        if: failure() && steps.gamend.outcome == 'success'
+        working-directory: ${{ steps.gamend.outputs.project }}
+        run: tail -n 300 .gamend/tmp/log/erlang.log.*
       # Extensions are off by default, so `--workspace` above never builds the
       # dlopen path, the cdylib, or the tests that load one at run time.
       - name: Extension tests
@@ -275,6 +280,10 @@ jobs:
         run: gamend demo.seed
       - name: Measure
         run: ./scripts/coverage.sh
+      - name: The Gamend server's log, when the tests failed
+        if: failure() && steps.gamend.outcome == 'success'
+        working-directory: ${{ steps.gamend.outputs.project }}
+        run: tail -n 300 .gamend/tmp/log/erlang.log.*
       # Per crate, in the run summary, because one workspace percentage is
       # mostly a weighted average of balaur_core and balaur_render.
       - name: Summarise

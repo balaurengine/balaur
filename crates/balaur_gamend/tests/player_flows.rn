@@ -152,9 +152,9 @@ async fn lobby(this, steps, me) {
     call(steps, "leave", || gamend::lobbies::leave_lobby(())).await;
     call(steps, "gone", || gamend::lobbies::get_lobby((), id)).await;
 
-    // Quick-join takes whatever open lobby the server picks, which on a
-    // shared server is another run's, so leave that one and disband our own.
-    call(steps, "quick_join", || gamend::lobbies::quick_join((), #{ "title": `quick ${TAG}`, "max_users": 2 })).await;
+    // Quick-join would take any open lobby, another flow's included, even as
+    // that flow disbands it; this run's own tag matches none, so it makes one.
+    call(steps, "quick_join", || gamend::lobbies::quick_join((), #{ "title": `quick ${TAG}`, "max_users": 2, "metadata": #{ "run": TAG } })).await;
     call(steps, "quick_leave", || gamend::lobbies::leave_lobby(())).await;
     let second = data(call(steps, "second", || gamend::lobbies::create_lobby((), #{ "title": `second ${TAG}`, "max_users": 2 })).await);
     call(steps, "disband", || gamend::lobbies::disband_lobby(())).await;
