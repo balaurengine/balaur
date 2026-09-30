@@ -535,6 +535,7 @@ fn cap_frame_rate(budget: Option<std::time::Duration>, started: Instant) {
     if let Some(budget) = budget
         && let Some(left) = budget.checked_sub(started.elapsed())
     {
+        // The frame cap itself: pacing, not a wait on anything.
         std::thread::sleep(left);
     }
     #[cfg(target_family = "wasm")]

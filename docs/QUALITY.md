@@ -44,6 +44,7 @@ only.
 | `channel-outside-external-io` | an `mpsc` channel in a file naming neither `ExternalIo` nor `replay::suppressed` |
 | `allow-without-reason` | `#[allow(..)]` with no `reason = ".."` and no comment |
 | `unjustified-unwrap` | `unwrap`/`expect` outside tests with no justification and no descriptive message |
+| `timed-wait` | a `thread::sleep`, a socket read or write timeout or a `tokio::time::sleep` outside tests with no comment saying why: a thread sleeps on its event, `docs/PLAN-io.md` |
 | `log-instead-of-tracing` | `log::*` in our own code; its records carry no fields to filter on |
 | `todo-without-issue` | a TODO or FIXME with no issue |
 | `fn-too-long`, `file-too-long` | 120 lines, 1200 lines |

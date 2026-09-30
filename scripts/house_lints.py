@@ -64,6 +64,10 @@ REENTRANT_CALL = re.compile(
     r"|\bcomponents::(?:add|patch|remove|remove_present)\s*\("
     r"|\binstantiate_scene\s*\("
 )
+# A thread woken on a timer to look, rather than by what it waits for:
+# docs/PLAN-io.md. A frame cap or a real deadline says why on its line.
+TIMED_WAIT = re.compile(r"\bthread::sleep\s*\(|\.set_(?:read|write)_timeout\s*\(|\btokio::time::sleep\s*\(")
+
 # `let x = <something>.borrow_mut();` — the exclusive binding, not a temporary,
 # which is dropped at the end of its statement and cannot span a call.
 BORROW_BINDING = re.compile(
@@ -629,6 +633,15 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                     findings.append(Finding(rel, i, "unjustified-unwrap",
                                             "unwrap/expect outside tests needs a justification comment "
                                             "or a descriptive expect message", "ERROR"))
+
+            if not in_test_mod and TIMED_WAIT.search(line):
+                commented = "//" in raw or (i > 1 and lines[i - 2].strip().startswith("//"))
+                if not commented:
+                    findings.append(Finding(rel, i, "timed-wait",
+                                            "a sleep or a socket timeout outside tests wakes a thread "
+                                            "on a timer; sleep on the event instead (docs/PLAN-io.md), "
+                                            "or say on the line above why this is a frame cap or a "
+                                            "deadline", "ERROR"))
 
             # ExternalIo is the recorded seam, and its worker `Sender` is
             # unreachable except through `start`, which does nothing while a

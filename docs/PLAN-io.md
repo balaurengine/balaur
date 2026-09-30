@@ -90,7 +90,8 @@ the network.
    signal and wakes the loop when the mode flips, and a dropped listener
    stops its thread (steps 1 and 3). Ends with: every row of section 0 is
    fixed.
-7. **Keep it that way.** `clippy.toml` disallows `thread::sleep`,
-   `set_read_timeout` and `tokio::time::sleep`, so a frame cap or a real
-   deadline says why in an `allow` with a reason. Ends with: clippy passes
-   with every remaining sleep explained.
+7. **Keep it that way, built.** The `timed-wait` house lint fails a
+   `thread::sleep`, a socket read or write timeout or a `tokio::time::sleep`
+   outside tests with no comment saying why. A house lint rather than
+   `clippy.toml`, which cannot spare tests and their polling loops. Ends
+   with: every remaining sleep outside tests is the frame cap, explained.

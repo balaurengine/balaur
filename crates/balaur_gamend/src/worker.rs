@@ -28,6 +28,8 @@ pub(crate) struct SharedClient {
 impl SharedClient {
     pub(crate) fn new(base_url: &str) -> Self {
         let client = Arc::new(Mutex::new(Client::new(base_url)));
+        // Jobs arrive only through `GamendState`'s `ExternalIo::start`, so a
+        // replay queues none.
         let (jobs, queue) = channel::<Job>();
         let theirs = Arc::clone(&client);
         std::thread::spawn(move || {

@@ -119,6 +119,15 @@ A line opening with `-` after any block, a loop's included, **subtracts from
 it**: a bare `-1` closing a function after a `while` is `() - 1`. Write
 `return -1;`.
 
+## Threads
+
+A native thread sleeps until its work arrives: a socket ready, a command
+queued, a deadline due. It never wakes on a timer to look. A socket sits on
+`mio` with a `balaur_core::wake::Commands` queue, blocking work goes to a
+`balaur_core::task::Pool`, and a deadline asks `balaur_core::wake::at`. The
+`timed-wait` house lint fails a sleep or a socket timeout outside tests with
+no comment saying why. `docs/PLAN-io.md` has the design.
+
 ## Tests
 
 - A test's name is a sentence about behaviour: `freeing_a_node_frees_its_children`,
