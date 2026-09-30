@@ -69,7 +69,9 @@ the network.
    every platform, stepped once a tick, and one implementation replaces the
    native thread and the browser's copy. Ends with: the Gamend suites pass
    against a local server, and `phoenix.rs` has no socket.
-3. **WebTransport on tokio's queue.** `COMMAND_POLL` goes. Ends with: the
+3. **WebTransport on tokio's queue, built.** `COMMAND_POLL` goes. A dropped
+   server stops accepting, answers a newcomer with 503 while its links still
+   run, and ends its thread with the last of them. Ends with: the
    WebTransport suite passes with no timed wakeup.
 4. **An HTTP pool.** One shared `ureq::Agent`, so connections are kept alive
    and reused, and `[http] max_parallel` workers take requests from a queue.

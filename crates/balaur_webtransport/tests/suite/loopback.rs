@@ -167,3 +167,47 @@ fn a_server_bound_while_resimulating_is_refused() {
         .0 = true;
     assert!(WebTransportServer::bind(&host.engine, "127.0.0.1:0").is_err());
 }
+
+/// Step `link` until `done` says so of its state, or ten seconds pass.
+fn wait_state(link: &mut WebTransportLink, done: impl Fn(&LinkState) -> bool) -> LinkState {
+    for _ in 0..1000 {
+        let _ = link.receive();
+        if done(&link.state()) {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    link.state()
+}
+
+#[test]
+fn a_dropped_server_keeps_its_links_and_refuses_new_ones() {
+    let (server, mut peer, mut client) = open_pair();
+    let accept = Accept::Hashes(server.certificate().hashes());
+    let url = server.url();
+    drop(server);
+
+    client.send_reliable(b"still here").unwrap();
+    assert_eq!(poll_until(&mut peer, 1)[0].bytes, b"still here".to_vec());
+    peer.send_reliable(b"and back").unwrap();
+    assert_eq!(poll_until(&mut client, 1)[0].bytes, b"and back".to_vec());
+
+    let late = app();
+    let mut newcomer = WebTransportLink::connect(&late.engine, &url, accept).unwrap();
+    let state = wait_state(&mut newcomer, |state| *state != LinkState::Connecting);
+    assert!(
+        matches!(state, LinkState::Closed(_)),
+        "a peer arriving after the drop is not let in: {state:?}"
+    );
+}
+
+#[test]
+fn a_dropped_link_ends_the_other_side() {
+    let (_server, mut peer, client) = open_pair();
+    drop(client);
+    let state = wait_state(&mut peer, |state| matches!(state, LinkState::Closed(_)));
+    assert!(
+        matches!(state, LinkState::Closed(_)),
+        "the accepted side hears the link go: {state:?}"
+    );
+}

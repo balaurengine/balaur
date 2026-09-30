@@ -2,8 +2,9 @@
 //! session to the engine's two channels.
 //!
 //! One thread per link, one runtime per thread, and the runtime never leaves
-//! it. The engine side sees only `Sender<LinkCommand>` and
-//! `Receiver<LinkEvent>`, exactly as it does for a websocket.
+//! it. The engine side sees only a command queue and `Receiver<LinkEvent>`,
+//! as it does for a websocket; the tasks sleep on the queue and the session
+//! until either has something.
 //!
 //! The reliable channel is one bidirectional stream, and a stream is bytes
 //! rather than messages, so every reliable payload goes out behind a four
@@ -11,32 +12,22 @@
 //! them whole or not at all, which is the entire point of using them.
 
 use std::net::SocketAddr;
-use std::sync::mpsc::{Receiver, Sender, TryRecvError, channel};
-use std::time::Duration;
+use std::sync::mpsc::{Receiver, Sender, channel};
 
 use anyhow::{Context, Result};
 use balaur_core::transport::{Delivery, Received};
 use web_transport_quinn::{ClientBuilder, RecvStream, SendStream, ServerBuilder, Session};
 
+use crate::queue::{Commands, Queued};
 use crate::tls::Certificate;
-use crate::{Accept, LinkCommand, LinkEvent, reason};
-
-/// How often the worker looks for outbound commands. The engine queues at
-/// most one datagram a tick, so anything under a frame is invisible; this is
-/// well under.
-const COMMAND_POLL: Duration = Duration::from_millis(1);
+use crate::{Accept, LinkCommand, LinkEvent, queue, reason};
 
 /// The largest reliable payload the worker will assemble. A peer claiming
 /// more is misbehaving, and the link fails rather than allocating it.
 const MAX_RELIABLE: u32 = 16 * 1024 * 1024;
 
 /// Dial a server and run the link until it closes.
-pub(crate) fn dial(
-    url: &str,
-    accept: Accept,
-    commands: Receiver<LinkCommand>,
-    events: &Sender<LinkEvent>,
-) {
+pub(crate) fn dial(url: &str, accept: Accept, commands: Queued, events: &Sender<LinkEvent>) {
     let runtime = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -96,11 +87,13 @@ async fn connect(url: &str, accept: Accept) -> Result<Session> {
 ///
 /// Binding happens inside the worker's runtime, because quinn needs one to
 /// open its socket, and the address travels back so the caller can report a
-/// real port after asking for zero.
+/// real port after asking for zero. Accepting stops when `stop` resolves;
+/// the thread then runs until the last peer it accepted ends.
 pub(crate) fn listen(
     addr: SocketAddr,
     certificate: &Certificate,
-    peers: Sender<(Receiver<LinkEvent>, Sender<LinkCommand>)>,
+    peers: Sender<(Receiver<LinkEvent>, Commands)>,
+    mut stop: tokio::sync::oneshot::Receiver<()>,
 ) -> Result<SocketAddr> {
     let chain = certificate.chain.clone();
     let key = certificate.key();
@@ -142,28 +135,12 @@ pub(crate) fn listen(
             if bound_tx.send(Ok(local)).is_err() {
                 return;
             }
-            while let Some(request) = server.accept().await {
-                let session = match request.ok().await {
-                    Ok(session) => session,
-                    Err(e) => {
-                        tracing::warn!(error = %e, "a peer failed to open a session");
-                        continue;
-                    }
-                };
-                // Per accepted peer, inside the guarded listener above.
-                let (commands, command_rx) = channel();
-                let (event_tx, events) = channel();
-                if peers.send((events, commands)).is_err() {
-                    // The engine dropped the server; stop accepting.
-                    return;
-                }
-                // One task per peer, all on this thread's runtime: a session
-                // is IO-bound and there is no work to spread.
-                tokio::task::spawn_local(async move {
-                    serve(session, command_rx, event_tx).await;
-                });
-            }
+            let serving = Serving::default();
+            accept_until_dropped(&mut server, &mut stop, &peers, &serving).await;
+            refuse_while_serving(&mut server, &serving).await;
         });
+        // Every peer has ended; let any teardown they left finish.
+        runtime.block_on(local);
     });
     match bound_rx.recv() {
         Ok(Ok(addr)) => Ok(addr),
@@ -172,8 +149,77 @@ pub(crate) fn listen(
     }
 }
 
+/// How many accepted peers are still running, and a signal each time one
+/// ends.
+#[derive(Default)]
+struct Serving {
+    live: std::rc::Rc<std::cell::Cell<usize>>,
+    ended: std::rc::Rc<tokio::sync::Notify>,
+}
+
+/// Hand each peer that opens a session to the engine, until the server is
+/// dropped: its stop sender goes, which resolves `stop`.
+async fn accept_until_dropped(
+    server: &mut web_transport_quinn::Server,
+    stop: &mut tokio::sync::oneshot::Receiver<()>,
+    peers: &Sender<(Receiver<LinkEvent>, Commands)>,
+    serving: &Serving,
+) {
+    loop {
+        let request = tokio::select! {
+            request = server.accept() => request,
+            _ = &mut *stop => return,
+        };
+        let Some(request) = request else {
+            return;
+        };
+        let session = match request.ok().await {
+            Ok(session) => session,
+            Err(e) => {
+                tracing::warn!(error = %e, "a peer failed to open a session");
+                continue;
+            }
+        };
+        // Per accepted peer, inside the guarded listener above.
+        let (commands, command_rx) = queue::new();
+        let (event_tx, events) = channel();
+        if peers.send((events, commands)).is_err() {
+            return;
+        }
+        // One task per peer, all on this thread's runtime: a session is
+        // IO-bound and there is no work to spread.
+        serving.live.set(serving.live.get() + 1);
+        let (live, ended) = (serving.live.clone(), serving.ended.clone());
+        tokio::task::spawn_local(async move {
+            serve(session, command_rx, event_tx).await;
+            live.set(live.get() - 1);
+            ended.notify_one();
+        });
+    }
+}
+
+/// The server is dropped but its peers still run on this endpoint: answer a
+/// newcomer with a refusal rather than leave it waiting on a handshake,
+/// until the last peer ends.
+async fn refuse_while_serving(server: &mut web_transport_quinn::Server, serving: &Serving) {
+    while serving.live.get() > 0 {
+        tokio::select! {
+            request = server.accept() => match request {
+                Some(request) => {
+                    tokio::task::spawn_local(async move {
+                        let unavailable = web_transport_quinn::http::StatusCode::SERVICE_UNAVAILABLE;
+                        let _ = request.reject(unavailable).await;
+                    });
+                }
+                None => return,
+            },
+            () = serving.ended.notified() => {}
+        }
+    }
+}
+
 /// The accepting side: wait for the dialler's reliable stream, then pump.
-async fn serve(session: Session, commands: Receiver<LinkCommand>, events: Sender<LinkEvent>) {
+async fn serve(session: Session, commands: Queued, events: Sender<LinkEvent>) {
     match session.accept_bi().await {
         Ok((send, recv)) => {
             balaur_core::replay::report(&events, LinkEvent::Open);
@@ -200,7 +246,7 @@ async fn pump(
     session: Session,
     send: SendStream,
     recv: RecvStream,
-    commands: Receiver<LinkCommand>,
+    commands: Queued,
     events: Sender<LinkEvent>,
 ) -> String {
     // Whichever task ends first says why; the rest are then torn down.
@@ -226,7 +272,7 @@ async fn pump(
     let outbound = {
         let session = session.clone();
         tokio::task::spawn_local(async move {
-            let reason = write_outbound(&session, send, &commands).await;
+            let reason = write_outbound(&session, send, commands).await;
             let _ = done.send(reason).await;
         })
     };
@@ -287,21 +333,16 @@ async fn read_reliable(mut recv: RecvStream, events: &Sender<LinkEvent>) -> Stri
     }
 }
 
-/// Outbound work the engine queued. The command channel is the engine's
-/// synchronous one, so this polls it rather than awaiting it.
-async fn write_outbound(
-    session: &Session,
-    mut send: SendStream,
-    commands: &Receiver<LinkCommand>,
-) -> String {
-    loop {
-        match commands.try_recv() {
-            Ok(LinkCommand::Send(Delivery::Datagram, bytes)) => {
+/// Outbound work the engine queued, asleep until there is some.
+async fn write_outbound(session: &Session, mut send: SendStream, mut commands: Queued) -> String {
+    while let Some(command) = commands.recv().await {
+        match command {
+            LinkCommand::Send(Delivery::Datagram, bytes) => {
                 if let Err(e) = session.send_datagram(bytes.into()) {
                     tracing::warn!(error = %e, "a datagram was dropped");
                 }
             }
-            Ok(LinkCommand::Send(Delivery::Reliable, bytes)) => {
+            LinkCommand::Send(Delivery::Reliable, bytes) => {
                 let Ok(len) = u32::try_from(bytes.len()) else {
                     tracing::warn!("a reliable message was too long to frame");
                     continue;
@@ -313,12 +354,11 @@ async fn write_outbound(
                     return format!("the reliable stream closed: {e}");
                 }
             }
-            Ok(LinkCommand::Close) => {
+            LinkCommand::Close => {
                 session.close(0, b"closed by the engine");
                 return String::from("closed by the engine");
             }
-            Err(TryRecvError::Empty) => tokio::time::sleep(COMMAND_POLL).await,
-            Err(TryRecvError::Disconnected) => return String::from("the engine dropped the link"),
         }
     }
+    String::from("the engine dropped the link")
 }

@@ -21,7 +21,7 @@
 
 #[cfg(not(target_family = "wasm"))]
 use std::net::SocketAddr;
-use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::mpsc::{Receiver, channel};
 
 #[cfg(not(target_family = "wasm"))]
 use anyhow::Context;
@@ -83,6 +83,28 @@ enum LinkCommand {
     Close,
 }
 
+/// A link's command queue: tokio's own on native, whose `recv` sleeps until
+/// a command arrives; a plain one in the browser, which its tick drains.
+#[cfg(not(target_family = "wasm"))]
+mod queue {
+    pub(crate) type Commands = tokio::sync::mpsc::UnboundedSender<super::LinkCommand>;
+    pub(crate) type Queued = tokio::sync::mpsc::UnboundedReceiver<super::LinkCommand>;
+
+    pub(crate) fn new() -> (Commands, Queued) {
+        tokio::sync::mpsc::unbounded_channel()
+    }
+}
+
+#[cfg(target_family = "wasm")]
+mod queue {
+    pub(crate) type Commands = std::sync::mpsc::Sender<super::LinkCommand>;
+    pub(crate) type Queued = std::sync::mpsc::Receiver<super::LinkCommand>;
+
+    pub(crate) fn new() -> (Commands, Queued) {
+        std::sync::mpsc::channel()
+    }
+}
+
 /// One QUIC link to one peer.
 ///
 /// The same type on both ends: [`WebTransportLink::connect`] dials out and a
@@ -90,7 +112,7 @@ enum LinkCommand {
 /// which end it is holding.
 pub struct WebTransportLink {
     events: Receiver<LinkEvent>,
-    commands: Option<Sender<LinkCommand>>,
+    commands: Option<queue::Commands>,
     state: LinkState,
     /// Reported by the peer's QUIC stack once the link is up; the conservative
     /// floor every QUIC implementation accepts until then.
@@ -124,7 +146,7 @@ impl WebTransportLink {
         )
     )]
     pub fn connect(eng: &Engine, url: &str, accept: Accept) -> Result<Self> {
-        let (commands, command_rx) = channel();
+        let (commands, command_rx) = queue::new();
         let (event_tx, events) = channel();
         if replay::suppressed(eng) {
             return Ok(Self::idle(events));
@@ -153,7 +175,7 @@ impl WebTransportLink {
     }
 
     #[cfg(not(target_family = "wasm"))]
-    fn from_accepted(events: Receiver<LinkEvent>, commands: Sender<LinkCommand>) -> Self {
+    fn from_accepted(events: Receiver<LinkEvent>, commands: queue::Commands) -> Self {
         Self {
             events,
             commands: Some(commands),
@@ -238,8 +260,10 @@ impl Transport for WebTransportLink {
 #[cfg(not(target_family = "wasm"))]
 pub struct WebTransportServer {
     addr: SocketAddr,
-    arrivals: Receiver<(Receiver<LinkEvent>, Sender<LinkCommand>)>,
+    arrivals: Receiver<(Receiver<LinkEvent>, queue::Commands)>,
     certificate: Certificate,
+    /// Dropping this stops accepting; the peers already in keep their links.
+    _stop: tokio::sync::oneshot::Sender<()>,
 }
 
 #[cfg(not(target_family = "wasm"))]
@@ -269,11 +293,13 @@ impl WebTransportServer {
             .parse()
             .with_context(|| format!("'{addr}' is not a socket address"))?;
         let (sender, arrivals) = channel();
-        let bound = link::listen(addr, &certificate, sender)?;
+        let (stop, stopped) = tokio::sync::oneshot::channel();
+        let bound = link::listen(addr, &certificate, sender, stopped)?;
         Ok(Self {
             addr: bound,
             arrivals,
             certificate,
+            _stop: stop,
         })
     }
 
