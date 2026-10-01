@@ -15,6 +15,10 @@ command -v cargo-llvm-cov >/dev/null || {
 # binaries left in `target/debug` are reused by the next plain cargo run,
 # which writes a `default_*.profraw` into whatever directory it started in.
 export CARGO_TARGET_DIR=target/shape/coverage
+# Every step in that one directory. Unset, the test runs write theirs under
+# `llvm-cov-target/` and `show-env` points the report at the parent: it read
+# the e2e profiles only, and none of the tests'.
+export CARGO_LLVM_COV_TARGET_DIR=target/shape/coverage
 
 html=0
 if [ "${1:-}" = "--html" ]; then
@@ -25,6 +29,8 @@ fi
 # balaur_bench takes the machine to itself to time frames, and the window
 # paths need a display a coverage run has not got.
 status=0
+# `--no-report` keeps old profiles, so a previous run's would count again.
+cargo llvm-cov clean --profraw-only
 cargo llvm-cov nextest \
   --workspace \
   --exclude balaur_bench \

@@ -95,3 +95,9 @@ the network.
    outside tests with no comment saying why. A house lint rather than
    `clippy.toml`, which cannot spare tests and their polling loops. Ends
    with: every remaining sleep outside tests is the frame cap, explained.
+
+## 3. Not yet seen working
+
+Linux dark mode's wait on the portal's `SettingChanged` signal is
+clippy-checked on a Mac and builds on CI's Linux job, but no run on a Linux
+desktop has watched it wake when the mode flips. That run retires this plan.
