@@ -163,7 +163,7 @@ the module.
 | Point, directional and spot lights: colour, intensity, attenuation radius, cone angles, enabled (*fork* `light.rs`) | Step 1, `light3d`. `enabled` is the node's `visible` |
 | `casts_shadows` per light; the shadow atlas, cascades, softness, resolution (*fork* `builtin/shadow.rs`) | Step 1: `light3d.shadows` and `environment.shadows`. One cascade first; `num_cascades` when a scene asks |
 | `casts_shadows` per object | Step 1, a `shadows` bool on `mesh` and `shape3d` |
-| Light layers and render layers (*fork* `light_layers`, `render_layers`) | Step 1, as `layers` on `light3d` and on the renderables, named as collision layers will be (`docs/PLAN-rapier.md`); a bitmask never reaches a scene file. `docs/PLAN-views-and-culling.md` step 2 puts the matching `cull_mask` on a camera |
+| Light layers and render layers (*fork* `light_layers`, `render_layers`) | Step 1, as `layers` on `light3d` and on the renderables, named as collision layers will be (`docs/PLAN-rapier.md`); a bitmask never reaches a scene file. `render_layers` on a renderable and on `camera3d` says which camera draws it |
 | Ambient; fog with linear, exponential and squared modes and height falloff (*fork* `Fog`, `set_ambient`) | Step 2, `environment`. Balaur's contract already carries both in its frame uniforms |
 | Equirectangular skybox, orientation, intensity (*fork* `renderer/skybox.rs`) | Step 2, `environment.sky`. `.hdr` and `.exr` load through `image`, which the window build already enables |
 | Image-based lighting, mip-as-prefilter (*fork* `renderer/ibl.rs`) | Built, on by the sky. It replaces `environment.ambient` rather than adding to it: both stand for the same bounced light |

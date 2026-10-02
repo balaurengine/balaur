@@ -156,9 +156,9 @@ Draws the node as its 2D children combined by `op`: `union`, `difference` or `in
 
 ### `camera2d`
 
-`2d` · `render` · 15 properties
+`2d` · `render` · 19 properties
 
-The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it, `ambient_color` lights every 2D surface, and the last `current` camera wins.
+The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it, `ambient_color` lights every 2D surface, the control rows say how a mouse pans and zooms it, and the last `current` camera wins.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -169,6 +169,8 @@ The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it,
 <tr><td><code>bloom_threshold</code></td><td>float</td><td><code>1.0</code></td><td>Brightness a pixel has to pass to bloom At least 0.0.</td></tr>
 <tr><td><code>current</code></td><td>bool</td><td><code>true</code></td><td>Whether this camera drives the view; the last current one wins</td></tr>
 <tr><td><code>grain_amount</code></td><td>float</td><td><code>0.06</code></td><td>How much the `grain` pass lightens and darkens a pixel At least 0.0.</td></tr>
+<tr><td><code>pan_button</code></td><td>enum</td><td><code>right</code></td><td>The mouse button a drag slides the view with; none turns panning off One of <code>none</code>, <code>left</code>, <code>right</code>, <code>middle</code>, <code>button4</code>, <code>button5</code>, <code>button6</code>, <code>button7</code>, <code>button8</code>.</td></tr>
+<tr><td><code>pan_modifiers</code></td><td>list of enum</td><td><code>[]</code></td><td>Keys held with the pan button; empty answers whatever is held</td></tr>
 <tr><td><code>pixelate_size</code></td><td>float</td><td><code>4.0</code></td><td>The side of one block the `pixelate` pass reads the frame back in, in pixels At least 1.0.</td></tr>
 <tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>60.0</code></td><td>Zoom in logical pixels per world unit At least 0.01.</td></tr>
 <tr><td><code>post</code></td><td>list of string</td><td><code>[]</code></td><td>The frame&#x27;s passes, in order. bloom, ssao, ssr, dof, fxaa, sharpen, tonemap, vignette, aberration, grain, pixelate name the engine&#x27;s own -- `ssao`, `ssr` and `dof` are 3D only, and where each physically runs is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame, and those run in the order given. `tonemap` is where the film becomes a picture: a material before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head</td></tr>
@@ -178,6 +180,8 @@ The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it,
 <tr><td><code>ssao_radius</code></td><td>float</td><td><code>0.5</code></td><td>How far the `ssao` pass looks for something occluding a point, in world units. Scale it with the scene At least 0.001.</td></tr>
 <tr><td><code>vignette_amount</code></td><td>float</td><td><code>0.35</code></td><td>How dark the corners go under the `vignette` pass Range 0.0–1.0.</td></tr>
 <tr><td><code>vignette_roundness</code></td><td>float</td><td><code>1.0</code></td><td>1 darkens in a circle whatever shape the frame is; 0 follows the frame Range 0.0–1.0.</td></tr>
+<tr><td><code>zoom_modifiers</code></td><td>list of enum</td><td><code>[]</code></td><td>Keys held for a scroll to zoom; empty answers whatever is held</td></tr>
+<tr><td><code>zoom_step</code></td><td>float</td><td><code>0.9</code></td><td>What one scroll step multiplies the zoom by At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -996,9 +1000,9 @@ On a node carrying `boolean3d`, as `node.boolean3d.<method>`:
 
 ### `camera3d`
 
-`3d` · `render` · 14 properties
+`3d` · `render` · 30 properties
 
-The perspective camera the scene is drawn from. `look_at` aims it, and the last `current` camera wins.
+The camera the scene is drawn from. `look_at` aims it, the lens rows say how it projects and what it draws, the control rows say how a mouse orbits, pans and zooms it, and the last `current` camera wins.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -1007,16 +1011,32 @@ The perspective camera the scene is drawn from. `look_at` aims it, and the last 
 <tr><td><code>bloom_intensity</code></td><td>float</td><td><code>0.6</code></td><td>How much of the bloom is added back over the frame At least 0.0.</td></tr>
 <tr><td><code>bloom_threshold</code></td><td>float</td><td><code>1.0</code></td><td>Brightness a pixel has to pass to bloom At least 0.0.</td></tr>
 <tr><td><code>current</code></td><td>bool</td><td><code>true</code></td><td>Whether this camera drives the view; the last current one wins</td></tr>
+<tr><td><code>far</code></td><td>float</td><td><code>1000.0</code></td><td>The farthest distance drawn, in world units At least 1e-06.</td></tr>
+<tr><td><code>fov_degrees</code></td><td>float</td><td><code>45.0</code></td><td>The vertical field of view; in orthographic, how much of the orbit distance the frame covers Range 1.0–179.0.</td></tr>
 <tr><td><code>grain_amount</code></td><td>float</td><td><code>0.06</code></td><td>How much the `grain` pass lightens and darkens a pixel At least 0.0.</td></tr>
 <tr><td><code>look_at</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>World point the camera looks at</td></tr>
+<tr><td><code>max_distance</code></td><td>float</td><td><code>10000.0</code></td><td>The farthest a scroll takes the camera from its focus point At least 0.0.</td></tr>
+<tr><td><code>max_pitch_degrees</code></td><td>float</td><td><code>179.427</code></td><td>How far towards straight up an orbit may look, from the up direction Range 0.0–180.0.</td></tr>
+<tr><td><code>min_distance</code></td><td>float</td><td><code>1e-05</code></td><td>The closest a scroll brings the camera to its focus point At least 0.0.</td></tr>
+<tr><td><code>min_pitch_degrees</code></td><td>float</td><td><code>0.573</code></td><td>How far towards straight down an orbit may look, from the up direction Range 0.0–180.0.</td></tr>
+<tr><td><code>near</code></td><td>float</td><td><code>0.1</code></td><td>The nearest distance drawn, in world units At least 1e-06.</td></tr>
+<tr><td><code>orbit_button</code></td><td>enum</td><td><code>middle</code></td><td>The mouse button a drag orbits the camera with; none turns orbiting off One of <code>none</code>, <code>left</code>, <code>right</code>, <code>middle</code>, <code>button4</code>, <code>button5</code>, <code>button6</code>, <code>button7</code>, <code>button8</code>.</td></tr>
+<tr><td><code>orbit_modifiers</code></td><td>list of enum</td><td><code>[]</code></td><td>Keys held with the orbit button; empty answers whatever is held</td></tr>
+<tr><td><code>pan_button</code></td><td>enum</td><td><code>right</code></td><td>The mouse button a drag slides the focus point with; none turns panning off One of <code>none</code>, <code>left</code>, <code>right</code>, <code>middle</code>, <code>button4</code>, <code>button5</code>, <code>button6</code>, <code>button7</code>, <code>button8</code>.</td></tr>
+<tr><td><code>pan_modifiers</code></td><td>list of enum</td><td><code>[]</code></td><td>Keys held with the pan button; empty answers whatever is held</td></tr>
 <tr><td><code>pixelate_size</code></td><td>float</td><td><code>4.0</code></td><td>The side of one block the `pixelate` pass reads the frame back in, in pixels At least 1.0.</td></tr>
 <tr><td><code>post</code></td><td>list of string</td><td><code>[]</code></td><td>The frame&#x27;s passes, in order. bloom, ssao, ssr, dof, fxaa, sharpen, tonemap, vignette, aberration, grain, pixelate name the engine&#x27;s own -- `ssao`, `ssr` and `dof` are 3D only, and where each physically runs is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame, and those run in the order given. `tonemap` is where the film becomes a picture: a material before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head</td></tr>
+<tr><td><code>projection</code></td><td>enum</td><td><code>perspective</code></td><td>Perspective, or parallel lines that stay parallel; an orthographic frame is sized from the orbit distance, so a scroll still zooms One of <code>perspective</code>, <code>orthographic</code>.</td></tr>
+<tr><td><code>render_layers</code></td><td>int</td><td><code>-1</code></td><td>Layer bitmask: this camera draws a node whose `render_layers` share a bit with it. -1 is every layer</td></tr>
+<tr><td><code>reset_key</code></td><td>string</td><td><code>Enter</code></td><td>The key that puts the focus point back at the origin, by its `input` name; empty for none</td></tr>
 <tr><td><code>ssao_bias</code></td><td>float</td><td><code>0.025</code></td><td>How far in front of a surface a sample must be to occlude it. Too small and a glancing surface occludes itself into black At least 0.0.</td></tr>
 <tr><td><code>ssao_intensity</code></td><td>float</td><td><code>1.2</code></td><td>How strongly the `ssao` pass darkens At least 0.0.</td></tr>
 <tr><td><code>ssao_power</code></td><td>float</td><td><code>1.5</code></td><td>The contrast the occlusion is raised to At least 0.001.</td></tr>
 <tr><td><code>ssao_radius</code></td><td>float</td><td><code>0.5</code></td><td>How far the `ssao` pass looks for something occluding a point, in world units. Scale it with the scene At least 0.001.</td></tr>
+<tr><td><code>up</code></td><td>vec3</td><td><code>[0.0, 1.0, 0.0]</code></td><td>The direction the camera keeps up; pitch and yaw are measured around it</td></tr>
 <tr><td><code>vignette_amount</code></td><td>float</td><td><code>0.35</code></td><td>How dark the corners go under the `vignette` pass Range 0.0–1.0.</td></tr>
 <tr><td><code>vignette_roundness</code></td><td>float</td><td><code>1.0</code></td><td>1 darkens in a circle whatever shape the frame is; 0 follows the frame Range 0.0–1.0.</td></tr>
+<tr><td><code>zoom_step</code></td><td>float</td><td><code>0.0</code></td><td>What one scroll step multiplies the orbit distance by; 0 is kiss3d&#x27;s own, 1.0001 on macOS and 1.01 elsewhere At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -1256,7 +1276,7 @@ A 3D light placed and aimed by the node. `kind` is `directional`, `point` or `sp
 
 ### `mesh`
 
-`3d` · `render` · 6 properties
+`3d` · `render` · 7 properties
 
 3D geometry from the `mesh` asset in `source`, drawn at the node. With a skin, the rig `skeleton` names deforms it.
 
@@ -1266,6 +1286,7 @@ A 3D light placed and aimed by the node. `kind` is `directional`, `point` or `sp
 <tr><td><code>cast_shadow</code></td><td>bool</td><td><code>true</code></td><td>Whether this casts a shadow from the lights that cast</td></tr>
 <tr><td><code>light_layers</code></td><td>int</td><td><code>-1</code></td><td>Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty draws with the built-in one</td></tr>
+<tr><td><code>render_layers</code></td><td>int</td><td><code>-1</code></td><td>Layer bitmask; a `camera3d` draws this when their `render_layers` share a bit. -1 is every layer</td></tr>
 <tr><td><code>skeleton</code></td><td>node</td><td>—</td><td>The rig a skinned mesh deforms with; empty means this node</td></tr>
 <tr><td><code>source</code></td><td>asset · <code>mesh</code></td><td>—</td><td>The mesh asset this node draws</td></tr>
 <tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>Image file, project-relative, or a `texture` asset; empty draws the colour alone</td></tr>
@@ -1302,7 +1323,7 @@ Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `
 
 ### `multimesh3d`
 
-`3d` · `render` · 5 properties · 15 methods
+`3d` · `render` · 6 properties · 15 methods
 
 Godot's `MultiMeshInstance3D`: the `multimesh` asset in `source`, its mesh drawn once per instance in one call. Each instance's `color` is the colour it draws in. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.
 
@@ -1312,6 +1333,7 @@ Godot's `MultiMeshInstance3D`: the `multimesh` asset in `source`, its mesh drawn
 <tr><td><code>cast_shadow</code></td><td>bool</td><td><code>true</code></td><td>Whether the instances cast a shadow from the lights that cast</td></tr>
 <tr><td><code>light_layers</code></td><td>int</td><td><code>-1</code></td><td>Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material every instance draws with; empty draws with the built-in one</td></tr>
+<tr><td><code>render_layers</code></td><td>int</td><td><code>-1</code></td><td>Layer bitmask; a `camera3d` draws this when their `render_layers` share a bit. -1 is every layer</td></tr>
 <tr><td><code>source</code></td><td>asset · <code>multimesh</code></td><td>—</td><td>The multimesh asset: the mesh and the instances it is drawn at</td></tr>
 <tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>Image file, project-relative, or a `texture` asset; empty draws the colour alone</td></tr>
 </tbody>
@@ -1359,7 +1381,7 @@ A box the room around it was captured inside. A reflective surface within it mir
 
 ### `shape3d`
 
-`3d` · `render` · 14 properties · 2 methods
+`3d` · `render` · 15 properties · 2 methods
 
 An untextured 3D primitive at the node, tinted by `color`. `kind` is `sphere`, `box`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`.
 
@@ -1375,6 +1397,7 @@ An untextured 3D primitive at the node, tinted by `color`. `kind` is `sphere`, `
 <tr><td><code>light_layers</code></td><td>int</td><td><code>-1</code></td><td>Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty draws with the built-in one</td></tr>
 <tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, for every kind but box, plane and pyramid At least 0.01.</td></tr>
+<tr><td><code>render_layers</code></td><td>int</td><td><code>-1</code></td><td>Layer bitmask; a `camera3d` draws this when their `render_layers` share a bit. -1 is every layer</td></tr>
 <tr><td><code>rings</code></td><td>int</td><td><code>16</code></td><td>Cuts along the axis, for ball, capsule and torus At least 3.</td></tr>
 <tr><td><code>segments</code></td><td>int</td><td><code>32</code></td><td>Cuts around the axis, or across a plane At least 3.</td></tr>
 <tr><td><code>sides</code></td><td>int</td><td><code>4</code></td><td>Flat faces, when kind is pyramid or prism At least 3.</td></tr>

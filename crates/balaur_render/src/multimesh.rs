@@ -571,6 +571,10 @@ fn get_3d(eng: &Engine, entity: Entity) -> Option<toml::Value> {
         k::LIGHT_LAYERS.into(),
         toml::Value::Integer(i64::from(renderable.layers.cast_signed())),
     );
+    map.insert(
+        k::RENDER_LAYERS.into(),
+        toml::Value::Integer(i64::from(renderable.render_layers.cast_signed())),
+    );
     Some(toml::Value::Table(map))
 }
 
@@ -638,6 +642,7 @@ pub(crate) fn register_multimesh(reg: &mut Registry<'_>) {
                     (k::MATERIAL, &material_line),
                     (k::CAST_SHADOW, r#"{ type = "bool", default = true, description = "Whether the instances cast a shadow from the lights that cast" }"#),
                     (k::LIGHT_LAYERS, r#"{ type = "int", default = -1, description = "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer" }"#),
+                    (k::RENDER_LAYERS, r#"{ type = "int", default = -1, description = "Layer bitmask; a `camera3d` draws this when their `render_layers` share a bit. -1 is every layer" }"#),
                 ]),
             ),
             tags: &[words::PERSPECTIVE, "render"],

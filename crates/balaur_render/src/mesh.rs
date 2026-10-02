@@ -95,6 +95,7 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                     (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
                     (k::CAST_SHADOW, r#"{ type = "bool", default = true, description = "Whether this casts a shadow from the lights that cast" }"#),
                     (k::LIGHT_LAYERS, r#"{ type = "int", default = -1, description = "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer" }"#),
+                    (k::RENDER_LAYERS, r#"{ type = "int", default = -1, description = "Layer bitmask; a `camera3d` draws this when their `render_layers` share a bit. -1 is every layer" }"#),
                 ]),
             ),
             tags: &[words::PERSPECTIVE, "render"],
@@ -153,6 +154,10 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                 map.insert(
                     k::LIGHT_LAYERS.into(),
                     toml::Value::Integer(i64::from(renderable.layers.cast_signed())),
+                );
+                map.insert(
+                    k::RENDER_LAYERS.into(),
+                    toml::Value::Integer(i64::from(renderable.render_layers.cast_signed())),
                 );
                 // One key per shape the mesh can blend towards, so a clip
                 // track spells `mesh/morph.smile` and a patch keeps the rest.
@@ -313,6 +318,7 @@ fn install(eng: &Engine, entity: Entity, mesh: MeshData, topology: u32, color: [
             material: String::new(),
             shadows: true,
             layers: u32::MAX,
+            render_layers: u32::MAX,
             version,
         },
     );

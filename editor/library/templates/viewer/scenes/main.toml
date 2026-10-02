@@ -15,7 +15,7 @@ rotation_euler = [-0.31416, 0.59341, 0]
 
 [nodes.camera3d]
 current = true
-fov = 45
+fov_degrees = 45
 
 [[nodes]]
 id = "n_env"

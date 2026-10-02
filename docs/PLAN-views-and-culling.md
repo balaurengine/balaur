@@ -1,4 +1,5 @@
-> **Status:** steps 3, 7 and 8 are built; the rest is not started. Written 2026-09-05 from the Godot parity
+> **Status:** steps 2, 3, 7 and 8 are built, and step 1's projection half;
+> the rest is not started. Written 2026-09-05 from the Godot parity
 > investigation: the renderer draws every node it is handed, once, from one
 > camera, into the window.
 
@@ -16,11 +17,12 @@
   `visible` propagates in `SceneSync`; nothing computes bounds.
 - The 3D material pipelines are Balaur's own (`shader_material_3d.rs`);
   every mesh is one draw. The fork's `set_instances` on a node is unused.
-- The 3D camera is the fork's orbit camera built with its default frustum:
-  `camera` has no `projection`, `fov`, `near` or `far`, though every fork
-  camera takes them through `new_with_frustum`.
+- The 3D camera is the fork's orbit camera, built from the current
+  `camera3d`'s lens through `new_with_frustum` and again whenever the lens
+  changes, since the fork takes clip planes only when a camera is made.
 - `docs/PLAN-3d-rendering.md` step 1 gives `light3d` and every renderable a
-  `layers` mask; nothing masks a camera.
+  `light_layers` mask; `render_layers` on a renderable and on `camera3d`
+  decides which camera draws it.
 - The offscreen path already renders with no OS window at a fixed step.
 
 ## 1. Design
@@ -67,12 +69,12 @@ mesh.
 
 | Need | Decision |
 | --- | --- |
-| Perspective and orthographic cameras, field of view, clip planes | Step 1: `camera.projection`, `fov`, `near`, `far`, `size`, applied through the fork's `new_with_frustum`; `render.set_camera` keeps taking eye and target |
+| Perspective and orthographic cameras, field of view, clip planes | Have: `camera3d.projection`, `fov_degrees`, `near`, `far` and `up`, and the orbit controls the fork runs on it. An orthographic frame is sized from the orbit distance and the fov, as the fork does, so there is no `size`; `render.set_camera` keeps taking eye and target |
 | Skipping nodes outside the camera | Step 1: frustum culling in 3D, rect culling in 2D, from bounds; `render.in_view`, `on_view_entered` / `on_view_exited`. A chunked tile map and a voxel volume cull per chunk, over the chunks `docs/PLAN-tilemap.md` step 2 and `docs/PLAN-voxels.md` step 2 give them |
-| Visibility layers | Step 2: `cull_mask` on `camera` and `viewport`, over the `layers` `docs/PLAN-3d-rendering.md` step 1 puts on lights and renderables |
+| Visibility layers | Have: `render_layers` on `camera3d` and on `shape3d`, `mesh` and `multimesh3d`, the fork's own name. A `viewport` takes one at step 4. Shadows come from every layer, as the fork's shadow pass draws them |
 | Repeated meshes in one call | Step 3: automatic instancing over `balaur_render::instancing`, the seam `multimesh3d` draws through; this is the same seam applied to whatever the scene repeats |
 | Anti-aliasing | Step 4: `viewport.msaa`, and `[render] msaa` in `project.toml` for the window's own view; FXAA and sharpening are `docs/PLAN-3d-rendering.md` step 5 |
-| Split screen | Step 4: `viewport` with `rect`, `camera`, `cull_mask`, `clear`, `msaa`, `update = "always" \| "once" \| "visible"`; input per view through `render.mouse_ray(view)` |
+| Split screen | Step 4: `viewport` with `rect`, `camera`, `render_layers`, `clear`, `msaa`, `update = "always" \| "once" \| "visible"`; input per view through `render.mouse_ray(view)` |
 | A camera on a texture | Step 5: `viewport.target = "texture"`, `size`, referenced as `view:<path>` |
 | Picture-in-picture | Step 5: a `viewport` on an `image` widget |
 | Level of detail | Step 6: `lods` on the mesh asset, `lod_bias` on `mesh`, `range` and `range_fade` on renderables, `balaur import --lods` through `meshopt` (C bindings, the constraint) |
@@ -84,8 +86,9 @@ mesh.
 
 ## 3. Steps
 
-1. Camera projection; bounds, frustum culling, `render.in_view`.
-2. Layers and cull masks.
+1. Camera projection; bounds, frustum culling, `render.in_view`. The
+   projection is **built**; the culling is not.
+2. Layers and cull masks. **Built**, as `render_layers`.
 3. Automatic instancing. **Built**, and 3b says what it holds to.
 4. `viewport` on a window rect, and the fork hook.
 5. `viewport` to a texture.

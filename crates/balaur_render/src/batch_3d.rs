@@ -36,6 +36,7 @@ pub(crate) struct BatchKey3d {
     pub(crate) material: String,
     pub(crate) shadows: bool,
     pub(crate) layers: u32,
+    pub(crate) render_layers: u32,
 }
 
 /// Whether a node can hand its pose to an instance instead of an object.
@@ -69,6 +70,7 @@ pub(crate) fn key_of(renderable: &Renderable3d, material: &str) -> BatchKey3d {
         material: material.to_string(),
         shadows: renderable.shadows,
         layers: renderable.layers,
+        render_layers: renderable.render_layers,
     }
 }
 
@@ -276,13 +278,14 @@ fn build_group(
     crate::kiss3d_backend::apply_surface(&mut node, &surface);
     // The object holds the frame every instance is measured from: the
     // origin, unturned, unscaled and white, with the instance carrying the
-    // rest. Its shadow flag and light layers are the group's, by the key.
+    // rest. Its shadow flag and both layer masks are the group's, by the key.
     node.set_pose(kiss3d::prelude::Pose3::IDENTITY)
         .set_local_scale(1.0, 1.0, 1.0)
         .set_color(kiss3d::prelude::Color::new(1.0, 1.0, 1.0, 1.0))
         .set_visible(true)
         .set_casts_shadows(key.shadows)
-        .set_light_layers(key.layers);
+        .set_light_layers(key.layers)
+        .set_render_layers(key.render_layers);
     Some(Group3d {
         key: key.clone(),
         node,

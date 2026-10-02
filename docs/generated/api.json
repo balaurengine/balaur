@@ -70,8 +70,8 @@
     "bone3d": "Makes the node a 3D bone. `rest_position`, `rest_rotation` and `rest_scale` are the pose a rig returns to; `length` draws its gizmo.",
     "boolean2d": "Draws the node as its 2D children combined by `op`: `union`, `difference` or `intersection`. The children stay in the tree, hidden and editable.",
     "boolean3d": "Draws the node as its children combined by `op`: `union`, `difference` or `intersection`. The children stay in the tree, hidden and editable.",
-    "camera2d": "The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it, `ambient_color` lights every 2D surface, and the last `current` camera wins.",
-    "camera3d": "The perspective camera the scene is drawn from. `look_at` aims it, and the last `current` camera wins.",
+    "camera2d": "The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it, `ambient_color` lights every 2D surface, the control rows say how a mouse pans and zooms it, and the last `current` camera wins.",
+    "camera3d": "The camera the scene is drawn from. `look_at` aims it, the lens rows say how it projects and what it draws, the control rows say how a mouse orbits, pans and zooms it, and the last `current` camera wins.",
     "character2d": "A 2D character controller: `physics2d.move_character` slides the node along walls and steps it up ledges. Needs a `collider2d`; a `kinematic` `body2d` lets it push bodies.",
     "character3d": "A 3D character controller: `physics3d.move_character` slides the node along walls and steps it up ledges. Needs a `collider3d`; a `kinematic` `body3d` lets it push bodies.",
     "collider2d": "The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2d` or the nearest body above it; without one it is static geometry.",
@@ -1044,6 +1044,39 @@
         "min": 0.0,
         "type": "float"
       },
+      "pan_button": {
+        "default": "right",
+        "description": "The mouse button a drag slides the view with; none turns panning off",
+        "group": "controls",
+        "options": [
+          "none",
+          "left",
+          "right",
+          "middle",
+          "button4",
+          "button5",
+          "button6",
+          "button7",
+          "button8"
+        ],
+        "type": "enum"
+      },
+      "pan_modifiers": {
+        "default": [],
+        "description": "Keys held with the pan button; empty answers whatever is held",
+        "group": "controls",
+        "of": {
+          "default": "shift",
+          "options": [
+            "shift",
+            "control",
+            "alt",
+            "super"
+          ],
+          "type": "enum"
+        },
+        "type": "list"
+      },
       "pixelate_size": {
         "default": 4.0,
         "description": "The side of one block the `pixelate` pass reads the frame back in, in pixels",
@@ -1102,6 +1135,29 @@
         "max": 1.0,
         "min": 0.0,
         "type": "float"
+      },
+      "zoom_modifiers": {
+        "default": [],
+        "description": "Keys held for a scroll to zoom; empty answers whatever is held",
+        "group": "controls",
+        "of": {
+          "default": "shift",
+          "options": [
+            "shift",
+            "control",
+            "alt",
+            "super"
+          ],
+          "type": "enum"
+        },
+        "type": "list"
+      },
+      "zoom_step": {
+        "default": 0.9,
+        "description": "What one scroll step multiplies the zoom by",
+        "group": "controls",
+        "min": 0.0,
+        "type": "float"
       }
     },
     "camera3d": {
@@ -1128,6 +1184,21 @@
         "description": "Whether this camera drives the view; the last current one wins",
         "type": "bool"
       },
+      "far": {
+        "default": 1000.0,
+        "description": "The farthest distance drawn, in world units",
+        "group": "lens",
+        "min": 1e-06,
+        "type": "float"
+      },
+      "fov_degrees": {
+        "default": 45.0,
+        "description": "The vertical field of view; in orthographic, how much of the orbit distance the frame covers",
+        "group": "lens",
+        "max": 179.0,
+        "min": 1.0,
+        "type": "float"
+      },
       "grain_amount": {
         "default": 0.06,
         "description": "How much the `grain` pass lightens and darkens a pixel",
@@ -1143,6 +1214,109 @@
         "description": "World point the camera looks at",
         "type": "vec3"
       },
+      "max_distance": {
+        "default": 10000.0,
+        "description": "The farthest a scroll takes the camera from its focus point",
+        "group": "controls",
+        "min": 0.0,
+        "type": "float"
+      },
+      "max_pitch_degrees": {
+        "default": 179.427,
+        "description": "How far towards straight up an orbit may look, from the up direction",
+        "group": "controls",
+        "max": 180.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "min_distance": {
+        "default": 1e-05,
+        "description": "The closest a scroll brings the camera to its focus point",
+        "group": "controls",
+        "min": 0.0,
+        "type": "float"
+      },
+      "min_pitch_degrees": {
+        "default": 0.573,
+        "description": "How far towards straight down an orbit may look, from the up direction",
+        "group": "controls",
+        "max": 180.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "near": {
+        "default": 0.1,
+        "description": "The nearest distance drawn, in world units",
+        "group": "lens",
+        "min": 1e-06,
+        "type": "float"
+      },
+      "orbit_button": {
+        "default": "middle",
+        "description": "The mouse button a drag orbits the camera with; none turns orbiting off",
+        "group": "controls",
+        "options": [
+          "none",
+          "left",
+          "right",
+          "middle",
+          "button4",
+          "button5",
+          "button6",
+          "button7",
+          "button8"
+        ],
+        "type": "enum"
+      },
+      "orbit_modifiers": {
+        "default": [],
+        "description": "Keys held with the orbit button; empty answers whatever is held",
+        "group": "controls",
+        "of": {
+          "default": "shift",
+          "options": [
+            "shift",
+            "control",
+            "alt",
+            "super"
+          ],
+          "type": "enum"
+        },
+        "type": "list"
+      },
+      "pan_button": {
+        "default": "right",
+        "description": "The mouse button a drag slides the focus point with; none turns panning off",
+        "group": "controls",
+        "options": [
+          "none",
+          "left",
+          "right",
+          "middle",
+          "button4",
+          "button5",
+          "button6",
+          "button7",
+          "button8"
+        ],
+        "type": "enum"
+      },
+      "pan_modifiers": {
+        "default": [],
+        "description": "Keys held with the pan button; empty answers whatever is held",
+        "group": "controls",
+        "of": {
+          "default": "shift",
+          "options": [
+            "shift",
+            "control",
+            "alt",
+            "super"
+          ],
+          "type": "enum"
+        },
+        "type": "list"
+      },
       "pixelate_size": {
         "default": 4.0,
         "description": "The side of one block the `pixelate` pass reads the frame back in, in pixels",
@@ -1157,6 +1331,28 @@
           "type": "string"
         },
         "type": "list"
+      },
+      "projection": {
+        "default": "perspective",
+        "description": "Perspective, or parallel lines that stay parallel; an orthographic frame is sized from the orbit distance, so a scroll still zooms",
+        "group": "lens",
+        "options": [
+          "perspective",
+          "orthographic"
+        ],
+        "type": "enum"
+      },
+      "render_layers": {
+        "default": -1,
+        "description": "Layer bitmask: this camera draws a node whose `render_layers` share a bit with it. -1 is every layer",
+        "group": "lens",
+        "type": "int"
+      },
+      "reset_key": {
+        "default": "Enter",
+        "description": "The key that puts the focus point back at the origin, by its `input` name; empty for none",
+        "group": "controls",
+        "type": "string"
       },
       "ssao_bias": {
         "default": 0.025,
@@ -1182,6 +1378,16 @@
         "min": 0.001,
         "type": "float"
       },
+      "up": {
+        "default": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "description": "The direction the camera keeps up; pitch and yaw are measured around it",
+        "group": "lens",
+        "type": "vec3"
+      },
       "vignette_amount": {
         "default": 0.35,
         "description": "How dark the corners go under the `vignette` pass",
@@ -1193,6 +1399,13 @@
         "default": 1.0,
         "description": "1 darkens in a circle whatever shape the frame is; 0 follows the frame",
         "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "zoom_step": {
+        "default": 0.0,
+        "description": "What one scroll step multiplies the orbit distance by; 0 is kiss3d's own, 1.0001 on macOS and 1.01 elsewhere",
+        "group": "controls",
         "min": 0.0,
         "type": "float"
       }
@@ -2875,6 +3088,11 @@
         "description": "The material this draws with; empty draws with the built-in one",
         "type": "asset"
       },
+      "render_layers": {
+        "default": -1,
+        "description": "Layer bitmask; a `camera3d` draws this when their `render_layers` share a bit. -1 is every layer",
+        "type": "int"
+      },
       "skeleton": {
         "default": "",
         "description": "The rig a skinned mesh deforms with; empty means this node",
@@ -3130,6 +3348,11 @@
         "default": "",
         "description": "The material every instance draws with; empty draws with the built-in one",
         "type": "asset"
+      },
+      "render_layers": {
+        "default": -1,
+        "description": "Layer bitmask; a `camera3d` draws this when their `render_layers` share a bit. -1 is every layer",
+        "type": "int"
       },
       "source": {
         "asset": "multimesh",
@@ -3576,6 +3799,11 @@
         "description": "Radius, for every kind but box, plane and pyramid",
         "min": 0.01,
         "type": "float"
+      },
+      "render_layers": {
+        "default": -1,
+        "description": "Layer bitmask; a `camera3d` draws this when their `render_layers` share a bit. -1 is every layer",
+        "type": "int"
       },
       "rings": {
         "default": 16,

@@ -123,6 +123,184 @@ fn key_code(key: kiss3d::event::Key) -> Option<&'static str> {
         .or_else(|| system_code(key))
 }
 
+/// The kiss3d key a `balaur_input` name stands for, for a setting kiss3d
+/// reads itself, such as a camera's reset key.
+pub(crate) fn key_named(name: &str) -> Option<kiss3d::event::Key> {
+    EVERY_KEY
+        .iter()
+        .copied()
+        .find(|key| key_code(*key) == Some(name))
+}
+
+/// Every key kiss3d declares, in its own order.
+const EVERY_KEY: [kiss3d::event::Key; 162] = {
+    use kiss3d::event::Key as K;
+    [
+        K::Key1,
+        K::Key2,
+        K::Key3,
+        K::Key4,
+        K::Key5,
+        K::Key6,
+        K::Key7,
+        K::Key8,
+        K::Key9,
+        K::Key0,
+        K::A,
+        K::B,
+        K::C,
+        K::D,
+        K::E,
+        K::F,
+        K::G,
+        K::H,
+        K::I,
+        K::J,
+        K::K,
+        K::L,
+        K::M,
+        K::N,
+        K::O,
+        K::P,
+        K::Q,
+        K::R,
+        K::S,
+        K::T,
+        K::U,
+        K::V,
+        K::W,
+        K::X,
+        K::Y,
+        K::Z,
+        K::Escape,
+        K::F1,
+        K::F2,
+        K::F3,
+        K::F4,
+        K::F5,
+        K::F6,
+        K::F7,
+        K::F8,
+        K::F9,
+        K::F10,
+        K::F11,
+        K::F12,
+        K::F13,
+        K::F14,
+        K::F15,
+        K::F16,
+        K::F17,
+        K::F18,
+        K::F19,
+        K::F20,
+        K::F21,
+        K::F22,
+        K::F23,
+        K::F24,
+        K::Snapshot,
+        K::Scroll,
+        K::Pause,
+        K::Insert,
+        K::Home,
+        K::Delete,
+        K::End,
+        K::PageDown,
+        K::PageUp,
+        K::Left,
+        K::Up,
+        K::Right,
+        K::Down,
+        K::Back,
+        K::Return,
+        K::Space,
+        K::Compose,
+        K::Caret,
+        K::Numlock,
+        K::Numpad0,
+        K::Numpad1,
+        K::Numpad2,
+        K::Numpad3,
+        K::Numpad4,
+        K::Numpad5,
+        K::Numpad6,
+        K::Numpad7,
+        K::Numpad8,
+        K::Numpad9,
+        K::AbntC1,
+        K::AbntC2,
+        K::Add,
+        K::Apostrophe,
+        K::Apps,
+        K::At,
+        K::Ax,
+        K::Backslash,
+        K::Calculator,
+        K::Capital,
+        K::Colon,
+        K::Comma,
+        K::Convert,
+        K::Decimal,
+        K::Divide,
+        K::Equals,
+        K::Grave,
+        K::Kana,
+        K::Kanji,
+        K::LAlt,
+        K::LBracket,
+        K::LControl,
+        K::LShift,
+        K::LWin,
+        K::Mail,
+        K::MediaSelect,
+        K::MediaStop,
+        K::Minus,
+        K::Multiply,
+        K::Mute,
+        K::MyComputer,
+        K::NavigateForward,
+        K::NavigateBackward,
+        K::NextTrack,
+        K::NoConvert,
+        K::NumpadComma,
+        K::NumpadEnter,
+        K::NumpadEquals,
+        K::OEM102,
+        K::Period,
+        K::PlayPause,
+        K::Power,
+        K::PrevTrack,
+        K::RAlt,
+        K::RBracket,
+        K::RControl,
+        K::RShift,
+        K::RWin,
+        K::Semicolon,
+        K::Slash,
+        K::Sleep,
+        K::Stop,
+        K::Subtract,
+        K::Sysrq,
+        K::Tab,
+        K::Underline,
+        K::Unlabeled,
+        K::VolumeDown,
+        K::VolumeUp,
+        K::Wake,
+        K::WebBack,
+        K::WebFavorites,
+        K::WebForward,
+        K::WebHome,
+        K::WebRefresh,
+        K::WebSearch,
+        K::WebStop,
+        K::Yen,
+        K::Copy,
+        K::Paste,
+        K::Cut,
+        K::Unknown,
+    ]
+};
+
 /// Letters, digits, punctuation and the space bar.
 fn typing_code(key: kiss3d::event::Key) -> Option<&'static str> {
     use kiss3d::event::Key;
@@ -319,5 +497,20 @@ mod key_code_tests {
         assert_eq!(key_code(Key::A), Some("KeyA"));
         assert_eq!(key_code(Key::Return), Some("Enter"));
         assert_eq!(key_code(Key::Unknown), None);
+    }
+
+    #[test]
+    fn every_key_with_a_code_is_found_by_its_name() {
+        for key in super::EVERY_KEY {
+            if let Some(code) = key_code(key) {
+                assert!(
+                    balaur_input::is_known_key(code),
+                    "{code} is not in balaur_input's table"
+                );
+                assert_eq!(super::key_named(code), Some(key), "{code}");
+            }
+        }
+        assert_eq!(super::key_named("Enter"), Some(Key::Return));
+        assert_eq!(super::key_named("NotAKey"), None);
     }
 }

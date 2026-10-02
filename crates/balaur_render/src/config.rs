@@ -126,6 +126,9 @@ pub struct CameraConfig2d {
     /// what `changed` is about.
     pub ambient: [f32; 3],
     pub changed: bool,
+    /// The current 2D camera's mouse controls, or the defaults with none.
+    pub controls: crate::lens::Controls2d,
+    pub controls_changed: bool,
 }
 
 impl Default for CameraConfig2d {
@@ -137,6 +140,8 @@ impl Default for CameraConfig2d {
             // Asserted at boot, as [`CameraConfig3d`] is: a scene writing the
             // schema's own default of 60 raises no change and is never applied.
             changed: true,
+            controls: crate::lens::Controls2d::default(),
+            controls_changed: true,
         }
     }
 }
@@ -212,6 +217,10 @@ pub struct CameraConfig3d {
     pub eye: glamx::Vec3,
     pub target: glamx::Vec3,
     pub changed: bool,
+    /// The current camera's lens and controls, or the defaults with none, so
+    /// a game's lens does not outlive its play in the editor.
+    pub lens: crate::lens::Lens3d,
+    pub lens_changed: bool,
 }
 
 impl Default for CameraConfig3d {
@@ -220,6 +229,8 @@ impl Default for CameraConfig3d {
             eye: glamx::Vec3::new(8.0, 5.0, 12.0),
             target: glamx::Vec3::new(0.0, 1.0, 0.0),
             changed: true,
+            lens: crate::lens::Lens3d::default(),
+            lens_changed: true,
         }
     }
 }

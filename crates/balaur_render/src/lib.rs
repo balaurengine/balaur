@@ -23,6 +23,7 @@ mod config;
 mod debug_view;
 mod draw_2d;
 mod instancing;
+mod lens;
 pub mod light;
 pub mod light3d;
 pub mod material;
@@ -76,6 +77,7 @@ mod vocabulary;
 pub mod world_text;
 pub use camera::{Camera2d, Camera3d, Finish, Occlusion, Post, PostPass};
 pub use debug_view::{ChannelView, PreviewRequest, ProbeReading, ProbeRequest};
+pub use lens::{Controls2d, Lens3d, Modifier, Modifiers, MouseButton};
 pub use light::{Light2d, LightKind2d, LitLight2d, Occluder2d};
 pub use multimesh::{
     Instance, MAX_INSTANCES, MULTIMESH_2D, MULTIMESH_3D, MULTIMESH_ASSET_TYPE, MeshSource,
@@ -299,6 +301,8 @@ pub struct Renderable3d {
     /// Which light layers reach this node. A light lights it when their masks
     /// share a bit; `u32::MAX` is every layer.
     pub layers: u32,
+    /// Which cameras draw this node, by the same rule against a `camera3d`'s.
+    pub render_layers: u32,
     /// Bumped when `shape` changes so backends know to rebuild their node.
     pub version: u64,
 }
@@ -572,35 +576,33 @@ pub(crate) fn set_mesh(
                 material: String::new(),
                 shadows: true,
                 layers: u32::MAX,
+                render_layers: u32::MAX,
                 version: 0,
             },
         )
         .map_err(|_| anyhow!("node is dead"))
 }
 
-/// Whether this node casts, and which light layers reach it. A component's
-/// `apply` calls this after setting the shape, so a node with neither key
-/// keeps the defaults: it casts, and every light finds it.
-pub(crate) fn set_lighting(eng: &Engine, entity: Entity, shadows: bool, layers: u32) {
-    let world = eng.world_mut();
-    if let Ok(mut r) = world.get::<&mut Renderable3d>(entity) {
-        r.shadows = shadows;
-        r.layers = layers;
-    }
-}
-
-/// The `cast_shadow` and `light_layers` keys a 3D renderable component
-/// offers, applied to whatever renderable the node just gained.
+/// The `cast_shadow`, `light_layers` and `render_layers` keys a 3D
+/// renderable component offers, applied to whatever renderable the node just
+/// gained. A node with none of them casts, and every light and camera finds it.
 pub(crate) fn lighting_from_params(eng: &Engine, entity: Entity, params: &toml::Value) {
     let shadows = params
         .get(crate::vocabulary::keys::CAST_SHADOW)
         .and_then(toml::Value::as_bool)
         .unwrap_or(true);
-    let layers = params
-        .get(crate::vocabulary::keys::LIGHT_LAYERS)
-        .and_then(balaur_core::components::as_f64)
-        .map_or(u32::MAX, |v| v as i64 as u32);
-    set_lighting(eng, entity, shadows, layers);
+    let mask = |key: &str| {
+        params
+            .get(key)
+            .and_then(balaur_core::components::as_f64)
+            .map_or(u32::MAX, |v| v as i64 as u32)
+    };
+    let world = eng.world_mut();
+    if let Ok(mut r) = world.get::<&mut Renderable3d>(entity) {
+        r.shadows = shadows;
+        r.layers = mask(crate::vocabulary::keys::LIGHT_LAYERS);
+        r.render_layers = mask(crate::vocabulary::keys::RENDER_LAYERS);
+    }
 }
 
 pub(crate) fn set_shape(eng: &Engine, entity: Entity, shape: Shape3d) -> Result<()> {
@@ -628,6 +630,7 @@ pub(crate) fn set_shape(eng: &Engine, entity: Entity, shape: Shape3d) -> Result<
                 material: String::new(),
                 shadows: true,
                 layers: u32::MAX,
+                render_layers: u32::MAX,
                 version: 0,
             },
         )

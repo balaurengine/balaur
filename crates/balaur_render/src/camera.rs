@@ -46,6 +46,7 @@ pub struct Camera3d {
     /// the effects run over the whole film, so the last current camera of
     /// either dimension sets them.
     pub post: Post,
+    pub lens: crate::lens::Lens3d,
 }
 
 /// The `camera2d` component's authored state, mirrored into
@@ -60,6 +61,7 @@ pub struct Camera2d {
     pub ambient: [f32; 4],
     /// As on [`Camera3d`], and read from whichever came last.
     pub post: Post,
+    pub controls: crate::lens::Controls2d,
 }
 
 /// One pass on a camera's chain.
@@ -332,7 +334,7 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
                 && cam.current
             {
                 post = Some(cam.post.clone());
-                spatial = Some((global.position, cam.look_at));
+                spatial = Some((global.position, cam.look_at, cam.lens.clone()));
                 winners.0 = Some(entity);
             }
             if let Ok(cam) = world.get::<&Camera2d>(entity)
@@ -343,6 +345,7 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
                     [global.position.x, global.position.y],
                     cam.zoom,
                     cam.ambient,
+                    cam.controls.clone(),
                 ));
                 winners.1 = Some(entity);
             }
@@ -353,7 +356,25 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
     if let Some(post) = post {
         drive_post(eng, &post);
     }
-    if let Some((eye, target)) = spatial {
+    let lens = spatial.as_ref().map(|s| s.2.clone()).unwrap_or_default();
+    let controls = flat.as_ref().map(|f| f.3.clone()).unwrap_or_default();
+    {
+        let config = eng.resource::<CameraConfig3d>();
+        let mut config = config.borrow_mut();
+        if config.lens != lens {
+            config.lens = lens;
+            config.lens_changed = true;
+        }
+    }
+    {
+        let config = eng.resource::<CameraConfig2d>();
+        let mut config = config.borrow_mut();
+        if config.controls != controls {
+            config.controls = controls;
+            config.controls_changed = true;
+        }
+    }
+    if let Some((eye, target, _)) = spatial {
         let config = eng.resource::<CameraConfig3d>();
         let mut config = config.borrow_mut();
         if config.eye != eye || config.target != target {
@@ -362,7 +383,7 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
             config.changed = true;
         }
     }
-    if let Some((center, zoom, ambient)) = flat {
+    if let Some((center, zoom, ambient, _)) = flat {
         let config = eng.resource::<CameraConfig2d>();
         let mut config = config.borrow_mut();
         // Ambient is read every frame rather than applied on a change, so it
@@ -523,7 +544,7 @@ fn post_from_params(params: &toml::Value) -> Post {
 }
 
 /// The authored 3D camera a full property table describes.
-fn camera3d_from_params(params: &toml::Value) -> Camera3d {
+fn camera3d_from_params(params: &toml::Value) -> anyhow::Result<Camera3d> {
     let la = |i: usize| {
         params
             .get(k::LOOK_AT)
@@ -532,25 +553,27 @@ fn camera3d_from_params(params: &toml::Value) -> Camera3d {
             .and_then(balaur_core::components::as_f64)
             .unwrap_or(0.0) as f32
     };
-    Camera3d {
+    Ok(Camera3d {
         post: post_from_params(params),
         current: balaur_core::components::prop_bool(params, k::CURRENT),
         look_at: glamx::Vec3::new(la(0), la(1), la(2)),
-    }
+        lens: crate::lens::lens_from_params(params)?,
+    })
 }
 
 /// The authored 2D camera a full property table describes.
-fn camera2d_from_params(params: &toml::Value) -> Camera2d {
+fn camera2d_from_params(params: &toml::Value) -> anyhow::Result<Camera2d> {
     let zoom = params
         .get(k::PIXELS_PER_UNIT)
         .and_then(balaur_core::components::as_f64)
         .unwrap_or(60.0) as f32;
-    Camera2d {
+    Ok(Camera2d {
         post: post_from_params(params),
         current: balaur_core::components::prop_bool(params, k::CURRENT),
         ambient: color_from_params_named(params, k::AMBIENT_COLOR),
         zoom: zoom.max(MIN_ZOOM_2D),
-    }
+        controls: crate::lens::controls_2d_from_params(params)?,
+    })
 }
 
 /// The post-chain properties both cameras carry, spelled once: the two
@@ -658,7 +681,7 @@ fn register_camera3d(reg: &mut Registry<'_>) {
         ComponentDef {
             events: &[(CURRENT_CHANGED_EVENT, "whether it is the camera drawn from now")],
             warnings: None,
-            doc: "The perspective camera the scene is drawn from. `look_at` aims it, and the last `current` camera wins.",
+            doc: "The camera the scene is drawn from. `look_at` aims it, the lens rows say how it projects and what it draws, the control rows say how a mouse orbits, pans and zooms it, and the last `current` camera wins.",
             schema: ComponentDef::parse_schema(
                 "camera3d",
                 &[
@@ -666,6 +689,7 @@ fn register_camera3d(reg: &mut Registry<'_>) {
                         k::LOOK_AT,
                         r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "World point the camera looks at" }"#,
                     )]),
+                    crate::lens::lens_schema(),
                     post_schema(),
                 ]
                 .join("\n"),
@@ -673,7 +697,7 @@ fn register_camera3d(reg: &mut Registry<'_>) {
             tags: &[balaur_core::components::tag::DIM_3D, "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                let camera = camera3d_from_params(params);
+                let camera = camera3d_from_params(params)?;
                 let mut world = eng.world_mut();
                 if let Ok(mut c) = world.get::<&mut Camera3d>(entity) {
                     *c = camera;
@@ -702,6 +726,7 @@ fn register_camera3d(reg: &mut Registry<'_>) {
                             .collect(),
                     ),
                 );
+                crate::lens::lens_to_map(&camera.lens, &mut map);
                 post_to_map(&camera.post, &mut map);
                 Some(toml::Value::Table(map))
             }),
@@ -715,7 +740,7 @@ fn register_camera2d(reg: &mut Registry<'_>) {
         ComponentDef {
             events: &[(CURRENT_CHANGED_EVENT, "whether it is the camera drawn from now")],
             warnings: None,
-            doc: "The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it, `ambient_color` lights every 2D surface, and the last `current` camera wins.",
+            doc: "The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it, `ambient_color` lights every 2D surface, the control rows say how a mouse pans and zooms it, and the last `current` camera wins.",
             schema: ComponentDef::parse_schema(
                 "camera2d",
                 &[
@@ -723,6 +748,7 @@ fn register_camera2d(reg: &mut Registry<'_>) {
                         (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 60.0, min = 0.01, description = "Zoom in logical pixels per world unit" }"#),
                         (k::AMBIENT_COLOR, r#"{ type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "Light every 2D surface gets before any `light2d`" }"#),
                     ]),
+                    crate::lens::controls_2d_schema(),
                     post_schema(),
                 ]
                 .join("\n"),
@@ -730,7 +756,7 @@ fn register_camera2d(reg: &mut Registry<'_>) {
             tags: &[balaur_core::components::tag::DIM_2D, "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                let camera = camera2d_from_params(params);
+                let camera = camera2d_from_params(params)?;
                 let mut world = eng.world_mut();
                 if let Ok(mut c) = world.get::<&mut Camera2d>(entity) {
                     *c = camera;
@@ -752,6 +778,7 @@ fn register_camera2d(reg: &mut Registry<'_>) {
                 map.insert(k::CURRENT.into(), toml::Value::Boolean(camera.current));
                 map.insert(k::PIXELS_PER_UNIT.into(), toml::Value::Float(f64::from(camera.zoom)));
                 map.insert(k::AMBIENT_COLOR.into(), color_to_toml(camera.ambient));
+                crate::lens::controls_2d_to_map(&camera.controls, &mut map);
                 post_to_map(&camera.post, &mut map);
                 Some(toml::Value::Table(map))
             }),

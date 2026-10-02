@@ -140,13 +140,8 @@ impl Frontend {
         lights.adopt_sun(sun);
         let camera = OrbitCamera3d::default();
         let camera_2d = PanZoomCamera2d::default();
-        // Orbit on the wheel button: every editor tool starts with a left
-        // press, so left-drag could never reach the camera.
-        let camera_buttons = CameraButtons {
-            rotate: Some(kiss3d::event::MouseButton::Button3),
-            drag: camera.drag_button(),
-            drag_2d: camera_2d.drag_button(),
-        };
+        let camera_buttons =
+            CameraButtons::of(&crate::Lens3d::default(), &crate::Controls2d::default());
         Self {
             camera,
             camera_2d,
@@ -219,8 +214,8 @@ impl Frontend {
     /// One frame: apply what scripts asked for, tick, mirror the world into    /// One frame: apply what scripts asked for, tick, mirror the world into
     /// the scene graph, draw the overlays. Answers whether to keep going.
     fn step(&mut self, app: &mut App, window: &mut Window, dt: f32) -> bool {
-        apply_camera(app, &mut self.camera);
-        apply_camera_2d(app, &mut self.camera_2d, window);
+        apply_camera(app, &mut self.camera, &mut self.camera_buttons, window);
+        apply_camera_2d(app, &mut self.camera_2d, &mut self.camera_buttons, window);
         apply_camera_input(
             app,
             &mut self.camera,
@@ -730,6 +725,13 @@ fn apply_window_config(app: &App, window: &Window) {
 }
 
 /// Mirror `Renderable3d` + `GlobalTransform` into the kiss3d scene graph.
+/// Whether a node casts, which lights reach it, and which cameras draw it.
+fn lit_and_layered(node: &mut SceneNode3d, renderable: &Renderable3d) {
+    node.set_casts_shadows(renderable.shadows)
+        .set_light_layers(renderable.layers)
+        .set_render_layers(renderable.render_layers);
+}
+
 fn sync(
     app: &App,
     scene: &mut SceneNode3d,
@@ -835,9 +837,8 @@ fn sync(
             .set_pose(Pose3::from_parts(global.position, global.rotation))
             .set_local_scale(scale.x, scale.y, scale.z)
             .set_color(Color::new(r, g, b, a))
-            .set_visible(visible)
-            .set_casts_shadows(renderable.shadows)
-            .set_light_layers(renderable.layers);
+            .set_visible(visible);
+        lit_and_layered(&mut slot.node, renderable);
         let mut surface = crate::material::surface_of(&app.engine, reference);
         // A solver's surface can be an open sheet, and a cloth has no inside
         // to cull away; without a material of its own it draws both sides.

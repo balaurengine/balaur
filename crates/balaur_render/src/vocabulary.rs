@@ -112,6 +112,32 @@ pub(crate) mod words {
     pub(crate) const ITALIC: &str = "italic";
     /// Upright or slanted text.
     pub(crate) const FONT_STYLES: &[&str] = &[NORMAL, ITALIC];
+
+    pub(crate) const PERSPECTIVE_PROJECTION: &str = "perspective";
+    pub(crate) const ORTHOGRAPHIC_PROJECTION: &str = "orthographic";
+    /// How a `camera3d` projects: kiss3d's two.
+    pub(crate) const PROJECTIONS: &[&str] = &[PERSPECTIVE_PROJECTION, ORTHOGRAPHIC_PROJECTION];
+
+    pub(crate) const LEFT: &str = "left";
+    pub(crate) const RIGHT: &str = "right";
+    pub(crate) const MIDDLE: &str = "middle";
+    pub(crate) const BUTTON4: &str = "button4";
+    pub(crate) const BUTTON5: &str = "button5";
+    pub(crate) const BUTTON6: &str = "button6";
+    pub(crate) const BUTTON7: &str = "button7";
+    pub(crate) const BUTTON8: &str = "button8";
+    /// The mouse button a camera control drags with, or none to turn it off:
+    /// the three named ones and the five more kiss3d numbers.
+    pub(crate) const MOUSE_BUTTONS: &[&str] = &[
+        NONE, LEFT, RIGHT, MIDDLE, BUTTON4, BUTTON5, BUTTON6, BUTTON7, BUTTON8,
+    ];
+
+    pub(crate) const SHIFT: &str = "shift";
+    pub(crate) const CONTROL: &str = "control";
+    pub(crate) const ALT: &str = "alt";
+    pub(crate) const SUPER: &str = "super";
+    /// The keys a camera control may ask to be held with its button.
+    pub(crate) const MODIFIERS: &[&str] = &[SHIFT, CONTROL, ALT, SUPER];
 }
 
 /// The words as script constants, so a script writes `render.SHAPE_SPHERE`
@@ -177,6 +203,23 @@ pub(crate) mod keys {
     pub(crate) const INNER_ANGLE_DEGREES: &str = "inner_angle_degrees";
     pub(crate) const INNER_RADIUS: &str = p::INNER_RADIUS;
     pub(crate) const LIGHT_LAYERS: &str = "light_layers";
+    pub(crate) const RENDER_LAYERS: &str = "render_layers";
+    pub(crate) const FOV_DEGREES: &str = "fov_degrees";
+    pub(crate) const NEAR: &str = "near";
+    pub(crate) const FAR: &str = "far";
+    pub(crate) const PROJECTION: &str = "projection";
+    pub(crate) const UP: &str = "up";
+    pub(crate) const ORBIT_BUTTON: &str = "orbit_button";
+    pub(crate) const ORBIT_MODIFIERS: &str = "orbit_modifiers";
+    pub(crate) const PAN_BUTTON: &str = "pan_button";
+    pub(crate) const PAN_MODIFIERS: &str = "pan_modifiers";
+    pub(crate) const ZOOM_MODIFIERS: &str = "zoom_modifiers";
+    pub(crate) const ZOOM_STEP: &str = "zoom_step";
+    pub(crate) const RESET_KEY: &str = "reset_key";
+    pub(crate) const MIN_DISTANCE: &str = "min_distance";
+    pub(crate) const MAX_DISTANCE: &str = "max_distance";
+    pub(crate) const MIN_PITCH_DEGREES: &str = "min_pitch_degrees";
+    pub(crate) const MAX_PITCH_DEGREES: &str = "max_pitch_degrees";
     pub(crate) const OPERATION: &str = "operation";
     pub(crate) const OUTER_ANGLE_DEGREES: &str = "outer_angle_degrees";
     /// A screenshot's file and what stopped it, in a `screenshot_failed` payload.

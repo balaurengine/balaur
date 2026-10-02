@@ -441,3 +441,89 @@ fn a_camera_says_when_it_becomes_the_one_drawn_from_and_when_it_stops() {
     assert_eq!(heard(&app, first), vec![balaur_script::Value::Bool(false)]);
     assert_eq!(heard(&app, second), vec![balaur_script::Value::Bool(true)]);
 }
+
+/// The current camera's lens is what the backend builds kiss3d's camera
+/// from, and with no current camera the defaults come back: a game's lens
+/// does not outlive its play in the editor.
+#[test]
+fn the_current_cameras_lens_reaches_the_backend_and_leaves_with_it() {
+    let mut app = app();
+    let cam = node_at(&app, app.engine.root(), Vec3::new(0.0, 2.0, 6.0));
+    add_camera_3d(
+        &app,
+        cam,
+        "fov_degrees = 70.0\nnear = 0.5\nfar = 80.0\nprojection = \"orthographic\"\nrender_layers = 2\norbit_button = \"left\"",
+    );
+    app.engine
+        .resource::<CameraConfig3d>()
+        .borrow_mut()
+        .lens_changed = false;
+    app.tick(1.0 / 60.0);
+    {
+        let config = app.engine.resource::<CameraConfig3d>();
+        let config = config.borrow();
+        assert!(
+            config.lens_changed,
+            "the backend was never told the lens moved"
+        );
+        assert!((config.lens.fov_degrees - 70.0).abs() < 1e-6);
+        assert!((config.lens.near - 0.5).abs() < 1e-6 && (config.lens.far - 80.0).abs() < 1e-6);
+        assert!(config.lens.orthographic);
+        assert_eq!(config.lens.render_layers, 2);
+        assert_eq!(
+            config.lens.orbit_button,
+            Some(balaur_render::MouseButton::Left)
+        );
+    }
+    app.engine
+        .resource::<CameraConfig3d>()
+        .borrow_mut()
+        .lens_changed = false;
+    let off: toml::Value = toml::from_str("current = false").unwrap();
+    components::patch(&app.engine, cam, "camera3d", &off).unwrap();
+    app.tick(1.0 / 60.0);
+    let config = app.engine.resource::<CameraConfig3d>();
+    let config = config.borrow();
+    assert!(config.lens_changed);
+    assert_eq!(
+        config.lens,
+        balaur_render::Lens3d::default(),
+        "the game's lens stayed"
+    );
+}
+
+/// The 2D camera's controls travel the same way.
+#[test]
+fn the_current_2d_cameras_controls_reach_the_backend() {
+    let mut app = app();
+    let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
+    add_camera_2d(
+        &app,
+        cam,
+        "zoom_step = 0.5\npan_button = \"middle\"\npan_modifiers = [\"shift\"]",
+    );
+    app.tick(1.0 / 60.0);
+    let config = app.engine.resource::<CameraConfig2d>();
+    let config = config.borrow();
+    assert!((config.controls.zoom_step - 0.5).abs() < 1e-6);
+    assert_eq!(
+        config.controls.pan_button,
+        Some(balaur_render::MouseButton::Middle)
+    );
+    assert!(
+        config
+            .controls
+            .pan_modifiers
+            .holds(balaur_render::Modifier::Shift)
+    );
+}
+
+/// A lens kiss3d could not draw is refused at the component, naming why.
+#[test]
+fn a_camera_refuses_a_far_plane_nearer_than_its_near_one() {
+    let app = app();
+    let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
+    let table: toml::Value = toml::from_str("near = 10.0\nfar = 1.0").unwrap();
+    let err = components::add(&app.engine, cam, "camera3d", Some(&table)).unwrap_err();
+    assert!(format!("{err:#}").contains("past `near`"), "{err:#}");
+}
