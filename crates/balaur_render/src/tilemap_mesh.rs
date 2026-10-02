@@ -102,9 +102,17 @@ pub(crate) fn sync_tilemaps(
                 slot.drawn = reference.to_string();
             }
             // A failed build leaves the chunks it had, so a missing texture is
-            // reported once rather than sixty times a second.
-            if let Err(err) = rebuild_chunks(app, slot, map, frame) {
+            // reported once rather than sixty times a second. A map with no
+            // tileset yet, as a new node has, is not a failure to report.
+            let failed = if map.tileset.is_empty() {
+                true
+            } else if let Err(err) = rebuild_chunks(app, slot, map, frame) {
                 tracing::error!("tilemap: {err:#}");
+                true
+            } else {
+                false
+            };
+            if failed {
                 // Nothing to draw rather than the last good mesh: a map whose
                 // tileset went missing is missing.
                 for (_, mut chunk) in slot.chunks.drain() {

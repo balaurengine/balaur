@@ -208,6 +208,55 @@ pub fn node_picker(S) {
     }
 }
 
+/// Every row the node picker offers, preset or component, placed under the
+/// root: it builds what it names, the inspector lists every component it
+/// adds, and a scene of a 2D or 3D row's node alone opens in that view. The
+/// nodes stay, so the frames after draw every one of them.
+pub fn every_node(S) {
+    newnode::open(S);
+    let rows = newnode::catalogue(S);
+    newnode::close(S);
+    let (unbuilt, unlisted, misfiled) = ([], [], []);
+    for row in rows {
+        let before = S.doc.len();
+        crate::selection::only(S, 0);
+        newnode::open(S);
+        newnode::place(S, row);
+        // A soft body asks what to build it from: the first source.
+        if S.newnode_soft != "" {
+            newnode::place_source(S, newnode::catalogue(S)[0]);
+        }
+        if S.doc.len() != before + 1 || S.newnode {
+            unbuilt.push(row.name);
+            newnode::close(S);
+            continue;
+        }
+        let node = S.doc[S.sel];
+        let wanted = if row.preset { scene::preset_info(row.name).components } else { [row.name] };
+        let listed = crate::inspector::node_components(S);
+        for component in wanted {
+            if !node.contains_key(component) {
+                unbuilt.push(format!("{}.{}", row.name, component));
+            }
+            if !util::contains(listed, component) {
+                unlisted.push(format!("{}.{}", row.name, component));
+            }
+        }
+        // What the editor decides for a scene of this node alone. A `ui` tag
+        // outranks the dimension, as a touch control filed under 2D is UI.
+        let alone = #{ doc: [node], doc_rev: 0, is_2d_at: (), is_2d_was: false };
+        let flat = model::is_2d(alone);
+        let dimensioned = row.group == "2D" || row.group == "3D";
+        if dimensioned && model::facet(node) != model::UI && flat != (row.group == "2D") {
+            misfiled.push(format!("{} ({} opens as {})", row.name, row.group, if flat { "2D" } else { "3D" }));
+        }
+    }
+    check(rows.len() > 40, format!("the picker offers every node ({} rows)", rows.len()));
+    check(unbuilt.is_empty(), format!("every row builds what it names; not: {:?}", unbuilt));
+    check(unlisted.is_empty(), format!("the inspector lists every component a row adds; not: {:?}", unlisted));
+    check(misfiled.is_empty(), format!("a scene of one 2D or 3D row's node opens in that view; not: {:?}", misfiled));
+}
+
 // Mutate, undo, redo; assert the document, the mirror and the selection all
 // come back. Runs headless, so it is CI's only view of the editor's Rune.
 pub fn undo(S) {
@@ -891,48 +940,6 @@ pub fn reloaded(S) {
     log::info("selftest reload: done");
 }
 
-/// Every component a node carries is reachable from some workspace.
-///
-/// The inspector shows a component when a workspace names it or shares one of
-/// its tags. One that carries no tag any workspace asks for cannot be drawn in
-/// any workspace, so its properties are unreachable however the node is picked.
-pub fn component_reach(S) {
-    let seen = #{};
-    let orphans = [];
-    for i in 0..S.doc.len() {
-        let found_some = model::live(S, i);
-        let found = match found_some {
-            Some(found) => found,
-            None => continue,
-        };
-        for name in util::vec(found.component_names()) {
-            if seen.contains_key(name) {
-                continue;
-            }
-            seen[name] = true;
-            let tags = util::vec(scene::component_tags(name));
-            let reached = false;
-            for p in crate::defs::workspaces() {
-                let wants = crate::defs::workspace_inspector(p.id);
-                if util::contains(wants.named, name) {
-                    reached = true;
-                }
-                for tag in wants.tags {
-                    if util::contains(tags, tag) {
-                        reached = true;
-                    }
-                }
-            }
-            if !reached {
-                orphans.push(format!("{} {:?}", name, tags));
-            }
-        }
-    }
-    check(seen.len() > 0, format!("the scene's nodes carry {} kinds of component", seen.len()));
-    check(orphans.is_empty(), format!("every one of them reaches a workspace ({:?})", orphans));
-    log::info("selftest reach: done");
-}
-
 pub fn deselected(S) {
     S.reselect = #{ waited: 0, stage: 0, row: 0, had: 0, drawn: 0, workspace: "", tool: "" };
 }
@@ -1134,8 +1141,7 @@ fn add_with_nothing_selected(S) {
 
 // How many components the inspector would list for the active row.
 fn listed_components(S) {
-    let wants = crate::defs::workspace_inspector(S.workspace);
-    crate::inspector::workspace_components(S, wants).len()
+    crate::inspector::node_components(S).len()
 }
 
 /// Where the Physics panel's pills really land.
@@ -1279,13 +1285,9 @@ pub fn physics_panel(S) {
     let collider = if two_d { "collider2d" } else { "collider3d" };
     let soft = if two_d { "softbody2d" } else { "softbody3d" };
 
-    // The workspace shows what carries the engine's `physics` tag, which is the
-    // check the old hard-coded list of names failed.
     model::add_component(S, collider);
-    let wants = crate::defs::workspace_inspector(crate::defs::WORKSPACE_PHYSICS);
-    let shown = crate::inspector::workspace_components(S, wants);
-    check(crate::util::contains(shown, collider),
-        format!("the Physics workspace shows {}", collider));
+    check(crate::util::contains(crate::inspector::node_components(S), collider),
+        format!("the inspector lists the {} it added", collider));
 
     // A shape action writes the mesh and the kind together, in one undo.
     let source = if two_d {

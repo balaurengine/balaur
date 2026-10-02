@@ -194,6 +194,12 @@ editor_states() {
   edit_step "$name: picker" "$ex" test:picker
   printf 'ok\n'
 
+  # Every row the picker offers, placed and drawn: what it builds, which
+  # inspector lists it, and which view a scene of it opens in.
+  printf '  nodes ...  '
+  edit_step "$name: every node" "$ex" test:every_node
+  printf 'ok\n'
+
   # The Tiles tool builds its own map, so it needs nothing from the project.
   printf '  tiles ...  '
   edit_step "$name: tiles" "$ex" test:tiles

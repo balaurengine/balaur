@@ -60,28 +60,17 @@ pub fn workspace_name(id) {
     id
 }
 
-/// What the inspector keeps per workspace: the component tags it shows, the
-/// components it names outright, and the hand-written sections beside them.
-///
-/// Tags rather than names, so a plugin's component joins the workspace it
-/// declared a tag for without the editor knowing it exists. `transform` is
-/// named because it carries only `2d`/`3d`, which every physics and animation
-/// component carries too.
+/// The hand-written sections a workspace's inspector draws beside the
+/// components. Every workspace lists every component the node carries.
 pub fn workspace_inspector(id) {
     match id {
-        "script" => #{ tags: [], named: [], sections: ["script", "events"] },
-        "animation" => #{
-            tags: ["animation"], named: ["transform"],
-            sections: ["skeleton", "polygon", "animation"],
-        },
-        "physics" => #{ tags: ["physics"], named: [], sections: ["physics"] },
-        "ui" => #{ tags: ["ui"], named: [], sections: ["interface"] },
-        // Scene is what a scene is built of, and the one workspace that also
-        // shows the script a node carries: a scene file holds it.
-        _ => #{
-            tags: ["render", "interaction", "audio"], named: ["transform"],
-            sections: ["skeleton", "polygon", "script"],
-        },
+        "script" => #{ sections: ["script", "events"] },
+        "animation" => #{ sections: ["skeleton", "polygon", "animation"] },
+        "physics" => #{ sections: ["physics"] },
+        "ui" => #{ sections: ["interface"] },
+        // Scene is the one workspace that also shows the script a node
+        // carries: a scene file holds it.
+        _ => #{ sections: ["skeleton", "polygon", "script"] },
     }
 }
 

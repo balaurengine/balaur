@@ -394,8 +394,6 @@ pub fn body2d_kind(node) {
     kind_of(node.get("body2d"))
 }
 
-// True when the edited scene is 2D (any node carries a 2D component). The
-// editor switches camera, grid and gizmo accordingly.
 /// Bump `doc_rev` once more the frame after it moved. An edit bumps it before
 /// it writes, so a cache built in between holds the old document under the
 /// new number; this makes every reader build again from what the edit left.
@@ -418,6 +416,7 @@ pub fn check_revision(S) {
     S.doc_seen = #{ text: now, rev: S.doc_rev };
 }
 
+/// True when the edited scene is 2D, which switches the camera, grid and gizmo.
 pub fn is_2d(S) {
     // Asked several times a frame, and the answer is a scan of the document.
     let key = [S.doc_rev, S.doc.len()];
@@ -430,18 +429,47 @@ pub fn is_2d(S) {
     found
 }
 
+// More nodes 2D than 3D, read off the engine's tags, so every 2D component
+// counts, a plugin's included, and a 3D scene with one 2D label stays 3D.
 fn scan_2d(S) {
+    let flat = 0;
+    let deep = 0;
     for node in S.doc {
-        if node.contains_key("shape2d") || node.contains_key("body2d") || node.contains_key("collider2d")
-            || node.contains_key("polygon") || node.contains_key("bone2d") || node.contains_key("sprite")
-            || node.contains_key("tilemap") || node.contains_key("multimesh2d") {
-            return true;
-        }
-        if node.contains_key(CAMERA_2D) {
-            return true;
+        let kind = facet(node);
+        if kind == DIM_2D {
+            flat += 1;
+        } else if kind == DIM_3D {
+            deep += 1;
         }
     }
-    false
+    flat > deep
+}
+
+pub const DIM_2D = "2d";
+pub const DIM_3D = "3d";
+pub const UI = "ui";
+
+/// "ui", "2d" or "3d" from the components a node holds, "" for one holding
+/// none, which any type fits.
+pub fn facet(node) {
+    for key in node.keys() {
+        let tags = scene::component_tags(key);
+        if !(tags is Vec) {
+            continue;
+        }
+        if util::contains(tags, UI) {
+            return UI;
+        }
+        let flat = util::contains(tags, DIM_2D);
+        let deep = util::contains(tags, DIM_3D);
+        if flat && !deep {
+            return DIM_2D;
+        }
+        if deep && !flat {
+            return DIM_3D;
+        }
+    }
+    ""
 }
 
 // Icon glyph + colour role ("sage" physics, "accent" render/ui, "dim" other).

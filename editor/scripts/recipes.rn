@@ -35,9 +35,6 @@ const CARRIED = ["color", "texture", "material"];
 const SOFT_2D = "soft_body2d";
 const SOFT_3D = "soft_body3d";
 const POLYGON_2D = "polygon2d";
-const DIM_2D = "2d";
-const DIM_3D = "3d";
-const UI = "ui";
 
 /// What `soft_body` would build from on row `i`, as a word for a menu, or
 /// `None` when the node draws nothing a soft body can be made of.
@@ -111,7 +108,7 @@ fn is_2d_source(node) {
 /// makes of it. A node of no kind yet can be any.
 pub fn targets(S, i) {
     let node = S.doc[i];
-    let facet = facet(node);
+    let facet = model::facet(node);
     let live_some = model::live(S, i);
     let out = [];
     for name in scene::presets() {
@@ -362,29 +359,6 @@ fn same(a, b) {
     false
 }
 
-// "ui", "2d" or "3d" from the components a node holds, "" for one holding
-// none, which any type fits.
-fn facet(node) {
-    for key in node.keys() {
-        let tags = scene::component_tags(key);
-        if !(tags is Vec) {
-            continue;
-        }
-        if util::contains(tags, UI) {
-            return UI;
-        }
-        let flat = util::contains(tags, DIM_2D);
-        let deep = util::contains(tags, DIM_3D);
-        if flat && !deep {
-            return DIM_2D;
-        }
-        if deep && !flat {
-            return DIM_3D;
-        }
-    }
-    ""
-}
-
 // What a recipe makes of row `i` as preset `name`, for the picker's line; `None`
 // where the preset's own description says it.
 fn recipe_note(S, i, name) {
@@ -471,9 +445,9 @@ fn fill_soft(S, i, source) {
 /// "2d" or "3d" for a preset that makes a soft body a recipe builds, else "".
 pub fn soft_dimension(name) {
     if name == SOFT_2D {
-        DIM_2D
+        model::DIM_2D
     } else if name == SOFT_3D {
-        DIM_3D
+        model::DIM_3D
     } else {
         ""
     }
