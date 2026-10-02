@@ -54,6 +54,7 @@ pub(crate) fn register_meta_component(app: &mut App) {
             }),
         },
     );
+    app.accept_keys(COMPONENT, |_, _| true);
 }
 
 /// What the node has filed under `name`, nil when it has nothing.

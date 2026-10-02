@@ -92,11 +92,13 @@ use smol_str::SmolStr;
 
 use crate::engine::Engine;
 
+mod accepts;
 mod attached;
 mod authored;
 mod property;
 mod schema;
 
+pub use accepts::{AcceptsFn, refuse_unknown_keys};
 use attached::mark;
 pub(crate) use attached::mark_present;
 pub use attached::{Attached, MAX_COMPONENTS, TRANSFORM_BIT, attached_of};
@@ -457,6 +459,7 @@ fn fill_record_value(spec: &toml::Value, value: &mut toml::Value) {
 pub struct ComponentRegistry {
     defs: crate::collections::DetHashMap<SmolStr, ComponentDef>,
     facts: Vec<Facts>,
+    accepts: crate::collections::DetHashMap<SmolStr, AcceptsFn>,
 }
 
 impl ComponentRegistry {
@@ -826,6 +829,7 @@ fn asset_reference(
 }
 
 pub fn add(eng: &Engine, entity: Entity, name: &str, params: Option<&toml::Value>) -> Result<()> {
+    refuse_unknown_keys(eng, name, params)?;
     // Resolving assets can read files and reach the asset cache, so the
     // schema is cloned and the registry borrow dropped first: a parser is free
     // to look things up.
@@ -857,6 +861,7 @@ pub fn add(eng: &Engine, entity: Entity, name: &str, params: Option<&toml::Value
 /// component would otherwise work out again. Report what the component holds
 /// and nothing else.
 pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> Result<()> {
+    refuse_unknown_keys(eng, name, Some(params))?;
     let Resolved {
         index,
         schema,
@@ -964,11 +969,9 @@ fn resolve(eng: &Engine, name: &str) -> Result<Resolved> {
         .try_resource::<ComponentRegistry>()
         .ok_or_else(|| anyhow!("component registry missing"))?;
     let registry = registry.borrow();
-    let index = registry
-        .index_of(name)
-        .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
-    let (_, def) = registry
-        .at(index)
+    let (index, _, def) = registry
+        .defs
+        .get_full(name)
         .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
     let schema = def.schema.clone();
     let facts = registry

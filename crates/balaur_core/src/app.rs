@@ -635,6 +635,16 @@ impl App {
     /// Register a named, schema-described component (see
     /// `balaur_core::components`). Also registers the matching scene-file
     /// key, so `name = { ... }` in a scene applies the component.
+    /// Let component `name` take the keys `accepts` answers for beside the
+    /// ones its schema declares; every other key is refused.
+    pub fn accept_keys(&mut self, name: &str, accepts: crate::components::AcceptsFn) -> &mut Self {
+        let registry = self
+            .engine
+            .resource::<crate::components::ComponentRegistry>();
+        registry.borrow_mut().accept_keys(name, accepts);
+        self
+    }
+
     pub fn register_component(
         &mut self,
         name: &str,
@@ -658,6 +668,7 @@ impl App {
         }
         let component = name.to_string();
         self.scene_key_handler(name, move |eng, entity, value| {
+            crate::components::refuse_unknown_keys(eng, &component, Some(value))?;
             let full = crate::components::properties(eng, &schema, Some(value))
                 .with_context(|| format!("component `{component}`"))?;
             crate::components::apply_full(eng, entity, &component, &full)

@@ -249,6 +249,12 @@ and remove hooks.
   `components::patch` merges over the component's own `get` (leaves the rest).
   Animation and the inspector need the second — patching `collider3d/radius` with the
   first would reset `size`.
+- A key the schema does not declare is refused by both verbs and by a scene
+  file, naming the component and the key, since a typo would otherwise apply
+  as nothing. A scene logs the refusal and loads the rest. A component that
+  takes free keys says so with `App::accept_keys`: `meta` takes any name,
+  `states` a state's, `widget` a screen class's and `mesh` a `morph.`
+  weight's.
 - `meta` is the one component with no schema, so every key on it is the
   author's: values filed on a node for whoever holds the node rather than for
   its own script (Godot's `set_meta`). A scene writes `[nodes.meta]`, a script

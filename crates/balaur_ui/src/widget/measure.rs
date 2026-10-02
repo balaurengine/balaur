@@ -363,7 +363,10 @@ impl<'a> Measure<'a> {
         let mark = if widget.icon.is_empty() {
             egui::Vec2::ZERO
         } else {
-            let face = egui::FontId::new(font.size, family(w::ICON));
+            let face = egui::FontId::new(
+                crate::widget::text::icon_px(widget, font.size),
+                family(w::ICON),
+            );
             self.painter
                 .layout_no_wrap(widget.icon.to_string(), face, egui::Color32::WHITE)
                 .size()

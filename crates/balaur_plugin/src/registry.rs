@@ -62,6 +62,12 @@ impl<'a> Registry<'a> {
         self.app.register_component(name, def);
     }
 
+    /// Let component `name` take the keys `accepts` answers for beside the
+    /// ones its schema declares; every other key is refused.
+    pub fn accept_keys(&mut self, name: &str, accepts: balaur_core::components::AcceptsFn) {
+        self.app.accept_keys(name, accepts);
+    }
+
     /// The binding group this plugin declares its script functions into.
     ///
     /// # Errors

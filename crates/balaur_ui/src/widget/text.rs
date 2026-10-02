@@ -46,6 +46,15 @@ pub(crate) fn text_request<'a>(
     }
 }
 
+/// The size a widget's icon glyph draws at: its own, or the caption's.
+pub(crate) fn icon_px(widget: &crate::widget::node::Widget, caption: f32) -> f32 {
+    if widget.icon_size >= 0.0 {
+        widget.icon_size
+    } else {
+        caption
+    }
+}
+
 /// A caption shaped on one line, with the atlas it draws from; `None` until
 /// the fonts are installed, when egui's own layout stands in.
 pub(crate) fn shaped_caption(

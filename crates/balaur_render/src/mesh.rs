@@ -173,6 +173,8 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
             }),
         },
     );
+    // One weight per shape the mesh can blend towards, named by the asset.
+    reg.accept_keys("mesh", |key, _| key.starts_with(MORPH_PREFIX));
 }
 
 // A soft body built from a mesh is drawn as that mesh, deformed. One laid out

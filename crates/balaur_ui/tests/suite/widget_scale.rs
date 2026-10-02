@@ -177,8 +177,8 @@ mod classes {
         );
     }
 
-    /// A class table is the one place a typo cannot be the game's own space,
-    /// because nothing but the layer ever reads it.
+    /// A typo inside a class table is refused as one in the base table is,
+    /// named with its class word.
     #[test]
     fn a_key_a_class_table_invents_is_refused() {
         let (_dir, app) = app();

@@ -197,7 +197,7 @@ anchor = "bottom_right"
 offset = [-100.0, -100.0]
 width = 120.0
 height = 120.0
-shape = "circle"
+kind = "circle"
 visibility = "always"
 "#;
 

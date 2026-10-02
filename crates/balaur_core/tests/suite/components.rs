@@ -603,3 +603,61 @@ fn a_component_reports_its_own_warnings() {
         balaur_core::warnings::Warning::on("size", "that is a big one")
     );
 }
+
+/// A key the schema does not declare is a typo that would apply as nothing,
+/// so every way in refuses it, naming the component and the key.
+#[test]
+fn an_undeclared_key_is_refused_by_add_patch_and_a_scene() {
+    let app = app_with_marker();
+    let e = spawn(&app);
+    let typo: toml::Value = toml::from_str("lable = \"x\"").unwrap();
+    let err = components::add(&app.engine, e, "marker", Some(&typo)).unwrap_err();
+    assert!(
+        format!("{err:#}").contains("`marker` has no property `lable`"),
+        "{err:#}"
+    );
+    assert!(
+        components::get(&app.engine, e, "marker").is_none(),
+        "a refused add attached it"
+    );
+    components::add(&app.engine, e, "marker", None).unwrap();
+    let err = components::patch(&app.engine, e, "marker", &typo).unwrap_err();
+    assert!(
+        format!("{err:#}").contains("has no property `lable`"),
+        "{err:#}"
+    );
+    // A scene loads the rest of itself and logs the one it refused.
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
+    let scene = "[[nodes]]\nid = \"n_main\"\nname = \"Main\"\n[nodes.marker]\nlable = \"x\"\n";
+    let root = app.engine.root();
+    balaur_core::project::instantiate_scene(&app.engine, scene, root, false).unwrap();
+    let main = balaur_core::scene::find_node(&app.engine.world(), root, "Main").unwrap();
+    assert!(
+        components::get(&app.engine, main, "marker").is_none(),
+        "the scene applied a typo"
+    );
+    let logged = format!("{:?}", balaur_core::logbuf::recent(20));
+    assert!(
+        logged.contains("`marker` has no property `lable`"),
+        "{logged}"
+    );
+}
+
+/// `meta` files any name and `states` takes a state by name: both say so to
+/// the registry, so their free keys are not typos.
+#[test]
+fn a_component_that_takes_free_keys_still_takes_them() {
+    let app = App::new(AppConfig::bare(".")).unwrap();
+    let e = spawn(&app);
+    let meta: toml::Value = toml::from_str("fade_seconds = 0.3").unwrap();
+    components::add(&app.engine, e, "meta", Some(&meta)).unwrap();
+    let states: toml::Value =
+        toml::from_str("current = \"\"\n[open]\nmeta = { open = true }").unwrap();
+    components::add(&app.engine, e, "states", Some(&states)).unwrap();
+    let held = components::get(&app.engine, e, "states").unwrap();
+    assert!(
+        held.get("open").is_some_and(toml::Value::is_table),
+        "{held}"
+    );
+}

@@ -65,7 +65,10 @@ fn face_of(
             .layout_no_wrap(text, font.clone(), Color32::PLACEHOLDER)
     });
     let icon = (!widget.icon.is_empty()).then(|| {
-        let mark = egui::FontId::new(font.size, family(w::ICON));
+        let mark = egui::FontId::new(
+            crate::widget::text::icon_px(widget, font.size),
+            family(w::ICON),
+        );
         ui.painter()
             .layout_no_wrap(widget.icon.to_string(), mark, Color32::PLACEHOLDER)
     });

@@ -261,7 +261,7 @@ decision.
 | A game played in the editor | Planned: its class from the layer's rect and its own `[ui]` lines, declared by the editor at play |
 | A widget that changes by class | Have: a table per class word on the `widget` component, any declared key but `kind`, resolved each frame in the declared order |
 | A widget that needs a surface of a stated size | Have: `hide_narrower`, `hide_wider` and `hide_shorter`, in design pixels of the surface, for where the words are not fine enough. A game's minimap states the width it needs; a phone-only control states the width it is not wanted past |
-| A typo in a class table | Planned: an error at load naming the key |
+| A typo in a class table | Have: an error at load naming the key, as every component refuses a key its schema does not declare |
 | A theme that changes by class | Planned: `[<kind>.<class>]` in a `widget_theme` asset, beside `[<kind>.hover]` |
 | A setting that changes by class | Have, for the input class: `[override.touch.<table>]` through the tag. Not planned for width and height: a tag is a run's constant |
 | A touch target | Have, and not as a floor: the shell draws larger on a touch screen and the theme states a bigger box under `touch`, which grow a control's glyph and its bar with it. §9 says why a floor did not |

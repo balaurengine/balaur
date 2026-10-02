@@ -25,7 +25,7 @@ fn seeded_draws(with_emitter: bool) -> Vec<u32> {
     let entity = node(&app);
     if with_emitter {
         let params: toml::Value = toml::from_str(
-            "rate = 500.0\nlifetime = 0.5\nspeed = 3.0\nangle = 45.0\nspread = 180.0",
+            "rate = 500.0\nlifetime = 0.5\nspeed = 3.0\ndirection = [0.7071, 0.7071]\nspread_degrees = 180.0",
         )
         .expect("the emitter params are valid TOML");
         components::add(&app.engine, entity, "particles", Some(&params))

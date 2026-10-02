@@ -987,3 +987,43 @@ fn a_toast_takes_no_click_from_what_is_under_it() {
         "the toast swallowed the click meant for the button under it"
     );
 }
+
+/// `icon_size` sizes a button's glyph apart from its caption; below zero the
+/// glyph takes the caption's size.
+#[test]
+fn a_button_s_icon_size_sizes_its_glyph() {
+    let (_dir, app) = app();
+    let icon = "\u{e1dc}";
+    add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "go" icon = (icon) icon_size = 24.0 x = 0.0 y = 0.0 }
+            .into(),
+    );
+    add_widget(
+        &app,
+        &toml::toml! { kind = "button" text = "go" icon = (icon) x = 0.0 y = 100.0 }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let out = pass(&app, &ctx, vec![]);
+    let mut sizes: Vec<f32> = out
+        .shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::epaint::Shape::Text(text) if text.galley.text() == icon => {
+                Some(text.galley.job.sections[0].format.font_id.size)
+            }
+            _ => None,
+        })
+        .collect();
+    sizes.sort_by(f32::total_cmp);
+    assert_eq!(sizes.len(), 2, "both glyphs drew: {sizes:?}");
+    assert!(
+        (sizes[1] - 24.0).abs() < 0.01,
+        "the stated size did not hold: {sizes:?}"
+    );
+    assert!(
+        sizes[0] < 24.0,
+        "the unstated glyph did not take its caption's size: {sizes:?}"
+    );
+}

@@ -134,6 +134,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::CURSOR, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "The pointer's shape while it is over the widget: `hand` over anything that opens on a click; `arrow` is the platform's own", group = "type" }}"#, w::cursor::ARROW, v::options(w::cursor::ALL))),
                     (k::ICON, r#"{ type = "string", default = "", description = "A glyph from the theme's icon family, drawn before `text`", group = "paint" }"#),
                     (k::ICON_COLOR, r#"{ type = "string", default = "", description = "What that glyph is tinted with, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the role's own", group = "paint" }"#),
+                    (k::ICON_SIZE, r#"{ type = "float", default = -1.0, description = "That glyph's size in design pixels; below zero takes the caption's", group = "paint" }"#),
                     (k::ENABLED, r#"{ type = "bool", default = true, description = "Off, the widget is greyed out and swallows its clicks" }"#),
                     (k::FILL, r#"{ type = "string", default = "", description = "What is painted behind this widget, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the theme's own", group = "paint" }"#),
                     (k::STROKE, r#"{ type = "string", default = "", description = "The outline around this widget, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the theme's own", group = "paint" }"#),
@@ -149,13 +150,11 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
             get: Box::new(read_widget),
         },
     );
+    // A screen class's table, whose own keys `check_class_tables` refuses.
+    reg.accept_keys("widget", |key, _| CLASS_KEYS.contains(&key));
 }
 
-/// Refuse a key a class table invents.
-///
-/// The base table carries an unknown key in silence, because a component's
-/// params are the game's own space. A class table is not: nothing else reads
-/// it, so a typo there is a rule that would never once apply.
+/// Refuse a key a class table invents, as the base table's are refused.
 fn check_class_tables(eng: &balaur_core::Engine, params: &toml::Value) -> Result<()> {
     let registry = eng.resource::<balaur_core::components::ComponentRegistry>();
     let registry = registry.borrow();
@@ -514,6 +513,10 @@ fn look_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) 
         k::ICON_COLOR.into(),
         toml::Value::String(widget.icon_color.to_string()),
     );
+    map.insert(
+        k::ICON_SIZE.into(),
+        toml::Value::Float(f64::from(widget.icon_size)),
+    );
     map.insert(k::ENABLED.into(), toml::Value::Boolean(!widget.disabled));
     map.insert(k::FILL.into(), toml::Value::String(widget.fill.to_string()));
     map.insert(
@@ -859,6 +862,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         cursor: s(k::CURSOR),
         icon: s(k::ICON),
         icon_color: s(k::ICON_COLOR),
+        icon_size: f(k::ICON_SIZE),
         disabled: !r.on_unless_off(k::ENABLED),
         fill: s(k::FILL),
         stroke: s(k::STROKE),

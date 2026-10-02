@@ -1855,7 +1855,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 111 properties
+`ui` · 112 properties
 
 A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button sets `clicked` and calls `on_click`.
 
@@ -1900,6 +1900,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>hide_wider</code></td><td>float</td><td><code>0.0</code></td><td>Not drawn while the room is this wide or wider, in design pixels: a control only a small space wants. Zero is no line At least 0.0.</td></tr>
 <tr><td><code>icon</code></td><td>string</td><td>—</td><td>A glyph from the theme&#x27;s icon family, drawn before `text`</td></tr>
 <tr><td><code>icon_color</code></td><td>string</td><td>—</td><td>What that glyph is tinted with, as `#rrggbb` or a name from the theme&#x27;s `[colors]`; empty takes the role&#x27;s own</td></tr>
+<tr><td><code>icon_size</code></td><td>float</td><td><code>-1.0</code></td><td>That glyph&#x27;s size in design pixels; below zero takes the caption&#x27;s</td></tr>
 <tr><td><code>image</code></td><td>string</td><td>—</td><td>The project-relative image an `image` widget draws, or the picture a `button` draws before its caption at the caption&#x27;s height</td></tr>
 <tr><td><code>inset</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom margins a root with `anchor = &quot;fill&quot;` keeps from its surface, in design pixels</td></tr>
 <tr><td><code>interactive</code></td><td>bool</td><td><code>true</code></td><td>Off, the pointer passes through to the scene: the widget is drawn, never hovered or clicked, and `ui.wants_pointer()` stays false over it. A full-screen container over the world wants this</td></tr>

@@ -6545,6 +6545,12 @@
         "group": "paint",
         "type": "string"
       },
+      "icon_size": {
+        "default": -1.0,
+        "description": "That glyph's size in design pixels; below zero takes the caption's",
+        "group": "paint",
+        "type": "float"
+      },
       "image": {
         "default": "",
         "description": "The project-relative image an `image` widget draws, or the picture a `button` draws before its caption at the caption's height",

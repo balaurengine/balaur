@@ -1135,6 +1135,7 @@ fn component_properties(eng: &Engine, args: &[Value]) -> Result<Value> {
         None | Some(Value::Nil) => None,
         Some(value) => Some(crate::node_api::to_toml(value)?),
     };
+    crate::components::refuse_unknown_keys(eng, name, params.as_ref())?;
     let full = crate::components::properties(eng, &schema, params.as_ref())?;
     crate::node_api::from_toml(&full)
 }

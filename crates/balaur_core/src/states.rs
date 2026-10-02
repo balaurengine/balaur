@@ -178,4 +178,7 @@ pub(crate) fn register_states_component(app: &mut App) {
             }),
         },
     );
+    // Every key beside the two declared ones names a state; `apply` refuses
+    // one that is not a table of components, with the better message.
+    app.accept_keys("states", |_, _| true);
 }

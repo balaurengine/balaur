@@ -264,6 +264,8 @@ pub struct Widget {
     /// The ink that glyph is tinted with, as `#rrggbb` or a name from the
     /// theme's `[colors]`; empty takes the role's own.
     pub icon_color: SmolStr,
+    /// That glyph's size in design pixels; below zero takes the caption's.
+    pub icon_size: f32,
     /// Greyed out, and deaf to clicks.
     pub disabled: bool,
     /// A fill and an outline this one widget states, as `#rrggbb` or a name

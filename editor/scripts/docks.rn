@@ -512,7 +512,7 @@ parent = \"HOST\"
 [nodes.widget]
 kind = \"flow\"
 role = \"plugin_head\"
-align = \"center\"
+align_items = \"center\"
 
 [[nodes]]
 id = \"HOST_split\"
@@ -567,7 +567,7 @@ parent = \"HOST\"
 [nodes.widget]
 kind = \"row\"
 role = \"plugin_head\"
-align = \"center\"
+align_items = \"center\"
 ";
     text.replace("HOST", name)
 }
