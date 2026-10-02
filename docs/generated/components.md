@@ -555,7 +555,7 @@ On a node carrying `shape2d`, as `node.shape2d.<method>`:
 
 ### `softbody2d`
 
-`2d` · `physics` · 63 properties · 24 methods
+`2d` · `physics` · `render` · 63 properties · 24 methods
 
 A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `triangle_mesh` and `volumetric` kinds give and a generator does not.
 
@@ -1395,7 +1395,7 @@ On a node carrying `shape3d`, as `node.shape3d.<method>`:
 
 ### `softbody3d`
 
-`3d` · `physics` · 69 properties · 24 methods
+`3d` · `physics` · `render` · 69 properties · 24 methods
 
 A deformable 3D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. The node is drawn from the solver's positions.
 

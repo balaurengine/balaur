@@ -413,6 +413,11 @@ impl Streams {
         match reader.read_indices() {
             Some(indices) => {
                 let flat: Vec<u32> = indices.into_u32().collect();
+                // A file is a user's, so a face past its vertices is an error
+                // here and never a panic in the renderer that draws it.
+                if let Some(past) = flat.iter().find(|&&i| i as usize >= count) {
+                    bail!("{name}: a face names vertex {past} but its primitive has {count}");
+                }
                 for tri in flat.as_chunks::<3>().0 {
                     self.mesh
                         .indices

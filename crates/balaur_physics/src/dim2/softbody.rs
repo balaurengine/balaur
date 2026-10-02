@@ -583,9 +583,11 @@ pub(crate) fn register_softbody_component_2d(reg: &mut Registry<'_>) {
             warnings: Some(Box::new(softbody_warnings_2d)),
             doc: "A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `triangle_mesh` and `volumetric` kinds give and a generator does not.",
             schema: ComponentDef::parse_schema(c::SOFTBODY_2D, &schema),
+            // It draws the node, so the tree's Rendering filter finds it too.
             tags: &[
                 balaur_core::components::tag::DIM_2D,
                 balaur_core::components::tag::PHYSICS,
+                balaur_core::components::tag::RENDER,
             ],
             expects: &[],
             apply: Box::new(apply_softbody_2d),

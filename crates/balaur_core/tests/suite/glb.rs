@@ -262,6 +262,38 @@ fn a_glb_becomes_a_mesh_with_its_skin() {
 }
 
 #[test]
+fn a_face_past_its_vertices_is_refused_naming_the_vertex() {
+    let (bin, views, accessors) = pack(&[
+        Accessor {
+            bytes: f32s(&[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0]),
+            component_type: 5126,
+            kind: "VEC3",
+            count: 3,
+            bounds: Some(([0.0, 0.0, 0.0], [1.0, 1.0, 0.0])),
+        },
+        Accessor {
+            bytes: u16s(&[0, 1, 5]),
+            component_type: 5123,
+            kind: "SCALAR",
+            count: 3,
+            bounds: None,
+        },
+    ]);
+    let json = format!(
+        r#"{{"asset":{{"version":"2.0"}},"buffers":[{{"byteLength":{}}}],"bufferViews":[{views}],"accessors":[{accessors}],"meshes":[{{"primitives":[{{"attributes":{{"POSITION":0}},"indices":1}}]}}],"nodes":[{{"mesh":0}}],"scenes":[{{"nodes":[0]}}],"scene":0}}"#,
+        bin.len()
+    );
+    let err = format!(
+        "{:#}",
+        mesh::parse(&glb(&json, &bin), "bad.glb").unwrap_err()
+    );
+    assert!(
+        err.contains("names vertex 5 but its primitive has 3"),
+        "{err}"
+    );
+}
+
+#[test]
 fn a_file_with_no_binary_chunk_is_refused() {
     let bytes = glb(r#"{"asset":{"version":"2.0"}}"#, &[]);
     // A zero-length BIN chunk is no chunk at all to the reader.

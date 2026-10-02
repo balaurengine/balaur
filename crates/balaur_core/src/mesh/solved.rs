@@ -41,12 +41,21 @@ fn next_topology() -> u32 {
     NEXT_TOPOLOGY.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
+/// Only engine code solves geometry, so a triangle past the vertices is a bug
+/// in a solver; caught here rather than as an index panic inside the renderer.
+fn assert_within(indices: &[[u32; 3]], count: usize) {
+    if let Some(past) = indices.iter().flatten().find(|&&i| i as usize >= count) {
+        panic!("a solver handed over a triangle naming vertex {past} of {count}");
+    }
+}
+
 impl SolvedMesh {
     /// Take this step's geometry, with a new `topology` if its triangles or
     /// its vertex count are not the ones held.
     pub fn update(&mut self, positions: Vec<[f32; 3]>, indices: Vec<[u32; 3]>) {
         if self.topology == 0 || positions.len() != self.positions.len() || indices != self.indices
         {
+            assert_within(&indices, positions.len());
             self.topology = next_topology();
             self.indices = indices;
         }
@@ -59,6 +68,7 @@ impl SolvedPolygon {
     pub fn update(&mut self, positions: Vec<[f32; 2]>, indices: Vec<[u32; 3]>) {
         if self.topology == 0 || positions.len() != self.positions.len() || indices != self.indices
         {
+            assert_within(&indices, positions.len());
             self.topology = next_topology();
             self.indices = indices;
         }
@@ -86,5 +96,17 @@ mod tests {
         assert_ne!(torn, first, "new triangles are a new topology");
         solved.update(vec![[0.0; 3]; 4], vec![[0, 2, 1]]);
         assert_ne!(solved.topology, torn, "so is a rebuilt body's vertex count");
+    }
+
+    #[test]
+    #[should_panic(expected = "naming vertex 3 of 3")]
+    fn a_triangle_past_the_solved_vertices_is_a_solver_bug() {
+        SolvedMesh::default().update(vec![[0.0; 3]; 3], vec![[0, 1, 3]]);
+    }
+
+    #[test]
+    #[should_panic(expected = "naming vertex 4294967295 of 3")]
+    fn a_padded_segment_is_not_a_solved_triangle() {
+        SolvedPolygon::default().update(vec![[0.0; 2]; 3], vec![[0, 1, u32::MAX]]);
     }
 }

@@ -206,3 +206,99 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
         balaur::logbuf::recent(10)
     );
 }
+
+/// Every preset the picker lists names only keys its components read, lands
+/// whole on a fresh node and survives the frames after it.
+#[test]
+fn every_preset_applies_whole_and_runs() {
+    let (_dir, mut app) = every_plugin();
+    let names = presets::names(&app.engine);
+    for name in &names {
+        let root = app.engine.root();
+        let entity = scene::spawn_node(&mut app.engine.world_mut(), name, root);
+        if let Err(e) = presets::apply(&app.engine, entity, name) {
+            panic!("`{name}` did not apply: {e:#}");
+        }
+        let info = {
+            let registry = app.engine.resource::<presets::PresetRegistry>();
+            let registry = registry.borrow();
+            registry.0[name].parts.clone()
+        };
+        let present = components::present_on(&app.engine, entity);
+        for part in &info {
+            assert!(
+                present.contains(&part.component),
+                "`{name}` left out `{}`: {present:?}",
+                part.component
+            );
+            let schema = def(&app, &part.component).schema;
+            let keys = part
+                .params
+                .as_ref()
+                .and_then(toml::Value::as_table)
+                .into_iter()
+                .flat_map(|t| t.keys());
+            for key in keys {
+                assert!(
+                    schema.get(key).is_some(),
+                    "`{name}` sets `{key}`, which `{}` does not read",
+                    part.component
+                );
+            }
+        }
+        for _ in 0..3 {
+            app.tick(1.0 / 60.0);
+        }
+    }
+    assert!(
+        names.len() >= 10,
+        "only {} presets, so this proved little",
+        names.len()
+    );
+}
+
+/// A component that leaves its node a mesh the solver draws carries `render`,
+/// or the tree's Rendering filter misses the one thing that draws a rope.
+#[test]
+fn a_component_that_draws_its_node_is_tagged_render() {
+    let (_dir, mut app) = every_plugin();
+    let mut drawn = 0;
+    for name in components::names(&app.engine) {
+        let root = app.engine.root();
+        let entity = scene::spawn_node(&mut app.engine.world_mut(), &name, root);
+        if components::add(&app.engine, entity, &name, None).is_err() {
+            continue;
+        }
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let solved = world.get::<&balaur::mesh::SolvedMesh>(entity).is_ok()
+            || world.get::<&balaur::mesh::SolvedPolygon>(entity).is_ok();
+        drop(world);
+        if solved {
+            drawn += 1;
+            let tags = def(&app, &name).tags;
+            assert!(
+                tags.contains(&"render"),
+                "`{name}` draws its node and is tagged {tags:?}"
+            );
+        }
+    }
+    assert!(
+        drawn >= 2,
+        "only {drawn} components drew their node, so this proved little"
+    );
+}
+
+/// Every plugin the editor ships, over an empty project.
+fn every_plugin() -> (tempfile::TempDir, App) {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"presets\"\nmain_scene = \"main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("main.toml"), "").unwrap();
+    let mut app = balaur::standard_app(AppConfig::bare(dir.path().to_path_buf())).unwrap();
+    app.load_project().unwrap();
+    (dir, app)
+}

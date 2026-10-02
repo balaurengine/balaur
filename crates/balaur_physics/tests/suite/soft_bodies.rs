@@ -471,6 +471,42 @@ fn freeing_a_node_frees_its_soft_body() {
     assert_eq!(bodies(&app), 0, "the freed node left its soft body behind");
 }
 
+/// A rope collides through segments, which have no faces, so it draws as a
+/// tube; a renderer handed the segments as triangles indexes past the end.
+#[test]
+fn a_rope_draws_as_triangles_over_its_own_vertices() {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut app = balaur_core::App::new(balaur_core::AppConfig::bare(".")).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin::default()).unwrap();
+    let root = app.engine.root();
+    let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Rope", root);
+    let rope =
+        toml::from_str("kind = \"rope\"\nparticle_count = 8\npinned_particles = [0]").unwrap();
+    balaur_core::components::add(&app.engine, node, "softbody3d", Some(&rope)).unwrap();
+    for _ in 0..3 {
+        app.tick(1.0 / 60.0);
+    }
+    let world = app.engine.world();
+    let solved = world.get::<&balaur_core::mesh::SolvedMesh>(node).unwrap();
+    assert!(!solved.indices.is_empty(), "the rope drew nothing");
+    let vertices = solved.positions.len();
+    assert!(
+        vertices > 8,
+        "the rope drew its particles alone, with no tube around them"
+    );
+    let past = solved
+        .indices
+        .iter()
+        .flatten()
+        .find(|&&i| i as usize >= vertices);
+    assert_eq!(
+        past, None,
+        "a triangle names a vertex past the {vertices} drawn"
+    );
+}
+
 /// What the solver drew goes with the component, or the renderer keeps
 /// drawing the last pose of a body that no longer exists.
 #[test]

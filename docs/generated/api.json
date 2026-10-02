@@ -530,11 +530,13 @@
     ],
     "softbody2d": [
       "2d",
-      "physics"
+      "physics",
+      "render"
     ],
     "softbody3d": [
       "3d",
-      "physics"
+      "physics",
+      "render"
     ],
     "sound": [
       "audio"

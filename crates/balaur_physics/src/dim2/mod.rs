@@ -342,7 +342,7 @@ pub fn build(reg: &mut Registry<'_>) -> Result<()> {
             ],
             &[(
                 c::SOFTBODY_2D,
-                Some("kind = \"rope\"\nparticles = 24.0\npinned = [0]"),
+                Some("kind = \"rope\"\nparticle_count = 24\npinned_particles = [0]"),
             )],
         )?,
     );

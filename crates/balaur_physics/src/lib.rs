@@ -534,14 +534,18 @@ fn register_physics_presets(reg: &mut Registry<'_>) -> Result<()> {
     reg.register_preset(
         "cloth3d",
         balaur_core::presets::preset(
-            "A hanging sheet; pin the particles it hangs from",
+            "A sheet of cloth hanging from two corners",
             &[
                 balaur_core::components::tag::DIM_3D,
                 balaur_core::components::tag::PHYSICS,
             ],
+            // 13 particles along each side, so 0 and 12 are the two ends of
+            // the sheet's first row.
             &[(
                 c::SOFTBODY_3D,
-                Some("kind = \"cloth\"\ncells = [12.0, 12.0, 1.0]\nself_contacts = true"),
+                Some(
+                    "kind = \"cloth\"\nsize = [2.0, 0.0, 2.0]\ncells = [12.0, 12.0, 1.0]\nself_collision = true\npinned_particles = [0, 12]",
+                ),
             )],
         )?,
     );
@@ -555,7 +559,7 @@ fn register_physics_presets(reg: &mut Registry<'_>) -> Result<()> {
             ],
             &[(
                 c::SOFTBODY_3D,
-                Some("kind = \"rope\"\nparticles = 24.0\npinned = [0]"),
+                Some("kind = \"rope\"\nparticle_count = 24\npinned_particles = [0]"),
             )],
         )?,
     );

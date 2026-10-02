@@ -24,6 +24,8 @@ use crate::scalar::{self, Real, Vector};
 use crate::shared::softbody::{self as cap, Family};
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
 
+mod wire;
+
 /// The shape rows: how a body's particles and elements are laid out, and the
 /// numbers each layout reads.
 fn shape_schema() -> String {
@@ -559,15 +561,30 @@ pub(crate) fn write_solved_mesh(eng: &Engine, entity: Entity) {
                 continue;
             };
             let offset = positions.len() as u32;
-            if let Some(mesh) = body.collision_mesh() {
-                positions.extend(mesh.vertex_positions(body).map(|p| scalar::a3(inverse * p)));
-                indices.extend(mesh.indices().iter().map(|t| t.map(|i| shifted(i, offset))));
-            } else {
-                // A body with no collider still draws: its boundary is what a
-                // generator laid out, and the particles are its vertices.
-                positions.extend(body.particle_positions().map(|p| scalar::a3(inverse * p)));
-                let boundary = body.boundary().iter();
-                indices.extend(boundary.map(|t| t.map(|i| shifted(i, offset))));
+            let shifted = |t: &[u32; 3]| t.map(|i| i + offset);
+            match body.collision_mesh() {
+                Some(mesh) if mesh.is_wire() => {
+                    let points: Vec<[f32; 3]> = mesh
+                        .vertex_positions(body)
+                        .map(|p| scalar::a3(inverse * p))
+                        .collect();
+                    let segments: Vec<[u32; 2]> =
+                        mesh.indices().iter().map(|t| [t[0], t[1]]).collect();
+                    let radius = scalar::f32_of(body.particle_radius());
+                    let (rings, faces) = wire::tube(&points, &segments, radius);
+                    positions.extend(rings);
+                    indices.extend(faces.iter().map(shifted));
+                }
+                Some(mesh) => {
+                    positions.extend(mesh.vertex_positions(body).map(|p| scalar::a3(inverse * p)));
+                    indices.extend(mesh.indices().iter().map(shifted));
+                }
+                None => {
+                    // A body with no collider still draws: its boundary is what a
+                    // generator laid out, and the particles are its vertices.
+                    positions.extend(body.particle_positions().map(|p| scalar::a3(inverse * p)));
+                    indices.extend(body.boundary().iter().map(shifted));
+                }
             }
         }
         if positions.is_empty() {
@@ -585,15 +602,6 @@ pub(crate) fn write_solved_mesh(eng: &Engine, entity: Entity) {
     solved.update(positions, indices);
     solved.color = color;
     let _ = world.insert_one(entity, solved);
-}
-
-// A wire pads its segments to triangles with `u32::MAX`, which stays itself.
-fn shifted(index: u32, offset: u32) -> u32 {
-    if index == u32::MAX {
-        index
-    } else {
-        index + offset
-    }
 }
 
 /// The colour a body draws in when its node has nothing of its own.
@@ -631,9 +639,11 @@ pub(crate) fn register_softbody_component(reg: &mut Registry<'_>) {
             warnings: Some(Box::new(softbody_warnings)),
             doc: "A deformable 3D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. The node is drawn from the solver's positions.",
             schema: ComponentDef::parse_schema(c::SOFTBODY_3D, &schema),
+            // It draws the node, so the tree's Rendering filter finds it too.
             tags: &[
                 balaur_core::components::tag::DIM_3D,
                 balaur_core::components::tag::PHYSICS,
+                balaur_core::components::tag::RENDER,
             ],
             expects: &[],
             apply: Box::new(apply_softbody),
