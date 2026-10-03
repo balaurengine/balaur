@@ -849,7 +849,7 @@ dependencies = [
  "image",
  "js-sys",
  "kiss3d",
- "libloading 0.8.9",
+ "libloading 0.9.0",
  "libm",
  "naga",
  "objc2 0.6.4",

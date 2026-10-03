@@ -70,7 +70,7 @@ objc2-ui-kit = { version = "0.3", features = ["UIInterface", "UIResponder", "UIS
 windows-sys = { version = "0.61", features = ["Win32_System_Registry"], optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-libloading = { version = "0.8", optional = true }
+libloading = { version = "0.9", optional = true }
 
 [dev-dependencies]
 balaur.workspace = true
