@@ -25,7 +25,7 @@ js-sys = "0.3.106"
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 # `ring` rather than the default `aws-lc-rs`: it matches the rustls backend
 # the websocket crate already picks, and needs no C toolchain.
-web-transport-quinn = { version = "0.12", default-features = false, features = ["ring"] }
+web-transport-quinn = { version = "0.13", default-features = false, features = ["ring"] }
 # The crate is async; one current-thread runtime per link bridges it to the
 # engine's polled model. No multi-thread scheduler: a link is one socket.
 tokio = { version = "1", default-features = false, features = ["rt", "net", "sync", "macros", "time"] }
