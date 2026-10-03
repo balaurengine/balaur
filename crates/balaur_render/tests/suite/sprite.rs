@@ -376,3 +376,40 @@ fn a_sprite_over_a_smaller_copy_keeps_the_size_it_was_drawn_at() {
     assert_close(sx, px * 2.0);
     assert_close(sy, py * 2.0);
 }
+
+/// Margins a sprite states are what it is cut by, and read back as written;
+/// all zero draws one plain quad.
+#[test]
+fn a_sprite_cut_by_its_own_margins_reads_them_back() {
+    let app = app();
+    let cut = node(&app);
+    apply(
+        &app,
+        cut,
+        "nine_slice_margins_pixels = [10.0, 20.0, 5.0, 15.0]\nsize = [4.0, 2.0]",
+    );
+    let plain = node(&app);
+    apply(&app, plain, "");
+    {
+        let world = app.engine.world();
+        let nine = |entity| {
+            world
+                .get::<&Renderable2d>(entity)
+                .unwrap()
+                .sprite
+                .as_ref()
+                .unwrap()
+                .nine
+        };
+        assert_eq!(nine(cut), Some([10.0, 20.0, 5.0, 15.0]));
+        assert_eq!(nine(plain), None);
+    }
+    let read = components::get(&app.engine, cut, "sprite").unwrap();
+    let margins: Vec<f64> = read["nine_slice_margins_pixels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(toml::Value::as_float)
+        .collect();
+    assert_eq!(margins, [10.0, 20.0, 5.0, 15.0]);
+}

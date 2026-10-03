@@ -9,6 +9,10 @@ authors.workspace = true
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+# A snapshot carries the rapier world as bincode: JSON cannot hold a voxel
+# grid's vector-keyed map or a `user_data` above 64 bits.
+bincode.workspace = true
+base64 = "0.23"
 balaur_core.workspace = true
 balaur_plugin.workspace = true
 # `scalar.rs` is the seam between rapier's `Real` and the engine's `f32`.

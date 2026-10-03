@@ -36,9 +36,7 @@ use balaur_core::Engine;
 use std::collections::{HashMap, HashSet};
 
 pub use loading::Loading;
-pub use pacing::{
-    NextFrame, Pacing, honour_lazy, next_frame, pointer_is_dragging_elsewhere, wants_pass,
-};
+pub use pacing::{NextFrame, Pacing, honour_lazy, next_frame, wants_pass};
 pub use routing::{pointer_is_ui, takes_point};
 pub use theme::ThemeTokens;
 pub use widget::input::{
@@ -66,7 +64,9 @@ pub fn widget_rect(entity: balaur_core::hecs::Entity) -> Option<egui::Rect> {
 /// bar overflows and the icons stop matching; the zoom grows all three.
 pub const TOUCH_TARGET: f32 = 44.0;
 
-pub use immediate::{ALIGNS, ANCHORS, CLASSES, FONT_STYLES, FONTS, MODIFIERS, WIDGET_KINDS};
+pub use immediate::{
+    ALIGNS, ANCHORS, CLASSES, FONT_STYLES, FONTS, ITEM_ALIGNS, MODIFIERS, WIDGET_KINDS,
+};
 
 /// Where this project puts the lines between the screen classes, and whether
 /// the reader's own text size counts. Read once, after the project has
@@ -325,7 +325,7 @@ pub fn pass_without_window(app: &mut balaur_core::App, width: f32, height: f32) 
     honour_lazy(&app.engine);
     let ctx = egui::Context::default();
     app.add_system(balaur_core::Stage::Render, move |eng, _| {
-        if !wants_pass(eng, &ctx, false, false) {
+        if !wants_pass(eng, &ctx, false) {
             return;
         }
         let scale = eng

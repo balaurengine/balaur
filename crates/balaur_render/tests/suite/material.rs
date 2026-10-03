@@ -707,3 +707,12 @@ import package::sprite::{VertexInput, VertexOutput, place, instance_custom};
     assert!(!plain.instance_custom);
     assert!(!plain.wgsl.contains("@location(9)"), "{}", plain.wgsl);
 }
+
+#[test]
+fn a_3d_node_with_no_material_blends_so_its_colour_alpha_shows() {
+    let dir = project();
+    let app = app(dir.path());
+    let surface = balaur_render::material::surface_of(&app.engine, "");
+    assert_eq!(surface.alpha, balaur_render::material::AlphaMode::Blend);
+    assert!(!surface.double_sided, "and still culls its back faces");
+}

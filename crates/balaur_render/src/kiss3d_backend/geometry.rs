@@ -55,18 +55,24 @@ pub(crate) fn build_node(
 ) -> Option<Built3d> {
     // A solver owning the vertices makes the buffers dynamic, as a skin does.
     let solved = crate::skinned_3d::solver_present(&app.engine.world(), entity);
-    match renderable.shape {
+    let mut node = match renderable.shape {
         // Built by the mesher rather than by kiss3d: the triangles a collider
         // is fitted to and a ray is picked against are the ones uploaded here.
-        Shape3d::Solid(solid) => Some((upload_geometry(scene, &solid.build()), None, None, None)),
+        Shape3d::Solid(solid) => upload_geometry(scene, &solid.build()),
         // A boolean's result, already worked out this tick.
-        Shape3d::Built => renderable
-            .built
-            .as_deref()
-            .filter(|mesh| !mesh.indices.is_empty())
-            .map(|mesh| (upload_geometry(scene, mesh), None, None, None)),
-        Shape3d::Mesh => upload_mesh(app, scene, renderable, solved),
-    }
+        Shape3d::Built => upload_geometry(
+            scene,
+            renderable
+                .built
+                .as_deref()
+                .filter(|mesh| !mesh.indices.is_empty())?,
+        ),
+        Shape3d::Mesh => return upload_mesh(app, scene, renderable, solved),
+    };
+    // The mesher and the CSG both carry UVs, so a solid takes a texture as a
+    // mesh does.
+    crate::texture::attach_texture_3d(&app.engine, &mut node, &renderable.texture);
+    Some((node, None, None, None))
 }
 
 /// Resolve a `mesh` asset and hand its triangles to kiss3d, with the skin to

@@ -23,7 +23,7 @@ fn a_window_moves_with_its_title_bar_and_shuts_on_its_cross() {
     let (_dir, mut app) = app();
     let window = add_widget(
         &app,
-        &toml::toml! { kind = "window" text = "Debug" x = 100.0 y = 100.0 width = 200.0 height = 120.0 }
+        &toml::toml! { kind = "window" text = "Debug" movable = true x = 100.0 y = 100.0 width = 200.0 height = 120.0 }
             .into(),
     );
     let ctx = egui::Context::default();

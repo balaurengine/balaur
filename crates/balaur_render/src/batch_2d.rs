@@ -30,6 +30,9 @@ pub(crate) const MIN_RUN: usize = 4;
 pub(crate) enum Mesh {
     Quad,
     Flat(balaur_core::primitive::Flat),
+    /// A nine-slice sprite's mesh, which bakes its size and margins; its
+    /// rectangle is the whole image, and each member's rides in its instance.
+    NineSlice(crate::sprite::NineKey),
 }
 
 /// What two nodes must share to draw in one call: the mesh their shape
@@ -37,10 +40,12 @@ pub(crate) enum Mesh {
 #[derive(Clone, PartialEq)]
 pub(crate) struct BatchKey {
     pub(crate) mesh: Mesh,
-    /// The image a sprite draws; empty for a shape that carries none.
+    /// The image a sprite or a shape draws; empty for one that carries none.
     pub(crate) texture: String,
     /// The material asset, the node's own or the one it inherited.
     pub(crate) material: String,
+    /// The blend, wireframe, vertices and culling, which are the object's.
+    pub(crate) overlay: crate::overlay::Overlay2d,
 }
 
 /// The mesh a node would draw through, or `None` where it cannot join a run.
@@ -48,6 +53,9 @@ pub(crate) struct BatchKey {
 /// A polygon and a polyline carry geometry of their own, so each is a draw
 /// whatever else is beside it.
 pub(crate) fn batchable(renderable: &Renderable2d) -> Option<Mesh> {
+    if renderable.lit.is_some() {
+        return None;
+    }
     match renderable.shape {
         Shape2d::Flat(flat) => Some(Mesh::Flat(flat)),
         Shape2d::Sprite { .. } => renderable.sprite.as_ref().map(|_| Mesh::Quad),
@@ -71,8 +79,9 @@ pub(crate) fn key_of(
         texture: renderable
             .sprite
             .as_ref()
-            .map_or_else(String::new, |sprite| sprite.path.clone()),
+            .map_or_else(|| renderable.texture.clone(), |sprite| sprite.path.clone()),
         material,
+        overlay: renderable.overlay,
     }
 }
 
@@ -82,8 +91,9 @@ pub(crate) fn key_of(
 /// instance carries the whole of `translate . rotate . shear . scale` that a
 /// node of its own would have held in its transform.
 pub(crate) fn pose(renderable: &Renderable2d, global: &GlobalTransform) -> (Vec2, Mat2) {
+    let nine = renderable.sprite.as_ref().is_some_and(|s| s.nine.is_some());
     let size = match renderable.shape {
-        Shape2d::Sprite { hx, hy } => Vec2::new(2.0 * hx, 2.0 * hy),
+        Shape2d::Sprite { hx, hy } if !nine => Vec2::new(2.0 * hx, 2.0 * hy),
         _ => Vec2::ONE,
     };
     let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
@@ -177,6 +187,7 @@ mod tests {
             }),
             texture: name.to_string(),
             material: String::new(),
+            overlay: crate::overlay::Overlay2d::default(),
         }
     }
 

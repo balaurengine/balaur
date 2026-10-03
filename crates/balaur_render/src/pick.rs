@@ -362,6 +362,7 @@ mod tests {
             shadows: true,
             layers: u32::MAX,
             render_layers: u32::MAX,
+            overlay: crate::overlay::Overlay3d::default(),
             version: 0,
         }
     }

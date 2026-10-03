@@ -403,31 +403,54 @@ fn a_joint_is_remade_when_the_body_it_lost_returns() {
     assert_eq!(joint_count(&app), 1, "the authored joint never came back");
 }
 
-/// A joint switched off has params and no handle for ever, so the retry list
-/// would hold it and re-apply the whole component every step.
+/// A switched-off joint is made and kept off; a switched-off articulation is
+/// left out of its chain. Neither sits on the retry list, which would
+/// re-apply the whole component every step.
 #[test]
-fn a_disabled_joint_is_not_retried_every_step() {
+fn a_switched_off_joint_is_kept_off_and_never_retried() {
     let mut app = app();
     let _anchor = named_body(&app, "Anchor", "static");
     let hanging = named_body(&app, "Hanging", "dynamic");
-    components::add(
-        &app.engine,
-        hanging,
-        "joint3d",
-        Some(
-            &toml::from_str("kind = \"hinge\"\nconnected_body = \"/Anchor\"\nenabled = false")
-                .unwrap(),
-        ),
-    )
-    .unwrap();
+    let chained = named_body(&app, "Chained", "dynamic");
+    for (node, extra) in [(hanging, ""), (chained, "\narticulation = true")] {
+        let table =
+            format!("kind = \"hinge\"\nconnected_body = \"/Anchor\"\nenabled = false{extra}");
+        components::add(
+            &app.engine,
+            node,
+            "joint3d",
+            Some(&toml::from_str(&table).unwrap()),
+        )
+        .unwrap();
+    }
     for _ in 0..5 {
         app.tick(1.0 / 60.0);
     }
     let state = app.engine.resource::<balaur_physics::PhysicsState3d>();
     let state = state.borrow();
-    assert!(state.joints.is_empty(), "a disabled joint was made anyway");
+    let made = state
+        .joints
+        .get(&hanging)
+        .expect("the switched-off joint was made");
+    let balaur_physics::joint::JointHandle3d::Impulse(handle) = made.handle else {
+        panic!("an impulse joint");
+    };
+    assert!(
+        !state
+            .world
+            .impulse_joints
+            .get(handle)
+            .unwrap()
+            .data
+            .is_enabled(),
+        "the joint is solved although it is switched off"
+    );
+    assert!(
+        !state.joints.contains_key(&chained),
+        "a switched-off articulation joined its chain"
+    );
     assert!(
         balaur_physics::joint::pending(&state, &app.engine.world()).is_empty(),
-        "a disabled joint is on the retry list, so it re-applies every step"
+        "a switched-off joint is on the retry list, so it re-applies every step"
     );
 }

@@ -171,7 +171,7 @@ A widget takes a table per class word:
 ```toml
 [nodes.widget]
 kind = "row"
-gap = 10
+gap = [10, 10]
 [nodes.widget.narrow]
 visible = false
 [nodes.widget.touch]

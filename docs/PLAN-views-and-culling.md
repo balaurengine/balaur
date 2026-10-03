@@ -69,7 +69,7 @@ mesh.
 
 | Need | Decision |
 | --- | --- |
-| Perspective and orthographic cameras, field of view, clip planes | Have: `camera3d.projection`, `fov_degrees`, `near`, `far` and `up`, and the orbit controls the fork runs on it. An orthographic frame is sized from the orbit distance and the fov, as the fork does, so there is no `size`; `render.set_camera` keeps taking eye and target |
+| Perspective and orthographic cameras, field of view, clip planes | Have: `camera3d.projection`, `fov_degrees`, `near`, `far` and `up`. An orthographic frame is `orthographic_height` high, or sized from the distance to the point looked at and the fov; `render.set_camera` keeps taking eye and target |
 | Skipping nodes outside the camera | Step 1: frustum culling in 3D, rect culling in 2D, from bounds; `render.in_view`, `on_view_entered` / `on_view_exited`. A chunked tile map and a voxel volume cull per chunk, over the chunks `docs/PLAN-tilemap.md` step 2 and `docs/PLAN-voxels.md` step 2 give them |
 | Visibility layers | Have: `render_layers` on `camera3d` and on `shape3d`, `mesh` and `multimesh3d`, the fork's own name. A `viewport` takes one at step 4. Shadows come from every layer, as the fork's shadow pass draws them |
 | Repeated meshes in one call | Step 3: automatic instancing over `balaur_render::instancing`, the seam `multimesh3d` draws through; this is the same seam applied to whatever the scene repeats |

@@ -255,3 +255,88 @@ fn the_frame_counts_every_triangle_it_draws() {
     assert_eq!(counted, expected, "the frame reports what it drew");
     assert!(expected >= 12, "a cuboid is at least twelve triangles");
 }
+
+#[test]
+fn a_probe_asked_to_capture_every_frame_says_so() {
+    let mut app = app();
+    let once = node(&app);
+    add(&app, once, "reflection_probe", "size = [4.0, 4.0, 4.0]");
+    let always = node(&app);
+    add(&app, always, "reflection_probe", "update_mode = \"always\"");
+    place(&app, always, Vec3::new(5.0, 0.0, 0.0));
+    settle(&mut app);
+    let world = app.engine.world();
+    let resolved = probes(&world, app.engine.root());
+    drop(world);
+    assert_eq!(resolved.len(), 2);
+    for probe in resolved {
+        let want = if probe.center.x > 1.0 {
+            balaur_render::ProbeUpdate::Always
+        } else {
+            balaur_render::ProbeUpdate::Once
+        };
+        assert_eq!(probe.update, want, "the probe at {}", probe.center);
+    }
+    let read = components::get(&app.engine, always, "reflection_probe").unwrap();
+    assert_eq!(read["update_mode"].as_str(), Some("always"));
+}
+
+/// A probe's box turns with its node, and its capture keeps to the layers
+/// and planes it names; planes it leaves at zero take the camera's.
+#[test]
+fn a_probe_turns_with_its_node_and_captures_its_own_layers_and_planes() {
+    let mut app = app();
+    let entity = node(&app);
+    add(
+        &app,
+        entity,
+        "reflection_probe",
+        "capture_layers = 2\ncapture_near = 0.5\ncapture_far = 40.0",
+    );
+    let turn = balaur_core::glamx::Quat::from_rotation_y(0.7);
+    app.engine
+        .world_mut()
+        .get::<&mut Transform>(entity)
+        .unwrap()
+        .rotation = turn;
+    settle(&mut app);
+    let found = {
+        let world = app.engine.world();
+        probes(&world, app.engine.root())
+    };
+    assert!(found[0].orientation.angle_between(turn) < 1e-5);
+    assert_eq!(found[0].capture_layers, 2);
+    assert_eq!(found[0].clip_planes, Some((0.5, 40.0)));
+    let read = components::get(&app.engine, entity, "reflection_probe").unwrap();
+    assert_eq!(read["capture_layers"].as_integer(), Some(2));
+
+    let plain = node(&app);
+    add(&app, plain, "reflection_probe", "capture_far = 40.0");
+    settle(&mut app);
+    let found = {
+        let world = app.engine.world();
+        probes(&world, app.engine.root())
+    };
+    let plain = found
+        .iter()
+        .find(|probe| probe.capture_layers == u32::MAX)
+        .expect("the second probe keeps every layer");
+    assert_eq!(
+        plain.clip_planes, None,
+        "one plane alone takes the camera's"
+    );
+}
+
+#[test]
+fn a_surface_takes_a_premultiplied_alpha_a_trace_surface_and_its_mirror_size() {
+    let premultiplied = surface(
+        "shader = \"s.wesl\"\n[surface]\nalpha = \"premultiplied\"\ntrace_surface = \"metal\"\nmirror_resolution_scale = 0.25",
+    );
+    assert_eq!(premultiplied.alpha, AlphaMode::Premultiplied);
+    assert_eq!(
+        premultiplied.trace_surface,
+        balaur_render::material::TraceSurface::Metal
+    );
+    assert!((premultiplied.mirror_resolution_scale - 0.25).abs() < 1e-6);
+    assert_eq!(premultiplied.mirror_render_layers, None);
+}

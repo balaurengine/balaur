@@ -17,13 +17,14 @@ use kiss3d::camera::Camera2d;
 use kiss3d::context::Context;
 use kiss3d::resource::vertex_index::VERTEX_INDEX_FORMAT;
 use kiss3d::resource::{
-    GpuData, GpuMesh2d, Material2d, MaterialManager2d, PipelineCache, RenderContext2d, Texture,
+    GpuData, GpuMesh2d, Material2d, MaterialManager2d, RenderContext2d, Texture,
 };
 use kiss3d::scene::{InstancesBuffer2d, ObjectData2d};
 use kiss3d::wgpu;
 
 use crate::bind_layout::{material_group, uniform_entry};
 use crate::material::{Compiled, PARAMS_GROUP};
+use crate::pipeline::Pipelines2d;
 use crate::probe::Probe;
 
 /// Matches `FrameUniforms` in `shaders/sprite.wesl`.
@@ -101,7 +102,7 @@ impl GpuData for ShaderGpuData {
 
 /// One linked material, shared by every node that names it.
 pub(crate) struct ShaderMaterial {
-    pipeline: PipelineCache,
+    pipeline: Pipelines2d,
     object_layout: wgpu::BindGroupLayout,
     texture_layout: wgpu::BindGroupLayout,
     frame_uniform: wgpu::Buffer,
@@ -227,15 +228,18 @@ fn build_pipeline(
     layout: wgpu::PipelineLayout,
     shader: wgpu::ShaderModule,
     instance_custom: bool,
-) -> PipelineCache {
-    PipelineCache::new(move |sample_count| {
+) -> Pipelines2d {
+    Pipelines2d::new(move |blend, cull, sample_count| {
         crate::pipeline::material_pipeline(
             "material_pipeline",
             &layout,
             &shader,
             &vertex_layouts(instance_custom),
-            None,
-            &crate::pipeline::Depth::Ignored,
+            &crate::pipeline::Raster {
+                cull,
+                depth: crate::pipeline::Depth::Ignored,
+                blend,
+            },
             sample_count,
         )
     })
@@ -473,6 +477,9 @@ impl Material2d for ShaderMaterial {
         render_pass: &mut wgpu::RenderPass<'_>,
         context: &RenderContext2d,
     ) {
+        if !data.surface_rendering_active() {
+            return;
+        }
         let gpu_data = gpu_data
             .as_any_mut()
             .downcast_mut::<ShaderGpuData>()
@@ -518,7 +525,11 @@ impl Material2d for ShaderMaterial {
             return;
         };
 
-        render_pass.set_pipeline(&self.pipeline.get(context.sample_count));
+        render_pass.set_pipeline(&self.pipeline.get(
+            data.blend(),
+            data.backface_culling_enabled(),
+            context.sample_count,
+        ));
         render_pass.set_bind_group(0, &self.frame_bind_group, &[]);
         render_pass.set_bind_group(1, object_bind_group, &[]);
         render_pass.set_bind_group(2, texture_bind_group, &[]);
@@ -540,7 +551,7 @@ impl Material2d for ShaderMaterial {
 }
 
 /// What kiss3d takes on a node.
-type SharedMaterial = std::rc::Rc<std::cell::RefCell<Box<dyn Material2d + 'static>>>;
+pub(crate) type SharedMaterial = std::rc::Rc<std::cell::RefCell<Box<dyn Material2d + 'static>>>;
 
 crate::material_cache::define!(
     cache = MaterialCache,
@@ -565,6 +576,10 @@ fn build(
 ) -> anyhow::Result<Option<(ShaderMaterial, Option<std::rc::Rc<Probe>>)>> {
     let asset =
         balaur_core::assets::load_typed::<crate::material::Material3d>(&app.engine, reference)?;
+    // kiss3d's own material draws one with no shader.
+    if asset.shader.is_empty() {
+        return Ok(None);
+    }
     let source = crate::material::shader_text(&app.engine, reference, &asset.shader)?;
     let source = crate::preview::requested(&app.engine, &asset.shader, source);
     let modules = crate::shaders::plugin_modules(&app.engine);

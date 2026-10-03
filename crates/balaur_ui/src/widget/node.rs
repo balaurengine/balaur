@@ -22,7 +22,9 @@ pub(crate) fn rgba_color(rgba: [f32; 4]) -> Color32 {
     )
 }
 
-#[derive(Clone)]
+/// `Default` is every field zeroed, which no scene means: a widget is read
+/// from a table its schema's defaults were merged into.
+#[derive(Clone, Default)]
 #[allow(
     clippy::struct_excessive_bools,
     reason = "one flag per scene property, and a scene sets them independently"
@@ -79,12 +81,13 @@ pub struct Widget {
     /// True for the one frame a `text_field` was submitted, as `clicked` is for the
     /// frame a button was pressed.
     pub submitted: bool,
-    /// Space inside a container's edge, in design pixels.
-    /// Space inside a container's edge: left, top, right and bottom, in
-    /// design pixels. Below zero on every side takes the theme's.
+    /// Space inside the widget's edge: left, top, right and bottom, in
+    /// design pixels. A side below zero takes the theme's.
     pub padding: [f32; 4],
-    /// Space between a container's children.
-    pub gap: f32,
+    /// Space between a container's children, across and down: a row puts
+    /// the first between its children and the second between wrapped lines.
+    /// Below zero on an axis takes the theme's.
+    pub gap: [f32; 2],
     /// Cross-axis placement of a container's children.
     pub align: SmolStr,
     /// Which way a `scroll` moves: `horizontal`, `vertical`, or both where it
@@ -232,8 +235,6 @@ pub struct Widget {
     pub hide_on_close: bool,
     /// Method called with the card let go outside the list.
     pub on_drop: SmolStr,
-    /// How many children a `grid` puts on each row.
-    pub columns: u32,
     /// Whether a `fold` shows its children.
     pub open: bool,
     /// A `fold`'s child drawn in the fold's header after its arrow and
@@ -276,8 +277,6 @@ pub struct Widget {
     pub radius: f32,
     /// How a container spreads its children along its own direction.
     pub justify: SmolStr,
-    /// The air either side of a caption; below zero takes the theme's.
-    pub padding_x: f32,
     /// Keep a root clear of what a notch or a home bar covers.
     /// Which edges this root keeps clear of the display's insets, left, top,
     /// right then bottom, the order an `inset` is spelled in.
@@ -286,6 +285,142 @@ pub struct Widget {
     /// table, so a rotation can resolve it again. `None` is the common case
     /// and costs nothing.
     pub(crate) authored: Option<std::sync::Arc<toml::Value>>,
+    /// What taffy reads besides the sizes above.
+    pub(crate) layout: Layout,
+    /// What the egui widget behind each kind takes. Shared: almost every
+    /// widget leaves all of it at the defaults, and a widget is cloned a node
+    /// a frame.
+    pub(crate) egui: std::sync::Arc<EguiOptions>,
+    /// What its text is shaped and dressed with past its face and size.
+    /// Shared for the same reason `egui` is.
+    pub(crate) text_look: std::sync::Arc<crate::widget::text_look::TextLook>,
+}
+
+/// The taffy fields a widget states beyond its size, padding and gap.
+/// Words stay words here; [`crate::widget::taffy`] reads them into taffy's.
+#[derive(Clone, Default, PartialEq, Hash)]
+pub(crate) struct Layout {
+    pub(crate) absolute: bool,
+    /// Zero is no limit.
+    pub(crate) max_width: Bits,
+    pub(crate) max_height: Bits,
+    /// Width over height; zero is none.
+    pub(crate) aspect_ratio: Bits,
+    /// Left, top, right and bottom.
+    pub(crate) margin: [Bits; 4],
+    pub(crate) border: [Bits; 4],
+    pub(crate) box_sizing: SmolStr,
+    pub(crate) direction: SmolStr,
+    pub(crate) overflow: SmolStr,
+    pub(crate) scrollbar_width: Bits,
+    /// Layout containment, then paint containment.
+    pub(crate) contain: [bool; 2],
+    pub(crate) align_self: SmolStr,
+    pub(crate) align_content: SmolStr,
+    pub(crate) safe_align: bool,
+    /// A share of the parent's box, in percent; zero leaves `width` and
+    /// `height` to say.
+    pub(crate) width_percent: Bits,
+    pub(crate) height_percent: Bits,
+    pub(crate) wrap_children: SmolStr,
+    pub(crate) min_lines: u16,
+    /// Below zero is the share `grow` derives.
+    pub(crate) basis: Bits,
+    pub(crate) shrink: Bits,
+    pub(crate) grid_columns: SmolStr,
+    pub(crate) grid_rows: SmolStr,
+    pub(crate) auto_columns: SmolStr,
+    pub(crate) auto_rows: SmolStr,
+    pub(crate) auto_flow: SmolStr,
+    pub(crate) areas: Vec<SmolStr>,
+    pub(crate) row: SmolStr,
+    pub(crate) column: SmolStr,
+}
+
+/// A float that hashes and compares by its bits, so a layout's fields can
+/// stamp the taffy style they build.
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub(crate) struct Bits(u32);
+
+impl Bits {
+    pub(crate) fn of(value: f32) -> Self {
+        Self(value.to_bits())
+    }
+
+    pub(crate) fn get(self) -> f32 {
+        f32::from_bits(self.0)
+    }
+}
+
+/// The options the egui widget behind each kind takes: one struct for every
+/// kind, since a widget changes kind with one property.
+#[derive(Clone, Default)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "one flag per scene property, and a scene sets them independently"
+)]
+pub(crate) struct EguiOptions {
+    pub(crate) sense: SmolStr,
+    pub(crate) show_tooltip_when_elided: bool,
+    pub(crate) indeterminate: bool,
+    pub(crate) show_value: bool,
+    pub(crate) prefix: SmolStr,
+    pub(crate) logarithmic: bool,
+    pub(crate) smallest_positive: f32,
+    pub(crate) largest_finite: f32,
+    pub(crate) clamp: SmolStr,
+    pub(crate) clamp_existing: bool,
+    pub(crate) smart_aim: bool,
+    pub(crate) drag_speed: f32,
+    pub(crate) decimals: i32,
+    pub(crate) trailing_fill: bool,
+    pub(crate) handle: SmolStr,
+    pub(crate) handle_aspect: f32,
+    pub(crate) number_format: SmolStr,
+    pub(crate) update_while_editing: bool,
+    pub(crate) show_percentage: bool,
+    pub(crate) animate: bool,
+    pub(crate) spacing: f32,
+    pub(crate) overhang: f32,
+    pub(crate) list_height: f32,
+    pub(crate) alpha: SmolStr,
+    pub(crate) inline: bool,
+    pub(crate) editable: bool,
+    pub(crate) tab_inserts: bool,
+    pub(crate) caret_at_end: bool,
+    pub(crate) clip_text: bool,
+    pub(crate) submit_key: SmolStr,
+    pub(crate) scrollbar: SmolStr,
+    pub(crate) stick_to_end: bool,
+    /// Below zero on an axis leaves it where the reader scrolled it.
+    pub(crate) scroll_offset: [f32; 2],
+    pub(crate) min_scrolled_width: f32,
+    pub(crate) min_scrolled_height: f32,
+    pub(crate) animated: bool,
+    pub(crate) wheel_speed: [f32; 2],
+    pub(crate) drag_scroll: SmolStr,
+    pub(crate) wheel_scroll: bool,
+    pub(crate) drag_cursor: SmolStr,
+    pub(crate) tint: [f32; 4],
+    /// Left, top, width and height in the picture's own pixels; a zero size
+    /// is the whole picture.
+    pub(crate) region: [f32; 4],
+    pub(crate) angle_degrees: f32,
+    pub(crate) angle_origin: [f32; 2],
+    pub(crate) alt_text: SmolStr,
+    pub(crate) popup_gap: f32,
+    pub(crate) popup_width: f32,
+    pub(crate) placement_fallbacks: Vec<SmolStr>,
+    pub(crate) close_on: SmolStr,
+    pub(crate) backdrop_color: [f32; 4],
+    pub(crate) dismissable: bool,
+    pub(crate) resizable: bool,
+    pub(crate) collapsible: bool,
+    pub(crate) closable: bool,
+    pub(crate) movable: bool,
+    pub(crate) constrain: bool,
+    pub(crate) default_open: bool,
+    pub(crate) fade_in: bool,
 }
 
 /// Whether this kind lays its widget children out rather than ignoring them.

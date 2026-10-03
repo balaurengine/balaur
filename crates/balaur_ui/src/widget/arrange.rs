@@ -8,7 +8,7 @@ use crate::vocabulary::words as w;
 use crate::widget::layer::{Edit, Painting, draw_one};
 use crate::widget::node::Widget;
 use balaur_core::hecs::Entity;
-use egui::{Color32, Stroke, pos2, vec2};
+use egui::{Color32, pos2, vec2};
 use rustc_hash::FxHashMap;
 use smol_str::SmolStr;
 use std::cell::RefCell;
@@ -99,26 +99,47 @@ pub(crate) fn settle_rects() {
     });
 }
 
-/// The space inside a container's edge, per side and in design pixels.
-///
-/// One rule, wherever a container is measured or drawn: the widget's own
-/// `padding` where it states one — one number for every side, or four for
-/// left, top, right and bottom — else the theme's for its role or kind, where
-/// `padding_x` and `padding_y` win over `padding` on their axis, else the
-/// built-in: 8 for a panel, and nothing for a box that only lays out.
+/// The space inside a container's edge, per side and in design pixels: its
+/// padding and its `border`, which is everywhere content does not go.
 pub(crate) fn padding_of(widget: &Widget, style: &crate::widget::theme::Style) -> Pad {
-    let built_in = if widget.kind == w::PANEL { 8.0 } else { 0.0 };
-    if widget.padding.iter().any(|side| *side >= 0.0) {
-        return Pad::of(widget.padding.map(|side| side.max(0.0)));
-    }
-    style_padding(style, built_in)
+    let pad = padding_only(widget, style);
+    let [left, top, right, bottom] = widget.layout.border.map(crate::widget::node::Bits::get);
+    Pad::of([
+        pad.left + left,
+        pad.top + top,
+        pad.right + right,
+        pad.bottom + bottom,
+    ])
 }
 
-/// The padding a style states, `fallback` on the sides it leaves open.
-pub(crate) fn style_padding(style: &crate::widget::theme::Style, fallback: f32) -> Pad {
-    let both = style.padding.unwrap_or(fallback);
-    let across = style.padding_x.unwrap_or(both);
-    let down = style.padding_y.unwrap_or(both);
+/// The padding alone, which taffy takes apart from the border.
+///
+/// One rule for every kind, wherever it is measured or drawn, side by side:
+/// the widget's own `padding` on a side it states at zero or more, else the
+/// theme's for its role or kind, where `padding_x` and `padding_y` win over
+/// `padding` on their axis, else the built-in: 8 round a panel, the air either
+/// side of a button's caption, and nothing for a box that only lays out.
+pub(crate) fn padding_only(widget: &Widget, style: &crate::widget::theme::Style) -> Pad {
+    let theirs = match widget.kind.as_str() {
+        w::PANEL => style_padding(style, vec2(8.0, 8.0)),
+        w::BUTTON | w::MENU => style_padding(style, crate::theme::BUTTON_PADDING),
+        _ => style_padding(style, egui::Vec2::ZERO),
+    };
+    let [left, top, right, bottom] = widget.padding;
+    let side = |own: f32, theirs: f32| if own >= 0.0 { own } else { theirs };
+    Pad::of([
+        side(left, theirs.left),
+        side(top, theirs.top),
+        side(right, theirs.right),
+        side(bottom, theirs.bottom),
+    ])
+}
+
+/// The padding a style states, `fallback` across and down on the sides it
+/// leaves open.
+pub(crate) fn style_padding(style: &crate::widget::theme::Style, fallback: egui::Vec2) -> Pad {
+    let across = style.padding_x.or(style.padding).unwrap_or(fallback.x);
+    let down = style.padding_y.or(style.padding).unwrap_or(fallback.y);
     Pad::of([across, down, across, down])
 }
 
@@ -154,11 +175,6 @@ impl Pad {
         )
     }
 
-    /// Where content starts inside a box beginning at `min`.
-    pub(crate) fn origin(self, min: egui::Pos2) -> egui::Pos2 {
-        min + vec2(self.left, self.top)
-    }
-
     /// The box with the padding put back round it.
     pub(crate) fn around(self, rect: egui::Rect) -> egui::Rect {
         egui::Rect::from_min_max(
@@ -168,34 +184,17 @@ impl Pad {
     }
 }
 
-/// The gap between a container's children, in design pixels: the widget's
-/// own where it states one, else the theme's entry for its kind, which is
-/// where a converted Godot theme's separations land.
-pub(crate) fn gap_of(widget: &Widget, style: &crate::widget::theme::Style) -> f32 {
-    if widget.gap >= 0.0 {
-        widget.gap
-    } else {
-        // 8 is the space a container has always left between its children.
-        style.gap.unwrap_or(8.0)
-    }
-}
-
-/// The frame a container paints from its theme entry. `fill` is what a kind
-/// shows when the theme says nothing — a panel has always had one, and a box
-/// that only clips should stay invisible until asked.
-/// The frame carries the look and no margin: `egui::Margin` is whole device
-/// pixels, and a caller shrinks its own rect by the float padding instead.
-fn themed_frame(style: &crate::widget::theme::Style, fill: Option<Color32>) -> egui::Frame {
-    egui::Frame::new()
-        .fill(style.fill.or(fill).unwrap_or(Color32::TRANSPARENT))
-        .corner_radius(egui::CornerRadius::same(
-            (style.radius.unwrap_or(0.0)) as u8,
-        ))
-        .stroke(
-            style
-                .stroke
-                .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_px(), c)),
-        )
+/// The gap between a container's children, across and down, in design
+/// pixels: the widget's own on an axis where it states one, else the theme's
+/// entry for its kind, which is where a converted Godot theme's separations
+/// land.
+pub(crate) fn gap_of(widget: &Widget, style: &crate::widget::theme::Style) -> egui::Vec2 {
+    // 8 is the space a container has always left between its children.
+    let theirs = style.gap.unwrap_or(8.0);
+    let [across, down] = widget
+        .gap
+        .map(|axis| if axis >= 0.0 { axis } else { theirs });
+    vec2(across, down)
 }
 
 /// A scroll container: the box is the parent's to decide and the children are
@@ -220,9 +219,13 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     );
     let style = at.style_of(&widget);
     let pad = padding_of(&widget, &style);
-    let frame = themed_frame(&style, None);
     let inner = (size - pad.taken()).max(egui::Vec2::ZERO);
-    frame.show(ui, |frame_ui| {
+    // The frame is painted under the box once the box is known, carrying the
+    // look and no margin: `egui::Margin` is whole points, and the padding comes
+    // off in floats instead.
+    let plate = ui.painter().add(egui::Shape::Noop);
+    {
+        let frame_ui = &mut *ui;
         // The padding comes off the box in floats; the frame itself carries
         // none, so a scroll at a fractional scale keeps the size it was given.
         let held = frame_ui.max_rect();
@@ -231,10 +234,11 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         hold_to(ui, inner);
         let dead = widget.deadzone;
         let (sideways, downwards) = crate::widget::taffy::scroll_axes(&widget.axis);
-        let mut area = egui::ScrollArea::new([sideways, downwards])
+        let area = egui::ScrollArea::new([sideways, downwards])
             .id_salt(("balaur-scroll", entity))
             .max_width(inner.x)
             .max_height(inner.y);
+        let mut area = crate::widget::scroll::dressed(ui, area, &widget, entity);
         // With a deadzone the finger scrolls nothing until it has travelled
         // that far, so a tap on a child lands; past it, this drags the
         // offset itself.
@@ -243,8 +247,9 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             .flatten();
         if dead > 0.0 {
             area = area.scroll_source(egui::scroll_area::ScrollSource {
+                scroll_bar: true,
                 drag: egui::scroll_area::DragScroll::Never,
-                ..egui::scroll_area::ScrollSource::default()
+                mouse_wheel: widget.egui.wheel_scroll,
             });
         }
         if let Some(offset) = dragged {
@@ -271,21 +276,23 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             at.rects = held;
         });
         // Reported when it moves, against where the last pass left it.
-        let offset = shown.state.offset;
-        let last = egui::Id::new(("balaur-scrolled", entity));
-        if ui
-            .data(|d| d.get_temp::<egui::Vec2>(last))
-            .is_some_and(|was| was != offset)
-        {
-            at.edits
-                .push((entity, Edit::Scrolled([offset.x, offset.y])));
-        }
-        ui.data_mut(|d| d.insert_temp(last, offset));
+        crate::widget::scroll::report(ui, &mut at.edits, entity, shown.state.offset);
         // The frame, and the area above it, learn the box the child took;
         // a child ui reports nothing to its parent on its own.
         let used = pad.around(inner_ui.min_rect());
         frame_ui.allocate_rect(used, egui::Sense::hover());
-    });
+        if style.fill.is_some() || style.stroke.is_some() {
+            frame_ui.painter().set(
+                plate,
+                crate::widget::theme::frame_shape(
+                    used,
+                    egui::CornerRadius::same(style.radius.unwrap_or(0.0) as u8),
+                    style.fill.unwrap_or(Color32::TRANSPARENT),
+                    &style,
+                ),
+            );
+        }
+    }
 }
 
 /// A tab container: a strip of its children's names, then the one showing.
@@ -338,7 +345,8 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     // The face the theme resolves, not the raw properties: a widget that
     // states no size or colour is asking the theme for them.
     let (color, font) = crate::widget::theme::face(&at.theme, &style, &widget);
-    let gap = gap_of(&widget, &at.style_of(&widget));
+    let slant = crate::widget::theme::slanted(&style, &widget);
+    let gap = gap_of(&widget, &style);
 
     // The page each strip button stands for, read before the strip borrows
     // the arena, so the button can leave its box under that page's entity.
@@ -346,18 +354,18 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let mut strip = ui.new_child(egui::UiBuilder::new().max_rect(rect));
     let chosen = strip
         .horizontal(|ui| {
-            ui.spacing_mut().item_spacing = vec2(gap.max(4.0), 0.0);
+            ui.spacing_mut().item_spacing = vec2(gap.x.max(4.0), 0.0);
             let mut chosen = None;
             for (slot, (_, name, label)) in pages.iter().enumerate() {
                 let on = slot == showing;
-                let mut button = egui::Button::new(
-                    egui::RichText::new(label.as_str())
-                        .font(font.clone())
-                        .color(color),
-                )
-                .corner_radius(egui::CornerRadius::same(
-                    (style.radius.unwrap_or(5.0)) as u8,
-                ));
+                let mut button = egui::Button::new(crate::widget::theme::rich(
+                    label.as_str(),
+                    &font,
+                    color,
+                    slant,
+                    &widget.text_look,
+                ))
+                .corner_radius(egui::CornerRadius::same(style.radius.unwrap_or(5.0) as u8));
                 button = match (on, style.fill) {
                     (true, Some(fill)) => button.fill(fill),
                     (true, None) => button.fill(Color32::from_black_alpha(96)),
@@ -381,8 +389,8 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let strip_h = strip.min_rect().height();
 
     let page = egui::Rect::from_min_size(
-        pos2(rect.min.x, rect.min.y + strip_h + gap),
-        vec2(rect.width(), (rect.height() - strip_h - gap).max(0.0)),
+        pos2(rect.min.x, rect.min.y + strip_h + gap.y),
+        vec2(rect.width(), (rect.height() - strip_h - gap.y).max(0.0)),
     );
     // The page is solved on its own: only one of them is on screen, so the
     // strip's siblings never take part in the same flex line.
@@ -493,15 +501,12 @@ pub(crate) fn contain(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
     let style = at.style_of(&widget);
     if style.fill.is_some() || style.stroke.is_some() {
         let radius = egui::CornerRadius::same((style.radius.unwrap_or(0.0)) as u8);
-        ui.painter().rect(
+        ui.painter().add(crate::widget::theme::frame_shape(
             ui.max_rect(),
             radius,
             style.fill.unwrap_or(Color32::TRANSPARENT),
-            style
-                .stroke
-                .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_px(), c)),
-            egui::StrokeKind::Inside,
-        );
+            &style,
+        ));
     }
     lay_out(ui, at, index, axis);
 }

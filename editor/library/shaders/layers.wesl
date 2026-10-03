@@ -31,7 +31,7 @@ struct Params {
     metallic: f32,
     roughness: f32,
     reflectance: f32,
-    emissive: f32,
+    emission_strength: f32,
     // gradient: how far it runs from where it begins, in world units.
     gradient_length: f32,
     // image: how many times the node's texture repeats across the surface.
@@ -201,7 +201,7 @@ fn stacked(in: VertexOutput) -> vec4<f32> {
     s.metallic = params.metallic;
     s.roughness = max(params.roughness, 0.045);
     s.reflectance = params.reflectance;
-    s.emissive = s.emissive + s.albedo * params.emissive + layer_fresnel(in, s.normal);
+    s.emissive = s.emissive + s.albedo * params.emission_strength + layer_fresnel(in, s.normal);
     let lit = layer_toon(shade_pbr(in, s));
     return layer_outline(in, lit, s.normal);
 }

@@ -34,5 +34,6 @@ crate::shared::events::functions!(
     towards = Vec3,
     axis = a3,
     normal = crate::rapier3d::math::Vector,
-    decode = crate::collider::decode_one_way
+    state = crate::PhysicsState3d,
+    tear_record = crate::softbody::tear_record
 );

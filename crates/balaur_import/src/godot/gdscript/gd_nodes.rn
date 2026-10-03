@@ -1087,6 +1087,15 @@ fn engine_event(name) {
     }
 }
 
+/// What a Godot collision handler is handed: the other node out of the
+/// engine's collision record, or the value itself when a script emitted one.
+pub fn collided(payload) {
+    if payload is Object && payload.contains_key("other") {
+        return payload["other"];
+    }
+    payload
+}
+
 /// Where a class table keeps what `connect` gave it, by signal.
 const LISTENERS = "__listeners";
 
@@ -1193,7 +1202,9 @@ pub fn theme_constant(node, name) {
         return float(padding);
     }
     if name == "separation" || name == "h_separation" || name == "v_separation" {
-        return float(get(widget, "gap", 0.0));
+        let gap = get(widget, "gap", [0.0, 0.0]);
+        let axis = if name == "v_separation" { 1 } else { 0 };
+        return float(gap[axis]);
     }
     0
 }
@@ -1243,9 +1254,32 @@ pub fn theme_override(node, group, name, value) {
         _ => return (),
     };
     let tinted = key == "text_color" || key == "icon_color";
+    let written = if key == "gap" {
+        gap_with(node, name, float(value))
+    } else if tinted {
+        color_list(value)
+    } else {
+        float(value)
+    };
     let patch = #{};
-    patch[key] = if tinted { color_list(value) } else { float(value) };
+    patch[key] = written;
     node.patch_component("widget", patch);
+}
+
+/// The widget's gap with one of Godot's separations written in: `separation`
+/// both ways, `h_separation` across, `v_separation` down.
+fn gap_with(node, name, px) {
+    let held = get(node.get_component("widget"), "gap", [-1.0, -1.0]);
+    if name == "h_separation" {
+        let out = [px, float(held[1])];
+        return out;
+    }
+    if name == "v_separation" {
+        let out = [float(held[0]), px];
+        return out;
+    }
+    let both = [px, px];
+    both
 }
 
 /// A label in the world takes a theme override on its `text2d`.
@@ -1345,7 +1379,7 @@ fn set_node_property(node, name, value) {
     true
 }
 
-const PARTICLES = "particles";
+const PARTICLES = "particles2d";
 /// The animation playback rate, as `animation` spells it.
 const SPEED_SCALE = "speed_scale";
 const RATE = "rate";
@@ -1592,6 +1626,9 @@ pub async fn wait_signal(owner, name) {
         let key = widget_handler_key(name);
         let event = if key is String { key[3..] } else { engine_event(name) };
         let payload = task::wait(events::next(event, owner)).await;
+        if event == "collision_enter" || event == "collision_exit" {
+            return collided(payload);
+        }
         return payload;
     }
     let value = field(owner, name);

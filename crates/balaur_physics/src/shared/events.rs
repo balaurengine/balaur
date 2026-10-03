@@ -27,15 +27,61 @@ macro_rules! functions {
         towards = $towards:ident,
         axis = $axis:ident,
         normal = $normal:ty,
-        decode = $decode:path
+        state = $State:ty,
+        tear_record = $tear_record:path
     ) => {
+        /// What the contact hook reads off a collider mid-step, in the
+        /// collider's own frame. A side table rather than the component: the
+        /// hook runs on rapier's threads while the step holds the state.
+        #[derive(Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+        pub(crate) struct Surface {
+            /// The way a one-way platform lets bodies through from, and how
+            /// far from it, in radians, a contact may still hold.
+            pub(crate) one_way: Option<($normal, crate::scalar::Real)>,
+            /// How fast the surface slides along itself: a conveyor belt.
+            pub(crate) velocity: $normal,
+        }
+
+        /// Every collider's [`Surface`], by handle. Only colliders that ask
+        /// for the contact hook have a row.
+        pub(crate) type Surfaces = DetHashMap<ColliderHandle, Surface>;
+
         /// One thing that happened, in Balaur's terms rather than rapier's handles.
         pub(crate) enum Event {
-            Started(Owner, Owner),
-            Stopped(Owner, Owner),
-            Force(Owner, Owner, f32, [f32; $N]),
-            /// The soft body, how many pieces, and the particle pairs torn.
-            Tear(Entity, u32, Vec<[u32; 2]>),
+            Started(Owner, Owner, Touch),
+            Stopped(Owner, Owner, Touch),
+            Force(Owner, Owner, Push),
+            /// The soft body, and what tore, read into a script's record at
+            /// delivery: its moved joints name nodes the step cannot reach.
+            Tear(Entity, SoftBodyTearEvent),
+        }
+
+        /// What a collision event says beyond the pair, from the first
+        /// collider's side.
+        pub(crate) struct Touch {
+            /// Whether either collider is a sensor.
+            sensor: bool,
+            /// Whether the touch ended because a collider went away.
+            removed: bool,
+            /// On a start, each contact rapier holds: the point on the first
+            /// collider, the point on the second, and the normal from the first
+            /// towards the second, all in world space.
+            contacts: Vec<([f32; $N], [f32; $N], [f32; $N])>,
+        }
+
+        /// What a contact force event measured, in Balaur's units.
+        pub(crate) struct Push {
+            /// The sum of every contact's force magnitude.
+            magnitude: f32,
+            /// The strongest contact's normal, from the first collider
+            /// towards the second.
+            direction: [f32; $N],
+            /// Every contact's force, summed as vectors along those normals.
+            total: [f32; $N],
+            /// The strongest one contact's force.
+            max: f32,
+            /// Whether the force just rose past the threshold.
+            started: bool,
         }
 
         impl Event {
@@ -46,10 +92,10 @@ macro_rules! functions {
             /// and a `Force` in one step.
             fn key(&self) -> (u64, u64, u8) {
                 let (a, b, kind) = match self {
-                    Self::Started(a, b) => (a.node, b.node, 0),
-                    Self::Stopped(a, b) => (a.node, b.node, 1),
-                    Self::Force(a, b, _, _) => (a.node, b.node, 2),
-                    Self::Tear(a, _, _) => (*a, *a, 3),
+                    Self::Started(a, b, _) => (a.node, b.node, 0),
+                    Self::Stopped(a, b, _) => (a.node, b.node, 1),
+                    Self::Force(a, b, _) => (a.node, b.node, 2),
+                    Self::Tear(a, _) => (*a, *a, 3),
                 };
                 (
                     a.to_bits().get().min(b.to_bits().get()),
@@ -106,6 +152,31 @@ macro_rules! functions {
             }
         }
 
+        /// Every contact point a pair holds, on each collider, with its
+        /// manifold's normal from the first collider towards the second.
+        fn contacts_of(
+            colliders: &ColliderSet,
+            pair: &ContactPair,
+        ) -> Vec<([f32; $N], [f32; $N], [f32; $N])> {
+            let (Some(first), Some(second)) =
+                (colliders.get(pair.collider1), colliders.get(pair.collider2))
+            else {
+                return Vec::new();
+            };
+            let mut out = Vec::new();
+            for manifold in pair.manifolds() {
+                let normal = crate::scalar::$axis(manifold.data.normal);
+                for point in &manifold.points {
+                    out.push((
+                        crate::scalar::$axis(first.position() * point.local_p1),
+                        crate::scalar::$axis(second.position() * point.local_p2),
+                        normal,
+                    ));
+                }
+            }
+            out
+        }
+
         /// The collider's node and its body's, from the ids stored on both.
         fn owner_of(
             bodies: &RigidBodySet,
@@ -124,7 +195,7 @@ macro_rules! functions {
                 bodies: &RigidBodySet,
                 colliders: &ColliderSet,
                 event: CollisionEvent,
-                _pair: Option<&ContactPair>,
+                pair: Option<&ContactPair>,
             ) {
                 let (Some(a), Some(b)) = (
                     self.owner(bodies, colliders, event.collider1()),
@@ -132,10 +203,19 @@ macro_rules! functions {
                 ) else {
                     return;
                 };
+                let contacts = match pair {
+                    Some(pair) if event.started() => contacts_of(colliders, pair),
+                    _ => Vec::new(),
+                };
+                let touch = Touch {
+                    sensor: event.sensor(),
+                    removed: event.removed(),
+                    contacts,
+                };
                 self.push(if event.started() {
-                    Event::Started(a, b)
+                    Event::Started(a, b, touch)
                 } else {
-                    Event::Stopped(a, b)
+                    Event::Stopped(a, b, touch)
                 });
             }
 
@@ -154,12 +234,16 @@ macro_rules! functions {
                 ) else {
                     return;
                 };
-                let d = event.max_force_direction;
                 self.push(Event::Force(
                     a,
                     b,
-                    crate::scalar::f32_of(event.total_force_magnitude),
-                    crate::scalar::$axis(d),
+                    Push {
+                        magnitude: crate::scalar::f32_of(event.total_force_magnitude),
+                        direction: crate::scalar::$axis(event.max_force_direction),
+                        total: crate::scalar::$axis(event.total_force),
+                        max: crate::scalar::f32_of(event.max_force_magnitude),
+                        started: event.started,
+                    },
                 ));
             }
 
@@ -174,8 +258,7 @@ macro_rules! functions {
                 else {
                     return;
                 };
-                let pieces = event.pieces.len() as u32;
-                self.push(Event::Tear(entity, pieces, event.torn_edges.clone()));
+                self.push(Event::Tear(entity, event.clone()));
             }
         }
 
@@ -192,36 +275,67 @@ macro_rules! functions {
                     balaur_core::events::announce(eng, at.node, name, payload);
                 }
             };
+            // Each side hears its own points, and normals pointing away from it.
+            let collision = |other: Owner, touch: &Touch, first: bool, start: bool| {
+                let mut out = vec![
+                    (k::OTHER.to_string(), node(other.node)),
+                    (k::SENSOR.to_string(), Value::Bool(touch.sensor)),
+                    (k::REMOVED.to_string(), Value::Bool(touch.removed)),
+                ];
+                if start {
+                    let side = |(p1, p2, n): &([f32; $N], [f32; $N], [f32; $N])| {
+                        if first {
+                            (*p1, *n)
+                        } else {
+                            (*p2, n.map(|x| -x))
+                        }
+                    };
+                    let (points, normals): (Vec<Value>, Vec<Value>) = touch
+                        .contacts
+                        .iter()
+                        .map(|c| {
+                            let (p, n) = side(c);
+                            (Value::$towards(p), Value::$towards(n))
+                        })
+                        .unzip();
+                    out.push((k::POINTS.to_string(), Value::List(points)));
+                    out.push((k::NORMALS.to_string(), Value::List(normals)));
+                }
+                Value::Map(out)
+            };
             match event {
-                Event::Started(a, b) => {
-                    tell(*a, hook::COLLISION_ENTER, node(b.node));
-                    tell(*b, hook::COLLISION_ENTER, node(a.node));
+                Event::Started(a, b, touch) => {
+                    tell(*a, hook::COLLISION_ENTER, collision(*b, touch, true, true));
+                    tell(*b, hook::COLLISION_ENTER, collision(*a, touch, false, true));
                 }
-                Event::Stopped(a, b) => {
-                    tell(*a, hook::COLLISION_EXIT, node(b.node));
-                    tell(*b, hook::COLLISION_EXIT, node(a.node));
+                Event::Stopped(a, b, touch) => {
+                    tell(*a, hook::COLLISION_EXIT, collision(*b, touch, true, false));
+                    tell(*b, hook::COLLISION_EXIT, collision(*a, touch, false, false));
                 }
-                Event::Force(a, b, magnitude, direction) => {
-                    let contact = |other: Owner| {
+                Event::Force(a, b, push) => {
+                    // rapier's direction runs from the first collider to the
+                    // second; the second hears it turned round.
+                    let contact = |other: Owner, first: bool| {
+                        let turn = |v: [f32; $N]| if first { v } else { v.map(|x| -x) };
                         crate::vocabulary::map([
                             (k::OTHER, node(other.node)),
-                            (k::FORCE, Value::Num(f64::from(*magnitude))),
-                            (k::DIRECTION, Value::$towards(*direction)),
+                            (k::FORCE, Value::Num(f64::from(push.magnitude))),
+                            (k::DIRECTION, Value::$towards(turn(push.direction))),
+                            (k::TOTAL_FORCE, Value::$towards(turn(push.total))),
+                            (k::MAX_FORCE, Value::Num(f64::from(push.max))),
+                            (k::STARTED, Value::Bool(push.started)),
                         ])
                     };
-                    tell(*a, hook::CONTACT_FORCE, contact(*b));
-                    tell(*b, hook::CONTACT_FORCE, contact(*a));
+                    tell(*a, hook::CONTACT_FORCE, contact(*b, true));
+                    tell(*b, hook::CONTACT_FORCE, contact(*a, false));
                 }
-                Event::Tear(a, pieces, torn) => {
-                    let edges = torn
-                        .iter()
-                        .map(|pair| Value::List(pair.map(|p| Value::Int(i64::from(p))).to_vec()))
-                        .collect();
-                    let tear = crate::vocabulary::map([
-                        (k::PIECES, Value::Int(i64::from(*pieces))),
-                        (k::TORN_EDGES, Value::List(edges)),
-                    ]);
-                    balaur_core::events::announce(eng, *a, hook::TEAR, tear);
+                Event::Tear(a, tear) => {
+                    let record = {
+                        let state = eng.resource::<$State>();
+                        let state = state.borrow();
+                        $tear_record(&state, tear)
+                    };
+                    balaur_core::events::announce(eng, *a, hook::TEAR, record);
                 }
             }
         }
@@ -237,43 +351,73 @@ macro_rules! functions {
             }
         }
 
-        /// The one mid-step rule left, and it reads collider data rather than
+        /// The mid-step rules, reading the [`Surfaces`] table rather than
         /// calling a script.
         ///
         /// A hook runs on rapier's own threads, which is why it may not touch
         /// the `Engine`: that is what keeps `unsync-callbacks` off and the
         /// solver threaded.
-        pub(crate) struct Hooks;
+        pub(crate) struct Hooks<'a> {
+            pub(crate) surfaces: &'a Surfaces,
+        }
 
-        impl PhysicsHooks for Hooks {
+        impl PhysicsHooks for Hooks<'_> {
             fn modify_solver_contacts(&self, context: &mut ContactModificationContext<'_>) {
-                // The one-way platform, which is what `one_way` on a collider
-                // means: rapier owns the maths, we own the axis.
-                if let Some(axis) = one_way_axis(context) {
-                    context.update_as_oneway_platform(axis, 0.1);
+                let first = self.surfaces.get(&context.collider1).copied();
+                let second = self.surfaces.get(&context.collider2).copied();
+                // rapier owns the platform maths; the table owns the axis.
+                if let Some((axis, angle)) = one_way_axis(context, first, second) {
+                    context.update_as_oneway_platform(axis, angle);
+                }
+                let slide = surface_velocity(context, first, second);
+                if slide != <$normal>::ZERO
+                    && let Some(rigid) = context.rigid_mut()
+                {
+                    for contact in rigid.solver_contacts.iter_mut() {
+                        contact.tangent_velocity += slide;
+                    }
                 }
             }
         }
 
-        /// The direction a one-way platform lets bodies through from,
-        /// whichever of the pair is the platform.
-        ///
-        /// The axis rides in the high bits of the collider's `user_data`,
-        /// beside the entity id: a hook runs while the state is borrowed by the
-        /// step, so it cannot go and read the component. Six directions rather
-        /// than a vector, because a platform's axis is a cardinal one in every
-        /// game that has ever wanted this, and the encoding costs three bits.
-        fn one_way_axis(context: &ContactModificationContext<'_>) -> Option<$normal> {
-            let first = context.colliders.get(context.collider1)?;
-            if let Some(axis) = $decode(first.user_data) {
-                return Some(axis);
+        /// The way a one-way platform lets bodies through from, in the first
+        /// collider's frame, whichever of the pair is the platform.
+        fn one_way_axis(
+            context: &ContactModificationContext<'_>,
+            first: Option<Surface>,
+            second: Option<Surface>,
+        ) -> Option<($normal, crate::scalar::Real)> {
+            if let Some(platform) = first.and_then(|s| s.one_way) {
+                return Some(platform);
             }
-            // The platform is the other collider: rapier reads the axis in the
-            // first's frame, so it turns into that frame and reverses.
-            let second = context.colliders.get(context.collider2)?;
-            let axis = $decode(second.user_data)?;
-            let world = second.position().rotation * axis;
-            Some(-(first.position().rotation.inverse() * world))
+            let (axis, angle) = second.and_then(|s| s.one_way)?;
+            // rapier reads the axis in the first collider's frame, so the
+            // other's turns into that frame and reverses.
+            let a = context.colliders.get(context.collider1)?;
+            let b = context.colliders.get(context.collider2)?;
+            let world = b.position().rotation * axis;
+            Some((-(a.position().rotation.inverse() * world), angle))
+        }
+
+        /// The tangent velocity rapier holds the pair to, in world space: the
+        /// second collider slides against the first at the first's surface
+        /// velocity less the second's.
+        fn surface_velocity(
+            context: &ContactModificationContext<'_>,
+            first: Option<Surface>,
+            second: Option<Surface>,
+        ) -> $normal {
+            let world = |handle: ColliderHandle, surface: Option<Surface>| {
+                let local = surface.map_or(<$normal>::ZERO, |s| s.velocity);
+                if local == <$normal>::ZERO {
+                    return local;
+                }
+                context
+                    .colliders
+                    .get(handle)
+                    .map_or(<$normal>::ZERO, |c| c.position().rotation * local)
+            };
+            world(context.collider1, first) - world(context.collider2, second)
         }
     };
 }

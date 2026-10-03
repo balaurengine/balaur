@@ -1,7 +1,7 @@
 > **Status:** the plan this file opened with shipped on 2026-09-04 and its
 > text is gone; the manual's Rendering page documents what it built. Of the
 > two it deferred, tile-map occluders moved to `docs/PLAN-tilemap.md` on
-> 2026-09-05, where the 2026-09-06 rewrite numbers them step 4; the one left is below, not started.
+> 2026-09-05, where the 2026-09-06 rewrite numbers them step 4; the one left, normal maps, is built.
 
 # Plan: what 2D lighting still does not do
 
@@ -13,16 +13,11 @@ that merges the same runs.
 
 ## Normal maps on sprites
 
-Lit sprites with normal maps are one more texture on `sprite`: the light map
-would have to carry a direction as well as a colour, so a sprite could be
-shaded per pixel rather than multiplied flat.
-
-That is a real change to the pass, not a property. The current light map is
-one RGB target and the composite is a multiply; per-pixel normals need the
-light direction per fragment, which means either a second target or moving
-the lighting back into each object's material — the thing the full-screen
-multiply was chosen to avoid. Worth it when a game asks, and worth
-re-reading `balaur_render::light_map`'s trade-off first.
+Built 2026-10-02 the second way: a `normal_map` on a `sprite` or `shape2d`
+moves that node onto kiss3d's `LitMaterial2d`, which lights it from every
+`light2d` in its own material. The node then draws after the light map's
+composite, so the full-screen multiply still lights everything else.
+`docs/PLAN-wrapped-surface.md` section 4 has the constraints.
 
 ## What a frame costs the GPU
 

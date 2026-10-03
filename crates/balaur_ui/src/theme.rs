@@ -227,7 +227,7 @@ pub(crate) fn apply(tokens: &ThemeTokens, ctx: &egui::Context) {
         .into();
         // 4 px base grid; panels/widgets add their own padding.
         style.spacing.item_spacing = egui::vec2(4.0, 4.0);
-        style.spacing.button_padding = egui::vec2(12.0, 0.0);
+        style.spacing.button_padding = BUTTON_PADDING;
         // The bar floats over the content rather than taking a strip of it,
         // so a scroll's rows are as wide as the sheet's padding leaves them.
         style.spacing.scroll = egui::style::ScrollStyle::floating();
@@ -246,6 +246,102 @@ pub(crate) fn family(name: &str) -> FontFamily {
         w::ICON => FontFamily::Name(w::ICON.into()),
         _ => FontFamily::Name(w::UI.into()),
     }
+}
+
+/// The air either side of a button's caption, and above and below it, where
+/// neither the button nor its theme states any: egui's and the widget layer's.
+pub(crate) const BUTTON_PADDING: egui::Vec2 = egui::vec2(12.0, 0.0);
+
+/// The text chains that take a weight and a slant; the icon chain takes none.
+const WEIGHTED: [&str; 3] = [w::UI, w::HEADING, w::MONO];
+
+/// The weights a family is registered at: CSS's nine.
+const WEIGHTS: std::ops::RangeInclusive<u16> = 1..=9;
+
+thread_local! {
+    /// The (chain, weight) pairs whose italic has no face of its own, so egui
+    /// slants the upright one. Written where the fonts are loaded.
+    static SLANTED: RefCell<std::collections::HashSet<(&'static str, u16)>> =
+        RefCell::new(std::collections::HashSet::new());
+}
+
+/// The chain a widget option value names, as `family` reads it.
+fn chain_of(name: &str) -> &'static str {
+    match name {
+        w::HEADING => w::HEADING,
+        w::MONO => w::MONO,
+        w::ICON => w::ICON,
+        _ => w::UI,
+    }
+}
+
+/// A weight as a family is registered at: the nearest hundred, 100 to 900.
+fn weight_step(weight: f32) -> u16 {
+    ((weight / 100.0).round().clamp(1.0, 9.0) as u16) * 100
+}
+
+/// The family egui draws a chain in at `weight`, upright or italic: the face
+/// the shaper would pick for it, ahead of the chain's own.
+///
+/// Regular upright is the chain itself, which is every family a widget drew
+/// in before a weight reached egui.
+pub(crate) fn weighted(name: &str, weight: f32, italic: bool) -> FontFamily {
+    let chain = chain_of(name);
+    let weight = weight_step(weight);
+    if chain == w::ICON || (weight == 400 && !italic) {
+        return family(chain);
+    }
+    FontFamily::Name(weighted_name(chain, weight, italic).into())
+}
+
+fn weighted_name(chain: &str, weight: u16, italic: bool) -> String {
+    if italic {
+        format!("{chain} {weight} italic")
+    } else {
+        format!("{chain} {weight}")
+    }
+}
+
+/// Whether egui has to slant a chain's glyphs itself to draw it italic at
+/// `weight`: the project ships no italic face for it.
+pub(crate) fn slanted(name: &str, weight: f32, italic: bool) -> bool {
+    let chain = chain_of(name);
+    italic
+        && chain != w::ICON
+        && SLANTED.with(|s| s.borrow().contains(&(chain, weight_step(weight))))
+}
+
+/// A family per text chain, weight and slant, each led by the face the shaper
+/// picks for it and followed by the chain's own: `chains` in `WEIGHTED` order.
+fn add_weighted(fonts: &mut egui::FontDefinitions, faces: &[FontFace], chains: [&Vec<String>; 3]) {
+    let matcher = balaur_text::fonts::FaceMatcher::new(faces);
+    let mut slanted = std::collections::HashSet::new();
+    for (chain, list) in WEIGHTED.into_iter().zip(chains) {
+        for weight in WEIGHTS.map(|step| step * 100) {
+            for italic in [false, true] {
+                if weight == 400 && !italic {
+                    continue;
+                }
+                // Every pair is registered, matched or not: a family egui has
+                // not been given is a panic, not a fallback.
+                let mut faces_in = list.clone();
+                let picked = matcher.pick(chain, weight, italic);
+                if let Some((at, _)) = picked {
+                    let name = &faces[at].name;
+                    faces_in.retain(|held| held != name);
+                    faces_in.insert(0, name.clone());
+                }
+                if italic && !picked.is_some_and(|(_, real)| real) {
+                    slanted.insert((chain, weight));
+                }
+                fonts.families.insert(
+                    FontFamily::Name(weighted_name(chain, weight, italic).into()),
+                    faces_in,
+                );
+            }
+        }
+    }
+    SLANTED.with(|held| *held.borrow_mut() = slanted);
 }
 
 /// Load the four named families into `ctx`. A project's own `fonts/*.ttf`
@@ -324,6 +420,7 @@ pub(crate) fn load_fonts(ctx: &egui::Context, faces: &[FontFace]) {
     icon_chain.extend(default_prop);
     mono_chain.extend(default_mono);
 
+    add_weighted(&mut fonts, faces, [&ui_chain, &heading_chain, &mono_chain]);
     fonts
         .families
         .insert(FontFamily::Name(w::HEADING.into()), heading_chain);

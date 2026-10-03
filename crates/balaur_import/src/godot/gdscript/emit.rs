@@ -29,8 +29,7 @@ pub(crate) struct Context {
     pub statics: BTreeSet<String>,
     /// Class constants, emitted as module constants and read bare.
     pub consts: BTreeSet<String>,
-    /// Constants whose value needs the shim or a node, so they are functions
-    /// here and are read by calling them.
+    /// Constants needing the shim or a node: functions here, read by calling them.
     pub lazy: BTreeSet<String>,
     /// Rune names a base's overridden copy was emitted under, so `super`
     /// reaches it. Godot's inheritance is flattened, so the copy is a
@@ -41,6 +40,8 @@ pub(crate) struct Context {
     /// How many values a signal carries: a handler connected to one is
     /// called with that many, whatever its own defaults say.
     pub signal_arity: BTreeMap<String, usize>,
+    /// Methods a scene aims a collision at, which take the node out of its record.
+    pub collision_handlers: BTreeSet<String>,
     /// Member variables declared anywhere in the project.
     pub project_members: BTreeSet<String>,
     /// Autoloads that are nodes of the main scene.
@@ -49,8 +50,7 @@ pub(crate) struct Context {
     pub asyncs: BTreeSet<String>,
     /// A GDScript name that had to change, so calls reach the new one.
     pub renames: BTreeMap<String, String>,
-    /// `class_name` to the `.rn` beside it, for a static call on a project
-    /// class.
+    /// `class_name` to the `.rn` beside it, for a static call on a project class.
     pub classes: BTreeMap<String, String>,
     /// `static var` names to the Rune text of their default. A Rune module
     /// holds no state, so these live on the scene root under a key this

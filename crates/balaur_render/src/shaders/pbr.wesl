@@ -9,10 +9,12 @@
 import package::mesh::{
     VertexOutput, Light, frame, eye, tint, apply_fog,
     sample_albedo, sample_metallic_roughness, sample_occlusion, sample_emissive,
+    sample_height, maps_at, tangent_frame,
     shaded_normal, screen_occlusion,
     environment_lit, environment_max_lod, environment_sample,
     probe_at, probe_sample, probe_max_lod,
     behind, behind_max_lod, screen_uv, mirror_at, clip,
+    lights_this, shadow_at,
 };
 
 private const PI: f32 = 3.14159265;
@@ -32,6 +34,25 @@ struct Surface {
     /// Normal-incidence reflectance of a dielectric, as glTF spells it:
     /// 0.5 is the 4% every common material has.
     reflectance: f32,
+    /// What a dielectric's reflection is tinted by, KHR_materials_specular's
+    /// colour. White leaves it untinted; a metal ignores it.
+    specular_tint: vec3<f32>,
+    /// A clear varnish over the surface, from zero (none) to one.
+    clearcoat: f32,
+    clearcoat_roughness: f32,
+    /// How far highlights stretch along `tangent`, from -1 to 1; zero is
+    /// round. Negative stretches them across it.
+    anisotropy: f32,
+    /// The stretch's turn about the normal, in radians.
+    anisotropy_rotation: f32,
+    /// The direction the texture's u runs in, in world space: what
+    /// anisotropy stretches along.
+    tangent: vec3<f32>,
+    /// The world position's screen derivatives, which the shadow filter
+    /// projects. Taken before anything a texture decides, as a derivative
+    /// must be.
+    world_dx: vec3<f32>,
+    world_dy: vec3<f32>,
 }
 
 /// A surface with the neutral values, for a material that only sets some.
@@ -47,6 +68,109 @@ fn default_surface(in: VertexOutput) -> Surface {
     s.occlusion = sample_occlusion(in.uv);
     s.emissive = sample_emissive(in.uv);
     s.reflectance = 0.5;
+    s.specular_tint = vec3<f32>(1.0, 1.0, 1.0);
+    s.world_dx = dpdx(in.world);
+    s.world_dy = dpdy(in.world);
+    s.tangent = tangent_frame(normalize(in.normal), s.world_dx, s.world_dy, dpdx(in.uv), dpdy(in.uv))[0];
+    return s;
+}
+
+/// How a height map displaces the maps read over it.
+struct Parallax {
+    /// How deep the relief reaches, in uv units; zero reads the maps flat.
+    scale: f32,
+    /// The most steps the march takes, at a grazing angle; one head-on.
+    layers: f32,
+    /// Halvings that refine where the march crossed the height; zero
+    /// interpolates between the last two steps instead.
+    relief_steps: f32,
+}
+
+/// The fork's own defaults for a shader-less material.
+fn default_parallax() -> Parallax {
+    return Parallax(0.1, 16.0, 0.0);
+}
+
+/// Where the view ray, marched into the height map from `uv`, meets it.
+/// Brighter is higher. `view` is the direction to the eye in tangent space.
+fn parallax_uv(uv: vec2<f32>, view: vec3<f32>, p: Parallax) -> vec2<f32> {
+    if p.scale <= 0.0 {
+        return uv;
+    }
+    let steepness = abs(view.z);
+    let layers = clamp(mix(clamp(p.layers, 1.0, 64.0), 1.0, steepness), 1.0, 64.0);
+    let layer_depth = 1.0 / layers;
+    let delta = p.scale * layer_depth * view.xy / max(steepness, 1e-4);
+    var depth = 0.0;
+    var at = uv;
+    var seen = 1.0 - sample_height(at);
+    let last = i32(layers);
+    for (var i = 0; i < 64; i = i + 1) {
+        if i > last || seen <= depth {
+            break;
+        }
+        depth = depth + layer_depth;
+        at = at + delta;
+        seen = 1.0 - sample_height(at);
+    }
+    if p.relief_steps > 0.5 {
+        var step = delta * 0.5;
+        var step_depth = layer_depth * 0.5;
+        at = at - step;
+        depth = depth - step_depth;
+        for (var k = 0; k < 64; k = k + 1) {
+            if k >= i32(p.relief_steps) {
+                break;
+            }
+            let here = 1.0 - sample_height(at);
+            step = step * 0.5;
+            step_depth = step_depth * 0.5;
+            if here > depth {
+                at = at + step;
+                depth = depth + step_depth;
+            } else {
+                at = at - step;
+                depth = depth - step_depth;
+            }
+        }
+        return at;
+    }
+    let before = at - delta;
+    let after_depth = seen - depth;
+    let before_depth = (1.0 - sample_height(before)) - depth + layer_depth;
+    return mix(at, before, after_depth / (after_depth - before_depth));
+}
+
+/// `default_surface` with every map read where the height map displaces it,
+/// so a flat face shows relief.
+fn parallax_surface(in: VertexOutput, p: Parallax) -> Surface {
+    let world_dx = dpdx(in.world);
+    let world_dy = dpdy(in.world);
+    let duv_dx = dpdx(in.uv);
+    let duv_dy = dpdy(in.uv);
+    let n = normalize(in.normal);
+    let tbn = tangent_frame(n, world_dx, world_dy, duv_dx, duv_dy);
+    let v = normalize(eye() - in.world);
+    let view = vec3<f32>(dot(tbn[0], v), dot(tbn[1], v), dot(tbn[2], v));
+    let uv = parallax_uv(in.uv, view, p);
+    let maps = maps_at(uv, duv_dx, duv_dy);
+    let base = maps.albedo * tint() * in.tint;
+    var s: Surface;
+    s.albedo = base.rgb;
+    s.alpha = base.a;
+    s.normal = n;
+    if abs(maps.normal.x) + abs(maps.normal.y) >= 1e-4 {
+        s.normal = normalize(tbn * maps.normal);
+    }
+    s.metallic = maps.metallic_roughness.x;
+    s.roughness = max(maps.metallic_roughness.y, MIN_ROUGHNESS);
+    s.occlusion = maps.occlusion;
+    s.emissive = maps.emissive;
+    s.reflectance = 0.5;
+    s.specular_tint = vec3<f32>(1.0, 1.0, 1.0);
+    s.tangent = tbn[0];
+    s.world_dx = world_dx;
+    s.world_dy = world_dy;
     return s;
 }
 
@@ -75,10 +199,51 @@ fn default_surface(in: VertexOutput) -> Surface {
 }
 
 /// Normal-incidence reflectance of this surface: what a dielectric reflects
-/// straight on, or the metal's own colour.
+/// straight on, tinted by its specular colour, or the metal's own colour.
 private fn reflectance_at_normal(s: Surface) -> vec3<f32> {
-    let dielectric = 0.16 * s.reflectance * s.reflectance;
-    return mix(vec3<f32>(dielectric, dielectric, dielectric), s.albedo, s.metallic);
+    let dielectric = 0.16 * s.reflectance * s.reflectance * s.specular_tint;
+    return mix(dielectric, s.albedo, s.metallic);
+}
+
+/// GGX over the linear roughness `alpha` rather than the perceptual one.
+@const private fn distribution_alpha(ndoth: f32, alpha: f32) -> f32 {
+    let a2 = alpha * alpha;
+    let d = (ndoth * a2 - ndoth) * ndoth + 1.0;
+    return a2 / max(PI * d * d, 1e-7);
+}
+
+/// Anisotropic GGX: `at` and `ab` the roughness along and across the tangent.
+@const private fn distribution_aniso(at: f32, ab: f32, toh: f32, boh: f32, ndoth: f32) -> f32 {
+    let a2 = at * ab;
+    let v = vec3<f32>(ab * toh, at * boh, a2 * ndoth);
+    let w2 = a2 / max(dot(v, v), 1e-7);
+    return a2 * w2 * w2 * INV_PI;
+}
+
+/// Smith's height-correlated visibility, anisotropic.
+@const private fn visibility_aniso(at: f32, ab: f32, tov: f32, bov: f32, tol: f32, bol: f32, ndotv: f32, ndotl: f32) -> f32 {
+    let v = ndotl * length(vec3<f32>(at * tov, ab * bov, ndotv));
+    let l = ndotv * length(vec3<f32>(at * tol, ab * bol, ndotl));
+    return 0.5 / max(v + l, 1e-7);
+}
+
+/// Schlick's Fresnel for one channel, the clear coat's.
+@const private fn fresnel_scalar(f0: f32, cos_theta: f32) -> f32 {
+    return f0 + (1.0 - f0) * pow(clamp(1.0 - cos_theta, 0.0, 1.0), 5.0);
+}
+
+/// The tangent and bitangent anisotropy stretches along: the surface's own
+/// tangent turned by `anisotropy_rotation` about the normal. Zero where the
+/// surface has no UVs to give it a tangent.
+private fn aniso_frame(s: Surface) -> mat2x3<f32> {
+    let n = s.normal;
+    let along = s.tangent - n * dot(n, s.tangent);
+    if dot(along, along) < 1e-12 {
+        return mat2x3<f32>(vec3<f32>(0.0), vec3<f32>(0.0));
+    }
+    let t0 = normalize(along);
+    let t = normalize(t0 * cos(s.anisotropy_rotation) + cross(n, t0) * sin(s.anisotropy_rotation));
+    return mat2x3<f32>(t, cross(n, t));
 }
 
 /// Schlick's Fresnel with roughness folded in: a rough surface cannot brighten
@@ -137,7 +302,7 @@ private struct Lobes {
     specular: vec3<f32>,
 }
 
-/// What one light adds to a surface.
+/// What one light adds to a surface, before its shadow.
 private fn radiance(s: Surface, light: Light, world: vec3<f32>, v: vec3<f32>) -> Lobes {
     var out: Lobes;
     out.diffuse = vec3<f32>(0.0, 0.0, 0.0);
@@ -161,12 +326,33 @@ private fn radiance(s: Surface, light: Light, world: vec3<f32>, v: vec3<f32>) ->
     let f0 = reflectance_at_normal(s);
     let f = fresnel(f0, vdoth);
     let energy = light.color_intensity.rgb * light.color_intensity.a * ndotl * at.w;
-    out.specular = distribution(ndoth, s.roughness)
-        * visibility(ndotv, ndotl, s.roughness)
-        * f
-        * energy;
+    var lobe = distribution(ndoth, s.roughness) * visibility(ndotv, ndotl, s.roughness);
+    let stretch = aniso_frame(s);
+    if s.anisotropy != 0.0 && dot(stretch[0], stretch[0]) > 0.0 {
+        let alpha = max(s.roughness * s.roughness, 1e-4);
+        let along = max(alpha * (1.0 + s.anisotropy), 1e-4);
+        let across = max(alpha * (1.0 - s.anisotropy), 1e-4);
+        let t = stretch[0];
+        let b = stretch[1];
+        lobe = distribution_aniso(along, across, dot(t, h), dot(b, h), ndoth)
+            * visibility_aniso(along, across, dot(t, v), dot(b, v), dot(t, l), dot(b, l), ndotv, ndotl);
+    }
+    var specular = lobe * f;
+    // The coat reflects 4% straight on over whatever lies under it, and what
+    // it reflects never reaches the layer beneath.
+    var under = 1.0;
+    if s.clearcoat > 0.0 {
+        let ldoth = clamp(dot(l, h), 0.0, 1.0);
+        let coat_alpha = max(s.clearcoat_roughness * s.clearcoat_roughness, 1e-4);
+        let coat = fresnel_scalar(0.04, ldoth) * s.clearcoat;
+        let kelemen = 0.25 / max(ldoth * ldoth, 1e-7);
+        specular = specular * (1.0 - coat) + vec3<f32>(distribution_alpha(ndoth, coat_alpha) * kelemen * coat);
+        under = 1.0 - coat;
+    }
+    out.specular = specular * energy;
     out.diffuse = (vec3<f32>(1.0, 1.0, 1.0) - f)
         * (1.0 - s.metallic)
+        * under
         * s.albedo
         * INV_PI
         * energy;
@@ -226,7 +412,33 @@ private fn ambient_light(s: Surface, in: VertexOutput, v: vec3<f32>, occlusion: 
     let diffuse_share = (vec3<f32>(1.0, 1.0, 1.0) - f) * (1.0 - s.metallic);
     out.diffuse = diffuse_share * irradiance * s.albedo * occlusion;
     out.specular = reflected * env_brdf(f0, s.roughness, ndotv) * occlusion;
+    if s.clearcoat > 0.0 {
+        let coat = surroundings(in.world, mirrored, s.clearcoat_roughness);
+        let coat_f0 = vec3<f32>(0.04, 0.04, 0.04);
+        let share = fresnel_rough(coat_f0, ndotv, s.clearcoat_roughness).x * s.clearcoat;
+        out.diffuse = out.diffuse * (1.0 - share);
+        out.specular = out.specular * (1.0 - share)
+            + coat * env_brdf(coat_f0, s.clearcoat_roughness, ndotv) * s.clearcoat * occlusion;
+    }
     return out;
+}
+
+/// The sky and the strongest probe in one direction, blurred by `roughness`:
+/// what a clear coat reflects, at its own roughness rather than the
+/// surface's.
+private fn surroundings(world: vec3<f32>, d: vec3<f32>, roughness: f32) -> vec3<f32> {
+    var seen = vec3<f32>(0.0, 0.0, 0.0);
+    var found = false;
+    if environment_lit() {
+        seen = environment_sample(d, roughness * environment_max_lod());
+        found = true;
+    }
+    let probe = probe_at(world);
+    if probe.x >= 0.0 {
+        let near = probe_sample(u32(probe.x), world, d, roughness * probe_max_lod());
+        seen = select(near * probe.y, mix(seen, near, probe.y), found);
+    }
+    return seen;
 }
 
 /// The surface's own occlusion map times what the frame's prepass measured.
@@ -243,9 +455,13 @@ private fn shading(s: Surface, in: VertexOutput) -> Lobes {
     var out = ambient_light(s, in, v, occlusion_at(s, in));
     let count = u32(frame.ambient_count.w);
     for (var i = 0u; i < count; i = i + 1u) {
+        if !lights_this(i) {
+            continue;
+        }
         let from_light = radiance(s, frame.lights[i], in.world, v);
-        out.diffuse = out.diffuse + from_light.diffuse;
-        out.specular = out.specular + from_light.specular;
+        let shade = shadow_at(i, in.world, s.world_dx, s.world_dy);
+        out.diffuse = out.diffuse + from_light.diffuse * shade;
+        out.specular = out.specular + from_light.specular * shade;
     }
     return out;
 }

@@ -3,7 +3,9 @@
 /// The Godot signals the engine sends under a name of its own, and that name:
 /// what a connect listens for, a scene row answers and an await waits on. A
 /// signal whose values the engine's do not match (an index where the engine
-/// hands a row) is left out. The shim keeps a copy a test holds to this.
+/// hands a row) is left out; the collision pair's record is turned back into
+/// Godot's node by the shim's `collided`. The shim keeps a copy a test holds
+/// to this.
 pub(crate) const ENGINE_EVENTS: &[(&str, &str)] = &[
     ("body_entered", balaur::hooks::COLLISION_ENTER),
     ("area_entered", balaur::hooks::COLLISION_ENTER),
@@ -28,4 +30,13 @@ pub(crate) fn engine_event(signal: &str) -> &str {
         .iter()
         .find(|(godot, _)| *godot == signal)
         .map_or(signal, |(_, event)| event)
+}
+
+/// Whether the engine hands `event` a collision record, which a Godot handler
+/// takes as the other node.
+pub(crate) fn is_collision_event(event: &str) -> bool {
+    matches!(
+        event,
+        balaur::hooks::COLLISION_ENTER | balaur::hooks::COLLISION_EXIT
+    )
 }

@@ -12,7 +12,7 @@
 //! the screen; that is what makes the order the only thing that matters.
 
 use kiss3d::context::Context;
-use kiss3d::post_processing::{PostProcessingContext, PostProcessingEffect};
+use kiss3d::post_processing::{self as post, PostProcessingContext, PostProcessingEffect};
 use kiss3d::resource::RenderTarget;
 use kiss3d::wgpu;
 
@@ -219,31 +219,74 @@ impl PostProcessingEffect for PostMaterial {
 pub(crate) enum Pass {
     /// A shader a project wrote, or one of the engine's finishing passes.
     Material(PostMaterial),
-    Fxaa(kiss3d::post_processing::Fxaa),
-    Sharpen(kiss3d::post_processing::Cas),
+    Fxaa(post::Fxaa),
+    Sharpen(post::Cas),
+    Crt(post::Crt),
+    Grayscale(post::Grayscales),
+    Waves(post::Waves),
+    Loupe(Box<post::Loupe>),
+    Stereo(post::OculusStereo),
+    Edges(post::SobelEdgeHighlight),
+    Gi(Box<post::Gi2d>),
 }
 
+impl Pass {
+    fn effect(&mut self) -> &mut dyn PostProcessingEffect {
+        match self {
+            Self::Material(pass) => pass,
+            Self::Fxaa(pass) => pass,
+            Self::Sharpen(pass) => pass,
+            Self::Crt(pass) => pass,
+            Self::Grayscale(pass) => pass,
+            Self::Waves(pass) => pass,
+            Self::Loupe(pass) => pass.as_mut(),
+            Self::Stereo(pass) => pass,
+            Self::Edges(pass) => pass,
+            Self::Gi(pass) => pass.as_mut(),
+        }
+    }
+}
+
+impl Pass {
+    fn effect_ref(&self) -> &dyn PostProcessingEffect {
+        match self {
+            Self::Material(pass) => pass,
+            Self::Fxaa(pass) => pass,
+            Self::Sharpen(pass) => pass,
+            Self::Crt(pass) => pass,
+            Self::Grayscale(pass) => pass,
+            Self::Waves(pass) => pass,
+            Self::Loupe(pass) => pass.as_ref(),
+            Self::Stereo(pass) => pass,
+            Self::Edges(pass) => pass,
+            Self::Gi(pass) => pass.as_ref(),
+        }
+    }
+}
+
+// Every method forwards, the defaulted ones too: a wrapper that kept the
+// default would answer for the effect inside it and hide what it reads.
 impl PostProcessingEffect for Pass {
     fn update(&mut self, dt: f32, w: f32, h: f32, znear: f32, zfar: f32) {
-        match self {
-            Self::Material(pass) => pass.update(dt, w, h, znear, zfar),
-            Self::Fxaa(pass) => pass.update(dt, w, h, znear, zfar),
-            Self::Sharpen(pass) => pass.update(dt, w, h, znear, zfar),
-        }
+        self.effect().update(dt, w, h, znear, zfar);
     }
 
     fn draw(&mut self, target: &RenderTarget, context: &mut PostProcessingContext<'_>) {
-        match self {
-            Self::Material(pass) => pass.draw(target, context),
-            Self::Fxaa(pass) => pass.draw(target, context),
-            Self::Sharpen(pass) => pass.draw(target, context),
-        }
+        self.effect().draw(target, context);
+    }
+
+    fn reads_depth(&self) -> bool {
+        self.effect_ref().reads_depth()
+    }
+
+    fn set_camera_2d(&mut self, camera: &dyn kiss3d::camera::Camera2d) {
+        self.effect().set_camera_2d(camera);
     }
 }
 
 /// What a chain was built from. A change in any of it rebuilds both sides,
 /// which is cheaper than working out which pass each move touched.
-type Built = (Vec<String>, Vec<String>, u64, [u32; 5]);
+type Built = (Vec<String>, Vec<String>, u64, [u32; 5], Vec<u32>);
 
 /// The `camera.post` materials as built, each side of the tonemap.
 ///
@@ -255,8 +298,14 @@ pub(crate) struct PostChain {
     pub(crate) film: Vec<Pass>,
     pub(crate) screen: Vec<Pass>,
     /// What these were built from: the two lists, the asset generation, and
-    /// the finishing knobs.
+    /// the knobs the passes are built with.
     built: Option<Built>,
+}
+
+/// What every pass on a chain is built with.
+struct Knobs {
+    finish: crate::Finish,
+    effects: crate::Effects,
 }
 
 impl PostChain {
@@ -273,17 +322,27 @@ impl PostChain {
         let Some(config) = app.engine.try_resource::<crate::PostConfig>() else {
             return;
         };
-        let (film, screen, finish) = {
+        let (film, screen, knobs) = {
             let config = config.borrow();
-            (config.film.clone(), config.screen.clone(), config.finish)
+            let knobs = Knobs {
+                finish: config.finish,
+                effects: config.effects,
+            };
+            (config.film.clone(), config.screen.clone(), knobs)
         };
-        let wanted = (film, screen, generation, finish.bits());
+        let wanted = (
+            film,
+            screen,
+            generation,
+            knobs.finish.bits(),
+            knobs.effects.bits(),
+        );
         if self.built.as_ref() == Some(&wanted) {
             return;
         }
-        let (film, screen, _, _) = &wanted;
-        self.film = build_all(app, film, kiss3d::post_processing::HDR_FORMAT, &finish);
-        self.screen = build_all(app, screen, screen_format, &finish);
+        let (film, screen, ..) = &wanted;
+        self.film = build_all(app, film, post::HDR_FORMAT, &knobs);
+        self.screen = build_all(app, screen, screen_format, &knobs);
         self.built = Some(wanted);
     }
 }
@@ -292,11 +351,11 @@ fn build_all(
     app: &balaur_core::App,
     ids: &[String],
     format: wgpu::TextureFormat,
-    finish: &crate::Finish,
+    knobs: &Knobs,
 ) -> Vec<Pass> {
     ids.iter()
-        .filter_map(|id| match build(app, id, format, finish) {
-            Ok(material) => Some(material),
+        .filter_map(|id| match build(app, id, format, knobs) {
+            Ok(pass) => Some(pass),
             Err(why) => {
                 tracing::error!("camera post pass '{id}': {why:#}");
                 None
@@ -305,28 +364,149 @@ fn build_all(
         .collect()
 }
 
+/// One of the passes kiss3d draws itself, built with its knobs; `None` for a
+/// name that is not one.
+fn effect(name: &str, effects: &crate::Effects) -> Option<Pass> {
+    use crate::vocabulary::words;
+    let pass = match name {
+        words::FXAA => {
+            let mut fxaa = post::Fxaa::new();
+            fxaa.set_thresholds(effects.fxaa_edge_threshold, effects.fxaa_edge_threshold_min);
+            Pass::Fxaa(fxaa)
+        }
+        words::SHARPEN => Pass::Sharpen(post::Cas::new(effects.sharpen_amount)),
+        words::CRT => {
+            let mut crt = post::Crt::new();
+            crt.set_curvature(effects.crt_curvature);
+            crt.set_aberration(effects.crt_aberration);
+            crt.set_scanlines(effects.crt_scanline_intensity, effects.crt_scanline_count);
+            crt.set_vignette(effects.crt_vignette);
+            Pass::Crt(crt)
+        }
+        words::GRAYSCALE => Pass::Grayscale(post::Grayscales::new()),
+        words::WAVES => Pass::Waves(post::Waves::new()),
+        words::LOUPE => Pass::Loupe(Box::new(loupe(effects))),
+        words::STEREO => Pass::Stereo(post::OculusStereo::new()),
+        words::EDGES => Pass::Edges(post::SobelEdgeHighlight::new(effects.edges_threshold)),
+        words::GI => Pass::Gi(Box::new(gi(&effects.gi))),
+        _ => return None,
+    };
+    Some(pass)
+}
+
+fn gi(knobs: &crate::Gi) -> post::Gi2d {
+    let mut gi = post::Gi2d::new();
+    gi.set_rays(knobs.rays);
+    gi.set_max_distance(knobs.max_distance);
+    gi.set_max_steps(knobs.max_steps);
+    gi.set_resolution_scale(knobs.downscale);
+    gi.set_temporal_blend(knobs.temporal_blend);
+    gi.set_radiance_cascades(knobs.cascades);
+    gi.set_cascade_count(knobs.cascade_count);
+    gi.set_cascade_base_directions(knobs.cascade_directions);
+    gi.set_sdf_occluders(knobs.screen_occluders);
+    gi.set_cascade_probe_spacing(knobs.probe_spacing);
+    gi
+}
+
+/// Hand every `gi` pass this frame's lights, occluder outlines and ambient.
+pub(crate) fn feed_gi(chain: &mut PostChain, app: &balaur_core::App) {
+    let mut passes: Vec<&mut post::Gi2d> = chain
+        .film
+        .iter_mut()
+        .chain(chain.screen.iter_mut())
+        .filter_map(|pass| match pass {
+            Pass::Gi(gi) => Some(gi.as_mut()),
+            _ => None,
+        })
+        .collect();
+    if passes.is_empty() {
+        return;
+    }
+    let root = app.engine.root();
+    let emitters: Vec<post::GiEmitter2d> = {
+        let world = app.engine.world();
+        balaur_core::scene::collect_subtree(&world, root)
+            .into_iter()
+            .filter_map(|entity| {
+                let light = world.get::<&crate::light::Light2d>(entity).ok()?;
+                let global = world.get::<&balaur_core::GlobalTransform>(entity).ok()?;
+                let [r, g, b, _] = light.color;
+                (light.kind != crate::light::LightKind2d::Directional).then(|| {
+                    post::GiEmitter2d::new(
+                        glamx::Vec2::new(global.position.x, global.position.y),
+                        light.source_radius,
+                        kiss3d::color::Color::new(r, g, b, 1.0),
+                        light.intensity,
+                    )
+                })
+            })
+            .collect()
+    };
+    let segments: Vec<post::GiSegmentOccluder2d> = crate::light::occluder_edges(&app.engine, root)
+        .into_iter()
+        .map(|[a, b]| post::GiSegmentOccluder2d::new(a, b, 0.0))
+        .collect();
+    let [r, g, b] = app
+        .engine
+        .try_resource::<crate::CameraConfig2d>()
+        .map_or([0.0; 3], |config| config.borrow().ambient);
+    for gi in &mut passes {
+        gi.set_emitters(&emitters);
+        gi.set_segment_occluders(&segments);
+        gi.set_ambient(kiss3d::color::Color::new(r, g, b, 1.0));
+    }
+}
+
+/// Whether the current camera lights its frame with `gi`, which takes the
+/// place of the `light2d` light map.
+pub(crate) fn lit_by_gi(app: &balaur_core::App) -> bool {
+    app.engine
+        .try_resource::<crate::PostConfig>()
+        .is_some_and(|config| {
+            let config = config.borrow();
+            let gi = crate::vocabulary::words::GI;
+            config
+                .film
+                .iter()
+                .chain(&config.screen)
+                .any(|pass| pass == gi)
+        })
+}
+
+fn loupe(effects: &crate::Effects) -> post::Loupe {
+    let mut loupe = post::Loupe::new();
+    loupe.set_zoom(effects.loupe_zoom);
+    loupe.set_focus(glamx::Vec2::from(effects.loupe_focus));
+    loupe.set_corner(match effects.loupe_corner {
+        crate::LoupeCorner::TopLeft => post::LoupeCorner::TopLeft,
+        crate::LoupeCorner::TopRight => post::LoupeCorner::TopRight,
+        crate::LoupeCorner::BottomLeft => post::LoupeCorner::BottomLeft,
+        crate::LoupeCorner::BottomRight => post::LoupeCorner::BottomRight,
+    });
+    loupe.set_size(effects.loupe_size);
+    loupe.set_border_color(effects.loupe_border_color);
+    loupe
+}
+
 fn build(
     app: &balaur_core::App,
     reference: &str,
     format: wgpu::TextureFormat,
-    finish: &crate::Finish,
+    knobs: &Knobs,
 ) -> anyhow::Result<Pass> {
     use crate::vocabulary::words;
-    // Two the fork already owns, drawn where the list puts them rather than
-    // at a fixed place in the pipeline.
-    match reference {
-        words::FXAA => return Ok(Pass::Fxaa(kiss3d::post_processing::Fxaa::new())),
-        // Half sharpness: enough to put back what a smoothing pass took out,
-        // short of the ringing the full amount draws around an edge.
-        words::SHARPEN => return Ok(Pass::Sharpen(kiss3d::post_processing::Cas::new(0.5))),
-        _ => {}
+    // The fork's own passes, drawn where the list puts them rather than at a
+    // fixed place in the pipeline.
+    if let Some(pass) = effect(reference, &knobs.effects) {
+        return Ok(pass);
     }
     // The engine's own finishing passes are materials too; what a project
     // does not supply for them is their name, their shader and their values.
     if words::FINISHES.contains(&reference) {
         let material = crate::material::Material3d {
             features: vec![(reference.to_string(), true)],
-            params: finish.params(),
+            params: knobs.finish.params(),
             ..crate::material::Material3d::default()
         };
         let modules = crate::shaders::plugin_modules(&app.engine);
@@ -335,8 +515,68 @@ fn build(
     }
     let asset =
         balaur_core::assets::load_typed::<crate::material::Material3d>(&app.engine, reference)?;
+    if asset.shader.is_empty() {
+        anyhow::bail!("'{reference}' names no shader, and a post pass draws one");
+    }
     let source = crate::material::shader_text(&app.engine, reference, &asset.shader)?;
     let modules = crate::shaders::plugin_modules(&app.engine);
     let compiled = crate::material::compile_with(&asset, &source, &modules)?;
     Ok(Pass::Material(PostMaterial::new(&compiled, format)))
+}
+
+/// Apply the screen-space effects the current `camera` asked for.
+///
+/// Only on the edge: kiss3d rebuilds its post chain when one of these
+/// switches, so re-asserting them every frame would rebuild it every frame.
+pub(crate) fn apply_post(app: &balaur_core::App, window: &mut kiss3d::window::Window) {
+    let Some(post) = app.engine.try_resource::<crate::PostConfig>() else {
+        return;
+    };
+    let mut post = post.borrow_mut();
+    if !post.changed {
+        return;
+    }
+    post.changed = false;
+    window.set_bloom_enabled(post.bloom);
+    window.set_bloom(post.bloom_threshold, post.bloom_intensity);
+    window.hdr_settings_mut().bloom_knee = post.bloom_knee;
+    window.hdr_settings_mut().bloom_mips = post.bloom_mips;
+    window.set_ssao_enabled(post.ssao);
+    // Each pass's settings only while it is on: asking for them builds the
+    // pass's state, and a scene that never uses one should not pay for it.
+    if post.ssao {
+        let ssao = window.ssao_settings_mut();
+        ssao.radius = post.occlusion.radius;
+        ssao.bias = post.occlusion.bias;
+        ssao.intensity = post.occlusion.intensity;
+        ssao.power = post.occlusion.power;
+    }
+    window.set_ssr_enabled(post.ssr);
+    if post.ssr {
+        let (want, ssr) = (post.reflections, window.ssr_settings_mut());
+        ssr.max_steps = want.max_steps;
+        ssr.thickness = want.thickness;
+        ssr.max_distance = want.max_distance;
+        ssr.roughness_cutoff = want.roughness_cutoff;
+        ssr.edge_fade = want.edge_fade;
+        ssr.intensity = want.intensity;
+    }
+    window.set_dof_enabled(post.dof);
+    if post.dof {
+        let (want, dof) = (post.depth_of_field, window.dof_settings_mut());
+        dof.mode = match want.mode {
+            crate::FocusBlur::Bokeh => kiss3d::renderer::DepthOfFieldMode::Bokeh,
+            crate::FocusBlur::Gaussian => kiss3d::renderer::DepthOfFieldMode::Gaussian,
+        };
+        dof.focal_distance = want.focus_distance;
+        dof.aperture_f_stops = want.aperture_f_stops;
+        dof.sensor_height = want.sensor_height;
+        dof.max_coc_diameter = want.max_blur_pixels;
+        dof.max_depth = want.max_depth;
+        dof.num_taps = want.taps;
+    }
+    // Bloom and auto-exposure compile on demand, so a project that never uses
+    // them never builds them. Here is where the settings changed, which is a
+    // better place to wait for a compiler than the first frame that draws one.
+    window.prepare_post();
 }

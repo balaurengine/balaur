@@ -12,8 +12,12 @@
 use crate::rapier3d::control::{
     CharacterAutostep, CharacterCollision, CharacterLength, KinematicCharacterController,
 };
-use crate::rapier3d::prelude::QueryFilter;
-use crate::scalar::{self, Vector};
+use crate::rapier3d::parry::query::ShapeCastStatus;
+use crate::rapier3d::prelude::{
+    Collider, ColliderHandle, InteractionGroups, QueryFilter, QueryFilterFlags, RigidBodyHandle,
+    SharedShape,
+};
+use crate::scalar::{self, Pose, Real, Vector};
 use anyhow::{Result, anyhow};
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
@@ -28,8 +32,8 @@ use balaur_core::fixed_dt;
 /// The schema both dimensions share. `up_direction` is the one property whose shape
 /// differs, so each adds its own.
 pub(crate) fn shared_character_schema() -> String {
-    let modes = v::options(w::LENGTH_MODES);
-    let absolute = w::ABSOLUTE;
+    let ignores = v::options(w::IGNORES);
+    let sensors = w::SENSORS;
     v::schema(&[
         (
             k::SAFE_MARGIN,
@@ -53,11 +57,11 @@ pub(crate) fn shared_character_schema() -> String {
         ),
         (
             k::FLOOR_MAX_ANGLE,
-            r#"{ type = "float", default = 0.7853982, min = 0.0, max = 1.5707964, unit = "degrees", description = "The steepest slope the character may walk up, in radians" }"#,
+            r#"{ type = "float", default = 0.7853982, min = 0.0, max = 90.0, unit = "degrees", description = "The steepest slope the character may walk up; radians in the file, degrees in the inspector" }"#,
         ),
         (
             k::MIN_SLIDE_ANGLE,
-            r#"{ type = "float", default = 0.5235988, min = 0.0, max = 1.5707964, unit = "degrees", description = "The shallowest slope the character slides back down, in radians" }"#,
+            r#"{ type = "float", default = 0.5235988, min = 0.0, max = 90.0, unit = "degrees", description = "The shallowest slope the character slides back down; radians in the file, degrees in the inspector" }"#,
         ),
         (
             k::FLOOR_SNAP_LENGTH,
@@ -72,19 +76,55 @@ pub(crate) fn shared_character_schema() -> String {
             r#"{ type = "bool", default = true, description = "Push dynamic bodies the character walks into, rather than passing through them" }"#,
         ),
         (
-            k::LENGTHS,
+            k::IGNORE,
             &format!(
-                r#"{{ type = "enum", default = "{absolute}", options = [{modes}], description = "Whether offset, autostep and snap_to_ground are in world units or as a fraction of the character's own height" }}"#
+                r#"{{ type = "flags", default = ["{sensors}"], options = [{ignores}], description = "What a move passes through: static takes colliders with no body too. The character's own collision_layer and collision_mask filter the rest" }}"#
             ),
         ),
+        (
+            k::IGNORE_NODES,
+            r#"{ type = "list", of = { type = "node" }, default = [], description = "Nodes a move passes through: their colliders, and every collider on their body" }"#,
+        ),
+        (
+            k::PUSH_MASS,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "The mass a push is worked out with; 0 takes the body's mass, or the colliders' when there is no body" }"#,
+        ),
+        (
+            k::SAFE_MARGIN_LENGTHS,
+            &length(k::SAFE_MARGIN, "the height along up_direction"),
+        ),
+        (
+            k::STEP_HEIGHT_LENGTHS,
+            &length(k::STEP_HEIGHT, "the height along up_direction"),
+        ),
+        (
+            k::STEP_MIN_WIDTH_LENGTHS,
+            &length(k::STEP_MIN_WIDTH, "the width across up_direction"),
+        ),
+        (
+            k::FLOOR_SNAP_LENGTHS,
+            &length(k::FLOOR_SNAP_LENGTH, "the height along up_direction"),
+        ),
     ])
+}
+
+/// The schema line of one `*_lengths` key: whether `key` is in world units or
+/// a fraction of the character's own extent, as rapier measures that length.
+fn length(key: &str, extent: &str) -> String {
+    let modes = v::options(w::LENGTH_MODES);
+    let absolute = w::ABSOLUTE;
+    format!(
+        r#"{{ type = "enum", default = "{absolute}", options = [{modes}], description = "Whether {key} is in world units or a fraction of the character's shape: relative is measured against {extent}" }}"#
+    )
 }
 
 crate::shared::character::functions!(
     state = PhysicsState3d,
     vector = Vector,
+    pose = Pose,
     value = Vec3,
-    array = a3
+    array = a3,
+    collider = c::COLLIDER_3D
 );
 
 /// Move the character by `translation`, and say what happened.
@@ -113,18 +153,20 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector) 
     let controller = controller_of(&params, up);
     let push = crate::vocabulary::boolean(&params, k::PUSH_BODIES, true);
 
+    let ignored = ignored_nodes(eng, entity, &params);
+
     let (movement, collisions) = {
         let state = eng.resource::<PhysicsState3d>();
         let mut state = state.borrow_mut();
         let state = &mut *state;
-        let handle = crate::collider::first_collider(state, entity)
-            .map_err(|_| anyhow!("a character needs a collider3d to move with"))?;
-        let (shape, pose) = {
-            let collider = &state.world.colliders[handle];
-            (collider.shared_shape().clone(), *collider.position())
-        };
+        let (shape, pose, groups) = sweep_shape(state, entity)?;
+        // Its own layers, never its own body, and nothing `ignore` names.
+        let skipped = Skipped::of(&ignored, state);
+        let passes = |_: ColliderHandle, collider: &Collider| skipped.passes(collider);
+        let filter = QueryFilter::from(ignore_flags(&params))
+            .groups(groups)
+            .predicate(&passes);
         let mut collisions = Vec::new();
-        let filter = QueryFilter::default().exclude_collider(handle);
         let movement = controller.move_shape(
             scalar::real(fixed_dt()),
             &state.world.query_pipeline_with_filter(filter),
@@ -136,10 +178,7 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector) 
         // Pushing what it walks into is the difference between a character
         // that shoves a crate and one that scrapes past it.
         if push && !collisions.is_empty() {
-            let mass = state
-                .bodies
-                .get(&entity)
-                .map_or(1.0, |body| state.world.bodies[*body].mass().max(1.0));
+            let mass = push_mass(state, entity, &params);
             let dispatcher = state.world.narrow_phase.query_dispatcher();
             let mut queries = state.world.broad_phase.as_query_pipeline_mut(
                 dispatcher,
@@ -208,7 +247,7 @@ fn apply_movement(eng: &Engine, entity: Entity, translation: Vector) {
 
 pub(crate) fn install_character_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("move_character", &[c::CHARACTER_3D], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, on_floor, sliding, collisions }`. Call it from fixed_update. It reads the world the step just wrote."),
+        ("move_character", &[c::CHARACTER_3D], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, on_floor, sliding, collisions }`, each collision `#{ node, point, normal, own_point, own_normal, position, applied, remaining, distance, status, subshape }`: the hit on the obstacle and on the character in world space, where the character stood, how much of the move was done and left, how far it swept, how the sweep ended (`converged`, `out_of_iterations`, `failed`, `penetrating`) and which part of the obstacle's shape it met. Every solid collider of the character is swept. Call it from fixed_update. It reads the world the step just wrote."),
         ("is_on_floor", &[c::CHARACTER_3D], "", "Whether the last move ended with ground under the character's feet."),
     ]);
     m.function(

@@ -16,9 +16,7 @@ macro_rules! functions {
                     let Some(collider) = state.world.colliders.get_mut(handle) else {
                         continue;
                     };
-                    // The one-way platform's axis rides above the entity bits.
-                    let flags = collider.user_data & !u128::from(u64::MAX);
-                    collider.user_data = flags | u128::from(entity.to_bits().get());
+                    collider.user_data = u128::from(entity.to_bits().get());
                 }
             }
             // A body names its node the same way, for the collisions under it.
@@ -72,6 +70,7 @@ macro_rules! functions {
             });
             // Rapier drops a body's colliders with the body, so a handle here can be
             // stale even when its node is alive.
+            let mut lightened = Vec::new();
             state.colliders.retain(|&entity, handles| {
                 let alive = world.contains(entity);
                 handles.retain(|&handle| {
@@ -83,11 +82,15 @@ macro_rules! functions {
                         let owner =
                             crate::shared::events::Owner::of(entity, body.map(|b| b.user_data));
                         state.gone.insert(handle, owner);
+                        lightened.extend(removed.parent());
                     }
                     false
                 });
                 !handles.is_empty()
             });
+            for handle in lightened {
+                body::refit_mass(state, handle);
+            }
             state.joints.retain(|&entity, reference| {
                 if !world.contains(entity) {
                     joint::drop_joint(&mut state.world, reference);
@@ -116,6 +119,7 @@ macro_rules! functions {
                 false
             });
             state.soft_params.retain(|e, _| world.contains(*e));
+            state.body_authored.retain(|e, _| world.contains(*e));
             state.collider_params.retain(|e, _| world.contains(*e));
             state.joint_params.retain(|e, _| world.contains(*e));
             state.grounded.retain(|e, _| world.contains(*e));

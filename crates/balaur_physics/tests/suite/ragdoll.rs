@@ -290,3 +290,148 @@ script = { source = "scripts/s.rn" }
         "expected a complaint about the missing bones, got {errors:#?}"
     );
 }
+
+#[test]
+fn a_ragdoll_carries_the_body_shape_and_joint_options_it_was_built_with() {
+    let (app, errors) = run(
+        RIG,
+        r#"pub fn init(this) {
+    physics2d::ragdoll(this.node, #{
+        influence: 0.0, shape: "rectangle", restitution: 0.3, collision_layer: [2],
+        linear_damping: 0.5, gravity_scale: 0.25, continuous_collision: true,
+        articulation: true, collide_connected: true, drive: "motors", stiffness: 40.0,
+        axes: [#{ axis: physics2d::AXIS_ROTATION, limits: [-0.5, 0.5] }],
+    });
+}"#,
+        2,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    let knee = find(&app, "Rig_ragdoll/Knee").unwrap();
+    let get = |component: &str| balaur_core::components::get(&app.engine, knee, component).unwrap();
+    let body = get("body2d");
+    assert_eq!(
+        body.get("gravity_scale").and_then(toml::Value::as_float),
+        Some(0.25)
+    );
+    assert_eq!(
+        body.get("linear_damping").and_then(toml::Value::as_float),
+        Some(0.5)
+    );
+    assert_eq!(
+        body.get("continuous_collision")
+            .and_then(toml::Value::as_bool),
+        Some(true)
+    );
+    let collider = get("collider2d");
+    assert_eq!(
+        collider.get("kind").and_then(toml::Value::as_str),
+        Some("rectangle")
+    );
+    let bounce = collider
+        .get("restitution")
+        .and_then(toml::Value::as_float)
+        .unwrap();
+    assert!((bounce - 0.3).abs() < 1e-6, "restitution {bounce}");
+    let layers = collider
+        .get("collision_layer")
+        .and_then(toml::Value::as_array)
+        .unwrap();
+    assert_eq!(layers.len(), 1);
+    assert_eq!(layers[0].as_str(), Some("2"));
+    let joint = get("joint2d");
+    assert_eq!(
+        joint.get("articulation").and_then(toml::Value::as_bool),
+        Some(true)
+    );
+    assert_eq!(
+        joint
+            .get("collide_connected")
+            .and_then(toml::Value::as_bool),
+        Some(true)
+    );
+    let axes = joint.get("axes").and_then(toml::Value::as_array).unwrap();
+    assert_eq!(axes.len(), 1, "{axes:?}");
+    assert_eq!(
+        axes[0].get("motor").and_then(toml::Value::as_str),
+        Some("position")
+    );
+    assert_eq!(
+        axes[0].get("stiffness").and_then(toml::Value::as_float),
+        Some(40.0)
+    );
+    let limits = axes[0]
+        .get("limits")
+        .and_then(toml::Value::as_array)
+        .unwrap();
+    assert_eq!(
+        limits[1].as_float(),
+        Some(0.5),
+        "the drive dropped the call's limit"
+    );
+}
+
+#[test]
+fn a_follow_drive_holds_a_limp_rig_on_its_bones() {
+    let (app, errors) = run(
+        RIG,
+        r#"pub fn init(this) {
+    physics2d::ragdoll(this.node, #{ drive: "follow", follow: #{ kind: "pid" } });
+}"#,
+        60,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    let foot = find(&app, "Rig_ragdoll/Foot").unwrap();
+    let follow = balaur_core::components::get(&app.engine, foot, "follow2d").unwrap();
+    assert_eq!(follow["kind"].as_str(), Some("pid"));
+    let target = follow["target"].as_str().unwrap();
+    assert_eq!(
+        scene::find_node(&app.engine.world(), foot, target),
+        find(&app, "Rig/Hip/Knee/Foot"),
+        "the foot's body follows {target}"
+    );
+    let y = global_at(&app, "Rig/Hip/Knee/Foot").y;
+    assert!(y.abs() < 0.05, "the followed rig fell to {y}");
+}
+
+/// The rig above with its knee bent by half a radian.
+fn bent_rig() -> String {
+    RIG.replace(
+        "[nodes.transform]\nposition = [1.0, 0.0, 0.0]\n\n[nodes.bone2d]\nrest_position = [1.0, 0.0]\n\n[[nodes]]\nid = \"n_foot\"",
+        "[nodes.transform]\nposition = [1.0, 0.0, 0.0]\nrotation_euler = [0.0, 0.0, 0.5]\n\n[nodes.bone2d]\nrest_position = [1.0, 0.0]\n\n[[nodes]]\nid = \"n_foot\"",
+    )
+}
+
+#[test]
+fn a_ragdoll_joint_measures_its_angle_from_the_built_pose() {
+    let rig = bent_rig();
+    assert!(
+        rig.contains("rotation_euler = [0.0, 0.0, 0.5]"),
+        "the knee was not bent"
+    );
+    let (app, errors) = run(
+        &rig,
+        r"pub fn init(this) { physics2d::ragdoll(this.node, #{ influence: 0.0, gravity_scale: 0.0 }); }",
+        2,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    let knee = find(&app, "Rig_ragdoll/Knee").unwrap();
+    let joint = balaur_core::components::get(&app.engine, knee, "joint2d").unwrap();
+    let rest = joint
+        .get("connected_anchor_rotation")
+        .and_then(toml::Value::as_float)
+        .unwrap();
+    assert!((rest - 0.5).abs() < 1e-4, "the knee's joint holds {rest}");
+    let state = app.engine.resource::<balaur_physics::PhysicsState2d>();
+    let state = state.borrow();
+    let reference = state.joints.get(&knee).unwrap();
+    let balaur_physics::dim2::joint::JointHandle2d::Impulse(handle) = reference.handle else {
+        panic!("an impulse joint");
+    };
+    let joint = state.world.impulse_joints.get(handle).unwrap();
+    let rot = |body: balaur_physics::rapier2d::prelude::RigidBodyHandle| {
+        *state.world.bodies[body].rotation()
+    };
+    let angle = balaur_physics::rapier2d::dynamics::RevoluteJoint { data: joint.data }
+        .angle(&rot(joint.body1()), &rot(joint.body2()));
+    assert!(angle.abs() < 1e-3, "the built pose reads {angle}, not zero");
+}

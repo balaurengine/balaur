@@ -258,7 +258,7 @@ in the game; "not planned" is a deliberate no.
 | --- | --- |
 | Label, button, image, rows, columns, panels, padding, scroll, tabs | Have |
 | Checkbox, dropdown, slider, progress bar, spin box, texture button | Have: `check`, `dropdown`, `slider`, `progress` kinds; a spin box is `field` with `numeric = true`; a texture button is `button` under a theme entry with `image` |
-| Grid, wrapping flow, centre, split | Have: `grid` (with `columns`) and `flow` kinds; centre is `align = "center"`; split is `handle` |
+| Grid, wrapping flow, centre, split | Have: `grid` (with `grid_columns` tracks) and `flow` kinds; centre is `align = "center"`; split is `handle` |
 | A collapsible section, grouped so one open closes the others | Have: `fold` kind with `open` and `on_change(bool)`; a group is the script closing the others in that handler — `group` **not planned** |
 | Dialogs, popups, menus | Have: `dialog` kind, a panel in the middle over a dimmed screen that swallows clicks; its buttons are its children, so `on_confirm`/`on_cancel` are their `on_click`; a popup menu is a `column` on a `layer` |
 | Separators | Have: `separator` kind, across whichever way its parent runs |

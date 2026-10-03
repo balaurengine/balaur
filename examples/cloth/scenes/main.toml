@@ -79,8 +79,8 @@ cells = [23.0, 23.0, 1.0]
 mass = 1.0
 # Stiff along its threads and very soft across them, which is what makes a
 # sheet fold rather than stretch. Nothing is pinned: the block holds it up.
-edge_frequency = 120.0
-bend_frequency = 1.0
+edge_hz = 120.0
+bend_hz = 1.0
 solver_substeps = 4
 self_collision = true
 friction = 0.9
@@ -105,8 +105,8 @@ pinned_particles = [
   244, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255,
 ]
 mass = 2.0
-edge_frequency = 60.0
-bend_frequency = 6.0
+edge_hz = 60.0
+bend_hz = 6.0
 solver_substeps = 4
 # Past six percent of its rest length an edge gives way, which the ball's
 # impact reaches and the sheet's own weight does not.

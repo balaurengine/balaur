@@ -9,7 +9,7 @@ authors.workspace = true
 [features]
 # One feature per container rodio decodes. All on: a project picks its own
 # formats, and dropping one only pays off in a build that ships none of it.
-default = ["flac", "mp3", "mp4", "vorbis", "wav"]
+default = ["flac", "mp3", "mp4", "vorbis", "wav", "dither"]
 flac = ["rodio/flac"]
 mp3 = ["rodio/mp3"]
 mp4 = ["rodio/mp4"]
@@ -18,8 +18,8 @@ wav = ["rodio/wav"]
 # Microphone capture. Off, because nothing in the engine records, and rodio's
 # default turns it on: it links cpal's input path and rtrb for nothing.
 recording = ["rodio/recording"]
-# Dithering when a sample format is converted. Off: it links rand and
-# rand_distr, which a game that ships matched sample rates never reaches.
+# `[audio] dither_bits`, rodio's dither on the mix. It links rand and
+# rand_distr; a build without it reads the setting and leaves the mix alone.
 dither = ["rodio/dither"]
 
 [dependencies]
@@ -30,7 +30,10 @@ balaur_script.workspace = true
 serde.workspace = true
 toml.workspace = true
 tracing.workspace = true
-rodio = { version = "0.22", default-features = false, features = ["playback"] }
+libm.workspace = true
+# `experimental` lists output devices and opens automatic gain control's knobs
+# to a live change.
+rodio = { version = "0.22", default-features = false, features = ["playback", "experimental"] }
 
 [dev-dependencies]
 tempfile = "3"
@@ -38,7 +41,10 @@ tempfile = "3"
 # The WebAudio host: cpal reaches the browser's AudioContext through
 # wasm-bindgen, so the same rodio backend plays on every target.
 [target.'cfg(target_family = "wasm")'.dependencies]
-rodio = { version = "0.22", default-features = false, features = ["playback", "wasm-bindgen"] }
+rodio = { version = "0.22", default-features = false, features = ["playback", "experimental", "wasm-bindgen"] }
+# The dither's noise is seeded from the system: in a browser that is
+# `crypto.getRandomValues`, which getrandom reaches only with this feature.
+getrandom = { version = "0.4", features = ["wasm_js"] }
 
 # For the COM keep-alive in the backend; see `keep_com_alive` in lib.rs.
 [target.'cfg(windows)'.dependencies]

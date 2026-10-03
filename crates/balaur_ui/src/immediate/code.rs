@@ -431,6 +431,21 @@ pub(crate) fn code_opts(
             Value::Num(f64::from(widget.gutter_width)),
         ));
     }
+    for (key, on) in [
+        (k::EDITABLE, widget.egui.editable),
+        (k::TAB_INSERTS, widget.egui.tab_inserts),
+        (k::CARET_AT_END, widget.egui.caret_at_end),
+    ] {
+        given.push((key.into(), Value::Bool(on)));
+    }
+    if widget.padding.iter().any(|side| *side >= 0.0) {
+        let sides = widget
+            .padding
+            .iter()
+            .map(|side| Value::Num(f64::from(side.max(0.0))))
+            .collect();
+        given.push((k::PADDING.into(), Value::List(sides)));
+    }
     for name in THEME_COLORS {
         if let Some(color) = theme.token(name) {
             given.push((name.into(), Value::Str(hex(color))));
@@ -478,6 +493,7 @@ pub(crate) fn code_editor(
     let colors = SyntaxColors::from_opts(opts);
     let marks = Marks::from_opts(opts);
     let font = FontId::new(size, theme::family(w::MONO));
+    let margin = code_margin(opts);
     let (changed, clicked, caret) = with_ui(|ui| {
         let font = font.clone();
         let row_h = ui
@@ -517,12 +533,18 @@ pub(crate) fn code_editor(
             };
             // `show` rather than `add`: a popup has to open under the caret,
             // and only the output carries the galley it sits in.
-            let output = egui::TextEdit::multiline(&mut buffer)
+            let mut edit = egui::TextEdit::multiline(&mut buffer)
                 .id(egui::Id::new(id.to_string()))
                 .frame(egui::Frame::NONE)
                 .desired_width(ui.available_width())
-                .layouter(&mut layouter)
-                .show(ui);
+                .interactive(opts.boolean(k::EDITABLE, true))
+                .lock_focus(opts.boolean(k::TAB_INSERTS, false))
+                .cursor_at_end(opts.boolean(k::CARET_AT_END, true))
+                .layouter(&mut layouter);
+            if let Some(margin) = margin {
+                edit = edit.margin(margin);
+            }
+            let output = edit.show(ui);
             changed = output.response.changed();
             if let Some(range) = output.cursor_range {
                 let at = range.primary;
@@ -541,6 +563,22 @@ pub(crate) fn code_editor(
         .text_buffers
         .insert(id.to_string(), buffer.clone());
     Ok((buffer, changed, clicked, caret))
+}
+
+/// The margin round the code, from `padding`: one number for every side, or
+/// left, top, right and bottom; `None` leaves egui's.
+fn code_margin(opts: &Opts) -> Option<egui::Margin> {
+    let side = |px: f32| px.max(0.0).round().min(f32::from(i8::MAX)) as i8;
+    if let Some([left, top, right, bottom]) = opts.rect(k::PADDING) {
+        return Some(egui::Margin {
+            left: side(left),
+            right: side(right),
+            top: side(top),
+            bottom: side(bottom),
+        });
+    }
+    let all = opts.px(k::PADDING, -1.0);
+    (all >= 0.0).then(|| egui::Margin::same(side(all)))
 }
 
 /// What the code editor's galley was laid out from: the text and everything

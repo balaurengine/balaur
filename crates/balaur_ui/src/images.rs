@@ -98,10 +98,13 @@ fn options(settings: &toml::Table) -> egui::TextureOptions {
 /// is clamped rather than refused: an atlas whose last row is short would
 /// otherwise cost the frame.
 fn image_uv(native: egui::Vec2, opts: &Opts) -> (egui::Rect, egui::Vec2) {
+    region_uv(native, opts.rect(k::REGION).unwrap_or_default())
+}
+
+/// [`image_uv`] for a region already read: `[x, y, w, h]` in the picture's
+/// pixels, the whole picture where the size is zero.
+pub(crate) fn region_uv(native: egui::Vec2, [x, y, w, h]: [f32; 4]) -> (egui::Rect, egui::Vec2) {
     let full = egui::Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
-    let Some([x, y, w, h]) = opts.rect(k::REGION) else {
-        return (full, native);
-    };
     if native.x <= 0.0 || native.y <= 0.0 || w <= 0.0 || h <= 0.0 {
         return (full, native);
     }

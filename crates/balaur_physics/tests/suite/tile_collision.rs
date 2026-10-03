@@ -47,6 +47,11 @@ fn run_scene(scene: &str, script: &str, frames: u32) -> (App, Vec<String>) {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
+    boot_scene(scene, script, frames)
+}
+
+/// [`run_scene`] for a caller already holding [`LOG`].
+fn boot_scene(scene: &str, script: &str, frames: u32) -> (App, Vec<String>) {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
@@ -63,12 +68,16 @@ fn run_scene(scene: &str, script: &str, frames: u32) -> (App, Vec<String>) {
     for _ in 0..frames {
         app.tick(1.0 / 60.0);
     }
-    let errors = balaur_core::logbuf::recent(50)
+    (app, logged_errors())
+}
+
+/// Every error logged since the buffer was last cleared, with its fields.
+fn logged_errors() -> Vec<String> {
+    balaur_core::logbuf::recent(50)
         .into_iter()
         .filter(|e| e.level.eq_ignore_ascii_case("error"))
-        .map(|e| e.message)
-        .collect();
-    (app, errors)
+        .map(|e| format!("{} {:?}", e.message, e.fields))
+        .collect()
 }
 
 /// Whether each of the map's four cells is filled, read off the shape. The
@@ -208,4 +217,188 @@ fn a_turned_tile_collides_the_way_it_is_drawn_and_keeps_being_one_way() {
     assert_eq!(peaks.len(), 2, "one collider per shaped cell: {peaks:?}");
     assert!(peaks[0] > 0.0, "the upright slope rises on the right");
     assert!(peaks[1] < 0.0, "and the mirrored one on the left");
+}
+
+/// The map node, found in a booted scene.
+fn map_node(app: &App) -> balaur_core::hecs::Entity {
+    find_node(&app.engine.world(), app.engine.root(), "Map").expect("the scene's map")
+}
+
+#[test]
+fn one_way_on_the_component_lets_a_body_up_through_full_cells() {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let scene = SCENE
+        .replace("script = { source = \"scripts/s.rn\" }\n", "")
+        .replace("friction = 0.9", "one_way = true")
+        + r#"
+[[nodes]]
+id = "n_ball"
+name = "Ball"
+parent = "n_map"
+body2d = { kind = "dynamic", gravity_scale = 0.0 }
+collider2d = { kind = "circle", radius = 0.25 }
+
+[nodes.transform]
+position = [0.5, -4.0, 0.0]
+"#;
+    let (mut app, errors) = boot_scene(&scene, "", 1);
+    assert!(errors.is_empty(), "the scene logged errors: {errors:#?}");
+    let ball = find_node(&app.engine.world(), app.engine.root(), "Map/Ball").unwrap();
+    {
+        let state = app.engine.resource::<PhysicsState2d>();
+        let mut state = state.borrow_mut();
+        let handle = state.bodies[&ball];
+        let up = balaur_physics::rapier2d::math::Vector::new(0.0, 6.0);
+        state.world.bodies[handle].set_linvel(up, true);
+    }
+    for _ in 0..60 {
+        app.tick(1.0 / 60.0);
+    }
+    let y = app
+        .engine
+        .world()
+        .get::<&balaur_core::Transform>(ball)
+        .unwrap()
+        .position
+        .y;
+    assert!(y > 0.5, "the ball stopped under the map at y = {y}");
+}
+
+#[test]
+fn one_way_on_the_component_reaches_plain_shaped_tiles() {
+    let scene = SLOPES
+        .replace("one_way = true\n", "")
+        .replace("friction = 0.5", "one_way = true");
+    let (app, errors) = run_scene(&scene, "", 1);
+    assert!(errors.is_empty(), "the scene logged errors: {errors:#?}");
+    let map = map_node(&app);
+    let taken = balaur_core::snapshot::capture(&app.engine);
+    let state = app.engine.resource::<PhysicsState2d>();
+    let state = state.borrow();
+    for handle in &state.colliders[&map] {
+        let collider = &state.world.colliders[*handle];
+        assert!(
+            collider
+                .active_hooks()
+                .contains(balaur_physics::rapier2d::prelude::ActiveHooks::MODIFY_SOLVER_CONTACTS),
+            "a plain tile under one_way asks for no contact hook"
+        );
+    }
+    let rows = taken.0["physics2d"]["surfaces"]
+        .as_array()
+        .map_or(0, Vec::len);
+    assert_eq!(
+        rows,
+        state.colliders[&map].len(),
+        "a plain tile under one_way carries no platform axis"
+    );
+}
+
+#[test]
+fn a_maps_mass_is_the_whole_maps() {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let scene = SLOPES.to_string() + "\n[nodes.body2d]\nkind = \"dynamic\"\n";
+    let (mut app, errors) = boot_scene(&scene, "", 0);
+    assert!(errors.is_empty(), "the scene logged errors: {errors:#?}");
+    let map = map_node(&app);
+    let mass: toml::Value = toml::from_str("mass = 6.0").unwrap();
+    balaur_core::components::patch(&app.engine, map, "tile_collision", &mass).unwrap();
+    app.tick(1.0 / 60.0);
+    let state = app.engine.resource::<PhysicsState2d>();
+    let state = state.borrow();
+    assert_eq!(
+        state.colliders[&map].len(),
+        2,
+        "two shaped cells, two colliders"
+    );
+    let mass = state.world.bodies[state.bodies[&map]].mass();
+    assert!((mass - 6.0).abs() < 1e-3, "a map of mass 6 weighs {mass}");
+}
+
+/// The centre and the spin of a dynamic map whose `tile_collision` is patched
+/// with `mass`, in the body's own space.
+fn stated_mass(patch: &str) -> ([f32; 2], f32) {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let scene = SLOPES.to_string() + "\n[nodes.body2d]\nkind = \"dynamic\"\n";
+    let (mut app, errors) = boot_scene(&scene, "", 0);
+    assert!(errors.is_empty(), "the scene logged errors: {errors:#?}");
+    let map = map_node(&app);
+    let mass: toml::Value = toml::from_str(patch).unwrap();
+    balaur_core::components::patch(&app.engine, map, "tile_collision", &mass).unwrap();
+    app.tick(1.0 / 60.0);
+    let state = app.engine.resource::<PhysicsState2d>();
+    let state = state.borrow();
+    let props = state.world.bodies[state.bodies[&map]]
+        .mass_properties()
+        .local_mprops;
+    (props.local_com.to_array(), props.principal_inertia())
+}
+
+#[test]
+fn a_map_takes_the_centre_of_mass_and_the_inertia_it_states() {
+    let (com, inertia) = stated_mass("mass = 6.0\ncenter_of_mass = [0.5, -0.25]\ninertia = 2.0");
+    assert!(
+        (com[0] - 0.5).abs() < 1e-4 && (com[1] + 0.25).abs() < 1e-4,
+        "the map's centre is {com:?}"
+    );
+    assert!(
+        (inertia - 2.0).abs() < 1e-3,
+        "the map spins with inertia {inertia}"
+    );
+    let (com, inertia) = stated_mass("mass = 6.0\ncenter_of_mass = [0.5, -0.25]");
+    assert!((com[0] - 0.5).abs() < 1e-4, "the map's centre is {com:?}");
+    assert!(
+        inertia > 0.0,
+        "a stated centre with no inertia keeps the shapes' own spin"
+    );
+}
+
+/// Plain shaped tiles: a voxel grid's cell map and a one-way axis above
+/// `user_data`'s low 64 bits both fail the snapshot's JSON.
+#[test]
+fn a_restored_map_rebuilds_from_its_own_colliders() {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let (mut app, errors) = boot_scene(&SLOPES.replace("one_way = true\n", ""), "", 1);
+    assert!(errors.is_empty(), "the scene logged errors: {errors:#?}");
+    let map = map_node(&app);
+    let count = |app: &App| {
+        let state = app.engine.resource::<PhysicsState2d>();
+        let state = state.borrow();
+        state.colliders.get(&map).map_or(0, Vec::len)
+    };
+    let dig = |app: &App, column: usize| {
+        let world = app.engine.world();
+        let mut grid = world.get::<&mut balaur_core::tiles::TileGrid>(map).unwrap();
+        grid.rows[0][column] = None;
+        grid.version += 1;
+    };
+    assert_eq!(count(&app), 2, "two shaped cells, two colliders");
+    let taken = balaur_core::snapshot::capture(&app.engine);
+    dig(&app, 0);
+    app.tick(1.0 / 60.0);
+    assert_eq!(count(&app), 1, "digging a cell rebuilds the map");
+
+    balaur_core::snapshot::restore(&app.engine, &taken);
+    let errors = logged_errors();
+    assert!(errors.is_empty(), "the restore logged errors: {errors:#?}");
+    assert_eq!(
+        count(&app),
+        2,
+        "the restored world holds both cells' colliders"
+    );
+    dig(&app, 1);
+    app.tick(1.0 / 60.0);
+    assert_eq!(
+        count(&app),
+        0,
+        "the rebuild after the restore left colliders the map no longer has"
+    );
 }

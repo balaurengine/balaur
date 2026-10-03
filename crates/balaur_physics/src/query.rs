@@ -321,7 +321,7 @@ pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
         ("intersects", &[], "(a: node, b: node)", "Whether two nodes' colliders overlap right now, sensor or not."),
         ("contacts", &[c::COLLIDER_3D], "", "Every contact point on this node's collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition."),
         ("max_contact_impulse", &[c::COLLIDER_3D], "", "The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number."),
-        ("time_of_impact", &[], "(a: node, b: node, opts: table)", "When two moving colliders would meet, given each one's velocity: `#{ velocity_a = [..], velocity_b = [..], max = 1.0 }`. Nothing when they never do."),
+        ("time_of_impact", &[], "(a: node, b: node, opts: table)", "When two moving colliders would meet, given each one's velocity: `#{ velocity_a = [..], velocity_b = [..], max_time = 1.0 }`. Nothing when they never do."),
     ]);
     m.function("distance", |eng: &Engine, (a, b): (NodeId, NodeId)| {
         with_pair(eng, a, b, |world, first, second| {
@@ -388,7 +388,7 @@ pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
                 .map_err(|e| anyhow!("those two shapes cannot be swept: {e}"))?;
                 Ok(hit.map_or(Value::Nil, |hit| {
                     map([
-                        ("distance", Value::Num(f64::from(hit.time_of_impact))),
+                        (k::DISTANCE, Value::Num(f64::from(hit.time_of_impact))),
                         (k::POINT, Value::Vec3(scalar::a3(hit.witness1))),
                         (k::NORMAL, Value::Vec3(scalar::a3(hit.normal1))),
                     ])

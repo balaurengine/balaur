@@ -110,6 +110,11 @@ fn shapeless() -> Spec {
     ])
 }
 
+/// A `gap` the same across and down.
+fn both(px: i64) -> Value {
+    Value::List(vec![Value::Int(px), Value::Int(px)])
+}
+
 fn table(entries: &[(&str, Value)]) -> Spec {
     entries
         .iter()
@@ -334,7 +339,7 @@ impl Pool<'_> {
     /// A box with no air in it holding its own controls: how a tab and the
     /// mark that closes it read as one tile.
     fn group(&self, key: &str, node: &Value, want: Spec, inner: &Value) -> Result<()> {
-        let mut set = table(&[(k::KIND, Value::text(w::ROW)), (k::GAP, Value::Int(0))]);
+        let mut set = table(&[(k::KIND, Value::text(w::ROW)), (k::GAP, both(0))]);
         set.extend(want);
         set.insert(k::VISIBLE.into(), Value::Bool(true));
         set.remove(p::CONTROLS);
@@ -380,7 +385,7 @@ impl Pool<'_> {
             &format!("R{index}"),
             &[
                 (k::KIND, Value::text(w::ROW)),
-                (k::GAP, Value::Int(6)),
+                (k::GAP, both(6)),
                 (k::HEIGHT, Value::Int(24)),
             ],
         )?;
@@ -397,7 +402,7 @@ impl Pool<'_> {
             "H",
             &[
                 (k::KIND, Value::text(w::ROW)),
-                (k::GAP, Value::Int(0)),
+                (k::GAP, both(0)),
                 (k::GROW, Value::Int(1)),
             ],
         )?;
@@ -468,7 +473,7 @@ impl Pool<'_> {
             &table(&[
                 (k::VISIBLE, Value::Bool(true)),
                 (k::KIND, Value::text(if stack { w::COLUMN } else { w::ROW })),
-                (k::GAP, Value::Int(if stack { 2 } else { 6 })),
+                (k::GAP, both(if stack { 2 } else { 6 })),
                 (k::HEIGHT, Value::Num(tall)),
             ]),
         )?;

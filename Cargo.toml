@@ -89,9 +89,9 @@ indexmap = { version = "2", features = ["serde"] }
 smallvec = "1.16.2"
 smol_str = "0.3"
 egui = "0.36"
-# The widget tree's layout: retained flexbox, so rects are decided before
-# anything draws. Grid and block are off; nothing in the tree asks for them.
-taffy = { version = "0.14", default-features = false, features = ["std", "taffy_tree", "flexbox", "flexbox_balance", "content_size"] }
+# The widget tree's layout: retained flexbox and grid, so rects are decided
+# before anything draws. Block and float are off: Balaur lays out no blocks.
+taffy = { version = "0.14", default-features = false, features = ["std", "taffy_tree", "flexbox", "flexbox_balance", "grid", "content_size"] }
 rustc-hash = "2"
 libm = "0.2"
 tracing = "0.1"
@@ -143,4 +143,5 @@ strip = true
 rune = { git = "https://github.com/balaurengine/rune.git", branch = "deterministic-pow" }
 # Upstream v0.46.0 plus the opaque web canvas and the engine's three hooks:
 # IME events, a mid-pass screen copy for 2D materials, UIKit's safe area.
-kiss3d = { git = "https://github.com/Ughuuu/kiss3d.git", branch = "balaur-hooks" }
+# On `balaur-wrapped-surface` (Ughuuu/kiss3d#1) until it merges into `balaur-hooks`.
+kiss3d = { git = "https://github.com/Ughuuu/kiss3d.git", branch = "balaur-wrapped-surface" }

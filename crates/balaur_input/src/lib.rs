@@ -20,6 +20,8 @@ pub mod gamepad;
 pub mod gestures;
 pub mod haptics;
 mod keys;
+mod pad_api;
+mod rumble;
 pub mod settings;
 pub mod touch_controls;
 mod vocabulary;
@@ -27,12 +29,18 @@ mod vocabulary;
 // cannot do; `GamepadState` gates the field the same way.
 #[cfg(not(target_family = "wasm"))]
 mod sensors;
+// gilrs, on a thread of its own; a tab reads no pads.
+#[cfg(not(target_family = "wasm"))]
+mod pad_thread;
 
 pub use actions::InputActions;
-pub use gamepad::{GamepadState, Motion, PAD_AXIS_NAMES, PAD_BUTTON_NAMES, PadTouch};
+pub use gamepad::{
+    GamepadState, Motion, PAD_AXIS_NAMES, PAD_BUTTON_NAMES, Pad, PadEvent, PadInfo, PadTouch,
+    Power, PowerState,
+};
 pub use gestures::Gestures;
 pub use keys::{EITHER_SIDE, KEYS};
-pub use settings::InputConfig;
+pub use settings::{InputConfig, PadSettings};
 pub use touch_controls::{TouchButton, TouchStick};
 
 const MOUSE_BUTTONS: usize = 8;
@@ -495,14 +503,19 @@ impl balaur_plugin::Plugin for InputPlugin {
         // Controllers are not window events, so they are polled inside the
         // tick rather than by the windowed backend: a headless run with a pad
         // plugged in sees it too. First, so scripts read this frame's state.
-        reg.add_system(Stage::First, |eng, _| {
+        reg.add_system(Stage::First, |eng, dt| {
             // Not while replaying, and not on a rollback's second run of a
             // tick: the recorded pads were restored moments ago.
             if balaur_core::replay::suppressed(eng) {
                 return;
             }
-            eng.resource::<GamepadState>().borrow_mut().poll();
+            // The settings shape the readings, and the first poll opens the
+            // pads with the project's mappings.
+            settings::ensure_loaded(eng);
+            let pads = eng.resource::<InputConfig>().borrow().pads.clone();
+            eng.resource::<GamepadState>().borrow_mut().poll(dt, &pads);
         });
+        reg.add_system(Stage::First, haptics::rumble_system);
         reg.insert_resource(SeenPads::default());
         reg.add_system(Stage::First, announce_pads_system);
         // Emulation, gestures and controls, in that order, after the restore
@@ -651,7 +664,7 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
     install_feed_api(m);
     install_touch_api(m);
     install_gesture_api(m);
-    install_gamepad_api(m);
+    pad_api::install_gamepad_api(m);
     actions::install_actions(m);
 }
 
@@ -846,111 +859,7 @@ fn install_touch_api(m: &mut dyn Bindings<Engine>) {
     });
 }
 
-/// `input.gamepad_*`. Ids come from `input.gamepads()`; a query about a pad
-/// that is not connected answers neutrally (false, 0.0, ""), the same
-/// convention as a headless keyboard.
-fn install_gamepad_api(m: &mut dyn Bindings<Engine>) {
-    m.describe(&[
-        ("gamepads", &[], "", "The ids of every connected pad, ordered so the list is stable from frame to frame."),
-        ("gamepad_name", &[], "", "The pad's name as the platform reports it, empty when no pad has that id."),
-        ("gamepad_down", &[], "", "Whether the pad's `GAMEPAD_BUTTON_*` button is held down right now, however many frames it has been down."),
-        ("gamepad_just_pressed", &[], "", "Whether the pad's `GAMEPAD_BUTTON_*` button went down this frame; true for that one frame only."),
-        ("gamepad_just_released", &[], "", "Whether the pad's `GAMEPAD_BUTTON_*` button came up this frame; true for that one frame only."),
-        ("gamepad_axis", &[], "", "How far the pad's `GAMEPAD_AXIS_*` stick or trigger is pushed: a stick -1 to 1 with up and right positive, a trigger 0 to 1; zero at rest and for an absent pad."),
-    ]);
-    for name in PAD_BUTTON_NAMES {
-        m.constant(
-            &pad_const_name("GAMEPAD_BUTTON_", name),
-            Value::Str((*name).to_string()),
-        );
-    }
-    for name in PAD_AXIS_NAMES {
-        m.constant(
-            &pad_const_name("GAMEPAD_AXIS_", name),
-            Value::Str((*name).to_string()),
-        );
-    }
-    m.function("gamepads", |eng: &Engine, ()| {
-        let state = eng.resource::<GamepadState>();
-        let ids = state
-            .borrow()
-            .pads()
-            .iter()
-            .map(|pad| Value::Int(pad.id))
-            .collect();
-        Ok(Value::List(ids))
-    });
-    m.function("gamepad_name", |eng: &Engine, id: i64| {
-        let state = eng.resource::<GamepadState>();
-        let name = state
-            .borrow()
-            .pad(id)
-            .map_or_else(String::new, |pad| pad.name.clone());
-        Ok(name)
-    });
-    m.function(
-        "gamepad_down",
-        |eng: &Engine, (id, button): (i64, String)| {
-            check_pad_button(&button);
-            let state = eng.resource::<GamepadState>();
-            let v = state.borrow().pad(id).is_some_and(|p| p.is_down(&button));
-            Ok(v)
-        },
-    );
-    m.function(
-        "gamepad_just_pressed",
-        |eng: &Engine, (id, button): (i64, String)| {
-            check_pad_button(&button);
-            let state = eng.resource::<GamepadState>();
-            let v = state
-                .borrow()
-                .pad(id)
-                .is_some_and(|p| p.just_pressed(&button));
-            Ok(v)
-        },
-    );
-    m.function(
-        "gamepad_just_released",
-        |eng: &Engine, (id, button): (i64, String)| {
-            check_pad_button(&button);
-            let state = eng.resource::<GamepadState>();
-            let v = state
-                .borrow()
-                .pad(id)
-                .is_some_and(|p| p.just_released(&button));
-            Ok(v)
-        },
-    );
-    // -1..1; sticks idle at 0. An absent pad or axis reads 0.
-    m.function("gamepad_axis", |eng: &Engine, (id, axis): (i64, String)| {
-        check_pad_axis(&axis);
-        let state = eng.resource::<GamepadState>();
-        let v = state.borrow().pad(id).map_or(0.0, |p| p.axis(&axis));
-        Ok(v)
-    });
-    gamepad::install_motion_api(m);
-    gamepad::install_touchpad_api(m);
-    haptics::install_haptics_api(m);
-}
-
-/// `PAD_SOUTH` from `South`, `AXIS_LEFT_STICK_X` from `LeftStickX`: the same
-/// camel-splitting the key constants use, with `DPad` kept as one word so
-/// scripts read `PAD_DPAD_UP` rather than `PAD_D_PAD_UP`.
-fn pad_const_name(prefix: &str, name: &str) -> String {
-    format!("{prefix}{}", name.to_ascii_uppercase())
-}
-
-/// Warn once per unrecognised pad button, mirroring `check_key`.
-fn check_pad_button(button: &str) {
-    warn_unknown_once("gamepad button", button, PAD_BUTTON_NAMES);
-}
-
-/// Warn once per unrecognised pad axis, mirroring `check_key`.
-fn check_pad_axis(axis: &str) {
-    warn_unknown_once("gamepad axis", axis, PAD_AXIS_NAMES);
-}
-
-fn warn_unknown_once(what: &'static str, name: &str, known: &[&str]) {
+pub(crate) fn warn_unknown_once(what: &'static str, name: &str, known: &[&str]) {
     if known.contains(&name) {
         return;
     }

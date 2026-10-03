@@ -355,6 +355,7 @@ fn super_reaches_the_base_copy_of_an_overridden_function() {
         signal_arity: BTreeMap::default(),
         members: std::collections::BTreeSet::default(),
         autoload_nodes: std::collections::BTreeSet::default(),
+        collision_handlers: std::collections::BTreeSet::default(),
     };
     let source = "extends Fish\n\nfunc swim(speed):\n\treturn super(speed) * 2\n";
     let out = convert(source, "scripts/shark.gd", &classes);
@@ -957,6 +958,25 @@ func _ready():\n\
         "{}",
         out.rune
     );
+}
+
+#[test]
+fn a_field_s_placeholder_and_tooltip_reach_the_widget_keys_of_those_names() {
+    let source = "extends LineEdit\n\
+func _ready():\n\
+\tplaceholder_text = \"Name\"\n\
+\ttooltip_text = \"Who\"\n\
+\tprint(placeholder_text, tooltip_text)\n";
+    let out = convert(source, "scripts/field.gd", &Classes::default());
+    for wanted in [
+        "(gd.patch_widget)(this.node, #{ \"placeholder\": \"Name\" })",
+        "(gd.patch_widget)(this.node, #{ \"tooltip\": \"Who\" })",
+        "(gd.get)(this.node.get_component(\"widget\"), \"placeholder\", ())",
+        "(gd.get)(this.node.get_component(\"widget\"), \"tooltip\", ())",
+    ] {
+        assert!(out.rune.contains(wanted), "{wanted} in {}", out.rune);
+    }
+    assert!(!out.rune.contains("_text\""), "{}", out.rune);
 }
 
 #[test]

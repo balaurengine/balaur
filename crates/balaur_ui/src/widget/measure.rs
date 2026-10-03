@@ -51,8 +51,10 @@ impl<'a> Measure<'a> {
         }
     }
 
-    /// What one leaf asks for, with no recursion into children: what the
-    /// layout tree calls back for, since it owns every container itself.
+    /// What one leaf's content asks for, with no recursion into children:
+    /// what the layout tree calls back for, since it owns every container
+    /// itself. Its box less what taffy keeps inside its edge, which taffy adds
+    /// back, so the padding is counted once.
     pub(crate) fn leaf(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
         if let Some(size) = self.leaves.get(&index) {
             return *size;
@@ -65,9 +67,27 @@ impl<'a> Measure<'a> {
         // look it resolves, and a solve that starts below the node carrying
         // the theme would cache one dressed by no theme at all.
         let theme = crate::widget::arena::theme_at(self.eng, self.arena, index, theme);
-        let size = self.natural(index, &theme);
+        let size = (self.natural(index, &theme) - self.inset(index, &theme)).max(egui::Vec2::ZERO);
         self.leaves.insert(index, size);
         size
+    }
+
+    /// What taffy keeps clear inside a node's edge, across and down: its
+    /// padding, its `border`, and a scroll's bar.
+    fn inset(&self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
+        let widget = &self.arena[index].widget;
+        let bar = if widget.layout.overflow == crate::vocabulary::words::overflow::SCROLL {
+            widget.layout.scrollbar_width.get()
+        } else {
+            0.0
+        };
+        self.pad(index, theme).taken() + egui::Vec2::splat(bar)
+    }
+
+    /// The padding and border the widget at `index` keeps inside its edge.
+    fn pad(&self, index: usize, theme: &Rc<WidgetTheme>) -> crate::widget::arrange::Pad {
+        let look = crate::widget::arena::look_of(self.arena, index, theme);
+        padding_of(&self.arena[index].widget, &look.style)
     }
 
     /// The smallest box `index` can be drawn in, in design pixels.
@@ -98,7 +118,29 @@ impl<'a> Measure<'a> {
         size
     }
 
+    /// The widget's whole box: its content, and the padding round it.
     fn natural(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
+        let widget = &self.arena[index].widget;
+        let bare = self.arena[index].children.is_empty();
+        match widget.kind.as_str() {
+            // These measure their own padding: a caption's floor, a title bar
+            // or a header sits inside it.
+            w::BUTTON => self.button(index, widget, theme),
+            w::MENU if !bare => self.button(index, widget, theme),
+            w::FOLD => self.fold(index, theme),
+            w::STACK => self.stack(index, theme),
+            w::GRID => self.grid(index, theme),
+            w::FLOW => self.flow(index, theme),
+            w::WINDOW => self.window(index, theme),
+            kind if lays_out(kind) && !matches!(kind, w::SCROLL | w::TABS | w::MENU) => {
+                self.container(index, theme)
+            }
+            _ => self.content(index, theme) + self.pad(index, theme).taken(),
+        }
+    }
+
+    /// What a kind that draws inside its padding needs, without it.
+    fn content(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
         let widget = &self.arena[index].widget;
         match widget.kind.as_str() {
             // A scroll is meant to clip, so it answers with its stated size
@@ -110,17 +152,22 @@ impl<'a> Measure<'a> {
             // measures only what it states: Godot's expand modes.
             w::IMAGE if !widget.fit.is_empty() => vec2(widget.width, widget.height),
             // A picture knows its own size, so a row can divide by it.
+            // A picture that will not load is the `alt_text` drawn instead.
             w::IMAGE => {
                 crate::images::texture_of(self.eng, &self.painter.ctx().clone(), &widget.source)
-                    .map_or(egui::Vec2::ZERO, |texture| {
-                        crate::widget::layer::image_size(
-                            vec2(widget.width, widget.height),
-                            crate::images::native_size(self.eng, &widget.source, &texture),
-                        )
-                    })
+                    .map_or_else(
+                        |_| self.alt_text(index, widget, theme),
+                        |texture| {
+                            let native =
+                                crate::images::native_size(self.eng, &widget.source, &texture);
+                            let (_, drawn) = crate::images::region_uv(native, widget.egui.region);
+                            crate::widget::layer::image_size(
+                                vec2(widget.width, widget.height),
+                                drawn,
+                            )
+                        },
+                    )
             }
-            w::BUTTON => self.button(index, widget, theme),
-            w::LABEL => self.text(index, widget, theme),
             // Room for a dozen wide letters: what a field takes before a
             // container or a `width` says otherwise.
             w::TEXT_FIELD => {
@@ -130,13 +177,13 @@ impl<'a> Measure<'a> {
             w::TABS => {
                 let strip = self.strip(index, theme);
                 let pages = self.widest_child(index, theme);
-                let gap = widget.gap;
+                let gap = self.gap(index, theme).y;
                 vec2(strip.x.max(pages.x), strip.y + gap + pages.y)
             }
             // A box the height of the text, then the caption.
             w::CHECKBOX => {
                 let text = self.text(index, widget, theme);
-                let line = widget.font_size;
+                let line = self.line(index, theme);
                 vec2(text.x + line + self.padding.x, text.y.max(line))
             }
             // A track and its knob: as tall as the role asks, and most of twice
@@ -154,64 +201,93 @@ impl<'a> Measure<'a> {
                 }
                 widest + self.padding + vec2(20.0, 0.0)
             }
-            w::SLIDER | w::PROGRESS_BAR => vec2(160.0, widget.font_size + self.padding.y),
-            w::SEPARATOR => egui::Vec2::splat(6.0),
-            w::WINDOW if !widget.open => egui::Vec2::ZERO,
-            w::FOLD => {
-                // The arrow is a square as tall as the caption's line.
-                let text = self.text(index, widget, theme);
-                let mut head = vec2(text.x + text.y + 8.0, text.y);
-                let arena = self.arena;
-                for child in &arena[index].children {
-                    if crate::widget::kinds::in_title_bar(arena, index, *child) {
-                        let size = self.of(*child, theme);
-                        head = vec2(head.x + size.x + 8.0, head.y.max(size.y));
-                    }
-                }
-                let look = crate::widget::arena::look_of(arena, index, theme);
-                let head = head + padding_of(widget, &look.style).taken();
-                if !widget.open {
-                    return head;
-                }
-                let frame = look.style.body.as_deref().map_or(egui::Vec2::ZERO, |body| {
-                    crate::widget::arrange::style_padding(body, 0.0).taken()
-                });
-                let body = self.container(index, theme) + frame;
-                vec2(head.x.max(body.x), head.y + 8.0 + body.y)
-            }
-            // Drawn as a button once its rows are nodes, so measured as one; a
-            // menu of strings is egui's own button, measured by its caption.
-            w::MENU => {
-                if self.arena[index].children.is_empty() {
-                    self.text(index, widget, theme)
+            // As tall as a line of the face it draws in, so a caption on the
+            // bar is not cut: the theme's size where the widget states none.
+            w::SLIDER | w::PROGRESS_BAR => {
+                let line = self.line(index, theme);
+                let caption = if widget.kind == w::PROGRESS_BAR {
+                    self.text(index, widget, theme).x + self.padding.x
                 } else {
-                    self.button(index, widget, theme)
-                }
+                    0.0
+                };
+                let shown = crate::widget::numbers::value_room(&self.painter, widget);
+                vec2(caption.max(160.0) + shown, line + self.padding.y)
             }
-            w::STACK => self.stack(index, theme),
-            w::GRID => self.grid(index, theme),
-            w::FLOW => self.flow(index, theme),
-            _ if lays_out(&widget.kind) => self.container(index, theme),
+            w::SEPARATOR => {
+                let spacing = widget.egui.spacing;
+                egui::Vec2::splat(if spacing >= 0.0 { spacing } else { 6.0 })
+            }
+            // A menu of strings is egui's own button, measured by its caption;
+            // one whose rows are nodes is drawn as a button, and measured as one.
             _ => self.text(index, widget, theme),
         }
+    }
+
+    /// A window: its title bar over its children, or the bar alone while it
+    /// is folded or holds none, inside its padding; nothing while it is shut.
+    fn window(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
+        let widget = &self.arena[index].widget;
+        if !widget.open {
+            return egui::Vec2::ZERO;
+        }
+        let bar = self.title_bar(index, theme);
+        let folded = crate::widget::window::folded(self.arena[index].entity, widget);
+        if folded || self.arena[index].children.is_empty() {
+            return bar + self.pad(index, theme).taken();
+        }
+        let body = self.container(index, theme);
+        vec2(body.x.max(bar.x), body.y)
+    }
+
+    /// A fold: its header, the arrow a square as tall as the caption's line
+    /// and the title bar children beside it, then what it shows while open.
+    fn fold(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
+        let widget = &self.arena[index].widget;
+        let text = self.text(index, widget, theme);
+        let mut head = vec2(text.x + text.y + 8.0, text.y);
+        let arena = self.arena;
+        for child in &arena[index].children {
+            if crate::widget::kinds::in_title_bar(arena, index, *child) {
+                let size = self.of(*child, theme);
+                head = vec2(head.x + size.x + 8.0, head.y.max(size.y));
+            }
+        }
+        let look = crate::widget::arena::look_of(arena, index, theme);
+        let head = head + padding_of(widget, &look.style).taken();
+        if !widget.open {
+            return head;
+        }
+        let frame = look.style.body.as_deref().map_or(egui::Vec2::ZERO, |body| {
+            crate::widget::arrange::style_padding(body, egui::Vec2::ZERO).taken()
+        });
+        // The fold's own padding is its header's; what it shows sits in the
+        // body's frame alone.
+        let body = self.inner(index, theme) + frame;
+        vec2(head.x.max(body.x), head.y + 8.0 + body.y)
     }
 
     /// A row or column: its children end to end along its axis, the widest
     /// across, plus the gaps between them and its own padding.
     fn container(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
+        self.inner(index, theme) + self.pad(index, theme).taken()
+    }
+
+    /// The same without the padding.
+    fn inner(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
         let placed = &self.arena[index];
         let widget = &placed.widget;
         let row = widget.kind == w::ROW;
         let children = placed.children.clone();
         let caption = if widget.kind == w::PANEL {
-            self.text(index, widget, theme)
+            let text = self.text(index, widget, theme);
+            vec2(text.x, self.band(index, theme))
         } else if widget.kind == w::WINDOW {
-            // The title and its cross, on one bar.
-            self.text(index, widget, theme) + egui::vec2(widget.font_size * 1.5, 0.0)
+            vec2(0.0, self.band(index, theme))
         } else {
             egui::Vec2::ZERO
         };
-        let gap = widget.gap;
+        let gap = self.gap(index, theme);
+        let gap = if row { gap.x } else { gap.y };
         let mut along = 0.0f32;
         let mut across: f32 = 0.0;
         let mut drawn = 0usize;
@@ -233,17 +309,14 @@ impl<'a> Measure<'a> {
             drawn += 1;
         }
         along += gap * (drawn.saturating_sub(1) as f32);
-        let inner = if row {
+        if row {
             vec2(along + caption.x, across.max(caption.y))
         } else {
             // A panel's caption sits above its children, so it adds a row.
             vec2(across.max(caption.x), along + caption.y)
-        };
-        let pad = padding_of(widget, &crate::widget::theme::styled(theme, widget));
-        inner + pad.taken()
+        }
     }
 
-    /// A grid: the biggest child's cell, tiled `columns` wide.
     /// A stack: its biggest child on each axis, plus its own padding, since
     /// every child is laid over the same box.
     fn stack(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
@@ -258,12 +331,17 @@ impl<'a> Measure<'a> {
         want + pad.taken()
     }
 
+    /// A grid, estimated for a kind that measures it rather than solving it:
+    /// the biggest child's cell, tiled as many wide as `grid_columns` names.
     fn grid(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
         let placed = &self.arena[index];
         let widget = placed.widget.clone();
         let children = placed.children.clone();
-        let columns = crate::widget::kinds::grid_columns(&widget);
-        let gap = widget.gap;
+        let columns = match crate::widget::grid::track_count(&widget.layout.grid_columns) {
+            0 => 2,
+            named => named,
+        };
+        let gap = self.gap(index, theme);
         let mut cell = egui::Vec2::ZERO;
         let mut count = 0usize;
         for child in &children {
@@ -280,8 +358,8 @@ impl<'a> Measure<'a> {
         let rows = count.div_ceil(columns);
         let across = columns.min(count);
         let inner = vec2(
-            across as f32 * cell.x + gap * (across as f32 - 1.0),
-            rows as f32 * cell.y + gap * (rows as f32 - 1.0),
+            across as f32 * cell.x + gap.x * (across as f32 - 1.0),
+            rows as f32 * cell.y + gap.y * (rows as f32 - 1.0),
         );
         let pad = padding_of(&widget, &crate::widget::theme::styled(theme, &widget));
         inner + pad.taken()
@@ -292,7 +370,7 @@ impl<'a> Measure<'a> {
         let placed = &self.arena[index];
         let widget = placed.widget.clone();
         let children = placed.children.clone();
-        let gap = widget.gap;
+        let gap = self.gap(index, theme);
         let pad = padding_of(&widget, &crate::widget::theme::styled(theme, &widget));
         let limit = if widget.width > 0.0 {
             widget.width - pad.taken().x
@@ -308,11 +386,11 @@ impl<'a> Measure<'a> {
                 continue;
             }
             if cursor.x > 0.0 && cursor.x + size.x > limit {
-                cursor = vec2(0.0, cursor.y + line + gap);
+                cursor = vec2(0.0, cursor.y + line + gap.y);
                 line = 0.0;
             }
             extent = extent.max(cursor + size);
-            cursor.x += size.x + gap;
+            cursor.x += size.x + gap.x;
             line = line.max(size.y);
         }
         if extent == egui::Vec2::ZERO {
@@ -325,7 +403,7 @@ impl<'a> Measure<'a> {
     fn strip(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
         let placed = &self.arena[index];
         let widget = placed.widget.clone();
-        let gap = (widget.gap).max(4.0);
+        let gap = self.gap(index, theme).x.max(4.0);
         let padding = self.padding;
         let mut width = 0.0f32;
         let mut height: f32 = 0.0;
@@ -353,13 +431,26 @@ impl<'a> Measure<'a> {
         size
     }
 
-    /// A button's box: the icon, the caption, the air either side, and the
-    /// floor its role carries. The same arithmetic the draw does, or a strip
-    /// of buttons is handed less room than it paints into.
+    /// A button's box: the icon, the caption, its padding, and the floor its
+    /// role carries. The same arithmetic the draw does, or a strip of buttons
+    /// is handed less room than it paints into.
     fn button(&self, index: usize, widget: &Widget, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
+        self.button_in(index, widget, theme, 0.0)
+    }
+
+    /// The same box at a `width` the layout settled on, padding included,
+    /// where a `wrap` caption breaks into more lines; zero is no width, the
+    /// caption on one line.
+    fn button_in(
+        &self,
+        index: usize,
+        widget: &Widget,
+        theme: &Rc<WidgetTheme>,
+        width: f32,
+    ) -> egui::Vec2 {
         let look = crate::widget::arena::look_of(self.arena, index, theme);
         let (style, font) = (&look.style, look.font.clone());
-        let text = self.text(index, widget, theme);
+        let mut text = self.text(index, widget, theme);
         let mark = if widget.icon.is_empty() {
             egui::Vec2::ZERO
         } else {
@@ -385,16 +476,26 @@ impl<'a> Measure<'a> {
         };
         // The draw's arithmetic: a gap between each pair of parts that are
         // there, and a wider one before the trailing text.
-        let parts = [pic.x, mark.x, text.x].iter().filter(|w| **w > 0.0).count();
-        let between = font.size * 0.5 * parts.saturating_sub(1) as f32;
         let tail_gap = if tail.x > 0.0 { font.size } else { 0.0 };
-        let pad = style.padding_x.map_or(self.padding.x, |p| p * 2.0);
+        let pad = padding_of(widget, style).taken();
+        let gap = crate::widget::button::gap_of(widget, style, font.size);
+        if text.x > 0.0 {
+            let before = [pic.x, mark.x].iter().filter(|w| **w > 0.0).count() as f32;
+            let taken = pic.x + mark.x + gap * before + tail_gap + tail.x;
+            let inside = if width > 0.0 { width - pad.x } else { 0.0 };
+            if let Some(room) = crate::widget::text::caption_room(widget, text.x, inside, taken) {
+                let caption = caption(self.eng, widget);
+                text = self.caption_in(index, &caption, widget, theme, room);
+            }
+        }
+        let parts = [pic.x, mark.x, text.x].iter().filter(|w| **w > 0.0).count();
+        let between = gap * parts.saturating_sub(1) as f32;
         let floor = vec2(style.width.unwrap_or(0.0), style.height.unwrap_or(0.0));
-        vec2(
-            pic.x + mark.x + text.x + between + tail_gap + tail.x + pad,
-            pic.y.max(mark.y).max(text.y).max(tail.y) + self.padding.y,
-        )
-        .max(floor)
+        let face = vec2(
+            pic.x + mark.x + text.x + between + tail_gap + tail.x,
+            pic.y.max(mark.y).max(text.y).max(tail.y),
+        );
+        (face + pad).max(floor)
     }
 
     /// A button's picture at its caption's height, with the disc a role may
@@ -420,6 +521,83 @@ impl<'a> Measure<'a> {
         };
         let plate = if style.plate.is_some() { 4.0 } else { 0.0 };
         vec2(line * aspect + plate, line + plate)
+    }
+
+    /// An image's `alt_text`, in the face its draw puts it in.
+    fn alt_text(&self, index: usize, widget: &Widget, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
+        if widget.egui.alt_text.is_empty() {
+            return egui::Vec2::ZERO;
+        }
+        let look = crate::widget::arena::look_of(self.arena, index, theme);
+        self.painter
+            .layout_no_wrap(
+                widget.egui.alt_text.to_string(),
+                look.font.clone(),
+                egui::Color32::WHITE,
+            )
+            .size()
+    }
+
+    /// A container's gap, across and down, as its theme resolves it.
+    fn gap(&self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
+        let look = crate::widget::arena::look_of(self.arena, index, theme);
+        crate::widget::arrange::gap_of(&self.arena[index].widget, &look.style)
+    }
+
+    /// How tall a line of the widget's face is.
+    fn line(&self, index: usize, theme: &Rc<WidgetTheme>) -> f32 {
+        let look = crate::widget::arena::look_of(self.arena, index, theme);
+        self.painter
+            .ctx()
+            .fonts_mut(|fonts| fonts.row_height(&look.font))
+    }
+
+    /// A window's title bar: its arrow where it folds, its title, and its
+    /// cross, one line of its face tall with a button's air above and below.
+    /// The draw lays the bar out from this, so the two cannot disagree.
+    pub(crate) fn title_bar(&self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
+        let widget = &self.arena[index].widget;
+        if !widget.header {
+            return egui::Vec2::ZERO;
+        }
+        let look = crate::widget::arena::look_of(self.arena, index, theme);
+        let line = self
+            .painter
+            .ctx()
+            .fonts_mut(|fonts| fonts.row_height(&look.font));
+        let title = caption(self.eng, widget);
+        let slant = crate::widget::theme::slanted(&look.style, widget);
+        let words = crate::widget::theme::galley(&self.painter, &title, &look.font, slant).size();
+        let marks = [widget.egui.collapsible, widget.egui.closable]
+            .iter()
+            .filter(|on| **on)
+            .count() as f32;
+        // The arrow and the cross each take a square as tall as the bar.
+        let tall = line.max(words.y) + self.padding.y;
+        vec2(words.x + marks * tall, tall)
+    }
+
+    /// What a container keeps clear above its children for what it draws
+    /// there itself, gap included: a panel's caption, a window's title bar.
+    pub(crate) fn band(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> f32 {
+        let widget = &self.arena[index].widget;
+        let gap = self.gap(index, theme).y;
+        match widget.kind.as_str() {
+            w::PANEL => {
+                let title = caption(self.eng, widget);
+                if title.is_empty() {
+                    return 0.0;
+                }
+                let look = crate::widget::arena::look_of(self.arena, index, theme);
+                let slant = crate::widget::theme::slanted(&look.style, widget);
+                crate::widget::theme::galley(&self.painter, &title, &look.font, slant)
+                    .size()
+                    .y
+                    + gap
+            }
+            w::WINDOW if widget.header => self.title_bar(index, theme).y + gap,
+            _ => 0.0,
+        }
     }
 
     fn text(&self, index: usize, widget: &Widget, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
@@ -476,8 +654,30 @@ impl<'a> Measure<'a> {
         }
     }
 
-    /// How tall a wrapping block is in a box of `width`, which the unwrapped
-    /// measure cannot say: `None` for anything that does not wrap.
+    /// A button's caption shaped in `room`, the way the draw shapes it.
+    fn caption_in(
+        &self,
+        index: usize,
+        text: &str,
+        widget: &Widget,
+        theme: &Rc<WidgetTheme>,
+        room: f32,
+    ) -> egui::Vec2 {
+        let look = crate::widget::arena::look_of(self.arena, index, theme);
+        let Some(state) = balaur_text::state(self.eng) else {
+            return self.galley_in(index, text, widget, theme, Some(room));
+        };
+        let request =
+            crate::widget::text::caption_request(widget, text, Some(room), &look.font, &look.style);
+        state
+            .borrow_mut()
+            .shape_for_egui(&self.painter.ctx().clone(), &request)
+            .size
+    }
+
+    /// What a wrapping block's content needs in a box of `width`, padding
+    /// included in the box and left out of the answer as [`Self::leaf`]
+    /// leaves it out: `None` for anything that does not wrap.
     pub(crate) fn wrapped(
         &mut self,
         index: usize,
@@ -488,7 +688,9 @@ impl<'a> Measure<'a> {
         // outlives the measure that borrows it.
         let arena = self.arena;
         let widget = &arena[index].widget;
-        if !widget.visible || !widget.wrap || widget.kind != w::LABEL || width <= 0.0 {
+        let kind = widget.kind.as_str();
+        if !widget.visible || !widget.wrap || !matches!(kind, w::LABEL | w::BUTTON) || width <= 0.0
+        {
             return None;
         }
         let key = (index, width.to_bits());
@@ -500,7 +702,20 @@ impl<'a> Measure<'a> {
             return None;
         }
         let theme = crate::widget::arena::theme_at(self.eng, arena, index, theme);
-        let size = self.galley_in(index, &caption, widget, &theme, Some(width));
+        let inset = self.inset(index, &theme);
+        let size = if kind == w::BUTTON {
+            let boxed = self.button_in(index, widget, &theme, width);
+            vec2(width, boxed.y) - inset
+        } else {
+            self.galley_in(
+                index,
+                &caption,
+                widget,
+                &theme,
+                Some((width - inset.x).max(1.0)),
+            )
+        };
+        let size = size.max(egui::Vec2::ZERO);
         self.wraps.insert(key, size);
         Some(size)
     }

@@ -23,6 +23,8 @@ pub struct HeightfieldData {
     pub columns: usize,
     /// `rows * columns` values, row-major.
     pub heights: Vec<f32>,
+    /// Cells with no ground, as `[row, column]` of the cell's first corner.
+    pub holes: Vec<[usize; 2]>,
 }
 
 impl HeightfieldData {
@@ -40,7 +42,7 @@ impl HeightfieldData {
 }
 
 /// What a definition table holds, for the generated reference.
-const HEIGHTFIELD_ASSET_DOC: &str = r#"A grid of heights for terrain: `rows` by `columns` samples in `heights`, row-major, one value per grid point.
+const HEIGHTFIELD_ASSET_DOC: &str = r#"A grid of heights for terrain: `rows` by `columns` samples in `heights`, row-major, one value per grid point. `holes` lists cells with no ground, each as the `[row, column]` of its first corner; a 2D collider reads the heights as one line, and a hole there removes the segment starting at that point.
 
 ```toml
 [[assets]]
@@ -49,6 +51,7 @@ type = "heightfield"
 rows = 3
 columns = 3
 heights = [0, 0, 0, 0, -1, 0, 0, 0, 0]
+holes = [[1, 1]]
 ```"#;
 
 /// Register `heightfield` so a scene, a component or a script can all name
@@ -113,7 +116,39 @@ fn parse_definition(value: &toml::Value) -> Result<HeightfieldData> {
         rows,
         columns,
         heights,
+        holes: parse_holes(value, rows, columns)?,
     })
+}
+
+/// The `holes` list, each cell inside the grid: a grid of `rows` points has
+/// `rows - 1` cells down it.
+fn parse_holes(value: &toml::Value, rows: usize, columns: usize) -> Result<Vec<[usize; 2]>> {
+    let Some(list) = value.get("holes") else {
+        return Ok(Vec::new());
+    };
+    let list = list
+        .as_array()
+        .ok_or_else(|| anyhow!("a heightfield's `holes` must be a list of [row, column]"))?;
+    list.iter()
+        .map(|cell| {
+            let at = |i: usize| {
+                cell.as_array()
+                    .and_then(|pair| pair.get(i))
+                    .and_then(toml::Value::as_integer)
+                    .and_then(|n| usize::try_from(n).ok())
+            };
+            match (at(0), at(1)) {
+                (Some(row), Some(column)) if row + 1 < rows && column + 1 < columns => {
+                    Ok([row, column])
+                }
+                _ => bail!(
+                    "a heightfield of {rows}x{columns} has cells [0, 0] to [{}, {}], not {cell}",
+                    rows - 2,
+                    columns - 2
+                ),
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -143,6 +178,21 @@ mod tests {
             .to_string();
         assert!(err.contains("needs 6 heights"), "{err}");
         assert!(err.contains("3 were given"), "{err}");
+    }
+
+    #[test]
+    fn a_hole_names_a_cell_inside_the_grid() {
+        let data = parse_definition(&value(
+            "rows = 3\ncolumns = 3\nheights = [0, 0, 0, 0, 0, 0, 0, 0, 0]\nholes = [[1, 0]]",
+        ))
+        .unwrap();
+        assert_eq!(data.holes, [[1, 0]]);
+        let err = parse_definition(&value(
+            "rows = 3\ncolumns = 3\nheights = [0, 0, 0, 0, 0, 0, 0, 0, 0]\nholes = [[2, 0]]",
+        ))
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("[1, 1]"), "{err}");
     }
 
     #[test]

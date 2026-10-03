@@ -114,8 +114,9 @@ being built, marked `done`, never back in the shipped one.
 | Item | Milestone | Plan |
 | --- | :-: | --- |
 | **Rapier in 2D and 3D** — bodies, joints, character controllers, the query pipeline, collision events, ray-cast vehicles, and every collider shape including editable voxels. | 0.1 done | no plan |
+| **Follow controllers** — `follow3d` and `follow2d` pull a body to a node's pose with rapier's PD or PID controller, and a ragdoll can chase its clip. | 0.2 done | [PLAN-wrapped-surface.md](PLAN-wrapped-surface.md) |
 | **Concave 2D colliders** — a concave polygon cut into overlapping convex pieces, so nothing wedges into a seam, and imported Godot collision polygons keep their shape. | 0.2 done | [PLAN-convex-decomposition.md](PLAN-convex-decomposition.md) |
-| **Rigs and animation** — 2D and 3D skeletons with five modifiers each, GPU skinning, deform and morph tracks, retargeting through a `bone_map`, ragdolls, tweens, crossfades and state machines. | 0.1 done | no plan |
+| **Rigs and animation** — 2D and 3D skeletons with six modifiers each, GPU skinning, deform and morph tracks, retargeting through a `bone_map`, ragdolls, tweens, crossfades and state machines. | 0.1 done | no plan |
 | **Soft bodies** — `softbody2d` and `softbody3d`: particles and elastic cells from a mesh, a traced sprite or a generator, with plasticity, drawn from the solver. | 0.7 done | [PLAN-physics.md#soft-bodies](PLAN-physics.md#soft-bodies) |
 | **Cloth and rope** — `cloth`, `cloth_tube` and `rope` layouts of a soft body, held in place by the particle indices `pinned_particles` names. | 0.7 done | [PLAN-physics.md#cloth-and-rope](PLAN-physics.md#cloth-and-rope) |
 | **Tearing** — `tear_strain` and `tear_force` on a soft body: past either, its elements break mid-step, and the node's `on_tear` runs. | 0.9 done | [PLAN-physics.md#tearing](PLAN-physics.md#tearing) |
@@ -126,7 +127,7 @@ being built, marked `done`, never back in the shipped one.
 | **A sequencer** — cutscenes and cameras on a timeline, with tracks that call something rather than only move it. | 0.3 | no plan |
 | **Root motion** — a clip that moves the character rather than sliding under it, its root delta handed to `character2d` and `character3d` per tick. | 0.7 | no plan |
 | **Pause, time scale and smooth frames** — a `process` mode per subtree, time scale, interpolation between fixed steps, `max_fps`, vsync, and a tick rate setting. | 0.2 done | [PLAN-time.md](PLAN-time.md) |
-| **The rest of rapier** — named collision layers, solver tuning carried in a recording's header, and a solver that actually threads. | (0.3) | [PLAN-rapier.md](PLAN-rapier.md) |
+| **Named collision layers** — layer names set once in the project, and the inspector's layer checkboxes labelled with them. | (0.3) | [PLAN-rapier.md](PLAN-rapier.md) |
 | **Node destruction that is not quadratic in siblings** — and a sibling reorder, the first measured at fifty times Godot's in `docs/BENCHMARKS.md`. | (0.3) | no plan |
 
 ## Gameplay and audio
@@ -174,8 +175,10 @@ can do today, in the batches it would be built in.
 | **A rendered still** — the fork's path tracer behind the editor's Export sheet, with a sample count and a denoise toggle. | 0.3 | [PLAN-3d-rendering.md](PLAN-3d-rendering.md) |
 | **Decals and volumetric fog** — a `decal` component projected onto the depth buffer, and fog a light throws shafts through. | 0.4 | [PLAN-3d-rendering.md](PLAN-3d-rendering.md) |
 | **Immediate shapes in the draw order** — `z_index` and a texture region on `render.draw_*_2d` put a script's drawing among the sprites, over its own index. | 0.3 done | [PLAN-polyglot-port.md](PLAN-polyglot-port.md) |
-| **Lit normal-mapped sprites** — 2D lights and shadows are built, and the normal map is what is left. | 0.3 | [PLAN-rendering.md](PLAN-rendering.md) |
-| **Particles in 3D** — `particles3d`, and in both dimensions: emission shapes, attractors, colliders, trails, sub-emitters, lit particles and a compute stepper. | 0.3 | [PLAN-particles.md](PLAN-particles.md) |
+| **Lit normal-mapped sprites** — a `normal_map` on a `sprite` or `shape2d` lights it per pixel from every `light2d`, through kiss3d's `LitMaterial2d`. | 0.2 done | [PLAN-wrapped-surface.md](PLAN-wrapped-surface.md) |
+| **2D global illumination** — the `gi` pass on `camera2d`: soft light from every `light2d` and soft shadows from `occluder2d` outlines, through kiss3d's `Gi2d`. | 0.2 done | [PLAN-wrapped-surface.md](PLAN-wrapped-surface.md) |
+| **Particles in 3D** — `particles3d`: a 3D emitter drawn as one instanced quad per particle, facing the camera or lying in the node's plane. | 0.2 done | [PLAN-wrapped-surface.md](PLAN-wrapped-surface.md) |
+| **Richer particles** — emission shapes, attractors, colliders, trails, sub-emitters, lit particles and a compute stepper, in both dimensions. | 0.3 | [PLAN-particles.md](PLAN-particles.md) |
 | **2D batching** — `balaur_render` draws the sprites and shapes that share a texture and a material in one call rather than one each. | 0.2 done | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
 | **Culling and level of detail** — frustum culling and `render.in_view`, cull masks, MSAA, and level of detail in the mesh asset. | 0.3 | [PLAN-views-and-culling.md](PLAN-views-and-culling.md) |
 | **Voxels and terrain** — block types in a `voxel_set`, a greedy chunk mesher, a chunked grid file, a Voxels tool, `.vox` import, and heightfield meshing. | 0.3 | [PLAN-voxels.md](PLAN-voxels.md) |

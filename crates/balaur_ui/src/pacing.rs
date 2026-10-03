@@ -157,24 +157,9 @@ pub fn honour_lazy(eng: &Engine) {
     }
 }
 
-/// Whether the pointer belongs to a drag the UI is no part of — a camera
-/// being orbited over the scene, with `camera_enabled` saying the camera
-/// still has its drag buttons.
-///
-/// A button is down and egui took no candidate from the press, so the press
-/// missed every widget: nothing in the shell can change until it comes up,
-/// and a pass would rebuild the same picture. The press ran one, which is
-/// where both facts come from.
-#[must_use]
-pub fn pointer_is_dragging_elsewhere(ctx: &egui::Context, camera_enabled: bool) -> bool {
-    camera_enabled && ctx.input(|i| i.pointer.any_down()) && !ctx.egui_is_using_pointer()
-}
-
 /// Whether this frame runs the UI pass; `input_seen` is whether the window
-/// delivered an event the UI could act on since the last one, and `dragging`
-/// whether the pointer belongs to a drag the UI is no part of
-/// ([`pointer_is_dragging_elsewhere`]).
-pub fn wants_pass(eng: &Engine, ctx: &egui::Context, input_seen: bool, dragging: bool) -> bool {
+/// delivered an event the UI could act on since the last one.
+pub fn wants_pass(eng: &Engine, ctx: &egui::Context, input_seen: bool) -> bool {
     let Some(pacing) = eng.try_resource::<Pacing>() else {
         return true;
     };
@@ -191,9 +176,8 @@ pub fn wants_pass(eng: &Engine, ctx: &egui::Context, input_seen: bool, dragging:
     let changed = logs != pacing.logs_seen || assets != pacing.assets_seen;
     pacing.logs_seen = logs;
     pacing.assets_seen = assets;
-    // The tick is for state that moves without input; a drag the UI is no
-    // part of moves none of it, and the pass it forces stalls that drag.
-    let idle = !dragging && pacing.last_pass.is_none_or(|at| at.elapsed() >= IDLE);
+    // The tick is for state that moves without input.
+    let idle = pacing.last_pass.is_none_or(|at| at.elapsed() >= IDLE);
     input_seen || requested || changed || settling(eng) || idle || due
 }
 

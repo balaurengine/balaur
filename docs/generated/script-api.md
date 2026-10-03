@@ -11,7 +11,7 @@ cannot drift from what scripts actually see.
 | [`animation`](#animation) | 20 | 80 | the engine |
 | [`apple`](#apple) | 20 | 25 | the engine |
 | [`assets`](#assets) | 11 | 0 | the engine |
-| [`audio`](#audio) | 19 | 1 | the engine |
+| [`audio`](#audio) | 23 | 1 | the engine |
 | [`browser`](#browser) | 8 | 0 | the engine |
 | [`debugger`](#debugger) | 9 | 4 | the engine |
 | [`encoding`](#encoding) | 2 | 0 | the engine |
@@ -20,26 +20,26 @@ cannot drift from what scripts actually see.
 | [`export`](#export) | 6 | 0 | the engine |
 | [`fs`](#fs) | 9 | 0 | the engine |
 | [`gamend`](#gamend) | 19 | 9 | the engine |
-| [`geometry2d`](#geometry2d) | 10 | 0 | the engine |
+| [`geometry2d`](#geometry2d) | 12 | 0 | the engine |
 | [`geometry3d`](#geometry3d) | 6 | 0 | the engine |
 | [`hash`](#hash) | 2 | 0 | the engine |
 | [`http`](#http) | 2 | 5 | the engine |
 | [`import`](#import) | 7 | 0 | the engine |
-| [`input`](#input) | 47 | 176 | the engine |
+| [`input`](#input) | 53 | 188 | the engine |
 | [`json`](#json) | 2 | 0 | the engine |
 | [`log`](#log) | 7 | 0 | the engine |
 | [`math`](#math) | 24 | 3 | the engine |
 | [`multiplayer`](#multiplayer) | 14 | 18 | the engine |
 | [`node`](#node) | 56 | 0 | the engine |
 | [`physics`](#physics) | 14 | 0 | the engine |
-| [`physics2d`](#physics2d) | 81 | 61 | the engine |
-| [`physics3d`](#physics3d) | 97 | 72 | the engine |
+| [`physics2d`](#physics2d) | 132 | 113 | the engine |
+| [`physics3d`](#physics3d) | 142 | 120 | the engine |
 | [`platform`](#platform) | 11 | 7 | the engine |
 | [`project`](#project) | 13 | 0 | the engine |
 | [`random`](#random) | 5 | 0 | the engine |
 | [`regex`](#regex) | 6 | 0 | the engine |
 | [`release`](#release) | 5 | 0 | the engine |
-| [`render`](#render) | 69 | 40 | the engine |
+| [`render`](#render) | 70 | 46 | the engine |
 | [`replay`](#replay) | 17 | 4 | the engine |
 | [`rollback`](#rollback) | 2 | 0 | the engine |
 | [`save`](#save) | 6 | 0 | the engine |
@@ -50,7 +50,7 @@ cannot drift from what scripts actually see.
 | [`strings`](#strings) | 6 | 0 | the engine |
 | [`task`](#task) | 3 | 0 | the engine |
 | [`toml`](#toml) | 3 | 0 | the engine |
-| [`ui`](#ui) | 73 | 65 | the engine |
+| [`ui`](#ui) | 73 | 68 | the engine |
 | [`websocket`](#websocket) | 4 | 9 | the engine |
 | [`window`](#window) | 8 | 0 | the engine |
 
@@ -130,7 +130,7 @@ cannot drift from what scripts actually see.
 
 ## `audio`
 
-**Functions:** `bus_volume_linear`, `buses`, `cues`, `device_ready`, `distance_gain`, `emitter_position`, `is_playing`, `listener_position`, `pan`, `play`, `play_cue`, `set_bus_volume_linear`, `set_emitter_position`, `set_listener_position`, `set_pitch_scale`, `set_volume_linear`, `stop`, `stop_all`, `stop_playback`
+**Functions:** `bus_limit`, `bus_volume_linear`, `buses`, `cues`, `device_ready`, `devices`, `distance_gain`, `emitter_position`, `is_playing`, `listener_position`, `pan`, `play`, `play_cue`, `seek`, `set_bus_volume_linear`, `set_emitter_position`, `set_listener_position`, `set_pitch_scale`, `set_volume_linear`, `skip`, `stop`, `stop_all`, `stop_playback`
 
 **Constants** (1):
 
@@ -195,7 +195,7 @@ cannot drift from what scripts actually see.
 
 ## `geometry2d`
 
-**Functions:** `area`, `contains`, `convex_decomposition`, `convex_hull`, `difference`, `intersection`, `is_clockwise`, `segments_intersect`, `triangulate`, `union`
+**Functions:** `area`, `contains`, `convex_decomposition`, `convex_hull`, `difference`, `intersection`, `is_clockwise`, `reverse_difference`, `segments_intersect`, `symmetric_difference`, `triangulate`, `union`
 
 ## `geometry3d`
 
@@ -225,9 +225,9 @@ cannot drift from what scripts actually see.
 
 ## `input`
 
-**Functions:** `action_down`, `action_just_pressed`, `action_just_released`, `action_value`, `actions`, `bind`, `bindings`, `composing`, `dropped_files`, `feed_action`, `feed_key`, `feed_mouse`, `feed_mouse_button`, `feed_scroll`, `feed_touch`, `gamepad_acceleration`, `gamepad_axis`, `gamepad_can_rumble`, `gamepad_down`, `gamepad_gyro`, `gamepad_just_pressed`, `gamepad_just_released`, `gamepad_name`, `gamepad_rumble`, `gamepad_stop_rumble`, `gamepad_touches`, `gamepads`, `key_down`, `key_just_pressed`, `key_just_released`, `keyboard_height`, `long_press`, `mouse_delta`, `mouse_down`, `mouse_just_pressed`, `mouse_just_released`, `mouse_position`, `pan`, `pinch`, `reset_bindings`, `scroll_delta`, `swipe`, `touches`, `touches_just_ended`, `touches_just_started`, `typed`, `vibrate`
+**Functions:** `action_down`, `action_just_pressed`, `action_just_released`, `action_value`, `actions`, `bind`, `bindings`, `composing`, `dropped_files`, `feed_action`, `feed_gamepad`, `feed_key`, `feed_mouse`, `feed_mouse_button`, `feed_scroll`, `feed_touch`, `gamepad_acceleration`, `gamepad_axis`, `gamepad_can_rumble`, `gamepad_down`, `gamepad_gyro`, `gamepad_info`, `gamepad_just_pressed`, `gamepad_just_released`, `gamepad_name`, `gamepad_power`, `gamepad_pressure`, `gamepad_repeated`, `gamepad_rumble`, `gamepad_set_listener`, `gamepad_stop_rumble`, `gamepad_touches`, `gamepads`, `key_down`, `key_just_pressed`, `key_just_released`, `keyboard_height`, `long_press`, `mouse_delta`, `mouse_down`, `mouse_just_pressed`, `mouse_just_released`, `mouse_position`, `pan`, `pinch`, `reset_bindings`, `scroll_delta`, `swipe`, `touches`, `touches_just_ended`, `touches_just_started`, `typed`, `vibrate`
 
-**Constants** (176):
+**Constants** (188):
 
 | Name | Value |
 | --- | --- |
@@ -238,6 +238,7 @@ cannot drift from what scripts actually see.
 | `GAMEPAD_AXIS_RIGHT_X` | `right_x` |
 | `GAMEPAD_AXIS_RIGHT_Y` | `right_y` |
 | `GAMEPAD_BUTTON_BACK` | `back` |
+| `GAMEPAD_BUTTON_C` | `c` |
 | `GAMEPAD_BUTTON_DPAD_DOWN` | `dpad_down` |
 | `GAMEPAD_BUTTON_DPAD_LEFT` | `dpad_left` |
 | `GAMEPAD_BUTTON_DPAD_RIGHT` | `dpad_right` |
@@ -254,9 +255,8 @@ cannot drift from what scripts actually see.
 | `GAMEPAD_BUTTON_SOUTH` | `south` |
 | `GAMEPAD_BUTTON_START` | `start` |
 | `GAMEPAD_BUTTON_WEST` | `west` |
-| `KEY_0` | `Digit0` |
 
-…and 152 more.
+…and 164 more.
 
 ## `json`
 
@@ -315,14 +315,18 @@ cannot drift from what scripts actually see.
 
 ## `physics2d`
 
-**Functions:** `active_bodies`, `add_constant_force`, `add_constant_force_at_point`, `add_constant_torque`, `add_softbody_force`, `angular_velocity`, `apply_force`, `apply_force_at_point`, `apply_impulse`, `apply_impulse_at_point`, `apply_particle_impulse`, `apply_softbody_impulse`, `apply_softbody_impulse_at`, `apply_softbody_radial_impulse`, `apply_torque`, `apply_torque_impulse`, `attach_particle`, `bodies`, `closest_point`, `constant_force`, `constant_torque`, `contacts`, `detach_particle`, `distance`, `effective_dominance`, `gravity`, `intersects`, `is_moving`, `is_on_floor`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `next_position`, `overlap_aabb`, `overlap_point`, `overlap_shape`, `overlaps`, `pin_particle`, `potential_energy`, `predict_position`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_softbody_forces`, `set_angular_velocity`, `set_constant_force`, `set_constant_torque`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_particle_position`, `set_particle_target`, `set_particle_velocity`, `set_softbody`, `set_voxel`, `shapecast`, `sleep`, `softbody_area`, `softbody_center`, `softbody_edges`, `softbody_particles`, `softbody_position`, `softbody_rest_area`, `softbody_sleeping`, `softbody_stress`, `softbody_velocity`, `teleport`, `total_mass`, `unpin_particle`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_softbody`, `wake_up`
+**Functions:** `aabb`, `active_bodies`, `add_constant_force`, `add_constant_force_at_point`, `add_constant_torque`, `add_particle_force`, `add_softbody_force`, `angular_velocity`, `apply_force`, `apply_force_at_point`, `apply_impulse`, `apply_impulse_at_point`, `apply_particle_impulse`, `apply_softbody_impulse`, `apply_softbody_impulse_at`, `apply_softbody_radial_impulse`, `apply_torque`, `apply_torque_impulse`, `attach_particle`, `bodies`, `broad_phase_aabb`, `closest_point`, `closest_points`, `collider_mass`, `collider_mass_properties`, `collider_mesh`, `collider_volume`, `collision_aabb`, `combine_voxels`, `constant_force`, `constant_torque`, `contacts`, `crop_voxels`, `cut_softbody`, `detach_particle`, `distance`, `effective_angular_inertia`, `effective_dominance`, `effective_mass`, `gravity`, `handles`, `has_pending_tears`, `heightfield_hole`, `intersects`, `is_ccd_active`, `is_moving`, `is_on_floor`, `is_sleeping`, `joint_force`, `joint_state`, `kinetic_energy`, `linear_velocity`, `local_center_of_mass`, `max_contact_impulse`, `move_character`, `next_position`, `overlap_aabb`, `overlap_point`, `overlap_shape`, `overlaps`, `pin_particle`, `pose_in_body`, `potential_energy`, `predict_position`, `predict_position_with_forces`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_follow`, `reset_plasticity`, `reset_softbody_forces`, `set_angular_velocity`, `set_cell_tear_resistance`, `set_collider`, `set_constant_force`, `set_constant_torque`, `set_edge_tear_resistance`, `set_gravity`, `set_heightfield_hole`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_particle_damaged`, `set_particle_position`, `set_particle_target`, `set_particle_velocity`, `set_softbody`, `set_voxel`, `set_voxel_size`, `shapecast`, `sleep`, `softbody_area`, `softbody_attachments`, `softbody_boundary`, `softbody_cell`, `softbody_cells`, `softbody_center`, `softbody_contacts`, `softbody_crossing`, `softbody_edge`, `softbody_edges`, `softbody_mass`, `softbody_particle`, `softbody_particle_radius`, `softbody_particles`, `softbody_position`, `softbody_rest_area`, `softbody_sleeping`, `softbody_stress`, `softbody_velocity`, `softbody_volume_pieces`, `solve_ik`, `swept_aabb`, `tear_cell`, `tear_edge`, `tear_softbody`, `teleport`, `time_of_impact`, `time_since_can_sleep`, `total_inertia`, `total_mass`, `unpin_particle`, `velocity_at_point`, `voxel`, `voxel_at`, `voxel_size`, `wake_all`, `wake_softbody`, `wake_up`, `world_center_of_mass`
 
-**Constants** (61):
+**Constants** (113):
 
 | Name | Value |
 | --- | --- |
+| `AXIS_ROTATION` | `rotation` |
 | `AXIS_X` | `x` |
 | `AXIS_Y` | `y` |
+| `BIND_CELLS` | `cells` |
+| `BIND_NEAREST` | `nearest` |
+| `BIND_PARTICLES` | `particles` |
 | `BODY_DYNAMIC` | `dynamic` |
 | `BODY_KINEMATIC` | `kinematic` |
 | `BODY_KINEMATIC_VELOCITY` | `kinematic_velocity` |
@@ -341,24 +345,29 @@ cannot drift from what scripts actually see.
 | `COMBINE_GEOMETRIC_MEAN` | `geometric_mean` |
 | `COMBINE_MAX` | `max` |
 | `COMBINE_MIN` | `min` |
-| `COMBINE_MULTIPLY` | `multiply` |
-| `EVENT_COLLISION` | `collision` |
-| `EVENT_CONTACT_FORCE` | `contact_force` |
-| `FLOW_BOTH` | `both` |
 
-…and 37 more.
+…and 89 more.
 
 ## `physics3d`
 
-**Functions:** `aabb`, `active_bodies`, `add_constant_force`, `add_constant_force_at_point`, `add_constant_torque`, `add_softbody_force`, `angular_velocity`, `apply_force`, `apply_force_at_point`, `apply_impulse`, `apply_impulse_at_point`, `apply_particle_impulse`, `apply_softbody_impulse`, `apply_softbody_impulse_at`, `apply_softbody_radial_impulse`, `apply_torque`, `apply_torque_impulse`, `attach_particle`, `bodies`, `closest_point`, `closest_points`, `collider_mass`, `collider_mesh`, `collider_volume`, `constant_force`, `constant_torque`, `contacts`, `detach_particle`, `distance`, `effective_dominance`, `gravity`, `handles`, `intersects`, `is_moving`, `is_on_floor`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `max_contact_impulse`, `move_character`, `next_position`, `overlap_aabb`, `overlap_point`, `overlap_shape`, `overlaps`, `pin_particle`, `potential_energy`, `predict_position`, `predict_position_with_forces`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_softbody_forces`, `set_angular_velocity`, `set_brake`, `set_collider`, `set_constant_force`, `set_constant_torque`, `set_engine_force`, `set_gravity`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_particle_position`, `set_particle_target`, `set_particle_velocity`, `set_softbody`, `set_steering`, `set_voxel`, `shapecast`, `sleep`, `softbody_center`, `softbody_edges`, `softbody_particles`, `softbody_position`, `softbody_rest_volume`, `softbody_sleeping`, `softbody_stress`, `softbody_velocity`, `softbody_volume`, `solve_ik`, `swept_aabb`, `teleport`, `time_of_impact`, `total_mass`, `unpin_particle`, `vehicle_speed`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_softbody`, `wake_up`, `wheel_state`
+**Functions:** `aabb`, `active_bodies`, `add_constant_force`, `add_constant_force_at_point`, `add_constant_torque`, `add_particle_force`, `add_softbody_force`, `angular_velocity`, `apply_force`, `apply_force_at_point`, `apply_impulse`, `apply_impulse_at_point`, `apply_particle_impulse`, `apply_softbody_impulse`, `apply_softbody_impulse_at`, `apply_softbody_radial_impulse`, `apply_torque`, `apply_torque_impulse`, `attach_particle`, `bodies`, `broad_phase_aabb`, `closest_point`, `closest_points`, `collider_mass`, `collider_mass_properties`, `collider_mesh`, `collider_volume`, `collision_aabb`, `combine_voxels`, `constant_force`, `constant_torque`, `contacts`, `crop_voxels`, `cut_softbody`, `detach_particle`, `distance`, `effective_angular_inertia`, `effective_dominance`, `effective_mass`, `gravity`, `handles`, `has_pending_tears`, `heightfield_hole`, `intersects`, `is_ccd_active`, `is_moving`, `is_on_floor`, `is_sleeping`, `joint_force`, `joint_state`, `kinetic_energy`, `linear_velocity`, `local_center_of_mass`, `max_contact_impulse`, `move_character`, `next_position`, `overlap_aabb`, `overlap_point`, `overlap_shape`, `overlaps`, `pin_particle`, `pose_in_body`, `potential_energy`, `predict_position`, `predict_position_with_forces`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_follow`, `reset_plasticity`, `reset_softbody_forces`, `set_angular_velocity`, `set_brake`, `set_cell_tear_resistance`, `set_collider`, `set_constant_force`, `set_constant_torque`, `set_edge_tear_resistance`, `set_engine_force`, `set_gravity`, `set_heightfield_hole`, `set_joint_limits`, `set_linear_velocity`, `set_motor_position`, `set_motor_velocity`, `set_particle_damaged`, `set_particle_position`, `set_particle_target`, `set_particle_velocity`, `set_softbody`, `set_steering`, `set_voxel`, `set_voxel_size`, `set_wheel_rotation`, `shapecast`, `sleep`, `softbody_attachments`, `softbody_boundary`, `softbody_cell`, `softbody_cells`, `softbody_center`, `softbody_contacts`, `softbody_crossing`, `softbody_dihedral`, `softbody_dihedrals`, `softbody_edge`, `softbody_edges`, `softbody_mass`, `softbody_particle`, `softbody_particle_radius`, `softbody_particles`, `softbody_position`, `softbody_rest_volume`, `softbody_sleeping`, `softbody_stress`, `softbody_velocity`, `softbody_volume`, `softbody_volume_pieces`, `solve_ik`, `speed`, `swept_aabb`, `tear_cell`, `tear_edge`, `tear_softbody`, `teleport`, `time_of_impact`, `time_since_can_sleep`, `total_inertia`, `total_inertia_rotation`, `total_mass`, `unpin_particle`, `vehicle_speed`, `velocity_at_point`, `voxel`, `voxel_at`, `voxel_size`, `wake_all`, `wake_softbody`, `wake_up`, `wheel_state`, `world_center_of_mass`
 
-**Constants** (72):
+**Constants** (120):
 
 | Name | Value |
 | --- | --- |
+| `AXIS_NEGATIVE_X` | `-x` |
+| `AXIS_NEGATIVE_Y` | `-y` |
+| `AXIS_NEGATIVE_Z` | `-z` |
+| `AXIS_ROTATION_X` | `rotation_x` |
+| `AXIS_ROTATION_Y` | `rotation_y` |
+| `AXIS_ROTATION_Z` | `rotation_z` |
 | `AXIS_X` | `x` |
 | `AXIS_Y` | `y` |
 | `AXIS_Z` | `z` |
+| `BIND_CELLS` | `cells` |
+| `BIND_NEAREST` | `nearest` |
+| `BIND_PARTICLES` | `particles` |
 | `BODY_DYNAMIC` | `dynamic` |
 | `BODY_KINEMATIC` | `kinematic` |
 | `BODY_KINEMATIC_VELOCITY` | `kinematic_velocity` |
@@ -371,17 +380,8 @@ cannot drift from what scripts actually see.
 | `COLLIDE_DYNAMIC_STATIC` | `dynamic_static` |
 | `COLLIDE_KINEMATIC_KINEMATIC` | `kinematic_kinematic` |
 | `COLLIDE_KINEMATIC_STATIC` | `kinematic_static` |
-| `COLLIDE_STATIC_STATIC` | `static_static` |
-| `COMBINE_AVERAGE` | `average` |
-| `COMBINE_CLAMPED_SUM` | `clamped_sum` |
-| `COMBINE_GEOMETRIC_MEAN` | `geometric_mean` |
-| `COMBINE_MAX` | `max` |
-| `COMBINE_MIN` | `min` |
-| `COMBINE_MULTIPLY` | `multiply` |
-| `EVENT_COLLISION` | `collision` |
-| `EVENT_CONTACT_FORCE` | `contact_force` |
 
-…and 48 more.
+…and 96 more.
 
 ## `platform`
 
@@ -417,9 +417,9 @@ cannot drift from what scripts actually see.
 
 ## `render`
 
-**Functions:** `bounds`, `buffer`, `built_mesh`, `camera_2d`, `camera_input`, `camera_matrix`, `camera_pose`, `cell`, `check_material`, `debug_view`, `debug_views`, `draw_arc_2d`, `draw_box`, `draw_capsule`, `draw_circle_2d`, `draw_line_2d`, `draw_line_3d`, `draw_lines`, `draw_polygon_2d`, `draw_polyline_2d`, `draw_rect_2d`, `draw_sphere`, `draw_text_2d`, `draw_text_3d`, `draw_texture_2d`, `instance_color`, `instance_count`, `instance_custom_data`, `instance_transform`, `instances`, `is_on_screen`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `pick_ray_at`, `populate`, `screenshot`, `set_background`, `set_box`, `set_buffer`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_cell`, `set_debug_view`, `set_grid`, `set_grid_colors`, `set_instance_color`, `set_instance_count`, `set_instance_custom_data`, `set_instance_transform`, `set_instances`, `set_rectangle`, `set_shader_preview`, `set_shader_probe`, `set_sphere`, `set_terrain`, `set_visible_instance_count`, `shader_probe`, `stats`, `terrain`, `text_size`, `texture_pixels_per_unit`, `texture_size`, `tile_data`, `trace_texture`, `visible_instance_count`
+**Functions:** `bounds`, `buffer`, `built_mesh`, `camera_2d`, `camera_matrix`, `camera_pose`, `cell`, `check_material`, `debug_view`, `debug_views`, `draw_arc_2d`, `draw_box`, `draw_capsule`, `draw_circle_2d`, `draw_line_2d`, `draw_line_3d`, `draw_lines`, `draw_polygon_2d`, `draw_polyline_2d`, `draw_rect_2d`, `draw_sphere`, `draw_text_2d`, `draw_text_3d`, `draw_texture_2d`, `instance_color`, `instance_count`, `instance_custom_data`, `instance_region`, `instance_transform`, `instances`, `is_on_screen`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `pick_ray_at`, `populate`, `screenshot`, `set_background`, `set_box`, `set_buffer`, `set_camera`, `set_camera_2d`, `set_cell`, `set_debug_view`, `set_grid`, `set_grid_colors`, `set_instance_color`, `set_instance_count`, `set_instance_custom_data`, `set_instance_region`, `set_instance_transform`, `set_instances`, `set_rectangle`, `set_shader_preview`, `set_shader_probe`, `set_sphere`, `set_terrain`, `set_visible_instance_count`, `shader_probe`, `snap_aov`, `stats`, `terrain`, `text_size`, `texture_pixels_per_unit`, `texture_size`, `tile_data`, `trace_texture`, `visible_instance_count`
 
-**Constants** (40):
+**Constants** (46):
 
 | Name | Value |
 | --- | --- |
@@ -429,6 +429,11 @@ cannot drift from what scripts actually see.
 | `ALPHA_BLEND` | `blend` |
 | `ALPHA_MASK` | `mask` |
 | `ALPHA_OPAQUE` | `opaque` |
+| `ALPHA_PREMULTIPLIED` | `premultiplied` |
+| `AOV_CAMERA_NORMALS` | `camera_normals` |
+| `AOV_DEPTH` | `depth` |
+| `AOV_NORMALS` | `normals` |
+| `AOV_SEGMENTATION` | `segmentation` |
 | `FOG_EXPONENTIAL` | `exponential` |
 | `FOG_EXPONENTIAL_SQUARED` | `exponential_squared` |
 | `FOG_LINEAR` | `linear` |
@@ -442,13 +447,8 @@ cannot drift from what scripts actually see.
 | `POPULATE_RING` | `ring` |
 | `POPULATE_ROW` | `row` |
 | `POPULATE_SURFACE` | `surface` |
-| `SHAPE_BOX` | `box` |
-| `SHAPE_CAPSULE` | `capsule` |
-| `SHAPE_CIRCLE` | `circle` |
-| `SHAPE_CONE` | `cone` |
-| `SHAPE_CYLINDER` | `cylinder` |
 
-…and 16 more.
+…and 22 more.
 
 ## `replay`
 
@@ -503,13 +503,15 @@ cannot drift from what scripts actually see.
 
 **Functions:** `activate_focused`, `add_space`, `align_right`, `available_height`, `available_width`, `bottom_panel`, `button`, `button_rect`, `central_panel`, `central_rect`, `circle_button`, `click`, `code_editor`, `code_line`, `color_picker`, `column`, `complete_theme`, `contrast`, `contrast_pairs`, `dialog`, `dot`, `dropdown`, `edit`, `fill_rows`, `fill_strip`, `finish_loading`, `focus_next`, `focus_previous`, `focused_widget`, `frame`, `height_class`, `image`, `image_button`, `label`, `layout_y`, `left_panel`, `list`, `menu_item`, `number_field`, `overlay`, `pasted_text`, `progress_bar`, `rect_stroke`, `request_repaint`, `right_panel`, `row`, `scale`, `scroll`, `separator`, `set_clipboard`, `set_field_text`, `set_focus`, `set_keyboard_navigation`, `set_lazy`, `set_load_progress`, `set_scale`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `switch`, `tab_rect`, `takes_pointer_at`, `text_field`, `top_panel`, `wants_keyboard`, `wants_pointer`, `widget_rect`, `width_class`, `window`, `window_size`
 
-**Constants** (65):
+**Constants** (68):
 
 | Name | Value |
 | --- | --- |
+| `ALIGN_BASELINE` | `baseline` |
 | `ALIGN_CENTER` | `center` |
 | `ALIGN_END` | `end` |
 | `ALIGN_START` | `start` |
+| `ALIGN_STRETCH` | `stretch` |
 | `ANCHOR_BOTTOM_LEFT` | `bottom_left` |
 | `ANCHOR_BOTTOM_RIGHT` | `bottom_right` |
 | `ANCHOR_CENTER` | `center` |
@@ -529,10 +531,8 @@ cannot drift from what scripts actually see.
 | `FONT_HEADING` | `heading` |
 | `FONT_MONO` | `mono` |
 | `FONT_STYLE_ITALIC` | `italic` |
-| `FONT_STYLE_NORMAL` | `normal` |
-| `HEIGHT_SHORT` | `short` |
 
-…and 41 more.
+…and 44 more.
 
 ## `websocket`
 

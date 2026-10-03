@@ -721,6 +721,8 @@ volume_linear = { type = "float", default = 1.0, min = 0.0, max = 4.0, order = 1
 loop = { type = "bool", default = false, order = 2, applies = "restart", help = "Loop every sound wherever it is played. A music folder usually sets this per file instead." }
 force_mono = { type = "bool", default = false, order = 3, applies = "restart", help = "Mix every WAV to one channel at export, which halves a stereo file. A sound played from a place in the world is heard mono anyway." }
 max_rate_hz = { type = "int", default = 0, min = 0, max = 192000, order = 4, applies = "restart", help = "The highest sample rate a WAV ships at, in Hz; 0 keeps each file's own. 22050 is plenty for most effects. Set it per target to ship a phone less." }
+gapless = { type = "bool", default = true, order = 5, applies = "restart", help = "Trim the padding an encoder adds to a compressed file, where the file records it, so files queued back to back play without a gap." }
+seekable = { type = "bool", default = false, order = 6, applies = "restart", help = "Let the decoder jump within the file, so a seek or a `start_time` lands without decoding everything before it." }
 "#,
         ),
     );
@@ -731,7 +733,7 @@ max_rate_hz = { type = "int", default = 0, min = 0, max = 192000, order = 4, app
         &parse(
             "settings.import.font",
             r#"
-scale = { type = "float", default = 1.0, min = 0.1, max = 10.0, order = 1, applies = "restart", help = "How large the UI draws a project face's glyphs, without moving the layout." }
+scale = { type = "float", default = 1.0, min = 0.1, max = 10.0, order = 1, applies = "restart", help = "How large a project face's glyphs are drawn and spaced, in the UI and in world text." }
 hinting = { type = "bool", default = true, order = 2, applies = "restart", help = "Snap a face's outlines to the pixel grid. Off for a smooth face drawn large." }
 antialias = { type = "bool", default = true, order = 3, applies = "restart", help = "Smooth glyph edges. Off draws each pixel fully on or off, for a pixel face at its own size; egui's own text and magnified world text stay smooth." }
 "#,
@@ -783,8 +785,8 @@ width = { type = "int", default = 1600, min = 1, max = 16384, order = 1, applies
 height = { type = "int", default = 1000, min = 1, max = 16384, order = 2, applies = "restart", help = "Logical height." }
 mode = { type = "enum", default = "windowed", options = ["windowed", "maximized", "fullscreen", "exclusive"], order = 3, applies = "restart", help = "How the window opens: at its size, maximized, borderless over the whole screen, or exclusive, which takes the monitor's largest video mode. window.set_window_mode changes it later through the same state." }
 orientation = { type = "enum", default = "any", options = ["any", "portrait", "landscape"], order = 4, applies = "restart", help = "Which way up a phone may hold the game. Written into the export's own manifest, since a device decides this before the game runs." }
-vsync = { type = "bool", default = true, order = 5, applies = "restart", help = "Present in step with the display." }
-msaa = { type = "int", default = 1, min = 1, max = 4, order = 6, applies = "restart", help = "Samples per pixel. 1 is off and 4 is the only other count the renderer offers; it costs two render targets of four samples each." }
+vsync = { type = "bool", default = true, order = 5, help = "Present in step with the display." }
+msaa = { type = "int", default = 1, min = 1, max = 4, order = 6, help = "Samples per pixel. 1 is off and 4 is the only other count the renderer offers; it costs two render targets of four samples each." }
 max_fps = { type = "int", default = 0, min = 0, max = 1000, order = 7, applies = "restart", help = "The most frames a second the loop draws. Zero paces it against the tick instead, which is what vsync already does on a display that runs at the tick rate." }
 low_processor = { type = "bool", default = false, order = 8, applies = "restart", help = "Run a frame only when something asks for one: input, ui.request_repaint, a log line, a changed file or work finished on another thread. What a tool that sits still wants; a game that moves every frame leaves it off." }
 "#,

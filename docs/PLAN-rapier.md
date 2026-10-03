@@ -13,11 +13,12 @@
    step. A new pair defaults to *allow* for one step. Whether that latency is
    acceptable is a question for the first game that needs both; until then
    the two are exclusive and say so.
-2. **Solver tuning in a recording's header.** Both halves are built — a
-   `[physics]` table read once after the project loads, and
-   `physics.set_tuning` for a game that tunes at run time. What is open is the
-   recording: until its header carries the tuning, a replay trusts that the
-   manifest has not changed since.
+2. **Solver tuning in a recording's header. Built 2026-10-02.** A
+   `[physics]` table is read once after the project loads, and
+   `physics.set_tuning` tunes at run time. A recording's header carries both
+   worlds' tuning, soft-body settings and gravity under `physics_world`, and a
+   replay puts them back before its first tick, over whatever the replaying
+   machine's manifest says.
 3. **Layer names.** `layers = ["0", "3"]` is honest and unreadable. Godot
    names layers in project settings and the inspector relabels the
    checkboxes. That needs schema options resolved at inspector time rather
@@ -51,18 +52,18 @@
 
 5. **`f64`. Not planned, dropped 2026-09-04.** It bought precision nothing
    asked for, and broke twice unnoticed between CI runs that never built it.
-5. **2D parity, which ARCHITECTURE claims and the tree does not have.**
-   `physics2d` lacks 21 readers `rapier2d` offers — `aabb`, `swept_aabb`,
-   `active_bodies`, `bodies`, `closest_points`, `time_of_impact`, `contacts`,
-   `collider_mass`, `collider_volume`, `collider_mesh`, `handles`,
-   `effective_dominance`, `is_moving`, `potential_energy`,
-   `predict_position_with_forces`, `set_collider`, `solve_ik`, `voxel`,
-   `voxel_at`, `set_voxel` — and `collider2d` the `voxels`, `voxelized_mesh`,
-   `convex_decomposition` and `fit` kinds. *`voxels` shipped 2026-09-06*, with
+5. **2D parity.** The twenty readers this item listed are built:
+   `physics2d` has `aabb`, `swept_aabb`, `active_bodies`, `bodies`,
+   `closest_points`, `time_of_impact`, `contacts`, `collider_mass`,
+   `collider_volume`, `collider_mesh`, `handles`, `effective_dominance`,
+   `is_moving`, `potential_energy`, `predict_position_with_forces`,
+   `set_collider`, `solve_ik`, `voxel`, `voxel_at` and `set_voxel`, and
+   `collider2d` has the `voxels`, `voxelized_mesh`, `convex_decomposition`
+   and `fit` kinds. *`voxels` shipped 2026-09-06*, with
    `physics2d.set_voxel`, `voxel` and `voxel_at` and a `shape_revision` row in
    the 2D digest, because `docs/PLAN-tilemap.md` step 1 builds tile collision
-   on it. *`convex_decomposition` is 0.2's, with the overlap its pieces
-   need: `docs/PLAN-convex-decomposition.md`.*
+   on it. The overlap `convex_decomposition`'s pieces need is
+   `docs/PLAN-convex-decomposition.md`'s.
 
    The four defects this item listed were re-audited on 2026-09-06 and are
    gone: `one_way` encodes its axis (`dim2/collider.rs:239`) and the 2D hook
@@ -76,36 +77,15 @@
    `update_as_oneway_platform` reads the axis in `collider1`'s frame and both
    hooks tested that collider alone. They now test the other side too, turning
    its axis into the first's frame and reversing it.
-6. **What rapier 0.35 still has that no scene or script reaches.** The rule
-   is wrap everything and state the constraint, so each of these is a phase
-   when someone asks: `IntegrationParameters.friction_model` and
-   `normalized_contact_recycle_distance`; `RigidBodyBuilder::linvel`,
-   `angvel` and `sleeping` as initial state, and the readers
-   `is_ccd_active`, `center_of_mass`, `mass_properties` (body `get` reports
-   none of `mass`, `inertia`, `center_of_mass`); `ColliderBuilder::capsule_x`,
-   `capsule_z`, `capsule_from_endpoints`, `oriented_polyline`,
-   `convex_polyline` and the `round_*` shapes, `convex_mesh`,
-   `convex_decomposition_with_params` (VHACD parameters),
-   `heightfield_with_flags` (`FIX_INTERNAL_EDGES`), `voxels_from_points`,
-   `mass_properties`; `QueryFilterFlags` singly, `cast_shape_nonlinear`,
-   `cast_ray_and_get_normal`, `project_point_and_get_feature`,
-   `ShapeCastOptions.target_distance`, a rotated shape cast;
-   `GenericJoint::set_softness`, `coupled_axes`, `set_local_frame1/2`,
-   per-axis motors on a spherical joint, `MultibodyJointSet::insert_kinematic`,
-   `InverseKinematicsOption` and an IK target rotation;
-   `CharacterCollision.character_pos`, `translation_applied`,
-   `hit.time_of_impact` and a `filter` table for `move_character`;
-   `DebugRenderMode` per joint kind and `DebugRenderStyle`; the wheel readers
-   `forward_impulse`, `side_impulse` and `RayCastInfo`, and
-   `current_vehicle_speed` (`vehicle_speed` hard-codes `Z`, `vehicle.rs:206`);
-   `PidController` and `PdController`; `Counters::enable` and its timers
-   (`counters()` reads zeros today, `tuning.rs:218-236`); the `SENSOR` and
-   `REMOVED` flags and the contact pair on `on_collision_start`. Also:
-   `physics3d.contacts` reports a local-space point where every other query
-   is world-space (`query.rs:568-577`), and `tuning()` reads back 12 of the
-   19 keys `set_tuning` accepts. The defects that break determinism — stale
-   handles after a free, wheel state outside the snapshot — are
-   `docs/PLAN-hardening.md` phase 1.
+6. **What rapier still has that no scene or script reaches.** Re-audited
+   against 0.36 on 2026-10-02 and moved to
+   [PLAN-wrapped-surface.md](PLAN-wrapped-surface.md), component by component,
+   with the defects that audit found. What stays here is the query pipeline,
+   which that pass did not re-read: `QueryFilterFlags` beyond the body-kind,
+   sensor and solid filters `shared/query.rs:52-65` builds,
+   `cast_shape_nonlinear`, `project_point_and_get_feature`,
+   `ShapeCastOptions.target_distance` and a rotated shape cast. The stale
+   handles after a free are `docs/PLAN-hardening.md` phase 1.
 
 7. **Internal edges. Fixed 2026-09-06.** A 3D `trimesh` collider already set
    `TriMeshFlags::FIX_INTERNAL_EDGES` by default; the three shapes with the

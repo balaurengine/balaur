@@ -506,7 +506,7 @@ fn a_second_pass_in_one_frame_is_filed_as_a_rerun() {
     // Publish the passes the helper ran, so the table below holds this frame.
     app.tick(balaur_core::DEFAULT_FIXED_DT);
     // What the windowed loop calls once a frame, which is what starts one.
-    balaur_ui::wants_pass(&app.engine, &ctx, true, false);
+    balaur_ui::wants_pass(&app.engine, &ctx, true);
     for _ in 0..2 {
         ctx.begin_pass(egui::RawInput::default());
         balaur_ui::run_pass(&app.engine, &ctx);
@@ -666,75 +666,22 @@ fn a_pill_menu_opens_on_a_left_click() {
     );
 }
 
-/// A pointer button held outside every widget belongs to whatever the scene
-/// is doing with it — orbiting a camera — and the shell cannot change until
-/// it comes up, so the frames between are the scene's alone.
-#[test]
-fn a_drag_that_began_outside_the_ui_wants_no_pass_for_moving() {
-    let (_dir, app, ctx, _) = draw_with(r#"ui::central_panel(#{}, || { ui::label("x"); });"#);
-    let away = egui::pos2(500.0, 400.0);
-    feed(&app, &ctx, tap(away, true));
-    assert!(
-        balaur_ui::pointer_is_dragging_elsewhere(&ctx, true),
-        "the press took no widget, so the drag is the scene's"
-    );
-    assert!(
-        !balaur_ui::pointer_is_dragging_elsewhere(&ctx, false),
-        "a camera with no drag buttons is dragging nothing"
-    );
-    feed(&app, &ctx, tap(away, false));
-    assert!(
-        !balaur_ui::pointer_is_dragging_elsewhere(&ctx, true),
-        "the button came up, so the pointer answers the shell again"
-    );
-}
-
-/// A press egui took a candidate from is the UI's drag: a button held, a
-/// scroll dragged, a field selecting text all move the picture as the
-/// pointer does.
-#[test]
-fn a_drag_that_began_on_a_widget_still_wants_its_passes() {
-    let (_dir, app, ctx, errors) =
-        draw_with(r#"ui::central_panel(#{}, || { ui::button("Go", #{}); });"#);
-    assert!(errors.is_empty(), "{errors:#?}");
-    feed(&app, &ctx, tap(egui::pos2(24.0, 20.0), true));
-    assert!(!balaur_ui::pointer_is_dragging_elsewhere(&ctx, true));
-}
-
 /// `pacing::IDLE`, which is private: outwaiting the tick means knowing it.
 const IDLE_TICK: std::time::Duration = std::time::Duration::from_millis(250);
 
-/// The idle tick is there for state that moves without input, which a drag
-/// outside the UI has none of. Firing one mid-drag spends a pass on the same
-/// picture, and where the pass is most of the frame that is the stall the
-/// camera lurches out of.
+/// The idle tick is there for state that moves without input: a lazy shell
+/// that saw none still gets a pass once the tick has gone by.
 #[test]
-fn the_idle_tick_waits_out_a_drag_the_ui_is_no_part_of() {
+fn the_idle_tick_runs_a_lazy_shell_that_saw_no_input() {
     let (_dir, app, ctx, errors) =
         draw_with(r#"ui::set_lazy(true); ui::central_panel(#{}, || { ui::label("x"); });"#);
     assert!(errors.is_empty(), "{errors:#?}");
     balaur_ui::honour_lazy(&app.engine);
-    let away = egui::pos2(500.0, 400.0);
-    feed(&app, &ctx, tap(away, true));
-    // egui asks for a pass of its own after a press, and gives up asking two
-    // passes later.
-    feed(&app, &ctx, vec![]);
-    feed(&app, &ctx, vec![]);
+    let _ = balaur_ui::wants_pass(&app.engine, &ctx, false);
     std::thread::sleep(IDLE_TICK + std::time::Duration::from_millis(50));
-    // The log buffer is global, so a line another test wrote reads here as a
-    // reason to run a pass; the call before each answer takes that counter.
-    let mut forced = true;
-    for _ in 0..4 {
-        let _ = balaur_ui::wants_pass(&app.engine, &ctx, false, true);
-        forced = balaur_ui::wants_pass(&app.engine, &ctx, false, true);
-        if !forced {
-            break;
-        }
-    }
-    assert!(!forced, "the tick forced a pass in the middle of a drag");
     assert!(
-        balaur_ui::wants_pass(&app.engine, &ctx, false, false),
-        "the tick never fired for a shell that owns the pointer"
+        balaur_ui::wants_pass(&app.engine, &ctx, false),
+        "the tick never fired"
     );
 }
 

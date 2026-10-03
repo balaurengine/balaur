@@ -9,6 +9,57 @@ use crate::widget::layer::{Edit, Painting};
 use crate::widget::node::Widget;
 use crate::widget::theme::weight_of;
 
+/// A label: its text inside the padding the layout kept round it.
+pub(crate) fn label(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    (caption, font, color): (&str, &egui::FontId, egui::Color32),
+    style: &crate::widget::theme::Style,
+) {
+    let widget = &at.arena[index].widget;
+    let (wrap, truncate) = (widget.wrap, widget.width > 0.0);
+    let (align, elided) = (
+        widget.text_align.clone(),
+        widget.egui.show_tooltip_when_elided,
+    );
+    let pad = crate::widget::arrange::padding_of(widget, style);
+    let mut inset = (pad.taken() != egui::Vec2::ZERO).then(|| {
+        let rect = pad.inside(ui.max_rect());
+        ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(*ui.layout()))
+    });
+    let text_ui = inset.as_mut().unwrap_or(ui);
+    if !shaped_label(text_ui, at, index, caption, color, font) {
+        let mut label = egui::Label::new(crate::widget::theme::rich(
+            caption,
+            font,
+            color,
+            at.slant(index),
+            &widget.text_look,
+        ));
+        // A stated width is a column, so the text is cut to it rather
+        // than run past into whatever sits beside it. Without one,
+        // `extend` is the old behaviour: one line, however wide.
+        label = if wrap {
+            label.wrap()
+        } else if truncate {
+            label.truncate()
+        } else {
+            label.extend()
+        }
+        .show_tooltip_when_elided(elided);
+        text_ui.with_layout(
+            egui::Layout::top_down(crate::widget::layer::across(&align)),
+            |ui| {
+                ui.add(label);
+            },
+        );
+    }
+    if let Some(inset) = inset {
+        ui.advance_cursor_after_rect(pad.around(inset.min_rect()));
+    }
+}
+
 /// What a widget's text asks the shaper for, at this scale.
 ///
 /// Borrowed, not owned: this is built twice a widget a frame and the shaper
@@ -26,7 +77,7 @@ pub(crate) fn text_request<'a>(
         // `font_weight` reach the shaper the way they reach egui's own text.
         size: font.size,
         weight: weight_of(style, widget).clamp(100.0, 900.0) as u16,
-        italic: widget.font_style == w::ITALIC,
+        slant: balaur_text::Slant::of(&widget.font_style),
         width,
         // A grown child was cut at its box above; `truncate` says end that
         // cut with an ellipsis rather than mid-glyph.
@@ -37,12 +88,11 @@ pub(crate) fn text_request<'a>(
             _ => balaur_text::Align::Start,
         },
         markup: widget.markup,
-        // A widget names no bitmap font yet; the world's text is where a
-        // pixel face is asked for.
-        font: "",
+        font: widget.text_look.bitmap_font.as_str(),
         family: crate::widget::theme::family_of(style, widget),
-        line_height: 0.0,
-        letter_spacing: 0.0,
+        line_height: widget.text_look.line_height,
+        letter_spacing: widget.text_look.letter_spacing,
+        options: &widget.text_look.options,
     }
 }
 
@@ -55,22 +105,90 @@ pub(crate) fn icon_px(widget: &crate::widget::node::Widget, caption: f32) -> f32
     }
 }
 
-/// A caption shaped on one line, with the atlas it draws from; `None` until
-/// the fonts are installed, when egui's own layout stands in.
+/// What a button's caption asks the shaper for: one line, or, given the
+/// `room` a `wrap` or `truncate` caption has, a block that wide whose lines
+/// sit the way the button places its face.
+pub(crate) fn caption_request<'a>(
+    widget: &'a Widget,
+    caption: &'a str,
+    room: Option<f32>,
+    font: &egui::FontId,
+    style: &'a crate::widget::theme::Style,
+) -> balaur_text::RequestRef<'a> {
+    let mut request = text_request(widget, caption, room, font, style);
+    if room.is_some() {
+        request.align = match style.align.as_deref() {
+            Some(w::START) => balaur_text::Align::Start,
+            Some(w::END) => balaur_text::Align::End,
+            _ => balaur_text::Align::Center,
+        };
+    }
+    request
+}
+
+/// A caption shaped by [`caption_request`], with the atlas it draws from;
+/// `None` until the fonts are installed, when egui's own layout stands in.
 pub(crate) fn shaped_caption(
     ui: &egui::Ui,
     at: &Painting<'_>,
     index: usize,
-    widget: &Widget,
     caption: &str,
     font: &egui::FontId,
+    room: Option<f32>,
 ) -> Option<(std::rc::Rc<balaur_text::Shaped>, Option<egui::TextureId>)> {
     let state = balaur_text::state(at.eng)?;
     let look = at.look(index);
+    let widget = &at.arena[index].widget;
     let mut state = state.borrow_mut();
-    let request = text_request(widget, caption, None, font, &look.style);
+    let request = caption_request(widget, caption, room, font, &look.style);
     let shaped = state.shape_for_egui(ui.ctx(), &request);
     Some((shaped, state.texture()))
+}
+
+/// The width a `wrap` or `truncate` caption is shaped in: what `width` leaves
+/// once `taken` (padding, picture, icon, trailing text and their gaps) is out.
+/// `None` when the caption fits on one line, or asks for neither.
+pub(crate) fn caption_room(widget: &Widget, natural: f32, width: f32, taken: f32) -> Option<f32> {
+    let room = width - taken;
+    ((widget.wrap || widget.truncate) && width > 0.0 && natural > room + 0.5)
+        .then_some(room.max(1.0))
+}
+
+/// The width a label shapes at, and the column it is cut at when it states
+/// one. A grown child was squeezed by the layout, so the box it was given is
+/// its column; both are boxes, and the text runs inside the padding.
+fn label_width(
+    widget: &crate::Widget,
+    style: &crate::widget::theme::Style,
+    assigned: f32,
+    room: f32,
+) -> (Option<f32>, Option<f32>) {
+    let boxed = if widget.width > 0.0 {
+        widget.width
+    } else if widget.grow > 0.0 {
+        assigned
+    } else {
+        0.0
+    };
+    let across = crate::widget::arrange::padding_of(widget, style).taken().x;
+    let stated = if boxed > 0.0 {
+        (boxed - across).max(1.0)
+    } else {
+        0.0
+    };
+    // A wrapping block takes the room; a truncating line takes its column, so
+    // the shaper knows where to cut. Neither is the other.
+    let width = if widget.wrap {
+        Some(room.max(1.0))
+    } else if widget.truncate && stated > 0.0 {
+        Some(stated)
+    } else {
+        None
+    };
+    // A stated width is a column, so a long line is cut off at its edge
+    // rather than run into whatever sits beside it.
+    let column = (!widget.wrap && stated > 0.0).then_some(stated);
+    (width, column)
 }
 
 /// Draw a label through the shaper. Answers false when the shaper is not
@@ -91,38 +209,19 @@ pub(crate) fn shaped_label(
     let placed = &at.arena[index];
     let entity = placed.entity;
     let widget = &placed.widget;
-    // A grown child was squeezed by the layout, so the box it was given is its
-    // column: it cannot run past what taffy left beside it.
-    let stated = if widget.width > 0.0 {
-        widget.width
-    } else if widget.grow > 0.0 {
-        at.assigned.x
-    } else {
-        0.0
-    };
     let (wrap, align, selectable) = (
         widget.wrap,
         crate::widget::theme::text_align_of(style, widget).to_owned(),
         widget.selectable,
     );
     let room = ui.available_width();
-    // A wrapping block takes the room; a truncating line takes its column, so
-    // the shaper knows where to cut. Neither is the other.
-    let width = if wrap {
-        Some(room.max(1.0))
-    } else if widget.truncate && stated > 0.0 {
-        Some(stated)
-    } else {
-        None
-    };
-    // A stated width is a column, so a long line is cut off at its edge
-    // rather than run into whatever sits beside it.
-    let column = (!wrap && stated > 0.0).then_some(stated);
+    let (width, column) = label_width(widget, style, at.assigned.x, room);
     let (shaped, texture) = {
         let mut state = state.borrow_mut();
         let request = text_request(widget, caption, width, font, style);
         (state.shape_for_egui(ui.ctx(), &request), state.texture())
     };
+    let elided = !wrap && elided(ui, &state, (widget, caption), width, (font, style));
     // An aligned line takes the width it is aligned in; a wrapped block
     // already did, and aligned its own lines.
     let take = if width.is_none() && align != w::START {
@@ -169,6 +268,7 @@ pub(crate) fn shaped_label(
         origin,
         color,
         linked,
+        &widget.text_look.effects,
         at.eng.time(),
     );
     if let Some(color) = linked {
@@ -185,8 +285,28 @@ pub(crate) fn shaped_label(
         }
     }
     spans(ui, at, &response, &shaped, (origin, entity));
+    if elided && widget.tooltip.is_empty() {
+        crate::widget::theme::tip(&response, caption);
+    }
     ui.set_clip_rect(held);
     true
+}
+
+/// Whether a truncating label was cut short, which the whole line shaped with
+/// no width says by being wider than the room it had.
+fn elided(
+    ui: &egui::Ui,
+    state: &std::rc::Rc<std::cell::RefCell<balaur_text::TextState>>,
+    (widget, caption): (&Widget, &str),
+    width: Option<f32>,
+    (font, style): (&egui::FontId, &crate::widget::theme::Style),
+) -> bool {
+    widget.truncate
+        && widget.egui.show_tooltip_when_elided
+        && width.is_some_and(|room| {
+            let whole = text_request(widget, caption, None, font, style);
+            state.borrow_mut().shape_for_egui(ui.ctx(), &whole).size.x > room + 0.5
+        })
 }
 
 /// What the pointer is over: the glyph under it, if any.
@@ -448,6 +568,31 @@ fn edit(
     let look = at.look(index);
     crate::widget::theme::dress(ui, &look.style, color);
     let want = solved_of(widget, &at.style_of(widget), at.assigned);
+    // egui's own layout with its slant on, for a face with no italic: the
+    // default layouter has no way to ask for one.
+    let secret = widget.secret;
+    let mut slanted = |ui: &egui::Ui, text: &dyn egui::TextBuffer, wrap_width: f32| {
+        let shown = if secret {
+            std::iter::repeat_n(
+                egui::epaint::text::PASSWORD_REPLACEMENT_CHAR,
+                text.as_str().chars().count(),
+            )
+            .collect()
+        } else {
+            text.as_str().to_owned()
+        };
+        let mut job = if multiline {
+            egui::text::LayoutJob::simple(shown, font.clone(), color, wrap_width)
+        } else {
+            egui::text::LayoutJob::simple_singleline(shown, font.clone(), color)
+        };
+        job.keep_trailing_whitespace = true;
+        for section in &mut job.sections {
+            section.format.italics = true;
+        }
+        ui.fonts_mut(|fonts| fonts.layout_job(job))
+    };
+    let slant = crate::widget::theme::slanted(&look.style, widget);
     let mut edit = if multiline {
         egui::TextEdit::multiline(&mut buffer)
     } else {
@@ -471,6 +616,11 @@ fn edit(
     if widget.max_length > 0.0 {
         edit = edit.char_limit(widget.max_length as usize);
     }
+    if slant {
+        edit = edit.layouter(&mut slanted);
+    }
+    let submit = chord_of(&widget.egui.submit_key);
+    edit = dressed_edit(edit, widget, &look.style, multiline, submit);
     let response = ui.add(edit);
     // Only on the pass focus was put here: asking every frame would take the
     // caret back from whatever the reader clicked next.
@@ -489,10 +639,12 @@ fn edit(
     if response.changed() {
         at.edits.push((entity, Edit::Text(buffer.clone())));
     }
-    // Enter and a click away both submit; only the click away is a blur.
+    // The submit chord and a click away both submit; only the click away is
+    // a blur.
     if response.lost_focus() {
         at.edits.push((entity, Edit::Submit(buffer.clone())));
-        if !ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+        let key = submit.map_or(egui::Key::Enter, |chord| chord.logical_key);
+        if !ui.input(|i| i.key_pressed(key)) {
             at.edits.push((entity, Edit::Blurred));
             if let Some(focus) = at.eng.try_resource::<crate::UiFocus>() {
                 let mut focus = focus.borrow_mut();
@@ -503,4 +655,60 @@ fn edit(
         }
     }
     state.borrow_mut().text_buffers.insert(key, buffer);
+}
+
+/// The chord a `submit_key` names, or `None` for egui's own Enter.
+fn chord_of(text: &str) -> Option<egui::KeyboardShortcut> {
+    let (modifiers, key) = crate::immediate::chord(text)?;
+    Some(egui::KeyboardShortcut::new(modifiers, key))
+}
+
+/// What a field's own keys ask of egui's editor: where the text sits, what
+/// stands either side of it, whether it can be changed, its margin, and what
+/// Tab, the caret and the submit chord do.
+fn dressed_edit<'t>(
+    mut edit: egui::TextEdit<'t>,
+    widget: &Widget,
+    style: &crate::widget::theme::Style,
+    multiline: bool,
+    submit: Option<egui::KeyboardShortcut>,
+) -> egui::TextEdit<'t> {
+    let o = &widget.egui;
+    edit = edit
+        .horizontal_align(crate::widget::layer::across(
+            crate::widget::theme::text_align_of(style, widget),
+        ))
+        .interactive(o.editable)
+        .lock_focus(o.tab_inserts)
+        .cursor_at_end(o.caret_at_end)
+        .clip_text(o.clip_text);
+    if !o.prefix.is_empty() {
+        edit = edit.prefix(o.prefix.to_string());
+    }
+    if !widget.suffix.is_empty() {
+        edit = edit.suffix(widget.suffix.to_string());
+    }
+    if let Some(margin) = margin_of(widget) {
+        edit = edit.margin(margin);
+    }
+    if !multiline && let Some(chord) = submit {
+        edit = edit.return_key(chord);
+    }
+    edit
+}
+
+/// A field's `padding` as egui's margin, which is whole points; `None` while
+/// every side is below zero, which leaves egui's.
+pub(crate) fn margin_of(widget: &Widget) -> Option<egui::Margin> {
+    if widget.padding.iter().all(|side| *side < 0.0) {
+        return None;
+    }
+    let side = |px: f32| px.max(0.0).round().min(f32::from(i8::MAX)) as i8;
+    let [left, top, right, bottom] = widget.padding;
+    Some(egui::Margin {
+        left: side(left),
+        right: side(right),
+        top: side(top),
+        bottom: side(bottom),
+    })
 }

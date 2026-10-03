@@ -4,9 +4,8 @@
 use balaur_core::scene;
 use balaur_core::{App, AppConfig, components};
 use balaur_render::{
-    CameraConfig2d, CameraConfig3d, CameraInputConfig, ClearColorConfig, DebugLineBuffer2d,
-    DebugLineBuffer3d, GridConfig, RenderPlugin, Renderable2d, Renderable3d, Shape3d,
-    ViewportSnapshot3d,
+    CameraConfig2d, CameraConfig3d, ClearColorConfig, DebugLineBuffer2d, DebugLineBuffer3d,
+    GridConfig, RenderPlugin, Renderable2d, Renderable3d, Shape3d, ViewportSnapshot3d,
 };
 
 fn app() -> App {
@@ -31,7 +30,7 @@ fn the_plugin_registers_its_components() {
         "camera3d",
         "camera2d",
         "tilemap",
-        "particles",
+        "particles2d",
     ] {
         assert!(
             names.contains(&expected.to_string()),
@@ -47,7 +46,6 @@ fn the_plugin_inserts_the_resources_a_frame_reads() {
     assert!(app.engine.try_resource::<GridConfig>().is_some());
     assert!(app.engine.try_resource::<CameraConfig3d>().is_some());
     assert!(app.engine.try_resource::<CameraConfig2d>().is_some());
-    assert!(app.engine.try_resource::<CameraInputConfig>().is_some());
     assert!(app.engine.try_resource::<DebugLineBuffer3d>().is_some());
     assert!(app.engine.try_resource::<DebugLineBuffer2d>().is_some());
     assert!(app.engine.try_resource::<ViewportSnapshot3d>().is_some());
@@ -193,18 +191,6 @@ fn a_windowed_backend_keeps_the_fallback_off_its_buffers() {
             .len(),
         1,
         "the fallback drained lines the backend was going to draw"
-    );
-}
-
-#[test]
-fn camera_input_can_be_switched_off() {
-    let app = app();
-    let config = app.engine.resource::<CameraInputConfig>();
-    let before = config.borrow().enabled;
-    config.borrow_mut().enabled = !before;
-    assert_ne!(
-        app.engine.resource::<CameraInputConfig>().borrow().enabled,
-        before
     );
 }
 

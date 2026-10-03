@@ -6,18 +6,22 @@
 //! `intersect_meshes` and nothing else -- no union, no difference -- and
 //! because a BSP is dot products, lerps and comparisons with no
 //! transcendental anywhere, so the result is the same on every platform.
+//!
+//! What the tree leaves is sealed before it becomes triangles: corners a
+//! rounding apart are merged, and a corner one face has in the middle of
+//! another's edge is added to that edge, so every edge of the result is
+//! shared by exactly two triangles.
 
 use crate::mesh::MeshData;
-use glamx::Vec3;
+use crate::primitive::Build;
+use glamx::{Vec2, Vec3};
+use rustc_hash::FxHashMap;
 
 /// Which side of a plane a point counts as being on. Below this a vertex is
 /// treated as lying in the plane, which is what stops a face that is almost
-/// coplanar with a cut from being split into slivers.
+/// coplanar with a cut from being split into slivers. Sealing merges corners
+/// this close, scaled up for a mesh whose coordinates pass one.
 const ON_PLANE: f32 = 1e-5;
-
-/// How deep the tree may go before it stops dividing. A mesh with thousands
-/// of distinct planes would otherwise recurse as far as it has faces.
-const MAX_DEPTH: u32 = 64;
 
 /// What to keep of two solids.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -120,6 +124,17 @@ impl Face {
         })
     }
 
+    /// A piece of `parent` cut off by a plane. It keeps the parent's plane:
+    /// three of its corners may be collinear, and a plane from those would
+    /// be noise or nothing.
+    fn piece(corners: Vec<Corner>, parent: &Self) -> Option<Self> {
+        (corners.len() >= 3).then_some(Self {
+            corners,
+            normal: parent.normal,
+            offset: parent.offset,
+        })
+    }
+
     fn flip(&mut self) {
         self.corners.reverse();
         for corner in &mut self.corners {
@@ -150,33 +165,33 @@ struct Pieces {
 ///
 /// A face lying in the plane goes to the side the plane faces, which is what
 /// keeps a shared wall from being counted twice.
-fn split(normal: Vec3, offset: f32, face: &Face, out: &mut Pieces) {
-    let sides: Vec<u8> = face
+fn split(normal: Vec3, offset: f32, face: Face, out: &mut Pieces) {
+    let side = |corner: &Corner| {
+        let distance = normal.dot(corner.position) - offset;
+        if distance < -ON_PLANE {
+            BACK
+        } else if distance > ON_PLANE {
+            FRONT
+        } else {
+            COPLANAR
+        }
+    };
+    match face
         .corners
         .iter()
-        .map(|corner| {
-            let distance = normal.dot(corner.position) - offset;
-            if distance < -ON_PLANE {
-                BACK
-            } else if distance > ON_PLANE {
-                FRONT
-            } else {
-                COPLANAR
-            }
-        })
-        .collect();
-    let combined = sides.iter().fold(0, |all, side| all | side);
-    match combined {
+        .fold(COPLANAR, |all, corner| all | side(corner))
+    {
         COPLANAR => {
             if normal.dot(face.normal) > 0.0 {
-                out.coplanar_front.push(face.clone());
+                out.coplanar_front.push(face);
             } else {
-                out.coplanar_back.push(face.clone());
+                out.coplanar_back.push(face);
             }
         }
-        FRONT => out.front.push(face.clone()),
-        BACK => out.back.push(face.clone()),
+        FRONT => out.front.push(face),
+        BACK => out.back.push(face),
         _ => {
+            let sides: Vec<u8> = face.corners.iter().map(side).collect();
             let (mut ahead, mut behind) = (Vec::new(), Vec::new());
             let count = face.corners.len();
             for i in 0..count {
@@ -197,136 +212,142 @@ fn split(normal: Vec3, offset: f32, face: &Face, out: &mut Pieces) {
                     behind.push(cut);
                 }
             }
-            if let Some(piece) = Face::new(ahead) {
-                out.front.push(piece);
-            }
-            if let Some(piece) = Face::new(behind) {
-                out.back.push(piece);
-            }
+            out.front.extend(Face::piece(ahead, &face));
+            out.back.extend(Face::piece(behind, &face));
         }
     }
 }
 
 /// One node of the tree: a dividing plane, the faces lying in it, and the
-/// two halves it separates.
+/// two halves it separates, as indices into [`Tree::nodes`].
 #[derive(Default)]
 struct Node {
     divider: Option<(Vec3, f32)>,
     faces: Vec<Face>,
-    front: Option<Box<Node>>,
-    back: Option<Box<Node>>,
+    front: Option<usize>,
+    back: Option<usize>,
 }
 
-impl Node {
-    fn build(faces: &[Face], depth: u32) -> Self {
-        let mut node = Self::default();
-        node.add(faces, depth);
-        node
+/// A solid as a BSP tree. A convex solid divides into a chain as deep as it
+/// has faces, so every walk keeps its own stack rather than recursing, and
+/// none stops early: a node past a cut-off would not divide what it holds.
+struct Tree {
+    nodes: Vec<Node>,
+}
+
+impl Tree {
+    fn build(faces: Vec<Face>) -> Self {
+        let mut tree = Self {
+            nodes: vec![Node::default()],
+        };
+        tree.add(faces);
+        tree
     }
 
-    /// Put more faces into the tree, dividing on the first one's plane when
-    /// this node has none yet.
-    fn add(&mut self, faces: &[Face], depth: u32) {
-        if faces.is_empty() {
-            return;
+    /// Put more faces into the tree, each node dividing on the plane of the
+    /// first face to reach it.
+    fn add(&mut self, faces: Vec<Face>) {
+        let mut work = vec![(0, faces)];
+        while let Some((at, faces)) = work.pop() {
+            let Some(first) = faces.first() else {
+                continue;
+            };
+            let (normal, offset) = *self.nodes[at]
+                .divider
+                .get_or_insert((first.normal, first.offset));
+            let mut pieces = Pieces::default();
+            for face in faces {
+                split(normal, offset, face, &mut pieces);
+            }
+            // Anything lying in this node's plane belongs to the node itself,
+            // whichever way round it faces.
+            let node = &mut self.nodes[at];
+            node.faces.append(&mut pieces.coplanar_front);
+            node.faces.append(&mut pieces.coplanar_back);
+            if !pieces.front.is_empty() {
+                work.push((self.child(at, true), pieces.front));
+            }
+            if !pieces.back.is_empty() {
+                work.push((self.child(at, false), pieces.back));
+            }
         }
-        if self.divider.is_none() {
-            self.divider = Some((faces[0].normal, faces[0].offset));
-        }
-        let Some((normal, offset)) = self.divider else {
-            return;
+    }
+
+    /// The node on one side of `at`, made empty if there is none yet.
+    fn child(&mut self, at: usize, front: bool) -> usize {
+        let fresh = self.nodes.len();
+        let node = &mut self.nodes[at];
+        let slot = if front {
+            &mut node.front
+        } else {
+            &mut node.back
         };
-        let mut pieces = Pieces::default();
-        for face in faces {
-            split(normal, offset, face, &mut pieces);
+        let index = *slot.get_or_insert(fresh);
+        if index == fresh {
+            self.nodes.push(Node::default());
         }
-        // Anything lying in this node's plane belongs to the node itself,
-        // whichever way round it faces.
-        self.faces.append(&mut pieces.coplanar_front);
-        self.faces.append(&mut pieces.coplanar_back);
-        let (ahead, behind) = (pieces.front, pieces.back);
-        // Past the cap the tree stops dividing and keeps what is left where
-        // it stands: a wrong face beats a blown stack.
-        if depth >= MAX_DEPTH {
-            self.faces.extend(ahead);
-            self.faces.extend(behind);
-            return;
-        }
-        if !ahead.is_empty() {
-            self.front
-                .get_or_insert_with(Box::default)
-                .add(&ahead, depth + 1);
-        }
-        if !behind.is_empty() {
-            self.back
-                .get_or_insert_with(Box::default)
-                .add(&behind, depth + 1);
-        }
+        index
     }
 
     /// The faces of `faces` that lie outside this solid.
     fn clip(&self, faces: Vec<Face>) -> Vec<Face> {
-        let Some((normal, offset)) = self.divider else {
-            return faces;
-        };
-        let mut pieces = Pieces::default();
-        for face in &faces {
-            split(normal, offset, face, &mut pieces);
-        }
-        // A coplanar face goes with the half the plane faces, so a wall
-        // shared with the clipping solid is kept exactly once.
-        let mut ahead = pieces.front;
-        ahead.append(&mut pieces.coplanar_front);
-        let mut behind = pieces.back;
-        behind.append(&mut pieces.coplanar_back);
-        let mut kept = match &self.front {
-            Some(front) => front.clip(ahead),
-            None => ahead,
-        };
-        // With nothing behind the plane, everything behind it is inside.
-        if let Some(back) = &self.back {
-            kept.extend(back.clip(behind));
+        let mut kept = Vec::new();
+        let mut work = vec![(0, faces)];
+        while let Some((at, faces)) = work.pop() {
+            let node = &self.nodes[at];
+            let Some((normal, offset)) = node.divider else {
+                kept.extend(faces);
+                continue;
+            };
+            let mut pieces = Pieces::default();
+            for face in faces {
+                split(normal, offset, face, &mut pieces);
+            }
+            // A coplanar face goes with the half the plane faces, so a wall
+            // shared with the clipping solid is kept exactly once.
+            let mut ahead = pieces.front;
+            ahead.append(&mut pieces.coplanar_front);
+            let mut behind = pieces.back;
+            behind.append(&mut pieces.coplanar_back);
+            // With nothing behind the plane, everything behind it is inside.
+            if let Some(back) = node.back
+                && !behind.is_empty()
+            {
+                work.push((back, behind));
+            }
+            match node.front {
+                Some(front) => work.push((front, ahead)),
+                None => kept.extend(ahead),
+            }
         }
         kept
     }
 
     /// Drop everything of this solid that lies inside `other`.
     fn clip_to(&mut self, other: &Self) {
-        self.faces = other.clip(std::mem::take(&mut self.faces));
-        if let Some(front) = &mut self.front {
-            front.clip_to(other);
-        }
-        if let Some(back) = &mut self.back {
-            back.clip_to(other);
+        for node in &mut self.nodes {
+            if !node.faces.is_empty() {
+                node.faces = other.clip(std::mem::take(&mut node.faces));
+            }
         }
     }
 
     /// Turn the solid inside out: every face reversed and the halves swapped.
     fn invert(&mut self) {
-        for face in &mut self.faces {
-            face.flip();
+        for node in &mut self.nodes {
+            for face in &mut node.faces {
+                face.flip();
+            }
+            node.divider = node.divider.map(|(normal, offset)| (-normal, -offset));
+            std::mem::swap(&mut node.front, &mut node.back);
         }
-        if let Some((normal, offset)) = self.divider {
-            self.divider = Some((-normal, -offset));
-        }
-        if let Some(front) = &mut self.front {
-            front.invert();
-        }
-        if let Some(back) = &mut self.back {
-            back.invert();
-        }
-        std::mem::swap(&mut self.front, &mut self.back);
     }
 
     fn faces(&self) -> Vec<Face> {
-        let mut out = self.faces.clone();
-        if let Some(front) = &self.front {
-            out.extend(front.faces());
-        }
-        if let Some(back) = &self.back {
-            out.extend(back.faces());
-        }
-        out
+        self.nodes
+            .iter()
+            .flat_map(|node| node.faces.iter().cloned())
+            .collect()
     }
 }
 
@@ -335,15 +356,17 @@ impl Node {
 /// textures as the face it came from.
 #[must_use]
 pub fn combine(a: &MeshData, b: &MeshData, op: Op) -> MeshData {
-    let (mut left, mut right) = (Node::build(&faces_of(a), 0), Node::build(&faces_of(b), 0));
-    match op {
+    let (mut left, mut right) = (Tree::build(faces_of(a)), Tree::build(faces_of(b)));
+    // The textbook ends by building `right` into `left` and reading the tree
+    // back; that only cuts the kept faces finer, so the two lists are joined.
+    let inverted = match op {
         Op::Union => {
             left.clip_to(&right);
             right.clip_to(&left);
             right.invert();
             right.clip_to(&left);
             right.invert();
-            left.add(&right.faces(), 0);
+            false
         }
         Op::Difference => {
             left.invert();
@@ -352,8 +375,7 @@ pub fn combine(a: &MeshData, b: &MeshData, op: Op) -> MeshData {
             right.invert();
             right.clip_to(&left);
             right.invert();
-            left.add(&right.faces(), 0);
-            left.invert();
+            true
         }
         Op::Intersection => {
             left.invert();
@@ -361,11 +383,15 @@ pub fn combine(a: &MeshData, b: &MeshData, op: Op) -> MeshData {
             right.invert();
             left.clip_to(&right);
             right.clip_to(&left);
-            left.add(&right.faces(), 0);
-            left.invert();
+            true
         }
+    };
+    let mut faces = left.faces();
+    faces.extend(right.faces());
+    if inverted {
+        faces.iter_mut().for_each(Face::flip);
     }
-    mesh_of(&left.faces())
+    mesh_of(&faces)
 }
 
 /// Every triangle of a mesh as a face, with the normals it carries or the
@@ -405,22 +431,210 @@ fn faces_of(mesh: &MeshData) -> Vec<Face> {
         .collect()
 }
 
-/// The faces fanned back into triangles. Every face out of the tree is
-/// convex, because a split of a convex face is two convex faces.
+/// The faces sealed and cut into triangles. A face keeps its own corners, so
+/// its normals and texture coordinates stay its own; only positions are
+/// shared.
 fn mesh_of(faces: &[Face]) -> MeshData {
-    let mut build = crate::primitive::Build::default();
-    for face in faces {
-        let first = build.vertex_count();
-        for corner in &face.corners {
-            build.vertex(
-                corner.position,
-                corner.normal,
-                glamx::Vec2::from_array(corner.uv),
-            );
-        }
-        for i in 1..face.corners.len() as u32 - 1 {
-            build.triangle(first, first + i, first + i + 1);
+    let mut points = Points::new(faces);
+    let rings: Vec<Vec<(u32, Corner)>> = faces.iter().map(|face| points.ring(face)).collect();
+    let mut junctions = FxHashMap::default();
+    let mut build = Build::default();
+    for (face, ring) in faces.iter().zip(&rings) {
+        if ring.len() >= 3 {
+            let ring = points.with_junctions(ring, &mut junctions);
+            triangulate(&ring, face.normal, points.tolerance, &mut build);
         }
     }
     build.finish()
+}
+
+/// Every distinct corner position of a result, merged where two lie within
+/// `tolerance` of each other, and a grid to find them by.
+struct Points {
+    at: Vec<Vec3>,
+    cells: FxHashMap<[i32; 3], Vec<u32>>,
+    cell: f32,
+    tolerance: f32,
+}
+
+/// The points strictly inside an edge, keyed by its ends lowest first, with
+/// how far from the lower end each lies.
+type Junctions = FxHashMap<(u32, u32), Vec<(f32, u32)>>;
+
+impl Points {
+    fn new(faces: &[Face]) -> Self {
+        let (mut reach, mut length, mut edges) = (1.0_f32, 0.0_f32, 0_u32);
+        for face in faces {
+            for (i, corner) in face.corners.iter().enumerate() {
+                let next = face.corners[(i + 1) % face.corners.len()].position;
+                reach = reach.max(corner.position.abs().max_element());
+                length += corner.position.distance(next);
+                edges += 1;
+            }
+        }
+        let tolerance = ON_PLANE * reach;
+        // A cell about an edge long keeps a lookup to a handful of points.
+        let cell = (length / edges.max(1) as f32).max(tolerance);
+        Self {
+            at: Vec::new(),
+            cells: FxHashMap::default(),
+            cell,
+            tolerance,
+        }
+    }
+
+    fn key(&self, p: Vec3) -> [i32; 3] {
+        let p = p / self.cell;
+        [p.x.floor() as i32, p.y.floor() as i32, p.z.floor() as i32]
+    }
+
+    /// Every cell the box from `low` to `high` widened by a tolerance touches.
+    fn cells_over(&self, low: Vec3, high: Vec3, keys: &mut Vec<[i32; 3]>) {
+        let pad = Vec3::splat(self.tolerance);
+        let (low, high) = (self.key(low - pad), self.key(high + pad));
+        for x in low[0]..=high[0] {
+            for y in low[1]..=high[1] {
+                keys.extend((low[2]..=high[2]).map(|z| [x, y, z]));
+            }
+        }
+    }
+
+    fn points_in(&self, keys: &[[i32; 3]]) -> impl Iterator<Item = u32> {
+        keys.iter()
+            .filter_map(|key| self.cells.get(key))
+            .flatten()
+            .copied()
+    }
+
+    /// The point `p` merges into, added if it is the first there.
+    fn id(&mut self, p: Vec3) -> u32 {
+        let mut keys = Vec::new();
+        self.cells_over(p, p, &mut keys);
+        if let Some(found) = self
+            .points_in(&keys)
+            .find(|&i| self.at[i as usize].distance(p) <= self.tolerance)
+        {
+            return found;
+        }
+        let id = self.at.len() as u32;
+        self.at.push(p);
+        self.cells.entry(self.key(p)).or_default().push(id);
+        id
+    }
+
+    /// A face's corners as merged points, with the runs merging left behind
+    /// collapsed to one.
+    fn ring(&mut self, face: &Face) -> Vec<(u32, Corner)> {
+        let mut ring: Vec<(u32, Corner)> = Vec::with_capacity(face.corners.len());
+        for corner in &face.corners {
+            let id = self.id(corner.position);
+            if ring.last().is_none_or(|(last, _)| *last != id) {
+                ring.push((id, *corner));
+            }
+        }
+        while ring.len() > 1 && ring.first().map(|c| c.0) == ring.last().map(|c| c.0) {
+            ring.pop();
+        }
+        ring
+    }
+
+    /// The points strictly inside the segment, with how far along it each
+    /// lies. The segment is walked a cell at a time, so a long diagonal one
+    /// looks in the cells beside it and not the whole box it spans.
+    fn on_segment(&self, from: Vec3, to: Vec3) -> Vec<(f32, u32)> {
+        let span = to - from;
+        let length_squared = span.length_squared();
+        if length_squared <= 0.0 {
+            return Vec::new();
+        }
+        let pieces = (span.length() / self.cell).ceil().max(1.0) as u32;
+        let along = |s: u32| from + span * (s as f32 / pieces as f32);
+        let mut keys = Vec::new();
+        for s in 0..pieces {
+            let (a, b) = (along(s), along(s + 1));
+            self.cells_over(a.min(b), a.max(b), &mut keys);
+        }
+        keys.sort_unstable();
+        keys.dedup();
+        self.points_in(&keys)
+            .filter_map(|i| {
+                let p = self.at[i as usize];
+                let t = (p - from).dot(span) / length_squared;
+                let inside = t > 0.0 && t < 1.0;
+                (inside && (from + span * t).distance(p) <= self.tolerance).then_some((t, i))
+            })
+            .collect()
+    }
+
+    /// The ring at merged positions, with every point another face has in
+    /// the middle of one of its edges added there, in order along the edge.
+    fn with_junctions(&self, ring: &[(u32, Corner)], junctions: &mut Junctions) -> Vec<Corner> {
+        let mut out = Vec::with_capacity(ring.len());
+        for (i, &(id, corner)) in ring.iter().enumerate() {
+            let (next_id, next) = ring[(i + 1) % ring.len()];
+            out.push(Corner {
+                position: self.at[id as usize],
+                ..corner
+            });
+            let (low, high) = (id.min(next_id), id.max(next_id));
+            let found = junctions
+                .entry((low, high))
+                .or_insert_with(|| self.on_segment(self.at[low as usize], self.at[high as usize]));
+            let mut between: Vec<(f32, u32)> = found
+                .iter()
+                .filter(|(_, point)| ring.iter().all(|(own, _)| own != point))
+                .map(|&(t, point)| (if id == low { t } else { 1.0 - t }, point))
+                .collect();
+            between.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+            for (t, point) in between {
+                out.push(Corner {
+                    position: self.at[point as usize],
+                    ..corner.mix(next, t)
+                });
+            }
+        }
+        out
+    }
+}
+
+/// A convex ring cut into triangles, none of them flat. Only a real corner
+/// is clipped, and one beside a point on a straight side goes first: the
+/// other order can leave a side's points in a line with nothing to close.
+fn triangulate(ring: &[Corner], normal: Vec3, tolerance: f32, build: &mut Build) {
+    let first = build.vertex_count();
+    for corner in ring {
+        build.vertex(corner.position, corner.normal, Vec2::from_array(corner.uv));
+    }
+    let at = |i: usize| ring[i].position;
+    let mut left: Vec<usize> = (0..ring.len()).collect();
+    while left.len() >= 3 {
+        let count = left.len();
+        let around = |k: usize| {
+            (
+                left[(k + count - 1) % count],
+                left[k],
+                left[(k + 1) % count],
+            )
+        };
+        let corners: Vec<bool> = (0..count)
+            .map(|k| {
+                let (prev, here, next) = around(k);
+                let base = at(next) - at(prev);
+                (at(here) - at(prev)).cross(base).dot(normal) > tolerance * base.length()
+            })
+            .collect();
+        let Some(k) = (0..count)
+            .filter(|&k| corners[k])
+            .min_by_key(|&k| corners[(k + count - 1) % count] && corners[(k + 1) % count])
+        else {
+            break;
+        };
+        let (prev, here, next) = around(k);
+        build.triangle(
+            first + prev as u32,
+            first + here as u32,
+            first + next as u32,
+        );
+        left.remove(k);
+    }
 }

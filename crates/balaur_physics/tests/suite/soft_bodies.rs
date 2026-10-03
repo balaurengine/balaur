@@ -7,7 +7,7 @@ use crate::LOG;
 
 /// A project holding a closed tetrahedron mesh, a soft cuboid in 3D and a
 /// soft grid in 2D, each with a script attached.
-fn run(script: &str) -> Vec<String> {
+pub(crate) fn run(script: &str) -> Vec<String> {
     run_for(script, 4)
 }
 
@@ -26,7 +26,7 @@ fn run_for(script: &str, ticks: u32) -> Vec<String> {
 }
 
 /// The project above, loaded and ticked, for a test that reads the world.
-fn boot(script: &str, ticks: u32) -> (tempfile::TempDir, balaur_core::App) {
+pub(crate) fn boot(script: &str, ticks: u32) -> (tempfile::TempDir, balaur_core::App) {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
@@ -242,7 +242,7 @@ fn the_material_rows_are_set_and_read_back() {
     run_clean(
         r#"pub fn init(this) {
     let node = this.node;
-    node.softbody3d.edge_frequency = 120.0;
+    node.softbody3d.edge_hz = 120.0;
     node.softbody3d.bend_damping = 0.4;
     node.softbody3d.cell_model = physics3d::CELL_COROTATIONAL;
     node.softbody3d.young_modulus = 50000.0;
@@ -250,8 +250,8 @@ fn the_material_rows_are_set_and_read_back() {
     node.softbody3d.plastic_yield = 0.2;
     node.softbody3d.edge_plastic_flow = physics3d::FLOW_COMPRESSION;
     node.softbody3d.tear_strain = 0.6;
-    node.softbody3d.shape_matching = true;
-    assert_eq!(node.softbody3d.edge_frequency, 120.0, "edge_frequency did not stick");
+    node.softbody3d.shape_matching = physics3d::SHAPE_MATCHING_ON;
+    assert_eq!(node.softbody3d.edge_hz, 120.0, "edge_hz did not stick");
     assert_eq!(node.softbody3d.bend_damping, 0.4, "bend_damping did not stick");
     assert_eq!(node.softbody3d.cell_model, physics3d::CELL_COROTATIONAL, "cell_model did not stick");
     assert_eq!(node.softbody3d.young_modulus, 50000.0, "young_modulus did not stick");
@@ -259,7 +259,7 @@ fn the_material_rows_are_set_and_read_back() {
     assert_eq!(node.softbody3d.plastic_yield, 0.2, "plastic_yield did not stick");
     assert_eq!(node.softbody3d.edge_plastic_flow, physics3d::FLOW_COMPRESSION, "edge_plastic_flow did not stick");
     assert_eq!(node.softbody3d.tear_strain, 0.6, "tear_strain did not stick");
-    assert_eq!(node.softbody3d.shape_matching, true, "shape_matching did not stick");
+    assert_eq!(node.softbody3d.shape_matching, physics3d::SHAPE_MATCHING_ON, "shape_matching did not stick");
 }
 "#,
     );
@@ -327,7 +327,7 @@ fn a_rope_past_its_tear_strain_comes_apart() {
     this.node.softbody3d.set_softbody(#{
         kind: physics3d::SOFT_ROPE, a: [0.0, 0.0, 0.0], b: [0.0, -2.0, 0.0], particle_count: 12,
         pinned_particles: [0], tear_strain: 0.05, tear_force: 2.0,
-        edge_frequency: 4.0, mass: 400.0,
+        edge_hz: 4.0, mass: 400.0,
     });
     this.torn = 0;
     this.ticks = 0;
@@ -797,7 +797,7 @@ fn a_torn_off_piece_is_drawn_and_freed_with_its_node() {
         r"pub fn init(this) {
     this.node.softbody3d.set_softbody(#{
         kind: physics3d::SOFT_ROPE, a: [0.0, 0.0, 0.0], b: [0.0, -2.0, 0.0], particle_count: 12,
-        pinned_particles: [0], tear_strain: 0.05, tear_force: 2.0, edge_frequency: 4.0, mass: 400.0,
+        pinned_particles: [0], tear_strain: 0.05, tear_force: 2.0, edge_hz: 4.0, mass: 400.0,
     });
 }
 ",
@@ -849,10 +849,10 @@ pub fn fixed_update(this, dt) {
     let body = this.node.softbody3d;
     if this.ticks == 6 {
         this.before = body.softbody_position(0).y;
-        body.edge_frequency = 20.0;
+        body.edge_hz = 20.0;
     }
     if this.ticks == 7 {
-        assert!(body.edge_frequency == 20.0, "the stiffness did not take");
+        assert!(body.edge_hz == 20.0, "the stiffness did not take");
         assert!(body.softbody_position(0).y <= this.before + 0.0001, "the change snapped the body back to rest");
         log::error("checked: tuned in place");
     }
@@ -1079,7 +1079,7 @@ fn a_woven_cloth_and_a_2d_skin_collision_build() {
     run_checked(
         r##"pub fn init(this) {
     let cloth = this.node.softbody3d;
-    cloth.set_softbody(#{ kind: physics3d::SOFT_CLOTH, cells: [4.0, 4.0, 1.0], warp_frequency: 80.0, weft_frequency: 10.0 });
+    cloth.set_softbody(#{ kind: physics3d::SOFT_CLOTH, cells: [4.0, 4.0, 1.0], warp_hz: 80.0, weft_hz: 10.0 });
     assert!(cloth.softbody_particles() == 25, "a woven 4x4 cloth is not 5x5 particles");
     let flat = this.node.get_node("Blob2d").softbody2d;
     flat.set_softbody(#{ kind: physics2d::SOFT_VOLUMETRIC, mesh: "#square", cell_size: 0.2, skin_collision: true });
@@ -1090,4 +1090,82 @@ fn a_woven_cloth_and_a_2d_skin_collision_build() {
         1,
         "checked: woven",
     );
+}
+
+/// What rapier built for the 3D blob after `script` rebuilt it: whether its
+/// surface is oriented, and whether its root cluster is shape-matched.
+fn built_with(script: &str) -> (bool, bool) {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let (_dir, app) = boot(script, 1);
+    let errors: Vec<String> = balaur_core::logbuf::recent(40)
+        .into_iter()
+        .filter(|e| e.level.eq_ignore_ascii_case("error"))
+        .map(|e| e.message)
+        .collect();
+    assert!(errors.is_empty(), "the rebuild logged errors: {errors:#?}");
+    let node = {
+        let world = app.engine.world();
+        balaur_core::ids::find(&world, app.engine.root(), "n_blob").expect("the blob")
+    };
+    let state = app.engine.resource::<balaur_physics::PhysicsState3d>();
+    let state = state.borrow();
+    let body = state
+        .world
+        .soft_bodies
+        .get(state.soft_bodies[&node])
+        .unwrap();
+    let oriented = body
+        .collision_mesh()
+        .is_some_and(balaur_physics::rapier3d::dynamics::SoftCollisionMesh::is_oriented);
+    let matched = body
+        .cluster(0)
+        .is_some_and(balaur_physics::rapier3d::dynamics::SoftBodyCluster::shape_matching_enabled);
+    (oriented, matched)
+}
+
+/// rapier's oriented closed surface encloses matter and its unoriented one is
+/// a shell holding bodies in; `auto` orients a closed surface.
+#[test]
+fn orientation_picks_a_solid_or_a_shell() {
+    let sphere = |orientation: &str| {
+        built_with(&format!(
+            "pub fn init(this) {{ this.node.softbody3d.set_softbody(#{{ kind: physics3d::SOFT_SPHERE, radius: 0.5, subdivisions: 1, orientation: {orientation} }}); }}\n"
+        ))
+        .0
+    };
+    assert!(
+        sphere("physics3d::ORIENTATION_SOLID"),
+        "a solid is not oriented"
+    );
+    assert!(
+        !sphere("physics3d::ORIENTATION_SHELL"),
+        "a shell is oriented"
+    );
+    assert!(
+        sphere("physics3d::ORIENTATION_AUTO"),
+        "a closed sphere left to rapier is not oriented"
+    );
+}
+
+/// The triangle-mesh layout shape-matches by its own choice, which `auto`
+/// keeps and `off` overrides.
+#[test]
+fn shape_matching_auto_keeps_the_layouts_own_choice() {
+    let mesh = |matching: &str| {
+        built_with(&format!(
+            "pub fn init(this) {{ this.node.softbody3d.set_softbody(#{{ kind: physics3d::SOFT_TRIANGLE_MESH, mesh: \"#wedge\", shape_matching: {matching} }}); }}\n"
+        ))
+        .1
+    };
+    assert!(
+        mesh("physics3d::SHAPE_MATCHING_AUTO"),
+        "auto dropped the layout's shape matching"
+    );
+    assert!(!mesh("physics3d::SHAPE_MATCHING_OFF"), "off kept it");
+    let cuboid = built_with(
+        "pub fn init(this) { this.node.softbody3d.set_softbody(#{ kind: physics3d::SOFT_BOX, cells: [2.0, 2.0, 2.0], shape_matching: physics3d::SHAPE_MATCHING_ON }); }\n",
+    );
+    assert!(cuboid.1, "on did not turn shape matching on for a cuboid");
 }

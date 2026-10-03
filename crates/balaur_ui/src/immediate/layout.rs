@@ -190,7 +190,7 @@ fn install_bar(m: &mut dyn Bindings<Engine>) {
 pub(crate) fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
     install_bar(m);
     m.describe(&[
-        ("scroll", &[], "", "Put the callback in a scroll area. `axis` is `vertical` (the default), `horizontal` or `both`; `max_height` and `max_width` cap it, `stick_to_bottom` follows new content, and `offset` scrolls it to that many design pixels along."),
+        ("scroll", &[], "", "Put the callback in a scroll area. `axis` is `vertical` (the default), `horizontal` or `both`; `max_height` and `max_width` cap it, `stick_to_end` follows new content, and `scroll_offset` scrolls it to that many design pixels along, one number along `axis` or `[across, down]`, below zero leaving an axis where it is."),
         ("list", &[], "(id, opts, count, |i|)", "A scroll area of `count` rows of one height, calling the callback only for the rows on screen. `row_height` is the row, in design pixels."),
         ("add_space", &[], "", "Insert blank space along the current layout, in design pixels."),
         ("separator", &[], "", "Draw a one-pixel rule across the container, in the given `#rrggbb` colour when one is passed."),
@@ -207,18 +207,23 @@ pub(crate) fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
                 let mut area = scroll_area(id, &opts);
                 // A log follows what is arriving unless the reader has scrolled
                 // away from the end, which egui tracks for us.
-                if opts.boolean(k::STICK_TO_BOTTOM, false) {
-                    area = area.stick_to_bottom(true);
+                if opts.boolean(k::STICK_TO_END, false) {
+                    area = area.stick_to_bottom(true).stick_to_right(true);
                 }
                 // Below zero is the caller saying nothing, which leaves the
                 // offset where the reader last left it.
-                let offset = opts.px(k::OFFSET, -1.0);
-                if offset >= 0.0 {
-                    area = if opts.str(k::AXIS) == Some(w::HORIZONTAL) {
-                        area.horizontal_scroll_offset(offset)
-                    } else {
-                        area.vertical_scroll_offset(offset)
-                    };
+                let [across, down] = match opts.pair(k::SCROLL_OFFSET) {
+                    Some(pair) => pair,
+                    None if opts.str(k::AXIS) == Some(w::HORIZONTAL) => {
+                        [opts.px(k::SCROLL_OFFSET, -1.0), -1.0]
+                    }
+                    None => [-1.0, opts.px(k::SCROLL_OFFSET, -1.0)],
+                };
+                if across >= 0.0 {
+                    area = area.horizontal_scroll_offset(across);
+                }
+                if down >= 0.0 {
+                    area = area.vertical_scroll_offset(down);
                 }
                 area.show(ui, |ui| {
                     result = scoped(eng, ui, cb);

@@ -654,7 +654,6 @@ pub fn camera_check_step(S) {
         return;
     }
     d.stage = 1;
-    check(!render::camera_input(), "the backend's camera holds no button in the editor");
     // The wheel the editor drives itself, fed into the snapshot it reads. A
     // fed event lands next frame, and the pose it moves is published the one after.
     let stage = S.layout.stage;
@@ -731,7 +730,6 @@ fn camera_dragged(S, drag) {
     let (wx, wy) = (drag.to[0] - drag.from[0], drag.to[1] - drag.from[1]);
     let off = math::sqrt((gx - wx) * (gx - wx) + (gy - wy) * (gy - wy));
     check(off < 1.5, format!("a right-drag keeps the ground under the pointer, off the stage too ({}, {} for {}, {})", gx, gy, wx, wy));
-    check(!render::camera_input(), "and the backend's camera never took the button");
 }
 
 fn camera_drag_done(S, drag) {

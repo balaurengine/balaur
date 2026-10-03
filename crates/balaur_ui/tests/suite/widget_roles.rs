@@ -422,3 +422,56 @@ fn a_role_pads_a_container_across_and_down_apart() {
         "padding_y sets the space inside the top edge: {outer:?} {inner:?}"
     );
 }
+
+/// One button 100 wide with a caption that does not fit, and what drew: its
+/// box, and the widest run of glyphs.
+fn narrow_button(extra: &str) -> (egui::Rect, f32) {
+    let (_dir, app) = app();
+    let mut params = toml::toml! {
+        kind = "button" text = "Save every scene in the project" width = 100.0 x = 0.0 y = 0.0
+    };
+    if !extra.is_empty() {
+        params.insert(extra.into(), true.into());
+    }
+    let button = add_widget(&app, &params.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let out = pass(&app, &ctx, vec![]);
+    let glyphs = out
+        .shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::epaint::Shape::Mesh(_) => Some(shape.shape.visual_bounding_rect().width()),
+            _ => None,
+        })
+        .fold(0.0_f32, f32::max);
+    let rect = balaur_ui::widget_rect(button).expect("the button drew");
+    (rect, glyphs)
+}
+
+#[test]
+fn a_wrapping_button_breaks_its_caption_inside_its_width() {
+    let (one_line, overflow) = narrow_button("");
+    let (wrapped, glyphs) = narrow_button("wrap");
+    assert!(
+        overflow > 100.0,
+        "the plain caption fits after all: {overflow}"
+    );
+    assert!(
+        glyphs <= 100.0,
+        "the wrapped caption ran {glyphs} wide in 100"
+    );
+    assert!((wrapped.width() - 100.0).abs() < 0.5, "{wrapped:?}");
+    assert!(
+        wrapped.height() > one_line.height() + 8.0,
+        "the button did not grow for its second line: {wrapped:?} against {one_line:?}"
+    );
+}
+
+#[test]
+fn a_truncated_button_caption_ends_inside_its_width() {
+    let (rect, glyphs) = narrow_button("truncate");
+    assert!(glyphs <= 100.0, "the caption ran {glyphs} wide in 100");
+    assert!(glyphs > 40.0, "the caption was cut to nothing: {glyphs}");
+    assert!((rect.width() - 100.0).abs() < 0.5, "{rect:?}");
+}

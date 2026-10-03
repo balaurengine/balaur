@@ -18,4 +18,4 @@ fresnel_power = 2.5
 metallic = 0.0
 roughness = 0.15
 reflectance = 0.7
-emissive = 0.0
+emission_strength = 0.0

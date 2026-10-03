@@ -34,10 +34,13 @@ fn quad_corner(index: u32) -> vec2<f32> {
 // One light, as an instance: its quad is generated from the corner index.
 struct LightInstance {
     @location(0) position: vec2<f32>,
-    // radius in world units, then 0 for a point light and 1 for directional
+    // radius in world units, then 0 for a point light, 1 for directional
+    // and 2 for a spot
     @location(1) radius_kind: vec2<f32>,
     @location(2) color: vec3<f32>,
     @location(3) intensity: f32,
+    // xy the aim, z and w the cosines of a spot's inner and outer half-angles
+    @location(4) cone: vec4<f32>,
 }
 
 struct LightVertex {
@@ -46,6 +49,7 @@ struct LightVertex {
     @location(1) light: vec2<f32>,
     @location(2) radius_kind: vec2<f32>,
     @location(3) radiance: vec3<f32>,
+    @location(4) cone: vec4<f32>,
 }
 
 @vertex
@@ -55,7 +59,8 @@ fn vs_light(@builtin(vertex_index) index: u32, light: LightInstance) -> LightVer
     out.light = light.position;
     out.radius_kind = light.radius_kind;
     out.radiance = light.color * light.intensity;
-    if light.radius_kind.y > 0.5 {
+    out.cone = light.cone;
+    if light.radius_kind.y > 0.5 && light.radius_kind.y < 1.5 {
         // A directional light reaches everywhere, so it covers the viewport
         // rather than a patch of the world.
         out.clip_position = vec4<f32>(corner, 0.0, 1.0);
@@ -70,15 +75,21 @@ fn vs_light(@builtin(vertex_index) index: u32, light: LightInstance) -> LightVer
 
 @fragment
 fn fs_light(in: LightVertex) -> @location(0) vec4<f32> {
-    if in.radius_kind.y > 0.5 {
+    if in.radius_kind.y > 0.5 && in.radius_kind.y < 1.5 {
         return vec4<f32>(in.radiance, 1.0);
     }
     let radius = max(in.radius_kind.x, 1e-6);
-    let distance = length(in.world - in.light);
+    let offset = in.world - in.light;
+    let distance = length(offset);
     // Quadratic falloff that reaches exactly zero at the radius, so a light's
     // edge has no seam where its quad ends.
     let falloff = clamp(1.0 - distance / radius, 0.0, 1.0);
-    return vec4<f32>(in.radiance * falloff * falloff, 1.0);
+    var cone = 1.0;
+    if in.radius_kind.y > 1.5 {
+        let along = dot(offset / max(distance, 1e-6), in.cone.xy);
+        cone = smoothstep(in.cone.w, in.cone.z, along);
+    }
+    return vec4<f32>(in.radiance * falloff * falloff * cone, 1.0);
 }
 
 // Shadow polygons write the stencil and nothing else; the light draw that

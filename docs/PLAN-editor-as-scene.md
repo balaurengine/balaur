@@ -20,7 +20,7 @@ Measured 2026-09-08, after the migration.
 | the dock tab rows | a strip a dock, each tab a `row` of two buttons in one tile |
 | the outliner | one `tree` |
 | the workspace outline, Output, Problems, Cost, Profiler, Docs | one `list` each |
-| Assets, Library, Tiles | one `list` with `columns`, in its card mode |
+| Assets, Library, Tiles | one `list` with `grid_columns`, in its card mode |
 | the Debugger | one `tree`: a frame is a row, its locals a tab deeper |
 | the Inspector and Import | a row pool: one node a row, made and reused |
 | Timeline, Session, Weights, Bone map | a `draw` node each |
@@ -44,7 +44,7 @@ Four capabilities, and every view fell out of them.
 3. **A pool.** A form whose fields change with the selection, and a strip
    whose controls change with the workspace, cannot be authored.
    `editor/scripts/pool.rn` makes nodes to order and hides the spares.
-4. **`columns` on `list`, and `table` and `code` as kinds.** One property
+4. **`grid_columns` on `list`, and `table` and `code` as kinds.** One property
    turned three views into three fills; `code` was a wrapper over the
    highlighter the `ui` module already had.
 

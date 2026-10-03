@@ -6,8 +6,12 @@
 use crate::rapier2d::control::{
     CharacterAutostep, CharacterCollision, CharacterLength, KinematicCharacterController,
 };
-use crate::rapier2d::prelude::QueryFilter;
-use crate::scalar::{self, Pose2, Rotation2, Vector2};
+use crate::rapier2d::parry::query::ShapeCastStatus;
+use crate::rapier2d::prelude::{
+    Collider, ColliderHandle, InteractionGroups, QueryFilter, QueryFilterFlags, RigidBodyHandle,
+    SharedShape,
+};
+use crate::scalar::{self, Pose2, Real, Rotation2, Vector2};
 use anyhow::{Result, anyhow};
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
@@ -26,8 +30,10 @@ pub struct Character2d(pub toml::Value);
 crate::shared::character::functions!(
     state = PhysicsState2d,
     vector = Vector2,
+    pose = Pose2,
     value = Vec2,
-    array = a2
+    array = a2,
+    collider = c::COLLIDER_2D
 );
 
 pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector2) -> Result<Value> {
@@ -51,18 +57,20 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector2)
     let controller = controller_of(&params, up);
     let push = crate::vocabulary::boolean(&params, k::PUSH_BODIES, true);
 
+    let ignored = ignored_nodes(eng, entity, &params);
+
     let (movement, collisions) = {
         let state = eng.resource::<PhysicsState2d>();
         let mut state = state.borrow_mut();
         let state = &mut *state;
-        let handle = crate::dim2::collider::first_collider(state, entity)
-            .map_err(|_| anyhow!("a character needs a collider2d to move with"))?;
-        let (shape, pose) = {
-            let collider = &state.world.colliders[handle];
-            (collider.shared_shape().clone(), *collider.position())
-        };
+        let (shape, pose, groups) = sweep_shape(state, entity)?;
+        // Its own layers, never its own body, and nothing `ignore` names, as in 3D.
+        let skipped = Skipped::of(&ignored, state);
+        let passes = |_: ColliderHandle, collider: &Collider| skipped.passes(collider);
+        let filter = QueryFilter::from(ignore_flags(&params))
+            .groups(groups)
+            .predicate(&passes);
         let mut collisions = Vec::new();
-        let filter = QueryFilter::default().exclude_collider(handle);
         let movement = controller.move_shape(
             scalar::real(fixed_dt()),
             &state.world.query_pipeline_with_filter(filter),
@@ -72,10 +80,7 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector2)
             |collision| collisions.push(collision),
         );
         if push && !collisions.is_empty() {
-            let mass = state
-                .bodies
-                .get(&entity)
-                .map_or(1.0, |body| state.world.bodies[*body].mass().max(1.0));
+            let mass = push_mass(state, entity, &params);
             let dispatcher = state.world.narrow_phase.query_dispatcher();
             let mut queries = state.world.broad_phase.as_query_pipeline_mut(
                 dispatcher,
@@ -94,39 +99,8 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector2)
         (movement, collisions)
     };
 
-    let pose = {
-        let world = eng.world();
-        let transform = world.get::<&mut Transform>(entity);
-        let Ok(mut transform) = transform else {
-            return Ok(Value::Nil);
-        };
-        transform.position.x += scalar::f32_of(movement.translation.x);
-        transform.position.y += scalar::f32_of(movement.translation.y);
-        // The node's own rotation, not identity: a character authored at an
-        // angle would otherwise snap upright the first time it moved.
-        let (angle, _, _) = transform.rotation.to_euler(EulerRot::ZYX);
-        Pose2::from_parts(
-            scalar::v2(transform.position.x, transform.position.y),
-            Rotation2::from_angle(scalar::real(angle)),
-        )
-    };
-    {
-        let state = eng.resource::<PhysicsState2d>();
-        let mut state = state.borrow_mut();
-        if let Some(handle) = state.bodies.get(&entity).copied() {
-            state.world.bodies[handle].set_next_kinematic_position(pose);
-        } else {
-            // No body: nothing else moves a standalone collider, and a sweep
-            // from where the character used to be walks through walls.
-            let handles = state.colliders.get(&entity).cloned().unwrap_or_default();
-            for handle in handles {
-                if let Some(collider) = state.world.colliders.get_mut(handle) {
-                    collider.set_position(pose);
-                }
-            }
-            state.queries_ready = false;
-        }
-        state.grounded.insert(entity, movement.grounded);
+    if !apply_movement(eng, entity, movement.translation, movement.grounded) {
+        return Ok(Value::Nil);
     }
     Ok(map([
         (k::X, Value::Num(f64::from(movement.translation.x))),
@@ -137,9 +111,47 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector2)
     ]))
 }
 
+/// Write the effective translation onto the node, and onto its body or its
+/// standalone colliders; `false` when the node has no transform to move.
+fn apply_movement(eng: &Engine, entity: Entity, translation: Vector2, grounded: bool) -> bool {
+    let pose = {
+        let world = eng.world();
+        let transform = world.get::<&mut Transform>(entity);
+        let Ok(mut transform) = transform else {
+            return false;
+        };
+        transform.position.x += scalar::f32_of(translation.x);
+        transform.position.y += scalar::f32_of(translation.y);
+        // The node's own rotation, not identity: a character authored at an
+        // angle would otherwise snap upright the first time it moved.
+        let (angle, _, _) = transform.rotation.to_euler(EulerRot::ZYX);
+        Pose2::from_parts(
+            scalar::v2(transform.position.x, transform.position.y),
+            Rotation2::from_angle(scalar::real(angle)),
+        )
+    };
+    let state = eng.resource::<PhysicsState2d>();
+    let mut state = state.borrow_mut();
+    if let Some(handle) = state.bodies.get(&entity).copied() {
+        state.world.bodies[handle].set_next_kinematic_position(pose);
+    } else {
+        // No body: nothing else moves a standalone collider, and a sweep
+        // from where the character used to be walks through walls.
+        let handles = state.colliders.get(&entity).cloned().unwrap_or_default();
+        for handle in handles {
+            if let Some(collider) = state.world.colliders.get_mut(handle) {
+                collider.set_position(pose);
+            }
+        }
+        state.queries_ready = false;
+    }
+    state.grounded.insert(entity, grounded);
+    true
+}
+
 pub(crate) fn install_character2d_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("move_character", &[c::CHARACTER_2D], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, on_floor, sliding, collisions }`. Call it from fixed_update."),
+        ("move_character", &[c::CHARACTER_2D], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, on_floor, sliding, collisions }`, each collision carrying the same fields as in 3D. Every solid collider of the character is swept. Call it from fixed_update."),
         ("is_on_floor", &[c::CHARACTER_2D], "", "Whether the last move ended with ground under the character's feet."),
     ]);
     m.function(

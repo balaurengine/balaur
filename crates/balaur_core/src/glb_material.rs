@@ -188,11 +188,22 @@ pub(crate) struct Surface {
     pub(crate) id: String,
     pub(crate) part: String,
     base_color: [f32; 4],
-    emissive: [f32; 4],
+    emission_color: [f32; 4],
+    /// KHR_materials_specular's colour, or a specular-glossiness file's.
+    specular_tint: [f32; 3],
     metallic: f32,
     roughness: f32,
     reflectance: f32,
     alpha_cutoff: f32,
+    /// glTF's `BLEND`: the surface's own alpha draws it see-through.
+    blend: bool,
+    /// KHR_materials_unlit.
+    unlit: bool,
+    /// The base colour map's KHR_texture_transform, which the stock shader
+    /// applies to every map: offset, scale, and rotation in degrees.
+    uv_offset: [f32; 2],
+    uv_scale: [f32; 2],
+    uv_rotation_degrees: f32,
     transmission: f32,
     ior: f32,
     thickness: f32,
@@ -214,6 +225,56 @@ pub(crate) fn reflectance_of(ior: f32, specular: f32) -> f32 {
     (f0 / 0.16).sqrt().clamp(0.0, 1.0)
 }
 
+/// A material's colour, shine and UV transform: the metal-rough factors, or
+/// a specular-glossiness file's diffuse, specular and glossiness in their
+/// place, with KHR_materials_specular's colour and the base map's
+/// KHR_texture_transform.
+struct Paint {
+    base_color: [f32; 4],
+    specular_tint: [f32; 3],
+    metallic: f32,
+    roughness: f32,
+    reflectance: f32,
+    uv_offset: [f32; 2],
+    uv_scale: [f32; 2],
+    uv_rotation_degrees: f32,
+}
+
+fn paint_of(
+    material: &gltf::Material<'_>,
+    gloss: Option<&gltf::material::PbrSpecularGlossiness<'_>>,
+    transform: Option<&gltf::texture::TextureTransform<'_>>,
+) -> Paint {
+    use gltf::material::{PbrSpecularGlossiness as Gloss, Specular};
+    use gltf::texture::TextureTransform as Uv;
+    let pbr = material.pbr_metallic_roughness();
+    let specular = material.specular();
+    Paint {
+        base_color: gloss.map_or(pbr.base_color_factor(), Gloss::diffuse_factor),
+        specular_tint: gloss.map_or_else(
+            || {
+                specular
+                    .as_ref()
+                    .map_or([1.0; 3], Specular::specular_color_factor)
+            },
+            Gloss::specular_factor,
+        ),
+        metallic: if gloss.is_some() {
+            0.0
+        } else {
+            pbr.metallic_factor()
+        },
+        roughness: gloss.map_or(pbr.roughness_factor(), |g| 1.0 - g.glossiness_factor()),
+        reflectance: reflectance_of(
+            material.ior().unwrap_or(1.5),
+            specular.as_ref().map_or(1.0, Specular::specular_factor),
+        ),
+        uv_offset: transform.map_or([0.0; 2], Uv::offset),
+        uv_scale: transform.map_or([1.0; 2], Uv::scale),
+        uv_rotation_degrees: transform.map_or(0.0, |t| t.rotation().to_degrees()),
+    }
+}
+
 /// Every material the file declares, with its maps extracted.
 pub(crate) fn surfaces(
     model: &Model,
@@ -229,6 +290,9 @@ pub(crate) fn surfaces(
             continue;
         };
         let pbr = material.pbr_metallic_roughness();
+        // A specular-glossiness file states its colour as diffuse and its
+        // shine as glossiness; its packed specular map has no slot here.
+        let gloss = material.pbr_specular_glossiness();
         let mut maps: Vec<(&'static str, String)> = Vec::new();
         let mut keep =
             |slot: &'static str, texture: Option<gltf::texture::Texture<'_>>| -> Result<()> {
@@ -237,7 +301,17 @@ pub(crate) fn surfaces(
                 }
                 Ok(())
             };
-        keep(SLOTS[0], pbr.base_color_texture().map(|i| i.texture()))?;
+        let base_map = gloss
+            .as_ref()
+            .and_then(gltf::material::PbrSpecularGlossiness::diffuse_texture)
+            .or_else(|| pbr.base_color_texture());
+        let transform = base_map
+            .as_ref()
+            .and_then(gltf::texture::Info::texture_transform);
+        keep(
+            SLOTS[0],
+            base_map.as_ref().map(gltf::texture::Info::texture),
+        )?;
         keep(SLOTS[1], material.normal_texture().map(|n| n.texture()))?;
         keep(
             SLOTS[2],
@@ -251,28 +325,32 @@ pub(crate) fn surfaces(
         let attenuation_color = volume
             .as_ref()
             .map_or([1.0, 1.0, 1.0], gltf::material::Volume::attenuation_color);
+        let paint = paint_of(&material, gloss.as_ref(), transform.as_ref());
         out.push(Surface {
             id: format!("{root}_{}", slug(&names[index]).trim_start_matches("n_")),
             part: names[index].clone(),
-            base_color: pbr.base_color_factor(),
-            emissive: [
+            base_color: paint.base_color,
+            emission_color: [
                 emissive[0] * strength,
                 emissive[1] * strength,
                 emissive[2] * strength,
                 1.0,
             ],
-            metallic: pbr.metallic_factor(),
-            roughness: pbr.roughness_factor(),
-            reflectance: reflectance_of(
-                material.ior().unwrap_or(1.5),
-                material.specular().map_or(1.0, |s| s.specular_factor()),
-            ),
+            specular_tint: paint.specular_tint,
+            metallic: paint.metallic,
+            roughness: paint.roughness,
+            reflectance: paint.reflectance,
             // Only `MASK` cuts; `OPAQUE` and `BLEND` keep every fragment, and
             // the surface's own alpha is what decides how `BLEND` reads.
             alpha_cutoff: match material.alpha_mode() {
                 gltf::material::AlphaMode::Mask => material.alpha_cutoff().unwrap_or(0.5),
                 _ => 0.0,
             },
+            blend: material.alpha_mode() == gltf::material::AlphaMode::Blend,
+            unlit: material.unlit(),
+            uv_offset: paint.uv_offset,
+            uv_scale: paint.uv_scale,
+            uv_rotation_degrees: paint.uv_rotation_degrees,
             transmission: material
                 .transmission()
                 .map_or(0.0, |t| t.transmission_factor()),
@@ -308,10 +386,19 @@ impl Surface {
             let bound = self.maps.iter().any(|(name, _)| *name == slot);
             features.insert(format!("{slot}_map"), toml::Value::Boolean(bound));
         }
+        features.insert("unlit".into(), toml::Value::Boolean(self.unlit));
         entry.insert("features".into(), toml::Value::Table(features));
         let mut params = toml::map::Map::new();
         params.insert("base_color".into(), floats(self.base_color));
-        params.insert("emissive".into(), floats(self.emissive));
+        params.insert("emission_color".into(), floats(self.emission_color));
+        let [sr, sg, sb] = self.specular_tint;
+        params.insert("specular_tint".into(), floats([sr, sg, sb, 1.0]));
+        params.insert("uv_offset".into(), floats(self.uv_offset));
+        params.insert("uv_scale".into(), floats(self.uv_scale));
+        params.insert(
+            "uv_rotation_degrees".into(),
+            toml::Value::Float(self.uv_rotation_degrees.into()),
+        );
         params.insert(
             "attenuation".into(),
             floats([
@@ -359,6 +446,8 @@ impl Surface {
             toml::Value::String(
                 if self.alpha_cutoff > 0.0 {
                     "mask"
+                } else if self.blend {
+                    "blend"
                 } else {
                     "opaque"
                 }

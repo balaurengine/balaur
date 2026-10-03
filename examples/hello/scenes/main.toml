@@ -242,7 +242,7 @@ y = 16
 text_key = "menu.title"
 font_size = 13
 padding = 6
-gap = 6
+gap = [6, 6]
 text_color = "#8d8478"
 # Named once on the menu's root; every button under it is drawn this way.
 theme = "themes/menu.toml"

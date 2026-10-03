@@ -2,7 +2,7 @@
 //! fields a linked shader declares, and the uniform bytes a material packs.
 
 use anyhow::{Result, anyhow, bail};
-use wesl::syntax::{GlobalDeclaration, TranslationUnit};
+use wesl::syntax::{Attribute, GlobalDeclaration, Ident, TranslationUnit};
 
 use crate::material::{Material3d, Param};
 
@@ -149,6 +149,8 @@ pub fn pack(fields: &[Field], params: &[(String, Param)]) -> Result<Vec<u8>> {
 }
 
 /// A material linked and packed: what a backend needs to draw with it.
+// Each flag is a link feature of its own, so no two of them make a mode.
+#[allow(clippy::struct_excessive_bools)]
 pub struct Compiled {
     /// The linked WGSL, ready for `create_shader_module`.
     pub wgsl: String,
@@ -165,6 +167,103 @@ pub struct Compiled {
     pub vertex_color: bool,
     /// Whether it asked for each instance's custom data, the same way.
     pub instance_custom: bool,
+    /// The same shader with a second fragment entry point, [`TRANSPARENT_ENTRY`],
+    /// for kiss3d's order-independent transparency pass. `None` where the
+    /// shader's `fs_main` cannot be wrapped (see [`transparent_variant`]).
+    pub transparent_wgsl: Option<String>,
+    /// Whether the shader was linked with the `morph` bindings, which only a
+    /// device whose vertex stage reads storage buffers takes.
+    pub morph: bool,
+}
+
+/// The entry point every material's colour pass draws through.
+const FRAGMENT_ENTRY: &str = "fs_main";
+
+/// The entry point the transparency pass draws a 3D material through.
+pub const TRANSPARENT_ENTRY: &str = "fs_oit";
+
+/// What a material's own `fs_main` is renamed to once both entry points call it.
+const FRAGMENT_BODY: &str = "balaur_fragment";
+
+/// The contract's fragment input, which carries the position the
+/// transparency pass weighs a fragment's depth by.
+const SURFACE_INPUT: &str = "VertexOutput";
+
+/// `source` with [`TRANSPARENT_ENTRY`] beside `fs_main`, linked to WGSL: it
+/// writes the material's colour into kiss3d's transparency targets.
+///
+/// WGSL cannot call an entry point, so `fs_main` becomes a plain function both
+/// entry points call. `None` for an `fs_main` that returns anything but a
+/// `vec4<f32>` or takes no `VertexOutput`: that material blends in the colour
+/// pass instead.
+#[must_use]
+pub fn transparent_variant(
+    material: &Material3d,
+    source: &str,
+    plugin_modules: &[(String, String)],
+    morph: bool,
+) -> Option<String> {
+    let mut unit: TranslationUnit = source.parse().ok()?;
+    let fragment = unit
+        .global_declarations
+        .iter_mut()
+        .find_map(|d| match d.node_mut() {
+            GlobalDeclaration::Function(f)
+                if f.ident.name().as_str() == FRAGMENT_ENTRY
+                    && f.attributes
+                        .iter()
+                        .any(|a| matches!(a.node(), Attribute::Fragment)) =>
+            {
+                Some(f)
+            }
+            _ => None,
+        })?;
+    let returns = fragment.return_type.as_ref()?.to_string().replace(' ', "");
+    if returns != "vec4<f32>" && returns != "vec4f" {
+        return None;
+    }
+    let input = fragment
+        .parameters
+        .iter()
+        .find(|p| p.ty.ident.name().as_str() == SURFACE_INPUT)?
+        .ident
+        .name()
+        .to_string();
+    let entry_parameters = fragment
+        .parameters
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(", ");
+    let arguments = fragment
+        .parameters
+        .iter()
+        .map(|p| p.ident.name().to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+    fragment.ident = Ident::new(FRAGMENT_BODY.to_string());
+    fragment
+        .attributes
+        .retain(|a| !matches!(a.node(), Attribute::Fragment));
+    fragment.return_attributes.clear();
+    for parameter in &mut fragment.parameters {
+        parameter.attributes.clear();
+    }
+    let wrapped = format!(
+        "{unit}\n@fragment fn {FRAGMENT_ENTRY}({entry_parameters}) -> @location(0) vec4<f32> {{\n    \
+         return {FRAGMENT_BODY}({arguments});\n}}\n\n\
+         @fragment fn {TRANSPARENT_ENTRY}({entry_parameters}) -> package::mesh::OitOutput {{\n    \
+         return package::mesh::oit_output({FRAGMENT_BODY}({arguments}), {input});\n}}\n"
+    );
+    compile_on(material, &wrapped, plugin_modules, morph)
+        .inspect_err(|why| {
+            tracing::debug!(
+                shader = material.shader,
+                "no transparency entry point: {why:#}"
+            );
+        })
+        .ok()
+        .map(|compiled| compiled.wgsl)
 }
 
 /// Link `material`'s shader and pack its values against what it declares.
@@ -183,10 +282,23 @@ pub fn compile_with(
     source: &str,
     plugin_modules: &[(String, String)],
 ) -> Result<Compiled> {
+    compile_on(material, source, plugin_modules, false)
+}
+
+/// [`compile_with`] for a device: `morph` links the morph-target bindings in.
+/// The engine decides it, so a project's own `morph` feature is not read.
+pub fn compile_on(
+    material: &Material3d,
+    source: &str,
+    plugin_modules: &[(String, String)],
+    morph: bool,
+) -> Result<Compiled> {
     let features: Vec<(&str, bool)> = material
         .features
         .iter()
+        .filter(|(name, _)| name != crate::shaders::MORPH)
         .map(|(name, on)| (name.as_str(), *on))
+        .chain(std::iter::once((crate::shaders::MORPH, morph)))
         .collect();
     let mut modules: Vec<(&str, &str)> = plugin_modules
         .iter()
@@ -214,5 +326,7 @@ pub fn compile_with(
         probes,
         vertex_color: material.reads_vertex_color(),
         instance_custom: material.reads_instance_custom(),
+        transparent_wgsl: None,
+        morph,
     })
 }

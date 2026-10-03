@@ -35,7 +35,7 @@ Built, and not built for this:
 | `environment`: sky, ambient, fog, exposure, tonemap, grading, the shadow budget | `light3d.rs::Environment`, `sync_environment` |
 | A physically based surface over the frame's lights: GGX, Smith, Schlick, with a normal map over a tangent frame solved from screen-space derivatives, so a mirrored UV shell lights as its twin does | `shaders/pbr.wesl`, mounted as `package::pbr`, `mesh::tangent_frame` |
 | Six texture slots on group 2, each with the fork's one-pixel neutral | `material::TEXTURE_SLOTS`, `Param::Texture` |
-| `shadows` and `layers` on `mesh` and `shape3d` | `Renderable3d`, `lighting_from_params` |
+| `cast_shadow`, `light_layers` and `render_layers` on every 3D renderable | `Renderable3d`, `lighting_from_params` |
 | A 3D material contract with sixteen lights of three kinds, ambient and fog in its frame uniforms | `shaders/mesh.wesl`, `shaders.rs` (`MAX_LIGHTS`) |
 | `camera.post` flags applied to the fork's passes: bloom, SSAO, SSR, depth of field | `kiss3d_backend.rs::apply_post`, `window.set_bloom_enabled` and friends |
 | Image-based lighting, screen occlusion, reflection probes and the refraction background, bound for every 3D material | `frame_group.rs`, group 0 of `shaders/mesh.wesl` |
@@ -106,21 +106,26 @@ rendering is an observer.
 [nodes.environment]
 sky = "skies/studio.hdr"           # equirectangular; drives image-based lighting too
 sky_intensity = 1.0
-sky_rotation = 90.0
-show_sky = true                     # false: the sky lights the scene and `set_background` paints
-ambient = "#202428"
-fog = { kind = "exponential", color = "#9fb4c8", density = 0.02, height_falloff = 0.1 }
+sky_rotation_degrees = 90.0
+sky_enabled = true                  # false takes the sky away, drawn and lit
+ambient_color = "#202428"
+fog_mode = "exponential"
+fog_color = "#9fb4c8"
+fog_density = 0.02
+fog_height_falloff = 0.1
 exposure = 1.0
-tonemap = "neutral"                 # none, aces, reinhard, agx, neutral
-grading = { saturation = 1.1, contrast = 1.0, gamma = 1.0, hue = 0.0, white_balance = [1.0, 1.0, 1.0] }
-shadows = { resolution = 2048, softness = 1.0, distance = 60.0 }
+tonemap = "neutral"                 # none, aces, reinhard, agx, neutral, tony_mcmapface
+saturation = 1.1
+white_balance = [1.0, 1.0, 1.0]
+shadow_resolution = 2048
+shadow_distance = 60.0
 ```
 
 **The built-in material becomes a `material` asset the engine ships.** Today
 a node with no `material` draws with the fork's default `ObjectMaterial` and
 a node with one draws Lambert, which is two looks for one inspector. Instead
 `shaders/pbr.wesl` is the built-in: its `Params` struct is the PBR surface —
-`metallic`, `roughness`, `emissive`, `reflectance`, `clearcoat`,
+`metallic`, `roughness`, `emission_color`, `reflectance`, `clearcoat`,
 `alpha_mode`, `transmission`, `ior`, `thickness` — and a node with no
 material draws it with the defaults. `material_params` already derives the
 inspector's rows from the struct, so there is one mechanism and it cannot
@@ -161,16 +166,16 @@ the module.
 | Piece | Decision |
 | --- | --- |
 | Point, directional and spot lights: colour, intensity, attenuation radius, cone angles, enabled (*fork* `light.rs`) | Step 1, `light3d`. `enabled` is the node's `visible` |
-| `casts_shadows` per light; the shadow atlas, cascades, softness, resolution (*fork* `builtin/shadow.rs`) | Step 1: `light3d.shadows` and `environment.shadows`. One cascade first; `num_cascades` when a scene asks |
-| `casts_shadows` per object | Step 1, a `shadows` bool on `mesh` and `shape3d` |
-| Light layers and render layers (*fork* `light_layers`, `render_layers`) | Step 1, as `layers` on `light3d` and on the renderables, named as collision layers will be (`docs/PLAN-rapier.md`); a bitmask never reaches a scene file. `render_layers` on a renderable and on `camera3d` says which camera draws it |
+| `casts_shadows` per light; the shadow atlas, cascades, softness, resolution (*fork* `builtin/shadow.rs`) | Step 1: `light3d.shadows` and the `shadow_*` rows on `environment`. kiss3d draws four cascades, and `shadow_cascades` sets how many |
+| `casts_shadows` per object | Step 1, `cast_shadow` on every 3D renderable |
+| Light layers and render layers (*fork* `light_layers`, `render_layers`) | Step 1, as `light_layers` on `light3d` and on the renderables, a bitmask written as an int, -1 for every layer. `render_layers` on a renderable and on `camera3d` says which camera draws it |
 | Ambient; fog with linear, exponential and squared modes and height falloff (*fork* `Fog`, `set_ambient`) | Step 2, `environment`. Balaur's contract already carries both in its frame uniforms |
 | Equirectangular skybox, orientation, intensity (*fork* `renderer/skybox.rs`) | Step 2, `environment.sky`. `.hdr` and `.exr` load through `image`, which the window build already enables |
 | Image-based lighting, mip-as-prefilter (*fork* `renderer/ibl.rs`) | Built, on by the sky. It replaces `environment.ambient` rather than adding to it: both stand for the same bounced light |
 | Exposure, auto exposure, five tonemaps, colour grading (*fork* `HdrSettings`, `ColorGrading`) | Step 2, `environment` |
 | Bloom threshold, knee, intensity (*fork* `HdrSettings`) | Have on `camera.post`; `bloom_knee` joins |
-| Metallic, roughness, emissive, reflectance, clearcoat, anisotropy, specular tint, subsurface (*fork* `ObjectData3d`) | Step 3, `pbr.wesl` params; subsurface and anisotropy last, they are the ones a design tool hides |
-| Normal, metallic-roughness, occlusion, emissive and height maps, parallax (*fork* `set_*_map`) | Step 3, texture params. Parallax is a `features` flag |
+| Metallic, roughness, emissive, reflectance, clearcoat, anisotropy, specular tint, subsurface (*fork* `ObjectData3d`) | Built. The shader-less material carries every one to kiss3d's material, and `pbr.wesl` reads clearcoat, anisotropy and specular tint; subsurface reaches the path tracer only |
+| Normal, metallic-roughness, occlusion, emissive and height maps, parallax (*fork* `set_*_map`) | Built as texture params; parallax is `parallax_scale`, `parallax_layers` and `parallax_method` |
 | Alpha modes opaque, mask, blend; order-independent transparency (*fork* `AlphaMode`, `hdr_oit`) | Built as `surface.alpha`. A project's material blends in the opaque pass, not the order-independent one: see question 6 |
 | Glass: transmission, ior, thickness, attenuation, the transmission background (*fork* `Bsdf::Glass`, `renderer/transmission.rs`) | Built as `[surface]` plus `pbr::shade_glass` |
 | Planar mirror (*fork* `renderer/reflector.rs`) | Built as `surface.mirror`, with `mirror_intensity`, `mirror_falloff` and the plane's own `mirror_normal` |
@@ -178,8 +183,8 @@ the module.
 | SSR, SSAO, depth of field (*fork*) | Flags on `camera.post`, and every 3D material now draws the prepass they read. SSAO's radius, bias, intensity and power are `ssao_*` on the camera, because they are in world units and a scene's scale decides them; SSR's and depth of field's are still the fork's defaults |
 | FXAA, contrast-adaptive sharpening (*fork* `post_processing/fxaa.rs`, `cas.rs`) | Built as `fxaa` and `sharpen`. They are chain effects rather than pipeline flags, so they draw where the list puts them. MSAA is `docs/PLAN-views-and-culling.md`'s |
 | Vignette, chromatic aberration, grain, pixelation | Built as `shaders/finish.wesl`, one variant each, turned by `vignette_amount` and its four neighbours on `camera` |
-| Grayscale, sobel edge highlight, CRT, waves, loupe (*fork* `post_processing`) | Not surfaced. Each is a post-process material a project writes in minutes once step 5 lands |
-| Clustered forward+ lights beyond the primary sixteen (*fork* `builtin/clustered.rs`) | Not built. The frame group binds no storage buffers, so `MAX_LIGHTS` is the whole tier; see question 4 |
+| Grayscale, sobel edge highlight, CRT, waves, loupe (*fork* `post_processing`) | Built as the `post` words `grayscale`, `edges`, `crt`, `waves` and `loupe`, drawn where the list puts them |
+| Clustered forward+ lights beyond kiss3d's primary eight (*fork* `builtin/clustered.rs`) | Built for kiss3d's own material: `cluster_grid` and `cluster_max_lights` on `environment`, not on WebGL2. Balaur's contract binds no cluster buffers, so its sixteen `MAX_LIGHTS` are the whole tier; see question 4 |
 | The progressive path tracer, denoise, aperture (*fork* `renderer/raytracer`) | Step 7: a still from the editor's Export sheet. Never a run mode; a game never depends on it |
 | AOVs: depth, normals, segmentation (*fork* `builtin/aov.rs`) | Not planned for games. `docs/PLAN-editor-ergonomics.md` may borrow the normals view |
 | 2D global illumination (*fork* `post_processing/gi2d.rs`) | Not planned; the light map is 2D's answer. Revisit only if `light2d` shadows prove too hard-edged |
@@ -192,11 +197,11 @@ the module.
 ## 3. Steps
 
 1. **Lights.** *Built 2026-09-07.* `light3d`, the default-sun rule,
-   `light3d::lights` headless, `shadows` and `layers` on the renderables,
-   `environment.shadows`. A spot light lights `examples/hello`.
-2. **Environment.** *Built in part.* The component, fog, exposure, tonemap and
-   grading are pushed to the window; the sky loads and orients. Image-based
-   lighting is not bound, so a sky lights nothing yet.
+   `light3d::lights` headless, `cast_shadow` and `light_layers` on the
+   renderables, the `shadow_*` rows. A spot light lights `examples/hello`.
+2. **Environment.** *Built.* The component, fog, exposure, tonemap and
+   grading are pushed to the window; the sky loads, orients and lights the
+   scene through image-based lighting.
 3. **The contract.** *Built.* `Param::Texture` and its six slots,
    `package::pbr` as the surface a material imports, and group 0 carrying the
    sky, the occlusion, the probes and the scene behind glass. `glb.rs` keeps

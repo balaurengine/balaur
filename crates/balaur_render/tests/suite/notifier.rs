@@ -57,3 +57,26 @@ fn a_notifier_says_when_its_box_comes_on_screen_and_when_it_leaves() {
     move_to(&app, node, -1000.0);
     assert_eq!(heard(&mut app, node), vec!["screen_exit"]);
 }
+
+#[test]
+fn a_notifier_measures_against_the_view_a_mouse_pan_left() {
+    let mut app = app();
+    let root = app.engine.root();
+    let node = scene::spawn_node(&mut app.engine.world_mut(), "Coin", root);
+    move_to(&app, node, 1000.0);
+    let params: toml::Value = toml::from_str("size = [1.0, 1.0]").unwrap();
+    components::add(&app.engine, node, "screen_notifier2d", Some(&params)).unwrap();
+    assert_eq!(
+        heard(&mut app, node),
+        Vec::<&str>::new(),
+        "off the asked-for view"
+    );
+    // What a backend publishes after the mouse dragged the camera over.
+    {
+        let snapshot = app.engine.resource::<balaur_render::ViewportSnapshot2d>();
+        let mut snapshot = snapshot.borrow_mut();
+        snapshot.center = [1000.0, 0.0];
+        snapshot.zoom = 60.0;
+    }
+    assert_eq!(heard(&mut app, node), vec!["screen_enter"]);
+}

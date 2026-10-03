@@ -3,8 +3,9 @@
 //! Godot's `SkeletonModification2D` and `SkeletonModification3D`, as two
 //! components over one set of solvers. `look_at` turns a bone so its child
 //! points at a node; `two_bone_ik` bends a root, middle, tip chain so the tip
-//! reaches one; `fabrik` and `ccdik` reach with a chain of any length; and
-//! `jiggle` lets a chain lag behind the pose on a spring. All five run in
+//! reaches one; `fabrik` and `ccdik` reach with a chain of any length;
+//! `jiggle` lets a chain lag behind the pose on a spring; and `follow` moves
+//! the node after its target by `offset` and `lag`. All six run in
 //! `Stage::Update` after the animation system, so a clip poses the rig and a
 //! modifier has the last word, every frame, from the transforms as they are
 //! now (composed from locals, never last frame's globals).

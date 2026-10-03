@@ -40,7 +40,6 @@ use std::rc::Rc;
 use balaur_core::Engine;
 use smol_str::SmolStr;
 
-use crate::theme::family;
 use crate::vocabulary::keys as k;
 use crate::vocabulary::states as st;
 use crate::vocabulary::tokens as t;
@@ -131,7 +130,8 @@ pub struct Style {
     pub width: Option<f32>,
     /// The space inside the left and right edges, and inside the top and
     /// bottom ones, in design pixels: either side of a control's caption, and
-    /// round a container's children. Each wins over `padding` on its axis.
+    /// round a container's children. Each wins over `padding` on its axis,
+    /// and a widget's own `padding` wins over both on each side it states.
     pub padding_x: Option<f32>,
     pub padding_y: Option<f32>,
     /// The gap between a container's children, in design pixels: Godot's
@@ -160,6 +160,9 @@ pub struct Style {
     /// A `fold`'s arrow picture, and the frame around its open children.
     pub arrow: Option<String>,
     pub body: Option<Rc<Style>>,
+    /// The band a widget's `border` keeps clear on each side, left, top,
+    /// right and bottom, which its outline is painted in; never a theme's.
+    pub border: Option<[f32; 4]>,
 }
 
 impl Style {
@@ -225,6 +228,7 @@ impl Style {
             checked: self.checked.clone().or_else(|| base.checked.clone()),
             arrow: self.arrow.clone().or_else(|| base.arrow.clone()),
             body: self.body.clone().or_else(|| base.body.clone()),
+            border: self.border.or(base.border),
         }
     }
 
@@ -550,6 +554,7 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
             .get(k::BODY)
             .and_then(toml::Value::as_table)
             .map(|table| Rc::new(style_of(table, tokens, what))),
+        border: None,
     }
 }
 
@@ -782,11 +787,13 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
     // The theme's own answer, shared, unless this widget overrides part of
     // it — which most do not, and a screen of widgets is mostly one of a few
     // styles repeated.
+    let border = widget.layout.border.map(crate::widget::node::Bits::get);
+    let bordered = border.iter().any(|side| *side > 0.0);
     if widget.fill.is_empty()
         && widget.stroke.is_empty()
         && widget.icon_color.is_empty()
         && widget.radius < 0.0
-        && widget.padding_x < 0.0
+        && !bordered
     {
         return settled;
     }
@@ -803,10 +810,56 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
     if widget.radius >= 0.0 {
         style.radius = Some(widget.radius);
     }
-    if widget.padding_x >= 0.0 {
-        style.padding_x = Some(widget.padding_x);
+    if bordered {
+        style.border = Some(border);
     }
     Rc::new(style)
+}
+
+/// A frame's fill and outline over `rect`. The outline is the style's stroke
+/// at `stroke_width`, unless the widget states a `border`: then it fills that
+/// band, side by side, which is the band the layout kept clear.
+pub(crate) fn frame_shape(
+    rect: egui::Rect,
+    radius: egui::CornerRadius,
+    fill: Color32,
+    style: &Style,
+) -> egui::Shape {
+    use egui::epaint::RectShape;
+    let Some(color) = style.stroke else {
+        return RectShape::filled(rect, radius, fill).into();
+    };
+    let [left, top, right, bottom] = match style.border {
+        Some(sides) => sides,
+        None => [style.stroke_px(); 4],
+    };
+    #[allow(clippy::float_cmp, reason = "four sides stated alike, not measured")]
+    if left == top && top == right && right == bottom {
+        return RectShape::new(
+            rect,
+            radius,
+            fill,
+            egui::Stroke::new(left, color),
+            egui::StrokeKind::Inside,
+        )
+        .into();
+    }
+    // Sides of different widths: egui strokes all four alike, so each band is
+    // its own strip, square at the corners.
+    let strips = [
+        egui::Rect::from_min_max(rect.min, egui::pos2(rect.min.x + left, rect.max.y)),
+        egui::Rect::from_min_max(rect.min, egui::pos2(rect.max.x, rect.min.y + top)),
+        egui::Rect::from_min_max(egui::pos2(rect.max.x - right, rect.min.y), rect.max),
+        egui::Rect::from_min_max(egui::pos2(rect.min.x, rect.max.y - bottom), rect.max),
+    ];
+    let mut shapes = vec![RectShape::filled(rect, radius, fill).into()];
+    shapes.extend(
+        strips
+            .into_iter()
+            .filter(egui::Rect::is_positive)
+            .map(|strip| RectShape::filled(strip, 0.0, color).into()),
+    );
+    egui::Shape::Vec(shapes)
 }
 
 /// The near-white a caption takes when neither the widget nor its theme says.
@@ -856,10 +909,54 @@ pub(crate) fn face(theme: &WidgetTheme, style: &Style, widget: &Widget) -> (Colo
     } else {
         style.font_size.unwrap_or_else(|| theme.size(t::FONT_SIZE))
     };
-    (
-        ink,
-        egui::FontId::new(size, family(family_of(style, widget))),
+    let family = crate::theme::weighted(
+        family_of(style, widget),
+        weight_of(style, widget),
+        widget.font_style == w::ITALIC,
+    );
+    (ink, egui::FontId::new(size, family))
+}
+
+/// Whether egui slants a widget's text itself: it asks for italic, and the
+/// project ships no italic face for its family and weight.
+pub(crate) fn slanted(style: &Style, widget: &Widget) -> bool {
+    crate::theme::slanted(
+        family_of(style, widget),
+        weight_of(style, widget),
+        widget.font_style == w::ITALIC,
     )
+}
+
+/// A caption as egui draws it, in `font` and slanted where [`slanted`] says.
+pub(crate) fn rich(
+    text: &str,
+    font: &egui::FontId,
+    color: Color32,
+    slant: bool,
+    look: &crate::widget::text_look::TextLook,
+) -> egui::RichText {
+    let text = egui::RichText::new(text).font(font.clone()).color(color);
+    let text = look.dress(text, font.size);
+    if slant { text.italics() } else { text }
+}
+
+/// One unwrapped line laid out for the painter, slanted where [`slanted`]
+/// says; painted later in the ink the caller picks.
+pub(crate) fn galley(
+    painter: &egui::Painter,
+    text: &str,
+    font: &egui::FontId,
+    slant: bool,
+) -> std::sync::Arc<egui::Galley> {
+    let mut job = egui::text::LayoutJob::simple_singleline(
+        text.to_owned(),
+        font.clone(),
+        Color32::PLACEHOLDER,
+    );
+    for section in &mut job.sections {
+        section.format.italics = slant;
+    }
+    painter.layout_job(job)
 }
 
 /// The weight a widget draws at, the theme answering for one left regular.

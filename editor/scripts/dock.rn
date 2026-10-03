@@ -234,7 +234,7 @@ pub fn hide_rows() {
 
 // The bottom dock's card grid, which Assets, Library and Tiles take turns
 // filling. Six across is the widest the dock ever wants; a view that wants
-// fewer writes its own `columns`.
+// fewer writes its own `grid_columns`.
 pub const CARDS_NODE = "Editor/Shell/Body/Centre/Bottom/BottomCards";
 
 pub fn hide_cards() {
@@ -536,7 +536,7 @@ fn show_cards(S, k, dir, files) {
     }
     S.assets.cards = cards;
     util::fill(CARDS_NODE, #{
-        options: items, visible: true, columns: 6, text: chosen,
+        options: items, visible: true, grid_columns: "repeat(6, 1fr)", text: chosen,
     });
     // `clicked` rather than a changed `text`: a second click on the selected
     // card reports the same string, and that is the one that opens it.

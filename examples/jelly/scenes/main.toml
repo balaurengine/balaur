@@ -76,7 +76,7 @@ position = [-8.0, 1.5, 0.0]
 kind = "grid"
 size = [2.0, 1.5]
 cells = [10.0, 8.0]
-edge_frequency = 12.0
+edge_hz = 12.0
 color = [0.88, 0.42, 0.28, 1.0]
 
 # A hoop of particles around nothing: the area it holds is what keeps it

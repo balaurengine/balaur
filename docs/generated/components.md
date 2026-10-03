@@ -48,7 +48,7 @@ its heading.
 
 ### `body2d`
 
-`2d` · `physics` · 17 properties · 30 methods
+`2d` · `physics` · 23 properties · 38 methods
 
 A 2D rigid body simulated by rapier in the xy plane. `kind` is `dynamic`, `static`, `kinematic` or `kinematic_velocity`; add a `collider2d` for its shape.
 
@@ -59,18 +59,24 @@ A 2D rigid body simulated by rapier in the xy plane. `kind` is `dynamic`, `stati
 <tr><td><code>angular_damping</code></td><td>float</td><td><code>0.0</code></td><td>Drag on spin, in the same terms as linear_damping At least 0.0.</td></tr>
 <tr><td><code>can_sleep</code></td><td>bool</td><td><code>true</code></td><td>Let the body stop being simulated once it has held still</td></tr>
 <tr><td><code>center_of_mass</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Where the extra mass sits, in the node&#x27;s own space; only read when mass is set</td></tr>
-<tr><td><code>continuous_collision</code></td><td>bool</td><td><code>false</code></td><td>Sweep the body&#x27;s whole path each step so a fast one cannot pass through a wall</td></tr>
-<tr><td><code>dominance</code></td><td>int</td><td><code>0</code></td><td>A body in a higher group is unpushable by a lower one; every non-dynamic body outranks them all Range -127–127.</td></tr>
+<tr><td><code>continuous_collision</code></td><td>bool</td><td><code>false</code></td><td>Also sweep moving bodies: a fast dynamic body sweeps static colliders without this, and this adds kinematic and dynamic ones</td></tr>
+<tr><td><code>dominance</code></td><td>int</td><td><code>0</code></td><td>A body in a higher group is unpushable by a lower one; a kinematic body keeps its own group, and only a static body outranks every group Range -128–127.</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Simulate this body at all; a disabled body keeps its state and costs nothing</td></tr>
 <tr><td><code>gravity_scale</code></td><td>float</td><td><code>1.0</code></td><td>Multiplier on world gravity for this body: 0 hangs in the air, negative floats up</td></tr>
-<tr><td><code>inertia</code></td><td>float</td><td><code>0.0</code></td><td>Resistance to spin; 0 lets rapier derive it from the mass At least 0.0.</td></tr>
+<tr><td><code>inertia</code></td><td>float</td><td><code>0.0</code></td><td>Resistance to spin, read when mass is set; 0 derives it from the colliders&#x27; shapes scaled to the mass, about center_of_mass when that is set At least 0.0.</td></tr>
+<tr><td><code>initial_angular_velocity</code></td><td>float</td><td><code>0.0</code></td><td>How fast the body spins when it is made; radians per second in the file, and a later patch does not reapply it</td></tr>
+<tr><td><code>initial_linear_velocity</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>How fast the body travels when it is made, in units per second; a later patch does not reapply it</td></tr>
+<tr><td><code>internal_iterations</code></td><td>int</td><td><code>0</code></td><td>Extra Gauss-Seidel iterations inside each substep for the island this body is in; the island runs the largest any of its bodies asks At least 0.</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>dynamic</code></td><td>How 2D physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set One of <code>dynamic</code>, <code>static</code>, <code>kinematic</code>, <code>kinematic_velocity</code>.</td></tr>
 <tr><td><code>linear_damping</code></td><td>float</td><td><code>0.0</code></td><td>Drag on travel: how fast the body loses speed with nothing touching it At least 0.0.</td></tr>
 <tr><td><code>lock_rotation</code></td><td>bool</td><td><code>false</code></td><td>Stop the body turning; how a 2D character stays upright</td></tr>
 <tr><td><code>lock_translation</code></td><td>flags</td><td><code>[]</code></td><td>Axes the body may not move along One of <code>x</code>, <code>y</code>.</td></tr>
 <tr><td><code>mass</code></td><td>float</td><td><code>0.0</code></td><td>The body&#x27;s total mass; 0 sums what its colliders weigh At least 0.0.</td></tr>
-<tr><td><code>solver_iterations</code></td><td>int</td><td><code>0</code></td><td>Extra solver iterations for this body alone, for the one stack that jitters At least 0.</td></tr>
+<tr><td><code>sleep_angular_threshold</code></td><td>float</td><td><code>0.5</code></td><td>The spin below which a body with no collider counts as still; radians per second in the file At least 0.0.</td></tr>
+<tr><td><code>sleep_threshold</code></td><td>float</td><td><code>0.05</code></td><td>The speed of the body&#x27;s farthest point below which it counts as still, in length units per second scaled by [physics] length_unit At least 0.0.</td></tr>
+<tr><td><code>solver_iterations</code></td><td>int</td><td><code>0</code></td><td>Extra solver substeps for the whole island this body is in, joints and contacts together: everything it touches pays for them At least 0.</td></tr>
 <tr><td><code>speculative_distance</code></td><td>float</td><td><code>0.0</code></td><td>Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies At least 0.0.</td></tr>
+<tr><td><code>start_asleep</code></td><td>bool</td><td><code>false</code></td><td>Make the body asleep, with no velocity, until something wakes it; read once, when the body is made</td></tr>
 <tr><td><code>time_to_sleep</code></td><td>float</td><td><code>0.5</code></td><td>Seconds of stillness before the body sleeps At least 0.0.</td></tr>
 </tbody>
 </table>
@@ -80,9 +86,9 @@ Announced from a node carrying `body2d`:
 <table>
 <thead><tr><th>event</th><th>payload</th></tr></thead>
 <tbody>
-<tr><td><code>collision_enter</code></td><td>the other collider&#x27;s node, for a collider under it</td></tr>
-<tr><td><code>collision_exit</code></td><td>the other collider&#x27;s node, for a collider under it</td></tr>
-<tr><td><code>contact_force</code></td><td><code>#{ other, force, direction }</code>, for a collider under it</td></tr>
+<tr><td><code>collision_enter</code></td><td><code>#{ other, sensor, removed, points, normals }</code> for a collider under it, as that collider hears it</td></tr>
+<tr><td><code>collision_exit</code></td><td><code>#{ other, sensor, removed }</code> for a collider under it, as that collider hears it</td></tr>
+<tr><td><code>contact_force</code></td><td><code>#{ other, force, direction, total_force, max_force, started }</code> for a collider under it, as that collider hears it</td></tr>
 <tr><td><code>sleeping_changed</code></td><td>whether it sleeps now</td></tr>
 </tbody>
 </table>
@@ -104,24 +110,32 @@ On a node carrying `body2d`, as `node.body2d.<method>`:
 <tr><td><code>apply_torque_impulse(f32)</code></td><td>—</td><td>Add an instant change in angular momentum, as if the body were spun.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>constant_force()</code></td><td><code>(f32, f32)</code></td><td>The force every step integrates until it is set back to zero.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>constant_torque()</code></td><td><code>f32</code></td><td>The torque every step integrates until it is set back to zero.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>effective_angular_inertia()</code></td><td><code>f32</code></td><td>The inertia the solver turns: zero with rotation locked, and on any body that is not dynamic.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>effective_dominance()</code></td><td><code>f32</code></td><td>The dominance rapier will use for this body: its own group, or the rank every non-dynamic body outranks with.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>effective_mass()</code></td><td><code>Value</code></td><td>The mass the solver pushes against along each world axis: zero along a locked axis, and on any body that is not dynamic.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>is_ccd_active()</code></td><td><code>bool</code></td><td>Whether the body moved fast enough last step for rapier to sweep it, with or without continuous_collision.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>is_moving()</code></td><td><code>bool</code></td><td>Whether the body is awake and actually going somewhere.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>is_sleeping()</code></td><td><code>bool</code></td><td>Whether the body is asleep and being skipped.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>kinetic_energy()</code></td><td><code>f32</code></td><td>The body&#x27;s kinetic energy, for a rest test the solver agrees with.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>linear_velocity()</code></td><td><code>(f32, f32)</code></td><td>How fast the body is travelling, in units per second.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>local_center_of_mass()</code></td><td><code>Value</code></td><td>Where the body&#x27;s whole mass sits, in the body&#x27;s own space.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>max_contact_impulse()</code></td><td><code>f32</code></td><td>The hardest contact this body took in the last step, zero when nothing touched it.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>next_position()</code></td><td><code>(f32, f32)</code></td><td>The position a kinematic body has been told to move to.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>next_position()</code></td><td><code>Value</code></td><td>The pose a kinematic body has been told to move to, as `#{ position, rotation }`.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>potential_energy()</code></td><td><code>f32</code></td><td>The body&#x27;s gravitational potential energy over one step.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>predict_position(f32)</code></td><td><code>(f32, f32)</code></td><td>Where the body will be after `dt` seconds at its current velocity.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>predict_position(f32)</code></td><td><code>Value</code></td><td>Where the body will be after `dt` seconds at its current velocity, as `#{ position, rotation }`.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>predict_position_with_forces(f32)</code></td><td><code>Value</code></td><td>The same, with the forces already applied taken into account: where a thrust or a spring will have put it.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_angular_velocity(f32)</code></td><td>—</td><td>Set how fast the body spins, in radians per second.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_constant_force(f32, f32)</code></td><td>—</td><td>Replace the constant force with this one; zero stops the push.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_constant_torque(f32)</code></td><td>—</td><td>Replace the constant torque with this one; zero stops the turn.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_linear_velocity(f32, f32)</code></td><td>—</td><td>Set how fast the body travels, in units per second.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>sleep()</code></td><td>—</td><td>Put the body to sleep now.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>teleport(f32, f32)</code></td><td>—</td><td>Move the body to a world position at once, clearing its velocity: what assigning the node&#x27;s position cannot do, because the step writes that back every tick.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>teleport(f32, f32, Option&lt;Value&gt;)</code></td><td>—</td><td>Move the body to a world position at once, clearing its velocity: what assigning the node&#x27;s position cannot do, because the step writes that back every tick. `#{ rotation = angle }` turns it too, in radians.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>time_since_can_sleep()</code></td><td><code>f32</code></td><td>Seconds the body has spent under its sleep thresholds; it sleeps once this reaches time_to_sleep.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>total_inertia()</code></td><td><code>f32</code></td><td>The body&#x27;s resistance to spin, colliders included.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>total_mass()</code></td><td><code>f32</code></td><td>The body&#x27;s total mass: its `mass` when it states one, or what its colliders weigh.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>velocity_at_point(f32, f32)</code></td><td><code>(f32, f32)</code></td><td>How fast a world point on the body is moving, spin included.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>wake_up()</code></td><td>—</td><td>Wake the body, so the next step moves it.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>world_center_of_mass()</code></td><td><code>Value</code></td><td>Where the body&#x27;s whole mass sits, in world space.</td><td><code>physics2d</code></td></tr>
 </tbody>
 </table>
 
@@ -143,45 +157,97 @@ Makes the node a 2D bone. `rest_position` and `rest_rotation` are the pose a rig
 
 ### `boolean2d`
 
-`2d` · `render` · 1 property
+`2d` · `render` · 17 properties
 
-Draws the node as its 2D children combined by `op`: `union`, `difference` or `intersection`. The children stay in the tree, hidden and editable.
+Draws the node as its 2D children combined by `operation`, holes and all. The children stay in the tree, hidden and editable; `fill_rule` and the cleanup keys tune the combination, and `color`, `texture` and `material` dress the result.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>operation</code></td><td>enum</td><td><code>union</code></td><td>How the children are combined, in the order they are declared One of <code>union</code>, <code>difference</code>, <code>intersection</code>.</td></tr>
+<tr><td><code>blend_mode</code></td><td>enum</td><td><code>auto</code></td><td>How the surface lands on what is under it: straight alpha, a colour that already carries its alpha, added light, multiplied shade, screen, or opaque. `auto` is premultiplied for a texture uploaded with `premultiply`, else alpha One of <code>auto</code>, <code>alpha</code>, <code>premultiplied</code>, <code>add</code>, <code>multiply</code>, <code>screen</code>, <code>opaque</code>.</td></tr>
+<tr><td><code>clean_result</code></td><td>bool</td><td><code>true</code></td><td>Clear the result of the near-duplicate points rounding leaves</td></tr>
+<tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Tint of the result, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>cull_back_faces</code></td><td>bool</td><td><code>false</code></td><td>Skip a triangle whose back faces the viewer, as a negative scale turns one</td></tr>
+<tr><td><code>dot_color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>The dots&#x27; colour. Not drawn on a skinned polygon, which a rig poses in Balaur&#x27;s own vertex stage</td></tr>
+<tr><td><code>dot_size</code></td><td>float</td><td><code>0.0</code></td><td>Size of a dot drawn on every vertex; zero draws none. Not drawn on a skinned polygon, which a rig poses in Balaur&#x27;s own vertex stage At least 0.0.</td></tr>
+<tr><td><code>dot_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `dot_size` counts: `world` is world units, which the camera&#x27;s zoom scales, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>draw_surface</code></td><td>bool</td><td><code>true</code></td><td>Whether the surface draws; off leaves the wireframe and the dots alone</td></tr>
+<tr><td><code>fill_rule</code></td><td>enum</td><td><code>even_odd</code></td><td>Which parts of crossing or nested outlines count as inside: an odd number of them, any winding, or only counter-clockwise or clockwise winding One of <code>even_odd</code>, <code>non_zero</code>, <code>positive</code>, <code>negative</code>.</td></tr>
+<tr><td><code>keep_collinear</code></td><td>bool</td><td><code>false</code></td><td>Keep a point that sits on the straight line between its neighbours, in the children and in the result</td></tr>
+<tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material the result draws with; empty takes an inherited `material` component, else the built-in one</td></tr>
+<tr><td><code>min_area</code></td><td>float</td><td><code>0.0</code></td><td>A result outline or hole enclosing less than this area, in square units of the node&#x27;s own space, is dropped At least 0.0.</td></tr>
+<tr><td><code>operation</code></td><td>enum</td><td><code>union</code></td><td>How the children are combined, in the order they are declared One of <code>union</code>, <code>difference</code>, <code>intersection</code>, <code>symmetric_difference</code>, <code>reverse_difference</code>.</td></tr>
+<tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>Image file, project-relative, or a `texture` asset the result is drawn with, centred on the node at 100 texture pixels per unit, as a `polygon`&#x27;s default UVs are; empty draws the colour alone</td></tr>
+<tr><td><code>wireframe_color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>The wireframe&#x27;s colour. Not drawn on a skinned polygon, which a rig poses in Balaur&#x27;s own vertex stage</td></tr>
+<tr><td><code>wireframe_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `wireframe_width` counts: `world` is world units, which the camera&#x27;s zoom scales, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>wireframe_width</code></td><td>float</td><td><code>0.0</code></td><td>Width of a line drawn along every triangle edge, not the outline; zero draws none. Not drawn on a skinned polygon, which a rig poses in Balaur&#x27;s own vertex stage At least 0.0.</td></tr>
 </tbody>
 </table>
 
 ### `camera2d`
 
-`2d` · `render` · 19 properties
+`2d` · `render` · 55 properties
 
-The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it, `ambient_color` lights every 2D surface, the control rows say how a mouse pans and zooms it, and the last `current` camera wins.
+The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it, `ambient_color` lights every 2D surface, and the last `current` camera wins. Only its node moves it.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>aberration_amount</code></td><td>float</td><td><code>0.004</code></td><td>How far `aberration` slides red from blue at the frame&#x27;s edge, as a fraction of it At least 0.0.</td></tr>
-<tr><td><code>ambient_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 1.0]</code></td><td>Light every 2D surface gets before any `light2d`</td></tr>
+<tr><td><code>ambient_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 1.0]</code></td><td>Light every 2D surface gets before any `light2d`; its alpha is ignored</td></tr>
 <tr><td><code>bloom_intensity</code></td><td>float</td><td><code>0.6</code></td><td>How much of the bloom is added back over the frame At least 0.0.</td></tr>
+<tr><td><code>bloom_knee</code></td><td>float</td><td><code>0.5</code></td><td>Width of the soft band around `bloom_threshold` a pixel starts to bloom in; 0 is a hard cut At least 0.0.</td></tr>
+<tr><td><code>bloom_mips</code></td><td>int</td><td><code>5</code></td><td>Levels in the bloom chain, each half the size of the last; more spreads the glow wider Range 1–12.</td></tr>
 <tr><td><code>bloom_threshold</code></td><td>float</td><td><code>1.0</code></td><td>Brightness a pixel has to pass to bloom At least 0.0.</td></tr>
+<tr><td><code>crt_aberration</code></td><td>float</td><td><code>0.004</code></td><td>How far `crt` splits the colours at the frame&#x27;s edge, as a fraction of it At least 0.0.</td></tr>
+<tr><td><code>crt_curvature</code></td><td>float</td><td><code>0.12</code></td><td>How far the `crt` pass bends the frame like a tube&#x27;s glass; 0 is flat At least 0.0.</td></tr>
+<tr><td><code>crt_scanline_count</code></td><td>float</td><td><code>480.0</code></td><td>How many scanlines `crt` draws down the frame At least 1.0.</td></tr>
+<tr><td><code>crt_scanline_intensity</code></td><td>float</td><td><code>0.25</code></td><td>How dark the `crt` pass draws its scanlines; 0 draws none Range 0.0–1.0.</td></tr>
+<tr><td><code>crt_vignette</code></td><td>float</td><td><code>0.35</code></td><td>How dark `crt` draws the corners Range 0.0–1.0.</td></tr>
 <tr><td><code>current</code></td><td>bool</td><td><code>true</code></td><td>Whether this camera drives the view; the last current one wins</td></tr>
+<tr><td><code>dof_aperture_f_stops</code></td><td>float</td><td><code>0.125</code></td><td>The lens aperture in f-stops; smaller blurs more At least 0.001.</td></tr>
+<tr><td><code>dof_focus_distance</code></td><td>float</td><td><code>10.0</code></td><td>Distance from the camera to the plane that stays sharp, in world units At least 0.0.</td></tr>
+<tr><td><code>dof_max_blur_pixels</code></td><td>float</td><td><code>64.0</code></td><td>The widest a blur circle grows, in pixels At least 0.0.</td></tr>
+<tr><td><code>dof_max_depth</code></td><td>float</td><td><code>1000000.0</code></td><td>Anything farther is blurred as if it were at this distance, in world units At least 0.0.</td></tr>
+<tr><td><code>dof_mode</code></td><td>enum</td><td><code>bokeh</code></td><td>How the `dof` pass blurs: a uniform disc with sharp highlights, or a soft gaussian falloff One of <code>bokeh</code>, <code>gaussian</code>.</td></tr>
+<tr><td><code>dof_sensor_height</code></td><td>float</td><td><code>0.01866</code></td><td>Sensor height in world units; with the field of view it fixes the focal length At least 1e-06.</td></tr>
+<tr><td><code>dof_taps</code></td><td>int</td><td><code>48</code></td><td>Samples the blur gathers per pixel; more is smoother and costs more At least 1.</td></tr>
+<tr><td><code>edges_threshold</code></td><td>float</td><td><code>4.0</code></td><td>How sharp a change in depth the `edges` pass outlines; lower outlines more At least 0.0.</td></tr>
+<tr><td><code>fxaa_edge_threshold</code></td><td>float</td><td><code>0.125</code></td><td>The `fxaa` pass smooths an edge whose contrast passes this fraction of the brightest pixel near it At least 0.0.</td></tr>
+<tr><td><code>fxaa_edge_threshold_min</code></td><td>float</td><td><code>0.0312</code></td><td>Contrast below this is left alone by `fxaa`, so dark noise is not smoothed At least 0.0.</td></tr>
+<tr><td><code>gi_cascade_count</code></td><td>int</td><td><code>5</code></td><td>Levels of radiance cascades; more reach farther light Range 1–8.</td></tr>
+<tr><td><code>gi_cascade_directions</code></td><td>int</td><td><code>16</code></td><td>Directions the first cascade gathers from, rounded to a square of a power of two; more sharpens shadow edges At least 4.</td></tr>
+<tr><td><code>gi_downscale</code></td><td>int</td><td><code>2</code></td><td>How many times smaller than the frame the `gi` light field is; larger is faster and softer At least 1.</td></tr>
+<tr><td><code>gi_max_distance</code></td><td>float</td><td><code>2000.0</code></td><td>The farthest a `gi` ray marches, in world units At least 0.0.</td></tr>
+<tr><td><code>gi_max_steps</code></td><td>int</td><td><code>32</code></td><td>Steps a `gi` ray takes before it gives up At least 1.</td></tr>
+<tr><td><code>gi_probe_spacing</code></td><td>int</td><td><code>2</code></td><td>Field pixels between the first cascade&#x27;s probes, rounded up to a power of two; finer resolves sharper light Range 1–16.</td></tr>
+<tr><td><code>gi_rays</code></td><td>int</td><td><code>8</code></td><td>Rays the `gi` pass casts per pixel each frame; the temporal blend adds up the frames At least 1.</td></tr>
+<tr><td><code>gi_screen_occluders</code></td><td>bool</td><td><code>false</code></td><td>Bake the occluders into a distance field each frame, so their count costs nothing; an occluder off screen then casts no shadow</td></tr>
+<tr><td><code>gi_solver</code></td><td>enum</td><td><code>ray_march</code></td><td>A ray march per pixel, or radiance cascades: probe grids that gather farther light for less One of <code>ray_march</code>, <code>cascades</code>.</td></tr>
+<tr><td><code>gi_temporal_blend</code></td><td>float</td><td><code>0.85</code></td><td>How much of last frame&#x27;s `gi` light is kept; higher is smoother and trails behind motion. The cascade solver ignores it Range 0.0–0.99.</td></tr>
 <tr><td><code>grain_amount</code></td><td>float</td><td><code>0.06</code></td><td>How much the `grain` pass lightens and darkens a pixel At least 0.0.</td></tr>
-<tr><td><code>pan_button</code></td><td>enum</td><td><code>right</code></td><td>The mouse button a drag slides the view with; none turns panning off One of <code>none</code>, <code>left</code>, <code>right</code>, <code>middle</code>, <code>button4</code>, <code>button5</code>, <code>button6</code>, <code>button7</code>, <code>button8</code>.</td></tr>
-<tr><td><code>pan_modifiers</code></td><td>list of enum</td><td><code>[]</code></td><td>Keys held with the pan button; empty answers whatever is held</td></tr>
+<tr><td><code>hidpi</code></td><td>bool</td><td><code>true</code></td><td>Count `pixels_per_unit` in logical pixels, multiplied by the display&#x27;s scale; off counts physical pixels, for pixel art that should land on the screen&#x27;s own grid</td></tr>
+<tr><td><code>loupe_border_color</code></td><td>color</td><td><code>[1.0, 0.9, 0.2, 1.0]</code></td><td>The colour of the `loupe`&#x27;s frame and of the outline round what it magnifies; alpha is ignored</td></tr>
+<tr><td><code>loupe_corner</code></td><td>enum</td><td><code>bottom_right</code></td><td>The corner the `loupe` draws its inset in One of <code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>.</td></tr>
+<tr><td><code>loupe_focus</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td>The point the `loupe` magnifies, [0, 0] at the frame&#x27;s top-left and [1, 1] at its bottom-right</td></tr>
+<tr><td><code>loupe_size</code></td><td>float</td><td><code>0.4</code></td><td>The inset&#x27;s side, as a fraction of the frame&#x27;s shorter side Range 0.01–1.0.</td></tr>
+<tr><td><code>loupe_zoom</code></td><td>float</td><td><code>8.0</code></td><td>How many times the `loupe` pass magnifies At least 1.0.</td></tr>
 <tr><td><code>pixelate_size</code></td><td>float</td><td><code>4.0</code></td><td>The side of one block the `pixelate` pass reads the frame back in, in pixels At least 1.0.</td></tr>
 <tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>60.0</code></td><td>Zoom in logical pixels per world unit At least 0.01.</td></tr>
-<tr><td><code>post</code></td><td>list of string</td><td><code>[]</code></td><td>The frame&#x27;s passes, in order. bloom, ssao, ssr, dof, fxaa, sharpen, tonemap, vignette, aberration, grain, pixelate name the engine&#x27;s own -- `ssao`, `ssr` and `dof` are 3D only, and where each physically runs is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame, and those run in the order given. `tonemap` is where the film becomes a picture: a material before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head</td></tr>
+<tr><td><code>post</code></td><td>list of string</td><td><code>[]</code></td><td>The frame&#x27;s passes, in order. bloom, ssao, ssr, dof, fxaa, sharpen, tonemap, vignette, aberration, grain, pixelate, crt, grayscale, waves, loupe, stereo, edges, gi name the engine&#x27;s own -- `ssao`, `ssr` and `dof` are 3D only, `gi` is 2D only and lights the frame in place of the `light2d` light map, and where those and `bloom` run is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame. The rest run in the order given. `tonemap` is where the film becomes a picture: a pass before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head</td></tr>
+<tr><td><code>sharpen_amount</code></td><td>float</td><td><code>0.5</code></td><td>How hard the `sharpen` pass sharpens Range 0.0–1.0.</td></tr>
 <tr><td><code>ssao_bias</code></td><td>float</td><td><code>0.025</code></td><td>How far in front of a surface a sample must be to occlude it. Too small and a glancing surface occludes itself into black At least 0.0.</td></tr>
 <tr><td><code>ssao_intensity</code></td><td>float</td><td><code>1.2</code></td><td>How strongly the `ssao` pass darkens At least 0.0.</td></tr>
 <tr><td><code>ssao_power</code></td><td>float</td><td><code>1.5</code></td><td>The contrast the occlusion is raised to At least 0.001.</td></tr>
 <tr><td><code>ssao_radius</code></td><td>float</td><td><code>0.5</code></td><td>How far the `ssao` pass looks for something occluding a point, in world units. Scale it with the scene At least 0.001.</td></tr>
+<tr><td><code>ssr_edge_fade</code></td><td>float</td><td><code>0.12</code></td><td>Width of the band at the frame&#x27;s edge reflections fade over, as a fraction of the frame At least 0.0.</td></tr>
+<tr><td><code>ssr_intensity</code></td><td>float</td><td><code>1.0</code></td><td>Multiplier on every screen-space reflection At least 0.0.</td></tr>
+<tr><td><code>ssr_max_distance</code></td><td>float</td><td><code>60.0</code></td><td>The longest a reflection ray travels, in view-space units At least 0.0.</td></tr>
+<tr><td><code>ssr_max_steps</code></td><td>int</td><td><code>48</code></td><td>Steps the `ssr` pass marches a reflection ray before it gives up At least 1.</td></tr>
+<tr><td><code>ssr_roughness_cutoff</code></td><td>float</td><td><code>0.6</code></td><td>Surfaces rougher than this reflect nothing on screen, and fade out approaching it Range 0.0–1.0.</td></tr>
+<tr><td><code>ssr_thickness</code></td><td>float</td><td><code>0.5</code></td><td>How far behind a surface, in view-space units, the ray still counts as hitting it At least 0.0.</td></tr>
 <tr><td><code>vignette_amount</code></td><td>float</td><td><code>0.35</code></td><td>How dark the corners go under the `vignette` pass Range 0.0–1.0.</td></tr>
 <tr><td><code>vignette_roundness</code></td><td>float</td><td><code>1.0</code></td><td>1 darkens in a circle whatever shape the frame is; 0 follows the frame Range 0.0–1.0.</td></tr>
-<tr><td><code>zoom_modifiers</code></td><td>list of enum</td><td><code>[]</code></td><td>Keys held for a scroll to zoom; empty answers whatever is held</td></tr>
-<tr><td><code>zoom_step</code></td><td>float</td><td><code>0.9</code></td><td>What one scroll step multiplies the zoom by At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -196,23 +262,29 @@ Announced from a node carrying `camera2d`:
 
 ### `character2d`
 
-`2d` · `physics` · 12 properties · 2 methods
+`2d` · `physics` · 18 properties · 2 methods
 
 A 2D character controller: `physics2d.move_character` slides the node along walls and steps it up ledges. Needs a `collider2d`; a `kinematic` `body2d` lets it push bodies.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>floor_max_angle</code></td><td>float</td><td><code>0.7853982</code></td><td>The steepest slope the character may walk up, in radians Range 0.0–1.5707964.</td></tr>
+<tr><td><code>floor_max_angle</code></td><td>float</td><td><code>0.7853982</code></td><td>The steepest slope the character may walk up; radians in the file, degrees in the inspector Range 0.0–90.0.</td></tr>
 <tr><td><code>floor_snap_length</code></td><td>float</td><td><code>0.2</code></td><td>How far below its feet the character looks for ground to stay stuck to over a crest; 0 turns snapping off At least 0.0.</td></tr>
-<tr><td><code>lengths</code></td><td>enum</td><td><code>absolute</code></td><td>Whether offset, autostep and snap_to_ground are in world units or as a fraction of the character&#x27;s own height One of <code>absolute</code>, <code>relative</code>.</td></tr>
-<tr><td><code>min_slide_angle</code></td><td>float</td><td><code>0.5235988</code></td><td>The shallowest slope the character slides back down, in radians Range 0.0–1.5707964.</td></tr>
+<tr><td><code>floor_snap_lengths</code></td><td>enum</td><td><code>absolute</code></td><td>Whether floor_snap_length is in world units or a fraction of the character&#x27;s shape: relative is measured against the height along up_direction One of <code>absolute</code>, <code>relative</code>.</td></tr>
+<tr><td><code>ignore</code></td><td>flags</td><td><code>[&quot;sensors&quot;]</code></td><td>What a move passes through: static takes colliders with no body too. The character&#x27;s own collision_layer and collision_mask filter the rest One of <code>static</code>, <code>kinematic</code>, <code>dynamic</code>, <code>sensors</code>, <code>solids</code>.</td></tr>
+<tr><td><code>ignore_nodes</code></td><td>list of node</td><td><code>[]</code></td><td>Nodes a move passes through: their colliders, and every collider on their body</td></tr>
+<tr><td><code>min_slide_angle</code></td><td>float</td><td><code>0.5235988</code></td><td>The shallowest slope the character slides back down; radians in the file, degrees in the inspector Range 0.0–90.0.</td></tr>
 <tr><td><code>normal_nudge</code></td><td>float</td><td><code>0.0001</code></td><td>A tiny push along the contact normal that stops the character catching on seams At least 0.0.</td></tr>
 <tr><td><code>push_bodies</code></td><td>bool</td><td><code>true</code></td><td>Push dynamic bodies the character walks into, rather than passing through them</td></tr>
+<tr><td><code>push_mass</code></td><td>float</td><td><code>0.0</code></td><td>The mass a push is worked out with; 0 takes the body&#x27;s mass, or the colliders&#x27; when there is no body At least 0.0.</td></tr>
 <tr><td><code>safe_margin</code></td><td>float</td><td><code>0.01</code></td><td>A gap kept between the character and everything else, so the solver never has to push it out of a wall At least 0.0.</td></tr>
+<tr><td><code>safe_margin_lengths</code></td><td>enum</td><td><code>absolute</code></td><td>Whether safe_margin is in world units or a fraction of the character&#x27;s shape: relative is measured against the height along up_direction One of <code>absolute</code>, <code>relative</code>.</td></tr>
 <tr><td><code>slide</code></td><td>bool</td><td><code>true</code></td><td>Slide along what is in the way instead of stopping dead against it</td></tr>
 <tr><td><code>step_height</code></td><td>float</td><td><code>0.3</code></td><td>The tallest step the character climbs without jumping; 0 turns stepping off At least 0.0.</td></tr>
+<tr><td><code>step_height_lengths</code></td><td>enum</td><td><code>absolute</code></td><td>Whether step_height is in world units or a fraction of the character&#x27;s shape: relative is measured against the height along up_direction One of <code>absolute</code>, <code>relative</code>.</td></tr>
 <tr><td><code>step_min_width</code></td><td>float</td><td><code>0.2</code></td><td>How much clear ground a step needs on top before it may be climbed At least 0.0.</td></tr>
+<tr><td><code>step_min_width_lengths</code></td><td>enum</td><td><code>absolute</code></td><td>Whether step_min_width is in world units or a fraction of the character&#x27;s shape: relative is measured against the width across up_direction One of <code>absolute</code>, <code>relative</code>.</td></tr>
 <tr><td><code>step_on_dynamic</code></td><td>bool</td><td><code>false</code></td><td>Climb onto dynamic bodies too, not only static and kinematic ones</td></tr>
 <tr><td><code>up_direction</code></td><td>vec2</td><td><code>[0.0, 1.0]</code></td><td>Which way is up for this character: the axis it stands along and measures slopes against</td></tr>
 </tbody>
@@ -224,60 +296,85 @@ On a node carrying `character2d`, as `node.character2d.<method>`:
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
 <tr><td><code>is_on_floor()</code></td><td><code>bool</code></td><td>Whether the last move ended with ground under the character&#x27;s feet.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>move_character(f32, f32)</code></td><td><code>Value</code></td><td>Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, on_floor, sliding, collisions }`. Call it from fixed_update.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>move_character(f32, f32)</code></td><td><code>Value</code></td><td>Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, on_floor, sliding, collisions }`, each collision carrying the same fields as in 3D. Every solid collider of the character is swept. Call it from fixed_update.</td><td><code>physics2d</code></td></tr>
 </tbody>
 </table>
 
 ### `collider2d`
 
-`2d` · `physics` · 41 properties · 5 methods
+`2d` · `physics` · 66 properties · 22 methods
 
 The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2d` or the nearest body above it; without one it is static geometry.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>a</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>First corner, when kind is triangle or segment</td></tr>
-<tr><td><code>b</code></td><td>vec2</td><td><code>[1.0, 0.0]</code></td><td>Second corner, when kind is triangle or segment</td></tr>
+<tr><td><code>a</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>First corner, when kind is triangle or segment, and a capsule&#x27;s first end when its height is 0</td></tr>
+<tr><td><code>approximate_hulls</code></td><td>bool</td><td><code>true</code></td><td>Estimate each piece&#x27;s hull while cutting rather than building it exactly</td></tr>
+<tr><td><code>b</code></td><td>vec2</td><td><code>[1.0, 0.0]</code></td><td>Second corner, when kind is triangle or segment, and a capsule&#x27;s other end when its height is 0</td></tr>
 <tr><td><code>c</code></td><td>vec2</td><td><code>[0.0, 1.0]</code></td><td>Third corner, when kind is triangle</td></tr>
+<tr><td><code>center_of_mass</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Where this collider&#x27;s mass sits, in its own space; read with inertia, and both 0 keep the shape&#x27;s own</td></tr>
 <tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers this collider is on One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_margin</code></td><td>float</td><td><code>0.0</code></td><td>A margin the solver treats as already touching; stops thin shapes tunnelling and jittering At least 0.0.</td></tr>
 <tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
+<tr><td><code>collision_test</code></td><td>enum</td><td><code>both</code></td><td>Whether a pair is tested when both colliders&#x27; layers accept the other, or when either does; two colliders that differ use both One of <code>both</code>, <code>either</code>.</td></tr>
+<tr><td><code>connected_components</code></td><td>bool</td><td><code>false</code></td><td>Work out which triangles form each separate piece of the mesh</td></tr>
 <tr><td><code>contact_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>How hard a contact must be before on_contact_force is called At least 0.0.</td></tr>
 <tr><td><code>contact_pairs</code></td><td>flags</td><td><code>[&quot;dynamic_dynamic&quot;, &quot;dynamic_kinematic&quot;, &quot;dynamic_static&quot;]</code></td><td>Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default One of <code>dynamic_dynamic</code>, <code>dynamic_kinematic</code>, <code>dynamic_static</code>, <code>kinematic_kinematic</code>, <code>kinematic_static</code>, <code>static_static</code>.</td></tr>
-<tr><td><code>density</code></td><td>float</td><td><code>1.0</code></td><td>Mass per volume, so the shape&#x27;s size sets its mass At least 0.001.</td></tr>
-<tr><td><code>edge_radius</code></td><td>float</td><td><code>0.0</code></td><td>Rounds a rect or triangle by this radius, so it slides over seams instead of catching on them At least 0.0.</td></tr>
+<tr><td><code>density</code></td><td>float</td><td><code>1.0</code></td><td>Mass per volume, so the shape&#x27;s size sets its mass; 0 makes a collider that adds no mass to its body At least 0.0.</td></tr>
+<tr><td><code>drop_bad_topology</code></td><td>bool</td><td><code>false</code></td><td>Drop the triangles that stop the mesh&#x27;s edge topology from being built</td></tr>
+<tr><td><code>drop_degenerate_triangles</code></td><td>bool</td><td><code>false</code></td><td>Drop triangles that name one vertex twice; merges vertices too</td></tr>
+<tr><td><code>drop_duplicate_triangles</code></td><td>bool</td><td><code>false</code></td><td>Drop a triangle whose three vertices another one already names; merges vertices too</td></tr>
+<tr><td><code>edge_radius</code></td><td>float</td><td><code>0.0</code></td><td>Rounds a rectangle, triangle, convex_hull, convex_polygon or a convex_decomposition&#x27;s pieces by this radius, so it slides over seams instead of catching on them At least 0.0.</td></tr>
+<tr><td><code>edges</code></td><td>enum</td><td><code>chain</code></td><td>Which edges a polyline takes from its mesh: the points in order, the outline of its triangles, or every edge of them One of <code>chain</code>, <code>outline</code>, <code>mesh</code>.</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Collide at all; a disabled collider keeps its shape and costs nothing</td></tr>
 <tr><td><code>events</code></td><td>flags</td><td><code>[]</code></td><td>What this collider reports to its node&#x27;s script: on_collision_enter and on_collision_exit, or on_contact_force One of <code>collision</code>, <code>contact_force</code>.</td></tr>
+<tr><td><code>fill</code></td><td>enum</td><td><code>solid</code></td><td>Whether voxelizing an outline fills its inside or only its edge, for voxelized_mesh and a vhacd or voxels decomposition One of <code>solid</code>, <code>surface</code>.</td></tr>
+<tr><td><code>fill_cavities</code></td><td>bool</td><td><code>false</code></td><td>When a solid fill floods an outline, leave the holes it walls off empty</td></tr>
+<tr><td><code>fit</code></td><td>enum</td><td><code>convex_hull</code></td><td>The shape fitted to the mesh, when kind is fit; a fitted box keeps the pose it was fitted at One of <code>convex_hull</code>, <code>aabb</code>, <code>obb</code>.</td></tr>
 <tr><td><code>fix_internal_edges</code></td><td>bool</td><td><code>true</code></td><td>Take neighbouring triangles into account for a triangle_mesh&#x27;s contacts, so a body does not catch on the seam between two of them</td></tr>
+<tr><td><code>fix_self_intersections</code></td><td>bool</td><td><code>false</code></td><td>When a solid fill floods an outline, handle the places it crosses itself</td></tr>
 <tr><td><code>friction</code></td><td>float</td><td><code>0.5</code></td><td>Surface friction; 0 is ice At least 0.0.</td></tr>
 <tr><td><code>friction_combine</code></td><td>enum</td><td><code>average</code></td><td>How this surface&#x27;s friction combines with the other one&#x27;s One of <code>average</code>, <code>min</code>, <code>multiply</code>, <code>max</code>, <code>clamped_sum</code>, <code>geometric_mean</code>.</td></tr>
-<tr><td><code>height</code></td><td>float</td><td><code>2.0</code></td><td>Length along y, tip to tip, when kind is capsule At least 0.01.</td></tr>
-<tr><td><code>heightfield</code></td><td>asset · <code>heightfield</code></td><td>—</td><td>A row of heights, when kind is heightfield: a side-scroller&#x27;s ground</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>rectangle</code></td><td>Collision shape One of <code>circle</code>, <code>rectangle</code>, <code>capsule</code>, <code>triangle</code>, <code>segment</code>, <code>world_boundary</code>, <code>triangle_mesh</code>, <code>convex_hull</code>, <code>convex_decomposition</code>, <code>polyline</code>, <code>heightfield</code>, <code>voxels</code>.</td></tr>
+<tr><td><code>height</code></td><td>float</td><td><code>2.0</code></td><td>Length tip to tip, when kind is capsule; height 0 runs the capsule from a to b instead At least 0.0.</td></tr>
+<tr><td><code>heightfield</code></td><td>asset · <code>heightfield</code></td><td>—</td><td>A row of heights, when kind is heightfield: a side-scroller&#x27;s ground, with the asset&#x27;s holes cut out</td></tr>
+<tr><td><code>hull_downsampling</code></td><td>int</td><td><code>4</code></td><td>How coarsely a piece&#x27;s hull is sampled while choosing a cut; 1 uses every point At least 1.</td></tr>
+<tr><td><code>inertia</code></td><td>float</td><td><code>0.0</code></td><td>This collider&#x27;s resistance to spin; 0 with a center_of_mass takes the shape&#x27;s own about that centre At least 0.0.</td></tr>
+<tr><td><code>keep_collinear</code></td><td>bool</td><td><code>false</code></td><td>Keep the points that lie on a straight edge of a convex_polygon instead of dropping them</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>rectangle</code></td><td>Collision shape One of <code>circle</code>, <code>rectangle</code>, <code>capsule</code>, <code>triangle</code>, <code>segment</code>, <code>world_boundary</code>, <code>triangle_mesh</code>, <code>convex_hull</code>, <code>convex_decomposition</code>, <code>polyline</code>, <code>heightfield</code>, <code>voxels</code>, <code>voxelized_mesh</code>, <code>fit</code>, <code>convex_polygon</code>, <code>voxelized_points</code>.</td></tr>
 <tr><td><code>mass</code></td><td>float</td><td><code>0.0</code></td><td>Mass in kilograms, overriding what density works out to; 0 keeps the density At least 0.0.</td></tr>
-<tr><td><code>max_concavity</code></td><td>float</td><td><code>0.01</code></td><td>How deep a dent a vhacd piece may keep before it is cut again At least 0.0.</td></tr>
-<tr><td><code>max_convex_hulls</code></td><td>int</td><td><code>1024</code></td><td>The most pieces a vhacd cut may leave At least 1.</td></tr>
-<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Points and triangles for a triangle_mesh, convex_hull, convex_decomposition or polyline collider: the same asset a polygon draws</td></tr>
-<tr><td><code>method</code></td><td>enum</td><td><code>exact</code></td><td>How a convex_decomposition is cut: exact, over the mesh&#x27;s own triangles, or vhacd, which voxelises the outline One of <code>exact</code>, <code>vhacd</code>.</td></tr>
+<tr><td><code>max_concavity</code></td><td>float</td><td><code>0.1</code></td><td>How deep a dent a piece may keep before it is cut again At least 0.0.</td></tr>
+<tr><td><code>max_convex_hulls</code></td><td>int</td><td><code>1024</code></td><td>The most pieces a decomposition is asked to leave; parry 0.31 passes it on unread, so it limits nothing yet At least 1.</td></tr>
+<tr><td><code>merge_vertices</code></td><td>bool</td><td><code>false</code></td><td>Merge vertices at exactly the same place when building a triangle_mesh</td></tr>
+<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Points and triangles for a triangle_mesh, convex_hull, convex_polygon, convex_decomposition, polyline, fit, voxelized_mesh or voxelized_points collider: the same asset a polygon draws</td></tr>
+<tr><td><code>method</code></td><td>enum</td><td><code>exact</code></td><td>How a convex_decomposition is cut: exact, over the mesh&#x27;s own triangles; vhacd, into hulls over a voxelised outline; or voxels, into voxel parts One of <code>exact</code>, <code>vhacd</code>, <code>voxels</code>.</td></tr>
 <tr><td><code>normal</code></td><td>vec2</td><td><code>[0.0, 1.0]</code></td><td>Which way the infinite line faces, when kind is world_boundary</td></tr>
 <tr><td><code>offset</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Where the shape sits relative to the node</td></tr>
-<tr><td><code>offset_rotation</code></td><td>float</td><td><code>0.0</code></td><td>How the shape is turned relative to the node, in radians</td></tr>
-<tr><td><code>one_way</code></td><td>bool</td><td><code>false</code></td><td>A platform bodies pass through from below and land on from above</td></tr>
-<tr><td><code>one_way_axis</code></td><td>vec2</td><td><code>[0.0, 1.0]</code></td><td>The direction a one-way platform lets bodies through from</td></tr>
+<tr><td><code>offset_rotation</code></td><td>float</td><td><code>0.0</code></td><td>How the shape is turned relative to the node; radians in the file</td></tr>
+<tr><td><code>one_way</code></td><td>bool</td><td><code>false</code></td><td>A platform bodies land on from the side one_way_axis names and pass through from the other</td></tr>
+<tr><td><code>one_way_angle</code></td><td>float</td><td><code>0.1</code></td><td>How far a contact&#x27;s normal may lean from one_way_axis and still hold the body; radians in the file Range 0.0–180.0.</td></tr>
+<tr><td><code>one_way_axis</code></td><td>vec2</td><td><code>[0.0, 1.0]</code></td><td>The side a one-way platform holds bodies on, in the collider&#x27;s own axes: [0, 1] lands them from above and lets them up through from below</td></tr>
 <tr><td><code>oriented</code></td><td>bool</td><td><code>false</code></td><td>Treat a triangle_mesh or polyline as one-sided: the winding decides which side is solid, counter-clockwise enclosing the solid</td></tr>
-<tr><td><code>overlap</code></td><td>float</td><td><code>0.9</code></td><td>How far a convex_decomposition piece grows through each seam it shares, so nothing wedges into one: 0 leaves the plain pieces, 1 grows flush with the face that stops it Range 0.0–1.0.</td></tr>
+<tr><td><code>overlap</code></td><td>float</td><td><code>0.9</code></td><td>How far an exact convex_decomposition piece grows through each seam it shares, so nothing wedges into one: 0 leaves the plain pieces, 1 grows flush with the face that stops it Range 0.0–1.0.</td></tr>
+<tr><td><code>plane_downsampling</code></td><td>int</td><td><code>4</code></td><td>How coarsely the cutting planes are searched first; 1 tries every one At least 1.</td></tr>
 <tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Circle radius, when kind is circle or capsule At least 0.01.</td></tr>
-<tr><td><code>resolution</code></td><td>int</td><td><code>64</code></td><td>How fine the voxel grid is, when method is vhacd At least 1.</td></tr>
-<tr><td><code>restitution</code></td><td>float</td><td><code>0.0</code></td><td>Bounciness: 0 is a dead stop, 1 a full rebound Range 0.0–1.0.</td></tr>
+<tr><td><code>resolution</code></td><td>int</td><td><code>256</code></td><td>How fine the voxel grid a decomposition cuts is At least 1.</td></tr>
+<tr><td><code>restitution</code></td><td>float</td><td><code>0.0</code></td><td>Bounciness: 0 is a dead stop, 1 a full rebound, and above 1 each bounce gains energy At least 0.0.</td></tr>
 <tr><td><code>restitution_combine</code></td><td>enum</td><td><code>average</code></td><td>How this surface&#x27;s bounciness combines with the other one&#x27;s One of <code>average</code>, <code>min</code>, <code>multiply</code>, <code>max</code>, <code>clamped_sum</code>, <code>geometric_mean</code>.</td></tr>
+<tr><td><code>revolution_bias</code></td><td>float</td><td><code>0.05</code></td><td>How much a cut prefers an axis of revolution Range 0.0–1.0.</td></tr>
 <tr><td><code>scale</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>Width and height scale of a heightfield</td></tr>
 <tr><td><code>sensor</code></td><td>bool</td><td><code>false</code></td><td>Detects overlaps without colliding: bodies pass through and are reported</td></tr>
 <tr><td><code>size</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>Whole size along each axis, when kind is rectangle</td></tr>
 <tr><td><code>solver_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>Layers for the solver alone: a pair can be detected but not resolved One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>solver_mask</code></td><td>flags</td><td><code>[]</code></td><td>Which solver layers this one pushes against; empty means all of them One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
+<tr><td><code>solver_test</code></td><td>enum</td><td><code>both</code></td><td>The same choice for the solver layers One of <code>both</code>, <code>either</code>.</td></tr>
+<tr><td><code>surface_velocity</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>How fast the surface slides along itself, in the collider&#x27;s own axes: a conveyor belt carries what rests on it</td></tr>
+<tr><td><code>symmetry_bias</code></td><td>float</td><td><code>0.05</code></td><td>How much a cut prefers a plane of symmetry Range 0.0–1.0.</td></tr>
+<tr><td><code>topology</code></td><td>bool</td><td><code>false</code></td><td>Build the mesh&#x27;s half-edge topology</td></tr>
+<tr><td><code>two_sided_edges</code></td><td>bool</td><td><code>false</code></td><td>fix_internal_edges for a mesh hit from both sides: a contact from behind a triangle is kept and smoothed, not dropped</td></tr>
+<tr><td><code>up_axis</code></td><td>enum</td><td><code>y</code></td><td>The axis a capsule lies along One of <code>x</code>, <code>y</code>.</td></tr>
+<tr><td><code>voxel_size</code></td><td>float</td><td><code>0.0</code></td><td>How big one cell is: 0 keeps a voxels asset&#x27;s own cell size, and is 0.25 for voxelized_mesh and voxelized_points At least 0.0.</td></tr>
 <tr><td><code>voxels</code></td><td>asset · <code>voxels</code></td><td>—</td><td>Filled cells, when kind is voxels; a script may dig into them while the game runs</td></tr>
-<tr><td><code>weld_vertices</code></td><td>bool</td><td><code>false</code></td><td>Merge duplicate vertices and drop degenerate triangles when building a triangle_mesh</td></tr>
 </tbody>
 </table>
 
@@ -286,9 +383,9 @@ Announced from a node carrying `collider2d`:
 <table>
 <thead><tr><th>event</th><th>payload</th></tr></thead>
 <tbody>
-<tr><td><code>collision_enter</code></td><td>the other collider&#x27;s node</td></tr>
-<tr><td><code>collision_exit</code></td><td>the other collider&#x27;s node</td></tr>
-<tr><td><code>contact_force</code></td><td><code>#{ other, force, direction }</code></td></tr>
+<tr><td><code>collision_enter</code></td><td><code>#{ other, sensor, removed, points, normals }</code>: the other collider&#x27;s node, whether either is a sensor, and each contact point on this collider with its normal pointing away from it, in world space; a sensor&#x27;s has no points</td></tr>
+<tr><td><code>collision_exit</code></td><td><code>#{ other, sensor, removed }</code>: the other collider&#x27;s node, whether either is a sensor, and whether the touch ended because a collider went away</td></tr>
+<tr><td><code>contact_force</code></td><td><code>#{ other, force, direction, total_force, max_force, started }</code>; <code>direction</code> and <code>total_force</code> point from this collider towards the other</td></tr>
 </tbody>
 </table>
 
@@ -297,43 +394,101 @@ On a node carrying `collider2d`, as `node.collider2d.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
+<tr><td><code>aabb()</code></td><td><code>(f32, f32, f32, f32)</code></td><td>The world-space box the collider currently occupies, as its two opposite corners.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>broad_phase_aabb()</code></td><td><code>(f32, f32, f32, f32)</code></td><td>The box the broad phase files the collider under, which also reaches ahead by its body&#x27;s speculative_distance.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>collider_mass()</code></td><td><code>f32</code></td><td>What this collider weighs, density and size together.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>collider_mass_properties()</code></td><td><code>Value</code></td><td>What this collider adds to its body, in its own space: `#{ mass, center_of_mass, inertia }`.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>collider_mesh()</code></td><td><code>Value</code></td><td>A voxel collider&#x27;s outline as points and the segments between them, `#{ points, indices }`, for drawing it or for spawning the pieces it broke into.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>collider_volume()</code></td><td><code>f32</code></td><td>How much area the shape encloses.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>collision_aabb()</code></td><td><code>(f32, f32, f32, f32)</code></td><td>The box the narrow phase tests the collider in: its shape&#x27;s box grown by its collision_margin and the world&#x27;s prediction distance.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>combine_voxels(NodeId)</code></td><td>—</td><td>Tell two voxel colliders on one lattice about each other&#x27;s cells, so a body sliding from one onto the other does not catch on the seam. Both must share a cell size and a rotation.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>contacts()</code></td><td><code>Value</code></td><td>Every contact point on this node&#x27;s collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>crop_voxels(i32, i32, i32, i32)</code></td><td>—</td><td>Empty every cell outside the cells from `(min_x, min_y)` to `(max_x, max_y)`, both included. A range holding no filled cell leaves the grid as it was.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>handles()</code></td><td><code>Value</code></td><td>The rapier handles behind this node, its body and its colliders, as `#{ body, colliders }` of index and generation pairs. For matching a log line against rapier&#x27;s own output.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>heightfield_hole(i64)</code></td><td><code>bool</code></td><td>Whether a heightfield segment has no ground.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>overlaps()</code></td><td><code>Vec&lt;NodeId&gt;</code></td><td>The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>pose_in_body()</code></td><td><code>Value</code></td><td>Where the collider sits in its body&#x27;s frame, as `#{ position, rotation }`; nothing for a collider with no body.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_collider(Value)</code></td><td>—</td><td>Replace the node&#x27;s collider from a `collider2d` table: `kind`, `radius`, `size`, `friction`, and the rest of the component&#x27;s own vocabulary.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_heightfield_hole(i64, bool)</code></td><td>—</td><td>Remove or restore one segment of a heightfield&#x27;s ground, numbered from the first height.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_voxel(i32, i32, bool)</code></td><td>—</td><td>Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_voxel_size(f32, f32)</code></td><td>—</td><td>Resize every cell of a voxel collider, keeping which cells are filled.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>swept_aabb()</code></td><td><code>(f32, f32, f32, f32)</code></td><td>The box the collider covers over the next fixed step, from where it is to where its body&#x27;s velocity and forces carry it.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>voxel(i32, i32)</code></td><td><code>bool</code></td><td>Whether one cell of a voxel collider is filled.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>voxel_at(f32, f32)</code></td><td><code>(i64, i64)</code></td><td>The cell a world position falls in, as two whole numbers.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>voxel_size()</code></td><td><code>Value</code></td><td>How big one cell of a voxel collider is, along each axis.</td><td><code>physics2d</code></td></tr>
+</tbody>
+</table>
+
+### `follow2d`
+
+`2d` · `physics` · 12 properties · 1 method
+
+Pulls the node's `body2d` towards the pose of `target` every fixed step, with rapier's PD or PID controller. `node.follow2d.reset_follow()` forgets what a PID summed.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>follow_rotation</code></td><td>bool</td><td><code>true</code></td><td>Whether the body is turned to the target&#x27;s rotation too</td></tr>
+<tr><td><code>integral_gain</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>How hard the gap in position summed over time pulls, per axis, with `pid`</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>pd</code></td><td>Rapier&#x27;s proportional-derivative controller, or the same with an integral that keeps pulling against a steady push One of <code>pd</code>, <code>pid</code>.</td></tr>
+<tr><td><code>position_gain</code></td><td>vec2</td><td><code>[60.0, 60.0]</code></td><td>How hard a gap in position pulls, per axis: about one over the fixed step closes it in one step</td></tr>
+<tr><td><code>rotation_gain</code></td><td>float</td><td><code>60.0</code></td><td>How hard a gap in rotation pulls</td></tr>
+<tr><td><code>rotation_integral_gain</code></td><td>float</td><td><code>1.0</code></td><td>How hard the gap in rotation summed over time pulls, with `pid`</td></tr>
+<tr><td><code>spin_gain</code></td><td>float</td><td><code>0.8</code></td><td>How much of a gap in spin a step corrects</td></tr>
+<tr><td><code>target</code></td><td>node</td><td>—</td><td>The node whose pose the body is pulled to; empty pulls nothing</td></tr>
+<tr><td><code>target_angular_velocity</code></td><td>float</td><td><code>0.0</code></td><td>The spin the body is pulled to match, radians a second in the file</td></tr>
+<tr><td><code>target_linear_velocity</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>The velocity the body is pulled to match, in world units per second</td></tr>
+<tr><td><code>translation_axes</code></td><td>flags</td><td><code>[&quot;x&quot;, &quot;y&quot;]</code></td><td>The axes the body is pulled along One of <code>x</code>, <code>y</code>.</td></tr>
+<tr><td><code>velocity_gain</code></td><td>vec2</td><td><code>[0.8, 0.8]</code></td><td>How much of a gap in velocity a step corrects, per axis: 0 none, 1 all of it</td></tr>
+</tbody>
+</table>
+
+On a node carrying `follow2d`, as `node.follow2d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>reset_follow()</code></td><td>—</td><td>Forget what a `pid` follow summed, so it pulls from now as if it had just started.</td><td><code>physics2d</code></td></tr>
 </tbody>
 </table>
 
 ### `joint2d`
 
-`2d` · `physics` · 20 properties · 5 methods
+`2d` · `physics` · 28 properties · 7 methods
 
-Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `rope`, `spring`, `groove` or `generic`; both ends need a `body2d` on or above the node.
+Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `rope`, `spring`, `groove` or `generic`; both ends need a `body2d` on or above the node. `axes` limits and drives each free axis.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>anchor</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Where the joint attaches on this node, in its own space</td></tr>
-<tr><td><code>articulation</code></td><td>bool</td><td><code>false</code></td><td>Solve in reduced coordinates: the chain never drifts and can be solved for inverse kinematics, but cannot close a loop</td></tr>
-<tr><td><code>axis</code></td><td>vec2</td><td><code>[1.0, 0.0]</code></td><td>The direction a prismatic joint slides along</td></tr>
-<tr><td><code>break_force</code></td><td>float</td><td><code>0.0</code></td><td>The pull that snaps the joint and calls on_joint_break; 0 never breaks At least 0.0.</td></tr>
+<tr><td><code>anchor_rotation</code></td><td>float</td><td><code>0.0</code></td><td>Turns this end&#x27;s joint frame: what a hinge&#x27;s angle and its limits measure from, and the relative turn a fixed joint holds. Radians in the file</td></tr>
+<tr><td><code>articulation</code></td><td>bool</td><td><code>false</code></td><td>Solve in reduced coordinates: the chain never drifts and can be solved for inverse kinematics, but cannot close a loop or break</td></tr>
+<tr><td><code>axes</code></td><td>list of record · <code>armature, axis, damping, friction, limits, link_damping, motor, motor_max_force, motor_model, motor_target, motor_target_velocity, stiffness</code></td><td><code>[]</code></td><td>One record per free axis to limit or drive. A rope&#x27;s x takes no limits (max_length is its limit); a spring&#x27;s x is its spring, whose motor stays off</td></tr>
+<tr><td><code>axis</code></td><td>vec2</td><td><code>[1.0, 0.0]</code></td><td>The joint frame&#x27;s x axis: what a slider or a groove slides along, and a generic joint&#x27;s x names</td></tr>
+<tr><td><code>break_force</code></td><td>float</td><td><code>0.0</code></td><td>The force, in newtons, that snaps the joint and calls on_joint_break; 0 never breaks. Does not apply to an articulation At least 0.0.</td></tr>
+<tr><td><code>break_torque</code></td><td>float</td><td><code>0.0</code></td><td>The torque about the anchor, in newton metres, that snaps the joint; 0 never breaks. Does not apply to an articulation At least 0.0.</td></tr>
 <tr><td><code>collide_connected</code></td><td>bool</td><td><code>false</code></td><td>Let the two joined bodies collide with each other</td></tr>
 <tr><td><code>connected_anchor</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Where it attaches on the other node, in that node&#x27;s space</td></tr>
+<tr><td><code>connected_anchor_rotation</code></td><td>float</td><td><code>0.0</code></td><td>The same for the other end&#x27;s frame</td></tr>
+<tr><td><code>connected_axis</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>The same axis in the other node&#x27;s space, for a slider, a groove or a generic joint; zero takes axis</td></tr>
 <tr><td><code>connected_body</code></td><td>node</td><td>—</td><td>The node at the joint&#x27;s other end; this node is the first end</td></tr>
-<tr><td><code>damping</code></td><td>float</td><td><code>1.0</code></td><td>How quickly the motion settles, for a spring joint or a motor At least 0.0.</td></tr>
-<tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Hold the two bodies together at all</td></tr>
+<tr><td><code>coupled_translation</code></td><td>flags</td><td><code>[]</code></td><td>Free linear axes tied into one distance, whose limit and motor come from the first of them; a rope and a spring couple both already One of <code>x</code>, <code>y</code>.</td></tr>
+<tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Hold the two bodies together at all. Off keeps the joint and stops solving it; an articulation leaves its chain instead, as rapier&#x27;s chains ignore the switch</td></tr>
+<tr><td><code>gear_offset</code></td><td>float</td><td><code>0.0</code></td><td>Where this joint stands when the gear_with joint is at 0</td></tr>
+<tr><td><code>gear_ratio</code></td><td>float</td><td><code>1.0</code></td><td>How far this joint turns or slides per unit of the gear_with joint&#x27;s</td></tr>
+<tr><td><code>gear_with</code></td><td>node</td><td>—</td><td>On an articulation: another joint node of the same chain this joint follows, its first free axis tied to that joint&#x27;s first free axis</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>fixed</code></td><td>How the two bodies may move relative to each other One of <code>fixed</code>, <code>hinge</code>, <code>slider</code>, <code>rope</code>, <code>spring</code>, <code>groove</code>, <code>generic</code>.</td></tr>
-<tr><td><code>limits</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>How far the joint may travel, as a low and a high; equal values mean no limit</td></tr>
+<tr><td><code>kinematic_link</code></td><td>bool</td><td><code>false</code></td><td>On an articulation: the solver never changes this joint&#x27;s velocity, so the link holds its pose against its parent and moves only by solve_ik</td></tr>
 <tr><td><code>lock_rotation</code></td><td>bool</td><td><code>false</code></td><td>Stop a generic joint turning</td></tr>
 <tr><td><code>lock_translation</code></td><td>flags</td><td><code>[]</code></td><td>The axes a generic joint may not slide along One of <code>x</code>, <code>y</code>.</td></tr>
 <tr><td><code>max_length</code></td><td>float</td><td><code>0.0</code></td><td>The rope&#x27;s greatest length At least 0.0.</td></tr>
-<tr><td><code>motor</code></td><td>enum</td><td><code>off</code></td><td>Drive the joint towards a speed, towards a position, or not at all One of <code>off</code>, <code>velocity</code>, <code>position</code>.</td></tr>
-<tr><td><code>motor_max_force</code></td><td>float</td><td><code>0.0</code></td><td>The most force the motor may use; 0 means as much as it takes At least 0.0.</td></tr>
-<tr><td><code>motor_model</code></td><td>enum</td><td><code>acceleration</code></td><td>Whether the motor&#x27;s strength is felt as an acceleration, ignoring mass, or as a force One of <code>acceleration</code>, <code>force</code>.</td></tr>
-<tr><td><code>motor_target</code></td><td>float</td><td><code>0.0</code></td><td>The speed or the position the motor drives towards</td></tr>
+<tr><td><code>passive_rest</code></td><td>float</td><td><code>0.0</code></td><td>On an articulation: where that spring rests, in radians about a rotation axis and units along a linear one</td></tr>
+<tr><td><code>passive_stiffness</code></td><td>float</td><td><code>0.0</code></td><td>On an articulation: a spring on each free axis pulling it towards passive_rest; 0 is none At least 0.0.</td></tr>
 <tr><td><code>rest_length</code></td><td>float</td><td><code>0.0</code></td><td>The length a spring pulls back to At least 0.0.</td></tr>
-<tr><td><code>stiffness</code></td><td>float</td><td><code>0.0</code></td><td>Spring stiffness, for a spring joint or a position motor At least 0.0.</td></tr>
+<tr><td><code>self_collision</code></td><td>bool</td><td><code>true</code></td><td>On an articulation: let the chain&#x27;s links collide with each other. One setting for the whole chain, off when any of its joints says off</td></tr>
+<tr><td><code>softness_damping_ratio</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of that spring; 1 settles without overshooting At least 0.0.</td></tr>
+<tr><td><code>softness_hz</code></td><td>float</td><td><code>1000000.0</code></td><td>How stiffly the joint&#x27;s locked axes and limits are held, as a spring frequency in hertz; lower lets them stretch and spring back At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -342,7 +497,7 @@ Announced from a node carrying `joint2d`:
 <table>
 <thead><tr><th>event</th><th>payload</th></tr></thead>
 <tbody>
-<tr><td><code>joint_break</code></td><td><code>#{ a, b, force }</code></td></tr>
+<tr><td><code>joint_break</code></td><td><code>#{ a, b, force, torque }</code>: the two ends, and the force and torque it broke at</td></tr>
 </tbody>
 </table>
 
@@ -351,28 +506,34 @@ On a node carrying `joint2d`, as `node.joint2d.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
-<tr><td><code>joint_impulse()</code></td><td><code>f32</code></td><td>How hard the joint is pulling right now.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>joint_force()</code></td><td><code>Value</code></td><td>The force and the torque the joint held through the last step, `#{ force, torque }`. An articulation has none to read, and says so.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>joint_state()</code></td><td><code>Value</code></td><td>What the joint is doing: `#{ status, angle, limit_impulses, motor_impulses, coordinates, velocities }`, as in 3D: `status` is `enabled`, `disabled`, `body_disabled` or `waiting`; `angle` is a hinge&#x27;s turn in radians; an articulation adds each free axis&#x27;s coordinate and velocity.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>remove_joint()</code></td><td>—</td><td>Undo the node&#x27;s joint, leaving both bodies free.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>set_joint_limits(f32, f32)</code></td><td>—</td><td>Set how far the joint may travel.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>set_motor_position(f32, f32, f32)</code></td><td>—</td><td>Drive the joint towards an angle or a distance, with a spring&#x27;s stiffness and damping.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>set_motor_velocity(f32, f32)</code></td><td>—</td><td>Drive the joint towards a speed: how a wheel is powered.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_joint_limits(String, f32, f32)</code></td><td>—</td><td>Set how far one of the joint&#x27;s free axes may travel; equal values lift the limit. Rewrites that axis&#x27;s `axes` record.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_motor_position(String, f32, f32, f32)</code></td><td>—</td><td>Drive one of the joint&#x27;s free axes towards an angle or a distance, with a spring&#x27;s stiffness and damping. Rewrites that axis&#x27;s `axes` record.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_motor_velocity(String, f32, f32)</code></td><td>—</td><td>Drive one of the joint&#x27;s free axes towards a speed: how a wheel is powered. Rewrites that axis&#x27;s `axes` record.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>solve_ik(f32, f32, Option&lt;Value&gt;)</code></td><td>—</td><td>Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits. Options: `rotation` (radians to turn the link to), `constrain` (the world axes to match: `x`, `y`, `rotation`; the translation by default, every axis when `rotation` is given), `damping` (1.0), `iterations` (10), `tolerance` (0.001).</td><td><code>physics2d</code></td></tr>
 </tbody>
 </table>
 
 ### `light2d`
 
-`2d` · `render` · 5 properties
+`2d` · `render` · 9 properties
 
-A 2D light at the node's position. `kind` is `point` or `directional`; the first `light2d` in a scene drops everything else to the camera's `ambient_color`.
+A 2D light at the node's position. `kind` is `point`, `directional` or `spot`; the first `light2d` in a scene drops everything else to the camera's `ambient_color`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Light colour, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>height</code></td><td>float</td><td><code>1.0</code></td><td>How far above the plane a normal-mapped node sees a point or spot light, in world units; lower grazes the bumps. For a directional light, its rise over run: 1 comes in at 45 degrees. Only a node with a `normal_map` reads it At least 0.0.</td></tr>
+<tr><td><code>inner_angle_degrees</code></td><td>float</td><td><code>20.0</code></td><td>Half-angle of a spot light&#x27;s full-brightness cone, in degrees Range 0.0–179.0.</td></tr>
 <tr><td><code>intensity</code></td><td>float</td><td><code>1.0</code></td><td>Brightness multiplier; over 1 blows past white At least 0.0.</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>point</code></td><td>A point light fades to nothing at `range`; a directional one lights the whole view One of <code>point</code>, <code>directional</code>.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>point</code></td><td>A point light fades to nothing at `range`; a directional one lights the whole view; a spot throws a cone the node&#x27;s rotation aims, down at rest One of <code>point</code>, <code>directional</code>, <code>spot</code>.</td></tr>
+<tr><td><code>outer_angle_degrees</code></td><td>float</td><td><code>35.0</code></td><td>Half-angle a spot light fades to nothing at, in degrees Range 0.0–179.0.</td></tr>
 <tr><td><code>range</code></td><td>float</td><td><code>6.0</code></td><td>How far a point light reaches, in world units At least 0.0.</td></tr>
 <tr><td><code>shadow_enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether `occluder2d` outlines cast shadows from this light</td></tr>
+<tr><td><code>source_radius</code></td><td>float</td><td><code>0.25</code></td><td>The disc a camera&#x27;s `gi` pass emits a point or spot light from, in world units; `gi` gives a spot no cone and a directional light no form At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -406,16 +567,27 @@ Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bo
 
 ### `multimesh2d`
 
-`2d` · `render` · 3 properties · 15 methods
+`2d` · `render` · 14 properties · 17 methods
 
 Godot's `MultiMeshInstance2D`: the `multimesh` asset in `source`, its mesh drawn flat once per instance in one call, each instance tinted over `color`. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>blend_mode</code></td><td>enum</td><td><code>auto</code></td><td>How the surface lands on what is under it: straight alpha, a colour that already carries its alpha, added light, multiplied shade, screen, or opaque. `auto` is premultiplied for a texture uploaded with `premultiply`, else alpha One of <code>auto</code>, <code>alpha</code>, <code>premultiplied</code>, <code>add</code>, <code>multiply</code>, <code>screen</code>, <code>opaque</code>.</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Tint under every instance&#x27;s own colour, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>cull_back_faces</code></td><td>bool</td><td><code>false</code></td><td>Skip a triangle whose back faces the viewer, as a negative scale turns one</td></tr>
+<tr><td><code>dot_color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>The dots&#x27; colour. Not drawn on a skinned polygon, which a rig poses in Balaur&#x27;s own vertex stage</td></tr>
+<tr><td><code>dot_size</code></td><td>float</td><td><code>0.0</code></td><td>Size of a dot drawn on every vertex; zero draws none. Not drawn on a skinned polygon, which a rig poses in Balaur&#x27;s own vertex stage At least 0.0.</td></tr>
+<tr><td><code>dot_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `dot_size` counts: `world` is world units, which the camera&#x27;s zoom scales, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>draw_surface</code></td><td>bool</td><td><code>true</code></td><td>Whether the surface draws; off leaves the wireframe and the dots alone</td></tr>
+<tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty takes an inherited `material` component, else the built-in one</td></tr>
+<tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>100.0</code></td><td>Texture pixels per world unit, for a mesh that carries no UVs of its own At least 0.01.</td></tr>
 <tr><td><code>source</code></td><td>asset · <code>multimesh</code></td><td>—</td><td>The multimesh asset: the mesh and the instances it is drawn at</td></tr>
 <tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>Image file, project-relative, or a `texture` asset; empty draws the colour alone</td></tr>
+<tr><td><code>wireframe_color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>The wireframe&#x27;s colour. Not drawn on a skinned polygon, which a rig poses in Balaur&#x27;s own vertex stage</td></tr>
+<tr><td><code>wireframe_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `wireframe_width` counts: `world` is world units, which the camera&#x27;s zoom scales, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>wireframe_width</code></td><td>float</td><td><code>0.0</code></td><td>Width of a line drawn along every triangle edge, not the outline; zero draws none. Not drawn on a skinned polygon, which a rig poses in Balaur&#x27;s own vertex stage At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -428,6 +600,7 @@ On a node carrying `multimesh2d`, as `node.multimesh2d.<method>`:
 <tr><td><code>instance_color(i64)</code></td><td><code>Value</code></td><td>The colour one instance draws in.</td><td><code>render</code></td></tr>
 <tr><td><code>instance_count()</code></td><td><code>i64</code></td><td>How many instances the node holds.</td><td><code>render</code></td></tr>
 <tr><td><code>instance_custom_data(i64)</code></td><td><code>Value</code></td><td>One instance&#x27;s four floats of custom data, as a colour.</td><td><code>render</code></td></tr>
+<tr><td><code>instance_region(i64)</code></td><td><code>Value</code></td><td>One instance&#x27;s texture rectangle as `[x, y, w, h]` in pixels, or nil when it draws the whole texture.</td><td><code>render</code></td></tr>
 <tr><td><code>instance_transform(i64)</code></td><td><code>Value</code></td><td>One instance&#x27;s transform: a `Transform3d`, or a `Transform2d` on a 2D node.</td><td><code>render</code></td></tr>
 <tr><td><code>instances()</code></td><td><code>Value</code></td><td>Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file.</td><td><code>render</code></td></tr>
 <tr><td><code>populate(Value)</code></td><td><code>Value</code></td><td>Godot&#x27;s Populate Surface, and a row, a ring or a grid: the instances a layout would write, worked out from `seed`, returned in the `multimesh` asset&#x27;s shape rather than set. `kind` is `render.POPULATE_SURFACE` with a `surface` node, `POPULATE_ROW` (`count`, `step`), `POPULATE_RING` (`count`, `radius`) or `POPULATE_GRID` (`counts`, `step`); `rotation`, `tilt` and `random_scale` vary each instance, as fractions, around `scale`.</td><td><code>render</code></td></tr>
@@ -435,7 +608,8 @@ On a node carrying `multimesh2d`, as `node.multimesh2d.<method>`:
 <tr><td><code>set_instance_color(i64, Value)</code></td><td>—</td><td>The colour one instance draws in.</td><td><code>render</code></td></tr>
 <tr><td><code>set_instance_count(i64)</code></td><td>—</td><td>How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node.</td><td><code>render</code></td></tr>
 <tr><td><code>set_instance_custom_data(i64, Value)</code></td><td>—</td><td>Four floats a material&#x27;s shader reads for one instance, as a colour or a list.</td><td><code>render</code></td></tr>
-<tr><td><code>set_instance_transform(i64, Value)</code></td><td>—</td><td>Place one instance with a `Transform3d`, or a `Transform2d` on a 2D node. A shear is dropped: an instance is a position, a rotation and a scale.</td><td><code>render</code></td></tr>
+<tr><td><code>set_instance_region(i64, Value, Value)</code></td><td>—</td><td>The rectangle of the texture one instance draws, as an origin and a size in texture pixels; a zero size draws all of it. Not drawn yet: `multimesh2d` draws through Balaur&#x27;s own pipeline, which binds no rectangle per instance.</td><td><code>render</code></td></tr>
+<tr><td><code>set_instance_transform(i64, Value)</code></td><td>—</td><td>Place one instance with a `Transform3d`, or a `Transform2d` on a 2D node. A shear is kept, as the instance&#x27;s `basis`.</td><td><code>render</code></td></tr>
 <tr><td><code>set_instances(Value)</code></td><td>—</td><td>Replace every instance with a list in the `multimesh` asset&#x27;s shape.</td><td><code>render</code></td></tr>
 <tr><td><code>set_visible_instance_count(i64)</code></td><td>—</td><td>How many instances draw, from the first; -1 draws them all.</td><td><code>render</code></td></tr>
 <tr><td><code>visible_instance_count()</code></td><td><code>i64</code></td><td>How many instances draw; -1 is all of them.</td><td><code>render</code></td></tr>
@@ -465,20 +639,78 @@ On a node carrying `occluder2d`, as `node.occluder2d.<method>`:
 </tbody>
 </table>
 
+### `particles2d`
+
+`2d` · `render` · 27 properties
+
+A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `direction`, `spread_degrees` and `gravity`. The live particles are renderer state the simulation never sees.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>angular_speed_degrees</code></td><td>float</td><td><code>0.0</code></td><td>The fastest a particle spins, in degrees a second, counter-clockwise when positive; each takes a speed at random between zero and this</td></tr>
+<tr><td><code>blend_mode</code></td><td>enum</td><td><code>auto</code></td><td>How the surface lands on what is under it: straight alpha, a colour that already carries its alpha, added light, multiplied shade, screen, or opaque. `auto` is premultiplied for a texture uploaded with `premultiply`, else alpha One of <code>auto</code>, <code>alpha</code>, <code>premultiplied</code>, <code>add</code>, <code>multiply</code>, <code>screen</code>, <code>opaque</code>.</td></tr>
+<tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>color_end</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 0.0]</code></td><td>The tint a particle fades to by the end of its life</td></tr>
+<tr><td><code>cull_back_faces</code></td><td>bool</td><td><code>false</code></td><td>Skip a triangle whose back faces the viewer, as a negative scale turns one</td></tr>
+<tr><td><code>direction</code></td><td>vec2</td><td><code>[0.0, 1.0]</code></td><td>Which way the particles leave; [0, 1] is straight up</td></tr>
+<tr><td><code>dot_color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>The dots&#x27; colour</td></tr>
+<tr><td><code>dot_size</code></td><td>float</td><td><code>0.0</code></td><td>Size of a dot drawn on every vertex; zero draws none At least 0.0.</td></tr>
+<tr><td><code>dot_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `dot_size` counts: `world` is world units, which the camera&#x27;s zoom scales, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>draw_surface</code></td><td>bool</td><td><code>true</code></td><td>Whether the surface draws; off leaves the wireframe and the dots alone</td></tr>
+<tr><td><code>emitting</code></td><td>bool</td><td><code>true</code></td><td>Whether new particles are born; live ones finish either way</td></tr>
+<tr><td><code>explosiveness</code></td><td>float</td><td><code>0.0</code></td><td>How much of a one-shot burst is born at once; the rest is spread over the lifetime Range 0.0–1.0.</td></tr>
+<tr><td><code>gravity</code></td><td>vec2</td><td><code>[0.0, -3.0]</code></td><td>Acceleration applied over a particle&#x27;s life</td></tr>
+<tr><td><code>lifetime</code></td><td>float</td><td><code>1.0</code></td><td>Seconds a particle lives At least 0.05.</td></tr>
+<tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty takes an inherited `material` component, else the built-in one</td></tr>
+<tr><td><code>one_shot</code></td><td>bool</td><td><code>false</code></td><td>Emit one burst of `rate` times `lifetime` particles and stop; setting `emitting` false and true again fires another</td></tr>
+<tr><td><code>rate</code></td><td>float</td><td><code>20.0</code></td><td>Particles born per second At least 0.0.</td></tr>
+<tr><td><code>rotation_degrees</code></td><td>float</td><td><code>0.0</code></td><td>The most a particle is turned at birth, either way, in degrees; each takes a turn at random up to this At least 0.0.</td></tr>
+<tr><td><code>sheet</code></td><td>asset · <code>sprite_sheet</code></td><td>—</td><td>A `sprite_sheet` whose frames each particle steps through over its life, first to last; its image is drawn when `texture` is empty</td></tr>
+<tr><td><code>size</code></td><td>float</td><td><code>4.0</code></td><td>Particle size in logical pixels At least 0.5.</td></tr>
+<tr><td><code>size_end</code></td><td>float</td><td><code>-1.0</code></td><td>The size a particle grows or shrinks to by the end of its life, in logical pixels; below zero keeps `size`</td></tr>
+<tr><td><code>speed</code></td><td>float</td><td><code>2.0</code></td><td>Initial speed in world units per second At least 0.0.</td></tr>
+<tr><td><code>spread_degrees</code></td><td>float</td><td><code>30.0</code></td><td>Half-angle of the emission cone in degrees At least 0.0.</td></tr>
+<tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>An image, or a `texture` asset, each particle draws with; empty draws a flat square</td></tr>
+<tr><td><code>wireframe_color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>The wireframe&#x27;s colour</td></tr>
+<tr><td><code>wireframe_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `wireframe_width` counts: `world` is world units, which the camera&#x27;s zoom scales, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>wireframe_width</code></td><td>float</td><td><code>0.0</code></td><td>Width of a line drawn along every triangle edge, not the outline; zero draws none At least 0.0.</td></tr>
+</tbody>
+</table>
+
+Announced from a node carrying `particles2d`:
+
+<table>
+<thead><tr><th>event</th><th>payload</th></tr></thead>
+<tbody>
+<tr><td><code>finished</code></td><td>nil, once a one-shot burst has died out</td></tr>
+</tbody>
+</table>
+
 ### `polygon`
 
-`2d` · `render` · `animation` · 5 properties
+`2d` · `render` · `animation` · 15 properties
 
 A filled, textured 2D polygon from the `mesh` asset's points and triangles. With skin weights, the rig `skeleton` names deforms it.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>blend_mode</code></td><td>enum</td><td><code>auto</code></td><td>How the surface lands on what is under it: straight alpha, a colour that already carries its alpha, added light, multiplied shade, screen, or opaque. `auto` is premultiplied for a texture uploaded with `premultiply`, else alpha One of <code>auto</code>, <code>alpha</code>, <code>premultiplied</code>, <code>add</code>, <code>multiply</code>, <code>screen</code>, <code>opaque</code>.</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>cull_back_faces</code></td><td>bool</td><td><code>false</code></td><td>Skip a triangle whose back faces the viewer, as a negative scale turns one</td></tr>
+<tr><td><code>dot_color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>The dots&#x27; colour. Not drawn on a skinned polygon, which a rig poses in Balaur&#x27;s own vertex stage</td></tr>
+<tr><td><code>dot_size</code></td><td>float</td><td><code>0.0</code></td><td>Size of a dot drawn on every vertex; zero draws none. Not drawn on a skinned polygon, which a rig poses in Balaur&#x27;s own vertex stage At least 0.0.</td></tr>
+<tr><td><code>dot_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `dot_size` counts: `world` is world units, which the camera&#x27;s zoom scales, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>draw_surface</code></td><td>bool</td><td><code>true</code></td><td>Whether the surface draws; off leaves the wireframe and the dots alone</td></tr>
+<tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty takes an inherited `material` component, else the built-in one</td></tr>
 <tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Vertices, triangulation, UVs and skin weights; positions are [x, y] in the node&#x27;s space</td></tr>
 <tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>100.0</code></td><td>Texture pixels per world unit, for the default UV mapping At least 0.01.</td></tr>
 <tr><td><code>skeleton</code></td><td>node</td><td>—</td><td>The rig root; empty means this node</td></tr>
 <tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>Image file, project-relative, or a `texture` asset; empty draws the tint alone</td></tr>
+<tr><td><code>wireframe_color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>The wireframe&#x27;s colour. Not drawn on a skinned polygon, which a rig poses in Balaur&#x27;s own vertex stage</td></tr>
+<tr><td><code>wireframe_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `wireframe_width` counts: `world` is world units, which the camera&#x27;s zoom scales, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>wireframe_width</code></td><td>float</td><td><code>0.0</code></td><td>Width of a line drawn along every triangle edge, not the outline; zero draws none. Not drawn on a skinned polygon, which a rig poses in Balaur&#x27;s own vertex stage At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -491,8 +723,8 @@ A box that announces `screen_enter` as it comes on screen and `screen_exit` as i
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>offset</code></td><td>vec2</td><td><code>[-0.5, -0.5]</code></td><td>The box&#x27;s lower corner from the node, in world units</td></tr>
-<tr><td><code>size</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>The box&#x27;s width and height, in world units</td></tr>
+<tr><td><code>offset</code></td><td>vec2</td><td><code>[-0.5, -0.5]</code></td><td>The box&#x27;s lower corner from the node, in the node&#x27;s own units: scaled and turned with it</td></tr>
+<tr><td><code>size</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>The box&#x27;s width and height, in the node&#x27;s own units: scaled and turned with it</td></tr>
 </tbody>
 </table>
 
@@ -517,17 +749,23 @@ On a node carrying `screen_notifier2d`, as `node.screen_notifier2d.<method>`:
 
 ### `shape2d`
 
-`2d` · `render` · 21 properties · 1 method
+`2d` · `render` · 34 properties · 1 method
 
-An untextured 2D primitive at the node. `kind` is `circle`, `rectangle`, `capsule`, `ellipse`, `star`, `ngon` or `polyline`; a `polyline` follows a `mesh` or `path2d` asset.
+A 2D primitive at the node, tinted by `color` and drawn with `texture`. `kind` is `circle`, `rectangle`, `capsule`, `ellipse`, `star`, `ngon` or `polyline`; a `polyline` follows a `mesh` or `path2d` asset.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>blend_mode</code></td><td>enum</td><td><code>auto</code></td><td>How the surface lands on what is under it: straight alpha, a colour that already carries its alpha, added light, multiplied shade, screen, or opaque. `auto` is premultiplied for a texture uploaded with `premultiply`, else alpha One of <code>auto</code>, <code>alpha</code>, <code>premultiplied</code>, <code>add</code>, <code>multiply</code>, <code>screen</code>, <code>opaque</code>.</td></tr>
 <tr><td><code>cap</code></td><td>enum</td><td><code>round</code></td><td>How an open polyline ends One of <code>round</code>, <code>butt</code>, <code>square</code>.</td></tr>
 <tr><td><code>closed</code></td><td>bool</td><td><code>false</code></td><td>Join the last point back to the first, making a polygon outline</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
 <tr><td><code>corner_radius</code></td><td>float</td><td><code>0.0</code></td><td>How far the corners are rounded off, when kind is rectangle; zero is a square corner At least 0.0.</td></tr>
+<tr><td><code>cull_back_faces</code></td><td>bool</td><td><code>false</code></td><td>Skip a triangle whose back faces the viewer, as a negative scale turns one</td></tr>
+<tr><td><code>dot_color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>The dots&#x27; colour</td></tr>
+<tr><td><code>dot_size</code></td><td>float</td><td><code>0.0</code></td><td>Size of a dot drawn on every vertex; zero draws none At least 0.0.</td></tr>
+<tr><td><code>dot_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `dot_size` counts: `world` is world units, which the camera&#x27;s zoom scales, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>draw_surface</code></td><td>bool</td><td><code>true</code></td><td>Whether the surface draws; off leaves the wireframe and the dots alone</td></tr>
 <tr><td><code>gradient</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The colour a polyline fades to at its far end, from `color` at its start; a zero alpha means no gradient</td></tr>
 <tr><td><code>gradient_steps</code></td><td>int</td><td><code>32</code></td><td>How many colours a polyline&#x27;s gradient steps through along its length At least 1.</td></tr>
 <tr><td><code>height</code></td><td>float</td><td><code>2.0</code></td><td>Length along y, tip to tip, when kind is capsule At least 0.01.</td></tr>
@@ -537,14 +775,21 @@ An untextured 2D primitive at the node. `kind` is `circle`, `rectangle`, `capsul
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty draws with the built-in one</td></tr>
 <tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Where a polyline&#x27;s points come from: a `mesh` asset&#x27;s vertices, or a `path2d` asset, which is sampled into points and so draws as a stroked curve</td></tr>
 <tr><td><code>miter_limit</code></td><td>float</td><td><code>4.0</code></td><td>How far a miter join may reach, in half-widths, before its corner is cut to a bevel At least 1.0.</td></tr>
+<tr><td><code>normal_map</code></td><td>asset · <code>texture</code></td><td>—</td><td>A tangent-space normal map: the node then draws lit per pixel by every `light2d`, after the light map and over what it lit, with no shadow. Empty leaves it to the light map. Give the image `srgb = false`</td></tr>
+<tr><td><code>normal_strength</code></td><td>float</td><td><code>1.0</code></td><td>How far the normal map bends the surface; zero lights it flat At least 0.0.</td></tr>
 <tr><td><code>points</code></td><td>int</td><td><code>5</code></td><td>Tips, when kind is star At least 3.</td></tr>
 <tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, when kind is circle, capsule, star or ngon At least 0.01.</td></tr>
 <tr><td><code>segments</code></td><td>int</td><td><code>32</code></td><td>Cuts around a circle, an ellipse, a rounded corner, or a polyline&#x27;s round joins and caps At least 3.</td></tr>
+<tr><td><code>shininess</code></td><td>float</td><td><code>16.0</code></td><td>How tight the highlight is on a normal-mapped node; higher is smaller and sharper At least 1.0.</td></tr>
 <tr><td><code>sides</code></td><td>int</td><td><code>4</code></td><td>Sides, when kind is ngon At least 3.</td></tr>
 <tr><td><code>size</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>Whole size along each axis, when kind is rectangle or ellipse</td></tr>
+<tr><td><code>specular_strength</code></td><td>float</td><td><code>0.0</code></td><td>How bright a light&#x27;s highlight is on a normal-mapped node; zero draws none At least 0.0.</td></tr>
 <tr><td><code>taper</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>Multipliers on `width` at a polyline&#x27;s start and end, blended along it; anything but [1, 1] draws round joins and caps</td></tr>
-<tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>An image, or a `texture` asset, drawn along a polyline, repeating once per world unit of its length</td></tr>
+<tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>An image, or a `texture` asset, the shape draws with: over a primitive&#x27;s own UVs, and along a polyline repeating once per world unit of its length</td></tr>
 <tr><td><code>width</code></td><td>float</td><td><code>0.02</code></td><td>Line thickness in world units, when kind is polyline At least 0.001.</td></tr>
+<tr><td><code>wireframe_color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>The wireframe&#x27;s colour</td></tr>
+<tr><td><code>wireframe_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `wireframe_width` counts: `world` is world units, which the camera&#x27;s zoom scales, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>wireframe_width</code></td><td>float</td><td><code>0.0</code></td><td>Width of a line drawn along every triangle edge, not the outline; zero draws none At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -559,7 +804,7 @@ On a node carrying `shape2d`, as `node.shape2d.<method>`:
 
 ### `softbody2d`
 
-`2d` · `physics` · `render` · 63 properties · 24 methods
+`2d` · `physics` · `render` · 85 properties · 45 methods
 
 A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `triangle_mesh` and `volumetric` kinds give and a generator does not.
 
@@ -569,64 +814,86 @@ A deformable 2D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>a</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Where a rope starts, relative to the node</td></tr>
 <tr><td><code>b</code></td><td>vec2</td><td><code>[0.0, -1.0]</code></td><td>Where a rope ends, relative to the node</td></tr>
 <tr><td><code>bend_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of the bending springs Range 0.0–100.0.</td></tr>
-<tr><td><code>bend_frequency</code></td><td>float</td><td><code>10.0</code></td><td>The same for the bending edges, which are what stop a cloth folding flat Range 0.0–10000.0.</td></tr>
+<tr><td><code>bend_edge_indices</code></td><td>list of list of int</td><td><code>[]</code></td><td>A custom body&#x27;s bending edges, each a pair of particle indices</td></tr>
+<tr><td><code>bend_hz</code></td><td>float</td><td><code>10.0</code></td><td>The same for the bending edges, which are what stop a cloth folding flat Range 0.0–10000.0.</td></tr>
 <tr><td><code>can_sleep</code></td><td>bool</td><td><code>true</code></td><td>Let the body stop being simulated once it settles</td></tr>
+<tr><td><code>cell_indices</code></td><td>list of list of int</td><td><code>[]</code></td><td>A custom body&#x27;s triangles, three particle indices each, counter-clockwise</td></tr>
 <tr><td><code>cell_model</code></td><td>enum</td><td><code>volume</code></td><td>What a cell resists with: a volume constraint for a cheap jelly, or an elastic model a Young modulus parameterises One of <code>volume</code>, <code>corotational</code>, <code>neo_hookean</code>.</td></tr>
 <tr><td><code>cell_size</code></td><td>float</td><td><code>0.25</code></td><td>How big one triangle is when a volumetric body fills an outline; smaller is finer, slower and stiffer to tear At least 0.001.</td></tr>
 <tr><td><code>cells</code></td><td>vec2</td><td><code>[4.0, 4.0]</code></td><td>How many cells along each axis of a grid</td></tr>
 <tr><td><code>collides</code></td><td>bool</td><td><code>true</code></td><td>Meet the world at all; off, the body passes through everything and only its pins and ties hold it</td></tr>
+<tr><td><code>collision_binding</code></td><td>enum</td><td><code>nearest</code></td><td>How the collision mesh follows the body: each vertex on the nearest particle within `collision_binding_distance`, vertex i on particle i, or riding the cell that holds it, so a coarse cage of cells can carry a fine mesh One of <code>nearest</code>, <code>particles</code>, <code>cells</code>.</td></tr>
+<tr><td><code>collision_binding_distance</code></td><td>float</td><td><code>0.01</code></td><td>How far a collision-mesh vertex may sit from the particle `nearest` binds it to At least 0.0.</td></tr>
 <tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers this body is on One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
+<tr><td><code>collision_mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>A mesh, in the node&#x27;s space, the body meets the world through beside its own surface, deformed with the body: its triangles in 3D, the outline of its triangles in 2D</td></tr>
+<tr><td><code>collision_self_contacts</code></td><td>bool</td><td><code>false</code></td><td>Let the collision mesh collide with itself</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>What the body is drawn in when its node has nothing of its own to deform, as a cloth or a rope has not</td></tr>
 <tr><td><code>contact_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>How hard a contact must be before on_contact_force is called At least 0.0.</td></tr>
+<tr><td><code>contact_pairs</code></td><td>flags</td><td><code>[&quot;dynamic_dynamic&quot;, &quot;dynamic_kinematic&quot;, &quot;dynamic_static&quot;]</code></td><td>Which kinds of body pair its collider is tested against One of <code>dynamic_dynamic</code>, <code>dynamic_kinematic</code>, <code>dynamic_static</code>, <code>kinematic_kinematic</code>, <code>kinematic_static</code>, <code>static_static</code>.</td></tr>
 <tr><td><code>deformation_damping</code></td><td>float</td><td><code>0.0</code></td><td>How fast the particles are pulled towards the body&#x27;s own rigid motion, which settles a residual sway without slowing the body down Range 0.0–1000.0.</td></tr>
 <tr><td><code>dominance</code></td><td>int</td><td><code>0</code></td><td>Which body wins a contact: a higher one is never pushed by a lower one Range -127–127.</td></tr>
 <tr><td><code>edge_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of that spring; 1 settles without overshooting Range 0.0–100.0.</td></tr>
-<tr><td><code>edge_frequency</code></td><td>float</td><td><code>30.0</code></td><td>The frequency of the spring a structural edge is solved as, in hertz; higher is stiffer Range 0.0–10000.0.</td></tr>
+<tr><td><code>edge_hz</code></td><td>float</td><td><code>30.0</code></td><td>The frequency of the spring a structural edge is solved as, in hertz; higher is stiffer Range 0.0–10000.0.</td></tr>
+<tr><td><code>edge_indices</code></td><td>list of list of int</td><td><code>[]</code></td><td>A custom body&#x27;s structural edges, each a pair of particle indices; empty takes the cells&#x27; edges</td></tr>
 <tr><td><code>edge_plastic_creep</code></td><td>float</td><td><code>1.0</code></td><td>How fast, per second, an edge&#x27;s excess strain is absorbed into its rest length At least 0.0.</td></tr>
 <tr><td><code>edge_plastic_flow</code></td><td>enum</td><td><code>both</code></td><td>Whether an edge sets under a squeeze, a stretch, or both: clay dents but does not stay stretched One of <code>both</code>, <code>compression</code>, <code>tension</code>.</td></tr>
 <tr><td><code>edge_plastic_max</code></td><td>float</td><td><code>0.5</code></td><td>The largest permanent set an edge may take, as a fraction of its first length At least 0.0.</td></tr>
 <tr><td><code>edge_plastic_yield</code></td><td>float</td><td><code>0.0</code></td><td>The edge strain past which its rest length flows towards its current length At least 0.0.</td></tr>
-<tr><td><code>edge_springs</code></td><td>list of record · <code>a, b, damping, frequency</code></td><td><code>[]</code></td><td>Edges with a spring of their own instead of the edge rows&#x27;, each named by the two particles it joins</td></tr>
+<tr><td><code>edge_springs</code></td><td>list of record · <code>a, b, damping, hz</code></td><td><code>[]</code></td><td>Edges with a spring of their own, its frequency in hertz and its damping ratio, instead of the edge or bend rows&#x27;, each named by the two particles it joins</td></tr>
+<tr><td><code>edges</code></td><td>enum</td><td><code>chain</code></td><td>Which segments a polyline body joins: its mesh&#x27;s points in order, or the edges of its mesh&#x27;s triangles One of <code>chain</code>, <code>mesh</code>.</td></tr>
 <tr><td><code>elastic_damping</code></td><td>float</td><td><code>1.0</code></td><td>Damping ratio of the elastic cells Range 0.0–100.0.</td></tr>
+<tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Take part in the simulation; off leaves the body where it is with no contacts or constraints until it is on again, without a rebuild</td></tr>
 <tr><td><code>events</code></td><td>flags</td><td><code>[]</code></td><td>What this body reports to its node&#x27;s script: on_collision_enter and on_collision_exit, or on_contact_force One of <code>collision</code>, <code>contact_force</code>.</td></tr>
 <tr><td><code>friction</code></td><td>float</td><td><code>0.5</code></td><td>Surface friction of the body&#x27;s collider; 0 is ice At least 0.0.</td></tr>
+<tr><td><code>friction_combine</code></td><td>enum</td><td><code>average</code></td><td>How the body&#x27;s friction combines with what it touches One of <code>average</code>, <code>min</code>, <code>multiply</code>, <code>max</code>, <code>clamped_sum</code>, <code>geometric_mean</code>.</td></tr>
 <tr><td><code>gravity_scale</code></td><td>float</td><td><code>1.0</code></td><td>How much gravity pulls on the particles</td></tr>
 <tr><td><code>interior_strength</code></td><td>float</td><td><code>1.0</code></td><td>How many times tougher an undamaged inside element is than a surface one, so cracks start at the surface and run inward At least 1.0.</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>grid</code></td><td>How the body&#x27;s particles and elements are laid out One of <code>grid</code>, <code>circle</code>, <code>polygon</code>, <code>rope</code>, <code>volumetric</code>, <code>triangle_mesh</code>, <code>polyline</code>.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>grid</code></td><td>How the body&#x27;s particles and elements are laid out One of <code>grid</code>, <code>circle</code>, <code>polygon</code>, <code>outline</code>, <code>rope</code>, <code>volumetric</code>, <code>triangle_mesh</code>, <code>polyline</code>, <code>custom</code>.</td></tr>
 <tr><td><code>linear_damping</code></td><td>float</td><td><code>0.0</code></td><td>Air friction on the particles At least 0.0.</td></tr>
 <tr><td><code>mass</code></td><td>float</td><td><code>1.0</code></td><td>What the whole body weighs, spread over its particles At least 0.0.</td></tr>
 <tr><td><code>masses</code></td><td>list of float</td><td><code>[]</code></td><td>Each particle&#x27;s own mass, by index; empty spreads `mass` over them evenly</td></tr>
 <tr><td><code>max_tears_per_step</code></td><td>int</td><td><code>0</code></td><td>The most edges that may tear in one step, which paces a crack; 0 is no limit At least 0.</td></tr>
-<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Points and triangles for a polygon, triangle_mesh, polyline or volumetric body: the same asset a polygon draws</td></tr>
+<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Points and triangles for a polygon, triangle_mesh, polyline or volumetric body, and the skin a body with cells carries: the same asset a polygon draws</td></tr>
+<tr><td><code>min_angle</code></td><td>float</td><td><code>0.5235988</code></td><td>The smallest corner a volumetric body&#x27;s triangles aim for; past 30 degrees the fill may not finish. Radians in the file Range 0.0–30.0.</td></tr>
 <tr><td><code>min_piece</code></td><td>int</td><td><code>0</code></td><td>The smallest piece, in elements, a tear may split off; 0 lets rapier choose At least 0.</td></tr>
-<tr><td><code>oriented</code></td><td>bool</td><td><code>false</code></td><td>Treat the surface as closed and outward-facing, so its inside holds bodies in instead of pushing them out</td></tr>
+<tr><td><code>orientation</code></td><td>enum</td><td><code>auto</code></td><td>How the surface meets what is inside it: solid encloses matter and pushes bodies out, shell holds bodies in, auto is solid when the surface is closed One of <code>auto</code>, <code>solid</code>, <code>shell</code>.</td></tr>
 <tr><td><code>particle_count</code></td><td>int</td><td><code>16</code></td><td>How many particles a rope or the rim of a circle is made of At least 2.</td></tr>
 <tr><td><code>particle_radius</code></td><td>float</td><td><code>0.0</code></td><td>How thick the particles are; 0 takes what the layout works out At least 0.0.</td></tr>
 <tr><td><code>pinned_particles</code></td><td>list of int</td><td><code>[]</code></td><td>The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from</td></tr>
 <tr><td><code>plastic_creep</code></td><td>float</td><td><code>1.0</code></td><td>How fast, per second, the strain past the yield is absorbed into the rest shape At least 0.0.</td></tr>
 <tr><td><code>plastic_max</code></td><td>float</td><td><code>1.0</code></td><td>The most permanent deformation a cell may take, so a crushed cell cannot flow to a sliver At least 0.0.</td></tr>
 <tr><td><code>plastic_yield</code></td><td>float</td><td><code>0.0</code></td><td>The cell strain past which the rest shape flows towards the current one; 0 is perfectly elastic At least 0.0.</td></tr>
+<tr><td><code>points</code></td><td>list of vec2</td><td><code>[]</code></td><td>The particles of a custom body, or an outline&#x27;s corners counter-clockwise, relative to the node</td></tr>
 <tr><td><code>poisson_ratio</code></td><td>float</td><td><code>0.3</code></td><td>How much an elastic cell bulges sideways when squeezed; towards 0.5 it stops changing volume at all Range 0.0–0.499.</td></tr>
 <tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, when kind is circle At least 0.001.</td></tr>
+<tr><td><code>regions</code></td><td>list of record · <code>damping, hz, particles, pinned, shape_matching, stiffness_scale, tear_resistance</code></td><td><code>[]</code></td><td>Parts of the body with a material of their own, each the particles it covers: `stiffness_scale` on the cells wholly inside, `tear_resistance` on its edges and cells, `shape_matching` towards its own frame, `pinned` to hold it still, and an edge spring of `hz` and `damping`, 0 hz keeping the body&#x27;s. Each is a `soft_frame` body joints may attach to</td></tr>
 <tr><td><code>restitution</code></td><td>float</td><td><code>0.0</code></td><td>Bounciness of the body&#x27;s collider Range 0.0–1.0.</td></tr>
+<tr><td><code>restitution_combine</code></td><td>enum</td><td><code>average</code></td><td>How its bounciness combines with what it touches One of <code>average</code>, <code>min</code>, <code>multiply</code>, <code>max</code>, <code>clamped_sum</code>, <code>geometric_mean</code>.</td></tr>
+<tr><td><code>seams</code></td><td>list of record · <code>a, b</code></td><td><code>[]</code></td><td>Structural edges added between particles the layout left apart, each as long as its two particles stand at the start</td></tr>
 <tr><td><code>self_collision</code></td><td>bool</td><td><code>false</code></td><td>Let the body&#x27;s own surface collide with itself, which stops a cloth passing through its own fold</td></tr>
-<tr><td><code>shape_matching</code></td><td>bool</td><td><code>false</code></td><td>Pull the body back towards the shape it was built in, which is what keeps a jelly a jelly</td></tr>
+<tr><td><code>sensor</code></td><td>bool</td><td><code>false</code></td><td>Report contacts and push nothing: the body passes through what it touches</td></tr>
+<tr><td><code>shape_matching</code></td><td>enum</td><td><code>auto</code></td><td>Pull the body back towards the shape it was built in, which is what keeps a jelly a jelly; auto keeps the layout&#x27;s own choice, on for a triangle_mesh or a polyline One of <code>auto</code>, <code>on</code>, <code>off</code>.</td></tr>
 <tr><td><code>shape_matching_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of the shape-matching constraints Range 0.0–100.0.</td></tr>
-<tr><td><code>shape_matching_frequency</code></td><td>float</td><td><code>10.0</code></td><td>The same for shape matching, which pulls the body back towards the shape it was built in Range 0.0–10000.0.</td></tr>
+<tr><td><code>shape_matching_hz</code></td><td>float</td><td><code>10.0</code></td><td>The same for shape matching, which pulls the body back towards the shape it was built in Range 0.0–10000.0.</td></tr>
 <tr><td><code>size</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>Whole size of the sheet, when kind is grid</td></tr>
-<tr><td><code>skin_collision</code></td><td>bool</td><td><code>false</code></td><td>Meet the world through the outline a volumetric body is drawn as, rather than its cells&#x27; boundary</td></tr>
+<tr><td><code>skin</code></td><td>bool</td><td><code>true</code></td><td>Keep the mesh asset&#x27;s outline as what the cells carry and the node draws; any kind with cells and a mesh takes it except triangle_mesh, whose particles are the mesh&#x27;s</td></tr>
+<tr><td><code>skin_collision</code></td><td>bool</td><td><code>false</code></td><td>Meet the world through the skin rather than the cells&#x27; boundary</td></tr>
 <tr><td><code>solver</code></td><td>enum</td><td><code>constraints</code></td><td>Which solver runs the elasticity: sequential constraints, or an implicit Euler step over the whole body One of <code>constraints</code>, <code>fem</code>.</td></tr>
 <tr><td><code>solver_iterations</code></td><td>int</td><td><code>3</code></td><td>Extra iterations inside each substep, for the same Range 0–64.</td></tr>
+<tr><td><code>solver_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers the solver alone reads: a pair whose solver layers do not match still reports contacts but never pushes One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
+<tr><td><code>solver_mask</code></td><td>flags</td><td><code>[]</code></td><td>The solver layers it is pushed by; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>solver_substeps</code></td><td>int</td><td><code>0</code></td><td>Extra solver substeps for this body and everything it touches Range 0–64.</td></tr>
+<tr><td><code>surface_indices</code></td><td>list of list of int</td><td><code>[]</code></td><td>A custom body&#x27;s outward boundary segments, each a pair of particle indices: what holds its area and what it collides through; empty takes the cells&#x27; boundary</td></tr>
 <tr><td><code>tear_force</code></td><td>float</td><td><code>0.0</code></td><td>The pull past which an edge breaks; 0 is unbreakable. Either criterion tears an edge At least 0.0.</td></tr>
 <tr><td><code>tear_resistance</code></td><td>list of record · <code>a, b, resistance</code></td><td><code>[]</code></td><td>Edges that tear sooner or later than the rest, each named by the two particles it joins: below 1 is a perforation, above 1 a seam</td></tr>
 <tr><td><code>tear_smoothing</code></td><td>float</td><td><code>0.0</code></td><td>Over how many seconds a load is averaged before it is tested, so one hard frame does not tear a body At least 0.0.</td></tr>
 <tr><td><code>tear_strain</code></td><td>float</td><td><code>0.0</code></td><td>The stretch past which an element breaks, as a fraction of its rest length; 0 is unbreakable At least 0.0.</td></tr>
-<tr><td><code>tension_only</code></td><td>bool</td><td><code>false</code></td><td>Let the edges resist stretching only, so the body folds freely and never pushes itself open</td></tr>
+<tr><td><code>tension_only</code></td><td>enum</td><td><code>none</code></td><td>Which edges resist stretching only, so the body folds freely and never pushes itself open: none, all, or the tension_only_edges listed One of <code>none</code>, <code>all</code>, <code>listed</code>.</td></tr>
+<tr><td><code>tension_only_edges</code></td><td>list of record · <code>a, b</code></td><td><code>[]</code></td><td>The edges that resist stretching only when tension_only is listed, each named by the two particles it joins</td></tr>
 <tr><td><code>volume_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of the volume constraints Range 0.0–100.0.</td></tr>
 <tr><td><code>volume_factor</code></td><td>float</td><td><code>1.0</code></td><td>What that volume is held at, as a multiple of the rest volume; above 1 inflates the body At least 0.0.</td></tr>
-<tr><td><code>volume_frequency</code></td><td>float</td><td><code>30.0</code></td><td>The same for the constraints holding a cell&#x27;s volume, and for the whole-body one Range 0.0–10000.0.</td></tr>
+<tr><td><code>volume_hz</code></td><td>float</td><td><code>30.0</code></td><td>The same for the constraints holding a cell&#x27;s volume, and for the whole-body one Range 0.0–10000.0.</td></tr>
 <tr><td><code>volume_preservation</code></td><td>bool</td><td><code>true</code></td><td>Hold the volume each closed piece of the body encloses; an open sheet or a rope encloses none, and a hoop without it caves in</td></tr>
 <tr><td><code>young_modulus</code></td><td>float</td><td><code>10000.0</code></td><td>Stiffness of the elastic cells, as force per unit area; a finer mesh does not get stiffer for it At least 0.0.</td></tr>
 </tbody>
@@ -637,11 +904,11 @@ Announced from a node carrying `softbody2d`:
 <table>
 <thead><tr><th>event</th><th>payload</th></tr></thead>
 <tbody>
-<tr><td><code>collision_enter</code></td><td>the other collider&#x27;s node</td></tr>
-<tr><td><code>collision_exit</code></td><td>the other collider&#x27;s node</td></tr>
-<tr><td><code>contact_force</code></td><td><code>#{ other, force, direction }</code></td></tr>
+<tr><td><code>collision_enter</code></td><td><code>#{ other, sensor, removed, points, normals }</code>: the other collider&#x27;s node, whether either is a sensor, and each contact point on this collider with its normal pointing away from it, in world space; a sensor&#x27;s has no points</td></tr>
+<tr><td><code>collision_exit</code></td><td><code>#{ other, sensor, removed }</code>: the other collider&#x27;s node, whether either is a sensor, and whether the touch ended because a collider went away</td></tr>
+<tr><td><code>contact_force</code></td><td><code>#{ other, force, direction, total_force, max_force, started }</code>; <code>direction</code> and <code>total_force</code> point from this collider towards the other</td></tr>
 <tr><td><code>sleeping_changed</code></td><td>whether it sleeps now</td></tr>
-<tr><td><code>tear</code></td><td><code>#{ pieces, edges }</code>: how many pieces, and each torn edge&#x27;s two particles</td></tr>
+<tr><td><code>tear</code></td><td><code>#{ pieces, edges, cells, removed_edges, split_particles, inserted_particles, piece_particles, clusters, moved_joints }</code>, the record <code>tear_softbody</code> answers</td></tr>
 </tbody>
 </table>
 
@@ -650,28 +917,49 @@ On a node carrying `softbody2d`, as `node.softbody2d.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
+<tr><td><code>add_particle_force(i64, Value)</code></td><td>—</td><td>Push one particle with `force` each step until `reset_softbody_forces`.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>add_softbody_force(Value)</code></td><td>—</td><td>Push every free particle with `force` each step until `reset_softbody_forces`.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>apply_particle_impulse(i64, Value)</code></td><td>—</td><td>Strike one particle.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>apply_softbody_impulse(Value)</code></td><td>—</td><td>Change every free particle&#x27;s velocity by `impulse` at once, as a kick to the whole body.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>apply_softbody_impulse_at(Value, Value, Value)</code></td><td>—</td><td>Strike the particles within `radius` of `point`, less the further they are; a radius of 0 strikes them all.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>apply_softbody_radial_impulse(Value, Value, Value)</code></td><td>—</td><td>Push the particles within `radius` away from `center`, as a blast does.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>attach_particle(i64, NodeId)</code></td><td>—</td><td>Tie one particle to a node&#x27;s rigid body where it is now: the body and the particle pull on each other.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>cut_softbody(Value)</code></td><td><code>Value</code></td><td>Cut the body along a blade at once, as `softbody_crossing` reads it; answers a record for each piece it changed, the one `on_tear` hears.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>detach_particle(i64)</code></td><td><code>bool</code></td><td>Untie one particle from every body it was attached to; answers whether it was attached.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>has_pending_tears()</code></td><td><code>bool</code></td><td>Whether some edge or cell is marked to tear at the end of the next step.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>pin_particle(i64)</code></td><td>—</td><td>Hold one particle where it is, which is how a cloth hangs from a hook.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>reset_softbody_forces()</code></td><td>—</td><td>Take back every force `add_softbody_force` gave the body.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>reset_plasticity()</code></td><td>—</td><td>Undo every permanent set the body took: rest lengths, rest angles and rest shapes go back to how it was built, and it springs back from where it is.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>reset_softbody_forces()</code></td><td>—</td><td>Take back every force `add_softbody_force` and `add_particle_force` gave the body.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_cell_tear_resistance(i64, f32)</code></td><td>—</td><td>The same for one cell&#x27;s tear strain.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_edge_tear_resistance(i64, f32)</code></td><td>—</td><td>How many times the material&#x27;s threshold one edge takes to tear; 1 is the material&#x27;s.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_particle_damaged(i64, bool)</code></td><td>—</td><td>Mark one particle as damaged or mend it: a damaged particle tears as an outside one does, which seeds where a crack starts.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_particle_position(i64, Value)</code></td><td>—</td><td>Put one particle at `at` with no change of velocity.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_particle_target(i64, Value)</code></td><td>—</td><td>Move a held particle to `at` over the next step, with the velocity that takes, which is how a cloth is dragged.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_particle_velocity(i64, Value)</code></td><td>—</td><td>Set one particle&#x27;s velocity; a held one keeps moving at it.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_softbody(Value)</code></td><td>—</td><td>Build the node&#x27;s soft body from a `softbody2d` table: `kind`, the shape rows, and the material rows.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>softbody_area()</code></td><td><code>f32</code></td><td>How much area the body encloses right now, against `softbody_rest_area` for how far it is squeezed.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>softbody_center()</code></td><td><code>Value</code></td><td>The body&#x27;s centre of mass, which is where it is when a deformable body has no one position.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_area()</code></td><td><code>f32</code></td><td>How much area the body and every piece torn off it enclose right now, against `softbody_rest_area` for how far it is squeezed.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_attachments()</code></td><td><code>Value</code></td><td>Every particle tied to a rigid body, as `#{ particle, body, anchor, impulse }`: the anchor in the body&#x27;s own space, and the impulse the tie pulled with in the last substep.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_boundary()</code></td><td><code>Value</code></td><td>The body&#x27;s surface as particle indices: segments in 2D, triangles in 3D.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_cell(i64)</code></td><td><code>Value</code></td><td>Everything one cell holds: `#{ particles, rest_volume, stiffness_scale, tear_resistance, stress, plastic_stretch }`; `stress` is its strain as a fraction of `tear_strain`, `plastic_stretch` the rows of the permanent stretch of its rest shape.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_cells()</code></td><td><code>Value</code></td><td>Every cell as its particle indices: triangles in 2D, tetrahedra in 3D.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_center()</code></td><td><code>Value</code></td><td>The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_contacts()</code></td><td><code>Value</code></td><td>What the body&#x27;s surface touched in the last step: `#{ edges, vertices, volumes }`. Each edge and vertex contact with another soft body or itself is a pair of world points, the two witnesses; each volume contact is `#{ center, normal, volume }`.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_crossing(Value)</code></td><td><code>Value</code></td><td>The edges and cells a blade meets, `#{ edges, cells }`, without cutting: the blade is a segment&#x27;s two points in 2D, a triangle&#x27;s three in 3D.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_edge(i64)</code></td><td><code>Value</code></td><td>Everything one edge holds: `#{ particles, kind, rest_length, initial_rest_length, plastic_strain, tension_only, softness_hz, softness_damping_ratio, tear_resistance, impulse, stress }`; `kind` is `structural` or `bending`, and the softness is the edge&#x27;s own or its kind&#x27;s from the material.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>softbody_edges()</code></td><td><code>Value</code></td><td>Every edge as the two particle indices it joins, in the order `softbody_stress` reports them.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>softbody_particles()</code></td><td><code>i64</code></td><td>How many particles the body ended up with, which a generator decides rather than the author.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_mass()</code></td><td><code>f32</code></td><td>What the whole body weighs, every piece included.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_particle(i64)</code></td><td><code>Value</code></td><td>Everything one particle holds: `#{ position, velocity, force, target, rest_position, initial_rest_position, mass, inverse_mass, pinned, damaged, on_surface }`. `force` is what `add_particle_force` keeps on it, `target` where a held particle is going (nil when none), the two rest positions are relative to the rest centre of mass, before and after plastic flow, and `inverse_mass` is 0 while it is held.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_particle_radius()</code></td><td><code>f32</code></td><td>How thick the particles are: what was asked for, or what the layout worked out.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_particles()</code></td><td><code>i64</code></td><td>How many particles the body has, every piece torn off it included: a generator decides, not the author.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>softbody_position(i64)</code></td><td><code>Value</code></td><td>Where one particle is, in world space.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>softbody_rest_area()</code></td><td><code>f32</code></td><td>How much it encloses at rest.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_rest_area()</code></td><td><code>f32</code></td><td>How much they enclose at rest.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>softbody_sleeping()</code></td><td><code>bool</code></td><td>Whether the body has come to rest and stopped being simulated.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>softbody_stress()</code></td><td><code>Value</code></td><td>How far each edge is stretched past its rest length, as a fraction of it: what a tear is judged on.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_stress()</code></td><td><code>Value</code></td><td>Each edge&#x27;s load as a fraction of its tear threshold, smoothed over `tear_smoothing`: 0 slack, 1 tearing; the larger of its stretch over `tear_strain` and its force over `tear_force`, and 0 while neither is set.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>softbody_velocity(i64)</code></td><td><code>Value</code></td><td>How fast one particle is moving, in world space.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_volume_pieces()</code></td><td><code>Value</code></td><td>Each closed piece of the surface whose volume is held, as `#{ particles, rest_volume, volume }`; an open sheet has none.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>tear_cell(i64)</code></td><td>—</td><td>Tear one cell at the end of the next step: a particle near its middle splits across its main stretch.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>tear_edge(i64)</code></td><td>—</td><td>Tear one edge at the end of the next step.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>tear_softbody(Value, Value)</code></td><td><code>Value</code></td><td>Tear the given edges and cells at once; answers a record for each piece it changed: `#{ pieces, edges, cells, removed_edges, split_particles, inserted_particles, piece_particles, clusters, moved_joints }`, the one `on_tear` hears. Particle indices are the torn piece&#x27;s own; `split_particles` holds `[copy, source]` pairs, `clusters` `#{ source, cluster, keeps_proxy }`, and `moved_joints` the joint nodes a cluster split moved.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>unpin_particle(i64)</code></td><td>—</td><td>Let a held particle go; it keeps the velocity it had.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>wake_softbody()</code></td><td>—</td><td>Start simulating a resting body again.</td><td><code>physics2d</code></td></tr>
 </tbody>
@@ -679,86 +967,140 @@ On a node carrying `softbody2d`, as `node.softbody2d.<method>`:
 
 ### `sprite`
 
-`2d` · `render` · 13 properties
+`2d` · `render` · 27 properties
 
 A textured 2D quad at the node, sized by `pixels_per_unit`. `columns` and `rows`, or a `sprite_sheet` in `sheet`, cut it into frames `frame` picks.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>blend_mode</code></td><td>enum</td><td><code>auto</code></td><td>How the surface lands on what is under it: straight alpha, a colour that already carries its alpha, added light, multiplied shade, screen, or opaque. `auto` is premultiplied for a texture uploaded with `premultiply`, else alpha One of <code>auto</code>, <code>alpha</code>, <code>premultiplied</code>, <code>add</code>, <code>multiply</code>, <code>screen</code>, <code>opaque</code>.</td></tr>
 <tr><td><code>centered</code></td><td>bool</td><td><code>true</code></td><td>Centre the image on the node; off puts its top-left corner there</td></tr>
-<tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>cull_back_faces</code></td><td>bool</td><td><code>false</code></td><td>Skip a triangle whose back faces the viewer, as a negative scale turns one</td></tr>
+<tr><td><code>dot_color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>The dots&#x27; colour</td></tr>
+<tr><td><code>dot_size</code></td><td>float</td><td><code>0.0</code></td><td>Size of a dot drawn on every vertex; zero draws none At least 0.0.</td></tr>
+<tr><td><code>dot_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `dot_size` counts: `world` is world units, which the camera&#x27;s zoom scales, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>draw_surface</code></td><td>bool</td><td><code>true</code></td><td>Whether the surface draws; off leaves the wireframe and the dots alone</td></tr>
 <tr><td><code>flip_x</code></td><td>bool</td><td><code>false</code></td><td>Mirror horizontally</td></tr>
 <tr><td><code>flip_y</code></td><td>bool</td><td><code>false</code></td><td>Mirror vertically</td></tr>
 <tr><td><code>frame</code></td><td>int</td><td><code>0</code></td><td>Current sheet cell, counted left-to-right then top-to-bottom At least 0.</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty draws with the built-in one</td></tr>
+<tr><td><code>nine_slice_margins_pixels</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, right, top and bottom margins in texture pixels: the corners keep their size at `pixels_per_unit` while the edges and the middle stretch to `size`. All zero takes the margins from the `sheet`&#x27;s first slice with a `center`, drawing that slice&#x27;s part of the frame, and draws one plain quad without one</td></tr>
+<tr><td><code>normal_map</code></td><td>asset · <code>texture</code></td><td>—</td><td>A tangent-space normal map: the node then draws lit per pixel by every `light2d`, after the light map and over what it lit, with no shadow. Empty leaves it to the light map. Give the image `srgb = false`</td></tr>
+<tr><td><code>normal_strength</code></td><td>float</td><td><code>1.0</code></td><td>How far the normal map bends the surface; zero lights it flat At least 0.0.</td></tr>
 <tr><td><code>offset</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Where the image sits against the node, in texture pixels with y down; turns and scales with the node</td></tr>
 <tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>0.0</code></td><td>Texture pixels per world unit; 0 takes the texture&#x27;s own `pixels_per_unit` import setting, which is 100 unless it says At least 0.0.</td></tr>
 <tr><td><code>region_origin</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Top-left corner of the atlas cell to draw, in texture pixels; used with `region_size`</td></tr>
 <tr><td><code>region_size</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Size of the atlas cell to draw, in texture pixels; [0, 0] draws the whole image and sizes the quad from the cell</td></tr>
 <tr><td><code>sheet</code></td><td>asset · <code>sprite_sheet</code></td><td>—</td><td>A sprite_sheet whose frames `frame` indexes; its texture is drawn unless `texture` names another, and it wins over `columns`, `rows` and the region</td></tr>
+<tr><td><code>shininess</code></td><td>float</td><td><code>16.0</code></td><td>How tight the highlight is on a normal-mapped node; higher is smaller and sharper At least 1.0.</td></tr>
 <tr><td><code>size</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Whole size in world units; [0, 0] sizes from the texture</td></tr>
+<tr><td><code>specular_strength</code></td><td>float</td><td><code>0.0</code></td><td>How bright a light&#x27;s highlight is on a normal-mapped node; zero draws none At least 0.0.</td></tr>
 <tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>Image file, project-relative, or a `texture` asset that reads it with settings of its own; required</td></tr>
+<tr><td><code>wireframe_color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>The wireframe&#x27;s colour</td></tr>
+<tr><td><code>wireframe_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `wireframe_width` counts: `world` is world units, which the camera&#x27;s zoom scales, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>wireframe_width</code></td><td>float</td><td><code>0.0</code></td><td>Width of a line drawn along every triangle edge, not the outline; zero draws none At least 0.0.</td></tr>
 </tbody>
 </table>
 
 ### `text2d`
 
-`2d` · `render` · 19 properties
+`2d` · `render` · 50 properties
 
 A block of `text` drawn in the 2D pass, `pixels_per_unit` font pixels per world unit.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>alpha_cutoff</code></td><td>float</td><td><code>0.0</code></td><td>Drop a pixel fainter than this and draw the rest opaque, as a material&#x27;s `[surface] alpha_cutoff` does; zero blends every pixel Range 0.0–1.0.</td></tr>
 <tr><td><code>bitmap_font</code></td><td>string</td><td>—</td><td>A project-relative AngelCode .fnt naming a bitmap face; empty shapes with the project&#x27;s vector fonts</td></tr>
+<tr><td><code>blend_mode</code></td><td>enum</td><td><code>auto</code></td><td>How the surface lands on what is under it: straight alpha, a colour that already carries its alpha, added light, multiplied shade, screen, or opaque. `auto` is premultiplied for a texture uploaded with `premultiply`, else alpha One of <code>auto</code>, <code>alpha</code>, <code>premultiplied</code>, <code>add</code>, <code>multiply</code>, <code>screen</code>, <code>opaque</code>.</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>cull_back_faces</code></td><td>bool</td><td><code>false</code></td><td>Skip a triangle whose back faces the viewer, as a negative scale turns one</td></tr>
+<tr><td><code>dot_color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>The dots&#x27; colour. Not drawn with `alpha_cutoff` above zero or a material, whose layers draw through Balaur&#x27;s own pipeline</td></tr>
+<tr><td><code>dot_size</code></td><td>float</td><td><code>0.0</code></td><td>Size of a dot drawn on every vertex; zero draws none. Not drawn with `alpha_cutoff` above zero or a material, whose layers draw through Balaur&#x27;s own pipeline At least 0.0.</td></tr>
+<tr><td><code>dot_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `dot_size` counts: `world` is world units, which the camera&#x27;s zoom scales, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>draw_surface</code></td><td>bool</td><td><code>true</code></td><td>Whether the surface draws; off leaves the wireframe and the dots alone</td></tr>
 <tr><td><code>font_family</code></td><td>enum</td><td><code>ui</code></td><td>Which of the project&#x27;s font chains to shape with One of <code>ui</code>, <code>heading</code>, <code>mono</code>, <code>icon</code>.</td></tr>
+<tr><td><code>font_features</code></td><td>list of string</td><td><code>[]</code></td><td>OpenType features: a tag turns one on (`smcp`), `tag=0` turns one off (`liga=0`), `tag=n` picks an alternate</td></tr>
+<tr><td><code>font_name</code></td><td>string</td><td>—</td><td>A face by family name, tried before the chain. A project face measures; a face only the system has draws but is measured as the chain</td></tr>
 <tr><td><code>font_size</code></td><td>float</td><td><code>32.0</code></td><td>Height in font pixels, before pixels_per_unit sizes it in the world At least 1.0.</td></tr>
-<tr><td><code>font_style</code></td><td>enum</td><td><code>normal</code></td><td>Upright or italic One of <code>normal</code>, <code>italic</code>.</td></tr>
+<tr><td><code>font_stretch</code></td><td>enum</td><td><code>normal</code></td><td>How wide a face is picked among the faces its family ships; nothing is stretched that no face draws One of <code>ultra_condensed</code>, <code>extra_condensed</code>, <code>condensed</code>, <code>semi_condensed</code>, <code>normal</code>, <code>semi_expanded</code>, <code>expanded</code>, <code>extra_expanded</code>, <code>ultra_expanded</code>.</td></tr>
+<tr><td><code>font_style</code></td><td>enum</td><td><code>normal</code></td><td>Upright, the family&#x27;s italic face, or the upright face slanted; a family with no italic is slanted either way One of <code>normal</code>, <code>italic</code>, <code>oblique</code>.</td></tr>
 <tr><td><code>font_weight</code></td><td>int</td><td><code>400</code></td><td>Stroke weight, 400 regular and 700 bold Range 100–900.</td></tr>
+<tr><td><code>hinting</code></td><td>enum</td><td><code>auto</code></td><td>Snap outlines to the pixel grid; auto takes the face&#x27;s import setting One of <code>auto</code>, <code>on</code>, <code>off</code>.</td></tr>
 <tr><td><code>letter_spacing</code></td><td>float</td><td><code>0.0</code></td><td>Extra space between glyphs, in font pixels</td></tr>
+<tr><td><code>line_break</code></td><td>enum</td><td><code>word_or_glyph</code></td><td>Where a wrapped line may break: between words with a too-long word cut anywhere, between words only, or anywhere One of <code>word_or_glyph</code>, <code>word</code>, <code>glyph</code>.</td></tr>
 <tr><td><code>line_height</code></td><td>float</td><td><code>0.0</code></td><td>Baseline to baseline as a multiple of the size; zero takes the default At least 0.0.</td></tr>
 <tr><td><code>markup</code></td><td>bool</td><td><code>false</code></td><td>Read the text as markup: bold, italic, colour, alignment, wave and inline images</td></tr>
+<tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material every layer draws with, reading the glyph atlas as its texture; empty takes an inherited `material` component, else the built-in one. On `text2d` a material replaces `alpha_cutoff`</td></tr>
+<tr><td><code>max_height</code></td><td>float</td><td><code>0.0</code></td><td>Font pixels the lines stop at; zero has no limit At least 0.0.</td></tr>
+<tr><td><code>max_lines</code></td><td>int</td><td><code>0</code></td><td>The most lines a block keeps; zero keeps every line At least 0.</td></tr>
 <tr><td><code>max_width</code></td><td>float</td><td><code>0.0</code></td><td>Font pixels the lines wrap at; zero runs the text on one line At least 0.0.</td></tr>
+<tr><td><code>monospace_width</code></td><td>float</td><td><code>0.0</code></td><td>Font pixels a monospace face&#x27;s advance is set to; zero keeps its own At least 0.0.</td></tr>
 <tr><td><code>outline_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 1.0]</code></td><td>The outline&#x27;s colour</td></tr>
 <tr><td><code>outline_size</code></td><td>float</td><td><code>0.0</code></td><td>Font pixels the outline reaches around the glyphs; zero draws none At least 0.0.</td></tr>
+<tr><td><code>overline</code></td><td>bool</td><td><code>false</code></td><td>A line over the glyphs</td></tr>
+<tr><td><code>overline_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The overline&#x27;s colour; alpha 0 takes the glyphs&#x27; own</td></tr>
+<tr><td><code>pixel_snap</code></td><td>bool</td><td><code>false</code></td><td>Rasterise on whole pixels with no subpixel offset, for a pixel face</td></tr>
 <tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>100.0</code></td><td>Font pixels to one world unit, sizing the block the way a sprite is sized At least 0.01.</td></tr>
 <tr><td><code>shadow_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.5]</code></td><td>The shadow&#x27;s colour</td></tr>
 <tr><td><code>shadow_offset_x</code></td><td>float</td><td><code>0.0</code></td><td>Font pixels the shadow is moved along x; zero with y draws none</td></tr>
 <tr><td><code>shadow_offset_y</code></td><td>float</td><td><code>0.0</code></td><td>Font pixels the shadow is moved along y</td></tr>
+<tr><td><code>shaping</code></td><td>enum</td><td><code>complex</code></td><td>Complex shaping joins scripts that need it and falls back to another face; simple does neither and is faster One of <code>complex</code>, <code>simple</code>.</td></tr>
+<tr><td><code>snap_advances</code></td><td>bool</td><td><code>false</code></td><td>Round each glyph&#x27;s advance to a whole pixel; the layout then depends on the size it is drawn at</td></tr>
+<tr><td><code>strikethrough</code></td><td>bool</td><td><code>false</code></td><td>A line through the glyphs</td></tr>
+<tr><td><code>strikethrough_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The strikethrough&#x27;s colour; alpha 0 takes the glyphs&#x27; own</td></tr>
+<tr><td><code>tab_width</code></td><td>int</td><td><code>8</code></td><td>Spaces between tab stops Range 1–64.</td></tr>
 <tr><td><code>text</code></td><td>string</td><td>—</td><td>The text drawn; `text_key` wins over it</td></tr>
-<tr><td><code>text_align</code></td><td>enum</td><td><code>center</code></td><td>Where the block sits across the node&#x27;s origin One of <code>start</code>, <code>center</code>, <code>end</code>.</td></tr>
+<tr><td><code>text_align</code></td><td>enum</td><td><code>center</code></td><td>Where the block sits across the node&#x27;s origin, and its lines within it: start and end follow the text&#x27;s direction, left and right do not, justify stretches every full line One of <code>start</code>, <code>center</code>, <code>end</code>, <code>left</code>, <code>right</code>, <code>justify</code>.</td></tr>
 <tr><td><code>text_key</code></td><td>string</td><td>—</td><td>A key in the project&#x27;s strings, re-read every frame so a language change shows at once</td></tr>
+<tr><td><code>truncate</code></td><td>bool</td><td><code>false</code></td><td>End a block cut short with an ellipsis; needs `max_width`, and cuts at `max_lines` or `max_height` when either is set, else at one line</td></tr>
+<tr><td><code>truncate_at</code></td><td>enum</td><td><code>end</code></td><td>Which part of a cut line the ellipsis stands in for One of <code>end</code>, <code>start</code>, <code>middle</code>.</td></tr>
+<tr><td><code>underline</code></td><td>enum</td><td><code>none</code></td><td>A line under the glyphs, once or twice One of <code>none</code>, <code>single</code>, <code>double</code>.</td></tr>
+<tr><td><code>underline_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The underline&#x27;s colour; alpha 0 takes the glyphs&#x27; own</td></tr>
+<tr><td><code>wireframe_color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>The wireframe&#x27;s colour. Not drawn with `alpha_cutoff` above zero or a material, whose layers draw through Balaur&#x27;s own pipeline</td></tr>
+<tr><td><code>wireframe_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `wireframe_width` counts: `world` is world units, which the camera&#x27;s zoom scales, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>wireframe_width</code></td><td>float</td><td><code>0.0</code></td><td>Width of a line drawn along every triangle edge, not the outline; zero draws none. Not drawn with `alpha_cutoff` above zero or a material, whose layers draw through Balaur&#x27;s own pipeline At least 0.0.</td></tr>
 </tbody>
 </table>
 
 ### `tile_collision`
 
-`2d` · `physics` · 17 properties
+`2d` · `physics` · 26 properties
 
-Collision for the node's `tilemap` cells: every tile the tileset marks solid, one shape per behaviour, with the material keys a `collider2d` takes.
+Collision for the node's `tilemap` cells: every tile the tileset marks solid, one shape per behaviour, with the material keys a `collider2d` takes. `mass` weighs the whole map, shared across its colliders by area; `one_way` makes every cell a platform, holding bodies on `one_way_axis`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>center_of_mass</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Where the whole map&#x27;s mass sits, in the node&#x27;s own space; read with inertia, and both 0 keep the shapes&#x27; own</td></tr>
 <tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers this collider is on One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_margin</code></td><td>float</td><td><code>0.0</code></td><td>A margin the solver treats as already touching; stops thin shapes tunnelling and jittering At least 0.0.</td></tr>
 <tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
+<tr><td><code>collision_test</code></td><td>enum</td><td><code>both</code></td><td>Whether a pair is tested when both colliders&#x27; layers accept the other, or when either does; two colliders that differ use both One of <code>both</code>, <code>either</code>.</td></tr>
 <tr><td><code>contact_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>How hard a contact must be before on_contact_force is called At least 0.0.</td></tr>
 <tr><td><code>contact_pairs</code></td><td>flags</td><td><code>[&quot;dynamic_dynamic&quot;, &quot;dynamic_kinematic&quot;, &quot;dynamic_static&quot;]</code></td><td>Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default One of <code>dynamic_dynamic</code>, <code>dynamic_kinematic</code>, <code>dynamic_static</code>, <code>kinematic_kinematic</code>, <code>kinematic_static</code>, <code>static_static</code>.</td></tr>
-<tr><td><code>density</code></td><td>float</td><td><code>1.0</code></td><td>Mass per volume, so the shape&#x27;s size sets its mass At least 0.001.</td></tr>
+<tr><td><code>density</code></td><td>float</td><td><code>1.0</code></td><td>Mass per volume, so the shape&#x27;s size sets its mass; 0 makes a collider that adds no mass to its body At least 0.0.</td></tr>
+<tr><td><code>edge_radius</code></td><td>float</td><td><code>0.0</code></td><td>Rounds each shaped tile&#x27;s polygon by this radius; full cells have no border to round At least 0.0.</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Collide at all; a disabled collider keeps its shape and costs nothing</td></tr>
 <tr><td><code>events</code></td><td>flags</td><td><code>[]</code></td><td>What this collider reports to its node&#x27;s script: on_collision_enter and on_collision_exit, or on_contact_force One of <code>collision</code>, <code>contact_force</code>.</td></tr>
+<tr><td><code>fit</code></td><td>enum</td><td><code>convex_hull</code></td><td>What a shaped tile&#x27;s polygon becomes: its hull, its box, its oriented box, or convex pieces that keep a concave outline One of <code>convex_hull</code>, <code>aabb</code>, <code>obb</code>, <code>convex_decomposition</code>.</td></tr>
 <tr><td><code>friction</code></td><td>float</td><td><code>0.5</code></td><td>Surface friction; 0 is ice At least 0.0.</td></tr>
 <tr><td><code>friction_combine</code></td><td>enum</td><td><code>average</code></td><td>How this surface&#x27;s friction combines with the other one&#x27;s One of <code>average</code>, <code>min</code>, <code>multiply</code>, <code>max</code>, <code>clamped_sum</code>, <code>geometric_mean</code>.</td></tr>
+<tr><td><code>inertia</code></td><td>float</td><td><code>0.0</code></td><td>The whole map&#x27;s resistance to spin about center_of_mass, shared over its colliders by area; 0 takes the shapes&#x27; own about that centre At least 0.0.</td></tr>
 <tr><td><code>mass</code></td><td>float</td><td><code>0.0</code></td><td>Mass in kilograms, overriding what density works out to; 0 keeps the density At least 0.0.</td></tr>
-<tr><td><code>one_way</code></td><td>bool</td><td><code>false</code></td><td>A platform bodies pass through from below and land on from above</td></tr>
-<tr><td><code>restitution</code></td><td>float</td><td><code>0.0</code></td><td>Bounciness: 0 is a dead stop, 1 a full rebound Range 0.0–1.0.</td></tr>
+<tr><td><code>one_way</code></td><td>bool</td><td><code>false</code></td><td>A platform bodies land on from the side one_way_axis names and pass through from the other</td></tr>
+<tr><td><code>one_way_angle</code></td><td>float</td><td><code>0.1</code></td><td>How far a contact&#x27;s normal may lean from one_way_axis and still hold the body; radians in the file Range 0.0–180.0.</td></tr>
+<tr><td><code>one_way_axis</code></td><td>vec2</td><td><code>[0.0, 1.0]</code></td><td>The side a one-way cell holds bodies on, in the map&#x27;s axes: [0, 1] lands them from above and lets them up through from below. A flipped or turned shaped tile turns it with its polygon</td></tr>
+<tr><td><code>restitution</code></td><td>float</td><td><code>0.0</code></td><td>Bounciness: 0 is a dead stop, 1 a full rebound, and above 1 each bounce gains energy At least 0.0.</td></tr>
 <tr><td><code>restitution_combine</code></td><td>enum</td><td><code>average</code></td><td>How this surface&#x27;s bounciness combines with the other one&#x27;s One of <code>average</code>, <code>min</code>, <code>multiply</code>, <code>max</code>, <code>clamped_sum</code>, <code>geometric_mean</code>.</td></tr>
 <tr><td><code>sensor</code></td><td>bool</td><td><code>false</code></td><td>Detects overlaps without colliding: bodies pass through and are reported</td></tr>
 <tr><td><code>solver_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>Layers for the solver alone: a pair can be detected but not resolved One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>solver_mask</code></td><td>flags</td><td><code>[]</code></td><td>Which solver layers this one pushes against; empty means all of them One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
+<tr><td><code>solver_test</code></td><td>enum</td><td><code>both</code></td><td>The same choice for the solver layers One of <code>both</code>, <code>either</code>.</td></tr>
+<tr><td><code>surface_velocity</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>How fast every cell&#x27;s surface slides along itself, in the map&#x27;s axes: a conveyor belt carries what rests on it</td></tr>
 </tbody>
 </table>
 
@@ -767,22 +1109,29 @@ Announced from a node carrying `tile_collision`:
 <table>
 <thead><tr><th>event</th><th>payload</th></tr></thead>
 <tbody>
-<tr><td><code>collision_enter</code></td><td>the other collider&#x27;s node</td></tr>
-<tr><td><code>collision_exit</code></td><td>the other collider&#x27;s node</td></tr>
-<tr><td><code>contact_force</code></td><td><code>#{ other, force, direction }</code></td></tr>
+<tr><td><code>collision_enter</code></td><td><code>#{ other, sensor, removed, points, normals }</code>: the other collider&#x27;s node, whether either is a sensor, and each contact point on this collider with its normal pointing away from it, in world space; a sensor&#x27;s has no points</td></tr>
+<tr><td><code>collision_exit</code></td><td><code>#{ other, sensor, removed }</code>: the other collider&#x27;s node, whether either is a sensor, and whether the touch ended because a collider went away</td></tr>
+<tr><td><code>contact_force</code></td><td><code>#{ other, force, direction, total_force, max_force, started }</code>; <code>direction</code> and <code>total_force</code> point from this collider towards the other</td></tr>
 </tbody>
 </table>
 
 ### `tilemap`
 
-`2d` · `render` · 8 properties · 5 methods
+`2d` · `render` · 18 properties · 5 methods
 
 A grid of tiles from one `tileset` asset, centred on the node. `cells` holds rows of tile ids; `pixels_per_unit` is tile pixels per world unit.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>blend_mode</code></td><td>enum</td><td><code>auto</code></td><td>How the surface lands on what is under it: straight alpha, a colour that already carries its alpha, added light, multiplied shade, screen, or opaque. `auto` is premultiplied for a texture uploaded with `premultiply`, else alpha One of <code>auto</code>, <code>alpha</code>, <code>premultiplied</code>, <code>add</code>, <code>multiply</code>, <code>screen</code>, <code>opaque</code>.</td></tr>
 <tr><td><code>cells</code></td><td>string</td><td>—</td><td>Rows of tile ids, -1 for an empty cell, as a list of rows; or the name of a `.cells` file holding those rows, for a level too big to read in a scene</td></tr>
+<tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Tint over every tile, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>cull_back_faces</code></td><td>bool</td><td><code>false</code></td><td>Skip a triangle whose back faces the viewer, as a negative scale turns one</td></tr>
+<tr><td><code>dot_color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>The dots&#x27; colour</td></tr>
+<tr><td><code>dot_size</code></td><td>float</td><td><code>0.0</code></td><td>Size of a dot drawn on every vertex; zero draws none At least 0.0.</td></tr>
+<tr><td><code>dot_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `dot_size` counts: `world` is world units, which the camera&#x27;s zoom scales, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>draw_surface</code></td><td>bool</td><td><code>true</code></td><td>Whether the surface draws; off leaves the wireframe and the dots alone</td></tr>
 <tr><td><code>flags</code></td><td>string</td><td>—</td><td>How each cell is turned, as rows of numbers beside `cells`: 1 mirrors it left to right, 2 top to bottom, 4 across its diagonal</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material the whole map draws with; empty draws with the built-in one</td></tr>
 <tr><td><code>origin</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>The column and row of the first cell: a map grows in any direction by moving this, and cell 0,0 always has its top-left corner on the node</td></tr>
@@ -790,6 +1139,9 @@ A grid of tiles from one `tileset` asset, centred on the node. `cells` holds row
 <tr><td><code>seed</code></td><td>int</td><td><code>0</code></td><td>Which way the variation falls where a rule offers alternates; the same seed lays a map out the same way every time At least 0.</td></tr>
 <tr><td><code>terrain</code></td><td>string</td><td>—</td><td>What was painted, as rows of terrain values, when the map autotiles: the cells are resolved from this through the tileset&#x27;s rules</td></tr>
 <tr><td><code>tileset</code></td><td>asset · <code>tileset</code></td><td>—</td><td>The tileset naming the texture and tile grid</td></tr>
+<tr><td><code>wireframe_color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>The wireframe&#x27;s colour</td></tr>
+<tr><td><code>wireframe_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `wireframe_width` counts: `world` is world units, which the camera&#x27;s zoom scales, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>wireframe_width</code></td><td>float</td><td><code>0.0</code></td><td>Width of a line drawn along every triangle edge, not the outline; zero draws none At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -882,7 +1234,7 @@ On a node carrying `transform`, as `node.transform.<method>`:
 
 ### `body3d`
 
-`3d` · `physics` · 18 properties · 30 methods
+`3d` · `physics` · 25 properties · 38 methods
 
 A 3D rigid body simulated by rapier. `kind` is `dynamic`, `static`, `kinematic` or `kinematic_velocity`; add a `collider3d` for its shape.
 
@@ -893,19 +1245,26 @@ A 3D rigid body simulated by rapier. `kind` is `dynamic`, `static`, `kinematic` 
 <tr><td><code>angular_damping</code></td><td>float</td><td><code>0.0</code></td><td>Drag on spin, in the same terms as linear_damping At least 0.0.</td></tr>
 <tr><td><code>can_sleep</code></td><td>bool</td><td><code>true</code></td><td>Let the body stop being simulated once it has held still</td></tr>
 <tr><td><code>center_of_mass</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where the extra mass sits, in the node&#x27;s own space; only read when mass is set</td></tr>
-<tr><td><code>continuous_collision</code></td><td>bool</td><td><code>false</code></td><td>Sweep the body&#x27;s whole path each step so a fast one cannot pass through a wall</td></tr>
-<tr><td><code>dominance</code></td><td>int</td><td><code>0</code></td><td>A body in a higher group is unpushable by a lower one; every non-dynamic body outranks them all Range -127–127.</td></tr>
+<tr><td><code>continuous_collision</code></td><td>bool</td><td><code>false</code></td><td>Also sweep moving bodies: a fast dynamic body sweeps static colliders without this, and this adds kinematic and dynamic ones</td></tr>
+<tr><td><code>dominance</code></td><td>int</td><td><code>0</code></td><td>A body in a higher group is unpushable by a lower one; a kinematic body keeps its own group, and only a static body outranks every group Range -128–127.</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Simulate this body at all; a disabled body keeps its state and costs nothing</td></tr>
 <tr><td><code>gravity_scale</code></td><td>float</td><td><code>1.0</code></td><td>Multiplier on world gravity for this body: 0 hangs in the air, negative floats up</td></tr>
 <tr><td><code>gyroscopic_forces</code></td><td>bool</td><td><code>false</code></td><td>Model the wobble a spinning body&#x27;s own inertia gives it, as a thrown American football has</td></tr>
-<tr><td><code>inertia</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Resistance to spin about each axis; 0 lets rapier derive it from the mass</td></tr>
+<tr><td><code>inertia</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Resistance to spin about each axis, read when mass is set; 0 derives it from the colliders&#x27; shapes scaled to the mass, about center_of_mass when that is set</td></tr>
+<tr><td><code>inertia_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Turns the axes inertia is measured about, x first; read with a non-zero inertia. Euler radians in the file</td></tr>
+<tr><td><code>initial_angular_velocity</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>How fast the body spins when it is made, about each axis; radians per second in the file, and a later patch does not reapply it</td></tr>
+<tr><td><code>initial_linear_velocity</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>How fast the body travels when it is made, in units per second; a later patch does not reapply it</td></tr>
+<tr><td><code>internal_iterations</code></td><td>int</td><td><code>0</code></td><td>Extra Gauss-Seidel iterations inside each substep for the island this body is in; the island runs the largest any of its bodies asks At least 0.</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>dynamic</code></td><td>How physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set One of <code>dynamic</code>, <code>static</code>, <code>kinematic</code>, <code>kinematic_velocity</code>.</td></tr>
 <tr><td><code>linear_damping</code></td><td>float</td><td><code>0.0</code></td><td>Drag on travel: how fast the body loses speed with nothing touching it At least 0.0.</td></tr>
 <tr><td><code>lock_rotation</code></td><td>flags</td><td><code>[]</code></td><td>World axes the body may not turn about; locking all three keeps a character upright One of <code>x</code>, <code>y</code>, <code>z</code>.</td></tr>
 <tr><td><code>lock_translation</code></td><td>flags</td><td><code>[]</code></td><td>World axes the body may not move along One of <code>x</code>, <code>y</code>, <code>z</code>.</td></tr>
 <tr><td><code>mass</code></td><td>float</td><td><code>0.0</code></td><td>The body&#x27;s total mass; 0 sums what its colliders weigh At least 0.0.</td></tr>
-<tr><td><code>solver_iterations</code></td><td>int</td><td><code>0</code></td><td>Extra solver iterations for this body alone, for the one stack that jitters At least 0.</td></tr>
+<tr><td><code>sleep_angular_threshold</code></td><td>float</td><td><code>0.5</code></td><td>The spin below which a body with no collider counts as still; radians per second in the file At least 0.0.</td></tr>
+<tr><td><code>sleep_threshold</code></td><td>float</td><td><code>0.05</code></td><td>The speed of the body&#x27;s farthest point below which it counts as still, in length units per second scaled by [physics] length_unit At least 0.0.</td></tr>
+<tr><td><code>solver_iterations</code></td><td>int</td><td><code>0</code></td><td>Extra solver substeps for the whole island this body is in, joints and contacts together: everything it touches pays for them At least 0.</td></tr>
 <tr><td><code>speculative_distance</code></td><td>float</td><td><code>0.0</code></td><td>Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies At least 0.0.</td></tr>
+<tr><td><code>start_asleep</code></td><td>bool</td><td><code>false</code></td><td>Make the body asleep, with no velocity, until something wakes it; read once, when the body is made</td></tr>
 <tr><td><code>time_to_sleep</code></td><td>float</td><td><code>0.5</code></td><td>Seconds of stillness before the body sleeps At least 0.0.</td></tr>
 </tbody>
 </table>
@@ -915,9 +1274,9 @@ Announced from a node carrying `body3d`:
 <table>
 <thead><tr><th>event</th><th>payload</th></tr></thead>
 <tbody>
-<tr><td><code>collision_enter</code></td><td>the other collider&#x27;s node, for a collider under it</td></tr>
-<tr><td><code>collision_exit</code></td><td>the other collider&#x27;s node, for a collider under it</td></tr>
-<tr><td><code>contact_force</code></td><td><code>#{ other, force, direction }</code>, for a collider under it</td></tr>
+<tr><td><code>collision_enter</code></td><td><code>#{ other, sensor, removed, points, normals }</code> for a collider under it, as that collider hears it</td></tr>
+<tr><td><code>collision_exit</code></td><td><code>#{ other, sensor, removed }</code> for a collider under it, as that collider hears it</td></tr>
+<tr><td><code>contact_force</code></td><td><code>#{ other, force, direction, total_force, max_force, started }</code> for a collider under it, as that collider hears it</td></tr>
 <tr><td><code>sleeping_changed</code></td><td>whether it sleeps now</td></tr>
 </tbody>
 </table>
@@ -939,24 +1298,32 @@ On a node carrying `body3d`, as `node.body3d.<method>`:
 <tr><td><code>apply_torque_impulse(f32, f32, f32)</code></td><td>—</td><td>Add an instant change in angular momentum, as if the body were spun.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>constant_force()</code></td><td><code>(f32, f32, f32)</code></td><td>The force every step integrates until it is set back to zero.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>constant_torque()</code></td><td><code>(f32, f32, f32)</code></td><td>The torque every step integrates until it is set back to zero.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>effective_angular_inertia()</code></td><td><code>Value</code></td><td>The world-space inertia the solver turns, rotation locks applied, as its three rows.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>effective_dominance()</code></td><td><code>f32</code></td><td>The dominance rapier will use for this body: its own group, or the rank every non-dynamic body outranks with.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>effective_mass()</code></td><td><code>Value</code></td><td>The mass the solver pushes against along each world axis: zero along a locked axis, and on any body that is not dynamic.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>is_ccd_active()</code></td><td><code>bool</code></td><td>Whether the body moved fast enough last step for rapier to sweep it, with or without continuous_collision.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>is_moving()</code></td><td><code>bool</code></td><td>Whether the body is awake and actually going somewhere.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>is_sleeping()</code></td><td><code>bool</code></td><td>Whether the body is asleep and being skipped.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>kinetic_energy()</code></td><td><code>f32</code></td><td>The body&#x27;s kinetic energy, for a rest test the solver agrees with.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>linear_velocity()</code></td><td><code>(f32, f32, f32)</code></td><td>How fast the body is travelling, in units per second.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>next_position()</code></td><td><code>(f32, f32, f32)</code></td><td>The pose a kinematic body has been told to move to.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>local_center_of_mass()</code></td><td><code>Value</code></td><td>Where the body&#x27;s whole mass sits, in the body&#x27;s own space.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>next_position()</code></td><td><code>Value</code></td><td>The pose a kinematic body has been told to move to, as `#{ position, rotation }`.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>potential_energy()</code></td><td><code>f32</code></td><td>The body&#x27;s gravitational potential energy over one step.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>predict_position(f32)</code></td><td><code>(f32, f32, f32)</code></td><td>Where the body will be after `dt` seconds at its current velocity.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>predict_position_with_forces(f32)</code></td><td><code>(f32, f32, f32)</code></td><td>The same, with the forces already applied taken into account: where a thrust or a spring will have put it.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>predict_position(f32)</code></td><td><code>Value</code></td><td>Where the body will be after `dt` seconds at its current velocity, as `#{ position, rotation }`.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>predict_position_with_forces(f32)</code></td><td><code>Value</code></td><td>The same, with the forces already applied taken into account: where a thrust or a spring will have put it.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_angular_velocity(f32, f32, f32)</code></td><td>—</td><td>Set how fast the body spins, in radians per second about each axis.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_constant_force(f32, f32, f32)</code></td><td>—</td><td>Replace the constant force with this one; zero stops the push.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_constant_torque(f32, f32, f32)</code></td><td>—</td><td>Replace the constant torque with this one; zero stops the turn.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_linear_velocity(f32, f32, f32)</code></td><td>—</td><td>Set how fast the body travels, in units per second.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>sleep()</code></td><td>—</td><td>Put the body to sleep now.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>teleport(f32, f32, f32)</code></td><td>—</td><td>Move the body to a world position at once, clearing its velocity: what assigning the node&#x27;s position cannot do, because the step writes that back every tick.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>teleport(f32, f32, f32, Option&lt;Value&gt;)</code></td><td>—</td><td>Move the body to a world position at once, clearing its velocity: what assigning the node&#x27;s position cannot do, because the step writes that back every tick. `#{ rotation = [x, y, z] }` turns it too, in Euler radians.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>time_since_can_sleep()</code></td><td><code>f32</code></td><td>Seconds the body has spent under its sleep thresholds; it sleeps once this reaches time_to_sleep.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>total_inertia()</code></td><td><code>Value</code></td><td>The body&#x27;s resistance to spin about each of its principal axes, colliders included.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>total_inertia_rotation()</code></td><td><code>Value</code></td><td>How those principal axes are turned in the body&#x27;s own space, as Euler radians, x first.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>total_mass()</code></td><td><code>f32</code></td><td>The body&#x27;s total mass: its `mass` when it states one, or what its colliders weigh.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>velocity_at_point(f32, f32, f32)</code></td><td><code>(f32, f32, f32)</code></td><td>How fast a world point on the body is moving, spin included.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>wake_up()</code></td><td>—</td><td>Wake the body, so the next step moves it.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>world_center_of_mass()</code></td><td><code>Value</code></td><td>Where the body&#x27;s whole mass sits, in world space.</td><td><code>physics3d</code></td></tr>
 </tbody>
 </table>
 
@@ -978,14 +1345,30 @@ Makes the node a 3D bone. `rest_position`, `rest_rotation` and `rest_scale` are 
 
 ### `boolean3d`
 
-`3d` · `render` · 1 property · 1 method
+`3d` · `render` · 17 properties · 1 method
 
-Draws the node as its children combined by `op`: `union`, `difference` or `intersection`. The children stay in the tree, hidden and editable.
+Draws the node as its children combined by `operation`: `union`, `difference` or `intersection`. The children stay in the tree, hidden and editable; `color`, `texture` and `material` dress the result.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>cast_shadow</code></td><td>bool</td><td><code>true</code></td><td>Whether the result casts a shadow from the lights that cast</td></tr>
+<tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>Tint of the result, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>depth_test</code></td><td>bool</td><td><code>true</code></td><td>Let the scene hide it; off draws it over everything drawn before it and leaves the depth as it was</td></tr>
+<tr><td><code>dot_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The vertex dots&#x27; colour; an alpha of zero takes the node&#x27;s own. Not drawn on a skinned mesh, which Balaur poses in its own vertex stage</td></tr>
+<tr><td><code>dot_size</code></td><td>float</td><td><code>0.0</code></td><td>Size of a dot drawn on every vertex; zero draws none. Not drawn on a skinned mesh, which Balaur poses in its own vertex stage. Not on WebGL2 At least 0.0.</td></tr>
+<tr><td><code>dot_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `dot_size` counts: `world` is pixels at one world unit from the camera, thinning with distance, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>draw_surface</code></td><td>bool</td><td><code>true</code></td><td>Whether the surface draws; off leaves the wireframe and the dots alone</td></tr>
+<tr><td><code>light_layers</code></td><td>int</td><td><code>-1</code></td><td>Light-layer bitmask; a `light3d` lights the result when their masks share a bit. -1 is every layer</td></tr>
+<tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material the result draws with; empty takes an inherited `material` component, else the built-in one</td></tr>
 <tr><td><code>operation</code></td><td>enum</td><td><code>union</code></td><td>How the children are combined, in the order they are declared One of <code>union</code>, <code>difference</code>, <code>intersection</code>.</td></tr>
+<tr><td><code>receive_shadows</code></td><td>bool</td><td><code>true</code></td><td>Whether shadows land on it; off lights it as if nothing stood between it and every light</td></tr>
+<tr><td><code>render_layers</code></td><td>int</td><td><code>-1</code></td><td>Layer bitmask; a `camera3d` draws the result when their `render_layers` share a bit. -1 is every layer</td></tr>
+<tr><td><code>segmentation_id</code></td><td>int</td><td><code>0</code></td><td>The id `render.snap_aov(&quot;segmentation&quot;)` colours this node by; nodes sharing one share a colour. Zero takes one of its own, from 1 up At least 0.</td></tr>
+<tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>Image file, project-relative, or a `texture` asset the result is drawn with, over the UVs the children carry through the cut; empty draws the colour alone</td></tr>
+<tr><td><code>wireframe_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The wireframe&#x27;s colour; an alpha of zero takes the node&#x27;s own. Not drawn on a skinned mesh, which Balaur poses in its own vertex stage</td></tr>
+<tr><td><code>wireframe_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `wireframe_width` counts: `world` is pixels at one world unit from the camera, thinning with distance, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>wireframe_width</code></td><td>float</td><td><code>0.0</code></td><td>Width of a line drawn along every triangle edge; zero draws none. Not drawn on a skinned mesh, which Balaur poses in its own vertex stage. Not on WebGL2 At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -1000,7 +1383,7 @@ On a node carrying `boolean3d`, as `node.boolean3d.<method>`:
 
 ### `camera3d`
 
-`3d` · `render` · 30 properties
+`3d` · `render` · 61 properties
 
 The camera the scene is drawn from. `look_at` aims it, the lens rows say how it projects and what it draws, the control rows say how a mouse orbits, pans and zooms it, and the last `current` camera wins.
 
@@ -1009,34 +1392,65 @@ The camera the scene is drawn from. `look_at` aims it, the lens rows say how it 
 <tbody>
 <tr><td><code>aberration_amount</code></td><td>float</td><td><code>0.004</code></td><td>How far `aberration` slides red from blue at the frame&#x27;s edge, as a fraction of it At least 0.0.</td></tr>
 <tr><td><code>bloom_intensity</code></td><td>float</td><td><code>0.6</code></td><td>How much of the bloom is added back over the frame At least 0.0.</td></tr>
+<tr><td><code>bloom_knee</code></td><td>float</td><td><code>0.5</code></td><td>Width of the soft band around `bloom_threshold` a pixel starts to bloom in; 0 is a hard cut At least 0.0.</td></tr>
+<tr><td><code>bloom_mips</code></td><td>int</td><td><code>5</code></td><td>Levels in the bloom chain, each half the size of the last; more spreads the glow wider Range 1–12.</td></tr>
 <tr><td><code>bloom_threshold</code></td><td>float</td><td><code>1.0</code></td><td>Brightness a pixel has to pass to bloom At least 0.0.</td></tr>
+<tr><td><code>crt_aberration</code></td><td>float</td><td><code>0.004</code></td><td>How far `crt` splits the colours at the frame&#x27;s edge, as a fraction of it At least 0.0.</td></tr>
+<tr><td><code>crt_curvature</code></td><td>float</td><td><code>0.12</code></td><td>How far the `crt` pass bends the frame like a tube&#x27;s glass; 0 is flat At least 0.0.</td></tr>
+<tr><td><code>crt_scanline_count</code></td><td>float</td><td><code>480.0</code></td><td>How many scanlines `crt` draws down the frame At least 1.0.</td></tr>
+<tr><td><code>crt_scanline_intensity</code></td><td>float</td><td><code>0.25</code></td><td>How dark the `crt` pass draws its scanlines; 0 draws none Range 0.0–1.0.</td></tr>
+<tr><td><code>crt_vignette</code></td><td>float</td><td><code>0.35</code></td><td>How dark `crt` draws the corners Range 0.0–1.0.</td></tr>
 <tr><td><code>current</code></td><td>bool</td><td><code>true</code></td><td>Whether this camera drives the view; the last current one wins</td></tr>
+<tr><td><code>dof_aperture_f_stops</code></td><td>float</td><td><code>0.125</code></td><td>The lens aperture in f-stops; smaller blurs more At least 0.001.</td></tr>
+<tr><td><code>dof_focus_distance</code></td><td>float</td><td><code>10.0</code></td><td>Distance from the camera to the plane that stays sharp, in world units At least 0.0.</td></tr>
+<tr><td><code>dof_max_blur_pixels</code></td><td>float</td><td><code>64.0</code></td><td>The widest a blur circle grows, in pixels At least 0.0.</td></tr>
+<tr><td><code>dof_max_depth</code></td><td>float</td><td><code>1000000.0</code></td><td>Anything farther is blurred as if it were at this distance, in world units At least 0.0.</td></tr>
+<tr><td><code>dof_mode</code></td><td>enum</td><td><code>bokeh</code></td><td>How the `dof` pass blurs: a uniform disc with sharp highlights, or a soft gaussian falloff One of <code>bokeh</code>, <code>gaussian</code>.</td></tr>
+<tr><td><code>dof_sensor_height</code></td><td>float</td><td><code>0.01866</code></td><td>Sensor height in world units; with the field of view it fixes the focal length At least 1e-06.</td></tr>
+<tr><td><code>dof_taps</code></td><td>int</td><td><code>48</code></td><td>Samples the blur gathers per pixel; more is smoother and costs more At least 1.</td></tr>
+<tr><td><code>edges_threshold</code></td><td>float</td><td><code>4.0</code></td><td>How sharp a change in depth the `edges` pass outlines; lower outlines more At least 0.0.</td></tr>
+<tr><td><code>eye_separation</code></td><td>float</td><td><code>0.0</code></td><td>Above zero, a stereo pair this far apart in world units: one eye in each half of the frame, both converging on the point looked at. A stereo camera ignores `projection` and keeps +y up At least 0.0.</td></tr>
 <tr><td><code>far</code></td><td>float</td><td><code>1000.0</code></td><td>The farthest distance drawn, in world units At least 1e-06.</td></tr>
-<tr><td><code>fov_degrees</code></td><td>float</td><td><code>45.0</code></td><td>The vertical field of view; in orthographic, how much of the orbit distance the frame covers Range 1.0–179.0.</td></tr>
+<tr><td><code>fov_degrees</code></td><td>float</td><td><code>45.0</code></td><td>The vertical field of view; in orthographic, how much of the distance to the point looked at the frame covers Range 1.0–179.0.</td></tr>
+<tr><td><code>fxaa_edge_threshold</code></td><td>float</td><td><code>0.125</code></td><td>The `fxaa` pass smooths an edge whose contrast passes this fraction of the brightest pixel near it At least 0.0.</td></tr>
+<tr><td><code>fxaa_edge_threshold_min</code></td><td>float</td><td><code>0.0312</code></td><td>Contrast below this is left alone by `fxaa`, so dark noise is not smoothed At least 0.0.</td></tr>
+<tr><td><code>gi_cascade_count</code></td><td>int</td><td><code>5</code></td><td>Levels of radiance cascades; more reach farther light Range 1–8.</td></tr>
+<tr><td><code>gi_cascade_directions</code></td><td>int</td><td><code>16</code></td><td>Directions the first cascade gathers from, rounded to a square of a power of two; more sharpens shadow edges At least 4.</td></tr>
+<tr><td><code>gi_downscale</code></td><td>int</td><td><code>2</code></td><td>How many times smaller than the frame the `gi` light field is; larger is faster and softer At least 1.</td></tr>
+<tr><td><code>gi_max_distance</code></td><td>float</td><td><code>2000.0</code></td><td>The farthest a `gi` ray marches, in world units At least 0.0.</td></tr>
+<tr><td><code>gi_max_steps</code></td><td>int</td><td><code>32</code></td><td>Steps a `gi` ray takes before it gives up At least 1.</td></tr>
+<tr><td><code>gi_probe_spacing</code></td><td>int</td><td><code>2</code></td><td>Field pixels between the first cascade&#x27;s probes, rounded up to a power of two; finer resolves sharper light Range 1–16.</td></tr>
+<tr><td><code>gi_rays</code></td><td>int</td><td><code>8</code></td><td>Rays the `gi` pass casts per pixel each frame; the temporal blend adds up the frames At least 1.</td></tr>
+<tr><td><code>gi_screen_occluders</code></td><td>bool</td><td><code>false</code></td><td>Bake the occluders into a distance field each frame, so their count costs nothing; an occluder off screen then casts no shadow</td></tr>
+<tr><td><code>gi_solver</code></td><td>enum</td><td><code>ray_march</code></td><td>A ray march per pixel, or radiance cascades: probe grids that gather farther light for less One of <code>ray_march</code>, <code>cascades</code>.</td></tr>
+<tr><td><code>gi_temporal_blend</code></td><td>float</td><td><code>0.85</code></td><td>How much of last frame&#x27;s `gi` light is kept; higher is smoother and trails behind motion. The cascade solver ignores it Range 0.0–0.99.</td></tr>
 <tr><td><code>grain_amount</code></td><td>float</td><td><code>0.06</code></td><td>How much the `grain` pass lightens and darkens a pixel At least 0.0.</td></tr>
 <tr><td><code>look_at</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>World point the camera looks at</td></tr>
-<tr><td><code>max_distance</code></td><td>float</td><td><code>10000.0</code></td><td>The farthest a scroll takes the camera from its focus point At least 0.0.</td></tr>
-<tr><td><code>max_pitch_degrees</code></td><td>float</td><td><code>179.427</code></td><td>How far towards straight up an orbit may look, from the up direction Range 0.0–180.0.</td></tr>
-<tr><td><code>min_distance</code></td><td>float</td><td><code>1e-05</code></td><td>The closest a scroll brings the camera to its focus point At least 0.0.</td></tr>
-<tr><td><code>min_pitch_degrees</code></td><td>float</td><td><code>0.573</code></td><td>How far towards straight down an orbit may look, from the up direction Range 0.0–180.0.</td></tr>
+<tr><td><code>loupe_border_color</code></td><td>color</td><td><code>[1.0, 0.9, 0.2, 1.0]</code></td><td>The colour of the `loupe`&#x27;s frame and of the outline round what it magnifies; alpha is ignored</td></tr>
+<tr><td><code>loupe_corner</code></td><td>enum</td><td><code>bottom_right</code></td><td>The corner the `loupe` draws its inset in One of <code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>.</td></tr>
+<tr><td><code>loupe_focus</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td>The point the `loupe` magnifies, [0, 0] at the frame&#x27;s top-left and [1, 1] at its bottom-right</td></tr>
+<tr><td><code>loupe_size</code></td><td>float</td><td><code>0.4</code></td><td>The inset&#x27;s side, as a fraction of the frame&#x27;s shorter side Range 0.01–1.0.</td></tr>
+<tr><td><code>loupe_zoom</code></td><td>float</td><td><code>8.0</code></td><td>How many times the `loupe` pass magnifies At least 1.0.</td></tr>
 <tr><td><code>near</code></td><td>float</td><td><code>0.1</code></td><td>The nearest distance drawn, in world units At least 1e-06.</td></tr>
-<tr><td><code>orbit_button</code></td><td>enum</td><td><code>middle</code></td><td>The mouse button a drag orbits the camera with; none turns orbiting off One of <code>none</code>, <code>left</code>, <code>right</code>, <code>middle</code>, <code>button4</code>, <code>button5</code>, <code>button6</code>, <code>button7</code>, <code>button8</code>.</td></tr>
-<tr><td><code>orbit_modifiers</code></td><td>list of enum</td><td><code>[]</code></td><td>Keys held with the orbit button; empty answers whatever is held</td></tr>
-<tr><td><code>pan_button</code></td><td>enum</td><td><code>right</code></td><td>The mouse button a drag slides the focus point with; none turns panning off One of <code>none</code>, <code>left</code>, <code>right</code>, <code>middle</code>, <code>button4</code>, <code>button5</code>, <code>button6</code>, <code>button7</code>, <code>button8</code>.</td></tr>
-<tr><td><code>pan_modifiers</code></td><td>list of enum</td><td><code>[]</code></td><td>Keys held with the pan button; empty answers whatever is held</td></tr>
+<tr><td><code>orthographic_height</code></td><td>float</td><td><code>0.0</code></td><td>The orthographic frame&#x27;s full height in world units; zero sizes it from the distance to the point looked at and `fov_degrees` At least 0.0.</td></tr>
 <tr><td><code>pixelate_size</code></td><td>float</td><td><code>4.0</code></td><td>The side of one block the `pixelate` pass reads the frame back in, in pixels At least 1.0.</td></tr>
-<tr><td><code>post</code></td><td>list of string</td><td><code>[]</code></td><td>The frame&#x27;s passes, in order. bloom, ssao, ssr, dof, fxaa, sharpen, tonemap, vignette, aberration, grain, pixelate name the engine&#x27;s own -- `ssao`, `ssr` and `dof` are 3D only, and where each physically runs is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame, and those run in the order given. `tonemap` is where the film becomes a picture: a material before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head</td></tr>
-<tr><td><code>projection</code></td><td>enum</td><td><code>perspective</code></td><td>Perspective, or parallel lines that stay parallel; an orthographic frame is sized from the orbit distance, so a scroll still zooms One of <code>perspective</code>, <code>orthographic</code>.</td></tr>
+<tr><td><code>post</code></td><td>list of string</td><td><code>[]</code></td><td>The frame&#x27;s passes, in order. bloom, ssao, ssr, dof, fxaa, sharpen, tonemap, vignette, aberration, grain, pixelate, crt, grayscale, waves, loupe, stereo, edges, gi name the engine&#x27;s own -- `ssao`, `ssr` and `dof` are 3D only, `gi` is 2D only and lights the frame in place of the `light2d` light map, and where those and `bloom` run is fixed by the pipeline. Any other name is a `material` asset drawn over the whole frame. The rest run in the order given. `tonemap` is where the film becomes a picture: a pass before it works in linear light and is what blooms, one after it works on the finished frame, and a list that does not name it has it at the head</td></tr>
+<tr><td><code>projection</code></td><td>enum</td><td><code>perspective</code></td><td>Perspective, or parallel lines that stay parallel One of <code>perspective</code>, <code>orthographic</code>.</td></tr>
 <tr><td><code>render_layers</code></td><td>int</td><td><code>-1</code></td><td>Layer bitmask: this camera draws a node whose `render_layers` share a bit with it. -1 is every layer</td></tr>
-<tr><td><code>reset_key</code></td><td>string</td><td><code>Enter</code></td><td>The key that puts the focus point back at the origin, by its `input` name; empty for none</td></tr>
+<tr><td><code>sharpen_amount</code></td><td>float</td><td><code>0.5</code></td><td>How hard the `sharpen` pass sharpens Range 0.0–1.0.</td></tr>
 <tr><td><code>ssao_bias</code></td><td>float</td><td><code>0.025</code></td><td>How far in front of a surface a sample must be to occlude it. Too small and a glancing surface occludes itself into black At least 0.0.</td></tr>
 <tr><td><code>ssao_intensity</code></td><td>float</td><td><code>1.2</code></td><td>How strongly the `ssao` pass darkens At least 0.0.</td></tr>
 <tr><td><code>ssao_power</code></td><td>float</td><td><code>1.5</code></td><td>The contrast the occlusion is raised to At least 0.001.</td></tr>
 <tr><td><code>ssao_radius</code></td><td>float</td><td><code>0.5</code></td><td>How far the `ssao` pass looks for something occluding a point, in world units. Scale it with the scene At least 0.001.</td></tr>
-<tr><td><code>up</code></td><td>vec3</td><td><code>[0.0, 1.0, 0.0]</code></td><td>The direction the camera keeps up; pitch and yaw are measured around it</td></tr>
+<tr><td><code>ssr_edge_fade</code></td><td>float</td><td><code>0.12</code></td><td>Width of the band at the frame&#x27;s edge reflections fade over, as a fraction of the frame At least 0.0.</td></tr>
+<tr><td><code>ssr_intensity</code></td><td>float</td><td><code>1.0</code></td><td>Multiplier on every screen-space reflection At least 0.0.</td></tr>
+<tr><td><code>ssr_max_distance</code></td><td>float</td><td><code>60.0</code></td><td>The longest a reflection ray travels, in view-space units At least 0.0.</td></tr>
+<tr><td><code>ssr_max_steps</code></td><td>int</td><td><code>48</code></td><td>Steps the `ssr` pass marches a reflection ray before it gives up At least 1.</td></tr>
+<tr><td><code>ssr_roughness_cutoff</code></td><td>float</td><td><code>0.6</code></td><td>Surfaces rougher than this reflect nothing on screen, and fade out approaching it Range 0.0–1.0.</td></tr>
+<tr><td><code>ssr_thickness</code></td><td>float</td><td><code>0.5</code></td><td>How far behind a surface, in view-space units, the ray still counts as hitting it At least 0.0.</td></tr>
+<tr><td><code>up</code></td><td>vec3</td><td><code>[0.0, 1.0, 0.0]</code></td><td>The direction the camera keeps up</td></tr>
 <tr><td><code>vignette_amount</code></td><td>float</td><td><code>0.35</code></td><td>How dark the corners go under the `vignette` pass Range 0.0–1.0.</td></tr>
 <tr><td><code>vignette_roundness</code></td><td>float</td><td><code>1.0</code></td><td>1 darkens in a circle whatever shape the frame is; 0 follows the frame Range 0.0–1.0.</td></tr>
-<tr><td><code>zoom_step</code></td><td>float</td><td><code>0.0</code></td><td>What one scroll step multiplies the orbit distance by; 0 is kiss3d&#x27;s own, 1.0001 on macOS and 1.01 elsewhere At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -1051,23 +1465,29 @@ Announced from a node carrying `camera3d`:
 
 ### `character3d`
 
-`3d` · `physics` · 12 properties · 2 methods
+`3d` · `physics` · 18 properties · 2 methods
 
 A 3D character controller: `physics3d.move_character` slides the node along walls and steps it up ledges. Needs a `collider3d`; a `kinematic` `body3d` lets it push bodies.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>floor_max_angle</code></td><td>float</td><td><code>0.7853982</code></td><td>The steepest slope the character may walk up, in radians Range 0.0–1.5707964.</td></tr>
+<tr><td><code>floor_max_angle</code></td><td>float</td><td><code>0.7853982</code></td><td>The steepest slope the character may walk up; radians in the file, degrees in the inspector Range 0.0–90.0.</td></tr>
 <tr><td><code>floor_snap_length</code></td><td>float</td><td><code>0.2</code></td><td>How far below its feet the character looks for ground to stay stuck to over a crest; 0 turns snapping off At least 0.0.</td></tr>
-<tr><td><code>lengths</code></td><td>enum</td><td><code>absolute</code></td><td>Whether offset, autostep and snap_to_ground are in world units or as a fraction of the character&#x27;s own height One of <code>absolute</code>, <code>relative</code>.</td></tr>
-<tr><td><code>min_slide_angle</code></td><td>float</td><td><code>0.5235988</code></td><td>The shallowest slope the character slides back down, in radians Range 0.0–1.5707964.</td></tr>
+<tr><td><code>floor_snap_lengths</code></td><td>enum</td><td><code>absolute</code></td><td>Whether floor_snap_length is in world units or a fraction of the character&#x27;s shape: relative is measured against the height along up_direction One of <code>absolute</code>, <code>relative</code>.</td></tr>
+<tr><td><code>ignore</code></td><td>flags</td><td><code>[&quot;sensors&quot;]</code></td><td>What a move passes through: static takes colliders with no body too. The character&#x27;s own collision_layer and collision_mask filter the rest One of <code>static</code>, <code>kinematic</code>, <code>dynamic</code>, <code>sensors</code>, <code>solids</code>.</td></tr>
+<tr><td><code>ignore_nodes</code></td><td>list of node</td><td><code>[]</code></td><td>Nodes a move passes through: their colliders, and every collider on their body</td></tr>
+<tr><td><code>min_slide_angle</code></td><td>float</td><td><code>0.5235988</code></td><td>The shallowest slope the character slides back down; radians in the file, degrees in the inspector Range 0.0–90.0.</td></tr>
 <tr><td><code>normal_nudge</code></td><td>float</td><td><code>0.0001</code></td><td>A tiny push along the contact normal that stops the character catching on seams At least 0.0.</td></tr>
 <tr><td><code>push_bodies</code></td><td>bool</td><td><code>true</code></td><td>Push dynamic bodies the character walks into, rather than passing through them</td></tr>
+<tr><td><code>push_mass</code></td><td>float</td><td><code>0.0</code></td><td>The mass a push is worked out with; 0 takes the body&#x27;s mass, or the colliders&#x27; when there is no body At least 0.0.</td></tr>
 <tr><td><code>safe_margin</code></td><td>float</td><td><code>0.01</code></td><td>A gap kept between the character and everything else, so the solver never has to push it out of a wall At least 0.0.</td></tr>
+<tr><td><code>safe_margin_lengths</code></td><td>enum</td><td><code>absolute</code></td><td>Whether safe_margin is in world units or a fraction of the character&#x27;s shape: relative is measured against the height along up_direction One of <code>absolute</code>, <code>relative</code>.</td></tr>
 <tr><td><code>slide</code></td><td>bool</td><td><code>true</code></td><td>Slide along what is in the way instead of stopping dead against it</td></tr>
 <tr><td><code>step_height</code></td><td>float</td><td><code>0.3</code></td><td>The tallest step the character climbs without jumping; 0 turns stepping off At least 0.0.</td></tr>
+<tr><td><code>step_height_lengths</code></td><td>enum</td><td><code>absolute</code></td><td>Whether step_height is in world units or a fraction of the character&#x27;s shape: relative is measured against the height along up_direction One of <code>absolute</code>, <code>relative</code>.</td></tr>
 <tr><td><code>step_min_width</code></td><td>float</td><td><code>0.2</code></td><td>How much clear ground a step needs on top before it may be climbed At least 0.0.</td></tr>
+<tr><td><code>step_min_width_lengths</code></td><td>enum</td><td><code>absolute</code></td><td>Whether step_min_width is in world units or a fraction of the character&#x27;s shape: relative is measured against the width across up_direction One of <code>absolute</code>, <code>relative</code>.</td></tr>
 <tr><td><code>step_on_dynamic</code></td><td>bool</td><td><code>false</code></td><td>Climb onto dynamic bodies too, not only static and kinematic ones</td></tr>
 <tr><td><code>up_direction</code></td><td>vec3</td><td><code>[0.0, 1.0, 0.0]</code></td><td>Which way is up for this character: the axis it stands along and measures slopes against</td></tr>
 </tbody>
@@ -1079,58 +1499,83 @@ On a node carrying `character3d`, as `node.character3d.<method>`:
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
 <tr><td><code>is_on_floor()</code></td><td><code>bool</code></td><td>Whether the last move ended with ground under the character&#x27;s feet.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>move_character(f32, f32, f32)</code></td><td><code>Value</code></td><td>Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, on_floor, sliding, collisions }`. Call it from fixed_update. It reads the world the step just wrote.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>move_character(f32, f32, f32)</code></td><td><code>Value</code></td><td>Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, on_floor, sliding, collisions }`, each collision `#{ node, point, normal, own_point, own_normal, position, applied, remaining, distance, status, subshape }`: the hit on the obstacle and on the character in world space, where the character stood, how much of the move was done and left, how far it swept, how the sweep ended (`converged`, `out_of_iterations`, `failed`, `penetrating`) and which part of the obstacle&#x27;s shape it met. Every solid collider of the character is swept. Call it from fixed_update. It reads the world the step just wrote.</td><td><code>physics3d</code></td></tr>
 </tbody>
 </table>
 
 ### `collider3d`
 
-`3d` · `physics` · 39 properties · 13 methods
+`3d` · `physics` · 64 properties · 23 methods
 
 The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3d` or the nearest body above it; without one it is static geometry.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>a</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>First corner, when kind is triangle or segment</td></tr>
-<tr><td><code>b</code></td><td>vec3</td><td><code>[1.0, 0.0, 0.0]</code></td><td>Second corner, when kind is triangle or segment</td></tr>
+<tr><td><code>a</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>First corner, when kind is triangle or segment, and a capsule&#x27;s first end when its height is 0</td></tr>
+<tr><td><code>approximate_hulls</code></td><td>bool</td><td><code>true</code></td><td>Estimate each piece&#x27;s hull while cutting rather than building it exactly</td></tr>
+<tr><td><code>b</code></td><td>vec3</td><td><code>[1.0, 0.0, 0.0]</code></td><td>Second corner, when kind is triangle or segment, and a capsule&#x27;s other end when its height is 0</td></tr>
 <tr><td><code>c</code></td><td>vec3</td><td><code>[0.0, 1.0, 0.0]</code></td><td>Third corner, when kind is triangle</td></tr>
+<tr><td><code>center_of_mass</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where this collider&#x27;s mass sits, in its own space; read with inertia, and both 0 keep the shape&#x27;s own</td></tr>
 <tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers this collider is on One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_margin</code></td><td>float</td><td><code>0.0</code></td><td>A margin the solver treats as already touching; stops thin shapes tunnelling and jittering At least 0.0.</td></tr>
 <tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
+<tr><td><code>collision_test</code></td><td>enum</td><td><code>both</code></td><td>Whether a pair is tested when both colliders&#x27; layers accept the other, or when either does; two colliders that differ use both One of <code>both</code>, <code>either</code>.</td></tr>
+<tr><td><code>connected_components</code></td><td>bool</td><td><code>false</code></td><td>Work out which triangles form each separate piece of the mesh</td></tr>
 <tr><td><code>contact_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>How hard a contact must be before on_contact_force is called At least 0.0.</td></tr>
 <tr><td><code>contact_pairs</code></td><td>flags</td><td><code>[&quot;dynamic_dynamic&quot;, &quot;dynamic_kinematic&quot;, &quot;dynamic_static&quot;]</code></td><td>Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default One of <code>dynamic_dynamic</code>, <code>dynamic_kinematic</code>, <code>dynamic_static</code>, <code>kinematic_kinematic</code>, <code>kinematic_static</code>, <code>static_static</code>.</td></tr>
-<tr><td><code>density</code></td><td>float</td><td><code>1.0</code></td><td>Mass per volume, so the shape&#x27;s size sets its mass At least 0.001.</td></tr>
-<tr><td><code>edge_radius</code></td><td>float</td><td><code>0.0</code></td><td>Rounds a box, cylinder, cone or triangle by this radius; a rounded shape slides over seams instead of catching on them At least 0.0.</td></tr>
+<tr><td><code>density</code></td><td>float</td><td><code>1.0</code></td><td>Mass per volume, so the shape&#x27;s size sets its mass; 0 makes a collider that adds no mass to its body At least 0.0.</td></tr>
+<tr><td><code>drop_bad_topology</code></td><td>bool</td><td><code>false</code></td><td>Drop the triangles that stop the mesh&#x27;s edge topology from being built</td></tr>
+<tr><td><code>drop_degenerate_triangles</code></td><td>bool</td><td><code>false</code></td><td>Drop triangles that name one vertex twice; merges vertices too</td></tr>
+<tr><td><code>drop_duplicate_triangles</code></td><td>bool</td><td><code>false</code></td><td>Drop a triangle whose three vertices another one already names; merges vertices too</td></tr>
+<tr><td><code>edge_radius</code></td><td>float</td><td><code>0.0</code></td><td>Rounds a box, cylinder, cone, triangle, convex_hull, convex_mesh or vhacd convex_decomposition by this radius; a rounded shape slides over seams instead of catching on them At least 0.0.</td></tr>
+<tr><td><code>edges</code></td><td>enum</td><td><code>chain</code></td><td>Which edges a polyline takes from its mesh: the points in order, or every edge of its triangles One of <code>chain</code>, <code>mesh</code>.</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Collide at all; a disabled collider keeps its shape and costs nothing</td></tr>
 <tr><td><code>events</code></td><td>flags</td><td><code>[]</code></td><td>What this collider reports to its node&#x27;s script: on_collision_enter and on_collision_exit, or on_contact_force One of <code>collision</code>, <code>contact_force</code>.</td></tr>
-<tr><td><code>fill</code></td><td>enum</td><td><code>solid</code></td><td>Whether voxelizing a mesh fills its inside or only its shell One of <code>solid</code>, <code>surface</code>.</td></tr>
+<tr><td><code>fill</code></td><td>enum</td><td><code>solid</code></td><td>Whether voxelizing a mesh fills its inside or only its shell, for voxelized_mesh and a convex_decomposition&#x27;s voxel grid One of <code>solid</code>, <code>surface</code>.</td></tr>
+<tr><td><code>fill_cavities</code></td><td>bool</td><td><code>false</code></td><td>When a solid fill floods a mesh, leave the cavities a closed surface walls off empty</td></tr>
 <tr><td><code>fit</code></td><td>enum</td><td><code>convex_hull</code></td><td>The shape fitted to the mesh, when kind is fit One of <code>convex_hull</code>, <code>aabb</code>, <code>obb</code>, <code>convex_decomposition</code>.</td></tr>
 <tr><td><code>fix_internal_edges</code></td><td>bool</td><td><code>true</code></td><td>Smooth the seams between a triangle_mesh&#x27;s triangles, so a character does not catch on flat ground</td></tr>
 <tr><td><code>friction</code></td><td>float</td><td><code>0.5</code></td><td>Surface friction; 0 is ice At least 0.0.</td></tr>
 <tr><td><code>friction_combine</code></td><td>enum</td><td><code>average</code></td><td>How this surface&#x27;s friction combines with the other one&#x27;s One of <code>average</code>, <code>min</code>, <code>multiply</code>, <code>max</code>, <code>clamped_sum</code>, <code>geometric_mean</code>.</td></tr>
-<tr><td><code>height</code></td><td>float</td><td><code>2.0</code></td><td>Length along y, tip to tip, for capsule, cylinder and cone At least 0.01.</td></tr>
-<tr><td><code>heightfield</code></td><td>asset · <code>heightfield</code></td><td>—</td><td>Terrain grid, when kind is heightfield</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>box</code></td><td>Collision shape One of <code>sphere</code>, <code>box</code>, <code>capsule</code>, <code>cylinder</code>, <code>cone</code>, <code>triangle</code>, <code>segment</code>, <code>world_boundary</code>, <code>triangle_mesh</code>, <code>convex_hull</code>, <code>convex_decomposition</code>, <code>polyline</code>, <code>heightfield</code>, <code>voxels</code>, <code>voxelized_mesh</code>, <code>fit</code>.</td></tr>
+<tr><td><code>height</code></td><td>float</td><td><code>2.0</code></td><td>Length tip to tip, for capsule, cylinder and cone; a capsule with height 0 runs from a to b instead At least 0.0.</td></tr>
+<tr><td><code>heightfield</code></td><td>asset · <code>heightfield</code></td><td>—</td><td>Terrain grid, when kind is heightfield; the asset&#x27;s holes are cut out of it</td></tr>
+<tr><td><code>hull_downsampling</code></td><td>int</td><td><code>4</code></td><td>How coarsely a piece&#x27;s hull is sampled while choosing a cut; 1 uses every point At least 1.</td></tr>
+<tr><td><code>inertia</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>This collider&#x27;s resistance to spin about each axis; 0 with a center_of_mass takes the shape&#x27;s own about that centre</td></tr>
+<tr><td><code>inertia_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Turns the axes inertia is measured about, x first; read with a non-zero inertia. Euler radians in the file</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>box</code></td><td>Collision shape One of <code>sphere</code>, <code>box</code>, <code>capsule</code>, <code>cylinder</code>, <code>cone</code>, <code>triangle</code>, <code>segment</code>, <code>world_boundary</code>, <code>triangle_mesh</code>, <code>convex_hull</code>, <code>convex_decomposition</code>, <code>polyline</code>, <code>heightfield</code>, <code>voxels</code>, <code>voxelized_mesh</code>, <code>fit</code>, <code>convex_mesh</code>, <code>voxelized_points</code>.</td></tr>
 <tr><td><code>mass</code></td><td>float</td><td><code>0.0</code></td><td>Mass in kilograms, overriding what density works out to; 0 keeps the density At least 0.0.</td></tr>
-<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Geometry for a triangle_mesh, convex_hull or polyline collider</td></tr>
+<tr><td><code>max_concavity</code></td><td>float</td><td><code>0.01</code></td><td>How deep a dent a piece may keep before it is cut again At least 0.0.</td></tr>
+<tr><td><code>max_convex_hulls</code></td><td>int</td><td><code>1024</code></td><td>The most pieces a decomposition is asked to leave; parry 0.31 passes it on unread, so it limits nothing yet At least 1.</td></tr>
+<tr><td><code>merge_vertices</code></td><td>bool</td><td><code>false</code></td><td>Merge vertices at exactly the same place when building a triangle_mesh</td></tr>
+<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Geometry for a triangle_mesh, convex_hull, convex_mesh, convex_decomposition, polyline, fit, voxelized_mesh or voxelized_points collider</td></tr>
+<tr><td><code>method</code></td><td>enum</td><td><code>vhacd</code></td><td>How a convex_decomposition is cut: into convex hulls, or into voxel parts One of <code>vhacd</code>, <code>voxels</code>.</td></tr>
 <tr><td><code>normal</code></td><td>vec3</td><td><code>[0.0, 1.0, 0.0]</code></td><td>Which way the infinite plane faces, when kind is world_boundary</td></tr>
 <tr><td><code>offset</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where the shape sits relative to the node</td></tr>
-<tr><td><code>offset_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>How the shape is turned relative to the node, in radians</td></tr>
-<tr><td><code>one_way</code></td><td>bool</td><td><code>false</code></td><td>A platform bodies pass through from below and land on from above</td></tr>
-<tr><td><code>one_way_axis</code></td><td>vec3</td><td><code>[0.0, 1.0, 0.0]</code></td><td>The direction a one-way platform lets bodies through from</td></tr>
+<tr><td><code>offset_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>How the shape is turned relative to the node, x first; Euler radians in the file</td></tr>
+<tr><td><code>one_way</code></td><td>bool</td><td><code>false</code></td><td>A platform bodies land on from the side one_way_axis names and pass through from the other</td></tr>
+<tr><td><code>one_way_angle</code></td><td>float</td><td><code>0.1</code></td><td>How far a contact&#x27;s normal may lean from one_way_axis and still hold the body; radians in the file Range 0.0–180.0.</td></tr>
+<tr><td><code>one_way_axis</code></td><td>vec3</td><td><code>[0.0, 1.0, 0.0]</code></td><td>The side a one-way platform holds bodies on, in the collider&#x27;s own axes: [0, 1, 0] lands them from above and lets them up through from below</td></tr>
 <tr><td><code>oriented</code></td><td>bool</td><td><code>false</code></td><td>Treat the triangle_mesh as a closed, outward-facing surface, which makes inside and outside meaningful</td></tr>
+<tr><td><code>plane_downsampling</code></td><td>int</td><td><code>4</code></td><td>How coarsely the cutting planes are searched first; 1 tries every one At least 1.</td></tr>
 <tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, for ball, capsule, cylinder and cone At least 0.01.</td></tr>
-<tr><td><code>restitution</code></td><td>float</td><td><code>0.0</code></td><td>Bounciness: 0 is a dead stop, 1 a full rebound Range 0.0–1.0.</td></tr>
+<tr><td><code>resolution</code></td><td>int</td><td><code>64</code></td><td>How fine the voxel grid a decomposition cuts is At least 1.</td></tr>
+<tr><td><code>restitution</code></td><td>float</td><td><code>0.0</code></td><td>Bounciness: 0 is a dead stop, 1 a full rebound, and above 1 each bounce gains energy At least 0.0.</td></tr>
 <tr><td><code>restitution_combine</code></td><td>enum</td><td><code>average</code></td><td>How this surface&#x27;s bounciness combines with the other one&#x27;s One of <code>average</code>, <code>min</code>, <code>multiply</code>, <code>max</code>, <code>clamped_sum</code>, <code>geometric_mean</code>.</td></tr>
+<tr><td><code>revolution_bias</code></td><td>float</td><td><code>0.05</code></td><td>How much a cut prefers an axis of revolution Range 0.0–1.0.</td></tr>
 <tr><td><code>scale</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Cell size and height scale of a heightfield</td></tr>
 <tr><td><code>sensor</code></td><td>bool</td><td><code>false</code></td><td>Detects overlaps without colliding: bodies pass through and are reported</td></tr>
 <tr><td><code>size</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Whole size along each axis, when kind is box</td></tr>
 <tr><td><code>solver_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>Layers for the solver alone: a pair can be detected but not resolved One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>solver_mask</code></td><td>flags</td><td><code>[]</code></td><td>Which solver layers this one pushes against; empty means all of them One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
-<tr><td><code>voxel_size</code></td><td>float</td><td><code>0.25</code></td><td>How big one cell is, when kind is voxelized_mesh At least 0.001.</td></tr>
+<tr><td><code>solver_test</code></td><td>enum</td><td><code>both</code></td><td>The same choice for the solver layers One of <code>both</code>, <code>either</code>.</td></tr>
+<tr><td><code>surface_velocity</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>How fast the surface slides along itself, in the collider&#x27;s own axes: a conveyor belt carries what rests on it</td></tr>
+<tr><td><code>symmetry_bias</code></td><td>float</td><td><code>0.05</code></td><td>How much a cut prefers a plane of symmetry Range 0.0–1.0.</td></tr>
+<tr><td><code>topology</code></td><td>bool</td><td><code>false</code></td><td>Build the mesh&#x27;s half-edge topology</td></tr>
+<tr><td><code>two_sided_edges</code></td><td>bool</td><td><code>false</code></td><td>fix_internal_edges for a mesh hit from both sides: a contact from behind a triangle is kept and smoothed, not dropped</td></tr>
+<tr><td><code>up_axis</code></td><td>enum</td><td><code>y</code></td><td>The axis a capsule lies along; cylinder and cone stand along y One of <code>x</code>, <code>y</code>, <code>z</code>.</td></tr>
+<tr><td><code>voxel_size</code></td><td>float</td><td><code>0.0</code></td><td>How big one cell is: 0 keeps a voxels asset&#x27;s own cell size, and is 0.25 for voxelized_mesh and voxelized_points At least 0.0.</td></tr>
 <tr><td><code>voxels</code></td><td>asset · <code>voxels</code></td><td>—</td><td>Filled cells, when kind is voxels; a script may dig into them while the game runs</td></tr>
-<tr><td><code>weld_vertices</code></td><td>bool</td><td><code>false</code></td><td>Drop duplicate vertices and degenerate triangles when building a triangle_mesh</td></tr>
 </tbody>
 </table>
 
@@ -1139,9 +1584,9 @@ Announced from a node carrying `collider3d`:
 <table>
 <thead><tr><th>event</th><th>payload</th></tr></thead>
 <tbody>
-<tr><td><code>collision_enter</code></td><td>the other collider&#x27;s node</td></tr>
-<tr><td><code>collision_exit</code></td><td>the other collider&#x27;s node</td></tr>
-<tr><td><code>contact_force</code></td><td><code>#{ other, force, direction }</code></td></tr>
+<tr><td><code>collision_enter</code></td><td><code>#{ other, sensor, removed, points, normals }</code>: the other collider&#x27;s node, whether either is a sensor, and each contact point on this collider with its normal pointing away from it, in world space; a sensor&#x27;s has no points</td></tr>
+<tr><td><code>collision_exit</code></td><td><code>#{ other, sensor, removed }</code>: the other collider&#x27;s node, whether either is a sensor, and whether the touch ended because a collider went away</td></tr>
+<tr><td><code>contact_force</code></td><td><code>#{ other, force, direction, total_force, max_force, started }</code>; <code>direction</code> and <code>total_force</code> point from this collider towards the other</td></tr>
 </tbody>
 </table>
 
@@ -1151,24 +1596,34 @@ On a node carrying `collider3d`, as `node.collider3d.<method>`:
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
 <tr><td><code>aabb()</code></td><td><code>(f32, f32, f32, f32, f32, f32)</code></td><td>The world-space box the collider currently occupies, as its two opposite corners.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>broad_phase_aabb()</code></td><td><code>(f32, f32, f32, f32, f32, f32)</code></td><td>The box the broad phase files the collider under, which also reaches ahead by its body&#x27;s speculative_distance.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>collider_mass()</code></td><td><code>f32</code></td><td>What this collider weighs, density and size together.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>collider_mass_properties()</code></td><td><code>Value</code></td><td>What this collider adds to its body, in its own space: `#{ mass, center_of_mass, inertia, inertia_rotation }`.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>collider_mesh()</code></td><td><code>Value</code></td><td>The collider&#x27;s shape as points and triangles, including a voxel grid&#x27;s, for drawing it or for spawning the pieces it broke into.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>collider_volume()</code></td><td><code>f32</code></td><td>How much space the shape encloses.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>collision_aabb()</code></td><td><code>(f32, f32, f32, f32, f32, f32)</code></td><td>The box the narrow phase tests the collider in: its shape&#x27;s box grown by its collision_margin and the world&#x27;s prediction distance.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>combine_voxels(NodeId)</code></td><td>—</td><td>Tell two voxel colliders on one lattice about each other&#x27;s cells, so a body sliding from one onto the other does not catch on the seam. Both must share a cell size and a rotation.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>contacts()</code></td><td><code>Value</code></td><td>Every contact point on this node&#x27;s collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>crop_voxels(i32, i32, i32, i32, i32, i32)</code></td><td>—</td><td>Empty every cell outside the cells from `(min_x, min_y, min_z)` to `(max_x, max_y, max_z)`, both included. A range holding no filled cell leaves the grid as it was.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>handles()</code></td><td><code>Value</code></td><td>The rapier handles behind this node, its body and its colliders, as `#{ body, colliders }` of index and generation pairs. For matching a log line against rapier&#x27;s own output.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>heightfield_hole(i64, i64)</code></td><td><code>bool</code></td><td>Whether a heightfield cell has no ground.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>max_contact_impulse()</code></td><td><code>f32</code></td><td>The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>overlaps()</code></td><td><code>Vec&lt;NodeId&gt;</code></td><td>The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>pose_in_body()</code></td><td><code>Value</code></td><td>Where the collider sits in its body&#x27;s frame, as `#{ position, rotation }`; nothing for a collider with no body.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_collider(Value)</code></td><td>—</td><td>Replace the node&#x27;s collider from a `collider3d` table: `kind`, `radius`, `size`, `friction`, and the rest of the component&#x27;s own vocabulary.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_heightfield_hole(i64, i64, bool)</code></td><td>—</td><td>Remove or restore the ground of one heightfield cell, named by the row and column of its first corner.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_voxel(i32, i32, i32, bool)</code></td><td>—</td><td>Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>swept_aabb()</code></td><td><code>(f32, f32, f32, f32, f32, f32)</code></td><td>The box the collider covers over the next step, its motion included: what the broad phase actually tests.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_voxel_size(f32, f32, f32)</code></td><td>—</td><td>Resize every cell of a voxel collider, keeping which cells are filled.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>swept_aabb()</code></td><td><code>(f32, f32, f32, f32, f32, f32)</code></td><td>The box the collider covers over the next fixed step, from where it is to where its body&#x27;s velocity and forces carry it.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>voxel(i32, i32, i32)</code></td><td><code>bool</code></td><td>Whether one cell of a voxel collider is filled.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>voxel_at(f32, f32, f32)</code></td><td><code>(i64, i64, i64)</code></td><td>The cell a world position falls in, as three whole numbers.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>voxel_size()</code></td><td><code>Value</code></td><td>How big one cell of a voxel collider is, along each axis.</td><td><code>physics3d</code></td></tr>
 </tbody>
 </table>
 
 ### `environment`
 
-`3d` · `render` · 21 properties
+`3d` · `render` · 42 properties
 
 The scene's atmosphere: `sky`, `ambient_color`, `fog_mode`, `exposure`, `tonemap`, colour grading and the shadow budget. The last `current` one wins; per-view effects stay on `camera.post`.
 
@@ -1176,6 +1631,13 @@ The scene's atmosphere: `sky`, `ambient_color`, `fog_mode`, `exposure`, `tonemap
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>ambient_color</code></td><td>color</td><td><code>[0.125, 0.14, 0.157, 1.0]</code></td><td>Light every surface gets whatever the lights do</td></tr>
+<tr><td><code>auto_exposure_enabled</code></td><td>bool</td><td><code>false</code></td><td>Measure the frame&#x27;s average brightness and adapt the exposure to it, replacing `exposure`. It adapts on the wall clock, so two captures of one fixed-step frame can differ</td></tr>
+<tr><td><code>auto_exposure_key</code></td><td>float</td><td><code>0.18</code></td><td>The mid grey auto-exposure maps the frame&#x27;s average brightness to At least 0.0.</td></tr>
+<tr><td><code>auto_exposure_max</code></td><td>float</td><td><code>8.0</code></td><td>The highest exposure auto-exposure settles at, for the darkest scenes At least 0.0.</td></tr>
+<tr><td><code>auto_exposure_min</code></td><td>float</td><td><code>0.05</code></td><td>The lowest exposure auto-exposure settles at, for the brightest scenes At least 0.0.</td></tr>
+<tr><td><code>auto_exposure_speed</code></td><td>float</td><td><code>3.0</code></td><td>How fast auto-exposure follows the scene, per second At least 0.0.</td></tr>
+<tr><td><code>cluster_grid</code></td><td>vec3</td><td><code>[16.0, 9.0, 24.0]</code></td><td>Clusters the many-light pass cuts the view into, across x, across y and along depth, each 1 to 128. Finer culls tighter and costs memory. Not drawn on WebGL2, which has no compute</td></tr>
+<tr><td><code>cluster_max_lights</code></td><td>int</td><td><code>256</code></td><td>Lights one cluster records; past it a dense cluster drops lights. The renderer lowers it to fit the device&#x27;s largest storage buffer At least 1.</td></tr>
 <tr><td><code>contrast</code></td><td>float</td><td><code>1.0</code></td><td>Contrast around mid grey At least 0.0.</td></tr>
 <tr><td><code>current</code></td><td>bool</td><td><code>true</code></td><td>Whether this is the environment the scene draws under; the last current one in tree order wins</td></tr>
 <tr><td><code>exposure</code></td><td>float</td><td><code>1.0</code></td><td>Linear multiplier before the tonemap At least 0.0.</td></tr>
@@ -1186,48 +1648,104 @@ The scene's atmosphere: `sky`, `ambient_color`, `fog_mode`, `exposure`, `tonemap
 <tr><td><code>fog_mode</code></td><td>enum</td><td><code>none</code></td><td>How fog thickens with distance One of <code>none</code>, <code>linear</code>, <code>exponential</code>, <code>exponential_squared</code>.</td></tr>
 <tr><td><code>fog_start</code></td><td>float</td><td><code>10.0</code></td><td>Where linear fog begins, in world units At least 0.0.</td></tr>
 <tr><td><code>gamma</code></td><td>float</td><td><code>1.0</code></td><td>Gamma applied in linear space At least 0.01.</td></tr>
+<tr><td><code>hue_degrees</code></td><td>float</td><td><code>0.0</code></td><td>Turns every hue about the grey axis before the tonemap, in degrees</td></tr>
+<tr><td><code>probe_capture_size_pixels</code></td><td>int</td><td><code>256</code></td><td>Side of each cube face a `reflection_probe` captures, and the width of every probe map, which all probes share. A change clears every map and captures the probes again Range 2–4096.</td></tr>
 <tr><td><code>saturation</code></td><td>float</td><td><code>1.0</code></td><td>Colour multiplier around luminance; zero is grey At least 0.0.</td></tr>
-<tr><td><code>shadow_distance</code></td><td>float</td><td><code>60.0</code></td><td>How far from the camera shadows are drawn At least 0.0.</td></tr>
+<tr><td><code>shadow_bias</code></td><td>float</td><td><code>0.0012</code></td><td>Depth the lighting pass allows before it calls a point shadowed. Raise it to cure acne; lower it to keep contact shadows attached. Not yet honoured on a node with a shader material At least 0.0.</td></tr>
+<tr><td><code>shadow_cascades</code></td><td>int</td><td><code>4</code></td><td>How many cascades a directional light splits its shadow range into; each takes one of `shadow_views` Range 1–4.</td></tr>
+<tr><td><code>shadow_constant_bias</code></td><td>int</td><td><code>1</code></td><td>Depth-buffer units the shadow pass pushes every caster back by</td></tr>
+<tr><td><code>shadow_distance</code></td><td>float</td><td><code>60.0</code></td><td>How far along the view a directional light&#x27;s cascades reach, in world units; the camera&#x27;s `far` caps it At least 0.0.</td></tr>
 <tr><td><code>shadow_enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether any light casts shadows at all</td></tr>
+<tr><td><code>shadow_first_cascade_distance</code></td><td>float</td><td><code>12.0</code></td><td>How far along the view the first, sharpest cascade reaches, in world units At least 0.01.</td></tr>
 <tr><td><code>shadow_resolution</code></td><td>int</td><td><code>2048</code></td><td>Side of the shadow map, in texels At least 256.</td></tr>
+<tr><td><code>shadow_slope_bias</code></td><td>float</td><td><code>1.75</code></td><td>How far the shadow pass pushes a caster back per unit of its depth slope, so a surface seen edge-on by the light does not shadow itself</td></tr>
 <tr><td><code>shadow_softness</code></td><td>float</td><td><code>1.0</code></td><td>How far a shadow&#x27;s edge is blurred At least 0.0.</td></tr>
+<tr><td><code>shadow_views</code></td><td>int</td><td><code>16</code></td><td>Shadow-map layers every casting light shares: a spot light takes one, a directional one a layer per cascade and a point one six. A light past the budget lights without a shadow. Each layer costs `shadow_resolution` squared times eight bytes Range 1–64.</td></tr>
 <tr><td><code>sky</code></td><td>string</td><td>—</td><td>Equirectangular image, project-relative: .hdr, .exr or .png. It draws behind the scene and lights it. Empty is no sky</td></tr>
-<tr><td><code>sky_enabled</code></td><td>bool</td><td><code>true</code></td><td>False turns the sky off entirely: it stops drawing and stops lighting. The renderer has one dial for both</td></tr>
+<tr><td><code>sky_enabled</code></td><td>bool</td><td><code>true</code></td><td>False takes the sky away: it stops drawing and stops lighting, and `ambient_color` lights the scene as it does with no sky</td></tr>
 <tr><td><code>sky_intensity</code></td><td>float</td><td><code>1.0</code></td><td>Brightness of the sky, and of the light it casts At least 0.0.</td></tr>
+<tr><td><code>sky_light</code></td><td>string</td><td>—</td><td>Equirectangular image, project-relative, that lights the scene in place of `sky`, which still draws. Empty lights with `sky`; it lights even with no `sky` drawn, and `sky_enabled = false` takes it away too</td></tr>
+<tr><td><code>sky_light_intensity</code></td><td>float</td><td><code>-1.0</code></td><td>Brightness of the light the sky casts, apart from how bright it draws; below zero follows `sky_intensity` At least -1.0.</td></tr>
 <tr><td><code>sky_rotation_degrees</code></td><td>float</td><td><code>0.0</code></td><td>Turn of the sky about y, in degrees</td></tr>
-<tr><td><code>tonemap</code></td><td>enum</td><td><code>neutral</code></td><td>The curve the HDR film is mapped through One of <code>none</code>, <code>aces</code>, <code>reinhard</code>, <code>agx</code>, <code>neutral</code>.</td></tr>
+<tr><td><code>tonemap</code></td><td>enum</td><td><code>neutral</code></td><td>The curve the HDR film is mapped through One of <code>none</code>, <code>aces</code>, <code>reinhard</code>, <code>agx</code>, <code>neutral</code>, <code>tony_mcmapface</code>.</td></tr>
+<tr><td><code>transmission_blur_quality</code></td><td>enum</td><td><code>high</code></td><td>How smoothly rough glass blurs what it refracts; low is cheapest and can look blocky One of <code>low</code>, <code>medium</code>, <code>high</code>.</td></tr>
+<tr><td><code>transmission_enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether glass refracts what is behind it. Off draws a material with `transmission` as plain opaque PBR and skips the passes</td></tr>
+<tr><td><code>transmission_steps</code></td><td>int</td><td><code>1</code></td><td>How many layers of glass seen through glass are drawn; each costs another snapshot of the scene and another glass pass At least 1.</td></tr>
+<tr><td><code>white_balance</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Per-channel linear gain before the tonemap; [1, 1, 1] leaves colour alone</td></tr>
+</tbody>
+</table>
+
+### `follow3d`
+
+`3d` · `physics` · 12 properties · 1 method
+
+Pulls the node's `body3d` towards the pose of `target` every fixed step, with rapier's PD or PID controller. `node.follow3d.reset_follow()` forgets what a PID summed.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>integral_gain</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>How hard the gap in position summed over time pulls, per axis, with `pid`</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>pd</code></td><td>Rapier&#x27;s proportional-derivative controller, or the same with an integral that keeps pulling against a steady push One of <code>pd</code>, <code>pid</code>.</td></tr>
+<tr><td><code>position_gain</code></td><td>vec3</td><td><code>[60.0, 60.0, 60.0]</code></td><td>How hard a gap in position pulls, per axis: about one over the fixed step closes it in one step</td></tr>
+<tr><td><code>rotation_axes</code></td><td>flags</td><td><code>[&quot;x&quot;, &quot;y&quot;, &quot;z&quot;]</code></td><td>The axes the body is turned about One of <code>x</code>, <code>y</code>, <code>z</code>.</td></tr>
+<tr><td><code>rotation_gain</code></td><td>vec3</td><td><code>[60.0, 60.0, 60.0]</code></td><td>How hard a gap in rotation pulls, per axis</td></tr>
+<tr><td><code>rotation_integral_gain</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>How hard the gap in rotation summed over time pulls, per axis, with `pid`</td></tr>
+<tr><td><code>spin_gain</code></td><td>vec3</td><td><code>[0.8, 0.8, 0.8]</code></td><td>How much of a gap in spin a step corrects, per axis</td></tr>
+<tr><td><code>target</code></td><td>node</td><td>—</td><td>The node whose pose the body is pulled to; empty pulls nothing</td></tr>
+<tr><td><code>target_angular_velocity</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>The spin the body is pulled to match about each axis, radians a second in the file</td></tr>
+<tr><td><code>target_linear_velocity</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>The velocity the body is pulled to match, in world units per second</td></tr>
+<tr><td><code>translation_axes</code></td><td>flags</td><td><code>[&quot;x&quot;, &quot;y&quot;, &quot;z&quot;]</code></td><td>The axes the body is pulled along One of <code>x</code>, <code>y</code>, <code>z</code>.</td></tr>
+<tr><td><code>velocity_gain</code></td><td>vec3</td><td><code>[0.8, 0.8, 0.8]</code></td><td>How much of a gap in velocity a step corrects, per axis: 0 none, 1 all of it</td></tr>
+</tbody>
+</table>
+
+On a node carrying `follow3d`, as `node.follow3d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>reset_follow()</code></td><td>—</td><td>Forget what a `pid` follow summed, so it pulls from now as if it had just started.</td><td><code>physics3d</code></td></tr>
 </tbody>
 </table>
 
 ### `joint3d`
 
-`3d` · `physics` · 20 properties · 6 methods
+`3d` · `physics` · 29 properties · 7 methods
 
-Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `ball_socket`, `rope`, `spring` or `generic`; both ends need a `body3d` on or above the node.
+Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `ball_socket`, `rope`, `spring` or `generic`; both ends need a `body3d` on or above the node. `axes` limits and drives each free axis.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>anchor</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where the joint attaches on this node, in its own space</td></tr>
-<tr><td><code>articulation</code></td><td>bool</td><td><code>false</code></td><td>Solve in reduced coordinates: the chain never drifts and can be solved for inverse kinematics, but cannot close a loop</td></tr>
-<tr><td><code>axis</code></td><td>vec3</td><td><code>[0.0, 0.0, 1.0]</code></td><td>The axis a revolute joint turns about or a prismatic one slides along</td></tr>
-<tr><td><code>break_force</code></td><td>float</td><td><code>0.0</code></td><td>The pull that snaps the joint and calls on_joint_break; 0 never breaks At least 0.0.</td></tr>
+<tr><td><code>anchor_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Turns this end&#x27;s joint frame about its own axes, x first: what a hinge&#x27;s angle and its limits measure from, and the relative turn a fixed joint holds. Euler radians in the file</td></tr>
+<tr><td><code>articulation</code></td><td>bool</td><td><code>false</code></td><td>Solve in reduced coordinates: the chain never drifts and can be solved for inverse kinematics, but cannot close a loop or break</td></tr>
+<tr><td><code>axes</code></td><td>list of record · <code>armature, axis, damping, friction, limits, link_damping, motor, motor_max_force, motor_model, motor_target, motor_target_velocity, stiffness</code></td><td><code>[]</code></td><td>One record per free axis to limit or drive. A rope&#x27;s x takes no limits (max_length is its limit); a spring&#x27;s x is its spring, whose motor stays off</td></tr>
+<tr><td><code>axis</code></td><td>vec3</td><td><code>[0.0, 0.0, 1.0]</code></td><td>The joint frame&#x27;s x axis: what a hinge turns about, a slider slides along, and a generic joint&#x27;s x and rotation_x name</td></tr>
+<tr><td><code>break_force</code></td><td>float</td><td><code>0.0</code></td><td>The force, in newtons, that snaps the joint and calls on_joint_break; 0 never breaks. Does not apply to an articulation At least 0.0.</td></tr>
+<tr><td><code>break_torque</code></td><td>float</td><td><code>0.0</code></td><td>The torque about the anchor, in newton metres, that snaps the joint; 0 never breaks. Does not apply to an articulation At least 0.0.</td></tr>
 <tr><td><code>collide_connected</code></td><td>bool</td><td><code>false</code></td><td>Let the two joined bodies collide with each other</td></tr>
 <tr><td><code>connected_anchor</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Where it attaches on the other node, in that node&#x27;s space</td></tr>
+<tr><td><code>connected_anchor_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>The same for the other end&#x27;s frame</td></tr>
+<tr><td><code>connected_axis</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>The same axis in the other node&#x27;s space, for a hinge, a slider or a generic joint; zero takes axis</td></tr>
 <tr><td><code>connected_body</code></td><td>node</td><td>—</td><td>The node at the joint&#x27;s other end; this node is the first end</td></tr>
-<tr><td><code>damping</code></td><td>float</td><td><code>1.0</code></td><td>How quickly the motion settles, for a spring joint or a motor At least 0.0.</td></tr>
-<tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Hold the two bodies together at all</td></tr>
+<tr><td><code>coupled_rotation</code></td><td>flags</td><td><code>[]</code></td><td>Free turning axes tied into one angle, whose limit and motor come from the first of them One of <code>x</code>, <code>y</code>, <code>z</code>.</td></tr>
+<tr><td><code>coupled_translation</code></td><td>flags</td><td><code>[]</code></td><td>Free linear axes tied into one distance, whose limit and motor come from the first of them; a rope and a spring couple all three already One of <code>x</code>, <code>y</code>, <code>z</code>.</td></tr>
+<tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Hold the two bodies together at all. Off keeps the joint and stops solving it; an articulation leaves its chain instead, as rapier&#x27;s chains ignore the switch</td></tr>
+<tr><td><code>gear_offset</code></td><td>float</td><td><code>0.0</code></td><td>Where this joint stands when the gear_with joint is at 0</td></tr>
+<tr><td><code>gear_ratio</code></td><td>float</td><td><code>1.0</code></td><td>How far this joint turns or slides per unit of the gear_with joint&#x27;s</td></tr>
+<tr><td><code>gear_with</code></td><td>node</td><td>—</td><td>On an articulation: another joint node of the same chain this joint follows, its first free axis tied to that joint&#x27;s first free axis</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>fixed</code></td><td>How the two bodies may move relative to each other One of <code>fixed</code>, <code>hinge</code>, <code>slider</code>, <code>ball_socket</code>, <code>rope</code>, <code>spring</code>, <code>generic</code>.</td></tr>
-<tr><td><code>limits</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>How far the joint may travel, as a low and a high; equal values mean no limit</td></tr>
+<tr><td><code>kinematic_link</code></td><td>bool</td><td><code>false</code></td><td>On an articulation: the solver never changes this joint&#x27;s velocity, so the link holds its pose against its parent and moves only by solve_ik</td></tr>
 <tr><td><code>lock_rotation</code></td><td>flags</td><td><code>[]</code></td><td>The axes a generic joint may not turn about One of <code>x</code>, <code>y</code>, <code>z</code>.</td></tr>
 <tr><td><code>lock_translation</code></td><td>flags</td><td><code>[]</code></td><td>The axes a generic joint may not slide along One of <code>x</code>, <code>y</code>, <code>z</code>.</td></tr>
 <tr><td><code>max_length</code></td><td>float</td><td><code>0.0</code></td><td>The rope&#x27;s greatest length At least 0.0.</td></tr>
-<tr><td><code>motor</code></td><td>enum</td><td><code>off</code></td><td>Drive the joint towards a speed, towards a position, or not at all One of <code>off</code>, <code>velocity</code>, <code>position</code>.</td></tr>
-<tr><td><code>motor_max_force</code></td><td>float</td><td><code>0.0</code></td><td>The most force the motor may use; 0 means as much as it takes At least 0.0.</td></tr>
-<tr><td><code>motor_model</code></td><td>enum</td><td><code>acceleration</code></td><td>Whether the motor&#x27;s strength is felt as an acceleration, ignoring mass, or as a force One of <code>acceleration</code>, <code>force</code>.</td></tr>
-<tr><td><code>motor_target</code></td><td>float</td><td><code>0.0</code></td><td>The speed or the position the motor drives towards</td></tr>
+<tr><td><code>passive_rest</code></td><td>float</td><td><code>0.0</code></td><td>On an articulation: where that spring rests, in radians about a rotation axis and units along a linear one</td></tr>
+<tr><td><code>passive_stiffness</code></td><td>float</td><td><code>0.0</code></td><td>On an articulation: a spring on each free axis pulling it towards passive_rest; 0 is none At least 0.0.</td></tr>
 <tr><td><code>rest_length</code></td><td>float</td><td><code>0.0</code></td><td>The length a spring pulls back to At least 0.0.</td></tr>
-<tr><td><code>stiffness</code></td><td>float</td><td><code>0.0</code></td><td>Spring stiffness, for a spring joint or a position motor At least 0.0.</td></tr>
+<tr><td><code>self_collision</code></td><td>bool</td><td><code>true</code></td><td>On an articulation: let the chain&#x27;s links collide with each other. One setting for the whole chain, off when any of its joints says off</td></tr>
+<tr><td><code>softness_damping_ratio</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of that spring; 1 settles without overshooting At least 0.0.</td></tr>
+<tr><td><code>softness_hz</code></td><td>float</td><td><code>1000000.0</code></td><td>How stiffly the joint&#x27;s locked axes and limits are held, as a spring frequency in hertz; lower lets them stretch and spring back At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -1236,7 +1754,7 @@ Announced from a node carrying `joint3d`:
 <table>
 <thead><tr><th>event</th><th>payload</th></tr></thead>
 <tbody>
-<tr><td><code>joint_break</code></td><td><code>#{ a, b, force }</code></td></tr>
+<tr><td><code>joint_break</code></td><td><code>#{ a, b, force, torque }</code>: the two ends, and the force and torque it broke at</td></tr>
 </tbody>
 </table>
 
@@ -1245,18 +1763,19 @@ On a node carrying `joint3d`, as `node.joint3d.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
-<tr><td><code>joint_impulse()</code></td><td><code>f32</code></td><td>How hard the joint is pulling right now: what a breakable one is measured against.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>joint_force()</code></td><td><code>Value</code></td><td>The force and the torque the joint held through the last step, `#{ force, torque }`: what `break_force` and `break_torque` are measured against. An articulation has none to read, and says so.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>joint_state()</code></td><td><code>Value</code></td><td>What the joint is doing: `#{ status, angle, limit_impulses, motor_impulses, coordinates, velocities }`. `status` is `enabled`, `disabled`, `body_disabled` (a body at either end is disabled) or `waiting` (its other end is not in the scene yet); `angle` is a hinge&#x27;s turn in radians; the impulse maps hold each free axis&#x27;s last limit and motor impulse; an articulation adds each free axis&#x27;s coordinate and velocity.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>remove_joint()</code></td><td>—</td><td>Undo the node&#x27;s joint, leaving both bodies free.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>set_joint_limits(f32, f32)</code></td><td>—</td><td>Set how far the joint may travel, in radians for a revolute one and units for a prismatic one.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>set_motor_position(f32, f32, f32)</code></td><td>—</td><td>Drive the joint towards an angle or a distance, with a spring&#x27;s stiffness and damping.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>set_motor_velocity(f32, f32)</code></td><td>—</td><td>Drive the joint towards a speed: how a wheel is powered or a door swings itself shut.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>solve_ik(f32, f32, f32)</code></td><td>—</td><td>Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_joint_limits(String, f32, f32)</code></td><td>—</td><td>Set how far one of the joint&#x27;s free axes may travel, in radians about a rotation axis and units along a linear one; equal values lift the limit. Rewrites that axis&#x27;s `axes` record.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_motor_position(String, f32, f32, f32)</code></td><td>—</td><td>Drive one of the joint&#x27;s free axes towards an angle or a distance, with a spring&#x27;s stiffness and damping. Rewrites that axis&#x27;s `axes` record.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_motor_velocity(String, f32, f32)</code></td><td>—</td><td>Drive one of the joint&#x27;s free axes towards a speed: how a wheel is powered or a door swings itself shut. Rewrites that axis&#x27;s `axes` record.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>solve_ik(f32, f32, f32, Option&lt;Value&gt;)</code></td><td>—</td><td>Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits. Options: `rotation` (euler radians to turn the link to), `constrain` (the world axes to match: `x`, `y`, `z`, `rotation_x`, `rotation_y`, `rotation_z`; the translation by default, every axis when `rotation` is given), `damping` (1.0), `iterations` (10), `tolerance` (0.001).</td><td><code>physics3d</code></td></tr>
 </tbody>
 </table>
 
 ### `light3d`
 
-`3d` · `render` · 8 properties
+`3d` · `render` · 9 properties
 
 A 3D light placed and aimed by the node. `kind` is `directional`, `point` or `spot`; the first `light3d` in a scene retires the engine's default key light.
 
@@ -1271,12 +1790,13 @@ A 3D light placed and aimed by the node. `kind` is `directional`, `point` or `sp
 <tr><td><code>outer_angle_degrees</code></td><td>float</td><td><code>35.0</code></td><td>Half-angle a spot light fades to nothing at, in degrees Range 0.0–179.0.</td></tr>
 <tr><td><code>range</code></td><td>float</td><td><code>30.0</code></td><td>How far a point or spot light reaches, in world units At least 0.0.</td></tr>
 <tr><td><code>shadow_enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether this light casts shadows from the nodes that say they cast</td></tr>
+<tr><td><code>source_radius</code></td><td>float</td><td><code>0.0</code></td><td>Radius of the sphere the light shines from, in world units, which softens its shadows. Read by the path tracer only; the rasterizer&#x27;s edge is `environment.shadow_softness` At least 0.0.</td></tr>
 </tbody>
 </table>
 
 ### `mesh`
 
-`3d` · `render` · 7 properties
+`3d` · `render` · 18 properties
 
 3D geometry from the `mesh` asset in `source`, drawn at the node. With a skin, the rig `skeleton` names deforms it.
 
@@ -1284,12 +1804,23 @@ A 3D light placed and aimed by the node. `kind` is `directional`, `point` or `sp
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>cast_shadow</code></td><td>bool</td><td><code>true</code></td><td>Whether this casts a shadow from the lights that cast</td></tr>
+<tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Tint the texture and the material are multiplied by, as channel floats or #rrggbb / #rrggbbaa; an alpha below one draws it see-through</td></tr>
+<tr><td><code>depth_test</code></td><td>bool</td><td><code>true</code></td><td>Let the scene hide it; off draws it over everything drawn before it and leaves the depth as it was</td></tr>
+<tr><td><code>dot_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The vertex dots&#x27; colour; an alpha of zero takes the node&#x27;s own. Not drawn on a skinned mesh, which Balaur poses in its own vertex stage</td></tr>
+<tr><td><code>dot_size</code></td><td>float</td><td><code>0.0</code></td><td>Size of a dot drawn on every vertex; zero draws none. Not drawn on a skinned mesh, which Balaur poses in its own vertex stage. Not on WebGL2 At least 0.0.</td></tr>
+<tr><td><code>dot_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `dot_size` counts: `world` is pixels at one world unit from the camera, thinning with distance, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>draw_surface</code></td><td>bool</td><td><code>true</code></td><td>Whether the surface draws; off leaves the wireframe and the dots alone</td></tr>
 <tr><td><code>light_layers</code></td><td>int</td><td><code>-1</code></td><td>Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty draws with the built-in one</td></tr>
+<tr><td><code>receive_shadows</code></td><td>bool</td><td><code>true</code></td><td>Whether shadows land on it; off lights it as if nothing stood between it and every light</td></tr>
 <tr><td><code>render_layers</code></td><td>int</td><td><code>-1</code></td><td>Layer bitmask; a `camera3d` draws this when their `render_layers` share a bit. -1 is every layer</td></tr>
+<tr><td><code>segmentation_id</code></td><td>int</td><td><code>0</code></td><td>The id `render.snap_aov(&quot;segmentation&quot;)` colours this node by; nodes sharing one share a colour. Zero takes one of its own, from 1 up At least 0.</td></tr>
 <tr><td><code>skeleton</code></td><td>node</td><td>—</td><td>The rig a skinned mesh deforms with; empty means this node</td></tr>
 <tr><td><code>source</code></td><td>asset · <code>mesh</code></td><td>—</td><td>The mesh asset this node draws</td></tr>
 <tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>Image file, project-relative, or a `texture` asset; empty draws the colour alone</td></tr>
+<tr><td><code>wireframe_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The wireframe&#x27;s colour; an alpha of zero takes the node&#x27;s own. Not drawn on a skinned mesh, which Balaur poses in its own vertex stage</td></tr>
+<tr><td><code>wireframe_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `wireframe_width` counts: `world` is pixels at one world unit from the camera, thinning with distance, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>wireframe_width</code></td><td>float</td><td><code>0.0</code></td><td>Width of a line drawn along every triangle edge; zero draws none. Not drawn on a skinned mesh, which Balaur poses in its own vertex stage. Not on WebGL2 At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -1323,19 +1854,30 @@ Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `
 
 ### `multimesh3d`
 
-`3d` · `render` · 6 properties · 15 methods
+`3d` · `render` · 17 properties · 15 methods
 
-Godot's `MultiMeshInstance3D`: the `multimesh` asset in `source`, its mesh drawn once per instance in one call. Each instance's `color` is the colour it draws in. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.
+Godot's `MultiMeshInstance3D`: the `multimesh` asset in `source`, its mesh drawn once per instance in one call, each instance's `color` tinted over the node's. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>cast_shadow</code></td><td>bool</td><td><code>true</code></td><td>Whether the instances cast a shadow from the lights that cast</td></tr>
+<tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Tint under every instance&#x27;s own colour, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>depth_test</code></td><td>bool</td><td><code>true</code></td><td>Let the scene hide it; off draws it over everything drawn before it and leaves the depth as it was</td></tr>
+<tr><td><code>dot_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The vertex dots&#x27; colour; an alpha of zero takes the node&#x27;s own. Not drawn on a skinned mesh, which Balaur poses in its own vertex stage</td></tr>
+<tr><td><code>dot_size</code></td><td>float</td><td><code>0.0</code></td><td>Size of a dot drawn on every vertex; zero draws none. Not drawn on a skinned mesh, which Balaur poses in its own vertex stage. Not on WebGL2 At least 0.0.</td></tr>
+<tr><td><code>dot_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `dot_size` counts: `world` is pixels at one world unit from the camera, thinning with distance, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>draw_surface</code></td><td>bool</td><td><code>true</code></td><td>Whether the surface draws; off leaves the wireframe and the dots alone</td></tr>
 <tr><td><code>light_layers</code></td><td>int</td><td><code>-1</code></td><td>Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material every instance draws with; empty draws with the built-in one</td></tr>
+<tr><td><code>receive_shadows</code></td><td>bool</td><td><code>true</code></td><td>Whether shadows land on it; off lights it as if nothing stood between it and every light</td></tr>
 <tr><td><code>render_layers</code></td><td>int</td><td><code>-1</code></td><td>Layer bitmask; a `camera3d` draws this when their `render_layers` share a bit. -1 is every layer</td></tr>
+<tr><td><code>segmentation_id</code></td><td>int</td><td><code>0</code></td><td>The id `render.snap_aov(&quot;segmentation&quot;)` colours this node by; nodes sharing one share a colour. Zero takes one of its own, from 1 up At least 0.</td></tr>
 <tr><td><code>source</code></td><td>asset · <code>multimesh</code></td><td>—</td><td>The multimesh asset: the mesh and the instances it is drawn at</td></tr>
 <tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>Image file, project-relative, or a `texture` asset; empty draws the colour alone</td></tr>
+<tr><td><code>wireframe_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The wireframe&#x27;s colour; an alpha of zero takes the node&#x27;s own. Not drawn on a skinned mesh, which Balaur poses in its own vertex stage</td></tr>
+<tr><td><code>wireframe_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `wireframe_width` counts: `world` is pixels at one world unit from the camera, thinning with distance, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>wireframe_width</code></td><td>float</td><td><code>0.0</code></td><td>Width of a line drawn along every triangle edge; zero draws none. Not drawn on a skinned mesh, which Balaur poses in its own vertex stage. Not on WebGL2 At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -1355,35 +1897,91 @@ On a node carrying `multimesh3d`, as `node.multimesh3d.<method>`:
 <tr><td><code>set_instance_color(i64, Value)</code></td><td>—</td><td>The colour one instance draws in.</td><td><code>render</code></td></tr>
 <tr><td><code>set_instance_count(i64)</code></td><td>—</td><td>How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node.</td><td><code>render</code></td></tr>
 <tr><td><code>set_instance_custom_data(i64, Value)</code></td><td>—</td><td>Four floats a material&#x27;s shader reads for one instance, as a colour or a list.</td><td><code>render</code></td></tr>
-<tr><td><code>set_instance_transform(i64, Value)</code></td><td>—</td><td>Place one instance with a `Transform3d`, or a `Transform2d` on a 2D node. A shear is dropped: an instance is a position, a rotation and a scale.</td><td><code>render</code></td></tr>
+<tr><td><code>set_instance_transform(i64, Value)</code></td><td>—</td><td>Place one instance with a `Transform3d`, or a `Transform2d` on a 2D node. A shear is kept, as the instance&#x27;s `basis`.</td><td><code>render</code></td></tr>
 <tr><td><code>set_instances(Value)</code></td><td>—</td><td>Replace every instance with a list in the `multimesh` asset&#x27;s shape.</td><td><code>render</code></td></tr>
 <tr><td><code>set_visible_instance_count(i64)</code></td><td>—</td><td>How many instances draw, from the first; -1 draws them all.</td><td><code>render</code></td></tr>
 <tr><td><code>visible_instance_count()</code></td><td><code>i64</code></td><td>How many instances draw; -1 is all of them.</td><td><code>render</code></td></tr>
 </tbody>
 </table>
 
+### `particles3d`
+
+`3d` · `render` · 31 properties
+
+A visual-only 3D emitter at the node, drawn as instances of one quad: `rate`, `lifetime`, `speed`, `direction`, `spread_degrees` and `gravity` in world space. The live particles are renderer state the simulation never sees; a sprite sheet does not reach them, because a 3D instance carries no texture rectangle.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>angular_speed_degrees</code></td><td>float</td><td><code>0.0</code></td><td>The fastest a particle spins in its own plane, in degrees a second; each takes a speed at random between zero and this</td></tr>
+<tr><td><code>billboard</code></td><td>bool</td><td><code>true</code></td><td>Turn each particle to face the camera; off lays every one in the node&#x27;s own XY plane</td></tr>
+<tr><td><code>cast_shadow</code></td><td>bool</td><td><code>false</code></td><td>Whether the particles cast a shadow from the lights that cast</td></tr>
+<tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>color_end</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 0.0]</code></td><td>The tint a particle fades to by the end of its life</td></tr>
+<tr><td><code>depth_test</code></td><td>bool</td><td><code>true</code></td><td>Let the scene hide it; off draws it over everything drawn before it and leaves the depth as it was</td></tr>
+<tr><td><code>direction</code></td><td>vec3</td><td><code>[0.0, 1.0, 0.0]</code></td><td>Which way the particles leave, in world space; [0, 1, 0] is straight up</td></tr>
+<tr><td><code>dot_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The vertex dots&#x27; colour; an alpha of zero takes the node&#x27;s own. Not drawn on a skinned mesh, which Balaur poses in its own vertex stage</td></tr>
+<tr><td><code>dot_size</code></td><td>float</td><td><code>0.0</code></td><td>Size of a dot drawn on every vertex; zero draws none. Not drawn on a skinned mesh, which Balaur poses in its own vertex stage. Not on WebGL2 At least 0.0.</td></tr>
+<tr><td><code>dot_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `dot_size` counts: `world` is pixels at one world unit from the camera, thinning with distance, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>draw_surface</code></td><td>bool</td><td><code>true</code></td><td>Whether the surface draws; off leaves the wireframe and the dots alone</td></tr>
+<tr><td><code>emitting</code></td><td>bool</td><td><code>true</code></td><td>Whether new particles are born; live ones finish either way</td></tr>
+<tr><td><code>explosiveness</code></td><td>float</td><td><code>0.0</code></td><td>How much of a one-shot burst is born at once; the rest is spread over the lifetime Range 0.0–1.0.</td></tr>
+<tr><td><code>gravity</code></td><td>vec3</td><td><code>[0.0, -3.0, 0.0]</code></td><td>Acceleration applied over a particle&#x27;s life, in world space</td></tr>
+<tr><td><code>lifetime</code></td><td>float</td><td><code>1.0</code></td><td>Seconds a particle lives At least 0.05.</td></tr>
+<tr><td><code>light_layers</code></td><td>int</td><td><code>-1</code></td><td>Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer</td></tr>
+<tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material every particle draws with; empty draws with the built-in one, which blends</td></tr>
+<tr><td><code>one_shot</code></td><td>bool</td><td><code>false</code></td><td>Emit one burst of `rate` times `lifetime` particles and stop; setting `emitting` false and true again fires another</td></tr>
+<tr><td><code>rate</code></td><td>float</td><td><code>20.0</code></td><td>Particles born per second At least 0.0.</td></tr>
+<tr><td><code>receive_shadows</code></td><td>bool</td><td><code>true</code></td><td>Whether shadows land on it; off lights it as if nothing stood between it and every light</td></tr>
+<tr><td><code>render_layers</code></td><td>int</td><td><code>-1</code></td><td>Layer bitmask; a `camera3d` draws this when their `render_layers` share a bit. -1 is every layer</td></tr>
+<tr><td><code>rotation_degrees</code></td><td>float</td><td><code>0.0</code></td><td>The most a particle is turned in its own plane at birth, either way, in degrees At least 0.0.</td></tr>
+<tr><td><code>segmentation_id</code></td><td>int</td><td><code>0</code></td><td>The id `render.snap_aov(&quot;segmentation&quot;)` colours this node by; nodes sharing one share a colour. Zero takes one of its own, from 1 up At least 0.</td></tr>
+<tr><td><code>size</code></td><td>float</td><td><code>0.1</code></td><td>A particle&#x27;s edge length in world units At least 0.0.</td></tr>
+<tr><td><code>size_end</code></td><td>float</td><td><code>-1.0</code></td><td>The edge length a particle grows or shrinks to by the end of its life, in world units; below zero keeps `size`</td></tr>
+<tr><td><code>speed</code></td><td>float</td><td><code>2.0</code></td><td>Initial speed in world units per second At least 0.0.</td></tr>
+<tr><td><code>spread_degrees</code></td><td>float</td><td><code>30.0</code></td><td>Half-angle of the emission cone; 180 scatters every way Range 0.0–180.0.</td></tr>
+<tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>An image, or a `texture` asset, each particle draws with; empty draws a flat square</td></tr>
+<tr><td><code>wireframe_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The wireframe&#x27;s colour; an alpha of zero takes the node&#x27;s own. Not drawn on a skinned mesh, which Balaur poses in its own vertex stage</td></tr>
+<tr><td><code>wireframe_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `wireframe_width` counts: `world` is pixels at one world unit from the camera, thinning with distance, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>wireframe_width</code></td><td>float</td><td><code>0.0</code></td><td>Width of a line drawn along every triangle edge; zero draws none. Not drawn on a skinned mesh, which Balaur poses in its own vertex stage. Not on WebGL2 At least 0.0.</td></tr>
+</tbody>
+</table>
+
+Announced from a node carrying `particles3d`:
+
+<table>
+<thead><tr><th>event</th><th>payload</th></tr></thead>
+<tbody>
+<tr><td><code>finished</code></td><td>nil, once a one-shot burst has died out</td></tr>
+</tbody>
+</table>
+
 ### `reflection_probe`
 
-`3d` · `render` · 5 properties
+`3d` · `render` · 9 properties
 
 A box the room around it was captured inside. A reflective surface within it mirrors that capture, aimed at the box, instead of the distant sky.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>capture_far</code></td><td>float</td><td><code>0.0</code></td><td>The farthest distance a capture draws, in world units; zero takes the camera&#x27;s At least 0.0.</td></tr>
+<tr><td><code>capture_layers</code></td><td>int</td><td><code>-1</code></td><td>Layer bitmask: a capture draws the nodes whose `render_layers` share a bit with it. Leave moving nodes off it and let `ssr` reflect them; -1 is every layer</td></tr>
+<tr><td><code>capture_near</code></td><td>float</td><td><code>0.0</code></td><td>The nearest distance a capture draws, in world units; with `capture_far` both above zero, else the camera&#x27;s own planes At least 0.0.</td></tr>
 <tr><td><code>falloff</code></td><td>float</td><td><code>0.5</code></td><td>How wide the soft edge at the box&#x27;s face is; a surface crossing it fades back to the sky At least 0.0.</td></tr>
 <tr><td><code>image</code></td><td>string</td><td>—</td><td>Baked equirectangular image, project-relative. Empty captures the scene from the node&#x27;s own position</td></tr>
 <tr><td><code>image_rotation_degrees</code></td><td>float</td><td><code>0.0</code></td><td>Turn of the captured map about y, in degrees</td></tr>
 <tr><td><code>intensity</code></td><td>float</td><td><code>1.0</code></td><td>Brightness of what the probe reflects At least 0.0.</td></tr>
-<tr><td><code>size</code></td><td>vec3</td><td><code>[10.0, 10.0, 10.0]</code></td><td>The box this probe speaks for, in world units, centred on the node At least 0.0.</td></tr>
+<tr><td><code>size</code></td><td>vec3</td><td><code>[10.0, 10.0, 10.0]</code></td><td>The box this probe speaks for, in world units, centred on the node and turned with it. A node with a shader material still reads the box unturned At least 0.0.</td></tr>
+<tr><td><code>update_mode</code></td><td>enum</td><td><code>once</code></td><td>When a probe with no `image` captures the scene: once when placed or moved, or every frame. One capture draws the scene six times, at `environment.probe_capture_size_pixels` square One of <code>once</code>, <code>always</code>.</td></tr>
 </tbody>
 </table>
 
 ### `shape3d`
 
-`3d` · `render` · 15 properties · 2 methods
+`3d` · `render` · 26 properties · 2 methods
 
-An untextured 3D primitive at the node, tinted by `color`. `kind` is `sphere`, `box`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`.
+A 3D primitive at the node, tinted by `color` and drawn with `texture`. `kind` is `sphere`, `box`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -1391,18 +1989,29 @@ An untextured 3D primitive at the node, tinted by `color`. `kind` is `sphere`, `
 <tr><td><code>cast_shadow</code></td><td>bool</td><td><code>true</code></td><td>Whether this casts a shadow from the lights that cast</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
 <tr><td><code>corner_radius</code></td><td>float</td><td><code>0.0</code></td><td>How far the edges are rounded off, when kind is box; zero is a square edge At least 0.0.</td></tr>
+<tr><td><code>depth_test</code></td><td>bool</td><td><code>true</code></td><td>Let the scene hide it; off draws it over everything drawn before it and leaves the depth as it was</td></tr>
+<tr><td><code>dot_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The vertex dots&#x27; colour; an alpha of zero takes the node&#x27;s own. Not drawn on a skinned mesh, which Balaur poses in its own vertex stage</td></tr>
+<tr><td><code>dot_size</code></td><td>float</td><td><code>0.0</code></td><td>Size of a dot drawn on every vertex; zero draws none. Not drawn on a skinned mesh, which Balaur poses in its own vertex stage. Not on WebGL2 At least 0.0.</td></tr>
+<tr><td><code>dot_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `dot_size` counts: `world` is pixels at one world unit from the camera, thinning with distance, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>draw_surface</code></td><td>bool</td><td><code>true</code></td><td>Whether the surface draws; off leaves the wireframe and the dots alone</td></tr>
 <tr><td><code>height</code></td><td>float</td><td><code>2.0</code></td><td>Length along y, tip to tip, for capsule, cylinder, cone, prism and tube At least 0.01.</td></tr>
 <tr><td><code>inner_radius</code></td><td>float</td><td><code>0.25</code></td><td>Radius of the hole, when kind is tube At least 0.01.</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>box</code></td><td>Rendered 3D shape One of <code>sphere</code>, <code>box</code>, <code>capsule</code>, <code>cylinder</code>, <code>cone</code>, <code>plane</code>, <code>torus</code>, <code>pyramid</code>, <code>prism</code>, <code>tube</code>.</td></tr>
 <tr><td><code>light_layers</code></td><td>int</td><td><code>-1</code></td><td>Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty draws with the built-in one</td></tr>
 <tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, for every kind but box, plane and pyramid At least 0.01.</td></tr>
+<tr><td><code>receive_shadows</code></td><td>bool</td><td><code>true</code></td><td>Whether shadows land on it; off lights it as if nothing stood between it and every light</td></tr>
 <tr><td><code>render_layers</code></td><td>int</td><td><code>-1</code></td><td>Layer bitmask; a `camera3d` draws this when their `render_layers` share a bit. -1 is every layer</td></tr>
 <tr><td><code>rings</code></td><td>int</td><td><code>16</code></td><td>Cuts along the axis, for ball, capsule and torus At least 3.</td></tr>
+<tr><td><code>segmentation_id</code></td><td>int</td><td><code>0</code></td><td>The id `render.snap_aov(&quot;segmentation&quot;)` colours this node by; nodes sharing one share a colour. Zero takes one of its own, from 1 up At least 0.</td></tr>
 <tr><td><code>segments</code></td><td>int</td><td><code>32</code></td><td>Cuts around the axis, or across a plane At least 3.</td></tr>
 <tr><td><code>sides</code></td><td>int</td><td><code>4</code></td><td>Flat faces, when kind is pyramid or prism At least 3.</td></tr>
 <tr><td><code>size</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Whole size along each axis, when kind is box, plane or pyramid</td></tr>
+<tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>Image file, project-relative, or a `texture` asset, drawn over the shape&#x27;s own UVs; empty draws the colour alone</td></tr>
 <tr><td><code>tube_radius</code></td><td>float</td><td><code>0.2</code></td><td>Thickness of the ring, when kind is torus At least 0.01.</td></tr>
+<tr><td><code>wireframe_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The wireframe&#x27;s colour; an alpha of zero takes the node&#x27;s own. Not drawn on a skinned mesh, which Balaur poses in its own vertex stage</td></tr>
+<tr><td><code>wireframe_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `wireframe_width` counts: `world` is pixels at one world unit from the camera, thinning with distance, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>wireframe_width</code></td><td>float</td><td><code>0.0</code></td><td>Width of a line drawn along every triangle edge; zero draws none. Not drawn on a skinned mesh, which Balaur poses in its own vertex stage. Not on WebGL2 At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -1418,7 +2027,7 @@ On a node carrying `shape3d`, as `node.shape3d.<method>`:
 
 ### `softbody3d`
 
-`3d` · `physics` · `render` · 69 properties · 24 methods
+`3d` · `physics` · `render` · 98 properties · 47 methods
 
 A deformable 3D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. The node is drawn from the solver's positions.
 
@@ -1429,70 +2038,99 @@ A deformable 3D body: particles linked by elastic constraints, laid out by `kind
 <tr><td><code>axis</code></td><td>vec3</td><td><code>[0.0, 1.0, 0.0]</code></td><td>The segment a cloth_tube is wrapped around, relative to the node</td></tr>
 <tr><td><code>b</code></td><td>vec3</td><td><code>[0.0, -1.0, 0.0]</code></td><td>Where a rope ends, relative to the node</td></tr>
 <tr><td><code>bend_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of the bending springs Range 0.0–100.0.</td></tr>
-<tr><td><code>bend_frequency</code></td><td>float</td><td><code>10.0</code></td><td>The same for the bending edges, which are what stop a cloth folding flat Range 0.0–10000.0.</td></tr>
+<tr><td><code>bend_edge_indices</code></td><td>list of list of int</td><td><code>[]</code></td><td>A custom body&#x27;s bending edges, each a pair of particle indices</td></tr>
+<tr><td><code>bend_hz</code></td><td>float</td><td><code>10.0</code></td><td>The same for the bending edges, which are what stop a cloth folding flat Range 0.0–10000.0.</td></tr>
+<tr><td><code>boundary_subdivisions</code></td><td>int</td><td><code>0</code></td><td>How many times a solid fill&#x27;s cells along the mesh&#x27;s surface are halved, finer than cell_size Range 0–4.</td></tr>
 <tr><td><code>can_sleep</code></td><td>bool</td><td><code>true</code></td><td>Let the body stop being simulated once it settles</td></tr>
+<tr><td><code>cell_indices</code></td><td>list of list of int</td><td><code>[]</code></td><td>A custom body&#x27;s tetrahedra, four particle indices each, positively oriented</td></tr>
 <tr><td><code>cell_model</code></td><td>enum</td><td><code>volume</code></td><td>What a cell resists with: a volume constraint for a cheap jelly, or an elastic model a Young modulus parameterises One of <code>volume</code>, <code>corotational</code>, <code>neo_hookean</code>.</td></tr>
 <tr><td><code>cell_size</code></td><td>float</td><td><code>0.25</code></td><td>How big one tetrahedron is when a volumetric body fills a mesh; smaller is finer, slower and stiffer to tear At least 0.001.</td></tr>
 <tr><td><code>cells</code></td><td>vec3</td><td><code>[4.0, 4.0, 4.0]</code></td><td>How many cells along each axis, for box; a cloth reads the first two, and a cloth_tube reads them as particles around and cells along</td></tr>
 <tr><td><code>collides</code></td><td>bool</td><td><code>true</code></td><td>Meet the world at all; off, the body passes through everything and only its pins and ties hold it</td></tr>
+<tr><td><code>collision_binding</code></td><td>enum</td><td><code>nearest</code></td><td>How the collision mesh follows the body: each vertex on the nearest particle within `collision_binding_distance`, vertex i on particle i, or riding the cell that holds it, so a coarse cage of cells can carry a fine mesh One of <code>nearest</code>, <code>particles</code>, <code>cells</code>.</td></tr>
+<tr><td><code>collision_binding_distance</code></td><td>float</td><td><code>0.01</code></td><td>How far a collision-mesh vertex may sit from the particle `nearest` binds it to At least 0.0.</td></tr>
 <tr><td><code>collision_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers this body is on One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The layers it collides with; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
+<tr><td><code>collision_mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>A mesh, in the node&#x27;s space, the body meets the world through beside its own surface, deformed with the body: its triangles in 3D, the outline of its triangles in 2D</td></tr>
+<tr><td><code>collision_self_contacts</code></td><td>bool</td><td><code>false</code></td><td>Let the collision mesh collide with itself</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>What the body is drawn in when its node has nothing of its own to deform, as a cloth or a rope has not</td></tr>
 <tr><td><code>contact_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>How hard a contact must be before on_contact_force is called At least 0.0.</td></tr>
+<tr><td><code>contact_pairs</code></td><td>flags</td><td><code>[&quot;dynamic_dynamic&quot;, &quot;dynamic_kinematic&quot;, &quot;dynamic_static&quot;]</code></td><td>Which kinds of body pair its collider is tested against One of <code>dynamic_dynamic</code>, <code>dynamic_kinematic</code>, <code>dynamic_static</code>, <code>kinematic_kinematic</code>, <code>kinematic_static</code>, <code>static_static</code>.</td></tr>
 <tr><td><code>deformation_damping</code></td><td>float</td><td><code>0.0</code></td><td>How fast the particles are pulled towards the body&#x27;s own rigid motion, which settles a residual sway without slowing the body down Range 0.0–1000.0.</td></tr>
+<tr><td><code>dihedral_indices</code></td><td>list of list of int</td><td><code>[]</code></td><td>A custom body&#x27;s bending hinges between two triangles: the shared edge&#x27;s two particles, then the two opposite ones</td></tr>
 <tr><td><code>dominance</code></td><td>int</td><td><code>0</code></td><td>Which body wins a contact: a higher one is never pushed by a lower one Range -127–127.</td></tr>
 <tr><td><code>edge_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of that spring; 1 settles without overshooting Range 0.0–100.0.</td></tr>
-<tr><td><code>edge_frequency</code></td><td>float</td><td><code>30.0</code></td><td>The frequency of the spring a structural edge is solved as, in hertz; higher is stiffer Range 0.0–10000.0.</td></tr>
+<tr><td><code>edge_hz</code></td><td>float</td><td><code>30.0</code></td><td>The frequency of the spring a structural edge is solved as, in hertz; higher is stiffer Range 0.0–10000.0.</td></tr>
+<tr><td><code>edge_indices</code></td><td>list of list of int</td><td><code>[]</code></td><td>A custom body&#x27;s structural edges, each a pair of particle indices; empty takes the cells&#x27; edges</td></tr>
 <tr><td><code>edge_plastic_creep</code></td><td>float</td><td><code>1.0</code></td><td>How fast, per second, an edge&#x27;s excess strain is absorbed into its rest length At least 0.0.</td></tr>
 <tr><td><code>edge_plastic_flow</code></td><td>enum</td><td><code>both</code></td><td>Whether an edge sets under a squeeze, a stretch, or both: clay dents but does not stay stretched One of <code>both</code>, <code>compression</code>, <code>tension</code>.</td></tr>
 <tr><td><code>edge_plastic_max</code></td><td>float</td><td><code>0.5</code></td><td>The largest permanent set an edge may take, as a fraction of its first length At least 0.0.</td></tr>
 <tr><td><code>edge_plastic_yield</code></td><td>float</td><td><code>0.0</code></td><td>The edge strain past which its rest length flows towards its current length At least 0.0.</td></tr>
-<tr><td><code>edge_springs</code></td><td>list of record · <code>a, b, damping, frequency</code></td><td><code>[]</code></td><td>Edges with a spring of their own instead of the edge rows&#x27;, each named by the two particles it joins</td></tr>
+<tr><td><code>edge_springs</code></td><td>list of record · <code>a, b, damping, hz</code></td><td><code>[]</code></td><td>Edges with a spring of their own, its frequency in hertz and its damping ratio, instead of the edge or bend rows&#x27;, each named by the two particles it joins</td></tr>
 <tr><td><code>elastic_damping</code></td><td>float</td><td><code>1.0</code></td><td>Damping ratio of the elastic cells Range 0.0–100.0.</td></tr>
+<tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Take part in the simulation; off leaves the body where it is with no contacts or constraints until it is on again, without a rebuild</td></tr>
+<tr><td><code>end_radius</code></td><td>float</td><td><code>0.0</code></td><td>A cloth_tube&#x27;s radius at its end; 0 takes radius At least 0.0.</td></tr>
 <tr><td><code>events</code></td><td>flags</td><td><code>[]</code></td><td>What this body reports to its node&#x27;s script: on_collision_enter and on_collision_exit, or on_contact_force One of <code>collision</code>, <code>contact_force</code>.</td></tr>
+<tr><td><code>fill</code></td><td>enum</td><td><code>solid</code></td><td>What a volumetric body&#x27;s cells cover: the mesh&#x27;s whole inside, which needs a closed mesh, or a crust along its surface alone, which does not One of <code>solid</code>, <code>surface</code>.</td></tr>
 <tr><td><code>friction</code></td><td>float</td><td><code>0.5</code></td><td>Surface friction of the body&#x27;s collider; 0 is ice At least 0.0.</td></tr>
+<tr><td><code>friction_combine</code></td><td>enum</td><td><code>average</code></td><td>How the body&#x27;s friction combines with what it touches One of <code>average</code>, <code>min</code>, <code>multiply</code>, <code>max</code>, <code>clamped_sum</code>, <code>geometric_mean</code>.</td></tr>
 <tr><td><code>gravity_scale</code></td><td>float</td><td><code>1.0</code></td><td>How much gravity pulls on the particles</td></tr>
 <tr><td><code>interior_strength</code></td><td>float</td><td><code>1.0</code></td><td>How many times tougher an undamaged inside element is than a surface one, so cracks start at the surface and run inward At least 1.0.</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>box</code></td><td>How the body&#x27;s particles and elements are laid out One of <code>box</code>, <code>sphere</code>, <code>cloth</code>, <code>cloth_tube</code>, <code>rope</code>, <code>volumetric</code>, <code>triangle_mesh</code>.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>box</code></td><td>How the body&#x27;s particles and elements are laid out One of <code>box</code>, <code>sphere</code>, <code>cloth</code>, <code>cloth_tube</code>, <code>rope</code>, <code>volumetric</code>, <code>triangle_mesh</code>, <code>custom</code>.</td></tr>
 <tr><td><code>linear_damping</code></td><td>float</td><td><code>0.0</code></td><td>Air friction on the particles At least 0.0.</td></tr>
 <tr><td><code>mass</code></td><td>float</td><td><code>1.0</code></td><td>What the whole body weighs, spread over its particles At least 0.0.</td></tr>
 <tr><td><code>masses</code></td><td>list of float</td><td><code>[]</code></td><td>Each particle&#x27;s own mass, by index; empty spreads `mass` over them evenly</td></tr>
 <tr><td><code>max_tears_per_step</code></td><td>int</td><td><code>0</code></td><td>The most edges that may tear in one step, which paces a crack; 0 is no limit At least 0.</td></tr>
-<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Geometry for a triangle_mesh, polyline or volumetric body</td></tr>
+<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Geometry for a triangle_mesh or volumetric body, and the skin a body with cells carries when skin is on</td></tr>
 <tr><td><code>min_piece</code></td><td>int</td><td><code>0</code></td><td>The smallest piece, in elements, a tear may split off; 0 lets rapier choose At least 0.</td></tr>
-<tr><td><code>oriented</code></td><td>bool</td><td><code>false</code></td><td>Treat the surface as closed and outward-facing, so its inside holds bodies in instead of pushing them out</td></tr>
+<tr><td><code>orientation</code></td><td>enum</td><td><code>auto</code></td><td>How the surface meets what is inside it: solid encloses matter and pushes bodies out, shell holds bodies in, auto is solid when the surface is closed One of <code>auto</code>, <code>solid</code>, <code>shell</code>.</td></tr>
 <tr><td><code>particle_count</code></td><td>int</td><td><code>16</code></td><td>How many particles a rope is made of At least 2.</td></tr>
 <tr><td><code>particle_radius</code></td><td>float</td><td><code>0.0</code></td><td>How thick the particles are; 0 takes what the layout works out At least 0.0.</td></tr>
 <tr><td><code>pinned_particles</code></td><td>list of int</td><td><code>[]</code></td><td>The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from</td></tr>
 <tr><td><code>plastic_creep</code></td><td>float</td><td><code>1.0</code></td><td>How fast, per second, the strain past the yield is absorbed into the rest shape At least 0.0.</td></tr>
 <tr><td><code>plastic_max</code></td><td>float</td><td><code>1.0</code></td><td>The most permanent deformation a cell may take, so a crushed cell cannot flow to a sliver At least 0.0.</td></tr>
 <tr><td><code>plastic_yield</code></td><td>float</td><td><code>0.0</code></td><td>The cell strain past which the rest shape flows towards the current one; 0 is perfectly elastic At least 0.0.</td></tr>
+<tr><td><code>points</code></td><td>list of vec3</td><td><code>[]</code></td><td>A custom body&#x27;s particles, relative to the node</td></tr>
 <tr><td><code>poisson_ratio</code></td><td>float</td><td><code>0.3</code></td><td>How much an elastic cell bulges sideways when squeezed; towards 0.5 it stops changing volume at all Range 0.0–0.499.</td></tr>
-<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, for sphere and cloth_tube At least 0.001.</td></tr>
+<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, for sphere and cloth_tube: a tube&#x27;s at its start At least 0.001.</td></tr>
+<tr><td><code>regions</code></td><td>list of record · <code>damping, hz, particles, pinned, shape_matching, stiffness_scale, tear_resistance</code></td><td><code>[]</code></td><td>Parts of the body with a material of their own, each the particles it covers: `stiffness_scale` on the cells wholly inside, `tear_resistance` on its edges and cells, `shape_matching` towards its own frame, `pinned` to hold it still, and an edge spring of `hz` and `damping`, 0 hz keeping the body&#x27;s. Each is a `soft_frame` body joints may attach to</td></tr>
 <tr><td><code>restitution</code></td><td>float</td><td><code>0.0</code></td><td>Bounciness of the body&#x27;s collider Range 0.0–1.0.</td></tr>
+<tr><td><code>restitution_combine</code></td><td>enum</td><td><code>average</code></td><td>How its bounciness combines with what it touches One of <code>average</code>, <code>min</code>, <code>multiply</code>, <code>max</code>, <code>clamped_sum</code>, <code>geometric_mean</code>.</td></tr>
+<tr><td><code>seams</code></td><td>list of record · <code>a, b</code></td><td><code>[]</code></td><td>Structural edges added between particles the layout left apart, each as long as its two particles stand at the start</td></tr>
 <tr><td><code>self_collision</code></td><td>bool</td><td><code>false</code></td><td>Let the body&#x27;s own surface collide with itself, which stops a cloth passing through its own fold</td></tr>
-<tr><td><code>shape_matching</code></td><td>bool</td><td><code>false</code></td><td>Pull the body back towards the shape it was built in, which is what keeps a jelly a jelly</td></tr>
+<tr><td><code>sensor</code></td><td>bool</td><td><code>false</code></td><td>Report contacts and push nothing: the body passes through what it touches</td></tr>
+<tr><td><code>shape_matching</code></td><td>enum</td><td><code>auto</code></td><td>Pull the body back towards the shape it was built in, which is what keeps a jelly a jelly; auto keeps the layout&#x27;s own choice, on for a triangle_mesh or a polyline One of <code>auto</code>, <code>on</code>, <code>off</code>.</td></tr>
 <tr><td><code>shape_matching_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of the shape-matching constraints Range 0.0–100.0.</td></tr>
-<tr><td><code>shape_matching_frequency</code></td><td>float</td><td><code>10.0</code></td><td>The same for shape matching, which pulls the body back towards the shape it was built in Range 0.0–10000.0.</td></tr>
-<tr><td><code>shear_frequency</code></td><td>float</td><td><code>0.0</code></td><td>A cloth&#x27;s resistance to being skewed; 0 takes edge_frequency At least 0.0.</td></tr>
+<tr><td><code>shape_matching_hz</code></td><td>float</td><td><code>10.0</code></td><td>The same for shape matching, which pulls the body back towards the shape it was built in Range 0.0–10000.0.</td></tr>
+<tr><td><code>shear_damping</code></td><td>float</td><td><code>0.0</code></td><td>The damping ratio of the shear springs; 0 takes edge_damping At least 0.0.</td></tr>
+<tr><td><code>shear_hz</code></td><td>float</td><td><code>0.0</code></td><td>A cloth&#x27;s resistance to being skewed, in hertz; 0 takes edge_hz At least 0.0.</td></tr>
 <tr><td><code>size</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Whole size along each axis: a box&#x27;s block, or a cloth&#x27;s sheet along x and z</td></tr>
-<tr><td><code>skin</code></td><td>bool</td><td><code>false</code></td><td>Keep the mesh as the drawn surface and let the cells carry it, so a detail the cell size cannot resolve survives</td></tr>
+<tr><td><code>skin</code></td><td>bool</td><td><code>false</code></td><td>Keep the mesh asset as the drawn surface and let the cells carry it, so a detail the cells cannot resolve survives; any kind with cells and a mesh takes it</td></tr>
 <tr><td><code>skin_collision</code></td><td>bool</td><td><code>false</code></td><td>Meet the world through the skin rather than the cells&#x27; boundary</td></tr>
+<tr><td><code>smoothing</code></td><td>int</td><td><code>0</code></td><td>How many passes pull a solid fill&#x27;s blocky boundary towards the mesh; 0 leaves it on the cell lattice At least 0.</td></tr>
+<tr><td><code>smoothing_guard</code></td><td>float</td><td><code>0.15</code></td><td>How close to the mesh smoothing may pull the boundary, as a fraction of the cell size At least 0.0.</td></tr>
 <tr><td><code>solver</code></td><td>enum</td><td><code>constraints</code></td><td>Which solver runs the elasticity: sequential constraints, or an implicit Euler step over the whole body One of <code>constraints</code>, <code>fem</code>.</td></tr>
 <tr><td><code>solver_iterations</code></td><td>int</td><td><code>3</code></td><td>Extra iterations inside each substep, for the same Range 0–64.</td></tr>
+<tr><td><code>solver_layer</code></td><td>flags</td><td><code>[&quot;1&quot;]</code></td><td>The layers the solver alone reads: a pair whose solver layers do not match still reports contacts but never pushes One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
+<tr><td><code>solver_mask</code></td><td>flags</td><td><code>[]</code></td><td>The solver layers it is pushed by; empty means every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
 <tr><td><code>solver_substeps</code></td><td>int</td><td><code>0</code></td><td>Extra solver substeps for this body and everything it touches Range 0–64.</td></tr>
 <tr><td><code>subdivisions</code></td><td>int</td><td><code>2</code></td><td>How many times a sphere&#x27;s icosahedron is refined; each level quadruples the triangles Range 0–6.</td></tr>
+<tr><td><code>surface_indices</code></td><td>list of list of int</td><td><code>[]</code></td><td>A custom body&#x27;s outward triangles, three particle indices each: what holds its volume and what it collides through; empty takes the cells&#x27; boundary</td></tr>
 <tr><td><code>tear_force</code></td><td>float</td><td><code>0.0</code></td><td>The pull past which an edge breaks; 0 is unbreakable. Either criterion tears an edge At least 0.0.</td></tr>
 <tr><td><code>tear_resistance</code></td><td>list of record · <code>a, b, resistance</code></td><td><code>[]</code></td><td>Edges that tear sooner or later than the rest, each named by the two particles it joins: below 1 is a perforation, above 1 a seam</td></tr>
 <tr><td><code>tear_smoothing</code></td><td>float</td><td><code>0.0</code></td><td>Over how many seconds a load is averaged before it is tested, so one hard frame does not tear a body At least 0.0.</td></tr>
 <tr><td><code>tear_strain</code></td><td>float</td><td><code>0.0</code></td><td>The stretch past which an element breaks, as a fraction of its rest length; 0 is unbreakable At least 0.0.</td></tr>
-<tr><td><code>tension_only</code></td><td>bool</td><td><code>false</code></td><td>Let the edges resist stretching only, so the body folds freely and never pushes itself open</td></tr>
+<tr><td><code>tension_only</code></td><td>enum</td><td><code>none</code></td><td>Which edges resist stretching only, so the body folds freely and never pushes itself open: none, all, or the tension_only_edges listed One of <code>none</code>, <code>all</code>, <code>listed</code>.</td></tr>
+<tr><td><code>tension_only_edges</code></td><td>list of record · <code>a, b</code></td><td><code>[]</code></td><td>The edges that resist stretching only when tension_only is listed, each named by the two particles it joins</td></tr>
 <tr><td><code>volume_damping</code></td><td>float</td><td><code>1.0</code></td><td>The damping ratio of the volume constraints Range 0.0–100.0.</td></tr>
 <tr><td><code>volume_factor</code></td><td>float</td><td><code>1.0</code></td><td>What that volume is held at, as a multiple of the rest volume; above 1 inflates the body At least 0.0.</td></tr>
-<tr><td><code>volume_frequency</code></td><td>float</td><td><code>30.0</code></td><td>The same for the constraints holding a cell&#x27;s volume, and for the whole-body one Range 0.0–10000.0.</td></tr>
+<tr><td><code>volume_hz</code></td><td>float</td><td><code>30.0</code></td><td>The same for the constraints holding a cell&#x27;s volume, and for the whole-body one Range 0.0–10000.0.</td></tr>
 <tr><td><code>volume_preservation</code></td><td>bool</td><td><code>true</code></td><td>Hold the volume each closed piece of the body encloses; an open sheet or a rope encloses none, and a hoop without it caves in</td></tr>
-<tr><td><code>warp_frequency</code></td><td>float</td><td><code>0.0</code></td><td>A cloth&#x27;s stiffness along its first axis, in hertz, as woven cloth is stiffer along the warp; 0 takes edge_frequency At least 0.0.</td></tr>
-<tr><td><code>weft_frequency</code></td><td>float</td><td><code>0.0</code></td><td>The same across it, along the weft; 0 takes edge_frequency At least 0.0.</td></tr>
+<tr><td><code>warp_damping</code></td><td>float</td><td><code>0.0</code></td><td>The damping ratio of the warp springs; 0 takes edge_damping. Any of the six woven keys set gives the cloth its own springs At least 0.0.</td></tr>
+<tr><td><code>warp_hz</code></td><td>float</td><td><code>0.0</code></td><td>A cloth&#x27;s stiffness along its first axis, in hertz, as woven cloth is stiffer along the warp; 0 takes edge_hz At least 0.0.</td></tr>
+<tr><td><code>weft_damping</code></td><td>float</td><td><code>0.0</code></td><td>The damping ratio of the weft springs; 0 takes edge_damping At least 0.0.</td></tr>
+<tr><td><code>weft_hz</code></td><td>float</td><td><code>0.0</code></td><td>The same across it, along the weft; 0 takes edge_hz At least 0.0.</td></tr>
+<tr><td><code>wire_indices</code></td><td>list of list of int</td><td><code>[]</code></td><td>A custom body&#x27;s segments it collides through when it has no surface, as a rope does, each a pair of particle indices</td></tr>
 <tr><td><code>young_modulus</code></td><td>float</td><td><code>10000.0</code></td><td>Stiffness of the elastic cells, as force per unit area; a finer mesh does not get stiffer for it At least 0.0.</td></tr>
 </tbody>
 </table>
@@ -1502,11 +2140,11 @@ Announced from a node carrying `softbody3d`:
 <table>
 <thead><tr><th>event</th><th>payload</th></tr></thead>
 <tbody>
-<tr><td><code>collision_enter</code></td><td>the other collider&#x27;s node</td></tr>
-<tr><td><code>collision_exit</code></td><td>the other collider&#x27;s node</td></tr>
-<tr><td><code>contact_force</code></td><td><code>#{ other, force, direction }</code></td></tr>
+<tr><td><code>collision_enter</code></td><td><code>#{ other, sensor, removed, points, normals }</code>: the other collider&#x27;s node, whether either is a sensor, and each contact point on this collider with its normal pointing away from it, in world space; a sensor&#x27;s has no points</td></tr>
+<tr><td><code>collision_exit</code></td><td><code>#{ other, sensor, removed }</code>: the other collider&#x27;s node, whether either is a sensor, and whether the touch ended because a collider went away</td></tr>
+<tr><td><code>contact_force</code></td><td><code>#{ other, force, direction, total_force, max_force, started }</code>; <code>direction</code> and <code>total_force</code> point from this collider towards the other</td></tr>
 <tr><td><code>sleeping_changed</code></td><td>whether it sleeps now</td></tr>
-<tr><td><code>tear</code></td><td><code>#{ pieces, edges }</code>: how many pieces, and each torn edge&#x27;s two particles</td></tr>
+<tr><td><code>tear</code></td><td><code>#{ pieces, edges, cells, removed_edges, split_particles, inserted_particles, piece_particles, clusters, moved_joints }</code>, the record <code>tear_softbody</code> answers</td></tr>
 </tbody>
 </table>
 
@@ -1515,28 +2153,51 @@ On a node carrying `softbody3d`, as `node.softbody3d.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
+<tr><td><code>add_particle_force(i64, Value)</code></td><td>—</td><td>Push one particle with `force` each step until `reset_softbody_forces`.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>add_softbody_force(Value)</code></td><td>—</td><td>Push every free particle with `force` each step until `reset_softbody_forces`.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>apply_particle_impulse(i64, Value)</code></td><td>—</td><td>Strike one particle.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>apply_softbody_impulse(Value)</code></td><td>—</td><td>Change every free particle&#x27;s velocity by `impulse` at once, as a kick to the whole body.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>apply_softbody_impulse_at(Value, Value, Value)</code></td><td>—</td><td>Strike the particles within `radius` of `point`, less the further they are; a radius of 0 strikes them all.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>apply_softbody_radial_impulse(Value, Value, Value)</code></td><td>—</td><td>Push the particles within `radius` away from `center`, as a blast does.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>attach_particle(i64, NodeId)</code></td><td>—</td><td>Tie one particle to a node&#x27;s rigid body where it is now: the body and the particle pull on each other.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>cut_softbody(Value)</code></td><td><code>Value</code></td><td>Cut the body along a blade at once, as `softbody_crossing` reads it; answers a record for each piece it changed, the one `on_tear` hears.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>detach_particle(i64)</code></td><td><code>bool</code></td><td>Untie one particle from every body it was attached to; answers whether it was attached.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>has_pending_tears()</code></td><td><code>bool</code></td><td>Whether some edge or cell is marked to tear at the end of the next step.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>pin_particle(i64)</code></td><td>—</td><td>Hold one particle where it is, which is how a cloth hangs from a hook.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>reset_softbody_forces()</code></td><td>—</td><td>Take back every force `add_softbody_force` gave the body.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>reset_plasticity()</code></td><td>—</td><td>Undo every permanent set the body took: rest lengths, rest angles and rest shapes go back to how it was built, and it springs back from where it is.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>reset_softbody_forces()</code></td><td>—</td><td>Take back every force `add_softbody_force` and `add_particle_force` gave the body.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_cell_tear_resistance(i64, f32)</code></td><td>—</td><td>The same for one cell&#x27;s tear strain.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_edge_tear_resistance(i64, f32)</code></td><td>—</td><td>How many times the material&#x27;s threshold one edge takes to tear; 1 is the material&#x27;s.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_particle_damaged(i64, bool)</code></td><td>—</td><td>Mark one particle as damaged or mend it: a damaged particle tears as an outside one does, which seeds where a crack starts.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_particle_position(i64, Value)</code></td><td>—</td><td>Put one particle at `at` with no change of velocity.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_particle_target(i64, Value)</code></td><td>—</td><td>Move a held particle to `at` over the next step, with the velocity that takes, which is how a cloth is dragged.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_particle_velocity(i64, Value)</code></td><td>—</td><td>Set one particle&#x27;s velocity; a held one keeps moving at it.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_softbody(Value)</code></td><td>—</td><td>Build the node&#x27;s soft body from a `softbody3d` table: `kind`, the shape rows, and the material rows.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>softbody_center()</code></td><td><code>Value</code></td><td>The body&#x27;s centre of mass, which is where it is when a deformable body has no one position.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_attachments()</code></td><td><code>Value</code></td><td>Every particle tied to a rigid body, as `#{ particle, body, anchor, impulse }`: the anchor in the body&#x27;s own space, and the impulse the tie pulled with in the last substep.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_boundary()</code></td><td><code>Value</code></td><td>The body&#x27;s surface as particle indices: segments in 2D, triangles in 3D.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_cell(i64)</code></td><td><code>Value</code></td><td>Everything one cell holds: `#{ particles, rest_volume, stiffness_scale, tear_resistance, stress, plastic_stretch }`; `stress` is its strain as a fraction of `tear_strain`, `plastic_stretch` the rows of the permanent stretch of its rest shape.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_cells()</code></td><td><code>Value</code></td><td>Every cell as its particle indices: triangles in 2D, tetrahedra in 3D.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_center()</code></td><td><code>Value</code></td><td>The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_contacts()</code></td><td><code>Value</code></td><td>What the body&#x27;s surface touched in the last step: `#{ edges, vertices, volumes }`. Each edge and vertex contact with another soft body or itself is a pair of world points, the two witnesses; each volume contact is `#{ center, normal, volume }`.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_crossing(Value)</code></td><td><code>Value</code></td><td>The edges and cells a blade meets, `#{ edges, cells }`, without cutting: the blade is a segment&#x27;s two points in 2D, a triangle&#x27;s three in 3D.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_dihedral(i64)</code></td><td><code>Value</code></td><td>Everything one hinge holds: `#{ particles, rest_angle, initial_rest_angle, plastic_set }`, angles in radians; `plastic_set` is how far its rest angle has flowed from the one it was built with.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_dihedrals()</code></td><td><code>Value</code></td><td>Every bending hinge between two surface triangles, as four particle indices: the shared edge, then the two opposite particles.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_edge(i64)</code></td><td><code>Value</code></td><td>Everything one edge holds: `#{ particles, kind, rest_length, initial_rest_length, plastic_strain, tension_only, softness_hz, softness_damping_ratio, tear_resistance, impulse, stress }`; `kind` is `structural` or `bending`, and the softness is the edge&#x27;s own or its kind&#x27;s from the material.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>softbody_edges()</code></td><td><code>Value</code></td><td>Every edge as the two particle indices it joins, in the order `softbody_stress` reports them.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>softbody_particles()</code></td><td><code>i64</code></td><td>How many particles the body ended up with, which a generator decides rather than the author.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_mass()</code></td><td><code>f32</code></td><td>What the whole body weighs, every piece included.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_particle(i64)</code></td><td><code>Value</code></td><td>Everything one particle holds: `#{ position, velocity, force, target, rest_position, initial_rest_position, mass, inverse_mass, pinned, damaged, on_surface }`. `force` is what `add_particle_force` keeps on it, `target` where a held particle is going (nil when none), the two rest positions are relative to the rest centre of mass, before and after plastic flow, and `inverse_mass` is 0 while it is held.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_particle_radius()</code></td><td><code>f32</code></td><td>How thick the particles are: what was asked for, or what the layout worked out.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_particles()</code></td><td><code>i64</code></td><td>How many particles the body has, every piece torn off it included: a generator decides, not the author.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>softbody_position(i64)</code></td><td><code>Value</code></td><td>Where one particle is, in world space.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>softbody_rest_volume()</code></td><td><code>f32</code></td><td>How much it encloses at rest.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_rest_volume()</code></td><td><code>f32</code></td><td>How much they enclose at rest.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>softbody_sleeping()</code></td><td><code>bool</code></td><td>Whether the body has come to rest and stopped being simulated.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>softbody_stress()</code></td><td><code>Value</code></td><td>How far each edge is stretched past its rest length, as a fraction of it: what a tear is judged on.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_stress()</code></td><td><code>Value</code></td><td>Each edge&#x27;s load as a fraction of its tear threshold, smoothed over `tear_smoothing`: 0 slack, 1 tearing; the larger of its stretch over `tear_strain` and its force over `tear_force`, and 0 while neither is set.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>softbody_velocity(i64)</code></td><td><code>Value</code></td><td>How fast one particle is moving, in world space.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>softbody_volume()</code></td><td><code>f32</code></td><td>How much space the body encloses right now, against `softbody_rest_volume` for how far it is squeezed.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_volume()</code></td><td><code>f32</code></td><td>How much space the body and every piece torn off it enclose right now, against `softbody_rest_volume` for how far it is squeezed.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_volume_pieces()</code></td><td><code>Value</code></td><td>Each closed piece of the surface whose volume is held, as `#{ particles, rest_volume, volume }`; an open sheet has none.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>tear_cell(i64)</code></td><td>—</td><td>Tear one cell at the end of the next step: a particle near its middle splits across its main stretch.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>tear_edge(i64)</code></td><td>—</td><td>Tear one edge at the end of the next step.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>tear_softbody(Value, Value)</code></td><td><code>Value</code></td><td>Tear the given edges and cells at once; answers a record for each piece it changed: `#{ pieces, edges, cells, removed_edges, split_particles, inserted_particles, piece_particles, clusters, moved_joints }`, the one `on_tear` hears. Particle indices are the torn piece&#x27;s own; `split_particles` holds `[copy, source]` pairs, `clusters` `#{ source, cluster, keeps_proxy }`, and `moved_joints` the joint nodes a cluster split moved.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>unpin_particle(i64)</code></td><td>—</td><td>Let a held particle go; it keeps the velocity it had.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>wake_softbody()</code></td><td>—</td><td>Start simulating a resting body again.</td><td><code>physics3d</code></td></tr>
 </tbody>
@@ -1544,49 +2205,85 @@ On a node carrying `softbody3d`, as `node.softbody3d.<method>`:
 
 ### `text3d`
 
-`3d` · `render` · 22 properties
+`3d` · `render` · 56 properties
 
 A block of `text` drawn in the 3D pass on a quad, `pixels_per_unit` font pixels per world unit; `billboard` turns it to the camera.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>alpha_cutoff</code></td><td>float</td><td><code>0.0</code></td><td>Drop a pixel fainter than this and draw the rest opaque, as a material&#x27;s `[surface] alpha_cutoff` does; zero blends every pixel Range 0.0–1.0.</td></tr>
 <tr><td><code>billboard</code></td><td>bool</td><td><code>true</code></td><td>Turn to face the camera every frame; off leaves it in the node&#x27;s own plane</td></tr>
 <tr><td><code>bitmap_font</code></td><td>string</td><td>—</td><td>A project-relative AngelCode .fnt naming a bitmap face; empty shapes with the project&#x27;s vector fonts</td></tr>
+<tr><td><code>cast_shadow</code></td><td>bool</td><td><code>true</code></td><td>Whether it casts a shadow from the lights that cast. With `alpha_cutoff` above zero the shadow keeps the glyphs&#x27; shapes; at zero each glyph shadows as its whole quad</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
-<tr><td><code>depth_test</code></td><td>bool</td><td><code>true</code></td><td>Let the scene hide it; off draws it over everything</td></tr>
+<tr><td><code>depth_test</code></td><td>bool</td><td><code>true</code></td><td>Let the scene hide it; off draws it over everything drawn before it and leaves the depth as it was</td></tr>
+<tr><td><code>dot_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The vertex dots&#x27; colour; an alpha of zero takes the node&#x27;s own. Not drawn on a block with a `material`, whose layers draw through Balaur&#x27;s own pipeline</td></tr>
+<tr><td><code>dot_size</code></td><td>float</td><td><code>0.0</code></td><td>Size of a dot drawn on every vertex; zero draws none. Not drawn on a block with a `material`, whose layers draw through Balaur&#x27;s own pipeline. Not on WebGL2 At least 0.0.</td></tr>
+<tr><td><code>dot_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `dot_size` counts: `world` is pixels at one world unit from the camera, thinning with distance, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
 <tr><td><code>double_sided</code></td><td>bool</td><td><code>true</code></td><td>Draw the back of the quad as well as the front</td></tr>
+<tr><td><code>draw_surface</code></td><td>bool</td><td><code>true</code></td><td>Whether the surface draws; off leaves the wireframe and the dots alone</td></tr>
 <tr><td><code>font_family</code></td><td>enum</td><td><code>ui</code></td><td>Which of the project&#x27;s font chains to shape with One of <code>ui</code>, <code>heading</code>, <code>mono</code>, <code>icon</code>.</td></tr>
+<tr><td><code>font_features</code></td><td>list of string</td><td><code>[]</code></td><td>OpenType features: a tag turns one on (`smcp`), `tag=0` turns one off (`liga=0`), `tag=n` picks an alternate</td></tr>
+<tr><td><code>font_name</code></td><td>string</td><td>—</td><td>A face by family name, tried before the chain. A project face measures; a face only the system has draws but is measured as the chain</td></tr>
 <tr><td><code>font_size</code></td><td>float</td><td><code>32.0</code></td><td>Height in font pixels, before pixels_per_unit sizes it in the world At least 1.0.</td></tr>
-<tr><td><code>font_style</code></td><td>enum</td><td><code>normal</code></td><td>Upright or italic One of <code>normal</code>, <code>italic</code>.</td></tr>
+<tr><td><code>font_stretch</code></td><td>enum</td><td><code>normal</code></td><td>How wide a face is picked among the faces its family ships; nothing is stretched that no face draws One of <code>ultra_condensed</code>, <code>extra_condensed</code>, <code>condensed</code>, <code>semi_condensed</code>, <code>normal</code>, <code>semi_expanded</code>, <code>expanded</code>, <code>extra_expanded</code>, <code>ultra_expanded</code>.</td></tr>
+<tr><td><code>font_style</code></td><td>enum</td><td><code>normal</code></td><td>Upright, the family&#x27;s italic face, or the upright face slanted; a family with no italic is slanted either way One of <code>normal</code>, <code>italic</code>, <code>oblique</code>.</td></tr>
 <tr><td><code>font_weight</code></td><td>int</td><td><code>400</code></td><td>Stroke weight, 400 regular and 700 bold Range 100–900.</td></tr>
+<tr><td><code>hinting</code></td><td>enum</td><td><code>auto</code></td><td>Snap outlines to the pixel grid; auto takes the face&#x27;s import setting One of <code>auto</code>, <code>on</code>, <code>off</code>.</td></tr>
 <tr><td><code>letter_spacing</code></td><td>float</td><td><code>0.0</code></td><td>Extra space between glyphs, in font pixels</td></tr>
+<tr><td><code>light_layers</code></td><td>int</td><td><code>-1</code></td><td>Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer</td></tr>
+<tr><td><code>line_break</code></td><td>enum</td><td><code>word_or_glyph</code></td><td>Where a wrapped line may break: between words with a too-long word cut anywhere, between words only, or anywhere One of <code>word_or_glyph</code>, <code>word</code>, <code>glyph</code>.</td></tr>
 <tr><td><code>line_height</code></td><td>float</td><td><code>0.0</code></td><td>Baseline to baseline as a multiple of the size; zero takes the default At least 0.0.</td></tr>
 <tr><td><code>markup</code></td><td>bool</td><td><code>false</code></td><td>Read the text as markup: bold, italic, colour, alignment, wave and inline images</td></tr>
+<tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material every layer draws with, reading the glyph atlas as its texture; empty takes an inherited `material` component, else the built-in one. On `text2d` a material replaces `alpha_cutoff`</td></tr>
+<tr><td><code>max_height</code></td><td>float</td><td><code>0.0</code></td><td>Font pixels the lines stop at; zero has no limit At least 0.0.</td></tr>
+<tr><td><code>max_lines</code></td><td>int</td><td><code>0</code></td><td>The most lines a block keeps; zero keeps every line At least 0.</td></tr>
 <tr><td><code>max_width</code></td><td>float</td><td><code>0.0</code></td><td>Font pixels the lines wrap at; zero runs the text on one line At least 0.0.</td></tr>
+<tr><td><code>monospace_width</code></td><td>float</td><td><code>0.0</code></td><td>Font pixels a monospace face&#x27;s advance is set to; zero keeps its own At least 0.0.</td></tr>
 <tr><td><code>outline_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 1.0]</code></td><td>The outline&#x27;s colour</td></tr>
 <tr><td><code>outline_size</code></td><td>float</td><td><code>0.0</code></td><td>Font pixels the outline reaches around the glyphs; zero draws none At least 0.0.</td></tr>
+<tr><td><code>overline</code></td><td>bool</td><td><code>false</code></td><td>A line over the glyphs</td></tr>
+<tr><td><code>overline_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The overline&#x27;s colour; alpha 0 takes the glyphs&#x27; own</td></tr>
+<tr><td><code>pixel_snap</code></td><td>bool</td><td><code>false</code></td><td>Rasterise on whole pixels with no subpixel offset, for a pixel face</td></tr>
 <tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>100.0</code></td><td>Font pixels to one world unit, sizing the block the way a sprite is sized At least 0.01.</td></tr>
+<tr><td><code>receive_shadows</code></td><td>bool</td><td><code>true</code></td><td>Whether shadows land on it; off lights it as if nothing stood between it and every light</td></tr>
+<tr><td><code>render_layers</code></td><td>int</td><td><code>-1</code></td><td>Layer bitmask; a `camera3d` draws this when their `render_layers` share a bit. -1 is every layer</td></tr>
+<tr><td><code>segmentation_id</code></td><td>int</td><td><code>0</code></td><td>The id `render.snap_aov(&quot;segmentation&quot;)` colours this node by; nodes sharing one share a colour. Zero takes one of its own, from 1 up At least 0.</td></tr>
 <tr><td><code>shadow_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.5]</code></td><td>The shadow&#x27;s colour</td></tr>
 <tr><td><code>shadow_offset_x</code></td><td>float</td><td><code>0.0</code></td><td>Font pixels the shadow is moved along x; zero with y draws none</td></tr>
 <tr><td><code>shadow_offset_y</code></td><td>float</td><td><code>0.0</code></td><td>Font pixels the shadow is moved along y</td></tr>
+<tr><td><code>shaping</code></td><td>enum</td><td><code>complex</code></td><td>Complex shaping joins scripts that need it and falls back to another face; simple does neither and is faster One of <code>complex</code>, <code>simple</code>.</td></tr>
+<tr><td><code>snap_advances</code></td><td>bool</td><td><code>false</code></td><td>Round each glyph&#x27;s advance to a whole pixel; the layout then depends on the size it is drawn at</td></tr>
+<tr><td><code>strikethrough</code></td><td>bool</td><td><code>false</code></td><td>A line through the glyphs</td></tr>
+<tr><td><code>strikethrough_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The strikethrough&#x27;s colour; alpha 0 takes the glyphs&#x27; own</td></tr>
+<tr><td><code>tab_width</code></td><td>int</td><td><code>8</code></td><td>Spaces between tab stops Range 1–64.</td></tr>
 <tr><td><code>text</code></td><td>string</td><td>—</td><td>The text drawn; `text_key` wins over it</td></tr>
-<tr><td><code>text_align</code></td><td>enum</td><td><code>center</code></td><td>Where the block sits across the node&#x27;s origin One of <code>start</code>, <code>center</code>, <code>end</code>.</td></tr>
+<tr><td><code>text_align</code></td><td>enum</td><td><code>center</code></td><td>Where the block sits across the node&#x27;s origin, and its lines within it: start and end follow the text&#x27;s direction, left and right do not, justify stretches every full line One of <code>start</code>, <code>center</code>, <code>end</code>, <code>left</code>, <code>right</code>, <code>justify</code>.</td></tr>
 <tr><td><code>text_key</code></td><td>string</td><td>—</td><td>A key in the project&#x27;s strings, re-read every frame so a language change shows at once</td></tr>
+<tr><td><code>truncate</code></td><td>bool</td><td><code>false</code></td><td>End a block cut short with an ellipsis; needs `max_width`, and cuts at `max_lines` or `max_height` when either is set, else at one line</td></tr>
+<tr><td><code>truncate_at</code></td><td>enum</td><td><code>end</code></td><td>Which part of a cut line the ellipsis stands in for One of <code>end</code>, <code>start</code>, <code>middle</code>.</td></tr>
+<tr><td><code>underline</code></td><td>enum</td><td><code>none</code></td><td>A line under the glyphs, once or twice One of <code>none</code>, <code>single</code>, <code>double</code>.</td></tr>
+<tr><td><code>underline_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The underline&#x27;s colour; alpha 0 takes the glyphs&#x27; own</td></tr>
+<tr><td><code>wireframe_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The wireframe&#x27;s colour; an alpha of zero takes the node&#x27;s own. Not drawn on a block with a `material`, whose layers draw through Balaur&#x27;s own pipeline</td></tr>
+<tr><td><code>wireframe_sizing</code></td><td>enum</td><td><code>world</code></td><td>What `wireframe_width` counts: `world` is pixels at one world unit from the camera, thinning with distance, `screen` is pixels One of <code>world</code>, <code>screen</code>.</td></tr>
+<tr><td><code>wireframe_width</code></td><td>float</td><td><code>0.0</code></td><td>Width of a line drawn along every triangle edge; zero draws none. Not drawn on a block with a `material`, whose layers draw through Balaur&#x27;s own pipeline. Not on WebGL2 At least 0.0.</td></tr>
 </tbody>
 </table>
 
 ### `vehicle3d`
 
-`3d` · `physics` · 2 properties · 1 method
+`3d` · `physics` · 4 properties · 2 methods
 
 Makes the node's `body3d` a raycast vehicle chassis, driven by the `wheel3d` children under it. `forward_axis` and `up_axis` orient it.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>forward_axis</code></td><td>enum</td><td><code>z</code></td><td>Which of the chassis&#x27;s own axes points forward One of <code>x</code>, <code>y</code>, <code>z</code>.</td></tr>
-<tr><td><code>up_axis</code></td><td>enum</td><td><code>y</code></td><td>Which of the chassis&#x27;s own axes points up One of <code>x</code>, <code>y</code>, <code>z</code>.</td></tr>
+<tr><td><code>collision_mask</code></td><td>flags</td><td><code>[]</code></td><td>The collision layers the wheels&#x27; rays hit; empty hits every layer One of <code>1</code>, <code>2</code>, <code>3</code>, <code>4</code>, <code>5</code>, <code>6</code>, <code>7</code>, <code>8</code>, <code>9</code>, <code>10</code>, <code>11</code>, <code>12</code>, <code>13</code>, <code>14</code>, <code>15</code>, <code>16</code>, <code>17</code>, <code>18</code>, <code>19</code>, <code>20</code>, <code>21</code>, <code>22</code>, <code>23</code>, <code>24</code>, <code>25</code>, <code>26</code>, <code>27</code>, <code>28</code>, <code>29</code>, <code>30</code>, <code>31</code>, <code>32</code>.</td></tr>
+<tr><td><code>forward_axis</code></td><td>enum</td><td><code>z</code></td><td>Which of the chassis&#x27;s own axes points forward, either way along it: a negative axis drives and steers the other way round, and reads speed the other way One of <code>x</code>, <code>y</code>, <code>z</code>, <code>-x</code>, <code>-y</code>, <code>-z</code>.</td></tr>
+<tr><td><code>ignore</code></td><td>flags</td><td><code>[&quot;sensors&quot;]</code></td><td>What the wheels&#x27; rays pass through: static takes colliders with no body too. The chassis&#x27;s own body is never hit One of <code>static</code>, <code>kinematic</code>, <code>dynamic</code>, <code>sensors</code>, <code>solids</code>.</td></tr>
+<tr><td><code>up_axis</code></td><td>enum</td><td><code>y</code></td><td>Which of the chassis&#x27;s own axes points up, either way along it One of <code>x</code>, <code>y</code>, <code>z</code>, <code>-x</code>, <code>-y</code>, <code>-z</code>.</td></tr>
 </tbody>
 </table>
 
@@ -1595,13 +2292,14 @@ On a node carrying `vehicle3d`, as `node.vehicle3d.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
+<tr><td><code>speed()</code></td><td><code>f32</code></td><td>The chassis&#x27;s whole speed at the last step, negative while it moves against its forward axis: rapier&#x27;s own reading, where `vehicle_speed` is the part along the forward axis alone.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>vehicle_speed()</code></td><td><code>f32</code></td><td>How fast the chassis is going along its forward axis, in units per second.</td><td><code>physics3d</code></td></tr>
 </tbody>
 </table>
 
 ### `wheel3d`
 
-`3d` · `physics` · 11 properties · 4 methods
+`3d` · `physics` · 11 properties · 5 methods
 
 One wheel of the `vehicle3d` above it; the node's position on the chassis is where its ray starts. `physics3d.set_engine_force`, `set_brake` and `set_steering` drive it.
 
@@ -1617,8 +2315,8 @@ One wheel of the `vehicle3d` above it; the node's position on the chassis is whe
 <tr><td><code>side_friction</code></td><td>float</td><td><code>1.0</code></td><td>Grip sideways: what stops the car sliding out of a corner At least 0.0.</td></tr>
 <tr><td><code>suspension_direction</code></td><td>vec3</td><td><code>[0.0, -1.0, 0.0]</code></td><td>Which way the suspension pushes, in the chassis&#x27;s own space: down</td></tr>
 <tr><td><code>suspension_max_force</code></td><td>float</td><td><code>6000.0</code></td><td>The most force this suspension may push the chassis with At least 0.0.</td></tr>
-<tr><td><code>suspension_stiffness</code></td><td>float</td><td><code>30.0</code></td><td>Spring stiffness: higher is a stiffer, twitchier car At least 0.0.</td></tr>
-<tr><td><code>suspension_travel</code></td><td>float</td><td><code>5.0</code></td><td>How far the suspension may move in total At least 0.0.</td></tr>
+<tr><td><code>suspension_stiffness</code></td><td>float</td><td><code>30.0</code></td><td>Spring stiffness, scaled by the chassis&#x27;s mass: higher is a stiffer, twitchier car At least 0.0.</td></tr>
+<tr><td><code>suspension_travel</code></td><td>float</td><td><code>5.0</code></td><td>How far the suspension may move either side of its rest length At least 0.0.</td></tr>
 </tbody>
 </table>
 
@@ -1627,10 +2325,11 @@ On a node carrying `wheel3d`, as `node.wheel3d.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
-<tr><td><code>set_brake(f32)</code></td><td>—</td><td>How hard this wheel brakes.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_brake(f32)</code></td><td>—</td><td>How hard this wheel brakes, as an impulse; ignored while its engine force is not 0.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_engine_force(f32)</code></td><td>—</td><td>How hard this wheel drives, in newtons; negative reverses.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_steering(f32)</code></td><td>—</td><td>Turn this wheel, in radians.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>wheel_state()</code></td><td><code>Value</code></td><td>What the last step did with this wheel: `#{ rotation, suspension_force, in_contact, engine_force, brake, steering }`.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_wheel_rotation(f32)</code></td><td>—</td><td>Set how far the wheel has turned about its axle, in radians: the angle `wheel_state` reads as `rotation`.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>wheel_state()</code></td><td><code>Value</code></td><td>What the last step did with this wheel: `#{ rotation, suspension_force, in_contact, engine_force, brake, steering, forward_impulse, side_impulse, contact_normal, contact_point, suspension_length, ray_origin, ground, center, suspension, axle }`. `suspension_force` is what the suspension pushed with, after `suspension_max_force`; the two impulses are the friction rapier applied along and across the wheel; the contact, the ray&#x27;s start, the wheel&#x27;s centre and its suspension and axle directions are world space, after steering; `ground` is the node the ray hit, or nil.</td><td><code>physics3d</code></td></tr>
 </tbody>
 </table>
 
@@ -1671,41 +2370,6 @@ On a node carrying `ragdoll`, as `node.ragdoll.<method>`:
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>source</code></td><td>asset · <code>material</code></td><td>—</td><td>The material asset; empty takes the parent&#x27;s</td></tr>
-</tbody>
-</table>
-
-### `particles`
-
-`render` · 14 properties
-
-A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `direction`, `spread_degrees` and `gravity`. The live particles are renderer state the simulation never sees.
-
-<table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
-<tbody>
-<tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
-<tr><td><code>color_end</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 0.0]</code></td><td>The tint a particle fades to by the end of its life</td></tr>
-<tr><td><code>direction</code></td><td>vec2</td><td><code>[0.0, 1.0]</code></td><td>Which way the particles leave; [0, 1] is straight up</td></tr>
-<tr><td><code>emitting</code></td><td>bool</td><td><code>true</code></td><td>Whether new particles are born; live ones finish either way</td></tr>
-<tr><td><code>explosiveness</code></td><td>float</td><td><code>0.0</code></td><td>How much of a one-shot burst is born at once; the rest is spread over the lifetime Range 0.0–1.0.</td></tr>
-<tr><td><code>gravity</code></td><td>vec2</td><td><code>[0.0, -3.0]</code></td><td>Acceleration applied over a particle&#x27;s life</td></tr>
-<tr><td><code>lifetime</code></td><td>float</td><td><code>1.0</code></td><td>Seconds a particle lives At least 0.05.</td></tr>
-<tr><td><code>one_shot</code></td><td>bool</td><td><code>false</code></td><td>Emit one burst of `rate` times `lifetime` particles and stop; setting `emitting` false and true again fires another</td></tr>
-<tr><td><code>rate</code></td><td>float</td><td><code>20.0</code></td><td>Particles born per second At least 0.0.</td></tr>
-<tr><td><code>size</code></td><td>float</td><td><code>4.0</code></td><td>Particle size in logical pixels At least 0.5.</td></tr>
-<tr><td><code>size_end</code></td><td>float</td><td><code>-1.0</code></td><td>The size a particle grows or shrinks to by the end of its life, in logical pixels; below zero keeps `size`</td></tr>
-<tr><td><code>speed</code></td><td>float</td><td><code>2.0</code></td><td>Initial speed in world units per second At least 0.0.</td></tr>
-<tr><td><code>spread_degrees</code></td><td>float</td><td><code>30.0</code></td><td>Half-angle of the emission cone in degrees At least 0.0.</td></tr>
-<tr><td><code>texture</code></td><td>asset · <code>texture</code></td><td>—</td><td>An image, or a `texture` asset, each particle draws with; empty draws a flat square</td></tr>
-</tbody>
-</table>
-
-Announced from a node carrying `particles`:
-
-<table>
-<thead><tr><th>event</th><th>payload</th></tr></thead>
-<tbody>
-<tr><td><code>finished</code></td><td>nil, once a one-shot burst has died out</td></tr>
 </tbody>
 </table>
 
@@ -1799,35 +2463,65 @@ On a node carrying `state_machine`, as `node.state_machine.<method>`:
 
 ### `listener`
 
-`audio` · 1 property
+`audio` · 4 properties
 
-The point positional sounds are heard from: distance sets volume, offset across its right sets pan. The last `current` listener wins; without one, sounds play flat.
+The point positional sounds are heard from: distance sets volume, offset across its right sets pan, and the closing speed against `speed_of_sound` bends pitch. The last `current` listener wins; without one, sounds play flat.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>current</code></td><td>bool</td><td><code>true</code></td><td>Whether the mix is heard from this node; the last current one wins</td></tr>
+<tr><td><code>ear_distance</code></td><td>float</td><td><code>0.0</code></td><td>Distance between the ears along the node&#x27;s right. Above 0 the pan is how much nearer one ear is; 0 pans by direction alone, opening up inside `min_distance` At least 0.0.</td></tr>
+<tr><td><code>max_doppler</code></td><td>float</td><td><code>2.0</code></td><td>The most doppler multiplies a pitch by; its inverse is the least At least 1.0.</td></tr>
+<tr><td><code>speed_of_sound</code></td><td>float</td><td><code>343.0</code></td><td>Units a second sound travels at, which doppler measures closing speeds against At least 0.001.</td></tr>
 </tbody>
 </table>
 
 ### `sound`
 
-`audio` · 10 properties · 2 methods
+`audio` · 37 properties · 4 methods
 
-A sound on the node: `file`, `volume_linear`, `pitch_scale` and `loop`. `autoplay` starts it on load, `node.sound.play()` triggers it, `positional` plays it from the node for the `listener`, and the node announces `finished` when it plays out.
+A sound on the node: `file`, `volume_linear`, `pitch_scale` and `loop`, with its `layers` mixed in and its `queue` played after it. `autoplay` starts it on load, `node.sound.play()` triggers it, `seek` and `skip` move it, `positional` plays it from the node for the `listener`, and the node announces `finished` when it plays out. Filters, distortion, reverb and automatic gain control are rodio's.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>attenuation</code></td><td>enum</td><td><code>inverse</code></td><td>How a positional sound falls off past `min_distance`: `inverse` halves its gain at every doubling of distance, `inverse_square` quarters it One of <code>inverse</code>, <code>inverse_square</code>.</td></tr>
+<tr><td><code>auto_gain</code></td><td>bool</td><td><code>false</code></td><td>Even the level out with automatic gain control. Read when it starts; turning it off while playing bypasses it</td></tr>
+<tr><td><code>auto_gain_attack_time</code></td><td>float</td><td><code>4.0</code></td><td>Seconds it takes to answer the level rising Range 0.0–10.0.</td></tr>
+<tr><td><code>auto_gain_floor</code></td><td>float</td><td><code>0.0</code></td><td>The least gain it applies At least 0.0.</td></tr>
+<tr><td><code>auto_gain_max</code></td><td>float</td><td><code>7.0</code></td><td>The most gain it applies At least 0.0.</td></tr>
+<tr><td><code>auto_gain_release_time</code></td><td>float</td><td><code>0.0</code></td><td>Seconds it takes to answer the level falling Range 0.0–10.0.</td></tr>
+<tr><td><code>auto_gain_target</code></td><td>float</td><td><code>1.0</code></td><td>The level it holds the sound at; 1 is the file&#x27;s own At least 0.0.</td></tr>
 <tr><td><code>autoplay</code></td><td>bool</td><td><code>false</code></td><td>Start playing when the node enters the scene</td></tr>
 <tr><td><code>bus</code></td><td>string</td><td>—</td><td>Audio bus this plays through; empty is `master`</td></tr>
+<tr><td><code>crossfade_time</code></td><td>float</td><td><code>0.0</code></td><td>Seconds a playing sound fades out over when `file` changes, while the new file, if `autoplay` starts it, fades in; 0 cuts At least 0.0.</td></tr>
+<tr><td><code>delay</code></td><td>float</td><td><code>0.0</code></td><td>Seconds of silence before the sound starts. Read when it starts At least 0.0.</td></tr>
+<tr><td><code>distortion_gain</code></td><td>float</td><td><code>1.0</code></td><td>Gain before the distortion&#x27;s clip At least 0.0.</td></tr>
+<tr><td><code>distortion_threshold</code></td><td>float</td><td><code>0.0</code></td><td>Level samples are clipped at after `distortion_gain`; 0 is off Range 0.0–1.0.</td></tr>
 <tr><td><code>doppler_level</code></td><td>float</td><td><code>0.0</code></td><td>How much the closing speed bends the pitch; 0 is off, 1 physical At least 0.0.</td></tr>
+<tr><td><code>end_time</code></td><td>float</td><td><code>0.0</code></td><td>Seconds into `file` each play stops at, and a loop turns back at; 0 plays to the end. Read when it starts At least 0.0.</td></tr>
+<tr><td><code>fade_in_time</code></td><td>float</td><td><code>0.0</code></td><td>Seconds the sound rises from silence over when it starts At least 0.0.</td></tr>
+<tr><td><code>fade_out_time</code></td><td>float</td><td><code>0.0</code></td><td>Seconds the sound falls to silence over: the last ones before it plays out, and the first after `audio.stop` At least 0.0.</td></tr>
 <tr><td><code>file</code></td><td>string</td><td>—</td><td>Audio file, project-relative; required to play</td></tr>
-<tr><td><code>loop</code></td><td>bool</td><td><code>false</code></td><td>Restart the sound when it ends</td></tr>
+<tr><td><code>high_pass_hz</code></td><td>float</td><td><code>0.0</code></td><td>Cut what is below this frequency; 0 is off At least 0.0.</td></tr>
+<tr><td><code>high_pass_q</code></td><td>float</td><td><code>0.5</code></td><td>How sharply the high-pass turns at its cutoff; higher rings there At least 0.01.</td></tr>
+<tr><td><code>layers</code></td><td>list of string</td><td><code>[]</code></td><td>Files mixed with `file` for its whole length, each at its own import level. Read when it starts</td></tr>
+<tr><td><code>loop</code></td><td>bool</td><td><code>false</code></td><td>Restart the sound when it ends; with a `queue`, each file repeats until `node.sound.skip()` moves on</td></tr>
+<tr><td><code>loop_offset</code></td><td>float</td><td><code>-1.0</code></td><td>Seconds into `file` every repeat after the first starts from; below 0 takes the file&#x27;s own `loop_offset` import setting. Read when it starts At least -1.0.</td></tr>
+<tr><td><code>low_pass_hz</code></td><td>float</td><td><code>0.0</code></td><td>Cut what is above this frequency; 0 is off At least 0.0.</td></tr>
+<tr><td><code>low_pass_q</code></td><td>float</td><td><code>0.5</code></td><td>How sharply the low-pass turns at its cutoff; higher rings there At least 0.01.</td></tr>
 <tr><td><code>max_distance</code></td><td>float</td><td><code>50.0</code></td><td>Silent beyond this distance from the listener At least 0.001.</td></tr>
 <tr><td><code>min_distance</code></td><td>float</td><td><code>1.0</code></td><td>Full volume within this distance of the listener At least 0.001.</td></tr>
+<tr><td><code>pan</code></td><td>float</td><td><code>0.0</code></td><td>Balance of a sound that is not positional: -1 left, 0 both channels at full, 1 right. A positional sound is panned by where it is Range -1.0–1.0.</td></tr>
+<tr><td><code>paused</code></td><td>bool</td><td><code>false</code></td><td>Hold the sound where it is; `playback_time` and the count to `finished` hold with it</td></tr>
 <tr><td><code>pitch_scale</code></td><td>float</td><td><code>1.0</code></td><td>Playback speed multiplier At least 0.01.</td></tr>
+<tr><td><code>playback_time</code></td><td>float</td><td><code>0.0</code></td><td>Seconds into the file playing now, counted on the fixed step so a run with no output device reads the same; 0 when nothing plays Read-only: engine output the inspector shows but never writes.</td></tr>
 <tr><td><code>positional</code></td><td>bool</td><td><code>false</code></td><td>Place the sound where the node is, heard from the `listener`</td></tr>
+<tr><td><code>queue</code></td><td>list of string</td><td><code>[]</code></td><td>Files played after `file`, in order and without a gap; `node.sound.skip()` moves to the next. Read when it starts</td></tr>
+<tr><td><code>reverb_level</code></td><td>float</td><td><code>0.0</code></td><td>Gain of that echo At least 0.0.</td></tr>
+<tr><td><code>reverb_time</code></td><td>float</td><td><code>0.0</code></td><td>Seconds an echo of the sound trails it by; 0 is off. Read when it starts At least 0.0.</td></tr>
+<tr><td><code>start_time</code></td><td>float</td><td><code>0.0</code></td><td>Seconds into `file` each play starts from. Read when it starts At least 0.0.</td></tr>
 <tr><td><code>volume_linear</code></td><td>float</td><td><code>1.0</code></td><td>Linear gain; 1 is the file&#x27;s own level At least 0.0.</td></tr>
 </tbody>
 </table>
@@ -1847,7 +2541,9 @@ On a node carrying `sound`, as `node.sound.<method>`:
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
 <tr><td><code>play()</code></td><td><code>u64</code></td><td>Start the node&#x27;s own `sound` from the top, replacing what it had going, and return the new handle.</td><td><code>audio</code></td></tr>
-<tr><td><code>stop()</code></td><td>—</td><td>Silence what the node&#x27;s `sound` started; a node carrying none is left alone.</td><td><code>audio</code></td></tr>
+<tr><td><code>seek(f64)</code></td><td>—</td><td>Jump the node&#x27;s sound to `seconds` into the file it is playing; `playback_time` reads it back. A node with nothing playing is left alone.</td><td><code>audio</code></td></tr>
+<tr><td><code>skip()</code></td><td>—</td><td>Move the node&#x27;s sound on to the next file in its `queue`. Past the last one it has played out, and the node announces `finished`.</td><td><code>audio</code></td></tr>
+<tr><td><code>stop()</code></td><td>—</td><td>Silence what the node&#x27;s `sound` started, over its `fade_out_time`; a node carrying none is left alone.</td><td><code>audio</code></td></tr>
 </tbody>
 </table>
 
@@ -1855,67 +2551,131 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 112 properties
+`ui` · 223 properties
 
 A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button sets `clicked` and calls `on_click`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>align_items</code></td><td>enum</td><td><code>start</code></td><td>Where a container puts its children across its own direction One of <code>start</code>, <code>center</code>, <code>end</code>.</td></tr>
+<tr><td><code>absolute</code></td><td>bool</td><td><code>false</code></td><td>Take this child out of its container&#x27;s run and place it by `inset` against the container&#x27;s box inside its border, drawn in its turn among its siblings; a root ignores it</td></tr>
+<tr><td><code>align_content</code></td><td>enum</td><td><code>stretch</code></td><td>How a container that wraps spreads its lines across its direction, and a `grid` its rows, where they leave room: `stretch` shares the room among them One of <code>start</code>, <code>center</code>, <code>end</code>, <code>stretch</code>, <code>between</code>, <code>around</code>, <code>evenly</code>.</td></tr>
+<tr><td><code>align_items</code></td><td>enum</td><td><code>stretch</code></td><td>Where a container puts its children across its own direction, and a `grid` each child in its cell down: `stretch` makes each as wide (or tall) as the container, `baseline` lines up their first lines of text, the others keep each child&#x27;s own size One of <code>start</code>, <code>center</code>, <code>end</code>, <code>stretch</code>, <code>baseline</code>.</td></tr>
+<tr><td><code>align_self</code></td><td>enum</td><td><code>auto</code></td><td>Where this child sits across its container&#x27;s direction; `auto` takes the container&#x27;s `align_items` One of <code>auto</code>, <code>start</code>, <code>center</code>, <code>end</code>, <code>stretch</code>, <code>baseline</code>.</td></tr>
+<tr><td><code>alpha</code></td><td>enum</td><td><code>blend</code></td><td>What a `color_picker` offers for alpha: `none` keeps the colour opaque, `blend` offers transparency, `additive` that and additive blending One of <code>none</code>, <code>blend</code>, <code>additive</code>.</td></tr>
+<tr><td><code>alt_text</code></td><td>string</td><td>—</td><td>Text an `image` draws in place of a picture that will not load</td></tr>
 <tr><td><code>anchor</code></td><td>enum</td><td><code>top_left</code></td><td>Corner, edge or middle the offset is measured from: of the surface for a root, of the parent&#x27;s box inside a `stack`; `fill` takes the whole of it less `inset` One of <code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>, <code>center</code>, <code>center_left</code>, <code>center_right</code>, <code>center_top</code>, <code>center_bottom</code>, <code>fill</code>, <code>fill_top</code>, <code>fill_bottom</code>, <code>fill_left</code>, <code>fill_right</code>, <code>fill_across</code>, <code>fill_down</code>.</td></tr>
+<tr><td><code>angle_degrees</code></td><td>float</td><td><code>0.0</code></td><td>How far an `image` is turned clockwise about `angle_origin`, in degrees; a turned image keeps square corners</td></tr>
+<tr><td><code>angle_origin</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td>The point an `image` turns about, as fractions of its box from the top left: `[0.5, 0.5]` is its middle</td></tr>
+<tr><td><code>animate</code></td><td>bool</td><td><code>false</code></td><td>Shimmer a `progress_bar` that is short of full, with a spinner at its end unless it states a `corner_radius`. It repaints every frame while it is on screen and short of full, and never otherwise</td></tr>
+<tr><td><code>animated</code></td><td>bool</td><td><code>true</code></td><td>Ease a `scroll`, `list`, `tree` or `table` to where it is sent, such as a row scrolled into view, rather than jump</td></tr>
+<tr><td><code>areas</code></td><td>list of string</td><td><code>[]</code></td><td>A `grid`&#x27;s named areas, one string a row of space-separated names with `.` for a cell in none: `[&quot;head head&quot;, &quot;side main&quot;]`. A child names one in `row` and `column`</td></tr>
 <tr><td><code>arrows</code></td><td>bool</td><td><code>false</code></td><td>Draw a step up and a step down beside a `number_field`, each moving it by `step` within `min` and `max`</td></tr>
+<tr><td><code>aspect_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Width over height, kept where the layout decides only one of them; 0 keeps none At least 0.0.</td></tr>
+<tr><td><code>auto_columns</code></td><td>string</td><td>—</td><td>The size of each column a `grid` adds past `grid_columns`, for a child placed beyond them or flowing down under `auto_flow = &quot;column&quot;`, in the words `grid_columns` takes without `repeat`; several take turns. Empty is `auto`</td></tr>
+<tr><td><code>auto_flow</code></td><td>enum</td><td><code>row</code></td><td>The order a `grid` fills cells with the children that name none: along each row, or down each column; a `_dense` order goes back to fill a hole a bigger child left One of <code>row</code>, <code>column</code>, <code>row_dense</code>, <code>column_dense</code>.</td></tr>
+<tr><td><code>auto_rows</code></td><td>string</td><td>—</td><td>The size of each row a `grid` adds past `grid_rows`, in the words `auto_columns` takes; empty is `auto`</td></tr>
 <tr><td><code>avoid_keyboard</code></td><td>bool</td><td><code>false</code></td><td>On a root: measure the bottom of the surface from the top of the on-screen keyboard, so a form or a chat bar stays above it; nothing on a desktop</td></tr>
-<tr><td><code>axis</code></td><td>enum</td><td><code>both</code></td><td>Which way a scroll moves; the other way its contents fill the box it was given One of <code>both</code>, <code>horizontal</code>, <code>vertical</code>.</td></tr>
+<tr><td><code>axis</code></td><td>enum</td><td><code>both</code></td><td>Which way a scroll moves, the other way its contents filling the box it was given. A `slider` runs up its box under `vertical`, and a `separator` draws the line it names, `both` leaving it across its parent&#x27;s direction One of <code>both</code>, <code>horizontal</code>, <code>vertical</code>.</td></tr>
+<tr><td><code>backdrop_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.549]</code></td><td>What a `dialog` dims the screen behind it with</td></tr>
+<tr><td><code>basis</code></td><td>float</td><td><code>-1.0</code></td><td>The size this child starts from along its container&#x27;s direction, before `grow` and `shrink`, in design pixels; below zero is 0 for one that grows and its own size otherwise</td></tr>
+<tr><td><code>bitmap_font</code></td><td>string</td><td>—</td><td>A project-relative AngelCode .fnt naming a bitmap face for a shaped label or caption; empty shapes with the project&#x27;s vector fonts</td></tr>
+<tr><td><code>border</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The width of this widget&#x27;s outline on each side, left, top, right and bottom, in design pixels: the layout keeps it clear inside the edge as it keeps `padding`, and the `stroke` is painted in exactly that band. All zero leaves the stroke at the theme&#x27;s `stroke_width`, over the padding</td></tr>
+<tr><td><code>box_sizing</code></td><td>enum</td><td><code>border</code></td><td>What `width` and `height` measure: `border`, the whole box, or `content`, the box inside `padding` and `border` One of <code>border</code>, <code>content</code>.</td></tr>
 <tr><td><code>breakpoints</code></td><td>list of string</td><td><code>[]</code></td><td>The lines a `code` widget dots in its gutter, counting from 1; whole numbers or the text of them. A click on the gutter reports its line through `on_gutter` and the script decides what the mark means</td></tr>
+<tr><td><code>caret_at_end</code></td><td>bool</td><td><code>true</code></td><td>Put the caret at the end of a `text_field`, `text_area` or `code`&#x27;s text when it first takes focus; off, at the start</td></tr>
 <tr><td><code>checked</code></td><td>bool</td><td><code>false</code></td><td>Whether a `checkbox` is ticked, every click flipping it and calling `on_change` with the new state; a checked `button` is held down, wearing its pressed look</td></tr>
+<tr><td><code>clamp</code></td><td>enum</td><td><code>always</code></td><td>Whether a `slider` holds its number inside `min` and `max`: `always`, one the scene set outside them included; `edits`, only what the reader enters; `never`, only the track One of <code>always</code>, <code>edits</code>, <code>never</code>.</td></tr>
+<tr><td><code>clamp_existing</code></td><td>bool</td><td><code>false</code></td><td>Pull a `number_field`&#x27;s number back inside `min` and `max` where the scene set it outside them; off, it is shown as set and only an edit is bounded</td></tr>
 <tr><td><code>clicked</code></td><td>bool</td><td><code>false</code></td><td>True on the frame the button was clicked Read-only: engine output the inspector shows but never writes.</td></tr>
-<tr><td><code>columns</code></td><td>int</td><td><code>0</code></td><td>How many children a `grid` puts on each row, and how many cards a `list` flows into; 0 is the kind&#x27;s own, which is two for a grid and one line a row for a list. A `table`&#x27;s columns are its `titles` At least 0.</td></tr>
+<tr><td><code>clip_text</code></td><td>bool</td><td><code>true</code></td><td>Cut a `text_field`&#x27;s text at its edge; off, the field grows to show it whole</td></tr>
+<tr><td><code>closable</code></td><td>bool</td><td><code>true</code></td><td>Draw a `window`&#x27;s cross; `ui.window` takes it too</td></tr>
+<tr><td><code>close_on</code></td><td>enum</td><td><code>click_outside</code></td><td>What shuts a `menu`&#x27;s popup besides a row: a click outside it, any click at all, or nothing but Escape One of <code>click_outside</code>, <code>click</code>, <code>never</code>.</td></tr>
+<tr><td><code>collapsible</code></td><td>bool</td><td><code>false</code></td><td>Give a `window`&#x27;s title bar an arrow that folds the window to its bar and back; `ui.window` takes it too</td></tr>
+<tr><td><code>column</code></td><td>string</td><td>—</td><td>On a `grid`&#x27;s child: the columns it covers, in the words `row` takes</td></tr>
+<tr><td><code>constrain</code></td><td>bool</td><td><code>false</code></td><td>Keep a `movable` root inside its surface while it is dragged; `ui.window` takes it too</td></tr>
+<tr><td><code>contain</code></td><td>flags</td><td><code>[]</code></td><td>Containment: `layout` or `paint` makes the box lay out on its own, and `layout` also gives it no baseline for a parent&#x27;s `baseline` alignment One of <code>layout</code>, <code>paint</code>.</td></tr>
 <tr><td><code>context</code></td><td>string</td><td>—</td><td>Name of a `menu` node whose rows open at the pointer on a right click or a long press; give that menu `visible = false` to show no button of its own</td></tr>
-<tr><td><code>corner_radius</code></td><td>float</td><td><code>-1.0</code></td><td>Corner radius in design pixels; below zero takes the theme&#x27;s own, which for a button is as round as its text is tall</td></tr>
+<tr><td><code>corner_radius</code></td><td>float</td><td><code>-1.0</code></td><td>Corner radius in design pixels, a `progress_bar`&#x27;s and an `image`&#x27;s included; below zero takes the theme&#x27;s own, which for a button is as round as its text is tall</td></tr>
 <tr><td><code>current_line</code></td><td>int</td><td><code>0</code></td><td>The line a `code` widget fills across its whole width, counting from 1, for the row a debugger is stopped on; 0 fills none At least 0.</td></tr>
 <tr><td><code>current_page</code></td><td>string</td><td>—</td><td>Which child a `tabs` shows, by node name; empty shows the first. A click on the strip writes it and calls `on_change` with the page&#x27;s name</td></tr>
-<tr><td><code>cursor</code></td><td>enum</td><td><code>arrow</code></td><td>The pointer&#x27;s shape while it is over the widget: `hand` over anything that opens on a click; `arrow` is the platform&#x27;s own One of <code>arrow</code>, <code>hand</code>, <code>text</code>, <code>vertical_text</code>, <code>cross</code>, <code>cell</code>, <code>wait</code>, <code>progress</code>, <code>help</code>, <code>context_menu</code>, <code>move</code>, <code>grab</code>, <code>grabbing</code>, <code>alias</code>, <code>copy</code>, <code>no_drop</code>, <code>forbidden</code>, <code>all_scroll</code>, <code>resize_x</code>, <code>resize_y</code>, <code>resize_n</code>, <code>resize_e</code>, <code>resize_s</code>, <code>resize_w</code>, <code>resize_ne</code>, <code>resize_nw</code>, <code>resize_se</code>, <code>resize_sw</code>, <code>resize_nesw</code>, <code>resize_nwse</code>, <code>resize_col</code>, <code>resize_row</code>, <code>zoom_in</code>, <code>zoom_out</code>.</td></tr>
-<tr><td><code>draggable</code></td><td>bool</td><td><code>false</code></td><td>Let a drag carry a card of a `list` with `columns` out of it, drawn under the pointer; `on_drop` says where it was let go</td></tr>
+<tr><td><code>cursor</code></td><td>enum</td><td><code>arrow</code></td><td>The pointer&#x27;s shape while it is over the widget: `hand` over anything that opens on a click, `none` to hide it; `arrow` is the platform&#x27;s own One of <code>arrow</code>, <code>none</code>, <code>hand</code>, <code>text</code>, <code>vertical_text</code>, <code>cross</code>, <code>cell</code>, <code>wait</code>, <code>progress</code>, <code>help</code>, <code>context_menu</code>, <code>move</code>, <code>grab</code>, <code>grabbing</code>, <code>alias</code>, <code>copy</code>, <code>no_drop</code>, <code>forbidden</code>, <code>all_scroll</code>, <code>resize_x</code>, <code>resize_y</code>, <code>resize_n</code>, <code>resize_e</code>, <code>resize_s</code>, <code>resize_w</code>, <code>resize_ne</code>, <code>resize_nw</code>, <code>resize_se</code>, <code>resize_sw</code>, <code>resize_nesw</code>, <code>resize_nwse</code>, <code>resize_col</code>, <code>resize_row</code>, <code>zoom_in</code>, <code>zoom_out</code>.</td></tr>
+<tr><td><code>decimals</code></td><td>int</td><td><code>-1</code></td><td>How many decimals a `slider`&#x27;s or `number_field`&#x27;s number shows; below zero lets egui decide</td></tr>
+<tr><td><code>default_open</code></td><td>bool</td><td><code>true</code></td><td>Whether a `collapsible` window starts unfolded; `ui.window` takes it too</td></tr>
+<tr><td><code>direction</code></td><td>enum</td><td><code>left_to_right</code></td><td>Which way a row and a grid&#x27;s columns run: `right_to_left` starts them at the right edge One of <code>left_to_right</code>, <code>right_to_left</code>.</td></tr>
+<tr><td><code>dismissable</code></td><td>bool</td><td><code>true</code></td><td>Let Escape or a click on the dim shut a `dialog`; off, only the scene does</td></tr>
+<tr><td><code>drag_cursor</code></td><td>enum</td><td><code>arrow</code></td><td>The pointer&#x27;s shape while a drag scrolls a `scroll`, `list`, `tree` or `table`&#x27;s content; `arrow` leaves it as it is One of <code>arrow</code>, <code>none</code>, <code>hand</code>, <code>text</code>, <code>vertical_text</code>, <code>cross</code>, <code>cell</code>, <code>wait</code>, <code>progress</code>, <code>help</code>, <code>context_menu</code>, <code>move</code>, <code>grab</code>, <code>grabbing</code>, <code>alias</code>, <code>copy</code>, <code>no_drop</code>, <code>forbidden</code>, <code>all_scroll</code>, <code>resize_x</code>, <code>resize_y</code>, <code>resize_n</code>, <code>resize_e</code>, <code>resize_s</code>, <code>resize_w</code>, <code>resize_ne</code>, <code>resize_nw</code>, <code>resize_se</code>, <code>resize_sw</code>, <code>resize_nesw</code>, <code>resize_nwse</code>, <code>resize_col</code>, <code>resize_row</code>, <code>zoom_in</code>, <code>zoom_out</code>.</td></tr>
+<tr><td><code>drag_scroll</code></td><td>enum</td><td><code>touch</code></td><td>When dragging a `scroll`, `list`, `tree` or `table`&#x27;s content scrolls it: on a touch screen, always, or never; a `scroll_deadzone` takes the drag over itself One of <code>touch</code>, <code>always</code>, <code>never</code>.</td></tr>
+<tr><td><code>drag_speed</code></td><td>float</td><td><code>0.0</code></td><td>How far a `number_field`, or a `slider`&#x27;s shown number, moves per design pixel dragged; 0 takes egui&#x27;s, which is 1 on a number field and scales with the range on a slider At least 0.0.</td></tr>
+<tr><td><code>draggable</code></td><td>bool</td><td><code>false</code></td><td>Let a drag carry a card of a `list` with `grid_columns` out of it, drawn under the pointer; `on_drop` says where it was let go</td></tr>
 <tr><td><code>draw</code></td><td>string</td><td>—</td><td>What fills a `draw` widget: a script method on this node or the nearest scripted ancestor, or `scripts/file.rn:function` for a free function</td></tr>
 <tr><td><code>duration</code></td><td>float</td><td><code>3.0</code></td><td>How long a `toast` stays, in seconds, counting the half second it fades over; zero leaves it up until the game takes it away At least 0.0.</td></tr>
+<tr><td><code>editable</code></td><td>bool</td><td><code>true</code></td><td>Let the reader change a `text_field`, `text_area` or `code`&#x27;s text; off, it can be neither edited nor selected</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Off, the widget is greyed out and swallows its clicks</td></tr>
-<tr><td><code>fill</code></td><td>string</td><td>—</td><td>What is painted behind this widget, as `#rrggbb` or a name from the theme&#x27;s `[colors]`; empty takes the theme&#x27;s own</td></tr>
+<tr><td><code>fade_in</code></td><td>bool</td><td><code>false</code></td><td>Fade a root in as it appears, over egui&#x27;s fade time</td></tr>
+<tr><td><code>fill</code></td><td>string</td><td>—</td><td>What is painted behind this widget, an `image`&#x27;s picture included, as `#rrggbb` or a name from the theme&#x27;s `[colors]`; empty takes the theme&#x27;s own</td></tr>
 <tr><td><code>fit</code></td><td>enum</td><td>—</td><td>How an `image` sits in the box it was given: `contain` and `cover` keep its shape, `fill` stretches, `none` leaves it its own size, centred. Empty lets the picture decide the box instead One of <code></code>, <code>contain</code>, <code>cover</code>, <code>fill</code>, <code>none</code>.</td></tr>
 <tr><td><code>focusable</code></td><td>bool</td><td><code>true</code></td><td>Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be</td></tr>
 <tr><td><code>font_family</code></td><td>enum</td><td><code>ui</code></td><td>Which of the theme&#x27;s families the widget draws in One of <code>ui</code>, <code>mono</code>, <code>heading</code>, <code>icon</code>.</td></tr>
+<tr><td><code>font_features</code></td><td>list of string</td><td><code>[]</code></td><td>OpenType features: `smcp` turns one on, `liga=0` turns one off</td></tr>
+<tr><td><code>font_name</code></td><td>string</td><td>—</td><td>A face by family name, tried before the chain</td></tr>
 <tr><td><code>font_size</code></td><td>float</td><td><code>0.0</code></td><td>Text size in design pixels; 0 takes the size the role or the kind carries At least 0.0.</td></tr>
-<tr><td><code>font_style</code></td><td>enum</td><td><code>normal</code></td><td>Slant, from an italic face the project ships One of <code>normal</code>, <code>italic</code>.</td></tr>
+<tr><td><code>font_stretch</code></td><td>enum</td><td><code>normal</code></td><td>How wide a face is picked among the faces its family ships One of <code>ultra_condensed</code>, <code>extra_condensed</code>, <code>condensed</code>, <code>semi_condensed</code>, <code>normal</code>, <code>semi_expanded</code>, <code>expanded</code>, <code>extra_expanded</code>, <code>ultra_expanded</code>.</td></tr>
+<tr><td><code>font_style</code></td><td>enum</td><td><code>normal</code></td><td>Upright, the family&#x27;s italic face, or the upright face slanted; a family with no italic is slanted either way One of <code>normal</code>, <code>italic</code>, <code>oblique</code>.</td></tr>
 <tr><td><code>font_weight</code></td><td>float</td><td><code>400.0</code></td><td>Weight on the CSS scale, resolved against the faces the project ships: 400 regular, 700 bold Range 100.0–900.0.</td></tr>
-<tr><td><code>gap</code></td><td>float</td><td><code>-1.0</code></td><td>Space between a container&#x27;s children, in design pixels; below zero takes the theme&#x27;s own, which is 8 where it says nothing, and a stated zero puts them edge to edge</td></tr>
+<tr><td><code>gap</code></td><td>vec2</td><td><code>[-1.0, -1.0]</code></td><td>Space between a container&#x27;s children, across and down, in design pixels: a row puts the first between its children and the second between the lines it wraps onto, a column the second between its children, and a grid the first between its columns and the second between its rows. On a `button` the first is the space between its picture, icon and caption. Below zero on an axis takes the theme&#x27;s own, which is 8 where it says nothing and half the font size on a button, and a stated zero puts them edge to edge</td></tr>
+<tr><td><code>grid_columns</code></td><td>string</td><td>—</td><td>A `grid`&#x27;s columns, left to right and space-separated: design pixels (`120`), a share of what is left (`1fr`), a percentage (`25%`), `auto`, `min_content`, `max_content`, `fit_content(120)`, `minmax(80, 1fr)`, and `repeat(3, 1fr)`, whose count may be `auto_fill` or `auto_fit`. Empty is two equal columns. A `list` flows its cards into as many columns as this names, and draws a line a row where it is empty; a `table`&#x27;s columns are its `titles`</td></tr>
+<tr><td><code>grid_rows</code></td><td>string</td><td>—</td><td>A `grid`&#x27;s rows, top to bottom, in the words `grid_columns` takes; empty makes each row as tall as what is in it</td></tr>
 <tr><td><code>group</code></td><td>string</td><td>—</td><td>A name this `checkbox` or `toggle` button shares with the ones it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own</td></tr>
 <tr><td><code>grow</code></td><td>float</td><td><code>0.0</code></td><td>Share of the leftover space a container hands out along its own direction; 0 takes only what this widget asks for At least 0.0.</td></tr>
 <tr><td><code>gutter_width</code></td><td>float</td><td><code>0.0</code></td><td>How wide a `code` widget&#x27;s gutter is, in design pixels; 0 takes the built-in width, which holds four digits At least 0.0.</td></tr>
-<tr><td><code>header</code></td><td>bool</td><td><code>true</code></td><td>Draw the strip that names a `table`&#x27;s columns. Off, the columns are still `titles`&#x27;, and a table that names none keeps its first row as a row</td></tr>
+<tr><td><code>handle</code></td><td>enum</td><td><code>circle</code></td><td>A `slider`&#x27;s handle: a `circle`, or a `rect` `handle_aspect` times as wide as the track is tall One of <code>circle</code>, <code>rect</code>.</td></tr>
+<tr><td><code>handle_aspect</code></td><td>float</td><td><code>0.5</code></td><td>How wide a `rect` handle is against its height At least 0.0.</td></tr>
+<tr><td><code>header</code></td><td>bool</td><td><code>true</code></td><td>Draw the strip that names a `table`&#x27;s columns, and a `window`&#x27;s title bar. Off, a table&#x27;s columns are still `titles`&#x27;, and a table that names none keeps its first row as a row; `ui.window` takes it too</td></tr>
 <tr><td><code>height</code></td><td>float</td><td><code>0.0</code></td><td>Panel height in design pixels; 0 sizes to content At least 0.0.</td></tr>
+<tr><td><code>height_percent</code></td><td>float</td><td><code>0.0</code></td><td>Height as a percentage of the container&#x27;s box inside its padding; 0 leaves it to `height`, which a stated percentage wins over At least 0.0.</td></tr>
 <tr><td><code>hide_narrower</code></td><td>float</td><td><code>0.0</code></td><td>Not drawn while the room is narrower than this many design pixels. The room is the nearest container that states a size or grows, and the screen for a root: a minimum in numbers, where the class words are not fine enough. Zero is no line At least 0.0.</td></tr>
 <tr><td><code>hide_on_close</code></td><td>bool</td><td><code>true</code></td><td>Whether a `window`&#x27;s close button shuts it; off, the button only emits `close_request` and the script decides</td></tr>
 <tr><td><code>hide_shorter</code></td><td>float</td><td><code>0.0</code></td><td>Not drawn while the room is shorter than this many design pixels. Zero is no line At least 0.0.</td></tr>
 <tr><td><code>hide_taller</code></td><td>float</td><td><code>0.0</code></td><td>Not drawn while the room is this tall or taller, in design pixels. Zero is no line At least 0.0.</td></tr>
 <tr><td><code>hide_wider</code></td><td>float</td><td><code>0.0</code></td><td>Not drawn while the room is this wide or wider, in design pixels: a control only a small space wants. Zero is no line At least 0.0.</td></tr>
+<tr><td><code>hinting</code></td><td>enum</td><td><code>auto</code></td><td>Snap outlines to the pixel grid; auto takes the face&#x27;s import setting One of <code>auto</code>, <code>on</code>, <code>off</code>.</td></tr>
 <tr><td><code>icon</code></td><td>string</td><td>—</td><td>A glyph from the theme&#x27;s icon family, drawn before `text`</td></tr>
 <tr><td><code>icon_color</code></td><td>string</td><td>—</td><td>What that glyph is tinted with, as `#rrggbb` or a name from the theme&#x27;s `[colors]`; empty takes the role&#x27;s own</td></tr>
 <tr><td><code>icon_size</code></td><td>float</td><td><code>-1.0</code></td><td>That glyph&#x27;s size in design pixels; below zero takes the caption&#x27;s</td></tr>
 <tr><td><code>image</code></td><td>string</td><td>—</td><td>The project-relative image an `image` widget draws, or the picture a `button` draws before its caption at the caption&#x27;s height</td></tr>
-<tr><td><code>inset</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom margins a root with `anchor = &quot;fill&quot;` keeps from its surface, in design pixels</td></tr>
+<tr><td><code>indeterminate</code></td><td>bool</td><td><code>false</code></td><td>Draw a `checkbox` as neither ticked nor clear, for a group whose members disagree; a click still flips `checked`</td></tr>
+<tr><td><code>inline</code></td><td>bool</td><td><code>false</code></td><td>Draw a `color_picker`&#x27;s picker in place, rather than behind a swatch that opens it</td></tr>
+<tr><td><code>inset</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom margins a root with `anchor = &quot;fill&quot;` keeps from its surface, and how far an `absolute` child sits in from each edge of its container inside its border, where a side below zero is left free; in design pixels</td></tr>
 <tr><td><code>interactive</code></td><td>bool</td><td><code>true</code></td><td>Off, the pointer passes through to the scene: the widget is drawn, never hovered or clicked, and `ui.wants_pointer()` stays false over it. A full-screen container over the world wants this</td></tr>
-<tr><td><code>justify</code></td><td>enum</td><td><code>start</code></td><td>How a container spreads its children along its own direction once they have their sizes One of <code>start</code>, <code>center</code>, <code>end</code>, <code>between</code>, <code>around</code>, <code>evenly</code>.</td></tr>
-<tr><td><code>keep_open</code></td><td>bool</td><td><code>false</code></td><td>A menu row that leaves its menu open when clicked, as a toggle does; any other row closes it</td></tr>
+<tr><td><code>justify</code></td><td>enum</td><td><code>start</code></td><td>How a container spreads its children along its own direction once they have their sizes, and a `grid` its columns: `stretch` grows a grid&#x27;s `auto` columns into the room, and in a row or a column is `start` One of <code>start</code>, <code>center</code>, <code>end</code>, <code>stretch</code>, <code>between</code>, <code>around</code>, <code>evenly</code>.</td></tr>
+<tr><td><code>keep_open</code></td><td>bool</td><td><code>false</code></td><td>A menu row that leaves its menu open when clicked, as a toggle does; any other row closes it. A `dropdown` with it stays open past a pick until a click outside it</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>, <code>scroll</code>, <code>tabs</code>, <code>draw</code>, <code>image</code>, <code>text_field</code>, <code>text_area</code>, <code>checkbox</code>, <code>switch</code>, <code>color_picker</code>, <code>dropdown</code>, <code>menu</code>, <code>list</code>, <code>tree</code>, <code>table</code>, <code>slider</code>, <code>number_field</code>, <code>progress_bar</code>, <code>grid</code>, <code>flow</code>, <code>fold</code>, <code>dialog</code>, <code>toast</code>, <code>window</code>, <code>separator</code>, <code>code</code>, <code>stack</code>.</td></tr>
 <tr><td><code>language</code></td><td>string</td><td>—</td><td>The language a `code` widget highlights</td></tr>
+<tr><td><code>largest_finite</code></td><td>float</td><td><code>0.0</code></td><td>The largest number a `logarithmic` slider reaches short of an unbounded end; 0 is no limit At least 0.0.</td></tr>
 <tr><td><code>layer</code></td><td>string</td><td>—</td><td>The drawing surface this root belongs to; empty is the default one, and a name nothing has configured takes the default surface</td></tr>
+<tr><td><code>letter_spacing</code></td><td>float</td><td><code>0.0</code></td><td>Extra space between glyphs, in the caption&#x27;s pixels</td></tr>
+<tr><td><code>line_break</code></td><td>enum</td><td><code>word_or_glyph</code></td><td>Where a wrapped line may break One of <code>word_or_glyph</code>, <code>word</code>, <code>glyph</code>.</td></tr>
+<tr><td><code>line_height</code></td><td>float</td><td><code>0.0</code></td><td>Baseline to baseline as a multiple of the size; zero takes the default At least 0.0.</td></tr>
+<tr><td><code>list_height</code></td><td>float</td><td><code>0.0</code></td><td>The tallest a `dropdown`&#x27;s list grows before it scrolls, in design pixels; 0 takes egui&#x27;s At least 0.0.</td></tr>
+<tr><td><code>logarithmic</code></td><td>bool</td><td><code>false</code></td><td>Space a `slider`&#x27;s track logarithmically, for a range across orders of magnitude</td></tr>
+<tr><td><code>margin</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Space outside this widget&#x27;s edge that its container keeps clear, left, top, right and bottom, in design pixels; below zero lets a neighbour over it</td></tr>
 <tr><td><code>markup</code></td><td>bool</td><td><code>false</code></td><td>Read inline marks in the text: `[b]`, `[i]`, `[color=#hex]`, `[center]`, `[right]`, `[wave amp=N freq=N]` and `[img=path width=N]`; off, brackets are text</td></tr>
 <tr><td><code>max</code></td><td>float</td><td><code>1.0</code></td><td>The high end of a `slider` or `progress_bar`; a `number_field` runs free while this pair is the default 0 and 1</td></tr>
+<tr><td><code>max_height</code></td><td>float</td><td><code>0.0</code></td><td>Largest height a container may give this widget, and a `resizable` window be dragged to, in design pixels; 0 is no limit At least 0.0.</td></tr>
 <tr><td><code>max_length</code></td><td>float</td><td><code>0.0</code></td><td>The most characters a `text_field` takes; 0 is no limit At least 0.0.</td></tr>
+<tr><td><code>max_lines</code></td><td>int</td><td><code>0</code></td><td>The most lines a wrapped label keeps; zero keeps every line At least 0.</td></tr>
+<tr><td><code>max_width</code></td><td>float</td><td><code>0.0</code></td><td>Largest width a container may give this widget, and a `resizable` window be dragged to, in design pixels; 0 is no limit At least 0.0.</td></tr>
 <tr><td><code>min</code></td><td>float</td><td><code>0.0</code></td><td>The low end of a `slider` or `progress_bar`; a `number_field` runs free while this pair is the default 0 and 1</td></tr>
-<tr><td><code>min_height</code></td><td>float</td><td><code>0.0</code></td><td>Smallest height a container may give this widget, in design pixels At least 0.0.</td></tr>
-<tr><td><code>min_width</code></td><td>float</td><td><code>0.0</code></td><td>Smallest width a container may give this widget, in design pixels At least 0.0.</td></tr>
+<tr><td><code>min_height</code></td><td>float</td><td><code>0.0</code></td><td>Smallest height a container may give this widget, and a `resizable` window be dragged to, in design pixels At least 0.0.</td></tr>
+<tr><td><code>min_lines</code></td><td>int</td><td><code>1</code></td><td>How many lines a wrapping container divides its children between at least: `balance` evens them over this many, and any wrap shares a known cross size among them At least 1.</td></tr>
+<tr><td><code>min_scrolled_height</code></td><td>float</td><td><code>0.0</code></td><td>The shortest a `scroll`, `list`, `tree` or `table` draws while its content runs past it downwards, in design pixels; 0 takes egui&#x27;s At least 0.0.</td></tr>
+<tr><td><code>min_scrolled_width</code></td><td>float</td><td><code>0.0</code></td><td>The narrowest a `scroll`, `list`, `tree` or `table` draws while its content runs past it sideways, in design pixels; 0 takes egui&#x27;s At least 0.0.</td></tr>
+<tr><td><code>min_width</code></td><td>float</td><td><code>0.0</code></td><td>Smallest width a container may give this widget, and a `resizable` window be dragged to, in design pixels At least 0.0.</td></tr>
+<tr><td><code>monospace_width</code></td><td>float</td><td><code>0.0</code></td><td>Pixels a monospace face&#x27;s advance is set to; zero keeps its own At least 0.0.</td></tr>
+<tr><td><code>movable</code></td><td>bool</td><td><code>false</code></td><td>Let a drag move this root and write its `x` and `y`: a `window` by its title bar, any other root by its whole box where no child takes the press; `ui.window` takes it too, on by default there</td></tr>
 <tr><td><code>multi_select</code></td><td>bool</td><td><code>false</code></td><td>Let a `list`, `tree` or `table` hold more than one row: the platform&#x27;s command key toggles a row and shift takes the run from the last one clicked</td></tr>
+<tr><td><code>number_format</code></td><td>enum</td><td><code>decimal</code></td><td>The base a `slider` or `number_field` writes its number in; the others than `decimal` write it whole One of <code>decimal</code>, <code>binary</code>, <code>octal</code>, <code>hex</code>.</td></tr>
 <tr><td><code>numeric</code></td><td>bool</td><td><code>false</code></td><td>Keep a `text_field` to digits, a sign and a point</td></tr>
 <tr><td><code>on_change</code></td><td>string</td><td>—</td><td>Script method called with a `text_field`&#x27;s text after every edit, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>on_click</code></td><td>string</td><td>—</td><td>Script method called when the widget is clicked, on this node or the nearest ancestor whose script declares it. An `image` that names one senses clicks too, which is how a picture becomes a button</td></tr>
@@ -1928,50 +2688,97 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>on_submit</code></td><td>string</td><td>—</td><td>Script method called with a `text_field`&#x27;s text on Enter, or when focus leaves it, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>open</code></td><td>bool</td><td><code>true</code></td><td>Whether a `fold` shows its children; its header flips it and calls `on_change` with the new state</td></tr>
 <tr><td><code>options</code></td><td>list of string</td><td><code>[]</code></td><td>The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note, an `#rrggbb` for that row, a key that is never drawn, which two rows with the same label need to stay two rows, and marks, each `name=glyph` from the icon face and joined on U+001E, drawn at the right and reported by `on_mark`; and a `table` row splits on the same into one cell a column. `on_change` hears every pick</td></tr>
-<tr><td><code>padding</code></td><td>vec4</td><td><code>[-1.0, -1.0, -1.0, -1.0]</code></td><td>Space inside a container&#x27;s edge, in design pixels: one number for every side, or left, top, right and bottom. Below zero takes the theme&#x27;s own, and a stated zero is no space at all</td></tr>
-<tr><td><code>padding_x</code></td><td>float</td><td><code>-1.0</code></td><td>The air either side of a caption, in design pixels; below zero takes the theme&#x27;s own</td></tr>
+<tr><td><code>outline_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 1.0]</code></td><td>The outline&#x27;s colour</td></tr>
+<tr><td><code>outline_size</code></td><td>float</td><td><code>0.0</code></td><td>Pixels the outline reaches round a shaped label&#x27;s glyphs; zero draws none At least 0.0.</td></tr>
+<tr><td><code>overflow</code></td><td>enum</td><td><code>visible</code></td><td>What the layout keeps for content past this widget&#x27;s box: `scroll` keeps `scrollbar_width` clear inside its edge, the others nothing. Layout only: a container never gives a child a floor of its own content here (`min_width` is that floor), a `scroll` kind is what scrolls, and each kind clips as it draws One of <code>visible</code>, <code>clip</code>, <code>hidden</code>, <code>scroll</code>.</td></tr>
+<tr><td><code>overhang</code></td><td>float</td><td><code>0.0</code></td><td>How far a `separator`&#x27;s line runs past each end of the room it was given, in design pixels; below zero stops it short</td></tr>
+<tr><td><code>overline</code></td><td>bool</td><td><code>false</code></td><td>A line over a shaped label&#x27;s text; egui&#x27;s own kinds have none</td></tr>
+<tr><td><code>overline_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The overline&#x27;s colour; alpha 0 takes the glyphs&#x27; own</td></tr>
+<tr><td><code>padding</code></td><td>vec4</td><td><code>[-1.0, -1.0, -1.0, -1.0]</code></td><td>Space inside the widget&#x27;s edge, in design pixels: one number for every side, or left, top, right and bottom. A container keeps it round its children, a `button` and a `label` round their text, and every other kind in its box. A side below zero takes the theme&#x27;s (`padding_x` across and `padding_y` down, else `padding`), else 8 round a `panel`, 12 either side of a `button`&#x27;s or `menu`&#x27;s caption and 0 elsewhere; a stated zero is no space at all. On a `text_field`, `text_area` or `code` it is the margin round the text, where below zero takes egui&#x27;s</td></tr>
 <tr><td><code>pass_node</code></td><td>bool</td><td><code>false</code></td><td>Hand every handler this widget calls its own node as the last argument, so one method can serve many widgets</td></tr>
 <tr><td><code>picked_color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>What a `color_picker` holds; `on_change` hears the new one</td></tr>
-<tr><td><code>placeholder</code></td><td>string</td><td>—</td><td>What a `text_field` shows while it is empty, and the letter a `number_field` puts before its number</td></tr>
-<tr><td><code>placement</code></td><td>enum</td><td><code>below</code></td><td>Where a `menu` opens: under its button, above it, at the pointer, or centred on the screen One of <code>below</code>, <code>above</code>, <code>pointer</code>, <code>center</code>.</td></tr>
+<tr><td><code>pixel_snap</code></td><td>bool</td><td><code>false</code></td><td>Rasterise on whole pixels, for a pixel face</td></tr>
+<tr><td><code>placeholder</code></td><td>string</td><td>—</td><td>What a `text_field` or `text_area` shows while it is empty</td></tr>
+<tr><td><code>placement</code></td><td>enum</td><td><code>below</code></td><td>Where a `menu` opens: under its button, above it, to its right or to its left, each from the side&#x27;s start (`below` starts at the button&#x27;s left edge, `right` at its top) or at `_center` or `_end`; at the pointer; or centred on the screen One of <code>below</code>, <code>below_center</code>, <code>below_end</code>, <code>above</code>, <code>above_center</code>, <code>above_end</code>, <code>right</code>, <code>right_center</code>, <code>right_end</code>, <code>left</code>, <code>left_center</code>, <code>left_end</code>, <code>pointer</code>, <code>center</code>.</td></tr>
+<tr><td><code>placement_fallbacks</code></td><td>list of enum</td><td><code>[]</code></td><td>The placements a `menu`&#x27;s popup tries, in order, where its own does not fit the screen; empty tries egui&#x27;s, and naming the placement alone keeps it where it is</td></tr>
+<tr><td><code>popup_gap</code></td><td>float</td><td><code>-1.0</code></td><td>The space between a `menu`&#x27;s button and its popup, in design pixels; below zero takes egui&#x27;s</td></tr>
+<tr><td><code>popup_width</code></td><td>float</td><td><code>0.0</code></td><td>How wide a `menu`&#x27;s popup starts, in design pixels; 0 sizes it to its rows At least 0.0.</td></tr>
+<tr><td><code>prefix</code></td><td>string</td><td>—</td><td>Text drawn before a `number_field`&#x27;s or a shown `slider`&#x27;s number with a space between, and before a `text_field`&#x27;s or `text_area`&#x27;s text</td></tr>
 <tr><td><code>problems</code></td><td>list of string</td><td><code>[]</code></td><td>The lines a `code` widget underlines as errors, counting from 1, each also marked on the inner edge of its gutter</td></tr>
+<tr><td><code>region</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The part of an `image` drawn, as left, top, width and height in the picture&#x27;s own pixels, which is how an atlas shows one tile; a zero width or height draws the whole picture. `ui.image` takes it too</td></tr>
 <tr><td><code>reorderable</code></td><td>bool</td><td><code>false</code></td><td>Let a drag move a row of a `list` or a `tree`. The kind moves nothing itself: it draws where the row would land and calls `on_move`, and the rows are the script&#x27;s to reorder</td></tr>
-<tr><td><code>reverse</code></td><td>bool</td><td><code>false</code></td><td>Take a `table`&#x27;s rows the other way round: the `sort` descending, or the order they were given bottom to top where none is named</td></tr>
+<tr><td><code>resizable</code></td><td>bool</td><td><code>false</code></td><td>Give a `window` a grip in its bottom-right corner that a drag resizes it by, writing `width` and `height` within `min_width`, `min_height`, `max_width` and `max_height`; `ui.window` takes it too, on by default there</td></tr>
+<tr><td><code>reverse</code></td><td>bool</td><td><code>false</code></td><td>Take a `table`&#x27;s rows the other way round: the `sort` descending, or the order they were given bottom to top where none is named. A `row`, `column` or `flow` lays its children out from its far end</td></tr>
 <tr><td><code>role</code></td><td>string</td><td>—</td><td>A `[roles.&lt;name&gt;]` entry of the widget&#x27;s theme, taken over its kind&#x27;s own style; the one place a look is named rather than spelled</td></tr>
+<tr><td><code>row</code></td><td>string</td><td>—</td><td>On a `grid`&#x27;s child: the rows it covers, as a line counted from 1 (`2`, or from the end below zero), a first and last line (`1 / 3`), a span (`span 2`, `2 / span 2`), or the name of one of the grid&#x27;s `areas`. Empty puts it in the next free cell</td></tr>
 <tr><td><code>row_height</code></td><td>float</td><td><code>0.0</code></td><td>The pitch of a `list` or `tree` row, in design pixels; 0 takes the font&#x27;s own line height At least 0.0.</td></tr>
+<tr><td><code>safe_align</code></td><td>bool</td><td><code>false</code></td><td>Where `align_items`, `align_self`, `align_content` or `justify` would push a child past its container&#x27;s start, put it at the start instead, so the start stays in view</td></tr>
 <tr><td><code>safe_area</code></td><td>flags</td><td><code>[]</code></td><td>The edges this root keeps clear of what a notch, a status bar or a home bar covers. Empty by default: a backdrop is meant to reach the edge and a control is not, and a screen often wants content above the notch and its background under the gesture bar One of <code>left</code>, <code>top</code>, <code>right</code>, <code>bottom</code>.</td></tr>
 <tr><td><code>scroll_deadzone</code></td><td>float</td><td><code>0.0</code></td><td>How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once At least 0.0.</td></tr>
+<tr><td><code>scroll_offset</code></td><td>vec2</td><td><code>[-1.0, -1.0]</code></td><td>Where a `scroll`, `list`, `tree` or `table` is scrolled to, across and down, in design pixels: written as the reader scrolls, and a new one written by the scene or a script scrolls it there. Below zero on an axis leaves that axis where it is; `ui.scroll` takes it too</td></tr>
+<tr><td><code>scrollbar</code></td><td>enum</td><td><code>auto</code></td><td>When a `scroll`, `list`, `tree` or `table` has its bars: while its content runs past it, always, or never. The bars float, so one shows once the pointer is over the box One of <code>auto</code>, <code>always</code>, <code>never</code>.</td></tr>
+<tr><td><code>scrollbar_width</code></td><td>float</td><td><code>0.0</code></td><td>The room a box with `overflow = &quot;scroll&quot;` keeps clear inside its edge for a bar, in design pixels At least 0.0.</td></tr>
 <tr><td><code>secret</code></td><td>bool</td><td><code>false</code></td><td>Draw a `text_field`&#x27;s text as dots, for a password</td></tr>
 <tr><td><code>selectable</code></td><td>bool</td><td><code>false</code></td><td>Let a drag over this label select its text, and the platform&#x27;s copy key take it</td></tr>
 <tr><td><code>selection</code></td><td>list of string</td><td><code>[]</code></td><td>The rows a `list`, `tree` or `table` has picked, one of them where it holds one. `text` is the last row clicked, which is where a shift range measures from; `on_change` hears the whole list where the widget holds many, and the row where it holds one</td></tr>
+<tr><td><code>sense</code></td><td>enum</td><td><code>click</code></td><td>What the pointer may do to a `button`: `click` reports a press let go as a click; under `click_and_drag` a press that moves past egui&#x27;s drag distance is a drag and no click; `drag` and `hover` never click One of <code>click</code>, <code>click_and_drag</code>, <code>drag</code>, <code>hover</code>.</td></tr>
+<tr><td><code>shadow_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.5]</code></td><td>The shadow&#x27;s colour</td></tr>
+<tr><td><code>shadow_offset_x</code></td><td>float</td><td><code>0.0</code></td><td>Pixels a shaped label&#x27;s shadow is moved along x; zero with y draws none</td></tr>
+<tr><td><code>shadow_offset_y</code></td><td>float</td><td><code>0.0</code></td><td>Pixels the shadow is moved along y</td></tr>
+<tr><td><code>shaping</code></td><td>enum</td><td><code>complex</code></td><td>Complex shaping joins scripts that need it and falls back to another face; simple does neither One of <code>complex</code>, <code>simple</code>.</td></tr>
 <tr><td><code>sheet</code></td><td>string</td><td>—</td><td>The picture a `list` cuts its card faces from</td></tr>
 <tr><td><code>shortcut</code></td><td>string</td><td>—</td><td>A chord that clicks this widget wherever it is, as `cmd+shift+s` or `f5`; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`</td></tr>
+<tr><td><code>show_percentage</code></td><td>bool</td><td><code>false</code></td><td>Draw a `progress_bar`&#x27;s fill as a percentage on it, in place of its `text`</td></tr>
+<tr><td><code>show_tooltip_when_elided</code></td><td>bool</td><td><code>true</code></td><td>Show a `label`&#x27;s whole text when the pointer rests on it and `truncate` cut it short</td></tr>
+<tr><td><code>show_value</code></td><td>bool</td><td><code>false</code></td><td>Draw a `slider`&#x27;s number beside its track, for the reader to drag or type into</td></tr>
 <tr><td><code>showing</code></td><td>bool</td><td><code>false</code></td><td>Holds a menu&#x27;s rows up from the scene, as a click would; for an offscreen run or a tutorial, since nothing can click there</td></tr>
+<tr><td><code>shrink</code></td><td>float</td><td><code>-1.0</code></td><td>Share of the shortfall this child gives up when its container is too small along its direction; below zero is 1 for one that grows and 0 otherwise</td></tr>
 <tr><td><code>slice</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom borders of an `image` kept unstretched, in the picture&#x27;s own pixels; all zero stretches the whole picture</td></tr>
+<tr><td><code>smallest_positive</code></td><td>float</td><td><code>0.0</code></td><td>The smallest number above zero a `logarithmic` slider reaches, for a range that starts at or crosses zero; 0 takes egui&#x27;s millionth At least 0.0.</td></tr>
+<tr><td><code>smart_aim</code></td><td>bool</td><td><code>true</code></td><td>Round a dragged `slider` to the simplest number near the pointer</td></tr>
+<tr><td><code>snap_advances</code></td><td>bool</td><td><code>false</code></td><td>Round each glyph&#x27;s advance to a whole pixel</td></tr>
 <tr><td><code>sort</code></td><td>string</td><td>—</td><td>The `table` column its rows are ordered by, by the name in `titles`; empty leaves them in the order they were given. A cell that starts with a number sorts as one, so `12 KB` follows `3 KB`</td></tr>
 <tr><td><code>sortable</code></td><td>bool</td><td><code>false</code></td><td>Let a click on a `table`&#x27;s header sort by that column, and the next click on the same one turn it round; the column sorted by carries a caret</td></tr>
+<tr><td><code>spacing</code></td><td>float</td><td><code>-1.0</code></td><td>The room a `separator` takes across its line, in design pixels, the line drawn down its middle; below zero is 6</td></tr>
 <tr><td><code>splitter_width</code></td><td>float</td><td><code>0.0</code></td><td>How wide a grab the seams between this container&#x27;s children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one. On a `table` it is the grab between two columns, which is six pixels where it says nothing At least 0.0.</td></tr>
-<tr><td><code>step</code></td><td>float</td><td><code>0.0</code></td><td>The grid a `slider` snaps to, and how fast a `number_field` moves under the pointer; 0 is continuous At least 0.0.</td></tr>
+<tr><td><code>step</code></td><td>float</td><td><code>0.0</code></td><td>The grid a `slider` snaps to, and how far a `number_field`&#x27;s `arrows` move it; 0 is continuous, and 1 for the arrows At least 0.0.</td></tr>
+<tr><td><code>stick_to_end</code></td><td>bool</td><td><code>false</code></td><td>Keep a `scroll`, `list`, `tree` or `table` at its end as content arrives, until the reader scrolls away from it; `ui.scroll` takes it too</td></tr>
+<tr><td><code>strikethrough</code></td><td>bool</td><td><code>false</code></td><td>A line through the text</td></tr>
+<tr><td><code>strikethrough_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The strikethrough&#x27;s colour; alpha 0 takes the glyphs&#x27; own</td></tr>
 <tr><td><code>stroke</code></td><td>string</td><td>—</td><td>The outline around this widget, as `#rrggbb` or a name from the theme&#x27;s `[colors]`; empty takes the theme&#x27;s own</td></tr>
+<tr><td><code>submit_key</code></td><td>string</td><td>—</td><td>The chord that submits a `text_field`, as `enter` or `cmd+enter`; empty is Enter. A `text_area` submits when focus leaves it whatever this says</td></tr>
 <tr><td><code>submitted</code></td><td>bool</td><td><code>false</code></td><td>True for the one frame a `text_field` was submitted, the way `clicked` reports a press</td></tr>
-<tr><td><code>suffix</code></td><td>string</td><td>—</td><td>Units drawn after a `number_field`&#x27;s number, the way `placeholder` is drawn before it</td></tr>
+<tr><td><code>suffix</code></td><td>string</td><td>—</td><td>Units drawn after a `number_field`&#x27;s or a shown `slider`&#x27;s number with a space between, and after a `text_field`&#x27;s or `text_area`&#x27;s text</td></tr>
+<tr><td><code>tab_inserts</code></td><td>bool</td><td><code>false</code></td><td>Let Tab type a tab into a `text_field`, `text_area` or `code` rather than move focus on</td></tr>
+<tr><td><code>tab_width</code></td><td>int</td><td><code>8</code></td><td>Spaces between tab stops Range 1–64.</td></tr>
 <tr><td><code>text</code></td><td>string</td><td><code>label</code></td><td>Label or button caption</td></tr>
-<tr><td><code>text_align</code></td><td>enum</td><td><code>start</code></td><td>Where text sits in the width the widget was given, and where every cell of a `table` sits in its column; a column whose name ends in `&gt;` pins its own to the right One of <code>start</code>, <code>center</code>, <code>end</code>.</td></tr>
+<tr><td><code>text_align</code></td><td>enum</td><td><code>start</code></td><td>Where text sits in the width the widget was given, what a `text_field` or `text_area` edits included, and where every cell of a `table` sits in its column; a column whose name ends in `&gt;` pins its own to the right One of <code>start</code>, <code>center</code>, <code>end</code>.</td></tr>
+<tr><td><code>text_background</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>A wash behind the text of the kinds egui draws; alpha 0 is none</td></tr>
 <tr><td><code>text_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Text color; fully transparent takes the theme&#x27;s colour for this widget&#x27;s role or kind, and failing that a near-white</td></tr>
 <tr><td><code>text_key</code></td><td>string</td><td>—</td><td>A localization key drawn in place of `text`, re-read every frame so a locale switch shows at once</td></tr>
 <tr><td><code>theme</code></td><td>asset · <code>widget_theme</code></td><td>—</td><td>How this widget and everything under it is drawn; inherited from the nearest ancestor that names one</td></tr>
+<tr><td><code>tint</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>What an `image` is multiplied by; white draws it as it is</td></tr>
 <tr><td><code>title_bar</code></td><td>bool</td><td><code>false</code></td><td>On a `fold`&#x27;s child: drawn in the fold&#x27;s header after its arrow and caption, as Godot&#x27;s title bar control is</td></tr>
 <tr><td><code>titles</code></td><td>list of string</td><td><code>[]</code></td><td>A `table`&#x27;s column names, in order, and with them how many columns it has: a name ending in `&gt;` draws its column against the right edge, which is what a column of numbers wants. None takes the first row as the names</td></tr>
 <tr><td><code>toggle</code></td><td>bool</td><td><code>false</code></td><td>A `button` a click holds down and the next releases, flipping `checked` as a `checkbox` does, before `on_click` runs: Godot&#x27;s toggle mode</td></tr>
 <tr><td><code>tooltip</code></td><td>string</td><td>—</td><td>Text shown after the pointer rests on the widget; still shown while `enabled` is off, which is where it says why</td></tr>
 <tr><td><code>trailing</code></td><td>string</td><td>—</td><td>Text a button draws against its far edge, dimmer than its caption: a shortcut, or a menu&#x27;s caret</td></tr>
-<tr><td><code>truncate</code></td><td>bool</td><td><code>false</code></td><td>Cut a caption too long for the width the widget was given and end it with an ellipsis, rather than clip it mid-glyph</td></tr>
+<tr><td><code>trailing_fill</code></td><td>bool</td><td><code>false</code></td><td>Fill a `slider`&#x27;s track from its start up to the handle</td></tr>
+<tr><td><code>truncate</code></td><td>bool</td><td><code>false</code></td><td>Cut a caption too long for the width the widget was given and end it with an ellipsis; with neither this nor `wrap` a button clips it at its edge. A `dropdown` cuts its picked text</td></tr>
+<tr><td><code>truncate_at</code></td><td>enum</td><td><code>end</code></td><td>Which part of a cut caption the ellipsis stands in for One of <code>end</code>, <code>start</code>, <code>middle</code>.</td></tr>
+<tr><td><code>underline</code></td><td>enum</td><td><code>none</code></td><td>A line under the text, once or twice; egui&#x27;s own kinds draw one either way One of <code>none</code>, <code>single</code>, <code>double</code>.</td></tr>
+<tr><td><code>underline_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The underline&#x27;s colour; alpha 0 takes the glyphs&#x27; own</td></tr>
+<tr><td><code>update_while_editing</code></td><td>bool</td><td><code>true</code></td><td>Write a `slider`&#x27;s or `number_field`&#x27;s number as the reader types it; off, only once the typing is left</td></tr>
 <tr><td><code>value</code></td><td>float</td><td><code>0.0</code></td><td>Where a `slider`, `number_field` or `progress_bar` stands, between `min` and `max`; a slider and a drag value write it and call `on_change` with it</td></tr>
 <tr><td><code>visible</code></td><td>bool</td><td><code>true</code></td><td>Draw the widget; hidden widgets keep their state</td></tr>
 <tr><td><code>warnings</code></td><td>list of string</td><td><code>[]</code></td><td>The lines a `code` widget underlines as warnings, counting from 1; an error on the same line outranks it</td></tr>
+<tr><td><code>wheel_scroll</code></td><td>bool</td><td><code>true</code></td><td>Let the mouse wheel scroll a `scroll`, `list`, `tree` or `table`</td></tr>
+<tr><td><code>wheel_speed</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>How far a mouse wheel scrolls a `scroll`, `list`, `tree` or `table`, across and down, as a multiple of egui&#x27;s own</td></tr>
 <tr><td><code>width</code></td><td>float</td><td><code>0.0</code></td><td>Panel width in design pixels; 0 sizes to content At least 0.0.</td></tr>
+<tr><td><code>width_percent</code></td><td>float</td><td><code>0.0</code></td><td>Width as a percentage of the container&#x27;s box inside its padding; 0 leaves it to `width`, which a stated percentage wins over At least 0.0.</td></tr>
 <tr><td><code>widths</code></td><td>list of string</td><td><code>[]</code></td><td>Each `table` column&#x27;s share of the width, in the order `titles` names them: `[&quot;2&quot;, &quot;1&quot;, &quot;1&quot;]` gives the first half and the other two a quarter each. Numbers and the text of them both; empty divides the width evenly, and a drag on a seam in the header writes the shares back</td></tr>
-<tr><td><code>wrap</code></td><td>bool</td><td><code>false</code></td><td>Break text to the width the widget was given instead of running past it on one line</td></tr>
+<tr><td><code>wrap</code></td><td>bool</td><td><code>false</code></td><td>Break text to the width the widget was given instead of running past it on one line; a `dropdown` breaks its picked text</td></tr>
+<tr><td><code>wrap_children</code></td><td>enum</td><td><code>auto</code></td><td>Whether a container&#x27;s children run onto more lines when they do not fit: `auto` wraps a `flow` and keeps every other container on one line; `balance` evens the lines out over at least `min_lines`; a `_reverse` word stacks the lines the other way One of <code>auto</code>, <code>none</code>, <code>wrap</code>, <code>wrap_reverse</code>, <code>balance</code>, <code>balance_reverse</code>.</td></tr>
 <tr><td><code>x</code></td><td>float</td><td><code>16.0</code></td><td>Horizontal offset from the anchor, in design pixels</td></tr>
 <tr><td><code>y</code></td><td>float</td><td><code>16.0</code></td><td>Vertical offset from the anchor, in design pixels</td></tr>
 </tbody>

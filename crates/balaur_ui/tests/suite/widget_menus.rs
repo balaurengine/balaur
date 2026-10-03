@@ -166,7 +166,8 @@ fn a_menu_button_holds_its_room_in_a_row() {
     .unwrap();
     let strip = add_widget(
         &app,
-        &toml::toml! { kind = "row" gap = 0.0 theme = "themes/row.toml" x = 0.0 y = 0.0 }.into(),
+        &toml::toml! { kind = "row" gap = [0.0, 0.0] theme = "themes/row.toml" x = 0.0 y = 0.0 }
+            .into(),
     );
     let menu = add_child_widget(
         &app,

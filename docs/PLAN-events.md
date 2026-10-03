@@ -38,11 +38,11 @@ payload)`. It runs the node's rows for the event, calls the node's own
 awaiters. The pump then skips the rows it already ran and the emitter's own
 subscription, so no handler runs twice.
 
-**One payload.** Every engine event carries exactly one value: the other node
-for a collision, the clip for `animation_finished`, a map when there is more
-to say (`on_contact_force(this, contact)` with `other`, `force` and
-`direction`). A node's own hook and a subscriber's handler then have the
-same signature.
+**One payload.** Every engine event carries exactly one value: the clip for
+`animation_finished`, a map when there is more to say (`on_collision_enter`
+with `other`, `sensor`, `removed`, `points` and `normals`;
+`on_contact_force(this, contact)` with `other`, `force` and `direction`). A
+node's own hook and a subscriber's handler then have the same signature.
 
 **Rows keep their two spellings, each with one meaning.** A name in
 `hooks::BINDABLE` is a core interaction hook, run where it happens: pointer,

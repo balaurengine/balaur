@@ -14,9 +14,10 @@
 use anyhow::{Result, anyhow};
 use balaur_script::{Bindings, BindingsExt, Value};
 use glamx::Vec2;
-use i_overlay::core::fill_rule::FillRule;
+use i_overlay::core::fill_rule::FillRule as OverlayFill;
 use i_overlay::core::overlay_rule::OverlayRule;
-use i_overlay::float::single::SingleFloatOverlay;
+use i_overlay::core::solver::Solver;
+use i_overlay::float::overlay::{FloatOverlay, OverlayOptions};
 
 use crate::engine::Engine;
 
@@ -314,60 +315,318 @@ fn convex_hull(points: &[Vec2]) -> Vec<Vec2> {
     hull
 }
 
-/// One boolean of two polygons, as the shapes it leaves: each a list of
-/// paths, the first the outline and the rest its holes.
-///
-/// The Rust half of the script call below, so a `boolean2d` component and a
-/// script get the same answer out of the same two rings.
-#[must_use]
-pub fn overlay(a: &[Vec2], b: &[Vec2], op: crate::csg::Op) -> Vec<Vec<Vec<Vec2>>> {
-    overlay_with(
-        a,
-        b,
+/// The words a boolean of outlines spells: its operations, its fill rules,
+/// and the keys of the options it takes. `boolean2d` reads the same ones.
+pub mod words {
+    pub use crate::csg::words::{DIFFERENCE, INTERSECTION, UNION};
+    pub const SYMMETRIC_DIFFERENCE: &str = "symmetric_difference";
+    pub const REVERSE_DIFFERENCE: &str = "reverse_difference";
+    /// In the order an inspector offers them.
+    pub const OPS: &[&str] = &[
+        UNION,
+        DIFFERENCE,
+        INTERSECTION,
+        SYMMETRIC_DIFFERENCE,
+        REVERSE_DIFFERENCE,
+    ];
+    pub const EVEN_ODD: &str = "even_odd";
+    pub const NON_ZERO: &str = "non_zero";
+    pub const POSITIVE: &str = "positive";
+    pub const NEGATIVE: &str = "negative";
+    pub const FILL_RULES: &[&str] = &[EVEN_ODD, NON_ZERO, POSITIVE, NEGATIVE];
+    pub const FILL_RULE: &str = "fill_rule";
+    pub const MIN_AREA: &str = "min_area";
+    pub const KEEP_COLLINEAR: &str = "keep_collinear";
+    pub const CLEAN_RESULT: &str = "clean_result";
+}
+
+/// How two outlines combine: the three a `boolean3d` also offers, and two
+/// more i_overlay has.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Op2d {
+    Union,
+    Difference,
+    Intersection,
+    /// Everything inside exactly one of the two.
+    SymmetricDifference,
+    /// Everything inside the second and outside the first.
+    ReverseDifference,
+}
+
+impl Op2d {
+    const ALL: [(Self, &'static str, OverlayRule); 5] = [
+        (Self::Union, words::UNION, OverlayRule::Union),
+        (Self::Difference, words::DIFFERENCE, OverlayRule::Difference),
+        (
+            Self::Intersection,
+            words::INTERSECTION,
+            OverlayRule::Intersect,
+        ),
+        (
+            Self::SymmetricDifference,
+            words::SYMMETRIC_DIFFERENCE,
+            OverlayRule::Xor,
+        ),
+        (
+            Self::ReverseDifference,
+            words::REVERSE_DIFFERENCE,
+            OverlayRule::InverseDifference,
+        ),
+    ];
+
+    /// The word this operation answers to.
+    #[must_use]
+    pub fn word(self) -> &'static str {
+        Self::ALL
+            .iter()
+            .find(|(op, ..)| *op == self)
+            .map_or(words::UNION, |(_, word, _)| word)
+    }
+
+    /// The operation a scene names, or `None` for a word that is not one.
+    #[must_use]
+    pub fn from_word(word: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .find(|(_, name, _)| *name == word)
+            .map(|(op, ..)| *op)
+    }
+
+    fn rule(self) -> OverlayRule {
+        Self::ALL
+            .iter()
+            .find(|(op, ..)| *op == self)
+            .map_or(OverlayRule::Union, |(.., rule)| *rule)
+    }
+}
+
+impl From<crate::csg::Op> for Op2d {
+    fn from(op: crate::csg::Op) -> Self {
         match op {
-            crate::csg::Op::Union => OverlayRule::Union,
-            crate::csg::Op::Difference => OverlayRule::Difference,
-            crate::csg::Op::Intersection => OverlayRule::Intersect,
-        },
+            crate::csg::Op::Union => Self::Union,
+            crate::csg::Op::Difference => Self::Difference,
+            crate::csg::Op::Intersection => Self::Intersection,
+        }
+    }
+}
+
+/// Which regions of crossing or nested outlines count as inside.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FillRule {
+    /// Inside an odd number of outlines.
+    EvenOdd,
+    /// Inside where the outlines wind around a point any number of times.
+    NonZero,
+    /// Where they wind counter-clockwise.
+    Positive,
+    /// Where they wind clockwise.
+    Negative,
+}
+
+impl FillRule {
+    const ALL: [(Self, &'static str, OverlayFill); 4] = [
+        (Self::EvenOdd, words::EVEN_ODD, OverlayFill::EvenOdd),
+        (Self::NonZero, words::NON_ZERO, OverlayFill::NonZero),
+        (Self::Positive, words::POSITIVE, OverlayFill::Positive),
+        (Self::Negative, words::NEGATIVE, OverlayFill::Negative),
+    ];
+
+    #[must_use]
+    pub fn word(self) -> &'static str {
+        Self::ALL
+            .iter()
+            .find(|(rule, ..)| *rule == self)
+            .map_or(words::EVEN_ODD, |(_, word, _)| word)
+    }
+
+    #[must_use]
+    pub fn from_word(word: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .find(|(_, name, _)| *name == word)
+            .map(|(rule, ..)| *rule)
+    }
+
+    fn overlay(self) -> OverlayFill {
+        Self::ALL
+            .iter()
+            .find(|(rule, ..)| *rule == self)
+            .map_or(OverlayFill::EvenOdd, |(.., fill)| *fill)
+    }
+}
+
+/// What a boolean of outlines is tuned by: i_overlay's `OverlayOptions` and
+/// its fill rule.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BooleanOptions {
+    pub fill_rule: FillRule,
+    /// A result contour enclosing less than this area is dropped.
+    pub min_area: f32,
+    /// Keep a point that sits on the straight line between its neighbours,
+    /// going in and coming out.
+    pub keep_collinear: bool,
+    /// Clear the result of the near-duplicate points `f32` rounding leaves.
+    pub clean_result: bool,
+}
+
+impl Default for BooleanOptions {
+    /// i_overlay's own options for `f32` points, under the even-odd rule
+    /// Balaur has always filled with.
+    fn default() -> Self {
+        Self {
+            fill_rule: FillRule::EvenOdd,
+            min_area: 0.0,
+            keep_collinear: false,
+            clean_result: true,
+        }
+    }
+}
+
+/// Outlines each with their holes: a shape is a list of paths, the first the
+/// outline and the rest its holes.
+pub type Shapes2d = Vec<Vec<Vec<Vec2>>>;
+
+/// Two sets of shapes combined, as the shapes left.
+///
+/// The one boolean the engine has: a `boolean2d` component and a script get
+/// the same answer out of the same outlines.
+#[must_use]
+pub fn combine(
+    subject: &[Vec<Vec<Vec2>>],
+    clip: &[Vec<Vec<Vec2>>],
+    op: Op2d,
+    options: BooleanOptions,
+) -> Shapes2d {
+    let raw = |shapes: &[Vec<Vec<Vec2>>]| -> Vec<Vec<Vec<[f32; 2]>>> {
+        shapes
+            .iter()
+            .map(|shape| {
+                shape
+                    .iter()
+                    .map(|path| path.iter().map(|p| [p.x, p.y]).collect())
+                    .collect()
+            })
+            .collect()
+    };
+    let mut overlay_options = OverlayOptions::<f32>::default();
+    overlay_options.preserve_input_collinear = options.keep_collinear;
+    overlay_options.preserve_output_collinear = options.keep_collinear;
+    overlay_options.min_output_area = options.min_area.max(0.0);
+    overlay_options.clean_result = options.clean_result;
+    FloatOverlay::with_subj_and_clip_custom(
+        &raw(subject),
+        &raw(clip),
+        overlay_options,
+        Solver::default(),
+    )
+    .overlay(op.rule(), options.fill_rule.overlay())
+    .into_iter()
+    .map(|shape| {
+        shape
+            .into_iter()
+            .map(|path| path.into_iter().map(|p| Vec2::new(p[0], p[1])).collect())
+            .collect()
+    })
+    .collect()
+}
+
+/// One boolean of two rings under the default options, as the shapes it
+/// leaves.
+#[must_use]
+pub fn overlay(a: &[Vec2], b: &[Vec2], op: crate::csg::Op) -> Shapes2d {
+    combine(
+        &[vec![a.to_vec()]],
+        &[vec![b.to_vec()]],
+        op.into(),
+        BooleanOptions::default(),
     )
 }
 
-/// The same, keyed by i_overlay's own rule: the script call reaches two more
-/// of them than the three a component offers.
-fn overlay_with(a: &[Vec2], b: &[Vec2], rule: OverlayRule) -> Vec<Vec<Vec<Vec2>>> {
-    let subject: Vec<[f32; 2]> = a.iter().map(|p| [p.x, p.y]).collect();
-    let clip: Vec<[f32; 2]> = b.iter().map(|p| [p.x, p.y]).collect();
-    subject
-        .overlay(&clip, rule, FillRule::EvenOdd)
-        .into_iter()
-        .map(|shape| {
-            shape
-                .into_iter()
-                .map(|path| path.into_iter().map(|p| Vec2::new(p[0], p[1])).collect())
-                .collect()
-        })
-        .collect()
+/// The options a script hands a boolean, over the defaults.
+fn boolean_options_of(opts: Option<Value>) -> Result<BooleanOptions> {
+    let entries = match opts {
+        None | Some(Value::Nil) => return Ok(BooleanOptions::default()),
+        Some(Value::Map(entries)) => entries,
+        Some(other) => return Err(anyhow!("boolean options are a table, got {other:?}")),
+    };
+    let mut out = BooleanOptions::default();
+    for (key, value) in &entries {
+        match (key.as_str(), value) {
+            (words::FILL_RULE, Value::Str(word)) => {
+                out.fill_rule = FillRule::from_word(word).ok_or_else(|| {
+                    anyhow!("fill_rule is one of {:?}, not '{word}'", words::FILL_RULES)
+                })?;
+            }
+            (words::MIN_AREA, Value::Num(n)) => out.min_area = *n as f32,
+            (words::MIN_AREA, Value::Int(n)) => out.min_area = *n as f32,
+            (words::KEEP_COLLINEAR, Value::Bool(on)) => out.keep_collinear = *on,
+            (words::CLEAN_RESULT, Value::Bool(on)) => out.clean_result = *on,
+            (other, value) => {
+                return Err(anyhow!(
+                    "boolean options take {}, {}, {} and {}; '{other}' = {value:?} is not one",
+                    words::FILL_RULE,
+                    words::MIN_AREA,
+                    words::KEEP_COLLINEAR,
+                    words::CLEAN_RESULT
+                ));
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// One boolean of two polygons: a list of shapes, each a list of paths, the
 /// first the outline and the rest its holes.
-fn boolean(a: &[Vec2], b: &[Vec2], rule: OverlayRule) -> Value {
-    let shapes = overlay_with(a, b, rule);
+fn boolean(a: &[Vec2], b: &[Vec2], op: Op2d, options: BooleanOptions) -> Value {
+    let shapes = combine(&[vec![a.to_vec()]], &[vec![b.to_vec()]], op, options);
     Value::List(
         shapes
             .into_iter()
-            .map(|shape| {
-                Value::List(
-                    shape
-                        .into_iter()
-                        .map(|path| {
-                            Value::List(path.into_iter().map(|p| Value::Vec2([p.x, p.y])).collect())
-                        })
-                        .collect(),
-                )
-            })
+            .map(|shape| Value::List(shape.iter().map(|path| polygon_value(path)).collect()))
             .collect(),
     )
+}
+
+/// What each boolean call does, for its line in the reference.
+const BOOLEAN_DOCS: [(Op2d, &str); 5] = [
+    (
+        Op2d::Union,
+        "Everything inside either polygon: a list of shapes, each a list of paths whose first is the outline and the rest holes. `opts` takes `fill_rule` (`even_odd`, `non_zero`, `positive`, `negative`; `even_odd` unless given), `min_area`, `keep_collinear` and `clean_result`, as `boolean2d` does.",
+    ),
+    (
+        Op2d::Intersection,
+        "Everything inside both polygons, shaped and tuned as `union` is.",
+    ),
+    (
+        Op2d::Difference,
+        "Everything inside the first polygon and outside the second, shaped and tuned as `union` is.",
+    ),
+    (
+        Op2d::SymmetricDifference,
+        "Everything inside exactly one of the two polygons, shaped and tuned as `union` is.",
+    ),
+    (
+        Op2d::ReverseDifference,
+        "Everything inside the second polygon and outside the first, shaped and tuned as `union` is.",
+    ),
+];
+
+fn install_boolean_api(m: &mut dyn Bindings<Engine>) {
+    for (op, doc) in BOOLEAN_DOCS {
+        m.describe(&[(
+            op.word(),
+            &[],
+            "(a: list, b: list, opts: table) -> list",
+            doc,
+        )]);
+        m.function(
+            op.word(),
+            move |_: &Engine, (a, b, opts): (Value, Value, Option<Value>)| {
+                let options = boolean_options_of(opts)?;
+                Ok(boolean(&polygon_of(&a)?, &polygon_of(&b)?, op, options))
+            },
+        );
+    }
 }
 
 pub(crate) fn install_geometry2d_api(m: &mut dyn Bindings<Engine>) {
@@ -381,9 +640,6 @@ pub(crate) fn install_geometry2d_api(m: &mut dyn Bindings<Engine>) {
         ("area", &[], "(polygon: list) -> float", "The polygon's area, always positive whatever its winding."),
         ("is_clockwise", &[], "(polygon: list) -> bool", "Whether the points run clockwise, with y up."),
         ("convex_hull", &[], "(points: list) -> list", "The smallest convex polygon around the points, counter-clockwise."),
-        ("union", &[], "(a: list, b: list) -> list", "Everything inside either polygon: a list of shapes, each a list of paths whose first is the outline and the rest holes."),
-        ("intersection", &[], "(a: list, b: list) -> list", "Everything inside both polygons, shaped as `union` shapes it."),
-        ("difference", &[], "(a: list, b: list) -> list", "Everything inside the first polygon and outside the second, shaped as `union` shapes it."),
     ]);
     m.function("triangulate", |_: &Engine, polygon: Value| {
         let points = polygon_of(&polygon)?;
@@ -429,27 +685,7 @@ pub(crate) fn install_geometry2d_api(m: &mut dyn Bindings<Engine>) {
     m.function("convex_hull", |_: &Engine, points: Value| {
         Ok(polygon_value(&convex_hull(&polygon_of(&points)?)))
     });
-    m.function("union", |_: &Engine, (a, b): (Value, Value)| {
-        Ok(boolean(
-            &polygon_of(&a)?,
-            &polygon_of(&b)?,
-            OverlayRule::Union,
-        ))
-    });
-    m.function("intersection", |_: &Engine, (a, b): (Value, Value)| {
-        Ok(boolean(
-            &polygon_of(&a)?,
-            &polygon_of(&b)?,
-            OverlayRule::Intersect,
-        ))
-    });
-    m.function("difference", |_: &Engine, (a, b): (Value, Value)| {
-        Ok(boolean(
-            &polygon_of(&a)?,
-            &polygon_of(&b)?,
-            OverlayRule::Difference,
-        ))
-    });
+    install_boolean_api(m);
 }
 
 #[cfg(test)]
@@ -532,7 +768,8 @@ mod tests {
     fn two_overlapping_squares_union_into_one_shape_of_the_right_area() {
         let a = square(0.0, 0.0, 2.0);
         let b = square(1.0, 0.0, 2.0);
-        let Value::List(shapes) = boolean(&a, &b, OverlayRule::Union) else {
+        let options = BooleanOptions::default();
+        let Value::List(shapes) = boolean(&a, &b, Op2d::Union, options) else {
             panic!("a list of shapes")
         };
         assert_eq!(shapes.len(), 1);
@@ -541,7 +778,7 @@ mod tests {
         };
         let outline = polygon_of(&paths[0]).unwrap();
         assert!((doubled_area(&outline).abs() / 2.0 - 6.0).abs() < 1e-4);
-        let Value::List(inter) = boolean(&a, &b, OverlayRule::Intersect) else {
+        let Value::List(inter) = boolean(&a, &b, Op2d::Intersection, options) else {
             panic!("a list")
         };
         let Value::List(paths) = &inter[0] else {
@@ -641,6 +878,52 @@ mod tests {
     }
 
     #[test]
+    fn a_script_boolean_takes_the_options_a_component_does() {
+        let opts = Value::Map(vec![
+            (words::FILL_RULE.into(), Value::Str(words::NON_ZERO.into())),
+            (words::MIN_AREA.into(), Value::Num(1.0)),
+            (words::KEEP_COLLINEAR.into(), Value::Bool(true)),
+            (words::CLEAN_RESULT.into(), Value::Bool(false)),
+        ]);
+        let options = boolean_options_of(Some(opts)).unwrap();
+        assert_eq!(options.fill_rule, FillRule::NonZero);
+        assert!((options.min_area - 1.0).abs() < 1e-6);
+        assert!(options.keep_collinear && !options.clean_result);
+        assert_eq!(boolean_options_of(None).unwrap(), BooleanOptions::default());
+        let wrong = Value::Map(vec![("fill".into(), Value::Bool(true))]);
+        assert!(boolean_options_of(Some(wrong)).is_err());
+    }
+
+    #[test]
+    fn a_shape_under_min_area_is_left_out() {
+        let big = square(0.0, 0.0, 2.0);
+        let small = square(5.0, 0.0, 0.5);
+        let all = combine(
+            &[vec![big.clone()]],
+            &[vec![small.clone()]],
+            Op2d::Union,
+            BooleanOptions::default(),
+        );
+        assert_eq!(all.len(), 2, "control: both squares");
+        let options = BooleanOptions {
+            min_area: 1.0,
+            ..BooleanOptions::default()
+        };
+        let kept = combine(&[vec![big]], &[vec![small]], Op2d::Union, options);
+        assert_eq!(kept.len(), 1);
+    }
+
+    #[test]
+    fn every_operation_word_names_one_operation() {
+        for word in words::OPS {
+            assert_eq!(Op2d::from_word(word).map(Op2d::word), Some(*word));
+        }
+        for word in words::FILL_RULES {
+            assert_eq!(FillRule::from_word(word).map(FillRule::word), Some(*word));
+        }
+    }
+
+    #[test]
     fn a_boolean_lands_on_the_same_vertices_twice() {
         let a = square(0.0, 0.0, 3.0);
         let b = vec![
@@ -648,8 +931,9 @@ mod tests {
             Vec2::new(4.0, 1.5),
             Vec2::new(1.5, 4.0),
         ];
-        let first = format!("{:?}", boolean(&a, &b, OverlayRule::Difference));
-        let second = format!("{:?}", boolean(&a, &b, OverlayRule::Difference));
+        let options = BooleanOptions::default();
+        let first = format!("{:?}", boolean(&a, &b, Op2d::Difference, options));
+        let second = format!("{:?}", boolean(&a, &b, Op2d::Difference, options));
         assert_eq!(first, second);
     }
 }

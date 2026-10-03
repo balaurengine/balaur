@@ -1,7 +1,7 @@
 // The contract a `material` shader draws 3D against: the uniforms Balaur's
 // mesh pipeline binds, and the shading every such shader would repeat.
 
-import constants::{MAX_LIGHTS, MAX_PROBES};
+import constants::{MAX_LIGHTS, MAX_PROBES, MAX_SHADOW_VIEWS, MAX_SHADOW_LIGHTS, MAX_MORPH_WEIGHT_ROWS};
 
 // Lambert's normalisation. A light's intensity is radiance, and the engine's
 // own default is 3.0, which reads as white without this.
@@ -16,18 +16,22 @@ struct Light {
     color_intensity: vec4<f32>,
     // cos(inner cone), cos(outer cone), then spare.
     cone: vec4<f32>,
+    // x the light layers it lights, y its row in the shadow uniform:
+    // `NO_SHADOW`, or `FIND_SHADOW` for one past the primary eight.
+    bits: vec4<u32>,
 }
 
 // One reflection probe: a box the scene was captured inside, which a
 // reflective surface within it samples instead of the sky.
 private struct Probe {
-    // xyz where it was captured from, w whether this slot is live.
+    // xyz where it was captured from and the box's centre, w whether this
+    // slot is live.
     center_live: vec4<f32>,
-    // xyz the influence box's low corner, w its layer in the array.
-    low_layer: vec4<f32>,
-    // xyz the box's high corner, w the brightness multiplier.
-    high_intensity: vec4<f32>,
-    // Turn about y, the soft edge's width, the coarsest mip, spare.
+    // xyz the box's half extents, w its layer in the array.
+    extent_layer: vec4<f32>,
+    // The box's turn, a unit quaternion: its node's rotation.
+    orientation: vec4<f32>,
+    // Turn about y, the soft edge's width, the coarsest mip, brightness.
     params: vec4<f32>,
 }
 
@@ -66,6 +70,50 @@ private struct ObjectUniforms {
     mirror: vec4<f32>,
     // xyz the mirror's plane normal in world space.
     mirror_normal: vec4<f32>,
+    // x whether shadows land on it, y whether its colour is see-through: a
+    // translucent caster's tint is not laid on the surface that cast it.
+    flags: vec4<f32>,
+    // x the light layers that light it.
+    layers: vec4<u32>,
+}
+
+// One light's rows in the shadow atlas, as the fork's `GpuLightShadow` lays
+// them out.
+private struct LightShadow {
+    base_view: u32,
+    num_views: u32,
+    // 0 point, 1 directional, 2 spot: the fork's numbering, not `Light`'s.
+    light_type: u32,
+    enabled: f32,
+    light_pos: vec3<f32>,
+    far_plane: f32,
+}
+
+// The fork's `ShadowUniforms`: every view's matrix, every light's rows, and
+// the filter. The primary eight lights hold rows 0-7; the rest of the rows
+// belong to lights past them.
+private struct ShadowUniforms {
+    view_proj: array<mat4x4<f32>, MAX_SHADOW_VIEWS>,
+    lights: array<LightShadow, MAX_SHADOW_LIGHTS>,
+    shadows_enabled: f32,
+    texel_size: f32,
+    depth_bias: f32,
+    transmittance_enabled: f32,
+    softness: f32,
+    pad0: f32,
+    pad1: f32,
+    pad2: f32,
+    cascade_splits: vec4<f32>,
+}
+
+// The fork's `DeformControl`: how many targets are live, the vertex count
+// each spans, two flags, and four weights to a row.
+private struct MorphControl {
+    num_targets: u32,
+    num_vertices: u32,
+    has_skin: u32,
+    has_morph_normals: u32,
+    weights: array<vec4<f32>, MAX_MORPH_WEIGHT_ROWS>,
 }
 
 @group(0) @binding(0) var<uniform> frame: FrameUniforms;
@@ -83,12 +131,26 @@ private struct ObjectUniforms {
 // The resolved opaque scene with a blurred mip chain, which glass refracts.
 @group(0) @binding(5) var behind_texture: texture_2d<f32>;
 @group(0) @binding(6) var behind_sampler: sampler;
+// The fork's shadow atlas, one depth layer per light view, with the uniform
+// that says which layers belong to which light and how to filter them, and
+// the colour translucent casters leave on the light they let through.
+@group(0) @binding(7) var shadow_atlas: texture_depth_2d_array;
+@group(0) @binding(8) var shadow_sampler: sampler_comparison;
+@group(0) @binding(9) var<uniform> shadow: ShadowUniforms;
+@group(0) @binding(10) var shadow_tint_atlas: texture_2d_array<f32>;
+@group(0) @binding(11) var shadow_tint_sampler: sampler;
 @group(1) @binding(0) var<uniform> object: ObjectUniforms;
 // The scene as this surface's own plane sees it, rendered from a mirrored
 // camera before the frame. One pixel of black on a surface that is not a
 // mirror, which `mirror_at` reports as nothing rather than as black.
 @group(1) @binding(1) var mirror_texture: texture_2d<f32>;
 @group(1) @binding(2) var mirror_sampler: sampler;
+// The mesh's morph targets, every target's deltas one after another, and how
+// far it is blended towards each. Bound only where a vertex stage may read
+// storage buffers, which WebGL2 cannot: there a morphed mesh draws at rest.
+@if(morph) @group(1) @binding(3) var<storage, read> morph_positions: array<vec4<f32>>;
+@if(morph) @group(1) @binding(4) var<storage, read> morph_normals: array<vec4<f32>>;
+@if(morph) @group(1) @binding(5) var<uniform> morph: MorphControl;
 // The six texture slots the contract declares, in the order `TEXTURE_SLOTS`
 // names them. Every slot a material leaves out is bound to a one-pixel
 // neutral stand-in, so nothing here branches on absence.
@@ -125,6 +187,8 @@ struct VertexInput {
     // A multimesh instance's four floats of custom data, bound only with
     // `features = { instance_custom = true }`; zero on anything else.
     @if(instance_custom) @location(9) copy_custom: vec4<f32>,
+    // Which vertex this is, the row its morph deltas sit at.
+    @if(morph) @builtin(vertex_index) vertex: u32,
 }
 
 struct VertexOutput {
@@ -170,8 +234,34 @@ fn sample_emissive(uv: vec2<f32>) -> vec3<f32> {
     return textureSample(emissive_texture, emissive_sampler, uv).rgb;
 }
 
-private fn sample_height(uv: vec2<f32>) -> f32 {
-    return textureSample(height_texture, height_sampler, uv).r;
+// The height map at its full size, brighter standing higher. Read at mip
+// zero, so a parallax march may call it in a loop.
+fn sample_height(uv: vec2<f32>) -> f32 {
+    return textureSampleLevel(height_texture, height_sampler, uv, 0.0).r;
+}
+
+// Every map the contract binds, read at one point.
+struct Maps {
+    albedo: vec4<f32>,
+    // Tangent space, `(0, 0, 1)` where no normal map is bound.
+    normal: vec3<f32>,
+    // Metallic in x, roughness in y.
+    metallic_roughness: vec2<f32>,
+    occlusion: f32,
+    emissive: vec3<f32>,
+}
+
+// Every map at `uv`, filtered by the uv's screen derivatives handed in rather
+// than taken here, so it reads correctly after a parallax march.
+fn maps_at(uv: vec2<f32>, duv_dx: vec2<f32>, duv_dy: vec2<f32>) -> Maps {
+    var out: Maps;
+    out.albedo = textureSampleGrad(albedo_texture, albedo_sampler, uv, duv_dx, duv_dy);
+    out.normal = textureSampleGrad(normal_texture, normal_sampler, uv, duv_dx, duv_dy).xyz * 2.0 - 1.0;
+    let mr = textureSampleGrad(metallic_roughness_texture, metallic_roughness_sampler, uv, duv_dx, duv_dy);
+    out.metallic_roughness = vec2<f32>(mr.b, mr.g);
+    out.occlusion = textureSampleGrad(occlusion_texture, occlusion_sampler, uv, duv_dx, duv_dy).r;
+    out.emissive = textureSampleGrad(emissive_texture, emissive_sampler, uv, duv_dx, duv_dy).rgb;
+    return out;
 }
 
 // Drop this fragment when it falls behind the frame's clip plane.
@@ -240,12 +330,23 @@ fn screen_occlusion(in: VertexOutput) -> f32 {
     return textureLoad(occlusion_screen_texture, screen_pixel(in), 0).r;
 }
 
+// `v` turned by the unit quaternion `q`.
+@const fn quat_rotate(q: vec4<f32>, v: vec3<f32>) -> vec3<f32> {
+    let t = 2.0 * cross(q.xyz, v);
+    return v + q.w * t + cross(q.xyz, t);
+}
+
+// `v` in probe `i`'s box frame: its axes the box's, which turn with its node.
+private fn probe_local(i: u32, v: vec3<f32>) -> vec3<f32> {
+    let q = frame.probes[i].orientation;
+    return quat_rotate(vec4<f32>(-q.xyz, q.w), v);
+}
+
 // How much probe `i` speaks for a point: one well inside its box, ramping to
 // nothing over the soft edge, and nothing outside.
 private fn probe_weight(i: u32, world: vec3<f32>) -> f32 {
-    let low = frame.probes[i].low_layer.xyz;
-    let high = frame.probes[i].high_intensity.xyz;
-    let to_face = min(world - low, high - world);
+    let local = probe_local(i, world - frame.probes[i].center_live.xyz);
+    let to_face = frame.probes[i].extent_layer.xyz - abs(local);
     let edge = min(to_face.x, min(to_face.y, to_face.z));
     return clamp(edge / frame.probes[i].params.y, 0.0, 1.0);
 }
@@ -271,22 +372,23 @@ fn probe_at(world: vec3<f32>) -> vec2<f32> {
 
 // Probe `i` in one direction, aimed at where the ray actually meets its box
 // rather than at infinity: what makes a reflection track the room it was
-// captured in instead of sliding as the camera moves.
+// captured in instead of sliding as the camera moves. The box is met in its
+// own frame, so a turned probe's walls stand where its node turned them.
 fn probe_sample(i: u32, world: vec3<f32>, d: vec3<f32>, lod: f32) -> vec3<f32> {
-    let low = frame.probes[i].low_layer.xyz;
-    let high = frame.probes[i].high_intensity.xyz;
-    let center = frame.probes[i].center_live.xyz;
-    let inverse = 1.0 / d;
-    let far = max((low - world) * inverse, (high - world) * inverse);
-    let hit = world + d * max(min(far.x, min(far.y, far.z)), 0.0);
-    let aimed = normalize(hit - center);
+    let half = frame.probes[i].extent_layer.xyz;
+    let local_p = probe_local(i, world - frame.probes[i].center_live.xyz);
+    let local_d = probe_local(i, d);
+    let inverse = 1.0 / local_d;
+    let far = max((-half - local_p) * inverse, (half - local_p) * inverse);
+    let hit = local_p + local_d * max(min(far.x, min(far.y, far.z)), 0.0);
+    let aimed = normalize(quat_rotate(frame.probes[i].orientation, hit));
     let turn = frame.probes[i].params.x;
     let c = cos(turn);
     let s = sin(turn);
     let turned = vec3<f32>(c * aimed.x + s * aimed.z, aimed.y, -s * aimed.x + c * aimed.z);
-    let layer = i32(frame.probes[i].low_layer.w + 0.5);
+    let layer = i32(frame.probes[i].extent_layer.w + 0.5);
     let map = textureSampleLevel(probe_textures, environment_sampler, equirect_uv(turned), layer, lod);
-    return map.rgb * frame.probes[i].high_intensity.w;
+    return map.rgb * frame.probes[i].params.w;
 }
 
 // The coarsest mip a probe carries.
@@ -433,15 +535,49 @@ fn copy_tint(in: VertexInput) -> vec4<f32> {
     return object.color * in.copy_color;
 }
 
+// A vertex blended towards the mesh's morph targets by this frame's weights.
+struct Morphed {
+    position: vec3<f32>,
+    normal: vec3<f32>,
+}
+
+// `position` and `normal` of vertex `vertex` moved by every morph target's
+// delta times its weight, the way the fork's own deform pass blends them. A
+// mesh with no targets, or every weight at zero, comes back as it went in.
+@if(morph) fn morph_vertex(vertex: u32, position: vec3<f32>, normal: vec3<f32>) -> Morphed {
+    var out = Morphed(position, normal);
+    for (var t = 0u; t < morph.num_targets; t = t + 1u) {
+        let weight = morph.weights[t >> 2u][t & 3u];
+        if weight != 0.0 {
+            let row = t * morph.num_vertices + vertex;
+            out.position = out.position + weight * morph_positions[row].xyz;
+            if morph.has_morph_normals != 0u {
+                out.normal = out.normal + weight * morph_normals[row].xyz;
+            }
+        }
+    }
+    return out;
+}
+
+@if(morph) private fn rest_or_morphed(in: VertexInput) -> Morphed {
+    return morph_vertex(in.vertex, in.position, in.normal);
+}
+
+@if(!morph) private fn rest_or_morphed(in: VertexInput) -> Morphed {
+    return Morphed(in.position, in.normal);
+}
+
 // Where a vertex lands, with `offset` displacing it in the node's own space.
 //
-// The copy's deformation applies before the node's transform and its
-// translation after, which is the split the instance buffers are written in.
+// Morph targets apply first, then the copy's deformation, then the node's
+// transform and the copy's translation, which is the split the instance
+// buffers are written in.
 fn place(in: VertexInput, offset: vec3<f32>) -> VertexOutput {
     let deform = copy_deform(in);
+    let shape = rest_or_morphed(in);
     var out = place_deformed(
-        deform * (in.position + offset),
-        deform * in.normal,
+        deform * (shape.position + offset),
+        deform * shape.normal,
         in.uv,
     );
     out.world = out.world + in.copy_offset;
@@ -481,15 +617,27 @@ fn vertex(in: VertexInput) -> VertexOutput {
     return light.color_intensity.rgb * light.color_intensity.a * ndotl * attenuation * INV_PI;
 }
 
-// Lambert diffuse over every light the frame collected, plus ambient.
+// Lambert diffuse over every light the frame collected that shares a layer
+// with this node, each dimmed by the shadow it casts here, plus ambient.
 fn diffuse(in: VertexOutput) -> vec3<f32> {
     var lit = frame.ambient_count.rgb;
     let n = normalize(in.normal);
+    // In uniform control flow: the shadow filter projects these per light.
+    let dpos_dx = dpdx(in.world);
+    let dpos_dy = dpdy(in.world);
     let count = u32(frame.ambient_count.w);
     for (var i = 0u; i < count; i = i + 1u) {
-        lit = lit + contribution(frame.lights[i], in.world, n);
+        if !lights_this(i) {
+            continue;
+        }
+        lit = lit + contribution(frame.lights[i], in.world, n) * shadow_at(i, in.world, dpos_dx, dpos_dy);
     }
     return lit;
+}
+
+// Whether light `i` shares a light layer with this node.
+fn lights_this(i: u32) -> bool {
+    return (object.layers.x & frame.lights[i].bits.x) != 0u;
 }
 
 // Blend toward the fog colour by distance from the camera.
@@ -515,9 +663,200 @@ fn apply_fog(color: vec3<f32>, world: vec3<f32>) -> vec3<f32> {
     return mix(color, frame.fog_color.rgb, clamp(density, 0.0, 1.0));
 }
 
+// What a material writes in the order-independent transparency pass: the
+// fork's two targets, a weighted sum of colour and what still shows through.
+struct OitOutput {
+    @location(0) accum: vec4<f32>,
+    @location(1) reveal: f32,
+}
+
+// A straight-alpha colour as that pass sums it, weighted by view depth as the
+// fork's own `fs_oit` weighs a built-in surface, so the two resolve together.
+fn oit_output(color: vec4<f32>, in: VertexOutput) -> OitOutput {
+    let z = abs((frame.view * vec4<f32>(in.world, 1.0)).z);
+    let w = clamp(10.0 / (1e-5 + pow(z / 5.0, 2.0) + pow(z / 200.0, 6.0)), 1e-2, 3e3);
+    var out: OitOutput;
+    out.accum = vec4<f32>(color.rgb * color.a, color.a) * w;
+    out.reveal = color.a;
+    return out;
+}
+
 // The whole default look: texture, tint, lights and fog.
 fn shade(in: VertexOutput) -> vec4<f32> {
     clip(in);
     let albedo = sample_albedo(in.uv) * tint() * in.tint;
     return vec4<f32>(apply_fog(albedo.rgb * diffuse(in), in.world), albedo.a);
+}
+
+// A light that casts no shadow here, and one past the primary eight whose
+// row has to be looked up: the two markers `Light.bits.y` takes besides a row.
+const NO_SHADOW: u32 = 0xffffffffu;
+const FIND_SHADOW: u32 = 0xfffffffeu;
+
+// The colour translucent casters leave at a shadow texel; white with none.
+private fn shadow_tint(layer: u32, uv: vec2<f32>) -> vec3<f32> {
+    if shadow.transmittance_enabled < 0.5 {
+        return vec3<f32>(1.0, 1.0, 1.0);
+    }
+    return textureSampleLevel(shadow_tint_atlas, shadow_tint_sampler, uv, i32(layer), 0.0).rgb;
+}
+
+// One comparison tap against the receiver's own plane at that tap, which is
+// what keeps a wide filter from shadowing the surface itself.
+private fn shadow_tap(layer: u32, tap_uv: vec2<f32>, ref_uv: vec2<f32>, base_z: f32, grad: vec2<f32>) -> f32 {
+    let compare = base_z + dot(grad, tap_uv - ref_uv);
+    return textureSampleCompareLevel(shadow_atlas, shadow_sampler, tap_uv, i32(layer), compare);
+}
+
+// The fork's filter: a tent-weighted 3x3 of bilinear comparison taps, spread
+// by the environment's `shadow_softness`. One where lit, zero where hidden.
+private fn shadow_pcf(layer: u32, uv: vec2<f32>, base_z: f32, grad: vec2<f32>) -> f32 {
+    let map_size = vec2<f32>(textureDimensions(shadow_atlas));
+    let inv_size = 1.0 / map_size;
+    let coord = uv * map_size;
+    var base_uv = floor(coord + 0.5);
+    let s = coord.x + 0.5 - base_uv.x;
+    let t = coord.y + 0.5 - base_uv.y;
+    base_uv = (base_uv - 0.5) * inv_size;
+    let spread = inv_size * shadow.softness;
+    let uw = vec3<f32>(4.0 - 3.0 * s, 7.0, 1.0 + 3.0 * s);
+    let u = vec3<f32>((3.0 - 2.0 * s) / uw.x - 2.0, (3.0 + s) / uw.y, s / uw.z + 2.0);
+    let vw = vec3<f32>(4.0 - 3.0 * t, 7.0, 1.0 + 3.0 * t);
+    let v = vec3<f32>((3.0 - 2.0 * t) / vw.x - 2.0, (3.0 + t) / vw.y, t / vw.z + 2.0);
+    var sum = 0.0;
+    for (var j = 0u; j < 3u; j = j + 1u) {
+        for (var i = 0u; i < 3u; i = i + 1u) {
+            let tap = base_uv + vec2<f32>(u[i], v[j]) * spread;
+            sum = sum + uw[i] * vw[j] * shadow_tap(layer, tap, uv, base_z, grad);
+        }
+    }
+    return sum * (1.0 / 144.0);
+}
+
+// How the receiver's light-space depth changes per unit of shadow-map uv,
+// from the world position's screen derivatives, capped so an edge-on face
+// cannot bias light through.
+private fn receiver_plane_grad(layer: u32, clip: vec4<f32>, ndc: vec3<f32>, dpos_dx: vec3<f32>, dpos_dy: vec3<f32>) -> vec2<f32> {
+    let m = shadow.view_proj[layer];
+    let dclip_dx = m[0] * dpos_dx.x + m[1] * dpos_dx.y + m[2] * dpos_dx.z;
+    let dclip_dy = m[0] * dpos_dy.x + m[1] * dpos_dy.y + m[2] * dpos_dy.z;
+    let inv_w = 1.0 / clip.w;
+    let dndc_dx = (dclip_dx.xyz - ndc * dclip_dx.w) * inv_w;
+    let dndc_dy = (dclip_dy.xyz - ndc * dclip_dy.w) * inv_w;
+    let du_dx = dndc_dx.x * 0.5;
+    let dv_dx = -dndc_dx.y * 0.5;
+    let du_dy = dndc_dy.x * 0.5;
+    let dv_dy = -dndc_dy.y * 0.5;
+    let det = du_dx * dv_dy - dv_dx * du_dy;
+    if abs(det) < 1e-12 {
+        return vec2<f32>(0.0, 0.0);
+    }
+    let inv_det = 1.0 / det;
+    let grad = vec2<f32>(
+        (dv_dy * dndc_dx.z - dv_dx * dndc_dy.z) * inv_det,
+        (du_dx * dndc_dy.z - du_dy * dndc_dx.z) * inv_det,
+    );
+    let per_texel = max(abs(grad.x), abs(grad.y)) / f32(textureDimensions(shadow_atlas).x);
+    if per_texel > 0.5 {
+        return grad * (0.5 / per_texel);
+    }
+    return grad;
+}
+
+// One atlas layer at a world point: x the filtered visibility, yzw the tint.
+// Lit where the point falls outside the layer's view.
+private fn shadow_layer(layer: u32, world: vec3<f32>, dpos_dx: vec3<f32>, dpos_dy: vec3<f32>) -> vec4<f32> {
+    let light_clip = shadow.view_proj[layer] * vec4<f32>(world, 1.0);
+    if light_clip.w <= 0.0 {
+        return vec4<f32>(1.0, 1.0, 1.0, 1.0);
+    }
+    let ndc = light_clip.xyz / light_clip.w;
+    let uv = vec2<f32>(ndc.x * 0.5 + 0.5, -ndc.y * 0.5 + 0.5);
+    if uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0 || ndc.z > 1.0 || ndc.z < 0.0 {
+        return vec4<f32>(1.0, 1.0, 1.0, 1.0);
+    }
+    let grad = receiver_plane_grad(layer, light_clip, ndc, dpos_dx, dpos_dy);
+    return vec4<f32>(shadow_pcf(layer, uv, ndc.z - shadow.depth_bias, grad), shadow_tint(layer, uv));
+}
+
+// A directional light's cascades: the first whose far split lies past the
+// point, cross-faded into the next over the last fifth of its range.
+private fn shadow_cascades(base: u32, count: u32, depth: f32, world: vec3<f32>, dpos_dx: vec3<f32>, dpos_dy: vec3<f32>) -> vec4<f32> {
+    var c = count - 1u;
+    for (var i = 0u; i < count; i = i + 1u) {
+        if depth < shadow.cascade_splits[i] {
+            c = i;
+            break;
+        }
+    }
+    let near = shadow_layer(base + c, world, dpos_dx, dpos_dy);
+    if c + 1u < count {
+        let split = shadow.cascade_splits[c];
+        let band = split * 0.2;
+        if depth > split - band {
+            let far = shadow_layer(base + c + 1u, world, dpos_dx, dpos_dy);
+            return mix(near, far, clamp((depth - (split - band)) / band, 0.0, 1.0));
+        }
+    }
+    return near;
+}
+
+// The cube face a point light's shadow is read from, in the fork's order:
+// +x, -x, +y, -y, +z, -z.
+@const fn cube_face(d: vec3<f32>) -> u32 {
+    let a = abs(d);
+    if a.x >= a.y && a.x >= a.z {
+        return select(1u, 0u, d.x > 0.0);
+    }
+    if a.y >= a.z {
+        return select(3u, 2u, d.y > 0.0);
+    }
+    return select(5u, 4u, d.z > 0.0);
+}
+
+// The shadow row of a light past the primary eight: the one the fork filled
+// for a light of the same kind at the same place.
+private fn find_shadow_row(light: Light) -> u32 {
+    let kind = u32(light.position_kind.w + 0.5);
+    // The fork numbers point 0 and directional 1; `Light` the other way.
+    let fork_kind = select(select(1u, 0u, kind == 1u), 2u, kind == 2u);
+    for (var row = MAX_SHADOW_LIGHTS - MAX_SHADOW_VIEWS; row < MAX_SHADOW_LIGHTS; row = row + 1u) {
+        let ls = shadow.lights[row];
+        if ls.enabled > 0.5 && ls.light_type == fork_kind && all(ls.light_pos == light.position_kind.xyz) {
+            return row;
+        }
+    }
+    return NO_SHADOW;
+}
+
+// How much of light `i` reaches a point past whatever stands between them:
+// white where nothing does, black in full shadow, and tinted behind a
+// translucent caster. White on a node that receives no shadows. The
+// derivatives are the world position's, taken where control flow is uniform.
+fn shadow_at(i: u32, world: vec3<f32>, dpos_dx: vec3<f32>, dpos_dy: vec3<f32>) -> vec3<f32> {
+    if object.flags.x < 0.5 || shadow.shadows_enabled < 0.5 {
+        return vec3<f32>(1.0, 1.0, 1.0);
+    }
+    var row = frame.lights[i].bits.y;
+    if row == FIND_SHADOW {
+        row = find_shadow_row(frame.lights[i]);
+    }
+    if row == NO_SHADOW {
+        return vec3<f32>(1.0, 1.0, 1.0);
+    }
+    let ls = shadow.lights[row];
+    if ls.enabled < 0.5 {
+        return vec3<f32>(1.0, 1.0, 1.0);
+    }
+    var seen: vec4<f32>;
+    if ls.light_type == 0u {
+        seen = shadow_layer(ls.base_view + cube_face(world - ls.light_pos), world, dpos_dx, dpos_dy);
+    } else if ls.light_type == 1u {
+        let depth = -(frame.view * vec4<f32>(world, 1.0)).z;
+        seen = shadow_cascades(ls.base_view, ls.num_views, depth, world, dpos_dx, dpos_dy);
+    } else {
+        seen = shadow_layer(ls.base_view, world, dpos_dx, dpos_dy);
+    }
+    let tint = select(seen.yzw, vec3<f32>(1.0, 1.0, 1.0), object.flags.y > 0.5);
+    return seen.x * tint;
 }

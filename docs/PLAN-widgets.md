@@ -59,7 +59,7 @@ rows and a theme entry.
 
 | Kind | What it is | Godot | State |
 | --- | --- | --- | --- |
-| `list` | rows of text or icons, one or many selected, `on_change` with the selection; above one `columns` a card grid | `ItemList` | built |
+| `list` | rows of text or icons, one or many selected, `on_change` with the selection; given `grid_columns` a card grid | `ItemList` | built |
 | `tree` | a `list` whose rows nest, with an open state per row and a drag that reports where a row was dropped | `Tree` | built |
 | `table` | a `tree` with named columns, widths a drag or the scene states, and a sort | `Tree` columns | built |
 

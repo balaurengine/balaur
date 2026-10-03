@@ -1,193 +1,47 @@
 //! Audio as a Balaur plugin, backed by rodio.
 //!
-//! `audio.play` hands back an integer handle; `stop`, `set_volume`,
-//! `set_pitch` and `is_playing` address it. The `sound` component gives a
-//! node a configured sound, triggered by `audio.play_on` / `audio.stop_on`.
-//! A sound with a place in the world (a `positional` component, or a `play`
-//! given a `position`) is heard from the `listener` node: see [`spatial`].
+//! The `sound` component gives a node a configured sound: `autoplay` starts
+//! it on load, `audio.play(node)` restarts it and `audio.stop(node)` silences
+//! it. `audio.play` and `audio.play_cue(name)` hand back an integer handle;
+//! `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing`
+//! address it. A sound with a place in the world (a `sound` with `positional`
+//! set, or a cue played with a `position`) is heard from the `listener` node:
+//! see [`spatial`].
 //!
 //! Audio is a pure observer of the simulation. If no output device is
 //! available (CI, headless servers) the plugin logs a warning once and every
 //! call still hands out the same handles: a game runs identically with and
 //! without a sound card. Anything that feeds a decision (`is_playing`, the
-//! `sound` component's "already started" check) is therefore tracked as
-//! intent on [`Sound`] and [`AudioState`], never read off a sink.
+//! `sound` component's "already started" check, `playback_time`) is therefore
+//! tracked as intent on [`Sound`] and [`AudioState`], never read off a sink.
 //!
 //! The device is opened by the first call that needs one, not at load: the
 //! open asks the OS for its default output config, and on macOS that reads
 //! the directory the executable sits in. A browser defers it further, to the
 //! first gesture (`UserActivation`), because it refuses audio before one.
 
-use anyhow::{Result, anyhow, bail};
-use balaur_core::components::{ComponentDef, as_f64};
+use anyhow::{Context, Result, anyhow, bail};
 use balaur_core::glamx::Vec3;
 use balaur_core::hecs::Entity;
 use balaur_core::{DetHashMap, Engine, Stage, scene};
 
+mod backend;
 pub mod bus;
 pub mod cache;
+mod component;
 pub mod cue;
+pub mod output;
+pub mod playback;
 mod script_api;
 pub mod spatial;
 pub mod vocabulary;
 
 use crate::vocabulary::keys as k;
+use backend::From;
 use bus::Buses;
-use spatial::{Emitter, Listener, ListenerPose, Placement};
-
-/// The rodio/cpal backend: native audio stacks, and WebAudio on wasm.
-mod backend {
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicU32, Ordering};
-    use std::time::Duration;
-
-    use anyhow::Result;
-    use rodio::source::{ChannelVolume, Source};
-    use rodio::{DeviceSinkBuilder, MixerDeviceSink, Player};
-
-    pub(crate) struct Device(MixerDeviceSink);
-
-    pub(crate) struct Sound {
-        player: Player,
-        /// Set for a positional sound, whose left and right gains the mixer
-        /// re-reads as it plays.
-        pan: Option<Arc<Pan>>,
-    }
-
-    /// The stereo gains a live positional sound is at. Atomics rather than a
-    /// lock: the mixer callback must never block on the frame that is
-    /// writing them.
-    struct Pan([AtomicU32; 2]);
-
-    impl Pan {
-        fn new(gains: [f32; 2]) -> Self {
-            Self([
-                AtomicU32::new(gains[0].to_bits()),
-                AtomicU32::new(gains[1].to_bits()),
-            ])
-        }
-
-        fn store(&self, gains: [f32; 2]) {
-            self.0[0].store(gains[0].to_bits(), Ordering::Relaxed);
-            self.0[1].store(gains[1].to_bits(), Ordering::Relaxed);
-        }
-
-        fn load(&self) -> [f32; 2] {
-            [
-                f32::from_bits(self.0[0].load(Ordering::Relaxed)),
-                f32::from_bits(self.0[1].load(Ordering::Relaxed)),
-            ]
-        }
-    }
-
-    /// Mix a source down to mono and spread it across the two channels at
-    /// gains the frame can move. Positioning a stereo file means giving up
-    /// the channels it came with: a sound in one place has one direction.
-    fn spread<S>(source: S, pan: &Arc<Pan>) -> impl Source + use<S>
-    where
-        S: Source,
-    {
-        let gains = pan.load();
-        let pan = pan.clone();
-        ChannelVolume::new(source, vec![gains[0], gains[1]]).periodic_access(
-            Duration::from_millis(5),
-            move |channels| {
-                let gains = pan.load();
-                channels.set_volume(0, gains[0]);
-                channels.set_volume(1, gains[1]);
-            },
-        )
-    }
-
-    pub(crate) fn open_default() -> Result<Device> {
-        #[cfg(windows)]
-        keep_com_alive();
-        Ok(Device(DeviceSinkBuilder::open_default_sink()?))
-    }
-
-    /// cpal caches its WASAPI device enumerator process-wide but initialises
-    /// COM per thread, and uninitialises it when that thread exits. Once the
-    /// last such thread is gone COM unloads the audio DLLs and the cached
-    /// enumerator dangles: the next open crashes with an access violation.
-    /// Holding an MTA reference for the life of the process keeps COM up.
-    #[cfg(windows)]
-    fn keep_com_alive() {
-        static ONCE: std::sync::Once = std::sync::Once::new();
-        ONCE.call_once(|| {
-            let mut cookie = std::ptr::null_mut();
-            // SAFETY: a plain FFI call taking a valid out-pointer; the cookie
-            // is deliberately never returned to `CoDecrementMTAUsage`.
-            let result =
-                unsafe { windows_sys::Win32::System::Com::CoIncrementMTAUsage(&raw mut cookie) };
-            if result < 0 {
-                tracing::warn!("could not keep COM alive for audio: HRESULT {result:#x}");
-            }
-        });
-    }
-
-    /// Decode sound bytes and start them on the device's mixer. Bytes, not a
-    /// path: a packed game carries its audio inside the pack. rodio has no
-    /// loop toggle on a live player, so looping is requested at decode time.
-    /// `pan` is the stereo placement a positional sound starts at.
-    pub(crate) fn play(
-        device: &Device,
-        bytes: Vec<u8>,
-        (volume, pitch): (f32, f32),
-        shape: super::Shape,
-        pan: Option<[f32; 2]>,
-    ) -> Result<Sound> {
-        let decoder = rodio::Decoder::try_from(std::io::Cursor::new(bytes))?.amplify(shape.level);
-        let player = Player::connect_new(device.0.mixer());
-        player.set_volume(volume);
-        player.set_speed(pitch);
-        let pan = pan.map(|gains| Arc::new(Pan::new(gains)));
-        let put = |source: Box<dyn Source + Send>| match &pan {
-            Some(pan) => player.append(spread(source, pan)),
-            None => player.append(source),
-        };
-        if shape.looped && shape.loop_offset > 0.0 {
-            // The intro plays once; every repeat after it starts past it.
-            let once = decoder.buffered();
-            let again = once
-                .clone()
-                .skip_duration(Duration::from_secs_f32(shape.loop_offset))
-                .repeat_infinite();
-            put(Box::new(once));
-            put(Box::new(again));
-        } else if shape.looped {
-            put(Box::new(decoder.repeat_infinite()));
-        } else {
-            put(Box::new(decoder));
-        }
-        Ok(Sound { player, pan })
-    }
-
-    impl Sound {
-        pub(crate) fn stop(&self) {
-            self.player.stop();
-        }
-
-        pub(crate) fn set_volume(&self, volume: f32) {
-            self.player.set_volume(volume);
-        }
-
-        pub(crate) fn set_pitch(&self, pitch: f32) {
-            self.player.set_speed(pitch);
-        }
-
-        /// Move a positional sound between the speakers. A sound started
-        /// without a pan keeps the channels it came with.
-        pub(crate) fn set_pan(&self, gains: [f32; 2]) {
-            if let Some(pan) = &self.pan {
-                pan.store(gains);
-            }
-        }
-
-        pub(crate) fn finished(&self) -> bool {
-            self.player.empty()
-        }
-    }
-}
+use output::OutputSettings;
+use playback::{Clip, Effects, Program, Timeline};
+use spatial::{Attenuation, Emitter, Listener, ListenerPose, Placement};
 
 /// The floor `pitch_scale` is clamped to, matching the schema's `min`: rodio takes
 /// a playback speed, and zero would park the sink forever.
@@ -195,6 +49,11 @@ const MIN_PITCH: f32 = 0.01;
 
 /// One node's `sound` component, the shape `Playback` established in
 /// `balaur_animation`: the sink is shared machinery, the intent lives here.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each is a scene key of its own"
+)]
+#[derive(Clone)]
 pub struct Sound {
     /// Audio file, project-relative. Empty plays nothing.
     pub file: String,
@@ -205,6 +64,7 @@ pub struct Sound {
     pub looped: bool,
     /// The bus this plays through; empty is `master`.
     pub bus: String,
+    pub paused: bool,
     /// Whether this sound is heard from where its node is, rather than flat.
     pub positional: bool,
     /// Full volume within this distance of the listener.
@@ -213,8 +73,21 @@ pub struct Sound {
     pub max_distance: f32,
     /// How much the closing speed bends the pitch: 0 is off, 1 physical.
     pub doppler: f32,
-    /// The playback this node started, `None` until autoplay or `play_on`
-    /// starts one and again after `stop_on`. A finished sink does not clear
+    pub attenuation: Attenuation,
+    pub start_time: f32,
+    /// 0 plays to the end.
+    pub end_time: f32,
+    pub delay: f32,
+    /// Below 0 takes the file's own `loop_offset`.
+    pub loop_offset: f32,
+    pub layers: Vec<String>,
+    pub queue: Vec<String>,
+    pub fade_in_time: f32,
+    pub fade_out_time: f32,
+    pub crossfade_time: f32,
+    pub effects: Effects,
+    /// The playback this node started, `None` until autoplay or `audio.play`
+    /// starts one and again after `audio.stop`. A finished sink does not clear
     /// it: intent must read the same headless as with a device.
     pub handle: Option<u64>,
 }
@@ -228,10 +101,22 @@ impl Default for Sound {
             pitch: 1.0,
             looped: false,
             bus: String::new(),
+            paused: false,
             positional: false,
             min_distance: DEFAULT_MIN_DISTANCE,
             max_distance: DEFAULT_MAX_DISTANCE,
             doppler: 0.0,
+            attenuation: Attenuation::Inverse,
+            start_time: 0.0,
+            end_time: 0.0,
+            delay: 0.0,
+            loop_offset: -1.0,
+            layers: Vec::new(),
+            queue: Vec::new(),
+            fade_in_time: 0.0,
+            fade_out_time: 0.0,
+            crossfade_time: 0.0,
+            effects: Effects::default(),
             handle: None,
         }
     }
@@ -251,6 +136,11 @@ pub struct AudioState {
     /// True while the device waits for `UserActivation`: a browser refuses
     /// to start audio before a gesture, so the open is deferred to one.
     awaiting_activation: bool,
+    /// What `[audio]` asks of the device and the buses' limiters, read with
+    /// the bus table and handed to the device when it opens.
+    configured: bool,
+    output: OutputSettings,
+    routes: Vec<bus::Route>,
     /// Live sinks by handle. A handle absent here answers `is_playing` false
     /// and its setters no-op.
     playing: DetHashMap<u64, backend::Sound>,
@@ -258,6 +148,8 @@ pub struct AudioState {
     /// slider can re-apply the gain to what is already sounding. Without it a
     /// volume change would only reach sounds started after it.
     routing: DetHashMap<u64, Routed>,
+    /// Stopped handles still falling to silence over their `fade_out_time`.
+    releasing: DetHashMap<u64, Release>,
     /// Every node's `sound` component, keyed the way `AnimationState` keys
     /// its players.
     pub nodes: DetHashMap<Entity, Sound>,
@@ -274,32 +166,81 @@ pub struct AudioState {
     next_handle: u64,
 }
 
-/// Where a live handle plays: its bus, the volume its caller asked for, and
-/// the gain last handed to its sink. The applied gain is bookkeeping rather
-/// than a sink reading, so a headless run can assert the mix.
-struct Routed {
+/// Where a live handle plays and where it has got to. The gains are
+/// bookkeeping rather than a sink reading, so a headless run can assert the
+/// mix.
+pub(crate) struct Routed {
     bus: String,
+    /// The gain its caller asked for.
     volume: f32,
-    applied: f32,
-    /// Seconds of the file left to play at speed 1, counted down on the
-    /// fixed step so a headless run and a replay end it on the same tick.
-    /// `None` for a looping sound, or a file whose length does not decode.
-    left: Option<f64>,
+    /// Its bus chain's gain times its distance gain.
+    pub(crate) chain: f32,
+    /// 1 until the last `fade_out_time` seconds before it plays out.
+    fade: f32,
+    /// What the sink was last given: `volume * chain * fade`.
+    pub(crate) applied: f32,
     pitch: f32,
+    paused: bool,
+    fade_out_time: f32,
+    positional: bool,
+    program: Program,
+    /// Counted on the fixed step, so a headless run and a replay end it,
+    /// move between its files and report `playback_time` on the same tick.
+    timeline: Timeline,
+}
+
+impl Routed {
+    pub(crate) fn bus(&self) -> &str {
+        &self.bus
+    }
+
+    /// Recompute the sink's gain from its parts and hand it back.
+    pub(crate) fn mix(&mut self) -> f32 {
+        self.applied = (self.volume * self.chain * self.fade).max(0.0);
+        self.applied
+    }
+
+    /// The end fade's gain where the timeline is now.
+    fn end_fade(&self) -> f32 {
+        if self.fade_out_time <= 0.0 {
+            return 1.0;
+        }
+        match self.timeline.left() {
+            Some(left) if left < f64::from(self.fade_out_time) => {
+                (left / f64::from(self.fade_out_time)) as f32
+            }
+            _ => 1.0,
+        }
+    }
+
+    fn gains(&self, placed: Option<&Placement>) -> [f32; 2] {
+        match placed {
+            Some(placed) => spatial::stereo_gains(placed.pan),
+            None => spatial::balance_gains(self.program.effects.pan),
+        }
+    }
+}
+
+/// A stopped handle falling to silence from the gain it was stopped at.
+struct Release {
+    sink: Option<backend::Sound>,
+    from: f32,
+    left: f64,
+    total: f64,
+}
+
+impl Release {
+    fn gain(&self) -> f32 {
+        (f64::from(self.from) * (self.left / self.total).clamp(0.0, 1.0)) as f32
+    }
 }
 
 /// What a node announces when its sound plays out, with the handle.
 pub const FINISHED_EVENT: &str = "finished";
 
-/// How long a file plays at speed 1, when its container says.
-fn length_of(bytes: &[u8]) -> Option<f64> {
-    use rodio::Source as _;
-    let decoder = rodio::Decoder::try_from(std::io::Cursor::new(bytes.to_vec())).ok()?;
-    decoder.total_duration().map(|length| length.as_secs_f64())
-}
-
 /// One `play`: how loud and fast, looping or not, on which bus at what chain
-/// gain, and, for a positional sound, where it plays from.
+/// gain, and, for a positional sound, where it plays from; then what is done
+/// to the samples and what else plays with them.
 pub struct Playback {
     pub volume: f32,
     pub pitch: f32,
@@ -310,6 +251,17 @@ pub struct Playback {
     pub emitter: Option<Emitter>,
     /// What the file's own import settings add to every play of it.
     pub file: FileSettings,
+    pub paused: bool,
+    pub start_time: f32,
+    pub end_time: f32,
+    pub delay: f32,
+    pub fade_in_time: f32,
+    pub fade_out_time: f32,
+    /// Where repeats start; `None` takes the file's own.
+    pub loop_offset: Option<f32>,
+    pub effects: Effects,
+    pub layers: Vec<Clip>,
+    pub queue: Vec<Clip>,
 }
 
 impl Default for Playback {
@@ -322,18 +274,34 @@ impl Default for Playback {
             gain: 1.0,
             emitter: None,
             file: FileSettings::default(),
+            paused: false,
+            start_time: 0.0,
+            end_time: 0.0,
+            delay: 0.0,
+            fade_in_time: 0.0,
+            fade_out_time: 0.0,
+            loop_offset: None,
+            effects: Effects::default(),
+            layers: Vec::new(),
+            queue: Vec::new(),
         }
     }
 }
 
 /// A sound file's import settings: its own `volume_linear`, whether it loops
-/// wherever it is played, and where each repeat starts. Its level is baked
-/// into the samples, so a handle's volume of 1 is still the file's own level.
+/// wherever it is played, where each repeat starts, and how its decoder reads
+/// it. Its level is baked into the samples, so a handle's volume of 1 is still
+/// the file's own level.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FileSettings {
     pub level: f32,
     pub looped: bool,
     pub loop_offset: f32,
+    /// Trim the encoder's padding, so files queued back to back have no gap.
+    pub gapless: bool,
+    /// Let the decoder jump in the container: a seek or a `start_time` lands
+    /// without decoding up to it.
+    pub seekable: bool,
 }
 
 impl Default for FileSettings {
@@ -342,6 +310,8 @@ impl Default for FileSettings {
             level: 1.0,
             looped: false,
             loop_offset: 0.0,
+            gapless: true,
+            seekable: false,
         }
     }
 }
@@ -357,17 +327,10 @@ impl FileSettings {
             level: number(settings, keys::VOLUME_LINEAR, 1.0).max(0.0) as f32,
             looped: flag(settings, keys::LOOP, false),
             loop_offset: number(settings, keys::LOOP_OFFSET, 0.0).max(0.0) as f32,
+            gapless: flag(settings, k::GAPLESS, true),
+            seekable: flag(settings, k::SEEKABLE, false),
         }
     }
-}
-
-/// How one play is decoded: a caller's loop or the file's, and the file's
-/// level and loop start.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Shape {
-    pub looped: bool,
-    pub level: f32,
-    pub loop_offset: f32,
 }
 
 impl AudioState {
@@ -375,6 +338,11 @@ impl AudioState {
     pub fn stop_all(&mut self) {
         for (_, sink) in self.playing.drain(..) {
             sink.stop();
+        }
+        for (_, release) in self.releasing.drain(..) {
+            if let Some(sink) = release.sink {
+                sink.stop();
+            }
         }
         self.routing.clear();
         self.spatial.clear();
@@ -390,7 +358,7 @@ impl AudioState {
             return;
         }
         self.opened = true;
-        self.device = open_device();
+        self.device = open_device(&self.output, &self.routes);
     }
 
     /// Start a sound from its bytes: the `audio.*` bindings read paths
@@ -424,8 +392,7 @@ impl AudioState {
                 looped,
                 bus: bus.to_string(),
                 gain,
-                emitter: None,
-                file: FileSettings::default(),
+                ..Playback::default()
             },
         )
     }
@@ -440,50 +407,65 @@ impl AudioState {
         self.next_handle += 1;
         let volume = playback.volume.max(0.0);
         let pitch = playback.pitch.max(MIN_PITCH);
-        let placement = match playback.emitter {
-            Some(mut emitter) => {
-                emitter.pitch = pitch;
-                emitter.placement = spatial::place(&self.listener, &emitter);
-                let placement = emitter.placement;
-                self.spatial.insert(handle, emitter);
-                Some(placement)
-            }
-            None => None,
-        };
+        let placement = playback.emitter.map(|mut emitter| {
+            emitter.pitch = pitch;
+            emitter.placement = spatial::place(&self.listener, &emitter);
+            let placement = emitter.placement;
+            self.spatial.insert(handle, emitter);
+            placement
+        });
         let placed = placement.unwrap_or_default();
-        let applied = (volume * playback.gain * placed.gain).max(0.0);
-        let looped = playback.looped || playback.file.looped;
-        self.routing.insert(
-            handle,
-            Routed {
-                bus: playback.bus,
-                volume,
-                applied,
-                left: if looped { None } else { length_of(&bytes) },
-                pitch,
-            },
-        );
+        let program = Program {
+            main: Clip::new(bytes, playback.file),
+            layers: playback.layers,
+            queue: playback.queue,
+            looped: playback.looped,
+            loop_offset: playback.loop_offset,
+            start_time: playback.start_time.max(0.0),
+            end_time: playback.end_time.max(0.0),
+            delay: playback.delay.max(0.0),
+            fade_in_time: playback.fade_in_time.max(0.0),
+            effects: playback.effects,
+        };
+        let timeline = Timeline::new(&program, &lengths(&program));
+        let mut routed = Routed {
+            bus: playback.bus,
+            volume,
+            chain: playback.gain * placed.gain,
+            fade: 1.0,
+            applied: 0.0,
+            pitch,
+            paused: playback.paused,
+            fade_out_time: playback.fade_out_time.max(0.0),
+            positional: placement.is_some(),
+            program,
+            timeline,
+        };
+        routed.fade = routed.end_fade();
+        routed.mix();
         self.open_if_needed();
         if let Some(device) = &self.device {
-            let shape = Shape {
-                looped: playback.looped || playback.file.looped,
-                level: playback.file.level,
-                loop_offset: playback.file.loop_offset,
+            let controls = backend::Controls {
+                bus: &routed.bus,
+                volume: routed.applied,
+                speed: (pitch * placed.pitch).max(MIN_PITCH),
+                paused: routed.paused,
+                positional: routed.positional,
+                gains: routed.gains(placement.as_ref()),
             };
-            let started = backend::play(
-                device,
-                bytes,
-                (applied, (pitch * placed.pitch).max(MIN_PITCH)),
-                shape,
-                placement.map(|placed| spatial::stereo_gains(placed.pan)),
-            );
-            match started {
+            let from = From {
+                index: 0,
+                at: routed.timeline.at,
+                fresh: true,
+            };
+            match backend::Sound::start(device, &routed.program, from, controls) {
                 Ok(sound) => {
                     self.playing.insert(handle, sound);
                 }
                 Err(err) => tracing::warn!("audio did not decode: {err}"),
             }
         }
+        self.routing.insert(handle, routed);
         handle
     }
 
@@ -498,9 +480,10 @@ impl AudioState {
             if self.spatial.contains_key(handle) || !buses.feeds(&routed.bus, moved) {
                 continue;
             }
-            routed.applied = (routed.volume * buses.gain(&routed.bus)).max(0.0);
+            routed.chain = buses.gain(&routed.bus);
+            let applied = routed.mix();
             if let Some(sink) = self.playing.get(handle) {
-                sink.set_volume(routed.applied);
+                sink.set_volume(applied);
             }
         }
     }
@@ -514,26 +497,72 @@ impl AudioState {
     }
 
     /// The gain a live handle's sink is at: its own volume through its bus
-    /// chain, times its distance gain when it is placed.
+    /// chain, times its distance gain when it is placed and its end fade.
     #[must_use]
     pub fn effective_volume(&self, handle: u64) -> Option<f32> {
         self.routing.get(&handle).map(|routed| routed.applied)
     }
 
-    /// Stop one handle's sound. A finished, stopped or unknown handle no-ops.
+    /// The gain a stopped handle is fading out at, `None` once it is silent
+    /// or when it stopped with no fade.
+    #[must_use]
+    pub fn releasing_volume(&self, handle: u64) -> Option<f32> {
+        self.releasing.get(&handle).map(Release::gain)
+    }
+
+    /// Stop one handle's sound at once, a fading one included. A finished,
+    /// stopped or unknown handle no-ops.
     pub fn stop(&mut self, handle: u64) {
         self.routing.shift_remove(&handle);
         self.spatial.shift_remove(&handle);
         if let Some(sink) = self.playing.shift_remove(&handle) {
             sink.stop();
         }
+        if let Some(sink) = self.releasing.shift_remove(&handle).and_then(|r| r.sink) {
+            sink.stop();
+        }
+    }
+
+    /// Stop a handle over its own `fade_out_time`.
+    pub fn release(&mut self, handle: u64) {
+        let seconds = self
+            .routing
+            .get(&handle)
+            .map_or(0.0, |routed| routed.fade_out_time);
+        self.release_over(handle, seconds);
+    }
+
+    /// Stop a handle, falling to silence over `seconds` from where it is.
+    /// It answers `is_playing` false at once: what fades is no longer the
+    /// game's sound.
+    pub fn release_over(&mut self, handle: u64, seconds: f32) {
+        let Some(routed) = self.routing.shift_remove(&handle) else {
+            return;
+        };
+        self.spatial.shift_remove(&handle);
+        let sink = self.playing.shift_remove(&handle);
+        if seconds <= 0.0 {
+            if let Some(sink) = sink {
+                sink.stop();
+            }
+            return;
+        }
+        let total = f64::from(seconds);
+        self.releasing.insert(
+            handle,
+            Release {
+                sink,
+                from: routed.applied,
+                left: total,
+                total,
+            },
+        );
     }
 
     /// Set a live handle's own volume, before its bus and its distance. The
     /// stored one moves with it, so a bus slider and the next placement pass
     /// both recompute from what was asked for last.
     pub fn set_volume(&mut self, handle: u64, volume: f32, buses: &Buses) {
-        let volume = volume.max(0.0);
         let placed = self
             .spatial
             .get(&handle)
@@ -541,9 +570,9 @@ impl AudioState {
         let Some(routed) = self.routing.get_mut(&handle) else {
             return;
         };
-        routed.volume = volume;
-        routed.applied = (volume * buses.gain(&routed.bus) * placed).max(0.0);
-        let applied = routed.applied;
+        routed.volume = volume.max(0.0);
+        routed.chain = buses.gain(&routed.bus) * placed;
+        let applied = routed.mix();
         if let Some(sink) = self.playing.get(&handle) {
             sink.set_volume(applied);
         }
@@ -562,10 +591,158 @@ impl AudioState {
         }
     }
 
+    /// Hold a handle or let it go on. Its timeline holds with it.
+    pub fn set_paused(&mut self, handle: u64, paused: bool) {
+        if let Some(routed) = self.routing.get_mut(&handle) {
+            routed.paused = paused;
+        }
+        if let Some(sink) = self.playing.get(&handle) {
+            sink.set_paused(paused);
+        }
+    }
+
+    /// Whether a live handle is held.
+    #[must_use]
+    pub fn is_paused(&self, handle: u64) -> bool {
+        self.routing
+            .get(&handle)
+            .is_some_and(|routed| routed.paused)
+    }
+
+    /// Retune what a live handle does to its samples. A flat sound takes the
+    /// pan; a positional one keeps the pan its placement gives it.
+    pub fn set_effects(&mut self, handle: u64, effects: Effects) {
+        let Some(routed) = self.routing.get_mut(&handle) else {
+            return;
+        };
+        routed.program.effects = effects;
+        if let Some(sink) = self.playing.get(&handle) {
+            sink.set_effects(&effects);
+            if !routed.positional {
+                sink.set_pan(routed.gains(None));
+            }
+        }
+    }
+
+    /// The effects a live handle plays with.
+    #[must_use]
+    pub fn effects_of(&self, handle: u64) -> Option<Effects> {
+        self.routing
+            .get(&handle)
+            .map(|routed| routed.program.effects)
+    }
+
+    /// Where a handle has got to in the file it is playing, in seconds of
+    /// that file.
+    #[must_use]
+    pub fn playback_time(&self, handle: u64) -> Option<f64> {
+        self.routing.get(&handle).map(|routed| routed.timeline.at)
+    }
+
+    /// Which of a handle's files is playing: 0 for its own, then its queue.
+    #[must_use]
+    pub fn playing_index(&self, handle: u64) -> Option<usize> {
+        self.routing
+            .get(&handle)
+            .map(|routed| routed.timeline.index)
+    }
+
+    /// Jump a live handle to `seconds` into the file it is playing. A seek is
+    /// a fresh start from there, so it needs no decoder that seeks.
+    pub fn seek(&mut self, handle: u64, seconds: f64) {
+        if let Some(routed) = self.routing.get_mut(&handle) {
+            routed.timeline.seek(seconds);
+        }
+        self.restart(handle);
+    }
+
+    /// Move a live handle on to the next file in its queue. True when there
+    /// was none, and the handle has stopped.
+    pub fn skip(&mut self, handle: u64) -> bool {
+        let Some(routed) = self.routing.get_mut(&handle) else {
+            return false;
+        };
+        if routed.timeline.next_file() {
+            self.restart(handle);
+            return false;
+        }
+        self.stop(handle);
+        true
+    }
+
+    /// Build a handle's sink again from where its timeline is.
+    fn restart(&mut self, handle: u64) {
+        let placed = self.spatial.get(&handle).map(|emitter| emitter.placement);
+        let Some(routed) = self.routing.get_mut(&handle) else {
+            return;
+        };
+        routed.fade = routed.end_fade();
+        routed.mix();
+        let (Some(device), Some(sink)) = (&self.device, self.playing.get(&handle)) else {
+            return;
+        };
+        let controls = backend::Controls {
+            bus: &routed.bus,
+            volume: routed.applied,
+            speed: (routed.pitch * placed.map_or(1.0, |p| p.pitch)).max(MIN_PITCH),
+            paused: routed.paused,
+            positional: routed.positional,
+            gains: routed.gains(placed.as_ref()),
+        };
+        let from = From {
+            index: routed.timeline.index,
+            at: routed.timeline.at,
+            fresh: false,
+        };
+        match sink.restart(device, &routed.program, from, controls) {
+            Ok(sound) => {
+                self.playing.insert(handle, sound);
+            }
+            Err(err) => {
+                tracing::warn!("audio did not decode: {err}");
+                self.playing.shift_remove(&handle);
+            }
+        }
+    }
+
+    /// Land everything a node's `sound` can change while it plays: volume,
+    /// pitch, pause, effects, its end fade and how far it carries.
+    pub(crate) fn retune(&mut self, handle: u64, sound: &Sound, buses: &Buses) {
+        self.set_volume(handle, sound.volume, buses);
+        self.set_pitch(handle, sound.pitch);
+        if self.is_paused(handle) != sound.paused {
+            self.set_paused(handle, sound.paused);
+        }
+        if self.effects_of(handle) != Some(sound.effects) {
+            self.set_effects(handle, sound.effects);
+        }
+        if let Some(routed) = self.routing.get_mut(&handle) {
+            routed.fade_out_time = sound.fade_out_time;
+        }
+        if let Some(emitter) = self.spatial.get_mut(&handle) {
+            let shaped = Emitter::new(
+                emitter.position,
+                sound.min_distance,
+                sound.max_distance,
+                sound.doppler,
+            );
+            emitter.min_distance = shaped.min_distance;
+            emitter.max_distance = shaped.max_distance;
+            emitter.doppler = shaped.doppler;
+            emitter.attenuation = sound.attenuation;
+        }
+    }
+
     /// Where a positional handle plays from, and `None` for a flat one.
     #[must_use]
     pub fn emitter_position(&self, handle: u64) -> Option<Vec3> {
         self.spatial.get(&handle).map(|emitter| emitter.position)
+    }
+
+    /// The emitter behind a positional handle.
+    #[must_use]
+    pub fn emitter(&self, handle: u64) -> Option<&Emitter> {
+        self.spatial.get(&handle)
     }
 
     /// Move a positional handle's emitter. The frame's pass takes its
@@ -605,71 +782,128 @@ impl AudioState {
     }
 }
 
+/// Each file's length in a program: `main` mixed with its layers runs as
+/// long as the longest of them, unknown if any one is.
+fn lengths(program: &Program) -> Vec<Option<f64>> {
+    let main = std::iter::once(&program.main)
+        .chain(&program.layers)
+        .map(backend::length_of)
+        .try_fold(0.0_f64, |longest, length| length.map(|l| longest.max(l)));
+    std::iter::once(main)
+        .chain(program.queue.iter().map(backend::length_of))
+        .collect()
+}
+
+/// Every output device's name, as `[audio] device` takes it. Empty when the
+/// platform lists none.
+#[must_use]
+pub fn devices() -> Vec<String> {
+    backend::devices()
+}
+
 /// The bytes a sound path names, cached between plays so a footstep does not
 /// cost a read per step.
 fn read_sound(eng: &Engine, path: &str) -> Result<Vec<u8>> {
     cache::read(eng, path)
 }
 
+/// Read `[audio]` and the bus table once, before anything opens a device.
+pub(crate) fn ensure_loaded(eng: &Engine) {
+    bus::ensure_loaded(eng);
+    let state = eng.resource::<AudioState>();
+    if state.borrow().configured {
+        return;
+    }
+    let routes = eng.resource::<Buses>().borrow().routes();
+    let output = OutputSettings::of(eng);
+    let mut state = state.borrow_mut();
+    state.configured = true;
+    state.output = output;
+    state.routes = routes;
+}
+
 /// Start `entity`'s configured sound and hand back the handle. An explicit
 /// trigger: a sound the node already has playing restarts.
 ///
 /// # Errors
-/// If the node has no `sound` component, its `file` is empty, or the file
-/// does not exist.
+/// If the node has no `sound` component, its `file` is empty, or a file it
+/// names does not exist.
 pub fn play_on(eng: &Engine, entity: Entity) -> Result<u64> {
-    bus::ensure_loaded(eng);
-    let state = eng.resource::<AudioState>();
-    let mut state = state.borrow_mut();
-    let (file, current, mut playback) = {
-        let sound = state
-            .nodes
-            .get(&entity)
-            .ok_or_else(|| anyhow!("this node has no `sound` component to play"))?;
-        (
-            sound.file.clone(),
-            sound.handle,
-            Playback {
-                volume: sound.volume,
-                pitch: sound.pitch,
-                looped: sound.looped,
-                bus: sound.bus.clone(),
-                gain: 1.0,
-                emitter: sound.positional.then(|| {
-                    Emitter::new(
-                        Vec3::ZERO,
-                        sound.min_distance,
-                        sound.max_distance,
-                        sound.doppler,
-                    )
-                }),
-                file: FileSettings::default(),
-            },
-        )
-    };
-    if file.trim().is_empty() {
+    play_node(eng, entity, false)
+}
+
+/// [`play_on`], fading in over the node's `crossfade_time` rather than its
+/// `fade_in_time` when `crossfade` is set: the new half of a changed `file`.
+pub(crate) fn play_node(eng: &Engine, entity: Entity, crossfade: bool) -> Result<u64> {
+    ensure_loaded(eng);
+    let sound = eng
+        .resource::<AudioState>()
+        .borrow()
+        .nodes
+        .get(&entity)
+        .cloned()
+        .ok_or_else(|| anyhow!("this node has no `sound` component to play"))?;
+    if sound.file.trim().is_empty() {
         bail!("the node's `sound` component names no `file`");
     }
-    let bytes = read_sound(eng, &file)?;
-    playback.file = FileSettings::of(eng, &file);
-    if let Some(emitter) = &mut playback.emitter {
-        // Composed here rather than read off `GlobalTransform`: a node that
-        // entered the scene this frame has not been through a scene sync, and
-        // a sound must not start from the origin and jump.
-        emitter.position = scene::composed_global(&eng.world(), entity).position;
-    }
-    if let Some(current) = current {
+    let clip = |path: &String| -> Result<Clip> {
+        let bytes = read_sound(eng, path).with_context(|| format!("sound file `{path}`"))?;
+        Ok(Clip::new(bytes, FileSettings::of(eng, path)))
+    };
+    let layers = sound.layers.iter().map(clip).collect::<Result<Vec<_>>>()?;
+    let queue = sound.queue.iter().map(clip).collect::<Result<Vec<_>>>()?;
+    let bytes = read_sound(eng, &sound.file)?;
+    let emitter = sound.positional.then(|| {
+        let mut emitter = Emitter::new(
+            // Composed here rather than read off `GlobalTransform`: a node
+            // that entered the scene this frame has not been through a scene
+            // sync, and a sound must not start from the origin and jump.
+            scene::composed_global(&eng.world(), entity).position,
+            sound.min_distance,
+            sound.max_distance,
+            sound.doppler,
+        );
+        emitter.attenuation = sound.attenuation;
+        emitter
+    });
+    let gain = eng.resource::<Buses>().borrow().gain(&sound.bus);
+    let playback = Playback {
+        volume: sound.volume,
+        pitch: sound.pitch,
+        looped: sound.looped,
+        bus: sound.bus.clone(),
+        gain,
+        emitter,
+        file: FileSettings::of(eng, &sound.file),
+        paused: sound.paused,
+        start_time: sound.start_time,
+        end_time: sound.end_time,
+        delay: sound.delay,
+        fade_in_time: if crossfade {
+            sound.crossfade_time
+        } else {
+            sound.fade_in_time
+        },
+        fade_out_time: sound.fade_out_time,
+        loop_offset: (sound.loop_offset >= 0.0).then_some(sound.loop_offset),
+        effects: sound.effects,
+        layers,
+        queue,
+    };
+    let state = eng.resource::<AudioState>();
+    let mut state = state.borrow_mut();
+    if let Some(current) = sound.handle {
         state.stop(current);
     }
-    playback.gain = eng.resource::<bus::Buses>().borrow().gain(&playback.bus);
     let handle = state.play_with(bytes, playback);
-    if let Some(sound) = state.nodes.get_mut(&entity) {
-        sound.handle = Some(handle);
+    if let Some(node) = state.nodes.get_mut(&entity) {
+        node.handle = Some(handle);
     }
     Ok(handle)
 }
 
-/// Silence `entity`'s sound. A node without one is left alone.
+/// Silence `entity`'s sound, over its `fade_out_time`. A node without one is
+/// left alone.
 pub fn stop_on(eng: &Engine, entity: Entity) {
     let Some(state) = eng.try_resource::<AudioState>() else {
         return;
@@ -680,7 +914,34 @@ pub fn stop_on(eng: &Engine, entity: Entity) {
         .get_mut(&entity)
         .and_then(|sound| sound.handle.take());
     if let Some(handle) = stopped {
-        state.stop(handle);
+        state.release(handle);
+    }
+}
+
+/// Jump `entity`'s sound to `seconds` into the file it is playing. A node
+/// with nothing playing is left alone.
+pub fn seek_on(eng: &Engine, entity: Entity, seconds: f64) {
+    let state = eng.resource::<AudioState>();
+    let mut state = state.borrow_mut();
+    if let Some(handle) = state.nodes.get(&entity).and_then(|sound| sound.handle) {
+        state.seek(handle, seconds);
+    }
+}
+
+/// Move `entity`'s sound on to the next file in its queue. Past the last one
+/// it has played out, and the node announces `finished`.
+pub fn skip_on(eng: &Engine, entity: Entity) {
+    let ended = {
+        let state = eng.resource::<AudioState>();
+        let mut state = state.borrow_mut();
+        state
+            .nodes
+            .get(&entity)
+            .and_then(|sound| sound.handle)
+            .filter(|handle| state.skip(*handle))
+    };
+    if let Some(handle) = ended {
+        announce_finished(eng, &[handle]);
     }
 }
 
@@ -696,9 +957,8 @@ impl Default for AudioPlugin {
     }
 }
 
-/// Drop finished sinks, and stop the sounds of nodes that were freed.
-fn open_device() -> Option<backend::Device> {
-    match backend::open_default() {
+fn open_device(output: &OutputSettings, routes: &[bus::Route]) -> Option<backend::Device> {
+    match backend::Device::open(output, routes) {
         Ok(device) => Some(device),
         Err(err) => {
             tracing::warn!("audio disabled: {err}");
@@ -709,16 +969,19 @@ fn open_device() -> Option<backend::Device> {
 
 /// Open the device the first tick after the page has seen a gesture.
 fn open_on_activation_system(eng: &Engine, _: f32) {
-    let state = eng.resource::<AudioState>();
-    let mut state = state.borrow_mut();
-    if !state.awaiting_activation || eng.try_resource::<balaur_core::UserActivation>().is_none() {
+    let waiting = eng.resource::<AudioState>().borrow().awaiting_activation;
+    if !waiting || eng.try_resource::<balaur_core::UserActivation>().is_none() {
         return;
     }
+    ensure_loaded(eng);
+    let state = eng.resource::<AudioState>();
+    let mut state = state.borrow_mut();
     state.awaiting_activation = false;
     state.opened = true;
-    state.device = open_device();
+    state.device = open_device(&state.output, &state.routes);
 }
 
+/// Drop finished sinks, and stop the sounds of nodes that were freed.
 fn sweep_sounds_system(eng: &Engine, _: f32) {
     let state = eng.resource::<AudioState>();
     let mut state = state.borrow_mut();
@@ -729,6 +992,7 @@ fn sweep_sounds_system(eng: &Engine, _: f32) {
         playing,
         routing,
         spatial,
+        releasing,
         ..
     } = &mut *state;
     // A `Sound` lives here, not on the entity, so this is where a freed
@@ -756,7 +1020,7 @@ fn sweep_sounds_system(eng: &Engine, _: f32) {
         }
         if routing
             .get(handle)
-            .is_some_and(|routed| routed.left.is_none())
+            .is_some_and(|routed| !routed.timeline.counted())
         {
             spatial.shift_remove(handle);
             routing.shift_remove(handle);
@@ -764,26 +1028,57 @@ fn sweep_sounds_system(eng: &Engine, _: f32) {
         }
         false
     });
+    releasing.retain(|_, release| release.sink.as_ref().is_none_or(|sink| !sink.finished()));
     drop(world);
     drop(state);
     announce_finished(eng, &ended);
 }
 
-/// Count every timed sound down by a fixed step, and end the ones that ran
-/// out.
+/// Count every timed sound on by a fixed step, end the ones that ran out, and
+/// move every fade along.
 fn count_down_system(eng: &Engine, dt: f32) {
     let ended: Vec<u64> = {
         let state = eng.resource::<AudioState>();
         let mut state = state.borrow_mut();
+        let AudioState {
+            routing,
+            playing,
+            releasing,
+            ..
+        } = &mut *state;
         let mut ended = Vec::new();
-        for (handle, routed) in &mut state.routing {
-            if let Some(left) = &mut routed.left {
-                *left -= f64::from(dt) * f64::from(routed.pitch);
-                if *left <= 0.0 {
-                    ended.push(*handle);
+        for (handle, routed) in routing.iter_mut() {
+            if routed.paused {
+                continue;
+            }
+            if routed
+                .timeline
+                .advance(f64::from(dt) * f64::from(routed.pitch))
+            {
+                ended.push(*handle);
+                continue;
+            }
+            let fade = routed.end_fade();
+            if (fade - routed.fade).abs() > f32::EPSILON {
+                routed.fade = fade;
+                let applied = routed.mix();
+                if let Some(sink) = playing.get(handle) {
+                    sink.set_volume(applied);
                 }
             }
         }
+        releasing.retain(|_, release| {
+            release.left -= f64::from(dt);
+            let Some(sink) = &release.sink else {
+                return release.left > 0.0;
+            };
+            if release.left > 0.0 {
+                sink.set_volume(release.gain());
+                return true;
+            }
+            sink.stop();
+            false
+        });
         for handle in &ended {
             state.stop(*handle);
         }
@@ -826,12 +1121,17 @@ impl balaur_plugin::Plugin for AudioPlugin {
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
+        output::declare_settings(reg.engine());
         reg.insert_resource(AudioState {
             device: None,
             opened: false,
             awaiting_activation: cfg!(target_family = "wasm"),
+            configured: false,
+            output: OutputSettings::default(),
+            routes: Vec::new(),
             playing: DetHashMap::default(),
             routing: DetHashMap::default(),
+            releasing: DetHashMap::default(),
             nodes: DetHashMap::default(),
             spatial: DetHashMap::default(),
             listeners: DetHashMap::default(),
@@ -846,146 +1146,11 @@ impl balaur_plugin::Plugin for AudioPlugin {
         reg.add_system(Stage::PostUpdate, sweep_sounds_system);
         reg.add_system(Stage::FixedUpdate, count_down_system);
         reg.add_system(Stage::SceneSync, spatial::spatialize_system);
-        register_sound_component(reg);
+        component::register_sound_component(reg);
         spatial::register_listener_component(reg);
 
         let mut m = reg.script_module("audio")?;
         script_api::install_audio_api(&mut m);
         Ok(())
     }
-}
-
-/// The `sound` scene key: the one an editor-saved `[nodes.sound]` writes.
-///
-/// Takes the plugin `Registry` rather than `&mut App`: audio registers
-/// through the plugin seam, and `Registry::register_component` is that
-/// seam's spelling of the same operation.
-fn register_sound_component(reg: &mut balaur_plugin::Registry<'_>) {
-    reg.register_component(
-        "sound",
-        ComponentDef {
-            events: &[(FINISHED_EVENT, "the handle that played out")],
-            warnings: None,
-            doc: "A sound on the node: `file`, `volume_linear`, `pitch_scale` and `loop`. `autoplay` starts it on load, `node.sound.play()` triggers it, `positional` plays it from the node for the `listener`, and the node announces `finished` when it plays out.",
-            schema: ComponentDef::parse_schema(
-                "sound",
-                &balaur_core::components::ComponentDef::schema(&[
-                    (k::FILE, r#"{ type = "string", default = "", description = "Audio file, project-relative; required to play" }"#),
-                    (k::AUTOPLAY, r#"{ type = "bool", default = false, description = "Start playing when the node enters the scene" }"#),
-                    (k::VOLUME_LINEAR, r#"{ type = "float", default = 1.0, min = 0.0, description = "Linear gain; 1 is the file's own level" }"#),
-                    (k::PITCH_SCALE, r#"{ type = "float", default = 1.0, min = 0.01, description = "Playback speed multiplier" }"#),
-                    (k::LOOP, r#"{ type = "bool", default = false, description = "Restart the sound when it ends" }"#),
-                    (k::BUS, r#"{ type = "string", default = "", description = "Audio bus this plays through; empty is `master`" }"#),
-                    (k::POSITIONAL, r#"{ type = "bool", default = false, description = "Place the sound where the node is, heard from the `listener`" }"#),
-                    (k::MIN_DISTANCE, r#"{ type = "float", default = 1.0, min = 0.001, description = "Full volume within this distance of the listener" }"#),
-                    (k::MAX_DISTANCE, r#"{ type = "float", default = 50.0, min = 0.001, description = "Silent beyond this distance from the listener" }"#),
-                    (k::DOPPLER_LEVEL, r#"{ type = "float", default = 0.0, min = 0.0, description = "How much the closing speed bends the pitch; 0 is off, 1 physical" }"#),
-                ]),
-            ),
-            tags: &[balaur_core::components::tag::AUDIO],
-            expects: &[],
-            apply: Box::new(|eng, entity, params| {
-                apply_sound(eng, entity, params);
-                Ok(())
-            }),
-            remove: Box::new(|eng, entity| {
-                remove_sound(eng, entity);
-                Ok(())
-            }),
-            get: Box::new(sound_of),
-        },
-    );
-}
-
-fn apply_sound(eng: &Engine, entity: Entity, params: &toml::Value) {
-    let file = params
-        .get(k::FILE)
-        .and_then(toml::Value::as_str)
-        .unwrap_or_default()
-        .to_string();
-    let flag = |key: &str| params.get(key).and_then(toml::Value::as_bool) == Some(true);
-    let level =
-        |key: &str, default: f64| params.get(key).and_then(as_f64).unwrap_or(default) as f32;
-    let (autoplay, volume, pitch) = (
-        flag(k::AUTOPLAY),
-        level(k::VOLUME_LINEAR, 1.0),
-        level(k::PITCH_SCALE, 1.0),
-    );
-    let has_file = !file.trim().is_empty();
-    bus::ensure_loaded(eng);
-    let start = {
-        let buses = eng.resource::<Buses>();
-        let buses = buses.borrow();
-        let state = eng.resource::<AudioState>();
-        let mut state = state.borrow_mut();
-        let (file_changed, handle) = {
-            let sound = state.nodes.entry(entity).or_default();
-            let file_changed = sound.file != file;
-            sound.file = file;
-            sound.autoplay = autoplay;
-            sound.volume = volume;
-            sound.pitch = pitch;
-            sound.looped = flag(k::LOOP);
-            sound.bus = params
-                .get(k::BUS)
-                .and_then(toml::Value::as_str)
-                .unwrap_or_default()
-                .to_string();
-            sound.positional = flag(k::POSITIONAL);
-            sound.min_distance = level(k::MIN_DISTANCE, f64::from(DEFAULT_MIN_DISTANCE));
-            sound.max_distance = level(k::MAX_DISTANCE, f64::from(DEFAULT_MAX_DISTANCE));
-            sound.doppler = level(k::DOPPLER_LEVEL, 0.0);
-            // A `sound` now naming another file drops the old playback.
-            if file_changed {
-                (true, sound.handle.take())
-            } else {
-                (false, sound.handle)
-            }
-        };
-        match handle {
-            Some(handle) if file_changed => state.stop(handle),
-            // Volume and pitch land live on a sound already going.
-            Some(handle) => {
-                state.set_volume(handle, volume, &buses);
-                state.set_pitch(handle, pitch);
-            }
-            None => {}
-        }
-        let started = state.nodes.get(&entity).is_some_and(|s| s.handle.is_some());
-        autoplay && has_file && !started
-    };
-    // Re-applying the component must not restart a sound already started:
-    // the same rule the `animation` component holds for its autoplay clip.
-    if start && let Err(why) = play_on(eng, entity) {
-        tracing::warn!("sound autoplay: {why:#}");
-    }
-}
-
-fn remove_sound(eng: &Engine, entity: Entity) {
-    let Some(state) = eng.try_resource::<AudioState>() else {
-        return;
-    };
-    let mut state = state.borrow_mut();
-    let removed = state.nodes.shift_remove(&entity);
-    if let Some(handle) = removed.and_then(|sound| sound.handle) {
-        state.stop(handle);
-    }
-}
-
-fn sound_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
-    let state = eng.try_resource::<AudioState>()?;
-    let state = state.borrow();
-    let sound = state.nodes.get(&entity)?;
-    let mut out = toml::map::Map::new();
-    out.insert(k::FILE.into(), sound.file.clone().into());
-    out.insert(k::AUTOPLAY.into(), sound.autoplay.into());
-    out.insert(k::VOLUME_LINEAR.into(), f64::from(sound.volume).into());
-    out.insert(k::PITCH_SCALE.into(), f64::from(sound.pitch).into());
-    out.insert(k::LOOP.into(), sound.looped.into());
-    out.insert(k::BUS.into(), sound.bus.clone().into());
-    out.insert(k::POSITIONAL.into(), sound.positional.into());
-    out.insert(k::MIN_DISTANCE.into(), f64::from(sound.min_distance).into());
-    out.insert(k::MAX_DISTANCE.into(), f64::from(sound.max_distance).into());
-    out.insert(k::DOPPLER_LEVEL.into(), f64::from(sound.doppler).into());
-    Some(toml::Value::Table(out))
 }

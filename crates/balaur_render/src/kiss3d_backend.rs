@@ -4,6 +4,9 @@
 //! renderables into the kiss3d scene graph.
 
 pub(crate) mod geometry;
+mod grid;
+mod instances;
+mod present;
 mod screenshot;
 
 use balaur_core::time::Instant;
@@ -14,14 +17,8 @@ use balaur_core::{App, GlobalAppearance, GlobalTransform};
 use glamx::Pose3;
 use kiss3d::prelude::*;
 
-use crate::kiss3d_camera::{
-    CameraButtons, apply_camera, apply_camera_2d, apply_camera_input, publish_camera,
-    publish_camera_2d,
-};
-use crate::{
-    ClearColorConfig, GridConfig, PostConfig, Renderable2d, Renderable3d, Shape2d, WindowConfig,
-    WindowedBackend,
-};
+use crate::kiss3d_camera::{apply_camera, apply_camera_2d, publish_camera, publish_camera_2d};
+use crate::{ClearColorConfig, Renderable2d, Renderable3d, Shape2d, WindowConfig, WindowedBackend};
 
 struct Slot {
     node: SceneNode3d,
@@ -38,11 +35,19 @@ struct Slot {
     /// than pushed every frame because a mirror owns a render target, and
     /// asserting one every frame would rebuild it every frame.
     surface: Option<crate::material::Surface>,
+    /// The overlay as last pushed onto the node.
+    overlay: Option<crate::overlay::Overlay3d>,
+    /// A material with no shader, as last pushed onto kiss3d's own.
+    builtin: Option<crate::material::Builtin>,
     /// A model's simpler copies, when its import settings ask for them.
     lods: Option<crate::lods::Lods>,
     /// The topology a solver's mesh was last uploaded at (see
     /// `crate::skinned_3d`).
     solved: Option<u32>,
+    /// The child drawing the overlay when a Balaur pipeline draws the surface.
+    companion: Option<SceneNode3d>,
+    /// A `particles3d` node's live particles.
+    particles: Option<crate::particles_3d::Live3d>,
 }
 
 /// What a skinned 3D mesh keeps between frames: the vertices as authored,
@@ -80,13 +85,20 @@ pub(crate) struct Slot2d {
     /// The shear last written as the node's instance deformation, so a node
     /// that never leans never has its instance buffer touched.
     pub(crate) shear: f32,
+    /// The overlay as last pushed onto the node and its pieces.
+    pub(crate) overlay: Option<crate::overlay::Overlay2d>,
+    /// What a nine-slice sprite's mesh was built for, so a frame or a size
+    /// that moved builds it again.
+    pub(crate) nine: Option<crate::sprite::NineKey>,
+    /// The child drawing the overlay when a Balaur pipeline draws the surface.
+    pub(crate) companion: Option<SceneNode2d>,
 }
 
 /// Everything one frame of the render loop reads and writes, so the windowed
 /// and offscreen runners share a body instead of keeping two copies in step.
 struct Frontend {
-    camera: OrbitCamera3d,
-    camera_2d: PanZoomCamera2d,
+    camera: crate::kiss3d_camera::Eye,
+    camera_2d: crate::kiss3d_camera::Flat,
     scene: SceneNode3d,
     scene_2d: SceneNode2d,
     slots: HashMap<Entity, Slot>,
@@ -110,9 +122,6 @@ struct Frontend {
     /// Whether the on-screen keyboard was summoned last frame, so it is
     /// shown/hidden on the edge rather than re-requested every frame.
     keyboard_shown: bool,
-    /// The cameras' drag bindings as built: taking the pointer away from the
-    /// camera unbinds them, and these are what it puts back.
-    camera_buttons: CameraButtons,
     /// What the display says, measured frame by frame.
     device: crate::device::Probe,
     /// One node per authored `light3d`, and the default sun they retire.
@@ -127,10 +136,11 @@ struct Frontend {
     asset_generation: u64,
     /// The `camera.post` materials, each side of the tonemap.
     post: crate::post_material::PostChain,
+    present: present::Present,
 }
 
 impl Frontend {
-    fn new() -> Self {
+    fn new(settings: &balaur_core::project::WindowSettings) -> Self {
         let mut scene = SceneNode3d::empty();
         let mut lights = crate::light3d::LightSlots::default();
         let mut sun = scene.add_light(Light::directional(Vec3::new(-1.0, -1.0, -0.5)));
@@ -138,10 +148,8 @@ impl Frontend {
         // Kept rather than forgotten: the first authored `light3d` hides it,
         // and a scene that removes its lights gets it back.
         lights.adopt_sun(sun);
-        let camera = OrbitCamera3d::default();
-        let camera_2d = PanZoomCamera2d::default();
-        let camera_buttons =
-            CameraButtons::of(&crate::Lens3d::default(), &crate::Controls2d::default());
+        let camera = crate::kiss3d_camera::Eye::default();
+        let camera_2d = crate::kiss3d_camera::Flat::default();
         Self {
             camera,
             camera_2d,
@@ -167,9 +175,9 @@ impl Frontend {
             frame: 0,
             on_screen: true,
             keyboard_shown: false,
-            camera_buttons,
             device: crate::device::Probe::default(),
             asset_generation: 0,
+            present: present::Present::opened_with(settings),
         }
     }
 
@@ -181,9 +189,9 @@ impl Frontend {
         moved
     }
 
-    /// The 2D world: the sprites and polygons, the tilemaps, and the one
-    /// draw order over both of them.
-    fn sync_flat(&mut self, app: &App, reloaded: bool) {
+    /// The 2D world: the sprites and polygons, the tilemaps, particles and
+    /// text, the light map, and the one draw order over all of them.
+    fn sync_flat(&mut self, app: &App, window: &Window, reloaded: bool) {
         crate::sync_2d::sync_2d(
             app,
             &mut self.scene_2d,
@@ -199,49 +207,62 @@ impl Frontend {
             &mut self.materials,
             reloaded,
         );
+        // The step the frame actually ran, which under --fixed-tick is not
+        // the measured one.
+        let dt = app.engine.delta();
+        crate::particles::sync_particles(
+            app,
+            window,
+            &mut self.scene_2d,
+            &mut self.emitter_slots,
+            &mut crate::particles::ParticleFrame {
+                materials: &mut self.materials,
+                dt,
+                reloaded,
+            },
+        );
+        self.text.sync(
+            app,
+            (&mut self.scene_2d, &mut self.scene),
+            (&mut self.materials, &mut self.materials_3d),
+            window.height() as f32,
+        );
         self.layers_2d.want(app);
+        let composite = self.light_map.collect(app);
+        crate::lit_2d::feed_lights(app);
         crate::sync_2d::order_layer_2d(
             app,
             &mut self.scene_2d,
             &mut self.slots_2d,
             &mut self.batches_2d,
-            &mut self.tilemap_slots,
-            &self.layers_2d,
+            &crate::sync_2d::Placeable {
+                maps: &self.tilemap_slots,
+                text: &self.text,
+                emitters: &self.emitter_slots,
+                layers: &self.layers_2d,
+                composite,
+            },
             &mut self.order_2d,
         );
     }
 
-    /// One frame: apply what scripts asked for, tick, mirror the world into    /// One frame: apply what scripts asked for, tick, mirror the world into
+    /// One frame: apply what scripts asked for, tick, mirror the world into
     /// the scene graph, draw the overlays. Answers whether to keep going.
     fn step(&mut self, app: &mut App, window: &mut Window, dt: f32) -> bool {
-        apply_camera(app, &mut self.camera, &mut self.camera_buttons, window);
-        apply_camera_2d(app, &mut self.camera_2d, &mut self.camera_buttons, window);
-        apply_camera_input(
-            app,
-            &mut self.camera,
-            &mut self.camera_2d,
-            &self.camera_buttons,
-        );
+        apply_camera(app, &mut self.camera, window);
+        apply_camera_2d(app, &mut self.camera_2d, window);
         crate::app_icon::apply_app_icon(app, window, self.on_screen, self.frame);
         apply_window_config(app, window);
+        self.present.apply(app, window);
         publish_camera(app, &self.camera, window);
         publish_camera_2d(app, &self.camera_2d, window);
         apply_clear_color(app, window);
-        apply_post(app, window);
+        crate::post_material::apply_post(app, window);
         // After `apply_post`, which is what reads the camera's list.
         self.post
             .sync(app, window.canvas().surface_format(), self.asset_generation);
-        let seen = crate::kiss3d_input::pump_input(app, window);
-        // A pointer the camera is dragging with cannot change the shell, and
-        // on the web rebuilding it is most of the frame — so an orbit that
-        // crosses the toolbar costs the scene's redraw and nothing else.
-        let camera_enabled = app
-            .engine
-            .try_resource::<crate::CameraInputConfig>()
-            .is_none_or(|c| c.borrow().enabled);
-        let idle_motion = !seen.beyond_motion
-            && balaur_ui::pointer_is_dragging_elsewhere(window.egui_context(), camera_enabled);
-        let input_seen = seen.any && !idle_motion;
+        crate::post_material::feed_gi(&mut self.post, app);
+        let input_seen = crate::kiss3d_input::pump_input(app, window);
         apply_ui_zoom(app, window);
         self.device.publish(app, window, dt);
         app.advance(dt);
@@ -256,8 +277,10 @@ impl Frontend {
         // sees.
         #[allow(clippy::disallowed_methods)]
         let sync_started = Instant::now();
-        // Before the 2D syncs move nodes around underneath it.
-        self.light_map.detach();
+        // Before the 2D syncs: the order pass expects the scene to hold only
+        // what it placed last frame.
+        crate::draw_2d::clear(&mut self.transients);
+        self.text.clear_transients();
         sync(
             app,
             &mut self.scene,
@@ -269,21 +292,8 @@ impl Frontend {
         self.lights.sync(app, &mut self.scene);
         crate::light3d::sync_environment(app, window, &mut self.environment);
         self.probes.sync(app, window);
-        self.sync_flat(app, reloaded);
-        // The step the frame actually ran, which under --fixed-tick is not
-        // the measured one.
-        let dt = app.engine.delta();
-        crate::particles::sync_particles(
-            app,
-            window,
-            &mut self.scene_2d,
-            &mut self.emitter_slots,
-            dt,
-        );
-        // Last of the lit 2D syncs: the composite draws over everything the
-        // syncs above put in the scene.
-        self.light_map.sync(app, &mut self.scene_2d);
-        // Immediate shapes with no `z_index` go over the composite, unlit.
+        self.sync_flat(app, window, reloaded);
+        // Immediate shapes and text with no `z_index` go over the composite, unlit.
         crate::draw_2d::flush(
             app,
             window,
@@ -291,21 +301,14 @@ impl Frontend {
             &self.layers_2d,
             &mut self.transients,
         );
-        let tall = window.height() as f32;
-        crate::world_text::draw(
-            app,
-            &mut self.scene_2d,
-            &mut self.scene,
-            &self.layers_2d,
-            &mut self.text,
-            tall,
-        );
-        draw_grid(app, window);
+        self.text
+            .flush(app, &mut self.scene_2d, &mut self.scene, &self.layers_2d);
+        grid::draw_grid(app, window);
         crate::debug_lines::flush_debug_lines(app, window);
         crate::debug_lines::flush_debug_lines_2d(app, window);
         balaur_core::timings::record(&app.engine, "scene mirror", sync_started.elapsed());
         // A lazy UI skips the pass; the last one's shapes are drawn again.
-        if balaur_ui::wants_pass(&app.engine, window.egui_context(), input_seen, idle_motion) {
+        if balaur_ui::wants_pass(&app.engine, window.egui_context(), input_seen) {
             window.draw_ui(|ctx| {
                 balaur_ui::run_pass(&app.engine, ctx);
                 // After the widget pass and on the layer below it: the pass
@@ -321,7 +324,7 @@ impl Frontend {
             window.set_keyboard_visible(wants_keyboard);
         }
         self.frame += 1;
-        screenshot::take_if_due(app, window, self.frame);
+        screenshot::take_if_due(app, window, self.frame, (&mut self.scene, &mut self.camera));
         !app.engine.quit_requested()
     }
 }
@@ -398,13 +401,7 @@ pub async fn run_windowed_async(
     let setup = CanvasSetup {
         canvas_id: canvas_id.unwrap_or("canvas").to_string(),
         vsync: window_settings.vsync,
-        samples: NumSamples::from_u32(window_settings.msaa).unwrap_or_else(|| {
-            tracing::warn!(
-                "project.toml asks for msaa = {}; this renderer offers 1 or 4, using 4",
-                window_settings.msaa
-            );
-            NumSamples::Four
-        }),
+        samples: present::samples_of(&window_settings),
         ..CanvasSetup::default()
     };
     let phase = balaur_core::timings::Phase::start();
@@ -424,7 +421,7 @@ pub async fn run_windowed_async(
         });
     }
     window.set_ime_allowed(true);
-    let mut f = Frontend::new();
+    let mut f = Frontend::new(&window_settings);
     // `[window] max_fps`: vsync already paces a display running at the tick
     // rate, and this is what caps the loop where it does not.
     let budget = app.frame_budget();
@@ -561,11 +558,17 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
         // Not `new_hidden_*`: a hidden window still needs a display server.
         // Surface-less rendering runs on a CI box with no display at all.
         let phase = balaur_core::timings::Phase::start();
-        let mut window =
-            Window::new_headless_with_setup(width, height, CanvasSetup::default()).await;
+        // A headless window draws at the sample count its setup asks, so a
+        // shot is antialiased as `[window] msaa` says.
+        let window_settings = balaur_core::project::WindowSettings::from_settings(&app.engine);
+        let setup = CanvasSetup {
+            samples: present::samples_of(&window_settings),
+            ..CanvasSetup::default()
+        };
+        let mut window = Window::new_headless_with_setup(width, height, setup).await;
         phase.note("renderer");
         window.set_ui_retained(true);
-        let mut f = Frontend::new();
+        let mut f = Frontend::new(&window_settings);
         f.on_screen = false;
         // Nothing can close a target that was never shown, and there is no
         // vsync to block on, so the loop runs until the app asks to stop --
@@ -617,77 +620,6 @@ fn chain_of(
         .iter_mut()
         .map(|pass| pass as &mut dyn kiss3d::post_processing::PostProcessingEffect)
         .collect()
-}
-
-/// Apply the screen-space effects the current `camera` asked for.
-///
-/// Only on the edge: kiss3d rebuilds its post chain when one of these
-/// switches, so re-asserting them every frame would rebuild it every frame.
-fn apply_post(app: &App, window: &mut Window) {
-    let Some(post) = app.engine.try_resource::<PostConfig>() else {
-        return;
-    };
-    let mut post = post.borrow_mut();
-    if !post.changed {
-        return;
-    }
-    post.changed = false;
-    window.set_bloom_enabled(post.bloom);
-    window.set_bloom(post.bloom_threshold, post.bloom_intensity);
-    window.set_ssao_enabled(post.ssao);
-    if post.ssao {
-        // Only when the pass is on: asking for the settings builds the SSAO
-        // state, and a scene that never occludes should not pay for it.
-        let ssao = window.ssao_settings_mut();
-        ssao.radius = post.occlusion.radius;
-        ssao.bias = post.occlusion.bias;
-        ssao.intensity = post.occlusion.intensity;
-        ssao.power = post.occlusion.power;
-    }
-    window.set_ssr_enabled(post.ssr);
-    window.set_dof_enabled(post.dof);
-    // Bloom and auto-exposure compile on demand, so a project that never uses
-    // them never builds them. Here is where the settings changed, which is a
-    // better place to wait for a compiler than the first frame that draws one.
-    window.prepare_post();
-}
-
-/// Ground-plane grid, drawn as per-frame lines on the XZ plane.
-fn draw_grid(app: &App, window: &mut Window) {
-    let Some(grid) = app.engine.try_resource::<GridConfig>() else {
-        return;
-    };
-    let grid = grid.borrow();
-    if !grid.enabled {
-        return;
-    }
-    let half = grid.extent as f32 * grid.step;
-    let [mr, mg, mb] = grid.minor_color;
-    let [jr, jg, jb] = grid.major_color;
-    for i in -grid.extent..=grid.extent {
-        let offset = i as f32 * grid.step;
-        let major = grid.major_every > 0 && i.rem_euclid(grid.major_every.cast_signed()) == 0;
-        let color = if major {
-            Color::new(jr, jg, jb, 1.0)
-        } else {
-            Color::new(mr, mg, mb, 1.0)
-        };
-        let width = if i == 0 { 2.0 } else { 1.0 };
-        window.draw_line(
-            Vec3::new(offset, 0.0, -half),
-            Vec3::new(offset, 0.0, half),
-            color,
-            width,
-            true,
-        );
-        window.draw_line(
-            Vec3::new(-half, 0.0, offset),
-            Vec3::new(half, 0.0, offset),
-            color,
-            width,
-            true,
-        );
-    }
 }
 
 /// Apply fullscreen and cursor state scripts asked for since the last frame.
@@ -817,8 +749,12 @@ fn sync(
                     skin,
                     palette,
                     surface: None,
+                    overlay: None,
+                    builtin: None,
                     lods,
                     solved: None,
+                    companion: None,
+                    particles: None,
                 },
             );
         }
@@ -839,24 +775,49 @@ fn sync(
             .set_color(Color::new(r, g, b, a))
             .set_visible(visible);
         lit_and_layered(&mut slot.node, renderable);
-        let mut surface = crate::material::surface_of(&app.engine, reference);
-        // A solver's surface can be an open sheet, and a cloth has no inside
-        // to cull away; without a material of its own it draws both sides.
-        surface.double_sided |= reference.is_empty() && slot.solved.is_some();
-        if slot.surface != Some(surface) {
-            apply_surface(&mut slot.node, &surface);
-            slot.surface = Some(surface);
-        }
-        // How far the mesh is blended towards each of its shapes, this tick.
-        if let Ok(morphs) = world.get::<&crate::MorphWeights>(entity) {
-            slot.node.set_morph_weights(&morphs.weights);
-        }
-        if let Ok(multimesh) = world.get::<&crate::MultiMesh>(entity) {
-            crate::instancing::draw_multimesh_3d(&mut slot.node, &multimesh, global);
-        }
+        dress(app, slot, renderable, reference);
+        crate::overlay::follow_3d(slot.companion.as_mut(), Color::new(r, g, b, a), scale);
+        instances::draw(app, &world, entity, slot, (global, eye, visible));
     }
     crate::batch_3d::flush(batches);
     drop_unseen(slots, &seen);
+}
+
+/// What a node draws with beyond its geometry: the material's `[surface]`,
+/// the renderable's overlay and a shader-less material's values, each pushed
+/// only when it moved.
+fn dress(app: &App, slot: &mut Slot, renderable: &Renderable3d, reference: &str) {
+    let mut surface = crate::material::surface_of(&app.engine, reference);
+    // A solver's surface can be an open sheet, and a cloth has no inside
+    // to cull away; without a material of its own it draws both sides.
+    surface.double_sided |= reference.is_empty() && slot.solved.is_some();
+    if slot.surface != Some(surface) {
+        apply_surface(&mut slot.node, &surface);
+        slot.surface = Some(surface);
+    }
+    let builtin = crate::material::builtin_of(&app.engine, reference);
+    if slot.overlay != Some(renderable.overlay) {
+        crate::overlay::apply_3d(&mut slot.node, &renderable.overlay);
+        // A skinned mesh is posed in Balaur's vertex stage, and a companion
+        // sharing its rest geometry would draw the lines where it stood.
+        let pipeline = !reference.is_empty() && builtin.is_none() && slot.palette.is_none();
+        crate::overlay::companion_3d(
+            &mut slot.node,
+            &mut slot.companion,
+            &renderable.overlay,
+            pipeline,
+        );
+        slot.overlay = Some(renderable.overlay);
+    }
+    if slot.builtin != builtin {
+        crate::builtin_material::apply(
+            app,
+            &mut slot.node,
+            builtin.as_ref(),
+            slot.builtin.as_ref(),
+        );
+        slot.builtin = builtin;
+    }
 }
 
 /// Hand a node to the group that now draws it. A slot from before it joined
@@ -893,11 +854,12 @@ fn drop_unseen(slots: &mut HashMap<Entity, Slot>, seen: &HashSet<Entity>) {
 /// which pass it joins, and the scene walk that collects the refracting
 /// surfaces runs before any material is asked anything.
 pub(crate) fn apply_surface(node: &mut SceneNode3d, surface: &crate::material::Surface) {
-    use crate::material::AlphaMode;
+    use crate::material::{AlphaMode, TraceSurface};
     node.set_alpha_mode(match surface.alpha {
         AlphaMode::Opaque => kiss3d::scene::AlphaMode::Opaque,
         AlphaMode::Mask => kiss3d::scene::AlphaMode::Mask(surface.alpha_cutoff),
         AlphaMode::Blend => kiss3d::scene::AlphaMode::Blend,
+        AlphaMode::Premultiplied => kiss3d::scene::AlphaMode::Premultiplied,
     });
     node.enable_backface_culling(!surface.double_sided);
     // A mirror owns a render target the window resizes and draws into, so
@@ -909,11 +871,26 @@ pub(crate) fn apply_surface(node: &mut SceneNode3d, surface: &crate::material::S
             .with_intensity(surface.mirror_intensity)
             .with_normal_falloff(surface.mirror_falloff)
     }));
+    node.set_reflector_resolution_scale(surface.mirror_resolution_scale);
+    node.set_reflector_render_layers(surface.mirror_render_layers);
     node.set_transmission(surface.transmission);
     node.set_ior(surface.ior);
     node.set_thickness(surface.thickness);
     let [r, g, b, _] = surface.attenuation_color;
-    node.set_attenuation(Color::new(r, g, b, 1.0), surface.attenuation_distance);
+    node.set_attenuation(Color::new(r, g, b, 1.0), surface.absorbing_distance());
+    node.set_bsdf(match surface.trace_surface {
+        TraceSurface::Opaque => kiss3d::scene::Bsdf::Opaque,
+        TraceSurface::Glass => kiss3d::scene::Bsdf::Glass,
+        TraceSurface::Metal => kiss3d::scene::Bsdf::Metal,
+        TraceSurface::Light => kiss3d::scene::Bsdf::Emissive,
+    });
+    let ssr = surface.ssr;
+    node.set_ssr(ssr.on.then_some(kiss3d::renderer::SsrMaterial {
+        intensity: ssr.intensity,
+        infinite_thick: ssr.infinite_thickness,
+        distance_attenuation: ssr.distance_fade,
+        fresnel: ssr.fresnel,
+    }));
 }
 
 /// Whatever rewrites this node's vertices this frame: a rig's joint palette,
@@ -1038,7 +1015,7 @@ pub(crate) fn build_polyline_node(
         return None;
     }
     let style = renderable.line.as_ref();
-    let texture = style.map(|s| s.texture.as_str()).unwrap_or_default();
+    let texture = renderable.texture.as_str();
     let gradient = style.filter(|s| s.gradient.is_some());
     let bands = gradient.map_or(1, |s| s.gradient_steps);
     let mut group = scene.add_group();
@@ -1147,4 +1124,23 @@ fn polyline_points(app: &App, reference: Option<&str>, closed: bool) -> Vec<Vec2
         points.push(points[0]);
     }
     points
+}
+
+#[cfg(test)]
+mod tests {
+    use balaur_core::project::WindowSettings;
+    use kiss3d::window::NumSamples;
+
+    #[test]
+    fn a_run_asks_its_canvas_for_the_sample_count_the_project_names() {
+        let at = |msaa| {
+            super::present::samples_of(&WindowSettings {
+                msaa,
+                ..WindowSettings::default()
+            })
+        };
+        assert_eq!(at(1), NumSamples::One, "msaa = 1 is off");
+        assert_eq!(at(4), NumSamples::Four);
+        assert_eq!(at(8), NumSamples::Four, "a count it lacks takes four");
+    }
 }

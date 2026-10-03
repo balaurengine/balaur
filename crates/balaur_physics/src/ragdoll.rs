@@ -35,7 +35,7 @@ use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 use glamx::{Quat, Vec3};
 
-use crate::vocabulary::{component as c, keys as k, words as w};
+use crate::vocabulary::{Opts, component as c, keys as k, words as w};
 
 /// The `ragdoll` component's own keys.
 pub(crate) const INFLUENCE: &str = "influence";
@@ -59,49 +59,128 @@ struct Recipe {
     thickness: f32,
     density: f32,
     friction: f32,
-    /// The hinge's low and high, in radians; equal values mean no limit.
-    limits: [f32; 2],
     blend: f32,
+    shape: String,
+    articulation: bool,
+    collide_connected: bool,
+    /// `axes` records every joint takes, over the build pose.
+    axes: Vec<toml::Value>,
+    /// A position motor's stiffness and damping on every turn, when `drive`
+    /// is `motors`.
+    motors: Option<(f32, f32)>,
+    /// The `follow3d`/`follow2d` table every body takes towards its bone, when
+    /// `drive` is `follow`.
+    follow: Option<toml::Value>,
+    /// Rows the bodies take only when the call names them.
+    body: toml::map::Map<String, toml::Value>,
+    /// The same for the colliders.
+    collider: toml::map::Map<String, toml::Value>,
 }
 
+/// A drive motor's stiffness and damping when the call names neither: an
+/// acceleration of 100 per radian, critically damped.
+const DRIVE_STIFFNESS: f32 = 100.0;
+const DRIVE_DAMPING: f32 = 20.0;
+
 impl Recipe {
-    fn of(opts: Option<&Value>) -> Self {
-        let mut out = Self {
-            thickness: DEFAULT_THICKNESS,
-            density: 1.0,
-            friction: 0.5,
-            limits: [0.0, 0.0],
-            blend: 1.0,
-        };
-        let Some(Value::Map(entries)) = opts else {
-            return out;
-        };
-        let number = |v: &Value| match v {
-            Value::Num(n) => Some(*n as f32),
-            Value::Int(n) => Some(*n as f32),
-            _ => None,
-        };
-        for (key, value) in entries {
-            match key.as_str() {
-                "thickness" => out.thickness = number(value).unwrap_or(out.thickness).max(0.001),
-                k::DENSITY => out.density = number(value).unwrap_or(out.density).max(0.0),
-                k::FRICTION => out.friction = number(value).unwrap_or(out.friction).max(0.0),
-                INFLUENCE => out.blend = number(value).unwrap_or(out.blend).clamp(0.0, 1.0),
-                k::LIMITS => {
-                    if let Value::List(pair) = value
-                        && pair.len() >= 2
-                    {
-                        out.limits = [
-                            number(&pair[0]).unwrap_or(0.0),
-                            number(&pair[1]).unwrap_or(0.0),
-                        ];
-                    }
+    fn of(opts: Option<&Value>, dim3: bool) -> Result<Self> {
+        let opts = Opts(opts);
+        let number = |key: &str, default: f32| opts.f32(key, default);
+        let shapes = if dim3 { SHAPES_3D } else { SHAPES_2D };
+        let shape = opts.text(k::SHAPE).unwrap_or(w::CAPSULE).to_string();
+        if !shapes.contains(&shape.as_str()) {
+            return Err(anyhow!(
+                "a ragdoll's `shape` is one of {}, not `{shape}`",
+                shapes.join(", ")
+            ));
+        }
+        let (mut motors, mut follow) = (None, None);
+        match opts.text(k::DRIVE).unwrap_or(w::NONE) {
+            w::NONE => {}
+            w::MOTORS => {
+                motors = Some((
+                    number(k::STIFFNESS, DRIVE_STIFFNESS).max(0.0),
+                    number(k::DAMPING, DRIVE_DAMPING).max(0.0),
+                ));
+            }
+            w::FOLLOW => {
+                let table = match opts.get(k::FOLLOW) {
+                    Some(value) => balaur_core::node_api::to_toml(value)?,
+                    None => toml::Value::Table(toml::map::Map::new()),
+                };
+                if !table.is_table() {
+                    return Err(anyhow!(
+                        "a ragdoll's `follow` is a follow3d or follow2d table"
+                    ));
                 }
-                _ => {}
+                follow = Some(table);
+            }
+            other => {
+                return Err(anyhow!(
+                    "a ragdoll's `drive` is one of {}, not `{other}`",
+                    w::RAGDOLL_DRIVES.join(", ")
+                ));
             }
         }
-        out
+        let axes = match opts.get(k::AXES) {
+            Some(value) => match balaur_core::node_api::to_toml(value)? {
+                toml::Value::Array(records) => records,
+                _ => return Err(anyhow!("a ragdoll's `axes` is a list of axis records")),
+            },
+            None => Vec::new(),
+        };
+        let mut body = toml::map::Map::new();
+        for key in [k::LINEAR_DAMPING, k::ANGULAR_DAMPING, k::GRAVITY_SCALE] {
+            if opts.get(key).is_some() {
+                body.insert(key.into(), toml::Value::Float(f64::from(number(key, 0.0))));
+            }
+        }
+        if opts.get(k::CONTINUOUS_COLLISION).is_some() {
+            let on = opts.boolean(k::CONTINUOUS_COLLISION, false);
+            body.insert(k::CONTINUOUS_COLLISION.into(), on.into());
+        }
+        let mut collider = toml::map::Map::new();
+        if opts.get(k::RESTITUTION).is_some() {
+            let bounce = number(k::RESTITUTION, 0.0).clamp(0.0, 1.0);
+            collider.insert(k::RESTITUTION.into(), toml::Value::Float(f64::from(bounce)));
+        }
+        for key in [k::COLLISION_LAYER, k::COLLISION_MASK] {
+            if let Some(items) = opts.list(key) {
+                collider.insert(key.into(), layers(items)?);
+            }
+        }
+        Ok(Self {
+            thickness: number(k::THICKNESS, DEFAULT_THICKNESS).max(0.001),
+            density: number(k::DENSITY, 1.0).max(0.0),
+            friction: number(k::FRICTION, 0.5).max(0.0),
+            blend: number(INFLUENCE, 1.0).clamp(0.0, 1.0),
+            shape,
+            articulation: opts.boolean(k::ARTICULATION, false),
+            collide_connected: opts.boolean(k::COLLIDE_CONNECTED, false),
+            axes,
+            motors,
+            follow,
+            body,
+            collider,
+        })
     }
+}
+
+/// The shapes a bone's body may take, along the bone.
+const SHAPES_3D: &[&str] = &[w::CAPSULE, w::BOX, w::SPHERE];
+const SHAPES_2D: &[&str] = &[w::CAPSULE, w::RECTANGLE, w::CIRCLE];
+
+/// Layer numbers a script wrote, as the strings a `flags` property holds.
+fn layers(items: &[Value]) -> Result<toml::Value> {
+    items
+        .iter()
+        .map(|item| match item {
+            Value::Int(n) => Ok(toml::Value::String(n.to_string())),
+            Value::Str(text) => Ok(toml::Value::String(text.clone())),
+            _ => Err(anyhow!("a layer is a number from 1 to 32")),
+        })
+        .collect::<Result<Vec<_>>>()
+        .map(toml::Value::Array)
 }
 
 /// One bone's segment in world space: where it starts, where it ends, how
@@ -218,7 +297,7 @@ pub fn build_3d(eng: &Engine, rig: Entity, opts: Option<&Value>) -> Result<Vec<E
 }
 
 fn build(eng: &Engine, rig: Entity, opts: Option<&Value>, dim3: bool) -> Result<Vec<Entity>> {
-    let recipe = Recipe::of(opts);
+    let recipe = Recipe::of(opts, dim3)?;
     let segments = segments(eng, rig, dim3);
     if segments.is_empty() {
         return Err(anyhow!(
@@ -253,7 +332,14 @@ fn build(eng: &Engine, rig: Entity, opts: Option<&Value>, dim3: bool) -> Result<
         ) else {
             continue;
         };
-        add_joint(eng, node, other, segment, &recipe, dim3)?;
+        let parent_rotation = segments
+            .iter()
+            .find(|s| s.bone == parent)
+            .map_or(Quat::IDENTITY, |s| s.rotation);
+        add_joint(eng, node, other, segment, parent_rotation, &recipe, dim3)?;
+    }
+    if let Some(follow) = &recipe.follow {
+        add_follows(eng, &made, follow, dim3)?;
     }
     let bodies = relative_path(&eng.world(), rig, container);
     let mut params = toml::map::Map::new();
@@ -295,17 +381,33 @@ fn spawn_body(
     }
     let body = if dim3 { c::BODY_3D } else { c::BODY_2D };
     let collider = if dim3 { c::COLLIDER_3D } else { c::COLLIDER_2D };
-    let mut kind = toml::map::Map::new();
+    let mut kind = recipe.body.clone();
     kind.insert(k::KIND.into(), toml::Value::String(w::DYNAMIC.into()));
     balaur_core::components::add(eng, node, body, Some(&toml::Value::Table(kind)))?;
-    let mut shape = toml::map::Map::new();
-    shape.insert(k::KIND.into(), toml::Value::String(w::CAPSULE.into()));
-    shape.insert(
-        k::RADIUS.into(),
-        toml::Value::Float(f64::from(length * recipe.thickness)),
-    );
-    // Tip to tip, the capsule is as long as the bone.
-    shape.insert(k::HEIGHT.into(), toml::Value::Float(f64::from(length)));
+    let mut shape = recipe.collider.clone();
+    let radius = length * recipe.thickness;
+    let float = |x: f32| toml::Value::Float(f64::from(x));
+    shape.insert(k::KIND.into(), toml::Value::String(recipe.shape.clone()));
+    match recipe.shape.as_str() {
+        // Tip to tip, the capsule is as long as the bone.
+        w::CAPSULE => {
+            shape.insert(k::RADIUS.into(), float(radius));
+            shape.insert(k::HEIGHT.into(), float(length));
+        }
+        // Centred on the bone's middle, so the ball spans the bone.
+        w::SPHERE | w::CIRCLE => {
+            shape.insert(k::RADIUS.into(), float(length * 0.5));
+        }
+        // As long as the bone and as thick as the capsule would be.
+        _ => {
+            let width = float(radius * 2.0);
+            let mut size = vec![width.clone(), float(length)];
+            if dim3 {
+                size.push(width);
+            }
+            shape.insert(k::SIZE.into(), toml::Value::Array(size));
+        }
+    }
     shape.insert(
         k::DENSITY.into(),
         toml::Value::Float(f64::from(recipe.density)),
@@ -328,13 +430,15 @@ fn spawn_body(
     Ok(node)
 }
 
-/// The hinge holding a bone's body to its parent bone's, anchored where the
-/// two actually meet rather than at either body's middle.
+/// The joint holding a bone's body to its parent bone's, a ball socket in 3D
+/// and a hinge in 2D, anchored where the two actually meet rather than at
+/// either body's middle, with its zero at the pose the rig was built in.
 fn add_joint(
     eng: &Engine,
     node: Entity,
     other: Entity,
     segment: &Segment,
+    parent_rotation: Quat,
     recipe: &Recipe,
     dim3: bool,
 ) -> Result<()> {
@@ -354,19 +458,75 @@ fn add_joint(
     params.insert(k::CONNECTED_BODY.into(), toml::Value::String(path));
     params.insert(k::ANCHOR.into(), vector(mine, dim3));
     params.insert(k::CONNECTED_ANCHOR.into(), vector(theirs, dim3));
-    #[allow(clippy::float_cmp, reason = "a recipe's own pair, not a computed one")]
-    let limited = recipe.limits[0] != recipe.limits[1];
-    if limited {
-        params.insert(
-            k::LIMITS.into(),
-            toml::Value::Array(vec![
-                toml::Value::Float(f64::from(recipe.limits[0])),
-                toml::Value::Float(f64::from(recipe.limits[1])),
-            ]),
-        );
+    // The parent's frame holds the turn between the two bones, so the joint's
+    // zero, its limits and its drive all measure from the built pose.
+    let between = parent_rotation.inverse() * segment.rotation;
+    let rest = if dim3 {
+        let (x, y, z) = between.to_euler(glamx::EulerRot::XYZ);
+        vector(Vec3::new(x, y, z), true)
+    } else {
+        let (z, _, _) = between.to_euler(glamx::EulerRot::ZYX);
+        toml::Value::Float(f64::from(z))
+    };
+    params.insert(k::CONNECTED_ANCHOR_ROTATION.into(), rest);
+    if recipe.articulation {
+        params.insert(k::ARTICULATION.into(), true.into());
+    }
+    if recipe.collide_connected {
+        params.insert(k::COLLIDE_CONNECTED.into(), true.into());
+    }
+    let records = axis_records(recipe, dim3);
+    if !records.is_empty() {
+        params.insert(k::AXES.into(), toml::Value::Array(records));
     }
     let joint = if dim3 { c::JOINT_3D } else { c::JOINT_2D };
     balaur_core::components::add(eng, node, joint, Some(&toml::Value::Table(params)))
+}
+
+/// A follow on every body, towards the bone it was built from. The clip has
+/// written the bone by the fixed step, so the bodies chase the animation.
+fn add_follows(
+    eng: &Engine,
+    made: &[(Entity, Entity)],
+    follow: &toml::Value,
+    dim3: bool,
+) -> Result<()> {
+    let component = if dim3 { c::FOLLOW_3D } else { c::FOLLOW_2D };
+    for &(bone, node) in made {
+        let mut params = follow.clone();
+        let target = relative_path(&eng.world(), node, bone);
+        if let Some(table) = params.as_table_mut() {
+            table.insert(k::TARGET.into(), toml::Value::String(target));
+        }
+        balaur_core::components::add(eng, node, component, Some(&params))?;
+    }
+    Ok(())
+}
+
+/// Each joint's `axes`: the call's own records, with a position motor
+/// towards the built pose on every turn when `drive` is `motors`.
+fn axis_records(recipe: &Recipe, dim3: bool) -> Vec<toml::Value> {
+    let mut records = recipe.axes.clone();
+    let Some((stiffness, damping)) = recipe.motors else {
+        return records;
+    };
+    let turns: &[&str] = if dim3 {
+        &[w::ROTATION_X, w::ROTATION_Y, w::ROTATION_Z]
+    } else {
+        &[w::ROTATION]
+    };
+    for turn in turns {
+        let at = records
+            .iter()
+            .position(|r| r.get(k::AXIS).and_then(toml::Value::as_str) == Some(turn));
+        let mut record = match at {
+            Some(i) => records.remove(i).as_table().cloned().unwrap_or_default(),
+            None => crate::shared::joint::default_record(turn),
+        };
+        crate::shared::joint::position_motor(&mut record, 0.0, stiffness, damping);
+        records.push(toml::Value::Table(record));
+    }
+    records
 }
 
 fn vector(v: Vec3, dim3: bool) -> toml::Value {
@@ -575,13 +735,23 @@ pub(crate) fn blend_system(eng: &Engine, _dt: f32) {
 /// `ragdoll`, on both `physics2d` and `physics3d`.
 pub(crate) fn install_ragdoll_api(m: &mut dyn Bindings<Engine>, dim3: bool) {
     let doc = if dim3 {
-        "Build a 3D ragdoll from the rig under this node: a body and a capsule per bone, hinged \
-         to its parent's. The options table takes `thickness` (capsule radius as a fraction of \
-         bone length), `density`, `friction`, `limits` and `influence`. Answers the body nodes it made."
+        "Build a 3D ragdoll from the rig under this node: a body and a shape per bone, held to \
+         its parent's by a ball socket whose zero is the pose the rig is in. Options: `shape` \
+         (`capsule`, `box` or `sphere`), `thickness` (the capsule's radius and the box's half \
+         width, as a fraction of bone length), `density`, `friction`, `restitution`, \
+         `collision_layer` and `collision_mask` (layer numbers) for the shapes; \
+         `linear_damping`, `angular_damping`, `gravity_scale` and `continuous_collision` for \
+         the bodies; `axes` (joint3d `axes` records, on `rotation_x`, `rotation_y`, \
+         `rotation_z`: twist and swing limits), `articulation` and `collide_connected` for the \
+         joints; `drive` (`none`, or `motors`: a position motor on every turn towards the built \
+         pose, of `stiffness` 100 and `damping` 20 unless given; or `follow`: a `follow3d` on \
+         every body towards its bone, so the bodies chase the clip, its keys in a `follow` \
+         table); and `influence`. Answers the body nodes it made."
     } else {
-        "Build a 2D ragdoll from the rig under this node: a body and a capsule per bone, hinged \
-         to its parent's. The options table takes `thickness` (capsule radius as a fraction of \
-         bone length), `density`, `friction`, `limits` and `influence`. Answers the body nodes it made."
+        "Build a 2D ragdoll from the rig under this node: a body and a shape per bone, hinged to \
+         its parent's with the hinge's zero at the pose the rig is in. Options as in 3D, with \
+         `shape` one of `capsule`, `rectangle` or `circle` and `axes` records on `rotation`. \
+         Answers the body nodes it made."
     };
     m.describe(&[("ragdoll", &[], "(node: node, opts: table) -> list", doc)]);
     m.function(

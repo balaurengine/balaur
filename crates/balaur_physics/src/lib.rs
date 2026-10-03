@@ -10,7 +10,6 @@
 
 use anyhow::{Result, anyhow};
 use balaur_plugin::Registry;
-use serde::Deserialize as _;
 
 use balaur_core::collections::DetHashMap;
 
@@ -36,16 +35,24 @@ pub mod collider;
 pub mod debug;
 pub mod dim2;
 pub mod events;
+pub mod follow;
 pub mod geometry;
 pub mod joint;
 pub mod query;
 pub mod ragdoll;
+mod readers;
 pub(crate) mod scalar;
+mod shapes;
 mod shared;
+mod snapshot;
+pub(crate) use snapshot::{
+    NodeKey, authored, filled, frame_value, key_of, keyed, resolve_key, resolved, world_bytes,
+};
 pub mod softbody;
 pub mod tuning;
 pub mod vehicle;
 mod vocabulary;
+mod voxels;
 use crate::vocabulary::{component as c, hook, words as w};
 
 pub use dim2::PhysicsState2d;
@@ -62,6 +69,8 @@ pub struct PhysicsState3d {
     pub bodies: DetHashMap<Entity, RigidBodyHandle>,
     /// Colliders per entity (attached to the entity's body, or standalone).
     pub colliders: DetHashMap<Entity, Vec<ColliderHandle>>,
+    /// What each body's author wrote that rapier keeps no copy of.
+    pub(crate) body_authored: DetHashMap<Entity, crate::shared::body::Authored>,
     /// Colliders removed since the last step, by the node that owned them.
     /// Rapier reports the contacts they ended during the next step, when
     /// their handles resolve to nothing.
@@ -85,13 +94,20 @@ pub struct PhysicsState3d {
     /// so a live edit still shows through.
     pub collider_params: DetHashMap<Entity, toml::Value>,
     pub joint_params: DetHashMap<Entity, toml::Value>,
+    /// What the contact hook reads per collider: one-way platforms and
+    /// conveyor belts.
+    pub(crate) surfaces: events::Surfaces,
     /// While paused the simulation does not step (editors pause by default
     /// and unpause on play).
     pub paused: bool,
     /// What a script set on each wheel, and what the last step left there.
-    /// Beside the world because rapier's vehicle controller is rebuilt every
-    /// step (see [`vehicle`]).
+    /// Beside the controller, so a script can drive a wheel before the first
+    /// step makes one (see [`vehicle`]).
     pub wheel_inputs: DetHashMap<Entity, vehicle::WheelInput3d>,
+    /// Each chassis's rapier controller, kept across steps.
+    pub vehicles: DetHashMap<Entity, vehicle::VehicleRef3d>,
+    /// Each `follow3d`'s controller, kept across steps for a PID's integrals.
+    pub follows: DetHashMap<Entity, follow::FollowRef3d>,
     /// What the last `move_character` found under each character's feet, so
     /// `is_on_floor` can answer without sweeping the shape again.
     pub grounded: DetHashMap<Entity, bool>,
@@ -118,6 +134,7 @@ impl PhysicsState3d {
             world: PhysicsWorld::default(),
             bodies: DetHashMap::default(),
             colliders: DetHashMap::default(),
+            body_authored: DetHashMap::default(),
             gone: DetHashMap::default(),
             asleep: balaur_core::collections::DetHashSet::default(),
             joints: DetHashMap::default(),
@@ -125,9 +142,12 @@ impl PhysicsState3d {
             soft_params: DetHashMap::default(),
             collider_params: DetHashMap::default(),
             joint_params: DetHashMap::default(),
+            surfaces: events::Surfaces::default(),
             paused: false,
             queries_ready: false,
             wheel_inputs: DetHashMap::default(),
+            vehicles: DetHashMap::default(),
+            follows: DetHashMap::default(),
             grounded: DetHashMap::default(),
             shape_revision: 0,
             sleeping_allowed: true,
@@ -159,7 +179,7 @@ impl balaur_plugin::Plugin for PhysicsPlugin {
             balaur_core::settings::Scope::Project,
             &balaur_core::ComponentDef::parse_schema(
                 "settings.physics",
-                r#"
+                &[world_settings_schema(), r#"
 solver_iterations = { type = "float", default = 4.0, min = 1.0, max = 64.0, help = "Solver iterations per step. More is stabler and slower; every value here changes results, so a recording only replays against the same numbers." }
 ccd_substeps = { type = "float", default = 1.0, min = 0.0, max = 16.0, help = "Substeps for continuous collision detection, which stops a fast body tunnelling through a thin one." }
 length_unit = { type = "float", default = 1.0, min = 0.000001, max = 1000.0, help = "How many of the game's units make a metre. A pixel game sets this rather than scaling every body." }
@@ -180,10 +200,12 @@ contact_damping = { type = "float", default = 10.0, min = 0.0, max = 1000.0, hel
 static_contact_frequency_hz = { type = "float", default = 60.0, min = 0.0, max = 1000000.0, help = "The same, for a contact with a body that never moves." }
 static_contact_damping = { type = "float", default = 10.0, min = 0.0, max = 1000.0, help = "The damping ratio of a static contact." }
 threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", help = "How many threads the solver may take. 0 is one less than the machine reports, capped at eight; a script's own set_threads outranks this." }
-"#,
+"#.to_string()].join("\n"),
             ),
         );
         reg.insert_resource(PhysicsState3d::new());
+        // Before the step: a follow's velocity change is integrated this tick.
+        follow::build(reg);
         reg.add_system(Stage::FixedUpdate, step_system);
         // After both steps, so the bodies have moved and the bone transform
         // the blend reads is still the one the clip wrote this frame.
@@ -194,11 +216,10 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
         reg.add_snapshot_source("ragdoll", ragdoll::save_memory, ragdoll::load_memory);
         ragdoll::register_ragdoll_component(reg);
         build_physics_digest(reg);
-        build_physics_snapshot(reg);
+        snapshot::build_physics_snapshot(reg);
         debug::build(reg);
         tuning::build(reg);
         vehicle::build(reg);
-
         // `physics` holds what spans both worlds; each dimension has its own.
         {
             let mut m = reg.script_module("physics")?;
@@ -216,14 +237,17 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
         body::install_force_api(&mut *m);
         body::install_force_reader_api(&mut *m);
         body::install_body_state_api(&mut *m);
-        body::install_body_tuning_api(&mut *m);
+        body::install_body_mass_api(&mut *m);
         body::install_body_ccd_api(&mut *m);
         body::install_body_lock_api(&mut *m);
         body::install_body_pose_api(&mut *m);
         body::install_body_sleep_api(&mut *m);
         collider::install_collider_api(&mut *m);
         collider::install_voxel_api(&mut *m);
+        voxels::install_voxel_edit_api(&mut *m);
         collider::install_collider_reader_api(&mut *m);
+        readers::install_collider_placement_api(&mut *m);
+        readers::install_heightfield_api(&mut *m);
         query::install_query_api(&mut *m);
         query::install_raycast_all_api(&mut *m);
         query::install_shapecast_api(&mut *m);
@@ -234,6 +258,7 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
         softbody::install_softbody_api(&mut *m);
         character::install_character_api(&mut *m);
         vehicle::install_vehicle_api(&mut *m);
+        follow::install_follow_api(&mut *m);
         ragdoll::install_ragdoll_api(&mut *m, true);
         body::register_body_component(reg);
         collider::register_collider_component(reg);
@@ -259,6 +284,33 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
         dim2::build(reg)?;
         Ok(())
     }
+}
+
+/// The `[physics]` rows about contacts and gravity, built from the words
+/// `crate::tuning` reads them with.
+fn world_settings_schema() -> String {
+    let models = vocabulary::options(w::FRICTION_MODELS);
+    let simplified = w::SIMPLIFIED;
+    vocabulary::schema(&[
+        (
+            vocabulary::keys::CONTACT_RECYCLE_DISTANCE,
+            r#"{ type = "float", default = 0.05, min = 0.0, max = 1.0, help = "How far two colliders may drift, scaled by length_unit, before their contacts are worked out again rather than reused." }"#,
+        ),
+        (
+            vocabulary::keys::FRICTION_MODEL,
+            &format!(
+                r#"{{ type = "enum", default = "{simplified}", options = [{models}], help = "How the 3D solver treats friction: one cone per four contacts and a twist, or one per contact, slower and closer. A multibody always uses one per contact." }}"#
+            ),
+        ),
+        (
+            vocabulary::keys::GRAVITY_3D,
+            r#"{ type = "vec3", default = [0.0, -9.81, 0.0], help = "The 3D world's gravity, in units per second squared: the value physics3d.set_gravity writes and physics3d.gravity reads." }"#,
+        ),
+        (
+            vocabulary::keys::GRAVITY_2D,
+            r#"{ type = "vec2", default = [0.0, -9.81], help = "The 2D world's gravity, in units per second squared: the value physics2d.set_gravity writes and physics2d.gravity reads." }"#,
+        ),
+    ])
 }
 
 /// Velocity and sleep state, which no component `get` reports: two peers
@@ -329,146 +381,6 @@ fn build_physics_digest(reg: &mut Registry<'_>) {
     });
 }
 
-/// The rapier world plus the maps tying it to entities.
-///
-/// The whole world rather than a per-body summary: rapier's own
-/// `serde-serialize` skips exactly the workspace fields a snapshot must not
-/// carry (the pipeline, the CCD solver), and reconstructing islands and
-/// contact state by hand would be a second physics engine.
-#[derive(serde::Deserialize)]
-struct PhysicsFrame3d {
-    world: PhysicsWorld,
-    bodies: Vec<(NodeKey, RigidBodyHandle)>,
-    colliders: Vec<(NodeKey, Vec<ColliderHandle>)>,
-    joints: Vec<(NodeKey, joint::JointRef3d)>,
-    soft_bodies: Vec<(NodeKey, softbody::SoftRef3d)>,
-    soft_params: Vec<(NodeKey, toml::Value)>,
-    collider_params: Vec<(NodeKey, toml::Value)>,
-    joint_params: Vec<(NodeKey, toml::Value)>,
-    wheel_inputs: Vec<(NodeKey, vehicle::WheelInput3d)>,
-    grounded: Vec<(NodeKey, bool)>,
-    shape_revision: u64,
-    paused: bool,
-    sleeping_allowed: bool,
-}
-
-/// The save side borrows: a rollback ring holds many of these, and
-/// `PhysicsWorld` is not `Clone` precisely because copying one is expensive.
-#[derive(serde::Serialize)]
-struct PhysicsFrameRef3d<'a> {
-    world: &'a PhysicsWorld,
-    bodies: Vec<(NodeKey, RigidBodyHandle)>,
-    colliders: Vec<(NodeKey, Vec<ColliderHandle>)>,
-    joints: Vec<(NodeKey, joint::JointRef3d)>,
-    soft_bodies: Vec<(NodeKey, softbody::SoftRef3d)>,
-    soft_params: Vec<(NodeKey, toml::Value)>,
-    collider_params: Vec<(NodeKey, toml::Value)>,
-    joint_params: Vec<(NodeKey, toml::Value)>,
-    wheel_inputs: Vec<(NodeKey, vehicle::WheelInput3d)>,
-    grounded: Vec<(NodeKey, bool)>,
-    shape_revision: u64,
-    paused: bool,
-    sleeping_allowed: bool,
-}
-
-/// How a snapshot names a node: its [`balaur_core::ids`] id, and its entity
-/// bits for a tree built by hand. Entity bits alone would not survive a
-/// respawn, which mints a new entity for the same node.
-pub(crate) type NodeKey = (String, u64);
-
-pub(crate) fn key_of(world: &balaur_core::hecs::World, entity: Entity) -> NodeKey {
-    (
-        balaur_core::ids::of(world, entity).unwrap_or_default(),
-        entity.to_bits().get(),
-    )
-}
-
-/// The map a snapshot row belongs to, as keys a respawn cannot invalidate.
-pub(crate) fn keyed<V: Clone>(
-    world: &balaur_core::hecs::World,
-    map: &DetHashMap<Entity, V>,
-) -> Vec<(NodeKey, V)> {
-    map.iter()
-        .map(|(entity, value)| (key_of(world, *entity), value.clone()))
-        .collect()
-}
-
-/// The node a key names now, which is a different entity after a respawn.
-pub(crate) fn resolve_key(eng: &Engine, key: &NodeKey) -> Option<Entity> {
-    let root = eng.root();
-    let world = eng.world();
-    if !key.0.is_empty()
-        && let Some(entity) = balaur_core::ids::find(&world, root, &key.0)
-    {
-        return Some(entity);
-    }
-    let entity = Entity::from_bits(key.1)?;
-    world.contains(entity).then_some(entity)
-}
-
-pub(crate) fn resolved<V>(eng: &Engine, rows: Vec<(NodeKey, V)>) -> DetHashMap<Entity, V> {
-    rows.into_iter()
-        .filter_map(|(key, value)| Some((resolve_key(eng, &key)?, value)))
-        .collect()
-}
-
-fn save_physics(eng: &Engine) -> serde_json::Value {
-    let state = eng.resource::<PhysicsState3d>();
-    let state = state.borrow();
-    let world = eng.world();
-    let frame = PhysicsFrameRef3d {
-        world: &state.world,
-        bodies: keyed(&world, &state.bodies),
-        colliders: keyed(&world, &state.colliders),
-        joints: keyed(&world, &state.joints),
-        soft_bodies: keyed(&world, &state.soft_bodies),
-        soft_params: keyed(&world, &state.soft_params),
-        collider_params: keyed(&world, &state.collider_params),
-        joint_params: keyed(&world, &state.joint_params),
-        wheel_inputs: keyed(&world, &state.wheel_inputs),
-        grounded: keyed(&world, &state.grounded),
-        shape_revision: state.shape_revision,
-        paused: state.paused,
-        sleeping_allowed: state.sleeping_allowed,
-    };
-    serde_json::to_value(frame).unwrap_or(serde_json::Value::Null)
-}
-
-fn load_physics(eng: &Engine, value: &serde_json::Value) {
-    let frame: PhysicsFrame3d = match PhysicsFrame3d::deserialize(value) {
-        Ok(frame) => frame,
-        Err(e) => {
-            tracing::error!(error = %e, "restoring the physics world");
-            return;
-        }
-    };
-    let bodies = resolved(eng, frame.bodies);
-    let colliders = resolved(eng, frame.colliders);
-    let joints = resolved(eng, frame.joints);
-    let soft_bodies = resolved(eng, frame.soft_bodies);
-    let soft_params = resolved(eng, frame.soft_params);
-    let collider_params = resolved(eng, frame.collider_params);
-    let joint_params = resolved(eng, frame.joint_params);
-    let wheel_inputs = resolved(eng, frame.wheel_inputs);
-    let grounded = resolved(eng, frame.grounded);
-    let state = eng.resource::<PhysicsState3d>();
-    let mut state = state.borrow_mut();
-    state.world = frame.world;
-    state.shape_revision = frame.shape_revision;
-    state.paused = frame.paused;
-    state.sleeping_allowed = frame.sleeping_allowed;
-    state.bodies = bodies;
-    state.colliders = colliders;
-    state.joints = joints;
-    state.soft_bodies = soft_bodies;
-    state.soft_params = soft_params;
-    state.collider_params = collider_params;
-    state.joint_params = joint_params;
-    state.wheel_inputs = wheel_inputs;
-    state.grounded = grounded;
-    restamp_collider_owners(&mut state);
-}
-
 crate::shared::world::functions!(
     state = PhysicsState3d,
     component = c::JOINT_3D,
@@ -479,10 +391,12 @@ pub(crate) fn prune_freed_nodes(eng: &Engine, state: &mut PhysicsState3d) {
     prune_freed_nodes_except_wheels(eng, state);
     let world = eng.world();
     state.wheel_inputs.retain(|e, _| world.contains(*e));
-}
-
-fn build_physics_snapshot(reg: &mut Registry<'_>) {
-    reg.add_snapshot_source("physics", save_physics, load_physics);
+    state.vehicles.retain(|e, _| world.contains(*e));
+    state.follows.retain(|e, _| world.contains(*e));
+    let colliders = &state.world.colliders;
+    state
+        .surfaces
+        .retain(|handle, _| colliders.contains(*handle));
 }
 
 /// The 3D body presets. Both dimensions carry their marker (D5).
@@ -527,7 +441,7 @@ fn register_physics_presets(reg: &mut Registry<'_>) -> Result<()> {
             ],
             &[(
                 c::SOFTBODY_3D,
-                Some("kind = \"box\"\ncell_model = \"corotational\"\nshape_matching = true"),
+                Some("kind = \"box\"\ncell_model = \"corotational\"\nshape_matching = \"on\""),
             )],
         )?,
     );
@@ -619,10 +533,13 @@ fn step_system(eng: &Engine, _dt: f32) {
         // The step rebuilds the broad phase itself.
         state.queries_ready = true;
         let collector = events::Collector::after(std::mem::take(&mut state.gone));
+        let hooks = events::Hooks {
+            surfaces: &state.surfaces,
+        };
         // A span of its own, so a profiler tells rapier's step from what the
         // engine wraps around it.
         balaur_core::timings::measure(eng, "physics3d/step", || {
-            state.world.step_with_events(&events::Hooks, &collector);
+            state.world.step_with_events(&hooks, &collector);
         });
 
         // Write simulated poses back to the scene tree.
@@ -697,21 +614,7 @@ fn install_world_controls(m: &mut dyn Bindings<Engine>) {
     // "Sleep bodies" toggle). Spans BOTH worlds, and applies to bodies
     // added later as well as to the ones alive now.
     m.function("set_sleeping_allowed", |eng: &Engine, allowed: bool| {
-        use crate::rapier3d::prelude::RigidBodyActivation;
-        let state = eng.resource::<PhysicsState3d>();
-        let mut state = state.borrow_mut();
-        state.sleeping_allowed = allowed;
-        let handles: Vec<_> = state.bodies.values().copied().collect();
-        for handle in handles {
-            let body = &mut state.world.bodies[handle];
-            *body.activation_mut() = if allowed {
-                RigidBodyActivation::default()
-            } else {
-                body.wake_up(true);
-                RigidBodyActivation::cannot_sleep()
-            };
-        }
-        drop(state);
+        set_sleeping_allowed(eng, allowed);
         dim2::set_sleeping_allowed(eng, allowed);
         Ok(())
     });
@@ -731,6 +634,24 @@ fn install_world_controls(m: &mut dyn Bindings<Engine>) {
     });
 }
 
+/// Allow or forbid the 3D world's bodies falling asleep, now and for bodies
+/// added later. A body whose author wrote `can_sleep = false` stays awake
+/// either way, and every body keeps its `time_to_sleep`.
+pub fn set_sleeping_allowed(eng: &Engine, allowed: bool) {
+    let state = eng.resource::<PhysicsState3d>();
+    let mut state = state.borrow_mut();
+    let state = &mut *state;
+    state.sleeping_allowed = allowed;
+    for (entity, &handle) in &state.bodies {
+        let authored = state.body_authored.get(entity);
+        let can_sleep = authored.is_none_or(|a| a.can_sleep);
+        let thresholds = crate::shared::body::Authored::sleep_thresholds(authored);
+        if let Some(body) = state.world.bodies.get_mut(handle) {
+            body::allow_sleep(body, allowed && can_sleep, thresholds);
+        }
+    }
+}
+
 /// Empty the 3D world, as a play-in-editor session does on stop.
 ///
 /// A fresh world, not a drained one: see [`dim2::clear`] for why a rebuilt
@@ -746,6 +667,7 @@ pub fn clear(eng: &Engine) {
     state.world.integration_parameters = params;
     state.bodies.clear();
     state.colliders.clear();
+    state.body_authored.clear();
     // Rapier drops a body's joints with the body, so the map is all that is
     // left to clear.
     state.joints.clear();
@@ -756,7 +678,10 @@ pub fn clear(eng: &Engine) {
     state.soft_params.clear();
     state.collider_params.clear();
     state.joint_params.clear();
+    state.surfaces.clear();
     state.wheel_inputs.clear();
+    state.vehicles.clear();
+    state.follows.clear();
     state.grounded.clear();
     state.asleep.clear();
 }
@@ -789,6 +714,8 @@ pub const SHAPE_KINDS: &[(&str, &str)] = &[
     ("SHAPE_VOXELS", w::VOXELS),
     ("SHAPE_VOXELIZED_MESH", w::VOXELIZED_MESH),
     ("SHAPE_FIT", w::FIT),
+    ("SHAPE_CONVEX_MESH", w::CONVEX_MESH),
+    ("SHAPE_VOXELIZED_POINTS", w::VOXELIZED_POINTS),
 ];
 
 /// Collider shapes for the 2D world.
@@ -805,6 +732,10 @@ pub const SHAPE_KINDS_2D: &[(&str, &str)] = &[
     ("SHAPE_POLYLINE", w::POLYLINE),
     ("SHAPE_HEIGHTFIELD", w::HEIGHTFIELD),
     ("SHAPE_VOXELS", w::VOXELS),
+    ("SHAPE_VOXELIZED_MESH", w::VOXELIZED_MESH),
+    ("SHAPE_FIT", w::FIT),
+    ("SHAPE_CONVEX_POLYGON", w::CONVEX_POLYGON),
+    ("SHAPE_VOXELIZED_POINTS", w::VOXELIZED_POINTS),
 ];
 
 /// Joint kinds for the 3D world.
@@ -829,6 +760,22 @@ pub const JOINT_KINDS_2D: &[(&str, &str)] = &[
     ("JOINT_GENERIC", w::GENERIC),
 ];
 
+/// What `joint_state` says of a joint.
+pub const JOINT_STATUSES: &[(&str, &str)] = &[
+    ("JOINT_ENABLED", w::ENABLED),
+    ("JOINT_DISABLED", w::DISABLED),
+    ("JOINT_BODY_DISABLED", w::BODY_DISABLED),
+    ("JOINT_WAITING", w::WAITING),
+];
+
+/// How a character's sweep ended at a hit.
+pub const SWEEP_STATUSES: &[(&str, &str)] = &[
+    ("SWEEP_CONVERGED", w::CONVERGED),
+    ("SWEEP_OUT_OF_ITERATIONS", w::OUT_OF_ITERATIONS),
+    ("SWEEP_FAILED", w::FAILED),
+    ("SWEEP_PENETRATING", w::PENETRATING),
+];
+
 /// How two colliders' friction or restitution combine.
 pub const COMBINE_RULES: &[(&str, &str)] = &[
     ("COMBINE_AVERAGE", w::AVERAGE),
@@ -848,6 +795,7 @@ pub const MOTOR_MODES: &[(&str, &str)] = &[
 
 /// How a motor's strength is felt.
 pub const MOTOR_MODELS: &[(&str, &str)] = &[
+    ("MOTOR_MODEL_AUTO", w::AUTO),
     ("MOTOR_MODEL_ACCELERATION", w::ACCELERATION),
     ("MOTOR_MODEL_FORCE", w::FORCE),
 ];
@@ -858,15 +806,57 @@ pub const LENGTH_MODES: &[(&str, &str)] = &[
     ("LENGTHS_RELATIVE", w::RELATIVE),
 ];
 
-/// How a voxelized mesh is filled; 3D only.
+/// How a voxelized mesh or outline is filled.
 pub const FILL_MODES: &[(&str, &str)] = &[("FILL_SOLID", w::SOLID), ("FILL_SURFACE", w::SURFACE)];
 
-/// What a `fit` collider fits to its mesh; 3D only.
+/// What a 3D `fit` collider fits to its mesh, and what a tile's polygon becomes.
 pub const FIT_MODES: &[(&str, &str)] = &[
     ("FIT_CONVEX_HULL", w::CONVEX_HULL),
     ("FIT_AABB", w::AABB),
     ("FIT_OBB", w::OBB),
     ("FIT_CONVEX_DECOMPOSITION", w::CONVEX_DECOMPOSITION),
+];
+
+/// What a 2D `fit` collider fits to its mesh.
+pub const FIT_MODES_2D: &[(&str, &str)] = &[
+    ("FIT_CONVEX_HULL", w::CONVEX_HULL),
+    ("FIT_AABB", w::AABB),
+    ("FIT_OBB", w::OBB),
+];
+
+/// The fit a 2D tile's polygon takes beyond those, which with `FIT_MODES_2D`
+/// names every `tile_collision.fit`.
+pub const TILE_FIT_MODES_2D: &[(&str, &str)] =
+    &[("FIT_CONVEX_DECOMPOSITION", w::CONVEX_DECOMPOSITION)];
+
+/// How a 3D `convex_decomposition` is cut.
+pub const DECOMPOSITION_METHODS: &[(&str, &str)] =
+    &[("METHOD_VHACD", w::VHACD), ("METHOD_VOXELS", w::VOXELS)];
+
+/// How a 2D `convex_decomposition` is cut.
+pub const DECOMPOSITION_METHODS_2D: &[(&str, &str)] = &[
+    ("METHOD_EXACT", w::EXACT),
+    ("METHOD_VHACD", w::VHACD),
+    ("METHOD_VOXELS", w::VOXELS),
+];
+
+/// Whether a pair of colliders needs both layer tests to pass, or either.
+pub const TEST_MODES: &[(&str, &str)] = &[("TEST_BOTH", w::BOTH), ("TEST_EITHER", w::EITHER)];
+
+/// Which edges a 3D polyline collider takes from its mesh.
+pub const EDGE_MODES: &[(&str, &str)] = &[("EDGES_CHAIN", w::CHAIN), ("EDGES_MESH", w::MESH)];
+
+/// Which edges a 2D polyline collider takes from its mesh.
+pub const EDGE_MODES_2D: &[(&str, &str)] = &[
+    ("EDGES_CHAIN", w::CHAIN),
+    ("EDGES_OUTLINE", w::OUTLINE),
+    ("EDGES_MESH", w::MESH),
+];
+
+/// How the 3D solver treats friction, for `[physics] friction_model`.
+pub const FRICTION_MODELS: &[(&str, &str)] = &[
+    ("FRICTION_SIMPLIFIED", w::SIMPLIFIED),
+    ("FRICTION_PER_CONTACT", w::PER_CONTACT),
 ];
 
 /// What a collider reports to its node's script.
@@ -888,8 +878,26 @@ pub const COLLISION_PAIRS: &[(&str, &str)] = &[
 /// The axes a body or a generic joint locks, in 3D.
 pub const AXES: &[(&str, &str)] = &[("AXIS_X", w::X), ("AXIS_Y", w::Y), ("AXIS_Z", w::Z)];
 
+/// A chassis's axes the other way along, which with `AXES` name every
+/// `forward_axis` and `up_axis` a `vehicle3d` takes.
+pub const NEGATIVE_AXES: &[(&str, &str)] = &[
+    ("AXIS_NEGATIVE_X", w::NEGATIVE_X),
+    ("AXIS_NEGATIVE_Y", w::NEGATIVE_Y),
+    ("AXIS_NEGATIVE_Z", w::NEGATIVE_Z),
+];
+
 /// The same, in 2D, where rotation is one switch.
 pub const AXES_2D: &[(&str, &str)] = &[("AXIS_X", w::X), ("AXIS_Y", w::Y)];
+
+/// A joint's turns, which with `AXES` name every axis a joint call takes.
+pub const ROTATION_AXES: &[(&str, &str)] = &[
+    ("AXIS_ROTATION_X", w::ROTATION_X),
+    ("AXIS_ROTATION_Y", w::ROTATION_Y),
+    ("AXIS_ROTATION_Z", w::ROTATION_Z),
+];
+
+/// The 2D joint's one turn.
+pub const ROTATION_AXES_2D: &[(&str, &str)] = &[("AXIS_ROTATION", w::ROTATION)];
 
 /// How a 3D soft body's particles are laid out.
 pub const SOFT_KINDS: &[(&str, &str)] = &[
@@ -900,6 +908,7 @@ pub const SOFT_KINDS: &[(&str, &str)] = &[
     ("SOFT_ROPE", w::ROPE_SOFT),
     ("SOFT_VOLUMETRIC", w::VOLUMETRIC),
     ("SOFT_TRIANGLE_MESH", w::TRIANGLE_MESH),
+    ("SOFT_CUSTOM", w::CUSTOM),
 ];
 
 /// The same, for a 2D soft body.
@@ -907,10 +916,12 @@ pub const SOFT_KINDS_2D: &[(&str, &str)] = &[
     ("SOFT_GRID", w::GRID),
     ("SOFT_CIRCLE", w::CIRCLE),
     ("SOFT_POLYGON", w::SOFT_POLYGON),
+    ("SOFT_OUTLINE", w::OUTLINE),
     ("SOFT_ROPE", w::ROPE_SOFT),
     ("SOFT_VOLUMETRIC", w::VOLUMETRIC),
     ("SOFT_TRIANGLE_MESH", w::TRIANGLE_MESH),
     ("SOFT_POLYLINE", w::POLYLINE),
+    ("SOFT_CUSTOM", w::CUSTOM),
 ];
 
 /// Which of rapier's solvers simulates a soft body's elasticity.
@@ -926,6 +937,16 @@ pub const CELL_MODELS: &[(&str, &str)] = &[
     ("CELL_NEO_HOOKEAN", w::NEO_HOOKEAN),
 ];
 
+/// Which of rapier's controllers a `follow3d` or `follow2d` pulls with.
+pub const FOLLOW_KINDS: &[(&str, &str)] = &[("FOLLOW_PD", w::PD), ("FOLLOW_PID", w::PID)];
+
+/// How a soft body's `collision_mesh` follows its particles.
+pub const COLLISION_BINDINGS: &[(&str, &str)] = &[
+    ("BIND_NEAREST", w::NEAREST),
+    ("BIND_PARTICLES", w::BIND_PARTICLES),
+    ("BIND_CELLS", w::BIND_CELLS),
+];
+
 /// Whether a soft body's edge sets under a squeeze, a stretch, or both.
 pub const PLASTIC_FLOWS: &[(&str, &str)] = &[
     ("FLOW_BOTH", w::BOTH),
@@ -933,24 +954,76 @@ pub const PLASTIC_FLOWS: &[(&str, &str)] = &[
     ("FLOW_TENSION", w::TENSION),
 ];
 
+/// How a soft body's closed surface meets what is inside it.
+pub const ORIENTATIONS: &[(&str, &str)] = &[
+    ("ORIENTATION_AUTO", w::AUTO),
+    ("ORIENTATION_SOLID", w::SOLID),
+    ("ORIENTATION_SHELL", w::SHELL),
+];
+
+/// What pulls a ragdoll's bodies, as `ragdoll`'s `drive` option names it.
+pub const RAGDOLL_DRIVES: &[(&str, &str)] = &[
+    ("DRIVE_NONE", w::NONE),
+    ("DRIVE_MOTORS", w::MOTORS),
+    ("DRIVE_FOLLOW", w::FOLLOW),
+];
+
+/// Which of a soft body's edges resist stretching only.
+pub const TENSION_MODES: &[(&str, &str)] = &[
+    ("TENSION_NONE", w::NONE),
+    ("TENSION_ALL", w::ALL),
+    ("TENSION_LISTED", w::LISTED),
+];
+
+/// Whether a soft body is pulled back towards its built shape.
+pub const SHAPE_MATCHING_MODES: &[(&str, &str)] = &[
+    ("SHAPE_MATCHING_AUTO", w::AUTO),
+    ("SHAPE_MATCHING_ON", w::ON),
+    ("SHAPE_MATCHING_OFF", w::OFF),
+];
+
+/// What a character's or a vehicle's sweep passes through.
+pub const IGNORES: &[(&str, &str)] = &[
+    ("IGNORE_STATIC", w::STATIC),
+    ("IGNORE_KINEMATIC", w::KINEMATIC),
+    ("IGNORE_DYNAMIC", w::DYNAMIC),
+    ("IGNORE_SENSORS", w::SENSORS),
+    ("IGNORE_SOLIDS", w::SOLIDS),
+];
+
 /// Every table `physics3d` spells as constants.
 pub const CONSTANTS_3D: &[&[(&str, &str)]] = &[
     BODY_KINDS,
     SHAPE_KINDS,
     JOINT_KINDS,
+    JOINT_STATUSES,
+    SWEEP_STATUSES,
     COMBINE_RULES,
     MOTOR_MODES,
     MOTOR_MODELS,
     LENGTH_MODES,
     FILL_MODES,
     FIT_MODES,
+    DECOMPOSITION_METHODS,
+    TEST_MODES,
+    EDGE_MODES,
+    FRICTION_MODELS,
     EVENTS,
     COLLISION_PAIRS,
     AXES,
+    NEGATIVE_AXES,
+    ROTATION_AXES,
     SOFT_KINDS,
     SOFT_SOLVERS,
     CELL_MODELS,
     PLASTIC_FLOWS,
+    ORIENTATIONS,
+    SHAPE_MATCHING_MODES,
+    TENSION_MODES,
+    RAGDOLL_DRIVES,
+    IGNORES,
+    FOLLOW_KINDS,
+    COLLISION_BINDINGS,
 ];
 
 /// Every table `physics2d` spells as constants.
@@ -958,17 +1031,33 @@ pub const CONSTANTS_2D: &[&[(&str, &str)]] = &[
     BODY_KINDS,
     SHAPE_KINDS_2D,
     JOINT_KINDS_2D,
+    JOINT_STATUSES,
+    SWEEP_STATUSES,
     COMBINE_RULES,
     MOTOR_MODES,
     MOTOR_MODELS,
     LENGTH_MODES,
+    FILL_MODES,
+    FIT_MODES_2D,
+    TILE_FIT_MODES_2D,
+    DECOMPOSITION_METHODS_2D,
+    TEST_MODES,
+    EDGE_MODES_2D,
     EVENTS,
     COLLISION_PAIRS,
     AXES_2D,
+    ROTATION_AXES_2D,
     SOFT_KINDS_2D,
     SOFT_SOLVERS,
     CELL_MODELS,
     PLASTIC_FLOWS,
+    ORIENTATIONS,
+    SHAPE_MATCHING_MODES,
+    TENSION_MODES,
+    RAGDOLL_DRIVES,
+    IGNORES,
+    FOLLOW_KINDS,
+    COLLISION_BINDINGS,
 ];
 
 pub(crate) fn install_constants(m: &mut dyn Bindings<Engine>, tables: &[&[(&str, &str)]]) {

@@ -215,6 +215,8 @@ impl BitmapFont {
         super::Shaped {
             size: vec2(widest, top + self.line_height * scale),
             quads,
+            lines: Vec::new(),
+            elided: false,
             pictures: Vec::new(),
             links: Vec::new(),
             hints: Vec::new(),

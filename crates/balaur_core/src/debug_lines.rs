@@ -9,8 +9,8 @@
 //! Appended during a frame, drained by whatever is drawing — and cleared even
 //! when nothing is, so a headless run does not grow one of these forever.
 
-/// (a, b, color, pixel width, perspective-correct width, always-on-top)
-pub type DebugLine3d = ([f32; 3], [f32; 3], [f32; 3], f32, bool, bool);
+/// (a, b, straight-alpha colour, pixel width, perspective-correct width, always-on-top)
+pub type DebugLine3d = ([f32; 3], [f32; 3], [f32; 4], f32, bool, bool);
 
 /// Scripts append with `render.draw_line`; the windowed backend drains it as
 /// it draws, and with no window the render plugin's Render-stage system
@@ -23,7 +23,7 @@ pub struct DebugLineBuffer3d {
 /// 2D counterpart of [`DebugLineBuffer3d`]: world-space 2D segments rendered
 /// with the 2D camera.
 /// (a, b, color, pixel width)
-pub type DebugLine2d = ([f32; 2], [f32; 2], [f32; 3], f32);
+pub type DebugLine2d = ([f32; 2], [f32; 2], [f32; 4], f32);
 
 /// Appended by `render.draw_line_2d`, drained on the same terms as
 /// [`DebugLineBuffer3d`].
@@ -34,13 +34,13 @@ pub struct DebugLineBuffer2d {
 
 impl DebugLineBuffer3d {
     /// One segment, at the default width, depth-tested.
-    pub fn push(&mut self, a: [f32; 3], b: [f32; 3], color: [f32; 3]) {
+    pub fn push(&mut self, a: [f32; 3], b: [f32; 3], color: [f32; 4]) {
         self.lines.push((a, b, color, 1.0, false, false));
     }
 }
 
 impl DebugLineBuffer2d {
-    pub fn push(&mut self, a: [f32; 2], b: [f32; 2], color: [f32; 3]) {
+    pub fn push(&mut self, a: [f32; 2], b: [f32; 2], color: [f32; 4]) {
         self.lines.push((a, b, color, 1.0));
     }
 }

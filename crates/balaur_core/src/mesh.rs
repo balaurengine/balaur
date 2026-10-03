@@ -166,6 +166,11 @@ pub struct TextShape {
     pub size: f32,
     pub weight: u16,
     pub italic: bool,
+    /// The lines filled with the glyphs: `underline` is `none`, `single` or
+    /// `double`, as `text2d` spells it.
+    pub underline: String,
+    pub strikethrough: bool,
+    pub overline: bool,
 }
 
 /// The shaper a text mesh is built by, filled in by whichever plugin owns
@@ -417,6 +422,7 @@ tube_radius = 0.3
 kind = "text"
 text = "BALAUR"
 size = 1.0
+underline = "single"             # or "double"; strikethrough and overline take true
 # ...or, instead of any of those:
 positions = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
 indices = [[0, 1, 2]]
@@ -524,6 +530,15 @@ fn parse_text_shape(value: &toml::Value) -> MeshData {
             weight: number("weight", 400.0).clamp(1.0, 1000.0) as u16,
             italic: value
                 .get("italic")
+                .and_then(toml::Value::as_bool)
+                .unwrap_or(false),
+            underline: text("underline"),
+            strikethrough: value
+                .get("strikethrough")
+                .and_then(toml::Value::as_bool)
+                .unwrap_or(false),
+            overline: value
+                .get("overline")
                 .and_then(toml::Value::as_bool)
                 .unwrap_or(false),
         }),

@@ -16,4 +16,4 @@ outline_width = 0.35
 metallic = 0.0
 roughness = 0.8
 reflectance = 0.35
-emissive = 0.0
+emission_strength = 0.0

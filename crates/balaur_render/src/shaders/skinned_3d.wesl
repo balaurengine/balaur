@@ -1,7 +1,7 @@
 // GPU skinning for 3D meshes, drawn against the same contract a project's
 // material uses (`package::mesh`), so a skinned mesh is lit and fogged the
 // way every other one is.
-import package::mesh::{VertexOutput, place_deformed, shade};
+import package::mesh::{VertexOutput, OitOutput, place_deformed, shade, oit_output};
 import constants::MAX_JOINTS;
 
 struct SkinUniforms {
@@ -17,6 +17,18 @@ struct SkinnedVertex {
     @location(2) uv: vec2<f32>,
     @location(3) joints: vec4<u32>,
     @location(4) weights: vec4<f32>,
+    // The row the mesh's morph deltas sit at for this vertex.
+    @if(morph) @builtin(vertex_index) vertex: u32,
+}
+
+// The vertex at rest, or blended towards the morph targets first: a face's
+// smile moves with the jaw it sits on.
+@if(morph) fn shape(in: SkinnedVertex) -> package::mesh::Morphed {
+    return package::mesh::morph_vertex(in.vertex, in.position, in.normal);
+}
+
+@if(!morph) fn shape(in: SkinnedVertex) -> package::mesh::Morphed {
+    return package::mesh::Morphed(in.position, in.normal);
 }
 
 // Blends four joint matrices by their weights, the way
@@ -50,9 +62,10 @@ fn vs_main(in: SkinnedVertex) -> VertexOutput {
     let b = joint(in.joints.y);
     let c = joint(in.joints.z);
     let d = joint(in.joints.w);
-    let position = blend(a, b, c, d, in.weights, vec4<f32>(in.position, 1.0)).xyz;
+    let rest = shape(in);
+    let position = blend(a, b, c, d, in.weights, vec4<f32>(rest.position, 1.0)).xyz;
     // w = 0 drops the translation, so a normal is rotated and not moved.
-    let normal = blend(a, b, c, d, in.weights, vec4<f32>(in.normal, 0.0)).xyz;
+    let normal = blend(a, b, c, d, in.weights, vec4<f32>(rest.normal, 0.0)).xyz;
     // `normalize_or_zero`, as the CPU path spells it: a collapsed normal is
     // zero rather than NaN.
     let square = dot(normal, normal);
@@ -63,4 +76,11 @@ fn vs_main(in: SkinnedVertex) -> VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     return shade(in);
+}
+
+// The order-independent transparency pass, for a skinned mesh whose colour
+// is see-through.
+@fragment
+fn fs_oit(in: VertexOutput) -> OitOutput {
+    return oit_output(shade(in), in);
 }

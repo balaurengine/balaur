@@ -7,7 +7,7 @@ use crate::LOG;
 
 /// Run a project made of `scene` and one script, and report what it logged as
 /// an error.
-fn run(scene: &str, script: &str) -> Vec<String> {
+pub(crate) fn run(scene: &str, script: &str) -> Vec<String> {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -35,7 +35,7 @@ fn run(scene: &str, script: &str) -> Vec<String> {
         .collect()
 }
 
-fn run_clean(scene: &str, script: &str) {
+pub(crate) fn run_clean(scene: &str, script: &str) {
     let errors = run(scene, script);
     assert!(errors.is_empty(), "the run logged errors: {errors:#?}");
 }
@@ -75,8 +75,8 @@ radius = 0.5
 "#,
         r#"pub fn init(this) { this.seen = 0; this.left = 0; this.ticks = 0; }
 
-pub fn on_collision_enter(this, other) { this.seen += 1; }
-pub fn on_collision_exit(this, other) { this.left += 1; }
+pub fn on_collision_enter(this, collision) { this.seen += 1; }
+pub fn on_collision_exit(this, collision) { this.left += 1; }
 
 pub fn fixed_update(this, dt) {
     this.ticks = this.ticks + 1;

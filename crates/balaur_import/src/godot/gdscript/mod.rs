@@ -28,7 +28,8 @@ pub(crate) const SHIM_PATH: &str = "gd.rn";
 pub(crate) const GETTER: &str = "__get_";
 pub(crate) const SETTER: &str = "__set_";
 pub(crate) use map::{
-    BUILTIN_SIGNALS, ON_CHANGE, ON_CLICK, ON_SUBMIT, engine_event, global_constant, widget_signal,
+    BUILTIN_SIGNALS, ON_CHANGE, ON_CLICK, ON_SUBMIT, engine_event, global_constant,
+    is_collision_event, widget_signal,
 };
 pub(crate) use shim::SHIM;
 

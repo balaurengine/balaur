@@ -1,10 +1,10 @@
 //! Inline marks in a string: the small tag set a localized string carries.
 //!
-//! `[b]`, `[i]`, `[color=#rrggbb]`, `[wave amp=8 freq=4]`, `[url=target]` and
-//! `[hint=text]` wrap text;
-//! `[center]` and `[right]` set the block's alignment; `[img=path width=32
-//! height=32]` stands alone. Anything else in brackets is text, so a string
-//! that was never markup still reads as it was written.
+//! `[b]`, `[i]`, `[u]`, `[s]`, `[o]`, `[color=#rrggbb]`, `[size=24]`,
+//! `[font=mono]`, `[wave amp=8 freq=4]`, `[url=target]` and `[hint=text]` wrap
+//! text; `[center]`, `[left]` and `[right]` set the block's alignment;
+//! `[img=path width=32 height=32]` stands alone. Anything else in brackets is
+//! text, so a string that was never markup still reads as it was written.
 
 use egui::Color32;
 
@@ -13,7 +13,12 @@ pub(crate) struct Span {
     pub(crate) text: String,
     pub(crate) bold: bool,
     pub(crate) italic: bool,
+    pub(crate) lines: Lines,
     pub(crate) color: Option<Color32>,
+    /// A size in the request's pixels, over the block's.
+    pub(crate) size: Option<f32>,
+    /// A named chain, over the block's.
+    pub(crate) font: Option<String>,
     /// Amplitude in pixels and frequency in cycles per second.
     pub(crate) wave: Option<(f32, f32)>,
     /// An inline picture the span stands in for, with its box.
@@ -24,6 +29,14 @@ pub(crate) struct Span {
     pub(crate) hint: Option<u16>,
 }
 
+/// The lines a span draws with its glyphs.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Lines {
+    pub(crate) underline: bool,
+    pub(crate) strikethrough: bool,
+    pub(crate) overline: bool,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Inline {
     pub(crate) path: String,
@@ -31,11 +44,46 @@ pub(crate) struct Inline {
     pub(crate) height: f32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Where lines sit in their block: start and end follow the text's
+/// direction, left and right do not, and justify stretches every wrapped
+/// line but the last to the width.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Align {
     Start,
     Center,
     End,
+    Left,
+    Right,
+    Justify,
+}
+
+impl Align {
+    /// The alignment a word names; anything else starts.
+    #[must_use]
+    pub fn of(word: &str) -> Self {
+        use crate::vocabulary::words as w;
+        match word {
+            w::CENTER => Self::Center,
+            w::END => Self::End,
+            w::LEFT => Self::Left,
+            w::RIGHT => Self::Right,
+            w::JUSTIFY => Self::Justify,
+            _ => Self::Start,
+        }
+    }
+
+    #[must_use]
+    pub fn word(self) -> &'static str {
+        use crate::vocabulary::words as w;
+        match self {
+            Self::Start => w::START,
+            Self::Center => w::CENTER,
+            Self::End => w::END,
+            Self::Left => w::LEFT,
+            Self::Right => w::RIGHT,
+            Self::Justify => w::JUSTIFY,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -52,7 +100,12 @@ pub(crate) struct Markup {
 struct Style {
     bold: u32,
     italic: u32,
+    underline: u32,
+    strikethrough: u32,
+    overline: u32,
     colors: Vec<Color32>,
+    sizes: Vec<f32>,
+    fonts: Vec<String>,
     waves: Vec<(f32, f32)>,
     links: Vec<u16>,
     hints: Vec<u16>,
@@ -64,11 +117,49 @@ impl Style {
             text,
             bold: self.bold > 0,
             italic: self.italic > 0,
+            lines: Lines {
+                underline: self.underline > 0,
+                strikethrough: self.strikethrough > 0,
+                overline: self.overline > 0,
+            },
             color: self.colors.last().copied(),
+            size: self.sizes.last().copied(),
+            font: self.fonts.last().cloned(),
             wave: self.waves.last().copied(),
             image: None,
             link: self.links.last().copied(),
             hint: self.hints.last().copied(),
+        }
+    }
+}
+
+impl Style {
+    /// Open or close a tag that styles the text after it. The block keeps a
+    /// link's target and a hint's text once, and the spans carry the index,
+    /// the way a colour rides on a span.
+    fn apply(&mut self, tag: Tag, links: &mut Vec<String>, hints: &mut Vec<String>) {
+        match tag {
+            Tag::Toggle(mark, on) => {
+                let count = match mark {
+                    Mark::Bold => &mut self.bold,
+                    Mark::Italic => &mut self.italic,
+                    Mark::Underline => &mut self.underline,
+                    Mark::Strikethrough => &mut self.strikethrough,
+                    Mark::Overline => &mut self.overline,
+                };
+                *count = if on {
+                    *count + 1
+                } else {
+                    count.saturating_sub(1)
+                };
+            }
+            Tag::Size(size) => push_or_pop(&mut self.sizes, size),
+            Tag::Font(chain) => push_or_pop(&mut self.fonts, chain),
+            Tag::Color(color) => push_or_pop(&mut self.colors, color),
+            Tag::Wave(wave) => push_or_pop(&mut self.waves, wave),
+            Tag::Link(target) => scoped(links, &mut self.links, target),
+            Tag::Hint(said) => scoped(hints, &mut self.hints, said),
+            Tag::Align(_) | Tag::Image(_) => {}
         }
     }
 }
@@ -112,61 +203,11 @@ pub(crate) fn parse(source: &str) -> Markup {
         let before = &rest[..open];
         let after = &rest[open + close + 1..];
         match tag_of(tag) {
-            Some(Tag::Bold(on)) => {
-                text.push_str(before);
-                flush(&mut text, &mut spans, &style);
-                style.bold = if on {
-                    style.bold + 1
-                } else {
-                    style.bold.saturating_sub(1)
-                };
-            }
-            Some(Tag::Italic(on)) => {
-                text.push_str(before);
-                flush(&mut text, &mut spans, &style);
-                style.italic = if on {
-                    style.italic + 1
-                } else {
-                    style.italic.saturating_sub(1)
-                };
-            }
-            Some(Tag::Color(color)) => {
-                text.push_str(before);
-                flush(&mut text, &mut spans, &style);
-                match color {
-                    Some(color) => style.colors.push(color),
-                    None => {
-                        style.colors.pop();
-                    }
-                }
-            }
-            Some(Tag::Wave(wave)) => {
-                text.push_str(before);
-                flush(&mut text, &mut spans, &style);
-                match wave {
-                    Some(wave) => style.waves.push(wave),
-                    None => {
-                        style.waves.pop();
-                    }
-                }
-            }
             Some(Tag::Align(set)) => {
                 text.push_str(before);
                 if let Some(set) = set {
                     align = Some(set);
                 }
-            }
-            // The target is kept once for the block and the spans carry its
-            // index, the way a colour rides on a span.
-            Some(Tag::Link(target)) => {
-                text.push_str(before);
-                flush(&mut text, &mut spans, &style);
-                scoped(&mut links, &mut style.links, target);
-            }
-            Some(Tag::Hint(said)) => {
-                text.push_str(before);
-                flush(&mut text, &mut spans, &style);
-                scoped(&mut hints, &mut style.hints, said);
             }
             Some(Tag::Image(inline)) => {
                 text.push_str(before);
@@ -181,6 +222,11 @@ pub(crate) fn parse(source: &str) -> Markup {
                 text.push_str(tag);
                 text.push(']');
             }
+            Some(styled) => {
+                text.push_str(before);
+                flush(&mut text, &mut spans, &style);
+                style.apply(styled, &mut links, &mut hints);
+            }
         }
         rest = after;
     }
@@ -194,10 +240,34 @@ pub(crate) fn parse(source: &str) -> Markup {
     }
 }
 
+/// A mark that is on or off for the text it wraps, and nests.
+#[derive(Clone, Copy)]
+enum Mark {
+    Bold,
+    Italic,
+    Underline,
+    Strikethrough,
+    Overline,
+}
+
+/// Open a scoped value, or close the innermost one.
+fn push_or_pop<T>(stack: &mut Vec<T>, value: Option<T>) {
+    match value {
+        Some(value) => stack.push(value),
+        None => {
+            stack.pop();
+        }
+    }
+}
+
 enum Tag {
-    Bold(bool),
-    Italic(bool),
+    /// A mark, and whether this tag opens it.
+    Toggle(Mark, bool),
     Color(Option<Color32>),
+    /// A size in the request's pixels; `None` closes.
+    Size(Option<f32>),
+    /// A named chain; `None` closes.
+    Font(Option<String>),
     Wave(Option<(f32, f32)>),
     /// `None` closes; the alignment stays what the opener set.
     Align(Option<Align>),
@@ -215,8 +285,23 @@ fn tag_of(tag: &str) -> Option<Tag> {
     };
     let (name, args) = body.split_once(['=', ' ']).unwrap_or((body, ""));
     match (name, closing) {
-        ("b", on) => Some(Tag::Bold(!on)),
-        ("i", on) => Some(Tag::Italic(!on)),
+        ("b", on) => Some(Tag::Toggle(Mark::Bold, !on)),
+        ("i", on) => Some(Tag::Toggle(Mark::Italic, !on)),
+        ("u", on) => Some(Tag::Toggle(Mark::Underline, !on)),
+        ("s", on) => Some(Tag::Toggle(Mark::Strikethrough, !on)),
+        ("o", on) => Some(Tag::Toggle(Mark::Overline, !on)),
+        ("size", true) => Some(Tag::Size(None)),
+        ("size", false) => args
+            .trim()
+            .parse::<f32>()
+            .ok()
+            .filter(|size| *size > 0.0)
+            .map(|size| Tag::Size(Some(size))),
+        ("font", true) => Some(Tag::Font(None)),
+        ("font", false) => {
+            let chain = args.trim();
+            (!chain.is_empty()).then(|| Tag::Font(Some(chain.to_string())))
+        }
         ("color", true) => Some(Tag::Color(None)),
         ("color", false) => color_of(args.trim()).map(|c| Tag::Color(Some(c))),
         ("wave", true) => Some(Tag::Wave(None)),
@@ -227,8 +312,8 @@ fn tag_of(tag: &str) -> Option<Tag> {
         }
         ("center" | "right" | "left", true) => Some(Tag::Align(None)),
         ("center", false) => Some(Tag::Align(Some(Align::Center))),
-        ("right", false) => Some(Tag::Align(Some(Align::End))),
-        ("left", false) => Some(Tag::Align(Some(Align::Start))),
+        ("right", false) => Some(Tag::Align(Some(Align::Right))),
+        ("left", false) => Some(Tag::Align(Some(Align::Left))),
         ("url", true) => Some(Tag::Link(None)),
         ("url", false) => {
             let target = args.trim();
@@ -330,7 +415,7 @@ mod tests {
         let parsed = parse("[center]title[/center]");
         assert_eq!(texts(&parsed), ["title"]);
         assert_eq!(parsed.align, Some(Align::Center));
-        assert_eq!(parse("[right]x").align, Some(Align::End));
+        assert_eq!(parse("[right]x").align, Some(Align::Right));
     }
 
     #[test]
@@ -340,6 +425,38 @@ mod tests {
         let image = parsed.spans[1].image.as_ref().unwrap();
         assert_eq!(image.path, "icons/coin.png");
         assert_eq!((image.width, image.height), (24.0, 24.0));
+    }
+
+    #[test]
+    fn underline_strike_and_overline_each_mark_their_own_run() {
+        let parsed = parse("a[u]b[s]c[/s][/u][o]d[/o]e");
+        assert_eq!(texts(&parsed), ["a", "b", "c", "d", "e"]);
+        let marks: Vec<(bool, bool, bool)> = parsed
+            .spans
+            .iter()
+            .map(|s| (s.lines.underline, s.lines.strikethrough, s.lines.overline))
+            .collect();
+        assert_eq!(
+            marks,
+            [
+                (false, false, false),
+                (true, false, false),
+                (true, true, false),
+                (false, false, true),
+                (false, false, false)
+            ]
+        );
+    }
+
+    #[test]
+    fn a_size_and_a_font_nest_and_pop_back() {
+        let parsed = parse("[size=30]big [font=mono]code[/font][/size] [size=x]plain");
+        assert_eq!(texts(&parsed), ["big ", "code", " [size=x]plain"]);
+        assert_eq!(parsed.spans[0].size, Some(30.0));
+        assert_eq!(parsed.spans[1].font.as_deref(), Some("mono"));
+        assert_eq!(parsed.spans[1].size, Some(30.0));
+        assert_eq!(parsed.spans[2].size, None);
+        assert_eq!(parsed.spans[2].font, None);
     }
 
     #[test]

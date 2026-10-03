@@ -310,15 +310,14 @@ pub fn group_order(group) {
         "volume" => 3,
         "plasticity" => 4,
         "tearing" => 5,
-        "particles" => 6,
-        "mass" => 7,
-        "surface" => 8,
-        "contacts" => 9,
-        "motion" => 10,
-        "limits" => 11,
-        "motor" => 12,
-        "filtering" => 13,
+        "regions" => 6,
+        "particles" => 7,
+        "mass" => 8,
+        "surface" => 9,
+        "contacts" => 10,
+        "motion" => 11,
+        "filtering" => 12,
         // After every named group, in the order the rows met them.
-        _ => 14,
+        _ => 13,
     }
 }

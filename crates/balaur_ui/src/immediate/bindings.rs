@@ -356,7 +356,7 @@ pub(crate) fn install_window(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "window",
         &[],
-        "", "Draw the callback in a floating window the user drags and resizes; false once its close button is used.",
+        "", "Draw the callback in a floating window the user drags and resizes; false once its close button is used. `resizable`, `movable` and `closable` are on unless turned off, `collapsible` and `constrain` off unless turned on; `header = false` drops the title bar, `default_open = false` starts it folded, and `min_width`, `min_height`, `max_width` and `max_height` bound its size, as the `window` widget's keys of those names do.",
     )]);
     m.function(
         "window",
@@ -368,7 +368,21 @@ pub(crate) fn install_window(m: &mut dyn Bindings<Engine>) {
                     egui::Window::new(opts.string(k::TITLE).unwrap_or_else(|| id.clone()))
                         .id(egui::Id::new(&id))
                         .resizable(opts.boolean(k::RESIZABLE, true))
-                        .collapsible(opts.boolean(k::COLLAPSIBLE, false));
+                        .collapsible(opts.boolean(k::COLLAPSIBLE, false))
+                        .title_bar(opts.boolean(k::HEADER, true))
+                        .movable(opts.boolean(k::MOVABLE, true))
+                        .constrain(opts.boolean(k::CONSTRAIN, false))
+                        .default_open(opts.boolean(k::DEFAULT_OPEN, true));
+                for (key, bound) in [
+                    (k::MIN_WIDTH, egui::Window::min_width as fn(_, f32) -> _),
+                    (k::MIN_HEIGHT, egui::Window::min_height),
+                    (k::MAX_WIDTH, egui::Window::max_width),
+                    (k::MAX_HEIGHT, egui::Window::max_height),
+                ] {
+                    if let Some(px) = opts.opt_px(key) {
+                        window = bound(window, px);
+                    }
+                }
                 if opts.boolean(k::CLOSABLE, true) {
                     window = window.open(&mut open);
                 }

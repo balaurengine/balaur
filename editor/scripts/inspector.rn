@@ -533,7 +533,7 @@ fn polygon_section(S, k) {
         },
         #{
             kind: "number_field", grow: 1, value: S.polygon.tolerance,
-            step: 0.1, min: 0.0, max: 64.0, placeholder: "px",
+            drag_speed: 0.1, min: 0.0, max: 64.0, prefix: "px",
             on: |v| { S.polygon.tolerance = v; },
         },
     ]);
@@ -594,12 +594,12 @@ fn polygon_section(S, k) {
     verb_row(S, "Brush", [
         #{
             kind: "number_field", grow: 1, value: S.polygon.radius,
-            step: 0.5, min: 2.0, max: 400.0, placeholder: "px",
+            drag_speed: 0.5, min: 2.0, max: 400.0, prefix: "px",
             on: |v| { S.polygon.radius = v; },
         },
         #{
             kind: "number_field", grow: 1, value: S.polygon.strength,
-            step: 0.01, min: 0.01, max: 2.0, placeholder: "×",
+            drag_speed: 0.01, min: 0.01, max: 2.0, prefix: "×",
             on: |v| { S.polygon.strength = v; },
         },
     ]);
@@ -630,7 +630,7 @@ fn animation_section(S, k) {
     // left at 0 and 1, and naming one would clamp the clip to the other.
     push(S, #{ label: "Length", height: row_h(S), controls: [#{
         kind: "number_field", grow: 1, value: anim::length(def),
-        step: 0.01, suffix: " s",
+        drag_speed: 0.01, suffix: " s",
         on: |v| {
             def.length = util::max(0.1, v);
             anim::touch(S);
@@ -1151,7 +1151,7 @@ fn edit_float(S, k, at, spec, value) {
     push(S, #{ label: at.label, tooltip: row_tip(at, spec), controls: [#{
         kind: "number_field", grow: 1,
         value: shown_as(spec, number_of(value)),
-        step: spec.get("step").unwrap_or(0.02),
+        drag_speed: spec.get("step").unwrap_or(0.02),
         on: |v| { write_at(S, at, stored_as(spec, clamped(spec, v))); },
     }] });
 }
@@ -1160,7 +1160,7 @@ fn edit_int(S, k, at, spec, value) {
     push(S, #{ label: at.label, tooltip: row_tip(at, spec), controls: [#{
         kind: "number_field", grow: 1,
         value: number_of(value),
-        step: spec.get("step").unwrap_or(1.0),
+        drag_speed: spec.get("step").unwrap_or(1.0),
         on: |v| { write_at(S, at, math::round(clamped(spec, v)) as i64); },
     }] });
 }
@@ -1217,8 +1217,8 @@ fn edit_vector(S, k, at, spec, value) {
         controls.push(#{
             kind: "number_field", grow: 1,
             value: shown_as(spec, channel(held, slot, fallback)),
-            step: spec.get("step").unwrap_or(if datatype == "color" { 0.005 } else { 0.02 }),
-            placeholder: letters[slot],
+            drag_speed: spec.get("step").unwrap_or(if datatype == "color" { 0.005 } else { 0.02 }),
+            prefix: letters[slot],
             on: |v| {
                 let out = [];
                 for n in 0..count {
@@ -1453,7 +1453,7 @@ fn material_row(S, k, reference, name, datatype, value) {
         }
     } else if datatype == "float" {
         #{
-            kind: "number_field", grow: 1, value: util::f(value), step: 0.001,
+            kind: "number_field", grow: 1, value: util::f(value), drag_speed: 0.001,
             on: |v| { write_material_param(S, reference, name, v); },
         }
     } else if datatype == "texture" {
@@ -1483,7 +1483,7 @@ fn material_row(S, k, reference, name, datatype, value) {
             // Bound afresh: a closure made in a loop captures the binding.
             let slot = i;
             cells.push(#{
-                kind: "number_field", grow: 1, step: 0.02, placeholder: letters[slot],
+                kind: "number_field", grow: 1, drag_speed: 0.02, prefix: letters[slot],
                 value: match held.get(slot) { Some(x) => util::f(x), None => 0.0 },
                 on: |v| {
                     let out = [];

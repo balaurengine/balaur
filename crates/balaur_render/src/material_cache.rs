@@ -136,6 +136,8 @@ macro_rules! define {
                         probes: false,
                         vertex_color: false,
                         instance_custom: false,
+                        transparent_wgsl: None,
+                        morph: false,
                     })
                 })
                 .inspect_err(|why| tracing::error!(channel, "{why:#}"))

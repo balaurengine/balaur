@@ -528,6 +528,117 @@ fn two_materials() -> String {
     )
 }
 
+/// One triangle under a blended, unlit material whose base colour map is
+/// moved, scaled and turned, with a specular colour, beside a spot light.
+fn extended() -> String {
+    let positions = f32s(&[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0]);
+    let indices = u16s(&[0, 1, 2]);
+    let (bin, views, descs) = pack(&[
+        Accessor {
+            bytes: positions,
+            component_type: 5126,
+            kind: "VEC3",
+            count: 3,
+            bounds: Some(([0.0, 0.0, 0.0], [1.0, 1.0, 0.0])),
+        },
+        Accessor {
+            bytes: indices,
+            component_type: 5123,
+            kind: "SCALAR",
+            count: 3,
+            bounds: None,
+        },
+        Accessor {
+            bytes: PIXEL_PNG.to_vec(),
+            component_type: 5121,
+            kind: "SCALAR",
+            count: PIXEL_PNG.len(),
+            bounds: None,
+        },
+    ]);
+    format!(
+        r#"{{"asset":{{"version":"2.0"}},"scene":0,"scenes":[{{"nodes":[0,1]}}],
+"extensionsUsed":["KHR_materials_unlit","KHR_texture_transform","KHR_materials_specular","KHR_lights_punctual"],
+"extensions":{{"KHR_lights_punctual":{{"lights":[
+  {{"type":"spot","color":[1.0,0.5,0.25],"intensity":40.0,"range":12.0,
+    "spot":{{"innerConeAngle":0.25,"outerConeAngle":0.5}}}}]}}}},
+"nodes":[{{"name":"Body","mesh":0}},
+  {{"name":"Bulb","translation":[0.0,3.0,0.0],"extensions":{{"KHR_lights_punctual":{{"light":0}}}}}}],
+"meshes":[{{"primitives":[{{"attributes":{{"POSITION":0}},"indices":1,"material":0}}]}}],
+"images":[{{"bufferView":2,"mimeType":"image/png"}}],
+"textures":[{{"source":0}}],
+"materials":[
+  {{"name":"Glow","alphaMode":"BLEND",
+    "pbrMetallicRoughness":{{"baseColorFactor":[1.0,1.0,1.0,0.5],
+      "baseColorTexture":{{"index":0,"extensions":{{"KHR_texture_transform":
+        {{"offset":[0.5,0.25],"scale":[2.0,4.0],"rotation":1.5707964}}}}}}}},
+    "extensions":{{"KHR_materials_unlit":{{}},
+      "KHR_materials_specular":{{"specularColorFactor":[0.2,0.4,0.8]}}}}}}
+],
+"buffers":[{{"byteLength":{},"uri":"data:application/octet-stream;base64,{}"}}],
+"bufferViews":[{views}],
+"accessors":[{descs}]}}"#,
+        bin.len(),
+        base64(&bin)
+    )
+}
+
+#[test]
+fn a_blended_unlit_material_keeps_its_specular_colour_and_texture_transform() {
+    let imported = glb::import(extended().as_bytes(), "lamp.gltf", &glb::no_side_files).unwrap();
+    let assets = imported.scene.get("assets").unwrap().as_array().unwrap();
+    let glow = &assets[0];
+    let surface = glow.get("surface").unwrap();
+    assert_eq!(surface.get("alpha").unwrap().as_str(), Some("blend"));
+    assert_eq!(
+        glow.get("features")
+            .unwrap()
+            .get("unlit")
+            .unwrap()
+            .as_bool(),
+        Some(true)
+    );
+    let params = glow.get("params").unwrap();
+    let tint = params.get("specular_tint").unwrap().as_array().unwrap();
+    assert!(close(tint[2].as_float().unwrap() as f32, 0.8));
+    let offset = params.get("uv_offset").unwrap().as_array().unwrap();
+    assert!(close(offset[0].as_float().unwrap() as f32, 0.5));
+    let scale = params.get("uv_scale").unwrap().as_array().unwrap();
+    assert!(close(scale[1].as_float().unwrap() as f32, 4.0));
+    let turn = params
+        .get("uv_rotation_degrees")
+        .unwrap()
+        .as_float()
+        .unwrap() as f32;
+    assert!((turn - 90.0).abs() < 1e-3, "{turn}");
+}
+
+#[test]
+fn a_punctual_light_becomes_a_light3d_on_its_node() {
+    let imported = glb::import(extended().as_bytes(), "lamp.gltf", &glb::no_side_files).unwrap();
+    let nodes = imported.scene.get("nodes").unwrap().as_array().unwrap();
+    let bulb = nodes
+        .iter()
+        .find(|n| n.get("name").and_then(toml::Value::as_str) == Some("Bulb"))
+        .expect("the light's node is kept");
+    let light = bulb.get("light3d").expect("a light3d on it");
+    assert_eq!(light.get("kind").unwrap().as_str(), Some("spot"));
+    assert!(close(
+        light.get("range").unwrap().as_float().unwrap() as f32,
+        12.0
+    ));
+    assert!(close(
+        light.get("intensity").unwrap().as_float().unwrap() as f32,
+        40.0
+    ));
+    let outer = light
+        .get("outer_angle_degrees")
+        .unwrap()
+        .as_float()
+        .unwrap() as f32;
+    assert!((outer - 0.5f32.to_degrees()).abs() < 1e-3, "{outer}");
+}
+
 fn imported_two_materials() -> glb::GlbImport {
     glb::import(two_materials().as_bytes(), "hall.gltf", &glb::no_side_files).unwrap()
 }
@@ -552,8 +663,8 @@ fn a_material_keeps_its_factors_and_every_map_it_names() {
         params.get("roughness").unwrap().as_float().unwrap() as f32,
         0.75
     ));
-    let emissive = params.get("emissive").unwrap().as_array().unwrap();
-    assert!(close(emissive[1].as_float().unwrap() as f32, 0.2));
+    let emission = params.get("emission_color").unwrap().as_array().unwrap();
+    assert!(close(emission[1].as_float().unwrap() as f32, 0.2));
     // The four slots this material named. The normal map is the file's second
     // image, the rest its first.
     for slot in ["albedo", "metallic_roughness", "occlusion"] {

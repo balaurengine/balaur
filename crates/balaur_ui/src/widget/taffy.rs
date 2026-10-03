@@ -14,6 +14,7 @@ use std::rc::Rc;
 use balaur_core::Engine;
 use taffy::compute_leaf_layout;
 use taffy::prelude::*;
+use taffy::style::{Contain, Direction, Overflow};
 use taffy::style_helpers::TaffyMaxContent;
 
 use crate::vocabulary::words as w;
@@ -78,41 +79,92 @@ impl Default for Held {
 
 /// Whether taffy lays this kind's children out, or the kind does it itself.
 fn owns_children(kind: &str) -> bool {
-    lays_out(kind)
-        && !matches!(
-            kind,
-            w::TABS | w::SCROLL | w::GRID | w::FLOW | w::FOLD | w::MENU | w::STACK
-        )
+    lays_out(kind) && !matches!(kind, w::TABS | w::SCROLL | w::FOLD | w::MENU | w::STACK)
 }
 
-/// Which axis a container stacks along, from its kind.
-fn direction(kind: &str) -> FlexDirection {
-    match kind {
-        w::ROW | w::FLOW => FlexDirection::Row,
-        _ => FlexDirection::Column,
+/// Which axis a container stacks along, from its kind; `reverse` runs a row,
+/// a column or a flow from its far end.
+fn direction(kind: &str, reverse: bool) -> FlexDirection {
+    let reverse = reverse && matches!(kind, w::ROW | w::COLUMN | w::FLOW);
+    match (kind, reverse) {
+        (w::ROW | w::FLOW, false) => FlexDirection::Row,
+        (w::ROW | w::FLOW, true) => FlexDirection::RowReverse,
+        (_, false) => FlexDirection::Column,
+        (_, true) => FlexDirection::ColumnReverse,
     }
 }
 
-fn align_of(word: &str) -> AlignItems {
+fn safety(safe: bool) -> taffy::style::AlignmentSafety {
+    if safe {
+        taffy::style::AlignmentSafety::Safe
+    } else {
+        taffy::style::AlignmentSafety::Unsafe
+    }
+}
+
+/// An `align_items` or `align_self` word; `None` for `auto`.
+fn align_of(word: &str, safe: bool) -> Option<AlignItems> {
+    use taffy::style::AlignItemsKeyword as K;
+    let keyword = match word {
+        w::AUTO => return None,
+        w::START => K::Start,
+        w::CENTER => K::Center,
+        w::END => K::End,
+        w::BASELINE => K::Baseline,
+        _ => K::Stretch,
+    };
+    Some(AlignItems {
+        keyword,
+        safety: safety(safe),
+    })
+}
+
+/// A `justify` or `align_content` word.
+fn content_of(word: &str, safe: bool) -> AlignContent {
+    use taffy::style::AlignContentKeyword as K;
+    let keyword = match word {
+        w::CENTER => K::Center,
+        w::STRETCH => K::Stretch,
+        w::BETWEEN => K::SpaceBetween,
+        w::AROUND => K::SpaceAround,
+        w::EVENLY => K::SpaceEvenly,
+        // The flex ends, which a `reverse` or a `wrap_reverse` turns round.
+        w::END => K::FlexEnd,
+        _ => K::FlexStart,
+    };
+    AlignContent {
+        keyword,
+        safety: safety(safe),
+    }
+}
+
+/// How a container wraps its children, from its `wrap_children` word.
+fn wrap_of(kind: &str, word: &str) -> FlexWrap {
+    use crate::vocabulary::words::wrapping as wr;
     match word {
-        w::CENTER => AlignItems::CENTER,
-        w::END => AlignItems::END,
-        // Stretch, not Start: a child across the container's direction fills
-        // it unless the author asked for something else, which is the rule
-        // every scene written before `align_items` was laid out under.
-        _ => AlignItems::STRETCH,
+        wr::NONE => FlexWrap::NoWrap,
+        wr::WRAP => FlexWrap::Wrap,
+        wr::WRAP_REVERSE => FlexWrap::WrapReverse,
+        wr::BALANCE => FlexWrap::Balance,
+        wr::BALANCE_REVERSE => FlexWrap::BalanceReverse,
+        _ if kind == w::FLOW => FlexWrap::Wrap,
+        _ => FlexWrap::NoWrap,
     }
 }
 
-fn justify_of(word: &str) -> JustifyContent {
+fn overflow_of(word: &str) -> Overflow {
+    use crate::vocabulary::words::overflow as o;
     match word {
-        w::CENTER => JustifyContent::CENTER,
-        w::END => JustifyContent::END,
-        w::BETWEEN => JustifyContent::SPACE_BETWEEN,
-        w::AROUND => JustifyContent::SPACE_AROUND,
-        w::EVENLY => JustifyContent::SPACE_EVENLY,
-        _ => JustifyContent::START,
+        o::CLIP => Overflow::Clip,
+        o::HIDDEN => Overflow::Hidden,
+        o::SCROLL => Overflow::Scroll,
+        _ => Overflow::Visible,
     }
+}
+
+/// An `absolute` child's distance from one edge; below zero leaves it free.
+fn inset_of(px: f32) -> LengthPercentageAuto {
+    if px >= 0.0 { length(px) } else { auto() }
 }
 
 /// A length in design pixels as taffy takes it, or `auto` for zero — which is
@@ -131,25 +183,44 @@ fn floor_or_none(px: f32) -> LengthPercentageAuto {
     if px > 0.0 { length(px) } else { length(0.0) }
 }
 
-/// One widget's `taffy::Style`.
-///
-/// Every property the widget layer had before is one field here: `grow` is
-/// `flex_grow`, `gap` is `gap`, `padding` is `padding`, `align_items` is
-/// `align_items`, `justify` is `justify_content`, `columns` is how many a
-/// `flow` puts on a line, and a hidden widget is `Display::None`.
+/// What a node's style is built from besides the widget and its theme.
+#[derive(Clone, Copy)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "independent facts about one node, each read by its own field of the style"
+)]
+struct Shape {
+    pad: crate::widget::arrange::Pad,
+    gap: egui::Vec2,
+    /// What a container keeps clear above its children for what it draws
+    /// there itself: a panel's caption, a window's title bar.
+    band: f32,
+    drawn: bool,
+    shown: bool,
+    is_root: bool,
+    /// A window folded to its bar, which drops its stated height.
+    folded: bool,
+}
+
 /// Everything [`style_of`] and the `fills` override read, hashed into one
 /// number. Must name every input either of them touches: a field left out is
 /// a change that never reaches taffy.
 fn style_key(
     widget: &Widget,
     style: &crate::widget::theme::Style,
-    pad: crate::widget::arrange::Pad,
-    gap: f32,
-    drawn: bool,
+    shape: Shape,
     fills: Fill,
-    shown: bool,
 ) -> u64 {
     use std::hash::{Hash as _, Hasher as _};
+    let Shape {
+        pad,
+        gap,
+        band,
+        drawn,
+        shown,
+        is_root,
+        folded,
+    } = shape;
     let mut hasher = rustc_hash::FxHasher::default();
     // The role's own size is part of the shape, or a theme swap leaves the
     // node styled by the one before it.
@@ -163,14 +234,17 @@ fn style_key(
     widget.height.to_bits().hash(&mut hasher);
     widget.min_width.to_bits().hash(&mut hasher);
     widget.min_height.to_bits().hash(&mut hasher);
-    widget.gap.to_bits().hash(&mut hasher);
     widget.align.hash(&mut hasher);
     widget.justify.hash(&mut hasher);
-    for side in [pad.left, pad.top, pad.right, pad.bottom] {
+    widget.reverse.hash(&mut hasher);
+    widget.inset.map(f32::to_bits).hash(&mut hasher);
+    widget.layout.hash(&mut hasher);
+    for side in [pad.left, pad.top, pad.right, pad.bottom, gap.x, gap.y, band] {
         side.to_bits().hash(&mut hasher);
     }
-    gap.to_bits().hash(&mut hasher);
     drawn.hash(&mut hasher);
+    is_root.hash(&mut hasher);
+    folded.hash(&mut hasher);
     for side in fills {
         side.map(f32::to_bits).hash(&mut hasher);
     }
@@ -181,13 +255,10 @@ fn style_key(
 fn styled(
     widget: &Widget,
     style: &crate::widget::theme::Style,
-    pad: crate::widget::arrange::Pad,
-    gap: f32,
-    drawn: bool,
+    shape: Shape,
     fills: Fill,
-    shown: bool,
 ) -> Style {
-    let mut want = style_of(widget, style, pad, gap, drawn, shown);
+    let mut want = style_of(widget, style, shape);
     // The subtree's own node takes the box it was handed, where it was handed
     // one: a container's child fills its rect, and only a root on a corner
     // sizes itself from what is inside it.
@@ -206,22 +277,137 @@ fn styled(
     want
 }
 
-fn style_of(
-    widget: &Widget,
-    style: &crate::widget::theme::Style,
-    pad: crate::widget::arrange::Pad,
-    gap: f32,
-    drawn: bool,
-    shown: bool,
-) -> Style {
-    let asked = crate::widget::arrange::size_of(widget, style);
-    if !shown {
+/// One widget's `taffy::Style`.
+///
+/// Every layout property is one field here: `grow` is `flex_grow`, `gap` is
+/// `gap`, `padding` is `padding`, `align_items` is `align_items`, `justify` is
+/// `justify_content`, a `grid` is `Display::Grid` with its tracks, and a
+/// hidden widget is `Display::None`.
+fn style_of(widget: &Widget, style: &crate::widget::theme::Style, shape: Shape) -> Style {
+    let mut asked = crate::widget::arrange::size_of(widget, style);
+    if shape.folded {
+        asked.y = 0.0;
+    }
+    if !shape.shown {
         return Style {
             display: Display::None,
             ..Style::default()
         };
     }
+    let layout = &widget.layout;
     let container = lays_out(&widget.kind);
+    let percent_or = |share: f32, px: f32| {
+        if share > 0.0 {
+            percent(share / 100.0)
+        } else {
+            size_or_auto(px)
+        }
+    };
+    let cap = |px: f32| if px > 0.0 { length(px) } else { auto() };
+    let [left, top, right, bottom] = layout.border.map(crate::widget::node::Bits::get);
+    let margin = layout.margin.map(crate::widget::node::Bits::get);
+    let safe = layout.safe_align;
+    let (pad, gap) = (shape.pad, shape.gap);
+    let mut out = Style {
+        display: if widget.kind == w::GRID {
+            Display::Grid
+        } else {
+            Display::Flex
+        },
+        item_is_replaced: widget.kind == w::IMAGE,
+        size: Size {
+            width: percent_or(layout.width_percent.get(), asked.x),
+            height: percent_or(layout.height_percent.get(), asked.y),
+        },
+        min_size: Size {
+            width: floor_or_none(widget.min_width),
+            height: floor_or_none(widget.min_height),
+        },
+        max_size: Size {
+            width: cap(layout.max_width.get()),
+            height: cap(layout.max_height.get()),
+        },
+        aspect_ratio: (layout.aspect_ratio.get() > 0.0).then(|| layout.aspect_ratio.get()),
+        margin: Rect {
+            left: length(margin[0]),
+            top: length(margin[1]),
+            right: length(margin[2]),
+            bottom: length(margin[3]),
+        },
+        padding: Rect {
+            left: length(pad.left),
+            right: length(pad.right),
+            top: length(pad.top + shape.band),
+            bottom: length(pad.bottom),
+        },
+        border: Rect {
+            left: length(left),
+            top: length(top),
+            right: length(right),
+            bottom: length(bottom),
+        },
+        gap: Size {
+            width: length(gap.x),
+            height: length(gap.y),
+        },
+        align_items: if container {
+            align_of(&widget.align, safe)
+        } else {
+            None
+        },
+        align_self: align_of(&layout.align_self, safe),
+        align_content: container.then(|| content_of(&layout.align_content, safe)),
+        justify_content: container.then(|| content_of(&widget.justify, safe)),
+        ..Style::default()
+    };
+    box_into(&mut out, widget, shape.is_root);
+    flex_into(&mut out, widget, shape.drawn);
+    grid_into(&mut out, widget);
+    out
+}
+
+/// What box the sizes measure, which way it runs, what it keeps for content
+/// past its edge, and where an `absolute` child sits.
+fn box_into(out: &mut Style, widget: &Widget, is_root: bool) {
+    use crate::vocabulary::words::{direction, sizing};
+    let layout = &widget.layout;
+    out.box_sizing = if layout.box_sizing == sizing::CONTENT {
+        BoxSizing::ContentBox
+    } else {
+        BoxSizing::BorderBox
+    };
+    out.direction = if layout.direction == direction::RIGHT_TO_LEFT {
+        Direction::Rtl
+    } else {
+        Direction::Ltr
+    };
+    out.overflow = taffy::geometry::Point {
+        x: overflow_of(&layout.overflow),
+        y: overflow_of(&layout.overflow),
+    };
+    out.scrollbar_width = layout.scrollbar_width.get();
+    out.contain = match layout.contain {
+        [true, true] => Contain::CONTENT,
+        [true, false] => Contain::LAYOUT,
+        [false, true] => Contain::PAINT,
+        [false, false] => Contain::NONE,
+    };
+    // A root is placed by its anchor, never by taffy.
+    if layout.absolute && !is_root {
+        out.position = Position::Absolute;
+        out.inset = Rect {
+            left: inset_of(widget.inset[0]),
+            top: inset_of(widget.inset[1]),
+            right: inset_of(widget.inset[2]),
+            bottom: inset_of(widget.inset[3]),
+        };
+    }
+}
+
+/// The flex fields: the direction from the kind, the wrap, and the share of
+/// the line a child grows, shrinks and starts from.
+fn flex_into(out: &mut Style, widget: &Widget, drawn: bool) {
+    let layout = &widget.layout;
     let grow = if widget.grow > 0.0 {
         widget.grow
     } else if widget.kind == w::DRAW && !drawn && widget.width <= 0.0 && widget.height <= 0.0 {
@@ -229,41 +415,57 @@ fn style_of(
     } else {
         0.0
     };
-    Style {
-        display: Display::Flex,
-        flex_direction: direction(&widget.kind),
-        flex_wrap: if widget.kind == w::FLOW {
-            FlexWrap::Wrap
-        } else {
-            FlexWrap::NoWrap
-        },
-        flex_grow: grow,
-        // `flex: 1 1 0` where it grows: content must not inflate the share it
-        // starts from. A box that does not grow is never shrunk.
-        flex_shrink: if grow > 0.0 { 1.0 } else { 0.0 },
-        flex_basis: if grow > 0.0 { length(0.0) } else { auto() },
-        size: Size {
-            width: size_or_auto(asked.x),
-            height: size_or_auto(asked.y),
-        },
-        min_size: Size {
-            width: floor_or_none(widget.min_width),
-            height: floor_or_none(widget.min_height),
-        },
-        gap: Size {
-            width: length(gap),
-            height: length(gap),
-        },
-        padding: Rect {
-            left: length(pad.left),
-            right: length(pad.right),
-            top: length(pad.top),
-            bottom: length(pad.bottom),
-        },
-        align_items: container.then(|| align_of(&widget.align)),
-        justify_content: container.then(|| justify_of(&widget.justify)),
-        ..Style::default()
+    out.flex_direction = direction(&widget.kind, widget.reverse);
+    out.flex_wrap = wrap_of(&widget.kind, &layout.wrap_children);
+    out.flex_line_count = layout.min_lines.max(1);
+    out.flex_grow = grow;
+    // `flex: 1 1 0` where it grows: content must not inflate the share it
+    // starts from. A box that does not grow is never shrunk.
+    out.flex_shrink = if layout.shrink.get() >= 0.0 {
+        layout.shrink.get()
+    } else if grow > 0.0 {
+        1.0
+    } else {
+        0.0
+    };
+    out.flex_basis = if layout.basis.get() >= 0.0 {
+        length(layout.basis.get())
+    } else if grow > 0.0 {
+        length(0.0)
+    } else {
+        auto()
+    };
+}
+
+/// A grid's tracks and areas, and any widget's placement in a grid above it.
+/// Words that do not read were refused when the widget was applied, so a
+/// failure here leaves the field at taffy's default.
+fn grid_into(out: &mut Style, widget: &Widget) {
+    use crate::widget::grid;
+    let layout = &widget.layout;
+    out.grid_row = grid::placement(&layout.row).unwrap_or_default();
+    out.grid_column = grid::placement(&layout.column).unwrap_or_default();
+    if widget.kind != w::GRID {
+        return;
     }
+    out.grid_template_columns = if layout.grid_columns.is_empty() {
+        taffy::style_helpers::evenly_sized_tracks(2)
+    } else {
+        grid::template(&layout.grid_columns).unwrap_or_default()
+    };
+    out.grid_template_rows = grid::template(&layout.grid_rows).unwrap_or_default();
+    out.grid_auto_columns = grid::auto_tracks(&layout.auto_columns).unwrap_or_default();
+    out.grid_auto_rows = grid::auto_tracks(&layout.auto_rows).unwrap_or_default();
+    out.grid_auto_flow = {
+        use crate::vocabulary::words::flow as f;
+        match layout.auto_flow.as_str() {
+            f::COLUMN => GridAutoFlow::Column,
+            f::ROW_DENSE => GridAutoFlow::RowDense,
+            f::COLUMN_DENSE => GridAutoFlow::ColumnDense,
+            _ => GridAutoFlow::Row,
+        }
+    };
+    out.grid_template_areas = grid::areas(&layout.areas).ok().flatten();
 }
 
 /// The absolute rect of every widget in a solved subtree, by arena index.
@@ -413,7 +615,12 @@ pub(crate) fn solve(
             return Rects::default();
         }
         let mut rects = Rects::default();
-        gather(&held, arena, root, node, space.origin, &mut rects);
+        // The root sits at the room's corner: taffy puts a right-to-left
+        // root at the far side of the space it was offered.
+        let corner = held.tree.layout(node).map_or(egui::Vec2::ZERO, |layout| {
+            egui::vec2(layout.location.x, layout.location.y)
+        });
+        gather(&held, arena, root, node, space.origin - corner, &mut rects);
         rects
     })
 }
@@ -496,25 +703,36 @@ fn sync(
     let widget = &placed.widget;
     let theme = crate::widget::theme::theme_of(measure.eng, &widget.theme, theme);
     let look = crate::widget::arena::look_of(arena, index, &theme);
-    let pad = crate::widget::arrange::padding_of(widget, &look.style);
-    let gap = crate::widget::arrange::gap_of(widget, &look.style);
-    let drawn = crate::widget::arrange::measured_of(placed.entity) != egui::Vec2::ZERO;
-    // A solve's root is laid out whatever its `visible` says, on a node of
-    // its own: a hidden menu still opens its rows from a `context`.
-    let shown = widget.visible || is_root;
-    let key = (placed.entity.to_bits().get(), is_root && !widget.visible);
-    let stamp = style_key(widget, &look.style, pad, gap, drawn, fills, shown);
     // A kind that places its own children is measured as a leaf, and so is an
-    // empty container. Neither recurses, so the measure can happen here.
-    let owns = is_root || owns_children(&widget.kind);
+    // empty container. Neither recurses, so the measure can happen here; a
+    // folded window keeps only its title bar.
+    let folded = widget.kind == w::WINDOW && crate::widget::window::folded(placed.entity, widget);
+    let owns = (is_root || owns_children(&widget.kind)) && !folded;
     let leaf = !owns || placed.children.is_empty();
+    let shape = Shape {
+        pad: crate::widget::arrange::padding_only(widget, &look.style),
+        gap: crate::widget::arrange::gap_of(widget, &look.style),
+        band: if leaf {
+            0.0
+        } else {
+            measure.band(index, &theme)
+        },
+        drawn: crate::widget::arrange::measured_of(placed.entity) != egui::Vec2::ZERO,
+        // A solve's root is laid out whatever its `visible` says, on a node
+        // of its own: a hidden menu still opens its rows from a `context`.
+        shown: widget.visible || is_root,
+        is_root,
+        folded,
+    };
+    let key = (placed.entity.to_bits().get(), is_root && !widget.visible);
+    let stamp = style_key(widget, &look.style, shape, fills);
     let node = {
         // One lookup for the node, its stamp and what it measured.
         let Held { tree, nodes } = &mut *held;
         let kept = nodes.entry(key).or_insert_with(|| {
             kept_of(
                 tree,
-                styled(widget, &look.style, pad, gap, drawn, fills, shown),
+                styled(widget, &look.style, shape, fills),
                 index,
                 stamp,
             )
@@ -523,7 +741,7 @@ fn sync(
         if tree.style(kept.id).is_err() {
             *kept = kept_of(
                 tree,
-                styled(widget, &look.style, pad, gap, drawn, fills, shown),
+                styled(widget, &look.style, shape, fills),
                 index,
                 stamp,
             );
@@ -532,10 +750,7 @@ fn sync(
         // that is not moving should re-solve nothing. The stamp is what
         // says so without building a style to compare against.
         if kept.style != stamp {
-            let _ = tree.set_style(
-                kept.id,
-                styled(widget, &look.style, pad, gap, drawn, fills, shown),
-            );
+            let _ = tree.set_style(kept.id, styled(widget, &look.style, shape, fills));
             kept.style = stamp;
         }
         // Only on a change, because setting a context marks the node dirty and
@@ -557,11 +772,15 @@ fn sync(
     };
     // A kind that places its own children is a leaf in the tree its parent
     // was solved in, so the subtree solved from it here starts with none.
-    let laid = placed
-        .children
-        .iter()
-        .filter(|child| !crate::widget::kinds::in_title_bar(arena, index, **child))
-        .count();
+    let laid = if owns {
+        placed
+            .children
+            .iter()
+            .filter(|child| !crate::widget::kinds::in_title_bar(arena, index, **child))
+            .count()
+    } else {
+        0
+    };
     let bare = is_root && held.tree.child_count(node) != laid;
     if !deep && !bare {
         // The children taffy holds are the ones this arena put there, and the

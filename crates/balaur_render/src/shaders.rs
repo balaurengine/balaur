@@ -29,6 +29,11 @@ pub static LIGHT_2D: &str = include_str!("shaders/light2d.wesl");
 /// every such shader would otherwise repeat.
 pub(crate) static SPRITE: &str = include_str!("shaders/sprite.wesl");
 
+/// What draws a 2D text block that has an `alpha_cutoff`, written against
+/// [`SPRITE`] like any project's material.
+#[cfg(any(feature = "window", test))]
+pub(crate) static TEXT_MASK: &str = include_str!("shaders/text_mask.wesl");
+
 /// The 3D counterpart, mounted as `package::mesh`: the same uniforms in three
 /// dimensions, plus the scene's lights and fog.
 pub(crate) static MESH: &str = include_str!("shaders/mesh.wesl");
@@ -42,12 +47,16 @@ pub(crate) static PBR: &str = include_str!("shaders/pbr.wesl");
 pub static PREPASS: &str = include_str!("shaders/prepass.wesl");
 
 /// The prepass as WGSL, for a material whose vertices do or do not carry a
-/// colour — the one thing that changes its vertex attributes.
-pub fn link_prepass(vertex_color: bool) -> Result<String> {
+/// colour — the one thing that changes its vertex attributes — on a device
+/// that does or does not morph.
+pub fn link_prepass(vertex_color: bool, morph: bool) -> Result<String> {
     let linked = link(
         &[("package::prepass", PREPASS)],
         "package::prepass",
-        &[(crate::material::VERTEX_COLOR, vertex_color)],
+        &[
+            (crate::material::VERTEX_COLOR, vertex_color),
+            (MORPH, morph),
+        ],
     )?;
     wgsl(&linked)
 }
@@ -79,6 +88,18 @@ pub(crate) const MAX_PROBES: usize = 8;
 /// which keeps a palette inside the 16 KB uniform every adapter guarantees.
 pub(crate) const MAX_JOINTS: usize = 128;
 
+/// The fork's shadow uniform sizes: `MAX_SHADOW_VIEWS` atlas views, and one
+/// row per primary light plus one per view for the lights past them.
+pub(crate) const MAX_SHADOW_VIEWS: usize = 64;
+pub(crate) const MAX_SHADOW_LIGHTS: usize = 8 + MAX_SHADOW_VIEWS;
+
+/// The fork's `MAX_MORPH_TARGETS` weights, four to a row.
+pub(crate) const MAX_MORPH_WEIGHT_ROWS: usize = 256 / 4;
+
+/// The feature `package::mesh` declares its morph bindings under. The engine
+/// sets it, from whether the device lets a vertex stage read storage buffers.
+pub(crate) const MORPH: &str = "morph";
+
 /// The limits above as WESL's `constants` module, so a shader sizes its arrays
 /// with `import constants::MAX_LIGHTS` from the same number the buffer uses.
 fn constants_module() -> String {
@@ -87,6 +108,9 @@ fn constants_module() -> String {
         ("MAX_LIGHTS", MAX_LIGHTS),
         ("MAX_PROBES", MAX_PROBES),
         ("MAX_JOINTS", MAX_JOINTS),
+        ("MAX_SHADOW_VIEWS", MAX_SHADOW_VIEWS),
+        ("MAX_SHADOW_LIGHTS", MAX_SHADOW_LIGHTS),
+        ("MAX_MORPH_WEIGHT_ROWS", MAX_MORPH_WEIGHT_ROWS),
     ];
     let mut module = String::new();
     for (name, value) in limits {
@@ -301,7 +325,7 @@ mod tests {
     #[test]
     fn the_mesh_prepass_links_with_and_without_vertex_colours() {
         for colours in [false, true] {
-            let wgsl = link_prepass(colours).expect("the engine's own shader must link");
+            let wgsl = link_prepass(colours, false).expect("the engine's own shader must link");
             assert!(wgsl.contains("fn vs_main"), "{wgsl}");
             assert!(wgsl.contains("fn fs_main"), "{wgsl}");
             // The four targets the screen-space passes read.
@@ -319,7 +343,7 @@ mod tests {
     /// built from the material's layout.
     #[test]
     fn the_mesh_prepass_binds_only_the_frame_and_the_object() {
-        let wgsl = link_prepass(false).expect("the engine's own shader must link");
+        let wgsl = link_prepass(false, false).expect("the engine's own shader must link");
         assert!(wgsl.contains("@group(0)"), "{wgsl}");
         assert!(wgsl.contains("@group(1)"), "{wgsl}");
         assert!(!wgsl.contains("@group(2)"), "{wgsl}");
@@ -385,22 +409,28 @@ mod tests {
     fn the_imported_gltf_material_links_with_any_maps() {
         for metallic_roughness in [false, true] {
             for emissive in [false, true] {
-                let linked = link(
-                    &[("package::imported", balaur_core::glb::MATERIAL_SHADER)],
-                    "package::imported",
-                    &[
-                        ("metallic_roughness_map", metallic_roughness),
-                        ("emissive_map", emissive),
-                    ],
-                )
-                .unwrap_or_else(|why| {
-                    panic!("the imported material must link ({metallic_roughness}, {emissive}): {why:#}")
-                });
-                let wgsl = wgsl(&linked).unwrap();
-                assert!(wgsl.contains("fn fs_main"), "{wgsl}");
-                // Glass is a runtime branch on a constant, not a variant, so
-                // every combination carries the refraction path.
-                assert!(wgsl.contains("transmission"), "{wgsl}");
+                for unlit in [false, true] {
+                    let linked = link(
+                        &[("package::imported", balaur_core::glb::MATERIAL_SHADER)],
+                        "package::imported",
+                        &[
+                            ("metallic_roughness_map", metallic_roughness),
+                            ("emissive_map", emissive),
+                            ("unlit", unlit),
+                        ],
+                    )
+                    .unwrap_or_else(|why| {
+                        panic!(
+                            "the imported material must link ({metallic_roughness}, {emissive}, {unlit}): {why:#}"
+                        )
+                    });
+                    let wgsl = wgsl(&linked).unwrap();
+                    assert!(wgsl.contains("fn fs_main"), "{wgsl}");
+                    // Glass is a runtime branch on a constant, not a variant, so
+                    // every combination carries the refraction path.
+                    assert!(wgsl.contains("transmission"), "{wgsl}");
+                    assert!(wgsl.contains("uv_rotation_degrees"), "{wgsl}");
+                }
             }
         }
     }
@@ -483,6 +513,25 @@ mod tests {
         )
         .unwrap();
         assert!(tangent.iter().all(|v| v.abs() < 1e-5), "{tangent:?}");
+    }
+
+    #[test]
+    fn the_2d_text_mask_links_as_a_material() {
+        let material = crate::material::Material3d {
+            shader: "text_mask.wesl".into(),
+            features: Vec::new(),
+            params: vec![("cutoff".into(), crate::material::Param::Float(0.5))],
+            surface: crate::material::Surface::default(),
+            builtin: None,
+        };
+        let compiled = crate::material::compile(&material, TEXT_MASK)
+            .expect("the engine's own shader must link");
+        assert!(compiled.wgsl.contains("discard"), "{}", compiled.wgsl);
+        assert_eq!(
+            compiled.params.len(),
+            16,
+            "one f32, padded to a uniform's size"
+        );
     }
 
     #[test]

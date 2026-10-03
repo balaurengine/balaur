@@ -74,6 +74,10 @@ pub struct Tilemap {
     pub seed: u64,
     /// Tile-texture pixels per world unit.
     pub pixels_per_unit: f32,
+    /// Tint over every tile, under the node's inherited one.
+    pub color: [f32; 4],
+    /// The blend, wireframe, vertices and culling every chunk draws with.
+    pub overlay: crate::overlay::Overlay2d,
     /// Bumped when the content changes so backends rebuild their mesh.
     pub version: u64,
 }
@@ -466,6 +470,8 @@ fn sync_grid(eng: &Engine, entity: Entity) {
             terrain: Vec::new(),
             seed: 0,
             pixels_per_unit: ppu,
+            color: [1.0; 4],
+            overlay: crate::overlay::Overlay2d::default(),
             version,
         },
         &set,
@@ -563,6 +569,8 @@ fn apply_tilemap(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<(
         terrain,
         seed,
         pixels_per_unit: ppu.max(0.01),
+        color: crate::color_from_key(params, k::COLOR, [1.0; 4]),
+        overlay: crate::overlay::overlay_2d(params)?,
         version: 0,
     };
     resolve_all(eng, &mut next);
@@ -581,7 +589,7 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
             doc: "A grid of tiles from one `tileset` asset, centred on the node. `cells` holds rows of tile ids; `pixels_per_unit` is tile pixels per world unit.",
             schema: ComponentDef::parse_schema(
                 "tilemap",
-                &balaur_core::components::ComponentDef::schema(&[
+                &balaur_core::components::ComponentDef::schema(&crate::overlay::with_rows(&[
                     (k::TILESET, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The tileset naming the texture and tile grid" }}"#, crate::tilemap::TILESET_ASSET_TYPE)),
                     (k::CELLS, r#"{ type = "string", default = "", description = "Rows of tile ids, -1 for an empty cell, as a list of rows; or the name of a `.cells` file holding those rows, for a level too big to read in a scene" }"#),
                     (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Tile-texture pixels per world unit" }"#),
@@ -590,7 +598,8 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
                     (k::TERRAIN, r#"{ type = "string", default = "", description = "What was painted, as rows of terrain values, when the map autotiles: the cells are resolved from this through the tileset's rules" }"#),
                     (k::SEED, r#"{ type = "int", default = 0, min = 0, description = "Which way the variation falls where a rule offers alternates; the same seed lays a map out the same way every time" }"#),
                     (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material the whole map draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
-                ]),
+                    (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint over every tile, as channel floats or #rrggbb / #rrggbbaa" }"#),
+                ], &crate::overlay::schema_2d(crate::overlay::Drawn::Builtin))),
             ),
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
@@ -608,6 +617,8 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
                 out.insert("tileset".into(), toml::Value::String(map.tileset.clone()));
                 out.insert(k::CELLS.into(), map.cells.clone());
                 out.insert("material".into(), toml::Value::String(map.material.clone()));
+                out.insert(k::COLOR.into(), crate::color_to_toml(map.color));
+                crate::overlay::overlay_2d_to_map(&map.overlay, &mut out);
                 out.insert(
                     k::PIXELS_PER_UNIT.into(),
                     toml::Value::Float(f64::from(map.pixels_per_unit)),
@@ -804,6 +815,8 @@ mod tests {
             terrain: Vec::new(),
             seed: 0,
             pixels_per_unit: 100.0,
+            color: [1.0; 4],
+            overlay: crate::overlay::Overlay2d::default(),
             version: 0,
         }
     }

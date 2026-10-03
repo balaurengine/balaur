@@ -37,6 +37,8 @@ pub(crate) struct BatchKey3d {
     pub(crate) shadows: bool,
     pub(crate) layers: u32,
     pub(crate) render_layers: u32,
+    /// The wireframe, vertices and node flags, which are the object's.
+    pub(crate) overlay: crate::overlay::Overlay3d,
 }
 
 /// Whether a node can hand its pose to an instance instead of an object.
@@ -46,9 +48,14 @@ pub(crate) struct BatchKey3d {
 /// its own -- the instance's 3x3 goes through the normals as well as the
 /// positions, and only an even scale comes out of that unchanged.
 pub(crate) fn batchable(renderable: &Renderable3d, global: &GlobalTransform) -> bool {
+    // An overlay under a material is drawn by a companion child of the node,
+    // which a shared object has no one node to hang from.
+    let companion = !renderable.material.is_empty()
+        && (renderable.overlay.wireframe_width > 0.0 || renderable.overlay.dot_size > 0.0);
     renderable.skeleton.is_empty()
         && renderable.shape != crate::Shape3d::Built
         && even(global.scale)
+        && !companion
 }
 
 /// Whether a scale is the same on every axis, within a part in a thousand.
@@ -71,6 +78,7 @@ pub(crate) fn key_of(renderable: &Renderable3d, material: &str) -> BatchKey3d {
         shadows: renderable.shadows,
         layers: renderable.layers,
         render_layers: renderable.render_layers,
+        overlay: renderable.overlay,
     }
 }
 
@@ -183,6 +191,14 @@ pub(crate) fn cut_groups(
         if !batchable(renderable, global) {
             continue;
         }
+        // The fork sorts a surface into the transparency pass by its object's
+        // alpha, and a group's object is white: a see-through member keeps its own.
+        let tint = world
+            .get::<&balaur_core::GlobalAppearance>(entity)
+            .map_or(1.0, |a| a.tint.to_array()[3]);
+        if renderable.color[3] * tint < 1.0 {
+            continue;
+        }
         // A multimesh draws its node many times already, and a morph or a
         // solver deforms one node's vertices: all three are the object's, and
         // an instance has none of them.
@@ -276,6 +292,10 @@ fn build_group(
     }
     let surface = crate::material::surface_of(&app.engine, &key.material);
     crate::kiss3d_backend::apply_surface(&mut node, &surface);
+    crate::overlay::apply_3d(&mut node, &key.overlay);
+    if let Some(builtin) = crate::material::builtin_of(&app.engine, &key.material) {
+        crate::builtin_material::apply(app, &mut node, Some(&builtin), None);
+    }
     // The object holds the frame every instance is measured from: the
     // origin, unturned, unscaled and white, with the instance carrying the
     // rest. Its shadow flag and both layer masks are the group's, by the key.

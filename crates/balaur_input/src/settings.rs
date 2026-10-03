@@ -1,4 +1,5 @@
-//! The `[input]` table of `project.toml`: what a project says about touch.
+//! The `[input]` table of `project.toml`: what a project says about touch
+//! and gamepads.
 //!
 //! Read once when the manifest loads, the way `[input.actions]` is, and kept
 //! in a resource rather than re-parsed per frame. Every value has a default
@@ -12,6 +13,37 @@ use balaur_core::Engine;
 const SWIPE_PIXELS: f32 = 48.0;
 const LONG_PRESS_SECONDS: f32 = 0.5;
 const LONG_PRESS_SLOP: f32 = 24.0;
+
+/// How a project shapes every pad's readings: the gamepad contract's numbers.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PadSettings {
+    /// Fraction of a stick's or a trigger's travel that reads zero.
+    pub deadzone: f32,
+    /// Pressure at which a button goes down.
+    pub press: f32,
+    /// Pressure below which a down button comes up; under `press`, so a
+    /// trigger resting at the threshold does not chatter.
+    pub release: f32,
+    /// Seconds a button is held before it first repeats.
+    pub repeat_delay: f32,
+    /// Seconds between repeats after that.
+    pub repeat_interval: f32,
+    /// Extra layouts in SDL's mapping format, one per entry.
+    pub mappings: Vec<String>,
+}
+
+impl Default for PadSettings {
+    fn default() -> Self {
+        Self {
+            deadzone: 0.15,
+            press: 0.5,
+            release: 0.4,
+            repeat_delay: 0.5,
+            repeat_interval: 0.1,
+            mappings: Vec::new(),
+        }
+    }
+}
 
 /// What a project asked for, or what it gets by not asking.
 pub struct InputConfig {
@@ -29,6 +61,7 @@ pub struct InputConfig {
     /// How far a held finger may wander and still be holding, in design
     /// pixels.
     pub long_press_slop_pixels: f32,
+    pub pads: PadSettings,
     loaded: bool,
 }
 
@@ -40,6 +73,7 @@ impl Default for InputConfig {
             swipe_pixels: SWIPE_PIXELS,
             long_press_seconds: LONG_PRESS_SECONDS,
             long_press_slop_pixels: LONG_PRESS_SLOP,
+            pads: PadSettings::default(),
             loaded: false,
         }
     }
@@ -85,11 +119,39 @@ struct InputTable {
     swipe_pixels: Option<f32>,
     long_press_seconds: Option<f32>,
     long_press_slop_pixels: Option<f32>,
+    gamepad_deadzone: Option<f32>,
+    gamepad_press: Option<f32>,
+    gamepad_release: Option<f32>,
+    gamepad_repeat_delay_seconds: Option<f32>,
+    gamepad_repeat_interval_seconds: Option<f32>,
+    gamepad_mappings: Option<Vec<String>>,
 }
 
 impl InputTable {
     fn config(self) -> InputConfig {
         let out = InputConfig::default();
+        let pads = PadSettings::default();
+        let press = self.gamepad_press.unwrap_or(pads.press).clamp(0.0, 1.0);
+        let pads = PadSettings {
+            deadzone: self
+                .gamepad_deadzone
+                .unwrap_or(pads.deadzone)
+                .clamp(0.0, 0.95),
+            press,
+            release: self
+                .gamepad_release
+                .unwrap_or(pads.release)
+                .clamp(0.0, press),
+            repeat_delay: self
+                .gamepad_repeat_delay_seconds
+                .unwrap_or(pads.repeat_delay)
+                .max(0.0),
+            repeat_interval: self
+                .gamepad_repeat_interval_seconds
+                .unwrap_or(pads.repeat_interval)
+                .max(0.01),
+            mappings: self.gamepad_mappings.unwrap_or_default(),
+        };
         InputConfig {
             emulate_mouse_from_touch: self
                 .emulate_mouse_from_touch
@@ -106,6 +168,7 @@ impl InputTable {
                 .long_press_slop_pixels
                 .unwrap_or(out.long_press_slop_pixels)
                 .max(0.0),
+            pads,
             loaded: false,
         }
     }
@@ -137,6 +200,12 @@ emulate_touch_from_mouse = { type = "bool", default = false, order = 2, help = "
 swipe_pixels = { type = "float", default = 48.0, min = 0.0, max = 1000.0, order = 3, help = "How far a finger travels before a lift counts as a swipe, in design pixels." }
 long_press_seconds = { type = "float", default = 0.5, min = 0.0, max = 10.0, order = 4, help = "How long a finger holds before it counts as a long press." }
 long_press_slop_pixels = { type = "float", default = 24.0, min = 0.0, max = 1000.0, order = 5, help = "How far a held finger may wander and still be holding, in design pixels." }
+gamepad_deadzone = { type = "float", default = 0.15, min = 0.0, max = 0.95, order = 6, help = "Fraction of a stick's or a trigger's travel that reads zero, on every pad; the rest is rescaled so the first live reading is near zero." }
+gamepad_press = { type = "float", default = 0.5, min = 0.0, max = 1.0, order = 7, help = "Pressure at which a pad button or trigger goes down." }
+gamepad_release = { type = "float", default = 0.4, min = 0.0, max = 1.0, order = 8, help = "Pressure below which a down pad button comes up again; at most gamepad_press." }
+gamepad_repeat_delay_seconds = { type = "float", default = 0.5, min = 0.0, max = 10.0, order = 9, help = "Seconds a pad button is held before gamepad_repeated first fires again." }
+gamepad_repeat_interval_seconds = { type = "float", default = 0.1, min = 0.01, max = 10.0, order = 10, help = "Seconds between gamepad_repeated firings after the delay." }
+gamepad_mappings = { type = "list", of = { type = "string" }, default = [], order = 11, applies = "restart", help = "Extra pad layouts in SDL's mapping format, one per entry, for a pad SDL's database does not know. Loaded when the process first reads pads." }
 "#,
         ),
     );

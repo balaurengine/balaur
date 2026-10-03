@@ -9,9 +9,10 @@ pub fn init(this) {
     this.at = 0.0;
     this.limp = false;
     // An influence of zero: the bodies simulate from the first frame, so the pose
-    // is one they fell into. `limits` keeps a collapse a body, not a bag.
+    // is one they fell into. The hinge limits keep a collapse a body, not a bag.
     physics2d::ragdoll(this.node, #{
-        influence: 0.0, thickness: 0.22, friction: 0.9, limits: [-0.7, 0.7],
+        influence: 0.0, thickness: 0.22, friction: 0.9,
+        axes: [#{ axis: physics2d::AXIS_ROTATION, limits: [-0.7, 0.7] }],
     });
 }
 

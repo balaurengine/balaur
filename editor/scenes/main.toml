@@ -35,7 +35,7 @@ text = ""
 # strip that is chrome from edge to edge takes less than a panel would.
 height = 40
 padding = 5
-gap = 0
+gap = [0, 0]
 # Its contents are 33 where a finger reaches them, and a sheet that kept 40
 # would leave them 30 and show the difference as one-sided padding.
 [nodes.widget.touch]
@@ -49,7 +49,7 @@ parent = "head"
 [nodes.widget]
 kind = "row"
 grow = 1
-gap = 8
+gap = [8, 8]
 align_items = "center"
 
 # The brand, the shell's one menu, then a strip: how many workspaces and
@@ -62,7 +62,7 @@ parent = "head_row"
 kind = "menu"
 role = "action_brand"
 tooltip = "Menu"
-gap = 0
+gap = [0, 0]
 
 # Longer than a narrow window, and than any window once enough documents are
 # open, so it clips and drags sideways rather than drawing past the bar. A
@@ -84,7 +84,7 @@ name = "HeadStrip"
 parent = "head_scroll"
 [nodes.widget]
 kind = "row"
-gap = 4
+gap = [4, 4]
 align_items = "center"
 
 [[nodes]]
@@ -95,7 +95,7 @@ parent = "shell"
 kind = "row"
 interactive = false
 grow = 1
-gap = 12
+gap = [12, 12]
 splitter_width = 12
 
 # The column a side dock owns, and the sheet inside it. Two boxes rather than
@@ -327,7 +327,7 @@ parent = "body"
 kind = "column"
 interactive = false
 grow = 1
-gap = 12
+gap = [12, 12]
 splitter_width = 12
 
 # The rail and the scene share this row; the dock below is the centre's own
@@ -340,7 +340,7 @@ parent = "centre"
 kind = "row"
 interactive = false
 grow = 1
-gap = 12
+gap = [12, 12]
 
 [[nodes]]
 id = "right"
@@ -453,7 +453,7 @@ kind = "column"
 visible = false
 # No `grow`: inside a scroll there is no leftover to divide, so the column
 # takes what its rows measure and the bar makes up the difference.
-gap = 2
+gap = [2, 2]
 
 [[nodes]]
 id = "railslot"
@@ -464,7 +464,7 @@ kind = "column"
 width = 44
 # The handle's row states its own air; an empty one would still hold the
 # rail a gap below the stage's top.
-gap = 0
+gap = [0, 0]
 
 # Where a folded left dock's handle goes, above the tools rather than beside
 # them; `layout.rn` gives it a height only when there is one to draw.
@@ -495,7 +495,7 @@ parent = "upper_row"
 kind = "column"
 interactive = false
 grow = 1
-gap = 12
+gap = [12, 12]
 
 [[nodes]]
 id = "upper"
@@ -505,7 +505,7 @@ parent = "stack"
 kind = "row"
 interactive = false
 grow = 1
-gap = 12
+gap = [12, 12]
 
 [[nodes]]
 id = "bottom"
@@ -515,7 +515,7 @@ parent = "centre"
 kind = "panel"
 text = ""
 height = 174
-gap = 0
+gap = [0, 0]
 
 # What a dock panel may scroll, and the status strip sharing the same sheet so
 # a tall panel cannot push it off the bottom.
@@ -627,8 +627,8 @@ grow = 1
 font_family = "mono"
 
 # Assets, Library and Tiles: three card grids, one node, filled in turns. Its
-# own `list` beside the log's, because a panel that forgot to state `columns`
-# would inherit the shape of whichever drew last.
+# own `list` beside the log's, because a panel that forgot to state
+# `grid_columns` would inherit the shape of whichever drew last.
 [nodes.widget.touch]
 row_height = 33
 [[nodes]]
@@ -639,7 +639,7 @@ parent = "bottom"
 kind = "list"
 visible = false
 grow = 1
-columns = 6
+grid_columns = "repeat(6, 1fr)"
 # A card dragged onto the viewport places its file there.
 draggable = true
 on_drop = "assets_dropped"
@@ -724,7 +724,7 @@ parent = "bottom"
 [nodes.widget]
 kind = "row"
 align_items = "center"
-gap = 8
+gap = [8, 8]
 height = 24
 
 [[nodes]]
@@ -735,7 +735,7 @@ parent = "upper"
 kind = "column"
 interactive = false
 grow = 1
-gap = 6
+gap = [6, 6]
 
 [[nodes]]
 id = "canvas"
@@ -745,7 +745,7 @@ parent = "work"
 kind = "row"
 interactive = false
 grow = 1
-gap = 12
+gap = [12, 12]
 
 # What is left of the canvas once the hooks list has taken its width. The
 # code pane and the scene share it; `layout.rn` decides how.

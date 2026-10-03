@@ -15,6 +15,9 @@ slept = { type = "int", value = 0 }
 moved = { type = "int", value = 0 }
 touching = { type = "int", value = 0 }
 edges = { type = "int", value = 0 }
+tears = { type = "int", value = 0 }
+fields = { type = "int", value = 0 }
+whole = { type = "int", value = 0 }
 "#;
 
 const BUMP: &str = "fn bump(name, by) {
@@ -86,7 +89,7 @@ kind = "box"
 size = [1.0, 1.0, 1.0]
 events = ["collision"]
 "#,
-        r#"pub fn on_collision_enter(this, other) { bump("hit", 1); }
+        r#"pub fn on_collision_enter(this, collision) { bump("hit", 1); }
 pub fn on_sleeping_changed(this, asleep) { if asleep { bump("slept", 1); } }
 pub fn fixed_update(this, dt) { bump("ticks", 1); }
 "#,
@@ -140,7 +143,7 @@ kind = "rectangle"
 size = [1.0, 1.0]
 events = ["collision"]
 "#,
-        r#"pub fn on_collision_enter(this, other) { bump("hit", 1); }
+        r#"pub fn on_collision_enter(this, collision) { bump("hit", 1); }
 pub fn on_sleeping_changed(this, asleep) { if asleep { bump("slept", 1); } }
 pub fn fixed_update(this, dt) {
     bump("ticks", 1);
@@ -203,11 +206,11 @@ script = { source = "scripts/s.rn" }
     this.node.softbody3d.set_softbody(#{
         kind: physics3d::SOFT_ROPE, a: [0.0, 0.0, 0.0], b: [0.0, -2.0, 0.0], particle_count: 12,
         pinned_particles: [0], tear_strain: 0.05, tear_force: 2.0,
-        edge_frequency: 4.0, mass: 400.0, events: ["collision"],
+        edge_hz: 4.0, mass: 400.0, events: ["collision"],
     });
 }
 pub fn on_tear(this, tear) { bump("edges", tear["edges"].len()); }
-pub fn on_collision_enter(this, other) { bump("hit", 1); }
+pub fn on_collision_enter(this, collision) { bump("hit", 1); }
 pub fn fixed_update(this, dt) { bump("ticks", 1); }
 "#,
         180,
@@ -218,4 +221,47 @@ pub fn fixed_update(this, dt) { bump("ticks", 1); }
         counter(&app, "hit") >= 1,
         "the rope never heard itself land"
     );
+}
+
+/// A tear during a step tells the node what `tear_softbody` would answer: the
+/// whole record, not a count.
+#[test]
+fn a_tear_in_a_step_hears_the_record_a_scripted_tear_answers() {
+    let app = run(
+        r#"[[nodes]]
+id = "n_rope"
+name = "Rope"
+script = { source = "scripts/s.rn" }
+"#,
+        r#"pub fn init(this) {
+    this.node.softbody3d.set_softbody(#{
+        kind: physics3d::SOFT_ROPE, a: [0.0, 0.0, 0.0], b: [0.0, -2.0, 0.0], particle_count: 12,
+        pinned_particles: [0], tear_strain: 0.05, tear_force: 2.0,
+        edge_hz: 4.0, mass: 400.0,
+    });
+}
+pub fn on_tear(this, tear) {
+    bump("tears", 1);
+    for key in ["pieces", "edges", "cells", "removed_edges", "split_particles", "inserted_particles", "piece_particles", "clusters", "moved_joints"] {
+        if tear.contains_key(key) { bump("fields", 1); }
+    }
+    if tear.piece_particles.len() == tear.pieces { bump("whole", 1); }
+    bump("edges", tear.edges.len());
+}
+"#,
+        45,
+    );
+    let tears = counter(&app, "tears");
+    assert!(tears >= 1, "the rope never tore");
+    assert_eq!(
+        counter(&app, "fields"),
+        9 * tears,
+        "a tear record lacks a field"
+    );
+    assert_eq!(
+        counter(&app, "whole"),
+        tears,
+        "piece_particles is not one list a piece"
+    );
+    assert!(counter(&app, "edges") >= 1, "no tear named a torn edge");
 }

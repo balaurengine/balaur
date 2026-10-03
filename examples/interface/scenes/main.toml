@@ -27,7 +27,7 @@ x = 0
 y = 0
 width = 940
 padding = 14
-gap = 10
+gap = [10, 10]
 
 # The header: a title, a caption, then two buttons against the far edge.
 [[nodes]]
@@ -37,7 +37,7 @@ parent = "sheet"
 [nodes.widget]
 kind = "row"
 height = 30
-gap = 10
+gap = [10, 10]
 align_items = "center"
 
 [[nodes]]
@@ -97,7 +97,7 @@ parent = "sheet"
 kind = "row"
 # No `grow`: the sheet hugs, so there is no leftover to divide and the row
 # takes what its two columns measure.
-gap = 14
+gap = [14, 14]
 align_items = "start"
 
 [[nodes]]
@@ -107,7 +107,7 @@ parent = "body"
 [nodes.widget]
 kind = "column"
 width = 440
-gap = 8
+gap = [8, 8]
 
 [[nodes]]
 id = "right"
@@ -116,7 +116,7 @@ parent = "body"
 [nodes.widget]
 kind = "column"
 width = 440
-gap = 8
+gap = [8, 8]
 
 [[nodes]]
 id = "h_text"
@@ -134,7 +134,7 @@ parent = "left"
 [nodes.widget]
 kind = "row"
 height = 24
-gap = 12
+gap = [12, 12]
 align_items = "center"
 
 [[nodes]]
@@ -217,7 +217,7 @@ parent = "left"
 [nodes.widget]
 kind = "row"
 height = 26
-gap = 6
+gap = [6, 6]
 align_items = "center"
 
 [[nodes]]
@@ -263,7 +263,7 @@ parent = "left"
 [nodes.widget]
 kind = "row"
 height = 26
-gap = 8
+gap = [8, 8]
 align_items = "center"
 
 [[nodes]]
@@ -291,8 +291,8 @@ parent = "c_row"
 [nodes.widget]
 kind = "number_field"
 value = 1.5
-step = 0.05
-placeholder = "x"
+drag_speed = 0.05
+prefix = "x"
 grow = 1
 
 [[nodes]]
@@ -311,7 +311,7 @@ parent = "left"
 [nodes.widget]
 kind = "row"
 height = 24
-gap = 10
+gap = [10, 10]
 align_items = "center"
 
 [[nodes]]
@@ -352,7 +352,7 @@ parent = "right"
 kind = "tabs"
 current_page = "Cards"
 height = 232
-gap = 8
+gap = [8, 8]
 
 [[nodes]]
 id = "cards"
@@ -361,9 +361,9 @@ parent = "pages"
 [nodes.widget]
 text = "Cards"
 kind = "list"
-# Above one, the rows flow into a grid of cards: `ItemList` in its icon mode.
-columns = 4
-# A card's own height; the width is the room divided by `columns`.
+# Given columns, the rows flow into a grid of cards: `ItemList` in its icon mode.
+grid_columns = "repeat(4, 1fr)"
+# A card's own height; the width is the room divided by the columns.
 row_height = 60
 height = 196
 
@@ -404,8 +404,8 @@ name = "Grid"
 parent = "left"
 [nodes.widget]
 kind = "grid"
-columns = 3
-gap = 6
+grid_columns = "repeat(3, 1fr)"
+gap = [6, 6]
 height = 56
 
 [[nodes]]
@@ -462,8 +462,7 @@ name = "Chips"
 parent = "left"
 [nodes.widget]
 kind = "flow"
-gap = 5
-height = 52
+gap = [5, 5]
 
 [[nodes]]
 id = "chip0"

@@ -259,6 +259,7 @@ fn point_light(position: Vec2, radius: f32) -> LitLight2d {
         intensity: 1.0,
         shadows: true,
         kind: LightKind2d::Point,
+        cone: [1.0, 1.0],
     }
 }
 
@@ -333,11 +334,12 @@ fn the_components_round_trip() {
         &app,
         lamp,
         "light2d",
-        "kind = \"directional\"\ncolor = \"#ffd28a\"\nrange = 6.0\nintensity = 1.2\nshadow_enabled = false",
+        "kind = \"directional\"\ncolor = \"#ffd28a\"\nrange = 6.0\nintensity = 1.2\nshadow_enabled = false\nsource_radius = 0.5",
     );
     let saved = components::get(&app.engine, lamp, "light2d").unwrap();
     let table = saved.as_table().unwrap();
     assert_eq!(table["kind"].as_str().unwrap(), "directional");
+    assert!((table["source_radius"].as_float().unwrap() - 0.5).abs() < 1e-6);
     assert!((table["intensity"].as_float().unwrap() - 1.2).abs() < 1e-6);
     assert!(!table["shadow_enabled"].as_bool().unwrap());
 
@@ -365,8 +367,201 @@ fn the_components_round_trip() {
 fn an_unknown_light_kind_is_an_error_not_a_panic() {
     let app = app();
     let lamp = node(&app);
-    let table: toml::Value = toml::from_str("kind = \"spot\"").unwrap();
+    let table: toml::Value = toml::from_str("kind = \"area\"").unwrap();
     let err = components::add(&app.engine, lamp, "light2d", Some(&table))
         .expect_err("an unknown kind must be refused");
-    assert!(format!("{err:#}").contains("spot"), "{err:#}");
+    assert!(format!("{err:#}").contains("area"), "{err:#}");
+}
+
+/// Grading, eye adaptation and glass are read off the `environment` a scene
+/// draws under, and read back as written.
+#[test]
+fn the_environment_carries_grading_eye_adaptation_and_glass() {
+    let app = app();
+    let entity = node(&app);
+    add(
+        &app,
+        entity,
+        "environment",
+        r#"tonemap = "tony_mcmapface"
+white_balance = [1.1, 1.0, 0.9]
+hue_degrees = 30.0
+auto_exposure_enabled = true
+auto_exposure_speed = 1.5
+auto_exposure_key = 0.25
+transmission_enabled = false
+transmission_blur_quality = "low"
+transmission_steps = 3"#,
+    );
+    let env = {
+        let world = app.engine.world();
+        balaur_render::light3d::environment(&world, app.engine.root()).expect("an environment")
+    };
+    assert_eq!(env.tonemap, balaur_render::Tonemap::TonyMcMapface);
+    assert!(crate::same(env.white_balance, [1.1, 1.0, 0.9]));
+    assert!((env.hue - 30.0).abs() < 1e-6);
+    assert!(env.auto_exposure.enabled);
+    assert!((env.auto_exposure.speed - 1.5).abs() < 1e-6);
+    assert!(
+        (env.auto_exposure.min - 0.05).abs() < 1e-6,
+        "an unset key keeps kiss3d's default"
+    );
+    assert!(!env.transmission.enabled);
+    assert_eq!(
+        env.transmission.blur_quality,
+        balaur_render::BlurQuality::Low
+    );
+    assert_eq!(env.transmission.steps, 3);
+    let read = balaur_core::components::get(&app.engine, entity, "environment").unwrap();
+    assert_eq!(read["tonemap"].as_str(), Some("tony_mcmapface"));
+    assert_eq!(read["transmission_blur_quality"].as_str(), Some("low"));
+    assert_eq!(read["transmission_steps"].as_integer(), Some(3));
+    assert_eq!(read["auto_exposure_enabled"].as_bool(), Some(true));
+}
+
+#[test]
+fn an_unknown_glass_blur_is_refused() {
+    let app = app();
+    let entity = node(&app);
+    let params: toml::Value = toml::from_str("transmission_blur_quality = \"ultra\"").unwrap();
+    assert!(
+        balaur_core::components::add(&app.engine, entity, "environment", Some(&params)).is_err()
+    );
+}
+
+/// The shadow knobs past distance, the sky's own light and the renderer's
+/// limits are read off the `environment`, held to kiss3d's ranges, and read
+/// back as written.
+#[test]
+fn the_environment_carries_the_shadow_budget_sky_light_and_limits() {
+    let app = app();
+    let entity = node(&app);
+    add(
+        &app,
+        entity,
+        "environment",
+        r#"shadow_cascades = 9
+shadow_first_cascade_distance = 6.0
+shadow_bias = 0.01
+shadow_constant_bias = 3
+shadow_slope_bias = 2.5
+shadow_views = 200
+sky_light = "art/room.hdr"
+sky_light_intensity = 0.5
+probe_capture_size_pixels = 64
+cluster_grid = [8.0, 4.0, 300.0]
+cluster_max_lights = 32"#,
+    );
+    let env = {
+        let world = app.engine.world();
+        balaur_render::light3d::environment(&world, app.engine.root()).expect("an environment")
+    };
+    assert_eq!(env.shadow_cascades, 4, "kiss3d splits at most four");
+    assert!((env.shadow_first_cascade_distance - 6.0).abs() < 1e-6);
+    assert_eq!(env.shadow_constant_bias, 3);
+    assert_eq!(env.shadow_views, 64, "the view budget tops out at 64");
+    assert_eq!(env.sky_light, "art/room.hdr");
+    assert_eq!(env.sky_light_intensity, Some(0.5));
+    assert_eq!(env.probe_capture_size, 64);
+    assert_eq!(env.cluster_grid, [8, 4, 128]);
+    assert_eq!(env.cluster_max_lights, 32);
+    let read = components::get(&app.engine, entity, "environment").unwrap();
+    assert_eq!(read["shadow_views"].as_integer(), Some(64));
+    assert_eq!(read["sky_light"].as_str(), Some("art/room.hdr"));
+    assert!((read["shadow_slope_bias"].as_float().unwrap() - 2.5).abs() < 1e-6);
+}
+
+#[test]
+fn a_sky_light_intensity_below_zero_follows_the_sky() {
+    let app = app();
+    let entity = node(&app);
+    add(&app, entity, "environment", "sky_intensity = 2.0");
+    let env = {
+        let world = app.engine.world();
+        balaur_render::light3d::environment(&world, app.engine.root()).expect("an environment")
+    };
+    assert_eq!(env.sky_light_intensity, None);
+    let read = components::get(&app.engine, entity, "environment").unwrap();
+    assert!((read["sky_light_intensity"].as_float().unwrap() + 1.0).abs() < 1e-6);
+}
+
+#[test]
+fn a_light3d_carries_its_source_radius_to_the_path_tracer() {
+    let app = app();
+    let lamp = node(&app);
+    add(
+        &app,
+        lamp,
+        "light3d",
+        "kind = \"point\"\nsource_radius = 0.25",
+    );
+    let lit = {
+        let world = app.engine.world();
+        balaur_render::light3d::lights(&world, app.engine.root())
+    };
+    assert!((lit[0].source_radius - 0.25).abs() < 1e-6);
+    let read = components::get(&app.engine, lamp, "light3d").unwrap();
+    assert!((read["source_radius"].as_float().unwrap() - 0.25).abs() < 1e-6);
+}
+
+#[test]
+fn a_spot_light2d_reads_its_cone_back_and_resolves_its_cosines() {
+    let app = app();
+    let spot = node(&app);
+    add(
+        &app,
+        spot,
+        "light2d",
+        "kind = \"spot\"\ninner_angle_degrees = 10.0\nouter_angle_degrees = 60.0",
+    );
+    let got = components::get(&app.engine, spot, "light2d").unwrap();
+    assert_eq!(got.get("kind").and_then(toml::Value::as_str), Some("spot"));
+    assert_eq!(
+        got.get("outer_angle_degrees")
+            .and_then(toml::Value::as_float),
+        Some(60.0)
+    );
+    let lit = lights(&app.engine.world(), app.engine.root());
+    let spot = lit.iter().find(|l| l.kind == LightKind2d::Spot).unwrap();
+    assert!((spot.cone[0] - balaur_core::libm::cosf(10f32.to_radians())).abs() < 1e-5);
+    assert!((spot.cone[1] - 0.5).abs() < 1e-5);
+}
+
+#[test]
+fn a_normal_mapped_shape_keeps_its_shading_keys_and_a_light_its_height() {
+    let app = app();
+    let sprite = node(&app);
+    add(
+        &app,
+        sprite,
+        "shape2d",
+        "normal_map = \"art/bumps_n.png\"\nspecular_strength = 0.5\nshininess = 32.0",
+    );
+    let table = components::get(&app.engine, sprite, "shape2d").unwrap();
+    assert_eq!(table["normal_map"].as_str(), Some("art/bumps_n.png"));
+    assert!((table["specular_strength"].as_float().unwrap() - 0.5).abs() < 1e-6);
+    assert!((table["shininess"].as_float().unwrap() - 32.0).abs() < 1e-6);
+    assert!((table["normal_strength"].as_float().unwrap() - 1.0).abs() < 1e-6);
+    {
+        let world = app.engine.world();
+        let renderable = world.get::<&balaur_render::Renderable2d>(sprite).unwrap();
+        assert!(
+            renderable.lit.is_some(),
+            "the sprite draws with the lit material"
+        );
+    }
+
+    let lamp = node(&app);
+    add(&app, lamp, "light2d", "height = 0.4");
+    let table = components::get(&app.engine, lamp, "light2d").unwrap();
+    assert!((table["height"].as_float().unwrap() - 0.4).abs() < 1e-6);
+
+    let plain = node(&app);
+    add(&app, plain, "shape2d", "kind = \"circle\"");
+    let table = components::get(&app.engine, plain, "shape2d").unwrap();
+    assert_eq!(
+        table["normal_map"].as_str(),
+        Some(""),
+        "no normal map leaves the light map in charge"
+    );
 }

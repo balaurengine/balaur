@@ -366,8 +366,9 @@ pub fn compute(S) {
     // tighter in a small window, where they are most of what is on screen.
     let tight = S.compact;
     size(S, "shell", "padding", gutter(S));
+    let gap = if tight { TIGHT_GAP } else { m.gap };
     for id in ["body", "centre", "upperrow", "stack", "upper", "shell"] {
-        size(S, id, "gap", if tight { TIGHT_GAP } else { m.gap });
+        size(S, id, "gap", [gap, gap]);
     }
     size(S, "left", "width", tree_w);
     size(S, "right", "width", insp_w);

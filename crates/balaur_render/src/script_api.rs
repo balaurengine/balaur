@@ -10,9 +10,9 @@ use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, Value};
 
 use crate::{
-    AppIconConfig, CameraConfig2d, CameraConfig3d, CameraInputConfig, ClearColorConfig,
-    DEFAULT_PIXELS_PER_UNIT, DebugLineBuffer2d, DebugLineBuffer3d, DrawLineArgs, GridConfig,
-    ScreenshotRequest, ViewportSnapshot2d, ViewportSnapshot3d, WindowConfig,
+    AppIconConfig, CameraConfig2d, CameraConfig3d, ClearColorConfig, DEFAULT_PIXELS_PER_UNIT,
+    DebugLineBuffer2d, DebugLineBuffer3d, DrawLineArgs, GridConfig, ScreenshotRequest,
+    ViewportSnapshot2d, ViewportSnapshot3d, WindowConfig,
 };
 
 /// Queue one block of text for this frame. `pixels_per_unit` sizes the quad;
@@ -52,13 +52,11 @@ fn push_text(
     Ok(())
 }
 
-/// The 3D camera: where it looks from, whether it takes the mouse, and the
-/// pose, matrix and picking ray it published this frame.
+/// The 3D camera: where it looks from, and the pose, matrix and picking ray
+/// it published this frame.
 pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("set_camera", &[], "", "Point the 3D camera: the eye position xyz, then the world point it looks at, in world units."),
-        ("set_camera_input", &[], "", "Allow or inhibit the backend's own mouse camera controls, so an editor can take the pointer for a drag."),
-        ("camera_input", &[], "()", "Whether the backend's own mouse camera controls are allowed. Scroll zoom is never inhibited; this is the orbit and pan buttons."),
         ("camera_matrix", &[], "", "The camera's projection*view matrix this frame, 16 numbers column-major; all zeros with no window."),
         ("camera_pose", &[], "", "The camera the renderer actually used: eye xyz, target xyz, vertical fov in radians, HiDPI scale."),
         ("bounds", &[], "(node: node)", "The box the node's geometry covers in its own space, as a centre xyz and half-extents xyz, with a z of zero for a 2D node; nil for a node that draws nothing. A solver's body reports where it is now, not where it was built."),
@@ -76,18 +74,6 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
             Ok(())
         },
     );
-    m.function("set_camera_input", |eng: &Engine, enabled: bool| {
-        let config = eng.resource::<CameraInputConfig>();
-        config.borrow_mut().enabled = enabled;
-        Ok(())
-    });
-    // Read back so a tool can be tested on whether it left the camera the
-    // pointer, which is otherwise only visible by trying to orbit.
-    m.function("camera_input", |eng: &Engine, ()| {
-        let config = eng.resource::<CameraInputConfig>();
-        let enabled = config.borrow().enabled;
-        Ok(enabled)
-    });
     // The camera's exact projection*view matrix (column-major, 16
     // numbers): scripts project points precisely as the renderer does.
     m.function("camera_matrix", |eng: &Engine, ()| {
@@ -239,12 +225,20 @@ pub(crate) fn resolve_project_path(eng: &Engine, path: &str) -> std::path::PathB
 
 /// `render.screenshot`: the next rendered frame, to a PNG.
 fn install_screenshot_api(m: &mut dyn Bindings<Engine>) {
-    m.describe(&[(
-        "screenshot",
-        &[],
-        "",
-        "Save the next rendered frame as a PNG at a project-relative path. `screenshot_written` goes to every listener with the path once it is on disk, and `screenshot_failed` with `#{ path, error }` when it cannot be, a run with no renderer included.",
-    )]);
+    m.describe(&[
+        (
+            "screenshot",
+            &[],
+            "",
+            "Save the next rendered frame as a PNG at a project-relative path. `screenshot_written` goes to every listener with the path once it is on disk, and `screenshot_failed` with `#{ path, error }` when it cannot be, a run with no renderer included.",
+        ),
+        (
+            "snap_aov",
+            &[],
+            "(kind: string, path: string)",
+            "Render the 3D scene once more as `render.AOV_DEPTH` (nearest brightest), `AOV_NORMALS` (world space), `AOV_CAMERA_NORMALS` or `AOV_SEGMENTATION` (a colour per object) and save it as a PNG, announcing it as `screenshot` does. A read-back of the GPU, as `screenshot` is.",
+        ),
+    ]);
     m.function("screenshot", |eng: &Engine, path: String| {
         let full = resolve_project_path(eng, &path);
         eng.insert_resource(ScreenshotRequest {
@@ -252,9 +246,32 @@ fn install_screenshot_api(m: &mut dyn Bindings<Engine>) {
             // The next rendered frame. No delay parameter on purpose: a
             // script cannot read the backend's own counter anyway.
             after_frame: 0,
+            aov: None,
         });
         Ok(())
     });
+    m.function(
+        "snap_aov",
+        |eng: &Engine, (kind, path): (String, String)| {
+            use crate::vocabulary::words;
+            let aov = match kind.as_str() {
+                words::AOV_DEPTH => crate::Aov::Depth,
+                words::AOV_NORMALS => crate::Aov::Normals,
+                words::AOV_CAMERA_NORMALS => crate::Aov::CameraNormals,
+                words::AOV_SEGMENTATION => crate::Aov::Segmentation,
+                other => anyhow::bail!(
+                    "snap_aov takes {}, not '{other}'",
+                    crate::vocabulary::options(words::AOVS)
+                ),
+            };
+            eng.insert_resource(ScreenshotRequest {
+                path: resolve_project_path(eng, &path),
+                after_frame: 0,
+                aov: Some(aov),
+            });
+            Ok(())
+        },
+    );
 }
 
 /// The `window` script module, beside `render` in the same plugin.
@@ -394,21 +411,20 @@ fn plate_of(opts: Option<Value>) -> anyhow::Result<[u8; 4]> {
     Ok(plate)
 }
 
-fn line_rgb(color: Option<&Value>) -> anyhow::Result<[f32; 3]> {
+fn line_rgba(color: Option<&Value>) -> anyhow::Result<[f32; 4]> {
     let Some(value) = color else {
-        return Ok([1.0, 1.0, 1.0]);
+        return Ok([1.0; 4]);
     };
-    let [r, g, b, _] = crate::draw_2d::color_of(value)?;
-    Ok([r, g, b])
+    crate::draw_2d::color_of(value)
 }
 
 /// Segments into the frame's debug lines, one pixel wide and not on top, so
 /// an immediate shape sits in the scene as a mesh would.
-fn push_segments(eng: &Engine, segments: &[([f32; 3], [f32; 3])], rgb: [f32; 3]) {
+fn push_segments(eng: &Engine, segments: &[([f32; 3], [f32; 3])], rgba: [f32; 4]) {
     let lines = eng.resource::<DebugLineBuffer3d>();
     let mut lines = lines.borrow_mut();
     for (from, to) in segments {
-        lines.lines.push((*from, *to, rgb, 1.0, false, false));
+        lines.lines.push((*from, *to, rgba, 1.0, false, false));
     }
 }
 
@@ -531,7 +547,7 @@ pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
             lines.borrow_mut().lines.push((
                 [x1, y1, z1],
                 [x2, y2, z2],
-                [r, g, b],
+                [r, g, b, 1.0],
                 width.unwrap_or(crate::DEFAULT_LINE_WIDTH),
                 perspective.unwrap_or(false),
                 on_top.unwrap_or(false),
@@ -585,7 +601,7 @@ fn install_text_api(m: &mut dyn Bindings<Engine>) {
             lines.borrow_mut().lines.push((
                 [x1, y1],
                 [x2, y2],
-                [r, g, b],
+                [r, g, b, 1.0],
                 width.unwrap_or(crate::DEFAULT_LINE_WIDTH),
             ));
             Ok(())
@@ -615,11 +631,11 @@ fn install_wireframe_api(m: &mut dyn Bindings<Engine>) {
         "draw_box",
         |eng: &Engine,
          (x, y, z, hx, hy, hz, color): (f32, f32, f32, f32, f32, f32, Option<Value>)| {
-            let rgb = line_rgb(color.as_ref())?;
+            let rgba = line_rgba(color.as_ref())?;
             push_segments(
                 eng,
                 &box_edges([x, y, z], [hx.abs(), hy.abs(), hz.abs()]),
-                rgb,
+                rgba,
             );
             Ok(())
         },
@@ -627,12 +643,12 @@ fn install_wireframe_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "draw_sphere",
         |eng: &Engine, (x, y, z, radius, color): (f32, f32, f32, f32, Option<Value>)| {
-            let rgb = line_rgb(color.as_ref())?;
+            let rgba = line_rgba(color.as_ref())?;
             let mut out = Vec::new();
             for axis in 0..3 {
                 ring([x, y, z], radius.abs(), axis, &mut out);
             }
-            push_segments(eng, &out, rgb);
+            push_segments(eng, &out, rgba);
             Ok(())
         },
     );
@@ -640,7 +656,7 @@ fn install_wireframe_api(m: &mut dyn Bindings<Engine>) {
         "draw_capsule",
         |eng: &Engine,
          (x, y, z, radius, height, color): (f32, f32, f32, f32, f32, Option<Value>)| {
-            let rgb = line_rgb(color.as_ref())?;
+            let rgba = line_rgba(color.as_ref())?;
             let (r, half) = (radius.abs(), height.abs() / 2.0);
             let mut out = Vec::new();
             ring([x, y + half, z], r, 1, &mut out);
@@ -648,7 +664,7 @@ fn install_wireframe_api(m: &mut dyn Bindings<Engine>) {
             for (dx, dz) in [(r, 0.0), (-r, 0.0), (0.0, r), (0.0, -r)] {
                 out.push(([x + dx, y - half, z + dz], [x + dx, y + half, z + dz]));
             }
-            push_segments(eng, &out, rgb);
+            push_segments(eng, &out, rgba);
             Ok(())
         },
     );
@@ -822,7 +838,7 @@ fn push_lines(eng: &Engine, flat: Value) -> anyhow::Result<()> {
         buffer.lines.push((
             [n[0], n[1], n[2]],
             [n[3], n[4], n[5]],
-            [n[6], n[7], n[8]],
+            [n[6], n[7], n[8], 1.0],
             n[9],
             false,
             n[10] != 0.0,

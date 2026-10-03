@@ -5,4 +5,4 @@ shader = "shaders/pbr_surface.wesl"
 metallic = 0.0
 roughness = 0.85
 reflectance = 0.35
-emissive = 0.0
+emission_strength = 0.0

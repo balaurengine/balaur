@@ -87,7 +87,8 @@ pub(crate) fn table(
     if want.y > 0.0 {
         area = area.max_height((want.y - row_h).max(row_h));
     }
-    area.show_rows(ui, row_h, walk.len(), |ui, range| {
+    let area = crate::widget::scroll::dressed(ui, area, &widget, entity);
+    let shown = area.show_rows(ui, row_h, walk.len(), |ui, range| {
         for slot in range {
             let Some(&row) = walk.get(slot) else {
                 continue;
@@ -110,6 +111,7 @@ pub(crate) fn table(
             }
         }
     });
+    crate::widget::scroll::report(ui, &mut at.edits, entity, shown.state.offset);
     // A row already picked keeps the set it is in, so a menu opened over one
     // of several picked rows is opened over all of them.
     let aimed = aimed.filter(|&row| !picked.contains(&items[row]));

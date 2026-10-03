@@ -108,14 +108,14 @@ fn specs(S) {
 
 fn whole(S, label, value, write) {
     #{ label: label, height: 24, controls: [#{
-        kind: "number_field", grow: 1, value: value as f64, step: 1.0,
+        kind: "number_field", grow: 1, value: value as f64, drag_speed: 1.0,
         on: |v| { write(util::max(math::round(v), 0.0) as i64); },
     }] }
 }
 
 fn number(S, label, value, step, write) {
     #{ label: label, height: 24, controls: [#{
-        kind: "number_field", grow: 1, value: value, step: step,
+        kind: "number_field", grow: 1, value: value, drag_speed: step,
         on: |v| { write(v); },
     }] }
 }
@@ -124,7 +124,7 @@ fn number(S, label, value, step, write) {
 // `scale` for its variation.
 fn fraction(S, label, value, write) {
     #{ label: label, height: 24, controls: [#{
-        kind: "number_field", grow: 1, value: value, step: 0.05, min: 0.0, max: 1.0,
+        kind: "number_field", grow: 1, value: value, drag_speed: 0.05, min: 0.0, max: 1.0,
         on: |v| { write(util::min(util::max(v, 0.0), 1.0)); },
     }] }
 }

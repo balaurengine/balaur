@@ -374,7 +374,7 @@ pub(crate) fn install_populate_api(m: &mut dyn Bindings<Engine>) {
             Ok(Value::List(
                 instances
                     .iter()
-                    .map(crate::multimesh::instance_value)
+                    .map(crate::multimesh_api::instance_value)
                     .collect(),
             ))
         },

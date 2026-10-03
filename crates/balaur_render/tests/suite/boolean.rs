@@ -228,3 +228,166 @@ fn an_unknown_operation_is_refused_rather_than_guessed() {
     let params: toml::Value = toml::from_str("operation = \"smoosh\"").unwrap();
     assert!(components::add(&app.engine, owner, "boolean3d", Some(&params)).is_err());
 }
+
+/// The area the 2D result's triangles cover, holes left out.
+fn filled_area(app: &App, entity: Entity) -> f32 {
+    let world = app.engine.world();
+    let renderable = world.get::<&Renderable2d>(entity).expect("a 2D renderable");
+    let polygon = renderable.polygon.as_deref().expect("a filled outline");
+    polygon
+        .indices
+        .iter()
+        .map(|&[a, b, c]| {
+            let (a, b, c) = (
+                polygon.positions[a as usize],
+                polygon.positions[b as usize],
+                polygon.positions[c as usize],
+            );
+            ((b - a).perp_dot(c - a) / 2.0).abs()
+        })
+        .sum()
+}
+
+/// A 2D boolean over a square and a second square of `inner` side at `at`.
+fn two_squares(app: &App, params: &str, inner: f32, at: Vec3) -> Entity {
+    let root = app.engine.root();
+    let owner = node(app, "Cut", root);
+    add(app, owner, "boolean2d", params);
+    let a = node(app, "A", owner);
+    add(app, a, "shape2d", "kind = \"rectangle\"\nsize = [4.0, 4.0]");
+    let b = node(app, "B", owner);
+    add(
+        app,
+        b,
+        "shape2d",
+        &format!("kind = \"rectangle\"\nsize = [{inner}, {inner}]"),
+    );
+    place(app, b, at);
+    owner
+}
+
+#[test]
+fn a_square_cut_from_the_middle_of_another_leaves_a_hole() {
+    let (_dir, mut app) = app();
+    let owner = two_squares(&app, "operation = \"difference\"", 2.0, Vec3::ZERO);
+    app.tick(1.0 / 60.0);
+    let area = filled_area(&app, owner);
+    assert!(
+        (area - 12.0).abs() < 1e-3,
+        "16 less the 4 of the hole, got {area}"
+    );
+}
+
+#[test]
+fn a_symmetric_difference_keeps_what_only_one_square_covers() {
+    let (_dir, mut app) = app();
+    let owner = two_squares(
+        &app,
+        "operation = \"symmetric_difference\"",
+        4.0,
+        Vec3::new(2.0, 0.0, 0.0),
+    );
+    app.tick(1.0 / 60.0);
+    let area = filled_area(&app, owner);
+    assert!(
+        (area - 16.0).abs() < 1e-3,
+        "two 4x2 strips each side, got {area}"
+    );
+}
+
+#[test]
+fn a_reverse_difference_takes_the_first_square_out_of_the_second() {
+    let (_dir, mut app) = app();
+    let owner = two_squares(
+        &app,
+        "operation = \"reverse_difference\"",
+        4.0,
+        Vec3::new(2.0, 0.0, 0.0),
+    );
+    app.tick(1.0 / 60.0);
+    let world = app.engine.world();
+    let renderable = world.get::<&Renderable2d>(owner).unwrap();
+    let polygon = renderable.polygon.as_deref().unwrap();
+    let leftmost = polygon
+        .positions
+        .iter()
+        .fold(f32::MAX, |left, p| left.min(p.x));
+    assert!(
+        leftmost >= 1.99,
+        "only the second square's right half stays: {leftmost}"
+    );
+}
+
+#[test]
+fn a_piece_under_min_area_is_dropped() {
+    let (_dir, mut app) = app();
+    let small = Vec3::new(10.0, 0.0, 0.0);
+    let kept = two_squares(&app, "operation = \"union\"", 0.5, small);
+    app.tick(1.0 / 60.0);
+    assert!(
+        (filled_area(&app, kept) - 16.25).abs() < 1e-3,
+        "control: both pieces"
+    );
+    let (_dir, mut app) = self::app();
+    let dropped = two_squares(&app, "operation = \"union\"\nmin_area = 1.0", 0.5, small);
+    app.tick(1.0 / 60.0);
+    assert!((filled_area(&app, dropped) - 16.0).abs() < 1e-3);
+}
+
+#[test]
+fn a_two_dimensional_boolean_reads_back_every_key_it_takes() {
+    let (_dir, mut app) = app();
+    let owner = two_squares(
+        &app,
+        "operation = \"union\"\nfill_rule = \"non_zero\"\nmin_area = 0.5\nkeep_collinear = true\nclean_result = false\ncolor = [1.0, 0.0, 0.0, 1.0]\nmaterial = \"materials/glow.toml\"",
+        2.0,
+        Vec3::ZERO,
+    );
+    app.tick(1.0 / 60.0);
+    let read = components::get(&app.engine, owner, "boolean2d").unwrap();
+    assert_eq!(read["fill_rule"].as_str(), Some("non_zero"));
+    assert_eq!(read["min_area"].as_float(), Some(0.5));
+    assert_eq!(read["keep_collinear"].as_bool(), Some(true));
+    assert_eq!(read["clean_result"].as_bool(), Some(false));
+    assert_eq!(read["material"].as_str(), Some("materials/glow.toml"));
+    let world = app.engine.world();
+    let renderable = world.get::<&Renderable2d>(owner).unwrap();
+    assert!(
+        crate::same(renderable.color, [1.0, 0.0, 0.0, 1.0]),
+        "the tint reaches the result"
+    );
+    assert_eq!(renderable.material, "materials/glow.toml");
+}
+
+#[test]
+fn a_three_dimensional_boolean_dresses_its_result() {
+    let (_dir, mut app) = app();
+    let root = app.engine.root();
+    let owner = node(&app, "Cut", root);
+    add(
+        &app,
+        owner,
+        "boolean3d",
+        "operation = \"union\"\ncolor = [0.0, 1.0, 0.0, 1.0]\ntexture = \"rock.png\"\ncast_shadow = false\nlight_layers = 2\nrender_layers = 4",
+    );
+    let a = node(&app, "A", owner);
+    add(&app, a, "shape3d", "kind = \"box\"");
+    app.tick(1.0 / 60.0);
+    {
+        let world = app.engine.world();
+        let renderable = world.get::<&Renderable3d>(owner).unwrap();
+        assert!(crate::same(renderable.color, [0.0, 1.0, 0.0, 1.0]));
+        assert_eq!(renderable.texture, "rock.png");
+        assert!(!renderable.shadows);
+        assert_eq!((renderable.layers, renderable.render_layers), (2, 4));
+    }
+    let tint: toml::Value = toml::from_str("color = [0.0, 0.0, 1.0, 1.0]").unwrap();
+    components::patch(&app.engine, owner, "boolean3d", &tint).unwrap();
+    let world = app.engine.world();
+    let renderable = world.get::<&Renderable3d>(owner).unwrap();
+    assert!(
+        crate::same(renderable.color, [0.0, 0.0, 1.0, 1.0]),
+        "a patch re-tints at once"
+    );
+    assert_eq!(renderable.texture, "rock.png", "and keeps the rest");
+}

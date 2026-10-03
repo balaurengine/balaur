@@ -432,3 +432,42 @@ func _on_gone():\n\
     }
     assert!(!out.rune.contains("\"body_entered\""), "{}", out.rune);
 }
+
+/// The engine hands a collision a record; a Godot handler is handed the
+/// other node out of it, whether a script or a scene connected it.
+#[test]
+fn a_collision_handler_takes_the_other_node_out_of_the_record() {
+    let source = "extends Node\n\
+func _ready():\n\
+\t$Dock.body_entered.connect(_on_hit)\n\
+func _on_hit(body):\n\
+\tprint(body)\n\
+func _on_dock(ship):\n\
+\tprint(ship)\n";
+    let mut classes = Classes::default();
+    classes.collision_handlers.insert("_on_dock".into());
+    let out = convert(source, "scripts/dock.gd", &classes);
+    for want in [
+        "_on_hit(this, (script::require(\"gd.rn\").collided)(payload));",
+        "let ship = (script::require(\"gd.rn\").collided)(ship);",
+    ] {
+        assert!(out.rune.contains(want), "{want} in\n{}", out.rune);
+    }
+    assert!(
+        !out.rune.contains("let body = (script::require"),
+        "a handler no scene connects is left alone: {}",
+        out.rune
+    );
+}
+
+#[test]
+fn a_scene_names_the_methods_it_aims_a_collision_at() {
+    let scene = "[node name=\"Dock\" type=\"Node\"]\n\
+[connection signal=\"body_entered\" from=\"Dock\" to=\".\" method=\"_on_dock\"]\n\
+[connection signal=\"area_exited\" from=\"Dock\" to=\".\" method=\"_on_leave\"]\n\
+[connection signal=\"pressed\" from=\"Go\" to=\".\" method=\"_on_go\"]\n";
+    assert_eq!(
+        crate::godot::exports::collision_handlers(scene),
+        ["_on_dock", "_on_leave"]
+    );
+}

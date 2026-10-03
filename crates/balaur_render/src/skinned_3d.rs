@@ -49,18 +49,7 @@ impl SkinHandle3d {
     }
 }
 
-/// Matches `ObjectUniforms` in `shaders/mesh.wesl`. The mirror rows are
-/// there because the contract declares them; a skinned mesh never is one.
-#[repr(C)]
-#[derive(Copy, Clone, Pod, Zeroable)]
-struct ObjectUniforms {
-    model: [[f32; 4]; 4],
-    normal_matrix: [[f32; 4]; 4],
-    color: [f32; 4],
-    mirror_view_proj: [[f32; 4]; 4],
-    mirror: [f32; 4],
-    mirror_normal: [f32; 4],
-}
+use crate::shader_material_3d::ObjectUniforms;
 
 /// Matches `SkinUniforms` in `shaders/skinned_3d.wesl`.
 #[repr(C)]
@@ -79,11 +68,11 @@ pub(crate) struct SkinnedMesh3d {
     pub(crate) indices: Vec<[u32; 3]>,
 }
 
-fn linked_shader() -> String {
+fn linked_shader(morph: bool) -> String {
     shaders::link(
         &[("package::skinned_3d", shaders::SKINNED_3D)],
         "package::skinned_3d",
-        &[],
+        &[(shaders::MORPH, morph)],
     )
     .and_then(|linked| shaders::wgsl(&linked))
     .expect("the engine's own shader must link")
@@ -173,6 +162,7 @@ struct SkinnedGpuData3d {
     object_bind_group: Option<wgpu::BindGroup>,
     texture_bind_group: Option<wgpu::BindGroup>,
     texture_ptr: usize,
+    morph: crate::morph::NodeMorph,
 }
 
 impl GpuData for SkinnedGpuData3d {
@@ -185,13 +175,15 @@ impl GpuData for SkinnedGpuData3d {
 }
 
 struct SkinnedMaterial3d {
-    pipeline: PipelineCache,
+    pipeline: Pipelines,
     frame: FrameGroup,
     object_layout: wgpu::BindGroupLayout,
     texture_layout: wgpu::BindGroupLayout,
     skin_bind_group: wgpu::BindGroup,
     buffers: Buffers,
     palette: Rc<RefCell<Vec<Mat4>>>,
+    /// The stand-in targets a mesh with none binds, on a device that morphs.
+    morph: Option<crate::morph::MorphFallback>,
 }
 
 const fn attribute(location: u32, format: wgpu::VertexFormat) -> wgpu::VertexAttribute {
@@ -226,26 +218,58 @@ fn vertex_layouts() -> [Option<wgpu::VertexBufferLayout<'static>>; 5] {
     ]
 }
 
-fn build_pipeline(layout: wgpu::PipelineLayout, shader: wgpu::ShaderModule) -> PipelineCache {
-    PipelineCache::new(move |sample_count| {
-        // No culling: a rig can turn a triangle inside out, and culling
-        // would drop it.
-        crate::pipeline::material_pipeline(
-            "skinned3d_pipeline",
+/// The colour pass, tested against the depth or drawn over it, and the
+/// order-independent transparency pass for a see-through colour.
+struct Pipelines {
+    tested: PipelineCache,
+    over: PipelineCache,
+    transparent: PipelineCache,
+}
+
+fn build_pipelines(layout: wgpu::PipelineLayout, shader: wgpu::ShaderModule) -> Pipelines {
+    let (layout, shader) = (Rc::new(layout), Rc::new(shader));
+    let colour = |depth: crate::pipeline::Depth| {
+        let (layout, shader) = (Rc::clone(&layout), Rc::clone(&shader));
+        PipelineCache::new(move |sample_count| {
+            // No culling: a rig can turn a triangle inside out, and culling
+            // would drop it.
+            crate::pipeline::material_pipeline(
+                "skinned3d_pipeline",
+                &layout,
+                &shader,
+                &vertex_layouts(),
+                &crate::pipeline::Raster {
+                    cull: None,
+                    depth,
+                    blend: crate::pipeline::Blend::Straight,
+                },
+                sample_count,
+            )
+        })
+    };
+    let tested = colour(crate::pipeline::Depth::Tested);
+    let over = colour(crate::pipeline::Depth::Over);
+    let transparent = PipelineCache::new(move |sample_count| {
+        crate::pipeline::transparent_pipeline(
             &layout,
             &shader,
             &vertex_layouts(),
             None,
-            &crate::pipeline::Depth::Tested,
             sample_count,
         )
-    })
+    });
+    Pipelines {
+        tested,
+        over,
+        transparent,
+    }
 }
 
 impl SkinnedMaterial3d {
     fn new(mesh: &SkinnedMesh3d, palette: Rc<RefCell<Vec<Mat4>>>) -> Self {
         let ctxt = Context::get();
-        let [frame_layout, object_layout, texture_layout] = bind_group_layouts();
+        let morph = ctxt.supports_deform();
+        let [frame_layout, object_layout, texture_layout] = bind_group_layouts(morph);
         let skin_layout = ctxt.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("skinned3d_skin_layout"),
             entries: &[uniform_entry(0)],
@@ -260,8 +284,8 @@ impl SkinnedMaterial3d {
             ],
             immediate_size: 0,
         });
-        let shader = ctxt.create_shader_module(Some("skinned3d_shader"), &linked_shader());
-        let pipeline = build_pipeline(pipeline_layout, shader);
+        let shader = ctxt.create_shader_module(Some("skinned3d_shader"), &linked_shader(morph));
+        let pipeline = build_pipelines(pipeline_layout, shader);
         let buffers = buffers(mesh);
         Self {
             skin_bind_group: ctxt.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -278,6 +302,7 @@ impl SkinnedMaterial3d {
             texture_layout,
             buffers,
             palette,
+            morph: morph.then(crate::morph::MorphFallback::new),
         }
     }
 
@@ -313,6 +338,10 @@ impl SkinnedMaterial3d {
 }
 
 impl Material3d for SkinnedMaterial3d {
+    fn renders_in_transparent_phase(&self) -> bool {
+        true
+    }
+
     fn set_environment_lighting(&mut self, env: Option<EnvLight<'_>>) {
         self.frame.set_environment(env);
     }
@@ -342,6 +371,7 @@ impl Material3d for SkinnedMaterial3d {
             object_bind_group: None,
             texture_bind_group: None,
             texture_ptr: 0,
+            morph: crate::morph::NodeMorph::default(),
         })
     }
 
@@ -371,32 +401,15 @@ impl Material3d for SkinnedMaterial3d {
         );
         self.write_skin();
         let model = transform.to_mat4() * Mat4::from_scale(scale);
-        let color = data.color();
         ctxt.write_buffer(
             &self.buffers.object_uniform,
             0,
-            bytemuck::bytes_of(&ObjectUniforms {
-                model: model.to_cols_array_2d(),
-                normal_matrix: model.inverse().transpose().to_cols_array_2d(),
-                color: [color.r, color.g, color.b, color.a],
-                mirror_view_proj: Mat4::IDENTITY.to_cols_array_2d(),
-                mirror: [0.0; 4],
-                mirror_normal: [0.0, 1.0, 0.0, 0.0],
-            }),
+            bytemuck::bytes_of(&ObjectUniforms::plain(model, data)),
         );
         let gpu_data = gpu_data
             .as_any_mut()
             .downcast_mut::<SkinnedGpuData3d>()
             .expect("the skinning material only ever meets its own gpu data");
-        if gpu_data.object_bind_group.is_none() {
-            // No mirror: a skinned mesh reflects nothing, so the group takes
-            // the stand-in the contract's own group does.
-            gpu_data.object_bind_group = Some(crate::bind_layout::object_group(
-                &self.object_layout,
-                &self.buffers.object_uniform,
-                None,
-            ));
-        }
         let texture = data.texture();
         let ptr = Arc::as_ptr(texture) as usize;
         if gpu_data.texture_bind_group.is_none() || gpu_data.texture_ptr != ptr {
@@ -412,17 +425,38 @@ impl Material3d for SkinnedMaterial3d {
         _scale: Vec3,
         _camera: &mut dyn Camera3d,
         _lights: &LightCollection,
-        _data: &ObjectData3d,
-        _mesh: &mut GpuMesh3d,
+        data: &ObjectData3d,
+        mesh: &mut GpuMesh3d,
         _instances: &mut InstancesBuffer3d,
         gpu_data: &mut dyn GpuData,
         render_pass: &mut wgpu::RenderPass<'_>,
         context: &RenderContext,
     ) {
+        if !data.surface_rendering_active() {
+            return;
+        }
         let gpu_data = gpu_data
             .as_any_mut()
             .downcast_mut::<SkinnedGpuData3d>()
             .expect("the skinning material only ever meets its own gpu data");
+        // The node's own mesh holds the morph targets, in the vertex order the
+        // skinning buffers were built in. No mirror: a skinned mesh reflects
+        // nothing, so the group takes the stand-in the contract's own does.
+        let morph = self
+            .morph
+            .as_ref()
+            .map(|fallback| gpu_data.morph.prepare(mesh, data.morph_weights(), fallback));
+        if gpu_data.object_bind_group.is_none()
+            || morph.as_ref().is_some_and(|(_, rebuild)| *rebuild)
+        {
+            gpu_data.object_bind_group = Some(crate::bind_layout::object_group(
+                &self.object_layout,
+                &self.buffers.object_uniform,
+                None,
+                morph.as_ref().map(|(binding, _)| binding),
+            ));
+        }
+        self.frame.set_shadow(context.shadow.as_ref());
         let (Some(object), Some(texture)) = (
             gpu_data.object_bind_group.as_ref(),
             gpu_data.texture_bind_group.as_ref(),
@@ -430,11 +464,19 @@ impl Material3d for SkinnedMaterial3d {
             return;
         };
         // No prepass or refraction pipeline here: a skinned mesh shows in the
-        // picture, and contributes no geometry to the screen-space passes.
-        if context.phase != RenderPhase::Opaque {
-            return;
-        }
-        let pipeline = self.pipeline.get(context.sample_count);
+        // picture, and contributes no geometry to the screen-space passes. A
+        // see-through colour sorts apart in the order-independent pass.
+        let translucent = data.color().a < 1.0;
+        let pipeline = match context.phase {
+            RenderPhase::Opaque if !translucent && data.depth_test() => {
+                self.pipeline.tested.get(context.sample_count)
+            }
+            RenderPhase::Opaque if !translucent => self.pipeline.over.get(context.sample_count),
+            RenderPhase::Transparent if translucent => {
+                self.pipeline.transparent.get(context.sample_count)
+            }
+            _ => return,
+        };
         render_pass.set_pipeline(&pipeline);
         render_pass.set_bind_group(0, self.frame.group(), &[]);
         render_pass.set_bind_group(1, object, &[]);

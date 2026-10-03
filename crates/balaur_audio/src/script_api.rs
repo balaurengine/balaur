@@ -9,7 +9,8 @@ use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 use crate::bus::{self, Buses};
 use crate::cue;
 use crate::spatial::Emitter;
-use crate::{AudioState, Playback, play_on, read_sound, stop_on};
+use crate::vocabulary::keys as k;
+use crate::{AudioState, Playback, play_on, read_sound, seek_on, skip_on, stop_on};
 
 /// One key out of a script options table, or `None` if the table, the key or
 /// its type is missing. A typo in an options table should not stop the frame.
@@ -66,29 +67,29 @@ const fn handle_of(raw: i64) -> u64 {
 /// `audio.*`. Declared against the neutral seam, so it works on any backend.
 pub(crate) fn install_audio_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Sound playback: `play` a file with `volume_linear`, `pitch_scale`, `loop` and a `position` heard from the `listener`. The `sound` component gives a node its own, which announces `finished` (`EVENT_FINISHED`) with the handle when it plays out.",
+        "Sound playback: `play` starts a node's `sound` component and returns a handle that `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing` take; `seek` and `skip` move it. `play_cue` plays a sound named in `audio/cues.toml`, from a `position` heard from the `listener` when given one. A node's `sound` announces `finished` (`EVENT_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.",
     );
     m.constant(
         "EVENT_FINISHED",
         Value::Str(crate::FINISHED_EVENT.to_string()),
     );
     m.describe(&[
-        ("stop_playback", &[], "", "Silence the sound a handle names; a finished, stopped or unknown handle is left alone."),
+        ("stop_playback", &[], "", "Silence the sound a handle names, over the `fade_out_time` its `sound` had; a finished, stopped or unknown handle is left alone."),
         ("set_volume_linear", &[], "", "Set a playing handle's linear gain, where 1 is the file's own level."),
         ("set_pitch_scale", &[], "", "Set a playing handle's speed multiplier, which carries its pitch with it."),
         ("device_ready", &[], "()", "Whether an output device is open. False on a page until the first gesture, and false for good with no sound card; playing before then hands out handles that make no sound."),
         ("is_playing", &[], "", "Whether a handle's sound is still going: false once it plays out or is stopped, on the same tick with or without an output device."),
         ("stop_all", &[], "", "Silence everything at once and clear the playback every `sound` component was holding."),
         ("play", &["sound"], "", "Start the node's own `sound` from the top, replacing what it had going, and return the new handle."),
-        ("stop", &["sound"], "", "Silence what the node's `sound` started; a node carrying none is left alone."),
+        ("stop", &["sound"], "", "Silence what the node's `sound` started, over its `fade_out_time`; a node carrying none is left alone."),
+        ("seek", &["sound"], "", "Jump the node's sound to `seconds` into the file it is playing; `playback_time` reads it back. A node with nothing playing is left alone."),
+        ("skip", &["sound"], "", "Move the node's sound on to the next file in its `queue`. Past the last one it has played out, and the node announces `finished`."),
+        ("devices", &[], "", "Every output device's name, as `[audio] device` takes it. Empty when the platform lists none."),
     ]);
-    // `audio.play(path, { volume = 1.0, pitch = 1.0, loop = true })` hands
-    // back the handle the other functions take. Flags live in the options
-    // table rather than in the name, so fade/bus can join them (N9).
     m.function("stop_playback", |eng: &Engine, handle: i64| {
         eng.resource::<AudioState>()
             .borrow_mut()
-            .stop(handle_of(handle));
+            .release(handle_of(handle));
         Ok(())
     });
     m.function(
@@ -114,6 +115,7 @@ pub(crate) fn install_audio_api(m: &mut dyn Bindings<Engine>) {
         },
     );
     m.function("device_ready", |eng: &Engine, ()| {
+        crate::ensure_loaded(eng);
         let state = eng.resource::<AudioState>();
         let mut state = state.borrow_mut();
         state.open_if_needed();
@@ -138,6 +140,19 @@ pub(crate) fn install_audio_api(m: &mut dyn Bindings<Engine>) {
         stop_on(eng, entity_of(node)?);
         Ok(())
     });
+    m.function("seek", |eng: &Engine, (node, seconds): (NodeId, f64)| {
+        seek_on(eng, entity_of(node)?, seconds);
+        Ok(())
+    });
+    m.function("skip", |eng: &Engine, node: NodeId| {
+        skip_on(eng, entity_of(node)?);
+        Ok(())
+    });
+    m.function("devices", |_: &Engine, ()| {
+        Ok(Value::List(
+            crate::devices().into_iter().map(Value::text).collect(),
+        ))
+    });
 }
 
 /// `audio.*` covers the mix: which bus a sound plays through, and the sounds a
@@ -150,6 +165,7 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
         ("buses", &[], "()", "Every audio bus, declared in `[audio.buses]` or made by setting a volume, in name order."),
         ("bus_volume_linear", &[], "(bus: string)", "One bus's own gain, without its parents'."),
         ("set_bus_volume_linear", &[], "(bus: string, volume: float)", "Set one bus's gain and re-apply it to everything already playing on it: which is what a volume slider is."),
+        ("bus_limit", &[], "", "One bus's limiter as `[audio.buses]` declares it: `limit`, `limit_threshold_db`, `limit_knee_db`, `limit_attack_time` and `limit_release_time`. Nil for a bus with none."),
         ("cues", &[], "()", "Every sound named in `audio/cues.toml`, in name order."),
         ("play_cue", &[], "(name: string, options: map)", "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. A `position` in the options table places it. Nil for a name nothing declared."),
     ]);
@@ -164,7 +180,7 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
         "play_cue",
         |eng: &Engine, (name, opts): (String, Option<Value>)| {
             cue::ensure_loaded(eng);
-            bus::ensure_loaded(eng);
+            crate::ensure_loaded(eng);
             let played = {
                 let cues = eng.resource::<cue::Cues>();
                 let cues = cues.borrow();
@@ -197,6 +213,7 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
                     gain,
                     emitter,
                     file: crate::FileSettings::of(eng, &file),
+                    ..Playback::default()
                 },
             );
             Ok(Value::Int(i64::try_from(handle).unwrap_or(i64::MAX)))
@@ -206,6 +223,26 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
         bus::ensure_loaded(eng);
         let names = eng.resource::<bus::Buses>().borrow().names();
         Ok(Value::List(names.into_iter().map(Value::text).collect()))
+    });
+    m.function("bus_limit", |eng: &Engine, name: String| {
+        bus::ensure_loaded(eng);
+        let Some(limit) = eng.resource::<bus::Buses>().borrow().limit(&name) else {
+            return Ok(Value::Nil);
+        };
+        let number = |value: f32| Value::Num(f64::from(value));
+        Ok(Value::Map(vec![
+            (k::LIMIT.to_string(), Value::Bool(true)),
+            (
+                k::LIMIT_THRESHOLD_DB.to_string(),
+                number(limit.threshold_db),
+            ),
+            (k::LIMIT_KNEE_DB.to_string(), number(limit.knee_db)),
+            (k::LIMIT_ATTACK_TIME.to_string(), number(limit.attack_time)),
+            (
+                k::LIMIT_RELEASE_TIME.to_string(),
+                number(limit.release_time),
+            ),
+        ]))
     });
     m.function("bus_volume_linear", |eng: &Engine, name: String| {
         bus::ensure_loaded(eng);
@@ -285,4 +322,78 @@ fn install_positional_api(m: &mut dyn Bindings<Engine>) {
         let placement = state.borrow().placement_of(handle_of(handle));
         Ok(placement.map_or(Value::Nil, |placed| Value::Num(f64::from(placed.pan))))
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use balaur_core::Engine;
+    use balaur_script::{Bindings, BoundFn, FnDoc, Value};
+
+    #[derive(Default)]
+    struct Recorded {
+        functions: Vec<String>,
+        doc: String,
+    }
+
+    impl Bindings<Engine> for Recorded {
+        fn function_raw(&mut self, name: &str, _: BoundFn<Engine>) {
+            self.functions.push(name.to_string());
+        }
+        fn constant(&mut self, _: &str, _: Value) {}
+        fn module_doc(&mut self, doc: &'static str) {
+            self.doc = doc.to_string();
+        }
+        fn describe(&mut self, _: &[FnDoc]) {}
+    }
+
+    /// Every function name a source spells after the module's name and a dot.
+    fn audio_calls(source: &str) -> Vec<String> {
+        source
+            .split("audio.")
+            .skip(1)
+            .map(|rest| {
+                rest.chars()
+                    .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+                    .collect::<String>()
+            })
+            .filter(|name| !name.is_empty())
+            .collect()
+    }
+
+    #[test]
+    fn every_audio_call_the_crate_docs_name_is_registered() {
+        let mut recorded = Recorded::default();
+        super::install_audio_api(&mut recorded);
+        let sources = [
+            include_str!("lib.rs"),
+            include_str!("script_api.rs"),
+            include_str!("spatial.rs"),
+            include_str!("cue.rs"),
+            include_str!("bus.rs"),
+            include_str!("cache.rs"),
+        ];
+        for source in sources {
+            for name in audio_calls(source) {
+                assert!(
+                    recorded.functions.contains(&name),
+                    "the docs name `audio.{name}`, which the module does not register"
+                );
+            }
+        }
+        for named in [
+            "play",
+            "stop_playback",
+            "set_volume_linear",
+            "set_pitch_scale",
+            "play_cue",
+            "seek",
+            "skip",
+            "devices",
+        ] {
+            assert!(
+                recorded.doc.contains(&format!("`{named}`")),
+                "the module doc never names `{named}`"
+            );
+        }
+    }
 }

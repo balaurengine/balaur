@@ -416,7 +416,7 @@ mod tests {
                 "id = \"probe\"",
                 "name = \"Probe\"",
                 "script = { source = \"probe.rn\" }",
-                "particles = { rate = 20.0, lifetime = 2.0 }",
+                "particles2d = { rate = 20.0, lifetime = 2.0 }",
                 "",
                 "[[nodes]]",
                 "id = \"pick\"",
@@ -435,7 +435,7 @@ mod tests {
                 "    let gd = script::require(\"gd.rn\");",
                 "    let before = (gd.field)(this.node, \"amount\");",
                 "    (gd.set_field)(this.node, \"amount\", 10);",
-                "    let rate = this.node.get_component(\"particles\")[\"rate\"];",
+                "    let rate = this.node.get_component(\"particles2d\")[\"rate\"];",
                 "    let pick = (gd.option_index)(this.node.get_node(\"Pick\"));",
                 "    if before == 40 && rate == 5.0 && pick == -1 {",
                 "        this.node.set_visible(false);",
@@ -1037,6 +1037,50 @@ mod tests {
                 .z_index,
             3,
             "the probe marked itself only if the tab joined the fold's title bar and `folded` shut it"
+        );
+    }
+
+    /// Godot's separations land on the widget's gap pair: `h_` across and
+    /// `v_` down, each read back on its own.
+    #[test]
+    fn a_separation_override_writes_one_axis_of_the_gap() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |path: &str, text: &str| std::fs::write(dir.path().join(path), text).unwrap();
+        put(
+            "project.toml",
+            "[application]\nname = \"shim\"\nmain_scene = \"main.toml\"\n",
+        );
+        put(
+            "main.toml",
+            "[[nodes]]\nid = \"probe\"\nname = \"Probe\"\nscript = { source = \"probe.rn\" }\nwidget = { kind = \"grid\" }\n",
+        );
+        put("gd.rn", super::SHIM);
+        put(
+            "probe.rn",
+            "pub fn init(this) {\n\
+             \x20   let gd = script::require(\"gd.rn\");\n\
+             \x20   (gd.theme_override)(this.node, \"constants\", \"h_separation\", 4);\n\
+             \x20   (gd.theme_override)(this.node, \"constants\", \"v_separation\", 2);\n\
+             \x20   let across = (gd.theme_constant)(this.node, \"h_separation\");\n\
+             \x20   let down = (gd.theme_constant)(this.node, \"v_separation\");\n\
+             \x20   if across == 4.0 && down == 2.0 {\n\
+             \x20       this.node.set_visible(false);\n\
+             \x20   }\n\
+             }\n",
+        );
+        let mut config = balaur::AppConfig::dev(dir.path().to_string_lossy().as_ref());
+        config.watch = false;
+        let mut app = balaur::standard_app(config).unwrap();
+        app.load_project().unwrap();
+        app.tick(1.0 / 60.0);
+        let world = app.engine.world();
+        let probe = balaur_core::scene::find_node(&world, app.engine.root(), "Probe").unwrap();
+        assert!(
+            !world
+                .get::<&balaur_core::scene::Appearance>(probe)
+                .unwrap()
+                .visible,
+            "the probe hid itself only if each separation landed on its own axis"
         );
     }
 }

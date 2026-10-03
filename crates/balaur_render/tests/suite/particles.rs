@@ -28,7 +28,7 @@ fn seeded_draws(with_emitter: bool) -> Vec<u32> {
             "rate = 500.0\nlifetime = 0.5\nspeed = 3.0\ndirection = [0.7071, 0.7071]\nspread_degrees = 180.0",
         )
         .expect("the emitter params are valid TOML");
-        components::add(&app.engine, entity, "particles", Some(&params))
+        components::add(&app.engine, entity, "particles2d", Some(&params))
             .expect("a valid emitter applies");
         // Control: the component is really there while the frames tick.
         assert!(
@@ -52,10 +52,11 @@ fn a_particles_component_round_trips_and_stays_out_of_the_simulation() {
         "emitting = false\nrate = 5.0\nlifetime = 2.0\nspeed = 1.5\ndirection = [1.0, 1.0]\nspread_degrees = 10.0\nsize = 2.0\ngravity = [1.0, -2.0]",
     )
     .expect("the emitter params are valid TOML");
-    components::add(&app.engine, entity, "particles", Some(&params))
+    components::add(&app.engine, entity, "particles2d", Some(&params))
         .expect("a valid emitter applies");
 
-    let saved = components::get(&app.engine, entity, "particles").expect("the emitter reads back");
+    let saved =
+        components::get(&app.engine, entity, "particles2d").expect("the emitter reads back");
     let table = saved.as_table().expect("get returns a property table");
     assert!(!table["emitting"].as_bool().expect("emitting reads back"));
     for (key, expected) in [
@@ -101,8 +102,8 @@ fn a_burst_and_a_ramp_round_trip() {
         "one_shot = true\nexplosiveness = 0.5\nsize_end = 0.0\ntexture = \"art/spark.png\"\ncolor_end = [1.0, 0.5, 0.0, 0.0]",
     )
     .expect("the emitter params are valid TOML");
-    components::add(&app.engine, entity, "particles", Some(&params)).expect("applies");
-    let saved = components::get(&app.engine, entity, "particles").expect("reads back");
+    components::add(&app.engine, entity, "particles2d", Some(&params)).expect("applies");
+    let saved = components::get(&app.engine, entity, "particles2d").expect("reads back");
     let table = saved.as_table().unwrap();
     assert!(table["one_shot"].as_bool().unwrap());
     assert!((table["explosiveness"].as_float().unwrap() - 0.5).abs() < 1e-6);
@@ -120,7 +121,7 @@ fn a_one_shot_burst_says_finished_once_its_last_particle_is_due_to_die() {
     let params: toml::Value =
         toml::from_str("one_shot = true\nexplosiveness = 1.0\nlifetime = 0.5\nrate = 10.0")
             .expect("the emitter params are valid TOML");
-    components::add(&app.engine, entity, "particles", Some(&params))
+    components::add(&app.engine, entity, "particles2d", Some(&params))
         .expect("a valid emitter applies");
     let mut heard = Vec::new();
     for frame in 0..60 {
@@ -131,6 +132,61 @@ fn a_one_shot_burst_says_finished_once_its_last_particle_is_due_to_die() {
     }
     // All born at once and half a second to live: over on the 30th step,
     // heard at the pump on the next frame.
+    assert_eq!(heard.len(), 1, "finished once, not every frame: {heard:?}");
+    assert!(
+        (29..=32).contains(&heard[0]),
+        "heard half a second in: {heard:?}"
+    );
+}
+
+#[test]
+fn a_3d_emitter_round_trips_in_world_units_and_draws_one_quad() {
+    let app = app();
+    let entity = node(&app);
+    let params: toml::Value = toml::from_str(
+        "direction = [0.0, 0.0, 2.0]\ngravity = [0.0, -1.0, 0.5]\nsize = 0.25\nbillboard = false\ntexture = \"art/spark.png\"\ncast_shadow = true",
+    )
+    .expect("the emitter params are valid TOML");
+    components::add(&app.engine, entity, "particles3d", Some(&params)).expect("applies");
+    let table = components::get(&app.engine, entity, "particles3d").expect("reads back");
+    let floats = |key: &str| -> Vec<f64> {
+        table[key]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_float().unwrap())
+            .collect()
+    };
+    assert_eq!(
+        floats("direction"),
+        [0.0, 0.0, 1.0],
+        "the direction is its unit vector"
+    );
+    assert_eq!(floats("gravity"), [0.0, -1.0, 0.5]);
+    assert!((table["size"].as_float().unwrap() - 0.25).abs() < 1e-6);
+    assert!(!table["billboard"].as_bool().unwrap());
+    assert!(table["cast_shadow"].as_bool().unwrap());
+    assert_eq!(table["texture"].as_str(), Some("art/spark.png"));
+    let world = app.engine.world();
+    let renderable = world.get::<&balaur_render::Renderable3d>(entity).unwrap();
+    let quad = renderable.built.as_ref().expect("the node draws one quad");
+    assert_eq!(quad.indices.len(), 2);
+}
+
+#[test]
+fn a_3d_one_shot_burst_says_finished_as_a_2d_one_does() {
+    let mut app = app();
+    let entity = node(&app);
+    let params: toml::Value =
+        toml::from_str("one_shot = true\nexplosiveness = 1.0\nlifetime = 0.5\nrate = 10.0")
+            .expect("the emitter params are valid TOML");
+    components::add(&app.engine, entity, "particles3d", Some(&params)).expect("applies");
+    let heard: Vec<u32> = (0..60)
+        .filter(|_| {
+            app.tick(1.0 / 60.0);
+            !balaur_core::events::delivered_from(&app.engine, entity, "finished").is_empty()
+        })
+        .collect();
     assert_eq!(heard.len(), 1, "finished once, not every frame: {heard:?}");
     assert!(
         (29..=32).contains(&heard[0]),

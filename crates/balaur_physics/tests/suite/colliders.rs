@@ -285,35 +285,213 @@ friction = 0.9"#,
     assert!((offset[1].as_float().unwrap() + 1.0).abs() < 1e-6);
 }
 
-/// `one_way` is a no-op unless the axis reaches the hook, and the hook reads
-/// the collider's `user_data` because it runs while the world is borrowed.
+/// `one_way` is a no-op unless the axis reaches the hook, which runs while
+/// the world is borrowed and reads it from a side table.
 #[test]
-fn a_2d_one_way_collider_carries_its_axis_into_the_world() {
-    let app = app();
+fn a_2d_one_way_collider_lets_a_body_up_and_lands_it_coming_down() {
+    let mut app = app();
     let root = app.engine.root();
-    let e = child_of(&app, root, "Platform");
+    let platform = child_of(&app, root, "Platform");
     components::add(
         &app.engine,
-        e,
+        platform,
         "collider2d",
         Some(
-            &toml::from_str("kind = \"rectangle\"\none_way = true\none_way_axis = [0.0, 1.0]")
-                .unwrap(),
+            &toml::from_str(
+                "kind = \"rectangle\"\nsize = [4.0, 0.2]\none_way = true\none_way_axis = [0.0, 1.0]",
+            )
+            .unwrap(),
         ),
     )
     .unwrap();
-    let state = app.engine.resource::<balaur_physics::PhysicsState2d>();
-    let state = state.borrow();
-    let handle = state.colliders[&e][0];
-    let collider = &state.world.colliders[handle];
-    assert_ne!(
-        collider.user_data >> 64,
-        0,
-        "no one-way axis reached the collider"
+    let ball = child_of(&app, root, "Ball");
+    app.engine
+        .world()
+        .get::<&mut balaur_core::Transform>(ball)
+        .unwrap()
+        .position
+        .y = -1.0;
+    for (name, params) in [
+        ("body2d", "kind = \"dynamic\""),
+        ("collider2d", "kind = \"circle\"\nradius = 0.25"),
+    ] {
+        components::add(
+            &app.engine,
+            ball,
+            name,
+            Some(&toml::from_str(params).unwrap()),
+        )
+        .unwrap();
+    }
+    {
+        let state = app.engine.resource::<balaur_physics::PhysicsState2d>();
+        let mut state = state.borrow_mut();
+        let handle = state.bodies[&ball];
+        let up = balaur_physics::rapier2d::math::Vector::new(0.0, 7.0);
+        state.world.bodies[handle].set_linvel(up, true);
+    }
+    let mut highest = f32::MIN;
+    for _ in 0..120 {
+        app.tick(1.0 / 60.0);
+        let y = app
+            .engine
+            .world()
+            .get::<&balaur_core::Transform>(ball)
+            .unwrap()
+            .position
+            .y;
+        highest = highest.max(y);
+    }
+    let y = app
+        .engine
+        .world()
+        .get::<&balaur_core::Transform>(ball)
+        .unwrap()
+        .position
+        .y;
+    assert!(
+        highest > 0.5,
+        "the ball stopped under the platform at {highest}"
     );
     assert!(
-        collider
-            .active_hooks()
-            .contains(balaur_physics::rapier2d::prelude::ActiveHooks::MODIFY_SOLVER_CONTACTS)
+        (y - 0.35).abs() < 0.05,
+        "the ball came back down and did not land on the platform: y = {y}"
+    );
+}
+
+/// The numbers a probe function on a script returned, in order.
+fn numbers(value: Option<balaur_script::Value>) -> Vec<f64> {
+    use balaur_script::Value;
+    let Some(Value::List(items) | Value::Many(items)) = value else {
+        panic!("the probe answered {value:?}");
+    };
+    items
+        .iter()
+        .map(|item| match item {
+            Value::Num(n) => *n,
+            Value::Int(n) => *n as f64,
+            other => panic!("the probe answered {other:?} in its list"),
+        })
+        .collect()
+}
+
+/// A project whose one node runs `script`, booted and loaded. Holds [`LOG`]
+/// for as long as the caller keeps the guard, so a script's error lands in no
+/// other test's log.
+fn scripted(
+    scene: &str,
+    script: &str,
+) -> (App, tempfile::TempDir, std::sync::MutexGuard<'static, ()>) {
+    let guard = crate::LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("main.toml"), scene).unwrap();
+    std::fs::write(dir.path().join("scripts/s.rn"), script).unwrap();
+    let mut app = balaur::standard_app(balaur::AppConfig::dev(
+        dir.path().to_string_lossy().as_ref(),
+    ))
+    .unwrap();
+    app.load_project().unwrap();
+    (app, dir, guard)
+}
+
+#[test]
+fn a_swept_box_reaches_where_the_body_is_going() {
+    let (app, _dir, _log) = scripted(
+        r#"[[nodes]]
+id = "n_ball"
+name = "Ball"
+script = { source = "scripts/s.rn" }
+body3d = { kind = "dynamic", gravity_scale = 0.0 }
+collider3d = { kind = "sphere", radius = 0.5 }
+"#,
+        r"pub fn boxes(this) {
+    let (ax, ay, az, bx, by, bz) = this.node.collider3d.aabb();
+    let (sx, sy, sz, tx, ty, tz) = this.node.collider3d.swept_aabb();
+    [ax, bx, sx, tx]
+}
+",
+    );
+    let ball = balaur_core::scene::find_node(&app.engine.world(), app.engine.root(), "Ball")
+        .expect("the scene's ball");
+    {
+        let state = app.engine.resource::<PhysicsState3d>();
+        let mut state = state.borrow_mut();
+        let handle = state.bodies[&ball];
+        let velocity = balaur_physics::rapier3d::math::Vector::new(6.0, 0.0, 0.0);
+        state.world.bodies[handle].set_linvel(velocity, true);
+    }
+    let host = app.engine.script_host().unwrap();
+    let [from, to, swept_from, swept_to] =
+        numbers(host.call_on(balaur_core::node_id_of(ball), "boxes", &[]))[..]
+    else {
+        panic!("the probe answered four numbers");
+    };
+    let step = 6.0 * f64::from(balaur_core::fixed_dt());
+    assert!(
+        (swept_from - from).abs() < 1e-5,
+        "the sweep starts where the ball is"
+    );
+    assert!(
+        (swept_to - (to + step)).abs() < 1e-4,
+        "the sweep ends at {swept_to}, not one step on at {}",
+        to + step
+    );
+}
+
+/// Child nodes are where a compound body keeps its colliders.
+#[test]
+fn a_bodys_hardest_contact_counts_its_child_colliders() {
+    let (mut app, _dir, _log) = scripted(
+        r#"[[nodes]]
+id = "n_world"
+name = "World"
+
+[[nodes]]
+id = "n_ground"
+name = "Ground"
+parent = "n_world"
+body2d = { kind = "static" }
+collider2d = { kind = "rectangle", size = [20.0, 1.0] }
+
+[[nodes]]
+id = "n_crate"
+name = "Crate"
+parent = "n_world"
+script = { source = "scripts/s.rn" }
+body2d = { kind = "dynamic" }
+
+[nodes.transform]
+position = [0.0, 1.0, 0.0]
+
+[[nodes]]
+id = "n_shape"
+name = "Shape"
+parent = "n_crate"
+collider2d = { kind = "rectangle", size = [1.0, 1.0] }
+"#,
+        r"pub fn hardest(this) {
+    [this.node.body2d.max_contact_impulse()]
+}
+",
+    );
+    for _ in 0..60 {
+        app.tick(1.0 / 60.0);
+    }
+    let crate_node =
+        balaur_core::scene::find_node(&app.engine.world(), app.engine.root(), "World/Crate")
+            .expect("the scene's crate");
+    let host = app.engine.script_host().unwrap();
+    let hardest = numbers(host.call_on(balaur_core::node_id_of(crate_node), "hardest", &[]));
+    assert!(
+        hardest[0] > 0.0,
+        "a crate resting on the ground through its child's collider took no contact"
     );
 }

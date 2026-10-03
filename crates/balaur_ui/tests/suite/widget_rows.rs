@@ -870,7 +870,7 @@ fn a_card_dragged_out_of_its_list_reports_itself_where_it_was_let_go() {
             "Cards",
             &toml::toml! {
                 kind = "list" x = 0.0 y = 0.0 width = 240.0 height = 120.0
-                columns = 3 draggable = true on_drop = "on_drop"
+                grid_columns = "repeat(3, 1fr)" draggable = true on_drop = "on_drop"
                 options = ["One", "Two", "Three"]
             }
             .into(),

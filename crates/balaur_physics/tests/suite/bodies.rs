@@ -413,3 +413,189 @@ fn a_2d_body_mass_is_the_total_too() {
         "a 2x2 box of density 1 under mass = 3 weighs {mass}"
     );
 }
+
+/// The principal inertia of a body's whole mass, smallest first.
+fn principal_inertia_3d(app: &App, e: Entity) -> [f32; 3] {
+    let state = app.engine.resource::<PhysicsState3d>();
+    let state = state.borrow();
+    let inertia = state.world.bodies[state.bodies[&e]]
+        .mass_properties()
+        .local_mprops
+        .principal_inertia();
+    let mut sorted = [inertia.x, inertia.y, inertia.z];
+    sorted.sort_by(f32::total_cmp);
+    sorted
+}
+
+/// Rapier derives no inertia for stated mass properties, so Balaur fits one.
+#[test]
+fn a_body_with_a_centre_of_mass_and_no_inertia_still_turns() {
+    let app = app();
+    let e = node(&app, "Lopsided");
+    let body: toml::Value =
+        toml::from_str("kind = \"dynamic\"\nmass = 2.0\ncenter_of_mass = [0.0, 0.5, 0.0]").unwrap();
+    components::add(&app.engine, e, "body3d", Some(&body)).unwrap();
+    let cube: toml::Value = toml::from_str("kind = \"box\"\nsize = [1.0, 1.0, 1.0]").unwrap();
+    components::add(&app.engine, e, "collider3d", Some(&cube)).unwrap();
+    // A unit cube of mass 2 turns about its centre with 2/6 on every axis; half
+    // a unit up, the two axes across the offset gain 2 * 0.5^2.
+    let [low, mid, high] = principal_inertia_3d(&app, e);
+    let side = 2.0 / 6.0;
+    assert!((low - side).abs() < 1e-4, "about y: {low}");
+    assert!((mid - (side + 0.5)).abs() < 1e-4, "across: {mid}");
+    assert!((high - (side + 0.5)).abs() < 1e-4, "across: {high}");
+
+    let back = components::get(&app.engine, e, "body3d").unwrap();
+    let inertia = back.get("inertia").unwrap().as_array().unwrap();
+    assert!(
+        inertia.iter().all(|n| n.as_float() == Some(0.0)),
+        "a derived inertia reads back as the 0 that asked for it: {inertia:?}"
+    );
+    let com = back.get("center_of_mass").unwrap().as_array().unwrap();
+    assert!((com[1].as_float().unwrap() - 0.5).abs() < 1e-5);
+}
+
+#[test]
+fn a_2d_body_with_a_centre_of_mass_and_no_inertia_still_turns() {
+    let app = app();
+    let e = node(&app, "Lopsided");
+    let body: toml::Value =
+        toml::from_str("kind = \"dynamic\"\nmass = 2.0\ncenter_of_mass = [0.5, 0.0]").unwrap();
+    components::add(&app.engine, e, "body2d", Some(&body)).unwrap();
+    let square: toml::Value = toml::from_str("kind = \"rectangle\"\nsize = [1.0, 1.0]").unwrap();
+    components::add(&app.engine, e, "collider2d", Some(&square)).unwrap();
+    let inertia = {
+        let state = app.engine.resource::<PhysicsState2d>();
+        let state = state.borrow();
+        state.world.bodies[state.bodies[&e]]
+            .mass_properties()
+            .local_mprops
+            .principal_inertia()
+    };
+    assert!(
+        (inertia - (2.0 / 6.0 + 0.5)).abs() < 1e-4,
+        "a unit square of mass 2 half a unit off its centre has inertia {inertia}"
+    );
+    let back = components::get(&app.engine, e, "body2d").unwrap();
+    assert_eq!(
+        back.get("inertia").and_then(toml::Value::as_float),
+        Some(0.0),
+        "a derived inertia reads back as its 0"
+    );
+}
+
+#[test]
+fn can_sleep_reads_back_what_was_authored_whatever_the_world_allows() {
+    let app = app();
+    let sleeper = body_with(&app, "Sleeper", "kind = \"dynamic\"\ntime_to_sleep = 0.75");
+    let awake = body_with(
+        &app,
+        "Awake",
+        "kind = \"dynamic\"\ncan_sleep = false\ntime_to_sleep = 1.5",
+    );
+    let read = |e: Entity| {
+        let back = components::get(&app.engine, e, "body3d").unwrap();
+        let can_sleep = back
+            .get("can_sleep")
+            .and_then(toml::Value::as_bool)
+            .unwrap();
+        let time = back
+            .get("time_to_sleep")
+            .and_then(balaur_core::components::as_f64)
+            .unwrap();
+        (can_sleep, time)
+    };
+    let held_awake = |e: Entity| {
+        let state = app.engine.resource::<PhysicsState3d>();
+        let state = state.borrow();
+        state.world.bodies[state.bodies[&e]]
+            .activation()
+            .normalized_linear_threshold
+            < 0.0
+    };
+
+    balaur_physics::set_sleeping_allowed(&app.engine, false);
+    let late = body_with(&app, "Late", "kind = \"dynamic\"");
+    assert!(
+        read(sleeper).0,
+        "world sleep off hid the sleeper's can_sleep"
+    );
+    assert!(
+        read(late).0,
+        "a body added while sleep is off reads back false"
+    );
+    assert!(
+        held_awake(sleeper) && held_awake(late),
+        "the world switch holds every body awake"
+    );
+
+    balaur_physics::set_sleeping_allowed(&app.engine, true);
+    assert_eq!(
+        read(awake),
+        (false, 1.5),
+        "the switch wiped the awake body's settings"
+    );
+    assert!(
+        (read(sleeper).1 - 0.75).abs() < 1e-6,
+        "the switch wiped time_to_sleep"
+    );
+    assert!(
+        held_awake(awake),
+        "can_sleep = false came back able to sleep"
+    );
+    assert!(
+        !held_awake(sleeper) && !held_awake(late),
+        "the switch left bodies held awake"
+    );
+}
+
+#[test]
+fn can_sleep_reads_back_what_was_authored_in_2d_too() {
+    let app = app();
+    let e = node(&app, "Awake");
+    let params: toml::Value =
+        toml::from_str("kind = \"dynamic\"\ncan_sleep = false\ntime_to_sleep = 1.5").unwrap();
+    components::add(&app.engine, e, "body2d", Some(&params)).unwrap();
+    let other = node(&app, "Sleeper");
+    let params: toml::Value = toml::from_str("kind = \"dynamic\"").unwrap();
+    components::add(&app.engine, other, "body2d", Some(&params)).unwrap();
+    let can_sleep = |e: Entity| {
+        components::get(&app.engine, e, "body2d")
+            .and_then(|b| b.get("can_sleep").and_then(toml::Value::as_bool))
+            .unwrap()
+    };
+    balaur_physics::dim2::set_sleeping_allowed(&app.engine, false);
+    assert!(can_sleep(other), "world sleep off hid the body's can_sleep");
+    balaur_physics::dim2::set_sleeping_allowed(&app.engine, true);
+    assert!(
+        !can_sleep(e),
+        "the switch coming back on overwrote can_sleep = false"
+    );
+    let time = components::get(&app.engine, e, "body2d")
+        .and_then(|b| {
+            b.get("time_to_sleep")
+                .and_then(balaur_core::components::as_f64)
+        })
+        .unwrap();
+    assert!(
+        (time - 1.5).abs() < 1e-6,
+        "the switch wiped time_to_sleep: {time}"
+    );
+}
+
+#[test]
+fn a_restore_puts_back_what_the_author_wrote() {
+    let app = app();
+    let e = body_with(&app, "Awake", "kind = \"dynamic\"\ncan_sleep = false");
+    let taken = balaur_core::snapshot::capture(&app.engine);
+    let patch: toml::Value = toml::from_str("can_sleep = true").unwrap();
+    components::patch(&app.engine, e, "body3d", &patch).unwrap();
+    balaur_core::snapshot::restore(&app.engine, &taken);
+    let can_sleep = components::get(&app.engine, e, "body3d")
+        .and_then(|b| b.get("can_sleep").and_then(toml::Value::as_bool))
+        .unwrap();
+    assert!(
+        !can_sleep,
+        "the restored body reads back the patch made after the snapshot"
+    );
+}

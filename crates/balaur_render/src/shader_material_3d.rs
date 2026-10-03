@@ -9,9 +9,9 @@
 //! material bind.
 //!
 //! A material draws in the phases its pipelines have targets for: the
-//! geometry prepass, the opaque pass, and the refraction pass when its
-//! surface is glass. Nothing here draws in the order-independent transparency
-//! pass, whose targets it has no pipeline for.
+//! geometry prepass, the opaque pass, the order-independent transparency pass
+//! while its surface blends and its colour is see-through, and the refraction
+//! pass when its surface is glass.
 
 use balaur_core::time::Instant;
 use std::any::Any;
@@ -36,16 +36,51 @@ use crate::frame_group::FrameGroup;
 use crate::material::{Compiled, PARAMS_GROUP};
 use crate::probe::Probe;
 
-/// Matches `ObjectUniforms` in `shaders/mesh.wesl`.
+/// Matches `ObjectUniforms` in `shaders/mesh.wesl`; the skinning material
+/// writes the same one.
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
-struct ObjectUniforms {
+pub(crate) struct ObjectUniforms {
     model: [[f32; 4]; 4],
     normal_matrix: [[f32; 4]; 4],
     color: [f32; 4],
     mirror_view_proj: [[f32; 4]; 4],
     mirror: [f32; 4],
     mirror_normal: [f32; 4],
+    flags: [f32; 4],
+    layers: [u32; 4],
+}
+
+impl ObjectUniforms {
+    /// A node that is not a mirror: its model matrix, its colour, its flags.
+    pub(crate) fn plain(model: Mat4, data: &ObjectData3d) -> Self {
+        let color = data.color();
+        let mut out = Self {
+            model: model.to_cols_array_2d(),
+            normal_matrix: model.inverse().transpose().to_cols_array_2d(),
+            color: [color.r, color.g, color.b, color.a],
+            mirror_view_proj: Mat4::IDENTITY.to_cols_array_2d(),
+            mirror: [0.0; 4],
+            mirror_normal: [0.0, 1.0, 0.0, 0.0],
+            flags: [0.0; 4],
+            layers: [0; 4],
+        };
+        out.set_node(data);
+        out
+    }
+
+    /// Whether shadows land on the node and whether its colour is see-through,
+    /// then the light layers that light it, as `mesh.wesl` reads them.
+    pub(crate) fn set_node(&mut self, data: &ObjectData3d) {
+        let translucent = data.color().a < 1.0;
+        self.flags = [
+            f32::from(u8::from(data.receives_shadows())),
+            f32::from(u8::from(translucent)),
+            0.0,
+            0.0,
+        ];
+        self.layers = [data.light_layers(), 0, 0, 0];
+    }
 }
 
 /// What a node's mirror puts in its object uniform, and the picture the
@@ -61,6 +96,8 @@ fn mirror_of(transform: Pose3, data: &ObjectData3d) -> (ObjectUniforms, Option<w
         mirror_view_proj: Mat4::IDENTITY.to_cols_array_2d(),
         mirror: [0.0; 4],
         mirror_normal: [0.0, 1.0, 0.0, 0.0],
+        flags: [1.0, 0.0, 0.0, 0.0],
+        layers: [u32::MAX, 0, 0, 0],
     };
     let Some(reflector) = data.reflector() else {
         return (uniforms, None);
@@ -84,6 +121,10 @@ struct ShaderGpuData3d {
     mirror_generation: Option<u64>,
     /// Each instance's custom data, for a material that reads it.
     custom: crate::multimesh::CustomBuffer,
+    /// The mirror's picture the object group binds, kept so the group can be
+    /// built where the mesh is known: a morphing node binds its targets too.
+    mirror: Option<wgpu::TextureView>,
+    morph: crate::morph::NodeMorph,
 }
 
 impl GpuData for ShaderGpuData3d {
@@ -99,10 +140,17 @@ impl GpuData for ShaderGpuData3d {
 pub(crate) struct ShaderMaterial3d {
     cull: PipelineCache,
     no_cull: PipelineCache,
+    /// The same two drawing over the depth already there, for a node whose
+    /// `depth_test` is off.
+    over: [PipelineCache; 2],
     /// The geometry the prepass wants, in the four targets it writes. Built
     /// from the engine's own shader rather than the material's: the prepass
     /// reads geometry, and a material that paints has nothing to add to it.
     prepass: Option<Prepass>,
+    /// The transparency pass's pipelines, culling and not, for a shader that
+    /// took the second entry point. Without one a blended surface draws in
+    /// the opaque pass, blended over whatever drew before it.
+    transparent: Option<[PipelineCache; 2]>,
     object_layout: wgpu::BindGroupLayout,
     texture_layout: wgpu::BindGroupLayout,
     frame: FrameGroup,
@@ -121,6 +169,8 @@ pub(crate) struct ShaderMaterial3d {
     /// Whether the frame being drawn is a mirror's or a probe's capture. A
     /// mirror must not draw into its own picture, so it stands out of one.
     capturing: Cell<bool>,
+    /// The stand-in targets a node with none binds, on a device that morphs.
+    morph: Option<crate::morph::MorphFallback>,
 }
 
 const fn attribute(shader_location: u32, format: wgpu::VertexFormat) -> wgpu::VertexAttribute {
@@ -207,11 +257,11 @@ fn vertex_layouts(
 /// `material.rs` and the bindings `mesh.wesl` declares.
 pub(crate) const TEXTURE_SLOTS: u32 = 6;
 
-pub(crate) fn bind_group_layouts() -> [wgpu::BindGroupLayout; 3] {
+pub(crate) fn bind_group_layouts(morph: bool) -> [wgpu::BindGroupLayout; 3] {
     let ctxt = Context::get();
     [
         crate::frame_group::layout(),
-        crate::bind_layout::object_layout("material3d_object_layout"),
+        crate::bind_layout::object_layout("material3d_object_layout", morph),
         crate::bind_layout::sampled_slots_layout(&ctxt, "material3d_texture_layout", TEXTURE_SLOTS),
     ]
 }
@@ -219,7 +269,7 @@ pub(crate) fn bind_group_layouts() -> [wgpu::BindGroupLayout; 3] {
 fn build_pipeline(
     layout: std::rc::Rc<wgpu::PipelineLayout>,
     shader: std::rc::Rc<wgpu::ShaderModule>,
-    cull: Option<wgpu::Face>,
+    (cull, depth): (Option<wgpu::Face>, crate::pipeline::Depth),
     label: &'static str,
     (vertex_color, instance_custom): (bool, bool),
 ) -> PipelineCache {
@@ -229,8 +279,11 @@ fn build_pipeline(
             &layout,
             &shader,
             &vertex_layouts(vertex_color, instance_custom),
-            cull,
-            &crate::pipeline::Depth::Tested,
+            &crate::pipeline::Raster {
+                cull,
+                depth,
+                blend: crate::pipeline::Blend::Straight,
+            },
             sample_count,
         )
     })
@@ -246,8 +299,9 @@ fn build_pipeline(
 fn build_prepass(
     layout: &std::rc::Rc<wgpu::PipelineLayout>,
     vertex_color: bool,
+    morph: bool,
 ) -> anyhow::Result<Prepass> {
-    let wgsl = crate::shaders::link_prepass(vertex_color)?;
+    let wgsl = crate::shaders::link_prepass(vertex_color, morph)?;
     let shader = std::rc::Rc::new(Context::get().create_shader_module(Some("mesh_prepass"), &wgsl));
     let build = |cull| {
         let (layout, shader) = (layout.clone(), shader.clone());
@@ -285,7 +339,7 @@ impl ShaderMaterial3d {
         slots: Vec<Option<Arc<Texture>>>,
     ) -> Self {
         let ctxt = Context::get();
-        let [frame_layout, object_layout, texture_layout] = bind_group_layouts();
+        let [frame_layout, object_layout, texture_layout] = bind_group_layouts(compiled.morph);
         let params = material_group(&compiled.params, probe, "material3d");
         let mut groups = vec![
             Some(&frame_layout),
@@ -303,32 +357,71 @@ impl ShaderMaterial3d {
                 immediate_size: 0,
             },
         ));
-        let shader =
-            std::rc::Rc::new(ctxt.create_shader_module(Some("material3d_shader"), &compiled.wgsl));
+        let wgsl = compiled
+            .transparent_wgsl
+            .as_deref()
+            .unwrap_or(&compiled.wgsl);
+        let shader = std::rc::Rc::new(ctxt.create_shader_module(Some("material3d_shader"), wgsl));
+        let transparent = compiled.transparent_wgsl.is_some().then(|| {
+            [Some(wgpu::Face::Back), None].map(|cull| {
+                let (layout, shader) = (pipeline_layout.clone(), shader.clone());
+                let attributes = (compiled.vertex_color, compiled.instance_custom);
+                PipelineCache::new(move |sample_count| {
+                    crate::pipeline::transparent_pipeline(
+                        &layout,
+                        &shader,
+                        &vertex_layouts(attributes.0, attributes.1),
+                        cull,
+                        sample_count,
+                    )
+                })
+            })
+        });
+        let attributes = (compiled.vertex_color, compiled.instance_custom);
+        let tested = crate::pipeline::Depth::Tested;
+        let ahead = crate::pipeline::Depth::Over;
         let cull = build_pipeline(
             pipeline_layout.clone(),
             shader.clone(),
-            Some(wgpu::Face::Back),
+            (Some(wgpu::Face::Back), tested),
             "material3d_pipeline_cull",
-            (compiled.vertex_color, compiled.instance_custom),
+            attributes,
         );
         let no_cull = build_pipeline(
             pipeline_layout.clone(),
-            shader,
-            None,
+            shader.clone(),
+            (None, tested),
             "material3d_pipeline_no_cull",
-            (compiled.vertex_color, compiled.instance_custom),
+            attributes,
         );
+        let over = [
+            build_pipeline(
+                pipeline_layout.clone(),
+                shader.clone(),
+                (Some(wgpu::Face::Back), ahead),
+                "material3d_pipeline_over_cull",
+                attributes,
+            ),
+            build_pipeline(
+                pipeline_layout.clone(),
+                shader,
+                (None, ahead),
+                "material3d_pipeline_over_no_cull",
+                attributes,
+            ),
+        ];
         // A prepass that will not link is a material that contributes no
         // geometry to the screen-space passes, not a material that fails to
         // draw: the engine owns that shader, so a failure here is its own bug.
-        let prepass = build_prepass(&pipeline_layout, compiled.vertex_color)
+        let prepass = build_prepass(&pipeline_layout, compiled.vertex_color, compiled.morph)
             .inspect_err(|why| tracing::error!("the mesh prepass shader does not link: {why:#}"))
             .ok();
         Self {
             cull,
             no_cull,
+            over,
             prepass,
+            transparent,
             object_layout,
             texture_layout,
             frame: FrameGroup::new(),
@@ -341,6 +434,7 @@ impl ShaderMaterial3d {
             vertex_color: compiled.vertex_color,
             instance_custom: compiled.instance_custom,
             capturing: Cell::new(false),
+            morph: compiled.morph.then(crate::morph::MorphFallback::new),
             slots,
         }
     }
@@ -350,10 +444,8 @@ impl ShaderMaterial3d {
     /// Glass draws only in the refraction pass, after the opaque scene it
     /// bends has been resolved; the prepass measures opaque geometry, so
     /// neither glass nor a blended surface belongs in it. A blended surface
-    /// draws in the opaque pass with alpha blending rather than in the
-    /// order-independent one, whose accumulation targets nothing here builds
-    /// a pipeline for: a project's material declares one fragment entry
-    /// point, and that pass needs a second.
+    /// draws in the order-independent pass, or in the opaque one with alpha
+    /// blending when its shader could not take that pass's entry point.
     fn draws_in(&self, phase: RenderPhase, data: &ObjectData3d) -> bool {
         // A mirror renders the scene into its own picture: drawing itself
         // there would sample the texture it is writing, which wgpu refuses.
@@ -367,12 +459,41 @@ impl ShaderMaterial3d {
             kiss3d::scene::AlphaMode::Blend | kiss3d::scene::AlphaMode::Premultiplied
         ) && data.color().a < 1.0;
         let glass = data.transmission() > 0.0;
+        let sorted_apart = blended && self.transparent.is_some();
         match phase {
-            RenderPhase::Prepass => !blended && !glass,
-            RenderPhase::Opaque => !glass,
-            RenderPhase::Transparent => false,
+            // What draws over everything measures nothing the screen-space
+            // passes could use: it hides nothing behind it.
+            RenderPhase::Prepass => !blended && !glass && data.depth_test(),
+            RenderPhase::Opaque => !glass && !sorted_apart,
+            RenderPhase::Transparent => sorted_apart && !glass,
             RenderPhase::Transmission => glass,
         }
+    }
+
+    /// The pipeline this node draws through in the pass `context` is for, or
+    /// `None` where this material built none for it.
+    fn pipeline_for(
+        &self,
+        data: &ObjectData3d,
+        context: &RenderContext,
+    ) -> Option<std::rc::Rc<wgpu::RenderPipeline>> {
+        // The reflector's mirrored projection flips winding, so the pass that
+        // draws into it asks for culling off whatever the node said.
+        let culls = data.backface_culling_enabled() && !context.force_no_cull;
+        let samples = context.sample_count;
+        let (cull, no_cull) = match context.phase {
+            RenderPhase::Prepass => {
+                let prepass = self.prepass.as_ref()?;
+                (&prepass.cull, &prepass.no_cull)
+            }
+            RenderPhase::Transparent => {
+                let [cull, no_cull] = self.transparent.as_ref()?;
+                (cull, no_cull)
+            }
+            _ if !data.depth_test() => (&self.over[0], &self.over[1]),
+            _ => (&self.cull, &self.no_cull),
+        };
+        Some(if culls { cull } else { no_cull }.get(samples))
     }
 
     /// Group 2, one texture and sampler per slot. Slot 0 is the node's own
@@ -399,6 +520,10 @@ impl ShaderMaterial3d {
 }
 
 impl Material3d for ShaderMaterial3d {
+    fn renders_in_transparent_phase(&self) -> bool {
+        self.transparent.is_some()
+    }
+
     fn create_gpu_data(&self) -> Box<dyn GpuData> {
         Box::new(ShaderGpuData3d {
             object_uniform: Context::get().create_buffer(&wgpu::BufferDescriptor {
@@ -412,6 +537,8 @@ impl Material3d for ShaderMaterial3d {
             texture_ptr: 0,
             mirror_generation: None,
             custom: crate::multimesh::CustomBuffer::default(),
+            mirror: None,
+            morph: crate::morph::NodeMorph::default(),
         })
     }
 
@@ -482,16 +609,14 @@ impl Material3d for ShaderMaterial3d {
         uniforms.model = model.to_cols_array_2d();
         uniforms.normal_matrix = model.inverse().transpose().to_cols_array_2d();
         uniforms.color = [color.r, color.g, color.b, color.a];
+        uniforms.set_node(data);
         ctxt.write_buffer(&gpu_data.object_uniform, 0, bytemuck::bytes_of(&uniforms));
         let generation = data
             .reflector()
             .map(kiss3d::renderer::Reflector::generation);
-        if gpu_data.object_bind_group.is_none() || gpu_data.mirror_generation != generation {
-            gpu_data.object_bind_group = Some(crate::bind_layout::object_group(
-                &self.object_layout,
-                &gpu_data.object_uniform,
-                mirror.as_ref(),
-            ));
+        if gpu_data.mirror_generation != generation {
+            gpu_data.object_bind_group = None;
+            gpu_data.mirror = mirror;
             gpu_data.mirror_generation = generation;
         }
         let texture = data.texture();
@@ -523,22 +648,7 @@ impl Material3d for ShaderMaterial3d {
             .as_any_mut()
             .downcast_mut::<ShaderGpuData3d>()
             .expect("a material's node carries ShaderGpuData3d");
-        mesh.coords()
-            .write()
-            .expect("kiss3d panicked while writing the mesh's positions")
-            .load_to_gpu();
-        mesh.normals()
-            .write()
-            .expect("kiss3d panicked while writing the mesh's normals")
-            .load_to_gpu();
-        mesh.uvs()
-            .write()
-            .expect("kiss3d panicked while writing the mesh's UVs")
-            .load_to_gpu();
-        mesh.faces()
-            .write()
-            .expect("kiss3d panicked while writing the mesh's faces")
-            .load_to_gpu();
+        upload(mesh);
         // The per-copy half. One identity copy when nothing is multiplying
         // this node, which is what makes instancing invisible to a material.
         let copies = instances.len().max(1) as u32;
@@ -559,6 +669,22 @@ impl Material3d for ShaderMaterial3d {
         } else {
             None
         };
+
+        let morph = self
+            .morph
+            .as_ref()
+            .map(|fallback| gpu_data.morph.prepare(mesh, data.morph_weights(), fallback));
+        if gpu_data.object_bind_group.is_none()
+            || morph.as_ref().is_some_and(|(_, rebuild)| *rebuild)
+        {
+            gpu_data.object_bind_group = Some(crate::bind_layout::object_group(
+                &self.object_layout,
+                &gpu_data.object_uniform,
+                gpu_data.mirror.as_ref(),
+                morph.as_ref().map(|(binding, _)| binding),
+            ));
+        }
+        self.frame.set_shadow(context.shadow.as_ref());
 
         let (
             Some(coords),
@@ -585,17 +711,8 @@ impl Material3d for ShaderMaterial3d {
             return;
         };
 
-        // The reflector's mirrored projection flips winding, so the pass that
-        // draws into it asks for culling off whatever the node said.
-        let culls = data.backface_culling_enabled() && !context.force_no_cull;
-        let pipeline = match context.phase {
-            RenderPhase::Prepass => match self.prepass.as_ref() {
-                Some(prepass) if culls => prepass.cull.get(context.sample_count),
-                Some(prepass) => prepass.no_cull.get(context.sample_count),
-                None => return,
-            },
-            _ if culls => self.cull.get(context.sample_count),
-            _ => self.no_cull.get(context.sample_count),
+        let Some(pipeline) = self.pipeline_for(data, context) else {
+            return;
         };
         render_pass.set_pipeline(&pipeline);
         render_pass.set_bind_group(0, self.frame.group(), &[]);
@@ -626,7 +743,7 @@ impl Material3d for ShaderMaterial3d {
 }
 
 /// What kiss3d takes on a 3D node.
-type Shared3d = std::rc::Rc<std::cell::RefCell<Box<dyn Material3d + 'static>>>;
+pub(crate) type Shared3d = std::rc::Rc<std::cell::RefCell<Box<dyn Material3d + 'static>>>;
 
 crate::material_cache::define!(
     cache = MaterialCache3d,
@@ -665,6 +782,10 @@ fn build(
 ) -> anyhow::Result<Option<(ShaderMaterial3d, Option<std::rc::Rc<Probe>>)>> {
     let asset =
         balaur_core::assets::load_typed::<crate::material::Material3d>(&app.engine, reference)?;
+    // kiss3d's own material draws one with no shader.
+    if asset.shader.is_empty() {
+        return Ok(None);
+    }
     let source = crate::material::shader_text(&app.engine, reference, &asset.shader)?;
     let source = crate::preview::requested(&app.engine, &asset.shader, source);
     let modules = crate::shaders::plugin_modules(&app.engine);
@@ -672,7 +793,10 @@ fn build(
     if !crate::shaders::fits(reference, found, crate::shaders::Contract::Mesh) {
         return Ok(None);
     }
-    let compiled = crate::material::compile_with(&asset, &source, &modules)?;
+    let morph = Context::get().supports_deform();
+    let mut compiled = crate::material::compile_on(&asset, &source, &modules, morph)?;
+    compiled.transparent_wgsl =
+        crate::material::transparent_variant(&asset, &source, &modules, morph);
     let probe = compiled.probes.then(|| std::rc::Rc::new(Probe::new()));
     let slots = asset
         .textures()
@@ -687,4 +811,24 @@ fn build(
         .collect();
     let material = ShaderMaterial3d::with_textures(&compiled, probe.as_deref(), slots);
     Ok(Some((material, probe)))
+}
+
+/// The mesh's vertex and index buffers, on the GPU before the draw reads them.
+fn upload(mesh: &mut GpuMesh3d) {
+    mesh.coords()
+        .write()
+        .expect("kiss3d panicked while writing the mesh's positions")
+        .load_to_gpu();
+    mesh.normals()
+        .write()
+        .expect("kiss3d panicked while writing the mesh's normals")
+        .load_to_gpu();
+    mesh.uvs()
+        .write()
+        .expect("kiss3d panicked while writing the mesh's UVs")
+        .load_to_gpu();
+    mesh.faces()
+        .write()
+        .expect("kiss3d panicked while writing the mesh's faces")
+        .load_to_gpu();
 }

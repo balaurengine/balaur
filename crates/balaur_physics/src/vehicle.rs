@@ -8,8 +8,10 @@
 //! The chassis is the node with the `vehicle3d`; each child with a `wheel3d`
 //! is a wheel, and its position on the chassis is where its ray starts.
 
-use crate::rapier3d::control::{DynamicRayCastVehicleController, WheelTuning};
-use crate::rapier3d::prelude::QueryFilter;
+use crate::rapier3d::control::{DynamicRayCastVehicleController, Wheel, WheelTuning};
+use crate::rapier3d::prelude::{
+    Group, InteractionGroups, InteractionTestMode, QueryFilter, QueryFilterFlags, RigidBodyHandle,
+};
 use crate::scalar::{self, Real, Vector};
 use anyhow::{Result, anyhow};
 use balaur_core::components::ComponentDef;
@@ -20,7 +22,7 @@ use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
 use crate::PhysicsState3d;
-use crate::vocabulary::{self as v, component as c, keys as k, map, words as w};
+use crate::vocabulary::{self as v, component as c, keys as k, words as w};
 use balaur_core::fixed_dt;
 
 /// The chassis settings, held on the node like a character's.
@@ -29,18 +31,24 @@ pub struct Vehicle3d(pub toml::Value);
 /// One wheel's settings, held on its own node.
 pub struct Wheel3d(pub toml::Value);
 
+/// A chassis's rapier controller, kept across steps, and the wheel nodes in
+/// the order its wheels are.
+///
+/// Kept because a wheel carries state from one step to the next: an airborne
+/// wheel keeps spinning and slows by rapier's own factor.
+#[derive(Clone)]
+pub struct VehicleRef3d {
+    pub controller: DynamicRayCastVehicleController,
+    pub wheels: Vec<Entity>,
+}
+
 pub(crate) fn build(reg: &mut Registry<'_>) {
     // After the physics step: a vehicle reads the world the step just wrote,
     // and writes forces the next step will integrate.
     reg.add_system(Stage::FixedUpdate, drive_system);
 }
 
-/// Rebuild the controller for a vehicle whose wheels changed, then step it.
-///
-/// Rebuilding rather than keeping one across frames is what makes a wheel
-/// added or removed mid-game work at all, and rapier's controller is a
-/// `Vec<Wheel>` and a handle — cheap enough that the alternative would be
-/// caching for its own sake.
+/// Step every vehicle's controller.
 fn drive_system(eng: &Engine, _dt: f32) {
     // Held with the step it feeds: forces applied into a world that is not
     // stepping would all land on the frame the pause lifts.
@@ -59,6 +67,10 @@ fn drive_system(eng: &Engine, _dt: f32) {
     }
 }
 
+/// One wheel node: the node, its `wheel3d` settings, and where it sits on
+/// the chassis.
+type WheelNode = (Entity, toml::Value, glamx::Vec3);
+
 fn drive_one(eng: &Engine, chassis: Entity) -> Result<()> {
     let (params, wheels) = {
         let world = eng.world();
@@ -68,7 +80,7 @@ fn drive_one(eng: &Engine, chassis: Entity) -> Result<()> {
                 .map_err(|_| anyhow!("no vehicle3d"))?;
             vehicle.0.clone()
         };
-        let mut wheels = Vec::new();
+        let mut wheels: Vec<WheelNode> = Vec::new();
         if let Ok(children) = world.get::<&Children>(chassis) {
             for child in &children.0 {
                 let Ok(wheel) = world.get::<&Wheel3d>(*child) else {
@@ -82,76 +94,139 @@ fn drive_one(eng: &Engine, chassis: Entity) -> Result<()> {
         }
         (params, wheels)
     };
-    if wheels.is_empty() {
-        return Ok(());
-    }
     let state = eng.resource::<PhysicsState3d>();
     let mut state = state.borrow_mut();
     let state = &mut *state;
+    let kept = state.vehicles.swap_remove(&chassis);
+    if wheels.is_empty() {
+        return Ok(());
+    }
     let handle = *state
         .bodies
         .get(&chassis)
         .ok_or_else(|| anyhow!("a vehicle3d needs a body3d on the same node"))?;
-    let mut controller = DynamicRayCastVehicleController::new(handle);
-    controller.index_up_axis = axis_index(v::text(&params, k::UP_AXIS, w::Y));
-    controller.index_forward_axis = axis_index(v::text(&params, k::FORWARD_AXIS, w::Z));
-    for (entity, wheel_params, at) in &wheels {
-        let real = |key: &str, default: f32| scalar::real(v::f(wheel_params, key, default));
-        let tuning = WheelTuning {
-            suspension_stiffness: real(k::SUSPENSION_STIFFNESS, 30.0),
-            suspension_compression: real(k::DAMPING_COMPRESSION, 0.82),
-            suspension_damping: real(k::DAMPING_RELAXATION, 0.88),
-            max_suspension_travel: real(k::SUSPENSION_TRAVEL, 5.0),
-            side_friction_stiffness: real(k::SIDE_FRICTION, 1.0),
-            friction_slip: real(k::FRICTION_SLIP, 10.5),
-            max_suspension_force: real(k::SUSPENSION_MAX_FORCE, 6000.0),
-        };
-        let direction = scalar::v3a(v::vec3(
-            wheel_params,
-            k::SUSPENSION_DIRECTION,
-            [0.0, -1.0, 0.0],
-        ));
-        let axle = scalar::v3a(v::vec3(wheel_params, k::AXLE, [-1.0, 0.0, 0.0]));
-        let wheel = controller.add_wheel(
-            scalar::v3(at.x, at.y, at.z),
-            direction,
-            axle,
-            real(k::REST_LENGTH, 0.3),
-            real(k::RADIUS, 0.4).max(0.01),
-            &tuning,
-        );
-        // The inputs a script set since the last step, kept per wheel node so
-        // they survive the rebuild.
-        if let Some(input) = state.wheel_inputs.get(entity) {
-            wheel.engine_force = input.engine_force;
-            wheel.brake = input.brake;
-            wheel.steering = input.steering;
-            wheel.rotation = input.rotation;
-        }
+    let inputs = &state.wheel_inputs;
+    let mut vehicle = kept_or_rebuilt(kept, handle, &wheels, |entity| {
+        inputs.get(&entity).map_or(0.0, |input| input.rotation)
+    });
+    let controller = &mut vehicle.controller;
+    let (up, _) = axis_of(v::text(&params, k::UP_AXIS, w::Y));
+    let (forward, sign) = axis_of(v::text(&params, k::FORWARD_AXIS, w::Z));
+    // rapier only reads the up axis squared, so its sign needs nothing.
+    controller.index_up_axis = up;
+    controller.index_forward_axis = forward;
+    let mut wake = false;
+    for ((entity, wheel_params, at), wheel) in wheels.iter().zip(controller.wheels_mut()) {
+        tune(wheel, wheel_params, *at);
+        let input = state.wheel_inputs.get(entity).copied().unwrap_or_default();
+        // rapier's indices name a positive axis; a car facing down one is
+        // driven and steered the other way round.
+        let (engine_force, steering) = (input.engine_force * sign, input.steering * sign);
+        // Rapier wakes the chassis for a forward drive alone; reversing,
+        // steering and braking a parked car have to wake it too.
+        wake |= engine_force != 0.0
+            || steering.to_bits() != wheel.steering.to_bits()
+            || input.brake.to_bits() != wheel.brake.to_bits();
+        wheel.engine_force = engine_force;
+        wheel.brake = input.brake;
+        wheel.steering = steering;
     }
+    if wake && let Some(body) = state.world.bodies.get_mut(handle) {
+        body.wake_up(true);
+    }
+    let mask = v::layer_bits(&params, k::COLLISION_MASK, true);
+    let ignore = v::bits(
+        &params,
+        k::IGNORE,
+        &crate::vocabulary::flags::query_ignores(),
+    );
+    let filter = QueryFilter::from(QueryFilterFlags::from_bits_truncate(ignore))
+        .groups(InteractionGroups::new(
+            Group::ALL,
+            Group::from_bits_truncate(mask),
+            InteractionTestMode::And,
+        ))
+        .exclude_rigid_body(handle);
     let dispatcher = state.world.narrow_phase.query_dispatcher();
     let queries = state.world.broad_phase.as_query_pipeline_mut(
         dispatcher,
         &mut state.world.bodies,
         &mut state.world.colliders,
-        QueryFilter::default().exclude_rigid_body(handle),
+        filter,
     );
     controller.update_vehicle(scalar::real(fixed_dt()), queries);
-    // Keep what the step worked out, so the wheel's rotation and its ground
-    // contact are readable and survive into the next rebuild.
     for ((entity, _, _), wheel) in wheels.iter().zip(controller.wheels()) {
         let input = state.wheel_inputs.entry(*entity).or_default();
         input.rotation = wheel.rotation;
-        input.suspension_force = wheel.wheel_suspension_force;
+        // What rapier pushed with, after the cap; the field holds the force before it.
+        input.suspension_force = wheel.wheel_suspension_force.min(wheel.max_suspension_force);
         input.grounded = wheel.raycast_info().is_in_contact;
     }
+    state.vehicles.insert(chassis, vehicle);
     Ok(())
+}
+
+/// The kept controller while its chassis and its wheel nodes are the same,
+/// and otherwise a new one that keeps each surviving wheel's state; a new
+/// wheel starts at the turn `rotation` answers for its node.
+fn kept_or_rebuilt(
+    kept: Option<VehicleRef3d>,
+    handle: RigidBodyHandle,
+    wheels: &[WheelNode],
+    rotation: impl Fn(Entity) -> Real,
+) -> VehicleRef3d {
+    let order: Vec<Entity> = wheels.iter().map(|(entity, _, _)| *entity).collect();
+    let kept = match kept.filter(|vehicle| vehicle.controller.chassis == handle) {
+        Some(vehicle) if vehicle.wheels == order => return vehicle,
+        other => other,
+    };
+    let mut controller = DynamicRayCastVehicleController::new(handle);
+    for entity in &order {
+        let wheel = controller.add_wheel(
+            Vector::ZERO,
+            -Vector::Y,
+            -Vector::X,
+            0.0,
+            0.0,
+            &WheelTuning::default(),
+        );
+        let previous = kept.as_ref().and_then(|vehicle| {
+            let at = vehicle.wheels.iter().position(|e| e == entity)?;
+            vehicle.controller.wheels().get(at).copied()
+        });
+        match previous {
+            Some(previous) => *wheel = previous,
+            None => wheel.rotation = rotation(*entity),
+        }
+    }
+    VehicleRef3d {
+        controller,
+        wheels: order,
+    }
+}
+
+/// A wheel's settings onto rapier's wheel, every step: they are plain fields,
+/// so an edit lands without losing the wheel's spin.
+fn tune(wheel: &mut Wheel, params: &toml::Value, at: glamx::Vec3) {
+    let real = |key: &str, default: f32| scalar::real(v::f(params, key, default));
+    wheel.chassis_connection_point_cs = scalar::v3(at.x, at.y, at.z);
+    wheel.direction_cs = scalar::v3a(v::vec3(params, k::SUSPENSION_DIRECTION, [0.0, -1.0, 0.0]));
+    wheel.axle_cs = scalar::v3a(v::vec3(params, k::AXLE, [-1.0, 0.0, 0.0]));
+    wheel.suspension_rest_length = real(k::REST_LENGTH, 0.3);
+    wheel.radius = real(k::RADIUS, 0.4).max(0.01);
+    wheel.suspension_stiffness = real(k::SUSPENSION_STIFFNESS, 30.0);
+    wheel.damping_compression = real(k::DAMPING_COMPRESSION, 0.82);
+    wheel.damping_relaxation = real(k::DAMPING_RELAXATION, 0.88);
+    wheel.max_suspension_travel = real(k::SUSPENSION_TRAVEL, 5.0);
+    wheel.side_friction_stiffness = real(k::SIDE_FRICTION, 1.0);
+    wheel.friction_slip = real(k::FRICTION_SLIP, 10.5);
+    wheel.max_suspension_force = real(k::SUSPENSION_MAX_FORCE, 6000.0);
 }
 
 /// What a script sets on a wheel, and what the last step left there.
 ///
-/// Kept beside the world rather than in it: rapier's controller is rebuilt
-/// every step, and these are the four numbers that must not be.
+/// The inputs are kept beside the world so a script can set them before the
+/// first step makes the controller.
 #[derive(Clone, Copy, Default, serde::Serialize, serde::Deserialize)]
 pub struct WheelInput3d {
     pub engine_force: Real,
@@ -165,10 +240,12 @@ pub struct WheelInput3d {
 pub(crate) fn install_vehicle_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("set_engine_force", &[c::WHEEL_3D], "", "How hard this wheel drives, in newtons; negative reverses."),
-        ("set_brake", &[c::WHEEL_3D], "", "How hard this wheel brakes."),
+        ("set_brake", &[c::WHEEL_3D], "", "How hard this wheel brakes, as an impulse; ignored while its engine force is not 0."),
         ("set_steering", &[c::WHEEL_3D], "", "Turn this wheel, in radians."),
-        ("wheel_state", &[c::WHEEL_3D], "", "What the last step did with this wheel: `#{ rotation, suspension_force, in_contact, engine_force, brake, steering }`."),
+        ("wheel_state", &[c::WHEEL_3D], "", "What the last step did with this wheel: `#{ rotation, suspension_force, in_contact, engine_force, brake, steering, forward_impulse, side_impulse, contact_normal, contact_point, suspension_length, ray_origin, ground, center, suspension, axle }`. `suspension_force` is what the suspension pushed with, after `suspension_max_force`; the two impulses are the friction rapier applied along and across the wheel; the contact, the ray's start, the wheel's centre and its suspension and axle directions are world space, after steering; `ground` is the node the ray hit, or nil."),
+        ("set_wheel_rotation", &[c::WHEEL_3D], "(node: node, angle: float)", "Set how far the wheel has turned about its axle, in radians: the angle `wheel_state` reads as `rotation`."),
         ("vehicle_speed", &[c::VEHICLE_3D], "", "How fast the chassis is going along its forward axis, in units per second."),
+        ("speed", &[c::VEHICLE_3D], "(node: node) -> float", "The chassis's whole speed at the last step, negative while it moves against its forward axis: rapier's own reading, where `vehicle_speed` is the part along the forward axis alone."),
     ]);
     m.function(
         "set_engine_force",
@@ -188,21 +265,38 @@ pub(crate) fn install_vehicle_api(m: &mut dyn Bindings<Engine>) {
         },
     );
     m.function("wheel_state", |eng: &Engine, node: NodeId| {
+        Ok(wheel_state(eng, entity_of(node)?))
+    });
+    m.function(
+        "set_wheel_rotation",
+        |eng: &Engine, (node, angle): (NodeId, f32)| {
+            let entity = entity_of(node)?;
+            let state = eng.resource::<PhysicsState3d>();
+            let mut state = state.borrow_mut();
+            let state = &mut *state;
+            state.wheel_inputs.entry(entity).or_default().rotation = scalar::real(angle);
+            if let Some(wheel) = kept_wheel(&mut state.vehicles, entity) {
+                wheel.rotation = scalar::real(angle);
+            }
+            Ok(())
+        },
+    );
+    m.function("speed", |eng: &Engine, node: NodeId| {
         let entity = entity_of(node)?;
+        let sign = {
+            let world = eng.world();
+            let vehicle = world
+                .get::<&Vehicle3d>(entity)
+                .map_err(|_| anyhow!("node has no vehicle3d"))?;
+            axis_of(v::text(&vehicle.0, k::FORWARD_AXIS, w::Z)).1
+        };
         let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
-        let input = state.wheel_inputs.get(&entity).copied().unwrap_or_default();
-        Ok(map([
-            (k::ROTATION, Value::Num(f64::from(input.rotation))),
-            (
-                k::SUSPENSION_FORCE,
-                Value::Num(f64::from(input.suspension_force)),
-            ),
-            (k::IN_CONTACT, Value::Bool(input.grounded)),
-            (k::ENGINE_FORCE, Value::Num(f64::from(input.engine_force))),
-            (k::BRAKE, Value::Num(f64::from(input.brake))),
-            (k::STEERING, Value::Num(f64::from(input.steering))),
-        ]))
+        let speed = state
+            .vehicles
+            .get(&entity)
+            .map_or(0.0, |vehicle| vehicle.controller.current_vehicle_speed);
+        Ok(scalar::f32_of(speed * sign))
     });
     m.function("vehicle_speed", |eng: &Engine, node: NodeId| {
         let entity = entity_of(node)?;
@@ -230,14 +324,81 @@ pub(crate) fn install_vehicle_api(m: &mut dyn Bindings<Engine>) {
     });
 }
 
-/// Which of the chassis's own axes points forward, as the index rapier's
-/// controller takes and `vehicle_speed` measures along.
+/// Which way along the chassis's own axes is forward, which `vehicle_speed`
+/// measures along.
 fn forward_axis(params: &toml::Value) -> Vector {
-    match axis_index(v::text(params, k::FORWARD_AXIS, w::Z)) {
+    let (index, sign) = axis_of(v::text(params, k::FORWARD_AXIS, w::Z));
+    let axis = match index {
         0 => Vector::X,
         1 => Vector::Y,
         _ => Vector::Z,
-    }
+    };
+    axis * sign
+}
+
+/// The wheel of a kept controller that `entity` is.
+fn kept_wheel(
+    vehicles: &mut balaur_core::collections::DetHashMap<Entity, VehicleRef3d>,
+    entity: Entity,
+) -> Option<&mut Wheel> {
+    vehicles.values_mut().find_map(|vehicle| {
+        let at = vehicle.wheels.iter().position(|e| *e == entity)?;
+        vehicle.controller.wheels_mut().get_mut(at)
+    })
+}
+
+/// What `wheel_state` answers: the script's inputs and what the last step
+/// left, with the kept controller's own readings beside them.
+fn wheel_state(eng: &Engine, entity: Entity) -> Value {
+    let state = eng.resource::<PhysicsState3d>();
+    let state = state.borrow();
+    let input = state.wheel_inputs.get(&entity).copied().unwrap_or_default();
+    let wheel = state.vehicles.values().find_map(|vehicle| {
+        let at = vehicle.wheels.iter().position(|e| *e == entity)?;
+        vehicle.controller.wheels().get(at).copied()
+    });
+    let number = |x: Real| Value::Num(f64::from(scalar::f32_of(x)));
+    let vector = |x: Vector| Value::Vec3(scalar::a3(x));
+    let wheel = wheel.unwrap_or_else(|| {
+        let mut idle = DynamicRayCastVehicleController::new(RigidBodyHandle::invalid());
+        *idle.add_wheel(
+            Vector::ZERO,
+            -Vector::Y,
+            -Vector::X,
+            0.0,
+            0.0,
+            &WheelTuning::default(),
+        )
+    });
+    let ray = wheel.raycast_info();
+    let ground = ray
+        .ground_object
+        .and_then(|handle| state.world.colliders.get(handle))
+        .and_then(|collider| Entity::from_bits(collider.user_data as u64))
+        .map_or(Value::Nil, |node| Value::Node(node.to_bits().get()));
+    Value::Map(
+        [
+            (k::ROTATION, number(input.rotation)),
+            (k::SUSPENSION_FORCE, number(input.suspension_force)),
+            (k::IN_CONTACT, Value::Bool(input.grounded)),
+            (k::ENGINE_FORCE, number(input.engine_force)),
+            (k::BRAKE, number(input.brake)),
+            (k::STEERING, number(input.steering)),
+            (k::FORWARD_IMPULSE, number(wheel.forward_impulse)),
+            (k::SIDE_IMPULSE, number(wheel.side_impulse)),
+            (k::CONTACT_NORMAL, vector(ray.contact_normal_ws)),
+            (k::CONTACT_POINT, vector(ray.contact_point_ws)),
+            (k::SUSPENSION_LENGTH, number(ray.suspension_length)),
+            (k::RAY_ORIGIN, vector(ray.hard_point_ws)),
+            (k::GROUND, ground),
+            (k::CENTER, vector(wheel.center())),
+            (k::SUSPENSION, vector(wheel.suspension())),
+            (k::AXLE, vector(wheel.axle())),
+        ]
+        .into_iter()
+        .map(|(key, value)| (key.to_string(), value))
+        .collect(),
+    )
 }
 
 fn with_wheel(eng: &Engine, node: NodeId, f: impl FnOnce(&mut WheelInput3d)) -> Result<()> {
@@ -248,17 +409,22 @@ fn with_wheel(eng: &Engine, node: NodeId, f: impl FnOnce(&mut WheelInput3d)) -> 
     Ok(())
 }
 
-/// Which of a chassis's own axes a word names.
-fn axis_index(word: &str) -> usize {
+/// Which of a chassis's own axes a word names, and which way along it.
+fn axis_of(word: &str) -> (usize, Real) {
     match word {
-        w::X => 0,
-        w::Y => 1,
-        _ => 2,
+        w::X => (0, 1.0),
+        w::Y => (1, 1.0),
+        w::NEGATIVE_X => (0, -1.0),
+        w::NEGATIVE_Y => (1, -1.0),
+        w::NEGATIVE_Z => (2, -1.0),
+        _ => (2, 1.0),
     }
 }
 
 pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
     let axes = v::options(w::AXES);
+    let layers = v::layer_options();
+    let ignores = v::options(w::IGNORES);
     reg.register_component(
         c::VEHICLE_3D,
         ComponentDef {
@@ -268,8 +434,10 @@ pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
             schema: ComponentDef::parse_schema(
                 c::VEHICLE_3D,
                 &v::schema(&[
-                    (k::UP_AXIS, &format!(r#"{{ type = "enum", default = "{}", options = [{axes}], description = "Which of the chassis's own axes points up" }}"#, w::Y)),
-                    (k::FORWARD_AXIS, &format!(r#"{{ type = "enum", default = "{}", options = [{axes}], description = "Which of the chassis's own axes points forward" }}"#, w::Z)),
+                    (k::UP_AXIS, &format!(r#"{{ type = "enum", default = "{}", options = [{axes}], description = "Which of the chassis's own axes points up, either way along it" }}"#, w::Y)),
+                    (k::FORWARD_AXIS, &format!(r#"{{ type = "enum", default = "{}", options = [{axes}], description = "Which of the chassis's own axes points forward, either way along it: a negative axis drives and steers the other way round, and reads speed the other way" }}"#, w::Z)),
+                    (k::COLLISION_MASK, &format!(r#"{{ type = "flags", default = [], options = [{layers}], description = "The collision layers the wheels' rays hit; empty hits every layer" }}"#)),
+                    (k::IGNORE, &format!(r#"{{ type = "flags", default = ["{}"], options = [{ignores}], description = "What the wheels' rays pass through: static takes colliders with no body too. The chassis's own body is never hit" }}"#, w::SENSORS)),
                 ]),
             ),
             tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
@@ -280,6 +448,8 @@ pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
             }),
             remove: Box::new(|eng, entity| {
                 let _ = eng.world_mut().remove_one::<Vehicle3d>(entity);
+                let state = eng.resource::<PhysicsState3d>();
+                state.borrow_mut().vehicles.swap_remove(&entity);
                 Ok(())
             }),
             get: Box::new(|eng, entity| {
@@ -302,10 +472,10 @@ pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
                     (k::REST_LENGTH, r#"{ type = "float", default = 0.3, min = 0.0, description = "How long the suspension is with no weight on it" }"#),
                     (k::SUSPENSION_DIRECTION, r#"{ type = "vec3", default = [0.0, -1.0, 0.0], description = "Which way the suspension pushes, in the chassis's own space: down" }"#),
                     (k::AXLE, r#"{ type = "vec3", default = [-1.0, 0.0, 0.0], description = "The axle the wheel turns about, in the chassis's own space" }"#),
-                    (k::SUSPENSION_STIFFNESS, r#"{ type = "float", default = 30.0, min = 0.0, description = "Spring stiffness: higher is a stiffer, twitchier car" }"#),
+                    (k::SUSPENSION_STIFFNESS, r#"{ type = "float", default = 30.0, min = 0.0, description = "Spring stiffness, scaled by the chassis's mass: higher is a stiffer, twitchier car" }"#),
                     (k::DAMPING_COMPRESSION, r#"{ type = "float", default = 0.82, min = 0.0, description = "Damping while the suspension is being squashed" }"#),
                     (k::DAMPING_RELAXATION, r#"{ type = "float", default = 0.88, min = 0.0, description = "Damping while the suspension is coming back" }"#),
-                    (k::SUSPENSION_TRAVEL, r#"{ type = "float", default = 5.0, min = 0.0, description = "How far the suspension may move in total" }"#),
+                    (k::SUSPENSION_TRAVEL, r#"{ type = "float", default = 5.0, min = 0.0, description = "How far the suspension may move either side of its rest length" }"#),
                     (k::FRICTION_SLIP, r#"{ type = "float", default = 10.5, min = 0.0, description = "Grip along the wheel's rolling direction; lower slides more" }"#),
                     (k::SIDE_FRICTION, r#"{ type = "float", default = 1.0, min = 0.0, description = "Grip sideways: what stops the car sliding out of a corner" }"#),
                     (k::SUSPENSION_MAX_FORCE, r#"{ type = "float", default = 6000.0, min = 0.0, description = "The most force this suspension may push the chassis with" }"#),
@@ -330,4 +500,55 @@ pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
             }),
         },
     );
+}
+
+/// A kept controller as a snapshot holds it: its wheel nodes by key, which a
+/// respawn cannot invalidate.
+#[derive(serde::Serialize, serde::Deserialize)]
+pub(crate) struct VehicleFrame3d {
+    controller: DynamicRayCastVehicleController,
+    wheels: Vec<crate::NodeKey>,
+}
+
+pub(crate) fn frame_rows(
+    world: &balaur_core::hecs::World,
+    vehicles: &balaur_core::collections::DetHashMap<Entity, VehicleRef3d>,
+) -> Vec<(crate::NodeKey, VehicleFrame3d)> {
+    vehicles
+        .iter()
+        .map(|(chassis, vehicle)| {
+            let frame = VehicleFrame3d {
+                controller: vehicle.controller.clone(),
+                wheels: vehicle
+                    .wheels
+                    .iter()
+                    .map(|wheel| crate::key_of(world, *wheel))
+                    .collect(),
+            };
+            (crate::key_of(world, *chassis), frame)
+        })
+        .collect()
+}
+
+/// The kept controllers a snapshot restores. A vehicle with a wheel that no
+/// longer resolves is left out, and the next step builds it again.
+pub(crate) fn resolved_rows(
+    eng: &Engine,
+    rows: Vec<(crate::NodeKey, VehicleFrame3d)>,
+) -> balaur_core::collections::DetHashMap<Entity, VehicleRef3d> {
+    rows.into_iter()
+        .filter_map(|(key, frame)| {
+            let chassis = crate::resolve_key(eng, &key)?;
+            let wheels = frame
+                .wheels
+                .iter()
+                .map(|wheel| crate::resolve_key(eng, wheel))
+                .collect::<Option<Vec<_>>>()?;
+            let vehicle = VehicleRef3d {
+                controller: frame.controller,
+                wheels,
+            };
+            Some((chassis, vehicle))
+        })
+        .collect()
 }

@@ -16,10 +16,10 @@ use bytemuck::{Pod, Zeroable};
 use glamx::{Mat4, Pose3, Vec3};
 use kiss3d::context::Context;
 use kiss3d::light::{FogMode, LightCollection, LightType};
-use kiss3d::resource::{EnvLight, ProbeLighting};
+use kiss3d::resource::{EnvLight, ProbeLighting, ShadowResources};
 use kiss3d::wgpu;
 
-use crate::shaders::{MAX_LIGHTS, MAX_PROBES};
+use crate::shaders::{MAX_LIGHTS, MAX_PROBES, MAX_SHADOW_LIGHTS, MAX_SHADOW_VIEWS};
 
 /// Matches `Light` in `shaders/mesh.wesl`.
 #[repr(C)]
@@ -29,19 +29,26 @@ struct GpuLight {
     direction_radius: [f32; 4],
     color_intensity: [f32; 4],
     cone: [f32; 4],
+    /// The light layers it lights, then its row in the fork's shadow uniform.
+    bits: [u32; 4],
 }
+
+/// A light with no shadow row, and one past the primary eight whose row the
+/// shader looks up: the markers `NO_SHADOW` and `FIND_SHADOW` in `mesh.wesl`.
+const NO_SHADOW: u32 = u32::MAX;
+const FIND_SHADOW: u32 = u32::MAX - 1;
 
 /// Matches `Probe` in `shaders/mesh.wesl`.
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable, Default)]
 struct GpuProbe {
-    /// xyz the capture point, w whether this slot is live.
+    /// xyz the capture point and the box's centre, w whether this slot is live.
     center_live: [f32; 4],
-    /// xyz the influence box's low corner, w which array layer holds it.
-    low_layer: [f32; 4],
-    /// xyz the box's high corner, w the brightness multiplier.
-    high_intensity: [f32; 4],
-    /// Turn about y, the soft edge's width, the coarsest mip, spare.
+    /// xyz the box's half extents, w which array layer holds it.
+    extent_layer: [f32; 4],
+    /// The box's turn as a unit quaternion.
+    orientation: [f32; 4],
+    /// Turn about y, the soft edge's width, the coarsest mip, brightness.
     params: [f32; 4],
 }
 
@@ -66,8 +73,9 @@ pub(crate) struct FrameUniforms {
     probes: [GpuProbe; MAX_PROBES],
 }
 
-/// One light as the shader reads it.
-fn gpu_light(light: &kiss3d::light::CollectedLight) -> GpuLight {
+/// One light as the shader reads it, with `shadow_row` the row the fork's
+/// shadow uniform keeps for it.
+fn gpu_light(light: &kiss3d::light::CollectedLight, shadow_row: u32) -> GpuLight {
     let (kind, radius, cone) = match light.light_type {
         LightType::Directional(_) => (0.0, 0.0, [0.0; 4]),
         LightType::Point { attenuation_radius } => (1.0, attenuation_radius, [0.0; 4]),
@@ -93,7 +101,35 @@ fn gpu_light(light: &kiss3d::light::CollectedLight) -> GpuLight {
         direction_radius: [direction.x, direction.y, direction.z, radius],
         color_intensity: [light.color.x, light.color.y, light.color.z, light.intensity],
         cone,
+        bits: [light.layers, shadow_row, 0, 0],
     }
+}
+
+/// The lights in the order the shader reads them, each with its shadow row.
+///
+/// The fork's shadow mapper fills rows 0-7 for its primary tier, in the order
+/// `split_primary_clustered` picks, so those lights go first and their slot
+/// is their row. A light past them has a row only if it casts a shadow, and
+/// which one depends on what fit the atlas, so the shader looks it up.
+fn ordered_lights(lights: &LightCollection) -> Vec<GpuLight> {
+    let (primary, clustered) = lights.split_primary_clustered();
+    let primary_rows = primary
+        .iter()
+        .enumerate()
+        .map(|(row, &index)| (index, row as u32));
+    let clustered_rows = clustered.iter().map(|&index| {
+        let row = if lights.lights[index].casts_shadows {
+            FIND_SHADOW
+        } else {
+            NO_SHADOW
+        };
+        (index, row)
+    });
+    primary_rows
+        .chain(clustered_rows)
+        .take(MAX_LIGHTS)
+        .map(|(index, row)| gpu_light(&lights.lights[index], row))
+        .collect()
 }
 
 /// The fog row: mode, then start/density, end, and the height falloff.
@@ -118,6 +154,7 @@ struct Supplied {
     occlusion: Option<wgpu::TextureView>,
     probes: Option<(wgpu::TextureView, Vec<GpuProbe>)>,
     behind: Option<wgpu::TextureView>,
+    shadow: Option<ShadowResources>,
 }
 
 /// Group 0's layout, its uniform buffer, and the bind group over both.
@@ -144,7 +181,8 @@ pub(crate) struct FrameGroup {
 }
 
 /// The one-pixel stand-ins bound where the scene supplied nothing: a black
-/// sky, no occlusion, no probes, and nothing behind the glass.
+/// sky, no occlusion, no probes, nothing behind the glass, and a shadow
+/// uniform that says shadows are off.
 struct Fallbacks {
     environment: wgpu::TextureView,
     sampler: wgpu::Sampler,
@@ -152,9 +190,15 @@ struct Fallbacks {
     probes: wgpu::TextureView,
     behind: wgpu::TextureView,
     behind_sampler: wgpu::Sampler,
+    shadow: ShadowResources,
     /// Held so the views above stay valid; nothing reads them.
     _textures: Vec<wgpu::Texture>,
 }
+
+/// The size of the fork's `ShadowUniforms`, which `mesh.wesl` mirrors: every
+/// view's matrix, every light's 32-byte row, then eight floats and a vec4.
+pub(crate) const SHADOW_UNIFORM_SIZE: usize =
+    MAX_SHADOW_VIEWS * 64 + MAX_SHADOW_LIGHTS * 32 + 8 * 4 + 16;
 
 /// A one-texel texture of `format`, written with `texel`.
 fn one_pixel(label: &'static str, format: wgpu::TextureFormat, texel: &[u8]) -> wgpu::Texture {
@@ -218,6 +262,12 @@ impl Fallbacks {
             wgpu::TextureFormat::Rgba16Float,
             &[0u8; 8],
         );
+        let shadow_atlas = one_depth_texel();
+        let shadow_tint = one_pixel(
+            "mesh_shadow_tint_fallback",
+            wgpu::TextureFormat::Rgba8Unorm,
+            &[255u8; 4],
+        );
         let trilinear = |label: &'static str| {
             ctxt.create_sampler(&wgpu::SamplerDescriptor {
                 label: Some(label),
@@ -241,9 +291,60 @@ impl Fallbacks {
             }),
             behind: behind.create_view(&wgpu::TextureViewDescriptor::default()),
             behind_sampler: trilinear("mesh_behind_fallback_sampler"),
-            _textures: vec![environment, occlusion, probes, behind],
+            shadow: ShadowResources {
+                atlas: shadow_atlas.create_view(&array_view("mesh_shadow_fallback_view")),
+                compare_sampler: ctxt.create_sampler(&wgpu::SamplerDescriptor {
+                    label: Some("mesh_shadow_fallback_sampler"),
+                    compare: Some(wgpu::CompareFunction::LessEqual),
+                    ..Default::default()
+                }),
+                // All zero: `shadows_enabled` is off, so nothing samples the atlas.
+                uniform: ctxt.create_buffer_init(
+                    Some("mesh_shadow_fallback_uniform"),
+                    &[0u8; SHADOW_UNIFORM_SIZE],
+                    wgpu::BufferUsages::UNIFORM,
+                ),
+                transmittance: shadow_tint
+                    .create_view(&array_view("mesh_shadow_tint_fallback_view")),
+                transmittance_sampler: trilinear("mesh_shadow_tint_fallback_sampler"),
+            },
+            _textures: vec![
+                environment,
+                occlusion,
+                probes,
+                behind,
+                shadow_atlas,
+                shadow_tint,
+            ],
         }
     }
+}
+
+fn array_view(label: &'static str) -> wgpu::TextureViewDescriptor<'static> {
+    wgpu::TextureViewDescriptor {
+        label: Some(label),
+        dimension: Some(wgpu::TextureViewDimension::D2Array),
+        ..Default::default()
+    }
+}
+
+/// A one-texel depth texture: what stands in for the shadow atlas. A depth
+/// format takes no write, and nothing reads it while shadows are off.
+fn one_depth_texel() -> wgpu::Texture {
+    Context::get().create_texture(&wgpu::TextureDescriptor {
+        label: Some("mesh_shadow_fallback"),
+        size: wgpu::Extent3d {
+            width: 1,
+            height: 1,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Depth32Float,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
+        view_formats: &[],
+    })
 }
 
 /// A texture read by the fragment stage, at `binding`.
@@ -273,8 +374,9 @@ fn sampler_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
     }
 }
 
-/// Group 0's layout: the uniform, then the four scene-wide textures in the
-/// order `shaders/mesh.wesl` declares them.
+/// Group 0's layout: the uniform, the four scene-wide textures, then the
+/// shadow atlas and its uniform, in the order `shaders/mesh.wesl` declares
+/// them.
 pub(crate) fn layout() -> wgpu::BindGroupLayout {
     Context::get().create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("mesh_frame_layout"),
@@ -286,6 +388,25 @@ pub(crate) fn layout() -> wgpu::BindGroupLayout {
             texture_entry(4, true),
             texture_entry(5, false),
             sampler_entry(6),
+            wgpu::BindGroupLayoutEntry {
+                binding: 7,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Depth,
+                    view_dimension: wgpu::TextureViewDimension::D2Array,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 8,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
+                count: None,
+            },
+            crate::bind_layout::uniform_entry(9),
+            texture_entry(10, true),
+            sampler_entry(11),
         ],
     })
 }
@@ -348,10 +469,11 @@ impl FrameGroup {
         viewport: (u32, u32),
     ) -> FrameUniforms {
         let mut rows = [GpuLight::default(); MAX_LIGHTS];
-        for (slot, light) in rows.iter_mut().zip(lights.lights.iter()) {
-            *slot = gpu_light(light);
+        let ordered = ordered_lights(lights);
+        for (slot, light) in rows.iter_mut().zip(&ordered) {
+            *slot = *light;
         }
-        let live = lights.lights.len().min(MAX_LIGHTS) as f32;
+        let live = ordered.len() as f32;
         let ambient = lights.ambient_color;
         let mut probes = [GpuProbe::default(); MAX_PROBES];
         // A capture renders the scene into a probe's own map; a surface
@@ -444,28 +566,49 @@ impl FrameGroup {
         Context::get().write_buffer(&self.uniform, offset as u64, &live.to_le_bytes());
     }
 
+    /// The shadow atlas and uniform this pass reads, which the window hands
+    /// every draw. Rebinds only when the mapper made new ones.
+    pub(crate) fn set_shadow(&mut self, shadow: Option<&ShadowResources>) {
+        let same = match (&self.supplied.shadow, shadow) {
+            (Some(was), Some(now)) => {
+                was.atlas == now.atlas
+                    && was.uniform == now.uniform
+                    && was.transmittance == now.transmittance
+            }
+            (None, None) => true,
+            _ => false,
+        };
+        if !same {
+            self.supplied.shadow = shadow.cloned();
+            self.stale = true;
+        }
+    }
+
     pub(crate) fn set_probes(&mut self, probes: Option<ProbeLighting<'_>>) {
         let next = probes.filter(|p| !p.probes.is_empty()).map(|p| {
             let records = p
                 .probes
                 .iter()
                 .take(MAX_PROBES)
-                .map(|probe| GpuProbe {
-                    center_live: [probe.center.x, probe.center.y, probe.center.z, 1.0],
-                    low_layer: [
-                        probe.center.x - probe.half_extents.x,
-                        probe.center.y - probe.half_extents.y,
-                        probe.center.z - probe.half_extents.z,
-                        probe.layer as f32,
-                    ],
-                    high_intensity: [
-                        probe.center.x + probe.half_extents.x,
-                        probe.center.y + probe.half_extents.y,
-                        probe.center.z + probe.half_extents.z,
-                        probe.intensity,
-                    ],
-                    // A zero-width soft edge would divide the ramp by nothing.
-                    params: [probe.rotation, probe.falloff.max(1e-4), p.max_lod, 0.0],
+                .map(|probe| {
+                    let q = probe.orientation;
+                    GpuProbe {
+                        center_live: [probe.center.x, probe.center.y, probe.center.z, 1.0],
+                        extent_layer: [
+                            probe.half_extents.x,
+                            probe.half_extents.y,
+                            probe.half_extents.z,
+                            probe.layer as f32,
+                        ],
+                        orientation: [q.x, q.y, q.z, q.w],
+                        // A zero-width soft edge would divide the ramp by nothing.
+                        params: [
+                            probe.rotation,
+                            probe.falloff.max(1e-4),
+                            p.max_lod,
+                            probe.intensity,
+                        ],
+                    }
                 })
                 .collect::<Vec<_>>();
             (p.array_view.clone(), records)
@@ -502,6 +645,7 @@ fn build_group(
         .as_ref()
         .map_or(&fallback.probes, |(view, _)| view);
     let behind = supplied.behind.as_ref().unwrap_or(&fallback.behind);
+    let shadow = supplied.shadow.as_ref().unwrap_or(&fallback.shadow);
     Context::get().create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("mesh_frame_bind_group"),
         layout,
@@ -533,6 +677,26 @@ fn build_group(
             wgpu::BindGroupEntry {
                 binding: 6,
                 resource: wgpu::BindingResource::Sampler(&fallback.behind_sampler),
+            },
+            wgpu::BindGroupEntry {
+                binding: 7,
+                resource: wgpu::BindingResource::TextureView(&shadow.atlas),
+            },
+            wgpu::BindGroupEntry {
+                binding: 8,
+                resource: wgpu::BindingResource::Sampler(&shadow.compare_sampler),
+            },
+            wgpu::BindGroupEntry {
+                binding: 9,
+                resource: shadow.uniform.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 10,
+                resource: wgpu::BindingResource::TextureView(&shadow.transmittance),
+            },
+            wgpu::BindGroupEntry {
+                binding: 11,
+                resource: wgpu::BindingResource::Sampler(&shadow.transmittance_sampler),
             },
         ],
     })

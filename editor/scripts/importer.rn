@@ -58,7 +58,7 @@ const ROWS = #{
         #{ key: "font_family", kind: "enum", options: ["ui", "heading", "mono", "icon"], fallback: "name",
            help: "the family this face joins; by default its file name's prefix decides" },
         #{ key: "scale", kind: "number", fallback: 1.0, step: 0.05,
-           help: "how large the UI draws its glyphs, without moving the layout" },
+           help: "how much larger its glyphs draw and advance, in widgets and world text" },
         #{ key: "y_offset", kind: "number", fallback: 0.0, step: 0.01,
            help: "a nudge down as a fraction of the size, for a face that sits high" },
         #{ key: "hinting", kind: "bool", fallback: true,
@@ -246,7 +246,7 @@ fn row(S, k, rel, kind, spec) {
     let control = if spec.kind == "number" {
         #{
             kind: "number_field", grow: 1, tooltip: spec.help, arrows: true,
-            value: shown, step: spec.step,
+            value: shown, step: spec.step, drag_speed: spec.step,
             on: |v| { write(S, rel, key, if whole { math::round(v) as i64 } else { v }); },
         }
     } else if spec.kind == "bool" {

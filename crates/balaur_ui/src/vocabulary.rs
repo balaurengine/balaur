@@ -77,7 +77,8 @@ pub(crate) mod words {
     /// How a picture sits in the box it was given; empty is the picture's own
     /// size, which is what decides the box instead.
     pub(crate) const NONE_FIT: &str = "none";
-    /// A colour token that paints nothing.
+    /// A colour token that paints nothing, and the word for nothing in a
+    /// closed set: no alpha, no wrapping.
     pub(crate) const NONE: &str = "none";
     pub(crate) const FITS: &[&str] = &["", CONTAIN, COVER, FILL, NONE_FIT];
 
@@ -128,8 +129,20 @@ pub(crate) mod words {
     pub(crate) const BOTTOM: &str = "bottom";
     /// The four edges a `safe_area` names, in the order an inset is spelled.
     pub(crate) const EDGES: &[&str] = &[LEFT, TOP, RIGHT, BOTTOM];
-    /// Where a container puts its children, and where text sits.
+    /// Where text sits in its width.
     pub(crate) const ALIGNS: &[&str] = &[START, CENTER, END];
+    /// A child as wide (or tall) as its container across the container's
+    /// direction.
+    pub(crate) const STRETCH: &str = "stretch";
+    /// Children lined up on their text's first baseline.
+    pub(crate) const BASELINE: &str = "baseline";
+    /// Where a container puts its children across its own direction.
+    pub(crate) const ITEM_ALIGNS: &[&str] = &[START, CENTER, END, STRETCH, BASELINE];
+    /// A setting left to what the kind, the parent or egui decides.
+    pub(crate) const AUTO: &str = "auto";
+    /// Where one child sits across its parent's direction; `auto` takes the
+    /// parent's `align_items`.
+    pub(crate) const SELF_ALIGNS: &[&str] = &[AUTO, START, CENTER, END, STRETCH, BASELINE];
 
     pub(crate) const BOTH: &str = "both";
     pub(crate) const HORIZONTAL: &str = "horizontal";
@@ -141,18 +154,167 @@ pub(crate) mod words {
     pub(crate) const AROUND: &str = "around";
     pub(crate) const EVENLY: &str = "evenly";
     /// How a container spreads its children along its own direction.
-    pub(crate) const JUSTIFYS: &[&str] = &[START, CENTER, END, BETWEEN, AROUND, EVENLY];
+    pub(crate) const JUSTIFYS: &[&str] = &[START, CENTER, END, STRETCH, BETWEEN, AROUND, EVENLY];
+    /// How a container that wraps spreads its lines across its direction, and
+    /// a grid its rows.
+    pub(crate) const CONTENT_ALIGNS: &[&str] =
+        &[START, CENTER, END, STRETCH, BETWEEN, AROUND, EVENLY];
 
     pub(crate) const ABOVE: &str = "above";
     pub(crate) const BELOW: &str = "below";
     pub(crate) const POINTER: &str = "pointer";
+    /// The side placements past the first of each side, which opens at its
+    /// start: `below` is under the button from its left edge.
+    pub(crate) const BELOW_CENTER: &str = "below_center";
+    pub(crate) const BELOW_END: &str = "below_end";
+    pub(crate) const ABOVE_CENTER: &str = "above_center";
+    pub(crate) const ABOVE_END: &str = "above_end";
+    pub(crate) const RIGHT_CENTER: &str = "right_center";
+    pub(crate) const RIGHT_END: &str = "right_end";
+    pub(crate) const LEFT_CENTER: &str = "left_center";
+    pub(crate) const LEFT_END: &str = "left_end";
     /// Where a menu opens against the button that drops it.
-    pub(crate) const PLACEMENTS: &[&str] = &[BELOW, ABOVE, POINTER, CENTER];
+    pub(crate) const PLACEMENTS: &[&str] = &[
+        BELOW,
+        BELOW_CENTER,
+        BELOW_END,
+        ABOVE,
+        ABOVE_CENTER,
+        ABOVE_END,
+        RIGHT,
+        RIGHT_CENTER,
+        RIGHT_END,
+        LEFT,
+        LEFT_CENTER,
+        LEFT_END,
+        POINTER,
+        CENTER,
+    ];
+    /// The placements a menu falls back to, which are the side ones.
+    pub(crate) const SIDE_PLACEMENTS: &[&str] = &[
+        BELOW,
+        BELOW_CENTER,
+        BELOW_END,
+        ABOVE,
+        ABOVE_CENTER,
+        ABOVE_END,
+        RIGHT,
+        RIGHT_CENTER,
+        RIGHT_END,
+        LEFT,
+        LEFT_CENTER,
+        LEFT_END,
+    ];
+
+    pub(crate) const CLICK: &str = "click";
+    pub(crate) const CLICK_OUTSIDE: &str = "click_outside";
+    pub(crate) const NEVER: &str = "never";
+    /// What shuts a menu's popup besides a row.
+    pub(crate) const CLOSE_ONS: &[&str] = &[CLICK_OUTSIDE, CLICK, NEVER];
+
+    pub(crate) const DRAG: &str = "drag";
+    pub(crate) const CLICK_AND_DRAG: &str = "click_and_drag";
+    pub(crate) const HOVER: &str = "hover";
+    /// What the pointer may do to a button or a label.
+    pub(crate) const SENSES: &[&str] = &[CLICK, CLICK_AND_DRAG, DRAG, HOVER];
+
+    pub(crate) const ALWAYS: &str = "always";
+    /// When a scroll's bars show.
+    pub(crate) const SCROLLBARS: &[&str] = &[AUTO, ALWAYS, NEVER];
+    pub(crate) const TOUCH: &str = "touch";
+    /// When dragging a scroll's contents scrolls it.
+    pub(crate) const DRAG_SCROLLS: &[&str] = &[TOUCH, ALWAYS, NEVER];
+
+    pub(crate) const EDITS: &str = "edits";
+    /// When a slider holds its number inside `min` and `max`.
+    pub(crate) const CLAMPS: &[&str] = &[ALWAYS, EDITS, NEVER];
+    pub(crate) const CIRCLE: &str = "circle";
+    pub(crate) const RECT: &str = "rect";
+    /// A slider's handle.
+    pub(crate) const HANDLES: &[&str] = &[CIRCLE, RECT];
+    pub(crate) const DECIMAL: &str = "decimal";
+    pub(crate) const BINARY: &str = "binary";
+    pub(crate) const OCTAL: &str = "octal";
+    pub(crate) const HEX: &str = "hex";
+    /// The base a slider or a number field writes its number in.
+    pub(crate) const NUMBER_FORMATS: &[&str] = &[DECIMAL, BINARY, OCTAL, HEX];
+
+    pub(crate) const BLEND: &str = "blend";
+    pub(crate) const ADDITIVE: &str = "additive";
+    /// What a colour picker offers for alpha: none, normal blending, or
+    /// blending and additive both.
+    pub(crate) const ALPHAS: &[&str] = &[NONE, BLEND, ADDITIVE];
+
+    /// The size and placement keywords a grid track list spells, and the
+    /// counts a `repeat` takes besides a number.
+    pub(crate) mod track {
+        pub(crate) const FR: &str = "fr";
+        pub(crate) const PERCENT: &str = "%";
+        pub(crate) const MIN_CONTENT: &str = "min_content";
+        pub(crate) const MAX_CONTENT: &str = "max_content";
+        pub(crate) const FIT_CONTENT: &str = "fit_content";
+        pub(crate) const MINMAX: &str = "minmax";
+        pub(crate) const REPEAT: &str = "repeat";
+        pub(crate) const AUTO_FILL: &str = "auto_fill";
+        pub(crate) const AUTO_FIT: &str = "auto_fit";
+        pub(crate) const SPAN: &str = "span";
+        /// An empty cell in an `areas` row.
+        pub(crate) const EMPTY: &str = ".";
+    }
+
+    /// How a container wraps its children onto more lines.
+    pub(crate) mod wrapping {
+        pub(crate) use super::{AUTO, NONE};
+        pub(crate) const WRAP: &str = "wrap";
+        pub(crate) const WRAP_REVERSE: &str = "wrap_reverse";
+        pub(crate) const BALANCE: &str = "balance";
+        pub(crate) const BALANCE_REVERSE: &str = "balance_reverse";
+        pub(crate) const ALL: &[&str] = &[AUTO, NONE, WRAP, WRAP_REVERSE, BALANCE, BALANCE_REVERSE];
+    }
+
+    /// The order a grid places children that name no cell.
+    pub(crate) mod flow {
+        pub(crate) use super::{COLUMN, ROW};
+        pub(crate) const ROW_DENSE: &str = "row_dense";
+        pub(crate) const COLUMN_DENSE: &str = "column_dense";
+        pub(crate) const ALL: &[&str] = &[ROW, COLUMN, ROW_DENSE, COLUMN_DENSE];
+    }
+
+    /// What a box's content does past its edge, for its size.
+    pub(crate) mod overflow {
+        pub(crate) use super::SCROLL;
+        pub(crate) const VISIBLE: &str = "visible";
+        pub(crate) const CLIP: &str = "clip";
+        pub(crate) const HIDDEN: &str = "hidden";
+        pub(crate) const ALL: &[&str] = &[VISIBLE, CLIP, HIDDEN, SCROLL];
+    }
+
+    /// Which box `width` and `height` measure.
+    pub(crate) mod sizing {
+        pub(crate) const BORDER: &str = "border";
+        pub(crate) const CONTENT: &str = "content";
+        pub(crate) const ALL: &[&str] = &[BORDER, CONTENT];
+    }
+
+    /// Which way text, a row and a grid's columns run.
+    pub(crate) mod direction {
+        pub(crate) const LEFT_TO_RIGHT: &str = "left_to_right";
+        pub(crate) const RIGHT_TO_LEFT: &str = "right_to_left";
+        pub(crate) const ALL: &[&str] = &[LEFT_TO_RIGHT, RIGHT_TO_LEFT];
+    }
+
+    /// The layout `contain` flags.
+    pub(crate) mod contain {
+        pub(crate) const LAYOUT: &str = "layout";
+        pub(crate) const PAINT: &str = "paint";
+        pub(crate) const ALL: &[&str] = &[LAYOUT, PAINT];
+    }
 
     pub(crate) const NORMAL: &str = "normal";
     pub(crate) const ITALIC: &str = "italic";
     /// Slant.
-    pub(crate) const FONT_STYLES: &[&str] = &[NORMAL, ITALIC];
+    pub(crate) const OBLIQUE: &str = "oblique";
+    pub(crate) const FONT_STYLES: &[&str] = &[NORMAL, ITALIC, OBLIQUE];
 
     pub(crate) const MONO: &str = "mono";
     pub(crate) const HEADING: &str = "heading";
@@ -171,9 +333,10 @@ pub(crate) mod words {
     pub(crate) const ALT: &str = "alt";
     pub(crate) const SHIFT: &str = "shift";
     /// The pointer's shapes, as a widget's `cursor` names them: every shape
-    /// egui carries, under Balaur's names. Hiding the pointer is not a shape;
-    /// that is `window.set_cursor_hidden`.
+    /// egui carries, under Balaur's names, and `none`, which hides it while
+    /// it is over the widget.
     pub(crate) mod cursor {
+        pub(crate) const NONE: &str = "none";
         pub(crate) const ARROW: &str = "arrow";
         pub(crate) const HAND: &str = "hand";
         pub(crate) const TEXT: &str = "text";
@@ -211,6 +374,7 @@ pub(crate) mod words {
         /// Every shape, in the order the picker offers them.
         pub(crate) const ALL: &[&str] = &[
             ARROW,
+            NONE,
             HAND,
             TEXT,
             VERTICAL_TEXT,
@@ -278,7 +442,6 @@ pub(crate) mod keys {
     pub(crate) const CLOSABLE: &str = "closable";
     pub(crate) const COLLAPSIBLE: &str = "collapsible";
     pub(crate) const PICKED_COLOR: &str = "picked_color";
-    pub(crate) const COLUMNS: &str = "columns";
     pub(crate) const CONTEXT: &str = "context";
     pub(crate) const CURRENT_FILL: &str = "current_fill";
     pub(crate) const CURRENT_LINE: &str = "current_line";
@@ -320,6 +483,32 @@ pub(crate) mod keys {
     pub(crate) const LANGUAGE: &str = "language";
     pub(crate) const LAYER: &str = "layer";
     pub(crate) const LINE_HEIGHT: &str = "line_height";
+    pub(crate) const LETTER_SPACING: &str = "letter_spacing";
+    pub(crate) const BITMAP_FONT: &str = "bitmap_font";
+    pub(crate) const OUTLINE_SIZE: &str = "outline_size";
+    pub(crate) const OUTLINE_COLOR: &str = "outline_color";
+    pub(crate) const SHADOW_OFFSET_X: &str = "shadow_offset_x";
+    pub(crate) const SHADOW_OFFSET_Y: &str = "shadow_offset_y";
+    pub(crate) const SHADOW_COLOR: &str = "shadow_color";
+    pub(crate) const TEXT_BACKGROUND: &str = "text_background";
+    pub(crate) const FONT_STRETCH: &str = "font_stretch";
+    pub(crate) const FONT_NAME: &str = "font_name";
+    pub(crate) const FONT_FEATURES: &str = "font_features";
+    pub(crate) const UNDERLINE: &str = "underline";
+    pub(crate) const UNDERLINE_COLOR: &str = "underline_color";
+    pub(crate) const STRIKETHROUGH: &str = "strikethrough";
+    pub(crate) const STRIKETHROUGH_COLOR: &str = "strikethrough_color";
+    pub(crate) const OVERLINE: &str = "overline";
+    pub(crate) const OVERLINE_COLOR: &str = "overline_color";
+    pub(crate) const LINE_BREAK: &str = "line_break";
+    pub(crate) const TRUNCATE_AT: &str = "truncate_at";
+    pub(crate) const MAX_LINES: &str = "max_lines";
+    pub(crate) const SHAPING: &str = "shaping";
+    pub(crate) const SNAP_ADVANCES: &str = "snap_advances";
+    pub(crate) const HINTING: &str = "hinting";
+    pub(crate) const PIXEL_SNAP: &str = "pixel_snap";
+    pub(crate) const MONOSPACE_WIDTH: &str = "monospace_width";
+    pub(crate) const TAB_WIDTH: &str = "tab_width";
     pub(crate) const MARKUP: &str = "markup";
     pub(crate) const MAX: &str = "max";
     pub(crate) const AXIS: &str = "axis";
@@ -336,7 +525,6 @@ pub(crate) mod keys {
     pub(crate) const MIN_HEIGHT: &str = "min_height";
     pub(crate) const MIN_WIDTH: &str = "min_width";
     pub(crate) const NUMERIC: &str = "numeric";
-    pub(crate) const OFFSET: &str = "offset";
     pub(crate) const ON_CHANGE: &str = "on_change";
     pub(crate) const ON_CLICK: &str = "on_click";
     pub(crate) const PASS_NODE: &str = "pass_node";
@@ -409,7 +597,6 @@ pub(crate) mod keys {
     pub(crate) const SHEET: &str = "sheet";
     pub(crate) const SPEED: &str = "speed";
     pub(crate) const STEP: &str = "step";
-    pub(crate) const STICK_TO_BOTTOM: &str = "stick_to_bottom";
     pub(crate) const STROKE: &str = "stroke";
     pub(crate) const STROKE_WIDTH: &str = "stroke_width";
     pub(crate) const SUBMITTED: &str = "submitted";
@@ -441,6 +628,90 @@ pub(crate) mod keys {
     pub(crate) const INDEX: &str = "index";
     pub(crate) const X: &str = "x";
     pub(crate) const Y: &str = "y";
+
+    // What taffy reads of a widget besides its size.
+    pub(crate) const ABSOLUTE: &str = "absolute";
+    pub(crate) const ASPECT_RATIO: &str = "aspect_ratio";
+    pub(crate) const MARGIN: &str = "margin";
+    pub(crate) const BORDER: &str = "border";
+    pub(crate) const BOX_SIZING: &str = "box_sizing";
+    pub(crate) const DIRECTION: &str = "direction";
+    pub(crate) const OVERFLOW: &str = "overflow";
+    pub(crate) const SCROLLBAR_WIDTH: &str = "scrollbar_width";
+    pub(crate) const CONTAIN: &str = "contain";
+    pub(crate) const ALIGN_SELF: &str = "align_self";
+    pub(crate) const ALIGN_CONTENT: &str = "align_content";
+    pub(crate) const SAFE_ALIGN: &str = "safe_align";
+    pub(crate) const WIDTH_PERCENT: &str = "width_percent";
+    pub(crate) const HEIGHT_PERCENT: &str = "height_percent";
+    pub(crate) const WRAP_CHILDREN: &str = "wrap_children";
+    pub(crate) const MIN_LINES: &str = "min_lines";
+    pub(crate) const BASIS: &str = "basis";
+    pub(crate) const SHRINK: &str = "shrink";
+    pub(crate) const GRID_COLUMNS: &str = "grid_columns";
+    pub(crate) const GRID_ROWS: &str = "grid_rows";
+    pub(crate) const AUTO_COLUMNS: &str = "auto_columns";
+    pub(crate) const AUTO_ROWS: &str = "auto_rows";
+    pub(crate) const AUTO_FLOW: &str = "auto_flow";
+    pub(crate) const AREAS: &str = "areas";
+    /// A grid child's column placement, beside its `row`.
+    pub(crate) const COLUMN: &str = "column";
+
+    // What the egui widget behind a kind takes.
+    pub(crate) const SENSE: &str = "sense";
+    pub(crate) const SHOW_TOOLTIP_WHEN_ELIDED: &str = "show_tooltip_when_elided";
+    pub(crate) const INDETERMINATE: &str = "indeterminate";
+    pub(crate) const SHOW_VALUE: &str = "show_value";
+    pub(crate) const LOGARITHMIC: &str = "logarithmic";
+    pub(crate) const SMALLEST_POSITIVE: &str = "smallest_positive";
+    pub(crate) const LARGEST_FINITE: &str = "largest_finite";
+    pub(crate) const CLAMP: &str = "clamp";
+    pub(crate) const CLAMP_EXISTING: &str = "clamp_existing";
+    pub(crate) const SMART_AIM: &str = "smart_aim";
+    pub(crate) const DRAG_SPEED: &str = "drag_speed";
+    pub(crate) const TRAILING_FILL: &str = "trailing_fill";
+    pub(crate) const HANDLE: &str = "handle";
+    pub(crate) const HANDLE_ASPECT: &str = "handle_aspect";
+    pub(crate) const NUMBER_FORMAT: &str = "number_format";
+    pub(crate) const UPDATE_WHILE_EDITING: &str = "update_while_editing";
+    pub(crate) const SHOW_PERCENTAGE: &str = "show_percentage";
+    pub(crate) const ANIMATE: &str = "animate";
+    pub(crate) const SPACING: &str = "spacing";
+    pub(crate) const OVERHANG: &str = "overhang";
+    pub(crate) const LIST_HEIGHT: &str = "list_height";
+    pub(crate) const ALPHA: &str = "alpha";
+    pub(crate) const INLINE: &str = "inline";
+    pub(crate) const EDITABLE: &str = "editable";
+    pub(crate) const TAB_INSERTS: &str = "tab_inserts";
+    pub(crate) const CARET_AT_END: &str = "caret_at_end";
+    pub(crate) const CLIP_TEXT: &str = "clip_text";
+    pub(crate) const SUBMIT_KEY: &str = "submit_key";
+    /// What a scroll area takes, from the component and from `ui.scroll`.
+    pub(crate) const SCROLLBAR: &str = "scrollbar";
+    pub(crate) const STICK_TO_END: &str = "stick_to_end";
+    pub(crate) const SCROLL_OFFSET: &str = "scroll_offset";
+    pub(crate) const MIN_SCROLLED_WIDTH: &str = "min_scrolled_width";
+    pub(crate) const MIN_SCROLLED_HEIGHT: &str = "min_scrolled_height";
+    pub(crate) const ANIMATED: &str = "animated";
+    pub(crate) const WHEEL_SPEED: &str = "wheel_speed";
+    pub(crate) const DRAG_SCROLL: &str = "drag_scroll";
+    pub(crate) const WHEEL_SCROLL: &str = "wheel_scroll";
+    pub(crate) const DRAG_CURSOR: &str = "drag_cursor";
+    pub(crate) const TINT: &str = "tint";
+    pub(crate) const ANGLE_DEGREES: &str = "angle_degrees";
+    pub(crate) const ANGLE_ORIGIN: &str = "angle_origin";
+    pub(crate) const ALT_TEXT: &str = "alt_text";
+    pub(crate) const POPUP_GAP: &str = "popup_gap";
+    pub(crate) const POPUP_WIDTH: &str = "popup_width";
+    pub(crate) const PLACEMENT_FALLBACKS: &str = "placement_fallbacks";
+    pub(crate) const CLOSE_ON: &str = "close_on";
+    pub(crate) const BACKDROP_COLOR: &str = "backdrop_color";
+    pub(crate) const DISMISSABLE: &str = "dismissable";
+    /// What a window takes, from the component and from `ui.window`.
+    pub(crate) const MOVABLE: &str = "movable";
+    pub(crate) const CONSTRAIN: &str = "constrain";
+    pub(crate) const DEFAULT_OPEN: &str = "default_open";
+    pub(crate) const FADE_IN: &str = "fade_in";
 }
 
 /// What a pooled control's spec names beside the `widget` properties it

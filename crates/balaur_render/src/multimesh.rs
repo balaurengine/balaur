@@ -15,12 +15,10 @@ use std::sync::Arc;
 use anyhow::{Result, anyhow, bail};
 use balaur_core::Engine;
 use balaur_core::components::{ComponentDef, as_f64, rgba};
-use balaur_core::entity_of;
 use balaur_core::hecs::{Entity, World};
 use balaur_core::scene::GlobalTransform;
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt as _, NodeId, Value};
-use glamx::{Affine2, Affine3A, EulerRot, Mat4, Quat, Vec3};
+use glamx::{EulerRot, Mat3, Mat4, Quat, Vec3};
 
 use crate::vocabulary::{keys as k, words};
 use crate::{Renderable2d, Renderable3d};
@@ -39,14 +37,23 @@ pub const MULTIMESH_2D: &str = "multimesh2d";
 pub const MAX_INSTANCES: usize = 1 << 20;
 
 /// One instance: where it sits in its node's space, the colour it draws in,
-/// and four floats a material's shader reads.
+/// four floats a material's shader reads, and the overrides of its node's
+/// wireframe, vertex dots and, in 2D, the image rectangle it draws.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Instance {
     pub position: Vec3,
     pub rotation: Quat,
     pub scale: Vec3,
+    /// A 3x3 that replaces `rotation` and `scale`, for one that shears.
+    pub basis: Option<Mat3>,
     pub color: [f32; 4],
     pub custom: [f32; 4],
+    pub wireframe_color: Option<[f32; 4]>,
+    pub wireframe_width: Option<f32>,
+    pub dot_color: Option<[f32; 4]>,
+    pub dot_size: Option<f32>,
+    /// `[x, y, w, h]` of the texture in pixels; `None` draws all of it.
+    pub region: Option<[f32; 4]>,
 }
 
 impl Default for Instance {
@@ -55,17 +62,62 @@ impl Default for Instance {
             position: Vec3::ZERO,
             rotation: Quat::IDENTITY,
             scale: Vec3::ONE,
+            basis: None,
             color: [1.0; 4],
             custom: [0.0; 4],
+            wireframe_color: None,
+            wireframe_width: None,
+            dot_color: None,
+            dot_size: None,
+            region: None,
         }
     }
 }
+
+/// The keys one instance takes, for the error a typo gets.
+const INSTANCE_KEYS: &[&str] = &[
+    k::POSITION,
+    k::ROTATION_EULER,
+    k::SCALE,
+    k::BASIS,
+    k::COLOR,
+    k::CUSTOM,
+    k::WIREFRAME_COLOR,
+    k::WIREFRAME_WIDTH,
+    k::DOT_COLOR,
+    k::DOT_SIZE,
+    k::REGION_ORIGIN,
+    k::REGION_SIZE,
+];
 
 impl Instance {
     /// The instance's matrix in its node's space.
     #[must_use]
     pub fn local(&self) -> Mat4 {
-        Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.position)
+        match self.basis {
+            Some(basis) => Mat4::from_mat3_translation(basis, self.position),
+            None => Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.position),
+        }
+    }
+
+    /// Take a whole matrix: a position, a rotation and a scale, or a basis
+    /// where a shear leaves the matrix none of those.
+    pub fn set_local(&mut self, matrix: Mat4) {
+        let (scale, rotation, position) = matrix.to_scale_rotation_translation();
+        let linear = Mat3::from_mat4(matrix);
+        let rebuilt = Mat3::from_mat4(Mat4::from_scale_rotation_translation(
+            scale,
+            rotation,
+            Vec3::ZERO,
+        ));
+        let sheared = (linear - rebuilt)
+            .to_cols_array()
+            .iter()
+            .any(|d| d.abs() > 1e-4);
+        self.position = position;
+        self.rotation = rotation;
+        self.scale = scale;
+        self.basis = sheared.then_some(linear);
     }
 
     /// Euler angles in the order a scene file writes them, as the `transform`
@@ -86,26 +138,54 @@ impl Instance {
             bail!("instance {index} is a {}, not a table", table.type_str());
         };
         let mut out = Self::default();
+        let colour = |value: &toml::Value, key: &str| {
+            rgba(value).ok_or_else(|| anyhow!("instance {index}'s {key} is not a colour"))
+        };
+        let number = |value: &toml::Value, key: &str| {
+            as_f64(value)
+                .map(|n| n as f32)
+                .ok_or_else(|| anyhow!("instance {index}'s {key} is not a number"))
+        };
+        let (mut origin, mut size) = (None, None);
         for (key, value) in fields {
             match key.as_str() {
                 k::POSITION => out.position = Vec3::from_array(floats(value, [0.0; 3])),
                 k::ROTATION_EULER => out.rotation = rotation_of(floats(value, [0.0; 3])),
                 k::SCALE => out.scale = Vec3::from_array(floats(value, [1.0; 3])),
-                k::COLOR => {
-                    out.color = rgba(value)
-                        .ok_or_else(|| anyhow!("instance {index}'s color is not a colour"))?;
+                k::BASIS => {
+                    out.basis = Some(Mat3::from_cols_array(&floats(
+                        value,
+                        Mat3::IDENTITY.to_cols_array(),
+                    )));
                 }
+                k::COLOR => out.color = colour(value, k::COLOR)?,
                 k::CUSTOM => out.custom = floats(value, [0.0; 4]),
+                k::WIREFRAME_COLOR => out.wireframe_color = Some(colour(value, key)?),
+                k::WIREFRAME_WIDTH => out.wireframe_width = Some(number(value, key)?.max(0.0)),
+                k::DOT_COLOR => out.dot_color = Some(colour(value, key)?),
+                k::DOT_SIZE => out.dot_size = Some(number(value, key)?.max(0.0)),
+                k::REGION_ORIGIN => origin = Some(floats(value, [0.0; 2])),
+                k::REGION_SIZE => size = Some(floats(value, [0.0; 2])),
                 other => bail!(
-                    "instance {index} has '{other}'; an instance takes {}, {}, {}, {} and {}",
-                    k::POSITION,
-                    k::ROTATION_EULER,
-                    k::SCALE,
-                    k::COLOR,
-                    k::CUSTOM
+                    "instance {index} has '{other}'; an instance takes {}",
+                    INSTANCE_KEYS.join(", ")
                 ),
             }
         }
+        if out.basis.is_some()
+            && (fields.contains_key(k::ROTATION_EULER) || fields.contains_key(k::SCALE))
+        {
+            bail!(
+                "instance {index} has a {} and a {} or {}; the basis is the rotation and the scale",
+                k::BASIS,
+                k::ROTATION_EULER,
+                k::SCALE
+            );
+        }
+        out.region = size.filter(|[w, h]| *w > 0.0 && *h > 0.0).map(|[w, h]| {
+            let [x, y] = origin.unwrap_or([0.0; 2]);
+            [x, y, w, h]
+        });
         Ok(out)
     }
 
@@ -122,10 +202,36 @@ impl Instance {
         };
         let mut map = toml::map::Map::new();
         map.insert(k::POSITION.into(), floats(&self.position.to_array()));
-        map.insert(k::ROTATION_EULER.into(), floats(&self.rotation_euler()));
-        map.insert(k::SCALE.into(), floats(&self.scale.to_array()));
+        // One spelling of the turn: a basis where it shears, else the two.
+        if let Some(basis) = self.basis {
+            map.insert(k::BASIS.into(), floats(&basis.to_cols_array()));
+        } else {
+            map.insert(k::ROTATION_EULER.into(), floats(&self.rotation_euler()));
+            map.insert(k::SCALE.into(), floats(&self.scale.to_array()));
+        }
         map.insert(k::COLOR.into(), floats(&self.color));
         map.insert(k::CUSTOM.into(), floats(&self.custom));
+        let mut maybe = |key: &str, value: Option<&[f32]>| {
+            if let Some(value) = value {
+                map.insert(key.into(), floats(value));
+            }
+        };
+        maybe(
+            k::WIREFRAME_COLOR,
+            self.wireframe_color.as_ref().map(|c| &c[..]),
+        );
+        maybe(k::DOT_COLOR, self.dot_color.as_ref().map(|c| &c[..]));
+        maybe(k::REGION_ORIGIN, self.region.as_ref().map(|r| &r[..2]));
+        maybe(k::REGION_SIZE, self.region.as_ref().map(|r| &r[2..]));
+        if let Some(width) = self.wireframe_width {
+            map.insert(
+                k::WIREFRAME_WIDTH.into(),
+                toml::Value::Float(f64::from(width)),
+            );
+        }
+        if let Some(size) = self.dot_size {
+            map.insert(k::DOT_SIZE.into(), toml::Value::Float(f64::from(size)));
+        }
         toml::Value::Table(map)
     }
 }
@@ -159,7 +265,8 @@ pub const fn buffer_stride(flat: bool, colors: bool, custom: bool) -> usize {
 /// Instances read from Godot's `MultiMesh.buffer` layout.
 ///
 /// A transform is three rows of four in 3D, the origin last in each row, and
-/// two in 2D with a zero where z would be. A shear the rows hold is dropped.
+/// two in 2D with a zero where z would be. A shear the rows hold is kept, as
+/// the instance's basis.
 ///
 /// # Errors
 /// A length that is not a whole number of instances, named with the stride.
@@ -190,10 +297,7 @@ pub fn instances_from_buffer(
                     glamx::Vec4::Z,
                     glamx::Vec4::new(row[3], row[7], 0.0, 1.0),
                 );
-                let (scale, rotation, position) = matrix.to_scale_rotation_translation();
-                instance.position = position;
-                instance.rotation = rotation;
-                instance.scale = scale;
+                instance.set_local(matrix);
                 &row[8..]
             } else {
                 let matrix = Mat4::from_cols(
@@ -202,10 +306,7 @@ pub fn instances_from_buffer(
                     glamx::Vec4::new(row[2], row[6], row[10], 0.0),
                     glamx::Vec4::new(row[3], row[7], row[11], 1.0),
                 );
-                let (scale, rotation, position) = matrix.to_scale_rotation_translation();
-                instance.position = position;
-                instance.rotation = rotation;
-                instance.scale = scale;
+                instance.set_local(matrix);
                 &row[12..]
             };
             let (fours, _) = rest.as_chunks::<4>();
@@ -315,8 +416,15 @@ instances = [                      # a 2D instance writes [x, y] and turns about
   { position = [0.0, 0.0, 0.0] },
   { position = [0.9, 0.0, 0.0], rotation_euler = [0.0, 0.5, 0.0], scale = [1.0, 2.0, 1.0] },
   { position = [1.8, 0.0, 0.0], color = "#ff8080", custom = [1.0, 0.0, 0.0, 0.0] },
+  # a 3x3, columns first, in place of rotation_euler and scale: it keeps a shear
+  { position = [2.7, 0.0, 0.0], basis = [1.0, 0.0, 0.0, 0.5, 1.0, 0.0, 0.0, 0.0, 1.0] },
+  # the node's wireframe and vertex dots, for this instance alone; they draw
+  # only while the node's own wireframe_width and dot_size are above zero
+  { position = [3.6, 0.0, 0.0], wireframe_color = "#00ff00", wireframe_width = 2.0, dot_color = "#ffff00", dot_size = 4.0 },
 ]
-```"##;
+```
+
+A 2D instance also takes `region_origin` and `region_size`, the rectangle of the texture it draws in pixels. `multimesh2d` draws through Balaur's own pipeline, which reads neither the rectangle nor the four overrides yet."##;
 
 /// A node's multimesh: its own copy of an asset's instances.
 #[derive(Clone, Debug, PartialEq)]
@@ -354,6 +462,7 @@ impl MultiMesh {
                 at: here * instance.local(),
                 color: instance.color,
                 custom: instance.custom,
+                instance: *instance,
             })
             .collect()
     }
@@ -365,6 +474,8 @@ pub struct Placed {
     pub at: Mat4,
     pub color: [f32; 4],
     pub custom: [f32; 4],
+    /// The instance it came from, for the overrides it carries.
+    pub instance: Instance,
 }
 
 /// Whether a node's multimesh has nothing to draw, so the node draws nothing.
@@ -523,8 +634,11 @@ fn apply_3d(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
     let source = text(params, k::SOURCE);
     let mesh = adopt(eng, entity, &source, false).unwrap_or_default();
     crate::set_mesh(eng, entity, mesh, String::new(), text(params, k::TEXTURE))?;
-    // An instance's colour is the colour it draws in, so the node adds none.
-    crate::set_color(eng, entity, [1.0; 4])?;
+    crate::set_color(
+        eng,
+        entity,
+        crate::color_from_key(params, k::COLOR, [1.0; 4]),
+    )?;
     crate::lighting_from_params(eng, entity, params);
     crate::material::set_material_3d(eng, entity, &text(params, k::MATERIAL))
 }
@@ -537,10 +651,12 @@ fn apply_2d(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
         mesh,
         text(params, k::TEXTURE),
         String::new(),
-        crate::DEFAULT_PIXELS_PER_UNIT,
+        balaur_core::components::prop_f32(params, k::PIXELS_PER_UNIT).max(0.01),
     )?;
     crate::set_polygon(eng, entity, Arc::new(polygon))?;
-    crate::set_color(eng, entity, crate::color_from_params(params))
+    crate::set_color(eng, entity, crate::color_from_params(params))?;
+    crate::overlay_from_params(eng, entity, params)?;
+    crate::material::set_material_2d(eng, entity, &text(params, k::MATERIAL))
 }
 
 fn get_3d(eng: &Engine, entity: Entity) -> Option<toml::Value> {
@@ -559,6 +675,7 @@ fn get_3d(eng: &Engine, entity: Entity) -> Option<toml::Value> {
         k::TEXTURE.into(),
         toml::Value::String(renderable.texture.clone()),
     );
+    map.insert(k::COLOR.into(), crate::color_to_toml(renderable.color));
     map.insert(
         k::MATERIAL.into(),
         toml::Value::String(renderable.material.clone()),
@@ -575,6 +692,7 @@ fn get_3d(eng: &Engine, entity: Entity) -> Option<toml::Value> {
         k::RENDER_LAYERS.into(),
         toml::Value::Integer(i64::from(renderable.render_layers.cast_signed())),
     );
+    crate::overlay::overlay_3d_to_map(&renderable.overlay, &mut map);
     Some(toml::Value::Table(map))
 }
 
@@ -585,18 +703,28 @@ fn get_2d(eng: &Engine, entity: Entity) -> Option<toml::Value> {
         return None;
     }
     let renderable = world.get::<&Renderable2d>(entity).ok()?;
-    let texture = renderable
+    let (texture, ppu) = renderable
         .polygon
         .as_ref()
-        .map(|polygon| polygon.texture.clone())
-        .unwrap_or_default();
+        .map_or((String::new(), crate::DEFAULT_PIXELS_PER_UNIT), |polygon| {
+            (polygon.texture.clone(), polygon.pixels_per_unit)
+        });
     let mut map = toml::map::Map::new();
     map.insert(
         k::SOURCE.into(),
         toml::Value::String(multimesh.source.clone()),
     );
     map.insert(k::TEXTURE.into(), toml::Value::String(texture));
+    map.insert(
+        k::PIXELS_PER_UNIT.into(),
+        toml::Value::Float(f64::from(ppu)),
+    );
     map.insert(k::COLOR.into(), crate::color_to_toml(renderable.color));
+    map.insert(
+        k::MATERIAL.into(),
+        toml::Value::String(renderable.material.clone()),
+    );
+    crate::overlay::overlay_2d_to_map(&renderable.overlay, &mut map);
     Some(toml::Value::Table(map))
 }
 
@@ -633,17 +761,18 @@ pub(crate) fn register_multimesh(reg: &mut Registry<'_>) {
         ComponentDef {
             events: &[],
             warnings: None,
-            doc: "Godot's `MultiMeshInstance3D`: the `multimesh` asset in `source`, its mesh drawn once per instance in one call. Each instance's `color` is the colour it draws in. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.",
+            doc: "Godot's `MultiMeshInstance3D`: the `multimesh` asset in `source`, its mesh drawn once per instance in one call, each instance's `color` tinted over the node's. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.",
             schema: ComponentDef::parse_schema(
                 MULTIMESH_3D,
-                &ComponentDef::schema(&[
+                &ComponentDef::schema(&crate::overlay::with_rows(&[
                     (k::SOURCE, &source_line()),
                     (k::TEXTURE, &texture_line()),
+                    (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint under every instance's own colour, as channel floats or #rrggbb / #rrggbbaa" }"#),
                     (k::MATERIAL, &material_line),
                     (k::CAST_SHADOW, r#"{ type = "bool", default = true, description = "Whether the instances cast a shadow from the lights that cast" }"#),
                     (k::LIGHT_LAYERS, r#"{ type = "int", default = -1, description = "Light-layer bitmask; a `light3d` lights this when their masks share a bit. -1 is every layer" }"#),
                     (k::RENDER_LAYERS, r#"{ type = "int", default = -1, description = "Layer bitmask; a `camera3d` draws this when their `render_layers` share a bit. -1 is every layer" }"#),
-                ]),
+                ], &crate::overlay::schema_3d(crate::overlay::Drawn::Builtin))),
             ),
             tags: &[words::PERSPECTIVE, "render"],
             expects: &[],
@@ -665,11 +794,13 @@ pub(crate) fn register_multimesh(reg: &mut Registry<'_>) {
             doc: "Godot's `MultiMeshInstance2D`: the `multimesh` asset in `source`, its mesh drawn flat once per instance in one call, each instance tinted over `color`. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.",
             schema: ComponentDef::parse_schema(
                 MULTIMESH_2D,
-                &ComponentDef::schema(&[
+                &ComponentDef::schema(&crate::overlay::with_rows(&[
                     (k::SOURCE, &source_line()),
                     (k::TEXTURE, &texture_line()),
+                    (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Texture pixels per world unit, for a mesh that carries no UVs of its own" }"#),
                     (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint under every instance's own colour, as channel floats or #rrggbb / #rrggbbaa" }"#),
-                ]),
+                    (k::MATERIAL, &crate::material::material_line_2d()),
+                ], &crate::overlay::schema_2d(crate::overlay::Drawn::Pipeline))),
             ),
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
@@ -681,295 +812,6 @@ pub(crate) fn register_multimesh(reg: &mut Registry<'_>) {
                 Ok(())
             }),
             get: Box::new(get_2d),
-        },
-    );
-}
-
-/// The node's multimesh, for a handle method to read or write.
-fn with_multimesh<R>(
-    eng: &Engine,
-    node: NodeId,
-    f: impl FnOnce(&mut MultiMesh) -> Result<R>,
-) -> Result<R> {
-    let entity = entity_of(node)?;
-    let world = eng.world_mut();
-    let mut multimesh = world
-        .get::<&mut MultiMesh>(entity)
-        .map_err(|_| anyhow!("the node carries no {MULTIMESH_3D} or {MULTIMESH_2D}"))?;
-    f(&mut multimesh)
-}
-
-/// An index into the node's instances, or an error naming how many it holds.
-fn slot(multimesh: &MultiMesh, index: i64) -> Result<usize> {
-    usize::try_from(index)
-        .ok()
-        .filter(|i| *i < multimesh.instances.len())
-        .ok_or_else(|| {
-            anyhow!(
-                "instance {index} is past the end: the multimesh holds {}",
-                multimesh.instances.len()
-            )
-        })
-}
-
-/// A count a script asks for, held to what a node may carry.
-fn count_of(count: i64) -> Result<usize> {
-    usize::try_from(count)
-        .ok()
-        .filter(|n| *n <= MAX_INSTANCES)
-        .ok_or_else(|| anyhow!("a multimesh holds 0 to {MAX_INSTANCES} instances, not {count}"))
-}
-
-/// Set an instance's transform from a `Transform3d`, or from a `Transform2d`
-/// in the xy plane. A shear either can hold is dropped, as import drops it.
-fn place(instance: &mut Instance, transform: &Value) -> Result<()> {
-    match transform {
-        Value::Transform3d(columns) => {
-            let (scale, rotation, position) =
-                Mat4::from(Affine3A::from_cols_array(columns)).to_scale_rotation_translation();
-            instance.position = position;
-            instance.rotation = rotation;
-            instance.scale = scale;
-        }
-        Value::Transform2d(columns) => {
-            let (scale, angle, position) =
-                Affine2::from_cols_array(columns).to_scale_angle_translation();
-            instance.position = position.extend(0.0);
-            instance.rotation = Quat::from_rotation_z(angle);
-            instance.scale = scale.extend(1.0);
-        }
-        other => bail!(
-            "an instance's transform is a Transform3d or a Transform2d, not a {}",
-            other.type_name()
-        ),
-    }
-    Ok(())
-}
-
-/// An instance's transform as its node's dimension spells one.
-fn transform_of(instance: &Instance, flat: bool) -> Value {
-    if flat {
-        let angle = instance.rotation_euler()[2];
-        Value::Transform2d(
-            Affine2::from_scale_angle_translation(
-                instance.scale.truncate(),
-                angle,
-                instance.position.truncate(),
-            )
-            .to_cols_array(),
-        )
-    } else {
-        Value::Transform3d(
-            Affine3A::from_scale_rotation_translation(
-                instance.scale,
-                instance.rotation,
-                instance.position,
-            )
-            .to_cols_array(),
-        )
-    }
-}
-
-/// Four floats from a colour or a list of numbers.
-fn four(value: &Value, what: &str) -> Result<[f32; 4]> {
-    match value {
-        Value::Color(c) => Ok(*c),
-        list @ Value::List(_) => crate::draw_2d::color_of(list),
-        other => bail!(
-            "{what} is a colour or a list of four numbers, not a {}",
-            other.type_name()
-        ),
-    }
-}
-
-/// An instance as `instances()` hands it over: the asset's own keys, each a
-/// plain list of numbers as the file spells it, so a list read here saves
-/// straight into a `multimesh` file or a scene's `[[assets]]` block.
-pub(crate) fn instance_value(instance: &Instance) -> Value {
-    let numbers =
-        |values: &[f32]| Value::List(values.iter().map(|v| Value::Num(f64::from(*v))).collect());
-    Value::Map(vec![
-        (k::POSITION.into(), numbers(&instance.position.to_array())),
-        (
-            k::ROTATION_EULER.into(),
-            numbers(&instance.rotation_euler()),
-        ),
-        (k::SCALE.into(), numbers(&instance.scale.to_array())),
-        (k::COLOR.into(), numbers(&instance.color)),
-        (k::CUSTOM.into(), numbers(&instance.custom)),
-    ])
-}
-
-const BOTH: &[&str] = &[MULTIMESH_3D, MULTIMESH_2D];
-
-/// One instance at a time on `node.multimesh3d` and `node.multimesh2d`:
-/// Godot's `MultiMesh` calls, readers without their `get_`.
-pub(crate) fn install_multimesh_api(m: &mut dyn Bindings<Engine>) {
-    m.describe(&[
-        ("set_instance_transform", BOTH, "", "Place one instance with a `Transform3d`, or a `Transform2d` on a 2D node. A shear is dropped: an instance is a position, a rotation and a scale."),
-        ("instance_transform", BOTH, "", "One instance's transform: a `Transform3d`, or a `Transform2d` on a 2D node."),
-        ("set_instance_color", BOTH, "", "The colour one instance draws in."),
-        ("instance_color", BOTH, "", "The colour one instance draws in."),
-        ("set_instance_custom_data", BOTH, "", "Four floats a material's shader reads for one instance, as a colour or a list."),
-        ("instance_custom_data", BOTH, "", "One instance's four floats of custom data, as a colour."),
-    ]);
-    m.function(
-        "set_instance_transform",
-        |eng: &Engine, (node, index, transform): (NodeId, i64, Value)| {
-            with_multimesh(eng, node, |multimesh| {
-                let at = slot(multimesh, index)?;
-                place(&mut multimesh.instances[at], &transform)
-            })
-        },
-    );
-    m.function(
-        "instance_transform",
-        |eng: &Engine, (node, index): (NodeId, i64)| {
-            with_multimesh(eng, node, |multimesh| {
-                let at = slot(multimesh, index)?;
-                Ok(transform_of(&multimesh.instances[at], multimesh.flat))
-            })
-        },
-    );
-    m.function(
-        "set_instance_color",
-        |eng: &Engine, (node, index, color): (NodeId, i64, Value)| {
-            let color = four(&color, "an instance's colour")?;
-            with_multimesh(eng, node, |multimesh| {
-                let at = slot(multimesh, index)?;
-                multimesh.instances[at].color = color;
-                Ok(())
-            })
-        },
-    );
-    m.function(
-        "instance_color",
-        |eng: &Engine, (node, index): (NodeId, i64)| {
-            with_multimesh(eng, node, |multimesh| {
-                let at = slot(multimesh, index)?;
-                Ok(Value::Color(multimesh.instances[at].color))
-            })
-        },
-    );
-    m.function(
-        "set_instance_custom_data",
-        |eng: &Engine, (node, index, data): (NodeId, i64, Value)| {
-            let data = four(&data, "an instance's custom data")?;
-            with_multimesh(eng, node, |multimesh| {
-                let at = slot(multimesh, index)?;
-                multimesh.instances[at].custom = data;
-                Ok(())
-            })
-        },
-    );
-    m.function(
-        "instance_custom_data",
-        |eng: &Engine, (node, index): (NodeId, i64)| {
-            with_multimesh(eng, node, |multimesh| {
-                let at = slot(multimesh, index)?;
-                Ok(Value::Color(multimesh.instances[at].custom))
-            })
-        },
-    );
-}
-
-/// The counts and every instance at once, as a list or Godot's flat buffer.
-pub(crate) fn install_multimesh_list_api(m: &mut dyn Bindings<Engine>) {
-    m.describe(&[
-        ("set_instance_count", BOTH, "", "How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node."),
-        ("instance_count", BOTH, "", "How many instances the node holds."),
-        ("set_visible_instance_count", BOTH, "", "How many instances draw, from the first; -1 draws them all."),
-        ("visible_instance_count", BOTH, "", "How many instances draw; -1 is all of them."),
-        ("instances", BOTH, "", "Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file."),
-        ("set_instances", BOTH, "", "Replace every instance with a list in the `multimesh` asset's shape."),
-        ("buffer", BOTH, "", "Every instance as one flat list of floats in Godot's `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data."),
-        ("set_buffer", BOTH, "", "Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance."),
-    ]);
-    m.function("buffer", |eng: &Engine, node: NodeId| {
-        with_multimesh(eng, node, |multimesh| {
-            Ok(Value::List(
-                buffer_of(&multimesh.instances, multimesh.flat)
-                    .into_iter()
-                    .map(|v| Value::Num(f64::from(v)))
-                    .collect(),
-            ))
-        })
-    });
-    m.function(
-        "set_buffer",
-        |eng: &Engine, (node, list): (NodeId, Value)| {
-            let Value::List(items) = list else {
-                bail!("a buffer is a list of numbers, not a {}", list.type_name());
-            };
-            let floats = items
-                .iter()
-                .map(|item| match item {
-                    Value::Num(n) => Ok(*n as f32),
-                    Value::Int(n) => Ok(*n as f32),
-                    other => Err(anyhow!(
-                        "a buffer holds numbers, not a {}",
-                        other.type_name()
-                    )),
-                })
-                .collect::<Result<Vec<f32>>>()?;
-            with_multimesh(eng, node, |multimesh| {
-                multimesh.instances = instances_from_buffer(&floats, multimesh.flat, true, true)?;
-                Ok(())
-            })
-        },
-    );
-    m.function(
-        "set_instance_count",
-        |eng: &Engine, (node, count): (NodeId, i64)| {
-            let count = count_of(count)?;
-            with_multimesh(eng, node, |multimesh| {
-                multimesh.instances.resize(count, Instance::default());
-                Ok(())
-            })
-        },
-    );
-    m.function("instance_count", |eng: &Engine, node: NodeId| {
-        with_multimesh(eng, node, |multimesh| {
-            Ok(i64::try_from(multimesh.instances.len()).unwrap_or(i64::MAX))
-        })
-    });
-    m.function(
-        "set_visible_instance_count",
-        |eng: &Engine, (node, count): (NodeId, i64)| {
-            with_multimesh(eng, node, |multimesh| {
-                multimesh.visible_instance_count = count.max(-1);
-                Ok(())
-            })
-        },
-    );
-    m.function("visible_instance_count", |eng: &Engine, node: NodeId| {
-        with_multimesh(eng, node, |multimesh| Ok(multimesh.visible_instance_count))
-    });
-    m.function("instances", |eng: &Engine, node: NodeId| {
-        with_multimesh(eng, node, |multimesh| {
-            Ok(Value::List(
-                multimesh.instances.iter().map(instance_value).collect(),
-            ))
-        })
-    });
-    m.function(
-        "set_instances",
-        |eng: &Engine, (node, list): (NodeId, Value)| {
-            let Value::List(rows) = list else {
-                bail!("instances are a list, not a {}", list.type_name());
-            };
-            count_of(i64::try_from(rows.len()).unwrap_or(i64::MAX))?;
-            let instances = rows
-                .iter()
-                .enumerate()
-                .map(|(index, row)| {
-                    Instance::from_table(index, &balaur_core::node_api::to_toml(row)?)
-                })
-                .collect::<Result<Vec<_>>>()?;
-            with_multimesh(eng, node, |multimesh| {
-                multimesh.instances = instances;
-                Ok(())
-            })
         },
     );
 }
@@ -1074,6 +916,7 @@ instances = [{}, { rotation = [0.0, 1.0, 0.0] }]"#,
                 scale: Vec3::new(2.0, 0.5, 1.5),
                 color: [0.1, 0.2, 0.3, 0.4],
                 custom: [5.0, 6.0, 7.0, 8.0],
+                ..Instance::default()
             },
             Instance::default(),
         ];
@@ -1128,6 +971,7 @@ instances = [{}, { rotation = [0.0, 1.0, 0.0] }]"#,
             scale: Vec3::new(2.0, 1.0, 0.5),
             color: [0.5, 0.25, 1.0, 1.0],
             custom: [4.0, 3.0, 2.0, 1.0],
+            ..Instance::default()
         };
         let back = Instance::from_table(0, &instance.to_table()).unwrap();
         assert!((back.position - instance.position).length() < 1e-6);
@@ -1143,6 +987,56 @@ instances = [{}, { rotation = [0.0, 1.0, 0.0] }]"#,
                 .iter()
                 .zip(instance.custom)
                 .all(|(a, b)| (a - b).abs() < 1e-6)
+        );
+    }
+
+    #[test]
+    fn a_sheared_basis_survives_the_buffer_and_the_file() {
+        let shear = Mat3::from_cols(Vec3::X, Vec3::new(0.5, 1.0, 0.0), Vec3::Z);
+        let instance = Instance {
+            position: Vec3::new(1.0, 2.0, 3.0),
+            basis: Some(shear),
+            ..Instance::default()
+        };
+        let back =
+            instances_from_buffer(&buffer_of(&[instance], false), false, true, true).unwrap()[0];
+        assert!(
+            back.basis
+                .is_some_and(|b| (b - shear).to_cols_array().iter().all(|d| d.abs() < 1e-5))
+        );
+        let read = Instance::from_table(0, &instance.to_table()).unwrap();
+        assert_eq!(read.basis, Some(shear));
+        assert!(
+            instance.to_table().get(k::ROTATION_EULER).is_none(),
+            "one spelling of the turn"
+        );
+        let both = toml::from_str::<toml::Value>(
+            "basis = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]\nscale = [2.0, 2.0, 2.0]",
+        )
+        .unwrap();
+        assert!(Instance::from_table(0, &both).is_err());
+    }
+
+    #[test]
+    fn an_instance_carries_its_overrides_and_region_through_its_file() {
+        let row = toml::from_str::<toml::Value>(
+            "wireframe_color = \"#00ff00\"\nwireframe_width = 2.0\ndot_size = 3.0\nregion_origin = [8.0, 16.0]\nregion_size = [32.0, 32.0]",
+        )
+        .unwrap();
+        let instance = Instance::from_table(0, &row).unwrap();
+        assert_eq!(instance.wireframe_color, Some([0.0, 1.0, 0.0, 1.0]));
+        assert_eq!(instance.dot_size, Some(3.0));
+        assert_eq!(instance.region, Some([8.0, 16.0, 32.0, 32.0]));
+        assert_eq!(
+            Instance::from_table(0, &instance.to_table()).unwrap(),
+            instance
+        );
+        let uv = crate::instancing::region_uv(instance.region, Some((64, 64)));
+        assert!(
+            uv.iter()
+                .zip([0.125, 0.25, 0.625, 0.75])
+                .all(|(a, b)| (a - b).abs() < 1e-6),
+            "{uv:?}"
         );
     }
 }

@@ -159,10 +159,23 @@ pub(crate) fn sampled_slots_group(
 /// The reflection is per node rather than per frame — each mirror is rendered
 /// from its own camera — so it belongs beside the object's uniform rather than
 /// in the frame group with the sky.
-pub(crate) fn object_layout(label: &'static str) -> wgpu::BindGroupLayout {
+pub(crate) fn object_layout(label: &'static str, morph: bool) -> wgpu::BindGroupLayout {
     let ctxt = Context::get();
     let mut entries = vec![uniform_entry(0)];
     entries.extend(sampled_entries(1));
+    if morph {
+        let storage = |binding| wgpu::BindGroupLayoutEntry {
+            binding,
+            visibility: wgpu::ShaderStages::VERTEX,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        };
+        entries.extend([storage(3), storage(4), uniform_entry(5)]);
+    }
     ctxt.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some(label),
         entries: &entries,
@@ -175,25 +188,43 @@ pub(crate) fn object_group(
     layout: &wgpu::BindGroupLayout,
     uniform: &wgpu::Buffer,
     mirror: Option<&wgpu::TextureView>,
+    morph: Option<&crate::morph::MorphBinding<'_>>,
 ) -> wgpu::BindGroup {
     let fallback = Texture::new_default();
     let view = mirror.unwrap_or(&fallback.view);
+    let mut entries = vec![
+        wgpu::BindGroupEntry {
+            binding: 0,
+            resource: uniform.as_entire_binding(),
+        },
+        wgpu::BindGroupEntry {
+            binding: 1,
+            resource: wgpu::BindingResource::TextureView(view),
+        },
+        wgpu::BindGroupEntry {
+            binding: 2,
+            resource: wgpu::BindingResource::Sampler(&fallback.sampler),
+        },
+    ];
+    if let Some(morph) = morph {
+        entries.extend([
+            wgpu::BindGroupEntry {
+                binding: 3,
+                resource: morph.positions.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 4,
+                resource: morph.normals.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 5,
+                resource: morph.control.as_entire_binding(),
+            },
+        ]);
+    }
     Context::get().create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("mesh_object_bind_group"),
         layout,
-        entries: &[
-            wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniform.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 1,
-                resource: wgpu::BindingResource::TextureView(view),
-            },
-            wgpu::BindGroupEntry {
-                binding: 2,
-                resource: wgpu::BindingResource::Sampler(&fallback.sampler),
-            },
-        ],
+        entries: &entries,
     })
 }

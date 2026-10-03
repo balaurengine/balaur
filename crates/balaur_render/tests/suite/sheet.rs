@@ -168,3 +168,45 @@ fn a_sheet_that_does_not_parse_names_the_frame() {
     );
     assert!(error.contains("frame 0"), "unhelpful: {error}");
 }
+
+/// A sheet slice with a nine-patch `center` is drawn as one: the sprite
+/// draws the slice's part of the frame, cut by the margins the centre leaves.
+#[test]
+fn a_slice_with_a_centre_draws_the_sprite_as_a_nine_patch() {
+    let app = app();
+    let entity = node(&app);
+    let table: toml::Value = toml::from_str(&format!(
+        r#"frame = 1
+pixels_per_unit = 100.0
+
+[sheet]
+texture = "{FIXTURE}"
+frames = [
+  {{ rect = [0, 0, 50, 100] }},
+  {{ rect = [50, 0, 150, 100] }},
+]
+
+[sheet.slices.panel]
+rect = [10, 20, 60, 40]
+center = [8, 4, 40, 30]
+"#
+    ))
+    .unwrap();
+    components::add(&app.engine, entity, "sprite", Some(&table)).unwrap();
+    let world = app.engine.world();
+    let renderable = world.get::<&Renderable2d>(entity).unwrap();
+    let sprite = renderable.sprite.as_ref().unwrap();
+    assert_eq!(
+        sprite.region,
+        Some([60, 20, 60, 40]),
+        "the slice, measured from the frame's corner"
+    );
+    assert_eq!(
+        sprite.nine,
+        Some([8.0, 12.0, 4.0, 6.0]),
+        "left, right, top and bottom of the centre"
+    );
+    let (hx, hy) = half_extents(&app, entity);
+    assert_close(hx, 0.3);
+    assert_close(hy, 0.2);
+}

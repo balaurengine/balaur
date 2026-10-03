@@ -23,6 +23,9 @@ pub enum LightKind2d {
     Point,
     /// Parallel rays across the whole view, aimed by the node's rotation.
     Directional,
+    /// A cone from the node, aimed by its rotation, fading between two
+    /// half-angles and to nothing at `radius`.
+    Spot,
 }
 
 /// The `light2d` component's authored state. The node's global pose places
@@ -34,6 +37,15 @@ pub struct Light2d {
     pub radius: f32,
     pub intensity: f32,
     pub shadows: bool,
+    /// A spot light's half-angles: full brightness inside the first, none
+    /// past the second.
+    pub inner_angle_degrees: f32,
+    pub outer_angle_degrees: f32,
+    /// The disc a camera's `gi` pass emits this light from, in world units.
+    pub source_radius: f32,
+    /// How far above the plane a normal-mapped node sees it, in world units;
+    /// a directional light's rise over run.
+    pub height: f32,
 }
 
 /// The `occluder2d` component: the outline this node blocks light with.
@@ -58,6 +70,8 @@ pub struct LitLight2d {
     pub intensity: f32,
     pub shadows: bool,
     pub kind: LightKind2d,
+    /// The cosines of a spot light's two half-angles, inner first.
+    pub cone: [f32; 2],
 }
 
 /// A 2D unit vector the node's rotation aims. At rest a `light2d` shines
@@ -87,6 +101,10 @@ pub fn lights(world: &World, root: Entity) -> Vec<LitLight2d> {
             intensity: light.intensity.max(0.0),
             shadows: light.shadows,
             kind: light.kind,
+            cone: [
+                balaur_core::libm::cosf(light.inner_angle_degrees.to_radians()),
+                balaur_core::libm::cosf(light.outer_angle_degrees.to_radians()),
+            ],
         });
     }
     out
@@ -193,7 +211,7 @@ pub(crate) fn install_occluder_api(m: &mut dyn Bindings<Engine>) {
 pub fn shadow_quad(edge: [Vec2; 2], light: &LitLight2d, far: f32) -> [Vec2; 4] {
     let away = |p: Vec2| match light.kind {
         LightKind2d::Directional => p + light.direction * far,
-        LightKind2d::Point => {
+        LightKind2d::Point | LightKind2d::Spot => {
             let out = p - light.position;
             // An edge point sitting on the light has no direction to be
             // pushed in; the sliver it leaves shadows nothing.
@@ -218,11 +236,15 @@ fn light_schema() -> String {
     let kinds = crate::vocabulary::options(words::LIGHT_KINDS);
     let default = words::POINT;
     format!(
-        r#"kind = {{ type = "enum", default = "{default}", options = [{kinds}], description = "A point light fades to nothing at `range`; a directional one lights the whole view" }}
+        r#"kind = {{ type = "enum", default = "{default}", options = [{kinds}], description = "A point light fades to nothing at `range`; a directional one lights the whole view; a spot throws a cone the node's rotation aims, down at rest" }}
+inner_angle_degrees = {{ type = "float", default = 20.0, min = 0.0, max = 179.0, description = "Half-angle of a spot light's full-brightness cone, in degrees" }}
+outer_angle_degrees = {{ type = "float", default = 35.0, min = 0.0, max = 179.0, description = "Half-angle a spot light fades to nothing at, in degrees" }}
 color = {{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Light colour, as channel floats or #rrggbb / #rrggbbaa" }}
 range = {{ type = "float", default = 6.0, min = 0.0, description = "How far a point light reaches, in world units" }}
 intensity = {{ type = "float", default = 1.0, min = 0.0, description = "Brightness multiplier; over 1 blows past white" }}
-shadow_enabled = {{ type = "bool", default = true, description = "Whether `occluder2d` outlines cast shadows from this light" }}"#
+shadow_enabled = {{ type = "bool", default = true, description = "Whether `occluder2d` outlines cast shadows from this light" }}
+height = {{ type = "float", default = 1.0, min = 0.0, description = "How far above the plane a normal-mapped node sees a point or spot light, in world units; lower grazes the bumps. For a directional light, its rise over run: 1 comes in at 45 degrees. Only a node with a `normal_map` reads it" }}
+source_radius = {{ type = "float", default = 0.25, min = 0.0, description = "The disc a camera's `gi` pass emits a point or spot light from, in world units; `gi` gives a spot no cone and a directional light no form" }}"#
     )
 }
 
@@ -234,7 +256,7 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
         ComponentDef {
             events: &[],
             warnings: None,
-            doc: "A 2D light at the node's position. `kind` is `point` or `directional`; the first `light2d` in a scene drops everything else to the camera's `ambient_color`.",
+            doc: "A 2D light at the node's position. `kind` is `point`, `directional` or `spot`; the first `light2d` in a scene drops everything else to the camera's `ambient_color`.",
             schema: ComponentDef::parse_schema("light2d", &light_schema()),
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
@@ -242,6 +264,7 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
                 let kind = match prop_str(params, k::KIND) {
                     words::POINT => LightKind2d::Point,
                     words::DIRECTIONAL => LightKind2d::Directional,
+                    words::SPOT => LightKind2d::Spot,
                     other => return Err(anyhow!("unknown light2d kind '{other}'")),
                 };
                 set_light(
@@ -253,6 +276,10 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
                         radius: prop_f32(params, k::RANGE).max(0.0),
                         intensity: prop_f32(params, k::INTENSITY).max(0.0),
                         shadows: prop_bool(params, k::SHADOW_ENABLED),
+                        inner_angle_degrees: prop_f32(params, k::INNER_ANGLE_DEGREES).clamp(0.0, 179.0),
+                        outer_angle_degrees: prop_f32(params, k::OUTER_ANGLE_DEGREES).clamp(0.0, 179.0),
+                        source_radius: prop_f32(params, k::SOURCE_RADIUS).max(0.0),
+                        height: prop_f32(params, k::HEIGHT).max(0.0),
                     },
                 )
             }),
@@ -266,6 +293,7 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
                 let kind = match light.kind {
                     LightKind2d::Point => words::POINT,
                     LightKind2d::Directional => words::DIRECTIONAL,
+                    LightKind2d::Spot => words::SPOT,
                 };
                 let mut map = toml::map::Map::new();
                 map.insert(k::KIND.into(), toml::Value::String(kind.into()));
@@ -276,6 +304,19 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
                     toml::Value::Float(f64::from(light.intensity)),
                 );
                 map.insert(k::SHADOW_ENABLED.into(), toml::Value::Boolean(light.shadows));
+                map.insert(
+                    k::INNER_ANGLE_DEGREES.into(),
+                    toml::Value::Float(f64::from(light.inner_angle_degrees)),
+                );
+                map.insert(
+                    k::OUTER_ANGLE_DEGREES.into(),
+                    toml::Value::Float(f64::from(light.outer_angle_degrees)),
+                );
+                map.insert(
+                    k::SOURCE_RADIUS.into(),
+                    toml::Value::Float(f64::from(light.source_radius)),
+                );
+                map.insert(k::HEIGHT.into(), toml::Value::Float(f64::from(light.height)));
                 Some(toml::Value::Table(map))
             }),
         },

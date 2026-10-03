@@ -188,6 +188,7 @@ A gamepad button is named by its position, not its glyph, so `SOUTH` is the same
 | Back, Start, Guide | `GAMEPAD_BUTTON_BACK`, `_START`, `_GUIDE` | SDL3, Godot, GLFW |
 | Stick clicks | `GAMEPAD_BUTTON_LEFT_STICK`, `_RIGHT_STICK` | SDL3, Godot |
 | D-pad | `GAMEPAD_BUTTON_DPAD_UP`, `_DOWN`, `_LEFT`, `_RIGHT` | SDL3, Godot, GLFW, Unity, W3C |
+| Six-button pads' third column | `GAMEPAD_BUTTON_C`, `_Z` | gilrs, the printed labels |
 | Reserved: touchpad and paddles | `GAMEPAD_BUTTON_TOUCHPAD`, `_LEFT_PADDLE1`, `_RIGHT_PADDLE1` | SDL3 |
 | Stick axes | `GAMEPAD_AXIS_LEFT_X`, `_LEFT_Y`, `_RIGHT_X`, `_RIGHT_Y` | SDL3, Godot, GLFW |
 | Trigger axes | `GAMEPAD_AXIS_LEFT_TRIGGER`, `_RIGHT_TRIGGER` | SDL3, GLFW, Unity |
@@ -207,9 +208,15 @@ Sticks read -1 to 1 with up as +1, and triggers read 0 to 1. A reader's device w
 | An action's bindings | `bindings`, `set_bindings`, `reset_bindings` | Unity |
 | Connected pads | `gamepads`, `gamepad_name` | SDL3, Godot |
 | Pad motors, 0 to 1 and seconds | `gamepad_rumble` with `strong`, `weak`, `duration`, `left_trigger`, `right_trigger` | Godot, W3C, SDL3 |
+| Shaping a rumble | `delay`, `pulse`, `gap`, `attack`, `attack_level`, `fade`, `fade_level` | W3C, SDL haptics |
+| A rumble in the world | `position`, `min_distance`, `max_distance`, `falloff`, `rolloff`, `gamepad_set_listener`; falloffs `inverse`, `linear`, `exponential` | OpenAL, the `audio` module |
+| A rumble's end | `on_gamepad_rumble_finished` | gilrs |
+| Pressure and repeat | `gamepad_pressure`, `gamepad_repeated` | W3C, none |
+| Who a pad is | `gamepad_info` with `os_name`, `guid`, `vendor`, `product`, `mapping` (`sdl` or `driver`) | SDL3, Godot |
+| A pad's power | `gamepad_power` with `state` (`on_battery`, `no_battery`, `charging`, `charged`, `unknown`) and `level` | SDL3 |
 | Stop or check rumble | `gamepad_stop_rumble`, `gamepad_can_rumble` | Godot |
 | Device vibration, in seconds | `vibrate` | none |
-| Test input | `feed_key`, `feed_mouse_position`, `feed_mouse_button`, `feed_scroll`, `feed_touch`, `feed_action` | none |
+| Test input | `feed_key`, `feed_mouse_position`, `feed_mouse_button`, `feed_scroll`, `feed_touch`, `feed_action`, `feed_gamepad` | none |
 
 ### UI and themes
 
@@ -297,7 +304,7 @@ A theme key is the widget property it styles. `active` means held, as in CSS, an
 | Switches on unless turned off | `enabled`, `interactive` | Unity |
 | State tables | `hover`, `active`, `focus`, `disabled`, `checked` | CSS, Unity USS |
 | Screen-class tables | `touch`, `pointer`, `narrow`, `medium`, `wide`, `short`, `tall` | none |
-| Children's placement across the axis | `align_items` | CSS |
+| Children's placement across the axis | `align_items`, `align_self`: `start`, `center`, `end`, `stretch`, `baseline`; `ALIGN_STRETCH`, `ALIGN_BASELINE` | CSS |
 | A fold's child drawn in its header | `title_bar` | Godot |
 | The tab showing | `current_page` | none |
 | A colour picker's value | `picked_color` | none |
@@ -369,12 +376,14 @@ A light's switch is `shadow_enabled`, and a caster's is `cast_shadow`.
 | Reserved: exposure in EV | `exposure_ev` | Bevy |
 | Sky | `sky`, `sky_enabled`, `sky_intensity`, `sky_rotation_degrees` | Godot |
 | A probe image's turn | `image_rotation_degrees` | none |
-| Clear colour | `render.set_clear_color` | Godot, Bevy |
+| Clear colour | `render.set_background` | Godot, Bevy |
 | Mesh on a node | `mesh_instance`, key `mesh` | Godot |
 | Material on a node | node key `material` | Godot |
 | Geometry shadows | `cast_shadow`, reserved `receive_shadows` | Godot, Unreal, Unity |
-| Surface | `base_color`, `metallic`, `roughness`, `emission_color`, `emission_strength` | glTF, Bevy, Blender |
+| Surface | `base_color`, `metallic`, `roughness`, `emission_color`, `emission_strength`; texture slots `albedo`, `normal`, `metallic_roughness`, `occlusion`, `emissive`, `height` | glTF, Bevy, Blender |
 | A drawable's inputs | `material`, `texture`, `skeleton` | Godot |
+| A drawable's overlay | `wireframe_width`, `wireframe_sizing`, `wireframe_color`, `dot_size`, `dot_sizing`, `dot_color`, `draw_surface`, `depth_test` | kiss3d |
+| Stereo camera, above 0 | `eye_separation` | kiss3d |
 
 Every angle a scene stores in degrees carries `_degrees`; radians are the default.
 
@@ -382,22 +391,24 @@ Every angle a scene stores in degrees carries `_degrees`; radians are the defaul
 | --- | --- | --- |
 | Sprite image | `texture`, `centered`, `sheet`, `size` | Godot |
 | Sprite mirror | `flip_x`, `flip_y` | Unity, Bevy |
-| Sprite offset | `offset_pixels` | Godot |
-| Sprite sub-rectangle | `region_position`, `region_size` | Godot |
+| Sprite offset, in texture pixels | `offset` | Godot |
+| Sprite sub-rectangle | `region_origin`, `region_size` | Godot |
 | Sheet frame, an int | `frame` | Godot |
 | Pixels in one world unit | `pixels_per_unit` | Unity |
 | Text layout | `text_align`, `font_family`, `bitmap_font`, `max_width`, `line_height`, `letter_spacing`, `markup` | CSS, Godot |
-| Text look | `font_size`, `outline_size`, `outline_color`, `shadow_offset` | Godot |
+| Text look | `font_size`, `outline_size`, `outline_color`, `shadow_offset_x`, `shadow_offset_y`; `shadow_offset` in the immediate API | Godot |
+| Text shaping | `font_style` (`normal`, `italic`, `oblique`), `font_stretch`, `underline` (`single`, `double`), `strikethrough`, `overline`, `line_break`, `truncate`, `truncate_at`, `max_lines`, `hinting`, `tab_width` | CSS, cosmic-text |
 | 3D text | `billboard`, `double_sided`, `depth_test` | Godot |
-| 2D particles | `particles2d` | Godot |
-| Particles per lifetime | `amount` | Godot |
+| Particles | `particles2d`, `particles3d` with `billboard` | Godot |
+| Particles born per second | `rate` | Unity |
 | Emit direction and spread | `direction`, `spread_degrees` | Godot |
 | Emitter | `lifetime`, `emitting`, `one_shot`, `explosiveness`, `gravity`, `speed`, `color`, `color_end`, `texture` | Godot |
 | Tile cells | `cell`, `set_cell`, `cells`, `tile_data` | Godot |
 | Autotiling | `terrain`, `set_terrain` | Godot, Tiled |
-| Tile flips | `flips` | Tiled |
+| Tile flips | `flags` | Tiled |
 | Tile map | `tileset`, `origin`, `seed`, `pixels_per_unit` | Tiled, LDtk |
-| Boolean shapes | `operation`, with `subtraction` | Godot, Unreal |
+| Boolean shapes | `operation`, with `difference` | Godot, Unreal |
+| 2D lighting | `light2d` `source_radius` for the `post` word `gi` and its `gi_*` knobs; `normal_map`, `specular_strength`, `shininess`, `normal_strength` with light `height` | kiss3d, Godot |
 | One mesh drawn per instance | `multimesh` asset, `multimesh3d`, `multimesh2d`, `set_instance_transform`, `instance_count`, `visible_instance_count` | Godot |
 | 3D debug drawing | `draw_line_3d`, `draw_lines_3d`, `draw_text_3d`, `draw_box_3d`, `draw_sphere_3d`, `draw_capsule_3d` | Bevy |
 | 2D debug drawing, in radians | `draw_rect_2d`, `draw_circle_2d`, `draw_arc_2d`, `draw_polygon_2d`, `draw_polyline_2d`, `draw_texture_2d` | Godot |
@@ -436,14 +447,14 @@ A physics word follows Godot where the importer maps it, and otherwise the word 
 | Rounded edges | `edge_radius` | Unity, Box2D |
 | Shell around a shape | `collision_margin` | Godot |
 | Convex decomposition | `max_concavity`, `max_convex_hulls`, `resolution` | Godot |
-| Merge close vertices | `weld_vertices` | Unity, PhysX |
+| Mesh cleanup on a collider | `merge_vertices`, `drop_degenerate_triangles`, `drop_duplicate_triangles`, `drop_bad_topology` | parry |
 | Matter | `density`, `mass`, `friction`, `restitution`, `*_combine` | Box2D, Jolt, PhysX |
 | Collider switches | `sensor`, `one_way`, `one_way_axis`, `offset`, `offset_rotation`, `fix_internal_edges`, `oriented` | Box2D, Jolt, Godot |
 | Layers a body is on and hits, numbered 1 to 32 | `collision_layer`, `collision_mask` | Godot |
 | Layers the solver alone reads | `solver_layer`, `solver_mask` | Unreal |
 | Which body pairs collide | `contact_pairs` | Unity |
 | Contact events | `on_collision_enter`, `on_collision_exit` | Unity |
-| Force events | `on_contact_force`, `contact_force_threshold`, `on_joint_break`, `break_force` | Box2D, Unity |
+| Force events | `on_contact_force`, `contact_force_threshold`, `on_joint_break`, `break_force`, `break_torque` | Box2D, Unity |
 
 | Concept | Balaur name | Follows |
 | --- | --- | --- |
@@ -453,22 +464,26 @@ A physics word follows Godot where the importer maps it, and otherwise the word 
 | Rope and spring lengths | `max_length`, `rest_length` | Godot, Box2D |
 | Locked axes, flags `x`, `y`, `z` | `lock_translation`, `lock_rotation` | Godot |
 | Reduced-coordinate solver | `articulation` | Unity, PhysX |
-| Limits and motor | `limits`, `motor`: `off`, `velocity`, `position`; `motor_target`, `motor_max_force`, `motor_model`, `stiffness`, `damping`, `axis` | Jolt, Box2D |
+| Limits and motor, one record per free axis | `axes`: `axis` (`x`, `y`, `z`, `rotation_x`, `rotation_y`, `rotation_z`; 2D `rotation`), `limits`, `motor` (`off`, `velocity`, `position`), `motor_target`, `motor_target_velocity`, `motor_max_force`, `motor_model`, `stiffness`, `damping` | Jolt, Box2D |
+| Joint readers | `joint_force`, answering `force` and `torque`; `joint_state`, answering `status`, `angle`, `limit_impulses`, `motor_impulses`, `coordinates`, `velocities` | none |
 | Character contact shell | `safe_margin` | Godot |
 | Floor | `floor_snap_length`, `floor_max_angle`, `is_on_floor`, result `on_floor` | Godot |
 | Slide limit, in radians | `min_slide_angle` | rapier |
 | Steps | `step_height`, `step_min_width`, `step_on_dynamic` | Unity, Unreal, PhysX |
 | Up | `up_direction` | Godot |
-| Move by a displacement | `move_character`, with `slide`, `push_bodies`, `normal_nudge`, `lengths` | Unity |
+| Move by a displacement | `move_character`, with `slide`, `push_bodies`, `push_mass`, `normal_nudge`, and `safe_margin_lengths`, `step_height_lengths`, `step_min_width_lengths`, `floor_snap_lengths` (`absolute`, `relative`) | Unity |
+| What a sweep passes through | `ignore` (flags `static`, `kinematic`, `dynamic`, `sensors`, `solids`), `ignore_nodes` | rapier |
 | Wheel suspension | `suspension_stiffness`, `suspension_travel`, `suspension_max_force`, `suspension_direction`, `damping_compression`, `damping_relaxation` | Godot |
 | Wheel | `radius`, `rest_length`, `friction_slip`, `side_friction`, `axle`, `in_contact` | Godot, Unity |
 | Driving | `set_engine_force`, `set_brake`, `set_steering`, `vehicle_speed` | Godot |
-| Vehicle axes | `forward_axis`, `up_axis`: `x`, `y`, `z` | none |
-| Soft body particles | `particle_count`, `pinned_particles`, `self_collision` | Jolt, Unity, Godot |
+| Vehicle axes | `forward_axis`, `up_axis`: `x`, `y`, `z`, `-x`, `-y`, `-z` | none |
+| Soft body particles | `particle_count`, `pinned_particles`, `self_collision`, `orientation` (`auto`, `solid`, `shell`) | Jolt, Unity, Godot |
 | Soft body solver | `solver_iterations`, `solver_substeps` | Jolt |
 | Soft body shapes | `box`, `sphere`, `triangle_mesh`, `circle`, with `size` | Godot, Unity |
-| Soft body material | `mass`, `edge_*`, `bend_*`, `young_modulus`, `poisson_ratio`, `tear_*`, `shape_matching` | Box2D, Jolt, Godot |
+| Soft body material | `mass`, `edge_*`, `bend_*`, `young_modulus`, `poisson_ratio`, `tear_*`, `shape_matching` (`auto`, `on`, `off`) | Box2D, Jolt, Godot |
 | Ragdoll weight, 0 to 1 | `influence`, `set_ragdoll_influence` | Godot, Unreal |
+| Soft body parts | `regions`, `collision_mesh`, `collision_binding` (`nearest`, `particles`, `cells`) | rapier |
+| Pulling a body to a pose | `follow3d`, `follow2d`: `kind` (`pd`, `pid`), `target`, `*_gain`, `translation_axes`, `rotation_axes`, `follow_rotation`, `reset_follow` | rapier |
 | Ray | `origin`, `direction`, `max_distance`, `hit_from_inside` | Unity, PhysX, Godot |
 | Query filter | `collision_mask`, `hit_sensors`, `hit_solids`, `exclude`, `only` | Godot, Unity |
 | Casts | `raycast`, `raycast_all`, `shapecast`, `time_of_impact` | Unity, Box2D |

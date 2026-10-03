@@ -9,14 +9,21 @@
 
 use anyhow::{Result, anyhow, bail};
 use balaur_core::Engine;
+
+use crate::vocabulary::keys as k;
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 
 pub use crate::material_compile::{
-    Compiled, Field, FieldType, compile, compile_with, fields, pack,
+    Compiled, Field, FieldType, TRANSPARENT_ENTRY, compile, compile_on, compile_with, fields, pack,
+    transparent_variant,
 };
 
 pub(crate) use crate::material_check::{install_material_check, install_material_params};
+pub use crate::material_surface::{
+    AlphaMode, Builtin, Parallax, Surface, SurfaceSsr, TraceSurface, View, builtin_of,
+};
+use crate::material_surface::{parse_builtin, parse_surface};
 
 /// The asset type name, and what an `asset`-typed property asks for.
 pub const MATERIAL_ASSET_TYPE: &str = "material";
@@ -124,14 +131,19 @@ fn names_an_image(text: &str) -> bool {
 /// A parsed `material` asset.
 #[derive(Clone, Debug, Default)]
 pub struct Material3d {
-    /// Project-relative path to the WESL shader this material draws with.
+    /// Project-relative path to the WESL shader this material draws with;
+    /// empty draws with kiss3d's own material, set from [`Self::builtin`].
     pub shader: String,
     /// `@if` flags, in the order written; chosen when the shader is linked.
     pub features: Vec<(String, bool)>,
-    /// Values for the shader's `Params` fields, by name.
+    /// Values for the shader's `Params` fields, by name, and the images
+    /// bound to the texture slots.
     pub params: Vec<(String, Param)>,
     /// How a node drawing this rasterizes, from the `[surface]` table.
     pub surface: Surface,
+    /// What a material with no `shader` sets on kiss3d's own material;
+    /// `None` for one with a shader.
+    pub builtin: Option<Builtin>,
 }
 
 /// The feature a material names to be handed a colour per vertex.
@@ -195,7 +207,7 @@ impl Material3d {
 }
 
 /// What a definition table holds, for the generated reference.
-pub(crate) const MATERIAL_ASSET_DOC: &str = r##"A shader and its values. `shader` names a `.wesl` file, `[features]` sets its `@if` flags, `[params]` fills its `Params` struct by field name.
+pub(crate) const MATERIAL_ASSET_DOC: &str = r##"A shader and its values, or kiss3d's own surface and its values. `shader` names a `.wesl` file, `[features]` sets its `@if` flags, `[params]` fills its `Params` struct by field name. A material with no `shader` draws a 3D node with kiss3d's own material, and its `[params]` are that material's; on a 2D node it draws as if none were named.
 
 ```toml
 [[assets]]
@@ -208,7 +220,8 @@ params = { speed = 0.4, tint = "#3aa0ff" }
 
 # How a node drawing it rasterizes, rather than what colour it comes out.
 [surface]
-alpha = "blend"              # opaque, mask (a cutout), or blend
+alpha = "blend"              # opaque, mask (a cutout), blend, or premultiplied, a blend
+                             # whose colour carries its alpha (a shader draws it as blend)
 alpha_cutoff = 0.5           # what a mask drops a fragment below
 double_sided = true
 transmission = 0.9           # above zero is glass: it refracts the scene behind it
@@ -220,10 +233,47 @@ mirror = true                # show the scene reflected in this surface's own pl
 mirror_intensity = 1.0
 mirror_falloff = 0.0         # above zero fades the reflection as the surface turns away
 mirror_normal = [0.0, 1.0, 0.0]   # which way the plane faces in the node's own space
+mirror_resolution_scale = 1.0     # the mirror's picture against the viewport, 0.01 to 4
+mirror_render_layers = 3          # what the mirror draws, by render_layers; unset follows the camera
+trace_surface = "glass"      # what the path tracer takes it for: opaque, glass, metal or light
+ssr = true                   # take screen-space reflections, while the camera's post has `ssr`;
+                             # a node with a shader material writes none yet
+ssr_intensity = 1.0
+ssr_infinite_thickness = false    # count every depth crossing as a hit, for thin geometry
+ssr_distance_fade = true
+ssr_fresnel = false               # stronger at a glancing angle
+```
+
+With no `shader`, `[params]` takes kiss3d's surface values and the texture slots:
+
+```toml
+[[assets]]
+id = "lacquer"
+type = "material"
+# view = "normals"           # or "uvs": draw kiss3d's debug material instead of the surface
+
+[params]
+metallic = 0.0
+roughness = 0.5
+emission_color = "#000000"
+specular_tint = "#ffffff"
+reflectance = 0.5            # 0.5 is the 4% a common dielectric reflects head-on
+clearcoat = 1.0              # a thin glossy layer on top, as car paint has
+clearcoat_roughness = 0.05
+anisotropy = 0.0             # -1 to 1 stretches the highlight across or along the tangent
+anisotropy_rotation_degrees = 0.0
+subsurface = 0.0             # read by the path tracer only
+subsurface_radius = 0.0      # read by nothing yet
+normal = "art/panel_n.png"   # albedo, normal, metallic_roughness, occlusion, emissive, height
+height = "art/panel_h.png"
+parallax_scale = 0.1         # how deep the height map reads, in UV units
+parallax_layers = 16
+parallax_method = "relief"   # occlusion, or relief refined by parallax_relief_steps
+parallax_relief_steps = 8
 ```"##;
 
 /// `#rrggbb` or `#rrggbbaa` as four channels in 0..=1.
-fn hex_rgba(text: &str) -> Option<[f32; 4]> {
+pub(crate) fn hex_rgba(text: &str) -> Option<[f32; 4]> {
     let hex = text.strip_prefix('#')?;
     let channel = |i: usize| {
         u8::from_str_radix(hex.get(i..i + 2)?, 16)
@@ -237,7 +287,7 @@ fn hex_rgba(text: &str) -> Option<[f32; 4]> {
     }
 }
 
-fn parse_param(name: &str, value: &toml::Value) -> Result<Param> {
+pub(crate) fn parse_param(name: &str, value: &toml::Value) -> Result<Param> {
     if let Some(text) = value.as_str() {
         if names_an_image(text) {
             if !is_texture_slot(name) {
@@ -277,188 +327,31 @@ fn parse_param(name: &str, value: &toml::Value) -> Result<Param> {
     }
 }
 
-/// How a surface's alpha is read.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum AlphaMode {
-    /// Alpha is ignored and the surface is solid.
-    #[default]
-    Opaque,
-    /// A fragment fainter than `alpha_cutoff` is dropped rather than drawn:
-    /// a leaf's outline, cut from the rectangle it was painted on.
-    Mask,
-    /// The surface is drawn over what is behind it, in the pass that resolves
-    /// overlapping translucent surfaces without sorting them.
-    Blend,
-}
-
-/// What a material says about how its node draws, rather than what colour it
-/// comes out.
-///
-/// These decide which pass a node joins and how it is rasterized, so the
-/// backend reads them off the material and sets them on the node, while the
-/// shader reads the same numbers through its own `Params`. Everything here
-/// defaults to the surface a material that says nothing already had.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Surface {
-    pub alpha: AlphaMode,
-    /// The alpha a `mask` surface drops a fragment below.
-    pub alpha_cutoff: f32,
-    /// Whether the back of a triangle draws as well as the front.
-    pub double_sided: bool,
-    /// How much of the scene behind this surface comes through it. Above zero
-    /// makes it glass: it draws after the opaque scene is resolved, refracting
-    /// what that pass left.
-    pub transmission: f32,
-    /// How sharply light bends entering it. 1.0 does not bend at all; window
-    /// glass is 1.5, water 1.33, diamond 2.42.
-    pub ior: f32,
-    /// How far light travels inside it, in world units. Zero refracts without
-    /// tinting, which is what a single pane wants.
-    pub thickness: f32,
-    /// What is left of white light after `attenuation_distance` inside it.
-    pub attenuation_color: [f32; 4],
-    /// Zero takes nothing out however thick the glass.
-    pub attenuation_distance: f32,
-    /// Whether this surface shows the scene reflected in its own plane. The
-    /// reflection is rendered from a mirrored camera, so it is sharp where a
-    /// probe or the sky would only be approximate.
-    pub mirror: bool,
-    /// How much of the reflection shows, from nothing to all of it.
-    pub mirror_intensity: f32,
-    /// How fast the reflection fades as the surface turns away from its own
-    /// plane. Zero keeps it even, which is what a flat mirror wants; above
-    /// zero keeps a curved one reflecting only on the face that looks along
-    /// the plane's normal.
-    pub mirror_falloff: f32,
-    /// Which way the mirror's plane faces in the node's own space. A Balaur
-    /// `plane` lies in xz, so its face looks up.
-    pub mirror_normal: [f32; 3],
-}
-
-impl Default for Surface {
-    fn default() -> Self {
-        Self {
-            alpha: AlphaMode::Opaque,
-            alpha_cutoff: 0.5,
-            double_sided: false,
-            transmission: 0.0,
-            ior: 1.5,
-            thickness: 0.0,
-            attenuation_color: [1.0, 1.0, 1.0, 1.0],
-            attenuation_distance: 0.0,
-            mirror: false,
-            mirror_intensity: 1.0,
-            mirror_falloff: 0.0,
-            mirror_normal: [0.0, 1.0, 0.0],
-        }
-    }
-}
-
-impl Surface {
-    /// Whether a node drawing this joins the refraction pass rather than the
-    /// opaque one.
-    #[must_use]
-    pub const fn refracts(&self) -> bool {
-        self.transmission > 0.0
-    }
-}
-
-/// Every key a `[surface]` table may set, for the error a typo gets. A
-/// `[params]` key the shader does not read is refused, and this is the one
-/// table that would otherwise swallow one.
-const SURFACE_KEYS: &[&str] = &[
-    "alpha",
-    "alpha_cutoff",
-    "double_sided",
-    "transmission",
-    "ior",
-    "thickness",
-    "attenuation_color",
-    "attenuation_distance",
-    "mirror",
-    "mirror_intensity",
-    "mirror_falloff",
-    "mirror_normal",
-];
-
-/// Read a material's `[surface]` table.
-fn parse_surface(value: &toml::Value) -> Result<Surface> {
-    let base = Surface::default();
-    let Some(table) = value.get("surface") else {
-        return Ok(base);
-    };
-    if let Some(table) = table.as_table() {
-        for name in table.keys() {
-            if !SURFACE_KEYS.contains(&name.as_str()) {
-                bail!(
-                    "a material's `[surface]` has no `{name}`; it takes {}",
-                    SURFACE_KEYS.join(", ")
-                );
-            }
-        }
-    }
-    let num = |key: &str, default: f32| {
-        table
-            .get(key)
-            .and_then(balaur_core::components::as_f64)
-            .unwrap_or(f64::from(default)) as f32
-    };
-    Ok(Surface {
-        alpha: match table
-            .get("alpha")
-            .and_then(toml::Value::as_str)
-            .unwrap_or(crate::vocabulary::words::OPAQUE)
-        {
-            crate::vocabulary::words::OPAQUE => AlphaMode::Opaque,
-            crate::vocabulary::words::MASK => AlphaMode::Mask,
-            crate::vocabulary::words::BLEND => AlphaMode::Blend,
-            other => bail!(
-                "a material's `surface.alpha` is {}, not '{other}'",
-                crate::vocabulary::words::ALPHA_MODES.join(", ")
-            ),
-        },
-        alpha_cutoff: num("alpha_cutoff", base.alpha_cutoff).clamp(0.0, 1.0),
-        double_sided: table
-            .get("double_sided")
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(base.double_sided),
-        transmission: num("transmission", 0.0).clamp(0.0, 1.0),
-        ior: num("ior", base.ior).max(1.0),
-        thickness: num("thickness", 0.0).max(0.0),
-        attenuation_color: table
-            .get("attenuation_color")
-            .and_then(toml::Value::as_str)
-            .and_then(hex_rgba)
-            .unwrap_or(base.attenuation_color),
-        attenuation_distance: num("attenuation_distance", 0.0).max(0.0),
-        mirror: table
-            .get(crate::vocabulary::keys::MIRROR)
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(base.mirror),
-        mirror_intensity: num("mirror_intensity", base.mirror_intensity).clamp(0.0, 1.0),
-        mirror_falloff: num("mirror_falloff", 0.0).max(0.0),
-        mirror_normal: {
-            let axis = |i: usize, default: f32| {
-                table
-                    .get("mirror_normal")
-                    .and_then(toml::Value::as_array)
-                    .and_then(|a| a.get(i))
-                    .and_then(balaur_core::components::as_f64)
-                    .unwrap_or(f64::from(default)) as f32
-            };
-            let normal = base.mirror_normal;
-            [axis(0, normal[0]), axis(1, normal[1]), axis(2, normal[2])]
-        },
-    })
-}
-
-/// Parse a `material` definition table.
+/// Parse a `material` definition table. One with no `shader` is drawn by
+/// kiss3d's own material, and its `[params]` are that material's.
 pub fn parse(value: &toml::Value) -> Result<Material3d> {
     let shader = value
         .get("shader")
         .and_then(toml::Value::as_str)
-        .ok_or_else(|| anyhow!("a material names its shader: `shader = \"shaders/x.wesl\"`"))?
+        .unwrap_or_default()
         .to_string();
+    if shader.is_empty() {
+        if value.get("features").is_some() {
+            bail!("a material with no `shader` has no `@if` flags to set in `features`");
+        }
+        let mut params = Vec::new();
+        let builtin = parse_builtin(value, &mut params)?;
+        return Ok(Material3d {
+            shader,
+            features: Vec::new(),
+            params,
+            surface: parse_surface(value)?,
+            builtin: Some(builtin),
+        });
+    }
+    if value.get(k::VIEW).is_some() {
+        bail!("`view` draws kiss3d's own debug material, so a material naming a `shader` has none");
+    }
     let mut features = Vec::new();
     if let Some(table) = value.get("features").and_then(toml::Value::as_table) {
         for (name, on) in table {
@@ -479,18 +372,23 @@ pub fn parse(value: &toml::Value) -> Result<Material3d> {
         features,
         params,
         surface: parse_surface(value)?,
+        builtin: None,
     })
 }
 
 /// The `[surface]` a material reference declares, or the default for a node
-/// that names none or whose material does not load.
+/// whose material does not load. A node that names none blends, as kiss3d's
+/// own material does: a colour or tint below full alpha is see-through.
 ///
 /// Read every frame rather than cached on the node: the asset itself is
 /// cached, and a material a reload changed must reach the node it is on.
 #[must_use]
 pub fn surface_of(eng: &Engine, reference: &str) -> Surface {
     if reference.is_empty() {
-        return Surface::default();
+        return Surface {
+            alpha: AlphaMode::Blend,
+            ..Surface::default()
+        };
     }
     balaur_core::assets::load_typed::<Material3d>(eng, reference)
         .map_or_else(|_| Surface::default(), |material| material.surface)
@@ -512,6 +410,13 @@ pub(crate) fn set_material_2d(eng: &Engine, entity: Entity, reference: &str) -> 
         renderable.version += 1;
     }
     Ok(())
+}
+
+/// The `material` schema line a 2D drawable spells, so each says the same.
+pub(crate) fn material_line_2d() -> String {
+    format!(
+        r#"{{ type = "asset", asset = "{MATERIAL_ASSET_TYPE}", default = "", description = "The material this draws with; empty takes an inherited `material` component, else the built-in one" }}"#
+    )
 }
 
 /// Point `entity` at the `material` asset its 3D shape draws with.
@@ -633,9 +538,39 @@ mod tests {
     }
 
     #[test]
-    fn a_material_without_a_shader_is_an_error() {
+    fn a_material_without_a_shader_takes_the_built_in_values() {
+        let m = parse(&table(
+            "view = \"uvs\"\n[params]\nmetallic = 1.0\nclearcoat = 0.8\nemission_color = \"#ff0000\"\nparallax_method = \"relief\"\nnormal = \"art/n.png\"",
+        ))
+        .unwrap();
+        let builtin = m.builtin.clone().expect("a shader-less material");
+        assert!((builtin.metallic - 1.0).abs() < 1e-6);
+        assert!((builtin.clearcoat - 0.8).abs() < 1e-6);
+        let [r, g, _, _] = builtin.emission_color;
+        assert!((r - 1.0).abs() < 1e-6 && g.abs() < 1e-6);
+        assert_eq!(builtin.parallax_method, Parallax::Relief);
+        assert_eq!(builtin.view, Some(View::Uvs));
+        assert_eq!(m.textures()[1], Some("art/n.png"));
+    }
+
+    #[test]
+    fn a_shader_less_material_refuses_a_param_it_does_not_take() {
         let err = parse(&table("params = { speed = 1.0 }")).unwrap_err();
-        assert!(format!("{err}").contains("names its shader"), "{err}");
+        assert!(format!("{err}").contains("speed"), "{err}");
+        assert!(parse(&table("features = { lit = true }")).is_err());
+    }
+
+    #[test]
+    fn a_surface_reads_its_mirror_trace_and_reflection_keys() {
+        let m = parse(&table(
+            "[surface]\nalpha = \"premultiplied\"\ntrace_surface = \"glass\"\nssr = false\nmirror_resolution_scale = 0.5\nmirror_render_layers = 2",
+        ))
+        .unwrap();
+        assert_eq!(m.surface.alpha, AlphaMode::Premultiplied);
+        assert_eq!(m.surface.trace_surface, TraceSurface::Glass);
+        assert!(!m.surface.ssr.on);
+        assert!((m.surface.mirror_resolution_scale - 0.5).abs() < 1e-6);
+        assert_eq!(m.surface.mirror_render_layers, Some(2));
     }
 
     #[test]
@@ -931,6 +866,57 @@ struct Params { pulse: f32 }
         // The lighting loop came in with `shade`.
         assert!(compiled.wgsl.contains("ambient_count"), "{}", compiled.wgsl);
         assert_eq!(compiled.params.len(), 16);
+    }
+
+    #[test]
+    fn a_zero_attenuation_distance_takes_nothing_out_of_built_in_glass() {
+        let clear = Surface::default();
+        assert!(clear.absorbing_distance().is_infinite());
+        let tinted = Surface {
+            attenuation_distance: 2.0,
+            ..Surface::default()
+        };
+        assert!((tinted.absorbing_distance() - 2.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn a_3d_material_gains_an_entry_point_for_the_transparency_pass() {
+        let material = parse(&table(
+            "shader = \"shaders/rock.wesl\"\nparams = { pulse = 0.2 }",
+        ))
+        .unwrap();
+        let wgsl = transparent_variant(&material, PROJECT_SHADER_3D, &[], false)
+            .expect("a fs_main over VertexOutput wraps");
+        assert!(wgsl.contains("fn fs_main"), "{wgsl}");
+        assert!(wgsl.contains("fn fs_oit"), "{wgsl}");
+        assert_eq!(wgsl.matches("@fragment").count(), 2, "{wgsl}");
+        // The body is called, not copied, by both entry points.
+        assert!(wgsl.contains("fn balaur_fragment"), "{wgsl}");
+    }
+
+    #[test]
+    fn a_fragment_that_returns_a_struct_keeps_to_the_colour_pass() {
+        let source = r"
+import package::mesh::{VertexInput, VertexOutput, vertex, shade};
+
+struct Out { @location(0) color: vec4<f32> }
+
+@vertex fn vs_main(in: VertexInput) -> VertexOutput {
+    return vertex(in);
+}
+
+@fragment fn fs_main(in: VertexOutput) -> Out {
+    var out: Out;
+    out.color = shade(in);
+    return out;
+}
+";
+        let material = parse(&table("shader = \"shaders/rock.wesl\"")).unwrap();
+        assert!(
+            compile(&material, source).is_ok(),
+            "the shader itself links"
+        );
+        assert!(transparent_variant(&material, source, &[], false).is_none());
     }
 
     /// The physically based module links against the mesh contract, with the

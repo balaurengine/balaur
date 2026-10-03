@@ -92,7 +92,7 @@ Head = "Armature/Hips/Spine/Neck/Head"
 
 Files: `heightfields/`. Used by: `collider2d.heightfield`, `collider3d.heightfield`.
 
-A grid of heights for terrain: `rows` by `columns` samples in `heights`, row-major, one value per grid point.
+A grid of heights for terrain: `rows` by `columns` samples in `heights`, row-major, one value per grid point. `holes` lists cells with no ground, each as the `[row, column]` of its first corner; a 2D collider reads the heights as one line, and a hole there removes the segment starting at that point.
 
 ```toml
 [[assets]]
@@ -101,13 +101,14 @@ type = "heightfield"
 rows = 3
 columns = 3
 heights = [0, 0, 0, 0, -1, 0, 0, 0, 0]
+holes = [[1, 1]]
 ```
 
 ### `material`
 
-Files: `materials/`. Used by: `material.source`, `mesh.material`, `multimesh3d.material`, `shape2d.material`, `shape3d.material`, `sprite.material`, `tilemap.material`.
+Files: `materials/`. Used by: `boolean2d.material`, `boolean3d.material`, `material.source`, `mesh.material`, `multimesh2d.material`, `multimesh3d.material`, `particles2d.material`, `particles3d.material`, `polygon.material`, `shape2d.material`, `shape3d.material`, `sprite.material`, `text2d.material`, `text3d.material`, `tilemap.material`.
 
-A shader and its values. `shader` names a `.wesl` file, `[features]` sets its `@if` flags, `[params]` fills its `Params` struct by field name.
+A shader and its values, or kiss3d's own surface and its values. `shader` names a `.wesl` file, `[features]` sets its `@if` flags, `[params]` fills its `Params` struct by field name. A material with no `shader` draws a 3D node with kiss3d's own material, and its `[params]` are that material's; on a 2D node it draws as if none were named.
 
 ```toml
 [[assets]]
@@ -120,7 +121,8 @@ params = { speed = 0.4, tint = "#3aa0ff" }
 
 # How a node drawing it rasterizes, rather than what colour it comes out.
 [surface]
-alpha = "blend"              # opaque, mask (a cutout), or blend
+alpha = "blend"              # opaque, mask (a cutout), blend, or premultiplied, a blend
+                             # whose colour carries its alpha (a shader draws it as blend)
 alpha_cutoff = 0.5           # what a mask drops a fragment below
 double_sided = true
 transmission = 0.9           # above zero is glass: it refracts the scene behind it
@@ -132,11 +134,48 @@ mirror = true                # show the scene reflected in this surface's own pl
 mirror_intensity = 1.0
 mirror_falloff = 0.0         # above zero fades the reflection as the surface turns away
 mirror_normal = [0.0, 1.0, 0.0]   # which way the plane faces in the node's own space
+mirror_resolution_scale = 1.0     # the mirror's picture against the viewport, 0.01 to 4
+mirror_render_layers = 3          # what the mirror draws, by render_layers; unset follows the camera
+trace_surface = "glass"      # what the path tracer takes it for: opaque, glass, metal or light
+ssr = true                   # take screen-space reflections, while the camera's post has `ssr`;
+                             # a node with a shader material writes none yet
+ssr_intensity = 1.0
+ssr_infinite_thickness = false    # count every depth crossing as a hit, for thin geometry
+ssr_distance_fade = true
+ssr_fresnel = false               # stronger at a glancing angle
+```
+
+With no `shader`, `[params]` takes kiss3d's surface values and the texture slots:
+
+```toml
+[[assets]]
+id = "lacquer"
+type = "material"
+# view = "normals"           # or "uvs": draw kiss3d's debug material instead of the surface
+
+[params]
+metallic = 0.0
+roughness = 0.5
+emission_color = "#000000"
+specular_tint = "#ffffff"
+reflectance = 0.5            # 0.5 is the 4% a common dielectric reflects head-on
+clearcoat = 1.0              # a thin glossy layer on top, as car paint has
+clearcoat_roughness = 0.05
+anisotropy = 0.0             # -1 to 1 stretches the highlight across or along the tangent
+anisotropy_rotation_degrees = 0.0
+subsurface = 0.0             # read by the path tracer only
+subsurface_radius = 0.0      # read by nothing yet
+normal = "art/panel_n.png"   # albedo, normal, metallic_roughness, occlusion, emissive, height
+height = "art/panel_h.png"
+parallax_scale = 0.1         # how deep the height map reads, in UV units
+parallax_layers = 16
+parallax_method = "relief"   # occlusion, or relief refined by parallax_relief_steps
+parallax_relief_steps = 8
 ```
 
 ### `mesh`
 
-Files: `models/`. Used by: `collider2d.mesh`, `collider3d.mesh`, `mesh.source`, `occluder2d.mesh`, `polygon.mesh`, `shape2d.mesh`, `softbody2d.mesh`, `softbody3d.mesh`.
+Files: `models/`. Used by: `collider2d.mesh`, `collider3d.mesh`, `mesh.source`, `occluder2d.mesh`, `polygon.mesh`, `shape2d.mesh`, `softbody2d.collision_mesh`, `softbody2d.mesh`, `softbody3d.collision_mesh`, `softbody3d.mesh`.
 
 Geometry for `mesh` properties: a `source` file, a primitive `kind`, or its own `positions` and `indices`. `skin`, `colors` and `morphs` add bone weights, vertex tints and blend shapes.
 
@@ -155,6 +194,7 @@ tube_radius = 0.3
 kind = "text"
 text = "BALAUR"
 size = 1.0
+underline = "single"             # or "double"; strikethrough and overline take true
 # ...or, instead of any of those:
 positions = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
 indices = [[0, 1, 2]]
@@ -177,8 +217,15 @@ instances = [                      # a 2D instance writes [x, y] and turns about
   { position = [0.0, 0.0, 0.0] },
   { position = [0.9, 0.0, 0.0], rotation_euler = [0.0, 0.5, 0.0], scale = [1.0, 2.0, 1.0] },
   { position = [1.8, 0.0, 0.0], color = "#ff8080", custom = [1.0, 0.0, 0.0, 0.0] },
+  # a 3x3, columns first, in place of rotation_euler and scale: it keeps a shear
+  { position = [2.7, 0.0, 0.0], basis = [1.0, 0.0, 0.0, 0.5, 1.0, 0.0, 0.0, 0.0, 1.0] },
+  # the node's wireframe and vertex dots, for this instance alone; they draw
+  # only while the node's own wireframe_width and dot_size are above zero
+  { position = [3.6, 0.0, 0.0], wireframe_color = "#00ff00", wireframe_width = 2.0, dot_color = "#ffff00", dot_size = 4.0 },
 ]
 ```
+
+A 2D instance also takes `region_origin` and `region_size`, the rectangle of the texture it draws in pixels. `multimesh2d` draws through Balaur's own pipeline, which reads neither the rectangle nor the four overrides yet.
 
 ### `path2d`
 
@@ -230,7 +277,7 @@ rest_rotation = [0.0, 0.0, 0.0]   # euler radians
 
 ### `sprite_sheet`
 
-Files: `sheets/`. Used by: `sprite.sheet`.
+Files: `sheets/`. Used by: `particles2d.sheet`, `sprite.sheet`.
 
 An image cut into frames, for `sprite.sheet`. `texture` names the image; `frames` each hold a `rect` and `duration`; `[tags.<name>]` and `[slices.<name>]` add runs and regions.
 
@@ -292,7 +339,7 @@ blend_curve = [[0.0, 0.0], [0.3, 0.8], [1.0, 1.0]]   # [u, weight] points, in pl
 
 ### `texture`
 
-Files: `textures/`. Used by: `mesh.texture`, `multimesh2d.texture`, `multimesh3d.texture`, `particles.texture`, `polygon.texture`, `shape2d.texture`, `sprite.texture`.
+Files: `textures/`. Used by: `boolean2d.texture`, `boolean3d.texture`, `mesh.texture`, `multimesh2d.texture`, `multimesh3d.texture`, `particles2d.texture`, `particles3d.texture`, `polygon.texture`, `shape2d.normal_map`, `shape2d.texture`, `shape3d.texture`, `sprite.normal_map`, `sprite.texture`.
 
 An image and the import settings it is read with. A texture property takes a plain image path, which reads the image with its sidecar; this is for one use of a picture that reads it differently. Any key the image's sidecar takes may be written here, and wins over it.
 
@@ -486,12 +533,12 @@ straight. The UI draws a picture with the same filter and wrap.
 
 ### Font keys
 
-A project's own faces under `fonts/` read these; the UI applies them.
+A project's own faces under `fonts/` read these; the UI and world text both apply them.
 
 | Key | Values | Default | What it does |
 | --- | --- | --- | --- |
 | `family` | `ui`, `heading`, `mono`, `icon` | the file name's prefix | The family this face joins. |
-| `scale` | a number | `1` | How large its glyphs are drawn, without moving the layout. |
+| `scale` | a number | `1` | How large its glyphs are drawn and how far apart they sit. |
 | `y_offset` | a fraction of the size | `0` | A nudge down, for a face that sits high in its line. |
 | `hinting` | `true`, `false` | the UI's own | Snap outlines to the pixel grid. |
 | `antialias` | `true`, `false` | `true` | Off draws every glyph pixel fully on or off, for a pixel face. Labels, buttons and world text drawn at its own size show it; egui's own text and magnified world text stay smooth. |

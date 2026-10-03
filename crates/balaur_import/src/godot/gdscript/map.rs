@@ -10,7 +10,7 @@ pub(crate) mod events;
 mod globals;
 pub(crate) mod widgets;
 
-pub(crate) use events::engine_event;
+pub(crate) use events::{engine_event, is_collision_event};
 pub(crate) use globals::{global_constant, singleton_write};
 pub(crate) use widgets::{ON_CHANGE, ON_CLICK, ON_SUBMIT, widget_signal};
 
@@ -692,13 +692,15 @@ pub(crate) fn property(receiver: &str, field: &str) -> Option<String> {
     })
 }
 
-/// The widget component's key for a Godot button or range property: a
+/// The widget component's key for a Godot button, field or range property: a
 /// toggle's state is `checked` here.
 fn widget_key(field: &str) -> &str {
     match field {
         "button_pressed" | "pressed" => "checked",
         "min_value" => "min",
         "max_value" => "max",
+        "placeholder_text" => "placeholder",
+        "tooltip_text" => "tooltip",
         other => other,
     }
 }

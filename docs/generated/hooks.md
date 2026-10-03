@@ -44,6 +44,7 @@ ones it wants. What a component announces is listed with the component in
 <tr><td><code>on_orientation_changed(orientation)</code></td><td>The screen turned, to <code>portrait</code> or <code>landscape</code>; told to every script.</td></tr>
 <tr><td><code>on_gamepad_connected(pad)</code></td><td>A gamepad was plugged in, with the id <code>input</code> names it by; told to every script.</td></tr>
 <tr><td><code>on_gamepad_disconnected(pad)</code></td><td>A gamepad went away, with its id; told to every script.</td></tr>
+<tr><td><code>on_gamepad_rumble_finished(pad)</code></td><td>A pad&#x27;s rumble ran its course, with the pad&#x27;s id, the frame after; not sent for one stopped or replaced. Told to every script.</td></tr>
 <tr><td><code>on_setting_changed(change)</code></td><td>A script set a setting, <code>#{ path, value }</code>; every script hears it the next frame.</td></tr>
 <tr><td><code>on_locale_changed(locale)</code></td><td>The language changed; every script hears it the next frame.</td></tr>
 </tbody>

@@ -1,6 +1,8 @@
-> **Status:** not started. Written 2026-09-05 from the Godot parity
-> investigation: there is no particle in 3D, and the 2D emitter has a
-> point and a cone and nothing else to emit from.
+> **Status:** `particles3d` is built (2026-10-02): the 2D emitter's settings
+> with a `vec3` direction and gravity, drawn as camera-facing quads instanced
+> on one node. The rest is not started. Written 2026-09-05 from the Godot
+> parity investigation, when the 2D emitter had a point and a cone and
+> nothing else to emit from.
 
 # Plan: particles in 3D, and what both emitters lack
 

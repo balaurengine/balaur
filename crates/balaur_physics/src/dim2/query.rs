@@ -339,7 +339,11 @@ pub(crate) fn install_physics2d_shape_query_api(m: &mut dyn Bindings<Engine>) {
 ///
 /// Split from [`install_physics2d_volume_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_physics2d_pair_query_api(m: &mut dyn Bindings<Engine>) {
-    m.describe(&[]);
+    m.describe(&[
+        ("closest_points", &[], "(a: node, b: node)", "The nearest point on each of two nodes' colliders, as `#{ a, b }`; nothing when they overlap."),
+        ("time_of_impact", &[], "(a: node, b: node, opts: table)", "When two moving colliders would meet, given each one's velocity: `#{ velocity_a = [..], velocity_b = [..], max_time = 1.0 }`. Nothing when they never do."),
+    ]);
+    install_physics2d_sweep_api(m);
     m.function("distance", |eng: &Engine, (a, b): (NodeId, NodeId)| {
         with_pair(eng, a, b, |first, second| {
             crate::rapier2d::parry::query::distance(
@@ -364,6 +368,68 @@ pub(crate) fn install_physics2d_pair_query_api(m: &mut dyn Bindings<Engine>) {
             .map_err(|e| anyhow!("those two shapes cannot be tested: {e}"))
         })
     });
+}
+
+/// The two pair questions about where colliders nearly meet.
+///
+/// Split from [`install_physics2d_pair_query_api`] under `MAX_FN_LINES`.
+fn install_physics2d_sweep_api(m: &mut dyn Bindings<Engine>) {
+    m.function(
+        "closest_points",
+        |eng: &Engine, (a, b): (NodeId, NodeId)| {
+            with_pair(eng, a, b, |first, second| {
+                let found = crate::rapier2d::parry::query::closest_points(
+                    first.position(),
+                    first.shape(),
+                    second.position(),
+                    second.shape(),
+                    Real::MAX,
+                )
+                .map_err(|e| anyhow!("those two shapes have no closest points: {e}"))?;
+                Ok(match found {
+                    crate::rapier2d::parry::query::ClosestPoints::WithinMargin(p, q) => map([
+                        (k::A, Value::Vec2(scalar::a2(p))),
+                        (k::B, Value::Vec2(scalar::a2(q))),
+                    ]),
+                    _ => Value::Nil,
+                })
+            })
+        },
+    );
+    m.function(
+        "time_of_impact",
+        |eng: &Engine, (a, b, opts): (NodeId, NodeId, Value)| {
+            let opts = Opts(Some(&opts));
+            let (va, vb) = (
+                scalar::v2a(opts.vec2(k::VELOCITY_A, [0.0; 2])),
+                scalar::v2a(opts.vec2(k::VELOCITY_B, [0.0; 2])),
+            );
+            let options = ShapeCastOptions {
+                max_time_of_impact: scalar::real(opts.f32(k::MAX_TIME, 1.0)),
+                stop_at_penetration: opts.boolean(k::STOP_AT_PENETRATION, true),
+                ..ShapeCastOptions::default()
+            };
+            with_pair(eng, a, b, |first, second| {
+                let hit = crate::rapier2d::parry::query::cast_shapes(
+                    first.position(),
+                    va,
+                    first.shape(),
+                    second.position(),
+                    vb,
+                    second.shape(),
+                    options,
+                )
+                .map_err(|e| anyhow!("those two shapes cannot be swept: {e}"))?;
+                Ok(hit.map_or(Value::Nil, |hit| {
+                    map([
+                        (k::DISTANCE, Value::Num(f64::from(hit.time_of_impact))),
+                        (k::POINT, Value::Vec2(scalar::a2(hit.witness1))),
+                        (k::NORMAL, Value::Vec2(scalar::a2(hit.normal1))),
+                    ])
+                }))
+            })
+        },
+    );
 }
 
 fn with_pair(

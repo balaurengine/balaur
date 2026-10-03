@@ -247,7 +247,7 @@ fn show_cards(S, k, shown) {
             entry.get("note").unwrap_or(""), k.text_default));
     }
     util::fill(dock::CARDS_NODE, #{
-        options: items, visible: true, columns: 5, text: "",
+        options: items, visible: true, grid_columns: "repeat(5, 1fr)", text: "",
     });
     let picked = util::taken(dock::CARDS_NODE);
     for (n, item) in items.iter().enumerate() {

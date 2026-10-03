@@ -37,6 +37,9 @@ pub(crate) mod machine;
 pub(crate) mod material;
 pub(crate) mod multimesh;
 pub(crate) mod nodes;
+#[cfg(test)]
+#[path = "tests/particles.rs"]
+mod particles_tests;
 pub(crate) mod project;
 pub(crate) mod resource;
 pub(crate) mod scene;

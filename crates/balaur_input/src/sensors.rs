@@ -100,6 +100,7 @@ pub(crate) fn layouts(vendor: u16, product: u16) -> Option<&'static [Layout]> {
 }
 
 /// One report's worth of sensors.
+#[derive(Clone)]
 pub(crate) struct Reading {
     pub(crate) motion: Motion,
     pub(crate) touches: Vec<PadTouch>,
@@ -155,18 +156,21 @@ fn le16(report: &[u8], at: usize) -> i16 {
 }
 
 /// The desktop reader: hidraw on Linux, IOKit on macOS, hid.dll on Windows.
+///
+/// Nothing here runs on the tick. A manager thread sleeps until the set of
+/// pads changes, then opens each pad's HID device; one reader thread per
+/// device sleeps in a blocking read until the pad sends a report, and keeps
+/// the newest decoded reading. The tick copies those readings and never
+/// waits for them: a pad that stops answering stops its own reader, not the
+/// game.
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 mod reader {
-    use std::ffi::CString;
-
-    use hidapi::{HidApi, HidDevice};
+    use std::ffi::{CStr, CString};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::mpsc::{Receiver, Sender, channel};
+    use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
     use super::{Layout, Reading, decode, layouts};
-
-    /// Reports one pad may have queued between two frames before we stop
-    /// draining. A DualSense sends 1000 a second over USB, so a slow frame
-    /// leaves a few dozen and only the newest is worth decoding.
-    const MAX_DRAIN: usize = 64;
 
     /// The longest report any pad here sends (both Bluetooth layouts).
     const MAX_REPORT: usize = 78;
@@ -176,128 +180,379 @@ mod reader {
     /// Linux's hidraw reports no usage at all and leaves the pair zero.
     const GAMEPAD_USAGE: (u16, u16) = (0x01, 0x05);
 
-    #[derive(Default)]
-    pub(crate) struct Sensors {
-        api: Option<HidApi>,
-        /// The pads we last tried to open, in gilrs order, so the expensive
-        /// enumeration only reruns when the set on the desk changes.
-        attempted: Vec<(u16, u16)>,
-        opened: Vec<Opened>,
-        failed: bool,
+    /// A pad by model and by its place among pads of that model, the order
+    /// the snapshot lists them in: how twins are told apart.
+    type Key = (u16, u16, usize);
+
+    /// Where a manager finds and opens devices: hidapi in a build, a stand-in
+    /// in a test.
+    pub(crate) trait Hid {
+        /// The paths of every gamepad of this model, in the OS's order.
+        fn paths(&mut self, vendor: u16, product: u16) -> Vec<CString>;
+        fn open(&mut self, path: &CStr) -> Option<Box<dyn Device>>;
     }
 
-    struct Opened {
-        vendor: u16,
-        product: u16,
-        device: HidDevice,
-        layouts: &'static [Layout],
-        reading: Option<Reading>,
+    /// One opened device, read on a thread of its own.
+    pub(crate) trait Device: Send {
+        /// Sleep until the pad sends a report and copy it in; `None` once the
+        /// device is gone.
+        fn read(&mut self, buf: &mut [u8]) -> Option<usize>;
+    }
+
+    /// Between the threads and the tick.
+    #[derive(Default)]
+    struct Shared {
+        state: Mutex<State>,
+        /// Cleared when the tick's side drops, so every reader ends at its
+        /// next report rather than reading for an engine that is gone.
+        alive: AtomicBool,
+    }
+
+    #[derive(Default)]
+    struct State {
+        /// Which open device answers for which pad.
+        assigned: Vec<(Key, CString)>,
+        /// Every running reader's device and its newest reading.
+        readings: Vec<(CString, Option<Reading>)>,
+    }
+
+    fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+        mutex.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// The tick's side.
+    #[derive(Default)]
+    pub(crate) struct Sensors {
+        link: Option<Link>,
+        /// The pads last handed to the manager, so it only hears of a change.
+        wanted: Vec<(u16, u16)>,
+        /// The readings as last copied, kept when the threads are mid-write.
+        copied: Vec<(Key, Reading)>,
+    }
+
+    struct Link {
+        shared: Arc<Shared>,
+        wants: Sender<Vec<(u16, u16)>>,
+    }
+
+    impl Drop for Link {
+        fn drop(&mut self) {
+            self.shared.alive.store(false, Ordering::Release);
+        }
     }
 
     impl Sensors {
-        /// Take whatever each pad has sent since the last frame. `pads` is
-        /// every connected pad's vendor and product, in the order the snapshot
-        /// lists them.
+        /// Tell the manager which pads are connected, in the order the
+        /// snapshot lists them, and copy whatever they have sent.
         pub(crate) fn poll(&mut self, pads: &[(u16, u16)]) {
-            self.reopen(pads);
-            for open in &mut self.opened {
-                let mut buf = [0u8; MAX_REPORT];
-                let mut newest = None;
-                for _ in 0..MAX_DRAIN {
-                    match open.device.read_timeout(&mut buf, 0) {
-                        // Nothing queued, or the pad went away mid-frame; the
-                        // next `reopen` is what notices the second case.
-                        Ok(0) | Err(_) => break,
-                        Ok(read) => {
-                            if let Some(reading) = decode(&buf[..read], open.layouts) {
-                                newest = Some(reading);
-                            }
-                        }
-                    }
+            self.poll_with(pads, HidApiSource::open);
+        }
+
+        fn poll_with<H: Hid + 'static>(&mut self, pads: &[(u16, u16)], open: fn() -> Option<H>) {
+            let want: Vec<(u16, u16)> = pads
+                .iter()
+                .copied()
+                .filter(|(vendor, product)| layouts(*vendor, *product).is_some())
+                .collect();
+            if want != self.wanted {
+                self.wanted.clone_from(&want);
+                if self.link.is_some() || !want.is_empty() {
+                    let link = self.link.get_or_insert_with(|| Link::start(open));
+                    let _ = link.wants.send(want);
                 }
-                if newest.is_some() {
-                    open.reading = newest;
-                }
+            }
+            let Some(link) = &self.link else {
+                return;
+            };
+            if let Ok(state) = link.shared.state.try_lock() {
+                self.copied = state
+                    .assigned
+                    .iter()
+                    .filter_map(|(key, path)| {
+                        let (_, reading) = state.readings.iter().find(|(open, _)| open == path)?;
+                        Some((*key, reading.clone()?))
+                    })
+                    .collect();
             }
         }
 
         /// The `nth` pad with this vendor and product, matching the snapshot's
         /// nth such pad. Two identical controllers stay told apart by order.
         pub(crate) fn reading(&self, vendor: u16, product: u16, nth: usize) -> Option<&Reading> {
-            self.opened
+            self.copied
                 .iter()
-                .filter(|open| open.vendor == vendor && open.product == product)
-                .nth(nth)
-                .and_then(|open| open.reading.as_ref())
+                .find(|(key, _)| *key == (vendor, product, nth))
+                .map(|(_, reading)| reading)
+        }
+    }
+
+    impl Link {
+        fn start<H: Hid + 'static>(open: fn() -> Option<H>) -> Self {
+            let shared = Arc::new(Shared::default());
+            shared.alive.store(true, Ordering::Release);
+            // Only the pad set goes in, and the poll that sends it is skipped
+            // while a recording plays, so no device is opened during a replay.
+            let (wants, receiver) = channel();
+            let theirs = Arc::clone(&shared);
+            let spawned = std::thread::Builder::new()
+                .name("balaur-pad-sensors".into())
+                .spawn(move || {
+                    if let Some(hid) = open() {
+                        manage(hid, &receiver, &theirs);
+                    }
+                });
+            if let Err(err) = spawned {
+                tracing::warn!("pad motion and touchpad disabled: {err}");
+            }
+            Self { shared, wants }
+        }
+    }
+
+    /// Sleep until the pads change, then open whatever is newly wanted. Ends
+    /// when the tick's side drops its sender.
+    fn manage(mut hid: impl Hid, wants: &Receiver<Vec<(u16, u16)>>, shared: &Arc<Shared>) {
+        while let Ok(mut want) = wants.recv() {
+            // Only the newest set matters when several queued up.
+            while let Ok(newer) = wants.try_recv() {
+                want = newer;
+            }
+            assign(&mut hid, &want, shared);
+        }
+    }
+
+    fn assign(hid: &mut impl Hid, want: &[(u16, u16)], shared: &Arc<Shared>) {
+        let mut assigned = Vec::new();
+        for (i, (vendor, product)) in want.iter().enumerate() {
+            let nth = want[..i].iter().filter(|pair| **pair == want[i]).count();
+            let Some(layouts) = layouts(*vendor, *product) else {
+                continue;
+            };
+            let paths = hid.paths(*vendor, *product);
+            let Some(path) = paths.get(nth) else {
+                continue;
+            };
+            let reading = lock(&shared.state)
+                .readings
+                .iter()
+                .any(|(open, _)| open == path);
+            if !reading {
+                // A pad the OS will not hand over (no hidraw rule on Linux)
+                // simply reports no motion, as an absent one does.
+                let Some(device) = hid.open(path) else {
+                    tracing::debug!(vendor, product, "pad sensors: could not open");
+                    continue;
+                };
+                lock(&shared.state).readings.push((path.clone(), None));
+                spawn_reader(device, path.clone(), layouts, shared);
+            }
+            assigned.push(((*vendor, *product, nth), path.clone()));
+        }
+        lock(&shared.state).assigned = assigned;
+    }
+
+    fn spawn_reader(
+        device: Box<dyn Device>,
+        path: CString,
+        layouts: &'static [Layout],
+        shared: &Arc<Shared>,
+    ) {
+        let theirs = Arc::clone(shared);
+        let gone = path.clone();
+        let spawned = std::thread::Builder::new()
+            .name("balaur-pad-sensor".into())
+            .spawn(move || read(device, &path, layouts, &theirs));
+        if let Err(err) = spawned {
+            tracing::debug!("pad sensors: {err}");
+            lock(&shared.state)
+                .readings
+                .retain(|(open, _)| *open != gone);
+        }
+    }
+
+    /// Keep the newest reading until the device goes away or the engine does.
+    fn read(mut device: Box<dyn Device>, path: &CStr, layouts: &'static [Layout], shared: &Shared) {
+        let mut buf = [0u8; MAX_REPORT];
+        while shared.alive.load(Ordering::Acquire) {
+            let Some(len) = device.read(&mut buf) else {
+                break;
+            };
+            if let Some(reading) = decode(&buf[..len], layouts) {
+                let mut state = lock(&shared.state);
+                if let Some((_, newest)) =
+                    state.readings.iter_mut().find(|(open, _)| **open == *path)
+                {
+                    *newest = Some(reading);
+                }
+            }
+        }
+        lock(&shared.state)
+            .readings
+            .retain(|(open, _)| **open != *path);
+    }
+
+    /// hidapi, opened on the manager thread: enumerating is a device call.
+    struct HidApiSource(hidapi::HidApi);
+
+    impl HidApiSource {
+        fn open() -> Option<Self> {
+            match hidapi::HidApi::new() {
+                Ok(api) => Some(Self(api)),
+                Err(err) => {
+                    tracing::warn!("pad motion and touchpad disabled: {err}");
+                    None
+                }
+            }
+        }
+    }
+
+    impl Hid for HidApiSource {
+        fn paths(&mut self, vendor: u16, product: u16) -> Vec<CString> {
+            if let Err(err) = self.0.refresh_devices() {
+                tracing::debug!("pad sensors: {err}");
+                return Vec::new();
+            }
+            self.0
+                .device_list()
+                .filter(|dev| dev.vendor_id() == vendor && dev.product_id() == product)
+                .filter(|dev| {
+                    dev.usage_page() == 0 || (dev.usage_page(), dev.usage()) == GAMEPAD_USAGE
+                })
+                .map(|dev| dev.path().to_owned())
+                .collect()
         }
 
-        fn reopen(&mut self, pads: &[(u16, u16)]) {
-            let want: Vec<(u16, u16)> = pads
-                .iter()
-                .copied()
-                .filter(|(vendor, product)| layouts(*vendor, *product).is_some())
-                .collect();
-            if want == self.attempted {
-                return;
-            }
-            self.attempted.clone_from(&want);
-            self.opened.clear();
-            if want.is_empty() || self.failed {
-                return;
-            }
-            // One context for the process, opened on the first pad that needs
-            // it and never retried once it has failed.
-            if self.api.is_none() {
-                match HidApi::new() {
-                    Ok(api) => self.api = Some(api),
-                    Err(err) => {
-                        tracing::warn!("pad motion and touchpad disabled: {err}");
-                        self.failed = true;
-                    }
+        fn open(&mut self, path: &CStr) -> Option<Box<dyn Device>> {
+            match self.0.open_path(path) {
+                Ok(device) => Some(Box::new(HidApiDevice(device))),
+                Err(err) => {
+                    tracing::debug!("pad sensors: {err}");
+                    None
                 }
             }
-            let Some(api) = self.api.as_mut() else {
-                return;
-            };
-            if let Err(err) = api.refresh_devices() {
-                tracing::debug!("pad sensors: {err}");
-                return;
+        }
+    }
+
+    struct HidApiDevice(hidapi::HidDevice);
+
+    impl Device for HidApiDevice {
+        fn read(&mut self, buf: &mut [u8]) -> Option<usize> {
+            self.0.read(buf).ok()
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use std::ffi::{CStr, CString};
+        use std::sync::Mutex;
+        use std::sync::mpsc::{Receiver, Sender, channel};
+        use std::time::{Duration, Instant};
+
+        use super::{Device, Hid, Sensors};
+        use crate::sensors::SONY;
+
+        const DUALSENSE: u16 = 0x0CE6;
+
+        /// A DualSense USB report with the y acceleration at `g`.
+        fn report(g: i16) -> Vec<u8> {
+            let mut buf = vec![0u8; 64];
+            buf[0] = 0x01;
+            buf[24..26].copy_from_slice(&(g * 8192).to_le_bytes());
+            buf
+        }
+
+        /// Reports the test sends; with its sender gone the device is unplugged.
+        struct Fed(Receiver<Vec<u8>>);
+
+        impl Device for Fed {
+            fn read(&mut self, buf: &mut [u8]) -> Option<usize> {
+                let report = self.0.recv().ok()?;
+                buf[..report.len()].copy_from_slice(&report);
+                Some(report.len())
+            }
+        }
+
+        /// Hands out the devices queued for it, under paths `0`, `1`, ...
+        #[derive(Default)]
+        struct Desk {
+            devices: Vec<Option<Fed>>,
+        }
+
+        static DESK: Mutex<Vec<Receiver<Vec<u8>>>> = Mutex::new(Vec::new());
+
+        impl Hid for Desk {
+            fn paths(&mut self, vendor: u16, product: u16) -> Vec<CString> {
+                for receiver in DESK.lock().unwrap().drain(..) {
+                    self.devices.push(Some(Fed(receiver)));
+                }
+                if (vendor, product) != (SONY, DUALSENSE) {
+                    return Vec::new();
+                }
+                (0..self.devices.len())
+                    .map(|i| CString::new(i.to_string()).unwrap())
+                    .collect()
             }
 
-            let mut opened = Vec::new();
-            for (i, (vendor, product)) in want.iter().enumerate() {
-                let nth = want[..i].iter().filter(|pair| **pair == want[i]).count();
-                let Some(layouts) = layouts(*vendor, *product) else {
-                    continue;
-                };
-                let paths: Vec<CString> = api
-                    .device_list()
-                    .filter(|dev| dev.vendor_id() == *vendor && dev.product_id() == *product)
-                    .filter(|dev| {
-                        dev.usage_page() == 0 || (dev.usage_page(), dev.usage()) == GAMEPAD_USAGE
-                    })
-                    .map(|dev| dev.path().to_owned())
-                    .collect();
-                let Some(path) = paths.get(nth) else {
-                    continue;
-                };
-                match api.open_path(path) {
-                    Ok(device) => {
-                        let _ = device.set_blocking_mode(false);
-                        opened.push(Opened {
-                            vendor: *vendor,
-                            product: *product,
-                            device,
-                            layouts,
-                            reading: None,
-                        });
-                    }
-                    // A pad the OS will not hand over (no hidraw rule on
-                    // Linux) simply reports no motion, as an absent one does.
-                    Err(err) => tracing::debug!(vendor, product, "pad sensors: {err}"),
-                }
+            fn open(&mut self, path: &CStr) -> Option<Box<dyn Device>> {
+                let i: usize = path.to_str().ok()?.parse().ok()?;
+                let device = self.devices.get_mut(i)?.take()?;
+                Some(Box::new(device))
             }
-            self.opened = opened;
+        }
+
+        fn plug_in() -> Sender<Vec<u8>> {
+            let (sender, receiver) = channel();
+            DESK.lock().unwrap().push(receiver);
+            sender
+        }
+
+        #[allow(clippy::disallowed_methods, reason = "a test's deadline")]
+        fn poll_until(
+            sensors: &mut Sensors,
+            pads: &[(u16, u16)],
+            ready: impl Fn(&Sensors) -> bool,
+        ) {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            loop {
+                sensors.poll_with(pads, || Some(Desk::default()));
+                if ready(sensors) {
+                    return;
+                }
+                assert!(Instant::now() < deadline, "the reader never delivered");
+                std::thread::sleep(Duration::from_millis(1));
+            }
+        }
+
+        /// The tests share `DESK`, so they run as one.
+        #[test]
+        fn a_reader_delivers_the_newest_report_and_ends_with_its_device() {
+            let first = plug_in();
+            let second = plug_in();
+            let pads = [(SONY, DUALSENSE), (SONY, DUALSENSE)];
+            let mut sensors = Sensors::default();
+            let accel = |s: &Sensors, nth| {
+                s.reading(SONY, DUALSENSE, nth)
+                    .map(|r| r.motion.acceleration[1])
+            };
+
+            first.send(report(1)).unwrap();
+            second.send(report(-1)).unwrap();
+            poll_until(&mut sensors, &pads, |s| {
+                accel(s, 0) == Some(1.0) && accel(s, 1) == Some(-1.0)
+            });
+
+            first.send(report(0)).unwrap();
+            poll_until(&mut sensors, &pads, |s| accel(s, 0) == Some(0.0));
+            assert_eq!(accel(&sensors, 1), Some(-1.0), "twins kept apart by order");
+
+            drop(first);
+            poll_until(&mut sensors, &pads, |s| {
+                s.reading(SONY, DUALSENSE, 0).is_none()
+            });
+            assert_eq!(
+                accel(&sensors, 1),
+                Some(-1.0),
+                "unplugging one leaves the other"
+            );
         }
     }
 }

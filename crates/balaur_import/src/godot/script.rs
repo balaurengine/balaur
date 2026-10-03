@@ -445,6 +445,7 @@ fn context(
     context.defaulted = classes.defaulted.clone();
     context.project_members.clone_from(&classes.members);
     context.autoload_nodes.clone_from(&classes.autoload_nodes);
+    collision::adopt(&mut context, classes);
     context.inner = classes
         .inner
         .iter()
@@ -973,6 +974,7 @@ fn write_prologue(
             "    let {bound} = (script::require(\"gd.rn\").int)({bound});"
         );
     }
+    collision::prologue(out, function, context);
     if static_init && function.name != "_static_init" {
         let _ = writeln!(out, "    {STATIC_INIT}();");
     }
@@ -1016,7 +1018,7 @@ fn write_forwarders(
         let arity = context.arity.get(handler).copied().unwrap_or(1);
         let args = match arity {
             0 => String::new(),
-            1 => ", payload".to_string(),
+            1 => collision::payload(signal),
             n => (0..n).fold(String::new(), |mut all, i| {
                 let _ = write!(all, ", payload[{i}]");
                 all
@@ -1175,6 +1177,7 @@ fn push_comment(out: &mut String, line: &str, indent: &str) {
 }
 
 mod class;
+mod collision;
 mod constants;
 mod draw;
 mod inner;

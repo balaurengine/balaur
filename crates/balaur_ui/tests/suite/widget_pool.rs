@@ -175,7 +175,7 @@ fn a_control_keeps_nothing_the_last_one_in_its_slot_stated() {
          pub fn update(this, dt) {\n\
              this.frames += 1.0;\n\
              let control = if this.frames < 3.0 {\n\
-                 #{ kind: \"number_field\", grow: 1, value: 0.5, min: 0.01, max: 2.0, placeholder: \"px\", on: |v| { this.edits += 1.0; } }\n\
+                 #{ kind: \"number_field\", grow: 1, value: 0.5, min: 0.01, max: 2.0, prefix: \"px\", on: |v| { this.edits += 1.0; } }\n\
              } else {\n\
                  #{ kind: \"number_field\", grow: 1, value: -24.0, on: |v| { this.edits += 1.0; } }\n\
              };\n\
@@ -204,7 +204,7 @@ fn a_control_keeps_nothing_the_last_one_in_its_slot_stated() {
         "the range went with the control that stated it"
     );
     assert_eq!(
-        prop(&app, field[0], "placeholder"),
+        prop(&app, field[0], "prefix"),
         Some(toml::Value::String(String::new())),
         "and so did its letter"
     );

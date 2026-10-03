@@ -6,32 +6,19 @@ use balaur_input::InputSnapshot;
 use kiss3d::event::{Action, ImeEvent, TouchAction, WindowEvent};
 use kiss3d::window::Window;
 
-/// What arrived this frame, as the UI's pacing reads it: a pointer that only
-/// moved is the one kind of event that may leave the shell as it was.
-#[derive(Clone, Copy, Default)]
-pub(crate) struct Seen {
-    pub(crate) any: bool,
-    /// Anything but cursor movement: a key, a button, a wheel, a touch, a drop.
-    pub(crate) beyond_motion: bool,
-}
-
 /// Feed this frame's OS events into the input resource (if the input plugin
-/// is installed). Answers what arrived; without the plugin nothing counts
-/// them, so it answers as though everything did.
-pub(crate) fn pump_input(app: &App, window: &Window) -> Seen {
+/// is installed). Answers whether any arrived; without the plugin nothing
+/// counts them, so it answers as though one did.
+pub(crate) fn pump_input(app: &App, window: &Window) -> bool {
     let Some(input) = app.engine.try_resource::<InputSnapshot>() else {
-        return Seen {
-            any: true,
-            beyond_motion: true,
-        };
+        return true;
     };
     let mut input = input.borrow_mut();
     input.begin_frame();
-    let mut seen = Seen::default();
+    let mut seen = false;
     let mut closing = false;
     for event in window.events().iter() {
-        seen.any = true;
-        seen.beyond_motion |= !matches!(event.value, WindowEvent::CursorPos(_, _, _));
+        seen = true;
         if matches!(
             event.value,
             WindowEvent::Key(_, Action::Press, _)
@@ -98,8 +85,7 @@ pub(crate) fn pump_input(app: &App, window: &Window) -> Seen {
     // kiss3d has no such event on mobile.
     #[cfg(not(mobile))]
     for path in window.dropped_files() {
-        seen.any = true;
-        seen.beyond_motion = true;
+        seen = true;
         input.file_drop_event(path.to_string_lossy().into_owned());
     }
     // A chance to save, not a veto, and outside the borrow above: a handler
@@ -122,184 +108,6 @@ fn key_code(key: kiss3d::event::Key) -> Option<&'static str> {
         .or_else(|| control_code(key))
         .or_else(|| system_code(key))
 }
-
-/// The kiss3d key a `balaur_input` name stands for, for a setting kiss3d
-/// reads itself, such as a camera's reset key.
-pub(crate) fn key_named(name: &str) -> Option<kiss3d::event::Key> {
-    EVERY_KEY
-        .iter()
-        .copied()
-        .find(|key| key_code(*key) == Some(name))
-}
-
-/// Every key kiss3d declares, in its own order.
-const EVERY_KEY: [kiss3d::event::Key; 162] = {
-    use kiss3d::event::Key as K;
-    [
-        K::Key1,
-        K::Key2,
-        K::Key3,
-        K::Key4,
-        K::Key5,
-        K::Key6,
-        K::Key7,
-        K::Key8,
-        K::Key9,
-        K::Key0,
-        K::A,
-        K::B,
-        K::C,
-        K::D,
-        K::E,
-        K::F,
-        K::G,
-        K::H,
-        K::I,
-        K::J,
-        K::K,
-        K::L,
-        K::M,
-        K::N,
-        K::O,
-        K::P,
-        K::Q,
-        K::R,
-        K::S,
-        K::T,
-        K::U,
-        K::V,
-        K::W,
-        K::X,
-        K::Y,
-        K::Z,
-        K::Escape,
-        K::F1,
-        K::F2,
-        K::F3,
-        K::F4,
-        K::F5,
-        K::F6,
-        K::F7,
-        K::F8,
-        K::F9,
-        K::F10,
-        K::F11,
-        K::F12,
-        K::F13,
-        K::F14,
-        K::F15,
-        K::F16,
-        K::F17,
-        K::F18,
-        K::F19,
-        K::F20,
-        K::F21,
-        K::F22,
-        K::F23,
-        K::F24,
-        K::Snapshot,
-        K::Scroll,
-        K::Pause,
-        K::Insert,
-        K::Home,
-        K::Delete,
-        K::End,
-        K::PageDown,
-        K::PageUp,
-        K::Left,
-        K::Up,
-        K::Right,
-        K::Down,
-        K::Back,
-        K::Return,
-        K::Space,
-        K::Compose,
-        K::Caret,
-        K::Numlock,
-        K::Numpad0,
-        K::Numpad1,
-        K::Numpad2,
-        K::Numpad3,
-        K::Numpad4,
-        K::Numpad5,
-        K::Numpad6,
-        K::Numpad7,
-        K::Numpad8,
-        K::Numpad9,
-        K::AbntC1,
-        K::AbntC2,
-        K::Add,
-        K::Apostrophe,
-        K::Apps,
-        K::At,
-        K::Ax,
-        K::Backslash,
-        K::Calculator,
-        K::Capital,
-        K::Colon,
-        K::Comma,
-        K::Convert,
-        K::Decimal,
-        K::Divide,
-        K::Equals,
-        K::Grave,
-        K::Kana,
-        K::Kanji,
-        K::LAlt,
-        K::LBracket,
-        K::LControl,
-        K::LShift,
-        K::LWin,
-        K::Mail,
-        K::MediaSelect,
-        K::MediaStop,
-        K::Minus,
-        K::Multiply,
-        K::Mute,
-        K::MyComputer,
-        K::NavigateForward,
-        K::NavigateBackward,
-        K::NextTrack,
-        K::NoConvert,
-        K::NumpadComma,
-        K::NumpadEnter,
-        K::NumpadEquals,
-        K::OEM102,
-        K::Period,
-        K::PlayPause,
-        K::Power,
-        K::PrevTrack,
-        K::RAlt,
-        K::RBracket,
-        K::RControl,
-        K::RShift,
-        K::RWin,
-        K::Semicolon,
-        K::Slash,
-        K::Sleep,
-        K::Stop,
-        K::Subtract,
-        K::Sysrq,
-        K::Tab,
-        K::Underline,
-        K::Unlabeled,
-        K::VolumeDown,
-        K::VolumeUp,
-        K::Wake,
-        K::WebBack,
-        K::WebFavorites,
-        K::WebForward,
-        K::WebHome,
-        K::WebRefresh,
-        K::WebSearch,
-        K::WebStop,
-        K::Yen,
-        K::Copy,
-        K::Paste,
-        K::Cut,
-        K::Unknown,
-    ]
-};
 
 /// Letters, digits, punctuation and the space bar.
 fn typing_code(key: kiss3d::event::Key) -> Option<&'static str> {

@@ -239,6 +239,7 @@ class Context:
     glued: set[str]         # component keys, script module names, dependency crates
     det_aliases: set[str]   # the sanctioned Det* type aliases
     plugin_crates: set[str] # crates with an `impl Plugin`, where install/register mean something
+    foreign: set[str]       # CamelCase names a dependency declares, named through its path
 
 
 def scan_context(files: list[Path]) -> Context:
@@ -264,10 +265,22 @@ def scan_context(files: list[Path]) -> Context:
             plugin_crates.add(crate_of(path))
     # A dependency's own spelling is not ours to fix: `rapier2d` is glued
     # because the crate is called that.
+    dependencies = set()
     for manifest in list(ROOT.glob("Cargo.toml")) + sorted((ROOT / "crates").glob("*/Cargo.toml")):
         for name in re.findall(r"^([A-Za-z0-9_-]+)\s*=", manifest.read_text(), re.M):
             glued.add(name.replace("-", "_"))
-    return Context(glued, det_aliases, plugin_crates)
+            if not name.startswith("balaur"):
+                dependencies.add(name.replace("-", "_"))
+    # The same holds for a type: `FirstPersonCamera3dStereo` is kiss3d's name,
+    # taken wherever a file reaches it through the crate's own path.
+    foreign = set()
+    crates = "|".join(sorted(dependencies))
+    for path in files:
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for listed in re.findall(rf"\b(?:{crates})::(?:\w+::)*\{{([^}}]*)\}}", text):
+            foreign.update(re.findall(r"\b[A-Z][A-Za-z0-9]*", listed))
+        foreign.update(re.findall(rf"\b(?:{crates})::(?:\w+::)*([A-Z][A-Za-z0-9]*)", text))
+    return Context(glued, det_aliases, plugin_crates, foreign)
 
 
 def crate_of(path: Path) -> str:
@@ -308,7 +321,7 @@ def dimension_rules(rel, i, line, ctx) -> list[Finding]:
             out.append(Finding(rel, i, "det-prefix-misuse",
                                f"`{ident}`: Det marks a fixed-iteration-order collection in "
                                "collections.rs and nothing else (N3)", "ERROR"))
-        if re.fullmatch(r"[A-Z][A-Za-z0-9]*", ident):
+        if re.fullmatch(r"[A-Z][A-Za-z0-9]*", ident) and ident not in ctx.foreign:
             # SCREAMING_SNAKE has no lowercase to be consistent with, and never
             # matches the CamelCase test above (N4 exempts it explicitly).
             for dim in ("2d", "3d"):
@@ -809,7 +822,7 @@ THEME_STATES = {"hover", "active", "focus", "disabled", "checked", "touch", "poi
                 "narrow", "medium", "wide", "short", "tall"}
 # Theme keys with no widget property of the same name: each styles a part
 # of a widget that has no property of its own.
-THEME_ONLY = {"icon_fill", "padding_y", "stroke_width", "arrow"}
+THEME_ONLY = {"icon_fill", "padding_x", "padding_y", "stroke_width", "arrow"}
 
 
 def theme_files() -> list[Path]:

@@ -17,4 +17,4 @@ tint = "#d8d2c8"
 metallic = 0.0
 roughness = 0.45
 reflectance = 0.5
-emissive = 0.0
+emission_strength = 0.0

@@ -83,15 +83,19 @@ const KNOWN_KEYS: &[&str] = &[
     k::AXIS,
     k::BREAKPOINT_COLOR,
     k::BREAKPOINTS,
+    k::CARET_AT_END,
     k::CHECKED,
     k::CLOSABLE,
     k::COLLAPSIBLE,
+    k::CONSTRAIN,
     k::CORNER_RADIUS,
     k::CURRENT_FILL,
     k::CURRENT_LINE,
     k::DASHED,
     k::DECIMALS,
+    k::DEFAULT_OPEN,
     k::DIAMETER,
+    k::EDITABLE,
     k::ENABLED,
     k::FILL,
     k::FONT_FAMILY,
@@ -99,6 +103,7 @@ const KNOWN_KEYS: &[&str] = &[
     k::FONT_WEIGHT,
     k::GUTTER_COLOR,
     k::GUTTER_WIDTH,
+    k::HEADER,
     k::HEIGHT,
     k::HIGHLIGHT,
     k::ICON,
@@ -116,8 +121,9 @@ const KNOWN_KEYS: &[&str] = &[
     k::MENU,
     k::MENU_CLICK,
     k::MIN,
+    k::MIN_HEIGHT,
     k::MIN_WIDTH,
-    k::OFFSET,
+    k::MOVABLE,
     k::PADDING,
     k::PADDING_X,
     k::PADDING_Y,
@@ -130,9 +136,10 @@ const KNOWN_KEYS: &[&str] = &[
     k::ROLE,
     k::ROW_HEIGHT,
     k::SCRIM,
+    k::SCROLL_OFFSET,
     k::SEPARATOR,
     k::SPEED,
-    k::STICK_TO_BOTTOM,
+    k::STICK_TO_END,
     k::STROKE,
     k::STROKE_WIDTH,
     k::SUFFIX,
@@ -143,6 +150,7 @@ const KNOWN_KEYS: &[&str] = &[
     k::SYNTAX_PUNCTUATION,
     k::SYNTAX_STRING,
     k::SYNTAX_TYPE,
+    k::TAB_INSERTS,
     k::TEXT_ALIGN,
     k::TEXT_COLOR,
     k::TIGHT,
@@ -411,6 +419,24 @@ impl Opts {
     /// Four raw numbers — x, y, width, height. Source pixels into an image,
     /// so the UI scale never touches them: they index the file, not the
     /// screen.
+    /// Two numbers, as a list or a vector; `None` for anything else.
+    pub(crate) fn pair(&self, key: &str) -> Option<[f32; 2]> {
+        match self.get(key) {
+            Some(Value::Vec2(pair)) => Some(*pair),
+            Some(Value::List(items)) if items.len() == 2 => {
+                let mut out = [0.0f32; 2];
+                for (slot, item) in out.iter_mut().zip(items) {
+                    *slot = match item {
+                        Value::Num(n) => *n as f32,
+                        Value::Int(i) => *i as f32,
+                        _ => return None,
+                    };
+                }
+                Some(out)
+            }
+            _ => None,
+        }
+    }
     pub(crate) fn rect(&self, key: &str) -> Option<[f32; 4]> {
         let Some(Value::List(items)) = self.get(key) else {
             return None;
@@ -556,10 +582,18 @@ pub const ALIGNS: &[(&str, &str)] = &[
     ("ALIGN_END", w::END),
 ];
 
+/// The `align_items` words text has no use for: children filling the
+/// container's cross axis, and children on their first baseline.
+pub const ITEM_ALIGNS: &[(&str, &str)] = &[
+    ("ALIGN_STRETCH", w::STRETCH),
+    ("ALIGN_BASELINE", w::BASELINE),
+];
+
 /// Slant, for `font_style`.
 pub const FONT_STYLES: &[(&str, &str)] = &[
     ("FONT_STYLE_NORMAL", w::NORMAL),
     ("FONT_STYLE_ITALIC", w::ITALIC),
+    ("FONT_STYLE_OBLIQUE", w::OBLIQUE),
 ];
 
 /// Font families the theme registers.
@@ -644,6 +678,7 @@ pub(crate) fn install_ui_api(reg: &mut Registry<'_>) -> Result<()> {
         .iter()
         .chain(WIDGET_KINDS)
         .chain(ALIGNS)
+        .chain(ITEM_ALIGNS)
         .chain(FONT_STYLES)
         .chain(FONTS)
         .chain(CLASSES)

@@ -325,6 +325,11 @@ fn a_missing_asset_draws_nothing_rather_than_failing_the_node() {
 /// A project whose main scene holds one `multimesh` asset and the two nodes
 /// that draw it; the first carries `script`.
 fn run_shared(script: &str, frames: usize) -> (App, Vec<String>, Vec<String>) {
+    run_shared_as("multimesh3d", script, frames)
+}
+
+/// `run_shared` with the two nodes drawing through `component`.
+fn run_shared_as(component: &str, script: &str, frames: usize) -> (App, Vec<String>, Vec<String>) {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -355,7 +360,7 @@ name = "A"
 parent = "w"
 script = { source = "scripts/s.rn" }
 
-[nodes.multimesh3d]
+[nodes.COMPONENT]
 source = "#posts"
 
 [[nodes]]
@@ -363,9 +368,10 @@ id = "b"
 name = "B"
 parent = "w"
 
-[nodes.multimesh3d]
+[nodes.COMPONENT]
 source = "#posts"
-"##,
+"##
+        .replace("COMPONENT", component),
     )
     .unwrap();
     std::fs::write(root.join("scripts/s.rn"), script).unwrap();
@@ -490,4 +496,47 @@ fn instances_read_off_one_node_set_another_whole() {
         Vec3::new(0.0, 5.0, 0.0)
     ));
     assert!(same(multimesh.instances[1].custom, [1.0, 2.0, 3.0, 4.0]));
+}
+
+/// A shear a script hands an instance is kept as its basis, and a 2D
+/// instance's texture rectangle reads back as it was set.
+#[test]
+fn a_script_keeps_a_shear_and_sets_a_texture_rectangle() {
+    let (app, errors, _) = run_shared(
+        r"pub fn init(this) {
+    let sheared = balaur::Transform3d::from_cols(
+        balaur::Vec3::new(1.0, 0.0, 0.0),
+        balaur::Vec3::new(0.5, 1.0, 0.0),
+        balaur::Vec3::new(0.0, 0.0, 1.0),
+        balaur::Vec3::new(2.0, 0.0, 0.0),
+    );
+    this.node.multimesh3d.set_instance_transform(0, sheared);
+}
+",
+        1,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    let a = named(&app, "A");
+    let basis = app.engine.world().get::<&MultiMesh>(a).unwrap().instances[0].basis;
+    assert!(
+        basis.is_some_and(|b| (b.y_axis.x - 0.5).abs() < 1e-5),
+        "{basis:?}"
+    );
+
+    let (_app, errors, lines) = run_shared_as(
+        "multimesh2d",
+        r"pub fn init(this) {
+    let mm = this.node.multimesh2d;
+    mm.set_instance_region(1, [8.0, 16.0], [32.0, 24.0]);
+    let region = mm.instance_region(1);
+    log::info(`region ${region[1]} ${region[3]} ${mm.instance_region(0) == ()}`);
+}
+",
+        1,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    assert!(
+        lines.iter().any(|l| l.contains("region 16.0 24.0 true")),
+        "{lines:#?}"
+    );
 }

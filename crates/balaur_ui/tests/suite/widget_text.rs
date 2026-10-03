@@ -182,13 +182,13 @@ fn a_drag_over_a_selectable_label_selects_and_copies() {
 }
 
 /// A `drag_value` with arrows steps by `step` and stops at `max`, and its
-/// `suffix` follows the number the way `placeholder` leads it.
+/// `suffix` follows the number the way `prefix` leads it.
 #[test]
 fn a_drag_value_steps_from_its_arrows_and_wears_its_suffix() {
     let (_dir, mut app) = app();
     let params = toml::toml! {
         kind = "number_field" value = 11.0 min = 0.0 max = 12.0 step = 1.0
-        arrows = true placeholder = "W" suffix = "px" x = 10.0 y = 10.0
+        arrows = true prefix = "W" suffix = "px" x = 10.0 y = 10.0
     };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -252,4 +252,34 @@ fn a_row_hugging_a_wrapped_label_is_as_tall_as_the_wrap() {
         box_.height() >= said.height(),
         "the row is as tall as what it holds: row {box_:?} label {said:?}"
     );
+}
+
+/// The text keys `text2d` takes reach a widget and read back as written.
+#[test]
+fn a_widget_takes_the_text_keys_text2d_takes() {
+    let (_dir, app) = app();
+    let label = toml::toml! {
+        kind = "label" text = "hello"
+        underline = "double" strikethrough = true letter_spacing = 2.0 line_height = 1.5
+        font_features = ["smcp", "liga=0"] font_stretch = "condensed" truncate_at = "middle"
+        outline_size = 1.0 shadow_offset_x = 2.0 text_background = [0.0, 0.0, 1.0, 0.5]
+    };
+    let entity = add_widget(&app, &label.into());
+    let got = balaur::components::get(&app.engine, entity, "widget").unwrap();
+    let read = |key: &str| got.get(key).cloned().unwrap();
+    assert_eq!(read("underline").as_str(), Some("double"));
+    assert_eq!(read("strikethrough").as_bool(), Some(true));
+    assert_eq!(read("letter_spacing").as_float(), Some(2.0));
+    assert_eq!(read("line_height").as_float(), Some(1.5));
+    assert_eq!(read("font_stretch").as_str(), Some("condensed"));
+    assert_eq!(read("truncate_at").as_str(), Some("middle"));
+    assert_eq!(read("outline_size").as_float(), Some(1.0));
+    assert_eq!(read("shadow_offset_x").as_float(), Some(2.0));
+    let features: Vec<String> = read("font_features")
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f.as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(features, ["smcp", "liga=0"]);
 }

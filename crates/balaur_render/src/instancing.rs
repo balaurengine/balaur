@@ -67,11 +67,25 @@ pub(crate) fn split_2d(here: Mat4, placed: Mat4, angle: f32) -> Option<(Mat2, Ve
     Some((turn.transpose() * a * turn, offset))
 }
 
+/// An instance's texture rectangle as the UV corners an instance carries,
+/// against an image of `size` pixels.
+#[must_use]
+pub(crate) fn region_uv(region: Option<[f32; 4]>, size: Option<(u32, u32)>) -> [f32; 4] {
+    match (region, size) {
+        (Some([x, y, w, h]), Some((tw, th))) if tw > 0 && th > 0 => {
+            let (tw, th) = (tw as f32, th as f32);
+            [x / tw, y / th, (x + w) / tw, (y + h) / th]
+        }
+        _ => [0.0, 0.0, 1.0, 1.0],
+    }
+}
+
 /// A 2D node's instances, as its object draws them.
 #[cfg(feature = "window")]
 fn instances_2d(
     multimesh: &crate::MultiMesh,
     global: &GlobalTransform,
+    drawn: Option<(u32, u32)>,
 ) -> Vec<kiss3d::scene::InstanceData2d> {
     let here = model_of(global);
     let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
@@ -80,11 +94,16 @@ fn instances_2d(
         .iter()
         .filter_map(|placed| {
             let (deformation, position) = split_2d(here, placed.at, angle)?;
+            let instance = &placed.instance;
             Some(kiss3d::scene::InstanceData2d {
                 position,
                 deformation,
                 color: placed.color,
-                ..Default::default()
+                lines_color: instance.wireframe_color,
+                lines_width: instance.wireframe_width,
+                points_color: instance.dot_color,
+                points_size: instance.dot_size,
+                uv: region_uv(instance.region, drawn),
             })
         })
         .collect()
@@ -110,17 +129,19 @@ pub(crate) fn draw_multimesh_3d(
         .iter()
         .filter_map(|placed| {
             let (deformation, position) = split(here, placed.at, global.rotation)?;
-            Some((deformation, position, placed.color))
-        })
-        .map(|(deformation, position, [r, g, b, a])| InstanceData3d {
-            position,
-            deformation,
-            // An instance's colour multiplies the node's own.
-            color: Color::new(r, g, b, a),
-            lines_color: None,
-            lines_width: None,
-            points_color: None,
-            points_size: None,
+            let [r, g, b, a] = placed.color;
+            let instance = &placed.instance;
+            let colour = |c: Option<[f32; 4]>| c.map(|[r, g, b, a]| Color::new(r, g, b, a));
+            Some(InstanceData3d {
+                position,
+                deformation,
+                // An instance's colour multiplies the node's own.
+                color: Color::new(r, g, b, a),
+                lines_color: colour(instance.wireframe_color),
+                lines_width: instance.wireframe_width,
+                points_color: colour(instance.dot_color),
+                points_size: instance.dot_size,
+            })
         })
         .collect();
     node.set_instances(&instances);
@@ -136,8 +157,9 @@ pub(crate) fn draw_multimesh_2d(
     object: &mut kiss3d::scene::Object2d,
     multimesh: &crate::MultiMesh,
     global: &GlobalTransform,
+    drawn: Option<(u32, u32)>,
 ) -> bool {
-    object.set_instances(&instances_2d(multimesh, global));
+    object.set_instances(&instances_2d(multimesh, global, drawn));
     object.set_user_data(Box::new(custom_of(multimesh)));
     !multimesh.drawn().is_empty()
 }

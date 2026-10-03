@@ -206,7 +206,7 @@ fn every_tuning_key_that_can_be_written_reads_back() {
             static_contact_frequency_hz: 41.0,
             static_contact_damping: 3.5,
         });
-        let back = physics::tuning();
+        let back = physics::tuning()["2d"];
         assert!(back.friction_in_bias_pass, "friction_in_bias_pass is write-only");
         assert!((back.allowed_linear_error - 0.004) < 0.0001, "allowed_linear_error");
         assert!((back.max_corrective_velocity - 12.5) < 0.0001, "max_corrective_velocity");
@@ -314,5 +314,32 @@ fn apply_force_pushes_for_one_step_and_leaves_no_constant_force() {
         let (fx, _, _) = this.node.body3d.constant_force();
         assert!(fx == 0.0, "apply_force left a constant force of {}", fx);
         "#,
+    );
+}
+
+#[test]
+fn each_world_takes_its_own_tuning_over_the_shared_keys() {
+    let errors = run(r#"
+        physics::set_tuning(#{
+            length_unit: 2.0,
+            soft_resweep_strain: 0.5,
+            soft_recovery: #{ overlap_split: 5, overlap_patch_constraints: "keep" },
+            "2d": #{ length_unit: 64.0, soft_recovery: #{ overlap_split: 2 } },
+        });
+        let both = physics::tuning();
+        assert!(both["3d"].length_unit == 2.0, "the shared key missed the 3D world: {}", both["3d"].length_unit);
+        assert!(both["2d"].length_unit == 64.0, "the 2D table lost to the shared key: {}", both["2d"].length_unit);
+        assert!(both["2d"].soft_resweep_strain == 0.5, "a shared soft row missed the 2D world");
+        assert!(both["3d"].soft_recovery.overlap_split == 5, "the shared recovery row missed 3D");
+        assert!(both["2d"].soft_recovery.overlap_split == 2, "the 2D recovery row lost");
+        assert!(both["2d"].soft_recovery.overlap_patch_constraints == "keep", "a recovery word was dropped");
+        assert!(both["3d"].friction_model == "simplified", "the 3D world lost its friction model");
+        let counted = physics::counters();
+        assert!(counted.physics3d.solver_ms >= 0.0 && counted.physics2d.ccd_substep_count >= 0.0, "a counter is missing");
+        log::error("checked: tuning");
+    "#);
+    assert!(
+        errors.len() == 1 && errors[0].contains("checked: tuning"),
+        "the check did not run clean: {errors:#?}"
     );
 }

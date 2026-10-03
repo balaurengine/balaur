@@ -511,8 +511,14 @@ fn settle_one(
         | Edit::Folded(..)
         | Edit::Opened
         | Edit::Closed
-        | Edit::Scrolled(_)
         | Edit::CloseRequested => {
+            emitted.extend(heard(edit).map(|(event, value)| (entity, event, value)));
+            None
+        }
+        // Written down as well as heard, so `scroll_offset` reads back where
+        // the reader left it.
+        Edit::Scrolled(offset) => {
+            std::sync::Arc::make_mut(&mut widget.egui).scroll_offset = *offset;
             emitted.extend(heard(edit).map(|(event, value)| (entity, event, value)));
             None
         }

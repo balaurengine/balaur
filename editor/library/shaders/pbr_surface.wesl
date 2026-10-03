@@ -8,7 +8,7 @@ struct Params {
     metallic: f32,
     roughness: f32,
     reflectance: f32,
-    emissive: f32,
+    emission_strength: f32,
 }
 
 @group(3) @binding(0) var<uniform> params: Params;
@@ -22,6 +22,6 @@ struct Params {
     surface.metallic = params.metallic;
     surface.roughness = max(params.roughness, 0.045);
     surface.reflectance = params.reflectance;
-    surface.emissive = surface.emissive + surface.albedo * params.emissive;
+    surface.emissive = surface.emissive + surface.albedo * params.emission_strength;
     return shade_pbr(in, surface);
 }

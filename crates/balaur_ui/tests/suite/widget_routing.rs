@@ -13,7 +13,7 @@ use crate::support::{add_child_widget, add_widget, app, settle};
 fn shell(app: &App) -> (Entity, Entity) {
     let root = add_widget(
         app,
-        &toml::toml! { kind = "row" anchor = "fill" interactive = false splitter_width = 8.0 gap = 4.0 }
+        &toml::toml! { kind = "row" anchor = "fill" interactive = false splitter_width = 8.0 gap = [4.0, 4.0] }
             .into(),
     );
     let dock = add_child_widget(

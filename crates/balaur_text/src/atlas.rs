@@ -71,6 +71,9 @@ pub struct GlyphAtlas {
     /// The box written since egui last took one, as `[min_x, min_y, max_x,
     /// max_y]`; egui is uploaded from this and the renderer from `revision`.
     dirty: Option<[usize; 4]>,
+    /// The centre of a small opaque square, which a decoration line samples
+    /// so it draws from the same texture as the glyphs around it.
+    solid: Option<Rect>,
 }
 
 impl Default for GlyphAtlas {
@@ -86,6 +89,7 @@ impl Default for GlyphAtlas {
             generation: 0,
             revision: 0,
             dirty: None,
+            solid: None,
         }
     }
 }
@@ -120,6 +124,7 @@ impl GlyphAtlas {
         self.cursor = (0, 0);
         self.row_height = 0;
         self.slots.clear();
+        self.solid = None;
         self.generation += 1;
         self.revision += 1;
         self.dirty = Some([0, 0, self.side, self.side]);
@@ -147,11 +152,15 @@ impl GlyphAtlas {
         self.side = side;
         // A slot's `uv` is a fraction of the side, and the side just doubled;
         // the pixels did not move, so halving each one keeps it on its glyph.
+        let halve = |uv: Rect| {
+            Rect::from_min_max(
+                (uv.min.to_vec2() * 0.5).to_pos2(),
+                (uv.max.to_vec2() * 0.5).to_pos2(),
+            )
+        };
+        self.solid = self.solid.map(halve);
         for held in self.slots.values_mut().flatten() {
-            held.uv = Rect::from_min_max(
-                (held.uv.min.to_vec2() * 0.5).to_pos2(),
-                (held.uv.max.to_vec2() * 0.5).to_pos2(),
-            );
+            held.uv = halve(held.uv);
         }
         self.generation += 1;
         self.revision += 1;
@@ -321,6 +330,39 @@ impl GlyphAtlas {
         };
         self.slots.insert(key, Some(slot));
         Some(slot)
+    }
+
+    /// Where a solid fill sits in the atlas, placing it the first time: the
+    /// inner half of a white square, so filtering never reaches its edge.
+    pub(crate) fn solid(&mut self) -> Option<Rect> {
+        const SIDE: usize = 4;
+        if let Some(uv) = self.solid {
+            return Some(uv);
+        }
+        let (x, y) = if let Some(at) = self.allocate(SIDE + 2 * PAD, SIDE + 2 * PAD) {
+            at
+        } else {
+            self.reset();
+            self.allocate(SIDE + 2 * PAD, SIDE + 2 * PAD)?
+        };
+        self.write(x + PAD, y + PAD, SIDE, SIDE, &[Color32::WHITE; SIDE * SIDE]);
+        let side = self.side as f32;
+        let inner = |at: usize| (at + PAD + SIDE / 4) as f32 / side;
+        let uv = Rect::from_min_max(
+            egui::pos2(inner(x), inner(y)),
+            egui::pos2(
+                inner(x) + (SIDE / 2) as f32 / side,
+                inner(y) + (SIDE / 2) as f32 / side,
+            ),
+        );
+        self.solid = Some(uv);
+        Some(uv)
+    }
+
+    /// Every glyph key rasterised so far, for a test asking how it was drawn.
+    #[cfg(test)]
+    pub(crate) fn keys(&self) -> impl Iterator<Item = &CacheKey> {
+        self.slots.keys()
     }
 
     /// A shelf packer: rows left to right, rows top to bottom.

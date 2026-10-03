@@ -240,8 +240,9 @@ One commit, after phases 1–3 land, so it describes the tree as it is:
 - **PLAN-rapier.md** takes the 2D parity list and the unwrapped rapier
   surface (its items 5 and 6): ARCHITECTURE's "function for function" is not
   true while `physics2d` lacks 21 readers `rapier2d` has, `collider2d.one_way`
-  is a no-op (`dim2/collider.rs:262-274` never calls `encode_one_way`), the 2D
-  `modify_contacts` hook never reaches a script (`dim2/events.rs:160-220`),
+  was a no-op (now its axis rides the `surfaces` side table the contact hook
+  in `shared/events.rs` reads), the 2D `modify_contacts` hook never reaches a
+  script (`dim2/events.rs:160-220`),
   2D `move_character` drops the node's rotation (`dim2/character.rs:130`),
   and 2D colliders do not round-trip through `get` (`dim2/collider.rs:276`).
 - The animation snapshot and digest sources are built

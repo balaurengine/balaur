@@ -284,3 +284,48 @@ fn a_beam_wedged_in_a_seam_is_pushed_out() {
         "the grown pieces should have pushed the beam clear of the table, not to {freed}"
     );
 }
+
+#[test]
+fn a_vhacd_cut_defaults_to_the_numbers_rapier2d_uses() {
+    let defaults = {
+        let mut app = App::new(balaur_core::AppConfig::bare(".")).unwrap();
+        balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin::default()).unwrap();
+        let registry = app
+            .engine
+            .resource::<balaur_core::components::ComponentRegistry>();
+        let registry = registry.borrow();
+        let schema = &registry
+            .def("collider2d")
+            .expect("collider2d is registered")
+            .schema;
+        let default = |key: &str| {
+            schema
+                .get(key)
+                .and_then(|row| row.get("default"))
+                .and_then(balaur_core::components::as_f64)
+                .unwrap_or_else(|| panic!("collider2d.{key} declares a default"))
+        };
+        (default("resolution"), default("max_concavity"))
+    };
+    assert!(
+        (defaults.0 - 256.0).abs() < 1e-9,
+        "resolution shows {}",
+        defaults.0
+    );
+    assert!(
+        (defaults.1 - 0.1).abs() < 1e-6,
+        "max_concavity shows {}",
+        defaults.1
+    );
+
+    let left = pieces(&table_app("method = \"vhacd\""));
+    let stated = pieces(&table_app(
+        "method = \"vhacd\"\nresolution = 256\nmax_concavity = 0.1",
+    ));
+    assert_eq!(
+        left.len(),
+        stated.len(),
+        "the defaults cut differently from 256 and 0.1"
+    );
+    assert!((total_area(&left) - total_area(&stated)).abs() < 1e-5);
+}

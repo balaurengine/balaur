@@ -452,7 +452,7 @@ fn the_current_cameras_lens_reaches_the_backend_and_leaves_with_it() {
     add_camera_3d(
         &app,
         cam,
-        "fov_degrees = 70.0\nnear = 0.5\nfar = 80.0\nprojection = \"orthographic\"\nrender_layers = 2\norbit_button = \"left\"",
+        "fov_degrees = 70.0\nnear = 0.5\nfar = 80.0\nprojection = \"orthographic\"\nrender_layers = 2",
     );
     app.engine
         .resource::<CameraConfig3d>()
@@ -470,10 +470,6 @@ fn the_current_cameras_lens_reaches_the_backend_and_leaves_with_it() {
         assert!((config.lens.near - 0.5).abs() < 1e-6 && (config.lens.far - 80.0).abs() < 1e-6);
         assert!(config.lens.orthographic);
         assert_eq!(config.lens.render_layers, 2);
-        assert_eq!(
-            config.lens.orbit_button,
-            Some(balaur_render::MouseButton::Left)
-        );
     }
     app.engine
         .resource::<CameraConfig3d>()
@@ -492,32 +488,6 @@ fn the_current_cameras_lens_reaches_the_backend_and_leaves_with_it() {
     );
 }
 
-/// The 2D camera's controls travel the same way.
-#[test]
-fn the_current_2d_cameras_controls_reach_the_backend() {
-    let mut app = app();
-    let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
-    add_camera_2d(
-        &app,
-        cam,
-        "zoom_step = 0.5\npan_button = \"middle\"\npan_modifiers = [\"shift\"]",
-    );
-    app.tick(1.0 / 60.0);
-    let config = app.engine.resource::<CameraConfig2d>();
-    let config = config.borrow();
-    assert!((config.controls.zoom_step - 0.5).abs() < 1e-6);
-    assert_eq!(
-        config.controls.pan_button,
-        Some(balaur_render::MouseButton::Middle)
-    );
-    assert!(
-        config
-            .controls
-            .pan_modifiers
-            .holds(balaur_render::Modifier::Shift)
-    );
-}
-
 /// A lens kiss3d could not draw is refused at the component, naming why.
 #[test]
 fn a_camera_refuses_a_far_plane_nearer_than_its_near_one() {
@@ -526,4 +496,225 @@ fn a_camera_refuses_a_far_plane_nearer_than_its_near_one() {
     let table: toml::Value = toml::from_str("near = 10.0\nfar = 1.0").unwrap();
     let err = components::add(&app.engine, cam, "camera3d", Some(&table)).unwrap_err();
     assert!(format!("{err:#}").contains("past `near`"), "{err:#}");
+}
+
+/// Every knob the fork's own passes take reaches the backend's config and
+/// reads back, on both cameras: the two share one spelling.
+#[test]
+fn the_post_pass_knobs_reach_the_config_and_read_back() {
+    let mut app = app();
+    let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
+    add_camera_3d(
+        &app,
+        cam,
+        r#"post = ["ssr", "dof", "crt", "loupe"]
+bloom_knee = 0.25
+ssr_max_steps = 12
+ssr_thickness = 0.75
+ssr_intensity = 0.5
+dof_mode = "gaussian"
+dof_focus_distance = 4.0
+dof_taps = 16
+fxaa_edge_threshold = 0.2
+sharpen_amount = 0.8
+crt_curvature = 0.3
+crt_scanline_count = 240.0
+loupe_zoom = 4.0
+loupe_focus = [0.25, 0.75]
+loupe_corner = "top_left"
+loupe_border_color = [0.0, 1.0, 0.0, 1.0]"#,
+    );
+    app.tick(1.0 / 60.0);
+    {
+        let config = app.engine.resource::<PostConfig>();
+        let config = config.borrow();
+        assert!(config.changed && config.ssr && config.dof);
+        assert!((config.bloom_knee - 0.25).abs() < 1e-6);
+        assert_eq!(config.reflections.max_steps, 12);
+        assert!((config.reflections.intensity - 0.5).abs() < 1e-6);
+        assert_eq!(
+            config.depth_of_field.mode,
+            balaur_render::FocusBlur::Gaussian
+        );
+        assert_eq!(config.depth_of_field.taps, 16);
+        assert!((config.effects.crt_curvature - 0.3).abs() < 1e-6);
+        assert_eq!(
+            config.effects.loupe_corner,
+            balaur_render::LoupeCorner::TopLeft
+        );
+        assert!(crate::same(config.effects.loupe_focus, [0.25, 0.75]));
+        assert!(crate::same(
+            config.effects.loupe_border_color,
+            [0.0, 1.0, 0.0]
+        ));
+    }
+    let read = components::get(&app.engine, cam, "camera3d").unwrap();
+    assert_eq!(read["ssr_max_steps"].as_integer(), Some(12));
+    assert_eq!(read["dof_mode"].as_str(), Some("gaussian"));
+    assert_eq!(read["loupe_corner"].as_str(), Some("top_left"));
+    assert!((read["sharpen_amount"].as_float().unwrap() - 0.8).abs() < 1e-6);
+    let flat = node_at(&app, app.engine.root(), Vec3::ZERO);
+    add_camera_2d(&app, flat, "crt_curvature = 0.4\nloupe_zoom = 2.0");
+    let read = components::get(&app.engine, flat, "camera2d").unwrap();
+    assert!((read["crt_curvature"].as_float().unwrap() - 0.4).abs() < 1e-6);
+}
+
+/// `crt`, `grayscale`, `waves`, `loupe` and `stereo` are passes the engine
+/// draws, in the order written, not material assets to load.
+#[test]
+fn the_fork_passes_are_drawn_where_the_list_puts_them() {
+    let mut app = app();
+    let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
+    add_camera_2d(
+        &app,
+        cam,
+        r#"post = ["grayscale", "tonemap", "crt", "waves", "loupe", "stereo"]"#,
+    );
+    app.tick(1.0 / 60.0);
+    let config = app.engine.resource::<PostConfig>();
+    let config = config.borrow();
+    assert_eq!(
+        config.film,
+        ["grayscale"],
+        "before the tonemap, on the film"
+    );
+    assert_eq!(config.screen, ["crt", "waves", "loupe", "stereo"]);
+}
+
+/// A knob a pass is built with rebuilds the chain, so it has to raise the
+/// change a backend rebuilds on.
+#[test]
+fn turning_a_pass_knob_raises_a_post_change() {
+    let mut app = app();
+    let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
+    add_camera_3d(&app, cam, "post = [\"crt\"]");
+    app.tick(1.0 / 60.0);
+    let config = app.engine.resource::<PostConfig>();
+    config.borrow_mut().changed = false;
+    let turned: toml::Value = toml::from_str("crt_vignette = 0.9").unwrap();
+    components::patch(&app.engine, cam, "camera3d", &turned).unwrap();
+    app.tick(1.0 / 60.0);
+    assert!(config.borrow().changed);
+    assert!((config.borrow().effects.crt_vignette - 0.9).abs() < 1e-6);
+}
+
+#[test]
+fn a_2d_camera_off_hidpi_tells_the_backend() {
+    let mut app = app();
+    let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
+    add_camera_2d(&app, cam, "hidpi = false");
+    app.tick(1.0 / 60.0);
+    let config = app.engine.resource::<CameraConfig2d>();
+    assert!(!config.borrow().hidpi);
+    assert!(config.borrow().changed);
+    let read = components::get(&app.engine, cam, "camera2d").unwrap();
+    assert_eq!(read["hidpi"].as_bool(), Some(false));
+}
+
+/// The two window settings that apply while the game runs say so, which is
+/// what lets the editor apply them without asking for a restart.
+#[test]
+fn msaa_and_vsync_apply_without_a_restart() {
+    let app = app();
+    for path in ["window/msaa", "window/vsync"] {
+        let def = balaur_core::settings::def(&app.engine, path).expect("a defined setting");
+        assert!(def.applies_now(), "{path} still asks for a restart");
+    }
+    let width = balaur_core::settings::def(&app.engine, "window/width").unwrap();
+    assert!(!width.applies_now(), "control: the window size still does");
+}
+
+/// A fixed orthographic height reaches the lens the backend builds its camera
+/// from, and reads back as written.
+#[test]
+fn an_orthographic_height_reaches_the_config_and_reads_back() {
+    let mut app = app();
+    let spatial = node_at(&app, app.engine.root(), Vec3::ZERO);
+    add_camera_3d(
+        &app,
+        spatial,
+        "projection = \"orthographic\"\northographic_height = 8.0\nbloom_mips = 9",
+    );
+    app.tick(1.0 / 60.0);
+    {
+        let config = app.engine.resource::<CameraConfig3d>();
+        assert!((config.borrow().lens.orthographic_height - 8.0).abs() < 1e-6);
+    }
+    let read = components::get(&app.engine, spatial, "camera3d").unwrap();
+    assert!((read["orthographic_height"].as_float().unwrap() - 8.0).abs() < 1e-6);
+    assert_eq!(read["bloom_mips"].as_integer(), Some(9));
+}
+
+/// A camera answers to its node alone: the mouse controls kiss3d's cameras
+/// carry are no keys of either component.
+#[test]
+fn neither_camera_takes_mouse_controls() {
+    let app = app();
+    for (component, key) in [
+        ("camera3d", "orbit_button"),
+        ("camera3d", "reset_key"),
+        ("camera2d", "zoom_step"),
+        ("camera2d", "pan_button"),
+    ] {
+        let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
+        let table: toml::Value = toml::from_str(&format!("{key} = 1")).unwrap();
+        assert!(
+            components::add(&app.engine, cam, component, Some(&table)).is_err(),
+            "`{component}` took `{key}`"
+        );
+    }
+}
+
+/// The bloom chain's length rides `post` like its other knobs, so the last
+/// current camera of either dimension sets it.
+#[test]
+fn a_cameras_bloom_levels_reach_the_post_config() {
+    let mut app = app();
+    let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
+    add_camera_2d(&app, cam, "post = [\"bloom\"]\nbloom_mips = 3");
+    app.tick(1.0 / 60.0);
+    let config = app.engine.resource::<PostConfig>();
+    assert_eq!(config.borrow().bloom_mips, 3);
+}
+
+#[test]
+fn an_eye_separation_makes_a_stereo_pair_and_reads_back() {
+    let mut app = app();
+    let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
+    add_camera_3d(&app, cam, "eye_separation = 0.2");
+    app.tick(1.0 / 60.0);
+    {
+        let config = app.engine.resource::<CameraConfig3d>();
+        assert!((config.borrow().lens.eye_separation - 0.2).abs() < 1e-6);
+    }
+    let read = components::get(&app.engine, cam, "camera3d").unwrap();
+    assert!((read["eye_separation"].as_float().unwrap() - 0.2).abs() < 1e-6);
+    assert!(read.get("kind").is_none(), "a camera has no kind to pick");
+}
+
+#[test]
+fn a_2d_cameras_gi_pass_and_its_knobs_reach_the_post_config() {
+    let mut app = app();
+    let flat = node_at(&app, app.engine.root(), Vec3::ZERO);
+    add_camera_2d(
+        &app,
+        flat,
+        "post = [\"gi\"]\ngi_rays = 4\ngi_solver = \"cascades\"\ngi_probe_spacing = 4\ngi_screen_occluders = true",
+    );
+    app.tick(1.0 / 60.0);
+    {
+        let config = app.engine.resource::<PostConfig>();
+        let config = config.borrow();
+        assert_eq!(
+            config.screen,
+            ["gi"],
+            "a list naming no tonemap has it at the head"
+        );
+        assert_eq!(config.effects.gi.rays, 4);
+        assert!(config.effects.gi.cascades && config.effects.gi.screen_occluders);
+    }
+    let read = components::get(&app.engine, flat, "camera2d").unwrap();
+    assert_eq!(read["gi_solver"].as_str(), Some("cascades"));
+    assert_eq!(read["gi_probe_spacing"].as_integer(), Some(4));
+    assert_eq!(read["gi_max_steps"].as_integer(), Some(32));
 }

@@ -241,12 +241,12 @@ fn every_enum_option_a_schema_offers_round_trips() {
                 let mut params = toml::map::Map::new();
                 params.insert(prop.clone(), toml::Value::String(option.to_string()));
                 let params = toml::Value::Table(params);
-                // A kind that needs an asset refuses to apply without one;
-                // that refusal is tested elsewhere and is not a round-trip.
+                // A kind that needs an asset, or points of its own, refuses to
+                // apply without them; that refusal is tested elsewhere.
                 if let Err(e) = balaur::components::add(&app.engine, entity, name, Some(&params)) {
                     let chain = format!("{e:#}");
-                    if chain.contains("asset") || chain.contains("mesh") || chain.contains("field")
-                    {
+                    let needs = ["asset", "mesh", "field", "points"];
+                    if needs.iter().any(|word| chain.contains(word)) {
                         continue;
                     }
                     panic!("`{name}.{prop} = \"{option}\"` was rejected: {chain}");
@@ -319,7 +319,6 @@ const CONDITIONAL: &[(&str, &[&str])] = &[
             "radius",
             "sides",
             "taper",
-            "texture",
             "width",
         ],
     ),

@@ -22,13 +22,12 @@ use bytemuck::{Pod, Zeroable};
 use glamx::{Mat3, Pose2, Vec2};
 use kiss3d::camera::Camera2d;
 use kiss3d::context::Context;
-use kiss3d::resource::{
-    GpuData, GpuMesh2d, Material2d, PipelineCache, RenderContext2d, TextureManager,
-};
+use kiss3d::resource::{GpuData, GpuMesh2d, Material2d, RenderContext2d, TextureManager};
 use kiss3d::scene::{InstancesBuffer2d, Object2d, ObjectData2d, SceneNode2d};
 use kiss3d::wgpu;
 
 use crate::PolygonMesh;
+use crate::pipeline::Pipelines2d;
 use crate::shaders;
 
 /// The skinning shader, linked from WESL to WGSL.
@@ -238,7 +237,7 @@ impl GpuData for SkinnedGpuData {
 }
 
 struct SkinnedMaterial {
-    pipeline: PipelineCache,
+    pipeline: Pipelines2d,
     frame_bind_group: wgpu::BindGroup,
     frame_uniform: wgpu::Buffer,
     object_layout: wgpu::BindGroupLayout,
@@ -304,6 +303,13 @@ const INSTANCE_COLOR: [wgpu::VertexAttribute; 1] = [wgpu::VertexAttribute {
     shader_location: 5,
     format: wgpu::VertexFormat::Float32x4,
 }];
+/// Each copy's texture rectangle, `[min_x, min_y, max_x, max_y]`, as kiss3d's
+/// own 2D shader reads it.
+const INSTANCE_UV: [wgpu::VertexAttribute; 1] = [wgpu::VertexAttribute {
+    offset: 0,
+    shader_location: 8,
+    format: wgpu::VertexFormat::Float32x4,
+}];
 const INSTANCE_DEFORM: [wgpu::VertexAttribute; 2] = [
     wgpu::VertexAttribute {
         offset: 0,
@@ -340,12 +346,12 @@ fn bind_group_layouts(
     (frame, object, texture)
 }
 
-/// The pipeline, rebuilt per sample count by kiss3d's cache.
+/// The pipelines, one per blend and rebuilt per sample count.
 fn build_pipeline(
     pipeline_layout: wgpu::PipelineLayout,
     shader: wgpu::ShaderModule,
-) -> PipelineCache {
-    PipelineCache::new(move |sample_count| {
+) -> Pipelines2d {
+    Pipelines2d::new(move |blend, cull, sample_count| {
         let layouts = [
             Some(vertex_layout(8, 0, wgpu::VertexFormat::Float32x2)),
             Some(vertex_layout(8, 1, wgpu::VertexFormat::Float32x2)),
@@ -354,14 +360,18 @@ fn build_pipeline(
             Some(instance_layout(8, &INSTANCE_OFFSET)),
             Some(instance_layout(16, &INSTANCE_COLOR)),
             Some(instance_layout(16, &INSTANCE_DEFORM)),
+            Some(instance_layout(16, &INSTANCE_UV)),
         ];
         crate::pipeline::material_pipeline(
             "polygon_pipeline",
             &pipeline_layout,
             &shader,
             &layouts,
-            None,
-            &crate::pipeline::Depth::Ignored,
+            &crate::pipeline::Raster {
+                cull,
+                depth: crate::pipeline::Depth::Ignored,
+                blend,
+            },
             sample_count,
         )
     })
@@ -480,6 +490,7 @@ impl Material2d for SkinnedMaterial {
         instances.positions.load_to_gpu();
         instances.colors.load_to_gpu();
         instances.deformations.load_to_gpu();
+        instances.uvs.load_to_gpu();
         let (view, proj) = camera.view_transform_pair();
         let frame = FrameUniforms {
             view: padded(&view),
@@ -529,13 +540,16 @@ impl Material2d for SkinnedMaterial {
         _transform: Pose2,
         _scale: Vec2,
         _camera: &mut dyn Camera2d,
-        _data: &ObjectData2d,
+        data: &ObjectData2d,
         _mesh: &mut GpuMesh2d,
         instances: &mut InstancesBuffer2d,
         gpu_data: &mut dyn GpuData,
         render_pass: &mut wgpu::RenderPass<'_>,
         context: &RenderContext2d,
     ) {
+        if !data.surface_rendering_active() {
+            return;
+        }
         let gpu_data = gpu_data
             .as_any_mut()
             .downcast_mut::<SkinnedGpuData>()
@@ -546,15 +560,20 @@ impl Material2d for SkinnedMaterial {
         ) else {
             return;
         };
-        let (Some(offsets), Some(colors), Some(deforms)) = (
+        let (Some(offsets), Some(colors), Some(deforms), Some(uvs)) = (
             instances.positions.buffer(),
             instances.colors.buffer(),
             instances.deformations.buffer(),
+            instances.uvs.buffer(),
         ) else {
             return;
         };
         let count = u32::try_from(instances.len()).unwrap_or(u32::MAX);
-        let pipeline = self.pipeline.get(context.sample_count);
+        let pipeline = self.pipeline.get(
+            data.blend(),
+            data.backface_culling_enabled(),
+            context.sample_count,
+        );
         render_pass.set_pipeline(&pipeline);
         render_pass.set_bind_group(0, &self.frame_bind_group, &[]);
         render_pass.set_bind_group(1, object, &[]);
@@ -566,6 +585,7 @@ impl Material2d for SkinnedMaterial {
         render_pass.set_vertex_buffer(4, offsets.slice(..));
         render_pass.set_vertex_buffer(5, colors.slice(..));
         render_pass.set_vertex_buffer(6, deforms.slice(..));
+        render_pass.set_vertex_buffer(7, uvs.slice(..));
         render_pass.set_index_buffer(self.buffers.indices.slice(..), wgpu::IndexFormat::Uint32);
         render_pass.draw_indexed(0..self.buffers.index_count, 0, 0..count);
     }

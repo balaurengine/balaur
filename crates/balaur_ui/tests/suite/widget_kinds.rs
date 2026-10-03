@@ -210,7 +210,8 @@ fn a_grid_places_children_in_rows_of_columns() {
     let (_dir, app) = app();
     let grid = add_widget(
         &app,
-        &toml::toml! { kind = "grid" columns = 2 gap = 0.0 x = 0.0 y = 0.0 }.into(),
+        &toml::toml! { kind = "grid" grid_columns = "1fr 1fr" gap = [0.0, 0.0] x = 0.0 y = 0.0 }
+            .into(),
     );
     let cells: Vec<Entity> = ["a", "b", "c", "d", "e"]
         .into_iter()
@@ -248,7 +249,7 @@ fn a_flow_wraps_when_the_row_is_full() {
     let (_dir, app) = app();
     let flow = add_widget(
         &app,
-        &toml::toml! { kind = "flow" width = 120.0 gap = 4.0 x = 0.0 y = 0.0 }.into(),
+        &toml::toml! { kind = "flow" width = 120.0 gap = [4.0, 4.0] x = 0.0 y = 0.0 }.into(),
     );
     let buttons: Vec<Entity> = ["alpha", "beta", "gamma", "delta", "epsilon"]
         .into_iter()
@@ -504,7 +505,7 @@ fn a_scroll_deadzone_lets_a_short_drag_click_and_a_long_one_scroll() {
     let (_dir, mut app) = app();
     let holder = add_widget(
         &app,
-        &toml::toml! { kind = "scroll" scroll_deadzone = 30.0 x = 0.0 y = 0.0 width = 200.0 height = 100.0 gap = 0.0 }
+        &toml::toml! { kind = "scroll" scroll_deadzone = 30.0 x = 0.0 y = 0.0 width = 200.0 height = 100.0 gap = [0.0, 0.0] }
             .into(),
     );
     let first = add_child_widget(
@@ -1026,4 +1027,92 @@ fn a_button_s_icon_size_sizes_its_glyph() {
         sizes[0] < 24.0,
         "the unstated glyph did not take its caption's size: {sizes:?}"
     );
+}
+
+/// Two buttons of different captions in a column, and the width each drew at.
+fn column_widths(align: Option<&str>) -> (f32, f32) {
+    let (_dir, app) = app();
+    let mut params = toml::toml! { kind = "column" gap = [4.0, 4.0] x = 0.0 y = 0.0 };
+    if let Some(align) = align {
+        params.insert("align_items".into(), align.into());
+    }
+    let column = add_widget(&app, &params.into());
+    let short = add_child_widget(
+        &app,
+        column,
+        "short",
+        &toml::toml! { kind = "button" text = "Go" }.into(),
+    );
+    let long = add_child_widget(
+        &app,
+        column,
+        "long",
+        &toml::toml! { kind = "button" text = "A much longer caption" }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let width = |entity| {
+        balaur_ui::widget_rect(entity)
+            .expect("every button drew")
+            .width()
+    };
+    (width(short), width(long))
+}
+
+#[test]
+fn align_items_start_keeps_each_child_its_own_width() {
+    let (short, long) = column_widths(Some("start"));
+    assert!(
+        short + 20.0 < long,
+        "start stretched the short button: {short} against {long}"
+    );
+}
+
+#[test]
+fn a_column_that_names_no_align_items_stretches_its_children() {
+    let (short, long) = column_widths(None);
+    assert!((short - long).abs() < 0.5, "{short} against {long}");
+    let (short, long) = column_widths(Some("stretch"));
+    assert!((short - long).abs() < 0.5, "{short} against {long}");
+}
+
+/// The galley egui drew a checkbox's caption with, in a project that ships
+/// a regular and a semibold face of one family and no italic.
+fn check_caption(extra: toml::Table) -> std::sync::Arc<egui::Galley> {
+    let (_dir, app) = app_with_editor_fonts();
+    let caption = "Snap every node to the grid";
+    let mut params = toml::toml! { kind = "checkbox" text = (caption) x = 0.0 y = 0.0 };
+    params.extend(extra);
+    add_widget(&app, &params.into());
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let out = pass(&app, &ctx, vec![]);
+    out.shapes
+        .iter()
+        .find_map(|shape| match &shape.shape {
+            egui::epaint::Shape::Text(text) if text.galley.text() == caption => {
+                Some(text.galley.clone())
+            }
+            _ => None,
+        })
+        .expect("the caption drew")
+}
+
+#[test]
+fn a_checkbox_draws_its_caption_at_the_weight_it_names() {
+    let regular = check_caption(toml::Table::new()).size().x;
+    let heavy = check_caption(toml::toml! { font_weight = 700.0 }).size().x;
+    assert!(
+        heavy > regular + 2.0,
+        "the semibold face did not draw: {heavy} against {regular}"
+    );
+}
+
+#[test]
+fn an_italic_checkbox_with_no_italic_face_is_slanted_by_egui() {
+    let upright = check_caption(toml::Table::new());
+    let italic = check_caption(toml::toml! { font_style = "italic" });
+    let slanted = |galley: &egui::Galley| galley.job.sections.iter().all(|s| s.format.italics);
+    assert!(!slanted(&upright), "the upright caption was slanted");
+    assert!(slanted(&italic), "the italic caption drew upright");
 }

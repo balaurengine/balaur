@@ -383,6 +383,22 @@ fn used(group: &str, name: &str, styles: [Option<&str>; 5]) -> bool {
     }
 }
 
+/// A stylebox's `content_margin_*`, left, top, right and bottom, as a
+/// widget's `padding`: a side Godot leaves unset is -1, the theme's own.
+/// `None` when it sets none.
+pub(crate) fn content_margins(value: &Value, res: &Resources<'_>) -> Option<[f64; 4]> {
+    let section = res.sub(value)?;
+    let sides = ["left", "top", "right", "bottom"].map(|side| {
+        section
+            .field(&format!("content_margin_{side}"))
+            .and_then(Value::as_f64)
+    });
+    sides
+        .iter()
+        .any(Option::is_some)
+        .then(|| sides.map(|side| side.map_or(-1.0, |px| px.max(0.0))))
+}
+
 /// A `StyleBoxFlat`, `StyleBoxTexture`, `StyleBoxEmpty` or `StyleBoxLine`
 /// as the style keys it draws with.
 pub(crate) fn stylebox(value: &Value, res: &Resources<'_>) -> toml::Table {

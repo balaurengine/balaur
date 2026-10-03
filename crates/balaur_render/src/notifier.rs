@@ -40,8 +40,8 @@ pub(crate) fn register_notifier_component(reg: &mut Registry<'_>) {
             schema: ComponentDef::parse_schema(
                 COMPONENT,
                 &ComponentDef::schema(&[
-                    (k::OFFSET, r#"{ type = "vec2", default = [-0.5, -0.5], description = "The box's lower corner from the node, in world units" }"#),
-                    (k::SIZE, r#"{ type = "vec2", default = [1.0, 1.0], description = "The box's width and height, in world units" }"#),
+                    (k::OFFSET, r#"{ type = "vec2", default = [-0.5, -0.5], description = "The box's lower corner from the node, in the node's own units: scaled and turned with it" }"#),
+                    (k::SIZE, r#"{ type = "vec2", default = [1.0, 1.0], description = "The box's width and height, in the node's own units: scaled and turned with it" }"#),
                 ]),
             ),
             tags: &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::RENDER],
@@ -78,12 +78,22 @@ pub(crate) fn register_notifier_component(reg: &mut Registry<'_>) {
 }
 
 /// The world rectangle the screen shows: `[min_x, min_y, max_x, max_y]`.
+///
+/// The view the backend drew, mouse pans and zooms included; the camera that
+/// was asked for only where nothing drew, which a headless run's zero zoom says.
 fn view(eng: &Engine) -> [f32; 4] {
-    let (center, zoom) = {
+    let drawn = eng
+        .try_resource::<crate::ViewportSnapshot2d>()
+        .map(|snapshot| {
+            let snapshot = snapshot.borrow();
+            (snapshot.center, snapshot.zoom)
+        })
+        .filter(|(_, zoom)| *zoom > 0.0);
+    let (center, zoom) = drawn.unwrap_or_else(|| {
         let camera = eng.resource::<crate::CameraConfig2d>();
         let camera = camera.borrow();
         (camera.center, camera.zoom.max(f32::EPSILON))
-    };
+    });
     let (width, height) = match crate::viewport_size(eng) {
         (0, _) | (_, 0) => {
             let window = balaur_core::project::WindowSettings::from_settings(eng);

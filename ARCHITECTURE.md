@@ -312,8 +312,8 @@ A second set of components over the same tree, on the same `transform`.
   world unit, plus `camera_2d`, `mouse_world_2d`, `draw_line_2d`.
 - `body2d`/`collider2d` run in a rapier2d world beside the 3D one — same
   determinism build, accumulator and ordered collections. Both carry joints,
-  character controller, queries and events; 3D adds vehicles, contacts and
-  closest-point queries.
+  character controller, queries, contacts and closest-point queries; 3D adds
+  vehicles.
 - A sprite sizes from its image (`pixels_per_unit`, default 100) or one cell of
   a `columns`/`rows` grid or a `sprite_sheet` in `sheet`, resolved when set rather than at draw time — so the
   image header is read in every build, headless included.
@@ -757,12 +757,13 @@ Where the rotation got to is presentation: not snapshotted, not digested.
 across its right sets pan. A sound is placed by its `sound` component or per
 call; `audio.set_listener_position` covers a game whose ears are not a node.
 
-- Attenuation is inverse-distance, full inside `min_distance`, halving per
-  doubling, cut at `max_distance`. Pan is equal-power amplitude computed with
-  square roots rather than the usual sine pair — platform trigonometry differs.
+- Attenuation is `inverse`, halving per doubling, or `inverse_square`,
+  quartering, full inside `min_distance` and cut at `max_distance`. Pan is
+  equal-power amplitude computed with square roots rather than the usual sine
+  pair — platform trigonometry differs.
 - Doppler is OpenAL's model over frame-to-frame velocities, off unless a sound
-  asks, clamped to an octave: on a jittering position it is a warble, on a
-  teleport a screech.
+  asks, clamped to `max_doppler`, an octave by default: on a jittering
+  position it is a warble, on a teleport a screech.
 - Placement multiplies the bus chain rather than replacing it, so a positional
   sound still answers the `sfx` slider. It runs in `SceneSync`, so ears and
   emitters use the poses the frame will draw.
@@ -1225,17 +1226,24 @@ fire = ["mouse:left"]
 
 **Gamepads, motion and rumble.**
 
-- Pads are polled inside the tick (`First`), not by the windowed backend: a
-  controller is not a window event, and a headless run sees one. Not while
-  replaying — the recorded pads were just restored.
+- gilrs runs on a thread of its own, one per process (`pad_thread.rs`): a
+  controller service can hang inside it, as Windows Gaming Input does after a
+  resume from sleep (gilrs issue 196), and there it stops the pads, not the
+  game. The thread sleeps until a pad changes and wakes the loop.
+- The tick takes that thread's changes in `First`, never waiting on it,
+  rather than the windowed backend: a controller is not a window event, and a
+  headless run sees one. Not while replaying — the recorded pads were just
+  restored. What a script reads of a pad is the engine's contract, not
+  gilrs's: `docs/PLAN-input.md` §1.
 - **Two readers, one pad, no overlap.** gilrs reads buttons and axes; gyro,
   accelerometer and touchpad come from `sensors.rs` over raw HID (DualSense and
   DualShock 4, USB and Bluetooth, offsets from Linux's `hid-playstation.c`),
   matched by vendor and product and told apart by order. A backend covering both
   readings replaces both rather than joining them.
-- Rumble is output through `gilrs::ff`, so a recording never carries it — the
-  script asks again on replay. `can_rumble` *is* recorded, because a script may
-  branch on it. No gyroscope, no HID and no pad all read zero.
+- Rumble is output, so a recording never carries it — the script asks again
+  on replay, and the engine works out its shape in tick time. `can_rumble` *is*
+  recorded, because a script may branch on it. No gyroscope, no HID and no pad
+  all read zero.
 
 **Touch.** The whole design is `docs/PLAN-touch.md`; the rules it keeps:
 
@@ -1302,7 +1310,7 @@ it at the head. Post-processing is an observer like the rest of rendering.
 ## Camera and screenshots
 
 `render.set_camera(ex, ey, ez, tx, ty, tz)` writes a `CameraConfig3d`; the backend
-applies it and keeps its orbit controls in between. `render.screenshot(path)`
+applies it, and no mouse or key moves the camera between. `render.screenshot(path)`
 saves a frame to PNG.
 
 Capture is a binding rather than a flag because *when* to capture is the

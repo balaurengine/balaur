@@ -26,6 +26,31 @@ pub fn app() -> (tempfile::TempDir, App) {
     (dir, standard_app(config).unwrap())
 }
 
+/// An app whose project ships the editor's four faces and reads no system
+/// ones, so a weight has a heavier face to pick on every machine.
+pub fn app_with_editor_fonts() -> (tempfile::TempDir, App) {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"w\"\nmain_scene = \"main.toml\"\n\n[ui]\nsystem_fonts = false\n",
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("main.toml"), "").unwrap();
+    std::fs::create_dir(dir.path().join("fonts")).unwrap();
+    let from = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../editor/fonts");
+    for face in std::fs::read_dir(&from).unwrap() {
+        let face = face.unwrap().path();
+        std::fs::copy(
+            &face,
+            dir.path().join("fonts").join(face.file_name().unwrap()),
+        )
+        .unwrap();
+    }
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    (dir, standard_app(config).unwrap())
+}
+
 pub fn add_widget(app: &App, params: &toml::Value) -> Entity {
     let root = app.engine.root();
     let entity = balaur::scene::spawn_node(&mut app.engine.world_mut(), "W", root);

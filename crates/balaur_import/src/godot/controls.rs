@@ -171,7 +171,6 @@ pub(crate) fn widget(
     }
 }
 
-/// A Control's caption and how it is set: its text or translation key, its
 /// The `cursor` word for one of Godot's `CursorShape` numbers; the arrow, 0,
 /// is the platform's own and names nothing.
 fn cursor_word(shape: i64) -> Option<&'static str> {
@@ -196,6 +195,7 @@ fn cursor_word(shape: i64) -> Option<&'static str> {
     })
 }
 
+/// A Control's caption and how it is set: its text or translation key, its
 /// role, tooltip and alignment.
 fn caption(class: &str, section: &Section, res: &Resources<'_>, out: &mut Mapped) {
     let text = |key: &str| {
@@ -245,6 +245,15 @@ fn caption(class: &str, section: &Section, res: &Resources<'_>, out: &mut Mapped
     {
         out.set("widget", "wrap", Toml::Boolean(true));
     }
+    // `OVERRUN_TRIM_ELLIPSIS` and `OVERRUN_TRIM_WORD_ELLIPSIS`.
+    if matches!(
+        section
+            .field("text_overrun_behavior")
+            .and_then(Value::as_i64),
+        Some(3 | 4)
+    ) {
+        out.set("widget", "truncate", Toml::Boolean(true));
+    }
     if let Some(align) = section
         .field("horizontal_alignment")
         .and_then(Value::as_i64)
@@ -267,20 +276,15 @@ fn style_override(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
         .find_map(|name| section.field(&format!("theme_override_styles/{name}")));
     if let Some(value) = own {
         for (key, value) in crate::godot::theme::stylebox(value, res) {
-            match key.as_str() {
-                "fill" | "stroke" | "corner_radius" | "padding_x" => out.set("widget", &key, value),
-                "padding" => {
-                    let unset = out
-                        .components
-                        .get("widget")
-                        .and_then(|w| w.get("padding"))
-                        .is_none();
-                    if unset {
-                        out.set("widget", "padding", value);
-                    }
-                }
-                _ => {}
+            if matches!(key.as_str(), "fill" | "stroke" | "corner_radius") {
+                out.set("widget", &key, value);
             }
+        }
+        // A MarginContainer's own margins, read first, win over its box's.
+        if let Some(sides) = crate::godot::theme::content_margins(value, res)
+            && !out.has("widget", "padding")
+        {
+            out.set("widget", "padding", floats(&sides));
         }
     }
     let states = section
@@ -300,10 +304,14 @@ fn style_override(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
 /// around and inside it.
 fn spacing(section: &Section, out: &mut Mapped) {
     let number = |key: &str| section.field(key).and_then(Value::as_f64);
-    if let Some(gap) = number("theme_override_constants/separation")
-        .or_else(|| number("theme_override_constants/h_separation"))
-    {
-        out.set("widget", "gap", Toml::Float(gap.max(0.0)));
+    // A box's `separation` is both ways; a grid's two are across and down. An
+    // axis Godot leaves unset takes the theme's, which is below zero here.
+    let both = number("theme_override_constants/separation");
+    let across = number("theme_override_constants/h_separation").or(both);
+    let down = number("theme_override_constants/v_separation").or(both);
+    if across.is_some() || down.is_some() {
+        let axis = |px: Option<f64>| Toml::Float(px.map_or(-1.0, |px| px.max(0.0)));
+        out.set("widget", "gap", Toml::Array(vec![axis(across), axis(down)]));
     }
     // A MarginContainer's four margins are the four sides of the padding.
     let margins: Vec<f64> = ["left", "top", "right", "bottom"]
@@ -340,6 +348,73 @@ fn button_group(section: &Section, out: &mut Mapped) {
     }
 }
 
+fn text_of(section: &Section, key: &str) -> Option<String> {
+    section
+        .field(key)
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+/// A text field's hint, secrecy, length, editability and alignment, and a
+/// spin box's number and its prefix and suffix.
+fn field_properties(class: &str, section: &Section, out: &mut Mapped) {
+    let text = |key: &str| text_of(section, key);
+    let number = |key: &str| section.field(key).and_then(Value::as_f64);
+    if let Some(hint) = text("placeholder_text") {
+        out.set("widget", "placeholder", Toml::String(hint));
+    }
+    if let Some(Value::Bool(on)) = section.field("secret") {
+        out.set("widget", "secret", Toml::Boolean(*on));
+    }
+    if let Some(length) = number("max_length") {
+        out.set("widget", "max_length", Toml::Float(length));
+    }
+    if let Some(Value::Bool(false)) = section.field("editable") {
+        out.set("widget", "editable", Toml::Boolean(false));
+    }
+    if let Some(word) = number("alignment").and_then(|n| alignment_word(n as i64)) {
+        out.set("widget", "text_align", Toml::String(word.into()));
+    }
+    if class == "SpinBox" {
+        out.set("widget", "numeric", Toml::Boolean(true));
+        for key in ["prefix", "suffix"] {
+            if let Some(words) = text(key) {
+                out.set("widget", key, Toml::String(words));
+            }
+        }
+    }
+}
+
+/// A range's bounds, step and value, a slider's axis and scale, and whether a
+/// bar shows its percentage.
+fn range_properties(class: &str, section: &Section, out: &mut Mapped) {
+    let number = |key: &str| section.field(key).and_then(Value::as_f64);
+    for (godot, here) in [
+        ("min_value", "min"),
+        ("max_value", "max"),
+        ("step", "step"),
+        ("value", "value"),
+    ] {
+        if let Some(n) = number(godot) {
+            out.set("widget", here, Toml::Float(n));
+        }
+    }
+    if !section.fields.iter().any(|(k, _)| k == "max_value") {
+        out.set("widget", "max", Toml::Float(100.0));
+    }
+    if class == "VSlider" {
+        out.set("widget", "axis", Toml::String("vertical".into()));
+    }
+    if class.ends_with("Slider") && section.field("exp_edit") == Some(&Value::Bool(true)) {
+        out.set("widget", "logarithmic", Toml::Boolean(true));
+    }
+    // Godot draws a bar's percentage unless told not to.
+    if class == "ProgressBar" {
+        let shown = section.field("show_percentage") != Some(&Value::Bool(false));
+        out.set("widget", "show_percentage", Toml::Boolean(shown));
+    }
+}
+
 /// The properties one kind of Control has beyond what every widget does: a
 /// check's tick, a field's hint, a range's bounds, a picture's source.
 fn kind_properties(class: &str, section: &Section, res: &Resources<'_>, out: &mut Mapped) {
@@ -357,20 +432,7 @@ fn kind_properties(class: &str, section: &Section, res: &Resources<'_>, out: &mu
             }
             button_group(section, out);
         }
-        "LineEdit" | "SpinBox" | "TextEdit" => {
-            if let Some(hint) = text("placeholder_text") {
-                out.set("widget", "placeholder", Toml::String(hint));
-            }
-            if let Some(Value::Bool(on)) = section.field("secret") {
-                out.set("widget", "secret", Toml::Boolean(*on));
-            }
-            if let Some(length) = number("max_length") {
-                out.set("widget", "max_length", Toml::Float(length));
-            }
-            if class == "SpinBox" {
-                out.set("widget", "numeric", Toml::Boolean(true));
-            }
-        }
+        "LineEdit" | "SpinBox" | "TextEdit" => field_properties(class, section, out),
         "OptionButton" => {
             let options: Vec<Toml> = (0..)
                 .map_while(|i| text(&format!("popup/item_{i}/text")))
@@ -383,29 +445,29 @@ fn kind_properties(class: &str, section: &Section, res: &Resources<'_>, out: &mu
             out.set("widget", "options", Toml::Array(options));
         }
         "HSlider" | "VSlider" | "ProgressBar" | "TextureProgressBar" => {
-            for (godot, here) in [
-                ("min_value", "min"),
-                ("max_value", "max"),
-                ("step", "step"),
-                ("value", "value"),
-            ] {
-                if let Some(n) = number(godot) {
-                    out.set("widget", here, Toml::Float(n));
-                }
-            }
-            if !section.fields.iter().any(|(k, _)| k == "max_value") {
-                out.set("widget", "max", Toml::Float(100.0));
-            }
+            range_properties(class, section, out);
         }
+        "HSeparator" => out.set("widget", "axis", Toml::String("horizontal".into())),
+        "VSeparator" => out.set("widget", "axis", Toml::String("vertical".into())),
+        "ScrollContainer" => scroll_modes(section, out),
         "TextureRect" | "TextureButton" | "NinePatchRect" => picture(class, section, res, out),
         "ColorRect" => {
             if let Some(color) = section.field("color").and_then(colour) {
                 out.set("widget", "fill", Toml::String(hex(&color)));
             }
         }
+        // A box's `alignment` packs its children at one end or the middle.
+        "HBoxContainer" | "VBoxContainer" | "BoxContainer" | "FlowContainer" | "HFlowContainer"
+        | "VFlowContainer" => {
+            if let Some(word) = number("alignment").and_then(|n| alignment_word(n as i64)) {
+                out.set("widget", "justify", Toml::String(word.into()));
+            }
+        }
+        // Godot sizes each column to its widest child, which is `auto`.
         "GridContainer" => {
             if let Some(columns) = number("columns") {
-                out.set("widget", "columns", Toml::Integer(columns as i64));
+                let tracks = format!("repeat({}, auto)", (columns as i64).max(1));
+                out.set("widget", "grid_columns", Toml::String(tracks));
             }
         }
         "FoldableContainer" => {
@@ -418,6 +480,45 @@ fn kind_properties(class: &str, section: &Section, res: &Resources<'_>, out: &mu
             out.set("widget", "justify", Toml::String("center".into()));
         }
         _ => {}
+    }
+}
+
+/// Godot's begin, centre and end alignment as `start`, `center` and `end`.
+fn alignment_word(alignment: i64) -> Option<&'static str> {
+    match alignment {
+        0 => Some("start"),
+        1 => Some("center"),
+        2 => Some("end"),
+        _ => None,
+    }
+}
+
+/// A ScrollContainer's two `ScrollMode`s as the ways a `scroll` moves and
+/// when it shows its bars: an axis left at `SCROLL_MODE_DISABLED` does not
+/// scroll, and one bar setting stands for both, the vertical's first.
+fn scroll_modes(section: &Section, out: &mut Mapped) {
+    // `SCROLL_MODE_AUTO` where a scene leaves the mode out.
+    let mode = |key: &str| section.field(key).and_then(Value::as_i64).unwrap_or(1);
+    let (across, down) = (mode("horizontal_scroll_mode"), mode("vertical_scroll_mode"));
+    let axis = match (across != 0, down != 0) {
+        (true, false) => Some("horizontal"),
+        (false, true) => Some("vertical"),
+        _ => None,
+    };
+    if let Some(axis) = axis {
+        out.set("widget", "axis", Toml::String(axis.into()));
+    }
+    let bar = if down != 0 { down } else { across };
+    let scrollbar = match bar {
+        2 => Some("always"),
+        3 => Some("never"),
+        _ => None,
+    };
+    if let Some(scrollbar) = scrollbar {
+        out.set("widget", "scrollbar", Toml::String(scrollbar.into()));
+    }
+    if let Some(px) = section.field("scroll_deadzone").and_then(Value::as_f64) {
+        out.set("widget", "scroll_deadzone", Toml::Float(px.max(0.0)));
     }
 }
 
@@ -617,6 +718,22 @@ fn window(section: &Section, out: &mut Mapped) {
     if let Some(Toml::Boolean(shown)) = out.keys.remove("visible") {
         out.set("widget", "open", Toml::Boolean(shown));
     }
+    // Godot drags an embedded window by its title bar and resizes it by its
+    // edges unless told not to.
+    let flag = |key: &str| matches!(section.field(key), Some(Value::Bool(true)));
+    out.set("widget", "movable", Toml::Boolean(true));
+    out.set("widget", "resizable", Toml::Boolean(!flag("unresizable")));
+    out.set("widget", "header", Toml::Boolean(!flag("borderless")));
+    // What a drag on its edges may resize it to; zero is no limit either way.
+    for (godot, wide, tall) in [
+        ("min_size", "min_width", "min_height"),
+        ("max_size", "max_width", "max_height"),
+    ] {
+        if let Some([w, h]) = section.field(godot).and_then(pair) {
+            out.set("widget", wide, Toml::Float(w.max(0.0)));
+            out.set("widget", tall, Toml::Float(h.max(0.0)));
+        }
+    }
 }
 
 /// A root Control's anchor preset and offsets as a widget's anchor, `x`, `y`
@@ -711,4 +828,173 @@ fn placement(section: &Section, out: &mut Mapped) {
     };
     out.set("widget", "x", Toml::Float(x));
     out.set("widget", "y", Toml::Float(y));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// One Godot node's section, mapped the way the scene walker maps a
+    /// child of a box container.
+    fn mapped(class: &str, body: &str) -> Mapped {
+        mapped_with("", class, body)
+    }
+
+    /// The same, after the `[sub_resource]` sections in `resources`.
+    fn mapped_with(resources: &str, class: &str, body: &str) -> Mapped {
+        let text = format!("{resources}[node name=\"N\" type=\"{class}\" parent=\".\"]\n{body}");
+        let document = crate::godot::parse(&text).unwrap();
+        let section = document.each("node").next().unwrap();
+        let project = crate::godot::nodes::Project::default();
+        let res = Resources {
+            external: std::collections::BTreeMap::new(),
+            internal: document
+                .each("sub_resource")
+                .filter_map(|s| Some((s.attr_str("id")?.to_string(), s.clone())))
+                .collect(),
+            root: std::path::Path::new("."),
+            project: &project,
+        };
+        let mut out = Mapped::default();
+        super::widget(class, section, "VBoxContainer", &res, &mut out);
+        out
+    }
+
+    fn widget<'a>(out: &'a Mapped, key: &str) -> &'a Toml {
+        &out.components["widget"][key]
+    }
+
+    #[test]
+    fn a_box_s_separation_is_both_axes_of_the_gap() {
+        let out = mapped("VBoxContainer", "theme_override_constants/separation = 6\n");
+        assert_eq!(
+            widget(&out, "gap"),
+            &Toml::Array(vec![Toml::Float(6.0), Toml::Float(6.0)])
+        );
+    }
+
+    #[test]
+    fn a_grid_s_columns_are_auto_tracks_and_its_separations_its_two_gaps() {
+        let out = mapped(
+            "GridContainer",
+            "columns = 3\ntheme_override_constants/h_separation = 4\ntheme_override_constants/v_separation = 2\n",
+        );
+        assert_eq!(
+            widget(&out, "grid_columns").as_str(),
+            Some("repeat(3, auto)")
+        );
+        assert_eq!(
+            widget(&out, "gap"),
+            &Toml::Array(vec![Toml::Float(4.0), Toml::Float(2.0)])
+        );
+    }
+
+    fn word<'a>(out: &'a Mapped, key: &str) -> Option<&'a str> {
+        out.components["widget"].get(key).and_then(Toml::as_str)
+    }
+
+    #[test]
+    fn a_vertical_slider_runs_up_its_box_and_a_horizontal_one_keeps_the_default() {
+        assert_eq!(word(&mapped("VSlider", ""), "axis"), Some("vertical"));
+        assert_eq!(word(&mapped("HSlider", ""), "axis"), None);
+    }
+
+    #[test]
+    fn an_exponential_slider_is_logarithmic() {
+        let out = mapped("HSlider", "exp_edit = true\n");
+        assert_eq!(widget(&out, "logarithmic"), &Toml::Boolean(true));
+    }
+
+    #[test]
+    fn each_separator_names_the_line_it_draws() {
+        assert_eq!(word(&mapped("HSeparator", ""), "axis"), Some("horizontal"));
+        assert_eq!(word(&mapped("VSeparator", ""), "axis"), Some("vertical"));
+    }
+
+    #[test]
+    fn a_progress_bar_shows_its_percentage_unless_the_scene_hides_it() {
+        let shown = mapped("ProgressBar", "");
+        assert_eq!(widget(&shown, "show_percentage"), &Toml::Boolean(true));
+        let hidden = mapped("ProgressBar", "show_percentage = false\n");
+        assert_eq!(widget(&hidden, "show_percentage"), &Toml::Boolean(false));
+    }
+
+    #[test]
+    fn a_spin_box_keeps_its_prefix_and_suffix() {
+        let out = mapped("SpinBox", "prefix = \"$\"\nsuffix = \"kg\"\n");
+        assert_eq!(word(&out, "prefix"), Some("$"));
+        assert_eq!(word(&out, "suffix"), Some("kg"));
+    }
+
+    #[test]
+    fn a_line_edit_that_is_not_editable_says_so() {
+        let out = mapped("LineEdit", "editable = false\n");
+        assert_eq!(widget(&out, "editable"), &Toml::Boolean(false));
+    }
+
+    #[test]
+    fn a_scroll_container_with_one_axis_disabled_scrolls_the_other_way() {
+        let out = mapped(
+            "ScrollContainer",
+            "horizontal_scroll_mode = 0\nvertical_scroll_mode = 2\nscroll_deadzone = 12\n",
+        );
+        assert_eq!(word(&out, "axis"), Some("vertical"));
+        assert_eq!(word(&out, "scrollbar"), Some("always"));
+        assert_eq!(widget(&out, "scroll_deadzone"), &Toml::Float(12.0));
+        let both = mapped("ScrollContainer", "");
+        assert_eq!(word(&both, "axis"), None);
+        assert_eq!(word(&both, "scrollbar"), None);
+    }
+
+    #[test]
+    fn a_box_s_alignment_is_its_justify_and_a_line_edit_s_its_text_align() {
+        assert_eq!(
+            word(&mapped("HBoxContainer", "alignment = 1\n"), "justify"),
+            Some("center")
+        );
+        assert_eq!(
+            word(&mapped("VBoxContainer", "alignment = 2\n"), "justify"),
+            Some("end")
+        );
+        assert_eq!(
+            word(&mapped("LineEdit", "alignment = 2\n"), "text_align"),
+            Some("end")
+        );
+    }
+
+    #[test]
+    fn a_window_s_min_and_max_size_bound_its_resize() {
+        let out = mapped(
+            "Window",
+            "min_size = Vector2i(120, 80)\nmax_size = Vector2i(640, 480)\n",
+        );
+        for (key, px) in [
+            ("min_width", 120.0),
+            ("min_height", 80.0),
+            ("max_width", 640.0),
+            ("max_height", 480.0),
+        ] {
+            assert_eq!(widget(&out, key), &Toml::Float(px), "{key}");
+        }
+    }
+
+    #[test]
+    fn a_label_trimmed_with_an_ellipsis_truncates() {
+        let out = mapped("Label", "text_overrun_behavior = 3\n");
+        assert_eq!(widget(&out, "truncate"), &Toml::Boolean(true));
+    }
+
+    #[test]
+    fn a_stylebox_on_the_node_pads_the_sides_it_names_and_leaves_the_rest_to_the_theme() {
+        let resources = "[sub_resource type=\"StyleBoxFlat\" id=\"box\"]\n\
+            content_margin_left = 6.0\ncontent_margin_right = 10.0\ncontent_margin_top = 2.0\n\n";
+        let out = mapped_with(
+            resources,
+            "Button",
+            "theme_override_styles/normal = SubResource(\"box\")\n",
+        );
+        let padding = Toml::Array([6.0, 2.0, 10.0, -1.0].map(Toml::Float).to_vec());
+        assert_eq!(widget(&out, "padding"), &padding);
+        assert!(out.components["widget"].get("padding_x").is_none());
+    }
 }

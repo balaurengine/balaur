@@ -98,6 +98,11 @@ fn material_at(eng: &balaur_core::Engine, reference: &str) -> Result<Material3d>
 fn material_params(eng: &balaur_core::Engine, path: &str) -> Result<Vec<balaur_script::Value>> {
     use balaur_script::Value;
     let material = material_at(eng, path)?;
+    if let Some(builtin) = &material.builtin {
+        let mut rows = builtin_rows(builtin);
+        rows.extend(slot_rows(&material));
+        return Ok(rows);
+    }
     let source = shader_text(eng, path, &material.shader)?;
     let compiled = compile_with(&material, &source, &crate::shaders::plugin_modules(eng))?;
     let mut rows: Vec<Value> = compiled
@@ -121,22 +126,69 @@ fn material_params(eng: &balaur_core::Engine, path: &str) -> Result<Vec<balaur_s
         .collect();
     // The texture slots, which are bindings rather than fields of `Params`
     // and so are not in what the shader compiled to.
-    for (slot, bound) in TEXTURE_SLOTS.iter().zip(material.textures()) {
-        rows.push(Value::Map(vec![
-            ("name".to_string(), Value::Str((*slot).to_string())),
-            ("type".to_string(), Value::Str("texture".to_string())),
-            (
-                "value".to_string(),
-                Value::Str(bound.unwrap_or_default().to_string()),
-            ),
-        ]));
-    }
+    rows.extend(slot_rows(&material));
     Ok(rows)
+}
+
+fn row(name: &str, ty: &str, value: balaur_script::Value) -> balaur_script::Value {
+    use balaur_script::Value;
+    Value::Map(vec![
+        ("name".to_string(), Value::Str(name.to_string())),
+        ("type".to_string(), Value::Str(ty.to_string())),
+        ("value".to_string(), value),
+    ])
+}
+
+/// One row per texture slot, with the image bound to it.
+fn slot_rows(material: &Material3d) -> Vec<balaur_script::Value> {
+    TEXTURE_SLOTS
+        .iter()
+        .zip(material.textures())
+        .map(|(slot, bound)| {
+            row(
+                slot,
+                "texture",
+                balaur_script::Value::Str(bound.unwrap_or_default().to_string()),
+            )
+        })
+        .collect()
+}
+
+/// The rows of a material with no shader: kiss3d's own values, as numbers
+/// and colours. The parallax method is a word the inspector cannot draw as
+/// one of these types, so it stays in the file.
+fn builtin_rows(b: &crate::material::Builtin) -> Vec<balaur_script::Value> {
+    use crate::vocabulary::keys as k;
+    use balaur_script::Value;
+    let num = |name: &str, v: f32| row(name, "float", Value::Num(f64::from(v)));
+    vec![
+        num(k::METALLIC, b.metallic),
+        num(k::ROUGHNESS, b.roughness),
+        row(k::EMISSION_COLOR, "color", Value::Color(b.emission_color)),
+        row(k::SPECULAR_TINT, "color", Value::Color(b.specular_tint)),
+        num(k::REFLECTANCE, b.reflectance),
+        num(k::CLEARCOAT, b.clearcoat),
+        num(k::CLEARCOAT_ROUGHNESS, b.clearcoat_roughness),
+        num(k::ANISOTROPY, b.anisotropy),
+        num(
+            k::ANISOTROPY_ROTATION_DEGREES,
+            b.anisotropy_rotation_degrees,
+        ),
+        num(k::SUBSURFACE, b.subsurface),
+        num(k::SUBSURFACE_RADIUS, b.subsurface_radius),
+        num(k::PARALLAX_SCALE, b.parallax_scale),
+        num(k::PARALLAX_LAYERS, b.parallax_layers),
+        num(k::PARALLAX_RELIEF_STEPS, b.parallax_relief_steps as f32),
+    ]
 }
 
 /// Parse the material at `path`, read the shader it names, and link them.
 fn check_material(eng: &balaur_core::Engine, path: &str) -> Result<()> {
     let material = material_at(eng, path)?;
+    // One with no shader has nothing to link; parsing it checked its params.
+    if material.builtin.is_some() {
+        return Ok(());
+    }
     let source = shader_text(eng, path, &material.shader)?;
     let modules = crate::shaders::plugin_modules(eng);
     compile_with(&material, &source, &modules).map(|_| ())

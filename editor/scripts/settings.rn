@@ -450,7 +450,7 @@ fn editor_control(S, def, path) {
         let whole = datatype == "int";
         return #{
             kind: "number_field", role: "input_number", grow: 1,
-            value: now, min: low, max: high, step: if whole { 1.0 } else { 0.01 },
+            value: now, min: low, max: high, drag_speed: if whole { 1.0 } else { 0.01 },
             on: |v| {
                 write(S, path, if whole { math::round(v) as i64 } else { v });
             },

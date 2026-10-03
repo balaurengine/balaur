@@ -14,7 +14,8 @@
 //! from a file beside the model through a [`SideReader`] the caller supplies
 //! — the project reader at load, the file system at import. Of a material,
 //! only the base colour texture is kept, as the mesh node's `texture`;
-//! cameras, lights and morph targets are read past.
+//! cameras and morph targets are read past, and a KHR_lights_punctual light
+//! becomes a `light3d`.
 
 use anyhow::{Context, Result, anyhow, bail};
 use glamx::{Mat4, Quat, Vec3};
@@ -883,7 +884,10 @@ fn scene_nodes(model: &Model, joints: &DetHashMap<usize, ()>, root_id: &str) -> 
     let mut ids: DetHashMap<usize, String> = DetHashMap::default();
     for node_index in model.scene_nodes() {
         let carries_only_a_mesh = model.document.nodes().nth(node_index).is_some_and(|n| {
-            n.mesh().is_some() && n.children().len() == 0 && !joints.contains_key(&node_index)
+            n.mesh().is_some()
+                && n.children().len() == 0
+                && n.light().is_none()
+                && !joints.contains_key(&node_index)
         });
         if carries_only_a_mesh {
             continue;
@@ -916,6 +920,14 @@ fn scene_nodes(model: &Model, joints: &DetHashMap<usize, ()>, root_id: &str) -> 
             crate::transform::COMPONENT.into(),
             toml::Value::Table(placed),
         );
+        if let Some(light) = model
+            .document
+            .nodes()
+            .nth(node_index)
+            .and_then(|n| n.light())
+        {
+            entry.insert("light3d".into(), light_of(&light));
+        }
         if joints.contains_key(&node_index) {
             let mut bone = toml::map::Map::new();
             bone.insert("rest_position".into(), floats(t));
@@ -926,6 +938,43 @@ fn scene_nodes(model: &Model, joints: &DetHashMap<usize, ()>, root_id: &str) -> 
         out.push(toml::Value::Table(entry));
     }
     out
+}
+
+/// A KHR_lights_punctual light as the `light3d` it becomes. Both aim down
+/// the node's -z. glTF's photometric intensity is written as it is: lux for
+/// a directional light, candela for the others.
+fn light_of(light: &gltf::khr_lights_punctual::Light<'_>) -> toml::Value {
+    use gltf::khr_lights_punctual::Kind;
+    let mut table = toml::map::Map::new();
+    let kind = match light.kind() {
+        Kind::Directional => "directional",
+        Kind::Point => "point",
+        Kind::Spot {
+            inner_cone_angle,
+            outer_cone_angle,
+        } => {
+            table.insert(
+                "inner_angle_degrees".into(),
+                toml::Value::Float(inner_cone_angle.to_degrees().into()),
+            );
+            table.insert(
+                "outer_angle_degrees".into(),
+                toml::Value::Float(outer_cone_angle.to_degrees().into()),
+            );
+            "spot"
+        }
+    };
+    table.insert("kind".into(), toml::Value::String(kind.into()));
+    let [r, g, b] = light.color();
+    table.insert("color".into(), floats([r, g, b, 1.0]));
+    table.insert(
+        "intensity".into(),
+        toml::Value::Float(light.intensity().into()),
+    );
+    if let Some(range) = light.range() {
+        table.insert("range".into(), toml::Value::Float(range.into()));
+    }
+    toml::Value::Table(table)
 }
 
 /// One mesh node at the root, drawing `surface`'s triangles: rigid

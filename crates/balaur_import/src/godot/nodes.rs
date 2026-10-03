@@ -314,7 +314,8 @@ pub(crate) fn map(class: &str, section: &Section, parent: &str, res: &Resources<
         }
         "CollisionShape2D" => collision_shape(section, res, &mut out),
         "CollisionPolygon2D" => collision_polygon(section, &mut out),
-        "CPUParticles2D" | "GPUParticles2D" => particles(section, res, &mut out),
+        "CPUParticles2D" | "GPUParticles2D" => particles(section, res, &mut out, false),
+        "CPUParticles3D" | "GPUParticles3D" => particles(section, res, &mut out, true),
         "AudioStreamPlayer" | "AudioStreamPlayer2D" => sound(class, section, res, &mut out),
         "PointLight2D" | "DirectionalLight2D" => light(class, section, &mut out),
         "RemoteTransform2D" => remote(section, &mut out),
@@ -919,46 +920,52 @@ fn polygon_collider(points: &[[f64; 2]], kind: &str, out: &mut Mapped) {
     });
 }
 
-fn particles(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
-    out.touch("particles");
+/// A Godot emitter as `particles2d` or `particles3d`. Godot's 3D units are
+/// world units already, where its 2D ones are pixels with y down.
+fn particles(section: &Section, res: &Resources<'_>, out: &mut Mapped, dim3: bool) {
+    let component = if dim3 { "particles3d" } else { "particles2d" };
+    let unit = if dim3 { 1.0 } else { PIXELS_PER_UNIT };
+    out.touch(component);
     let number = |key: &str| section.field(key).and_then(Value::as_f64);
     let lifetime = number("lifetime").unwrap_or(1.0);
-    out.set("particles", "lifetime", Toml::Float(lifetime));
+    out.set(component, "lifetime", Toml::Float(lifetime));
     if let Some(amount) = number("amount") {
-        out.set(
-            "particles",
-            "rate",
-            Toml::Float(amount / lifetime.max(0.05)),
-        );
+        out.set(component, "rate", Toml::Float(amount / lifetime.max(0.05)));
     }
     for (godot, here) in [("emitting", "emitting"), ("one_shot", "one_shot")] {
         if let Some(Value::Bool(on)) = section.field(godot) {
-            out.set("particles", here, Toml::Boolean(*on));
+            out.set(component, here, Toml::Boolean(*on));
         }
     }
     if let Some(explosiveness) = number("explosiveness") {
-        out.set("particles", "explosiveness", Toml::Float(explosiveness));
+        out.set(component, "explosiveness", Toml::Float(explosiveness));
     }
-    if let Some(path) = section.field("texture").and_then(|t| res.path(t)) {
+    if let Some(path) = section.field("texture").and_then(|t| res.path(t))
+        && !dim3
+    {
         let texture = image_path(path, res, out);
-        out.set("particles", "texture", Toml::String(texture));
+        out.set(component, "texture", Toml::String(texture));
     }
     if let Some(color) = section.field("color").and_then(colour) {
-        out.set("particles", "color", color);
+        out.set(component, "color", color);
     }
-    // Godot's direction is a y-down vector; here y is up.
-    if let Some([x, y]) = section.field("direction").and_then(pair) {
-        out.set("particles", "direction", floats(&[x, -y]));
+    // Godot's 2D direction is a y-down vector; here y is up.
+    match section
+        .field("direction")
+        .and_then(Value::numbers)
+        .as_deref()
+    {
+        Some(&[x, y, z]) if dim3 => out.set(component, "direction", floats(&[x, y, z])),
+        Some(&[x, y]) if !dim3 => out.set(component, "direction", floats(&[x, -y])),
+        _ => {}
     }
     if let Some(spread) = number("spread") {
-        out.set("particles", "spread_degrees", Toml::Float(spread));
+        out.set(component, "spread_degrees", Toml::Float(spread));
     }
-    if let Some([x, y]) = section.field("gravity").and_then(pair) {
-        out.set(
-            "particles",
-            "gravity",
-            floats(&[x / PIXELS_PER_UNIT, -y / PIXELS_PER_UNIT]),
-        );
+    match section.field("gravity").and_then(Value::numbers).as_deref() {
+        Some(&[x, y, z]) if dim3 => out.set(component, "gravity", floats(&[x, y, z])),
+        Some(&[x, y]) if !dim3 => out.set(component, "gravity", floats(&[x / unit, -y / unit])),
+        _ => {}
     }
     let low = number("initial_velocity_min");
     let high = number("initial_velocity_max");
@@ -968,19 +975,26 @@ fn particles(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
         .or(high)
         .or(low)
     {
-        out.set("particles", "speed", Toml::Float(speed / PIXELS_PER_UNIT));
+        out.set(component, "speed", Toml::Float(speed / unit));
     }
-    if let Some(scale) = number("scale_amount_max").or_else(|| number("scale_amount_min")) {
-        out.set("particles", "size", Toml::Float((scale * 4.0).max(0.5)));
+    if let Some(scale) = number("scale_amount_max").or_else(|| number("scale_amount_min"))
+        && !dim3
+    {
+        out.set(component, "size", Toml::Float((scale * 4.0).max(0.5)));
+    }
+    if dim3 {
+        out.note("CPUParticles3D draws its mesh; here each particle is a quad of `size`, its texture unset");
     }
     if section.field("color_ramp").is_some() || section.field("scale_amount_curve").is_some() {
-        out.note("CPUParticles2D ramp or curve: only its start and end carry, as `color_end` and `size_end`");
+        out.note(
+            "a particle ramp or curve: only its start and end carry, as `color_end` and `size_end`",
+        );
     }
     if let Some(ramp) = section.field("color_ramp").and_then(|r| res.sub(r))
         && let Some(colors) = ramp.field("colors").and_then(Value::numbers)
         && let [.., r, g, b, a] = colors[..]
     {
-        out.set("particles", "color_end", floats(&[r, g, b, a]));
+        out.set(component, "color_end", floats(&[r, g, b, a]));
     }
 }
 

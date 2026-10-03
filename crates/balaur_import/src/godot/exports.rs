@@ -41,6 +41,9 @@ pub(crate) struct Classes {
     /// The autoloads that are nodes of the main scene, read by name as the
     /// node carrying `autoload_<name>`.
     pub autoload_nodes: BTreeSet<String>,
+    /// The methods a scene connects to a collision signal, by name across the
+    /// project: the engine hands them a record where Godot handed the node.
+    pub collision_handlers: BTreeSet<String>,
 }
 
 /// What an export holds, in the types an `exports()` spec has.
@@ -681,7 +684,38 @@ pub(crate) fn class_index(root: &Path, files: &[String]) -> Classes {
             classes.files.insert(name, file.clone());
         }
     }
+    for file in files
+        .iter()
+        .filter(|f| crate::godot::files::has_extension(f, "tscn"))
+    {
+        let Ok(source) = crate::godot::io::text(&root.join(file)) else {
+            continue;
+        };
+        classes
+            .collision_handlers
+            .extend(collision_handlers(&source));
+    }
     classes
+}
+
+/// The methods a scene's `[connection]` lines aim a collision signal at.
+pub(crate) fn collision_handlers(scene: &str) -> Vec<String> {
+    let attr = |line: &str, name: &str| -> Option<String> {
+        let rest = line.split(&format!(" {name}=\"")).nth(1)?;
+        Some(rest.split('"').next()?.to_string())
+    };
+    scene
+        .lines()
+        .filter(|line| line.starts_with("[connection"))
+        .filter(|line| {
+            attr(line, "signal").is_some_and(|signal| {
+                crate::godot::gdscript::is_collision_event(crate::godot::gdscript::engine_event(
+                    &signal,
+                ))
+            })
+        })
+        .filter_map(|line| attr(line, "method"))
+        .collect()
 }
 
 /// Every inner class under `file`, and those under each of them, reachable

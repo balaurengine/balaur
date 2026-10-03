@@ -16,23 +16,26 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use balaur_core::Engine;
-use cosmic_text::{
-    Attrs, Buffer, Family, FontSystem, Metrics, Shaping, Style, SwashCache, Weight, Wrap, fontdb,
-};
+use cosmic_text::{Buffer, CacheKeyFlags, FontSystem, SwashCache, fontdb};
 use egui::{Color32, Mesh, Pos2, Rect, Vec2, pos2, vec2};
 
 pub mod bitmap;
 pub mod fonts;
 pub mod glyph;
 pub mod markup;
+pub mod options;
+pub mod vocabulary;
 
 pub mod atlas;
+mod shape;
 
 use atlas::GlyphAtlas;
 pub use markup::Align;
-
-/// Line height as a multiple of the font size: what browsers call `normal`.
-const LINE_HEIGHT: f32 = 1.25;
+pub use options::{
+    Decoration, Feature, Hinting, LineBreak, Options, PLAIN, Shaping, Slant, Stretch, TruncateAt,
+    Underline,
+};
+use shape::{Chain, Chains, Tweaks, runs, shape_into, spans_of};
 
 /// Sizes are rasterised in buckets a twelfth of a step apart, so a camera
 /// zooming continuously re-shapes a few times rather than every frame — and
@@ -57,12 +60,12 @@ pub struct Request {
     pub text: String,
     pub size: f32,
     pub weight: u16,
-    pub italic: bool,
+    pub slant: Slant,
     /// The width lines break at; `None` runs the text on one line.
     pub width: Option<f32>,
-    /// Cut a line too long for `width` and end it with an ellipsis, rather
-    /// than leave the caller to clip it mid-glyph. Needs a `width`, and says
-    /// nothing about a block that wraps.
+    /// Cut text too long for `width` and end it with an ellipsis, rather
+    /// than leave the caller to clip it mid-glyph: on one line, or at the
+    /// options' `max_lines` or `max_height` when it states one. Needs a width.
     pub truncate: bool,
     pub align: Align,
     pub markup: bool,
@@ -77,6 +80,7 @@ pub struct Request {
     pub line_height: f32,
     /// Extra space between glyphs, in the same pixels as `size`.
     pub letter_spacing: f32,
+    pub options: Options,
 }
 
 /// The same request with its strings borrowed: what a lookup needs, since a
@@ -87,11 +91,9 @@ pub struct RequestRef<'a> {
     pub text: &'a str,
     pub size: f32,
     pub weight: u16,
-    pub italic: bool,
+    pub slant: Slant,
     pub width: Option<f32>,
-    /// Cut a line too long for `width` and end it with an ellipsis, rather
-    /// than leave the caller to clip it mid-glyph. Needs a `width`, and says
-    /// nothing about a block that wraps.
+    /// As [`Request::truncate`].
     pub truncate: bool,
     pub align: Align,
     pub markup: bool,
@@ -99,6 +101,7 @@ pub struct RequestRef<'a> {
     pub family: &'a str,
     pub line_height: f32,
     pub letter_spacing: f32,
+    pub options: &'a Options,
 }
 
 impl RequestRef<'_> {
@@ -109,7 +112,7 @@ impl RequestRef<'_> {
             text: self.text.to_string(),
             size: self.size,
             weight: self.weight,
-            italic: self.italic,
+            slant: self.slant,
             width: self.width,
             truncate: self.truncate,
             align: self.align,
@@ -118,11 +121,33 @@ impl RequestRef<'_> {
             family: self.family.to_string(),
             line_height: self.line_height,
             letter_spacing: self.letter_spacing,
+            options: self.options.clone(),
         }
     }
 }
 
 impl Request {
+    /// `text` at `size` pixels, regular and upright in the `ui` chain on one
+    /// line, with every option at its default.
+    #[must_use]
+    pub fn new(text: &str, size: f32) -> Self {
+        Self {
+            text: text.to_string(),
+            size,
+            weight: 400,
+            slant: Slant::Normal,
+            width: None,
+            truncate: false,
+            align: Align::Start,
+            markup: false,
+            font: String::new(),
+            family: String::new(),
+            line_height: 0.0,
+            letter_spacing: 0.0,
+            options: Options::default(),
+        }
+    }
+
     /// This request, borrowed, so an owned one takes the same cache path.
     #[must_use]
     pub fn as_ref(&self) -> RequestRef<'_> {
@@ -130,7 +155,7 @@ impl Request {
             text: &self.text,
             size: self.size,
             weight: self.weight,
-            italic: self.italic,
+            slant: self.slant,
             width: self.width,
             truncate: self.truncate,
             align: self.align,
@@ -139,6 +164,7 @@ impl Request {
             family: &self.family,
             line_height: self.line_height,
             letter_spacing: self.letter_spacing,
+            options: &self.options,
         }
     }
 }
@@ -157,15 +183,16 @@ fn key_of(request: &RequestRef<'_>, generation: u64, scale: f32) -> Key {
     request.text.hash(&mut hasher);
     request.size.to_bits().hash(&mut hasher);
     request.weight.hash(&mut hasher);
-    request.italic.hash(&mut hasher);
+    request.slant.hash(&mut hasher);
     request.width.map(f32::to_bits).hash(&mut hasher);
     request.truncate.hash(&mut hasher);
-    (request.align as u8).hash(&mut hasher);
+    request.align.hash(&mut hasher);
     request.markup.hash(&mut hasher);
     request.font.hash(&mut hasher);
     request.family.hash(&mut hasher);
     request.line_height.to_bits().hash(&mut hasher);
     request.letter_spacing.to_bits().hash(&mut hasher);
+    request.options.hash_into(&mut hasher);
     generation.hash(&mut hasher);
     scale.to_bits().hash(&mut hasher);
     hasher.finish()
@@ -196,9 +223,34 @@ pub struct Picture {
     pub path: String,
 }
 
+/// An underline, strikethrough or overline: a bar over the atlas's solid
+/// square, so it draws in the same pass as the glyphs.
+#[derive(Clone, Copy)]
+pub struct Line {
+    pub rect: Rect,
+    pub uv: Rect,
+    /// The colour the request or its markup named, else the label's.
+    pub color: Option<Color32>,
+}
+
+/// One thing a block draws, a glyph or a line, as a consumer that only
+/// paints sees it.
+#[derive(Clone, Copy)]
+pub struct Piece {
+    pub rect: Rect,
+    pub uv: Rect,
+    pub color: Option<Color32>,
+    /// Whether the bitmap carries its own colour, which a tint would wash out.
+    pub colored: bool,
+}
+
 pub struct Shaped {
     pub size: Vec2,
     pub quads: Vec<Quad>,
+    /// Drawn over the glyphs, in the order cosmic-text lays them.
+    pub lines: Vec<Line>,
+    /// Whether an ellipsis stands in for text that did not fit.
+    pub elided: bool,
     pub pictures: Vec<Picture>,
     /// What each `[url]` in the block points at.
     pub links: Vec<String>,
@@ -207,6 +259,25 @@ pub struct Shaped {
     /// The text as it was laid out, with the marks taken off: what a glyph's
     /// `start` indexes and what a selection copies.
     pub text: String,
+}
+
+impl Shaped {
+    /// Every glyph, then every line, in drawing order.
+    pub fn pieces(&self) -> impl Iterator<Item = Piece> + '_ {
+        let glyphs = self.quads.iter().map(|quad| Piece {
+            rect: quad.rect,
+            uv: quad.uv,
+            color: quad.color,
+            colored: quad.colored,
+        });
+        let lines = self.lines.iter().map(|line| Piece {
+            rect: line.rect,
+            uv: line.uv,
+            color: line.color,
+            colored: false,
+        });
+        glyphs.chain(lines)
+    }
 }
 
 /// The shaper, its glyph cache and the atlas: one per engine, made when the
@@ -218,7 +289,7 @@ pub struct TextState {
     layouts: HashMap<Key, Rc<Shaped>>,
     /// The first face of each named chain, by chain: what `family` on a
     /// request resolves to.
-    families: HashMap<String, String>,
+    families: Chains,
     /// Bitmap fonts by asset name, with their page's box in the atlas.
     pages: HashMap<String, BitmapPage>,
     /// The project's and the bundled faces, without the system's: what a
@@ -228,10 +299,9 @@ pub struct TextState {
     /// Built from `own` the first time something measures. Separate from
     /// `fonts` on purpose: drawing may fall back to whatever the machine has,
     /// and a number that reaches a script may not.
-    strict: Option<FontSystem>,
-    /// The faces whose `antialias` import setting is off: their glyphs are
-    /// drawn with every pixel fully on or off.
-    aliased: std::collections::HashSet<fontdb::ID>,
+    strict: Option<(FontSystem, Tweaks)>,
+    /// Each face's import settings, by the id `fonts` gave it.
+    tweaks: Tweaks,
 }
 
 /// A loaded bitmap font: the descriptor, and where its page sits.
@@ -266,15 +336,13 @@ impl TextState {
     pub fn new(faces: &[crate::fonts::FontFace], locale: &str) -> Self {
         let mut db = fontdb::Database::new();
         let mut families: Vec<&'static str> = Vec::new();
-        let mut chains: HashMap<String, String> = HashMap::new();
-        let mut aliased = std::collections::HashSet::new();
+        let mut chains: HashMap<String, Chain> = HashMap::new();
+        let mut tweaks = Tweaks::default();
         for face in faces {
             let shared: Arc<Vec<u8>> = Arc::clone(&face.bytes);
             let data: Arc<dyn AsRef<[u8]> + Send + Sync> = shared;
             let ids = db.load_font_source(fontdb::Source::Binary(data));
-            if !face.tweak.antialias {
-                aliased.extend(ids.iter().copied());
-            }
+            tweaks.add(&ids, face.tweak);
             for id in ids {
                 let Some(info) = db.face(id) else {
                     continue;
@@ -284,7 +352,11 @@ impl TextState {
                 };
                 chains
                     .entry(face.chain.to_string())
-                    .or_insert_with(|| name.clone());
+                    .or_insert_with(|| Chain {
+                        family: name.clone(),
+                        scale: face.tweak.scale,
+                        weight: info.weight.0,
+                    });
                 // The shaper's fallback list wants `'static`; a font set lives
                 // as long as the process, so the leak is the family's lifetime.
                 let leaked: &'static str = Box::leak(name.clone().into_boxed_str());
@@ -303,7 +375,7 @@ impl TextState {
             swash: SwashCache::new(),
             atlas: GlyphAtlas::default(),
             layouts: HashMap::new(),
-            families: chains,
+            families: Chains(chains),
             pages: HashMap::new(),
             own: faces
                 .iter()
@@ -312,7 +384,7 @@ impl TextState {
                 .collect(),
             locale: locale.to_string(),
             strict: None,
-            aliased,
+            tweaks,
         }
     }
 
@@ -340,7 +412,7 @@ impl TextState {
         let ids: Vec<fontdb::ID> = self.fonts.db().faces().map(|f| f.id).collect();
         ids.into_iter().any(|id| {
             self.fonts
-                .get_font(id, Weight::NORMAL)
+                .get_font(id, cosmic_text::Weight::NORMAL)
                 .is_some_and(|font| font.as_swash().charmap().map(c) != 0)
         })
     }
@@ -359,14 +431,13 @@ impl TextState {
         if self.strict.is_none() {
             self.strict = Some(Self::system_of(&self.own, &self.locale));
         }
-        let family = self.family_for(request);
-        let Some(fonts) = self.strict.as_mut() else {
+        let Some((fonts, tweaks)) = self.strict.as_mut() else {
             return Vec2::ZERO;
         };
-        let buffer = shape_into(fonts, family.as_deref(), request);
+        let buffer = shape_into(fonts, tweaks, &self.families, request);
         let mut extent = Vec2::ZERO;
-        for run in buffer.layout_runs() {
-            extent.x = extent.x.max(run.line_w);
+        for run in runs(&buffer, request.options) {
+            extent.x = extent.x.max(shape::line_width(&run, request.options));
             extent.y = extent.y.max(run.line_top + run.line_height);
         }
         if let Some(width) = request.width {
@@ -395,7 +466,7 @@ impl TextState {
     /// The layout stays in points; only the atlas is denser. Drawn at one
     /// raster pixel per point instead, a caption is magnified by the UI scale
     /// and filtered, which is what made the editor's own labels soft at 1.25.
-    fn shape_at(&mut self, request: &RequestRef<'_>, scale: f32) -> Rc<Shaped> {
+    pub fn shape_at(&mut self, request: &RequestRef<'_>, scale: f32) -> Rc<Shaped> {
         let key = key_of(request, self.atlas.generation, scale);
         if let Some(found) = self.layouts.get(&key) {
             return Rc::clone(found);
@@ -410,27 +481,18 @@ impl TextState {
         shaped
     }
 
-    /// The face family a request shapes with: the chain it named, or `ui`.
-    fn family_for(&self, request: &RequestRef<'_>) -> Option<String> {
-        let chain = if request.family.is_empty() {
-            "ui"
-        } else {
-            request.family
-        };
-        self.families
-            .get(chain)
-            .or_else(|| self.families.get("ui"))
-            .cloned()
-    }
-
-    /// One font system over `faces`, with those faces as the fallback chain.
-    fn system_of(faces: &[crate::fonts::FontFace], locale: &str) -> FontSystem {
+    /// One font system over `faces`, with those faces as the fallback chain,
+    /// and each face's import settings by the id it was given there.
+    fn system_of(faces: &[crate::fonts::FontFace], locale: &str) -> (FontSystem, Tweaks) {
         let mut db = fontdb::Database::new();
         let mut families: Vec<&'static str> = Vec::new();
+        let mut tweaks = Tweaks::default();
         for face in faces {
             let shared: Arc<Vec<u8>> = Arc::clone(&face.bytes);
             let data: Arc<dyn AsRef<[u8]> + Send + Sync> = shared;
-            for id in db.load_font_source(fontdb::Source::Binary(data)) {
+            let ids = db.load_font_source(fontdb::Source::Binary(data));
+            tweaks.add(&ids, face.tweak);
+            for id in ids {
                 let Some(info) = db.face(id) else { continue };
                 let Some((name, _)) = info.families.first() else {
                     continue;
@@ -441,11 +503,12 @@ impl TextState {
                 }
             }
         }
-        FontSystem::new_with_locale_and_db_and_fallback(
+        let fonts = FontSystem::new_with_locale_and_db_and_fallback(
             locale.to_string(),
             db,
             ChainFallback { families },
-        )
+        );
+        (fonts, tweaks)
     }
 
     fn layout(&mut self, request: &RequestRef<'_>, scale: f32) -> Shaped {
@@ -457,78 +520,8 @@ impl TextState {
             return shaped;
         }
         let parsed = spans_of(request);
-        let family = self.family_for(request);
-        let buffer = shape_into(&mut self.fonts, family.as_deref(), request);
-        let shaped = self.place(&buffer, &parsed, request.width, scale);
-        let Some(room) = request.width.filter(|_| request.truncate) else {
-            return shaped;
-        };
-        // Measured with no box, because a run given one reports the box's
-        // width rather than its own: the clamped number always fits.
-        if self.natural(request, family.as_deref(), request.text, scale) <= room {
-            return shaped;
-        }
-        self.cut_to(request, family.as_deref(), room, scale)
-    }
-
-    /// The longest head of the text that fits `room` with an ellipsis after
-    /// it, shaped.
-    ///
-    /// A binary search over the character boundaries rather than one shape a
-    /// character: sixty characters cost six shapes, and only on a cache miss.
-    fn cut_to(
-        &mut self,
-        request: &RequestRef<'_>,
-        family: Option<&str>,
-        room: f32,
-        scale: f32,
-    ) -> Shaped {
-        let ends: Vec<usize> = request
-            .text
-            .char_indices()
-            .map(|(at, _)| at)
-            .chain(std::iter::once(request.text.len()))
-            .collect();
-        let mut fits = 0;
-        let (mut low, mut high) = (0, ends.len());
-        while low < high {
-            let mid = usize::midpoint(low, high);
-            let text = format!("{}…", &request.text[..ends[mid]]);
-            if self.natural(request, family, &text, scale) <= room {
-                fits = mid;
-                low = mid + 1;
-            } else {
-                high = mid;
-            }
-        }
-        let text = format!("{}…", &request.text[..ends[fits]]);
-        let cut = RequestRef {
-            text: &text,
-            truncate: false,
-            ..*request
-        };
-        let parsed = spans_of(&cut);
-        let buffer = shape_into(&mut self.fonts, family, &cut);
-        self.place(&buffer, &parsed, request.width, scale)
-    }
-
-    /// What `text` measures with no box around it, in this request's face.
-    fn natural(
-        &mut self,
-        request: &RequestRef<'_>,
-        family: Option<&str>,
-        text: &str,
-        scale: f32,
-    ) -> f32 {
-        let plain = RequestRef {
-            text,
-            width: None,
-            truncate: false,
-            ..*request
-        };
-        let parsed = spans_of(&plain);
-        let buffer = shape_into(&mut self.fonts, family, &plain);
-        self.place(&buffer, &parsed, None, scale).size.x
+        let buffer = shape_into(&mut self.fonts, &self.tweaks, &self.families, request);
+        self.place(&buffer, &parsed, request, scale)
     }
 
     /// Lay a run out in a bitmap font, placing its page in the atlas the
@@ -575,21 +568,28 @@ impl TextState {
         self.pages.contains_key(name)
     }
 
-    /// Every laid-out glyph as a quad on the atlas, and every picture's box.
+    /// Every laid-out glyph as a quad on the atlas, every decoration as a
+    /// line, and every picture's box.
     fn place(
         &mut self,
         buffer: &Buffer,
         parsed: &markup::Markup,
-        width: Option<f32>,
+        request: &RequestRef<'_>,
         scale: f32,
     ) -> Shaped {
+        let options = request.options;
         let mut quads = Vec::new();
         let mut pictures = Vec::new();
+        let mut bars = Vec::new();
+        let mut elided = false;
         let mut extent = Vec2::ZERO;
-        for run in buffer.layout_runs() {
-            extent.x = extent.x.max(run.line_w);
+        for run in runs(buffer, options) {
+            extent.x = extent.x.max(shape::line_width(&run, request.options));
             extent.y = extent.y.max(run.line_top + run.line_height);
+            bars.extend(decorations(&run));
             for glyph in run.glyphs {
+                // cosmic-text's ellipsis covers no text, so its cluster is empty.
+                elided |= glyph.start == glyph.end;
                 let span = parsed.spans.get(glyph.metadata);
                 if let Some(picture) = span.and_then(|s| s.image.as_ref()) {
                     let top = run.line_y - picture.height;
@@ -602,12 +602,23 @@ impl TextState {
                     });
                     continue;
                 }
-                let physical = glyph.physical((0.0, 0.0), scale);
-                let hard = self.aliased.contains(&physical.cache_key.font_id);
-                let Some(slot) =
-                    self.atlas
-                        .slot(&mut self.fonts, &mut self.swash, physical.cache_key, hard)
-                else {
+                let tweak = self.tweaks.of(glyph.font_id);
+                // `y_offset` moves the glyph and not the line, as egui's
+                // `FontTweak` does: a fraction of the size the face draws at.
+                let lower = glyph.font_size * tweak.y_offset * scale;
+                let mut physical = glyph.physical((0.0, lower), scale);
+                if !options.hinting.hints(tweak.hinting) {
+                    physical.cache_key.flags |= CacheKeyFlags::DISABLE_HINTING;
+                }
+                if options.pixel_snap {
+                    physical.cache_key.flags |= CacheKeyFlags::PIXEL_FONT;
+                }
+                let Some(slot) = self.atlas.slot(
+                    &mut self.fonts,
+                    &mut self.swash,
+                    physical.cache_key,
+                    !tweak.antialias,
+                ) else {
                     continue;
                 };
                 // Back to points: the glyph was placed and rasterised in
@@ -628,12 +639,21 @@ impl TextState {
         }
         // A block that wrapped is as wide as it was allowed to be, so a
         // centred line has something to be centred in.
-        if let Some(width) = width {
+        if let Some(width) = request.width {
             extent.x = width;
         }
+        let lines = match self.atlas.solid() {
+            Some(uv) if !bars.is_empty() => bars
+                .into_iter()
+                .map(|(rect, color)| Line { rect, uv, color })
+                .collect(),
+            _ => Vec::new(),
+        };
         Shaped {
             size: extent,
             quads,
+            lines,
+            elided,
             pictures,
             links: parsed.links.clone(),
             hints: parsed.hints.clone(),
@@ -642,103 +662,110 @@ impl TextState {
     }
 }
 
-/// Shape `request` into a buffer on `fonts`. One place, so a measurement and
-/// a drawing can never lay the same text out differently.
-fn shape_into(fonts: &mut FontSystem, family: Option<&str>, request: &RequestRef<'_>) -> Buffer {
-    let parsed = spans_of(request);
-    let align = parsed.align.unwrap_or(request.align);
-    let size = request.size.max(1.0);
-    let base = match family {
-        Some(name) => Attrs::new().family(Family::Name(name)),
-        None => Attrs::new(),
+/// The underline, strikethrough and overline bars of one laid-out line, with
+/// the colour each names: placed the way cosmic-text's own renderer places
+/// them (`render.rs`), from the face's metrics.
+pub(crate) fn decorations(run: &cosmic_text::LayoutRun<'_>) -> Vec<(Rect, Option<Color32>)> {
+    let colour = |c: Option<cosmic_text::Color>| {
+        c.map(|c| Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), c.a()))
     };
-    let mut base = base
-        .weight(Weight(request.weight))
-        .style(if request.italic {
-            Style::Italic
-        } else {
-            Style::Normal
-        });
-    if request.letter_spacing != 0.0 {
-        base = base.letter_spacing(request.letter_spacing / size);
-    }
-    let line_height = if request.line_height > 0.0 {
-        request.line_height
-    } else {
-        LINE_HEIGHT
-    };
-    let mut buffer = Buffer::new(fonts, Metrics::new(size, size * line_height));
-    {
-        let mut borrowed = buffer.borrow_with(fonts);
-        // A truncating run states its width so the cut knows the room, and
-        // stays on one line: the ellipsis is what says there is more.
-        borrowed.set_wrap(if request.width.is_some() && !request.truncate {
-            Wrap::WordOrGlyph
-        } else {
-            Wrap::None
-        });
-        borrowed.set_size(request.width, None);
-        let spans: Vec<(&str, Attrs<'_>)> = parsed
-            .spans
+    let mut bars = Vec::new();
+    for span in run.decorations {
+        let glyphs = &run.glyphs[span.glyph_range.clone()];
+        // Min and max over every glyph, since a right-to-left run is stored
+        // right to left.
+        let (left, right) = glyphs
             .iter()
-            .enumerate()
-            .map(|(index, span)| (span.text.as_str(), span_attrs(&base, span, index, size)))
-            .collect();
-        let alignment = match align {
-            Align::Start => None,
-            Align::Center => Some(cosmic_text::Align::Center),
-            Align::End => Some(cosmic_text::Align::End),
-        };
-        borrowed.set_rich_text(spans, &base, Shaping::Advanced, alignment);
-        borrowed.shape_until_scroll(true);
+            .fold((f32::INFINITY, f32::NEG_INFINITY), |(l, r), g| {
+                (l.min(g.x), r.max(g.x + g.w))
+            });
+        if right <= left {
+            continue;
+        }
+        let data = &span.data;
+        let lines = &data.text_decoration;
+        let size = span.font_size;
+        let thick = |metrics: &cosmic_text::DecorationMetrics| (metrics.thickness * size).max(1.0);
+        let bar = |y: f32, height: f32| Rect::from_min_max(pos2(left, y), pos2(right, y + height));
+        let under = thick(&data.underline_metrics);
+        let under_y = run.line_y - data.underline_metrics.offset * size;
+        let under_colour = colour(lines.underline_color_opt.or(span.color_opt));
+        match lines.underline {
+            cosmic_text::UnderlineStyle::None => {}
+            cosmic_text::UnderlineStyle::Single => bars.push((bar(under_y, under), under_colour)),
+            cosmic_text::UnderlineStyle::Double => {
+                bars.push((bar(under_y, under), under_colour));
+                bars.push((bar(under_y + under * 2.0, under), under_colour));
+            }
+        }
+        if lines.strikethrough {
+            let height = thick(&data.strikethrough_metrics);
+            let y = run.line_y - data.strikethrough_metrics.offset * size;
+            bars.push((
+                bar(y, height),
+                colour(lines.strikethrough_color_opt.or(span.color_opt)),
+            ));
+        }
+        if lines.overline {
+            let y = (run.line_y - data.ascent * size).max(run.line_top);
+            bars.push((
+                bar(y, under),
+                colour(lines.overline_color_opt.or(span.color_opt)),
+            ));
+        }
     }
-    buffer
+    bars
 }
 
-/// The runs a request breaks into: its marks, or the whole text as one.
-fn spans_of(request: &RequestRef<'_>) -> markup::Markup {
-    if request.markup {
-        return markup::parse(request.text);
-    }
-    markup::Markup {
-        spans: vec![markup::Span {
-            text: request.text.to_string(),
-            bold: false,
-            italic: false,
-            color: None,
-            wave: None,
-            image: None,
-            link: None,
-            hint: None,
-        }],
-        align: None,
-        links: Vec::new(),
-        hints: Vec::new(),
-    }
+/// An outline around a block's glyphs and a shadow behind them: the same
+/// quads drawn again, offset and tinted, under the text.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Effects {
+    /// How far the outline reaches, in the block's pixels; zero draws none.
+    pub outline_size: f32,
+    pub outline_color: Color32,
+    /// How far the shadow is moved; zero draws none.
+    pub shadow_offset: Vec2,
+    pub shadow_color: Color32,
 }
 
-/// One span's attributes over the label's own. Spans are told apart by
-/// index, since the glyphs come back without their text.
-fn span_attrs<'a>(base: &Attrs<'a>, span: &markup::Span, index: usize, size: f32) -> Attrs<'a> {
-    let mut attrs = base.clone().metadata(index);
-    if span.bold {
-        attrs = attrs.weight(Weight::BOLD);
+impl Effects {
+    /// The offsets each copy is drawn at, back to front, with its colour:
+    /// the shadow, the outline's eight neighbours, then the text at none.
+    #[must_use]
+    pub fn copies(&self) -> Vec<(Vec2, Option<Color32>)> {
+        let mut out = Vec::new();
+        if self.shadow_offset != Vec2::ZERO {
+            out.push((self.shadow_offset, Some(self.shadow_color)));
+        }
+        if self.outline_size > 0.0 {
+            let r = self.outline_size;
+            for (x, y) in [
+                (-1.0, -1.0),
+                (0.0, -1.0),
+                (1.0, -1.0),
+                (-1.0, 0.0),
+                (1.0, 0.0),
+                (-1.0, 1.0),
+                (0.0, 1.0),
+                (1.0, 1.0),
+            ] {
+                out.push((vec2(x * r, y * r), Some(self.outline_color)));
+            }
+        }
+        out.push((Vec2::ZERO, None));
+        out
     }
-    if span.italic {
-        attrs = attrs.style(Style::Italic);
-    }
-    if let Some(picture) = &span.image {
-        // A no-break space widened to the picture's box, so the line leaves
-        // room for what is drawn over it.
-        let width_em = picture.width / size;
-        attrs = attrs.letter_spacing((width_em - 0.25).max(0.0));
-    }
-    attrs
 }
 
 /// Draw a shaped block with its top-left corner at `origin`. `time` drives
 /// the wave; `tint` is the label's colour where the markup set none, and
-/// `linked` the colour a `[url]` run takes instead.
+/// `linked` the colour a `[url]` run takes instead. `effects` draws the
+/// shadow and the outline under it.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "what a label is painted with, each from a different owner"
+)]
 pub fn paint(
     painter: &egui::Painter,
     texture: Option<egui::TextureId>,
@@ -746,33 +773,63 @@ pub fn paint(
     origin: Pos2,
     tint: Color32,
     linked: Option<Color32>,
+    effects: &Effects,
     time: f64,
 ) {
     let Some(texture) = texture else {
         return;
     };
     let mut mesh = Mesh::with_texture(texture);
-    for quad in &shaped.quads {
-        let mut rect = quad.rect.translate(origin.to_vec2());
-        if let Some((amplitude, frequency)) = quad.wave {
-            let phase = time * f64::from(frequency) * std::f64::consts::TAU;
-            let lift = libm::sin(phase + f64::from(rect.min.x) * 0.05) as f32 * amplitude;
-            rect = rect.translate(vec2(0.0, lift));
+    for (shift, flat) in effects.copies() {
+        let at = origin.to_vec2() + shift;
+        for quad in &shaped.quads {
+            let mut rect = quad.rect.translate(at);
+            if let Some((amplitude, frequency)) = quad.wave {
+                let phase = time * f64::from(frequency) * std::f64::consts::TAU;
+                let lift = libm::sin(phase + f64::from(rect.min.x) * 0.05) as f32 * amplitude;
+                rect = rect.translate(vec2(0.0, lift));
+            }
+            let color = if let Some(flat) = flat {
+                flat
+            } else if quad.colored {
+                Color32::WHITE
+            } else if let Some(color) = quad.color {
+                color
+            } else if let Some(color) = linked.filter(|_| quad.link.is_some()) {
+                color
+            } else {
+                tint
+            };
+            mesh.add_rect_with_uv(rect, quad.uv, color);
         }
-        let color = if quad.colored {
-            Color32::WHITE
-        } else if let Some(color) = quad.color {
-            color
-        } else if let Some(color) = linked.filter(|_| quad.link.is_some()) {
-            color
-        } else {
-            tint
-        };
-        mesh.add_rect_with_uv(rect, quad.uv, color);
+        // After the glyphs, so a strikethrough crosses them.
+        for line in &shaped.lines {
+            let color = flat.or(line.color).unwrap_or(tint);
+            mesh.add_rect_with_uv(line.rect.translate(at), line.uv, color);
+        }
     }
     if !mesh.is_empty() {
         painter.add(egui::Shape::mesh(mesh));
     }
+}
+
+/// Read a bitmap font's `.fnt` and its page out of the project and hand
+/// them to the shaper, once per face. Later calls find it already there.
+///
+/// # Errors
+/// If the descriptor or its page cannot be read, or does not load.
+pub fn load_bitmap_font(eng: &Engine, path: &str) -> anyhow::Result<()> {
+    let state = shaper(eng);
+    if state.borrow().has_bitmap_font(path) {
+        return Ok(());
+    }
+    let files = eng.resource::<balaur_core::project::ProjectFiles>();
+    let descriptor = String::from_utf8(files.borrow().read(path)?)
+        .map_err(|_| anyhow::anyhow!("{path} is not a text .fnt descriptor"))?;
+    let page_path = bitmap::page_of(path, &descriptor)
+        .ok_or_else(|| anyhow::anyhow!("{path} names no page"))?;
+    let page = files.borrow().read(&page_path)?;
+    state.borrow_mut().add_bitmap_font(path, &descriptor, &page)
 }
 
 /// The shaper for this engine, if anything has asked for it yet.
@@ -793,253 +850,4 @@ pub fn shaper(eng: &Engine) -> std::rc::Rc<std::cell::RefCell<TextState>> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn faces() -> Vec<crate::fonts::FontFace> {
-        let mut faces = vec![crate::fonts::FontFace {
-            name: "ui-SourceSans3-Regular".into(),
-            chain: "ui",
-            bytes: Arc::new(
-                include_bytes!("../../../editor/fonts/ui-SourceSans3-Regular.ttf").to_vec(),
-            ),
-            tweak: crate::fonts::FaceTweak::default(),
-        }];
-        faces.extend(crate::fonts::system_faces());
-        faces
-    }
-
-    fn shape(text: &str, width: Option<f32>) -> (TextState, Shaped) {
-        let mut state = TextState::new(&faces(), "en-US");
-        let shaped = state.layout(
-            &RequestRef {
-                text,
-                size: 20.0,
-                weight: 400,
-                italic: false,
-                width,
-                truncate: false,
-                align: Align::Start,
-                markup: true,
-                font: "",
-                family: "",
-                line_height: 0.0,
-                letter_spacing: 0.0,
-            },
-            1.0,
-        );
-        (state, shaped)
-    }
-
-    /// A face the machine happens to have must not change a measurement, or
-    /// two platforms answer differently and a width in state desyncs a replay.
-    #[test]
-    fn a_system_face_does_not_reach_a_measurement() {
-        let request = Request {
-            text: "measure me".into(),
-            size: 24.0,
-            weight: 400,
-            italic: false,
-            truncate: false,
-            width: None,
-            align: Align::Start,
-            markup: false,
-            font: String::new(),
-            family: String::new(),
-            line_height: 0.0,
-            letter_spacing: 0.0,
-        };
-        // The project's face alone, and the same with a system face behind it.
-        let own = vec![faces()[0].clone()];
-        let mut with_system = own.clone();
-        with_system.push(crate::fonts::FontFace {
-            name: "system:pretend".into(),
-            chain: "system",
-            bytes: std::sync::Arc::new(
-                include_bytes!("../../../editor/fonts/mono-JetBrainsMono-Regular.ttf").to_vec(),
-            ),
-            tweak: crate::fonts::FaceTweak::default(),
-        });
-        let strict = TextState::new(&own, "en-US").measure(&request);
-        let loose = TextState::new(&with_system, "en-US").measure(&request);
-        assert_eq!(strict, loose, "a system face changed a measurement");
-    }
-
-    /// Two sizes a hair apart share a bucket, so the atlas holds one set of
-    /// glyphs for both and a zooming camera re-shapes rarely.
-    #[test]
-    fn near_sizes_land_in_one_bucket() {
-        assert!((bucket(24.0) - bucket(24.2)).abs() < f32::EPSILON);
-        assert!(bucket(24.0) >= 24.0, "a bucket never shrinks the text");
-        assert!(bucket(48.0) > bucket(24.0));
-    }
-
-    /// The world reads the same pixels the widgets do, so the atlas has to
-    /// hold them rather than hand them straight to egui.
-    #[test]
-    fn a_shaped_glyph_lands_in_the_atlas_and_moves_its_revision() {
-        let (state, shaped) = shape("A", None);
-        assert_eq!(shaped.quads.len(), 1);
-        let atlas = state.atlas();
-        assert!(atlas.revision() > 0, "rasterising bumps the revision");
-        let side = atlas.side();
-        assert_eq!(atlas.rgba().len(), side * side * 4);
-        // The quad's UV names the box the glyph was written into; something
-        // in it has to be opaque, or the upload carries nothing.
-        let uv = shaped.quads[0].uv;
-        let x0 = (uv.min.x * side as f32) as usize;
-        let y0 = (uv.min.y * side as f32) as usize;
-        let x1 = (uv.max.x * side as f32).ceil() as usize;
-        let y1 = (uv.max.y * side as f32).ceil() as usize;
-        let inked = (y0..y1)
-            .any(|row| (x0..x1).any(|column| atlas.rgba()[(row * side + column) * 4 + 3] > 0));
-        assert!(inked, "the glyph's box in the atlas is blank");
-    }
-
-    /// Filling the page doubles it rather than starting over, so a glyph
-    /// already rasterised keeps its pixels and is never drawn again.
-    #[test]
-    fn an_atlas_that_fills_up_doubles_instead_of_starting_over() {
-        let mut state = TextState::new(&faces(), "en-US");
-        let ask = |state: &mut TextState, text: String| {
-            state.shape(&Request {
-                text,
-                size: 64.0,
-                weight: 400,
-                italic: false,
-                truncate: false,
-                width: None,
-                align: Align::Start,
-                markup: false,
-                font: String::new(),
-                family: String::new(),
-                line_height: 0.0,
-                letter_spacing: 0.0,
-            })
-        };
-        let opened = state.atlas().side();
-        // Enough distinct glyphs at a size that fills a small page.
-        for c in 'a'..='z' {
-            ask(&mut state, c.to_string());
-        }
-        for c in 'A'..='Z' {
-            ask(&mut state, c.to_string());
-        }
-        let grown = state.atlas().side();
-        assert!(
-            grown > opened,
-            "the atlas stayed at {opened} and wiped instead"
-        );
-        assert_eq!(state.atlas().rgba().len(), grown * grown * 4);
-        // The first glyph still has ink where its UV says, which a reset
-        // would have taken away.
-        let shaped = ask(&mut state, "a".to_owned());
-        let uv = shaped.quads[0].uv;
-        let rgba = state.atlas().rgba();
-        let x0 = (uv.min.x * grown as f32) as usize;
-        let y0 = (uv.min.y * grown as f32) as usize;
-        let x1 = (uv.max.x * grown as f32).ceil() as usize;
-        let y1 = (uv.max.y * grown as f32).ceil() as usize;
-        let inked =
-            (y0..y1).any(|row| (x0..x1).any(|column| rgba[(row * grown + column) * 4 + 3] > 0));
-        assert!(inked, "the glyph's box in the grown atlas is blank");
-    }
-
-    /// A second consumer must see a stable atlas: shaping the same run twice
-    /// comes from the cache and writes nothing new.
-    #[test]
-    fn shaping_the_same_run_twice_writes_the_atlas_once() {
-        let mut state = TextState::new(&faces(), "en-US");
-        let request = Request {
-            text: "steady".into(),
-            size: 20.0,
-            weight: 400,
-            italic: false,
-            truncate: false,
-            width: None,
-            align: Align::Start,
-            markup: false,
-            font: String::new(),
-            family: String::new(),
-            line_height: 0.0,
-            letter_spacing: 0.0,
-        };
-        state.shape(&request);
-        let after_first = state.atlas().revision();
-        state.shape(&request);
-        assert_eq!(after_first, state.atlas().revision());
-    }
-
-    #[test]
-    fn latin_text_shapes_to_one_quad_per_letter_left_to_right() {
-        let (_, shaped) = shape("abc", None);
-        assert_eq!(shaped.quads.len(), 3);
-        assert!(shaped.quads[0].rect.min.x < shaped.quads[1].rect.min.x);
-        assert!(shaped.quads[1].rect.min.x < shaped.quads[2].rect.min.x);
-        assert!(shaped.size.x > 0.0 && shaped.size.y > 0.0);
-    }
-
-    #[test]
-    fn a_marked_up_colour_lands_on_its_own_glyphs_only() {
-        let (_, shaped) = shape("a[color=#ff0000]b[/color]c", None);
-        let colours: Vec<Option<Color32>> = shaped.quads.iter().map(|q| q.color).collect();
-        assert_eq!(colours, [None, Some(Color32::from_rgb(255, 0, 0)), None]);
-    }
-
-    #[test]
-    fn a_width_breaks_a_long_line_into_more_than_one() {
-        let (_, one) = shape("one two three four five six", None);
-        let (_, wrapped) = shape("one two three four five six", Some(80.0));
-        assert!(wrapped.size.y > one.size.y, "wrapping adds rows");
-        assert!(wrapped.size.x <= 80.0 + f32::EPSILON);
-    }
-
-    #[test]
-    fn hebrew_runs_right_to_left_when_a_face_covers_it() {
-        let (mut state, shaped) = shape("שלום", None);
-        if !state.covers('ש') {
-            eprintln!("skipped: no Hebrew face on this machine");
-            return;
-        }
-        assert_eq!(shaped.quads.len(), 4);
-        // The first letter of the word is drawn at the right edge.
-        assert!(shaped.quads[0].rect.min.x > shaped.quads[3].rect.min.x);
-    }
-
-    #[test]
-    fn arabic_letters_join_into_contextual_forms_when_a_face_covers_it() {
-        let (mut state, joined) = shape("سلام", None);
-        if !state.covers('س') {
-            eprintln!("skipped: no Arabic face on this machine");
-            return;
-        }
-        let (_, isolated) = shape("س ل ا م", None);
-        // Joined forms are narrower than the same letters set apart.
-        assert!(joined.size.x < isolated.size.x);
-        assert_eq!(isolated.quads.len(), 4);
-        // Lam and alef fuse into one glyph, which only a shaper produces —
-        // and only on a face that carries the ligature, which the one Windows
-        // picks does not. Ask this face before asserting it.
-        let (_, ligature) = shape("\u{644}\u{627}", None);
-        if ligature.quads.len() == 1 {
-            assert_eq!(joined.quads.len(), 3);
-        }
-    }
-
-    #[test]
-    fn a_picture_reserves_its_box_on_the_line() {
-        let (_, shaped) = shape("x[img=icon.png width=40]y", None);
-        assert_eq!(shaped.pictures.len(), 1);
-        let picture = &shaped.pictures[0];
-        assert!((picture.rect.width() - 40.0).abs() < f32::EPSILON);
-        let after = shaped
-            .quads
-            .iter()
-            .map(|q| q.rect.min.x)
-            .fold(0.0, f32::max);
-        assert!(
-            after >= picture.rect.min.x + 30.0,
-            "the next glyph clears the picture"
-        );
-    }
-}
+mod tests;

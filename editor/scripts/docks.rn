@@ -370,7 +370,7 @@ fn sync_canvas(S, d) {
 pub fn chrome_rows(S, rows) {
     let groups = [];
     for row in rows {
-        groups.push(#{ kind: "row", role: "toolbar_dock", gap: 6, align_items: "center", controls: row });
+        groups.push(#{ kind: "row", role: "toolbar_dock", gap: [6, 6], align_items: "center", controls: row });
     }
     crate::pool::strip(S, BOTTOM + "BottomChrome", groups);
 }
@@ -695,7 +695,7 @@ fn tail_controls(S, side) {
             draw: format!("draw_dock_tools_{}", side),
         },
         #{
-            kind: "button", height: tab_h(S), width: tab_h(S), padding_x: 0,
+            kind: "button", height: tab_h(S), width: tab_h(S), padding: 0,
             text: "", icon: icons::ui(shut_icon(side)), role: "icon_action",
             tooltip: "Minimize",
             on: |_| { S.docks[side].shut = true; },
@@ -719,7 +719,7 @@ fn tab_controls(S, k, side, d) {
         // halves inside it paint nothing, so the pair reads as one control.
         let inner = [];
         inner.push(#{
-            kind: "button", height: h, text: label, padding_x: 6, corner_radius: 4, fill: "none",
+            kind: "button", height: h, text: label, padding: [6, -1, 6, -1], corner_radius: 4, fill: "none",
             role: "tab", checked: active,
             on: |_| { S.docks[side].active = held; },
         });

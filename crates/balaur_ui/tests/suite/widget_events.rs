@@ -127,7 +127,7 @@ fn a_scroll_says_where_it_moved_to() {
     let (_dir, mut app) = app();
     let scroll = add_widget(
         &app,
-        &toml::toml! { kind = "scroll" x = 0.0 y = 0.0 width = 200.0 height = 100.0 gap = 0.0 }
+        &toml::toml! { kind = "scroll" x = 0.0 y = 0.0 width = 200.0 height = 100.0 gap = [0.0, 0.0] }
             .into(),
     );
     for i in 0..20 {

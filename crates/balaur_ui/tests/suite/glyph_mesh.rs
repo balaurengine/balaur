@@ -65,7 +65,7 @@ fn word(app: &App, text: &str, size: f32) -> MeshData {
         font: String::new(),
         size,
         weight: 400,
-        italic: false,
+        ..TextShape::default()
     };
     let definition = MeshData {
         text: Some(shape),

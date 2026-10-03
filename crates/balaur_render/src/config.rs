@@ -52,12 +52,20 @@ pub struct PostConfig {
     /// Brightness a pixel blooms past, and how much of it is added back.
     pub bloom_threshold: f32,
     pub bloom_intensity: f32,
+    /// The soft band around the threshold a pixel starts to bloom in.
+    pub bloom_knee: f32,
+    /// Levels in the bloom chain, each half the last; more spreads it wider.
+    pub bloom_mips: u32,
     /// What the engine's own finishing passes are turned by, whichever of
     /// them the chain names.
-    pub finish: crate::camera::Finish,
+    pub finish: crate::post::Finish,
     /// What the occlusion pass measures with, which a scene's own scale
     /// decides.
-    pub occlusion: crate::camera::Occlusion,
+    pub occlusion: crate::post::Occlusion,
+    pub reflections: crate::post::Reflections,
+    pub depth_of_field: crate::post::DepthOfField,
+    /// What the passes kiss3d draws on the chain are built with.
+    pub effects: crate::post::Effects,
     /// `material` assets drawn over the whole frame before the tonemap, in the
     /// order the camera listed them: these work in linear light, so what they
     /// write is what blooms.
@@ -76,8 +84,13 @@ impl Default for PostConfig {
             dof: false,
             bloom_threshold: 1.0,
             bloom_intensity: 0.6,
-            finish: crate::camera::Finish::default(),
-            occlusion: crate::camera::Occlusion::default(),
+            bloom_knee: 0.5,
+            bloom_mips: 5,
+            finish: crate::post::Finish::default(),
+            occlusion: crate::post::Occlusion::default(),
+            reflections: crate::post::Reflections::default(),
+            depth_of_field: crate::post::DepthOfField::default(),
+            effects: crate::post::Effects::default(),
             film: Vec::new(),
             screen: Vec::new(),
             changed: false,
@@ -125,10 +138,10 @@ pub struct CameraConfig2d {
     /// camera. Read every frame rather than applied on a change, so it is not
     /// what `changed` is about.
     pub ambient: [f32; 3],
+    /// Whether `zoom` is multiplied by the display's scale factor, so it
+    /// counts logical pixels; off it counts physical ones.
+    pub hidpi: bool,
     pub changed: bool,
-    /// The current 2D camera's mouse controls, or the defaults with none.
-    pub controls: crate::lens::Controls2d,
-    pub controls_changed: bool,
 }
 
 impl Default for CameraConfig2d {
@@ -137,11 +150,10 @@ impl Default for CameraConfig2d {
             center: [0.0, 0.0],
             zoom: 60.0,
             ambient: [0.0, 0.0, 0.0],
+            hidpi: true,
             // Asserted at boot, as [`CameraConfig3d`] is: a scene writing the
             // schema's own default of 60 raises no change and is never applied.
             changed: true,
-            controls: crate::lens::Controls2d::default(),
-            controls_changed: true,
         }
     }
 }
@@ -203,16 +215,8 @@ impl Default for ViewportSnapshot3d {
     }
 }
 
-/// When `enabled` is false, windowed backends inhibit the camera's mouse
-/// controls (editors take the pointer over for gizmo drags).
-pub struct CameraInputConfig {
-    pub enabled: bool,
-}
-
 /// Where the camera looks from and at. Scripts drive it through
-/// `render.set_camera`; windowed backends apply it whenever it changes (and
-/// keep their own interactive controls, e.g. kiss3d's orbit drag, in
-/// between).
+/// `render.set_camera`; windowed backends apply it whenever it changes.
 pub struct CameraConfig3d {
     pub eye: glamx::Vec3,
     pub target: glamx::Vec3,

@@ -20,7 +20,7 @@ x = 0
 y = 0
 width = 520
 padding = 16
-gap = 12
+gap = [12, 12]
 
 [[nodes]]
 id = "title"
@@ -46,7 +46,7 @@ parent = "sheet"
 [nodes.widget]
 kind = "row"
 height = 32
-gap = 10
+gap = [10, 10]
 
 [[nodes]]
 id = "host"

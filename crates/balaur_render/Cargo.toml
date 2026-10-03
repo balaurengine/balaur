@@ -75,6 +75,9 @@ libloading = { version = "0.8", optional = true }
 [dev-dependencies]
 balaur.workspace = true
 tempfile = "3"
+# Validates a linked shader's types without a GPU, as wgpu will at
+# `create_shader_module`; the WESL link checks names alone.
+naga = { version = "30.0.1", features = ["wgsl-in"] }
 
 [lints]
 workspace = true

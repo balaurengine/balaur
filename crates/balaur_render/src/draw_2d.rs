@@ -339,7 +339,17 @@ impl Layers2d {
     }
 }
 
-/// Draw and forget: last frame's nodes go, this frame's are made.
+/// Take last frame's shapes out, before the 2D order runs: a node left at the
+/// end of the scene would be swapped into the ordered nodes the next time one
+/// of them is detached.
+#[cfg(feature = "window")]
+pub(crate) fn clear(transients: &mut Vec<kiss3d::scene::SceneNode2d>) {
+    for mut node in transients.drain(..) {
+        node.detach();
+    }
+}
+
+/// Draw this frame's shapes, as nodes [`clear`] takes out next frame.
 #[cfg(feature = "window")]
 pub(crate) fn flush(
     app: &balaur_core::App,
@@ -348,9 +358,6 @@ pub(crate) fn flush(
     layers: &Layers2d,
     transients: &mut Vec<kiss3d::scene::SceneNode2d>,
 ) {
-    for mut node in transients.drain(..) {
-        node.detach();
-    }
     let Some(buffer) = app.engine.try_resource::<DrawBuffer2d>() else {
         return;
     };

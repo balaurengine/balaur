@@ -1,6 +1,33 @@
 //! The body functions both dimensions share: the kind vocabulary, the checked
 //! handle lookups, and creating and applying a body.
 
+/// What a body's author wrote that rapier keeps no copy of.
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub(crate) struct Authored {
+    /// Apart from the thresholds that hold the body awake, which also answer
+    /// to `physics.set_sleeping_allowed`.
+    pub(crate) can_sleep: bool,
+    /// `inertia = 0` beside a `center_of_mass`: rapier derives no inertia for
+    /// stated mass properties, so it is fitted from the colliders' shapes.
+    pub(crate) fit_inertia: bool,
+    /// The sleep thresholds, which a body held awake carries as negatives.
+    pub(crate) sleep_threshold: f32,
+    pub(crate) sleep_angular_threshold: f32,
+    /// The keys rapier takes once, when the body is made. 2D leaves z unused.
+    pub(crate) start_asleep: bool,
+    pub(crate) initial_linear_velocity: [f32; 3],
+    pub(crate) initial_angular_velocity: [f32; 3],
+}
+
+impl Authored {
+    /// The linear and angular thresholds a body falls asleep under.
+    pub(crate) fn sleep_thresholds(authored: Option<&Self>) -> (f32, f32) {
+        authored.map_or((0.05, 0.5), |a| {
+            (a.sleep_threshold, a.sleep_angular_threshold)
+        })
+    }
+}
+
 macro_rules! functions {
     (state = $State:ty, handle = $Handle:ty, builder = $Builder:ident, node_pose = $node_pose:ident, missing = $missing:literal) => {
         /// The body types both dimensions accept, in Balaur's vocabulary (N14).
@@ -74,22 +101,64 @@ macro_rules! functions {
                 balaur_core::interpolate::disable(eng, entity);
             }
             let rebuild = with_body(eng, entity, |state, handle| {
-                let may_sleep = state.sleeping_allowed;
+                let authored = authored(params);
+                state.body_authored.insert(entity, authored);
+                let may_sleep = state.sleeping_allowed && authored.can_sleep;
                 write_body(&mut state.world.bodies[handle], params, may_sleep);
+                if !exists {
+                    start_body(&mut state.world.bodies[handle], &authored, may_sleep);
+                }
                 let rebuild = weigh_colliders(state, handle);
                 // Rapier folds additional mass in at the next step; a scene that sets
                 // `mass = 5` and a script that reads it back in the same tick would
                 // otherwise disagree.
-                let colliders = &state.world.colliders;
-                state.world.bodies[handle].recompute_mass_properties_from_colliders(colliders);
+                refit_mass(state, handle);
                 rebuild
             })?;
             for collider in rebuild {
-                if let Some(params) = get_collider_params(eng, collider) {
+                // As authored: the live collider still holds the 0 the body's
+                // mass wrote, which the body no longer explains.
+                let params = {
+                    let state = eng.resource::<$State>();
+                    let params = state.borrow().collider_params.get(&collider).cloned();
+                    params
+                };
+                if let Some(params) = params {
                     apply_collider(eng, collider, &params)?;
                 }
             }
             Ok(())
+        }
+
+        /// Let the body sleep once it holds still under `thresholds`, or hold it
+        /// awake, leaving its sleep timer and `time_to_sleep` alone.
+        pub(crate) fn allow_sleep(body: &mut RigidBody, may_sleep: bool, thresholds: (f32, f32)) {
+            let activation = body.activation_mut();
+            if may_sleep {
+                activation.normalized_linear_threshold = scalar::real(thresholds.0.max(0.0));
+                activation.angular_threshold = scalar::real(thresholds.1.max(0.0));
+            } else {
+                // Rapier's own spelling of "never sleeps".
+                activation.normalized_linear_threshold = -1.0;
+                activation.angular_threshold = -1.0;
+                body.wake_up(true);
+            }
+        }
+
+        /// Fold the colliders into the body's mass again, after one was added,
+        /// removed or reweighed, refitting the inertia its author left to rapier.
+        pub(crate) fn refit_mass(state: &mut $State, handle: $Handle) {
+            let Some(body) = state.world.bodies.get(handle) else {
+                return;
+            };
+            let fit = Entity::from_bits(body.user_data as u64)
+                .and_then(|entity| state.body_authored.get(&entity))
+                .is_some_and(|authored| authored.fit_inertia);
+            if fit {
+                fit_inertia(&mut state.world, handle);
+            }
+            let world = &mut state.world;
+            world.bodies[handle].recompute_mass_properties_from_colliders(&world.colliders);
         }
 
         /// A body with a `mass` of its own weighs exactly that, so its colliders
@@ -155,6 +224,7 @@ macro_rules! functions {
             let mut state = state.borrow_mut();
             // Attached colliders die with the body inside rapier.
             state.colliders.swap_remove(&entity);
+            state.body_authored.swap_remove(&entity);
             if let Some(handle) = state.bodies.swap_remove(&entity) {
                 let state = &mut *state;
                 if let Some(body) = state.world.bodies.get(handle) {

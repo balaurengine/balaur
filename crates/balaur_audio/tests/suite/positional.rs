@@ -384,3 +384,89 @@ fn a_listener_places_the_ears_as_soon_as_it_is_applied() {
     assert!(gain < 0.5, "fifty units away, with no tick yet: {gain}");
     assert!(pan_of(&app, handle) > 0.0, "and off to the right");
 }
+
+#[test]
+fn inverse_square_attenuation_quarters_the_gain_at_every_doubling() {
+    let listener = ears_at(Vec3::ZERO);
+    let mut emitter = Emitter::new(Vec3::new(0.0, 0.0, 2.0), 1.0, 100.0, 0.0);
+    emitter.attenuation = spatial::Attenuation::InverseSquare;
+    let gain = spatial::place(&listener, &emitter).gain;
+    assert!((gain - 0.25).abs() < 1e-6, "{gain}");
+}
+
+/// A sound's `attenuation` reaches the emitter it plays from, and a change
+/// lands on one already playing.
+#[test]
+fn a_sounds_attenuation_reaches_its_emitter() {
+    let dir = tempfile::tempdir().unwrap();
+    write_wav(dir.path(), "chime.wav");
+    let app = app_in(dir.path());
+    let (entity, handle) = placed_sound(
+        &app,
+        &format!("{POSITIONAL}attenuation = \"inverse_square\"\n"),
+        Vec3::ZERO,
+    );
+    let attenuation = |app: &App| {
+        app.engine
+            .resource::<AudioState>()
+            .borrow()
+            .emitter(handle)
+            .unwrap()
+            .attenuation
+    };
+    assert_eq!(attenuation(&app), spatial::Attenuation::InverseSquare);
+    let params: toml::Value = toml::from_str("attenuation = \"inverse\"").unwrap();
+    components::patch(&app.engine, entity, "sound", &params).unwrap();
+    assert_eq!(attenuation(&app), spatial::Attenuation::Inverse);
+}
+
+/// With ears apart, the pan is how much nearer one ear is: full at an ear,
+/// none straight ahead.
+#[test]
+fn ears_apart_pan_by_which_ear_is_nearer() {
+    let mut listener = ears_at(Vec3::ZERO);
+    listener.hearing.ear_distance = 0.2;
+    let at = |x: f32, z: f32| {
+        spatial::place(
+            &listener,
+            &Emitter::new(Vec3::new(x, 0.0, z), 1.0, 100.0, 0.0),
+        )
+        .pan
+    };
+    assert!(
+        (at(0.1, 0.0) - 1.0).abs() < 1e-5,
+        "at the right ear: {}",
+        at(0.1, 0.0)
+    );
+    assert!((at(-10.0, 0.0) + 1.0).abs() < 1e-5, "far left");
+    assert!(at(0.0, 10.0).abs() < 1e-6, "straight ahead");
+    assert!(at(0.05, 0.0) < 1.0, "between the ears is not a hard pan");
+}
+
+#[test]
+fn the_listener_sets_how_fast_sound_travels_and_how_far_doppler_bends() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    let ears = node_at(&app, "Ears", Vec3::ZERO);
+    let params: toml::Value =
+        toml::from_str("ear_distance = 0.25\nspeed_of_sound = 100.0\nmax_doppler = 1.5").unwrap();
+    components::add(&app.engine, ears, "listener", Some(&params)).unwrap();
+    let table = components::get(&app.engine, ears, "listener").unwrap();
+    let number = |key: &str| table.get(key).and_then(toml::Value::as_float).unwrap();
+    assert!((number("ear_distance") - 0.25).abs() < 1e-6);
+    assert!((number("speed_of_sound") - 100.0).abs() < 1e-6);
+    assert!((number("max_doppler") - 1.5).abs() < 1e-6);
+
+    let state = app.engine.resource::<AudioState>();
+    let state = state.borrow();
+    let listener = state.listener();
+    assert!((listener.hearing.speed_of_sound - 100.0).abs() < 1e-6);
+    let mut emitter = Emitter::new(Vec3::new(0.0, 0.0, 50.0), 1.0, 500.0, 1.0);
+    emitter.velocity = Vec3::new(0.0, 0.0, -80.0);
+    let pitch = spatial::place(listener, &emitter).pitch;
+    assert!((pitch - 1.5).abs() < 1e-6, "capped at max_doppler: {pitch}");
+    emitter.velocity = Vec3::new(0.0, 0.0, -20.0);
+    let slower = spatial::place(listener, &emitter).pitch;
+    // 100 / (100 - 20) with sound at 100 units a second.
+    assert!((slower - 1.25).abs() < 1e-5, "{slower}");
+}

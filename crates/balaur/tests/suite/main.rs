@@ -12,6 +12,7 @@ mod editor_theme;
 mod extensions;
 mod facade;
 mod fixed_update;
+mod gamepad;
 mod interactivity;
 mod presets;
 mod replay;

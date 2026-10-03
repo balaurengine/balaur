@@ -72,15 +72,12 @@ pub(super) fn backdrop(ui: &egui::Ui, at: &Painting<'_>, style: &Style, rect: Re
     if style.fill.is_none() && style.stroke.is_none() {
         return;
     }
-    ui.painter().rect(
+    ui.painter().add(crate::widget::theme::frame_shape(
         rect,
         egui::CornerRadius::same(style.radius.unwrap_or(0.0) as u8),
         style.fill.unwrap_or(Color32::TRANSPARENT),
-        style
-            .stroke
-            .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_px(), c)),
-        egui::StrokeKind::Inside,
-    );
+        style,
+    ));
 }
 
 /// What a row splits on: icon, label, a trailing note and an `#rrggbb` of its
@@ -198,7 +195,8 @@ fn rows(
     let mut seen = Seen::default();
     // The row a drag has hold of; `seen` has where the pass found it would land.
     let held_row: Dragging = ui.data(|d| d.get_temp(id.with("drag")).unwrap_or_default());
-    list_area(id, want).show_rows(ui, row_h, open_rows.len(), |ui, range| {
+    let area = crate::widget::scroll::dressed(ui, list_area(id, want), widget, entity);
+    let shown = area.show_rows(ui, row_h, open_rows.len(), |ui, range| {
         for slot in range {
             let Some(&i) = open_rows.get(slot) else {
                 continue;
@@ -227,6 +225,7 @@ fn rows(
             seen.absorb(i, item, hit);
         }
     });
+    crate::widget::scroll::report(ui, &mut at.edits, entity, shown.state.offset);
     if widget.reorderable {
         let drag = Drag {
             id,
@@ -340,12 +339,15 @@ pub(super) fn strings_of(widget: &Widget) -> Vec<String> {
 }
 
 /// The scroll area a list draws in, held to the box the layout gave it.
+/// Both ways: a row wider than the list is a log line or a long node name,
+/// and a bar to reach it beats the end painted over its neighbour.
 fn list_area(id: egui::Id, want: egui::Vec2) -> egui::ScrollArea {
-    // Both ways: a row wider than the list is a log line or a long node
-    // name, and a bar to reach it beats the end painted over its neighbour.
-    let mut area = egui::ScrollArea::both()
-        .id_salt(id)
-        .auto_shrink([false, false]);
+    held_to(egui::ScrollArea::both(), id, want)
+}
+
+/// A scroll area that keeps its size and holds to the box it was given.
+fn held_to(area: egui::ScrollArea, id: egui::Id, want: egui::Vec2) -> egui::ScrollArea {
+    let mut area = area.id_salt(id).auto_shrink([false, false]);
     // A width stated and not applied is a list drawn past what sits beside it.
     if want.x > 0.0 {
         area = area.max_width(want.x);
@@ -831,8 +833,9 @@ fn fields(item: &str) -> (&str, &str, &str, Option<Color32>) {
     }
 }
 
-/// Godot's `ItemList`, in its line mode and its icon mode: above one
-/// `columns` the rows flow into a grid of cards instead of a column of lines.
+/// Godot's `ItemList`, in its line mode and its icon mode: given
+/// `grid_columns` the rows flow into a grid of cards instead of a column of
+/// lines.
 pub(crate) fn list(
     ui: &mut egui::Ui,
     at: &mut Painting<'_>,
@@ -840,7 +843,7 @@ pub(crate) fn list(
     font: &egui::FontId,
     color: Color32,
 ) {
-    if at.arena[index].widget.columns > 1 {
+    if crate::widget::grid::track_count(&at.arena[index].widget.layout.grid_columns) > 0 {
         cards(ui, at, index, font, color);
         return;
     }
@@ -872,7 +875,7 @@ struct CardHit {
 /// One card: the icon over the label, in a box the caller sized.
 ///
 /// The same U+001F fields a row splits on, so a view moves between the two
-/// modes by setting `columns` and changing nothing else.
+/// modes by setting `grid_columns` and changing nothing else.
 fn card(ui: &mut egui::Ui, item: &str, c: &Card<'_>) -> CardHit {
     let (size, font) = (c.size, c.font);
     let (icon, label, trailing, tint) = fields(item);
@@ -1017,7 +1020,7 @@ fn region_uv(native: egui::Vec2, field: &str) -> Option<Rect> {
     ))
 }
 
-/// One card's box: an equal share of the room across `columns`, and as tall
+/// One card's box: an equal share of the room across the columns, and as tall
 /// as `row_height`, which is the pitch of a row. Without one a card is a
 /// little shorter than it is wide, the icon taking the square and the label
 /// sitting under it.
@@ -1047,7 +1050,7 @@ fn card_sheet(
         })
 }
 
-/// The cards, wrapped into rows of `columns` and scrolled a row at a time.
+/// The cards, wrapped into rows of `grid_columns` and scrolled a row at a time.
 fn cards(
     ui: &mut egui::Ui,
     at: &mut Painting<'_>,
@@ -1058,7 +1061,7 @@ fn cards(
     let placed = &at.arena[index];
     let (entity, widget) = (placed.entity, placed.widget.clone());
     let want = solved_of(&widget, &at.style_of(&widget), at.assigned);
-    let columns = widget.columns.max(1) as usize;
+    let columns = crate::widget::grid::track_count(&widget.layout.grid_columns).max(1);
     let items: Vec<String> = widget
         .options
         .iter()
@@ -1082,15 +1085,8 @@ fn cards(
     let mut aimed = None;
     let mut took = None;
     let id = egui::Id::new(("balaur-cards", entity));
-    let mut area = egui::ScrollArea::vertical()
-        .id_salt(id)
-        .auto_shrink([false, false]);
-    if want.x > 0.0 {
-        area = area.max_width(want.x);
-    }
-    if want.y > 0.0 {
-        area = area.max_height(want.y);
-    }
+    let area = held_to(egui::ScrollArea::vertical(), id, want);
+    let area = crate::widget::scroll::dressed(ui, area, &widget, entity);
     let shown = area.show_rows(ui, cell.y + gap, lines, |ui, range| {
         for line in range {
             ui.horizontal(|ui| {
@@ -1124,6 +1120,7 @@ fn cards(
             });
         }
     });
+    crate::widget::scroll::report(ui, &mut at.edits, entity, shown.state.offset);
     if widget.draggable {
         let drag = Carry {
             id,

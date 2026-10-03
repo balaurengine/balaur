@@ -2,9 +2,9 @@
 //!
 //! ```toml
 //! [audio.buses]
-//! sfx = { volume = 0.9 }
-//! music = { volume = 0.6 }
-//! ui = { volume = 1.0, parent = "sfx" }
+//! sfx = { volume_linear = 0.9 }
+//! music = { volume_linear = 0.6, limit = true, limit_threshold_db = -3.0 }
+//! ui = { volume_linear = 1.0, parent = "sfx" }
 //! ```
 //!
 //! A sound's gain is its own volume times every bus's up to the root, so a
@@ -12,10 +12,12 @@
 //! nothing else. `master` exists whether or not the project declares it,
 //! because there has to be a name for "everything".
 //!
-//! This is the mixing a game asks for. It is not a mixing *graph* — no
-//! effects, no sends — and a bus does not own a sound: routing is a property
-//! of the playback, which is what lets one file be a footstep on `sfx` and a
-//! menu click on `ui`.
+//! A bus may carry rodio's limiter (`limit`), which holds the sum of what
+//! plays through it under `limit_threshold_db`. A limited bus is mixed on its
+//! own before it joins its parent, so the limiter hears that bus alone. The
+//! limiters are built when the device opens. A bus does not own a sound:
+//! routing is a property of the playback, which is what lets one file be a
+//! footstep on `sfx` and a menu click on `ui`.
 
 use std::collections::BTreeMap;
 
@@ -28,12 +30,31 @@ pub const MASTER: &str = "master";
 /// nested buses has a different problem.
 const MAX_DEPTH: usize = 8;
 
-/// One bus: its own gain and what it feeds into.
+/// One bus: its own gain, what it feeds into, and its limiter.
 #[derive(Clone, Debug)]
 pub struct Bus {
     pub volume: f32,
     /// Empty means `master`; `master`'s own parent is empty and stays there.
     pub parent: String,
+    pub limit: Option<Limiter>,
+}
+
+/// rodio's `LimitSettings` in a bus's own keys.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Limiter {
+    pub threshold_db: f32,
+    pub knee_db: f32,
+    pub attack_time: f32,
+    pub release_time: f32,
+}
+
+/// Where a bus's mix goes, for the device to build its mixers from.
+#[derive(Clone, Debug)]
+pub struct Route {
+    pub name: String,
+    /// Resolved: `master` where the bus names none; empty for `master`.
+    pub parent: String,
+    pub limit: Option<Limiter>,
 }
 
 /// The bus one feeds: an empty parent means `master`, which every chain ends
@@ -60,6 +81,7 @@ impl Default for Buses {
             Bus {
                 volume: 1.0,
                 parent: String::new(),
+                limit: None,
             },
         );
         Self {
@@ -134,6 +156,7 @@ impl Buses {
             .or_insert(Bus {
                 volume,
                 parent: String::new(),
+                limit: None,
             });
     }
 
@@ -141,6 +164,30 @@ impl Buses {
     #[must_use]
     pub fn names(&self) -> Vec<String> {
         self.buses.keys().cloned().collect()
+    }
+
+    /// One bus's limiter, `None` for a bus with none or a name nobody declared.
+    #[must_use]
+    pub fn limit(&self, name: &str) -> Option<Limiter> {
+        let name = if name.is_empty() { MASTER } else { name };
+        self.buses.get(name).and_then(|bus| bus.limit)
+    }
+
+    /// Every bus and where it feeds, for the device's mixers.
+    #[must_use]
+    pub fn routes(&self) -> Vec<Route> {
+        self.buses
+            .iter()
+            .map(|(name, bus)| Route {
+                name: name.clone(),
+                parent: if name == MASTER {
+                    String::new()
+                } else {
+                    parent_of(bus).to_string()
+                },
+                limit: bus.limit,
+            })
+            .collect()
     }
 }
 
@@ -164,19 +211,35 @@ pub fn ensure_loaded(eng: &Engine) {
 
 /// The `[audio.buses]` table, or nothing.
 fn declared(eng: &Engine) -> BTreeMap<String, Bus> {
+    // A field's name is the key a project writes; the defaults are rodio's
+    // `LimitSettings::default()`.
     #[derive(serde::Deserialize)]
+    #[serde(default)]
     struct Declared {
-        #[serde(default = "one")]
         volume_linear: f32,
-        #[serde(default)]
         parent: String,
+        limit: bool,
+        limit_threshold_db: f32,
+        limit_knee_db: f32,
+        limit_attack_time: f32,
+        limit_release_time: f32,
     }
-    fn one() -> f32 {
-        1.0
+    impl Default for Declared {
+        fn default() -> Self {
+            Self {
+                volume_linear: 1.0,
+                parent: String::new(),
+                limit: false,
+                limit_threshold_db: -1.0,
+                limit_knee_db: 4.0,
+                limit_attack_time: 0.005,
+                limit_release_time: 0.1,
+            }
+        }
     }
     // Resolved, so a platform may mix its buses differently: a phone's
     // speaker wants less of the bass bus than a desktop's headphones.
-    let table = balaur_core::settings::table(eng, "audio/buses");
+    let table = balaur_core::settings::table(eng, crate::vocabulary::settings::BUSES);
     let parsed: BTreeMap<String, Declared> = match toml::Value::Table(table).try_into() {
         Ok(parsed) => parsed,
         Err(err) => {
@@ -192,6 +255,12 @@ fn declared(eng: &Engine) -> BTreeMap<String, Bus> {
                 Bus {
                     volume: one.volume_linear.max(0.0),
                     parent: one.parent,
+                    limit: one.limit.then_some(Limiter {
+                        threshold_db: one.limit_threshold_db,
+                        knee_db: one.limit_knee_db,
+                        attack_time: one.limit_attack_time,
+                        release_time: one.limit_release_time,
+                    }),
                 },
             )
         })

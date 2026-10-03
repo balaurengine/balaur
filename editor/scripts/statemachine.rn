@@ -436,7 +436,7 @@ fn number(S, at, key, current, whole) {
     #{
         kind: "number_field", role: "input_number", width: FIELD_W,
         value: util::f(current), min: 0.0, max: if whole { 1000.0 } else { 100.0 },
-        step: if whole { 1.0 } else { 0.01 },
+        drag_speed: if whole { 1.0 } else { 0.01 },
         on: |v| { set_field(S, at, key, if whole { util::i(v) } else { v }); },
     }
 }

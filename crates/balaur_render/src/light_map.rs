@@ -4,12 +4,13 @@
 //! target the size of the viewport. A shadow-casting light gets a pass of its
 //! own: the occluder edges, extruded away from it, are written into a stencil
 //! first, and the light draw that follows is rejected wherever they landed.
-//! One full-screen node, added last to the 2D scene, then multiplies the
-//! frame by the camera's ambient plus what the light map holds — so sprites,
-//! polygons and tiles are lit without any of them knowing about it.
+//! One full-screen node, which the 2D order places after every lit node, then
+//! multiplies the frame by the camera's ambient plus what the light map holds
+//! — so sprites, polygons, tiles and text are lit without knowing about it.
 //!
 //! The multiply lands on everything already drawn, a 3D scene under the 2D
-//! one included; debug lines and particles draw after it and stay unlit.
+//! one included. Particles, in their own `z_index` order, draw after it and
+//! stay unlit, as do debug lines and shapes a script drew with no `z_index`.
 //!
 //! Nothing here runs when the scene has no `light2d`: the node is detached
 //! and the frame draws exactly as an unlit one does.
@@ -59,6 +60,8 @@ struct LightInstance {
     radius_kind: [f32; 2],
     color: [f32; 3],
     intensity: f32,
+    /// The aim, then the cosines of a spot's inner and outer half-angles.
+    cone: [f32; 4],
 }
 
 fn padded(m: &Mat3) -> [[f32; 4]; 3] {
@@ -86,26 +89,10 @@ impl LightMap {
         }
     }
 
-    /// Take the composite out of the 2D scene, before the frame's other 2D
-    /// syncs put nodes after it.
-    ///
-    /// kiss3d removes a child by swapping the last one into its place, so a
-    /// node can only be detached without reordering the rest while it is the
-    /// last one — which this is, from [`Self::sync`] until anything else is
-    /// added. Hence a call at the top of the frame rather than one inside
-    /// `sync`.
-    pub(crate) fn detach(&mut self) {
-        if let Some(node) = &mut self.node {
-            node.detach();
-        }
-    }
-
-    /// Collect this frame's lights and occluders, and put the composite node
-    /// back as the last child so it multiplies everything drawn before it.
-    ///
-    /// Called after every other 2D sync; [`Self::detach`] must have run this
-    /// frame, which kiss3d's own `add_child` asserts.
-    pub(crate) fn sync(&mut self, app: &balaur_core::App, scene_2d: &mut SceneNode2d) {
+    /// Collect this frame's lights and occluders, and answer the composite
+    /// node the 2D order places after every lit node, or `None` for a scene
+    /// with no light, whose composite is taken out.
+    pub(crate) fn collect(&mut self, app: &balaur_core::App) -> Option<SceneNode2d> {
         let mut lights = {
             let world = app.engine.world();
             scene_lights(&world, app.engine.root())
@@ -116,9 +103,12 @@ impl LightMap {
         }
         // The node is left built rather than dropped: a light switched off
         // and on again must not rebuild three pipelines and two textures.
-        if lights.is_empty() {
+        if lights.is_empty() || crate::post_material::lit_by_gi(app) {
             self.scene.borrow_mut().lights.clear();
-            return;
+            if let Some(node) = &mut self.node {
+                node.detach();
+            }
+            return None;
         }
         let casting = lights.iter().any(|light| light.shadows);
         let edges = if casting {
@@ -138,7 +128,7 @@ impl LightMap {
         let node = self
             .node
             .get_or_insert_with(|| build_node(Rc::clone(&self.scene)));
-        scene_2d.add_child(node.clone());
+        Some(node.clone())
     }
 }
 
@@ -403,8 +393,9 @@ const PRIMITIVE: wgpu::PrimitiveState = wgpu::PrimitiveState {
     conservative: false,
 };
 
-const LIGHT_ATTRS: [wgpu::VertexAttribute; 4] =
-    wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2, 2 => Float32x3, 3 => Float32];
+const LIGHT_ATTRS: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
+    0 => Float32x2, 1 => Float32x2, 2 => Float32x3, 3 => Float32, 4 => Float32x4
+];
 const SHADOW_ATTRS: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![0 => Float32x2];
 
 const LIGHT_LAYOUT: wgpu::VertexBufferLayout<'static> = wgpu::VertexBufferLayout {
@@ -579,11 +570,22 @@ impl LightMapMaterial {
         self.ranges.clear();
         for light in &scene.lights {
             let directional = light.kind == LightKind2d::Directional;
+            let kind = match light.kind {
+                LightKind2d::Point => 0.0,
+                LightKind2d::Directional => 1.0,
+                LightKind2d::Spot => 2.0,
+            };
             instances.push(LightInstance {
                 position: light.position.to_array(),
-                radius_kind: [light.radius, f32::from(u8::from(directional))],
+                radius_kind: [light.radius, kind],
                 color: light.color,
                 intensity: light.intensity,
+                cone: [
+                    light.direction.x,
+                    light.direction.y,
+                    light.cone[0],
+                    light.cone[1],
+                ],
             });
             let start = vertices.len() as u32;
             if light.shadows {

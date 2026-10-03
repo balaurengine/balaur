@@ -165,14 +165,12 @@ fn bounds_reports_the_box_a_2d_shape_draws() {
 }
 
 #[test]
-fn the_grid_background_and_camera_input_are_settable() {
+fn the_grid_and_background_are_settable() {
     run_clean(
         r"
         render::set_grid(true, 1.0, 10, 100);
         render::set_grid_colors(0.2, 0.2, 0.2, 0.4, 0.4, 0.4);
         render::set_background(0.1, 0.1, 0.1);
-        render::set_camera_input(false);
-        render::set_camera_input(true);
         ",
     );
 }

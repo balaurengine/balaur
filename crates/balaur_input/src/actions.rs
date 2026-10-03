@@ -22,10 +22,6 @@ use balaur_script::Bindings;
 use crate::InputSnapshot;
 use crate::gamepad::GamepadState;
 
-/// Below this an axis reads as idle, so a worn stick does not hold an action
-/// down forever.
-const DEADZONE: f32 = 0.15;
-
 /// At or past this magnitude an action counts as pressed. Half of full throw:
 /// far enough that a resting stick never trips it, near enough that a player
 /// pushing in a direction always does.
@@ -114,14 +110,21 @@ impl Binding {
         }
     }
 
-    /// This binding's contribution this frame, in -1..1.
+    /// This binding's contribution this frame, in -1..1. A press counts for
+    /// its frame even when the release landed in it too, so a tap between two
+    /// frames is an action's one-frame press rather than nothing.
     fn value(&self, keys: &InputSnapshot, pads: &GamepadState) -> f32 {
+        let key = |key: &str| keys.key_down(key) || keys.key_just_pressed(key);
         match self {
-            Self::Key(key) => f32::from(u8::from(keys.key_down(key))),
-            Self::Mouse(button) => f32::from(u8::from(keys.mouse_down(*button))),
-            Self::Pad(button) => {
-                f32::from(u8::from(pads.pads().iter().any(|pad| pad.is_down(button))))
-            }
+            Self::Key(name) => f32::from(u8::from(key(name))),
+            Self::Mouse(button) => f32::from(u8::from(
+                keys.mouse_down(*button) || keys.mouse_just_pressed(*button),
+            )),
+            Self::Pad(button) => f32::from(u8::from(
+                pads.pads()
+                    .iter()
+                    .any(|pad| pad.is_down(button) || pad.just_pressed(button)),
+            )),
             Self::Axis { name, half } => {
                 // Any pad, because a game with one player does not care which
                 // controller the value came from.
@@ -135,7 +138,6 @@ impl Binding {
                             if v.abs() > best.abs() { v } else { best }
                         },
                     );
-                let raw = if raw.abs() < DEADZONE { 0.0 } else { raw };
                 match half {
                     Half::Both => raw,
                     Half::Positive => raw.max(0.0),
@@ -143,7 +145,7 @@ impl Binding {
                 }
             }
             Self::KeyPair(low, high) => {
-                f32::from(u8::from(keys.key_down(high))) - f32::from(u8::from(keys.key_down(low)))
+                f32::from(u8::from(key(high))) - f32::from(u8::from(key(low)))
             }
         }
     }
@@ -193,6 +195,9 @@ pub struct InputActions {
     /// the space bar and never mentioned touch. Filled before [`tick`] and
     /// emptied by it, so it lasts exactly one frame.
     fed: BTreeMap<String, f32>,
+    /// The table a host declared for the project it runs, which a reset goes
+    /// back to rather than the host's own manifest.
+    declared: Option<BTreeMap<String, Vec<Binding>>>,
     loaded: bool,
 }
 
@@ -256,6 +261,7 @@ impl InputActions {
     /// `project.toml` is the editor's and not the game's, so without this
     /// every action a played game asks for reads zero.
     pub(crate) fn declare(&mut self, actions: BTreeMap<String, Vec<Binding>>) {
+        self.declared = Some(actions.clone());
         self.bound = actions;
         for (name, bindings) in &self.overrides {
             self.bound.insert(name.clone(), bindings.clone());
@@ -275,10 +281,11 @@ impl InputActions {
         Ok(())
     }
 
-    /// Drop every rebinding, going back to what the project declared.
-    fn clear_overrides(&mut self, project: &BTreeMap<String, Vec<Binding>>) {
+    /// Drop every rebinding, going back to the table a host declared for the
+    /// project it runs, or else to `manifest`, the project's own.
+    fn reset(&mut self, manifest: impl FnOnce() -> BTreeMap<String, Vec<Binding>>) {
         self.overrides.clear();
-        self.bound = project.clone();
+        self.bound = self.declared.clone().unwrap_or_else(manifest);
     }
 }
 
@@ -622,10 +629,39 @@ fn install_rebinding(m: &mut dyn Bindings<Engine>) {
     });
     // Back to what the project declared, and the saved file with it.
     m.function("reset_bindings", |eng: &Engine, ()| {
-        let project = load(eng);
         let actions = eng.resource::<InputActions>();
-        actions.borrow_mut().clear_overrides(&project);
+        actions.borrow_mut().reset(|| load(eng));
         save_rebindings(eng, &actions.borrow());
         Ok(())
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::{Binding, InputActions};
+
+    fn table(name: &str, key: &str) -> BTreeMap<String, Vec<Binding>> {
+        BTreeMap::from([(name.to_string(), vec![Binding::parse(key).unwrap()])])
+    }
+
+    /// The editor declares a played game's table; resetting must not hand the
+    /// game the editor's own actions.
+    #[test]
+    fn a_reset_goes_back_to_the_table_a_host_declared() {
+        let mut actions = InputActions::default();
+        actions.declare(table("jump", "KeyJ"));
+        actions.rebind("jump", &[String::from("KeyK")]).unwrap();
+        actions.reset(|| table("jump", "Space"));
+        assert_eq!(actions.bindings("jump"), ["KeyJ"]);
+    }
+
+    #[test]
+    fn with_nothing_declared_a_reset_goes_back_to_the_manifest() {
+        let mut actions = InputActions::default();
+        actions.rebind("jump", &[String::from("KeyK")]).unwrap();
+        actions.reset(|| table("jump", "Space"));
+        assert_eq!(actions.bindings("jump"), ["Space"]);
+    }
 }
