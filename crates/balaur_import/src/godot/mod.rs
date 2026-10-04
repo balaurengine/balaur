@@ -47,6 +47,9 @@ pub(crate) mod script;
 pub(crate) mod shader;
 pub(crate) mod shader_names;
 pub(crate) mod shader_syntax;
+#[cfg(test)]
+#[path = "tests/skins.rs"]
+mod skins_tests;
 pub(crate) mod strings;
 pub(crate) mod textures;
 pub(crate) mod theme;

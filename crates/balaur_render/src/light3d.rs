@@ -344,6 +344,19 @@ pub struct Environment {
     pub cluster_max_lights: u32,
 }
 
+impl Environment {
+    /// A scene with no `environment` node: the defaults with no tonemap, so
+    /// the frame shows its colours as authored. A node's own default is
+    /// `neutral`.
+    #[must_use]
+    pub fn none() -> Self {
+        Self {
+            tonemap: Tonemap::None,
+            ..Self::default()
+        }
+    }
+}
+
 impl Default for Environment {
     fn default() -> Self {
         Self {
@@ -390,6 +403,13 @@ impl Default for Environment {
 /// The environment a scene draws under: the last `current` one in tree order,
 /// so a level can carry two and switch. `None` when no node has one, which is
 /// what leaves the backend's own defaults alone.
+/// The environment a scene draws under: its current `environment` node, or
+/// [`Environment::none`] when it has none.
+#[must_use]
+pub fn environment_or_none(world: &World, root: Entity) -> Environment {
+    environment(world, root).unwrap_or_else(Environment::none)
+}
+
 pub fn environment(world: &World, root: Entity) -> Option<Environment> {
     let mut found = None;
     for entity in balaur_core::scene::collect_subtree(world, root) {
@@ -419,7 +439,7 @@ fog_start = {{ type = "float", default = 10.0, min = 0.0, description = "Where l
 fog_end = {{ type = "float", default = 80.0, min = 0.0, description = "Where linear fog is total, in world units" }}
 fog_height_falloff = {{ type = "float", default = 0.0, min = 0.0, description = "How fast fog thins with height; zero fills the scene evenly" }}
 exposure = {{ type = "float", default = 1.0, min = 0.0, description = "Linear multiplier before the tonemap" }}
-tonemap = {{ type = "enum", default = "{neutral}", options = [{tonemaps}], description = "The curve the HDR film is mapped through" }}
+tonemap = {{ type = "enum", default = "{neutral}", options = [{tonemaps}], description = "The curve the HDR film is mapped through. A scene with no `environment` node draws untonemapped" }}
 saturation = {{ type = "float", default = 1.0, min = 0.0, description = "Colour multiplier around luminance; zero is grey" }}
 contrast = {{ type = "float", default = 1.0, min = 0.0, description = "Contrast around mid grey" }}
 gamma = {{ type = "float", default = 1.0, min = 0.01, description = "Gamma applied in linear space" }}
@@ -793,18 +813,17 @@ impl LightSlots {
 }
 
 /// Push the scene's `environment` onto the window: sky, ambient, fog, the HDR
-/// film and the shadow budget. A scene with none leaves every one alone.
+/// film and the shadow budget. A scene with none gets [`Environment::none`].
 #[cfg(feature = "window")]
 pub(crate) fn sync_environment(
     app: &balaur_core::App,
     window: &mut kiss3d::window::Window,
     applied: &mut Option<Environment>,
 ) {
-    let found = {
+    let env = {
         let world = app.engine.world();
-        environment(&world, app.engine.root())
+        environment_or_none(&world, app.engine.root())
     };
-    let Some(env) = found else { return };
     if applied.as_ref() == Some(&env) {
         return;
     }
@@ -954,6 +973,35 @@ fn sync_sky(
     // The light image turns with the sky's rotation, drawn sky or none.
     window.set_skybox_orientation(env.sky_rotation.to_radians(), env.sky_intensity);
     window.set_sky_lighting_intensity(env.sky_light_intensity);
+}
+
+#[cfg(test)]
+mod environment_tests {
+    use super::{Environment, Tonemap, environment_or_none};
+
+    #[test]
+    fn a_scene_with_no_environment_is_not_tonemapped() {
+        let app = balaur_core::App::new(balaur_core::AppConfig::bare(".")).unwrap();
+        let root = app.engine.root();
+        assert_eq!(
+            environment_or_none(&app.engine.world(), root).tonemap,
+            Tonemap::None
+        );
+    }
+
+    #[test]
+    fn an_environment_node_keeps_its_own_defaults() {
+        assert_eq!(Environment::default().tonemap, Tonemap::Neutral);
+        let none = Environment::none();
+        assert_eq!(
+            Environment {
+                tonemap: Tonemap::Neutral,
+                ..none
+            },
+            Environment::default(),
+            "no environment differs from a default one by the tonemap alone"
+        );
+    }
 }
 
 #[cfg(all(test, feature = "window"))]

@@ -604,8 +604,9 @@ pub(crate) fn sync_2d(
         }
         let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
         let shift = lean_and_shift(slot, &renderable, &global);
-        let visible =
-            appearance.visible && draw_multimesh(app, &world, entity, slot, &renderable, &global);
+        let visible = appearance.visible
+            && draws(&renderable, appearance.material)
+            && draw_multimesh(app, &world, entity, slot, &renderable, &global);
         slot.node
             .set_position(Vec2::new(global.position.x, global.position.y) + shift)
             .set_rotation(angle)
@@ -703,6 +704,15 @@ fn flush(batches: &mut Batches, slots: &mut HashMap<Entity, Slot2d>, seen: &Hash
             false
         }
     });
+}
+
+/// Whether a renderable puts anything on screen. A sprite with no image and
+/// no material draws nothing, as Godot's does: a script clears the texture to
+/// hide what it showed. It keeps its placeholder size for picking.
+fn draws(renderable: &Renderable2d, inherited: balaur_core::scene::MaterialId) -> bool {
+    renderable.sprite.as_ref().is_none_or(|sprite| {
+        !sprite.path.is_empty() || !renderable.material.is_empty() || !inherited.is_none()
+    })
 }
 
 /// Lean a node by its shear and answer how far its sprite's quad sits off
@@ -915,6 +925,27 @@ fn set_nine_mesh(node: &mut SceneNode2d, key: Option<&crate::sprite::NineKey>) {
 #[cfg(test)]
 mod tests {
     use balaur_core::{App, AppConfig};
+
+    fn sprite_draws(texture: &str) -> bool {
+        let mut app = App::new(AppConfig::bare(std::path::PathBuf::from("."))).unwrap();
+        balaur_plugin::load(&mut app, &mut crate::RenderPlugin::default()).unwrap();
+        let root = app.engine.root();
+        let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Mast", root);
+        let table: toml::Value = toml::from_str(&format!("texture = \"{texture}\"")).unwrap();
+        balaur_core::components::add(&app.engine, node, "sprite", Some(&table)).unwrap();
+        let world = app.engine.world();
+        let renderable = world.get::<&crate::Renderable2d>(node).unwrap();
+        super::draws(&renderable, balaur_core::scene::MaterialId::NONE)
+    }
+
+    #[test]
+    fn a_sprite_with_no_image_draws_nothing() {
+        assert!(
+            sprite_draws("tests/fixtures/sprite_200x100.png"),
+            "control: an image draws"
+        );
+        assert!(!sprite_draws(""));
+    }
 
     /// A tilemap draws by its `z_index` like everything else in 2D: the pass
     /// that builds it runs last, which used to put every map over every

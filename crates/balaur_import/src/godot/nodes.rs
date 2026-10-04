@@ -629,8 +629,9 @@ fn polygon(section: &Section, res: &Resources<'_>, out: &mut Mapped) {
     }
     if let Some(skin) = skin(section, points.len()) {
         mesh.insert("skin".into(), skin);
-        if let Some(rig) = section.field("skeleton").and_then(Value::as_str) {
-            out.set("polygon", "skeleton", Toml::String(rig.to_string()));
+        // `skeleton = NodePath("Skeleton2D")` in a saved scene.
+        if let Some(rig) = section.field("skeleton").and_then(super::anim::node_path) {
+            out.set("polygon", "skeleton", Toml::String(rig));
         }
     }
     out.assets.push(Asset {
@@ -647,16 +648,17 @@ fn skin(section: &Section, vertices: usize) -> Option<Toml> {
     let mut bones = Vec::new();
     for pair in flat.chunks(2) {
         let [path, weights] = pair else { continue };
-        let path = path
-            .call("NodePath")
-            .and_then(|a| a.first())
-            .and_then(Value::as_str)?;
+        // Godot 4 saves these as plain strings (`"Root"`), older files as
+        // `NodePath("Root")`.
+        let Some(path) = super::anim::node_path(path) else {
+            continue;
+        };
         let weights = weights.numbers()?;
         if weights.len() != vertices {
             continue;
         }
         let mut bone = toml::Table::new();
-        bone.insert("path".into(), Toml::String(path.to_string()));
+        bone.insert("path".into(), Toml::String(path));
         bone.insert(
             "weights".into(),
             Toml::Array(weights.into_iter().map(Toml::Float).collect()),

@@ -19,7 +19,7 @@ fn sprite_schema() -> std::rc::Rc<toml::Value> {
                 (
                     k::TEXTURE,
                     &format!(
-                        r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset that reads it with settings of its own; required" }}"#,
+                        r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset that reads it with settings of its own. Empty draws nothing" }}"#,
                         balaur_core::texture_asset::TEXTURE_ASSET_TYPE
                     ),
                 ),

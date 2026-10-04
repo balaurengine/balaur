@@ -4002,7 +4002,7 @@
       },
       "tonemap": {
         "default": "neutral",
-        "description": "The curve the HDR film is mapped through",
+        "description": "The curve the HDR film is mapped through. A scene with no `environment` node draws untonemapped",
         "options": [
           "none",
           "aces",
@@ -9117,7 +9117,7 @@
       "texture": {
         "asset": "texture",
         "default": "",
-        "description": "Image file, project-relative, or a `texture` asset that reads it with settings of its own; required",
+        "description": "Image file, project-relative, or a `texture` asset that reads it with settings of its own. Empty draws nothing",
         "type": "asset"
       },
       "wireframe_color": {
