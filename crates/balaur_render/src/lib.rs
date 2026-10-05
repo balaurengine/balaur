@@ -5,6 +5,8 @@
 //! consume `Renderable3d` + `GlobalTransform`. The kiss3d/wgpu backend (feature
 //! `kiss3d`) owns the OS event loop; headless runs just never draw, which
 //! keeps the simulation byte-for-byte identical with and without a window.
+// clippy misreads `thread_local!`'s `const` form on Android's emulated TLS.
+#![cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
 
 use anyhow::{Result, anyhow};
 use balaur_core::hecs::Entity;
@@ -70,13 +72,13 @@ mod preview {
         source
     }
 }
+pub mod prelinked;
 #[cfg(feature = "window")]
 mod probe;
 pub mod reflection;
 mod script_api;
 #[cfg(test)]
 mod shader_checks;
-pub mod prelinked;
 pub mod shaders;
 mod shape;
 mod sheet;

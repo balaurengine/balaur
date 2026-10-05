@@ -28,6 +28,10 @@ with `rustfmt` and `clippy`, so every machine runs one linter version.
 - `cargo clippy --workspace --all-targets -- -D warnings`
 - Once for `window`, `extensions`, `apple`
 - Twice for `wasm32-unknown-unknown`: the web runtime's features, and the defaults
+- The workspace for `aarch64-linux-android` and `aarch64-apple-ios`, then the
+  iOS template's `window` and `apple`: the code no host build compiles.
+  `scripts/precommit.sh` skips either without its target, and Android without
+  the NDK, whose clang builds the C and C++ under `ring` and HarfBuzz.
 - `examples/extension_greeter`, deliberately outside the workspace: the only
   thing proving an extension builds without the engine's build tree.
 
@@ -239,10 +243,12 @@ one entry in `cases_kinds.rn` or `cases_scripts.rn`.
   (`BALAUR_SIGNING_CHECK`) and `scripts/export_check.sh` per platform, and
   `scripts/web_smoke.mjs` over every web pack through `scripts/package_play.sh`
   and over the web export, booted on the game template, which has no compiler.
+  `package_play.sh` boots each example on the web runtime its
+  `[export] runtime` picked.
 - `build.yml` builds a `-2d`, `-3d` and `-server` template of every desktop,
-  exports an example onto each with that run's editor and plays 60 frames
-  (`VARIANT=... scripts/package.sh`); the mobile and web variants go through
-  `scripts/export_check.sh`.
+  exports an example whose `[export] runtime` names it onto each with that
+  run's editor and plays 60 frames (`VARIANT=... scripts/package.sh`); the
+  mobile and web variants go through `scripts/export_check.sh`.
 - `scripts/check_web_module.sh` holds both web stagings to what `balaur.js`
   names beside it, wasm-bindgen's `snippets/` included: a static import that
   404s stops the module evaluating, and the build that shipped it is green.

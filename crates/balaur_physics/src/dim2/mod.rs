@@ -292,7 +292,7 @@ pub fn build(reg: &mut Registry<'_>) -> Result<()> {
     build_physics2d(reg);
 
     {
-        let mut m = reg.script_module("physics2d")?;
+        let mut m = reg.script_module(crate::vocabulary::module::PHYSICS_2D)?;
         crate::install_constants(&mut *m, crate::CONSTANTS_2D);
         install_physics2d_api(&mut *m);
         body::install_body2d_force_api(&mut *m);

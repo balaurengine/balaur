@@ -6,7 +6,7 @@
 use crate::shaders::{self, MORPH, link, wgsl};
 
 /// `wgsl` parsed and validated by the naga wgpu itself runs, with the
-/// capabilities every backend Balaur draws on offers.
+/// capabilities every backend Balaur draws on offers, then written as GLSL ES.
 fn validate(what: &str, wgsl: &str) {
     let module = naga::front::wgsl::parse_str(wgsl).unwrap_or_else(|why| {
         panic!(
@@ -14,7 +14,7 @@ fn validate(what: &str, wgsl: &str) {
             why.emit_to_string(wgsl)
         )
     });
-    naga::valid::Validator::new(
+    let info = naga::valid::Validator::new(
         naga::valid::ValidationFlags::all(),
         naga::valid::Capabilities::default(),
     )
@@ -25,6 +25,75 @@ fn validate(what: &str, wgsl: &str) {
             why.emit_to_string(wgsl)
         )
     });
+    gles(what, &module, &info);
+}
+
+/// Every entry point written the way wgpu's GLES backend writes it on an
+/// Android device without Vulkan: GLSL ES 3.10, which lacks what only desktop
+/// GL has, such as asking a texture how many mips it holds.
+fn gles(what: &str, module: &naga::Module, info: &naga::valid::ModuleInfo) {
+    use naga::back::glsl;
+    assert_eq!(
+        plain_depth_samples(module),
+        0,
+        "{what} samples a depth texture without a comparison, which GLSL cannot"
+    );
+    let mut options = glsl::Options::default();
+    options.writer_flags |= glsl::WriterFlags::FORCE_POINT_SIZE;
+    for entry in &module.entry_points {
+        let pipeline = glsl::PipelineOptions {
+            shader_stage: entry.stage,
+            entry_point: entry.name.clone(),
+            multiview: None,
+        };
+        let mut out = String::new();
+        glsl::Writer::new(
+            &mut out,
+            module,
+            info,
+            &options,
+            &pipeline,
+            naga::proc::BoundsCheckPolicies::default(),
+        )
+        .and_then(|mut writer| writer.write())
+        .unwrap_or_else(|why| panic!("{what}'s `{}` is no GLSL ES 3.10: {why}", entry.name));
+    }
+}
+
+/// How many times `module` samples a depth texture without a comparison. GLSL
+/// reads one only through a shadow sampler, so naga writes such a sample and
+/// the device's compiler then rejects it.
+fn plain_depth_samples(module: &naga::Module) -> usize {
+    let is_depth = |expressions: &naga::Arena<naga::Expression>, image| match expressions[image] {
+        naga::Expression::GlobalVariable(var) => matches!(
+            module.types[module.global_variables[var].ty].inner,
+            naga::TypeInner::Image {
+                class: naga::ImageClass::Depth { .. },
+                ..
+            }
+        ),
+        _ => false,
+    };
+    module
+        .functions
+        .iter()
+        .map(|(_, function)| function)
+        .chain(module.entry_points.iter().map(|entry| &entry.function))
+        .map(|function| {
+            function
+                .expressions
+                .iter()
+                .filter(|(_, expression)| match expression {
+                    naga::Expression::ImageSample {
+                        image,
+                        depth_ref: None,
+                        ..
+                    } => is_depth(&function.expressions, *image),
+                    _ => false,
+                })
+                .count()
+        })
+        .sum()
 }
 
 /// A project's shader over `package::mesh` or `package::pbr`, linked as a

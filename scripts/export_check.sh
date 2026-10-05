@@ -35,8 +35,9 @@ cargo build --release -p balaur_cli
 balaur=$PWD/target/release/balaur
 
 step "export a game"
-# A one-world template gets a game of that world, so the check proves it
-# plays one; the platform's own a new project.
+# A one-world template gets an example whose `[export] runtime` names it, so
+# exporting for the platform proves the setting picks it; the full one a new
+# project.
 case $platform in
 *-2d) cp -R examples/angrynerds "$work/project" ;;
 *-3d) cp -R examples/hello "$work/project" ;;
@@ -77,7 +78,7 @@ if [ "$base" = android ]; then
 fi
 # shellcheck disable=SC2086
 (cd "$work" && BALAUR_RUNTIMES="$work/runtimes" \
-  "$balaur" export project --target "$platform" $apk)
+  "$balaur" export project --target "$base" $apk)
 
 case $base in
 ios)

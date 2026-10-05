@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# The web build as one download for a page: the editor's own module, its
-# project and the example games, packed with the editor binary. One archive,
-# so the site's /editor and /examples refresh as a unit (forge fetches it
-# with `mix forge.site.play` when its image is built).
+# The web build as one download for a page: the editor's module, project and
+# the examples' sources, and a directory per web runtime with the examples it
+# plays. One archive, so the site's /editor and /examples refresh as a unit.
 #
 # Usage: package_play.sh [balaur-binary]
 #   Defaults to BALAUR, then target/release/balaur, then CI's editor artifact.
 #   EDITOR_MODULE names a built module directory; without one, this builds it.
+#   RUNTIMES holds balaur-runtime-web{,-2d,-3d}.tar.gz; one missing is built.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 dist=$(mkdir -p "${DIST:-dist}" && cd "${DIST:-dist}" && pwd)
@@ -49,6 +49,23 @@ for f in balaur.js balaur_bg.wasm; do
   [ -s "$module/$f" ] || fail "no $module/$f — set EDITOR_MODULE to a directory holding one, or let this build it"
 done
 
+# Every one an example's `[export] runtime` may name, and the editor's own
+# web export may fetch for a project.
+step "the web runtimes"
+web_runtimes=(web web-2d web-3d)
+archives=$(mkdir -p "${RUNTIMES:-$dist}" && cd "${RUNTIMES:-$dist}" && pwd)
+runtimes="$dist/.play-runtimes"
+rm -rf "$runtimes"
+mkdir -p "$runtimes"
+for runtime in "${web_runtimes[@]}"; do
+  archive="$archives/balaur-runtime-$runtime.tar.gz"
+  if [ ! -f "$archive" ]; then
+    variant=${runtime#web}
+    DIST="$archives" VARIANT=${variant#-} ./scripts/package_runtime.sh web
+  fi
+  tar -xzf "$archive" -C "$runtimes"
+done
+
 step "export the packs"
 out="$dist/play"
 rm -rf "$out"
@@ -66,6 +83,31 @@ for project in editor examples/*/; do
   packs+=("$name.bpak")
 done
 [ ${#packs[@]} -gt 1 ] || fail "only ${#packs[@]} project(s) packed; the examples were not found"
+# Each example again as the game a player runs: compiled, exported for the web
+# the way anyone's is, and kept under the runtime its export picked.
+for runtime in "${web_runtimes[@]}"; do
+  mkdir -p "$out/$runtime"
+  cp -R "$runtimes/balaur-runtime-$runtime/." "$out/$runtime/"
+done
+for project in examples/*/; do
+  project=${project%/}
+  [ -f "$project/project.toml" ] || continue
+  name=$(basename "$project")
+  web="$dist/.play-web/$name"
+  rm -rf "$web"
+  BALAUR_RUNTIMES="$runtimes" "$balaur" export "$project" --target web --no-download -o "$web"
+  placed=""
+  for runtime in "${web_runtimes[@]}"; do
+    if cmp -s "$web/balaur_bg.wasm" "$out/$runtime/balaur_bg.wasm"; then
+      mv "$web/game.bpak" "$out/$runtime/$name.bpak"
+      placed=$runtime
+      break
+    fi
+  done
+  [ -n "$placed" ] || fail "$project exported onto none of ${web_runtimes[*]}"
+  rm -rf "$web"
+done
+rm -rf "$dist/.play-web" "$runtimes"
 cp "$module/balaur.js" "$module/balaur_bg.wasm" "$out/"
 # wasm-bindgen emits `inline_js` beside the glue and balaur.js imports it by
 # relative path, so it travels with them -- as package_runtime.sh already
@@ -76,13 +118,21 @@ if [ -d "$module/snippets" ]; then
   extra+=(snippets)
 fi
 ./scripts/check_web_module.sh "$out"
+for runtime in "${web_runtimes[@]}"; do
+  ./scripts/check_web_module.sh "$out/$runtime"
+done
 
 # Before it ships: WGSL a browser refuses links fine natively, and only a
-# browser's log says so.
+# browser's log says so. Each game boots on the runtime it was exported onto.
 step "boot every pack in a browser"
 node scripts/web_smoke.mjs "$out"
+for runtime in "${web_runtimes[@]}"; do
+  if compgen -G "$out/$runtime/*.bpak" >/dev/null; then
+    node scripts/web_smoke.mjs "$out/$runtime"
+  fi
+done
 
 step "bundle"
 (cd "$out" && tar -czf "$dist/balaur-play.tar.gz" \
-  balaur.js balaur_bg.wasm ${extra[@]+"${extra[@]}"} "${packs[@]}")
+  balaur.js balaur_bg.wasm ${extra[@]+"${extra[@]}"} "${packs[@]}" "${web_runtimes[@]}")
 ls -l "$out" "$dist/balaur-play.tar.gz"

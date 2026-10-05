@@ -18,3 +18,7 @@ emulate_touch_from_mouse = true
 [locale]
 initial = "en"
 fallback = "en"
+
+# A runtime with one physics world, smaller than the full one.
+[export]
+runtime = "3d"

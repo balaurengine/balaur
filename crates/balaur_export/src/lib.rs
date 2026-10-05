@@ -20,6 +20,7 @@ mod apple;
 mod bundle;
 mod config;
 mod extensions;
+mod fits;
 mod icon;
 pub mod preview;
 pub mod recode;
@@ -32,7 +33,8 @@ mod variants;
 use apple::AppleConfig;
 pub use bundle::web_shell;
 use bundle::{Bundle, export_bundle, export_macos_app, find_bundle_runtime};
-pub use config::{DEFAULT_OUTPUT, ExportConfig};
+pub use config::{DEFAULT_OUTPUT, ExportConfig, Runtime};
+pub use fits::fits;
 
 /// Everything an export was asked for.
 #[derive(Default)]
@@ -112,6 +114,7 @@ pub fn web_page(project: &Path, shell: &str, title: &str) -> Result<(String, Vec
 
 /// Fetch the runtime for one target, however the caller wants to: the CLI
 /// downloads and verifies it, the editor asks first, a test hands one over.
+/// It answers the runtime's file, or for a bundle the root it unpacked into.
 pub type ObtainRuntime = dyn Fn(&str) -> Result<PathBuf>;
 
 /// Modules the calling binary registers before the project is compiled.
@@ -123,8 +126,9 @@ pub type ObtainRuntime = dyn Fn(&str) -> Result<PathBuf>;
 pub type ExtraModules = dyn Fn() -> Vec<Box<dyn balaur_plugin::Plugin>>;
 
 /// Every target `--target` accepts, in the order an export sheet lists them:
-/// the desktops a player downloads, then the platforms that ship a bundle.
-pub const TARGETS: [&str; 8] = [
+/// the desktops a player downloads, the platforms that ship a bundle, then a
+/// dedicated server per desktop.
+pub const TARGETS: [&str; 13] = [
     "linux-x64",
     "linux-arm64",
     "macos-universal",
@@ -133,12 +137,39 @@ pub const TARGETS: [&str; 8] = [
     "ios",
     "android",
     "web",
+    "linux-x64-server",
+    "linux-arm64-server",
+    "macos-universal-server",
+    "windows-x64-server",
+    "windows-arm64-server",
 ];
 
-/// What a target may append to name a smaller template: `web-2d`,
-/// `windows-x64-server`. `2d` and `3d` carry one physics world, `server`
-/// (desktops) no window or sound, `threads` (web) a shared memory.
+/// What a runtime's name may end in: `web-2d`, `windows-x64-server`. `2d` and
+/// `3d` carry one physics world and come from `[export] runtime`; `server`
+/// (desktops) has no window or sound, and `threads` (web) a shared memory.
 pub const VARIANTS: [&str; 4] = ["2d", "3d", "server", "threads"];
+
+/// The runtime `target` puts a game on under `runtime`: `web` with `2d` is
+/// `web-2d`. A target naming a variant of its own keeps it.
+#[must_use]
+pub fn runtime_for(target: &str, runtime: Runtime) -> String {
+    match (split_variant(target).1, runtime.variant()) {
+        (None, Some(variant)) => format!("{target}-{variant}"),
+        _ => target.to_string(),
+    }
+}
+
+/// [`runtime_for`] with the project's own `[export] runtime`, as `target`
+/// resolves it.
+///
+/// # Errors
+/// If `project.toml` does not parse.
+pub fn runtime_of(project: &Path, target: &str) -> Result<String> {
+    Ok(runtime_for(
+        target,
+        ExportConfig::load(project, Some(target))?.runtime,
+    ))
+}
 
 /// A target and the variant it names, if any: `ios-2d` is `("ios", Some("2d"))`.
 #[must_use]
@@ -227,6 +258,38 @@ fn fold_variants(pack: &mut balaur::Pack, path: &Path, target: Option<&str>) -> 
     Ok(())
 }
 
+/// The runtime `target` puts this game on, once the game is known to run there.
+fn runtime_name(
+    target: &str,
+    runtime: Runtime,
+    project: &Path,
+    pack: &balaur::Pack,
+) -> Result<String> {
+    if let (base, Some(variant @ ("2d" | "3d"))) = split_variant(target) {
+        anyhow::bail!(
+            "{target} names a runtime, not a target: export for {base} with \
+             `[export] runtime = \"{variant}\"`, or `[override.{base}.export] runtime` for {base} alone"
+        );
+    }
+    let name = runtime_for(target, runtime);
+    fits(project, pack, &name)?;
+    Ok(name)
+}
+
+/// A bundle's runtime directory off the roots, or fetched and unpacked.
+fn bundle_runtime(kind: Bundle, name: &str, opts: &Options<'_>) -> Result<PathBuf> {
+    match find_bundle_runtime(kind, name, &opts.runtime_roots) {
+        Ok(found) => Ok(found),
+        Err(missing) => match opts.obtain {
+            Some(obtain) => {
+                let root = obtain(name).with_context(|| missing.to_string())?;
+                find_bundle_runtime(kind, name, std::slice::from_ref(&root))
+            }
+            None => Err(missing),
+        },
+    }
+}
+
 /// Write a `.bpak`, or a standalone game when a runtime is in play.
 pub fn export(opts: &Options<'_>) -> Result<()> {
     let target = opts.target.as_deref();
@@ -240,6 +303,9 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     let android = android::AndroidConfig::from_manifest(&manifest, &opts.path)?;
     let config = ExportConfig::from_manifest(&manifest, &opts.path)?;
     let windows_signing = config::WindowsConfig::from_manifest(&manifest, &opts.path)?;
+    let runtime_name = target
+        .map(|t| runtime_name(t, config.runtime, &opts.path, &pack))
+        .transpose()?;
     // Only a game a runtime carries has an icon; a bare pack skips decoding them.
     let icons = if target.is_some() || opts.runtime.is_some() {
         icon::Icons::load(&opts.path, &manifest)?
@@ -263,7 +329,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         extensions::warn_left_behind(&extensions::in_project(&opts.path), kind.platform());
         let runtime = match opts.runtime.clone() {
             Some(explicit) => explicit,
-            None => find_bundle_runtime(kind, target, &opts.runtime_roots)?,
+            None => bundle_runtime(kind, runtime_name.as_deref().unwrap_or(target), opts)?,
         };
         let shell = web_shell(&opts.path)?;
         let output = declared_output(opts, &config, kind.platform(), &bundle_name(kind, &name));
@@ -280,7 +346,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         )?;
         return finish_bundle(kind, &written, opts, &apple, &android, &name);
     }
-    let runtime = match (opts.runtime.clone(), target) {
+    let runtime = match (opts.runtime.clone(), runtime_name.as_deref()) {
         (Some(explicit), _) => Some(explicit),
         (None, Some(target)) => Some(match find_runtime(target, &opts.runtime_roots) {
             Ok(found) => found,

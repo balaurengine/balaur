@@ -79,7 +79,11 @@ pub fn light_2d() -> Result<String> {
 /// # Errors
 /// As [`light_2d`].
 pub fn skinned_2d() -> Result<String> {
-    engine_shader(&[("package::skinned_2d", SKINNED_2D)], "package::skinned_2d", &[])
+    engine_shader(
+        &[("package::skinned_2d", SKINNED_2D)],
+        "package::skinned_2d",
+        &[],
+    )
 }
 
 /// The 3D skinning shader on a device that does or does not morph, linked.
@@ -100,7 +104,11 @@ pub fn skinned_3d(morph: bool) -> Result<String> {
 /// As [`light_2d`].
 pub fn channel(shader: &str, channel: &str) -> Result<String> {
     let features: Vec<(&str, bool)> = CHANNELS.iter().map(|c| (*c, *c == channel)).collect();
-    engine_shader(&[("package::channel", shader)], "package::channel", &features)
+    engine_shader(
+        &[("package::channel", shader)],
+        "package::channel",
+        &features,
+    )
 }
 
 /// One of the engine's own shaders as WGSL: linked here, or read from the

@@ -14,3 +14,7 @@ interpolate = true
 [window]
 width = 1920
 height = 1080
+
+# A runtime with one physics world, smaller than the full one.
+[export]
+runtime = "2d"

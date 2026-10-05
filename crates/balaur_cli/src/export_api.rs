@@ -76,14 +76,17 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
         "Exports the project being edited. `targets` lists what this install can build; `start` runs one off the frame and reports to `on_export_event`.",
     );
     m.describe(&[
-        ("targets", &[], "()", "Every target, each `{ name, bundle, installed, fetchable, note }`: whether its runtime is already here, whether a missing one could be fetched, and what a signed build of it would also need."),
+        ("targets", &[], "()", "Every target, each `{ name, runtime, bundle, installed, fetchable, note }`: the runtime the project's `[export] runtime` puts it on, whether that is already here, whether a missing one could be fetched, and what a signed build of it would also need."),
         ("listen", &[], "(node: node, options: map)", LISTEN_DOC),
         ("start", &[], "(target: string, options: map)", "Export the edited project for one target, on a thread. `download` allows fetching a missing template, `sign` names an identity, `output` overrides where it lands. Answers false while a recording plays."),
         ("output", &[], "(target: string)", "Where an export for this target will be written, as the project's `[export] output` decides."),
         ("running_count", &[], "()", "How many exports are in flight."),
         ("preview", &[], "(path: string, target: string)", PREVIEW_DOC),
     ]);
-    m.function("targets", |_: &Engine, ()| Ok(targets()));
+    m.function("targets", |eng: &Engine, ()| {
+        let project = eng.resource::<ExportState>().borrow().0.project.clone();
+        Ok(targets(&project))
+    });
     install_listen::<ExportState, ExportEvent>(m, "on_export_event");
     m.function(
         "start",
@@ -120,14 +123,17 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
 static RUNNING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 /// What the sheet draws one row from.
-fn targets() -> Value {
+fn targets(project: &std::path::Path) -> Value {
     let roots = ExportState::roots();
     let rows = balaur_export::TARGETS
         .iter()
         .map(|name| {
-            let installed = balaur_export::runtime_installed(name, &roots);
+            let runtime =
+                balaur_export::runtime_of(project, name).unwrap_or_else(|_| (*name).to_string());
+            let installed = balaur_export::runtime_installed(&runtime, &roots);
             Value::Map(vec![
                 ("name".into(), Value::Str((*name).into())),
+                ("runtime".into(), Value::Str(runtime)),
                 (
                     "bundle".into(),
                     Value::Bool(balaur_export::ships_bundle(name)),

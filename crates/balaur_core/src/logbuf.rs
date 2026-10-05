@@ -154,7 +154,8 @@ pub fn capture(max_level: LevelFilter) {
         .add_directive(QUIET_APPKIT.parse().expect("a fixed directive"));
     #[cfg(not(any(target_arch = "wasm32", target_os = "android")))]
     let fmt = tracing_subscriber::fmt::layer().with_writer(std::io::stderr);
-    // Android drops an app's stderr, so lines go to logcat, which stamps them.
+    // android-activity forwards stderr to logcat as one Info stream, colour codes
+    // and all; lines go there directly instead, at their own level.
     #[cfg(target_os = "android")]
     let fmt = tracing_subscriber::fmt::layer()
         .without_time()
@@ -168,16 +169,11 @@ pub fn capture(max_level: LevelFilter) {
         .without_time()
         .with_ansi(false)
         .with_writer(console::Console);
-    let installed = tracing_subscriber::registry()
+    let _ = tracing_subscriber::registry()
         .with(filter)
         .with(fmt)
         .with(CaptureLayer)
         .try_init();
-    #[cfg(target_os = "android")]
-    if installed.is_ok() {
-        logcat::keep_panics();
-    }
-    let _ = installed;
 }
 
 /// The browser console as a `tracing` writer: the fmt layer asks for a
@@ -234,9 +230,6 @@ mod logcat {
         fn __android_log_write(priority: c_int, tag: *const c_char, text: *const c_char) -> c_int;
     }
 
-    /// android/log.h's `ANDROID_LOG_ERROR`.
-    const ERROR: c_int = 6;
-
     pub(super) struct Logcat;
 
     impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for Logcat {
@@ -264,7 +257,7 @@ mod logcat {
                 Level::DEBUG => 3,
                 Level::INFO => 4,
                 Level::WARN => 5,
-                _ => ERROR,
+                _ => 6,
             };
             Self {
                 priority,
@@ -284,31 +277,22 @@ mod logcat {
         }
     }
 
+    /// One entry per line, since logcat cuts an entry past about 4 KB.
     impl Drop for Line {
         fn drop(&mut self) {
-            write(self.priority, &self.bytes);
-        }
-    }
-
-    /// Panics too: the default hook prints to the stderr Android drops.
-    pub(super) fn keep_panics() {
-        let previous = std::panic::take_hook();
-        std::panic::set_hook(Box::new(move |info| {
-            write(ERROR, format!("panic {info}").as_bytes());
-            previous(info);
-        }));
-    }
-
-    /// One entry per line, since logcat cuts an entry past about 4 KB.
-    fn write(priority: c_int, bytes: &[u8]) {
-        for line in bytes.split(|&b| b == b'\n').filter(|line| !line.is_empty()) {
-            let text: Vec<u8> = line.iter().copied().filter(|&b| b != 0).collect();
-            let Ok(text) = CString::new(text) else {
-                continue;
-            };
-            // SAFETY: both are NUL-terminated strings that outlive the call.
-            unsafe {
-                __android_log_write(priority, c"balaur".as_ptr(), text.as_ptr());
+            for line in self
+                .bytes
+                .split(|&b| b == b'\n')
+                .filter(|line| !line.is_empty())
+            {
+                let text: Vec<u8> = line.iter().copied().filter(|&b| b != 0).collect();
+                let Ok(text) = CString::new(text) else {
+                    continue;
+                };
+                // SAFETY: both are NUL-terminated strings that outlive the call.
+                unsafe {
+                    __android_log_write(self.priority, c"balaur".as_ptr(), text.as_ptr());
+                }
             }
         }
     }

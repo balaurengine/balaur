@@ -13,3 +13,7 @@ players = 2
 [input.actions]
 move_x = ["keys:ArrowLeft,ArrowRight", "keys:KeyA,KeyD", "axis:left_x"]
 move_y = ["keys:ArrowDown,ArrowUp", "keys:KeyS,KeyW", "axis:left_y"]
+
+# A runtime with one physics world, smaller than the full one.
+[export]
+runtime = "2d"

@@ -11,6 +11,8 @@
 //!
 //! A Rune object handed into a function is mutated in place, so what a script
 //! writes to `this` is what the host sees on the next frame.
+// clippy misreads `thread_local!`'s `const` form on Android's emulated TLS.
+#![cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
 
 mod api;
 mod bindings;

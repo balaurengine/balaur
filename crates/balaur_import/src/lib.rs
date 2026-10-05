@@ -1,5 +1,7 @@
 //! `balaur import`: a model, a sprite, a level or a Godot project brought
 //! into a project as the files the editor edits.
+// clippy misreads `thread_local!`'s `const` form on Android's emulated TLS.
+#![cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
 
 pub mod atlas;
 mod godot;

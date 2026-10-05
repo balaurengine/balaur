@@ -48,8 +48,8 @@ struct FrameUniforms {
     fog: vec4<f32>,
     // Whether a sky is bound, its coarsest mip, its brightness, its turn.
     environment: vec4<f32>,
-    // The viewport in pixels, how many probes are live, and whether the
-    // resolved scene behind glass is bound.
+    // The viewport in pixels, how many probes are live, and how many mips the
+    // resolved scene behind glass has: none when it is not bound.
     screen_probes: vec4<f32>,
     // xyz a world plane's normal, w its offset; a point behind it is dropped.
     // All zero draws everything, which is every pass but a mirror's own.
@@ -430,9 +430,9 @@ fn mirror_at(in: VertexOutput, normal: vec3<f32>) -> vec4<f32> {
 }
 
 // The coarsest mip of the scene behind glass, which the roughest surface
-// reads.
+// reads. From the uniform: GLES has no `textureNumLevels`.
 fn behind_max_lod() -> f32 {
-    return f32(textureNumLevels(behind_texture) - 1u);
+    return max(frame.screen_probes.w - 1.0, 0.0);
 }
 
 // The scene behind a point on the screen, at one mip: a coarse mip is what

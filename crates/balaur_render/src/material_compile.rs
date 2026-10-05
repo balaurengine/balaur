@@ -1,9 +1,9 @@
 //! Linking a material's shader and laying its values out: the `Params`
 //! fields a linked shader declares, and the uniform bytes a material packs.
 
-use anyhow::{Result, bail};
 #[cfg(feature = "compile")]
 use anyhow::anyhow;
+use anyhow::{Result, bail};
 #[cfg(feature = "compile")]
 use wesl::syntax::{Attribute, GlobalDeclaration, Ident, TranslationUnit};
 
@@ -397,9 +397,13 @@ fn link_material(
     // this function invented; the author only ever saw the file, so that is
     // what the error has to point at.
     modules.push((MATERIAL_ROOT, source));
-    let linked = crate::shaders::link(&modules, MATERIAL_ROOT, &features(material, morph)).map_err(
-        |why| anyhow!("{}", format!("{why:#}").replace(MATERIAL_ROOT, &material.shader)),
-    )?;
+    let linked = crate::shaders::link(&modules, MATERIAL_ROOT, &features(material, morph))
+        .map_err(|why| {
+            anyhow!(
+                "{}",
+                format!("{why:#}").replace(MATERIAL_ROOT, &material.shader)
+            )
+        })?;
     let fields = fields(&linked.syntax)?;
     // Read off the linked output rather than threaded down from whoever
     // rewrote it: the binding either survived stripping or it did not.

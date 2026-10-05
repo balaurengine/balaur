@@ -17,6 +17,8 @@
 //!
 //! Widgets take their colors per call (usually from a script-side token
 //! table), so entire themes live in scripts and hot reload with them.
+// clippy misreads `thread_local!`'s `const` form on Android's emulated TLS.
+#![cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
 
 mod bridge;
 pub mod contrast;

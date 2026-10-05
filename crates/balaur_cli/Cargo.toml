@@ -92,6 +92,9 @@ toml.workspace = true
 ureq.workspace = true
 sha2.workspace = true
 dirs = "7"
+# A runtime download's tarball, and the editor archive `update` unpacks.
+flate2 = "1"
+tar = "0.4"
 
 # The OS folder picker the start screen offers. Desktop only: rfd has no
 # backend for a phone, where a project arrives through the platform's own
@@ -99,10 +102,6 @@ dirs = "7"
 [target.'cfg(not(any(target_family = "wasm", target_os = "ios", target_os = "android")))'.dependencies.rfd]
 version = "0.17"
 optional = true
-
-[target.'cfg(all(not(target_family = "wasm"), not(windows)))'.dependencies]
-flate2 = "1"
-tar = "0.4"
 
 [target.'cfg(windows)'.dependencies]
 zip = { version = "8", default-features = false, features = ["deflate"] }

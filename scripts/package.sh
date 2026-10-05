@@ -89,7 +89,12 @@ if [ -n "$variant" ]; then
   rm -rf "$smoke"
   mkdir -p "$smoke"
   cp -R "$example" "$smoke/project"
-  "$exporter" export "$smoke/project" --target "$target-$variant" --runtime "$out" \
+  # The example names its runtime in `[export] runtime`; a server is a target.
+  game_target=$target
+  if [ "$variant" = server ]; then
+    game_target=$target-server
+  fi
+  "$exporter" export "$smoke/project" --target "$game_target" --runtime "$out" \
     -o "$smoke/game$exe" >/dev/null
   played=$(BALAUR_FRAMES=60 "$smoke/game$exe" 2>&1) || {
     printf '%s\n' "$played" | tail -20

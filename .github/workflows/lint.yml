@@ -82,6 +82,26 @@ jobs:
       - name: Target `wasm32`, default features
         if: runner.os == 'Linux'
         run: cargo clippy --target wasm32-unknown-unknown -p balaur_cli -- -D warnings
+      # Android's cfg code, which no sweep above compiles. The NDK's clang
+      # builds the C and C++ a few dependencies carry, at the template's minSdkVersion.
+      - name: Target `aarch64-linux-android`
+        if: runner.os == 'Linux'
+        run: |
+          rustup target add aarch64-linux-android
+          bin=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin
+          export CC_aarch64_linux_android=$bin/aarch64-linux-android26-clang
+          export CXX_aarch64_linux_android=$bin/aarch64-linux-android26-clang++
+          export AR_aarch64_linux_android=$bin/llvm-ar
+          cargo clippy --workspace --all-targets --target aarch64-linux-android -- -D warnings
+      # iOS's cfg code, then the iOS template's features, `window` and `apple`.
+      - name: Target `aarch64-apple-ios`
+        if: runner.os == 'macOS'
+        env:
+          IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+        run: |
+          rustup target add aarch64-apple-ios
+          cargo clippy --workspace --all-targets --target aarch64-apple-ios -- -D warnings
+          cargo clippy -p balaur_cli --features window,apple --target aarch64-apple-ios -- -D warnings
       # extension_greeter is deliberately outside the workspace, so nothing
       # above reaches it. It is the only thing proving an extension builds
       # without the engine's build tree.

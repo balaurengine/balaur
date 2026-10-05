@@ -5,6 +5,9 @@
 use crate::style;
 use crate::util;
 
+// The runtime every target puts the game on; a server target keeps its own.
+const RUNTIME_SETTING = "export/runtime";
+
 pub fn state() {
     #{
         // One row per target, as `export::targets()` reports them.
@@ -80,10 +83,44 @@ fn specs(S) {
             on: |_| { crate::settings::open_at(S, "export"); },
         }] },
     ];
+    let picker = runtime_spec(S);
+    if picker is Object {
+        out.push(picker);
+    }
     for row in S.exporter.rows {
         target_specs(S, util::obj(row), out);
     }
     out
+}
+
+/// The `[export] runtime` choice, with the options its schema declares.
+fn runtime_spec(S) {
+    let options = [];
+    for def in settings::all() {
+        if def.path == RUNTIME_SETTING {
+            options = util::vec(util::obj(def.spec).get("options").unwrap_or([]));
+        }
+    }
+    if options.is_empty() {
+        return ();
+    }
+    let now = settings::base(RUNTIME_SETTING);
+    #{ full: true, height: 24, slot_role: "layout_actions", controls: [
+        #{ kind: "label", role: "text_caption", text: "Runtime" },
+        #{
+            kind: "dropdown", role: "choice_form", width: 120,
+            text: if now is String { now } else { options[0] },
+            options: options,
+            on: |picked| { pick_runtime(S, picked); },
+        },
+    ] }
+}
+
+pub fn pick_runtime(S, picked) {
+    crate::settings::write(S, RUNTIME_SETTING, picked);
+    // An export reads project.toml, so the choice is saved as it is made.
+    crate::settings::commit_project(S);
+    refresh(S);
 }
 
 fn note(text, role) {
@@ -117,15 +154,17 @@ fn readiness(installed, fetchable) {
 
 fn target_specs(S, row, out) {
     let name = row.get("name").unwrap_or("");
+    let runtime = row.get("runtime").unwrap_or(name);
     let installed = row.get("installed").unwrap_or(false);
     let fetchable = row.get("fetchable").unwrap_or(false);
     let note_text = row.get("note").unwrap_or("");
     let status = S.exporter.status.get(name).unwrap_or("");
     let said = S.exporter.said.get(name).unwrap_or("");
-    let controls = [
-        #{ kind: "label", role: "text_code", text: name },
-        #{ kind: "label", role: "text_caption", text: readiness(installed, fetchable) },
-    ];
+    let controls = [#{ kind: "label", role: "text_code", text: name }];
+    if runtime != name {
+        controls.push(#{ kind: "label", role: "text_caption", text: "→ " + runtime });
+    }
+    controls.push(#{ kind: "label", role: "text_caption", text: readiness(installed, fetchable) });
     if note_text != "" {
         controls.push(#{ kind: "label", role: "note_warning", text: note_text });
     }

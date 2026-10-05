@@ -13,6 +13,10 @@
 //! Desktop only. Android and iOS have no hidraw to open and wasm has no
 //! devices at all, so there the reader is a stub and every pad reads zero —
 //! the same neutral answer an absent pad gives.
+#![cfg_attr(
+    not(any(test, target_os = "windows", target_os = "macos", target_os = "linux")),
+    allow(dead_code, reason = "only the desktop reader decodes a report")
+)]
 
 use crate::gamepad::{Motion, PadTouch};
 
@@ -566,6 +570,7 @@ mod reader {
     #[derive(Default)]
     pub(crate) struct Sensors;
 
+    #[allow(clippy::unused_self, reason = "the desktop reader's signatures")]
     impl Sensors {
         pub(crate) fn poll(&mut self, _pads: &[(u16, u16)]) {}
 

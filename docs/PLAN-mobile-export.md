@@ -8,8 +8,12 @@ build. What is left is signing — the developer's, not CI's — and web.
 **Compiling and rendering are different claims.** Nothing in CI runs a frame
 on a real device or simulator; the export check stops at "a device would
 install this", and `export_check.sh` proves the bundle shape, the pack's
-place inside it, and that the iOS executable was built for iOS. That a frame
-renders on a phone is unproven, and needs hardware.
+place inside it, and that the iOS executable was built for iOS. An exported
+game has been run by hand on the Android emulator's GLES backend: it draws,
+plays sound, saves, and logs to logcat under the tag `balaur`. What CI checks
+is the shaders: `shader_checks.rs` writes every engine shader as the GLSL ES
+3.10 a phone without Vulkan compiles, and kiss3d's suite does the same for its
+own. That a frame renders on a real phone is unproven, and needs hardware.
 
 ## The shell a phone has
 

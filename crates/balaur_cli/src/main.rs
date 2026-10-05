@@ -140,9 +140,10 @@ enum Command {
         path: PathBuf,
         #[arg(short, long)]
         output: Option<PathBuf>,
-        /// Platform to build a standalone game for, naming a runtime in the
-        /// runtimes directory (e.g. `linux-x64`, `macos-universal`,
-        /// `windows-x64`, `windows-arm64`).
+        /// Platform to build a standalone game for (e.g. `linux-x64`,
+        /// `macos-universal`, `web`), or a dedicated server
+        /// (`linux-x64-server`). `[export] runtime` picks a one-world
+        /// runtime for it.
         #[arg(long)]
         target: Option<String>,
         /// Runtime to append to, bypassing lookup.

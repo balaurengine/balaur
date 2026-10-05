@@ -169,11 +169,16 @@ fn key_of(def) {
 // Write both files. Only the paths a scope defines are touched, so a comment
 // or an unrelated table in project.toml survives.
 pub fn commit(S) {
+    commit_project(S);
+    commit_prefs(S);
+    S.settings.dirty = false;
+}
+
+/// The game's half alone: what a choice made outside this screen saves.
+pub fn commit_project(S) {
     let path = S.game_root + "/project.toml";
     let existing = fs::read(path);
     fs::write(path, settings::to_toml("project", if existing is String { existing } else { "" }));
-    commit_prefs(S);
-    S.settings.dirty = false;
 }
 
 /// The editor's half alone: what a self-test can round-trip without rewriting

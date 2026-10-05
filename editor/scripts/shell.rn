@@ -765,6 +765,7 @@ fn states() {
         "test:theme_editing": crate::selftest::theme_editing,
         "test:sheet_close": crate::selftest::sheet_closing,
         "test:settings": crate::selftest::settings_screen,
+        "test:export_runtime": crate::selftest::export_runtime,
         "test:panels": crate::selftest::menu_panels,
         "test:palette": crate::selftest::palette_screen,
         "test:focus": crate::selftest::focusing,

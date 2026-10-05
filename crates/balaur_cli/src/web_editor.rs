@@ -116,9 +116,9 @@ pub async fn open_project(
     .map_err(err)
 }
 
-/// The editor's own verbs. `export` is told where the module a web bundle
-/// ships is served from: beside the editor's own pack, which is how a page
-/// serves the set. `import` is here so a drop answers the same way it does on
+/// The editor's own verbs. `export` is told where the runtimes a web bundle
+/// ships are served from: a directory apiece beside the editor's own pack,
+/// which is how a page serves the set. `import` is here so a drop answers the same way it does on
 /// a desktop, with the error a tab has to give. `project` is the start
 /// screen's: the editor's scripts name it on every platform, and the page
 /// rather than the screen is what opens a project in a tab.

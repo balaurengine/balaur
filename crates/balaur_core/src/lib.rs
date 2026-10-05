@@ -5,6 +5,8 @@
 //! behind `balaur_script`; a backend crate supplies it.
 //! Script hot reloading and script precompilation are core services: every
 //! plugin and every game built on Balaur gets them for free.
+// clippy misreads `thread_local!`'s `const` form on Android's emulated TLS.
+#![cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
 
 pub mod app;
 pub mod asset_index;

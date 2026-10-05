@@ -5,8 +5,9 @@
 //! export records each result; without it the result comes from the table
 //! the export wrote into the pack at [`PRELINKED`].
 
+use std::cell::RefCell;
 use std::collections::BTreeMap;
-use std::sync::{Mutex, RwLock};
+use std::sync::RwLock;
 
 use anyhow::{Context as _, Result, anyhow};
 use balaur_core::digest::Hasher;
@@ -38,8 +39,11 @@ impl Linked {
 
 /// The pack's table, in a build with no linker.
 static TABLE: RwLock<BTreeMap<u64, Linked>> = RwLock::new(BTreeMap::new());
-/// What an export is collecting, while it does.
-static RECORDING: Mutex<Option<BTreeMap<u64, Linked>>> = Mutex::new(None);
+thread_local! {
+    /// What an export on this thread is collecting, while it does: one
+    /// building elsewhere, or the editor linking live, is not its business.
+    static RECORDING: RefCell<Option<BTreeMap<u64, Linked>>> = const { RefCell::new(None) };
+}
 
 /// The key for linking `root` from `modules` with `features`, under `kind`:
 /// what a material, its transparent variant and an engine shader are kept
@@ -74,17 +78,21 @@ pub fn key(kind: &str, modules: &[(&str, &str)], root: &str, features: &[(&str, 
 pub fn cached(key: u64, link: impl FnOnce() -> Result<Linked>) -> Result<Linked> {
     if cfg!(feature = "compile") {
         let linked = link()?;
-        if let Some(table) = RECORDING.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
-            table.insert(key, linked.clone());
-        }
+        RECORDING.with(|r| {
+            if let Some(table) = r.borrow_mut().as_mut() {
+                table.insert(key, linked.clone());
+            }
+        });
         return Ok(linked);
     }
     TABLE
         .read()
-        .unwrap_or_else(|e| e.into_inner())
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .get(&key)
         .cloned()
-        .ok_or_else(|| anyhow!("this build has no shader linker, and the export linked no shader for this one"))
+        .ok_or_else(|| {
+            anyhow!("this build has no shader linker, and the export linked no shader for this one")
+        })
 }
 
 /// [`cached`] for a link that may find nothing to link, which the table
@@ -98,14 +106,24 @@ pub fn cached_optional(key: u64, link: impl FnOnce() -> Option<Linked>) -> Optio
 /// # Errors
 /// If the table is not one [`record`] wrote.
 pub fn install(bytes: &[u8]) -> Result<()> {
+    let table = read(bytes)?;
+    *TABLE
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = table;
+    Ok(())
+}
+
+/// The table [`record`] wrote, by key.
+///
+/// # Errors
+/// If it does not inflate or parse.
+pub fn read(bytes: &[u8]) -> Result<BTreeMap<u64, Linked>> {
     use std::io::Read as _;
     let mut text = String::new();
     flate2::read::DeflateDecoder::new(bytes)
         .read_to_string(&mut text)
         .context("the prelinked shaders do not inflate")?;
-    let table = parse(&text)?;
-    *TABLE.write().unwrap_or_else(|e| e.into_inner()) = table;
-    Ok(())
+    parse(&text)
 }
 
 /// Run `f`, collecting every shader it links, and answer the table for
@@ -114,17 +132,14 @@ pub fn install(bytes: &[u8]) -> Result<()> {
 /// # Errors
 /// If `f` fails.
 pub fn record(f: impl FnOnce() -> Result<()>) -> Result<Vec<u8>> {
-    *RECORDING.lock().unwrap_or_else(|e| e.into_inner()) = Some(BTreeMap::new());
+    use std::io::Write as _;
+    RECORDING.with(|r| *r.borrow_mut() = Some(BTreeMap::new()));
     let ran = f();
     let table = RECORDING
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .take()
+        .with(|r| r.borrow_mut().take())
         .unwrap_or_default();
     ran?;
-    use std::io::Write as _;
-    let mut deflated =
-        flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::best());
+    let mut deflated = flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::best());
     deflated.write_all(write(&table).as_bytes())?;
     Ok(deflated.finish()?)
 }
@@ -147,30 +162,46 @@ pub fn link_everything(eng: &balaur_core::Engine, pack: &balaur_core::Pack) {
     for morph in [false, true] {
         warn("3D skinning", shaders::skinned_3d(morph).map(drop));
         for vertex_color in [false, true] {
-            warn("the prepass", shaders::link_prepass(vertex_color, morph).map(drop));
+            warn(
+                "the prepass",
+                shaders::link_prepass(vertex_color, morph).map(drop),
+            );
         }
     }
     for channel in shaders::CHANNELS {
-        warn("a channel view", shaders::channel(shaders::CHANNEL, channel).map(drop));
-        warn("a channel view", shaders::channel(shaders::CHANNEL_2D, channel).map(drop));
+        warn(
+            "a channel view",
+            shaders::channel(shaders::CHANNEL, channel).map(drop),
+        );
+        warn(
+            "a channel view",
+            shaders::channel(shaders::CHANNEL_2D, channel).map(drop),
+        );
     }
     let text_mask = Material3d {
         shader: "text_mask.wesl".into(),
         ..Material3d::default()
     };
-    warn("the text mask", compile(&text_mask, shaders::TEXT_MASK).map(drop));
+    warn(
+        "the text mask",
+        compile(&text_mask, shaders::TEXT_MASK).map(drop),
+    );
     let modules = shaders::plugin_modules(eng);
     for finish in crate::vocabulary::words::FINISHES {
         let material = Material3d {
             features: vec![((*finish).to_string(), true)],
             ..Material3d::default()
         };
-        warn(finish, compile_with(&material, shaders::FINISH, &modules).map(drop));
+        warn(
+            finish,
+            compile_with(&material, shaders::FINISH, &modules).map(drop),
+        );
     }
     // A material is a document, so the pack keeps it with the scenes.
     for (path, text) in &pack.scenes {
-        let is_material = text.parse::<toml::Table>().ok().is_some_and(|t| {
-            t.get("type").and_then(toml::Value::as_str) == Some(crate::material::MATERIAL_ASSET_TYPE)
+        let is_material = text.parse::<toml::Table>().is_ok_and(|t| {
+            t.get("type").and_then(toml::Value::as_str)
+                == Some(crate::material::MATERIAL_ASSET_TYPE)
         });
         if !is_material {
             continue;
@@ -242,7 +273,9 @@ fn parse(text: &str) -> Result<BTreeMap<u64, Linked>> {
             .into_iter()
             .flatten()
         {
-            let parts = field.as_array().context("a prelinked field is not a list")?;
+            let parts = field
+                .as_array()
+                .context("a prelinked field is not a list")?;
             let at = |i: usize| parts.get(i).context("a prelinked field is short");
             fields.push(Field {
                 name: at(0)?.as_str().unwrap_or_default().to_string(),
@@ -278,7 +311,12 @@ mod tests {
     fn a_table_reads_back_what_it_wrote() {
         let mut table = BTreeMap::new();
         table.insert(
-            key("material", &[("package::m", "fn f() {}")], "package::m", &[("lit", true)]),
+            key(
+                "material",
+                &[("package::m", "fn f() {}")],
+                "package::m",
+                &[("lit", true)],
+            ),
             Linked {
                 wgsl: "@fragment fn fs() {}\n".into(),
                 fields: vec![Field {
@@ -310,6 +348,9 @@ mod tests {
         let b = key("m", &[], "r", &[("b", false), ("a", true)]);
         assert_eq!(a, b);
         assert_ne!(a, key("m", &[], "r", &[("a", false), ("b", false)]));
-        assert_ne!(a, key("transparent", &[], "r", &[("a", true), ("b", false)]));
+        assert_ne!(
+            a,
+            key("transparent", &[], "r", &[("a", true), ("b", false)])
+        );
     }
 }

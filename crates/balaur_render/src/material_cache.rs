@@ -119,20 +119,20 @@ macro_rules! define {
                     }
                 }
                 let built = crate::shaders::channel($channel_shader, channel)
-                .map(|wgsl| {
-                    $channel_material(&crate::material::Compiled {
-                        wgsl,
-                        fields: Vec::new(),
-                        params: Vec::new(),
-                        probes: false,
-                        vertex_color: false,
-                        instance_custom: false,
-                        transparent_wgsl: None,
-                        morph: false,
+                    .map(|wgsl| {
+                        $channel_material(&crate::material::Compiled {
+                            wgsl,
+                            fields: Vec::new(),
+                            params: Vec::new(),
+                            probes: false,
+                            vertex_color: false,
+                            instance_custom: false,
+                            transparent_wgsl: None,
+                            morph: false,
+                        })
                     })
-                })
-                .inspect_err(|why| tracing::error!(channel, "{why:#}"))
-                .ok()?;
+                    .inspect_err(|why| tracing::error!(channel, "{why:#}"))
+                    .ok()?;
                 let shared: $Shared = std::rc::Rc::new(std::cell::RefCell::new(Box::new(built)));
                 <$Manager>::get_global_manager(|manager| {
                     manager.add(shared.clone(), concat!($prefix, ":channel"));

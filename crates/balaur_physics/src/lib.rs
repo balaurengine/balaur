@@ -65,6 +65,34 @@ use crate::vocabulary::{component as c, hook, words as w};
 pub use dim2::PhysicsState2d;
 pub use query::overlaps;
 
+/// What each world adds to a project, for an export holding it to a runtime
+/// that carries one world: its component keys and its script modules.
+pub mod worlds {
+    use crate::vocabulary::{component as c, module as m};
+
+    pub const COMPONENTS_2D: &[&str] = &[
+        c::BODY_2D,
+        c::COLLIDER_2D,
+        c::TILE_COLLISION,
+        c::JOINT_2D,
+        c::CHARACTER_2D,
+        c::FOLLOW_2D,
+        c::SOFTBODY_2D,
+    ];
+    pub const COMPONENTS_3D: &[&str] = &[
+        c::BODY_3D,
+        c::COLLIDER_3D,
+        c::JOINT_3D,
+        c::CHARACTER_3D,
+        c::WHEEL_3D,
+        c::VEHICLE_3D,
+        c::FOLLOW_3D,
+        c::SOFTBODY_3D,
+    ];
+    pub const MODULES_2D: &[&str] = &[m::PHYSICS_2D];
+    pub const MODULES_3D: &[&str] = &[m::PHYSICS_3D, m::GEOMETRY_3D];
+}
+
 use balaur_core::digest::{Entry, Hasher, node_label};
 
 use balaur_core::fixed_dt;
@@ -226,7 +254,7 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
         tuning::build(reg);
         // `physics` holds what spans both worlds; each dimension has its own.
         {
-            let mut m = reg.script_module("physics")?;
+            let mut m = reg.script_module(vocabulary::module::PHYSICS)?;
             install_world_controls(&mut *m);
             debug::install_debug_api(&mut *m);
             tuning::install_tuning_api(&mut *m);
@@ -238,7 +266,7 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
         {
             // Alongside core's own polygon verbs: a script looking for this
             // looks where `convex_hull` and the booleans are.
-            let mut m = reg.script_module("geometry2d")?;
+            let mut m = reg.script_module(vocabulary::module::GEOMETRY_2D)?;
             dim2::decompose::install_decompose_api(&mut *m);
         }
         #[cfg(feature = "physics2d")]
@@ -256,7 +284,7 @@ fn declare_3d(reg: &mut Registry<'_>) -> Result<()> {
     build_physics_digest(reg);
     snapshot::build_physics_snapshot(reg);
     vehicle::build(reg);
-    let mut m = reg.script_module("physics3d")?;
+    let mut m = reg.script_module(vocabulary::module::PHYSICS_3D)?;
     m.module_doc(
         "The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.",
     );
@@ -297,7 +325,7 @@ fn declare_3d(reg: &mut Registry<'_>) -> Result<()> {
     register_physics_presets(reg)?;
 
     {
-        let mut m = reg.script_module("geometry3d")?;
+        let mut m = reg.script_module(vocabulary::module::GEOMETRY_3D)?;
         geometry::install_geometry_api(&mut *m);
         geometry::install_mesh_edit_api(&mut *m);
     }

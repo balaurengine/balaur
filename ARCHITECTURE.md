@@ -614,11 +614,14 @@ such a pack: the editor's, never a game template.
 - egui fills each glyph's outline once, into its atlas, with `zeno`, which
   balaur_text links already: a patch on epaint 0.36 (`Ughuuu/egui`) in place
   of `vello_cpu` and its SIMD kernels, 1.4 MB of a web build.
-- A template variant is a target with a suffix: `-2d` and `-3d` on every
-  template target keep one physics world, `-server` on a desktop has no window
-  or sound. A variant is a game template, with no editor and no compiler, takes
-  its platform's tags and finds `balaur-runtime-<target>`. CI builds, exports
-  and runs every one; `scripts/features.sh` holds the feature sets.
+- A runtime variant is a name with a suffix: `-2d` and `-3d` on every target
+  keep one physics world, `-server` on a desktop has no window or sound. A
+  variant is a game template, with no editor and no compiler, takes its
+  platform's tags and is found as `balaur-runtime-<target>-<variant>`. A
+  server is a target of its own; `[export] runtime` turns `web` into `web-2d`,
+  and the export refuses a game whose scenes or scripts use the world it
+  leaves out, since a script's body is invisible until it runs. CI builds,
+  exports and runs every one; `scripts/features.sh` holds the feature sets.
 - A physics world is a feature, `physics2d` or `physics3d`. Both compile in
   every build, since the 2D code calls helpers in the 3D files; a world left
   off registers no system, component or verb, so its solver never links.

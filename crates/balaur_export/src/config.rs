@@ -64,6 +64,33 @@ pub struct ExportConfig {
     /// libvorbis's -0.1 to 1.0 quality, which `audio_recode = "vorbis"`
     /// reads and every other mode ignores.
     pub audio_quality: f32,
+    /// Which of a target's runtimes the game is put on: `full`, or `2d` and
+    /// `3d`, which carry one physics world each and weigh less.
+    pub runtime: Runtime,
+}
+
+/// The runtime `[export] runtime` names, for every target that has one.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Deserialize)]
+pub enum Runtime {
+    #[default]
+    #[serde(rename = "full")]
+    Full,
+    #[serde(rename = "2d")]
+    World2d,
+    #[serde(rename = "3d")]
+    World3d,
+}
+
+impl Runtime {
+    /// The suffix a target takes to name this runtime: `web` becomes `web-2d`.
+    #[must_use]
+    pub fn variant(self) -> Option<&'static str> {
+        match self {
+            Self::Full => None,
+            Self::World2d => Some("2d"),
+            Self::World3d => Some("3d"),
+        }
+    }
 }
 
 impl Default for ExportConfig {
@@ -81,6 +108,7 @@ impl Default for ExportConfig {
             font_original: Vec::new(),
             audio_recode: crate::recode::AudioMode::Original,
             audio_quality: crate::recode::DEFAULT_AUDIO_QUALITY,
+            runtime: Runtime::Full,
         }
     }
 }

@@ -64,8 +64,8 @@ pub(crate) struct FrameUniforms {
     fog: [f32; 4],
     /// Whether a sky is bound, its coarsest mip, its brightness, its turn.
     environment: [f32; 4],
-    /// The viewport in pixels, how many probes are live, and whether the
-    /// resolved scene behind glass is bound.
+    /// The viewport in pixels, how many probes are live, and how many mips the
+    /// resolved scene behind glass has: none when it is not bound.
     screen_probes: [f32; 4],
     /// A world plane; a point behind it is dropped. All zero draws everything.
     clip_plane: [f32; 4],
@@ -527,7 +527,7 @@ impl FrameGroup {
                 viewport.0 as f32,
                 viewport.1 as f32,
                 probe_count,
-                f32::from(u8::from(self.supplied.behind.is_some())),
+                self.behind_levels(),
             ],
             clip_plane: self.clip_plane,
             lights: rows,
@@ -575,9 +575,18 @@ impl FrameGroup {
         // The window binds this between `prepare` and the refraction pass, so
         // the flag the shader reads is patched in rather than waiting for the
         // next frame's uniform: glass would spend its first frame black.
-        let live = f32::from(u8::from(self.supplied.behind.is_some()));
+        let levels = self.behind_levels();
         let offset = std::mem::offset_of!(FrameUniforms, screen_probes) + 3 * size_of::<f32>();
-        Context::get().write_buffer(&self.uniform, offset as u64, &live.to_le_bytes());
+        Context::get().write_buffer(&self.uniform, offset as u64, &levels.to_le_bytes());
+    }
+
+    /// The mips of the scene behind glass, which the shader reads because GLES
+    /// cannot ask a texture how many levels it has.
+    fn behind_levels(&self) -> f32 {
+        self.supplied
+            .behind
+            .as_ref()
+            .map_or(0.0, |view| view.texture().mip_level_count() as f32)
     }
 
     /// The shadow atlas and uniform this pass reads, which the window hands

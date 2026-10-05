@@ -594,6 +594,14 @@ pub(crate) mod keys {
     pub(crate) const Z: &str = "z";
 }
 
+/// The script modules physics declares.
+pub(crate) mod module {
+    pub(crate) use super::keys::{PHYSICS_2D, PHYSICS_3D};
+    pub(crate) const PHYSICS: &str = "physics";
+    pub(crate) const GEOMETRY_2D: &str = "geometry2d";
+    pub(crate) const GEOMETRY_3D: &str = "geometry3d";
+}
+
 /// The component keys, as the registry and every `describe` entry spell them.
 pub(crate) mod component {
     pub(crate) const BODY_3D: &str = "body3d";

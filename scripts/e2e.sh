@@ -243,6 +243,7 @@ editor_states() {
   edit_step "$name: theme window" "$ex" test:theme_editing
   edit_step "$name: sheet close" "$ex" test:sheet_close
   edit_step "$name: settings" "$ex" test:settings
+  edit_step "$name: export runtime" "$ex" test:export_runtime
   printf 'ok\n'
 
   # Drag-in, one case per extension, and the file a drop copies in.

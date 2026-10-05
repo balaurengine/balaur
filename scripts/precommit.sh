@@ -189,6 +189,49 @@ wasm_stream() {
   return $bad
 }
 
+# The NDK's clang for aarch64-linux-android26, which has to build the C and C++
+# a few dependencies carry even to type-check them. Empty when there is no NDK.
+ndk_bin() {
+  local root=${ANDROID_NDK_ROOT:-${ANDROID_NDK_HOME:-}} host=linux-x86_64
+  [ "$(uname)" = "Darwin" ] && host=darwin-x86_64
+  if [ -z "$root" ]; then
+    for root in "${ANDROID_HOME:-$HOME/Library/Android/sdk}"/ndk/*; do
+      [ -d "$root/toolchains" ] && break
+    done
+  fi
+  local bin="$root/toolchains/llvm/prebuilt/$host/bin"
+  [ -x "$bin/aarch64-linux-android26-clang" ] && printf '%s' "$bin"
+}
+
+has_target() { rustup target list --installed | grep -qx "$1"; }
+
+# The Android and iOS code no host sweep compiles, then the iOS template's own
+# features. Skipped rather than failed without the target or the NDK.
+mobile_stream() {
+  side_env
+  local bad=0 bin
+  bin=$(ndk_bin)
+  if [ -n "$bin" ] && has_target aarch64-linux-android; then
+    export CC_aarch64_linux_android="$bin/aarch64-linux-android26-clang"
+    export CXX_aarch64_linux_android="$bin/aarch64-linux-android26-clang++"
+    export AR_aarch64_linux_android="$bin/llvm-ar"
+    step 'clippy android' shape android clippy --workspace --all-targets \
+      --target aarch64-linux-android -- -D warnings || bad=1
+  else
+    printf 'no Android NDK or aarch64-linux-android target, clippy android skipped\n'
+  fi
+  if [ "$(uname)" = "Darwin" ] && has_target aarch64-apple-ios; then
+    export IPHONEOS_DEPLOYMENT_TARGET=15.0
+    step 'clippy ios' shape ios clippy --workspace --all-targets \
+      --target aarch64-apple-ios -- -D warnings || bad=1
+    step 'clippy ios template' shape ios clippy -p balaur_cli --features window,apple \
+      --target aarch64-apple-ios -- -D warnings || bad=1
+  elif [ "$(uname)" = "Darwin" ]; then
+    printf 'no aarch64-apple-ios target, clippy ios skipped\n'
+  fi
+  return $bad
+}
+
 # Opt in, and before any stream starts: every stream reads what this rewrites,
 # and it rewrites the whole checkout, other work in progress included.
 if [ $fix -eq 1 ]; then
@@ -202,6 +245,7 @@ else
   start host host_stream
   start features features_stream
   start wasm wasm_stream
+  start mobile mobile_stream
   if [ "$mode" != "--lints" ]; then
     start shapes shapes_stream
   fi

@@ -14,8 +14,9 @@ inputs:
     default: ""
   targets:
     description: >-
-      Space-separated targets whose runtimes to fetch now, so a later
-      export needs no network. Empty fetches none.
+      Space-separated runtimes to fetch now, so a later export needs no
+      network: a target, or the one-world runtime `[export] runtime` turns
+      it into (`web-2d`). Empty fetches none.
     required: false
     default: ""
 
@@ -89,7 +90,7 @@ runs:
         mkdir -p "$INSTALL/runtimes"
         for target in $TARGETS; do
           case "$target" in
-            ios|android|web)
+            ios|ios-*|android|android-*|web|web-*)
               asset="balaur-runtime-$target.tar.gz"
               fetch "$asset"
               tar -xzf "$asset" -C "$INSTALL/runtimes"

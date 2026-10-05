@@ -18,6 +18,10 @@ use kiss3d::winit::platform::android::activity::AndroidApp;
 /// Where an exported game puts its pack inside the APK.
 const PACK_ASSET: &std::ffi::CStr = c"game.bpak";
 
+#[allow(
+    clippy::no_mangle_with_rust_abi,
+    reason = "android-activity declares it `extern \"Rust\"` and calls it so"
+)]
 #[unsafe(no_mangle)]
 fn android_main(app: AndroidApp) {
     balaur::logbuf::capture(tracing::level_filters::LevelFilter::INFO);

@@ -275,6 +275,24 @@ fn build_pack_compiles_with_or_without_a_language_line() {
 }
 
 #[test]
+fn a_pack_carries_every_shader_its_game_links() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/shaders");
+    let pack = balaur::build_pack(&root).unwrap();
+    let bytes = pack
+        .assets
+        .get(balaur::render::prelinked::PRELINKED)
+        .expect("an export links the game's shaders into the pack");
+    let table = balaur::render::prelinked::read(bytes).unwrap();
+    // The glow material, linked with and without morphing, with its Params.
+    let glow = table
+        .values()
+        .filter(|linked| linked.fields.iter().any(|f| f.name == "rings"))
+        .count();
+    assert_eq!(glow, 2);
+    assert!(table.values().all(|linked| linked.wgsl.contains("fn ")));
+}
+
+#[test]
 fn a_packed_project_boots_without_its_sources() {
     let dir = tempfile::tempdir().unwrap();
     project(dir.path(), None, RUNE);

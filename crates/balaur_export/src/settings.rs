@@ -18,6 +18,7 @@ use balaur::settings::{Scope, define_group};
 /// The `[export]` keys, as the editor's settings panel draws them. One copy,
 /// so a mode offered here is one [`crate::config::ExportConfig`] can read.
 pub(crate) const EXPORT_SCHEMA: &str = r#"
+runtime = { type = "enum", default = "full", options = ["full", "2d", "3d"], order = 0, help = "The runtime a game is put on. 2d and 3d carry one physics world each and weigh less; a server target keeps its own. Per target through that target's override." }
 output = { type = "string", default = "", order = 1, help = "A project-relative directory; each target gets a subdirectory of it. Empty exports where the command stands." }
 strip = { type = "bool", default = false, order = 2, help = "Drop an asset no scene, script or include glob names. Off by default: a script may compute a path this cannot see, and losing an asset is worse than shipping one." }
 tags = { type = "list", of = { type = "string" }, default = [], order = 11, help = "Names this build answers to besides its platform's, such as demo or store. An override or an asset variant may be written for any of them; per target, set it under that target's override." }

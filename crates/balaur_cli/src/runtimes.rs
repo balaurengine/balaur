@@ -55,17 +55,25 @@ mod fetch {
         )
     }
 
+    /// Whether `target`'s runtime is a directory, published as a tarball.
+    fn is_bundle(target: &str) -> bool {
+        matches!(target.split('-').next(), Some("ios" | "android" | "web"))
+    }
+
     fn asset_name(target: &str) -> String {
-        if target.starts_with("windows-") {
+        if is_bundle(target) {
+            format!("balaur-runtime-{target}.tar.gz")
+        } else if target.starts_with("windows-") {
             format!("balaur-runtime-{target}.exe")
         } else {
             format!("balaur-runtime-{target}")
         }
     }
 
-    /// Download the runtime for `target` into the cache and return its path.
-    /// Asks first on a terminal; without one it refuses unless `assume_yes`
-    /// (`--download`), so CI never fetches by surprise.
+    /// Download the runtime for `target` into the cache and return its path,
+    /// or for a bundle the cache it was unpacked into. Asks first on a
+    /// terminal; without one it refuses unless `assume_yes` (`--download`), so
+    /// CI never fetches by surprise.
     pub(crate) fn obtain(target: &str, assume_yes: bool) -> Result<PathBuf> {
         let name = asset_name(target);
         let tag = release_tag()?;
@@ -81,7 +89,15 @@ mod fetch {
         let path = dir.join(&name);
         download(&url, &path, expected.as_deref())?;
         tracing::info!("downloaded {name} -> {}", path.display());
-        Ok(path)
+        if !is_bundle(target) {
+            return Ok(path);
+        }
+        let file = std::fs::File::open(&path)?;
+        tar::Archive::new(flate2::read::GzDecoder::new(file))
+            .unpack(&dir)
+            .with_context(|| format!("unpacking {name} into {}", dir.display()))?;
+        std::fs::remove_file(&path)?;
+        Ok(dir)
     }
 
     fn confirm(name: &str, url: &str, dir: &Path, assume_yes: bool) -> Result<()> {
@@ -257,12 +273,22 @@ mod fetch {
             "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
 
         #[test]
+        fn a_bundle_target_downloads_its_tarball() {
+            assert_eq!(super::asset_name("web-2d"), "balaur-runtime-web-2d.tar.gz");
+            assert_eq!(super::asset_name("ios"), "balaur-runtime-ios.tar.gz");
+        }
+
+        #[test]
         fn a_windows_target_downloads_the_exe_asset() {
             assert_eq!(
                 super::asset_name("windows-x64"),
                 "balaur-runtime-windows-x64.exe"
             );
             assert_eq!(super::asset_name("linux-x64"), "balaur-runtime-linux-x64");
+            assert_eq!(
+                super::asset_name("linux-x64-server"),
+                "balaur-runtime-linux-x64-server"
+            );
         }
 
         #[test]

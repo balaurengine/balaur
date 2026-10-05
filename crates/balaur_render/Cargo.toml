@@ -85,8 +85,8 @@ libloading = { version = "0.9", optional = true }
 balaur = { workspace = true, features = ["compile", "physics2d", "physics3d"] }
 tempfile = "3"
 # Validates a linked shader's types without a GPU, as wgpu will at
-# `create_shader_module`; the WESL link checks names alone.
-naga = { version = "30.0.1", features = ["wgsl-in"] }
+# `create_shader_module`, and writes it as the GLSL ES a GLES device compiles.
+naga = { version = "30.0.1", features = ["wgsl-in", "glsl-out"] }
 
 [lints]
 workspace = true

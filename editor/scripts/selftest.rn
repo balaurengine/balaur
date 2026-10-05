@@ -3142,6 +3142,51 @@ fn settings_round_trip(S) {
     log::info("selftest settings: done");
 }
 
+/// `--state test:export_runtime`: the Export sheet's Runtime choice is the
+/// project's `[export] runtime`, and each row names the runtime it builds on.
+/// The manifest is put back as it was found.
+pub fn export_runtime(S) {
+    let path = S.game_root + "/project.toml";
+    let kept = fs::read(path);
+    let was = settings::base("export/runtime");
+    crate::exporter::open(S);
+
+    // Whichever the project does not already name, so the write is seen.
+    let pick = if was == "2d" { "3d" } else { "2d" };
+    crate::exporter::pick_runtime(S, pick);
+    let text = fs::read(path);
+    check(text is String && text.contains(format!("runtime = \"{}\"", pick)),
+        format!("a runtime picked on the sheet is written to project.toml ({})", pick));
+    check(export_row_runtime(S, "web") == "web-" + pick,
+        format!("and the web row builds on it ({})", export_row_runtime(S, "web")));
+    check(export_row_runtime(S, "linux-x64-server") == "linux-x64-server",
+        format!("while a server keeps its own ({})", export_row_runtime(S, "linux-x64-server")));
+
+    crate::exporter::pick_runtime(S, "full");
+    check(export_row_runtime(S, "web") == "web",
+        format!("full puts the web row back on the full runtime ({})", export_row_runtime(S, "web")));
+
+    if was is String {
+        crate::settings::write(S, "export/runtime", was);
+    }
+    if kept is String {
+        fs::write(path, kept);
+    }
+    S.settings.dirty = false;
+    log::info("selftest export runtime: done");
+}
+
+fn export_row_runtime(S, name) {
+    for row in S.exporter.rows {
+        let row = util::obj(row);
+        if row.get("name").unwrap_or("") == name {
+            let runtime = row.get("runtime").unwrap_or("");
+            return runtime;
+        }
+    }
+    ""
+}
+
 pub fn theme_switch(S) {
     theme::set_dark(S, true);
     check(S.theme.dark == true, "the editor uses the dark theme");
