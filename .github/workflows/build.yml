@@ -216,7 +216,10 @@ jobs:
         run: |
           set -euo pipefail
           cd editor
-          archive=$(ls balaur-editor-${{ matrix.desktop.target }}.tar.gz balaur-editor-${{ matrix.desktop.target }}.zip 2>/dev/null | head -1)
+          # A test, not `ls`: under pipefail the one name that is absent fails the step.
+          for archive in balaur-editor-${{ matrix.desktop.target }}.tar.gz balaur-editor-${{ matrix.desktop.target }}.zip; do
+            [ -f "$archive" ] && break
+          done
           # Git Bash's tar reads no zip; the Windows images carry 7z.
           case "$archive" in
           *.zip) 7z x -bso0 -bsp0 "$archive" ;;

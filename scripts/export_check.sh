@@ -37,11 +37,11 @@ balaur=$PWD/target/release/balaur
 step "export a game"
 # A one-world template gets an example whose `[export] runtime` names it, so
 # exporting for the platform proves the setting picks it; the full one a new
-# project.
+# project from the `viewer` template, which draws: web_smoke.mjs fails a flat canvas.
 case $platform in
 *-2d) cp -R examples/angrynerds "$work/project" ;;
 *-3d) cp -R examples/hello "$work/project" ;;
-*) "$balaur" new "$work/project" >/dev/null ;;
+*) "$balaur" new "$work/project" --template viewer >/dev/null ;;
 esac
 ./scripts/with_icon.sh "$work/project"
 # The capabilities an Apple game declares are export-side, so the check needs a
