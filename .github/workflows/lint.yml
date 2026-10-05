@@ -82,6 +82,17 @@ jobs:
       - name: Target `wasm32`, default features
         if: runner.os == 'Linux'
         run: cargo clippy --target wasm32-unknown-unknown -p balaur_cli -- -D warnings
+      # The game templates scripts/package.sh builds, one physics world each and
+      # the server with no window: a feature mix no sweep above compiles.
+      - name: Template variants
+        shell: bash
+        run: |
+          . scripts/features.sh
+          for world in 2d 3d; do
+            cargo clippy -p balaur_cli --no-default-features \
+              --features "window,extensions,parallel,$(game_features $world)" -- -D warnings
+          done
+          cargo clippy -p balaur_cli --no-default-features --features "$SERVER_FEATURES,extensions" -- -D warnings
       # Android's cfg code, which no sweep above compiles. The NDK's clang
       # builds the C and C++ a few dependencies carry, at the template's minSdkVersion.
       - name: Target `aarch64-linux-android`

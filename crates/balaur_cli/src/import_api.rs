@@ -815,7 +815,8 @@ impl ImportJob {
 /// the project picker is: a native dialog owns the screen while it is up.
 #[cfg(all(
     not(any(target_family = "wasm", target_os = "ios", target_os = "android")),
-    feature = "window"
+    feature = "window",
+    feature = "import"
 ))]
 fn pick() -> Option<String> {
     rfd::FileDialog::new()
@@ -826,7 +827,8 @@ fn pick() -> Option<String> {
 
 #[cfg(not(all(
     not(any(target_family = "wasm", target_os = "ios", target_os = "android")),
-    feature = "window"
+    feature = "window",
+    feature = "import"
 )))]
 fn pick() -> Option<String> {
     None

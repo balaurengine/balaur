@@ -8,6 +8,7 @@
 # Usage: precommit.sh [--files|--lints|--full|--e2e] [--fix]
 set -uo pipefail
 cd "$(dirname "$0")/.."
+. scripts/features.sh
 
 # Monitor mode puts each stream in its own process group, so an interrupt
 # reaches the cargo tree under it rather than orphaning a build holding locks.
@@ -137,6 +138,15 @@ features_stream() {
   if [ "$(uname)" = "Darwin" ]; then
     step 'clippy apple' shape apple clippy -p balaur_apple -p balaur --features balaur/apple --all-targets -- -D warnings || bad=1
   fi
+  # The game templates package.sh builds: one physics world each, and the
+  # server with no window. Only their own build compiles that feature mix.
+  local world
+  for world in 2d 3d; do
+    step "clippy template $world" shape variant clippy -p balaur_cli --no-default-features \
+      --features "window,extensions,parallel,$(game_features $world)" -- -D warnings || bad=1
+  done
+  step 'clippy template server' shape variant clippy -p balaur_cli --no-default-features \
+    --features "$SERVER_FEATURES,extensions" -- -D warnings || bad=1
   step 'clippy greeter' cargo clippy --manifest-path examples/extension_greeter/Cargo.toml \
     --target-dir target/shape/greeter --all-targets -- -D warnings || bad=1
   # lint.yml's fourth job. Skipped rather than failed when the tool is absent,

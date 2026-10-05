@@ -27,6 +27,8 @@ with `rustfmt` and `clippy`, so every machine runs one linter version.
 - `cargo fmt --all --check`.
 - `cargo clippy --workspace --all-targets -- -D warnings`
 - Once for `window`, `extensions`, `apple`
+- The game templates `scripts/package.sh` builds: `2d` and `3d`, one physics
+  world each with a window, and `server` without one
 - Twice for `wasm32-unknown-unknown`: the web runtime's features, and the defaults
 - The workspace for `aarch64-linux-android` and `aarch64-apple-ios`, then the
   iOS template's `window` and `apple`: the code no host build compiles.
