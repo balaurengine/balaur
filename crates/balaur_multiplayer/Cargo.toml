@@ -24,7 +24,7 @@ balaur_websocket = { workspace = true, optional = true }
 balaur_webtransport = { workspace = true, optional = true }
 
 [dev-dependencies]
-balaur = { workspace = true, features = ["multiplayer", "websocket", "webtransport"] }
+balaur = { workspace = true, features = ["multiplayer", "websocket", "webtransport", "compile", "physics2d", "physics3d"] }
 tempfile = "3"
 
 [lints]

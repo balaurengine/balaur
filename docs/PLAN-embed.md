@@ -1,4 +1,8 @@
-> **Status:** not started. Written down on 2026-09-05. Web export exists:
+> **Status:** most of step 4 built on 2026-10-04: the web game template
+> leaves out the editor, the Rune compiler and egui's fonts; `physics2d`,
+> `physics3d` and each audio codec gate their code; a `-2d` and `-3d` template
+> of every target is built and exported in CI. The automatic pick and the budget
+> gate are left; steps 1–3, 5 and 6 not started. Written down on 2026-09-05. Web export exists:
 > `balaur export --target web` writes a page, the module and a pack, and the
 > site runs every example and the editor on it. What Spline has and this
 > does not is the shape of the thing on someone else's page: an element to
@@ -27,7 +31,10 @@ Built, and not built for this:
 | A page bridge, recorded and replayable: `post_message`, `listen`, `messages`, `visible`, `location`, `user_agent` | `balaur_browser` |
 | The site's loader and player, one stamped set of glue, module and packs | `../forge/assets/js/host_hooks.js` (`BalaurPlayer`), `lib/forge/site/play.ex` |
 | The template built per push with a chosen feature set, its size measured raw, gzip and brotli | `scripts/package_runtime.sh web`, `WEB_FEATURES`, `docs/generated/features.md`, the site's `play-size.json` |
-| Packs with sources or compiled, both running on the 32-bit runtime | `balaur export --keep-sources` |
+| Packs compiled for every target, the web included; sources only on request, and only a build with `compile` runs them | `balaur export --keep-sources`, the `compile` feature |
+| A game template apart from the editor's module: no export tooling, no editor entry points, no Rune compiler, no egui fonts | the `editor`, `compile` and `fallback-fonts` features, `scripts/package_play.sh` |
+| Each physics world behind a feature, both on by default, and each audio codec | `physics2d`, `physics3d`, `flac`, `mp3`, `mp4`, `vorbis`, `wav` |
+| A template per world for every target, built, exported and run in CI, picked by target | `--target web-2d`, `--target ios-3d`, `scripts/export_check.sh`, `scripts/package.sh` |
 | A nightly bundle the site pulls | `scripts/package_play.sh`, `balaur-play.tar.gz` |
 | Screenshots from any GPU run; frames to a video through ffmpeg | `render.screenshot`, `scripts/showcase.sh` |
 | Safe area, touches, the browser's keyboard height, keep-awake | `window.safe_area`, `input.touches`, `balaur_platform` |
@@ -41,9 +48,10 @@ Missing:
   dependency.
 - **An API.** The bridge carries JSON both ways, and nothing on either side
   agrees what the JSON means.
-- **A smaller module.** One module of 17.9 MB raw, 4.8 MB brotli, with
-  audio, HTTP, websockets, Gamend and the Rune compiler in it whether a game
-  uses them or not.
+- **A module per game.** The template is 20.3 MB raw, 5.4 MB brotli, with
+  audio, HTTP, websockets and Gamend in it whether a game uses them or not.
+  A one-world template is picked by naming its target; nothing picks one
+  from what the project uses.
 - **WebGL2.** `hasWebGpu` gates the page; a browser without WebGPU gets a
   message.
 - **A transparent canvas.** The backend clears opaque, so a scene cannot sit
@@ -126,8 +134,9 @@ boolean or a text mesh leaves the engine.
 | `@balaurengine/react` | Step 3 |
 | Vue, Svelte, Angular packages | Not planned; the element is the integration |
 | Iframe embed: Notion, Webflow, Framer | `docs/PLAN-deploy.md`'s URL plus the protocol; no work of its own |
-| Template variants, the feature pick at export | Step 4 |
-| A `compile` feature; `physics2d` and `physics3d` features | Step 4 |
+| Template variants | Built: `-2d` and `-3d` on every target, `-server` on desktops |
+| The variant picked at export from what the project uses | Step 4 |
+| A `compile` feature; `physics2d` and `physics3d` features | Built |
 | WebGL2 fallback | Step 5, measured; not promised |
 | Transparent canvas | Step 2, a backend alpha clear |
 | A progressive web app: manifest and service worker around the exported shell | Step 2, `balaur export --target web --pwa` |
@@ -147,8 +156,8 @@ boolean or a text mesh leaves the engine.
    poster, transparent, the `--pwa` shell. Ends with: the site's examples
    page using the element instead of `Player`.
 3. **React.**
-4. **Size.** Variants, the export pick, the `compile` feature, the budget
-   gate.
+4. **Size.** The export pick and the budget gate; the features and the
+   one-world variants are built.
 5. **WebGL2.** One build with the compute passes off; keep the tier or close
    the question.
 6. **Exports.** Image, video, glTF, `render.stats`.
@@ -173,7 +182,5 @@ boolean or a text mesh leaves the engine.
 2. **Who serves the module.** A CDN URL for `runtime` so the element works
    with one script tag, or only the package. Both, probably, and the site's
    stamped `/play/` is already the first.
-3. **The compiler in the web editor.** `docs/PLAN-web-editor.md` needs it,
-   so the `compile` feature stays on there and the site carries two modules.
-4. **`when` in bindings.** `docs/PLAN-interactivity.md` question 3 is this
-   plan's question 3 seen from the other side.
+3. **`when` in bindings.** `docs/PLAN-interactivity.md` question 3 is this
+   question seen from the other side.

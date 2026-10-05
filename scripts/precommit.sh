@@ -176,14 +176,13 @@ e2e_stream() {
   return $bad
 }
 
-# The web runtime's own target and flags, from scripts/package_runtime.sh,
-# then the default features, where `window` is off: code gated on it alone
-# cannot be what an ungated module calls.
+# The web editor module's features (scripts/package_play.sh), which reach every
+# browser file; then the defaults, where `window` is off.
 wasm_stream() {
   side_env
   local bad=0
   step 'clippy wasm' shape wasm clippy --target wasm32-unknown-unknown -p balaur_cli \
-    --no-default-features --features audio,http,websocket,webtransport,gamend,multiplayer,browser,window \
+    --no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,gamend,multiplayer,browser,window,physics2d,physics3d,import,editor \
     -- -D warnings || bad=1
   step 'clippy wasm default' shape wasm-default clippy --target wasm32-unknown-unknown \
     -p balaur_cli -- -D warnings || bad=1

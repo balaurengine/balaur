@@ -25,6 +25,9 @@ fn android_main(app: AndroidApp) {
     // Read the pack before handing the handle over: `init_android` takes the
     // `AndroidApp` by value, and the asset manager comes off it.
     let assets = app.asset_manager();
+    if let Some(dir) = app.internal_data_path() {
+        balaur::engine_api::set_platform_data_dir(dir);
+    }
     balaur::render::keep_android_app(&app);
     kiss3d::window::init_android(app);
 

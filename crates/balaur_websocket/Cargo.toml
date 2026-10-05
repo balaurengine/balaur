@@ -46,7 +46,7 @@ web-sys = { version = "0.3.106", features = [
 [dev-dependencies]
 balaur_testkit.workspace = true
 tempfile = "3"
-balaur = { workspace = true, features = ["websocket"] }
+balaur = { workspace = true, features = ["websocket", "compile", "physics2d", "physics3d"] }
 # The loopback echo servers the tests speak to, and the compression the
 # negotiation tests check for on the wire.
 tungstenite.workspace = true

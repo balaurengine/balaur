@@ -6,10 +6,12 @@
 //! forwards to the addon's own unit when called, so a hot reload reaches every
 //! caller; the paths themselves are fixed when the context is built.
 
+#[cfg(feature = "compile")]
 use std::fmt::Write as _;
 use std::path::Path;
 
 use rune::alloc::clone::TryClone as _;
+#[cfg(feature = "compile")]
 use rune::runtime::ToConstValue as _;
 use rune::runtime::{VmError, VmResult};
 
@@ -79,6 +81,7 @@ impl std::fmt::Display for Constant {
 ///
 /// A cached unit compiled against other addons would name items that are no
 /// longer there, so this is half of what `cache::stamp` covers.
+#[cfg(feature = "compile")]
 pub(crate) fn fingerprint(mounts: &[Mount], hasher: &mut balaur_core::digest::Hasher) {
     for mount in mounts {
         hasher.write_str(&mount.key);
@@ -395,6 +398,12 @@ fn declaration(source: &str, line: usize) -> (String, String) {
 /// Every `pub const` in a source, a `pub mod` block's by their path within
 /// it, evaluated by compiling the constants alone: the rest of the file may
 /// call the very paths being built.
+#[cfg(not(feature = "compile"))]
+fn constants(_: &str, _: &str) -> Vec<(Vec<String>, Constant)> {
+    Vec::new()
+}
+
+#[cfg(feature = "compile")]
 fn constants(key: &str, source: &str) -> Vec<(Vec<String>, Constant)> {
     let Ok(file) = rune::parse::parse_all::<rune::ast::File>(source, rune::SourceId::EMPTY, false)
     else {
@@ -435,10 +444,12 @@ fn constants(key: &str, source: &str) -> Vec<(Vec<String>, Constant)> {
 }
 
 /// The function a constants-only source reports its values through.
+#[cfg(feature = "compile")]
 const VALUES_FN: &str = "__balaur_mount_values";
 
 /// The source of every constant and every inline module holding one, and
 /// the public paths among them.
+#[cfg(feature = "compile")]
 fn gather(
     file: &rune::ast::File,
     source: &str,
@@ -486,6 +497,7 @@ fn gather(
 
 /// Compile a constants-only source with Rune's own modules and read back
 /// what [`VALUES_FN`] returns.
+#[cfg(feature = "compile")]
 fn evaluate(snippet: &str) -> anyhow::Result<Vec<rune::Value>> {
     let context = rune::Context::with_default_modules()?;
     let mut sources = rune::Sources::new();
@@ -504,6 +516,7 @@ fn evaluate(snippet: &str) -> anyhow::Result<Vec<rune::Value>> {
     Ok(rune::from_value::<Vec<rune::Value>>(values)?)
 }
 
+#[cfg(feature = "compile")]
 fn constant_of(value: &rune::Value) -> Option<Constant> {
     // Rendering takes the value apart, so the constant is built first.
     let held = value.try_clone().ok()?.to_const_value().ok()?;
@@ -515,6 +528,7 @@ fn constant_of(value: &rune::Value) -> Option<Constant> {
 
 /// A constant as the editor shows it, and as the fingerprint folds it. A
 /// value with no rendering here is one a constant cannot hold.
+#[cfg(feature = "compile")]
 fn render(value: &rune::Value) -> Option<String> {
     let owned = || value.try_clone().ok();
     if let Some(Ok(b)) = owned().map(rune::from_value::<bool>) {

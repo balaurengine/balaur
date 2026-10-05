@@ -1,8 +1,9 @@
 //! The `balaur` command line tool: create, run, export, and play projects.
 
 // A browser has no command line: `main` is empty there and everything argv
-// drives is compiled but never called.
-#![cfg_attr(target_family = "wasm", allow(dead_code))]
+// drives is compiled but never called. Nor does a build without the editor
+// reach what only `edit` and `export` call.
+#![cfg_attr(any(target_family = "wasm", not(feature = "editor")), allow(dead_code))]
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -10,6 +11,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use balaur::{App, AppConfig, Pack};
 use clap::{Parser, Subcommand};
+use export_cmd::BundleKind;
+#[cfg(not(target_arch = "wasm32"))]
+use export_cmd::{ExportArgs, export_game};
 
 mod api_dump;
 #[cfg(not(target_arch = "wasm32"))]
@@ -18,7 +22,10 @@ mod image_tools;
 #[cfg(not(target_family = "wasm"))]
 mod check;
 mod debugger;
+#[cfg(feature = "editor")]
 mod export_api;
+mod export_cmd;
+#[cfg(feature = "editor")]
 mod export_shared;
 mod fmt;
 mod import_api;
@@ -30,11 +37,12 @@ mod lsp;
 mod new_project;
 // The editor's start screen. A tab compiles it too: the editor's scripts name
 // `project::*` whatever they run on, and what a tab cannot do it answers for.
+#[cfg(feature = "editor")]
 mod project_api;
 mod project_tests;
 // The start screen in a browser tab: the projects it keeps and the handshake
 // that opens one, which is a page reload rather than a second process.
-#[cfg(target_family = "wasm")]
+#[cfg(all(target_family = "wasm", feature = "editor"))]
 mod project_web;
 mod runtimes;
 mod update;
@@ -146,9 +154,9 @@ enum Command {
         /// Never download a missing runtime; fail instead.
         #[arg(long)]
         no_download: bool,
-        /// Keep script sources in the pack instead of bytecode. A pack for a
-        /// runtime with a different pointer width than this machine — the
-        /// web build — needs this until the bytecode format is portable.
+        /// Keep script sources in the pack instead of bytecode: what an
+        /// editor showing the code wants. Only a build with the `compile`
+        /// feature runs such a pack, which the web game template is not.
         #[arg(long)]
         keep_sources: bool,
         /// A package to make beside the export, repeatable: `app` (a macOS
@@ -305,7 +313,9 @@ enum Command {
 
 #[cfg(all(target_arch = "wasm32", feature = "window"))]
 mod web;
-#[cfg(all(target_arch = "wasm32", feature = "window"))]
+#[cfg(all(target_arch = "wasm32", feature = "window", feature = "editor"))]
+mod web_editor;
+#[cfg(all(target_arch = "wasm32", feature = "window", feature = "editor"))]
 mod web_export;
 
 // Rayon's pool, built from Web Workers because `std::thread` spawns none on
@@ -911,6 +921,12 @@ fn joinable(path: &Path) -> PathBuf {
     }
 }
 
+#[cfg(not(feature = "editor"))]
+fn edit_project(_: &EditOpts) -> Result<()> {
+    anyhow::bail!("this build has no editor: build with the `editor` feature")
+}
+
+#[cfg(feature = "editor")]
 fn edit_project(opts: &EditOpts) -> Result<()> {
     let EditOpts {
         path,
@@ -943,7 +959,7 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
             // This has to come before the source-tree guess, whose baked-in
             // path belongs to whatever machine did the build.
             let exe = std::env::current_exe().ok()?;
-            balaur_export::data_roots(exe.parent()?)
+            balaur::standalone::data_roots(exe.parent()?)
                 .into_iter()
                 .find_map(|root| root.join("editor").canonicalize().ok())
                 .map(|p| joinable(&p))
@@ -1019,72 +1035,6 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
     ran
 }
 
-/// Everything `balaur export` was asked for, as the command line spells it.
-#[allow(
-    clippy::struct_excessive_bools,
-    reason = "each is one command-line flag, and they are not exclusive"
-)]
-struct ExportArgs {
-    path: PathBuf,
-    output: Option<PathBuf>,
-    target: Option<String>,
-    runtime: Option<PathBuf>,
-    download: bool,
-    no_download: bool,
-    keep_sources: bool,
-    bundle: Vec<BundleKind>,
-    sign: Option<String>,
-    notarize: bool,
-    provisioning_profile: Option<PathBuf>,
-    dry_run: bool,
-}
-
-/// A package `export --bundle` makes beside the export.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
-enum BundleKind {
-    App,
-    Pkg,
-    Ipa,
-    Apk,
-    Aab,
-}
-
-/// The two policies balaur_export deliberately does not hold: where the
-/// per-user cache is (keyed by this binary's build id), and whether a missing
-/// template may be fetched.
-fn export_game(args: &ExportArgs) -> Result<()> {
-    let download = args.download;
-    let fetch = move |wanted: &str| runtimes::obtain(wanted, download);
-    #[cfg(not(target_family = "wasm"))]
-    let modules = {
-        let project = args.path.clone();
-        move || own_modules(&project)
-    };
-    #[cfg(not(target_family = "wasm"))]
-    let plugins: Option<&balaur_export::ExtraModules> = Some(&modules);
-    #[cfg(target_family = "wasm")]
-    let plugins = None;
-    balaur_export::export(&balaur_export::Options {
-        path: args.path.clone(),
-        output: args.output.clone(),
-        target: args.target.clone(),
-        runtime: args.runtime.clone(),
-        app: args.bundle.contains(&BundleKind::App),
-        keep_sources: args.keep_sources,
-        sign: args.sign.clone(),
-        notarize: args.notarize,
-        provisioning_profile: args.provisioning_profile.clone(),
-        ipa: args.bundle.contains(&BundleKind::Ipa),
-        apk: args.bundle.contains(&BundleKind::Apk),
-        aab: args.bundle.contains(&BundleKind::Aab),
-        pkg: args.bundle.contains(&BundleKind::Pkg),
-        dry_run: args.dry_run,
-        runtime_roots: balaur_export::default_roots(runtimes::cache_dir()),
-        plugins,
-        obtain: if args.no_download { None } else { Some(&fetch) },
-    })
-}
-
 /// What this binary adds to a project it edits, compiles, checks or probes:
 /// `export`, `import` and `project`, which the editor's own scripts call and
 /// the engine does not carry.
@@ -1096,8 +1046,10 @@ fn export_game(args: &ExportArgs) -> Result<()> {
 #[cfg(not(target_family = "wasm"))]
 pub(crate) fn own_modules(project: &std::path::Path) -> Vec<Box<dyn balaur_plugin::Plugin>> {
     vec![
+        #[cfg(feature = "editor")]
         Box::new(export_api::ExportPlugin::new(project.to_path_buf())),
         Box::new(import_api::ImportPlugin::new(project.to_path_buf())),
+        #[cfg(feature = "editor")]
         Box::new(project_api::ProjectPlugin::new()),
     ]
 }

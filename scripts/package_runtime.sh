@@ -6,12 +6,14 @@
 # each gets the shape its OS actually launches, and what a game does with the
 # template differs per platform. See docs/PLAN-mobile-export.md.
 #
-# Usage: package_runtime.sh <platform>     ios | ios-sim | android | web
+# Usage: [VARIANT=2d|3d] package_runtime.sh <platform>   ios | ios-sim | android | web
 set -euo pipefail
 cd "$(dirname "$0")/.."
+. scripts/features.sh
 
 platform=${1:?usage: package_runtime.sh <platform>}
 dist=$(mkdir -p "${DIST:-dist}" && cd "${DIST:-dist}" && pwd)
+variant=${VARIANT:-}
 
 step() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 
@@ -29,10 +31,16 @@ ios | ios-sim)
   # the Swift shim in crates/balaur_apple is built for iOS 15 and a template
   # that claimed less would not load its own symbols.
   ios_min=15.0
-  step "build ($target, windowed, min iOS $ios_min)"
+  # A variant is a game template; the platform's own build is the whole CLI.
+  if [ -n "$variant" ]; then
+    flags=(--no-default-features --features "window,apple,$(game_features "$variant")")
+  else
+    flags=(--features "window,apple")
+  fi
+  step "build ($target, windowed, min iOS $ios_min${variant:+, $variant})"
   rustup target add "$target"
   IPHONEOS_DEPLOYMENT_TARGET=$ios_min \
-    cargo build --release -p balaur_cli --features "window,apple" --target "$target"
+    cargo build --release -p balaur_cli "${flags[@]}" --target "$target"
 
   # The smallest bundle iOS will launch: the executable and a plist naming it.
   # Unsigned on purpose — signing certificates must never live in this repo's CI.
@@ -60,8 +68,19 @@ ios | ios-sim)
 </dict>
 </plist>
 PLIST
-  (cd "$dist" && tar -czf "balaur-runtime-$platform.tar.gz" "Balaur.app")
-  rm -rf "$app"
+  # A variant's bundle sits in a directory named for it, so two unpack side
+  # by side; the platform's own stays at the top, where an export looks first.
+  if [ -n "$variant" ]; then
+    name=balaur-runtime-$platform-$variant
+    rm -rf "${dist:?}/$name"
+    mkdir -p "$dist/$name"
+    mv "$app" "$dist/$name/"
+    (cd "$dist" && tar -czf "$name.tar.gz" "$name")
+    rm -rf "${dist:?}/$name"
+  else
+    (cd "$dist" && tar -czf "balaur-runtime-$platform.tar.gz" "Balaur.app")
+    rm -rf "$app"
+  fi
   ;;
 
 android)
@@ -73,7 +92,10 @@ x86:i686-linux-android x86_64:x86_64-linux-android"
   # Laid out the way an APK expects, so the remaining step is assembling and
   # signing one — which needs aapt2 and a keystore that belongs to whoever
   # ships the game, not to CI.
-  skeleton="$dist/balaur-runtime-android"
+  name=balaur-runtime-android${variant:+-$variant}
+  skeleton="$dist/$name"
+  # The game set every template has, less the physics world a variant drops.
+  features=$(game_features "$variant")
   rm -rf "$skeleton"
   mkdir -p "$skeleton/assets"
 
@@ -84,7 +106,8 @@ x86:i686-linux-android x86_64:x86_64-linux-android"
     rustup target add "$target"
     # The template is a NativeActivity library, not an executable — Android
     # dlopens libmain.so and calls android_main. See crates/balaur_android.
-    cargo build --release -p balaur_android --target "$target"
+    cargo build --release -p balaur_android --no-default-features \
+      --features "$features" --target "$target"
     lib="target/$target/release/libmain.so"
     [ -f "$lib" ] || { printf '::error::no library at %s\n' "$lib"; exit 1; }
 
@@ -134,7 +157,7 @@ MANIFEST
   # An exported game drops its pack in here; the bare template ships it empty.
   printf 'A game exported for Android puts game.bpak in this directory.\n' \
     >"$skeleton/assets/README"
-  (cd "$dist" && tar -czf balaur-runtime-android.tar.gz balaur-runtime-android)
+  (cd "$dist" && tar -czf "$name.tar.gz" "$name")
   rm -rf "$skeleton"
   ;;
 
@@ -147,13 +170,13 @@ web)
   # A variant ships beside the plain module rather than replacing it, so it
   # carries its own name: `-threads` for the shared-memory build, `-editor`
   # for the module the web editor runs.
-  variant=${WEB_VARIANT:-${threads:+threads}}
+  variant=${variant:-${threads:+threads}}
   name=balaur-runtime-web${variant:+-$variant}
   step "build ($target, windowed${threads:+, threads})"
   rustup target add "$target"
   # WEB_FEATURES builds a smaller template; docs/generated/features.md says
-  # what each feature costs, and gen_docs.py reads the default off this line.
-  features=${WEB_FEATURES:-audio,http,websocket,webtransport,gamend,multiplayer,browser,window}
+  # what each feature costs, and gen_docs.py reads the default off features.sh.
+  features=${WEB_FEATURES:-$(game_features "$variant"),window}
   # The solver threads only where the module can: `parallel` pulls rayon in,
   # and rayon blocks on `Atomics.wait`, which a browser refuses off a page that
   # is not cross-origin isolated. The plain template must not have it.

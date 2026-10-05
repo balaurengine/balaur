@@ -8,6 +8,13 @@
 //! simulated pose is written to the local transform). Nest them under
 //! non-moving parents only.
 
+// A build with one world compiles the other's code for the helpers the two
+// share, and registers none of it.
+#![cfg_attr(
+    not(all(feature = "physics2d", feature = "physics3d")),
+    allow(dead_code, unused_imports)
+)]
+
 use anyhow::{Result, anyhow};
 use balaur_plugin::Registry;
 
@@ -203,10 +210,10 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
 "#.to_string()].join("\n"),
             ),
         );
+        // Both worlds exist in every build: `physics.*` spans them, and a
+        // build with one dimension registers nothing that fills the other.
         reg.insert_resource(PhysicsState3d::new());
-        // Before the step: a follow's velocity change is integrated this tick.
-        follow::build(reg);
-        reg.add_system(Stage::FixedUpdate, step_system);
+        reg.insert_resource(PhysicsState2d::new());
         // After both steps, so the bodies have moved and the bone transform
         // the blend reads is still the one the clip wrote this frame.
         reg.add_system(Stage::PostUpdate, ragdoll::blend_system);
@@ -215,11 +222,8 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
         reg.add_system(Stage::PreUpdate, ragdoll::restore_system);
         reg.add_snapshot_source("ragdoll", ragdoll::save_memory, ragdoll::load_memory);
         ragdoll::register_ragdoll_component(reg);
-        build_physics_digest(reg);
-        snapshot::build_physics_snapshot(reg);
         debug::build(reg);
         tuning::build(reg);
-        vehicle::build(reg);
         // `physics` holds what spans both worlds; each dimension has its own.
         {
             let mut m = reg.script_module("physics")?;
@@ -228,62 +232,76 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
             tuning::install_tuning_api(&mut *m);
             ragdoll::install_blend_api(&mut *m);
         }
-        let mut m = reg.script_module("physics3d")?;
-        m.module_doc(
-            "The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.",
-        );
-        install_constants(&mut *m, CONSTANTS_3D);
-        body::install_body_api(&mut *m);
-        body::install_force_api(&mut *m);
-        body::install_force_reader_api(&mut *m);
-        body::install_body_state_api(&mut *m);
-        body::install_body_mass_api(&mut *m);
-        body::install_body_ccd_api(&mut *m);
-        body::install_body_lock_api(&mut *m);
-        body::install_body_pose_api(&mut *m);
-        body::install_body_sleep_api(&mut *m);
-        collider::install_collider_api(&mut *m);
-        collider::install_voxel_api(&mut *m);
-        voxels::install_voxel_edit_api(&mut *m);
-        collider::install_collider_reader_api(&mut *m);
-        readers::install_collider_placement_api(&mut *m);
-        readers::install_heightfield_api(&mut *m);
-        query::install_query_api(&mut *m);
-        query::install_raycast_all_api(&mut *m);
-        query::install_shapecast_api(&mut *m);
-        query::install_volume_query_api(&mut *m);
-        query::install_pair_query_api(&mut *m);
-        query::install_world_list_api(&mut *m);
-        joint::install_joint_api(&mut *m);
-        softbody::install_softbody_api(&mut *m);
-        character::install_character_api(&mut *m);
-        vehicle::install_vehicle_api(&mut *m);
-        follow::install_follow_api(&mut *m);
-        ragdoll::install_ragdoll_api(&mut *m, true);
-        body::register_body_component(reg);
-        collider::register_collider_component(reg);
-        joint::register_joint_component(reg);
-        softbody::register_softbody_component(reg);
-        character::register_character_component(reg);
-        vehicle::register_vehicle_components(reg);
-        register_physics_presets(reg)?;
-
-        {
-            let mut m = reg.script_module("geometry3d")?;
-            geometry::install_geometry_api(&mut *m);
-            geometry::install_mesh_edit_api(&mut *m);
-        }
-
+        #[cfg(feature = "physics3d")]
+        declare_3d(reg)?;
+        #[cfg(feature = "physics2d")]
         {
             // Alongside core's own polygon verbs: a script looking for this
             // looks where `convex_hull` and the booleans are.
             let mut m = reg.script_module("geometry2d")?;
             dim2::decompose::install_decompose_api(&mut *m);
         }
-
+        #[cfg(feature = "physics2d")]
         dim2::build(reg)?;
         Ok(())
     }
+}
+
+/// The 3D world's systems, components, verbs and presets.
+#[cfg(feature = "physics3d")]
+fn declare_3d(reg: &mut Registry<'_>) -> Result<()> {
+    // Before the step: a follow's velocity change is integrated this tick.
+    follow::build(reg);
+    reg.add_system(Stage::FixedUpdate, step_system);
+    build_physics_digest(reg);
+    snapshot::build_physics_snapshot(reg);
+    vehicle::build(reg);
+    let mut m = reg.script_module("physics3d")?;
+    m.module_doc(
+        "The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.",
+    );
+    install_constants(&mut *m, CONSTANTS_3D);
+    body::install_body_api(&mut *m);
+    body::install_force_api(&mut *m);
+    body::install_force_reader_api(&mut *m);
+    body::install_body_state_api(&mut *m);
+    body::install_body_mass_api(&mut *m);
+    body::install_body_ccd_api(&mut *m);
+    body::install_body_lock_api(&mut *m);
+    body::install_body_pose_api(&mut *m);
+    body::install_body_sleep_api(&mut *m);
+    collider::install_collider_api(&mut *m);
+    collider::install_voxel_api(&mut *m);
+    voxels::install_voxel_edit_api(&mut *m);
+    collider::install_collider_reader_api(&mut *m);
+    readers::install_collider_placement_api(&mut *m);
+    readers::install_heightfield_api(&mut *m);
+    query::install_query_api(&mut *m);
+    query::install_raycast_all_api(&mut *m);
+    query::install_shapecast_api(&mut *m);
+    query::install_volume_query_api(&mut *m);
+    query::install_pair_query_api(&mut *m);
+    query::install_world_list_api(&mut *m);
+    joint::install_joint_api(&mut *m);
+    softbody::install_softbody_api(&mut *m);
+    character::install_character_api(&mut *m);
+    vehicle::install_vehicle_api(&mut *m);
+    follow::install_follow_api(&mut *m);
+    ragdoll::install_ragdoll_api(&mut *m, true);
+    body::register_body_component(reg);
+    collider::register_collider_component(reg);
+    joint::register_joint_component(reg);
+    softbody::register_softbody_component(reg);
+    character::register_character_component(reg);
+    vehicle::register_vehicle_components(reg);
+    register_physics_presets(reg)?;
+
+    {
+        let mut m = reg.script_module("geometry3d")?;
+        geometry::install_geometry_api(&mut *m);
+        geometry::install_mesh_edit_api(&mut *m);
+    }
+    Ok(())
 }
 
 /// The `[physics]` rows about contacts and gravity, built from the words

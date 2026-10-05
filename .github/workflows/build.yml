@@ -122,6 +122,11 @@ jobs:
             host: macos-latest
           - platform: android
             host: ubuntu-latest
+          # Each with one physics world, as a game template rather than the CLI.
+          - { platform: ios, host: macos-latest, variant: 2d, label: 2d }
+          - { platform: ios, host: macos-latest, variant: 3d, label: 3d }
+          - { platform: android, host: ubuntu-latest, variant: 2d, label: 2d }
+          - { platform: android, host: ubuntu-latest, variant: 3d, label: 3d }
           # The template a release ships. Its feature list is the default in
           # scripts/package_runtime.sh, named there and nowhere else so the
           # two cannot drift.
@@ -136,14 +141,23 @@ jobs:
             variant: threads
             label: threads
             threads: "true"
+          # The default set less one physics world, for a game of the other.
+          - platform: web
+            host: ubuntu-latest
+            variant: 2d
+            label: 2d
+          - platform: web
+            host: ubuntu-latest
+            variant: 3d
+            label: 3d
           # The module the web editor runs: the plain template's features plus
-          # the importers, because the editor imports and a game does not.
+          # the importers and the editor, which a game has neither of.
           # Built here rather than in `bundle web`, which has no toolchain.
           - platform: web
             host: ubuntu-latest
             variant: editor
             label: editor
-            web-features: audio,http,websocket,webtransport,gamend,multiplayer,browser,window,import
+            web-features: audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,gamend,multiplayer,browser,window,physics2d,physics3d,import,editor
     steps:
       - uses: actions/checkout@v7
       # The action carries the NDK and wasm-bindgen setup each platform needs,
@@ -154,6 +168,69 @@ jobs:
           variant: ${{ matrix.variant }}
           web-features: ${{ matrix.web-features }}
           threads: ${{ matrix.threads }}
+          attest: ${{ github.event_name == 'push' }}
+
+  # A game template per desktop and variant: one physics world, or a headless
+  # server. Each exports an example with this run's editor and plays it.
+  build-templates:
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    name: build ${{ matrix.desktop.target }}-${{ matrix.variant }}
+    needs: build-editor
+    runs-on: ${{ matrix.desktop.os }}
+    container: ${{ matrix.desktop.container }}
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [2d, 3d, server]
+        desktop:
+          - { target: linux-x64, os: ubuntu-latest, container: "ubuntu:22.04" }
+          - { target: linux-arm64, os: ubuntu-24.04-arm, container: "ubuntu:22.04" }
+          - { target: macos-universal, os: macos-latest }
+          - { target: windows-x64, os: windows-latest }
+          - { target: windows-arm64, os: windows-11-arm }
+    steps:
+      - if: matrix.desktop.container
+        shell: bash
+        run: |
+          set -euxo pipefail
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates curl git build-essential pkg-config \
+            libasound2-dev libudev-dev \
+            libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
+            libxkbcommon-dev libwayland-dev
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs |
+            sh -s -- -y --default-toolchain none --profile minimal
+          echo "$HOME/.cargo/bin" >>"$GITHUB_PATH"
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: balaur-${{ matrix.desktop.target }}
+          path: editor
+      # The editor this run built is what exports the smoke game.
+      - name: Unpack the editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd editor
+          archive=$(ls balaur-editor-${{ matrix.desktop.target }}.tar.gz balaur-editor-${{ matrix.desktop.target }}.zip 2>/dev/null | head -1)
+          # Git Bash's tar reads no zip; the Windows images carry 7z.
+          case "$archive" in
+          *.zip) 7z x -bso0 -bsp0 "$archive" ;;
+          *) tar -xzf "$archive" ;;
+          esac
+          exe=balaur-editor-${{ matrix.desktop.target }}/balaur
+          [ -f "$exe.exe" ] && exe="$exe.exe"
+          chmod +x "$exe"
+          echo "BALAUR_EXPORTER=$PWD/$exe" >>"$GITHUB_ENV"
+      - uses: ./.github/actions/build-engine
+        with:
+          target: ${{ matrix.desktop.target }}
+          variant: ${{ matrix.variant }}
+          build-deps: ${{ matrix.desktop.container && 'false' || 'true' }}
           attest: ${{ github.event_name == 'push' }}
 
   # Exports a game with each template and checks the result is what the OS
@@ -178,6 +255,12 @@ jobs:
             host: ubuntu-latest
           - platform: web
             host: ubuntu-latest
+          - { platform: web-2d, host: ubuntu-latest }
+          - { platform: web-3d, host: ubuntu-latest }
+          - { platform: ios-2d, host: macos-latest }
+          - { platform: ios-3d, host: macos-latest }
+          - { platform: android-2d, host: ubuntu-latest }
+          - { platform: android-3d, host: ubuntu-latest }
     steps:
       - uses: actions/checkout@v7
       - name: Linux build deps
@@ -187,7 +270,12 @@ jobs:
           # from: a hash mismatch in one fails the whole `apt-get update`.
           sudo rm -f /etc/apt/sources.list.d/*{google,microsoft}*
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev libudev-dev
+          sudo apt-get install -y libasound2-dev libudev-dev libvulkan1 mesa-vulkan-drivers
+      # The web export boots in the image's Chrome, as the play bundle does.
+      - if: startsWith(matrix.platform, 'web')
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
       - uses: actions/download-artifact@v8
         with:
           name: balaur-runtime-${{ matrix.platform }}
@@ -316,7 +404,7 @@ jobs:
     # the rolling `nightly` tag to whatever branch it was dispatched from.
     if: github.event_name == 'push'
     needs:
-      [build-editor, build-platforms, export-mobile, export-with-the-action, bundle-web]
+      [build-editor, build-platforms, build-templates, export-mobile, export-with-the-action, bundle-web]
     runs-on: ubuntu-latest
     # Drafting a release means writing to the repo's releases.
     permissions:

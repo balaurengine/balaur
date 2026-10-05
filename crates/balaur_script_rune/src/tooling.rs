@@ -15,6 +15,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::Result;
 use rune::compile::meta;
+#[cfg(feature = "compile")]
 use rune::{Source, Sources};
 
 use crate::RuneHost;
@@ -508,6 +509,17 @@ impl RuneHost {
     ///
     /// # Errors
     /// If the source will not parse.
+    #[cfg(not(feature = "compile"))]
+    pub fn format(&self, key: &str, _: &str) -> Result<String> {
+        let _ = self;
+        anyhow::bail!("{key}: this build has no script formatter")
+    }
+
+    /// See the other build's twin.
+    ///
+    /// # Errors
+    /// If the source will not parse.
+    #[cfg(feature = "compile")]
     pub fn format(&self, key: &str, source: &str) -> Result<String> {
         let mut sources = Sources::new();
         sources.insert(Source::new(key, source)?)?;

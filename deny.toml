@@ -29,10 +29,11 @@ ignore = ["RUSTSEC-2026-0194", "RUSTSEC-2026-0195"]
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
-# Two forks, neither on crates.io: kiss3d with the macOS Command-modifier fix
-# and mobile support, rune with `powf`/`powi` on `libm` for determinism
-# (docs/DETERMINISM.md). Both are pinned in the root Cargo.toml.
+# Four forks, none on crates.io, all pinned in the root Cargo.toml: kiss3d,
+# rune (docs/DETERMINISM.md), cosmic-text on epaint's harfrust, egui on zeno.
 allow-git = [
     "https://github.com/Ughuuu/kiss3d.git",
     "https://github.com/balaurengine/rune.git",
+    "https://github.com/Ughuuu/cosmic-text.git",
+    "https://github.com/Ughuuu/egui.git",
 ]

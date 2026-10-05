@@ -47,11 +47,11 @@ balaur_cfg = { path = "crates/balaur_cfg", version = "0.2.0" }
 balaur_core = { path = "crates/balaur_core", version = "0.2.0" }
 balaur_plugin = { path = "crates/balaur_plugin", version = "0.2.0" }
 balaur_script = { path = "crates/balaur_script", version = "0.2.0" }
-balaur_script_rune = { path = "crates/balaur_script_rune", version = "0.2.0" }
+balaur_script_rune = { path = "crates/balaur_script_rune", version = "0.2.0", default-features = false }
 balaur_physics = { path = "crates/balaur_physics", version = "0.2.0", default-features = false }
 balaur_animation = { path = "crates/balaur_animation", version = "0.2.0" }
-balaur_render = { path = "crates/balaur_render", version = "0.2.0" }
-balaur_audio = { path = "crates/balaur_audio", version = "0.2.0" }
+balaur_render = { path = "crates/balaur_render", version = "0.2.0", default-features = false }
+balaur_audio = { path = "crates/balaur_audio", version = "0.2.0", default-features = false }
 balaur_input = { path = "crates/balaur_input", version = "0.2.0" }
 balaur_http = { path = "crates/balaur_http", version = "0.2.0" }
 balaur_websocket = { path = "crates/balaur_websocket", version = "0.2.0" }
@@ -88,7 +88,9 @@ anyhow = "1"
 indexmap = { version = "2", features = ["serde"] }
 smallvec = "1.16.2"
 smol_str = "0.3"
-egui = "0.36"
+# egui's bundled faces are the editor's (`balaur/egui-fonts`); a game hands egui
+# balaur_text's.
+egui = { version = "0.36", default-features = false }
 # The widget tree's layout: retained flexbox and grid, so rects are decided
 # before anything draws. Block and float are off: Balaur lays out no blocks.
 taffy = { version = "0.14", default-features = false, features = ["std", "taffy_tree", "flexbox", "flexbox_balance", "grid", "content_size"] }
@@ -134,7 +136,7 @@ codegen-units = 1
 panic = "abort"
 strip = true
 
-# Two forks. Cargo.lock pins both commits; to hack on either locally, use a
+# Four forks. Cargo.lock pins each commit; to hack on one locally, use a
 # `paths` override in .cargo/config.toml rather than editing this.
 [patch.crates-io]
 # 0.14.2 made deterministic and debuggable: `powf`/`powi` and hashing off the
@@ -145,3 +147,14 @@ rune = { git = "https://github.com/balaurengine/rune.git", branch = "determinist
 # IME events, a mid-pass screen copy for 2D materials, UIKit's safe area.
 # On `balaur-wrapped-surface` (Ughuuu/kiss3d#1) until it merges into `balaur-hooks`.
 kiss3d = { git = "https://github.com/Ughuuu/kiss3d.git", branch = "balaur-wrapped-surface" }
+# 0.19.0 on the harfrust and skrifa epaint uses, so one copy of each links.
+cosmic-text = { git = "https://github.com/Ughuuu/cosmic-text.git", branch = "balaur-harfrust-0.12" }
+# 0.36.2 with glyphs filled by zeno, which the engine's own text already links,
+# instead of vello_cpu: 1.4 MB less in a web build. Every crate of the egui
+# workspace, so they share one emath and one ecolor.
+egui = { git = "https://github.com/Ughuuu/egui.git", branch = "balaur-zeno-glyphs" }
+egui-wgpu = { git = "https://github.com/Ughuuu/egui.git", branch = "balaur-zeno-glyphs" }
+epaint = { git = "https://github.com/Ughuuu/egui.git", branch = "balaur-zeno-glyphs" }
+epaint_default_fonts = { git = "https://github.com/Ughuuu/egui.git", branch = "balaur-zeno-glyphs" }
+emath = { git = "https://github.com/Ughuuu/egui.git", branch = "balaur-zeno-glyphs" }
+ecolor = { git = "https://github.com/Ughuuu/egui.git", branch = "balaur-zeno-glyphs" }

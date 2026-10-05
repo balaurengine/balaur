@@ -7,14 +7,21 @@ license.workspace = true
 authors.workspace = true
 
 [features]
-default = ["audio", "http", "websocket", "webtransport", "gamend", "multiplayer", "browser", "parallel"]
+default = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket", "webtransport", "gamend", "multiplayer", "browser", "parallel", "compile", "physics2d", "physics3d"]
 # rapier's solver on rayon. Native builds want it; a browser can only take it
 # with shared memory and atomics, which is the threaded web runtime alone.
 parallel = ["balaur_physics/parallel"]
 # Windowed rendering (kiss3d/wgpu).
 window = ["balaur_render/window"]
 # Sound. Off, a build drops rodio, cpal and the platform audio stack.
-audio = ["dep:balaur_audio"]
+audio = ["dep:balaur_audio", "balaur_audio/dither"]
+# One feature per container `audio` decodes; a build without one plays none
+# of that format.
+flac = ["balaur_audio?/flac"]
+mp3 = ["balaur_audio?/mp3"]
+mp4 = ["balaur_audio?/mp4"]
+vorbis = ["balaur_audio?/vorbis"]
+wav = ["balaur_audio?/wav"]
 # Load extensions from a project's extensions/ directory at run time.
 extensions = ["balaur_plugin/extensions"]
 # `http.*` for scripts. Off, a build drops ureq and its TLS stack.
@@ -42,6 +49,18 @@ apple = ["dep:balaur_apple"]
 # SVG textures read in place. An exported pack holds their rasters, so a game
 # template leaves it off.
 svg = ["balaur_core/svg"]
+# The 2D physics world: `physics2d.*`, its components and presets.
+physics2d = ["balaur_physics/physics2d"]
+# The 3D physics world: `physics3d.*`, its components and presets.
+physics3d = ["balaur_physics/physics3d"]
+# The Rune compiler and the WESL shader linker: a dev run, a pack carrying
+# sources, the editor and `balaur check`. A template leaves it off and draws
+# with the shaders an export linked into the pack.
+compile = ["balaur_script_rune/compile", "balaur_render/compile"]
+# egui's bundled faces behind a project's own: Ubuntu Light, Hack and two
+# emoji fonts, 1.35 MiB. The editor has them; a game falls back to its own
+# faces and the one balaur_text carries.
+fallback-fonts = ["balaur_ui/fallback-fonts"]
 
 [dependencies]
 balaur_core.workspace = true

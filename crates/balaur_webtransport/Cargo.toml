@@ -36,6 +36,9 @@ rcgen = "0.14"
 ring = "0.17"
 # `Client::connect` takes a parsed url, not a string.
 url = "2"
+# The roots `Accept::SystemRoots` trusts, the same bundle balaur_websocket and
+# ureq carry.
+webpki-roots = "1"
 
 [dev-dependencies]
 balaur_core.workspace = true

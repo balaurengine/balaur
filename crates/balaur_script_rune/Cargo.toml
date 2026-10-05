@@ -6,12 +6,20 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[features]
+default = ["compile"]
+# The Rune compiler and formatter: a dev run, a pack carrying sources, the
+# editor, `balaur check` and `balaur fmt`. A template that runs compiled packs
+# leaves it off.
+compile = ["rune/fmt", "rune/macros"]
+
 [dependencies]
 balaur_core.workspace = true
 balaur_script.workspace = true
-# `fmt` is the formatter behind `balaur fmt`; it costs no dependency
-# beyond alloc, unlike `languageserver`, which pulls tokio and syntect.
-rune = { version = "0.14", features = ["fmt"] }
+# `fmt` (through `compile`) is the formatter behind `balaur fmt`; it costs no
+# dependency beyond alloc, unlike `languageserver`, which pulls tokio and syntect.
+# `macros` (through `compile` too) is the stdlib's only way into the compiler.
+rune = { version = "0.14", default-features = false, features = ["emit", "std"] }
 # The pack ships compiled units; this is the format rune's own `.rnc`
 # bytecode cache uses.
 bincode.workspace = true

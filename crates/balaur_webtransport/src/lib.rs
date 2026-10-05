@@ -133,7 +133,7 @@ impl WebTransportLink {
     /// to anyone.
     ///
     /// `accept` names what to trust: the hashes of a self-signed server's
-    /// certificate, or the system roots for a real one.
+    /// certificate, or the public authorities' roots for a real one.
     ///
     /// # Errors
     /// When the url or the trust settings are unusable. A failure to reach

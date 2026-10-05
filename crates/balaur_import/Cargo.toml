@@ -29,6 +29,8 @@ tiled = "0.16"
 naga = { version = "30.0.1", features = ["wgsl-in"] }
 
 [dev-dependencies]
+# Its tests boot a dev app on what they translated.
+balaur = { workspace = true, features = ["compile", "physics2d", "physics3d"] }
 tempfile = "3"
 toml.workspace = true
 

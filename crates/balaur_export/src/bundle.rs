@@ -26,8 +26,9 @@ pub(crate) enum Bundle {
 }
 
 impl Bundle {
+    /// A variant (`ios-2d`) is its platform's bundle over a template of its own.
     pub(crate) fn for_target(target: &str) -> Option<Self> {
-        match target {
+        match crate::split_variant(target).0 {
             "ios" => Some(Self::Ios),
             "android" => Some(Self::Android),
             "web" => Some(Self::Web),
@@ -35,12 +36,13 @@ impl Bundle {
         }
     }
 
-    /// The runtime directory `package_runtime.sh` produces.
-    const fn runtime_dir(self) -> &'static str {
+    /// The runtime directory `package_runtime.sh` produces for `target`. An
+    /// iOS variant's `.app` sits in a directory named for it.
+    fn runtime_dir(self, target: &str) -> String {
         match self {
-            Self::Ios => "Balaur.app",
-            Self::Android => "balaur-runtime-android",
-            Self::Web => "balaur-runtime-web",
+            Self::Ios if target == "ios" => "Balaur.app".to_string(),
+            Self::Ios => format!("balaur-runtime-{target}/Balaur.app"),
+            Self::Android | Self::Web => format!("balaur-runtime-{target}"),
         }
     }
 
@@ -291,21 +293,23 @@ pub(crate) fn export_macos_app(
     Ok(app)
 }
 
-/// Find the bundle runtime for a mobile platform.
-pub(crate) fn find_bundle_runtime(kind: Bundle, roots: &[PathBuf]) -> Result<PathBuf> {
+/// Find the bundle runtime for a mobile or web target.
+pub(crate) fn find_bundle_runtime(
+    kind: Bundle,
+    target: &str,
+    roots: &[PathBuf],
+) -> Result<PathBuf> {
+    let dir = kind.runtime_dir(target);
     for root in roots {
-        let candidate = root.join(kind.runtime_dir());
+        let candidate = root.join(&dir);
         if candidate.is_dir() {
             return Ok(candidate);
         }
     }
     anyhow::bail!(
-        "no {} runtime (looked for {} in: {}). Unpack balaur-runtime-{} from the \
-         release into the runtimes directory, or pass --runtime <dir>.",
-        kind.platform(),
-        kind.runtime_dir(),
+        "no {target} runtime (looked for {dir} in: {}). Unpack balaur-runtime-{target} \
+         from the release into the runtimes directory, or pass --runtime <dir>.",
         roots_for_message(roots),
-        kind.platform(),
     )
 }
 

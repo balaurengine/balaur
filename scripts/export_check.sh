@@ -3,11 +3,14 @@
 # shape that platform installs or serves. Why it stops there:
 # docs/PLAN-mobile-export.md.
 #
-# Usage: export_check.sh <ios|android|web>
+# Usage: export_check.sh <ios|android|web>[-2d|-3d]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-platform=${1:?usage: export_check.sh <ios|android|web>}
+platform=${1:?usage: export_check.sh <ios|android|web>[-2d|-3d]}
+base=${platform%-[23]d}
+# What a variant's examples are written to, beside the platform's own.
+suffix=${platform#"$base"}
 # The bundletool a release is proven against. One line, so the version and the
 # hash below move together.
 BUNDLETOOL=1.18.3
@@ -32,11 +35,17 @@ cargo build --release -p balaur_cli
 balaur=$PWD/target/release/balaur
 
 step "export a game"
-"$balaur" new "$work/project" >/dev/null
+# A one-world template gets a game of that world, so the check proves it
+# plays one; the platform's own a new project.
+case $platform in
+*-2d) cp -R examples/angrynerds "$work/project" ;;
+*-3d) cp -R examples/hello "$work/project" ;;
+*) "$balaur" new "$work/project" >/dev/null ;;
+esac
 ./scripts/with_icon.sh "$work/project"
 # The capabilities an Apple game declares are export-side, so the check needs a
 # project that declares some. See docs/PLAN-apple.md.
-if [ "$platform" = ios ]; then
+if [ "$base" = ios ]; then
   cat >>"$work/project/project.toml" <<'TOML'
 
 [apple]
@@ -53,7 +62,7 @@ fi
 # game built in the editor and one built here take the same path. A string,
 # not an array: `"${empty[@]}"` is unbound under `set -u` on bash 3.2.
 apk=""
-if [ "$platform" = android ]; then
+if [ "$base" = android ]; then
   apk="--bundle apk --bundle aab"
   # Google ships bundletool apart from the SDK, so the runner has no copy.
   # Pinned by hash: the AAB this proves is the one that jar produces.
@@ -70,7 +79,7 @@ fi
 (cd "$work" && BALAUR_RUNTIMES="$work/runtimes" \
   "$balaur" export project --target "$platform" $apk)
 
-case $platform in
+case $base in
 ios)
   app="$work/project.app"
   [ -d "$app" ] || fail "no $app"
@@ -110,7 +119,7 @@ ios)
     plutil -lint "$ent" >/dev/null || fail "the entitlements are not a valid plist"
   fi
   printf '\nexported %s\n' "$app"
-  (cd "$work" && tar -czf "$dist/balaur-example-ios.tar.gz" "project.app")
+  (cd "$work" && tar -czf "$dist/balaur-example-ios$suffix.tar.gz" "project.app")
   ;;
 android)
   layout="$work/project-android"
@@ -138,7 +147,7 @@ android)
   done
   unzip -l "$apk" | grep -q 'res/mipmap-anydpi-v26/icon.xml' ||
     fail "the assembled APK carries no adaptive icon"
-  cp "$apk" "$dist/balaur-example-debug.apk"
+  cp "$apk" "$dist/balaur-example$suffix-debug.apk"
 
   # The AAB is what Play takes, and the half an APK cannot prove: bundletool
   # has to accept it, and splitting it has to give one APK per ABI.
@@ -151,9 +160,9 @@ android)
     unzip -l "$work/split.apks" | grep -q "splits/base-$abi.apk" ||
       fail "the AAB splits into no $abi APK"
   done
-  cp "$aab" "$dist/balaur-example-debug.aab"
-  printf '\nexported %s and %s\n' "$dist/balaur-example-debug.apk" \
-    "$dist/balaur-example-debug.aab"
+  cp "$aab" "$dist/balaur-example$suffix-debug.aab"
+  printf '\nexported %s and %s\n' "$dist/balaur-example$suffix-debug.apk" \
+    "$dist/balaur-example$suffix-debug.aab"
   ;;
 web)
   out="$work/project-web"
@@ -170,10 +179,13 @@ web)
     [ -s "$out/$f" ] || fail "the web export has no $f"
   done
   grep -q 'rel="icon"' "$out/index.html" || fail "the page links no favicon"
+  # Booted, not only listed: the template has no compiler, so this is what
+  # proves the pack's compiled scripts read back on a 32-bit runtime.
+  node scripts/web_smoke.mjs "$out"
   printf '\nexported %s\n' "$out"
-  (cd "$work" && tar -czf "$dist/balaur-example-web.tar.gz" "project-web")
+  (cd "$work" && tar -czf "$dist/balaur-example-$platform.tar.gz" "project-web")
   ;;
-*) fail "unknown platform \"$platform\" (expected ios, android or web)" ;;
+*) fail "unknown platform \"$platform\" (expected ios, android or web, each with -2d or -3d)" ;;
 esac
 
 rm -rf "$work"

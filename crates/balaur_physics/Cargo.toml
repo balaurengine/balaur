@@ -33,13 +33,18 @@ libm.workspace = true
 rayon = { version = "1", optional = true }
 
 [features]
-default = ["parallel"]
+default = ["parallel", "physics2d", "physics3d"]
+# Each world's systems, components, `physicsNd.*` verbs and presets. Both
+# compile in every build, for the helpers they share; one left off registers
+# nothing, so a template for a game of the other dimension links none of it.
+physics2d = []
+physics3d = []
 # rapier's solver on rayon. A browser needs the shared memory and atomics only
 # the threaded web runtime has, and cargo cannot gate a dependency on those.
 parallel = ["dep:rayon", "rapier2d/parallel", "rapier3d/parallel"]
 
 [dev-dependencies]
-balaur.workspace = true
+balaur = { workspace = true, features = ["compile", "physics2d", "physics3d"] }
 tempfile = "3"
 
 [lints]

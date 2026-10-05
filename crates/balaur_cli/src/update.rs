@@ -12,7 +12,9 @@ pub(crate) fn run(_opts: &crate::UpdateOpts) -> anyhow::Result<()> {
 }
 
 #[cfg(not(target_family = "wasm"))]
-pub(crate) use imp::{download_url, held, releases, replace, run};
+pub(crate) use imp::run;
+#[cfg(all(not(target_family = "wasm"), feature = "editor"))]
+pub(crate) use imp::{download_url, held, releases, replace};
 
 /// One published release, as the feed lists it.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]

@@ -60,13 +60,23 @@ pub mod pick;
 mod polygon;
 mod populate;
 mod post;
+#[cfg(feature = "compile")]
 pub mod preview;
+/// A build with no shader linker previews nothing.
+#[cfg(not(feature = "compile"))]
+mod preview {
+    #[cfg(feature = "window")]
+    pub(crate) fn requested(_: &balaur_core::Engine, _: &str, source: String) -> String {
+        source
+    }
+}
 #[cfg(feature = "window")]
 mod probe;
 pub mod reflection;
 mod script_api;
 #[cfg(test)]
 mod shader_checks;
+pub mod prelinked;
 pub mod shaders;
 mod shape;
 mod sheet;

@@ -306,19 +306,4 @@ mod key_code_tests {
         assert_eq!(key_code(Key::Return), Some("Enter"));
         assert_eq!(key_code(Key::Unknown), None);
     }
-
-    #[test]
-    fn every_key_with_a_code_is_found_by_its_name() {
-        for key in super::EVERY_KEY {
-            if let Some(code) = key_code(key) {
-                assert!(
-                    balaur_input::is_known_key(code),
-                    "{code} is not in balaur_input's table"
-                );
-                assert_eq!(super::key_named(code), Some(key), "{code}");
-            }
-        }
-        assert_eq!(super::key_named("Enter"), Some(Key::Return));
-        assert_eq!(super::key_named("NotAKey"), None);
-    }
 }

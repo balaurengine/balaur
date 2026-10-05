@@ -126,9 +126,27 @@ pub fn build_pack_using(
     keep_sources: bool,
     extra: ExtraPlugins<'_>,
 ) -> Result<Pack> {
-    with_rune_host(project_root, extra, |host| {
-        Pack::build_with(project_root, host, keep_sources)
+    with_rune_host(project_root, extra, |engine, host| {
+        let pack = Pack::build_with(project_root, host, keep_sources)?;
+        #[cfg(feature = "compile")]
+        let pack = with_shaders(engine, pack)?;
+        #[cfg(not(feature = "compile"))]
+        let _ = engine;
+        Ok(pack)
     })
+}
+
+/// `pack` with every shader the game can draw with linked into it, for a
+/// template that has no linker of its own.
+#[cfg(feature = "compile")]
+fn with_shaders(engine: &balaur_core::Engine, mut pack: Pack) -> Result<Pack> {
+    let shaders = balaur_render::prelinked::record(|| {
+        balaur_render::prelinked::link_everything(engine, &pack);
+        Ok(())
+    })?;
+    pack.assets
+        .insert(balaur_render::prelinked::PRELINKED.into(), shaders);
+    Ok(pack)
 }
 
 /// Modules the calling binary registers on top of the standard set. The CLI's
@@ -136,11 +154,12 @@ pub fn build_pack_using(
 /// while compiling, so a tool that compiles the editor has to load it first.
 pub type ExtraPlugins<'a> = &'a mut [Box<dyn balaur_plugin::Plugin>];
 
-/// Boot the project as a build tool does and hand its Rune host to `f`.
+/// Boot the project as a build tool does and hand its engine and Rune host
+/// to `f`.
 fn with_rune_host<R>(
     project_root: &std::path::Path,
     extra: ExtraPlugins<'_>,
-    f: impl FnOnce(&balaur_script_rune::RuneHost) -> Result<R>,
+    f: impl FnOnce(&balaur_core::Engine, &balaur_script_rune::RuneHost) -> Result<R>,
 ) -> Result<R> {
     let mut app = standard_app(AppConfig::export(project_root))?;
     balaur_plugin::load_all(&mut app, extra)?;
@@ -152,7 +171,7 @@ fn with_rune_host<R>(
         .as_any()
         .downcast_ref::<balaur_script_rune::RuneHost>()
         .context("expected the rune backend")?;
-    f(host)
+    f(&app.engine, host)
 }
 
 /// Every finding in a project: each script a scene attaches, compiled through
@@ -176,7 +195,7 @@ pub fn check_project_using(
     project_root: &std::path::Path,
     extra: ExtraPlugins<'_>,
 ) -> Result<Vec<balaur_script_rune::Finding>> {
-    with_rune_host(project_root, extra, |host| {
+    with_rune_host(project_root, extra, |_, host| {
         let mut found = Vec::new();
         for rel in scene_scripts(project_root) {
             let path = project_root.join(&rel);
@@ -222,6 +241,15 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
         .extensions
         .clone()
         .unwrap_or_else(|| config.project_root.join(standalone::EXTENSIONS_DIR));
+    // A build with no shader linker draws with what the export linked.
+    #[cfg(not(feature = "compile"))]
+    if let Some(table) = config
+        .pack
+        .as_ref()
+        .and_then(|pack| pack.assets.get(balaur_render::prelinked::PRELINKED))
+    {
+        balaur_render::prelinked::install(table)?;
+    }
     let mut app = App::new(config)?;
     balaur_core::settings::define_group(
         &app.engine,

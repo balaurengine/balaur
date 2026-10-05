@@ -238,7 +238,7 @@ in the same pass, because the importer reaches it too.
 The second module is built. `package_play.sh` takes `EDITOR_MODULE` when a
 build already made one and builds its own otherwise, and `build-platforms`
 grew a third web entry -- `variant: editor`, the plain set plus `import` --
-which `bundle web` downloads and points at. `WEB_VARIANT` carries the name
+which `bundle web` downloads and points at. `VARIANT` carries the name
 through `package_runtime.sh`, so the tarball matches the artifact the way
 `-threads` already did.
 

@@ -35,13 +35,7 @@ use crate::shaders;
 /// The engine's own shaders are checked by `shaders`' tests, so a failure
 /// here is a bug in this build, not in anything a project wrote.
 fn linked_shader() -> String {
-    shaders::link(
-        &[("package::skinned_2d", shaders::SKINNED_2D)],
-        "package::skinned_2d",
-        &[],
-    )
-    .and_then(|linked| shaders::wgsl(&linked))
-    .expect("the engine's own shader must link")
+    shaders::skinned_2d().expect("the engine's own shader must link")
 }
 
 use crate::shaders::MAX_JOINTS;

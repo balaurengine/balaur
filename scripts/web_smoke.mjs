@@ -5,8 +5,11 @@
 // only a browser finds those. Also fails a canvas that drew nothing.
 //
 // Usage: web_smoke.mjs <play-dir>   (balaur.js, balaur_bg.wasm, *.bpak)
+//   A directory with no editor.bpak boots its games alone: an export over
+//   the game template, whose packs are compiled.
 //   CHROME   the browser binary; found on PATH or in /Applications otherwise
 //   SMOKE_SECONDS  how long each pack runs, default 8
+//   SMOKE_SHOTS    a directory to write each pack's last frame to, as <name>.png
 import { spawn, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -21,10 +24,13 @@ const fail = (message) => {
 };
 
 const packs = fs.readdirSync(dir).filter((f) => f.endsWith('.bpak')).map((f) => f.slice(0, -5));
-if (!packs.includes('editor') || packs.length < 2) fail(`${dir} holds no editor and examples to boot`);
+const games = packs.filter((p) => p !== 'editor');
+if (games.length === 0) fail(`${dir} holds no game to boot`);
 // Each game on its own, then the editor over one of them, the way the site opens both.
-const cases = packs.filter((p) => p !== 'editor').map((p) => ({ name: p, start: `start('c', '/${p}.bpak')` }));
-cases.push({ name: 'editor', start: `start_editor('c', '/editor.bpak', '/hello.bpak')` });
+const cases = games.map((p) => ({ name: p, start: `start('c', '/${p}.bpak')` }));
+if (packs.includes('editor')) {
+  cases.push({ name: 'editor', start: `start_editor('c', '/editor.bpak', '/hello.bpak')` });
+}
 
 const page = (start) => `<!doctype html><html><head><link rel="icon" href="data:,"></head>
 <body style="margin:0"><canvas id="c" style="display:block;width:960px;height:540px"></canvas>
@@ -181,6 +187,14 @@ for (const c of cases) {
   await sleep(seconds * 1000);
   const drawn = (await send('Runtime.evaluate', { expression: colours, awaitPromise: true, returnByValue: true }))
     ?.result?.value ?? 0;
+  if (process.env.SMOKE_SHOTS) {
+    const url = (await send('Runtime.evaluate', {
+      expression: "document.getElementById('c').toDataURL('image/png')",
+      returnByValue: true,
+    }))?.result?.value ?? '';
+    fs.mkdirSync(process.env.SMOKE_SHOTS, { recursive: true });
+    fs.writeFileSync(path.join(process.env.SMOKE_SHOTS, `${c.name}.png`), Buffer.from(url.split(',')[1] ?? '', 'base64'));
+  }
   const problems = [...new Set(heard)];
   if (drawn < 2) problems.push(`the canvas is one flat colour after ${seconds} s: nothing drew`);
   console.log(`  ${c.name.padEnd(12)} ${problems.length ? 'FAILED' : 'ok'}`);

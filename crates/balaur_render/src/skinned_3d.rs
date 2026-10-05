@@ -69,13 +69,7 @@ pub(crate) struct SkinnedMesh3d {
 }
 
 fn linked_shader(morph: bool) -> String {
-    shaders::link(
-        &[("package::skinned_3d", shaders::SKINNED_3D)],
-        "package::skinned_3d",
-        &[(shaders::MORPH, morph)],
-    )
-    .and_then(|linked| shaders::wgsl(&linked))
-    .expect("the engine's own shader must link")
+    shaders::skinned_3d(morph).expect("the engine's own shader must link")
 }
 
 struct Buffers {

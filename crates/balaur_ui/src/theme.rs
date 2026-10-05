@@ -401,7 +401,7 @@ pub(crate) fn load_fonts(ctx: &egui::Context, faces: &[FontFace]) {
     }
     // And the other way: an icon table names letters where a Fill face draws
     // a tile — `×` closes a tab — and no icon face has those glyphs.
-    icon_chain.extend(text_faces);
+    icon_chain.extend(text_faces.iter().cloned());
     for chain in [
         &mut heading_chain,
         &mut ui_chain,
@@ -415,10 +415,25 @@ pub(crate) fn load_fonts(ctx: &egui::Context, faces: &[FontFace]) {
             chain.extend(system_chain.iter().cloned());
         }
     }
+    // Without egui's bundled faces (`fallback-fonts`), the project's text
+    // faces stand in for them: the base families and a missing mono face.
+    let bundled = !default_prop.is_empty();
     heading_chain.extend(default_prop.clone());
     ui_chain.extend(default_prop.clone());
     icon_chain.extend(default_prop);
-    mono_chain.extend(default_mono);
+    if default_mono.is_empty() {
+        mono_chain.extend(text_faces);
+    } else {
+        mono_chain.extend(default_mono);
+    }
+    if !bundled {
+        fonts
+            .families
+            .insert(FontFamily::Proportional, ui_chain.clone());
+        fonts
+            .families
+            .insert(FontFamily::Monospace, mono_chain.clone());
+    }
 
     add_weighted(&mut fonts, faces, [&ui_chain, &heading_chain, &mono_chain]);
     fonts

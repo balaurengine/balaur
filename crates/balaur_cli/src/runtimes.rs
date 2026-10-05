@@ -24,8 +24,10 @@ pub(crate) fn obtain(_target: &str, _assume_yes: bool) -> anyhow::Result<PathBuf
     anyhow::bail!("runtime download is not available in this build")
 }
 
+#[cfg(all(not(target_family = "wasm"), feature = "editor"))]
+pub(crate) use fetch::obtain;
 #[cfg(not(target_family = "wasm"))]
-pub(crate) use fetch::{download_reporting, expected_sha256, fetch_text, obtain};
+pub(crate) use fetch::{download_reporting, expected_sha256, fetch_text};
 
 #[cfg(not(target_family = "wasm"))]
 mod fetch {

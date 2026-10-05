@@ -6,19 +6,24 @@
 //! checker and `script::functions` are the callers.
 
 use std::cell::RefCell;
+#[cfg(feature = "compile")]
 use std::collections::BTreeMap;
+#[cfg(feature = "compile")]
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{Result, anyhow, bail};
+#[cfg(feature = "compile")]
 use rune::ast::Spanned as _;
 use rune::runtime::VmResult;
+#[cfg(feature = "compile")]
 use rune::{Diagnostics, Source, Sources};
 
 use hecs::Entity;
 use rustc_hash::FxHashMap;
 
 use crate::handles;
+#[cfg(feature = "compile")]
 use crate::packed::PackSourceLoader;
 use crate::value::Node;
 use crate::{RuneHost, value};
@@ -32,6 +37,7 @@ pub(crate) const CONSTANTS_FN: &str = "__balaur_constants";
 ///
 /// The names come off a parse rather than the text, so `pub const` inside a
 /// string is not one, and a name a `pub fn` already owns stays the function.
+#[cfg(feature = "compile")]
 pub(crate) fn with_constants(source: &str) -> std::borrow::Cow<'_, str> {
     let taken: Vec<String> = public_functions(source)
         .into_iter()
@@ -54,6 +60,7 @@ pub(crate) fn with_constants(source: &str) -> std::borrow::Cow<'_, str> {
 
 /// Every top-level `pub const` in a source, by name. A file Rune cannot parse
 /// has none: the compile below reports that, and better than this could.
+#[cfg(feature = "compile")]
 fn public_constants(source: &str) -> Vec<&str> {
     let Ok(file) = rune::parse::parse_all::<rune::ast::File>(source, rune::SourceId::EMPTY, false)
     else {
@@ -167,6 +174,7 @@ pub struct Finding {
 /// under a diagnostic reads it back. `None` where there is no file to read —
 /// a packed run — and the caller then keeps the diagnostic rather than
 /// judging it blind.
+#[cfg(feature = "compile")]
 fn read_source(
     sources: &Sources,
     id: rune::SourceId,
@@ -193,6 +201,7 @@ fn read_source(
 ///
 /// The warning's span is the pattern itself. Without the text — a packed run
 /// has no file to read — the diagnostic is kept rather than judged blind.
+#[cfg(feature = "compile")]
 fn unpacking_a_tuple(message: &str, text: Option<&str>, span: rune::ast::Span) -> bool {
     if message != "Pattern might panic" {
         return false;
@@ -214,6 +223,7 @@ fn unpacking_a_tuple(message: &str, text: Option<&str>, span: rune::ast::Span) -
 
 /// Resolve a diagnostic's source and span into a [`Finding`]. A span-less
 /// diagnostic (a link error) lands on line 0, which means "the whole file".
+#[cfg(feature = "compile")]
 fn finding(
     sources: &Sources,
     id: rune::SourceId,
@@ -281,6 +291,7 @@ fn is_power_of_ten(mut n: u64) -> bool {
     n == 1
 }
 
+#[cfg(feature = "compile")]
 pub(crate) fn render(diagnostics: &Diagnostics, sources: &Sources) -> String {
     let mut buf = rune::termcolor::Buffer::no_color();
     if diagnostics.emit(&mut buf, sources).is_err() {
@@ -775,6 +786,20 @@ impl RuneHost {
     /// # Errors
     /// If the context cannot be built.
     pub fn check_source(&self, key: &str, source: &str) -> Result<Vec<Finding>> {
+        let mut findings = self.handle_findings(key, source);
+        self.compile_findings(key, source, &mut findings)?;
+        Ok(findings)
+    }
+
+    #[cfg(not(feature = "compile"))]
+    fn compile_findings(&self, key: &str, _: &str, _: &mut Vec<Finding>) -> Result<()> {
+        let _ = self;
+        bail!("{key}: this build has no script compiler to check with")
+    }
+
+    /// What the compiler says about `source`, warnings included.
+    #[cfg(feature = "compile")]
+    fn compile_findings(&self, key: &str, source: &str, findings: &mut Vec<Finding>) -> Result<()> {
         let (ctx, _) = self.context()?;
         let (path, packed) = {
             let state = self.state.borrow();
@@ -783,7 +808,6 @@ impl RuneHost {
                 None => (state.project_root.join(key), None),
             }
         };
-        let mut findings = self.handle_findings(key, source);
         let mut sources = Sources::new();
         let root = sources.insert(Source::with_path(key, source, path)?)?;
         // The one place warnings are wanted: an error report should be the
@@ -840,7 +864,7 @@ impl RuneHost {
                 _ => continue,
             });
         }
-        Ok(findings)
+        Ok(())
     }
 
     /// What the scene beside the script says about a handle call in it.

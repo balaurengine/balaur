@@ -177,7 +177,10 @@ impl Tags {
     /// Every export is a release build.
     #[must_use]
     pub fn for_target(target: &str) -> Self {
-        let (os, arch) = target.split_once('-').unwrap_or((target, ""));
+        let (os, rest) = target.split_once('-').unwrap_or((target, ""));
+        // A variant follows the arch, and takes its platform's tags:
+        // `linux-x64-server`, `web-2d`.
+        let arch = rest.split('-').next().unwrap_or_default();
         let os = match os {
             "macos" => MACOS,
             "windows" => WINDOWS,

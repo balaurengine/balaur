@@ -204,10 +204,10 @@ async fn run(project: &Path, target: &str, template: &str) -> Result<String> {
     Ok(name)
 }
 
-/// The pack, with sources kept: the runtime that loads it is 32-bit, and
-/// compiled script bytes do not read back across pointer widths.
+/// The pack, its scripts compiled as on every other target: the game
+/// template a bundle may be served with has no compiler.
 fn build(project: &Path) -> Result<balaur::Pack> {
-    balaur::build_pack_using(project, true, &mut [])
+    balaur::build_pack_using(project, false, &mut [])
 }
 
 /// A web bundle: the pack, the shell page, and the glue and module this tab

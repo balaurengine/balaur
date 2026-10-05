@@ -12,7 +12,7 @@ use anyhow::{Context, Result};
 /// Every directory this install's shipped data may sit under, in the order to
 /// look: beside the binary, then up to the repository root in a checkout.
 ///
-/// Through `balaur_export::data_roots`, which knows a macOS bundle keeps its
+/// Through `balaur::standalone::data_roots`, which knows a macOS bundle keeps its
 /// data in `Contents/Resources` — codesign seals `Contents/MacOS` as code, so
 /// nothing may ship beside the executable there, and `Resources` is a sibling
 /// of it rather than an ancestor, which no walk upwards would reach.
@@ -27,7 +27,7 @@ pub(crate) fn data_dirs() -> Vec<PathBuf> {
 fn dirs_under(exe_dir: Option<&Path>, cwd: Option<&Path>) -> Vec<PathBuf> {
     let mut bases = Vec::new();
     if let Some(dir) = exe_dir {
-        bases.extend(balaur_export::data_roots(dir));
+        bases.extend(balaur::standalone::data_roots(dir));
     }
     bases.extend(cwd.map(Path::to_path_buf));
     let mut found = Vec::new();

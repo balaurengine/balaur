@@ -34,8 +34,8 @@ with `rustfmt` and `clippy`, so every machine runs one linter version.
 ## House rules no compiler enforces
 
 `scripts/house_lints.py` walks every `.rs` and `.rn`, and reads
-`scripts/showcase.sh`. **ERROR** fails CI and is mechanical; **REPORT** prints
-only.
+`scripts/showcase.sh` and `scripts/features.sh`. **ERROR** fails CI and is
+mechanical; **REPORT** prints only.
 
 | Rule | Fails on |
 | --- | --- |
@@ -56,6 +56,7 @@ only.
 | `hover-only-control` | an editor control shown only while hovered, which a finger cannot reach |
 | `setting-unit` | a setting or option that measures time, rate or distance and names no unit (`NAMING.md` N21) |
 | `theme-token`, `theme-key` | a colour token that names a hue or a family suffix outside the set, and a theme key that is no widget property (N18, N19) |
+| `template-features` | `balaur_android`'s default features differing from `GAME_FEATURES` in `scripts/features.sh`, the set every game template is built with |
 
 ## Comments
 
@@ -236,7 +237,12 @@ one entry in `cases_kinds.rn` or `cases_scripts.rn`.
 - `build.yml` also exports and runs a new project on each packaged template
   (`scripts/package.sh`), runs `scripts/signing_check.sh`
   (`BALAUR_SIGNING_CHECK`) and `scripts/export_check.sh` per platform, and
-  `scripts/web_smoke.mjs` over every web pack through `scripts/package_play.sh`.
+  `scripts/web_smoke.mjs` over every web pack through `scripts/package_play.sh`
+  and over the web export, booted on the game template, which has no compiler.
+- `build.yml` builds a `-2d`, `-3d` and `-server` template of every desktop,
+  exports an example onto each with that run's editor and plays 60 frames
+  (`VARIANT=... scripts/package.sh`); the mobile and web variants go through
+  `scripts/export_check.sh`.
 - `scripts/check_web_module.sh` holds both web stagings to what `balaur.js`
   names beside it, wasm-bindgen's `snippets/` included: a static import that
   404s stops the module evaluating, and the build that shipped it is green.

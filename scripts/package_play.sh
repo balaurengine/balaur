@@ -11,8 +11,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 dist=$(mkdir -p "${DIST:-dist}" && cd "${DIST:-dist}" && pwd)
 
-# The game runtime's features plus the importers, which is the difference.
-EDITOR_WEB_FEATURES=${EDITOR_WEB_FEATURES:-audio,http,websocket,webtransport,gamend,multiplayer,browser,window,import}
+# The game runtime's features plus the importers and the editor, which is
+# the difference.
+EDITOR_WEB_FEATURES=${EDITOR_WEB_FEATURES:-audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,gamend,multiplayer,browser,window,physics2d,physics3d,import,editor}
 
 step() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 fail() { printf '::error::%s\n' "$1"; exit 1; }
@@ -41,7 +42,7 @@ step "the editor's web module"
 module=${EDITOR_MODULE:-}
 if [ -z "$module" ]; then
   module="$dist/editor-module"
-  DIST="$module" WEB_FEATURES="$EDITOR_WEB_FEATURES" WEB_VARIANT=editor \
+  DIST="$module" WEB_FEATURES="$EDITOR_WEB_FEATURES" VARIANT=editor \
     ./scripts/package_runtime.sh web
 fi
 for f in balaur.js balaur_bg.wasm; do

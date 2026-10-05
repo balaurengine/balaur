@@ -8,10 +8,10 @@ authors.workspace = true
 publish = false
 
 [dependencies]
-balaur.workspace = true
+balaur = { workspace = true, features = ["compile", "physics2d", "physics3d"] }
 balaur_core.workspace = true
 balaur_script.workspace = true
-balaur_script_rune.workspace = true
+balaur_script_rune = { workspace = true, features = ["compile"] }
 balaur_ui.workspace = true
 egui.workspace = true
 hecs.workspace = true

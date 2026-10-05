@@ -25,11 +25,11 @@ pub const ASSET_EXTENSIONS: &[&str] = &[
 /// bytes went, few enough to read at a glance.
 const LARGEST_ENTRIES: usize = 10;
 
-/// Directories the engine reads by listing rather than by reference, so
-/// nothing in a scene names their contents: `balaur_ui` loads every face under
-/// `fonts/` when the UI starts. Stripping one of these would take a project's
-/// text away with it.
-pub const LOADED_WHOLE: &[&str] = &["fonts/"];
+/// Directories the engine reads without a document naming their contents:
+/// `balaur_ui` loads every face under `fonts/` when the UI starts, and a build
+/// with no shader linker reads the shaders an export linked under `.balaur/`.
+/// Stripping one of these would take a project's text or shaders with it.
+pub const LOADED_WHOLE: &[&str] = &["fonts/", ".balaur/"];
 
 /// A content hash, so a decoded pack can prove an entry arrived intact and a
 /// materialised file can be cached under a name that changes with its bytes.

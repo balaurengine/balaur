@@ -6,6 +6,11 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[features]
+# egui's bundled faces behind a project's own: Ubuntu Light, Hack and two
+# emoji fonts.
+fallback-fonts = ["egui/default_fonts"]
+
 [dependencies]
 balaur_core.workspace = true
 balaur_input.workspace = true
@@ -29,7 +34,8 @@ image = { version = "0.25", default-features = false, features = ["png", "webp"]
 libm.workspace = true
 
 [dev-dependencies]
-balaur.workspace = true
+# `fallback-fonts`: the editor's faces, which the glyph test checks it covers.
+balaur = { workspace = true, features = ["compile", "physics2d", "physics3d", "fallback-fonts"] }
 tempfile = "3"
 egui.workspace = true
 

@@ -1,4 +1,6 @@
-> **Status:** not started. Written 2026-09-06, after "how safe is a shipped
+> **Status:** step 2 built on 2026-10-04: a web export ships bytecode, and
+> the web game template has no compiler to run anything else. Steps 1 and 3
+> not started. Written 2026-09-06, after "how safe is a shipped
 > game against decompilation" got the honest answer: it is not, by design.
 > The pack is length-prefixed raw bytes, the web pack carries the script
 > sources, and the release binary keeps its symbol table. The steps are
@@ -24,7 +26,8 @@ Built, and not built for this:
 | Have | Where |
 | --- | --- |
 | One pack per export: manifest, scenes, scripts and assets, length-prefixed, in sorted order so two exports are byte-identical and CI can diff them | `balaur_core::pack`, `Pack::encode` |
-| Scripts as a compiled Rune unit on native targets, debug info dropped | `balaur_script_rune::packed`, `options.debug_info(Purpose::Dev)` in `lib.rs` |
+| Scripts as a compiled Rune unit on every target, the web included, debug info dropped; `--keep-sources` alone ships source | `balaur_script_rune::packed`, `options.debug_info(Purpose::Dev)` in `lib.rs` |
+| A web export booted in Chrome on the game template, which has no compiler | `scripts/export_check.sh web`, `scripts/web_smoke.mjs` |
 | A test that states what the unit still spells out: every function name, private ones included, field names, string literals | `crates/balaur_script_rune/tests/packed.rs` |
 | A SHA-256 per asset, checked on decode | `pack::content_hash`, `Pack::decode` |
 | Code signing on every target: `codesign` and notarization, Authenticode, `apksigner`, an `.ipa` | `balaur_export::sign`, `android.rs` |
@@ -39,15 +42,6 @@ Missing:
   inside is the original file: `Pack::entries` is a public function that
   returns the project tree. `strings` on a pack prints every scene, comments
   included.
-- **A compiled script on the web.** `export` forces `keep_sources` for
-  `Bundle::Web` (`crates/balaur_export/src/lib.rs`), the browser exporter
-  hard-codes it (`web_export.rs`), and `scripts/package_play.sh` asks for it
-  so the editor's code panel has text to show. `strings dist/play/angrynerds.bpak`
-  prints the game. The reason on record — `usize` sentinels that do not read
-  back on 32-bit — predates `packed::FORMAT` 2, which sends stack offsets as
-  `u32` for exactly that case, and `docs/PLAN-embed.md` §0 already lists
-  compiled packs among what runs on the 32-bit runtime. One of the two is
-  wrong; §5 asks which.
 - **A stripped native binary.** `[profile.release]` sets `lto` and
   `codegen-units` and nothing else, so the release `balaur` carries its whole
   symbol table — some 53 000 symbols in 49 MB on this machine. Every runtime
@@ -180,7 +174,8 @@ developer can turn on.
    desktop template on Linux and macOS, and that no `.pdb` sits in the
    Windows download (MSVC keeps names there, never in the executable). Ends
    with: a fused game with an empty symbol table.
-2. **Bytecode on the web.** The wasm32 test from §1; then the force in
+2. **Bytecode on the web.** Built: every example's compiled pack boots on the
+   compiler-less template in Chrome. The wasm32 test from §1; then the force in
    `balaur_export`, the hard-coded `true` in `web_export.rs`, and the
    `--keep-sources` help text lose the pointer-width reason;
    `scripts/package_play.sh` keeps the flag, with its comment as the reason;
@@ -221,20 +216,16 @@ finds nothing; it cannot show a reader gives up, and no test here claims to.
 
 ## 5. Open questions
 
-1. **Does a compiled unit load on wasm32 today?** `FORMAT` 2 and
-   `docs/PLAN-embed.md` say yes; `balaur_export` and `web_export.rs` say no,
-   one day later. The test in step 2 decides, and whichever way it goes, two
-   comments are wrong today.
-2. **A Rust game that embeds the engine.** Such a game hands
+1. **A Rust game that embeds the engine.** Such a game hands
    `AppConfig::packed` a pack it decoded from `include_bytes!` itself, so
    the seal is opened before the engine sees it. The developer built the
    binary and the key is theirs to place; the open part is only whether the
    facade offers `Pack::open_sealed(bytes, key)` or reads the same
    `option_env!` the template does.
-3. **Should the editor open a sealed pack?** It can, since the key is in the
+2. **Should the editor open a sealed pack?** It can, since the key is in the
    file, and refusing would protect nothing. Whether the Open dialog should
    list `.bpak` at all is an editor question, not this plan's.
-4. **One key per project or per release?** Per project keeps every export
+3. **One key per project or per release?** Per project keeps every export
    diffable against the last; per release makes each build's bytes new,
    which is what the CI diff exists to catch. Per project, unless a game
    asks.

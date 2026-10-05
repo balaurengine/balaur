@@ -52,8 +52,8 @@ pub struct Options<'a> {
     pub runtime: Option<PathBuf>,
     /// Produce a macOS `.app` rather than a flat executable.
     pub app: bool,
-    /// Keep script sources in the pack instead of bytecode, for a runtime
-    /// whose pointer width differs from this machine's — the web build.
+    /// Keep script sources in the pack instead of bytecode, for an editor
+    /// that shows the code. Only a runtime with the compiler runs it.
     pub keep_sources: bool,
     /// The identity this target signs with, overriding what `[export]` names:
     /// a certificate name on Apple platforms, a certificate file on Windows.
@@ -135,25 +135,35 @@ pub const TARGETS: [&str; 8] = [
     "web",
 ];
 
+/// What a target may append to name a smaller template: `web-2d`,
+/// `windows-x64-server`. `2d` and `3d` carry one physics world, `server`
+/// (desktops) no window or sound, `threads` (web) a shared memory.
+pub const VARIANTS: [&str; 4] = ["2d", "3d", "server", "threads"];
+
+/// A target and the variant it names, if any: `ios-2d` is `("ios", Some("2d"))`.
+#[must_use]
+pub fn split_variant(target: &str) -> (&str, Option<&str>) {
+    VARIANTS
+        .iter()
+        .find_map(|v| Some((target.strip_suffix(v)?.strip_suffix('-')?, Some(*v))))
+        .unwrap_or((target, None))
+}
+
+/// Whether `target` ships a bundle the pack goes inside, rather than an
+/// executable the pack is appended to.
+#[must_use]
+pub fn ships_bundle(target: &str) -> bool {
+    Bundle::for_target(target).is_some()
+}
+
 /// Whether the runtime for `target` is already on one of `roots`, so
 /// an export sheet can say what it can build now and what it must fetch.
 #[must_use]
 pub fn runtime_installed(target: &str, roots: &[PathBuf]) -> bool {
     Bundle::for_target(target).map_or_else(
         || find_runtime(target, roots).is_ok(),
-        |kind| find_bundle_runtime(kind, roots).is_ok(),
+        |kind| find_bundle_runtime(kind, target, roots).is_ok(),
     )
-}
-
-/// Where a download keeps its data, given the directory its binary is in:
-/// beside the binary, and in `Contents/Resources` when that binary is inside
-/// a `.app`, where a bundle's non-code belongs.
-pub fn data_roots(exe_dir: &Path) -> Vec<PathBuf> {
-    let mut roots = vec![exe_dir.to_path_buf()];
-    if exe_dir.ends_with("Contents/MacOS") {
-        roots.push(exe_dir.with_file_name("Resources"));
-    }
-    roots
 }
 
 /// Where runtimes are looked for: an explicit directory first, then the one
@@ -170,7 +180,11 @@ pub fn default_roots(cache: Option<PathBuf>) -> Vec<PathBuf> {
     if let Ok(exe) = std::env::current_exe()
         && let Some(dir) = exe.parent()
     {
-        roots.extend(data_roots(dir).into_iter().map(|r| r.join("runtimes")));
+        roots.extend(
+            balaur::standalone::data_roots(dir)
+                .into_iter()
+                .map(|r| r.join("runtimes")),
+        );
     }
     if let Some(cache) = cache {
         roots.push(cache);
@@ -216,12 +230,9 @@ fn fold_variants(pack: &mut balaur::Pack, path: &Path, target: Option<&str>) -> 
 /// Write a `.bpak`, or a standalone game when a runtime is in play.
 pub fn export(opts: &Options<'_>) -> Result<()> {
     let target = opts.target.as_deref();
-    let bundle = target.and_then(Bundle::for_target);
-    // The web runtime is 32-bit, so its pack carries sources whatever the
-    // machine exporting it is.
-    let keep_sources = opts.keep_sources || bundle == Some(Bundle::Web);
+    let bundle = target.and_then(|t| Some((Bundle::for_target(t)?, t)));
     let mut extra = opts.plugins.map(|make| make()).unwrap_or_default();
-    let mut pack = balaur::build_pack_using(&opts.path, keep_sources, &mut extra)?;
+    let mut pack = balaur::build_pack_using(&opts.path, opts.keep_sources, &mut extra)?;
     // One read, resolved for the target: `[override.android.export]` is
     // folded onto `[export]` before any of these three is parsed.
     let manifest = config::manifest_for(&opts.path, target)?;
@@ -248,11 +259,11 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     let name = project_name(&opts.path);
     // Mobile and the web ship a bundle, not an executable: the pack goes
     // inside it as a resource rather than onto the end of a binary.
-    if let Some(kind) = bundle {
+    if let Some((kind, target)) = bundle {
         extensions::warn_left_behind(&extensions::in_project(&opts.path), kind.platform());
         let runtime = match opts.runtime.clone() {
             Some(explicit) => explicit,
-            None => find_bundle_runtime(kind, &opts.runtime_roots)?,
+            None => find_bundle_runtime(kind, target, &opts.runtime_roots)?,
         };
         let shell = web_shell(&opts.path)?;
         let output = declared_output(opts, &config, kind.platform(), &bundle_name(kind, &name));
@@ -531,7 +542,38 @@ fn find_runtime(target: &str, roots: &[PathBuf]) -> Result<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Options, Path, PathBuf, find_runtime};
+    use super::{Options, TARGETS, find_runtime, runtime_installed, split_variant};
+
+    #[test]
+    fn a_template_variant_is_found_by_its_own_name() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("balaur-runtime-web-2d")).unwrap();
+        std::fs::create_dir_all(dir.path().join("balaur-runtime-ios-3d/Balaur.app")).unwrap();
+        std::fs::write(
+            dir.path().join("balaur-runtime-linux-x64-server"),
+            b"runtime",
+        )
+        .unwrap();
+        let roots = vec![dir.path().to_path_buf()];
+        assert!(runtime_installed("web-2d", &roots));
+        assert!(runtime_installed("linux-x64-server", &roots));
+        assert!(runtime_installed("ios-3d", &roots));
+        assert!(!runtime_installed("ios", &roots));
+        assert!(!runtime_installed("web", &roots));
+        assert!(!runtime_installed("web-3d", &roots));
+        assert!(!TARGETS.contains(&"web-2d"));
+    }
+
+    #[test]
+    fn a_variant_is_read_off_the_end_of_a_target() {
+        assert_eq!(split_variant("ios-2d"), ("ios", Some("2d")));
+        assert_eq!(
+            split_variant("windows-x64-server"),
+            ("windows-x64", Some("server"))
+        );
+        assert_eq!(split_variant("linux-arm64"), ("linux-arm64", None));
+        assert_eq!(split_variant("web"), ("web", None));
+    }
 
     #[test]
     fn a_runtime_is_found_on_any_root() {
@@ -566,20 +608,5 @@ mod tests {
         assert!(opts.target.is_none());
         assert!(opts.runtime_roots.is_empty());
         assert!(opts.obtain.is_none());
-    }
-
-    #[test]
-    fn a_bundled_binary_also_looks_in_resources() {
-        assert_eq!(
-            super::data_roots(Path::new("/Applications/Balaur.app/Contents/MacOS")),
-            [
-                PathBuf::from("/Applications/Balaur.app/Contents/MacOS"),
-                PathBuf::from("/Applications/Balaur.app/Contents/Resources"),
-            ]
-        );
-        assert_eq!(
-            super::data_roots(Path::new("/opt/balaur")),
-            [PathBuf::from("/opt/balaur")]
-        );
     }
 }

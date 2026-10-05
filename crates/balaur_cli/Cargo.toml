@@ -14,19 +14,43 @@ name = "balaur"
 path = "src/main.rs"
 
 [features]
-default = ["audio", "http", "websocket", "webtransport", "gamend", "multiplayer", "browser", "parallel", "import"]
+default = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket", "webtransport", "gamend", "multiplayer", "browser", "parallel", "physics2d", "physics3d", "import", "compile", "editor"]
 # rapier's solver on rayon. The plain web runtime leaves it off: rayon blocks
 # on `Atomics.wait`, which a browser refuses without shared memory.
 parallel = ["balaur/parallel"]
 # Build with a real window (kiss3d/wgpu). Without it, runs are headless.
 window = ["balaur/window", "dep:rfd"]
+# The 2D physics world: `physics2d.*`, its components and presets. A 3D game
+# can leave it off.
+physics2d = ["balaur/physics2d"]
+# The 3D physics world: `physics3d.*`, its components and presets. A 2D game
+# can leave it off.
+physics3d = ["balaur/physics3d"]
 # Sound. Off, the build drops rodio, cpal and the platform audio stack.
 audio = ["balaur/audio"]
+# FLAC files for `audio`. 0.03 MB of a web build.
+flac = ["balaur/flac"]
+# MP3 files for `audio`. 0.05 MB of a web build.
+mp3 = ["balaur/mp3"]
+# MP4 and AAC files for `audio`. 0.14 MB of a web build.
+mp4 = ["balaur/mp4"]
+# Ogg Vorbis files for `audio`, which `[export] audio_recode = "vorbis"` writes.
+# 0.07 MB of a web build.
+vorbis = ["balaur/vorbis"]
+# WAV files for `audio`. 0.03 MB of a web build.
+wav = ["balaur/wav"]
 # Load extensions from a project's extensions/ directory.
 extensions = ["balaur/extensions"]
 # `balaur import`, `import.*` for the editor and SVGs read in place. The web
 # game runtime leaves it off: a game reads what an import and export wrote.
 import = ["dep:balaur_import", "balaur/svg"]
+# The editor: `edit` and `export`, the `export.*` and `project.*` modules its
+# scripts call, a browser tab's editor entry points, and egui's bundled faces.
+# A game template leaves it off.
+editor = ["dep:balaur_export", "compile", "physics2d", "physics3d", "balaur/fallback-fonts"]
+# The Rune compiler and the WESL shader linker. Off, the build runs only packs
+# exported without `--keep-sources`, drawing with the shaders the export linked.
+compile = ["balaur/compile"]
 # `http.*` for scripts. Off, the build drops ureq and its TLS stack.
 http = ["balaur/http"]
 # `websocket.*` for scripts, and the websocket `Transport`.
@@ -48,7 +72,7 @@ apple = ["balaur/apple"]
 [dependencies]
 balaur = { workspace = true, default-features = false }
 balaur_core.workspace = true
-balaur_export.workspace = true
+balaur_export = { workspace = true, optional = true }
 balaur_plugin.workspace = true
 balaur_script.workspace = true
 # The importers, on every target that asks for them: they are pure Rust and a

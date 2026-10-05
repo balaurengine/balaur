@@ -23,7 +23,7 @@ libloading = { version = "0.9", optional = true }
 
 [dev-dependencies]
 balaur_script.workspace = true
-balaur_script_rune.workspace = true
+balaur_script_rune = { workspace = true, features = ["compile"] }
 tempfile = "3"
 
 [lints]

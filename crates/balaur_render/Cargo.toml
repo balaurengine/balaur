@@ -10,7 +10,11 @@ authors.workspace = true
 balaur_cfg.workspace = true
 
 [features]
-default = []
+default = ["compile"]
+# The WESL linker: a material's shader linked when it loads, and the editor's
+# shader preview. Off, every shader comes from the table an export wrote into
+# the pack (`prelinked`).
+compile = ["dep:wesl"]
 # The windowed kiss3d/wgpu backend. Off by default so headless tools, tests,
 # and servers build without a graphics stack.
 window = ["dep:kiss3d", "dep:pollster", "dep:balaur_text", "dep:balaur_ui", "dep:egui", "dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation", "dep:objc2-ui-kit", "dep:windows-sys", "dep:libloading", "dep:bytemuck"]
@@ -26,10 +30,15 @@ anyhow.workspace = true
 balaur_script.workspace = true
 tracing.workspace = true
 toml.workspace = true
+# The prelinked shader table, deflated in the pack: a host serves a `.bpak` as
+# it is, and the table is mostly repeated WGSL. png links the same crate.
+flate2 = "1"
 # Emitter spread goes through sin/cos; the platform libm differs across
 # operating systems and this one does not.
 libm.workspace = true
-kiss3d = { version = "0.46", optional = true, features = ["egui"] }
+# Balaur draws text with balaur_text, hands egui its fonts and decodes images
+# through balaur_core, so kiss3d's own text, faces and codecs stay out.
+kiss3d = { version = "0.46", optional = true, default-features = false, features = ["egui"] }
 egui = { workspace = true, optional = true }
 bytemuck = { version = "1", features = ["derive"], optional = true }
 pollster = { version = "1", optional = true }
@@ -46,7 +55,7 @@ aseprite-loader = { version = "0.4", optional = true }
 # Not optional: linking a shader is CPU work, and `eval` validates one — and
 # asserts on a `@const` function — before naga and without a GPU, which is what
 # lets a headless test catch a shader that will not link.
-wesl = { version = "0.5", features = ["eval"] }
+wesl = { version = "0.5", features = ["eval"], optional = true }
 
 # A hidden tab gets no animation frames, so the simulation is stepped on a
 # timer there instead; the page's clock and visibility come from web-sys.
@@ -73,7 +82,7 @@ windows-sys = { version = "0.61", features = ["Win32_System_Registry"], optional
 libloading = { version = "0.9", optional = true }
 
 [dev-dependencies]
-balaur.workspace = true
+balaur = { workspace = true, features = ["compile", "physics2d", "physics3d"] }
 tempfile = "3"
 # Validates a linked shader's types without a GPU, as wgpu will at
 # `create_shader_module`; the WESL link checks names alone.

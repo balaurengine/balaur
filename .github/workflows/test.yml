@@ -130,7 +130,8 @@ jobs:
         shell: bash
         run: |
           cargo build -p balaur_cli --no-default-features
-          cargo test -p balaur_core -p balaur_physics --no-default-features
+          cargo test -p balaur_core --no-default-features
+          cargo test -p balaur_physics --no-default-features --features physics2d,physics3d
       # examples/ are Balaur projects, not cargo examples; scripts/e2e.sh says
       # why all five modes are needed. Windows keeps check/run/export/play:
       # render and the editor exit 0x87A under lavapipe, logging nothing.

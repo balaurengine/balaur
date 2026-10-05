@@ -769,11 +769,10 @@ fn args(eng: &Engine, _: &[Value]) -> Result<Value> {
 
 /// A writable per-user directory for saves and settings, created on first
 /// call: `<platform data dir>/balaur/<project name>`, Application Support on
-/// macOS and iOS, AppData on Windows, XDG data on Linux. Platforms with no
-/// such notion (Android today) fall back to `user_data/` inside the project
-/// root so a game always has somewhere to write. The project directory itself
-/// is deliberately not the default: a shipped game may live somewhere
-/// read-only.
+/// macOS and iOS, AppData on Windows, XDG data on Linux, the app's internal
+/// storage on Android. A platform with none falls back to `user_data/` inside
+/// the project root. The project directory itself is deliberately not the
+/// default: a shipped game may live somewhere read-only.
 fn user_data_dir(eng: &Engine, _: &[Value]) -> Result<Value> {
     let dir = user_data_dir_of(eng);
     crate::files::backend(eng).mkdir(&dir)?;
@@ -800,6 +799,16 @@ pub const EDITOR_NAME: &str = "balaur-editor";
 /// directory.
 const GAMES_DIR: &str = "balaur";
 
+/// The data directory an entry point names where `dirs` finds none: an Android
+/// app has no `HOME`, only the internal storage its activity reports.
+static PLATFORM_DATA_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+
+/// Name the platform data directory before the app boots, in place of the one
+/// `dirs` would find. The first call wins.
+pub fn set_platform_data_dir(dir: std::path::PathBuf) {
+    let _ = PLATFORM_DATA_DIR.set(dir);
+}
+
 /// The user data directory a project named `name` has, made or not:
 /// `<data>/balaur/<name>` for a game and `<data>/balaur-editor` for the editor.
 pub fn user_data_dir_named(eng: &Engine, name: &str) -> std::path::PathBuf {
@@ -815,7 +824,7 @@ pub fn user_data_dir_named(eng: &Engine, name: &str) -> std::path::PathBuf {
             }
         })
         .collect();
-    match dirs::data_dir() {
+    match PLATFORM_DATA_DIR.get().cloned().or_else(dirs::data_dir) {
         Some(dir) if name == EDITOR_NAME => dir.join(EDITOR_NAME),
         Some(dir) => dir.join(GAMES_DIR).join(name),
         None => eng

@@ -128,7 +128,10 @@ fn targets() -> Value {
             let installed = balaur_export::runtime_installed(name, &roots);
             Value::Map(vec![
                 ("name".into(), Value::Str((*name).into())),
-                ("bundle".into(), Value::Bool(is_bundle(name))),
+                (
+                    "bundle".into(),
+                    Value::Bool(balaur_export::ships_bundle(name)),
+                ),
                 ("installed".into(), Value::Bool(installed)),
                 (
                     "fetchable".into(),
@@ -139,10 +142,6 @@ fn targets() -> Value {
         })
         .collect();
     Value::List(rows)
-}
-
-const fn is_bundle(target: &str) -> bool {
-    matches!(target.as_bytes(), b"ios" | b"android" | b"web")
 }
 
 /// What a signed or installable build of this target needs beyond the export

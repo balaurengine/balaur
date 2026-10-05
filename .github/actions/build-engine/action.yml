@@ -39,10 +39,12 @@ inputs:
     default: "false"
   variant:
     description: >-
-      Names a second build of the same platform, so several can be uploaded
-      side by side: `2d`, `server` or `threads` become
-      `balaur-runtime-web-2d` and so on. Empty is the platform's own build,
-      the one a release ships.
+      Names a second template of the same target or platform, uploaded beside
+      its own: `2d` and `3d` keep one physics world, `server` (a desktop
+      target) has no window or sound, `threads` (web) a shared memory. A
+      desktop variant builds no editor, and exports a game with the editor
+      binary `BALAUR_EXPORTER` names to prove it runs. Empty is the
+      platform's own build.
     required: false
     default: ""
   build-deps:
@@ -72,10 +74,12 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        if [ -n '${{ inputs.target }}' ]; then
+        variant='${{ inputs.variant }}'
+        if [ -n '${{ inputs.target }}' ] && [ -n "$variant" ]; then
+          echo "artifact=balaur-runtime-${{ inputs.target }}-$variant" >>"$GITHUB_OUTPUT"
+        elif [ -n '${{ inputs.target }}' ]; then
           echo 'artifact=balaur-${{ inputs.target }}' >>"$GITHUB_OUTPUT"
         elif [ -n '${{ inputs.platform }}' ]; then
-          variant='${{ inputs.variant }}'
           echo "artifact=balaur-runtime-${{ inputs.platform }}${variant:+-$variant}" >>"$GITHUB_OUTPUT"
         else
           echo '::error::build-engine needs either a target or a platform'
@@ -170,7 +174,7 @@ runs:
         BALAUR_FEATURES: ${{ inputs.features }}
         WEB_FEATURES: ${{ inputs.web-features }}
         WEB_THREADS: ${{ inputs.threads == 'true' && '1' || '' }}
-        WEB_VARIANT: ${{ inputs.variant }}
+        VARIANT: ${{ inputs.variant }}
       run: |
         set -euo pipefail
         if [ -n '${{ inputs.target }}' ]; then

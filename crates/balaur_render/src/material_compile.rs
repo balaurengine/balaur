@@ -1,12 +1,17 @@
 //! Linking a material's shader and laying its values out: the `Params`
 //! fields a linked shader declares, and the uniform bytes a material packs.
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Result, bail};
+#[cfg(feature = "compile")]
+use anyhow::anyhow;
+#[cfg(feature = "compile")]
 use wesl::syntax::{Attribute, GlobalDeclaration, Ident, TranslationUnit};
 
 use crate::material::{Material3d, Param};
+use crate::prelinked::Linked;
 
 /// The struct a shader declares to take a material's values.
+#[cfg(feature = "compile")]
 const PARAMS_STRUCT: &str = "Params";
 
 /// A uniform buffer's size is a multiple of this, whatever the struct holds.
@@ -33,7 +38,7 @@ impl FieldType {
         }
     }
 
-    fn name(self) -> &'static str {
+    pub(crate) fn name(self) -> &'static str {
         match self {
             FieldType::F32 => "f32",
             FieldType::Vec2 => "vec2<f32>",
@@ -42,8 +47,16 @@ impl FieldType {
         }
     }
 
+    /// The type [`Self::name`] wrote.
+    pub(crate) fn named(name: &str) -> Option<Self> {
+        [Self::F32, Self::Vec2, Self::Vec3, Self::Vec4]
+            .into_iter()
+            .find(|ty| ty.name() == name)
+    }
+
     /// The type a WGSL type expression names, or `None` for one a material
     /// cannot write.
+    #[cfg(feature = "compile")]
     fn parse(ty: &wesl::syntax::TypeExpression) -> Option<Self> {
         let arg_is_f32 = || match &ty.template_args {
             Some(args) if args.len() == 1 => args[0].expression.to_string() == "f32",
@@ -75,6 +88,7 @@ pub struct Field {
 ///
 /// Empty for a shader with no `Params` — most shaders — which is not an
 /// error: a material may exist only to pick a variant.
+#[cfg(feature = "compile")]
 pub fn fields(linked: &TranslationUnit) -> Result<Vec<Field>> {
     let Some(declaration) = linked
         .global_declarations
@@ -177,16 +191,19 @@ pub struct Compiled {
 }
 
 /// The entry point every material's colour pass draws through.
+#[cfg(feature = "compile")]
 const FRAGMENT_ENTRY: &str = "fs_main";
 
 /// The entry point the transparency pass draws a 3D material through.
 pub const TRANSPARENT_ENTRY: &str = "fs_oit";
 
 /// What a material's own `fs_main` is renamed to once both entry points call it.
+#[cfg(feature = "compile")]
 const FRAGMENT_BODY: &str = "balaur_fragment";
 
 /// The contract's fragment input, which carries the position the
 /// transparency pass weighs a fragment's depth by.
+#[cfg(feature = "compile")]
 const SURFACE_INPUT: &str = "VertexOutput";
 
 /// `source` with [`TRANSPARENT_ENTRY`] beside `fs_main`, linked to WGSL: it
@@ -198,6 +215,25 @@ const SURFACE_INPUT: &str = "VertexOutput";
 /// pass instead.
 #[must_use]
 pub fn transparent_variant(
+    material: &Material3d,
+    source: &str,
+    plugin_modules: &[(String, String)],
+    morph: bool,
+) -> Option<String> {
+    let key = material_key("transparent", material, source, plugin_modules, morph);
+    crate::prelinked::cached_optional(key, || {
+        link_transparent(material, source, plugin_modules, morph).map(Linked::wgsl)
+    })
+    .map(|linked| linked.wgsl)
+}
+
+#[cfg(not(feature = "compile"))]
+fn link_transparent(_: &Material3d, _: &str, _: &[(String, String)], _: bool) -> Option<String> {
+    None
+}
+
+#[cfg(feature = "compile")]
+fn link_transparent(
     material: &Material3d,
     source: &str,
     plugin_modules: &[(String, String)],
@@ -255,7 +291,7 @@ pub fn transparent_variant(
          @fragment fn {TRANSPARENT_ENTRY}({entry_parameters}) -> package::mesh::OitOutput {{\n    \
          return package::mesh::oit_output({FRAGMENT_BODY}({arguments}), {input});\n}}\n"
     );
-    compile_on(material, &wrapped, plugin_modules, morph)
+    link_material(material, &wrapped, plugin_modules, morph)
         .inspect_err(|why| {
             tracing::debug!(
                 shader = material.shader,
@@ -263,7 +299,7 @@ pub fn transparent_variant(
             );
         })
         .ok()
-        .map(|compiled| compiled.wgsl)
+        .map(|linked| linked.wgsl)
 }
 
 /// Link `material`'s shader and pack its values against what it declares.
@@ -293,40 +329,87 @@ pub fn compile_on(
     plugin_modules: &[(String, String)],
     morph: bool,
 ) -> Result<Compiled> {
-    let features: Vec<(&str, bool)> = material
+    let key = material_key("material", material, source, plugin_modules, morph);
+    let linked = crate::prelinked::cached(key, || {
+        link_material(material, source, plugin_modules, morph)
+    })?;
+    let params = pack(&linked.fields, &material.params)?;
+    Ok(Compiled {
+        wgsl: linked.wgsl,
+        fields: linked.fields,
+        params,
+        probes: linked.probes,
+        vertex_color: material.reads_vertex_color(),
+        instance_custom: material.reads_instance_custom(),
+        transparent_wgsl: None,
+        morph,
+    })
+}
+
+/// The root module a material's own shader is linked as.
+const MATERIAL_ROOT: &str = "package::material";
+
+/// The `@if` flags `material` links with on a device that does or does not
+/// morph.
+fn features(material: &Material3d, morph: bool) -> Vec<(&str, bool)> {
+    material
         .features
         .iter()
         .filter(|(name, _)| name != crate::shaders::MORPH)
         .map(|(name, on)| (name.as_str(), *on))
         .chain(std::iter::once((crate::shaders::MORPH, morph)))
-        .collect();
+        .collect()
+}
+
+/// What [`crate::prelinked`] keeps a material's link under.
+fn material_key(
+    kind: &str,
+    material: &Material3d,
+    source: &str,
+    plugin_modules: &[(String, String)],
+    morph: bool,
+) -> u64 {
     let mut modules: Vec<(&str, &str)> = plugin_modules
         .iter()
         .map(|(path, source)| (path.as_str(), source.as_str()))
         .collect();
-    let root = "package::material";
+    modules.push((MATERIAL_ROOT, source));
+    crate::prelinked::key(kind, &modules, MATERIAL_ROOT, &features(material, morph))
+}
+
+#[cfg(not(feature = "compile"))]
+fn link_material(_: &Material3d, _: &str, _: &[(String, String)], _: bool) -> Result<Linked> {
+    bail!("this build has no shader linker")
+}
+
+#[cfg(feature = "compile")]
+fn link_material(
+    material: &Material3d,
+    source: &str,
+    plugin_modules: &[(String, String)],
+    morph: bool,
+) -> Result<Linked> {
+    let mut modules: Vec<(&str, &str)> = plugin_modules
+        .iter()
+        .map(|(path, source)| (path.as_str(), source.as_str()))
+        .collect();
     // WESL spans name the module they came from, and the module is a name
     // this function invented; the author only ever saw the file, so that is
     // what the error has to point at.
-    modules.push((root, source));
-    let linked = crate::shaders::link(&modules, root, &features)
-        .map_err(|why| anyhow!("{}", format!("{why:#}").replace(root, &material.shader)))?;
+    modules.push((MATERIAL_ROOT, source));
+    let linked = crate::shaders::link(&modules, MATERIAL_ROOT, &features(material, morph)).map_err(
+        |why| anyhow!("{}", format!("{why:#}").replace(MATERIAL_ROOT, &material.shader)),
+    )?;
     let fields = fields(&linked.syntax)?;
-    let params = pack(&fields, &material.params)?;
     // Read off the linked output rather than threaded down from whoever
     // rewrote it: the binding either survived stripping or it did not.
     let probes = linked.syntax.global_declarations.iter().any(|d| {
         matches!(d.node(), GlobalDeclaration::Declaration(v)
             if v.ident.name().as_str() == "balaur_probe")
     });
-    Ok(Compiled {
+    Ok(Linked {
         wgsl: crate::shaders::wgsl(&linked)?,
         fields,
-        params,
         probes,
-        vertex_color: material.reads_vertex_color(),
-        instance_custom: material.reads_instance_custom(),
-        transparent_wgsl: None,
-        morph,
     })
 }

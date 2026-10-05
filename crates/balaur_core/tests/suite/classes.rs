@@ -92,6 +92,15 @@ fn an_export_target_claims_an_input_class_only_where_it_knows_one() {
     assert!(!web.has(TOUCH) && !web.has(POINTER));
 }
 
+#[test]
+fn a_template_variant_takes_its_platform_s_tags() {
+    assert_eq!(
+        Tags::for_target("linux-x64-server").0,
+        Tags::for_target("linux-x64").0
+    );
+    assert_eq!(Tags::for_target("web-2d").0, Tags::for_target("web").0);
+}
+
 /// The whole point of the input class being a tag: a session recorded on a
 /// phone replays as a phone, on a desktop that has no touch screen at all.
 #[test]

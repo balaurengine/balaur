@@ -887,6 +887,28 @@ def check_themes() -> list[Finding]:
     return out
 
 
+FEATURE_SETS = ROOT / "scripts" / "features.sh"
+ANDROID_MANIFEST = ROOT / "crates" / "balaur_android" / "Cargo.toml"
+
+
+def check_template_features() -> list[Finding]:
+    """package_runtime.sh builds the Android template from GAME_FEATURES; the
+    crate's default mirrors it so a plain `cargo build` is that template."""
+    import tomllib
+    game = re.search(r"^GAME_FEATURES=([a-z0-9_,]+)$", FEATURE_SETS.read_text(), re.M)
+    text = ANDROID_MANIFEST.read_text()
+    default = tomllib.loads(text).get("features", {}).get("default", [])
+    want = set(game.group(1).split(",")) if game else set()
+    if want == set(default):
+        return []
+    line = next((i + 1 for i, l in enumerate(text.splitlines()) if l.startswith("default =")), 1)
+    missing = ", ".join(sorted(want - set(default))) or "nothing"
+    extra = ", ".join(sorted(set(default) - want)) or "nothing"
+    return [Finding(ANDROID_MANIFEST, line, "template-features",
+                    f"default is not scripts/features.sh's GAME_FEATURES: lacks {missing}, "
+                    f"adds {extra}", "ERROR")]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--fail-on-error", action="store_true")
@@ -906,6 +928,7 @@ def main() -> int:
     findings.extend(check_showcase())
     findings.extend(check_setting_units(files))
     findings.extend(check_themes())
+    findings.extend(check_template_features())
 
     errors = [f for f in findings if f.severity == "ERROR"]
     reports = [f for f in findings if f.severity == "REPORT"]

@@ -89,6 +89,9 @@ notes=$(
 - `balaur-editor-<platform>` — the editor, as an archive
 - `balaur-runtime-<platform>` — one desktop runtime
 - `balaur-runtime-ios` / `-android` / `-web.tar.gz` — mobile and web runtimes
+- `balaur-runtime-<target>-2d` / `-3d` — every runtime with one physics world
+- `balaur-runtime-<desktop>-server` — a headless dedicated-server runtime per desktop
+- `balaur-runtime-web-threads` / `-web-editor.tar.gz` — the shared-memory and editor modules
 - `balaur-example-debug.apk` — an example game, debug-signed
 - `balaur_bg.wasm` / `balaur.js` — the web runtime, loose
 - `balaur-play.tar.gz` — the web runtime with the editor and the examples

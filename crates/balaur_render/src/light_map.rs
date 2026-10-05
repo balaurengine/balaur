@@ -155,13 +155,7 @@ fn build_node(scene: Rc<RefCell<LightScene>>) -> SceneNode2d {
 }
 
 fn linked_shader() -> String {
-    shaders::link(
-        &[("package::light2d", shaders::LIGHT_2D)],
-        "package::light2d",
-        &[],
-    )
-    .and_then(|linked| shaders::wgsl(&linked))
-    .expect("the engine's own shader must link")
+    shaders::light_2d().expect("the engine's own shader must link")
 }
 
 /// The offscreen target and the stencil it is masked with, rebuilt whenever

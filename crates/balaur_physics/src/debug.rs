@@ -522,6 +522,7 @@ fn draw_system(eng: &Engine, _dt: f32) {
     debug.pipeline.mode = config.mode;
     debug.pipeline_2d.mode =
         crate::rapier2d::pipeline::DebugRenderMode::from_bits_truncate(config.mode.bits());
+    #[cfg(feature = "physics3d")]
     if let Some(buffer) = eng.try_resource::<DebugLineBuffer3d>() {
         let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
@@ -534,6 +535,7 @@ fn draw_system(eng: &Engine, _dt: f32) {
             },
         );
     }
+    #[cfg(feature = "physics2d")]
     if let Some(buffer) = eng.try_resource::<DebugLineBuffer2d>() {
         let state = eng.resource::<PhysicsState2d>();
         let state = state.borrow();

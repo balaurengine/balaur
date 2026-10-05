@@ -34,6 +34,7 @@ over the rollback session that already exists.
 | A recording that carries the bytes the peers delivered, with the link each came on | `PeerTraffic`, the `multiplayer` replay source |
 | A websocket client and listener; a QUIC client and listener, native only | `balaur_websocket::listener`, `balaur_webtransport` (`bind`, `accept`) |
 | Ids minted at run time that survive a rollback, and script fields holding a node that survive it too | `ids::mint`; nodes in a script's saved fields travel by stable id |
+| A headless template per desktop to export a server onto: no window, sound or compiler | `balaur export --target linux-x64-server`, `VARIANT=server scripts/package.sh` |
 
 Missing:
 

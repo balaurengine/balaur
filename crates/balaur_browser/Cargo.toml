@@ -32,7 +32,7 @@ web-sys = { version = "0.3.106", features = [
 ] }
 
 [dev-dependencies]
-balaur = { workspace = true, features = ["browser"] }
+balaur = { workspace = true, features = ["browser", "compile", "physics2d", "physics3d"] }
 tempfile = "3"
 
 [lints]

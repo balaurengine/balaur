@@ -9,7 +9,7 @@ publish = false
 
 [dependencies]
 tempfile = "3"
-balaur.workspace = true
+balaur = { workspace = true, features = ["compile", "physics2d", "physics3d"] }
 balaur_core.workspace = true
 
 [lints]

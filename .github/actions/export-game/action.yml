@@ -11,8 +11,10 @@ inputs:
   targets:
     description: >-
       Space-separated targets to export, e.g.
-      "linux-x64 windows-x64 macos-universal web". macOS and iOS need a macOS
-      runner; an installable APK needs the Android SDK.
+      "linux-x64 windows-x64 macos-universal web". A `-2d` or `-3d` suffix on
+      any target, or `-server` on a desktop, exports onto a smaller template.
+      macOS and iOS need a macOS runner; an installable APK needs the Android
+      SDK.
     required: false
     default: linux-x64
   output:

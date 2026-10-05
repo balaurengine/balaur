@@ -2,16 +2,19 @@
 //!
 //! Shaders are written in WESL — WGSL plus imports, `@if` variants and dead
 //! code elimination — and linked to plain WGSL before a backend compiles
-//! them. Linking happens at run time rather than in `build.rs` so that the
-//! engine's own shaders and a project's take one path, and here rather than
-//! behind the `kiss3d` feature because linking needs no GPU: a shader that
-//! does not link is a bug a headless test can catch.
+//! them. Linking happens at run time so that the engine's own shaders and a
+//! project's take one path, and needs no GPU: a shader that does not link is
+//! a bug a headless test can catch. A build without `compile` links nothing
+//! and reads what an export linked (`crate::prelinked`).
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
+#[cfg(feature = "compile")]
+use anyhow::anyhow;
 use balaur_core::Engine;
 use balaur_plugin::Registry;
 
 /// Helpers any shader may `import package::common::…`.
+#[cfg(feature = "compile")]
 static COMMON: &str = include_str!("shaders/common.wesl");
 
 /// The 2D skinning material's shader.
@@ -27,19 +30,22 @@ pub static LIGHT_2D: &str = include_str!("shaders/light2d.wesl");
 /// The contract a project's 2D material shader draws against, mounted as
 /// `package::sprite`: the uniforms the pipeline binds and the vertex work
 /// every such shader would otherwise repeat.
+#[cfg(feature = "compile")]
 pub(crate) static SPRITE: &str = include_str!("shaders/sprite.wesl");
 
 /// What draws a 2D text block that has an `alpha_cutoff`, written against
 /// [`SPRITE`] like any project's material.
-#[cfg(any(feature = "window", test))]
+#[cfg(any(feature = "window", feature = "compile"))]
 pub(crate) static TEXT_MASK: &str = include_str!("shaders/text_mask.wesl");
 
 /// The 3D counterpart, mounted as `package::mesh`: the same uniforms in three
 /// dimensions, plus the scene's lights and fog.
+#[cfg(feature = "compile")]
 pub(crate) static MESH: &str = include_str!("shaders/mesh.wesl");
 
 /// The physically based surface, mounted as `package::pbr`: a material
 /// importing it shades with GGX over the same lights `package::mesh` collects.
+#[cfg(feature = "compile")]
 pub(crate) static PBR: &str = include_str!("shaders/pbr.wesl");
 
 /// The geometry pass every 3D material draws before its colour one. The
@@ -50,15 +56,78 @@ pub static PREPASS: &str = include_str!("shaders/prepass.wesl");
 /// colour — the one thing that changes its vertex attributes — on a device
 /// that does or does not morph.
 pub fn link_prepass(vertex_color: bool, morph: bool) -> Result<String> {
-    let linked = link(
+    engine_shader(
         &[("package::prepass", PREPASS)],
         "package::prepass",
         &[
             (crate::material::VERTEX_COLOR, vertex_color),
             (MORPH, morph),
         ],
-    )?;
-    wgsl(&linked)
+    )
+}
+
+/// The 2D light map's shader, linked.
+///
+/// # Errors
+/// If the engine's own shader does not link, or the pack's table lacks it.
+pub fn light_2d() -> Result<String> {
+    engine_shader(&[("package::light2d", LIGHT_2D)], "package::light2d", &[])
+}
+
+/// The 2D skinning shader, linked.
+///
+/// # Errors
+/// As [`light_2d`].
+pub fn skinned_2d() -> Result<String> {
+    engine_shader(&[("package::skinned_2d", SKINNED_2D)], "package::skinned_2d", &[])
+}
+
+/// The 3D skinning shader on a device that does or does not morph, linked.
+///
+/// # Errors
+/// As [`light_2d`].
+pub fn skinned_3d(morph: bool) -> Result<String> {
+    engine_shader(
+        &[("package::skinned_3d", SKINNED_3D)],
+        "package::skinned_3d",
+        &[(MORPH, morph)],
+    )
+}
+
+/// The debug view of one of [`CHANNELS`], from [`CHANNEL`] or [`CHANNEL_2D`].
+///
+/// # Errors
+/// As [`light_2d`].
+pub fn channel(shader: &str, channel: &str) -> Result<String> {
+    let features: Vec<(&str, bool)> = CHANNELS.iter().map(|c| (*c, *c == channel)).collect();
+    engine_shader(&[("package::channel", shader)], "package::channel", &features)
+}
+
+/// One of the engine's own shaders as WGSL: linked here, or read from the
+/// pack's table in a build with no linker.
+///
+/// # Errors
+/// If it does not link, or the table holds no link of it.
+pub fn engine_shader(
+    modules: &[(&str, &str)],
+    root: &str,
+    features: &[(&str, bool)],
+) -> Result<String> {
+    let key = crate::prelinked::key("engine", modules, root, features);
+    crate::prelinked::cached(key, || {
+        link_wgsl(modules, root, features).map(crate::prelinked::Linked::wgsl)
+    })
+    .map(|linked| linked.wgsl)
+}
+
+#[cfg(not(feature = "compile"))]
+fn link_wgsl(_: &[(&str, &str)], _: &str, _: &[(&str, bool)]) -> Result<String> {
+    anyhow::bail!("this build has no shader linker")
+}
+
+#[cfg(feature = "compile")]
+fn link_wgsl(modules: &[(&str, &str)], root: &str, features: &[(&str, bool)]) -> Result<String> {
+    wgsl(&link(modules, root, features)?)
 }
 
 /// What a channel view draws: one entry point per channel, chosen by feature.
@@ -79,21 +148,27 @@ pub static CHANNEL_2D: &str = include_str!("shaders/channel2d.wesl");
 pub const CHANNELS: &[&str] = &["albedo", "normals", "uv", "depth"];
 
 /// The most lights one frame sends a 3D material.
+#[cfg(any(feature = "window", feature = "compile"))]
 pub(crate) const MAX_LIGHTS: usize = 16;
 
 /// The most reflection probes one frame sends, the fork's own cap.
+#[cfg(any(feature = "window", feature = "compile"))]
 pub(crate) const MAX_PROBES: usize = 8;
 
 /// The most bones one skinned mesh or polygon may name. 128 `mat4` is 8 KB,
 /// which keeps a palette inside the 16 KB uniform every adapter guarantees.
+#[cfg(any(feature = "window", feature = "compile"))]
 pub(crate) const MAX_JOINTS: usize = 128;
 
 /// The fork's shadow uniform sizes: `MAX_SHADOW_VIEWS` atlas views, and one
 /// row per primary light plus one per view for the lights past them.
+#[cfg(any(feature = "window", feature = "compile"))]
 pub(crate) const MAX_SHADOW_VIEWS: usize = 64;
+#[cfg(any(feature = "window", feature = "compile"))]
 pub(crate) const MAX_SHADOW_LIGHTS: usize = 8 + MAX_SHADOW_VIEWS;
 
 /// The fork's `MAX_MORPH_TARGETS` weights, four to a row.
+#[cfg(feature = "compile")]
 pub(crate) const MAX_MORPH_WEIGHT_ROWS: usize = 256 / 4;
 
 /// The feature `package::mesh` declares its morph bindings under. The engine
@@ -102,6 +177,7 @@ pub(crate) const MORPH: &str = "morph";
 
 /// The limits above as WESL's `constants` module, so a shader sizes its arrays
 /// with `import constants::MAX_LIGHTS` from the same number the buffer uses.
+#[cfg(feature = "compile")]
 fn constants_module() -> String {
     use std::fmt::Write as _;
     let limits = [
@@ -242,6 +318,7 @@ pub fn plugin_modules(eng: &Engine) -> Vec<(String, String)> {
 /// Errors name the line the author wrote rather than the linked output's, so
 /// a project's shader can say where it broke. The result carries the syntax
 /// tree as well as the text, which is what `material` reads its fields from.
+#[cfg(feature = "compile")]
 pub fn link(
     modules: &[(&str, &str)],
     root: &str,
@@ -292,6 +369,7 @@ pub fn link(
 ///
 /// # Errors
 /// If a constant expression does not evaluate.
+#[cfg(feature = "compile")]
 pub fn wgsl(linked: &wesl::CompileResult) -> Result<String> {
     let mut unit = linked.syntax.clone();
     wesl::pass::lower(&mut unit).map_err(|e| anyhow!("lowering the linked shader: {e}"))?;
@@ -303,6 +381,7 @@ pub fn wgsl(linked: &wesl::CompileResult) -> Result<String> {
 /// The functions it may call are the ones the shader marks `@const`, so a
 /// shader helper is testable the way a Rust function is — no GPU, which is
 /// the only kind of test this project's CI can run.
+#[cfg(feature = "compile")]
 pub fn eval_floats(linked: &wesl::CompileResult, expression: &str) -> Result<Vec<f32>> {
     let mut result = linked
         .eval(expression)
@@ -318,7 +397,7 @@ pub fn eval_floats(linked: &wesl::CompileResult, expression: &str) -> Result<Vec
         .collect())
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "compile"))]
 mod tests {
     use super::*;
 

@@ -21,6 +21,7 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Result, anyhow, bail};
+#[cfg(feature = "compile")]
 use rune::Source;
 use rune::runtime::{Logic, Unit};
 
@@ -197,10 +198,12 @@ fn collect_scripts(root: &Path, dir: &Path, out: &mut Vec<String>) {
 
 /// `mod name;` in a packed script: `name.rn` or `name/mod.rn` beside the
 /// requesting file, looked up in the pack.
+#[cfg(feature = "compile")]
 pub(crate) struct PackSourceLoader {
     pub(crate) scripts: std::collections::BTreeMap<String, Vec<u8>>,
 }
 
+#[cfg(feature = "compile")]
 impl rune::compile::SourceLoader for PackSourceLoader {
     fn load(
         &mut self,

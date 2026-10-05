@@ -36,7 +36,7 @@ web-sys = { version = "0.3.106", features = [
 [dev-dependencies]
 balaur_testkit.workspace = true
 tempfile = "3"
-balaur = { workspace = true, features = ["http"] }
+balaur = { workspace = true, features = ["http", "compile", "physics2d", "physics3d"] }
 balaur_plugin.workspace = true
 
 [lints]

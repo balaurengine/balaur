@@ -181,6 +181,18 @@ pub fn extensions_beside(exe: &Path) -> PathBuf {
     )
 }
 
+/// Where a download keeps its data, given the directory its binary is in:
+/// beside the binary, and in `Contents/Resources` when that binary is inside
+/// a `.app`, where a bundle's non-code belongs.
+#[must_use]
+pub fn data_roots(exe_dir: &Path) -> Vec<PathBuf> {
+    let mut roots = vec![exe_dir.to_path_buf()];
+    if exe_dir.ends_with("Contents/MacOS") {
+        roots.push(exe_dir.with_file_name("Resources"));
+    }
+    roots
+}
+
 /// `own_pack`, against a named file — the same logic a test can drive.
 pub fn extract_from(exe: &Path) -> Result<Option<Vec<u8>>> {
     // Read once and slice: a game pack is a handful of megabytes, and the
@@ -210,4 +222,24 @@ pub fn write_executable(path: &Path, bytes: &[u8], template: &Path) -> Result<()
     #[cfg(not(unix))]
     let _ = template;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_bundled_binary_also_looks_in_resources() {
+        assert_eq!(
+            data_roots(Path::new("/Applications/Balaur.app/Contents/MacOS")),
+            [
+                PathBuf::from("/Applications/Balaur.app/Contents/MacOS"),
+                PathBuf::from("/Applications/Balaur.app/Contents/Resources"),
+            ]
+        );
+        assert_eq!(
+            data_roots(Path::new("/opt/balaur")),
+            [PathBuf::from("/opt/balaur")]
+        );
+    }
 }

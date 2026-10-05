@@ -14,6 +14,26 @@ name = "main"
 crate-type = ["cdylib"]
 path = "src/lib.rs"
 
+# scripts/package_runtime.sh builds the template from scripts/features.sh's
+# GAME_FEATURES; the default mirrors it, so a plain build is the template.
+[features]
+default = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket", "webtransport", "gamend", "multiplayer", "browser", "physics2d", "physics3d"]
+audio = ["balaur/audio"]
+flac = ["balaur/flac"]
+mp3 = ["balaur/mp3"]
+mp4 = ["balaur/mp4"]
+vorbis = ["balaur/vorbis"]
+wav = ["balaur/wav"]
+http = ["balaur/http"]
+websocket = ["balaur/websocket"]
+webtransport = ["balaur/webtransport"]
+gamend = ["balaur/gamend"]
+multiplayer = ["balaur/multiplayer"]
+browser = ["balaur/browser"]
+# Each physics world; a `2d` or `3d` template keeps one.
+physics2d = ["balaur/physics2d"]
+physics3d = ["balaur/physics3d"]
+
 # Target-gated: as plain dependencies these would switch the window feature
 # on for every workspace build. Off Android this crate compiles to nothing.
 [target.'cfg(target_os = "android")'.dependencies]

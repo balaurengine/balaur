@@ -14,6 +14,7 @@
 
 mod api;
 mod bindings;
+#[cfg(feature = "compile")]
 mod cache;
 mod context;
 mod debugger;
@@ -49,12 +50,17 @@ use rustc_hash::FxHashMap;
 
 use rune::alloc::clone::TryClone as _;
 use rune::runtime::{Function, RuntimeContext, Unit, VmExecution};
-use rune::{Diagnostics, Source, Sources, Vm};
+#[cfg(feature = "compile")]
+use rune::{Diagnostics, Source};
+use rune::{Sources, Vm};
 
 pub use api::{api_json, rune_of};
 pub use bindings::{ApiEntry, RuneModule};
 pub use inspect::Finding;
-use inspect::{public_functions, render};
+use inspect::public_functions;
+#[cfg(feature = "compile")]
+use inspect::render;
+#[cfg(feature = "compile")]
 use packed::PackSourceLoader;
 pub use profile::ScriptCost;
 use shared::{SHARED_FNS, trampoline};
@@ -337,8 +343,17 @@ impl RuneHost {
         Ok(String::from_utf8(bytes)?)
     }
 
+    #[cfg(not(feature = "compile"))]
+    #[allow(clippy::unused_self, reason = "the compiling build reads the host")]
+    fn compile_unit(&self, key: &str, _: &str, _: Purpose) -> Result<(Arc<Unit>, Sources)> {
+        Err(anyhow!(
+            "{key}: this build runs compiled scripts and has no compiler; export the game without `--keep-sources`"
+        ))
+    }
+
     /// The source carries its on-disk path so `mod name;` finds `name.rn`
     /// beside it.
+    #[cfg(feature = "compile")]
     fn compile_unit(
         &self,
         key: &str,
@@ -400,19 +415,7 @@ impl RuneHost {
             script
         } else {
             let source = self.source_of(key)?;
-            // Filed under the outcome, so `--timings` says which of the two
-            // a boot paid for rather than how long it spent asking.
-            let cached = balaur_core::timings::boot_hit("scripts/cached", || {
-                cache::load(self, key, &source)
-            });
-            let (unit, sources) = match cached {
-                Some(hit) => (Arc::new(hit.unit), hit.sources),
-                None => balaur_core::timings::boot("scripts/compiled", || {
-                    let (unit, sources) = self.compile_unit(key, &source, Purpose::Dev)?;
-                    cache::store(self, key, &source, &unit, &sources);
-                    Ok::<_, anyhow::Error>((unit, sources))
-                })?,
-            };
+            let (unit, sources) = self.cached_or_compiled(key, &source)?;
             let deps = self.source_keys(&sources);
             Script::new(Rc::from(key), unit, source, sources, deps)
         };
@@ -423,6 +426,28 @@ impl RuneHost {
             .insert(key.to_string(), script);
         self.apply_breakpoints(key);
         Ok(unit)
+    }
+
+    /// `source`'s unit from the cache, or compiled and then cached.
+    #[cfg(feature = "compile")]
+    fn cached_or_compiled(&self, key: &str, source: &str) -> Result<(Arc<Unit>, Sources)> {
+        // Filed under the outcome, so `--timings` says which of the two a
+        // boot paid for rather than how long it spent asking.
+        let cached =
+            balaur_core::timings::boot_hit("scripts/cached", || cache::load(self, key, source));
+        match cached {
+            Some(hit) => Ok((Arc::new(hit.unit), hit.sources)),
+            None => balaur_core::timings::boot("scripts/compiled", || {
+                let (unit, sources) = self.compile_unit(key, source, Purpose::Dev)?;
+                cache::store(self, key, source, &unit, &sources);
+                Ok((unit, sources))
+            }),
+        }
+    }
+
+    #[cfg(not(feature = "compile"))]
+    fn cached_or_compiled(&self, key: &str, source: &str) -> Result<(Arc<Unit>, Sources)> {
+        self.compile_unit(key, source, Purpose::Dev)
     }
 
     /// A pack's compiled script, or `None` when this run has no pack or the
@@ -742,6 +767,7 @@ impl RuneHost {
             return Ok(());
         }
         let (unit, sources) = self.compile_unit(key, &source, Purpose::Dev)?;
+        #[cfg(feature = "compile")]
         cache::store(self, key, &source, &unit, &sources);
         let deps = self.source_keys(&sources);
         let paused = {

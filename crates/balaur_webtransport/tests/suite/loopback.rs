@@ -202,6 +202,20 @@ fn a_dropped_server_keeps_its_links_and_refuses_new_ones() {
 }
 
 #[test]
+fn a_link_trusting_the_system_roots_refuses_a_self_signed_server() {
+    let host = app();
+    let guest = app();
+    let server = WebTransportServer::bind(&host.engine, "127.0.0.1:0").unwrap();
+    let mut client =
+        WebTransportLink::connect(&guest.engine, &server.url(), Accept::SystemRoots).unwrap();
+    let state = wait_state(&mut client, |state| *state != LinkState::Connecting);
+    let LinkState::Closed(reason) = state else {
+        panic!("a certificate no authority signed is not trusted: {state:?}");
+    };
+    assert!(reason.contains("UnknownIssuer"), "{reason}");
+}
+
+#[test]
 fn a_dropped_link_ends_the_other_side() {
     let (_server, mut peer, client) = open_pair();
     drop(client);

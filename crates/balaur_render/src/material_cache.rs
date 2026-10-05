@@ -118,16 +118,7 @@ macro_rules! define {
                         return Some(material.clone());
                     }
                 }
-                let features: Vec<(&str, bool)> = crate::shaders::CHANNELS
-                    .iter()
-                    .map(|c| (*c, *c == channel))
-                    .collect();
-                let built = crate::shaders::link(
-                    &[("package::channel", $channel_shader)],
-                    "package::channel",
-                    &features,
-                )
-                .and_then(|unit| crate::shaders::wgsl(&unit))
+                let built = crate::shaders::channel($channel_shader, channel)
                 .map(|wgsl| {
                     $channel_material(&crate::material::Compiled {
                         wgsl,

@@ -6,9 +6,11 @@
 #                            template so `balaur export --target ...` works
 #                            the moment it is unzipped
 #   balaur-runtime-<target>  the runtime template: what a game gets fused onto
-# Usage: package.sh <target>     e.g. linux-x64, macos-universal, windows-arm64
+# Usage: [VARIANT=2d|3d|server] package.sh <target>   e.g. linux-x64, windows-arm64
 set -euo pipefail
 cd "$(dirname "$0")/.."
+. scripts/features.sh
+variant=${VARIANT:-}
 
 target=${1:?usage: package.sh <target>}
 
@@ -34,8 +36,24 @@ if [ "$target" = macos-universal ]; then
 else
   features=${BALAUR_FEATURES:-window,extensions}
 fi
+# A variant builds only balaur-runtime-<target>-<variant>, a game template
+# with no editor, and plays a game the BALAUR_EXPORTER editor exports onto it.
+defaults=()
+if [ -n "$variant" ]; then
+  defaults=(--no-default-features)
+  case "$variant" in
+  server) features=${BALAUR_FEATURES:-$SERVER_FEATURES,extensions} ;;
+  2d | 3d)
+    features=${BALAUR_FEATURES:-window,extensions,parallel,$(game_features "$variant")}
+    if [ "$target" = macos-universal ] && [ -z "${BALAUR_FEATURES:-}" ]; then
+      features="$features,apple"
+    fi
+    ;;
+  *) printf '::error::unknown variant %s (2d, 3d or server)\n' "$variant"; exit 1 ;;
+  esac
+fi
 
-step "build (release, windowed: $features)"
+step "build (release${variant:+, $variant}: $features)"
 if [ "$target" = macos-universal ]; then
   # One binary for both Apple Silicon and Intel. Shipping two macOS downloads
   # and asking the user which Mac they have is a worse answer than lipo.
@@ -43,20 +61,50 @@ if [ "$target" = macos-universal ]; then
   # `apple` is in because the template is prebuilt: a game exported onto it
   # cannot link GameKit afterwards. It costs bytes and no entitlement.
   # 12.0 is where StoreKit 2 starts, and the Swift shim is built for it.
-  MACOSX_DEPLOYMENT_TARGET=12.0 \
-    cargo build --release -p balaur_cli --features "$features" --target aarch64-apple-darwin
-  MACOSX_DEPLOYMENT_TARGET=12.0 \
-    cargo build --release -p balaur_cli --features "$features" --target x86_64-apple-darwin
+  MACOSX_DEPLOYMENT_TARGET=12.0 cargo build --release -p balaur_cli \
+    ${defaults[@]+"${defaults[@]}"} --features "$features" --target aarch64-apple-darwin
+  MACOSX_DEPLOYMENT_TARGET=12.0 cargo build --release -p balaur_cli \
+    ${defaults[@]+"${defaults[@]}"} --features "$features" --target x86_64-apple-darwin
   bin="target/balaur-universal"
   lipo -create -output "$bin" \
     "target/aarch64-apple-darwin/release/balaur" \
     "target/x86_64-apple-darwin/release/balaur"
   lipo -info "$bin"
 else
-  cargo build --release -p balaur_cli --features "$features"
+  cargo build --release -p balaur_cli ${defaults[@]+"${defaults[@]}"} --features "$features"
   bin="target/release/balaur$exe"
 fi
 [ -f "$bin" ] || { printf '::error::no binary at %s\n' "$bin"; exit 1; }
+
+if [ -n "$variant" ]; then
+  out="$dist/balaur-runtime-$target-$variant$exe"
+  cp "$bin" "$out"
+  step "smoke: export a game onto the $variant template and run it"
+  exporter=${BALAUR_EXPORTER:?set BALAUR_EXPORTER to an editor binary to export with}
+  example=examples/hello
+  if [ "$variant" = 2d ]; then
+    example=examples/angrynerds
+  fi
+  smoke="$dist/.smoke-$variant"
+  rm -rf "$smoke"
+  mkdir -p "$smoke"
+  cp -R "$example" "$smoke/project"
+  "$exporter" export "$smoke/project" --target "$target-$variant" --runtime "$out" \
+    -o "$smoke/game$exe" >/dev/null
+  played=$(BALAUR_FRAMES=60 "$smoke/game$exe" 2>&1) || {
+    printf '%s\n' "$played" | tail -20
+    printf '::error::the game exported onto the %s template did not run\n' "$variant"
+    exit 1
+  }
+  if grep -qE '\b(WARN|ERROR)\b' <<<"$played"; then
+    grep -E '\b(WARN|ERROR)\b' <<<"$played" | head -5
+    printf '::error::the game exported onto the %s template logged a warning\n' "$variant"
+    exit 1
+  fi
+  rm -rf "$smoke"
+  printf '%s ran clean on %s\n' "$example" "$out"
+  exit 0
+fi
 
 step "stage"
 bundle="$dist/balaur-editor-$target"

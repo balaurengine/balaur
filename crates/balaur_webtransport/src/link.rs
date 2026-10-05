@@ -16,7 +16,7 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 
 use anyhow::{Context, Result};
 use balaur_core::transport::{Delivery, Received};
-use web_transport_quinn::{ClientBuilder, RecvStream, SendStream, ServerBuilder, Session};
+use web_transport_quinn::{Client, ClientBuilder, RecvStream, SendStream, ServerBuilder, Session};
 
 use crate::queue::{Commands, Queued};
 use crate::tls::Certificate;
@@ -72,15 +72,38 @@ async fn connect(url: &str, accept: Accept) -> Result<Session> {
         Accept::Hashes(hashes) => ClientBuilder::new()
             .with_server_certificate_hashes(hashes)
             .context("pinning the server's certificate hashes")?,
-        Accept::SystemRoots => ClientBuilder::new()
-            .with_system_roots()
-            .context("loading the system root certificates")?,
+        Accept::SystemRoots => system_roots_client()?,
     };
     let url: url::Url = url.parse().with_context(|| format!("the url '{url}'"))?;
     client
         .connect(url)
         .await
         .with_context(|| String::from("connecting"))
+}
+
+/// The Mozilla roots `balaur_websocket` and ureq trust, on every platform:
+/// `ClientBuilder::with_system_roots` reads a store an Android app cannot reach.
+/// TLS 1.3 and `h3` are what `ClientBuilder` sets up around its own roots.
+fn system_roots_client() -> Result<Client> {
+    use web_transport_quinn::quinn;
+    let mut roots = rustls::RootCertStore::empty();
+    roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    let mut crypto = rustls::ClientConfig::builder_with_provider(
+        web_transport_quinn::crypto::default_provider(),
+    )
+    .with_protocol_versions(&[&rustls::version::TLS13])
+    .context("TLS 1.3 from the ring provider")?
+    .with_root_certificates(roots)
+    .with_no_client_auth();
+    crypto.alpn_protocols = vec![web_transport_quinn::ALPN.as_bytes().to_vec()];
+    let quic = quinn::crypto::rustls::QuicClientConfig::try_from(crypto)
+        .context("a QUIC config from the TLS one")?;
+    let endpoint = quinn::Endpoint::client((std::net::Ipv6Addr::UNSPECIFIED, 0).into())
+        .context("binding the QUIC socket")?;
+    Ok(Client::new(
+        endpoint,
+        quinn::ClientConfig::new(std::sync::Arc::new(quic)),
+    ))
 }
 
 /// Bind a server and start accepting, returning the address it landed on.

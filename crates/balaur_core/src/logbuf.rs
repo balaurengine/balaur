@@ -152,8 +152,14 @@ pub fn capture(max_level: LevelFilter) {
         // before it starts and after it ends. winit logs each as an error,
         // which puts four red rows in the editor's Output dock on every boot.
         .add_directive(QUIET_APPKIT.parse().expect("a fixed directive"));
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(any(target_arch = "wasm32", target_os = "android")))]
     let fmt = tracing_subscriber::fmt::layer().with_writer(std::io::stderr);
+    // Android drops an app's stderr, so lines go to logcat, which stamps them.
+    #[cfg(target_os = "android")]
+    let fmt = tracing_subscriber::fmt::layer()
+        .without_time()
+        .with_ansi(false)
+        .with_writer(logcat::Logcat);
     // A browser has no stderr and no clock for the timestamp column —
     // `SystemTime::now()` is where a wasm build used to die — so lines go to
     // the console, untimed and unstyled.
@@ -162,11 +168,16 @@ pub fn capture(max_level: LevelFilter) {
         .without_time()
         .with_ansi(false)
         .with_writer(console::Console);
-    let _ = tracing_subscriber::registry()
+    let installed = tracing_subscriber::registry()
         .with(filter)
         .with(fmt)
         .with(CaptureLayer)
         .try_init();
+    #[cfg(target_os = "android")]
+    if installed.is_ok() {
+        logcat::keep_panics();
+    }
+    let _ = installed;
 }
 
 /// The browser console as a `tracing` writer: the fmt layer asks for a
@@ -204,6 +215,100 @@ mod console {
             if !self.0.is_empty() {
                 let line = String::from_utf8_lossy(&self.0);
                 web_sys::console::log_1(&line.trim_end().into());
+            }
+        }
+    }
+}
+
+/// Logcat as a `tracing` writer: each line is one entry under the `balaur`
+/// tag, at the priority of the event's level.
+#[cfg(target_os = "android")]
+mod logcat {
+    use std::ffi::{CString, c_char, c_int};
+    use std::io::{self, Write};
+
+    use tracing::{Level, Metadata};
+
+    #[link(name = "log")]
+    unsafe extern "C" {
+        fn __android_log_write(priority: c_int, tag: *const c_char, text: *const c_char) -> c_int;
+    }
+
+    /// android/log.h's `ANDROID_LOG_ERROR`.
+    const ERROR: c_int = 6;
+
+    pub(super) struct Logcat;
+
+    impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for Logcat {
+        type Writer = Line;
+
+        fn make_writer(&'a self) -> Line {
+            Line::at(Level::INFO)
+        }
+
+        fn make_writer_for(&'a self, meta: &Metadata<'_>) -> Line {
+            Line::at(*meta.level())
+        }
+    }
+
+    pub(super) struct Line {
+        priority: c_int,
+        bytes: Vec<u8>,
+    }
+
+    impl Line {
+        /// android/log.h's `ANDROID_LOG_VERBOSE` up to `ANDROID_LOG_ERROR`.
+        fn at(level: Level) -> Self {
+            let priority = match level {
+                Level::TRACE => 2,
+                Level::DEBUG => 3,
+                Level::INFO => 4,
+                Level::WARN => 5,
+                _ => ERROR,
+            };
+            Self {
+                priority,
+                bytes: Vec::new(),
+            }
+        }
+    }
+
+    impl Write for Line {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            self.bytes.extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl Drop for Line {
+        fn drop(&mut self) {
+            write(self.priority, &self.bytes);
+        }
+    }
+
+    /// Panics too: the default hook prints to the stderr Android drops.
+    pub(super) fn keep_panics() {
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            write(ERROR, format!("panic {info}").as_bytes());
+            previous(info);
+        }));
+    }
+
+    /// One entry per line, since logcat cuts an entry past about 4 KB.
+    fn write(priority: c_int, bytes: &[u8]) {
+        for line in bytes.split(|&b| b == b'\n').filter(|line| !line.is_empty()) {
+            let text: Vec<u8> = line.iter().copied().filter(|&b| b != 0).collect();
+            let Ok(text) = CString::new(text) else {
+                continue;
+            };
+            // SAFETY: both are NUL-terminated strings that outlive the call.
+            unsafe {
+                __android_log_write(priority, c"balaur".as_ptr(), text.as_ptr());
             }
         }
     }

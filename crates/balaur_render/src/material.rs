@@ -14,8 +14,10 @@ use crate::vocabulary::keys as k;
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 
+#[cfg(feature = "compile")]
+pub use crate::material_compile::fields;
 pub use crate::material_compile::{
-    Compiled, Field, FieldType, TRANSPARENT_ENTRY, compile, compile_on, compile_with, fields, pack,
+    Compiled, Field, FieldType, TRANSPARENT_ENTRY, compile, compile_on, compile_with, pack,
     transparent_variant,
 };
 

@@ -86,7 +86,7 @@ pub struct PhysicsState2d {
 }
 
 impl PhysicsState2d {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let world = PhysicsWorld2 {
             gravity: scalar::v2(0.0, -9.81),
             ..Default::default()
@@ -386,7 +386,6 @@ pub fn build(reg: &mut Registry<'_>) -> Result<()> {
 
 /// The 2D world and the system that steps it, mirroring `PhysicsPlugin::build`.
 fn build_physics2d(reg: &mut Registry<'_>) {
-    reg.insert_resource(PhysicsState2d::new());
     follow::build(reg);
     reg.add_system(Stage::FixedUpdate, step_system);
     tiles::register_tile_collision_component(reg);

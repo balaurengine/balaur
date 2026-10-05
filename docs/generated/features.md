@@ -9,7 +9,7 @@ build only the plugin's own code; the two that matter there are `audio` and
 `window`.
 
 The web runtime (`scripts/package_runtime.sh web`) is built with
-`--no-default-features --features audio,http,websocket,webtransport,gamend,multiplayer,browser,window` and links 405 crates.
+`--no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,gamend,multiplayer,browser,physics2d,physics3d,window` and links 303 crates.
 Override the set with `WEB_FEATURES=... scripts/package_runtime.sh web`.
 
 `WEB_THREADS=1` builds the second runtime, which adds `parallel` to that
@@ -21,15 +21,24 @@ atomics only that build has.
 | `apple` | off | off | `apple.*` for scripts, and Game Center and iCloud under `platform.*`. Off, a build drops GameKit and the objc2 bindings to it. `platform.*` is always there; with no store behind it every call answers `unsupported`. | `balaur_apple` |
 | `audio` | on | on | Sound. Off, a build drops rodio, cpal and the platform audio stack. | `cpal`, `rodio`, `symphonia`, `atomic_float`, `balaur_audio`, `chacha20`, … (24 crates) |
 | `browser` | on | on | `browser.*` for scripts: the page a browser build runs in. Always compiles; off the web every call answers nil. | `balaur_browser` |
+| `compile` | on | off | The Rune compiler and the WESL shader linker: a dev run, a pack carrying sources, the editor and `balaur check`. A template leaves it off and draws with the shaders an export linked into the pack. | nothing |
+| `editor` | on | off | The editor: `edit` and `export`, the `export.*` and `project.*` modules its scripts call, a browser tab's editor entry points, and egui's bundled faces. A game template leaves it off. | `audio-codec-algorithms`, `audioadapter`, `audioadapter-buffers`, `audioadapter-sample`, `balaur_export`, `crc`, … (25 crates) |
 | `extensions` | off | off | Load extensions from a project's extensions/ directory at run time. | `libloading` |
+| `flac` | on | on | One feature per container `audio` decodes; a build without one plays none of that format. | `symphonia-bundle-flac` |
 | `gamend` | on | on | `gamend.*` for scripts: the Gamend backend (auth, REST, realtime, hooks). | `balaur_gamend` |
 | `http` | on | on | `http.*` for scripts. Off, a build drops ureq and its TLS stack. | `balaur_http` |
-| `import` | on | off | `balaur import`, `import.*` for the editor and SVGs read in place. The web game runtime leaves it off: a game reads what an import and export wrote. | `arrayref`, `aseprite-loader`, `balaur_import`, `data-url`, `float-cmp`, `imagesize`, … (24 crates) |
+| `import` | on | off | `balaur import`, `import.*` for the editor and SVGs read in place. The web game runtime leaves it off: a game reads what an import and export wrote. | `arrayref`, `aseprite-loader`, `balaur_import`, `color_quant`, `data-url`, `float-cmp`, … (30 crates) |
+| `mp3` | on | on |  | `symphonia-bundle-mp3` |
+| `mp4` | on | on |  | `symphonia-codec-aac`, `symphonia-format-isomp4` |
 | `multiplayer` | on | on | `multiplayer.*` for scripts: host, join and play a rollback match over whichever of `websocket` and `webtransport` the build has. | `balaur_multiplayer` |
-| `parallel` | on | off | rapier's solver on rayon. Native builds want it; a browser can only take it with shared memory and atomics, which is the threaded web runtime alone. | nothing |
+| `parallel` | on | off | rapier's solver on rayon. Native builds want it; a browser can only take it with shared memory and atomics, which is the threaded web runtime alone. | `crossbeam-deque`, `crossbeam-epoch`, `crossbeam-utils`, `rayon`, `rayon-core` |
+| `physics2d` | on | on | The 2D physics world: `physics2d.*`, its components and presets. | nothing |
+| `physics3d` | on | on | The 3D physics world: `physics3d.*`, its components and presets. | nothing |
+| `vorbis` | on | on |  | `symphonia-codec-vorbis`, `symphonia-format-ogg` |
+| `wav` | on | on |  | `extended`, `symphonia-codec-pcm`, `symphonia-format-riff` |
 | `websocket` | on | on | `websocket.*` for scripts, and the websocket `Transport`. Off, a build without `gamend` drops tungstenite, rustls and the frame codec; Gamend's realtime socket runs on them. | nothing |
 | `webtransport` | on | on | The WebTransport `Transport`, over QUIC: the transport rollback and replication are meant to run on. Off, a build drops quinn, its runtime and the certificate machinery, which is most of what a networked build costs. | `balaur_webtransport` |
-| `window` | off | on | Windowed rendering (kiss3d/wgpu). | `egui-wgpu`, `exr`, `glow`, `kiss3d`, `wgpu`, `winit`, … (57 crates) |
+| `window` | off | on | Windowed rendering (kiss3d/wgpu). | `egui-wgpu`, `glow`, `kiss3d`, `wgpu`, `winit`, `cursor-icon`, … (20 crates) |
 
 ## What the web runtime resolves
 
@@ -39,11 +48,11 @@ gates (`winit`'s X11 is on and compiles nothing in a browser).
 
 | Crate | Version | Features on |
 | --- | --- | --- |
-| `egui` | 0.36.2 | `default_fonts` |
+| `egui` | 0.36.2 | none |
 | `wgpu` | 30.0.1 | `dx12`, `fragile-send-sync-non-atomic-wasm`, `gles`, `metal`, `parking_lot`, `std`, `vulkan`, `web`, `web-sys`, `webgl`, `webgpu`, `wgpu-core`, `wgsl` |
-| `image` | 0.25.10 | `avif`, `bmp`, `dds`, `default-formats`, `exr`, `ff`, `gif`, `hdr`, `ico`, `jpeg`, `png`, `pnm`, `qoi`, `tga`, `tiff`, `webp` |
+| `image` | 0.25.10 | `bmp`, `exr`, `hdr`, `jpeg`, `png`, `tga`, `webp` |
 | `rodio` | 0.22.2 | `cpal`, `dither`, `experimental`, `flac`, `mp3`, `mp4`, `noise`, `playback`, `rand`, `rand_distr`, `symphonia`, `symphonia-aac`, `symphonia-flac`, `symphonia-isomp4`, `symphonia-mp3`, `symphonia-ogg`, `symphonia-pcm`, `symphonia-vorbis`, `symphonia-wav`, `vorbis`, `wasm-bindgen`, `wav` |
 | `rapier3d` | 0.36.0 | `alloc`, `debug-render`, `dim3`, `enhanced-determinism`, `f32`, `fem`, `serde-serialize`, `std` |
 | `parry3d` | 0.31.1 | `alloc`, `dim3`, `downcast-rs`, `ena`, `enhanced-determinism`, `f32`, `hashbrown`, `indexmap`, `required-features`, `rstar`, `serde`, `serde-serialize`, `serde_arrays`, `slab`, `smallvec`, `spade`, `std` |
 | `cosmic-text` | 0.19.0 | `monospace_fallback`, `shape-run-cache`, `std`, `swash`, `sys-locale` |
-| `wesl` | 0.5.0 | `eval` |
+| `wesl` | — | not in the runtime |
