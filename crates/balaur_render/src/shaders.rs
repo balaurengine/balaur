@@ -364,9 +364,29 @@ pub fn link(
     let root_path = root
         .parse()
         .map_err(|e| anyhow!("shader root module `{root}`: {e}"))?;
-    wesl::Compiler::new_with_resolver(options, resolver)
+    let mut linked = wesl::Compiler::new_with_resolver(options, resolver)
         .compile_module(&root_path)
-        .map_err(|e| anyhow!("linking {root}: {e}"))
+        .map_err(|e| anyhow!("linking {root}: {e}"))?;
+    // wesl adds imported modules in hash order, so one link differs from the
+    // next; WGSL reads module scope in any order, and a pack must not differ.
+    linked
+        .syntax
+        .global_declarations
+        .sort_by_cached_key(|decl| declared_name(decl).map(|ident| ident.name().clone()));
+    Ok(linked)
+}
+
+/// The name a module-scope declaration introduces; none for a `const_assert`.
+#[cfg(feature = "compile")]
+fn declared_name(decl: &wesl::syntax::GlobalDeclaration) -> Option<&wesl::syntax::Ident> {
+    use wesl::syntax::GlobalDeclaration as D;
+    match decl {
+        D::Declaration(d) => Some(&d.ident),
+        D::TypeAlias(t) => Some(&t.ident),
+        D::Struct(s) => Some(&s.ident),
+        D::Function(f) => Some(&f.ident),
+        _ => None,
+    }
 }
 
 /// The linked WGSL a backend compiles, lowered: constants folded, branches

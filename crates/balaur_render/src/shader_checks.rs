@@ -152,6 +152,18 @@ fn a_material_using_every_pbr_lobe_validates() {
 }
 
 #[test]
+fn linking_a_material_again_writes_the_same_wgsl() {
+    let first = material("the every-lobe material", EVERY_LOBE, &[]);
+    for _ in 0..8 {
+        let again = material("the every-lobe material", EVERY_LOBE, &[]);
+        assert!(
+            again == first,
+            "an export packs this text, so a link must not reorder it"
+        );
+    }
+}
+
+#[test]
 fn the_default_pbr_look_validates() {
     let source = r"
 import package::mesh::{VertexInput, VertexOutput, vertex};
