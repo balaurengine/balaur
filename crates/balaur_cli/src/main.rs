@@ -102,6 +102,12 @@ enum Command {
         /// game's own screen, with nothing of the editor over it.
         #[arg(long, value_name = "PATH", requires = "frames")]
         shot: Option<PathBuf>,
+        /// The offscreen framebuffer as `WIDTHxHEIGHT` in physical pixels, in
+        /// place of the project's `[window]` size: a poster or a showcase
+        /// shot framed as the picture wants rather than as the game's screen
+        /// is. Only an `--offscreen` run reads it.
+        #[arg(long, value_name = "WIDTHxHEIGHT")]
+        size: Option<String>,
         /// Write one `<tick> <digest>` line per frame. Two runs whose traces
         /// differ diverged at the first differing line.
         #[arg(long, value_name = "PATH")]
@@ -432,6 +438,7 @@ fn dispatch(command: Command) -> Result<()> {
             fixed_tick,
             touch,
             shot,
+            size,
             trace_digest,
             timings,
             record,
@@ -444,6 +451,7 @@ fn dispatch(command: Command) -> Result<()> {
             display: Display::of(headless, offscreen),
             frames,
             shot,
+            size,
             fixed_tick,
             touch,
             trace_digest,
@@ -575,6 +583,8 @@ struct RunOpts {
     frames: Option<u64>,
     /// Where to write a picture of the run, taken on the frame before it ends.
     shot: Option<PathBuf>,
+    /// An offscreen run's framebuffer, `WIDTHxHEIGHT`, over the project's window size.
+    size: Option<String>,
     fixed_tick: bool,
     touch: bool,
     trace_digest: Option<PathBuf>,
@@ -767,6 +777,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         display,
         frames,
         shot,
+        size,
         fixed_tick,
         touch,
         trace_digest,
@@ -777,6 +788,8 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         args,
     } = opts;
     let (display, frames) = (*display, *frames);
+    // Parsed before the engine boots, so a typo fails in a millisecond.
+    let size = size.as_deref().map(|text| offscreen_size(Some(text))).transpose()?;
     let mut config = AppConfig::dev(path.to_string_lossy().as_ref());
     config.script_args.clone_from(args);
     let mut app = balaur::timings::boot("engine", || balaur::standard_app(config))?;
@@ -844,8 +857,10 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     let ran = if display == Display::Offscreen {
         // The game's own window size, so a shot is framed as a player sees it:
         // a portrait phone game rendered 16:9 is a picture of the wrong game.
+        // `--size` is for the shot that is not the game's screen: a poster.
         let window = balaur_core::project::WindowSettings::from_settings(&app.engine);
-        balaur::run_offscreen(app, &title, window.width, window.height)
+        let (width, height) = size.unwrap_or((window.width, window.height));
+        balaur::run_offscreen(app, &title, width, height)
     } else {
         balaur::run(app, &title)
     };
