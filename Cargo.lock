@@ -865,7 +865,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "wesl",
+ "wesl 0.6.0",
  "windows-sys 0.61.2",
 ]
 
@@ -3136,7 +3136,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "web-time",
- "wesl",
+ "wesl 0.5.0",
  "wgpu",
  "winit",
 ]
@@ -4860,25 +4860,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "proc-macro-error-attr2"
-version = "2.0.0"
+name = "proc-macro-error-attr3"
+version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96de42df36bb9bba5542fe9f1a054b8cc87e172759a1868aa05c1f3acc89dfc5"
+checksum = "9e564d14133360e1ae169ffde5da25881b5fa47261665b8e5713c212c27799da"
 dependencies = [
  "proc-macro2",
  "quote",
 ]
 
 [[package]]
-name = "proc-macro-error2"
-version = "2.0.1"
+name = "proc-macro-error3"
+version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11ec05c52be0a07b08061f7dd003e7d7092e0472bc731b4af7bb1ef876109802"
+checksum = "8f0d4471b3436c22106b21913b1dda531558918ae9b7ec55d58aa84b43552233"
 dependencies = [
- "proc-macro-error-attr2",
+ "proc-macro-error-attr3",
  "proc-macro2",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -7588,10 +7588,32 @@ dependencies = [
  "thiserror 2.0.20",
  "toml",
  "wesl-core",
- "wesl-macros",
+ "wesl-macros 0.5.0",
+ "wgsl-parse 0.5.0",
+ "wgsl-types 0.5.0",
+]
+
+[[package]]
+name = "wesl"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fdd8f9619baa4c7bde4df0899d6f626b70ee92d6e9c18c5f74473419b5bb6fa6"
+dependencies = [
+ "annotate-snippets",
+ "anstream",
+ "derive_more",
+ "glob",
+ "half",
+ "itertools 0.15.0",
+ "num-traits",
+ "serde",
+ "thiserror 2.0.20",
+ "toml",
+ "wesl-core",
+ "wesl-macros 0.6.0",
  "wesl-quote",
- "wgsl-parse",
- "wgsl-types",
+ "wgsl-parse 0.6.0",
+ "wgsl-types 0.6.0",
 ]
 
 [[package]]
@@ -7613,18 +7635,30 @@ dependencies = [
 ]
 
 [[package]]
-name = "wesl-quote"
-version = "0.5.0"
+name = "wesl-macros"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "656686db041e9da059fbd43e1953a5e30ebd6a5ae286cfed32be79f6e093ef90"
+checksum = "ac8767ec26e75262a8e581d5f188b1f63a288baaf885bb33c9f4f73a693e06fc"
 dependencies = [
  "itertools 0.15.0",
- "proc-macro-error2",
+ "proc-macro2",
+ "quote",
+ "syn 3.0.6",
+]
+
+[[package]]
+name = "wesl-quote"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56ff92e017fff5ea796feab5e58bcc0230d153e1cb45c1642e444ba16dc2daeb"
+dependencies = [
+ "itertools 0.15.0",
+ "proc-macro-error3",
  "proc-macro2",
  "quote",
  "syn 3.0.6",
  "token_stream_flatten",
- "wgsl-parse",
+ "wgsl-parse 0.6.0",
 ]
 
 [[package]]
@@ -7823,8 +7857,24 @@ dependencies = [
  "lexical",
  "logos",
  "thiserror 2.0.20",
+ "wgsl-types 0.5.0",
+]
+
+[[package]]
+name = "wgsl-parse"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37cee524ba5cfabfd65d10a316b646f8a4c50f3663e7e787471f21b783261f47"
+dependencies = [
+ "annotate-snippets",
+ "derive_more",
+ "itertools 0.15.0",
+ "lalrpop-util",
+ "lexical",
+ "logos",
+ "thiserror 2.0.20",
  "tokrepr",
- "wgsl-types",
+ "wgsl-types 0.6.0",
 ]
 
 [[package]]
@@ -7832,6 +7882,17 @@ name = "wgsl-types"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d2336e732c86b5ed510df514e8a16ef64f4753046301f7460b63ae3d9b17b78"
+dependencies = [
+ "half",
+ "itertools 0.15.0",
+ "num-traits",
+]
+
+[[package]]
+name = "wgsl-types"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e119dd12e57d937397535201959ddddb5dbf26505402db5ef305ebb1ca9a7e5f"
 dependencies = [
  "half",
  "itertools 0.15.0",
