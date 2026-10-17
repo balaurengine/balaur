@@ -33,7 +33,7 @@ tracing.workspace = true
 libm.workspace = true
 # `experimental` lists output devices and opens automatic gain control's knobs
 # to a live change.
-rodio = { version = "0.22", default-features = false, features = ["playback", "experimental"] }
+rodio = { version = "0.23", default-features = false, features = ["playback", "experimental"] }
 
 [dev-dependencies]
 tempfile = "3"
