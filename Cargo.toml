@@ -93,7 +93,7 @@ smol_str = "0.3"
 egui = { version = "0.36", default-features = false }
 # The widget tree's layout: retained flexbox and grid, so rects are decided
 # before anything draws. Block and float are off: Balaur lays out no blocks.
-taffy = { version = "0.14", default-features = false, features = ["std", "taffy_tree", "flexbox", "flexbox_balance", "grid", "content_size"] }
+taffy = { version = "0.15", default-features = false, features = ["std", "taffy_tree", "flexbox", "flexbox_balance", "grid", "content_size"] }
 rustc-hash = "2"
 libm = "0.2"
 tracing = "0.1"
