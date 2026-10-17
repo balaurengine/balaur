@@ -789,7 +789,10 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     } = opts;
     let (display, frames) = (*display, *frames);
     // Parsed before the engine boots, so a typo fails in a millisecond.
-    let size = size.as_deref().map(|text| offscreen_size(Some(text))).transpose()?;
+    let size = size
+        .as_deref()
+        .map(|text| offscreen_size(Some(text)))
+        .transpose()?;
     let mut config = AppConfig::dev(path.to_string_lossy().as_ref());
     config.script_args.clone_from(args);
     let mut app = balaur::timings::boot("engine", || balaur::standard_app(config))?;
