@@ -4085,7 +4085,7 @@ pub fn rows_step(S) {
         rows_menu(widget);
         rows_picked(S, tree, rows);
     } else if stage == 1 {
-        rows_answered(S, rows);
+        rows_answered(S, widget, rows);
         S.search["tree"] = name_at(S, S.rows_want);
     } else if stage == 2 {
         rows_narrowed(S, rows);
@@ -4167,10 +4167,15 @@ fn rows_picked(S, tree, rows) {
     tree.patch_component("widget", #{ text: rows[want] });
 }
 
-fn rows_answered(S, rows) {
+fn rows_answered(S, widget, rows) {
     let want = S.rows_want;
     check(S.sel == want,
         format!("a picked row selects its node ({} wanted, {} selected)", want, S.sel));
+    // Lit from the selection before the pick, the row went back to the old
+    // node for a pass, and stayed there while nothing asked for another.
+    let lit = util::vec(widget.get("selection").unwrap_or([]));
+    check(lit.len() == 1 && lit[0] == rows[want],
+        format!("and the pass that answered it lights that row ({:?})", lit));
     check(rows.len() == S.doc.len(), "and the walk is the document's still");
 }
 

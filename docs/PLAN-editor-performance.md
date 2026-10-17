@@ -7,7 +7,9 @@
 > Sections 5 to 7 ask a different question, on `examples/hello`: what the frame
 > costs outside the docks. The instrument in §7 is built and the allocation
 > fixes §5 names have landed; nothing else in this plan has. §6h's engine
-> fixes landed 2026-09-26 with ratios only, taken under load.
+> fixes landed 2026-09-26 with ratios only, taken under load. Phase 4 is
+> built: the gizmo and overlay line lists since 2026-09-27 (§6i), §6's
+> tessellation cache 2026-10-17.
 
 # Plan: what the editor's frame costs
 
@@ -219,6 +221,13 @@ free.
 This is not §1's `render cpu` line. That one is the tessellation a row
 genuinely causes. This is the same work repeated on frames that drew nothing
 new, and it is fixed in the fork rather than here.
+
+**Built 2026-10-17.** `EguiRenderer` keeps the primitives with the
+points-per-pixel they were made at, and tessellates again only when a pass
+replaces the shapes or the scale moves. Shapes are cloned only when retained.
+Under §6l an idle editor renders no frames at all, so what this saves is a
+frame drawn with no pass: a game whose HUD is lazy, or a camera moved in the
+viewport.
 
 ## 6b. What a control costs to read
 
@@ -603,6 +612,18 @@ lets the loop sleep until something asks for a frame.
 A frame the pointer draws still runs every poll in `update`: the gizmo, the
 hotkeys, the overlays' lines. Those move onto hooks and nodes next.
 
+**Fixed 2026-10-17: a tap waited for the next input.** kiss3d fed egui at
+render, after the pass, so each pass answered the last frame's events. A press
+and release landing in one poll, as a trackpad tap does, reached egui after
+the pass that frame and owed no frame of its own. A frame woken by something
+else ran before the page's events were drained, and the poll closing its
+render queued them where no later wait looked. Either way the click waited for
+the next input or an unrelated wake, which on the web editor read as a second
+click needed. The pass now gets the events the frame read, the loop runs one
+while `Window::has_unread_ui_input` holds, and `wait_events` answers at once
+while that poll's events are unread. A web press and release carry their own
+position, so a tap with no move before it still lands.
+
 ## 7. The instrument
 
 `engine.set_script_profiling(on)` and `engine.script_costs()` count VM instructions
@@ -654,7 +675,7 @@ not price them again.
    time any more. What still does draws controls per row rather than rows.
    `test:rows` is the self-test state that reads the outliner's node back.
 4. The gizmo and overlay line lists cached against their inputs, and the
-   tessellation cache in the fork. Neither waits on the kinds above.
+   tessellation cache in the fork. Built: §6i and §6.
 
 ## Open questions
 

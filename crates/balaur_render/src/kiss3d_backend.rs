@@ -308,6 +308,9 @@ impl Frontend {
         crate::debug_lines::flush_debug_lines_2d(app, window);
         balaur_core::timings::record(&app.engine, "scene mirror", sync_started.elapsed());
         // A lazy UI skips the pass; the last one's shapes are drawn again.
+        // Input egui holds and has not answered is input too, or a click fed
+        // after the last pass waits for whatever arrives next.
+        let input_seen = input_seen || window.has_unread_ui_input();
         if balaur_ui::wants_pass(&app.engine, window.egui_context(), input_seen) {
             window.draw_ui(|ctx| {
                 balaur_ui::run_pass(&app.engine, ctx);
@@ -490,7 +493,7 @@ pub async fn run_windowed_async(
 )]
 async fn sleep_until_owed(app: &App, window: &mut Window) {
     loop {
-        if balaur_core::wake::take() {
+        if balaur_core::wake::take() || window.has_unread_ui_input() {
             return;
         }
         let wait = match balaur_ui::next_frame(&app.engine, window.egui_context()) {

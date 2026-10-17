@@ -264,17 +264,11 @@ fn show_tree(S, k, rows, rows_key) {
     if util::is_nil(found) {
         return;
     }
-    // The rows' strings follow from the rows, the document, the warnings, the
-    // selection and the theme; a frame that moved none of them reuses them.
-    let key = [rows_key, S.doc_rev, S.lint.warned, S.sels.clone(), k, lock_key(S)];
     let built = S.tree_items;
-    let same = built.get("key") == Some(key);
+    let same = built.get("key") == Some(items_key(S, k, rows_key));
     if !same {
-        built = tree_items(S, k, rows);
-        built.key = key;
-        S.tree_items = built;
+        built = build_items(S, k, rows, rows_key);
     }
-    let items = built.items;
     // `text` is the pick channel and nothing else: the node writes the row a
     // click landed on, this reads it once and clears it. Held instead, a
     // selection made anywhere else would be undone by the stale row here.
@@ -283,16 +277,36 @@ fn show_tree(S, k, rows, rows_key) {
     if same && picked == "" {
         return;
     }
-    for (n, item) in items.iter().enumerate() {
+    let chose = false;
+    for (n, item) in built.items.iter().enumerate() {
         if item == picked && rows[n].index != S.sel {
             crate::shell::choose_click(S, rows[n].index);
+            chose = true;
         }
+    }
+    // The rows were lit from the selection before the click, and patched as
+    // they were the node would show that selection again for a pass.
+    if chose {
+        built = build_items(S, k, rows, rows_key);
     }
     // A patch of what this owns: a frame that changed none of it writes nothing.
     found.patch_component("widget", #{
-        options: items, row_height: TREE_ROW, visible: true, multi_select: true,
+        options: built.items, row_height: TREE_ROW, visible: true, multi_select: true,
         selection: built.chosen, text: "",
     });
+}
+
+// The rows' strings follow from the rows, the document, the warnings, the
+// selection and the theme; a frame that moved none of them reuses them.
+fn items_key(S, k, rows_key) {
+    [rows_key, S.doc_rev, S.lint.warned, S.sels.clone(), k, lock_key(S)]
+}
+
+fn build_items(S, k, rows, rows_key) {
+    let built = tree_items(S, k, rows);
+    built.key = items_key(S, k, rows_key);
+    S.tree_items = built;
+    built
 }
 
 // Each row's string, and the strings of the selected rows.
