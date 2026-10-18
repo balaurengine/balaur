@@ -2,9 +2,9 @@
 //!
 //! Every frame by default: a HUD reads live state each pass. A script that
 //! turns `ui.set_lazy` on gets a pass only when something asks for one:
-//! input, `ui.request_repaint`, a log line, an asset reload, an egui
-//! animation, or the idle tick between drags, and the frames between
-//! re-present the last pass's shapes. The editor asks for it: on the web its
+//! input, a widget node written, `ui.request_repaint`, a log line, an asset
+//! reload or an egui animation, and the frames between re-present the last
+//! pass's shapes. Nothing is polled: a lazy UI nobody touches draws nothing. The editor asks for it: on the web its
 //! shell is most of the frame, and nothing in it moves while nobody touches
 //! it. A focused field's caret blinks for [`BLINK_FOR`] after the last input
 //! and then holds still: egui owes a pass for every blink, for as long as the
@@ -19,10 +19,6 @@ use balaur_core::time::Instant;
 use balaur_script::{Bindings, BindingsExt, Value};
 
 use crate::{UiConfig, UiState};
-
-/// How long a lazy UI goes without a pass when nothing asks for one, and
-/// no drag outside it holds the pointer.
-const IDLE: Duration = Duration::from_millis(250);
 
 /// Seconds a caret blinks after the last input before it holds still, as
 /// GTK's `gtk-cursor-blink-timeout` does. Every blink is a pass, so a lazy UI
@@ -53,8 +49,6 @@ pub struct Pacing {
     /// Passes this frame, counted by [`note_pass`] and zeroed by
     /// [`wants_pass`], which the loop calls once a frame.
     passes: u32,
-    /// When the last pass drew; `None` until one has.
-    last_pass: Option<Instant>,
     logs_seen: u64,
     assets_seen: u64,
     /// When passes are owed: egui's delayed requests, which it reports from
@@ -105,9 +99,9 @@ fn hear_egui(pacing: &mut Pacing, ctx: &egui::Context) {
 
 /// Whether a low-processor loop owes a frame now, and otherwise how long it
 /// may sleep before one is due. Input and `balaur_core::wake`, which a log
-/// line calls, are the loop's own to check; this answers for the UI: a
-/// request, a theme still settling, and every repaint egui or a script
-/// scheduled.
+/// line calls, are the loop's own to check; this answers for the UI: a widget
+/// written, a request, a theme still settling, and every repaint egui or a
+/// script scheduled.
 #[allow(
     clippy::disallowed_methods,
     reason = "a sleeping loop is paced against the wall clock; nothing simulated reads it"
@@ -118,7 +112,11 @@ pub fn next_frame(eng: &Engine, ctx: &egui::Context) -> NextFrame {
     };
     let mut pacing = pacing.borrow_mut();
     hear_egui(&mut pacing, ctx);
-    if std::mem::take(&mut pacing.owed) || pacing.requested || settling(eng) {
+    if std::mem::take(&mut pacing.owed)
+        || pacing.requested
+        || settling(eng)
+        || crate::widget::arena::has_dirty()
+    {
         return NextFrame::Now;
     }
     let due = pacing
@@ -187,9 +185,8 @@ pub fn wants_pass(eng: &Engine, ctx: &egui::Context, input_seen: bool) -> bool {
     let changed = logs != pacing.logs_seen || assets != pacing.assets_seen;
     pacing.logs_seen = logs;
     pacing.assets_seen = assets;
-    // The tick is for state that moves without input.
-    let idle = pacing.last_pass.is_none_or(|at| at.elapsed() >= IDLE);
-    input_seen || requested || changed || settling(eng) || idle || due
+    let written = crate::widget::arena::has_dirty();
+    input_seen || written || requested || changed || settling(eng) || due
 }
 
 /// Blink a focused field's caret until [`BLINK_FOR`] after the last input,
@@ -224,17 +221,6 @@ pub(crate) fn note_pass(eng: &Engine, elapsed: std::time::Duration) {
     balaur_core::timings::record(eng, if first { PASS } else { RERUN }, elapsed);
 }
 
-/// Note that a pass drew, for the idle tick.
-#[allow(
-    clippy::disallowed_methods,
-    reason = "paces the UI pass against the wall clock; nothing simulated reads it"
-)]
-pub(crate) fn mark_pass(eng: &Engine) {
-    if let Some(pacing) = eng.try_resource::<Pacing>() {
-        pacing.borrow_mut().last_pass = Some(Instant::now());
-    }
-}
-
 /// The instant `seconds` from now; a negative or absurd count is now.
 #[allow(
     clippy::disallowed_methods,
@@ -247,7 +233,7 @@ fn later(seconds: f64) -> Instant {
 /// `ui.*` bindings: pacing.
 pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("set_lazy", &[], "", "Run the UI pass only when something asks for it (input, `request_repaint`, a log line, an asset reload, an egui animation, or the idle tick every 250 ms, which waits out a drag the UI is no part of) and re-present the last pass in between. Off by default: a HUD that reads live state each frame should leave it off. Ignored offscreen."),
+        ("set_lazy", &[], "", "Run the UI pass only when something asks for it (input, a widget node written, `request_repaint`, a log line, an asset reload or an egui animation) and re-present the last pass in between: nothing is polled, so state that moves without any of those has to write a widget or ask. Off by default: a HUD that reads live state each frame should leave it off. Ignored offscreen."),
         ("request_repaint", &[], "(opts: map?)", "Run the UI pass this frame even when lazy, and the frame itself under `[window] low_processor`; call it every frame something on screen moves without input, such as while the scene plays. `#{ after: seconds }` asks for one that far ahead instead."),
     ]);
     m.function("set_lazy", |eng: &Engine, on: bool| {

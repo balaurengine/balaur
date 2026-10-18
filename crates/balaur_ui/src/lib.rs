@@ -416,7 +416,6 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
     splash::draw(eng, ctx);
     routing::pass_drew(eng, ctx);
     bridge::leave_pass();
-    pacing::mark_pass(eng);
     state.borrow_mut().font_atlas = Some(FontAtlas::of(ctx));
 }
 

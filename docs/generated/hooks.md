@@ -32,6 +32,7 @@ ones it wants. What a component announces is listed with the component in
 <tr><td><code>on_action_released(name)</code></td><td>A declared input action was let go, reaching nodes as <code>on_key_down</code> does.</td></tr>
 <tr><td><code>on_scroll(dx, dy)</code></td><td>The wheel turned, over the node or, over nothing, to every node.</td></tr>
 <tr><td><code>on_resize(width, height)</code></td><td>The window changed size, told to every node.</td></tr>
+<tr><td><code>on_widget_event(event, node, value)</code></td><td>A widget at or under the node had an event (<code>click</code>, <code>change</code>, <code>submit</code> and the rest a widget emits), told to the nearest script up the tree that has this hook: one panel script answers every control under it.</td></tr>
 <tr><td><code>on_variable_changed(name, value)</code></td><td>A scene variable changed, told to every node at the end of the frame.</td></tr>
 <tr><td><code>on_state_changed(was, now)</code></td><td>The node&#x27;s <code>states</code> moved to another state.</td></tr>
 <tr><td><code>on_paused_changed(paused)</code></td><td>The game paused or resumed, told to every script, a paused one too.</td></tr>

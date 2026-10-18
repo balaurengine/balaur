@@ -372,6 +372,14 @@ fn apply_system(eng: &Engine, _dt: f32) {
         emitted.push((entity, CHANGE_EVENT, value));
     }
     crate::widget::pool::dispatch(eng, &emitted, &hit);
+    // What a panel's `on_widget_event` hears: a widget's own events, not the
+    // pointer hooks every node already gets.
+    let mut told: Vec<(Entity, &'static str, Value)> = emitted
+        .iter()
+        .filter(|(_, event, _)| !hooks::BINDABLE.contains(event))
+        .cloned()
+        .collect();
+    told.extend(hit.iter().map(|&entity| (entity, CLICK_EVENT, Value::Nil)));
     // A pointer event is a core hook: its rows, and the node's own
     // `on_pointer_*`, as a world node's. The widget's own events are emitted.
     for (entity, event, value) in emitted {
@@ -406,8 +414,23 @@ fn apply_system(eng: &Engine, _dt: f32) {
                 (recipient(eng, host.as_ref(), entity, &method), method, args)
             })
             .collect();
+        let panels: Vec<_> = told
+            .into_iter()
+            .filter_map(|(entity, event, value)| {
+                let panel = panel_of(eng, host.as_ref(), entity)?;
+                let node = Value::Node(balaur_core::node_id_of(entity).0);
+                Some((panel, [Value::Str(event.to_string()), node, value]))
+            })
+            .collect();
         for (entity, method, args) in signals.into_iter().chain(typed) {
             host.call_on(balaur_core::node_id_of(entity), &method, &args);
+        }
+        for (panel, args) in panels {
+            host.call_on(
+                balaur_core::node_id_of(panel),
+                hooks::ON_WIDGET_EVENT,
+                &args,
+            );
         }
     }
     announce_focus(eng, focused.as_ref());
@@ -737,6 +760,24 @@ fn announce_focus(eng: &Engine, focused: Option<&WidgetKey>) {
 /// button deep in a panel names a method on the panel's script, the way a
 /// Godot signal is connected to the node that owns the scene. With none
 /// declaring it, the widget's own node, where the call is the no-op it was.
+/// The nearest node at or above `entity` whose script has `on_widget_event`:
+/// the panel that answers for the widget. `None` where no script up the tree
+/// has one.
+fn panel_of(
+    eng: &Engine,
+    host: &dyn balaur_script::ScriptHost<Engine>,
+    entity: Entity,
+) -> Option<Entity> {
+    let world = eng.world();
+    let mut current = entity;
+    loop {
+        if host.has_method(balaur_core::node_id_of(current), hooks::ON_WIDGET_EVENT) {
+            return Some(current);
+        }
+        current = world.get::<&balaur_core::scene::Parent>(current).ok()?.0;
+    }
+}
+
 fn recipient(
     eng: &Engine,
     host: &dyn balaur_script::ScriptHost<Engine>,

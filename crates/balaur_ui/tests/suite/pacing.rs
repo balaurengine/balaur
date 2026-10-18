@@ -20,6 +20,37 @@ fn a_ui_nobody_asked_to_redraw_lets_the_loop_sleep() {
     );
 }
 
+/// Writing a widget node is what asks for a pass: a handler that changes a
+/// label owes the sleeping loop a frame without calling `request_repaint`.
+#[test]
+fn a_widget_written_owes_the_sleeping_loop_a_frame() {
+    let (_dir, app, ctx, errors) = draw_with("");
+    assert!(errors.is_empty(), "{errors:?}");
+    crate::pass::feed(&app, &ctx, Vec::new());
+    assert_eq!(
+        balaur_ui::next_frame(&app.engine, &ctx),
+        NextFrame::Sleep(None)
+    );
+    let root = app.engine.root();
+    let label = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Label", root);
+    let params = toml::toml! { kind = "label" text = "saved" };
+    balaur::components::add(&app.engine, label, "widget", Some(&params.into())).unwrap();
+    assert_eq!(balaur_ui::next_frame(&app.engine, &ctx), NextFrame::Now);
+    // Stepped as the loop steps: egui owes a pass or two of its own after a
+    // new widget, and then nothing is owed.
+    let mut passes = 0;
+    while balaur_ui::next_frame(&app.engine, &ctx) == NextFrame::Now && passes < 4 {
+        let _ = balaur_ui::wants_pass(&app.engine, &ctx, false);
+        crate::pass::feed(&app, &ctx, Vec::new());
+        passes += 1;
+    }
+    assert_eq!(
+        balaur_ui::next_frame(&app.engine, &ctx),
+        NextFrame::Sleep(None),
+        "a written widget kept the loop awake ({passes} passes)"
+    );
+}
+
 #[test]
 fn a_script_s_request_is_owed_a_frame_now() {
     let (_dir, app, ctx, errors) = draw_with("ui::request_repaint();");

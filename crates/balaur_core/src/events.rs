@@ -132,6 +132,9 @@ fn queue(eng: &Engine, name: &str, from: Option<Entity>, payload: Value) {
         payload,
         announced: false,
     });
+    // Delivered at the next pump, which a loop sleeping under
+    // `low_processor` would otherwise not run until some input came.
+    crate::wake::wake();
 }
 
 /// An engine event on a node, heard every way at once: the node's rows and
@@ -172,6 +175,7 @@ pub fn announce(eng: &Engine, entity: Entity, name: &str, payload: Value) {
         payload,
         announced: true,
     });
+    crate::wake::wake();
 }
 
 /// The binding event a row answers `name` with.

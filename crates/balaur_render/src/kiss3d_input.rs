@@ -15,6 +15,11 @@ pub(crate) fn pump_input(app: &App, window: &Window) -> bool {
     };
     let mut input = input.borrow_mut();
     input.begin_frame();
+    // As the last pass left it: a field focused there keeps this frame's keys
+    // from firing actions.
+    input.set_keyboard_taken(window.is_egui_capturing_keyboard());
+    #[cfg(target_family = "wasm")]
+    input.set_command_is_meta(apple_browser());
     let mut seen = false;
     let mut closing = false;
     for event in window.events().iter() {
@@ -98,6 +103,18 @@ pub(crate) fn pump_input(app: &App, window: &Window) -> bool {
         app.engine.request_quit();
     }
     seen
+}
+
+/// Whether the page runs on an Apple platform, where `cmd` is ⌘: a browser
+/// says only through its user agent, and iPadOS calls itself a Mac.
+#[cfg(target_family = "wasm")]
+fn apple_browser() -> bool {
+    thread_local! {
+        static APPLE: bool = web_sys::window()
+            .and_then(|window| window.navigator().user_agent().ok())
+            .is_some_and(|agent| ["Mac", "iPhone", "iPad"].iter().any(|name| agent.contains(name)));
+    }
+    APPLE.with(|apple| *apple)
 }
 
 /// The W3C `KeyboardEvent.code` for a key kiss3d reports, which is the name

@@ -12841,6 +12841,11 @@
       "The window changed size, told to every node."
     ],
     [
+      "on_widget_event",
+      "(event, node, value)",
+      "A widget at or under the node had an event (`click`, `change`, `submit` and the rest a widget emits), told to the nearest script up the tree that has this hook: one panel script answers every control under it."
+    ],
+    [
       "on_variable_changed",
       "(name, value)",
       "A scene variable changed, told to every node at the end of the frame."
@@ -19752,7 +19757,7 @@
         "set_field_text": "Overwrite what the field with this `id` is editing, leaving the seed its `value` option last wrote alone.",
         "set_focus": "Put focus on a widget node. A node focus cannot activate is refused at the next draw.",
         "set_keyboard_navigation": "Let the arrows, Tab, Enter and Space move and activate the focused widget. Off unless asked for, so a game that moves with the arrows does not click its own HUD; `standard_app` turns it on for a project declaring the `ui_*` actions.",
-        "set_lazy": "Run the UI pass only when something asks for it (input, `request_repaint`, a log line, an asset reload, an egui animation, or the idle tick every 250 ms, which waits out a drag the UI is no part of) and re-present the last pass in between. Off by default: a HUD that reads live state each frame should leave it off. Ignored offscreen.",
+        "set_lazy": "Run the UI pass only when something asks for it (input, a widget node written, `request_repaint`, a log line, an asset reload or an egui animation) and re-present the last pass in between: nothing is polled, so state that moves without any of those has to write a widget or ask. Off by default: a HUD that reads live state each frame should leave it off. Ignored offscreen.",
         "set_load_progress": "Report how far a load is, zero to one. This is what holds `[application] splash` past its seconds, and what draws the bar under it.",
         "set_scale": "Set the global UI scale, clamped to between 0.25 and 3.0. It is egui's zoom factor, so it grows every control and every font; `screen_size` already answers in the design pixels it leaves.",
         "set_theme": "Dress every `ui::*` call from a theme document, the shape a `widget_theme` file holds: source colours under `colors`, sizes under `sizes`, and a `roles` table of named looks a call takes with `role`. What the document leaves out is derived from its sources.",

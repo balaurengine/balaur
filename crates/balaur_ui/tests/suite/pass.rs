@@ -519,7 +519,7 @@ fn a_second_pass_in_one_frame_is_filed_as_a_rerun() {
 }
 
 /// One pass over the same context, with the events the caller feeds it.
-fn feed(app: &App, ctx: &egui::Context, events: Vec<egui::Event>) -> egui::FullOutput {
+pub(crate) fn feed(app: &App, ctx: &egui::Context, events: Vec<egui::Event>) -> egui::FullOutput {
     let input = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(
             egui::pos2(0.0, 0.0),
@@ -666,22 +666,22 @@ fn a_pill_menu_opens_on_a_left_click() {
     );
 }
 
-/// `pacing::IDLE`, which is private: outwaiting the tick means knowing it.
-const IDLE_TICK: std::time::Duration = std::time::Duration::from_millis(250);
-
-/// The idle tick is there for state that moves without input: a lazy shell
-/// that saw none still gets a pass once the tick has gone by.
+/// Nothing is polled: a lazy shell with no input and nothing written runs no
+/// pass however long it waits, where a 250 ms tick once ran one regardless.
 #[test]
-fn the_idle_tick_runs_a_lazy_shell_that_saw_no_input() {
+fn a_lazy_shell_nobody_touched_runs_no_pass_however_long_it_waits() {
     let (_dir, app, ctx, errors) =
         draw_with(r#"ui::set_lazy(true); ui::central_panel(#{}, || { ui::label("x"); });"#);
     assert!(errors.is_empty(), "{errors:#?}");
     balaur_ui::honour_lazy(&app.engine);
+    feed(&app, &ctx, Vec::new());
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    // The first answer may spend a log line another test wrote meanwhile;
+    // the tick, which nothing spends, would have answered both.
     let _ = balaur_ui::wants_pass(&app.engine, &ctx, false);
-    std::thread::sleep(IDLE_TICK + std::time::Duration::from_millis(50));
     assert!(
-        balaur_ui::wants_pass(&app.engine, &ctx, false),
-        "the tick never fired"
+        !balaur_ui::wants_pass(&app.engine, &ctx, false),
+        "a pass ran with nothing to answer"
     );
 }
 

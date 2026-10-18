@@ -145,6 +145,11 @@ pub(crate) fn widget_changed(entity: Entity) {
     });
 }
 
+/// Whether a widget was written since the last pass began, which owes one.
+pub(crate) fn has_dirty() -> bool {
+    DIRTY.with(|d| !d.borrow().is_empty())
+}
+
 pub(crate) fn stamp_now(eng: &Engine) -> (u64, u64) {
     use std::hash::{Hash as _, Hasher as _};
     // The locale is a whole-forest change and belongs here: a `text_key` is

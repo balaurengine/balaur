@@ -7,6 +7,9 @@
 /// The two hooks the engine calls by name, and the [`BINDABLE`] events whose
 /// rows run beside them.
 pub const ON_VARIABLE_CHANGED: &str = "on_variable_changed";
+/// Called on the nearest script at or above a widget that had an event, so
+/// one panel script answers every control under it.
+pub const ON_WIDGET_EVENT: &str = "on_widget_event";
 pub const ON_STATE_CHANGED: &str = "on_state_changed";
 pub const VARIABLE_CHANGED: &str = "variable_changed";
 pub const STATE_CHANGED: &str = "state_changed";
@@ -146,6 +149,7 @@ pub const REFERENCE: &[(&str, &str, &str)] = &[
     ("on_action_released", "(name)", "A declared input action was let go, reaching nodes as `on_key_down` does."),
     ("on_scroll", "(dx, dy)", "The wheel turned, over the node or, over nothing, to every node."),
     ("on_resize", "(width, height)", "The window changed size, told to every node."),
+    (ON_WIDGET_EVENT, "(event, node, value)", "A widget at or under the node had an event (`click`, `change`, `submit` and the rest a widget emits), told to the nearest script up the tree that has this hook: one panel script answers every control under it."),
     (ON_VARIABLE_CHANGED, "(name, value)", "A scene variable changed, told to every node at the end of the frame."),
     (ON_STATE_CHANGED, "(was, now)", "The node's `states` moved to another state."),
     (ON_PAUSED_CHANGED, "(paused)", "The game paused or resumed, told to every script, a paused one too."),

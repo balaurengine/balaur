@@ -125,6 +125,16 @@ pub struct InputSnapshot {
     /// Uncommitted input-method text, kept until the editor commits or lets go.
     #[serde(default)]
     composing: String,
+    /// Whether a text field held the keyboard this frame, which keeps key
+    /// bindings from firing on what is typed. Recorded, so a replay derives
+    /// the same actions.
+    #[serde(default)]
+    keyboard_taken: bool,
+    /// Whether ⌘ rather than Ctrl is the command key; `None` for what the
+    /// build's platform says. A browser can only tell from its user agent,
+    /// so its backend says. A property of the machine, not of a frame.
+    #[serde(skip)]
+    command_is_meta: Option<bool>,
     /// Pointer and finger conversion. Skipped rather than defaulted: it is a
     /// project setting, not a frame of input, and a recording made under one
     /// setting replays under the setting it was recorded with because the
@@ -331,6 +341,27 @@ impl InputSnapshot {
     /// Files dropped onto the window this frame, in drop order.
     pub fn dropped_files(&self) -> &[String] {
         &self.dropped_files
+    }
+
+    /// Whether a text field holds the keyboard, as the window's UI reports it
+    /// each frame.
+    pub fn set_keyboard_taken(&mut self, taken: bool) {
+        self.keyboard_taken = taken;
+    }
+
+    pub const fn keyboard_taken(&self) -> bool {
+        self.keyboard_taken
+    }
+
+    /// Say which key `cmd` is, where the build's platform cannot know it.
+    pub fn set_command_is_meta(&mut self, meta: bool) {
+        self.command_is_meta = Some(meta);
+    }
+
+    /// Whether `cmd` in a binding is ⌘ (Apple platforms) rather than Ctrl.
+    pub fn command_is_meta(&self) -> bool {
+        self.command_is_meta
+            .unwrap_or(cfg!(target_vendor = "apple"))
     }
 
     pub fn key_event(&mut self, key: &str, pressed: bool) {

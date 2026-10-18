@@ -106,6 +106,54 @@ fn a_click_reaches_the_nearest_ancestor_whose_script_declares_the_handler() {
     );
 }
 
+/// A panel's one script answers every control under it through
+/// `on_widget_event`, with no handler named on any of them.
+#[test]
+fn a_panel_script_hears_every_control_under_it_through_on_widget_event() {
+    let script = "pub fn init(this) {\n    this.heard = 0;\n    this.last = \"\";\n}\n\
+                  pub fn on_widget_event(this, event, node, value) {\n    \
+                  this.heard += 1;\n    this.last = format!(\"{} {}\", event, node.name());\n}\n\
+                  pub fn last(this) {\n    this.last\n}\n\
+                  pub fn heard(this) {\n    this.heard\n}\n";
+    let (_dir, mut app) = app_with_script(script);
+    let root = app.engine.root();
+    let panel = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Panel", root);
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur::node_id_of(panel), "scripts/paint.rn")
+        .unwrap();
+    let column = add_child_widget(
+        &app,
+        panel,
+        "Column",
+        &toml::toml! { kind = "column" x = 0.0 y = 0.0 width = 200.0 height = 80.0 }.into(),
+    );
+    let go = add_child_widget(
+        &app,
+        column,
+        "Go",
+        &toml::toml! { kind = "button" text = "Go" }.into(),
+    );
+    let stop = add_child_widget(
+        &app,
+        column,
+        "Stop",
+        &toml::toml! { kind = "button" text = "Stop" }.into(),
+    );
+    app.tick(1.0 / 60.0);
+    let last = || host.call_on(balaur::node_id_of(panel), "last", &[]);
+    assert!(balaur_ui::click(&app.engine, go, false));
+    app.tick(1.0 / 60.0);
+    assert_eq!(last(), Some(balaur_script::Value::Str("click Go".into())));
+    assert!(balaur_ui::click(&app.engine, stop, false));
+    app.tick(1.0 / 60.0);
+    assert_eq!(last(), Some(balaur_script::Value::Str("click Stop".into())));
+    assert_eq!(
+        host.call_on(balaur::node_id_of(panel), "heard", &[]),
+        Some(balaur_script::Value::Int(2)),
+        "one call a click, and none for the column the clicks passed through"
+    );
+}
+
 /// A button's click runs its node's `pointer_click` rows, so a scene can have
 /// a button call any node's script, as a Godot `pressed` connected to a
 /// sibling's script did.
