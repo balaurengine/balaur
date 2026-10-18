@@ -12,7 +12,7 @@ use crate::util;
 // this file builds the rows it asks for and acts on what it picks.
 const PANEL = "Editor/Shell/Body/Left/LeftSheet/SceneTree";
 const TREE_NODE = "Editor/Shell/Body/Left/LeftSheet/SceneTree/Tree";
-const OUTLINE_NODE = "Editor/Shell/Body/Left/LeftSheet/LeftOutline";
+const OUTLINE = "Editor/Shell/Body/Left/LeftSheet/Outline";
 // The pitch the `tree` node draws at. Stated rather than measured: the node
 // takes it as `row_height`, so `row_spot` and the rows cannot drift apart.
 const TREE_ROW = 23.0;
@@ -166,18 +166,6 @@ pub fn outline_title(S) {
     title
 }
 
-/// The Scene tab's one control, drawn in the dock's tab row.
-pub fn tree_tools(S, k) {
-    ui::add_space(6);
-    if ui::button(icons::ui("add"), #{
-        role: "icon_action", min_width: 24,
-        fill: k.primary_bg, text_color: k.primary_text,
-        tooltip: "Add child node",
-    }) {
-        crate::newnode::open(S);
-    }
-}
-
 /// Whether a node has any component carrying `tag`, which is what a facet
 /// chip filters on.
 fn tagged(S, i, tag) {
@@ -205,7 +193,7 @@ pub fn outline_view(S, query, facet) {
     let says = if query != "" { query } else { facet };
     #{
         items: built.items, chosen: built.chosen, filtering: filtering,
-        nothing: crate::search::nothing_says(says),
+        nothing: crate::search::nothing_says(says), add_icon: icons::ui("add"),
     }
 }
 
@@ -336,31 +324,37 @@ fn filtered_rows(S, query, facet) {
     out
 }
 
-pub fn outline_body(S, k) {
+/// The Outline tab's rows for the workspace, one string a row.
+pub fn secondary_view(S) {
     let (_, rows) = secondary_content(S);
-    let found = scene::get_node(OUTLINE_NODE);
-    if util::is_nil(found) {
-        return;
-    }
     let items = [];
     for row in rows {
         items.push(util::cells([row.icon, row.name, row.meta, "", row.key]));
     }
-    // The pick is the row's own action, looked up by the string the node
-    // reports rather than held as a closure on the node.
-    let picked = found.get_component("widget", "text");
-    found.patch_component("widget", #{ options: items, visible: true });
-    for (n, item) in items.iter().enumerate() {
-        if item == picked {
-            (rows[n].run)();
-            found.patch_component("widget", #{ text: "" });
+    items
+}
+
+/// The Outline tab picked the row written `picked`: that row's own action,
+/// found again by its string rather than held as a closure on the node.
+pub fn secondary_pick(S, picked) {
+    let (_, rows) = secondary_content(S);
+    for row in rows {
+        if util::cells([row.icon, row.name, row.meta, "", row.key]) == picked {
+            (row.run)();
         }
+    }
+}
+
+pub fn show_outline() {
+    let found = scene::get_node(OUTLINE);
+    if !util::is_nil(found) {
+        found.patch_component("widget", #{ visible: true });
     }
 }
 
 // Hidden while another panel is up, the way the tree is.
 pub fn hide_outline() {
-    util::hide(OUTLINE_NODE);
+    util::hide(OUTLINE);
 }
 
 /// Open the rename sheet on the selected node, with its name ready to replace.

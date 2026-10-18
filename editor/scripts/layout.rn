@@ -456,6 +456,8 @@ pub fn compute(S) {
     if m.stage.w > 0.0 && m.stage.h > 0.0 {
         S.viewport = #{ x: m.stage.x, y: m.stage.y, w: m.stage.w, h: m.stage.h, at: S.frame };
     }
+    // A dock's width decides how many of its tabs fit.
+    crate::signals::docks(S);
 }
 
 // What the right sheet draws above its form: the tab row every panel has, and

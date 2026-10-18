@@ -78,6 +78,7 @@ fn write(S, found, label) {
             history::commit(S);
         }
     }
+    crate::signals::changed(S, "machine");
 }
 
 /// Give the selected node a machine of its own, driving its own player.
@@ -232,20 +233,24 @@ pub fn set_field(S, at, key, value) {
     write(S, found, "edit transition");
 }
 
-/// The dock's rows, as nodes: the pool makes them under the host the dock
-/// hands over, and the header fills the dock's own chrome strip.
-pub fn body(S, k) {
+// The State machine panel's header strip and the column its rows go in.
+const PANEL = "Editor/Shell/Body/Centre/Bottom/StateMachine/";
+const ROWS = "Editor/Shell/Body/Centre/Bottom/StateMachine/Rows/Column";
+
+/// The panel's rows, as nodes: the pool makes them under the panel's column,
+/// and the header fills the panel's own strip.
+pub fn body(S) {
     let found = match source(S) {
         Some(found) => found,
         None => {
-            crate::docks::chrome_rows(S, [offer(S)]);
-            crate::pool::sync(S, crate::dock::rows_host(S), [], NAME_W, false);
+            crate::docks::toolbar(S, PANEL + "Chrome", [offer(S)]);
+            crate::pool::sync(S, ROWS, [], NAME_W, false);
             return;
         }
     };
     let doc = found.doc;
-    crate::docks::chrome_rows(S, [header_controls(S, found)]);
-    crate::pool::sync(S, crate::dock::rows_host(S), row_specs(S, doc), NAME_W, false);
+    crate::docks::toolbar(S, PANEL + "Chrome", [header_controls(S, found)]);
+    crate::pool::sync(S, ROWS, row_specs(S, doc), NAME_W, false);
 }
 
 /// What the strip says when the node runs no machine: why, and the verb that
@@ -546,6 +551,7 @@ pub fn selftest(S) {
         if transitions(found.doc).len() > 0 {
             S.machine.open = Some(0);
             S.machine.demo = 0;
+            crate::signals::changed(S, "machine");
         }
     }
     log::info("selftest state machine: done");
@@ -563,7 +569,7 @@ pub fn demo_step(S) {
         return;
     }
     S.machine.demo = -1;
-    let host = scene::get_node(crate::dock::rows_host(S));
+    let host = scene::get_node(ROWS);
     let labels = [];
     for row in host.children() {
         let label = row.get_node("L");

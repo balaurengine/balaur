@@ -1,0 +1,62 @@
+// The Library tab's one script: it lights the kind, fills that kind's cards or
+// the templates from what the Editor hands it, and answers a pick of either.
+
+const KINDS = ["material", "sky", "model", "scene", "rig", "addon", "template"];
+
+pub fn init(this) {
+    this.editor = scene::get_node("Editor");
+    events::listen(this.node, "library_changed", this.editor);
+    events::listen(this.node, "outline_changed", this.editor);
+}
+
+pub fn on_library_changed(this, _change) {
+    refresh(this);
+}
+
+/// The theme moved, which inks the cards.
+pub fn on_outline_changed(this, _change) {
+    refresh(this);
+}
+
+pub fn on_widget_event(this, event, node, value) {
+    if event != "click" {
+        return;
+    }
+    let name = node.name();
+    if KINDS.iter().any(|kind| kind == name) {
+        this.editor.call("library_kind", name);
+    } else if name == "Cards" || name == "Table" {
+        // A pick places, so the same card twice places twice: the row is
+        // read and let go rather than kept lit.
+        let row = node.get_component("widget", "text");
+        node.patch_component("widget", #{ text: "" });
+        if row != "" {
+            this.editor.call("library_pick", row);
+        }
+    }
+}
+
+/// Fill what shows from the Editor's answer: on a word that it moved, and
+/// from the dock once it has made this panel visible.
+pub fn refresh(this) {
+    if this.node.get_component("widget", "visible") == false {
+        return;
+    }
+    let view = this.editor.call("library_view");
+    if !(view is Object) {
+        return;
+    }
+    let kinds = this.node.get_node("Kinds");
+    for kind in KINDS {
+        kinds.get_node(kind).patch_component("widget", #{ checked: kind == view.kind });
+    }
+    this.node.get_node("Note").patch_component("widget", #{ visible: view.says != "", text: view.says });
+    let cards = !view.templates && view.items.len() > 0;
+    let table = view.templates && view.items.len() > 0;
+    this.node.get_node("Cards").patch_component("widget", #{
+        visible: cards, options: if cards { view.items } else { [] },
+    });
+    this.node.get_node("Table").patch_component("widget", #{
+        visible: table, options: if table { view.items } else { [] },
+    });
+}

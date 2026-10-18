@@ -1,0 +1,73 @@
+# The Recordings tab while none is open: every play, newest first, each with
+# the verbs that replay, keep, copy or drop it. One script answers them; the
+# rows are made by the Editor, which owns the recordings.
+
+[[nodes]]
+id = "panel"
+name = "Recordings"
+script = { source = "scripts/panels/recordings.rn" }
+[nodes.widget]
+kind = "column"
+role = "layout_dock"
+grow = 1
+gap = [0, 4]
+visible = false
+
+[[nodes]]
+id = "tools"
+name = "Tools"
+parent = "panel"
+[nodes.widget]
+kind = "row"
+role = "toolbar_dock"
+align_items = "center"
+gap = [6, 6]
+
+[[nodes]]
+id = "says"
+name = "Says"
+parent = "tools"
+[nodes.widget]
+kind = "label"
+role = "text_caption"
+text = "every play is recorded"
+grow = 1
+
+[[nodes]]
+id = "verify"
+name = "Verify"
+parent = "tools"
+[nodes.widget]
+kind = "button"
+role = "chip"
+text = "verify"
+tooltip = "Hash the world every tick, so a replay can name where it parted"
+
+[[nodes]]
+id = "nothing"
+name = "Nothing"
+parent = "panel"
+[nodes.widget]
+kind = "label"
+role = "text_caption"
+text = "no recordings yet — press Play"
+wrap = true
+visible = false
+
+[[nodes]]
+id = "rows"
+name = "Rows"
+parent = "panel"
+[nodes.widget]
+kind = "scroll"
+axis = "vertical"
+grow = 1
+
+[[nodes]]
+id = "column"
+name = "Column"
+parent = "rows"
+[nodes.widget]
+kind = "column"
+role = "list_dock"
+grow = 1

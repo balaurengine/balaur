@@ -3,11 +3,9 @@
 // Placing one copies its files in and then does what dropping them would.
 
 use crate::defs;
-use crate::dock;
 use crate::dropin;
 use crate::icons;
 use crate::model;
-use crate::style;
 use crate::util;
 
 pub fn state() {
@@ -204,98 +202,65 @@ fn kind_icon(kind) {
     return icons::panel("scene");
 }
 
-/// The dock. One chip row, then a grid of cards for the chosen kind.
-pub fn panel(S, k) {
+/// What the Library panel shows for its kind: the kind's cards, or the
+/// templates as table rows, and what to say when there are none. The entries
+/// are kept, so a pick names the one it placed.
+pub fn view(S) {
+    let k = S.theme;
     let known = catalogue(S);
-    let chips = [];
-    for chip in kinds() {
-        // Bound afresh: a closure made in a loop captures the binding.
-        let id = chip[0];
-        chips.push(#{
-            kind: "button", text: chip[1],
-            role: "chip", checked: S.library.kind == id,
-            on: |_| { S.library.kind = id; },
-        });
-    }
-    crate::docks::chrome_rows(S, [chips]);
+    let items = [];
+    let held = [];
     if S.library.kind == "template" {
-        dock::hide_cards();
-        templates(S, k, known);
-        return;
+        // Listed rather than placed, because a template makes a project and
+        // the editor is already in one.
+        for row in known.templates {
+            let entry = util::obj(row);
+            let command = format!("balaur new my-game --template {}", entry.id);
+            items.push(util::cells([entry.name, entry.get("note").unwrap_or(""), command]));
+            held.push(command);
+        }
+        S.library.shown = #{ items: items, held: held };
+        let says = if items.len() == 0 { "no templates in the library" }
+            else { "a row is copied as the command that makes it" };
+        return #{ kind: S.library.kind, templates: true, items: items, says: says };
     }
-    dock::hide_table();
-    let shown = [];
     for entry in known.entries {
-        if util::obj(entry).get("kind").unwrap_or("") == S.library.kind {
-            shown.push(util::obj(entry));
+        let entry = util::obj(entry);
+        if entry.get("kind").unwrap_or("") == S.library.kind {
+            // The kind's mark, the entry's name, and its note as the hover.
+            items.push(util::row(kind_icon(entry.kind), entry.name,
+                entry.get("note").unwrap_or(""), k.text_default));
+            held.push(entry);
         }
     }
-    if shown.len() == 0 {
-        dock::hide_cards();
-        style::empty(k, "nothing of that kind in the library");
-        return;
-    }
-    show_cards(S, k, shown);
+    S.library.shown = #{ items: items, held: held };
+    let says = if items.len() == 0 { "nothing of that kind in the library" } else { "" };
+    #{ kind: S.library.kind, templates: false, items: items, says: says }
 }
 
-// The entries as cards on the bottom dock's `list` node: the kind's mark, the
-// entry's name, and its note as the hover.
-fn show_cards(S, k, shown) {
-    let items = [];
-    for entry in shown {
-        items.push(util::row(kind_icon(entry.kind), entry.name,
-            entry.get("note").unwrap_or(""), k.text_default));
-    }
-    util::fill(dock::CARDS_NODE, #{
-        options: items, visible: true, grid_columns: "repeat(5, 1fr)", text: "",
-    });
-    let picked = util::taken(dock::CARDS_NODE);
-    for (n, item) in items.iter().enumerate() {
-        if item == picked {
-            let held = shown[n];
-            if held.kind == "material" {
-                apply_material(S, held);
-            } else {
-                place(S, held);
-            }
-        }
-    }
+/// The kind the panel's chips filter by.
+pub fn choose(S, kind) {
+    S.library.kind = kind;
+    crate::signals::changed(S, "library");
 }
 
-/// The templates a new project starts from, on the dock's `table` node: a
-/// name, what it makes, and the command a click copies.
-///
-/// Listed rather than placed, because a template makes a project and the
-/// editor is already in one.
-fn templates(S, k, known) {
-    if known.templates.len() == 0 {
-        dock::hide_table();
-        style::empty(k, "no templates in the library");
-        return;
-    }
-    ui::add_space(2);
-    ui::row(#{ height: 18 }, || {
-        ui::add_space(8);
-        ui::label("a row is copied as the command that makes it", style::mono_sm(k.text_subtle));
-    });
-    let items = [];
-    let commands = [];
-    for row in known.templates {
-        let entry = util::obj(row);
-        let command = format!("balaur new my-game --template {}", entry.id);
-        items.push(util::cells([entry.name, entry.get("note").unwrap_or(""), command]));
-        commands.push(command);
-    }
-    dock::show_table(
-        ["template", "what it makes", "the command it is made with"],
-        ["1", "1.6", "2"],
-        items,
-    );
-    let picked = dock::taken_table();
-    for (n, item) in items.iter().enumerate() {
-        if item == picked {
-            ui::set_clipboard(commands[n]);
-            log::info("copied: " + commands[n]);
+/// A card or a template row picked: a material goes on the selection, any
+/// other entry into the project, and a template's command to the clipboard.
+pub fn pick(S, row) {
+    let shown = S.library.get("shown").unwrap_or(#{ items: [], held: [] });
+    for (n, item) in shown.items.iter().enumerate() {
+        if item != row {
+            continue;
         }
+        let held = shown.held[n];
+        if held is String {
+            ui::set_clipboard(held);
+            log::info("copied: " + held);
+        } else if held.kind == "material" {
+            apply_material(S, held);
+        } else {
+            place(S, held);
+        }
+        return;
     }
 }

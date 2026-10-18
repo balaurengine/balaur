@@ -190,6 +190,8 @@ pub fn run(S) {
         found.push(f);
     }
     S.lint.found = found;
+    crate::signals::docks(S);
+    crate::signals::changed(S, "problems");
     S.lint.at = engine::unix_time();
 }
 

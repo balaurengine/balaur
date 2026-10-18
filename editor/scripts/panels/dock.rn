@@ -1,0 +1,31 @@
+// A dock's one script: its tab row and which of its panels shows. One file
+// for the three docks, each told its side by the node it is on; the Editor
+// owns which panels a dock holds and fills its row when asked.
+
+fn side_of(name) {
+    match name {
+        "LeftSheet" => "left",
+        "RightSheet" => "right",
+        _ => "bottom",
+    }
+}
+
+pub fn init(this) {
+    this.side = side_of(this.node.name());
+    this.editor = scene::get_node("Editor");
+    events::listen(this.node, "docks_changed", this.editor);
+}
+
+pub fn on_docks_changed(this, _change) {
+    let shown = this.editor.call("dock_fill", this.side);
+    // Told once it is visible, so a panel that fills itself never reads
+    // itself as hidden and skips the fill.
+    if shown is String && shown != "" {
+        this.node.get_node(shown).call("refresh");
+    }
+}
+
+/// The tabs, the "+N" list and the fold run the Editor's own handlers, so
+/// a dock has nothing to add; a panel with a script of its own hears its
+/// controls first.
+pub fn on_widget_event(this, event, node, value) {}

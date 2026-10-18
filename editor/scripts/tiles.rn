@@ -613,6 +613,7 @@ pub fn set_mode(S, mode) {
     if util::contains(MODES, mode) {
         S.tiles.mode = mode;
         S.tiles.anchor = None;
+        crate::signals::changed(S, "tiles");
     }
 }
 
@@ -660,6 +661,7 @@ pub fn update(S, over_viewport, mx, my) {
             let held = cell(S, x, y);
             if held >= 0 {
                 S.tiles.tile = held;
+                crate::signals::changed(S, "tiles");
             }
             S.tiles.stroke = Some(stroke);
         }
@@ -888,24 +890,26 @@ fn chip(text, on, act) {
     }
 }
 
-/// The palette dock: the tile set's texture cut into tiles to pick from, the
-/// two modes, and the layers of the map beside it. Its rows are the dock's
-/// own chrome; the cards under them are the atlas.
-pub fn palette(S, k) {
-    let rows = [];
+// The Tiles panel's strip of chips, which the pool makes into nodes.
+const CHROME = "Editor/Shell/Body/Centre/Bottom/Tiles/Chrome";
+
+/// The palette: the two modes and the layers of the map as the Tiles panel's
+/// rows of chips, filled here, and the tile set's texture cut into tiles to
+/// pick from, handed back for the panel's cards.
+pub fn palette(S) {
+    let none = #{ items: [], picked: "", sheet: "" };
     if !editable(S) {
-        crate::dock::hide_cards();
-        crate::docks::chrome_rows(S, [[note("Select a node with a tilemap to paint it.")]]);
-        return;
+        crate::docks::toolbar(S, CHROME, [[note("Select a node with a tilemap to paint it.")]]);
+        return none;
     }
     let set = match tileset(S) {
         Some(set) => set,
         None => {
-            crate::dock::hide_cards();
-            crate::docks::chrome_rows(S, [[note("This tilemap names no tile set, or one that will not load.")]]);
-            return;
+            crate::docks::toolbar(S, CHROME, [[note("This tilemap names no tile set, or one that will not load.")]]);
+            return none;
         }
     };
+    let rows = [];
     mode_row(S, rows);
     if S.tiles.mode == "stamp" {
         stamp_row(S, rows);
@@ -922,13 +926,12 @@ pub fn palette(S, k) {
     }
     let count = tile_count(S);
     if count < 1 {
-        crate::dock::hide_cards();
         rows.push([note("The tile set's texture could not be measured.")]);
-        crate::docks::chrome_rows(S, rows);
-        return;
+        crate::docks::toolbar(S, CHROME, rows);
+        return none;
     }
-    crate::docks::chrome_rows(S, rows);
-    show_swatches(S, k, set, count);
+    crate::docks::toolbar(S, CHROME, rows);
+    swatches(S, set, count)
 }
 
 fn note(text) {
@@ -993,10 +996,11 @@ fn layer_row(S, found, out) {
     out.push(row);
 }
 
-// The atlas as cards on the bottom dock's `list` node. A row's first field is
-// the tile's rect in the sheet's own pixels, which the card draws in place of
-// a glyph because the node names the sheet as its `source`.
-fn show_swatches(S, k, set, count) {
+// The atlas as the panel's cards. A row's first field is the tile's rect in
+// the sheet's own pixels, which the card draws in place of a glyph because
+// the panel names the sheet as its `source`.
+fn swatches(S, set, count) {
+    let k = S.theme;
     let items = [];
     let tile = 0;
     while tile < count {
@@ -1009,15 +1013,17 @@ fn show_swatches(S, k, set, count) {
         ));
         tile += 1;
     }
-    let chosen = if S.tiles.tile < items.len() { items[S.tiles.tile] } else { "" };
-    util::fill(crate::dock::CARDS_NODE, #{
-        options: items, visible: true, grid_columns: "repeat(8, 1fr)", text: chosen,
-        sheet: util::engine_path(S, set.texture),
-    });
-    let picked = util::prop(crate::dock::CARDS_NODE, "text");
-    for (n, item) in items.iter().enumerate() {
-        if item == picked {
+    S.tiles.cards = items;
+    let picked = if S.tiles.tile < items.len() { items[S.tiles.tile] } else { "" };
+    #{ items: items, picked: picked, sheet: util::engine_path(S, set.texture) }
+}
+
+/// A card picked: the tile the brush lays down.
+pub fn pick(S, row) {
+    for (n, item) in S.tiles.get("cards").unwrap_or([]).iter().enumerate() {
+        if item == row {
             S.tiles.tile = n;
+            crate::signals::changed(S, "tiles");
         }
     }
 }

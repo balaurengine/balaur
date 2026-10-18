@@ -592,9 +592,8 @@ theme moves. Gone: the search and facet drawn every pass, and `show_tree`
 reading the tree's `text` every pass. `test:rows` drives it as a pointer
 would, with `ui::edit`.
 
-Not yet moved: the `+` in the tab row, drawn by `docks::draw_tools` with the
-other tab rows (phase 3), and the dock showing and hiding the panel from its
-`draw` node.
+Since phase 3 the `+` is the panel's own, beside the search, and the dock
+shows and hides the panel on `docks_changed` (9.5).
 
 ### 9.4 The Inspector
 
@@ -620,17 +619,59 @@ panel for all of them. A control in the form is heard through
 - A plugin's inspector section returns rows instead of drawing.
 - Import keeps the right sheet's own form and its drawn head (phase 4).
 
-### 9.5 What is left, in order
+### 9.5 The docks
 
-1. The bottom docks and every dock's tab row.
-2. The chrome: top bar, status bar, tool rail, viewport chips and HUD as
+Built 2026-10-18, phase 3. Each dock (the left sheet, the right sheet, the
+bottom) carries `scripts/panels/dock.rn`. It listens for `docks_changed`,
+which is emitted when the key it is built from moves: the docks' tabs, active
+panels, folds and widths, the workspace, the screen's class, the Problems
+count, the plugin docks, and whether a recording is open. On it the dock has
+the Editor fill its tab row (`dock_fill`), which shows the active panel and
+hides the rest. The dock then calls that panel's `refresh`, so a panel never
+reads itself as hidden and skips the fill.
+
+Every bottom tab is a scene of its own with one script:
+
+- Output hears the engine's `logged`, a line written to the log.
+- Problems and Docs hear `problems_changed` and `docs_changed`.
+- Profiler and Cost share `meter.rn`, the one panel on a clock: four samples
+  a second while it shows, each a scheduled repaint.
+- Assets hears `assets_changed`. The Editor emits it from its own verbs, an
+  import's report and the engine's `assets_reloaded`, a project file
+  reloaded, on which it also drops its cached reads.
+- Library, Tiles, State machine, Recordings and Debugger hear their own
+  `<what>_changed`. The State machine also hears `play_frame`. The Debugger's
+  word follows the engine's `debugger_stopped`, which replaced asking
+  `stop_location` every frame.
+- Tiles, State machine and Recordings keep pooled rows of chips, filled by
+  the Editor on the word. A chip's own handler runs first, then the panel's
+  `on_widget_event` fills it again.
+
+Each widget node's egui child is salted by its node now. egui names an
+unsalted child after its parent alone, so the Debugger's stack and the Scene
+tree, as deep as each other, shared a caret's id.
+
+Gone: the shared bottom nodes (`BottomChrome`, `BottomRows`, `BottomCards`,
+`BottomTable`, `BottomTree`), the hatch drawing the active panel each pass,
+`util::taken`, and the tab row's hints for Assets, Debugger, Profiler and
+Cost.
+
+Left: the tab row's tools slot still draws the Timeline's clip each pass. A
+plugin's bottom dock is still drawn each pass into its own subtree. The
+Timeline, a recording's lanes, weights and the bone map are `draw` nodes
+(item 4 below).
+
+### 9.6 What is left, in order
+
+1. The chrome: top bar, status bar, tool rail, viewport chips and HUD as
    nodes; the hotkeys as declared actions; `layout.rn`'s sizes into the scene.
-3. Dialogs and sheets: settings, theme, about, export, populate, palette, the
+2. Dialogs and sheets: settings, theme, about, export, populate, palette, the
    node picker, rename, plugin dialogs, and Import's head.
-4. The start screen.
-5. Kinds for what is drawn now because no kind holds it: the timeline, a
-   recording's lanes, weights, the bone map, the code editor with its
-   completion and refactor sheet.
+3. The start screen.
+4. Kinds for what is drawn now because no kind holds it: the timeline and its
+   clip in the tab row, a recording's lanes, weights, the bone map, the code
+   editor with its completion and refactor sheet.
+5. Plugin docks handed a word and filled on it, instead of drawn each pass.
 6. The viewport tools on pointer hooks, and the gizmo and overlay lines as
    retained nodes.
 7. Remove `draw_ui`, the pool and the `draw` nodes from the editor, and move

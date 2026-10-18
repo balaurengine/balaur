@@ -531,5 +531,6 @@ pub fn apply(S) {
     let verify = settings::get("editor/recordings/verify");
     if verify is bool {
         S.session.verify = verify;
+        crate::signals::changed(S, "recordings");
     }
 }

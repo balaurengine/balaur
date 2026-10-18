@@ -43,6 +43,7 @@ pub fn apply_workspace(S, id) {
         want[side].shut = S.docks[side].shut;
     }
     S.docks = want;
+    crate::signals::docks(S);
     // A plugin's dock is in no workspace's set: it was adopted when the plugin
     // loaded, and a workspace must not unregister it.
     for entry in S.registry.panels {
@@ -75,6 +76,7 @@ pub fn follow_screen(S) {
         // variables is the pitfall AGENTS.md names.
         let fold = if side == "bottom" { only_one } else { only_one || tight };
         S.docks[side].shut = fold;
+        crate::signals::docks(S);
     }
 }
 
@@ -89,12 +91,14 @@ pub fn one_at_a_time(S) {
 /// Open a side dock, folding the other where there is only room for one.
 fn unfold(S, side) {
     S.docks[side].shut = false;
+    crate::signals::docks(S);
     if !one_at_a_time(S) {
         return;
     }
     for other in sides() {
         if other != side {
             S.docks[other].shut = true;
+            crate::signals::docks(S);
         }
     }
 }
@@ -130,18 +134,18 @@ pub fn panels(S) {
         "import": #{ name: "Import", icon: icons::panel("import"), tall: false },
         "output": #{ name: "Output", icon: icons::panel("output"), tall: false },
         "problems": #{ name: "Problems", icon: icons::panel("problems"), tall: false },
-        "assets": #{ name: "Assets", icon: icons::panel("assets"), tall: false, chrome: true },
+        "assets": #{ name: "Assets", icon: icons::panel("assets"), tall: false },
         "docs": #{ name: "Docs", icon: icons::panel("docs"), tall: true },
         "timeline": #{ name: "Timeline", icon: icons::panel("timeline"), tall: true },
         "debugger": #{ name: "Debugger", icon: icons::panel("debugger"), tall: true },
-        "recordings": #{ name: "Recordings", icon: icons::panel("recordings"), tall: true, chrome: true },
+        "recordings": #{ name: "Recordings", icon: icons::panel("recordings"), tall: true },
         "profiler": #{ name: "Profiler", icon: icons::panel("profiler"), tall: true },
         "cost": #{ name: "Cost", icon: icons::panel("cost"), tall: true },
-        "library": #{ name: "Library", icon: icons::panel("library"), tall: false, chrome: true },
-        "tiles": #{ name: "Tiles", icon: icons::panel("tiles"), tall: true, chrome: true },
+        "library": #{ name: "Library", icon: icons::panel("library"), tall: false },
+        "tiles": #{ name: "Tiles", icon: icons::panel("tiles"), tall: true },
         "weights": #{ name: "Weights", icon: icons::panel("weights"), tall: true },
         "bonemap": #{ name: "Bone map", icon: icons::panel("bonemap"), tall: true },
-        "statemachine": #{ name: "State machine", icon: icons::panel("statemachine"), tall: true, chrome: true },
+        "statemachine": #{ name: "State machine", icon: icons::panel("statemachine"), tall: true },
     };
     for entry in S.registry.panels {
         let icon = if entry.icon == "" { icons::panel(entry.id) } else { entry.icon };
@@ -159,6 +163,7 @@ pub fn adopt(S, id) {
         return;
     }
     S.docks[home(id)].tabs.push(id);
+    crate::signals::docks(S);
 }
 
 /// Take a panel out of its dock. Nothing is destroyed: the logo menu lists
@@ -175,8 +180,10 @@ pub fn close(S, id) {
         }
     }
     S.docks[side].tabs = kept;
+    crate::signals::docks(S);
     if S.docks[side].active == id {
         S.docks[side].active = kept.get(0).unwrap_or("");
+        crate::signals::docks(S);
     }
 }
 
@@ -229,6 +236,7 @@ pub fn show(S, id) {
     let found = side_of(S, id);
     if let Some(side) = found {
         S.docks[side].active = id;
+        crate::signals::docks(S);
         unfold(S, side);
     }
 }
@@ -247,12 +255,16 @@ pub fn move_to(S, id, side) {
             }
         }
         S.docks[old].tabs = kept;
+        crate::signals::docks(S);
         if S.docks[old].active == id {
             S.docks[old].active = kept.get(0).unwrap_or("");
+            crate::signals::docks(S);
         }
     }
     S.docks[side].tabs.push(id);
+    crate::signals::docks(S);
     S.docks[side].active = id;
+    crate::signals::docks(S);
     unfold(S, side);
 }
 
@@ -266,26 +278,20 @@ pub fn bottom_tall(S) {
 }
 
 fn body(S, k, id) {
+    if filled_by_itself(id) {
+        // The lanes take the room while a recording is open.
+        if id == "recordings" && crate::session::loaded(S) {
+            util::hide(BOTTOM + "Recordings");
+            return;
+        }
+        show_panel(own_node(id));
+        return;
+    }
     match id {
         "scene" => left::show_tree(),
-        "outline" => left::outline_body(S, k),
+        "outline" => left::show_outline(),
         "inspector" => inspector::show_panel(),
         "import" => crate::importer::panel(S, k),
-        "output" => dock::output(S, k),
-        "problems" => dock::problems(S, k),
-        "assets" => dock::assets(S, k),
-        "docs" => crate::docs::draw(S, k),
-
-        "debugger" => dock::debugger_view(S, k),
-
-        "profiler" => dock::profiler(S, k),
-        "cost" => dock::cost(S, k),
-        "library" => crate::library::panel(S, k),
-        "tiles" => crate::tiles::palette(S, k),
-        "statemachine" => crate::statemachine::body(S, k),
-        "recordings" => dock::session_list(S, k),
-
-
         _ => match crate::plugins::panel(S, id) {
             Some(entry) => {
                 let draw = entry.draw;
@@ -314,6 +320,38 @@ fn canvas_views() {
 
 const BOTTOM = "Editor/Shell/Body/Centre/Bottom/";
 
+// The bottom panels, each a scene of its own under the dock with its own
+// script: shown and hidden here, filled by themselves. A panel's node by id.
+fn own_nodes() {
+    #{
+        output: "Output", problems: "Problems", docs: "Docs", profiler: "Profiler",
+        cost: "Cost", assets: "Assets", library: "Library", tiles: "Tiles",
+        statemachine: "StateMachine", recordings: "Recordings", debugger: "Debugger",
+    }
+}
+
+fn own_node(id) {
+    own_nodes().get(id).unwrap_or("")
+}
+
+fn is_own_node(name) {
+    for (_, held) in own_nodes() {
+        if held == name {
+            return true;
+        }
+    }
+    false
+}
+
+// A panel that is a scene of its own, which `fill` shows and nothing draws.
+fn filled_by_itself(id) {
+    own_node(id) != ""
+}
+
+fn show_panel(name) {
+    util::fill(BOTTOM + name, #{ visible: true });
+}
+
 // A canvas view is off while its panel is showing something else: the
 // Session panel is a list of recordings until one is open.
 fn canvas_on(S, d, id) {
@@ -338,37 +376,22 @@ fn sync_canvas(S, d) {
         util::fill(BOTTOM + name, #{ visible: on });
     }
     // The hatch draws whatever panel has no node of its own, so it gives its
-    // room up to one that has, less the strip that panel's chrome wants.
+    // room up to one that has.
     let owned = painting || owns_a_node(S, "bottom", d);
     util::fill(BOTTOM + "DockBody", #{
         grow: if owned { 0.0 } else { 1.0 },
         height: if owned { 1.0 } else { 0.0 },
     });
-    // The strip is a row of nodes now, not a share of the hatch: hidden for
-    // every panel that keeps none, and the panel itself fills it.
-    if !keeps_chrome(S, d.active) {
-        util::hide(BOTTOM + "BottomChrome");
-    }
 }
 
-/// Fill the chrome a panel keeps over the node it fills, and show it. `rows`
-/// is a list of controls a row; a panel that names no chrome leaves it hidden.
-pub fn chrome_rows(S, rows) {
+/// Fill a panel's strip of chips at `path`: `rows` is a list of controls a
+/// row, made into nodes by the pool.
+pub fn toolbar(S, path, rows) {
     let groups = [];
     for row in rows {
         groups.push(#{ kind: "row", role: "toolbar_dock", gap: [6, 6], align_items: "center", controls: row });
     }
-    crate::pool::strip(S, BOTTOM + "BottomChrome", groups);
-}
-
-/// Whether a panel keeps chrome over the node it fills, which the strip is
-/// hidden for when it does not.
-fn keeps_chrome(S, id) {
-    let found = panels(S).get(id);
-    match found {
-        Some(entry) => entry.get("chrome").unwrap_or(false) == true,
-        None => false,
-    }
+    crate::pool::strip(S, path, groups);
 }
 
 /// Whether the panel showing has a node of its own, which the shared hatch
@@ -395,11 +418,17 @@ fn owns_a_node(S, side, d) {
 fn node_owners() {
     #{
         bottom: [
-            #{ hide: "log", panels: ["output", "problems", "docs"] },
-            #{ hide: "table", panels: ["cost", "profiler", "library"] },
-            #{ hide: "cards", panels: ["assets", "library", "tiles"] },
-            #{ hide: "stack", panels: ["debugger"] },
-            #{ hide: "rows", panels: ["statemachine", "recordings"] },
+            #{ hide: "Output", panels: ["output"] },
+            #{ hide: "Problems", panels: ["problems"] },
+            #{ hide: "Docs", panels: ["docs"] },
+            #{ hide: "Profiler", panels: ["profiler"] },
+            #{ hide: "Cost", panels: ["cost"] },
+            #{ hide: "Assets", panels: ["assets"] },
+            #{ hide: "Library", panels: ["library"] },
+            #{ hide: "Tiles", panels: ["tiles"] },
+            #{ hide: "StateMachine", panels: ["statemachine"] },
+            #{ hide: "Recordings", panels: ["recordings"] },
+            #{ hide: "Debugger", panels: ["debugger"] },
         ],
         left: [
             #{ hide: "tree", panels: ["scene"] },
@@ -413,16 +442,8 @@ fn node_owners() {
 }
 
 fn hide_node(S, which) {
-    if which == "log" {
-        dock::hide_log(S);
-    } else if which == "table" {
-        dock::hide_table();
-    } else if which == "cards" {
-        dock::hide_cards();
-    } else if which == "stack" {
-        dock::hide_tree();
-    } else if which == "rows" {
-        dock::hide_rows();
+    if is_own_node(which) {
+        util::hide(BOTTOM + which);
     } else if which == "tree" {
         left::hide_tree(S);
     } else if which == "outline" {
@@ -676,20 +697,31 @@ fn tab_row(S, k, side, d) {
 /// The panel's own controls and the fold, in that order: where they have
 /// always been, at the end of the head rather than the end of the tabs.
 fn tail_controls(S, side) {
-    [
+    let fold = #{
+        kind: "button", height: tab_h(S), width: tab_h(S), padding: 0,
+        text: "", icon: icons::ui(shut_icon(side)), role: "icon_action",
+        tooltip: "Minimize",
+        on: |_| {
+            S.docks[side].shut = true;
+            crate::signals::docks(S);
+        },
+    };
+    // A side dock's panels carry their own tools in their own scenes; the
+    // bottom one's still draw theirs in this slot until they do too.
+    if side != "bottom" {
+        let controls = [fold];
+        return controls;
+    }
+    let controls = [
         #{
             // A box, not a share: this row hugs what is in it, so a hatch
             // that only grows is one pixel wide and nothing draws in it.
             kind: "draw", width: tools_room(S, side), height: tab_h(S),
             draw: format!("draw_dock_tools_{}", side),
         },
-        #{
-            kind: "button", height: tab_h(S), width: tab_h(S), padding: 0,
-            text: "", icon: icons::ui(shut_icon(side)), role: "icon_action",
-            tooltip: "Minimize",
-            on: |_| { S.docks[side].shut = true; },
-        },
-    ]
+        fold,
+    ];
+    controls
 }
 
 // One control a tab, the mark that closes it, and the fold at the end. The
@@ -710,7 +742,10 @@ fn tab_controls(S, k, side, d) {
         inner.push(#{
             kind: "button", height: h, text: label, padding: [6, -1, 6, -1], corner_radius: 4, fill: "none",
             role: "tab", checked: active,
-            on: |_| { S.docks[side].active = held; },
+            on: |_| {
+                S.docks[side].active = held;
+                crate::signals::docks(S);
+            },
         });
         // Its own role, so the half of the tile under the pointer is the half
         // that lights up: a mark that looked the same either way was aimed at
@@ -797,6 +832,7 @@ fn show_named(S, side, name) {
     for id in S.docks[side].tabs {
         if panel(S, id).name == name {
             S.docks[side].active = id;
+            crate::signals::docks(S);
         }
     }
 }
@@ -867,17 +903,6 @@ fn tab_width(S, id) {
 // The controls that belong to the panel showing, in the tab row's one slot.
 // A narrow dock keeps its tabs: the tools are what give way, not the names.
 fn tools(S, k, id, room) {
-    if id == "scene" {
-        left::tree_tools(S, k);
-        return;
-    }
-    if id == "output" {
-        dock::output_tools(S, k, room);
-        return;
-    }
-    if id == "profiler" && room > 90.0 {
-        dock::profiler_tools(S, k);
-    }
     if S.compact || room < 150.0 {
         return;
     }
@@ -923,16 +948,16 @@ pub fn all_folded(S) {
     true
 }
 
+/// The bottom dock's body, drawn each pass for the panels that still draw;
+/// its tab row and which panel shows are `fill`'s, on `docks_changed`.
 pub fn draw_bottom_body(S, k) {
     let d = S.docks.bottom;
-    hide_unused(S, "bottom", d);
-    if d.tabs.len() == 0 || d.shut {
-        hide_tabs(S, "bottom");
+    if d.tabs.len() == 0 || d.shut || filled_by_itself(d.active) {
         return;
     }
-    tab_row(S, k, "bottom", d);
     body_scrolled(S, k, d.active);
 }
+
 
 /// A dock's body, inside the scroll it needs unless it brings its own.
 ///
@@ -953,7 +978,7 @@ fn body_scrolled(S, k, id) {
 /// the plain one does not do: a log follows what is arriving. A plugin's dock
 /// always does: its own subtree carries the scroll.
 fn scrolls_itself(S, id) {
-    if id == "output" || id == "docs" || id == "bonemap" || id == "statemachine" {
+    if id == "bonemap" {
         return true;
     }
     crate::plugins::panel(S, id).is_some()
@@ -967,19 +992,39 @@ fn scrolls_itself(S, id) {
 /// the tab row and the panel. The status strip is a pooled row of its own.
 pub fn draw_body(S, k, side) {
     let d = S.docks[side];
+    // Import's head is the one side panel still drawn.
+    if !d.shut && d.active == "import" {
+        crate::importer::panel(S, k);
+    }
+}
+
+/// A dock's tab row, which of its panels shows, and the side panels' own
+/// showing: what its script asks for on `docks_changed`, rather than every pass.
+pub fn fill(S, side) {
+    let k = S.theme;
+    let d = S.docks[side];
     hide_unused(S, side, d);
     if d.tabs.len() == 0 || d.shut {
         hide_tabs(S, side);
-        return;
+        return "";
     }
     tab_row(S, k, side, d);
-    // A side dock's panel sizes its own box, a plugin's through the scroll in
-    // the subtree the editor made for it; only the bottom one lends a scroll.
-    if side != "bottom" {
+    if (side != "bottom" && d.active != "import") || filled_by_itself(d.active) {
         body(S, k, d.active);
-        return;
     }
-    body_scrolled(S, k, d.active);
+    shown_panel(S, side, d)
+}
+
+/// The node of the panel `fill` just showed, which the dock then tells to
+/// fill itself: told after the showing, it never reads itself as hidden.
+fn shown_panel(S, side, d) {
+    if side != "bottom" || !filled_by_itself(d.active) {
+        return "";
+    }
+    if d.active == "recordings" && crate::session::loaded(S) {
+        return "";
+    }
+    own_node(d.active)
 }
 
 /// Whether a side dock is open: the one sheet that takes the whole body where
@@ -1047,6 +1092,7 @@ pub fn fold_foot(S, k) {
         tooltip: "Open the dock",
     }) {
         S.docks.bottom.shut = false;
+        crate::signals::docks(S);
     }
 }
 

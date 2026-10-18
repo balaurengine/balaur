@@ -4,12 +4,30 @@
 
 const OUTLINE = "outline_changed";
 const INSPECTOR = "inspector_changed";
+const DOCKS = "docks_changed";
+const PLAY = "play_frame";
+// What a panel showing one thing of the Editor's listens for, as
+// `<what>_changed`: the Problems list, the Docs page, the files, the library,
+// the tile brush, the state machine, the recordings and the debugger.
+const PANELS = ["problems", "docs", "assets", "library", "tiles", "machine", "recordings", "debugger"];
 
 /// Have the Editor hear its own words, which is what clears the guard. Here
 /// rather than in editor.rn, where `events` names the Events view's module.
 pub fn hear_own(editor) {
     events::listen(editor, OUTLINE, editor);
     events::listen(editor, INSPECTOR, editor);
+    events::listen(editor, DOCKS, editor);
+    events::listen(editor, PLAY, editor);
+    for what in PANELS {
+        events::listen(editor, what + "_changed", editor);
+    }
+}
+
+/// Have the Editor hear what the engine says from no node: a project file
+/// reloaded, and a script stopped or let go.
+pub fn hear_engine(editor) {
+    events::listen(editor, "assets_reloaded");
+    events::listen(editor, "debugger_stopped");
 }
 
 /// Clear the guard on `name`, as the Editor hears it back.
@@ -47,7 +65,34 @@ pub fn inspector(S) {
     tell(S, INSPECTOR);
 }
 
-/// A frame of play: every live value the Inspector shows may have moved.
+/// A frame of play: every live value the Inspector and the state machine
+/// show may have moved.
 pub fn playing_frame(S) {
     tell(S, INSPECTOR);
+    tell(S, PLAY);
+}
+
+/// What a dock's tab row and its panel are built from moved: which panels
+/// each dock holds and shows, a dock's width, the workspace (which names the
+/// outline's tab), the screen's class, the Problems count, a plugin's dock,
+/// and whether a recording is open, which the Recordings tab gives way to.
+/// Called wherever one is written; a write that leaves the key says nothing.
+pub fn docks(S) {
+    let (errors, warnings) = crate::lint::counts(S);
+    let key = [
+        format!("{:?}", S.docks), S.layout.left.w, S.layout.right.w, S.layout.bottom.w,
+        S.workspace, S.compact, errors + warnings, S.registry.panels.len(),
+        crate::session::loaded(S),
+    ];
+    if key == S.docks_key {
+        return;
+    }
+    S.docks_key = key;
+    tell(S, DOCKS);
+}
+
+/// What one panel shows moved, `what` being one of `PANELS`: emitted as
+/// `<what>_changed`, once a frame.
+pub fn changed(S, what) {
+    tell(S, what + "_changed");
 }

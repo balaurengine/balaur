@@ -52,6 +52,7 @@ mod shell;
 mod signals;
 mod showcase;
 mod style;
+mod suite;
 mod theme;
 mod themewin;
 mod textedit;
@@ -160,6 +161,7 @@ pub fn fresh_state() {
         // The outliner's row strings and what they were built for.
         told: #{},
         inspector_key: [],
+        docks_key: [],
         // `model::is_2d`'s answer, and the frame and document it was for.
         is_2d_at: [], is_2d_was: false,
         // The 3D light and camera marks, and what they were drawn for.
@@ -234,7 +236,7 @@ pub fn fresh_state() {
         // Per-frame and per-session caches, built on first use.
         log_cache: (),
         // Where `log::since` left off, and the rows the log node was last given.
-        log_cursor: 0, log_items: (),
+        log_cursor: 0,
         panels: (),
         palette_cache: (),
         newnode_cache: (),
@@ -307,15 +309,29 @@ pub fn fresh_state() {
 pub fn init(this) {
     let S = fresh_state();
     this.S = S;
+    boot(this, S, true);
 
+    // Optional start-up states, comma-separated (workspace id, "palette",
+    // "light", "play", "select:<node>"), applied in order.
+    // Applied on the first frame, after the screen's class has folded the docks.
+    S.start_states = engine::args().get(1).unwrap_or("");
+}
+
+/// What `init` sets up, and what a `suite` run sets up again before each of
+/// its states. `listen` only the first time: a listener added twice hears
+/// every event twice.
+pub fn boot(this, S, listen) {
     model::load(S);
     ui::set_load_progress(0.3, "");
     plugins::load(S);
-    // Exports and imports run off the frame and report back here as they go.
-    export::listen(this.node, #{});
-    import::listen(this.node, #{});
-    release::listen(this.node, #{});
-    signals::hear_own(this.node);
+    if listen {
+        // Exports and imports run off the frame and report back here as they go.
+        export::listen(this.node, #{});
+        import::listen(this.node, #{});
+        release::listen(this.node, #{});
+        signals::hear_own(this.node);
+        signals::hear_engine(this.node);
+    }
     // Before the theme and the scale are pushed: the preferences decide both,
     // and until this ran they only took effect once Settings was opened.
     settings::load_files(S);
@@ -331,11 +347,7 @@ pub fn init(this) {
     shell::apply_camera(S);
     log::info(format!("editing {} ({} nodes)", S.game_name, S.doc.len()));
     signals::outline(S);
-
-    // Optional start-up states, comma-separated (workspace id, "palette",
-    // "light", "play", "select:<node>"), applied in order.
-    // Applied on the first frame, after the screen's class has folded the docks.
-    S.start_states = engine::args().get(1).unwrap_or("");
+    signals::docks(S);
 }
 
 // The system turned dark or light; the theme follows under `mode = "system"`.
@@ -366,6 +378,7 @@ pub fn on_import_event(this, e) {
 }
 
 pub fn update(this, dt) {
+    suite::step(this);
     let S = this.S;
     // Smoothed frame rate for the status bar; a raw 1/dt reads as noise.
     if dt > 0.0 {
@@ -417,17 +430,6 @@ pub fn update(this, dt) {
             ui::request_repaint();
         }
         return;
-    }
-    let paused = debugger::stop_location();
-    if paused is Object && !(S.debug.paused is Object) {
-        shell::on_pause(S, paused);
-    }
-    S.debug.paused = paused;
-    if let Some(n) = S.debug.demo {
-        if S.debug.paused is Object {
-            S.debug.demo = Some(n + 1);
-            shell::resume(S, if (n + 1) % 2 == 1 { debugger::STEP_OVER } else { debugger::CONTINUE });
-        }
     }
     // Nothing selected is not a stale mirror. Asking `live` about -1 rebuilt
     // the refs every frame with `get_node`, which resolves by name path and
@@ -816,10 +818,6 @@ fn padded(n) {
 
 // The shell's side docks: the scene lays the box out and paints it, and this
 // fills it. `docks::draw` still owns what goes in.
-pub fn draw_dock_left(this) {
-    docks::draw_body(this.S, this.S.theme, "left");
-}
-
 pub fn draw_dock_right(this) {
     docks::draw_body(this.S, this.S.theme, "right");
 }
@@ -861,14 +859,6 @@ pub fn draw_view_weights(this) {
 
 pub fn draw_view_bonemap(this) {
     bonemap::body(this.S, this.S.theme);
-}
-
-pub fn draw_dock_tools_left(this) {
-    docks::draw_tools(this.S, this.S.theme, "left");
-}
-
-pub fn draw_dock_tools_right(this) {
-    docks::draw_tools(this.S, this.S.theme, "right");
 }
 
 pub fn draw_dock_tools_bottom(this) {
@@ -947,6 +937,188 @@ pub fn on_outline_changed(this, _change) {
 
 pub fn on_inspector_changed(this, _change) {
     signals::heard(this.S, "inspector_changed");
+}
+
+pub fn on_docks_changed(this, _change) {
+    signals::heard(this.S, "docks_changed");
+}
+
+/// Fill a dock's tab row and show the panel it has up: what the dock's
+/// script asks for when the docks moved. Answers the node of a panel that
+/// fills itself, for the dock to tell once it shows.
+pub fn dock_fill(this, side) {
+    docks::fill(this.S, side)
+}
+
+pub fn on_problems_changed(this, _change) {
+    signals::heard(this.S, "problems_changed");
+}
+
+pub fn on_docs_changed(this, _change) {
+    signals::heard(this.S, "docs_changed");
+}
+
+pub fn on_assets_changed(this, _change) {
+    signals::heard(this.S, "assets_changed");
+}
+
+pub fn on_library_changed(this, _change) {
+    signals::heard(this.S, "library_changed");
+}
+
+pub fn on_tiles_changed(this, _change) {
+    signals::heard(this.S, "tiles_changed");
+}
+
+pub fn on_machine_changed(this, _change) {
+    signals::heard(this.S, "machine_changed");
+}
+
+pub fn on_recordings_changed(this, _change) {
+    signals::heard(this.S, "recordings_changed");
+}
+
+pub fn on_debugger_changed(this, _change) {
+    signals::heard(this.S, "debugger_changed");
+}
+
+pub fn on_play_frame(this, _change) {
+    signals::heard(this.S, "play_frame");
+}
+
+/// A project file was reloaded from disk: every read of one is stale, and
+/// the Assets tab says what is there now.
+pub fn on_assets_reloaded(this, _generation) {
+    model::forget(this.S, None);
+    signals::changed(this.S, "assets");
+}
+
+/// A script stopped, stopped somewhere else or went on: the engine's word,
+/// where the editor used to ask it every frame.
+pub fn on_debugger_stopped(this, stop) {
+    shell::stopped(this.S, stop);
+}
+
+/// The Assets panel's cards and strip for a search, a card picked, and its
+/// verbs: up, import, folder, rename, delete and the new name submitted.
+pub fn assets_view(this, query) {
+    dock::assets_view(this.S, query)
+}
+
+pub fn assets_pick(this, row) {
+    dock::assets_pick(this.S, row);
+}
+
+pub fn assets_verb(this, verb, value) {
+    dock::assets_verb(this.S, verb, value);
+}
+
+/// The Library panel's cards or templates, its kind, and what a pick places.
+pub fn library_view(this) {
+    library::view(this.S)
+}
+
+pub fn library_kind(this, kind) {
+    library::choose(this.S, kind);
+}
+
+pub fn library_pick(this, row) {
+    library::pick(this.S, row);
+}
+
+/// Fill the Tiles panel's chips and answer its atlas, and a tile picked.
+pub fn tiles_fill(this) {
+    crate::tiles::palette(this.S)
+}
+
+pub fn tiles_pick(this, row) {
+    crate::tiles::pick(this.S, row);
+}
+
+/// Fill the State machine panel's header and rows.
+pub fn machine_fill(this) {
+    statemachine::body(this.S);
+}
+
+/// Fill the Recordings panel's rows, and its verify switch.
+pub fn recordings_fill(this) {
+    dock::recordings_fill(this.S)
+}
+
+pub fn recordings_verify(this) {
+    dock::recordings_verify(this.S);
+}
+
+/// The Debugger panel's stop, its steps, pause, break on error and a frame
+/// picked in the stack.
+pub fn debugger_view(this) {
+    dock::debugger_view(this.S)
+}
+
+pub fn debugger_step(this, step) {
+    dock::debugger_step(this.S, step);
+}
+
+pub fn debugger_pause(this) {
+    debugger::request_break();
+}
+
+pub fn debugger_break_on_error(this) {
+    debugger::set_break_on_error(!debugger::break_on_error());
+}
+
+pub fn debugger_frame(this, row) {
+    dock::debugger_frame(this.S, row);
+}
+
+/// The Output panel's lines for a level and a search, and its "clear".
+pub fn output_view(this, level, query) {
+    dock::output_view(this.S, level, query)
+}
+
+pub fn output_clear(this) {
+    dock::output_clear(this.S);
+}
+
+/// The Problems panel's lines, and what a pick on one opens.
+pub fn problems_view(this) {
+    dock::problems_view(this.S)
+}
+
+pub fn problems_pick(this, row) {
+    dock::problems_pick(this.S, row);
+}
+
+/// A live meter's table and headline, and the Profiler's "scripts".
+pub fn meter_view(this, what) {
+    dock::meter_view(this.S, what)
+}
+
+pub fn profiler_scripts(this) {
+    dock::profiler_scripts(this.S);
+}
+
+/// The Docs panel's page for a search, and its module picker.
+pub fn docs_view(this, query) {
+    docs::view(this.S, query)
+}
+
+pub fn docs_pick(this, module) {
+    docs::pick(this.S, module);
+}
+
+/// The Outline tab's rows, and what a pick on one does.
+pub fn secondary_view(this) {
+    left::secondary_view(this.S)
+}
+
+pub fn secondary_pick(this, row) {
+    left::secondary_pick(this.S, row);
+}
+
+/// The Scene panel's "+".
+pub fn scene_add(this) {
+    newnode::open(this.S);
 }
 
 /// What the Inspector panel's head says.

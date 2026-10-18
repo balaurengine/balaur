@@ -13,15 +13,37 @@ grow = 1
 gap = [0, 4]
 visible = false
 
+# The search, and the "+" that adds a child to the selection beside it.
+[[nodes]]
+id = "find"
+name = "Find"
+parent = "panel"
+[nodes.widget]
+kind = "row"
+align_items = "center"
+gap = [4, 0]
+
 [[nodes]]
 id = "search"
 name = "Search"
-parent = "panel"
+parent = "find"
 [nodes.widget]
 kind = "text_field"
 role = "input_dock"
 text = ""
 placeholder = "Search"
+grow = 1
+
+[[nodes]]
+id = "add"
+name = "Add"
+parent = "find"
+[nodes.widget]
+kind = "button"
+role = "icon_action_primary"
+text = ""
+tooltip = "Add child node"
+width = 24
 
 # Each option but the first is a component tag the engine already carries,
 # so a plugin's component is found by the tags it declared.

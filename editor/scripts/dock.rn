@@ -1,5 +1,5 @@
-// Bottom dock (150 px, 212 px for Timeline and Debugger): Output / Assets /
-// Timeline / Debugger.
+// What the bottom dock's panels are built from: each tab is a scene with its
+// own script, and these are the views and verbs it asks the Editor for.
 
 use crate::anim;
 use crate::defs;
@@ -10,26 +10,9 @@ use crate::shell;
 use crate::style;
 use crate::util;
 
-/// The right-hand hint for a panel, one table rather than an `if` chain that
-/// fell through to the animation branch for everything unlisted.
+/// The right-hand hint for a panel: the Timeline's clip, until its lanes are
+/// nodes too. Every other panel says what it has to in its own scene.
 pub fn hint(S, id, room) {
-    if id == "assets" {
-        // A project-relative path: the absolute one is this machine's, and
-        // lands in every screenshot.
-        return format!("res:// · {}", S.game_name);
-    }
-    if id == "debugger" {
-        if S.debug.paused is Object {
-            return S.debug.paused.reason;
-        }
-        return "F5 run · F10 over · F11 into · ⇧F11 out";
-    }
-    if id == "profiler" {
-        return frame_hint();
-    }
-    if id == "cost" {
-        return cost_hint(S, room);
-    }
     if id == "timeline" {
         let (node, _, _) = anim::player(S);
         let text = match anim::definition(S) {
@@ -80,61 +63,6 @@ fn cost_hint(S, room) {
         line += format!(" · pack {}", pack_size(S));
     }
     line
-}
-
-/// The Profiler's one control, beside its numbers in the tab row.
-pub fn profiler_tools(S, k) {
-    let on = S.get("script_profiling").unwrap_or(false);
-    ui::add_space(6);
-    if ui::button("scripts", #{
-        height: 24, font_size: style::SM, font_weight: 700,
-        tooltip: "Count what each script costs, in VM instructions",
-        fill: if on { k.primary_text } else { k.bg_control },
-        text_color: if on { k.bg_control } else { k.text_muted },
-    }) {
-        S.script_profiling = !on;
-        engine::set_script_profiling(!on);
-    }
-}
-
-/// Output owns the tab row's slot when it is showing: a log without a filter,
-/// a level and a clear is unusable.
-pub fn output_tools(S, k, room) {
-    if room < 90.0 {
-        return;
-    }
-    ui::add_space(6);
-    if ui::button("clear", #{
-        height: 24, font_size: style::SM, font_weight: 700, tooltip: "Empty the log buffer",
-        fill: k.bg_control, text_color: k.text_muted,
-    }) {
-        log::clear();
-        S.log_cache = ();
-    }
-    if room < 200.0 {
-        return;
-    }
-    for level in ["error", "warn", "all"] {
-        let active = S.log_level == level;
-        if ui::button(level, #{
-            height: 24, font_size: style::SM, font_weight: 700,
-            tooltip: format!("Show {} and above", level),
-            fill: if active { k.primary_bg } else { k.bg_control },
-            text_color: if active { k.primary_text } else { k.text_muted },
-        }) {
-            S.log_level = level;
-        }
-    }
-    if S.compact || room < 350.0 {
-        // No field on screen, so no invisible filter hiding rows.
-        S.log_query = "";
-    } else {
-        let (query, _, _) = ui::text_field("log-search", "Search", #{
-            font_size: style::SM, font_family: ui::FONT_MONO, width: 130, height: 24,
-            fill: k.bg_control, stroke: k.border_default, text_color: k.text_default,
-        });
-        S.log_query = query;
-    }
 }
 
 // How loud an entry is, so `error` and `warn` stop looking identical.
@@ -189,96 +117,12 @@ fn filtered(S) {
     built
 }
 
-// The bottom dock's `list` node, which the log-shaped panels fill instead of
-// drawing a row at a time.
-const LOG_NODE = "Editor/Shell/Body/Centre/Bottom/BottomLog";
-
-// Put `items` on the node and show it. A row is icon, label, note and colour,
-// separated by U+001F, which is what a `list` row splits on.
-pub fn show_log(S, items) {
-    // Written when it differs from what the node was last given: the Output
-    // dock asks every frame, and five hundred rows are a large patch.
-    if S.log_items == items {
-        return;
-    }
-    S.log_items = items;
-    util::fill(LOG_NODE, #{ options: items, visible: true });
-}
-
-// What the log reports as picked, cleared once the caller has acted on it.
-fn taken_log() {
-    util::taken(LOG_NODE)
-}
-
-// Hidden while a panel that is not a list is up.
-pub fn hide_log(S) {
-    util::hide(LOG_NODE);
-    // What it held goes back on when it shows again.
-    S.log_items = ();
-}
-
-// The bottom dock's column of pooled rows, which a panel whose rows are nodes
-// fills instead of drawing them. One host, as the log and the table are: only
-// the panel that is up may write to it.
-const ROWS_NODE = "Editor/Shell/Body/Centre/Bottom/BottomRows";
-
-/// The host a panel fills with `pool::sync`, shown by the asking.
-pub fn rows_host(S) {
-    util::fill(ROWS_NODE, #{ visible: true });
-    ROWS_NODE + "/BottomRowsColumn"
-}
-
-pub fn hide_rows() {
-    util::hide(ROWS_NODE);
-}
-
-// The bottom dock's card grid, which Assets, Library and Tiles take turns
-// filling. Six across is the widest the dock ever wants; a view that wants
-// fewer writes its own `grid_columns`.
-pub const CARDS_NODE = "Editor/Shell/Body/Centre/Bottom/BottomCards";
-
-pub fn hide_cards() {
-    util::hide(CARDS_NODE);
-}
-
-// The bottom dock's `tree` node: the Debugger's call stack, and the locals
-// each frame opens onto.
-pub const TREE_NODE = "Editor/Shell/Body/Centre/Bottom/BottomTree";
-
-pub fn hide_tree() {
-    util::hide(TREE_NODE);
-}
-
-// The bottom dock's `table` node, which the panels with columns fill: the
-// Profiler and the Cost dock take turns on it, as the log panels do above.
-const TABLE_NODE = "Editor/Shell/Body/Centre/Bottom/BottomTable";
-
-// `titles` names the columns and a row is one cell a column. `widths` is a
-// share a column, stated only when the columns change: restating it every
-// frame would snap the reader's own drag away.
-pub fn show_table(titles, widths, items) {
-    let held = util::prop(TABLE_NODE, "titles");
-    let same = util::cells(util::vec(if held is Vec { held } else { [] })) == util::cells(titles);
-    let params = #{ titles: titles, options: items, visible: true, sortable: true };
-    if !same {
-        params["widths"] = widths;
-        // The last panel's sort was by a column this one does not have.
-        params["sort"] = "";
-        params["reverse"] = false;
-    }
-    util::fill(TABLE_NODE, params);
-}
-
-pub fn hide_table() {
-    util::hide(TABLE_NODE);
-}
-
-// What the table reports as picked, cleared once the caller has acted on it.
-pub fn taken_table() {
-    util::taken(TABLE_NODE)
-}
-
-pub fn output(S, k) {
+/// What the Output panel shows for a level and a search: the log's lines,
+/// and what to say when there are none.
+pub fn output_view(S, level, query) {
+    S.log_level = level;
+    S.log_query = query;
+    let k = S.theme;
     let shown = filtered(S);
     // The lines are made once for the rows the filter kept, and again only for
     // new ones or a new theme.
@@ -286,14 +130,20 @@ pub fn output(S, k) {
         shown.items = log_lines(shown.rows, k);
         shown.theme = k;
     }
-    show_log(S, shown.items);
-    if shown.rows.len() == 0 {
-        style::empty(k, if shown.hidden > 0 {
-            format!("{} entries hidden by the filter", shown.hidden)
-        } else {
-            "nothing logged yet"
-        });
-    }
+    let says = if shown.rows.len() > 0 {
+        ""
+    } else if shown.hidden > 0 {
+        format!("{} entries hidden by the filter", shown.hidden)
+    } else {
+        "nothing logged yet"
+    };
+    #{ items: shown.items, says: says }
+}
+
+/// The Output panel's "clear".
+pub fn output_clear(S) {
+    log::clear();
+    S.log_cache = ();
 }
 
 // One `list` row a log entry: its mark, the time, tag and message, its ink.
@@ -372,56 +222,6 @@ pub fn assets_state() {
     #{ dir: "", sel: "", renaming: false, cards: #{} }
 }
 
-// New folder, rename and delete: what a file browser is for, and what this
-// one could not do until `fs` gained the verbs.
-fn asset_verbs(S, k) {
-    let chosen = S.assets.sel != "";
-    // One button, two jobs: an import to start, or the one running to stop.
-    let importing = crate::dropin::in_flight(S) > 0;
-    [
-        #{
-            kind: "button", text: icons::panel("import") + if importing { " cancel" } else { " import" },
-            role: "action_dock", checked: importing,
-            tooltip: if importing { "Stop the import after the file it is writing" }
-                else { "Bring in a model, a sprite or a level" },
-            on: |_| {
-                if importing {
-                    import::cancel();
-                } else {
-                    // Asks and imports: a dialog on a desktop, the page's own
-                    // chooser in a tab, and the same reports either way.
-                    import::choose();
-                }
-            },
-        },
-        #{
-            kind: "button", role: "action_dock", text: icons::ui("add") + " folder",
-            tooltip: "Make a folder here",
-            on: |_| { new_folder(S); },
-        },
-        #{
-            kind: "button", text: "rename",
-            role: if chosen { "action_dock" } else { "action_dock_quiet" },
-            tooltip: if chosen { "Rename the selected item" } else { "Select an item first" },
-            on: |_| {
-                if chosen {
-                    S.assets.renaming = !S.assets.renaming;
-                }
-            },
-        },
-        #{
-            kind: "button", text: "delete",
-            role: if chosen { "action_dock_danger" } else { "action_dock_quiet" },
-            tooltip: if chosen { "Delete the selected item" } else { "Select an item first" },
-            on: |_| {
-                if chosen {
-                    delete_asset(S);
-                }
-            },
-        },
-    ]
-}
-
 fn asset_path(S, rel) {
     S.game_root + "/" + rel
 }
@@ -437,6 +237,7 @@ pub fn new_folder(S) {
     fs::create_directory(asset_path(S, name));
     model::forget(S, None);
     S.assets.sel = name;
+    crate::signals::changed(S, "assets");
     log::info(format!("made res://{}", name));
 }
 
@@ -459,6 +260,7 @@ pub fn rename_asset(S, name) {
     let rewritten = ::assets::rename(asset_path(S, from), asset_path(S, to));
     model::forget(S, None);
     S.assets.sel = to;
+    crate::signals::changed(S, "assets");
     log::info(format!("renamed res://{} to res://{}; {} file(s) updated", from, to, rewritten.len()));
 }
 
@@ -471,100 +273,113 @@ pub fn delete_asset(S) {
     }
     model::forget(S, None);
     S.assets.sel = "";
+    crate::signals::changed(S, "assets");
 }
 
-pub fn assets(S, k) {
+/// What the Assets panel shows for a search: where the browser is, its cards
+/// and the verbs' state. The cards are kept, so a pick names its file.
+pub fn assets_view(S, query) {
+    let k = S.theme;
     let dir = S.assets.dir;
-    let query = crate::search::query(S, "assets");
     let files = [];
     for f in model::list(S, dir) {
         if crate::search::matches(query, f.name) {
             files.push(f);
         }
     }
-    crate::docks::chrome_rows(S, [assets_chrome(S, k, dir, files.len())]);
-    show_cards(S, k, dir, files);
-}
-
-/// The Assets strip: where the browser is, what is in it, and the verbs.
-fn assets_chrome(S, k, dir, count) {
-    let out = [];
-    if dir != "" {
-        out.push(#{
-            kind: "button", role: "action_dock", text: "↑", tooltip: "Up one folder",
-            on: |_| { S.assets.dir = parent_dir(dir); },
-        });
-    }
-    if S.assets.renaming {
-        out.push(#{
-            kind: "text_field", role: "input_dock", width: 180,
-            text: util::last_segment(S.assets.sel), placeholder: "new name",
-            on_submit: |name| { rename_asset(S, name); },
-        });
-    } else {
-        out.push(#{ kind: "label", role: "text_caption", text: format!("res://{}", dir) });
-    }
-    out.push(#{ kind: "row", grow: 1 });
-    out.push(#{ kind: "label", role: "text_caption", text: format!("{} items", count) });
-    for verb in asset_verbs(S, k) {
-        out.push(verb);
-    }
-    out.push(crate::search::control(S, "assets", "Search", 140.0));
-    out
-}
-
-// The cards themselves, on the bottom dock's `list` node in its icon mode.
-// One string a card: the mark, the name, the path it opens and its own ink.
-fn show_cards(S, k, dir, files) {
+    // One string a card: the mark, the name, the path it opens and its ink.
     let items = [];
     let paths = [];
+    let dirs = [];
+    let cards = #{};
+    let picked = "";
     for f in files {
         let rel = if dir == "" { f.name } else { format!("{}/{}", dir, f.name) };
         let (icon, ink) = asset_look(f.name, f.is_dir);
-        items.push(util::row(icon, f.name, rel, k[ink]));
-        paths.push(rel);
-    }
-    let chosen = "";
-    let cards = #{};
-    for (n, rel) in paths.iter().enumerate() {
+        let item = util::row(icon, f.name, rel, k[ink]);
         if rel == S.assets.sel {
-            chosen = items[n];
+            picked = item;
         }
-        if !files[n].is_dir {
-            cards[items[n]] = rel;
+        if !f.is_dir {
+            cards[item] = rel;
         }
+        items.push(item);
+        paths.push(rel);
+        dirs.push(f.is_dir);
     }
     S.assets.cards = cards;
-    util::fill(CARDS_NODE, #{
-        options: items, visible: true, grid_columns: "repeat(6, 1fr)", text: chosen,
-    });
-    // `clicked` rather than a changed `text`: a second click on the selected
-    // card reports the same string, and that is the one that opens it.
-    if util::prop(CARDS_NODE, "clicked") != true {
-        return;
-    }
-    let picked = util::prop(CARDS_NODE, "text");
-    for (n, item) in items.iter().enumerate() {
-        if item != picked {
-            continue;
-        }
-        // A second click on the selected card opens it, so one click can
-        // still mean "act on this one".
-        if item == chosen {
-            if files[n].is_dir {
-                S.assets.dir = paths[n];
-                S.assets.sel = "";
-            } else {
-                open_asset(S, paths[n]);
-            }
-            return;
-        }
-        S.assets.sel = paths[n];
-        S.assets.renaming = false;
+    S.assets.shown = #{ items: items, paths: paths, dirs: dirs };
+    let importing = crate::dropin::in_flight(S) > 0;
+    #{
+        dir: dir,
+        // A project-relative path: the absolute one is this machine's, and
+        // lands in every screenshot.
+        where: format!("res://{}", dir),
+        renaming: S.assets.renaming,
+        name: util::last_segment(S.assets.sel),
+        count: format!("{} items", files.len()),
+        importing: importing,
+        import_text: icons::panel("import") + if importing { " cancel" } else { " import" },
+        import_tip: if importing { "Stop the import after the file it is writing" }
+            else { "Bring in a model, a sprite or a level" },
+        folder_text: icons::ui("add") + " folder",
+        chosen: S.assets.sel != "",
+        items: items,
+        picked: picked,
     }
 }
 
-/// A card dragged out of the Assets dock and let go: over the viewport, the
+/// A card clicked: the first click selects it, a second opens it.
+pub fn assets_pick(S, row) {
+    let shown = S.assets.get("shown").unwrap_or(#{ items: [], paths: [], dirs: [] });
+    for (n, item) in shown.items.iter().enumerate() {
+        if item != row {
+            continue;
+        }
+        let rel = shown.paths[n];
+        if rel == S.assets.sel {
+            if shown.dirs[n] {
+                S.assets.dir = rel;
+                S.assets.sel = "";
+            } else {
+                open_asset(S, rel);
+            }
+        } else {
+            S.assets.sel = rel;
+            S.assets.renaming = false;
+        }
+        crate::signals::changed(S, "assets");
+        return;
+    }
+}
+
+/// The strip's verbs, by the name of the button pressed; `rename_to` is the
+/// new name submitted.
+pub fn assets_verb(S, verb, value) {
+    let chosen = S.assets.sel != "";
+    if verb == "Up" {
+        S.assets.dir = parent_dir(S.assets.dir);
+    } else if verb == "Import" {
+        // Asks and imports: a dialog on a desktop, the page's own chooser in
+        // a tab, and the same reports either way.
+        if crate::dropin::in_flight(S) > 0 {
+            import::cancel();
+        } else {
+            import::choose();
+        }
+    } else if verb == "Folder" {
+        new_folder(S);
+    } else if verb == "Rename" && chosen {
+        S.assets.renaming = !S.assets.renaming;
+    } else if verb == "Delete" && chosen {
+        delete_asset(S);
+    } else if verb == "rename_to" {
+        rename_asset(S, value);
+    }
+    crate::signals::changed(S, "assets");
+}
+
+/// A card dragged out of the Assets panel and let go: over the viewport, the
 /// file is placed where the pointer is; anywhere else, nothing happens.
 pub fn drop_card(S, card) {
     let rel = match S.assets.get("cards").unwrap_or(#{}).get(card) {
@@ -731,81 +546,28 @@ fn value_text(v) {
     }
 }
 
-// The pause: transport, then the frames with the chosen one's locals open.
-// Stopping where a script threw costs every synchronous call a trip through
-// the stepping executor, so it is opt-in and says so.
-fn break_on_error_pill(k) {
-    let on = debugger::break_on_error();
-    if ui::button("break on error", #{
-        height: 20, font_size: style::SM, font_weight: 700,
-        tooltip: "Stop at the line a script throws on, instead of logging it",
-        fill: if on { k.primary_fill } else { k.bg_control },
-        text_color: if on { k.text_on_primary } else { k.text_subtle },
-    }) {
-        debugger::set_break_on_error(!on);
-    }
-}
-
-pub fn debugger_view(S, k) {
+/// What the Debugger panel shows: the stop and its stack while a script is
+/// stopped, and what to do while none is. The stack's rows are kept, so a
+/// pick names its frame.
+pub fn debugger_view(S) {
+    let k = S.theme;
     let p = S.debug.paused;
+    let on = debugger::break_on_error();
     if !(p is Object) {
-        ui::row(#{ height: 30 }, || {
-            ui::add_space(8);
-            // Nothing stops on the click: the next line a script runs is where.
-            if S.playing && ui::button("⏸ Pause", #{
-                height: 24, font_size: style::MD, font_weight: 700, tooltip: "F6",
-                fill: k.primary_bg, text_color: k.primary_text,
-            }) {
-                debugger::request_break();
-            }
-            ui::add_space(4);
-            let hint = if S.playing {
-                "running · click a line number in the script to set a breakpoint"
-            } else {
-                "set breakpoints in the script gutter, then run the scene"
-            };
-            ui::label(hint, style::mono(k.text_subtle));
-            ui::align_right(|| {
-                ui::add_space(8);
-                break_on_error_pill(k);
-            });
-        });
-        return;
+        S.debug.rows = [];
+        S.debug.owners = [];
+        let where = if S.playing {
+            "running · click a line number in the script to set a breakpoint"
+        } else {
+            "set breakpoints in the script gutter, then run the scene"
+        };
+        return #{
+            stopped: false, can_pause: S.playing, steps: [], where: where, threw: "",
+            break_on_error: on, frames: [], picked: "",
+        };
     }
-    ui::row(#{ height: 30 }, || {
-        ui::add_space(8);
-        let steps = [
-            ["▶ Continue", debugger::CONTINUE, "F5"],
-            [icons::ui("step-over") + " Over", debugger::STEP_OVER, "F10"],
-            [icons::ui("step-into") + " Into", debugger::STEP_INTO, "F11"],
-            [icons::ui("step-out") + " Out", debugger::STEP_OUT, "⇧F11"],
-        ];
-        for step in steps {
-            if ui::button(step[0], #{
-                height: 24, font_size: style::MD, font_weight: 700, tooltip: step[2],
-                fill: k.primary_bg, text_color: k.primary_text,
-            }) {
-                shell::resume(S, step[1]);
-            }
-        }
-        ui::add_space(12);
-        ui::label(format!("{} · {}:{}", p.reason, S.debug.paused_rel, p.line), style::mono(k.text_muted));
-        let threw = p.get("message").unwrap_or("");
-        if threw != "" {
-            ui::add_space(8);
-            ui::label(threw, style::mono(k.primary_text));
-        }
-        ui::align_right(|| {
-            ui::add_space(8);
-            break_on_error_pill(k);
-        });
-    });
-    show_frames(S, k, p);
-}
-
-// The call stack on the `tree` node: a frame is a row, and its locals are
-// rows a tab deeper. The caret is the tree's own, so nothing here folds.
-fn show_frames(S, k, p) {
+    // A frame is a row, and its locals are rows a tab deeper. The caret is the
+    // tree's own, so nothing here folds.
     let items = [];
     let owners = [];
     for (i, frame) in p.frames.iter().enumerate() {
@@ -818,24 +580,58 @@ fn show_frames(S, k, p) {
             owners.push(i);
         }
     }
-    let chosen = "";
+    let picked = "";
     for (n, owner) in owners.iter().enumerate() {
-        if owner == S.debug.frame && chosen == "" {
-            chosen = items[n];
+        if owner == S.debug.frame && picked == "" {
+            picked = items[n];
         }
     }
-    util::fill(TREE_NODE, #{ options: items, visible: true, text: chosen });
-    let picked = util::prop(TREE_NODE, "text");
-    for (n, item) in items.iter().enumerate() {
-        if item == picked {
-            S.debug.frame = owners[n];
+    S.debug.rows = items;
+    S.debug.owners = owners;
+    #{
+        stopped: true,
+        can_pause: false,
+        steps: [
+            "▶ Continue",
+            icons::ui("step-over") + " Over",
+            icons::ui("step-into") + " Into",
+            icons::ui("step-out") + " Out",
+        ],
+        where: format!("{} · {}:{}", p.reason, S.debug.paused_rel, p.line),
+        threw: p.get("message").unwrap_or(""),
+        break_on_error: on,
+        frames: items,
+        picked: picked,
+    }
+}
+
+/// A step pressed, by the name of its button.
+pub fn debugger_step(S, step) {
+    let mode = match step {
+        "over" => debugger::STEP_OVER,
+        "into" => debugger::STEP_INTO,
+        "out" => debugger::STEP_OUT,
+        _ => debugger::CONTINUE,
+    };
+    shell::resume(S, mode);
+}
+
+/// A row of the stack picked: the frame it is, or is a local of.
+pub fn debugger_frame(S, row) {
+    let rows = S.debug.get("rows").unwrap_or([]);
+    for (n, item) in rows.iter().enumerate() {
+        if item == row {
+            S.debug.frame = S.debug.owners[n];
+            crate::signals::changed(S, "debugger");
+            return;
         }
     }
 }
 
 // Problems: every finding the last sweep produced, worst first, each row a
 // file and a line the click opens at.
-pub fn problems(S, k) {
+// The findings in the order the list shows them: the errors first.
+fn problem_rows(S) {
     let rows = [];
     for f in S.lint.found {
         if f.severity == "error" {
@@ -847,26 +643,41 @@ pub fn problems(S, k) {
             rows.push(f);
         }
     }
+    rows
+}
+
+fn problem_line(f, k) {
+    let bad = f.severity == "error";
+    let at = if f.line > 0 { format!("{}:{}", f.file, f.line) } else { f.file };
+    let line = if bad { "\u{d7}" } else { "!" };
+    line += "\u{1f}" + format!("{}  {}", at, f.message);
+    line += "\u{1f}\u{1f}" + if bad { k.danger_text } else { k.warning_text };
+    line
+}
+
+/// What the Problems panel shows: a line a finding, and what to say when
+/// there are none.
+pub fn problems_view(S) {
     let items = [];
-    for f in rows {
-        let bad = f.severity == "error";
-        let at = if f.line > 0 { format!("{}:{}", f.file, f.line) } else { f.file };
-        let line = if bad { "\u{d7}" } else { "!" };
-        line += "\u{1f}" + format!("{}  {}", at, f.message);
-        line += "\u{1f}\u{1f}" + if bad { k.danger_text } else { k.warning_text };
-        items.push(line);
+    for f in problem_rows(S) {
+        items.push(problem_line(f, S.theme));
     }
-    if rows.len() == 0 {
-        hide_log(S);
-        style::empty(k, if S.lint.at < 0.0 { "not checked yet" } else { "no problems" });
-        return;
-    }
-    show_log(S, items);
-    // The pick is the row, so the click opens the file it names.
-    let picked = taken_log();
-    for (n, item) in items.iter().enumerate() {
-        if item == picked {
-            open_at(S, rows[n]);
+    let says = if items.len() > 0 {
+        ""
+    } else if S.lint.at < 0.0 {
+        "not checked yet"
+    } else {
+        "no problems"
+    };
+    #{ items: items, says: says }
+}
+
+/// The Problems panel picked the line written `picked`: open what it names.
+pub fn problems_pick(S, picked) {
+    for f in problem_rows(S) {
+        if problem_line(f, S.theme) == picked {
+            open_at(S, f);
+            return;
         }
     }
 }
@@ -1009,41 +820,29 @@ fn detail(S, k) {
     }
 }
 
-// Every recording this game has made, newest first. "Keep" renames one out of
-// the ring that prunes the oldest, so a session worth returning to survives
-// the next ten runs.
-///
-/// The list is the Session panel until a recording is open, when the lanes
-/// take the node instead.
-pub fn session_list(S, k) {
-    if session::loaded(S) {
-        hide_rows();
-        return;
-    }
-    let on = S.session.verify;
-    crate::docks::chrome_rows(S, [[
-        #{ kind: "label", role: "text_caption", grow: 1, text: "every play is recorded" },
-        #{
-            kind: "button", text: "verify",
-            role: "chip", checked: on,
-            tooltip: "Hash the world every tick, so a replay can name where it parted",
-            on: |_| { S.session.verify = !on; },
-        },
-    ]]);
+// The Recordings panel's rows, under its own scroll; the dock hides the panel
+// while a recording is open, and the lanes take its room.
+const RECORDINGS = "Editor/Shell/Body/Centre/Bottom/Recordings/Rows/Column";
+
+/// Every recording this game has made, newest first, as a row each. "Keep"
+/// renames one out of the ring that prunes the oldest, so a session worth
+/// returning to survives the next ten runs.
+pub fn recordings_fill(S) {
     let rows = session::listing(S);
     let specs = [];
-    if rows.len() == 0 {
-        specs.push(#{ full: true, height: 0, controls: [#{
-            kind: "label", role: "text_caption", grow: 1, wrap: true,
-            text: "no recordings yet — press Play",
-        }] });
-    }
     for entry in rows {
         // Bound afresh: a closure made in a loop captures the binding.
         let r = entry;
         specs.push(#{ full: true, height: 24, slot_role: "layout_actions", controls: session_row(S, r) });
     }
-    crate::pool::sync(S, rows_host(S), specs, 0.0, false);
+    crate::pool::sync(S, RECORDINGS, specs, 0.0, false);
+    #{ verify: S.session.verify, count: rows.len() }
+}
+
+/// The Recordings panel's verify switch.
+pub fn recordings_verify(S) {
+    S.session.verify = !S.session.verify;
+    crate::signals::changed(S, "recordings");
 }
 
 // One recording: the verb that plays it, what it is, and the three that keep,
@@ -1103,14 +902,20 @@ fn fixed(v, decimals) {
     }
 }
 
-pub fn profiler(S, k) {
-    // Live numbers: the panel asks for the next pass for as long as it is open.
-    ui::request_repaint();
+/// What a live meter shows, `what` being `profiler` or `cost`: its table,
+/// its headline, and what to say when there is nothing to measure.
+pub fn meter_view(S, what) {
+    let k = S.theme;
+    if what == "cost" {
+        return cost_view(S, k);
+    }
+    let scripts = S.get("script_profiling").unwrap_or(false);
+    let titles = ["what", "cost>", "share of a frame"];
+    let widths = ["2", "1", "2"];
     let timings = engine::timings();
     if !(timings is Object) {
-        hide_table();
-        style::empty(k, "no timings yet");
-        return;
+        return #{ titles: titles, widths: widths, items: [], says: "no timings yet",
+            headline: frame_hint(), scripts: scripts };
     }
     let items = [];
     cost_rows(items, k, util::obj(timings.stages), "stage");
@@ -1118,10 +923,17 @@ pub fn profiler(S, k) {
     if !spans.is_empty() {
         cost_rows(items, k, spans, "span");
     }
-    if S.get("script_profiling").unwrap_or(false) {
+    if scripts {
         script_rows(items, k);
     }
-    show_table(["what", "cost>", "share of a frame"], ["2", "1", "2"], items);
+    #{ titles: titles, widths: widths, items: items, says: "", headline: frame_hint(), scripts: scripts }
+}
+
+/// The Profiler's "scripts": count what each script costs, or stop.
+pub fn profiler_scripts(S) {
+    let on = !S.get("script_profiling").unwrap_or(false);
+    S.script_profiling = on;
+    engine::set_script_profiling(on);
 }
 
 /// What each script and each of the dearest functions cost the last frame,
@@ -1251,14 +1063,15 @@ fn by_key(rows, key) {
 /// What the frame draws, per node: the other half of the Profiler, beside the
 /// milliseconds. `render.stats` counts it from the scene, so a headless run
 /// reports the same triangles a windowed one does.
-pub fn cost(S, k) {
-    ui::request_repaint();
+fn cost_view(S, k) {
+    let titles = ["node", "triangles>", "textures>", "copies>", "share of the worst"];
+    let widths = ["2", "1", "1", "0.7", "1.6"];
     let stats = util::obj(render::stats());
     let nodes = util::vec(stats.get("nodes").unwrap_or([]));
+    let headline = cost_hint(S, 1000.0);
     if nodes.len() == 0 {
-        hide_table();
-        style::empty(k, "nothing is drawing");
-        return;
+        return #{ titles: titles, widths: widths, items: [], says: "nothing is drawing",
+            headline: headline, scripts: false };
     }
     let worst = util::f(by_key(nodes, "triangles")[0].triangles);
     let items = [];
@@ -1274,11 +1087,7 @@ pub fn cost(S, k) {
             k.text_muted,
         ]));
     }
-    show_table(
-        ["node", "triangles>", "textures>", "copies>", "share of the worst"],
-        ["2", "1", "1", "0.7", "1.6"],
-        items,
-    );
+    #{ titles: titles, widths: widths, items: items, says: "", headline: headline, scripts: false }
 }
 
 /// How big the last export was, or a line saying none has been made. The

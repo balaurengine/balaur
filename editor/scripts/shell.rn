@@ -157,6 +157,7 @@ pub fn toggle_focus(S) {
     for side in crate::docks::sides() {
         was[side] = S.docks[side].shut;
         S.docks[side].shut = true;
+        crate::signals::docks(S);
     }
     S.focus_was = was;
     S.focus = true;
@@ -175,6 +176,7 @@ pub fn leave_focus(S) {
     }
     for side in crate::docks::sides() {
         S.docks[side].shut = was.get(side).unwrap_or(false);
+        crate::signals::docks(S);
     }
     S.split = was.get("split").unwrap_or(false);
 }
@@ -268,6 +270,7 @@ pub fn toggle_play(S) {
         model::hold_game_cameras(S, true);
         S.playing = true;
         crate::signals::inspector(S);
+        crate::signals::changed(S, "debugger");
         crate::docks::show(S, "output");
         // Physics and every animation player start next frame: the one a
         // session opens in is not recorded, so nothing may step in it.
@@ -360,6 +363,23 @@ pub fn script_rel(S, path) {
 pub fn resume(S, mode) {
     debugger::resume(mode);
     S.debug.paused = ();
+    crate::signals::changed(S, "debugger");
+}
+
+/// Where a script is stopped, as the engine says it moved: a fresh stop shows
+/// its script and frame, and the self-test's walk steps on from each one.
+pub fn stopped(S, stop) {
+    if stop is Object && !(S.debug.paused is Object) {
+        on_pause(S, stop);
+    }
+    S.debug.paused = stop;
+    crate::signals::changed(S, "debugger");
+    if let Some(n) = S.debug.demo {
+        if stop is Object {
+            S.debug.demo = Some(n + 1);
+            resume(S, if (n + 1) % 2 == 1 { debugger::STEP_OVER } else { debugger::CONTINUE });
+        }
+    }
 }
 
 // A fresh pause: show the script and the frame it stopped in.
@@ -802,6 +822,7 @@ fn states() {
 fn prefixed_states() {
     [
         ("find:", state_find),
+        ("suite:", crate::suite::begin),
         ("settings_search:", state_settings_search),
         ("settings:", state_settings),
         ("theme:", state_theme),
@@ -1003,6 +1024,7 @@ fn state_shut(S, side) {
         return;
     }
     S.docks[side].shut = true;
+    crate::signals::docks(S);
 }
 
 // `move:<panel>:<side>`: put a panel in another dock, as its tab menu does.
@@ -1031,6 +1053,7 @@ fn state_asset(S, rel) {
     }
     S.assets.dir = dir;
     S.assets.sel = rel;
+    crate::signals::changed(S, "assets");
 }
 
 // `import:<path>`: the Assets dock, and that file imported into it.
@@ -1070,6 +1093,7 @@ fn state_tiles(S, mode) {
     crate::docks::show(S, "tiles");
     if mode == "set" {
         S.tiles.editing = true;
+        crate::signals::changed(S, "tiles");
         return;
     }
     crate::tiles::set_mode(S, mode);

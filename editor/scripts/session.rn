@@ -68,6 +68,7 @@ pub fn start(S) {
     if ok {
         S.session.recording = path;
         S.session.listed_at = -1.0;
+        crate::signals::changed(S, "recordings");
     } else {
         log::warn(format!("not recording this run: {}", why));
         S.session.recording = "";
@@ -102,6 +103,7 @@ pub fn finish(S, reason) {
     }
     S.session.recording = "";
     S.session.listed_at = -1.0;
+    crate::signals::changed(S, "recordings");
     replay::stop(reason);
     prune(S);
 }
@@ -225,7 +227,9 @@ pub fn open(S, name) {
     S.sources = #{};
     S.listings = #{};
     S.session.listed_at = -1.0;
+    crate::signals::changed(S, "recordings");
     S.lint.at = -1.0;
+    crate::signals::changed(S, "problems");
     warn_if_stale(S, name);
     // Everything play does, because a replay that starts from a different
     // world replays the same input into a different game. The mirror is built
@@ -236,6 +240,7 @@ pub fn open(S, name) {
     model::hold_game_cameras(S, true);
     S.playing = true;
     crate::signals::inspector(S);
+    crate::signals::changed(S, "debugger");
     crate::docks::show(S, "recordings");
     // Released on the replay's first frame, as play released the recording's.
     S.release_at = S.frame + 1;
@@ -350,12 +355,14 @@ pub fn close(S) {
 pub fn keep(S, name) {
     fs::rename(dir(S) + "/" + name, dir(S) + "/kept-" + name);
     S.session.listed_at = -1.0;
+    crate::signals::changed(S, "recordings");
     log::info("keeping " + name);
 }
 
 pub fn remove(S, name) {
     fs::remove(dir(S) + "/" + name);
     S.session.listed_at = -1.0;
+    crate::signals::changed(S, "recordings");
     log::info("deleted " + name);
 }
 

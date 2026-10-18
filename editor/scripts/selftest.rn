@@ -1191,7 +1191,8 @@ pub fn physics_click_step(S) {
     // The panel has to have drawn before any of it can be measured, and a
     // headless run never lays anything out. The pills are listed when the form
     // is filled, a pass before they are laid out.
-    let laid_out = !S.phys_pills.is_empty() && pill_box(S, S.phys_pills[0]) is Object;
+    let laid_out = !S.phys_pills.is_empty()
+        && S.phys_pills.iter().all(|pill| pill_box(S, pill) is Object);
     if !laid_out {
         d.waited = d.waited + 1;
         if d.waited > 30 {
@@ -3496,11 +3497,13 @@ pub fn dropping(S) {
     dropin::take(S, source);
     check(fs::exists(root + "art/selftest-drop_2.png"), "a second drop of one name is numbered, not overwritten");
 
-    // A card dragged out of the Assets dock names the file where it lies.
-    let cards = util::obj(scene::get_node(crate::dock::CARDS_NODE).get_component("widget"));
-    let handler = cards.get("on_drop").unwrap_or("");
-    check(cards.get("draggable") == Some(true) && handler != "" && scene::get_node("Editor").has_method(handler),
-        format!("the Assets panel's cards hand a drop to a method the editor declares ({})", handler));
+    // A card dragged out of the Assets panel names the file where it lies:
+    // the panel hears the drop and hands it to the Editor.
+    let panel = scene::get_node(ASSETS_PANEL);
+    let cards = util::obj(panel.get_node("Cards").get_component("widget"));
+    check(cards.get("draggable") == Some(true) && panel.has_method("on_widget_event")
+        && scene::get_node("Editor").has_method("assets_dropped"),
+        "the Assets panel's cards hand a drop to the panel, and it to the Editor");
     dropin::place_file(S, "art/selftest-drop.png");
     let placed = S.doc[S.doc.len() - 1];
     let drawn = util::obj(placed.get("sprite").unwrap_or(placed.get("mesh").unwrap_or(#{}))).get("texture");
@@ -3687,6 +3690,7 @@ fn named_under(S, dir) {
 /// it once and a pick is only answered by the pass after the one that made it.
 const SCENE_PANEL = "Editor/Shell/Body/Left/LeftSheet/SceneTree";
 const TREE_NODE = "Editor/Shell/Body/Left/LeftSheet/SceneTree/Tree";
+const ASSETS_PANEL = "Editor/Shell/Body/Centre/Bottom/Assets";
 
 /// Search the Scene panel as someone typing into it would be answered, and
 /// keep the query for the checks that follow.

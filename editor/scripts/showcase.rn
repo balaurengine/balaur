@@ -725,6 +725,7 @@ fn determinism(S, q) {
         shell::set_workspace(S, defs::WORKSPACE_SCENE);
         shell::set_zoom(S, 45.0);
         S.session.verify = true;
+        crate::signals::changed(S, "recordings");
         crate::docks::show(S, "recordings");
     });
     click_row(S, q, 40, "Bird");

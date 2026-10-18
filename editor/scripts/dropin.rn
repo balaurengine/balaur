@@ -338,6 +338,8 @@ pub fn report(S, e) {
         // A line in a dock nobody has open is not a report, so open it.
         crate::docks::show(S, "output");
     }
+    // The Assets tab's import button stops one running, and the files land.
+    crate::signals::changed(S, "assets");
 }
 
 /// Take every file dropped this frame. Called once per frame from the root's

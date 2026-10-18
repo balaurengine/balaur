@@ -1,0 +1,43 @@
+// The Problems tab's one script: it fills its list when the check's findings
+// move, and hands the Editor a pick to open.
+
+pub fn init(this) {
+    this.editor = scene::get_node("Editor");
+    for word in ["problems_changed", "outline_changed"] {
+        events::listen(this.node, word, this.editor);
+    }
+}
+
+pub fn on_problems_changed(this, _change) {
+    refresh(this);
+}
+
+pub fn on_outline_changed(this, _change) {
+    refresh(this);
+}
+
+pub fn on_widget_event(this, event, node, value) {
+    if event != "change" || node.name() != "List" {
+        return;
+    }
+    let row = node.get_component("widget", "text");
+    node.patch_component("widget", #{ text: "" });
+    if row != "" {
+        this.editor.call("problems_pick", row);
+    }
+}
+
+/// Fill what shows from the Editor's answer: on a word that it moved, and
+/// from the dock once it has made this panel visible.
+pub fn refresh(this) {
+    let view = this.editor.call("problems_view");
+    if !(view is Object) {
+        return;
+    }
+    this.node.get_node("List").patch_component("widget", #{
+        options: view.items, visible: view.items.len() > 0,
+    });
+    this.node.get_node("Nothing").patch_component("widget", #{
+        visible: view.says != "", text: view.says,
+    });
+}

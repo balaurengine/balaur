@@ -3,7 +3,6 @@
 // API has no source file to open.
 
 use crate::search;
-use crate::style;
 use crate::util;
 
 pub fn state() {
@@ -33,6 +32,13 @@ pub fn show(S, module, name) {
     S.docs.pick = module;
     S.docs.fn_pick = name;
     crate::docks::show(S, "docs");
+    crate::signals::changed(S, "docs");
+}
+
+/// The Docs panel picked a module.
+pub fn pick(S, module) {
+    S.docs.pick = module;
+    S.docs.fn_pick = "";
 }
 
 // The module the dock is showing, or the first that matches the filter.
@@ -45,43 +51,23 @@ fn current(S, list) {
     None
 }
 
-/// The module picker and a filter over its functions. In the body rather than
-/// the tab row: the dock carries fourteen tabs, and these would sit on them.
-fn controls(S, k, list) {
-    ui::row(#{ height: 24 }, || {
-        ui::add_space(6);
-        let names = [];
-        for m in list {
-            names.push(m.name);
-        }
-        let (picked, changed) = ui::dropdown("docs-module", S.docs.pick, names, #{
-            width: 150, font_size: style::SM, height: 24, text_color: k.text_default,
-        });
-        if changed {
-            S.docs.pick = picked;
-            S.docs.fn_pick = "";
-        }
-        ui::add_space(6);
-        search::field(S, k, "docs", "Search", 150.0);
-    });
-}
-
-pub fn draw(S, k) {
+/// What the Docs panel shows for `query`: the module names, the one picked,
+/// its rows, and what to say when there is nothing to list.
+pub fn view(S, query) {
+    let k = S.theme;
     let list = modules(S);
-    if list.len() == 0 {
-        style::empty(k, "the engine reported no modules");
-        return;
+    let names = [];
+    for m in list {
+        names.push(m.name);
     }
-    controls(S, k, list);
     let found = current(S, list);
     let m = match found {
         Some(m) => m,
         None => {
-            style::empty(k, "pick a module");
-            return;
+            let says = if list.len() == 0 { "the engine reported no modules" } else { "pick a module" };
+            return #{ modules: names, pick: S.docs.pick, items: [], says: says };
         }
     };
-    let query = search::query(S, "docs");
     let signatures = util::obj(m.signatures);
     let docs = util::obj(m.docs);
     let items = [];
@@ -107,8 +93,6 @@ pub fn draw(S, k) {
             items.push("\u{1f}" + format!("{}  {}", c.name, c.value) + "\u{1f}\u{1f}" + k.text_subtle);
         }
     }
-    crate::dock::show_log(S, items);
-    if shown == 0 && query != "" {
-        search::nothing(k, query);
-    }
+    let says = if shown == 0 && query != "" { search::nothing_says(query) } else { "" };
+    #{ modules: names, pick: S.docs.pick, items: items, says: says }
 }

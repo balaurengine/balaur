@@ -28,10 +28,14 @@ pub fn on_outline_changed(this, _change) {
 }
 
 pub fn on_widget_event(this, event, node, value) {
+    let name = node.name();
+    if name == "Add" && event == "click" {
+        this.editor.call("scene_add");
+        return;
+    }
     if event != "change" {
         return;
     }
-    let name = node.name();
     if name == "Search" {
         this.query = value;
         refresh(this);
@@ -54,7 +58,7 @@ pub fn on_widget_event(this, event, node, value) {
 /// Search the tree for `query`, as the `find:` start state does.
 pub fn find(this, query) {
     this.query = query;
-    this.node.get_node("Search").patch_component("widget", #{ text: query });
+    this.node.get_node("Find/Search").patch_component("widget", #{ text: query });
     refresh(this);
 }
 
@@ -63,6 +67,7 @@ fn refresh(this) {
     if !(view is Object) {
         return;
     }
+    this.node.get_node("Find/Add").patch_component("widget", #{ icon: view.add_icon });
     let tree = this.node.get_node("Tree");
     let nothing = this.node.get_node("Nothing");
     if view.filtering && view.items.len() == 0 {

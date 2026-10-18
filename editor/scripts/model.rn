@@ -1091,6 +1091,7 @@ pub fn build_mirror(S) {
     physics::set_paused(true);
     S.playing = false;
     crate::signals::inspector(S);
+    crate::signals::changed(S, "debugger");
     hold_game_cameras(S, false);
     resolve_refs(S);
     // The mirror instantiates with the game's own `autoplay`, so pause every
