@@ -91,6 +91,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::TRAILING, r#"{ type = "string", default = "", description = "Text a button draws against its far edge, dimmer than its caption: a shortcut, or a menu's caret", group = "type" }"#),
                     (k::SHORTCUT, r#"{ type = "string", default = "", description = "A chord that clicks this widget wherever it is, as `cmd+shift+s` or `f5`; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`", group = "events" }"#),
                     (k::WHILE_TYPING, r#"{ type = "bool", default = true, description = "Whether `shortcut` fires while a text field holds the keyboard. A chord without cmd, ctrl or alt never does unless it is a function key, since that is typing; off, no chord does, for one the field has a use for itself, as `cmd+z`", group = "events" }"#),
+                    (k::TAKES_TYPING, r#"{ type = "bool", default = false, description = "Whether `shortcut` takes its key ahead of a field being typed into, a plain key included, so the field never sees it: a completion list's arrows, Enter and Escape while it is up", group = "events" }"#),
                     (k::SHOWING, r#"{ type = "bool", default = false, description = "Holds a menu's rows up from the scene, as a click would; for an offscreen run or a tutorial, since nothing can click there", group = "events" }"#),
                     (k::DURATION, r#"{ type = "float", default = 3.0, min = 0.0, description = "How long a `toast` stays, in seconds, counting the half second it fades over; zero leaves it up until the game takes it away", group = "type" }"#),
                     (k::PLACEMENT, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where a `menu` opens: under its button, above it, to its right or to its left, each from the side's start (`below` starts at the button's left edge, `right` at its top) or at `_center` or `_end`; at the pointer; or centred on the screen", group = "placement" }}"#, w::BELOW, v::options(w::PLACEMENTS))),
@@ -491,6 +492,10 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
     map.insert(
         k::WHILE_TYPING.into(),
         toml::Value::Boolean(widget.while_typing),
+    );
+    map.insert(
+        k::TAKES_TYPING.into(),
+        toml::Value::Boolean(widget.takes_typing),
     );
     map.insert(k::SHOWING.into(), toml::Value::Boolean(widget.showing));
     map.insert(
@@ -911,6 +916,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         trailing: s(k::TRAILING),
         shortcut: s(k::SHORTCUT),
         while_typing: r.on_unless_off(k::WHILE_TYPING),
+        takes_typing: r.flag(k::TAKES_TYPING),
         showing: r.flag(k::SHOWING),
         placement: s(k::PLACEMENT),
         duration: f(k::DURATION),

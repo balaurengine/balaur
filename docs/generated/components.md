@@ -2551,7 +2551,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 230 properties
+`ui` · 231 properties
 
 A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button sets `clicked` and calls `on_click`.
 
@@ -2756,6 +2756,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>suffix</code></td><td>string</td><td>—</td><td>Units drawn after a `number_field`&#x27;s or a shown `slider`&#x27;s number with a space between, and after a `text_field`&#x27;s or `text_area`&#x27;s text</td></tr>
 <tr><td><code>tab_inserts</code></td><td>bool</td><td><code>false</code></td><td>Let Tab type a tab into a `text_field`, `text_area` or `code` rather than move focus on</td></tr>
 <tr><td><code>tab_width</code></td><td>int</td><td><code>8</code></td><td>Spaces between tab stops Range 1–64.</td></tr>
+<tr><td><code>takes_typing</code></td><td>bool</td><td><code>false</code></td><td>Whether `shortcut` takes its key ahead of a field being typed into, a plain key included, so the field never sees it: a completion list&#x27;s arrows, Enter and Escape while it is up</td></tr>
 <tr><td><code>target</code></td><td>string</td><td>—</td><td>The node an `inspector` shows, by path: as `scene.get_node` takes it, or as `node.path()` spells it</td></tr>
 <tr><td><code>text</code></td><td>string</td><td><code>label</code></td><td>Label or button caption</td></tr>
 <tr><td><code>text_align</code></td><td>enum</td><td><code>start</code></td><td>Where text sits in the width the widget was given, what a `text_field` or `text_area` edits included, and where every cell of a `table` sits in its column; a column whose name ends in `&gt;` pins its own to the right One of <code>start</code>, <code>center</code>, <code>end</code>.</td></tr>
@@ -2801,6 +2802,7 @@ Announced from a node carrying `widget`:
 <tr><td><code>submit</code></td><td>the text</td></tr>
 <tr><td><code>link</code></td><td>the link&#x27;s target</td></tr>
 <tr><td><code>gutter</code></td><td>the line</td></tr>
+<tr><td><code>caret</code></td><td><code>#{ x, y, index }</code></td></tr>
 <tr><td><code>move</code></td><td><code>[moved, target, side]</code></td></tr>
 <tr><td><code>drop</code></td><td>the card</td></tr>
 <tr><td><code>mark</code></td><td><code>#{ row, mark }</code></td></tr>

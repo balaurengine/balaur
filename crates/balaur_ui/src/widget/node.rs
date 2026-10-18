@@ -141,6 +141,8 @@ pub struct Widget {
     pub shortcut: SmolStr,
     /// Whether that chord fires while a text field holds the keyboard.
     pub while_typing: bool,
+    /// Whether it takes its key ahead of the field, a plain key included.
+    pub takes_typing: bool,
     /// A menu held open by the scene rather than by a click.
     pub showing: bool,
     /// Where a menu opens: under its button, above it, at the pointer, or

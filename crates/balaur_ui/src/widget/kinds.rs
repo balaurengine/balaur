@@ -162,9 +162,13 @@ pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let edited = crate::immediate::code::code_editor(at.eng, &id, &widget.text, &opts);
     crate::bridge::pop();
     match edited {
-        Ok((text, changed, hit, _)) => {
+        Ok((text, changed, hit, caret)) => {
             if changed {
                 at.edits.push((entity, Edit::Text(text)));
+            }
+            if let Some(caret) = caret.filter(|c| moved_caret(entity, c.index)) {
+                at.edits
+                    .push((entity, Edit::Caret(caret.x, caret.y, caret.index)));
             }
             // The line alone: what a click on the gutter means is the script's
             // to decide, as a breakpoint in one editor and a value in another.
@@ -177,6 +181,17 @@ pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let used = inner.min_rect().size();
     record_measure(entity, used);
     ui.advance_cursor_after_rect(egui::Rect::from_min_size(inner.max_rect().min, used));
+}
+
+thread_local! {
+    /// Where each `code` widget's caret was last said to be, so `caret` is
+    /// emitted when it moves rather than every pass it is drawn.
+    static CARETS: std::cell::RefCell<rustc_hash::FxHashMap<u64, usize>> =
+        std::cell::RefCell::new(rustc_hash::FxHashMap::default());
+}
+
+fn moved_caret(entity: balaur_core::hecs::Entity, index: usize) -> bool {
+    CARETS.with(|carets| carets.borrow_mut().insert(entity.to_bits().get(), index) != Some(index))
 }
 
 fn warn_code(err: &anyhow::Error) {

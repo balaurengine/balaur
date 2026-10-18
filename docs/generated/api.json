@@ -349,6 +349,10 @@
         "the line"
       ],
       [
+        "caret",
+        "`#{ x, y, index }`"
+      ],
+      [
         "move",
         "`[moved, target, side]`"
       ],
@@ -12492,6 +12496,12 @@
         "max": 64,
         "min": 1,
         "type": "int"
+      },
+      "takes_typing": {
+        "default": false,
+        "description": "Whether `shortcut` takes its key ahead of a field being typed into, a plain key included, so the field never sees it: a completion list's arrows, Enter and Escape while it is up",
+        "group": "events",
+        "type": "bool"
       },
       "target": {
         "default": "",

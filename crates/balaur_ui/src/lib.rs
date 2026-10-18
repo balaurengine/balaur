@@ -42,10 +42,10 @@ pub use pacing::{NextFrame, Pacing, honour_lazy, next_frame, wants_pass};
 pub use routing::{pointer_is_ui, takes_point};
 pub use theme::ThemeTokens;
 pub use widget::input::{
-    ACTIVATE_EVENT, BLUR_EVENT, CHANGE_EVENT, CLICK_EVENT, CLOSE_REQUEST_EVENT, CLOSED_EVENT,
-    COMMIT_EVENT, DOUBLE_CLICK_EVENT, DROP_EVENT, FOCUS_EVENT, FOLD_EVENT, GUTTER_EVENT,
-    LINK_EVENT, MARK_EVENT, MOVE_EVENT, OPENED_EVENT, PASTED_EVENT, RESIZED_EVENT, SCROLLED_EVENT,
-    SUBMIT_EVENT, WidgetInputBuffer, WidgetInputSnapshot, click, edit, submit,
+    ACTIVATE_EVENT, BLUR_EVENT, CARET_EVENT, CHANGE_EVENT, CLICK_EVENT, CLOSE_REQUEST_EVENT,
+    CLOSED_EVENT, COMMIT_EVENT, DOUBLE_CLICK_EVENT, DROP_EVENT, FOCUS_EVENT, FOLD_EVENT,
+    GUTTER_EVENT, LINK_EVENT, MARK_EVENT, MOVE_EVENT, OPENED_EVENT, PASTED_EVENT, RESIZED_EVENT,
+    SCROLLED_EVENT, SUBMIT_EVENT, WidgetInputBuffer, WidgetInputSnapshot, click, edit, submit,
 };
 pub use widget::inspector::reread;
 pub use widget::node::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};

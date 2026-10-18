@@ -201,6 +201,9 @@ pub const LINK_EVENT: &str = "link";
 
 /// What a `code` widget emits when its gutter is clicked, with the line.
 pub const GUTTER_EVENT: &str = "gutter";
+/// What a `code` widget emits when its caret moved, with `#{ x, y, index }`:
+/// where a completion list opens, and what it completes.
+pub const CARET_EVENT: &str = "caret";
 
 /// What a row view emits when a dragged row is dropped, with the row moved,
 /// the row it landed on, and where it went.
@@ -325,6 +328,7 @@ pub(crate) const EVENTS: &[(&str, &str)] = &[
     (SUBMIT_EVENT, "the text"),
     (LINK_EVENT, "the link's target"),
     (GUTTER_EVENT, "the line"),
+    (CARET_EVENT, "`#{ x, y, index }`"),
     (MOVE_EVENT, "`[moved, target, side]`"),
     (DROP_EVENT, "the card"),
     (MARK_EVENT, "`#{ row, mark }`"),
@@ -574,6 +578,7 @@ fn settle_one(
         | Edit::Folded(..)
         | Edit::Opened
         | Edit::Closed
+        | Edit::Caret(..)
         | Edit::CloseRequested => {
             emitted.extend(heard(edit).map(|(event, value)| (entity, event, value)));
             None
@@ -620,6 +625,17 @@ fn heard(edit: &Edit) -> Option<(&'static str, Value)> {
         Edit::Opened => (OPENED_EVENT, Value::Nil),
         Edit::Closed => (CLOSED_EVENT, Value::Nil),
         Edit::Scrolled(offset) => (SCROLLED_EVENT, Value::Vec2(*offset)),
+        Edit::Caret(x, y, index) => (
+            CARET_EVENT,
+            Value::Map(vec![
+                (k::X.into(), Value::Num(f64::from(*x))),
+                (k::Y.into(), Value::Num(f64::from(*y))),
+                (
+                    "index".into(),
+                    Value::Int(i64::try_from(*index).unwrap_or(i64::MAX)),
+                ),
+            ]),
+        ),
         Edit::CloseRequested => (CLOSE_REQUEST_EVENT, Value::Nil),
         _ => return None,
     };

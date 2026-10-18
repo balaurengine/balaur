@@ -600,6 +600,7 @@ pub(crate) mod keys {
     pub(crate) const MULTI_SELECT: &str = "multi_select";
     pub(crate) const SHORTCUT: &str = "shortcut";
     pub(crate) const WHILE_TYPING: &str = "while_typing";
+    pub(crate) const TAKES_TYPING: &str = "takes_typing";
     pub(crate) const SELECTED: &str = "selected";
     pub(crate) const SEPARATOR: &str = "separator";
     pub(crate) const FIT: &str = "fit";

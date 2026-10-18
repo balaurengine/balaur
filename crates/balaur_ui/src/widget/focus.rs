@@ -120,7 +120,7 @@ pub(super) fn shortcuts(ctx: &egui::Context, placed: &[Placed], shown: &[usize])
 /// someone writes a name; a function key and a command chord are not.
 fn fires_while_typing(widget: &Widget, modifiers: egui::Modifiers, key: egui::Key) -> bool {
     let commanded = modifiers.command || modifiers.ctrl || modifiers.alt || modifiers.mac_cmd;
-    widget.while_typing && (commanded || is_function_key(key))
+    widget.takes_typing || (widget.while_typing && (commanded || is_function_key(key)))
 }
 
 fn is_function_key(key: egui::Key) -> bool {

@@ -606,6 +606,9 @@ pub(crate) enum Edit {
     Link(String),
     /// The 1-based line a click on a `code` widget's gutter landed on.
     Gutter(i64),
+    /// Where a `code` widget's caret moved to: its point in design pixels,
+    /// and its index in characters.
+    Caret(f32, f32, usize),
     /// The pointer came over the widget, or left it.
     Entered,
     Left,
