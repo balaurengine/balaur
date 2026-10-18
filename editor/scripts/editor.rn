@@ -143,7 +143,7 @@ pub fn fresh_state() {
         // settled shell rather than on the frame it was still bootstrapping.
         layout_seen: -1.0,
         // The inspector's rows, described each frame and made by `pool.rn`.
-        form: [], form_draws: [], form_cursor: 0,
+        form: [],
         // What each pooled host was last filled for; see `pool::strip_when`.
         pool_keys: #{},
         // Bumped by every edit to `S.doc`: `history::record` before a recorded
@@ -158,7 +158,8 @@ pub fn fresh_state() {
         inspect_layout: #{},
         tree_cache: #{},
         // The outliner's row strings and what they were built for.
-        outline_told: false,
+        told: #{},
+        inspector_key: [],
         // `model::is_2d`'s answer, and the frame and document it was for.
         is_2d_at: [], is_2d_was: false,
         // The 3D light and camera marks, and what they were drawn for.
@@ -266,7 +267,6 @@ pub fn fresh_state() {
         rebound: -1,
         // What each pill caption measured last time it drew, so the wrap
         // stops guessing.
-        phys_widths: #{},
         phys_click: (),
         pen: pen::state(),
         weights: weights::state(),
@@ -322,6 +322,7 @@ pub fn init(this) {
     theme::apply(S);
     chrome::set_app_icon(engine::dark_mode());
     S.touchscreen = engine::target().touchscreen;
+    crate::signals::inspector(S);
     shell::set_ui_scale(S, shell::scale_for_screen(S));
     // The shell redraws when something asks, not every frame: on the web the
     // pass is most of the frame, and nothing in it moves untouched.
@@ -585,6 +586,10 @@ pub fn update(this, dt) {
     if let Some(_) = S.debug.demo {
         ui::request_repaint();
     }
+    // Every live value the Inspector shows may have moved this frame.
+    if S.playing {
+        signals::playing_frame(S);
+    }
 }
 
 // The `--state` list, applied once. Read here rather than at `init`, because
@@ -620,6 +625,7 @@ pub fn draw_ui(this) {
     // window asks for it whatever the setting says.
     let compact = S.settings.compact || sw < COMPACT_W;
     S.compact = compact;
+    crate::signals::inspector(S);
     let first = !S.platform_read;
     S.platform_read = true;
     docks::follow_screen(S);
@@ -774,7 +780,6 @@ pub fn draw_ui(this) {
     chrome::top_bar(S);
     chrome::status_bar(S, S.theme, S.layout.bottom.w);
     chrome::toast(S, S.theme);
-    docks::right_foot(S);
     center::draw(S);
     // Every dock is nodes now: the scene lays them out, paints them, and calls
     // `draw_dock_*` to fill them.
@@ -876,10 +881,6 @@ pub fn draw_about_update(this) {
     about::draw_update(this.S);
 }
 
-pub fn draw_form_row(this) {
-    inspector::draw_row(this.S);
-}
-
 pub fn draw_dock_bottom(this) {
     docks::draw_bottom_body(this.S, this.S.theme);
 }
@@ -941,7 +942,26 @@ pub fn tree_rename(this) {
 
 // The eye or the lock at the right of an outliner row.
 pub fn on_outline_changed(this, _change) {
-    this.S.outline_told = false;
+    signals::heard(this.S, "outline_changed");
+}
+
+pub fn on_inspector_changed(this, _change) {
+    signals::heard(this.S, "inspector_changed");
+}
+
+/// What the Inspector panel's head says.
+pub fn inspector_view(this) {
+    inspector::view(this.S)
+}
+
+/// Fill the Inspector panel's form, filtered by `query`.
+pub fn inspector_fill(this, query) {
+    inspector::fill(this.S, query);
+}
+
+/// The Inspector's "Add component".
+pub fn inspector_add(this) {
+    inspector::add(this.S);
 }
 
 /// What the Scene panel shows for a search and a facet tag.

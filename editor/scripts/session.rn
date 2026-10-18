@@ -235,6 +235,7 @@ pub fn open(S, name) {
     // the recording's is a different world from tick one.
     model::hold_game_cameras(S, true);
     S.playing = true;
+    crate::signals::inspector(S);
     crate::docks::show(S, "recordings");
     // Released on the replay's first frame, as play released the recording's.
     S.release_at = S.frame + 1;

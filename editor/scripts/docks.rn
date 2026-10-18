@@ -265,25 +265,11 @@ pub fn bottom_tall(S) {
     panel(S, d.active).tall
 }
 
-/// What sits under the right sheet's scroll, whichever panel is up.
-const RIGHT_FOOT_NODE = "Editor/Shell/Body/Right/RightSheet/RightFoot";
-
-/// The inspector's foot: one button, filled into the row the scene lays out.
-pub fn right_foot(S) {
-    let d = S.docks.right;
-    if d.shut || d.active != "inspector" {
-        crate::pool::hide(S, RIGHT_FOOT_NODE);
-        return;
-    }
-    let chosen = S.sel >= 0 && S.sel < S.doc.len();
-    crate::pool::strip_when(S, RIGHT_FOOT_NODE, [chosen], || inspector::foot_controls(S));
-}
-
 fn body(S, k, id) {
     match id {
         "scene" => left::show_tree(),
         "outline" => left::outline_body(S, k),
-        "inspector" => inspector::body(S, k),
+        "inspector" => inspector::show_panel(),
         "import" => crate::importer::panel(S, k),
         "output" => dock::output(S, k),
         "problems" => dock::problems(S, k),
@@ -420,7 +406,8 @@ fn node_owners() {
             #{ hide: "outline", panels: ["outline"] },
         ],
         right: [
-            #{ hide: "form", panels: ["inspector", "import"] },
+            #{ hide: "inspector", panels: ["inspector"] },
+            #{ hide: "form", panels: ["import"] },
         ],
     }
 }
@@ -442,6 +429,8 @@ fn hide_node(S, which) {
         left::hide_outline();
     } else if which == "form" {
         inspector::hide_form(S);
+    } else if which == "inspector" {
+        inspector::hide_panel();
     }
 }
 

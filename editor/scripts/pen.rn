@@ -285,6 +285,7 @@ pub fn new_path(S) {
     model::build_mirror(S);
     crate::selection::only(S, S.doc.len() - 1);
     S.tool = "pen";
+    crate::signals::inspector(S);
     log::info("added " + rel);
 }
 

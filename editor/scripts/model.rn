@@ -1090,6 +1090,7 @@ pub fn build_mirror(S) {
     scene::instantiate(toml::encode(building), S.mirror, #{ scripts: false });
     physics::set_paused(true);
     S.playing = false;
+    crate::signals::inspector(S);
     hold_game_cameras(S, false);
     resolve_refs(S);
     // The mirror instantiates with the game's own `autoplay`, so pause every
@@ -1109,6 +1110,7 @@ pub fn build_mirror(S) {
     // the new mirror names has to be pointed at the edited project before it
     // can load (`anim::rebind`, next frame).
     S.clip = None;
+    crate::signals::inspector(S);
     S.anim.rebind = true;
 }
 

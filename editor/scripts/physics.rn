@@ -109,7 +109,7 @@ fn with_mesh(node, two_d, props) {
 /// become. Drawn above the components so the panel reads as "add, then
 /// configure".
 pub fn actions(S, k) {
-    // Rebuilt every frame with the rows, so it never describes an older layout.
+    // Rebuilt with the rows, so it never describes an older form.
     S.phys_pills = [];
     if !crate::inspector::section(S, k, "Physics") {
         return;
@@ -123,29 +123,20 @@ pub fn actions(S, k) {
         shape_rows(S, k, two_d);
     } else {
         crate::inspector::form_row(S, "From mesh", []);
-        crate::inspector::wide_row(S, style::row_h(S), || {
-            style::empty(k, if two_d {
-                "needs a polygon"
-            } else {
-                "needs a mesh"
-            });
-        });
+        let says = if two_d { "needs a polygon" } else { "needs a mesh" };
+        crate::inspector::note_row(S, style::row_h(S), "text_note", says);
     }
 }
 
-// A pill is about seven pixels a character plus its padding, until it has
-// been drawn once and measured: `note_pill` records what it really took, and
-// the seventh-of-a-pixel guess is only used for a caption never drawn yet.
+// A pill is about seven pixels a character plus its padding: what the wrap
+// below plans with, since nothing is measured as it is drawn.
 const PILL_PAD = 18.0;
 const CHAR_W = 7.0;
 const LABEL_COL = 62.0;
 const GAP = 5.0;
 
-fn pill_w(S, label) {
-    match S.phys_widths.get(label) {
-        Some(w) => w,
-        None => PILL_PAD + CHAR_W * util::f(label.len()),
-    }
+fn pill_w(label) {
+    PILL_PAD + CHAR_W * util::f(label.len())
 }
 
 // Cut `items` into the rows that fit, each item measured by `label_of`. The
@@ -157,7 +148,7 @@ fn wrapped(S, items, label_of) {
     let row = [];
     let used = 0.0;
     for item in items {
-        let w = pill_w(S, label_of(item)) + GAP;
+        let w = pill_w(label_of(item)) + GAP;
         if !row.is_empty() && used + w > room {
             rows.push(row);
             row = [];
@@ -172,42 +163,22 @@ fn wrapped(S, items, label_of) {
     rows
 }
 
-// One wrapped row of pills, the label on the first. Each pill is measured as
-// it draws: the row's remaining width before and after it bracket it, and
-// `S.phys_pills` keeps the brackets for `selftest::physics_clicks`.
-fn pill_rows(S, k, label, items, label_of, id_of, draw) {
-    let rows = wrapped(S, items, label_of);
+// The wrapped rows of pills, the label on the first: a button each, from
+// `control_of`. `S.phys_pills` keeps where each went, for
+// `selftest::physics_clicks` to find its node.
+fn pill_rows(S, k, label, items, label_of, id_of, control_of) {
     let first = true;
-    for row in rows {
-        let held = row;
+    for row in wrapped(S, items, label_of) {
         let head = if first { label } else { "" };
-        let at = S.form.len();
         first = false;
-        crate::inspector::wide_row(S, style::row_h(S) + 2.0, || {
-            ui::row(#{ height: style::row_h(S) }, || {
-                let full = ui::available_width();
-                ui::add_space(2);
-                ui::label(head, style::mono_sm(k.text_subtle));
-                ui::add_space(util::max(4.0, LABEL_COL - 2.0 - CHAR_W * util::f(head.len())));
-                for item in held {
-                    let before = ui::available_width();
-                    draw(item);
-                    let after = ui::available_width();
-                    note_pill(S, at, id_of(item), label_of(item), full, before, after);
-                    ui::add_space(GAP);
-                }
-            });
-        });
+        let at = S.form.len();
+        let controls = [];
+        for (n, item) in row.iter().enumerate() {
+            S.phys_pills.push(#{ row: at, n: n, id: id_of(item), label: label_of(item) });
+            controls.push(control_of(item));
+        }
+        crate::inspector::form_row(S, head, controls);
     }
-}
-
-/// Where one pill ended up: its form row, what it stands for, and the width
-/// left in the row at the row's start, before it and after it.
-fn note_pill(S, at, id, label, full, before, after) {
-    S.phys_pills.push(#{
-        row: at, id: id, label: label, full: full, from: before, to: after,
-    });
-    S.phys_widths[label] = before - after;
 }
 
 // The pills that give the node a component it does not have yet.
@@ -223,11 +194,11 @@ fn add_row(S, k, node, two_d) {
     }
     pill_rows(S, k, "Add", missing, |row| row[1], |row| row[0], |row| {
         let held = row;
-        if ui::button(held[1], #{
-            role: "action_form", fill: k.secondary_bg, text_color: k.secondary_text,
+        #{
+            kind: "button", role: "action_form", text: held[1],
+            fill: k.secondary_bg, text_color: k.secondary_text,
             tooltip: format!("{}: {}", held[0], held[2]),
-        }) {
-            model::add_component(S, held[0]);
+            on: |_| { model::add_component(S, held[0]); },
         }
     });
 }
@@ -256,9 +227,12 @@ fn make_row(S, k, node, two_d) {
     }
     pill_rows(S, k, "Make", makes, |row| row[0], |row| row[0], |row| {
         let held = row;
-        if ui::button(held[0], #{ role: "action_form", tooltip: held[1] }) {
-            let make = held[2];
-            make();
+        #{
+            kind: "button", role: "action_form", text: held[0], tooltip: held[1],
+            on: |_| {
+                let make = held[2];
+                make();
+            },
         }
     });
 }
@@ -268,8 +242,9 @@ fn make_row(S, k, node, two_d) {
 fn shape_rows(S, k, two_d) {
     pill_rows(S, k, "Collide as", collider_shapes(two_d), |shape| shape[0], |shape| shape[0], |shape| {
         let held = shape;
-        if ui::button(held[0], #{ role: "action_form", tooltip: held[1] }) {
-            make_collider(S, two_d, held[2]);
+        #{
+            kind: "button", role: "action_form", text: held[0], tooltip: held[1],
+            on: |_| { make_collider(S, two_d, held[2]); },
         }
     });
     let soft = if two_d {
@@ -287,12 +262,14 @@ fn shape_rows(S, k, two_d) {
     };
     pill_rows(S, k, "Deform as", soft, |row| row[0], |row| row[0], |row| {
         let held = row;
-        if ui::button(held[0], #{
-            role: "action_form", fill: k.secondary_bg, text_color: k.secondary_text, tooltip: held[1],
-        }) {
-            let name = if two_d { "softbody2d" } else { "softbody3d" };
-            let props = held[2];
-            model::set_component_props_each(S, name, |node| with_mesh(node, two_d, props));
+        #{
+            kind: "button", role: "action_form", text: held[0],
+            fill: k.secondary_bg, text_color: k.secondary_text, tooltip: held[1],
+            on: |_| {
+                let name = if two_d { "softbody2d" } else { "softbody3d" };
+                let props = held[2];
+                model::set_component_props_each(S, name, |node| with_mesh(node, two_d, props));
+            },
         }
     });
 }

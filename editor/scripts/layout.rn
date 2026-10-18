@@ -466,8 +466,9 @@ fn right_head_h(S) {
         return 0.0;
     }
     let rows = crate::docks::row_h(S) + 8.0;
+    // The Inspector draws nothing here: it is a panel of nodes of its own.
     if d.active == "inspector" {
-        return rows + 44.0;
+        return 1.0;
     }
     if d.active == "import" {
         return rows + 52.0;
@@ -480,7 +481,7 @@ fn right_head_h(S) {
 /// Whether the panel up in the right dock is one of the pooled forms.
 fn right_form_up(S) {
     let d = S.docks.right;
-    !d.shut && (d.active == "inspector" || d.active == "import")
+    !d.shut && d.active == "import"
 }
 
 // A side dock's width: nothing when it holds no panel, its rail when it is

@@ -348,6 +348,7 @@ pub fn convert_to_script(S) {
     model::record_override(S, node, "script");
     history::commit(S);
     S.shader_rel = "";
+    crate::signals::inspector(S);
     crate::shell::open_doc(S, "script");
     log::info("wrote " + rel);
 }

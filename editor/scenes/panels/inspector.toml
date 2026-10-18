@@ -1,0 +1,105 @@
+# The Inspector: the selected node's header, a search, its form and the one
+# verb under it. One script answers every control here; the Editor owns the
+# document and fills the form's rows when asked.
+
+[[nodes]]
+id = "panel"
+name = "Inspector"
+script = { source = "scripts/panels/inspector.rn" }
+[nodes.widget]
+kind = "column"
+role = "layout_dock"
+grow = 1
+gap = [0, 3]
+visible = false
+
+# The node's mark and name, then its type beside them on one line.
+[[nodes]]
+id = "head"
+name = "Head"
+parent = "panel"
+[nodes.widget]
+kind = "row"
+align_items = "center"
+gap = [6, 0]
+height = 26
+
+# A button only for the mark it draws before its text; it takes no pointer.
+[[nodes]]
+id = "name"
+name = "Name"
+parent = "head"
+[nodes.widget]
+kind = "button"
+role = "text_title"
+text = ""
+interactive = false
+
+[[nodes]]
+id = "type"
+name = "Type"
+parent = "head"
+[nodes.widget]
+kind = "label"
+role = "text_code_quiet"
+text = ""
+truncate = true
+
+[[nodes]]
+id = "search"
+name = "Search"
+parent = "panel"
+[nodes.widget]
+kind = "text_field"
+role = "input_dock"
+text = ""
+placeholder = "Search"
+
+[[nodes]]
+id = "nothing"
+name = "Nothing"
+parent = "panel"
+[nodes.widget]
+kind = "label"
+role = "text_note"
+text = "nothing selected"
+visible = false
+
+[[nodes]]
+id = "scroll"
+name = "Scroll"
+parent = "panel"
+[nodes.widget]
+kind = "scroll"
+axis = "vertical"
+grow = 1
+
+# The form's rows, which the Editor fills from the selection: a form whose
+# fields change with the node, so the pool makes them and hides the spares.
+[[nodes]]
+id = "form"
+name = "Form"
+parent = "scroll"
+[nodes.widget]
+kind = "column"
+gap = [2, 2]
+
+[[nodes]]
+id = "foot"
+name = "Foot"
+parent = "panel"
+[nodes.widget]
+kind = "row"
+align_items = "center"
+height = 36
+
+[[nodes]]
+id = "add"
+name = "Add"
+parent = "foot"
+[nodes.widget]
+kind = "button"
+role = "action"
+text = "Add component"
+grow = 1
+height = 30

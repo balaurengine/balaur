@@ -882,6 +882,7 @@ fn open_at(S, f) {
         }
     }
     S.doctab = "scene";
+    crate::signals::inspector(S);
 }
 
 // Session: the recordings this game has made, and the one being played back.

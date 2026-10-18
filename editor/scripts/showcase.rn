@@ -650,6 +650,7 @@ fn animation(S, q) {
     click_row(S, q, 90, "Thigh");
     click(S, q, 150, || spot(S, "bone_tool"), || {
         S.tool = "bone";
+        crate::signals::inspector(S);
     });
     over_ui(q, 200, 340, |p| anim::seek(S, 2.0 * ease(p)));
     act(q, 380, || anim::seek(S, 1.0));
@@ -755,27 +756,33 @@ fn shaders(S, q) {
     click_row(S, q, 40, "Logo");
     click(S, q, 150, || spot(S, "shader_field"), || {
         S.shader_rel = rel;
+        crate::signals::inspector(S);
         S.doctab = "script";
+        crate::signals::inspector(S);
     });
     // No per-line value preview: `render::set_shader_preview` relinks the
     // material in a run and not in the editor, so the viewport would show the
     // same picture whichever line was asked for.
     click(S, q, 320, || spot(S, "doc_scene"), || {
         S.doctab = "scene";
+        crate::signals::inspector(S);
     });
     act(q, 400, || render::set_debug_view("uv"));
     act(q, 520, || render::set_debug_view("normals"));
     act(q, 640, || render::set_debug_view(""));
     click(S, q, 700, || spot(S, "doc_code"), || {
         S.doctab = "script";
+        crate::signals::inspector(S);
     });
     act(q, 780, || edit_source(S, rel, "dist * params.rings", "dist * params.rings * 3.0"));
     chord(S, q, 840, [input::KEY_LEFT_META, input::KEY_S], || shell::save_active(S));
     click(S, q, 900, || spot(S, "doc_scene"), || {
         S.doctab = "scene";
+        crate::signals::inspector(S);
     });
     act(q, 1080, || {
         S.doctab = "script";
+        crate::signals::inspector(S);
         restore_source(S, rel, q);
     });
 }

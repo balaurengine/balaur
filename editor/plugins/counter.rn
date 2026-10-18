@@ -64,15 +64,14 @@ pub fn dialog(S, k) {
     ui::label(said, #{ role: "text_caption", text_color: k.text_muted, wrap: true });
 }
 
-/// An inspector section, drawn after the built-in ones.
+/// An inspector section: the rows it adds after the built-in ones.
 pub fn section(S, k, node) {
     if S.plugins.counter.shown < 0 {
-        return;
+        return [];
     }
-    ui::add_space(8);
-    ui::label(format!("counter: {}", S.plugins.counter.shown), #{
-        font_size: 11, font_family: ui::FONT_MONO, text_color: k.text_subtle,
-    });
+    let said = format!("counter: {}", S.plugins.counter.shown);
+    let rows = [#{ full: true, controls: [#{ kind: "label", role: "text_note", text: said }] }];
+    rows
 }
 
 /// `--state test:plugin_docks`: the plugin seam, asserted the way the editor's own

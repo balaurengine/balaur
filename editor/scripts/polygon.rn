@@ -166,6 +166,7 @@ fn texture_size(S) {
         None
     };
     S.polygon.texture = Some(#{ path: texture, size: found });
+    crate::signals::inspector(S);
     found
 }
 
@@ -386,6 +387,7 @@ pub fn close_loop(S) {
     };
     if mesh(S).is_none() || ring.len() < 3 {
         S.polygon.chain = None;
+        crate::signals::inspector(S);
         return;
     }
     begin(S, "draw polygon", None);
@@ -395,6 +397,7 @@ pub fn close_loop(S) {
     }
     mesh.polygons.push(ring.clone());
     S.polygon.chain = None;
+    crate::signals::inspector(S);
     apply(S);
 }
 
@@ -496,6 +499,7 @@ pub fn sync_bones(S) {
     }
     mesh.skin = #{ bones: bones };
     S.polygon.bone = if bones.len() > 0 { Some(0) } else { None };
+    crate::signals::inspector(S);
     apply(S);
     log::info(format!("{} bones synced to the polygon", bones.len()));
 }
@@ -567,6 +571,7 @@ pub fn has_pick(S) {
 pub fn pick_vertex(S, at, add) {
     if !add {
         S.polygon.picked = [at];
+        crate::signals::inspector(S);
         return;
     }
     let kept = [];
@@ -582,10 +587,12 @@ pub fn pick_vertex(S, at, add) {
         kept.push(at);
     }
     S.polygon.picked = kept;
+    crate::signals::inspector(S);
 }
 
 pub fn clear_pick(S) {
     S.polygon.picked = [];
+    crate::signals::inspector(S);
 }
 
 // The same name on the other side, or `None` when it names no side. Tried
@@ -764,7 +771,9 @@ pub fn trace(S) {
     mesh.remove("skin");
     mesh.internal = 0;
     S.polygon.picked = [];
+    crate::signals::inspector(S);
     S.polygon.bone = None;
+    crate::signals::inspector(S);
     apply(S);
     log::info(format!("traced {} points from {}", points.len(), texture));
 }
@@ -789,6 +798,7 @@ pub fn deform(S) {
         out.push(0.0);
     }
     S.polygon.deform = out;
+    crate::signals::inspector(S);
     out
 }
 
@@ -809,10 +819,12 @@ fn set_deform(S, at, dx, dy) {
     out[at * 2] = dx;
     out[at * 2 + 1] = dy;
     S.polygon.deform = out;
+    crate::signals::inspector(S);
 }
 
 pub fn clear_deform(S) {
     S.polygon.deform = [];
+    crate::signals::inspector(S);
 }
 
 // Key the offsets on the armed clip, at the playhead. One track for the whole
@@ -966,6 +978,7 @@ fn enter_uv(S) {
         color: [1.0, 1.0, 1.0, 0.55],
     });
     S.polygon.backdrop = backdrop;
+    crate::signals::inspector(S);
 }
 
 fn leave_uv(S) {
@@ -973,6 +986,7 @@ fn leave_uv(S) {
         S.polygon.backdrop.queue_free();
     }
     S.polygon.backdrop = ();
+    crate::signals::inspector(S);
 }
 
 pub fn set_mode(S, mode) {
@@ -980,12 +994,15 @@ pub fn set_mode(S, mode) {
     // pointing at nothing; points is the one every target offers.
     let mode = if modes(S).iter().any(|id| id == mode) { mode } else { "points" };
     S.polygon.mode = mode;
+    crate::signals::inspector(S);
     S.polygon.chain = None;
+    crate::signals::inspector(S);
     if mode != "uv" {
         leave_uv(S);
     }
     if mode == "weights" && S.polygon.bone.is_none() && bones(S).len() > 0 {
         S.polygon.bone = Some(0);
+        crate::signals::inspector(S);
     }
 }
 
@@ -1006,15 +1023,20 @@ pub fn idle(S) {
             let p = found.transform.global_position();
             let r = found.transform.global_rotation_euler();
             S.polygon.backdrop.transform.position = [p.x, p.y, p.z];
+            crate::signals::inspector(S);
             S.polygon.backdrop.transform.rotation_euler = [r.x, r.y, r.z];
+            crate::signals::inspector(S);
             S.polygon.backdrop.transform.scale = [f.sx, f.sy, 1.0];
+            crate::signals::inspector(S);
         }
     }
 }
 
 pub fn cancel(S) {
     S.polygon.chain = None;
+    crate::signals::inspector(S);
     S.polygon.drag = None;
+    crate::signals::inspector(S);
 }
 
 fn alt_down() {
@@ -1031,6 +1053,7 @@ pub fn update(S, over_viewport, mx, my) {
         Some(mesh) => mesh,
         None => {
             S.polygon.hover = None;
+            crate::signals::inspector(S);
             if over_viewport && input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) && mode == "points" {
                 add_vertex(S, mx, my, alt_down());
             }
@@ -1039,8 +1062,10 @@ pub fn update(S, over_viewport, mx, my) {
     };
     let hover = if over_viewport { pick(S, mesh, f, mx, my, mode == "uv") } else { None };
     S.polygon.hover = hover;
+    crate::signals::inspector(S);
     if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
         S.polygon.drag = None;
+        crate::signals::inspector(S);
     }
     if let Some(drag) = S.polygon.drag {
         if mode == "uv" {
@@ -1058,6 +1083,7 @@ pub fn update(S, over_viewport, mx, my) {
             match hover {
                 Some(hover) => {
                     S.polygon.drag = Some(hover);
+                    crate::signals::inspector(S);
                 }
                 None => {
                     add_vertex(S, mx, my, alt_down());
@@ -1076,20 +1102,24 @@ pub fn update(S, over_viewport, mx, my) {
                 let ring = S.polygon.chain.unwrap_or([]);
                 if ring.len() >= 3 && hover == ring[0] {
                     S.polygon.chain = Some(ring);
+                    crate::signals::inspector(S);
                     close_loop(S);
                 } else if !util::contains(ring, hover) {
                     ring.push(hover);
                     S.polygon.chain = Some(ring);
+                    crate::signals::inspector(S);
                 }
             }
         } else if input::mouse_just_pressed(input::MOUSE_BUTTON_RIGHT) {
             S.polygon.chain = None;
+            crate::signals::inspector(S);
         }
     } else if mode == "uv" {
         if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
             let hover_some = hover;
             if let Some(hover) = hover_some {
                 S.polygon.drag = Some(hover);
+                crate::signals::inspector(S);
             }
         }
     } else if mode == "weights" {

@@ -56,7 +56,10 @@ fn fold_row_with(S, role, open, text, icon, icon_color, toggle, extra) {
     push(S, #{ full: true, height: row_h(S), slot_role: "layout_" + role, controls: controls });
 }
 
-// The host the pool builds the rows on, and the hatch a drawn row names.
+// The Inspector is its own scene and script (scenes/panels/inspector.toml),
+// whose form this fills; the right sheet's own form is Import's.
+const PANEL = "Editor/Shell/Body/Right/RightSheet/Inspector";
+const INSPECTOR_FORM = "Editor/Shell/Body/Right/RightSheet/Inspector/Scroll/Form";
 const FORM_NODE = "Editor/Shell/Body/Right/RightSheet/RightScroll/RightForm";
 
 /// How many rows the inspector's pool is actually showing.
@@ -64,7 +67,7 @@ const FORM_NODE = "Editor/Shell/Body/Right/RightSheet/RightScroll/RightForm";
 /// The spec list says what was asked for; this says what a reader can see, so
 /// a pooled row left hidden is visible to a test rather than only to the eye.
 pub fn drawn_rows() {
-    let host = scene::get_node(FORM_NODE);
+    let host = scene::get_node(INSPECTOR_FORM);
     if util::is_nil(host) {
         return -1;
     }
@@ -80,7 +83,7 @@ pub fn drawn_rows() {
 /// Whether the form drew this run at all: a headless run has the nodes but
 /// never lays them out, so nothing has a rect to measure.
 pub fn form_drawn() {
-    let host = scene::get_node(FORM_NODE);
+    let host = scene::get_node(INSPECTOR_FORM);
     if util::is_nil(host) {
         return false;
     }
@@ -91,7 +94,7 @@ pub fn form_drawn() {
 /// The node one form row was drawn on, for a caller that needs where it is on
 /// screen rather than what is in it.
 pub fn form_row_node(at) {
-    let host = scene::get_node(FORM_NODE);
+    let host = scene::get_node(INSPECTOR_FORM);
     if util::is_nil(host) {
         return ();
     }
@@ -101,7 +104,6 @@ pub fn form_row_node(at) {
     }
     rows[at]
 }
-const ROW_HATCH = "draw_form_row";
 
 /// A form row and the control inside it, taller where a finger picks them.
 fn row_h(S) {
@@ -112,12 +114,10 @@ fn control_h(S) {
     if S.touchscreen { 29.0 } else { 20.0 }
 }
 
-// The rows this frame wants, and the closures the drawn ones run. Built as
-// the sections walk the selection, then handed to `pool::sync` in one go.
+// The rows the form wants, built as the sections walk the selection and
+// handed to `pool::sync` in one go.
 fn open_form(S) {
     S.form = [];
-    S.form_draws = [];
-    S.form_cursor = 0;
 }
 
 fn push(S, spec) {
@@ -140,6 +140,11 @@ pub fn close_pool(S) {
     crate::pool::sync(S, FORM_NODE, S.form, label_w(S), stacked(S));
     // The inspector's rows are not what the node holds now.
     S.pool_keys.remove(FORM_NODE);
+}
+
+/// A row as `pool.rn` takes it, for a plugin's section.
+pub fn add_row(S, spec) {
+    push(S, spec);
 }
 
 /// One labelled row of controls, for a panel describing its own form.
@@ -169,30 +174,15 @@ fn prop_tip(prop, spec) {
     if description == "" { label } else { label + "\n" + description }
 }
 
-/// A drawn row spanning both columns, for a heading or a note.
-pub fn wide_row(S, height, body) {
-    S.form_draws.push(body);
-    push(S, #{ full: true, height: height, draw: ROW_HATCH });
+/// A line of text spanning both columns, for a heading or a note: a label
+/// in `role`, so nothing is drawn by hand.
+pub fn note_row(S, height, role, text) {
+    push(S, #{ full: true, height: height, controls: [#{ kind: "label", role: role, text: text }] });
 }
 
 /// Stop drawing the form, for a right dock showing something else.
 pub fn hide_form(S) {
     crate::pool::hide(S, FORM_NODE);
-}
-
-/// Run the next drawn row. The pool draws its visible children in the order
-/// they were pushed, so one cursor keeps the two in step.
-///
-/// A hatch can fire before the panel has described a single row — the frame a
-/// dock is switched away from still draws what the last one left — so a
-/// cursor past the end draws nothing rather than failing the frame.
-pub fn draw_row(S) {
-    let n = S.form_cursor;
-    S.form_cursor = n + 1;
-    let found = S.form_draws.get(n);
-    if let Some(body) = found {
-        body();
-    }
 }
 
 // The label column, derived from the form: at a width neither column fits,
@@ -349,9 +339,7 @@ fn script_props_rows(S, k, node) {
         return;
     }
     let props = model::script_props(node);
-    wide_row(S, 20, || {
-        style::section_label(k, "properties");
-    });
+    note_row(S, 20, "text_heading", "PROPERTIES");
     for export in declared {
         let overridden = props.contains_key(export.name);
         let value = if overridden { props[export.name] } else { export["default"] };
@@ -883,6 +871,7 @@ fn write(S, comp, prop, value) {
     // cache goes and the engine is handed the clip again.
     if comp == "animation" {
         S.clip = None;
+        crate::signals::inspector(S);
         anim::arm(S);
     }
 }
@@ -1382,7 +1371,9 @@ fn shader_row(S, k, reference, shader) {
             tooltip: "Edit " + current,
             on: |_| {
                 S.shader_rel = model::relative_file(S, shader);
+                crate::signals::inspector(S);
                 S.doctab = "script";
+                crate::signals::inspector(S);
             },
         },
         #{
@@ -1950,9 +1941,7 @@ fn inspected(S, comp, edit) {
 // than reading as a node whose components went missing.
 fn empty_note(S, k, carried) {
     let text = if carried == 0 { "this node has no components" } else { "no component matches the search" };
-    wide_row(S, row_h(S) + 2.0, || {
-        style::empty(k, text);
-    });
+    note_row(S, row_h(S) + 2.0, "text_note", text);
 }
 
 fn events_section(S, k) {
@@ -1963,68 +1952,55 @@ fn events_section(S, k) {
     let script = match model::script_rel(node) {
         Some(script) => script,
         None => {
-            wide_row(S, row_h(S) + 2.0, || {
-                style::empty(k, "no script attached");
-            });
+            note_row(S, row_h(S) + 2.0, "text_note", "no script attached");
             return;
         }
     };
     for hook in model::hooks(S, script) {
         let held = hook;
-        wide_row(S, row_h(S) + 2.0, || {
-            style::hook_pill(k, held.name, held.name + "()", "→ engine");
-        });
+        push(S, #{ full: true, height: row_h(S) + 6.0, controls: [
+            #{ kind: "label", role: "chip", text: held.name + "()" },
+            #{ kind: "label", role: "text_note", text: "→ engine" },
+        ] });
     }
 }
 
-pub fn body(S, k) {
+/// What the Inspector panel's head says, and whether there is a node to
+/// show at all.
+pub fn view(S) {
     if S.sel < 0 || S.sel >= S.doc.len() {
-        hide_form(S);
-        ui::add_space(10);
-        style::empty(k, "nothing selected");
+        return #{ selected: false };
+    }
+    let k = S.theme;
+    let node = model::selected_node(S);
+    let (icon, token) = model::node_icon(node);
+    #{
+        selected: true, icon: icon, icon_color: k.get(token).unwrap_or(k.primary_text),
+        name: node.name, kind: model::node_type(node), add_icon: icons::ui("add"),
+    }
+}
+
+/// Fill the Inspector panel's form for the selection, filtered by `query`.
+pub fn fill(S, query) {
+    S.search["inspector"] = query;
+    if S.sel < 0 || S.sel >= S.doc.len() {
+        crate::pool::hide(S, INSPECTOR_FORM);
         return;
     }
     let node = model::selected_node(S);
-    ui::add_space(2);
-    ui::row(#{ height: row_h(S) }, || {
-        let (icon, token) = model::node_icon(node);
-        ui::label(icon, #{ font_size: style::LG, text_color: k.get(token).unwrap_or(k.primary_text) });
-        ui::add_space(7);
-        // One line: the name, then its type beside it. The panel is narrow
-        // and a second row was a whole line of height for four words.
-        ui::label(node.name, #{
-            font_size: style::LG, font_family: ui::FONT_HEADING, font_weight: 700, text_color: k.text_default, truncate: true,
-        });
-        ui::add_space(6);
-        ui::label(model::node_type(node),
-            util::merge(style::mono_sm(k.text_subtle), #{ truncate: true }));
-    });
-    ui::add_space(3);
-    crate::search::field(S, k, "inspector", "Search", ui::available_width());
-    // Described again only when something the rows are built from moved; the
-    // drawn rows' cursor restarts every pass either way.
-    S.form_cursor = 0;
-    crate::pool::sync_when(S, FORM_NODE, form_key(S, k), label_w(S), stacked(S), || {
-        describe(S, k, node);
-        S.form
-    });
+    describe(S, S.theme, node);
+    crate::pool::sync(S, INSPECTOR_FORM, S.form, label_w(S), stacked(S));
 }
 
-// What the form is built from: the selection and the document, the panel's
-// own folds, tabs and chips, the query, and while playing the live values,
-// which move every frame.
-fn form_key(S, k) {
-    let clip = match S.clip {
-        Some(clip) => [clip.index, clip.path, clip.dirty],
-        None => [],
-    };
-    [
-        S.sel, S.sels.clone(), S.doc_rev, S.workspace, S.tool, S.playing,
-        if S.playing { S.frame } else { 0 }, format!("{:?}", S.collapsed),
-        format!("{:?}", S.opened), format!("{:?}", S.polygon), format!("{:?}", S.chip_state),
-        clip, S.shader_rel, S.doctab, S.compact, S.touchscreen,
-        crate::search::query(S, "inspector"), k,
-    ]
+pub fn show_panel() {
+    let found = scene::get_node(PANEL);
+    if !util::is_nil(found) {
+        found.patch_component("widget", #{ visible: true });
+    }
+}
+
+pub fn hide_panel() {
+    util::hide(PANEL);
 }
 
 // Every row of the form, pushed onto `S.form`.
@@ -2057,21 +2033,13 @@ fn describe(S, k, node) {
             script_section(S, k, "Script");
         }
     }
-    crate::plugins::draw_sections(S, k, node);
+    crate::plugins::section_rows(S, k, node);
 }
 
-/// The one control under the scroll, so a long form cannot push it away.
-pub fn foot_controls(S) {
-    // Nothing to add a component to.
-    if S.sel < 0 || S.sel >= S.doc.len() {
-        return [];
+/// The verb under the form: a component for the selected node, from the
+/// palette.
+pub fn add(S) {
+    if S.sel >= 0 && S.sel < S.doc.len() {
+        shell::open_palette(S, "add ");
     }
-    // Bound, not returned bare: a `}` with a `[` under it indexes the block
-    // above instead of starting a list.
-    let controls = [#{
-        kind: "button", role: "action", height: 30, width: 0.0, grow: 1.0,
-        icon: icons::ui("add"), text: "Add component",
-        on: |_| { shell::open_palette(S, "add "); },
-    }];
-    controls
 }

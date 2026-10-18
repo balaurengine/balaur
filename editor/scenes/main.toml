@@ -296,6 +296,13 @@ draw = "draw_dock_right"
 # whatever is left, which is the whole sheet. `layout.rn` writes the real one.
 height = 96
 
+# The Inspector, its own scene and script: see scenes/panels/inspector.toml.
+[[nodes]]
+id = "inspector"
+name = "Inspector"
+parent = "right_sheet"
+instance = "scenes/panels/inspector.toml"
+
 [[nodes]]
 id = "right_scroll"
 name = "RightScroll"
@@ -305,18 +312,6 @@ kind = "scroll"
 axis = "vertical"
 grow = 1
 
-[[nodes]]
-id = "right_foot"
-name = "RightFoot"
-parent = "right_sheet"
-# One button, so a pooled row rather than a hatch.
-[nodes.widget]
-kind = "row"
-align_items = "center"
-height = 36
-
-# The Inspector's and Import's rows: a form whose fields change with the
-# selection, so `pool.rn` makes them and hides the spares.
 # Where a plugin dock's own subtree goes on this side.
 [[nodes]]
 id = "right_plugins"
@@ -327,6 +322,8 @@ kind = "column"
 visible = false
 grow = 1
 
+# Import's rows: a form whose fields change with the file, so `pool.rn`
+# makes them and hides the spares.
 [[nodes]]
 id = "right_form"
 name = "RightForm"

@@ -72,11 +72,14 @@ pub fn redo(S) {
 
 pub fn set_workspace(S, id) {
     S.workspace = id;
+    crate::signals::inspector(S);
     S.tool = "select";
+    crate::signals::inspector(S);
     if id == "script" {
         open_doc(S, "script");
     } else {
         S.doctab = "scene";
+        crate::signals::inspector(S);
     }
     // A workspace is a set of open panels and nothing more: what it opens can
     // be closed again from a tab, and what it leaves out opened from the menu.
@@ -92,6 +95,7 @@ pub fn open_doc(S, id) {
         S.events_open = true;
     }
     S.doctab = id;
+    crate::signals::inspector(S);
 }
 
 /// Close a document tab; the scene is what is left.
@@ -104,6 +108,7 @@ pub fn close_doc(S, id) {
     }
     if S.doctab == id {
         S.doctab = "scene";
+        crate::signals::inspector(S);
     }
 }
 
@@ -113,6 +118,7 @@ pub fn toggle_split(S) {
     S.split = !S.split;
     if S.split && S.doctab == "events" {
         S.doctab = "scene";
+        crate::signals::inspector(S);
     }
     // Under focus this is the reader asking for the scene back beside the
     // code, so the record goes rather than undoing it on the way out.
@@ -261,6 +267,7 @@ pub fn toggle_play(S) {
         // The game looks through its own camera from here.
         model::hold_game_cameras(S, true);
         S.playing = true;
+        crate::signals::inspector(S);
         crate::docks::show(S, "output");
         // Physics and every animation player start next frame: the one a
         // session opens in is not recorded, so nothing may step in it.
@@ -575,6 +582,7 @@ pub fn open_script_at(S, rel, line) {
             crate::selection::only(S, i);
             set_workspace(S, defs::WORKSPACE_SCRIPT);
             S.doctab = "script";
+            crate::signals::inspector(S);
             S.preview_line = line;
             return;
         }
@@ -932,6 +940,7 @@ fn state_show(S, name) {
 /// there is nothing to paint with until a tile is chosen.
 pub fn set_tool(S, tool) {
     S.tool = tool;
+    crate::signals::inspector(S);
     if tool == "tiles" {
         crate::docks::show(S, "tiles");
     }
@@ -948,6 +957,7 @@ fn state_tab(S, tab) {
         S.split = true;
     } else {
         S.doctab = tab;
+        crate::signals::inspector(S);
     }
 }
 

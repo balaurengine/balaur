@@ -178,6 +178,7 @@ pub fn document(S) {
     }
     if library is Object {
         S.clip = Some(#{ index: player_i, source: library, doc: Some(library), path: None, dirty: false });
+        crate::signals::inspector(S);
         return Some(library);
     }
     if library is String && library != "" {
@@ -188,12 +189,15 @@ pub fn document(S) {
             // Cached as a failure so the warning is printed once rather than
             // once a frame.
             S.clip = Some(#{ index: player_i, source: library, doc: None, path: Some(path), dirty: false });
+            crate::signals::inspector(S);
             return None;
         }
         S.clip = Some(#{ index: player_i, source: library, doc: Some(loaded), path: Some(path), dirty: false });
+        crate::signals::inspector(S);
         return Some(loaded);
     }
     S.clip = Some(#{ index: player_i, source: library, doc: None, path: None, dirty: false });
+    crate::signals::inspector(S);
     None
 }
 
@@ -272,6 +276,7 @@ pub fn arm(S) {
         Some(comp) => comp,
         None => {
             S.clip = Some(#{ index: player_i, source: "", doc: None, path: None, dirty: false });
+            crate::signals::inspector(S);
             return;
         }
     };
@@ -344,6 +349,7 @@ pub fn ensure_clip(S) {
     library[GROUP] = clips;
     node.animation = #{ library: library, autoplay: name, speed_scale: 1.0, root_node: "" };
     S.clip = None;
+    crate::signals::inspector(S);
     arm(S);
     log::info(format!("created clip '{}' on {}", name, node.name));
     definition(S)
@@ -512,6 +518,7 @@ pub fn promote(S) {
     script::attempt(|| assets::reload(util::engine_path(S, rel)));
     comp.library = rel;
     S.clip = None;
+    crate::signals::inspector(S);
     arm(S);
     log::info("saved " + rel + " (undo detaches it; the file stays)");
 }
@@ -547,6 +554,7 @@ pub fn make_inline(S) {
     copy["type"] = CLIP_TYPE;
     comp.library = copy;
     S.clip = None;
+    crate::signals::inspector(S);
     arm(S);
     log::info(format!("clip is now embedded in {}", node.name));
 }
@@ -631,6 +639,7 @@ pub fn update(S) {
         // not yet written goes to its file now rather than being dropped.
         save(S);
         S.clip = None;
+        crate::signals::inspector(S);
         arm(S);
     }
 }

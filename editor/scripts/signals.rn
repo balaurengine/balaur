@@ -2,18 +2,52 @@
 // emitted once however many edits a frame makes: the guard is cleared when
 // the Editor hears its own event, at the next pump.
 
+const OUTLINE = "outline_changed";
+const INSPECTOR = "inspector_changed";
+
 /// Have the Editor hear its own words, which is what clears the guard. Here
 /// rather than in editor.rn, where `events` names the Events view's module.
 pub fn hear_own(editor) {
-    events::listen(editor, "outline_changed", editor);
+    events::listen(editor, OUTLINE, editor);
+    events::listen(editor, INSPECTOR, editor);
+}
+
+/// Clear the guard on `name`, as the Editor hears it back.
+pub fn heard(S, name) {
+    S.told[name] = false;
+}
+
+fn tell(S, name) {
+    if S.told.get(name).unwrap_or(false) {
+        return;
+    }
+    S.told[name] = true;
+    scene::get_node("Editor").emit(name, ());
 }
 
 /// The document, the selection, a lock or a warning moved: what a panel
 /// showing the document's outline listens for.
 pub fn outline(S) {
-    if S.outline_told {
+    tell(S, OUTLINE);
+}
+
+/// What the Inspector's form is built from beside the outline moved: the
+/// workspace, the tool, play, the polygon being edited, the clip, the doc tab
+/// or the screen's class. Called wherever one is written, so a write that
+/// leaves it as it was says nothing.
+pub fn inspector(S) {
+    let key = [
+        S.workspace, S.tool, S.playing, format!("{:?}", S.polygon), format!("{:?}", S.clip),
+        S.shader_rel, S.doctab, S.compact, S.touchscreen,
+    ];
+    if key == S.inspector_key {
         return;
     }
-    S.outline_told = true;
-    scene::get_node("Editor").emit("outline_changed", ());
+    S.inspector_key = key;
+    tell(S, INSPECTOR);
+}
+
+/// A frame of play: every live value the Inspector shows may have moved.
+pub fn playing_frame(S) {
+    tell(S, INSPECTOR);
 }

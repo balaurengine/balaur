@@ -5,8 +5,8 @@
 > a number lives. 589 `ui::*` calls remain, §6 counts them, and §7 says why
 > the scene still states 78 sizes the theme should hold. §9, decided
 > 2026-10-18, is now the target and governs the rest: every panel its own
-> scene and script, nothing drawn, nothing polled. Its phase 0 and the Scene
-> panel are built.
+> scene and script, nothing drawn, nothing polled. Its phase 0, the Scene
+> panel and the Inspector are built.
 >
 > Written 2026-09-04 to answer "is the editor's UI a scene of nodes, or code?"
 > It was code, and §0 is what moving the views took.
@@ -596,21 +596,43 @@ Not yet moved: the `+` in the tab row, drawn by `docks::draw_tools` with the
 other tab rows (phase 3), and the dock showing and hiding the panel from its
 `draw` node.
 
-### 9.4 What is left, in order
+### 9.4 The Inspector
 
-1. The Inspector: on the `inspector` kind, with its refresh told by a
-   component change rather than reading every inspector each pass.
-2. The bottom docks and every dock's tab row.
-3. The chrome: top bar, status bar, tool rail, viewport chips and HUD as
+Built 2026-10-18. `scenes/panels/inspector.toml` holds the head (the node's
+mark and name, its type), the search, the "nothing selected" note, the form's
+scroll and host, and "Add component"; `scripts/panels/inspector.rn` answers
+them. It listens for `outline_changed` and `inspector_changed`, the second
+emitted where the workspace, the tool, play, the polygon being edited, the
+clip, the doc tab or the screen's class is written, and only when the key
+they make moved; while the scene plays it is emitted every frame, since every
+live value may have. On either it asks the Editor for the head
+(`inspector_view`) and to fill its form (`inspector_fill`), and has the
+native rows read their components again with `ui.reread`, which names the
+panel for all of them. A control in the form is heard through
+`on_widget_event` after its own handler ran, and the form is filled again.
+
+- The `inspector` kind reads its component only when told: its widget
+  written, a row edited, its width moved, or `ui.reread`. It read every
+  inspector's whole component every pass before.
+- The drawn rows are labels: headings, notes, the hook chips, the physics
+  notes. The physics pills are buttons on form rows, wrapped by a width
+  estimate instead of measured as they drew.
+- A plugin's inspector section returns rows instead of drawing.
+- Import keeps the right sheet's own form and its drawn head (phase 4).
+
+### 9.5 What is left, in order
+
+1. The bottom docks and every dock's tab row.
+2. The chrome: top bar, status bar, tool rail, viewport chips and HUD as
    nodes; the hotkeys as declared actions; `layout.rn`'s sizes into the scene.
-4. Dialogs and sheets: settings, theme, about, export, populate, palette, the
-   node picker, rename, plugin dialogs.
-5. The start screen.
-6. Kinds for what is drawn now because no kind holds it: the timeline, a
+3. Dialogs and sheets: settings, theme, about, export, populate, palette, the
+   node picker, rename, plugin dialogs, and Import's head.
+4. The start screen.
+5. Kinds for what is drawn now because no kind holds it: the timeline, a
    recording's lanes, weights, the bone map, the code editor with its
    completion and refactor sheet.
-7. The viewport tools on pointer hooks, and the gizmo and overlay lines as
+6. The viewport tools on pointer hooks, and the gizmo and overlay lines as
    retained nodes.
-8. Remove `draw_ui`, the pool and the `draw` nodes from the editor, and move
+7. Remove `draw_ui`, the pool and the `draw` nodes from the editor, and move
    the self-tests off stepping every frame.
 

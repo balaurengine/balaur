@@ -135,8 +135,8 @@ fn add_all(S, id, declared) {
             run: script::shared(entry.run), owner: id,
         });
     }
-    for draw in util::vec(declared.get("inspector_sections").unwrap_or([])) {
-        S.registry.inspector_sections.push(#{ draw: script::shared(draw), owner: id });
+    for rows in util::vec(declared.get("inspector_sections").unwrap_or([])) {
+        S.registry.inspector_sections.push(#{ rows: script::shared(rows), owner: id });
     }
     for draw in util::vec(declared.get("overlays").unwrap_or([])) {
         S.registry.overlays.push(#{ draw: script::shared(draw), owner: id });
@@ -161,11 +161,14 @@ pub fn panel(S, id) {
     None
 }
 
-/// Whatever a plugin registered for the inspector, drawn after the built-ins.
-pub fn draw_sections(S, k, node) {
+/// The rows each plugin's inspector section asks for, after the built-ins: a
+/// section returns row specs as `pool.rn` takes them, and draws nothing.
+pub fn section_rows(S, k, node) {
     for entry in S.registry.inspector_sections {
-        let draw = entry.draw;
-        draw(S, k, node);
+        let rows = entry.rows;
+        for row in util::vec(rows(S, k, node)) {
+            crate::inspector::add_row(S, row);
+        }
     }
 }
 

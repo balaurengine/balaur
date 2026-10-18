@@ -334,6 +334,7 @@ fn header(S, k, t) {
                     text_color: if on { k.primary_text } else { k.text_subtle },
                 }) {
                     S.polygon.bone = Some(i);
+                    crate::signals::inspector(S);
                 }
             });
         }
