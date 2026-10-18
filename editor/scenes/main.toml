@@ -676,6 +676,7 @@ width = 172
 id = "manager"
 name = "Manager"
 parent = "n_editor"
+script = { source = "scripts/panels/manager.rn" }
 [nodes.widget]
 kind = "column"
 layer = "shell"
@@ -701,8 +702,8 @@ parent = "manager"
 kind = "row"
 role = "toolbar_manager"
 
-# The page under the tabs. Still drawn: the project history is a `list`, which
-# builds only the rows on screen, and a column of nodes would build them all.
+# The page under the tabs: what the screen was told last, a job's bar, the
+# Projects tab's filter and verbs, and the rows of whichever tab is up.
 [[nodes]]
 id = "manager_body"
 name = "ManagerBody"
@@ -711,15 +712,101 @@ parent = "manager"
 kind = "column"
 role = "layout_manager"
 grow = 1
+max_width = 900
+gap = [0, 10]
+
+[[nodes]]
+id = "manager_note"
+name = "Note"
+parent = "manager_body"
+[nodes.widget]
+kind = "label"
+role = "text_code_quiet"
+font_size = 11
+wrap = true
+text = ""
+visible = false
+
+[[nodes]]
+id = "manager_progress"
+name = "Progress"
+parent = "manager_body"
+[nodes.widget]
+kind = "row"
+gap = [10, 10]
+align_items = "center"
+visible = false
+
+# Wraps under a phone's width: a filter and three buttons do not share 280
+# pixels, so the verbs drop to the line below.
+[[nodes]]
+id = "manager_tools"
+name = "Tools"
+parent = "manager_body"
+[nodes.widget]
+kind = "flow"
+gap = [6, 8]
+align_items = "center"
+visible = false
+
+[[nodes]]
+id = "manager_filter"
+name = "Filter"
+parent = "manager_tools"
+[nodes.widget]
+kind = "text_field"
+role = "input_form"
+text = ""
+placeholder = "Filter projects"
+grow = 1
+min_width = 240
+
+[[nodes]]
+id = "manager_import"
+name = "Import"
+parent = "manager_tools"
+[nodes.widget]
+kind = "button"
+role = "action_manager"
+text = "Import project"
+tooltip = "Pick a project folder to convert; Godot is the one read today"
+
+[[nodes]]
+id = "manager_open"
+name = "Open"
+parent = "manager_tools"
+[nodes.widget]
+kind = "button"
+role = "action_manager"
+text = "Open folder"
+
+[[nodes]]
+id = "manager_new"
+name = "New"
+parent = "manager_tools"
+[nodes.widget]
+kind = "button"
+role = "action_manager"
+fill = "primary_bg"
+text_color = "primary_text"
+text = "New project"
+
+[[nodes]]
+id = "manager_scroll"
+name = "Scroll"
+parent = "manager_body"
+[nodes.widget]
+kind = "scroll"
+axis = "vertical"
+grow = 1
 
 [[nodes]]
 id = "manager_page"
-name = "ManagerPage"
-parent = "manager_body"
+name = "Page"
+parent = "manager_scroll"
 [nodes.widget]
-kind = "draw"
-draw = "draw_manager_body"
-grow = 1
+kind = "column"
+gap = [0, 4]
 
 # A query and what it matches, over everything: the command palette and the
 # node picker take turns on it. A `dialog`, so Escape and a click on the dim

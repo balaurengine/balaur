@@ -77,6 +77,7 @@ pub fn open(S) {
     S.manager.on = true;
     S.manager.read = false;
     S.manager.back = false;
+    told(S);
     // The other two pages are not offered in a tab, so neither is a state
     // that left the screen on one of them.
     if in_tab() {
@@ -88,6 +89,7 @@ pub fn open(S) {
 pub fn open_examples(S) {
     open(S);
     S.manager.tab = "examples";
+    told(S);
 }
 
 /// The screen with the New project sheet up, for a shot and for the palette.
@@ -100,6 +102,7 @@ pub fn open_new(S) {
 pub fn open_versions(S) {
     open(S);
     S.manager.tab = "engine";
+    told(S);
 }
 
 /// Ask for a folder and open what is in it, without the screen in between.
@@ -112,23 +115,13 @@ pub fn pick(S) {
     open_over(S);
 }
 
-/// The engine's mark on its plate, `width` across the ink. The box is its
-/// own: a frame fills the height of the row it sits in.
-pub fn mark(k, width) {
-    let pad = util::max(width / 11.0, 2.0);
-    let side = width + 2.0 * pad;
-    ui::row(#{ width: side, height: side }, || {
-        ui::frame(#{ fill: k.brand_plate, corner_radius: side / 2.0, padding_x: pad, padding_y: pad }, || {
-            ui::image(LOGO, #{ width: width });
-        });
-    });
-}
 
 /// The screen over the open project, with the way back to it: what the
 /// palette opens. A start state opens the screen a bare launch shows.
 pub fn open_over(S) {
     open(S);
     S.manager.back = S.game_root != "";
+    told(S);
 }
 
 /// Back to the project the screen was opened over. Opening another quits
@@ -137,25 +130,45 @@ pub fn close(S) {
     if S.manager.back {
         S.manager.on = false;
         S.manager.back = false;
+        told(S);
     }
+}
+
+/// Where a control the showcase points at sits, in design px, by the name it
+/// knows it as: a tab by its id, or one of the Projects tab's verbs; `None`
+/// before it has drawn.
+pub fn spot(S, name) {
+    let node = match name {
+        "import" => scene::get_node(TOOLS + "/Import"),
+        "new" => scene::get_node(TOOLS + "/New"),
+        _ => tab_node(name),
+    };
+    let box = if util::is_nil(node) { () } else { ui::widget_rect(node) };
+    if box is Object {
+        Some((box.x + box.width / 2.0, box.y + box.height / 2.0))
+    } else {
+        None
+    }
+}
+
+// The tab strip's node for the page `id`, in the order `tabs` lists them.
+fn tab_node(id) {
+    let host = scene::get_node(TABS_NODE);
+    if util::is_nil(host) {
+        return ();
+    }
+    for (i, row) in tabs().iter().enumerate() {
+        if row[0] == id {
+            if let Some(kid) = host.children().get(i) {
+                return kid;
+            }
+        }
+    }
+    ()
 }
 
 /// Whether the screen has the window. A run with no project is the screen
 /// whether or not anybody asked for it: there is nothing else to hold.
-/// Where a control this screen drew last landed, in design px, by the name
-/// the showcase knows it as; `None` before it has drawn.
-pub fn spot(S, name) {
-    let found = S.manager.spots.get(name);
-    match found {
-        Some(box) => if box is Object {
-            Some((box.x + box.width / 2.0, box.y + box.height / 2.0))
-        } else {
-            None
-        },
-        None => None,
-    }
-}
-
 pub fn showing(S) {
     S.manager.on || S.game_root == ""
 }
@@ -194,25 +207,364 @@ const GROUND = "Editor/Manager";
 const SHELL = "Editor/Shell";
 const HEAD_NODE = GROUND + "/ManagerHead";
 const TABS_NODE = GROUND + "/ManagerTabs";
+const BODY = GROUND + "/ManagerBody";
+const NOTE = GROUND + "/ManagerBody/Note";
+const PROGRESS = GROUND + "/ManagerBody/Progress";
+const TOOLS = GROUND + "/ManagerBody/Tools";
+const PAGE = GROUND + "/ManagerBody/Scroll/Page";
 
-pub fn draw(S, k) {
+/// Fill the start screen: its head, its tabs and the page under them, from
+/// what this machine has opened, the examples and the release feed. What
+/// its script asks for on `manager_changed` and when it was resized.
+pub fn fill(S) {
     if !S.manager.on {
         util::hide(GROUND);
+        cover(S, false);
         return;
     }
     refresh(S);
+    let k = S.theme;
     // The screen is the window: a project's own widgets are not behind this.
     ui::set_widget_layer(false, 0.0, 0.0, 0.0, 0.0);
     util::fill(GROUND, #{ visible: true });
+    cover(S, true);
     crate::pool::strip(S, HEAD_NODE, head_controls(S, k));
     crate::pool::strip(S, TABS_NODE, tab_controls(S));
-    tab_spots(S);
-    // Escape closes the New project sheet first, and only then the screen.
-    let sheet_up = crate::window::showing(S, NEW_SHEET);
-    if !sheet_up && ui::shortcut("escape") {
-        close(S);
-    }
+    let col = page_w();
+    head_note(S, k);
+    tools(S);
+    let specs = if S.manager.tab == "engine" {
+        engine_specs(S, k, col)
+    } else if S.manager.tab == "examples" {
+        examples_specs(S, k, col)
+    } else {
+        projects_specs(S, k, col)
+    };
+    crate::pool::sync(S, PAGE, specs, 0.0, false);
 }
+
+// The page's width, as it was laid out: the widest the screen draws, whatever
+// the window is, since a list across a monitor is a list nobody can read.
+fn page_w() {
+    let box = ui::widget_rect(scene::get_node(BODY));
+    if util::is_nil(box) || util::f(box.width) <= 0.0 { COLUMN } else { util::min(util::f(box.width), COLUMN) }
+}
+
+/// The Projects tab's filter, as it is typed.
+pub fn set_filter(S, text) {
+    S.manager.filter = text;
+    told(S);
+}
+
+/// The Projects tab's verbs, by the name of the button pressed.
+pub fn verb(S, name) {
+    if name == "New" {
+        crate::window::show(S, NEW_SHEET);
+        return;
+    }
+    let picked = project::pick_directory();
+    if !(picked is String) {
+        return;
+    }
+    if name == "Import" {
+        import_project(S, picked);
+    } else {
+        go(S, picked);
+    }
+    told(S);
+}
+
+// What the head says under itself: a note or a failure, and a job's bar.
+fn head_note(S, k) {
+    let said = if S.manager.failed != "" { S.manager.failed } else { S.manager.note };
+    util::fill(NOTE, #{
+        visible: said != "", text: said,
+        text_color: if S.manager.failed != "" { k.warning_text } else { k.text_subtle },
+    });
+    let controls = if converting(S) {
+        let job = S.manager.importing;
+        let counted = if job.files > 0 { format!("{} of {} files", job.done, job.files) } else { "reading" };
+        let part = if job.files > 0 { util::f(job.done) / util::f(job.files) } else { 0.0 };
+        [
+            #{ kind: "label", role: "text_code_quiet", font_size: 11, text: counted },
+            #{ kind: "progress_bar", width: 360, height: 4, value: part },
+            #{ kind: "row", grow: 1 },
+            #{
+                kind: "button", role: "action_form", text: "stop",
+                tooltip: "Stop after the file it is on; what it wrote stays",
+                on: |_| { import::cancel(); },
+            },
+        ]
+    } else if installing(S) {
+        progress_controls(S)
+    } else {
+        []
+    };
+    util::fill(PROGRESS, #{ visible: controls.len() > 0 });
+    crate::pool::strip(S, PROGRESS, controls);
+}
+
+// The filter and the three verbs, up on the Projects tab. A tab has no folder
+// picker and nowhere to write a template: the page it runs in is what starts
+// a project there, and this screen reopens one.
+fn tools(S) {
+    let up = S.manager.tab == "projects";
+    let acting = !in_tab();
+    util::fill(TOOLS, #{ visible: up });
+    util::fill(TOOLS + "/Filter", #{ text: S.manager.filter });
+    for name in ["Import", "Open"] {
+        util::fill(TOOLS + "/" + name, #{ visible: acting && !S.touchscreen });
+    }
+    util::fill(TOOLS + "/Import", #{ icon: icons::panel("import") });
+    util::fill(TOOLS + "/Open", #{ icon: icons::panel("assets") });
+    util::fill(TOOLS + "/New", #{ visible: acting, icon: icons::ui("add") });
+}
+
+fn say(text, ink) {
+    #{ full: true, height: 0, controls: [#{
+        kind: "label", role: "text_code_quiet", font_size: 11, grow: 1, wrap: true,
+        text: text, text_color: ink,
+    }] }
+}
+
+fn rule() {
+    #{ full: true, height: 1, controls: [#{ kind: "separator", grow: 1 }] }
+}
+
+fn projects_specs(S, k, col) {
+    let rows = shown(S);
+    if rows.len() == 0 {
+        let empty = if in_tab() {
+            "This browser keeps no projects yet. The page opens one, and it is listed here after that."
+        } else {
+            "Nothing opened on this machine yet. Start from an example, or make one."
+        };
+        let why = if S.manager.recent.len() == 0 { empty } else { "No project matches that filter." };
+        let none = [say(why, k.text_subtle)];
+        return none;
+    }
+    let out = [];
+    for row in rows {
+        out.push(project_spec(S, k, col, util::obj(row)));
+        out.push(rule());
+    }
+    out
+}
+
+// Two lines: the name a click opens, and the folder under it. What a row says
+// about itself, when and with which engine, sits at the right edge, and a
+// phone shows when it was opened and nothing else.
+fn project_spec(S, k, col, row) {
+    let here = row.path;
+    let gone = row.get("exists").unwrap_or(true) != true;
+    let built = row.get("version").unwrap_or("");
+    let line = util::max(style::row_h(S), 28.0);
+    let controls = [
+        // The engine's mark: a project keeps its own icon, and none of them
+        // is open, so the row wears the editor's.
+        #{ kind: "panel", role: "sheet_logo", padding: 2, controls: [#{ kind: "image", image: LOGO, width: 20 }] },
+        #{ kind: "column", grow: 1, controls: [
+            #{
+                kind: "button", role: "item_list", text: row.name, height: line, text_align: "start",
+                icon: if gone { icons::panel("problems") } else { "" }, tooltip: here,
+                text_color: if gone { k.text_subtle } else { k.text_default },
+                on: |_| {
+                    if !gone {
+                        go(S, here);
+                    }
+                },
+            },
+            #{
+                kind: "label", role: "text_code_quiet", font_size: 11, truncate: true,
+                text: if gone { here + "  ·  disk not mounted" } else { here },
+            },
+        ] },
+        #{ kind: "label", role: "text_code_quiet", font_size: 11, text: row.get("when").unwrap_or("") },
+    ];
+    if built != "" && !narrow(col) {
+        controls.push(#{ kind: "label", role: "text_code_quiet", font_size: 11, text: built });
+    }
+    controls.push(#{
+        kind: "button", role: "icon_action", text: "", icon: icons::ui("close"), tooltip: "Forget this project",
+        on: |_| {
+            project::forget(here);
+            S.manager.read = false;
+            told(S);
+        },
+    });
+    #{ full: true, height: util::max(line + 22.0, 56.0), slot_role: "layout_actions", controls: controls }
+}
+
+fn examples_specs(S, k, col) {
+    let rows = util::vec(project::examples());
+    if rows.len() == 0 {
+        let none = [say("No examples ship beside this build.", k.text_subtle)];
+        return none;
+    }
+    let across = if narrow(col) { 1 } else if col < 760.0 { 2 } else { 3 };
+    // Floored: three cards and two seams have to add up to the column, and a
+    // third of a pixel each puts the last one past its edge.
+    let card_w = math::floor((col - util::f(across - 1) * SEAM) / util::f(across));
+    let cover_h = math::floor(card_w / COVER_ASPECT);
+    let out = [];
+    let n = 0;
+    while n < rows.len() {
+        let cards = [];
+        let c = 0;
+        while c < across && n + c < rows.len() {
+            cards.push(example_card(S, k, card_w, cover_h, util::obj(rows[n + c])));
+            c += 1;
+        }
+        out.push(#{ full: true, height: cover_h + 54.0, controls: [
+            #{ kind: "row", gap: [SEAM, SEAM], controls: cards },
+        ] });
+        n += across;
+    }
+    out.push(say("Opens a copy in your projects folder, so the example stays as it shipped.", k.text_subtle));
+    out
+}
+
+// The picture, the name and the line under it, on a panel the whole of which
+// a click opens a copy of: a button with nothing in it laid over the card.
+fn example_card(S, k, w, cover_h, row) {
+    let id = row.id;
+    let cover = row.get("cover").unwrap_or("");
+    let picture = if cover != "" {
+        #{ kind: "image", image: cover, width: w, height: cover_h, fit: "cover", corner_radius: 12 }
+    } else {
+        // No picture shipped: the engine's own mark, so the card still reads
+        // as a project rather than a blank.
+        #{ kind: "row", width: w, height: cover_h, justify: "center", align_items: "center", controls: [
+            #{ kind: "panel", role: "sheet_logo", controls: [#{ kind: "image", image: LOGO, width: 36 }] },
+        ] }
+    };
+    #{ kind: "panel", fill: k.bg_panel, corner_radius: 12, padding: 0, width: w, gap: [0, 2], controls: [
+        picture,
+        #{ kind: "label", role: "text_title", font_size: 13, text: row.name, padding: [12, 4, 12, 0] },
+        #{
+            kind: "label", role: "text_code_quiet", font_size: 11, truncate: true,
+            text: row.get("note").unwrap_or(""), padding: [12, 0, 12, 8],
+        },
+        #{
+            kind: "button", role: "chip_quiet", text: "", absolute: true, inset: [0.0, 0.0, 0.0, 0.0],
+            tooltip: "Copy into " + S.manager.parent,
+            on: |_| { open_example(S, id); },
+        },
+    ] }
+}
+
+/// Copy an example into the projects folder and open the copy.
+fn open_example(S, id) {
+    let made = util::obj(project::copy_example(id, S.manager.parent));
+    let failed = made.get("error");
+    if let Some(why) = failed {
+        S.manager.failed = why;
+        told(S);
+        return;
+    }
+    go(S, made.path);
+}
+
+// What this build is, which line it follows, and every release the project
+// has published. The same code `balaur update` runs, so the screen and the
+// command cannot disagree.
+fn engine_specs(S, k, col) {
+    if !S.manager.asked {
+        check(S);
+    }
+    let mine = util::obj(release::installed());
+    let h = util::max(style::row_h(S), 30.0);
+    let newest = newest_on(S, S.manager.follow);
+    let head = [
+        #{ kind: "column", grow: 1, controls: [
+            #{ kind: "label", role: "text_title", text: "Balaur " + mine.version },
+            #{ kind: "label", role: "text_code_quiet", font_size: 11, text: build_line(mine) },
+        ] },
+    ];
+    if !narrow(col) {
+        let fresh = newest.get("order").unwrap_or("") == "newer";
+        head.push(#{
+            kind: "label", role: "text_code_quiet", font_size: 11, text: standing(S, S.manager.follow),
+            text_color: if fresh { k.success_text } else { k.text_subtle },
+        });
+    }
+    head.push(#{
+        kind: "button", role: "action_form", icon: icons::ui("reset"),
+        text: if S.manager.reading { "Checking" } else { "Check" },
+        on: |_| { check(S); },
+    });
+    let out = [#{ full: true, height: 44, slot_role: "layout_actions", controls: head }];
+    if mine.held != "" {
+        out.push(say(mine.held, k.text_subtle));
+    }
+    let lines = [#{ kind: "label", role: "text_caption", text: "Follow", width: 60 }];
+    for name in util::vec(release::channels()) {
+        // Bound afresh: a closure made in a loop captures the binding.
+        let line = name;
+        lines.push(#{
+            kind: "button", role: "chip", text: line, checked: S.manager.follow == line,
+            on: |_| {
+                S.manager.follow = line;
+                told(S);
+            },
+        });
+    }
+    out.push(#{ full: true, height: h + 6.0, slot_role: "layout_actions", controls: lines });
+    release_specs(S, k, h, mine, out);
+    out
+}
+
+fn release_specs(S, k, h, mine, out) {
+    let rows = [];
+    for entry in S.manager.releases {
+        let row = util::obj(entry);
+        if row.get("channel").unwrap_or("") == S.manager.follow {
+            rows.push(row);
+        }
+    }
+    if rows.len() == 0 {
+        let empty = if S.manager.reading { "Reading the release feed." } else { "Nothing published on this line yet." };
+        out.push(say(empty, k.text_subtle));
+    }
+    for row in rows {
+        let current = row.get("current").unwrap_or(false) == true;
+        let controls = [#{ kind: "column", grow: 1, controls: [
+            #{
+                kind: "label", role: "text_title", font_size: 13, text: row.get("id").unwrap_or(""),
+                text_color: if current { k.primary_text } else { k.text_default },
+            },
+            #{ kind: "label", role: "text_code_quiet", font_size: 11, text: row.get("when").unwrap_or("") },
+        ] }];
+        let press = press_spec(S, row, mine);
+        if press is Object {
+            controls.push(press);
+        }
+        out.push(#{ full: true, height: h + 14.0, slot_role: "layout_actions", controls: controls });
+        out.push(rule());
+    }
+    // An install that cannot replace itself has nothing to name a release for.
+    if mine.held != "" || installing(S) {
+        return;
+    }
+    out.push(#{ label: "Or a release by name", height: h, controls: [
+        #{
+            kind: "text_field", role: "input_form", grow: 1, text: S.manager.tag, placeholder: "v0.2.0",
+            on: |text| { S.manager.tag = text; },
+        },
+        #{
+            kind: "button", role: "action_form", text: "Install", min_width: 88,
+            on: |_| {
+                if S.manager.tag == "" {
+                    S.manager.failed = "type a release tag first, like v0.2.0";
+                    told(S);
+                    return;
+                }
+                put(S, "", S.manager.tag);
+            },
+        },
+    ] });
+}
+
 
 /// Hide the shell while the screen is up and show it again after: under the
 /// screen its docks would still draw a project that is not open.
@@ -223,23 +575,6 @@ pub fn cover(S, up) {
     }
 }
 
-/// The page under the tabs, in the hatch the scene keeps for it.
-pub fn draw_body(S, k) {
-    if !S.manager.on {
-        return;
-    }
-    let box = ui::widget_rect(scene::get_node(GROUND + "/ManagerBody"));
-    let col = if util::is_nil(box) { COLUMN } else { util::f(box.width) };
-    let tall = if util::is_nil(box) { 400.0 } else { util::f(box.height) };
-    head_note(S, k, col);
-    if S.manager.tab == "engine" {
-        engine_page(S, k, col, tall);
-    } else if S.manager.tab == "examples" {
-        examples_page(S, k, col, tall);
-    } else {
-        projects_page(S, k, col, tall);
-    }
-}
 
 /// The head strip: the mark, the name, the version, and the way back.
 fn head_controls(S, k) {
@@ -260,46 +595,7 @@ fn head_controls(S, k) {
     out
 }
 
-/// What the head says under itself: a note, a failure, or a job's bar.
-fn head_note(S, k, w) {
-    let said = if S.manager.failed != "" { S.manager.failed } else { S.manager.note };
-    if said != "" {
-        let tone = if S.manager.failed != "" { k.warning_text } else { k.text_subtle };
-        ui::label(said, util::merge(style::mono_sm(tone), #{ wrap: true, width: w }));
-        ui::add_space(4);
-    }
-    if converting(S) {
-        progress(S, k, w);
-    }
-    if installing(S) {
-        install_progress(S, k, w);
-    }
-}
 
-// How far a conversion has got: the count, a bar, and the press that stops it.
-fn progress(S, k, w) {
-    let job = S.manager.importing;
-    let counted = if job.files > 0 { format!("{} of {} files", job.done, job.files) } else { "reading" };
-    ui::add_space(6);
-    ui::row(#{ height: 22, width: w }, || {
-        ui::label(counted, style::mono_sm(k.text_muted));
-        ui::add_space(10);
-        ui::column(|| {
-            ui::add_space(9);
-            let part = if job.files > 0 { util::f(job.done) / util::f(job.files) } else { 0.0 };
-            ui::progress_bar(part, #{ width: util::min(w - 220.0, 360.0), height: 4, track: k.bg_control, fill: k.primary_text });
-        });
-        ui::align_right(|| {
-            if ui::button("stop", #{
-                height: 22, font_size: style::SM, corner_radius: 8, padding_x: 12,
-                fill: k.bg_panel, text_color: k.text_muted,
-                tooltip: "Stop after the file it is on; what it wrote stays",
-            }) {
-                import::cancel();
-            }
-        });
-    });
-}
 
 // The shell's own tab shape: a pill per page, the open one filled.
 fn tab_controls(S) {
@@ -316,102 +612,8 @@ fn tab_controls(S) {
     out
 }
 
-/// Where each tab sits, for the showcase's pointer. Read off the nodes the
-/// strip made, a pass late like every other rect here.
-fn tab_spots(S) {
-    let host = scene::get_node(TABS_NODE);
-    if util::is_nil(host) {
-        return;
-    }
-    for (i, row) in tabs().iter().enumerate() {
-        let found = host.children().get(i);
-        if let Some(kid) = found {
-            S.manager.spots[row[0]] = ui::widget_rect(kid);
-        }
-    }
-}
 
-// The filter, then the three verbs. Under a phone's width the verbs drop to
-// the row below, since a filter and three buttons do not share 280 pixels.
-fn toolbar(S, k, w) {
-    let h = util::max(style::row_h(S), 30.0);
-    let tight = narrow(w);
-    // A tab has no folder picker and nowhere to write a template: the page it
-    // runs in is what starts a project there, and this screen reopens one.
-    let acting = !in_tab();
-    // Written back to front: `ui::right` puts the first one at the right
-    // edge, so New project reads leftmost of the three.
-    let verbs = |room| {
-        if !S.touchscreen {
-            if ui::button(icons::panel("import") + " Import project", #{
-                height: h, font_size: style::MD, corner_radius: 8, padding_x: 14, min_width: room,
-                fill: k.bg_panel, text_color: k.text_default,
-                tooltip: "Pick a project folder to convert; Godot is the one read today",
-            }) {
-                let picked = project::pick_directory();
-                if picked is String {
-                    import_project(S, picked);
-                }
-            }
-            S.manager.spots["import"] = ui::button_rect();
-            ui::add_space(6);
-            if ui::button(icons::panel("assets") + " Open folder", #{
-                height: h, font_size: style::MD, corner_radius: 8, padding_x: 14, min_width: room,
-                fill: k.bg_panel, text_color: k.text_default,
-            }) {
-                let picked = project::pick_directory();
-                if picked is String {
-                    go(S, picked);
-                }
-            }
-            ui::add_space(6);
-        }
-        if ui::button(icons::ui("add") + " New project", #{
-            height: h, font_size: style::MD, corner_radius: 8, padding_x: 14, min_width: room,
-            fill: k.primary_bg, text_color: k.primary_text,
-        }) {
-            crate::window::show(S, NEW_SHEET);
-        }
-        S.manager.spots["new"] = ui::button_rect();
-    };
-    ui::row(#{ height: h, width: w }, || {
-        let field_w = if tight || !acting { w } else { w - 420.0 };
-        S.manager.filter = crate::search::field(S, k, "manager", "Filter projects", field_w);
-        if !tight && acting {
-            ui::align_right(|| { verbs(0.0); });
-        }
-    });
-    if tight && acting {
-        ui::add_space(8);
-        ui::row(#{ height: h, width: w }, || { verbs((w - 12.0) / 3.0); });
-    }
-}
 
-fn projects_page(S, k, col, tall) {
-    toolbar(S, k, col);
-    ui::add_space(SEAM);
-    let rows = shown(S);
-    if rows.len() == 0 {
-        let empty = if in_tab() {
-            "This browser keeps no projects yet. The page opens one, and it is listed here after that."
-        } else {
-            "Nothing opened on this machine yet. Start from an example, or make one."
-        };
-        let why = if S.manager.recent.len() == 0 {
-            empty
-        } else {
-            "No project matches that filter."
-        };
-        ui::label(why, util::merge(style::mono_sm(k.text_subtle), #{ wrap: true, width: col }));
-        return;
-    }
-    // Two lines a row, and the rule between them: the list kind draws only
-    // what is on screen, which is what a long history needs.
-    let h = util::max(style::row_h(S) + 22.0, 56.0);
-    ui::list("manager-recent", #{ row_height: h, max_height: tall }, rows.len(), |i| {
-        project_row(S, k, col, util::obj(rows[i]), h);
-    });
-}
 
 fn shown(S) {
     let query = S.manager.filter.to_lowercase();
@@ -429,198 +631,9 @@ fn shown(S) {
     out
 }
 
-// Two lines: the name a click opens, and the folder under it. What a row
-// says about itself, when and with which engine, sits at the right edge.
-fn project_row(S, k, w, row, h) {
-    let here = row.path;
-    let gone = row.get("exists").unwrap_or(true) != true;
-    let when = row.get("when").unwrap_or("");
-    let built = row.get("version").unwrap_or("");
-    let line = util::max(style::row_h(S), 28.0);
-    // What the marks at the right edge take. A phone shows when it was
-    // opened and nothing else, so the path keeps the width instead.
-    let tight = narrow(w);
-    let marks = if tight { 120.0 } else { 200.0 };
-    ui::row(#{ height: h, width: w }, || {
-        ui::column(|| {
-            ui::row(#{ height: line, width: w - marks }, || {
-                ui::add_space(2);
-                // The engine's mark: a project keeps its own icon, and none
-                // of them is open, so the row wears the editor's.
-                mark(k, 20.0);
-                ui::add_space(8);
-                if ui::button(row.name, #{
-                    height: line, font_size: style::MD, text_align: ui::ALIGN_START, corner_radius: 8,
-                    min_width: w - marks - 36.0, padding_x: 8,
-                    icon: if gone { icons::panel("problems") } else { "" },
-                    icon_size: style::MD, icon_color: k.text_subtle,
-                    fill: "#00000000", hover: #{ fill: k.bg_panel },
-                    text_color: if gone { k.text_subtle } else { k.text_default },
-                    tooltip: here,
-                }) {
-                    if !gone {
-                        go(S, here);
-                    }
-                }
-            });
-            ui::row(#{ height: 16, width: w - marks }, || {
-                ui::add_space(32);
-                ui::label(if gone { here + "  ·  disk not mounted" } else { here },
-                    util::merge(style::mono_sm(k.text_subtle), #{ truncate: true }));
-            });
-        });
-        // Back to front again: the mark that forgets it is the rightmost.
-        ui::align_right(|| {
-            if ui::button(icons::ui("close"), #{
-                role: "icon_action", tooltip: "Forget this project",
-            }) {
-                project::forget(here);
-                S.manager.read = false;
-            }
-            ui::add_space(8);
-            if built != "" && !tight {
-                ui::label(built, style::mono_sm(k.text_subtle));
-                ui::add_space(10);
-            }
-            ui::label(when, style::mono_sm(k.text_subtle));
-        });
-    });
-    ui::separator(k.border_default);
-}
 
-fn examples_page(S, k, col, tall) {
-    let rows = util::vec(project::examples());
-    if rows.len() == 0 {
-        ui::label("No examples ship beside this build.",
-            util::merge(style::mono_sm(k.text_subtle), #{ wrap: true, width: col }));
-        return;
-    }
-    let across = if narrow(col) { 1 } else if col < 760.0 { 2 } else { 3 };
-    // Floored: three cards and two seams have to add up to the column, and
-    // a third of a pixel each puts the last one past its edge.
-    let card_w = math::floor((col - util::f(across - 1) * SEAM) / util::f(across));
-    // The picture, then the name, the line under it and the card's own air.
-    let card_h = math::floor(card_w / COVER_ASPECT) + 54.0;
-    ui::scroll("manager-examples", #{ axis: "vertical", max_height: tall }, || {
-        let n = 0;
-        while n < rows.len() {
-            ui::row(#{ height: card_h, width: col }, || {
-                // The row's own gap, so the cards add up to the column: a
-                // space between them plus egui's own is one gap too many.
-                ui::spacing(SEAM, 0);
-                let c = 0;
-                while c < across && n + c < rows.len() {
-                    example_card(S, k, card_w, card_h, util::obj(rows[n + c]));
-                    c += 1;
-                }
-            });
-            ui::add_space(SEAM);
-            n += across;
-        }
-    });
-    ui::label("Opens a copy in your projects folder, so the example stays as it shipped.",
-        util::merge(style::mono_sm(k.text_subtle), #{ wrap: true, width: col }));
-}
 
-fn example_card(S, k, w, h, row) {
-    let id = row.id;
-    let cover = row.get("cover").unwrap_or("");
-    ui::column(|| {
-        ui::frame(#{
-            fill: k.bg_panel, corner_radius: 12, padding_x: 0, padding_y: 0,
-            hover: #{ fill: k.bg_control_hover }, tooltip: "Copy into " + S.manager.parent,
-        }, || {
-            ui::column(|| {
-                if cover != "" {
-                    ui::image(cover, #{ width: w });
-                } else {
-                    // No picture shipped: the engine's own mark, so the card
-                    // still reads as a project rather than a blank.
-                    ui::row(#{ height: h - 54.0, width: w }, || {
-                        ui::add_space(w / 2.0 - 22.0);
-                        mark(k, 36.0);
-                    });
-                }
-                ui::row(#{ height: 20, width: w }, || {
-                    ui::add_space(12);
-                    ui::label(row.name, #{ font_size: style::MD, font_weight: 700, text_color: k.text_default });
-                });
-                ui::row(#{ height: 18, width: w }, || {
-                    ui::add_space(12);
-                    ui::label(row.get("note").unwrap_or(""),
-                        util::merge(style::mono_sm(k.text_subtle), #{ truncate: true }));
-                });
-                ui::add_space(8);
-            });
-        });
-        ui::row(#{ height: 0, width: w }, || {});
-    });
-}
 
-// What this build is, which line it follows, and every release the project
-// has published. The same code `balaur update` runs, so the screen and the
-// command cannot disagree.
-fn engine_page(S, k, col, tall) {
-    if !S.manager.asked {
-        check(S);
-    }
-    let mine = util::obj(release::installed());
-    let h = util::max(style::row_h(S), 30.0);
-    let tight = narrow(col);
-    let newest = newest_on(S, S.manager.follow);
-    ui::row(#{ height: 40, width: col }, || {
-        ui::column(|| {
-            ui::label("Balaur " + mine.version, #{
-                font_size: style::LG, font_family: ui::FONT_HEADING, font_weight: 700, text_color: k.text_default,
-            });
-            ui::label(build_line(mine), style::mono_sm(k.text_subtle));
-        });
-        ui::align_right(|| {
-            let word = if S.manager.reading { " Checking" } else { " Check" };
-            if ui::button(icons::ui("reset") + word, #{
-                height: h, font_size: style::SM, corner_radius: 8, padding_x: 12,
-                fill: k.bg_panel, text_color: k.text_muted,
-            }) {
-                check(S);
-            }
-            ui::add_space(10);
-            if !tight {
-                let fresh = newest.get("order").unwrap_or("") == "newer";
-                ui::label(standing(S, S.manager.follow), style::mono_sm(
-                    if fresh { k.success_text } else { k.text_subtle }));
-            }
-        });
-    });
-    if mine.held != "" {
-        ui::add_space(4);
-        ui::label(mine.held, util::merge(style::mono_sm(k.text_subtle), #{ wrap: true, width: col }));
-    }
-    ui::add_space(SEAM);
-    ui::row(#{ height: h + 6.0, width: col }, || {
-        ui::row(#{ height: h, width: 60 }, || {
-            ui::label("Follow", #{ font_size: style::MD, text_color: k.text_muted });
-        });
-        ui::scroll("manager-follow", #{
-            axis: "horizontal", max_width: col - 66.0, max_height: h + 6.0,
-        }, || {
-            ui::row(#{ height: h }, || {
-                ui::spacing(4, 0);
-                for name in util::vec(release::channels()) {
-                    let on = S.manager.follow == name;
-                    if ui::button(name, #{
-                        height: h, font_size: style::SM, corner_radius: 8, padding_x: 12,
-                        fill: if on { k.primary_bg } else { k.bg_panel },
-                        text_color: if on { k.primary_text } else { k.text_muted },
-                    }) {
-                        S.manager.follow = name;
-                    }
-                }
-            });
-        });
-    });
-    ui::add_space(SEAM);
-    release_list(S, k, col, tall, mine);
-}
 
 /// The build in one line: its id and the line it follows, or where it came
 /// from when it came from no release.
@@ -720,95 +733,7 @@ pub fn standing(S, channel) {
     id + " is published"
 }
 
-fn release_list(S, k, col, tall, mine) {
-    let h = util::max(style::row_h(S), 30.0);
-    let rows = [];
-    for entry in S.manager.releases {
-        let row = util::obj(entry);
-        if row.get("channel").unwrap_or("") == S.manager.follow {
-            rows.push(row);
-        }
-    }
-    if rows.len() == 0 {
-        let empty = if S.manager.reading { "Reading the release feed." } else { "Nothing published on this line yet." };
-        ui::label(empty, style::mono_sm(k.text_subtle));
-    }
-    // As tall as the releases it holds, capped by what is left of the screen:
-    // a scroll of one row should not reserve the page.
-    let room = util::min(tall - 120.0, util::f(rows.len()) * (h + 15.0) + 4.0);
-    ui::scroll("manager-releases", #{ axis: "vertical", max_height: util::max(room, h) }, || {
-        for row in rows {
-            let current = row.get("current").unwrap_or(false) == true;
-            ui::row(#{ height: h + 14.0, width: col }, || {
-                ui::column(|| {
-                    ui::label(row.get("id").unwrap_or(""), #{
-                        font_size: style::MD, font_weight: 700,
-                        text_color: if current { k.primary_text } else { k.text_default },
-                    });
-                    ui::label(row.get("when").unwrap_or(""), style::mono_sm(k.text_subtle));
-                });
-                ui::align_right(|| { row_press(S, k, h, row, mine); });
-            });
-            ui::separator(k.border_default);
-        }
-    });
-    // An install that cannot replace itself has nothing to name a release for.
-    if mine.held != "" {
-        return;
-    }
-    ui::add_space(10);
-    let tight = narrow(col);
-    let label_w = if tight { 0.0 } else { 160.0 };
-    ui::row(#{ height: h, width: col }, || {
-        if !tight {
-            ui::label("Or a release by name", #{ font_size: style::MD, text_color: k.text_muted, width: label_w });
-        }
-        let field_w = if tight { col } else { col - label_w - 110.0 };
-        let (tag, _, _) = ui::text_field("manager-tag", "v0.2.0",
-            util::merge(style::field(k, field_w), #{ value: S.manager.tag }));
-        S.manager.tag = tag;
-        if !tight {
-            ui::align_right(|| { install_named(S, k, h); });
-        }
-    });
-    if tight {
-        ui::add_space(8);
-        ui::row(#{ height: h, width: col }, || {
-            ui::align_right(|| { install_named(S, k, h); });
-        });
-    }
-}
 
-/// What a release row offers: nothing on the one installed or while another
-/// installs, the zipped app where this install cannot replace itself, and
-/// otherwise the install, named for which way it goes.
-pub fn row_press(S, k, h, row, mine) {
-    if row.get("current").unwrap_or(false) == true {
-        ui::label("installed", style::mono_sm(k.text_subtle));
-        return;
-    }
-    if installing(S) {
-        return;
-    }
-    let look = #{
-        height: h, font_size: style::SM, corner_radius: 8, padding_x: 14, min_width: 88,
-        fill: k.bg_control, text_color: k.text_default,
-    };
-    let download = row.get("download").unwrap_or("");
-    if download != "" {
-        if ui::button("Download", look) {
-            engine::open_url(download);
-        }
-        return;
-    }
-    if mine.held != "" {
-        return;
-    }
-    let word = if row.get("order").unwrap_or("") == "older" { "Downgrade" } else { "Install" };
-    if ui::button(word, look) {
-        put(S, "", row.get("tag").unwrap_or(""));
-    }
-}
 
 /// The verb a release row carries, as a control: what `row_press` draws.
 /// `()` where there is none: an install already running, or a held build.
@@ -861,52 +786,7 @@ pub fn progress_controls(S) {
     ]
 }
 
-fn install_named(S, k, h) {
-    if installing(S) {
-        return;
-    }
-    if ui::button("Install", #{
-        height: h, font_size: style::SM, corner_radius: 8, padding_x: 14, min_width: 88,
-        fill: k.bg_panel, text_color: k.text_muted,
-    }) {
-        if S.manager.tag == "" {
-            S.manager.failed = "type a release tag first, like v0.2.0";
-            return;
-        }
-        put(S, "", S.manager.tag);
-    }
-}
 
-/// How far an install has got: the megabytes as they arrive, then the unpack.
-pub fn install_progress(S, k, w) {
-    let job = S.manager.installing;
-    let said = if job.unpacking {
-        "unpacking " + job.tag
-    } else if job.total > 0 {
-        format!("downloading {}  ·  {} of {} MB", job.tag, job.done / MB, job.total / MB)
-    } else {
-        format!("downloading {}  ·  {} MB", job.tag, job.done / MB)
-    };
-    let part = if job.unpacking {
-        1.0
-    } else if job.total > 0 {
-        util::f(job.done) / util::f(job.total)
-    } else {
-        0.0
-    };
-    ui::add_space(6);
-    ui::row(#{ height: 22, width: w }, || {
-        ui::label(said, style::mono_sm(k.text_muted));
-        ui::add_space(10);
-        ui::column(|| {
-            ui::add_space(9);
-            ui::progress_bar(part, #{
-                width: util::max(util::min(w - 280.0, 360.0), 40.0), height: 4,
-                track: k.bg_control, fill: k.primary_text,
-            });
-        });
-    });
-}
 
 // A new project is named in the shell's own sheet, which is what Settings is
 // and what a phone needs: one screen at a time.
@@ -914,6 +794,11 @@ pub fn new_fill(S) {
     let hosts = crate::window::sheet_form(S, NEW_SHEET, "New project", []);
     if util::is_nil(hosts) {
         return;
+    }
+    // The sheet can be up before the screen under it has read where a new
+    // project goes.
+    if S.manager.parent == "" {
+        S.manager.parent = project::home();
     }
     let ids = [];
     for row in util::vec(project::templates()) {
@@ -1031,6 +916,7 @@ pub fn report(S, e) {
         job.done = ev.get("done").unwrap_or(0);
         job.files = ev.get("files").unwrap_or(0);
         S.manager.importing = job;
+        told(S);
         return;
     }
     S.manager.importing = #{};
@@ -1047,6 +933,7 @@ pub fn report(S, e) {
         S.manager.failed = format!("stopped importing after {} files; {} holds what was written",
             ev.get("done").unwrap_or(0), job.path);
     }
+    told(S);
 }
 
 
@@ -1064,6 +951,7 @@ pub fn put(S, channel, tag) {
     S.manager.failed = "";
     S.manager.note = "installing " + named;
     S.manager.installing = #{ tag: named, done: 0, total: 0, unpacking: false };
+    told(S);
 }
 
 /// Open a project: the module remembers it, starts the editor on it and asks
@@ -1072,17 +960,20 @@ pub fn go(S, path) {
     // Opening quits this process, which would leave a conversion half written.
     if converting(S) {
         S.manager.failed = "wait for the import to finish, or stop it";
+        told(S);
         return;
     }
     // Or an install half swapped in.
     if installing(S) {
         S.manager.failed = "wait for the install to finish";
+        told(S);
         return;
     }
     let answer = util::obj(project::open(path));
     let failed = answer.get("error");
     if let Some(why) = failed {
         S.manager.failed = why;
+        told(S);
         return;
     }
     S.manager.failed = "";

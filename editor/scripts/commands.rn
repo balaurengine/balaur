@@ -97,6 +97,14 @@ fn key(S) {
 // Escape stops whichever drawing tool is mid-shape. The completion popup takes
 // it first while it is open, as it takes the arrows and Enter.
 fn cancel(S) {
+    // Over the start screen it closes the screen, once the New project sheet
+    // over that has gone.
+    if crate::manager::showing(S) {
+        if !crate::window::showing(S, "manager-new") {
+            crate::manager::close(S);
+        }
+        return;
+    }
     if S.complete.open {
         return;
     }

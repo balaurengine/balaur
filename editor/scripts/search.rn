@@ -2,19 +2,6 @@
 // matches. A dock that grows a filter uses these rather than its own, so
 // "find in the tree" and "find in settings" feel like the same gesture.
 
-use crate::style;
-use crate::util;
-
-/// Draw a search field and return its current text. `id` keeps the text
-/// between frames; state lives in `S.search[id]`, so a dock that hides its
-/// field can clear it and no invisible filter hides rows.
-pub fn field(S, k, id, placeholder, width) {
-    let current = S.search.get(id).unwrap_or("");
-    let (text, _, _) = ui::text_field("search:" + id, placeholder,
-        util::merge(style::field(k, width), #{ value: current, font_family: ui::FONT_MONO, height: style::row_h(S) }));
-    S.search[id] = text;
-    text
-}
 
 /// A search control a pooled strip holds, rather than one drawn: the same
 /// state under the same `id`, so `query` answers for either.

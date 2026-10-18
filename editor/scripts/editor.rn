@@ -699,11 +699,8 @@ pub fn draw_ui(this) {
     // The start screen has the window to itself: no project is open, so there
     // is no scene to draw behind it and no dock to put over it.
     if manager::showing(S) {
-        manager::cover(S, true);
-        manager::draw(S, S.theme);
         return;
     }
-    manager::cover(S, false);
     // The code pane, the hooks list beside it and the box select: what is
     // still drawn here, for want of a kind to hold it.
     center::draw(S);
@@ -768,10 +765,6 @@ pub fn draw_dock_tools_bottom(this) {
 // `inspector` keeps the calls in step with the rows that pushed them.
 pub fn draw_dock_bottom(this) {
     docks::draw_bottom_body(this.S, this.S.theme);
-}
-
-pub fn draw_manager_body(this) {
-    manager::draw_body(this.S, this.S.theme);
 }
 
 // The outliner's context menu, one method a row. The right click that opened
@@ -947,6 +940,19 @@ pub fn textedit_close(this) {
 
 pub fn on_textedit_changed(this, _change) {
     signals::heard(this.S, "textedit_changed");
+}
+
+/// Fill the start screen, its filter as it is typed, and its verbs.
+pub fn manager_fill(this) {
+    manager::fill(this.S);
+}
+
+pub fn manager_filter(this, text) {
+    manager::set_filter(this.S, text);
+}
+
+pub fn manager_verb(this, name) {
+    manager::verb(this.S, name);
 }
 
 /// Fill the sheet with whichever screen is up, and hear it shut.

@@ -660,7 +660,7 @@ Cost.
 Left: the tab row's tools slot still draws the Timeline's clip each pass. A
 plugin's bottom dock is still drawn each pass into its own subtree. The
 Timeline, a recording's lanes, weights and the bone map are `draw` nodes
-(item 2 of 9.8).
+(item 1 of 9.9).
 
 ### 9.6 The chrome
 
@@ -695,8 +695,8 @@ Built 2026-10-18, phase 4.
   a state starts begins on the tick its replay does.
 - **Paste** is the UI's `pasted` event, for text no field took.
 
-Left for later phases: the code pane and the hooks list beside it (item 2
-of 9.8), the box-select marquee and the viewport's lines (item 4).
+Left for later phases: the code pane and the hooks list beside it (item 1
+of 9.9), the box-select marquee and the viewport's lines (item 3).
 
 ### 9.7 Dialogs and sheets
 
@@ -725,15 +725,25 @@ Built 2026-10-18, phase 5.
   `pointer_released`, which input says from no node while someone listens,
   the UI included; the ripples are tweens.
 
-### 9.8 What is left, in order
+### 9.8 The start screen
 
-1. The start screen.
-2. Kinds for what is drawn now because no kind holds it: the timeline and its
+Built 2026-10-18, phase 6. The start screen carries one script and fills on
+`manager_changed`, which opening it, a tab, the filter, a release check or
+install and a conversion's report all say, and on `resized` from its body,
+which decides how many cards go across. Its filter and verbs are nodes the
+showcase points at by name; the projects, the example cards and the
+releases are pooled rows. An example card opens a copy of the example, which
+its note always said and no click did. Escape closes the screen through the
+keys' `cancel`.
+
+### 9.9 What is left, in order
+
+1. Kinds for what is drawn now because no kind holds it: the timeline and its
    clip in the tab row, a recording's lanes, weights, the bone map, the code
    editor with its completion and refactor sheet.
-3. Plugin docks handed a word and filled on it, instead of drawn each pass.
-4. The viewport tools on pointer hooks, and the gizmo and overlay lines as
+2. Plugin docks handed a word and filled on it, instead of drawn each pass.
+3. The viewport tools on pointer hooks, and the gizmo and overlay lines as
    retained nodes.
-5. Remove `draw_ui`, the pool and the `draw` nodes from the editor, and move
+4. Remove `draw_ui`, the pool and the `draw` nodes from the editor, and move
    the self-tests off stepping every frame.
 
