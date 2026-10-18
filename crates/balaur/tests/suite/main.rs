@@ -14,6 +14,7 @@ mod facade;
 mod fixed_update;
 mod gamepad;
 mod interactivity;
+mod lang;
 mod presets;
 mod replay;
 mod screenshot_events;

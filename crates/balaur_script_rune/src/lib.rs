@@ -1133,7 +1133,7 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
         let func = bindings::lookup_callback(callback)
             .ok_or_else(|| anyhow!("callback used after its call returned"))?;
         let args: Result<Vec<rune::Value>> = args.iter().map(value::from_neutral).collect();
-        let out = func.call::<rune::Value>(args?).into_result()?;
+        let out = bindings::call_held(&func, args?)?;
         value::to_neutral(&out)
     }
 

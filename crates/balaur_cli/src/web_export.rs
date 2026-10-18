@@ -251,7 +251,7 @@ async fn bundle(project: &Path, runtimes: &str) -> Result<(String, Vec<u8>)> {
 /// same bytes twice.
 fn zip(files: &[(String, Vec<u8>)]) -> Result<Vec<u8>> {
     let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
-    let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default()
+    let options: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated)
         .last_modified_time(zip::DateTime::default());
     for (name, bytes) in files {

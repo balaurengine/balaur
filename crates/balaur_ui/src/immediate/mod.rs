@@ -8,6 +8,8 @@ pub(crate) mod code;
 pub(crate) mod layout;
 pub(crate) mod rects;
 
+use std::cell::Cell;
+
 use anyhow::Result;
 use balaur_core::Engine;
 use balaur_plugin::Registry;
@@ -44,11 +46,42 @@ pub(crate) struct Opts(
     /// The named role's own options, read where the caller said nothing.
     Option<std::rc::Rc<Vec<(String, Value)>>>,
     /// Which of the role's state tables paints over the rest: `hover` while
-    /// the pointer is on the control, `active` while it is held.
-    &'static str,
+    /// the pointer is on the control, `active` while it is held. Set for as
+    /// long as an [`InState`] holds it.
+    Cell<&'static str>,
     /// Whether the control is on, so its role's `checked` table paints first.
-    bool,
+    Cell<bool>,
 );
+
+/// Options read in one state: the same table, with the state set until this
+/// is dropped. Borrowed rather than copied, because a control asks for its
+/// state every pass and a copy was the whole table again.
+pub(crate) struct InState<'a> {
+    opts: &'a Opts,
+    /// What the state was before, put back on drop.
+    was: (&'static str, bool),
+}
+
+impl<'a> InState<'a> {
+    fn over(opts: &'a Opts, state: &'static str, checked: bool) -> Self {
+        let was = (opts.2.replace(state), opts.3.replace(checked));
+        Self { opts, was }
+    }
+}
+
+impl std::ops::Deref for InState<'_> {
+    type Target = Opts;
+    fn deref(&self) -> &Opts {
+        self.opts
+    }
+}
+
+impl Drop for InState<'_> {
+    fn drop(&mut self) {
+        self.opts.2.set(self.was.0);
+        self.opts.3.set(self.was.1);
+    }
+}
 
 /// A sub-table of a role's entries, by name.
 fn table_in<'a>(entries: &'a [(String, Value)], name: &str) -> Option<&'a [(String, Value)]> {
@@ -199,7 +232,7 @@ impl Opts {
     /// what it changes, and the look lives in the theme asset.
     pub(crate) fn with_roles(opts: Option<Value>) -> Self {
         let Some(Value::Map(given)) = opts.as_ref() else {
-            return Self(opts, None, "", false);
+            return Self(opts, None, Cell::new(""), Cell::new(false));
         };
         warn_unknown(given);
         let role = match given.iter().find(|(k, _)| k == k::ROLE).map(|(_, v)| v) {
@@ -210,17 +243,17 @@ impl Opts {
             given.iter().find(|(k, _)| k == k::CHECKED).map(|(_, v)| v),
             Some(Value::Bool(true))
         );
-        Self(opts, role, "", checked)
+        Self(opts, role, Cell::new(""), Cell::new(checked))
     }
 
     /// Options as given, with no role behind them.
     pub(crate) fn plain(opts: Option<Value>) -> Self {
-        Self(opts, None, "", false)
+        Self(opts, None, Cell::new(""), Cell::new(false))
     }
 
     /// The same options for a control that is on, or off.
-    pub(crate) fn with_checked(&self, on: bool) -> Self {
-        Self(self.0.clone(), self.1.clone(), self.2, on)
+    pub(crate) fn with_checked(&self, on: bool) -> InState<'_> {
+        InState::over(self, self.2.get(), on)
     }
 
     /// Whether the text is bold: a `font_weight` of 600 or more.
@@ -235,7 +268,7 @@ impl Opts {
 
     /// The same options with the role's `hover` or `active` table painting
     /// over them. Held falls back to hovered, the way a theme's own styles do.
-    pub(crate) fn in_state(&self, hovered: bool, held: bool) -> Self {
+    pub(crate) fn in_state(&self, hovered: bool, held: bool) -> InState<'_> {
         let state = if held {
             st::ACTIVE
         } else if hovered {
@@ -243,7 +276,7 @@ impl Opts {
         } else {
             ""
         };
-        Self(self.0.clone(), self.1.clone(), state, self.3)
+        InState::over(self, state, self.3.get())
     }
 
     /// What the state tables say about `key`, for the paint keys a state may
@@ -266,7 +299,7 @@ impl Opts {
     }
 
     fn state_in<'a>(&self, entries: &'a [(String, Value)], key: &str) -> Option<&'a Value> {
-        if self.3
+        if self.3.get()
             && let Some(checked) = table_in(entries, k::CHECKED)
             && let Some(found) = self
                 .pointer_in(checked, key)
@@ -279,11 +312,12 @@ impl Opts {
 
     /// The pointer's state table inside `entries`, for `key`.
     fn pointer_in<'a>(&self, entries: &'a [(String, Value)], key: &str) -> Option<&'a Value> {
-        if self.2.is_empty() {
+        let state = self.2.get();
+        if state.is_empty() {
             return None;
         }
-        entry(table_in(entries, self.2)?, key).or_else(|| {
-            (self.2 == st::ACTIVE)
+        entry(table_in(entries, state)?, key).or_else(|| {
+            (state == st::ACTIVE)
                 .then(|| table_in(entries, st::HOVER).and_then(|t| entry(t, key)))
                 .flatten()
         })
@@ -312,11 +346,12 @@ impl Opts {
             _ => None,
         };
         let role = self.1.as_ref().map(|role| role.as_slice());
-        !self.2.is_empty()
+        let state = self.2.get();
+        !state.is_empty()
             && [given, role].into_iter().flatten().any(|entries| {
                 entries
                     .iter()
-                    .any(|(k, v)| (k == self.2 || k == st::HOVER) && matches!(v, Value::Map(_)))
+                    .any(|(k, v)| (k == state || k == st::HOVER) && matches!(v, Value::Map(_)))
             })
     }
 
@@ -629,23 +664,36 @@ pub(crate) fn chord(text: &str) -> Option<(egui::Modifiers, egui::Key)> {
         if part.is_empty() {
             continue;
         }
-        modifiers |= match part.to_ascii_lowercase().as_str() {
-            w::CMD => egui::Modifiers::COMMAND,
-            w::CTRL => egui::Modifiers::CTRL,
-            w::ALT => egui::Modifiers::ALT,
-            w::SHIFT => egui::Modifiers::SHIFT,
-            // egui names its keys `Escape`, `F5`, `Backslash`; a scene writes
-            // them the way it writes everything else, in lower case.
-            lower => {
-                let mut named = lower.to_string();
-                named[..1].make_ascii_uppercase();
-                key = egui::Key::from_name(part).or_else(|| egui::Key::from_name(&named));
-                key?;
-                continue;
-            }
-        };
+        let named = [
+            (w::CMD, egui::Modifiers::COMMAND),
+            (w::CTRL, egui::Modifiers::CTRL),
+            (w::ALT, egui::Modifiers::ALT),
+            (w::SHIFT, egui::Modifiers::SHIFT),
+        ]
+        .into_iter()
+        .find(|(name, _)| part.eq_ignore_ascii_case(name));
+        if let Some((_, modifier)) = named {
+            modifiers |= modifier;
+            continue;
+        }
+        // egui names its keys `Escape`, `F5`, `Backslash`; a scene writes
+        // them the way it writes everything else, in lower case.
+        key = egui::Key::from_name(part).or_else(|| capitalised(part, egui::Key::from_name));
+        key?;
     }
     Some((modifiers, key?))
+}
+
+/// `part` in lower case with its first letter raised, the way egui spells a
+/// key, handed to `f` from a buffer on the stack. `ui.shortcut` is asked for
+/// every chord on every pass, and the copies this made were most of its cost.
+fn capitalised<T>(part: &str, f: impl FnOnce(&str) -> Option<T>) -> Option<T> {
+    let mut buffer = [0u8; 32];
+    let spelled = buffer.get_mut(..part.len())?;
+    spelled.copy_from_slice(part.as_bytes());
+    spelled.make_ascii_lowercase();
+    spelled.first_mut()?.make_ascii_uppercase();
+    f(std::str::from_utf8(spelled).ok()?)
 }
 
 /// A chord in the spelling the platform shows: `⌘⇧S` on a Mac, `Ctrl+Shift+S`

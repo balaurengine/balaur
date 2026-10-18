@@ -20,10 +20,14 @@ digests="$out_dir/digests.txt"
 : >"$digests"
 
 # Built once, then run directly: `cargo run` takes the build lock on every
-# call, and the loop below calls once per step. `--features window` because
-# `--offscreen` falls back to headless without it, checking nothing.
-cargo build -q -p balaur_cli --features window --bin balaur
-built=${CARGO_TARGET_DIR:-target}/debug/balaur
+# call. `--features window`, or `--offscreen` runs headless and checks nothing.
+# `BALAUR_BIN` names one already built, as uiaudit.sh and views.sh take it.
+if [ -n "${BALAUR_BIN:-}" ]; then
+  built=${BALAUR_BIN%.exe}
+else
+  cargo build -q -p balaur_cli --features window --bin balaur
+  built=${CARGO_TARGET_DIR:-target}/debug/balaur
+fi
 # A copy of its own: another build writing target/debug/balaur mid-run would
 # swap the binary under every step still to come.
 exe=
@@ -109,6 +113,38 @@ UNRESOLVED='did not resolve in the mirror'
 # What a state that ran leaves in the log. See the check at the end of edit_step.
 RAN='selftest ok|script: .*skip|script: showcase '
 
+# The states run on every example, in one launch each. Opening the project is
+# checked on its own first: the game loaded, its scene mirrored, every node
+# resolved and its assets rebound.
+EXAMPLE_STATES=(
+  test:undo test:rename                     # the history, and renaming
+  test:focus                                # the shell folds round the code
+  test:rig test:populate                    # a bone grown and keyed; a multimesh
+  test:marks                                # the outliner's eye and lock
+  test:polygons test:weights test:bone_map test:ragdoll  # Polygon tool, rig
+  test:physics test:recipes test:change_types  # the Physics panel's rows
+  test:assets test:picking test:camera      # the dock, an aimed pick, the mouse
+  test:script_props test:composite_props    # exported script properties
+  test:instances test:placing test:selection  # prefabs, the selection set
+  test:import_job                           # last: it writes into the project
+)
+
+# The editor's own states, run once rather than once per example: they drive
+# the editor and not the project under it.
+EDITOR_STATES=(
+  test:timings                              # first: it reads the frame before
+  test:layout test:picker test:every_node   # the centre; the node picker
+  test:tiles "show:input,input@90"          # Tiles; a showcase, ninety frames
+  test:plugin_docks                         # editor/plugins/counter.rn
+  test:clipboard test:script_paths          # copy, paste; Assets' file verbs
+  test:recordings                           # session recording
+  test:theme_switch test:theme_editing      # light and back; a theme diff
+  test:sheet_close test:settings test:export_runtime
+  test:drop test:events                     # drag-in; the Events view
+  test:library test:rows test:pool test:camera_document test:warnings
+  test:pen                                  # anchors, a handle, its asset
+)
+
 # The render and editor steps, off where a runner finishes neither: both want
 # a device, and the Windows runner exits 122 on each. Not a platform check --
 # a Windows developer with a GPU still gets them.
@@ -148,16 +184,58 @@ edit_step() { # edit_step <label> <project> [state]
   fi
 }
 
-# A demo that writes into the project it edits runs on a copy. The import drops
-# files into the example, and a run that ends before the teardown -- a slow
-# machine, an interrupt -- would leave them in the tree.
-edit_copy() { # edit_copy <label> <project> <state>
-  local copy="$out_dir/edited/$(basename "${2%/}")"
+# One state's stretch of a suite's log: from its `suite: start` line to its
+# `suite: done` line, or to the end when it never finished.
+suite_part() { # suite_part <token> <log>
+  awk -v want="$1" '
+    /suite: start / { cur = $0; sub(/.*suite: start /, "", cur); on = (cur == want) }
+    on { print }
+    /suite: done / { d = $0; sub(/.*suite: done /, "", d); sub(/ after .*/, "", d); if (d == want) on = 0 }
+  ' <<<"$2"
+}
+
+# Several states in one launch (`editor/scripts/suite.rn`), on a copy since
+# some write into the project. Each state's stretch of the log is held to what
+# `edit_step` holds a whole run to; the stretch before the first is the open.
+suite_step() { # suite_step <label> <project> <state>...
+  local label=$1 copy="$out_dir/edited/$(basename "${2%/}")"
   rm -rf "$copy"
   mkdir -p "$(dirname "$copy")"
   cp -R "${2%/}" "$copy"
-  edit_step "$1" "$copy" "$3"
+  shift 2
+  local list="" state
+  for state in "$@"; do
+    list+="${list:++}$(tr ',' '&' <<<"$state")"
+  done
+  local out rc plain part token
+  set +e
+  out=$(balaur edit "$copy" ${offscreen:+"$offscreen"} --frames 100000 --state "suite:$list" 2>&1)
+  rc=$?
+  set -e
   rm -rf "$copy"
+  plain=$(sed $'s/\x1b\\[[0-9;]*m//g' <<<"$out")
+  if [ "$rc" -ne 0 ]; then
+    printf '%s\n' "$plain" | tail -20
+    fail "$label exited $rc"
+  fi
+  check_run "$label: open" 0 "$(sed '/suite: start /,$d' <<<"$plain")"
+  for state in "$@"; do
+    token=$(tr ',' '&' <<<"$state")
+    part=$(suite_part "$token" "$plain")
+    printf '  %-26s' "$state"
+    [ -n "$part" ] || fail "$label: $state never started"
+    check_run "$label: $state" 0 "$part"
+    if grep -q "$UNRESOLVED" <<<"$part"; then
+      grep -E "no mirror node|$UNRESOLVED" <<<"$part" | head -5
+      fail "$label: $state: the editor could not resolve every node of the scene"
+    fi
+    grep -qE "$RAN" <<<"$part" || {
+      printf '%s\n' "$part" | tail -10
+      fail "$label: $state: the state ran nothing, so it asserted nothing"
+    }
+    grep -qF "suite: done $token " <<<"$part" || fail "$label: $state did not finish"
+    printf 'ok\n'
+  done
 }
 
 # The editor is a Balaur project, and so are the library it copies from and
@@ -169,10 +247,8 @@ for project in editor editor/library editor/library/templates/*/; do
   printf 'ok\n'
 done
 
-
-# The editor's own states, run once rather than once per example: they drive
-# the editor and not the project under it -- the tiles tool builds its own
-# map, the layout one opens no document. Move a block to the loop to change that.
+# `EDITOR_STATES` on the first example, after the start screen, which needs a
+# folder with no project and so is a launch of its own.
 editor_states() {
   local ex=$1 name
   name=$(basename "${ex%/}")
@@ -184,91 +260,7 @@ editor_states() {
   edit_step "start screen" "$out_dir/no-project" test:start_screen
   printf 'ok\n'
 
-  # The centre's layout: with no document open the viewport must fill it.
-  printf '  layout ... '
-  edit_step "$name: layout" "$ex" test:layout
-  printf 'ok\n'
-
-  # The node picker: what it groups a type under, and that a pick builds one.
-  printf '  picker ... '
-  edit_step "$name: picker" "$ex" test:picker
-  printf 'ok\n'
-
-  # Every row the picker offers, placed and drawn: what it builds, which
-  # inspector lists it, and which view a scene of it opens in.
-  printf '  nodes ...  '
-  edit_step "$name: every node" "$ex" test:every_node
-  printf 'ok\n'
-
-  # The Tiles tool builds its own map, so it needs nothing from the project.
-  printf '  tiles ...  '
-  edit_step "$name: tiles" "$ex" test:tiles
-  printf 'ok\n'
-
-  # The showcase seam: a scripted sequence feeds input and drives the
-  # editor; ninety frames of it is enough to fail on a broken call.
-  printf '  show ...   '
-  edit_step "$name: showcase" "$ex" "show:input,input"
-  printf 'ok\n'
-
-  # The editor plugin seam, from editor/plugins/counter.rn: a dock tab, a
-  # window, a palette command, an inspector section and this state itself.
-  printf '  plugin ... '
-  edit_step "$name: plugin" "$ex" test:plugin_docks
-  printf 'ok\n'
-
-  # Copy and paste, which the shell drives from a clipboard event no headless
-  # run can raise, and the Assets dock's three filesystem verbs.
-  printf '  clip ...   '
-  edit_step "$name: clipboard" "$ex" test:clipboard
-  edit_step "$name: script paths" "$ex" test:script_paths
-  printf 'ok\n'
-
-  # The profiler's data path: every stage named, the frame covering them.
-  printf '  timings ...'
-  edit_step "$name: timings" "$ex" test:timings
-  printf 'ok\n'
-  printf '  session ...'
-  edit_step "$name: session" "$ex" test:recordings
-  printf 'ok\n'
-
-  # The theme switch, both ways: light and back to dark.
-  printf '  theme ...  '
-  edit_step "$name: theme" "$ex" test:theme_switch
-  printf 'ok\n'
-
-  # The theme window: a duplicate edited, saved as a diff and deleted, and a
-  # sheet and the palette shut from outside their dialog.
-  printf '  themes ... '
-  edit_step "$name: theme window" "$ex" test:theme_editing
-  edit_step "$name: sheet close" "$ex" test:sheet_close
-  edit_step "$name: settings" "$ex" test:settings
-  edit_step "$name: export runtime" "$ex" test:export_runtime
-  printf 'ok\n'
-
-  # Drag-in, one case per extension, and the file a drop copies in.
-  printf '  drop ...   '
-  edit_step "$name: drag-in" "$ex" test:drop
-  printf 'ok\n'
-
-  # The Events view: a row added and undone, and the Rune it writes.
-  printf '  events ... '
-  edit_step "$name: events" "$ex" test:events
-  printf 'ok\n'
-
-  # The library: a material copied in and pointed at the selection.
-  printf '  library ...'
-  edit_step "$name: library" "$ex" test:library
-  edit_step "$name: rows" "$ex" test:rows
-  edit_step "$name: pool" "$ex" test:pool
-  edit_step "$name: camera document" "$ex" test:camera_document
-  edit_step "$name: warnings" "$ex" test:warnings
-  printf 'ok\n'
-
-  # The Pen: anchors, a handle, the loop closed, and the asset it writes.
-  printf '  pen ...    '
-  edit_step "$name: pen" "$ex" test:pen
-  printf 'ok\n'
+  suite_step "$name: editor states" "$ex" "${EDITOR_STATES[@]}"
 }
 
 for ex in examples/*/; do
@@ -333,119 +325,8 @@ for ex in examples/*/; do
   render_step "$name: render in the editor" edit "$ex" --offscreen --frames 90
   printf 'ok\n'
 
-  # Headless, so this covers loading the game, mirroring its scene, resolving
-  # every node, and rebinding its assets -- not drawing, which needs a window.
-  printf '  edit ...   '
-  edit_step "$name: edit" "$ex"
-  printf 'ok\n'
-
-  # The editor's own assertions, which log an ERROR on failure and so fail
-  # the run above. Mutation coverage: edit alone only ever checks frame 0.
-  printf '  undo ...   '
-  edit_step "$name: undo" "$ex" test:undo
-  printf 'ok\n'
-
-
-
-  # Renaming, which nothing in the shell could do before.
-  printf '  rename ... '
-  edit_step "$name: rename" "$ex" test:rename
-  printf 'ok\n'
-
-  # Import: a dropped model's files, the scene it writes, and that the mesh
-  # inside that scene names a file in this project rather than the editor's.
-  printf '  import ... '
-  edit_copy "$name: import" "$ex" test:import_job
-  printf 'ok\n'
-
-  # Focus: the shell folds round the code and comes back to what it was.
-  printf '  focus ...  '
-  edit_step "$name: focus" "$ex" test:focus
-  printf 'ok\n'
-
-  # Rigging: grow a bone, round-trip the rest pose, key it by path, undo.
-  # A scene with no bones skips itself and says so.
-  printf '  rig ...    '
-  edit_step "$name: rig" "$ex" test:rig
-  printf 'ok\n'
-
-  # Populate: a grid and a surface written into a multimesh's asset, and
-  # both undone. A scene with no multimesh skips itself.
-  printf '  populate . '
-  edit_step "$name: populate" "$ex" test:populate
-  printf 'ok\n'
-
-  # The outliner's eye and lock on the last node, acting on it alone.
-  printf '  marks ...  '
-  edit_step "$name: marks" "$ex" test:marks
-  printf 'ok\n'
-
-  # The Polygon tool: trace, sync bones, paint, draw a polygon, undo.
-  printf '  poly ...   '
-  edit_step "$name: polygon" "$ex" test:polygons
-  edit_step "$name: weights" "$ex" test:weights
-  edit_step "$name: bone map" "$ex" test:bone_map
-  edit_step "$name: physical bones" "$ex" test:ragdoll
-  printf 'ok\n'
-
-  # The Physics panel's rows: what each action writes. Where its pills land
-  # needs a drawn frame, so that is `uiaudit.sh`'s.
-  printf '  phys ...   '
-  edit_step "$name: physics panel" "$ex" test:physics
-  edit_step "$name: soft body recipes" "$ex" test:recipes
-  edit_step "$name: change type" "$ex" test:change_types
-  printf 'ok\n'
-
-
-
-  printf '  assets ... '
-  edit_step "$name: assets" "$ex" test:assets
-  printf 'ok\n'
-
-  # Picking, aimed by hand: the ray a real click uses comes from the window,
-  # which a headless run does not have.
-  printf '  pick ...   '
-  edit_step "$name: picking" "$ex" test:picking
-  printf 'ok\n'
-
-  # The mouse camera: the wheel, a right-drag that keeps the ground under the
-  # pointer off the stage too, and one begun over a dock that moves nothing.
-  printf '  camera ... '
-  edit_step "$name: camera" "$ex" test:camera
-  printf 'ok\n'
-
-  # Exported script properties: the defaults a script declares, an override
-  # written onto one node, and the sparseness that drops it again.
-  printf '  props ...  '
-  edit_step "$name: props" "$ex" test:script_props
-  edit_step "$name: composites" "$ex" test:composite_props
-  printf 'ok\n'
-
-  # Prefabs: an instance's rows are in the tree, an edit inside one becomes an
-  # override, and the file never gains a row it does not own.
-  printf '  inst ...   '
-  edit_step "$name: instances" "$ex" test:instances
-  printf 'ok\n'
-
-  # Session recording: play records, stop closes the file, the recording plays
-  # back into a rebuilt scene, and closing hands the editor back.
-  # Placing a prefab from the editor, and undoing it.
-  printf '  place ...  '
-  edit_step "$name: placing" "$ex" test:placing
-  printf 'ok\n'
-
-
-
-
-  # The selection set: extending it, aligning two nodes, undoing that,
-  # grouping, and the lock and hide that skip the gizmo.
-  printf '  select ... '
-  edit_step "$name: selection" "$ex" test:selection
-  printf 'ok\n'
-
-
-
-
+  # The editor's own assertions, which log an ERROR on failure, in one launch.
+  suite_step "$name" "$ex" "${EXAMPLE_STATES[@]}"
 done
 
 if [ "$gpu" = 1 ] && [ -n "${states_on:-}" ]; then

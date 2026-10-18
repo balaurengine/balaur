@@ -6,7 +6,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use balaur_script::{Bindings, BindingsExt, BoundFn, Value};
+use balaur_script::{Bindings, BindingsExt, BoundFn, OwnedFn, Value};
 
 /// Stands in for the engine. The seam names no concrete context.
 struct Host {
@@ -113,4 +113,48 @@ fn a_wrong_argument_type_is_an_error_not_a_panic() {
         err.to_string().contains("expected bool, got string"),
         "unhelpful message: {err}"
     );
+}
+
+/// A backend that builds the slots for each call, as Rune's does, and so
+/// hands them over rather than having the binding copy them.
+#[derive(Default)]
+struct OwningModule {
+    functions: Vec<(String, OwnedFn<Host>)>,
+}
+
+impl Bindings<Host> for OwningModule {
+    fn function_raw(&mut self, name: &str, f: BoundFn<Host>) {
+        self.functions
+            .push((name.to_string(), Box::new(move |host, args| f(host, args))));
+    }
+    fn function_owned(&mut self, name: &str, f: OwnedFn<Host>) {
+        self.functions.push((name.to_string(), f));
+    }
+    fn constant(&mut self, _: &str, _: Value) {}
+}
+
+#[test]
+fn a_backend_that_owns_the_slots_hands_them_over() {
+    let host = Host { name: "engine" };
+    let mut m = OwningModule::default();
+    register(&mut m, Rc::new(RefCell::new(Vec::new())));
+    let play = &m.functions.iter().find(|(n, _)| n == "play").unwrap().1;
+
+    let mut args = [Value::Str("shot.ogg".into()), Value::Num(0.5)];
+    assert_eq!(
+        play(&host, &mut args).unwrap(),
+        Value::Str("shot.ogg@0.5".into())
+    );
+    assert_eq!(args[0], Value::Nil, "the string was taken, not copied");
+}
+
+#[test]
+fn a_backend_that_does_not_keeps_its_arguments() {
+    let host = Host { name: "engine" };
+    let mut m = FakeModule::default();
+    register(&mut m, Rc::new(RefCell::new(Vec::new())));
+
+    let args = [Value::Str("shot.ogg".into())];
+    m.get("play")(&host, &args).unwrap();
+    assert_eq!(args[0], Value::Str("shot.ogg".into()));
 }

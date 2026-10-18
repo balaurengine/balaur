@@ -10,20 +10,20 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use balaur_core::Engine;
-use balaur_script::{BoundFn, CallbackId, Value};
-use rune::alloc::clone::TryClone as _;
+use balaur_script::{BoundFn, CallbackId, OwnedFn, Value};
 use rune::runtime::{InstAddress, Memory, Output, VmError, VmResult};
 use smallvec::SmallVec;
 
 thread_local! {
     /// Registered bindings, indexed by the handle a Rune handler carries.
-    static BOUND: RefCell<Vec<(Engine, BoundFn<Engine>)>> = const { RefCell::new(Vec::new()) };
-    /// Script functions passed into a binding, live only for that call.
-    static CALLBACKS: RefCell<Vec<(u64, rune::runtime::Function)>> =
-        const { RefCell::new(Vec::new()) };
+    static BOUND: RefCell<Vec<(Engine, Entry)>> = const { RefCell::new(Vec::new()) };
+    /// Script functions passed into a binding, live only for that call. Held
+    /// as the script's own value: holding one and calling it bump a count,
+    /// where a copy of a closure copied everything it captured.
+    static CALLBACKS: RefCell<Vec<(u64, rune::Value)>> = const { RefCell::new(Vec::new()) };
     static NEXT_CALLBACK: Cell<u64> = const { Cell::new(1) };
     /// Callbacks a binding asked to hold past its call, until released.
-    static KEPT: RefCell<std::collections::BTreeMap<u64, rune::runtime::Function>> =
+    static KEPT: RefCell<std::collections::BTreeMap<u64, rune::Value>> =
         const { RefCell::new(std::collections::BTreeMap::new()) };
     /// Every function and constant declared through the seam, for the API
     /// dump: Rune's context cannot be walked from outside.
@@ -78,9 +78,26 @@ pub(crate) fn bound_handle(module: &str, name: &str) -> Option<usize> {
     NAMED.with_borrow(|n| n.get(&(module.to_string(), name.to_string())).copied())
 }
 
+/// A registered entry point: one that reads its arguments where they lie, or
+/// one that takes them, which is every typed binding.
+pub(crate) enum Entry {
+    Shared(BoundFn<Engine>),
+    Owned(OwnedFn<Engine>),
+}
+
+impl Entry {
+    fn call(&self, eng: &Engine, args: &mut [Value]) -> anyhow::Result<Value> {
+        match self {
+            Self::Shared(f) => f(eng, args),
+            Self::Owned(f) => f(eng, args),
+        }
+    }
+}
+
 /// Call a bound function by handle; `None` when it lives on another thread.
-pub(crate) fn call_bound(handle: usize, args: &[Value]) -> Option<anyhow::Result<Value>> {
-    BOUND.with_borrow(|b| b.get(handle).map(|(engine, f)| f(engine, args)))
+/// The arguments are the caller's to give up: a typed binding takes them.
+pub(crate) fn call_bound(handle: usize, args: &mut [Value]) -> Option<anyhow::Result<Value>> {
+    BOUND.with_borrow(|b| b.get(handle).map(|(engine, f)| f.call(engine, args)))
 }
 
 fn record(module: &str, name: &str, constant: Option<String>) {
@@ -94,8 +111,16 @@ fn record(module: &str, name: &str, constant: Option<String>) {
     });
 }
 
+/// Call a function a binding was handed, through the value that holds it.
+pub(crate) fn call_held(held: &rune::Value, args: Vec<rune::Value>) -> anyhow::Result<rune::Value> {
+    let function = held
+        .borrow_ref::<rune::runtime::Function>()
+        .map_err(|err| anyhow::anyhow!("{err}"))?;
+    Ok(function.call::<rune::Value>(args).into_result()?)
+}
+
 /// Register a script function for the duration of one binding call.
-pub(crate) fn hold_callback(f: rune::runtime::Function) -> CallbackId {
+pub(crate) fn hold_callback(f: rune::Value) -> CallbackId {
     let id = NEXT_CALLBACK.with(|n| {
         let id = n.get();
         n.set(id + 1);
@@ -105,14 +130,14 @@ pub(crate) fn hold_callback(f: rune::runtime::Function) -> CallbackId {
     CallbackId(id)
 }
 
-pub(crate) fn lookup_callback(id: CallbackId) -> Option<rune::runtime::Function> {
+pub(crate) fn lookup_callback(id: CallbackId) -> Option<rune::Value> {
     CALLBACKS
         .with_borrow(|c| {
             c.iter()
                 .find(|(held, _)| *held == id.0)
-                .and_then(|(_, f)| f.try_clone().ok())
+                .map(|(_, f)| f.clone())
         })
-        .or_else(|| KEPT.with_borrow(|k| k.get(&id.0).and_then(|f| f.try_clone().ok())))
+        .or_else(|| KEPT.with_borrow(|k| k.get(&id.0).cloned()))
 }
 
 /// Hold a live callback past the binding call that received it.
@@ -185,6 +210,22 @@ impl RuneModule {
             queued: Vec::new(),
         })
     }
+
+    /// Keep `f` under a handle and queue it for the module, which installs
+    /// it when this is dropped.
+    fn register(&mut self, name: &str, f: Entry) {
+        record(&self.name, name, None);
+        let handle = BOUND.with_borrow_mut(|b| {
+            b.push((self.engine.clone(), f));
+            b.len() - 1
+        });
+        NAMED.with_borrow_mut(|n| {
+            n.insert((self.name.clone(), name.to_string()), handle);
+        });
+        if self.module.is_some() {
+            self.queued.push((name.to_string(), handle));
+        }
+    }
 }
 
 impl Drop for RuneModule {
@@ -216,17 +257,13 @@ impl Drop for RuneModule {
 
 impl balaur_script::Bindings<Engine> for RuneModule {
     fn function_raw(&mut self, name: &str, f: BoundFn<Engine>) {
-        record(&self.name, name, None);
-        let handle = BOUND.with_borrow_mut(|b| {
-            b.push((self.engine.clone(), f));
-            b.len() - 1
-        });
-        NAMED.with_borrow_mut(|n| {
-            n.insert((self.name.clone(), name.to_string()), handle);
-        });
-        if self.module.is_some() {
-            self.queued.push((name.to_string(), handle));
-        }
+        self.register(name, Entry::Shared(f));
+    }
+
+    /// The handler builds the slots for each call, so they are the
+    /// binding's to take.
+    fn function_owned(&mut self, name: &str, f: OwnedFn<Engine>) {
+        self.register(name, Entry::Owned(f));
     }
 
     fn signature(&mut self, name: &str, args: &str, returns: &str) {
@@ -301,7 +338,7 @@ pub(crate) fn hold_node_fn(
     call: fn(&Engine, &[Value]) -> anyhow::Result<Value>,
 ) -> usize {
     BOUND.with_borrow_mut(|b| {
-        b.push((engine, Box::new(call)));
+        b.push((engine, Entry::Shared(Box::new(call))));
         b.len() - 1
     })
 }
@@ -341,7 +378,11 @@ pub(crate) fn bound_handler(
                 }
             }
         }
-        let called = BOUND.with_borrow(|b| b.get(handle).map(|(engine, f)| f(engine, &neutral)));
+        // A typed binding takes what it is handed, so a table crosses once.
+        let called = BOUND.with_borrow(|b| {
+            b.get(handle)
+                .map(|(engine, f)| f.call(engine, &mut neutral))
+        });
         let result = match called {
             Some(Ok(v)) => v,
             // The whole chain: "tween step 0" alone does not say what was wrong.

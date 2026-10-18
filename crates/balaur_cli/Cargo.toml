@@ -14,7 +14,7 @@ name = "balaur"
 path = "src/main.rs"
 
 [features]
-default = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket", "webtransport", "gamend", "multiplayer", "browser", "parallel", "physics2d", "physics3d", "import", "compile", "editor"]
+default = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket", "webtransport", "gamend", "multiplayer", "browser", "parallel", "physics2d", "physics3d", "import", "compile", "editor", "lang"]
 # rapier's solver on rayon. The plain web runtime leaves it off: rayon blocks
 # on `Atomics.wait`, which a browser refuses without shared memory.
 parallel = ["balaur/parallel"]
@@ -51,6 +51,11 @@ editor = ["dep:balaur_export", "compile", "physics2d", "physics3d", "balaur/fall
 # The Rune compiler and the WESL shader linker. Off, the build runs only packs
 # exported without `--keep-sources`, drawing with the shaders the export linked.
 compile = ["balaur/compile"]
+# `.bl` scripts beside the Rune ones, on wasmi; `lang-jit` runs them on
+# wasmtime, `lang-web` on the browser's own engine.
+lang = ["balaur/lang"]
+lang-jit = ["balaur/lang-jit"]
+lang-web = ["balaur/lang-web"]
 # `http.*` for scripts. Off, the build drops ureq and its TLS stack.
 http = ["balaur/http"]
 # `websocket.*` for scripts, and the websocket `Transport`.
@@ -104,7 +109,7 @@ version = "0.17"
 optional = true
 
 [target.'cfg(windows)'.dependencies]
-zip = { version = "8", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 
 # Rayon's workers as Web Workers, for the shared-memory template only: the
 # pool a browser cannot build through `std::thread`. `no-bundler` because the
@@ -150,7 +155,7 @@ console_error_panic_hook = "0.1"
 # A web bundle exported from a tab: the pack zipped beside the glue and the
 # module (src/web_export.rs). `toml` reads the name off the manifest, which is
 # all a browser has to name the file it hands back.
-zip = { version = "8", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 toml.workspace = true
 
 [dev-dependencies]

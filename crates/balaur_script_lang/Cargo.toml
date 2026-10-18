@@ -1,0 +1,25 @@
+[package]
+name = "balaur_script_lang"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "balaur_lang behind the scripting seam: `.bl` scripts beside Rune ones."
+
+[dependencies]
+anyhow.workspace = true
+balaur_core.workspace = true
+balaur_lang.workspace = true
+balaur_script.workspace = true
+tracing.workspace = true
+
+# Which engines run the scripts; a build takes at least one, and the fastest
+# it has wins.
+[features]
+default = ["wasmi"]
+wasmi = ["balaur_lang/wasmi"]
+wasmtime = ["balaur_lang/wasmtime"]
+web = ["balaur_lang/web"]
+
+[lints]
+workspace = true

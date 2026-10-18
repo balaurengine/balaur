@@ -9,7 +9,6 @@ pub use glam_types::{Vec2, Vec3};
 
 use anyhow::{Result, anyhow};
 use balaur_script::{CallbackId, Value as Neutral};
-use rune::alloc::clone::TryClone as _;
 
 /// A node handle as scripts see it. Opaque on purpose: a script may store one
 /// and hand it back, but the bits are the engine's business.
@@ -201,18 +200,22 @@ pub(crate) fn install(
 
 /// Rune value -> neutral. A function becomes a call-scoped callback.
 ///
-/// Tested in the order a binding call sees them — the node receiver, then
-/// strings and numbers — and through the accessors that only inspect the
+/// The common kinds are told apart by their type hash, one read. What is left
+/// is tested in the order a binding call sees it — the node receiver, then
+/// strings and numbers — through the accessors that only inspect the
 /// representation, so a mismatch costs a compare and never a clone.
 pub(crate) fn to_neutral(v: &rune::Value) -> Result<Neutral> {
     use rune::runtime::Object;
+    if let Some(known) = by_type(v)? {
+        return Ok(known);
+    }
     // Borrow rather than convert: `from_value` on a Rune `Any` moves the value
     // out of its shared cell, so reading a node would destroy it.
     if let Ok(n) = v.borrow_ref::<Node>() {
         return Ok(Neutral::Node(n.id));
     }
     if let Ok(s) = v.borrow_string_ref() {
-        return Ok(Neutral::Str(s.to_string()));
+        return Ok(Neutral::Str(String::from(&*s)));
     }
     if let Ok(i) = v.as_signed() {
         return Ok(Neutral::Int(i));
@@ -244,19 +247,10 @@ pub(crate) fn to_neutral(v: &rune::Value) -> Result<Neutral> {
         return Ok(transform);
     }
     if let Ok(items) = v.borrow_ref::<rune::runtime::Vec>() {
-        return Ok(Neutral::List(
-            items.iter().map(to_neutral).collect::<Result<_>>()?,
-        ));
+        return list(&items);
     }
     if let Ok(obj) = v.borrow_ref::<Object>() {
-        let mut out = Vec::with_capacity(obj.len());
-        for (k, val) in obj.iter() {
-            out.push((k.to_string(), to_neutral(val)?));
-        }
-        // Rune objects do not preserve insertion order; sort so a binding sees
-        // the same map every run.
-        out.sort_by(|a, b| a.0.cmp(&b.0));
-        return Ok(Neutral::Map(out));
+        return object(&obj);
     }
     // A map keyed by more than strings, as a Godot dictionary is: its keys
     // spelled as text, the way JSON spells them.
@@ -275,10 +269,8 @@ pub(crate) fn to_neutral(v: &rune::Value) -> Result<Neutral> {
         out.sort_by(|a, b| a.0.cmp(&b.0));
         return Ok(Neutral::Map(out));
     }
-    if let Ok(f) = v.borrow_ref::<rune::runtime::Function>() {
-        return Ok(Neutral::Callback(crate::bindings::hold_callback(
-            f.try_clone()?,
-        )));
+    if v.borrow_ref::<rune::runtime::Function>().is_ok() {
+        return Ok(Neutral::Callback(crate::bindings::hold_callback(v.clone())));
     }
     if let Ok(b) = v.borrow_ref::<rune::runtime::Bytes>() {
         return Ok(Neutral::Bytes(b.as_slice().to_vec()));
@@ -291,6 +283,64 @@ pub(crate) fn to_neutral(v: &rune::Value) -> Result<Neutral> {
         }
     }
     Ok(Neutral::Nil)
+}
+
+/// The kinds a binding is handed most, by one read of the type hash: a
+/// probe that fails builds the error saying what it wanted, and a number in a
+/// list of two thousand failed four of them. `None` for anything else.
+fn by_type(v: &rune::Value) -> Result<Option<Neutral>> {
+    use rune::runtime::{Object, TypeHash as _};
+    let hash = v.type_hash();
+    let known = if hash == f64::HASH {
+        Neutral::Num(v.as_float()?)
+    } else if hash == i64::HASH {
+        Neutral::Int(v.as_signed()?)
+    } else if hash == rune::alloc::String::HASH {
+        Neutral::Str(String::from(&*v.borrow_string_ref()?))
+    } else if hash == bool::HASH {
+        Neutral::Bool(v.as_bool()?)
+    } else if hash == Node::HASH {
+        Neutral::Node(v.borrow_ref::<Node>()?.id)
+    } else if hash == Object::HASH {
+        object(&*v.borrow_ref::<Object>()?)?
+    } else if hash == rune::runtime::Vec::HASH {
+        list(&*v.borrow_ref::<rune::runtime::Vec>()?)?
+    } else if hash == Vec3::HASH {
+        let p = v.borrow_ref::<Vec3>()?;
+        Neutral::Vec3([p.x as f32, p.y as f32, p.z as f32])
+    } else if hash == Vec2::HASH {
+        let p = v.borrow_ref::<Vec2>()?;
+        Neutral::Vec2([p.x as f32, p.y as f32])
+    } else if hash == Color::HASH {
+        let c = v.borrow_ref::<Color>()?;
+        Neutral::Color([c.r as f32, c.g as f32, c.b as f32, c.a as f32])
+    } else {
+        return Ok(None);
+    };
+    Ok(Some(known))
+}
+
+/// A Rune list, each item converted, into one allocation.
+fn list(items: &rune::runtime::Vec) -> Result<Neutral> {
+    let mut out = Vec::with_capacity(items.len());
+    for item in items {
+        out.push(to_neutral(item)?);
+    }
+    Ok(Neutral::List(out))
+}
+
+fn object(obj: &rune::runtime::Object) -> Result<Neutral> {
+    let mut out = Vec::with_capacity(obj.len());
+    for (k, val) in obj {
+        // Straight from the bytes: `to_string` on Rune's string goes through
+        // `Display` and a formatter, which every key of every options table
+        // paid on every call.
+        out.push((String::from(k.as_str()), to_neutral(val)?));
+    }
+    // Rune objects do not preserve insertion order; sort so a binding sees
+    // the same map every run.
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    Ok(Neutral::Map(out))
 }
 
 /// Rune -> neutral, for a snapshot: like `to_neutral`, but functions and
@@ -425,15 +475,17 @@ pub(crate) fn from_neutral(v: &Neutral) -> Result<rune::Value> {
             }
             rune::to_value(rune::runtime::OwnedTuple::try_from(out)?)?
         }
+        // Sized up front: a list grown a push at a time reallocates as it goes,
+        // and a table rehashes.
         Neutral::List(items) => {
-            let mut out = rune::runtime::Vec::new();
+            let mut out = rune::runtime::Vec::with_capacity(items.len())?;
             for it in items {
                 out.push(from_neutral(it)?)?;
             }
             rune::to_value(out)?
         }
         Neutral::Map(pairs) => {
-            let mut obj = rune::runtime::Object::new();
+            let mut obj = rune::runtime::Object::with_capacity(pairs.len())?;
             for (k, val) in pairs {
                 obj.insert(
                     rune::alloc::String::try_from(k.as_str())?,
@@ -444,11 +496,8 @@ pub(crate) fn from_neutral(v: &Neutral) -> Result<rune::Value> {
         }
         // A function one script returned to another: the same function, while
         // the call that handed it over still holds it.
-        Neutral::Callback(CallbackId(id)) => {
-            let function = crate::bindings::lookup_callback(CallbackId(*id))
-                .ok_or_else(|| anyhow!("callback {id} was used after its call returned"))?;
-            rune::to_value(function)?
-        }
+        Neutral::Callback(CallbackId(id)) => crate::bindings::lookup_callback(CallbackId(*id))
+            .ok_or_else(|| anyhow!("callback {id} was used after its call returned"))?,
     };
     Ok(out)
 }

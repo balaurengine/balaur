@@ -39,7 +39,7 @@ cannot drift from what scripts actually see.
 | [`random`](#random) | 5 | 0 | the engine |
 | [`regex`](#regex) | 6 | 0 | the engine |
 | [`release`](#release) | 5 | 0 | the engine |
-| [`render`](#render) | 70 | 46 | the engine |
+| [`render`](#render) | 73 | 46 | the engine |
 | [`replay`](#replay) | 17 | 4 | the engine |
 | [`rollback`](#rollback) | 2 | 0 | the engine |
 | [`save`](#save) | 6 | 0 | the engine |
@@ -417,7 +417,7 @@ cannot drift from what scripts actually see.
 
 ## `render`
 
-**Functions:** `bounds`, `buffer`, `built_mesh`, `camera_2d`, `camera_matrix`, `camera_pose`, `cell`, `check_material`, `debug_view`, `debug_views`, `draw_arc_2d`, `draw_box`, `draw_capsule`, `draw_circle_2d`, `draw_line_2d`, `draw_line_3d`, `draw_lines`, `draw_polygon_2d`, `draw_polyline_2d`, `draw_rect_2d`, `draw_sphere`, `draw_text_2d`, `draw_text_3d`, `draw_texture_2d`, `instance_color`, `instance_count`, `instance_custom_data`, `instance_region`, `instance_transform`, `instances`, `is_on_screen`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `pick_ray_at`, `populate`, `screenshot`, `set_background`, `set_box`, `set_buffer`, `set_camera`, `set_camera_2d`, `set_cell`, `set_debug_view`, `set_grid`, `set_grid_colors`, `set_instance_color`, `set_instance_count`, `set_instance_custom_data`, `set_instance_region`, `set_instance_transform`, `set_instances`, `set_rectangle`, `set_shader_preview`, `set_shader_probe`, `set_sphere`, `set_terrain`, `set_visible_instance_count`, `shader_probe`, `snap_aov`, `stats`, `terrain`, `text_size`, `texture_pixels_per_unit`, `texture_size`, `tile_data`, `trace_texture`, `visible_instance_count`
+**Functions:** `begin_retained`, `bounds`, `buffer`, `built_mesh`, `camera_2d`, `camera_matrix`, `camera_pose`, `cell`, `check_material`, `clear_retained`, `debug_view`, `debug_views`, `draw_arc_2d`, `draw_box`, `draw_capsule`, `draw_circle_2d`, `draw_line_2d`, `draw_line_3d`, `draw_lines`, `draw_polygon_2d`, `draw_polyline_2d`, `draw_rect_2d`, `draw_sphere`, `draw_text_2d`, `draw_text_3d`, `draw_texture_2d`, `end_retained`, `instance_color`, `instance_count`, `instance_custom_data`, `instance_region`, `instance_transform`, `instances`, `is_on_screen`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `pick_ray_at`, `populate`, `screenshot`, `set_background`, `set_box`, `set_buffer`, `set_camera`, `set_camera_2d`, `set_cell`, `set_debug_view`, `set_grid`, `set_grid_colors`, `set_instance_color`, `set_instance_count`, `set_instance_custom_data`, `set_instance_region`, `set_instance_transform`, `set_instances`, `set_rectangle`, `set_shader_preview`, `set_shader_probe`, `set_sphere`, `set_terrain`, `set_visible_instance_count`, `shader_probe`, `snap_aov`, `stats`, `terrain`, `text_size`, `texture_pixels_per_unit`, `texture_size`, `tile_data`, `trace_texture`, `visible_instance_count`
 
 **Constants** (46):
 

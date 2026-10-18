@@ -115,12 +115,14 @@ NOTABLE = ["kiss3d", "wgpu", "naga", "winit", "egui-wgpu", "glow", "image", "exr
 
 def web_runtime_features():
     """The feature set scripts/package_runtime.sh builds the web runtime with:
-    scripts/features.sh's game set, and a window."""
+    scripts/features.sh's game set with `lang` on the page's engine, and a
+    window."""
     text = (ROOT / "scripts" / "features.sh").read_text()
     m = re.search(r"^GAME_FEATURES=([a-z0-9_,]+)$", text, re.M)
     if not m:
         raise SystemExit("scripts/features.sh no longer names GAME_FEATURES")
-    return m.group(1).split(",") + ["window"]
+    game = ["lang-web" if f == "lang" else f for f in m.group(1).split(",")]
+    return game + ["window"]
 
 
 def cargo_tree(features, *extra):

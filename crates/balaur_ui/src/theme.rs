@@ -240,12 +240,19 @@ pub(crate) fn apply(tokens: &ThemeTokens, ctx: &egui::Context) {
 
 /// The named family for a widget option value.
 pub(crate) fn family(name: &str) -> FontFamily {
-    match name {
-        w::HEADING => FontFamily::Name(w::HEADING.into()),
-        w::MONO => FontFamily::Name(w::MONO.into()),
-        w::ICON => FontFamily::Name(w::ICON.into()),
-        _ => FontFamily::Name(w::UI.into()),
+    thread_local! {
+        /// Made once: a family's name is shared text, and every widget that
+        /// draws a word asks for one or more a pass.
+        static FAMILIES: [FontFamily; 4] =
+            [w::HEADING, w::MONO, w::ICON, w::UI].map(|name| FontFamily::Name(name.into()));
     }
+    let at = match name {
+        w::HEADING => 0,
+        w::MONO => 1,
+        w::ICON => 2,
+        _ => 3,
+    };
+    FAMILIES.with(|families| families[at].clone())
 }
 
 /// The air either side of a button's caption, and above and below it, where

@@ -48,6 +48,8 @@ balaur_core = { path = "crates/balaur_core", version = "0.2.0" }
 balaur_plugin = { path = "crates/balaur_plugin", version = "0.2.0" }
 balaur_script = { path = "crates/balaur_script", version = "0.2.0" }
 balaur_script_rune = { path = "crates/balaur_script_rune", version = "0.2.0", default-features = false }
+balaur_lang = { path = "crates/balaur_lang", version = "0.2.0", default-features = false }
+balaur_script_lang = { path = "crates/balaur_script_lang", version = "0.2.0", default-features = false }
 balaur_physics = { path = "crates/balaur_physics", version = "0.2.0", default-features = false }
 balaur_animation = { path = "crates/balaur_animation", version = "0.2.0" }
 balaur_render = { path = "crates/balaur_render", version = "0.2.0", default-features = false }
@@ -108,16 +110,36 @@ tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
 # is ready or its queue wakes it. Already built through tokio.
 mio = { version = "1", default-features = false, features = ["os-poll", "net"] }
 
-# Fast script iteration is the whole point; keep debug builds usable.
-# Dev trades runtime speed for iteration speed: opt 0 everywhere, minimal
-# debuginfo. Play at full speed with --release.
+# Fast script iteration is the whole point; keep debug builds usable. Line
+# tables only, and opt 0 except where an editor frame runs, below.
 [profile.dev]
 debug = "line-tables-only"
+
+# The crates an editor frame runs through. Rune's handlers and the hecs, glam
+# and egui generics instantiate here: at 0 a 2000-node frame ran 2.6x the
+# instructions, and 2 or 3 buy 2% more. docs/PLAN-editor-performance.md §9.
+[profile.dev.package]
+balaur = { opt-level = 1 }
+balaur_core = { opt-level = 1 }
+balaur_render = { opt-level = 1 }
+balaur_script = { opt-level = 1 }
+balaur_script_rune = { opt-level = 1 }
+balaur_text = { opt-level = 1 }
+balaur_ui = { opt-level = 1 }
 
 # A dependency's line tables are copied into each of the 130 test binaries and
 # read only when a backtrace passes through one. The workspace keeps its own.
 [profile.dev.package."*"]
 debug = false
+# Rune's VM, egui and hecs: at 0 an editor frame ran 2.6 to 2.9x the instructions.
+opt-level = 3
+
+# Optimised, wasmi dispatches each instruction by tail call, and the debug
+# checks keep LLVM from making them tail calls: a long `.bl` loop then
+# overflows the stack. Release has neither check.
+[profile.dev.package.wasmi]
+debug-assertions = false
+overflow-checks = false
 
 # What ships: whole-program LTO and one codegen unit, a slower link for a
 # smaller, faster binary. `panic` stays unwind for the extension seam.
@@ -135,6 +157,14 @@ lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = true
+
+# Rune's VM at "z" ran an editor frame in 1.2 to 1.6x the cycles of "s", which
+# costs 0.07 MB of brotli; 3 is no quicker for twice that. Same plan, §9.
+[profile.web.package]
+rune = { opt-level = "s" }
+rune-alloc = { opt-level = "s" }
+rune-core = { opt-level = "s" }
+balaur_script_rune = { opt-level = "s" }
 
 # Four forks. Cargo.lock pins each commit; to hack on one locally, use a
 # `paths` override in .cargo/config.toml rather than editing this.

@@ -1,0 +1,238 @@
+use super::run_with;
+use balaur_lang::Options;
+use balaur_lang::runtime::{Command, HostFns, Paused, Value};
+use std::cell::RefCell;
+use std::rc::Rc;
+
+const SCRIPT: &str = "pub struct Mover { x: float, steps: int }
+impl Mover {
+    pub fn walk(n: int) -> float {
+        for i in 0..n {
+            self.x += stride(i);
+            self.steps += 1;
+        }
+        self.x
+    }
+}
+fn stride(i: int) -> float {
+    let s = i * 2;
+    s + 0.5
+}
+pub fn crash(i: int) -> float {
+    let a = [1.0, 2.0];
+    a[i]
+}
+";
+
+fn debug_runtime() -> balaur_lang::runtime::Runtime {
+    run_with(
+        SCRIPT,
+        HostFns::default(),
+        &Options {
+            debug: true,
+            ..Options::default()
+        },
+    )
+}
+
+fn local(p: &Paused, frame: usize, name: &str) -> Value {
+    p.frames[frame]
+        .locals
+        .iter()
+        .find(|(n, _)| n == name)
+        .map_or(Value::Void, |(_, v)| v.clone())
+}
+
+#[test]
+fn a_breakpoint_stops_with_the_stack_and_its_variables() {
+    let mut rt = debug_runtime();
+    let stops = Rc::new(RefCell::new(vec![]));
+    let seen = stops.clone();
+    rt.debugger().set_breakpoint(12);
+    rt.debugger().on_pause(move |p| {
+        seen.borrow_mut().push(p.clone());
+        Command::Continue
+    });
+    let mut m = rt.object("Mover", &[]).unwrap();
+    rt.call_method(&mut m, "walk", &[Value::Int(2)]).unwrap();
+    let stops = stops.borrow();
+    assert_eq!(stops.len(), 2);
+    let p = &stops[1];
+    assert_eq!(p.line, 12);
+    assert_eq!(
+        p.frames
+            .iter()
+            .map(|f| (f.func.as_str(), f.line))
+            .collect::<Vec<_>>(),
+        [("stride", 12), ("Mover.walk", 5)]
+    );
+    assert_eq!(local(p, 0, "i"), Value::Int(1));
+    assert_eq!(local(p, 1, "i"), Value::Int(1));
+    assert_eq!(local(p, 1, "n"), Value::Int(2));
+    assert_eq!(
+        local(p, 1, "self"),
+        Value::Struct(
+            "Mover".into(),
+            vec![
+                ("x".into(), Value::Float(0.5)),
+                ("steps".into(), Value::Int(1))
+            ]
+        )
+    );
+}
+
+#[test]
+fn stepping_over_into_and_out() {
+    let mut rt = debug_runtime();
+    let lines = Rc::new(RefCell::new(vec![]));
+    let seen = lines.clone();
+    let mut plan = vec![
+        Command::StepOver,
+        Command::StepInto,
+        Command::StepOver,
+        Command::StepOut,
+        Command::Continue,
+    ]
+    .into_iter();
+    rt.debugger().set_breakpoint(4);
+    rt.debugger().on_pause(move |p| {
+        seen.borrow_mut().push((p.frames[0].func.clone(), p.line));
+        plan.next().unwrap_or(Command::Continue)
+    });
+    let mut m = rt.object("Mover", &[]).unwrap();
+    rt.call_method(&mut m, "walk", &[Value::Int(1)]).unwrap();
+    let want = [
+        ("Mover.walk", 4),
+        ("Mover.walk", 5),
+        ("stride", 12),
+        ("stride", 13),
+        ("Mover.walk", 6),
+    ];
+    let got: Vec<(String, u32)> = lines.borrow().clone();
+    assert_eq!(
+        got,
+        want.iter()
+            .map(|(f, l)| ((*f).to_string(), *l))
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn a_stop_can_change_a_variable() {
+    let mut rt = debug_runtime();
+    rt.debugger().set_breakpoint(13);
+    rt.debugger().on_pause(|p| {
+        for (n, v) in &mut p.frames[0].locals {
+            if n == "s" {
+                *v = Value::Int(100);
+            }
+        }
+        Command::Continue
+    });
+    let mut m = rt.object("Mover", &[]).unwrap();
+    assert_eq!(
+        rt.call_method(&mut m, "walk", &[Value::Int(1)]).unwrap(),
+        Value::Float(100.5)
+    );
+}
+
+#[test]
+fn a_trap_reports_its_line() {
+    let mut rt = debug_runtime();
+    let e = rt.call("crash", &[Value::Int(5)]).unwrap_err();
+    assert_eq!(e.line, Some(17));
+    assert_eq!(
+        rt.call("crash", &[Value::Int(1)]).unwrap(),
+        Value::Float(2.0)
+    );
+}
+
+#[test]
+fn release_builds_carry_no_probes() {
+    let release = balaur_lang::compile(SCRIPT, &Options::default()).unwrap();
+    let debug = balaur_lang::compile(
+        SCRIPT,
+        &Options {
+            debug: true,
+            ..Options::default()
+        },
+    )
+    .unwrap();
+    assert!(release.meta.probes.is_empty());
+    assert!(!debug.meta.probes.is_empty());
+    assert!(release.wasm.len() < debug.wasm.len());
+}
+
+// On wasmi a stop parks the call: the host gets control back mid-method.
+#[cfg(feature = "wasmi")]
+mod parked {
+    use super::{SCRIPT, local};
+    use balaur_lang::runtime::{
+        Command, EngineKind, HostFns, Limits, Runtime, Step, StopReason, Value,
+    };
+    use balaur_lang::{Options, compile};
+
+    fn on_wasmi() -> Runtime {
+        let options = Options {
+            debug: true,
+            ..Options::default()
+        };
+        let c = compile(SCRIPT, &options).unwrap();
+        let limits = Limits {
+            engine: EngineKind::Wasmi,
+            ..Limits::default()
+        };
+        Runtime::new(&c, HostFns::default(), limits).unwrap()
+    }
+
+    fn paused(step: Step) -> balaur_lang::runtime::Paused {
+        match step {
+            Step::Paused(p) => p,
+            Step::Done(v) => panic!("finished with {v:?} instead of stopping"),
+        }
+    }
+
+    #[test]
+    fn a_stop_parks_the_call_until_it_is_resumed() {
+        let mut rt = on_wasmi();
+        let mut m = rt.object("Mover", &[]).unwrap();
+        rt.debugger().set_breakpoint(5);
+        let p = paused(
+            rt.call_method_steppable(&mut m, "walk", &[Value::Int(2)])
+                .unwrap(),
+        );
+        assert_eq!((p.line, p.reason), (5, StopReason::Breakpoint));
+        assert_eq!(local(&p, 0, "i"), Value::Int(0));
+        assert!(rt.paused().is_some());
+        assert!(
+            rt.call("crash", &[Value::Int(0)]).is_err(),
+            "ran beside a parked call"
+        );
+
+        let p = paused(rt.resume(Command::StepOver, &mut m).unwrap());
+        assert_eq!((p.line, p.reason), (6, StopReason::Step));
+        rt.debugger().clear_breakpoint(5);
+        let done = rt.resume(Command::Continue, &mut m).unwrap();
+        assert_eq!(done, Step::Done(Value::Float(3.0)));
+        assert_eq!(rt.get(&m, "steps"), Some(Value::Int(2)));
+        assert!(rt.paused().is_none());
+        assert_eq!(
+            rt.call("crash", &[Value::Int(1)]).unwrap(),
+            Value::Float(2.0)
+        );
+    }
+
+    #[test]
+    fn an_asked_pause_stops_at_the_next_line() {
+        let mut rt = on_wasmi();
+        let mut m = rt.object("Mover", &[]).unwrap();
+        rt.debugger().pause();
+        let p = paused(
+            rt.call_method_steppable(&mut m, "walk", &[Value::Int(1)])
+                .unwrap(),
+        );
+        assert_eq!(p.reason, StopReason::Asked);
+        let done = rt.resume(Command::Continue, &mut m).unwrap();
+        assert_eq!(done, Step::Done(Value::Float(0.5)));
+    }
+}

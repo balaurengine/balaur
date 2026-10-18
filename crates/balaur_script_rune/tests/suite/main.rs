@@ -7,6 +7,7 @@
 mod backend;
 mod binary_assets;
 mod cache;
+mod callbacks;
 mod debugger;
 mod engine_api;
 mod lifecycle;

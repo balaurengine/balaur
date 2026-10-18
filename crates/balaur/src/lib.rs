@@ -21,6 +21,8 @@ pub use balaur_input as input;
 pub use balaur_physics as physics;
 pub use balaur_platform as platform;
 pub use balaur_render as render;
+#[cfg(feature = "bl")]
+pub use balaur_script_lang as script_lang;
 pub use balaur_script_rune as script_rune;
 pub use balaur_ui as ui;
 
@@ -97,11 +99,22 @@ fn manifest_of(config: &AppConfig) -> Option<balaur_core::project::ProjectManife
 fn backend_for(config: &AppConfig) -> Result<balaur_core::ScriptHostFactory> {
     let language = manifest_of(config).map_or_else(|| "rune".to_string(), |m| m.language);
     match language.as_str() {
-        "rune" => Ok(balaur_script_rune::factory()),
+        "rune" => Ok(with_lang(balaur_script_rune::factory())),
         other => Err(anyhow::anyhow!(
             "project.toml asks for script_language \"{other}\"; this build has rune"
         )),
     }
+}
+
+/// `.bl` scripts run beside the project's Rune ones, chosen by extension.
+#[cfg(feature = "bl")]
+fn with_lang(rune: balaur_core::ScriptHostFactory) -> balaur_core::ScriptHostFactory {
+    balaur_script_lang::beside(rune)
+}
+
+#[cfg(not(feature = "bl"))]
+fn with_lang(rune: balaur_core::ScriptHostFactory) -> balaur_core::ScriptHostFactory {
+    rune
 }
 
 /// Build an export pack with the script backend `standard_app` installs.
@@ -127,6 +140,11 @@ pub fn build_pack_using(
     extra: ExtraPlugins<'_>,
 ) -> Result<Pack> {
     with_rune_host(project_root, extra, |engine, host| {
+        // `.bl` files compile through their own backend, beside Rune's.
+        #[cfg(feature = "bl")]
+        let exporter = balaur_script_lang::Exporter::new(engine, host);
+        #[cfg(feature = "bl")]
+        let host = &exporter;
         let pack = Pack::build_with(project_root, host, keep_sources)?;
         #[cfg(feature = "compile")]
         let pack = with_shaders(engine, pack)?;
@@ -195,7 +213,7 @@ pub fn check_project_using(
     project_root: &std::path::Path,
     extra: ExtraPlugins<'_>,
 ) -> Result<Vec<balaur_script_rune::Finding>> {
-    with_rune_host(project_root, extra, |_, host| {
+    with_rune_host(project_root, extra, |engine, host| {
         let mut found = Vec::new();
         for rel in scene_scripts(project_root) {
             let path = project_root.join(&rel);
@@ -211,6 +229,26 @@ pub fn check_project_using(
                 });
                 continue;
             };
+            #[cfg(feature = "bl")]
+            if let Some(lang) = balaur_script_lang::LangHost::of(engine)
+                && balaur_script_lang::LangHost::claims(&rel)
+            {
+                found.extend(lang.check(&rel, &source).map(|e| {
+                    let (line, column) = (e.pos.line as usize, e.pos.col as usize);
+                    balaur_script_rune::Finding {
+                        file: rel.clone(),
+                        line,
+                        column,
+                        end_line: line,
+                        end_column: column,
+                        severity: "error",
+                        message: e.msg,
+                    }
+                }));
+                continue;
+            }
+            #[cfg(not(feature = "bl"))]
+            let _ = engine;
             found.extend(host.check_source(&rel, &source)?);
         }
         Ok(found)

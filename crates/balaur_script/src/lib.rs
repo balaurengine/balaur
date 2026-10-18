@@ -11,7 +11,7 @@ mod language;
 mod value;
 
 pub use bindings::CallbackHost;
-pub use bindings::{Bindings, BindingsExt, BoundFn, FnDoc, NoBindings};
+pub use bindings::{Bindings, BindingsExt, BoundFn, FnDoc, NoBindings, OwnedFn};
 pub use debug::{Frame, Pause, PauseReason, StepMode};
 pub use language::{ScriptCompiler, ScriptHost};
 pub use value::{CallbackId, FromArg, FromArgs, IntoValue, NodeId, Value, expect_arity};

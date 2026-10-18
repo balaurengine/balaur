@@ -7,7 +7,7 @@ license.workspace = true
 authors.workspace = true
 
 [features]
-default = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket", "webtransport", "gamend", "multiplayer", "browser", "parallel", "compile", "physics2d", "physics3d"]
+default = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket", "webtransport", "gamend", "multiplayer", "browser", "parallel", "compile", "physics2d", "physics3d", "lang"]
 # rapier's solver on rayon. Native builds want it; a browser can only take it
 # with shared memory and atomics, which is the threaded web runtime alone.
 parallel = ["balaur_physics/parallel"]
@@ -57,6 +57,13 @@ physics3d = ["balaur_physics/physics3d"]
 # sources, the editor and `balaur check`. A template leaves it off and draws
 # with the shaders an export linked into the pack.
 compile = ["balaur_script_rune/compile", "balaur_render/compile"]
+# `.bl` scripts (balaur_lang) beside the Rune ones: `lang` runs them on wasmi,
+# `lang-jit` on wasmtime, `lang-web` on the page's own engine with no wasmi.
+lang = ["bl", "balaur_script_lang?/wasmi"]
+lang-jit = ["bl", "balaur_script_lang?/wasmtime"]
+lang-web = ["bl", "balaur_script_lang?/web"]
+# What those three share; on its own it has no engine to run a script on.
+bl = ["dep:balaur_script_lang"]
 # egui's bundled faces behind a project's own: Ubuntu Light, Hack and two
 # emoji fonts, 1.35 MiB. The editor has them; a game falls back to its own
 # faces and the one balaur_text carries.
@@ -67,6 +74,7 @@ balaur_core.workspace = true
 balaur_plugin.workspace = true
 balaur_script.workspace = true
 balaur_script_rune.workspace = true
+balaur_script_lang = { workspace = true, optional = true }
 balaur_physics = { workspace = true, default-features = false }
 balaur_animation.workspace = true
 balaur_render.workspace = true

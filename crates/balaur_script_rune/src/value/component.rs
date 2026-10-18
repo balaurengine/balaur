@@ -141,7 +141,7 @@ fn index_access(m: &mut rune::Module, eng: &Engine) -> Result<(), rune::ContextE
 
 fn read_key(this: &Component, key: &str, handle: usize) -> VmResult<rune::Value> {
     let _scope = CallbackScope::enter();
-    let got = match call_bound(handle, &receiver(this)) {
+    let got = match call_bound(handle, &mut receiver(this)) {
         Some(Ok(v)) => v,
         Some(Err(err)) => return fail(err),
         None => return fail("component index was registered on another thread"),
@@ -169,8 +169,8 @@ fn write_key(this: &Component, key: &str, handle: usize, value: &rune::Value) ->
         Err(err) => return fail(err),
     };
     let [node, name] = receiver(this);
-    let args = [node, name, Neutral::Map(vec![(key.to_string(), value)])];
-    match call_bound(handle, &args) {
+    let mut args = [node, name, Neutral::Map(vec![(key.to_string(), value)])];
+    match call_bound(handle, &mut args) {
         Some(Ok(_)) => VmResult::Ok(()),
         Some(Err(err)) => fail(err),
         None => fail("component index was registered on another thread"),
@@ -184,12 +184,12 @@ fn set_whole(node: Node, name: &'static str, handle: usize, value: &rune::Value)
         Ok(v) => v,
         Err(err) => return fail(err),
     };
-    let args = [
+    let mut args = [
         Neutral::Node(node.id),
         Neutral::Str(name.to_string()),
         value,
     ];
-    match call_bound(handle, &args) {
+    match call_bound(handle, &mut args) {
         Some(Ok(_)) => VmResult::Ok(()),
         Some(Err(err)) => fail(err),
         None => fail("component assignment was registered on another thread"),
@@ -414,11 +414,11 @@ fn generic_handler(
     move |stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output| {
         let values = rune::vm_try!(stack.slice_at(addr, args)).to_vec();
         let _scope = CallbackScope::enter();
-        let (_, neutral) = match receive(&values, true) {
+        let (_, mut neutral) = match receive(&values, true) {
             Ok(r) => r,
             Err(err) => return fail(err),
         };
-        finish(call_bound(handle, &neutral), stack, out)
+        finish(call_bound(handle, &mut neutral), stack, out)
     }
 }
 
@@ -429,7 +429,7 @@ fn method_handler(
     move |stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output| {
         let values = rune::vm_try!(stack.slice_at(addr, args)).to_vec();
         let _scope = CallbackScope::enter();
-        let (name, neutral) = match receive(&values, false) {
+        let (name, mut neutral) = match receive(&values, false) {
             Ok(r) => r,
             Err(err) => return fail(err),
         };
@@ -438,6 +438,6 @@ fn method_handler(
                 "`{name}` has no `{method}`; no module driving it declares one"
             ));
         };
-        finish(call_bound(handle, &neutral), stack, out)
+        finish(call_bound(handle, &mut neutral), stack, out)
     }
 }
