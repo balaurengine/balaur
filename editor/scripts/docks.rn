@@ -287,7 +287,7 @@ fn body(S, k, id) {
         "scene" => left::show_tree(),
         "outline" => left::show_outline(),
         "inspector" => inspector::show_panel(),
-        "import" => crate::importer::panel(S, k),
+        "import" => util::fill("Editor/Shell/Body/Right/RightSheet/Import", #{ visible: true }),
         _ => match crate::plugins::panel(S, id) {
             Some(entry) => {
                 let draw = entry.draw;
@@ -432,7 +432,7 @@ fn node_owners() {
         ],
         right: [
             #{ hide: "inspector", panels: ["inspector"] },
-            #{ hide: "form", panels: ["import"] },
+            #{ hide: "import", panels: ["import"] },
         ],
     }
 }
@@ -444,8 +444,8 @@ fn hide_node(S, which) {
         left::hide_tree(S);
     } else if which == "outline" {
         left::hide_outline();
-    } else if which == "form" {
-        inspector::hide_form(S);
+    } else if which == "import" {
+        util::hide("Editor/Shell/Body/Right/RightSheet/Import");
     } else if which == "inspector" {
         inspector::hide_panel();
     }
@@ -982,18 +982,6 @@ fn scrolls_itself(S, id) {
 
 /// The strip along the foot of the bottom dock: what is playing, and the
 /// control that minimises the dock when it is open.
-/// A dock's contents, drawn into the rect the scene's `draw` node hands over.
-///
-/// The sheet around it is the node's own paint now, so this draws no frame:
-/// the tab row and the panel. The status strip is a pooled row of its own.
-pub fn draw_body(S, k, side) {
-    let d = S.docks[side];
-    // Import's head is the one side panel still drawn.
-    if !d.shut && d.active == "import" {
-        crate::importer::panel(S, k);
-    }
-}
-
 /// A dock's tab row, which of its panels shows, and the side panels' own
 /// showing: what its script asks for on `docks_changed`, rather than every pass.
 pub fn fill(S, side) {
@@ -1005,7 +993,7 @@ pub fn fill(S, side) {
         return "";
     }
     tab_row(S, k, side, d);
-    if (side != "bottom" && d.active != "import") || filled_by_itself(d.active) {
+    if side != "bottom" || filled_by_itself(d.active) {
         body(S, k, d.active);
     }
     shown_panel(S, side, d)
@@ -1014,6 +1002,9 @@ pub fn fill(S, side) {
 /// The node of the panel `fill` just showed, which the dock then tells to
 /// fill itself: told after the showing, it never reads itself as hidden.
 fn shown_panel(S, side, d) {
+    if side == "right" && d.active == "import" {
+        return "Import";
+    }
     if side != "bottom" || !filled_by_itself(d.active) {
         return "";
     }

@@ -80,10 +80,11 @@ fn load_own(S) {
     S.themewin.pairs = pairs;
 }
 
-pub fn draw(S) {
+/// Fill the sheet: what its script asks for when Theme is up.
+pub fn fill(S) {
     let k = S.theme;
     let stacked = ui::window_size()[0] < STACK_BELOW;
-    let hosts = crate::window::sheet_form(S, ID, "Theme", || { save_button(S, k); });
+    let hosts = crate::window::sheet_form(S, ID, "Theme", save_button(S));
     if util::is_nil(hosts) {
         return;
     }
@@ -100,17 +101,16 @@ fn label_w(S) {
     util::clamp((crate::window::inner_w(S) - 210.0) * 0.28, 120.0, 220.0)
 }
 
-fn save_button(S, k) {
+// Save, beside the close, while there is an edit to save.
+fn save_button(S) {
     if !S.themewin.dirty {
-        return;
+        return [];
     }
-    let pressed = ui::button("Save", #{ height: 24, font_size: style::MD, corner_radius: 8, fill: k.primary_fill, text_color: k.text_on_primary });
-    // Where it drew, for a showcase pointing at it: an immediate control has
-    // no node to ask.
-    S.themewin.save_at = ui::button_rect();
-    if pressed {
-        save(S);
-    }
+    let pressed = [#{
+        kind: "button", role: "action_form_primary", text: "Save",
+        on: |_| { save(S); },
+    }];
+    pressed
 }
 
 

@@ -271,17 +271,6 @@ kind = "row"
 role = "layout_dock"
 align_items = "center"
 
-[[nodes]]
-id = "right_body"
-name = "RightBody"
-parent = "right_sheet"
-[nodes.widget]
-kind = "draw"
-draw = "draw_dock_right"
-# Stated, not measured: a `draw` node with neither a size nor a `grow` takes
-# whatever is left, which is the whole sheet. `layout.rn` writes the real one.
-height = 96
-
 # The Inspector, its own scene and script: see scenes/panels/inspector.toml.
 [[nodes]]
 id = "inspector"
@@ -289,14 +278,12 @@ name = "Inspector"
 parent = "right_sheet"
 instance = "scenes/panels/inspector.toml"
 
+# The Import tab, its own scene and script: see scenes/panels/import.toml.
 [[nodes]]
-id = "right_scroll"
-name = "RightScroll"
+id = "import"
+name = "Import"
 parent = "right_sheet"
-[nodes.widget]
-kind = "scroll"
-axis = "vertical"
-grow = 1
+instance = "scenes/panels/import.toml"
 
 # Where a plugin dock's own subtree goes on this side.
 [[nodes]]
@@ -307,19 +294,6 @@ parent = "right_sheet"
 kind = "column"
 visible = false
 grow = 1
-
-# Import's rows: a form whose fields change with the file, so `pool.rn`
-# makes them and hides the spares.
-[[nodes]]
-id = "right_form"
-name = "RightForm"
-parent = "right_scroll"
-[nodes.widget]
-kind = "column"
-visible = false
-# No `grow`: inside a scroll there is no leftover to divide, so the column
-# takes what its rows measure and the bar makes up the difference.
-gap = [2, 2]
 
 [[nodes]]
 id = "railslot"
@@ -754,6 +728,7 @@ grow = 1
 id = "picker"
 name = "Picker"
 parent = "n_editor"
+script = { source = "scripts/panels/picker.rn" }
 [nodes.widget]
 kind = "dialog"
 layer = "shell"
@@ -797,6 +772,7 @@ grow = 1
 id = "sheet"
 name = "Sheet"
 parent = "n_editor"
+script = { source = "scripts/panels/sheet.rn" }
 [nodes.widget]
 kind = "dialog"
 layer = "shell"
@@ -813,8 +789,8 @@ parent = "sheet"
 kind = "row"
 role = "header_dialog"
 
-# The body a screen fills. Drawn for now: every one of the four is immediate,
-# and the frame round them is what this node gives them.
+# The body a screen fills: a column of its own down the left, and the rows
+# beside it.
 [[nodes]]
 id = "sheet_body"
 name = "SheetBody"
@@ -824,24 +800,12 @@ kind = "column"
 grow = 1
 
 [[nodes]]
-id = "sheet_page"
-name = "SheetPage"
-parent = "sheet_body"
-[nodes.widget]
-kind = "draw"
-draw = "draw_sheet_body"
-grow = 1
-
-# A screen whose rows are nodes fills these instead: a column of its own down
-# the left, and the rows beside it. Hidden for a screen that draws.
-[[nodes]]
 id = "sheet_split"
 name = "SheetSplit"
 parent = "sheet_body"
 [nodes.widget]
 kind = "row"
 role = "layout_dialog"
-visible = false
 grow = 1
 
 [[nodes]]
@@ -879,12 +843,40 @@ parent = "sheet_scroll"
 kind = "column"
 grow = 1
 
+# The plugins' open dialogs, a sheet each down the left of the stage. One
+# script, which has the Editor fill them when a plugin says they moved.
+[[nodes]]
+id = "dialogs"
+name = "Dialogs"
+parent = "n_editor"
+script = { source = "scripts/panels/dialogs.rn" }
+[nodes.widget]
+kind = "column"
+anchor = "top_left"
+gap = [12, 12]
+layer = "shell"
+visible = false
+
+# Typing over a text node where it is drawn: see scenes/panels/textedit.toml.
+[[nodes]]
+id = "textedit"
+name = "TextEdit"
+parent = "n_editor"
+instance = "scenes/panels/textedit.toml"
+
 # What the imports of a batch have done so far: see scenes/panels/imports.toml.
 [[nodes]]
 id = "imports"
 name = "Imports"
 parent = "n_editor"
 instance = "scenes/panels/imports.toml"
+
+# The input overlay a capture is taken with: see scenes/panels/inputview.toml.
+[[nodes]]
+id = "inputview"
+name = "InputView"
+parent = "n_editor"
+instance = "scenes/panels/inputview.toml"
 
 # The shell's keys, a node a command: see scenes/panels/keys.toml.
 [[nodes]]

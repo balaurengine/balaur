@@ -13,7 +13,10 @@ const STAGE = "stage_changed";
 // What a panel showing one thing of the Editor's listens for, as
 // `<what>_changed`: the Problems list, the Docs page, the files, the library,
 // the tile brush, the state machine, the recordings and the debugger.
-const PANELS = ["problems", "docs", "assets", "library", "tiles", "machine", "recordings", "debugger"];
+const PANELS = [
+    "problems", "docs", "assets", "library", "tiles", "machine", "recordings", "debugger",
+    "sheet", "picker", "manager", "textedit", "plugins", "inputview",
+];
 
 /// Have the Editor hear its own words, which is what clears the guard. Here
 /// rather than in editor.rn, where `events` names the Events view's module.

@@ -57,10 +57,9 @@ fn fold_row_with(S, role, open, text, icon, icon_color, toggle, extra) {
 }
 
 // The Inspector is its own scene and script (scenes/panels/inspector.toml),
-// whose form this fills; the right sheet's own form is Import's.
+// whose form this fills; the Import tab's is its own (importer.rn).
 const PANEL = "Editor/Shell/Body/Right/RightSheet/Inspector";
 const INSPECTOR_FORM = "Editor/Shell/Body/Right/RightSheet/Inspector/Scroll/Form";
-const FORM_NODE = "Editor/Shell/Body/Right/RightSheet/RightScroll/RightForm";
 
 /// How many rows the inspector's pool is actually showing.
 ///
@@ -136,10 +135,11 @@ pub fn open_pool(S) {
     open_form(S);
 }
 
-pub fn close_pool(S) {
-    crate::pool::sync(S, FORM_NODE, S.form, label_w(S), stacked(S));
+/// Put the rows a panel described onto its own form node.
+pub fn close_pool_into(S, host) {
+    crate::pool::sync(S, host, S.form, label_w(S), stacked(S));
     // The inspector's rows are not what the node holds now.
-    S.pool_keys.remove(FORM_NODE);
+    S.pool_keys.remove(host);
 }
 
 /// A row as `pool.rn` takes it, for a plugin's section.
@@ -180,11 +180,6 @@ pub fn note_row(S, height, role, text) {
     push(S, #{ full: true, height: height, controls: [#{ kind: "label", role: role, text: text }] });
 }
 
-/// Stop drawing the form, for a right dock showing something else.
-pub fn hide_form(S) {
-    crate::pool::hide(S, FORM_NODE);
-}
-
 // The label column, derived from the form: at a width neither column fits,
 // the label gives way first and the control keeps a usable size.
 fn label_w(S) {
@@ -199,7 +194,7 @@ pub fn sheet_w(S) {
 }
 
 fn form_w(S) {
-    let host = scene::get_node(FORM_NODE);
+    let host = scene::get_node(INSPECTOR_FORM);
     if !util::is_nil(host) {
         let r = ui::widget_rect(host);
         if !util::is_nil(r) && r.width > 0.0 {

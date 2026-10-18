@@ -2,7 +2,6 @@
 // needs, and where the last build landed. The verb is the engine's `export`
 // module, which is the same library `balaur export` runs.
 
-use crate::style;
 use crate::util;
 
 // The runtime every target puts the game on; a server target keeps its own.
@@ -54,11 +53,12 @@ pub fn report(S, e) {
     } else {
         said[target] = "";
     }
+    crate::window::changed(S);
 }
 
-pub fn draw(S) {
-    let k = S.theme;
-    let hosts = crate::window::sheet_form(S, "export", "Export", || { folder_button(S, k); });
+/// Fill the sheet: what its script asks for when Export is up.
+pub fn fill(S) {
+    let hosts = crate::window::sheet_form(S, "export", "Export", folder_button(S));
     if util::is_nil(hosts) {
         return;
     }
@@ -129,16 +129,17 @@ fn note(text, role) {
     }] }
 }
 
-fn folder_button(S, k) {
+// Reveal, beside the close, once an export has landed somewhere.
+fn folder_button(S) {
     if S.exporter.landed == "" {
-        return;
+        return [];
     }
-    if ui::button("Reveal", #{
-        height: 24, font_size: style::MD, corner_radius: 8, tooltip: "Show the last export in the file manager",
-        fill: k.bg_control, text_color: k.text_muted,
-    }) {
-        engine::reveal(S.exporter.landed);
-    }
+    let reveal = [#{
+        kind: "button", role: "action_form", text: "Reveal",
+        tooltip: "Show the last export in the file manager",
+        on: |_| { engine::reveal(S.exporter.landed); },
+    }];
+    reveal
 }
 
 // What a target can do right now, in the words the button will use.

@@ -1,7 +1,6 @@
 // The settings screen: every setting the engine, its plugins and this game
 // declare, grouped by the first segment of its path and searchable by any.
 
-use crate::style;
 use crate::util;
 
 // The search field this screen filters with; `crate::search` keys its own
@@ -208,10 +207,11 @@ fn row_w(S) {
     util::max(inner - SIDEBAR_W - SIDEBAR_GAP, 160.0)
 }
 
-pub fn draw(S) {
+/// Fill the sheet: what its script asks for when Settings is up.
+pub fn fill(S) {
     let k = S.theme;
     let stacked = ui::window_size()[0] < STACK_BELOW;
-    let hosts = crate::window::sheet_form(S, "settings", "Settings", || { save_button(S, k); });
+    let hosts = crate::window::sheet_form(S, "settings", "Settings", save_button(S));
     if util::is_nil(hosts) {
         return;
     }
@@ -259,13 +259,16 @@ fn picker_spec(S) {
 }
 
 
-fn save_button(S, k) {
+// Save, beside the close, while there is something to save.
+fn save_button(S) {
     if !S.settings.dirty {
-        return;
+        return [];
     }
-    if ui::button("Save", #{ height: 24, font_size: style::MD, corner_radius: 8, fill: k.primary_fill, text_color: k.text_on_primary }) {
-        commit(S);
-    }
+    let save = [#{
+        kind: "button", role: "action_form_primary", text: "Save",
+        on: |_| { commit(S); },
+    }];
+    save
 }
 
 /// The column down the left: the search box, and a row per category under
@@ -509,6 +512,7 @@ pub fn write(S, path, value) {
     settings::set(path, value);
     S.settings.dirty = true;
     apply(S);
+    crate::window::changed(S);
 }
 
 // Editor settings take effect as they change, not on save: a theme you have

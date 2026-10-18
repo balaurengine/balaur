@@ -1,0 +1,40 @@
+// The Import tab's one script: the file the Assets tab has selected, filled
+// by the Editor when the selection, the file or a setting moved.
+
+pub fn init(this) {
+    this.editor = scene::get_node("Editor");
+    for word in ["assets_changed", "outline_changed"] {
+        events::listen(this.node, word, this.editor);
+    }
+}
+
+pub fn on_assets_changed(this, _change) {
+    refresh(this);
+}
+
+pub fn on_outline_changed(this, _change) {
+    refresh(this);
+}
+
+/// A field has run its own handler by now, so what is left is to show what
+/// it changed.
+pub fn on_widget_event(this, event, node, value) {
+    if event == "click" || event == "change" || event == "submit" || event == "commit" {
+        refresh(this);
+    }
+}
+
+/// Fill what shows: on a word, and from the dock once it is visible.
+pub fn refresh(this) {
+    if this.node.get_component("widget", "visible") == false {
+        return;
+    }
+    let view = this.editor.call("import_fill");
+    if !(view is Object) {
+        return;
+    }
+    this.node.get_node("Name").patch_component("widget", #{ visible: view.ready, text: view.name });
+    this.node.get_node("From").patch_component("widget", #{ visible: view.ready, text: view.from });
+    this.node.get_node("Nothing").patch_component("widget", #{ visible: !view.ready, text: view.says });
+    this.node.get_node("Scroll").patch_component("widget", #{ visible: view.ready });
+}

@@ -11,7 +11,7 @@ pub fn state() {
 pub fn register() {
     #{
         panels: [#{ id: "counter", title: "Counter", draw: panel }],
-        dialogs: [#{ id: "counter-window", title: "Counter", draw: dialog }],
+        dialogs: [#{ id: "counter-window", title: "Counter", rows: dialog }],
         commands: [#{ title: "Count scripted nodes", icon: "Σ", shortcut: "", run: count }],
         inspector_sections: [section],
         startup_states: #{ "test:plugin_docks": selftest },
@@ -31,6 +31,8 @@ fn scripted(S) {
 pub fn count(S) {
     S.plugins.counter.shown = scripted(S);
     log::info(format!("{} scripted nodes", S.plugins.counter.shown));
+    let changed = S.kit.changed;
+    changed(S);
 }
 
 /// The dock, which the editor hands the node it made for this plugin.
@@ -52,8 +54,8 @@ pub fn panel(S, k, host) {
     rows(S, host, "body", specs);
 }
 
-/// The floating window, which is drawn: a plugin window has no node of its
-/// own yet, so this is the seam still on `ui::*`.
+/// The floating window's rows: the editor makes the window, its title and
+/// its close, and fills it with these when the plugin says it moved.
 pub fn dialog(S, k) {
     let shown = S.plugins.counter.shown;
     let said = if shown < 0 {
@@ -61,7 +63,8 @@ pub fn dialog(S, k) {
     } else {
         format!("{} scripted nodes", shown)
     };
-    ui::label(said, #{ role: "text_caption", text_color: k.text_muted, wrap: true });
+    let rows = [#{ full: true, controls: [#{ kind: "label", role: "text_caption", wrap: true, text: said }] }];
+    rows
 }
 
 /// An inspector section: the rows it adds after the built-in ones.
@@ -89,6 +92,7 @@ pub fn selftest(S) {
     } else {
         log::error("selftest FAILED: the registry lists no plugin");
     }
-    S.registry.open["counter-window"] = true;
+    let open = S.kit.open_dialog;
+    open(S, "counter-window");
     log::info("selftest plugin: done");
 }

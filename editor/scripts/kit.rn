@@ -34,7 +34,21 @@ pub fn make() {
         save_editor_settings: script::shared(save_prefs),
         short_path: script::shared(short_path),
         user_data_directory: script::shared(game_data),
+        changed: script::shared(changed),
+        open_dialog: script::shared(open_dialog),
     }
+}
+
+/// A plugin's word that what its docks and dialogs show moved: they fill
+/// again on it, as the editor's own panels do on theirs.
+fn changed(S) {
+    crate::signals::changed(S, "plugins");
+}
+
+/// Put a plugin's dialog up, by the id it registered it under.
+fn open_dialog(S, id) {
+    S.registry.open[id] = true;
+    changed(S);
 }
 
 /// Point `save::` at the game's own user data directory, and let `fs` reach

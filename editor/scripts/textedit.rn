@@ -2,7 +2,6 @@
 // viewport and type over it, rather than crossing to the inspector for a word.
 
 use crate::model;
-use crate::style;
 use crate::util;
 use crate::viewport;
 
@@ -61,34 +60,32 @@ pub fn update(S) {
         // 2D and 3D cameras project differently and the pointer does not.
         S.textedit.box_x = x - W / 2.0;
         S.textedit.box_y = y - H / 2.0;
+        crate::signals::changed(S, "textedit");
     }
 }
 
-// The field, over the point clicked. Enter keeps the text, Escape drops it.
-pub fn draw(S, k) {
+/// What the field over the point clicked shows: where it is, and the text it
+/// opens with. A node that went, or a selection moved off it, shuts it.
+pub fn view(S) {
     if S.textedit.node < 0 {
-        return;
+        return #{ open: false };
     }
-    // The node may have gone, or the selection moved off it.
     if S.textedit.node >= S.doc.len() || component(S.doc[S.textedit.node]).is_none() {
         close(S);
-        return;
+        return #{ open: false };
     }
-    let rect = #{ x: S.textedit.box_x, y: S.textedit.box_y, w: W, h: H };
-    style::sheet(k, "textedit", rect, 8.0, 4.0, || {
-        let (text, changed, submitted) = ui::text_field("textedit-field", "", #{
-            value: S.textedit.buffer, width: W - 20.0,
-        });
-        if changed {
-            S.textedit.buffer = text;
-        }
-        if submitted {
-            commit(S);
-        }
-    });
-    if ui::shortcut("escape") {
-        close(S);
-    }
+    #{ open: true, x: S.textedit.box_x, y: S.textedit.box_y, w: W, h: H, text: S.textedit.buffer }
+}
+
+/// What was typed so far, kept for Enter.
+pub fn typed(S, text) {
+    S.textedit.buffer = text;
+}
+
+/// Enter keeps the text; leaving the field without it drops it.
+pub fn submit(S, text) {
+    S.textedit.buffer = text;
+    commit(S);
 }
 
 fn commit(S) {
@@ -110,6 +107,10 @@ fn commit(S) {
 }
 
 pub fn close(S) {
+    if S.textedit.node < 0 {
+        return;
+    }
     S.textedit.node = -1;
     S.textedit.buffer = "";
+    crate::signals::changed(S, "textedit");
 }

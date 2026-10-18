@@ -69,6 +69,7 @@ pub fn start(S, name) {
         }
     }
     S.show_input = true;
+    crate::signals::changed(S, "inputview");
     S.showcase = q;
     log::info(format!("showcase {}: {} steps, {} acts", name, q.steps.len() + q.spans.len(), q.acts.len() + q.spans_ui.len()));
 }
@@ -279,7 +280,7 @@ fn tool_spot(S, tool) {
 // the pool answers where it drew the row, so a section moving does not move
 // the pointer off it. `None` before the form has drawn.
 fn form_spot(S, label) {
-    let host = scene::get_node("Editor/Shell/Body/Right/RightSheet/RightScroll/RightForm");
+    let host = scene::get_node("Editor/Shell/Body/Right/RightSheet/Inspector/Scroll/Form");
     if util::is_nil(host) {
         return None;
     }
@@ -875,10 +876,8 @@ fn theme_editor(S, q) {
         feed_pointer(S, x + 40.0 * ease(p), y);
     });
     at(q, 790, || release(S));
-    click(S, q, 870, || {
-        let box = S.themewin.get("save_at").unwrap_or(());
-        if box is Object { (box.x + box.width / 2.0, box.y + box.height / 2.0) } else { centre_of("Editor/Sheet/SheetBar/C2") }
-    }, || crate::themewin::save(S));
+    // The bar reads title, spring, Save, close: Save is its third node.
+    click(S, q, 870, || centre_of("Editor/Sheet/SheetBar/C2"), || crate::themewin::save(S));
     click(S, q, 950, || centre_of("Editor/Sheet/SheetBar/C3"), || crate::window::hide(S));
     // Put back what the take changed on disk, with the editor still wearing
     // the copy for the frames already written.

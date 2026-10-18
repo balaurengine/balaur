@@ -1,0 +1,37 @@
+// The text edit field's one script: up where a text node was double-clicked,
+// it hands what is typed to the Editor, Enter keeps it, and a blur drops it.
+
+pub fn init(this) {
+    this.editor = scene::get_node("Editor");
+    this.open = false;
+    events::listen(this.node, "textedit_changed", this.editor);
+}
+
+pub fn on_textedit_changed(this, _change) {
+    let view = this.editor.call("textedit_view");
+    if !(view is Object) {
+        return;
+    }
+    let field = this.node.get_node("Field");
+    if view.open && !this.open {
+        this.node.patch_component("widget", #{ visible: true, x: view.x, y: view.y });
+        field.patch_component("widget", #{ text: view.text, width: view.w - 20.0 });
+        ui::set_focus(field);
+    } else if !view.open {
+        this.node.patch_component("widget", #{ visible: false });
+    }
+    this.open = view.open;
+}
+
+pub fn on_widget_event(this, event, node, value) {
+    if node.name() != "Field" {
+        return;
+    }
+    if event == "change" {
+        this.editor.call("textedit_typed", value);
+    } else if event == "submit" {
+        this.editor.call("textedit_submit", value);
+    } else if event == "blur" {
+        this.editor.call("textedit_close");
+    }
+}

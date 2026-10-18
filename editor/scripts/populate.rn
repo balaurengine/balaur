@@ -37,8 +37,9 @@ pub fn open(S) {
     crate::window::show(S, SHEET);
 }
 
-pub fn draw(S) {
-    let hosts = crate::window::sheet_form(S, SHEET, "Populate", || {});
+/// Fill the sheet: what its script asks for when Populate is up.
+pub fn fill(S) {
+    let hosts = crate::window::sheet_form(S, SHEET, "Populate", []);
     if util::is_nil(hosts) {
         return;
     }

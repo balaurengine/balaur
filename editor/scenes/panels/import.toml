@@ -1,0 +1,62 @@
+# The Import tab, for whatever the Assets tab has selected: its name, what it
+# reads, and the settings it is imported with. One script answers them.
+
+[[nodes]]
+id = "panel"
+name = "Import"
+script = { source = "scripts/panels/import.rn" }
+[nodes.widget]
+kind = "column"
+grow = 1
+gap = [0, 4]
+visible = false
+
+[[nodes]]
+id = "name"
+name = "Name"
+parent = "panel"
+[nodes.widget]
+kind = "label"
+role = "text_title"
+font_size = 13
+text = ""
+padding = [10, 6, 10, 0]
+
+[[nodes]]
+id = "from"
+name = "From"
+parent = "panel"
+[nodes.widget]
+kind = "label"
+role = "text_code_quiet"
+font_size = 11
+text = ""
+padding = [10, 0, 10, 4]
+
+[[nodes]]
+id = "nothing"
+name = "Nothing"
+parent = "panel"
+[nodes.widget]
+kind = "label"
+role = "text_note"
+text = ""
+visible = false
+
+[[nodes]]
+id = "scroll"
+name = "Scroll"
+parent = "panel"
+[nodes.widget]
+kind = "scroll"
+axis = "vertical"
+grow = 1
+
+# A form whose fields change with the file, so the pool makes them.
+[[nodes]]
+id = "form"
+name = "Form"
+parent = "scroll"
+[nodes.widget]
+kind = "column"
+gap = [2, 2]

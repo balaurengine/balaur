@@ -2,7 +2,6 @@
 // beside it. Godot's Import dock, over `balaur_core::import`'s two sources —
 // `[import.<kind>]` in project.toml, then `<file>.toml`.
 
-use crate::style;
 use crate::util;
 
 // The keys each kind offers, in the order they are drawn. `fallback` is what
@@ -363,37 +362,30 @@ fn shipped(S, rel) {
     rows
 }
 
-// The Import tab, for whatever the Assets dock has selected. Empty until a
-// file is picked, the way the Inspector is empty without a node.
-pub fn panel(S, k) {
+// The Import tab's form, under its own scroll.
+const FORM = "Editor/Shell/Body/Right/RightSheet/Import/Scroll/Form";
+
+/// The Import tab, for whatever the Assets tab has selected: its form filled
+/// on the tab's own node, and what its head says handed back. Empty until a
+/// file is picked, the way the Inspector is empty without a node.
+pub fn fill(S) {
+    let k = S.theme;
     let rel = S.assets.sel;
     let specs = specs_for(S);
     if specs.len() == 0 {
         let why = if rel == "" { "select a file in Assets" } else { "nothing to import for this file" };
-        crate::inspector::hide_form(S);
-        style::empty(k, why);
-        return;
+        crate::pool::hide(S, FORM);
+        return #{ ready: false, says: why, name: "", from: "" };
     }
     let kind = kind_for(S, rel);
     let image = image_of(S, rel);
-    ui::add_space(6);
-    ui::row(#{ height: 24 }, || {
-        ui::add_space(10);
-        ui::label(util::last_segment(rel), #{ font_size: style::MD, font_weight: 700, text_color: k.text_default });
-    });
-    ui::row(#{ height: 20 }, || {
-        ui::add_space(10);
-        let from = if image != rel {
-            "reads " + image
-        } else if fs::exists(full(S, sidecar_of(rel))) {
-            sidecar_of(util::last_segment(rel))
-        } else {
-            "no settings file yet"
-        };
-        ui::label(format!("{}  ·  {}", kind, from), style::mono_sm(k.text_subtle));
-    });
-    // The same pool the inspector fills: one form under the right sheet, and
-    // whichever panel is up describes its rows.
+    let from = if image != rel {
+        "reads " + image
+    } else if fs::exists(full(S, sidecar_of(rel))) {
+        sidecar_of(util::last_segment(rel))
+    } else {
+        "no settings file yet"
+    };
     crate::inspector::open_pool(S);
     for spec in specs {
         row(S, k, rel, kind, spec);
@@ -403,5 +395,6 @@ pub fn panel(S, k) {
             crate::inspector::form_row(S, pair[0], [#{ kind: "label", text: pair[1], tooltip: pair[2], role: "text_caption", grow: 1 }]);
         }
     }
-    crate::inspector::close_pool(S);
+    crate::inspector::close_pool_into(S, FORM);
+    #{ ready: true, says: "", name: util::last_segment(rel), from: format!("{}  ·  {}", kind, from) }
 }

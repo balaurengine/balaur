@@ -223,6 +223,7 @@ pub fn open_palette(S, query) {
     // Dropped on every opening, so a component a reloaded plugin registered is
     // in the list the next time it is asked for.
     S.palette_cache = ();
+    crate::window::picker_changed(S);
 }
 
 /// The reader asking for a scale, which outranks what the screen wanted.
@@ -966,6 +967,7 @@ fn state_frames(S, spec) {
 }
 fn state_input(S) {
     S.show_input = true;
+    crate::signals::changed(S, "inputview");
 }
 fn state_show(S, name) {
     crate::showcase::start(S, name);

@@ -1,0 +1,200 @@
+// The input overlay's one script: it hears the keys, actions and buttons as
+// they go down and up, and the pointer as it moves, and places its chips,
+// ripples and drawn pointer from that. Nothing here reads the input itself.
+
+// How long a chip stays up after its key or button went back up, in seconds:
+// a tap is a few frames, which nobody watching a clip would catch.
+const HOLD = 1.0;
+// How long a click's ripple grows for, and how wide it starts and ends.
+const RIPPLE = 1.1;
+const RIPPLE_FROM = 18.0;
+const RIPPLE_TO = 140.0;
+const RINGS = 4;
+// The drawn pointer; the image's tip is its top-left corner.
+const PRESS = 22.0;
+
+pub fn init(this) {
+    this.editor = scene::get_node("Editor");
+    this.shown = false;
+    // A chip's name, and when it goes: zero while it is held.
+    this.chips = #{};
+    this.rings = [];
+    this.next_ring = 0;
+    this.at = (0.0, 0.0);
+    this.factor = 1.0;
+    for word in ["pointer_moved", "pointer_pressed", "pointer_released"] {
+        events::listen(this.node, word);
+    }
+    for word in ["inputview_changed", "stage_changed"] {
+        events::listen(this.node, word, this.editor);
+    }
+}
+
+/// The overlay was turned on or off, or the stage it sits under moved.
+pub fn on_inputview_changed(this, _change) {
+    show(this);
+}
+
+pub fn on_stage_changed(this, _change) {
+    show(this);
+}
+
+pub fn on_key_down(this, key) {
+    hold(this, this.editor.call("inputview_key", key));
+}
+
+pub fn on_key_up(this, key) {
+    let_go(this, this.editor.call("inputview_key", key));
+}
+
+pub fn on_action(this, name) {
+    hold(this, "⟐ " + name);
+}
+
+pub fn on_action_released(this, name) {
+    let_go(this, "⟐ " + name);
+}
+
+pub fn on_pointer_moved(this, spot) {
+    if !this.shown {
+        return;
+    }
+    let (x, y) = design(this, spot[0], spot[1]);
+    this.at = (x, y);
+    this.node.get_node("Pointer").patch_component("widget", #{ visible: true, inset: [x, y, -1.0, -1.0] });
+    this.node.get_node("Press").patch_component("widget", #{
+        inset: [x - PRESS / 2.0, y - PRESS / 2.0, -1.0, -1.0],
+    });
+}
+
+pub fn on_pointer_pressed(this, e) {
+    hold(this, button_label(e.button));
+    if !this.shown {
+        return;
+    }
+    let (x, y) = design(this, e.x, e.y);
+    ripple(this, x, y);
+    if e.button == "left" {
+        this.node.get_node("Press").patch_component("widget", #{
+            visible: true, inset: [x - PRESS / 2.0, y - PRESS / 2.0, -1.0, -1.0],
+        });
+    }
+}
+
+pub fn on_pointer_released(this, e) {
+    let_go(this, button_label(e.button));
+    if e.button == "left" {
+        this.node.get_node("Press").patch_component("widget", #{ visible: false });
+    }
+}
+
+/// The clock: a chip let go a moment ago comes down, and a ripple that ran
+/// its course goes, on the frame the repaint each asked for runs.
+pub fn update(this, _dt) {
+    let now = engine::unix_time();
+    let gone = [];
+    for (name, until) in this.chips {
+        if until > 0.0 && now >= until {
+            gone.push(name);
+        }
+    }
+    for name in gone {
+        this.chips.remove(name);
+    }
+    if gone.len() > 0 {
+        chips(this);
+    }
+    let kept = [];
+    for r in this.rings {
+        if now >= r.until {
+            this.node.get_node(format!("Wash{}", r.slot)).patch_component("widget", #{ visible: false });
+            this.node.get_node(format!("Ring{}", r.slot)).patch_component("widget", #{ visible: false });
+        } else {
+            kept.push(r);
+        }
+    }
+    this.rings = kept;
+    // A ripple the engine is easing moves on frames nothing else asks for.
+    if kept.len() > 0 {
+        ui::request_repaint();
+    }
+}
+
+fn show(this) {
+    let view = this.editor.call("inputview_view");
+    if !(view is Object) {
+        return;
+    }
+    this.shown = view.shown;
+    this.factor = view.factor;
+    this.node.patch_component("widget", #{ visible: view.shown });
+    this.node.get_node("Chips").patch_component("widget", #{ inset: [view.chips_x, view.chips_y, -1.0, -1.0] });
+}
+
+// Window pixels as the overlay's design pixels.
+fn design(this, x, y) {
+    let f = if this.factor > 0.0 { this.factor } else { 1.0 };
+    (x / f, y / f)
+}
+
+fn hold(this, name) {
+    if name == "" {
+        return;
+    }
+    this.chips[name] = 0.0;
+    chips(this);
+}
+
+fn let_go(this, name) {
+    if !this.chips.contains_key(name) {
+        return;
+    }
+    this.chips[name] = engine::unix_time() + HOLD;
+    ui::request_repaint(#{ after: HOLD + 0.05 });
+}
+
+fn chips(this) {
+    if !this.shown {
+        return;
+    }
+    let names = [];
+    for (name, _) in this.chips {
+        names.push(name);
+    }
+    names.sort();
+    this.editor.call("inputview_chips", names);
+}
+
+fn button_label(button) {
+    match button {
+        "left" => "LMB",
+        "right" => "RMB",
+        "middle" => "MMB",
+        _ => button,
+    }
+}
+
+// A ring that grows out from the click, and the wash under it: the engine
+// eases both, and the clock takes them away once they ran.
+fn ripple(this, x, y) {
+    let slot = this.next_ring % RINGS;
+    this.next_ring += 1;
+    for name in [format!("Wash{}", slot), format!("Ring{}", slot)] {
+        let node = this.node.get_node(name);
+        node.patch_component("widget", #{
+            visible: true, width: RIPPLE_FROM, height: RIPPLE_FROM, corner_radius: RIPPLE_FROM / 2.0,
+            inset: [x - RIPPLE_FROM / 2.0, y - RIPPLE_FROM / 2.0, -1.0, -1.0],
+        });
+        // Centred on the click as it grows, so the box's corner moves too.
+        let from = [x - RIPPLE_FROM / 2.0, y - RIPPLE_FROM / 2.0, -1.0, -1.0];
+        let to = [x - RIPPLE_TO / 2.0, y - RIPPLE_TO / 2.0, -1.0, -1.0];
+        animation::tween(node, #{ steps: [
+            #{ property: "widget/width", from: RIPPLE_FROM, to: RIPPLE_TO, duration: RIPPLE, ease: animation::EASE_OUT_CUBIC },
+            #{ property: "widget/height", from: RIPPLE_FROM, to: RIPPLE_TO, duration: RIPPLE, ease: animation::EASE_OUT_CUBIC, parallel: true },
+            #{ property: "widget/corner_radius", from: RIPPLE_FROM / 2.0, to: RIPPLE_TO / 2.0, duration: RIPPLE, ease: animation::EASE_OUT_CUBIC, parallel: true },
+            #{ property: "widget/inset", from: from, to: to, duration: RIPPLE, ease: animation::EASE_OUT_CUBIC, parallel: true },
+        ] });
+    }
+    this.rings.push(#{ slot: slot, until: engine::unix_time() + RIPPLE });
+    ui::request_repaint(#{ after: RIPPLE + 0.05 });
+}

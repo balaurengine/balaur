@@ -701,37 +701,15 @@ pub fn draw_ui(this) {
     if manager::showing(S) {
         manager::cover(S, true);
         manager::draw(S, S.theme);
-        if S.show_input {
-            inputview::draw(S);
-        }
         return;
     }
     manager::cover(S, false);
-    // After the layout: the strip drops columns as the dock narrows, so it
-    // cannot be filled until the dock's width is known.
+    // The code pane, the hooks list beside it and the box select: what is
+    // still drawn here, for want of a kind to hold it.
     center::draw(S);
-    // Every dock is nodes now: the scene lays them out, paints them, and calls
-    // `draw_dock_*` to fill them.
-    plugins::draw_dialogs(S, S.theme);
-    if S.show_input {
-        inputview::draw(S);
-    }
     if S.fontdemo {
         selftest::font_sheet(S);
     }
-    // Over everything but the palette: settings is a sheet you work in, the
-    // palette is a thing you summon on top of whatever you are working in.
-    exporter::draw(S);
-    // Under the sheets, over the viewport: a field that edits what is drawn
-    // belongs with the drawing, not over a dialog.
-    textedit::draw(S, S.theme);
-    settings::draw(S);
-    themewin::draw(S);
-    about::draw(S);
-    populate::draw(S);
-    palette::draw(S);
-    newnode::draw(S);
-    left::rename_draw(S);
 }
 
 // Six digits, so a frame directory sorts as it was captured.
@@ -741,12 +719,6 @@ fn padded(n) {
         s = "0" + s;
     }
     s
-}
-
-// The shell's side docks: the scene lays the box out and paints it, and this
-// fills it. `docks::draw` still owns what goes in.
-pub fn draw_dock_right(this) {
-    docks::draw_body(this.S, this.S.theme, "right");
 }
 
 // One hatch per painting view, so the scene names each rather than four of
@@ -794,24 +766,12 @@ pub fn draw_dock_tools_bottom(this) {
 
 // One hatch for every row the inspector's pool draws itself; the cursor in
 // `inspector` keeps the calls in step with the rows that pushed them.
-pub fn draw_about_update(this) {
-    about::draw_update(this.S);
-}
-
 pub fn draw_dock_bottom(this) {
     docks::draw_bottom_body(this.S, this.S.theme);
 }
 
 pub fn draw_manager_body(this) {
     manager::draw_body(this.S, this.S.theme);
-}
-
-pub fn draw_sheet_actions(this) {
-    crate::window::draw_actions(this.S);
-}
-
-pub fn draw_sheet_body(this) {
-    crate::window::draw_body(this.S);
 }
 
 // The outliner's context menu, one method a row. The right click that opened
@@ -923,6 +883,89 @@ pub fn on_chrome_changed(this, _change) {
 
 pub fn on_status_changed(this, _change) {
     signals::heard(this.S, "status_changed");
+}
+
+pub fn on_sheet_changed(this, _change) {
+    signals::heard(this.S, "sheet_changed");
+}
+
+pub fn on_picker_changed(this, _change) {
+    signals::heard(this.S, "picker_changed");
+}
+
+pub fn on_manager_changed(this, _change) {
+    signals::heard(this.S, "manager_changed");
+}
+
+pub fn on_plugins_changed(this, _change) {
+    signals::heard(this.S, "plugins_changed");
+}
+
+/// The Import tab's form, and what its head says.
+pub fn import_fill(this) {
+    crate::importer::fill(this.S)
+}
+
+/// Fill the plugins' open dialogs.
+pub fn dialogs_fill(this) {
+    plugins::fill_dialogs(this.S);
+}
+
+pub fn on_inputview_changed(this, _change) {
+    signals::heard(this.S, "inputview_changed");
+}
+
+/// The input overlay: where it goes, a key's chip, and the chips to show.
+pub fn inputview_view(this) {
+    inputview::view(this.S)
+}
+
+pub fn inputview_key(this, key) {
+    inputview::chip_of(key)
+}
+
+pub fn inputview_chips(this, names) {
+    inputview::fill_chips(this.S, names);
+}
+
+/// The text edit field: where it is, what is typed, Enter, and leaving it.
+pub fn textedit_view(this) {
+    textedit::view(this.S)
+}
+
+pub fn textedit_typed(this, text) {
+    textedit::typed(this.S, text);
+}
+
+pub fn textedit_submit(this, text) {
+    textedit::submit(this.S, text);
+}
+
+pub fn textedit_close(this) {
+    textedit::close(this.S);
+}
+
+pub fn on_textedit_changed(this, _change) {
+    signals::heard(this.S, "textedit_changed");
+}
+
+/// Fill the sheet with whichever screen is up, and hear it shut.
+pub fn sheet_fill(this) {
+    crate::window::fill(this.S);
+}
+
+pub fn sheet_closed(this) {
+    crate::window::closed(this.S);
+}
+
+/// Fill the picker with whichever of the palette, the node picker and rename
+/// is up, and hear it shut.
+pub fn picker_fill(this) {
+    crate::window::picker_fill(this.S);
+}
+
+pub fn picker_closed(this) {
+    crate::window::picker_closed(this.S);
 }
 
 pub fn on_rail_changed(this, _change) {

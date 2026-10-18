@@ -364,6 +364,7 @@ pub fn rename_open(S) {
     }
     S.renaming = true;
     S.rename_text = S.doc[S.sel].name;
+    crate::window::picker_changed(S);
 }
 
 pub fn rename_close(S) {
@@ -374,10 +375,8 @@ pub fn rename_close(S) {
 /// One field and one verb, on the picker every search box in the shell uses:
 /// the tree is a widget-layer list, which has no cell to edit in place, so
 /// the rename happens over it.
-pub fn rename_draw(S) {
-    if !S.renaming {
-        return;
-    }
+/// Fill the picker: what its script asks for while a rename is up.
+pub fn rename_fill(S) {
     let row_h = util::max(crate::style::row_h(S), 28.0);
     let host = crate::window::picker(S, #{
         width: 420.0,
@@ -392,10 +391,6 @@ pub fn rename_draw(S) {
             apply_rename(S);
         },
     });
-    if util::is_nil(host) {
-        rename_close(S);
-        return;
-    }
     crate::pool::sync(S, host, [#{ full: true, height: row_h, controls: [#{
         kind: "button", role: "action_form_primary", grow: 1, text: "Rename",
         on: |_| { apply_rename(S); },

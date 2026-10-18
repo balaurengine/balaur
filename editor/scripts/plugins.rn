@@ -1,7 +1,6 @@
 // Editor plugins: unsandboxed Rune modules adding panels, dialogs, commands,
 // inspector sections, property editors, overlays and start-up states.
 
-use crate::style;
 use crate::util;
 
 /// The registries, before any plugin has been seen.
@@ -124,7 +123,7 @@ fn add_all(S, id, declared) {
     for entry in util::vec(declared.get("dialogs").unwrap_or([])) {
         S.registry.dialogs.push(#{
             id: entry.id, title: entry.title,
-            draw: script::shared(entry.draw), owner: id,
+            rows: script::shared(entry.rows), owner: id,
         });
     }
     for entry in util::vec(declared.get("commands").unwrap_or([])) {
@@ -180,30 +179,66 @@ pub fn draw_overlays(S) {
     }
 }
 
-/// Every open plugin dialog, drawn as a sheet like every other surface.
-pub fn draw_dialogs(S, k) {
-    let n = 0;
+// Where the open dialogs go: a column down the left of the stage.
+const DIALOGS = "Editor/Dialogs";
+const DIALOG_W = 260.0;
+
+/// Fill the open plugin dialogs, a sheet each with its title and close over
+/// the rows the plugin hands back, and place them against the stage.
+pub fn fill_dialogs(S) {
+    let k = S.theme;
+    let out = [];
     for entry in S.registry.dialogs {
         if S.registry.open.get(entry.id).unwrap_or(false) != true {
             continue;
         }
-        let r = crate::layout::window_rect(S, n);
-        n = n + 1;
-        let draw = entry.draw;
-        crate::style::sheet(k, entry.id, r, 12, 0, || {
-            ui::row(#{ height: 30 }, || {
-                ui::label(entry.title, #{ font_size: style::MD, font_family: ui::FONT_HEADING, font_weight: 700, text_color: k.text_default });
-                ui::align_right(|| {
-                    if ui::circle_button(crate::icons::ui("close"), #{ diameter: 20, font_size: style::SM, text_color: k.text_muted, tooltip: "Close" }) {
-                        S.registry.open[entry.id] = false;
-                    }
-                });
-            });
-            ui::separator(k.border_default);
-            ui::add_space(6);
-            draw(S, k);
+        // Bound afresh: a closure made in a loop captures the binding.
+        let id = entry.id;
+        let rows = entry.rows;
+        let body = [
+            #{ kind: "row", align_items: "center", controls: [
+                #{ kind: "label", role: "text_title_dialog", text: entry.title },
+                #{ kind: "row", grow: 1 },
+                #{
+                    kind: "button", role: "icon_action", text: "", icon: crate::icons::ui("close"),
+                    tooltip: "Close",
+                    on: |_| {
+                        S.registry.open[id] = false;
+                        changed(S);
+                    },
+                },
+            ] },
+            #{ kind: "separator" },
+        ];
+        for row in util::vec(rows(S, k)) {
+            body.push(row_controls(util::obj(row)));
+        }
+        out.push(#{
+            kind: "panel", role: "sheet", width: DIALOG_W, padding: [12, 6, 12, 8], gap: [6, 6],
+            controls: body,
         });
     }
+    let vp = S.layout.stage;
+    util::fill(DIALOGS, #{ visible: out.len() > 0, x: vp.x + 12.0, y: vp.y + 12.0 });
+    crate::pool::strip(S, DIALOGS, out);
+}
+
+// A row a plugin hands back, as the pool's row specs read, laid out as one
+// line: its label, then its controls.
+fn row_controls(row) {
+    let controls = [];
+    if let Some(label) = row.get("label") {
+        controls.push(#{ kind: "label", role: "text_caption", text: label });
+    }
+    for one in util::vec(row.get("controls").unwrap_or([])) {
+        controls.push(one);
+    }
+    #{ kind: "row", gap: [6, 6], align_items: "center", controls: controls }
+}
+
+/// What a plugin's docks and dialogs show moved.
+pub fn changed(S) {
+    crate::signals::changed(S, "plugins");
 }
 
 /// A property editor a plugin registered for `datatype`, or `None`.

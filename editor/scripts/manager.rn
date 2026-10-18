@@ -209,7 +209,6 @@ pub fn draw(S, k) {
     tab_spots(S);
     // Escape closes the New project sheet first, and only then the screen.
     let sheet_up = crate::window::showing(S, NEW_SHEET);
-    new_sheet(S, k);
     if !sheet_up && ui::shortcut("escape") {
         close(S);
     }
@@ -640,6 +639,14 @@ pub fn check(S) {
     }
     S.manager.asked = true;
     S.manager.reading = release::check();
+    told(S);
+}
+
+// The start screen and the About sheet both show what a check and an install
+// keep, so each moving says so to both.
+fn told(S) {
+    crate::window::changed(S);
+    crate::signals::changed(S, "manager");
 }
 
 /// Whether an install is in flight.
@@ -679,6 +686,7 @@ pub fn heard(S, e) {
         }
         S.manager.failed = ev.get("message").unwrap_or("");
     }
+    told(S);
 }
 
 /// The newest release on a line, or an empty table when it holds none.
@@ -802,6 +810,57 @@ pub fn row_press(S, k, h, row, mine) {
     }
 }
 
+/// The verb a release row carries, as a control: what `row_press` draws.
+/// `()` where there is none: an install already running, or a held build.
+pub fn press_spec(S, row, mine) {
+    if row.get("current").unwrap_or(false) == true {
+        return #{ kind: "label", role: "text_code_quiet", font_size: 11, text: "installed" };
+    }
+    if installing(S) {
+        return ();
+    }
+    let download = row.get("download").unwrap_or("");
+    if download != "" {
+        return #{
+            kind: "button", role: "action_form", text: "Download", min_width: 88,
+            on: |_| { engine::open_url(download); },
+        };
+    }
+    if mine.held != "" {
+        return ();
+    }
+    let tag = row.get("tag").unwrap_or("");
+    #{
+        kind: "button", role: "action_form", min_width: 88,
+        text: if row.get("order").unwrap_or("") == "older" { "Downgrade" } else { "Install" },
+        on: |_| { put(S, "", tag); },
+    }
+}
+
+/// How far an install has got, as a row of controls: the megabytes as they
+/// arrive, then the unpack, and a bar for it.
+pub fn progress_controls(S) {
+    let job = S.manager.installing;
+    let said = if job.unpacking {
+        "unpacking " + job.tag
+    } else if job.total > 0 {
+        format!("downloading {}  ·  {} of {} MB", job.tag, job.done / MB, job.total / MB)
+    } else {
+        format!("downloading {}  ·  {} MB", job.tag, job.done / MB)
+    };
+    let part = if job.unpacking {
+        1.0
+    } else if job.total > 0 {
+        util::f(job.done) / util::f(job.total)
+    } else {
+        0.0
+    };
+    [
+        #{ kind: "label", role: "text_code_quiet", font_size: 11, text: said },
+        #{ kind: "progress_bar", width: 200, height: 4, value: part },
+    ]
+}
+
 fn install_named(S, k, h) {
     if installing(S) {
         return;
@@ -851,53 +910,47 @@ pub fn install_progress(S, k, w) {
 
 // A new project is named in the shell's own sheet, which is what Settings is
 // and what a phone needs: one screen at a time.
-fn new_sheet(S, k) {
-    crate::window::sheet(S, NEW_SHEET, "New project", || {}, || {
-        let w = crate::window::inner_w(S);
-        let h = util::max(style::row_h(S), 30.0);
-        let label_w = 72.0;
-        ui::row(#{ height: h, width: w }, || {
-            ui::label("name", #{ font_size: style::MD, text_color: k.text_muted, width: label_w });
-            let (name, _, _) = ui::text_field("manager-name", "my-game",
-                util::merge(style::field(k, w - label_w), #{ value: S.manager.name }));
-            S.manager.name = name;
-        });
-        ui::add_space(10);
-        ui::row(#{ height: h, width: w }, || {
-            ui::label("from", #{ font_size: style::MD, text_color: k.text_muted, width: label_w });
-            let ids = [];
-            for row in util::vec(project::templates()) {
-                ids.push(util::obj(row).id);
-            }
-            if ids.len() == 0 {
-                ids.push("empty");
-            }
-            let (picked, changed) = ui::dropdown("manager-template", S.manager.template, ids, #{
-                width: w - label_w, font_size: style::MD, height: h, text_color: k.text_default,
-            });
-            if changed {
-                S.manager.template = picked;
-            }
-        });
-        ui::add_space(10);
-        ui::row(#{ height: h, width: w }, || {
-            ui::label("in", #{ font_size: style::MD, text_color: k.text_muted, width: label_w });
-            ui::row(#{ height: h, width: w - label_w }, || {
-                ui::label(S.manager.parent, util::merge(style::mono_sm(k.text_subtle), #{ truncate: true }));
-            });
-        });
-        ui::add_space(16);
-        ui::row(#{ height: h, width: w }, || {
-            ui::align_right(|| {
-                if ui::button("Create", #{
-                    height: h, font_size: style::MD, font_weight: 700, corner_radius: 8,
-                    min_width: 140, padding_x: 16, fill: k.primary_bg, text_color: k.primary_text,
-                }) {
-                    create(S);
-                }
-            });
-        });
-    });
+pub fn new_fill(S) {
+    let hosts = crate::window::sheet_form(S, NEW_SHEET, "New project", []);
+    if util::is_nil(hosts) {
+        return;
+    }
+    let ids = [];
+    for row in util::vec(project::templates()) {
+        ids.push(util::obj(row).id);
+    }
+    if ids.len() == 0 {
+        ids.push("empty");
+    }
+    let h = util::max(style::row_h(S), 30.0);
+    let specs = [
+        #{ label: "name", height: h, controls: [#{
+            kind: "text_field", role: "input_form", grow: 1, text: S.manager.name,
+            placeholder: "my-game",
+            on: |text| { S.manager.name = text; },
+        }] },
+        #{ label: "from", height: h, controls: [#{
+            kind: "dropdown", role: "choice_form", grow: 1, text: S.manager.template, options: ids,
+            on: |picked| { S.manager.template = picked; },
+        }] },
+        #{ label: "in", height: h, controls: [#{
+            kind: "label", role: "text_code_quiet", font_size: 11, grow: 1, truncate: true,
+            text: S.manager.parent,
+        }] },
+    ];
+    if S.manager.failed != "" {
+        specs.push(#{ full: true, height: 0, controls: [#{
+            kind: "label", role: "note_warning", grow: 1, wrap: true, text: S.manager.failed,
+        }] });
+    }
+    specs.push(#{ full: true, height: h, slot_role: "layout_actions", controls: [
+        #{ kind: "row", grow: 1 },
+        #{
+            kind: "button", role: "action_form_primary", text: "Create", min_width: 140,
+            on: |_| { create(S); },
+        },
+    ] });
+    crate::pool::sync(S, hosts.form, specs, 72.0, false);
 }
 
 fn create(S) {
@@ -907,6 +960,7 @@ fn create(S) {
     let failed = made.get("error");
     if let Some(why) = failed {
         S.manager.failed = why;
+        crate::window::changed(S);
         return;
     }
     S.manager.failed = "";

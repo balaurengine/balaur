@@ -2,7 +2,6 @@
 // line has moved on. The check and the install are the Engine tab's own, so
 // the sheet and the start screen say the same thing.
 
-use crate::style;
 use crate::util;
 
 const SHEET = "about";
@@ -19,8 +18,9 @@ pub fn open(S) {
     }
 }
 
-pub fn draw(S) {
-    let hosts = crate::window::sheet_form(S, SHEET, "About Balaur", || {});
+/// Fill the sheet: what its script asks for when About is up.
+pub fn fill(S) {
+    let hosts = crate::window::sheet_form(S, SHEET, "About Balaur", []);
     if util::is_nil(hosts) {
         return;
     }
@@ -46,9 +46,8 @@ fn specs(S) {
     fact(out, "Platform", engine::target().os);
     fact(out, "License", "MIT");
     // A tab runs the build the page served it, so it has no line to follow.
-    // Drawn, because the check and the install are the start screen's own.
     if !crate::manager::in_tab() {
-        out.push(#{ full: true, height: 72, draw: "draw_about_update" });
+        update_rows(S, mine, out);
     }
     out.push(#{ full: true, height: 30, slot_role: "layout_actions", controls: [
         link("balaurengine.org", SITE),
@@ -71,50 +70,48 @@ fn link(text, url) {
     }
 }
 
-/// The hatch the update row draws into: the line's standing, the release to
-/// move to, and the press that asks again.
-pub fn draw_update(S) {
-    let k = S.theme;
-    let mine = util::obj(release::installed());
-    update(S, k, crate::window::inner_w(S), util::max(style::row_h(S), 30.0), mine);
-}
-
 // Where this build's line stands, the press that asks again, and the newest
-// release on it when there is one to move to.
-fn update(S, k, w, h, mine) {
+// release on it when there is one to move to; then what the check said and
+// how far an install has got.
+fn update_rows(S, mine, out) {
+    let k = S.theme;
     // A source build follows no line; the nightly is what it is nearest to.
     let line = if mine.channel == "" { "nightly" } else { mine.channel };
     let newest = crate::manager::newest_on(S, line);
-    ui::row(#{ height: h, width: w }, || {
-        let fresh = newest.get("order").unwrap_or("") == "newer";
-        ui::label(line + ": " + crate::manager::standing(S, line), style::mono_sm(
-            if fresh { k.success_text } else { k.text_subtle }));
-        ui::align_right(|| {
-            // Up to date already says it; only a release to move to gets a press.
-            if newest.get("id").unwrap_or("") != "" && newest.get("order").unwrap_or("") != "same" {
-                crate::manager::row_press(S, k, h, newest, mine);
-                ui::add_space(8);
-            }
-            let word = if S.manager.reading { "Checking" } else { "Check" };
-            if ui::button(word, #{
-                height: h, font_size: style::SM, corner_radius: 8, padding_x: 12,
-                fill: k.bg_control, text_color: k.text_muted,
-            }) {
-                crate::manager::check(S);
-            }
-        });
+    let fresh = newest.get("order").unwrap_or("") == "newer";
+    let controls = [#{
+        kind: "label", role: "text_code", font_size: 11, grow: 1,
+        text: line + ": " + crate::manager::standing(S, line),
+        text_color: if fresh { k.success_text } else { k.text_subtle },
+    }];
+    // Up to date already says it; only a release to move to gets a press.
+    if newest.get("id").unwrap_or("") != "" && newest.get("order").unwrap_or("") != "same" {
+        let press = crate::manager::press_spec(S, newest, mine);
+        if press is Object {
+            controls.push(press);
+        }
+    }
+    controls.push(#{
+        kind: "button", role: "action_form",
+        text: if S.manager.reading { "Checking" } else { "Check" },
+        on: |_| { crate::manager::check(S); },
     });
+    out.push(#{ full: true, height: 30, slot_role: "layout_actions", controls: controls });
     if mine.held != "" {
-        ui::label(mine.held, util::merge(style::mono_sm(k.text_subtle), #{ wrap: true, width: w }));
+        out.push(say(mine.held, k.text_subtle));
     }
     let said = if S.manager.failed != "" { S.manager.failed } else { S.manager.note };
     if said != "" {
-        let tone = if S.manager.failed != "" { k.warning_text } else { k.text_subtle };
-        ui::label(said, util::merge(style::mono_sm(tone), #{ wrap: true, width: w }));
+        out.push(say(said, if S.manager.failed != "" { k.warning_text } else { k.text_subtle }));
     }
     if crate::manager::installing(S) {
-        crate::manager::install_progress(S, k, w);
+        out.push(#{ full: true, height: 22, slot_role: "layout_actions", controls: crate::manager::progress_controls(S) });
     }
 }
 
-
+fn say(text, ink) {
+    #{ full: true, height: 0, controls: [#{
+        kind: "label", role: "text_code_quiet", font_size: 11, grow: 1, wrap: true,
+        text: text, text_color: ink,
+    }] }
+}

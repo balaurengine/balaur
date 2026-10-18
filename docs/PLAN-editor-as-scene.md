@@ -660,7 +660,7 @@ Cost.
 Left: the tab row's tools slot still draws the Timeline's clip each pass. A
 plugin's bottom dock is still drawn each pass into its own subtree. The
 Timeline, a recording's lanes, weights and the bone map are `draw` nodes
-(item 3 of 9.7).
+(item 2 of 9.8).
 
 ### 9.6 The chrome
 
@@ -695,20 +695,45 @@ Built 2026-10-18, phase 4.
   a state starts begins on the tick its replay does.
 - **Paste** is the UI's `pasted` event, for text no field took.
 
-Left for later phases: the code pane and the hooks list beside it (item 3
-of 9.7), the box-select marquee and the viewport's lines (item 5).
+Left for later phases: the code pane and the hooks list beside it (item 2
+of 9.8), the box-select marquee and the viewport's lines (item 4).
 
-### 9.7 What is left, in order
+### 9.7 Dialogs and sheets
 
-1. Dialogs and sheets: settings, theme, about, export, populate, palette, the
-   node picker, rename, plugin dialogs, and Import's head.
-2. The start screen.
-3. Kinds for what is drawn now because no kind holds it: the timeline and its
+Built 2026-10-18, phase 5.
+
+- **The sheet** (Settings, Theme, Export, About, Populate, New project) and
+  **the picker** (the palette, the node picker, rename) each carry one script.
+  The Editor fills whichever screen is up on `sheet_changed` or
+  `picker_changed`, and again after a control's own handler ran; a screen's
+  verbs beside the close (Save, Reveal) are specs in the bar. A `closed`
+  from the dialog is Escape or the dim. The drawn page under the sheet is
+  gone.
+- **About's update row** and **the new-project form** are rows; a check or
+  an install says `manager_changed` and moves the sheet with it.
+- **The text edit field** over a text node is `scenes/panels/textedit.toml`:
+  Enter keeps what was typed, a blur drops it.
+- **A plugin's dialog** returns rows, as its Inspector section does, and the
+  Editor makes the window, its title and its close. A plugin says its docks
+  and dialogs moved with the kit's `changed`, and opens a dialog with
+  `open_dialog`.
+- **The Import tab** is its own scene, its form on its own node: the right
+  sheet's drawn head and shared form are gone.
+- **The input overlay** a capture is taken with is
+  `scenes/panels/inputview.toml`. It hears the keys and actions as hooks,
+  and the pointer as `pointer_moved`, `pointer_pressed` and
+  `pointer_released`, which input says from no node while someone listens,
+  the UI included; the ripples are tweens.
+
+### 9.8 What is left, in order
+
+1. The start screen.
+2. Kinds for what is drawn now because no kind holds it: the timeline and its
    clip in the tab row, a recording's lanes, weights, the bone map, the code
    editor with its completion and refactor sheet.
-4. Plugin docks handed a word and filled on it, instead of drawn each pass.
-5. The viewport tools on pointer hooks, and the gizmo and overlay lines as
+3. Plugin docks handed a word and filled on it, instead of drawn each pass.
+4. The viewport tools on pointer hooks, and the gizmo and overlay lines as
    retained nodes.
-6. Remove `draw_ui`, the pool and the `draw` nodes from the editor, and move
+5. Remove `draw_ui`, the pool and the `draw` nodes from the editor, and move
    the self-tests off stepping every frame.
 

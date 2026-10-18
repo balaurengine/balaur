@@ -35,15 +35,16 @@ pub fn inner_w(S) {
 }
 
 /// Every open window, so one place decides what is on top and `esc` has
-/// something to close.
+/// something to close. `drawn` is the screen the sheet was last filled for,
+/// so a fill keyed on another screen's inputs writes its own rows again.
 pub fn state() {
-    // `drawn` is the sheet the last frame drew, so a shut it did not ask for
-    // can be told from one that has not opened yet.
     #{ open: "", drawn: "", demo: -1 }
 }
 
+/// Put the screen `id` up, which fills the sheet at the next word.
 pub fn show(S, id) {
     S.window.open = id;
+    changed(S);
 }
 
 pub fn hide(S) {
@@ -52,85 +53,72 @@ pub fn hide(S) {
     util::fill(SHEET, #{ open: false });
 }
 
-/// Whether egui shut the sheet since the last frame drew it: a `dialog` puts
-/// `open` back on Escape or a click on the dim. Read before this frame writes
-/// `open` again, and only for a sheet that was already up.
-fn shut_outside(S, id) {
-    let was = S.window.drawn == id;
-    S.window.drawn = id;
-    was && util::prop(SHEET, "open") == false
-}
-
 pub fn showing(S, id) {
     S.window.open == id
 }
 
-/// Draw `body` in a titled sheet. Returns nothing; the window closes itself
-/// through the title bar, the scrim or `esc`.
-///
-/// `actions` draws beside the close button, for a window with something to
-/// commit. A window with nothing passes a callback that draws nothing.
+/// What the screen up shows moved: the word its sheet fills on.
+pub fn changed(S) {
+    crate::signals::changed(S, "sheet");
+}
+
 const SHEET = "Editor/Sheet";
 
-pub fn sheet(S, id, title, actions, body) {
-    // Every screen calls this every frame, and they share the one node: a
-    // screen that is not up leaves it alone rather than shutting it.
-    if !showing(S, id) {
-        return;
+/// Fill whichever screen is up: what the sheet's script asks for.
+pub fn fill(S) {
+    match S.window.open {
+        "settings" => crate::settings::fill(S),
+        "theme" => crate::themewin::fill(S),
+        "export" => crate::exporter::fill(S),
+        "about" => crate::about::fill(S),
+        "populate" => crate::populate::fill(S),
+        "manager-new" => crate::manager::new_fill(S),
+        _ => (),
     }
-    if shut_outside(S, id) {
-        hide(S);
-        return;
+}
+
+/// The sheet shut itself, on Escape or a click on the dim: the screen that
+/// was up is not any more.
+pub fn closed(S) {
+    if S.window.open != "" && util::prop(SHEET, "open") == false {
+        S.window.open = "";
+        S.window.drawn = "";
     }
-    // The body and the bar's own verbs are drawn, so the hatch under this
-    // node runs them: what the sheet gives them is the frame, not the rows.
-    S.sheet_drawn = #{ actions: actions, body: body };
-    let box = size(S);
-    util::fill(SHEET, #{ open: true, width: box.w, height: box.h });
-    crate::pool::strip(S, SHEET + "/SheetBar", bar_controls(S, title));
-    util::fill(SHEET + "/SheetBody/SheetPage", #{ visible: true });
-    util::hide(SHEET + "/SheetBody/SheetSplit");
 }
 
 /// The bar across a sheet: its name, the verbs it carries, and the close.
-fn bar_controls(S, title) {
-    [
+fn bar_controls(S, title, actions) {
+    let out = [
         #{ kind: "label", role: "text_title_dialog", text: title },
         #{ kind: "row", grow: 1 },
-        #{ kind: "draw", draw: "draw_sheet_actions", width: 120 },
-        #{
-            kind: "button", role: "icon_action_dialog", text: "Close",
-            on: |_| { hide(S); },
-        },
-    ]
+    ];
+    for one in actions {
+        out.push(one);
+    }
+    out.push(#{
+        kind: "button", role: "icon_action_dialog", text: "Close",
+        on: |_| { hide(S); },
+    });
+    out
 }
 
-// A body for a sheet that has none: `|| {}` reads as a short-circuit there.
-fn nothing() {}
-
-/// The hosts a sheet whose rows are nodes fills: its own column down the
-/// left, and the rows beside it. Opens the sheet as `sheet` does and hides
-/// the drawn page, so one screen cannot show both.
+/// The hosts a screen fills: its own column down the left, and the rows
+/// beside it. Opens the sheet for `id`, with `actions`, control specs, beside
+/// its close; `()` when another screen is up.
 pub fn sheet_form(S, id, title, actions) {
     if !showing(S, id) {
         return ();
     }
-    // Every sheet fills the same hosts, so what another one drew last is not
+    // Every screen fills the same hosts, so what another one drew last is not
     // this one's: a fill keyed on its inputs writes its own rows again.
     if S.window.drawn != id {
         S.pool_keys.remove(SIDE_ROWS);
         S.pool_keys.remove(FORM);
+        S.window.drawn = id;
     }
-    if shut_outside(S, id) {
-        hide(S);
-        return ();
-    }
-    S.sheet_drawn = #{ actions: actions, body: nothing };
     let box = size(S);
     util::fill(SHEET, #{ open: true, width: box.w, height: box.h });
-    crate::pool::strip(S, SHEET + "/SheetBar", bar_controls(S, title));
-    util::hide(SHEET + "/SheetBody/SheetPage");
-    util::fill(SHEET + "/SheetBody/SheetSplit", #{ visible: true });
+    crate::pool::strip(S, SHEET + "/SheetBar", bar_controls(S, title, actions));
     // Shut by the asking: a screen with no sidebar leaves it alone, and one
     // that fills it shows it. Hidden, the rows beside it take the whole sheet.
     util::hide(SIDE);
@@ -151,8 +139,7 @@ pub fn picker_shut(S) {
     S.picker_focused = false;
 }
 
-/// Open the picker and answer where its rows go, or `()` when it was shut
-/// from the outside — Escape, or a click on the dim.
+/// Open the picker and answer where its rows go.
 ///
 /// `opts` names the glyph before the query, the `placeholder` behind it, the
 /// `query` itself and what to do with an edit (`on`) and an Enter
@@ -162,12 +149,6 @@ pub fn picker(S, opts) {
     // One width, taken from the screen: a phone is narrower than what a
     // laptop gets, and every column inside is measured off what is left.
     let width = util::min(util::f(opts.width), util::max(screen[0] - 32.0, 240.0));
-    // A `dialog` shuts itself on Escape or a click on the dim, and says so by
-    // putting `open` back. Read before `open` is written again, and only once
-    // the picker has drawn, which is what the focus flag records.
-    if S.picker_focused == true && util::prop(PICKER, "open") == false {
-        return ();
-    }
     util::fill(PICKER, #{ open: true, width: width });
     crate::pool::strip(S, PICKER + "/PickerHead", [
         #{ kind: "label", role: "text_mark_picker", text: opts.mark },
@@ -194,19 +175,32 @@ pub fn picker(S, opts) {
     PICKER + "/PickerScroll/PickerRows"
 }
 
-/// The two hatches a sheet keeps: the verbs beside its close, and its body.
-pub fn draw_actions(S) {
-    let held = S.sheet_drawn;
-    if held is Object {
-        let act = held.actions;
-        act();
+/// What the picker shows moved: the word its script fills on.
+pub fn picker_changed(S) {
+    crate::signals::changed(S, "picker");
+}
+
+/// Fill whichever of the palette, the node picker and rename is up.
+pub fn picker_fill(S) {
+    if S.palette {
+        crate::palette::fill(S);
+    } else if S.newnode {
+        crate::newnode::fill(S);
+    } else if S.renaming {
+        crate::left::rename_fill(S);
     }
 }
 
-pub fn draw_body(S) {
-    let held = S.sheet_drawn;
-    if held is Object {
-        let body = held.body;
-        body();
+/// The picker shut itself, on Escape or a click on the dim.
+pub fn picker_closed(S) {
+    if util::prop(PICKER, "open") != false {
+        return;
+    }
+    if S.palette {
+        crate::shell::close_palette(S);
+    } else if S.newnode {
+        crate::newnode::close(S);
+    } else if S.renaming {
+        crate::left::rename_close(S);
     }
 }

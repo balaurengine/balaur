@@ -83,8 +83,6 @@ fn node(S, id) {
         "bottom" => SHELL + "/Body/Centre/Bottom",
         "dockbody" => SHELL + "/Body/Centre/Bottom/DockBody",
         "status" => SHELL + "/Body/Centre/Bottom/Status",
-        "rightbody" => SHELL + "/Body/Right/RightSheet/RightBody",
-        "rightscroll" => SHELL + "/Body/Right/RightSheet/RightScroll",
         "railslot" => SHELL + "/Body/Centre/UpperRow/RailSlot",
         "rail" => SHELL + "/Body/Centre/UpperRow/RailSlot/Rail",
         "railtop" => SHELL + "/Body/Centre/UpperRow/RailSlot/RailTop",
@@ -402,11 +400,6 @@ pub fn compute(S) {
     // goes, since a box left at zero width still takes the row's gap beside it.
     show(S, "centre", !(crate::docks::one_at_a_time(S) && crate::docks::side_open(S)));
     size(S, "bottom", "height", dock_h);
-    // The right sheet's header, above the rows the pool makes: a `draw` node
-    // with no size takes whatever is left, which would be the whole sheet.
-    // Any other panel draws the whole sheet, so the form's scroll goes.
-    show(S, "rightscroll", right_form_up(S));
-    size(S, "rightbody", "height", right_head_h(S));
     size(S, "railslot", "width", rail_w);
     size(S, "rail", "height", crate::center::rail_span(grid, grid.rows));
     // The folded left dock's handle sits above the tools, so the rail starts
@@ -488,32 +481,6 @@ pub fn compute(S) {
     }
     // A dock's width decides how many of its tabs fit.
     crate::signals::docks(S);
-}
-
-// What the right sheet draws above its form: the tab row every panel has, and
-// then whatever the panel puts before its rows.
-fn right_head_h(S) {
-    let d = S.docks.right;
-    if d.shut {
-        return 0.0;
-    }
-    let rows = crate::docks::row_h(S) + 8.0;
-    // The Inspector draws nothing here: it is a panel of nodes of its own.
-    if d.active == "inspector" {
-        return 1.0;
-    }
-    if d.active == "import" {
-        return rows + 52.0;
-    }
-    // The sheet less its tab row and padding; a frame behind, like every box.
-    let sheet = box_of(S, "rightsheet");
-    util::max(rows, sheet.h - rows - 16.0)
-}
-
-/// Whether the panel up in the right dock is one of the pooled forms.
-fn right_form_up(S) {
-    let d = S.docks.right;
-    !d.shut && d.active == "import"
 }
 
 // A side dock's width: nothing when it holds no panel, its rail when it is
@@ -602,13 +569,6 @@ fn side_w(S, side, room, open_w) {
 /// Whether the left and right docks are both showing a panel.
 fn both_sides_open(S) {
     !crate::docks::folded(S, "left") && !crate::docks::folded(S, "right")
-}
-
-/// A plugin window: stacked down the left of the stage, so it never lands on
-/// the top bar the way a free-floating one did.
-pub fn window_rect(S, n) {
-    let m = S.layout;
-    rect(m.stage.x + 12.0, m.stage.y + 12.0 + (n as f64) * 176.0, 260.0, 164.0)
 }
 
 /// What one workspace pill is estimated at, for the showcase's pointer.

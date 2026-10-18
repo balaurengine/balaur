@@ -83,6 +83,7 @@ pub fn open(S) {
     S.newnode_cache = ();
     S.newnode_change = false;
     S.newnode_soft = "";
+    crate::window::picker_changed(S);
 }
 
 /// The picker over what the selected node can be changed to.
@@ -92,6 +93,7 @@ pub fn open_change(S) {
     }
     open(S);
     S.newnode_change = true;
+    crate::window::picker_changed(S);
 }
 
 pub fn close(S) {
@@ -136,10 +138,8 @@ pub fn place_source(S, source) {
     close(S);
 }
 
-pub fn draw(S) {
-    if !S.newnode {
-        return;
-    }
+/// Fill the picker: what its script asks for while the node picker is up.
+pub fn fill(S) {
     let row_h = util::max(style::row_h(S), 30.0);
     let specs = if S.newnode_soft != "" { source_specs(S, S.theme, row_h) } else { row_specs(S, S.theme, row_h) };
     let placeholder = if S.newnode_soft != "" {
@@ -159,10 +159,6 @@ pub fn draw(S) {
         on: |text| { S.newnode_query = text; },
         on_submit: |text| { S.newnode_query = text; },
     });
-    if util::is_nil(host) {
-        close(S);
-        return;
-    }
     crate::pool::sync(S, host, specs, 0.0, false);
 }
 

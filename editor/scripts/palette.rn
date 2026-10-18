@@ -78,6 +78,7 @@ fn commands(S) {
         command("Edit theme…", icons::ui("dark"), "", || crate::themewin::open(S)),
         command(if S.show_input { "Hide input overlay" } else { "Show input overlay" }, "⌨", "", || {
             S.show_input = !S.show_input;
+            crate::signals::changed(S, "inputview");
         }),
         // No chord: ⌥3 is the Animation workspace's, and one chord names one verb.
         command("Open animation timeline", "◷", "", || crate::docks::show(S, "timeline")),
@@ -157,12 +158,16 @@ fn commands(S) {
     }
     for entry in S.registry.commands {
         let run = entry.run;
-        list.push(command(entry.title, entry.icon, entry.shortcut, || run(S)));
+        list.push(command(entry.title, entry.icon, entry.shortcut, || {
+            run(S);
+            crate::plugins::changed(S);
+        }));
     }
     for entry in S.registry.dialogs {
         let wid = entry.id;
         list.push(command(format!("Open {}", entry.title), "▭", "", || {
             S.registry.open[wid] = true;
+            crate::plugins::changed(S);
         }));
     }
     // Component commands come from the engine's registry, so third-party
@@ -197,10 +202,8 @@ fn commands(S) {
     list
 }
 
-pub fn draw(S) {
-    if !S.palette {
-        return;
-    }
+/// Fill the picker: what its script asks for while the palette is up.
+pub fn fill(S) {
     let matched = matches(S);
     let row_h = util::max(crate::style::row_h(S), 30.0);
     let host = crate::window::picker(S, #{
@@ -215,10 +218,6 @@ pub fn draw(S) {
             S.palette_submit = true;
         },
     });
-    if util::is_nil(host) {
-        shell::close_palette(S);
-        return;
-    }
     crate::pool::sync(S, host, row_specs(S, matched, row_h), 0.0, false);
 }
 
