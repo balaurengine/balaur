@@ -1,0 +1,47 @@
+// The Timeline tab's one script: the Editor fills it when the clip, the
+// playhead or the room moved, and it hands back the scrubber, the key verbs
+// and a clip asked for. A key's own dot seeks to it.
+
+pub fn init(this) {
+    this.editor = scene::get_node("Editor");
+    for word in ["timeline_changed", "play_frame", "outline_changed"] {
+        events::listen(this.node, word, this.editor);
+    }
+    events::listen(this.node, "resized", this.node);
+}
+
+pub fn on_timeline_changed(this, _change) {
+    refresh(this);
+}
+
+pub fn on_play_frame(this, _change) {
+    refresh(this);
+}
+
+pub fn on_outline_changed(this, _change) {
+    refresh(this);
+}
+
+/// The lanes are laid out against the tab's width.
+pub fn on_resized(this, _box) {
+    refresh(this);
+}
+
+pub fn on_widget_event(this, event, node, value) {
+    let name = node.name();
+    if name == "Scrub" && event == "change" {
+        this.editor.call("timeline_seek", value);
+    } else if event == "click" && (name == "AddKey" || name == "DeleteKey" || name == "Create") {
+        this.editor.call("timeline_verb", name);
+    } else if event == "click" {
+        refresh(this);
+    }
+}
+
+/// Fill what shows: on a word, and from the dock once it is visible.
+pub fn refresh(this) {
+    if this.node.get_component("widget", "visible") == false {
+        return;
+    }
+    this.editor.call("timeline_fill");
+}

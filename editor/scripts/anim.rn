@@ -332,6 +332,7 @@ pub fn touch(S) {
         clip.dirty = true;
     }
     arm(S);
+    crate::signals::changed(S, "timeline");
 }
 
 // Create an inline clip on the player, named after it. With no player above
@@ -350,6 +351,7 @@ pub fn ensure_clip(S) {
     node.animation = #{ library: library, autoplay: name, speed_scale: 1.0, root_node: "" };
     S.clip = None;
     crate::signals::inspector(S);
+    crate::signals::changed(S, "timeline");
     arm(S);
     log::info(format!("created clip '{}' on {}", name, node.name));
     definition(S)
@@ -487,6 +489,7 @@ pub fn delete_key_at(S, t) {
 // Move the playhead. The engine poses the node; the editor samples nothing.
 pub fn seek(S, t) {
     S.anim.time = t;
+    crate::signals::changed(S, "timeline");
     let (node, found, _) = player(S);
     let found_some = found;
     if let Some(found) = found_some {
@@ -640,6 +643,7 @@ pub fn update(S) {
         save(S);
         S.clip = None;
         crate::signals::inspector(S);
+        crate::signals::changed(S, "timeline");
         arm(S);
     }
 }

@@ -4,7 +4,6 @@
 
 use crate::polygon;
 use crate::rig;
-use crate::style;
 use crate::util;
 
 const NAME_W = 92.0;
@@ -58,6 +57,7 @@ fn edit(S, label, body) {
     crate::history::record(S, label, None);
     body();
     crate::model::apply_component(S, "polygon");
+    crate::signals::changed(S, "weights");
 }
 
 // Bind: give every listed vertex all of its weight to the active bone.
@@ -253,133 +253,92 @@ fn bone_segments(S, bones) {
     out
 }
 
-pub fn body(S, k) {
-    ui::add_space(4);
+// The tab's own scene, under the bottom dock.
+const PANEL = "Editor/Shell/Body/Centre/Bottom/Weights";
+
+/// Fill the tab from the polygon: the verbs' scope, a head a bone, and a row a
+/// listed vertex with a field a weight. Called by its script on a word.
+pub fn fill(S) {
     let t = match table(S) {
         Some(t) => t,
         None => {
-            style::empty(k, "select a polygon with bones — the inspector's Sync Bones to Polygon lists them");
+            util::fill(PANEL + "/Missing", #{ visible: true });
+            util::fill(PANEL + "/Body", #{ visible: false });
             return;
         }
     };
-    verbs(S, k, t);
-    ui::add_space(4);
-    header(S, k, t);
-    ui::scroll("weights", #{ max_height: S.layout.body_h - 62.0 }, || {
-        ui::spacing(0, 1);
-        for at in t.at {
-            vertex_row(S, k, t, at);
-        }
+    util::fill(PANEL + "/Missing", #{ visible: false });
+    util::fill(PANEL + "/Body", #{ visible: true });
+    let picked = polygon::has_pick(S);
+    util::fill(PANEL + "/Body/Verbs/Scope", #{
+        text: if picked { format!("{} picked", t.at.len()) } else { format!("all {}", t.at.len()) },
     });
+    util::fill(PANEL + "/Body/Verbs/all", #{ visible: picked });
+    crate::pool::strip(S, PANEL + "/Body/Header", header(S, t));
+    let rows = [];
+    for at in t.at {
+        rows.push(vertex_row(S, t, at));
+    }
+    crate::pool::sync(S, PANEL + "/Body/Scroll/Rows", rows, 0.0, false);
 }
 
-fn verbs(S, k, t) {
-    ui::row(#{ height: 24 }, || {
-        ui::add_space(6);
-        let scope = if polygon::has_pick(S) {
-            format!("{} picked", t.at.len())
-        } else {
-            format!("all {}", t.at.len())
-        };
-        ui::label(scope, style::mono_sm(k.text_subtle));
-        ui::add_space(8);
-        for (label, tip) in [
-            ("bind", "Give every listed vertex all of its weight to the bone picked in the inspector"),
-            ("unbind", "Take the listed vertices off every bone"),
-            ("normalize", "Scale each listed vertex's weights so they sum to one"),
-            ("auto", "Weight by distance to each bone's segment"),
-            ("smooth", "Average each listed vertex with the ones sharing an edge"),
-        ] {
-            if ui::button(label, #{
-                height: 24, font_size: style::SM, font_weight: 700, tooltip: tip,
-                fill: k.bg_control, text_color: k.text_muted,
-            }) {
-                match label {
-                    "bind" => bind(S),
-                    "unbind" => unbind(S),
-                    "normalize" => normalize(S),
-                    "auto" => auto(S),
-                    "smooth" => smooth(S),
-                    _ => (),
-                }
-            }
-            ui::add_space(4);
-        }
-        if polygon::has_pick(S) {
-            if ui::button("all", #{
-                height: 24, font_size: style::SM, font_weight: 700,
-                tooltip: "List every vertex again",
-                fill: k.bg_control, text_color: k.text_muted,
-            }) {
-                polygon::clear_pick(S);
-            }
-        }
-    });
+/// A verb by the name of its button.
+pub fn verb(S, name) {
+    match name {
+        "bind" => bind(S),
+        "unbind" => unbind(S),
+        "normalize" => normalize(S),
+        "auto" => auto(S),
+        "smooth" => smooth(S),
+        "all" => polygon::clear_pick(S),
+        _ => (),
+    }
 }
 
-fn header(S, k, t) {
-    ui::row(#{ height: 20 }, || {
-        ui::add_space(6);
-        ui::row(#{ height: 20, width: NAME_W }, || {
-            ui::label("vertex", style::mono_sm(k.text_subtle));
+fn header(S, t) {
+    let out = [#{ kind: "label", role: "text_code_quiet", font_size: 11, width: NAME_W, text: "vertex" }];
+    for (i, bone) in t.bones.iter().enumerate() {
+        // Bound afresh: a closure made in a loop captures the binding.
+        let at = i;
+        // The bone's own last segment: a full path is wider than the column
+        // and the tooltip carries the rest.
+        out.push(#{
+            kind: "button", role: "chip", width: CELL_W, height: 20, text: util::leaf(bone.path),
+            tooltip: bone.path, checked: S.polygon.bone == Some(at),
+            on: |_| {
+                S.polygon.bone = Some(at);
+                crate::signals::inspector(S);
+            },
         });
-        for (i, bone) in t.bones.iter().enumerate() {
-            let on = S.polygon.bone == Some(i);
-            ui::row(#{ height: 20, width: CELL_W }, || {
-                // The bone's own last segment: a full path is wider than the
-                // column and the tooltip carries the rest.
-                if ui::button(util::leaf(bone.path), #{
-                    height: 20, font_size: style::SM, font_weight: if on { 700 } else { 400 }, tooltip: bone.path,
-                    fill: if on { k.primary_bg } else { k.bg_panel },
-                    text_color: if on { k.primary_text } else { k.text_subtle },
-                }) {
-                    S.polygon.bone = Some(i);
-                    crate::signals::inspector(S);
-                }
-            });
-        }
-        ui::row(#{ height: 20, width: CELL_W }, || {
-            ui::label("sum", style::mono_sm(k.text_subtle));
-        });
-    });
+    }
+    out.push(#{ kind: "label", role: "text_code_quiet", font_size: 11, width: CELL_W, text: "sum" });
+    out
 }
 
-fn vertex_row(S, k, t, at) {
-    ui::row(#{ height: ROW_H }, || {
-        ui::add_space(6);
-        let hot = S.polygon.hover == Some(at);
-        ui::row(#{ height: ROW_H, width: NAME_W }, || {
-            if ui::button(format!("{}", at), #{
-                height: 20, font_size: style::SM, font_family: ui::FONT_MONO,
-                tooltip: "Show this vertex alone in the viewport",
-                fill: if hot { k.primary_bg } else { k.bg_control },
-                text_color: if hot { k.primary_text } else { k.text_muted },
-            }) {
-                polygon::pick_vertex(S, at, false);
-            }
+fn vertex_row(S, t, at) {
+    let controls = [#{
+        kind: "button", role: "chip", width: NAME_W - 6.0, height: 20, text: format!("{}", at),
+        tooltip: "Show this vertex alone in the viewport", checked: S.polygon.hover == Some(at),
+        on: |_| { polygon::pick_vertex(S, at, false); },
+    }];
+    let total = 0.0;
+    for b in t.bones {
+        // Bound afresh: a closure made in a loop captures the binding.
+        let bone = b;
+        let was = weight_of(bone, at);
+        total += was;
+        controls.push(#{
+            kind: "number_field", width: CELL_W - 6.0, value: was, drag_speed: 0.01, decimals: 2,
+            min: 0.0, max: 1.0, fill: if was > 0.0 { "bg_control" } else { "bg_panel" },
+            on: |now| { edit(S, "set weight", || set_weight(bone, at, now)); },
         });
-        let total = 0.0;
-        for bone in t.bones {
-            let was = weight_of(bone, at);
-            total += was;
-            ui::row(#{ height: ROW_H, width: CELL_W }, || {
-                let (now, changed) = ui::number_field(was, #{
-                    width: CELL_W - 6.0, speed: 0.01, decimals: 2, min: 0.0, max: 1.0,
-                    fill: if was > 0.0 { k.bg_control } else { k.bg_panel },
-                    stroke: k.border_default,
-                    text_color: if was > 0.0 { k.text_default } else { k.text_subtle },
-                });
-                if changed {
-                    edit(S, "set weight", || set_weight(bone, at, now));
-                }
-            });
-        }
-        // A sum that is not one is what a Normalise is for, so it is said
-        // rather than silently corrected.
-        ui::row(#{ height: ROW_H, width: CELL_W }, || {
-            let off = util::abs(total - 1.0) > 0.01 && total > 0.0;
-            ui::label(format!("{:.2}", total),
-                style::mono_sm(if off { k.primary_text } else { k.text_subtle }));
-        });
+    }
+    // A sum that is not one is what a Normalise is for, so it is said rather
+    // than silently corrected.
+    let off = util::abs(total - 1.0) > 0.01 && total > 0.0;
+    controls.push(#{
+        kind: "label", role: if off { "text_caption_primary" } else { "text_code_quiet" }, font_size: 11,
+        width: CELL_W, text: format!("{:.2}", total),
     });
+    #{ full: true, height: ROW_H, controls: controls }
 }

@@ -4,7 +4,6 @@
 
 use crate::model;
 use crate::rig;
-use crate::style;
 use crate::util;
 
 const NAME_W = 128.0;
@@ -124,10 +123,12 @@ pub fn autofill(S) {
         }
     }
     log::info(format!("{} of {} canonical bones matched by name", found, HUMANOID.len()));
+    crate::signals::changed(S, "bonemap");
 }
 
 pub fn clear(S) {
     S.bonemap.bones = #{};
+    crate::signals::changed(S, "bonemap");
 }
 
 // Where the map is written, under the project's `animations/`, named after
@@ -160,106 +161,96 @@ pub fn save(S) {
     }
     S.bonemap.path = path;
     log::info(format!("{} bones written to {}", mapped.len(), path));
+    crate::signals::changed(S, "bonemap");
 }
 
-pub fn body(S, k) {
-    ui::add_space(4);
+// The tab's own scene, under the bottom dock.
+const PANEL = "Editor/Shell/Body/Centre/Bottom/Bonemap";
+
+/// Fill the tab from the rig and the map: the count, a row a canonical bone,
+/// and under the row being picked for, the rig's bones to pick from.
+pub fn fill(S) {
     let paths = bone_paths(S);
     if paths.len() == 0 {
-        style::empty(k, "select a rig — a node with bones under it — to map its bones");
+        util::fill(PANEL + "/Missing", #{ visible: true });
+        util::fill(PANEL + "/Body", #{ visible: false });
         return;
     }
-    verbs(S, k, paths);
-    ui::add_space(4);
-    ui::scroll("bonemap", #{ max_height: S.layout.body_h - 60.0 }, || {
-        ui::spacing(0, 1);
-        for name in HUMANOID {
-            row(S, k, paths, name);
+    util::fill(PANEL + "/Missing", #{ visible: false });
+    util::fill(PANEL + "/Body", #{ visible: true });
+    let filled = 0;
+    for (_, path) in S.bonemap.bones.iter() {
+        if path != "" {
+            filled += 1;
         }
+    }
+    util::fill(PANEL + "/Body/Verbs/Count", #{
+        text: format!("{} of {} mapped · {} bones in the rig", filled, HUMANOID.len(), paths.len()),
     });
+    let rows = [];
+    for name in HUMANOID {
+        for spec in row(S, paths, name) {
+            rows.push(spec);
+        }
+    }
+    crate::pool::sync(S, PANEL + "/Body/Scroll/Rows", rows, 0.0, false);
 }
 
-fn verbs(S, k, paths) {
-    ui::row(#{ height: 24 }, || {
-        ui::add_space(6);
-        let filled = 0;
-        for (_, path) in S.bonemap.bones.iter() {
-            if path != "" {
-                filled += 1;
-            }
-        }
-        ui::label(format!("{} of {} mapped · {} bones in the rig", filled, HUMANOID.len(), paths.len()),
-            style::mono_sm(k.text_subtle));
-        ui::add_space(8);
-        if ui::button("guess by name", #{
-            height: 24, font_size: style::SM, font_weight: 700,
-            tooltip: "Fill every row whose canonical name matches a bone, ignoring case and separators",
-            fill: k.secondary_bg, text_color: k.secondary_text,
-        }) {
-            autofill(S);
-        }
-        ui::add_space(4);
-        if ui::button("clear", #{
-            height: 24, font_size: style::SM, font_weight: 700, tooltip: "Empty every row",
-            fill: k.bg_control, text_color: k.text_muted,
-        }) {
-            clear(S);
-        }
-        ui::add_space(4);
-        if ui::button("save", #{
-            height: 24, font_size: style::SM, font_weight: 700,
-            tooltip: "Write the map as a `bone_map` asset, for animation.play's `retarget`",
-            fill: k.primary_bg, text_color: k.primary_text,
-        }) {
-            save(S);
-        }
-    });
+/// A verb by the name of its button.
+pub fn verb(S, name) {
+    match name {
+        "guess" => autofill(S),
+        "clear" => clear(S),
+        "save" => save(S),
+        _ => (),
+    }
 }
 
-fn row(S, k, paths, name) {
+// A canonical bone's row, and the rig's bones under it while it is the one
+// being picked for: a dock this narrow has nowhere to put a floating list,
+// and the row it belongs to is the one thing a reader has to keep track of.
+fn row(S, paths, name) {
     let picked = S.bonemap.bones.get(name).unwrap_or("");
     let open = S.bonemap.picking == Some(name);
-    ui::row(#{ height: 24 }, || {
-        ui::add_space(6);
-        ui::row(#{ height: 24, width: NAME_W }, || {
-            ui::label(name, style::mono(if picked == "" { k.text_subtle } else { k.text_default }));
-        });
-        if ui::button(if picked == "" { "—" } else { picked }, #{
-            height: 24, font_size: style::SM, text_align: ui::ALIGN_START, min_width: PICK_W,
-            tooltip: "Pick the bone this canonical name means on this rig",
-            fill: if picked == "" { k.bg_panel } else { k.bg_control },
-            text_color: if picked == "" { k.text_subtle } else { k.text_default },
-            stroke: k.border_default,
-        }) {
-            S.bonemap.picking = if open { None } else { Some(name) };
-        }
-        if picked != "" {
-            ui::add_space(4);
-            if ui::button("×", #{
-                height: 24, font_size: style::SM, tooltip: "Leave this row empty",
-                fill: k.bg_panel, text_color: k.text_subtle,
-            }) {
+    let controls = [
+        #{ kind: "label", role: if picked == "" { "text_code_quiet" } else { "text_code" }, font_size: 12, width: NAME_W, text: name },
+        #{
+            kind: "button", role: "chip", width: PICK_W, height: 22, text: if picked == "" { "—" } else { picked },
+            text_align: "start", checked: open, tooltip: "Pick the bone this canonical name means on this rig",
+            on: |_| {
+                S.bonemap.picking = if open { None } else { Some(name) };
+                crate::signals::changed(S, "bonemap");
+            },
+        },
+    ];
+    if picked != "" {
+        controls.push(#{
+            kind: "button", role: "chip_quiet", text: "×", tooltip: "Leave this row empty",
+            on: |_| {
                 S.bonemap.bones[name] = "";
-            }
-        }
-    });
-    if !open {
-        return;
-    }
-    // The picker, inline under its own row: a dock this narrow has nowhere
-    // to put a floating list, and the row it belongs to is the one thing a
-    // reader has to keep track of.
-    for path in paths {
-        ui::row(#{ height: 20 }, || {
-            ui::add_space(6 + NAME_W);
-            if ui::button(path, #{
-                height: 20, font_size: style::SM, text_align: ui::ALIGN_START, min_width: PICK_W,
-                fill: if path == picked { k.primary_bg } else { k.bg_panel },
-                text_color: if path == picked { k.primary_text } else { k.text_muted },
-            }) {
-                S.bonemap.bones[name] = path;
-                S.bonemap.picking = None;
-            }
+                crate::signals::changed(S, "bonemap");
+            },
         });
     }
+    let out = [#{ full: true, height: 24, controls: controls }];
+    if !open {
+        return out;
+    }
+    for p in paths {
+        // Bound afresh: a closure made in a loop captures the binding.
+        let path = p;
+        out.push(#{ full: true, height: 20, controls: [
+            #{ kind: "label", width: NAME_W, text: "" },
+            #{
+                kind: "button", role: "chip", width: PICK_W, height: 20, text: path, text_align: "start",
+                checked: path == picked,
+                on: |_| {
+                    S.bonemap.bones[name] = path;
+                    S.bonemap.picking = None;
+                    crate::signals::changed(S, "bonemap");
+                },
+            },
+        ] });
+    }
+    out
 }

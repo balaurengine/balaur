@@ -26,11 +26,6 @@ pub fn mono_sm(color) {
     #{ role: "text_caption", text_color: color }
 }
 
-/// One step up, for a value that carries the row.
-pub fn mono_lg(color) {
-    #{ role: "text_code", text_color: color }
-}
-
 /// A panel section heading; the caller draws it upper case.
 pub fn heading(k) {
     #{ role: "text_heading" }
@@ -77,13 +72,4 @@ pub fn px(S, value) {
 /// where a finger picks it, a cursor's line otherwise.
 pub fn row_h(S) {
     if S.touchscreen { crate::shell::TOUCH_CONTROL } else { 24.0 }
-}
-
-/// What a panel says when it has nothing: one line, centred, quiet.
-pub fn empty(k, text) {
-    ui::add_space(14);
-    ui::row(#{ height: 20 }, || {
-        ui::add_space(10);
-        ui::label(text, mono_sm(k.text_subtle));
-    });
 }

@@ -1,0 +1,24 @@
+// The event bindings tab's one script: the selected node's rows, filled by
+// the Editor when the node, the document or the tab moved, and again after a
+// row's own control ran.
+
+pub fn init(this) {
+    this.editor = scene::get_node("Editor");
+    for word in ["outline_changed", "inspector_changed"] {
+        events::listen(this.node, word, this.editor);
+    }
+}
+
+pub fn on_outline_changed(this, _change) {
+    this.editor.call("events_fill");
+}
+
+pub fn on_inspector_changed(this, _change) {
+    this.editor.call("events_fill");
+}
+
+pub fn on_widget_event(this, event, node, value) {
+    if event == "click" || event == "change" || event == "submit" || event == "commit" {
+        this.editor.call("events_fill");
+    }
+}

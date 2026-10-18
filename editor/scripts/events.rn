@@ -356,19 +356,20 @@ pub fn convert_to_script(S) {
 /// The node the document area hands a tab whose rows are nodes.
 const PANEL = "Editor/Shell/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Stage/DocPanel";
 
-/// Stop showing the view, for the frame a document tab that draws is up.
-pub fn hide() {
-    util::hide(PANEL);
-}
-
 /// Where the rows go, which the self-test reads back.
 pub fn rows_host() {
     PANEL + "/DocScroll/DocRows"
 }
 
-/// The document tab: the selected node's rows, and the variables they read.
-pub fn view(S, k) {
-    util::fill(PANEL, #{ visible: true });
+/// The document tab: the selected node's rows, and the variables they read,
+/// up while the Events tab is; what its script asks for when the node or
+/// the tab moved.
+pub fn fill(S) {
+    let up = S.doc_open && S.doctab == "events";
+    util::fill(PANEL, #{ visible: up });
+    if !up {
+        return;
+    }
     let node = model::selected_node(S);
     crate::pool::strip(S, PANEL + "/DocHead", [
         #{ kind: "label", role: "text_heading", grow: 1,

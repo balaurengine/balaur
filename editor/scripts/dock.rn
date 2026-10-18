@@ -7,28 +7,7 @@ use crate::icons;
 use crate::model;
 use crate::session;
 use crate::shell;
-use crate::style;
 use crate::util;
-
-/// The right-hand hint for a panel: the Timeline's clip, until its lanes are
-/// nodes too. Every other panel says what it has to in its own scene.
-pub fn hint(S, id, room) {
-    if id == "timeline" {
-        let (node, _, _) = anim::player(S);
-        let text = match anim::definition(S) {
-            None => "no clip",
-            Some(def) => {
-                let name = anim::clip_name(node);
-                format!("0.00 – {:.2} s · {} · {}",
-                    anim::length(def),
-                    if name == "" { "unnamed" } else { name },
-                    anim::library_path(node).unwrap_or("inline"))
-            }
-        };
-        return text;
-    }
-    ""
-}
 
 // What the last frame cost, against the budget: the Profiler's headline, in
 // the tab row because the panel's body is the table it fills.
@@ -395,127 +374,109 @@ pub fn drop_card(S, card) {
 
 // Keyframe timeline over the engine's clip (scripts/anim.rn is the adapter):
 // scrubbing seeks the engine's player, so the viewport shows the engine's pose.
-pub fn timeline(S, k) {
+const TIMELINE = "Editor/Shell/Body/Centre/Bottom/Timeline";
+const NAME_W = 150.0;
+
+/// Fill the Timeline tab: what the player is missing, or the clip's ruler,
+/// rules, lanes and keys placed by time against the tab's width, the playhead
+/// and the scrubber. What its script asks for when any of them moved.
+pub fn timeline_fill(S) {
+    let k = S.theme;
     let (node, _, _) = anim::player(S);
-    ui::add_space(4);
-    let def = match anim::definition(S) {
+    let found = anim::definition(S);
+    let def = match found {
         Some(def) => def,
         None => {
-            ui::row(#{ height: 30 }, || {
-                ui::add_space(12);
-                let missing = if anim::component(node).is_none() {
-                    node.name + " has no clip"
-                } else {
-                    format!("{}: clip '{}' is not in its library", node.name, anim::clip_name(node))
-                };
-                ui::label(missing, style::mono_lg(k.text_subtle));
-                ui::add_space(12);
-                if ui::button(icons::ui("add") + " Create clip", #{
-                    height: 24, font_size: style::MD, font_weight: 700,
-                    fill: k.primary_fill, text_color: k.text_on_primary,
-                }) {
-                    anim::ensure_clip(S);
-                }
-            });
+            let missing = if anim::component(node).is_none() {
+                node.name + " has no clip"
+            } else {
+                format!("{}: clip '{}' is not in its library", node.name, anim::clip_name(node))
+            };
+            util::fill(TIMELINE + "/Missing", #{ visible: true });
+            util::fill(TIMELINE + "/Missing/Says", #{ text: missing });
+            util::fill(TIMELINE + "/Missing/Create", #{ icon: icons::ui("add") });
+            util::fill(TIMELINE + "/Body", #{ visible: false });
             return;
         }
     };
-    let length = anim::length(def);
+    util::fill(TIMELINE + "/Missing", #{ visible: false });
+    util::fill(TIMELINE + "/Body", #{ visible: true });
+    let length = util::max(anim::length(def), 1e-4);
     let tracks = anim::tracks(def);
-    let name_w = 150.0;
-    let lane_x = name_w + 14.0;
-    let lane_w = util::max(120.0, ui::available_width() - lane_x - 24.0);
-    let lanes_h = (tracks.len() as f64) * LANE_H;
-
-    // The ruler carries the scale the lanes are read against: a rule per tick
-    // straight down through them, and the playhead over the top.
-    ui::row(#{ height: 24 }, || {
-        ui::add_space(8);
-        ui::row(#{ height: 24, width: name_w }, || {
-            if ui::button(icons::ui("add") + " Key", #{
-                role: "chip", checked: true, tooltip: "Insert keyframe at playhead (or press K)",
-            }) {
-                anim::add_key(S, S.anim.time);
-            }
-            if ui::button("− Key", #{ role: "chip", tooltip: "Delete keyframe at playhead" }) {
-                anim::delete_key_at(S, S.anim.time);
-            }
-        });
-        ui::align_right(|| {
-            ui::add_space(8);
-            ui::label(format!("{:.2} / {:.2} s", S.anim.time, length), style::mono_sm(k.text_subtle));
-        });
+    let lane_x = NAME_W + 14.0;
+    let box = ui::widget_rect(scene::get_node(TIMELINE));
+    let width = if util::is_nil(box) { 800.0 } else { util::f(box.width) };
+    let lane_w = util::max(120.0, width - lane_x - 24.0);
+    let at = |t| 8.0 + lane_x + (t / length) * lane_w;
+    let name = anim::clip_name(node);
+    util::fill(TIMELINE + "/Body/Head/AddKey", #{ icon: icons::ui("add") });
+    util::fill(TIMELINE + "/Body/Head/Clip", #{
+        text: format!("{} · {}", if name == "" { "unnamed" } else { name }, anim::library_path(node).unwrap_or("inline")),
     });
+    util::fill(TIMELINE + "/Body/Head/Time", #{ text: format!("{:.2} / {:.2} s", S.anim.time, anim::length(def)) });
+    // The ruler carries the scale the lanes are read against: a label and a
+    // rule per tick straight down through the lanes.
     let step = tick_step(length);
-    ui::row(#{ height: 20 }, || {
-        ui::add_space(8.0 + lane_x);
-        let t = 0.0;
-        let cursor = 0.0;
-        while t <= length + 1e-4 {
-            let x = (t / length) * lane_w;
-            if x - cursor > 0.0 {
-                ui::add_space(x - cursor);
-            }
-            ui::label(format!("{:.2}", t), style::mono_sm(k.text_subtle));
-            cursor = x + 26.0;
-            t += step;
-        }
-    });
-    // Rules and playhead, drawn from the sheet's corner so they cross lanes.
-    let top = ui::layout_y();
+    let ticks = [];
+    let rules = [];
     let t = 0.0;
     while t <= length + 1e-4 {
-        let x = 8.0 + lane_x + (t / length) * lane_w;
-        ui::rect_stroke(x, top, 0.6, lanes_h, #{ stroke: k.border_default, stroke_width: 1.0 });
+        ticks.push(#{
+            kind: "label", role: "text_code_quiet", font_size: 11, absolute: true,
+            inset: [at(t), 2.0, -1.0, -1.0], text: format!("{:.2}", t),
+        });
+        rules.push(#{
+            kind: "row", absolute: true, inset: [at(t), 0.0, -1.0, 0.0],
+            width: 1, fill: "border_default", interactive: false,
+        });
         t += step;
     }
-    let head_x = 8.0 + lane_x + (S.anim.time / util::max(length, 1e-4)) * lane_w;
-    ui::rect_stroke(head_x, top - 6.0, 0.6, lanes_h + 6.0, #{ stroke: k.primary_text, stroke_width: 1.5 });
-
-    ui::scroll("timeline-tracks", #{ max_height: util::min(lanes_h, S.layout.body_h - 60.0) }, || {
-        for (index, track) in tracks.iter().enumerate() {
-            let label = anim::track_label(track);
-            let color = if index % 2 == 0 { k.primary_text } else { k.secondary_text };
-            ui::row(#{ height: LANE_H }, || {
-                ui::add_space(8);
-                ui::row(#{ height: LANE_H, width: name_w }, || {
-                    ui::dot(color, 6);
-                    ui::add_space(6);
-                    ui::label(label, style::mono_sm(k.text_default));
-                });
-                ui::add_space(14);
-                let cursor = 0.0;
-                for key in util::vec(track.get("keys").unwrap_or([])) {
-                    let t = util::f(key.get("time").unwrap_or(0.0));
-                    let x = util::max(0.0, (t / length) * lane_w - 5.0);
-                    if x - cursor > 0.0 {
-                        ui::add_space(x - cursor);
-                        cursor = x;
-                    }
-                    let before = t <= S.anim.time + 1e-4;
-                    if ui::button("", #{
-                        height: 11, min_width: 11, corner_radius: 10,
-                        fill: if before { color } else { k.bg_app },
-                        stroke: color,
-                        tooltip: format!("{:.2} s", t),
-                    }) {
-                        anim::seek(S, t);
-                    }
-                    cursor += 13.0;
-                }
+    crate::pool::strip(S, TIMELINE + "/Body/Ruler", ticks);
+    crate::pool::strip(S, TIMELINE + "/Body/Lanes/Rules", rules);
+    util::fill(TIMELINE + "/Body/Lanes/Playhead", #{
+        inset: [at(util::min(S.anim.time, length)) - 1.0, 0.0, -1.0, 0.0],
+    });
+    let rows = [];
+    for (index, track) in tracks.iter().enumerate() {
+        let color = if index % 2 == 0 { k.primary_text } else { k.secondary_text };
+        let keys = [];
+        for key in util::vec(track.get("keys").unwrap_or([])) {
+            // Bound afresh: a closure made in a loop captures the binding.
+            let when = util::f(key.get("time").unwrap_or(0.0));
+            let before = when <= S.anim.time + 1e-4;
+            // A key is its mark: filled once the playhead has passed it.
+            keys.push(#{
+                kind: "button", role: "chip_quiet", text: if before { "●" } else { "○" },
+                font_size: 13, padding: 0, text_color: color,
+                absolute: true, inset: [(when / length) * lane_w - 6.0, 2.0, -1.0, -1.0],
+                tooltip: format!("{:.2} s", when),
+                on: |_| { anim::seek(S, when); },
             });
         }
-    });
-    // The scrubber sits under the lanes, spanning exactly the lane column.
-    ui::row(#{ height: 20 }, || {
-        ui::add_space(8.0 + lane_x);
-        let (t, scrubbed) = ui::slider(S.anim.time, 0.0, length, #{
-            width: lane_w, rail: k.bg_control, fill: k.primary_text, knob: k.bg_app,
-        });
-        if scrubbed {
-            anim::seek(S, t);
+        rows.push(#{ full: true, height: LANE_H, controls: [
+            #{ kind: "row", width: NAME_W, gap: [6, 6], align_items: "center", padding: [8, 0, 0, 0], controls: [
+                #{ kind: "row", width: 6, height: 6, corner_radius: 3, fill: color },
+                #{ kind: "label", role: "text_code", font_size: 11, text: anim::track_label(track) },
+            ] },
+            #{ kind: "row", width: lane_w, height: LANE_H, margin: [14, 0, 0, 0], controls: keys },
+        ] });
+    }
+    crate::pool::sync(S, TIMELINE + "/Body/Lanes/Scroll/Tracks", rows, 0.0, false);
+    util::fill(TIMELINE + "/Body/ScrubRow", #{ padding: [8.0 + lane_x, 0.0, 0.0, 0.0] });
+    util::fill(TIMELINE + "/Body/ScrubRow/Scrub", #{ width: lane_w, value: S.anim.time, max: anim::length(def) });
+}
+
+/// The Timeline tab's verbs, by the name of the button pressed.
+pub fn timeline_verb(S, verb) {
+    match verb {
+        "AddKey" => anim::add_key(S, S.anim.time),
+        "DeleteKey" => anim::delete_key_at(S, S.anim.time),
+        "Create" => {
+            anim::ensure_clip(S);
         }
-    });
+        _ => (),
+    }
+    crate::signals::changed(S, "timeline");
 }
 
 const LANE_H = 26.0;
@@ -696,128 +657,79 @@ fn open_at(S, f) {
     crate::signals::inspector(S);
 }
 
-// Session: the recordings this game has made, and the one being played back.
-// The lanes are the Animate timeline's over ticks instead of seconds, and
-// clicking the ruler seeks — backwards by rebuilding and running to it again.
-pub fn session_view(S, k) {
-    ui::add_space(4);
+// The Recordings tab while one is open: the replay's transport and lanes.
+const LANES = "Editor/Shell/Body/Centre/Bottom/Lanes";
+const LANE_NAME_W = 120.0;
+
+/// Fill the recording lanes: the transport and scrubber, where the replay
+/// parted from the recording, a lane a kind of event with its marks placed by
+/// tick against the tab's width, and everything recorded at the playhead.
+pub fn lanes_fill(S) {
+    let k = S.theme;
     let split = replay::divergence_tick();
     let first = S.session.first;
     let last = S.session.last;
     let span = util::max(1.0, util::f(last - first));
-    let name_w = 120.0;
-    let lane_w = util::max(120.0, ui::available_width() - name_w - 60.0);
-
-    ui::row(#{ height: 24 }, || {
-        ui::add_space(8);
-        ui::row(#{ height: 24, width: name_w - 12.0 }, || {
-            let playing = replay::state() == replay::STATE_PLAYING;
-            if ui::button(if playing { "⏸ Pause" } else { "▶ Play" }, #{
-                height: 24, font_size: style::SM, font_weight: 700,
-                fill: k.primary_bg, text_color: k.primary_text,
-            }) {
-                session::toggle_pause(S);
-            }
-            if ui::button("⇥", #{
-                height: 24, font_size: style::SM, font_weight: 700, tooltip: "One recorded tick forward",
-                fill: k.bg_control, text_color: k.text_muted,
-            }) {
-                session::step(S);
-            }
-            if ui::button("■", #{
-                height: 24, font_size: style::SM, font_weight: 700, tooltip: "Back to the edited scene",
-                fill: k.bg_control, text_color: k.text_muted,
-            }) {
-                session::close(S);
-                return;
-            }
-        });
-        // Before the first frame is fed the position is one tick short of the
-        // session's start, which is off the near end of the ruler.
-        let at = util::max(0.0, util::f(replay::position()) - util::f(first));
-        let (t, scrubbed) = ui::slider(at, 0.0, span, #{
-            width: lane_w,
-            rail: k.bg_control, fill: k.primary_fill, knob: k.bg_app,
-        });
-        if scrubbed {
-            session::seek(S, first + util::i(t));
-        }
-        ui::add_space(6);
-        ui::label(format!("{} / {}", replay::position(), last), style::mono_sm(k.text_subtle));
-    });
-
+    let box = ui::widget_rect(scene::get_node(LANES));
+    let width = if util::is_nil(box) { 800.0 } else { util::f(box.width) };
+    let lane_w = util::max(120.0, width - LANE_NAME_W - 60.0);
+    let playing = replay::state() == replay::STATE_PLAYING;
+    util::fill(LANES + "/Head/Play", #{ text: if playing { "⏸ Pause" } else { "▶ Play" } });
+    // Before the first frame is fed the position is one tick short of the
+    // session's start, which is off the near end of the ruler.
+    let at = util::max(0.0, util::f(replay::position()) - util::f(first));
+    util::fill(LANES + "/Head/Scrub", #{ value: at, max: span });
+    util::fill(LANES + "/Head/At", #{ text: format!("{} / {}", replay::position(), last) });
     // A divergence is information, not a failure: the replay ran, and this is
     // the tick at which it stopped reproducing what was recorded.
-    if split is Object {
-        ui::row(#{ height: 20 }, || {
-            ui::add_space(8);
-            ui::label(format!("parted from the recording at tick {}", split.tick),
-                style::mono_sm(k.primary_text));
-        });
-    }
-
-    ui::scroll("session-lanes", (), || {
-        ui::spacing(4, 2);
-        for lane in S.session.lanes {
-            ui::row(#{ height: 20 }, || {
-                ui::add_space(8);
-                ui::row(#{ height: 20, width: name_w - 12.0 }, || {
-                    ui::label(lane.name, style::mono_sm(k.text_muted));
-                });
-                lane_marks(S, k, lane, first, span, lane_w);
+    let parted = if split is Object { format!("parted from the recording at tick {}", split.tick) } else { "" };
+    util::fill(LANES + "/Parted", #{ visible: parted != "", text: parted });
+    let rows = [];
+    for lane in S.session.lanes {
+        let marks = [];
+        for mark in lane.marks {
+            // Bound afresh: a closure made in a loop captures the binding.
+            let tick = mark.tick;
+            let x = util::clamp(util::f(tick - first) / span, 0.0, 1.0) * (lane_w - 6.0);
+            marks.push(#{
+                kind: "button", role: "chip_quiet", text: "▮", font_size: 9, padding: 0,
+                absolute: true, inset: [x, -1.0, -1.0, -1.0],
+                text_color: if tick <= replay::position() { k.primary_text } else { k.border_default },
+                tooltip: format!("{}: {}", tick, mark.label),
+                on: |_| { session::seek(S, tick); },
             });
         }
-        detail(S, k);
-    });
+        rows.push(#{ full: true, height: 20, controls: [
+            #{ kind: "label", role: "text_code_quiet", font_size: 11, width: LANE_NAME_W - 12.0, text: lane.name, padding: [8, 0, 0, 0] },
+            #{ kind: "row", width: lane_w, height: 20, controls: marks },
+        ] });
+    }
+    // Everything recorded at the tick the playhead is on, in the order it
+    // happened.
+    for e in util::vec(replay::events(S.session.at, S.session.at)) {
+        rows.push(#{ full: true, height: 20, controls: [
+            #{ kind: "label", role: "text_code_quiet", font_size: 11, text: format!("{}", e.tick), padding: [8, 0, 0, 0] },
+            #{ kind: "label", role: "text_code_quiet", font_size: 11, text: e.kind },
+            #{ kind: "label", role: "text_code", font_size: 11, text: e.label },
+        ] });
+    }
+    crate::pool::sync(S, LANES + "/Scroll/Rows", rows, 0.0, false);
 }
 
-// One lane's dots, placed by tick. Drawn as a row of fixed-width slots rather
-// than free-positioned marks, because the widget seam has no canvas.
-fn lane_marks(S, k, lane, first, span, lane_w) {
-    let slots = util::i(util::max(24.0, util::min(160.0, lane_w / 6.0)));
-    let hits = [];
-    for _ in 0..slots {
-        hits.push(());
+/// The lanes' transport, by the name of the button pressed.
+pub fn lanes_verb(S, verb) {
+    match verb {
+        "Play" => session::toggle_pause(S),
+        "Step" => session::step(S),
+        _ => session::close(S),
     }
-    for mark in lane.marks {
-        let at = util::f(mark.tick - first) / span;
-        let i = util::i(util::clamp(at * util::f(slots - 1), 0.0, util::f(slots - 1)));
-        hits[i] = mark;
-    }
-    let w = lane_w / util::f(slots);
-    for (i, hit) in hits.iter().enumerate() {
-        ui::row(#{ height: 20, width: w }, || {
-            if hit is Object {
-                let behind = hit.tick <= replay::position();
-                if ui::button("", #{
-                    height: 8, min_width: util::max(4.0, w - 2.0),
-                    tooltip: format!("{}: {}", hit.tick, hit.label),
-                    fill: if behind { k.primary_text } else { k.border_default }, text_color: k.text_muted,
-                }) {
-                    session::seek(S, hit.tick);
-                }
-            }
-        });
-    }
+    crate::signals::changed(S, "recordings");
 }
 
-// Everything recorded at the tick the playhead is on, in the order it
-// happened.
-fn detail(S, k) {
-    let at = S.session.at;
-    let rows = util::vec(replay::events(at, at));
-    if rows.len() == 0 {
-        return;
-    }
-    ui::add_space(6);
-    for e in rows {
-        ui::row(#{ height: 20 }, || {
-            ui::add_space(8);
-            ui::label(format!("{}", e.tick), style::mono_sm(k.text_subtle));
-            ui::label(e.kind, style::mono_sm(k.text_muted));
-            ui::label(e.label, style::mono_sm(k.text_default));
-        });
-    }
+/// The scrubber, at `t` ticks into the recording.
+pub fn lanes_seek(S, t) {
+    session::seek(S, S.session.first + util::i(t));
+    crate::signals::changed(S, "recordings");
 }
 
 // The Recordings panel's rows, under its own scroll; the dock hides the panel

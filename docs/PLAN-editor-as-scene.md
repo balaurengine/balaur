@@ -657,10 +657,8 @@ Gone: the shared bottom nodes (`BottomChrome`, `BottomRows`, `BottomCards`,
 `util::taken`, and the tab row's hints for Assets, Debugger, Profiler and
 Cost.
 
-Left: the tab row's tools slot still draws the Timeline's clip each pass. A
-plugin's bottom dock is still drawn each pass into its own subtree. The
-Timeline, a recording's lanes, weights and the bone map are `draw` nodes
-(item 1 of 9.9).
+Left: a plugin's bottom dock is still drawn each pass into its own subtree
+(item 1 of 9.10).
 
 ### 9.6 The chrome
 
@@ -695,8 +693,8 @@ Built 2026-10-18, phase 4.
   a state starts begins on the tick its replay does.
 - **Paste** is the UI's `pasted` event, for text no field took.
 
-Left for later phases: the code pane and the hooks list beside it (item 1
-of 9.9), the box-select marquee and the viewport's lines (item 3).
+Left for later phases: the box-select marquee and the viewport's lines
+(item 2 of 9.10).
 
 ### 9.7 Dialogs and sheets
 
@@ -736,14 +734,32 @@ releases are pooled rows. An example card opens a copy of the example, which
 its note always said and no click did. Escape closes the screen through the
 keys' `cancel`.
 
-### 9.9 What is left, in order
+### 9.9 The views no kind held
 
-1. Kinds for what is drawn now because no kind holds it: the timeline and its
-   clip in the tab row, a recording's lanes, weights, the bone map, the code
-   editor with its completion and refactor sheet.
-2. Plugin docks handed a word and filled on it, instead of drawn each pass.
-3. The viewport tools on pointer hooks, and the gizmo and overlay lines as
+Built 2026-10-18, phase 7. What stayed drawn because no kind held it is
+nodes now, each a scene with one script that fills on a word.
+
+- **The code pane** is `scenes/panels/code.toml`: the code kind with its
+  breakpoints and problems as theme colours, the caret as a `caret` event,
+  and the hooks list beside it. **Completion** and **the refactor sheet** are
+  their own scenes; completion's keys take the typing ahead of the field.
+- **The Timeline tab** fills on `timeline_changed`, `play_frame` and
+  `resized`. The ruler's ticks, the rules down the lanes and each key are
+  absolute children; a key is a button that seeks to itself.
+- **A recording's lanes** take the Recordings tab while one is open, and
+  fill on `recordings_changed` and `play_frame`. A mark seeks to its tick.
+- **Weights** is a table of pooled rows: a vertex's button picks it, a bone's
+  head makes it the active bone, and each weight is a number field that
+  writes through `history`. It fills on `weights_changed`, which every edit
+  says, and on `inspector_changed`, which the polygon's pick says.
+- **The Bone map** is the canonical skeleton as pooled rows, the rig's bones
+  under the row being picked for. It fills on `bonemap_changed`.
+- **The Events tab** fills on the outline and the Inspector's words.
+
+### 9.10 What is left, in order
+
+1. Plugin docks handed a word and filled on it, instead of drawn each pass.
+2. The viewport tools on pointer hooks, and the gizmo and overlay lines as
    retained nodes.
-4. Remove `draw_ui`, the pool and the `draw` nodes from the editor, and move
+3. Remove `draw_ui`, the pool and the `draw` nodes from the editor, and move
    the self-tests off stepping every frame.
-

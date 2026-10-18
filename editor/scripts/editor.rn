@@ -740,26 +740,6 @@ fn report_view(S) {
     }
 }
 
-pub fn draw_view_timeline(this) {
-    dock::timeline(this.S, this.S.theme);
-}
-
-pub fn draw_view_recordings(this) {
-    dock::session_view(this.S, this.S.theme);
-}
-
-pub fn draw_view_weights(this) {
-    weights::body(this.S, this.S.theme);
-}
-
-pub fn draw_view_bonemap(this) {
-    bonemap::body(this.S, this.S.theme);
-}
-
-pub fn draw_dock_tools_bottom(this) {
-    docks::draw_tools(this.S, this.S.theme, "bottom");
-}
-
 // One hatch for every row the inspector's pool draws itself; the cursor in
 // `inspector` keeps the calls in step with the rows that pushed them.
 pub fn draw_dock_bottom(this) {
@@ -969,6 +949,67 @@ pub fn code_caret(this, caret) {
 
 pub fn code_gutter(this, line) {
     center::code_gutter(this.S, line);
+}
+
+/// Fill the event bindings tab.
+pub fn events_fill(this) {
+    crate::events::fill(this.S);
+}
+
+/// An open recording's lanes: fill them, the transport and the scrubber.
+pub fn lanes_fill(this) {
+    dock::lanes_fill(this.S);
+}
+
+pub fn lanes_verb(this, verb) {
+    dock::lanes_verb(this.S, verb);
+}
+
+pub fn lanes_seek(this, t) {
+    dock::lanes_seek(this.S, t);
+}
+
+/// The Timeline tab: fill it, seek the scrubber, and its verbs.
+pub fn timeline_fill(this) {
+    dock::timeline_fill(this.S);
+}
+
+pub fn timeline_seek(this, t) {
+    anim::seek(this.S, t);
+}
+
+pub fn timeline_verb(this, verb) {
+    dock::timeline_verb(this.S, verb);
+}
+
+pub fn on_timeline_changed(this, _change) {
+    signals::heard(this.S, "timeline_changed");
+}
+
+/// Fill the Weights tab from the polygon being edited.
+pub fn weights_fill(this) {
+    weights::fill(this.S);
+}
+
+pub fn weights_verb(this, verb) {
+    weights::verb(this.S, verb);
+}
+
+pub fn on_weights_changed(this, _change) {
+    signals::heard(this.S, "weights_changed");
+}
+
+/// Fill the Bone map tab from the rig selected and the map so far.
+pub fn bonemap_fill(this) {
+    bonemap::fill(this.S);
+}
+
+pub fn bonemap_verb(this, verb) {
+    bonemap::verb(this.S, verb);
+}
+
+pub fn on_bonemap_changed(this, _change) {
+    signals::heard(this.S, "bonemap_changed");
 }
 
 /// Fill the hooks list beside the code.

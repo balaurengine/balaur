@@ -16,7 +16,7 @@ const STAGE = "stage_changed";
 const PANELS = [
     "problems", "docs", "assets", "library", "tiles", "machine", "recordings", "debugger",
     "sheet", "picker", "manager", "textedit", "plugins", "inputview",
-    "code", "complete", "refactor",
+    "code", "complete", "refactor", "timeline", "weights", "bonemap",
 ];
 
 /// Have the Editor hear its own words, which is what clears the guard. Here

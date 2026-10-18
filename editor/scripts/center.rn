@@ -601,12 +601,4 @@ pub fn draw(S) {
     if S.viewport_live {
         viewport(S, k);
     }
-    // The event bindings fill a node; every other document tab draws, so the
-    // node goes away for them.
-    if !S.doc_open || S.doctab != "events" {
-        crate::events::hide();
-    }
-    if S.doc_open && S.doctab == "events" {
-        crate::events::view(S, k);
-    }
 }

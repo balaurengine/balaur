@@ -513,48 +513,32 @@ name = "Debugger"
 parent = "bottom"
 instance = "scenes/panels/debugger.toml"
 
-# The four views that genuinely paint: lanes with a transport, and two
-# painting tools where the pointer is the input. A node each, so the scene
-# names every view and a reader can see which of them draw.
+# The Timeline tab, an open recording's lanes, the Weights table and the
+# Bone map, each its own scene: see scenes/panels/timeline.toml, lanes.toml,
+# weights.toml and bonemap.toml.
 [[nodes]]
-id = "bottom_timeline"
-name = "BottomTimeline"
+id = "timeline"
+name = "Timeline"
 parent = "bottom"
-[nodes.widget]
-kind = "draw"
-draw = "draw_view_timeline"
-visible = false
-grow = 1
+instance = "scenes/panels/timeline.toml"
 
 [[nodes]]
-id = "bottom_recordings"
-name = "BottomRecordings"
+id = "lanes"
+name = "Lanes"
 parent = "bottom"
-[nodes.widget]
-kind = "draw"
-draw = "draw_view_recordings"
-visible = false
-grow = 1
+instance = "scenes/panels/lanes.toml"
 
 [[nodes]]
-id = "bottom_weights"
-name = "BottomWeights"
+id = "weights"
+name = "Weights"
 parent = "bottom"
-[nodes.widget]
-kind = "draw"
-draw = "draw_view_weights"
-visible = false
-grow = 1
+instance = "scenes/panels/weights.toml"
 
 [[nodes]]
-id = "bottom_bonemap"
-name = "BottomBonemap"
+id = "bonemap"
+name = "Bonemap"
 parent = "bottom"
-[nodes.widget]
-kind = "draw"
-draw = "draw_view_bonemap"
-visible = false
-grow = 1
+instance = "scenes/panels/bonemap.toml"
 
 # Where a plugin dock's own subtree goes, above the status strip rather than
 # after it: `docks.rn` makes one child here per registered dock.
@@ -633,6 +617,7 @@ instance = "scenes/panels/stage.toml"
 id = "doc_panel"
 name = "DocPanel"
 parent = "stage"
+script = { source = "scripts/panels/events.rn" }
 [nodes.widget]
 kind = "panel"
 role = "sheet_doc"
