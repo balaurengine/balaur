@@ -395,8 +395,8 @@ fn edit_source(S, rel, from, to) {
         None => model::source(S, rel).unwrap_or(""),
     };
     let text = current.replace(from, to);
-    ui::set_field_text("edit:" + abs, text);
     S.script_buffers[abs] = text;
+    crate::center::code_written(S);
     S.script_dirty[abs] = true;
     crate::signals::bars(S);
 }
@@ -407,8 +407,8 @@ fn restore_source(S, rel, q) {
     if original == "" {
         return;
     }
-    ui::set_field_text("edit:" + abs, original);
     S.script_buffers[abs] = original;
+    crate::center::code_written(S);
     shell::save_active(S);
 }
 

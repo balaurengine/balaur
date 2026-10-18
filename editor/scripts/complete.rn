@@ -2,11 +2,9 @@
 // under the caret, from the same `script::complete` an editor outside Balaur
 // reaches through `balaur lsp`.
 
-use crate::style;
 use crate::util;
 
-// The list's box, in design pixels.
-const W = 320.0;
+// The list's rows, in design pixels.
 const ROW = 22.0;
 const MAX_ROWS = 8;
 
@@ -117,30 +115,33 @@ pub fn update(S, rel, source, caret) {
     S.complete.signature = script::signature(rel, source, line, col);
 }
 
-/// Move the selection, accept, or close. Answers whether the key was ours, so
-/// the code editor does not also act on it.
-pub fn key(S) {
+/// The list's keys while it is up: the arrows move the pick, Enter and Tab
+/// accept it, and Escape closes the list.
+pub fn key(S, name) {
     if !S.complete.open {
-        return false;
-    }
-    if ui::shortcut("escape") {
-        reset(S);
-        return true;
+        return;
     }
     let count = S.complete.items.len();
-    if ui::shortcut("arrowdown") {
-        S.complete.pick = (S.complete.pick + 1) % count;
-        return true;
+    match name {
+        "Down" => S.complete.pick = (S.complete.pick + 1) % count,
+        "Up" => S.complete.pick = (S.complete.pick + count - 1) % count,
+        "Accept" => accept(S),
+        "Tab" => accept(S),
+        _ => reset(S),
     }
-    if ui::shortcut("arrowup") {
-        S.complete.pick = (S.complete.pick + count - 1) % count;
-        return true;
+    crate::signals::changed(S, "complete");
+}
+
+/// A row clicked: accept that one.
+pub fn pick(S, row) {
+    for (i, one) in rows(S).iter().enumerate() {
+        if one == row {
+            S.complete.pick = i;
+            accept(S);
+            crate::signals::changed(S, "complete");
+            return;
+        }
     }
-    if ui::shortcut("tab") || ui::shortcut("enter") {
-        accept(S);
-        return true;
-    }
-    false
 }
 
 // Replace the prefix under the caret with the chosen item.
@@ -169,6 +170,7 @@ fn accept(S) {
     S.script_buffers[path] = text;
     S.script_dirty[path] = true;
     crate::signals::bars(S);
+    crate::center::code_written(S);
     reset(S);
 }
 
@@ -188,54 +190,30 @@ fn glyph(kind) {
 
 /// The list, under the caret, with the picked entry's doc line under it. One
 /// sheet, not two: a second overlay beside this one runs off the pane.
-pub fn draw(S, k) {
-    if !S.complete.open {
-        return;
+// A row each completion, its mark, its label and its detail.
+fn rows(S) {
+    let k = S.theme;
+    let out = [];
+    for one in S.complete.items {
+        out.push(util::row(glyph(one.kind), one.label, one.detail, k.text_muted));
     }
-    let rows = util::min(S.complete.items.len(), MAX_ROWS);
-    let item = S.complete.items[S.complete.pick];
-    let doc_h = if item.doc == "" { 0.0 } else { 34.0 };
-    let h = (rows as f64) * ROW + 14.0 + doc_h;
-    ui::overlay("complete", #{
-        role: "sheet", x: S.complete.x, y: S.complete.y + 4.0, width: W, height: h,
-        padding_x: 6, padding_y: 6,
-    }, || {
-        // Rows are ROW tall and nothing between them; egui's default spacing
-        // would push the doc line past the sheet the height above reserved.
-        ui::spacing(0, 0);
-        let first = util::max(0, util::min(S.complete.pick - rows + 1, S.complete.items.len() - rows));
-        for n in 0..rows {
-            let i = first + n;
-            if i >= S.complete.items.len() {
-                break;
-            }
-            let one = S.complete.items[i];
-            let on = i == S.complete.pick;
-            let opts = util::merge(style::list_row(k, ROW), #{
-                icon: glyph(one.kind), icon_size: style::SM,
-                icon_color: if on { k.primary_text } else { k.text_subtle },
-                text_color: if on { k.text_default } else { k.text_muted },
-                trailing: one.detail, trailing_color: k.text_subtle,
-                font_size: style::SM,
-            });
-            if on {
-                opts["fill"] = k.primary_bg;
-            }
-            ui::row(#{ height: ROW }, || {
-                if ui::button(one.label, opts) {
-                    S.complete.pick = i;
-                    accept(S);
-                }
-            });
-        }
-        if item.doc != "" {
-            ui::separator(k.border_default);
-            ui::row(#{ height: 24, width: W - 12.0 }, || {
-                ui::add_space(4);
-                ui::label(clip(item.doc, 78), style::mono_sm(k.text_muted));
-            });
-        }
-    });
+    out
+}
+
+/// What the list shows: where it opens, under the caret, its rows, the one
+/// picked, and the doc line of that one.
+pub fn view(S) {
+    if !S.complete.open || S.complete.items.len() == 0 {
+        return #{ open: false, x: 0.0, y: 0.0 };
+    }
+    let items = rows(S);
+    let pick = util::min(S.complete.pick, items.len() - 1);
+    let item = S.complete.items[pick];
+    let shown = util::min(S.complete.items.len(), MAX_ROWS);
+    #{
+        open: true, x: S.complete.x, y: S.complete.y + 4.0, items: items, picked: items[pick],
+        list_h: (shown as f64) * ROW, doc: if item.doc == "" { "" } else { clip(item.doc, 78) },
+    }
 }
 
 // The doc line is one sentence in a 320 px sheet; the rest is in the Docs

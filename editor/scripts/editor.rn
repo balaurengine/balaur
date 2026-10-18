@@ -141,6 +141,9 @@ pub fn fresh_state() {
         // Where the code pane is asked to scroll to, in design px; below zero
         // leaves it where the reader left it, and one frame is all it takes.
         code_scroll: -1.0,
+        // Bumped when the open buffer is written from outside the editor, so
+        // the code sheet writes its text again; typing is the widget's own.
+        code_rev: 0,
         // The stage width the layout self-test last saw, so it asserts on a
         // settled shell rather than on the frame it was still bootstrapping.
         layout_seen: -1.0,
@@ -691,10 +694,6 @@ pub fn relayout_shell(this) {
 
 pub fn draw_ui(this) {
     let S = this.S;
-    // The popup owns the arrows, Tab, Enter and Escape while it is open; the
-    // shell's own keys are the nodes in scenes/panels/keys.toml.
-    complete::key(S);
-
     showcase::draw(S);
     // The start screen has the window to itself: no project is open, so there
     // is no scene to draw behind it and no dock to put over it.
@@ -940,6 +939,71 @@ pub fn textedit_close(this) {
 
 pub fn on_textedit_changed(this, _change) {
     signals::heard(this.S, "textedit_changed");
+}
+
+pub fn on_code_changed(this, _change) {
+    signals::heard(this.S, "code_changed");
+}
+
+pub fn on_complete_changed(this, _change) {
+    signals::heard(this.S, "complete_changed");
+}
+
+pub fn on_refactor_changed(this, _change) {
+    signals::heard(this.S, "refactor_changed");
+}
+
+/// The code sheet: what it shows, and what was typed, where the caret went
+/// and which gutter line was clicked.
+pub fn code_view(this) {
+    center::code_view(this.S)
+}
+
+pub fn code_typed(this, text) {
+    center::code_typed(this.S, text);
+}
+
+pub fn code_caret(this, caret) {
+    center::code_caret(this.S, caret);
+}
+
+pub fn code_gutter(this, line) {
+    center::code_gutter(this.S, line);
+}
+
+/// Fill the hooks list beside the code.
+pub fn hooks_fill(this) {
+    center::fill_hooks(this.S);
+}
+
+/// The completion list: what it shows, its keys, and a row clicked.
+pub fn complete_view(this) {
+    complete::view(this.S)
+}
+
+pub fn complete_key(this, name) {
+    complete::key(this.S, name);
+}
+
+pub fn complete_pick(this, row) {
+    complete::pick(this.S, row);
+}
+
+/// The refactor sheet: what it shows, a field typed, apply and cancel.
+pub fn refactor_view(this) {
+    refactor::view(this.S)
+}
+
+pub fn refactor_set(this, field, text) {
+    refactor::set(this.S, field, text);
+}
+
+pub fn refactor_apply(this) {
+    refactor::apply(this.S);
+}
+
+pub fn refactor_close(this) {
+    refactor::close(this.S);
 }
 
 /// Fill the start screen, its filter as it is typed, and its verbs.

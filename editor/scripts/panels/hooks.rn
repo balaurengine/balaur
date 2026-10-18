@@ -1,0 +1,22 @@
+// The hooks list's one script: the engine-facing surface of the file being
+// edited, beside the code, filled by the Editor when the file or its buffer
+// moved.
+
+pub fn init(this) {
+    this.editor = scene::get_node("Editor");
+    for word in ["code_changed", "chrome_changed", "outline_changed"] {
+        events::listen(this.node, word, this.editor);
+    }
+}
+
+pub fn on_code_changed(this, _change) {
+    this.editor.call("hooks_fill");
+}
+
+pub fn on_chrome_changed(this, _change) {
+    this.editor.call("hooks_fill");
+}
+
+pub fn on_outline_changed(this, _change) {
+    this.editor.call("hooks_fill");
+}

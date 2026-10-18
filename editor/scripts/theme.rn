@@ -187,16 +187,47 @@ pub fn half_for(S, system_dark) {
     if system_dark { "dark" } else { "light" }
 }
 
+// What a `code` node draws its gutter in, and the token it takes it from where
+// the theme names none: the colours the code pane always drew them in.
+const CODE_COLORS = [
+    ["breakpoint_color", "primary_text"], ["problem_color", "danger_text"],
+    ["warning_color", "warning_text"], ["current_fill", "primary_bg"],
+];
+
+// The document the engine wears: the theme's own, with the code colours
+// filled in from its tokens. A copy, so the Theme dialog lists what the file
+// says and nothing it does not.
+fn worn(t) {
+    let doc = #{};
+    for (key, value) in t.doc {
+        doc[key] = value;
+    }
+    let colors = #{};
+    for (key, value) in util::obj(t.doc.get("colors").unwrap_or(#{})) {
+        colors[key] = value;
+    }
+    for pair in CODE_COLORS {
+        if !colors.contains_key(pair[0]) {
+            if let Some(token) = t.colors.get(pair[1]) {
+                colors[pair[0]] = token;
+            }
+        }
+    }
+    doc["colors"] = colors;
+    doc
+}
+
 // Push the active theme into egui, the widget nodes and the 3D viewport.
 pub fn apply(S) {
     let t = S.theme;
-    ui::set_theme(t.doc);
+    let doc = worn(t);
+    ui::set_theme(doc);
     // The document itself, inline, on each root: one table both readers take,
     // so a role a script names and a role a node names cannot drift.
     for path in ROOTS {
         let root = scene::get_node(path);
         if root is balaur::Node {
-            root.patch_component("widget", #{ theme: t.doc });
+            root.patch_component("widget", #{ theme: doc });
         }
     }
     let (r, g, b) = util::hex_to_rgb(t.bg_app);

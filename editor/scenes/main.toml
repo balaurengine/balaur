@@ -611,6 +611,14 @@ kind = "row"
 interactive = false
 grow = 1
 
+# The file being edited, over the stage or beside the scene in a split: see
+# scenes/panels/code.toml.
+[[nodes]]
+id = "code_sheet"
+name = "Code"
+parent = "stage"
+instance = "scenes/panels/code.toml"
+
 # What the viewport carries over itself: its chips, the Interface guides and
 # the folded docks' handles. See scenes/panels/stage.toml.
 [[nodes]]
@@ -666,9 +674,42 @@ grow = 1
 id = "hooks"
 name = "Hooks"
 parent = "canvas"
+script = { source = "scripts/panels/hooks.rn" }
 [nodes.widget]
-kind = "row"
+kind = "panel"
+role = "sheet"
+text = ""
 width = 172
+padding = [12, 0, 12, 0]
+gap = [0, 6]
+
+[[nodes]]
+id = "hooks_title"
+name = "Title"
+parent = "hooks"
+[nodes.widget]
+kind = "label"
+role = "text_heading"
+text = "HOOKS IN FILE"
+padding = [2, 11, 2, 5]
+
+[[nodes]]
+id = "hooks_pills"
+name = "Pills"
+parent = "hooks"
+[nodes.widget]
+kind = "column"
+gap = [0, 6]
+
+[[nodes]]
+id = "hooks_unsaved"
+name = "Unsaved"
+parent = "hooks"
+[nodes.widget]
+kind = "label"
+role = "text_caption_primary"
+text = "● unsaved · ⌘S"
+visible = false
 
 # The start screen, over the shell rather than inside it: its own root on the
 # same surface, drawn after, so it covers the editor and takes every click.
@@ -786,9 +827,7 @@ name = "New"
 parent = "manager_tools"
 [nodes.widget]
 kind = "button"
-role = "action_manager"
-fill = "primary_bg"
-text_color = "primary_text"
+role = "action_form_primary"
 text = "New project"
 
 [[nodes]]
@@ -957,6 +996,13 @@ id = "imports"
 name = "Imports"
 parent = "n_editor"
 instance = "scenes/panels/imports.toml"
+
+# What may be typed at the caret: see scenes/panels/complete.toml.
+[[nodes]]
+id = "complete"
+name = "Complete"
+parent = "n_editor"
+instance = "scenes/panels/complete.toml"
 
 # The input overlay a capture is taken with: see scenes/panels/inputview.toml.
 [[nodes]]

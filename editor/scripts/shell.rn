@@ -648,9 +648,8 @@ pub fn format_active(S) {
     S.script_buffers[abs] = formatted;
     S.script_dirty[abs] = true;
     crate::signals::bars(S);
-    // The widget keeps its own copy per id, so the pane would redraw the old
-    // text until the next keystroke without this.
-    ui::set_field_text(("edit:" + abs), formatted);
+    // The code sheet writes its text again only when told the buffer moved.
+    crate::center::code_written(S);
     log::info("formatted " + rel);
 }
 

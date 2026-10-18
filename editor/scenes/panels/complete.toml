@@ -1,0 +1,114 @@
+# The completion list under the caret: what may be typed there, with the
+# doc line of the one picked. Its keys take the arrows, Enter, Tab and Escape
+# ahead of the code being typed into, and only while the list is up.
+
+[[nodes]]
+id = "complete"
+name = "Complete"
+script = { source = "scripts/panels/complete.rn" }
+[nodes.widget]
+kind = "panel"
+role = "sheet"
+text = ""
+anchor = "top_left"
+width = 320
+padding = [6, 6, 6, 6]
+layer = "shell"
+visible = false
+
+[[nodes]]
+id = "list"
+name = "List"
+parent = "complete"
+[nodes.widget]
+kind = "list"
+text = ""
+row_height = 22
+font_size = 11
+
+[[nodes]]
+id = "doc"
+name = "Doc"
+parent = "complete"
+[nodes.widget]
+kind = "label"
+role = "text_code_quiet"
+font_size = 11
+truncate = true
+text = ""
+visible = false
+
+# A scroll with no room in it: the keys are laid out, so their chords fire,
+# and clipped, so nothing of them shows.
+[[nodes]]
+id = "keys"
+name = "Keys"
+parent = "complete"
+[nodes.widget]
+kind = "scroll"
+axis = "horizontal"
+height = 1
+scrollbar = "never"
+interactive = false
+
+[[nodes]]
+id = "keys_row"
+name = "Row"
+parent = "keys"
+[nodes.widget]
+kind = "row"
+
+[[nodes]]
+id = "up"
+name = "Up"
+parent = "keys_row"
+[nodes.widget]
+kind = "button"
+text = ""
+focusable = false
+shortcut = "arrowup"
+takes_typing = true
+
+[[nodes]]
+id = "down"
+name = "Down"
+parent = "keys_row"
+[nodes.widget]
+kind = "button"
+text = ""
+focusable = false
+shortcut = "arrowdown"
+takes_typing = true
+
+[[nodes]]
+id = "accept"
+name = "Accept"
+parent = "keys_row"
+[nodes.widget]
+kind = "button"
+text = ""
+focusable = false
+shortcut = "enter"
+takes_typing = true
+
+[[nodes]]
+id = "tab"
+name = "Tab"
+parent = "keys_row"
+[nodes.widget]
+kind = "button"
+text = ""
+focusable = false
+shortcut = "tab"
+takes_typing = true
+
+[[nodes]]
+id = "close"
+name = "Close"
+parent = "keys_row"
+[nodes.widget]
+kind = "button"
+text = ""
+focusable = false
+shortcut = "escape"
+takes_typing = true

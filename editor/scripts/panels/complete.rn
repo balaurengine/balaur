@@ -1,0 +1,41 @@
+// The completion list's one script: up under the caret while the Editor has
+// something to offer, its keys move the pick, accept it or close the list,
+// and a row clicked is accepted.
+
+const KEYS = ["Up", "Down", "Accept", "Tab", "Close"];
+
+pub fn init(this) {
+    this.editor = scene::get_node("Editor");
+    events::listen(this.node, "complete_changed", this.editor);
+}
+
+pub fn on_complete_changed(this, _change) {
+    refresh(this);
+}
+
+pub fn on_widget_event(this, event, node, value) {
+    if event != "click" {
+        return;
+    }
+    let name = node.name();
+    if KEYS.iter().any(|key| key == name) {
+        this.editor.call("complete_key", name);
+    } else if name == "List" {
+        this.editor.call("complete_pick", node.get_component("widget", "text"));
+    }
+}
+
+fn refresh(this) {
+    let view = this.editor.call("complete_view");
+    if !(view is Object) {
+        return;
+    }
+    this.node.patch_component("widget", #{ visible: view.open, x: view.x, y: view.y });
+    if !view.open {
+        return;
+    }
+    this.node.get_node("List").patch_component("widget", #{
+        options: view.items, text: view.picked, height: view.list_h,
+    });
+    this.node.get_node("Doc").patch_component("widget", #{ visible: view.doc != "", text: view.doc });
+}

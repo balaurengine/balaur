@@ -170,16 +170,6 @@ pub fn dist(a, b) {
     l
 }
 
-/// `a` with `b`'s entries written over it. Rune has no spread syntax, so the
-/// per-call overrides of a shared option object go through here.
-pub fn merge(a, b) {
-    let out = copy(a);
-    for (k, v) in b.iter() {
-        out[k] = v;
-    }
-    out
-}
-
 /// Where `needle` first sits in `text`, or `None`. Rune's `String` has no
 /// `find`, and splitting on the needle measures the same thing.
 pub fn index_of(text, needle) {

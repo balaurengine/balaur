@@ -37,6 +37,9 @@ pub fn state() {
         // The two strips over the stage, and the row the HUD runs along.
         chips: rect(0.0, 0.0, 0.0, 0.0), hud: rect(0.0, 0.0, 0.0, 0.0),
         upper: rect(0.0, 0.0, 0.0, 0.0),
+        // The stage's own box, which a split shares between the scene and
+        // the code: what the code sheet's inset is measured against.
+        stage_box: rect(0.0, 0.0, 0.0, 0.0),
         hooks: rect(0.0, 0.0, 0.0, 0.0), split_w: 560.0, body_h: 96.0,
         // How tall the tool rail's column is, read back a frame late; the
         // rail flows into a second column rather than overrun it.
@@ -461,6 +464,7 @@ pub fn compute(S) {
     // A document is not full-bleed: text under a sheet is unreadable. Sharing
     // with the scene puts the code on the right and the scene on the left.
     let box = r.stage;
+    m.stage_box = box;
     if S.doc_open && S.viewport_live {
         let code_w = util::clamp(m.split_w, 260.0, util::max(260.0, box.w - 260.0));
         m.doc = rect(box.x + box.w - code_w, box.y, code_w, box.h);

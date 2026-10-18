@@ -3,8 +3,6 @@
 // cross-file index, so both show the list before anything is written.
 
 use crate::model;
-use crate::style;
-use crate::util;
 
 pub fn state() {
     #{ open: false, mode: "rename", from: "", to: "", hits: [], written: [] }
@@ -23,12 +21,14 @@ pub fn open(S, mode) {
     S.refactor.hits = [];
     S.refactor.written = [];
     preview(S);
+    crate::signals::changed(S, "refactor");
 }
 
 pub fn close(S) {
     S.refactor.open = false;
     S.refactor.hits = [];
     S.refactor.written = [];
+    crate::signals::changed(S, "refactor");
 }
 
 // The script the code pane is showing, "" when it is showing none.
@@ -101,69 +101,43 @@ pub fn apply(S) {
         S.script_buffers[abs] = one.source;
         S.script_dirty[abs] = true;
         crate::signals::bars(S);
-        ui::set_field_text(("edit:" + abs), one.source);
     }
+    crate::center::code_written(S);
     log::info(format!("{} {} to {} in {} files",
         if S.refactor.mode == "rename" { "renamed" } else { "replaced" },
         S.refactor.from, S.refactor.to, S.refactor.written.len()));
     close(S);
 }
 
-/// The sheet: the two fields, then the list of what would change.
-pub fn draw(S, k) {
+/// What the sheet shows: its fields as it opens, every place the name is,
+/// and whether there is anything to apply.
+pub fn view(S) {
     if !S.refactor.open {
-        return;
+        return #{ open: false };
     }
-    let r = S.layout.doc;
-    if !style::placed(r) {
-        return;
+    let renaming = S.refactor.mode == "rename";
+    let hits = [];
+    for hit in S.refactor.hits {
+        hits.push(format!("{}:{}", hit.file, hit.line));
     }
-    let w = util::min(r.w - 40.0, 420.0);
-    let box_r = #{ x: r.x + r.w - w - 20.0, y: r.y + 16.0, w: w, h: 260.0 };
-    style::sheet(k, "refactor", box_r, 14.0, 12.0, || {
-        style::section_label(k, if S.refactor.mode == "rename" { "rename" } else { "replace" });
-        let (from, from_changed, _) = ui::text_field("refactor-from",
-            if S.refactor.mode == "rename" { "name" } else { "text to find" },
-            util::merge(style::field(k, w - 40.0), #{ value: S.refactor.from }));
-        if from_changed {
-            S.refactor.from = from;
-            preview(S);
-        }
-        ui::add_space(4);
-        let (to, to_changed, _) = ui::text_field("refactor-to",
-            if S.refactor.mode == "rename" { "new name" } else { "replace with" },
-            util::merge(style::field(k, w - 40.0), #{ value: S.refactor.to }));
-        if to_changed {
-            S.refactor.to = to;
-            preview(S);
-        }
-        ui::add_space(8);
-        let count = S.refactor.hits.len();
-        ui::label(format!("{} matches in {} files", count, S.refactor.written.len()),
-            style::mono_sm(k.text_subtle));
-        ui::add_space(6);
-        ui::scroll("refactor-hits", #{ max_height: 120 }, || {
-            for hit in S.refactor.hits {
-                ui::row(#{ height: 20 }, || {
-                    ui::add_space(4);
-                    ui::label(format!("{}:{}", hit.file, hit.line), style::mono_sm(k.text_muted));
-                });
-            }
-        });
-        ui::add_space(8);
-        ui::row(#{ height: 24 }, || {
-            let ready = S.refactor.to != "" && S.refactor.written.len() > 0;
-            if ui::button("Apply", #{
-                role: "action", min_width: 70,
-                fill: if ready { k.primary_fill } else { k.bg_control },
-                text_color: if ready { k.text_on_primary } else { k.text_subtle },
-            }) && ready {
-                apply(S);
-            }
-            ui::add_space(6);
-            if ui::button("Cancel", #{ role: "action", min_width: 70 }) {
-                close(S);
-            }
-        });
-    });
+    #{
+        open: true, title: if renaming { "RENAME" } else { "REPLACE" },
+        from: S.refactor.from, to: S.refactor.to,
+        from_hint: if renaming { "name" } else { "text to find" },
+        to_hint: if renaming { "new name" } else { "replace with" },
+        count: format!("{} matches in {} files", S.refactor.hits.len(), S.refactor.written.len()),
+        hits: hits,
+        ready: S.refactor.to != "" && S.refactor.written.len() > 0,
+    }
+}
+
+/// One of the two fields, as it is typed.
+pub fn set(S, field, text) {
+    if field == "From" {
+        S.refactor.from = text;
+    } else {
+        S.refactor.to = text;
+    }
+    preview(S);
+    crate::signals::changed(S, "refactor");
 }

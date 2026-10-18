@@ -426,133 +426,171 @@ fn viewport(S, k) {
     crate::gizmo::draw_marquee(S, k);
 }
 
-// A document sheet: the sunken surface rather than `panel`, never full-bleed —
-// text under a floating sheet cannot be read.
-fn document_sheet(S, k, id) {
-    let r = S.layout.doc;
-    if !style::placed(r) {
-        return;
+// The file the code sheet shows: a shader a material opened, else the
+// selected node's script. `()` with what to say instead when there is none.
+fn open_file(S) {
+    if S.shader_rel != "" {
+        return #{ rel: S.shader_rel, shading: true, note: "" };
     }
-    ui::overlay(id, #{
-        x: r.x, y: r.y, width: r.w, height: r.h,
-        fill: k.bg_control, stroke: k.border_default, corner_radius: 11,
-    }, || code_pane(S, k));
-}
-
-// The file's engine-facing surface, beside the code rather than inside it.
-fn hooks_sheet(S, k) {
-    let shading = S.shader_rel != "";
-    let rel = if shading { S.shader_rel } else { model::script_rel(model::selected_node(S)).unwrap_or("") };
-    style::sheet(k, "hooks", S.layout.hooks, 12, 0, || {
-        style::section_label(k, if shading { "shader" } else { "hooks in file" });
-        if !shading {
-            for hook in S.hooks_live {
-                style::hook_pill(k, hook.name, hook.name, "");
-            }
-        }
-        if S.script_dirty.contains_key(S.game_root + "/" + rel) {
-            ui::add_space(8);
-            ui::label("● unsaved · ⌘S", util::merge(style::mono(k.primary_text), #{ font_size: style::SM }));
-        }
-    });
-}
-
-fn script_editor(S, k) {
-    document_sheet(S, k, "code");
-}
-
-// The code side of a split, beside the scene rather than over it.
-fn split_code(S, k) {
-    document_sheet(S, k, "split");
-}
-
-// `hooks` is off in a split, where 172 px of a narrowed pane is the code's.
-fn code_pane(S, k) {
     let node = model::selected_node(S);
-    // A shader opened from a material takes the pane; otherwise the
-    // selected node's script does.
-    let shading = S.shader_rel != "";
-    let rel = if shading {
-        S.shader_rel
-    } else {
-        match model::script_rel(node) {
-            Some(rel) => rel,
-            None => {
-                style::empty(k, "no script attached to " + node.name);
-                return;
-            }
-        }
-    };
+    match model::script_rel(node) {
+        Some(rel) => #{ rel: rel, shading: false, note: "" },
+        None => #{ rel: "", shading: false, note: "no script attached to " + node.name },
+    }
+}
+
+/// Say the open buffer was written from outside the editor: a format, a
+/// rename, a completion accepted. The sheet writes the text again on it.
+pub fn code_written(S) {
+    S.code_rev += 1;
+    crate::signals::changed(S, "code");
+}
+
+/// What the code sheet shows: where it sits against the stage, the file, its
+/// text when the buffer moved under it, and the gutter's marks. Not a split's
+/// events tab: that is its own panel.
+pub fn code_view(S) {
+    let shown = S.doc_open && S.doctab != "events";
+    if !shown {
+        return #{ shown: false, inset: [0.0, 0.0, 0.0, 0.0] };
+    }
+    let k = S.theme;
+    let box = S.layout.stage_box;
+    let r = S.layout.doc;
+    let inset = [
+        util::max(0.0, r.x - box.x), util::max(0.0, r.y - box.y),
+        util::max(0.0, box.x + box.w - r.x - r.w), util::max(0.0, box.y + box.h - r.y - r.h),
+    ];
+    let file = open_file(S);
+    if file.rel == "" {
+        return #{ shown: true, inset: inset, note: file.note };
+    }
+    let rel = file.rel;
     let path = S.game_root + "/" + rel;
     let src = match model::source(S, rel) {
         Some(src) => src,
-        None => {
-            style::empty(k, "missing file: " + rel);
-            return;
-        }
+        None => return #{ shown: true, inset: inset, note: "missing file: " + rel },
     };
-    // Hooks come from the live buffer, so they update while typing —
-    // re-analysed only when that buffer actually changed.
-    let current = S.script_buffers.get(path).unwrap_or(src);
-    if !shading && S.hooks_src != current {
-        S.hooks_src = current;
-        let found = script::symbols(rel, current);
-        let parsed = [];
-        if found is Vec {
-            for one in found {
-                if one.kind == "function" {
-                    parsed.push(#{ name: one.name, line: one.line, detail: one.detail });
-                }
-            }
-        }
-        S.hooks_live = parsed;
-    }
-    // Editable, syntax-highlighted buffer (persists per file; ⌘S saves
-    // and hot reloads the game code). An offset asked for lasts one frame.
+    let text = S.script_buffers.get(path).unwrap_or(src);
+    let stopped_here = !file.shading && S.debug.paused is Object && S.debug.paused_rel == rel;
+    // An offset asked for is taken once.
     let scroll_to = S.code_scroll;
     S.code_scroll = -1.0;
-    ui::scroll("code", #{ scroll_offset: scroll_to }, || {
-        ui::add_space(12);
-        let stopped_here = !shading && S.debug.paused is Object && S.debug.paused_rel == rel;
-        let (text, changed, hit, caret) = ui::code_editor("edit:" + path, src, #{
-            font_size: style::MD, gutter_width: 34,
-            language: if shading { "wesl" } else { "rune" },
-            breakpoints: if shading {
+    #{
+        shown: true, inset: inset, note: "", path: path, rev: S.code_rev, text: text,
+        scroll_to: scroll_to,
+        look: #{
+            language: if file.shading { "wesl" } else { "rune" },
+            breakpoints: if file.shading {
                 if S.preview_line > 0 { [S.preview_line] } else { [] }
             } else {
                 shell::breakpoint_lines(S, rel)
             },
             problems: lint::lines(S, rel, "error"),
             warnings: lint::lines(S, rel, "warning"),
-            problem_color: k.danger_text, warning_color: k.warning_text,
-            current_line: if stopped_here { S.debug.paused.line } else { () },
-            breakpoint_color: k.primary_text, current_fill: k.primary_bg,
-        });
-        S.script_buffers[path] = text;
-        if changed {
-            S.script_dirty[path] = true;
-            crate::signals::bars(S);
-        }
-        // A shader has no script tooling behind it; a Rune buffer does, and a
-        // showcase sequence places its own caret.
-        if shading {
-            complete::reset(S);
-        } else if !crate::showcase::driving(S) {
-            complete::update(S, rel, text, caret);
-        }
-        if hit is i64 {
-            // A shader's gutter has no breakpoints, so the same click
-            // asks for the line's value instead.
-            if shading {
-                shell::toggle_shader_preview(S, rel, hit);
-            } else {
-                shell::toggle_breakpoint(S, rel, hit);
+            current_line: if stopped_here { S.debug.paused.line } else { 0 },
+        },
+    }
+}
+
+/// What was typed into the code sheet: the buffer keeps it, unsaved, and the
+/// hooks are read off it again.
+pub fn code_typed(S, text) {
+    let file = open_file(S);
+    if file.rel == "" {
+        return;
+    }
+    let path = S.game_root + "/" + file.rel;
+    S.script_buffers[path] = text;
+    S.script_dirty[path] = true;
+    crate::signals::bars(S);
+    if !file.shading && read_hooks(S, file.rel, text) {
+        crate::signals::changed(S, "code");
+    }
+}
+
+// The functions a buffer declares, read again only when it moved. Answers
+// whether it had.
+fn read_hooks(S, rel, text) {
+    if S.hooks_src == text {
+        return false;
+    }
+    S.hooks_src = text;
+    let found = script::symbols(rel, text);
+    let parsed = [];
+    if found is Vec {
+        for one in found {
+            if one.kind == "function" {
+                parsed.push(#{ name: one.name, line: one.line, detail: one.detail });
             }
         }
-        ui::add_space(12);
-    });
-    complete::draw(S, S.theme);
-    crate::refactor::draw(S, S.theme);
+    }
+    S.hooks_live = parsed;
+    true
+}
+
+/// The caret moved: what completes there. A shader has no script tooling
+/// behind it, and a showcase sequence places its own caret.
+pub fn code_caret(S, caret) {
+    let file = open_file(S);
+    if file.rel == "" || file.shading {
+        complete::reset(S);
+        crate::signals::changed(S, "complete");
+        return;
+    }
+    if crate::showcase::driving(S) {
+        return;
+    }
+    let path = S.game_root + "/" + file.rel;
+    let text = S.script_buffers.get(path).unwrap_or(model::source(S, file.rel).unwrap_or(""));
+    complete::update(S, file.rel, text, caret);
+    crate::signals::changed(S, "complete");
+}
+
+/// A gutter line clicked: a breakpoint in a script, and in a shader the line
+/// whose value the preview shows, since a shader has no breakpoints.
+pub fn code_gutter(S, line) {
+    let file = open_file(S);
+    if file.rel == "" {
+        return;
+    }
+    if file.shading {
+        shell::toggle_shader_preview(S, file.rel, line);
+    } else {
+        shell::toggle_breakpoint(S, file.rel, line);
+    }
+    crate::signals::changed(S, "code");
+}
+
+// The hooks list beside the code: a pill a function the file declares, read
+// off the live buffer, and whether the buffer is unsaved.
+const HOOKS = "Editor/Shell/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Hooks";
+
+/// Fill the hooks list: the file's engine-facing surface, beside the code.
+pub fn fill_hooks(S) {
+    let k = S.theme;
+    let file = open_file(S);
+    util::fill(HOOKS + "/Title", #{ text: if file.shading { "SHADER" } else { "HOOKS IN FILE" } });
+    let pills = [];
+    if !file.shading && file.rel != "" {
+        // The file as it is open, buffer or disk: what the list was read off
+        // may be the last file's.
+        let path = S.game_root + "/" + file.rel;
+        let text = S.script_buffers.get(path).unwrap_or(model::source(S, file.rel).unwrap_or(""));
+        read_hooks(S, file.rel, text);
+        for hook in S.hooks_live {
+            let lifecycle = hook.name == "init" || hook.name == "update";
+            pills.push(#{ kind: "panel", fill: k.bg_control, corner_radius: 15, padding: [11, 6, 11, 6], controls: [
+                #{ kind: "row", gap: [4, 4], align_items: "center", controls: [
+                    #{ kind: "row", width: 6, height: 6, corner_radius: 3, fill: if lifecycle { k.primary_text } else { k.secondary_text } },
+                    #{ kind: "label", role: "text_code", text: hook.name },
+                ] },
+            ] });
+        }
+    }
+    crate::pool::strip(S, HOOKS + "/Pills", pills);
+    let dirty = file.rel != "" && S.script_dirty.contains_key(S.game_root + "/" + file.rel);
+    util::fill(HOOKS + "/Unsaved", #{ visible: dirty });
 }
 
 pub fn draw(S) {
@@ -568,16 +606,7 @@ pub fn draw(S) {
     if !S.doc_open || S.doctab != "events" {
         crate::events::hide();
     }
-    if S.doc_open {
-        if S.doctab == "events" {
-            crate::events::view(S, k);
-        } else if S.viewport_live {
-            split_code(S, k);
-        } else {
-            script_editor(S, k);
-            if S.hooks_open {
-                hooks_sheet(S, k);
-            }
-        }
+    if S.doc_open && S.doctab == "events" {
+        crate::events::view(S, k);
     }
 }
