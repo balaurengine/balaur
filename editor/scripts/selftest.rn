@@ -3680,12 +3680,21 @@ fn named_under(S, dir) {
 ///
 /// One stage a frame, because a node holds nothing until the shell has drawn
 /// it once and a pick is only answered by the pass after the one that made it.
-const TREE_NODE = "Editor/Shell/Body/Left/LeftSheet/LeftTree";
+const SCENE_PANEL = "Editor/Shell/Body/Left/LeftSheet/SceneTree";
+const TREE_NODE = "Editor/Shell/Body/Left/LeftSheet/SceneTree/Tree";
+
+/// Search the Scene panel as someone typing into it would be answered, and
+/// keep the query for the checks that follow.
+fn rows_search(S, query) {
+    S.rows_query = query;
+    scene::get_node(SCENE_PANEL).call("find", query);
+}
 
 pub fn row_views(S) {
     S.rows_demo = 0;
     S.rows_want = 0;
     S.rows_waited = 0;
+    S.rows_query = "";
 }
 
 /// A model dropped on the window: the import runs off the frame, so what it
@@ -4086,13 +4095,13 @@ pub fn rows_step(S) {
         rows_picked(S, tree, rows);
     } else if stage == 1 {
         rows_answered(S, widget, rows);
-        S.search["tree"] = name_at(S, S.rows_want);
+        rows_search(S, name_at(S, S.rows_want));
     } else if stage == 2 {
         rows_narrowed(S, rows);
-        S.search["tree"] = "zzqq-nothing-matches-this";
+        rows_search(S, "zzqq-nothing-matches-this");
     } else if stage == 3 {
         check(widget["visible"] == false, "a query matching nothing hides the tree");
-        S.search["tree"] = "";
+        rows_search(S, "");
     } else if stage == 4 {
         check(rows.len() == S.doc.len(), "and clearing the query brings every row back");
         // A second node, to see the set drawn rather than the active node.
@@ -4116,7 +4125,7 @@ pub fn rows_step(S) {
 fn rows_menu(widget) {
     let named = widget.get("context").unwrap_or("");
     check(named != "", "the outliner's tree names a context menu");
-    let menu = scene::get_node("Editor/Shell/Body/Left/LeftSheet/" + named);
+    let menu = scene::get_node(SCENE_PANEL + "/" + named);
     if util::is_nil(menu) {
         check(false, format!("and the scene holds it ({})", named));
         return;
@@ -4158,13 +4167,12 @@ fn rows_drawn(S, widget, rows) {
     check(alike == 0, format!("no two rows are the same string ({} repeat)", alike));
 }
 
-// A row the node reports as picked is the node the document selects. Written
-// onto the node the way a click writes it, so this asks about the read-back
-// rather than about the drawing.
+// A pick as the pointer makes one: the tree announces it and the panel's
+// script answers, with nothing reading the node back.
 fn rows_picked(S, tree, rows) {
     let want = if S.sel == 0 && S.doc.len() > 1 { 1 } else { 0 };
     S.rows_want = want;
-    tree.patch_component("widget", #{ text: rows[want] });
+    ui::edit(tree, rows[want]);
 }
 
 fn rows_answered(S, widget, rows) {
@@ -4181,7 +4189,7 @@ fn rows_answered(S, widget, rows) {
 
 // The search draws on the same node: fewer rows, every one of them a match.
 fn rows_narrowed(S, rows) {
-    let query = S.search["tree"];
+    let query = S.rows_query;
     let want = 0;
     for node in S.doc {
         if crate::search::matches(query, format!("{} {}", node.name, model::node_type(node))) {

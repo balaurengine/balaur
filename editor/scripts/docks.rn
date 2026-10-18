@@ -281,7 +281,7 @@ pub fn right_foot(S) {
 
 fn body(S, k, id) {
     match id {
-        "scene" => left::tree_body(S, k),
+        "scene" => left::show_tree(),
         "outline" => left::outline_body(S, k),
         "inspector" => inspector::body(S, k),
         "import" => crate::importer::panel(S, k),

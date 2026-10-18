@@ -3,7 +3,10 @@
 > **Status:** the views are nodes, done 2026-09-08. Reopened 2026-09-21 for
 > the half that was never in scope: the controls *inside* a view, and where
 > a number lives. 589 `ui::*` calls remain, §6 counts them, and §7 says why
-> the scene still states 78 sizes the theme should hold.
+> the scene still states 78 sizes the theme should hold. §9, decided
+> 2026-10-18, is now the target and governs the rest: every panel its own
+> scene and script, nothing drawn, nothing polled. Its phase 0 and the Scene
+> panel are built.
 >
 > Written 2026-09-04 to answer "is the editor's UI a scene of nodes, or code?"
 > It was code, and §0 is what moving the views took.
@@ -530,3 +533,84 @@ nodes is a scene fragment per shape, instantiated under a parent with
 then gets the same rows the editor's own docks are built from, and a theme
 role dresses both. Sequence it after §6.2: the row is the first shape worth
 sharing, and writing the kit before there is one to share guesses at it.
+
+## 9. A panel is a scene with one script
+
+**Decided 2026-10-18.** The UI is nodes and nothing else. Each panel is a
+scene of its own, `editor/scenes/panels/<panel>.toml`, placed in `main.toml`
+with `instance`, and carries one script, `editor/scripts/panels/<panel>.rn`,
+that answers every control under it and fills them. The Editor node is the one
+controller: it owns the document, the selection and the history, tells the
+panels when they moved, and is told what they picked. Three things are out:
+
+- **A script a node.** A control names no handler of its own; the panel's
+  `on_widget_event(event, node, value)` hears every widget under it.
+- **Drawing.** No `draw` node, no `draw_ui`, no pool restated each pass. A
+  panel writes its nodes when its data changes, and a written widget is what
+  asks for a pass.
+- **Polling.** Nothing reads a node back to learn what happened, and nothing
+  runs every frame or pass to compare. A pick is an event, a change in the
+  document is a signal, a key is an action.
+
+### 9.1 What the engine gives it
+
+Built 2026-10-18, phase 0:
+
+- A widget write owes the loop a pass (`pacing::next_frame` and `wants_pass`
+  read the arena's dirty set), and the 250 ms idle tick is gone: a lazy shell
+  nobody touches draws nothing.
+- Queuing an event wakes a loop sleeping under `low_processor`, so a signal
+  emitted in a handler is delivered the next frame rather than at the next
+  input.
+- `on_widget_event`, a core hook, reaches the nearest script at or above the
+  widget.
+- An input action binds a chord, `cmd+shift+KeyS`, with `cmd` the platform's
+  command key, and a key binding reads nothing while a text field holds the
+  keyboard: the shell's `ui::shortcut` calls become `on_action`.
+- What was already there: `instance` prefabs, `node.call` for a panel asking
+  the controller, `node.emit` and `events::listen` for the controller telling
+  the panels, `on_resize`, `on_scroll` and the pointer hooks.
+
+### 9.2 How a panel talks to the controller
+
+The controller emits from the Editor node, once a frame however many edits
+the frame made: `signals.rn` holds each word and its guard, which the Editor
+clears by hearing its own event. A panel listens in its `init`, and on the
+word asks the Editor for what it shows (`editor.call("outline_view", query,
+facet)`), then writes its nodes. A pick goes the other way as a call
+(`editor.call("outline_pick", row)`). The rows are still built by the
+Editor's modules, which own the model; the panel owns what it alone decides,
+here the query and the facet.
+
+### 9.3 The Scene panel, the pilot
+
+Built 2026-10-18. `scenes/panels/scene_tree.toml` holds the search field, the
+facet dropdown, the "nothing matches" note, the tree and its context menu;
+`scripts/panels/scene_tree.rn` answers them. `outline_changed` is emitted
+wherever the document's revision, the selection, a lock, the warnings or the
+theme moves. Gone: the search and facet drawn every pass, and `show_tree`
+reading the tree's `text` every pass. `test:rows` drives it as a pointer
+would, with `ui::edit`.
+
+Not yet moved: the `+` in the tab row, drawn by `docks::draw_tools` with the
+other tab rows (phase 3), and the dock showing and hiding the panel from its
+`draw` node.
+
+### 9.4 What is left, in order
+
+1. The Inspector: on the `inspector` kind, with its refresh told by a
+   component change rather than reading every inspector each pass.
+2. The bottom docks and every dock's tab row.
+3. The chrome: top bar, status bar, tool rail, viewport chips and HUD as
+   nodes; the hotkeys as declared actions; `layout.rn`'s sizes into the scene.
+4. Dialogs and sheets: settings, theme, about, export, populate, palette, the
+   node picker, rename, plugin dialogs.
+5. The start screen.
+6. Kinds for what is drawn now because no kind holds it: the timeline, a
+   recording's lanes, weights, the bone map, the code editor with its
+   completion and refactor sheet.
+7. The viewport tools on pointer hooks, and the gizmo and overlay lines as
+   retained nodes.
+8. Remove `draw_ui`, the pool and the `draw` nodes from the editor, and move
+   the self-tests off stepping every frame.
+

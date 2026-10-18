@@ -218,6 +218,7 @@ fn wear_half(S, name, half) {
         return;
     }
     S.theme = load(name, half);
+    crate::signals::outline(S);
     apply(S);
 }
 
@@ -229,12 +230,14 @@ pub fn follow(S, system_dark) {
 /// Read the worn half from disk again, dropping an edit nobody saved.
 pub fn reload(S) {
     S.theme = load(S.theme.name, S.theme.half);
+    crate::signals::outline(S);
     apply(S);
 }
 
 /// Wear a document that is not on disk yet: the theme window's live edit.
 pub fn wear(S, name, doc) {
     S.theme = flat(name, S.theme.half, doc);
+    crate::signals::outline(S);
     apply(S);
 }
 

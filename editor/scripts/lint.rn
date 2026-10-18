@@ -160,7 +160,11 @@ pub fn node_warnings(S) {
             }
         }
     }
-    S.lint.warned = out;
+    // Asked again every few frames: only a different answer is news.
+    if out != S.lint.warned {
+        S.lint.warned = out;
+        crate::signals::outline(S);
+    }
 }
 
 /// The warnings the last ask found on the node with `id`.

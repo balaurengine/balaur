@@ -161,6 +161,8 @@ kind = "row"
 role = "layout_dock"
 align_items = "center"
 
+# Still the dock's per-pass driver, though no left tab draws into it any more:
+# a `draw` node that drew nothing grows, so it is held to a pixel.
 [[nodes]]
 id = "left_body"
 name = "LeftBody"
@@ -168,133 +170,14 @@ parent = "left_sheet"
 [nodes.widget]
 kind = "draw"
 draw = "draw_dock_left"
+height = 1
 
+# The Scene tab, its own scene and script: see scenes/panels/scene_tree.toml.
 [[nodes]]
-id = "left_tree"
-name = "LeftTree"
+id = "scene_tree"
+name = "SceneTree"
 parent = "left_sheet"
-[nodes.widget]
-kind = "tree"
-grow = 1
-# A right click or a long press picks the row it lands on and opens these.
-context = "tree_menu"
-# The eye and the lock a row draws at its right.
-on_mark = "tree_mark"
-
-[nodes.widget.touch]
-row_height = 33
-
-# The node actions, on a menu that draws no button of its own. Each row calls
-# a method on the Editor node's script, which acts on the selection the click
-# just made.
-[[nodes]]
-id = "tree_menu"
-name = "tree_menu"
-parent = "left_sheet"
-[nodes.widget]
-kind = "menu"
-text = ""
-visible = false
-
-[[nodes]]
-id = "tree_add"
-name = "TreeAdd"
-parent = "tree_menu"
-[nodes.widget]
-kind = "button"
-role = "action_tree"
-text = "Add child"
-on_click = "tree_add_child"
-
-[[nodes]]
-id = "tree_change"
-name = "TreeChange"
-parent = "tree_menu"
-[nodes.widget]
-kind = "button"
-role = "action_tree"
-text = "Change type…"
-on_click = "tree_change_type"
-
-[[nodes]]
-id = "tree_up"
-name = "TreeUp"
-parent = "tree_menu"
-[nodes.widget]
-kind = "button"
-role = "action_tree"
-text = "Move up"
-on_click = "tree_move_up"
-
-[[nodes]]
-id = "tree_down"
-name = "TreeDown"
-parent = "tree_menu"
-[nodes.widget]
-kind = "button"
-role = "action_tree"
-text = "Move down"
-on_click = "tree_move_down"
-
-[[nodes]]
-id = "tree_rename"
-name = "TreeRename"
-parent = "tree_menu"
-[nodes.widget]
-kind = "button"
-role = "action_tree"
-text = "Rename"
-on_click = "tree_rename"
-
-[[nodes]]
-id = "tree_script"
-name = "TreeScript"
-parent = "tree_menu"
-[nodes.widget]
-kind = "button"
-role = "action_tree"
-text = "Attach script"
-on_click = "tree_attach_script"
-
-[[nodes]]
-id = "tree_duplicate"
-name = "TreeDuplicate"
-parent = "tree_menu"
-[nodes.widget]
-kind = "button"
-role = "action_tree"
-text = "Duplicate"
-on_click = "tree_duplicate"
-
-[[nodes]]
-id = "tree_hidden"
-name = "TreeHidden"
-parent = "tree_menu"
-[nodes.widget]
-kind = "button"
-role = "action_tree"
-text = "Hide or show"
-on_click = "tree_toggle_hidden"
-
-[[nodes]]
-id = "tree_locked"
-name = "TreeLocked"
-parent = "tree_menu"
-[nodes.widget]
-kind = "button"
-role = "action_tree"
-text = "Lock or unlock"
-on_click = "tree_toggle_locked"
-
-[[nodes]]
-id = "tree_delete"
-name = "TreeDelete"
-parent = "tree_menu"
-[nodes.widget]
-kind = "button"
-role = "action_tree"
-text = "Delete"
-on_click = "tree_delete"
+instance = "scenes/panels/scene_tree.toml"
 
 [[nodes]]
 id = "left_outline"

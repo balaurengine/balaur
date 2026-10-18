@@ -339,6 +339,8 @@ available, and `test:layout` waits for a shell rather than for a frame number.
 
 - A leaf's contents stay immediate-mode. A code editor, a node tree, a
   timeline are recomputed every frame from live state; retained nodes buy
-  nothing there and cost a binding system.
+  nothing there and cost a binding system. **Reversed 2026-10-18:** the
+  editor's panels are nodes with one script each and nothing is drawn or
+  polled; `docs/PLAN-editor-as-scene.md` §9 holds the target and the order.
 - The theme. `editor/themes/*.toml` roles and `widget_theme` are already the
   Godot-shaped half and need no work for this.

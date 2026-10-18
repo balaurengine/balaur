@@ -5,12 +5,13 @@ use crate::defs;
 use crate::icons;
 use crate::model;
 use crate::shell;
-use crate::style;
 use crate::util;
 
 
-// The `tree` node this file fills; the hatch still draws the search above it.
-const TREE_NODE = "Editor/Shell/Body/Left/LeftSheet/LeftTree";
+// The Scene tab is its own scene and script (scenes/panels/scene_tree.toml);
+// this file builds the rows it asks for and acts on what it picks.
+const PANEL = "Editor/Shell/Body/Left/LeftSheet/SceneTree";
+const TREE_NODE = "Editor/Shell/Body/Left/LeftSheet/SceneTree/Tree";
 const OUTLINE_NODE = "Editor/Shell/Body/Left/LeftSheet/LeftOutline";
 // The pitch the `tree` node draws at. Stated rather than measured: the node
 // takes it as `row_height`, so `row_spot` and the rows cannot drift apart.
@@ -177,12 +178,6 @@ pub fn tree_tools(S, k) {
     }
 }
 
-// Facets the tree filters by, each a component tag the engine already
-// carries, so a plugin's component joins the chips it declared tags for.
-fn facets() {
-    [["3d", "3D"], ["2d", "2D"], ["physics", "Physics"], ["render", "Rendering"], ["ui", "UI"]]
-}
-
 /// Whether a node has any component carrying `tag`, which is what a facet
 /// chip filters on.
 fn tagged(S, i, tag) {
@@ -201,112 +196,30 @@ fn tagged(S, i, tag) {
     false
 }
 
-// Six chips need about 300 px and the column is 236 at its widest, so this is
-// one picker at every size: the row of them was clipped in the resting layout,
-// not only in a small window.
-fn facet_row(S, k) {
-    let chips = facets();
-    chips.push(["script", "Script"]);
-    facet_picker(S, k, chips);
+/// The Scene panel's rows for a search and a facet tag: each row's string,
+/// the selected ones, and what to say when the filter leaves none.
+pub fn outline_view(S, query, facet) {
+    let filtering = query != "" || facet != "";
+    let rows = if filtering { filtered_rows(S, query, facet) } else { open_rows(S) };
+    let built = tree_items(S, S.theme, rows);
+    let says = if query != "" { query } else { facet };
+    #{
+        items: built.items, chosen: built.chosen, filtering: filtering,
+        nothing: crate::search::nothing_says(says),
+    }
 }
 
-fn facet_picker(S, k, chips) {
-    let names = ["All nodes"];
-    let current = names[0];
-    for chip in chips {
-        names.push(chip[1]);
-        if chip[0] == S.tree_facet {
-            current = chip[1];
+/// A row the Scene panel's tree picked, by the id its string carries: that
+/// node is chosen, with the modifiers the click was made with.
+pub fn outline_pick(S, row) {
+    let parts = row.split('\u{1f}').collect::<Vec>();
+    let id = parts.get(4).unwrap_or("");
+    let found = model::index_of_id(S.doc, id);
+    if let Some(i) = found {
+        if i != S.sel {
+            crate::shell::choose_click(S, i);
         }
     }
-    ui::row(#{ height: 24 }, || {
-        ui::add_space(2);
-        let (pick, changed) = ui::dropdown("tree-facet", current, names,
-            #{ width: S.layout.left.w - 40.0, font_size: style::SM, text_color: k.text_muted });
-        if changed {
-            S.tree_facet = "";
-            for chip in chips {
-                if chip[1] == pick {
-                    S.tree_facet = chip[0];
-                }
-            }
-        }
-    });
-}
-
-pub fn tree_body(S, k) {
-    ui::add_space(4);
-    let query = crate::search::field(S, k, "tree", "Search", S.layout.left.w - 24.0);
-    ui::add_space(4);
-    facet_row(S, k);
-    ui::add_space(4);
-    let filtering = query != "" || S.tree_facet != "";
-    let rows = if filtering { filtered_rows(S, query) } else { open_rows(S) };
-    // What the rows came from, so the row strings are built once for it.
-    let rows_key = if filtering {
-        format!("{}\u{1f}{}\u{1f}{}", S.doc_rev, query, S.tree_facet)
-    } else {
-        S.tree_cache["key"]
-    };
-    if filtering && rows.len() == 0 {
-        hide_tree(S);
-        ui::add_space(8);
-        crate::search::nothing(k, if query != "" { query } else { S.tree_facet });
-        return;
-    }
-    show_tree(S, k, rows, rows_key);
-}
-
-// The outliner's rows on the `tree` node beside this hatch. One string a row:
-// a tab a level, then the icon and the name either side of a unit separator.
-fn show_tree(S, k, rows, rows_key) {
-    let found = scene::get_node(TREE_NODE);
-    if util::is_nil(found) {
-        return;
-    }
-    let built = S.tree_items;
-    let same = built.get("key") == Some(items_key(S, k, rows_key));
-    if !same {
-        built = build_items(S, k, rows, rows_key);
-    }
-    // `text` is the pick channel and nothing else: the node writes the row a
-    // click landed on, this reads it once and clears it. Held instead, a
-    // selection made anywhere else would be undone by the stale row here.
-    let picked = found.get_component("widget", "text");
-    // Nothing to clear and nothing new: the node already holds all of it.
-    if same && picked == "" {
-        return;
-    }
-    let chose = false;
-    for (n, item) in built.items.iter().enumerate() {
-        if item == picked && rows[n].index != S.sel {
-            crate::shell::choose_click(S, rows[n].index);
-            chose = true;
-        }
-    }
-    // The rows were lit from the selection before the click, and patched as
-    // they were the node would show that selection again for a pass.
-    if chose {
-        built = build_items(S, k, rows, rows_key);
-    }
-    // A patch of what this owns: a frame that changed none of it writes nothing.
-    found.patch_component("widget", #{
-        options: built.items, row_height: TREE_ROW, visible: true, multi_select: true,
-        selection: built.chosen, text: "",
-    });
-}
-
-// The rows' strings follow from the rows, the document, the warnings, the
-// selection and the theme; a frame that moved none of them reuses them.
-fn items_key(S, k, rows_key) {
-    [rows_key, S.doc_rev, S.lint.warned, S.sels.clone(), k, lock_key(S)]
-}
-
-fn build_items(S, k, rows, rows_key) {
-    let built = tree_items(S, k, rows);
-    built.key = items_key(S, k, rows_key);
-    S.tree_items = built;
-    built
 }
 
 // Each row's string, and the strings of the selected rows.
@@ -351,16 +264,6 @@ pub fn row_marks(S, i) {
     marks
 }
 
-// Locks are editor state, not the document, so `doc_rev` never says one moved.
-fn lock_key(S) {
-    let ids = [];
-    for (id, _) in S.locks {
-        ids.push(id);
-    }
-    ids.sort();
-    ids
-}
-
 /// A mark clicked on a tree row: the eye shows or hides that node, the lock
 /// unlocks it. The row stays as it was picked, or not.
 pub fn mark_clicked(S, row, mark) {
@@ -403,18 +306,23 @@ fn selected_row(rows, sel) {
     0
 }
 
-// Hidden while another panel is up, so its rows do not outlive the tree.
+// Hidden while another panel is up; it fills itself, so showing it is all
+// the dock does.
 pub fn hide_tree(S) {
-    util::hide(TREE_NODE);
-    // The rows go back on when it shows again, which a kept cache would skip.
-    S.tree_items = #{};
+    util::hide(PANEL);
+}
+
+pub fn show_tree() {
+    let found = scene::get_node(PANEL);
+    if !util::is_nil(found) {
+        found.patch_component("widget", #{ visible: true });
+    }
 }
 
 // Every node the query and the facet chip both allow, as a flat walk. One
 // shape with `open_rows`, so the same node draws both.
-fn filtered_rows(S, query) {
+fn filtered_rows(S, query, facet) {
     let out = [];
-    let facet = S.tree_facet;
     for (i, node) in S.doc.iter().enumerate() {
         let text = format!("{} {}", node.name, model::node_type(node));
         if !crate::search::matches(query, text) {

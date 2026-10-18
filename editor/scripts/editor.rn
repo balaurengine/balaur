@@ -49,6 +49,7 @@ mod session;
 mod settings;
 mod window;
 mod shell;
+mod signals;
 mod showcase;
 mod style;
 mod theme;
@@ -157,7 +158,7 @@ pub fn fresh_state() {
         inspect_layout: #{},
         tree_cache: #{},
         // The outliner's row strings and what they were built for.
-        tree_items: #{},
+        outline_told: false,
         // `model::is_2d`'s answer, and the frame and document it was for.
         is_2d_at: [], is_2d_was: false,
         // The 3D light and camera marks, and what they were drawn for.
@@ -168,7 +169,6 @@ pub fn fresh_state() {
         sels: [0],
         locks: #{},
         // The outliner's component facet: "" is every node.
-        tree_facet: "",
         // Four camera slots on the viewport chip row, kept for the session.
         bookmarks: #{},
         isolated: false,
@@ -315,6 +315,7 @@ pub fn init(this) {
     export::listen(this.node, #{});
     import::listen(this.node, #{});
     release::listen(this.node, #{});
+    signals::hear_own(this.node);
     // Before the theme and the scale are pushed: the preferences decide both,
     // and until this ran they only took effect once Settings was opened.
     settings::load_files(S);
@@ -328,6 +329,7 @@ pub fn init(this) {
     render::set_grid(true, 1.0, 5, 20);
     shell::apply_camera(S);
     log::info(format!("editing {} ({} nodes)", S.game_name, S.doc.len()));
+    signals::outline(S);
 
     // Optional start-up states, comma-separated (workspace id, "palette",
     // "light", "play", "select:<node>"), applied in order.
@@ -938,6 +940,20 @@ pub fn tree_rename(this) {
 }
 
 // The eye or the lock at the right of an outliner row.
+pub fn on_outline_changed(this, _change) {
+    this.S.outline_told = false;
+}
+
+/// What the Scene panel shows for a search and a facet tag.
+pub fn outline_view(this, query, facet) {
+    left::outline_view(this.S, query, facet)
+}
+
+/// The Scene panel's tree picked the row written `row`.
+pub fn outline_pick(this, row) {
+    left::outline_pick(this.S, row);
+}
+
 pub fn tree_mark(this, e) {
     left::mark_clicked(this.S, e.row, e.mark);
 }

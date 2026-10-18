@@ -400,6 +400,7 @@ pub fn body2d_kind(node) {
 pub fn settle_revision(S) {
     if S.doc_rev != S.doc_settled {
         S.doc_rev += 1;
+        crate::signals::outline(S);
         S.doc_settled = S.doc_rev;
     }
 }
@@ -521,6 +522,7 @@ pub fn expand_instances(S) {
     }
     S.doc = out;
     S.doc_rev += 1;
+    crate::signals::outline(S);
 }
 
 // The prefab's root is the node that named it: the engine merges the two, so
@@ -855,6 +857,7 @@ pub fn load(S) {
         S.scene_doc = #{};
         S.doc = [];
         S.doc_rev += 1;
+        crate::signals::outline(S);
         S.refs = [];
         crate::history::reset(S);
         return;
@@ -874,6 +877,7 @@ pub fn load(S) {
     S.scene_doc = doc;
     S.doc = util::vec(doc.get("nodes").unwrap_or([]));
     S.doc_rev += 1;
+    crate::signals::outline(S);
     normalize(S.doc);
     expand_instances(S);
     selection::only(S, 0);
@@ -1456,6 +1460,7 @@ pub fn move_sibling(S, delta) {
         found.set_sibling_index(to);
     }
     S.doc_rev += 1;
+    crate::signals::outline(S);
     selection::only(S, j);
 }
 
@@ -1587,6 +1592,7 @@ pub fn open_scene(S, rel) {
     S.scene_doc = doc;
     S.doc = util::vec(doc.get("nodes").unwrap_or([]));
     S.doc_rev += 1;
+    crate::signals::outline(S);
     normalize(S.doc);
     expand_instances(S);
     selection::only(S, 0);
@@ -1667,6 +1673,7 @@ pub fn record_override(S, node, key) {
     // Every writer that records no history ends here, so this is where it
     // says the document moved.
     S.doc_rev += 1;
+    crate::signals::outline(S);
     if !is_instanced(node) {
         return;
     }
@@ -1994,6 +2001,7 @@ pub fn delete_selected(S) {
     }
     S.doc = kept;
     S.doc_rev += 1;
+    crate::signals::outline(S);
     selection::only(S, util::clamp(S.sel, 0, S.doc.len() - 1));
     build_mirror(S);
     log::info(label);

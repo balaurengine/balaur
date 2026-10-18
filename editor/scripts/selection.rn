@@ -10,6 +10,7 @@ use crate::util;
 pub fn only(S, i) {
     S.sels = [i];
     S.sel = i;
+    crate::signals::outline(S);
 }
 
 /// Every selected index, active first.
@@ -53,6 +54,7 @@ pub fn toggle(S, i) {
             S.sel = i;
         }
     }
+    crate::signals::outline(S);
 }
 
 /// Extend the set to the document rows between the active node and `i`, for
@@ -69,6 +71,7 @@ pub fn extend_to(S, i) {
     }
     S.sels = out;
     S.sel = i;
+    crate::signals::outline(S);
 }
 
 /// Select nothing: a click on empty space in the viewport, or a delete that
@@ -77,6 +80,7 @@ pub fn extend_to(S, i) {
 pub fn clear(S) {
     S.sels = [];
     S.sel = -1;
+    crate::signals::outline(S);
 }
 
 /// Select exactly these rows; the first is active. An empty list is ignored.
@@ -86,6 +90,7 @@ pub fn set(S, rows) {
     }
     S.sels = rows;
     S.sel = rows[0];
+    crate::signals::outline(S);
 }
 
 pub fn select_all(S) {
@@ -111,6 +116,7 @@ pub fn clamp(S) {
     }
     S.sels = rows;
     S.sel = rows[0];
+    crate::signals::outline(S);
 }
 
 fn id_of(S, i) {
@@ -157,10 +163,12 @@ pub fn set_locked(S, i, locked) {
     } else {
         S.locks.remove(id);
     }
+    crate::signals::outline(S);
 }
 
 pub fn unlock_all(S) {
     S.locks = #{};
+    crate::signals::outline(S);
 }
 
 /// Every selected root's transform, taken once when a drag starts so each

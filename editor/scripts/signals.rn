@@ -1,0 +1,19 @@
+// What the Editor node tells the panels, as events they listen for. Each is
+// emitted once however many edits a frame makes: the guard is cleared when
+// the Editor hears its own event, at the next pump.
+
+/// Have the Editor hear its own words, which is what clears the guard. Here
+/// rather than in editor.rn, where `events` names the Events view's module.
+pub fn hear_own(editor) {
+    events::listen(editor, "outline_changed", editor);
+}
+
+/// The document, the selection, a lock or a warning moved: what a panel
+/// showing the document's outline listens for.
+pub fn outline(S) {
+    if S.outline_told {
+        return;
+    }
+    S.outline_told = true;
+    scene::get_node("Editor").emit("outline_changed", ());
+}

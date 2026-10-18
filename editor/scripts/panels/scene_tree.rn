@@ -1,0 +1,77 @@
+// The Scene tab's one script: it answers every control in its scene and
+// fills the tree from the rows the Editor, which owns the document, hands it.
+
+/// The component tag the facet labelled `label` filters on; "" for all.
+fn facet_tag(label) {
+    match label {
+        "3D" => "3d",
+        "2D" => "2d",
+        "Physics" => "physics",
+        "Rendering" => "render",
+        "UI" => "ui",
+        "Script" => "script",
+        _ => "",
+    }
+}
+
+pub fn init(this) {
+    this.query = "";
+    this.facet = "";
+    this.editor = scene::get_node("Editor");
+    events::listen(this.node, "outline_changed", this.editor);
+}
+
+/// The Editor's word that the document, the selection, a lock or a warning
+/// moved.
+pub fn on_outline_changed(this, _change) {
+    refresh(this);
+}
+
+pub fn on_widget_event(this, event, node, value) {
+    if event != "change" {
+        return;
+    }
+    let name = node.name();
+    if name == "Search" {
+        this.query = value;
+        refresh(this);
+    } else if name == "Facet" {
+        this.facet = facet_tag(value);
+        refresh(this);
+    } else if name == "Tree" {
+        // `text` is the row the click landed on. The set the tree lit is the
+        // Editor's to decide, so the rows are filled again from its answer
+        // even when the pick changed nothing.
+        let row = node.get_component("widget", "text");
+        node.patch_component("widget", #{ text: "" });
+        if row != "" {
+            this.editor.call("outline_pick", row);
+        }
+        refresh(this);
+    }
+}
+
+/// Search the tree for `query`, as the `find:` start state does.
+pub fn find(this, query) {
+    this.query = query;
+    this.node.get_node("Search").patch_component("widget", #{ text: query });
+    refresh(this);
+}
+
+fn refresh(this) {
+    let view = this.editor.call("outline_view", this.query, this.facet);
+    if !(view is Object) {
+        return;
+    }
+    let tree = this.node.get_node("Tree");
+    let nothing = this.node.get_node("Nothing");
+    if view.filtering && view.items.len() == 0 {
+        tree.patch_component("widget", #{ visible: false });
+        nothing.patch_component("widget", #{ visible: true, text: view.nothing });
+        return;
+    }
+    nothing.patch_component("widget", #{ visible: false });
+    tree.patch_component("widget", #{
+        visible: true, options: view.items, selection: view.chosen,
+    });
+}
