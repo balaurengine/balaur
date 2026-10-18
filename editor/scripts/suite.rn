@@ -1,0 +1,138 @@
+//! `--state suite:<state>+<state>+...`: several start states in one run, each
+//! on a freshly opened editor, so `scripts/e2e.sh` boots the editor once per
+//! example rather than once per state.
+//!
+//! A state's own tokens are joined with `&` where `--state` would take a
+//! comma, and `@<frames>` runs one for that many frames rather than until it
+//! goes quiet, for a showcase that plays on: `suite:test:undo+show:input&input@90`.
+//! Each is bracketed in the log by `suite: start <item>` and
+//! `suite: done <item>`, which is what the harness splits the log on, and the
+//! run quits after the last one.
+
+/// Frames a state is given before the run moves on and says it hung.
+const MAX_FRAMES = 900;
+/// Frames a state runs at the least, and idle frames in a row that end it.
+const MIN_FRAMES = 6;
+const QUIET_FRAMES = 3;
+
+/// Queue the states. Called by `shell::apply_start_state` for `suite:`.
+pub fn begin(S, list) {
+    let queue = [];
+    for item in list.split('+') {
+        if item != "" {
+            queue.push(item);
+        }
+    }
+    S.suite = #{ queue: queue, current: "", frames: 0, quiet: 0, budget: 0, opened: false };
+}
+
+/// One frame of the run, at the top of the editor's `update`: start the next
+/// state on a fresh editor once the one before has gone quiet.
+pub fn step(this) {
+    let S = this.S;
+    let run = match S.get("suite") {
+        Some(run) if run is Object => run,
+        _ => return,
+    };
+    if run.current != "" {
+        run.frames += 1;
+        // A state is applied by the pass after it is set, and a lazy UI takes
+        // no pass unless asked, so the run asks until one has taken it.
+        if !S.states_applied {
+            if run.frames < MAX_FRAMES {
+                ui::request_repaint();
+                return;
+            }
+        } else if run.budget > 0 {
+            if run.frames < run.budget {
+                return;
+            }
+        } else {
+            run.quiet = if busy(S) { 0 } else { run.quiet + 1 };
+            if (run.frames < MIN_FRAMES || run.quiet < QUIET_FRAMES) && run.frames < MAX_FRAMES {
+                return;
+            }
+        }
+        if run.frames < MAX_FRAMES {
+            log::info(`suite: done ${run.current} after ${run.frames} frames`);
+        } else {
+            log::error(`suite: ${run.current} was still running after ${MAX_FRAMES} frames`);
+        }
+        run.current = "";
+    }
+    if run.queue.is_empty() {
+        S.suite = ();
+        engine::quit(0);
+        return;
+    }
+    let next = run.queue.remove(0);
+    // The first state runs on the editor `init` opened, as a lone `--state`
+    // would; every later one on a reopened one, in the frame of the reopen,
+    // before anything the reload started has moved.
+    if run.opened {
+        reopen(this, run);
+    }
+    run.opened = true;
+    let S = this.S;
+    run.current = next;
+    run.frames = 0;
+    run.quiet = 0;
+    let (state, budget) = match next.split_once('@') {
+        Some((state, frames)) => (state, frames.parse::<i64>().unwrap_or(0)),
+        None => (next, 0),
+    };
+    run.budget = budget;
+    // `draw_ui` applies the list on the first pass it takes.
+    S.start_states = state.replace("&", ",");
+    S.states_applied = false;
+    S.platform_read = false;
+    log::info(`suite: start ${next}`);
+}
+
+/// The editor as `init` leaves it, over the same mirror node so the reload
+/// frees it: a fresh state, the project read again, the theme and the camera
+/// applied. What a state changed on disk stays changed.
+fn reopen(this, run) {
+    let old = this.S;
+    if old.playing {
+        crate::shell::stop_play(old);
+    }
+    // The sheet and the picker stay open until shut, and a fresh state never
+    // shuts what the last one opened: a scrim left up takes every press.
+    crate::window::hide(old);
+    crate::window::picker_shut(old);
+    let S = crate::fresh_state();
+    S.mirror = old.mirror;
+    S.suite = run;
+    this.S = S;
+    crate::boot(this, S, false);
+}
+
+/// Whether a self-test is still stepping: every per-frame driver the editor's
+/// `update` runs. A driver added there belongs here too, or the run starts
+/// the next state on top of it.
+fn busy(S) {
+    S.start_check is Object
+        || S.session.demo is Object
+        || S.layout_demo >= 0
+        || S.rows_demo >= 0
+        || S.import_demo >= 0
+        || S.convert_demo is Object
+        || !S.import_queue.is_empty()
+        || S.gesture_demo >= 0
+        || S.phys_click is Object
+        || S.viewport_check is Object
+        || S.empty_note is Object
+        || S.reselect is Object
+        || S.pick_check is Object
+        || S.camera_check is Object
+        || S.pool_check is Object
+        || S.settings.demo >= 0
+        || S.themewin.demo >= 0
+        || S.window.demo >= 0
+        || S.machine.demo >= 0
+        || S.plugin_demo >= 0
+        || S.events_demo >= 0
+        || S.palette_demo >= 0
+        || S.showcase is Object
+}
