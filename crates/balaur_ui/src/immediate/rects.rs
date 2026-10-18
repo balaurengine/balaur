@@ -5,18 +5,9 @@
 use balaur_core::Engine;
 use balaur_script::{Bindings, BindingsExt, Value};
 
-use crate::vocabulary::keys as k;
-
 /// A drawn box as the script sees it, or nil for one that has not drawn.
 fn rect_value(rect: Option<egui::Rect>) -> Value {
-    rect.map_or(Value::Nil, |r| {
-        Value::Map(vec![
-            (k::X.into(), Value::Num(f64::from(r.min.x))),
-            (k::Y.into(), Value::Num(f64::from(r.min.y))),
-            (k::WIDTH.into(), Value::Num(f64::from(r.width()))),
-            (k::HEIGHT.into(), Value::Num(f64::from(r.height()))),
-        ])
-    })
+    rect.map_or(Value::Nil, crate::widget::arrange::rect_value)
 }
 
 pub(crate) fn install_rects(m: &mut dyn Bindings<Engine>) {

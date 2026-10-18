@@ -105,6 +105,8 @@ pub struct Style {
     pub radius: Option<f32>,
     pub padding: Option<f32>,
     pub stroke_width: Option<f32>,
+    /// The outline in dashes rather than whole.
+    pub dashed: Option<bool>,
     /// A project-relative picture drawn as the kind's background instead of
     /// `fill`, stretched by `slice`.
     pub image: Option<String>,
@@ -205,6 +207,7 @@ impl Style {
             radius: self.radius.or(base.radius),
             padding: self.padding.or(base.padding),
             stroke_width: self.stroke_width.or(base.stroke_width),
+            dashed: self.dashed.or(base.dashed),
             image: self.image.clone().or_else(|| base.image.clone()),
             slice,
             text_color: self.text_color.or(base.text_color),
@@ -511,6 +514,7 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
         radius: if pill { None } else { number(k::CORNER_RADIUS) },
         padding: number(k::PADDING),
         stroke_width: number(k::STROKE_WIDTH),
+        dashed: body.get(k::DASHED).and_then(toml::Value::as_bool),
         image: body
             .get(k::IMAGE)
             .and_then(toml::Value::as_str)
@@ -791,6 +795,7 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
     let bordered = border.iter().any(|side| *side > 0.0);
     if widget.fill.is_empty()
         && widget.stroke.is_empty()
+        && !widget.dashed
         && widget.icon_color.is_empty()
         && widget.radius < 0.0
         && !bordered
@@ -804,6 +809,9 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
     if !widget.stroke.is_empty() {
         style.stroke = theme.token(&widget.stroke);
     }
+    if widget.dashed {
+        style.dashed = Some(true);
+    }
     if !widget.icon_color.is_empty() {
         style.icon_color = theme.token(&widget.icon_color);
     }
@@ -814,6 +822,27 @@ pub(crate) fn styled(theme: &WidgetTheme, widget: &Widget) -> Rc<Style> {
         style.border = Some(border);
     }
     Rc::new(style)
+}
+
+/// A fill and its outline in dashes along the inside of its edge: six on,
+/// five off, as a guide over a picture is drawn.
+fn dashed_frame(
+    rect: egui::Rect,
+    radius: egui::CornerRadius,
+    fill: Color32,
+    stroke: egui::Stroke,
+) -> egui::Shape {
+    let edge = rect.shrink(stroke.width / 2.0);
+    let path = [
+        edge.left_top(),
+        edge.right_top(),
+        edge.right_bottom(),
+        edge.left_bottom(),
+        edge.left_top(),
+    ];
+    let mut shapes = vec![egui::epaint::RectShape::filled(rect, radius, fill).into()];
+    shapes.extend(egui::Shape::dashed_line(&path, stroke, 6.0, 5.0));
+    egui::Shape::Vec(shapes)
 }
 
 /// A frame's fill and outline over `rect`. The outline is the style's stroke
@@ -833,6 +862,10 @@ pub(crate) fn frame_shape(
         Some(sides) => sides,
         None => [style.stroke_px(); 4],
     };
+    #[allow(clippy::float_cmp, reason = "four sides stated alike, not measured")]
+    if left == top && top == right && right == bottom && style.dashed == Some(true) {
+        return dashed_frame(rect, radius, fill, egui::Stroke::new(left, color));
+    }
     #[allow(clippy::float_cmp, reason = "four sides stated alike, not measured")]
     if left == top && top == right && right == bottom {
         return RectShape::new(

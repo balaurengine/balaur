@@ -436,3 +436,84 @@ fn focus_put_on_a_field_takes_the_caret() {
         .unwrap_or_default();
     assert_eq!(text, "go", "what was typed did not reach the focused field");
 }
+
+fn key_with(k: egui::Key, modifiers: egui::Modifiers) -> Vec<egui::Event> {
+    vec![egui::Event::Key {
+        key: k,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers,
+    }]
+}
+
+/// While a field is typed into, a plain key is a character for it, so the
+/// button `h` hides nothing; a command chord and a function key still fire,
+/// unless the button says the field has a use for its chord.
+#[test]
+fn a_shortcut_leaves_the_keys_of_a_field_being_typed_into() {
+    let (_dir, mut app) = app();
+    let column = add_widget(
+        &app,
+        &toml::toml! { kind = "column" x = 0.0 y = 0.0 width = 200.0 }.into(),
+    );
+    let field = add_child_widget(
+        &app,
+        column,
+        "Name",
+        &toml::toml! { kind = "text_field" text = "" }.into(),
+    );
+    let plain = add_child_widget(
+        &app,
+        column,
+        "Hide",
+        &toml::toml! { kind = "button" text = "hide" shortcut = "h" }.into(),
+    );
+    let save = add_child_widget(
+        &app,
+        column,
+        "Save",
+        &toml::toml! { kind = "button" text = "save" shortcut = "cmd+s" }.into(),
+    );
+    let undo = add_child_widget(
+        &app,
+        column,
+        "Undo",
+        &toml::toml! { kind = "button" text = "undo" shortcut = "cmd+z" while_typing = false }
+            .into(),
+    );
+    let step = add_child_widget(
+        &app,
+        column,
+        "Step",
+        &toml::toml! { kind = "button" text = "step" shortcut = "f10" }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    {
+        let focus = app.engine.resource::<balaur_ui::UiFocus>();
+        let mut focus = focus.borrow_mut();
+        focus.focused = Some(field);
+        focus.taking = true;
+    }
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, vec![]);
+    assert!(
+        ctx.egui_wants_keyboard_input(),
+        "the field did not take the keyboard"
+    );
+    for (button, event, fires) in [
+        (plain, key_with(egui::Key::H, egui::Modifiers::NONE), false),
+        (save, key_with(egui::Key::S, egui::Modifiers::COMMAND), true),
+        (
+            undo,
+            key_with(egui::Key::Z, egui::Modifiers::COMMAND),
+            false,
+        ),
+        (step, key_with(egui::Key::F10, egui::Modifiers::NONE), true),
+    ] {
+        pass(&app, &ctx, event);
+        consume_input(&mut app);
+        assert_eq!(clicked(&app, button), fires, "{button:?}");
+    }
+}

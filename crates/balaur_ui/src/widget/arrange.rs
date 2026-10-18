@@ -26,6 +26,52 @@ thread_local! {
     /// page: the strip is painted inline and has no node to ask.
     static TAB_HEADS: RefCell<FxHashMap<u64, egui::Rect>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
     static PLACING: RefCell<FxHashMap<u64, egui::Rect>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
+    /// The box each listened-to widget was last said to have, for `resized`.
+    static REPORTED: RefCell<FxHashMap<u64, egui::Rect>> = const { RefCell::new(FxHashMap::with_hasher(rustc_hash::FxBuildHasher)) };
+}
+
+/// Say `resized` from every widget someone listens to it on whose box moved
+/// since it was last said, and forget the ones nobody listens to any more.
+pub(crate) fn report_resized(eng: &balaur_core::Engine) {
+    let watched = balaur_core::events::listened_on(eng, crate::widget::input::RESIZED_EVENT);
+    REPORTED.with(|reported| {
+        let mut reported = reported.borrow_mut();
+        if watched.is_empty() {
+            reported.clear();
+            return;
+        }
+        reported.retain(|bits, _| watched.iter().any(|e| e.to_bits().get() == *bits));
+        for entity in watched {
+            let bits = entity.to_bits().get();
+            let now = drawn_at(entity).unwrap_or(egui::Rect::ZERO);
+            if reported.get(&bits) == Some(&now) {
+                continue;
+            }
+            // A node that never drew has nothing to say until it does.
+            if now == egui::Rect::ZERO && !reported.contains_key(&bits) {
+                continue;
+            }
+            reported.insert(bits, now);
+            balaur_core::events::emit_from(
+                eng,
+                entity,
+                crate::widget::input::RESIZED_EVENT,
+                rect_value(now),
+            );
+        }
+    });
+}
+
+/// A box as a script reads it, in design pixels.
+pub(crate) fn rect_value(r: egui::Rect) -> balaur_script::Value {
+    use crate::vocabulary::keys as k;
+    use balaur_script::Value;
+    Value::Map(vec![
+        (k::X.into(), Value::Num(f64::from(r.min.x))),
+        (k::Y.into(), Value::Num(f64::from(r.min.y))),
+        (k::WIDTH.into(), Value::Num(f64::from(r.width()))),
+        (k::HEIGHT.into(), Value::Num(f64::from(r.height()))),
+    ])
 }
 
 /// The rect a widget was last drawn at, or `None` before it has drawn.

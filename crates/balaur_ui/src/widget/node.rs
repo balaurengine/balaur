@@ -139,6 +139,8 @@ pub struct Widget {
     pub trailing: SmolStr,
     /// A chord that clicks this widget from anywhere, as `cmd+shift+s`.
     pub shortcut: SmolStr,
+    /// Whether that chord fires while a text field holds the keyboard.
+    pub while_typing: bool,
     /// A menu held open by the scene rather than by a click.
     pub showing: bool,
     /// Where a menu opens: under its button, above it, at the pointer, or
@@ -273,6 +275,8 @@ pub struct Widget {
     /// from the theme's `[colors]`; empty takes the theme's own.
     pub fill: SmolStr,
     pub stroke: SmolStr,
+    /// Whether that outline is drawn in dashes rather than whole.
+    pub dashed: bool,
     /// Corner radius in design pixels; below zero takes the theme's own.
     pub radius: f32,
     /// How a container spreads its children along its own direction.

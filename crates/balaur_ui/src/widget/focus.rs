@@ -96,6 +96,7 @@ pub(super) fn focus_stops(placed: &[Placed], shown: &[usize]) -> Vec<Entity> {
 /// polling for it. A row of a shut menu answers: that is what a shortcut is
 /// for, and the menu never has to be opened to reach the command.
 pub(super) fn shortcuts(ctx: &egui::Context, placed: &[Placed], shown: &[usize]) -> Vec<Entity> {
+    let typing = ctx.egui_wants_keyboard_input();
     shown
         .iter()
         .filter_map(|&index| {
@@ -104,10 +105,28 @@ pub(super) fn shortcuts(ctx: &egui::Context, placed: &[Placed], shown: &[usize])
                 return None;
             }
             let (modifiers, key) = crate::immediate::chord(&widget.shortcut)?;
+            if typing && !fires_while_typing(widget, modifiers, key) {
+                return None;
+            }
             ctx.input_mut(|input| input.consume_key(modifiers, key))
                 .then_some(placed[index].entity)
         })
         .collect()
+}
+
+/// Whether a chord still clicks while a field is being typed into: only one
+/// the widget allows, and only one that is not itself typing. A plain or
+/// shifted key is a character for the field, so `h` cannot hide a node while
+/// someone writes a name; a function key and a command chord are not.
+fn fires_while_typing(widget: &Widget, modifiers: egui::Modifiers, key: egui::Key) -> bool {
+    let commanded = modifiers.command || modifiers.ctrl || modifiers.alt || modifiers.mac_cmd;
+    widget.while_typing && (commanded || is_function_key(key))
+}
+
+fn is_function_key(key: egui::Key) -> bool {
+    key.name()
+        .strip_prefix('F')
+        .is_some_and(|n| n.parse::<u8>().is_ok())
 }
 
 /// Move focus, or say which widget an `accept` activated.

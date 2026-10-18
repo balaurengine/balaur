@@ -232,6 +232,13 @@ pub const SCROLLED_EVENT: &str = "scrolled";
 /// What a `window` emits when its close button is pressed, before it shuts
 /// or, with `hide_on_close` off, instead of shutting.
 pub const CLOSE_REQUEST_EVENT: &str = "close_request";
+/// What a widget emits when the box it was laid out in moved or changed size,
+/// with the box: only from a node someone listens to it on, and once for a
+/// node that stopped drawing, with an empty box.
+pub const RESIZED_EVENT: &str = "resized";
+/// What the UI says from no node when text was pasted and no field took it,
+/// with the text: the platform clipboard is not readable on demand.
+pub const PASTED_EVENT: &str = "pasted";
 
 /// Which widgets the pointer was over at the end of the last pass.
 #[derive(Default)]
@@ -334,7 +341,27 @@ pub(crate) const EVENTS: &[(&str, &str)] = &[
     (CLOSED_EVENT, "nil"),
     (SCROLLED_EVENT, "the offset, `[x, y]`"),
     (CLOSE_REQUEST_EVENT, "nil"),
+    (
+        RESIZED_EVENT,
+        "`#{ x, y, width, height }`, while someone listens on the node",
+    ),
 ];
+
+/// Say `pasted` for a paste no field took, where someone listens for it.
+pub(crate) fn hear_paste(eng: &Engine, ctx: &egui::Context) {
+    if ctx.egui_wants_keyboard_input() || !balaur_core::events::heard(eng, PASTED_EVENT) {
+        return;
+    }
+    let pasted = ctx.input(|i| {
+        i.events.iter().rev().find_map(|event| match event {
+            egui::Event::Paste(text) => Some(text.clone()),
+            _ => None,
+        })
+    });
+    if let Some(text) = pasted {
+        balaur_core::events::emit(eng, PASTED_EVENT, Value::Str(text));
+    }
+}
 
 fn apply_system(eng: &Engine, _dt: f32) {
     // A replay keeps what `restore` just put back, and a re-simulated tick

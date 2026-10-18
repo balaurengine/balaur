@@ -187,3 +187,23 @@ fn a_window_that_keeps_itself_open_only_asks_to_close() {
         .and_then(|w| w.get("open").and_then(toml::Value::as_bool));
     assert_eq!(open, Some(true), "the script decides whether it shuts");
 }
+
+/// A paste no field took is said from no node, with its text: the platform
+/// clipboard cannot be read on demand, so this is how a shell hears ⌘V.
+#[test]
+fn a_paste_no_field_took_is_heard_with_its_text() {
+    let (_dir, mut app) = app();
+    let ear = add_widget(
+        &app,
+        &toml::toml! { kind = "label" text = "ear" x = 0.0 y = 0.0 }.into(),
+    );
+    balaur_core::events::subscribe(&app.engine, ear, "pasted", None);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, vec![egui::Event::Paste("[[nodes]]".to_owned())]);
+    consume_input(&mut app);
+    assert_eq!(
+        balaur_core::events::delivered(&app.engine, "pasted"),
+        vec![balaur_script::Value::Str("[[nodes]]".into())]
+    );
+}

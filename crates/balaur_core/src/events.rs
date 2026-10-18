@@ -133,6 +133,31 @@ pub fn unsubscribe(eng: &Engine, entity: Entity, name: &str, from: Option<Entity
     }
 }
 
+/// The nodes someone listens to `name` from, for an engine that says `name`
+/// only where it is heard: a widget's `resized` is worth nothing unheard.
+pub fn listened_on(eng: &Engine, name: &str) -> Vec<Entity> {
+    eng.try_resource::<EventState>()
+        .map_or_else(Vec::new, |state| {
+            state
+                .borrow()
+                .listeners
+                .keys()
+                .filter(|(heard, _)| heard == name)
+                .filter_map(|(_, from)| *from)
+                .collect()
+        })
+}
+
+/// Whether anyone listens to `name` from anyone.
+pub fn heard(eng: &Engine, name: &str) -> bool {
+    eng.try_resource::<EventState>().is_some_and(|state| {
+        state
+            .borrow()
+            .listeners
+            .contains_key(&(SmolStr::new(name), None))
+    })
+}
+
 /// Queue an event from no particular node, for the next pump.
 pub fn emit(eng: &Engine, name: &str, payload: Value) {
     queue(eng, name, None, payload);

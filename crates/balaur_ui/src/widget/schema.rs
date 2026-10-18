@@ -90,6 +90,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::TRUNCATE, r#"{ type = "bool", default = false, description = "Cut a caption too long for the width the widget was given and end it with an ellipsis; with neither this nor `wrap` a button clips it at its edge. A `dropdown` cuts its picked text", group = "type" }"#),
                     (k::TRAILING, r#"{ type = "string", default = "", description = "Text a button draws against its far edge, dimmer than its caption: a shortcut, or a menu's caret", group = "type" }"#),
                     (k::SHORTCUT, r#"{ type = "string", default = "", description = "A chord that clicks this widget wherever it is, as `cmd+shift+s` or `f5`; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`", group = "events" }"#),
+                    (k::WHILE_TYPING, r#"{ type = "bool", default = true, description = "Whether `shortcut` fires while a text field holds the keyboard. A chord without cmd, ctrl or alt never does unless it is a function key, since that is typing; off, no chord does, for one the field has a use for itself, as `cmd+z`", group = "events" }"#),
                     (k::SHOWING, r#"{ type = "bool", default = false, description = "Holds a menu's rows up from the scene, as a click would; for an offscreen run or a tutorial, since nothing can click there", group = "events" }"#),
                     (k::DURATION, r#"{ type = "float", default = 3.0, min = 0.0, description = "How long a `toast` stays, in seconds, counting the half second it fades over; zero leaves it up until the game takes it away", group = "type" }"#),
                     (k::PLACEMENT, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where a `menu` opens: under its button, above it, to its right or to its left, each from the side's start (`below` starts at the button's left edge, `right` at its top) or at `_center` or `_end`; at the pointer; or centred on the screen", group = "placement" }}"#, w::BELOW, v::options(w::PLACEMENTS))),
@@ -166,6 +167,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::ENABLED, r#"{ type = "bool", default = true, description = "Off, the widget is greyed out and swallows its clicks" }"#),
                     (k::FILL, r#"{ type = "string", default = "", description = "What is painted behind this widget, an `image`'s picture included, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the theme's own", group = "paint" }"#),
                     (k::STROKE, r#"{ type = "string", default = "", description = "The outline around this widget, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the theme's own", group = "paint" }"#),
+                    (k::DASHED, r#"{ type = "bool", default = false, description = "Draw the outline in dashes, as a guide over a picture is drawn, rather than whole; square at the corners", group = "paint" }"#),
                     (k::CORNER_RADIUS, r#"{ type = "float", default = -1.0, description = "Corner radius in design pixels, a `progress_bar`'s and an `image`'s included; below zero takes the theme's own, which for a button is as round as its text is tall", group = "paint" }"#),
                     (k::JUSTIFY, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How a container spreads its children along its own direction once they have their sizes, and a `grid` its columns: `stretch` grows a grid's `auto` columns into the room, and in a row or a column is `start`", group = "layout" }}"#, w::START, v::options(w::JUSTIFYS))),
                     (k::ALIGN_CONTENT, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How a container that wraps spreads its lines across its direction, and a `grid` its rows, where they leave room: `stretch` shares the room among them", group = "layout" }}"#, w::STRETCH, v::options(w::CONTENT_ALIGNS))),
@@ -486,6 +488,10 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
         k::SHORTCUT.into(),
         toml::Value::String(widget.shortcut.to_string()),
     );
+    map.insert(
+        k::WHILE_TYPING.into(),
+        toml::Value::Boolean(widget.while_typing),
+    );
     map.insert(k::SHOWING.into(), toml::Value::Boolean(widget.showing));
     map.insert(
         k::PLACEMENT.into(),
@@ -655,6 +661,7 @@ fn look_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) 
         k::STROKE.into(),
         toml::Value::String(widget.stroke.to_string()),
     );
+    map.insert(k::DASHED.into(), toml::Value::Boolean(widget.dashed));
     map.insert(
         k::CORNER_RADIUS.into(),
         toml::Value::Float(f64::from(widget.radius)),
@@ -903,6 +910,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         keep_open: r.flag(k::KEEP_OPEN),
         trailing: s(k::TRAILING),
         shortcut: s(k::SHORTCUT),
+        while_typing: r.on_unless_off(k::WHILE_TYPING),
         showing: r.flag(k::SHOWING),
         placement: s(k::PLACEMENT),
         duration: f(k::DURATION),
@@ -928,6 +936,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         disabled: !r.on_unless_off(k::ENABLED),
         fill: s(k::FILL),
         stroke: s(k::STROKE),
+        dashed: r.flag(k::DASHED),
         radius: f(k::CORNER_RADIUS),
         justify: s(k::JUSTIFY),
         on_mark: s(k::ON_MARK),

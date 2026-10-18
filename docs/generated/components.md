@@ -2551,7 +2551,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 228 properties
+`ui` · 230 properties
 
 A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button sets `clicked` and calls `on_click`.
 
@@ -2602,6 +2602,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>current_line</code></td><td>int</td><td><code>0</code></td><td>The line a `code` widget fills across its whole width, counting from 1, for the row a debugger is stopped on; 0 fills none At least 0.</td></tr>
 <tr><td><code>current_page</code></td><td>string</td><td>—</td><td>Which child a `tabs` shows, by node name; empty shows the first. A click on the strip writes it and calls `on_change` with the page&#x27;s name</td></tr>
 <tr><td><code>cursor</code></td><td>enum</td><td><code>arrow</code></td><td>The pointer&#x27;s shape while it is over the widget: `hand` over anything that opens on a click, `none` to hide it; `arrow` is the platform&#x27;s own One of <code>arrow</code>, <code>none</code>, <code>hand</code>, <code>text</code>, <code>vertical_text</code>, <code>cross</code>, <code>cell</code>, <code>wait</code>, <code>progress</code>, <code>help</code>, <code>context_menu</code>, <code>move</code>, <code>grab</code>, <code>grabbing</code>, <code>alias</code>, <code>copy</code>, <code>no_drop</code>, <code>forbidden</code>, <code>all_scroll</code>, <code>resize_x</code>, <code>resize_y</code>, <code>resize_n</code>, <code>resize_e</code>, <code>resize_s</code>, <code>resize_w</code>, <code>resize_ne</code>, <code>resize_nw</code>, <code>resize_se</code>, <code>resize_sw</code>, <code>resize_nesw</code>, <code>resize_nwse</code>, <code>resize_col</code>, <code>resize_row</code>, <code>zoom_in</code>, <code>zoom_out</code>.</td></tr>
+<tr><td><code>dashed</code></td><td>bool</td><td><code>false</code></td><td>Draw the outline in dashes, as a guide over a picture is drawn, rather than whole; square at the corners</td></tr>
 <tr><td><code>decimals</code></td><td>int</td><td><code>-1</code></td><td>How many decimals a `slider`&#x27;s or `number_field`&#x27;s number shows; below zero lets egui decide</td></tr>
 <tr><td><code>default_open</code></td><td>bool</td><td><code>true</code></td><td>Whether a `collapsible` window starts unfolded; `ui.window` takes it too</td></tr>
 <tr><td><code>direction</code></td><td>enum</td><td><code>left_to_right</code></td><td>Which way a row and a grid&#x27;s columns run: `right_to_left` starts them at the right edge One of <code>left_to_right</code>, <code>right_to_left</code>.</td></tr>
@@ -2779,6 +2780,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>warnings</code></td><td>list of string</td><td><code>[]</code></td><td>The lines a `code` widget underlines as warnings, counting from 1; an error on the same line outranks it</td></tr>
 <tr><td><code>wheel_scroll</code></td><td>bool</td><td><code>true</code></td><td>Let the mouse wheel scroll a `scroll`, `list`, `tree` or `table`</td></tr>
 <tr><td><code>wheel_speed</code></td><td>vec2</td><td><code>[1.0, 1.0]</code></td><td>How far a mouse wheel scrolls a `scroll`, `list`, `tree` or `table`, across and down, as a multiple of egui&#x27;s own</td></tr>
+<tr><td><code>while_typing</code></td><td>bool</td><td><code>true</code></td><td>Whether `shortcut` fires while a text field holds the keyboard. A chord without cmd, ctrl or alt never does unless it is a function key, since that is typing; off, no chord does, for one the field has a use for itself, as `cmd+z`</td></tr>
 <tr><td><code>width</code></td><td>float</td><td><code>0.0</code></td><td>Panel width in design pixels; 0 sizes to content At least 0.0.</td></tr>
 <tr><td><code>width_percent</code></td><td>float</td><td><code>0.0</code></td><td>Width as a percentage of the container&#x27;s box inside its padding; 0 leaves it to `width`, which a stated percentage wins over At least 0.0.</td></tr>
 <tr><td><code>widths</code></td><td>list of string</td><td><code>[]</code></td><td>Each `table` column&#x27;s share of the width, in the order `titles` names them: `[&quot;2&quot;, &quot;1&quot;, &quot;1&quot;]` gives the first half and the other two a quarter each. Numbers and the text of them both; empty divides the width evenly, and a drag on a seam in the header writes the shares back</td></tr>
@@ -2812,6 +2814,7 @@ Announced from a node carrying `widget`:
 <tr><td><code>closed</code></td><td>nil</td></tr>
 <tr><td><code>scrolled</code></td><td>the offset, <code>[x, y]</code></td></tr>
 <tr><td><code>close_request</code></td><td>nil</td></tr>
+<tr><td><code>resized</code></td><td><code>#{ x, y, width, height }</code>, while someone listens on the node</td></tr>
 </tbody>
 </table>
 

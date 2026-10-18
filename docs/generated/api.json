@@ -399,6 +399,10 @@
       [
         "close_request",
         "nil"
+      ],
+      [
+        "resized",
+        "`#{ x, y, width, height }`, while someone listens on the node"
       ]
     ]
   },
@@ -11261,6 +11265,12 @@
         ],
         "type": "enum"
       },
+      "dashed": {
+        "default": false,
+        "description": "Draw the outline in dashes, as a guide over a picture is drawn, rather than whole; square at the corners",
+        "group": "paint",
+        "type": "bool"
+      },
       "decimals": {
         "default": -1,
         "description": "How many decimals a `slider`'s or `number_field`'s number shows; below zero lets egui decide",
@@ -12670,6 +12680,12 @@
         "description": "How far a mouse wheel scrolls a `scroll`, `list`, `tree` or `table`, across and down, as a multiple of egui's own",
         "group": "value",
         "type": "vec2"
+      },
+      "while_typing": {
+        "default": true,
+        "description": "Whether `shortcut` fires while a text field holds the keyboard. A chord without cmd, ctrl or alt never does unless it is a function key, since that is typing; off, no chord does, for one the field has a use for itself, as `cmd+z`",
+        "group": "events",
+        "type": "bool"
       },
       "width": {
         "default": 0.0,

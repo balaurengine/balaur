@@ -159,11 +159,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         draw_root(ctx, &mut painting, root, area, fade);
         toasts.drew(&placed[root]);
     }
-    // Published at the end of the draw, not the start of the next one: a
-    // script's `draw_ui` runs after this and reads this frame's rects.
-    settle_rects();
-    roll_measurements();
-    crate::widget::taffy::sweep(eng);
+    settle(eng, ctx);
     let mut edits = std::mem::take(&mut painting.edits);
     let clicked = std::mem::take(&mut painting.clicked);
     edits.extend(crate::widget::input::pass_edits(eng, ctx, &painting));
@@ -179,6 +175,17 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     crate::widget::toast::clear(eng, &toasts.expired());
     let arrived = focus_moved(eng, was_focused, taking, &mut edits);
     crate::widget::input::record(eng, &clicked, edits, arrived);
+}
+
+/// What the draw leaves for the next one: this frame's rects published, at
+/// the end of the draw rather than the start of the next one so a script's
+/// `draw_ui` reads them; the boxes that moved and a paste no field took said.
+fn settle(eng: &Engine, ctx: &egui::Context) {
+    settle_rects();
+    crate::widget::arrange::report_resized(eng);
+    crate::widget::input::hear_paste(eng, ctx);
+    roll_measurements();
+    crate::widget::taffy::sweep(eng);
 }
 
 /// Draw one root into the area its surface gives it, and record where it
