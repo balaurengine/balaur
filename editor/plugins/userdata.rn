@@ -6,9 +6,9 @@ pub fn register() {
     #{ panels: [#{ id: "userdata", title: "User data", tall: true, draw: draw }] }
 }
 
+/// Filled when its dock shows, and again on a word: a save the game wrote
+/// while the editor watches is one of them, so it shows without a click.
 pub fn draw(S, k, host) {
-    // A save written while the editor watches should show without a click.
-    ui::request_repaint();
     let files = S.kit.file_rows;
     let rows = S.kit.put_rows;
     rows(S, host, "body", files(S, "userdata", #{}));

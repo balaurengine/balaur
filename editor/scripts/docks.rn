@@ -271,7 +271,7 @@ pub fn bottom_tall(S) {
     panel(S, d.active).tall
 }
 
-fn body(S, k, id) {
+fn body(S, id) {
     if filled_by_itself(id) {
         // An open recording's lanes take the list's room.
         if id == "recordings" {
@@ -288,16 +288,28 @@ fn body(S, k, id) {
         "outline" => left::show_outline(),
         "inspector" => inspector::show_panel(),
         "import" => util::fill("Editor/Shell/Body/Right/RightSheet/Import", #{ visible: true }),
-        _ => match crate::plugins::panel(S, id) {
-            Some(entry) => {
-                let draw = entry.draw;
-                // The node the editor made for this dock, not a `ui` handle:
-                // a plugin fills its own subtree and cannot reach past it.
-                draw(S, k, plugin_host(S, side_of(S, id).unwrap_or("bottom"), id));
-            }
-            None => (),
-        },
+        _ => fill_plugin(S, id),
     }
+}
+
+/// Have a plugin fill its dock's subtree: the node the editor made for it,
+/// not a `ui` handle, so a plugin fills its own subtree and cannot reach
+/// past it. On a word its script heard, and when its dock shows it.
+pub fn fill_plugin(S, id) {
+    let entry = match crate::plugins::panel(S, id) {
+        Some(entry) => entry,
+        None => return,
+    };
+    let side = match side_of(S, id) {
+        Some(side) => side,
+        None => return,
+    };
+    let host = plugin_host(S, side, id);
+    if host == "" {
+        return;
+    }
+    let fill = entry.draw;
+    fill(S, S.theme, host);
 }
 
 const BOTTOM = "Editor/Shell/Body/Centre/Bottom/";
@@ -335,16 +347,6 @@ fn show_panel(name) {
     util::fill(BOTTOM + name, #{ visible: true });
 }
 
-// The hatch draws whatever panel has no node of its own, so it gives its room
-// up to one that has.
-fn sync_hatch(S, d) {
-    let owned = owns_a_node(S, "bottom", d);
-    util::fill(BOTTOM + "DockBody", #{
-        grow: if owned { 0.0 } else { 1.0 },
-        height: if owned { 1.0 } else { 0.0 },
-    });
-}
-
 /// Fill a panel's strip of chips at `path`: `rows` is a list of controls a
 /// row, made into nodes by the pool.
 pub fn toolbar(S, path, rows) {
@@ -353,27 +355,6 @@ pub fn toolbar(S, path, rows) {
         groups.push(#{ kind: "row", role: "toolbar_dock", gap: [6, 6], align_items: "center", controls: row });
     }
     crate::pool::strip(S, path, groups);
-}
-
-/// Whether the panel showing has a node of its own, which the shared hatch
-/// must then leave the room to.
-fn owns_a_node(S, side, d) {
-    if d.shut || d.active == "" {
-        return false;
-    }
-    // Every plugin dock has one: the editor makes it a subtree rather than
-    // lending it the hatch.
-    if crate::plugins::panel(S, d.active).is_some() {
-        return true;
-    }
-    for entry in node_owners()[side] {
-        for id in entry.panels {
-            if id == d.active {
-                return true;
-            }
-        }
-    }
-    false
 }
 
 fn node_owners() {
@@ -421,9 +402,6 @@ fn hide_node(S, which) {
 }
 
 fn hide_unused(S, side, d) {
-    if side == "bottom" {
-        sync_hatch(S, d);
-    }
     hide_plugin_hosts(S, side, if d.shut { "" } else { d.active });
     for entry in node_owners()[side] {
         let wanted = false;
@@ -438,12 +416,8 @@ fn hide_unused(S, side, d) {
     }
 }
 
-// The tab row, and the tiles in it. A small window gets a step less of both:
-// the row is chrome, and chrome is what a short window has least room for.
-pub fn row_h(S) {
-    if S.compact { 24.0 } else { 28.0 }
-}
-
+// A tab, which a small window gets a step less of: the row is chrome, and
+// chrome is what a short window has least room for.
 fn tab_h(S) {
     // A tab is a control a finger picks, so it takes the same height as the
     // rest of them where a finger is what reaches it.
@@ -456,7 +430,6 @@ fn tab_h(S) {
     }
 }
 
-// Where each dock's tab strip and its tools hatch live.
 /// Where a side keeps its plugin docks' own subtrees, which the scene states
 /// so one made at run time sits where the side wants it rather than last.
 fn plugins_of(side) {
@@ -475,6 +448,7 @@ fn host_fragment(name) {
     let text = "[[nodes]]
 id = \"HOST\"
 name = \"HOST\"
+script.source = \"scripts/panels/plugin.rn\"
 [nodes.widget]
 kind = \"column\"
 role = \"plugin_host\"
@@ -561,7 +535,7 @@ pub fn plugin_host(S, side, id) {
         if util::is_nil(under) {
             return "";
         }
-        scene::instantiate(host_fragment(host_name(id)), under, #{ scripts: false });
+        scene::instantiate(host_fragment(host_name(id)), under);
     }
     util::fill(parent, #{ visible: true });
     util::fill(path, #{ visible: true });
@@ -858,41 +832,6 @@ pub fn all_folded(S) {
     true
 }
 
-/// The bottom dock's body, drawn each pass for the panels that still draw;
-/// its tab row and which panel shows are `fill`'s, on `docks_changed`.
-pub fn draw_bottom_body(S, k) {
-    let d = S.docks.bottom;
-    if d.tabs.len() == 0 || d.shut || filled_by_itself(d.active) {
-        return;
-    }
-    body_scrolled(S, k, d.active);
-}
-
-
-/// A dock's body, inside the scroll it needs unless it brings its own.
-///
-/// Two scrolls, each asking for the body's whole height, leave the outer one
-/// holding contents taller than itself: a gap under the tabs, and the panel
-/// clipped to a few rows with empty sheet below it.
-fn body_scrolled(S, k, id) {
-    if scrolls_itself(S, id) {
-        body(S, k, id);
-        return;
-    }
-    ui::scroll("dock-body", #{ max_height: S.layout.body_h - 8.0 }, || {
-        body(S, k, id);
-    });
-}
-
-/// The panels that open a scroll of their own, because they want something
-/// the plain one does not do: a log follows what is arriving. A plugin's dock
-/// always does: its own subtree carries the scroll.
-fn scrolls_itself(S, id) {
-    crate::plugins::panel(S, id).is_some()
-}
-
-/// The strip along the foot of the bottom dock: what is playing, and the
-/// control that minimises the dock when it is open.
 /// A dock's tab row, which of its panels shows, and the side panels' own
 /// showing: what its script asks for on `docks_changed`, rather than every pass.
 pub fn fill(S, side) {
@@ -904,9 +843,7 @@ pub fn fill(S, side) {
         return "";
     }
     tab_row(S, k, side, d);
-    if side != "bottom" || filled_by_itself(d.active) {
-        body(S, k, d.active);
-    }
+    body(S, d.active);
     shown_panel(S, side, d)
 }
 

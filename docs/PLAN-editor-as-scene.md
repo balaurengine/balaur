@@ -657,8 +657,8 @@ Gone: the shared bottom nodes (`BottomChrome`, `BottomRows`, `BottomCards`,
 `util::taken`, and the tab row's hints for Assets, Debugger, Profiler and
 Cost.
 
-Left: a plugin's bottom dock is still drawn each pass into its own subtree
-(item 1 of 9.10).
+Left: a plugin's bottom dock was still drawn each pass into its own subtree
+until 9.10.
 
 ### 9.6 The chrome
 
@@ -694,7 +694,7 @@ Built 2026-10-18, phase 4.
 - **Paste** is the UI's `pasted` event, for text no field took.
 
 Left for later phases: the box-select marquee and the viewport's lines
-(item 2 of 9.10).
+(item 1 of 9.11).
 
 ### 9.7 Dialogs and sheets
 
@@ -756,10 +756,27 @@ nodes now, each a scene with one script that fills on a word.
   under the row being picked for. It fills on `bonemap_changed`.
 - **The Events tab** fills on the outline and the Inspector's words.
 
-### 9.10 What is left, in order
+### 9.10 Plugin docks
 
-1. Plugin docks handed a word and filled on it, instead of drawn each pass.
-2. The viewport tools on pointer hooks, and the gizmo and overlay lines as
+Built 2026-10-18, phase 8. A plugin's dock subtree carries
+`scripts/panels/plugin.rn`, which has the plugin fill it on
+`plugins_changed` (the kit's `changed`), the outline's and the Inspector's
+words, `debugger_changed`, the engine's `saved` and `assets_reloaded`, and
+after one of its own controls; the dock fills it when it shows it. A plugin's
+`draw(S, k, host)` is called on those and never each pass.
+
+- **`saved`** is the engine's, from no node, when a save slot was written
+  or removed: what the User data dock fills on instead of asking for a
+  repaint every frame.
+- **The kit** remembers a tab or a page in the click's own handler, and a
+  tree's edit is handed whole to the caller's `write`: with the rows filled
+  before anyone types, an answer read back at fill time could not carry it.
+- **The bottom dock's hatch** (`DockBody`, `draw_dock_bottom`) is gone: no
+  bottom panel draws.
+
+### 9.11 What is left, in order
+
+1. The viewport tools on pointer hooks, and the gizmo and overlay lines as
    retained nodes.
-3. Remove `draw_ui`, the pool and the `draw` nodes from the editor, and move
+2. Remove `draw_ui`, the pool and the `draw` nodes from the editor, and move
    the self-tests off stepping every frame.

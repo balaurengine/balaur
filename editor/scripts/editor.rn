@@ -740,12 +740,6 @@ fn report_view(S) {
     }
 }
 
-// One hatch for every row the inspector's pool draws itself; the cursor in
-// `inspector` keeps the calls in step with the rows that pushed them.
-pub fn draw_dock_bottom(this) {
-    docks::draw_bottom_body(this.S, this.S.theme);
-}
-
 // The outliner's context menu, one method a row. The right click that opened
 // it picked the row under the pointer, so each acts on the selection.
 pub fn tree_add_child(this) {
@@ -871,6 +865,11 @@ pub fn on_manager_changed(this, _change) {
 
 pub fn on_plugins_changed(this, _change) {
     signals::heard(this.S, "plugins_changed");
+}
+
+/// Have the plugin dock `id` fill its subtree, on a word its script heard.
+pub fn plugin_fill(this, id) {
+    docks::fill_plugin(this.S, id);
 }
 
 /// The Import tab's form, and what its head says.

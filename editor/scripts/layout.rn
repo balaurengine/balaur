@@ -40,7 +40,7 @@ pub fn state() {
         // The stage's own box, which a split shares between the scene and
         // the code: what the code sheet's inset is measured against.
         stage_box: rect(0.0, 0.0, 0.0, 0.0),
-        hooks: rect(0.0, 0.0, 0.0, 0.0), split_w: 560.0, body_h: 96.0,
+        hooks: rect(0.0, 0.0, 0.0, 0.0), split_w: 560.0,
         // How tall the tool rail's column is, read back a frame late; the
         // rail flows into a second column rather than overrun it.
         rail_room: 400.0,
@@ -84,7 +84,6 @@ fn node(S, id) {
         "stack" => SHELL + "/Body/Centre/UpperRow/Stack",
         "upper" => SHELL + "/Body/Centre/UpperRow/Stack/Upper",
         "bottom" => SHELL + "/Body/Centre/Bottom",
-        "dockbody" => SHELL + "/Body/Centre/Bottom/DockBody",
         "status" => SHELL + "/Body/Centre/Bottom/Status",
         "railslot" => SHELL + "/Body/Centre/UpperRow/RailSlot",
         "rail" => SHELL + "/Body/Centre/UpperRow/RailSlot/Rail",
@@ -211,7 +210,7 @@ pub fn settled(S) {
 pub fn watched() {
     let out = [];
     for id in [
-        "shell", "head", "leftsheet", "rightsheet", "bottom", "dockbody", "rail", "railtop",
+        "shell", "head", "leftsheet", "rightsheet", "bottom", "rail", "railtop",
         "railslot", "centre", "canvas", "stage", "hooks", "upperrow", "chips", "hud",
     ] {
         out.push(id);
@@ -422,7 +421,6 @@ pub fn compute(S) {
         left: box_of(S, "leftsheet"),
         right: box_of(S, "rightsheet"),
         bottom: box_of(S, "bottom"),
-        dockbody: box_of(S, "dockbody"),
         rail: box_of(S, "rail"),
         railtop: box_of(S, "railtop"),
         railslot: box_of(S, "railslot"),
@@ -456,9 +454,6 @@ pub fn compute(S) {
     // Less the folded dock's handle above it and the HUD strip under its foot.
     let hud = if S.stage_chrome && !S.chrome_off { crate::center::hud_h(S) } else { 0.0 };
     m.rail_room = util::max(120.0, column - crate::docks::rail_top_h(S) - hud);
-    // What a dock panel may scroll: its share of the sheet, less the tab row
-    // and the status strip at the foot.
-    m.body_h = util::max(0.0, r.dockbody.h - crate::docks::row_h(S));
     m.bar = r.head;
 
     // A document is not full-bleed: text under a sheet is unreadable. Sharing

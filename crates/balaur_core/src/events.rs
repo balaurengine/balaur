@@ -76,6 +76,8 @@ pub struct EventState {
     logs_seen: u64,
     /// The asset cache's generation at the last pump, for [`ASSETS_RELOADED`].
     assets_seen: u64,
+    /// The save slots' write count at the last pump, for [`SAVED`].
+    saves_seen: u64,
     /// Where a script was stopped at the last pump, for [`DEBUGGER_STOPPED`].
     stop_seen: Option<balaur_script::Pause>,
 }
@@ -89,6 +91,12 @@ pub const LOGGED: &str = "logged";
 /// or declared stale since the last pump, with its generation: what an
 /// editor's file views listen for. Queued only while someone listens.
 pub const ASSETS_RELOADED: &str = "assets_reloaded";
+
+/// What the save slots say from no node when one was written or removed
+/// since the last pump, with their running count: what an editor's view of
+/// a game's saves listens for instead of listing the folder each frame.
+/// Queued only while someone listens.
+pub const SAVED: &str = "saved";
 
 /// What the debugger says from no node when a script stopped, stopped
 /// somewhere else or went on since the last pump, with where it is stopped
@@ -305,6 +313,11 @@ fn notice(eng: &Engine, state: &mut EventState, stop: Option<balaur_script::Paus
     if assets != state.assets_seen {
         state.assets_seen = assets;
         say_if_heard(state, ASSETS_RELOADED, || count(assets));
+    }
+    let saves = crate::save::generation();
+    if saves != state.saves_seen {
+        state.saves_seen = saves;
+        say_if_heard(state, SAVED, || count(saves));
     }
     if stop != state.stop_seen {
         say_if_heard(state, DEBUGGER_STOPPED, || {

@@ -179,3 +179,26 @@ fn a_script_listening_for_assets_reloaded_hears_an_invalidate() {
     }
     assert!(said(&app).contains("reloaded;"), "{}", said(&app));
 }
+
+/// A view of a game's saves listens for `saved` instead of listing the
+/// folder each frame: a slot written is heard at the next pump.
+#[test]
+fn a_script_listening_for_saved_hears_a_slot_written() {
+    let script = format!(
+        "{TELL}pub fn init(this) {{ events::listen(this.node, \"saved\"); }}\n\
+         pub fn update(this, dt) {{\n\
+             if scene::variable(\"said\") == \"\" {{\n\
+                 scene::set_variable(\"said\", \"asked;\");\n\
+                 save::write(\"probe\", #{{ n: 1 }});\n\
+             }}\n\
+         }}\n\
+         pub fn on_saved(this, count) {{ tell(\"saved\"); }}\n"
+    );
+    let (dir, mut app) = app_with(&script);
+    // Kept in the test's own folder, not the user's data directory.
+    balaur_core::save::set_home(&app.engine, Some(dir.path().join("data")));
+    for _ in 0..3 {
+        app.tick(1.0 / 60.0);
+    }
+    assert!(said(&app).contains("saved;"), "{}", said(&app));
+}

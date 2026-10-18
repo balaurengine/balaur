@@ -431,15 +431,6 @@ kind = "row"
 role = "layout_dock"
 align_items = "center"
 
-[[nodes]]
-id = "dockbody"
-name = "DockBody"
-parent = "bottom"
-[nodes.widget]
-kind = "draw"
-draw = "draw_dock_bottom"
-grow = 1
-
 # Output, Problems and Docs, each its own scene and script: see
 # scenes/panels/output.toml, problems.toml and docs.toml.
 [[nodes]]

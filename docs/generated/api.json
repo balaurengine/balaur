@@ -19132,7 +19132,7 @@
         "remove": "Delete a slot. Not an error when it was not there.",
         "slots": "Every slot that has been written, in name order.",
         "version": "The save version this build writes, from `[save] version`.",
-        "write": "Write a table to a named slot, stamped with the project's save version. Written beside the target and renamed over it, so a crash mid-save cannot destroy the last one."
+        "write": "Write a table to a named slot, stamped with the project's save version. Written beside the target and renamed over it, so a crash mid-save cannot destroy the last one. A script hears this and every `remove` with `events::listen(this.node, \"saved\")`, as `on_saved(count)`."
       },
       "functions": [
         "directory",

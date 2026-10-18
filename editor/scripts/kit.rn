@@ -140,20 +140,19 @@ fn tabs(S, host, id, names) {
     let m = memory(S);
     let held = m.get("tab:" + id).unwrap_or(());
     let current = if held is String && util::contains(names, held) { held } else { names[0] };
-    let picked = #{ name: current };
     let controls = [];
     for entry in names {
         // Bound afresh: a closure made in a loop captures the binding.
         let name = entry;
         controls.push(#{
             kind: "button", text: name,
-            role: "chip", checked: name == picked.name,
-            on: |_| { picked.name = name; },
+            role: "chip", checked: name == current,
+            on: |_| { m["tab:" + id] = name; },
         });
     }
     host_strip(S, host, "head", controls);
-    m["tab:" + id] = picked.name;
-    picked.name
+    m["tab:" + id] = current;
+    current
 }
 
 /// A list of pages down the host's sidebar, the way the settings screen is
@@ -174,7 +173,6 @@ fn pages(S, host, id, groups) {
     let m = memory(S);
     let held = m.get("tab:" + id).unwrap_or(());
     let current = if held is String && util::contains(names, held) { held } else { names[0] };
-    let picked = #{ name: current };
     let controls = [];
     for group in groups {
         if group.title != "" {
@@ -185,15 +183,15 @@ fn pages(S, host, id, groups) {
             let name = entry;
             controls.push(#{
                 kind: "button", text: name,
-                role: "item_sidebar", checked: name == picked.name,
-                on: |_| { picked.name = name; },
+                role: "item_sidebar", checked: name == current,
+                on: |_| { m["tab:" + id] = name; },
             });
         }
     }
     host_strip(S, host, "side", controls);
     util::fill(host + "/Split/Side", #{ visible: true });
-    m["tab:" + id] = picked.name;
-    picked.name
+    m["tab:" + id] = current;
+    current
 }
 
 /// A heading between groups of rows.
@@ -294,25 +292,28 @@ fn shown(value) {
 }
 
 /// A value as rows: a map or a list opens and closes, a leaf shows in mono.
-/// With `edit`, a leaf is a field and Enter keeps what was typed. Answers
-/// `(specs, value, changed)`; the caller puts the specs on its host.
+/// With `edit`, a leaf is a field and Enter keeps what was typed: the value
+/// is changed in place and handed whole to `write`, which is where a caller
+/// keeps it. Answers `(specs, value, changed)`; the caller puts the specs on
+/// its host. The rows are filled before anyone types, so `changed` is only
+/// ever true for a caller that fills again from inside `write`.
 fn tree(S, id, value, opts) {
-    let out = #{ value: value, changed: false, specs: [] };
+    let out = #{ value: value, changed: false, specs: [], write: option(opts, "write", ()) };
     let edit = option(opts, "edit", false);
     let label = option(opts, "label", "");
-    out.value = branch(S, out, id, label, value, edit, 0);
+    out.value = branch(S, out, id, [], label, value, edit, 0);
     let answer = (out.specs, out.value, out.changed);
     answer
 }
 
-fn branch(S, out, path, label, value, edit, depth) {
+fn branch(S, out, path, keys, label, value, edit, depth) {
     if value is Object || value is Vec {
-        return container(S, out, path, label, value, edit, depth);
+        return container(S, out, path, keys, label, value, edit, depth);
     }
-    leaf(S, out, path, label, value, edit, depth)
+    leaf(S, out, path, keys, label, value, edit, depth)
 }
 
-fn container(S, out, path, label, value, edit, depth) {
+fn container(S, out, path, keys, label, value, edit, depth) {
     let m = memory(S);
     let key = "open:" + path;
     let open = m.get(key).unwrap_or(depth == 0);
@@ -335,17 +336,28 @@ fn container(S, out, path, label, value, edit, depth) {
         let names = util::keys_sorted(value);
         for name in names {
             let child = value[name];
-            value[name] = branch(S, out, path + "/" + name, name, child, edit, inner);
+            value[name] = branch(S, out, path + "/" + name, with(keys, name), name, child, edit, inner);
         }
     } else {
         let n = 0;
         while n < value.len() {
             let child = value[n];
-            value[n] = branch(S, out, path + "/" + format!("{}", n), format!("{}", n), child, edit, inner);
+            value[n] = branch(S, out, path + "/" + format!("{}", n), with(keys, n), format!("{}", n), child, edit, inner);
             n += 1;
         }
     }
     value
+}
+
+// The keys down to a child, as a list of their own: a list shared between
+// siblings would end with the last one's key.
+fn with(keys, key) {
+    let out = [];
+    for k in keys {
+        out.push(k);
+    }
+    out.push(key);
+    out
 }
 
 // A row's own depth, as the spaces before its label: a pooled row's label is
@@ -360,16 +372,14 @@ fn indent(depth) {
     out
 }
 
-fn leaf(S, out, path, label, value, edit, depth) {
-    let held = #{ value: value };
+fn leaf(S, out, path, keys, label, value, edit, depth) {
     let text = shown(value);
     let control = if edit {
         #{
             kind: "text_field", role: "input_form", grow: 1, text: text,
             on_submit: |typed| {
                 if typed != text {
-                    held.value = parsed(value, typed);
-                    out.changed = true;
+                    put(out, keys, parsed(value, typed));
                 }
             },
         }
@@ -379,7 +389,28 @@ fn leaf(S, out, path, label, value, edit, depth) {
     out.specs.push(#{
         label: indent(depth) + label, height: 22, controls: [control],
     });
-    held.value
+    value
+}
+
+// An edited leaf, written into the whole value at its keys and the whole
+// handed to the caller's `write`.
+fn put(out, keys, now) {
+    out.changed = true;
+    if keys.len() == 0 {
+        out.value = now;
+    } else {
+        let at = out.value;
+        let n = 0;
+        while n + 1 < keys.len() {
+            at = at[keys[n]];
+            n += 1;
+        }
+        at[keys[keys.len() - 1]] = now;
+    }
+    let write = out.write;
+    if !(write is Tuple) {
+        write(out.value);
+    }
 }
 
 /// What was typed, as the kind of value it replaces: text stays text, and a
@@ -481,13 +512,13 @@ fn document(S, id, path, edit, out) {
         }] });
         return;
     }
-    let (specs, after, changed) = tree(S, id, value, #{ edit: edit });
-    for spec in specs {
-        out.push(spec);
-    }
-    if changed {
+    let keep = |after| {
         let body = if as_toml { toml::encode(after) } else { json::encode(after) };
         fs::write(path, body);
+    };
+    let (specs, _, _) = tree(S, id, value, #{ edit: edit, write: keep });
+    for spec in specs {
+        out.push(spec);
     }
 }
 
