@@ -1,0 +1,113 @@
+# What the viewport carries over itself: the Interface workspace's guides, the
+# chip strip along its top, and the handles of the docks folded towards it.
+# Laid over the stage, taking no pointer but where a control is.
+
+[[nodes]]
+id = "chrome"
+name = "Chrome"
+script = { source = "scripts/panels/stage.rn" }
+[nodes.widget]
+kind = "column"
+absolute = true
+inset = [0.0, 0.0, 0.0, 0.0]
+interactive = false
+
+# The safe-area inset and the 16:9 frame, dashed over the picture.
+[[nodes]]
+id = "safe"
+name = "Safe"
+parent = "chrome"
+[nodes.widget]
+kind = "panel"
+text = ""
+absolute = true
+inset = [34.0, 34.0, 34.0, 34.0]
+fill = "none"
+stroke = "primary_fill"
+dashed = true
+interactive = false
+visible = false
+
+[[nodes]]
+id = "resolution"
+name = "Resolution"
+parent = "chrome"
+[nodes.widget]
+kind = "panel"
+text = ""
+absolute = true
+fill = "none"
+stroke = "border_default"
+dashed = true
+interactive = false
+visible = false
+
+# Drags sideways rather than painting its last chip over whatever sits beside
+# the scene. Its own script, which hears the pointer come for it.
+[[nodes]]
+id = "chips"
+name = "Chips"
+parent = "chrome"
+script = { source = "scripts/panels/chips.rn" }
+[nodes.widget]
+kind = "scroll"
+axis = "horizontal"
+absolute = true
+inset = [0.0, 0.0, 0.0, -1.0]
+height = 28
+visible = false
+
+[[nodes]]
+id = "chips_row"
+name = "Row"
+parent = "chips"
+[nodes.widget]
+kind = "row"
+gap = [6, 6]
+align_items = "center"
+padding = [6, 0, 6, 0]
+
+# A folded side dock's way back, at the edge it folded towards.
+[[nodes]]
+id = "left"
+name = "Left"
+parent = "chrome"
+[nodes.widget]
+kind = "panel"
+role = "sheet"
+text = ""
+absolute = true
+inset = [0.0, 0.0, -1.0, -1.0]
+visible = false
+
+[[nodes]]
+id = "left_open"
+name = "Open"
+parent = "left"
+[nodes.widget]
+kind = "button"
+role = "icon_action"
+text = ""
+padding = 0
+
+[[nodes]]
+id = "right"
+name = "Right"
+parent = "chrome"
+[nodes.widget]
+kind = "panel"
+role = "sheet"
+text = ""
+absolute = true
+inset = [-1.0, 0.0, 0.0, -1.0]
+visible = false
+
+[[nodes]]
+id = "right_open"
+name = "Open"
+parent = "right"
+[nodes.widget]
+kind = "button"
+role = "icon_action"
+text = ""
+padding = 0

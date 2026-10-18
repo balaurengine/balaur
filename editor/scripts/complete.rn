@@ -168,6 +168,7 @@ fn accept(S) {
     let path = S.game_root + "/" + S.complete.rel;
     S.script_buffers[path] = text;
     S.script_dirty[path] = true;
+    crate::signals::bars(S);
     reset(S);
 }
 

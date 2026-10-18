@@ -34,9 +34,9 @@ pub fn state() {
         railtop: rect(0.0, 0.0, 0.0, 0.0),
         right: rect(0.0, 0.0, 0.0, 0.0), bottom: rect(0.0, 0.0, 0.0, 0.0),
         stage: rect(0.0, 0.0, 0.0, 0.0), doc: rect(0.0, 0.0, 0.0, 0.0),
-        // The two strips the stage draws over itself, written by `center` as
-        // it draws them and zero on a frame it does not.
+        // The two strips over the stage, and the row the HUD runs along.
         chips: rect(0.0, 0.0, 0.0, 0.0), hud: rect(0.0, 0.0, 0.0, 0.0),
+        upper: rect(0.0, 0.0, 0.0, 0.0),
         hooks: rect(0.0, 0.0, 0.0, 0.0), split_w: 560.0, body_h: 96.0,
         // How tall the tool rail's column is, read back a frame late; the
         // rail flows into a second column rather than overrun it.
@@ -92,6 +92,8 @@ fn node(S, id) {
         "canvas" => SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work/Canvas",
         "stage" => SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Stage",
         "hooks" => SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Hooks",
+        "chips" => SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Stage/Chrome/Chips",
+        "hud" => SHELL + "/Body/Centre/UpperRow/Hud",
         _ => "",
     };
     let found = scene::get_node(path);
@@ -191,16 +193,34 @@ fn eased(mark) {
         .any(|m| m == mark)
 }
 
-/// Whether every box has held still for two passes and nothing is moving.
-///
-/// Two rather than one: a rect read back this pass can change what the next
-/// one writes, so a single quiet pass is not proof the shell has stopped.
+/// Whether the last layout wrote no box and nothing is moving. A box that
+/// moved after it says so with `resized`, which lays the shell out again, so
+/// one quiet layout is the shell at rest.
 pub fn settled(S) {
     let m = S.layout;
-    if !m.asked || m.quiet < 2 {
+    if !m.asked || m.quiet < 1 {
         return false;
     }
     !animating(S)
+}
+
+/// Every box whose `resized` lays the shell out again: the sheets a seam
+/// drags, the columns a dock or the rail takes room from, and the strips
+/// over the stage.
+pub fn watched() {
+    let out = [];
+    for id in [
+        "shell", "head", "leftsheet", "rightsheet", "bottom", "dockbody", "rail", "railtop",
+        "railslot", "centre", "canvas", "stage", "hooks", "upperrow", "chips", "hud",
+    ] {
+        out.push(id);
+    }
+    out
+}
+
+/// The node of one of those boxes, or nil before the shell has loaded.
+pub fn box_node(S, id) {
+    node(S, id)
 }
 
 /// Whether an eased box is still travelling. A tween moves the widget from
@@ -414,6 +434,9 @@ pub fn compute(S) {
         canvas: box_of(S, "canvas"),
         stage: box_of(S, "stage"),
         hooks: box_of(S, "hooks"),
+        upperrow: box_of(S, "upperrow"),
+        chips: box_of(S, "chips"),
+        hud: box_of(S, "hud"),
     };
 
     // The sheet is its own box now, so a folded dock's rect is the square the
@@ -422,6 +445,13 @@ pub fn compute(S) {
     m.right = r.right;
     m.bottom = r.bottom;
     m.hooks = r.hooks;
+    m.upper = r.upperrow;
+    // The two strips over the stage, as their nodes were laid out: a box the
+    // pointer is over is chrome, not scene.
+    let strips = S.viewport_live && S.stage_chrome;
+    let foot = strips && !S.chrome_off;
+    m.chips = if strips { r.chips } else { rect(0.0, 0.0, 0.0, 0.0) };
+    m.hud = if foot { r.hud } else { rect(0.0, 0.0, 0.0, 0.0) };
     m.rail = r.rail;
     m.railtop = r.railtop;
     // The column the rail is in, not the whole centre: the dock below takes

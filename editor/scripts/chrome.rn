@@ -7,7 +7,6 @@ use crate::history;
 use crate::icons;
 use crate::model;
 use crate::shell;
-use crate::style;
 use crate::theme;
 use crate::util;
 
@@ -197,8 +196,13 @@ const BRAND_NODE = "Editor/Shell/Head/HeadRow/Brand";
 const STATUS_NODE = "Editor/Shell/Body/Centre/Bottom/Status";
 
 /// The brand: the project's mark and name on the menu node the scene lays
-/// out, and the menu's rows under it. Filled once a pass, like the strip.
-pub fn top_bar(S) {
+/// out, the menu's rows under it, and the strip. What the bar's script asks
+/// for on `chrome_changed`.
+pub fn fill(S) {
+    // The start screen has the window to itself, and no project to name.
+    if crate::manager::showing(S) {
+        return;
+    }
     let k = S.theme;
     let mark = brand(S);
     let node = scene::get_node(BRAND_NODE);
@@ -208,19 +212,27 @@ pub fn top_bar(S) {
             height: row_h(S) - 4.0, showing: S.menu_open,
         });
     }
-    // The menu lists every panel, ticked where it is open, under the names
-    // the Outline's among them changes.
-    let menu_key = [
-        S.workspace, format!("{:?}", S.docks), crate::docks::name(S, "outline"),
-        S.registry.panels.len(),
-    ];
-    crate::pool::strip_when(S, BRAND_NODE, menu_key, || crate::menu::rows(S));
-    crate::pool::strip_when(S, STRIP_NODE, bar_key(S, k), || bar_controls(S, k));
+    crate::pool::strip_when(S, BRAND_NODE, menu_key(S), || crate::menu::rows(S));
+    crate::pool::strip_when(S, STRIP_NODE, strip_key(S, k), || bar_controls(S, k));
 }
 
-// What the bar is built from: the workspace and the toggles beside it, the
+/// What the whole bar is built from, which `signals::chrome` compares.
+pub fn key(S) {
+    [menu_key(S), strip_key(S, S.theme), S.menu_open, S.game_name, crate::manager::showing(S)]
+}
+
+// The menu lists every panel, ticked where it is open, under the names the
+// Outline's among them changes.
+fn menu_key(S) {
+    [
+        S.workspace, format!("{:?}", S.docks), crate::docks::name(S, "outline"),
+        S.registry.panels.len(),
+    ]
+}
+
+// What the strip is built from: the workspace and the toggles beside it, the
 // open documents and whether they are saved, the transport, and the theme.
-fn bar_key(S, k) {
+fn strip_key(S, k) {
     let replaying = crate::session::loaded(S);
     let paused = if replaying {
         replay::state() == replay::STATE_PAUSED
@@ -229,7 +241,7 @@ fn bar_key(S, k) {
     };
     [
         S.workspace, S.compact, S.split, S.focus, S.touchscreen, S.sel, S.doc_rev,
-        S.playing, replaying, paused, k.dark, S.scene_rel, history::dirty(S),
+        S.playing, replaying, paused, S.theme_rev, S.scene_rel, history::dirty(S),
         S.script_open, format!("{:?}", S.script_dirty), S.events_open, S.doctab,
     ]
 }
@@ -418,47 +430,47 @@ fn transport_controls(S) {
 /// The status strip's controls. The scene owns the row; this says what goes
 /// in it, so the theme dresses the labels rather than the call site.
 // Every import of the batch, top right under the bar: one line each, and one
-// bar for the lot of them. It takes no pointer, because a sized overlay is a
-// layer and one over the viewport would swallow clicks meant for the scene.
-pub fn toast(S, k) {
+// bar for the lot of them. It takes no pointer: a root over the viewport would
+// swallow clicks meant for the scene.
+const IMPORTS = "Editor/Imports";
+
+/// Fill the import list's lines and say what its bar and its clock read: what
+/// the list's script asks for when an import reported.
+pub fn fill_imports(S) {
     crate::dropin::sweep(S);
+    let k = S.theme;
     let lines = [];
     for (_, job) in S.jobs.iter() {
-        if job.over == "" {
+        let line = if job.over == "" {
             let counted = if job.files > 0 { format!(" {}/{}", job.done, job.files) } else { "" };
-            lines.push(format!("{}{}", job.name, counted));
+            format!("{}{}", job.name, counted)
         } else {
-            lines.push(format!("{} {} · {} {}", job.name, job.over, job.done,
-                plural(job.done, "file")));
-        }
+            format!("{} {} · {} {}", job.name, job.over, job.done, plural(job.done, "file"))
+        };
+        lines.push(#{ kind: "label", role: "text_note", text: line, text_color: k.text_muted });
     }
-    if lines.is_empty() {
-        return;
-    }
+    crate::pool::strip(S, IMPORTS + "/Lines", lines);
     let (done, files) = crate::dropin::job_totals(S);
-    let (sw, _) = ui::window_size();
-    ui::overlay("imports", #{
-        role: "sheet", x: sw - 320.0, y: style::row_h(S) + 18.0,
-        padding_x: 12, padding_y: 8, interactive: false,
-    }, || {
-        for line in lines {
-            ui::label(line, style::mono_sm(k.text_muted));
-        }
-        // What the counts say, drawn, once for the whole batch.
-        if files > 0 {
-            ui::add_space(2.0);
-            ui::progress_bar(util::f(done) / util::f(files), #{
-                width: 180, height: 4, track: k.bg_control, fill: k.primary_text,
-            });
-        }
-    });
+    #{
+        shown: lines.len() > 0,
+        bar: files > 0,
+        value: if files > 0 { util::f(done) / util::f(files) } else { 0.0 },
+        until: crate::dropin::kept_until(S),
+    }
 }
 
-pub fn status_bar(S, k, room) {
-    // `status_mode` carries the pause, the play, the frame rate while playing
-    // and an import in flight; `doc_rev` stands for the node and script counts.
-    let key = [status_mode(S), S.playing, k, room, S.doc_rev, S.workspace, S.tool];
-    crate::pool::strip_when(S, STATUS_NODE, key, || status_controls(S, k, room));
+/// The status strip, what its script asks for on `status_changed`.
+pub fn fill_status(S) {
+    let k = S.theme;
+    let room = S.layout.bottom.w;
+    crate::pool::strip_when(S, STATUS_NODE, status_key(S), || status_controls(S, k, room));
+}
+
+/// What the strip is built from: `status_mode` carries the pause, the play,
+/// the frame rate while playing and an import in flight; `doc_rev` stands
+/// for the node and script counts.
+pub fn status_key(S) {
+    [status_mode(S), S.playing, S.theme_rev, S.layout.bottom.w, S.doc_rev, S.workspace, S.tool]
 }
 
 fn status_mode(S) {

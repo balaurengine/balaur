@@ -397,6 +397,7 @@ fn edit_source(S, rel, from, to) {
     ui::set_field_text("edit:" + abs, text);
     S.script_buffers[abs] = text;
     S.script_dirty[abs] = true;
+    crate::signals::bars(S);
 }
 
 fn restore_source(S, rel, q) {

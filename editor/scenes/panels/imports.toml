@@ -1,0 +1,39 @@
+# The imports of the batch, top right under the bar: a line each and one bar
+# for the lot of them, up while one runs and a moment after the last ends.
+
+[[nodes]]
+id = "imports"
+name = "Imports"
+script = { source = "scripts/panels/imports.rn" }
+[nodes.widget]
+kind = "panel"
+text = ""
+role = "sheet"
+anchor = "top_right"
+x = 20.0
+y = 52.0
+padding = [12, 8, 12, 8]
+gap = [2, 2]
+interactive = false
+layer = "shell"
+visible = false
+
+[[nodes]]
+id = "lines"
+name = "Lines"
+parent = "imports"
+[nodes.widget]
+kind = "column"
+gap = [0, 0]
+interactive = false
+
+[[nodes]]
+id = "bar"
+name = "Bar"
+parent = "imports"
+[nodes.widget]
+kind = "progress_bar"
+width = 180
+height = 4
+interactive = false
+visible = false

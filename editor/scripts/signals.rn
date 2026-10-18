@@ -6,6 +6,10 @@ const OUTLINE = "outline_changed";
 const INSPECTOR = "inspector_changed";
 const DOCKS = "docks_changed";
 const PLAY = "play_frame";
+const CHROME = "chrome_changed";
+const STATUS = "status_changed";
+const RAIL = "rail_changed";
+const STAGE = "stage_changed";
 // What a panel showing one thing of the Editor's listens for, as
 // `<what>_changed`: the Problems list, the Docs page, the files, the library,
 // the tile brush, the state machine, the recordings and the debugger.
@@ -18,16 +22,32 @@ pub fn hear_own(editor) {
     events::listen(editor, INSPECTOR, editor);
     events::listen(editor, DOCKS, editor);
     events::listen(editor, PLAY, editor);
+    events::listen(editor, CHROME, editor);
+    events::listen(editor, STATUS, editor);
+    events::listen(editor, RAIL, editor);
+    events::listen(editor, STAGE, editor);
     for what in PANELS {
         events::listen(editor, what + "_changed", editor);
     }
 }
 
+/// Have the Editor hear when one of the shell's boxes moved, which lays the
+/// shell out again.
+pub fn hear_boxes(S, editor) {
+    for id in crate::layout::watched() {
+        let found = crate::layout::box_node(S, id);
+        if !crate::util::is_nil(found) {
+            events::listen(editor, "resized", found);
+        }
+    }
+}
+
 /// Have the Editor hear what the engine says from no node: a project file
-/// reloaded, and a script stopped or let go.
+/// reloaded, a script stopped or let go, and a paste no field took.
 pub fn hear_engine(editor) {
     events::listen(editor, "assets_reloaded");
     events::listen(editor, "debugger_stopped");
+    events::listen(editor, "pasted");
 }
 
 /// Clear the guard on `name`, as the Editor hears it back.
@@ -47,6 +67,7 @@ fn tell(S, name) {
 /// showing the document's outline listens for.
 pub fn outline(S) {
     tell(S, OUTLINE);
+    bars(S);
 }
 
 /// What the Inspector's form is built from beside the outline moved: the
@@ -63,6 +84,7 @@ pub fn inspector(S) {
     }
     S.inspector_key = key;
     tell(S, INSPECTOR);
+    bars(S);
 }
 
 /// A frame of play: every live value the Inspector and the state machine
@@ -70,6 +92,7 @@ pub fn inspector(S) {
 pub fn playing_frame(S) {
     tell(S, INSPECTOR);
     tell(S, PLAY);
+    bars(S);
 }
 
 /// What a dock's tab row and its panel are built from moved: which panels
@@ -89,10 +112,58 @@ pub fn docks(S) {
     }
     S.docks_key = key;
     tell(S, DOCKS);
+    bars(S);
 }
 
 /// What one panel shows moved, `what` being one of `PANELS`: emitted as
 /// `<what>_changed`, once a frame.
 pub fn changed(S, what) {
     tell(S, what + "_changed");
+    bars(S);
+}
+
+/// The top bar, the status strip, the rail and the stage chrome are built from what the other words
+/// cover and a little besides, so each of those asks after both; each says
+/// only when its own key moved. Called where the little besides is written.
+pub fn bars(S) {
+    chrome(S);
+    status(S);
+    rail(S);
+    stage(S);
+}
+
+fn stage(S) {
+    let key = crate::center::stage_key(S);
+    if key == S.stage_key {
+        return;
+    }
+    S.stage_key = key;
+    tell(S, STAGE);
+}
+
+fn rail(S) {
+    let key = crate::center::rail_key(S);
+    if key == S.rail_key {
+        return;
+    }
+    S.rail_key = key;
+    tell(S, RAIL);
+}
+
+fn chrome(S) {
+    let key = crate::chrome::key(S);
+    if key == S.chrome_key {
+        return;
+    }
+    S.chrome_key = key;
+    tell(S, CHROME);
+}
+
+fn status(S) {
+    let key = crate::chrome::status_key(S);
+    if key == S.status_key {
+        return;
+    }
+    S.status_key = key;
+    tell(S, STATUS);
 }

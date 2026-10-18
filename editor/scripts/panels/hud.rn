@@ -1,0 +1,54 @@
+// The HUD's one script: the axes, the zoom and the folded bottom dock's
+// handle along the scene's foot, shown and read as the Editor says.
+
+pub fn init(this) {
+    this.editor = scene::get_node("Editor");
+    events::listen(this.node, "stage_changed", this.editor);
+}
+
+pub fn on_stage_changed(this, _change) {
+    refresh(this);
+}
+
+pub fn on_widget_event(this, event, node, value) {
+    if event != "click" {
+        return;
+    }
+    let verb = match node.name() {
+        "Out" => "zoom_out",
+        "In" => "zoom_in",
+        "Open" => "open_bottom",
+        _ => "",
+    };
+    if verb != "" {
+        this.editor.call("stage_verb", verb);
+    }
+}
+
+fn refresh(this) {
+    let view = this.editor.call("hud_view");
+    if !(view is Object) {
+        return;
+    }
+    this.node.patch_component("widget", #{ visible: view.shown, inset: view.inset, height: view.h });
+    if !view.shown {
+        return;
+    }
+    let axes = this.node.get_node("Axes/Row");
+    axes.get_node("X").patch_component("widget", #{ text_color: view.x_ink });
+    axes.get_node("Y").patch_component("widget", #{ text_color: view.y_ink });
+    let zoom = this.node.get_node("Zoom/Row");
+    for name in ["Out", "In"] {
+        zoom.get_node(name).patch_component("widget", #{
+            width: view.step, height: view.step, text_color: view.quiet_ink,
+        });
+    }
+    zoom.get_node("In").patch_component("widget", #{ icon: view.add_icon });
+    zoom.get_node("Reading").patch_component("widget", #{ text: view.zoom });
+    let bottom = this.node.get_node("Bottom");
+    bottom.patch_component("widget", #{ visible: view.bottom });
+    bottom.get_node("Open").patch_component("widget", #{
+        icon: view.bottom_icon, width: view.step + 6.0, height: view.step + 6.0,
+        text_color: view.quiet_ink,
+    });
+}

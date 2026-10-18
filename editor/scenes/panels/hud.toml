@@ -1,0 +1,150 @@
+# The strip along the foot of the rail and the scene: which way the axes run,
+# the bottom dock's handle when it is folded, and the zoom. The strip is
+# chrome end to end, so a press anywhere on it is not the scene's.
+
+[[nodes]]
+id = "hud"
+name = "Hud"
+script = { source = "scripts/panels/hud.rn" }
+[nodes.widget]
+kind = "row"
+absolute = true
+inset = [0.0, -1.0, 0.0, 0.0]
+height = 28
+align_items = "center"
+visible = false
+
+[[nodes]]
+id = "axes"
+name = "Axes"
+parent = "hud"
+[nodes.widget]
+kind = "panel"
+text = ""
+fill = "bg_panel"
+corner_radius = 8
+padding = [10, 3, 10, 3]
+interactive = false
+
+[[nodes]]
+id = "axes_row"
+name = "Row"
+parent = "axes"
+[nodes.widget]
+kind = "row"
+gap = [6, 6]
+align_items = "center"
+interactive = false
+
+[[nodes]]
+id = "x"
+name = "X"
+parent = "axes_row"
+[nodes.widget]
+kind = "label"
+role = "text_code"
+font_size = 11
+text = "x →"
+
+[[nodes]]
+id = "y"
+name = "Y"
+parent = "axes_row"
+[nodes.widget]
+kind = "label"
+role = "text_code"
+font_size = 11
+text = "y ↑"
+
+[[nodes]]
+id = "z"
+name = "Z"
+parent = "axes_row"
+[nodes.widget]
+kind = "label"
+role = "text_code_quiet"
+font_size = 11
+text = "z ↓"
+
+[[nodes]]
+id = "gap"
+name = "Gap"
+parent = "hud"
+[nodes.widget]
+kind = "row"
+grow = 1
+interactive = false
+
+# The folded bottom dock's way back, just after the zoom reading.
+[[nodes]]
+id = "zoom"
+name = "Zoom"
+parent = "hud"
+[nodes.widget]
+kind = "panel"
+text = ""
+fill = "bg_panel"
+corner_radius = 8
+padding = [6, 3, 6, 3]
+
+[[nodes]]
+id = "zoom_row"
+name = "Row"
+parent = "zoom"
+[nodes.widget]
+kind = "row"
+gap = [2, 2]
+align_items = "center"
+
+[[nodes]]
+id = "out"
+name = "Out"
+parent = "zoom_row"
+[nodes.widget]
+kind = "button"
+text = "−"
+fill = "none"
+padding = 0
+
+[[nodes]]
+id = "reading"
+name = "Reading"
+parent = "zoom_row"
+[nodes.widget]
+kind = "label"
+role = "text_code"
+font_size = 11
+text = "100 %"
+
+[[nodes]]
+id = "in"
+name = "In"
+parent = "zoom_row"
+[nodes.widget]
+kind = "button"
+text = ""
+fill = "none"
+padding = 0
+
+[[nodes]]
+id = "bottom"
+name = "Bottom"
+parent = "hud"
+[nodes.widget]
+kind = "panel"
+text = ""
+fill = "bg_panel"
+corner_radius = 8
+padding = 0
+visible = false
+
+[[nodes]]
+id = "bottom_open"
+name = "Open"
+parent = "bottom"
+[nodes.widget]
+kind = "button"
+text = ""
+fill = "none"
+padding = 0
+tooltip = "Open the dock"

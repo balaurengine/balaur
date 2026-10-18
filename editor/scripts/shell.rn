@@ -90,9 +90,11 @@ pub fn set_workspace(S, id) {
 pub fn open_doc(S, id) {
     if id == "script" {
         S.script_open = true;
+        crate::signals::bars(S);
     }
     if id == "events" {
         S.events_open = true;
+        crate::signals::bars(S);
     }
     S.doctab = id;
     crate::signals::inspector(S);
@@ -102,9 +104,11 @@ pub fn open_doc(S, id) {
 pub fn close_doc(S, id) {
     if id == "script" {
         S.script_open = false;
+        crate::signals::bars(S);
     }
     if id == "events" {
         S.events_open = false;
+        crate::signals::bars(S);
     }
     if S.doctab == id {
         S.doctab = "scene";
@@ -116,6 +120,7 @@ pub fn close_doc(S, id) {
 // split is only ever drawn over a document, so turning it on opens one.
 pub fn toggle_split(S) {
     S.split = !S.split;
+    crate::signals::bars(S);
     if S.split && S.doctab == "events" {
         S.doctab = "scene";
         crate::signals::inspector(S);
@@ -162,6 +167,7 @@ pub fn toggle_focus(S) {
     S.focus_was = was;
     S.focus = true;
     S.split = false;
+    crate::signals::bars(S);
     open_doc(S, "script");
 }
 
@@ -170,6 +176,7 @@ pub fn toggle_focus(S) {
 pub fn leave_focus(S) {
     let was = S.focus_was;
     S.focus = false;
+    crate::signals::bars(S);
     S.focus_was = ();
     if !(was is Object) {
         return;
@@ -179,12 +186,14 @@ pub fn leave_focus(S) {
         crate::signals::docks(S);
     }
     S.split = was.get("split").unwrap_or(false);
+    crate::signals::bars(S);
 }
 
 /// Forget the layout focus folded, without putting it back: a verb asked for
 /// under focus wins over the record it would have restored.
 pub fn drop_focus(S) {
     S.focus = false;
+    crate::signals::bars(S);
     S.focus_was = ();
 }
 
@@ -490,6 +499,7 @@ pub fn set_script_path(S, path) {
     }
     model::forget(S, None);
     S.script_open = true;
+    crate::signals::bars(S);
     crate::lint::run(S);
     log::info("script: " + rel + " (undo puts it back)");
 }
@@ -517,6 +527,7 @@ fn carry_script_state(S, old, rel) {
     }
     if S.script_dirty.contains_key(old_abs) {
         S.script_dirty.remove(old_abs);
+        crate::signals::bars(S);
     }
     if let Some(lines) = S.debug.breakpoints.get(old) {
         S.debug.breakpoints.remove(old);
@@ -635,6 +646,7 @@ pub fn format_active(S) {
     }
     S.script_buffers[abs] = formatted;
     S.script_dirty[abs] = true;
+    crate::signals::bars(S);
     // The widget keeps its own copy per id, so the pane would redraw the old
     // text until the next keystroke without this.
     ui::set_field_text(("edit:" + abs), formatted);
@@ -649,6 +661,7 @@ pub fn save_active(S) {
         if let Some(buffer) = S.script_buffers.get(abs) {
             fs::write(abs, buffer);
             S.script_dirty.remove(abs);
+            crate::signals::bars(S);
             // The watcher covers the editor's own root, not the game's.
             assets::invalidate();
             log::info("saved " + S.shader_rel);
@@ -664,6 +677,7 @@ pub fn save_active(S) {
             fs::write(abs, buffer);
             model::forget(S, Some(rel));
             S.script_dirty.remove(abs);
+            crate::signals::bars(S);
             // A recording cannot survive its own code changing: the frames
             // after a reload came from a different game. The session ends
             // here, and what it caught until now is kept.
@@ -976,6 +990,7 @@ fn state_tool(S, tool) {
 fn state_tab(S, tab) {
     if tab == "split" {
         S.split = true;
+        crate::signals::bars(S);
     } else {
         S.doctab = tab;
         crate::signals::inspector(S);
@@ -1001,6 +1016,7 @@ fn state_fontdemo(S) {
 
 fn state_menudemo(S) {
     S.menu_open = true;
+    crate::signals::bars(S);
 }
 
 // `scale:<f>`: the UI scale, which is what decides how many design pixels the
@@ -1015,6 +1031,7 @@ fn state_scale(S, arg) {
 fn state_shut(S, side) {
     if side == "rail" {
         S.rail_shut = true;
+        crate::signals::bars(S);
         return;
     }
     // Everything the shell draws over the scene: the chip strip and the

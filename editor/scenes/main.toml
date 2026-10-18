@@ -28,6 +28,7 @@ role = "layout_shell"
 id = "head"
 name = "Head"
 parent = "shell"
+script = { source = "scripts/panels/topbar.rn" }
 [nodes.widget]
 kind = "panel"
 text = ""
@@ -324,6 +325,7 @@ gap = [2, 2]
 id = "railslot"
 name = "RailSlot"
 parent = "upper_row"
+script = { source = "scripts/panels/rail.rn" }
 [nodes.widget]
 kind = "column"
 width = 44
@@ -341,6 +343,27 @@ parent = "railslot"
 kind = "row"
 height = 0
 
+# The folded left dock's way back, on the rail's own sheet.
+[[nodes]]
+id = "rail_handle"
+name = "Handle"
+parent = "railtop"
+[nodes.widget]
+kind = "panel"
+role = "sheet"
+text = ""
+visible = false
+
+[[nodes]]
+id = "rail_handle_open"
+name = "Open"
+parent = "rail_handle"
+[nodes.widget]
+kind = "button"
+role = "icon_action"
+text = ""
+padding = 0
+
 # The rail is only as tall as its tools, so it takes the top of the slot
 # rather than the whole of it; `layout.rn` states the height.
 [[nodes]]
@@ -348,7 +371,9 @@ id = "rail"
 name = "Rail"
 parent = "railslot"
 [nodes.widget]
-kind = "row"
+kind = "panel"
+role = "sheet"
+text = ""
 height = 42
 
 # The scene and the dock, stacked beside the rail.
@@ -361,6 +386,14 @@ kind = "column"
 interactive = false
 grow = 1
 gap = [12, 12]
+
+# The axis and zoom pills along the foot of the rail and the scene, over both:
+# see scenes/panels/hud.toml.
+[[nodes]]
+id = "hud"
+name = "Hud"
+parent = "upper_row"
+instance = "scenes/panels/hud.toml"
 
 [[nodes]]
 id = "upper"
@@ -564,6 +597,7 @@ grow = 1
 id = "status"
 name = "Status"
 parent = "bottom"
+script = { source = "scripts/panels/status.rn" }
 # A pooled row, not a hatch: the strip is labels and a dot, so the theme can
 # dress it and the layout can keep its boxes between passes.
 [nodes.widget]
@@ -602,6 +636,14 @@ parent = "canvas"
 kind = "row"
 interactive = false
 grow = 1
+
+# What the viewport carries over itself: its chips, the Interface guides and
+# the folded docks' handles. See scenes/panels/stage.toml.
+[[nodes]]
+id = "stage_chrome"
+name = "Chrome"
+parent = "stage"
+instance = "scenes/panels/stage.toml"
 
 # A document tab whose rows are nodes fills this, over the whole stage: the
 # event bindings do. Hidden for the scene and for the code.
@@ -836,3 +878,17 @@ parent = "sheet_scroll"
 [nodes.widget]
 kind = "column"
 grow = 1
+
+# What the imports of a batch have done so far: see scenes/panels/imports.toml.
+[[nodes]]
+id = "imports"
+name = "Imports"
+parent = "n_editor"
+instance = "scenes/panels/imports.toml"
+
+# The shell's keys, a node a command: see scenes/panels/keys.toml.
+[[nodes]]
+id = "keys"
+name = "Keys"
+parent = "n_editor"
+instance = "scenes/panels/keys.toml"

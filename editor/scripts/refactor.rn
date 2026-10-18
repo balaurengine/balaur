@@ -100,6 +100,7 @@ pub fn apply(S) {
         let abs = S.game_root + "/" + one.file;
         S.script_buffers[abs] = one.source;
         S.script_dirty[abs] = true;
+        crate::signals::bars(S);
         ui::set_field_text(("edit:" + abs), one.source);
     }
     log::info(format!("{} {} to {} in {} files",

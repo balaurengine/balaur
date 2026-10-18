@@ -250,8 +250,17 @@ pub fn in_flight(S) {
 /// The whole of it goes at once: a line that left while its neighbours ran
 /// would take its files out of the count, and the bar would go backwards.
 pub fn sweep(S) {
+    let until = kept_until(S);
+    if until > 0.0 && engine::unix_time() > until {
+        S.jobs = #{};
+    }
+}
+
+/// When the list comes down: `KEPT_FOR` after the last of the batch ended,
+/// or zero while one still runs or there is none.
+pub fn kept_until(S) {
     if S.jobs.is_empty() || in_flight(S) > 0 {
-        return;
+        return 0.0;
     }
     let last = 0.0;
     for (_, job) in S.jobs.iter() {
@@ -259,9 +268,7 @@ pub fn sweep(S) {
             last = job.at;
         }
     }
-    if engine::unix_time() - last > KEPT_FOR {
-        S.jobs = #{};
-    }
+    last + KEPT_FOR
 }
 
 /// How many files the import of `source` has written, for the line that says

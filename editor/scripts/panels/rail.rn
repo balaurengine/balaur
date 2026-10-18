@@ -1,0 +1,41 @@
+// The tool rail's one script: the workspace's tools, filled by the Editor when
+// the workspace, the tool or the room moved, and the folded left dock's
+// handle over them. A mark runs its tool itself, then the rail fills again.
+
+pub fn init(this) {
+    this.editor = scene::get_node("Editor");
+    events::listen(this.node, "rail_changed", this.editor);
+    events::listen(this.node, "stage_changed", this.editor);
+}
+
+pub fn on_rail_changed(this, _change) {
+    this.editor.call("rail_fill");
+}
+
+pub fn on_stage_changed(this, _change) {
+    handle(this);
+}
+
+pub fn on_widget_event(this, event, node, value) {
+    if event != "click" {
+        return;
+    }
+    if node.name() == "Open" && node.parent().name() == "Handle" {
+        this.editor.call("stage_verb", "open_left");
+        return;
+    }
+    this.editor.call("rail_fill");
+}
+
+fn handle(this) {
+    let view = this.editor.call("stage_view");
+    if !(view is Object) {
+        return;
+    }
+    let sheet = this.node.get_node("RailTop/Handle");
+    sheet.patch_component("widget", #{ visible: view.rail_handle, padding: view.pad });
+    sheet.get_node("Open").patch_component("widget", #{
+        icon: view.left.icon, tooltip: view.left.tooltip,
+        width: view.d, height: view.d, corner_radius: view.d / 2.0,
+    });
+}

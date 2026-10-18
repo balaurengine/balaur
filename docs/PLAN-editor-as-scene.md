@@ -566,7 +566,8 @@ Built 2026-10-18, phase 0:
   widget.
 - An input action binds a chord, `cmd+shift+KeyS`, with `cmd` the platform's
   command key, and a key binding reads nothing while a text field holds the
-  keyboard: the shell's `ui::shortcut` calls become `on_action`.
+  keyboard. The shell's own keys became nodes instead (9.6), since the
+  editor's action table is the played game's.
 - What was already there: `instance` prefabs, `node.call` for a panel asking
   the controller, `node.emit` and `events::listen` for the controller telling
   the panels, `on_resize`, `on_scroll` and the pointer hooks.
@@ -659,21 +660,55 @@ Cost.
 Left: the tab row's tools slot still draws the Timeline's clip each pass. A
 plugin's bottom dock is still drawn each pass into its own subtree. The
 Timeline, a recording's lanes, weights and the bone map are `draw` nodes
-(item 4 below).
+(item 3 of 9.7).
 
-### 9.6 What is left, in order
+### 9.6 The chrome
 
-1. The chrome: top bar, status bar, tool rail, viewport chips and HUD as
-   nodes; the hotkeys as declared actions; `layout.rn`'s sizes into the scene.
-2. Dialogs and sheets: settings, theme, about, export, populate, palette, the
+Built 2026-10-18, phase 4.
+
+- **The keys** are `scenes/panels/keys.toml`: a button a command, laid out
+  off the screen, each with its chord in `shortcut`, and one script that
+  hands the button's name to the Editor (`command`, `commands.rn`). F5 is
+  Play until a script stops, and then Continue, by `enabled`. Not declared
+  actions: the editor's action table is the played game's.
+- **A chord while typing.** While a field holds the keyboard, a widget's
+  `shortcut` without cmd, ctrl or alt never fires unless it is a function
+  key, and `while_typing = false` keeps a chord the field has a use for
+  (`cmd+z`, `cmd+c`) out of it too.
+- **The top bar, the status strip, the rail, the chip strip, the HUD** and
+  the folded docks' handles are nodes, each panel with one script. The
+  Editor fills them on `chrome_changed`, `status_changed`, `rail_changed`
+  and `stage_changed`, which `signals::bars` emits when its key moved. Every
+  other word asks after it, and the writes it alone covers (split, focus, an
+  unsaved script, the open documents) call it. A theme's revision stands in
+  the keys for its colours.
+- **The import list** is `scenes/panels/imports.toml`, filled on
+  `assets_changed` and taken down by a scheduled repaint.
+- **The Interface guides** are two panels with a `dashed` outline, which
+  widgets draw now.
+- **The layout** runs on the window's `on_resize`, on `resized` from the
+  shell's own boxes, and on the words that change what the docks and the
+  centre hold, behind a key so a frame of play lays nothing out. A widget
+  someone listens to `resized` on emits it when its box moved, with the
+  box: what `widget_rect` was read for every pass. The start-up states apply
+  at the end of `update`, where the pass used to apply them, so a recording
+  a state starts begins on the tick its replay does.
+- **Paste** is the UI's `pasted` event, for text no field took.
+
+Left for later phases: the code pane and the hooks list beside it (item 3
+of 9.7), the box-select marquee and the viewport's lines (item 5).
+
+### 9.7 What is left, in order
+
+1. Dialogs and sheets: settings, theme, about, export, populate, palette, the
    node picker, rename, plugin dialogs, and Import's head.
-3. The start screen.
-4. Kinds for what is drawn now because no kind holds it: the timeline and its
+2. The start screen.
+3. Kinds for what is drawn now because no kind holds it: the timeline and its
    clip in the tab row, a recording's lanes, weights, the bone map, the code
    editor with its completion and refactor sheet.
-5. Plugin docks handed a word and filled on it, instead of drawn each pass.
-6. The viewport tools on pointer hooks, and the gizmo and overlay lines as
+4. Plugin docks handed a word and filled on it, instead of drawn each pass.
+5. The viewport tools on pointer hooks, and the gizmo and overlay lines as
    retained nodes.
-7. Remove `draw_ui`, the pool and the `draw` nodes from the editor, and move
+6. Remove `draw_ui`, the pool and the `draw` nodes from the editor, and move
    the self-tests off stepping every frame.
 

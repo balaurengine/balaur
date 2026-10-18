@@ -1142,17 +1142,24 @@ pub fn update(S, over_viewport, mx, my) {
     }
 }
 
-pub fn mode_chips(S, k) {
+pub fn mode_specs(S) {
+    let k = S.theme;
     let mode = S.polygon.mode;
+    let out = [];
     for id in modes(S) {
         let on = mode == id;
-        if ui::button(mode_name(id), #{
-            height: 24, font_size: style::SM, font_weight: 700,
+        // Bound afresh: a closure made in a loop captures the binding.
+        let picked = id;
+        out.push(#{
+            kind: "button", text: mode_name(id), height: 24, font_size: style::SM, font_weight: 700,
             fill: if on { k.primary_bg } else { k.bg_panel },
             stroke: k.border_default,
             text_color: if on { k.primary_text } else { k.text_muted },
-        }) {
-            set_mode(S, id);
-        }
+            on: |_| {
+                set_mode(S, picked);
+                crate::signals::bars(S);
+            },
+        });
     }
+    out
 }

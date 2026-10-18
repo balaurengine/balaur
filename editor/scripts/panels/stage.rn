@@ -1,0 +1,42 @@
+// The stage chrome's one script: the Interface guides and the folded docks'
+// handles over the viewport, shown as the Editor says when the workspace, the
+// docks, the room or a chip moved.
+
+const STAGE = "stage_changed";
+
+pub fn init(this) {
+    this.editor = scene::get_node("Editor");
+    events::listen(this.node, STAGE, this.editor);
+}
+
+pub fn on_stage_changed(this, _change) {
+    refresh(this);
+}
+
+pub fn on_widget_event(this, event, node, value) {
+    if event != "click" || node.name() != "Open" {
+        return;
+    }
+    let side = node.parent().name();
+    this.editor.call("stage_verb", if side == "Left" { "open_left" } else { "open_right" });
+}
+
+fn refresh(this) {
+    let view = this.editor.call("stage_view");
+    if !(view is Object) {
+        return;
+    }
+    this.node.get_node("Safe").patch_component("widget", #{ visible: view.safe });
+    this.node.get_node("Resolution").patch_component("widget", #{
+        visible: view.resolution, inset: view.res_inset,
+    });
+    for side in ["Left", "Right"] {
+        let handle = if side == "Left" { view.left } else { view.right };
+        let sheet = this.node.get_node(side);
+        sheet.patch_component("widget", #{ visible: handle.shown, padding: view.pad });
+        sheet.get_node("Open").patch_component("widget", #{
+            icon: handle.icon, tooltip: handle.tooltip,
+            width: view.d, height: view.d, corner_radius: view.d / 2.0,
+        });
+    }
+}

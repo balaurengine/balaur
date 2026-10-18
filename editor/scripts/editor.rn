@@ -8,6 +8,7 @@ mod bonemap;
 mod statemachine;
 mod center;
 mod chrome;
+mod commands;
 mod complete;
 mod defs;
 mod dock;
@@ -162,6 +163,14 @@ pub fn fresh_state() {
         told: #{},
         inspector_key: [],
         docks_key: [],
+        chrome_key: [],
+        status_key: [],
+        rail_key: [],
+        stage_key: [],
+        layout_key: [],
+        // Bumped whenever another theme is worn or the worn one edited, so a
+        // key can say the colours moved without holding the theme.
+        theme_rev: 0,
         // `model::is_2d`'s answer, and the frame and document it was for.
         is_2d_at: [], is_2d_was: false,
         // The 3D light and camera marks, and what they were drawn for.
@@ -331,6 +340,7 @@ pub fn boot(this, S, listen) {
         release::listen(this.node, #{});
         signals::hear_own(this.node);
         signals::hear_engine(this.node);
+        signals::hear_boxes(S, this.node);
     }
     // Before the theme and the scale are pushed: the preferences decide both,
     // and until this ran they only took effect once Settings was opened.
@@ -592,6 +602,11 @@ pub fn update(this, dt) {
     if S.playing {
         signals::playing_frame(S);
     }
+    // After the frame's ticks, where a pass used to apply them: a state that
+    // starts a recording starts it on the tick its replay will.
+    if S.platform_read {
+        apply_start_states(S);
+    }
 }
 
 // The `--state` list, applied once. Read here rather than at `init`, because
@@ -608,17 +623,12 @@ fn apply_start_states(S) {
     }
 }
 
-pub fn draw_ui(this) {
-    let S = this.S;
-    // egui hands a paste to the frame it arrived on: this is the only place
-    // it can be read, so ⌘V anywhere in the shell pastes a copied node.
-    let pasted = ui::pasted_text();
-    if pasted != "" {
-        model::paste_nodes(S, pasted);
-    }
-    // The room the shell has, which the engine solved: the window less what
-    // a notch covers. Read back a pass late, as every other rect here is;
-    // the window stands in until it has drawn once.
+/// Lay the shell out again: the room it has, what the centre shows, and every
+/// box sized once. On the window's resize, on a box's own `resized`, and on
+/// the words that change what the docks and the centre hold; never a pass.
+fn relayout(S) {
+    // The room the shell has, which the engine solved: the window less what a
+    // notch covers. The window stands in until the shell has drawn once.
     let (sw, sh) = ui::window_size();
     let (rw, rh) = crate::layout::shell_room(S);
     S.screen_w = if rw > 0.0 { rw } else { sw };
@@ -628,137 +638,62 @@ pub fn draw_ui(this) {
     let compact = S.settings.compact || sw < COMPACT_W;
     S.compact = compact;
     crate::signals::inspector(S);
-    let first = !S.platform_read;
-    S.platform_read = true;
+    // A state that folds a dock has to run after the screen has been measured,
+    // which this is; `update` applies them, at the end of the frame's ticks.
+    if rw > 0.0 {
+        S.platform_read = true;
+    }
     docks::follow_screen(S);
-    if first {
-        apply_start_states(S);
+    if manager::showing(S) {
+        return;
     }
+    // Decide what is showing, then size every sheet once.
+    center::modes(S);
+    layout::compute(S);
+    report_view(S);
+    signals::bars(S);
+}
 
-    // The popup owns the arrows, Tab, Enter and Escape while it is open, so
-    // the shell's own keys do not fire under it.
-    let completing = complete::key(S);
-    if ui::shortcut("cmd+k") {
-        if S.palette {
-            shell::close_palette(S);
-        } else {
-            shell::open_palette(S, "");
-        }
+/// What the layout is decided from besides the boxes themselves, so a word
+/// that moved none of it, as a frame of play does, lays nothing out.
+fn layout_key(S) {
+    [
+        S.workspace, S.doctab, S.split, S.focus, S.settings.compact, S.touchscreen,
+        format!("{:?}", S.docks), S.rail_shut, S.chrome_off, S.script_open, S.events_open,
+        S.sel, S.shader_rel, S.ui_scale, manager::showing(S),
+    ]
+}
+
+fn relayout_if_moved(S) {
+    let key = layout_key(S);
+    if key == S.layout_key {
+        return;
     }
-    if ui::shortcut("cmd+s") {
-        shell::save_active(S);
-    }
-    if ui::shortcut("alt+shift+f") {
-        shell::format_active(S);
-    }
-    if ui::shortcut("cmd+b") {
-        shell::goto_definition(S);
-    }
-    if ui::shortcut("cmd+shift+r") {
-        refactor::open(S, "rename");
-    }
-    if ui::shortcut("cmd+shift+f") {
-        refactor::open(S, "replace");
-    }
-    // Before the split's chord: a key arrives as its physical code, so `⌘\`
-    // matches the shifted one too unless this consumes it first.
-    if ui::shortcut("cmd+shift+backslash") {
-        shell::toggle_focus(S);
-    }
-    if ui::shortcut("cmd+backslash") {
-        shell::toggle_split(S);
-    }
-    if ui::shortcut("cmd+equals") {
-        shell::ask_ui_scale(S, S.ui_scale + 0.125);
-    }
-    if ui::shortcut("cmd+minus") {
-        shell::ask_ui_scale(S, S.ui_scale - 0.125);
-    }
-    if ui::shortcut("cmd+comma") {
-        settings::open(S);
-    }
-    if ui::shortcut("cmd+e") {
-        exporter::open(S);
-    }
-    // Debugger keys work with the code editor focused: they are not text.
-    if S.debug.paused is Object {
-        if ui::shortcut("f5") {
-            shell::resume(S, debugger::CONTINUE);
-        } else if ui::shortcut("f10") {
-            shell::resume(S, debugger::STEP_OVER);
-        } else if ui::shortcut("f11") {
-            shell::resume(S, debugger::STEP_INTO);
-        } else if ui::shortcut("shift+f11") {
-            shell::resume(S, debugger::STEP_OUT);
-        }
-    }
-    if !ui::wants_keyboard() {
-        if !(S.debug.paused is Object) && ui::shortcut("f5") {
-            shell::toggle_play(S);
-        }
-        if S.playing && !(S.debug.paused is Object) && ui::shortcut("f6") {
-            debugger::request_break();
-        }
-        for (i, p) in defs::workspaces().iter().enumerate() {
-            if ui::shortcut(format!("alt+{}", i + 1)) {
-                shell::set_workspace(S, p.id);
-            }
-        }
-        if ui::shortcut("shift+a") {
-            model::add_child(S, None);
-        }
-        if ui::shortcut("alt+s") {
-            shell::attach_script(S);
-        }
-        if ui::shortcut("shift+r") {
-            shell::reload_scripts(S);
-        }
-        // ⌘V is read from the paste event above; the clipboard cannot be read
-        // on demand, so only the copy half is a chord.
-        if ui::shortcut("cmd+c") && model::has_selection(S) {
-            ui::set_clipboard(model::copy_selected(S));
-        }
-        // Gated with the rest, so typing in the code editor keeps egui's own
-        // per-widget undo; redo first, to claim the shifted chord.
-        if ui::shortcut("shift+cmd+z") || ui::shortcut("cmd+y") {
-            shell::redo(S);
-        } else if ui::shortcut("cmd+z") {
-            shell::undo(S);
-        }
-        if ui::shortcut("alt+l") {
-            theme::toggle(S);
-        }
-        if ui::shortcut("cmd+a") {
-            selection::select_all(S);
-        }
-        // Shifted first, so the plain chord does not eat the shifted one.
-        if ui::shortcut("shift+cmd+g") {
-            arrange::ungroup(S);
-        } else if ui::shortcut("cmd+g") {
-            arrange::group(S);
-        }
-        if ui::shortcut("shift+cmd+l") {
-            arrange::unlock_all(S);
-        } else if ui::shortcut("cmd+l") {
-            arrange::toggle_locked(S);
-        }
-        if ui::shortcut("shift+h") {
-            arrange::show_all(S);
-        } else if ui::shortcut("h") {
-            arrange::toggle_hidden(S);
-        }
-        if ui::shortcut("slash") {
-            arrange::toggle_isolate(S);
-        }
-        if S.workspace == defs::WORKSPACE_ANIMATION && ui::shortcut("k") {
-            anim::add_key(S, S.anim.time);
-        }
-        if !completing && ui::shortcut("escape") {
-            polygon::cancel(S);
-            pen::cancel(S);
-            tiles::cancel(S);
-        }
-    }
+    S.layout_key = key;
+    relayout(S);
+}
+
+/// The window changed size.
+pub fn on_resize(this, _w, _h) {
+    relayout(this.S);
+}
+
+/// One of the shell's boxes moved: a seam was dragged, a dock eased open, or
+/// the layout's own write landed.
+pub fn on_resized(this, _box) {
+    relayout(this.S);
+}
+
+/// Lay the shell out again, for a module that changed what it holds.
+pub fn relayout_shell(this) {
+    relayout(this.S);
+}
+
+pub fn draw_ui(this) {
+    let S = this.S;
+    // The popup owns the arrows, Tab, Enter and Escape while it is open; the
+    // shell's own keys are the nodes in scenes/panels/keys.toml.
+    complete::key(S);
 
     showcase::draw(S);
     // The start screen has the window to itself: no project is open, so there
@@ -772,16 +707,8 @@ pub fn draw_ui(this) {
         return;
     }
     manager::cover(S, false);
-    // Stage: decide what is showing, size every sheet once, then draw them.
-    // Nothing below computes a rect of its own.
-    center::modes(S);
-    layout::compute(S);
-    report_view(S);
     // After the layout: the strip drops columns as the dock narrows, so it
     // cannot be filled until the dock's width is known.
-    chrome::top_bar(S);
-    chrome::status_bar(S, S.theme, S.layout.bottom.w);
-    chrome::toast(S, S.theme);
     center::draw(S);
     // Every dock is nodes now: the scene lays them out, paints them, and calls
     // `draw_dock_*` to fill them.
@@ -933,14 +860,17 @@ pub fn tree_rename(this) {
 // The eye or the lock at the right of an outliner row.
 pub fn on_outline_changed(this, _change) {
     signals::heard(this.S, "outline_changed");
+    relayout_if_moved(this.S);
 }
 
 pub fn on_inspector_changed(this, _change) {
     signals::heard(this.S, "inspector_changed");
+    relayout_if_moved(this.S);
 }
 
 pub fn on_docks_changed(this, _change) {
     signals::heard(this.S, "docks_changed");
+    relayout_if_moved(this.S);
 }
 
 /// Fill a dock's tab row and show the panel it has up: what the dock's
@@ -986,11 +916,84 @@ pub fn on_play_frame(this, _change) {
     signals::heard(this.S, "play_frame");
 }
 
+pub fn on_chrome_changed(this, _change) {
+    signals::heard(this.S, "chrome_changed");
+    relayout_if_moved(this.S);
+}
+
+pub fn on_status_changed(this, _change) {
+    signals::heard(this.S, "status_changed");
+}
+
+pub fn on_rail_changed(this, _change) {
+    signals::heard(this.S, "rail_changed");
+    relayout_if_moved(this.S);
+}
+
+/// Fill the tool rail.
+pub fn rail_fill(this) {
+    center::fill_rail(this.S);
+}
+
+pub fn on_stage_changed(this, _change) {
+    signals::heard(this.S, "stage_changed");
+    relayout_if_moved(this.S);
+}
+
+/// What the stage chrome, the chips and the HUD show, and their verbs.
+pub fn stage_view(this) {
+    center::stage_view(this.S)
+}
+
+pub fn chips_fill(this, near) {
+    center::fill_chips(this.S, near)
+}
+
+pub fn hud_view(this) {
+    center::hud_view(this.S)
+}
+
+pub fn stage_verb(this, verb) {
+    center::stage_verb(this.S, verb);
+}
+
+/// Fill the top bar: the brand, its menu and the strip.
+pub fn chrome_fill(this) {
+    chrome::fill(this.S);
+}
+
+/// Fill the import list and say what its bar and clock read.
+pub fn imports_fill(this) {
+    chrome::fill_imports(this.S)
+}
+
+/// Fill the status strip at the bottom dock's foot.
+pub fn status_fill(this) {
+    chrome::fill_status(this.S);
+}
+
 /// A project file was reloaded from disk: every read of one is stale, and
 /// the Assets tab says what is there now.
 pub fn on_assets_reloaded(this, _generation) {
     model::forget(this.S, None);
     signals::changed(this.S, "assets");
+}
+
+/// Text pasted where no field took it: ⌘V anywhere in the shell pastes a
+/// copied node.
+pub fn on_pasted(this, text) {
+    model::paste_nodes(this.S, text);
+}
+
+/// A shell key's command, by the name of its node in scenes/panels/keys.toml.
+pub fn command(this, name) {
+    commands::run(this.S, name);
+    signals::bars(this.S);
+}
+
+/// What the keys need to say which of them are live.
+pub fn keys_view(this) {
+    commands::keys_view(this.S)
 }
 
 /// A script stopped, stopped somewhere else or went on: the engine's word,
