@@ -24,6 +24,43 @@ pub(crate) struct Pointer {
     dragging: bool,
     /// The window as it was, so a resize is dispatched once per change.
     size: (u32, u32),
+    /// Where the pointer was, so `pointer_moved` is said once per move.
+    at: (f32, f32),
+}
+
+/// What input says from no node when the pointer moved, with where it is in
+/// window pixels, `[x, y]`; and when a button went down or up anywhere, the
+/// UI included, as `#{ button, x, y }`. Only while someone listens: what an
+/// overlay showing the input listens for instead of reading it every frame.
+pub(crate) const POINTER_MOVED: &str = "pointer_moved";
+pub(crate) const POINTER_PRESSED: &str = "pointer_pressed";
+pub(crate) const POINTER_RELEASED: &str = "pointer_released";
+
+/// Say where the pointer went and which buttons moved, from no node, to
+/// whoever listens.
+fn say_pointer(eng: &Engine, state: &mut Pointer, at: (f32, f32), buttons: &[(bool, bool)]) {
+    if at != state.at {
+        state.at = at;
+        if balaur_core::events::heard(eng, POINTER_MOVED) {
+            let spot = Value::List(vec![
+                Value::Num(f64::from(at.0)),
+                Value::Num(f64::from(at.1)),
+            ]);
+            balaur_core::events::emit(eng, POINTER_MOVED, spot);
+        }
+    }
+    for (button, (pressed, released)) in buttons.iter().enumerate() {
+        for (moved, name) in [(*pressed, POINTER_PRESSED), (*released, POINTER_RELEASED)] {
+            if moved && balaur_core::events::heard(eng, name) {
+                let report = Value::Map(vec![
+                    ("button".into(), button_name(button)),
+                    ("x".into(), Value::Num(f64::from(at.0))),
+                    ("y".into(), Value::Num(f64::from(at.1))),
+                ]);
+                balaur_core::events::emit(eng, name, report);
+            }
+        }
+    }
 }
 
 /// Send one hook to a node: its bindings, then its script. True when the
@@ -126,7 +163,7 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
     let Some(input) = eng.try_resource::<balaur_input::InputSnapshot>() else {
         return;
     };
-    let (buttons, delta, scroll) = {
+    let (buttons, delta, scroll, at) = {
         let input = input.borrow();
         let buttons: [(bool, bool); hooks::BUTTONS.len()] = std::array::from_fn(|button| {
             (
@@ -134,8 +171,14 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
                 input.mouse_just_released(button),
             )
         });
-        (buttons, input.mouse_delta(), input.scroll_delta())
+        (
+            buttons,
+            input.mouse_delta(),
+            input.scroll_delta(),
+            input.mouse_pos(),
+        )
     };
+    say_pointer(eng, state, at, &buttons);
     // The UI first: what a dialog, a popup, a window or a widget took never
     // reaches a node under it, and a press keeps its answer until it is up.
     let ui = balaur_ui::pointer_is_ui(eng);

@@ -624,7 +624,7 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
         ("key_down", &[], "", "Whether the `KEY_*` key is held down right now, however many frames it has been down. `KEY_SHIFT`, `KEY_CONTROL`, `KEY_ALT` and `KEY_META` answer for either side."),
         ("key_just_pressed", &[], "", "Whether the `KEY_*` key went down this frame; true for that one frame only."),
         ("key_just_released", &[], "", "Whether the `KEY_*` key came up this frame; true for that one frame only."),
-        ("mouse_position", &[], "", "The cursor's position in window pixels, with (0, 0) at the top-left corner."),
+        ("mouse_position", &[], "", "The cursor's position in window pixels, with (0, 0) at the top-left corner. A script hears it move with `events::listen(this.node, \"pointer_moved\")`, as `on_pointer_moved([x, y])`, and a button go down or up anywhere, the UI included, as `pointer_pressed` and `pointer_released` with `#{ button, x, y }`."),
         ("mouse_delta", &[], "", "How far the cursor moved this frame, in pixels; movement, not a position."),
         ("scroll_delta", &[], "", "How far the wheel turned this frame, as an (x, y) pair; zero when it did not turn."),
         ("mouse_down", &[], "", "Whether the `MOUSE_BUTTON_*` button is held down right now, however many frames it has been down."),

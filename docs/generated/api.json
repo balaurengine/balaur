@@ -15093,7 +15093,7 @@
         "mouse_down": "Whether the `MOUSE_BUTTON_*` button is held down right now, however many frames it has been down.",
         "mouse_just_pressed": "Whether the `MOUSE_BUTTON_*` button went down this frame; true for that one frame only.",
         "mouse_just_released": "Whether the `MOUSE_BUTTON_*` button came up this frame; true for that one frame only.",
-        "mouse_position": "The cursor's position in window pixels, with (0, 0) at the top-left corner.",
+        "mouse_position": "The cursor's position in window pixels, with (0, 0) at the top-left corner. A script hears it move with `events::listen(this.node, \"pointer_moved\")`, as `on_pointer_moved([x, y])`, and a button go down or up anywhere, the UI included, as `pointer_pressed` and `pointer_released` with `#{ button, x, y }`.",
         "pan": "Two or more fingers moving together as `{ x, y }`, the average movement since last frame in the same pixels as `mouse_position`. Zero with fewer than two down.",
         "pinch": "Two fingers moving apart or together as `{ scale, x, y }`: `scale` above 1 is apart, measured against last frame, and `x`/`y` are the point between them. Empty with fewer than two fingers down.",
         "reset_bindings": "Drop every saved rebinding and go back to what the project declared.",
