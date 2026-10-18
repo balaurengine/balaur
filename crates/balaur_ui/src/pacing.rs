@@ -6,7 +6,9 @@
 //! animation, or the idle tick between drags, and the frames between
 //! re-present the last pass's shapes. The editor asks for it: on the web its
 //! shell is most of the frame, and nothing in it moves while nobody touches
-//! it.
+//! it. A focused field's caret blinks for [`BLINK_FOR`] after the last input
+//! and then holds still: egui owes a pass for every blink, for as long as the
+//! field keeps focus.
 
 use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -21,6 +23,11 @@ use crate::{UiConfig, UiState};
 /// How long a lazy UI goes without a pass when nothing asks for one, and
 /// no drag outside it holds the pointer.
 const IDLE: Duration = Duration::from_millis(250);
+
+/// Seconds a caret blinks after the last input before it holds still, as
+/// GTK's `gtk-cursor-blink-timeout` does. Every blink is a pass, so a lazy UI
+/// left with a field focused would otherwise draw two a second for good.
+const BLINK_FOR: f64 = 10.0;
 
 /// What a pass is filed under in the profiler, and what the passes after it
 /// in the same frame are: egui reruns the whole closure when a pass only
@@ -56,6 +63,9 @@ pub struct Pacing {
     due: Arc<Mutex<BTreeSet<Instant>>>,
     /// Whether egui reports its requests into `due` yet.
     heard: bool,
+    /// The egui time of the pass that answered the last input; `None` while
+    /// that pass has yet to run, which blinks.
+    input_at: Option<f64>,
 }
 
 /// What a low-processor loop does before its next frame.
@@ -171,6 +181,7 @@ pub fn wants_pass(eng: &Engine, ctx: &egui::Context, input_seen: bool) -> bool {
         return true;
     }
     hear_egui(&mut pacing, ctx);
+    hold_caret(&mut pacing, ctx, input_seen);
     let logs = balaur_core::logbuf::total();
     let assets = balaur_core::assets::generation(eng);
     let changed = logs != pacing.logs_seen || assets != pacing.assets_seen;
@@ -179,6 +190,24 @@ pub fn wants_pass(eng: &Engine, ctx: &egui::Context, input_seen: bool) -> bool {
     // The tick is for state that moves without input.
     let idle = pacing.last_pass.is_none_or(|at| at.elapsed() >= IDLE);
     input_seen || requested || changed || settling(eng) || idle || due
+}
+
+/// Blink a focused field's caret until [`BLINK_FOR`] after the last input,
+/// then hold it on. Timed by egui's clock rather than the wall's, so a test
+/// can step it.
+fn hold_caret(pacing: &mut Pacing, ctx: &egui::Context, input_seen: bool) {
+    // The last pass's clock: this frame's input has not reached egui yet.
+    let time = ctx.input(|i| i.time);
+    let blink = if input_seen {
+        pacing.input_at = None;
+        true
+    } else {
+        time - *pacing.input_at.get_or_insert(time) < BLINK_FOR
+    };
+    // Only on a change: a style write is a clone of both themes.
+    if ctx.global_style().visuals.text_cursor.blink != blink {
+        ctx.all_styles_mut(|style| style.visuals.text_cursor.blink = blink);
+    }
 }
 
 /// File what a pass cost, under a name that says whether egui had already

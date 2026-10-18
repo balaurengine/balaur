@@ -624,6 +624,24 @@ while `Window::has_unread_ui_input` holds, and `wait_events` answers at once
 while that poll's events are unread. A web press and release carry their own
 position, so a tap with no move before it still lands.
 
+**Fixed 2026-10-17: a focused field drew two frames a second.** egui's caret
+blink asks for a repaint at each half second, and every one was a full frame:
+`update`, the pass and the render. It never stopped while the field kept
+focus. The pacing now blinks a caret for 10 s after the last input and then
+holds it on, as GTK's `gtk-cursor-blink-timeout` does. It times this by egui's
+clock, so `a_focused_caret_stops_blinking_ten_seconds_after_the_last_input`
+steps past the timeout without waiting for it.
+
+- On the web editor, after focusing the Scene search: 24 passes in the next
+  10.6 s, then none over the following 14 s.
+- The steady 1 Hz wake first seen on the web did not come back. A tab the
+  browser throttles runs frames once a second, so a run of passes reads there
+  as one wake a second. Natively, and on the web at 60 Hz and at an emulated
+  1 Hz, an untouched editor draws nothing after load, a click or a hover.
+- What remains are egui's own finite animations, mostly the scroll-bar fade in
+  `ScrollArea`: 12 to 17 passes, 0.2 to 1.3 s, each woken through
+  `begin_pass_repaint_logic`'s zero-delay repaint.
+
 ## 7. The instrument
 
 `engine.set_script_profiling(on)` and `engine.script_costs()` count VM instructions
