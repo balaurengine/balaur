@@ -2,9 +2,11 @@
 //! property, read off the registry's schema and the node itself.
 //!
 //! The rows are the pool's own, filled here rather than by a script: the
-//! widget names a node and a component, and every pass the rows are written
-//! again from what the node holds, wherever that moved. A script showing a
-//! component of twenty properties states one control rather than twenty rows.
+//! widget names a node and a component, and the rows are written from what
+//! the node holds. Nothing is read back each pass: an inspector fills again
+//! when its widget is written, when one of its rows was edited, when its width
+//! moved, or when a script says the node changed with `ui.reread`. A script
+//! showing a component of twenty properties states one control, not twenty.
 //!
 //! An edit on a row is heard here and reported from the inspector's node as
 //! one `change`: the property, the steps into its value, and the value now
@@ -56,6 +58,20 @@ struct Asked {
     relative_to: SmolStr,
     aliases: Vec<SmolStr>,
     data: Option<toml::Value>,
+}
+
+impl Asked {
+    /// Everything but the data: what the widget and the layout say.
+    fn same_shape(&self, other: &Self) -> bool {
+        self.target == other.target
+            && self.component == other.component
+            && self.options == other.options
+            && self.label_width.to_bits() == other.label_width.to_bits()
+            && self.stacked == other.stacked
+            && self.row_height.to_bits() == other.row_height.to_bits()
+            && self.relative_to == other.relative_to
+            && self.aliases == other.aliases
+    }
 }
 
 /// One step into a property's value: an entry of a list, or a key of a map
@@ -200,14 +216,46 @@ pub(crate) fn refresh(eng: &Engine) {
     }
 }
 
-/// Note a node that became an inspector, so the next pass fills it.
+/// Note an inspector's widget written, so the next pass fills it: one just
+/// made, or one whose node, component or options moved.
 pub(crate) fn noticed(eng: &Engine, entity: Entity) {
     if let Some(state) = eng.try_resource::<InspectorState>() {
         let mut state = state.borrow_mut();
         if !state.known.contains(&entity) {
             state.known.push(entity);
         }
+        if let Some(filled) = state.filled.get_mut(&balaur_core::node_id_of(entity).0) {
+            filled.stale = true;
+        }
     }
+}
+
+/// Fill every inspector at or under `entity` again at the next pass, which
+/// they owe: the nodes they show changed in a way no widget says. A panel
+/// names itself to have its whole form read again. False where there is none.
+pub fn reread(eng: &Engine, entity: Entity) -> bool {
+    let Some(state) = eng.try_resource::<InspectorState>() else {
+        return false;
+    };
+    let inspectors: Vec<Entity> = {
+        let world = eng.world();
+        balaur_core::scene::collect_subtree(&world, entity)
+            .into_iter()
+            .filter(|&one| {
+                world
+                    .get::<&Widget>(one)
+                    .is_ok_and(|widget| widget.kind == w::INSPECTOR)
+            })
+            .collect()
+    };
+    let mut state = state.borrow_mut();
+    for &one in &inspectors {
+        if let Some(filled) = state.filled.get_mut(&balaur_core::node_id_of(one).0) {
+            filled.stale = true;
+        }
+        crate::widget::arena::widget_changed(one);
+    }
+    !inspectors.is_empty()
 }
 
 /// The known inspectors split three ways: the ones to fill this pass, the
@@ -277,13 +325,12 @@ fn forget_the_gone(eng: &Engine, turned: &[Entity]) {
 
 fn refresh_one(eng: &Engine, one: &Asking) -> anyhow::Result<()> {
     let target = target_of(eng, &one.target);
-    let data = target.and_then(|node| balaur_core::components::get(eng, node, &one.component));
     let label_width = if one.label_width > 0.0 {
         one.label_width
     } else {
         crate::widget::arrange::drawn_at(one.entity).map_or(0.0, |r| r.width() * LABEL_SHARE)
     };
-    let asked = Asked {
+    let mut asked = Asked {
         target,
         component: one.component.clone(),
         options: one.options.clone(),
@@ -292,20 +339,23 @@ fn refresh_one(eng: &Engine, one: &Asking) -> anyhow::Result<()> {
         row_height: one.row_height,
         relative_to: one.relative_to.clone(),
         aliases: one.aliases.clone(),
-        data,
+        data: None,
     };
     let id = balaur_core::node_id_of(one.entity).0;
+    // The component is read only when something said it may have moved: the
+    // read builds the whole table, and doing it every pass was the polling.
     let same = {
         let state = eng.resource::<InspectorState>();
         let state = state.borrow();
         state
             .filled
             .get(&id)
-            .is_some_and(|filled| !filled.stale && filled.asked == asked)
+            .is_some_and(|filled| !filled.stale && filled.asked.same_shape(&asked))
     };
     if same {
         return Ok(());
     }
+    asked.data = target.and_then(|node| balaur_core::components::get(eng, node, &one.component));
     let schema = {
         let registry = eng.resource::<balaur_core::components::ComponentRegistry>();
         let registry = registry.borrow();

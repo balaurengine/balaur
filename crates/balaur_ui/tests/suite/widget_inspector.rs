@@ -172,8 +172,10 @@ fn a_property_in_degrees_shows_degrees_and_reports_radians() {
     );
 }
 
+/// Nothing is read back each pass: the node moved by something else keeps
+/// its old rows until whoever moved it says so, and then they follow.
 #[test]
-fn the_rows_follow_the_node_when_something_else_moves_it() {
+fn the_rows_follow_the_node_once_told_it_moved() {
     let (_dir, mut app) = app_with("transform", "");
     let ctx = egui::Context::default();
     settle(&mut app, &ctx);
@@ -184,6 +186,14 @@ fn the_rows_follow_the_node_when_something_else_moves_it() {
         toml::Value::Array(vec![7.0.into(), 8.0.into(), 9.0.into()]),
     );
     balaur_core::components::patch(&app.engine, root, "transform", &write.into()).unwrap();
+    crate::support::pass(&app, &ctx, vec![]);
+    assert_eq!(
+        prop(&app, control(&app, 0, 2), "value"),
+        Some(toml::Value::Float(3.0)),
+        "a pass read the component without being told"
+    );
+    // Named by the node above it, as a panel names itself for its whole form.
+    assert!(balaur_ui::reread(&app.engine, root));
     crate::support::pass(&app, &ctx, vec![]);
     assert_eq!(
         prop(&app, control(&app, 0, 2), "value"),

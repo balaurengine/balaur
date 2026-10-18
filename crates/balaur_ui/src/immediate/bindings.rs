@@ -589,6 +589,12 @@ fn install_focus(m: &mut dyn Bindings<Engine>) {
             "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `#{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
         ),
         (
+            "reread",
+            &[],
+            "(node: node)",
+            "Fill every `inspector` widget at or under the node again from the node it shows, at the next pass: what a script says when it changed those nodes itself, naming one inspector or a whole panel. An inspector reads nothing back on its own; its widget written or a row edited fills it too. False where there is no inspector.",
+        ),
+        (
             "edit",
             &[],
             "(node: node, value)",
@@ -611,6 +617,12 @@ fn install_focus(m: &mut dyn Bindings<Engine>) {
         // field and tells the node focus arrived.
         focus.taking = true;
         Ok(())
+    });
+    m.function("reread", |eng: &Engine, node: balaur_script::NodeId| {
+        Ok(crate::widget::inspector::reread(
+            eng,
+            balaur_core::entity_of(node)?,
+        ))
     });
     m.function(
         "edit",

@@ -47,6 +47,7 @@ pub use widget::input::{
     LINK_EVENT, MARK_EVENT, MOVE_EVENT, OPENED_EVENT, SCROLLED_EVENT, SUBMIT_EVENT,
     WidgetInputBuffer, WidgetInputSnapshot, click, edit, submit,
 };
+pub use widget::inspector::reread;
 pub use widget::node::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
 pub use widget::theme::WidgetTheme;
 
