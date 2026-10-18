@@ -8,6 +8,7 @@ pub(crate) mod button;
 pub(crate) mod focus;
 pub(crate) mod grid;
 pub(crate) mod input;
+pub(crate) mod inspector;
 pub(crate) mod kinds;
 pub(crate) mod layer;
 pub(crate) mod marks;

@@ -267,7 +267,9 @@ impl Pool<'_> {
         // clamps the next number. Setting drops them.
         let swapped = match spec.get(k::KIND) {
             Some(kind) => {
-                *kind != self.widget(node, k::KIND)
+                let was = self.widget(node, k::KIND);
+                self.inspector_swapped(node, kind, &was);
+                *kind != was
                     || spec
                         .get(k::ROLE)
                         .cloned()
@@ -287,6 +289,31 @@ impl Pool<'_> {
         });
         let op = if whole { self.ops.set } else { self.ops.patch };
         self.write(op, node, value)
+    }
+
+    /// An `inspector` fills its own children with rows, so a slot turning
+    /// into one or out of one starts with none: anything else would read the
+    /// rows as its controls, or leave them anchored on their own.
+    fn inspector_swapped(&self, node: &Value, kind: &Value, was: &Value) {
+        let inspector = Value::text(w::INSPECTOR);
+        if kind == was || (*kind != inspector && *was != inspector) {
+            return;
+        }
+        let kids: Vec<balaur_core::hecs::Entity> = self
+            .children(node)
+            .iter()
+            .filter_map(|kid| match kid {
+                Value::Node(id) => balaur_core::entity_of(balaur_script::NodeId(*id)).ok(),
+                _ => None,
+            })
+            .collect();
+        if !kids.is_empty() {
+            balaur_core::scene::free_nodes(self.eng, &kids);
+            self.forget();
+        }
+        if let Value::Node(id) = node {
+            crate::widget::inspector::forget(self.eng, *id);
+        }
     }
 
     /// Whether `value` differs from what `mark` was last written with, noted
@@ -547,12 +574,54 @@ impl Pool<'_> {
         }
         Ok(())
     }
+
+    /// Put one row a spec on the host's children, making what is missing and
+    /// hiding what is spare; true when a control's table changed.
+    fn rows(&self, host: &Value, specs: &[Value], label_w: &Value, stacked: bool) -> Result<bool> {
+        let mut made = self.children(host).len();
+        if made < specs.len() {
+            self.forget();
+        }
+        while made < specs.len() {
+            self.make_row(host, made)?;
+            made += 1;
+        }
+        for (i, row) in self.children(host).iter().enumerate() {
+            match specs.get(i) {
+                Some(spec) => self.row(i, row, spec, label_w, stacked)?,
+                None => self.hidden(&format!("r{i}"), row)?,
+            }
+        }
+        Ok(self.changed.get())
+    }
+
+    /// The control nodes under each of the host's first `rows` rows, in the
+    /// order their specs named them.
+    fn controls_of(&self, host: &Value, rows: usize) -> Vec<Vec<Value>> {
+        self.children(host)
+            .iter()
+            .take(rows)
+            .map(|row| {
+                let column = self.child(row, "H");
+                let slot = self.child(&column, "C");
+                if slot == Value::Nil {
+                    return Vec::new();
+                }
+                self.children(&slot)
+            })
+            .collect()
+    }
 }
 
 /// The host at `path`, shown, and the pass that fills it; nothing when no
 /// node is there.
 fn open<'a>(eng: &'a Engine, ops: Ops, path: &str) -> Result<Option<(Pool<'a>, Value)>> {
     let host = (ops.scene_node)(eng, &[Value::text(path)])?;
+    open_node(eng, ops, host)
+}
+
+/// `open` for a host already in hand.
+fn open_node(eng: &Engine, ops: Ops, host: Value) -> Result<Option<(Pool<'_>, Value)>> {
     let Value::Node(id) = host else {
         return Ok(None);
     };
@@ -698,22 +767,39 @@ fn fill_rows(
     let Some((pool, host)) = open(eng, ops, path)? else {
         return Ok(false);
     };
-    let specs = list(Some(specs));
-    let mut made = pool.children(&host).len();
-    if made < specs.len() {
-        pool.forget();
-    }
-    while made < specs.len() {
-        pool.make_row(&host, made)?;
-        made += 1;
-    }
-    for (i, row) in pool.children(&host).iter().enumerate() {
-        match specs.get(i) {
-            Some(spec) => pool.row(i, row, spec, label_w, stacked)?,
-            None => pool.hidden(&format!("r{i}"), row)?,
-        }
-    }
-    Ok(pool.changed.get())
+    pool.rows(&host, list(Some(specs)), label_w, stacked)
+}
+
+/// The node operations, resolved once for every caller in the crate.
+fn ops() -> Option<Ops> {
+    static OPS: std::sync::OnceLock<Option<Ops>> = std::sync::OnceLock::new();
+    *OPS.get_or_init(Ops::resolve)
+}
+
+/// `ui.fill_rows` for a host node in hand, and the control nodes each row
+/// holds after it, for a kind that fills its own children.
+pub(crate) fn fill_rows_on(
+    eng: &Engine,
+    host: balaur_core::hecs::Entity,
+    specs: &[Value],
+    label_w: f64,
+    stacked: bool,
+) -> Result<Vec<Vec<balaur_core::hecs::Entity>>> {
+    let ops = ops().ok_or_else(|| anyhow!("the pool cannot find the node operations"))?;
+    let node = Value::Node(balaur_core::node_id_of(host).0);
+    let Some((pool, host)) = open_node(eng, ops, node)? else {
+        return Ok(Vec::new());
+    };
+    pool.rows(&host, specs, &Value::Num(label_w), stacked)?;
+    let entity = |node: &Value| match node {
+        Value::Node(id) => balaur_core::entity_of(balaur_script::NodeId(*id)).ok(),
+        _ => None,
+    };
+    Ok(pool
+        .controls_of(&host, specs.len())
+        .iter()
+        .map(|row| row.iter().filter_map(entity).collect())
+        .collect())
 }
 
 /// `ui.fill_strip` and `ui.fill_rows`.

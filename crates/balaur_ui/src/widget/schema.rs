@@ -86,7 +86,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::SPLITTER_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "How wide a grab the seams between this container's children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one. On a `table` it is the grab between two columns, which is six pixels where it says nothing", group = "value" }"#),
                     (k::CURRENT_PAGE, r#"{ type = "string", default = "", description = "Which child a `tabs` shows, by node name; empty shows the first. A click on the strip writes it and calls `on_change` with the page's name", group = "events" }"#),
                     (k::LAYER, r#"{ type = "string", default = "", description = "The drawing surface this root belongs to; empty is the default one, and a name nothing has configured takes the default surface", group = "placement" }"#),
-                    (k::WRAP, r#"{ type = "bool", default = false, description = "Break text to the width the widget was given instead of running past it on one line; a `dropdown` breaks its picked text", group = "type" }"#),
+                    (k::WRAP, r#"{ type = "bool", default = false, description = "Break text to the width the widget was given instead of running past it on one line; a `dropdown` breaks its picked text, and an `inspector` puts each label above its control", group = "type" }"#),
                     (k::TRUNCATE, r#"{ type = "bool", default = false, description = "Cut a caption too long for the width the widget was given and end it with an ellipsis; with neither this nor `wrap` a button clips it at its edge. A `dropdown` cuts its picked text", group = "type" }"#),
                     (k::TRAILING, r#"{ type = "string", default = "", description = "Text a button draws against its far edge, dimmer than its caption: a shortcut, or a menu's caret", group = "type" }"#),
                     (k::SHORTCUT, r#"{ type = "string", default = "", description = "A chord that clicks this widget wherever it is, as `cmd+shift+s` or `f5`; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`", group = "events" }"#),
@@ -121,9 +121,9 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::MAX, r#"{ type = "float", default = 1.0, description = "The high end of a `slider` or `progress_bar`; a `number_field` runs free while this pair is the default 0 and 1", group = "value" }"#),
                     (k::STEP, r#"{ type = "float", default = 0.0, min = 0.0, description = "The grid a `slider` snaps to, and how far a `number_field`'s `arrows` move it; 0 is continuous, and 1 for the arrows", group = "value" }"#),
                     (k::PICKED_COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "What a `color_picker` holds; `on_change` hears the new one", group = "paint" }"#),
-                    (k::ROW_HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "The pitch of a `list` or `tree` row, in design pixels; 0 takes the font's own line height", group = "layout" }"#),
+                    (k::ROW_HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "The pitch of a `list` or `tree` row, in design pixels; 0 takes the font's own line height. An `inspector`'s file rows are this tall and its chips 4 less, 24 where it is 0", group = "layout" }"#),
                     (k::FONT_FAMILY, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Which of the theme's families the widget draws in", group = "type" }}"#, w::UI, v::options(w::WIDGET_FONTS))),
-                    (k::OPTIONS, r#"{ type = "list", of = { type = "string" }, default = [], description = "The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note, an `#rrggbb` for that row, a key that is never drawn, which two rows with the same label need to stay two rows, and marks, each `name=glyph` from the icon face and joined on U+001E, drawn at the right and reported by `on_mark`; and a `table` row splits on the same into one cell a column. `on_change` hears every pick", group = "value" }"#),
+                    (k::OPTIONS, r#"{ type = "list", of = { type = "string" }, default = [], description = "The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note, an `#rrggbb` for that row, a key that is never drawn, which two rows with the same label need to stay two rows, and marks, each `name=glyph` from the icon face and joined on U+001E, drawn at the right and reported by `on_mark`; and a `table` row splits on the same into one cell a column. `on_change` hears every pick. An `inspector` shows the properties it names, in that order", group = "value" }"#),
                     (k::GRID_COLUMNS, r#"{ type = "string", default = "", description = "A `grid`'s columns, left to right and space-separated: design pixels (`120`), a share of what is left (`1fr`), a percentage (`25%`), `auto`, `min_content`, `max_content`, `fit_content(120)`, `minmax(80, 1fr)`, and `repeat(3, 1fr)`, whose count may be `auto_fill` or `auto_fit`. Empty is two equal columns. A `list` flows its cards into as many columns as this names, and draws a line a row where it is empty; a `table`'s columns are its `titles`", group = "layout" }"#),
                     (k::GRID_ROWS, r#"{ type = "string", default = "", description = "A `grid`'s rows, top to bottom, in the words `grid_columns` takes; empty makes each row as tall as what is in it", group = "layout" }"#),
                     (k::AUTO_COLUMNS, r#"{ type = "string", default = "", description = "The size of each column a `grid` adds past `grid_columns`, for a child placed beyond them or flowing down under `auto_flow = \"column\"`, in the words `grid_columns` takes without `repeat`; several take turns. Empty is `auto`", group = "layout" }"#),
@@ -136,6 +136,11 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                     (k::MULTI_SELECT, r#"{ type = "bool", default = false, description = "Let a `list`, `tree` or `table` hold more than one row: the platform's command key toggles a row and shift takes the run from the last one clicked", group = "value" }"#),
                     (k::TITLES, r#"{ type = "list", of = { type = "string" }, default = [], description = "A `table`'s column names, in order, and with them how many columns it has: a name ending in `>` draws its column against the right edge, which is what a column of numbers wants. None takes the first row as the names", group = "value" }"#),
                     (k::WIDTHS, r#"{ type = "list", of = { type = "string" }, default = [], description = "Each `table` column's share of the width, in the order `titles` names them: `[\"2\", \"1\", \"1\"]` gives the first half and the other two a quarter each. Numbers and the text of them both; empty divides the width evenly, and a drag on a seam in the header writes the shares back", group = "layout" }"#),
+                    (k::TARGET, r#"{ type = "string", default = "", description = "The node an `inspector` shows, by path: as `scene.get_node` takes it, or as `node.path()` spells it", group = "value" }"#),
+                    (k::COMPONENT, r#"{ type = "string", default = "", description = "The component an `inspector` shows a row of each property of, read off the registry's schema and the node every pass. `options` names the properties and their order; empty shows them all, sorted. `on_change` hears `#{ property, path, value }` for an edit, `path` being the steps into a list, map or record, and `verb` in place of `value` where an asset is to be embedded or saved", group = "value" }"#),
+                    (k::LABEL_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "How wide an `inspector`'s label column is, in design pixels; 0 takes a third of its width. Under `wrap` each label goes above its control instead", group = "layout" }"#),
+                    (k::RELATIVE_TO, r#"{ type = "string", default = "", description = "The folder an `inspector` shows a file's path from: a value under it loses that much of its front", group = "value" }"#),
+                    (k::ALIASES, r#"{ type = "list", of = { type = "string" }, default = [], description = "What an `inspector` shows in place of a value it holds, each the value, U+001F, and what to show", group = "value" }"#),
                     (k::HEADER, r#"{ type = "bool", default = true, description = "Draw the strip that names a `table`'s columns, and a `window`'s title bar. Off, a table's columns are still `titles`', and a table that names none keeps its first row as a row; `ui.window` takes it too", group = "layout" }"#),
                     (k::SORT, r#"{ type = "string", default = "", description = "The `table` column its rows are ordered by, by the name in `titles`; empty leaves them in the order they were given. A cell that starts with a number sorts as one, so `12 KB` follows `3 KB`", group = "value" }"#),
                     (k::SORTABLE, r#"{ type = "bool", default = false, description = "Let a click on a `table`'s header sort by that column, and the next click on the same one turn it round; the column sorted by carries a caret", group = "events" }"#),
@@ -296,6 +301,9 @@ fn apply_widget(
         anyhow::bail!("widget: `submit_key` `{chord}` is not a chord, as `enter` or `cmd+enter`");
     }
     crate::widget::arena::widget_changed(entity);
+    if widget.kind == w::INSPECTOR {
+        crate::widget::inspector::noticed(eng, entity);
+    }
     eng.world_mut()
         .insert_one(entity, widget)
         .map_err(|_| anyhow::anyhow!("node is dead"))
@@ -721,6 +729,7 @@ fn controls_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Valu
         ),
     );
     map.insert(k::HEADER.into(), toml::Value::Boolean(widget.header));
+    inspector_to_toml(widget, map);
     map.insert(k::SORT.into(), toml::Value::String(widget.sort.to_string()));
     map.insert(k::SORTABLE.into(), toml::Value::Boolean(widget.sortable));
     map.insert(k::REVERSE.into(), toml::Value::Boolean(widget.reverse));
@@ -984,6 +993,56 @@ pub(crate) fn for_classes(widget: &Widget, active: &[&str]) -> Option<Widget> {
     changed.then(|| widget_from(&toml::Value::Table(merged)))
 }
 
+/// What an `inspector` reads, shared with every widget that states none of
+/// it: almost all of them, and a widget is cloned a node a frame.
+fn inspecting(params: &toml::Value) -> std::sync::Arc<crate::widget::node::Inspecting> {
+    thread_local! {
+        static NONE: std::sync::Arc<crate::widget::node::Inspecting> = std::sync::Arc::default();
+    }
+    let r = Read(params);
+    let read = crate::widget::node::Inspecting {
+        target: r.str(k::TARGET),
+        component: r.str(k::COMPONENT),
+        label_width: r.num(k::LABEL_WIDTH),
+        relative_to: r.str(k::RELATIVE_TO),
+        aliases: strings(params, k::ALIASES),
+    };
+    NONE.with(|none| {
+        if **none == read {
+            std::sync::Arc::clone(none)
+        } else {
+            std::sync::Arc::new(read)
+        }
+    })
+}
+
+/// What an `inspector` states: the node, the component, the label column,
+/// and how a file is spelled.
+fn inspector_to_toml(widget: &Widget, map: &mut toml::map::Map<String, toml::Value>) {
+    let inspect = &widget.inspect;
+    for (key, text) in [
+        (k::TARGET, &inspect.target),
+        (k::COMPONENT, &inspect.component),
+        (k::RELATIVE_TO, &inspect.relative_to),
+    ] {
+        map.insert(key.into(), toml::Value::String(text.to_string()));
+    }
+    map.insert(
+        k::LABEL_WIDTH.into(),
+        toml::Value::Float(f64::from(inspect.label_width)),
+    );
+    map.insert(
+        k::ALIASES.into(),
+        toml::Value::Array(
+            inspect
+                .aliases
+                .iter()
+                .map(|alias| toml::Value::String(alias.to_string()))
+                .collect(),
+        ),
+    );
+}
+
 /// The keys the control kinds read: a check's tick, a slider's range, a
 /// dropdown's options, a grid's columns, a fold's state, a fill root's
 /// insets, an image's slice and a scroll's deadzone.
@@ -1003,6 +1062,7 @@ fn read_controls(widget: &mut Widget, params: &toml::Value) {
     widget.titles = strings(params, k::TITLES);
     widget.widths = shares(params, k::WIDTHS);
     widget.header = b(k::HEADER);
+    widget.inspect = inspecting(params);
     widget.sort = r.str(k::SORT);
     widget.sortable = b(k::SORTABLE);
     widget.reverse = b(k::REVERSE);

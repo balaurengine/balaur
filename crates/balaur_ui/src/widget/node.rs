@@ -291,6 +291,8 @@ pub struct Widget {
     /// widget leaves all of it at the defaults, and a widget is cloned a node
     /// a frame.
     pub(crate) egui: std::sync::Arc<EguiOptions>,
+    /// What an `inspector` shows. Shared for the same reason `egui` is.
+    pub(crate) inspect: std::sync::Arc<Inspecting>,
     /// What its text is shaped and dressed with past its face and size.
     /// Shared for the same reason `egui` is.
     pub(crate) text_look: std::sync::Arc<crate::widget::text_look::TextLook>,
@@ -350,6 +352,21 @@ impl Bits {
     pub(crate) fn get(self) -> f32 {
         f32::from_bits(self.0)
     }
+}
+
+/// What an `inspector` shows: a node, one of its components, the width of
+/// its label column, and how it spells a file.
+#[derive(Clone, Default, PartialEq)]
+pub(crate) struct Inspecting {
+    /// The node, by path from the root, and which of its components.
+    pub(crate) target: SmolStr,
+    pub(crate) component: SmolStr,
+    /// How wide the label column is, in design pixels.
+    pub(crate) label_width: f32,
+    /// The folder a file's path is shown from, and the spellings shown in
+    /// place of a value, each `value` then U+001F then `shown`.
+    pub(crate) relative_to: SmolStr,
+    pub(crate) aliases: Vec<SmolStr>,
 }
 
 /// The options the egui widget behind each kind takes: one struct for every
@@ -443,6 +460,7 @@ pub(crate) fn lays_out(kind: &str) -> bool {
             | w::WINDOW
             | w::MENU
             | w::TOAST
+            | w::INSPECTOR
     )
 }
 

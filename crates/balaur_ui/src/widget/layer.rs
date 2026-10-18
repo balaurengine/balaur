@@ -718,6 +718,7 @@ fn click_sensor(ui: &egui::Ui, at: &mut Painting<'_>, index: usize) {
             | w::PANEL
             | w::ROW
             | w::COLUMN
+            | w::INSPECTOR
             | w::GRID
             | w::STACK
             | w::FLOW
@@ -789,7 +790,7 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         w::IMAGE => image(ui, at, index),
         // Taffy placed a grid's and a flow's children like a row's.
         w::ROW | w::GRID | w::FLOW => contain(ui, at, index, Axis::Row),
-        w::COLUMN => contain(ui, at, index, Axis::Column),
+        w::COLUMN | w::INSPECTOR => contain(ui, at, index, Axis::Column),
         // A box that clips, with its children free to run past it.
         w::SCROLL => scroller(ui, at, index),
         // One child at a time, with a strip of the rest above it. The strip is

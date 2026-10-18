@@ -1,8 +1,9 @@
 > **Status:** §3 step 1 built 2026-09-07: the outliner draws its viewport
 > rather than the document, and §0 records what that was worth. The `table`
 > kind now places its body the same way and the Profiler and Cost docks are
-> on it, so §2 step 1 is built and still no crate has been added. §2 steps 3
-> and 4 and §3 step 2, the inspector, are not built.
+> on it, so §2 step 1 is built and still no crate has been added. §2 step 4
+> and §3 step 2, the inspector, built 2026-10-17 as an `inspector` kind, and
+> §0 records that too. §2 step 3 is not built.
 >
 > Sections 5 to 7 ask a different question, on `examples/hello`: what the frame
 > costs outside the docks. The instrument in §7 is built and the allocation
@@ -58,6 +59,34 @@ Read the spread, not the middle: two runs of the same command differ by up to
 70%, and the worst frame in a run reaches 500 ms. Something stalls
 intermittently, and until that is found only the ratios here are safe to
 quote.
+
+**Built 2026-10-17, the inspector on an `inspector` kind.** The widget names
+a node and one of its components. Every pass it reads the registry's schema
+and the node and fills the pool's own rows, so `inspector.rn` states one
+control for a run of properties instead of a table a row. An edit comes back
+as one `change`: `property`, `path` and `value`, in the units the component
+stores. Three kinds of row stay the script's: a node picker, which lists the
+document; a material's shader rows; and a datatype a plugin draws.
+Screenshots of 15 nodes in four examples match the script's rows pixel for
+pixel.
+
+Release with `--features window`, offscreen at 1920x1080, means of three
+interleaved pairs of 1000 frames at a load average near 2. "Selected" is
+`--state select:Plank` and `select:Box0_0`. Any `--state` makes the pool
+describe the form every pass for its self-test check, which is the frame a
+drag or a playing scene pays.
+
+| | `ui` before | after | right dock before | after | wall before | after |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `examples/angrynerds`, as opened | 2.25 ms | 2.23 ms | 0.29 ms | 0.29 ms | 3.33 ms | 3.36 ms |
+| generated, 2001 nodes, as opened | 3.13 ms | 3.13 ms | 0.28 ms | 0.28 ms | 8.89 ms | 8.88 ms |
+| `examples/angrynerds`, `Plank` selected | 5.93 ms | **4.47 ms** | 2.86 ms | **1.30 ms** | 7.50 ms | 6.04 ms |
+| generated, `Box0_0` selected | 7.48 ms | **6.12 ms** | 2.92 ms | **1.36 ms** | 20.59 ms | 19.40 ms |
+
+The generated project is 40 groups of 49 static boxes, each a `body2d`, a
+`shape2d` and a `collider2d`. As opened, the root is selected and the form is
+not described again, so nothing moves. Described every pass, the right dock
+costs under half what it did.
 
 Three things fall out of it.
 
@@ -119,7 +148,8 @@ N rows is one crossing rather than N.
    rows from `model::schema`, and that is `scene::component_schema`, a Rust
    binding over the component registry. A kind taking a node and a component
    name reads the same registry and draws every row natively, so the script
-   says which components to show and Rust draws them.
+   says which components to show and Rust draws them. Built 2026-10-17: the
+   kind fills the pool's rows itself, so they look as the script's did.
 
 Step 4 is the shape to reach for wherever the model is already Rust. Step 1
 and step 2 are for the lists whose model is not: a search result, a filtered
@@ -148,7 +178,8 @@ In this order, measuring after each:
 1. The outliner. It is the only list whose length is the document's, so it
    owns the 12.8 microseconds a node costs and it is the whole of §0's slope.
 2. The inspector's property rows, which are bounded by a node's components
-   rather than by the document, so they cost a constant.
+   rather than by the document, so they cost a constant. Built 2026-10-17
+   on the `inspector` kind (§0).
 3. The Assets dock, the Docs dock's function list, the Events view. The
    first two are on the kinds; the Events view draws a row of controls per
    binding, so it is a form rather than a list and stays hand-drawn.
@@ -684,7 +715,7 @@ not price them again.
 1. The `table` kind and the inspector on it. Built without a crate: the kind
    places its body by `ScrollArea::show_rows`, the way `list` and `tree`
    already did, and its columns are shares of the width a drag on the header
-   moves. The inspector is still rows from `model::schema`.
+   moves. The inspector is on a kind of its own since 2026-10-17 (§0).
 2. The `list` kind and the outliner, against a scene with 50,000 nodes.
 3. The remaining docks, and a self-test state that fails when the shell costs
    more than a frame. The Profiler, the Cost dock and the Library's templates

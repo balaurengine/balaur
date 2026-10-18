@@ -561,6 +561,7 @@ pub const WIDGET_KINDS: &[(&str, &str)] = &[
     ("WIDGET_LIST", w::LIST),
     ("WIDGET_TREE", w::TREE),
     ("WIDGET_TABLE", w::TABLE),
+    ("WIDGET_INSPECTOR", w::INSPECTOR),
     ("WIDGET_SLIDER", w::SLIDER),
     ("WIDGET_NUMBER_FIELD", w::NUMBER_FIELD),
     ("WIDGET_PROGRESS_BAR", w::PROGRESS_BAR),

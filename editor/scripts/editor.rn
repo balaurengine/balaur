@@ -153,6 +153,8 @@ pub fn fresh_state() {
         // self-test run's `model::check_revision` saw last frame.
         doc_settled: 0, doc_seen: #{ text: "", rev: -1 },
         inspect_warned: #{},
+        // Each component's rows cut into native runs, by component.
+        inspect_layout: #{},
         tree_cache: #{},
         // The outliner's row strings and what they were built for.
         tree_items: #{},

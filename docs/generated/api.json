@@ -10864,6 +10864,16 @@
         "group": "placement",
         "type": "bool"
       },
+      "aliases": {
+        "default": [],
+        "description": "What an `inspector` shows in place of a value it holds, each the value, U+001F, and what to show",
+        "group": "value",
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "type": "list"
+      },
       "align_content": {
         "default": "stretch",
         "description": "How a container that wraps spreads its lines across its direction, and a `grid` its rows, where they leave room: `stretch` shares the room among them",
@@ -11159,6 +11169,12 @@
         "default": "",
         "description": "On a `grid`'s child: the columns it covers, in the words `row` takes",
         "group": "layout",
+        "type": "string"
+      },
+      "component": {
+        "default": "",
+        "description": "The component an `inspector` shows a row of each property of, read off the registry's schema and the node every pass. `options` names the properties and their order; empty shows them all, sorted. `on_change` hears `#{ property, path, value }` for an edit, `path` being the steps into a list, map or record, and `verb` in place of `value` where an asset is to be embedded or saved",
+        "group": "value",
         "type": "string"
       },
       "constrain": {
@@ -11685,6 +11701,7 @@
           "list",
           "tree",
           "table",
+          "inspector",
           "slider",
           "number_field",
           "progress_bar",
@@ -11699,6 +11716,13 @@
           "stack"
         ],
         "type": "enum"
+      },
+      "label_width": {
+        "default": 0.0,
+        "description": "How wide an `inspector`'s label column is, in design pixels; 0 takes a third of its width. Under `wrap` each label goes above its control instead",
+        "group": "layout",
+        "min": 0.0,
+        "type": "float"
       },
       "language": {
         "default": "",
@@ -11946,7 +11970,7 @@
       },
       "options": {
         "default": [],
-        "description": "The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note, an `#rrggbb` for that row, a key that is never drawn, which two rows with the same label need to stay two rows, and marks, each `name=glyph` from the icon face and joined on U+001E, drawn at the right and reported by `on_mark`; and a `table` row splits on the same into one cell a column. `on_change` hears every pick",
+        "description": "The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note, an `#rrggbb` for that row, a key that is never drawn, which two rows with the same label need to stay two rows, and marks, each `name=glyph` from the icon face and joined on U+001E, drawn at the right and reported by `on_mark`; and a `table` row splits on the same into one cell a column. `on_change` hears every pick. An `inspector` shows the properties it names, in that order",
         "group": "value",
         "of": {
           "default": "",
@@ -12133,6 +12157,12 @@
         "group": "paint",
         "type": "vec4"
       },
+      "relative_to": {
+        "default": "",
+        "description": "The folder an `inspector` shows a file's path from: a value under it loses that much of its front",
+        "group": "value",
+        "type": "string"
+      },
       "reorderable": {
         "default": false,
         "description": "Let a drag move a row of a `list` or a `tree`. The kind moves nothing itself: it draws where the row would land and calls `on_move`, and the rows are the script's to reorder",
@@ -12165,7 +12195,7 @@
       },
       "row_height": {
         "default": 0.0,
-        "description": "The pitch of a `list` or `tree` row, in design pixels; 0 takes the font's own line height",
+        "description": "The pitch of a `list` or `tree` row, in design pixels; 0 takes the font's own line height. An `inspector`'s file rows are this tall and its chips 4 less, 24 where it is 0",
         "group": "layout",
         "min": 0.0,
         "type": "float"
@@ -12453,6 +12483,12 @@
         "min": 1,
         "type": "int"
       },
+      "target": {
+        "default": "",
+        "description": "The node an `inspector` shows, by path: as `scene.get_node` takes it, or as `node.path()` spells it",
+        "group": "value",
+        "type": "string"
+      },
       "text": {
         "default": "label",
         "description": "Label or button caption",
@@ -12661,7 +12697,7 @@
       },
       "wrap": {
         "default": false,
-        "description": "Break text to the width the widget was given instead of running past it on one line; a `dropdown` breaks its picked text",
+        "description": "Break text to the width the widget was given instead of running past it on one line; a `dropdown` breaks its picked text, and an `inspector` puts each label above its control",
         "group": "type",
         "type": "bool"
       },
@@ -19567,6 +19603,10 @@
         {
           "name": "WIDGET_IMAGE",
           "value": "image"
+        },
+        {
+          "name": "WIDGET_INSPECTOR",
+          "value": "inspector"
         },
         {
           "name": "WIDGET_LABEL",

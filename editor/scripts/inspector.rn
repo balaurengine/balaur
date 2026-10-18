@@ -1721,6 +1721,7 @@ fn component_sections(S, k) {
         }
     }
     let drew = 0;
+    let editors = util::join(util::keys_sorted(S.registry.property_editors), " ");
     for comp in ordered_components(S, all) {
         // Its rows are a table of tables, which no derived editor can draw
         // and the Events view already draws properly.
@@ -1762,30 +1763,18 @@ fn component_sections(S, k) {
                 warn_note(S, note);
             }
         }
-        let schema = model::schema(S, comp);
-        let data = util::obj(found.get_component(comp));
-        let grouped = #{};
-        let order = [];
-        for prop in util::keys_sorted(schema) {
-            let spec = schema[prop];
-            let group = spec.get("group").unwrap_or("");
-            if group == "" {
-                property_row(S, k, comp, prop, spec, data);
-                continue;
-            }
-            if !grouped.contains_key(group) {
-                grouped[group] = [];
-                order.push(group);
-            }
-            grouped[group].push(prop);
+        let laid = layout_of(S, comp, editors);
+        let warned_here = has_prop_warning(by_prop, comp);
+        let data = ();
+        for part in laid.loose {
+            data = part_rows(S, k, found, comp, part, warned_here, data);
         }
-        order.sort_by(|a, b| crate::physics::group_order(a).cmp(crate::physics::group_order(b)));
-        for group in order {
-            if !subsection(S, comp, group, grouped[group].len()) {
+        for group in laid.groups {
+            if !subsection(S, comp, group.name, group.count) {
                 continue;
             }
-            for prop in grouped[group] {
-                property_row(S, k, comp, prop, schema[prop], data);
+            for part in group.parts {
+                data = part_rows(S, k, found, comp, part, warned_here, data);
             }
         }
         if comp == "multimesh3d" || comp == "multimesh2d" {
@@ -1798,6 +1787,162 @@ fn component_sections(S, k) {
     }
     if drew == 0 {
         empty_note(S, k, all.len());
+    }
+}
+
+/// A component's rows as the form draws them, worked out once a session: the
+/// properties with no group, then each group's in the order the panel files
+/// them. Each is cut into parts, a run of properties one `inspector` draws
+/// natively and, between them, one property a script editor still draws.
+fn layout_of(S, comp, editors) {
+    let cached = S.inspect_layout.get(comp);
+    if let Some(held) = cached {
+        if held.editors == editors {
+            return held;
+        }
+    }
+    let schema = model::schema(S, comp);
+    let loose = [];
+    let grouped = #{};
+    let order = [];
+    for prop in util::keys_sorted(schema) {
+        let group = schema[prop].get("group").unwrap_or("");
+        if group == "" {
+            loose.push(prop);
+            continue;
+        }
+        if !grouped.contains_key(group) {
+            grouped[group] = [];
+            order.push(group);
+        }
+        grouped[group].push(prop);
+    }
+    order.sort_by(|a, b| crate::physics::group_order(a).cmp(crate::physics::group_order(b)));
+    let groups = [];
+    for group in order {
+        let props = grouped[group];
+        groups.push(#{ name: group, count: props.len(), parts: parts_of(S, schema, props) });
+    }
+    let laid = #{ editors: editors, loose: parts_of(S, schema, loose), groups: groups };
+    S.inspect_layout[comp] = laid;
+    laid
+}
+
+// Runs of properties the native rows draw, cut by each one that needs a
+// script: a plugin's editor, a node picker over the document, a material's
+// shader rows.
+fn parts_of(S, schema, props) {
+    let parts = [];
+    let run = [];
+    for prop in props {
+        if drawn_natively(S, schema[prop]) {
+            run.push(prop);
+            continue;
+        }
+        if !run.is_empty() {
+            parts.push(#{ run: run });
+            run = [];
+        }
+        parts.push(#{ prop: prop });
+    }
+    if !run.is_empty() {
+        parts.push(#{ run: run });
+    }
+    parts
+}
+
+fn drawn_natively(S, spec) {
+    let datatype = spec.get("type").unwrap_or("");
+    if crate::plugins::property_editor(S, datatype).is_some() || datatype == "node" {
+        return false;
+    }
+    if datatype == "asset" && spec.get("asset").unwrap_or("") == "material" {
+        return false;
+    }
+    let of = spec.get("of");
+    if let Some(inner) = of {
+        if !drawn_natively(S, util::obj(inner)) {
+            return false;
+        }
+    }
+    let fields = util::obj(spec.get("fields").unwrap_or(#{}));
+    for name in fields.keys() {
+        if !drawn_natively(S, util::obj(fields[name])) {
+            return false;
+        }
+    }
+    true
+}
+
+/// One part's rows. A run is one native row, cut after each property the
+/// engine has a warning about so the warning sits under it; a property a
+/// script draws is drawn as it always was. Hands back the component's table
+/// once a script row has read it, so a section reads it at most once.
+fn part_rows(S, k, found, comp, part, warned_here, data) {
+    if let Some(prop) = part.get("prop") {
+        let read = if data is Tuple { util::obj(found.get_component(comp)) } else { data };
+        property_row(S, k, comp, prop, model::schema(S, comp)[prop], read);
+        return read;
+    }
+    if !warned_here {
+        native_row(S, found, comp, part.run);
+        return data;
+    }
+    let run = [];
+    for prop in part.run {
+        run.push(prop);
+        let warned = S.inspect_warned.get(format!("{}.{}", comp, prop));
+        if let Some(notes) = warned {
+            native_row(S, found, comp, run);
+            run = [];
+            for note in notes {
+                warn_note(S, note);
+            }
+        }
+    }
+    if !run.is_empty() {
+        native_row(S, found, comp, run);
+    }
+    data
+}
+
+/// One `inspector` over a run of a component's properties: the rows are the
+/// engine's, read off the registry and the live node every pass.
+fn native_row(S, found, comp, props) {
+    push(S, #{ full: true, height: 0, controls: [#{
+        kind: "inspector", grow: 1, gap: [2, 2],
+        target: found.path(), component: comp, options: props,
+        label_width: label_w(S), wrap: stacked(S), row_height: row_h(S),
+        relative_to: S.game_root, aliases: aliases(S),
+        on: |edit| { inspected(S, comp, edit); },
+    }] });
+}
+
+// What the native rows show in place of a resolved path: the `id://`
+// spelling the document holds.
+fn aliases(S) {
+    let out = [];
+    for (abs, spelled) in S.id_paths.iter() {
+        out.push(abs + "\u{1f}" + spelled);
+    }
+    out.sort();
+    out
+}
+
+/// An edit a native row heard: the value now at its cursor, or an asset to
+/// embed or save.
+fn inspected(S, comp, edit) {
+    let at = at_top(comp, edit.property, ());
+    for step in edit.path {
+        at = at_step(at, step, "");
+    }
+    let verb = edit.get("verb").unwrap_or("");
+    if verb == "embed" {
+        inline_asset(S, at, edit.value);
+    } else if verb == "save" {
+        promote_asset(S, at, edit.asset, assets::directory(edit.asset), edit.value);
+    } else {
+        write_at(S, at, edit.value);
     }
 }
 
