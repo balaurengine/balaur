@@ -71,7 +71,7 @@ pub fn install_debugger_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("set_breakpoints", &[], "(path: string, lines: [int])", "Replace one file's breakpoints with the given lines, returning the lines they landed on."),
         ("breakpoints", &[], "(path: string)", "The lines one file's breakpoints landed on."),
-        ("stop_location", &[], "()", "Where a script is stopped (node, path, line, reason and frames, innermost first) or nil while none is."),
+        ("stop_location", &[], "()", "Where a script is stopped (node, path, line, reason and frames, innermost first) or nil while none is. A script hears each change with `events::listen(this.node, \"debugger_stopped\")`, as `on_debugger_stopped(stop)`, rather than asking every frame."),
         ("resume", &[], "(mode: string?)", "Let the stopped script go on, in the given step mode (`CONTINUE`, `STEP_OVER`, `STEP_INTO`, `STEP_OUT`)."),
         ("set_break_on_error", &[], "(on: bool)", "Stop where a script throws instead of logging it and moving on; off by default."),
         ("break_on_error", &[], "()", "Whether a script that throws stops rather than being logged."),
@@ -148,6 +148,7 @@ fn resume(eng: &Engine, args: &[Value]) -> Result<Value> {
         Some(other) => return Err(anyhow!("resume takes a step mode, got {other:?}")),
     };
     host(eng)?.resume(mode);
+    crate::events::resumed(eng);
     Ok(Value::Nil)
 }
 

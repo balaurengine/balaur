@@ -13547,7 +13547,7 @@
         "duplicate": "A private copy of a definition, read past the cache, so editing it disturbs no other holder of that reference.",
         "exists": "Whether a reference resolves to a definition that is really there; false rather than an error when it does not.",
         "id": "The id `assets/index.toml` gives a file, or nil when it has none.",
-        "invalidate": "Declare everything derived from project files stale (a shader a material links, say) so it is rebuilt from disk; for a file the watcher does not cover.",
+        "invalidate": "Declare everything derived from project files stale (a shader a material links, say) so it is rebuilt from disk; for a file the watcher does not cover. A script hears this and every reload with `events::listen(this.node, \"assets_reloaded\")`, as `on_assets_reloaded(generation)`.",
         "load": "The definition table behind a reference, from the cache; an error when the reference resolves to nothing.",
         "path": "The path an `id://` reference resolves to in the running project; a path comes back as itself, and an unknown id is an error naming the index.",
         "reload": "Forget a reference so the next load re-reads its file, along with every entry cut from that same file.",
@@ -13752,7 +13752,7 @@
         "set_break_on_error": "Stop where a script throws instead of logging it and moving on; off by default.",
         "set_breakpoints": "Replace one file's breakpoints with the given lines, returning the lines they landed on.",
         "set_scope": "Limit the pause to one node's subtree, so an editor keeps running while the game stops; nil means the whole tree.",
-        "stop_location": "Where a script is stopped (node, path, line, reason and frames, innermost first) or nil while none is."
+        "stop_location": "Where a script is stopped (node, path, line, reason and frames, innermost first) or nil while none is. A script hears each change with `events::listen(this.node, \"debugger_stopped\")`, as `on_debugger_stopped(stop)`, rather than asking every frame."
       },
       "functions": [
         "break_on_error",
@@ -15231,7 +15231,7 @@
         "file": "The file this run's log is written to, or nil when it keeps none. `[log] file` turns it off and `[log] keep` says how many past runs stay beside it.",
         "info": "Write a line at info level, tagged as coming from a script.",
         "recent": "The last n buffered entries, 100 by default, each `{ seq, time, level, tag, message, fields }`.",
-        "since": "What was logged after `cursor` (a `seq`, 0 for all the buffer holds), as `{ entries, cursor, missed }`: pass `cursor` back next time, and `missed` counts lines the buffer dropped before they were read.",
+        "since": "What was logged after `cursor` (a `seq`, 0 for all the buffer holds), as `{ entries, cursor, missed }`: pass `cursor` back next time, and `missed` counts lines the buffer dropped before they were read. A script hears that there is more with `events::listen(this.node, \"logged\")`, as `on_logged(total)`, rather than asking every frame.",
         "warn": "Write a line at warning level, tagged as coming from a script."
       },
       "functions": [

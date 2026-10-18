@@ -116,7 +116,7 @@ pub(crate) fn document_assets(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("duplicate", &[], "(reference: string)", "A private copy of a definition, read past the cache, so editing it disturbs no other holder of that reference."),
         ("exists", &[], "(reference: string)", "Whether a reference resolves to a definition that is really there; false rather than an error when it does not."),
         ("reload", &[], "(reference: string)", "Forget a reference so the next load re-reads its file, along with every entry cut from that same file."),
-        ("invalidate", &[], "()", "Declare everything derived from project files stale (a shader a material links, say) so it is rebuilt from disk; for a file the watcher does not cover."),
+        ("invalidate", &[], "()", "Declare everything derived from project files stale (a shader a material links, say) so it is rebuilt from disk; for a file the watcher does not cover. A script hears this and every reload with `events::listen(this.node, \"assets_reloaded\")`, as `on_assets_reloaded(generation)`."),
         ("save", &[], "(reference: string, definition: any)", "Write a definition table to the project-relative file a reference names; an error unless it names a whole file."),
         ("directory", &[], "(type_name: string)", "The project-relative directory files of an asset type belong in; empty when the type is unknown or declared none."),
         ("rename", &[], "(from: string, to: string) -> [string]", "Move a file or directory and rewrite every reference to it in the project's `.toml` files, comments kept; answers the files rewritten. Paths as `fs.*` takes them, so an editor refactors the game it has open by absolute path. Script sources are not rewritten: a path in a `.rn` is the script's own value, and `id://` is the reference that survives a move."),
@@ -177,7 +177,7 @@ pub(crate) fn document_log(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("warn", &[], "(message: string)", "Write a line at warning level, tagged as coming from a script."),
         ("error", &[], "(message: string)", "Write a line at error level, tagged as coming from a script."),
         ("recent", &[], "(n: int?)", "The last n buffered entries, 100 by default, each `{ seq, time, level, tag, message, fields }`."),
-        ("since", &[], "(cursor: int?)", "What was logged after `cursor` (a `seq`, 0 for all the buffer holds), as `{ entries, cursor, missed }`: pass `cursor` back next time, and `missed` counts lines the buffer dropped before they were read."),
+        ("since", &[], "(cursor: int?)", "What was logged after `cursor` (a `seq`, 0 for all the buffer holds), as `{ entries, cursor, missed }`: pass `cursor` back next time, and `missed` counts lines the buffer dropped before they were read. A script hears that there is more with `events::listen(this.node, \"logged\")`, as `on_logged(total)`, rather than asking every frame."),
         ("file", &[], "()", "The file this run's log is written to, or nil when it keeps none. `[log] file` turns it off and `[log] keep` says how many past runs stay beside it."),
         ("clear", &[], "()", "Empty the buffer, so a console reading it starts again from nothing."),
     ]);

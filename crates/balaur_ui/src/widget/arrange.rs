@@ -549,7 +549,14 @@ pub(crate) fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
             ui.advance_cursor_after_rect(rect);
             continue;
         }
-        let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(layout));
+        // Salted by the node: egui names an unsalted child after its parent
+        // alone, so two trees as deep as each other shared a caret's id.
+        let mut child_ui = ui.new_child(
+            egui::UiBuilder::new()
+                .id_salt(("balaur-node", entity))
+                .max_rect(rect)
+                .layout(layout),
+        );
         // The box the solve gave this child, so a kind that sizes itself from
         // what it was handed — a slider's track, a dropdown's width — reads
         // the same number the layout decided.

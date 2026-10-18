@@ -819,7 +819,12 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             } else {
                 layout
             };
-            let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(layout));
+            let mut inner = ui.new_child(
+                egui::UiBuilder::new()
+                    .id_salt(("balaur-node", entity))
+                    .max_rect(rect)
+                    .layout(layout),
+            );
             inner.set_clip_rect(rect.intersect(ui.clip_rect()));
             crate::bridge::scoped_named(
                 at.eng,

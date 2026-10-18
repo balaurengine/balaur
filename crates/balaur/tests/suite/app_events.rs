@@ -136,3 +136,46 @@ fn a_setting_and_a_language_a_script_changes_are_heard_the_next_frame() {
     }
     assert_eq!(said(&app), "asked;audio/volume;fr;");
 }
+
+/// A log view listens for `logged` instead of reading the buffer each frame:
+/// a line written is heard at the next pump.
+#[test]
+fn a_script_listening_for_logged_hears_a_line_written() {
+    balaur_core::logbuf::capture_for_test();
+    let script = format!(
+        "{TELL}pub fn init(this) {{ events::listen(this.node, \"logged\"); }}\n\
+         pub fn update(this, dt) {{\n\
+             if scene::variable(\"said\") == \"\" {{\n\
+                 scene::set_variable(\"said\", \"asked;\");\n\
+                 log::info(\"a line for the log view\");\n\
+             }}\n\
+         }}\n\
+         pub fn on_logged(this, total) {{ tell(\"logged\"); }}\n"
+    );
+    let (_dir, mut app) = app_with(&script);
+    for _ in 0..3 {
+        app.tick(1.0 / 60.0);
+    }
+    assert!(said(&app).contains("logged;"), "{}", said(&app));
+}
+
+/// A file view listens for `assets_reloaded` instead of listing the project
+/// each frame: a file declared stale is heard at the next pump.
+#[test]
+fn a_script_listening_for_assets_reloaded_hears_an_invalidate() {
+    let script = format!(
+        "{TELL}pub fn init(this) {{ events::listen(this.node, \"assets_reloaded\"); }}\n\
+         pub fn update(this, dt) {{\n\
+             if scene::variable(\"said\") == \"\" {{\n\
+                 scene::set_variable(\"said\", \"asked;\");\n\
+                 assets::invalidate();\n\
+             }}\n\
+         }}\n\
+         pub fn on_assets_reloaded(this, generation) {{ tell(\"reloaded\"); }}\n"
+    );
+    let (_dir, mut app) = app_with(&script);
+    for _ in 0..3 {
+        app.tick(1.0 / 60.0);
+    }
+    assert!(said(&app).contains("reloaded;"), "{}", said(&app));
+}
