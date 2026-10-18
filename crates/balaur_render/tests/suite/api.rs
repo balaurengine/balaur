@@ -359,3 +359,38 @@ fn an_unknown_shape_kind_is_refused_by_name() {
     );
     assert!(err.contains("dodecahedron"), "{err}");
 }
+
+/// What a capture drew is put back every frame until it is cleared, and is
+/// drawn once a frame: the capture takes it out of the frame it was drawn in.
+#[test]
+fn a_retained_group_is_drawn_every_frame_until_cleared() {
+    let mut app = app();
+    // A windowed backend drains the buffers as it draws; standing in for one
+    // keeps the headless clear off, so a frame's lines can be counted.
+    app.engine.insert_resource(balaur_render::WindowedBackend);
+    let buffer = app.engine.resource::<DebugLineBuffer3d>();
+    balaur_render::retained::begin(&app.engine, "gizmo");
+    buffer.borrow_mut().lines.push(Default::default());
+    balaur_render::retained::end(&app.engine);
+    assert_eq!(
+        buffer.borrow().lines.len(),
+        0,
+        "the capture took its line out of the frame"
+    );
+    for _ in 0..2 {
+        app.tick(1.0 / 60.0);
+        assert_eq!(
+            buffer.borrow().lines.len(),
+            1,
+            "a kept line is drawn every frame"
+        );
+        buffer.borrow_mut().lines.clear();
+    }
+    balaur_render::retained::clear(&app.engine, "gizmo");
+    app.tick(1.0 / 60.0);
+    assert_eq!(
+        buffer.borrow().lines.len(),
+        0,
+        "a cleared key draws nothing"
+    );
+}

@@ -76,6 +76,7 @@ pub mod prelinked;
 #[cfg(feature = "window")]
 mod probe;
 pub mod reflection;
+pub mod retained;
 mod script_api;
 #[cfg(test)]
 mod shader_checks;
@@ -971,6 +972,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         reg.insert_resource(DebugLineBuffer2d::default());
         reg.insert_resource(DrawBuffer2d::default());
         reg.insert_resource(world_text::TextDrawBuffer::default());
+        reg.insert_resource(retained::RetainedDraws::default());
         reg.insert_resource(CameraConfig2d::default());
         reg.insert_resource(camera::CurrentCameras::default());
         reg.insert_resource(PostConfig::default());
@@ -989,6 +991,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         script_api::install_camera_2d_api(&mut *m);
         debug_view::install_debug_view_api(&mut *m);
         script_api::install_backdrop_api(&mut *m);
+        retained::install_retained_api(&mut *m);
         material::install_material_check(&mut *m);
         material::install_material_params(&mut *m);
         shape::install_shape_api(&mut *m);
@@ -1045,6 +1048,10 @@ impl balaur_plugin::Plugin for RenderPlugin {
         // Same stage: a boolean's operands have settled, so its result is
         // built from where they ended up this tick.
         reg.add_system(Stage::SceneSync, boolean::resolve_booleans_system);
+        reg.add_system(Stage::First, retained::camera_moved_system);
+        // Before the buffers are drained or cleared: a kept group is part of
+        // the frame being drawn.
+        reg.add_system(Stage::Render, retained::replay_system);
         reg.add_system(Stage::Render, clear_debug_lines_system);
         reg.add_system(Stage::Last, unserved_screenshot_system);
 

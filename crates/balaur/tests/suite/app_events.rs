@@ -202,3 +202,23 @@ fn a_script_listening_for_saved_hears_a_slot_written() {
     }
     assert!(said(&app).contains("saved;"), "{}", said(&app));
 }
+
+/// A camera listens for `pointer_scrolled` instead of reading the wheel each
+/// frame: a turn is heard at the pump of the frame it happened in.
+#[test]
+fn a_script_listening_for_pointer_scrolled_hears_the_wheel() {
+    let script = format!(
+        "{TELL}pub fn init(this) {{ events::listen(this.node, \"pointer_scrolled\"); }}\n\
+         pub fn on_pointer_scrolled(this, turn) {{ tell(`scrolled ${{turn[1]}}`); }}\n"
+    );
+    let (_dir, mut app) = app_with(&script);
+    app.tick(1.0 / 60.0);
+    {
+        let input = app.engine.resource::<balaur::input::InputSnapshot>();
+        let mut input = input.borrow_mut();
+        input.begin_frame();
+        input.add_scroll(0.0, 2.0);
+    }
+    app.tick(1.0 / 60.0);
+    assert_eq!(said(&app), "scrolled 2.0;");
+}

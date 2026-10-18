@@ -417,15 +417,6 @@ pub fn stage_verb(S, verb) {
     crate::signals::bars(S);
 }
 
-fn viewport(S, k) {
-    let vp = S.layout.stage;
-    if !style::placed(vp) {
-        return;
-    }
-    // A box select draws with the chrome hidden.
-    crate::gizmo::draw_marquee(S, k);
-}
-
 // The file the code sheet shows: a shader a material opened, else the
 // selected node's script. `()` with what to say instead when there is none.
 fn open_file(S) {
@@ -594,11 +585,7 @@ pub fn fill_hooks(S) {
 }
 
 pub fn draw(S) {
-    let k = S.theme;
     // The scene is the window: a transparent central panel is the hole egui
     // leaves for it, and every sheet floats above in the overlay layer.
     ui::central_panel(#{ transparent: true }, || {});
-    if S.viewport_live {
-        viewport(S, k);
-    }
 }

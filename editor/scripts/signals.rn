@@ -47,11 +47,15 @@ pub fn hear_boxes(S, editor) {
 }
 
 /// Have the Editor hear what the engine says from no node: a project file
-/// reloaded, a script stopped or let go, and a paste no field took.
+/// reloaded, a script stopped or let go, a paste no field took, and what the
+/// pointer did, which is when the viewport's tools look at it.
 pub fn hear_engine(editor) {
     events::listen(editor, "assets_reloaded");
     events::listen(editor, "debugger_stopped");
     events::listen(editor, "pasted");
+    for word in ["pointer_moved", "pointer_pressed", "pointer_released", "pointer_scrolled", "pointer_gestured"] {
+        events::listen(editor, word);
+    }
 }
 
 /// Clear the guard on `name`, as the Editor hears it back.
@@ -117,6 +121,23 @@ pub fn docks(S) {
     S.docks_key = key;
     tell(S, DOCKS);
     bars(S);
+}
+
+/// Whether what the viewport's lines are drawn from beside the outline and
+/// the Inspector's words moved: the tools' hover, a drag, the box select.
+/// Asked after the pointer did something, and true whenever a drag is under
+/// way or the pointer is over the stage, where a tool's lines follow it.
+pub fn overlays_moved(S, over) {
+    let key = format!("{:?}", [
+        crate::viewport::hot_part(S), S.gizmo.marquee, S.rig.hover, S.pen.hover,
+        S.tiles.hover, S.tiles.anchor, S.polygon.hover,
+    ]);
+    let moving = S.gizmo.drag is Object || S.camera_drag >= 0;
+    if !over && !moving && key == S.overlays_key {
+        return false;
+    }
+    S.overlays_key = key;
+    true
 }
 
 /// What one panel shows moved, `what` being one of `PANELS`: emitted as

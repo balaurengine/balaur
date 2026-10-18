@@ -49,7 +49,7 @@ fn local_point(geo, ox, oy, oz) {
     ]
 }
 
-// The viewport rectangle in design px, published by `center::draw`.
+// The viewport rectangle in design px, as the layout last placed the stage.
 pub fn viewport_rect(S) {
     S.viewport
 }
@@ -686,24 +686,25 @@ fn rows_in_box(S, cam, x0, y0, x1, y1) {
     out
 }
 
-/// Draw the marquee, if one is being dragged. From `draw_ui` only, beside the
-/// viewport's other overlays: `ui.*` has no context in `update`.
-pub fn draw_marquee(S, k) {
+/// Place the box select's dashed outline where the drag has got to, or put
+/// it away once the drag is over. After the pointer did something.
+pub fn fill_marquee(S) {
     let m = match S.gizmo.marquee {
         Some(m) => m,
-        None => return,
+        None => {
+            util::fill(MARQUEE, #{ visible: false });
+            return;
+        }
     };
-    let x = util::min(m.x0, m.x1);
-    let y = util::min(m.y0, m.y1);
     let w = util::abs(m.x1 - m.x0);
     let h = util::abs(m.y1 - m.y0);
-    if w < 2.0 && h < 2.0 {
-        return;
-    }
-    ui::overlay("vp-marquee", #{ x: x, y: y, width: w, height: h, interactive: false }, || {
-        ui::rect_stroke(0.0, 0.0, w, h, #{ stroke: k.primary_text, stroke_width: 1.0, dashed: true });
+    util::fill(MARQUEE, #{
+        visible: S.viewport_live && (w >= 2.0 || h >= 2.0),
+        x: util::min(m.x0, m.x1), y: util::min(m.y0, m.y1), width: w, height: h,
     });
 }
+
+const MARQUEE = "Editor/Marquee";
 
 fn start_gizmo_drag(S, cam, geo, part, mx, my) {
     history::record(S, format!("{} handle", part.kind), None);

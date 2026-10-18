@@ -170,6 +170,11 @@ pub fn fresh_state() {
         status_key: [],
         rail_key: [],
         stage_key: [],
+        overlays_key: "",
+        overlays_frame: -1,
+        // The frame the viewport's tools last looked at the pointer: several
+        // pointer words in one frame are one look.
+        stepped: -1,
         layout_key: [],
         // Bumped whenever another theme is worn or the worn one edited, so a
         // key can say the colours moved without holding the theme.
@@ -462,9 +467,7 @@ pub fn update(this, dt) {
         S.mode2d = is2d;
         render::set_grid(!is2d, 1.0, 5, 20);
         shell::apply_camera(S);
-    }
-    if is2d {
-        overlays::grid2d(S);
+        draw_overlays(S);
     }
     session::update(S);
     if S.session.demo is Object {
@@ -534,16 +537,6 @@ pub fn update(this, dt) {
         selftest::palette_step(S);
     }
     showcase::step(S);
-    // A replay or a showcase feeds the pointer into the snapshot the viewport
-    // tools read, so a drag would follow the feed rather than the mouse.
-    if !session::scrubbing(S) && !showcase::feeding(S) {
-        // The camera's own frames: two fingers on the stage, or the mouse
-        // buttons and wheel the editor drives itself. A gizmo never sees one.
-        if !viewport::camera_gesture(S) && !viewport::mouse_camera(S) {
-            gizmo::update(S);
-        }
-        textedit::update(S);
-    }
     anim::update(S);
     // Scene-tree UI widgets draw during play (and for preview in the Interface
     // workspace), clipped to the viewport — and only while there is one, or the
@@ -554,37 +547,6 @@ pub fn update(this, dt) {
     // HUD label sits above the editor's chrome instead of under it.
     let band = if widgets_on { center::hud_h(S) + 6.0 } else { 0.0 };
     ui::set_widget_layer(widgets_on, rect.x, rect.y, rect.w, util::max(0.0, rect.h - band));
-    if S.tool == "key" && S.workspace == defs::WORKSPACE_ANIMATION && input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
-        anim::add_key(S, S.anim.time);
-    }
-    gizmo::draw(S);
-    plugins::draw_overlays(S);
-    rig::draw(S);
-    if !session::scrubbing(S) {
-        polygon::idle(S);
-    }
-    polygon::draw(S);
-    pen::draw(S);
-    tiles::draw(S);
-    if S.workspace == defs::WORKSPACE_SCENE && defs::chip_on(S, S.workspace, defs::CHIP_GUIDES) {
-        overlays::guides(S);
-    }
-    if S.mode2d && defs::chip_on(S, S.workspace, defs::CHIP_LIGHTS) {
-        overlays::lights2d(S);
-    }
-    if S.workspace == defs::WORKSPACE_ANIMATION && defs::chip_on(S, S.workspace, defs::CHIP_PATH) {
-        overlays::motion_path(S);
-    }
-    if !S.mode2d && defs::chip_on(S, S.workspace, defs::CHIP_LIGHTS) {
-        overlays::lights3d(S);
-    }
-    if S.workspace == defs::WORKSPACE_PHYSICS && defs::chip_on(S, S.workspace, defs::CHIP_COLLIDERS) {
-        if S.mode2d {
-            overlays::colliders2d(S);
-        } else {
-            overlays::colliders(S);
-        }
-    }
     // What moves without input asks for the next frame; under `[window]
     // low_processor` nothing else draws one. The splash and a queued import
     // count frames, so they ask too.
@@ -840,6 +802,111 @@ pub fn on_debugger_changed(this, _change) {
 
 pub fn on_play_frame(this, _change) {
     signals::heard(this.S, "play_frame");
+}
+
+// What the pointer did, which is when the viewport's tools and the camera
+// look at it: the wheel, two fingers, a button, a move.
+pub fn on_pointer_moved(this, _spot) {
+    viewport_step(this.S);
+}
+
+pub fn on_pointer_pressed(this, _press) {
+    viewport_step(this.S);
+}
+
+pub fn on_pointer_released(this, _press) {
+    viewport_step(this.S);
+}
+
+pub fn on_pointer_scrolled(this, _turn) {
+    viewport_step(this.S);
+}
+
+pub fn on_pointer_gestured(this, _gesture) {
+    viewport_step(this.S);
+}
+
+// The viewport's tools and the camera, once a frame the pointer did
+// something in. A replay or a showcase feeds the pointer into the snapshot
+// the tools read, so a drag would follow the feed rather than the mouse.
+fn viewport_step(S) {
+    if S.stepped == S.frame || manager::showing(S) {
+        return;
+    }
+    S.stepped = S.frame;
+    if session::scrubbing(S) || showcase::feeding(S) {
+        return;
+    }
+    // The camera's own: two fingers on the stage, or the mouse buttons and
+    // wheel the editor drives itself. A gizmo never sees one.
+    if !viewport::camera_gesture(S) && !viewport::mouse_camera(S) {
+        gizmo::update(S);
+    }
+    gizmo::fill_marquee(S);
+    textedit::update(S);
+    if S.tool == "key" && S.workspace == defs::WORKSPACE_ANIMATION && input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) {
+        anim::add_key(S, S.anim.time);
+    }
+    // Drawn now rather than on a word: a word is heard the frame after, and
+    // the lines would trail the node they are dragging.
+    let (mx, my) = input::mouse_position();
+    let (_, _, _, _, _, _, _, dpi) = render::camera_pose();
+    let dpi = util::max(dpi, 0.01);
+    let over = S.viewport_live && viewport::owns_pointer(S, mx / dpi / S.ui_scale, my / dpi / S.ui_scale);
+    if signals::overlays_moved(S, over) {
+        draw_overlays(S);
+    }
+}
+
+/// Draw the viewport's lines again, on a word that what they show moved. The
+/// words of one frame are heard together and draw once.
+pub fn overlays_fill(this) {
+    if this.S.overlays_frame != this.S.frame {
+        draw_overlays(this.S);
+    }
+}
+
+// The viewport's lines, drawn and kept until they are drawn again: the
+// gizmo, the rig, the tools, the guides and a plugin's overlays.
+fn draw_overlays(S) {
+    S.overlays_frame = S.frame;
+    if manager::showing(S) {
+        render::clear_retained("viewport");
+        return;
+    }
+    render::begin_retained("viewport");
+    if S.mode2d {
+        overlays::grid2d(S);
+    }
+    gizmo::draw(S);
+    plugins::draw_overlays(S);
+    rig::draw(S);
+    if !session::scrubbing(S) {
+        polygon::idle(S);
+    }
+    polygon::draw(S);
+    pen::draw(S);
+    tiles::draw(S);
+    if S.workspace == defs::WORKSPACE_SCENE && defs::chip_on(S, S.workspace, defs::CHIP_GUIDES) {
+        overlays::guides(S);
+    }
+    if S.mode2d && defs::chip_on(S, S.workspace, defs::CHIP_LIGHTS) {
+        overlays::lights2d(S);
+    }
+    if S.workspace == defs::WORKSPACE_ANIMATION && defs::chip_on(S, S.workspace, defs::CHIP_PATH) {
+        overlays::motion_path(S);
+    }
+    if !S.mode2d && defs::chip_on(S, S.workspace, defs::CHIP_LIGHTS) {
+        overlays::lights3d(S);
+    }
+    if S.workspace == defs::WORKSPACE_PHYSICS && defs::chip_on(S, S.workspace, defs::CHIP_COLLIDERS) {
+        if S.mode2d {
+            overlays::colliders2d(S);
+        } else {
+            overlays::colliders(S);
+        }
+    }
+    render::end_retained();
 }
 
 pub fn on_chrome_changed(this, _change) {

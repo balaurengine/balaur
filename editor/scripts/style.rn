@@ -31,13 +31,6 @@ pub fn heading(k) {
     #{ role: "text_heading" }
 }
 
-/// Whether a rect is one a surface may draw at. A zero rect is the frame
-/// before the widget layer has placed its box, and `ui::overlay` reads an
-/// unsized area as unconstrained — which piles every sheet into the corner.
-pub fn placed(r) {
-    r.w > 0.0 && r.h > 0.0
-}
-
 /// A role's stated size as the theme file gives it: the touch table's where
 /// a finger drives the screen and the role has one, else the role's own.
 pub fn role_px(S, role, key, fallback) {

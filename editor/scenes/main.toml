@@ -7,6 +7,14 @@ id = "n_editor"
 name = "Editor"
 script = { source = "scripts/editor.rn" }
 
+# The viewport's lines: drawn on the words that what they show moved, and
+# kept until then. See scripts/panels/overlays.rn.
+[[nodes]]
+id = "viewport_lines"
+name = "ViewportLines"
+parent = "n_editor"
+script = { source = "scripts/panels/overlays.rn" }
+
 [[nodes]]
 id = "shell"
 name = "Shell"
@@ -957,6 +965,22 @@ kind = "column"
 anchor = "top_left"
 gap = [12, 12]
 layer = "shell"
+visible = false
+
+# The box select's outline, placed while the drag lasts.
+[[nodes]]
+id = "marquee"
+name = "Marquee"
+parent = "n_editor"
+[nodes.widget]
+kind = "panel"
+text = ""
+anchor = "top_left"
+layer = "shell"
+fill = "none"
+stroke = "primary_text"
+dashed = true
+interactive = false
 visible = false
 
 # Typing over a text node where it is drawn: see scenes/panels/textedit.toml.

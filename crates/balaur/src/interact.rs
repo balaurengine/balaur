@@ -36,6 +36,13 @@ pub(crate) const POINTER_MOVED: &str = "pointer_moved";
 pub(crate) const POINTER_PRESSED: &str = "pointer_pressed";
 pub(crate) const POINTER_RELEASED: &str = "pointer_released";
 
+/// What input says from no node when the wheel turned, with the turn as
+/// `[x, y]`; and when two fingers pinched or panned, as `#{ scale, x, y,
+/// pan_x, pan_y }`, `scale` zero for a pan alone. Only while someone listens:
+/// what a viewport's camera listens for instead of reading them every frame.
+pub(crate) const POINTER_SCROLLED: &str = "pointer_scrolled";
+pub(crate) const POINTER_GESTURED: &str = "pointer_gestured";
+
 /// Say where the pointer went and which buttons moved, from no node, to
 /// whoever listens.
 fn say_pointer(eng: &Engine, state: &mut Pointer, at: (f32, f32), buttons: &[(bool, bool)]) {
@@ -61,6 +68,40 @@ fn say_pointer(eng: &Engine, state: &mut Pointer, at: (f32, f32), buttons: &[(bo
             }
         }
     }
+}
+
+/// Say the wheel and the two-finger gestures, from no node, to whoever
+/// listens.
+fn say_motion(eng: &Engine, scroll: (f32, f32)) {
+    if (scroll.0 != 0.0 || scroll.1 != 0.0) && balaur_core::events::heard(eng, POINTER_SCROLLED) {
+        let turn = Value::List(vec![
+            Value::Num(f64::from(scroll.0)),
+            Value::Num(f64::from(scroll.1)),
+        ]);
+        balaur_core::events::emit(eng, POINTER_SCROLLED, turn);
+    }
+    if !balaur_core::events::heard(eng, POINTER_GESTURED) {
+        return;
+    }
+    let Some(gestures) = eng.try_resource::<balaur_input::Gestures>() else {
+        return;
+    };
+    let (pinch, pan) = {
+        let gestures = gestures.borrow();
+        (gestures.pinch(), gestures.pan())
+    };
+    if pinch.is_none() && pan == (0.0, 0.0) {
+        return;
+    }
+    let (scale, (x, y)) = pinch.map_or((0.0, (0.0, 0.0)), |p| (p.scale, p.center));
+    let report = Value::Map(vec![
+        ("scale".into(), Value::Num(f64::from(scale))),
+        ("x".into(), Value::Num(f64::from(x))),
+        ("y".into(), Value::Num(f64::from(y))),
+        ("pan_x".into(), Value::Num(f64::from(pan.0))),
+        ("pan_y".into(), Value::Num(f64::from(pan.1))),
+    ]);
+    balaur_core::events::emit(eng, POINTER_GESTURED, report);
 }
 
 /// Send one hook to a node: its bindings, then its script. True when the
@@ -179,6 +220,7 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
         )
     };
     say_pointer(eng, state, at, &buttons);
+    say_motion(eng, scroll);
     // The UI first: what a dialog, a popup, a window or a widget took never
     // reaches a node under it, and a press keeps its answer until it is up.
     let ui = balaur_ui::pointer_is_ui(eng);

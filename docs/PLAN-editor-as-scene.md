@@ -693,8 +693,7 @@ Built 2026-10-18, phase 4.
   a state starts begins on the tick its replay does.
 - **Paste** is the UI's `pasted` event, for text no field took.
 
-Left for later phases: the box-select marquee and the viewport's lines
-(item 1 of 9.11).
+The box-select marquee and the viewport's lines followed in 9.11.
 
 ### 9.7 Dialogs and sheets
 
@@ -774,9 +773,31 @@ after one of its own controls; the dock fills it when it shows it. A plugin's
 - **The bottom dock's hatch** (`DockBody`, `draw_dock_bottom`) is gone: no
   bottom panel draws.
 
-### 9.11 What is left, in order
+### 9.11 The viewport
 
-1. The viewport tools on pointer hooks, and the gizmo and overlay lines as
-   retained nodes.
-2. Remove `draw_ui`, the pool and the `draw` nodes from the editor, and move
+Built 2026-10-18, phase 9.
+
+- **The tools look at the pointer when it does something.** The Editor
+  hears `pointer_moved`, `pointer_pressed`, `pointer_released`, and the new
+  `pointer_scrolled` (the wheel) and `pointer_gestured` (two fingers), which
+  input says from no node while someone listens. The camera, the gizmo, the
+  rig, the polygon, pen and tile tools and the double-click over a text node
+  run on those, once a frame however many arrive; nothing reads the pointer
+  on a frame it did nothing.
+- **The lines are kept.** `render::begin_retained(key)` and `end_retained()`
+  keep what is drawn between them, drawn every frame by the renderer until
+  the key is drawn again or cleared. The viewport's lines (the gizmo, the rig,
+  the tools, the 2D grid, the guides, lights, colliders, the motion path and
+  a plugin's overlays) are drawn into one key on the outline's, the
+  Inspector's, the stage's and the timeline's words, `play_frame`, a
+  plugin's `changed`, a file reloaded, and the renderer's new
+  `camera_moved`, said the frame after the camera a frame was drawn with
+  moved, when the matrices a script projects through are current. A pointer
+  that moved a tool's hover or a drag draws them at once, rather than a
+  frame behind on a word.
+- **The box select** is a dashed node placed while the drag lasts.
+
+### 9.12 What is left
+
+1. Remove `draw_ui`, the pool and the `draw` nodes from the editor, and move
    the self-tests off stepping every frame.
