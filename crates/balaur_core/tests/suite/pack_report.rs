@@ -217,16 +217,12 @@ fn print_a_real_report() {
         manifest: std::fs::read_to_string(root.join("editor/project.toml")).unwrap(),
         ..Pack::default()
     };
-    for entry in std::fs::read_dir(root.join("editor/scripts")).unwrap() {
-        let p = entry.unwrap().path();
-        let name = format!("scripts/{}", p.file_name().unwrap().to_string_lossy());
-        pack.scripts.insert(name, std::fs::read(&p).unwrap());
+    for (rel, p) in files_under(&root.join("editor"), "scripts") {
+        pack.scripts.insert(rel, std::fs::read(&p).unwrap());
     }
-    for entry in std::fs::read_dir(root.join("editor/scenes")).unwrap() {
-        let p = entry.unwrap().path();
-        let name = format!("scenes/{}", p.file_name().unwrap().to_string_lossy());
+    for (rel, p) in files_under(&root.join("editor"), "scenes") {
         pack.scenes
-            .insert(name, std::fs::read_to_string(&p).unwrap());
+            .insert(rel, std::fs::read_to_string(&p).unwrap());
     }
     for (dir, prefix) in [("editor/fonts", "fonts"), ("editor/assets", "assets")] {
         for entry in std::fs::read_dir(root.join(dir)).unwrap() {
@@ -236,4 +232,25 @@ fn print_a_real_report() {
         }
     }
     println!("----8<----\n{}\n---->8----", pack.report());
+}
+
+/// Every file under `base/dir`, at any depth, by its path from `base`: the
+/// editor keeps a panel's scene and script a folder down. A dotfile is the
+/// file manager's, not the project's.
+fn files_under(base: &std::path::Path, dir: &str) -> Vec<(String, std::path::PathBuf)> {
+    let mut out = Vec::new();
+    for entry in std::fs::read_dir(base.join(dir)).unwrap() {
+        let p = entry.unwrap().path();
+        let name = p.file_name().unwrap().to_string_lossy().into_owned();
+        if name.starts_with('.') {
+            continue;
+        }
+        let rel = format!("{dir}/{name}");
+        if p.is_dir() {
+            out.extend(files_under(base, &rel));
+        } else {
+            out.push((rel, p));
+        }
+    }
+    out
 }
