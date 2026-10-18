@@ -1,6 +1,5 @@
-// The recurring widget option objects, as one definition each. A theme change
-// is then one edit, and `util::merge` covers the per-call overrides Rune has
-// no spread syntax for.
+// The type scale and the sizes a theme states, as the scripts that size a
+// node read them.
 
 use crate::util;
 
@@ -15,21 +14,6 @@ pub const SM = 11.0;
 pub const MD = 12.0;
 pub const LG = 14.0;
 pub const XL = 17.0;
-
-/// A mono label, in `color`. Size and family come from the theme.
-pub fn mono(color) {
-    #{ role: "text_code", text_color: color }
-}
-
-/// One step down, for dense rows.
-pub fn mono_sm(color) {
-    #{ role: "text_caption", text_color: color }
-}
-
-/// A panel section heading; the caller draws it upper case.
-pub fn heading(k) {
-    #{ role: "text_heading" }
-}
 
 /// A role's stated size as the theme file gives it: the touch table's where
 /// a finger drives the screen and the role has one, else the role's own.

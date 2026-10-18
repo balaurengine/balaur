@@ -43,6 +43,11 @@ pub(crate) const POINTER_RELEASED: &str = "pointer_released";
 pub(crate) const POINTER_SCROLLED: &str = "pointer_scrolled";
 pub(crate) const POINTER_GESTURED: &str = "pointer_gestured";
 
+/// What input says from no node when files were dropped on the window, with
+/// their paths: what an editor's import listens for instead of asking every
+/// frame. Only while someone listens.
+pub(crate) const FILES_DROPPED: &str = "files_dropped";
+
 /// Say where the pointer went and which buttons moved, from no node, to
 /// whoever listens.
 fn say_pointer(eng: &Engine, state: &mut Pointer, at: (f32, f32), buttons: &[(bool, bool)]) {
@@ -204,7 +209,7 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
     let Some(input) = eng.try_resource::<balaur_input::InputSnapshot>() else {
         return;
     };
-    let (buttons, delta, scroll, at) = {
+    let (buttons, delta, scroll, at, dropped) = {
         let input = input.borrow();
         let buttons: [(bool, bool); hooks::BUTTONS.len()] = std::array::from_fn(|button| {
             (
@@ -217,10 +222,15 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
             input.mouse_delta(),
             input.scroll_delta(),
             input.mouse_pos(),
+            input.dropped_files().to_vec(),
         )
     };
     say_pointer(eng, state, at, &buttons);
     say_motion(eng, scroll);
+    if !dropped.is_empty() && balaur_core::events::heard(eng, FILES_DROPPED) {
+        let paths = dropped.into_iter().map(Value::Str).collect();
+        balaur_core::events::emit(eng, FILES_DROPPED, Value::List(paths));
+    }
     // The UI first: what a dialog, a popup, a window or a widget took never
     // reaches a node under it, and a press keeps its answer until it is up.
     let ui = balaur_ui::pointer_is_ui(eng);

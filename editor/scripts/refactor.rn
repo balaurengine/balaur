@@ -100,6 +100,7 @@ pub fn apply(S) {
         let abs = S.game_root + "/" + one.file;
         S.script_buffers[abs] = one.source;
         S.script_dirty[abs] = true;
+        crate::lint::touched(S);
         crate::signals::bars(S);
     }
     crate::center::code_written(S);

@@ -140,9 +140,11 @@ fn add_all(S, id, declared) {
     for draw in util::vec(declared.get("overlays").unwrap_or([])) {
         S.registry.overlays.push(#{ draw: script::shared(draw), owner: id });
     }
+    // A property editor is `(S, k, spec, value, write)` answering the row's
+    // controls, which call `write` with the new value.
     let editors = util::obj(declared.get("property_editors").unwrap_or(#{}));
-    for (datatype, draw) in editors.iter() {
-        S.registry.property_editors[datatype] = #{ draw: script::shared(draw), owner: id };
+    for (datatype, controls) in editors.iter() {
+        S.registry.property_editors[datatype] = #{ controls: script::shared(controls), owner: id };
     }
     let states = util::obj(declared.get("startup_states").unwrap_or(#{}));
     for (name, run) in states.iter() {
@@ -171,7 +173,8 @@ pub fn section_rows(S, k, node) {
     }
 }
 
-/// Viewport lines a plugin draws, each frame.
+/// Viewport lines a plugin draws, kept with the editor's own until what they
+/// show moves: see `draw_overlays` in editor.rn.
 pub fn draw_overlays(S) {
     for entry in S.registry.overlays {
         let draw = entry.draw;
@@ -244,7 +247,7 @@ pub fn changed(S) {
 /// A property editor a plugin registered for `datatype`, or `None`.
 pub fn property_editor(S, datatype) {
     match S.registry.property_editors.get(datatype) {
-        Some(entry) => Some(entry.draw),
+        Some(entry) => Some(entry.controls),
         None => None,
     }
 }

@@ -967,6 +967,21 @@ gap = [12, 12]
 layer = "shell"
 visible = false
 
+# `--state fontdemo`'s sheet of every script, face and icon, over the stage.
+[[nodes]]
+id = "font_sheet"
+name = "FontSheet"
+parent = "n_editor"
+[nodes.widget]
+kind = "panel"
+text = ""
+role = "sheet"
+anchor = "top_left"
+layer = "shell"
+gap = [6, 6]
+padding = [16, 12, 16, 12]
+visible = false
+
 # The box select's outline, placed while the drag lasts.
 [[nodes]]
 id = "marquee"

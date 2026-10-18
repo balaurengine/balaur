@@ -171,6 +171,9 @@ pub fn fresh_state() {
         rail_key: [],
         stage_key: [],
         overlays_key: "",
+        // The self-tests under way, which step a frame each; see
+        // `selftest::stepping`.
+        stepping: [],
         overlays_frame: -1,
         // The frame the viewport's tools last looked at the pointer: several
         // pointer words in one frame are one look.
@@ -439,11 +442,12 @@ pub fn update(this, dt) {
     if manager::showing(S) {
         showcase::step(S);
         apply_start_states(S);
-        if S.start_check is Object {
-            selftest::start_screen_step(S);
+        if S.stepping.len() > 0 {
+            selftest::step_all(S, true);
         }
+        showcase::acts(S);
         // An install or a conversion reports as events, which wake the loop.
-        let moving = !S.formed || S.showcase is Object || S.capture is Object;
+        let moving = !S.formed || S.showcase is Object || S.capture is Object || S.stepping.len() > 0;
         if moving {
             ui::request_repaint();
         }
@@ -457,106 +461,27 @@ pub fn update(this, dt) {
     if stale {
         model::resolve_refs(S);
     }
-    // A sweep is a compile per script, so it waits for typing to stop; the
-    // mirror has to be resolved first, since the scene half reads live nodes.
+    // The sweep a script edit asked for, once typing has stopped; after the
+    // mirror is resolved, since the scene half reads live nodes.
     lint::idle(S);
-    lint::node_warnings(S);
-    dropin::update(S);
-    let is2d = model::is_2d(S);
-    if is2d != S.mode2d {
-        S.mode2d = is2d;
-        render::set_grid(!is2d, 1.0, 5, 20);
-        shell::apply_camera(S);
-        draw_overlays(S);
-    }
     session::update(S);
-    if S.session.demo is Object {
-        selftest::session_step(S);
-    }
-    if S.layout_demo >= 0 {
-        selftest::layout_step(S);
-    }
-    if S.rows_demo >= 0 {
-        selftest::rows_step(S);
-    }
-    if S.import_demo >= 0 {
-        selftest::import_step(S);
-    }
-    if S.convert_demo is Object {
-        selftest::convert_step(S);
-    }
     // One queued import a frame once the shell has formed, so a shot catches
     // several at once.
     if S.import_drip && S.formed && !S.import_queue.is_empty() {
         let next = S.import_queue.remove(0);
         dropin::take(S, next);
     }
-    if S.gesture_demo >= 0 {
-        selftest::gesture_step(S);
-    }
-    if S.phys_click is Object {
-        selftest::physics_click_step(S);
-    }
-    if S.viewport_check is Object {
-        selftest::viewport_click_step(S);
-    }
-    if S.empty_note is Object {
-        selftest::empty_note_step(S);
-    }
-    if S.reselect is Object {
-        selftest::reselect_step(S);
-    }
-    if S.pick_check is Object {
-        selftest::pick_check_step(S);
-    }
-    if S.camera_check is Object {
-        selftest::camera_check_step(S);
-    }
-    if S.pool_check is Object {
-        selftest::pool_check_step(S);
-    }
-    if S.settings.demo >= 0 {
-        selftest::settings_step(S);
-    }
-    if S.themewin.demo >= 0 {
-        selftest::theme_edit_step(S);
-    }
-    if S.window.demo >= 0 {
-        selftest::sheet_close_step(S);
-    }
-    if S.machine.demo >= 0 {
-        statemachine::demo_step(S);
-    }
-    if S.plugin_demo >= 0 {
-        selftest::plugin_step(S);
-    }
-    if S.events_demo >= 0 {
-        selftest::events_step(S);
-    }
-    if S.palette_demo >= 0 {
-        selftest::palette_step(S);
+    if S.stepping.len() > 0 {
+        selftest::step_all(S, false);
     }
     showcase::step(S);
     anim::update(S);
-    // Scene-tree UI widgets draw during play (and for preview in the Interface
-    // workspace), clipped to the viewport — and only while there is one, or the
-    // rect is the stale one a document is now filling.
-    let rect = gizmo::viewport_rect(S);
-    let widgets_on = (S.playing || S.workspace == defs::WORKSPACE_UI) && S.viewport_live;
-    // Inset by the strip the axis and zoom pills own, so a bottom-anchored
-    // HUD label sits above the editor's chrome instead of under it.
-    let band = if widgets_on { center::hud_h(S) + 6.0 } else { 0.0 };
-    ui::set_widget_layer(widgets_on, rect.x, rect.y, rect.w, util::max(0.0, rect.h - band));
     // What moves without input asks for the next frame; under `[window]
     // low_processor` nothing else draws one. The splash and a queued import
     // count frames, so they ask too.
     let telling = !S.jobs.is_empty() || !S.import_queue.is_empty() || !S.formed;
     if S.playing || S.showcase is Object || session::scrubbing(S) || S.capture is Object
-        || S.session.demo is Object || S.layout_demo >= 0 || S.settings.demo >= 0 || S.themewin.demo >= 0 || S.window.demo >= 0
-        || S.rows_demo >= 0 || S.machine.demo >= 0 || S.plugin_demo >= 0
-        || S.events_demo >= 0 || S.palette_demo >= 0
-        || S.gesture_demo >= 0 || telling
-        || layout::animating(S) || S.gizmo.drag is Object
+        || S.stepping.len() > 0 || telling || layout::animating(S) || S.gizmo.drag is Object
     {
         ui::request_repaint();
     }
@@ -572,6 +497,7 @@ pub fn update(this, dt) {
     if S.platform_read {
         apply_start_states(S);
     }
+    showcase::acts(S);
 }
 
 // The `--state` list, applied once. Read here rather than at `init`, because
@@ -617,6 +543,21 @@ fn relayout(S) {
     layout::compute(S);
     report_view(S);
     signals::bars(S);
+    widget_layer(S);
+    if S.fontdemo {
+        selftest::font_sheet(S);
+    }
+}
+
+// The game's UI layer, clipped to the viewport during play and in the
+// Interface workspace; placed when the stage, play or the workspace moves.
+fn widget_layer(S) {
+    let rect = gizmo::viewport_rect(S);
+    let widgets_on = (S.playing || S.workspace == defs::WORKSPACE_UI) && S.viewport_live;
+    // Inset by the strip the axis and zoom pills own, so a bottom-anchored
+    // HUD label sits above the editor's chrome instead of under it.
+    let band = if widgets_on { center::hud_h(S) + 6.0 } else { 0.0 };
+    ui::set_widget_layer(widgets_on, rect.x, rect.y, rect.w, util::max(0.0, rect.h - band));
 }
 
 /// What the layout is decided from besides the boxes themselves, so a word
@@ -652,22 +593,6 @@ pub fn on_resized(this, _box) {
 /// Lay the shell out again, for a module that changed what it holds.
 pub fn relayout_shell(this) {
     relayout(this.S);
-}
-
-pub fn draw_ui(this) {
-    let S = this.S;
-    showcase::draw(S);
-    // The start screen has the window to itself: no project is open, so there
-    // is no scene to draw behind it and no dock to put over it.
-    if manager::showing(S) {
-        return;
-    }
-    // The code pane, the hooks list beside it and the box select: what is
-    // still drawn here, for want of a kind to hold it.
-    center::draw(S);
-    if S.fontdemo {
-        selftest::font_sheet(S);
-    }
 }
 
 // Six digits, so a frame directory sorts as it was captured.
@@ -748,12 +673,43 @@ pub fn tree_rename(this) {
 // The eye or the lock at the right of an outliner row.
 pub fn on_outline_changed(this, _change) {
     signals::heard(this.S, "outline_changed");
+    follow_document(this.S);
     relayout_if_moved(this.S);
+}
+
+// What the document decides beside its outline: whether the scene is 2D,
+// which scripts the sweep compiles, and what the engine warns about it.
+fn follow_document(S) {
+    if manager::showing(S) {
+        return;
+    }
+    let is2d = model::is_2d(S);
+    if is2d != S.mode2d {
+        S.mode2d = is2d;
+        render::set_grid(!is2d, 1.0, 5, 20);
+        shell::apply_camera(S);
+        draw_overlays(S);
+    }
+    lint::follow(S);
+    if S.lint.warned_rev != S.doc_rev {
+        lint::node_warnings(S);
+    }
+}
+
+/// Files dropped on the window, imported where the pointer is.
+pub fn on_files_dropped(this, paths) {
+    if manager::showing(this.S) {
+        return;
+    }
+    for path in paths {
+        dropin::take(this.S, path);
+    }
 }
 
 pub fn on_inspector_changed(this, _change) {
     signals::heard(this.S, "inspector_changed");
     relayout_if_moved(this.S);
+    widget_layer(this.S);
 }
 
 pub fn on_docks_changed(this, _change) {
@@ -798,6 +754,9 @@ pub fn on_recordings_changed(this, _change) {
 
 pub fn on_debugger_changed(this, _change) {
     signals::heard(this.S, "debugger_changed");
+    // A body play built, or one stopping took away, can warn without the
+    // document moving.
+    lint::node_warnings(this.S);
 }
 
 pub fn on_play_frame(this, _change) {
@@ -1197,6 +1156,8 @@ pub fn status_fill(this) {
 pub fn on_assets_reloaded(this, _generation) {
     model::forget(this.S, None);
     signals::changed(this.S, "assets");
+    lint::touched(this.S);
+    lint::node_warnings(this.S);
 }
 
 /// Text pasted where no field took it: ⌘V anywhere in the shell pastes a

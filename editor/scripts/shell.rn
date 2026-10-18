@@ -647,6 +647,7 @@ pub fn format_active(S) {
     }
     S.script_buffers[abs] = formatted;
     S.script_dirty[abs] = true;
+    crate::lint::touched(S);
     crate::signals::bars(S);
     // The code sheet writes its text again only when told the buffer moved.
     crate::center::code_written(S);
@@ -1013,6 +1014,7 @@ fn state_page(S, arg) {
 
 fn state_fontdemo(S) {
     S.fontdemo = true;
+    crate::selftest::font_sheet(S);
 }
 
 fn state_menudemo(S) {

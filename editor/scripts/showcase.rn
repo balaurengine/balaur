@@ -86,9 +86,9 @@ pub fn step(S) {
     q.seen = run_phase(q.steps, q.spans, q.seen, q.at);
 }
 
-// The UI phase, from `draw_ui`: what a click on the chrome would do runs
-// here, after the game's update, as a click does.
-pub fn draw(S) {
+// The act phase, at the end of the Editor's update: what a click on the
+// chrome would do runs here, after the game's update, as a click does.
+pub fn acts(S) {
     let q = S.showcase;
     if !(q is Object) {
         return;
@@ -97,8 +97,8 @@ pub fn draw(S) {
 }
 
 // Everything due since this phase last ran, not only what is due exactly
-// now: the first frame's UI pass never happens, and a step missed for being
-// one frame early would take the rest of the sequence with it.
+// now: a step missed for being one frame early would take the rest of the
+// sequence with it.
 fn run_phase(steps, spans, seen, t) {
     for s in steps {
         if s.at > seen && s.at <= t {
@@ -398,6 +398,7 @@ fn edit_source(S, rel, from, to) {
     S.script_buffers[abs] = text;
     crate::center::code_written(S);
     S.script_dirty[abs] = true;
+    crate::lint::touched(S);
     crate::signals::bars(S);
 }
 

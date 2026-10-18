@@ -15069,7 +15069,7 @@
         "bind": "Rebind the action to one binding or a list of them, replacing what it had and saving to the user data directory.",
         "bindings": "What the action is bound to now, whether from the project or from the player's own rebinding.",
         "composing": "The text an input method is still composing, for a field to show under its caret; empty once it commits into `typed`, and always empty without an input method.",
-        "dropped_files": "The absolute paths of files dropped onto the window this frame, in drop order; desktop only.",
+        "dropped_files": "The absolute paths of files dropped onto the window this frame, in drop order; desktop only. A script hears a drop with `events::listen(this.node, \"files_dropped\")`, as `on_files_dropped(paths)`.",
         "feed_action": "Put a value into an action for one frame without a binding, the way a `touch_button` does; the furthest from rest wins where something else feeds the same action. Takes effect on the next tick, since actions derive at the top of one.",
         "feed_gamepad": "Report a pad as if a backend had, from next frame: `buttons` and `axes` maps of name to value, `power` as `gamepad_power` reads it, `gyro`, `acceleration`, `touches`, and the identity keys `name`, `os_name`, `guid`, `vendor`, `product`, `mapping` and `rumble`. A pad fed anything connects; `connected: false` unplugs it.",
         "feed_key": "Press or release a `KEY_*` key as if the window had reported it: next frame's edge, and the state until the opposite feed.",

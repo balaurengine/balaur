@@ -11,7 +11,7 @@ use crate::util;
 /// `at` is when the last sweep ran and `typed` when the buffer last changed,
 /// which is what `due` compares to hold a check off until typing stops.
 pub fn state() {
-    #{ found: [], at: -1.0, typed: -1.0, sources: "", warned: #{}, warned_rev: -1, warned_at: -1000 }
+    #{ found: [], at: -1.0, due: 0.0, roots: "", warned: #{}, warned_rev: -1 }
 }
 
 const IDLE = 0.4;
@@ -138,18 +138,12 @@ pub fn describe(warning) {
     }
 }
 
-// How often every node is asked again with no edit in between: a body the
-// solver just built can warn without anything in the document moving.
-const WARN_FRAMES = 20;
-
 /// Every node's warnings by id, for the tree's mark and the counts. Asked of
-/// the engine when the document moved or every few frames, not every draw.
+/// the engine on the outline's word, which is heard the frame after an edit,
+/// once the solver has built what the edit made; and when a file reloaded or
+/// play started or stopped.
 pub fn node_warnings(S) {
-    if S.lint.warned_rev == S.doc_rev && S.frame - S.lint.warned_at < WARN_FRAMES {
-        return;
-    }
     S.lint.warned_rev = S.doc_rev;
-    S.lint.warned_at = S.frame;
     let out = #{};
     for (i, node) in S.doc.iter().enumerate() {
         let live_some = model::live(S, i);
@@ -196,34 +190,33 @@ pub fn run(S) {
 }
 
 // What the next sweep would look at, so an unchanged project is not swept.
-fn fingerprint(S) {
-    let parts = [];
-    for rel in roots(S) {
-        parts.push(format!("{}:{}", rel, source_of(S, rel).unwrap_or("").len()));
-    }
-    util::join(parts, "|")
+/// The project's scripts moved: a buffer typed into, a file reloaded, a
+/// script attached or taken off. The sweep runs once that has been still for
+/// `IDLE`: a check is a compile on the frame thread, tens of milliseconds for
+/// a large file, so it waits out a burst of keystrokes rather than running
+/// inside one.
+pub fn touched(S) {
+    S.lint.due = engine::unix_time() + IDLE;
+    // The frame the sweep runs in: under `low_processor` nothing else draws one.
+    ui::request_repaint(#{ after: IDLE + 0.02 });
 }
 
-/// Run a sweep when the project has changed and typing has stopped.
-///
-/// A check is a compile on the frame thread — tens of milliseconds for a large
-/// file — so it waits out a burst of keystrokes rather than running inside one.
+/// The document moved: when the scripts it attaches did, the sweep runs on
+/// the new set.
+pub fn follow(S) {
+    let key = util::join(roots(S), "|");
+    if key != S.lint.roots {
+        S.lint.roots = key;
+        touched(S);
+    }
+}
+
+/// Run the sweep the last touch asked for, once its time has come.
 pub fn idle(S) {
-    let now = engine::unix_time();
-    let sources = fingerprint(S);
-    if sources != S.lint.sources {
-        S.lint.sources = sources;
-        S.lint.typed = now;
-        // The sweep waits for typing to stop; this is the frame it runs in.
-        ui::request_repaint(#{ after: IDLE });
+    if S.lint.due <= 0.0 || engine::unix_time() < S.lint.due {
         return;
     }
-    if S.lint.at >= S.lint.typed && S.lint.at >= 0.0 {
-        return;
-    }
-    if now - S.lint.typed < IDLE {
-        return;
-    }
+    S.lint.due = 0.0;
     run(S);
 }
 

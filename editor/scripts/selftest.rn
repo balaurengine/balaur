@@ -625,6 +625,7 @@ pub fn physical_bones(S) {
 /// button: it would pan from where it last saw the cursor, a drag ago.
 pub fn camera_keeps_pointer(S) {
     S.camera_check = #{ waited: 0, stage: 0, was: 0.0, drag: () };
+    stepping(S, "camera_check");
 }
 
 pub fn camera_check_step(S) {
@@ -821,6 +822,7 @@ fn camera_dollied(S, d) {
 /// camera drag that re-anchors whenever the answer flickers.
 pub fn viewport_clicks(S) {
     S.viewport_check = #{ waited: 0, stage: 0 };
+    stepping(S, "viewport_check");
 }
 
 pub fn viewport_click_step(S) {
@@ -940,6 +942,7 @@ pub fn reloaded(S) {
 
 pub fn deselected(S) {
     S.reselect = #{ waited: 0, stage: 0, row: 0, had: 0, drawn: 0, workspace: "", tool: "" };
+    stepping(S, "reselect");
 }
 
 /// Clearing the selection leaves the panels a blank node, and picking the same
@@ -1029,6 +1032,7 @@ const SETTLE = 8;
 /// under it is hidden rather than drawing a project that is not open.
 pub fn start_screen(S) {
     S.start_check = #{ waited: 0 };
+    stepping(S, "start_check");
 }
 
 pub fn start_screen_step(S) {
@@ -1054,6 +1058,7 @@ fn check_empty_says_why(S) {
         crate::selection::only(S, i);
         if listed_components(S) == 0 {
             S.empty_note = #{ waited: 0 };
+            stepping(S, "empty_note");
             return;
         }
     }
@@ -1157,6 +1162,7 @@ fn listed_components(S) {
 pub fn physics_clicks(S) {
     shell::set_workspace(S, crate::defs::WORKSPACE_PHYSICS);
     S.phys_click = #{ waited: 0 };
+    stepping(S, "phys_click");
 }
 
 // Where a recorded pill's button sits, in design pixels, or `()`: an object
@@ -1621,6 +1627,7 @@ pub fn imports(S) {
 /// headless run can still aim one and say what it met.
 pub fn picking(S) {
     S.pick_check = #{ stage: 0, sprite: (), turned: () };
+    stepping(S, "pick_check");
     let target = None;
     for i in 0..S.doc.len() {
         if let Some(found) = model::live(S, i) {
@@ -2271,6 +2278,7 @@ fn converting_a_project(S) {
     check(landed == target, format!("a project folder converts beside itself ({})", landed));
     check(crate::manager::converting(S), "as a job, not inside this frame");
     S.convert_demo = #{ waited: 0, landed: "", source: source, target: target };
+    stepping(S, "convert");
 }
 
 /// The conversion's end, once the job has walked every file.
@@ -2386,6 +2394,7 @@ fn example_projects(S) {
 /// Fed rather than felt, so CI answers for the half a phone would.
 pub fn gestures(S) {
     S.gesture_demo = 0;
+    stepping(S, "gesture");
 }
 
 pub fn gesture_step(S) {
@@ -2445,6 +2454,7 @@ fn span(x, y, z) {
 // split used to leave a collapsed code pane over it in every workspace.
 pub fn layout(S) {
     S.layout_demo = 0;
+    stepping(S, "layout");
 }
 
 pub fn layout_step(S) {
@@ -2648,54 +2658,44 @@ fn covered(S, rects) {
 
 // Tofu is the failure this catches: a row of boxes in the screenshot means
 // the chain lost a script, and a missing icon means the font did not load.
+// A sheet of labels over the stage, filled when the stage was laid out.
 pub fn font_sheet(S) {
-    let k = S.theme;
     let r = S.layout.stage;
-    ui::overlay("fontsheet", #{
-        x: r.x, y: r.y, width: r.w, height: r.h,
-        fill: k.bg_panel, stroke: k.border_default, corner_radius: 11, padding_x: 16, padding_y: 12,
-    }, || {
-        ui::label("FONT COVERAGE  ·  --state fontdemo", style::heading(k));
-        ui::add_space(10);
-        ui::label("SCRIPTS", style::heading(k));
-        ui::add_space(6);
-        for (name, sample) in scripts() {
-            ui::row(#{ height: 24 }, || {
-                ui::row(#{ height: 24, width: 92 }, || {
-                    ui::label(name, style::mono_sm(k.text_subtle));
-                });
-                ui::label(sample, #{ font_size: style::XL, text_color: k.text_default });
-            });
-        }
-        ui::add_space(10);
-        ui::label("FACES", style::heading(k));
-        ui::add_space(6);
-        ui::label("heading  Source Sans 3 Semibold", #{ font_size: style::XL, font_family: ui::FONT_HEADING, text_color: k.text_default });
-        ui::label("ui  Source Sans 3 Regular", #{ font_size: style::LG, text_color: k.text_default });
-        ui::label("mono  JetBrains Mono  0O1lI  ⌘⌥⇧⌃", style::mono(k.text_default));
-        ui::add_space(10);
-        ui::label("ICONS", style::heading(k));
-        ui::add_space(6);
-        ui::row(#{ height: 24 }, || {
-            ui::spacing(8, 0);
-            for id in ["select", "move", "rotate", "scale", "zoom", "key", "bone", "polygon"] {
-                ui::label(crate::icons::tool(id), #{ font_size: style::XL, text_color: k.text_default });
-            }
-            for p in crate::defs::workspaces() {
-                ui::label(crate::icons::workspace(p.id), #{ font_size: style::XL, text_color: k.primary_text });
-            }
-        });
-        ui::row(#{ height: 24 }, || {
-            ui::spacing(8, 0);
-            for id in ["output", "problems", "assets", "timeline", "debugger", "recordings", "profiler"] {
-                ui::label(crate::icons::panel(id), #{ font_size: style::XL, text_color: k.text_default });
-            }
-            for id in ["add", "close", "minimize", "search", "dark", "play", "pause", "stop", "instance", "split"] {
-                ui::label(crate::icons::ui(id), #{ font_size: style::XL, text_color: k.secondary_text });
-            }
-        });
-    });
+    let heading = |text| #{ kind: "label", role: "text_heading", text: text };
+    let big = |role, text| #{ kind: "label", role: role, font_size: style::XL, text: text };
+    let controls = [heading("FONT COVERAGE  ·  --state fontdemo"), heading("SCRIPTS")];
+    for (name, sample) in scripts() {
+        controls.push(#{ kind: "row", height: 24, align_items: "center", controls: [
+            #{ kind: "label", role: "text_caption", width: 92, text: name },
+            big("text_body", sample),
+        ] });
+    }
+    controls.push(heading("FACES"));
+    controls.push(#{ kind: "label", role: "text_body", font_size: style::XL, font_family: ui::FONT_HEADING, text: "heading  Source Sans 3 Semibold" });
+    controls.push(#{ kind: "label", role: "text_body", font_size: style::LG, text: "ui  Source Sans 3 Regular" });
+    controls.push(#{ kind: "label", role: "text_code", text: "mono  JetBrains Mono  0O1lI  ⌘⌥⇧⌃" });
+    controls.push(heading("ICONS"));
+    let tools = [];
+    for id in ["select", "move", "rotate", "scale", "zoom", "key", "bone", "polygon"] {
+        tools.push(big("text_body", crate::icons::tool(id)));
+    }
+    for p in crate::defs::workspaces() {
+        tools.push(big("text_caption_primary", crate::icons::workspace(p.id)));
+    }
+    controls.push(#{ kind: "row", height: 24, gap: [8, 0], controls: tools });
+    let panels = [];
+    for id in ["output", "problems", "assets", "timeline", "debugger", "recordings", "profiler"] {
+        panels.push(big("text_body", crate::icons::panel(id)));
+    }
+    for id in ["add", "close", "minimize", "search", "dark", "play", "pause", "stop", "instance", "split"] {
+        panels.push(big("text_caption", crate::icons::ui(id)));
+    }
+    controls.push(#{ kind: "row", height: 24, gap: [8, 0], controls: panels });
+    util::fill(FONT_SHEET, #{ visible: true, x: r.x, y: r.y, width: r.w, height: r.h });
+    crate::pool::strip(S, FONT_SHEET, controls);
 }
+
+const FONT_SHEET = "Editor/FontSheet";
 
 fn scripts() {
     [
@@ -2714,6 +2714,7 @@ fn scripts() {
 
 pub fn sessions(S) {
     S.session.demo = #{ n: 0, file: "", was: 0 };
+    stepping(S, "session");
     // With digests, so the replay is actually checked against the recording
     // rather than merely running.
     S.session.verify = true;
@@ -2904,6 +2905,7 @@ pub fn plugin_docks(S) {
     crate::docks::show(S, "userdata");
     open_user_files(S);
     S.plugin_demo = 0;
+    stepping(S, "plugin");
     log::info("selftest plugin docks: done");
 }
 
@@ -2962,6 +2964,7 @@ pub fn plugin_step(S) {
 pub fn palette_screen(S) {
     crate::shell::open_palette(S, "physics");
     S.palette_demo = 0;
+    stepping(S, "palette");
 }
 
 // Three frames: the field has to have drawn and written back before the query
@@ -3074,6 +3077,7 @@ pub fn focusing(S) {
 pub fn settings_screen(S) {
     crate::settings::open_search(S, "theme");
     S.settings.demo = 0;
+    stepping(S, "settings");
 }
 
 // Three frames: the sidebar's field has to have drawn and written back before
@@ -3302,6 +3306,7 @@ pub fn theme_editing(S) {
     check(S.themewin.pairs.len() > 50, format!("every role's contrast is measured ({})", S.themewin.pairs.len()));
     crate::themewin::show_role(S, "tab", "");
     S.themewin.demo = 0;
+    stepping(S, "themewin");
 }
 
 /// `--state test:sheet_close`: a sheet and the palette shut when their `dialog`
@@ -3310,6 +3315,7 @@ pub fn theme_editing(S) {
 pub fn sheet_closing(S) {
     crate::about::open(S);
     S.window.demo = 0;
+    stepping(S, "window");
 }
 
 pub fn sheet_close_step(S) {
@@ -3618,6 +3624,7 @@ pub fn eventviews(S) {
     // step below sees what the pool put on the scene.
     S.doctab = "events";
     S.events_demo = 0;
+    stepping(S, "events");
     log::info("selftest eventviews: done");
 }
 
@@ -3701,6 +3708,7 @@ fn rows_search(S, query) {
 
 pub fn row_views(S) {
     S.rows_demo = 0;
+    stepping(S, "rows");
     S.rows_want = 0;
     S.rows_waited = 0;
     S.rows_query = "";
@@ -3738,6 +3746,7 @@ pub fn importing(S) {
         }
     }
     S.import_demo = 0;
+    stepping(S, "import");
     S.import_waited = 0;
 }
 
@@ -4049,6 +4058,7 @@ pub fn pool_kinds(S) {
     }
     root.add_child(POOL_CHECK).set_component("widget", #{ kind: ui::WIDGET_ROW });
     S.pool_check = #{ stage: 0, heard: [] };
+    stepping(S, "pool_check");
 }
 
 // One strip a pass, as the inspector does: the host made above resolves by
@@ -4522,4 +4532,63 @@ pub fn populate(S) {
     check(instance_count(S) == before, format!("undo puts the asset back ({})", instance_count(S)));
     check(history::dirty(S) == false, "undo back to the load point is clean");
     log::info("selftest populate: done");
+}
+
+/// Step the self-test `name` each frame from now until its own state says it
+/// finished: what takes frames to settle, the layout above all, is checked
+/// on the frames after. Nothing steps while no test is under way.
+pub fn stepping(S, name) {
+    if !S.stepping.iter().any(|held| held == name) {
+        S.stepping.push(name);
+    }
+}
+
+/// A step of every self-test under way; one that finished drops out. On the
+/// start screen only its own test steps, and the rest wait for a project.
+pub fn step_all(S, start_screen) {
+    let running = S.stepping;
+    S.stepping = [];
+    for name in running {
+        let here = name == "start_check";
+        if here != start_screen || step_one(S, name) {
+            S.stepping.push(name);
+        }
+    }
+}
+
+// One self-test's step, by name, answering whether it is still under way.
+fn step_one(S, name) {
+    match name {
+        "camera_check" => step_while(S.camera_check is Object, || camera_check_step(S), || S.camera_check is Object),
+        "viewport_check" => step_while(S.viewport_check is Object, || viewport_click_step(S), || S.viewport_check is Object),
+        "reselect" => step_while(S.reselect is Object, || reselect_step(S), || S.reselect is Object),
+        "start_check" => step_while(S.start_check is Object, || start_screen_step(S), || S.start_check is Object),
+        "empty_note" => step_while(S.empty_note is Object, || empty_note_step(S), || S.empty_note is Object),
+        "phys_click" => step_while(S.phys_click is Object, || physics_click_step(S), || S.phys_click is Object),
+        "pick_check" => step_while(S.pick_check is Object, || pick_check_step(S), || S.pick_check is Object),
+        "convert" => step_while(S.convert_demo is Object, || convert_step(S), || S.convert_demo is Object),
+        "gesture" => step_while(S.gesture_demo >= 0, || gesture_step(S), || S.gesture_demo >= 0),
+        "layout" => step_while(S.layout_demo >= 0, || layout_step(S), || S.layout_demo >= 0),
+        "session" => step_while(S.session.demo is Object, || session_step(S), || S.session.demo is Object),
+        "plugin" => step_while(S.plugin_demo >= 0, || plugin_step(S), || S.plugin_demo >= 0),
+        "palette" => step_while(S.palette_demo >= 0, || palette_step(S), || S.palette_demo >= 0),
+        "settings" => step_while(S.settings.demo >= 0, || settings_step(S), || S.settings.demo >= 0),
+        "themewin" => step_while(S.themewin.demo >= 0, || theme_edit_step(S), || S.themewin.demo >= 0),
+        "window" => step_while(S.window.demo >= 0, || sheet_close_step(S), || S.window.demo >= 0),
+        "events" => step_while(S.events_demo >= 0, || events_step(S), || S.events_demo >= 0),
+        "rows" => step_while(S.rows_demo >= 0, || rows_step(S), || S.rows_demo >= 0),
+        "import" => step_while(S.import_demo >= 0, || import_step(S), || S.import_demo >= 0),
+        "pool_check" => step_while(S.pool_check is Object, || pool_check_step(S), || S.pool_check is Object),
+        "machine" => step_while(S.machine.demo >= 0, || crate::statemachine::demo_step(S), || S.machine.demo >= 0),
+        _ => false,
+    }
+}
+
+// Run `step` while `on` holds, and answer whether the test is still on after.
+fn step_while(on, step, more) {
+    if !on {
+        return false;
+    }
+    step();
+    more()
 }

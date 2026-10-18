@@ -551,6 +551,7 @@ pub fn selftest(S) {
         if transitions(found.doc).len() > 0 {
             S.machine.open = Some(0);
             S.machine.demo = 0;
+            crate::selftest::stepping(S, "machine");
             crate::signals::changed(S, "machine");
         }
     }

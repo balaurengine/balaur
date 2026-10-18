@@ -494,6 +494,7 @@ pub fn code_typed(S, text) {
     let path = S.game_root + "/" + file.rel;
     S.script_buffers[path] = text;
     S.script_dirty[path] = true;
+    crate::lint::touched(S);
     crate::signals::bars(S);
     if !file.shading && read_hooks(S, file.rel, text) {
         crate::signals::changed(S, "code");
@@ -582,10 +583,4 @@ pub fn fill_hooks(S) {
     crate::pool::strip(S, HOOKS + "/Pills", pills);
     let dirty = file.rel != "" && S.script_dirty.contains_key(S.game_root + "/" + file.rel);
     util::fill(HOOKS + "/Unsaved", #{ visible: dirty });
-}
-
-pub fn draw(S) {
-    // The scene is the window: a transparent central panel is the hole egui
-    // leaves for it, and every sheet floats above in the overlay layer.
-    ui::central_panel(#{ transparent: true }, || {});
 }

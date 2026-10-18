@@ -413,9 +413,8 @@ pub fn compute(S) {
     show(S, "railslot", rail_w > 0.0);
     show(S, "hooks", hooks_w > 0.0);
 
-    // The widget layer draws after `draw_ui`, so these are a frame behind.
-    // A size that just changed shows on the next one, the way `bar_fit` has
-    // always worked.
+    // Laid out after the frame's scripts, so a frame behind: a size that just
+    // changed shows on the next one, the way `bar_fit` has always worked.
     let r = #{
         head: box_of(S, "head"),
         left: box_of(S, "leftsheet"),

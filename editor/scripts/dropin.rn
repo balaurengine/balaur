@@ -349,17 +349,6 @@ pub fn report(S, e) {
     crate::signals::changed(S, "assets");
 }
 
-/// Take every file dropped this frame. Called once per frame from the root's
-/// update; a frame with no drop costs one empty list.
-pub fn update(S) {
-    let dropped = util::vec(input::dropped_files());
-    if dropped.len() == 0 {
-        return;
-    }
-    for path in dropped {
-        take(S, path);
-    }
-}
 
 /// Place a file already in the project where the pointer is, as a drag out
 /// of the Assets dock does: an image, a model, a scene or a sky.

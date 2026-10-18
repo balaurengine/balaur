@@ -222,3 +222,23 @@ fn a_script_listening_for_pointer_scrolled_hears_the_wheel() {
     app.tick(1.0 / 60.0);
     assert_eq!(said(&app), "scrolled 2.0;");
 }
+
+/// An import listens for `files_dropped` instead of asking each frame: a
+/// drop is heard at the pump of the frame it landed in, with its paths.
+#[test]
+fn a_script_listening_for_files_dropped_hears_the_paths() {
+    let script = format!(
+        "{TELL}pub fn init(this) {{ events::listen(this.node, \"files_dropped\"); }}\n\
+         pub fn on_files_dropped(this, paths) {{ tell(`dropped ${{paths[0]}}`); }}\n"
+    );
+    let (_dir, mut app) = app_with(&script);
+    app.tick(1.0 / 60.0);
+    {
+        let input = app.engine.resource::<balaur::input::InputSnapshot>();
+        let mut input = input.borrow_mut();
+        input.begin_frame();
+        input.file_drop_event("/tmp/a.png".into());
+    }
+    app.tick(1.0 / 60.0);
+    assert_eq!(said(&app), "dropped /tmp/a.png;");
+}

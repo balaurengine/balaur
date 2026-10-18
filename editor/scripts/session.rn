@@ -229,6 +229,7 @@ pub fn open(S, name) {
     S.session.listed_at = -1.0;
     crate::signals::changed(S, "recordings");
     S.lint.at = -1.0;
+    crate::lint::touched(S);
     crate::signals::changed(S, "problems");
     warn_if_stale(S, name);
     // Everything play does, because a replay that starts from a different

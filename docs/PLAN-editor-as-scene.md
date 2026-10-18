@@ -5,8 +5,8 @@
 > a number lives. 589 `ui::*` calls remain, §6 counts them, and §7 says why
 > the scene still states 78 sizes the theme should hold. §9, decided
 > 2026-10-18, is now the target and governs the rest: every panel its own
-> scene and script, nothing drawn, nothing polled. Its phase 0, the Scene
-> panel and the Inspector are built.
+> scene and script, nothing drawn, nothing polled. It is built, phases 0 to
+> 10, 2026-10-18.
 >
 > Written 2026-09-04 to answer "is the editor's UI a scene of nodes, or code?"
 > It was code, and §0 is what moving the views took.
@@ -797,7 +797,33 @@ Built 2026-10-18, phase 9.
   frame behind on a word.
 - **The box select** is a dashed node placed while the drag lasts.
 
-### 9.12 What is left
+### 9.12 Nothing drawn, nothing stepped
 
-1. Remove `draw_ui`, the pool and the `draw` nodes from the editor, and move
-   the self-tests off stepping every frame.
+Built 2026-10-18, phase 10.
+
+- **`draw_ui` is gone from the editor.** The transparent central panel it
+  opened is not needed: the shell's nodes take the pointer where they are,
+  and the stage is what they leave. `--state fontdemo`'s sheet is labels on
+  a node, filled when the stage is laid out. A showcase's acts run at the end
+  of the Editor's update, where the pass used to run them. A game's own
+  `draw_ui` is the game's, and the editor still lists it.
+- **The pool stays,** as the factory that makes a list's rows into nodes:
+  it is filled on a word, writes only what changed, and is never restated
+  each pass.
+- **A plugin's property editor** answers the row's controls and writes
+  through the closure it is handed, as an Inspector section answers rows.
+- **The self-tests** that take frames to settle register as they start
+  (`selftest::stepping`) and step a frame each until they finish; with none
+  under way the update steps nothing and asks for no frame.
+- **The update's polls are words.** A file dropped on the window is the new
+  `files_dropped`, said from no node. The lint sweep is a deadline a script
+  edit, a file reloaded or a change in the attached scripts sets, not a
+  fingerprint of every script taken each frame. What the engine warns about
+  a node is asked on the outline's word, a reload and play starting or
+  stopping, not every twenty frames. Whether the scene is 2D follows the
+  outline's word. The game's UI layer is placed when the stage or play moves.
+
+What the update still does on a frame it runs: the document's revision, the
+mirror's live nodes, the splash, a capture, a replay, a showcase, a running
+self-test, an animation preview, and the lint deadline. Under the lazy shell a
+frame runs when something asked for one.

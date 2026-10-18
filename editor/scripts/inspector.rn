@@ -1094,10 +1094,15 @@ fn prop_row(S, k, comp, prop, spec, data) {
 /// colour editors and nothing had to know both.
 fn draw_value(S, k, at, spec, value) {
     // A plugin's editor for this datatype wins over the built-in, which is
-    // what lets a project draw a curve or a colour ramp its own way.
+    // what lets a project show a curve or a colour ramp its own way. It hands
+    // back the row's controls, and writes through the closure it is given.
     match crate::plugins::property_editor(S, spec["type"]) {
-        Some(draw) => {
-            draw(S, k, at, spec, value);
+        Some(controls) => {
+            let write = |now| { write_at(S, at, now); };
+            push(S, #{
+                label: at.label, tooltip: row_tip(at, spec),
+                controls: util::vec(controls(S, k, spec, value, write)),
+            });
             return;
         }
         None => (),

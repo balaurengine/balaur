@@ -814,7 +814,7 @@ fn install_touch_api(m: &mut dyn Bindings<Engine>) {
         ("touches", &[], "", "Every finger on the screen as `{ id, x, y }`, oldest first, in the same pixels as `mouse_position`."),
         ("touches_just_started", &[], "", "The ids of the fingers that touched down this frame."),
         ("touches_just_ended", &[], "", "The ids of the fingers that lifted or were cancelled this frame."),
-        ("dropped_files", &[], "", "The absolute paths of files dropped onto the window this frame, in drop order; desktop only."),
+        ("dropped_files", &[], "", "The absolute paths of files dropped onto the window this frame, in drop order; desktop only. A script hears a drop with `events::listen(this.node, \"files_dropped\")`, as `on_files_dropped(paths)`."),
         ("typed", &[], "", "The characters typed this frame, in order: what a text field appends, where `key_just_pressed` says which key went down."),
         ("keyboard_height", &[], "", "How much of the window the on-screen keyboard covers, in pixels from the bottom: what a form moves up by. Zero with no keyboard up, and always zero on a desktop."),
         ("composing", &[], "", "The text an input method is still composing, for a field to show under its caret; empty once it commits into `typed`, and always empty without an input method."),

@@ -47,13 +47,17 @@ pub fn hear_boxes(S, editor) {
 }
 
 /// Have the Editor hear what the engine says from no node: a project file
-/// reloaded, a script stopped or let go, a paste no field took, and what the
-/// pointer did, which is when the viewport's tools look at it.
+/// reloaded, a script stopped or let go, a paste no field took, files
+/// dropped, and what the pointer did, which is when the viewport's tools
+/// look at it.
 pub fn hear_engine(editor) {
     events::listen(editor, "assets_reloaded");
     events::listen(editor, "debugger_stopped");
     events::listen(editor, "pasted");
-    for word in ["pointer_moved", "pointer_pressed", "pointer_released", "pointer_scrolled", "pointer_gestured"] {
+    for word in [
+        "pointer_moved", "pointer_pressed", "pointer_released", "pointer_scrolled", "pointer_gestured",
+        "files_dropped",
+    ] {
         events::listen(editor, word);
     }
 }
