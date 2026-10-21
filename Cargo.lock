@@ -621,6 +621,7 @@ dependencies = [
  "balaur_export",
  "balaur_import",
  "balaur_plugin",
+ "balaur_port",
  "balaur_script",
  "clap",
  "console_error_panic_hook",
@@ -871,6 +872,7 @@ version = "0.2.0"
 dependencies = [
  "rune",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]

@@ -4,11 +4,17 @@
 use anyhow::Result;
 use balaur::AppConfig;
 
-/// Boot a standard app in a scratch project and print what scripts can reach.
+/// Print what scripts can reach.
+pub(crate) fn dump_api() -> Result<()> {
+    println!("{}", serde_json::to_string_pretty(&api_value()?)?);
+    Ok(())
+}
+
+/// Boot a standard app in a scratch project and ask it what scripts can reach.
 ///
 /// The engine is asked, not the source: constants like `input.KEY_SPACE` are
 /// derived at registration, so parsing Rust would miss them.
-pub(crate) fn dump_api() -> Result<()> {
+pub(crate) fn api_value() -> Result<serde_json::Value> {
     let dir = std::env::temp_dir().join("balaur-api-probe");
     std::fs::create_dir_all(dir.join("scenes"))?;
     std::fs::write(
@@ -101,8 +107,7 @@ pub(crate) fn dump_api() -> Result<()> {
         api["bs"] = bs_api(&host.api());
         api["bs"]["unread"] = serde_json::to_value(host.unread_records())?;
     }
-    println!("{}", serde_json::to_string_pretty(&api)?);
-    Ok(())
+    Ok(api)
 }
 
 /// The engine as a `.bs` script compiles against it: each function's

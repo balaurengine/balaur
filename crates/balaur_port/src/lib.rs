@@ -1,4 +1,5 @@
-//! Translates the editor's Rune into Balaur Script, for a person to finish.
+//! Translates Rune scripts into Balaur Script, for a person to finish:
+//! `balaur port` for a project, `balaur-port` for files.
 //!
 //! The output is a draft: everything the translator could not map is marked
 //! with [`MARK`] in the `.bs` and listed in the file's report. See the
@@ -16,6 +17,7 @@ mod call;
 mod closure;
 mod cx;
 mod expr;
+pub mod files;
 mod format;
 mod item;
 mod literal;

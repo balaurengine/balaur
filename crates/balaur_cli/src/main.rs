@@ -35,6 +35,8 @@ mod import_web;
 mod jobs;
 mod lsp;
 mod new_project;
+#[cfg(not(target_family = "wasm"))]
+mod port_cmd;
 // The editor's start screen. A tab compiles it too: the editor's scripts name
 // `project::*` whatever they run on, and what a tab cannot do it answers for.
 #[cfg(feature = "editor")]
@@ -221,6 +223,20 @@ enum Command {
         /// `project.toml` says the same thing for every run.
         #[arg(long)]
         strict: bool,
+    },
+    /// Translate a project's Rune scripts into Balaur Script drafts: a `.bs`
+    /// beside each `.rn`, typed against this engine, with what could not be
+    /// mapped marked for a person to finish.
+    Port {
+        #[arg(default_value = ".")]
+        path: PathBuf,
+        /// Write the drafts, a report of each and a summary under this
+        /// directory instead.
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Replace a `.bs` already beside its `.rn`.
+        #[arg(long)]
+        force: bool,
     },
     /// Format every script in a project, or the files given, with Rune's own
     /// formatter.
@@ -495,6 +511,7 @@ fn dispatch(command: Command) -> Result<()> {
             dry_run,
         }),
         Command::Check { path, strict } => check::project(&path, strict),
+        Command::Port { path, out, force } => port_cmd::run(&path, out.as_deref(), force),
         Command::Test {
             path,
             frames,

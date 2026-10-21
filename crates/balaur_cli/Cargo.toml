@@ -92,6 +92,8 @@ tracing.workspace = true
 # Template download and self-update; the web build has neither, so wasm
 # skips the whole stack.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
+# `balaur port`: a project's Rune scripts as Balaur Script drafts.
+balaur_port.workspace = true
 # Reads the edited game's `project.toml` to hand its `[input]` to the engine.
 toml.workspace = true
 ureq.workspace = true
