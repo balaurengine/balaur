@@ -48,7 +48,7 @@ impl Spinner {
 | `fn f(s: &mut State)`: the caller's own value, written back when `f` returns | a reference kept in a field; `&mut` in an `async fn` |
 | `class State { .. }`: one counted object every holder shares, passed as its pointer; `C?` for a link | a cycle of classes freed (it leaks, as an array holding itself does) |
 | any typed value goes into an `any`, and an `any` into the typed place it is wanted in (`let n: int = a.n`); `a.key`, `a.key = v`, `for x in a`, `a == b` on `any`s; an `any` in `"{..}"` prints as its `text()` | |
-| `fn(&mut State, Row)` values: a callback the caller hands its state to | captures (decided 2026-10-21) |
+| `fn(&mut State, Row)` values: a callback the caller hands its state to; one goes into an `any` as its table slot and comes back as the `fn` type wanted | captures (decided 2026-10-21) |
 | `fn`, `impl` with an implicit mutable `self`, `const`, `extern fn` | lifetimes, `&`, `mut` (accepted, ignored) |
 | `if`/`else` as values, `while`, `loop`, `for i in a..b`, `for x in arr` | |
 | `int` meets `float` as `float` with no cast; `as` for the rest | |

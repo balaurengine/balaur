@@ -644,6 +644,19 @@ impl Editor {
         search::typed(self.S, id.as_str(), text.as_str());
     }
 
+    /// A pooled control's edit, for the function its spec's data names: see
+    /// `pool::on`.
+    pub fn handle(data: any, value: any) {
+        let f: fn(&mut State, any, any) = data.fn;
+        f(self.S, data, value);
+    }
+
+    /// The same for Enter in a field: see `pool::on_submit`.
+    pub fn handle_submit(data: any, value: any) {
+        let f: fn(&mut State, any, any) = data.submit;
+        f(self.S, data, value);
+    }
+
     /// Reload kept every field of the Editor whose name and type held; the
     /// theme is pushed again, since a theme edit is what a reload often is.
     pub fn on_hot_reload() {

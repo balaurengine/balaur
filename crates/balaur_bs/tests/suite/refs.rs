@@ -103,3 +103,34 @@ impl Editor {
     rt.drop_object(e);
     assert_eq!(rt.live(), base);
 }
+
+#[test]
+fn a_fn_value_rides_in_an_any_and_comes_back_typed() {
+    let src = r#"
+pub class State { log: str }
+fn picked(s: &mut State, data: any, value: any) {
+    s.log = "{s.log}{data.row}={value};";
+}
+fn handle(s: &mut State, data: any, value: any) {
+    let f: fn(&mut State, any, any) = data.fn;
+    f(s, data, value);
+}
+pub struct Editor { s: State, said: str }
+impl Editor {
+    pub fn click() {
+        self.s = State { log: "" };
+        let spec = map().with("on", "handle").with("data", map().with("fn", picked).with("row", "a"));
+        handle(self.s, spec.data, 3);
+        handle(self.s, spec.data, "b");
+        self.said = self.s.log;
+    }
+}
+"#;
+    let mut rt = run(src);
+    let base = rt.live();
+    let mut e = rt.object("Editor", &[]).unwrap();
+    rt.call_method(&mut e, "click", &[]).unwrap();
+    assert_eq!(rt.get(&e, "said"), Some(Value::Str("a=3;a=b;".into())));
+    rt.drop_object(e);
+    assert_eq!(rt.live(), base);
+}

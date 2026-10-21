@@ -68,6 +68,19 @@ pub fn sync_when(
     ui::fill_rows(host_path, build(S), label_w, stacked);
 }
 
+/// `spec`, whose edit `f` hears with `data` and the edit: what a closure over
+/// the locals in `data` was. The Editor's `handle` makes the call.
+pub fn on(spec: any, f: fn(&mut editor::State, any, any), data: any) -> any {
+    spec.with("on", "handle").with("data", data.with("fn", f))
+}
+
+/// `on` for Enter in a field, beside or instead of its edit.
+pub fn on_submit(spec: any, f: fn(&mut editor::State, any, any), data: any) -> any {
+    let held = spec.get("data");
+    let d = if held.is_nil() { data } else { held };
+    spec.with("on_submit", "handle_submit").with("data", d.with("submit", f))
+}
+
 /// Stop drawing the whole pool, for a panel that has nothing to show. What it
 /// was filled with goes back on when it shows again.
 pub fn hide(S: &mut editor::State, host_path: str) {
